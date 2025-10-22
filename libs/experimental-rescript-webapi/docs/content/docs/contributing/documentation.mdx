@@ -1,0 +1,46 @@
+---
+title: "Documentation"
+description: Learn more about the relevance of adding documentation to @rescript/webapi.
+slug: "07-documentation"
+---
+
+After the bindings are generated, all you got was a link to the MDN documentation.  
+While again, not that bad, it can be improved by adding the core of the binding to the documentation.
+And explain how it is supposed to be used.
+
+## Importance
+
+One could wonder how important documentation is in this case?  
+A link to MDN is enough, right? Well, not always.
+When a method has multiple overloads, it can be hard to understand which one to use.  
+By adding an example usage, the user can see easily see which one to use.
+It keeps the user inside the IDE and avoids context switching.
+
+## Structure
+
+The documentation for each binding should roughly follow this structure:
+
+- signature
+- key description (tip: check MDN for inspiration)
+- example usage
+- link to the MDN documentation
+
+For example, the `window.fetch` function could be documented as:
+
+````ReScript
+/*
+`fetch(string, init)`
+
+Starts the process of fetching a resource from the network,
+returning a promise that is fulfilled once the response is available.
+
+```res
+window->Window.fetch("https://rescript-lang.org")
+```
+
+[Read more on MDN](https://developer.mozilla.org/docs/Web/API/Window/fetch)
+*/
+@send
+external fetch: (window, string, ~init: requestInit=?)
+  => promise<response> = "fetch"
+````

@@ -1,0 +1,56 @@
+---
+import StarlightPage from "@astrojs/starlight/components/StarlightPage.astro";
+import { Tabs, TabItem, Code } from "@astrojs/starlight/components";
+import { testFiles } from "../utils";
+
+const frontmatter = {
+  title: "Examples",
+};
+
+const headings = testFiles.map(({ name }) => ({
+  depth: 2,
+  slug: name,
+  text: name,
+}));
+---
+
+<StarlightPage frontmatter={frontmatter} headings={headings}>
+  <p>
+    The best example of usage of these bindings are the <a href="./06-testing"
+      >tests</a
+    >. <br />
+    These typically contain tweaks made to the generated bindings to make them more
+    ergonomic.
+  </p>
+  {
+    testFiles.map(({ source, output, name }) => {
+      return (
+        <div class="example" id={name}>
+          <h2>{name}</h2>
+          <Tabs>
+            <TabItem label="ReScript">
+              <Code code={source} lang="ReScript" frame="none" />
+            </TabItem>
+            <TabItem label="JS Output">
+              <Code code={output} lang="js" frame="none" />
+            </TabItem>
+          </Tabs>
+        </div>
+      );
+    })
+  }
+</StarlightPage>
+<style>
+  .example {
+    margin-block: 4rem;
+
+    &:first-of-type {
+      margin-top: 4rem;
+    }
+
+    & h2 {
+      margin-bottom: 1rem;
+      font-size: var(--sl-text-2xl);
+    }
+  }
+</style>

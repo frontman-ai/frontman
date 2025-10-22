@@ -1,0 +1,21 @@
+{
+  "version": "0.0.0",
+  "name": "@rescript/webapi",
+  "namespace": "WebAPI",
+  "sources": [
+    {
+      "dir": "src",
+      "subdirs": true
+    },
+    {
+      "dir": "tests",
+      "subdirs": true,
+      "type": "dev"
+    }
+  ],
+  "package-specs": {
+    "module": "esmodule",
+    "in-source": true
+  },
+  "suffix": ".js"
+}

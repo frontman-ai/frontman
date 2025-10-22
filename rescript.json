@@ -1,7 +1,7 @@
 {
 	"name": "ask-the-llm",
 	"namespace": true,
-	"dependencies": ["@ask-the-llm/agent", "@ask-the-llm/bindings", "@ask-the-llm/nextjs", "@ask-the-llm/client"],
+	"dependencies": ["@ask-the-llm/agent", "@ask-the-llm/bindings", "@ask-the-llm/nextjs", "@ask-the-llm/client", "@rescript/webapi"],
 	"package-specs": {
 		"module": "esmodule",
 		"in-source": true

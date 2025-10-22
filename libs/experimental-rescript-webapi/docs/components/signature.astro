@@ -1,0 +1,49 @@
+---
+import SignatureItem from "./signatureItem.astro";
+
+
+function tokenize(input) {
+  // Split by special characters while keeping them
+  const regex = /([<>,])/g;
+  return input
+    .split(regex)
+    .map((token) => token.trim())
+    .filter(Boolean);
+}
+
+function parseTokens(tokens) {
+  let index = 0;
+
+  const parseNode = () => {
+    const path = tokens[index++]; // Read the current token and increment index
+    let genericTypeParameters = [];
+
+    if (tokens[index] === "<") {
+      // Check for generics
+      index++; // Consume "<"
+      while (tokens[index] !== ">") {
+        genericTypeParameters.push(parseNode());
+        if (tokens[index] === ",") index++; // Consume ","
+      }
+      index++; // Consume ">"
+    }
+
+    return { path, genericTypeParameters };
+  };
+
+  return parseNode();
+}
+
+function parse(input) {
+  const tokens = tokenize(input);
+  return parseTokens(tokens);
+}
+
+
+const { signature, typesInOwnModule } = Astro.props;
+const tree = parse(signature);
+---
+
+<div class="signature">
+  {(<SignatureItem typesInOwnModule={typesInOwnModule} item={tree} />)}
+</div>

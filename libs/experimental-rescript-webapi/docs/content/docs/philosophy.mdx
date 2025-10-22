@@ -1,0 +1,61 @@
+---
+title: Design Philosophy
+description: Learn more about the design philosophy of @rescript/webapi.
+slug: "design-philosophy"
+---
+
+The core idea of these ReScript bindings is that each interface is modeled as a record type. Where possible, inheritance is represented using record spreading, and methods are modeled as functions in a separate module. This design allows for greater familiarity with the underlying JavaScript APIs, making it more friendly for newcomers.
+
+## ReScript v12
+
+These bindings utilize new features introduced in ReScript v12; thus, they are not compatible with older versions of ReScript.
+
+## Web APIs
+
+The bindings are generated from the [MDN Web API documentation](https://developer.mozilla.org/en-US/docs/Web/API). This project aims to reflect a 1:1 mapping of the Web API to the ReScript bindings whenever possible.
+
+In other words, if you are searching for a specific JavaScript binding, begin your journey at the [MDN Web API documentation](https://developer.mozilla.org/en-US/docs/Web/API) and determine which module contains your sample. Ensure that the module is available in the bindings by checking the specific API. Please [open an issue](https://github.com/rescript-lang/experimental-rescript-webapi/issues/new/choose) if you require an API that is not yet present.
+
+Each API will have its interface and auxiliary types in a module named after the API, suffixed with `API` to prevent collisions with the type module.
+
+```ReScript
+open WebAPI.Global
+open WebAPI.DOMAPI
+
+let myElement: element = document->Document.createElement( ~localName = "div")
+```
+
+## Interfaces
+
+Since ReScript does not have the concept of classes or interfaces, the bindings represent the interfaces as record types. These record types can inherit properties from a "base" type through spreading. This can only be done if there are no circular references in the inheritance chain. If circular references exist, spreading is avoided, and the base properties are duplicated instead.
+
+## Methods
+
+Methods are modeled as functions in a separate module. The idea is that these will be accessible via the `->` operator. For better discoverability, [tooling enhancements](https://github.com/rescript-lang/rescript-vscode/pull/1054) are planned to simplify finding the correct method.
+
+Inherited methods are duplicated in the inheriting module to eliminate the need to cast the type to the base type.
+
+### Overloads
+
+JavaScript supports function overloads, where a function can have multiple signatures. In ReScript, this is not possible, and a method can have multiple bindings with slightly different names. By entering the correct name, tooling should detect all variations of the method.
+
+## Type Conversion
+
+In some cases, type conversion will be required. Subtypes can safely be cast to their base type using conversion helpers within their module.
+
+```ReScript
+open WebAPI
+
+let element: element = document->Document.createElement( ~localName = "div")
+let node: node = element->Element.asNode
+```
+
+Any other conversions can be performed using the `Prelude.unsafeConversation` helper. This should be done with caution, as it can lead to runtime errors.
+
+```ReScript
+open WebAPI
+
+let element: element = document->Document.createElement( ~localName = "div")
+// This is potentially unsafe, as the type system cannot guarantee the conversion
+let divElement: htmlDivElement = element->Prelude.unsafeConversation
+```

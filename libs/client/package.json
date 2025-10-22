@@ -4,8 +4,15 @@
 	"version": "0.0.0",
 	"type": "module",
 	"dependencies": {
+		"@ask-the-llm/agent": "*",
+		"@medv/finder": "^4.0.2",
+		"sury": "catalog:",
+		"@radix-ui/react-icons": "^1.3.0",
 		"@rescript/react": "^0.14.0",
-		"vite": "^7.1.12"
+		"vite": "^7.1.12",
+		"@rescript/webapi": "catalog:",
+		"@zumer/snapdom": "^1.9.11",
+		"dom-element-to-component-source": "^0.1.4"
 	},
 	"peerDependencies": {
 		"react": "^19.2.0",

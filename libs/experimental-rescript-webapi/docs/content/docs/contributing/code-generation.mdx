@@ -1,0 +1,86 @@
+---
+title: Code Generation
+description: Learn more about the code generation process for @rescript/webapi.
+slug: "04-code-generation"
+---
+
+The original bindings were generated using a modified version of [TypeScript-DOM-lib-generator](https://github.com/microsoft/TypeScript-DOM-lib-generator).
+These bindings were a great starting point, but they are not perfect.
+It is more than likely that you will need to **tweak the generated bindings by hand** to make them more idiomatic to ReScript.
+
+For example the `window.fetch` function was generated as:
+
+```ReScript
+/**
+[Read more on MDN](https://developer.mozilla.org/docs/Web/API/Window/fetch)
+*/
+@send
+external fetch: (window, ~input: request, ~init: requestInit=?)
+  => promise<response> = "fetch"
+
+/**
+[Read more on MDN](https://developer.mozilla.org/docs/Web/API/Window/fetch)
+*/
+@send
+external fetch2: (window, ~input: string, ~init: requestInit=?)
+  => promise<response> = "fetch"
+```
+
+While not that bad and usable, it can be improved:
+
+- Rename `fetch2` to `fetch` because it is the more common usage of the function.
+- Rename `fetch` to `fetchWithRequest` for clarity that this is the "overload" with a `Request` object.
+- Consider removing the named `~input` and `~init` arguments and use positional arguments instead.
+  Motivation: If the function does not have any parameters with the same type, it is more ergonomic to use positional arguments.
+  This heuristic is not set in stone and can be adjusted based on the specific function.
+- The documentation can be improved.
+
+```ReScript
+/** TODO: add better docs */
+@send
+external fetch: (window, string, ~init: requestInit=?)
+  => promise<response> = "fetch"
+
+/** TODO: add better docs */
+@send
+external fetchWithRequest: (window, request, ~init: requestInit=?)
+  => promise<response> = "fetch"
+```
+
+Once these changes are made, the bindings can be tested and then committed to the repository.
+The generation does no longer happen automatically, so manual improvements will not be overwritten.
+
+## Sandboxed Code Generation
+
+Not every API was covered by the TypeScript-DOM-lib-generator.  
+Potentially, you want to add a new API to the bindings and star from code generation.
+
+In [emitter.ts](https://github.com/rescript-lang/experimental-rescript-webapi/blob/main/tools/TypeScript-DOM-lib-generator/src/build/emitter.ts),
+you can override the `interfaceHierarchy` with any new interface or type you want to add.
+
+```typescript
+interfaceHierarchy = [
+  {
+    name: "Temp",
+    entries: [
+      enums(["WebGLPowerPreference"]),
+      dictionaries([
+        "ImageBitmapRenderingContextSettings",
+        "WebGLContextAttributes",
+      ]),
+    ],
+    opens: [],
+  },
+];
+```
+
+After running the generator (in `tools/TypeScript-DOM-lib-generator`):
+
+```shell
+npm run build
+```
+
+All the generated files will be in the `tmp` folder. You can use this as inspiration for your own bindings.
+
+To figure out if you need `enums`, `dictionaries`, or `interfaces`, you can look at the [JSON dump](https://github.com/rescript-lang/experimental-rescript-webapi/blob/main/tools/TypeScript-DOM-lib-generator/dom-dump.json) file
+and see how the TypeScript-DOM-lib-generator represents the shape you are after.

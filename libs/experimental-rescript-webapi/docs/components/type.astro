@@ -1,0 +1,67 @@
+---
+import * as path from "node:path";
+import { existsSync } from "node:fs";
+import { Code } from "@astrojs/starlight/components";
+import Record from "./record.astro";
+import { createTypeModuleLink } from "../utils";
+
+const { type, typesInOwnModule, filePath, link } = Astro.props;
+
+function showRecord(details) {
+  return details && details.kind === "record" && details.items.length > 0;
+}
+
+function getModuleFileName(typeName) {
+  return `${typeName[0].toUpperCase()}${typeName.slice(1)}`;
+}
+
+/**
+ * Check if there is a file representing the module for the type.
+ * The location to be checked is a sub directory with the same name as the current file type.
+ * @param {string} typeName
+ * @param {string} filePath
+ * @returns {boolean}
+ */
+function showModule(typeName, filePath) {
+  const moduleFileName = `${getModuleFileName(typeName)}.res`;
+  const potentialPath = path.join(filePath.replace(".res", ""), moduleFileName);
+  return existsSync(potentialPath);
+}
+---
+
+<div class="rescript_type">
+  <h3 id={type.name}>{type.name}</h3>
+  <div set:html={type.documentation} />
+  <Code lang="ReScript" code={type.signature} />
+  {
+    showRecord(type.detail) ? (
+      <Record
+        name={type.name}
+        typesInOwnModule={typesInOwnModule}
+        {...type.detail}
+      />
+    ) : null
+  }
+  {
+    showModule(type.name, filePath) && (
+      <>
+        <h4>Module</h4>
+        <p>
+          There are methods and helpers defined in{" "}
+          <a
+            href={`${import.meta.env.BASE_URL}/${createTypeModuleLink(link, type.name)}`}
+          >
+            {getModuleFileName(type.name)}
+          </a>
+          .
+        </p>
+      </>
+    )
+  }
+</div>
+<style>
+    .rescript_type {
+      margin-block: 2rem;
+    }
+  </style>
+  

@@ -1,0 +1,49 @@
+---
+import { micromark } from "micromark";
+import Signature from "./signature.astro";
+const { name, items, typesInOwnModule } = Astro.props;
+---
+
+<h4>Record fields</h4>
+{
+  items.map((item) => {
+    const documentation =
+      item.docstrings && micromark(item.docstrings.join("\n"));
+
+    return (
+      <div class="record_field">
+        <h5 id={`${name}_${item.name}`}>{item.name}</h5>
+        <div class="type">
+          <Signature
+            signature={item.signature}
+            typesInOwnModule={typesInOwnModule}
+          />
+        </div>
+        {documentation && <div class="doc" set:html={documentation} />}
+      </div>
+    );
+  })
+}
+
+<style>
+  .record_field {
+    display: grid;
+    grid-template-rows: repeat(2, auto);
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.5rem;
+    border-bottom: 1px solid var(--sl-color-gray-7);
+
+    & .type {
+      justify-self: end;
+      color: var(--sl-color-accent-low);
+      margin-top: 0;
+    }
+
+    & .doc {
+      margin-top: 0;
+      padding-bottom: 0.5rem;
+      grid-column: 1 / -1;
+      grid-row: 2;
+    }
+  }
+</style>

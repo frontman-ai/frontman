@@ -1,0 +1,95 @@
+---
+title: Getting started
+description: Learn more about @rescript/webapi.
+hero:
+  title: "ReScript WebAPI"
+  tagline: ReScript bindings for everything you need in the browser.
+  actions:
+    - text: Let's go!
+      link: "#installation"
+      icon: right-arrow
+    - text: View on GitHub
+      link: https://github.com/rescript-lang/experimental-rescript-webapi
+      icon: external
+      variant: minimal
+      attrs:
+        rel: me
+tableOfContents: false
+---
+
+import { Tabs, TabItem, Code } from "@astrojs/starlight/components";
+
+[![NPM Version](https://img.shields.io/npm/v/@rescript/webapi/experimental)](https://www.npmjs.com/package/@rescript/webapi)
+
+## Installation
+
+Install the package using your favorite package manager:
+
+<Tabs syncKey="package manager">
+  <TabItem label="npm">
+    <Code
+      lang="shell"
+      frame="none"
+      code="npm i @rescript/webapi@experimental"
+    />
+  </TabItem>
+  <TabItem label="bun">
+    <Code
+      lang="shell"
+      frame="none"
+      code="bun i @rescript/webapi@experimental"
+    />
+  </TabItem>
+</Tabs>
+
+and add `@rescript/webapi` to your `rescript.json`:
+
+export const rescriptJson = `
+{
+  "bs-dependencies": [
+    "@rescript/webapi",
+  ],
+  "bsc-flags": [
+    "-open WebAPI.Global"
+  ]
+}
+`;
+
+<Code lang="json" code={rescriptJson} ins={[3, 6]}></Code>
+
+## Usage
+
+After installing the package , you can use bindings for the various Web APIs as defined in [MDN](https://developer.mozilla.org/en-US/docs/Web/API).
+
+export const rescriptSample = `
+// Note that this only works when you added the \`-open WebAPI.Global\` bsc flag.
+let location = window.location
+
+// Access properties using \`.\`
+let href = location.href
+
+// Invoke methods using the \`->TypeModule.method\`
+location->Location.reload
+`;
+
+export const compiledSample = `
+let location = window.location;
+
+let href = location.href;
+
+location.reload();
+
+export {
+  location,
+  href,
+}
+`;
+
+<Tabs>
+  <TabItem label="ReScript">
+    <Code lang="ReScript" frame="none" code={rescriptSample}></Code>
+  </TabItem>
+  <TabItem label="JavaScript">
+    <Code lang="js" frame="none" code={compiledSample} />
+  </TabItem>
+</Tabs>

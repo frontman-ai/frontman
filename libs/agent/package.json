@@ -7,6 +7,7 @@
 		"@ai-sdk/openai": "^2.0.53",
 		"@rescript/webapi": "catalog:",
 		"ai": "^5.0.80",
+		"dotenv": "catalog:",
 		"sury": "catalog:",
 		"sury-ppx": "^11.0.0-alpha.2",
 		"zod": "^4.1.12"

@@ -1,0 +1,59 @@
+---
+import { apiModules, getDoc } from "../utils";
+import StarlightPage from "@astrojs/starlight/components/StarlightPage.astro";
+import Value from "./value.astro";
+import Type from "./type.astro";
+
+const { moduleName, filePath, link } = Astro.props;
+
+const { types, typesInOwnModule, typeHeadings, values, valueHeadings } =
+  await getDoc(filePath);
+
+const frontmatter = {
+  title: moduleName,
+};
+
+const headings = [];
+if (types.length > 0) {
+  headings.push({
+    depth: 2,
+    slug: "types",
+    text: "Types",
+  });
+  headings.push(...typeHeadings);
+}
+
+if (values.length > 0) {
+  headings.push({
+    depth: 2,
+    slug: "values",
+    text: "Values",
+  });
+  headings.push(...valueHeadings);
+}
+---
+<StarlightPage frontmatter={frontmatter} headings={headings}>
+    {
+      types.length > 0 && (
+        <>
+          <h2 id="types">Types</h2>
+          {types.map((type) => (
+            <Type
+              type={type}
+              typesInOwnModule={typesInOwnModule}
+              filePath={filePath}
+              link={link}
+            />
+          ))}
+        </>
+      )
+    }
+    {
+      values.length > 0 && (
+        <>
+          <h2 id="values">Values</h2>
+          {values.map((value) => <Value value={value}  typesInOwnModule={typesInOwnModule} />)}
+        </>
+      )
+    }
+</StarlightPage>
