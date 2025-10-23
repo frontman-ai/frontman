@@ -74,6 +74,13 @@ let isAssistantMessage = message => {
   }
 }
 
+let isToolMessage = message => {
+  switch message {
+  | Tool(_) => true
+  | _ => false
+  }
+}
+
 let hasToolCalls = (message: t): bool => {
   switch message {
   | Assistant({content: List(parts), _}) =>

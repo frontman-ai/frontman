@@ -4,8 +4,7 @@ S.enableJson()
 module Bindings = AskTheLlmBindings
 
 module Tools = {
-  module Filesystem = Agent__Tools__Filesystem
-  module Registry = Agent__Tools__Registry
+  module Registry = Agent__ToolsRegistry
 }
 module Adapters = {
   module Vercel = Agent__Adapters__Vercel
@@ -27,11 +26,10 @@ type t = {
   eventBus: EventBus.t,
   tasks: Agent__Tasks.t,
   llm: Adapters.Vercel.t,
+  config: Agent__Config.t,
+  toolRegistry: Agent__ToolsRegistry.t,
 }
-type config = {
-  projectRoot: string,
-  apiKey: string,
-}
+type config = Agent__Config.t
 
 let make = (config: config) => {
   Console.log(`Initializing agent for project: ${config.projectRoot}`)
@@ -39,7 +37,7 @@ let make = (config: config) => {
 
   let model = Agent__Bindings__Vercel.OpenAI.gpt4o(config.apiKey)
 
-  let toolRegistry = Agent__Tools__Registry.make(config.projectRoot)
+  let toolRegistry = Agent__ToolsRegistry.make()
   let llm = Agent__Adapters__Vercel.makeLLM(~model, ~toolRegistry)
 
   Console.log(`Agent initialized with ${toolRegistry->Array.length->Int.toString} tools`)
@@ -49,6 +47,8 @@ let make = (config: config) => {
     eventBus,
     tasks: Agent__Tasks.make(),
     llm,
+    config,
+    toolRegistry,
   }
 }
 
@@ -103,12 +103,37 @@ let run = (agent: t) => {
 
         // Check if message has tool calls
         if message->Agent__Task__Message.hasToolCalls {
-          Console.log("=== Assistant message has tool calls - continuing iteration")
-          Agent__AgenticLoop.runIteration(
-            agent.llm,
-            (taskId, cmd) => executeTaskCommand(agent, taskId, cmd),
-            task,
-          )->ignore
+          Console.log("=== Assistant message has tool calls - executing tools")
+
+          // Execute tools as async side effect
+          (
+            async () => {
+              try {
+                // Extract tool calls and execute them
+                let toolCalls = Agent__ToolExecutor.extractToolCalls(message)
+                Console.log(`=== Executing ${toolCalls->Array.length->Int.toString} tool calls`)
+
+                let toolMessage = await Agent__ToolExecutor.executeToolCalls(
+                  agent.config,
+                  agent.toolRegistry,
+                  task.id,
+                  toolCalls,
+                )
+
+                Console.log2("=== Tool execution complete, results:", toolMessage)
+
+                // Add tool message to task history via command
+                let _ = executeTaskCommand(
+                  agent,
+                  task.id,
+                  TaskCommands.AddMessage({message: toolMessage}),
+                )
+              } catch {
+              | exn => Console.error2("=== Tool execution failed with exception:", exn)
+                // TODO: Implement proper error handling
+              }
+            }
+          )()->ignore
         } else if message->Agent__Task__Message.isAssistantMessage {
           // Assistant message without tool calls - complete task if still working
           switch task.status {
@@ -122,8 +147,16 @@ let run = (agent: t) => {
             }
           | _ => Console.log("=== Task not in Working status, skipping completion")
           }
+        } // Tool message added - continue iteration
+        else if message->Agent__Task__Message.isToolMessage {
+          Console.log("=== Tool message added - continuing iteration")
+          Agent__AgenticLoop.runIteration(
+            agent.llm,
+            (taskId, cmd) => executeTaskCommand(agent, taskId, cmd),
+            task,
+          )->ignore
         }
-        // Ignore System, User, and Tool messages
+        // Ignore System and User messages
       }
     | TaskEvent(_, Completed(_)) => Console.log("=== Task completed")
     | TaskEvent(_, Failed(_)) => Console.log("=== Task failed")

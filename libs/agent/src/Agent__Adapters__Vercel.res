@@ -24,22 +24,19 @@ type streamEvent = Bindings.streamPart
 
 // ============ Tool Conversion ============
 
-let toVercelTools = (registry: Agent__Tools__Registry.t): Dict.t<Bindings.toolDef> => {
+let toVercelTools = (registry: Agent__ToolsRegistry.t): Dict.t<Bindings.toolDef> => {
   let vercelTools = Dict.make()
 
   registry->Array.forEach(tool => {
-    switch tool {
-    | Agent__Tools__Registry.Tool({name, description, inputSchema}) =>
-      let jsonSchemaObj = inputSchema->S.toJSONSchema
-      let aiSchemaWrapped = Bindings.jsonSchema(jsonSchemaObj)
-      let toolDef: Bindings.toolDef = {
-        description,
-        parameters: aiSchemaWrapped,
-        inputSchema: aiSchemaWrapped,
-      }
-
-      vercelTools->Dict.set(name, toolDef)
+    module Tool = unpack(tool: Agent__Tool.T)
+    let aiSchemaWrapped = Bindings.jsonSchema(Tool.inputSchema->S.toJSONSchema)
+    let toolDef: Bindings.toolDef = {
+      description: Tool.description,
+      parameters: aiSchemaWrapped,
+      inputSchema: aiSchemaWrapped,
     }
+
+    vercelTools->Dict.set(Tool.name, toolDef)
   })
 
   vercelTools
@@ -230,7 +227,7 @@ let messageFromVercel = (msg: Bindings.modelMessage, ~taskId: option<Agent__Task
 
 // ============ LLM Creation ============
 
-let makeLLM = (~model: Bindings.languageModel, ~toolRegistry: Agent__Tools__Registry.t): t => {
+let makeLLM = (~model: Bindings.languageModel, ~toolRegistry: Agent__ToolsRegistry.t): t => {
   let tools = toVercelTools(toolRegistry)
   {model, tools}
 }
