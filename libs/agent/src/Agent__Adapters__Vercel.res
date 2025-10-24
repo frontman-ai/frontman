@@ -143,7 +143,7 @@ let messageFromVercel = (msg: Bindings.modelMessage, ~taskId: option<Agent__Task
   Agent__Task__Message.t,
 > => {
   switch msg {
-  | SystemMessage({content, _}) =>
+  | SystemMessage({content}) =>
     Some(
       Agent__Task__Message.System({
         taskId,
@@ -152,7 +152,7 @@ let messageFromVercel = (msg: Bindings.modelMessage, ~taskId: option<Agent__Task
       }),
     )
 
-  | UserMessage({content: String(text), _}) =>
+  | UserMessage({content: String(text)}) =>
     Some(Agent__Task__Message.User({?taskId, content: String(text)}))
 
   | UserMessage({content: Parts(parts), _}) => {
@@ -160,7 +160,7 @@ let messageFromVercel = (msg: Bindings.modelMessage, ~taskId: option<Agent__Task
       Some(Agent__Task__Message.User({?taskId, content: List(domainParts)}))
     }
 
-  | AssistantMessage({content: String(text), _}) =>
+  | AssistantMessage({content: String(text)}) =>
     Some(
       Agent__Task__Message.Assistant({
         taskId,
@@ -168,7 +168,7 @@ let messageFromVercel = (msg: Bindings.modelMessage, ~taskId: option<Agent__Task
       }),
     )
 
-  | AssistantMessage({content: Parts(parts), _}) => {
+  | AssistantMessage({content: Parts(parts)}) => {
       let domainParts = parts->Array.map(part => {
         switch part {
         | Bindings.AssistantPart.Text({text}) =>
@@ -189,34 +189,8 @@ let messageFromVercel = (msg: Bindings.modelMessage, ~taskId: option<Agent__Task
       )
     }
 
-  | ToolMessage({content: Parts(parts), _}) =>
-    // let domainParts: array<Part.ToolResultPart.t> = parts->Array.map(part => {
-    //   let Bindings.ToolResultPart.ToolResult(record) = part
-    //   let domainOutput = switch record.output {
-    //   | Bindings.ToolResultPart.Text({value}) => Part.ToolResultPart.Output.Text(value)
-    //   | Bindings.ToolResultPart.Json({value}) => Part.ToolResultPart.Output.JSON(value)
-    //   | Bindings.ToolResultPart.ErrorText({value}) => Part.ToolResultPart.Output.ErrorText(value)
-    //   | Bindings.ToolResultPart.ErrorJson({value}) => Part.ToolResultPart.Output.ErrorJSON(value)
-    //   | Bindings.ToolResultPart.Content({value}) => {
-    //       let contentParts = value->Array.map(contentPart => {
-    //         switch contentPart {
-    //         | Bindings.ToolResultPart.TextContent({text}) =>
-    //           Part.ToolResultPart.Content.Text(text)
-    //         | Bindings.ToolResultPart.MediaContent({data, mediaType}) =>
-    //           Part.ToolResultPart.Content.Media({data, mediaType})
-    //         }
-    //       })
-    //       Part.ToolResultPart.Output.Content(contentParts)
-    //     }
-    //   }
-    //   {
-    //     Part.ToolResultPart.toolCallId: record.toolCallId,
-    //     toolName: record.toolName,
-    //     output: domainOutput,
-    //     providerOptions: record.providerOptions,
-    //   }
-    // })
-    // Agent__Task__Message.Tool({taskId, content: domainParts})
+  | ToolMessage({content: Parts(parts)}) =>
+    %todo("we need to handle this? catch it?")
     Console.error2(
       "We're executing tools ourselves, but for some reason Vercel returned a toolResult msg",
       parts,
@@ -265,5 +239,6 @@ let streamText = async (llm: t, messages: array<Agent__Task__Message.t>): stream
     model: llm.model,
     messages,
     tools: llm.tools,
+    maxSteps: 1, // Prevent Vercel from auto-executing tools - we handle execution via Reactor
   })
 }
