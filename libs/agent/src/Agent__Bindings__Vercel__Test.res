@@ -20,6 +20,8 @@ type generateResult = {
 }
 
 // Types for doStream response
+// Note: simulateReadableStream passes chunks through as-is, so they need to match
+// the format expected by fullStream consumers (args: JSON.t, not input: string)
 @tag("type")
 type streamChunk =
   | @as("text-start") TextStart({id: string})

@@ -169,16 +169,19 @@ let messageFromVercel = (msg: Bindings.modelMessage, ~taskId: option<Agent__Task
     )
 
   | AssistantMessage({content: Parts(parts)}) => {
+      Console.log2("Converting AssistantMessage with parts:", parts)
       let domainParts = parts->Array.map(part => {
         switch part {
         | Bindings.AssistantPart.Text({text}) =>
           Agent__Task__Message.Assistant.Text({content: text})
-        | Bindings.AssistantPart.ToolCall({toolCallId, toolName, args}) =>
-          Agent__Task__Message.Assistant.ToolCall({
-            toolCallId,
-            toolName,
-            args,
-          })
+        | Bindings.AssistantPart.ToolCall({toolCallId, toolName, args}) => {
+            Console.log3("ToolCall part:", toolName, args)
+            Agent__Task__Message.Assistant.ToolCall({
+              toolCallId,
+              toolName,
+              args,
+            })
+          }
         }
       })
       Some(
@@ -190,9 +193,10 @@ let messageFromVercel = (msg: Bindings.modelMessage, ~taskId: option<Agent__Task
     }
 
   | ToolMessage({content: Parts(parts)}) =>
-    %todo("we need to handle this? catch it?")
+    // We execute tools ourselves via Reactor, but Vercel is still returning tool results
+    // This shouldn't happen with maxSteps: 1, but we filter them out anyway
     Console.error2(
-      "We're executing tools ourselves, but for some reason Vercel returned a toolResult msg",
+      "Vercel returned tool result message (filtered out):",
       parts,
     )
     None

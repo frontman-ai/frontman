@@ -191,7 +191,7 @@ describe("sendMessage flow - multiple tool calls", () => {
     let mockModel = Test.makeMultipleToolCallsMock(
       ~toolCalls=[
         ("call_1", "listFiles", JSON.parseOrThrow(`{"relative_dir": "."}`)),
-        ("call_2", "readFile", JSON.parseOrThrow(`{"file_path": "./README.md"}`)),
+        ("call_2", "listFiles", JSON.parseOrThrow(`{"relative_dir": "./src"}`)),
       ],
     )
 
@@ -219,7 +219,7 @@ describe("sendMessage flow - multiple tool calls", () => {
 
     // Send user message
     let userMessage = Message.User({
-      content: String("Check the directory and README"),
+      content: String("List files in current and src directories"),
     })
     await agent->Agent.sendMessage(userMessage)
 

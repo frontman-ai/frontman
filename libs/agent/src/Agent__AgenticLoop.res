@@ -25,6 +25,7 @@ let runIteration = async (llm: Adapter.t, task: Agent__Task.t): array<Agent__Tas
   // Get LLM generated messages
   let response = await result->Adapter.getResponse
   Console.log2("Response messages count:", response.messages->Array.length)
+  Console.log2("Response messages:", response.messages)
 
   // Convert messages to domain commands, filtering out None (tool results we don't want)
   let commands =
