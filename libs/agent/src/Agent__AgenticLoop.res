@@ -4,12 +4,8 @@
 
 module Adapter = Agent__Adapters__Vercel
 
-// Run a single iteration: call LLM with current history and add response messages
-let runIteration = async (
-  llm: Adapter.t,
-  executeCommand: (Agent__Task__Id.t, Agent__Task__Commands.t) => result<Agent__Task.t, string>,
-  task: Agent__Task.t,
-) => {
+// Run a single iteration: call LLM with current history and return commands
+let runIteration = async (llm: Adapter.t, task: Agent__Task.t): array<Agent__Task.cmd> => {
   Console.log("=== Running single LLM iteration")
 
   let history = task->Agent__Task.getHistory
@@ -26,18 +22,18 @@ let runIteration = async (
     }
   })
 
-  // Add LLM generated messages to task history
+  // Get LLM generated messages
   let response = await result->Adapter.getResponse
   Console.log2("Response messages count:", response.messages->Array.length)
 
-  // Convert ALL messages (assistant + tool) to domain format and add to task
-  response.messages->Array.forEach(vercelMsg => {
-    let domainMessage = Adapter.messageFromVercel(vercelMsg)->Option.getOrThrow
-    switch executeCommand(task.id, Agent__Task__Commands.AddMessage({message: domainMessage})) {
-    | Ok(_) => ()
-    | Error(e) => Console.error(`Failed to add message: ${e}`)
-    }
-  })
+  // Convert messages to domain commands, filtering out None (tool results we don't want)
+  let commands =
+    response.messages
+    ->Array.filterMap(vercelMsg => Adapter.messageFromVercel(vercelMsg))
+    ->Array.map(domainMessage => {
+      Agent__Task.AddMessage({task, message: domainMessage})
+    })
 
   Console.log("=== Iteration complete")
+  commands
 }
