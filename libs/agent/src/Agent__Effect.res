@@ -35,6 +35,9 @@ let executeSingleTool = async (
   toolRegistry: Agent__ToolsRegistry.t,
   toolCall: ToolCallPart.t,
 ): ToolResultPart.t => {
+  Console.log2("=== Executing tool:", toolCall.toolName)
+  Console.log2("=== Tool args:", toolCall.args)
+
   let makeResult = (output: ToolResultPart.Output.t): ToolResultPart.t => {
     toolCallId: toolCall.toolCallId,
     toolName: toolCall.toolName,
@@ -53,13 +56,21 @@ let executeSingleTool = async (
       module Tool = unpack(tool: Agent__Tool.T)
 
       switch Tool.decodeInput(toolCall.args) {
-      | Error(error) =>
-        makeResult(ErrorText(`Invalid arguments for tool '${toolCall.toolName}': ${error.message}`))
+      | Error(error) => {
+          Console.log2("=== Tool execution failed (decode error):", error.message)
+          makeResult(ErrorText(`Invalid arguments for tool '${toolCall.toolName}': ${error.message}`))
+        }
       | Ok(input) =>
         try {
           switch await Tool.execute(config, input) {
-          | Error(msg) => makeResult(ErrorText(msg))
-          | Ok(output) => makeResult(JSON(Tool.encodeOutput(output)))
+          | Error(msg) => {
+              Console.log2("=== Tool execution failed:", msg)
+              makeResult(ErrorText(msg))
+            }
+          | Ok(output) => {
+              Console.log2("=== Tool execution succeeded:", toolCall.toolName)
+              makeResult(JSON(Tool.encodeOutput(output)))
+            }
           }
         } catch {
         | exn => {
@@ -68,6 +79,7 @@ let executeSingleTool = async (
               ->JsExn.fromException
               ->Option.flatMap(JsExn.message)
               ->Option.getOr("Unknown exception")
+            Console.log2("=== Tool execution exception:", msg)
             makeResult(ErrorText(`Unexpected error executing tool '${toolCall.toolName}': ${msg}`))
           }
         }
