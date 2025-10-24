@@ -1,0 +1,103 @@
+// Reactor - Pure event-to-command transformation
+//
+// Reacts to domain events by returning commands that should be executed.
+// This is pure business logic with no side effects.
+//
+// Pattern:
+// 1. Event is emitted from aggregate after evolve
+// 2. Reactor receives event
+// 3. Reactor returns list of commands to execute
+// 4. Commands are enqueued and executed by Agent.run()
+
+module Command = Agent__Command
+module TaskMessage = Agent__Task__Message
+
+// Pure reaction: transform event into commands based on business rules
+let react = (event: Agent__EventBus.events): list<Command.t> => {
+  Console.log2("=== Reactor: added event:", event)
+  switch event {
+  // Task lifecycle: Created → transition to Working status
+  | TaskEvent(task, Created(_)) => {
+      Console.log("=== Reactor: Created event - transitioning to Working")
+      list{Domain({task: Some(task), cmd: StartProcessing({task, message: None})})}
+    }
+
+  // Task lifecycle: ProcessingStarted → run first LLM iteration
+  | TaskEvent(task, ProcessingStarted(_)) => {
+      Console.log("=== Reactor: ProcessingStarted - emitting RunIteration effect")
+      list{Effect(RunLLMIteration({task: task}))}
+    }
+
+  // Assistant response with tool calls → execute tools and return results
+  | TaskEvent(task, MessageAdded({message: Assistant({content: List(parts), _}) as message}))
+    if parts->Array.some(part =>
+      switch part {
+      | ToolCall(_) => true
+      | _ => false
+      }
+    ) => {
+      Console.log("=== Reactor: Assistant message has tool calls - emitting ExecuteTool effect")
+      let toolCalls = TaskMessage.extractToolCalls(message)
+      list{Effect(ExecuteTools({task, toolCalls}))}
+    }
+
+  // Assistant response without tool calls (Working status) → task is complete
+  | TaskEvent({status: Working(_)} as task, MessageAdded({message: Assistant(_) as message})) => {
+      Console.log("=== Reactor: Assistant message complete - finishing task")
+      let cmd: Agent__Task.cmd = Complete({task, message: Some(message)})
+      list{Domain({task: Some(task), cmd})}
+    }
+
+  // Assistant response without tool calls (not Working) → ignore, task already finished
+  | TaskEvent({id, _}, MessageAdded({message: Assistant(_) as message})) => {
+      Console.log3("=== Reactor: MessageAdded event", id, message)
+      Console.log("=== Reactor: Task not in Working status, skipping completion")
+      list{}
+    }
+
+  // Tool results received → run next LLM iteration with tool results
+  | TaskEvent(task, MessageAdded({message: Tool(_)})) => {
+      Console.log("=== Reactor: Tool message added - emitting RunIteration effect")
+      list{Effect(Command.Effect.RunLLMIteration({task: task}))}
+    }
+
+  // User or System messages → no automatic reaction (handled explicitly by commands)
+  | TaskEvent({id, _}, MessageAdded({message})) => {
+      Console.log3("=== Reactor: MessageAdded event", id, message)
+      list{}
+    }
+
+  // Terminal states: no further reactions needed
+  | TaskEvent(_, Completed(_)) => {
+      Console.log("=== Reactor: Task completed")
+      list{}
+    }
+  | TaskEvent(_, Failed(_)) => {
+      Console.log("=== Reactor: Task failed")
+      list{}
+    }
+  | TaskEvent(_, Canceled(_)) => {
+      Console.log("=== Reactor: Task canceled")
+      list{}
+    }
+  | TaskEvent(_, Rejected(_)) => {
+      Console.log("=== Reactor: Task rejected")
+      list{}
+    }
+
+  // Input requested: waiting for user input, no automatic reaction
+  | TaskEvent(_, InputRequested(_)) => {
+      Console.log("=== Reactor: Input requested")
+      list{}
+    }
+
+  // Task resumed after input: handled by explicit command, no automatic reaction
+  | TaskEvent(_, Resumed(_)) => {
+      Console.log("=== Reactor: Task resumed")
+      list{}
+    }
+
+  // Artifact added: purely informational, no reaction needed
+  | TaskEvent(_, ArtifactAdded(_)) => list{}
+  }
+}

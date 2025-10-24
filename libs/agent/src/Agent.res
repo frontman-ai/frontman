@@ -18,8 +18,10 @@ module Artifact = Agent__Artifact
 module Id = Agent__Id
 module TaskId = Agent__Task__Id
 module EventBus = Agent__EventBus
-module TaskCommands = Agent__Task__Commands
-module TaskEvents = Agent__Task__Events
+module Effect = Agent__Effect
+module Command = Agent__Command
+module CommandQueue = Agent__CommandQueue
+module Reactor = Agent__Reactor
 
 type t = {
   projectRoot: string,
@@ -28,6 +30,7 @@ type t = {
   llm: Adapters.Vercel.t,
   config: Agent__Config.t,
   toolRegistry: Agent__ToolsRegistry.t,
+  commandQueue: Agent__CommandQueue.t,
 }
 type config = Agent__Config.t
 
@@ -35,9 +38,10 @@ let make = (config: config) => {
   Console.log(`Initializing agent for project: ${config.projectRoot}`)
   let eventBus = EventBus.make()
 
-  let model = Agent__Bindings__Vercel.OpenAI.gpt4o(config.apiKey)
-
   let toolRegistry = Agent__ToolsRegistry.make()
+
+  // Use provided model or create default OpenAI model
+  let model = config.model->Option.getOr(Agent__Bindings__Vercel.OpenAI.gpt4o(config.apiKey))
   let llm = Agent__Adapters__Vercel.makeLLM(~model, ~toolRegistry)
 
   Console.log(`Agent initialized with ${toolRegistry->Array.length->Int.toString} tools`)
@@ -49,135 +53,84 @@ let make = (config: config) => {
     llm,
     config,
     toolRegistry,
+    commandQueue: Agent__CommandQueue.make(),
   }
 }
 
-// Execute a task command using Command → Decide → Events → Evolve
-let executeTaskCommand = (agent: t, taskId: Agent__Task__Id.t, cmd: TaskCommands.t): result<
-  Agent__Task.t,
-  string,
-> => {
-  let currentTask = Agent__Tasks.get(agent.tasks, taskId)
-
-  Agent__Task.decide(currentTask, cmd)->Result.map(events => {
-    let newTask = events->List.reduce(currentTask, Agent__Task.evolve)
-
-    switch newTask {
-    | Some(task) => {
-        Agent__Tasks.update(agent.tasks, task)
-
-        // Emit domain events on EventBus wrapped with aggregate state
-        events->List.forEach(event => {
-          agent.eventBus->EventBus.emit(TaskEvent(task, event))
-        })
-
-        task
+// Main execution loop - drains command queue
+let run = async (agent: t) => {
+  await agent.commandQueue->Agent__CommandQueue.drain(async command => {
+    switch command {
+    | Domain({task, cmd}) =>
+      switch Agent__Task.decide(task, cmd) {
+      | Ok(events) => {
+          let newTask = events->List.reduce(task, Agent__Task.evolve)
+          switch newTask {
+          | Some(updatedTask) => {
+              Agent__Tasks.update(agent.tasks, updatedTask)
+              events->List.forEach(event => {
+                agent.eventBus->EventBus.emit(TaskEvent(updatedTask, event))
+              })
+            }
+          | None => Console.error("Internal error: evolve returned None after decide succeeded")
+          }
+        }
+      | Error(msg) => Console.error2("Domain command failed:", msg)
       }
-    | None =>
-      JsError.throwWithMessage("Internal error: evolve returned None after decide succeeded")
+    | Effect(effect) => {
+        let task = Agent__Command.getTask(command)
+        let commandsResult = await Agent__Effect.execute(
+          agent.config,
+          effect,
+          ~toolRegistry=agent.toolRegistry,
+          ~llm=agent.llm,
+        )
+
+        switch commandsResult {
+        | Ok(commands) =>
+          commands->Array.forEach(cmd => {
+            agent.commandQueue->Agent__CommandQueue.enqueue(Domain({task, cmd}))
+          })
+        | Error(msg) => Console.error2("Effect execution failed:", msg)
+        }
+      }
     }
   })
 }
 
-let run = (agent: t) => {
-  Console.log("Agent is running and listening for domain events...")
+let initialize = (agent: t): (unit => unit) => {
   let unsubscribe = agent.eventBus->EventBus.on(event => {
-    Console.log2("Got EventBus Event: ", event)
-    switch event {
-    | TaskEvent(task, Created(_)) => {
-        Console.log("=== Created event - transitioning to Working")
-        // Transition task to Working - will emit ProcessingStarted event
-        let _ = executeTaskCommand(agent, task.id, TaskCommands.StartProcessing({message: None}))
-      }
-    | TaskEvent(task, ProcessingStarted(_)) => {
-        Console.log("=== ProcessingStarted event - starting iteration")
-        // Start first iteration
-        Agent__AgenticLoop.runIteration(
-          agent.llm,
-          (taskId, cmd) => executeTaskCommand(agent, taskId, cmd),
-          task,
-        )->ignore
-      }
-    | TaskEvent(task, MessageAdded({message})) => {
-        Console.log3("=== MessageAdded event", task.id, message)
+    let commands = Agent__Reactor.react(event)
 
-        // Check if message has tool calls
-        if message->Agent__Task__Message.hasToolCalls {
-          Console.log("=== Assistant message has tool calls - executing tools")
+    // Enqueue all commands and trigger run
+    commands->List.forEach(cmd => {
+      agent.commandQueue->Agent__CommandQueue.enqueue(cmd)
+    })
 
-          // Execute tools as async side effect
-          (
-            async () => {
-              try {
-                // Extract tool calls and execute them
-                let toolCalls = Agent__ToolExecutor.extractToolCalls(message)
-                Console.log(`=== Executing ${toolCalls->Array.length->Int.toString} tool calls`)
-
-                let toolMessage = await Agent__ToolExecutor.executeToolCalls(
-                  agent.config,
-                  agent.toolRegistry,
-                  task.id,
-                  toolCalls,
-                )
-
-                Console.log2("=== Tool execution complete, results:", toolMessage)
-
-                // Add tool message to task history via command
-                let _ = executeTaskCommand(
-                  agent,
-                  task.id,
-                  TaskCommands.AddMessage({message: toolMessage}),
-                )
-              } catch {
-              | exn => Console.error2("=== Tool execution failed with exception:", exn)
-                // TODO: Implement proper error handling
-              }
-            }
-          )()->ignore
-        } else if message->Agent__Task__Message.isAssistantMessage {
-          // Assistant message without tool calls - complete task if still working
-          switch task.status {
-          | Agent__Task.Status.Working(_) => {
-              Console.log("=== Assistant message complete - finishing task")
-              let _ = executeTaskCommand(
-                agent,
-                task.id,
-                TaskCommands.Complete({message: Some(message)}),
-              )
-            }
-          | _ => Console.log("=== Task not in Working status, skipping completion")
-          }
-        } // Tool message added - continue iteration
-        else if message->Agent__Task__Message.isToolMessage {
-          Console.log("=== Tool message added - continuing iteration")
-          Agent__AgenticLoop.runIteration(
-            agent.llm,
-            (taskId, cmd) => executeTaskCommand(agent, taskId, cmd),
-            task,
-          )->ignore
-        }
-        // Ignore System and User messages
-      }
-    | TaskEvent(_, Completed(_)) => Console.log("=== Task completed")
-    | TaskEvent(_, Failed(_)) => Console.log("=== Task failed")
-    | TaskEvent(_, Canceled(_)) => Console.log("=== Task canceled")
-    | TaskEvent(_, Rejected(_)) => Console.log("=== Task rejected")
-    | TaskEvent(_, InputRequested(_)) => Console.log("=== Input requested")
-    | TaskEvent(_, Resumed(_)) => Console.log("=== Task resumed")
-    | TaskEvent(_, ArtifactAdded(_)) => () // No reactor for artifacts yet
+    // Trigger run if we enqueued commands
+    if commands->List.length > 0 {
+      run(agent)->ignore
     }
   })
+  Console.log("Agent initialized and listening for domain events...")
   unsubscribe
 }
 
 // Send a message to the agent
 // Creates a new task if message.taskId is None, or continues existing task if present
-let sendMessage = (agent: t, message: Agent__Task__Message.t): result<Agent__Task.t, string> => {
-  switch message->Agent__Task__Message.getTaskId {
-  | Some(id) => executeTaskCommand(agent, id, TaskCommands.AddMessage({message: message}))
-  | None => {
-      let newId = Agent__Id.make()
-      executeTaskCommand(agent, newId, TaskCommands.Create({initialMessage: message}))
-    }
-  }
+let sendMessage = async (agent: t, message: Agent__Task__Message.t) => {
+  let command =
+    message
+    ->Agent__Task__Message.getTaskId
+    ->Option.flatMap(taskId => agent.tasks->Agent__Tasks.get(taskId))
+    ->Option.map(task => {
+      Agent__Command.Domain({task: Some(task), cmd: AddMessage({task, message})})
+    })
+    ->Option.getOr({
+      Agent__Command.Domain({task: None, cmd: Create({initialMessage: message})})
+    })
+
+  // Enqueue command and trigger run
+  agent.commandQueue->Agent__CommandQueue.enqueue(command)
+  await agent->run
 }

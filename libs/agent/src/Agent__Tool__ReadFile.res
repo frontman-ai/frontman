@@ -42,11 +42,9 @@ let execute = async (config: Agent__Config.t, input: input): Agent__Tool.toolRes
       // Provide helpful error message with suggestions
       let errorMsg = if message->String.includes("ENOENT") {
         `File not found: "${input.relativePath}". ` ++
-        `The file does not exist in the project. ` ++
-        `Use list_files to explore the directory structure and find the correct path.`
+        `The file does not exist in the project. ` ++ `Use list_files to explore the directory structure and find the correct path.`
       } else if message->String.includes("EISDIR") {
-        `Cannot read "${input.relativePath}" because it's a directory, not a file. ` ++
-        `Use list_files to see the contents of this directory.`
+        `Cannot read "${input.relativePath}" because it's a directory, not a file. ` ++ `Use list_files to see the contents of this directory.`
       } else {
         `Failed to read file ${input.relativePath}: ${message}`
       }

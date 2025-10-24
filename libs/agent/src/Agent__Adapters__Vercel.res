@@ -153,11 +153,11 @@ let messageFromVercel = (msg: Bindings.modelMessage, ~taskId: option<Agent__Task
     )
 
   | UserMessage({content: String(text), _}) =>
-    Some(Agent__Task__Message.User({taskId, content: String(text)}))
+    Some(Agent__Task__Message.User({?taskId, content: String(text)}))
 
   | UserMessage({content: Parts(parts), _}) => {
       let domainParts = UserPart.arrayFromVercel(parts)
-      Some(Agent__Task__Message.User({taskId, content: List(domainParts)}))
+      Some(Agent__Task__Message.User({?taskId, content: List(domainParts)}))
     }
 
   | AssistantMessage({content: String(text), _}) =>
