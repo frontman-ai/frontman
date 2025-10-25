@@ -3,21 +3,20 @@
 type events = TaskEvent(Agent__Task.t, Agent__Task.evt)
 // Future: ProjectEvent, UserEvent, etc.
 type subscriber = events => unit
-type t = {subs: ref<array<subscriber>>}
+type t = {subs: array<subscriber>}
 
 let make = (): t => {
-  subs: ref([]),
+  subs: [],
 }
 
 let emit = (bus: t, event: events): unit => {
-  bus.subs.contents->Array.forEach(sub => sub(event))
+  bus.subs->Array.forEach(sub => sub(event))
 }
 
-let on = (bus: t, handler: subscriber) => {
-  bus.subs := Array.concat(bus.subs.contents, [handler])
+let on = (bus: t, handler: subscriber): t => {
+  {subs: Array.concat(bus.subs, [handler])}
+}
 
-  // Return unsubscribe function
-  () => {
-    bus.subs := bus.subs.contents->Array.filter(h => h !== handler)
-  }
+let off = (bus: t, handler: subscriber): t => {
+  {subs: bus.subs->Array.filter(h => h !== handler)}
 }
