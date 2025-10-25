@@ -38,7 +38,8 @@ let make = (config: config) => {
   Console.log(`Initializing agent for project: ${config.projectRoot}`)
   let eventBus = EventBus.make()
 
-  let toolRegistry = Agent__ToolsRegistry.make()
+  // Use provided toolRegistry for testing, or create default registry with all tools
+  let toolRegistry = config.toolRegistry->Option.getOr(Agent__ToolsRegistry.make())
 
   // Use provided model or create default OpenAI model
   let model = config.model->Option.getOr(Agent__Bindings__Vercel.OpenAI.gpt4o(config.apiKey))

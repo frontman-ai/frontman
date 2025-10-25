@@ -33,5 +33,5 @@ module Promises = {
   }
 }
 
-@get external isFile: stats => bool = "isFile"
-@get external isDirectory: stats => bool = "isDirectory"
+@send external isFile: stats => bool = "isFile"
+@send external isDirectory: stats => bool = "isDirectory"

@@ -9,5 +9,5 @@ module type T = {
   let inputSchema: S.t<input>
   let decodeInput: JSON.t => result<input, S.error>
   let encodeOutput: output => JSON.t
-  let execute: (Agent__Config.t, input) => promise<toolResult<output>>
+  let execute: (Agent__ToolExecutionContext.t, input) => promise<toolResult<output>>
 }

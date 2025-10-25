@@ -30,8 +30,8 @@ let encodeOutput = (output: output): JSON.t => {
   output->S.reverseConvertOrThrow(outputSchema)->Obj.magic
 }
 
-let execute = async (config: Agent__Config.t, input: input): Agent__Tool.toolResult<output> => {
-  let fullPath = Bindings.Path.join([config.projectRoot, input.relative_dir])
+let execute = async (ctx: Agent__ToolExecutionContext.t, input: input): Agent__Tool.toolResult<output> => {
+  let fullPath = Bindings.Path.join([ctx.projectRoot, input.relative_dir])
 
   try {
     let entries = await Bindings.Fs.Promises.readdir(fullPath)

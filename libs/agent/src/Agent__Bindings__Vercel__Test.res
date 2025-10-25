@@ -8,6 +8,15 @@ module Bindings = Agent__Bindings__Vercel
 // MockLanguageModelV2
 // ============================================================================
 
+// IMPORTANT: The types below represent the RAW PROVIDER FORMAT that MockLanguageModelV2
+// produces via doStream(). This is NOT the same as the public API in Bindings.streamPart.
+//
+// Two distinct levels:
+// 1. RAW FORMAT (this file): What doStream() returns - has text-start/delta/end, args field
+// 2. PUBLIC API (main file): What fullStream exposes - has text/reasoning/source, input field
+//
+// Vercel SDK transforms between these internally.
+
 // Types for doGenerate response
 @tag("type")
 type generateContent = | @as("text") TextContent({text: string})
@@ -20,20 +29,18 @@ type generateResult = {
 }
 
 // Types for doStream response
-// Note: simulateReadableStream passes chunks through as-is, so they need to match
-// the format expected by fullStream consumers (args: JSON.t, not input: string)
+// IMPORTANT: MockLanguageModelV2.doStream() returns RAW provider format chunks.
+// The RAW format uses:
+// - text-start/text-delta/text-end (not "text")
+// - tool-call with "input" field containing STRINGIFIED JSON (not args with JSON.t)
+// - finish (not finish-step in simple cases)
 @tag("type")
 type streamChunk =
   | @as("text-start") TextStart({id: string})
   | @as("text-delta") TextDelta({id: string, delta: string})
   | @as("text-end") TextEnd({id: string})
-  | @as("tool-call") ToolCall({toolCallId: string, toolName: string, args: JSON.t})
+  | @as("tool-call") ToolCall({toolCallId: string, toolName: string, input: string}) // Note: input is STRINGIFIED JSON
   | @as("tool-call-delta") ToolCallDelta({toolCallId: string, argsTextDelta: string})
-  | @as("finish-step")
-  FinishStep({
-      finishReason: Bindings.finishReason,
-      usage: Bindings.usage,
-    })
   | @as("finish")
   Finish({
       finishReason: Bindings.finishReason,
@@ -125,11 +132,12 @@ let makeToolCallMock = (~toolCallId: string, ~toolName: string, ~args: JSON.t): 
         stream: simulateReadableStream({
           chunks: if callCount.contents == 1 {
             // First call: return tool call
+            // Note: input must be STRINGIFIED JSON in the raw format
             [
               TextStart({id: "text-1"}),
               TextDelta({id: "text-1", delta: "I'll help you with that."}),
               TextEnd({id: "text-1"}),
-              ToolCall({toolCallId, toolName, args}),
+              ToolCall({toolCallId, toolName, input: JSON.stringify(args)}),
               Finish({
                 finishReason: ToolCalls,
                 usage: {promptTokens: 10, completionTokens: 5, totalTokens: 15},
@@ -171,7 +179,7 @@ let makeMultipleToolCallsMock = (~toolCalls: array<(string, string, JSON.t)>): B
               TextEnd({id: "text-1"}),
             ]
             let toolCallChunks = toolCalls->Array.map(((toolCallId, toolName, args)) => {
-              ToolCall({toolCallId, toolName, args})
+              ToolCall({toolCallId, toolName, input: JSON.stringify(args)})
             })
             let finishChunk = [
               Finish({

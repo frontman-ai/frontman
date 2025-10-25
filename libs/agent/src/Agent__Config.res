@@ -6,4 +6,6 @@ type t = {
   apiKey: string,
   // Optional model for testing - if None, will create default OpenAI model
   model?: Agent__Bindings__Vercel.languageModel,
+  // Optional tool registry for testing - if None, will create default registry with all tools
+  toolRegistry?: Agent__ToolsRegistry.t,
 }
