@@ -26,11 +26,18 @@ describe("EventBus emission", () => {
     // Wait for async operations to complete
     await Promise.resolve()
 
-    // Verify Created domain event was emitted
-    t->expect(receivedEvents.contents->Array.length)->Expect.toBe(1)
+    // Verify both Created and ProcessingStarted events were emitted
+    t->expect(receivedEvents.contents->Array.length)->Expect.toBe(2)
 
+    // First event should be Created
     switch receivedEvents.contents->Array.at(0) {
     | Some(TaskEvent(_, Created(_))) => () // Success
+    | _ => t->expect(false)->Expect.toBe(true) // Fail the test
+    }
+
+    // Second event should be ProcessingStarted
+    switch receivedEvents.contents->Array.at(1) {
+    | Some(TaskEvent(_, ProcessingStarted(_))) => () // Success
     | _ => t->expect(false)->Expect.toBe(true) // Fail the test
     }
   })
