@@ -16,10 +16,10 @@ module TaskMessage = Agent__Task__Message
 let react = (event: Agent__EventBus.events): list<Command.t> => {
   Console.log2("=== Reactor: added event:", event)
   switch event {
-  // Task lifecycle: Created → transition to Working status
-  | TaskEvent(task, Created(_)) => {
-      Console.log("=== Reactor: Created event - transitioning to Working")
-      list{Domain({task: Some(task), cmd: StartProcessing({task, message: None})})}
+  // Task lifecycle: Created → no action needed (ProcessingStarted is emitted together)
+  | TaskEvent(_, Created(_)) => {
+      Console.log("=== Reactor: Created event - no action needed")
+      list{}
     }
 
   // Task lifecycle: ProcessingStarted → run first LLM iteration
@@ -72,32 +72,5 @@ let react = (event: Agent__EventBus.events): list<Command.t> => {
       Console.log("=== Reactor: Task completed")
       list{}
     }
-  | TaskEvent(_, Failed(_)) => {
-      Console.log("=== Reactor: Task failed")
-      list{}
-    }
-  | TaskEvent(_, Canceled(_)) => {
-      Console.log("=== Reactor: Task canceled")
-      list{}
-    }
-  | TaskEvent(_, Rejected(_)) => {
-      Console.log("=== Reactor: Task rejected")
-      list{}
-    }
-
-  // Input requested: waiting for user input, no automatic reaction
-  | TaskEvent(_, InputRequested(_)) => {
-      Console.log("=== Reactor: Input requested")
-      list{}
-    }
-
-  // Task resumed after input: handled by explicit command, no automatic reaction
-  | TaskEvent(_, Resumed(_)) => {
-      Console.log("=== Reactor: Task resumed")
-      list{}
-    }
-
-  // Artifact added: purely informational, no reaction needed
-  | TaskEvent(_, ArtifactAdded(_)) => list{}
   }
 }

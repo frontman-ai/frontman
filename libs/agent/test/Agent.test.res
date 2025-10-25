@@ -41,10 +41,7 @@ module TestHelpers = {
         let unsubscribe = ref(None)
         let handler = event => {
           switch event {
-          | Agent.EventBus.TaskEvent(task, Completed(_))
-          | Agent.EventBus.TaskEvent(task, Failed(_))
-          | Agent.EventBus.TaskEvent(task, Canceled(_))
-          | Agent.EventBus.TaskEvent(task, Rejected(_)) if task.id == id => {
+          | Agent.EventBus.TaskEvent(task, Completed(_)) if task.id == id => {
               unsubscribe.contents->Option.forEach(unsub => unsub())
               resolve()
             }
