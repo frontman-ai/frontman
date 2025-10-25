@@ -25,8 +25,8 @@ let encodeOutput = (output: output): JSON.t => {
   output->S.reverseConvertOrThrow(S.string)->Obj.magic
 }
 
-let execute = async (config: Agent__Config.t, input: input): Agent__Tool.toolResult<output> => {
-  let fullPath = Bindings.Path.join([config.projectRoot, input.relativePath])
+let execute = async (ctx: Agent__ToolExecutionContext.t, input: input): Agent__Tool.toolResult<output> => {
+  let fullPath = Bindings.Path.join([ctx.projectRoot, input.relativePath])
 
   try {
     let content = await Bindings.Fs.Promises.readFile(fullPath)

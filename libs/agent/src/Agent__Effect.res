@@ -38,6 +38,9 @@ let executeSingleTool = async (
   Console.log2("=== Executing tool:", toolCall.toolName)
   Console.log2("=== Tool args:", toolCall.args)
 
+  // Create context for tool execution
+  let ctx: Agent__ToolExecutionContext.t = {projectRoot: config.projectRoot}
+
   let makeResult = (output: ToolResultPart.Output.t): ToolResultPart.t => {
     toolCallId: toolCall.toolCallId,
     toolName: toolCall.toolName,
@@ -62,7 +65,7 @@ let executeSingleTool = async (
         }
       | Ok(input) =>
         try {
-          switch await Tool.execute(config, input) {
+          switch await Tool.execute(ctx, input) {
           | Error(msg) => {
               Console.log2("=== Tool execution failed:", msg)
               makeResult(ErrorText(msg))

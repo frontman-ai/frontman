@@ -70,6 +70,10 @@ describe("simulateReadableStream with delays", () => {
       Test.TextStart({id: "text-1"}),
       Test.TextDelta({id: "text-1", delta: "Hello"}),
       Test.TextEnd({id: "text-1"}),
+      Test.Finish({
+        finishReason: Stop,
+        usage: {promptTokens: 5, completionTokens: 1, totalTokens: 6},
+      }),
     ]
 
     let startTime = Date.now()
@@ -99,7 +103,7 @@ describe("simulateReadableStream with delays", () => {
     let endTime = Date.now()
     let duration = endTime -. startTime
 
-    // Should take at least 10 (initial) + 5 + 5 = 20ms
-    t->expect(duration >= 20.0)->Expect.toBe(true)
+    // Should take at least 10 (initial) + 5 + 5 + 5 = 25ms (4 chunks with delay)
+    t->expect(duration >= 25.0)->Expect.toBe(true)
   })
 })

@@ -25,8 +25,8 @@ let encodeOutput = (output: output): JSON.t => {
   output->S.reverseConvertOrThrow(S.bool)->Obj.magic
 }
 
-let execute = async (config: Agent__Config.t, input: input): Agent__Tool.toolResult<output> => {
-  let fullPath = Bindings.Path.join([config.projectRoot, input.relativePath])
+let execute = async (ctx: Agent__ToolExecutionContext.t, input: input): Agent__Tool.toolResult<output> => {
+  let fullPath = Bindings.Path.join([ctx.projectRoot, input.relativePath])
 
   module Consts = Bindings.Fs.Promises.Constants
   try {

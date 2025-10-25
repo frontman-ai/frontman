@@ -16,7 +16,7 @@ let runIteration = async (llm: Adapter.t, task: Agent__Task.t): array<Agent__Tas
 
   await Adapter.processAsyncIterable(stream, async event => {
     switch event {
-    | TextDelta({textDelta}) => Console.log(textDelta)
+    | Text({text}) => Console.log(text)
     | ToolCall({toolName, _}) => Console.log(`\nCalling tool: ${toolName}`)
     | _ => ()
     }

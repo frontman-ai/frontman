@@ -103,11 +103,11 @@ let messageToVercel = (msg: Message.t): Bindings.modelMessage => {
         switch part {
         | Message.Assistant.Text({content}) => Bindings.AssistantPart.text(content)
         | Message.Assistant.ToolCall(toolCallPart) =>
-          Bindings.AssistantPart.toolCall(
-            ~toolCallId=toolCallPart.toolCallId,
-            ~toolName=toolCallPart.toolName,
-            ~args=toolCallPart.args,
-          )
+          Bindings.AssistantPart.ToolCall({
+            toolCallId: toolCallPart.toolCallId,
+            toolName: toolCallPart.toolName,
+            input: toolCallPart.args,
+          })
         }
       })
       let content: Bindings.assistantContent = Parts(vercelParts)
@@ -174,12 +174,12 @@ let messageFromVercel = (msg: Bindings.modelMessage, ~taskId: option<Agent__Task
         switch part {
         | Bindings.AssistantPart.Text({text}) =>
           Agent__Task__Message.Assistant.Text({content: text})
-        | Bindings.AssistantPart.ToolCall({toolCallId, toolName, args}) => {
-            Console.log3("ToolCall part:", toolName, args)
+        | Bindings.AssistantPart.ToolCall({toolCallId, toolName, input}) => {
+            Console.log3("ToolCall part:", toolName, input)
             Agent__Task__Message.Assistant.ToolCall({
               toolCallId,
               toolName,
-              args,
+              args: input,
             })
           }
         }
@@ -195,10 +195,7 @@ let messageFromVercel = (msg: Bindings.modelMessage, ~taskId: option<Agent__Task
   | ToolMessage({content: Parts(parts)}) =>
     // We execute tools ourselves via Reactor, but Vercel is still returning tool results
     // This shouldn't happen with maxSteps: 1, but we filter them out anyway
-    Console.error2(
-      "Vercel returned tool result message (filtered out):",
-      parts,
-    )
+    Console.error2("Vercel returned tool result message (filtered out):", parts)
     None
   }
 }
