@@ -8,10 +8,10 @@ open Vitest
 describe("EventBus emission", () => {
   testAsync("TaskCreated event is emitted when Create command succeeds", async t => {
     let agent = Agent.make({projectRoot: ".", apiKey: "test-api-key"})
-    let receivedEvents: ref<array<Agent.EventBus.events>> = ref([])
+    let receivedEvents: ref<array<Agent__EventBus.events>> = ref([])
 
     // Subscribe to events (subscribers now return unit)
-    let _unsubscribe = agent.eventBus->Agent.EventBus.on(
+    let _unsubscribe = agent->Agent.subscribe(
       event => {
         receivedEvents := Array.concat(receivedEvents.contents, [event])
       },
@@ -44,10 +44,10 @@ describe("EventBus emission", () => {
 
   testAsync("Events are emitted through complete message flow", async t => {
     let agent = Agent.make({projectRoot: ".", apiKey: "test-api-key"})
-    let receivedEvents: ref<array<Agent.EventBus.events>> = ref([])
+    let receivedEvents: ref<array<Agent__EventBus.events>> = ref([])
 
     // Subscribe to events
-    let _unsubscribe = agent.eventBus->Agent.EventBus.on(
+    let _unsubscribe = agent->Agent.subscribe(
       event => {
         receivedEvents := Array.concat(receivedEvents.contents, [event])
       },

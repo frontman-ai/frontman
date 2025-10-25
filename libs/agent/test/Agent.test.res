@@ -12,7 +12,7 @@ module TestHelpers = {
   // Test context that tracks events and task IDs
   type testContext = {
     agent: Agent.t,
-    events: ref<array<Agent.EventBus.events>>,
+    events: ref<array<Agent__EventBus.events>>,
     taskId: ref<option<Agent__Task__Id.t>>,
     unsubscribe: unit => unit,
   }
@@ -22,10 +22,10 @@ module TestHelpers = {
     let events = ref([])
     let taskId = ref(None)
 
-    let unsubscribe = agent.eventBus->Agent.EventBus.on(event => {
+    let unsubscribe = agent->Agent.subscribe(event => {
       events := Array.concat(events.contents, [event])
       switch event {
-      | Agent.EventBus.TaskEvent(_, Created({id})) => taskId := Some(id)
+      | Agent__EventBus.TaskEvent(_, Created({id})) => taskId := Some(id)
       | _ => ()
       }
     })
@@ -41,14 +41,14 @@ module TestHelpers = {
         let unsubscribe = ref(None)
         let handler = event => {
           switch event {
-          | Agent.EventBus.TaskEvent(task, Completed(_)) if task.id == id => {
+          | Agent__EventBus.TaskEvent(task, Completed(_)) if task.id == id => {
               unsubscribe.contents->Option.forEach(unsub => unsub())
               resolve()
             }
           | _ => ()
           }
         }
-        unsubscribe := Some(context.agent.eventBus->Agent.EventBus.on(handler))
+        unsubscribe := Some(context.agent->Agent.subscribe(handler))
       })
     | None => ()
     }
@@ -155,9 +155,9 @@ module TestHelpers = {
   let assertHasEvent = (t, context, eventType) => {
     let hasEvent = context.events.contents->Array.some(event =>
       switch (event, eventType) {
-      | (Agent.EventBus.TaskEvent(_, Created(_)), #Created)
-      | (Agent.EventBus.TaskEvent(_, Completed(_)), #Completed)
-      | (Agent.EventBus.TaskEvent(_, MessageAdded({message: Message.Tool(_)})), #ToolResult) => true
+      | (Agent__EventBus.TaskEvent(_, Created(_)), #Created)
+      | (Agent__EventBus.TaskEvent(_, Completed(_)), #Completed)
+      | (Agent__EventBus.TaskEvent(_, MessageAdded({message: Message.Tool(_)})), #ToolResult) => true
       | _ => false
       }
     )
@@ -167,8 +167,8 @@ module TestHelpers = {
   let assertEventOrder = (t, context, first, second) => {
     let types = context.events.contents->Array.map(e =>
       switch e {
-      | Agent.EventBus.TaskEvent(_, Created(_)) => #Created
-      | Agent.EventBus.TaskEvent(_, Completed(_)) => #Completed
+      | Agent__EventBus.TaskEvent(_, Created(_)) => #Created
+      | Agent__EventBus.TaskEvent(_, Completed(_)) => #Completed
       | _ => #Other
       }
     )

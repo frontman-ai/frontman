@@ -17,7 +17,6 @@ module Part = Agent__Task__Message__Part
 module Artifact = Agent__Artifact
 module Id = Agent__Id
 module TaskId = Agent__Task__Id
-module EventBus = Agent__EventBus
 module Effect = Agent__Effect
 module Command = Agent__Command
 module CommandQueue = Agent__CommandQueue
@@ -25,7 +24,7 @@ module Reactor = Agent__Reactor
 
 type t = {
   projectRoot: string,
-  eventBus: EventBus.t,
+  eventBus: ref<Agent__EventBus.t>,
   tasks: Agent__Tasks.t,
   llm: Adapters.Vercel.t,
   config: Agent__Config.t,
@@ -36,7 +35,7 @@ type config = Agent__Config.t
 
 let make = (config: config) => {
   Console.log(`Initializing agent for project: ${config.projectRoot}`)
-  let eventBus = EventBus.make()
+  let eventBus = Agent__EventBus.make()
 
   // Use provided toolRegistry for testing, or create default registry with all tools
   let toolRegistry = config.toolRegistry->Option.getOr(Agent__ToolsRegistry.make())
@@ -49,13 +48,28 @@ let make = (config: config) => {
 
   {
     projectRoot: config.projectRoot,
-    eventBus,
+    eventBus: ref(eventBus),
     tasks: Agent__Tasks.make(),
     llm,
     config,
     toolRegistry,
     commandQueue: Agent__CommandQueue.make(),
   }
+}
+
+// Subscribe to events and return unsubscribe function
+let subscribe = (agent: t, handler: Agent__EventBus.subscriber): (unit => unit) => {
+  agent.eventBus := agent.eventBus.contents->Agent__EventBus.on(handler)
+
+  // Return unsubscribe function
+  () => {
+    agent.eventBus := agent.eventBus.contents->Agent__EventBus.off(handler)
+  }
+}
+
+// Emit event to all subscribers
+let emit = (agent: t, event: Agent__EventBus.events): unit => {
+  agent.eventBus.contents->Agent__EventBus.emit(event)
 }
 
 // Main execution loop - drains command queue
@@ -70,7 +84,7 @@ let run = async (agent: t) => {
           | Some(updatedTask) => {
               Agent__Tasks.update(agent.tasks, updatedTask)
               events->List.forEach(event => {
-                agent.eventBus->EventBus.emit(TaskEvent(updatedTask, event))
+                agent->emit(Agent__EventBus.TaskEvent(updatedTask, event))
               })
             }
           | None => Console.error("Internal error: evolve returned None after decide succeeded")
@@ -100,7 +114,7 @@ let run = async (agent: t) => {
 }
 
 let initialize = (agent: t): (unit => unit) => {
-  let unsubscribe = agent.eventBus->EventBus.on(event => {
+  let unsubscribe = agent->subscribe(event => {
     let commands = Agent__Reactor.react(event)
 
     // Enqueue all commands and trigger run
