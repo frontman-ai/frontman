@@ -129,7 +129,7 @@ let createStreamHandler = (): apiHandler => {
       res->ApiResponse.write(`data: ${data}\n\n`)
     }
 
-    let unsubsribe = agent.eventBus->Agent.EventBus.on(event => {
+    let unsubsribe = agent->Agent.subscribe(event => {
       switch event {
       | TaskEvent(_task, MessageAdded({message})) =>
         Console.log2("taskMessageAdded", message)
