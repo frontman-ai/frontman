@@ -1,7 +1,13 @@
 // Pure Pub/Sub Event Bus
 
-type events = TaskEvent(Agent__Task.t, Agent__Task.evt)
-// Future: ProjectEvent, UserEvent, etc.
+// System events - don't affect task state, just notify clients
+// Just alias to the Vercel bindings type - no need to redefine
+type streamEvent = Agent__Bindings__Vercel.streamPart
+
+type events =
+  | TaskEvent(Agent__Task.t, Agent__Task.evt) // Domain events (existing)
+  | StreamEvent(Agent__Task.t, streamEvent) // System events (NEW)
+
 type subscriber = events => unit
 type t = {subs: array<subscriber>}
 

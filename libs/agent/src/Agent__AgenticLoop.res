@@ -5,24 +5,33 @@
 module Adapter = Agent__Adapters__Vercel
 
 // Run a single iteration: call LLM with current history and return commands
-let runIteration = async (llm: Adapter.t, task: Agent__Task.t): array<Agent__Task.cmd> => {
+let runIteration = async (
+  llm: Adapter.t,
+  task: Agent__Task.t,
+  ~emitEvent: Agent__EventBus.events => unit,
+): array<Agent__Task.cmd> => {
   let history = task->Agent__Task.getHistory
   Console.log(`=== Calling LLM with ${history->Array.length->Int.toString} messages`)
 
   let result = await Adapter.streamText(llm, history)
   let stream = result->Adapter.getFullStream
 
+  // Process stream and emit ALL events to EventBus
   await Adapter.processAsyncIterable(stream, async event => {
+    // Emit to EventBus FIRST
+    emitEvent(StreamEvent(task, event))
+
+    // Then log for debugging (keep existing console logs)
     switch event {
-    | TextStart => ()
-    | TextDelta({textDelta}) => Console.log(textDelta)
-    | TextEnd => ()
+    | TextDelta({delta, _}) => Console.log(delta)
     | ToolCall({toolName, _}) => Console.log(`\nCalling tool: ${toolName}`)
-    | Start
+    | Start(_)
     | StartStep(_)
-    | ReasoningStart
+    | TextStart(_)
+    | TextEnd(_)
+    | ReasoningStart(_)
     | ReasoningDelta(_)
-    | ReasoningEnd
+    | ReasoningEnd(_)
     | Source(_)
     | File(_)
     | ToolInputStart(_)

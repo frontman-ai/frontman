@@ -72,5 +72,8 @@ let react = (event: Agent__EventBus.events): list<Command.t> => {
       Console.log("=== Reactor: Task completed")
       list{}
     }
+
+  // Stream events: system events, no domain commands triggered
+  | StreamEvent(_, _) => list{}
   }
 }
