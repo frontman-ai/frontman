@@ -20,7 +20,6 @@ module Id = Agent__Id
 module System = {
   @schema
   type t = {
-    id: Id.t,
     taskId: option<TaskId.t>,
     content: string,
   }

@@ -147,7 +147,6 @@ let messageFromVercel = (msg: Bindings.modelMessage, ~taskId: option<Agent__Task
     Some(
       Agent__Task__Message.System({
         taskId,
-        id: Agent__Id.make(),
         content,
       }),
     )

@@ -62,7 +62,6 @@ let systemMessage = `You are an AI coding assistant helping with a Next.js proje
 // Constructors
 let make = (id, initialMessage): t => {
   let systemMsg = Agent__Task__Message.System({
-    id: Agent__Id.make(),
     taskId: Some(id),
     content: systemMessage,
   })
