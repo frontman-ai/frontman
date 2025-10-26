@@ -6,8 +6,6 @@ module Adapter = Agent__Adapters__Vercel
 
 // Run a single iteration: call LLM with current history and return commands
 let runIteration = async (llm: Adapter.t, task: Agent__Task.t): array<Agent__Task.cmd> => {
-  Console.log("=== Running single LLM iteration")
-
   let history = task->Agent__Task.getHistory
   Console.log(`=== Calling LLM with ${history->Array.length->Int.toString} messages`)
 
@@ -16,16 +14,31 @@ let runIteration = async (llm: Adapter.t, task: Agent__Task.t): array<Agent__Tas
 
   await Adapter.processAsyncIterable(stream, async event => {
     switch event {
-    | Text({text}) => Console.log(text)
+    | TextStart => ()
+    | TextDelta({textDelta}) => Console.log(textDelta)
+    | TextEnd => ()
     | ToolCall({toolName, _}) => Console.log(`\nCalling tool: ${toolName}`)
-    | _ => ()
+    | Start
+    | StartStep(_)
+    | ReasoningStart
+    | ReasoningDelta(_)
+    | ReasoningEnd
+    | Source(_)
+    | File(_)
+    | ToolInputStart(_)
+    | ToolInputDelta(_)
+    | ToolInputEnd(_)
+    | ToolResult(_)
+    | ToolError(_)
+    | FinishStep(_)
+    | Finish(_)
+    | Error(_)
+    | Raw(_) => ()
     }
   })
 
   // Get LLM generated messages
   let response = await result->Adapter.getResponse
-  Console.log2("Response messages count:", response.messages->Array.length)
-  Console.log2("Response messages:", response.messages)
 
   // Convert messages to domain commands, filtering out None (tool results we don't want)
   let commands =

@@ -223,11 +223,17 @@ type responseMetadata = {
 
 // Complete streamText fullStream types
 // Represents all possible chunks from streamText().fullStream
-// This is the PUBLIC API that consumers see (different from the raw provider format in Test file)
+// Based on official Vercel AI SDK documentation
 @tag("type")
 type streamPart =
-  | @as("text") Text({text: string})
-  | @as("reasoning") Reasoning({text: string, providerMetadata?: JSON.t})
+  | @as("start") Start
+  | @as("start-step") StartStep({request: requestMetadata, warnings: array<JSON.t>})
+  | @as("text-start") TextStart
+  | @as("text-delta") TextDelta({textDelta: string})
+  | @as("text-end") TextEnd
+  | @as("reasoning-start") ReasoningStart
+  | @as("reasoning-delta") ReasoningDelta({reasoningDelta: string})
+  | @as("reasoning-end") ReasoningEnd
   | @as("source")
   Source({
       sourceType: string, // Always "url" in current API
@@ -238,13 +244,13 @@ type streamPart =
     })
   | @as("file") File({file: generatedFile})
   | @as("tool-call") ToolCall({toolCallId: string, toolName: string, input: JSON.t})
-  | @as("tool-call-streaming-start")
-  ToolCallStreamingStart({toolCallId: string, toolName: string})
-  | @as("tool-call-delta")
-  ToolCallDelta({toolCallId: string, toolName: string, argsTextDelta: string})
+  | @as("tool-input-start") ToolInputStart({toolCallId: string, toolName: string})
+  | @as("tool-input-delta")
+  ToolInputDelta({toolCallId: string, toolName: string, argsTextDelta: string})
+  | @as("tool-input-end") ToolInputEnd({toolCallId: string, toolName: string})
   | @as("tool-result")
-  ToolResult({toolCallId: string, toolName: string, input: JSON.t, output: JSON.t})
-  | @as("start-step") StartStep({request: requestMetadata, warnings: array<JSON.t>})
+  ToolResult({toolCallId: string, toolName: string, input: JSON.t, result: JSON.t})
+  | @as("tool-error") ToolError({toolCallId: string, toolName: string, error: JSON.t})
   | @as("finish-step")
   FinishStep({
       response: responseMetadata,
@@ -252,11 +258,9 @@ type streamPart =
       finishReason: finishReason,
       providerMetadata?: JSON.t,
     })
-  | @as("start") Start
   | @as("finish") Finish({finishReason: finishReason, totalUsage: usage})
-  | @as("reasoning-part-finish") ReasoningPartFinish
   | @as("error") Error({error: JSON.t})
-  | @as("abort") Abort
+  | @as("raw") Raw({value: JSON.t})
 
 @get external fullStream: streamTextResult => AsyncIterableStream.t<streamPart> = "fullStream"
 @get external finishReason: streamTextResult => promise<finishReason> = "finishReason"
