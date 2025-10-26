@@ -5,14 +5,14 @@
 	"type": "module",
 	"dependencies": {
 		"@rescript/react": "^0.14.0",
-		"vite": "^7.1.11"
+		"vite": "^7.1.12"
 	},
 	"peerDependencies": {
 		"react": "^19.2.0",
 		"react-dom": "^19.2.0"
 	},
 	"devDependencies": {
-		"@vitest/ui": "^3.2.4",
+		"@vitest/ui": "catalog:",
 		"react": "^19.2.0",
 		"react-dom": "^19.2.0",
 		"rescript": "catalog:",

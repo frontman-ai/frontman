@@ -116,6 +116,7 @@ let execute = async (
   effect: Agent__Command.Effect.t,
   ~toolRegistry: Agent__ToolsRegistry.t,
   ~llm: Agent__Adapters__Vercel.t,
+  ~emitEvent: Agent__EventBus.events => unit,
 ): result<array<Agent__Task.cmd>, string> => {
   switch effect {
   | ExecuteTools({task, toolCalls}) =>
@@ -135,7 +136,7 @@ let execute = async (
 
   | RunLLMIteration({task}) =>
     try {
-      let commands = await Agent__AgenticLoop.runIteration(llm, task)
+      let commands = await Agent__AgenticLoop.runIteration(llm, task, ~emitEvent)
       Ok(commands)
     } catch {
     | exn => {

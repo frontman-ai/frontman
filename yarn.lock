@@ -5,28 +5,28 @@ __metadata:
   version: 8
   cacheKey: 10c0
 
-"@ai-sdk/anthropic@npm:^2.0.35":
-  version: 2.0.35
-  resolution: "@ai-sdk/anthropic@npm:2.0.35"
+"@ai-sdk/anthropic@npm:^2.0.37":
+  version: 2.0.37
+  resolution: "@ai-sdk/anthropic@npm:2.0.37"
   dependencies:
     "@ai-sdk/provider": "npm:2.0.0"
     "@ai-sdk/provider-utils": "npm:3.0.12"
   peerDependencies:
     zod: ^3.25.76 || ^4.1.8
-  checksum: 10c0/83882f6ff405f72732d275e8cd95519417c1a3079d8c91432950523cd8984b72669f346f5ada0a2489c43a82fd5df95d940c198845eedd3a336f8039f52ef9dd
+  checksum: 10c0/a25b8fa10734a044db5cebd9bbcbc55b8458e3124c06ef6e29b8fda99e2cedd3ba051cdb8420b100989d97b15d13b198bdeeea423706dfc447b7ab69b2cf69e2
   languageName: node
   linkType: hard
 
-"@ai-sdk/gateway@npm:2.0.0":
-  version: 2.0.0
-  resolution: "@ai-sdk/gateway@npm:2.0.0"
+"@ai-sdk/gateway@npm:2.0.1":
+  version: 2.0.1
+  resolution: "@ai-sdk/gateway@npm:2.0.1"
   dependencies:
     "@ai-sdk/provider": "npm:2.0.0"
     "@ai-sdk/provider-utils": "npm:3.0.12"
     "@vercel/oidc": "npm:3.0.3"
   peerDependencies:
     zod: ^3.25.76 || ^4.1.8
-  checksum: 10c0/720cfb827bc64f3eb6bb86d17e7e7947c54bdc7d74db7f6e9e162be0973a45368c05829e4b257704182ca9c4886e7f3c74f6b64841e88359930f48f288aa958a
+  checksum: 10c0/624d8bb01bd8c0a2db93247ece51b90521b276b0a40457e4b02df10a473c8e4200a36fd71e73155bfc6899420e84b241c13571ce0aa9bfc0eab44d004c6b78d9
   languageName: node
   linkType: hard
 
@@ -75,12 +75,12 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@ask-the-llm/agent@workspace:libs/agent"
   dependencies:
-    "@ai-sdk/anthropic": "npm:^2.0.35"
+    "@ai-sdk/anthropic": "npm:^2.0.37"
     "@ai-sdk/openai": "npm:^2.0.53"
     "@rescript/webapi": "catalog:"
     "@vitest/ui": "catalog:"
-    ai: "npm:^5.0.76"
-    msw: "npm:^2.7.0"
+    ai: "npm:^5.0.80"
+    msw: "npm:^2.11.6"
     rescript: "catalog:"
     rescript-vitest: "catalog:"
     sury: "catalog:"
@@ -102,12 +102,12 @@ __metadata:
   resolution: "@ask-the-llm/client@workspace:libs/client"
   dependencies:
     "@rescript/react": "npm:^0.14.0"
-    "@vitest/ui": "npm:^3.2.4"
+    "@vitest/ui": "catalog:"
     react: "npm:^19.2.0"
     react-dom: "npm:^19.2.0"
     rescript: "catalog:"
     rescript-vitest: "catalog:"
-    vite: "npm:^7.1.11"
+    vite: "npm:^7.1.12"
     vitest: "catalog:"
   peerDependencies:
     react: ^19.2.0
@@ -1154,11 +1154,11 @@ __metadata:
   linkType: hard
 
 "@types/node@npm:^20.14.8":
-  version: 20.19.22
-  resolution: "@types/node@npm:20.19.22"
+  version: 20.19.23
+  resolution: "@types/node@npm:20.19.23"
   dependencies:
     undici-types: "npm:~6.21.0"
-  checksum: 10c0/a5d6cfc483c99580503ef4bd3937b5db1c940a125e2d12c1d25cdc61734089fb349755e1fcd019cb3f7e05f53509dcf8282e1c37e2224f4d9cb79147aa8ea820
+  checksum: 10c0/a230f2ad8a5c10f3c5b2e31112e49b61f2cc9e7eacb95960b555ef133c0276c52b7f3841af744762ce355009fc03520ab7af5645cd877ab8699e45412bccf9b8
   languageName: node
   linkType: hard
 
@@ -1289,7 +1289,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@vitest/ui@npm:3.2.4, @vitest/ui@npm:^3.2.4":
+"@vitest/ui@npm:3.2.4":
   version: 3.2.4
   resolution: "@vitest/ui@npm:3.2.4"
   dependencies:
@@ -1331,17 +1331,17 @@ __metadata:
   languageName: node
   linkType: hard
 
-"ai@npm:^5.0.76":
-  version: 5.0.76
-  resolution: "ai@npm:5.0.76"
+"ai@npm:^5.0.80":
+  version: 5.0.80
+  resolution: "ai@npm:5.0.80"
   dependencies:
-    "@ai-sdk/gateway": "npm:2.0.0"
+    "@ai-sdk/gateway": "npm:2.0.1"
     "@ai-sdk/provider": "npm:2.0.0"
     "@ai-sdk/provider-utils": "npm:3.0.12"
     "@opentelemetry/api": "npm:1.9.0"
   peerDependencies:
     zod: ^3.25.76 || ^4.1.8
-  checksum: 10c0/167a191354b72106b1af6cfc8b53975637ca43919b8f48db81c0cf542ef0172f55958ed9331adcd08d017a608a98cb0b4a253c62732038322c78091e32595771
+  checksum: 10c0/d545895a6e8ff105ff7df6e4abbc17813d7da8294913047ab563efef6beca2e753c88b4481bbb9b9fb0f54bde0c3e6955e08ed71b2a658102fefed9ec8500102
   languageName: node
   linkType: hard
 
@@ -2941,7 +2941,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"msw@npm:^2.7.0":
+"msw@npm:^2.11.6":
   version: 2.11.6
   resolution: "msw@npm:2.11.6"
   dependencies:
@@ -4413,7 +4413,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"vite@npm:7.1.10, vite@npm:^5.0.0 || ^6.0.0 || ^7.0.0-0":
+"vite@npm:^5.0.0 || ^6.0.0 || ^7.0.0-0":
   version: 7.1.10
   resolution: "vite@npm:7.1.10"
   dependencies:
@@ -4468,9 +4468,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"vite@npm:^7.1.11":
-  version: 7.1.11
-  resolution: "vite@npm:7.1.11"
+"vite@npm:^7.1.12":
+  version: 7.1.12
+  resolution: "vite@npm:7.1.12"
   dependencies:
     esbuild: "npm:^0.25.0"
     fdir: "npm:^6.5.0"
@@ -4519,7 +4519,7 @@ __metadata:
       optional: true
   bin:
     vite: bin/vite.js
-  checksum: 10c0/c4aa7f47b1fb07f734ed6f4f605d73e5acf7ff9754d75b4adbfbdddf0e520413019834620c1f7b4a207bce7e1d20a2636c584db2b1b17f5a3ba2cd23d47e50ab
+  checksum: 10c0/cef4d4b4a84e663e09b858964af36e916892ac8540068df42a05ced637ceeae5e9ef71c72d54f3cfc1f3c254af16634230e221b6e2327c2a66d794bb49203262
   languageName: node
   linkType: hard
 

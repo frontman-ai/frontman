@@ -147,7 +147,6 @@ let messageFromVercel = (msg: Bindings.modelMessage, ~taskId: option<Agent__Task
     Some(
       Agent__Task__Message.System({
         taskId,
-        id: Agent__Id.make(),
         content,
       }),
     )
@@ -220,8 +219,14 @@ let getText = (result: streamResult) => result->Bindings.text
 
 // Process an async iterable (like ReadableStream) using for-await-of pattern
 // This is more efficient than recursive iteration
-let processAsyncIterable = (iterable, handler) => {
-  let impl: (Bindings.AsyncIterableStream.t<'a>, 'a => promise<unit>) => promise<unit> = %raw(`
+let processAsyncIterable = (
+  iterable: Bindings.AsyncIterableStream.t<streamEvent>,
+  handler: streamEvent => promise<unit>,
+): promise<unit> => {
+  let impl: (
+    Bindings.AsyncIterableStream.t<streamEvent>,
+    streamEvent => promise<unit>,
+  ) => promise<unit> = %raw(`
     async function(iterable, handler) {
       for await (const chunk of iterable) {
         await handler(chunk);

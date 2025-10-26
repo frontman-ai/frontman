@@ -99,6 +99,7 @@ let run = async (agent: t) => {
           effect,
           ~toolRegistry=agent.toolRegistry,
           ~llm=agent.llm,
+          ~emitEvent=event => agent->emit(event),
         )
 
         switch commandsResult {
