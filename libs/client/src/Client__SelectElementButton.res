@@ -391,6 +391,6 @@ let make = (
         transition: "background-color 0.2s",
       }
     />
-    <RadixUI__Icons.TargetIcon width={14} height={14} color="white" />
+    <RadixUI__Icons.TargetIcon width="14" height="14" color="white" />
   </>
 }

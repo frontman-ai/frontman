@@ -21,30 +21,31 @@ dev: ## Start development server with build watch
 	$(MAKE) -j2 dev-build-watch preview
 
 dev-build-watch: ## Watch and build in development mode
-	yarn vite build --mode development --watch
+	vite build --mode development --watch
 
 dev-server: ## Start vite dev server
-	yarn vite
+	vite
 
 dev-hot: ## Start development server with hot reload
-	yarn vite --mode development
+	vite --mode development
 
 build: ## Build the project for production
 	$(MAKE) clean
 	tsc -b
-	yarn vite build
+	vite build
 
 build-lib: ## Build the project as a library
 	$(MAKE) clean
-	yarn vite build --mode library
+	vite build --mode library
 
 clean: ## Clean build artifacts and temporary files
 	rm -rf dist
+	tsc -b --clean
 
 serve: ## Serve production build
-	yarn vite preview --port 5173 --host
+	vite preview --port 5173 --host
 
 preview: ## Preview production build
-	yarn vite preview
+	vite preview
 
 check: lint ## Run all checks (lint + test)

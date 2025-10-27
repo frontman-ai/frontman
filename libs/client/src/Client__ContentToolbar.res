@@ -5,17 +5,7 @@ let make = (
   ~iframeId: string="main-content-iframe",
 ) => {
   let handleReload = () => {
-    if (onReload != None) {
-      onReload->Option.forEach(fn => fn())
-    } else {
-      // Fallback: reload iframe if no onReload callback provided
-      %raw("
-        const iframe = document.querySelector(`#${iframeId}`);
-        if (iframe) {
-          iframe.src = iframe.src; // Reload iframe
-        }
-      ")
-    }
+    ()
   }
 
   <div
@@ -36,7 +26,7 @@ let make = (
         alignItems: "center",
         gap: "8px",
       }>
-      <RadixUI__Icons.ReloadIcon width={16} height={16} />
+      <RadixUI__Icons.ReloadIcon width="16" height="16" />
       {React.string(url)}
     </div>
 

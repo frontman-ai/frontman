@@ -5,6 +5,7 @@
 	"type": "module",
 	"dependencies": {
 		"@ask-the-llm/agent": "*",
+		"@jihchi/vite-plugin-rescript": "next",
 		"@medv/finder": "^4.0.2",
 		"@radix-ui/react-icons": "^1.3.0",
 		"@rescript/react": "^0.14.0",

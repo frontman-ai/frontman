@@ -23,7 +23,7 @@ lint: ## Run linters
 	# Add lint commands here
 
 dev-client: ## Start development server for client app
-	cd apps/client && $(MAKE) dev
+	cd libs/client && $(MAKE) dev
 
 dev-nextjs: ## Start development server for Next.js test site
 	cd test/sites/blog-starter && $(MAKE) dev
