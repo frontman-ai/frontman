@@ -497,7 +497,7 @@ external getComputedStyle: (window, ~elt: element, ~pseudoElt: string=?) => cssS
 /**
 [Read more on MDN](https://developer.mozilla.org/docs/Web/API/Window/location)
 */
-@send
+@get
 external location: window => location = "location"
 
 /**

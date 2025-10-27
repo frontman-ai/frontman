@@ -2,9 +2,8 @@
 // Each icon is exported as a separate React component
 // Usage: <RadixUI__Icons.PaperPlaneIcon width={20} height={20} color="white" />
 
-
 module PaperPlaneIcon = {
-  @react.component @module("@radix-ui/react-icons")
+  @module("@radix-ui/react-icons") @react.component 
   external make: (
     ~className: string=?,
     ~style: {..}=?,
@@ -28,7 +27,7 @@ module ReloadIcon = {
 
 
 module TargetIcon = {
-  @react.component @module("@radix-ui/react-icons")
+ @module("@radix-ui/react-icons") @react.component 
   external make: (
     ~className: string=?,
     ~style: {..}=?,

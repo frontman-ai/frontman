@@ -18,12 +18,5 @@
 	"compiler-flags": [],
 	"jsx": {
 		"version": 4
-	},
-	"gentypeconfig": {
-		"language": "typescript",
-		"module": "esmodule",
-		"shims": {
-			"JsxDOM": "JsxDOM"
-		}
 	}
 }

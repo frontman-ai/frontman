@@ -23,7 +23,7 @@ The data sent by the message emitter.
 
 [Read more on MDN](https://developer.mozilla.org/docs/Web/API/MessageEvent/data)
 */
-@send
+@get
 external data: messageEvent<'t> => {..} = "data"
 
 /**
