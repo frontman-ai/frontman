@@ -1,10 +1,11 @@
-module AgentTaskMessage = AskTheLlmAgent.Agent__Task__Message
-module AgentId = AskTheLlmAgent.Agent__Id
+module AgentId = AskTheLlmAgent.Agent.Id
+module Agent = AskTheLlmAgent.Agent
+
 @react.component
 let make = (
   ~title: option<string>=?,
   ~subtitle: option<string>=?,
-  ~messages: option<array<AgentTaskMessage.t>>,
+  ~messages: option<array<Agent.TaskMessage.t>>,
   ~onAcceptProposal: option<(string, int) => unit>,
   ~onRejectProposal: option<(string, int) => unit>,
 ) => {
@@ -26,13 +27,7 @@ let make = (
       }>
       {messagesList->Array.mapWithIndex((message, idx) => {
         // Determine what to display
-        let displayContent = message.parts->Array.map(part => {
-          switch part {
-          | AgentTaskMessage.Part.Text(textPart) => textPart.text
-          | _ => ""
-          }
-        })->Array.join("\n")
-        
+        let displayContent = Agent.TaskMessage.getContent(message)
         // If still sending and no content, show status message
         // let displayContent = 
         //   if (message.status == Some(Client__Types.Sending) && 
@@ -44,19 +39,19 @@ let make = (
         //   }
 
         <div
-          key={message.messageId->AgentId.toString}
+          key={idx->Int.toString}
           style={
             padding: "12px",
             borderRadius: "8px",
-            backgroundColor: message.role == User ? "#374151" : "#1f2937",
+            backgroundColor: Agent.TaskMessage.isUserMessage(message) ? "#374151" : "#1f2937",
             color: "#f3f4f6",
             fontSize: "14px",
             lineHeight: "1.5",
-            opacity: message.role == User ? "0.7" : "1",
-            border: message.role == System ? "1px solid #ef4444" : "none",
+            opacity: Agent.TaskMessage.isUserMessage(message) ? "0.7" : "1",
+            border: Agent.TaskMessage.isSystemMessage(message) ? "1px solid #ef4444" : "none",
           }>
           <div style={display: "flex", alignItems: "center", gap: "8px"}>
-            {message.role == User ?
+            {Agent.TaskMessage.isUserMessage(message) ?
               <div
                 style={
                   width: "12px",
@@ -69,7 +64,7 @@ let make = (
               />
               : React.null
             }
-            {message.role == System ?
+            {Agent.TaskMessage.isSystemMessage(message) ?
               <span style={color: "#ef4444", fontSize: "12px"}>
                 {React.string(`⚠`)}
               </span>

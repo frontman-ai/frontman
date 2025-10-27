@@ -1,6 +1,5 @@
 open WebAPI.Global
-module AgentTaskMessage = AskTheLlmAgent.Agent__Task__Message
-module AgentTaskPart = AgentTaskMessage.Part
+module Agent = AskTheLlmAgent.Agent
 module Types = Client__Types
 
 @react.component
@@ -18,7 +17,7 @@ let make = () => {
     None
   }, (setIframeUrl))
 
-  let handleSSEMessage = React.useCallback((msg: AgentTaskMessage.t) => {
+  let handleSSEMessage = React.useCallback((msg: Agent.TaskMessage.t) => {
     Console.log2("[SSE] Message received:", msg)
   }, ())
 
@@ -27,8 +26,8 @@ let make = () => {
   let handleSendMessage = React.useCallback(() => {
     // Console.log2("[SSE] Sending message:", msg)
 
-    setMessages((prev: array<AgentTaskMessage.t>)=> {
-        let userMessage = AgentTaskMessage.make(~role=User, ~parts=[AgentTaskPart.text(~text=message)])
+    setMessages((prev: array<Agent.TaskMessage.t>)=> {
+        let userMessage: Agent.TaskMessage.t = Agent.TaskMessage.User({content: Agent.TaskMessage.User.String(message)})
         prev->Array.concat([userMessage])
     })
 

@@ -36,6 +36,21 @@ module User = {
 
   @schema
   type t = {taskId?: TaskId.t, content: userContent}
+
+  let contentAsString = (content: userContent): string => {
+    switch content {
+    | String(content) => content
+    | List(parts) =>
+      parts
+      ->Array.map(part => {
+        switch part {
+        | Text(textPart) => textPart.content
+        | _ => ""
+        }
+      })
+      ->Array.join("\n")
+    }
+  }
 }
 
 module Assistant = {
@@ -47,12 +62,38 @@ module Assistant = {
 
   @schema
   type t = {taskId: option<TaskId.t>, content: content}
+
+  let contentAsString = (content: content): string => {
+    switch content {
+    | String(content) => content
+    | List(parts) =>
+      parts
+      ->Array.map(part => {
+        switch part {
+        | Text(textPart) => textPart.content
+        | _ => ""
+        }
+      })
+      ->Array.join("\n")
+    }
+  }
 }
 module Tool = {
   @schema
   type content = array<Part.ToolResultPart.t>
   @schema
   type t = {taskId: option<TaskId.t>, content: content}
+
+  let contentAsString = (content: content): string => {
+    content
+    ->Array.map(part => {
+      switch part.output {
+      | Part.ToolResultPart.Output.Text(textPart) => textPart
+      | _ => ""
+      }
+    })
+    ->Array.join("\n")
+  }
 }
 
 @schema
@@ -104,5 +145,43 @@ let extractToolCalls = (message: t): array<Part.ToolCallPart.t> => {
       }
     )
   | _ => []
+  }
+}
+
+let isUserMessage = (message: t): bool => {
+  switch message {
+  | User(_) => true
+  | _ => false
+  }
+}
+
+let isAssistantMessage = (message: t): bool => {
+  switch message {
+  | Assistant(_) => true
+  | _ => false
+  }
+}
+
+
+let isToolMessage = (message: t): bool => {
+  switch message {
+  | Tool(_) => true
+  | _ => false
+  }
+}
+
+let isSystemMessage = (message: t): bool => {
+  switch message {
+  | System(_) => true
+  | _ => false
+  }
+}
+
+let getContent = (t: t): string => {
+  switch t {
+  | System({content}) => content
+  | User({content}) => User.contentAsString(content)
+  | Assistant({content}) => Assistant.contentAsString(content)
+  | Tool({content}) => Tool.contentAsString(content)
   }
 }

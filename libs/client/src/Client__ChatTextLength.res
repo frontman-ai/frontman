@@ -4,21 +4,11 @@ let make = (~messages: option<array<AgentTaskMessage.t>>) => {
   let messages = messages->Option.getOr([])
   
   let totalCharacters = messages->Array.reduce(0, (total, message) => 
-    message.parts->Array.reduce(total, (total, part) => {
-      switch part {
-      | AgentTaskMessage.Part.Text(textPart) => total + textPart.text->String.length
-      | _ => total
-      }
-    })
+    AgentTaskMessage.getContent(message)->String.length + total
   )
   
   let totalWords = messages->Array.reduce(0, (total, message) => {
-    message.parts->Array.reduce(total, (total, part) => {
-      switch part {
-      | AgentTaskMessage.Part.Text(textPart) => total + textPart.text->String.trim->String.split(" ")->Array.filter(word => word->String.length > 0)->Array.length
-      | _ => total
-      }
-    })
+    AgentTaskMessage.getContent(message)->String.trim->String.split(" ")->Array.filter(word => word->String.length > 0)->Array.length + total
   })
   
   let messageCount = messages->Array.length
