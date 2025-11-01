@@ -303,35 +303,34 @@ let processFileContent = (fileContent: string, offset: int, limit: int): result<
   }
   let totalLines = Array.length(allLines)
 
-  // Validate offset
+  // Validate and clamp offset
   let validOffset = if offset < 0 {
+    0
+  } else if totalLines > 0 && offset >= totalLines {
+    totalLines - 1
+  } else if totalLines == 0 {
     0
   } else {
     offset
   }
-  if validOffset >= totalLines {
-    Error(
-      `Offset ${Int.toString(validOffset)} is beyond file length (${Int.toString(
-          totalLines,
-        )} lines)`,
-    )
-  } else {
-    // Extract requested range
-    let validLimit = if limit < 1 {
-      1
-    } else {
-      limit
-    }
-    let endLine = if validOffset + validLimit < totalLines {
-      validOffset + validLimit
-    } else {
-      totalLines
-    }
-    let selectedLines = allLines->Array.slice(~start=validOffset, ~end=endLine)
 
-    // Build output
-    Ok(buildOutput(selectedLines, validOffset, totalLines, endLine))
+  // Validate and clamp limit
+  let validLimit = if limit < 1 {
+    1
+  } else {
+    limit
   }
+
+  // Extract requested range
+  let endLine = if validOffset + validLimit < totalLines {
+    validOffset + validLimit
+  } else {
+    totalLines
+  }
+  let selectedLines = allLines->Array.slice(~start=validOffset, ~end=endLine)
+
+  // Build output
+  Ok(buildOutput(selectedLines, validOffset, totalLines, endLine))
 }
 
 let execute = async (ctx: Agent__ToolExecutionContext.t, input: input): Agent__Tool.toolResult<
@@ -368,18 +367,10 @@ let execute = async (ctx: Agent__ToolExecutionContext.t, input: input): Agent__T
   | Ok(true) =>
     Error(`Cannot read binary file: "${input.path}". Use a binary file viewer or conversion tool.`)
   | Ok(false) => {
-      // Step 2: Read file as text
+      // Step 2: Read file as text (file existence already verified by binary check)
       let readResult = await readFileAsText(fullPath)
 
       switch readResult {
-      | Error(exn) if hasErrorCode(exn, "ENOENT") => {
-          let errorMsg = await formatFileNotFoundError(input.path, fullPath)
-          Error(errorMsg)
-        }
-      | Error(exn) if hasErrorCode(exn, "EISDIR") =>
-        Error(
-          `Cannot read "${input.path}" because it's a directory, not a file. ` ++ `Use list_files to see the contents of this directory.`,
-        )
       | Error(exn) => {
           let message =
             exn
@@ -388,15 +379,9 @@ let execute = async (ctx: Agent__ToolExecutionContext.t, input: input): Agent__T
             ->Option.getOr("Unknown error")
           Error(`Failed to read file ${input.path}: ${message}`)
         }
-      | Ok(fileContent) => {
+      | Ok(fileContent) =>
           // Step 3: Process content into formatted output
-          let processResult = processFileContent(fileContent, input.offset, input.limit)
-
-          switch processResult {
-          | Error(err) => Error(err)
-          | Ok(output) => Ok(output)
-          }
-        }
+          processFileContent(fileContent, input.offset, input.limit)
       }
     }
   }
