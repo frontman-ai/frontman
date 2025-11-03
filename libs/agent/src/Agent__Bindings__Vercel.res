@@ -24,9 +24,9 @@ type role =
 
 @schema
 type usage = {
-  promptTokens: int,
-  completionTokens: int,
-  totalTokens: int,
+  promptTokens?: int,
+  completionTokens?: int,
+  totalTokens?: int,
 }
 
 @schema
@@ -219,12 +219,12 @@ type generatedFile = {
 }
 
 @schema
-type requestMetadata = {body: string}
+type requestMetadata = {body: JSON.t}
 
 @schema
 type responseMetadata = {
   id: string,
-  model: string,
+  model?: string,
   timestamp: @s.matches(DateISO.schema) Date.t,
   headers?: Dict.t<string>,
 }
@@ -260,11 +260,7 @@ type streamPart =
       dynamic?: bool,
       title?: string,
     })
-  | @as("tool-input-delta")
-  ToolInputDelta({
-      id: string,
-      delta: string,
-    })
+  | @as("tool-input-delta") ToolInputDelta({id: string, delta: string})
   | @as("tool-input-end") ToolInputEnd({id: string})
   | @as("tool-result")
   ToolResult({
@@ -276,7 +272,7 @@ type streamPart =
   | @as("tool-error") ToolError({toolCallId: string, toolName: string, error: JSON.t})
   | @as("finish-step")
   FinishStep({
-      response: responseMetadata,
+      response?: responseMetadata,
       usage: usage,
       finishReason: finishReason,
       providerMetadata?: JSON.t,

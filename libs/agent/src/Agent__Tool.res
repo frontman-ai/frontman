@@ -7,6 +7,7 @@ module type T = {
   type input
   type output
   let inputSchema: S.t<input>
+  let outputSchema: S.t<output>
   let decodeInput: JSON.t => result<input, S.error>
   let encodeOutput: output => JSON.t
   let execute: (Agent__ToolExecutionContext.t, input) => promise<toolResult<output>>

@@ -16,6 +16,37 @@ let make = () => {
       Client__State.Actions.textDeltaReceived(~id, ~text)
 
     | StreamEvent(_task, TextEnd({id})) => Client__State.Actions.messageCompleted(~id)
+
+    | StreamEvent(_task, ToolCall({toolCallId, toolName, input})) =>
+      Client__State.Actions.toolCallReceived(
+        ~toolCall={
+          toolCallId,
+          toolName,
+          inputBuffer: "",
+          input: Some(input),
+          result: None,
+          errorText: None,
+          state: InputAvailable,
+        },
+      )
+
+    | StreamEvent(_task, ToolInputStart({id: toolCallId, toolName, _})) =>
+      Client__State.Actions.toolInputStartReceived(~toolCallId, ~toolName)
+
+    | StreamEvent(_task, ToolInputDelta({id: toolCallId, delta})) =>
+      Client__State.Actions.toolInputDeltaReceived(~toolCallId, ~delta)
+
+    | StreamEvent(_task, ToolInputEnd({id: toolCallId})) =>
+      Client__State.Actions.toolInputEndReceived(~toolCallId)
+
+    | StreamEvent(_task, ToolResult({toolCallId, result, _})) =>
+      Client__State.Actions.toolResultReceived(~toolCallId, ~result)
+
+    | StreamEvent(_task, ToolError({toolCallId, error, _})) => {
+        let errorText = JSON.stringifyAny(error)->Option.getOr("Unknown error")
+        Client__State.Actions.toolErrorReceived(~toolCallId, ~error=errorText)
+      }
+
     | StreamEvent(_, Start(_))
     | StreamEvent(_, FinishStep(_))
     | StreamEvent(_, StartStep(_))
@@ -23,12 +54,6 @@ let make = () => {
     | StreamEvent(_, ReasoningStart(_))
     | StreamEvent(_, ReasoningDelta(_))
     | StreamEvent(_, ReasoningEnd(_))
-    | StreamEvent(_, ToolCall(_))
-    | StreamEvent(_, ToolInputStart(_))
-    | StreamEvent(_, ToolInputDelta(_))
-    | StreamEvent(_, ToolInputEnd(_))
-    | StreamEvent(_, ToolResult(_))
-    | StreamEvent(_, ToolError(_))
     | StreamEvent(_, Source(_))
     | StreamEvent(_, File(_))
     | StreamEvent(_, Abort(_))

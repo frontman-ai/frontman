@@ -6,15 +6,26 @@ let name = "Client::StateReducer"
 // Message Content Types
 // ============================================================================
 
-// Reuse content part types from agent bindings
 module UserContentPart = Vercel.UserPart
 module AssistantContentPart = Vercel.AssistantPart
 
-// Tool call tracking (for streaming accumulation)
+type toolCallState =
+  | InputStreaming // Parameters are streaming in
+  | InputAvailable // Parameters complete, executing
+  | OutputAvailable // Completed successfully
+  | OutputError // Failed with error
+
 type toolCall = {
   toolCallId: string,
   toolName: string,
-  input: JSON.t,
+  // Input accumulation during streaming
+  inputBuffer: string, // Raw streamed JSON (for ToolInputDelta)
+  input: option<JSON.t>, // Parsed complete input
+  // Execution results
+  result: option<JSON.t>, // Tool output
+  errorText: option<string>, // Error message
+  // State tracking
+  state: toolCallState,
 }
 
 // ============================================================================
@@ -23,13 +34,24 @@ type toolCall = {
 
 // Assistant messages can be streaming or completed
 type assistantMessage =
-  | Streaming({id: string, textBuffer: string, toolCalls: array<toolCall>, createdAt: float})
+  | Streaming({id: string, textBuffer: string, createdAt: float})
   | Completed({id: string, content: array<AssistantContentPart.t>, createdAt: float})
 
 // Top-level message variant
 type message =
   | User({id: string, content: array<UserContentPart.t>, createdAt: float})
   | Assistant(assistantMessage)
+  | ToolCall({
+      id: string,
+      toolCallId: string,
+      toolName: string,
+      state: toolCallState,
+      inputBuffer: string,
+      input: option<JSON.t>,
+      result: option<JSON.t>,
+      errorText: option<string>,
+      createdAt: float,
+    })
 
 // Preview frame with URL and optional loaded document/window
 type previewFrame = {
@@ -79,7 +101,12 @@ type action =
   // Streaming actions (from SSE events)
   | StreamingStarted({id: string})
   | TextDeltaReceived({id: string, text: string})
-  | ToolCallReceived({id: string, toolCall: toolCall})
+  | ToolCallReceived({toolCall: toolCall})
+  | ToolInputStartReceived({toolCallId: string, toolName: string})
+  | ToolInputDeltaReceived({toolCallId: string, delta: string})
+  | ToolInputEndReceived({toolCallId: string})
+  | ToolResultReceived({toolCallId: string, result: JSON.t})
+  | ToolErrorReceived({toolCallId: string, error: string})
   // Completion action
   | MessageCompleted({id: string})
   // Preview frame actions
@@ -93,19 +120,15 @@ type action =
   | SetSelectedElement({selectedElement: option<SelectedElement.t>})
 
 // Effects for side effects
-type effect = 
+type effect =
   | SendMessageToAPI({message: string})
-  | FetchElementDetails({
-      element: WebAPI.DOMAPI.element,
-      document: option<WebAPI.DOMAPI.document>,
-    })
+  | FetchElementDetails({element: WebAPI.DOMAPI.element, document: option<WebAPI.DOMAPI.document>})
 
 let getInitialUrl = () => {
   // Check if window is available (browser environment)
   switch %external(window) {
   | Some(win) => {
-      let currentUrl =
-        win->WebAPI.Window.location->WebAPI.Location.href->WebAPI.URL.make(~url=_)
+      let currentUrl = win->WebAPI.Window.location->WebAPI.Location.href->WebAPI.URL.make(~url=_)
       `${currentUrl.protocol}//${currentUrl.host}`
     }
   | None => "http://localhost:3000" // Default for test environment
@@ -124,7 +147,13 @@ let actionToString = action => {
   | AddUserMessage({id, _}) => `AddUserMessage(${id})`
   | StreamingStarted({id}) => `StreamingStarted(${id})`
   | TextDeltaReceived({id, text}) => `TextDeltaReceived(${id}, "${text}")`
-  | ToolCallReceived({id, toolCall}) => `ToolCallReceived(${id}, ${toolCall.toolName})`
+  | ToolCallReceived({toolCall}) => `ToolCallReceived(${toolCall.toolName})`
+  | ToolInputStartReceived({toolCallId, toolName, _}) =>
+    `ToolInputStartReceived(${toolCallId}, ${toolName})`
+  | ToolInputDeltaReceived({toolCallId, _}) => `ToolInputDeltaReceived(${toolCallId})`
+  | ToolInputEndReceived({toolCallId, _}) => `ToolInputEndReceived(${toolCallId})`
+  | ToolResultReceived({toolCallId, _}) => `ToolResultReceived(${toolCallId})`
+  | ToolErrorReceived({toolCallId, _}) => `ToolErrorReceived(${toolCallId})`
   | MessageCompleted({id}) => `MessageCompleted(${id})`
   | SetPreviewUrl({url}) => `SetPreviewUrl(${url})`
   | SetPreviewFrame(_) => `SetPreviewFrame(contentDocument, contentWindow)`
@@ -165,20 +194,21 @@ let handleEffect = (effect, state, dispatch) => {
         let selector = Bindings__Finder.finder(
           ~element,
           ~options={
-            root: document->Option.map(doc => 
-              doc.documentElement->Obj.magic
-            )->Option.getOr(element),
+            root: document
+            ->Option.map(doc => doc.documentElement->Obj.magic)
+            ->Option.getOr(element),
             idName: (~name as _) => true,
             className: (~name as _) => true,
             tagName: (~name as _) => true,
             attr: (~name as _, ~value as _) => false,
-          }
+          },
         )
         Promise.resolve(Some(selector))
       })
-      
+
       // Fetch screenshot
-      let screenshotPromise = Bindings__Snapdom.snapdom(~element)
+      let screenshotPromise =
+        Bindings__Snapdom.snapdom(~element)
         ->Promise.then(captureResult => {
           Promise.resolve(Some(captureResult.url))
         })
@@ -186,9 +216,10 @@ let handleEffect = (effect, state, dispatch) => {
           Console.error2("Failed to capture screenshot:", error)
           Promise.resolve(None)
         })
-      
+
       // Fetch source location
-      let sourceLocationPromise = Bindings__DOMElementToComponentSource.getElementSourceLocation(~element)
+      let sourceLocationPromise =
+        Bindings__DOMElementToComponentSource.getElementSourceLocation(~element)
         ->Promise.then(sourceLocationOpt => {
           Promise.resolve(sourceLocationOpt)
         })
@@ -196,7 +227,7 @@ let handleEffect = (effect, state, dispatch) => {
           Console.error2("Failed to get source location:", error)
           Promise.resolve(None)
         })
-      
+
       // Wait for all promises and update state once
       let _ = Promise.all3((selectorPromise, screenshotPromise, sourceLocationPromise))
         ->Promise.then(((selector, screenshot, sourceLocation)) => {
@@ -255,7 +286,6 @@ let next = (state, action) => {
         Streaming({
           id,
           textBuffer: "",
-          toolCalls: [],
           createdAt: Date.now(),
         }),
       )
@@ -271,12 +301,11 @@ let next = (state, action) => {
   | TextDeltaReceived({id, text}) => {
       let updatedMessages = state.messages->Array.map(msg => {
         switch msg {
-        | Assistant(Streaming({id: msgId, textBuffer, toolCalls, createdAt})) if msgId == id =>
+        | Assistant(Streaming({id: msgId, textBuffer, createdAt})) if msgId == id =>
           Assistant(
             Streaming({
               id: msgId,
               textBuffer: textBuffer ++ text,
-              toolCalls,
               createdAt,
             }),
           )
@@ -291,70 +320,176 @@ let next = (state, action) => {
       })
     }
 
-  // Add tool call to streaming message
-  | ToolCallReceived({id, toolCall}) => {
+  // Tool call with complete input (Path A: ToolCall event)
+  | ToolCallReceived({toolCall}) => {
+      let existingIndex = state.messages->Array.findIndex(msg =>
+        switch msg {
+        | ToolCall(tool) => tool.toolCallId == toolCall.toolCallId
+        | _ => false
+        }
+      )
+
+      let messages = if existingIndex >= 0 {
+        // Update existing ToolCall message
+        state.messages->Array.mapWithIndex((msg, i) =>
+          if i == existingIndex {
+            switch msg {
+            | ToolCall(tool) =>
+              ToolCall({
+                ...tool,
+                toolName: toolCall.toolName,
+                input: toolCall.input,
+                state: InputAvailable,
+              })
+            | other => other
+            }
+          } else {
+            msg
+          }
+        )
+      } else {
+        // Create new ToolCall message
+        let newMessage = ToolCall({
+          id: toolCall.toolCallId,
+          toolCallId: toolCall.toolCallId,
+          toolName: toolCall.toolName,
+          inputBuffer: "",
+          input: toolCall.input,
+          result: None,
+          errorText: None,
+          state: InputAvailable,
+          createdAt: Date.now(),
+        })
+        Array.concat(state.messages, [newMessage])
+      }
+
+      AskTheLlmReactStatestore.StateReducer.update({
+        ...state,
+        messages,
+      })
+    }
+
+  // Tool input streaming started (Path B: ToolInputStart event)
+  | ToolInputStartReceived({toolCallId, toolName}) => {
+      let existingIndex = state.messages->Array.findIndex(msg =>
+        switch msg {
+        | ToolCall(tool) => tool.toolCallId == toolCallId
+        | _ => false
+        }
+      )
+
+      let messages = if existingIndex >= 0 {
+        // Update existing ToolCall message
+        state.messages->Array.mapWithIndex((msg, i) =>
+          if i == existingIndex {
+            switch msg {
+            | ToolCall(tool) =>
+              ToolCall({
+                ...tool,
+                toolName,
+                state: InputStreaming,
+              })
+            | other => other
+            }
+          } else {
+            msg
+          }
+        )
+      } else {
+        // Create new ToolCall message
+        let newMessage = ToolCall({
+          id: toolCallId,
+          toolCallId,
+          toolName,
+          inputBuffer: "",
+          input: None,
+          result: None,
+          errorText: None,
+          state: InputStreaming,
+          createdAt: Date.now(),
+        })
+        Array.concat(state.messages, [newMessage])
+      }
+
+      AskTheLlmReactStatestore.StateReducer.update({
+        ...state,
+        messages,
+      })
+    }
+
+  // Tool input delta received (streaming parameters)
+  | ToolInputDeltaReceived({toolCallId, delta}) => {
       let updatedMessages = state.messages->Array.map(msg => {
         switch msg {
-        | Assistant(Streaming({id: msgId, textBuffer, toolCalls, createdAt})) if msgId == id =>
-          Assistant(
-            Streaming({
-              id: msgId,
-              textBuffer,
-              toolCalls: Array.concat(toolCalls, [toolCall]),
-              createdAt,
-            }),
-          )
+        | ToolCall(tool) if tool.toolCallId == toolCallId =>
+          ToolCall({...tool, inputBuffer: tool.inputBuffer ++ delta})
         | other => other
         }
       })
-      AskTheLlmReactStatestore.StateReducer.update({
-        messages: updatedMessages,
-        previewFrame: state.previewFrame,
-        webPreviewIsSelecting: state.webPreviewIsSelecting,
-        selectedElement: state.selectedElement,
+      AskTheLlmReactStatestore.StateReducer.update({...state, messages: updatedMessages})
+    }
+
+  // Tool input complete (parse buffered JSON)
+  | ToolInputEndReceived({toolCallId}) => {
+      let updatedMessages = state.messages->Array.map(msg => {
+        switch msg {
+        | ToolCall(tool) if tool.toolCallId == toolCallId => {
+            let parsedInput = try {
+              Some(JSON.parseOrThrow(tool.inputBuffer))
+            } catch {
+            | _ => None
+            }
+            ToolCall({...tool, input: parsedInput, state: InputAvailable})
+          }
+        | other => other
+        }
       })
+      AskTheLlmReactStatestore.StateReducer.update({...state, messages: updatedMessages})
+    }
+
+  // Tool execution completed with result
+  | ToolResultReceived({toolCallId, result}) => {
+      let updatedMessages = state.messages->Array.map(msg => {
+        switch msg {
+        | ToolCall(tool) if tool.toolCallId == toolCallId =>
+          ToolCall({...tool, result: Some(result), state: OutputAvailable})
+        | other => other
+        }
+      })
+      AskTheLlmReactStatestore.StateReducer.update({...state, messages: updatedMessages})
+    }
+
+  // Tool execution failed with error
+  | ToolErrorReceived({toolCallId, error}) => {
+      let updatedMessages = state.messages->Array.map(msg => {
+        switch msg {
+        | ToolCall(tool) if tool.toolCallId == toolCallId =>
+          ToolCall({...tool, errorText: Some(error), state: OutputError})
+        | other => other
+        }
+      })
+      AskTheLlmReactStatestore.StateReducer.update({...state, messages: updatedMessages})
     }
 
   // Transition streaming message to completed
   | MessageCompleted({id}) => {
       let updatedMessages = state.messages->Array.map(msg => {
         switch msg {
-        | Assistant(Streaming({id: msgId, textBuffer, toolCalls, createdAt})) if msgId == id =>
-          // Build content array from streaming state
-          let content = {
-            // Add text part if buffer has content
-            let textParts = if String.length(textBuffer) > 0 {
+        | Assistant(Streaming({id: msgId, textBuffer, createdAt})) if msgId == id => {
+            let content = if String.length(textBuffer) > 0 {
               [AssistantContentPart.Text({text: textBuffer})]
             } else {
               []
             }
-
-            // Convert tool calls to content parts
-            let toolCallParts = toolCalls->Array.map(tc =>
-              AssistantContentPart.ToolCall({
-                toolCallId: tc.toolCallId,
-                toolName: tc.toolName,
-                input: tc.input,
-              })
-            )
-
-            // Concatenate: text first, then tool calls
-            Array.concat(textParts, toolCallParts)
+            Assistant(Completed({id: msgId, content, createdAt}))
           }
-
-          Assistant(
-            Completed({
-              id: msgId,
-              content,
-              createdAt,
-            }),
-          )
         | other => other
         }
       })
       AskTheLlmReactStatestore.StateReducer.update({
+        ...state,
         messages: updatedMessages,
-        previewFrame: state.previewFrame,
+        previewDocument: state.previewDocument,
         webPreviewIsSelecting: state.webPreviewIsSelecting,
         selectedElement: state.selectedElement,
       })
@@ -400,17 +535,17 @@ let next = (state, action) => {
           // New element with no details - trigger fetch
           Some(FetchElementDetails({
             element: element,
-            document: state.previewFrame.contentDocument,
+            document: state.previewDocument.document,
           }))
       | _ => None // Element with details or clearing selection - no fetch needed
       }
-      
+
       AskTheLlmReactStatestore.StateReducer.update(
         {
           messages: state.messages,
           previewFrame: state.previewFrame,
           webPreviewIsSelecting: false, // Auto-reset selection mode
-          selectedElement: selectedElement,
+          selectedElement,
         },
         ~sideEffects=shouldFetchDetails->Option.mapOr([], effect => [effect]),
       )
@@ -426,9 +561,11 @@ module Selectors = {
   let completedMessages = (state: state) =>
     state.messages->Array.filter(msg => {
       switch msg {
-      | User(_) => true // User messages always complete
+      | User(_) => true
       | Assistant(Completed(_)) => true
       | Assistant(Streaming(_)) => false
+      | ToolCall({state: OutputAvailable | OutputError, _}) => true
+      | ToolCall(_) => false
       }
     })
 
@@ -446,6 +583,7 @@ module Selectors = {
     state.messages->Array.some(msg => {
       switch msg {
       | Assistant(Streaming(_)) => true
+      | ToolCall({state: InputStreaming | InputAvailable, _}) => true
       | _ => false
       }
     })
@@ -459,6 +597,7 @@ module Selectors = {
     | User({id, _}) => id
     | Assistant(Streaming({id, _})) => id
     | Assistant(Completed({id, _})) => id
+    | ToolCall({id, _}) => id
     }
   }
 

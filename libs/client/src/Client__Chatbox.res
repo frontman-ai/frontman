@@ -12,6 +12,16 @@ let models = [
   {name: "Deepseek R1", value: "deepseek/deepseek-r1"},
 ]
 
+// Convert internal toolCallState to AI SDK state string
+let toolStateToString = (state: Client__State__StateReducer.toolCallState): string => {
+  switch state {
+  | InputStreaming => "input-streaming"
+  | InputAvailable => "input-available"
+  | OutputAvailable => "output-available"
+  | OutputError => "output-error"
+  }
+}
+
 @react.component
 let make = () => {
   let (input, setInput) = React.useState(() => "")
@@ -111,10 +121,52 @@ let make = () => {
                       </AIElements.Action>
                     </AIElements.Actions>
                   </React.Fragment>
-                | ToolCall(_) => React.null // TODO: Render tool calls
+                | ToolCall({toolCallId: _, toolName, input}) =>
+                  <React.Fragment key={`${messageId}-tool-${i->Int.toString}`}>
+                    <AIElements.Tool defaultOpen={true}>
+                      <AIElements.ToolHeader title={toolName} type_="tool-call" state="output-available" />
+                      <AIElements.ToolContent>
+                        <AIElements.ToolInput input={input} />
+                        <AIElements.ToolOutput
+                          output={<AIElements.Response>
+                            {React.string("Tool execution completed")}
+                          </AIElements.Response>}
+                        />
+                      </AIElements.ToolContent>
+                    </AIElements.Tool>
+                  </React.Fragment>
                 }
               })
               ->React.array}
+            </div>
+
+          | ToolCall({toolName, state, input, result, errorText, _}) =>
+            // Render tool call message
+            <div key={messageId} className="max-w-full">
+              <AIElements.Tool
+                defaultOpen={switch state {
+                | OutputAvailable | OutputError => true
+                | _ => false
+                }}
+              >
+                <AIElements.ToolHeader title={toolName} type_="tool-call" state={toolStateToString(state)} />
+                <AIElements.ToolContent>
+                  {switch input {
+                  | Some(input) => <AIElements.ToolInput input={input} />
+                  | None => React.null
+                  }}
+                  {switch (result, errorText) {
+                  | (Some(result), _) =>
+                    <AIElements.ToolOutput
+                      output={<AIElements.Response>
+                        {React.string(JSON.stringifyAny(result)->Option.getOr("{}"))}
+                      </AIElements.Response>}
+                    />
+                  | (None, Some(error)) => <AIElements.ToolOutput errorText={error} />
+                  | (None, None) => React.null
+                  }}
+                </AIElements.ToolContent>
+              </AIElements.Tool>
             </div>
           }
         })

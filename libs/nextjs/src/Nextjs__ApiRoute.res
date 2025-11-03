@@ -228,11 +228,15 @@ let createStreamHandler = (): apiHandler => {
     })
     Console.log("[SSE] Subscribed to new agent events")
 
-    // Cleanup on disconnect
-    req->ApiRequest.on("close", () => {
-      Console.log("[SSE] Client disconnected")
-      unsubsribe()
-      res->ApiResponse.end("")
+    // Keep connection open until client disconnects
+    // Return a Promise that only resolves when the connection closes
+    await Promise.make((resolve, _reject) => {
+      req->ApiRequest.on("close", () => {
+        Console.log("[SSE] Client disconnected")
+        unsubsribe()
+        res->ApiResponse.end("")
+        resolve()
+      })
     })
   }
 }

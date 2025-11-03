@@ -78,6 +78,31 @@ module ReasoningContent = {
     external make: (~children: React.element) => React.element = "ReasoningContent"
 }
 
+module Tool = {
+    @react.component @module("@/components/ai-elements/tool")
+    external make: (~defaultOpen: bool=?, ~children: React.element) => React.element = "Tool"
+}
+
+module ToolHeader = {
+    @react.component @module("@/components/ai-elements/tool")
+    external make: (~title: string=?, @as("type") ~type_: string, ~state: string, ~className: string=?) => React.element = "ToolHeader"
+}
+
+module ToolContent = {
+    @react.component @module("@/components/ai-elements/tool")
+    external make: (~children: React.element) => React.element = "ToolContent"
+}
+
+module ToolInput = {
+    @react.component @module("@/components/ai-elements/tool")
+    external make: (~input: JSON.t) => React.element = "ToolInput"
+}
+
+module ToolOutput = {
+    @react.component @module("@/components/ai-elements/tool")
+    external make: (~output: React.element=?, ~errorText: string=?) => React.element = "ToolOutput"
+}
+
 module PromptInput = {
     @react.component @module("@/components/ai-elements/prompt-input")
     external make: (~onSubmit: unit => unit, ~className: string, ~children: React.element, ~globalDrop: bool, ~multiple: bool) => React.element = "PromptInput"

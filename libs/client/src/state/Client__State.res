@@ -30,18 +30,34 @@ module Actions = {
       }),
     )
 
-  // Streaming actions (typically called from SSE handlers)
-  let streamingStarted = (~id) => Client__State__Store.dispatch(StreamingStarted({id: id}))
+  let messageCompleted = (~id) => Client__State__Store.dispatch(MessageCompleted({id: id}))
 
   let textDeltaReceived = (~id, ~text) =>
     Client__State__Store.dispatch(TextDeltaReceived({id, text}))
 
-  let toolCallReceived = (~id, ~toolCall) =>
-    Client__State__Store.dispatch(ToolCallReceived({id, toolCall}))
+  let streamingStarted = (~id) => Client__State__Store.dispatch(StreamingStarted({id: id}))
 
-  let messageCompleted = (~id) => Client__State__Store.dispatch(MessageCompleted({id: id}))
+  // TOOLS
+  let toolCallReceived = (~toolCall) =>
+    Client__State__Store.dispatch(ToolCallReceived({toolCall: toolCall}))
 
-  // Preview frame actions
+  let toolInputStartReceived = (~toolCallId, ~toolName) =>
+    Client__State__Store.dispatch(
+      ToolInputStartReceived({toolCallId: toolCallId, toolName: toolName}),
+    )
+
+  let toolInputDeltaReceived = (~toolCallId, ~delta) =>
+    Client__State__Store.dispatch(ToolInputDeltaReceived({toolCallId: toolCallId, delta: delta}))
+
+  let toolInputEndReceived = (~toolCallId) =>
+    Client__State__Store.dispatch(ToolInputEndReceived({toolCallId: toolCallId}))
+
+  let toolResultReceived = (~toolCallId, ~result) =>
+    Client__State__Store.dispatch(ToolResultReceived({toolCallId: toolCallId, result: result}))
+
+  let toolErrorReceived = (~toolCallId, ~error) =>
+    Client__State__Store.dispatch(ToolErrorReceived({toolCallId: toolCallId, error: error}))
+
   let setPreviewUrl = (~url) => Client__State__Store.dispatch(SetPreviewUrl({url: url}))
 
   let setPreviewFrame = (~contentDocument, ~contentWindow) =>
@@ -49,7 +65,6 @@ module Actions = {
       SetPreviewFrame({contentDocument, contentWindow}),
     )
 
-  // WebPreview selection actions
   let toggleWebPreviewSelection = () => Client__State__Store.dispatch(ToggleWebPreviewSelection)
 
   let setSelectedElement = (~selectedElement) =>

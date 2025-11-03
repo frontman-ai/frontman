@@ -39,10 +39,9 @@ describe("Client State Reducer", () => {
     t->expect(nextState.messages->Array.length)->Expect.toBe(1)
 
     switch nextState.messages->Array.get(0) {
-    | Some(Assistant(Streaming({id, textBuffer, toolCalls, _}))) => {
+    | Some(Assistant(Streaming({id, textBuffer, _}))) => {
         t->expect(id)->Expect.toBe("assistant-1")
         t->expect(textBuffer)->Expect.toBe("")
-        t->expect(toolCalls->Array.length)->Expect.toBe(0)
       }
     | _ => t->expect("Got Streaming message")->Expect.toBe("Expected Streaming message")
     }
@@ -62,7 +61,6 @@ describe("Client State Reducer", () => {
           Streaming({
             id: "assistant-1",
             textBuffer: "Hello",
-            toolCalls: [],
             createdAt: 0.0,
           }),
         ),
@@ -93,7 +91,6 @@ describe("Client State Reducer", () => {
           Streaming({
             id: "assistant-1",
             textBuffer: "Hello world",
-            toolCalls: [],
             createdAt: 0.0,
           }),
         ),
@@ -134,10 +131,7 @@ describe("Client State Reducer", () => {
     let (state, _) = Reducer.next(state, StreamingStarted({id: "assistant-1"}))
 
     // Add text delta
-    let (state, _) = Reducer.next(
-      state,
-      TextDeltaReceived({id: "assistant-1", text: "Hello"}),
-    )
+    let (state, _) = Reducer.next(state, TextDeltaReceived({id: "assistant-1", text: "Hello"}))
 
     // Complete message
     let (state, _) = Reducer.next(
@@ -170,7 +164,6 @@ describe("Client State Reducer", () => {
           Streaming({
             id: "assistant-1",
             textBuffer: "",
-            toolCalls: [],
             createdAt: 0.0,
           }),
         ),
@@ -203,7 +196,7 @@ describe("Client State Reducer", () => {
     t->expect(Reducer.Selectors.isStreaming(state))->Expect.toBe(false)
   })
 
-  test("ToolCallReceived adds tool call to streaming message", t => {
+  test("ToolCallReceived creates new ToolCall message", t => {
     let state: Reducer.state = {
       previewFrame: {
         url: "https://example.com",
@@ -217,7 +210,6 @@ describe("Client State Reducer", () => {
           Streaming({
             id: "assistant-1",
             textBuffer: "Calling tool...",
-            toolCalls: [],
             createdAt: 0.0,
           }),
         ),
@@ -227,21 +219,24 @@ describe("Client State Reducer", () => {
     let toolCall: Reducer.toolCall = {
       toolCallId: "call-123",
       toolName: "search",
-      input: JSON.Encode.object(dict{}),
+      inputBuffer: "",
+      input: Some(JSON.Encode.object({})),
+      result: None,
+      errorText: None,
+      state: Reducer.InputAvailable,
     }
 
-    let action = Reducer.ToolCallReceived({id: "assistant-1", toolCall})
+    let action = Reducer.ToolCallReceived({toolCall: toolCall})
     let (nextState, _effects) = Reducer.next(state, action)
 
-    switch nextState.messages->Array.get(0) {
-    | Some(Assistant(Streaming({toolCalls, _}))) => {
-        t->expect(toolCalls->Array.length)->Expect.toBe(1)
-        switch toolCalls->Array.get(0) {
-        | Some(tc) => t->expect(tc.toolName)->Expect.toBe("search")
-        | None => t->expect("Got tool call")->Expect.toBe("Expected tool call")
-        }
+    t->expect(nextState.messages->Array.length)->Expect.toBe(2)
+
+    switch nextState.messages->Array.get(1) {
+    | Some(ToolCall({toolCallId, toolName, _})) => {
+        t->expect(toolCallId)->Expect.toBe("call-123")
+        t->expect(toolName)->Expect.toBe("search")
       }
-    | _ => t->expect("Got tool call")->Expect.toBe("Expected tool call")
+    | _ => t->expect("Got ToolCall message")->Expect.toBe("Expected ToolCall message")
     }
   })
 })
@@ -261,7 +256,6 @@ describe("Client State Reducer - MessageCompleted Content Conversion", () => {
           Streaming({
             id: "msg-2",
             textBuffer: "",
-            toolCalls: [],
             createdAt: 0.0,
           }),
         ),
@@ -279,10 +273,9 @@ describe("Client State Reducer - MessageCompleted Content Conversion", () => {
 
   test("converts toolCalls to ToolCall content parts", t => {
     let state: Reducer.state = {
-      previewFrame: {
+      previewDocument: {
         url: "https://example.com",
-        contentDocument: None,
-        contentWindow: None,
+        document: None,
       },
       webPreviewIsSelecting: false,
       selectedElement: None,
@@ -344,7 +337,6 @@ describe("Client State Reducer - MessageCompleted Content Conversion", () => {
           Streaming({
             id: "stable-id-123",
             textBuffer: "Test",
-            toolCalls: [],
             createdAt: 0.0,
           }),
         ),
@@ -400,7 +392,6 @@ describe("Client State Reducer - Selectors", () => {
       Reducer.Streaming({
         id: "streaming-1",
         textBuffer: "",
-        toolCalls: [],
         createdAt: 0.0,
       }),
     )
@@ -413,8 +404,204 @@ describe("Client State Reducer - Selectors", () => {
       }),
     )
 
+    let toolCallMsg = Reducer.ToolCall({
+      id: "tool-1",
+      toolCallId: "tool-1",
+      toolName: "search",
+      state: Reducer.InputAvailable,
+      inputBuffer: "",
+      input: None,
+      result: None,
+      errorText: None,
+      createdAt: 0.0,
+    })
+
     t->expect(Reducer.Selectors.getMessageId(userMsg))->Expect.toBe("user-1")
     t->expect(Reducer.Selectors.getMessageId(streamingMsg))->Expect.toBe("streaming-1")
     t->expect(Reducer.Selectors.getMessageId(completedMsg))->Expect.toBe("completed-1")
+    t->expect(Reducer.Selectors.getMessageId(toolCallMsg))->Expect.toBe("tool-1")
+  })
+})
+
+describe("Client State Reducer - Tool Lifecycle", () => {
+  test("ToolInputStartReceived creates tool with InputStreaming state", t => {
+    let state = Reducer.defaultState
+
+    let action = Reducer.ToolInputStartReceived({
+      toolCallId: "call-1",
+      toolName: "read_file",
+    })
+    let (nextState, _) = Reducer.next(state, action)
+
+    t->expect(nextState.messages->Array.length)->Expect.toBe(1)
+
+    switch nextState.messages->Array.get(0) {
+    | Some(ToolCall({toolCallId, toolName, state, input, _})) => {
+        t->expect(toolCallId)->Expect.toBe("call-1")
+        t->expect(toolName)->Expect.toBe("read_file")
+        t->expect(state)->Expect.toBe(Reducer.InputStreaming)
+        t->expect(input)->Expect.toBe(None)
+      }
+    | _ => t->expect("Got ToolCall message")->Expect.toBe("Expected ToolCall message")
+    }
+  })
+
+  test("ToolInputDeltaReceived accumulates input buffer", t => {
+    let state: Reducer.state = {
+      previewDocument: {url: "https://example.com", document: None},
+      webPreviewIsSelecting: false,
+      selectedElement: None,
+      messages: [
+        ToolCall({
+          id: "call-1",
+          toolCallId: "call-1",
+          toolName: "read_file",
+          inputBuffer: "{\"path",
+          input: None,
+          result: None,
+          errorText: None,
+          state: Reducer.InputStreaming,
+          createdAt: 0.0,
+        }),
+      ],
+    }
+
+    let action = Reducer.ToolInputDeltaReceived({
+      toolCallId: "call-1",
+      delta: "\": \"test.res\"}",
+    })
+    let (nextState, _) = Reducer.next(state, action)
+
+    switch nextState.messages->Array.get(0) {
+    | Some(ToolCall({inputBuffer, _})) =>
+      t->expect(inputBuffer)->Expect.toBe("{\"path\": \"test.res\"}")
+    | _ => t->expect("Got ToolCall message")->Expect.toBe("Expected ToolCall message")
+    }
+  })
+
+  test("ToolInputEndReceived parses input and transitions to InputAvailable", t => {
+    let state: Reducer.state = {
+      previewDocument: {url: "https://example.com", document: None},
+      webPreviewIsSelecting: false,
+      selectedElement: None,
+      messages: [
+        ToolCall({
+          id: "call-1",
+          toolCallId: "call-1",
+          toolName: "read_file",
+          inputBuffer: "{\"path\": \"test.res\"}",
+          input: None,
+          result: None,
+          errorText: None,
+          state: Reducer.InputStreaming,
+          createdAt: 0.0,
+        }),
+      ],
+    }
+
+    let action = Reducer.ToolInputEndReceived({toolCallId: "call-1"})
+    let (nextState, _) = Reducer.next(state, action)
+
+    switch nextState.messages->Array.get(0) {
+    | Some(ToolCall({state, input, _})) => {
+        t->expect(state)->Expect.toBe(Reducer.InputAvailable)
+        t->expect(input->Option.isSome)->Expect.toBe(true)
+      }
+    | _ => t->expect("Got ToolCall message")->Expect.toBe("Expected ToolCall message")
+    }
+  })
+
+  test("ToolResultReceived sets result and OutputAvailable state", t => {
+    let state: Reducer.state = {
+      previewDocument: {url: "https://example.com", document: None},
+      webPreviewIsSelecting: false,
+      selectedElement: None,
+      messages: [
+        ToolCall({
+          id: "call-1",
+          toolCallId: "call-1",
+          toolName: "read_file",
+          inputBuffer: "",
+          input: Some(JSON.parseOrThrow("{\"path\": \"test.res\"}")),
+          result: None,
+          errorText: None,
+          state: Reducer.InputAvailable,
+          createdAt: 0.0,
+        }),
+      ],
+    }
+
+    let result = JSON.parseOrThrow("{\"content\": \"file contents\"}")
+    let action = Reducer.ToolResultReceived({toolCallId: "call-1", result})
+    let (nextState, _) = Reducer.next(state, action)
+
+    switch nextState.messages->Array.get(0) {
+    | Some(ToolCall({state, result, _})) => {
+        t->expect(state)->Expect.toBe(Reducer.OutputAvailable)
+        t->expect(result->Option.isSome)->Expect.toBe(true)
+      }
+    | _ => t->expect("Got ToolCall message")->Expect.toBe("Expected ToolCall message")
+    }
+  })
+
+  test("ToolErrorReceived sets error and OutputError state", t => {
+    let state: Reducer.state = {
+      previewDocument: {url: "https://example.com", document: None},
+      webPreviewIsSelecting: false,
+      selectedElement: None,
+      messages: [
+        ToolCall({
+          id: "call-1",
+          toolCallId: "call-1",
+          toolName: "read_file",
+          inputBuffer: "",
+          input: Some(JSON.parseOrThrow("{\"path\": \"test.res\"}")),
+          result: None,
+          errorText: None,
+          state: Reducer.InputAvailable,
+          createdAt: 0.0,
+        }),
+      ],
+    }
+
+    let action = Reducer.ToolErrorReceived({
+      toolCallId: "call-1",
+      error: "File not found",
+    })
+    let (nextState, _) = Reducer.next(state, action)
+
+    switch nextState.messages->Array.get(0) {
+    | Some(ToolCall({state, errorText, _})) => {
+        t->expect(state)->Expect.toBe(Reducer.OutputError)
+        t->expect(errorText)->Expect.toBe(Some("File not found"))
+      }
+    | _ => t->expect("Got ToolCall message")->Expect.toBe("Expected ToolCall message")
+    }
+  })
+
+  test("ToolCallReceived with complete input creates tool with InputAvailable", t => {
+    let state = Reducer.defaultState
+
+    let toolCall: Reducer.toolCall = {
+      toolCallId: "call-1",
+      toolName: "read_file",
+      inputBuffer: "",
+      input: Some(JSON.parseOrThrow("{\"path\": \"test.res\"}")),
+      result: None,
+      errorText: None,
+      state: Reducer.InputAvailable,
+    }
+    let action = Reducer.ToolCallReceived({toolCall: toolCall})
+    let (nextState, _) = Reducer.next(state, action)
+
+    t->expect(nextState.messages->Array.length)->Expect.toBe(1)
+
+    switch nextState.messages->Array.get(0) {
+    | Some(ToolCall({state, input, _})) => {
+        t->expect(state)->Expect.toBe(Reducer.InputAvailable)
+        t->expect(input->Option.isSome)->Expect.toBe(true)
+      }
+    | _ => t->expect("Got ToolCall message")->Expect.toBe("Expected ToolCall message")
+    }
   })
 })

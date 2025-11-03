@@ -29,6 +29,7 @@ let makeMockTool = (
     @schema
     type input = JSON.t
 
+    @schema
     type output = JSON.t
 
     let decodeInput = (json: JSON.t): result<input, S.error> => {
@@ -43,16 +44,13 @@ let makeMockTool = (
       output,
     > => {
       // Track this execution
-      executions := Array.concat(
-        executions.contents,
-        [{input: input, timestamp: Date.now()}],
-      )
+      executions := Array.concat(executions.contents, [{input, timestamp: Date.now()}])
       // Always return the fixed output
       Ok(fixedOutput)
     }
   }
 
-  {tool: module(MockTool), executions: executions}
+  {tool: module(MockTool), executions}
 }
 
 // Create a mock tool that returns different outputs based on call count
@@ -71,6 +69,7 @@ let makeStatefulMockTool = (
     @schema
     type input = JSON.t
 
+    @schema
     type output = JSON.t
 
     let decodeInput = (json: JSON.t): result<input, S.error> => {
@@ -88,18 +87,16 @@ let makeStatefulMockTool = (
       callCount := currentCount + 1
 
       // Track this execution
-      executions := Array.concat(
-        executions.contents,
-        [{input: input, timestamp: Date.now()}],
-      )
+      executions := Array.concat(executions.contents, [{input, timestamp: Date.now()}])
 
       // Return the output for this call, or the last one if we've run out
-      let output = outputs[currentCount]->Option.getOr(outputs[outputs->Array.length - 1]->Option.getOrThrow)
+      let output =
+        outputs[currentCount]->Option.getOr(outputs[outputs->Array.length - 1]->Option.getOrThrow)
       Ok(output)
     }
   }
 
-  {tool: module(MockTool), executions: executions}
+  {tool: module(MockTool), executions}
 }
 
 // Create a registry with mock tools
