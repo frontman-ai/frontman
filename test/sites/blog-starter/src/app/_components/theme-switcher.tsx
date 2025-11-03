@@ -57,14 +57,20 @@ let updateDOM: () => void;
  * Switch button to quickly toggle user preference.
  */
 const Switch = () => {
-  const [mode, setMode] = useState<ColorSchemePreference>(
-    () =>
-      ((typeof localStorage !== "undefined" &&
-        localStorage.getItem(STORAGE_KEY)) ??
-        "system") as ColorSchemePreference,
-  );
+  const [mode, setMode] = useState<ColorSchemePreference>("system");
 
   useEffect(() => {
+    // Initialize mode from localStorage after mount
+    try {
+      const storedMode = localStorage.getItem(STORAGE_KEY) as ColorSchemePreference | null;
+      if (storedMode) {
+        setMode(storedMode);
+      }
+    } catch (error) {
+      // localStorage might not be available
+      console.warn("Failed to read from localStorage:", error);
+    }
+
     // store global functions to local variables to avoid any interference
     updateDOM = window.updateDOM;
     /** Sync the tabs */
