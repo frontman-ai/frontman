@@ -489,7 +489,7 @@ let next = (state, action) => {
       AskTheLlmReactStatestore.StateReducer.update({
         ...state,
         messages: updatedMessages,
-        previewDocument: state.previewDocument,
+        previewFrame: state.previewFrame,
         webPreviewIsSelecting: state.webPreviewIsSelecting,
         selectedElement: state.selectedElement,
       })
@@ -531,11 +531,11 @@ let next = (state, action) => {
   | SetSelectedElement({selectedElement}) => {
       // Determine if we need to fetch details
       let shouldFetchDetails = switch selectedElement {
-      | Some({element, selector: None, screenshot: None, sourceLocation: None}) => 
+      | Some({element, selector: None, screenshot: None, sourceLocation: None}) =>
           // New element with no details - trigger fetch
           Some(FetchElementDetails({
             element: element,
-            document: state.previewDocument.document,
+            document: state.previewFrame.contentDocument,
           }))
       | _ => None // Element with details or clearing selection - no fetch needed
       }

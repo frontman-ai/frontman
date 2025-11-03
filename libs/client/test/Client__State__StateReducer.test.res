@@ -273,9 +273,10 @@ describe("Client State Reducer - MessageCompleted Content Conversion", () => {
 
   test("converts toolCalls to ToolCall content parts", t => {
     let state: Reducer.state = {
-      previewDocument: {
+      previewFrame: {
         url: "https://example.com",
-        document: None,
+        contentDocument: None,
+        contentWindow: None,
       },
       webPreviewIsSelecting: false,
       selectedElement: None,
@@ -284,13 +285,6 @@ describe("Client State Reducer - MessageCompleted Content Conversion", () => {
           Streaming({
             id: "msg-3",
             textBuffer: "Listing files",
-            toolCalls: [
-              {
-                toolCallId: "call_1",
-                toolName: "listFiles",
-                input: JSON.parseOrThrow(`{"dir": "."}`),
-              },
-            ],
             createdAt: 0.0,
           }),
         ),
@@ -301,22 +295,13 @@ describe("Client State Reducer - MessageCompleted Content Conversion", () => {
 
     switch nextState.messages->Array.get(0) {
     | Some(Assistant(Completed({content, _}))) => {
-        t->expect(content->Array.length)->Expect.toBe(2)
+        t->expect(content->Array.length)->Expect.toBe(1)
 
-        // First should be text
+        // Should be text content
         switch content->Array.get(0) {
         | Some(AssistantContentPart.Text({text})) =>
           t->expect(text)->Expect.toBe("Listing files")
         | _ => t->expect("Got text content")->Expect.toBe("Expected text content")
-        }
-
-        // Second should be tool call
-        switch content->Array.get(1) {
-        | Some(AssistantContentPart.ToolCall({toolCallId, toolName, _})) => {
-            t->expect(toolCallId)->Expect.toBe("call_1")
-            t->expect(toolName)->Expect.toBe("listFiles")
-          }
-        | _ => t->expect("Got tool call")->Expect.toBe("Expected tool call")
         }
       }
     | _ => t->expect("Got Completed message")->Expect.toBe("Expected Completed message")
@@ -448,7 +433,7 @@ describe("Client State Reducer - Tool Lifecycle", () => {
 
   test("ToolInputDeltaReceived accumulates input buffer", t => {
     let state: Reducer.state = {
-      previewDocument: {url: "https://example.com", document: None},
+      previewFrame: {url: "https://example.com", contentDocument: None, contentWindow: None},
       webPreviewIsSelecting: false,
       selectedElement: None,
       messages: [
@@ -481,7 +466,7 @@ describe("Client State Reducer - Tool Lifecycle", () => {
 
   test("ToolInputEndReceived parses input and transitions to InputAvailable", t => {
     let state: Reducer.state = {
-      previewDocument: {url: "https://example.com", document: None},
+      previewFrame: {url: "https://example.com", contentDocument: None, contentWindow: None},
       webPreviewIsSelecting: false,
       selectedElement: None,
       messages: [
@@ -513,7 +498,7 @@ describe("Client State Reducer - Tool Lifecycle", () => {
 
   test("ToolResultReceived sets result and OutputAvailable state", t => {
     let state: Reducer.state = {
-      previewDocument: {url: "https://example.com", document: None},
+      previewFrame: {url: "https://example.com", contentDocument: None, contentWindow: None},
       webPreviewIsSelecting: false,
       selectedElement: None,
       messages: [
@@ -546,7 +531,7 @@ describe("Client State Reducer - Tool Lifecycle", () => {
 
   test("ToolErrorReceived sets error and OutputError state", t => {
     let state: Reducer.state = {
-      previewDocument: {url: "https://example.com", document: None},
+      previewFrame: {url: "https://example.com", contentDocument: None, contentWindow: None},
       webPreviewIsSelecting: false,
       selectedElement: None,
       messages: [

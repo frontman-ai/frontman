@@ -7,6 +7,5 @@ type t = array<tool>
 
 // Create the tool registry with all available tools
 let make = (): t => {
-  [module(Agent__Tool__ReadFile), module(Agent__Tool__WriteFile)]
-  // [module(Agent__Tool__ListFiles), module(Agent__Tool__ReadFile), module(Agent__Tool__WriteFile)]
+  [module(Agent__Tool__ListFiles), module(Agent__Tool__ReadFile), module(Agent__Tool__WriteFile)]
 }

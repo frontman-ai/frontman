@@ -25,6 +25,9 @@ jobs:
       - name: Install dependencies
         run: yarn install --frozen-lockfile
 
+      - name: Clean ReScript build cache
+        run: yarn rescript clean
+
       - name: Build project
         run: make build
 
@@ -61,6 +64,10 @@ jobs:
       - name: Install dependencies
         if: steps.changes.outputs.agent == 'true'
         run: yarn install --frozen-lockfile
+
+      - name: Clean ReScript build cache
+        if: steps.changes.outputs.agent == 'true'
+        run: yarn rescript clean
 
       - name: Run agent tests
         if: steps.changes.outputs.agent == 'true'
