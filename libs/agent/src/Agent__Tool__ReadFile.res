@@ -303,34 +303,36 @@ let processFileContent = (fileContent: string, offset: int, limit: int): result<
   }
   let totalLines = Array.length(allLines)
 
-  // Validate and clamp offset
-  let validOffset = if offset < 0 {
-    0
-  } else if totalLines > 0 && offset >= totalLines {
-    totalLines - 1
-  } else if totalLines == 0 {
-    0
+  // Validate offset - return error if beyond file length
+  if totalLines > 0 && offset >= totalLines {
+    Error(`Offset ${Int.toString(offset)} is beyond file length. File has ${Int.toString(totalLines)} lines (0-${Int.toString(totalLines - 1)}).`)
   } else {
-    offset
-  }
+    let validOffset = if offset < 0 {
+      0
+    } else if totalLines == 0 {
+      0
+    } else {
+      offset
+    }
 
-  // Validate and clamp limit
-  let validLimit = if limit < 1 {
-    1
-  } else {
-    limit
-  }
+    // Validate and clamp limit
+    let validLimit = if limit < 1 {
+      1
+    } else {
+      limit
+    }
 
-  // Extract requested range
-  let endLine = if validOffset + validLimit < totalLines {
-    validOffset + validLimit
-  } else {
-    totalLines
-  }
-  let selectedLines = allLines->Array.slice(~start=validOffset, ~end=endLine)
+    // Extract requested range
+    let endLine = if validOffset + validLimit < totalLines {
+      validOffset + validLimit
+    } else {
+      totalLines
+    }
+    let selectedLines = allLines->Array.slice(~start=validOffset, ~end=endLine)
 
-  // Build output
-  Ok(buildOutput(selectedLines, validOffset, totalLines, endLine))
+    // Build output
+    Ok(buildOutput(selectedLines, validOffset, totalLines, endLine))
+  }
 }
 
 let execute = async (ctx: Agent__ToolExecutionContext.t, input: input): Agent__Tool.toolResult<
