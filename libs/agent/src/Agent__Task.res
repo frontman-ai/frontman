@@ -8,13 +8,6 @@ module Status = {
     | Working
     | Completed
 
-  let isTerminal = (status: t): bool => {
-    switch status {
-    | Completed => true
-    | Submitted | Working => false
-    }
-  }
-
   let toString = (status: t): string => {
     switch status {
     | Submitted => "Submitted"
@@ -34,14 +27,23 @@ type t = {
   artifacts: array<Agent__Artifact.t>,
 }
 
-@schema
-type evt =
-  // Lifecycle events
-  | Created({id: id, initialMessage: Agent__Task__Message.t})
-  | ProcessingStarted({task: t})
-  | Completed({task: t, message: @s.null option<Agent__Task__Message.t>})
-  // Message events
-  | MessageAdded({task: t, message: Agent__Task__Message.t})
+module Event = {
+  @schema
+  type t =
+    // Lifecycle events
+    | Created({id: id, initialMessage: Agent__Task__Message.t})
+    | ProcessingStarted({task: t})
+    | Completed({task: t, message: @s.null option<Agent__Task__Message.t>})
+    // Message events
+    | MessageAdded({task: t, message: Agent__Task__Message.t})
+
+  let toString: t => string = event => {
+    event
+    ->S.reverseConvertOrThrow(schema)
+    ->JSON.stringifyAny
+    ->Option.getOr("unable to stringify event")
+  }
+}
 
 type cmd =
   // Lifecycle commands
@@ -97,10 +99,11 @@ let make = (id, initialMessage): t => {
   }
 }
 
-let decide = (state: option<t>, command: cmd): result<list<evt>, string> => {
+let decide = (state: option<t>, command: cmd): result<list<Event.t>, string> => {
   switch (state, command) {
   | (None, Create({initialMessage})) => {
       let id = Agent__Id.make()
+      // NOTE(Danni) - when moving to explicit task management, we'll get the id externally for create
       let task = make(id, initialMessage)
       // Emit both Created and ProcessingStarted to immediately start processing
       Ok(list{Created({id, initialMessage}), ProcessingStarted({task: task})})
@@ -114,11 +117,7 @@ let decide = (state: option<t>, command: cmd): result<list<evt>, string> => {
 
   | (None, AddMessage(_)) => Error("Cannot add message to non-existent task")
 
-  // === Invalid Transitions ===
-  | (Some({status: Completed}), _) => Error("Cannot modify completed task")
-
-  | (Some({status, _}), _) =>
-    Error(`Invalid command for current status: ${Status.toString(status)}`)
+  | (Some({status}), _) => Error(`Invalid command for current status: ${Status.toString(status)}`)
 
   | (None, _) => Error("Cannot execute command on non-existent task")
   }
@@ -126,28 +125,27 @@ let decide = (state: option<t>, command: cmd): result<list<evt>, string> => {
 
 // Evolve: apply event to state
 // PURE FUNCTION
-let evolve = (state: option<t>, event: evt): option<t> => {
+let evolve = (state: option<t>, event: Event.t): Result.t<t, string> => {
   switch (state, event) {
   // === Creation ===
-  | (None, Created({id, initialMessage})) => Some(make(id, initialMessage))
-  | (Some(_), Created(_)) => %todo("cannot reach this case")
+  | (None, Created({id, initialMessage})) => Ok(make(id, initialMessage))
+  | (Some(_), Created(_)) => Error("cannot create an already existing event")
 
   // === Status Changes ===
-  | (Some(task), ProcessingStarted(_)) => Some({...task, status: Working})
+  | (Some(task), ProcessingStarted(_)) => Ok({...task, status: Working})
 
-  | (Some(task), Completed(_)) => Some({...task, status: Completed})
+  | (Some(task), Completed(_)) => Ok({...task, status: Completed})
 
   // === Message Handling ===
   | (Some(task), MessageAdded({message, _})) =>
-    Some({...task, history: Array.concat(task.history, [message])})
+    Ok({...task, history: Array.concat(task.history, [message])})
 
   // === Invalid ===
-  | (None, _) => None
+  | (None, _) => Error(`Tried to run event: ${event->Event.toString}`)
   }
 }
 
 // Queries
-let isTerminal = (task: t): bool => Status.isTerminal(task.status)
 let getStatus = (task: t): Status.t => task.status
 let getId = (task: t): id => task.id
 let getHistory = (task: t): array<Agent__Task__Message.t> => task.history

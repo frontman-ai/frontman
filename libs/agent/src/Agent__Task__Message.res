@@ -25,7 +25,6 @@ module System = {
   }
 }
 
-
 module User = {
   @schema
   type contentParts =
@@ -105,6 +104,10 @@ module Tool = {
 
 @schema
 type t = System(System.t) | User(User.t) | Assistant(Assistant.t) | Tool(Tool.t)
+
+let toString: t => string = (message: t) => {
+  message->S.reverseConvertOrThrow(schema)->JSON.stringifyAny->Option.getOr("unable to serialize")
+}
 
 let getTaskId = (message: t): Agent__Task__Id.t => {
   switch message {

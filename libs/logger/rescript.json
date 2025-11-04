@@ -1,0 +1,36 @@
+{
+  "name": "@ask-the-llm/logger",
+  "namespace": true,
+  "exposed-modules": ["Logger"],
+  "sources": [
+    {
+      "dir": "src",
+      "subdirs": true
+    },
+    {
+      "dir": "test",
+      "subdirs": true,
+      "type": "dev"
+    }
+  ],
+  "package-specs": [
+    {
+      "module": "esmodule",
+      "in-source": true,
+      "suffix": ".res.mjs"
+    }
+  ],
+  "ppx-flags": ["sury-ppx/bin"],
+  "dependencies": [
+    "sury"
+  ],
+  "dev-dependencies": [
+    "rescript-vitest"
+  ],
+  "reanalyze": {
+    "analysis": ["dce"],
+    "unsuppress": [],
+    "transitive": true
+  },
+  "compiler-flags": []
+}

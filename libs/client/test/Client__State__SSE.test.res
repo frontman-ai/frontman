@@ -131,7 +131,7 @@ describe("SSE Integration - Text Streaming", () => {
       ),
       AgentEventBus.TaskEvent(
         task,
-        AskTheLlmAgent.Agent__Task.Created({
+        AskTheLlmAgent.Agent__Task.Event.Created({
           id: task.id,
           initialMessage: AskTheLlmAgent.Agent__Task__Message.System({
             taskId: task.id,

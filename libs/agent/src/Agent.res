@@ -34,7 +34,7 @@ type t = {
 type config = Agent__Config.t
 
 let make = (config: config) => {
-  Console.log(`Initializing agent for project: ${config.projectRoot}`)
+  Agent__Logger.Log.info(`Initializing agent for project: ${config.projectRoot}`)
   let eventBus = Agent__EventBus.make()
 
   // Use provided toolRegistry for testing, or create default registry with all tools
@@ -44,7 +44,7 @@ let make = (config: config) => {
   let model = config.model->Option.getOr(Agent__Bindings__Vercel.OpenAI.gpt4o(config.apiKey))
   let llm = Agent__Adapters__Vercel.makeLLM(~model, ~toolRegistry)
 
-  Console.log(`Agent initialized with ${toolRegistry->Array.length->Int.toString} tools`)
+  Agent__Logger.Log.info(`Agent initialized with ${toolRegistry->Array.length->Int.toString} tools`)
 
   {
     projectRoot: config.projectRoot,
@@ -62,7 +62,9 @@ let subscribe = (agent: t, handler: Agent__EventBus.subscriber): (unit => unit) 
   let oldBus = agent.eventBus.contents
   let newBus = oldBus->Agent__EventBus.on(handler)
   agent.eventBus := newBus
-  Console.log2("[Agent] Subscribed - subscriber count:", newBus.subs->Array.length)
+  Agent__Logger.Log.debug(
+    `[Agent] Subscribed - subscriber count: ${newBus.subs->Array.length->Int.toString}`,
+  )
 
   // Return unsubscribe function
   () => {
@@ -73,7 +75,9 @@ let subscribe = (agent: t, handler: Agent__EventBus.subscriber): (unit => unit) 
 // Emit event to all subscribers
 let emit = (agent: t, event: Agent__EventBus.events): unit => {
   let bus = agent.eventBus.contents
-  Console.log2("[Agent] Emitting event to subscribers:", bus.subs->Array.length)
+  Agent__Logger.Log.debug(
+    `[Agent] Emitting event to subscribers: ${bus.subs->Array.length->Int.toString}`,
+  )
   bus->Agent__EventBus.emit(event)
 }
 
@@ -84,18 +88,26 @@ let run = async (agent: t) => {
     | Domain({task, cmd}) =>
       switch Agent__Task.decide(task, cmd) {
       | Ok(events) => {
-          let newTask = events->List.reduce(task, Agent__Task.evolve)
-          switch newTask {
-          | Some(updatedTask) => {
+          let newTaskResult = events->List.reduce(Ok(task), (acc, event) => {
+            switch acc {
+            | Ok(currentTask) =>
+                Agent__Task.evolve(currentTask, event)->Result.map(t => Some(t))
+            | Error(_) as err => err
+            }
+          })
+
+          switch newTaskResult {
+          | Ok(Some(updatedTask)) => {
               Agent__Tasks.update(agent.tasks, updatedTask)
               events->List.forEach(event => {
                 agent->emit(Agent__EventBus.TaskEvent(updatedTask, event))
               })
             }
-          | None => Console.error("Internal error: evolve returned None after decide succeeded")
+          | Ok(None) => Agent__Logger.Log.error("Internal error: evolve returned None after decide succeeded")
+          | Error(msg) => Agent__Logger.Log.error(`Event application failed: ${msg}`)
           }
         }
-      | Error(msg) => Console.error2("Domain command failed:", msg)
+      | Error(msg) => Agent__Logger.Log.error(`Domain command failed: ${msg}`)
       }
     | Effect(effect) => {
         let task = Agent__Command.getTask(command)
@@ -112,7 +124,7 @@ let run = async (agent: t) => {
           commands->Array.forEach(cmd => {
             agent.commandQueue->Agent__CommandQueue.enqueue(Domain({task, cmd}))
           })
-        | Error(msg) => Console.error2("Effect execution failed:", msg)
+        | Error(msg) => Agent__Logger.Log.error(`Effect execution failed: ${msg}`)
         }
       }
     }
@@ -133,7 +145,7 @@ let initialize = (agent: t): (unit => unit) => {
       run(agent)->ignore
     }
   })
-  Console.log("Agent initialized and listening for domain events...")
+  Agent__Logger.Log.info("Agent initialized and listening for domain events...")
   unsubscribe
 }
 

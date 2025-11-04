@@ -145,6 +145,7 @@ __metadata:
   dependencies:
     "@ai-sdk/anthropic": "npm:^2.0.39"
     "@ai-sdk/openai": "npm:^2.0.57"
+    "@ask-the-llm/logger": "workspace:*"
     "@rescript/webapi": "catalog:"
     "@vitest/ui": "catalog:"
     ai: "npm:^5.0.82"
@@ -228,6 +229,19 @@ __metadata:
     vite: "npm:^7.1.12"
     vitest: "catalog:"
     zod: "npm:^4.1.12"
+  languageName: unknown
+  linkType: soft
+
+"@ask-the-llm/logger@workspace:*, @ask-the-llm/logger@workspace:libs/logger":
+  version: 0.0.0-use.local
+  resolution: "@ask-the-llm/logger@workspace:libs/logger"
+  dependencies:
+    rescript: "catalog:"
+    rescript-vitest: "catalog:"
+    sury: "catalog:"
+    sury-ppx: "npm:^11.0.0-alpha.2"
+    vite: "catalog:"
+    vitest: "catalog:"
   languageName: unknown
   linkType: soft
 

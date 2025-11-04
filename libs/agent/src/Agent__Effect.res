@@ -35,8 +35,8 @@ let executeSingleTool = async (
   toolRegistry: Agent__ToolsRegistry.t,
   toolCall: ToolCallPart.t,
 ): ToolResultPart.t => {
-  Console.log2("=== Executing tool:", toolCall.toolName)
-  Console.log2("=== Tool args:", toolCall.args)
+  Agent__Logger.Log.info(`Executing tool: ${toolCall.toolName}`)
+  Agent__Logger.Log.debugWithMeta("Tool args", toolCall.args)
 
   // Create context for tool execution
   let ctx: Agent__ToolExecutionContext.t = {projectRoot: config.projectRoot}
@@ -60,7 +60,7 @@ let executeSingleTool = async (
 
       switch Tool.decodeInput(toolCall.args) {
       | Error(error) => {
-          Console.log2("=== Tool execution failed (decode error):", error.message)
+          Agent__Logger.Log.error(`Tool execution failed (decode error): ${error.message}`)
           makeResult(
             ErrorText(`Invalid arguments for tool '${toolCall.toolName}': ${error.message}`),
           )
@@ -69,23 +69,22 @@ let executeSingleTool = async (
         try {
           switch await Tool.execute(ctx, input) {
           | Error(msg) => {
-              Console.log2("=== Tool execution failed:", msg)
+              Agent__Logger.Log.error(`Tool execution failed: ${msg}`)
               makeResult(ErrorText(msg))
             }
           | Ok(output) => {
-              Console.log2("=== Tool execution succeeded:", toolCall.toolName)
+              Agent__Logger.Log.info(`Tool execution succeeded: ${toolCall.toolName}`)
               makeResult(JSON(Tool.encodeOutput(output)))
             }
           }
         } catch {
         | exn => {
-            Console.log2("=== Tool execution exception:", exn)
             let msg =
               exn
               ->JsExn.fromException
               ->Option.flatMap(JsExn.message)
               ->Option.getOr("Unknown exception")
-            Console.log2("=== Tool execution exception:", msg)
+            Agent__Logger.Log.error(`Tool execution exception: ${msg}`)
             makeResult(ErrorText(`Unexpected error executing tool '${toolCall.toolName}': ${msg}`))
           }
         }

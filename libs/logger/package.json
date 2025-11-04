@@ -1,0 +1,22 @@
+{
+  "name": "@ask-the-llm/logger",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "sury": "catalog:",
+    "sury-ppx": "^11.0.0-alpha.2"
+  },
+  "devDependencies": {
+    "rescript": "catalog:",
+    "rescript-vitest": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
+  },
+  "keywords": [
+    "rescript",
+    "logger"
+  ],
+  "author": "",
+  "license": "MIT"
+}

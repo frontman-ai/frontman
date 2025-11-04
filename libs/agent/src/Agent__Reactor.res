@@ -18,13 +18,13 @@ let react = (event: Agent__EventBus.events): list<Command.t> => {
   switch event {
   // Task lifecycle: Created → no action needed (ProcessingStarted is emitted together)
   | TaskEvent(_, Created(_)) => {
-      Console.log("=== Reactor: Created event - no action needed")
+      Agent__Logger.Log.debug("Reactor: Created event - no action needed")
       list{}
     }
 
   // Task lifecycle: ProcessingStarted → run first LLM iteration
   | TaskEvent(task, ProcessingStarted(_)) => {
-      Console.log("=== Reactor: ProcessingStarted - emitting RunIteration effect")
+      Agent__Logger.Log.debug("Reactor: ProcessingStarted - emitting RunIteration effect")
       list{Effect(RunLLMIteration({task: task}))}
     }
 
@@ -36,40 +36,46 @@ let react = (event: Agent__EventBus.events): list<Command.t> => {
       | _ => false
       }
     ) => {
-      Console.log("=== Reactor: Assistant message has tool calls - emitting ExecuteTool effect")
+      Agent__Logger.Log.debug(
+        "Reactor: Assistant message has tool calls - emitting ExecuteTool effect",
+      )
       let toolCalls = TaskMessage.extractToolCalls(message)
       list{Effect(ExecuteTools({task, toolCalls}))}
     }
 
   // Assistant response without tool calls (Working status) → task is complete
   | TaskEvent({status: Working} as task, MessageAdded({message: Assistant(_) as message})) => {
-      Console.log("=== Reactor: Assistant message complete - finishing task")
+      Agent__Logger.Log.debug("Reactor: Assistant message complete - finishing task")
       let cmd: Agent__Task.cmd = Complete({task, message: Some(message)})
       list{Domain({task: Some(task), cmd})}
     }
 
   // Assistant response without tool calls (not Working) → ignore, task already finished
   | TaskEvent({id, _}, MessageAdded({message: Assistant(_) as message})) => {
-      Console.log3("=== Reactor: MessageAdded event", id, message)
-      Console.log("=== Reactor: Task not in Working status, skipping completion")
+      Agent__Logger.Log.debug(
+        `Reactor: MessageAdded event ${id} ${message->Agent__Task__Message.toString}`,
+      )
+      Agent__Logger.Log.debug("Reactor: Task not in Working status, skipping completion")
       list{}
     }
 
   // Tool results received → run next LLM iteration with tool results
   | TaskEvent(task, MessageAdded({message: Tool(_)})) => {
-      Console.log("=== Reactor: Tool message added - emitting RunIteration effect")
+      Agent__Logger.Log.debug("Reactor: Tool message added - emitting RunIteration effect")
       list{Effect(Command.Effect.RunLLMIteration({task: task}))}
     }
 
   // User or System messages → no automatic reaction (handled explicitly by commands)
   | TaskEvent({id, _}, MessageAdded({message})) => {
-      Console.log3("=== Reactor: MessageAdded event", id, message)
+      Agent__Logger.Log.debug(
+        `Reactor: MessageAdded event ${id} ${message->Agent__Task__Message.toString}`,
+      )
       list{}
     }
 
   // Terminal states: no further reactions needed
   | TaskEvent(_, Completed(_)) => {
-      Console.log("=== Reactor: Task completed")
+      Agent__Logger.Log.debug("Reactor: Task completed")
       list{}
     }
 
