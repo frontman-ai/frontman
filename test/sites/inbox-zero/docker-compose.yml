@@ -1,7 +1,7 @@
 name: inbox-zero-services
 services:
   db:
-    image: postgres
+    image: postgres:16
     restart: always
     container_name: inbox-zero
     environment:
