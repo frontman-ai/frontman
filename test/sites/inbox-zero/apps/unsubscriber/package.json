@@ -1,0 +1,32 @@
+{
+  "name": "inbox-zero-unsubscriber",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "start": "tsx --tsconfig tsconfig.json src/server.ts",
+    "dev": "tsx watch --tsconfig tsconfig.json src/server.ts",
+    "build": "tsc",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "devDependencies": {
+    "@types/dotenv": "8.2.3",
+    "@types/node": "24.9.1",
+    "playwright": "1.56.1",
+    "tsx": "4.20.6",
+    "typescript": "5.9.3"
+  },
+  "dependencies": {
+    "@ai-sdk/amazon-bedrock": "3.0.45",
+    "@ai-sdk/anthropic": "2.0.35",
+    "@ai-sdk/google": "2.0.23",
+    "@ai-sdk/openai": "2.0.53",
+    "@fastify/cors": "11.1.0",
+    "@t3-oss/env-core": "0.13.8",
+    "ai": "5.0.76",
+    "dotenv": "17.2.3",
+    "fastify": "5.6.1",
+    "zod": "3.25.46"
+  }
+}

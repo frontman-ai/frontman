@@ -1,0 +1,146 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "globalDependencies": ["**/.env.*local"],
+  "tasks": {
+    "build": {
+      "env": [
+        "NODE_ENV",
+        "DATABASE_URL",
+        "DIRECT_URL",
+        "NEXTAUTH_SECRET",
+        "AUTH_SECRET",
+
+        "GOOGLE_CLIENT_ID",
+        "GOOGLE_CLIENT_SECRET",
+        "GOOGLE_PUBSUB_TOPIC_NAME",
+        "GOOGLE_PUBSUB_VERIFICATION_TOKEN",
+        "EMAIL_ENCRYPT_SECRET",
+        "EMAIL_ENCRYPT_SALT",
+
+        "MICROSOFT_CLIENT_ID",
+        "MICROSOFT_CLIENT_SECRET",
+        "MICROSOFT_WEBHOOK_CLIENT_STATE",
+
+        "DEFAULT_LLM_PROVIDER",
+        "DEFAULT_LLM_MODEL",
+        "ECONOMY_LLM_PROVIDER",
+        "ECONOMY_LLM_MODEL",
+        "CHAT_LLM_PROVIDER",
+        "CHAT_LLM_MODEL",
+        "CHAT_OPENROUTER_PROVIDERS",
+
+        "OPENROUTER_BACKUP_MODEL",
+
+        "OPENAI_API_KEY",
+        "ANTHROPIC_API_KEY",
+        "BEDROCK_ACCESS_KEY",
+        "BEDROCK_SECRET_KEY",
+        "BEDROCK_REGION",
+        "GOOGLE_API_KEY",
+        "GROQ_API_KEY",
+        "OPENROUTER_API_KEY",
+        "AI_GATEWAY_API_KEY",
+        "OLLAMA_BASE_URL",
+
+        "UPSTASH_REDIS_URL",
+        "UPSTASH_REDIS_TOKEN",
+        "REDIS_URL",
+        "QSTASH_TOKEN",
+        "QSTASH_CURRENT_SIGNING_KEY",
+        "QSTASH_NEXT_SIGNING_KEY",
+
+        "SENTRY_AUTH_TOKEN",
+        "SENTRY_ORGANIZATION",
+        "SENTRY_PROJECT",
+
+        "LOG_ZOD_ERRORS",
+        "ENABLE_DEBUG_LOGS",
+
+        "LEMON_SQUEEZY_SIGNING_SECRET",
+        "LEMON_SQUEEZY_API_KEY",
+
+        "TINYBIRD_TOKEN",
+        "TINYBIRD_BASE_URL",
+        "TINYBIRD_ENCRYPT_SECRET",
+        "TINYBIRD_ENCRYPT_SALT",
+
+        "POSTHOG_API_SECRET",
+        "POSTHOG_PROJECT_ID",
+
+        "RESEND_API_KEY",
+        "RESEND_AUDIENCE_ID",
+
+        "LOOPS_API_SECRET",
+
+        "CRON_SECRET",
+
+        "ADMINS",
+        "WEBHOOK_URL",
+        "INTERNAL_API_KEY",
+        "USE_BACKUP_MODEL",
+        "WHITELIST_FROM",
+        "API_KEY_SALT",
+        "HEALTH_API_KEY",
+        "FB_CONVERSION_API_ACCESS_TOKEN",
+        "FB_PIXEL_ID",
+        "GITHUB_MARKETING_TOKEN",
+        "DUB_API_KEY",
+
+        "STRIPE_SECRET_KEY",
+        "STRIPE_WEBHOOK_SECRET",
+        "NEXT_PUBLIC_STRIPE_BUSINESS_MONTHLY_PRICE_ID",
+        "NEXT_PUBLIC_STRIPE_BUSINESS_ANNUALLY_PRICE_ID",
+        "NEXT_PUBLIC_STRIPE_BUSINESS_PLUS_MONTHLY_PRICE_ID",
+        "NEXT_PUBLIC_STRIPE_BUSINESS_PLUS_ANNUALLY_PRICE_ID",
+
+        "NEXT_PUBLIC_LEMON_STORE_ID",
+        "NEXT_PUBLIC_BASIC_MONTHLY_VARIANT_ID",
+        "NEXT_PUBLIC_BASIC_ANNUALLY_VARIANT_ID",
+        "NEXT_PUBLIC_PRO_MONTHLY_VARIANT_ID",
+        "NEXT_PUBLIC_PRO_ANNUALLY_VARIANT_ID",
+        "NEXT_PUBLIC_BUSINESS_MONTHLY_VARIANT_ID",
+        "NEXT_PUBLIC_BUSINESS_ANNUALLY_VARIANT_ID",
+        "NEXT_PUBLIC_COPILOT_MONTHLY_VARIANT_ID",
+
+        "LICENSE_1_SEAT_VARIANT_ID",
+        "LICENSE_3_SEAT_VARIANT_ID",
+        "LICENSE_5_SEAT_VARIANT_ID",
+        "LICENSE_10_SEAT_VARIANT_ID",
+        "LICENSE_25_SEAT_VARIANT_ID",
+
+        "NEXT_PUBLIC_FREE_UNSUBSCRIBE_CREDITS",
+        "NEXT_PUBLIC_CALL_LINK",
+        "NEXT_PUBLIC_POSTHOG_KEY",
+        "NEXT_PUBLIC_POSTHOG_HERO_AB",
+        "NEXT_PUBLIC_POSTHOG_API_HOST",
+        "NEXT_PUBLIC_POSTHOG_ONBOARDING_SURVEY_ID",
+        "NEXT_PUBLIC_BASE_URL",
+        "NEXT_PUBLIC_CONTACTS_ENABLED",
+        "NEXT_PUBLIC_SENTRY_DSN",
+        "NEXT_PUBLIC_SUPPORT_EMAIL",
+        "NEXT_PUBLIC_GTM_ID",
+        "NEXT_PUBLIC_CRISP_WEBSITE_ID",
+        "NEXT_PUBLIC_WELCOME_UPGRADE_ENABLED",
+        "NEXT_PUBLIC_AXIOM_DATASET",
+        "NEXT_PUBLIC_AXIOM_TOKEN",
+        "NEXT_PUBLIC_BEDROCK_SONNET_MODEL",
+        "NEXT_PUBLIC_OLLAMA_MODEL",
+        "NEXT_PUBLIC_APP_HOME_PATH",
+        "NEXT_PUBLIC_DUB_REFER_DOMAIN"
+      ],
+      "outputs": [".next/**", "!.next/cache/**"]
+    },
+    "test": {
+      "env": ["RUN_AI_TESTS"]
+    },
+    "lint": {},
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "//#format-and-lint": {},
+    "//#format-and-lint:fix": {
+      "cache": false
+    }
+  }
+}
