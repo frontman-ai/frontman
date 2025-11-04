@@ -15,6 +15,7 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   serverExternalPackages: ["@sentry/nextjs", "@sentry/node"],
   turbopack: {
+    root: "../..",
     rules: {
       "*.svg": {
         loaders: ["@svgr/webpack"],
