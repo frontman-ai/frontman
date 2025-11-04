@@ -1,0 +1,15 @@
+{
+  "name": "@inboxzero/tinybird",
+  "version": "0.0.0",
+  "main": "src/index.ts",
+  "dependencies": {
+    "@chronark/zod-bird": "0.3.10",
+    "p-retry": "^7.1.0",
+    "zod": "3.25.46"
+  },
+  "devDependencies": {
+    "@types/node": "24.9.1",
+    "tsconfig": "workspace:*",
+    "typescript": "5.9.3"
+  }
+}
