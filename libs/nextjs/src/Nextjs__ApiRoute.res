@@ -173,11 +173,16 @@ let createChatHandler = (): apiHandler => {
               | None => Console.log("[API] No source location resolved")
               }
 
+              let taskId = obj
+                ->Dict.get("taskId")
+                ->Option.flatMap(JSON.Decode.string)
+                ->Option.getOr(Agent.TaskId.make())
+
               let agent = getOrCreateAgent()
               agent
               ->Agent.sendMessage(
                 Agent.TaskMessage.User({
-                  taskId: Agent.TaskId.make(),
+                  taskId: taskId,
                   content: String(str),
                   selectedElementSourceLocation: resolvedSourceLocation,
                 }),

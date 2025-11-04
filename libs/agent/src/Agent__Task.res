@@ -49,6 +49,7 @@ type cmd =
   // Lifecycle commands
   | Create({initialMessage: Agent__Task__Message.t})
   | Complete({task: t, message: option<Agent__Task__Message.t>})
+  | Resume({task: t})
   // Message commands
   | AddMessage({task: t, message: Agent__Task__Message.t})
 
@@ -102,8 +103,7 @@ let make = (id, initialMessage): t => {
 let decide = (state: option<t>, command: cmd): result<list<Event.t>, string> => {
   switch (state, command) {
   | (None, Create({initialMessage})) => {
-      let id = Agent__Id.make()
-      // NOTE(Danni) - when moving to explicit task management, we'll get the id externally for create
+      let id = initialMessage->Agent__Task__Message.getTaskId
       let task = make(id, initialMessage)
       // Emit both Created and ProcessingStarted to immediately start processing
       Ok(list{Created({id, initialMessage}), ProcessingStarted({task: task})})
@@ -111,6 +111,9 @@ let decide = (state: option<t>, command: cmd): result<list<Event.t>, string> => 
   | (Some(_), Create(_)) => Error("Task already exists - cannot create again")
 
   | (Some({status: Working} as task), Complete({message})) => Ok(list{Completed({task, message})})
+
+  // Resume completed task (transitions back to Working)
+  | (Some({status: Completed} as task), Resume(_)) => Ok(list{ProcessingStarted({task: task})})
 
   // === Message Handling ===
   | (Some(task), AddMessage({message})) => Ok(list{MessageAdded({task, message})})

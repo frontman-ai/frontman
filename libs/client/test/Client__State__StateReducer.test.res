@@ -56,6 +56,7 @@ describe("Client State Reducer", () => {
       },
       webPreviewIsSelecting: false,
       selectedElement: None,
+      currentTaskId: None,
       messages: [
         Assistant(
           Streaming({
@@ -86,6 +87,7 @@ describe("Client State Reducer", () => {
       },
       webPreviewIsSelecting: false,
       selectedElement: None,
+      currentTaskId: None,
       messages: [
         Assistant(
           Streaming({
@@ -159,6 +161,7 @@ describe("Client State Reducer", () => {
       },
       webPreviewIsSelecting: false,
       selectedElement: None,
+      currentTaskId: None,
       messages: [
         Assistant(
           Streaming({
@@ -182,6 +185,7 @@ describe("Client State Reducer", () => {
       },
       webPreviewIsSelecting: false,
       selectedElement: None,
+      currentTaskId: None,
       messages: [
         Assistant(
           Completed({
@@ -205,6 +209,7 @@ describe("Client State Reducer", () => {
       },
       webPreviewIsSelecting: false,
       selectedElement: None,
+      currentTaskId: None,
       messages: [
         Assistant(
           Streaming({
@@ -251,6 +256,7 @@ describe("Client State Reducer - MessageCompleted Content Conversion", () => {
       },
       webPreviewIsSelecting: false,
       selectedElement: None,
+      currentTaskId: None,
       messages: [
         Assistant(
           Streaming({
@@ -280,6 +286,7 @@ describe("Client State Reducer - MessageCompleted Content Conversion", () => {
       },
       webPreviewIsSelecting: false,
       selectedElement: None,
+      currentTaskId: None,
       messages: [
         Assistant(
           Streaming({
@@ -317,6 +324,7 @@ describe("Client State Reducer - MessageCompleted Content Conversion", () => {
       },
       webPreviewIsSelecting: false,
       selectedElement: None,
+      currentTaskId: None,
       messages: [
         Assistant(
           Streaming({
@@ -436,6 +444,7 @@ describe("Client State Reducer - Tool Lifecycle", () => {
       previewFrame: {url: "https://example.com", contentDocument: None, contentWindow: None},
       webPreviewIsSelecting: false,
       selectedElement: None,
+      currentTaskId: None,
       messages: [
         ToolCall({
           id: "call-1",
@@ -469,6 +478,7 @@ describe("Client State Reducer - Tool Lifecycle", () => {
       previewFrame: {url: "https://example.com", contentDocument: None, contentWindow: None},
       webPreviewIsSelecting: false,
       selectedElement: None,
+      currentTaskId: None,
       messages: [
         ToolCall({
           id: "call-1",
@@ -501,6 +511,7 @@ describe("Client State Reducer - Tool Lifecycle", () => {
       previewFrame: {url: "https://example.com", contentDocument: None, contentWindow: None},
       webPreviewIsSelecting: false,
       selectedElement: None,
+      currentTaskId: None,
       messages: [
         ToolCall({
           id: "call-1",
@@ -534,6 +545,7 @@ describe("Client State Reducer - Tool Lifecycle", () => {
       previewFrame: {url: "https://example.com", contentDocument: None, contentWindow: None},
       webPreviewIsSelecting: false,
       selectedElement: None,
+      currentTaskId: None,
       messages: [
         ToolCall({
           id: "call-1",
@@ -587,6 +599,84 @@ describe("Client State Reducer - Tool Lifecycle", () => {
         t->expect(input->Option.isSome)->Expect.toBe(true)
       }
     | _ => t->expect("Got ToolCall message")->Expect.toBe("Expected ToolCall message")
+    }
+  })
+})
+
+describe("Client State Reducer - Task ID Continuity", () => {
+  test("multiple user messages in same conversation use same task ID in state", t => {
+    let state = Reducer.defaultState
+
+    let (state1, _effects1) = Reducer.next(
+      state,
+      AddUserMessage({
+        id: "user-1",
+        content: [UserContentPart.text("First message")],
+      }),
+    )
+
+    let taskId1 = state1.currentTaskId
+
+    let (state2, _effects2) = Reducer.next(
+      state1,
+      AddUserMessage({
+        id: "user-2",
+        content: [UserContentPart.text("Second message")],
+      }),
+    )
+
+    let taskId2 = state2.currentTaskId
+
+    t->expect(taskId1->Option.isSome)->Expect.toBe(true)
+    t->expect(taskId2->Option.isSome)->Expect.toBe(true)
+    t->expect(taskId1)->Expect.toBe(taskId2)
+  })
+
+  test("effect contains same task ID as state", t => {
+    let state = Reducer.defaultState
+
+    let (state1, effects1) = Reducer.next(
+      state,
+      AddUserMessage({
+        id: "user-1",
+        content: [UserContentPart.text("First message")],
+      }),
+    )
+
+    let taskIdInState = state1.currentTaskId
+
+    switch (effects1->Array.get(0), taskIdInState) {
+    | (Some(Reducer.SendMessageToAPI({taskId: effectTaskId, _})), Some(stateTaskId)) =>
+      t->expect(effectTaskId)->Expect.toBe(stateTaskId)
+    | _ => t->expect("Effect and state should both have task ID")->Expect.toBe("Missing task IDs")
+    }
+  })
+
+  test("second message reuses task ID from first message", t => {
+    let state = Reducer.defaultState
+
+    let (state1, effects1) = Reducer.next(
+      state,
+      AddUserMessage({
+        id: "user-1",
+        content: [UserContentPart.text("First message")],
+      }),
+    )
+
+    let (state2, effects2) = Reducer.next(
+      state1,
+      AddUserMessage({
+        id: "user-2",
+        content: [UserContentPart.text("Second message")],
+      }),
+    )
+
+    switch (effects1->Array.get(0), effects2->Array.get(0)) {
+    | (
+        Some(Reducer.SendMessageToAPI({taskId: taskId1, _})),
+        Some(Reducer.SendMessageToAPI({taskId: taskId2, _})),
+      ) => t->expect(taskId1)->Expect.toBe(taskId2)
+    | _ => t->expect("Both effects should have task IDs")->Expect.toBe("Missing task IDs")
     }
   })
 })

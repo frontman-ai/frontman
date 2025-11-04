@@ -93,6 +93,7 @@ type state = {
   previewFrame: previewFrame,
   webPreviewIsSelecting: bool,
   selectedElement: option<SelectedElement.t>,
+  currentTaskId: option<string>,
 }
 
 type action =
@@ -121,7 +122,7 @@ type action =
 
 // Effects for side effects
 type effect =
-  | SendMessageToAPI({message: string})
+  | SendMessageToAPI({message: string, taskId: string})
   | FetchElementDetails({element: WebAPI.DOMAPI.element, document: option<WebAPI.DOMAPI.document>})
 
 let getInitialUrl = () => {
@@ -140,6 +141,7 @@ let defaultState: state = {
   previewFrame: {url: getInitialUrl(), contentDocument: None, contentWindow: None},
   webPreviewIsSelecting: false,
   selectedElement: None,
+  currentTaskId: None,
 }
 
 let actionToString = action => {
@@ -164,11 +166,15 @@ let actionToString = action => {
 
 let handleEffect = (effect, state, dispatch) => {
   switch effect {
-  | SendMessageToAPI({message}) => {
+  | SendMessageToAPI({message, taskId}) => {
       let headers = WebAPI.Headers.make()
       headers->WebAPI.Headers.set(~name="Content-Type", ~value="application/json")
 
-      let body = JSON.stringifyAny({"message": message, "selectedElement": SelectedElement.withoutElement(state.selectedElement)})->Option.getOr("{}")
+      let body = JSON.stringifyAny({
+        "message": message,
+        "taskId": taskId,
+        "selectedElement": SelectedElement.withoutElement(state.selectedElement)
+      })->Option.getOr("{}")
 
       let _ =
         WebAPI.Global.fetch(
@@ -269,14 +275,21 @@ let next = (state, action) => {
         createdAt: Date.now(),
       })
       let textContent = extractTextFromUserContent(content)
+
+      let taskId = state.currentTaskId->Option.getOr({
+        let newId = %raw(`crypto.randomUUID()`)
+        newId
+      })
+
       AskTheLlmReactStatestore.StateReducer.update(
         {
           messages: Array.concat(state.messages, [message]),
           previewFrame: state.previewFrame,
           webPreviewIsSelecting: state.webPreviewIsSelecting,
           selectedElement: state.selectedElement,
+          currentTaskId: Some(taskId),
         },
-        ~sideEffects=[SendMessageToAPI({message: textContent})],
+        ~sideEffects=[SendMessageToAPI({message: textContent, taskId: taskId})],
       )
     }
 
@@ -294,6 +307,7 @@ let next = (state, action) => {
         previewFrame: state.previewFrame,
         webPreviewIsSelecting: state.webPreviewIsSelecting,
         selectedElement: state.selectedElement,
+        currentTaskId: state.currentTaskId,
       })
     }
 
@@ -317,6 +331,7 @@ let next = (state, action) => {
         previewFrame: state.previewFrame,
         webPreviewIsSelecting: state.webPreviewIsSelecting,
         selectedElement: state.selectedElement,
+        currentTaskId: state.currentTaskId,
       })
     }
 
@@ -489,41 +504,32 @@ let next = (state, action) => {
       AskTheLlmReactStatestore.StateReducer.update({
         ...state,
         messages: updatedMessages,
-        previewFrame: state.previewFrame,
-        webPreviewIsSelecting: state.webPreviewIsSelecting,
-        selectedElement: state.selectedElement,
       })
     }
 
   // Set preview URL (clears document and window)
   | SetPreviewUrl({url}) =>
     AskTheLlmReactStatestore.StateReducer.update({
-      messages: state.messages,
+      ...state,
       previewFrame: {...state.previewFrame ,url},
-      webPreviewIsSelecting: state.webPreviewIsSelecting,
-      selectedElement: state.selectedElement,
     })
 
   // Set preview frame (keep existing URL)
   | SetPreviewFrame({contentDocument, contentWindow}) =>
     AskTheLlmReactStatestore.StateReducer.update({
-      messages: state.messages,
+      ...state,
       previewFrame: {...state.previewFrame, contentDocument, contentWindow},
-      webPreviewIsSelecting: state.webPreviewIsSelecting,
-      selectedElement: state.selectedElement,
     })
 
   // Toggle WebPreview selection mode
   | ToggleWebPreviewSelection =>
     AskTheLlmReactStatestore.StateReducer.update({
-      messages: state.messages,
-      previewFrame: state.previewFrame,
+      ...state,
       webPreviewIsSelecting: !state.webPreviewIsSelecting,
-      // Clear selected element when turning selection mode ON
       selectedElement: if !state.webPreviewIsSelecting {
-        None // Turning ON - clear selection
+        None
       } else {
-        state.selectedElement // Turning OFF - keep selection
+        state.selectedElement
       },
     })
 
@@ -542,9 +548,8 @@ let next = (state, action) => {
 
       AskTheLlmReactStatestore.StateReducer.update(
         {
-          messages: state.messages,
-          previewFrame: state.previewFrame,
-          webPreviewIsSelecting: false, // Auto-reset selection mode
+          ...state,
+          webPreviewIsSelecting: false,
           selectedElement,
         },
         ~sideEffects=shouldFetchDetails->Option.mapOr([], effect => [effect]),
@@ -612,4 +617,7 @@ module Selectors = {
 
   // Get preview URL
   let previewUrl = (state: state) => state.previewFrame.url
+
+  // Get current task ID
+  let currentTaskId = (state: state) => state.currentTaskId
 }
