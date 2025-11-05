@@ -7,7 +7,7 @@
 		"./src/*.res.mjs": "./src/*.res.mjs"
 	},
 	"dependencies": {
-		"dom-element-to-component-source": "^0.2.2",
+		"dom-element-to-component-source": "^0.3.1",
 		"sury": "catalog:",
 		"sury-ppx": "^11.0.0-alpha.2"
 	},

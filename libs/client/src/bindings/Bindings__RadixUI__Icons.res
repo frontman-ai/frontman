@@ -71,3 +71,13 @@ module CubeIcon = {
   @module("@radix-ui/react-icons") @react.component
   external make: (~className: string=?, ~style: {..}=?) => React.element = "CubeIcon"
 }
+
+module ChevronUpIcon = {
+  @module("@radix-ui/react-icons") @react.component
+  external make: (~className: string=?, ~style: {..}=?) => React.element = "ChevronUpIcon"
+}
+
+module ChevronDownIcon = {
+  @module("@radix-ui/react-icons") @react.component
+  external make: (~className: string=?, ~style: {..}=?) => React.element = "ChevronDownIcon"
+}

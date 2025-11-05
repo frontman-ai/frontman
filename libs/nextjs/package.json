@@ -5,7 +5,7 @@
 	"dependencies": {
 		"@ask-the-llm/agent": "*",
 		"@rescript/webapi": "catalog:",
-		"dom-element-to-component-source": "^0.2.2",
+		"dom-element-to-component-source": "^0.3.1",
 		"dotenv": "catalog:",
 		"next": "^15.5.6",
 		"react": "^19.2.0",

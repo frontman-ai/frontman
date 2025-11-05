@@ -8,6 +8,7 @@ module Impl = (
   include EventTarget.Impl({type t = T.t})
 
   external asNode: T.t => node = "%identity"
+  external asElement: T.t => element = "%identity"
 
   @get
   external nodeType: T.t => int = "nodeType"
@@ -113,6 +114,11 @@ Returns true if other is an inclusive descendant of node, and false otherwise.
 */
   @get
   external textContent: T.t => Null.t<string> = "textContent"
+/**
+[Read more on MDN](https://developer.mozilla.org/docs/Web/API/Node/parentElement)
+*/
+  @get
+  external parentElement: T.t => Null.t<element> = "parentElement"
 }
 
 include Impl({type t = node})

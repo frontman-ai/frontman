@@ -165,7 +165,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@ask-the-llm/bindings@workspace:libs/bindings"
   dependencies:
-    dom-element-to-component-source: "npm:^0.2.2"
+    dom-element-to-component-source: "npm:^0.3.1"
     rescript: "catalog:"
     sury: "catalog:"
     sury-ppx: "npm:^11.0.0-alpha.2"
@@ -207,7 +207,7 @@ __metadata:
     class-variance-authority: "npm:^0.7.1"
     clsx: "npm:^2.1.1"
     cmdk: "npm:^1.1.1"
-    dom-element-to-component-source: "npm:^0.2.2"
+    dom-element-to-component-source: "npm:^0.3.1"
     embla-carousel-react: "npm:^8.6.0"
     lucide-react: "npm:^0.548.0"
     motion: "npm:^12.23.24"
@@ -252,7 +252,7 @@ __metadata:
     "@ask-the-llm/agent": "npm:*"
     "@rescript/webapi": "catalog:"
     "@vitest/ui": "catalog:"
-    dom-element-to-component-source: "npm:^0.2.2"
+    dom-element-to-component-source: "npm:^0.3.1"
     dotenv: "catalog:"
     next: "npm:^15.5.6"
     react: "npm:^19.2.0"
@@ -6557,14 +6557,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"dom-element-to-component-source@npm:^0.2.2":
-  version: 0.2.2
-  resolution: "dom-element-to-component-source@npm:0.2.2"
+"dom-element-to-component-source@npm:^0.3.1":
+  version: 0.3.1
+  resolution: "dom-element-to-component-source@npm:0.3.1"
   dependencies:
     error-stack-parser: "npm:^2.1.4"
     source-map: "npm:^0.7.6"
     stacktrace-gps: "npm:^3.1.2"
-  checksum: 10c0/b3c3e75d49c408e7d2f070ee3a8e4d1ef5739d5a1c1294b7937331efd6983421ec24b6d87c682e93dc9afe641bd83b78f09c8cceb9dfe9771e2f2647e622aa0e
+  checksum: 10c0/943f0a2ec8f8fb643835a77f209c0ddc2ad273184efbc22c908e80a37c747fb02092f05751bd79d3df245f90e517acb98f6872a2734e04e9bb3960c3e53d761a
   languageName: node
   linkType: hard
 

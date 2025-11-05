@@ -64,11 +64,12 @@ type chatMessage = {
   toolCalls: option<array<toolCall>>,
 }
 
-type sourceLocation = {
+type rec sourceLocation = {
   componentName: string,
   file: string,
   line: int,
   column: int,
+  parent: option<sourceLocation>,
 }
 type reactComponent = {
   name: string,

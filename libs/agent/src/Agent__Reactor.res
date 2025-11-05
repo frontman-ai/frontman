@@ -15,7 +15,14 @@ module TaskMessage = Agent__Task__Message
 // Pure reaction: transform event into commands based on business rules
 let react = (event: Agent__EventBus.events): list<Command.t> => {
   switch event {
-  | TaskEvent(_, Created(_)) => list{}
+
+  // Task lifecycle: Created → no action needed (ProcessingStarted is emitted together)
+  | TaskEvent(_, Created(_)) => {
+      Agent__Logger.Log.debug("Reactor: Created event - no action needed")
+      list{}
+    }
+
+  // Task lifecycle: ProcessingStarted → run first LLM iteration
   | TaskEvent(task, ProcessingStarted(_)) => {
       Agent__Logger.Log.debug("Reactor: ProcessingStarted - emitting RunIteration effect")
       list{Effect(RunLLMIteration({task: task}))}
