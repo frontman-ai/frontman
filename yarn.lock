@@ -179,7 +179,6 @@ __metadata:
     "@ai-sdk/react": "npm:^2.0.82"
     "@ask-the-llm/agent": "npm:*"
     "@ask-the-llm/react-statestore": "npm:*"
-    "@jihchi/vite-plugin-rescript": "npm:next"
     "@medv/finder": "npm:^4.0.2"
     "@radix-ui/react-avatar": "npm:^1.1.10"
     "@radix-ui/react-collapsible": "npm:^1.1.12"
@@ -1523,20 +1522,6 @@ __metadata:
   dependencies:
     minipass: "npm:^7.0.4"
   checksum: 10c0/c25b6dc1598790d5b55c0947a9b7d111cfa92594db5296c3b907e2f533c033666f692a3939eadac17b1c7c40d362d0b0635dc874cbfe3e70db7c2b07cc97a5d2
-  languageName: node
-  linkType: hard
-
-"@jihchi/vite-plugin-rescript@npm:next":
-  version: 8.0.0-beta.2
-  resolution: "@jihchi/vite-plugin-rescript@npm:8.0.0-beta.2"
-  dependencies:
-    chalk: "npm:^5.6.2"
-    execa: "npm:^9.6.0"
-    npm-run-path: "npm:^6.0.0"
-  peerDependencies:
-    rescript: ">=12.0.0-beta.11"
-    vite: ">=5.1.0"
-  checksum: 10c0/d463d852f6268b2103efe3bd06c2d8a07cba08e6a295633a3be58b23bae9b58b9df23c3731ba56716e24b141bb98ee42b2233a028e2a668a6d1e58a2da95ac15
   languageName: node
   linkType: hard
 
@@ -5462,7 +5447,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"chalk@npm:^5.3.0, chalk@npm:^5.6.2":
+"chalk@npm:^5.3.0":
   version: 5.6.2
   resolution: "chalk@npm:5.6.2"
   checksum: 10c0/99a4b0f0e7991796b1e7e3f52dceb9137cae2a9dfc8fc0784a550dc4c558e15ab32ed70b14b21b52beb2679b4892b41a0aa44249bcb996f01e125d58477c6976

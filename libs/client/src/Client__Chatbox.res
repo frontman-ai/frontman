@@ -77,23 +77,13 @@ let make = () => {
           | Assistant(Streaming({textBuffer, _})) =>
             // Render streaming assistant message with visual indicator
             <div key={messageId} className="max-w-full">
-              <AIElements.Message from="assistant">
-                <AIElements.MessageContent>
-                  <div
-                    className="border-l-2 border-blue-500 pl-3 bg-blue-50/30 dark:bg-blue-950/20 rounded"
-                  >
+              <React.Fragment key={`${messageId}-0`}>
+                <AIElements.Message from="assistant">
+                  <AIElements.MessageContent className="!bg-blue-500 transition-colors duration-500">
                     <AIElements.Response> {React.string(textBuffer)} </AIElements.Response>
-                    <div
-                      className="mt-2 flex items-center gap-2 text-xs text-blue-600 dark:text-blue-400"
-                    >
-                      <span
-                        className="inline-block w-1 h-1 bg-blue-500 rounded-full animate-pulse"
-                      />
-                      {React.string("Streaming")}
-                    </div>
-                  </div>
-                </AIElements.MessageContent>
-              </AIElements.Message>
+                  </AIElements.MessageContent>
+                </AIElements.Message>
+              </React.Fragment>
             </div>
 
           | Assistant(Completed({content, _})) =>
@@ -105,7 +95,7 @@ let make = () => {
                 | Text({text}) =>
                   <React.Fragment key={`${messageId}-${i->Int.toString}`}>
                     <AIElements.Message from="assistant">
-                      <AIElements.MessageContent>
+                      <AIElements.MessageContent className="transition-colors duration-500">
                         <AIElements.Response> {React.string(text)} </AIElements.Response>
                       </AIElements.MessageContent>
                     </AIElements.Message>
@@ -124,7 +114,9 @@ let make = () => {
                 | ToolCall({toolCallId: _, toolName, input}) =>
                   <React.Fragment key={`${messageId}-tool-${i->Int.toString}`}>
                     <AIElements.Tool defaultOpen={true}>
-                      <AIElements.ToolHeader title={toolName} type_="tool-call" state="output-available" />
+                      <AIElements.ToolHeader
+                        title={toolName} type_="tool-call" state="output-available"
+                      />
                       <AIElements.ToolContent>
                         <AIElements.ToolInput input={input} />
                         <AIElements.ToolOutput
@@ -149,7 +141,9 @@ let make = () => {
                 | _ => false
                 }}
               >
-                <AIElements.ToolHeader title={toolName} type_="tool-call" state={toolStateToString(state)} />
+                <AIElements.ToolHeader
+                  title={toolName} type_="tool-call" state={toolStateToString(state)}
+                />
                 <AIElements.ToolContent>
                   {switch input {
                   | Some(input) => <AIElements.ToolInput input={input} />
