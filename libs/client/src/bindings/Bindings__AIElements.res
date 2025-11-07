@@ -45,7 +45,7 @@ module Message = {
 
 module MessageContent = {
     @react.component @module("@/components/ai-elements/message")
-    external make: (~className: string=?, ~children: React.element) => React.element = "MessageContent"
+    external make: (~className: string=?, ~variant: string=?, ~children: React.element) => React.element = "MessageContent"
 }
 
 module Response = {
