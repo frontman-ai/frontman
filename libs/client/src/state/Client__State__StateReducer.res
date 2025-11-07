@@ -45,7 +45,6 @@ module Message = {
     | ToolCall({id, _}) => id
     }
   }
-}
 
 module SelectedElement = {
   type t = {
@@ -75,6 +74,7 @@ module Task = {
     url: string,
     contentDocument: option<WebAPI.DOMAPI.document>,
     contentWindow: option<WebAPI.DOMAPI.window>,
+    errors: array<Client__Types.consoleError>,
   }
   type t = {
     id: string,
@@ -103,7 +103,7 @@ module Task = {
       title: normalizedTitle,
       messages,
       createdAt: timestamp,
-      previewFrame: {url: previewUrl, contentDocument: None, contentWindow: None},
+      previewFrame: {url: previewUrl, contentDocument: None, contentWindow: None, errors: []},
       lastMessageAt: None,
       webPreviewIsSelecting: false,
       selectedElement: None,
@@ -187,6 +187,7 @@ type action =
       contentDocument: option<WebAPI.DOMAPI.document>,
       contentWindow: option<WebAPI.DOMAPI.window>,
     })
+  | AddConsoleError({error: Client__Types.consoleError})
   // WebPreview selection actions
   | ToggleWebPreviewSelection
   | SetSelectedElement({selectedElement: option<SelectedElement.t>})
@@ -227,6 +228,7 @@ let actionToString = action => {
   | MessageCompleted({taskId, id}) => `MessageCompleted(${taskId}, ${id})`
   | SetPreviewUrl({url}) => `SetPreviewUrl(${url})`
   | SetPreviewFrame(_) => `SetPreviewFrame(contentDocument, contentWindow)`
+  | AddConsoleError(_) => `AddConsoleError`
   | ToggleWebPreviewSelection => `ToggleWebPreviewSelection`
   | SetSelectedElement(_) => `SetSelectedElement`
   | CreateTask({title}) => `CreateTask("${title}")`
@@ -303,6 +305,7 @@ module Selectors = {
       url: getInitialUrl(),
       contentDocument: None,
       contentWindow: None,
+      errors: [],
     }
     currentTask(state)->Option.mapOr(previewFrame, task => task.previewFrame)
   }
@@ -697,17 +700,31 @@ let next = (state, action) => {
     )
     ->AskTheLlmReactStatestore.StateReducer.update
 
-  // Set preview URL (clears document and window)
+  // Set preview URL (clears document and window and errors)
   | SetPreviewUrl({url}) =>
     state
-    ->Lens.updateCurrentTask(task => {...task, previewFrame: {...task.previewFrame, url}})
+    ->Lens.updateCurrentTask(task => {
+      {...task, previewFrame: {...task.previewFrame, url, errors: []}}
+    })
     ->AskTheLlmReactStatestore.StateReducer.update
 
-  // Set preview frame (keep existing URL)
+  // Set preview frame (keep existing URL, clear errors)
   | SetPreviewFrame({contentDocument, contentWindow}) =>
     state
     ->Lens.updateCurrentTask(task => {
-      {...task, previewFrame: {...task.previewFrame, contentDocument, contentWindow}}
+      {...task, previewFrame: {...task.previewFrame, contentDocument, contentWindow, errors: []}}
+    })
+    ->AskTheLlmReactStatestore.StateReducer.update
+
+  // Add console error to current task's preview frame
+  | AddConsoleError({error}) =>
+    state
+    ->Lens.updateCurrentTask(task => {
+      ...task,
+      previewFrame: {
+        ...task.previewFrame,
+        errors: Array.concat(task.previewFrame.errors, [error]),
+      },
     })
     ->AskTheLlmReactStatestore.StateReducer.update
 

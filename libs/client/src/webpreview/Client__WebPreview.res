@@ -60,9 +60,9 @@ let make = (~url) => {
     </AIElements.WebPreviewNavigation>
     
     <div className="relative size-full">
-      {switch previewFrame.contentDocument {
-      | Some(document) => <Client__WebPreview__Stage document={document} />
-      | None => React.null
+      {switch (previewFrame.contentDocument, previewFrame.contentWindow) {
+      | (Some(document), Some(window)) => <Client__WebPreview__Stage document={document} window={window} />
+      | (_, _) => React.null
       }}
 
       {allTasks

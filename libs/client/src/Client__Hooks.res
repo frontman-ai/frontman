@@ -1103,3 +1103,38 @@ module DOMmutations = {
     mutationTimestamp
   }
 }
+
+module ConsoleError = {
+  let useMonkeyPatch = (~window: WebAPI.DOMAPI.window, ~callback: Client__Types.consoleError => unit, ()) => {
+    let callbackRef = React.useRef(callback)
+    React.useEffectOnEveryRender(() => {
+      callbackRef.current = callback
+      None
+    })
+
+    React.useEffect(() => {
+      let patchConsole: (WebAPI.DOMAPI.window, Client__Types.consoleError => unit) => unit => unit = %raw(`
+          function(win, callback) {
+            const originalConsoleError = win.console.error.bind(win.console);
+            
+            win.console.error = function(...args) {
+              if (args.length > 0) {
+                callback({
+                  createdAt: new Date(),
+                  error: args[0]
+                });
+              }
+              originalConsoleError(...args);
+            };
+            
+            return function cleanup() {
+              win.console.error = originalConsoleError;
+            };
+          }
+        `)
+
+      let fn = patchConsole(window, callbackRef.current)
+      Some(fn)
+    }, [window])
+  }
+}
