@@ -72,13 +72,7 @@ describe("Client State Reducer", () => {
   test("StreamingStarted creates assistant Streaming message", t => {
     // Start with a task that has a user message
     let state = TestHelpers.makeStateWithTask(
-      ~messages=[
-        Reducer.Message.User({
-          id: "user-1",
-          content: [UserContentPart.text("Hello")],
-          createdAt: 1000.0,
-        }),
-      ],
+      ~messages=[Reducer.Message.User({id: "user-1", content: [UserContentPart.text("Hello")], createdAt: 1000.0})],
     )
     let action = Reducer.StreamingStarted({id: "assistant-1"})
 
@@ -98,11 +92,7 @@ describe("Client State Reducer", () => {
 
   test("TextDeltaReceived appends to textBuffer", t => {
     let state = TestHelpers.makeStateWithTask(
-      ~messages=[
-        Reducer.Message.Assistant(
-          Streaming({id: "assistant-1", textBuffer: "Hello", createdAt: 0.0}),
-        ),
-      ],
+      ~messages=[Reducer.Message.Assistant(Streaming({id: "assistant-1", textBuffer: "Hello", createdAt: 0.0}))],
     )
 
     let action = Reducer.TextDeltaReceived({id: "assistant-1", text: " world"})
@@ -208,13 +198,13 @@ describe("Client State Reducer", () => {
 
     let toolCall: Reducer.Message.toolCall = {
       id: "call-123",
+      toolCallId: "call-123",
       toolName: "search",
       inputBuffer: "",
       input: Some(JSON.Encode.object({})),
       result: None,
       errorText: None,
       state: Reducer.InputAvailable,
-      createdAt: 0.0,
     }
 
     let action = Reducer.ToolCallReceived({toolCall: toolCall})
@@ -224,8 +214,8 @@ describe("Client State Reducer", () => {
     t->expect(messages->Array.length)->Expect.toBe(2)
 
     switch TestHelpers.getMessage(nextState, 1) {
-    | Some(ToolCall({id, toolName, _})) => {
-        t->expect(id)->Expect.toBe("call-123")
+    | Some(ToolCall({toolCallId, toolName, _})) => {
+        t->expect(toolCallId)->Expect.toBe("call-123")
         t->expect(toolName)->Expect.toBe("search")
       }
     | _ => t->expect("Got ToolCall message")->Expect.toBe("Expected ToolCall message")
@@ -374,13 +364,13 @@ describe("Client State Reducer - Selectors", () => {
 
     let toolCallMsg = Reducer.Message.ToolCall({
       id: "tool-1",
+      toolCallId: "tool-1",
       toolName: "search",
       state: Reducer.InputAvailable,
       inputBuffer: "",
       input: None,
       result: None,
       errorText: None,
-      createdAt: 0.0,
     })
 
     t->expect(Reducer.Selectors.getMessageId(userMsg))->Expect.toBe("user-1")
@@ -408,7 +398,7 @@ describe("Client State Reducer - Tool Lifecycle", () => {
     }
 
     let action = Reducer.ToolInputStartReceived({
-      id: "call-1",
+      toolCallId: "call-1",
       toolName: "read_file",
     })
     let (nextState, _) = Reducer.next(state, action)
@@ -417,8 +407,8 @@ describe("Client State Reducer - Tool Lifecycle", () => {
     t->expect(messages->Array.length)->Expect.toBe(1)
 
     switch messages->Array.get(0) {
-    | Some(ToolCall({id, toolName, state, input, _})) => {
-        t->expect(id)->Expect.toBe("call-1")
+    | Some(ToolCall({toolCallId, toolName, state, input, _})) => {
+        t->expect(toolCallId)->Expect.toBe("call-1")
         t->expect(toolName)->Expect.toBe("read_file")
         t->expect(state)->Expect.toBe(Reducer.InputStreaming)
         t->expect(input)->Expect.toBe(None)
@@ -432,19 +422,19 @@ describe("Client State Reducer - Tool Lifecycle", () => {
       ~messages=[
         Reducer.Message.ToolCall({
           id: "call-1",
+          toolCallId: "call-1",
           toolName: "read_file",
           inputBuffer: "{\"path",
           input: None,
           result: None,
           errorText: None,
           state: Reducer.InputStreaming,
-          createdAt: 0.0,
         }),
       ],
     )
 
     let action = Reducer.ToolInputDeltaReceived({
-      id: "call-1",
+      toolCallId: "call-1",
       delta: "\": \"test.res\"}",
     })
     let (nextState, _) = Reducer.next(state, action)
@@ -461,6 +451,7 @@ describe("Client State Reducer - Tool Lifecycle", () => {
       ~messages=[
         ToolCall({
           id: "call-1",
+          toolCallId: "call-1",
           toolName: "read_file",
           inputBuffer: "{\"path\": \"test.res\"}",
           input: None,
@@ -472,7 +463,7 @@ describe("Client State Reducer - Tool Lifecycle", () => {
       ],
     )
 
-    let action = Reducer.ToolInputEndReceived({id: "call-1"})
+    let action = Reducer.ToolInputEndReceived({toolCallId: "call-1"})
     let (nextState, _) = Reducer.next(state, action)
 
     switch TestHelpers.getMessage(nextState, 0) {
@@ -489,6 +480,7 @@ describe("Client State Reducer - Tool Lifecycle", () => {
       ~messages=[
         ToolCall({
           id: "call-1",
+          toolCallId: "call-1",
           toolName: "read_file",
           inputBuffer: "",
           input: Some(JSON.parseOrThrow("{\"path\": \"test.res\"}")),
@@ -501,7 +493,7 @@ describe("Client State Reducer - Tool Lifecycle", () => {
     )
 
     let result = JSON.parseOrThrow("{\"content\": \"file contents\"}")
-    let action = Reducer.ToolResultReceived({id: "call-1", result})
+    let action = Reducer.ToolResultReceived({toolCallId: "call-1", result})
     let (nextState, _) = Reducer.next(state, action)
 
     switch TestHelpers.getMessage(nextState, 0) {
@@ -518,6 +510,7 @@ describe("Client State Reducer - Tool Lifecycle", () => {
       ~messages=[
         ToolCall({
           id: "call-1",
+          toolCallId: "call-1",
           toolName: "read_file",
           inputBuffer: "",
           input: Some(JSON.parseOrThrow("{\"path\": \"test.res\"}")),
@@ -530,7 +523,7 @@ describe("Client State Reducer - Tool Lifecycle", () => {
     )
 
     let action = Reducer.ToolErrorReceived({
-      id: "call-1",
+      toolCallId: "call-1",
       error: "File not found",
     })
     let (nextState, _) = Reducer.next(state, action)
@@ -561,14 +554,13 @@ describe("Client State Reducer - Tool Lifecycle", () => {
     }
 
     let toolCall: Reducer.Message.toolCall = {
-      id: "call-1",
+      toolCallId: "call-1",
       toolName: "read_file",
       inputBuffer: "",
       input: Some(JSON.parseOrThrow("{\"path\": \"test.res\"}")),
       result: None,
       errorText: None,
       state: Reducer.InputAvailable,
-      createdAt: 0.0,
     }
     let action = Reducer.ToolCallReceived({toolCall: toolCall})
     let (nextState, _) = Reducer.next(state, action)
@@ -681,7 +673,7 @@ describe("Client State Reducer - Task Management Actions", () => {
     | Some(task) => {
         t->expect(task.id)->Expect.toBe("task-1")
         t->expect(task.title)->Expect.toBe("First Task")
-        t->expect(task.messages->Dict.valuesToArray->Array.length)->Expect.toBe(0)
+        t->expect(task.messages->Array.length)->Expect.toBe(0)
       }
     | None => t->expect(false)->Expect.toBe(true)
     }
@@ -722,18 +714,15 @@ describe("Client State Reducer - Task Management Actions", () => {
       ~timestamp=1000.0,
       ~previewUrl="http://localhost:3000",
     )
-    let messagesDict1 = Dict.make()
-    messagesDict1->Dict.set(
-      "user-1",
-      Reducer.Message.User({
-        id: "user-1",
-        content: [UserContentPart.Text({text: "Hello from task 1"})],
-        createdAt: 1000.0,
-      }),
-    )
     let task1WithMessages = {
       ...task1,
-      messages: messagesDict1,
+      messages: [
+        Reducer.User({
+          id: "user-1",
+          content: [UserContentPart.Text({text: "Hello from task 1"})],
+          createdAt: 1000.0,
+        }),
+      ],
     }
 
     let task2 = Reducer.createDefaultTask(
@@ -742,18 +731,15 @@ describe("Client State Reducer - Task Management Actions", () => {
       ~timestamp=2000.0,
       ~previewUrl="http://localhost:3000",
     )
-    let messagesDict2 = Dict.make()
-    messagesDict2->Dict.set(
-      "user-2",
-      Reducer.Message.User({
-        id: "user-2",
-        content: [UserContentPart.Text({text: "Hello from task 2"})],
-        createdAt: 2000.0,
-      }),
-    )
     let task2WithMessages = {
       ...task2,
-      messages: messagesDict2,
+      messages: [
+        Reducer.User({
+          id: "user-2",
+          content: [UserContentPart.Text({text: "Hello from task 2"})],
+          createdAt: 2000.0,
+        }),
+      ],
     }
 
     let tasks = Dict.make()
