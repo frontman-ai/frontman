@@ -1,6 +1,7 @@
 module AIElements = Bindings__AIElements
 module Icons = Bindings__RadixUI__Icons
 module AISDK = Bindings__AISDK__React
+module TaskTabs = Client__TaskTabs
 
 type model = {
   name: string,
@@ -49,6 +50,7 @@ let make = () => {
   }
 
   <div className="flex flex-col h-full">
+    <TaskTabs />
     <AIElements.Conversation className="flex-grow overflow-hidden">
       <AIElements.ConversationContent>
         {messages
