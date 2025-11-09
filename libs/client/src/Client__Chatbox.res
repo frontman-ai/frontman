@@ -1,7 +1,6 @@
 module AIElements = Bindings__AIElements
 module Icons = Bindings__RadixUI__Icons
 module AISDK = Bindings__AISDK__React
-module TaskTabs = Client__TaskTabs
 
 type model = {
   name: string,
@@ -50,7 +49,6 @@ let make = () => {
   }
 
   <div className="flex flex-col h-full">
-    <TaskTabs />
     <AIElements.Conversation className="flex-grow overflow-hidden">
       <AIElements.ConversationContent>
         {messages
@@ -58,7 +56,7 @@ let make = () => {
           let messageId = Client__State__StateReducer.Selectors.getMessageId(message)
 
           switch message {
-          | Client__State__StateReducer.Message.User({content}) =>
+          | Client__State__StateReducer.User({content}) =>
             // Render user message
             <div key={messageId} className="max-w-full">
               {content
@@ -76,19 +74,19 @@ let make = () => {
               ->React.array}
             </div>
 
-          | Client__State__StateReducer.Message.Assistant(Streaming({textBuffer, _})) =>
+          | Assistant(Streaming({textBuffer, _})) =>
             // Render streaming assistant message with visual indicator
             <div key={messageId} className="max-w-full">
               <React.Fragment key={`${messageId}-0`}>
                 <AIElements.Message from="assistant">
-                  <AIElements.MessageContent variant="flat" className="!bg-blue-500 px-4 py-3 transition-colors duration-500">
+                  <AIElements.MessageContent className="!bg-blue-500 transition-colors duration-500">
                     <AIElements.Response> {React.string(textBuffer)} </AIElements.Response>
                   </AIElements.MessageContent>
                 </AIElements.Message>
               </React.Fragment>
             </div>
 
-          | Client__State__StateReducer.Message.Assistant(Completed({content, _})) =>
+          | Assistant(Completed({content, _})) =>
             // Render completed assistant message
             <div key={messageId} className="max-w-full">
               {content
@@ -97,7 +95,7 @@ let make = () => {
                 | Text({text}) =>
                   <React.Fragment key={`${messageId}-${i->Int.toString}`}>
                     <AIElements.Message from="assistant">
-                      <AIElements.MessageContent variant="flat" className="bg-secondary px-4 py-3 transition-colors duration-500">
+                      <AIElements.MessageContent className="transition-colors duration-500">
                         <AIElements.Response> {React.string(text)} </AIElements.Response>
                       </AIElements.MessageContent>
                     </AIElements.Message>
@@ -113,7 +111,7 @@ let make = () => {
                       </AIElements.Action>
                     </AIElements.Actions>
                   </React.Fragment>
-                | Client__State__StateReducer.AssistantContentPart.ToolCall({toolCallId: _, toolName, input}) =>
+                | ToolCall({toolCallId: _, toolName, input}) =>
                   <React.Fragment key={`${messageId}-tool-${i->Int.toString}`}>
                     <AIElements.Tool defaultOpen={true}>
                       <AIElements.ToolHeader
@@ -134,7 +132,7 @@ let make = () => {
               ->React.array}
             </div>
 
-          | Client__State__StateReducer.Message.ToolCall({toolName, state, input, result, errorText, _}) =>
+          | ToolCall({toolName, state, input, result, errorText, _}) =>
             // Render tool call message
             <div key={messageId} className="max-w-full">
               <AIElements.Tool

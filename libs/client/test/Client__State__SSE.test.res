@@ -17,13 +17,6 @@ describe("SSE Integration - Text Streaming", () => {
     let state = ref(Reducer.defaultState)
     let task = makeMockTask()
 
-    // First add a user message to create a task
-    let (nextState, _) = Reducer.next(state.contents, AddUserMessage({
-      id: "user-1",
-      content: [Reducer.UserContentPart.text("Hello")],
-    }))
-    state := nextState
-
     // Simulate TextStart event
     let _event = AgentEventBus.StreamEvent(task, Vercel.TextStart({id: "text-abc"}))
 
@@ -31,12 +24,9 @@ describe("SSE Integration - Text Streaming", () => {
     let (nextState, _) = Reducer.next(state.contents, StreamingStarted({id: "text-abc"}))
     state := nextState
 
-    // Verify streaming message created (should have user message + streaming message)
-    let messages = Reducer.Selectors.messages(state.contents)
-    t->expect(messages->Array.length)->Expect.toBe(2)
-
-    switch messages->Array.get(1) {
-    | Some(Reducer.Message.Assistant(Streaming({id, textBuffer, _}))) => {
+    // Verify streaming message created
+    switch state.contents.messages->Array.get(0) {
+    | Some(Reducer.Assistant(Reducer.Streaming({id, textBuffer, _}))) => {
         t->expect(id)->Expect.toBe("text-abc")
         t->expect(textBuffer)->Expect.toBe("")
       }
@@ -45,20 +35,7 @@ describe("SSE Integration - Text Streaming", () => {
   })
 
   test("full streaming session produces correct completed message", t => {
-    // Create initial state with a task
-    let initialTask = Reducer.createDefaultTask(
-      ~id="task-1",
-      ~title="Test Task",
-      ~timestamp=1000.0,
-      ~previewUrl="http://localhost:3000",
-    )
-    let tasks = Dict.make()
-    tasks->Dict.set("task-1", initialTask)
-
-    let state = ref({
-      Reducer.tasks: tasks,
-      currentTaskId: Some("task-1"),
-    })
+    let state = ref(Reducer.defaultState)
     let task = makeMockTask()
 
     // Simulate event sequence
@@ -86,11 +63,10 @@ describe("SSE Integration - Text Streaming", () => {
     })
 
     // Verify final state
-    let messages = Reducer.Selectors.messages(state.contents)
-    t->expect(messages->Array.length)->Expect.toBe(1)
+    t->expect(state.contents.messages->Array.length)->Expect.toBe(1)
 
-    switch messages->Array.get(0) {
-    | Some(Reducer.Message.Assistant(Completed({id, content, _}))) => {
+    switch state.contents.messages->Array.get(0) {
+    | Some(Reducer.Assistant(Reducer.Completed({id, content, _}))) => {
         t->expect(id)->Expect.toBe("text-123")
         t->expect(content->Array.length)->Expect.toBe(1)
 
@@ -105,27 +81,14 @@ describe("SSE Integration - Text Streaming", () => {
   })
 
   test("message ID remains stable throughout streaming lifecycle", t => {
-    // Create initial state with a task
-    let initialTask = Reducer.createDefaultTask(
-      ~id="task-1",
-      ~title="Test Task",
-      ~timestamp=1000.0,
-      ~previewUrl="http://localhost:3000",
-    )
-    let tasks = Dict.make()
-    tasks->Dict.set("task-1", initialTask)
-
-    let state = ref({
-      Reducer.tasks: tasks,
-      currentTaskId: Some("task-1"),
-    })
+    let state = ref(Reducer.defaultState)
     let stableId = "text-stable-id"
 
     // Start streaming
     let (nextState, _) = Reducer.next(state.contents, StreamingStarted({id: stableId}))
     state := nextState
 
-    let id1 = Reducer.Selectors.messages(state.contents)
+    let id1 = state.contents.messages
       ->Array.get(0)
       ->Option.map(Reducer.Selectors.getMessageId)
 
@@ -136,7 +99,7 @@ describe("SSE Integration - Text Streaming", () => {
     )
     state := nextState
 
-    let id2 = Reducer.Selectors.messages(state.contents)
+    let id2 = state.contents.messages
       ->Array.get(0)
       ->Option.map(Reducer.Selectors.getMessageId)
 
@@ -144,7 +107,7 @@ describe("SSE Integration - Text Streaming", () => {
     let (nextState, _) = Reducer.next(state.contents, MessageCompleted({id: stableId}))
     state := nextState
 
-    let id3 = Reducer.Selectors.messages(state.contents)
+    let id3 = state.contents.messages
       ->Array.get(0)
       ->Option.map(Reducer.Selectors.getMessageId)
 
@@ -195,6 +158,6 @@ describe("SSE Integration - Text Streaming", () => {
     })
 
     // State should remain unchanged
-    t->expect(Reducer.Selectors.messages(state.contents)->Array.length)->Expect.toBe(0)
+    t->expect(state.contents.messages->Array.length)->Expect.toBe(0)
   })
 })

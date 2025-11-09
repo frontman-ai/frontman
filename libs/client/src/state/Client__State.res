@@ -41,40 +41,32 @@ module Actions = {
   let toolCallReceived = (~toolCall) =>
     Client__State__Store.dispatch(ToolCallReceived({toolCall: toolCall}))
 
-  let toolInputStartReceived = (~id, ~toolName) =>
-    Client__State__Store.dispatch(ToolInputStartReceived({id, toolName}))
+  let toolInputStartReceived = (~toolCallId, ~toolName) =>
+    Client__State__Store.dispatch(
+      ToolInputStartReceived({toolCallId: toolCallId, toolName: toolName}),
+    )
 
-  let toolInputDeltaReceived = (~id, ~delta) =>
-    Client__State__Store.dispatch(ToolInputDeltaReceived({id, delta}))
+  let toolInputDeltaReceived = (~toolCallId, ~delta) =>
+    Client__State__Store.dispatch(ToolInputDeltaReceived({toolCallId: toolCallId, delta: delta}))
 
-  let toolInputEndReceived = (~id) => Client__State__Store.dispatch(ToolInputEndReceived({id: id}))
+  let toolInputEndReceived = (~toolCallId) =>
+    Client__State__Store.dispatch(ToolInputEndReceived({toolCallId: toolCallId}))
 
-  let toolResultReceived = (~id, ~result) =>
-    Client__State__Store.dispatch(ToolResultReceived({id, result}))
+  let toolResultReceived = (~toolCallId, ~result) =>
+    Client__State__Store.dispatch(ToolResultReceived({toolCallId: toolCallId, result: result}))
 
-  let toolErrorReceived = (~id, ~error) =>
-    Client__State__Store.dispatch(ToolErrorReceived({id, error}))
+  let toolErrorReceived = (~toolCallId, ~error) =>
+    Client__State__Store.dispatch(ToolErrorReceived({toolCallId: toolCallId, error: error}))
 
   let setPreviewUrl = (~url) => Client__State__Store.dispatch(SetPreviewUrl({url: url}))
 
   let setPreviewFrame = (~contentDocument, ~contentWindow) =>
-    Client__State__Store.dispatch(SetPreviewFrame({contentDocument, contentWindow}))
+    Client__State__Store.dispatch(
+      SetPreviewFrame({contentDocument, contentWindow}),
+    )
 
   let toggleWebPreviewSelection = () => Client__State__Store.dispatch(ToggleWebPreviewSelection)
 
   let setSelectedElement = (~selectedElement) =>
     Client__State__Store.dispatch(SetSelectedElement({selectedElement: selectedElement}))
-
-  // Task management action creators
-  let createTask = (~id, ~title, ~timestamp) =>
-    Client__State__Store.dispatch(CreateTask({id, title, timestamp}))
-
-  let switchTask = (~taskId) => Client__State__Store.dispatch(SwitchTask({taskId: taskId}))
-
-  let deleteTask = (~taskId) => Client__State__Store.dispatch(DeleteTask({taskId: taskId}))
-
-  let clearCurrentTask = () => Client__State__Store.dispatch(ClearCurrentTask)
-
-  let updateTaskTitle = (~taskId, ~title) =>
-    Client__State__Store.dispatch(UpdateTaskTitle({taskId, title}))
 }
