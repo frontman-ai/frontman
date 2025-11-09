@@ -783,7 +783,7 @@ describe("Client State Reducer - Task Management Actions", () => {
       state1,
       AddUserMessage({
         id: "user-2",
-        content: [UserContentPart.Text({text: "Second message"})],
+        content: [UserContentPart.text("Second message")],
       }),
     )
 
