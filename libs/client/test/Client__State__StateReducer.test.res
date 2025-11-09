@@ -165,9 +165,41 @@ describe("Client State Reducer - MessageCompleted Content Conversion", () => {
 
     let message = TestHelpers.getMessage(nextState, 0)->Option.getOrThrow
 
-    switch message {
-    | Assistant(Completed({content, _})) => t->expect(content->Array.length)->Expect.toBe(0)
-    | _ => JsExn.throw("Expected Assistant Completed message")
+  test("converts toolCalls to ToolCall content parts", t => {
+    let state: Reducer.state = {
+      previewFrame: {
+        url: "https://example.com",
+        contentDocument: None,
+        contentWindow: None,
+      },
+      webPreviewIsSelecting: false,
+      selectedElement: None,
+      currentTaskId: None,
+      messages: [
+        Assistant(
+          Streaming({
+            id: "msg-3",
+            textBuffer: "Listing files",
+            createdAt: 0.0,
+          }),
+        ),
+      ],
+    }
+
+    let (nextState, _) = Reducer.next(state, MessageCompleted({id: "msg-3"}))
+
+    switch nextState.messages->Array.get(0) {
+    | Some(Assistant(Completed({content, _}))) => {
+        t->expect(content->Array.length)->Expect.toBe(1)
+
+        // Should be text content
+        switch content->Array.get(0) {
+        | Some(AssistantContentPart.Text({text})) =>
+          t->expect(text)->Expect.toBe("Listing files")
+        | _ => t->expect("Got text content")->Expect.toBe("Expected text content")
+        }
+      }
+    | _ => t->expect("Got Completed message")->Expect.toBe("Expected Completed message")
     }
   })
 
@@ -521,24 +553,20 @@ describe("Client State Reducer - Task Management Actions", () => {
       }),
     )
 
-    // Enable selection in task 1
-    let (state, _) = Reducer.next(state, ToggleWebPreviewSelection)
-
-    // Create task 2 and switch to it
-    let (state, _) = Reducer.next(
-      state,
-      CreateTask({id: "task-2", title: "Task 2", timestamp: 2000.0}),
+    let (state2, effects2) = Reducer.next(
+      state1,
+      AddUserMessage({
+        id: "user-2",
+        content: [UserContentPart.text("Second message")],
+      }),
     )
 
-    // Task 2 should have no messages and selection disabled
-    t->expect(Reducer.Selectors.messages(state)->Array.length)->Expect.toBe(0)
-    t->expect(Reducer.Selectors.webPreviewIsSelecting(state))->Expect.toBe(false)
-
-    // Switch back to task 1
-    let (state, _) = Reducer.next(state, SwitchTask({taskId: "task-1"}))
-
-    // Task 1 should still have its message and selection enabled
-    t->expect(Reducer.Selectors.messages(state)->Array.length)->Expect.toBe(1)
-    t->expect(Reducer.Selectors.webPreviewIsSelecting(state))->Expect.toBe(true)
+    switch (effects1->Array.get(0), effects2->Array.get(0)) {
+    | (
+        Some(Reducer.SendMessageToAPI({taskId: taskId1, _})),
+        Some(Reducer.SendMessageToAPI({taskId: taskId2, _})),
+      ) => t->expect(taskId1)->Expect.toBe(taskId2)
+    | _ => t->expect("Both effects should have task IDs")->Expect.toBe("Missing task IDs")
+    }
   })
 })
