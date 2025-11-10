@@ -127,89 +127,91 @@ let decodeSourceLocation = (json: JSON.t): option<DOMElementToComponentSource.so
   })
 }
 
+// Helper to extract and resolve source location from request body
+let resolveSourceLocationFromBody = async (obj: Dict.t<JSON.t>): option<
+  DOMElementToComponentSource.sourceLocation,
+> => {
+  let sourceLocation =
+    obj
+    ->Dict.get("selectedElement")
+    ->Option.flatMap(JSON.Decode.object)
+    ->Option.flatMap(selectedElement => selectedElement->Dict.get("sourceLocation"))
+    ->Option.flatMap(decodeSourceLocation)
+
+  switch sourceLocation {
+  | Some(location) => {
+      Console.log2("[API] Resolving source location:", location)
+      let resolved = await DOMElementToComponentSource.resolveSourceLocationInServer(location)
+      Console.log2("[API] Resolved source location:", resolved)
+      Some(resolved)
+    }
+  | None => None
+  }
+}
+
+// Helper to validate and extract message from request body
+let validateMessage = (obj: Dict.t<JSON.t>): option<string> => {
+  obj->Dict.get("message")->Option.flatMap(JSON.Decode.string)->Option.flatMap(str =>
+    str === "" ? None : Some(str)
+  )
+}
+
 // Handler for /api/ask-the-llm/chat (handles chat messages)
 let createChatHandler = (): apiHandler => {
   async (req, res) => {
-    let method = ApiRequest.method(req)
-
-    if method !== "POST" {
+    // Validate HTTP method
+    if ApiRequest.method(req) !== "POST" {
       res->ApiResponse.status(405)->ApiResponse.json({"error": "Method not allowed"})
     } else {
-      let body = ApiRequest.body(req)
-      switch JSON.Decode.object(body) {
-      | Some(obj) =>
-        switch Dict.get(obj, "message") {
-        | Some(messageJson) =>
-          switch JSON.Decode.string(messageJson) {
-          | Some(str) =>
-            if str === "" {
-              res->ApiResponse.status(400)->ApiResponse.json({"error": "Message cannot be empty"})
-            } else {
-              // Extract and resolve source location if present
-              let resolvedSourceLocation = switch obj->Dict.get("selectedElement") {
-              | Some(selectedElementJson) =>
-                switch selectedElementJson->JSON.Decode.object {
-                | Some(selectedElementObj) =>
-                  switch selectedElementObj->Dict.get("sourceLocation") {
-                  | Some(sourceLocationJson) =>
-                    switch decodeSourceLocation(sourceLocationJson) {
-                    | Some(sourceLocation) =>
-                      // Call resolveSourceLocationInServer
-                      Console.log2("[API] Resolving source location:", sourceLocation)
-                      let resolved = await DOMElementToComponentSource.resolveSourceLocationInServer(
-                        sourceLocation,
-                      )
-                      Console.log2("[API] Resolved source location:", resolved)
-                      Some(resolved)
-                    | None => None
-                    }
-                  | None => None
-                  }
-                | None => None
-                }
-              | None => None
-              }
+      // Parse request body
+      let bodyObj = ApiRequest.body(req)->JSON.Decode.object
 
-              // Log the resolved source location for debugging
-              switch resolvedSourceLocation {
-              | Some(location) => Console.log2("[API] Using resolved source location:", location)
-              | None => Console.log("[API] No source location resolved")
-              }
-
-              let taskId = obj
-                ->Dict.get("taskId")
-                ->Option.flatMap(JSON.Decode.string)
-                ->Option.getOr(Agent.TaskId.make())
-
-              let agent = getOrCreateAgent()
-              agent
-              ->Agent.sendMessage(
-                Agent.TaskMessage.User({
-                  taskId: taskId,
-                  content: String(str),
-                  selectedElementSourceLocation: resolvedSourceLocation,
-                }),
-              )
-              ->ignore
-              // Message is now processed asynchronously via command queue
-              res
-              ->ApiResponse.status(202)
-              ->ApiResponse.json({
-                "status": "accepted",
-                "message": "Message received and processing started",
-              })
-            }
-          | None =>
-            res
-            ->ApiResponse.status(400)
-            ->ApiResponse.json({"error": "Message field must be a string"})
-          }
-        | None =>
-          res
-          ->ApiResponse.status(400)
-          ->ApiResponse.json({"error": "Missing required field: message"})
-        }
+      switch bodyObj {
       | None => res->ApiResponse.status(400)->ApiResponse.json({"error": "Invalid JSON body"})
+      | Some(obj) =>
+        // Validate message
+        switch validateMessage(obj) {
+        | None =>
+          res->ApiResponse.status(400)->ApiResponse.json({
+            "error": "Missing or empty message field",
+          })
+        | Some(message) =>
+          // Extract and resolve source location
+          let resolvedSourceLocation = await resolveSourceLocationFromBody(obj)
+
+          // Log the resolved source location for debugging
+          switch resolvedSourceLocation {
+          | Some(location) => Console.log2("[API] Using resolved source location:", location)
+          | None => Console.log("[API] No source location resolved")
+          }
+
+          // Extract or generate task ID
+          let taskId =
+            obj
+            ->Dict.get("taskId")
+            ->Option.flatMap(JSON.Decode.string)
+            ->Option.getOr(Agent.TaskId.make())
+
+          // Send message to agent
+          let agent = getOrCreateAgent()
+          agent
+          ->Agent.sendMessage(
+            Agent.TaskMessage.User({
+              taskId: taskId,
+              content: String(message),
+              selectedElementSourceLocation: resolvedSourceLocation,
+            }),
+          )
+          ->ignore
+
+          // Return accepted response
+          res
+          ->ApiResponse.status(202)
+          ->ApiResponse.json({
+            "status": "accepted",
+            "message": "Message received and processing started",
+          })
+        }
       }
     }
   }

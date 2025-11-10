@@ -18,14 +18,17 @@ describe("SSE Integration - Text Streaming", () => {
     let task = makeMockTask()
 
     // First add a user message to create a task
-    let (nextState, _) = Reducer.next(state.contents, AddUserMessage({
-      id: "user-1",
-      content: [Reducer.UserContentPart.text("Hello")],
-    }))
+    let (nextState, _) = Reducer.next(
+      state.contents,
+      AddUserMessage({
+        id: "user-1",
+        content: [Reducer.UserContentPart.text("Hello")],
+      }),
+    )
     state := nextState
 
     // Simulate TextStart event
-    let _event = AgentEventBus.StreamEvent(task, Vercel.TextStart({id: "text-abc"}))
+    let _event = AgentEventBus.StreamEvent(task.id, Vercel.TextStart({id: "text-abc"}))
 
     // Process event (simulating mapper logic)
     let (nextState, _) = Reducer.next(state.contents, StreamingStarted({id: "text-abc"}))
@@ -46,44 +49,46 @@ describe("SSE Integration - Text Streaming", () => {
 
   test("full streaming session produces correct completed message", t => {
     // Create initial state with a task
-    let initialTask = Reducer.createDefaultTask(
-      ~id="task-1",
+    let initialTask = Reducer.Task.make(
       ~title="Test Task",
-      ~timestamp=1000.0,
       ~previewUrl="http://localhost:3000",
     )
     let tasks = Dict.make()
-    tasks->Dict.set("task-1", initialTask)
+    tasks->Dict.set(initialTask.id, initialTask)
 
     let state = ref({
-      Reducer.tasks: tasks,
-      currentTaskId: Some("task-1"),
+      Reducer.tasks,
+      currentTaskId: Some(initialTask.id),
     })
     let task = makeMockTask()
 
     // Simulate event sequence
     let events = [
-      AgentEventBus.StreamEvent(task, Vercel.TextStart({id: "text-123"})),
-      AgentEventBus.StreamEvent(task, Vercel.TextDelta({id: "text-123", text: "Hello"})),
-      AgentEventBus.StreamEvent(task, Vercel.TextDelta({id: "text-123", text: " "})),
-      AgentEventBus.StreamEvent(task, Vercel.TextDelta({id: "text-123", text: "world"})),
-      AgentEventBus.StreamEvent(task, Vercel.TextEnd({id: "text-123"})),
+      AgentEventBus.StreamEvent(task.id, Vercel.TextStart({id: "text-123"})),
+      AgentEventBus.StreamEvent(task.id, Vercel.TextDelta({id: "text-123", text: "Hello"})),
+      AgentEventBus.StreamEvent(task.id, Vercel.TextDelta({id: "text-123", text: " "})),
+      AgentEventBus.StreamEvent(task.id, Vercel.TextDelta({id: "text-123", text: "world"})),
+      AgentEventBus.StreamEvent(task.id, Vercel.TextEnd({id: "text-123"})),
     ]
 
     // Process events
-    events->Array.forEach(event => {
-      let action = switch event {
-      | StreamEvent(_, TextStart({id})) => Some(Reducer.StreamingStarted({id: id}))
-      | StreamEvent(_, TextDelta({id, text})) => Some(Reducer.TextDeltaReceived({id: id, text: text}))
-      | StreamEvent(_, TextEnd({id})) => Some(Reducer.MessageCompleted({id: id}))
-      | _ => None
-      }
+    events->Array.forEach(
+      event => {
+        let action = switch event {
+        | StreamEvent(_, TextStart({id})) => Some(Reducer.StreamingStarted({id: id}))
+        | StreamEvent(_, TextDelta({id, text})) => Some(Reducer.TextDeltaReceived({id, text}))
+        | StreamEvent(_, TextEnd({id})) => Some(Reducer.MessageCompleted({id: id}))
+        | _ => None
+        }
 
-      action->Option.forEach(act => {
-        let (nextState, _) = Reducer.next(state.contents, act)
-        state := nextState
-      })
-    })
+        action->Option.forEach(
+          act => {
+            let (nextState, _) = Reducer.next(state.contents, act)
+            state := nextState
+          },
+        )
+      },
+    )
 
     // Verify final state
     let messages = Reducer.Selectors.messages(state.contents)
@@ -106,18 +111,16 @@ describe("SSE Integration - Text Streaming", () => {
 
   test("message ID remains stable throughout streaming lifecycle", t => {
     // Create initial state with a task
-    let initialTask = Reducer.createDefaultTask(
-      ~id="task-1",
+    let initialTask = Reducer.Task.make(
       ~title="Test Task",
-      ~timestamp=1000.0,
       ~previewUrl="http://localhost:3000",
     )
     let tasks = Dict.make()
-    tasks->Dict.set("task-1", initialTask)
+    tasks->Dict.set(initialTask.id, initialTask)
 
     let state = ref({
-      Reducer.tasks: tasks,
-      currentTaskId: Some("task-1"),
+      Reducer.tasks,
+      currentTaskId: Some(initialTask.id),
     })
     let stableId = "text-stable-id"
 
@@ -125,7 +128,8 @@ describe("SSE Integration - Text Streaming", () => {
     let (nextState, _) = Reducer.next(state.contents, StreamingStarted({id: stableId}))
     state := nextState
 
-    let id1 = Reducer.Selectors.messages(state.contents)
+    let id1 =
+      Reducer.Selectors.messages(state.contents)
       ->Array.get(0)
       ->Option.map(Reducer.Selectors.getMessageId)
 
@@ -136,7 +140,8 @@ describe("SSE Integration - Text Streaming", () => {
     )
     state := nextState
 
-    let id2 = Reducer.Selectors.messages(state.contents)
+    let id2 =
+      Reducer.Selectors.messages(state.contents)
       ->Array.get(0)
       ->Option.map(Reducer.Selectors.getMessageId)
 
@@ -144,7 +149,8 @@ describe("SSE Integration - Text Streaming", () => {
     let (nextState, _) = Reducer.next(state.contents, MessageCompleted({id: stableId}))
     state := nextState
 
-    let id3 = Reducer.Selectors.messages(state.contents)
+    let id3 =
+      Reducer.Selectors.messages(state.contents)
       ->Array.get(0)
       ->Option.map(Reducer.Selectors.getMessageId)
 
@@ -160,14 +166,11 @@ describe("SSE Integration - Text Streaming", () => {
 
     // These events should be ignored
     let ignoredEvents = [
-      AgentEventBus.StreamEvent(task, Vercel.Start({})),
-      AgentEventBus.StreamEvent(task, Vercel.ReasoningStart({id: "reasoning-1"})),
-      AgentEventBus.StreamEvent(
-        task,
-        Vercel.ReasoningDelta({id: "reasoning-1", text: "..."}),
-      ),
+      AgentEventBus.StreamEvent(task.id, Vercel.Start({})),
+      AgentEventBus.StreamEvent(task.id, Vercel.ReasoningStart({id: "reasoning-1"})),
+      AgentEventBus.StreamEvent(task.id, Vercel.ReasoningDelta({id: "reasoning-1", text: "..."})),
       AgentEventBus.TaskEvent(
-        task,
+        task.id,
         AskTheLlmAgent.Agent__Task.Event.Created({
           id: task.id,
           initialMessage: AskTheLlmAgent.Agent__Task__Message.System({
@@ -179,20 +182,24 @@ describe("SSE Integration - Text Streaming", () => {
     ]
 
     // Process events (mapper returns None for these)
-    ignoredEvents->Array.forEach(event => {
-      let action = switch event {
-      | StreamEvent(_, Start({})) => None
-      | StreamEvent(_, ReasoningStart(_)) => None
-      | StreamEvent(_, ReasoningDelta(_)) => None
-      | TaskEvent(_, _) => None
-      | _ => None
-      }
+    ignoredEvents->Array.forEach(
+      event => {
+        let action = switch event {
+        | StreamEvent(_, Start({})) => None
+        | StreamEvent(_, ReasoningStart(_)) => None
+        | StreamEvent(_, ReasoningDelta(_)) => None
+        | TaskEvent(_, _) => None
+        | _ => None
+        }
 
-      action->Option.forEach(act => {
-        let (nextState, _) = Reducer.next(state.contents, act)
-        state := nextState
-      })
-    })
+        action->Option.forEach(
+          act => {
+            let (nextState, _) = Reducer.next(state.contents, act)
+            state := nextState
+          },
+        )
+      },
+    )
 
     // State should remain unchanged
     t->expect(Reducer.Selectors.messages(state.contents)->Array.length)->Expect.toBe(0)

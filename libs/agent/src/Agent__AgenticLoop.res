@@ -31,9 +31,16 @@ let runIteration = async (
     | Abort(_) as evt => evt
     | Error(_) as evt => evt
     | Raw(_) as evt => evt
+    | ToolInputStart(props) => Agent__Bindings__Vercel.ToolInputStart(props)
+    | ToolInputDelta(props) => Agent__Bindings__Vercel.ToolInputDelta(props)
+    | ToolInputEnd(props) => Agent__Bindings__Vercel.ToolInputEnd(props)
+    | ToolResult(props) => Agent__Bindings__Vercel.ToolResult(props)
+    | ToolError(props) => Agent__Bindings__Vercel.ToolError(props)
+    | ToolOutputDenied(props) => Agent__Bindings__Vercel.ToolOutputDenied(props)
+    | ToolApprovalRequest(props) => Agent__Bindings__Vercel.ToolApprovalRequest(props)
     }
     Js.Console.error(event)
-    emitEvent(StreamEvent(task, event))
+    emitEvent(StreamEvent(task.id, event))
   })
 
   let response = await result->Adapter.getResponse

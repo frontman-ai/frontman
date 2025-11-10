@@ -66,14 +66,11 @@ module Actions = {
     Client__State__Store.dispatch(SetSelectedElement({selectedElement: selectedElement}))
 
   // Task management action creators
-  let createTask = (~id, ~title, ~timestamp) =>
-    Client__State__Store.dispatch(CreateTask({id, title, timestamp}))
+  let createTask = (~title) => Client__State__Store.dispatch(CreateTask({title: title}))
 
   let createNewTask = () => {
-    let id = WebAPI.Global.crypto->WebAPI.Crypto.randomUUID
     let title = "New Chat"
-    let timestamp = Date.now()
-    Client__State__Store.dispatch(CreateTask({id, title, timestamp}))
+    Client__State__Store.dispatch(CreateTask({title: title}))
   }
 
   let switchTask = (~taskId) => Client__State__Store.dispatch(SwitchTask({taskId: taskId}))

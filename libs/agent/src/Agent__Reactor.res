@@ -13,23 +13,19 @@ module Command = Agent__Command
 module TaskMessage = Agent__Task__Message
 
 // Pure reaction: transform event into commands based on business rules
-let react = (event: Agent__EventBus.events): list<Command.t> => {
+let react = (task: Agent__Task.t, event: Agent__EventBus.events): list<Command.t> => {
   switch event {
-
-  // Task lifecycle: Created → no action needed (ProcessingStarted is emitted together)
   | TaskEvent(_, Created(_)) => {
       Agent__Logger.Log.debug("Reactor: Created event - no action needed")
       list{}
     }
 
-  // Task lifecycle: ProcessingStarted → run first LLM iteration
-  | TaskEvent(task, ProcessingStarted(_)) => {
+  | TaskEvent(_, ProcessingStarted(_)) => {
       Agent__Logger.Log.debug("Reactor: ProcessingStarted - emitting RunIteration effect")
       list{Effect(RunLLMIteration({task: task}))}
     }
 
-  // Assistant response with tool calls → execute tools and return results
-  | TaskEvent(task, MessageAdded({message: Assistant({content: List(parts), _}) as message}))
+  | TaskEvent(_, MessageAdded({message: Assistant({content: List(parts), _}) as message}))
     if parts->Array.some(part =>
       switch part {
       | ToolCall(_) => true
@@ -44,14 +40,14 @@ let react = (event: Agent__EventBus.events): list<Command.t> => {
     }
 
   // Assistant response without tool calls (Working status) → task is complete
-  | TaskEvent({status: Working} as task, MessageAdded({message: Assistant(_) as message})) => {
+  | TaskEvent(_, MessageAdded({message: Assistant(_) as message})) if task.status == Working => {
       Agent__Logger.Log.debug("Reactor: Assistant message complete - finishing task")
       let cmd: Agent__Task.cmd = Complete({task, message: Some(message)})
       list{Domain({task: Some(task), cmd})}
     }
 
   // Assistant response without tool calls (not Working) → ignore, task already finished
-  | TaskEvent({id, _}, MessageAdded({message: Assistant(_) as message})) => {
+  | TaskEvent(id, MessageAdded({message: Assistant(_) as message})) => {
       Agent__Logger.Log.debug(
         `Reactor: MessageAdded event ${id} ${message->Agent__Task__Message.toString}`,
       )
@@ -60,20 +56,20 @@ let react = (event: Agent__EventBus.events): list<Command.t> => {
     }
 
   // Tool results received → run next LLM iteration with tool results
-  | TaskEvent(task, MessageAdded({message: Tool(_)})) => {
+  | TaskEvent(_, MessageAdded({message: Tool(_)})) => {
       Agent__Logger.Log.debug("Reactor: Tool message added - emitting RunIteration effect")
       list{Effect(Command.Effect.RunLLMIteration({task: task}))}
     }
 
   // User message on Completed task → resume the task
-  | TaskEvent({status: Completed} as task, MessageAdded({message: TaskMessage.User(_)})) => {
+  | TaskEvent(_, MessageAdded({message: TaskMessage.User(_)})) if task.status == Completed => {
       Agent__Logger.Log.debug("Reactor: User message on completed task - resuming")
       let cmd: Agent__Task.cmd = Resume({task: task})
       list{Domain({task: Some(task), cmd})}
     }
 
   // User or System messages on other statuses → no automatic reaction (handled explicitly by commands)
-  | TaskEvent({id, _}, MessageAdded({message})) => {
+  | TaskEvent(id, MessageAdded({message})) => {
       Agent__Logger.Log.debug(
         `Reactor: MessageAdded event ${id} ${message->Agent__Task__Message.toString}`,
       )

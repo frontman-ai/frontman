@@ -47,7 +47,7 @@ let make = () => {
   }
 
   // Tab rendering function
-  let renderTab = (task: Client__State__StateReducer.task, isEditing: bool) => {
+  let renderTab = (task: Client__State__StateReducer.Task.t, isEditing: bool) => {
     let handleDoubleClick = (_e: ReactEvent.Mouse.t) => {
       setEditingTaskId(_ => Some(task.id))
     }

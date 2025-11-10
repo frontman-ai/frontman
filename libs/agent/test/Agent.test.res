@@ -41,7 +41,7 @@ module TestHelpers = {
         let unsubscribe = ref(None)
         let handler = event => {
           switch event {
-          | Agent__EventBus.TaskEvent(task, Completed(_)) if task.id == id => {
+          | Agent__EventBus.TaskEvent(taskId, Completed(_)) if taskId == id => {
               unsubscribe.contents->Option.forEach(unsub => unsub())
               resolve()
             }
@@ -85,7 +85,13 @@ module TestHelpers = {
     let _unsubscribe = agent->Agent.initialize
 
     let context = makeTestContext(agent)
-    await agent->Agent.sendMessage(Message.User({taskId: Agent.TaskId.make(), content: String(userMessage), selectedElementSourceLocation: None}))
+    await agent->Agent.sendMessage(
+      Message.User({
+        taskId: Agent.TaskId.make(),
+        content: String(userMessage),
+        selectedElementSourceLocation: None,
+      }),
+    )
     await waitForContextTask(context)
     context
   }
@@ -101,7 +107,13 @@ module TestHelpers = {
     let _unsubscribe = agent->Agent.initialize
 
     let context = makeTestContext(agent)
-    await agent->Agent.sendMessage(Message.User({taskId: Agent.TaskId.make(), content: String(userMessage), selectedElementSourceLocation: None}))
+    await agent->Agent.sendMessage(
+      Message.User({
+        taskId: Agent.TaskId.make(),
+        content: String(userMessage),
+        selectedElementSourceLocation: None,
+      }),
+    )
     await waitForContextTask(context)
     context
   }
@@ -157,7 +169,10 @@ module TestHelpers = {
       switch (event, eventType) {
       | (Agent__EventBus.TaskEvent(_, Created(_)), #Created)
       | (Agent__EventBus.TaskEvent(_, Completed(_)), #Completed)
-      | (Agent__EventBus.TaskEvent(_, MessageAdded({message: Message.Tool(_)})), #ToolResult) => true
+      | (
+        Agent__EventBus.TaskEvent(_, MessageAdded({message: Message.Tool(_)})),
+        #ToolResult,
+      ) => true
       | _ => false
       }
     )
@@ -207,7 +222,7 @@ module TestHelpers = {
   let getTaskEvents = (context, taskId) => {
     context.events.contents->Array.filterMap(event =>
       switch event {
-      | Agent__EventBus.TaskEvent(task, evt) if task.id == taskId => Some(evt)
+      | Agent__EventBus.TaskEvent(id, evt) if id == taskId => Some(evt)
       | _ => None
       }
     )
@@ -322,7 +337,7 @@ describe("Agent.sendMessage", () => {
         // Send follow-up message to completed task using the actual taskId
         await agent->Agent.sendMessage(
           Message.User({
-            taskId: taskId,
+            taskId,
             content: String("Can you explain the results?"),
             selectedElementSourceLocation: None,
           }),
@@ -338,26 +353,24 @@ describe("Agent.sendMessage", () => {
             t->expect(task.status)->Expect.toBe(Agent__Task.Status.Completed)
 
             // Should have both user messages in history
-            let userMessages =
-              task.history
-              ->Array.filter(msg =>
+            let userMessages = task.history->Array.filter(
+              msg =>
                 switch msg {
                 | Message.User(_) => true
                 | _ => false
-                }
-              )
+                },
+            )
             t->expect(userMessages->Array.length)->Expect.toBe(2)
 
             // Should have processed the follow-up (multiple assistant messages)
             // Initial: 1 with tool call + 1 completion = 2, Follow-up: 1 completion = 3 total
-            let assistantMessages =
-              task.history
-              ->Array.filter(msg =>
+            let assistantMessages = task.history->Array.filter(
+              msg =>
                 switch msg {
                 | Message.Assistant(_) => true
                 | _ => false
-                }
-              )
+                },
+            )
             t->expect(assistantMessages->Array.length)->Expect.toBe(3)
           }
         | None => t->expect(false)->Expect.toBe(true)
@@ -415,7 +428,7 @@ describe("Agent.sendMessage", () => {
         // These will be queued in FIFO order
         await agent->Agent.sendMessage(
           Message.User({
-            taskId: taskId,
+            taskId,
             content: String("Follow-up 1"),
             selectedElementSourceLocation: None,
           }),
@@ -424,7 +437,7 @@ describe("Agent.sendMessage", () => {
 
         await agent->Agent.sendMessage(
           Message.User({
-            taskId: taskId,
+            taskId,
             content: String("Follow-up 2"),
             selectedElementSourceLocation: None,
           }),
@@ -433,7 +446,7 @@ describe("Agent.sendMessage", () => {
 
         await agent->Agent.sendMessage(
           Message.User({
-            taskId: taskId,
+            taskId,
             content: String("Follow-up 3"),
             selectedElementSourceLocation: None,
           }),
@@ -447,26 +460,24 @@ describe("Agent.sendMessage", () => {
             t->expect(task.status)->Expect.toBe(Agent__Task.Status.Completed)
 
             // Should have all 4 user messages
-            let userMessages =
-              task.history
-              ->Array.filter(msg =>
+            let userMessages = task.history->Array.filter(
+              msg =>
                 switch msg {
                 | Message.User(_) => true
                 | _ => false
-                }
-              )
+                },
+            )
             t->expect(userMessages->Array.length)->Expect.toBe(4)
 
             // Should have multiple assistant responses
             // Initial: 2 (tool call + completion), Follow-up 1-3: 3 completions = 5 total
-            let assistantMessages =
-              task.history
-              ->Array.filter(msg =>
+            let assistantMessages = task.history->Array.filter(
+              msg =>
                 switch msg {
                 | Message.Assistant(_) => true
                 | _ => false
-                }
-              )
+                },
+            )
             t->expect(assistantMessages->Array.length)->Expect.toBe(5)
           }
         | None => t->expect(false)->Expect.toBe(true)

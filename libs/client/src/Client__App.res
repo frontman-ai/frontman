@@ -11,14 +11,14 @@ let make = () => {
   // Handle SSE events and dispatch to state
   let handleSSEEvent = React.useCallback((event: AgentEventBus.events) => {
     switch event {
-    | StreamEvent(_task, TextStart({id})) => Client__State.Actions.streamingStarted(~id)
-    | StreamEvent(_task, TextDelta({id, text})) =>
-      Client__State.Actions.textDeltaReceived(~id, ~text)
-    | StreamEvent(_task, TextEnd({id})) => Client__State.Actions.messageCompleted(~id)
-    | StreamEvent(_task, ToolCall({toolCallId: id, toolName, input})) =>
+    | StreamEvent(_, TextStart({id})) => Client__State.Actions.streamingStarted(~id)
+    | StreamEvent(_, TextDelta({id, text})) => Client__State.Actions.textDeltaReceived(~id, ~text)
+    | StreamEvent(_, TextEnd({id})) => Client__State.Actions.messageCompleted(~id)
+
+    | StreamEvent(_, ToolCall({toolCallId, toolName, input})) =>
       Client__State.Actions.toolCallReceived(
         ~toolCall={
-          id,
+          id: toolCallId,
           toolName,
           inputBuffer: "",
           input: Some(input),
@@ -41,7 +41,22 @@ let make = () => {
     | StreamEvent(_, Abort(_))
     | StreamEvent(_, Error(_))
     | StreamEvent(_, Raw(_)) => ()
-
+    | StreamEvent(_, ToolInputStart(toolInputStart)) =>
+      Client__State.Actions.toolInputStartReceived(
+        ~id=toolInputStart.id,
+        ~toolName=toolInputStart.toolName,
+      )
+    | StreamEvent(_, ToolInputDelta(delta)) =>
+      Client__State.Actions.toolInputDeltaReceived(~id=delta.id, ~delta=delta.delta)
+    | StreamEvent(_, ToolInputEnd(end)) => Client__State.Actions.toolInputEndReceived(~id=end.id)
+    | StreamEvent(
+        _,
+        ToolResult(_)
+        | ToolError(_)
+        | ToolOutputDenied(_)
+        | ToolApprovalRequest(_),
+      ) =>
+      failwith("TODO")
     | TaskEvent(_, MessageAdded({message: Tool(toolMessage)})) =>
       toolMessage.content->Array.forEach(toolResult => {
         let id = toolResult.toolCallId
