@@ -214,13 +214,8 @@ describe("Client State Reducer", () => {
       createdAt: 0.0,
     }
 
-<<<<<<< HEAD
     let taskId = state.currentTaskId->Option.getOrThrow
     let action = Reducer.ToolCallReceived({taskId, toolCall: toolCall})
-||||||| parent of 3da42ad3c (fixing tool streaming)
-=======
-    let action = Reducer.ToolCallReceived({toolCall: toolCall})
->>>>>>> 3da42ad3c (fixing tool streaming)
     let (nextState, _effects) = Reducer.next(state, action)
 
     let messages = TestHelpers.getMessages(nextState)
@@ -333,7 +328,6 @@ describe("Client State Reducer - Streaming Flow", () => {
       }),
     )
 
-<<<<<<< HEAD
     // Get taskId after task creation
     let taskId = state.currentTaskId->Option.getOrThrow
 
@@ -346,18 +340,6 @@ describe("Client State Reducer - Streaming Flow", () => {
 
     // 3. Complete message
     let (state, _) = Reducer.next(state, MessageCompleted({taskId, id: "text-abc"}))
-||||||| parent of 3da42ad3c (fixing tool streaming)
-=======
-    // 1. Start streaming
-    let (state, _) = Reducer.next(state, StreamingStarted({id: "text-abc"}))
-
-    // 2. Receive text deltas
-    let (state, _) = Reducer.next(state, TextDeltaReceived({id: "text-abc", text: "Hello"}))
-    let (state, _) = Reducer.next(state, TextDeltaReceived({id: "text-abc", text: " world"}))
-
-    // 3. Complete message
-    let (state, _) = Reducer.next(state, MessageCompleted({id: "text-abc"}))
->>>>>>> 3da42ad3c (fixing tool streaming)
 
     // Verify: Message ID stayed stable throughout (check second message, first is user)
     let messages = TestHelpers.getMessages(state)
@@ -431,13 +413,8 @@ describe("Client State Reducer - Tool Lifecycle", () => {
       ],
     )
 
-<<<<<<< HEAD
     let taskId = state.currentTaskId->Option.getOrThrow
     let action = Reducer.ToolInputStartReceived({taskId,
-||||||| parent of 3da42ad3c (fixing tool streaming)
-=======
-    let action = Reducer.ToolInputStartReceived({
->>>>>>> 3da42ad3c (fixing tool streaming)
       id: "call-1",
       toolName: "read_file",
     })
@@ -609,14 +586,8 @@ describe("Client State Reducer - Tool Lifecycle", () => {
       state: Reducer.Message.InputAvailable,
       createdAt: 0.0,
     }
-<<<<<<< HEAD
     let taskId = state.currentTaskId->Option.getOrThrow
     let action = Reducer.ToolCallReceived({taskId, toolCall: toolCall})
-||||||| parent of 3da42ad3c (fixing tool streaming)
-    | _ => JsExn.throw("Expected ToolCall message")
-=======
-    let action = Reducer.ToolCallReceived({toolCall: toolCall})
->>>>>>> 3da42ad3c (fixing tool streaming)
     let (nextState, _) = Reducer.next(state, action)
 
     let messages = TestHelpers.getMessages(nextState)
