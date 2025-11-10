@@ -749,7 +749,7 @@ describe("Agent.sendMessage", () => {
     //     t->expect(secondMessageSent.contents)->Expect.toBe(true)
 
     //     // Get task events in order
-    //     let taskId = context.taskId.contents->Option.getExn
+    //     let taskId = context.taskId.contents->Option.getOrThrow
     //     let taskEvents = getTaskEvents(context, taskId)
 
     //     // Verify event sequence:

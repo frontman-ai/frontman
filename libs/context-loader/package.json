@@ -1,0 +1,15 @@
+{
+  "name": "@ask-the-llm/context-loader",
+  "version": "0.0.1",
+  "type": "module",
+  "main": "./src/ContextLoader.res.mjs",
+  "dependencies": {
+    "@ask-the-llm/bindings": "workspace:*"
+  },
+  "devDependencies": {
+    "rescript": "catalog:",
+    "rescript-vitest": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
+  }
+}

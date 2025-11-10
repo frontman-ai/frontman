@@ -36,7 +36,7 @@ let get = (~key: string, ~default: option<string>=?, ()): option<string> => {
 }
 
 // Helper to get required env var (throws if missing)
-let getExn = (key: string): string => {
+let getOrThrow = (key: string): string => {
   switch env->Dict.get(key) {
   | Some(value) => value
   | None => JsError.throwWithMessage(`Missing required environment variable: ${key}`)

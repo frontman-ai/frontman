@@ -14,10 +14,10 @@ describe("Concurrent Tasks Event Routing", () => {
     // Setup: Create two tasks
     let state = StateReducer.defaultState
     let (stateWithTaskA, _) = StateReducer.next(state, CreateTask({title: "Task A"}))
-    let taskAId = stateWithTaskA.currentTaskId->Option.getExn
+    let taskAId = stateWithTaskA.currentTaskId->Option.getOrThrow
 
     let (stateWithBothTasks, _) = StateReducer.next(stateWithTaskA, CreateTask({title: "Task B"}))
-    let taskBId = stateWithBothTasks.currentTaskId->Option.getExn
+    let taskBId = stateWithBothTasks.currentTaskId->Option.getOrThrow
 
     // Current task is B
     t->expect(stateWithBothTasks.currentTaskId)->Expect.toBe(Some(taskBId))
@@ -29,8 +29,8 @@ describe("Concurrent Tasks Event Routing", () => {
     )
 
     // Assert: Message should be in Task A, not Task B
-    let taskA = finalState.tasks->Dict.get(taskAId)->Option.getExn
-    let taskB = finalState.tasks->Dict.get(taskBId)->Option.getExn
+    let taskA = finalState.tasks->Dict.get(taskAId)->Option.getOrThrow
+    let taskB = finalState.tasks->Dict.get(taskBId)->Option.getOrThrow
 
     t->expect(taskA.messages->Dict.size)->Expect.toBe(1)
     t->expect(taskB.messages->Dict.size)->Expect.toBe(0)
@@ -40,10 +40,10 @@ describe("Concurrent Tasks Event Routing", () => {
     // Setup: Two tasks, A has a streaming message
     let state = StateReducer.defaultState
     let (stateWithTaskA, _) = StateReducer.next(state, CreateTask({title: "Task A"}))
-    let taskAId = stateWithTaskA.currentTaskId->Option.getExn
+    let taskAId = stateWithTaskA.currentTaskId->Option.getOrThrow
 
     let (stateWithBothTasks, _) = StateReducer.next(stateWithTaskA, CreateTask({title: "Task B"}))
-    let taskBId = stateWithBothTasks.currentTaskId->Option.getExn
+    let taskBId = stateWithBothTasks.currentTaskId->Option.getOrThrow
 
     // Add streaming message to Task A
     let (stateWithMessage, _) = StateReducer.next(
@@ -61,10 +61,10 @@ describe("Concurrent Tasks Event Routing", () => {
     )
 
     // Assert: Text should be in Task A's message, not Task B
-    let taskA = finalState.tasks->Dict.get(taskAId)->Option.getExn
-    let taskB = finalState.tasks->Dict.get(taskBId)->Option.getExn
+    let taskA = finalState.tasks->Dict.get(taskAId)->Option.getOrThrow
+    let taskB = finalState.tasks->Dict.get(taskBId)->Option.getOrThrow
 
-    let taskAMessage = taskA.messages->Dict.get("msg-1")->Option.getExn
+    let taskAMessage = taskA.messages->Dict.get("msg-1")->Option.getOrThrow
     switch taskAMessage {
     | Assistant(Streaming({textBuffer})) =>
       t->expect(textBuffer)->Expect.toBe("Hello from Task A")
@@ -78,10 +78,10 @@ describe("Concurrent Tasks Event Routing", () => {
     // Setup: Two tasks
     let state = StateReducer.defaultState
     let (stateWithTaskA, _) = StateReducer.next(state, CreateTask({title: "Task A"}))
-    let taskAId = stateWithTaskA.currentTaskId->Option.getExn
+    let taskAId = stateWithTaskA.currentTaskId->Option.getOrThrow
 
     let (stateWithBothTasks, _) = StateReducer.next(stateWithTaskA, CreateTask({title: "Task B"}))
-    let taskBId = stateWithBothTasks.currentTaskId->Option.getExn
+    let taskBId = stateWithBothTasks.currentTaskId->Option.getOrThrow
 
     // Act: Receive tool call for Task A while Task B is current
     let (finalState, _) = StateReducer.next(
@@ -90,13 +90,13 @@ describe("Concurrent Tasks Event Routing", () => {
     )
 
     // Assert: Tool call should be in Task A
-    let taskA = finalState.tasks->Dict.get(taskAId)->Option.getExn
-    let taskB = finalState.tasks->Dict.get(taskBId)->Option.getExn
+    let taskA = finalState.tasks->Dict.get(taskAId)->Option.getOrThrow
+    let taskB = finalState.tasks->Dict.get(taskBId)->Option.getOrThrow
 
     t->expect(taskA.messages->Dict.size)->Expect.toBe(1)
     t->expect(taskB.messages->Dict.size)->Expect.toBe(0)
 
-    let toolMessage = taskA.messages->Dict.get("tool-1")->Option.getExn
+    let toolMessage = taskA.messages->Dict.get("tool-1")->Option.getOrThrow
     switch toolMessage {
     | ToolCall({toolName}) => t->expect(toolName)->Expect.toBe("ReadFile")
     | _ => t->expect(false)->Expect.toBe(true)
@@ -107,13 +107,13 @@ describe("Concurrent Tasks Event Routing", () => {
     // Setup: Three tasks
     let state = StateReducer.defaultState
     let (stateWithTaskA, _) = StateReducer.next(state, CreateTask({title: "Task A"}))
-    let taskAId = stateWithTaskA.currentTaskId->Option.getExn
+    let taskAId = stateWithTaskA.currentTaskId->Option.getOrThrow
 
     let (stateWithTaskB, _) = StateReducer.next(stateWithTaskA, CreateTask({title: "Task B"}))
-    let taskBId = stateWithTaskB.currentTaskId->Option.getExn
+    let taskBId = stateWithTaskB.currentTaskId->Option.getOrThrow
 
     let (stateWithAllTasks, _) = StateReducer.next(stateWithTaskB, CreateTask({title: "Task C"}))
-    let taskCId = stateWithAllTasks.currentTaskId->Option.getExn
+    let taskCId = stateWithAllTasks.currentTaskId->Option.getOrThrow
 
     // Act: Start streaming in all three tasks
     let (state1, _) = StateReducer.next(
@@ -138,9 +138,9 @@ describe("Concurrent Tasks Event Routing", () => {
     )
 
     // Assert: Each task has its own message with correct content
-    let taskA = finalState.tasks->Dict.get(taskAId)->Option.getExn
-    let taskB = finalState.tasks->Dict.get(taskBId)->Option.getExn
-    let taskC = finalState.tasks->Dict.get(taskCId)->Option.getExn
+    let taskA = finalState.tasks->Dict.get(taskAId)->Option.getOrThrow
+    let taskB = finalState.tasks->Dict.get(taskBId)->Option.getOrThrow
+    let taskC = finalState.tasks->Dict.get(taskCId)->Option.getOrThrow
 
     t->expect(taskA.messages->Dict.size)->Expect.toBe(1)
     t->expect(taskB.messages->Dict.size)->Expect.toBe(1)
@@ -162,10 +162,10 @@ describe("Concurrent Tasks Event Routing", () => {
     // Setup: Task A with streaming message, Task B is current
     let state = StateReducer.defaultState
     let (stateWithTaskA, _) = StateReducer.next(state, CreateTask({title: "Task A"}))
-    let taskAId = stateWithTaskA.currentTaskId->Option.getExn
+    let taskAId = stateWithTaskA.currentTaskId->Option.getOrThrow
 
     let (stateWithBothTasks, _) = StateReducer.next(stateWithTaskA, CreateTask({title: "Task B"}))
-    let taskBId = stateWithBothTasks.currentTaskId->Option.getExn
+    let taskBId = stateWithBothTasks.currentTaskId->Option.getOrThrow
 
     // Start streaming in Task A
     let (stateWithStream, _) = StateReducer.next(
@@ -184,10 +184,10 @@ describe("Concurrent Tasks Event Routing", () => {
     )
 
     // Assert: Message in Task A should be completed
-    let taskA = finalState.tasks->Dict.get(taskAId)->Option.getExn
-    let taskB = finalState.tasks->Dict.get(taskBId)->Option.getExn
+    let taskA = finalState.tasks->Dict.get(taskAId)->Option.getOrThrow
+    let taskB = finalState.tasks->Dict.get(taskBId)->Option.getOrThrow
 
-    let message = taskA.messages->Dict.get("msg-1")->Option.getExn
+    let message = taskA.messages->Dict.get("msg-1")->Option.getOrThrow
     switch message {
     | Assistant(Completed({content})) => {
         t->expect(Array.length(content))->Expect.toBe(1)
@@ -206,10 +206,10 @@ describe("Concurrent Tasks Event Routing", () => {
     // Setup: Task A with tool call, Task B is current
     let state = StateReducer.defaultState
     let (stateWithTaskA, _) = StateReducer.next(state, CreateTask({title: "Task A"}))
-    let taskAId = stateWithTaskA.currentTaskId->Option.getExn
+    let taskAId = stateWithTaskA.currentTaskId->Option.getOrThrow
 
     let (stateWithBothTasks, _) = StateReducer.next(stateWithTaskA, CreateTask({title: "Task B"}))
-    let _taskBId = stateWithBothTasks.currentTaskId->Option.getExn
+    let _taskBId = stateWithBothTasks.currentTaskId->Option.getOrThrow
 
     // Create tool call in Task A
     let (stateWithTool, _) = StateReducer.next(
@@ -233,8 +233,8 @@ describe("Concurrent Tasks Event Routing", () => {
     )
 
     // Assert: Tool result should be in Task A
-    let taskA = finalState.tasks->Dict.get(taskAId)->Option.getExn
-    let toolMessage = taskA.messages->Dict.get("tool-1")->Option.getExn
+    let taskA = finalState.tasks->Dict.get(taskAId)->Option.getOrThrow
+    let toolMessage = taskA.messages->Dict.get("tool-1")->Option.getOrThrow
 
     switch toolMessage {
     | ToolCall({state: OutputAvailable, result}) =>
@@ -247,7 +247,7 @@ describe("Concurrent Tasks Event Routing", () => {
     // Setup: Start with Task A
     let state = StateReducer.defaultState
     let (stateWithTaskA, _) = StateReducer.next(state, CreateTask({title: "Task A"}))
-    let taskAId = stateWithTaskA.currentTaskId->Option.getExn
+    let taskAId = stateWithTaskA.currentTaskId->Option.getOrThrow
 
     // Start streaming in Task A
     let (stateWithStream, _) = StateReducer.next(
@@ -261,7 +261,7 @@ describe("Concurrent Tasks Event Routing", () => {
 
     // Switch to Task B mid-stream
     let (stateWithTaskB, _) = StateReducer.next(stateWithText1, CreateTask({title: "Task B"}))
-    let taskBId = stateWithTaskB.currentTaskId->Option.getExn
+    let taskBId = stateWithTaskB.currentTaskId->Option.getOrThrow
 
     // Continue receiving text for Task A
     let (finalState, _) = StateReducer.next(
@@ -270,10 +270,10 @@ describe("Concurrent Tasks Event Routing", () => {
     )
 
     // Assert: All text should be in Task A, Task B should be empty
-    let taskA = finalState.tasks->Dict.get(taskAId)->Option.getExn
-    let taskB = finalState.tasks->Dict.get(taskBId)->Option.getExn
+    let taskA = finalState.tasks->Dict.get(taskAId)->Option.getOrThrow
+    let taskB = finalState.tasks->Dict.get(taskBId)->Option.getOrThrow
 
-    let message = taskA.messages->Dict.get("msg-1")->Option.getExn
+    let message = taskA.messages->Dict.get("msg-1")->Option.getOrThrow
     switch message {
     | Assistant(Streaming({textBuffer})) =>
       t->expect(textBuffer)->Expect.toBe("Part 1. Part 2.")

@@ -47,7 +47,7 @@ let getOrCreateAgent = () => {
       ->Dict.get("PROJECT_ROOT")
       ->Option.orElse(Bindings.Process.env->Dict.get("PWD"))
       ->Option.getOr(".")
-    let apiKey = Dotenv.getExn("OPENAI_API_KEY")
+    let apiKey = Dotenv.getOrThrow("OPENAI_API_KEY")
     let agent = Agent.make({projectRoot, apiKey})
     let _shutdown = Agent.initialize(agent)
 

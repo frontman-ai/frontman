@@ -13,3 +13,9 @@ external extname: string => string = "extname"
 
 @module("node:path")
 external resolve: string => string = "resolve"
+
+@module("node:path")
+external isAbsolute: string => bool = "isAbsolute"
+
+@module("node:path") @variadic
+external resolveMany: array<string> => string = "resolve"

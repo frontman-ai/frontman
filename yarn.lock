@@ -161,7 +161,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@ask-the-llm/bindings@workspace:libs/bindings":
+"@ask-the-llm/bindings@workspace:*, @ask-the-llm/bindings@workspace:libs/bindings":
   version: 0.0.0-use.local
   resolution: "@ask-the-llm/bindings@workspace:libs/bindings"
   dependencies:
@@ -231,6 +231,18 @@ __metadata:
     vite: "npm:^7.1.12"
     vitest: "catalog:"
     zod: "npm:^4.1.12"
+  languageName: unknown
+  linkType: soft
+
+"@ask-the-llm/context-loader@workspace:libs/context-loader":
+  version: 0.0.0-use.local
+  resolution: "@ask-the-llm/context-loader@workspace:libs/context-loader"
+  dependencies:
+    "@ask-the-llm/bindings": "workspace:*"
+    rescript: "catalog:"
+    rescript-vitest: "catalog:"
+    vite: "catalog:"
+    vitest: "catalog:"
   languageName: unknown
   linkType: soft
 

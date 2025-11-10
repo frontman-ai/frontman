@@ -1,0 +1,23 @@
+{
+	"name": "@ask-the-llm/context-loader",
+	"namespace": true,
+	"sources": [
+		{
+			"dir": "src",
+			"subdirs": true
+		},
+		{
+			"dir": "tests",
+			"type": "dev"
+		}
+	],
+	"package-specs": [
+		{
+			"module": "esmodule",
+			"in-source": true,
+			"suffix": ".res.mjs"
+		}
+	],
+	"dependencies": ["@ask-the-llm/bindings"],
+	"dev-dependencies": ["rescript-vitest"]
+}

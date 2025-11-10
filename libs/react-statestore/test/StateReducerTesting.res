@@ -11,7 +11,7 @@
  *  testPromise("Initializing 'CreateNew' should create empty DemoCenter", async () => {
  *    let {dispatch} = StateReducerTestingV2.useReducer(module(State), emptyState)
  *    let next = await dispatch(Initialize(State.CreateNew))
- *    let nextDemoCenterId = (next.demoCenter->AsyncData.getComplete->Option.getExn->Result.getExn).id
+ *    let nextDemoCenterId = (next.demoCenter->AsyncData.getComplete->Option.getOrThrow->Result.getOrThrow).id
  *    expect(next)->Expect.toEqual({
  *      ...emptyState,
  *      demoCenter: AsyncData.Complete(Ok({...emptyDemoCenter, id: nextDemoCenterId})),
