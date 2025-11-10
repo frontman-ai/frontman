@@ -27,11 +27,14 @@ describe("SSE Integration - Text Streaming", () => {
     )
     state := nextState
 
+    // Get the task ID that was created
+    let taskId = state.contents.currentTaskId->Option.getOr("unknown")
+
     // Simulate TextStart event
     let _event = AgentEventBus.StreamEvent(task.id, Vercel.TextStart({id: "text-abc"}))
 
     // Process event (simulating mapper logic)
-    let (nextState, _) = Reducer.next(state.contents, StreamingStarted({id: "text-abc"}))
+    let (nextState, _) = Reducer.next(state.contents, StreamingStarted({taskId, id: "text-abc"}))
     state := nextState
 
     // Verify streaming message created (should have user message + streaming message)
@@ -75,9 +78,10 @@ describe("SSE Integration - Text Streaming", () => {
     events->Array.forEach(
       event => {
         let action = switch event {
-        | StreamEvent(_, TextStart({id})) => Some(Reducer.StreamingStarted({id: id}))
-        | StreamEvent(_, TextDelta({id, text})) => Some(Reducer.TextDeltaReceived({id, text}))
-        | StreamEvent(_, TextEnd({id})) => Some(Reducer.MessageCompleted({id: id}))
+        | StreamEvent(taskId, TextStart({id})) => Some(Reducer.StreamingStarted({taskId, id}))
+        | StreamEvent(taskId, TextDelta({id, text})) =>
+          Some(Reducer.TextDeltaReceived({taskId, id, text}))
+        | StreamEvent(taskId, TextEnd({id})) => Some(Reducer.MessageCompleted({taskId, id}))
         | _ => None
         }
 
@@ -123,9 +127,10 @@ describe("SSE Integration - Text Streaming", () => {
       currentTaskId: Some(initialTask.id),
     })
     let stableId = "text-stable-id"
+    let taskId = initialTask.id
 
     // Start streaming
-    let (nextState, _) = Reducer.next(state.contents, StreamingStarted({id: stableId}))
+    let (nextState, _) = Reducer.next(state.contents, StreamingStarted({taskId, id: stableId}))
     state := nextState
 
     let id1 =
@@ -136,7 +141,7 @@ describe("SSE Integration - Text Streaming", () => {
     // Add text
     let (nextState, _) = Reducer.next(
       state.contents,
-      TextDeltaReceived({id: stableId, text: "Test"}),
+      TextDeltaReceived({taskId, id: stableId, text: "Test"}),
     )
     state := nextState
 
@@ -146,7 +151,7 @@ describe("SSE Integration - Text Streaming", () => {
       ->Option.map(Reducer.Selectors.getMessageId)
 
     // Complete
-    let (nextState, _) = Reducer.next(state.contents, MessageCompleted({id: stableId}))
+    let (nextState, _) = Reducer.next(state.contents, MessageCompleted({taskId, id: stableId}))
     state := nextState
 
     let id3 =

@@ -30,30 +30,33 @@ module Actions = {
       }),
     )
 
-  let messageCompleted = (~id) => Client__State__Store.dispatch(MessageCompleted({id: id}))
+  let messageCompleted = (~taskId, ~id) =>
+    Client__State__Store.dispatch(MessageCompleted({taskId, id}))
 
-  let textDeltaReceived = (~id, ~text) =>
-    Client__State__Store.dispatch(TextDeltaReceived({id, text}))
+  let textDeltaReceived = (~taskId, ~id, ~text) =>
+    Client__State__Store.dispatch(TextDeltaReceived({taskId, id, text}))
 
-  let streamingStarted = (~id) => Client__State__Store.dispatch(StreamingStarted({id: id}))
+  let streamingStarted = (~taskId, ~id) =>
+    Client__State__Store.dispatch(StreamingStarted({taskId, id}))
 
   // TOOLS
-  let toolCallReceived = (~toolCall) =>
-    Client__State__Store.dispatch(ToolCallReceived({toolCall: toolCall}))
+  let toolCallReceived = (~taskId, ~toolCall) =>
+    Client__State__Store.dispatch(ToolCallReceived({taskId, toolCall}))
 
-  let toolInputStartReceived = (~id, ~toolName) =>
-    Client__State__Store.dispatch(ToolInputStartReceived({id, toolName}))
+  let toolInputStartReceived = (~taskId, ~id, ~toolName) =>
+    Client__State__Store.dispatch(ToolInputStartReceived({taskId, id, toolName}))
 
-  let toolInputDeltaReceived = (~id, ~delta) =>
-    Client__State__Store.dispatch(ToolInputDeltaReceived({id, delta}))
+  let toolInputDeltaReceived = (~taskId, ~id, ~delta) =>
+    Client__State__Store.dispatch(ToolInputDeltaReceived({taskId, id, delta}))
 
-  let toolInputEndReceived = (~id) => Client__State__Store.dispatch(ToolInputEndReceived({id: id}))
+  let toolInputEndReceived = (~taskId, ~id) =>
+    Client__State__Store.dispatch(ToolInputEndReceived({taskId, id}))
 
-  let toolResultReceived = (~id, ~result) =>
-    Client__State__Store.dispatch(ToolResultReceived({id, result}))
+  let toolResultReceived = (~taskId, ~id, ~result) =>
+    Client__State__Store.dispatch(ToolResultReceived({taskId, id, result}))
 
-  let toolErrorReceived = (~id, ~error) =>
-    Client__State__Store.dispatch(ToolErrorReceived({id, error}))
+  let toolErrorReceived = (~taskId, ~id, ~error) =>
+    Client__State__Store.dispatch(ToolErrorReceived({taskId, id, error}))
 
   let setPreviewUrl = (~url) => Client__State__Store.dispatch(SetPreviewUrl({url: url}))
 

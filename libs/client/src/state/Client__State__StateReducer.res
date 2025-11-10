@@ -172,22 +172,27 @@ module Lens = {
   let insertCurrentTaskMessage = (state: state, message: Message.t): state => {
     updateCurrentTask(state, task => insertTaskMessage(task, message))
   }
+
+  // Generic helper to get task by ID
+  let getTaskById = (state: state, taskId: string): option<Task.t> => {
+    state.tasks->Dict.get(taskId)
+  }
 }
 
 type action =
   // User actions
   | AddUserMessage({id: string, content: array<UserContentPart.t>})
   // Streaming actions (from SSE events)
-  | StreamingStarted({id: string})
-  | TextDeltaReceived({id: string, text: string})
-  | ToolCallReceived({toolCall: Message.toolCall})
-  | ToolInputStartReceived({id: string, toolName: string})
-  | ToolInputDeltaReceived({id: string, delta: string})
-  | ToolInputEndReceived({id: string})
-  | ToolResultReceived({id: string, result: JSON.t})
-  | ToolErrorReceived({id: string, error: string})
+  | StreamingStarted({taskId: string, id: string})
+  | TextDeltaReceived({taskId: string, id: string, text: string})
+  | ToolCallReceived({taskId: string, toolCall: Message.toolCall})
+  | ToolInputStartReceived({taskId: string, id: string, toolName: string})
+  | ToolInputDeltaReceived({taskId: string, id: string, delta: string})
+  | ToolInputEndReceived({taskId: string, id: string})
+  | ToolResultReceived({taskId: string, id: string, result: JSON.t})
+  | ToolErrorReceived({taskId: string, id: string, error: string})
   // Completion action
-  | MessageCompleted({id: string})
+  | MessageCompleted({taskId: string, id: string})
   // Preview frame actions
   | SetPreviewUrl({url: string})
   | SetPreviewFrame({
@@ -221,15 +226,15 @@ let defaultState: state = {
 let actionToString = action => {
   switch action {
   | AddUserMessage({id}) => `AddUserMessage(${id})`
-  | StreamingStarted({id}) => `StreamingStarted(${id})`
-  | TextDeltaReceived({id, text}) => `TextDeltaReceived(${id}, "${text}")`
-  | ToolCallReceived({toolCall}) => `ToolCallReceived(${toolCall.toolName})`
-  | ToolInputStartReceived({id, toolName, _}) => `ToolInputStartReceived(${id}, ${toolName})`
-  | ToolInputDeltaReceived({id, _}) => `ToolInputDeltaReceived(${id})`
-  | ToolInputEndReceived({id, _}) => `ToolInputEndReceived(${id})`
-  | ToolResultReceived({id, _}) => `ToolResultReceived(${id})`
-  | ToolErrorReceived({id, _}) => `ToolErrorReceived(${id})`
-  | MessageCompleted({id}) => `MessageCompleted(${id})`
+  | StreamingStarted({taskId, id}) => `StreamingStarted(${taskId}, ${id})`
+  | TextDeltaReceived({taskId, id, text}) => `TextDeltaReceived(${taskId}, ${id}, "${text}")`
+  | ToolCallReceived({taskId, toolCall}) => `ToolCallReceived(${taskId}, ${toolCall.toolName})`
+  | ToolInputStartReceived({taskId, id, toolName}) => `ToolInputStartReceived(${taskId}, ${id}, ${toolName})`
+  | ToolInputDeltaReceived({taskId, id}) => `ToolInputDeltaReceived(${taskId}, ${id})`
+  | ToolInputEndReceived({taskId, id}) => `ToolInputEndReceived(${taskId}, ${id})`
+  | ToolResultReceived({taskId, id}) => `ToolResultReceived(${taskId}, ${id})`
+  | ToolErrorReceived({taskId, id}) => `ToolErrorReceived(${taskId}, ${id})`
+  | MessageCompleted({taskId, id}) => `MessageCompleted(${taskId}, ${id})`
   | SetPreviewUrl({url}) => `SetPreviewUrl(${url})`
   | SetPreviewFrame(_) => `SetPreviewFrame(contentDocument, contentWindow)`
   | ToggleWebPreviewSelection => `ToggleWebPreviewSelection`
@@ -506,144 +511,164 @@ let next = (state, action) => {
       )
     }
 
-  | StreamingStarted({id}) =>
+  | StreamingStarted({taskId, id}) =>
     state
-    ->Lens.insertCurrentTaskMessage(
-      Message.Assistant(
-        Streaming({
-          id,
-          textBuffer: "",
-          createdAt: Date.now(),
-        }),
-      ),
-    )
-    ->AskTheLlmReactStatestore.StateReducer.update
-
-  | TextDeltaReceived({id, text}) =>
-    state
-    ->Lens.updateCurrentTaskMessage(id, msg =>
-      switch msg {
-      | Message.Assistant(Streaming({id: msgId, textBuffer, createdAt})) =>
+    ->Lens.updateTask(taskId, task =>
+      Lens.insertTaskMessage(
+        task,
         Message.Assistant(
           Streaming({
-            id: msgId,
-            textBuffer: textBuffer ++ text,
-            createdAt,
+            id,
+            textBuffer: "",
+            createdAt: Date.now(),
           }),
-        )
-      | other => other
-      }
+        ),
+      )
     )
     ->AskTheLlmReactStatestore.StateReducer.update
 
-  | ToolCallReceived({toolCall}) =>
+  | TextDeltaReceived({taskId, id, text}) =>
     state
-    ->Lens.updateCurrentTaskMessage(toolCall.id, msg =>
-      switch msg {
-      | Message.ToolCall(existingToolCall) =>
+    ->Lens.updateTask(taskId, task =>
+      Lens.updateTaskMessage(task, id, msg =>
+        switch msg {
+        | Message.Assistant(Streaming({id: msgId, textBuffer, createdAt})) =>
+          Message.Assistant(
+            Streaming({
+              id: msgId,
+              textBuffer: textBuffer ++ text,
+              createdAt,
+            }),
+          )
+        | other => other
+        }
+      )
+    )
+    ->AskTheLlmReactStatestore.StateReducer.update
+
+  | ToolCallReceived({taskId, toolCall}) =>
+    state
+    ->Lens.updateTask(taskId, task =>
+      Lens.updateTaskMessage(task, toolCall.id, msg =>
+        switch msg {
+        | Message.ToolCall(existingToolCall) =>
+          Message.ToolCall({
+            ...existingToolCall,
+            input: toolCall.input,
+            state: Message.InputAvailable,
+          })
+        | Assistant(_) => failwith("expected toolcall got assistant message")
+        | User(_) => failwith("expected toolcall got user message")
+        }
+      )
+    )
+    ->AskTheLlmReactStatestore.StateReducer.update
+
+  | ToolInputStartReceived({taskId, id, toolName}) =>
+    state
+    ->Lens.updateTask(taskId, task =>
+      Lens.insertTaskMessage(
+        task,
         Message.ToolCall({
-          ...existingToolCall,
-          input: toolCall.input,
-          state: Message.InputAvailable,
-        })
-      | Assistant(_) => failwith("expected toolcall got assistant message")
-      | User(_) => failwith("expected toolcall got user message")
-      }
+          id,
+          toolName,
+          state: Message.InputStreaming,
+          inputBuffer: "",
+          input: None,
+          result: None,
+          errorText: None,
+          createdAt: Date.now(),
+        }),
+      )
     )
     ->AskTheLlmReactStatestore.StateReducer.update
 
-  | ToolInputStartReceived({id, toolName}) =>
+  | ToolInputDeltaReceived({taskId, id, delta}) =>
     state
-    ->Lens.insertCurrentTaskMessage(
-      Message.ToolCall({
-        id,
-        toolName,
-        state: Message.InputStreaming,
-        inputBuffer: "",
-        input: None,
-        result: None,
-        errorText: None,
-        createdAt: Date.now(),
-      }),
+    ->Lens.updateTask(taskId, task =>
+      Lens.updateTaskMessage(task, id, msg =>
+        switch msg {
+        | Message.ToolCall(tool) =>
+          Message.ToolCall({...tool, inputBuffer: tool.inputBuffer ++ delta})
+        | other => other
+        }
+      )
     )
     ->AskTheLlmReactStatestore.StateReducer.update
 
-  | ToolInputDeltaReceived({id, delta}) =>
+  | ToolInputEndReceived({taskId, id}) =>
     state
-    ->Lens.updateCurrentTaskMessage(id, msg =>
-      switch msg {
-      | Message.ToolCall(tool) =>
-        Message.ToolCall({...tool, inputBuffer: tool.inputBuffer ++ delta})
-      | other => other
-      }
-    )
-    ->AskTheLlmReactStatestore.StateReducer.update
+    ->Lens.updateTask(taskId, task =>
+      Lens.updateTaskMessage(task, id, msg =>
+        switch msg {
+        | Message.ToolCall(tool) => {
+            let parsedInput = try {
+              Some(JSON.parseOrThrow(tool.inputBuffer))
+            } catch {
+            | exn => {
+                let errorMsg =
+                  exn
+                  ->JsExn.fromException
+                  ->Option.flatMap(JsExn.message)
+                  ->Option.getOr("unknown error")
 
-  | ToolInputEndReceived({id}) =>
-    state
-    ->Lens.updateCurrentTaskMessage(id, msg =>
-      switch msg {
-      | Message.ToolCall(tool) => {
-          let parsedInput = try {
-            Some(JSON.parseOrThrow(tool.inputBuffer))
-          } catch {
-          | exn => {
-              let errorMsg =
-                exn
-                ->JsExn.fromException
-                ->Option.flatMap(JsExn.message)
-                ->Option.getOr("unknown error")
-
-              let errorObj = {
-                "error": `Failed to parse tool input: ${errorMsg}`,
-                "originalInput": tool.inputBuffer,
+                let errorObj = {
+                  "error": `Failed to parse tool input: ${errorMsg}`,
+                  "originalInput": tool.inputBuffer,
+                }
+                JSON.stringifyAny(errorObj)->Option.flatMap(str => Some(JSON.parseOrThrow(str)))
               }
-              JSON.stringifyAny(errorObj)->Option.flatMap(str => Some(JSON.parseOrThrow(str)))
             }
+            Message.ToolCall({...tool, input: parsedInput, state: Message.InputAvailable})
           }
-          Message.ToolCall({...tool, input: parsedInput, state: Message.InputAvailable})
+        | other => other
         }
-      | other => other
-      }
+      )
     )
     ->AskTheLlmReactStatestore.StateReducer.update
 
-  | ToolResultReceived({id, result}) =>
+  | ToolResultReceived({taskId, id, result}) =>
     state
-    ->Lens.updateCurrentTaskMessage(id, msg =>
-      switch msg {
-      | Message.ToolCall(tool) =>
-        Message.ToolCall({...tool, result: Some(result), state: Message.OutputAvailable})
-      | other => other
-      }
+    ->Lens.updateTask(taskId, task =>
+      Lens.updateTaskMessage(task, id, msg =>
+        switch msg {
+        | Message.ToolCall(tool) =>
+          Message.ToolCall({...tool, result: Some(result), state: Message.OutputAvailable})
+        | other => other
+        }
+      )
     )
     ->AskTheLlmReactStatestore.StateReducer.update
 
-  | ToolErrorReceived({id, error}) =>
+  | ToolErrorReceived({taskId, id, error}) =>
     state
-    ->Lens.updateCurrentTaskMessage(id, msg =>
-      switch msg {
-      | Message.ToolCall(tool) =>
-        Message.ToolCall({...tool, errorText: Some(error), state: Message.OutputError})
-      | other => other
-      }
+    ->Lens.updateTask(taskId, task =>
+      Lens.updateTaskMessage(task, id, msg =>
+        switch msg {
+        | Message.ToolCall(tool) =>
+          Message.ToolCall({...tool, errorText: Some(error), state: Message.OutputError})
+        | other => other
+        }
+      )
     )
     ->AskTheLlmReactStatestore.StateReducer.update
 
-  | MessageCompleted({id}) =>
+  | MessageCompleted({taskId, id}) =>
     state
-    ->Lens.updateCurrentTaskMessage(id, msg =>
-      switch msg {
-      | Message.Assistant(Streaming({id, textBuffer, createdAt})) => {
-          let content = if String.length(textBuffer) > 0 {
-            [AssistantContentPart.Text({text: textBuffer})]
-          } else {
-            []
+    ->Lens.updateTask(taskId, task =>
+      Lens.updateTaskMessage(task, id, msg =>
+        switch msg {
+        | Message.Assistant(Streaming({id, textBuffer, createdAt})) => {
+            let content = if String.length(textBuffer) > 0 {
+              [AssistantContentPart.Text({text: textBuffer})]
+            } else {
+              []
+            }
+            Message.Assistant(Completed({id, content, createdAt}))
           }
-          Message.Assistant(Completed({id, content, createdAt}))
+        | other => other
         }
-      | other => other
-      }
+      )
     )
     ->AskTheLlmReactStatestore.StateReducer.update
 
@@ -718,7 +743,10 @@ let next = (state, action) => {
       let updatedTasks = state.tasks->Dict.copy
       updatedTasks->Dict.set(newTask.id, newTask)
 
-      {tasks: updatedTasks, currentTaskId: Some(newTask.id)}->AskTheLlmReactStatestore.StateReducer.update
+      {
+        tasks: updatedTasks,
+        currentTaskId: Some(newTask.id),
+      }->AskTheLlmReactStatestore.StateReducer.update
     }
 
   // Switch to different task
