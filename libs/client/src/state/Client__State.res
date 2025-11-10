@@ -66,8 +66,7 @@ module Actions = {
     Client__State__Store.dispatch(SetSelectedElement({selectedElement: selectedElement}))
 
   // Task management action creators
-  let createTask = (~id, ~title, ~timestamp) =>
-    Client__State__Store.dispatch(CreateTask({id, title, timestamp}))
+  let createTask = (~title) => Client__State__Store.dispatch(CreateTask({title: title}))
 
   let switchTask = (~taskId) => Client__State__Store.dispatch(SwitchTask({taskId: taskId}))
 

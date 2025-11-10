@@ -31,9 +31,16 @@ let runIteration = async (
     | Abort(_) as evt => evt
     | Error(_) as evt => evt
     | Raw(_) as evt => evt
+    | ToolInputStart(props) => ToolInputStart(props)
+    | ToolInputDelta(props) => ToolInputDelta(props)
+    | ToolInputEnd(props) => ToolInputEnd(props)
+    | ToolResult(props) => ToolResult(props)
+    | ToolError(props) => ToolError(props)
+    | ToolOutputDenied(props) => ToolOutputDenied(props)
+    | ToolApprovalRequest(props) => ToolApprovalRequest(props)
     }
     Js.Console.error(event)
-    emitEvent(StreamEvent(task, event))
+    emitEvent(StreamEvent(task.id, event))
   })
 
   let response = await result->Adapter.getResponse

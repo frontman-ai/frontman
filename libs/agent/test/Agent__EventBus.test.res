@@ -103,31 +103,18 @@ describe("EventBus serialization", () => {
       artifacts: [],
     }
 
-    // Create the stream event (Start event)
     let streamEvent: Agent__EventBus.streamEvent = Start({})
-
-    // Create the full EventBus event
-    let event: Agent__EventBus.events = StreamEvent(task, streamEvent)
-
-    // Serialize to JSON using Sury (handles Date.t and other complex types)
+    let event: Agent__EventBus.events = StreamEvent(task.id, streamEvent)
     let obj = event->S.reverseConvertOrThrow(Agent__EventBus.eventsSchema)
     let jsonString = JSON.stringifyAny(obj)->Option.getOrThrow
-
     Js.log2("Serialized StreamEvent:", jsonString)
 
-    // Now deserialize it back using Sury
     let parsed = JSON.parseOrThrow(jsonString)
     let deserialized = parsed->S.parseOrThrow(Agent__EventBus.eventsSchema)
 
-    // Verify the structure
     switch deserialized {
-    | StreamEvent(deserializedTask, streamEvt) => {
-        // Verify task
-        t->expect(deserializedTask.id)->Expect.toBe(taskId)
-        t->expect(deserializedTask.status)->Expect.toBe(Agent__Task.Status.Working)
-        t->expect(Array.length(deserializedTask.history))->Expect.toBe(2)
-
-        // Verify stream event
+    | StreamEvent(id, streamEvt) => {
+        t->expect(id)->Expect.toBe(taskId)
         switch streamEvt {
         | Start(_) => t->expect(true)->Expect.toBe(true)
         | _ => t->expect(false)->Expect.toBe(true) // Should be Start

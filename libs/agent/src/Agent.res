@@ -72,7 +72,6 @@ let subscribe = (agent: t, handler: Agent__EventBus.subscriber): (unit => unit) 
   }
 }
 
-// Emit event to all subscribers
 let emit = (agent: t, event: Agent__EventBus.events): unit => {
   let bus = agent.eventBus.contents
   Agent__Logger.Log.debug(
@@ -90,8 +89,7 @@ let run = async (agent: t) => {
       | Ok(events) => {
           let newTaskResult = events->List.reduce(Ok(task), (acc, event) => {
             switch acc {
-            | Ok(currentTask) =>
-                Agent__Task.evolve(currentTask, event)->Result.map(t => Some(t))
+            | Ok(currentTask) => Agent__Task.evolve(currentTask, event)->Result.map(t => Some(t))
             | Error(_) as err => err
             }
           })
@@ -100,10 +98,11 @@ let run = async (agent: t) => {
           | Ok(Some(updatedTask)) => {
               Agent__Tasks.update(agent.tasks, updatedTask)
               events->List.forEach(event => {
-                agent->emit(Agent__EventBus.TaskEvent(updatedTask, event))
+                agent->emit(Agent__EventBus.TaskEvent(updatedTask.id, event))
               })
             }
-          | Ok(None) => Agent__Logger.Log.error("Internal error: evolve returned None after decide succeeded")
+          | Ok(None) =>
+            Agent__Logger.Log.error("Internal error: evolve returned None after decide succeeded")
           | Error(msg) => Agent__Logger.Log.error(`Event application failed: ${msg}`)
           }
         }
@@ -133,7 +132,9 @@ let run = async (agent: t) => {
 
 let initialize = (agent: t): (unit => unit) => {
   let unsubscribe = agent->subscribe(event => {
-    let commands = Agent__Reactor.react(event)
+    let taskId = Agent__EventBus.getTaskIdFromEvent(event)
+    let task = agent.tasks->Agent__Tasks.get(taskId)
+    let commands = task->Option.map(Agent__Reactor.react(_, event))->Option.getOr(list{})
 
     // Enqueue all commands and trigger run
     commands->List.forEach(cmd => {

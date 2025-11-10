@@ -231,24 +231,14 @@ type responseMetadata = {
 
 @tag("type") @schema
 type textStreamPart =
+  // Stream lifecycle
   | @as("start") Start({})
+  | @as("finish") Finish({finishReason: finishReason, totalUsage: usage})
+  | @as("abort") Abort({})
+  | @as("error") Error({error: JSON.t})
+  | @as("raw") Raw({value: JSON.t})
+  // Step events
   | @as("start-step") StartStep({request: requestMetadata, warnings: array<JSON.t>})
-  | @as("text-start") TextStart({id: string})
-  | @as("text-delta") TextDelta({id: string, text: string})
-  | @as("text-end") TextEnd({id: string})
-  | @as("reasoning-start") ReasoningStart({id: string})
-  | @as("reasoning-delta") ReasoningDelta({id: string, text: string})
-  | @as("reasoning-end") ReasoningEnd({id: string})
-  | @as("source")
-  Source({
-      sourceType: string, // Always "url" in current API
-      id: string,
-      url: string,
-      title?: string,
-      providerMetadata?: JSON.t,
-    })
-  | @as("file") File({file: generatedFile})
-  | @as("tool-call") ToolCall({toolCallId: string, toolName: string, input: JSON.t})
   | @as("finish-step")
   FinishStep({
       response?: responseMetadata,
@@ -256,10 +246,82 @@ type textStreamPart =
       finishReason: finishReason,
       providerMetadata?: JSON.t,
     })
-  | @as("finish") Finish({finishReason: finishReason, totalUsage: usage})
-  | @as("abort") Abort({})
-  | @as("error") Error({error: JSON.t})
-  | @as("raw") Raw({value: JSON.t})
+  // Text streaming
+  | @as("text-start") TextStart({id: string, providerMetadata?: JSON.t})
+  | @as("text-delta") TextDelta({id: string, text: string, providerMetadata?: JSON.t})
+  | @as("text-end") TextEnd({id: string, providerMetadata?: JSON.t})
+  // Reasoning streaming
+  | @as("reasoning-start") ReasoningStart({id: string, providerMetadata?: JSON.t})
+  | @as("reasoning-delta") ReasoningDelta({id: string, text: string, providerMetadata?: JSON.t})
+  | @as("reasoning-end") ReasoningEnd({id: string, providerMetadata?: JSON.t})
+  // Tool input streaming
+  | @as("tool-input-start")
+  ToolInputStart({
+      id: string,
+      toolName: string,
+      providerMetadata?: JSON.t,
+      providerExecuted?: bool,
+      dynamic?: bool,
+      title?: string,
+    })
+  | @as("tool-input-delta") ToolInputDelta({id: string, delta: string, providerMetadata?: JSON.t})
+  | @as("tool-input-end") ToolInputEnd({id: string, providerMetadata?: JSON.t})
+  // Tool execution
+  | @as("tool-call")
+  ToolCall({
+      toolCallId: string,
+      toolName: string,
+      input: JSON.t,
+      providerMetadata?: JSON.t,
+      providerExecuted?: bool,
+      dynamic?: bool,
+      title?: string,
+      invalid?: bool,
+      error?: JSON.t,
+    })
+  | @as("tool-result")
+  ToolResult({
+      toolCallId: string,
+      toolName: string,
+      input: JSON.t,
+      output: JSON.t,
+      providerMetadata?: JSON.t,
+      providerExecuted?: bool,
+      dynamic?: bool,
+      preliminary?: bool,
+      title?: string,
+    })
+  | @as("tool-error")
+  ToolError({
+      toolCallId: string,
+      toolName: string,
+      input: JSON.t,
+      error: JSON.t,
+      providerMetadata?: JSON.t,
+      dynamic?: bool,
+    })
+  | @as("tool-output-denied")
+  ToolOutputDenied({
+      toolCallId: string,
+      toolName: string,
+      providerExecuted?: bool,
+      dynamic?: bool,
+    })
+  | @as("tool-approval-request")
+  ToolApprovalRequest({
+      approvalId: string,
+      toolCall: JSON.t, // TypedToolCall embedded as JSON
+    })
+  // Files & Sources
+  | @as("source")
+  Source({
+      sourceType: string,
+      id: string,
+      url: string,
+      title?: string,
+      providerMetadata?: JSON.t,
+    })
+  | @as("file") File({file: generatedFile})
 
 @get external fullStream: streamTextResult => AsyncIterableStream.t<textStreamPart> = "fullStream"
 @get external finishReason: streamTextResult => promise<finishReason> = "finishReason"

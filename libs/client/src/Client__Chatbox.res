@@ -14,7 +14,7 @@ let models = [
 ]
 
 // Convert internal toolCallState to AI SDK state string
-let toolStateToString = (state: Client__State__StateReducer.toolCallState): string => {
+let toolStateToString = (state: Client__State__StateReducer.Message.toolCallState): string => {
   switch state {
   | InputStreaming => "input-streaming"
   | InputAvailable => "input-available"
@@ -81,7 +81,9 @@ let make = () => {
             <div key={messageId} className="max-w-full">
               <React.Fragment key={`${messageId}-0`}>
                 <AIElements.Message from="assistant">
-                  <AIElements.MessageContent variant="flat" className="!bg-blue-500 px-4 py-3 transition-colors duration-500">
+                  <AIElements.MessageContent
+                    className="!bg-blue-500 transition-colors duration-500"
+                  >
                     <AIElements.Response> {React.string(textBuffer)} </AIElements.Response>
                   </AIElements.MessageContent>
                 </AIElements.Message>
@@ -134,7 +136,7 @@ let make = () => {
               ->React.array}
             </div>
 
-          | Client__State__StateReducer.Message.ToolCall({toolName, state, input, result, errorText, _}) =>
+          | ToolCall({toolName, state, input, inputBuffer, result, errorText, _}) =>
             // Render tool call message
             <div key={messageId} className="max-w-full">
               <AIElements.Tool
@@ -147,19 +149,33 @@ let make = () => {
                   title={toolName} type_="tool-call" state={toolStateToString(state)}
                 />
                 <AIElements.ToolContent>
-                  {switch input {
-                  | Some(input) => <AIElements.ToolInput input={input} />
-                  | None => React.null
+                  {switch (state, input, inputBuffer) {
+                  // InputStreaming: show the streaming buffer as raw text
+                  | (InputStreaming, None, buffer) if String.length(buffer) > 0 =>
+                    <div className="font-mono text-sm opacity-70 whitespace-pre-wrap">
+                      {React.string(buffer)}
+                    </div>
+                  // InputAvailable or completed states: show parsed input
+                  | (_, Some(input), _) => <AIElements.ToolInput input={input} />
+                  | _ => React.null
                   }}
-                  {switch (result, errorText) {
-                  | (Some(result), _) =>
+                  {switch (state, result, errorText) {
+                  // Show result when available
+                  | (_, Some(result), _) =>
                     <AIElements.ToolOutput
                       output={<AIElements.Response>
                         {React.string(JSON.stringifyAny(result)->Option.getOr("{}"))}
                       </AIElements.Response>}
                     />
-                  | (None, Some(error)) => <AIElements.ToolOutput errorText={error} />
-                  | (None, None) => React.null
+                  // Show error when present
+                  | (_, None, Some(error)) => <AIElements.ToolOutput errorText={error} />
+                  // InputAvailable: show executing indicator
+                  | (InputAvailable, None, None) =>
+                    <div className="text-sm text-muted-foreground italic py-2">
+                      {React.string("Executing...")}
+                    </div>
+                  // Otherwise show nothing
+                  | _ => React.null
                   }}
                 </AIElements.ToolContent>
               </AIElements.Tool>

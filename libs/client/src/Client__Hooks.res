@@ -48,7 +48,8 @@ let useSSE = (newEventCallback: AgentEventBus.events => unit, ~url="/api/ask-the
     let onMessage = event => {
       let data = event->WebAPI.MessageEvent.data
       let msg = data->JSON.parseOrThrow->S.parseOrThrow(AgentEventBus.eventsSchema)
-      Console.log2("[SSE] Received event:", msg)
+      Console.log("[SSE] Received event:")
+      Console.dir(msg, ~options={depth: Js.Null})
       newEventCallback(msg)
     }
     let onError = error => {
@@ -75,11 +76,17 @@ let useContainerResize = (container: option<WebAPI.DOMAPI.element>, onResized: u
     let animationFrameId = ref(None)
     switch container {
     | Some(container) =>
-      let resizeObserver = WebAPI.ResizeObserver.make(_entries => (_observer => {
-         animationFrameId.contents = Some(WebAPI.Global.requestAnimationFrame((_timestamp: float) => {
-          onResized()
-        }))
-      }))
+      let resizeObserver = WebAPI.ResizeObserver.make(_entries =>
+        _observer => {
+          animationFrameId.contents = Some(
+            WebAPI.Global.requestAnimationFrame(
+              (_timestamp: float) => {
+                onResized()
+              },
+            ),
+          )
+        }
+      )
       WebAPI.ResizeObserver.observe(resizeObserver, ~target=container)
 
       Some(
@@ -851,11 +858,7 @@ let useIsOnline = () => {
 }
 
 module Scroll = {
-  let useIFrameDocument = (
-    ~document: option<WebAPI.DOMAPI.document>,
-    ~withCapture=false,
-    (),
-  ) => {
+  let useIFrameDocument = (~document: option<WebAPI.DOMAPI.document>, ~withCapture=false, ()) => {
     let (scrollTimestamp, setScrollTimestamp) = React.useState(() => Js.Date.now())
 
     React.useEffect(() => {
@@ -930,23 +933,17 @@ let useIFrameLocation = (~iframeRef: Nullable.t<WebAPI.DOMAPI.element>) => {
     switch iframeWindow {
     | Some(iframeWindow) =>
       // Get initial location
-      let initialLocation = Some(
-        iframeWindow->WebAPI.Window.location->WebAPI.Location.href,
-      )
+      let initialLocation = Some(iframeWindow->WebAPI.Window.location->WebAPI.Location.href)
       setLocation(_ => initialLocation)
 
       // Listen for navigation events
       let onPopState = _ev => {
-        let currentLocation = Some(
-          iframeWindow->WebAPI.Window.location->WebAPI.Location.href,
-        )
+        let currentLocation = Some(iframeWindow->WebAPI.Window.location->WebAPI.Location.href)
         setLocation(_ => currentLocation)
       }
       let onNavigation = ev => {
         let url = ev["destination"]["url"]
-        let currentLocation = Some(
-          url,
-        )
+        let currentLocation = Some(url)
         setLocation(_ => currentLocation)
       }
 
@@ -1071,10 +1068,7 @@ module MutationObserverBindings = {
 }
 
 module DOMmutations = {
-  let useIFrameDocument = (
-    ~document: option<WebAPI.DOMAPI.document>,
-    (),
-  ) => {
+  let useIFrameDocument = (~document: option<WebAPI.DOMAPI.document>, ()) => {
     let (mutationTimestamp, setMutationTimestamp) = React.useState(() => Js.Date.now())
 
     React.useEffect(() => {
