@@ -45,22 +45,15 @@ let findAllExisting = async (candidates: array<string>): array<string> => {
 }
 
 let discoverLocalFiles = async (candidates: array<(string, array<string>)>): array<string> => {
-  let rec tryNextFilename = async (index: int): array<string> => {
-    if index >= Array.length(candidates) {
-      []
-    } else {
-      let (_filename, paths) = Array.getUnsafe(candidates, index)
-      let found = await findAllExisting(paths)
+  // For each directory, find the first existing file (if any)
+  let searches = candidates->Array.map(async ((_dir, candidatePaths)) => {
+    await findFirstExisting(candidatePaths)
+  })
 
-      if Array.length(found) > 0 {
-        found // Found matches for this filename, stop searching
-      } else {
-        await tryNextFilename(index + 1) // Try next filename
-      }
-    }
-  }
+  let results = await Promise.all(searches)
 
-  await tryNextFilename(0)
+  // Filter out None values and extract the paths
+  results->Array.filterMap(x => x)
 }
 
 let discoverGlobalFiles = async (candidates: array<string>): array<string> => {

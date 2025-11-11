@@ -7,10 +7,16 @@ module Os = Bindings.Os
 let localFileNames = ["AGENTS.md", "CLAUDE.md", "CONTEXT.md"]
 
 let globalFilePaths = (globalConfigDir: option<string>): array<string> => {
-  let configDir = globalConfigDir->Option.getOr(Path.join([Os.homedir(), ".config", "claude"]))
-  let claudeDir = Path.join([Os.homedir(), ".claude"])
-
-  [Path.join([configDir, "AGENTS.md"]), Path.join([claudeDir, "CLAUDE.md"])]
+  switch globalConfigDir {
+  | Some(customDir) => [
+      Path.join([customDir, "AGENTS.md"]),
+      Path.join([customDir, ".claude", "CLAUDE.md"]),
+    ]
+  | None => [
+      Path.join([Os.homedir(), ".config", "claude", "AGENTS.md"]),
+      Path.join([Os.homedir(), ".claude", "CLAUDE.md"]),
+    ]
+  }
 }
 
 let expandTilde = (path: string): string => {
@@ -43,28 +49,40 @@ let isRoot = (path: string): bool => {
   path == Path.dirname(path)
 }
 
-let generateLocalPaths = (filename: string, ~cwd: string, ~root: string): array<string> => {
-  let rec traverse = (current: string, acc: array<string>): array<string> => {
-    let candidatePath = Path.join([current, filename])
-    let newAcc = Array.concat(acc, [candidatePath])
-
+let getDirectoriesFromRootToCwd = (~root: string, ~cwd: string): array<string> => {
+  // Walk up from cwd to root, collecting directories
+  let rec walkUp = (current: string, acc: array<string>): array<string> => {
     if current == root || isRoot(current) {
-      newAcc
+      Array.concat([current], acc)
     } else {
       let parentDir = parent(current)
       if parentDir == current {
-        newAcc
+        Array.concat([current], acc)
       } else {
-        traverse(parentDir, newAcc)
+        walkUp(parentDir, Array.concat([current], acc))
       }
     }
   }
 
-  traverse(cwd, [])
+  // Walk up and reverse to get root → cwd ordering
+  let directories = walkUp(cwd, [])
+  directories
+}
+
+let generateLocalPaths = (filename: string, ~cwd: string, ~root: string): array<string> => {
+  let directories = getDirectoriesFromRootToCwd(~root, ~cwd)
+  directories->Array.map(dir => Path.join([dir, filename]))
 }
 
 let generateLocalCandidates = (~cwd: string, ~root: string): array<(string, array<string>)> => {
-  localFileNames->Array.map(filename => (filename, generateLocalPaths(filename, ~cwd, ~root)))
+  // Get all directories from root to cwd
+  let directories = getDirectoriesFromRootToCwd(~root, ~cwd)
+
+  // For each directory, generate candidate paths for all filenames
+  directories->Array.map(dir => {
+    let candidatePaths = localFileNames->Array.map(filename => Path.join([dir, filename]))
+    (dir, candidatePaths)
+  })
 }
 
 let makeLoadedFile = (

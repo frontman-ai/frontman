@@ -16,37 +16,35 @@ let load = async (options: options): result<loadedContext, string> => {
   }
 
   try {
+    // Always discover global files
+    let globalCandidates = Core.globalFilePaths(options.globalConfigDir)
+    let globalPaths = await IO.discoverGlobalFiles(globalCandidates)
+
+    // Discover local files
     let localCandidates = Core.generateLocalCandidates(~cwd, ~root)
     let localPaths = await IO.discoverLocalFiles(localCandidates)
-
-    let globalPaths = if Array.length(localPaths) == 0 {
-      let globalCandidates = Core.globalFilePaths(options.globalConfigDir)
-      await IO.discoverGlobalFiles(globalCandidates)
-    } else {
-      []
-    }
 
     let customPaths = switch options.customPaths {
     | Some(paths) => paths->Array.map(p => Core.normalize(p, ~cwd))
     | None => []
     }
 
-    let allPathsToLoad = Array.concat(Array.concat(localPaths, globalPaths), customPaths)
+    let allPathsToLoad = Array.concat(Array.concat(globalPaths, localPaths), customPaths)
     let loadedData = await IO.loadFiles(allPathsToLoad)
-
-    let localFiles = localPaths->Array.filterMap(localPath => {
-      loadedData
-      ->Array.find(((path, _)) => path == localPath)
-      ->Option.map(((path, content)) =>
-        Core.makeLoadedFile(path, content, Types.Local, ~discovered=true)
-      )
-    })
 
     let globalFiles = globalPaths->Array.filterMap(globalPath => {
       loadedData
       ->Array.find(((path, _)) => path == globalPath)
       ->Option.map(((path, content)) =>
         Core.makeLoadedFile(path, content, Types.Global, ~discovered=true)
+      )
+    })
+
+    let localFiles = localPaths->Array.filterMap(localPath => {
+      loadedData
+      ->Array.find(((path, _)) => path == localPath)
+      ->Option.map(((path, content)) =>
+        Core.makeLoadedFile(path, content, Types.Local, ~discovered=true)
       )
     })
 
@@ -58,7 +56,8 @@ let load = async (options: options): result<loadedContext, string> => {
       )
     })
 
-    let allFiles = Array.concat(Array.concat(localFiles, globalFiles), customFiles)
+    // Order: global → local → custom
+    let allFiles = Array.concat(Array.concat(globalFiles, localFiles), customFiles)
     let filtered = Core.filterEmpty(allFiles)
     let result = Core.buildLoadedContext(filtered)
 
