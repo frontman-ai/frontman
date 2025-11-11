@@ -4,6 +4,7 @@ module IO = ContextLoader__IO
 module Bindings = AskTheLlmBindings
 
 type options = Types.options
+@schema
 type loadedContext = Types.loadedContext
 type loadedFile = Types.loadedFile
 type source = Types.source

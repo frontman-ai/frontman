@@ -1,5 +1,6 @@
-module Part = Agent__Task__Message__Part
 S.enableJson()
+module Part = Agent__Task__Message__Part
+module ContextLoader = AskTheLlmContextLoader.ContextLoader
 
 module Status = {
   @schema
@@ -30,11 +31,9 @@ type t = {
 module Event = {
   @schema
   type t =
-    // Lifecycle events
     | Created({id: id, initialMessage: Agent__Task__Message.t})
-    | ProcessingStarted({task: t})
+    | ProcessingStarted({id: id})
     | Completed({task: t, message: @s.null option<Agent__Task__Message.t>})
-    // Message events
     | MessageAdded({task: t, message: Agent__Task__Message.t})
 
   let toString: t => string = event => {
@@ -47,7 +46,7 @@ module Event = {
 
 type cmd =
   // Lifecycle commands
-  | Create({initialMessage: Agent__Task__Message.t})
+  | Create({initialMessage: Agent__Task__Message.t, context: option<ContextLoader.loadedContext>})
   | Complete({task: t, message: option<Agent__Task__Message.t>})
   | Resume({task: t})
   // Message commands
@@ -85,11 +84,19 @@ Output
   - single unified diff block
   - brief notes: build/test results or follow-ups`
 
-// Constructors
-let make = (id, initialMessage): t => {
+let make = (id, initialMessage, context: option<ContextLoader.loadedContext>): t => {
+  let ctx = context->Option.getOrThrow(~message="no context")
+  let contextSection =
+    ctx.files
+    ->Array.map(file => `Context from User you should take into account: \n ${file.content}`)
+    ->Array.join("\n\n---\n\n")
+
+  let systemContent = `${systemMessage}\n\n---\n\n${contextSection}`
+  Js.Console.error2("aaaaaaaaaaaaaaaaa", systemContent)
+
   let systemMsg = Agent__Task__Message.System({
     taskId: id,
-    content: systemMessage,
+    content: systemContent,
   })
 
   {
@@ -102,48 +109,36 @@ let make = (id, initialMessage): t => {
 
 let decide = (state: option<t>, command: cmd): result<list<Event.t>, string> => {
   switch (state, command) {
-  | (None, Create({initialMessage})) => {
-      let id = initialMessage->Agent__Task__Message.getTaskId
-      let task = make(id, initialMessage)
-      // Emit both Created and ProcessingStarted to immediately start processing
-      Ok(list{Created({id, initialMessage}), ProcessingStarted({task: task})})
-    }
+  | (None, Create({initialMessage})) =>
+    let id = initialMessage->Agent__Task__Message.getTaskId
+    // // Emit both Created and ProcessingStarted to immediately start processing
+    Ok(list{Created({id, initialMessage}), ProcessingStarted({id: id})})
   | (Some(_), Create(_)) => Error("Task already exists - cannot create again")
-
   | (Some({status: Working} as task), Complete({message})) => Ok(list{Completed({task, message})})
-
   // Resume completed task (transitions back to Working)
-  | (Some({status: Completed} as task), Resume(_)) => Ok(list{ProcessingStarted({task: task})})
-
+  | (Some({status: Completed} as task), Resume(_)) => Ok(list{ProcessingStarted({id: task.id})})
   // === Message Handling ===
   | (Some(task), AddMessage({message})) => Ok(list{MessageAdded({task, message})})
-
   | (None, AddMessage(_)) => Error("Cannot add message to non-existent task")
-
   | (Some({status}), _) => Error(`Invalid command for current status: ${Status.toString(status)}`)
-
   | (None, _) => Error("Cannot execute command on non-existent task")
   }
 }
 
 // Evolve: apply event to state
 // PURE FUNCTION
-let evolve = (state: option<t>, event: Event.t): Result.t<t, string> => {
+let evolve = (
+  state: option<t>,
+  event: Event.t,
+  context: option<ContextLoader.loadedContext>,
+): Result.t<t, string> => {
   switch (state, event) {
-  // === Creation ===
-  | (None, Created({id, initialMessage})) => Ok(make(id, initialMessage))
+  | (None, Created({id, initialMessage})) => Ok(make(id, initialMessage, context))
   | (Some(_), Created(_)) => Error("cannot create an already existing event")
-
-  // === Status Changes ===
   | (Some(task), ProcessingStarted(_)) => Ok({...task, status: Working})
-
   | (Some(task), Completed(_)) => Ok({...task, status: Completed})
-
-  // === Message Handling ===
   | (Some(task), MessageAdded({message, _})) =>
     Ok({...task, history: Array.concat(task.history, [message])})
-
-  // === Invalid ===
   | (None, _) => Error(`Tried to run event: ${event->Event.toString}`)
   }
 }

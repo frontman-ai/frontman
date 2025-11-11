@@ -16,7 +16,7 @@ describe("MockLanguageModelV2", () => {
       content: String("Test prompt"),
       selectedElementSourceLocation: None,
     })
-    let task = Agent__Task.make(taskId, initialMessage)
+    let task = Agent__Task.make(taskId, initialMessage, None)
 
     let result = await Adapter.streamText(llm, task->Agent__Task.getHistory)
     let responseText = await result->Adapter.getText
@@ -35,7 +35,7 @@ describe("MockLanguageModelV2", () => {
       content: String("Test prompt"),
       selectedElementSourceLocation: None,
     })
-    let task = Agent__Task.make(taskId, initialMessage)
+    let task = Agent__Task.make(taskId, initialMessage, None)
 
     let result = await Adapter.streamText(llm, task->Agent__Task.getHistory)
 
@@ -57,7 +57,7 @@ describe("MockLanguageModelV2", () => {
       content: String("Test prompt"),
       selectedElementSourceLocation: None,
     })
-    let task = Agent__Task.make(taskId, initialMessage)
+    let task = Agent__Task.make(taskId, initialMessage, None)
 
     let _result = await Adapter.streamText(llm, task->Agent__Task.getHistory)
     let endTime = Date.now()
@@ -99,7 +99,7 @@ describe("simulateReadableStream with delays", () => {
       content: String("Test"),
       selectedElementSourceLocation: None,
     })
-    let task = Agent__Task.make(taskId, initialMessage)
+    let task = Agent__Task.make(taskId, initialMessage, None)
 
     let result = await Adapter.streamText(llm, task->Agent__Task.getHistory)
     let _ = await result->Adapter.getText

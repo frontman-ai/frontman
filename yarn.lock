@@ -145,6 +145,7 @@ __metadata:
   dependencies:
     "@ai-sdk/anthropic": "npm:^2.0.39"
     "@ai-sdk/openai": "npm:^2.0.57"
+    "@ask-the-llm/context-loader": "workspace:*"
     "@ask-the-llm/logger": "workspace:*"
     "@rescript/webapi": "catalog:"
     "@vitest/ui": "catalog:"
@@ -234,7 +235,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@ask-the-llm/context-loader@workspace:libs/context-loader":
+"@ask-the-llm/context-loader@workspace:*, @ask-the-llm/context-loader@workspace:libs/context-loader":
   version: 0.0.0-use.local
   resolution: "@ask-the-llm/context-loader@workspace:libs/context-loader"
   dependencies:

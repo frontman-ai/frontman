@@ -21,6 +21,7 @@ type loadedFile = {
 }
 
 // Complete loaded context result
+@schema
 type loadedContext = {
   files: array<loadedFile>, // All loaded files with metadata
   content: array<string>, // Just the content strings (for backward compatibility)

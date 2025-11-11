@@ -38,7 +38,7 @@ let agentInstance: ref<option<AskTheLlmAgent.Agent.t>> = ref(None)
 // Global event buffer - stores all events for late-connecting clients
 let eventBuffer: ref<array<AgentEventBus.events>> = ref([])
 
-let getOrCreateAgent = () => {
+let getOrCreateAgent = async () => {
   switch agentInstance.contents {
   | Some(agent) => agent
   | None =>
@@ -48,7 +48,7 @@ let getOrCreateAgent = () => {
       ->Option.orElse(Bindings.Process.env->Dict.get("PWD"))
       ->Option.getOr(".")
     let apiKey = Dotenv.getOrThrow("OPENAI_API_KEY")
-    let agent = Agent.make({projectRoot, apiKey})
+    let agent = await Agent.make({projectRoot, apiKey})
     let _shutdown = Agent.initialize(agent)
 
     // Subscribe buffer to agent events at module initialization
@@ -63,7 +63,7 @@ let getOrCreateAgent = () => {
   }
 }
 
-let agent = getOrCreateAgent()
+let agent = await getOrCreateAgent()
 
 // Handler for /api/ask-the-llm (serves the UI)
 type createUIHandlerParams = {
@@ -76,7 +76,10 @@ type createUIHandlerParams = {
 let createUIHandler = (params: createUIHandlerParams): apiHandler => {
   async (_req, res) => {
     let src = params.clientUrl->Option.getOr(Nextjs__Config.askTheLlmClientJsUrl(params.isDev))
-    let clientCssUrl = params.clientCssUrl->Option.map(url => `<link rel="stylesheet" href="${url}">`)->Option.getOr("")
+    let clientCssUrl =
+      params.clientCssUrl
+      ->Option.map(url => `<link rel="stylesheet" href="${url}">`)
+      ->Option.getOr("")
     let entrypointTemplate =
       params.entrypointUrl
       ->Option.map(url => `<script type="template" id="ask-the-llm-entrypoint-url">${url}</script>`)
@@ -151,9 +154,10 @@ let resolveSourceLocationFromBody = async (obj: Dict.t<JSON.t>): option<
 
 // Helper to validate and extract message from request body
 let validateMessage = (obj: Dict.t<JSON.t>): option<string> => {
-  obj->Dict.get("message")->Option.flatMap(JSON.Decode.string)->Option.flatMap(str =>
-    str === "" ? None : Some(str)
-  )
+  obj
+  ->Dict.get("message")
+  ->Option.flatMap(JSON.Decode.string)
+  ->Option.flatMap(str => str === "" ? None : Some(str))
 }
 
 // Handler for /api/ask-the-llm/chat (handles chat messages)
@@ -172,7 +176,9 @@ let createChatHandler = (): apiHandler => {
         // Validate message
         switch validateMessage(obj) {
         | None =>
-          res->ApiResponse.status(400)->ApiResponse.json({
+          res
+          ->ApiResponse.status(400)
+          ->ApiResponse.json({
             "error": "Missing or empty message field",
           })
         | Some(message) =>
@@ -193,11 +199,11 @@ let createChatHandler = (): apiHandler => {
             ->Option.getOr(Agent.TaskId.make())
 
           // Send message to agent
-          let agent = getOrCreateAgent()
+          let agent = await getOrCreateAgent()
           agent
           ->Agent.sendMessage(
             Agent.TaskMessage.User({
-              taskId: taskId,
+              taskId,
               content: String(message),
               selectedElementSourceLocation: resolvedSourceLocation,
             }),

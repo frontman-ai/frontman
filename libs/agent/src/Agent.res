@@ -2,6 +2,7 @@
 S.enableJson()
 
 module Bindings = AskTheLlmBindings
+module ContextLoader = AskTheLlmContextLoader.ContextLoader
 
 module Tools = {
   module Registry = Agent__ToolsRegistry
@@ -30,11 +31,34 @@ type t = {
   config: Agent__Config.t,
   toolRegistry: Agent__ToolsRegistry.t,
   commandQueue: Agent__CommandQueue.t,
+  context: option<ContextLoader.loadedContext>,
 }
 type config = Agent__Config.t
 
-let make = (config: config) => {
+let make = async (config: config) => {
   Agent__Logger.Log.info(`Initializing agent for project: ${config.projectRoot}`)
+
+  // Load context files
+  let contextResult = await ContextLoader.load({
+    cwd: config.projectRoot,
+    root: config.projectRoot,
+  })
+
+  let context = switch contextResult {
+  | Ok(ctx) => {
+      Agent__Logger.Log.info(
+        `Loaded ${ctx.files
+          ->Array.length
+          ->Int.toString} context files (${ctx.totalSize->Int.toString} characters)`,
+      )
+      Some(ctx)
+    }
+  | Error(msg) => {
+      Agent__Logger.Log.error(`Failed to load context: ${msg}`)
+      None
+    }
+  }
+
   let eventBus = Agent__EventBus.make()
 
   // Use provided toolRegistry for testing, or create default registry with all tools
@@ -54,6 +78,7 @@ let make = (config: config) => {
     config,
     toolRegistry,
     commandQueue: Agent__CommandQueue.make(),
+    context,
   }
 }
 
@@ -89,7 +114,8 @@ let run = async (agent: t) => {
       | Ok(events) => {
           let newTaskResult = events->List.reduce(Ok(task), (acc, event) => {
             switch acc {
-            | Ok(currentTask) => Agent__Task.evolve(currentTask, event)->Result.map(t => Some(t))
+            | Ok(currentTask) =>
+              Agent__Task.evolve(currentTask, event, agent.context)->Result.map(t => Some(t))
             | Error(_) as err => err
             }
           })
@@ -161,7 +187,10 @@ let sendMessage = async (agent: t, message: Agent__Task__Message.t) => {
       Agent__Command.Domain({task: Some(task), cmd: AddMessage({task, message})})
     })
     ->Option.getOr({
-      Agent__Command.Domain({task: None, cmd: Create({initialMessage: message})})
+      Agent__Command.Domain({
+        task: None,
+        cmd: Create({initialMessage: message, context: agent.context}),
+      })
     })
 
   // Enqueue command and trigger run

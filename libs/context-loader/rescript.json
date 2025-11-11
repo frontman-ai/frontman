@@ -1,6 +1,7 @@
 {
 	"name": "@ask-the-llm/context-loader",
 	"namespace": true,
+	"exposed-modules": ["ContextLoader"],
 	"sources": [
 		{
 			"dir": "src",

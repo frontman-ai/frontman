@@ -23,6 +23,7 @@
 	"ppx-flags": ["sury-ppx/bin"],
 	"dependencies": [
 		"@ask-the-llm/bindings",
+		"@ask-the-llm/context-loader",
 		"@ask-the-llm/logger",
 		"sury",
 		"@rescript/webapi",

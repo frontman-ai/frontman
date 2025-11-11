@@ -147,7 +147,7 @@ describe("executeToolCalls", () => {
       content: String("Test task"),
       selectedElementSourceLocation: None,
     })
-    let task = Agent__Task.make(taskId, initialMessage)
+    let task = Agent__Task.make(taskId, initialMessage, None)
 
     let toolCalls: array<ToolCallPart.t> = [
       {
@@ -188,7 +188,7 @@ describe("executeToolCalls", () => {
       content: String("Test task"),
       selectedElementSourceLocation: None,
     })
-    let task = Agent__Task.make(taskId, initialMessage)
+    let task = Agent__Task.make(taskId, initialMessage, None)
 
     let toolCalls: array<ToolCallPart.t> = [
       {
