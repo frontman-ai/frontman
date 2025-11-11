@@ -85,14 +85,18 @@ Output
   - brief notes: build/test results or follow-ups`
 
 let make = (id, initialMessage, context: option<ContextLoader.loadedContext>): t => {
-  let ctx = context->Option.getOrThrow(~message="no context")
-  let contextSection =
+  let contextSection = switch context {
+  | Some(ctx) =>
     ctx.files
     ->Array.map(file => `Context from User you should take into account: \n ${file.content}`)
     ->Array.join("\n\n---\n\n")
+  | None => ""
+  }
 
-  let systemContent = `${systemMessage}\n\n---\n\n${contextSection}`
-  Js.Console.error2("aaaaaaaaaaaaaaaaa", systemContent)
+  let systemContent = switch context {
+  | Some(_) => `${systemMessage}\n\n---\n\n${contextSection}`
+  | None => systemMessage
+  }
 
   let systemMsg = Agent__Task__Message.System({
     taskId: id,
