@@ -27,8 +27,11 @@ type textStreamPart = Bindings.textStreamPart
 let toVercelTools = (registry: Agent__ToolsRegistry.t): Dict.t<Bindings.toolDef> => {
   let vercelTools = Dict.make()
 
-  registry->Array.forEach(tool => {
-    module Tool = unpack(tool: Agent__Tool.T)
+  registry
+  ->Agent__ToolsRegistry.getTools
+  ->Array.forEach(tool => {
+    let toolModule = Agent__ToolsRegistry.getToolModule(tool)
+    module Tool = unpack(toolModule: Agent__Tool.T)
     let aiSchemaWrapped = Bindings.jsonSchema(Tool.inputSchema->S.toJSONSchema)
     let toolDef: Bindings.toolDef = {
       description: Tool.description,

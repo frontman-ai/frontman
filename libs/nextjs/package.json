@@ -16,6 +16,7 @@
 		"@vitest/ui": "catalog:",
 		"rescript": "catalog:",
 		"rescript-vitest": "catalog:",
+		"sury-ppx": "^11.0.0-alpha.2",
 		"vite": "catalog:",
 		"vitest": "catalog:"
 	},

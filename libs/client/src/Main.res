@@ -1,5 +1,5 @@
 %%raw("import '@radix-ui/themes/styles.css'")
-// %%raw("import './index.css'")
+%%raw("import './index.css'")
 
 WebAPI.Global.document->WebAPI.Document.addEventListener(Custom("DOMContentLoaded"), _event => {
   let rootElement = WebAPI.Global.document->WebAPI.Document.querySelector("#root")

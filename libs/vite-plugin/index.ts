@@ -4,6 +4,7 @@ import {
 	createUIHandler,
 	createChatHandler,
 	createStreamHandler,
+	createToolResultsHandler,
 } from "@ask-the-llm/nextjs/src/Nextjs__ApiRoute.res.mjs";
 
 /**
@@ -85,6 +86,7 @@ export const askTheLlmPlugin = (
 	let uiHandler: any;
 	let chatHandler: any;
 	let streamHandler: any;
+	let toolResultsHandler: any;
 
 	return {
 		name: "ask-the-llm-api-routes",
@@ -92,6 +94,7 @@ export const askTheLlmPlugin = (
 			uiHandler = createUIHandler({ isDev, isLightTheme, entrypointUrl, clientUrl });
 			chatHandler = createChatHandler();
 			streamHandler = createStreamHandler();
+			toolResultsHandler = createToolResultsHandler();
 
 			server.middlewares.use(
 				async (
@@ -126,6 +129,12 @@ export const askTheLlmPlugin = (
 							url.startsWith("/api/ask-the-llm/chat-sse?")
 						) {
 							await adaptNextJsHandler(streamHandler)(req, res);
+							return;
+						}
+
+						// Handle /api/ask-the-llm/tool-results - Tool results handler
+						if (url === "/api/ask-the-llm/tool-results") {
+							await adaptNextJsHandler(toolResultsHandler)(req, res);
 							return;
 						}
 

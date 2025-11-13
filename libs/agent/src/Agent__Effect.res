@@ -38,7 +38,6 @@ let executeSingleTool = async (
   Agent__Logger.Log.info(`Executing tool: ${toolCall.toolName}`)
   Agent__Logger.Log.debugWithMeta("Tool args", toolCall.args)
 
-  // Create context for tool execution
   let ctx: Agent__ToolExecutionContext.t = {projectRoot: config.projectRoot}
 
   let makeResult = (output: ToolResultPart.Output.t): ToolResultPart.t => {
@@ -48,14 +47,24 @@ let executeSingleTool = async (
     providerOptions: None,
   }
 
-  let toolOption = toolRegistry->Array.find(tool => {
-    module Tool = unpack(tool: Agent__Tool.T)
-    Tool.name == toolCall.toolName
-  })
+  let toolOption =
+    toolRegistry
+    ->Agent__ToolsRegistry.getTools
+    ->Array.find(tool => {
+      let toolModule = Agent__ToolsRegistry.getToolModule(tool)
+      module Tool = unpack(toolModule: Agent__Tool.T)
+      Tool.name == toolCall.toolName
+    })
 
   switch toolOption {
-  | None => makeResult(ErrorText(`Tool '${toolCall.toolName}' not found in registry`))
-  | Some(tool) => {
+  | None => {
+      Agent__Logger.Log.error(`Tool '${toolCall.toolName}' not found in registry`)
+      makeResult(ErrorText(`Tool '${toolCall.toolName}' not found in registry`))
+    }
+
+  | Some(ServerTool(tool)) => {
+      Agent__Logger.Log.info(`Server-side tool execution: ${toolCall.toolName}`)
+
       module Tool = unpack(tool: Agent__Tool.T)
 
       switch Tool.decodeInput(toolCall.args) {
@@ -90,23 +99,30 @@ let executeSingleTool = async (
         }
       }
     }
+
+  | Some(ClientTool(_tool)) => {
+      Agent__Logger.Log.info(`Client-side tool call detected: ${toolCall.toolName}`)
+      Agent__Logger.Log.debugWithMeta(
+        "Registering pending execution",
+        JSON.parseOrThrow(
+          `{"toolCallId": "${toolCall.toolCallId}", "toolName": "${toolCall.toolName}"}`,
+        ),
+      )
+
+      let result = await toolRegistry->Agent__ToolsRegistry.registerClientExecution(
+        ~toolCallId=toolCall.toolCallId,
+        ~toolName=toolCall.toolName,
+        ~timeoutMs=30000,
+        ~onTimeout=() => {
+          Agent__Logger.Log.error(`Client tool execution timeout: ${toolCall.toolName}`)
+          makeResult(ErrorText(`Client tool execution timeout: ${toolCall.toolName}`))
+        },
+      )
+
+      Agent__Logger.Log.info(`Client tool execution completed: ${toolCall.toolName}`)
+      result
+    }
   }
-}
-
-let executeToolCalls = async (
-  task: Agent__Task.t,
-  toolCalls: array<ToolCallPart.t>,
-  ~config: Agent__Config.t,
-  ~toolRegistry: Agent__ToolsRegistry.t,
-): Agent__Task__Message.t => {
-  let results = await toolCalls
-  ->Array.map(async toolCall => await executeSingleTool(config, toolRegistry, toolCall))
-  ->Promise.all
-
-  Agent__Task__Message.Tool({
-    taskId: task.id,
-    content: results,
-  })
 }
 
 // ============================================================================
@@ -122,33 +138,18 @@ let execute = async (
 ): result<array<Agent__Task.cmd>, string> => {
   switch effect {
   | ExecuteTools({task, toolCalls}) =>
-    try {
-      let message = await executeToolCalls(task, toolCalls, ~config, ~toolRegistry)
-      Ok([Agent__Task.AddMessage({task, message})])
-    } catch {
-    | exn => {
-        let msg =
-          exn
-          ->JsExn.fromException
-          ->Option.flatMap(JsExn.message)
-          ->Option.getOr("Unknown exception during effect execution")
-        Error(`Effect execution failed: ${msg}`)
-      }
-    }
+    let results = await toolCalls
+    ->Array.map(executeSingleTool(config, toolRegistry, _))
+    ->Promise.all
+
+    let message = Agent__Task__Message.Tool({
+      taskId: task.id,
+      content: results,
+    })
+    Ok([Agent__Task.AddMessage({task, message})])
 
   | RunLLMIteration({task}) =>
-    try {
-      let commands = await Agent__AgenticLoop.runIteration(llm, task, ~emitEvent)
-      Ok(commands)
-    } catch {
-    | exn => {
-        let msg =
-          exn
-          ->JsExn.fromException
-          ->Option.flatMap(JsExn.message)
-          ->Option.getOr("Unknown exception during iteration execution")
-        Error(`Iteration execution failed: ${msg}`)
-      }
-    }
+    let commands = await Agent__AgenticLoop.runIteration(llm, task, ~emitEvent)
+    Ok(commands)
   }
 }

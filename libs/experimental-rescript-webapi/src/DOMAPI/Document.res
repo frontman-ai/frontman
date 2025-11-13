@@ -15,7 +15,7 @@ include Node.Impl({type t = document})
  [Read more on MDN](https://developer.mozilla.org/docs/Web/API/Document/body)
 */
 @get
-external body: (document) => Null.t<element> = "body"
+external body: document => Null.t<element> = "body"
 
 /**
 Returns the FontFaceSet interface of the document.

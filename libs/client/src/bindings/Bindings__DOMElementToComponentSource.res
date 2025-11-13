@@ -1,6 +1,6 @@
 type getElementSourceLocationResult = {
   success: bool,
-  data: Client__Types.sourceLocation,
+  data: Client__Types.SourceLocation.t,
   error: option<string>,
 }
 @module("dom-element-to-component-source")

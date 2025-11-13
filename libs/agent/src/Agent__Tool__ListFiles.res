@@ -27,10 +27,12 @@ let decodeInput: JSON.t => result<input, S.error> = json => {
 }
 
 let encodeOutput = (output: output): JSON.t => {
-  output->S.reverseConvertOrThrow(outputSchema)->Obj.magic
+  output->S.convertToJsonOrThrow(outputSchema)
 }
 
-let execute = async (ctx: Agent__ToolExecutionContext.t, input: input): Agent__Tool.toolResult<output> => {
+let execute = async (ctx: Agent__ToolExecutionContext.t, input: input): Agent__Tool.toolResult<
+  output,
+> => {
   let fullPath = Bindings.Path.join([ctx.projectRoot, input.relative_dir])
 
   try {

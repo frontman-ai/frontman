@@ -24,6 +24,7 @@
 		"@rescript/webapi",
 		"@ask-the-llm/agent",
 		"@ask-the-llm/react-statestore",
+		"@ask-the-llm/nextjs",
 		"sury"
 	],
 	"dev-dependencies": ["rescript-vitest"],

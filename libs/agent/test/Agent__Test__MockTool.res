@@ -101,5 +101,8 @@ let makeStatefulMockTool = (
 
 // Create a registry with mock tools
 let makeRegistry = (tools: array<toolWithTracking>): Agent__ToolsRegistry.t => {
-  tools->Array.map(({tool}) => tool)
+  {
+    tools: tools->Array.map(({tool}) => Agent__ToolsRegistry.ServerTool(tool)),
+    pendingClientExecutions: ref(Map.make()),
+  }
 }

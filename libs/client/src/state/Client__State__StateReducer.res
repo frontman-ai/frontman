@@ -8,6 +8,7 @@ let name = "Client::StateReducer"
 
 module UserContentPart = Vercel.UserPart
 module AssistantContentPart = Vercel.AssistantPart
+module Nextjs__Types = AskTheLlmNextjs.Nextjs__Types
 
 module Message = {
   type toolCallState =
@@ -51,32 +52,20 @@ module SelectedElement = {
     element: WebAPI.DOMAPI.element,
     selector: option<string>,
     screenshot: option<string>,
-    sourceLocation: option<Client__Types.sourceLocation>,
+    sourceLocation: option<Client__Types.SourceLocation.t>,
   }
 
   let make = (
     ~element: WebAPI.DOMAPI.element,
     ~selector: option<string>,
     ~screenshot: option<string>,
-    ~sourceLocation: option<Client__Types.sourceLocation>,
+    ~sourceLocation: option<Client__Types.SourceLocation.t>,
   ) => {
     {
       element,
       selector,
       screenshot,
       sourceLocation,
-    }
-  }
-
-  let withoutElement = (selectedElement: option<t>) => {
-    switch selectedElement {
-    | Some(selectedElement) =>
-      {
-        "selector": selectedElement.selector,
-        "screenshot": selectedElement.screenshot,
-        "sourceLocation": selectedElement.sourceLocation,
-      }->Some
-    | None => None
     }
   }
 }
@@ -109,7 +98,6 @@ module Task = {
         String.length(sliced) < String.length(text) ? sliced ++ "..." : sliced
       }
     }
-
     {
       id: newId,
       title: normalizedTitle,
@@ -213,6 +201,7 @@ type action =
 type effect =
   | SendMessageToAPI({message: string, taskId: string})
   | FetchElementDetails({element: WebAPI.DOMAPI.element, document: option<WebAPI.DOMAPI.document>})
+  | ExecuteClientTool({toolCallId: string, toolName: string, args: option<JSON.t>})
 
 let getInitialUrl = () => {
   "http://localhost:3000" // Default for test environment
@@ -229,7 +218,8 @@ let actionToString = action => {
   | StreamingStarted({taskId, id}) => `StreamingStarted(${taskId}, ${id})`
   | TextDeltaReceived({taskId, id, text}) => `TextDeltaReceived(${taskId}, ${id}, "${text}")`
   | ToolCallReceived({taskId, toolCall}) => `ToolCallReceived(${taskId}, ${toolCall.toolName})`
-  | ToolInputStartReceived({taskId, id, toolName}) => `ToolInputStartReceived(${taskId}, ${id}, ${toolName})`
+  | ToolInputStartReceived({taskId, id, toolName}) =>
+    `ToolInputStartReceived(${taskId}, ${id}, ${toolName})`
   | ToolInputDeltaReceived({taskId, id}) => `ToolInputDeltaReceived(${taskId}, ${id})`
   | ToolInputEndReceived({taskId, id}) => `ToolInputEndReceived(${taskId}, ${id})`
   | ToolResultReceived({taskId, id}) => `ToolResultReceived(${taskId}, ${id})`
@@ -357,22 +347,43 @@ module Selectors = {
 }
 let handleEffect = (effect, state, dispatch) => {
   switch effect {
+  | ExecuteClientTool({toolCallId, toolName, args}) => Client__ToolExecutor.handleToolCall(
+      ~toolCallId,
+      ~toolName,
+      ~args,
+    )->ignore
   | SendMessageToAPI({message, taskId}) => {
+      Js.log3("trying...", message, taskId)
       let headers = WebAPI.Headers.make()
       headers->WebAPI.Headers.set(~name="Content-Type", ~value="application/json")
 
       let selectedElement =
         Selectors.currentTask(state)->Option.flatMap(task => task.selectedElement)
 
-      let body = JSON.stringifyAny({
-        "message": message,
-        "taskId": taskId,
-        "selectedElement": SelectedElement.withoutElement(selectedElement),
-      })->Option.getOr("{}")
+      let payload: AskTheLlmNextjs.Nextjs__Types.chat = {
+        message,
+        taskId,
+        selectedElement: selectedElement->Option.map(sel => {
+          let result: Nextjs__Types.selectedElement = {
+            selector: sel.selector,
+            screenshot: sel.screenshot,
+            sourceLocation: sel.sourceLocation->Option.map(
+              Client__Types.SourceLocation.toNextJsType,
+            ),
+          }
+          result
+        }),
+      }
+
+      let body =
+        payload
+        ->S.reverseConvertToJsonOrThrow(AskTheLlmNextjs.Nextjs__Types.chatSchema)
+        ->JSON.stringify
 
       let _ =
         WebAPI.Global.fetch(
-          "/api/ask-the-llm/chat",
+          //TODO(BlueHotDog) - we should centralize routes before it becomes a nightmare to chase down
+          "/ask-the-llm/chat",
           ~init={
             method: "POST",
             headers: WebAPI.HeadersInit.fromHeaders(headers),
@@ -546,23 +557,37 @@ let next = (state, action) => {
     )
     ->AskTheLlmReactStatestore.StateReducer.update
 
-  | ToolCallReceived({taskId, toolCall}) =>
-    state
-    ->Lens.updateTask(taskId, task =>
-      Lens.updateTaskMessage(task, toolCall.id, msg =>
-        switch msg {
-        | Message.ToolCall(existingToolCall) =>
-          Message.ToolCall({
-            ...existingToolCall,
-            input: toolCall.input,
-            state: Message.InputAvailable,
-          })
-        | Assistant(_) => failwith("expected toolcall got assistant message")
-        | User(_) => failwith("expected toolcall got user message")
-        }
+  | ToolCallReceived({taskId, toolCall}) => {
+      // Check if this is a client-side tool and prepare effect
+      let executeEffect = if Client__ToolRegistry.isClientTool(toolCall.toolName) {
+        [
+          ExecuteClientTool({
+            toolCallId: toolCall.id,
+            toolName: toolCall.toolName,
+            args: toolCall.input,
+          }),
+        ]
+      } else {
+        []
+      }
+
+      state
+      ->Lens.updateTask(taskId, task =>
+        Lens.updateTaskMessage(task, toolCall.id, msg =>
+          switch msg {
+          | Message.ToolCall(existingToolCall) =>
+            Message.ToolCall({
+              ...existingToolCall,
+              input: toolCall.input,
+              state: Message.InputAvailable,
+            })
+          | Assistant(_) => failwith("expected toolcall got assistant message")
+          | User(_) => failwith("expected toolcall got user message")
+          }
+        )
       )
-    )
-    ->AskTheLlmReactStatestore.StateReducer.update
+      ->AskTheLlmReactStatestore.StateReducer.update(~sideEffects=executeEffect)
+    }
 
   | ToolInputStartReceived({taskId, id, toolName}) =>
     state

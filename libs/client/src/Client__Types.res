@@ -64,17 +64,28 @@ type chatMessage = {
   toolCalls: option<array<toolCall>>,
 }
 
-type rec sourceLocation = {
-  componentName: string,
-  tagName: string,
-  file: string,
-  line: int,
-  column: int,
-  parent: option<sourceLocation>,
+module SourceLocation = {
+  type rec t = {
+    componentName: string,
+    tagName: string,
+    file: string,
+    line: int,
+    column: int,
+    parent: option<t>,
+  }
+  let rec toNextJsType: t => AskTheLlmNextjs.Nextjs__Types.sourceLocation = sl => {
+    componentName: sl.componentName,
+    tagName: sl.tagName,
+    file: sl.file,
+    line: sl.line,
+    column: sl.column,
+    parent: sl.parent->Option.map(toNextJsType),
+  }
 }
+
 type reactComponent = {
   name: string,
-  sourceLocation: option<sourceLocation>,
+  sourceLocation: option<SourceLocation.t>,
 }
 
 module SelectElement = {

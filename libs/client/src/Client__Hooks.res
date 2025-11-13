@@ -39,7 +39,7 @@ let useTimeout = (fn, #ms(time)) => {
   }, (fn, time, timeoutId, setTimeoutId))
 }
 
-let useSSE = (newEventCallback: AgentEventBus.events => unit, ~url="/api/ask-the-llm/chat-sse") => {
+let useSSE = (newEventCallback: AgentEventBus.events => unit, ~url="/ask-the-llm/events") => {
   React.useEffect(() => {
     let eventSource = WebAPI.EventSource.make(~url)
     let onOpen = _ => {

@@ -82,7 +82,7 @@ module ToolResultPart = {
     toolCallId: string,
     toolName: string,
     output: Output.t,
-    providerOptions: @s.null option<JSON.t>,
+    @s.optional providerOptions: option<JSON.t>,
   }
 }
 

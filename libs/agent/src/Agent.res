@@ -7,6 +7,13 @@ module ContextLoader = AskTheLlmContextLoader.ContextLoader
 module Tools = {
   module Registry = Agent__ToolsRegistry
 }
+
+// Client-only tool exports (safe to import in browser)
+module ClientTools = {
+  module GetPageTitle = Agent__Tool__Client__GetPageTitle
+  // Future client tools would be exported here
+}
+
 module Adapters = {
   module Vercel = Agent__Adapters__Vercel
 }
@@ -69,7 +76,9 @@ let make = async (config: config) => {
 
   let llm = Agent__Adapters__Vercel.makeLLM(~model=config.model->Option.getOr(model), ~toolRegistry)
 
-  Agent__Logger.Log.info(`Agent initialized with ${toolRegistry->Array.length->Int.toString} tools`)
+  Agent__Logger.Log.info(
+    `Agent initialized with ${toolRegistry.tools->Array.length->Int.toString} tools`,
+  )
 
   {
     projectRoot: config.projectRoot,
@@ -106,7 +115,6 @@ let emit = (agent: t, event: Agent__EventBus.events): unit => {
   bus->Agent__EventBus.emit(event)
 }
 
-// Main execution loop - drains command queue
 let run = async (agent: t) => {
   await agent.commandQueue->Agent__CommandQueue.drain(async command => {
     switch command {
@@ -158,27 +166,18 @@ let run = async (agent: t) => {
 }
 
 let initialize = (agent: t): (unit => unit) => {
-  let unsubscribe = agent->subscribe(event => {
+  let onEvent = event => {
     let taskId = Agent__EventBus.getTaskIdFromEvent(event)
     let task = agent.tasks->Agent__Tasks.get(taskId)
     let commands = task->Option.map(Agent__Reactor.react(_, event))->Option.getOr(list{})
-
-    // Enqueue all commands and trigger run
-    commands->List.forEach(cmd => {
-      agent.commandQueue->Agent__CommandQueue.enqueue(cmd)
-    })
-
-    // Trigger run if we enqueued commands
-    if commands->List.length > 0 {
-      run(agent)->ignore
-    }
-  })
+    agent.commandQueue->Agent__CommandQueue.enqueueMany(commands)
+    run(agent)->ignore
+  }
+  let unsubscribe = agent->subscribe(onEvent)
   Agent__Logger.Log.info("Agent initialized and listening for domain events...")
   unsubscribe
 }
 
-// Send a message to the agent
-// Creates a new task if message.taskId is None, or continues existing task if present
 let sendMessage = async (agent: t, message: Agent__Task__Message.t) => {
   let command =
     message
@@ -197,4 +196,12 @@ let sendMessage = async (agent: t, message: Agent__Task__Message.t) => {
   // Enqueue command and trigger run
   agent.commandQueue->Agent__CommandQueue.enqueue(command)
   await agent->run
+}
+
+let submitClientToolResult = (
+  agent: t,
+  result: Agent__Task__Message__Part.ToolResultPart.t,
+): bool => {
+  Agent__Logger.Log.info(`Received client tool result for toolCallId: ${result.toolCallId}`)
+  agent.toolRegistry->Agent__ToolsRegistry.resolveClientExecution(result)
 }

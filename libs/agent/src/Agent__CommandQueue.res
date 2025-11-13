@@ -11,8 +11,8 @@ let enqueue = (commandQueue: t, cmd: Agent__Command.t): unit => {
   commandQueue.queue := Array.concat(commandQueue.queue.contents, [cmd])
 }
 
-let enqueueMany = (commandQueue: t, cmds: array<Agent__Command.t>): unit => {
-  commandQueue.queue := Array.concat(commandQueue.queue.contents, cmds)
+let enqueueMany = (commandQueue: t, cmds: list<Agent__Command.t>): unit => {
+  commandQueue.queue := Array.concat(commandQueue.queue.contents, cmds->List.toArray)
 }
 
 let getFirst = (commandQueue: t): option<Agent__Command.t> => {

@@ -43,6 +43,18 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@ai-sdk/openai-compatible@npm:1.0.27":
+  version: 1.0.27
+  resolution: "@ai-sdk/openai-compatible@npm:1.0.27"
+  dependencies:
+    "@ai-sdk/provider": "npm:2.0.0"
+    "@ai-sdk/provider-utils": "npm:3.0.17"
+  peerDependencies:
+    zod: ^3.25.76 || ^4.1.8
+  checksum: 10c0/9f656e4f2ea4d714dc05be588baafd962b2e0360e9195fef373e745efeb20172698ea87e1033c0c5e1f1aa6e0db76a32629427bc8433eb42bd1a0ee00e04af0c
+  languageName: node
+  linkType: hard
+
 "@ai-sdk/openai@npm:^2.0.65":
   version: 2.0.65
   resolution: "@ai-sdk/openai@npm:2.0.65"
@@ -105,6 +117,19 @@ __metadata:
     zod:
       optional: true
   checksum: 10c0/4da3938b38c0a4da5302307f008c138e7491b7bdbb11b7c0c3980bb8c345f6a7ccd2a19f4ef48558fd15d103ca773955f7d646c3672202b2a66b55cb4366427d
+  languageName: node
+  linkType: hard
+
+"@ai-sdk/vercel@npm:^1.0.28":
+  version: 1.0.28
+  resolution: "@ai-sdk/vercel@npm:1.0.28"
+  dependencies:
+    "@ai-sdk/openai-compatible": "npm:1.0.27"
+    "@ai-sdk/provider": "npm:2.0.0"
+    "@ai-sdk/provider-utils": "npm:3.0.17"
+  peerDependencies:
+    zod: ^3.25.76 || ^4.1.8
+  checksum: 10c0/baf2b9d8039557fbedd706f1241a9101309bbbf67fd62897040af32f432da28bd89d05fb1b5433ffe5c6c235473b2c08dec1be51a39b911506c2b62d27da2d0b
   languageName: node
   linkType: hard
 
@@ -171,6 +196,7 @@ __metadata:
   dependencies:
     "@ai-sdk/anthropic": "npm:^2.0.44"
     "@ai-sdk/openai": "npm:^2.0.65"
+    "@ai-sdk/vercel": "npm:^1.0.28"
     "@ask-the-llm/context-loader": "workspace:*"
     "@ask-the-llm/logger": "workspace:*"
     "@rescript/webapi": "catalog:"
@@ -205,6 +231,7 @@ __metadata:
   dependencies:
     "@ai-sdk/react": "npm:^2.0.92"
     "@ask-the-llm/agent": "npm:*"
+    "@ask-the-llm/nextjs": "npm:*"
     "@ask-the-llm/react-statestore": "npm:*"
     "@biomejs/biome": "npm:^2.3.5"
     "@medv/finder": "npm:^4.0.2"
@@ -303,6 +330,7 @@ __metadata:
     rescript: "catalog:"
     rescript-vitest: "catalog:"
     sury: "catalog:"
+    sury-ppx: "npm:^11.0.0-alpha.2"
     vite: "catalog:"
     vitest: "catalog:"
   languageName: unknown

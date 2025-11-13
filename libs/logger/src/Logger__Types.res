@@ -1,3 +1,5 @@
+S.enableJson()
+
 // Log levels
 @schema
 type level = Debug | Info | Warn | Error
