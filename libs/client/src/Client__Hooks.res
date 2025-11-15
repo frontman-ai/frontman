@@ -1131,7 +1131,6 @@ module ConsoleError = {
 
     React.useEffect(() => {
       let errorHandler = (event: WebAPI.EventAPI.event) => {
-        %debugger
         let (message, stack, name) = switch event->getError->Nullable.toOption {
         | Some(error) => (error.message, error.stack, error.name)
         | None => (event->getMessage, event->getStack, event->getName->Js_null_undefined.toOption)
