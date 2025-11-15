@@ -51,17 +51,18 @@ let submitResult = async (
 
 // Execute client tool and submit result
 let handleToolCall = async (
+  ~state: Client__State__Types.state,
   ~toolCallId: string,
   ~toolName: string,
   ~args: option<JSON.t>,
 ): unit => {
   Console.log2("[ToolExecutor] Executing client tool:", toolName)
 
-  // Execute via registry
+  // Execute via registry with state access
   let output = switch args {
   | None => ToolResultPart.Output.ErrorText("No arguments provided for client tool")
   | Some(args) =>
-    switch await Client__ToolRegistry.execute(~toolName, ~args) {
+    switch await Client__ToolRegistry.execute(~state, ~toolName, ~args) {
     | Ok(resultJson) => {
         Console.log2("[ToolExecutor] Tool execution successful:", toolName)
         ToolResultPart.Output.JSON(resultJson)

@@ -8,10 +8,10 @@ module Tools = {
   module Registry = Agent__ToolsRegistry
 }
 
-// Client-only tool exports (safe to import in browser)
-module ClientTools = {
-  module GetPageTitle = Agent__Tool__Client__GetPageTitle
-  // Future client tools would be exported here
+// Client tool metadata exports (schema only, no execution)
+// Actual client tool implementations live in the client library
+module ClientToolMetadata = {
+  module GetErrors = Agent__Tool__Metadata__GetErrors
 }
 
 module Adapters = {

@@ -111,7 +111,9 @@ describe("executeSingleTool - errors", () => {
     let result = await Agent__Effect.executeSingleTool(config, registry, toolCall)
 
     switch result.output {
-    | ErrorText(msg) => t->expect(msg->String.includes("Invalid arguments"))->Expect.toBe(true)
+    | ErrorText(msg) =>
+      // Schema validation error should mention parsing failure
+      t->expect(msg->String.includes("Failed parsing") || msg->String.includes("Expected"))->Expect.toBe(true)
     | _ => t->expect(false)->Expect.toBe(true)
     }
   })

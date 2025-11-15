@@ -47,55 +47,38 @@ let executeSingleTool = async (
     providerOptions: None,
   }
 
-  let toolOption =
-    toolRegistry
-    ->Agent__ToolsRegistry.getTools
-    ->Array.find(tool => {
-      let toolModule = Agent__ToolsRegistry.getToolModule(tool)
-      module Tool = unpack(toolModule: Agent__Tool.T)
-      Tool.name == toolCall.toolName
-    })
-
-  switch toolOption {
+  switch toolRegistry->Agent__ToolsRegistry.getByName(toolCall.toolName) {
   | None => {
       Agent__Logger.Log.error(`Tool '${toolCall.toolName}' not found in registry`)
       makeResult(ErrorText(`Tool '${toolCall.toolName}' not found in registry`))
     }
 
   | Some(ServerTool(tool)) => {
+      module Tool = unpack(tool)
       Agent__Logger.Log.info(`Server-side tool execution: ${toolCall.toolName}`)
 
-      module Tool = unpack(tool: Agent__Tool.T)
-
-      switch Tool.decodeInput(toolCall.args) {
-      | Error(error) => {
-          Agent__Logger.Log.error(`Tool execution failed (decode error): ${error.message}`)
-          makeResult(
-            ErrorText(`Invalid arguments for tool '${toolCall.toolName}': ${error.message}`),
-          )
+      try {
+        let input = toolCall.args->S.parseJsonOrThrow(Tool.inputSchema)
+        switch await Tool.execute(ctx, input) {
+        | Error(msg) => {
+            Agent__Logger.Log.error(`Tool execution failed: ${msg}`)
+            makeResult(ErrorText(msg))
+          }
+        | Ok(output) => {
+            let outputJson = output->S.reverseConvertToJsonOrThrow(Tool.outputSchema)
+            Agent__Logger.Log.info(`Tool execution succeeded: ${toolCall.toolName}`)
+            makeResult(JSON(outputJson))
+          }
         }
-      | Ok(input) =>
-        try {
-          switch await Tool.execute(ctx, input) {
-          | Error(msg) => {
-              Agent__Logger.Log.error(`Tool execution failed: ${msg}`)
-              makeResult(ErrorText(msg))
-            }
-          | Ok(output) => {
-              Agent__Logger.Log.info(`Tool execution succeeded: ${toolCall.toolName}`)
-              makeResult(JSON(Tool.encodeOutput(output)))
-            }
-          }
-        } catch {
-        | exn => {
-            let msg =
-              exn
-              ->JsExn.fromException
-              ->Option.flatMap(JsExn.message)
-              ->Option.getOr("Unknown exception")
-            Agent__Logger.Log.error(`Tool execution exception: ${msg}`)
-            makeResult(ErrorText(`Unexpected error executing tool '${toolCall.toolName}': ${msg}`))
-          }
+      } catch {
+      | exn => {
+          let msg =
+            exn
+            ->JsExn.fromException
+            ->Option.flatMap(JsExn.message)
+            ->Option.getOr("Unknown exception")
+          Agent__Logger.Log.error(`Tool execution exception: ${msg}`)
+          makeResult(ErrorText(`Unexpected error executing tool '${toolCall.toolName}': ${msg}`))
         }
       }
     }

@@ -1,6 +1,13 @@
+// // Server tool with type-erased executor
+// // Stores metadata module and an execution function that works with JSON
+// type serverToolWithExecutor = {
+//   metadata: module(Agent__Tool.Metadata),
+//   execute: (Agent__ToolExecutionContext.t, JSON.t) => promise<result<JSON.t, string>>,
+// }
+
 type tool =
-  | ServerTool(module(Agent__Tool.T))
-  | ClientTool(module(Agent__Tool.T))
+  | ServerTool(module(Agent__Tool.ServerTool))
+  | ClientTool(module(Agent__Tool.Metadata))
 
 type pendingExecution = {
   toolCallId: string,
@@ -19,19 +26,30 @@ let make = (): t => {
     ServerTool(module(Agent__Tool__ListFiles)),
     ServerTool(module(Agent__Tool__ReadFile)),
     ServerTool(module(Agent__Tool__WriteFile)),
-    ClientTool(module(Agent__Tool__Client__GetPageTitle)),
+    ClientTool(module(Agent__Tool__Metadata__GetErrors)),
   ],
   pendingClientExecutions: ref(Map.make()),
 }
 
-let getToolModule = (tool: tool): module(Agent__Tool.T) => {
+// Get tool name from any tool
+let getToolName = (tool: tool): string => {
   switch tool {
-  | ServerTool(t) => t
-  | ClientTool(t) => t
+  | ServerTool(tool) => {
+      module Tool = unpack(tool)
+      Tool.name
+    }
+
+  | ClientTool(tool) => {
+      module Tool = unpack(tool)
+      Tool.name
+    }
   }
 }
 
 let getTools = (registry: t): array<tool> => registry.tools
+
+let getByName = (registry: t, name: string): option<tool> =>
+  registry.tools->Array.find(tool => getToolName(tool) == name)
 
 let registerClientExecution = (
   registry: t,

@@ -10,7 +10,7 @@ type execution = {
 }
 
 type toolWithTracking = {
-  tool: module(Agent__Tool.T),
+  tool: module(Agent__Tool.ServerTool),
   executions: ref<array<execution>>,
 }
 
@@ -22,7 +22,7 @@ let makeMockTool = (
 ): toolWithTracking => {
   let executions = ref([])
 
-  module MockTool: Agent__Tool.T = {
+  module MockTool: Agent__Tool.ServerTool = {
     let name = name
     let description = description
 
@@ -62,7 +62,7 @@ let makeStatefulMockTool = (
   let callCount = ref(0)
   let executions = ref([])
 
-  module MockTool: Agent__Tool.T = {
+  module MockTool: Agent__Tool.ServerTool = {
     let name = name
     let description = description
 

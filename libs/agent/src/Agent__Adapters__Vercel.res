@@ -30,16 +30,28 @@ let toVercelTools = (registry: Agent__ToolsRegistry.t): Dict.t<Bindings.toolDef>
   registry
   ->Agent__ToolsRegistry.getTools
   ->Array.forEach(tool => {
-    let toolModule = Agent__ToolsRegistry.getToolModule(tool)
-    module Tool = unpack(toolModule: Agent__Tool.T)
-    let aiSchemaWrapped = Bindings.jsonSchema(Tool.inputSchema->S.toJSONSchema)
-    let toolDef: Bindings.toolDef = {
-      description: Tool.description,
-      parameters: aiSchemaWrapped,
-      inputSchema: aiSchemaWrapped,
+    switch tool {
+    | ServerTool(tool) => {
+        module Tool = unpack(tool)
+        let aiSchemaWrapped = Bindings.jsonSchema(Tool.inputSchema->S.toJSONSchema)
+        let toolDef: Bindings.toolDef = {
+          description: Tool.description,
+          parameters: aiSchemaWrapped,
+          inputSchema: aiSchemaWrapped,
+        }
+        vercelTools->Dict.set(Tool.name, toolDef)
+      }
+    | ClientTool(tool) => {
+        module Tool = unpack(tool)
+        let aiSchemaWrapped = Bindings.jsonSchema(Tool.inputSchema->S.toJSONSchema)
+        let toolDef: Bindings.toolDef = {
+          description: Tool.description,
+          parameters: aiSchemaWrapped,
+          inputSchema: aiSchemaWrapped,
+        }
+        vercelTools->Dict.set(Tool.name, toolDef)
+      }
     }
-
-    vercelTools->Dict.set(Tool.name, toolDef)
   })
 
   vercelTools

@@ -3,118 +3,16 @@ module Vercel = AskTheLlmAgent.Agent__Bindings__Vercel
 let name = "Client::StateReducer"
 
 // ============================================================================
-// Message Content Types
+// Type Re-exports from Client__State__Types
 // ============================================================================
 
-module UserContentPart = Vercel.UserPart
-module AssistantContentPart = Vercel.AssistantPart
+module UserContentPart = Client__State__Types.UserContentPart
+module AssistantContentPart = Client__State__Types.AssistantContentPart
 module Nextjs__Types = AskTheLlmNextjs.Nextjs__Types
-
-module Message = {
-  type toolCallState =
-    | InputStreaming // Parameters are streaming in
-    | InputAvailable // Parameters complete, executing
-    | OutputAvailable // Completed successfully
-    | OutputError // Failed with error
-
-  type assistantMessage =
-    | Streaming({id: string, textBuffer: string, createdAt: float})
-    | Completed({id: string, content: array<AssistantContentPart.t>, createdAt: float})
-
-  type toolCall = {
-    id: string,
-    toolName: string,
-    state: toolCallState,
-    inputBuffer: string,
-    input: option<JSON.t>,
-    result: option<JSON.t>,
-    errorText: option<string>,
-    createdAt: float,
-  }
-
-  type t =
-    | User({id: string, content: array<UserContentPart.t>, createdAt: float})
-    | Assistant(assistantMessage)
-    | ToolCall(toolCall)
-
-  let getId = (msg: t): string => {
-    switch msg {
-    | User({id, _}) => id
-    | Assistant(Streaming({id, _})) => id
-    | Assistant(Completed({id, _})) => id
-    | ToolCall({id, _}) => id
-    }
-  }
-
-module SelectedElement = {
-  type t = {
-    element: WebAPI.DOMAPI.element,
-    selector: option<string>,
-    screenshot: option<string>,
-    sourceLocation: option<Client__Types.SourceLocation.t>,
-  }
-
-  let make = (
-    ~element: WebAPI.DOMAPI.element,
-    ~selector: option<string>,
-    ~screenshot: option<string>,
-    ~sourceLocation: option<Client__Types.SourceLocation.t>,
-  ) => {
-    {
-      element,
-      selector,
-      screenshot,
-      sourceLocation,
-    }
-  }
-}
-
-module Task = {
-  type previewFrame = {
-    url: string,
-    contentDocument: option<WebAPI.DOMAPI.document>,
-    contentWindow: option<WebAPI.DOMAPI.window>,
-    errors: array<Client__Types.consoleError>,
-  }
-  type t = {
-    id: string,
-    title: string,
-    messages: Dict.t<Message.t>,
-    createdAt: float,
-    lastMessageAt: option<float>,
-    previewFrame: previewFrame,
-    webPreviewIsSelecting: bool,
-    selectedElement: option<SelectedElement.t>,
-  }
-  let make = (~title: string, ~previewUrl: string, ~messages=Dict.make()): t => {
-    let newId = WebAPI.Global.crypto->WebAPI.Crypto.randomUUID
-    let timestamp = Date.now()
-
-    // Normalize title: trim, truncate, add ellipsis, or default
-    let normalizedTitle = switch String.trim(title) {
-    | "" => "New Chat"
-    | text => {
-        let sliced = text->String.slice(~start=0, ~end=50)
-        String.length(sliced) < String.length(text) ? sliced ++ "..." : sliced
-      }
-    }
-    {
-      id: newId,
-      title: normalizedTitle,
-      messages,
-      createdAt: timestamp,
-      previewFrame: {url: previewUrl, contentDocument: None, contentWindow: None, errors: []},
-      lastMessageAt: None,
-      webPreviewIsSelecting: false,
-      selectedElement: None,
-    }
-  }
-}
-
-type state = {
-  tasks: Dict.t<Task.t>,
-  currentTaskId: option<string>,
-}
+module Message = Client__State__Types.Message
+module SelectedElement = Client__State__Types.SelectedElement
+module Task = Client__State__Types.Task
+type state = Client__State__Types.state
 
 // ============================================================================
 // Lens Module - Composable state update functions
@@ -206,6 +104,13 @@ type effect =
 
 let getInitialUrl = () => {
   "http://localhost:3000" // Default for test environment
+}
+
+// Normalize URL by removing trailing slash for comparison
+let normalizeUrl = (url: string): string => {
+  url->String.endsWith("/") && String.length(url) > 1
+    ? url->String.slice(~start=0, ~end=String.length(url) - 1)
+    : url
 }
 
 let defaultState: state = {
@@ -348,15 +253,11 @@ module Selectors = {
     ->Array.slice(~start=0, ~end=2)
   }
 }
-let handleEffect = (effect, state, dispatch) => {
+let handleEffect = (effect, state: state, dispatch) => {
   switch effect {
-  | ExecuteClientTool({toolCallId, toolName, args}) => Client__ToolExecutor.handleToolCall(
-      ~toolCallId,
-      ~toolName,
-      ~args,
-    )->ignore
+  | ExecuteClientTool({toolCallId, toolName, args}) =>
+    Client__ToolExecutor.handleToolCall(~state, ~toolCallId, ~toolName, ~args)->ignore
   | SendMessageToAPI({message, taskId}) => {
-      Js.log3("trying...", message, taskId)
       let headers = WebAPI.Headers.make()
       headers->WebAPI.Headers.set(~name="Content-Type", ~value="application/json")
 
@@ -561,7 +462,6 @@ let next = (state, action) => {
     ->AskTheLlmReactStatestore.StateReducer.update
 
   | ToolCallReceived({taskId, toolCall}) => {
-      // Check if this is a client-side tool and prepare effect
       let executeEffect = if Client__ToolRegistry.isClientTool(toolCall.toolName) {
         [
           ExecuteClientTool({
@@ -700,33 +600,44 @@ let next = (state, action) => {
     )
     ->AskTheLlmReactStatestore.StateReducer.update
 
-  // Set preview URL (clears document and window and errors)
   | SetPreviewUrl({url}) =>
     state
     ->Lens.updateCurrentTask(task => {
-      {...task, previewFrame: {...task.previewFrame, url, errors: []}}
+      // Normalize URLs for comparison (remove trailing slashes)
+      let oldUrlNormalized = normalizeUrl(task.previewFrame.url)
+      let newUrlNormalized = normalizeUrl(url)
+      let urlChanged = oldUrlNormalized != newUrlNormalized
+      if urlChanged {
+        {...task, previewFrame: {...task.previewFrame, url, errors: []}}
+      } else {
+        {...task, previewFrame: {...task.previewFrame, url}}
+      }
     })
     ->AskTheLlmReactStatestore.StateReducer.update
 
-  // Set preview frame (keep existing URL, clear errors)
+  // Set preview frame (keep existing URL and errors, just update references)
   | SetPreviewFrame({contentDocument, contentWindow}) =>
     state
     ->Lens.updateCurrentTask(task => {
-      {...task, previewFrame: {...task.previewFrame, contentDocument, contentWindow, errors: []}}
+      {...task, previewFrame: {...task.previewFrame, contentDocument, contentWindow}}
     })
     ->AskTheLlmReactStatestore.StateReducer.update
 
   // Add console error to current task's preview frame
-  | AddConsoleError({error}) =>
-    state
-    ->Lens.updateCurrentTask(task => {
-      ...task,
-      previewFrame: {
-        ...task.previewFrame,
-        errors: Array.concat(task.previewFrame.errors, [error]),
-      },
-    })
-    ->AskTheLlmReactStatestore.StateReducer.update
+  | AddConsoleError({error}) => {
+      let newState = state->Lens.updateCurrentTask(task => {
+        let updatedTask = {
+          ...task,
+          previewFrame: {
+            ...task.previewFrame,
+            errors: Array.concat(task.previewFrame.errors, [error]),
+          },
+        }
+        updatedTask
+      })
+
+      newState->AskTheLlmReactStatestore.StateReducer.update
+    }
 
   // Toggle WebPreview selection mode
   | ToggleWebPreviewSelection => {
@@ -786,6 +697,7 @@ let next = (state, action) => {
       updatedTasks->Dict.set(newTask.id, newTask)
 
       {
+        ...state,
         tasks: updatedTasks,
         currentTaskId: Some(newTask.id),
       }->AskTheLlmReactStatestore.StateReducer.update
@@ -814,6 +726,7 @@ let next = (state, action) => {
       }
 
       {
+        ...state,
         tasks: updatedTasks,
         currentTaskId: newCurrentTaskId,
       }->AskTheLlmReactStatestore.StateReducer.update

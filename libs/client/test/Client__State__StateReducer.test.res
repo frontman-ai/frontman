@@ -32,15 +32,15 @@ module TestHelpers = {
     let tasks = Dict.make()
     tasks->Dict.set(taskId, taskWithMessages)
 
-    {
-      Reducer.tasks,
+    ({
+      tasks,
       currentTaskId: Some(taskId),
-    }
+    }: Client__State__Types.state)
   }
 
   let getMessages = Reducer.Selectors.messages
   let getMessage = (state, index) => getMessages(state)->Array.get(index)
-  let getTaskCount = state => state.Reducer.tasks->Dict.valuesToArray->Array.length
+  let getTaskCount = (state: Client__State__Types.state) => state.tasks->Dict.valuesToArray->Array.length
 }
 
 describe("Client State Reducer", () => {
@@ -691,8 +691,8 @@ describe("Client State Reducer - Task Management Actions", () => {
     tasks->Dict.set("task-1", task1WithMessages)
     tasks->Dict.set("task-2", task2WithMessages)
 
-    let state = {
-      Reducer.tasks,
+    let state: Reducer.state = {
+      tasks,
       currentTaskId: Some("task-1"),
     }
 
@@ -727,8 +727,8 @@ describe("Client State Reducer - Task Management Actions", () => {
     tasks->Dict.set("task-1", task1Modified)
     tasks->Dict.set("task-2", task2)
 
-    let state = {
-      Reducer.tasks,
+    let state: Reducer.state = {
+      tasks,
       currentTaskId: Some("task-1"),
     }
 
@@ -748,8 +748,8 @@ describe("Client State Reducer - Task Management Actions", () => {
     let tasks = Dict.make()
     tasks->Dict.set("task-1", task1)
 
-    let state = {
-      Reducer.tasks,
+    let state: Reducer.state = {
+      tasks,
       currentTaskId: Some("task-1"),
     }
 
@@ -765,8 +765,8 @@ describe("Client State Reducer - Task Management Actions", () => {
     let tasks = Dict.make()
     tasks->Dict.set("task-1", task1)
 
-    let state = {
-      Reducer.tasks,
+    let state: Reducer.state = {
+      tasks,
       currentTaskId: Some("task-1"),
     }
 

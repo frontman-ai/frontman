@@ -59,10 +59,10 @@ describe("SSE Integration - Text Streaming", () => {
     let tasks = Dict.make()
     tasks->Dict.set(initialTask.id, initialTask)
 
-    let state = ref({
-      Reducer.tasks,
+    let state = ref(({
+      tasks,
       currentTaskId: Some(initialTask.id),
-    })
+    }: Client__State__Types.state))
     let task = makeMockTask()
 
     // Simulate event sequence
@@ -122,10 +122,10 @@ describe("SSE Integration - Text Streaming", () => {
     let tasks = Dict.make()
     tasks->Dict.set(initialTask.id, initialTask)
 
-    let state = ref({
-      Reducer.tasks,
+    let state = ref(({
+      tasks,
       currentTaskId: Some(initialTask.id),
-    })
+    }: Client__State__Types.state))
     let stableId = "text-stable-id"
     let taskId = initialTask.id
 

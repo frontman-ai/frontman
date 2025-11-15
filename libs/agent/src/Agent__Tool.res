@@ -1,12 +1,15 @@
-// Tool module type for registry integration
 type toolResult<'a> = result<'a, string>
 
-module type T = {
+module type Metadata = {
   let name: string
   let description: string
   type input
-  type output
   let inputSchema: S.t<input>
+}
+
+module type ServerTool = {
+  include Metadata
+  type output
   let outputSchema: S.t<output>
   let decodeInput: JSON.t => result<input, S.error>
   let encodeOutput: output => JSON.t

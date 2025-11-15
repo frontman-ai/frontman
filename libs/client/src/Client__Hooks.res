@@ -1105,7 +1105,24 @@ module DOMmutations = {
 }
 
 module ConsoleError = {
-  let useMonkeyPatch = (~window: WebAPI.DOMAPI.window, ~callback: Client__Types.consoleError => unit, ()) => {
+  // Type for error object that might be attached to the event
+  type errorData = {
+    message: string,
+    stack: string,
+    name: option<string>,
+  }
+
+  // External bindings for accessing error event properties
+  @get external getMessage: WebAPI.EventAPI.event => string = "message"
+  @get external getStack: WebAPI.EventAPI.event => string = "stack"
+  @get external getName: WebAPI.EventAPI.event => Js.null_undefined<string> = "name"
+  @get external getError: WebAPI.EventAPI.event => Nullable.t<errorData> = "error"
+
+  let useMonkeyPatch = (
+    ~window: WebAPI.DOMAPI.window,
+    ~callback: Client__Types.consoleError => unit,
+    (),
+  ) => {
     let callbackRef = React.useRef(callback)
     React.useEffectOnEveryRender(() => {
       callbackRef.current = callback
@@ -1113,28 +1130,39 @@ module ConsoleError = {
     })
 
     React.useEffect(() => {
-      let patchConsole: (WebAPI.DOMAPI.window, Client__Types.consoleError => unit) => unit => unit = %raw(`
-          function(win, callback) {
-            const originalConsoleError = win.console.error.bind(win.console);
-            
-            win.console.error = function(...args) {
-              if (args.length > 0) {
-                callback({
-                  createdAt: new Date(),
-                  error: args[0]
-                });
-              }
-              originalConsoleError(...args);
-            };
-            
-            return function cleanup() {
-              win.console.error = originalConsoleError;
-            };
-          }
-        `)
+      let errorHandler = (event: WebAPI.EventAPI.event) => {
+        %debugger
+        let (message, stack, name) = switch event->getError->Nullable.toOption {
+        | Some(error) => (error.message, error.stack, error.name)
+        | None => (event->getMessage, event->getStack, event->getName->Js_null_undefined.toOption)
+        }
 
-      let fn = patchConsole(window, callbackRef.current)
-      Some(fn)
+        let consoleError: Client__Types.consoleError = {
+          createdAt: Js.Date.make(),
+          message,
+          stack,
+          name,
+        }
+
+        callbackRef.current(consoleError)
+      }
+
+      window->WebAPI.Window.addEventListener(
+        Custom("error"),
+        errorHandler,
+        ~options={capture: false},
+      )
+
+      Some(
+        () => {
+          WebAPI.Window.removeEventListener(
+            window,
+            Custom("error"),
+            errorHandler,
+            ~options={capture: false},
+          )
+        },
+      )
     }, [window])
   }
 }

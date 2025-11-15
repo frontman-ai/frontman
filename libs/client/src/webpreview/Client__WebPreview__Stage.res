@@ -13,15 +13,19 @@ let make = (~document, ~window) => {
   let mutationTimestamp = Client__Hooks.DOMmutations.useIFrameDocument(~document, ())
   let clickedElement = Client__Hooks.MouseClick.useIFrameDocument(~document, ~withCapture=false, ())
   let hoveredElement = Client__Hooks.MouseMove.useIFrameDocument(~document, ~withCapture=true, ())
-  Client__Hooks.ConsoleError.useMonkeyPatch(~window, ~callback=error => {
-    Client__State.Actions.addConsoleError(~error)
-  }, ())
+  Client__Hooks.ConsoleError.useMonkeyPatch(
+    ~window,
+    ~callback=error => {
+      Client__State.Actions.addConsoleError(~error)
+    },
+    (),
+  )
 
   React.useEffect(() => {
     // Handle mode transitions
     let justEnteredSelectionMode = webPreviewIsSelecting && !wasSelecting.current
     let justExitedSelectionMode = !webPreviewIsSelecting && wasSelecting.current
-    
+
     if justEnteredSelectionMode {
       lastProcessedClick.current = clickedElement
       wasSelecting.current = true
