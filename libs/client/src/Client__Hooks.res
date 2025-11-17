@@ -1104,7 +1104,7 @@ module DOMmutations = {
   }
 }
 
-module ConsoleError = {
+module Errors = {
   // Type for error object that might be attached to the event
   type errorData = {
     message: string,
@@ -1118,7 +1118,7 @@ module ConsoleError = {
   @get external getName: WebAPI.EventAPI.event => Js.null_undefined<string> = "name"
   @get external getError: WebAPI.EventAPI.event => Nullable.t<errorData> = "error"
 
-  let useMonkeyPatch = (
+  let useErrorCollector = (
     ~window: WebAPI.DOMAPI.window,
     ~callback: Client__Types.consoleError => unit,
     (),

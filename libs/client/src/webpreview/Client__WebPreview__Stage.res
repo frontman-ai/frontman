@@ -13,7 +13,7 @@ let make = (~document, ~window) => {
   let mutationTimestamp = Client__Hooks.DOMmutations.useIFrameDocument(~document, ())
   let clickedElement = Client__Hooks.MouseClick.useIFrameDocument(~document, ~withCapture=false, ())
   let hoveredElement = Client__Hooks.MouseMove.useIFrameDocument(~document, ~withCapture=true, ())
-  Client__Hooks.ConsoleError.useMonkeyPatch(
+  Client__Hooks.Errors.useErrorCollector(
     ~window,
     ~callback=error => {
       Client__State.Actions.addConsoleError(~error)
