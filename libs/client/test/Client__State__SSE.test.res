@@ -63,15 +63,14 @@ describe("SSE Integration - Text Streaming", () => {
       tasks,
       currentTaskId: Some(initialTask.id),
     }: Client__State__Types.state))
-    let task = makeMockTask()
 
     // Simulate event sequence
     let events = [
-      AgentEventBus.StreamEvent(task.id, Vercel.TextStart({id: "text-123"})),
-      AgentEventBus.StreamEvent(task.id, Vercel.TextDelta({id: "text-123", text: "Hello"})),
-      AgentEventBus.StreamEvent(task.id, Vercel.TextDelta({id: "text-123", text: " "})),
-      AgentEventBus.StreamEvent(task.id, Vercel.TextDelta({id: "text-123", text: "world"})),
-      AgentEventBus.StreamEvent(task.id, Vercel.TextEnd({id: "text-123"})),
+      AgentEventBus.StreamEvent(initialTask.id, Vercel.TextStart({id: "text-123"})),
+      AgentEventBus.StreamEvent(initialTask.id, Vercel.TextDelta({id: "text-123", text: "Hello"})),
+      AgentEventBus.StreamEvent(initialTask.id, Vercel.TextDelta({id: "text-123", text: " "})),
+      AgentEventBus.StreamEvent(initialTask.id, Vercel.TextDelta({id: "text-123", text: "world"})),
+      AgentEventBus.StreamEvent(initialTask.id, Vercel.TextEnd({id: "text-123"})),
     ]
 
     // Process events

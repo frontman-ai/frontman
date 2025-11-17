@@ -200,6 +200,16 @@ describe("Client State Reducer", () => {
             createdAt: 0.0,
           }),
         ),
+        ToolCall({
+          id: "call-123",
+          toolName: "search",
+          inputBuffer: "",
+          input: None,
+          result: None,
+          errorText: None,
+          state: Reducer.Message.InputStreaming,
+          createdAt: 0.0,
+        }),
       ],
     )
 
@@ -222,9 +232,10 @@ describe("Client State Reducer", () => {
     t->expect(messages->Array.length)->Expect.toBe(2)
 
     switch messages->Array.get(1) {
-    | Some(ToolCall({id, toolName, _})) => {
+    | Some(ToolCall({id, toolName, input, _})) => {
         t->expect(id)->Expect.toBe("call-123")
         t->expect(toolName)->Expect.toBe("search")
+        t->expect(input)->Expect.toEqual(Some(JSON.Encode.object({})))
       }
     | _ => t->expect("Got ToolCall message")->Expect.toBe("Expected ToolCall message")
     }
@@ -573,6 +584,16 @@ describe("Client State Reducer - Tool Lifecycle", () => {
             createdAt: 0.0,
           }),
         ),
+        ToolCall({
+          id: "call-1",
+          toolName: "read_file",
+          inputBuffer: "",
+          input: None,
+          result: None,
+          errorText: None,
+          state: Reducer.Message.InputStreaming,
+          createdAt: 0.0,
+        }),
       ],
     )
 

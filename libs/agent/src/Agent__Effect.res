@@ -71,6 +71,11 @@ let executeSingleTool = async (
           }
         }
       } catch {
+      | S.Error(error) => {
+          let msg = error.message
+          Agent__Logger.Log.error(`Tool execution exception: ${msg}`)
+          makeResult(ErrorText(`Unexpected error executing tool '${toolCall.toolName}': ${msg}`))
+        }
       | exn => {
           let msg =
             exn
