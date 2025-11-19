@@ -35,3 +35,6 @@ frontman_server-*.tar
 npm-debug.log
 /assets/node_modules/
 
+!lib/
+
+\n!lib/
