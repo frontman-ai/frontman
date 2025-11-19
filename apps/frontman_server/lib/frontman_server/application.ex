@@ -12,8 +12,14 @@ defmodule FrontmanServer.Application do
       FrontmanServer.Repo,
       {DNSCluster, query: Application.get_env(:frontman_server, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: FrontmanServer.PubSub},
-      # Start a worker by calling: FrontmanServer.Worker.start_link(arg)
-      # {FrontmanServer.Worker, arg},
+      # Registry for task lookup
+      {Registry, keys: :unique, name: FrontmanServer.TaskRegistry},
+      # Registry for agent lookup
+      {Registry, keys: :unique, name: FrontmanServer.AgentRegistry},
+      # DynamicSupervisor for tasks
+      {DynamicSupervisor, name: FrontmanServer.TaskSupervisor, strategy: :one_for_one},
+      # DynamicSupervisor for agents
+      {DynamicSupervisor, name: FrontmanServer.AgentSupervisor, strategy: :one_for_one},
       # Start to serve requests, typically the last entry
       FrontmanServerWeb.Endpoint
     ]

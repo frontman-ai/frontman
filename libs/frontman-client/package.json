@@ -1,0 +1,24 @@
+{
+  "name": "@ask-the-llm/frontman-client",
+  "version": "0.0.1",
+  "type": "module",
+  "main": "./src/FrontmanClient.res.js",
+  "exports": {
+    ".": {
+      "import": "./src/FrontmanClient.res.js"
+    }
+  },
+  "scripts": {
+    "res:build": "rescript",
+    "res:clean": "rescript clean",
+    "res:dev": "rescript build -w"
+  },
+  "peerDependencies": {
+    "react": "^18.0.0 || ^19.0.0"
+  },
+  "dependencies": {
+    "phoenix": "^1.7.0",
+    "rescript": "^11.0.0",
+    "@rescript/react": "^0.13.0"
+  }
+}

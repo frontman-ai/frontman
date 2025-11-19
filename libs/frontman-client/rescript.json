@@ -1,0 +1,21 @@
+{
+  "name": "@ask-the-llm/frontman-client",
+  "sources": [
+    {
+      "dir": "src",
+      "subdirs": true
+    }
+  ],
+  "package-specs": {
+    "module": "esmodule",
+    "in-source": true
+  },
+  "suffix": ".res.js",
+  "bs-dependencies": [
+    "@rescript/react"
+  ],
+  "jsx": {
+    "version": 4,
+    "mode": "classic"
+  }
+}
