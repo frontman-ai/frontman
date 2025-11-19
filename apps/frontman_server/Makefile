@@ -1,0 +1,75 @@
+# Task runner Makefile with auto-generated help
+#
+# Usage: make [target]
+# Run 'make help' to see available commands
+
+.DEFAULT_GOAL := help
+.PHONY: help install test lint dev build clean check setup db-setup db-reset db-migrate db-seed assets-setup assets-build assets-deploy precommit
+
+SHELL := /bin/bash
+
+help: ## Display this help message
+	@awk 'BEGIN {FS = ":.*##"} /^[a-zA-Z_-]+:.*##/ { printf "  %-15s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
+
+install: ## Install project dependencies
+	mix deps.get
+
+setup: ## Complete project setup (deps, database, assets)
+	mix deps.get
+	$(MAKE) db-setup
+	$(MAKE) assets-setup
+	$(MAKE) assets-build
+
+db-setup: ## Setup database (create, migrate, seed)
+	mix ecto.create
+	mix ecto.migrate
+	mix run priv/repo/seeds.exs
+
+db-reset: ## Drop and recreate database
+	mix ecto.drop
+	$(MAKE) db-setup
+
+db-migrate: ## Run database migrations
+	mix ecto.migrate
+
+db-seed: ## Seed database with data
+	mix run priv/repo/seeds.exs
+
+assets-setup: ## Install asset build tools (tailwind, esbuild)
+	mix tailwind.install --if-missing
+	mix esbuild.install --if-missing
+
+assets-build: ## Build assets for development
+	mix compile
+	mix tailwind frontman_server
+	mix esbuild frontman_server
+
+assets-deploy: ## Build and minify assets for production
+	mix tailwind frontman_server --minify
+	mix esbuild frontman_server --minify
+	mix phx.digest
+
+test: ## Run test suite
+	mix ecto.create --quiet
+	mix ecto.migrate --quiet
+	mix test
+
+lint: ## Run code formatter
+	mix format
+
+dev: ## Start development server
+	mix phx.server
+
+build: ## Build the project for production
+	MIX_ENV=prod mix compile
+
+clean: ## Clean build artifacts and dependencies
+	rm -rf _build deps
+
+precommit: ## Run precommit checks (compile with warnings as errors, format, test)
+	mix compile --warning-as-errors
+	mix deps.unlock --unused
+	mix format
+	mix test
+
+check: lint test ## Run all checks (lint + test)
