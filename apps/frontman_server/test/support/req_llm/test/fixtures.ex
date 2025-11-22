@@ -50,22 +50,25 @@ defmodule ReqLLM.Test.Fixtures do
         :no_fixture
 
       _ ->
-        # In replay mode, use fixture if it exists
-        if fixture_path && File.exists?(fixture_path) do
-          {:fixture, fixture_path}
-        else
-          # No fixture exists yet - need to record first
-          IO.puts("""
+        cond do
+          is_nil(fixture_path) ->
+            :no_fixture
 
-          ⚠️  Fixture not found: #{fixture_path}
+          File.exists?(fixture_path) ->
+            {:fixture, fixture_path}
 
-          To record this fixture, run:
-            REQ_LLM_FIXTURES_MODE=record mix test
+          true ->
+            IO.puts("""
 
-          For now, falling back to real API call...
-          """)
+            ⚠️  Fixture not found: #{fixture_path}
 
-          :no_fixture
+            To record this fixture, run:
+              REQ_LLM_FIXTURES_MODE=record mix test
+
+            For now, falling back to real API call...
+            """)
+
+            :no_fixture
         end
     end
   end

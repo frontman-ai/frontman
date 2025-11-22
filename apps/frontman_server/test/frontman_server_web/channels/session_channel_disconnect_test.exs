@@ -152,6 +152,7 @@ defmodule FrontmanServerWeb.SessionChannelDisconnectTest do
       assert session.state == :ready
     end
 
+    @tag :skip_cassette
     test "can create tasks after reconnection" do
       session_id = "reconnect-task-test-#{:rand.uniform(1_000_000)}"
 

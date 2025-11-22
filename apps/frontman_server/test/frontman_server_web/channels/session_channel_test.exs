@@ -1,5 +1,6 @@
 defmodule FrontmanServerWeb.SessionChannelTest do
   use FrontmanServerWeb.ChannelCase, async: true
+  use FrontmanServer.CassetteCase
 
   alias FrontmanServerWeb.UserSocket
 
@@ -159,6 +160,7 @@ defmodule FrontmanServerWeb.SessionChannelTest do
       :ok
     end
 
+    @tag :skip_cassette
     test "creates task with session_id", %{socket: socket, session_id: session_id} do
       task_id = "task-#{:rand.uniform(1_000_000)}"
 
@@ -170,6 +172,7 @@ defmodule FrontmanServerWeb.SessionChannelTest do
       assert task.session_id == session_id
     end
 
+    @tag :skip_cassette
     test "rejects task creation if session not ready", %{session_id: _session_id} do
       # Create new session without MCP initialization
       new_session_id = "test-not-ready-#{:rand.uniform(1_000_000)}"
