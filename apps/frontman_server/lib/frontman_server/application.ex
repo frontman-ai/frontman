@@ -7,17 +7,18 @@ defmodule FrontmanServer.Application do
 
   @impl true
   def start(_type, _args) do
+    # Create ETS table for tasks
+    :ets.new(:tasks, [:named_table, :public, :set, read_concurrency: true])
+    # Create ETS table for sessions
+    :ets.new(:sessions, [:named_table, :public, :set, read_concurrency: true])
+
     children = [
       FrontmanServerWeb.Telemetry,
       FrontmanServer.Repo,
       {DNSCluster, query: Application.get_env(:frontman_server, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: FrontmanServer.PubSub},
-      # Registry for task lookup
-      {Registry, keys: :unique, name: FrontmanServer.TaskRegistry},
-      # Registry for agent lookup
+      # Registry for tracking agents by task_id
       {Registry, keys: :unique, name: FrontmanServer.AgentRegistry},
-      # DynamicSupervisor for tasks
-      {DynamicSupervisor, name: FrontmanServer.TaskSupervisor, strategy: :one_for_one},
       # DynamicSupervisor for agents
       {DynamicSupervisor, name: FrontmanServer.AgentSupervisor, strategy: :one_for_one},
       # Start to serve requests, typically the last entry

@@ -7,9 +7,7 @@ defmodule FrontmanServerWeb.UserSocket do
   # assign values that can be accessed by your channel topics.
 
   ## Channels
-  # Uncomment the following line to define a "room:*" topic
-  # channel "room:*", FrontmanServerWeb.RoomChannel
-  channel("task:*", FrontmanServerWeb.TaskChannel)
+  channel("session:*", FrontmanServerWeb.SessionChannel)
 
   # Socket params are passed from the client and can
   # be used to verify and authenticate a user. After

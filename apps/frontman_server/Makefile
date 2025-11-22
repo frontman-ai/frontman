@@ -4,7 +4,7 @@
 # Run 'make help' to see available commands
 
 .DEFAULT_GOAL := help
-.PHONY: help install test lint dev build clean check setup db-setup db-reset db-migrate db-seed assets-setup assets-build assets-deploy precommit
+.PHONY: help install test test-record lint dev build clean check setup db-setup db-reset db-migrate db-seed assets-setup assets-build assets-deploy precommit
 
 SHELL := /bin/bash
 
@@ -53,6 +53,11 @@ test: ## Run test suite
 	mix ecto.create --quiet
 	mix ecto.migrate --quiet
 	mix test
+
+test-record: ## Record new LLM fixtures (makes real API calls)
+	mix ecto.create --quiet
+	mix ecto.migrate --quiet
+	REQ_LLM_FIXTURES_MODE=record mix test
 
 lint: ## Run code formatter
 	mix format

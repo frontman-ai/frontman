@@ -56,9 +56,12 @@ defmodule FrontmanServer.MixProject do
       {:jason, "~> 1.2"},
       {:dns_cluster, "~> 0.2.0"},
       {:bandit, "~> 1.5"},
+      {:typed_struct, "~> 0.3"},
+      # ==================DEV/Test=========================
       {:phoenix_live_reload, "~> 1.2", only: :dev},
       {:tailwind, "~> 0.3", runtime: Mix.env() == :dev},
       {:esbuild, "~> 0.10", runtime: Mix.env() == :dev},
+      {:mix_test_watch, "~> 1.0", only: [:dev, :test], runtime: false},
       {:lazy_html, ">= 0.1.0", only: :test}
     ]
   end
