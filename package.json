@@ -10,6 +10,7 @@
 		"libs/client",
 		"libs/context-loader",
 		"libs/experimental-rescript-webapi",
+		"libs/frontman-client",
 		"test/sites/blog-starter",
 		"libs/react-statestore",
 		"libs/vite-plugin",

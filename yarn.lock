@@ -352,6 +352,20 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@ask-the-llm/frontman-client@workspace:libs/frontman-client":
+  version: 0.0.0-use.local
+  resolution: "@ask-the-llm/frontman-client@workspace:libs/frontman-client"
+  dependencies:
+    "@rescript/webapi": "catalog:"
+    "@vitest/ui": "catalog:"
+    phoenix: "npm:^1.7.0"
+    rescript: "catalog:"
+    rescript-vitest: "catalog:"
+    sury: "catalog:"
+    vitest: "catalog:"
+  languageName: unknown
+  linkType: soft
+
 "@ask-the-llm/logger@workspace:*, @ask-the-llm/logger@workspace:libs/logger":
   version: 0.0.0-use.local
   resolution: "@ask-the-llm/logger@workspace:libs/logger"
@@ -12498,6 +12512,13 @@ __metadata:
   version: 2.0.0
   resolution: "perfect-debounce@npm:2.0.0"
   checksum: 10c0/c08d7bf9c43f262206eceb9b3dfd332e2470b5488bb93f87721c498045e61e4f3f1d21abfe3236a8eab547c7cc031d3efb64cd3b38a85a820d5cafb4c897a8d4
+  languageName: node
+  linkType: hard
+
+"phoenix@npm:^1.7.0":
+  version: 1.8.1
+  resolution: "phoenix@npm:1.8.1"
+  checksum: 10c0/82c4036aa0201eb8063e89874c87dac08dce455dd7c31521839932dce99868e319cf3efa6e4f41a88979f31132cac537a6b689eacd3e8fa8cb2e02a4b949423a
   languageName: node
   linkType: hard
 

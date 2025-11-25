@@ -1,21 +1,28 @@
 {
-  "name": "@ask-the-llm/frontman-client",
-  "sources": [
-    {
-      "dir": "src",
-      "subdirs": true
-    }
-  ],
-  "package-specs": {
-    "module": "esmodule",
-    "in-source": true
-  },
-  "suffix": ".res.js",
-  "bs-dependencies": [
-    "@rescript/react"
-  ],
-  "jsx": {
-    "version": 4,
-    "mode": "classic"
-  }
+	"name": "@ask-the-llm/frontman-client",
+	"namespace": true,
+	"sources": [
+		{
+			"dir": "src",
+			"subdirs": true
+		},
+		{
+			"dir": "test",
+			"subdirs": true,
+			"type": "dev"
+		}
+	],
+	"package-specs": [
+		{
+			"module": "esmodule",
+			"in-source": true,
+			"suffix": ".res.mjs"
+		}
+	],
+	"ppx-flags": ["sury-ppx/bin"],
+	"dependencies": ["@rescript/webapi", "sury"],
+	"dev-dependencies": ["rescript-vitest"],
+	"jsx": {
+		"version": 4
+	}
 }

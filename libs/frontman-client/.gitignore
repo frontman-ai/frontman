@@ -1,0 +1,4 @@
+node_modules/
+*.res.mjs
+*.res.mjs.map
+lib/

@@ -15,7 +15,7 @@ defmodule FrontmanServer.Sessions do
 
   use TypedStruct
 
-  @type session_state :: :connecting | :awaiting_caps | :ready | :disconnected | :terminated
+  @type session_state :: :awaiting_caps | :ready | :disconnected | :terminated
 
   typedstruct module: Session, enforce: true do
     @moduledoc """
@@ -39,19 +39,6 @@ defmodule FrontmanServer.Sessions do
     field :description, String.t()
     field :input_schema, map()
     field :source, atom(), default: :mcp
-  end
-
-  @doc """
-  Creates a new session in :connecting state.
-  """
-  @spec new_session(String.t()) :: Session.t()
-  def new_session(session_id) do
-    %Session{
-      session_id: session_id,
-      state: :connecting,
-      capabilities: %{},
-      created_at: DateTime.utc_now()
-    }
   end
 
   @doc """
@@ -86,19 +73,17 @@ defmodule FrontmanServer.Sessions do
   """
   @spec create_session(String.t()) :: {:ok, Session.t()}
   def create_session(session_id) do
-    session = new_session(session_id)
-    SessionStore.insert(session)
+    session = %Session{
+      session_id: session_id,
+      state: :awaiting_caps,
+      capabilities: %{},
+      created_at: DateTime.utc_now()
+    }
+
+    session
+    |> SessionStore.insert()
+
     {:ok, session}
-  end
-
-  @doc """
-  Transitions session to :awaiting_caps state.
-
-  Called after session initialization completes.
-  """
-  @spec mark_awaiting_capabilities(String.t()) :: {:ok, Session.t()} | {:error, term()}
-  def mark_awaiting_capabilities(session_id) do
-    update_session_state(session_id, :init_complete)
   end
 
   @doc """
@@ -180,15 +165,6 @@ defmodule FrontmanServer.Sessions do
   defdelegate session_exists?(session_id), to: SessionStore, as: :exists?
 
   # Private helpers
-
-  defp update_session_state(session_id, event) do
-    SessionStore.update(session_id, fn session ->
-      case transition(session.state, event) do
-        {:ok, new_state} -> %{session | state: new_state}
-        {:error, _} -> session
-      end
-    end)
-  end
 
   defp parse_capabilities(capability_list) when is_list(capability_list) do
     capability_list

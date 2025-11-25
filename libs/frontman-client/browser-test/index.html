@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ACP Client Test</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      background: #1a1a2e;
+      color: #eee;
+    }
+    h1 { color: #00d4ff; }
+    .config {
+      background: #16213e;
+      padding: 20px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+    }
+    label { display: block; margin-bottom: 5px; color: #888; }
+    input {
+      width: 100%;
+      padding: 10px;
+      margin-bottom: 15px;
+      border: 1px solid #333;
+      border-radius: 4px;
+      background: #0f3460;
+      color: #fff;
+    }
+    button {
+      padding: 12px 24px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      margin-right: 10px;
+    }
+    .btn-connect { background: #00d4ff; color: #000; }
+    .btn-connect:hover { background: #00a8cc; }
+    .btn-disconnect { background: #e94560; color: #fff; }
+    .btn-disconnect:hover { background: #c73e54; }
+    .btn-disconnect:disabled { background: #666; cursor: not-allowed; }
+    .status {
+      padding: 10px 15px;
+      border-radius: 4px;
+      margin-bottom: 20px;
+      font-weight: bold;
+    }
+    .status.disconnected { background: #333; color: #888; }
+    .status.connecting { background: #f39c12; color: #000; }
+    .status.connected { background: #27ae60; color: #fff; }
+    .status.error { background: #e74c3c; color: #fff; }
+    .log-container {
+      background: #0a0a0a;
+      border: 1px solid #333;
+      border-radius: 4px;
+      height: 400px;
+      overflow-y: auto;
+      padding: 10px;
+      font-family: 'Monaco', 'Menlo', monospace;
+      font-size: 12px;
+    }
+    .log-entry { margin-bottom: 5px; }
+    .log-entry.info { color: #00d4ff; }
+    .log-entry.success { color: #27ae60; }
+    .log-entry.error { color: #e74c3c; }
+    .log-entry.warn { color: #f39c12; }
+    .log-entry .time { color: #666; margin-right: 10px; }
+    .server-info {
+      background: #16213e;
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+    }
+    .server-info h3 { margin-top: 0; color: #00d4ff; }
+    .server-info pre {
+      background: #0a0a0a;
+      padding: 10px;
+      border-radius: 4px;
+      overflow-x: auto;
+      margin: 0;
+    }
+  </style>
+</head>
+<body>
+  <h1>ACP Client Test</h1>
+
+  <div class="config">
+    <label for="endpoint">WebSocket Endpoint</label>
+    <input type="text" id="endpoint" value="ws://localhost:4000/socket" />
+
+    <label for="sessionId">Session ID</label>
+    <input type="text" id="sessionId" value="test-session-123" />
+
+    <button class="btn-connect" id="connectBtn">Connect</button>
+    <button class="btn-disconnect" id="disconnectBtn" disabled>Disconnect</button>
+  </div>
+
+  <div class="status disconnected" id="status">Disconnected</div>
+
+  <div class="server-info" id="serverInfo" style="display: none;">
+    <h3>Server Info</h3>
+    <pre id="serverInfoContent"></pre>
+  </div>
+
+  <h2>Log</h2>
+  <div class="log-container" id="log"></div>
+
+  <script type="module">
+    import * as ACP from '../src/FrontmanClient__ACP.res.mjs';
+
+    const logEl = document.getElementById('log');
+    const statusEl = document.getElementById('status');
+    const connectBtn = document.getElementById('connectBtn');
+    const disconnectBtn = document.getElementById('disconnectBtn');
+    const serverInfoEl = document.getElementById('serverInfo');
+    const serverInfoContentEl = document.getElementById('serverInfoContent');
+
+    let connection = null;
+
+    function log(message, type = 'info') {
+      const time = new Date().toLocaleTimeString();
+      const entry = document.createElement('div');
+      entry.className = `log-entry ${type}`;
+      entry.innerHTML = `<span class="time">${time}</span>${message}`;
+      logEl.appendChild(entry);
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    function setStatus(status, text) {
+      statusEl.className = `status ${status}`;
+      statusEl.textContent = text;
+    }
+
+    function updateButtons(connected) {
+      connectBtn.disabled = connected;
+      disconnectBtn.disabled = !connected;
+    }
+
+    async function connect() {
+      const endpoint = document.getElementById('endpoint').value;
+      const sessionId = document.getElementById('sessionId').value;
+
+      log(`Connecting to ${endpoint} with session ${sessionId}...`);
+      setStatus('connecting', 'Connecting...');
+
+      try {
+        const config = ACP.makeConfig(endpoint, sessionId, 'browser-test-client', '1.0.0');
+        log(`Config created: ${JSON.stringify(config, null, 2)}`);
+
+        const result = await ACP.connect(config);
+
+        if (result.TAG === 'Ok') {
+          connection = result._0;
+          log('Connected successfully!', 'success');
+          setStatus('connected', 'Connected');
+          updateButtons(true);
+
+          // Show server info
+          const state = ACP.getState(connection);
+          if (state.TAG === 'Initialized') {
+            const initResult = state._0;
+            serverInfoContentEl.textContent = JSON.stringify(initResult, null, 2);
+            serverInfoEl.style.display = 'block';
+            log(`Server: ${initResult.agentInfo?.name || 'Unknown'} v${initResult.agentInfo?.version || '?'}`, 'success');
+            log(`Protocol version: ${initResult.protocolVersion}`, 'info');
+          }
+        } else {
+          const error = result._0;
+          log(`Connection failed: ${error}`, 'error');
+          setStatus('error', `Error: ${error}`);
+          updateButtons(false);
+        }
+      } catch (err) {
+        log(`Exception: ${err.message}`, 'error');
+        setStatus('error', `Error: ${err.message}`);
+        updateButtons(false);
+      }
+    }
+
+    function disconnect() {
+      if (connection) {
+        log('Disconnecting...', 'warn');
+        // Note: Would need to implement socket.disconnect() in the ACP module
+        connection = null;
+        setStatus('disconnected', 'Disconnected');
+        updateButtons(false);
+        serverInfoEl.style.display = 'none';
+        log('Disconnected', 'info');
+      }
+    }
+
+    connectBtn.addEventListener('click', connect);
+    disconnectBtn.addEventListener('click', disconnect);
+
+    log('ACP Client Test Page loaded', 'success');
+    log('Click "Connect" to test the ACP handshake');
+  </script>
+</body>
+</html>

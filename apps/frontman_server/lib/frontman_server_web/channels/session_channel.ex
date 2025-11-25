@@ -36,16 +36,17 @@ defmodule FrontmanServerWeb.SessionChannel do
   require Logger
 
   alias FrontmanServer.Sessions
+  alias FrontmanServer.ACP
+
+  @jsonrpc_version "2.0"
 
   @impl true
   def join("session:" <> session_id, _params, socket) do
-    Logger.info("Browser (MCP Server) joining session: #{session_id}")
+    Logger.info("Browser joining session: #{session_id}")
 
-    # Create or get existing session
     {:ok, session} =
       case Sessions.get_session(session_id) do
         {:ok, existing_session} ->
-          # Reconnecting to existing session
           Logger.info("Reconnecting to existing session: #{session_id}")
 
           if existing_session.state == :disconnected do
@@ -55,10 +56,8 @@ defmodule FrontmanServerWeb.SessionChannel do
           end
 
         {:error, :not_found} ->
-          # New session
           Logger.info("Creating new session: #{session_id}")
           Sessions.create_session(session_id)
-          Sessions.mark_awaiting_capabilities(session_id)
       end
 
     # Subscribe to session events
@@ -108,6 +107,26 @@ defmodule FrontmanServerWeb.SessionChannel do
   @impl true
   def handle_in("mcp:" <> _type, _message, socket) do
     {:reply, {:error, %{"error" => "Invalid JSON-RPC 2.0 message"}}, socket}
+  end
+
+  # ACP Message Handlers
+
+  @impl true
+  def handle_in("acp:message", %{"jsonrpc" => @jsonrpc_version, "id" => id, "method" => "initialize", "params" => params}, socket) do
+    Logger.info("ACP initialize request received")
+    handle_acp_initialize(id, params, socket)
+  end
+
+  @impl true
+  def handle_in("acp:message", %{"jsonrpc" => @jsonrpc_version, "id" => id, "method" => method}, socket) do
+    Logger.info("ACP unknown method: #{method}")
+    acp_error_reply(id, ACP.error_method_not_found(), "Method not found", socket)
+  end
+
+  @impl true
+  def handle_in("acp:message", %{"jsonrpc" => @jsonrpc_version, "method" => _method}, socket) do
+    # Notification (no id) - handle if needed
+    {:noreply, socket}
   end
 
   @impl true
@@ -291,6 +310,55 @@ defmodule FrontmanServerWeb.SessionChannel do
 
   defp generate_request_id do
     "req_#{:erlang.unique_integer([:positive])}"
+  end
+
+  # ACP Handlers
+
+  defp handle_acp_initialize(id, %{"protocolVersion" => client_version} = params, socket) do
+    server_version = ACP.protocol_version()
+
+    if client_version != server_version do
+      Logger.warning("ACP protocol version mismatch: client=#{client_version}, server=#{server_version}")
+      acp_error_reply(id, ACP.error_invalid_request(), "Unsupported protocol version", socket)
+    else
+      client_info = params["clientInfo"]
+      client_capabilities = params["clientCapabilities"]
+
+      Logger.info("ACP initialize from #{inspect(client_info)}")
+
+      socket =
+        socket
+        |> assign(:acp_client_info, client_info)
+        |> assign(:acp_client_capabilities, client_capabilities)
+        |> assign(:acp_initialized, true)
+
+      response = %{
+        "jsonrpc" => @jsonrpc_version,
+        "id" => id,
+        "result" => ACP.build_initialize_result()
+      }
+
+      push(socket, "acp:message", response)
+      {:noreply, socket}
+    end
+  end
+
+  defp handle_acp_initialize(id, _params, socket) do
+    acp_error_reply(id, ACP.error_invalid_params(), "Missing required field: protocolVersion", socket)
+  end
+
+  defp acp_error_reply(id, code, message, socket) do
+    response = %{
+      "jsonrpc" => @jsonrpc_version,
+      "id" => id,
+      "error" => %{
+        "code" => code,
+        "message" => message
+      }
+    }
+
+    push(socket, "acp:message", response)
+    {:noreply, socket}
   end
 
   # PubSub event handlers
