@@ -1,26 +1,20 @@
-defmodule FrontmanServer.ACP do
+defmodule FrontmanServerWeb.ACP do
   @moduledoc """
-  ACP (Agent Client Protocol) context.
+  ACP (Agent Client Protocol) translation layer.
 
-  Handles the initialization handshake and protocol negotiation between
-  the browser client and the agent server. ACP is used for chat communication,
-  separate from MCP which handles tool invocation.
+  Translates between domain events and ACP wire format (JSON-RPC 2.0).
+  This is the boundary where domain concepts (Tasks) become transport
+  concepts (Sessions).
+
+  ACP is used for chat communication between the browser client and
+  the agent server, separate from MCP which handles tool invocation.
   """
+
+  alias FrontmanServerWeb.JsonRpc
 
   @protocol_version 1
 
-  # JSON-RPC 2.0 error codes
-  @error_invalid_request -32600
-  @error_method_not_found -32601
-  @error_invalid_params -32602
-  @error_internal -32603
-
   def protocol_version, do: @protocol_version
-
-  def error_invalid_request, do: @error_invalid_request
-  def error_method_not_found, do: @error_method_not_found
-  def error_invalid_params, do: @error_invalid_params
-  def error_internal, do: @error_internal
 
   def agent_info do
     %{
@@ -58,7 +52,10 @@ defmodule FrontmanServer.ACP do
   end
 
   @doc """
-  Generates ACP session ID (used as task_id).
+  Generates ACP session ID.
+
+  Session IDs are prefixed with "sess_" to distinguish them from other IDs.
+  In ACP, sessions map 1:1 with domain Tasks.
   """
   def generate_session_id do
     "sess_" <> Base.encode16(:crypto.strong_rand_bytes(12), case: :lower)
@@ -66,22 +63,22 @@ defmodule FrontmanServer.ACP do
 
   @doc """
   Builds a session/update notification for agent_message_chunk.
+
+  Translates a text chunk into ACP wire format.
   """
-  def build_agent_message_chunk_update(session_id, text) do
-    %{
-      "jsonrpc" => "2.0",
-      "method" => "session/update",
-      "params" => %{
-        "sessionId" => session_id,
-        "update" => %{
-          "sessionUpdate" => "agent_message_chunk",
-          "content" => %{
-            "type" => "text",
-            "text" => text
-          }
+  def build_agent_message_chunk_notification(session_id, text) do
+    params = %{
+      "sessionId" => session_id,
+      "update" => %{
+        "sessionUpdate" => "agent_message_chunk",
+        "content" => %{
+          "type" => "text",
+          "text" => text
         }
       }
     }
+
+    JsonRpc.notification("session/update", params)
   end
 
   @doc """

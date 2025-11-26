@@ -42,8 +42,11 @@ defmodule FrontmanServer.Tasks do
     {:ok, task_id}
   end
 
+  @doc """
+  Gets all interactions for a task.
+  """
   @spec get_interactions(String.t()) :: list(Interaction.t())
-  defp get_interactions(task_id) do
+  def get_interactions(task_id) do
     case TaskStore.get(task_id) do
       {:ok, task} -> task.interactions
       {:error, :not_found} -> []
@@ -151,13 +154,49 @@ defmodule FrontmanServer.Tasks do
     append_interaction(task_id, interaction)
   end
 
+  @doc """
+  Creates and appends a ToolCall interaction.
+  """
+  @spec add_tool_call(String.t(), String.t(), map()) ::
+          {:ok, Interaction.t()} | {:error, :task_not_found}
+  def add_tool_call(task_id, agent_id, tool_call_data) do
+    interaction = %Interaction.ToolCall{
+      id: Interaction.new_id(),
+      agent_id: agent_id,
+      tool_call_id: tool_call_data.id,
+      tool_name: tool_call_data.name,
+      arguments: tool_call_data.arguments,
+      timestamp: Interaction.now()
+    }
+
+    append_interaction(task_id, interaction)
+  end
+
+  @doc """
+  Creates and appends a ToolResult interaction.
+  """
+  @spec add_tool_result(String.t(), String.t(), map(), term(), boolean()) ::
+          {:ok, Interaction.t()} | {:error, :task_not_found}
+  def add_tool_result(task_id, agent_id, tool_call_data, result, is_error \\ false) do
+    interaction = %Interaction.ToolResult{
+      id: Interaction.new_id(),
+      agent_id: agent_id,
+      tool_call_id: tool_call_data.id,
+      tool_name: tool_call_data.name,
+      result: result,
+      is_error: is_error,
+      timestamp: Interaction.now()
+    }
+
+    append_interaction(task_id, interaction)
+  end
+
   @spec spawn_and_execute_agent(String.t(), map()) ::
           {:ok, String.t()} | {:error, term()}
   defp spawn_and_execute_agent(task_id, config) do
-    interactions = get_interactions(task_id)
-    messages = Interaction.to_llm_messages(interactions)
+    tools = Map.get(config, :tools, [])
 
-    case Agents.start_agent(task_id, messages) do
+    case Agents.start_agent(task_id, tools: tools) do
       {:ok, agent_id} ->
         add_agent_spawned(%{task_id: task_id, agent_id: agent_id}, config)
         {:ok, agent_id}

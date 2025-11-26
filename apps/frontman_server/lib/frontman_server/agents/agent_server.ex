@@ -1,24 +1,27 @@
 defmodule FrontmanServer.Agents.AgentServer do
   @moduledoc """
-  Real agent server that executes agentic loop with LLM.
+  Agent server that executes an agentic loop with LLM.
 
-  The agent iteratively calls the LLM until no more tool calls are needed.
-  Each iteration processes the conversation history and either:
-  - Completes with a final response (no tools requested)
-  - Executes tools and continues to next iteration
+  The agent iteratively:
+  1. Fetches fresh interaction history from Task
+  2. Calls LLM with messages and tools
+  3. Streams response chunks, broadcasting tokens
+  4. If tool calls found: executes tools, stores results, continues loop
+  5. If no tool calls: stores final response, stops
+
+  Follows the req_llm agent pattern for tool handling.
   """
   use GenServer
   require Logger
 
   alias FrontmanServer.Tasks
+  alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.LLM.Client
 
   defstruct [
     :agent_id,
     :task_id,
-    :messages,
-    :accumulated_content,
-    :token_stream,
+    :tools,
     :fixture_path
   ]
 
@@ -27,14 +30,14 @@ defmodule FrontmanServer.Agents.AgentServer do
   def start_link(opts) do
     agent_id = Keyword.fetch!(opts, :agent_id)
     task_id = Keyword.fetch!(opts, :task_id)
-    messages = Keyword.fetch!(opts, :messages)
+    tools = Keyword.get(opts, :tools, [])
 
     GenServer.start_link(
       __MODULE__,
       %{
         agent_id: agent_id,
         task_id: task_id,
-        messages: messages
+        tools: tools
       },
       name: {:via, Registry, {FrontmanServer.AgentRegistry, task_id}}
     )
@@ -42,9 +45,6 @@ defmodule FrontmanServer.Agents.AgentServer do
 
   @doc """
   Executes one iteration of the agentic loop.
-
-  Called initially by the task when spawning the agent,
-  and then by the agent itself if more iterations are needed.
   """
   def execute_iteration(agent_pid) do
     send(agent_pid, :execute_iteration)
@@ -53,88 +53,131 @@ defmodule FrontmanServer.Agents.AgentServer do
   # Server Callbacks
 
   @impl true
-  def init(%{
-        agent_id: agent_id,
-        task_id: task_id,
-        messages: messages
-      }) do
+  def init(%{agent_id: agent_id, task_id: task_id, tools: tools}) do
     state = %__MODULE__{
       agent_id: agent_id,
       task_id: task_id,
-      messages: messages,
-      accumulated_content: "",
-      token_stream: nil
+      tools: tools,
+      fixture_path: nil
     }
 
     {:ok, state}
   end
 
   @impl true
-  def handle_info({ref, _metadata}, state) when is_reference(ref) do
-    # Ignore metadata task completion from ReqLLM
+  def handle_info({ref, _result}, state) when is_reference(ref) do
     {:noreply, state}
   end
 
   @impl true
   def handle_info({:DOWN, _ref, :process, _pid, _reason}, state) do
-    # Ignore Task process exit
     {:noreply, state}
   end
 
   @impl true
   def handle_info(:execute_iteration, state) do
-    # Start streaming from LLM
-    case Client.stream_chat(state.messages, fixture_path: state.fixture_path) do
-      {:ok, token_stream} ->
-        # Process first token immediately
-        send(self(), :process_next_token)
-        {:noreply, %{state | token_stream: token_stream}}
+    # Fetch fresh interactions from Task
+    interactions = Tasks.get_interactions(state.task_id)
+    messages = Interaction.to_llm_messages(interactions)
 
-      {:error, reason} ->
-        Logger.error("LLM stream failed: #{inspect(reason)}")
-        broadcast_error(state, "LLM request failed: #{inspect(reason)}")
+    Logger.info("Agent #{state.agent_id} starting iteration with #{length(messages)} messages")
+
+    case stream_and_handle_response(state, messages) do
+      {:continue, state} ->
+        # Tool calls were handled, continue to next iteration
+        send(self(), :execute_iteration)
+        {:noreply, state}
+
+      {:stop, state} ->
+        # No tool calls, we're done
+        broadcast_completion(state)
+        {:stop, :normal, state}
+
+      {:error, reason, state} ->
+        broadcast_error(state, "Agent error: #{inspect(reason)}")
         {:stop, :normal, state}
     end
   end
 
-  @impl true
-  def handle_info(:process_next_token, %{token_stream: nil} = state) do
-    # Stream ended
-    finalize_response(state)
-  end
+  # Private Functions
 
-  @impl true
-  def handle_info(:process_next_token, state) do
-    try do
-      case Enum.take(state.token_stream, 1) do
-        [token] ->
-          # Broadcast token
-          broadcast_token(state, token)
+  defp stream_and_handle_response(state, messages) do
+    opts = [tools: state.tools, fixture_path: state.fixture_path]
 
-          # Accumulate content
-          new_content = state.accumulated_content <> token
+    case Client.stream_chat(messages, opts) do
+      {:ok, chunk_stream} ->
+        # Collect chunks while streaming tokens
+        chunks = stream_chunks(state, chunk_stream)
 
-          # Get remaining stream
-          remaining_stream = Stream.drop(state.token_stream, 1)
+        # Extract text and tool calls
+        text = Client.extract_text(chunks)
+        tool_calls = Client.extract_tool_calls(chunks)
 
-          # Schedule next token
-          send(self(), :process_next_token)
+        handle_response(state, text, tool_calls)
 
-          {:noreply, %{state | accumulated_content: new_content, token_stream: remaining_stream}}
-
-        [] ->
-          # Stream ended
-          finalize_response(state)
-      end
-    rescue
-      error ->
-        Logger.error("Error processing token: #{inspect(error)}")
-        Logger.error(Exception.format(:error, error, __STACKTRACE__))
-        finalize_response(state)
+      {:error, reason} ->
+        Logger.error("LLM stream failed: #{inspect(reason)}")
+        {:error, reason, state}
     end
   end
 
-  # Private Functions
+  defp stream_chunks(state, chunk_stream) do
+    chunk_stream
+    |> Enum.map(fn chunk ->
+      # Broadcast text tokens in real-time
+      text = Map.get(chunk, :text) || ""
+      if text != "" do
+        broadcast_token(state, text)
+      end
+      chunk
+    end)
+  end
+
+  defp handle_response(state, text, []) do
+    # No tool calls - store final response and stop
+    Tasks.add_agent_response(state.task_id, state.agent_id, text)
+    Tasks.add_agent_completed(state.task_id, state.agent_id)
+    {:stop, state}
+  end
+
+  defp handle_response(state, text, tool_calls) do
+    # Store agent response with tool_calls metadata
+    Tasks.add_agent_response(
+      state.task_id,
+      state.agent_id,
+      text,
+      %{tool_calls: tool_calls}
+    )
+
+    # Execute each tool and store results
+    Enum.each(tool_calls, fn tool_call ->
+      # Store the tool call
+      Tasks.add_tool_call(state.task_id, state.agent_id, tool_call)
+
+      # Find and execute the tool
+      case find_and_execute_tool(state.tools, tool_call) do
+        {:ok, result} ->
+          Tasks.add_tool_result(state.task_id, state.agent_id, tool_call, result, false)
+          Logger.info("Tool #{tool_call.name} executed successfully")
+
+        {:error, reason} ->
+          Tasks.add_tool_result(state.task_id, state.agent_id, tool_call, reason, true)
+          Logger.warning("Tool #{tool_call.name} failed: #{inspect(reason)}")
+      end
+    end)
+
+    {:continue, state}
+  end
+
+  defp find_and_execute_tool(tools, tool_call) do
+    case Enum.find(tools, fn t -> t.name == tool_call.name end) do
+      nil ->
+        {:error, "Tool not found: #{tool_call.name}"}
+
+      tool ->
+        ReqLLM.Tool.execute(tool, tool_call.arguments)
+    end
+  end
 
   defp broadcast_token(state, token) do
     Phoenix.PubSub.broadcast(
@@ -144,34 +187,13 @@ defmodule FrontmanServer.Agents.AgentServer do
     )
   end
 
-  defp finalize_response(state) do
-    # Store agent response
-    Tasks.add_agent_response(
-      state.task_id,
-      state.agent_id,
-      state.accumulated_content
-    )
-
-    # Mark agent as completed
-    Tasks.add_agent_completed(state.task_id, state.agent_id)
-
-    # TODO Phase 5: Check for tool calls here
-    # If tool calls: execute them, then call execute_iteration(self())
-    # If no tool calls: mark complete and stop
-
-    # For Phase 1: Always complete after one iteration
-    broadcast_completion(state)
-    {:stop, :normal, state}
-  end
-
   defp broadcast_completion(state) do
     Phoenix.PubSub.broadcast(
       FrontmanServer.PubSub,
       "task:#{state.task_id}",
       {:agent_completed, state.agent_id}
     )
-
-    Logger.info("Agent completed: #{state.agent_id}")
+    Logger.info("Agent #{state.agent_id} completed")
   end
 
   defp broadcast_error(state, message) do
@@ -180,5 +202,6 @@ defmodule FrontmanServer.Agents.AgentServer do
       "task:#{state.task_id}",
       {:agent_error, state.agent_id, message}
     )
+    Logger.error("Agent #{state.agent_id} error: #{message}")
   end
 end

@@ -52,20 +52,24 @@ defmodule FrontmanServer.Agents do
   Each call creates a new agent run - tasks can have multiple agents over their lifetime.
   The agent automatically begins processing after being spawned.
 
+  The agent fetches its own messages from the Task on each iteration,
+  allowing it to pick up new messages added during execution.
+
   Returns `{:ok, agent_id}` on success.
   Returns `{:error, {:already_started, pid}}` if an agent is already running for this task.
 
   ## Options
-  - `:fixture_path` - Path to fixture file for testing (record/replay)
+  - `:tools` - List of ReqLLM.Tool structs (default: [])
   """
-  def start_agent(task_id, messages) do
+  def start_agent(task_id, opts \\ []) do
     require Logger
     agent_id = Ecto.UUID.generate()
+    tools = Keyword.get(opts, :tools, [])
 
     result =
       DynamicSupervisor.start_child(
         FrontmanServer.AgentSupervisor,
-        {AgentServer, agent_id: agent_id, task_id: task_id, messages: messages}
+        {AgentServer, agent_id: agent_id, task_id: task_id, tools: tools}
       )
 
     case result do

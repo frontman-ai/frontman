@@ -12,6 +12,8 @@ defmodule FrontmanServer.Tasks.Interaction do
           | AgentResponse.t()
           | AgentSpawned.t()
           | AgentCompleted.t()
+          | ToolCall.t()
+          | ToolResult.t()
 
   defmodule UserMessage do
     @moduledoc """
@@ -135,6 +137,74 @@ defmodule FrontmanServer.Tasks.Interaction do
     end
   end
 
+  defmodule ToolCall do
+    @moduledoc """
+    Represents an LLM requesting a tool execution.
+    """
+    use TypedStruct
+
+    typedstruct enforce: true do
+      field :id, String.t()
+      field :agent_id, String.t()
+      field :tool_call_id, String.t()
+      field :tool_name, String.t()
+      field :arguments, map()
+      field :timestamp, DateTime.t()
+    end
+  end
+
+  defimpl Jason.Encoder, for: ToolCall do
+    def encode(value, opts) do
+      Jason.Encode.map(
+        %{
+          type: "tool_call",
+          id: value.id,
+          agent_id: value.agent_id,
+          tool_call_id: value.tool_call_id,
+          tool_name: value.tool_name,
+          arguments: value.arguments,
+          timestamp: DateTime.to_iso8601(value.timestamp)
+        },
+        opts
+      )
+    end
+  end
+
+  defmodule ToolResult do
+    @moduledoc """
+    Represents the result of a tool execution.
+    """
+    use TypedStruct
+
+    typedstruct enforce: true do
+      field :id, String.t()
+      field :agent_id, String.t()
+      field :tool_call_id, String.t()
+      field :tool_name, String.t()
+      field :result, term()
+      field :is_error, boolean(), default: false
+      field :timestamp, DateTime.t()
+    end
+  end
+
+  defimpl Jason.Encoder, for: ToolResult do
+    def encode(value, opts) do
+      Jason.Encode.map(
+        %{
+          type: "tool_result",
+          id: value.id,
+          agent_id: value.agent_id,
+          tool_call_id: value.tool_call_id,
+          tool_name: value.tool_name,
+          result: value.result,
+          is_error: value.is_error,
+          timestamp: DateTime.to_iso8601(value.timestamp)
+        },
+        opts
+      )
+    end
+  end
+
   @doc """
   Generates a new interaction ID (UUID v4).
   """
@@ -153,25 +223,42 @@ defmodule FrontmanServer.Tasks.Interaction do
   Converts interactions to LLM message format.
 
   This is the boundary translation from Tasks domain (Interactions)
-  to Agents domain (LLM messages). Only conversation messages
-  (UserMessage and AgentResponse) are included.
+  to Agents domain (LLM messages). Conversation messages include
+  UserMessage, AgentResponse, ToolCall, and ToolResult.
+  ToolCall interactions are skipped as they're embedded in AgentResponse metadata.
   """
   @spec to_llm_messages(list(t())) :: list(map())
   def to_llm_messages(interactions) do
     interactions
     |> Enum.filter(&is_conversation_message/1)
     |> Enum.map(&to_llm_message/1)
+    |> Enum.reject(&is_nil/1)
   end
 
   defp is_conversation_message(%UserMessage{}), do: true
   defp is_conversation_message(%AgentResponse{}), do: true
+  defp is_conversation_message(%ToolCall{}), do: true
+  defp is_conversation_message(%ToolResult{}), do: true
   defp is_conversation_message(_), do: false
 
   defp to_llm_message(%UserMessage{content: content}) do
     ReqLLM.Context.user(content)
   end
 
-  defp to_llm_message(%AgentResponse{content: content}) do
-    ReqLLM.Context.assistant(content)
+  defp to_llm_message(%AgentResponse{content: content, metadata: metadata}) do
+    case Map.get(metadata || %{}, :tool_calls) do
+      nil -> ReqLLM.Context.assistant(content)
+      [] -> ReqLLM.Context.assistant(content)
+      tool_calls -> ReqLLM.Context.assistant(content, tool_calls: tool_calls)
+    end
+  end
+
+  defp to_llm_message(%ToolCall{}) do
+    # Tool calls are embedded in AgentResponse metadata, skip standalone
+    nil
+  end
+
+  defp to_llm_message(%ToolResult{tool_name: name, tool_call_id: id, result: result}) do
+    ReqLLM.Context.tool_result_message(name, id, result)
   end
 end
