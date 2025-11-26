@@ -28,15 +28,13 @@ defmodule FrontmanServer.Agents.AgentServer do
     agent_id = Keyword.fetch!(opts, :agent_id)
     task_id = Keyword.fetch!(opts, :task_id)
     messages = Keyword.fetch!(opts, :messages)
-    fixture_path = Keyword.get(opts, :fixture_path)
 
     GenServer.start_link(
       __MODULE__,
       %{
         agent_id: agent_id,
         task_id: task_id,
-        messages: messages,
-        fixture_path: fixture_path
+        messages: messages
       },
       name: {:via, Registry, {FrontmanServer.AgentRegistry, task_id}}
     )
@@ -58,16 +56,14 @@ defmodule FrontmanServer.Agents.AgentServer do
   def init(%{
         agent_id: agent_id,
         task_id: task_id,
-        messages: messages,
-        fixture_path: fixture_path
+        messages: messages
       }) do
     state = %__MODULE__{
       agent_id: agent_id,
       task_id: task_id,
       messages: messages,
       accumulated_content: "",
-      token_stream: nil,
-      fixture_path: fixture_path
+      token_stream: nil
     }
 
     {:ok, state}

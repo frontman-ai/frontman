@@ -7,6 +7,31 @@ defmodule FrontmanServer.Agents do
   """
 
   alias FrontmanServer.Agents.AgentServer
+  alias FrontmanServer.Tasks
+
+  @doc """
+  Broadcasts a streaming token to task subscribers.
+  """
+  @spec broadcast_token(atom(), String.t(), String.t(), String.t()) :: :ok | {:error, term()}
+  def broadcast_token(pubsub, task_id, agent_id, token) do
+    Phoenix.PubSub.broadcast(pubsub, Tasks.topic(task_id), {:stream_token, agent_id, token})
+  end
+
+  @doc """
+  Broadcasts agent completion to task subscribers.
+  """
+  @spec broadcast_completed(atom(), String.t(), String.t()) :: :ok | {:error, term()}
+  def broadcast_completed(pubsub, task_id, agent_id) do
+    Phoenix.PubSub.broadcast(pubsub, Tasks.topic(task_id), {:agent_completed, agent_id})
+  end
+
+  @doc """
+  Broadcasts an agent error to task subscribers.
+  """
+  @spec broadcast_error(atom(), String.t(), String.t(), String.t()) :: :ok | {:error, term()}
+  def broadcast_error(pubsub, task_id, agent_id, message) do
+    Phoenix.PubSub.broadcast(pubsub, Tasks.topic(task_id), {:agent_error, agent_id, message})
+  end
 
   @doc """
   Checks if an agent is currently running for the given task.
@@ -33,16 +58,14 @@ defmodule FrontmanServer.Agents do
   ## Options
   - `:fixture_path` - Path to fixture file for testing (record/replay)
   """
-  def start_agent(task_id, messages, opts \\ []) do
+  def start_agent(task_id, messages) do
     require Logger
     agent_id = Ecto.UUID.generate()
-    fixture_path = Keyword.get(opts, :fixture_path)
 
     result =
       DynamicSupervisor.start_child(
         FrontmanServer.AgentSupervisor,
-        {AgentServer,
-         agent_id: agent_id, task_id: task_id, messages: messages, fixture_path: fixture_path}
+        {AgentServer, agent_id: agent_id, task_id: task_id, messages: messages}
       )
 
     case result do

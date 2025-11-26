@@ -90,3 +90,49 @@ type initializeResult = {
   @as("authMethods")
   authMethods: option<array<authMethod>>,
 }
+
+// session/new response result
+@schema
+type sessionNewResult = {
+  @as("sessionId")
+  sessionId: string,
+}
+
+// Content block for prompts and responses
+@schema
+type contentBlock = {
+  @as("type")
+  type_: string,
+  text: option<string>,
+}
+
+// session/prompt result
+@schema
+type promptResult = {
+  @as("stopReason")
+  stopReason: string,
+}
+
+// Session update - the update object from session/update notification
+@schema
+type sessionUpdate = {
+  @as("sessionUpdate")
+  sessionUpdate: string,
+  content: contentBlock,
+}
+
+// session/update params
+@schema
+type sessionUpdateParams = {
+  @as("sessionId")
+  sessionId: string,
+  update: sessionUpdate,
+}
+
+// Full session/update notification envelope
+@schema
+type sessionUpdateNotification = {
+  jsonrpc: string,
+  method: string,
+  params: sessionUpdateParams,
+}

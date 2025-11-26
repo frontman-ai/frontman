@@ -1,100 +1,23 @@
 defmodule FrontmanServer.TasksTest do
   use ExUnit.Case, async: false
-  use FrontmanServer.CassetteCase
 
   alias FrontmanServer.Tasks
-  alias FrontmanServer.Tasks.Interaction
 
-  describe "create_task with agent orchestration" do
-    test "automatically spawns an agent", %{fixture_path: fixture_path} do
-      task_id = "test_task_#{System.unique_integer([:positive])}"
-
-      {:ok, ^task_id} =
-        Tasks.create_task(%{message: "Hello", task_id: task_id}, %{fixture_path: fixture_path})
-
-      assert :ok = wait_for_agent_completion(task_id)
-
-      interactions = Tasks.get_interactions(task_id)
-
-      assert Enum.any?(interactions, fn
-               %Interaction.AgentSpawned{} -> true
-               _ -> false
-             end)
+  describe "topic/1" do
+    test "returns topic string for task_id" do
+      assert Tasks.topic("abc123") == "task:abc123"
     end
+  end
 
-    test "records UserMessage, AgentSpawned, AgentResponse, and AgentCompleted interactions", %{
-      fixture_path: fixture_path
-    } do
-      task_id = "test_task_#{System.unique_integer([:positive])}"
+  describe "subscribe/2" do
+    test "subscribes calling process to task topic" do
+      task_id = "test_sub_#{System.unique_integer([:positive])}"
 
-      {:ok, ^task_id} =
-        Tasks.create_task(%{message: "Test message", task_id: task_id}, %{
-          fixture_path: fixture_path
-        })
+      :ok = Tasks.subscribe(FrontmanServer.PubSub, task_id)
 
-      assert :ok = wait_for_agent_completion(task_id)
+      Phoenix.PubSub.broadcast(FrontmanServer.PubSub, Tasks.topic(task_id), {:test_event, "hello"})
 
-      interactions = Tasks.get_interactions(task_id)
-
-      types =
-        Enum.map(interactions, fn
-          %Interaction.UserMessage{} -> :user_message
-          %Interaction.AgentSpawned{} -> :agent_spawned
-          %Interaction.AgentResponse{} -> :agent_response
-          %Interaction.AgentCompleted{} -> :agent_completed
-        end)
-
-      assert :user_message in types
-      assert :agent_spawned in types
-      assert :agent_response in types
-      assert :agent_completed in types
-
-      assert Enum.at(interactions, 0).__struct__ == Interaction.UserMessage
-      assert Enum.at(interactions, 1).__struct__ == Interaction.AgentSpawned
-      assert Enum.at(interactions, -2).__struct__ == Interaction.AgentResponse
-      assert Enum.at(interactions, -1).__struct__ == Interaction.AgentCompleted
-    end
-
-    test "agent writes response to correct task", %{fixture_path: fixture_path} do
-      task_id = "test_task_#{System.unique_integer([:positive])}"
-
-      {:ok, ^task_id} =
-        Tasks.create_task(%{message: "Write a haiku", task_id: task_id}, %{
-          fixture_path: fixture_path
-        })
-
-      assert :ok = wait_for_agent_completion(task_id)
-
-      interactions = Tasks.get_interactions(task_id)
-
-      agent_response =
-        Enum.find(interactions, fn
-          %Interaction.AgentResponse{} -> true
-          _ -> false
-        end)
-
-      assert agent_response != nil
-      assert agent_response.content != ""
-      assert is_binary(agent_response.content)
-    end
-
-    test "agent completes and stops after one iteration", %{fixture_path: fixture_path} do
-      task_id = "test_task_#{System.unique_integer([:positive])}"
-
-      {:ok, ^task_id} =
-        Tasks.create_task(%{message: "Hello", task_id: task_id}, %{fixture_path: fixture_path})
-
-      assert :ok = wait_for_agent_completion(task_id)
-
-      interactions = Tasks.get_interactions(task_id)
-
-      completed_count =
-        Enum.count(interactions, fn
-          %Interaction.AgentCompleted{} -> true
-          _ -> false
-        end)
-
-      assert completed_count == 1
+      assert_receive {:test_event, "hello"}, 100
     end
   end
 end

@@ -105,6 +105,35 @@ let parseInitializeResult = (json: JSON.t): result<Types.initializeResult, strin
   }
 }
 
+// Parse session/new result
+let parseSessionNewResult = (json: JSON.t): result<Types.sessionNewResult, string> => {
+  try {
+    Ok(json->S.parseOrThrow(Types.sessionNewResultSchema))
+  } catch {
+  | S.Error(e) => Error(e.message)
+  }
+}
+
+// Parse session/prompt result
+let parsePromptResult = (json: JSON.t): result<Types.promptResult, string> => {
+  try {
+    Ok(json->S.parseOrThrow(Types.promptResultSchema))
+  } catch {
+  | S.Error(e) => Error(e.message)
+  }
+}
+
+// Parse session/update notification
+let parseSessionUpdateNotification = (
+  json: JSON.t,
+): result<Types.sessionUpdateNotification, string> => {
+  try {
+    Ok(json->S.parseOrThrow(Types.sessionUpdateNotificationSchema))
+  } catch {
+  | S.Error(e) => Error(e.message)
+  }
+}
+
 // Check if initialized
 let isInitialized = (state: state): bool => {
   switch state.connectionState {

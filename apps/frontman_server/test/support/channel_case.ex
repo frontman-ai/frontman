@@ -29,9 +29,6 @@ defmodule FrontmanServerWeb.ChannelCase do
   end
 
   setup _tags do
-    # FrontmanServer.DataCase.setup_sandbox(tags)
-    # Clear ETS tables between tests for isolation
-    :ets.delete_all_objects(:tasks)
     :ok
   end
 end

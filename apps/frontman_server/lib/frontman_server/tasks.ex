@@ -16,36 +16,34 @@ defmodule FrontmanServer.Tasks do
   defdelegate get_task(task_id), to: TaskStore, as: :get
 
   @doc """
-  Creates a new task and stores it.
-
-  The task_id must be provided by the client.
-  Creating a task will automatically spawn an agent to process the initial message.
-  Each agent run gets a unique agent_id (separate from task_id).
-
-  Returns `{:ok, task_id}` on success.
-
-  ## Options
-  - `:fixture_path` - Path to fixture file for testing (record/replay)
+  Returns the PubSub topic for a task.
   """
-  @spec create_task(%{message: String.t(), task_id: String.t()}, map()) ::
-          {:ok, String.t()} | {:error, term()}
-  def create_task(%{message: message, task_id: task_id}, config \\ %{}) do
-    task = Task.new(task_id, config)
-    TaskStore.insert(task)
+  @spec topic(String.t()) :: String.t()
+  def topic(task_id), do: "task:#{task_id}"
 
-    fixture_path = Map.get(config, :fixture_path)
-
-    with {:ok, _interaction} <-
-           add_user_message(task_id, message, %{}, fixture_path: fixture_path) do
-      {:ok, task_id}
-    end
+  @doc """
+  Subscribes the calling process to task events.
+  """
+  @spec subscribe(atom(), String.t()) :: :ok | {:error, term()}
+  def subscribe(pubsub, task_id) do
+    Phoenix.PubSub.subscribe(pubsub, topic(task_id))
   end
 
   @doc """
-  Returns all interactions for a task.
+  Creates a new task and stores it.
+
+  The task_id must be provided by the client.
+  Returns `{:ok, task_id}` on success.
   """
+  @spec create_task(String.t(), map()) :: {:ok, String.t()} | {:error, term()}
+  def create_task(task_id, config \\ %{}) do
+    task = Task.new(task_id, config)
+    TaskStore.insert(task)
+    {:ok, task_id}
+  end
+
   @spec get_interactions(String.t()) :: list(Interaction.t())
-  def get_interactions(task_id) do
+  defp get_interactions(task_id) do
     case TaskStore.get(task_id) do
       {:ok, task} -> task.interactions
       {:error, :not_found} -> []
@@ -76,13 +74,10 @@ defmodule FrontmanServer.Tasks do
 
   Only spawns a new agent if no agent is currently running on this task.
   If an agent is already running, it will pick up the new message in its next iteration.
-
-  ## Options
-  - `:fixture_path` - Path to fixture file for testing (record/replay)
   """
-  @spec add_user_message(String.t(), String.t(), map(), keyword()) ::
+  @spec add_user_message(String.t(), String.t(), map()) ::
           {:ok, Interaction.t()} | {:error, :task_not_found}
-  def add_user_message(task_id, content, metadata \\ %{}, opts \\ []) do
+  def add_user_message(task_id, content, metadata \\ %{}) do
     interaction = %Interaction.UserMessage{
       id: Interaction.new_id(),
       content: content,
@@ -96,7 +91,7 @@ defmodule FrontmanServer.Tasks do
         if Agents.agent_running?(task_id) do
           {:ok, interaction}
         else
-          case spawn_and_execute_agent(task_id, %{}, opts) do
+          case spawn_and_execute_agent(task_id, %{}) do
             {:ok, _agent_id} -> {:ok, interaction}
             {:error, reason} -> {:error, reason}
           end
@@ -156,13 +151,13 @@ defmodule FrontmanServer.Tasks do
     append_interaction(task_id, interaction)
   end
 
-  @spec spawn_and_execute_agent(String.t(), map(), keyword()) ::
+  @spec spawn_and_execute_agent(String.t(), map()) ::
           {:ok, String.t()} | {:error, term()}
-  defp spawn_and_execute_agent(task_id, config, opts) do
+  defp spawn_and_execute_agent(task_id, config) do
     interactions = get_interactions(task_id)
     messages = Interaction.to_llm_messages(interactions)
 
-    case Agents.start_agent(task_id, messages, opts) do
+    case Agents.start_agent(task_id, messages) do
       {:ok, agent_id} ->
         add_agent_spawned(%{task_id: task_id, agent_id: agent_id}, config)
         {:ok, agent_id}

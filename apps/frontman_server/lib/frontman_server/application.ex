@@ -9,8 +9,6 @@ defmodule FrontmanServer.Application do
   def start(_type, _args) do
     # Create ETS table for tasks
     :ets.new(:tasks, [:named_table, :public, :set, read_concurrency: true])
-    # Create ETS table for sessions
-    :ets.new(:sessions, [:named_table, :public, :set, read_concurrency: true])
 
     children = [
       FrontmanServerWeb.Telemetry,
