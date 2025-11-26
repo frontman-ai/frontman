@@ -220,6 +220,13 @@ defmodule FrontmanServer.Tasks.Interaction do
   end
 
   @doc """
+  Checks if an interaction is a user message.
+  """
+  @spec user_message?(t()) :: boolean()
+  def user_message?(%UserMessage{}), do: true
+  def user_message?(_), do: false
+
+  @doc """
   Converts interactions to LLM message format.
 
   This is the boundary translation from Tasks domain (Interactions)

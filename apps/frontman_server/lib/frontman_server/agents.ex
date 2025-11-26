@@ -34,15 +34,28 @@ defmodule FrontmanServer.Agents do
   end
 
   @doc """
+  Returns the current state of the agent for a task.
+
+  - `:processing` - agent is actively working
+  - `:idle` - agent is waiting for new messages
+  - `:not_running` - no agent exists for this task
+  """
+  @spec agent_state(String.t()) :: :processing | :idle | :not_running
+  def agent_state(task_id) do
+    case Registry.lookup(FrontmanServer.AgentRegistry, task_id) do
+      [{_pid, state}] -> state
+      [] -> :not_running
+    end
+  end
+
+  @doc """
   Checks if an agent is currently running for the given task.
 
-  Returns `true` if an agent process exists and is alive for this task_id.
+  Returns `true` if an agent process exists for this task_id.
   """
+  @spec agent_running?(String.t()) :: boolean()
   def agent_running?(task_id) do
-    case Registry.lookup(FrontmanServer.AgentRegistry, task_id) do
-      [{pid, _}] -> Process.alive?(pid)
-      [] -> false
-    end
+    agent_state(task_id) != :not_running
   end
 
   @doc """

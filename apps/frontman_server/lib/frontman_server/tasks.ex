@@ -53,6 +53,23 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
+  @doc """
+  Gets interactions formatted as LLM messages.
+
+  Transforms task interactions into the format expected by LLM APIs.
+  """
+  @spec get_llm_messages(String.t()) :: list(map())
+  def get_llm_messages(task_id) do
+    task_id
+    |> get_interactions()
+    |> Interaction.to_llm_messages()
+  end
+
+  @doc """
+  Checks if an interaction is a user message.
+  """
+  defdelegate user_message?(interaction), to: Interaction
+
   @spec append_interaction(String.t(), Interaction.t()) ::
           {:ok, Interaction.t()} | {:error, :task_not_found}
   defp append_interaction(task_id, interaction) do
@@ -90,15 +107,12 @@ defmodule FrontmanServer.Tasks do
 
     case append_interaction(task_id, interaction) do
       {:ok, interaction} ->
-        # Only spawn a new agent if there isn't one already running
-        if Agents.agent_running?(task_id) do
-          {:ok, interaction}
-        else
-          case spawn_and_execute_agent(task_id, %{}) do
-            {:ok, _agent_id} -> {:ok, interaction}
-            {:error, reason} -> {:error, reason}
-          end
+        # Spawn agent if none exists - existing agents will wake via PubSub
+        if Agents.agent_state(task_id) == :not_running do
+          spawn_and_execute_agent(task_id, %{})
         end
+
+        {:ok, interaction}
 
       {:error, reason} ->
         {:error, reason}
