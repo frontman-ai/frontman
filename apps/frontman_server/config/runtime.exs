@@ -1,24 +1,25 @@
 import Config
+import Dotenvy
 
-# config/runtime.exs is executed for all environments, including
-# during releases. It is executed after compilation and before the
-# system starts, so it is typically used to load production configuration
-# and secrets from environment variables or elsewhere. Do not define
-# any compile-time configuration in here, as it won't be applied.
-# The block below contains prod specific runtime configuration.
+require Logger
 
-# ## Using releases
-#
-# If you use `mix release`, you need to explicitly enable the server
-# by passing the PHX_SERVER=true when you start it:
-#
-#     PHX_SERVER=true bin/frontman_server start
-#
-# Alternatively, you can use `mix phx.gen.release` to generate a `bin/server`
-# script that automatically sets the env var above.
+env_dir_prefix = System.get_env("RELEASE_ROOT") || Path.expand("./envs")
+
+result =
+  source!([
+    Path.absname(".env", env_dir_prefix),
+    Path.absname(".#{config_env()}.env", env_dir_prefix),
+    Path.absname(".#{config_env()}.overrides.env", env_dir_prefix),
+    System.get_env()
+  ])
+
 if System.get_env("PHX_SERVER") do
   config :frontman_server, FrontmanServerWeb.Endpoint, server: true
 end
+
+# LLM API keys - loaded at runtime from environment
+config :frontman_server,
+  anthropic_api_key: env!("ANTHROPIC_API_KEY", :string!)
 
 if config_env() == :prod do
   database_url =
