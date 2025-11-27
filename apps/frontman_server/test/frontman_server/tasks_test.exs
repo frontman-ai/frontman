@@ -63,15 +63,14 @@ defmodule FrontmanServer.TasksTest do
     end
   end
 
-  describe "add_tool_result/5" do
+  describe "add_tool_result/4" do
     test "creates tool result interaction" do
       task_id = "test_tool_result_#{System.unique_integer([:positive])}"
       {:ok, ^task_id} = Tasks.create_task(task_id)
-      agent_id = Ecto.UUID.generate()
 
       tool_call_data = %{id: "call_123", name: "calculator"}
 
-      {:ok, interaction} = Tasks.add_tool_result(task_id, agent_id, tool_call_data, 2, false)
+      {:ok, interaction} = Tasks.add_tool_result(task_id, tool_call_data, 2, false)
 
       assert interaction.result == 2
       assert interaction.is_error == false
@@ -81,11 +80,10 @@ defmodule FrontmanServer.TasksTest do
     test "creates error tool result" do
       task_id = "test_tool_error_#{System.unique_integer([:positive])}"
       {:ok, ^task_id} = Tasks.create_task(task_id)
-      agent_id = Ecto.UUID.generate()
 
       tool_call_data = %{id: "call_456", name: "failing_tool"}
 
-      {:ok, interaction} = Tasks.add_tool_result(task_id, agent_id, tool_call_data, "error message", true)
+      {:ok, interaction} = Tasks.add_tool_result(task_id, tool_call_data, "error message", true)
 
       assert interaction.is_error == true
       assert interaction.result == "error message"

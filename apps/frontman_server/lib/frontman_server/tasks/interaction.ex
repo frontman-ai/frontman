@@ -178,7 +178,6 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     typedstruct enforce: true do
       field :id, String.t()
-      field :agent_id, String.t()
       field :tool_call_id, String.t()
       field :tool_name, String.t()
       field :result, term()
@@ -193,7 +192,6 @@ defmodule FrontmanServer.Tasks.Interaction do
         %{
           type: "tool_result",
           id: value.id,
-          agent_id: value.agent_id,
           tool_call_id: value.tool_call_id,
           tool_name: value.tool_name,
           result: value.result,

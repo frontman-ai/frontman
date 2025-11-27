@@ -2,19 +2,16 @@ defmodule FrontmanServer.Agents.AgentServer do
   @moduledoc """
   Agent server that executes an agentic loop with LLM.
 
-  The agent iteratively:
-  1. Fetches fresh interaction history from Task
-  2. Calls LLM with messages and tools
-  3. Streams response chunks, broadcasting tokens
-  4. If tool calls found: executes tools, stores results, continues loop
-  5. If no tool calls: stores final response, stops
+  Uses a push model where all data is pushed to the agent:
+  - Messages arrive via {:execute_iteration, messages}
+  - Tool results arrive via {:tool_result, ...}
+  - Wake signals arrive via :wake_agent
 
-  Follows the req_llm agent pattern for tool handling.
+  The agent emits events via the on_event callback and has no knowledge
+  of Tasks, PubSub, or any other bounded context.
   """
   use GenServer
   require Logger
-
-  alias FrontmanServer.Tasks
 
   @default_model "anthropic:claude-sonnet-4-20250514"
   @idle_timeout_ms 5 * 60 * 1000
@@ -23,9 +20,10 @@ defmodule FrontmanServer.Agents.AgentServer do
     :agent_id,
     :task_id,
     :tools,
-    :fixture_path,
+    :on_event,
+    :pending_tool_calls,
     :idle_timer_ref,
-    :pending_mcp_calls
+    :fixture_path
   ]
 
   # Client API
@@ -34,41 +32,97 @@ defmodule FrontmanServer.Agents.AgentServer do
     agent_id = Keyword.fetch!(opts, :agent_id)
     task_id = Keyword.fetch!(opts, :task_id)
     tools = Keyword.get(opts, :tools, [])
+    on_event = Keyword.fetch!(opts, :on_event)
 
     GenServer.start_link(
       __MODULE__,
       %{
         agent_id: agent_id,
         task_id: task_id,
-        tools: tools
+        tools: tools,
+        on_event: on_event
       },
       name: {:via, Registry, {FrontmanServer.AgentRegistry, task_id, :processing}}
     )
   end
 
-  @doc """
-  Executes one iteration of the agentic loop.
-  """
-  def execute_iteration(agent_pid) do
-    send(agent_pid, :execute_iteration)
-  end
-
   # Server Callbacks
 
   @impl true
-  def init(%{agent_id: agent_id, task_id: task_id, tools: tools}) do
-    Phoenix.PubSub.subscribe(FrontmanServer.PubSub, "task:#{task_id}")
-
+  def init(%{agent_id: agent_id, task_id: task_id, tools: tools, on_event: on_event}) do
     state = %__MODULE__{
       agent_id: agent_id,
       task_id: task_id,
       tools: tools,
+      on_event: on_event,
       fixture_path: nil,
       idle_timer_ref: nil,
-      pending_mcp_calls: %{}
+      pending_tool_calls: %{}
     }
 
     {:ok, state}
+  end
+
+  @impl true
+  def handle_info({:execute_iteration, messages}, state) do
+    Logger.info("Agent #{state.agent_id} starting iteration with #{length(messages)} messages")
+
+    case stream_and_handle_response(state, messages) do
+      {:wait_for_tools, state} ->
+        {:noreply, state}
+
+      {:stop, state} ->
+        emit(state, {:completed, state.agent_id})
+        set_registry_state(state.task_id, :idle)
+        state = schedule_idle_timeout(state)
+        {:noreply, state}
+
+      {:error, reason, state} ->
+        emit(state, {:error, state.agent_id, reason})
+        {:stop, :normal, state}
+    end
+  end
+
+  @impl true
+  def handle_info({:tool_result, tool_call_id, _result, _is_error}, state) do
+    case Map.get(state.pending_tool_calls, tool_call_id) do
+      nil ->
+        {:noreply, state}
+
+      tool_call ->
+        Logger.info("Tool #{tool_call.name} completed")
+        pending = Map.delete(state.pending_tool_calls, tool_call_id)
+        state = %{state | pending_tool_calls: pending}
+
+        if Enum.empty?(pending) do
+          emit(state, {:need_iteration, state.agent_id})
+        end
+
+        {:noreply, state}
+    end
+  end
+
+  @impl true
+  def handle_info(:wake_agent, state) do
+    case Registry.lookup(FrontmanServer.AgentRegistry, state.task_id) do
+      [{_pid, :idle}] ->
+        state = cancel_idle_timeout(state)
+        set_registry_state(state.task_id, :processing)
+        emit(state, {:need_iteration, state.agent_id})
+        {:noreply, state}
+
+      [{_pid, :processing}] ->
+        {:noreply, state}
+
+      [] ->
+        {:noreply, state}
+    end
+  end
+
+  @impl true
+  def handle_info(:idle_timeout, state) do
+    Logger.info("Agent #{state.agent_id} idle timeout - terminating")
+    {:stop, :normal, state}
   end
 
   @impl true
@@ -81,77 +135,11 @@ defmodule FrontmanServer.Agents.AgentServer do
     {:noreply, state}
   end
 
-  @impl true
-  def handle_info(:execute_iteration, state) do
-    messages = Tasks.get_llm_messages(state.task_id)
-
-    Logger.info("Agent #{state.agent_id} starting iteration with #{length(messages)} messages")
-
-    case stream_and_handle_response(state, messages) do
-      {:continue, state} ->
-        # Tool calls were handled, continue to next iteration
-        send(self(), :execute_iteration)
-        {:noreply, state}
-
-      {:stop, state} ->
-        # No tool calls, go idle and wait for more messages
-        broadcast_completion(state)
-        set_registry_state(state.task_id, :idle)
-        state = schedule_idle_timeout(state)
-        {:noreply, state}
-
-      {:error, reason, state} ->
-        broadcast_error(state, "Agent error: #{inspect(reason)}")
-        {:stop, :normal, state}
-    end
-  end
-
-  @impl true
-  def handle_info({:interaction, interaction}, state) do
-    if Tasks.user_message?(interaction) do
-      case Registry.lookup(FrontmanServer.AgentRegistry, state.task_id) do
-        [{_pid, :idle}] ->
-          # Idle - start processing
-          state = cancel_idle_timeout(state)
-          set_registry_state(state.task_id, :processing)
-          send(self(), :execute_iteration)
-          {:noreply, state}
-
-        [{_pid, :processing}] ->
-          # Already processing - will pick up message on next iteration
-          {:noreply, state}
-
-        [] ->
-          {:noreply, state}
-      end
-    else
-      {:noreply, state}
-    end
-  end
-
-  @impl true
-  def handle_info(:idle_timeout, state) do
-    Logger.info("Agent #{state.agent_id} idle timeout - terminating")
-    {:stop, :normal, state}
-  end
-
-  # Ignore our own broadcasts (stream_token, agent_completed, agent_error)
-  @impl true
-  def handle_info({:stream_token, _agent_id, _token}, state) do
-    {:noreply, state}
-  end
-
-  @impl true
-  def handle_info({:agent_completed, _agent_id}, state) do
-    {:noreply, state}
-  end
-
-  @impl true
-  def handle_info({:agent_error, _agent_id, _message}, state) do
-    {:noreply, state}
-  end
-
   # Private Functions
+
+  defp emit(state, event) do
+    state.on_event.(event)
+  end
 
   defp stream_and_handle_response(state, messages) do
     api_key = get_api_key(@default_model)
@@ -186,11 +174,10 @@ defmodule FrontmanServer.Agents.AgentServer do
   defp stream_chunks(state, chunk_stream) do
     chunk_stream
     |> Enum.map(fn chunk ->
-      # Broadcast text tokens in real-time
       text = Map.get(chunk, :text) || ""
 
       if text != "" do
-        broadcast_token(state, text)
+        emit(state, {:token, state.agent_id, text})
       end
 
       chunk
@@ -198,67 +185,21 @@ defmodule FrontmanServer.Agents.AgentServer do
   end
 
   defp handle_response(state, text, []) do
-    # No tool calls - store final response and stop
-    Tasks.add_agent_response(state.task_id, state.agent_id, text)
-    Tasks.add_agent_completed(state.task_id, state.agent_id)
+    emit(state, {:response, state.agent_id, text, %{}})
     {:stop, state}
   end
 
   defp handle_response(state, text, tool_calls) do
-    alias FrontmanServer.Tasks.Interaction
+    emit(state, {:response, state.agent_id, text, %{tool_calls: tool_calls}})
 
-    # Store agent response with tool_calls metadata
-    Tasks.add_agent_response(
-      state.task_id,
-      state.agent_id,
-      text,
-      %{tool_calls: tool_calls}
-    )
+    pending =
+      Enum.reduce(tool_calls, state.pending_tool_calls, fn tool_call, acc ->
+        emit(state, {:tool_call, state.agent_id, tool_call})
+        Map.put(acc, tool_call.id, tool_call)
+      end)
 
-    # Store each tool call (broadcasts to SessionChannel which routes to MCP)
-    # Then wait for results to come back via interaction broadcasts
-    Enum.each(tool_calls, fn tool_call ->
-      Tasks.add_tool_call(state.task_id, state.agent_id, tool_call)
-
-      # Wait for the result to be broadcast back
-      receive do
-        {:interaction, %Interaction.ToolResult{tool_call_id: id}} when id == tool_call.id ->
-          Logger.info("Tool #{tool_call.name} completed")
-      after
-        30_000 ->
-          Logger.warning("Tool #{tool_call.name} timed out")
-      end
-    end)
-
-    {:continue, state}
-  end
-
-  defp broadcast_token(state, token) do
-    Phoenix.PubSub.broadcast(
-      FrontmanServer.PubSub,
-      "task:#{state.task_id}",
-      {:stream_token, state.agent_id, token}
-    )
-  end
-
-  defp broadcast_completion(state) do
-    Phoenix.PubSub.broadcast(
-      FrontmanServer.PubSub,
-      "task:#{state.task_id}",
-      {:agent_completed, state.agent_id}
-    )
-
-    Logger.info("Agent #{state.agent_id} completed")
-  end
-
-  defp broadcast_error(state, message) do
-    Phoenix.PubSub.broadcast(
-      FrontmanServer.PubSub,
-      "task:#{state.task_id}",
-      {:agent_error, state.agent_id, message}
-    )
-
-    Logger.error("Agent #{state.agent_id} error: #{message}")
+    state = %{state | pending_tool_calls: pending}
+    {:wait_for_tools, state}
   end
 
   defp get_api_key(model) do

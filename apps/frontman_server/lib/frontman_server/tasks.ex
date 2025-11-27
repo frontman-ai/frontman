@@ -92,17 +92,14 @@ defmodule FrontmanServer.Tasks do
   @doc """
   Creates and appends a UserMessage interaction.
 
-  Only spawns a new agent if no agent is currently running on this task.
-  If an agent is already running, it will pick up the new message in its next iteration.
+  Notifies Agents which decides whether to spawn or wake an agent.
 
   Options:
-    - `:mcp_tools` - List of ReqLLM.Tool structs to pass to the agent
+    - `:mcp_tools` - List of tool definitions to pass to the agent
   """
   @spec add_user_message(String.t(), String.t(), keyword()) ::
           {:ok, Interaction.t()} | {:error, :task_not_found}
   def add_user_message(task_id, content, opts \\ []) do
-    mcp_tools = Keyword.get(opts, :mcp_tools, [])
-
     interaction = %Interaction.UserMessage{
       id: Interaction.new_id(),
       content: content,
@@ -112,11 +109,7 @@ defmodule FrontmanServer.Tasks do
 
     case append_interaction(task_id, interaction) do
       {:ok, interaction} ->
-        # Spawn agent if none exists - existing agents will wake via PubSub
-        if Agents.agent_state(task_id) == :not_running do
-          spawn_and_execute_agent(task_id, %{tools: mcp_tools})
-        end
-
+        Agents.notify_user_message(task_id, opts)
         {:ok, interaction}
 
       {:error, reason} ->
@@ -193,13 +186,14 @@ defmodule FrontmanServer.Tasks do
 
   @doc """
   Creates and appends a ToolResult interaction.
+
+  Notifies Agents directly so the agent can continue its iteration.
   """
-  @spec add_tool_result(String.t(), String.t(), map(), term(), boolean()) ::
+  @spec add_tool_result(String.t(), map(), term(), boolean()) ::
           {:ok, Interaction.t()} | {:error, :task_not_found}
-  def add_tool_result(task_id, agent_id, tool_call_data, result, is_error \\ false) do
+  def add_tool_result(task_id, tool_call_data, result, is_error \\ false) do
     interaction = %Interaction.ToolResult{
       id: Interaction.new_id(),
-      agent_id: agent_id,
       tool_call_id: tool_call_data.id,
       tool_name: tool_call_data.name,
       result: result,
@@ -207,21 +201,14 @@ defmodule FrontmanServer.Tasks do
       timestamp: Interaction.now()
     }
 
-    append_interaction(task_id, interaction)
-  end
-
-  @spec spawn_and_execute_agent(String.t(), map()) ::
-          {:ok, String.t()} | {:error, term()}
-  defp spawn_and_execute_agent(task_id, config) do
-    mcp_tools = Map.get(config, :tools, [])
-
-    case Agents.start_agent(task_id, tools: mcp_tools) do
-      {:ok, agent_id} ->
-        add_agent_spawned(%{task_id: task_id, agent_id: agent_id}, config)
-        {:ok, agent_id}
+    case append_interaction(task_id, interaction) do
+      {:ok, interaction} ->
+        Agents.notify_tool_result(task_id, tool_call_data.id, result, is_error)
+        {:ok, interaction}
 
       {:error, reason} ->
         {:error, reason}
     end
   end
+
 end

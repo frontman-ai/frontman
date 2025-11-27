@@ -130,10 +130,9 @@ defmodule FrontmanServerWeb.SessionChannel do
 
         push(socket, "acp:message", completed_notification)
 
-        # Store result via Tasks (broadcasts to agent)
+        # Store result and notify agent
         Tasks.add_tool_result(
           session_id,
-          tool_call.agent_id,
           %{id: tool_call.tool_call_id, name: tool_call.tool_name},
           text_result,
           false
@@ -169,10 +168,20 @@ defmodule FrontmanServerWeb.SessionChannel do
 
         Logger.error("MCP tool #{tool_call.tool_name} failed: #{error_message}")
 
-        # Store error result via Tasks (broadcasts to agent)
+        # Send ACP notification: failed
+        failed_notification =
+          ACP.build_tool_call_update_notification(
+            session_id,
+            tool_call.tool_call_id,
+            "failed",
+            error_message
+          )
+
+        push(socket, "acp:message", failed_notification)
+
+        # Store error result and notify agent
         Tasks.add_tool_result(
           session_id,
-          tool_call.agent_id,
           %{id: tool_call.tool_call_id, name: tool_call.tool_name},
           error_message,
           true
@@ -276,7 +285,8 @@ defmodule FrontmanServerWeb.SessionChannel do
     request =
       JsonRpc.request(request_id, "tools/call", %{
         "name" => tool_call.tool_name,
-        "arguments" => tool_call.arguments
+        "arguments" => tool_call.arguments,
+        "callId" => tool_call.tool_call_id
       })
 
     # Send ACP notification: in_progress
@@ -321,12 +331,14 @@ defmodule FrontmanServerWeb.SessionChannel do
 
   defp mcp_tools_to_llm_format(mcp_tools) do
     Enum.map(mcp_tools, fn tool ->
-      %{
+      # MCP tools are executed externally via SessionChannel, so we use a dummy callback.
+      # The callback is never actually called - tool calls are routed to MCP instead.
+      ReqLLM.Tool.new!(
         name: tool["name"],
         description: tool["description"] || "",
-        input_schema: tool["inputSchema"] || %{"type" => "object", "properties" => %{}},
-        source: :mcp
-      }
+        parameter_schema: tool["inputSchema"] || %{"type" => "object", "properties" => %{}},
+        callback: fn _args -> {:ok, "MCP tool - executed externally"} end
+      )
     end)
   end
 

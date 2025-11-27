@@ -63,7 +63,6 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       interactions = [
         %ToolResult{
           id: "1",
-          agent_id: "agent_1",
           tool_call_id: "call_123",
           tool_name: "calculator",
           result: 42,
@@ -114,7 +113,6 @@ defmodule FrontmanServer.Tasks.InteractionTest do
         },
         %ToolResult{
           id: "4",
-          agent_id: "a1",
           tool_call_id: "c1",
           tool_name: "calc",
           result: 4,
@@ -159,7 +157,6 @@ defmodule FrontmanServer.Tasks.InteractionTest do
     test "encodes ToolResult to JSON" do
       tool_result = %ToolResult{
         id: "1",
-        agent_id: "agent_1",
         tool_call_id: "call_123",
         tool_name: "calculator",
         result: 42,
