@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ACP Client Test</title>
+  <title>ACP + MCP Client Test</title>
   <style>
     * { box-sizing: border-box; }
     body {
@@ -142,10 +142,27 @@
       color: #fff;
     }
     .btn-send:hover { background: #219a52; }
+    .mcp-info {
+      background: #2d1f3d;
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+    }
+    .mcp-info h3 { margin-top: 0; color: #e056fd; }
+    .mcp-status {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 4px;
+      font-weight: bold;
+      margin-left: 10px;
+    }
+    .mcp-status.pending { background: #666; color: #fff; }
+    .mcp-status.ready { background: #27ae60; color: #fff; }
+    .log-entry.mcp { color: #e056fd; }
   </style>
 </head>
 <body>
-  <h1>ACP Client Test</h1>
+  <h1>ACP + MCP Client Test</h1>
 
   <div class="config">
     <label for="endpoint">WebSocket Endpoint</label>
@@ -168,6 +185,11 @@
     <div>Session ID: <span class="session-id" id="sessionIdDisplay"></span></div>
   </div>
 
+  <div class="mcp-info" id="mcpInfo" style="display: none;">
+    <h3>MCP Server <span class="mcp-status pending" id="mcpStatus">Pending</span></h3>
+    <div>Browser acting as MCP server for agent tools</div>
+  </div>
+
   <div class="chat-container" id="chatContainer" style="display: none;">
     <h3>Chat</h3>
     <div class="messages" id="messages"></div>
@@ -182,6 +204,9 @@
 
   <script type="module">
     import * as ACP from '../src/FrontmanClient__ACP.res.mjs';
+    import * as MCP from '../src/FrontmanClient__MCP.res.mjs';
+    import * as MCPServer from '../src/FrontmanClient__MCP__Server.res.mjs';
+    import * as ConsoleLogTool from '../src/FrontmanClient__MCP__Tool__ConsoleLog.res.mjs';
 
     const logEl = document.getElementById('log');
     const statusEl = document.getElementById('status');
@@ -192,6 +217,8 @@
     const serverInfoContentEl = document.getElementById('serverInfoContent');
     const sessionInfoEl = document.getElementById('sessionInfo');
     const sessionIdDisplayEl = document.getElementById('sessionIdDisplay');
+    const mcpInfoEl = document.getElementById('mcpInfo');
+    const mcpStatusEl = document.getElementById('mcpStatus');
     const chatContainer = document.getElementById('chatContainer');
     const messagesEl = document.getElementById('messages');
     const messageInput = document.getElementById('messageInput');
@@ -199,7 +226,12 @@
 
     let connection = null;
     let session = null;
+    let mcpHandler = null;
     let currentAssistantMessage = null;
+
+    // Create MCP server instance and register tools
+    let mcpServer = MCPServer.make("browser-test-mcp", "1.0.0");
+    mcpServer = MCPServer.registerToolModule(mcpServer, ConsoleLogTool);
 
     function log(message, type = 'info') {
       const time = new Date().toLocaleTimeString();
@@ -226,7 +258,22 @@
       const arrow = isSend ? '→' : '←';
       const color = isSend ? 'warn' : 'success';
       const label = isSend ? 'SEND' : 'RECV';
-      log(`${arrow} <b>${label}</b> ${JSON.stringify(payload, null, 2)}`, color);
+      log(`${arrow} <b>ACP ${label}</b> ${JSON.stringify(payload, null, 2)}`, color);
+    }
+
+    function logMcpMessage(direction, payload) {
+      // ReScript v12 compiles simple variants to strings, not {TAG: ...} objects
+      const isSend = direction === 'Send';
+      const arrow = isSend ? '→' : '←';
+      const label = isSend ? 'SEND' : 'RECV';
+      log(`${arrow} <b>MCP ${label}</b> ${JSON.stringify(payload, null, 2)}`, 'mcp');
+
+      // Update MCP status when we send initialize response
+      if (isSend && payload.result && payload.result.protocolVersion) {
+        mcpStatusEl.textContent = 'Ready';
+        mcpStatusEl.className = 'mcp-status ready';
+        log('MCP initialization complete!', 'success');
+      }
     }
 
     async function connect() {
@@ -311,23 +358,39 @@
       }
 
       log('Creating new session...', 'info');
+      console.log('[DEBUG] Before createSession call');
 
       try {
+        // DEBUG: Listen for mcp:message at socket level to see if it arrives before we attach
+        let earlyMcpMessage = null;
+        const debugChannel = connection.socket.channel(`debug_mcp_check`);
+
         const result = await ACP.createSession(connection, handleSessionUpdate);
+        console.log('[DEBUG] After createSession returned');
 
         if (result.TAG === 'Ok') {
           session = result._0;
           const sessionId = session.sessionId;
           log(`Session created and joined: ${sessionId}`, 'success');
+          console.log('[DEBUG] Session joined, about to attach MCP handler');
+
           sessionIdDisplayEl.textContent = sessionId;
           sessionInfoEl.style.display = 'block';
+          mcpInfoEl.style.display = 'block';
           chatContainer.style.display = 'block';
+
+          // Attach MCP handler to session channel
+          log('Attaching MCP handler to session channel...', 'info');
+          mcpHandler = MCP.attach(session.channel, mcpServer, logMcpMessage);
+          console.log('[DEBUG] MCP handler attached');
+          log('MCP handler attached, waiting for agent initialize request...', 'info');
         } else {
           const error = result._0;
           log(`Failed to create session: ${error}`, 'error');
         }
       } catch (err) {
         log(`Exception creating session: ${err.message}`, 'error');
+        console.error('[DEBUG] Exception:', err);
       }
     }
 
@@ -356,12 +419,19 @@
     function disconnect() {
       if (connection) {
         log('Disconnecting...', 'warn');
+        if (mcpHandler) {
+          MCP.detach(mcpHandler);
+          mcpHandler = null;
+        }
         connection = null;
         session = null;
         setStatus('disconnected', 'Disconnected');
         updateButtons(false);
         serverInfoEl.style.display = 'none';
         sessionInfoEl.style.display = 'none';
+        mcpInfoEl.style.display = 'none';
+        mcpStatusEl.textContent = 'Pending';
+        mcpStatusEl.className = 'mcp-status pending';
         chatContainer.style.display = 'none';
         messagesEl.innerHTML = '';
         log('Disconnected', 'info');
@@ -376,8 +446,9 @@
       if (e.key === 'Enter') sendMessage();
     });
 
-    log('ACP Client Test Page loaded', 'success');
+    log('ACP + MCP Client Test Page loaded', 'success');
     log('Click "Connect & Initialize" to start');
+    log('After creating a session, MCP handler will respond to agent initialize requests', 'info');
   </script>
 </body>
 </html>

@@ -10,13 +10,8 @@ type channelEvent = [
   | #send_message
   // ACP events
   | #"acp:message"
-  // MCP events
-  | #"mcp:initialize"
-  | #"mcp:initialized"
-  | #"mcp:tools_list"
-  | #"mcp:tools_list_result"
-  | #"mcp:tool_call"
-  | #"mcp:tool_result"
+  // MCP events (all MCP JSON-RPC goes through mcp:message)
+  | #"mcp:message"
 ]
 
 type rec pushResponse = {receive: (~status: string, ~callback: JSON.t => unit) => pushResponse}

@@ -94,22 +94,27 @@ defmodule FrontmanServer.Tasks do
 
   Only spawns a new agent if no agent is currently running on this task.
   If an agent is already running, it will pick up the new message in its next iteration.
+
+  Options:
+    - `:mcp_tools` - List of ReqLLM.Tool structs to pass to the agent
   """
-  @spec add_user_message(String.t(), String.t(), map()) ::
+  @spec add_user_message(String.t(), String.t(), keyword()) ::
           {:ok, Interaction.t()} | {:error, :task_not_found}
-  def add_user_message(task_id, content, metadata \\ %{}) do
+  def add_user_message(task_id, content, opts \\ []) do
+    mcp_tools = Keyword.get(opts, :mcp_tools, [])
+
     interaction = %Interaction.UserMessage{
       id: Interaction.new_id(),
       content: content,
       timestamp: Interaction.now(),
-      metadata: metadata
+      metadata: %{}
     }
 
     case append_interaction(task_id, interaction) do
       {:ok, interaction} ->
         # Spawn agent if none exists - existing agents will wake via PubSub
         if Agents.agent_state(task_id) == :not_running do
-          spawn_and_execute_agent(task_id, %{})
+          spawn_and_execute_agent(task_id, %{tools: mcp_tools})
         end
 
         {:ok, interaction}
@@ -208,9 +213,9 @@ defmodule FrontmanServer.Tasks do
   @spec spawn_and_execute_agent(String.t(), map()) ::
           {:ok, String.t()} | {:error, term()}
   defp spawn_and_execute_agent(task_id, config) do
-    tools = Map.get(config, :tools, [])
+    mcp_tools = Map.get(config, :tools, [])
 
-    case Agents.start_agent(task_id, tools: tools) do
+    case Agents.start_agent(task_id, tools: mcp_tools) do
       {:ok, agent_id} ->
         add_agent_spawned(%{task_id: task_id, agent_id: agent_id}, config)
         {:ok, agent_id}

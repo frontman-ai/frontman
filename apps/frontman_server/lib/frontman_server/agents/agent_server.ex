@@ -24,7 +24,8 @@ defmodule FrontmanServer.Agents.AgentServer do
     :task_id,
     :tools,
     :fixture_path,
-    :idle_timer_ref
+    :idle_timer_ref,
+    :pending_mcp_calls
   ]
 
   # Client API
@@ -63,7 +64,8 @@ defmodule FrontmanServer.Agents.AgentServer do
       task_id: task_id,
       tools: tools,
       fixture_path: nil,
-      idle_timer_ref: nil
+      idle_timer_ref: nil,
+      pending_mcp_calls: %{}
     }
 
     {:ok, state}
@@ -203,6 +205,8 @@ defmodule FrontmanServer.Agents.AgentServer do
   end
 
   defp handle_response(state, text, tool_calls) do
+    alias FrontmanServer.Tasks.Interaction
+
     # Store agent response with tool_calls metadata
     Tasks.add_agent_response(
       state.task_id,
@@ -211,34 +215,22 @@ defmodule FrontmanServer.Agents.AgentServer do
       %{tool_calls: tool_calls}
     )
 
-    # Execute each tool and store results
+    # Store each tool call (broadcasts to SessionChannel which routes to MCP)
+    # Then wait for results to come back via interaction broadcasts
     Enum.each(tool_calls, fn tool_call ->
-      # Store the tool call
       Tasks.add_tool_call(state.task_id, state.agent_id, tool_call)
 
-      # Find and execute the tool
-      case find_and_execute_tool(state.tools, tool_call) do
-        {:ok, result} ->
-          Tasks.add_tool_result(state.task_id, state.agent_id, tool_call, result, false)
-          Logger.info("Tool #{tool_call.name} executed successfully")
-
-        {:error, reason} ->
-          Tasks.add_tool_result(state.task_id, state.agent_id, tool_call, reason, true)
-          Logger.warning("Tool #{tool_call.name} failed: #{inspect(reason)}")
+      # Wait for the result to be broadcast back
+      receive do
+        {:interaction, %Interaction.ToolResult{tool_call_id: id}} when id == tool_call.id ->
+          Logger.info("Tool #{tool_call.name} completed")
+      after
+        30_000 ->
+          Logger.warning("Tool #{tool_call.name} timed out")
       end
     end)
 
     {:continue, state}
-  end
-
-  defp find_and_execute_tool(tools, tool_call) do
-    case Enum.find(tools, fn t -> t.name == tool_call.name end) do
-      nil ->
-        {:error, "Tool not found: #{tool_call.name}"}
-
-      tool ->
-        ReqLLM.Tool.execute(tool, tool_call.arguments)
-    end
   end
 
   defp broadcast_token(state, token) do

@@ -87,4 +87,49 @@ defmodule FrontmanServerWeb.ACP do
   def build_prompt_result(stop_reason) do
     %{"stopReason" => stop_reason}
   end
+
+  @doc """
+  Builds a session/update notification for a tool call.
+  """
+  def build_tool_call_notification(session_id, tool_call, status) do
+    params = %{
+      "sessionId" => session_id,
+      "update" => %{
+        "sessionUpdate" => "tool_call",
+        "toolCallId" => tool_call.tool_call_id,
+        "title" => "Calling #{tool_call.tool_name}",
+        "kind" => "other",
+        "status" => status
+      }
+    }
+
+    JsonRpc.notification("session/update", params)
+  end
+
+  @doc """
+  Builds a session/update notification for a tool call status update.
+  """
+  def build_tool_call_update_notification(session_id, tool_call_id, status, content \\ nil) do
+    update = %{
+      "sessionUpdate" => "tool_call_update",
+      "toolCallId" => tool_call_id,
+      "status" => status
+    }
+
+    update =
+      if content do
+        Map.put(update, "content", [
+          %{"type" => "content", "content" => %{"type" => "text", "text" => content}}
+        ])
+      else
+        update
+      end
+
+    params = %{
+      "sessionId" => session_id,
+      "update" => update
+    }
+
+    JsonRpc.notification("session/update", params)
+  end
 end
