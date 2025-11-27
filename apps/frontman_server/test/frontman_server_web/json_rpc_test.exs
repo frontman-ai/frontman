@@ -117,4 +117,23 @@ defmodule FrontmanServerWeb.JsonRpcTest do
       assert JsonRpc.error_internal() == -32603
     end
   end
+
+  describe "request/3" do
+    test "builds valid request" do
+      result = JsonRpc.request(1, "test/method", %{"key" => "value"})
+
+      assert result == %{
+               "jsonrpc" => "2.0",
+               "id" => 1,
+               "method" => "test/method",
+               "params" => %{"key" => "value"}
+             }
+    end
+
+    test "preserves string id" do
+      result = JsonRpc.request("req-123", "test", %{})
+
+      assert result["id"] == "req-123"
+    end
+  end
 end

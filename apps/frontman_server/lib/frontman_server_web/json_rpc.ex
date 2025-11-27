@@ -85,11 +85,23 @@ defmodule FrontmanServerWeb.JsonRpc do
   end
 
   @doc """
-  Builds a JSON-RPC 2.0 notification (server-initiated, no id).
+  Builds a JSON-RPC 2.0 notification (no id).
   """
   def notification(method, params) do
     %{
       "jsonrpc" => @jsonrpc_version,
+      "method" => method,
+      "params" => params
+    }
+  end
+
+  @doc """
+  Builds a JSON-RPC 2.0 request.
+  """
+  def request(id, method, params) do
+    %{
+      "jsonrpc" => @jsonrpc_version,
+      "id" => id,
       "method" => method,
       "params" => params
     }

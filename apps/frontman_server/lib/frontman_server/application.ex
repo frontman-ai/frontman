@@ -7,7 +7,7 @@ defmodule FrontmanServer.Application do
 
   @impl true
   def start(_type, _args) do
-    # Create ETS table for tasks
+    # Create ETS tables
     :ets.new(:tasks, [:named_table, :public, :set, read_concurrency: true])
 
     children = [
