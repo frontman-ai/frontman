@@ -100,12 +100,7 @@ defmodule FrontmanServer.Tasks do
   @spec add_user_message(String.t(), String.t(), keyword()) ::
           {:ok, Interaction.t()} | {:error, :task_not_found}
   def add_user_message(task_id, content, opts \\ []) do
-    interaction = %Interaction.UserMessage{
-      id: Interaction.new_id(),
-      content: content,
-      timestamp: Interaction.now(),
-      metadata: %{}
-    }
+    interaction = Interaction.UserMessage.new(content)
 
     case append_interaction(task_id, interaction) do
       {:ok, interaction} ->
@@ -123,14 +118,7 @@ defmodule FrontmanServer.Tasks do
   @spec add_agent_response(String.t(), String.t(), String.t(), map()) ::
           {:ok, Interaction.t()} | {:error, :task_not_found}
   def add_agent_response(task_id, agent_id, content, metadata \\ %{}) do
-    interaction = %Interaction.AgentResponse{
-      id: Interaction.new_id(),
-      agent_id: agent_id,
-      content: content,
-      timestamp: Interaction.now(),
-      metadata: metadata
-    }
-
+    interaction = Interaction.AgentResponse.new(agent_id, content, metadata)
     append_interaction(task_id, interaction)
   end
 
@@ -140,13 +128,7 @@ defmodule FrontmanServer.Tasks do
   @spec add_agent_spawned(%{task_id: String.t(), agent_id: String.t()}, map()) ::
           {:ok, Interaction.t()} | {:error, :task_not_found}
   def add_agent_spawned(%{task_id: task_id, agent_id: agent_id}, config \\ %{}) do
-    interaction = %Interaction.AgentSpawned{
-      id: Interaction.new_id(),
-      agent_id: agent_id,
-      config: config,
-      timestamp: Interaction.now()
-    }
-
+    interaction = Interaction.AgentSpawned.new(agent_id, config)
     append_interaction(task_id, interaction)
   end
 
@@ -156,13 +138,7 @@ defmodule FrontmanServer.Tasks do
   @spec add_agent_completed(String.t(), String.t(), term()) ::
           {:ok, Interaction.t()} | {:error, :task_not_found}
   def add_agent_completed(task_id, agent_id, result \\ nil) do
-    interaction = %Interaction.AgentCompleted{
-      id: Interaction.new_id(),
-      agent_id: agent_id,
-      timestamp: Interaction.now(),
-      result: result
-    }
-
+    interaction = Interaction.AgentCompleted.new(agent_id, result)
     append_interaction(task_id, interaction)
   end
 
@@ -172,15 +148,7 @@ defmodule FrontmanServer.Tasks do
   @spec add_tool_call(String.t(), String.t(), map()) ::
           {:ok, Interaction.t()} | {:error, :task_not_found}
   def add_tool_call(task_id, agent_id, tool_call_data) do
-    interaction = %Interaction.ToolCall{
-      id: Interaction.new_id(),
-      agent_id: agent_id,
-      tool_call_id: tool_call_data.id,
-      tool_name: tool_call_data.name,
-      arguments: tool_call_data.arguments,
-      timestamp: Interaction.now()
-    }
-
+    interaction = Interaction.ToolCall.new(agent_id, tool_call_data)
     append_interaction(task_id, interaction)
   end
 
@@ -192,14 +160,7 @@ defmodule FrontmanServer.Tasks do
   @spec add_tool_result(String.t(), map(), term(), boolean()) ::
           {:ok, Interaction.t()} | {:error, :task_not_found}
   def add_tool_result(task_id, tool_call_data, result, is_error \\ false) do
-    interaction = %Interaction.ToolResult{
-      id: Interaction.new_id(),
-      tool_call_id: tool_call_data.id,
-      tool_name: tool_call_data.name,
-      result: result,
-      is_error: is_error,
-      timestamp: Interaction.now()
-    }
+    interaction = Interaction.ToolResult.new(tool_call_data, result, is_error)
 
     case append_interaction(task_id, interaction) do
       {:ok, interaction} ->
@@ -210,5 +171,4 @@ defmodule FrontmanServer.Tasks do
         {:error, reason}
     end
   end
-
 end

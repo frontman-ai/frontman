@@ -22,10 +22,21 @@ defmodule FrontmanServer.Tasks.Interaction do
     use TypedStruct
 
     typedstruct enforce: true do
-      field :id, String.t()
-      field :content, String.t()
-      field :timestamp, DateTime.t()
-      field :metadata, map(), enforce: false
+      field(:id, String.t())
+      field(:content, String.t())
+      field(:timestamp, DateTime.t())
+      field(:metadata, map(), enforce: false)
+    end
+
+    def new(content, metadata \\ %{}) do
+      alias FrontmanServer.Tasks.Interaction
+
+      %__MODULE__{
+        id: Interaction.new_id(),
+        content: content,
+        timestamp: Interaction.now(),
+        metadata: metadata
+      }
     end
   end
 
@@ -53,11 +64,23 @@ defmodule FrontmanServer.Tasks.Interaction do
     use TypedStruct
 
     typedstruct enforce: true do
-      field :id, String.t()
-      field :agent_id, String.t()
-      field :content, String.t()
-      field :timestamp, DateTime.t()
-      field :metadata, map(), enforce: false
+      field(:id, String.t())
+      field(:agent_id, String.t())
+      field(:content, String.t())
+      field(:timestamp, DateTime.t())
+      field(:metadata, map(), enforce: false)
+    end
+
+    def new(agent_id, content, metadata \\ %{}) do
+      alias FrontmanServer.Tasks.Interaction
+
+      %__MODULE__{
+        id: Interaction.new_id(),
+        agent_id: agent_id,
+        content: content,
+        timestamp: Interaction.now(),
+        metadata: metadata
+      }
     end
   end
 
@@ -84,11 +107,22 @@ defmodule FrontmanServer.Tasks.Interaction do
     use TypedStruct
 
     typedstruct enforce: true do
-      field :id, String.t()
-      field :agent_id, String.t()
-      field :config, map(), enforce: false
-      field :parent_agent_id, String.t() | nil, enforce: false
-      field :timestamp, DateTime.t()
+      field(:id, String.t())
+      field(:agent_id, String.t())
+      field(:config, map(), enforce: false)
+      field(:parent_agent_id, String.t() | nil, enforce: false)
+      field(:timestamp, DateTime.t())
+    end
+
+    def new(agent_id, config \\ %{}) do
+      alias FrontmanServer.Tasks.Interaction
+
+      %__MODULE__{
+        id: Interaction.new_id(),
+        agent_id: agent_id,
+        config: config,
+        timestamp: Interaction.now()
+      }
     end
   end
 
@@ -115,10 +149,21 @@ defmodule FrontmanServer.Tasks.Interaction do
     use TypedStruct
 
     typedstruct enforce: true do
-      field :id, String.t()
-      field :agent_id, String.t()
-      field :timestamp, DateTime.t()
-      field :result, term(), enforce: false
+      field(:id, String.t())
+      field(:agent_id, String.t())
+      field(:timestamp, DateTime.t())
+      field(:result, term(), enforce: false)
+    end
+
+    def new(agent_id, result \\ nil) do
+      alias FrontmanServer.Tasks.Interaction
+
+      %__MODULE__{
+        id: Interaction.new_id(),
+        agent_id: agent_id,
+        timestamp: Interaction.now(),
+        result: result
+      }
     end
   end
 
@@ -144,12 +189,25 @@ defmodule FrontmanServer.Tasks.Interaction do
     use TypedStruct
 
     typedstruct enforce: true do
-      field :id, String.t()
-      field :agent_id, String.t()
-      field :tool_call_id, String.t()
-      field :tool_name, String.t()
-      field :arguments, map()
-      field :timestamp, DateTime.t()
+      field(:id, String.t())
+      field(:agent_id, String.t())
+      field(:tool_call_id, String.t())
+      field(:tool_name, String.t())
+      field(:arguments, map())
+      field(:timestamp, DateTime.t())
+    end
+
+    def new(agent_id, tool_call_data) do
+      alias FrontmanServer.Tasks.Interaction
+
+      %__MODULE__{
+        id: Interaction.new_id(),
+        agent_id: agent_id,
+        tool_call_id: tool_call_data.id,
+        tool_name: tool_call_data.name,
+        arguments: tool_call_data.arguments,
+        timestamp: Interaction.now()
+      }
     end
   end
 
@@ -177,12 +235,25 @@ defmodule FrontmanServer.Tasks.Interaction do
     use TypedStruct
 
     typedstruct enforce: true do
-      field :id, String.t()
-      field :tool_call_id, String.t()
-      field :tool_name, String.t()
-      field :result, term()
-      field :is_error, boolean(), default: false
-      field :timestamp, DateTime.t()
+      field(:id, String.t())
+      field(:tool_call_id, String.t())
+      field(:tool_name, String.t())
+      field(:result, term())
+      field(:is_error, boolean(), default: false)
+      field(:timestamp, DateTime.t())
+    end
+
+    def new(tool_call_data, result, is_error \\ false) do
+      alias FrontmanServer.Tasks.Interaction
+
+      %__MODULE__{
+        id: Interaction.new_id(),
+        tool_call_id: tool_call_data.id,
+        tool_name: tool_call_data.name,
+        result: result,
+        is_error: is_error,
+        timestamp: Interaction.now()
+      }
     end
   end
 
