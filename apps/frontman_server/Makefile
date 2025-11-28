@@ -43,10 +43,12 @@ assets-build: ## Build assets for development
 	mix compile
 	mix tailwind frontman_server
 	mix esbuild frontman_server
+	mix esbuild browser_test
 
 assets-deploy: ## Build and minify assets for production
 	mix tailwind frontman_server --minify
 	mix esbuild frontman_server --minify
+	mix esbuild browser_test --minify
 	mix phx.digest
 
 test: ## Run test suite

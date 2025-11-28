@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ACP + MCP + Relay Client Test</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      margin: 0;
+      padding: 0;
+      background: #1a1a2e;
+      color: #eee;
+      display: flex;
+      height: 100vh;
+    }
+    .main-panel {
+      flex: 1;
+      padding: 20px;
+      overflow-y: auto;
+      max-width: 700px;
+    }
+    .log-panel {
+      width: 400px;
+      background: #0a0a0a;
+      border-left: 1px solid #333;
+      display: flex;
+      flex-direction: column;
+    }
+    .log-header {
+      padding: 10px 15px;
+      background: #16213e;
+      border-bottom: 1px solid #333;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .log-header h3 { margin: 0; color: #888; font-size: 12px; text-transform: uppercase; }
+    .log-clear { background: none; border: none; color: #666; cursor: pointer; font-size: 11px; }
+    .log-clear:hover { color: #888; }
+    .log-container {
+      flex: 1;
+      overflow-y: auto;
+      padding: 10px;
+      font-family: 'Monaco', 'Menlo', monospace;
+      font-size: 11px;
+    }
+    h1 { color: #00d4ff; font-size: 20px; margin: 0 0 20px 0; }
+
+    /* Step styling */
+    .step {
+      background: #16213e;
+      border-radius: 8px;
+      margin-bottom: 12px;
+      overflow: hidden;
+    }
+    .step.completed { opacity: 0.6; }
+    .step.completed .step-header { cursor: pointer; }
+    .step.active { border: 1px solid #00d4ff; }
+    .step.pending { opacity: 0.4; pointer-events: none; }
+    .step-header {
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .step-indicator {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: bold;
+      flex-shrink: 0;
+    }
+    .step.pending .step-indicator { background: #333; color: #666; }
+    .step.active .step-indicator { background: #00d4ff; color: #000; }
+    .step.completed .step-indicator { background: #27ae60; color: #fff; }
+    .step-title { font-weight: 500; flex: 1; }
+    .step-status { font-size: 11px; color: #666; }
+    .step.active .step-status { color: #00d4ff; }
+    .step.completed .step-status { color: #27ae60; }
+    .step-body {
+      padding: 0 16px 16px 52px;
+    }
+    .step.completed .step-body,
+    .step.pending .step-body { display: none; }
+    .step.completed.expanded .step-body { display: block; }
+
+    label { display: block; margin-bottom: 4px; color: #888; font-size: 12px; }
+    input {
+      width: 100%;
+      padding: 8px 10px;
+      margin-bottom: 12px;
+      border: 1px solid #333;
+      border-radius: 4px;
+      background: #0f3460;
+      color: #fff;
+      font-size: 13px;
+    }
+    input:focus { outline: none; border-color: #00d4ff; }
+
+    .btn-primary {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      background: #00d4ff;
+      color: #000;
+    }
+    .btn-primary:hover { background: #00a8cc; }
+    .btn-primary:disabled { background: #666; cursor: not-allowed; color: #999; }
+    .btn-secondary {
+      padding: 6px 12px;
+      border: 1px solid #666;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 11px;
+      background: transparent;
+      color: #888;
+      margin-left: 10px;
+    }
+    .btn-secondary:hover { border-color: #888; color: #aaa; }
+
+    .action-row {
+      display: flex;
+      align-items: center;
+    }
+
+    /* Info panels */
+    .info-panel {
+      background: #0f1a2e;
+      border-radius: 6px;
+      padding: 12px;
+      margin-top: 12px;
+      font-size: 12px;
+    }
+    .info-panel summary {
+      cursor: pointer;
+      color: #888;
+      font-size: 11px;
+      text-transform: uppercase;
+    }
+    .info-panel[open] summary { margin-bottom: 8px; }
+    .tools-list { margin: 0; padding: 0; list-style: none; }
+    .tool-item { padding: 6px 0; border-bottom: 1px solid #1a2a3e; }
+    .tool-item:last-child { border-bottom: none; }
+    .tool-name { color: #2ecc71; font-weight: 500; }
+    .tool-desc { color: #666; font-size: 11px; margin-top: 2px; }
+
+    /* Chat */
+    .chat-container {
+      background: #16213e;
+      border-radius: 8px;
+      padding: 16px;
+      margin-top: 12px;
+    }
+    .chat-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    .chat-header h3 { margin: 0; color: #888; font-size: 12px; text-transform: uppercase; }
+    .session-id { font-family: monospace; font-size: 11px; color: #666; }
+    .messages {
+      background: #0a0a0a;
+      border: 1px solid #333;
+      border-radius: 4px;
+      height: 250px;
+      overflow-y: auto;
+      padding: 10px;
+      margin-bottom: 10px;
+    }
+    .message {
+      margin-bottom: 10px;
+      padding: 8px 12px;
+      border-radius: 4px;
+    }
+    .message.user { background: #0f3460; margin-left: 20%; }
+    .message.assistant { background: #1e3a5f; margin-right: 20%; }
+    .message .role { font-size: 10px; color: #666; margin-bottom: 4px; }
+    .chat-input { display: flex; gap: 8px; }
+    .chat-input input { flex: 1; margin-bottom: 0; }
+
+    /* Log entries */
+    .log-entry { margin-bottom: 4px; line-height: 1.4; }
+    .log-entry.info { color: #00d4ff; }
+    .log-entry.success { color: #27ae60; }
+    .log-entry.error { color: #e74c3c; }
+    .log-entry.warn { color: #f39c12; }
+    .log-entry.relay { color: #2ecc71; }
+    .log-entry.mcp { color: #e056fd; }
+    .log-entry .time { color: #444; margin-right: 8px; }
+
+    /* MCP status badge */
+    .mcp-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 3px;
+      font-size: 10px;
+      font-weight: 500;
+      margin-left: 8px;
+    }
+    .mcp-badge.pending { background: #333; color: #888; }
+    .mcp-badge.ready { background: #27ae60; color: #fff; }
+  </style>
+</head>
+<body>
+  <div class="main-panel">
+    <h1>ACP + MCP + Relay Test</h1>
+
+    <!-- Step 1: Relay -->
+    <div class="step active" id="step1">
+      <div class="step-header">
+        <div class="step-indicator">1</div>
+        <div class="step-title">Connect to Relay</div>
+        <div class="step-status" id="step1Status">waiting</div>
+      </div>
+      <div class="step-body">
+        <label for="relayEndpoint">Relay Endpoint</label>
+        <input type="text" id="relayEndpoint" value="http://localhost:3000" />
+        <div class="action-row">
+          <button class="btn-primary" id="connectRelayBtn">Connect</button>
+          <button class="btn-secondary" id="disconnectRelayBtn" style="display:none">Disconnect</button>
+        </div>
+        <details class="info-panel" id="relayInfo" style="display:none">
+          <summary>Relay Tools</summary>
+          <ul class="tools-list" id="relayToolsList"></ul>
+        </details>
+      </div>
+    </div>
+
+    <!-- Step 2: Phoenix -->
+    <div class="step pending" id="step2">
+      <div class="step-header">
+        <div class="step-indicator">2</div>
+        <div class="step-title">Connect to Phoenix (ACP)</div>
+        <div class="step-status" id="step2Status">waiting</div>
+      </div>
+      <div class="step-body">
+        <label for="endpoint">WebSocket Endpoint</label>
+        <input type="text" id="endpoint" value="ws://localhost:4000/socket" />
+        <div class="action-row">
+          <button class="btn-primary" id="connectBtn">Connect</button>
+          <button class="btn-secondary" id="disconnectBtn" style="display:none">Disconnect</button>
+        </div>
+        <details class="info-panel" id="serverInfo" style="display:none">
+          <summary>Server Info</summary>
+          <pre id="serverInfoContent" style="margin:0;font-size:10px;color:#888;white-space:pre-wrap;"></pre>
+        </details>
+      </div>
+    </div>
+
+    <!-- Step 3: Session -->
+    <div class="step pending" id="step3">
+      <div class="step-header">
+        <div class="step-indicator">3</div>
+        <div class="step-title">Create Session</div>
+        <div class="step-status" id="step3Status">waiting</div>
+      </div>
+      <div class="step-body">
+        <div class="action-row">
+          <button class="btn-primary" id="createSessionBtn">Create Session</button>
+        </div>
+        <details class="info-panel" id="mcpInfo" style="display:none">
+          <summary>MCP Tools <span class="mcp-badge pending" id="mcpStatus">pending</span></summary>
+          <ul class="tools-list" id="mcpToolsList"></ul>
+        </details>
+      </div>
+    </div>
+
+    <!-- Chat (appears after session) -->
+    <div class="chat-container" id="chatContainer" style="display: none;">
+      <div class="chat-header">
+        <h3>Chat</h3>
+        <span class="session-id" id="sessionIdDisplay"></span>
+      </div>
+      <div class="messages" id="messages"></div>
+      <div class="chat-input">
+        <input type="text" id="messageInput" placeholder="Type a message..." />
+        <button class="btn-primary" id="sendBtn">Send</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="log-panel">
+    <div class="log-header">
+      <h3>Debug Log</h3>
+      <button class="log-clear" id="clearLogBtn">Clear</button>
+    </div>
+    <div class="log-container" id="log"></div>
+  </div>
+
+  <script type="module">
+    import { ACP, MCP, MCPServer, Relay, ConsoleLogTool } from './browser-test.js';
+
+    // DOM Elements
+    const logEl = document.getElementById('log');
+    const clearLogBtn = document.getElementById('clearLogBtn');
+    const step1 = document.getElementById('step1');
+    const step2 = document.getElementById('step2');
+    const step3 = document.getElementById('step3');
+    const step1Status = document.getElementById('step1Status');
+    const step2Status = document.getElementById('step2Status');
+    const step3Status = document.getElementById('step3Status');
+    const connectRelayBtn = document.getElementById('connectRelayBtn');
+    const disconnectRelayBtn = document.getElementById('disconnectRelayBtn');
+    const connectBtn = document.getElementById('connectBtn');
+    const disconnectBtn = document.getElementById('disconnectBtn');
+    const createSessionBtn = document.getElementById('createSessionBtn');
+    const relayInfoEl = document.getElementById('relayInfo');
+    const relayToolsListEl = document.getElementById('relayToolsList');
+    const serverInfoEl = document.getElementById('serverInfo');
+    const serverInfoContentEl = document.getElementById('serverInfoContent');
+    const mcpInfoEl = document.getElementById('mcpInfo');
+    const mcpStatusEl = document.getElementById('mcpStatus');
+    const mcpToolsListEl = document.getElementById('mcpToolsList');
+    const chatContainer = document.getElementById('chatContainer');
+    const sessionIdDisplayEl = document.getElementById('sessionIdDisplay');
+    const messagesEl = document.getElementById('messages');
+    const messageInput = document.getElementById('messageInput');
+    const sendBtn = document.getElementById('sendBtn');
+
+    // State
+    let relay = null;
+    let connection = null;
+    let session = null;
+    let mcpHandler = null;
+    let mcpServer = null;
+    let currentAssistantMessage = null;
+
+    // Step management
+    function setStepState(stepEl, state, statusText) {
+      stepEl.className = `step ${state}`;
+      const statusEl = stepEl.querySelector('.step-status');
+      if (statusEl) statusEl.textContent = statusText;
+    }
+
+    function advanceToStep(stepNum) {
+      if (stepNum >= 2) {
+        setStepState(step1, 'completed', 'connected');
+        step2.classList.remove('pending');
+        step2.classList.add('active');
+      }
+      if (stepNum >= 3) {
+        setStepState(step2, 'completed', 'connected');
+        step3.classList.remove('pending');
+        step3.classList.add('active');
+      }
+    }
+
+    function resetToStep(stepNum) {
+      if (stepNum <= 1) {
+        setStepState(step1, 'active', 'waiting');
+        setStepState(step2, 'pending', 'waiting');
+        setStepState(step3, 'pending', 'waiting');
+      } else if (stepNum <= 2) {
+        setStepState(step2, 'active', 'waiting');
+        setStepState(step3, 'pending', 'waiting');
+      }
+    }
+
+    // Logging
+    function log(message, type = 'info') {
+      const time = new Date().toLocaleTimeString('en-US', { hour12: false });
+      const entry = document.createElement('div');
+      entry.className = `log-entry ${type}`;
+      entry.innerHTML = `<span class="time">${time}</span>${message}`;
+      logEl.appendChild(entry);
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    function logMessage(direction, payload) {
+      const isSend = direction === 'Send';
+      const arrow = isSend ? '→' : '←';
+      const color = isSend ? 'warn' : 'success';
+      log(`${arrow} ACP ${JSON.stringify(payload)}`, color);
+    }
+
+    function logMcpMessage(direction, payload) {
+      const isSend = direction === 'Send';
+      const arrow = isSend ? '→' : '←';
+      log(`${arrow} MCP ${JSON.stringify(payload)}`, 'mcp');
+
+      if (isSend && payload.result && payload.result.protocolVersion) {
+        mcpStatusEl.textContent = 'ready';
+        mcpStatusEl.className = 'mcp-badge ready';
+      }
+    }
+
+    // Tool display helpers
+    function displayRelayTools(tools) {
+      relayToolsListEl.innerHTML = '';
+      tools.forEach(tool => {
+        const li = document.createElement('li');
+        li.className = 'tool-item';
+        li.innerHTML = `<div class="tool-name">${tool.name}</div><div class="tool-desc">${tool.description?.split('\n')[0] || ''}</div>`;
+        relayToolsListEl.appendChild(li);
+      });
+      relayInfoEl.style.display = 'block';
+    }
+
+    function displayMcpTools() {
+      if (!mcpServer) return;
+      const tools = MCPServer.getToolsJson(mcpServer);
+      mcpToolsListEl.innerHTML = '';
+      tools.forEach(tool => {
+        const li = document.createElement('li');
+        li.className = 'tool-item';
+        li.innerHTML = `<div class="tool-name">${tool.name}</div><div class="tool-desc">${tool.description?.split('\n')[0] || ''}</div>`;
+        mcpToolsListEl.appendChild(li);
+      });
+    }
+
+    // Connection handlers
+    async function connectRelay() {
+      const endpoint = document.getElementById('relayEndpoint').value;
+      step1Status.textContent = 'connecting...';
+      connectRelayBtn.disabled = true;
+
+      try {
+        relay = Relay.make(endpoint);
+        const result = await Relay.connect(relay);
+
+        if (result.TAG === 'Ok') {
+          log('Relay connected', 'success');
+
+          const state = Relay.getState(relay);
+          if (state.TAG === 'Connected') {
+            const { tools, serverInfo } = state;
+            log(`${serverInfo.name} v${serverInfo.version} - ${tools.length} tools`, 'relay');
+            displayRelayTools(tools);
+          }
+
+          mcpServer = MCPServer.make(relay, 'browser-test-mcp', '1.0.0');
+          mcpServer = MCPServer.registerToolModule(mcpServer, ConsoleLogTool);
+
+          disconnectRelayBtn.style.display = 'inline-block';
+          advanceToStep(2);
+        } else {
+          log(`Relay failed: ${result._0}`, 'error');
+          step1Status.textContent = 'error';
+          connectRelayBtn.disabled = false;
+        }
+      } catch (err) {
+        log(`Relay error: ${err.message}`, 'error');
+        step1Status.textContent = 'error';
+        connectRelayBtn.disabled = false;
+      }
+    }
+
+    function disconnectRelay() {
+      if (relay) {
+        Relay.disconnect(relay);
+        relay = null;
+        mcpServer = null;
+        log('Relay disconnected', 'info');
+      }
+      disconnectRelayBtn.style.display = 'none';
+      connectRelayBtn.disabled = false;
+      relayInfoEl.style.display = 'none';
+      resetToStep(1);
+
+      // Also disconnect ACP if connected
+      if (connection) disconnectAcp();
+    }
+
+    async function connectAcp() {
+      if (!relay || !mcpServer) {
+        log('Connect relay first', 'error');
+        return;
+      }
+
+      const endpoint = document.getElementById('endpoint').value;
+      step2Status.textContent = 'connecting...';
+      connectBtn.disabled = true;
+
+      try {
+        const config = ACP.makeConfig(endpoint, 'browser-test-client', '1.0.0', logMessage);
+        const result = await ACP.connect(config);
+
+        if (result.TAG === 'Ok') {
+          connection = result._0;
+          log('Phoenix connected', 'success');
+
+          const state = ACP.getState(connection);
+          if (state.TAG === 'Initialized') {
+            serverInfoContentEl.textContent = JSON.stringify(state, null, 2);
+            serverInfoEl.style.display = 'block';
+            log(`${state.agentInfo?.name || 'Server'} v${state.agentInfo?.version || '?'}`, 'success');
+          }
+
+          disconnectBtn.style.display = 'inline-block';
+          advanceToStep(3);
+        } else {
+          log(`Phoenix failed: ${result._0}`, 'error');
+          step2Status.textContent = 'error';
+          connectBtn.disabled = false;
+        }
+      } catch (err) {
+        log(`Phoenix error: ${err.message}`, 'error');
+        step2Status.textContent = 'error';
+        connectBtn.disabled = false;
+      }
+    }
+
+    function disconnectAcp() {
+      if (mcpHandler) {
+        MCP.detach(mcpHandler);
+        mcpHandler = null;
+      }
+      connection = null;
+      session = null;
+
+      disconnectBtn.style.display = 'none';
+      connectBtn.disabled = false;
+      serverInfoEl.style.display = 'none';
+      mcpInfoEl.style.display = 'none';
+      mcpStatusEl.textContent = 'pending';
+      mcpStatusEl.className = 'mcp-badge pending';
+      chatContainer.style.display = 'none';
+      messagesEl.innerHTML = '';
+      mcpToolsListEl.innerHTML = '';
+
+      resetToStep(2);
+      log('Phoenix disconnected', 'info');
+    }
+
+    // Session and chat
+    async function createSession() {
+      if (!connection) {
+        log('Not connected', 'error');
+        return;
+      }
+
+      step3Status.textContent = 'creating...';
+      createSessionBtn.disabled = true;
+
+      try {
+        const result = await ACP.createSession(connection, handleSessionUpdate);
+
+        if (result.TAG === 'Ok') {
+          session = result._0;
+          log(`Session: ${session.sessionId}`, 'success');
+
+          sessionIdDisplayEl.textContent = session.sessionId;
+          mcpInfoEl.style.display = 'block';
+          chatContainer.style.display = 'block';
+
+          mcpHandler = MCP.attach(session.channel, mcpServer, logMcpMessage);
+          displayMcpTools();
+
+          setStepState(step3, 'completed', 'active');
+          messageInput.focus();
+        } else {
+          log(`Session failed: ${result._0}`, 'error');
+          step3Status.textContent = 'error';
+          createSessionBtn.disabled = false;
+        }
+      } catch (err) {
+        log(`Session error: ${err.message}`, 'error');
+        step3Status.textContent = 'error';
+        createSessionBtn.disabled = false;
+      }
+    }
+
+    function handleSessionUpdate(update) {
+      if (update.sessionUpdate === 'agent_message_chunk') {
+        const content = update.content;
+        if (content.text) {
+          appendAssistantChunk(content.text);
+        }
+      }
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    function appendUserMessage(text) {
+      const msgDiv = document.createElement('div');
+      msgDiv.className = 'message user';
+      msgDiv.innerHTML = `<div class="role">You</div><div class="text">${escapeHtml(text)}</div>`;
+      messagesEl.appendChild(msgDiv);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    function appendAssistantChunk(text) {
+      if (!currentAssistantMessage) {
+        currentAssistantMessage = document.createElement('div');
+        currentAssistantMessage.className = 'message assistant';
+        currentAssistantMessage.innerHTML = `<div class="role">Assistant</div><div class="text"></div>`;
+        messagesEl.appendChild(currentAssistantMessage);
+      }
+      const textEl = currentAssistantMessage.querySelector('.text');
+      textEl.textContent += text;
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    async function sendMessage() {
+      const text = messageInput.value.trim();
+      if (!text || !session) return;
+
+      messageInput.value = '';
+      appendUserMessage(text);
+      currentAssistantMessage = null;
+
+      try {
+        const result = await ACP.sendPrompt(session, text);
+        if (result.TAG === 'Ok') {
+          log(`Done: ${result._0.stopReason}`, 'success');
+        } else {
+          log(`Failed: ${result._0}`, 'error');
+        }
+      } catch (err) {
+        log(`Error: ${err.message}`, 'error');
+      }
+    }
+
+    // Allow clicking completed steps to expand them
+    [step1, step2, step3].forEach(step => {
+      step.querySelector('.step-header').addEventListener('click', () => {
+        if (step.classList.contains('completed')) {
+          step.classList.toggle('expanded');
+        }
+      });
+    });
+
+    // Event listeners
+    connectRelayBtn.addEventListener('click', connectRelay);
+    disconnectRelayBtn.addEventListener('click', disconnectRelay);
+    connectBtn.addEventListener('click', connectAcp);
+    disconnectBtn.addEventListener('click', disconnectAcp);
+    createSessionBtn.addEventListener('click', createSession);
+    sendBtn.addEventListener('click', sendMessage);
+    messageInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') sendMessage();
+    });
+    clearLogBtn.addEventListener('click', () => {
+      logEl.innerHTML = '';
+    });
+
+    log('Ready', 'success');
+  </script>
+</body>
+</html>

@@ -4,6 +4,7 @@
 	"enableGlobalCache": false,
 	"workspaces": [
 		"apps/chrome-extension",
+		"apps/frontman_server/assets",
 		"libs/agent",
 		"libs/nextjs",
 		"libs/bindings",
@@ -11,6 +12,8 @@
 		"libs/context-loader",
 		"libs/experimental-rescript-webapi",
 		"libs/frontman-client",
+		"libs/frontman-protocol",
+		"libs/frontman-nextjs",
 		"test/sites/blog-starter",
 		"libs/react-statestore",
 		"libs/vite-plugin",

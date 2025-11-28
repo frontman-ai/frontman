@@ -352,7 +352,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@ask-the-llm/frontman-client@workspace:libs/frontman-client":
+"@ask-the-llm/frontman-client@workspace:*, @ask-the-llm/frontman-client@workspace:libs/frontman-client":
   version: 0.0.0-use.local
   resolution: "@ask-the-llm/frontman-client@workspace:libs/frontman-client"
   dependencies:
@@ -363,6 +363,37 @@ __metadata:
     rescript-vitest: "catalog:"
     sury: "catalog:"
     vitest: "catalog:"
+  languageName: unknown
+  linkType: soft
+
+"@ask-the-llm/frontman-nextjs@workspace:*, @ask-the-llm/frontman-nextjs@workspace:libs/frontman-nextjs":
+  version: 0.0.0-use.local
+  resolution: "@ask-the-llm/frontman-nextjs@workspace:libs/frontman-nextjs"
+  dependencies:
+    "@rescript/webapi": "catalog:"
+    "@vitest/ui": "catalog:"
+    rescript: "catalog:"
+    rescript-vitest: "catalog:"
+    sury: "catalog:"
+    vitest: "catalog:"
+  languageName: unknown
+  linkType: soft
+
+"@ask-the-llm/frontman-protocol@workspace:libs/frontman-protocol":
+  version: 0.0.0-use.local
+  resolution: "@ask-the-llm/frontman-protocol@workspace:libs/frontman-protocol"
+  dependencies:
+    "@rescript/webapi": "catalog:"
+    rescript: "catalog:"
+    sury: "catalog:"
+  languageName: unknown
+  linkType: soft
+
+"@ask-the-llm/frontman-server-assets@workspace:apps/frontman_server/assets":
+  version: 0.0.0-use.local
+  resolution: "@ask-the-llm/frontman-server-assets@workspace:apps/frontman_server/assets"
+  dependencies:
+    "@ask-the-llm/frontman-client": "workspace:*"
   languageName: unknown
   linkType: soft
 
@@ -6157,7 +6188,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "blog-starter-a8d520@workspace:test/sites/blog-starter"
   dependencies:
-    "@ask-the-llm/nextjs": "npm:*"
+    "@ask-the-llm/frontman-nextjs": "workspace:*"
     "@types/node": "npm:^20.14.8"
     "@types/react": "npm:types-react@19.0.0-rc.1"
     "@types/react-dom": "npm:types-react-dom@19.0.0-rc.1"

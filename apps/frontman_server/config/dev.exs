@@ -26,6 +26,7 @@ config :frontman_server, FrontmanServerWeb.Endpoint,
   secret_key_base: "NBTbU2SqLo+ghhs3jQiZAjRrQKhim/x/HXSbx49mBnt4pSvEkjTYYrj+prSCInNO",
   watchers: [
     esbuild: {Esbuild, :install_and_run, [:frontman_server, ~w(--sourcemap=inline --watch)]},
+    esbuild: {Esbuild, :install_and_run, [:browser_test, ~w(--sourcemap=inline --watch)]},
     tailwind: {Tailwind, :install_and_run, [:frontman_server, ~w(--watch)]}
   ]
 

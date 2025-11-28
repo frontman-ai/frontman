@@ -1,0 +1,14 @@
+{
+	"name": "@ask-the-llm/frontman-nextjs",
+	"version": "0.1.0",
+	"type": "module",
+	"main": "./src/FrontmanNextjs.res.mjs",
+	"devDependencies": {
+		"@rescript/webapi": "catalog:",
+		"@vitest/ui": "catalog:",
+		"rescript": "catalog:",
+		"rescript-vitest": "catalog:",
+		"sury": "catalog:",
+		"vitest": "catalog:"
+	}
+}

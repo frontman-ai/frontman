@@ -1,10 +1,10 @@
 {
-	"name": "@ask-the-llm/bindings",
+	"name": "@ask-the-llm/frontman-protocol",
 	"namespace": true,
 	"sources": [
 		{
 			"dir": "src",
-			"subdirs": false
+			"subdirs": true
 		}
 	],
 	"package-specs": [
@@ -14,10 +14,6 @@
 			"suffix": ".res.mjs"
 		}
 	],
-	"dependencies": [
-		"sury",
-		"@rescript/webapi"
-	],
 	"ppx-flags": ["sury-ppx/bin"],
-	"compiler-flags": []
+	"dependencies": ["@rescript/webapi", "sury"]
 }

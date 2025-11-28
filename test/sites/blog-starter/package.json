@@ -7,7 +7,7 @@
 		"start": "next start"
 	},
 	"dependencies": {
-		"@ask-the-llm/nextjs": "*",
+		"@ask-the-llm/frontman-nextjs": "workspace:*",
 		"classnames": "^2.5.1",
 		"date-fns": "^3.6.0",
 		"gray-matter": "^4.0.3",

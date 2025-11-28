@@ -91,10 +91,10 @@ let handleToolsCall = async (handler: mcpHandler, id: int, params: option<JSON.t
   switch params {
   | Some(paramsJson) =>
     try {
-      let {callId, name, arguments}: Types.toolCallParams =
+      let {name, arguments}: Types.toolCallParams =
         paramsJson->S.parseOrThrow(Types.toolCallParamsSchema)
-      let result = await Server.executeTool(handler.server, ~callId, ~name, ~arguments?)
-      let resultJson = result->S.reverseConvertToJsonOrThrow(Types.toolCallResultSchema)
+      let result = await Server.executeTool(handler.server, ~name, ~arguments?)
+      let resultJson = result->S.reverseConvertToJsonOrThrow(Types.callToolResultSchema)
       sendResponse(handler, id, resultJson)
     } catch {
     | S.Error(e) =>

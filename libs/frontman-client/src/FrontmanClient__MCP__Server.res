@@ -3,15 +3,18 @@
 
 module Types = FrontmanClient__MCP__Types
 module Tool = FrontmanClient__MCP__Tool
+module Relay = FrontmanClient__Relay
 
 type t = {
   tools: array<module(Tool.Tool)>,
+  relay: Relay.t,
   serverInfo: Types.info,
 }
 
-let make = (~serverName="frontman-browser", ~serverVersion="1.0.0"): t => {
+let make = (~relay: Relay.t, ~serverName="frontman-browser", ~serverVersion="1.0.0"): t => {
   {
     tools: [],
+    relay,
     serverInfo: {name: serverName, version: serverVersion},
   }
 }
@@ -47,7 +50,9 @@ let serializeTool = (m: module(Tool.Tool)): JSON.t => {
 
 // Get tools as JSON array for MCP tools/list response
 let getToolsJson = (server: t): array<JSON.t> => {
-  server.tools->Array.map(serializeTool)
+  let localTools = server.tools->Array.map(serializeTool)
+  let relayTools = server.relay->Relay.getToolsJson
+  Array.concat(localTools, relayTools)
 }
 
 let getToolByName = (server: t, name: string): option<module(Tool.Tool)> => {
@@ -57,56 +62,62 @@ let getToolByName = (server: t, name: string): option<module(Tool.Tool)> => {
   })
 }
 
-// Execute tool with type erasure at JSON boundary
-let executeTool = async (
-  server: t,
-  ~callId: string,
-  ~name: string,
-  ~arguments: option<Dict.t<JSON.t>>=?,
-): Types.toolCallResult => {
-  switch getToolByName(server, name) {
-  | Some(toolModule) =>
-    module T = unpack(toolModule)
-    let inputJson = arguments->Option.getOr(Dict.make())->JSON.Encode.object
-    try {
-      let input = inputJson->S.parseOrThrow(T.inputSchema)
-      let result = await T.execute(input)
-      switch result {
-      | Ok(output) =>
-        let outputJson = output->S.reverseConvertToJsonOrThrow(T.outputSchema)
-        {
-          callId,
-          result: Some({
-            content: [{type_: "text", text: JSON.stringify(outputJson)}],
-          }),
-          error: None,
-        }
-      | Error(msg) => {
-          callId,
-          result: None,
-          error: Some({
-            code: Types.ErrorCode.serverError,
-            message: msg,
-          }),
-        }
+// Execute a local tool module
+let executeLocalTool = async (
+  toolModule: module(Tool.Tool),
+  ~arguments: option<Dict.t<JSON.t>>,
+): Types.callToolResult => {
+  module T = unpack(toolModule)
+  let inputJson = arguments->Option.getOr(Dict.make())->JSON.Encode.object
+  try {
+    let input = inputJson->S.parseOrThrow(T.inputSchema)
+    let result = await T.execute(input)
+    switch result {
+    | Ok(output) =>
+      let outputJson = output->S.reverseConvertToJsonOrThrow(T.outputSchema)
+      {
+        content: [{type_: "text", text: JSON.stringify(outputJson)}],
+        isError: None,
       }
-    } catch {
-    | S.Error(e) => {
-        callId,
-        result: None,
-        error: Some({
-          code: Types.ErrorCode.invalidParams,
-          message: `Invalid input: ${e.message}`,
-        }),
+    | Error(msg) => {
+        content: [{type_: "text", text: msg}],
+        isError: Some(true),
       }
     }
-  | None => {
-      callId,
-      result: None,
-      error: Some({
-        code: Types.ErrorCode.invalidParams,
-        message: `Tool not found: ${name}`,
-      }),
+  } catch {
+  | S.Error(e) => {
+      content: [{type_: "text", text: `Invalid input: ${e.message}`}],
+      isError: Some(true),
+    }
+  }
+}
+
+// Execute tool - tries local first, then relay
+let executeTool = async (
+  server: t,
+  ~name: string,
+  ~arguments: option<Dict.t<JSON.t>>=?,
+  ~onProgress: option<string => unit>=?,
+): Types.callToolResult => {
+  // Try local tools first
+  switch getToolByName(server, name) {
+  | Some(toolModule) => await executeLocalTool(toolModule, ~arguments)
+  | None =>
+    // Try relay if it has this tool
+    if server.relay->Relay.hasTool(name) {
+      let result = await server.relay->Relay.executeTool(~name, ~arguments?, ~onProgress?)
+      switch result {
+      | Ok(toolResult) => toolResult
+      | Error(msg) => {
+          content: [{type_: "text", text: msg}],
+          isError: Some(true),
+        }
+      }
+    } else {
+      {
+        content: [{type_: "text", text: `Tool not found: ${name}`}],
+        isError: Some(true),
+      }
     }
   }
 }

@@ -1,5 +1,5 @@
 {
-	"name": "@ask-the-llm/frontman-client",
+	"name": "@ask-the-llm/frontman-nextjs",
 	"namespace": true,
 	"sources": [
 		{
@@ -20,7 +20,7 @@
 		}
 	],
 	"ppx-flags": ["sury-ppx/bin"],
-	"dependencies": ["@rescript/webapi", "sury", "@ask-the-llm/bindings", "@ask-the-llm/frontman-protocol"],
+	"dependencies": ["@rescript/webapi", "sury", "@ask-the-llm/frontman-protocol", "@ask-the-llm/bindings"],
 	"dev-dependencies": ["rescript-vitest"],
 	"jsx": {
 		"version": 4
