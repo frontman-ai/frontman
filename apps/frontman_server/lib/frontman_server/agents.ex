@@ -20,10 +20,11 @@ defmodule FrontmanServer.Agents do
   Returns the current state of the agent for a task.
 
   - `:processing` - agent is actively working
+  - `:waiting_for_tools` - agent is blocked waiting for tool results
   - `:idle` - agent is waiting for new messages
   - `:not_running` - no agent exists for this task
   """
-  @spec agent_state(String.t()) :: :processing | :idle | :not_running
+  @spec agent_state(String.t()) :: :processing | :waiting_for_tools | :idle | :not_running
   def agent_state(task_id) do
     case Registry.lookup(FrontmanServer.AgentRegistry, task_id) do
       [{_pid, state}] -> state
@@ -60,10 +61,10 @@ defmodule FrontmanServer.Agents do
       )
 
     case result do
-      {:ok, pid} ->
+      {:ok, _pid} ->
         Tasks.add_agent_spawned(%{task_id: task_id, agent_id: agent_id}, %{tools: tools})
         messages = Tasks.get_llm_messages(task_id)
-        send(pid, {:execute_iteration, messages})
+        AgentServer.execute_iteration(task_id, messages)
         {:ok, agent_id}
 
       {:error, reason} ->
@@ -81,13 +82,9 @@ defmodule FrontmanServer.Agents do
   @spec notify_tool_result(String.t(), String.t(), term(), boolean()) ::
           :ok | {:error, :agent_not_found}
   def notify_tool_result(task_id, tool_call_id, result, is_error) do
-    case find_agent(task_id) do
-      {:ok, pid} ->
-        send(pid, {:tool_result, tool_call_id, result, is_error})
-        :ok
-
-      :not_found ->
-        {:error, :agent_not_found}
+    case AgentServer.notify_tool_result(task_id, tool_call_id, result, is_error) do
+      :ok -> :ok
+      {:error, :not_found} -> {:error, :agent_not_found}
     end
   end
 
@@ -102,25 +99,17 @@ defmodule FrontmanServer.Agents do
   """
   @spec notify_user_message(String.t(), keyword()) :: :ok
   def notify_user_message(task_id, opts \\ []) do
-    case find_agent(task_id) do
-      {:ok, pid} ->
-        send(pid, :wake_agent)
+    case AgentServer.wake(task_id) do
+      :ok ->
         :ok
 
-      :not_found ->
+      {:error, :not_found} ->
         start_agent(task_id, tools: Keyword.get(opts, :mcp_tools, []))
         :ok
     end
   end
 
   # Private Functions
-
-  defp find_agent(task_id) do
-    case Registry.lookup(FrontmanServer.AgentRegistry, task_id) do
-      [{pid, _state}] -> {:ok, pid}
-      [] -> :not_found
-    end
-  end
 
   defp build_event_handler(task_id) do
     fn event -> handle_agent_event(task_id, event) end
@@ -150,14 +139,8 @@ defmodule FrontmanServer.Agents do
   end
 
   defp push_iteration(task_id) do
-    case find_agent(task_id) do
-      {:ok, pid} ->
-        messages = Tasks.get_llm_messages(task_id)
-        send(pid, {:execute_iteration, messages})
-
-      :not_found ->
-        :ok
-    end
+    messages = Tasks.get_llm_messages(task_id)
+    AgentServer.execute_iteration(task_id, messages)
   end
 
   defp broadcast(task_id, message) do

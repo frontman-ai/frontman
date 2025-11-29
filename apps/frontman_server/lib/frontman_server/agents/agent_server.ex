@@ -22,8 +22,7 @@ defmodule FrontmanServer.Agents.AgentServer do
     :tools,
     :on_event,
     :pending_tool_calls,
-    :idle_timer_ref,
-    :fixture_path
+    :idle_timer_ref
   ]
 
   # Client API
@@ -46,6 +45,46 @@ defmodule FrontmanServer.Agents.AgentServer do
     )
   end
 
+  @doc """
+  Triggers the agent to execute an iteration with the given messages.
+  """
+  @spec execute_iteration(String.t(), list()) :: :ok | {:error, :not_found}
+  def execute_iteration(task_id, messages) do
+    with_agent(task_id, fn pid ->
+      send(pid, {:execute_iteration, messages})
+      :ok
+    end)
+  end
+
+  @doc """
+  Notifies the agent that a tool result has arrived.
+  """
+  @spec notify_tool_result(String.t(), String.t(), term(), boolean()) :: :ok | {:error, :not_found}
+  def notify_tool_result(task_id, tool_call_id, result, is_error) do
+    with_agent(task_id, fn pid ->
+      send(pid, {:tool_result, tool_call_id, result, is_error})
+      :ok
+    end)
+  end
+
+  @doc """
+  Wakes an idle agent to check for new work.
+  """
+  @spec wake(String.t()) :: :ok | {:error, :not_found}
+  def wake(task_id) do
+    with_agent(task_id, fn pid ->
+      send(pid, :wake_agent)
+      :ok
+    end)
+  end
+
+  defp with_agent(task_id, fun) do
+    case Registry.lookup(FrontmanServer.AgentRegistry, task_id) do
+      [{pid, _state}] -> fun.(pid)
+      [] -> {:error, :not_found}
+    end
+  end
+
   # Server Callbacks
 
   @impl true
@@ -55,7 +94,6 @@ defmodule FrontmanServer.Agents.AgentServer do
       task_id: task_id,
       tools: tools,
       on_event: on_event,
-      fixture_path: nil,
       idle_timer_ref: nil,
       pending_tool_calls: %{}
     }
@@ -66,9 +104,12 @@ defmodule FrontmanServer.Agents.AgentServer do
   @impl true
   def handle_info({:execute_iteration, messages}, state) do
     Logger.info("Agent #{state.agent_id} starting iteration with #{length(messages)} messages")
+    set_registry_state(state.task_id, :processing)
 
     case stream_and_handle_response(state, messages) do
       {:wait_for_tools, state} ->
+        set_registry_state(state.task_id, :waiting_for_tools)
+        state = schedule_idle_timeout(state)
         {:noreply, state}
 
       {:stop, state} ->
@@ -95,10 +136,13 @@ defmodule FrontmanServer.Agents.AgentServer do
         state = %{state | pending_tool_calls: pending}
 
         if Enum.empty?(pending) do
+          state = cancel_idle_timeout(state)
           emit(state, {:need_iteration, state.agent_id})
+          {:noreply, state}
+        else
+          state = schedule_idle_timeout(state)
+          {:noreply, state}
         end
-
-        {:noreply, state}
     end
   end
 
@@ -147,12 +191,6 @@ defmodule FrontmanServer.Agents.AgentServer do
     llm_opts = [api_key: api_key]
 
     llm_opts =
-      case state.fixture_path do
-        nil -> llm_opts
-        fixture_path -> Keyword.put(llm_opts, :fixture_path, fixture_path)
-      end
-
-    llm_opts =
       case state.tools do
         [] -> llm_opts
         tools -> Keyword.put(llm_opts, :tools, tools)
@@ -192,11 +230,12 @@ defmodule FrontmanServer.Agents.AgentServer do
   defp handle_response(state, text, tool_calls) do
     emit(state, {:response, state.agent_id, text, %{tool_calls: tool_calls}})
 
-    pending =
-      Enum.reduce(tool_calls, state.pending_tool_calls, fn tool_call, acc ->
-        emit(state, {:tool_call, state.agent_id, tool_call})
-        Map.put(acc, tool_call.id, tool_call)
-      end)
+    Enum.each(tool_calls, fn tool_call ->
+      emit(state, {:tool_call, state.agent_id, tool_call})
+    end)
+
+    new_pending = Map.new(tool_calls, &{&1.id, &1})
+    pending = Map.merge(state.pending_tool_calls, new_pending)
 
     state = %{state | pending_tool_calls: pending}
     {:wait_for_tools, state}
