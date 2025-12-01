@@ -336,6 +336,25 @@ defmodule FrontmanServer.Tasks.Interaction do
     ReqLLM.Context.user(llm_content)
   end
 
+  defp to_llm_message(%AgentResponse{content: content, metadata: metadata}) do
+    case Map.get(metadata || %{}, :tool_calls) do
+      tool_calls when is_list(tool_calls) and tool_calls != [] ->
+        ReqLLM.Context.assistant(content, tool_calls: tool_calls)
+
+      _ ->
+        ReqLLM.Context.assistant(content)
+    end
+  end
+
+  defp to_llm_message(%ToolCall{}) do
+    # Tool calls are embedded in AgentResponse metadata, skip standalone
+    nil
+  end
+
+  defp to_llm_message(%ToolResult{tool_name: name, tool_call_id: id, result: result}) do
+    ReqLLM.Context.tool_result_message(name, id, result)
+  end
+
   # Convert ACP ContentBlocks to LLM message content format
   defp convert_content_blocks_to_llm_format(blocks) do
     content =
@@ -390,21 +409,4 @@ defmodule FrontmanServer.Tasks.Interaction do
 
   # Skip unknown block types
   defp content_block_to_llm_format(_), do: nil
-
-  defp to_llm_message(%AgentResponse{content: content, metadata: metadata}) do
-    case Map.get(metadata || %{}, :tool_calls) do
-      nil -> ReqLLM.Context.assistant(content)
-      [] -> ReqLLM.Context.assistant(content)
-      tool_calls -> ReqLLM.Context.assistant(content, tool_calls: tool_calls)
-    end
-  end
-
-  defp to_llm_message(%ToolCall{}) do
-    # Tool calls are embedded in AgentResponse metadata, skip standalone
-    nil
-  end
-
-  defp to_llm_message(%ToolResult{tool_name: name, tool_call_id: id, result: result}) do
-    ReqLLM.Context.tool_result_message(name, id, result)
-  end
 end

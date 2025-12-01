@@ -12,7 +12,7 @@ export default defineConfig({
   },
   modules: ['@wxt-dev/module-react'],
   webExt: {
-    startUrls: ['http://localhost:3000/ask-the-llm', 'https://www.figma.com/design/vUBfiAH3Z6HVk6QWN2laXF/Figma-Basics?node-id=25-2&t=lyxMqTPOAYyKzJ8Q-0'],
+    startUrls: ['http://localhost:3000/__frontman', 'https://www.figma.com/design/vUBfiAH3Z6HVk6QWN2laXF/Figma-Basics?node-id=25-2&t=lyxMqTPOAYyKzJ8Q-0'],
     chromiumArgs: ['--user-data-dir=./.wxt/chrome-data'],
   },
   dev: {

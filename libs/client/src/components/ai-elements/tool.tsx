@@ -30,7 +30,7 @@ export const Tool = ({ className, ...props }: ToolProps) => (
 );
 
 export type ToolHeaderProps = {
-  title?: string;
+  title?: ReactNode;
   type: ToolUIPart["type"];
   state: ToolUIPart["state"];
   className?: string;

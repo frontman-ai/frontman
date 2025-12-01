@@ -3,7 +3,7 @@ defmodule FrontmanServer.Agents.AgentServer do
   Agent server that executes an agentic loop with LLM.
 
   Uses a push model where all data is pushed to the agent:
-  - Messages arrive via {:execute_iteration, messages}
+  - Messages arrive via {:execute_iteration, messages, is_new_response}
   - Tool results arrive via {:tool_result, ...}
   - Wake signals arrive via :wake_agent
 
@@ -13,7 +13,7 @@ defmodule FrontmanServer.Agents.AgentServer do
   use GenServer
   require Logger
 
-  @default_model "anthropic:claude-sonnet-4-20250514"
+  @default_model "openai:gpt-4o-mini"
   @idle_timeout_ms 5 * 60 * 1000
 
   @base_system_prompt """
@@ -87,11 +87,13 @@ defmodule FrontmanServer.Agents.AgentServer do
 
   @doc """
   Triggers the agent to execute an iteration with the given messages.
+
+  - `is_new_response`: `true` for a new response, `false` when continuing after tool calls
   """
-  @spec execute_iteration(String.t(), list()) :: :ok | {:error, :not_found}
-  def execute_iteration(task_id, messages) do
+  @spec execute_iteration(String.t(), list(), boolean()) :: :ok | {:error, :not_found}
+  def execute_iteration(task_id, messages, is_new_response \\ true) do
     with_agent(task_id, fn pid ->
-      send(pid, {:execute_iteration, messages})
+      send(pid, {:execute_iteration, messages, is_new_response})
       :ok
     end)
   end
@@ -143,11 +145,11 @@ defmodule FrontmanServer.Agents.AgentServer do
   end
 
   @impl true
-  def handle_info({:execute_iteration, messages}, state) do
+  def handle_info({:execute_iteration, messages, is_new_response}, state) do
     Logger.info("Agent #{state.agent_id} starting iteration with #{length(messages)} messages")
     set_registry_state(state.task_id, :processing)
 
-    case stream_and_handle_response(state, messages) do
+    case stream_and_handle_response(state, messages, is_new_response) do
       {:wait_for_tools, state} ->
         set_registry_state(state.task_id, :waiting_for_tools)
         state = schedule_idle_timeout(state)
@@ -226,7 +228,7 @@ defmodule FrontmanServer.Agents.AgentServer do
     state.on_event.(event)
   end
 
-  defp stream_and_handle_response(state, messages) do
+  defp stream_and_handle_response(state, messages, is_new_response) do
     api_key = get_api_key(@default_model)
 
     # Prepend base system prompt with caching
@@ -245,7 +247,7 @@ defmodule FrontmanServer.Agents.AgentServer do
 
     case ReqLLM.stream_text(@default_model, messages_with_system, llm_opts) do
       {:ok, response} ->
-        chunks = stream_chunks(state, response.stream)
+        chunks = stream_chunks(state, response.stream, is_new_response)
         text = extract_text(chunks)
         tool_calls = extract_tool_calls(chunks)
         handle_response(state, text, tool_calls)
@@ -256,7 +258,9 @@ defmodule FrontmanServer.Agents.AgentServer do
     end
   end
 
-  defp stream_chunks(state, chunk_stream) do
+  defp stream_chunks(state, chunk_stream, _is_new_response) do
+    # ACP compliant: First agent_message_chunk implicitly signals message start
+    # No need for explicit message_start event
     chunk_stream
     |> Enum.map(fn chunk ->
       text = Map.get(chunk, :text) || ""

@@ -85,7 +85,7 @@ module Tool = {
 
 module ToolHeader = {
     @react.component @module("@/components/ai-elements/tool")
-    external make: (~title: string=?, @as("type") ~type_: string, ~state: string, ~className: string=?) => React.element = "ToolHeader"
+    external make: (~title: React.element=?, @as("type") ~type_: string, ~state: string, ~className: string=?) => React.element = "ToolHeader"
 }
 
 module ToolContent = {
@@ -235,4 +235,9 @@ module WebPreviewBody = {
 module WebPreviewConsole = {
     @react.component @module("@/components/ai-elements/web-preview")
     external make: (~className: string=?, ~logs: array<consoleLog>=?, ~children: React.element=?) => React.element = "WebPreviewConsole"
+}
+
+module Shimmer = {
+    @react.component @module("@/components/ai-elements/shimmer")
+    external make: (~children: React.element, ~duration: int=?, ~spread: int=?, ~className: string=?) => React.element = "Shimmer"
 }

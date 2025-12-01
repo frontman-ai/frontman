@@ -294,8 +294,9 @@ defmodule FrontmanServerWeb.SessionChannel do
   end
 
   @impl true
-  def handle_info({:stream_token, _agent_id, text}, socket) do
+  def handle_info({:agent_stream_token, _agent_id, text}, socket) do
     # Translate domain event to ACP notification
+    # ACP compliant: agent_message_chunk implicitly signals message start
     session_id = socket.assigns.session_id
     notification = ACP.build_agent_message_chunk_notification(session_id, text)
     push(socket, "acp:message", notification)

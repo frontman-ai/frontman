@@ -314,11 +314,23 @@ let handleEffect = (effect, state: state, dispatch) => {
         ->Dict.get(taskId)
         ->Option.mapOr([], Client__State__Types.taskToContentBlocks)
 
+      // Complete any existing streaming message before sending new prompt
+      // This ensures new chunks go to a new message
+      let streamingMessages = Selectors.streamingMessages(state)
+      switch Array.get(streamingMessages, Array.length(streamingMessages) - 1) {
+      | Some(Message.Streaming({id, _})) =>
+        dispatch(MessageCompleted({taskId, id}))
+      | Some(Message.Completed(_)) | None => ()
+      }
+
       let _ =
         sendPrompt(message, ~additionalBlocks)
         ->Promise.thenResolve(result => {
           switch result {
-          | Ok(_) => Console.log("[Effect] Message sent via ACP")
+          | Ok(_) =>
+            // ACP compliant: session/prompt response with stopReason signals message end
+            // The message was already completed above, this is just confirmation
+            ()
           | Error(error) => Console.error2("[Effect] Failed to send message:", error)
           }
         })
@@ -404,7 +416,6 @@ let handleEffect = (effect, state: state, dispatch) => {
           let _ = Client__SourceLocationResolver.resolve(sourceLoc)->Promise.then(result => {
             switch result {
             | Ok(resolved) =>
-              Console.log2("[Effect] Source location resolved:", resolved)
               // Update the source location with the resolved path
               dispatch(
                 SetSelectedElement({
@@ -489,7 +500,7 @@ let next = (state, action) => {
         Message.Assistant(
           Streaming({
             id,
-            textBuffer: "",
+            textBuffer: "Waiting for response...",
             createdAt: Date.now(),
           }),
         ),
@@ -503,10 +514,16 @@ let next = (state, action) => {
       Lens.updateTaskMessage(task, id, msg =>
         switch msg {
         | Message.Assistant(Streaming({id: msgId, textBuffer, createdAt})) =>
+          // Replace "Waiting for response..." with actual text when first chunk arrives
+          let newBuffer = if textBuffer == "Waiting for response..." {
+            text
+          } else {
+            textBuffer ++ text
+          }
           Message.Assistant(
             Streaming({
               id: msgId,
-              textBuffer: textBuffer ++ text,
+              textBuffer: newBuffer,
               createdAt,
             }),
           )
@@ -530,20 +547,41 @@ let next = (state, action) => {
       }
 
       state
-      ->Lens.updateTask(taskId, task =>
-        Lens.updateTaskMessage(task, toolCall.id, msg =>
-          switch msg {
-          | Message.ToolCall(existingToolCall) =>
+      ->Lens.updateTask(taskId, task => {
+        // Check if message already exists
+        let existingMessage = task.messages->Dict.get(toolCall.id)
+        switch existingMessage {
+        | Some(Message.ToolCall(existingToolCall)) =>
+          // Update existing tool call
+          Lens.updateTaskMessage(task, toolCall.id, msg =>
+            switch msg {
+            | Message.ToolCall(_) =>
+              Message.ToolCall({
+                ...existingToolCall,
+                input: toolCall.input,
+                state: Message.InputAvailable,
+              })
+            | Assistant(_) => failwith("expected toolcall got assistant message")
+            | User(_) => failwith("expected toolcall got user message")
+            }
+          )
+        | _ =>
+          // Insert new tool call message
+          Lens.insertTaskMessage(
+            task,
             Message.ToolCall({
-              ...existingToolCall,
+              id: toolCall.id,
+              toolName: toolCall.toolName,
+              state: toolCall.state,
+              inputBuffer: toolCall.inputBuffer,
               input: toolCall.input,
-              state: Message.InputAvailable,
-            })
-          | Assistant(_) => failwith("expected toolcall got assistant message")
-          | User(_) => failwith("expected toolcall got user message")
-          }
-        )
-      )
+              result: toolCall.result,
+              errorText: toolCall.errorText,
+              createdAt: toolCall.createdAt,
+            }),
+          )
+        }
+      })
       ->AskTheLlmReactStatestore.StateReducer.update(~sideEffects=executeEffect)
     }
 

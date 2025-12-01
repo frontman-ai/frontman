@@ -78,19 +78,10 @@ module SelectedElement = {
 }
 
 module FigmaNode = {
-  type rec nodeData = {
-    id: string,
-    name: string,
-    @as("type") type_: string,
-    css: option<Dict.t<string>>,
-    width: option<float>,
-    height: option<float>,
-    x: option<float>,
-    y: option<float>,
-    visible: option<bool>,
-    locked: option<bool>,
-    children: option<array<nodeData>>,
-  }
+  // Node data is now JSON - can be either:
+  // - Legacy format: { id, name, type, css, width, height, x, y, visible, locked, children }
+  // - Optimized format: { _: legend, $: { root node with N, T, C, K, H } }
+  type nodeData = JSON.t
 
   type t =
     | NoSelection
@@ -167,27 +158,39 @@ let selectedElementToContentBlock = (sel: SelectedElement.t): option<ACPTypes.co
 }
 
 // Build a Resource ContentBlock from FigmaNode
-// Contains the full Figma node data as JSON
+// Contains the full Figma node data encoded as TOON (30-60% fewer tokens than JSON)
 let figmaNodeToContentBlock = (node: FigmaNode.nodeData): ACPTypes.contentBlock => {
-  // Serialize figma node to JSON string
-  let nodeJson = JSON.stringifyAny({
-    "id": node.id,
-    "name": node.name,
-    "type": node.type_,
-    "css": node.css,
-    "width": node.width,
-    "height": node.height,
-    "x": node.x,
-    "y": node.y,
-    "visible": node.visible,
-    "locked": node.locked,
-    "children": node.children,
-  })->Option.getOr("{}")
+  // Encode node as TOON string (more token-efficient than JSON)
+  let nodeToon = Client__Toon.encode(node)
+  
+  // Try to extract ID for URI (works with both formats)
+  let nodeId = switch node->JSON.Decode.object {
+  | Some(obj) =>
+    // Try optimized format: { $: { ... } }
+    switch obj->Dict.get("$") {
+    | Some(root) =>
+      switch root->JSON.Decode.object {
+      | Some(rootObj) =>
+        switch rootObj->Dict.get("i") {
+        | Some(id) => id->JSON.Decode.string->Option.getOr("unknown")
+        | None => "unknown"
+        }
+      | None => "unknown"
+      }
+    // Try legacy format: { id: "..." }
+    | None =>
+      switch obj->Dict.get("id") {
+      | Some(id) => id->JSON.Decode.string->Option.getOr("unknown")
+      | None => "unknown"
+      }
+    }
+  | None => "unknown"
+  }
 
   let embeddedResource: ACPTypes.embeddedResource = {
-    uri: `figma://node/${node.id}`,
-    mimeType: "application/json",
-    text: Some(nodeJson),
+    uri: `figma://node/${nodeId}`,
+    mimeType: "application/x-toon",
+    text: Some(nodeToon),
   }
 
   {
@@ -195,7 +198,7 @@ let figmaNodeToContentBlock = (node: FigmaNode.nodeData): ACPTypes.contentBlock 
     text: None,
     uri: None,
     resource: Some(embeddedResource),
-    mimeType: Some("application/json"),
+    mimeType: Some("application/x-toon"),
   }
 }
 

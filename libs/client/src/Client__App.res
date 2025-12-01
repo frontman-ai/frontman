@@ -45,12 +45,10 @@ let useExtensionState = () => {
           )
           timeoutId.contents = Some(id)
         } else {
-          Console.log("[Extension] Not detected after 3 attempts")
           Client__ExtensionState.Actions.setExtensionNotInstalled()
         }
       } else {
         // Extension is installed, connect to it
-        Console.log("[Extension] Detected, connecting...")
         try {
           let port = Chrome.Runtime.Connect.connectExternal(
             "kfdpjbmabcelpgoipaccjijhehdmeghp",
@@ -71,7 +69,6 @@ let useExtensionState = () => {
           Chrome.Port.addMessageListener(port, messageListener)
           
           Client__ExtensionState.Actions.setExtensionInstalled(~port)
-          Console.log("[Extension] Connected successfully")
         } catch {
         | exn => {
             Console.error2("[Extension] Failed to connect:", exn)
@@ -101,37 +98,50 @@ let make = () => {
 
   // Handle ACP session updates (streaming messages from the agent)
   let handleSessionUpdate = React.useCallback((update: ACPTypes.sessionUpdate) => {
-    // Get current task ID directly from the store
-    let state = AskTheLlmReactStatestore.StateStore.getState(Client__State__Store.store)
-    let taskId = state.currentTaskId->Option.getOr("unknown")
-
     switch update.sessionUpdate {
     | "agent_message_chunk" =>
-      // Text delta from assistant
+      // ACP compliant: First agent_message_chunk implicitly signals message start
+      // Text delta from assistant - append to the most recent assistant message if it exists,
+      // otherwise create a new one
+      // IMPORTANT: Get fresh state each time to avoid stale closures
       update.content->Option.flatMap(c => c.text)->Option.forEach(text => {
-        // Use a consistent ID for the current message stream
-        let id = `msg_${taskId}`
-        // Check if we have a streaming message - if not, create one first
-        let messages = Client__State.Selectors.streamingMessages(state)
-        if Array.length(messages) == 0 {
-          // No streaming message exists, create one first
-          Client__State.Actions.streamingStarted(~taskId, ~id)
+        let currentState = AskTheLlmReactStatestore.StateStore.getState(Client__State__Store.store)
+        let taskId = currentState.currentTaskId->Option.getOr("unknown")
+        let messages = Client__State.Selectors.messages(currentState)
+        let lastMessage = messages->Array.get(Array.length(messages) - 1)
+        
+        let id = switch lastMessage {
+        | Some(Client__State__StateReducer.Message.Assistant(Streaming({id, _}))) =>
+          // Last message is a streaming assistant message - stream to it
+          id
+        | Some(Client__State__StateReducer.Message.Assistant(Completed(_))) =>
+          // Last message is a completed assistant message - create new one
+          let newId = `assistant-${Date.now()->Float.toString}`
+          Client__State.Actions.streamingStarted(~taskId, ~id=newId)
+          newId
+        | Some(Client__State__StateReducer.Message.User(_)) | Some(Client__State__StateReducer.Message.ToolCall(_)) | None =>
+          // Last message is not an assistant message (or no messages) - create new one
+          let newId = `assistant-${Date.now()->Float.toString}`
+          Client__State.Actions.streamingStarted(~taskId, ~id=newId)
+          newId
         }
         Client__State.Actions.textDeltaReceived(~taskId, ~id, ~text)
       })
 
-    | "agent_message_start" =>
-      let id = `msg_${taskId}`
-      Client__State.Actions.streamingStarted(~taskId, ~id)
-
-    | "agent_message_end" =>
-      let id = `msg_${taskId}`
-      Client__State.Actions.messageCompleted(~taskId, ~id)
-
     | "tool_call" =>
       // Tool call started - create tool call entry
+      // Get fresh state to ensure we have the current taskId
+      let currentState = AskTheLlmReactStatestore.StateStore.getState(Client__State__Store.store)
+      let taskId = currentState.currentTaskId->Option.getOr("unknown")
       update.toolCallId->Option.forEach(toolCallId => {
-        let toolName = update.title->Option.getOr("unknown_tool")
+        // Extract tool name from title (e.g., "Calling list_files" -> "list_files")
+        let toolName = update.title->Option.map(title => {
+          if String.startsWith("Calling ", title) {
+            title->String.slice(~start=9, ~end=String.length(title))
+          } else {
+            title
+          }
+        })->Option.getOr("unknown_tool")
         Client__State.Actions.toolCallReceived(
           ~taskId,
           ~toolCall={
@@ -149,6 +159,9 @@ let make = () => {
 
     | "tool_call_update" =>
       // Tool call status update
+      // Get fresh state to ensure we have the current taskId
+      let currentState = AskTheLlmReactStatestore.StateStore.getState(Client__State__Store.store)
+      let taskId = currentState.currentTaskId->Option.getOr("unknown")
       update.toolCallId->Option.forEach(toolCallId => {
         switch update.status {
         | Some("completed") =>
@@ -168,7 +181,7 @@ let make = () => {
             })
           Client__State.Actions.toolResultReceived(~taskId, ~id=toolCallId, ~result)
 
-        | Some("error") =>
+        | Some("failed") =>
           let error =
             update.contents
             ->Option.flatMap(contents => contents->Array.get(0))
@@ -177,20 +190,20 @@ let make = () => {
             ->Option.getOr("Unknown error")
           Client__State.Actions.toolErrorReceived(~taskId, ~id=toolCallId, ~error)
 
-        | Some("running") =>
+        | Some("in_progress") =>
           // Tool is running - could update UI state if needed
-          Console.log2("[ACP] Tool running:", toolCallId)
+          ()
 
-        | Some(status) =>
-          Console.log3("[ACP] Unknown tool_call_update status:", status, toolCallId)
+        | Some(_status) =>
+          ()
 
         | None =>
-          Console.log2("[ACP] tool_call_update missing status:", toolCallId)
+          ()
         }
       })
 
     | _ =>
-      Console.log2("[ACP] Unhandled session update:", update.sessionUpdate)
+      ()
     }
   }, [])
 
@@ -203,12 +216,11 @@ let make = () => {
     | Connected =>
       if !sessionCreatedRef.current {
         sessionCreatedRef.current = true
-        Console.log("[App] Connected to ACP, creating session...")
         createSession(handleSessionUpdate)
         ->Promise.thenResolve(result => {
           switch result {
-          | Ok(sess) =>
-            Console.log2("[App] Session created:", sess.sessionId)
+          | Ok(_sess) =>
+            ()
           | Error(err) =>
             sessionCreatedRef.current = false
             Console.error2("[App] Failed to create session:", err)
@@ -225,7 +237,6 @@ let make = () => {
   React.useEffect(() => {
     switch connectionState {
     | SessionActive(_sessionId) =>
-      Console.log("[App] Session active, storing sendPrompt in state")
       Client__State.Actions.connect(~sendPrompt)
     | Disconnected | Error(_) =>
       Client__State.Actions.disconnect()

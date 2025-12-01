@@ -65,6 +65,8 @@ defmodule FrontmanServerWeb.ACP do
   Builds a session/update notification for agent_message_chunk.
 
   Translates a text chunk into ACP wire format.
+  Per ACP spec: The first agent_message_chunk implicitly signals message start.
+  Message end is signaled by the session/prompt response with stopReason.
   """
   def build_agent_message_chunk_notification(session_id, text) do
     params = %{
@@ -118,7 +120,7 @@ defmodule FrontmanServerWeb.ACP do
 
     update =
       if content do
-        Map.put(update, "content", [
+        Map.put(update, "contents", [
           %{"type" => "content", "content" => %{"type" => "text", "text" => content}}
         ])
       else

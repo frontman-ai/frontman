@@ -41,6 +41,7 @@
 		"@rescript/react": "^0.14.0",
 		"@rescript/webapi": "catalog:",
 		"@tailwindcss/vite": "^4.1.16",
+		"@toon-format/toon": "2.0.1",
 		"@types/react": "^19.2.2",
 		"@types/use-sync-external-store": "^1",
 		"@vitest/ui": "catalog:",
