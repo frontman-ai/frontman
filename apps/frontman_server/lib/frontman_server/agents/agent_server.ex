@@ -59,7 +59,8 @@ defmodule FrontmanServer.Agents.AgentServer do
   @doc """
   Notifies the agent that a tool result has arrived.
   """
-  @spec notify_tool_result(String.t(), String.t(), term(), boolean()) :: :ok | {:error, :not_found}
+  @spec notify_tool_result(String.t(), String.t(), term(), boolean()) ::
+          :ok | {:error, :not_found}
   def notify_tool_result(task_id, tool_call_id, result, is_error) do
     with_agent(task_id, fn pid ->
       send(pid, {:tool_result, tool_call_id, result, is_error})
