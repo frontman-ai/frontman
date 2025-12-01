@@ -193,4 +193,149 @@ defmodule FrontmanServerWeb.SessionChannelTest do
       }
     end
   end
+
+  describe "MCP response validation" do
+    setup do
+      session_id = "sess_mcp_val_#{:rand.uniform(1_000_000)}"
+      {:ok, ^session_id} = Tasks.create_task(session_id, %{})
+
+      {:ok, _reply, socket} =
+        UserSocket
+        |> socket("user_id", %{})
+        |> subscribe_and_join("session:#{session_id}", %{})
+
+      # Complete MCP initialization
+      assert_push "mcp:message", %{"id" => init_request_id}
+
+      init_result = %{
+        "protocolVersion" => MCPProtocol.protocol_version(),
+        "capabilities" => %{"tools" => %{}},
+        "serverInfo" => %{"name" => "test-mcp", "version" => "1.0.0"}
+      }
+
+      push(socket, "mcp:message", JsonRpc.success_response(init_request_id, init_result))
+      assert_push "mcp:message", %{"method" => "notifications/initialized"}
+      assert_push "mcp:message", %{"id" => tools_request_id}
+      push(socket, "mcp:message", JsonRpc.success_response(tools_request_id, %{"tools" => []}))
+
+      {:ok, socket: socket, session_id: session_id}
+    end
+
+    test "logs error and sends notification for invalid MCP response - missing jsonrpc field",
+         %{socket: socket} do
+      import ExUnit.CaptureLog
+
+      log =
+        capture_log(fn ->
+          # Send malformed response
+          push(socket, "mcp:message", %{"id" => 999, "result" => %{}})
+
+          # Give channel time to process
+          Process.sleep(10)
+        end)
+
+      assert log =~ "Invalid MCP response"
+      assert log =~ "invalid_message"
+
+      # Should receive error notification
+      assert_push "mcp:message", %{
+        "jsonrpc" => "2.0",
+        "method" => "error",
+        "params" => %{
+          "message" => "Invalid JSON-RPC response",
+          "reason" => "invalid_message"
+        }
+      }
+    end
+
+    test "logs error and sends notification for invalid MCP response - wrong jsonrpc version",
+         %{socket: socket} do
+      import ExUnit.CaptureLog
+
+      log =
+        capture_log(fn ->
+          push(socket, "mcp:message", %{"jsonrpc" => "1.0", "id" => 999, "result" => %{}})
+          Process.sleep(10)
+        end)
+
+      assert log =~ "Invalid MCP response"
+      assert log =~ "invalid_version"
+
+      assert_push "mcp:message", %{
+        "method" => "error",
+        "params" => %{"reason" => "invalid_version"}
+      }
+    end
+
+    test "logs error and sends notification for invalid MCP response - missing id",
+         %{socket: socket} do
+      import ExUnit.CaptureLog
+
+      log =
+        capture_log(fn ->
+          push(socket, "mcp:message", %{"jsonrpc" => "2.0", "result" => %{}})
+          Process.sleep(10)
+        end)
+
+      assert log =~ "Invalid MCP response"
+
+      assert_push "mcp:message", %{
+        "method" => "error"
+      }
+    end
+
+    test "logs error and sends notification for invalid MCP response - both result and error",
+         %{socket: socket} do
+      import ExUnit.CaptureLog
+
+      log =
+        capture_log(fn ->
+          push(socket, "mcp:message", %{
+            "jsonrpc" => "2.0",
+            "id" => 999,
+            "result" => %{},
+            "error" => %{"code" => -32601, "message" => "Error"}
+          })
+
+          Process.sleep(10)
+        end)
+
+      assert log =~ "Invalid MCP response"
+
+      assert_push "mcp:message", %{
+        "method" => "error"
+      }
+    end
+
+    test "still handles valid MCP responses correctly", %{socket: socket, session_id: session_id} do
+      # Create a tool call to generate pending MCP call
+      tool_call = %Interaction.ToolCall{
+        id: Interaction.new_id(),
+        agent_id: "test_agent",
+        tool_call_id: "call_valid_test",
+        tool_name: "testTool",
+        arguments: %{},
+        timestamp: Interaction.now()
+      }
+
+      send(socket.channel_pid, {:interaction, tool_call})
+
+      assert_push "mcp:message", %{"method" => "tools/call", "id" => mcp_request_id}
+
+      # Send valid MCP response - should work exactly as before
+      mcp_result = %{"content" => [%{"type" => "text", "text" => "Success"}]}
+      push(socket, "mcp:message", JsonRpc.success_response(mcp_request_id, mcp_result))
+
+      # Should receive ACP completion notification
+      assert_push "acp:message", %{
+        "method" => "session/update",
+        "params" => %{
+          "sessionId" => ^session_id,
+          "update" => %{
+            "status" => "completed"
+          }
+        }
+      }
+    end
+  end
 end

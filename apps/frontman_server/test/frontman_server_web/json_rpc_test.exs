@@ -57,6 +57,100 @@ defmodule FrontmanServerWeb.JsonRpcTest do
     end
   end
 
+  describe "parse_response/1" do
+    test "parses valid success response" do
+      message = %{
+        "jsonrpc" => "2.0",
+        "id" => 1,
+        "result" => %{"data" => "value"}
+      }
+
+      assert {:ok, {:success, 1, %{"data" => "value"}}} = JsonRpc.parse_response(message)
+    end
+
+    test "parses success response with string id" do
+      message = %{
+        "jsonrpc" => "2.0",
+        "id" => "req-123",
+        "result" => %{}
+      }
+
+      assert {:ok, {:success, "req-123", %{}}} = JsonRpc.parse_response(message)
+    end
+
+    test "parses valid error response" do
+      message = %{
+        "jsonrpc" => "2.0",
+        "id" => 1,
+        "error" => %{"code" => -32601, "message" => "Method not found"}
+      }
+
+      assert {:ok, {:error, 1, %{"code" => -32601, "message" => "Method not found"}}} =
+               JsonRpc.parse_response(message)
+    end
+
+    test "returns error for wrong jsonrpc version in response" do
+      message = %{"jsonrpc" => "1.0", "id" => 1, "result" => %{}}
+
+      assert {:error, :invalid_version} = JsonRpc.parse_response(message)
+    end
+
+    test "returns error for missing jsonrpc field in response" do
+      message = %{"id" => 1, "result" => %{}}
+
+      assert {:error, :invalid_message} = JsonRpc.parse_response(message)
+    end
+
+    test "returns error for missing id field in response" do
+      message = %{"jsonrpc" => "2.0", "result" => %{}}
+
+      assert {:error, :invalid_message} = JsonRpc.parse_response(message)
+    end
+
+    test "returns error for response with both result and error" do
+      message = %{
+        "jsonrpc" => "2.0",
+        "id" => 1,
+        "result" => %{},
+        "error" => %{"code" => -32601, "message" => "Error"}
+      }
+
+      assert {:error, :invalid_message} = JsonRpc.parse_response(message)
+    end
+
+    test "returns error for response with neither result nor error" do
+      message = %{"jsonrpc" => "2.0", "id" => 1}
+
+      assert {:error, :invalid_message} = JsonRpc.parse_response(message)
+    end
+
+    test "returns error for response with malformed error object (missing code)" do
+      message = %{
+        "jsonrpc" => "2.0",
+        "id" => 1,
+        "error" => %{"message" => "Error"}
+      }
+
+      assert {:error, :invalid_message} = JsonRpc.parse_response(message)
+    end
+
+    test "returns error for response with malformed error object (missing message)" do
+      message = %{
+        "jsonrpc" => "2.0",
+        "id" => 1,
+        "error" => %{"code" => -32601}
+      }
+
+      assert {:error, :invalid_message} = JsonRpc.parse_response(message)
+    end
+
+    test "returns error for non-map input" do
+      assert {:error, :invalid_message} = JsonRpc.parse_response("not a map")
+      assert {:error, :invalid_message} = JsonRpc.parse_response(nil)
+      assert {:error, :invalid_message} = JsonRpc.parse_response([])
+    end
+  end
+
   describe "success_response/2" do
     test "builds valid success response" do
       result = JsonRpc.success_response(1, %{"data" => "value"})

@@ -38,8 +38,23 @@ defmodule FrontmanServerWeb.SessionsChannel do
       {:ok, {:notification, _method, _params}} ->
         {:noreply, socket}
 
-      {:error, _reason} ->
-        {:noreply, socket}
+      {:error, reason} ->
+        Logger.error(
+          "Invalid ACP message in sessions channel: #{inspect(reason)}, payload: #{inspect(payload)}"
+        )
+
+        # If payload has an id, send error response; otherwise ignore (can't respond to malformed request)
+        case payload do
+          %{"id" => id} ->
+            error_response =
+              JsonRpc.error_response(id, JsonRpc.error_invalid_request(), "Invalid JSON-RPC message")
+
+            push(socket, "acp:message", error_response)
+            {:noreply, socket}
+
+          _ ->
+            {:noreply, socket}
+        end
     end
   end
 

@@ -4,6 +4,21 @@ defmodule FrontmanServerWeb.JsonRpc do
 
   This module handles the transport-level concerns of JSON-RPC 2.0 protocol,
   providing functions to parse incoming messages and build outgoing responses.
+
+  ## Parsing Functions
+
+  - `parse/1` - Parses requests and notifications (incoming from client)
+  - `parse_response/1` - Parses success and error responses (incoming from MCP server)
+
+  ## Construction Functions
+
+  - `request/3` - Builds a request message
+  - `notification/2` - Builds a notification message
+  - `success_response/2` - Builds a success response message
+  - `error_response/3` - Builds an error response message
+
+  All parsing and construction functions validate messages according to JSON-RPC 2.0 specification.
+
   Domain logic should not depend on this module directly.
   """
 
@@ -51,6 +66,60 @@ defmodule FrontmanServerWeb.JsonRpc do
   end
 
   def parse(_), do: {:error, :invalid_message}
+
+  @doc """
+  Parses a JSON-RPC 2.0 response message into a tagged tuple.
+
+  Returns:
+  - `{:ok, {:success, id, result}}` for success responses (has result)
+  - `{:ok, {:error, id, error}}` for error responses (has error)
+  - `{:error, reason}` for invalid messages
+
+  ## Examples
+
+      iex> JsonRpc.parse_response(%{"jsonrpc" => "2.0", "id" => 1, "result" => %{"data" => "value"}})
+      {:ok, {:success, 1, %{"data" => "value"}}}
+
+      iex> JsonRpc.parse_response(%{"jsonrpc" => "2.0", "id" => 1, "error" => %{"code" => -32601, "message" => "Not found"}})
+      {:ok, {:error, 1, %{"code" => -32601, "message" => "Not found"}}}
+  """
+  def parse_response(message) when is_map(message) do
+    with {:ok, _version} <- validate_version(message),
+         {:ok, _id} <- extract_id(message),
+         {:ok, response_type} <- extract_response_type(message) do
+      {:ok, response_type}
+    end
+  end
+
+  def parse_response(_), do: {:error, :invalid_message}
+
+  defp extract_id(%{"id" => id}), do: {:ok, id}
+  defp extract_id(_), do: {:error, :invalid_message}
+
+  defp extract_response_type(%{"result" => _result, "error" => _error}) do
+    # JSON-RPC 2.0 spec: MUST NOT have both result and error
+    {:error, :invalid_message}
+  end
+
+  defp extract_response_type(%{"result" => result} = message) do
+    id = Map.fetch!(message, "id")
+    {:ok, {:success, id, result}}
+  end
+
+  defp extract_response_type(%{"error" => error} = message) do
+    id = Map.fetch!(message, "id")
+
+    # Validate error object structure per JSON-RPC 2.0 spec
+    case error do
+      %{"code" => code, "message" => message} when is_integer(code) and is_binary(message) ->
+        {:ok, {:error, id, error}}
+
+      _ ->
+        {:error, :invalid_message}
+    end
+  end
+
+  defp extract_response_type(_), do: {:error, :invalid_message}
 
   defp validate_version(%{"jsonrpc" => @jsonrpc_version}), do: {:ok, @jsonrpc_version}
   defp validate_version(%{"jsonrpc" => _}), do: {:error, :invalid_version}

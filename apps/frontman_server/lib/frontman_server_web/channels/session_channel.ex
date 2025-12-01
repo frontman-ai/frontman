@@ -55,21 +55,47 @@ defmodule FrontmanServerWeb.SessionChannel do
       {:ok, {:notification, _method, _params}} ->
         {:noreply, socket}
 
-      {:error, _reason} ->
-        {:noreply, socket}
+      {:error, reason} ->
+        Logger.error(
+          "Invalid ACP message in session channel: #{inspect(reason)}, payload: #{inspect(payload)}"
+        )
+
+        # If payload has an id, send error response
+        case payload do
+          %{"id" => id} ->
+            error_response =
+              JsonRpc.error_response(id, JsonRpc.error_invalid_request(), "Invalid JSON-RPC message")
+
+            push(socket, "acp:message", error_response)
+            {:noreply, socket}
+
+          _ ->
+            {:noreply, socket}
+        end
     end
   end
 
   @impl true
   def handle_in("mcp:message", payload, socket) do
-    case payload do
-      %{"jsonrpc" => "2.0", "id" => id, "result" => result} ->
+    case JsonRpc.parse_response(payload) do
+      {:ok, {:success, id, result}} ->
         handle_mcp_response(id, result, socket)
 
-      %{"jsonrpc" => "2.0", "id" => id, "error" => error} ->
+      {:ok, {:error, id, error}} ->
         handle_mcp_error(id, error, socket)
 
-      _ ->
+      {:error, reason} ->
+        Logger.error("Invalid MCP response: #{inspect(reason)}, payload: #{inspect(payload)}")
+
+        # Send error notification to client for better debugging
+        error_notification =
+          JsonRpc.notification("error", %{
+            "message" => "Invalid JSON-RPC response",
+            "reason" => Atom.to_string(reason)
+          })
+
+        push(socket, "mcp:message", error_notification)
+
         {:noreply, socket}
     end
   end
