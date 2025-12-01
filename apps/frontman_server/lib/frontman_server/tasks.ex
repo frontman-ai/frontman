@@ -178,4 +178,61 @@ defmodule FrontmanServer.Tasks do
         {:error, reason}
     end
   end
+
+  # Todo Management
+  # These functions delegate to the Todos subcontext
+
+  alias FrontmanServer.Tasks.Todos
+
+  defdelegate create_todo(content, active_form, status \\ "pending"), to: Todos
+
+  @doc """
+  Lists all todos for a task.
+  """
+  @spec list_todos(String.t()) :: {:ok, [Todos.Todo.t()]} | {:error, :not_found}
+  def list_todos(task_id) do
+    case get_task(task_id) do
+      {:ok, task} ->
+        {:ok, Todos.list_todos(task.interactions)}
+
+      {:error, :not_found} ->
+        {:error, :not_found}
+    end
+  end
+
+  @doc """
+  Updates a todo's status.
+  """
+  @spec update_todo_status(String.t(), String.t(), String.t()) ::
+          {:ok, Todos.Todo.t()} | {:error, :task_not_found | :todo_not_found | term()}
+  def update_todo_status(task_id, todo_id, status) do
+    case get_task(task_id) do
+      {:ok, task} ->
+        case Todos.update_todo_status(task.interactions, todo_id, status) do
+          {:ok, todo} -> {:ok, todo}
+          {:error, :not_found} -> {:error, :todo_not_found}
+          {:error, reason} -> {:error, reason}
+        end
+
+      {:error, :not_found} ->
+        {:error, :task_not_found}
+    end
+  end
+
+  @doc """
+  Validates that a todo exists.
+  """
+  @spec validate_todo_exists(String.t(), String.t()) :: :ok | {:error, :task_not_found | :todo_not_found}
+  def validate_todo_exists(task_id, todo_id) do
+    case get_task(task_id) do
+      {:ok, task} ->
+        case Todos.validate_todo_exists(task.interactions, todo_id) do
+          :ok -> :ok
+          {:error, :not_found} -> {:error, :todo_not_found}
+        end
+
+      {:error, :not_found} ->
+        {:error, :task_not_found}
+    end
+  end
 end

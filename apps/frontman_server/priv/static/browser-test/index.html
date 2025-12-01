@@ -286,6 +286,26 @@
         <input type="text" id="messageInput" placeholder="Type a message..." />
         <button class="btn-primary" id="sendBtn">Send</button>
       </div>
+
+      <!-- Quick test prompts for todos -->
+      <details class="info-panel" style="margin-top: 12px;">
+        <summary>Todo Tool Test Prompts</summary>
+        <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 8px;">
+          <button class="btn-secondary" onclick="document.getElementById('messageInput').value='Create a todo to test the backend todo tools'; document.getElementById('sendBtn').click()">Create a todo</button>
+          <button class="btn-secondary" onclick="document.getElementById('messageInput').value='List all my todos'; document.getElementById('sendBtn').click()">List todos</button>
+          <button class="btn-secondary" onclick="document.getElementById('messageInput').value='Mark the first todo as in_progress'; document.getElementById('sendBtn').click()">Update todo status</button>
+          <button class="btn-secondary" onclick="document.getElementById('messageInput').value='Remove all completed todos'; document.getElementById('sendBtn').click()">Remove completed</button>
+        </div>
+      </details>
+    </div>
+
+    <!-- Backend Tool Results -->
+    <div class="chat-container" id="toolResultsContainer" style="display: none;">
+      <div class="chat-header">
+        <h3>Backend Tool Calls</h3>
+        <button class="btn-secondary" id="clearToolsBtn">Clear</button>
+      </div>
+      <div id="toolResults" style="background: #0a0a0a; border: 1px solid #333; border-radius: 4px; padding: 10px; min-height: 100px; max-height: 300px; overflow-y: auto; font-family: monospace; font-size: 11px;"></div>
     </div>
   </div>
 
@@ -326,6 +346,9 @@
     const messagesEl = document.getElementById('messages');
     const messageInput = document.getElementById('messageInput');
     const sendBtn = document.getElementById('sendBtn');
+    const toolResultsContainer = document.getElementById('toolResultsContainer');
+    const toolResultsEl = document.getElementById('toolResults');
+    const clearToolsBtn = document.getElementById('clearToolsBtn');
 
     // State
     let relay = null;
@@ -573,10 +596,56 @@
     function handleSessionUpdate(update) {
       if (update.sessionUpdate === 'agent_message_chunk') {
         const content = update.content;
-        if (content.text) {
+        if (content && content.text) {
           appendAssistantChunk(content.text);
         }
+      } else if (update.sessionUpdate === 'tool_call_update') {
+        handleToolCallUpdate(update);
       }
+    }
+
+    function handleToolCallUpdate(update) {
+      const { toolCallId, toolName, status, content } = update;
+
+      // Show tool results container
+      toolResultsContainer.style.display = 'block';
+
+      // Log tool call
+      if (status === 'completed' && content && Array.isArray(content)) {
+        content.forEach(block => {
+          if (block.content) {
+            // Structured content from backend tools
+            appendToolResult(toolName, block.content);
+          }
+        });
+      }
+    }
+
+    function appendToolResult(toolName, data) {
+      const time = new Date().toLocaleTimeString('en-US', { hour12: false });
+      const resultDiv = document.createElement('div');
+      resultDiv.style.marginBottom = '10px';
+      resultDiv.style.padding = '8px';
+      resultDiv.style.background = '#16213e';
+      resultDiv.style.borderRadius = '4px';
+      resultDiv.style.borderLeft = '3px solid #00d4ff';
+
+      const header = document.createElement('div');
+      header.style.color = '#00d4ff';
+      header.style.marginBottom = '4px';
+      header.textContent = `${time} ${toolName}`;
+
+      const content = document.createElement('pre');
+      content.style.margin = '0';
+      content.style.color = '#27ae60';
+      content.style.fontSize = '10px';
+      content.style.whiteSpace = 'pre-wrap';
+      content.textContent = JSON.stringify(data, null, 2);
+
+      resultDiv.appendChild(header);
+      resultDiv.appendChild(content);
+      toolResultsEl.appendChild(resultDiv);
+      toolResultsEl.scrollTop = toolResultsEl.scrollHeight;
     }
 
     function escapeHtml(text) {
@@ -646,6 +715,9 @@
     });
     clearLogBtn.addEventListener('click', () => {
       logEl.innerHTML = '';
+    });
+    clearToolsBtn.addEventListener('click', () => {
+      toolResultsEl.innerHTML = '';
     });
 
     log('Ready', 'success');

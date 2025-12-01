@@ -108,7 +108,7 @@ type embeddedResource = {
 }
 
 // Content block for prompts and responses
-// Supports text, resource_link, and resource types per ACP spec
+// Supports text, resource_link, resource types per ACP spec, and structured JSON content
 @schema
 type contentBlock = {
   @as("type")
@@ -122,6 +122,8 @@ type contentBlock = {
   // For type="resource" - mimeType is required per ACP spec
   @as("mimeType")
   mimeType: option<string>,
+  // For structured JSON content from backend tools
+  content: option<JSON.t>,
 }
 
 // Tool call content item (for tool_call_update)
@@ -132,6 +134,13 @@ type toolCallContentItem = {
   content: option<contentBlock>,
 }
 
+// Tool call status
+type toolCallStatus =
+  | @as("pending") Pending
+  | @as("in_progress") InProgress
+  | @as("completed") Completed
+  | @as("failed") Failed
+
 // session/prompt result
 @schema
 type promptResult = {
@@ -140,16 +149,18 @@ type promptResult = {
 }
 
 // Session update - the update object from session/update notification
-// This is a flexible type that can represent different session update types
+// Supports agent_message_chunk, tool_call, and tool_call_update
 @schema
 type sessionUpdate = {
   @as("sessionUpdate")
   sessionUpdate: string,
-  // For agent_message_chunk
+  // For agent_message_chunk - single content block
   content: option<contentBlock>,
   // For tool_call and tool_call_update
   @as("toolCallId")
   toolCallId: option<string>,
+  @as("toolName")
+  toolName: option<string>,
   title: option<string>,
   kind: option<string>,
   status: option<string>,

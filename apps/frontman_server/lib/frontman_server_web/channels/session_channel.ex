@@ -253,12 +253,16 @@ defmodule FrontmanServerWeb.SessionChannel do
 
     socket = assign(socket, :pending_prompt_id, id)
 
-    # Build options with MCP tools
+    # Merge backend tools with MCP tools
+    backend_tools = FrontmanServer.Tools.backend_tools(session_id)
+    all_tools = backend_tools ++ mcp_tools_to_llm_format(mcp_tools)
+
+    # Build options with all tools
     opts = [
-      mcp_tools: mcp_tools_to_llm_format(mcp_tools)
+      mcp_tools: all_tools
     ]
 
-    # Add user message to task - this triggers the real agent with MCP tools and content blocks
+    # Add user message to task - this triggers the agent with ALL tools and content blocks
     case Tasks.add_user_message(session_id, prompt_content, opts) do
       {:ok, _interaction} ->
         Logger.info("User message added, agent spawned for session #{session_id}")
@@ -328,30 +332,15 @@ defmodule FrontmanServerWeb.SessionChannel do
     pending_notification = ACP.build_tool_call_notification(session_id, tool_call, "pending")
     push(socket, "acp:message", pending_notification)
 
-    # Route tool call to browser via MCP
-    request_id = System.unique_integer([:positive])
+    # Try backend execution first
+    case FrontmanServer.Tools.execute_backend_tool(tool_call, session_id) do
+      {:executed, result} ->
+        handle_backend_tool_result(tool_call, result, socket)
 
-    request =
-      JsonRpc.request(request_id, "tools/call", %{
-        "name" => tool_call.tool_name,
-        "arguments" => tool_call.arguments,
-        "callId" => tool_call.tool_call_id
-      })
-
-    # Send ACP notification: in_progress
-    in_progress_notification =
-      ACP.build_tool_call_update_notification(session_id, tool_call.tool_call_id, "in_progress")
-
-    push(socket, "acp:message", in_progress_notification)
-
-    # Track pending call to match response
-    pending_calls = socket.assigns[:pending_mcp_calls] || %{}
-
-    socket =
-      assign(socket, :pending_mcp_calls, Map.put(pending_calls, request_id, tool_call))
-
-    push(socket, "mcp:message", request)
-    {:noreply, socket}
+      :not_found ->
+        # Not a backend tool, route to MCP
+        route_to_mcp(tool_call, socket)
+    end
   end
 
   def handle_info({:interaction, _interaction}, socket) do
@@ -375,6 +364,82 @@ defmodule FrontmanServerWeb.SessionChannel do
   end
 
   def handle_info(_msg, socket) do
+    {:noreply, socket}
+  end
+
+  defp handle_backend_tool_result(tool_call, result, socket) do
+    session_id = socket.assigns.session_id
+
+    # Send in_progress notification
+    in_progress_notification =
+      ACP.build_tool_call_update_notification(session_id, tool_call.tool_call_id, "in_progress")
+    push(socket, "acp:message", in_progress_notification)
+
+    case result do
+      {:ok, content} when is_map(content) ->
+        # Success with structured JSON content
+        completed_notification =
+          ACP.build_tool_call_update_notification_with_structured_content(
+            session_id,
+            tool_call.tool_call_id,
+            "completed",
+            content
+          )
+        push(socket, "acp:message", completed_notification)
+
+        # Store result as JSON string for LLM
+        json_result = Jason.encode!(content)
+        Tasks.add_tool_result(
+          session_id,
+          %{id: tool_call.tool_call_id, name: tool_call.tool_name},
+          json_result,
+          false
+        )
+
+      {:error, reason} ->
+        # Failure
+        error_message = to_string(reason)
+        failed_notification =
+          ACP.build_tool_call_update_notification(
+            session_id,
+            tool_call.tool_call_id,
+            "failed",
+            error_message
+          )
+        push(socket, "acp:message", failed_notification)
+
+        Tasks.add_tool_result(
+          session_id,
+          %{id: tool_call.tool_call_id, name: tool_call.tool_name},
+          error_message,
+          true
+        )
+    end
+
+    {:noreply, socket}
+  end
+
+  defp route_to_mcp(tool_call, socket) do
+    session_id = socket.assigns.session_id
+    request_id = System.unique_integer([:positive])
+
+    request =
+      JsonRpc.request(request_id, "tools/call", %{
+        "name" => tool_call.tool_name,
+        "arguments" => tool_call.arguments,
+        "callId" => tool_call.tool_call_id
+      })
+
+    # Send ACP notification: in_progress
+    in_progress_notification =
+      ACP.build_tool_call_update_notification(session_id, tool_call.tool_call_id, "in_progress")
+    push(socket, "acp:message", in_progress_notification)
+
+    # Track pending call for response correlation
+    pending_calls = socket.assigns[:pending_mcp_calls] || %{}
+    socket = assign(socket, :pending_mcp_calls, Map.put(pending_calls, request_id, tool_call))
+
+    push(socket, "mcp:message", request)
     {:noreply, socket}
   end
 

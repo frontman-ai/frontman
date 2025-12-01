@@ -134,4 +134,35 @@ defmodule FrontmanServerWeb.ACP do
 
     JsonRpc.notification("session/update", params)
   end
+
+  @doc """
+  Builds a session/update notification for a tool call with structured JSON content.
+
+  Used for backend tools that return rich data structures (like todo lists).
+  """
+  def build_tool_call_update_notification_with_structured_content(
+        session_id,
+        tool_call_id,
+        status,
+        structured_content
+      ) do
+    update = %{
+      "sessionUpdate" => "tool_call_update",
+      "toolCallId" => tool_call_id,
+      "status" => status,
+      "content" => [
+        %{
+          "type" => "content",
+          "content" => structured_content
+        }
+      ]
+    }
+
+    params = %{
+      "sessionId" => session_id,
+      "update" => update
+    }
+
+    JsonRpc.notification("session/update", params)
+  end
 end
