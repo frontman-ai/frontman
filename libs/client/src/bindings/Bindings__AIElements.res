@@ -241,3 +241,102 @@ module Shimmer = {
     @react.component @module("@/components/ai-elements/shimmer")
     external make: (~children: React.element, ~duration: int=?, ~spread: int=?, ~className: string=?) => React.element = "Shimmer"
 }
+
+// Queue component types
+type queueTodoStatus = [#pending | #completed]
+
+type queueMessagePart = {
+    @as("type") type_: string,
+    text?: string,
+    url?: string,
+    filename?: string,
+    mediaType?: string,
+}
+
+type queueMessage = {
+    id: string,
+    parts: array<queueMessagePart>,
+}
+
+type queueTodo = {
+    id: string,
+    title: string,
+    description?: string,
+    status?: queueTodoStatus,
+}
+
+// Queue components
+module Queue = {
+    @react.component @module("@/components/ai-elements/queue")
+    external make: (~className: string=?, ~children: React.element) => React.element = "Queue"
+}
+
+module QueueSection = {
+    @react.component @module("@/components/ai-elements/queue")
+    external make: (~className: string=?, ~defaultOpen: bool=?, ~children: React.element) => React.element = "QueueSection"
+}
+
+module QueueSectionTrigger = {
+    @react.component @module("@/components/ai-elements/queue")
+    external make: (~className: string=?, ~children: React.element) => React.element = "QueueSectionTrigger"
+}
+
+module QueueSectionLabel = {
+    @react.component @module("@/components/ai-elements/queue")
+    external make: (~label: string, ~count: int=?, ~icon: React.element=?, ~className: string=?) => React.element = "QueueSectionLabel"
+}
+
+module QueueSectionContent = {
+    @react.component @module("@/components/ai-elements/queue")
+    external make: (~className: string=?, ~children: React.element) => React.element = "QueueSectionContent"
+}
+
+module QueueList = {
+    @react.component @module("@/components/ai-elements/queue")
+    external make: (~className: string=?, ~children: React.element) => React.element = "QueueList"
+}
+
+module QueueItem = {
+    @react.component @module("@/components/ai-elements/queue")
+    external make: (~className: string=?, ~children: React.element) => React.element = "QueueItem"
+}
+
+module QueueItemIndicator = {
+    @react.component @module("@/components/ai-elements/queue")
+    external make: (~completed: bool=?, ~className: string=?) => React.element = "QueueItemIndicator"
+}
+
+module QueueItemContent = {
+    @react.component @module("@/components/ai-elements/queue")
+    external make: (~completed: bool=?, ~className: string=?, ~children: React.element) => React.element = "QueueItemContent"
+}
+
+module QueueItemDescription = {
+    @react.component @module("@/components/ai-elements/queue")
+    external make: (~completed: bool=?, ~className: string=?, ~children: React.element) => React.element = "QueueItemDescription"
+}
+
+module QueueItemActions = {
+    @react.component @module("@/components/ai-elements/queue")
+    external make: (~className: string=?, ~children: React.element) => React.element = "QueueItemActions"
+}
+
+module QueueItemAction = {
+    @react.component @module("@/components/ai-elements/queue")
+    external make: (~className: string=?, ~onClick: unit => unit=?, ~children: React.element) => React.element = "QueueItemAction"
+}
+
+module QueueItemAttachment = {
+    @react.component @module("@/components/ai-elements/queue")
+    external make: (~className: string=?, ~children: React.element) => React.element = "QueueItemAttachment"
+}
+
+module QueueItemImage = {
+    @react.component @module("@/components/ai-elements/queue")
+    external make: (~src: string, ~alt: string=?, ~className: string=?) => React.element = "QueueItemImage"
+}
+
+module QueueItemFile = {
+    @react.component @module("@/components/ai-elements/queue")
+    external make: (~className: string=?, ~children: React.element) => React.element = "QueueItemFile"
+}
