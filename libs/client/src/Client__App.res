@@ -98,112 +98,97 @@ let make = () => {
 
   // Handle ACP session updates (streaming messages from the agent)
   let handleSessionUpdate = React.useCallback((update: ACPTypes.sessionUpdate) => {
-    switch update.sessionUpdate {
-    | "agent_message_chunk" =>
-      // ACP compliant: First agent_message_chunk implicitly signals message start
-      // Text delta from assistant - append to the most recent assistant message if it exists,
-      // otherwise create a new one
-      // IMPORTANT: Get fresh state each time to avoid stale closures
-      update.content->Option.flatMap(c => c.text)->Option.forEach(text => {
-        let currentState = AskTheLlmReactStatestore.StateStore.getState(Client__State__Store.store)
-        let taskId = currentState.currentTaskId->Option.getOr("unknown")
-        let messages = Client__State.Selectors.messages(currentState)
-        let lastMessage = messages->Array.get(Array.length(messages) - 1)
-        
-        let id = switch lastMessage {
-        | Some(Client__State__StateReducer.Message.Assistant(Streaming({id, _}))) =>
-          // Last message is a streaming assistant message - stream to it
-          id
-        | Some(Client__State__StateReducer.Message.Assistant(Completed(_))) =>
-          // Last message is a completed assistant message - create new one
-          let newId = `assistant-${Date.now()->Float.toString}`
-          Client__State.Actions.streamingStarted(~taskId, ~id=newId)
-          newId
-        | Some(Client__State__StateReducer.Message.User(_)) | Some(Client__State__StateReducer.Message.ToolCall(_)) | None =>
-          // Last message is not an assistant message (or no messages) - create new one
-          let newId = `assistant-${Date.now()->Float.toString}`
-          Client__State.Actions.streamingStarted(~taskId, ~id=newId)
-          newId
+    // Get current task ID directly from the store
+    let state = AskTheLlmReactStatestore.StateStore.getState(Client__State__Store.store)
+    let taskId = state.currentTaskId->Option.getOr("unknown")
+
+    switch update {
+    | AgentMessageChunk({content}) =>
+      // Text delta from assistant
+      content->Option.flatMap(c => c.text)->Option.forEach(text => {
+        // Use a consistent ID for the current message stream
+        let id = `msg_${taskId}`
+        // Check if we have a streaming message - if not, create one first
+        let messages = Client__State.Selectors.streamingMessages(state)
+        if Array.length(messages) == 0 {
+          // No streaming message exists, create one first
+          Client__State.Actions.streamingStarted(~taskId, ~id)
         }
         Client__State.Actions.textDeltaReceived(~taskId, ~id, ~text)
       })
 
-    | "tool_call" =>
+    | AgentMessageStart =>
+      let id = `msg_${taskId}`
+      Client__State.Actions.streamingStarted(~taskId, ~id)
+
+    | AgentMessageEnd =>
+      let id = `msg_${taskId}`
+      Client__State.Actions.messageCompleted(~taskId, ~id)
+
+    | ToolCall({toolCallId, title}) =>
       // Tool call started - create tool call entry
-      // Get fresh state to ensure we have the current taskId
-      let currentState = AskTheLlmReactStatestore.StateStore.getState(Client__State__Store.store)
-      let taskId = currentState.currentTaskId->Option.getOr("unknown")
-      update.toolCallId->Option.forEach(toolCallId => {
-        // Extract tool name from title (e.g., "Calling list_files" -> "list_files")
-        let toolName = update.title->Option.map(title => {
-          if String.startsWith("Calling ", title) {
-            title->String.slice(~start=9, ~end=String.length(title))
-          } else {
-            title
-          }
-        })->Option.getOr("unknown_tool")
-        Client__State.Actions.toolCallReceived(
-          ~taskId,
-          ~toolCall={
-            id: toolCallId,
-            toolName,
-            inputBuffer: "",
-            input: None, // Input will be provided in tool_call_update
-            result: None,
-            errorText: None,
-            state: InputStreaming,
-            createdAt: Date.now(),
-          },
-        )
-      })
+      let toolName = title->Option.getOr("unknown_tool")
+      Client__State.Actions.toolCallReceived(
+        ~taskId,
+        ~toolCall={
+          id: toolCallId,
+          toolName,
+          inputBuffer: "",
+          input: None, // Input will be provided in tool_call_update
+          result: None,
+          errorText: None,
+          state: InputStreaming,
+          createdAt: Date.now(),
+        },
+      )
 
-    | "tool_call_update" =>
+    | ToolCallUpdate({toolCallId, status, content}) =>
       // Tool call status update
-      // Get fresh state to ensure we have the current taskId
-      let currentState = AskTheLlmReactStatestore.StateStore.getState(Client__State__Store.store)
-      let taskId = currentState.currentTaskId->Option.getOr("unknown")
-      update.toolCallId->Option.forEach(toolCallId => {
-        switch update.status {
-        | Some("completed") =>
-          // Extract result from contents if available
-          let result =
-            update.contents
-            ->Option.flatMap(contents => contents->Array.get(0))
-            ->Option.flatMap(item => item.content)
-            ->Option.flatMap(content => content.text)
-            ->Option.mapOr(JSON.Encode.null, text => {
-              // Try to parse as JSON, fallback to string
-              try {
-                JSON.parseOrThrow(text)
-              } catch {
-              | _ => JSON.Encode.string(text)
-              }
-            })
-          Client__State.Actions.toolResultReceived(~taskId, ~id=toolCallId, ~result)
+      switch status {
+      | Some("completed") =>
+        // Extract result from content if available
+        let result =
+          content
+          ->Option.flatMap(contents => contents->Array.get(0))
+          ->Option.flatMap(item => item.content)
+          ->Option.flatMap(c => c.text)
+          ->Option.mapOr(JSON.Encode.null, text => {
+            // Try to parse as JSON, fallback to string
+            try {
+              JSON.parseOrThrow(text)
+            } catch {
+            | _ => JSON.Encode.string(text)
+            }
+          })
+        Client__State.Actions.toolResultReceived(~taskId, ~id=toolCallId, ~result)
 
-        | Some("failed") =>
-          let error =
-            update.contents
-            ->Option.flatMap(contents => contents->Array.get(0))
-            ->Option.flatMap(item => item.content)
-            ->Option.flatMap(content => content.text)
-            ->Option.getOr("Unknown error")
-          Client__State.Actions.toolErrorReceived(~taskId, ~id=toolCallId, ~error)
+      | Some("failed") =>
+        // ACP spec uses "failed" status
+        let error =
+          content
+          ->Option.flatMap(contents => contents->Array.get(0))
+          ->Option.flatMap(item => item.content)
+          ->Option.flatMap(c => c.text)
+          ->Option.getOr("Unknown error")
+        Client__State.Actions.toolErrorReceived(~taskId, ~id=toolCallId, ~error)
 
-        | Some("in_progress") =>
-          // Tool is running - could update UI state if needed
-          ()
+      | Some("in_progress") =>
+        // Tool is running - could update UI state if needed
+        ()
 
-        | Some(_status) =>
-          ()
+      | Some(_status) =>
+        ()
 
-        | None =>
-          ()
-        }
-      })
+      | None =>
+        ()
+      }
 
-    | _ =>
+    | Plan(_) =>
+      // Plan updates handled elsewhere or not yet implemented
       ()
+
+    | Unknown({sessionUpdate}) =>
+      Console.log2("[ACP] Unhandled session update:", sessionUpdate)
     }
   }, [])
 

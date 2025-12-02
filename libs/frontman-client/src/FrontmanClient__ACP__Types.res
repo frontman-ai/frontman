@@ -148,39 +148,92 @@ type promptResult = {
   stopReason: string,
 }
 
-// Session update - the update object from session/update notification
-// Supports agent_message_chunk, tool_call, and tool_call_update
-@schema
-type sessionUpdate = {
-  @as("sessionUpdate")
-  sessionUpdate: string,
-  // For agent_message_chunk - single content block
-  content: option<contentBlock>,
-  // For tool_call and tool_call_update
-  @as("toolCallId")
-  toolCallId: option<string>,
-  @as("toolName")
-  toolName: option<string>,
-  title: option<string>,
-  kind: option<string>,
-  status: option<string>,
-  // For tool_call_update with results (array of content items)
-  @as("contents")
-  contents: option<array<toolCallContentItem>>,
-}
+// Session update variants - discriminated by sessionUpdate field
+type sessionUpdate =
+  | AgentMessageChunk({content: option<contentBlock>})
+  | AgentMessageStart
+  | AgentMessageEnd
+  | ToolCall({
+      toolCallId: string,
+      title: option<string>,
+      kind: option<string>,
+      status: option<string>,
+    })
+  | ToolCallUpdate({
+      toolCallId: string,
+      status: option<string>,
+      content: option<array<toolCallContentItem>>,
+    })
+  | Plan({entries: option<array<JSON.t>>})
+  | Unknown({sessionUpdate: string})
+
+// Session update schema using S.union with s.tag for proper discrimination
+let sessionUpdateSchema = S.union([
+  S.object(s => {
+    s.tag("sessionUpdate", "agent_message_chunk")
+    AgentMessageChunk({
+      content: s.field("content", S.option(contentBlockSchema)),
+    })
+  }),
+  S.object(s => {
+    s.tag("sessionUpdate", "agent_message_start")
+    AgentMessageStart
+  }),
+  S.object(s => {
+    s.tag("sessionUpdate", "agent_message_end")
+    AgentMessageEnd
+  }),
+  S.object(s => {
+    s.tag("sessionUpdate", "tool_call")
+    ToolCall({
+      toolCallId: s.field("toolCallId", S.string),
+      title: s.field("title", S.option(S.string)),
+      kind: s.field("kind", S.option(S.string)),
+      status: s.field("status", S.option(S.string)),
+    })
+  }),
+  S.object(s => {
+    s.tag("sessionUpdate", "tool_call_update")
+    ToolCallUpdate({
+      toolCallId: s.field("toolCallId", S.string),
+      status: s.field("status", S.option(S.string)),
+      content: s.field("content", S.option(S.array(toolCallContentItemSchema))),
+    })
+  }),
+  S.object(s => {
+    s.tag("sessionUpdate", "plan")
+    Plan({
+      entries: s.field("entries", S.option(S.array(S.json))),
+    })
+  }),
+  // Fallback for unknown session update types
+  S.object(s => {
+    Unknown({
+      sessionUpdate: s.field("sessionUpdate", S.string),
+    })
+  }),
+])
 
 // session/update params
-@schema
 type sessionUpdateParams = {
-  @as("sessionId")
   sessionId: string,
   update: sessionUpdate,
 }
 
+let sessionUpdateParamsSchema = S.object(s => {
+  sessionId: s.field("sessionId", S.string),
+  update: s.field("update", sessionUpdateSchema),
+})
+
 // Full session/update notification envelope
-@schema
 type sessionUpdateNotification = {
   jsonrpc: string,
   method: string,
   params: sessionUpdateParams,
 }
+
+let sessionUpdateNotificationSchema = S.object(s => {
+  jsonrpc: s.field("jsonrpc", S.string),
+  method: s.field("method", S.string),
+  params: s.field("params", sessionUpdateParamsSchema),
+})

@@ -153,6 +153,7 @@ let selectedElementToContentBlock = (sel: SelectedElement.t): option<ACPTypes.co
       text: None,
       resource: None,
       mimeType: None,
+      content: None,
     }
   })
 }
@@ -199,6 +200,7 @@ let figmaNodeToContentBlock = (node: FigmaNode.nodeData): ACPTypes.contentBlock 
     uri: None,
     resource: Some(embeddedResource),
     mimeType: Some("application/x-toon"),
+    content: None,
   }
 }
 

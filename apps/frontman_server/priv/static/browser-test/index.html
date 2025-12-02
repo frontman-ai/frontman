@@ -369,6 +369,7 @@
     let mcpHandler = null;
     let mcpServer = null;
     let currentAssistantMessage = null;
+    const toolCallsMap = new Map(); // Store tool call metadata by toolCallId
 
     // Step management
     function setStepState(stepEl, state, statusText) {
@@ -588,7 +589,7 @@
           mcpInfoEl.style.display = 'block';
           chatContainer.style.display = 'block';
 
-          mcpHandler = MCP.attach(session.channel, mcpServer, logMcpMessage);
+          mcpHandler = MCP.attach(session.channel, MCPServer.toInterface(mcpServer), logMcpMessage);
           displayMcpTools();
 
           setStepState(step3, 'completed', 'active');
@@ -606,15 +607,31 @@
     }
 
     function handleSessionUpdate(update) {
-      if (update.sessionUpdate === 'agent_message_chunk') {
-        const content = update.content;
-        if (content && content.text) {
-          appendAssistantChunk(content.text);
+      // ReScript variants compile to {TAG: "VariantName", ...fields}
+      switch (update.TAG) {
+        case 'AgentMessageChunk': {
+          const content = update.content;
+          if (content && content.text) {
+            appendAssistantChunk(content.text);
+          }
+          break;
         }
-      } else if (update.sessionUpdate === 'tool_call_update') {
-        handleToolCallUpdate(update);
-      } else if (update.sessionUpdate === 'plan') {
-        handlePlanUpdate(update);
+        case 'ToolCall': {
+          // Store tool call metadata for later lookups
+          const { toolCallId, title, kind } = update;
+          toolCallsMap.set(toolCallId, { title, kind });
+          break;
+        }
+        case 'ToolCallUpdate': {
+          handleToolCallUpdate(update);
+          break;
+        }
+        case 'Plan': {
+          handlePlanUpdate(update);
+          break;
+        }
+        default:
+          console.log('[ACP] Unknown update:', update);
       }
     }
 
@@ -669,7 +686,11 @@
     }
 
     function handleToolCallUpdate(update) {
-      const { toolCallId, toolName, status, content } = update;
+      const { toolCallId, status, content } = update;
+
+      // Look up title from initial tool_call
+      const toolInfo = toolCallsMap.get(toolCallId);
+      const title = toolInfo?.title || 'Unknown tool';
 
       // Show tool results container
       toolResultsContainer.style.display = 'block';
@@ -679,7 +700,7 @@
         content.forEach(block => {
           if (block.content) {
             // Structured content from backend tools
-            appendToolResult(toolName, block.content);
+            appendToolResult(title, block.content);
           }
         });
       }
