@@ -23,7 +23,7 @@ jobs:
         run: corepack enable
 
       - name: Install dependencies
-        run: yarn install --frozen-lockfile
+        run: yarn install --immutable --immutable-cache
 
       - name: Clean ReScript build cache
         run: yarn rescript clean
@@ -63,7 +63,7 @@ jobs:
 
       - name: Install dependencies
         if: steps.changes.outputs.agent == 'true'
-        run: yarn install --frozen-lockfile
+        run: yarn install --immutable --immutable-cache
 
       - name: Clean ReScript build cache
         if: steps.changes.outputs.agent == 'true'

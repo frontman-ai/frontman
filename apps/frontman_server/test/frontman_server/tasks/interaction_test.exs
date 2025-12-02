@@ -9,7 +9,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       interactions = [
         %UserMessage{
           id: "1",
-          content_blocks: [%{type: "text", text: "Hello"}],
+          content_blocks: [%{"type" => "text", "text" => "Hello"}],
           timestamp: DateTime.utc_now(),
           metadata: %{}
         }
@@ -100,7 +100,12 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       now = DateTime.utc_now()
 
       interactions = [
-        %UserMessage{id: "1", content_blocks: [%{type: "text", text: "Calculate 2+2"}], timestamp: now, metadata: %{}},
+        %UserMessage{
+          id: "1",
+          content_blocks: [%{"type" => "text", "text" => "Calculate 2+2"}],
+          timestamp: now,
+          metadata: %{}
+        },
         %AgentResponse{
           id: "2",
           agent_id: "a1",

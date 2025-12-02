@@ -299,6 +299,15 @@
       </details>
     </div>
 
+    <!-- Plan Display -->
+    <div class="chat-container" id="planContainer" style="display: none;">
+      <div class="chat-header">
+        <h3>Plan (Todos)</h3>
+        <span id="planCount" style="font-size: 11px; color: #666;">0 items</span>
+      </div>
+      <div id="planEntries" style="background: #0a0a0a; border: 1px solid #333; border-radius: 4px; padding: 10px; min-height: 60px; max-height: 250px; overflow-y: auto;"></div>
+    </div>
+
     <!-- Backend Tool Results -->
     <div class="chat-container" id="toolResultsContainer" style="display: none;">
       <div class="chat-header">
@@ -349,6 +358,9 @@
     const toolResultsContainer = document.getElementById('toolResultsContainer');
     const toolResultsEl = document.getElementById('toolResults');
     const clearToolsBtn = document.getElementById('clearToolsBtn');
+    const planContainer = document.getElementById('planContainer');
+    const planEntriesEl = document.getElementById('planEntries');
+    const planCountEl = document.getElementById('planCount');
 
     // State
     let relay = null;
@@ -601,7 +613,59 @@
         }
       } else if (update.sessionUpdate === 'tool_call_update') {
         handleToolCallUpdate(update);
+      } else if (update.sessionUpdate === 'plan') {
+        handlePlanUpdate(update);
       }
+    }
+
+    function handlePlanUpdate(update) {
+      const entries = update.entries || [];
+      log(`Plan update: ${entries.length} entries`, 'info');
+
+      planContainer.style.display = 'block';
+      planCountEl.textContent = `${entries.length} item${entries.length !== 1 ? 's' : ''}`;
+      planEntriesEl.innerHTML = '';
+
+      if (entries.length === 0) {
+        planEntriesEl.innerHTML = '<div style="color: #666; font-size: 12px; text-align: center; padding: 20px;">No plan entries</div>';
+        return;
+      }
+
+      entries.forEach((entry, index) => {
+        const entryDiv = document.createElement('div');
+        entryDiv.style.cssText = 'display: flex; align-items: center; gap: 10px; padding: 8px; border-bottom: 1px solid #1a2a3e;';
+
+        // Status indicator
+        const statusColors = {
+          'pending': '#666',
+          'in_progress': '#f39c12',
+          'completed': '#27ae60'
+        };
+        const statusIcons = {
+          'pending': '○',
+          'in_progress': '◐',
+          'completed': '●'
+        };
+
+        const statusEl = document.createElement('span');
+        statusEl.style.cssText = `color: ${statusColors[entry.status] || '#666'}; font-size: 14px;`;
+        statusEl.textContent = statusIcons[entry.status] || '○';
+
+        // Content
+        const contentEl = document.createElement('span');
+        contentEl.style.cssText = 'flex: 1; font-size: 12px; color: #ccc;';
+        contentEl.textContent = entry.content;
+
+        // Status badge
+        const badgeEl = document.createElement('span');
+        badgeEl.style.cssText = `font-size: 10px; padding: 2px 6px; border-radius: 3px; background: ${statusColors[entry.status] || '#666'}20; color: ${statusColors[entry.status] || '#666'};`;
+        badgeEl.textContent = entry.status;
+
+        entryDiv.appendChild(statusEl);
+        entryDiv.appendChild(contentEl);
+        entryDiv.appendChild(badgeEl);
+        planEntriesEl.appendChild(entryDiv);
+      });
     }
 
     function handleToolCallUpdate(update) {

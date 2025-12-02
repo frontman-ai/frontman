@@ -89,4 +89,54 @@ defmodule FrontmanServer.TasksTest do
       assert interaction.result == "error message"
     end
   end
+
+  describe "list_todos/1" do
+    test "returns empty list for task with no todos" do
+      task_id = "test_list_todos_#{System.unique_integer([:positive])}"
+      {:ok, ^task_id} = Tasks.create_task(task_id)
+
+      assert {:ok, []} = Tasks.list_todos(task_id)
+    end
+
+    test "returns error for non-existent task" do
+      assert {:error, :not_found} = Tasks.list_todos("nonexistent")
+    end
+
+    test "returns todos from task" do
+      task_id = "test_list_todos_#{System.unique_integer([:positive])}"
+      {:ok, ^task_id} = Tasks.create_task(task_id)
+
+      {:ok, todo1} = Tasks.create_todo("First", "First", "pending")
+      event1 = FrontmanServer.Tasks.Todos.Tools.TodoAdded.from_todo(todo1)
+      Tasks.add_tool_result(task_id, %{id: "c1", name: "todo_add"}, event1, false)
+
+      {:ok, todo2} = Tasks.create_todo("Second", "Second", "in_progress")
+      event2 = FrontmanServer.Tasks.Todos.Tools.TodoAdded.from_todo(todo2)
+      Tasks.add_tool_result(task_id, %{id: "c2", name: "todo_add"}, event2, false)
+
+      {:ok, todos} = Tasks.list_todos(task_id)
+
+      assert length(todos) == 2
+      contents = Enum.map(todos, & &1.content)
+      assert "First" in contents
+      assert "Second" in contents
+    end
+
+    test "todos are isolated per task" do
+      task_a = "test_isolation_a_#{System.unique_integer([:positive])}"
+      task_b = "test_isolation_b_#{System.unique_integer([:positive])}"
+      {:ok, ^task_a} = Tasks.create_task(task_a)
+      {:ok, ^task_b} = Tasks.create_task(task_b)
+
+      {:ok, todo} = Tasks.create_todo("Task A todo", "Working", "pending")
+      event = FrontmanServer.Tasks.Todos.Tools.TodoAdded.from_todo(todo)
+      Tasks.add_tool_result(task_a, %{id: "c1", name: "todo_add"}, event, false)
+
+      {:ok, todos_a} = Tasks.list_todos(task_a)
+      {:ok, todos_b} = Tasks.list_todos(task_b)
+
+      assert length(todos_a) == 1
+      assert length(todos_b) == 0
+    end
+  end
 end

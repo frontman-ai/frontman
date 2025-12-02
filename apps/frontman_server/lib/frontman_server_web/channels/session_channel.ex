@@ -11,6 +11,7 @@ defmodule FrontmanServerWeb.SessionChannel do
 
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Interaction
+  alias FrontmanServer.ToolRegistry
   alias FrontmanServerWeb.{ACP, JsonRpc, MCPProtocol}
 
   @impl true
@@ -253,13 +254,12 @@ defmodule FrontmanServerWeb.SessionChannel do
 
     socket = assign(socket, :pending_prompt_id, id)
 
-    # Merge backend tools with MCP tools
+    # Merge backend tools with client tools
     backend_tools = FrontmanServer.Tools.backend_tools(session_id)
     all_tools = backend_tools ++ mcp_tools_to_llm_format(mcp_tools)
 
-    # Build options with all tools
     opts = [
-      mcp_tools: all_tools
+      tools: all_tools
     ]
 
     # Add user message to task - this triggers the agent with ALL tools and content blocks
@@ -343,8 +343,27 @@ defmodule FrontmanServerWeb.SessionChannel do
     end
   end
 
+  def handle_info({:interaction, %Interaction.ToolResult{} = tool_result}, socket) do
+    # Check if this was a todo tool that produces events
+    if ToolRegistry.produces_events?(tool_result.tool_name) do
+      session_id = socket.assigns.session_id
+
+      case Tasks.list_todos(session_id) do
+        {:ok, todos} ->
+          entries = ACP.todos_to_plan_entries(todos)
+          notification = ACP.plan_update(session_id, entries)
+          push(socket, "acp:message", notification)
+
+        {:error, _reason} ->
+          :ok
+      end
+    end
+
+    {:noreply, socket}
+  end
+
   def handle_info({:interaction, _interaction}, socket) do
-    # Other interactions are stored but don't need transport handling
+    # Other interactions don't need transport handling
     {:noreply, socket}
   end
 
@@ -370,53 +389,64 @@ defmodule FrontmanServerWeb.SessionChannel do
   defp handle_backend_tool_result(tool_call, result, socket) do
     session_id = socket.assigns.session_id
 
-    # Send in_progress notification
-    in_progress_notification =
-      ACP.build_tool_call_update_notification(session_id, tool_call.tool_call_id, "in_progress")
-    push(socket, "acp:message", in_progress_notification)
+    # Send in_progress update
+    notification = ACP.tool_call_update(session_id, tool_call.tool_call_id, "in_progress")
+    push(socket, "acp:message", notification)
 
+    # Handle result
     case result do
-      {:ok, content} when is_map(content) ->
-        # Success with structured JSON content
-        completed_notification =
-          ACP.build_tool_call_update_notification_with_structured_content(
-            session_id,
-            tool_call.tool_call_id,
-            "completed",
-            content
-          )
-        push(socket, "acp:message", completed_notification)
-
-        # Store result as JSON string for LLM
-        json_result = Jason.encode!(content)
-        Tasks.add_tool_result(
-          session_id,
-          %{id: tool_call.tool_call_id, name: tool_call.tool_name},
-          json_result,
-          false
-        )
+      {:ok, content} ->
+        handle_tool_success(tool_call, content, socket)
 
       {:error, reason} ->
-        # Failure
-        error_message = to_string(reason)
-        failed_notification =
-          ACP.build_tool_call_update_notification(
-            session_id,
-            tool_call.tool_call_id,
-            "failed",
-            error_message
-          )
-        push(socket, "acp:message", failed_notification)
-
-        Tasks.add_tool_result(
-          session_id,
-          %{id: tool_call.tool_call_id, name: tool_call.tool_name},
-          error_message,
-          true
-        )
+        handle_tool_error(tool_call, reason, socket)
     end
 
     {:noreply, socket}
+  end
+
+  defp handle_tool_success(tool_call, result, socket) do
+    session_id = socket.assigns.session_id
+
+    # Convert result to ACP content format
+    content = format_tool_content(result)
+
+    # Send completed update
+    notification = ACP.tool_call_update(session_id, tool_call.tool_call_id, "completed", content)
+    push(socket, "acp:message", notification)
+
+    # Store structured data (not JSON)
+    Tasks.add_tool_result(
+      session_id,
+      %{id: tool_call.tool_call_id, name: tool_call.tool_name},
+      result,
+      false
+    )
+  end
+
+  defp handle_tool_error(tool_call, error, socket) do
+    session_id = socket.assigns.session_id
+    error_message = to_string(error)
+
+    # Convert error to ACP content format
+    content = [%{type: "content", content: %{type: "text", text: error_message}}]
+
+    # Send failed update
+    notification = ACP.tool_call_update(session_id, tool_call.tool_call_id, "failed", content)
+    push(socket, "acp:message", notification)
+
+    # Store error
+    Tasks.add_tool_result(
+      session_id,
+      %{id: tool_call.tool_call_id, name: tool_call.tool_name},
+      error_message,
+      true
+    )
+  end
+
+  defp format_tool_content(result) when is_map(result) do
+    # Wrap structured result in ACP content block
+    [%{type: "content", content: %{type: "text", text: Jason.encode!(result)}}]
   end
 
   defp route_to_mcp(tool_call, socket) do
@@ -433,6 +463,7 @@ defmodule FrontmanServerWeb.SessionChannel do
     # Send ACP notification: in_progress
     in_progress_notification =
       ACP.build_tool_call_update_notification(session_id, tool_call.tool_call_id, "in_progress")
+
     push(socket, "acp:message", in_progress_notification)
 
     # Track pending call for response correlation

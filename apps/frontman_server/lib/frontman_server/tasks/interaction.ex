@@ -19,7 +19,7 @@ defmodule FrontmanServer.Tasks.Interaction do
     @moduledoc """
     Represents a message sent by the user.
 
-    Uses ACP ContentBlocks as the single source of truth for message content.
+    Uses content blocks as the single source of truth for message content.
     The first ContentBlock is typically type="text" with the user's message.
     """
     use TypedStruct
@@ -28,7 +28,7 @@ defmodule FrontmanServer.Tasks.Interaction do
       field(:id, String.t())
       field(:timestamp, DateTime.t())
       field(:metadata, map(), enforce: false)
-      # ACP ContentBlocks from the prompt (includes text, resource_link, resource)
+      # Content blocks from the prompt (includes text, resource_link, resource)
       field(:content_blocks, list())
     end
 
@@ -331,28 +331,31 @@ defmodule FrontmanServer.Tasks.Interaction do
   defp is_conversation_message(_), do: false
 
   defp to_llm_message(%UserMessage{content_blocks: content_blocks}) do
-    # Convert ACP ContentBlocks to LLM message content format
+    # Convert content blocks to LLM message content format
     llm_content = convert_content_blocks_to_llm_format(content_blocks)
     ReqLLM.Context.user(llm_content)
   end
 
   defp to_llm_message(%AgentResponse{content: content, metadata: metadata}) do
     case Map.get(metadata || %{}, :tool_calls) do
-      tool_calls when is_list(tool_calls) and tool_calls != [] ->
-        ReqLLM.Context.assistant(content, tool_calls: tool_calls)
-
-      _ ->
-        ReqLLM.Context.assistant(content)
+      nil -> ReqLLM.Context.assistant(content)
+      [] -> ReqLLM.Context.assistant(content)
+      tool_calls -> ReqLLM.Context.assistant(content, tool_calls: tool_calls)
     end
   end
 
-  defp to_llm_message(%ToolCall{}), do: nil
-
-  defp to_llm_message(%ToolResult{tool_name: name, tool_call_id: id, result: result}) do
-    ReqLLM.Context.tool_result_message(name, id, result)
+  defp to_llm_message(%ToolCall{}) do
+    # Tool calls are embedded in AgentResponse metadata, skip standalone
+    nil
   end
 
-  # Convert ACP ContentBlocks to LLM message content format
+  defp to_llm_message(%ToolResult{tool_name: name, tool_call_id: id, result: result}) do
+    # Serialize structured data to JSON for LLM projection
+    json_result = if is_binary(result), do: result, else: Jason.encode!(result)
+    ReqLLM.Context.tool_result_message(name, id, json_result)
+  end
+
+  # Convert content blocks to LLM message content format
   defp convert_content_blocks_to_llm_format(blocks) do
     content =
       blocks

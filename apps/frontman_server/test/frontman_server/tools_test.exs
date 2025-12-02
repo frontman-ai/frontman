@@ -58,7 +58,7 @@ defmodule FrontmanServer.ToolsTest do
       }
 
       assert {:executed, {:ok, result}} = Tools.execute_backend_tool(tool_call, task_id)
-      assert %{"type" => "todo_list", "todos" => []} = result
+      assert %{"todos" => []} = result
     end
 
     test "returns :not_found for non-backend tool", %{task_id: task_id} do
@@ -97,76 +97,74 @@ defmodule FrontmanServer.ToolsTest do
         "active_form" => "Testing todo"
       })
 
-      assert {:ok, %{"type" => "todo_add", "todo" => todo}} = result
-      assert todo["content"] == "Test todo"
-      assert todo["status"] == "pending"
+      assert {:ok, %FrontmanServer.Tasks.Todos.Tools.TodoAdded{} = event} = result
+      assert event.content == "Test todo"
+      assert event.status == :pending
     end
 
     test "todo_list tool callback works", %{task_id: task_id} do
-      # Add a todo first via Tasks API
-      {:ok, todo} = Tasks.create_todo("Test", "Testing")
-      result = Jason.encode!(%{"type" => "todo_add", "todo" => serialize_todo(todo)})
-      Tasks.add_tool_result(task_id, %{id: "call1", name: "todo_add"}, result, false)
+      {:ok, add_tool} = Tools.find_backend_tool("todo_add", task_id)
+      {:ok, %FrontmanServer.Tasks.Todos.Tools.TodoAdded{} = event} = add_tool.callback.(%{
+        "content" => "Test",
+        "active_form" => "Testing"
+      })
+      {:ok, _interaction} = Tasks.add_tool_result(task_id, %{id: "call1", name: "todo_add"}, event, false)
 
-      # List todos
+      {:ok, task} = Tasks.get_task(task_id)
+      assert length(task.interactions) == 1
+
+      [interaction] = task.interactions
+      assert %FrontmanServer.Tasks.Interaction.ToolResult{} = interaction
+      assert %FrontmanServer.Tasks.Todos.Tools.TodoAdded{} = interaction.result
+
       {:ok, list_tool} = Tools.find_backend_tool("todo_list", task_id)
-      result = list_tool.callback.(%{})
-
-      assert {:ok, %{"type" => "todo_list", "todos" => todos}} = result
+      {:ok, result} = list_tool.callback.(%{})
+      assert %{"todos" => todos} = result
       assert length(todos) == 1
     end
 
     test "todo_update tool callback works", %{task_id: task_id} do
-      # Add a todo
       {:ok, add_tool} = Tools.find_backend_tool("todo_add", task_id)
-      {:ok, %{"todo" => todo}} = add_tool.callback.(%{
+      {:ok, %FrontmanServer.Tasks.Todos.Tools.TodoAdded{} = add_event} = add_tool.callback.(%{
         "content" => "Test",
         "active_form" => "Testing"
       })
 
-      # Store it as a tool result so it exists in the event log
-      result = Jason.encode!(%{"type" => "todo_add", "todo" => todo})
-      Tasks.add_tool_result(task_id, %{id: "call1", name: "todo_add"}, result, false)
+      Tasks.add_tool_result(task_id, %{id: "call1", name: "todo_add"}, add_event, false)
 
-      # Update it
       {:ok, update_tool} = Tools.find_backend_tool("todo_update", task_id)
-      result = update_tool.callback.(%{
-        "id" => todo["id"],
+      {:ok, %FrontmanServer.Tasks.Todos.Tools.TodoUpdated{} = update_event} = update_tool.callback.(%{
+        "id" => add_event.todo_id,
         "status" => "completed"
       })
 
-      assert {:ok, %{"type" => "todo_update", "todo" => updated}} = result
-      assert updated["status"] == "completed"
+      assert update_event.status == :completed
+
+      Tasks.add_tool_result(task_id, %{id: "call2", name: "todo_update"}, update_event, false)
+
+      {:ok, list_tool} = Tools.find_backend_tool("todo_list", task_id)
+      {:ok, %{"todos" => todos}} = list_tool.callback.(%{})
+      updated_todo = Enum.find(todos, &(&1["id"] == add_event.todo_id))
+      assert updated_todo["status"] == "completed"
     end
 
     test "todo_remove tool callback works", %{task_id: task_id} do
-      # Add a todo
       {:ok, add_tool} = Tools.find_backend_tool("todo_add", task_id)
-      {:ok, %{"todo" => todo}} = add_tool.callback.(%{
+      {:ok, %FrontmanServer.Tasks.Todos.Tools.TodoAdded{} = add_event} = add_tool.callback.(%{
         "content" => "Test",
         "active_form" => "Testing"
       })
 
-      # Store it as a tool result
-      result = Jason.encode!(%{"type" => "todo_add", "todo" => todo})
-      Tasks.add_tool_result(task_id, %{id: "call1", name: "todo_add"}, result, false)
+      Tasks.add_tool_result(task_id, %{id: "call1", name: "todo_add"}, add_event, false)
 
-      # Remove it
       {:ok, remove_tool} = Tools.find_backend_tool("todo_remove", task_id)
-      result = remove_tool.callback.(%{"id" => todo["id"]})
+      {:ok, %FrontmanServer.Tasks.Todos.Tools.TodoRemoved{} = remove_event} = remove_tool.callback.(%{"id" => add_event.todo_id})
 
-      assert {:ok, %{"type" => "todo_remove"}} = result
+      Tasks.add_tool_result(task_id, %{id: "call2", name: "todo_remove"}, remove_event, false)
+
+      {:ok, list_tool} = Tools.find_backend_tool("todo_list", task_id)
+      {:ok, %{"todos" => todos}} = list_tool.callback.(%{})
+      assert Enum.empty?(todos)
     end
-  end
-
-  defp serialize_todo(todo) do
-    %{
-      "id" => todo.id,
-      "content" => todo.content,
-      "active_form" => todo.active_form,
-      "status" => todo.status,
-      "created_at" => DateTime.to_iso8601(todo.created_at),
-      "updated_at" => DateTime.to_iso8601(todo.updated_at)
-    }
   end
 end

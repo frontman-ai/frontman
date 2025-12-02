@@ -57,11 +57,7 @@ defmodule FrontmanServer.Agents do
     result =
       DynamicSupervisor.start_child(
         FrontmanServer.AgentSupervisor,
-        {AgentServer,
-         agent_id: agent_id,
-         task_id: task_id,
-         tools: tools,
-         on_event: on_event}
+        {AgentServer, agent_id: agent_id, task_id: task_id, tools: tools, on_event: on_event}
       )
 
     case result do
@@ -99,7 +95,7 @@ defmodule FrontmanServer.Agents do
   Spawns a new agent if none exists, or wakes an idle agent.
 
   ## Options
-  - `:mcp_tools` - List of tool definitions for LLM (default: [])
+  - `:tools` - List of tool definitions for LLM (default: [])
   """
   @spec notify_user_message(String.t(), keyword()) :: :ok
   def notify_user_message(task_id, opts \\ []) do
@@ -108,7 +104,7 @@ defmodule FrontmanServer.Agents do
         :ok
 
       {:error, :not_found} ->
-        start_agent(task_id, tools: Keyword.get(opts, :mcp_tools, []))
+        start_agent(task_id, tools: Keyword.get(opts, :tools, []))
         :ok
     end
   end
