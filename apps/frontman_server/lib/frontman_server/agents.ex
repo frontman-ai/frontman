@@ -68,7 +68,7 @@ defmodule FrontmanServer.Agents do
       {:ok, _pid} ->
         Tasks.add_agent_spawned(%{task_id: task_id, agent_id: agent_id}, %{tools: tools})
         messages = Tasks.get_llm_messages(task_id)
-        AgentServer.execute_iteration(task_id, messages, true)
+        AgentServer.execute_iteration(task_id, messages)
         {:ok, agent_id}
 
       {:error, reason} ->
@@ -144,7 +144,7 @@ defmodule FrontmanServer.Agents do
 
   defp push_iteration(task_id) do
     messages = Tasks.get_llm_messages(task_id)
-    AgentServer.execute_iteration(task_id, messages, false)
+    AgentServer.execute_iteration(task_id, messages)
   end
 
   defp broadcast(task_id, message) do

@@ -346,11 +346,6 @@ defmodule FrontmanServer.Tasks.Interaction do
     end
   end
 
-  defp to_llm_message(%ToolCall{}) do
-    # Tool calls are embedded in AgentResponse metadata, skip standalone
-    nil
-  end
-
   defp to_llm_message(%ToolResult{tool_name: name, tool_call_id: id, result: result}) do
     ReqLLM.Context.tool_result_message(name, id, result)
   end
