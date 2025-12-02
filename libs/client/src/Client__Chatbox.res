@@ -295,8 +295,8 @@ let make = () => {
                 </AIElements.Tool>
               </div>
               // Show shimmer only after the last tool call
-              // Hide if turn ended or if last message is streaming
-              {if isLastMessage && !hasAssistantResponse && !isNextStreaming && !isTurnEnded && !isLastMessageStreaming {
+              // Hide if turn ended, if last message is streaming, or if tool call has error (agent will respond)
+              {if isLastMessage && !hasAssistantResponse && !isNextStreaming && !isTurnEnded && !isLastMessageStreaming && state != OutputError {
                 <ThinkingShimmer show={true} messageId={messageId} />
               } else {
                 React.null

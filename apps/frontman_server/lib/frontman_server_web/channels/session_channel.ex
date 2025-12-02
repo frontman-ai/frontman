@@ -143,25 +143,29 @@ defmodule FrontmanServerWeb.SessionChannel do
           |> Enum.map(fn block -> Map.get(block, "text", "") end)
           |> Enum.join("\n")
 
-        Logger.info("MCP tool #{tool_call.tool_name} completed: #{text_result}")
+        # Check if the tool call resulted in an error
+        is_error = Map.get(result, "isError", false)
 
-        # Send ACP notification: completed
-        completed_notification =
+        status = if is_error, do: "failed", else: "completed"
+        Logger.info("MCP tool #{tool_call.tool_name} #{status}: #{text_result}")
+
+        # Send ACP notification with appropriate status
+        notification =
           ACP.build_tool_call_update_notification(
             session_id,
             tool_call.tool_call_id,
-            "completed",
+            status,
             text_result
           )
 
-        push(socket, "acp:message", completed_notification)
+        push(socket, "acp:message", notification)
 
         # Store result and notify agent
         Tasks.add_tool_result(
           session_id,
           %{id: tool_call.tool_call_id, name: tool_call.tool_name},
           text_result,
-          false
+          is_error
         )
 
         socket = assign(socket, :pending_mcp_calls, Map.delete(pending_calls, id))

@@ -12,7 +12,8 @@ export default defineConfig({
   },
   modules: ['@wxt-dev/module-react'],
   webExt: {
-    startUrls: ['http://localhost:3000/__frontman', 'https://www.figma.com/design/vUBfiAH3Z6HVk6QWN2laXF/Figma-Basics?node-id=25-2&t=lyxMqTPOAYyKzJ8Q-0'],
+    // startUrls: ['http://localhost:3000/__frontman', 'https://www.figma.com/design/vUBfiAH3Z6HVk6QWN2laXF/Figma-Basics?node-id=25-2&t=lyxMqTPOAYyKzJ8Q-0'],
+    startUrls: ['http://localhost:3038/__frontman', 'https://www.figma.com/design/CsWO3HE6ZoHY1iAXOzGZcd/Glitter-AI-Pricing-Page?node-id=0-1&p=f&t=p7mO1OfAQ9Yymia6-0'],
     chromiumArgs: ['--user-data-dir=./.wxt/chrome-data'],
   },
   dev: {

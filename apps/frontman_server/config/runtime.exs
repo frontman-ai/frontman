@@ -19,8 +19,8 @@ end
 
 # LLM API keys - loaded at runtime from environment
 config :frontman_server,
-  anthropic_api_key: env!("ANTHROPIC_API_KEY", :string!)
-
+  anthropic_api_key: env!("ANTHROPIC_API_KEY", :string!),
+  google_api_key: env!("GOOGLE_API_KEY", :string!)
 if config_env() == :prod do
   database_url =
     System.get_env("DATABASE_URL") ||
