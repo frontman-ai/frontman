@@ -101,4 +101,8 @@ module Actions = {
     Client__State__Store.dispatch(Connect({sendPrompt: sendPrompt}))
 
   let disconnect = () => Client__State__Store.dispatch(Disconnect)
+
+  // Plan action creators
+  let planReceived = (~taskId: string, ~entries: array<Client__State__Types.ACPTypes.planEntry>) =>
+    Client__State__Store.dispatch(PlanReceived({taskId, entries}))
 }

@@ -104,6 +104,8 @@ type action =
   // Connection actions
   | Connect({sendPrompt: Client__State__Types.sendPromptFn})
   | Disconnect
+  // Plan actions
+  | PlanReceived({taskId: string, entries: array<Client__State__Types.ACPTypes.planEntry>})
 
 // Effects for side effects
 type effect =
@@ -171,6 +173,7 @@ let actionToString = action => {
   | ClearFigmaNodeWaiting => `ClearFigmaNodeWaiting`
   | Connect(_) => `Connect`
   | Disconnect => `Disconnect`
+  | PlanReceived({taskId, _}) => `PlanReceived(${taskId})`
   }
 }
 
@@ -298,6 +301,11 @@ module Selectors = {
     | Connected(_) => true
     | Disconnected => false
     }
+  }
+
+  // Get current task's plan entries
+  let currentPlanEntries = (state: state): array<Client__State__Types.ACPTypes.planEntry> => {
+    currentTask(state)->Option.mapOr([], task => task.planEntries)
   }
 }
 
@@ -858,5 +866,10 @@ let next = (state, action) => {
 
   | Disconnect =>
     {...state, connectionState: Disconnected}->AskTheLlmReactStatestore.StateReducer.update
+
+  | PlanReceived({taskId, entries}) =>
+    state
+    ->Lens.updateTask(taskId, task => {...task, planEntries: entries})
+    ->AskTheLlmReactStatestore.StateReducer.update
   }
 }

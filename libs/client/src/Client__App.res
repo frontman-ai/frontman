@@ -183,9 +183,10 @@ let make = () => {
         ()
       }
 
-    | Plan(_) =>
-      // Plan updates handled elsewhere or not yet implemented
-      ()
+    | Plan({entries}) =>
+      entries->Option.forEach(planEntries => {
+        Client__State.Actions.planReceived(~taskId, ~entries=planEntries)
+      })
 
     | Unknown({sessionUpdate}) =>
       Console.log2("[ACP] Unhandled session update:", sessionUpdate)

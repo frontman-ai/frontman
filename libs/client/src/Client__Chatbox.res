@@ -79,6 +79,7 @@ let make = () => {
   let messages = Client__State.useSelector(Client__State.Selectors.messages)
   let isStreaming = Client__State.useSelector(Client__State.Selectors.isStreaming)
   let isConnected = Client__State.useSelector(Client__State.Selectors.isConnected)
+  let planEntries = Client__State.useSelector(Client__State.Selectors.currentPlanEntries)
 
   let handleSubmit = (message: {"text": string, "files": option<array<WebAPI.FileAPI.file>>}) => {
     let hasText = message["text"] !== ""
@@ -310,6 +311,7 @@ let make = () => {
       </AIElements.ConversationContent>
       <AIElements.ConversationScrollButton />
     </AIElements.Conversation>
+    <Client__PlanDisplay entries=planEntries />
     <Client__SelectedElementDisplay />
     <Client__FigmaNodeDisplay />
     <AIElements.PromptInput

@@ -107,6 +107,7 @@ module Task = {
     webPreviewIsSelecting: bool,
     selectedElement: option<SelectedElement.t>,
     figmaNode: FigmaNode.t,
+    planEntries: array<AskTheLlmFrontmanClient.FrontmanClient__ACP__Types.planEntry>,
   }
 
   let make = (~title: string, ~previewUrl: string, ~messages=Dict.make()): t => {
@@ -131,6 +132,7 @@ module Task = {
       webPreviewIsSelecting: false,
       selectedElement: None,
       figmaNode: FigmaNode.NoSelection,
+      planEntries: [],
     }
   }
 }

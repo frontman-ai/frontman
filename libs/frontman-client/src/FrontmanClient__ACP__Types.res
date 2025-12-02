@@ -148,6 +148,43 @@ type promptResult = {
   stopReason: string,
 }
 
+// Plan entry priority (per ACP spec)
+type planEntryPriority =
+  | @as("high") High
+  | @as("medium") Medium
+  | @as("low") Low
+
+let planEntryPrioritySchema = S.union([
+  S.literal(High),
+  S.literal(Medium),
+  S.literal(Low),
+])
+
+// Plan entry status (per ACP spec)
+type planEntryStatus =
+  | @as("pending") Pending
+  | @as("in_progress") InProgress
+  | @as("completed") Completed
+
+let planEntryStatusSchema = S.union([
+  S.literal(Pending),
+  S.literal(InProgress),
+  S.literal(Completed),
+])
+
+// Plan entry structure per ACP spec
+type planEntry = {
+  content: string,
+  priority: planEntryPriority,
+  status: planEntryStatus,
+}
+
+let planEntrySchema = S.object(s => {
+  content: s.field("content", S.string),
+  priority: s.field("priority", planEntryPrioritySchema),
+  status: s.field("status", planEntryStatusSchema),
+})
+
 // Session update variants - discriminated by sessionUpdate field
 type sessionUpdate =
   | AgentMessageChunk({content: option<contentBlock>})
@@ -164,7 +201,7 @@ type sessionUpdate =
       status: option<string>,
       content: option<array<toolCallContentItem>>,
     })
-  | Plan({entries: option<array<JSON.t>>})
+  | Plan({entries: option<array<planEntry>>})
   | Unknown({sessionUpdate: string})
 
 // Session update schema using S.union with s.tag for proper discrimination
@@ -203,7 +240,7 @@ let sessionUpdateSchema = S.union([
   S.object(s => {
     s.tag("sessionUpdate", "plan")
     Plan({
-      entries: s.field("entries", S.option(S.array(S.json))),
+      entries: s.field("entries", S.option(S.array(planEntrySchema))),
     })
   }),
   // Fallback for unknown session update types
