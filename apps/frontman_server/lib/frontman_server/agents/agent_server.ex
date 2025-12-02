@@ -13,7 +13,7 @@ defmodule FrontmanServer.Agents.AgentServer do
   use GenServer
   require Logger
 
-  @default_model "xai:grok-code-fast-1"
+  @default_model "anthropic:claude-opus-4.1"
   @idle_timeout_ms 5 * 60 * 1000
 
   @base_system_prompt """
@@ -166,7 +166,7 @@ defmodule FrontmanServer.Agents.AgentServer do
   end
 
   @impl true
-  def handle_info({:tool_result, tool_call_id, _result, is_error}, state) do
+  def handle_info({:tool_result, tool_call_id, _result, _is_error}, state) do
     case Map.get(state.pending_tool_calls, tool_call_id) do
       nil ->
         {:noreply, state}
