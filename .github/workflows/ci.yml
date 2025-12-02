@@ -23,7 +23,7 @@ jobs:
         run: corepack enable
 
       - name: Install dependencies
-        run: yarn install --immutable --immutable-cache
+        run: yarn install --immutable
 
       - name: Clean ReScript build cache
         run: yarn rescript clean
@@ -63,7 +63,7 @@ jobs:
 
       - name: Install dependencies
         if: steps.changes.outputs.agent == 'true'
-        run: yarn install --immutable --immutable-cache
+        run: yarn install --immutable
 
       - name: Clean ReScript build cache
         if: steps.changes.outputs.agent == 'true'
