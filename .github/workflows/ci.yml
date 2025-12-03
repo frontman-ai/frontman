@@ -77,7 +77,7 @@ jobs:
         uses: erlef/setup-beam@v1
         with:
           otp-version: '27.0'
-          elixir-version: '1.17'
+          elixir-version: '1.19'
 
       - name: Cache deps
         uses: actions/cache@v4
