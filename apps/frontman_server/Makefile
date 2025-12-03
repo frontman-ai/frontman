@@ -52,8 +52,8 @@ assets-deploy: ## Build and minify assets for production
 	mix phx.digest
 
 test: ## Run test suite
-	mix ecto.create --quiet
-	mix ecto.migrate --quiet
+	MIX_ENV=test mix ecto.create --quiet
+	MIX_ENV=test mix ecto.migrate --quiet
 	mix test
 
 test-record: ## Record new LLM fixtures (makes real API calls)
