@@ -119,7 +119,6 @@ defmodule FrontmanServerWeb.SessionChannelTest do
       push(socket, "mcp:message", JsonRpc.success_response(mcp_request_id, mcp_tool_result))
 
       # Channel should send ACP completed notification with extracted text
-      # ACP spec uses "contents" (plural) for tool_call_update
       assert_push "acp:message", %{
         "jsonrpc" => "2.0",
         "method" => "session/update",
@@ -129,13 +128,13 @@ defmodule FrontmanServerWeb.SessionChannelTest do
             "sessionUpdate" => "tool_call_update",
             "toolCallId" => "call_123",
             "status" => "completed",
-            "contents" => contents
+            "content" => content
           }
         }
       }
 
       # Extract the text from the ACP content structure
-      [%{"content" => %{"text" => result_text}}] = contents
+      [%{"content" => %{"text" => result_text}}] = content
 
       # Verify tool result text is correctly extracted from MCP CallToolResult
       assert result_text == "Logged: hello"
@@ -275,14 +274,13 @@ defmodule FrontmanServerWeb.SessionChannelTest do
       log =
         capture_log(fn ->
           push(socket, "mcp:message", %{"jsonrpc" => "2.0", "result" => %{}})
-          Process.sleep(10)
+
+          assert_push "mcp:message", %{
+            "method" => "error"
+          }
         end)
 
       assert log =~ "Invalid MCP response"
-
-      assert_push "mcp:message", %{
-        "method" => "error"
-      }
     end
 
     test "logs error and sends notification for invalid MCP response - both result and error",
