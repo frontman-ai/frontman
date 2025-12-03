@@ -31,44 +31,70 @@ jobs:
       - name: Build project
         run: make build
 
-  test-agent:
-    name: Test libs/agent
+  test-frontman-client:
+    name: Test frontman-client
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: read
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Check for changes in libs/agent
-        id: changes
-        uses: dorny/paths-filter@v3
-        with:
-          filters: |
-            agent:
-              - 'libs/agent/**'
 
       - name: Setup Node.js
-        if: steps.changes.outputs.agent == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: '24.4.1'
 
       - name: Enable Corepack
-        if: steps.changes.outputs.agent == 'true'
         run: corepack enable
 
       - name: Install dependencies
-        if: steps.changes.outputs.agent == 'true'
         run: yarn install --immutable
 
-      - name: Clean ReScript build cache
-        if: steps.changes.outputs.agent == 'true'
-        run: yarn rescript clean
+      - name: Run tests
+        run: make -C libs/frontman-client test
 
-      - name: Run agent tests
-        if: steps.changes.outputs.agent == 'true'
-        run: cd libs/agent && make test
+  test-frontman-server:
+    name: Test frontman-server
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: frontman_server_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Elixir
+        uses: erlef/setup-beam@v1
+        with:
+          otp-version: '27.0'
+          elixir-version: '1.17'
+
+      - name: Cache deps
+        uses: actions/cache@v4
+        with:
+          path: apps/frontman_server/deps
+          key: ${{ runner.os }}-mix-${{ hashFiles('apps/frontman_server/mix.lock') }}
+          restore-keys: ${{ runner.os }}-mix-
+
+      - name: Cache _build
+        uses: actions/cache@v4
+        with:
+          path: apps/frontman_server/_build
+          key: ${{ runner.os }}-build-${{ hashFiles('apps/frontman_server/mix.lock') }}
+          restore-keys: ${{ runner.os }}-build-
+
+      - name: Install dependencies
+        run: make -C apps/frontman_server install
+
+      - name: Run tests
+        run: make -C apps/frontman_server test
