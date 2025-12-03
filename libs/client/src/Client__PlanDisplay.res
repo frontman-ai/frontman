@@ -21,13 +21,13 @@ let make = (~entries: array<ACPTypes.planEntry>) => {
     React.null
   } else {
     let completedCount = entries->Array.filter(e => e.status == Completed)->Array.length
+    let totalCount = Array.length(entries)
 
     <AIElements.Queue className="mb-4">
       <AIElements.QueueSection defaultOpen=true>
         <AIElements.QueueSectionTrigger>
           <AIElements.QueueSectionLabel
-            label="Plan"
-            count={completedCount}
+            label={`${completedCount->Int.toString}/${totalCount->Int.toString} Plan`}
           />
         </AIElements.QueueSectionTrigger>
         <AIElements.QueueSectionContent>

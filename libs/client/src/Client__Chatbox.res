@@ -241,8 +241,15 @@ let make = () => {
             </React.Fragment>
 
             | ToolCall({toolName, state, input, inputBuffer, result, errorText, _}) =>
-            // Render tool call message
-            <React.Fragment key={messageId}>
+            // Hide todo tool calls from UI
+            let isTodoTool = String.includes(toolName, "todo_list") ||
+                             String.includes(toolName, "todo_add") ||
+                             String.includes(toolName, "todo_update") ||
+                             String.includes(toolName, "todo_remove")
+            if isTodoTool {
+              React.null
+            } else {
+              <React.Fragment key={messageId}>
               <div className="max-w-full">
                 <AIElements.Tool
                   defaultOpen={switch state {
@@ -302,7 +309,8 @@ let make = () => {
               } else {
                 React.null
               }}
-            </React.Fragment>
+              </React.Fragment>
+            }
             }
           })
           ->React.array
