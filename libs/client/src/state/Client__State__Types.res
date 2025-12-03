@@ -1,9 +1,23 @@
 // State type definitions - extracted to avoid circular dependencies
-module Agent = AskTheLlmAgent.Agent
-module Vercel = AskTheLlmAgent.Agent__Bindings__Vercel
 module Nextjs__Types = AskTheLlmNextjs.Nextjs__Types
-module UserContentPart = Vercel.UserPart
-module AssistantContentPart = Vercel.AssistantPart
+
+// Content part types for messages (simplified from Vercel AI SDK)
+module UserContentPart = {
+  type t =
+    | Text({text: string})
+    | Image({image: string, mediaType: option<string>})
+    | File({file: string})
+
+  let text = (text: string): t => Text({text: text})
+}
+
+module AssistantContentPart = {
+  type t =
+    | Text({text: string})
+    | ToolCall({toolCallId: string, toolName: string, input: JSON.t})
+
+  let text = (text: string): t => Text({text: text})
+}
 
 module Message = {
   type toolCallState =

@@ -1,11 +1,22 @@
-// Client tool that demonstrates accessing client state
-// Lives in client library, implements Client__Tool.T
+// Client tool that returns console errors from the web preview
+// Implements BrowserTool interface, accesses state internally
 
-include AskTheLlmAgent.Agent.ClientToolMetadata.GetErrors
+module Tool = AskTheLlmFrontmanClient.FrontmanClient__MCP__Tool
+type toolResult<'a> = Tool.toolResult<'a>
+
+let name = "get_errors"
+let description = "Get console errors from the web preview frame. Returns an array of error objects with message, stack trace, and timestamp."
+
+@schema
+type input = {
+  @s.describe("Maximum number of errors to return")
+  limit: option<int>,
+}
 
 @schema
 type error = {
-  createdAt: @s.matches(AskTheLlmAgent.Agent__DateISO.schema) Js.Date.t,
+  @s.describe("Unix timestamp in milliseconds")
+  createdAt: float,
   message: string,
   stack: string,
   name: option<string>,
@@ -14,34 +25,24 @@ type error = {
 @schema
 type output = {errors: array<error>}
 
-let decodeInput = (json: JSON.t): result<input, S.error> => {
-  try {
-    Ok(json->S.parseJsonOrThrow(inputSchema))
-  } catch {
-  | S.Error(error) => Error(error)
-  }
-}
+let execute = async (input: input): toolResult<output> => {
+  let state = AskTheLlmReactStatestore.StateStore.getState(Client__State__Store.store)
+  let limit = input.limit->Option.getOr(100)
 
-let encodeOutput = (output: output): JSON.t => {
-  output->S.reverseConvertToJsonOrThrow(outputSchema)
-}
-
-let execute = async (state: Client__State__Types.state, _input: input) => {
   let errors: array<error> =
     state.currentTaskId
-    ->Option.flatMap(Dict.get(state.tasks, _))
+    ->Option.flatMap(taskId => Dict.get(state.tasks, taskId))
     ->Option.map(task => task.previewFrame.errors)
     ->Option.getOr([])
+    ->Array.slice(~start=0, ~end=limit)
     ->Array.map(clientError => {
       {
-        createdAt: clientError.createdAt,
+        createdAt: clientError.createdAt->Js.Date.getTime,
         message: clientError.message,
         stack: clientError.stack,
         name: clientError.name,
       }
     })
 
-  Ok({
-    errors: errors,
-  })
+  Ok({errors: errors})
 }

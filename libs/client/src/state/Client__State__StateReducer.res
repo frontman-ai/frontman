@@ -1,5 +1,3 @@
-module Agent = AskTheLlmAgent.Agent
-module Vercel = AskTheLlmAgent.Agent__Bindings__Vercel
 let name = "Client::StateReducer"
 
 // ============================================================================
@@ -111,7 +109,6 @@ type action =
 type effect =
   | SendMessageToAPI({message: string, taskId: string})
   | FetchElementDetails({element: WebAPI.DOMAPI.element, document: option<WebAPI.DOMAPI.document>})
-  | ExecuteClientTool({toolCallId: string, toolName: string, args: option<JSON.t>})
 
 let getInitialUrl = () => {
   let entrypointUrl =
@@ -311,8 +308,6 @@ module Selectors = {
 
 let handleEffect = (effect, state: state, dispatch) => {
   switch effect {
-  | ExecuteClientTool({toolCallId, toolName, args}) =>
-    Client__ToolExecutor.handleToolCall(~state, ~toolCallId, ~toolName, ~args)->ignore
   | SendMessageToAPI({message, taskId}) =>
     // Use ACP sendPrompt via the stored function
     switch state.connectionState {
@@ -455,9 +450,8 @@ let extractTextFromUserContent = (content: array<UserContentPart.t>): string => 
   ->Array.filterMap(part => {
     switch part {
     | Text({text}) => Some(text)
-    | Image({image: _, mediaType: _}) => %todo("add this")
-    | Image({image: _}) => %todo("add this")
-    | File(_) => %todo("add this")
+    | Image(_) => None
+    | File(_) => None
     }
   })
   ->Array.join(" ")
@@ -541,19 +535,7 @@ let next = (state, action) => {
     )
     ->AskTheLlmReactStatestore.StateReducer.update
 
-  | ToolCallReceived({taskId, toolCall}) => {
-      let executeEffect = if Client__ToolRegistry.isClientTool(toolCall.toolName) {
-        [
-          ExecuteClientTool({
-            toolCallId: toolCall.id,
-            toolName: toolCall.toolName,
-            args: toolCall.input,
-          }),
-        ]
-      } else {
-        []
-      }
-
+  | ToolCallReceived({taskId, toolCall}) =>
       state
       ->Lens.updateTask(taskId, task => {
         // Check if message already exists
@@ -590,8 +572,7 @@ let next = (state, action) => {
           )
         }
       })
-      ->AskTheLlmReactStatestore.StateReducer.update(~sideEffects=executeEffect)
-    }
+      ->AskTheLlmReactStatestore.StateReducer.update
 
   | ToolInputStartReceived({taskId, id, toolName}) =>
     state

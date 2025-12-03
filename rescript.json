@@ -3,7 +3,6 @@
 	"namespace": true,
 	"dependencies": [
 		"@ask-the-llm/chrome-extension",
-		"@ask-the-llm/agent",
 		"@ask-the-llm/bindings",
 		"@ask-the-llm/nextjs",
 		"@ask-the-llm/client",

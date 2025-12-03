@@ -24,7 +24,6 @@
 		"@ask-the-llm/bindings",
 		"@rescript/react",
 		"@rescript/webapi",
-		"@ask-the-llm/agent",
 		"@ask-the-llm/frontman-client",
 		"@ask-the-llm/frontman-nextjs",
 		"@ask-the-llm/frontman-protocol",

@@ -1,10 +1,5 @@
 module AIElements = Bindings__AIElements
 module RadixUI__Icons = Bindings__RadixUI__Icons
-
-// Import required types
-module AgentEventBus = AskTheLlmAgent.Agent__EventBus
-module Vercel = AskTheLlmAgent.Agent__Bindings__Vercel
-module Agent = AskTheLlmAgent.Agent
 module Chrome = AskTheLlmBindings.Chrome
 module ACPTypes = AskTheLlmFrontmanClient.FrontmanClient__ACP__Types
 

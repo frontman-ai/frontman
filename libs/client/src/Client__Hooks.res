@@ -1,6 +1,3 @@
-module Agent = AskTheLlmAgent.Agent
-module AgentEventBus = AskTheLlmAgent.Agent__EventBus
-
 // based on the useEvent RFC: https://github.com/reactjs/rfcs/pull/220
 // this will be added to React soon, so we can use this before release and refactor later
 // same behavior, namely:
@@ -37,38 +34,6 @@ let useTimeout = (fn, #ms(time)) => {
       },
     )
   }, (fn, time, timeoutId, setTimeoutId))
-}
-
-let useSSE = (newEventCallback: AgentEventBus.events => unit, ~url="/ask-the-llm/events") => {
-  React.useEffect(() => {
-    let eventSource = WebAPI.EventSource.make(~url)
-    let onOpen = _ => {
-      Console.log("[SSE] Connection opened")
-    }
-    let onMessage = event => {
-      let data = event->WebAPI.MessageEvent.data
-      let msg = data->JSON.parseOrThrow->S.parseOrThrow(AgentEventBus.eventsSchema)
-      Console.log("[SSE] Received event:")
-      Console.dir(msg, ~options={depth: Js.Null})
-      newEventCallback(msg)
-    }
-    let onError = error => {
-      Console.log2("[SSE] Connection error - browser will retry automatically:", error)
-      // Don't close - let browser's automatic reconnection handle it
-    }
-    eventSource->WebAPI.EventSource.addEventListener(Custom("open"), onOpen)
-    eventSource->WebAPI.EventSource.addEventListener(Custom("message"), onMessage)
-    eventSource->WebAPI.EventSource.addEventListener(Custom("error"), onError)
-
-    Some(
-      () => {
-        eventSource->WebAPI.EventSource.removeEventListener(Custom("open"), onOpen)
-        eventSource->WebAPI.EventSource.removeEventListener(Custom("message"), onMessage)
-        eventSource->WebAPI.EventSource.removeEventListener(Custom("error"), onError)
-        eventSource->WebAPI.EventSource.close
-      },
-    )
-  }, (newEventCallback, url))
 }
 
 let useContainerResize = (container: option<WebAPI.DOMAPI.element>, onResized: unit => unit) => {

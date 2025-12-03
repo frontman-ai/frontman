@@ -5,6 +5,8 @@ module ACP = AskTheLlmFrontmanClient.FrontmanClient__ACP
 module Types = AskTheLlmFrontmanClient.FrontmanClient__ACP__Types
 module Relay = AskTheLlmFrontmanClient.FrontmanClient__Relay
 module MCP = AskTheLlmFrontmanClient.FrontmanClient__MCP
+module MCPServer = AskTheLlmFrontmanClient.FrontmanClient__MCP__Server
+module ConsoleLogTool = AskTheLlmFrontmanClient.FrontmanClient__MCP__Tool__ConsoleLog
 
 // Connection state type for the context
 type connectionState =
@@ -66,7 +68,7 @@ module Provider = {
     let (connection, setConnection) = React.useState((): option<ACP.connection> => None)
     let (session, setSession) = React.useState((): option<ACP.session> => None)
     let (relay, setRelay) = React.useState((): option<Relay.t> => None)
-    let mcpHandlerRef = React.useRef(None: option<MCP.mcpHandler<Client__MCPServer.t>>)
+    let mcpHandlerRef = React.useRef(None: option<MCP.mcpHandler<MCPServer.t>>)
 
     // Get base URL from current location for relay
     let getBaseUrl = () => {
@@ -144,14 +146,13 @@ module Provider = {
             // Attach MCP handler to session channel if relay is ready
             switch relay {
             | Some(relayInstance) =>
-              let mcpServer = Client__MCPServer.make(
-                ~relay=relayInstance,
-                ~serverName=clientName,
-                ~serverVersion=clientVersion,
-              )
+              let mcpServer =
+                MCPServer.make(~relay=relayInstance, ~serverName=clientName, ~serverVersion=clientVersion)
+                ->MCPServer.registerToolModule(module(ConsoleLogTool))
+                ->MCPServer.registerToolModule(module(Client__Tool__GetErrors))
               let handler = MCP.attach(
                 ~channel=sess.channel,
-                ~serverInterface=Client__MCPServer.toInterface(mcpServer),
+                ~serverInterface=MCPServer.toInterface(mcpServer),
                 ~onMessage=logMCPMessage,
               )
               mcpHandlerRef.current = Some(handler)

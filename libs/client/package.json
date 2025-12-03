@@ -16,7 +16,6 @@
 	],
 	"devDependencies": {
 		"@ai-sdk/react": "^2.0.92",
-		"@ask-the-llm/agent": "workspace:*",
 		"@ask-the-llm/bindings": "workspace:*",
 		"@ask-the-llm/frontman-client": "workspace:*",
 		"@ask-the-llm/frontman-nextjs": "workspace:*",

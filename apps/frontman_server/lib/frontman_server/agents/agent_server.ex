@@ -14,7 +14,6 @@ defmodule FrontmanServer.Agents.AgentServer do
   require Logger
 
   @default_model "openrouter:openai/gpt-5.1-codex"
-  # @default_model "openrouter:anthropic/claude-sonnet-4.5"
   @idle_timeout_ms 5 * 60 * 1000
 
   @base_system_prompt """
