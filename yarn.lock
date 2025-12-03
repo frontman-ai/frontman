@@ -15,18 +15,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@ai-sdk/anthropic@npm:^2.0.44":
-  version: 2.0.44
-  resolution: "@ai-sdk/anthropic@npm:2.0.44"
-  dependencies:
-    "@ai-sdk/provider": "npm:2.0.0"
-    "@ai-sdk/provider-utils": "npm:3.0.17"
-  peerDependencies:
-    zod: ^3.25.76 || ^4.1.8
-  checksum: 10c0/6484fdc60da8658d8d28c2c61fc4bc322829aee31baf71f0ea1bfbf17d008d37ce9db5d3bb395646bdd9891866b24b763766cba17b5c0fbd67f183ceac71df57
-  languageName: node
-  linkType: hard
-
 "@ai-sdk/gateway@npm:2.0.3":
   version: 2.0.3
   resolution: "@ai-sdk/gateway@npm:2.0.3"
@@ -50,30 +38,6 @@ __metadata:
   peerDependencies:
     zod: ^3.25.76 || ^4.1.8
   checksum: 10c0/93d56de7445ffb1b8b6c644af5eb15554360799e6bc4312dd588c7830b0813aefb6fff7d5317b87bdcf09b14507d315b5a9406d8cb5294d634f12092dfb8d1e1
-  languageName: node
-  linkType: hard
-
-"@ai-sdk/openai-compatible@npm:1.0.27":
-  version: 1.0.27
-  resolution: "@ai-sdk/openai-compatible@npm:1.0.27"
-  dependencies:
-    "@ai-sdk/provider": "npm:2.0.0"
-    "@ai-sdk/provider-utils": "npm:3.0.17"
-  peerDependencies:
-    zod: ^3.25.76 || ^4.1.8
-  checksum: 10c0/9f656e4f2ea4d714dc05be588baafd962b2e0360e9195fef373e745efeb20172698ea87e1033c0c5e1f1aa6e0db76a32629427bc8433eb42bd1a0ee00e04af0c
-  languageName: node
-  linkType: hard
-
-"@ai-sdk/openai@npm:^2.0.65":
-  version: 2.0.65
-  resolution: "@ai-sdk/openai@npm:2.0.65"
-  dependencies:
-    "@ai-sdk/provider": "npm:2.0.0"
-    "@ai-sdk/provider-utils": "npm:3.0.17"
-  peerDependencies:
-    zod: ^3.25.76 || ^4.1.8
-  checksum: 10c0/02547c62e1f8d6dcfc6ad67cd878a80e48d1294ae29ac37f11f653e6145969cf86dbd141bba4ca200b61336d5e2999173b57a4ba84f8032d9cb833d220f3b14b
   languageName: node
   linkType: hard
 
@@ -127,19 +91,6 @@ __metadata:
     zod:
       optional: true
   checksum: 10c0/4da3938b38c0a4da5302307f008c138e7491b7bdbb11b7c0c3980bb8c345f6a7ccd2a19f4ef48558fd15d103ca773955f7d646c3672202b2a66b55cb4366427d
-  languageName: node
-  linkType: hard
-
-"@ai-sdk/vercel@npm:^1.0.28":
-  version: 1.0.28
-  resolution: "@ai-sdk/vercel@npm:1.0.28"
-  dependencies:
-    "@ai-sdk/openai-compatible": "npm:1.0.27"
-    "@ai-sdk/provider": "npm:2.0.0"
-    "@ai-sdk/provider-utils": "npm:3.0.17"
-  peerDependencies:
-    zod: ^3.25.76 || ^4.1.8
-  checksum: 10c0/baf2b9d8039557fbedd706f1241a9101309bbbf67fd62897040af32f432da28bd89d05fb1b5433ffe5c6c235473b2c08dec1be51a39b911506c2b62d27da2d0b
   languageName: node
   linkType: hard
 
@@ -219,30 +170,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@ask-the-llm/agent@npm:*, @ask-the-llm/agent@workspace:*, @ask-the-llm/agent@workspace:libs/agent":
-  version: 0.0.0-use.local
-  resolution: "@ask-the-llm/agent@workspace:libs/agent"
-  dependencies:
-    "@ai-sdk/anthropic": "npm:^2.0.44"
-    "@ai-sdk/openai": "npm:^2.0.65"
-    "@ai-sdk/vercel": "npm:^1.0.28"
-    "@ask-the-llm/context-loader": "workspace:*"
-    "@ask-the-llm/logger": "workspace:*"
-    "@rescript/webapi": "catalog:"
-    "@vitest/ui": "catalog:"
-    ai: "npm:^5.0.82"
-    dotenv: "catalog:"
-    msw: "npm:^2.11.6"
-    rescript: "catalog:"
-    rescript-vitest: "catalog:"
-    sury: "catalog:"
-    sury-ppx: "npm:^11.0.0-alpha.2"
-    vite: "catalog:"
-    vitest: "catalog:"
-    zod: "npm:^4.1.12"
-  languageName: unknown
-  linkType: soft
-
 "@ask-the-llm/bindings@npm:*, @ask-the-llm/bindings@workspace:*, @ask-the-llm/bindings@workspace:libs/bindings":
   version: 0.0.0-use.local
   resolution: "@ask-the-llm/bindings@workspace:libs/bindings"
@@ -279,7 +206,6 @@ __metadata:
   resolution: "@ask-the-llm/client@workspace:libs/client"
   dependencies:
     "@ai-sdk/react": "npm:^2.0.92"
-    "@ask-the-llm/agent": "workspace:*"
     "@ask-the-llm/bindings": "workspace:*"
     "@ask-the-llm/frontman-client": "workspace:*"
     "@ask-the-llm/frontman-nextjs": "workspace:*"
@@ -344,7 +270,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@ask-the-llm/context-loader@workspace:*, @ask-the-llm/context-loader@workspace:libs/context-loader":
+"@ask-the-llm/context-loader@workspace:libs/context-loader":
   version: 0.0.0-use.local
   resolution: "@ask-the-llm/context-loader@workspace:libs/context-loader"
   dependencies:
@@ -401,7 +327,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@ask-the-llm/logger@workspace:*, @ask-the-llm/logger@workspace:libs/logger":
+"@ask-the-llm/logger@workspace:libs/logger":
   version: 0.0.0-use.local
   resolution: "@ask-the-llm/logger@workspace:libs/logger"
   dependencies:
@@ -418,7 +344,6 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@ask-the-llm/nextjs@workspace:libs/nextjs"
   dependencies:
-    "@ask-the-llm/agent": "npm:*"
     "@rescript/webapi": "catalog:"
     "@vitest/ui": "catalog:"
     dom-element-to-component-source: "npm:^0.3.1"
@@ -11737,7 +11662,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"msw@npm:^2.10.4, msw@npm:^2.11.6":
+"msw@npm:^2.10.4":
   version: 2.11.6
   resolution: "msw@npm:2.11.6"
   dependencies:
