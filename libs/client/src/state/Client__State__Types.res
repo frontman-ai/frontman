@@ -1,5 +1,4 @@
 // State type definitions - extracted to avoid circular dependencies
-module Nextjs__Types = AskTheLlmNextjs.Nextjs__Types
 
 // Content part types for messages (simplified from Vercel AI SDK)
 module UserContentPart = {

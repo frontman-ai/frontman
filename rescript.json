@@ -4,7 +4,6 @@
 	"dependencies": [
 		"@ask-the-llm/chrome-extension",
 		"@ask-the-llm/bindings",
-		"@ask-the-llm/nextjs",
 		"@ask-the-llm/client",
 		"@ask-the-llm/frontman-client",
 		"@ask-the-llm/frontman-nextjs",
