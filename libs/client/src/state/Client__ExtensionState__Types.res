@@ -11,4 +11,3 @@ type extensionState =
   | Installed(Chrome.port<extensionMessage>)
 
 type state = extensionState
-

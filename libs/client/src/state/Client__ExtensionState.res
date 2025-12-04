@@ -33,19 +33,20 @@ module Actions = {
 // Selectors
 module Selectors = {
   let extensionState = (state: state) => state
-  
+
   let isInstalled = (state: state) => {
     switch state {
     | NotInstalled => false
     | Installed(_) => true
     }
   }
-  
-  let getPort = (state: state): option<AskTheLlmBindings.Chrome.port<Client__ExtensionState__StateReducer.extensionMessage>> => {
+
+  let getPort = (state: state): option<
+    AskTheLlmBindings.Chrome.port<Client__ExtensionState__StateReducer.extensionMessage>,
+  > => {
     switch state {
     | NotInstalled => None
     | Installed(port) => Some(port)
     }
   }
 }
-

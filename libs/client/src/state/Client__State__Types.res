@@ -77,18 +77,6 @@ module SelectedElement = {
       sourceLocation,
     }
   }
-
-  // Helper to convert to API-safe format (without DOM element reference)
-  let withoutElement = (selected: option<t>): option<Nextjs__Types.selectedElement> => {
-    selected->Option.map(sel => {
-      let result: Nextjs__Types.selectedElement = {
-        selector: sel.selector,
-        screenshot: sel.screenshot,
-        sourceLocation: sel.sourceLocation->Option.map(Client__Types.SourceLocation.toNextJsType),
-      }
-      result
-    })
-  }
 }
 
 module FigmaNode = {
@@ -179,7 +167,7 @@ let selectedElementToContentBlock = (sel: SelectedElement.t): option<ACPTypes.co
 let figmaNodeToContentBlock = (node: FigmaNode.nodeData): ACPTypes.contentBlock => {
   // Encode node as TOON string (more token-efficient than JSON)
   let nodeToon = Client__Toon.encode(node)
-  
+
   // Try to extract ID for URI (works with both formats)
   let nodeId = switch node->JSON.Decode.object {
   | Some(obj) =>

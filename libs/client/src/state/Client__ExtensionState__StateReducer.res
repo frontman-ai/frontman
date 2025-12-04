@@ -10,8 +10,7 @@ type action =
   | SetExtensionInstalled(Chrome.port<extensionMessage>)
   | SetExtensionNotInstalled
 
-type effect =
-  | None_
+type effect = None_
 
 let defaultState: state = Types.NotInstalled
 
@@ -19,13 +18,10 @@ let next = (_state, action) => {
   switch action {
   | SetExtensionInstalled(port) =>
     Types.Installed(port)->AskTheLlmReactStatestore.StateReducer.update
-  | SetExtensionNotInstalled =>
-    Types.NotInstalled->AskTheLlmReactStatestore.StateReducer.update
+  | SetExtensionNotInstalled => Types.NotInstalled->AskTheLlmReactStatestore.StateReducer.update
   }
 }
 
 let handleEffect = (_effect, _state: state, _dispatch) => ()
 
-
 let name = "Client::ExtensionState"
-

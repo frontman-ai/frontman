@@ -6,7 +6,6 @@ let name = "Client::StateReducer"
 
 module UserContentPart = Client__State__Types.UserContentPart
 module AssistantContentPart = Client__State__Types.AssistantContentPart
-module Nextjs__Types = AskTheLlmNextjs.Nextjs__Types
 module Message = Client__State__Types.Message
 module SelectedElement = Client__State__Types.SelectedElement
 module FigmaNode = Client__State__Types.FigmaNode
@@ -313,16 +312,16 @@ let handleEffect = (effect, state: state, dispatch) => {
     switch state.connectionState {
     | Connected(sendPrompt) =>
       // Get ContentBlocks from the task (selectedElement, figmaNode)
-      let additionalBlocks = state.tasks
+      let additionalBlocks =
+        state.tasks
         ->Dict.get(taskId)
         ->Option.mapOr([], Client__State__Types.taskToContentBlocks)
 
       // Complete any existing streaming message before sending new prompt
       // This ensures new chunks go to a new message
       let streamingMessages = Selectors.streamingMessages(state)
-      switch Array.get(streamingMessages, Array.length(streamingMessages) - 1) {
-      | Some(Message.Streaming({id, _})) =>
-        dispatch(MessageCompleted({taskId, id}))
+      switch streamingMessages[Array.length(streamingMessages) - 1] {
+      | Some(Message.Streaming({id, _})) => dispatch(MessageCompleted({taskId, id}))
       | Some(Message.Completed(_)) | None => ()
       }
 
@@ -330,8 +329,7 @@ let handleEffect = (effect, state: state, dispatch) => {
         sendPrompt(message, ~additionalBlocks)
         ->Promise.thenResolve(result => {
           switch result {
-          | Ok(_) =>
-            // ACP compliant: session/prompt response with stopReason signals message end
+          | Ok(_) => // ACP compliant: session/prompt response with stopReason signals message end
             // The message was already completed above, this is just confirmation
             ()
           | Error(error) => Console.error2("[Effect] Failed to send message:", error)
@@ -341,8 +339,7 @@ let handleEffect = (effect, state: state, dispatch) => {
           Console.error2("[Effect] Failed to send message:", error)
           Promise.resolve()
         })
-    | Disconnected =>
-      Console.error("[Effect] Cannot send message: not connected")
+    | Disconnected => Console.error("[Effect] Cannot send message: not connected")
     }
   | FetchElementDetails({element, document}) => {
       // Fetch selector
@@ -401,7 +398,7 @@ let handleEffect = (effect, state: state, dispatch) => {
             tagName,
           }
         })
-        
+
         dispatch(
           SetSelectedElement({
             selectedElement: Some({
@@ -412,7 +409,7 @@ let handleEffect = (effect, state: state, dispatch) => {
             }),
           }),
         )
-        
+
         // Resolve source location via server to get actual file paths
         switch sourceLocationWithTagName {
         | Some(sourceLoc) =>
@@ -437,7 +434,7 @@ let handleEffect = (effect, state: state, dispatch) => {
           })
         | None => ()
         }
-        
+
         Promise.resolve()
       })
     }

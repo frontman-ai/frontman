@@ -62,8 +62,7 @@ module Actions = {
   let setPreviewFrame = (~contentDocument, ~contentWindow) =>
     Client__State__Store.dispatch(SetPreviewFrame({contentDocument, contentWindow}))
 
-  let addConsoleError = (~error) =>
-    Client__State__Store.dispatch(AddConsoleError({error: error}))
+  let addConsoleError = (~error) => Client__State__Store.dispatch(AddConsoleError({error: error}))
 
   let toggleWebPreviewSelection = () => Client__State__Store.dispatch(ToggleWebPreviewSelection)
 
@@ -88,7 +87,8 @@ module Actions = {
     Client__State__Store.dispatch(UpdateTaskTitle({taskId, title}))
 
   // Figma node action creators
-  let setFigmaNode = (~figmaNode) => Client__State__Store.dispatch(SetFigmaNode({figmaNode: figmaNode}))
+  let setFigmaNode = (~figmaNode) =>
+    Client__State__Store.dispatch(SetFigmaNode({figmaNode: figmaNode}))
 
   let clearFigmaNode = () => Client__State__Store.dispatch(ClearFigmaNode)
 
@@ -97,8 +97,7 @@ module Actions = {
   let clearFigmaNodeWaiting = () => Client__State__Store.dispatch(ClearFigmaNodeWaiting)
 
   // Connection action creators
-  let connect = (~sendPrompt) =>
-    Client__State__Store.dispatch(Connect({sendPrompt: sendPrompt}))
+  let connect = (~sendPrompt) => Client__State__Store.dispatch(Connect({sendPrompt: sendPrompt}))
 
   let disconnect = () => Client__State__Store.dispatch(Disconnect)
 
