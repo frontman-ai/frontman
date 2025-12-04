@@ -1,4 +1,3 @@
-
 type captureOptions = {
   debug?: bool,
   fast?: bool,
@@ -17,10 +16,9 @@ type captureOptions = {
   embedFonts?: bool,
 }
 
-
 type captureResult = {
   url: string,
-  toRaw: () => string,
+  toRaw: unit => string,
   toImg: (~options: captureOptions) => promise<WebAPI.DOMAPI.htmlImageElement>,
   toCanvas: (~options: captureOptions) => promise<WebAPI.DOMAPI.htmlCanvasElement>,
   toPng: (~options: captureOptions) => promise<WebAPI.DOMAPI.htmlImageElement>,

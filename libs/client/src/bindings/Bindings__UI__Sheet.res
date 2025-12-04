@@ -59,32 +59,21 @@ module SheetContent = {
 
 module SheetHeader = {
   @module("@/components/ui/sheet") @react.component
-  external make: (
-    ~className: string=?,
-    ~children: React.element=?,
-  ) => React.element = "SheetHeader"
+  external make: (~className: string=?, ~children: React.element=?) => React.element = "SheetHeader"
 }
 
 module SheetFooter = {
   @module("@/components/ui/sheet") @react.component
-  external make: (
-    ~className: string=?,
-    ~children: React.element=?,
-  ) => React.element = "SheetFooter"
+  external make: (~className: string=?, ~children: React.element=?) => React.element = "SheetFooter"
 }
 
 module SheetTitle = {
   @module("@/components/ui/sheet") @react.component
-  external make: (
-    ~className: string=?,
-    ~children: React.element=?,
-  ) => React.element = "SheetTitle"
+  external make: (~className: string=?, ~children: React.element=?) => React.element = "SheetTitle"
 }
 
 module SheetDescription = {
   @module("@/components/ui/sheet") @react.component
-  external make: (
-    ~className: string=?,
-    ~children: React.element=?,
-  ) => React.element = "SheetDescription"
+  external make: (~className: string=?, ~children: React.element=?) => React.element =
+    "SheetDescription"
 }

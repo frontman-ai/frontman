@@ -20,10 +20,7 @@ type chatStatus = string
 
 // SendMessage function type
 type sendMessage = (
-  {
-    "text": option<string>,
-    "files": option<array<WebAPI.FileAPI.file>>,
-  },
+  {"text": option<string>, "files": option<array<WebAPI.FileAPI.file>>},
   {"body": {"model": string, "webSearch": bool}},
 ) => unit
 
@@ -38,4 +35,3 @@ type useChatReturn = {
 // useChat hook
 @module("@ai-sdk/react")
 external useChat: unit => useChatReturn = "useChat"
-
