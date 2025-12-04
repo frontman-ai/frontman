@@ -12,6 +12,7 @@
 		"rescript": "catalog:",
 		"rescript-vitest": "catalog:",
 		"sury": "catalog:",
+		"vite": "catalog:",
 		"vitest": "catalog:"
 	}
 }
