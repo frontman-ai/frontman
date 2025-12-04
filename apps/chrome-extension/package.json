@@ -28,6 +28,7 @@
     "rescript": "catalog:",
     "rescript-vitest": "catalog:",
     "typescript": "^5.9.2",
+    "vite": "catalog:",
     "wxt": "^0.20.6"
   }
 }
