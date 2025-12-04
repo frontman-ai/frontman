@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help install test lint dev dev-hot build build-lib clean serve preview check
+.PHONY: help install test lint format dev dev-hot build build-lib clean serve preview check
 
 SHELL := /bin/bash
 PATH := ./node_modules/.bin:$(PATH)
@@ -14,7 +14,10 @@ test: build ## Run test suite
 	yarn vitest run
 
 lint: ## Run linters and code formatters
-	eslint .
+	biome check .
+
+format: ## Format code with biome
+	biome check --write .
 
 dev: 
 	yarn vite

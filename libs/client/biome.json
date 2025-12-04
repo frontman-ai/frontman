@@ -15,6 +15,10 @@
                 "useConst": "off",
                 "useTemplate": "off"
             },
+            "complexity": {
+                "useLiteralKeys": "off",
+                "useArrowFunction": "off"
+            },
             "correctness": {
                 "noSwitchDeclarations": "off",
                 "noUnusedVariables": "off",
@@ -23,7 +27,8 @@
             },
             "suspicious": {
                 "useIterableCallbackReturn": "off",
-                "noFallthroughSwitchClause": "off"
+                "noFallthroughSwitchClause": "off",
+                "noExplicitAny": "off"
             }
         }
     },

@@ -19,6 +19,12 @@
 			"suffix": ".res.mjs"
 		}
 	],
+	"reanalyze": {
+		"analysis": ["dce"],
+		"suppress": [],
+		"unsuppress": [],
+		"transitive": false
+	},
 	"ppx-flags": ["sury-ppx/bin"],
 	"dependencies": [
 		"@ask-the-llm/bindings",
@@ -28,7 +34,6 @@
 		"@ask-the-llm/frontman-nextjs",
 		"@ask-the-llm/frontman-protocol",
 		"@ask-the-llm/react-statestore",
-		"@ask-the-llm/nextjs",
 		"sury"
 	],
 	"dev-dependencies": ["rescript-vitest"],

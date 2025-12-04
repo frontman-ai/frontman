@@ -87,7 +87,10 @@ let make = () => {
             }}
           />
         : <>
-            <span className="truncate max-w-[90px] text-xs cursor-pointer" onDoubleClick={handleDoubleClick}>
+            <span
+              className="truncate max-w-[90px] text-xs cursor-pointer"
+              onDoubleClick={handleDoubleClick}
+            >
               {React.string(task.title)}
             </span>
             <span
@@ -102,12 +105,18 @@ let make = () => {
 
   // Main render
   <div className="h-12 border-b">
-    <UI.Tabs value={currentTaskId->Option.getOr("")} onValueChange={handleTabChange} className="h-full">
-      <UI.TabsList className="h-full w-full rounded-none justify-start overflow-x-auto bg-transparent p-0">
+    <UI.Tabs
+      value={currentTaskId->Option.getOr("")} onValueChange={handleTabChange} className="h-full"
+    >
+      <UI.TabsList
+        className="h-full w-full rounded-none justify-start overflow-x-auto bg-transparent p-0"
+      >
         {tasks
         ->Array.map(task => renderTab(task, editingTaskId == Some(task.id)))
         ->React.array}
-        <Button.Button variant=#ghost size=#sm onClick={handleNewTask} className="cursor-pointer gap-1">
+        <Button.Button
+          variant=#ghost size=#sm onClick={handleNewTask} className="cursor-pointer gap-1"
+        >
           <Icons.PlusIcon style={{"width": "14px", "height": "14px"}} />
           <span className="text-xs"> {React.string("New")} </span>
         </Button.Button>

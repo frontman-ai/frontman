@@ -1,10 +1,9 @@
 import path from "node:path";
 import tailwindcss from "@tailwindcss/vite";
-import biome from "vite-plugin-biome";
 import * as vite from "vite";
 
 export default vite.defineConfig({
-	plugins: [tailwindcss(), biome({mode: "lint", "files": "."})],
+	plugins: [tailwindcss()],
 	resolve: {
 		alias: {
 			"@": path.resolve(__dirname, "./src"),

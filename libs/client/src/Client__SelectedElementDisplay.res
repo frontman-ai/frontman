@@ -24,12 +24,8 @@ let make = () => {
   // Navigate to parent component
   let navigateUp = () => {
     switch selectedElement {
-    | Some({
-        sourceLocation: Some(currentLoc),
-        element,
-        selector,
-        screenshot,
-      }) => switch currentLoc.parent {
+    | Some({sourceLocation: Some(currentLoc), element, selector, screenshot}) =>
+      switch currentLoc.parent {
       | Some(parentLoc) => {
           // Get parent DOM element
           let parentElement =
@@ -78,7 +74,8 @@ let make = () => {
 
     if historyLength > 0 {
       switch selectedElement {
-      | Some(_) => // Get last item from history (complete state)
+      | Some(_) =>
+        // Get last item from history (complete state)
         switch history->Array.get(historyLength - 1) {
         | Some(previousState) => {
             // Remove last item from history
@@ -119,7 +116,9 @@ let make = () => {
                 {React.string("React Component:")}
               </span>
               {sourceLocation->Option.mapOr(React.null, loc =>
-                <span className="font-medium font-mono text-xs text-yellow-700 dark:text-yellow-300">
+                <span
+                  className="font-medium font-mono text-xs text-yellow-700 dark:text-yellow-300"
+                >
                   {React.string(
                     `<${loc.componentName}><${loc.tagName->String.toLowerCase} /></${loc.componentName}>`,
                   )}

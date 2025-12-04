@@ -43,7 +43,8 @@ module SelectFigmaNode = {
       className={switch figmaNode {
       | FigmaNode.WaitingForSelection => "rounded bg-purple-500/20"
       | _ => ""
-      }}>
+      }}
+    >
       <AIElements.WebPreviewNavigationButton onClick={onClick} tooltip="Import from Figma">
         <RadixUI__Icons.FigmaIcon
           className={switch figmaNode {
@@ -86,10 +87,13 @@ let make = () => {
   let allTasks = Client__State.useSelector(Client__State.Selectors.tasks)
   let previewUrl = Client__State.useSelector(Client__State.Selectors.previewUrl)
   let previewFrame = Client__State.useSelector(Client__State.Selectors.previewFrame)
-  let webPreviewIsSelecting = Client__State.useSelector(Client__State.Selectors.webPreviewIsSelecting)
+  let webPreviewIsSelecting = Client__State.useSelector(
+    Client__State.Selectors.webPreviewIsSelecting,
+  )
   let figmaNode = Client__State.useSelector(Client__State.Selectors.figmaNode)
-  let isExtensionInstalled = Client__ExtensionState.useSelector(Client__ExtensionState.Selectors.isInstalled)
-
+  let isExtensionInstalled = Client__ExtensionState.useSelector(
+    Client__ExtensionState.Selectors.isInstalled,
+  )
 
   let handleBack = () => {
     previewFrame.contentWindow->Option.forEach(contentWindow => {
@@ -97,14 +101,14 @@ let make = () => {
     })
     Client__State.Actions.setSelectedElement(~selectedElement=None)
   }
-  
+
   let handleForward = () => {
     previewFrame.contentWindow->Option.forEach(contentWindow => {
       WebAPI.History.forward(contentWindow.history)
     })
     Client__State.Actions.setSelectedElement(~selectedElement=None)
   }
-  
+
   let handleReload = () => {
     previewFrame.contentWindow->Option.forEach(contentWindow => {
       WebAPI.Location.reload(contentWindow.location)
@@ -127,66 +131,69 @@ let make = () => {
     }
   }
   let handleOpenInNewTab = () => {
-    WebAPI.Window.open_(WebAPI.Global.window, ~url=previewUrl, ~target="_blank", ~features="noopener,noreferrer")->ignore
+    WebAPI.Window.open_(
+      WebAPI.Global.window,
+      ~url=previewUrl,
+      ~target="_blank",
+      ~features="noopener,noreferrer",
+    )->ignore
   }
   <>
-  <AIElements.WebPreview defaultUrl={previewUrl}>
-    <AIElements.WebPreviewNavigation>
-      <BackButton onClick={handleBack} />
-      <ForwardButton onClick={handleForward} />
-      <ReloadButton onClick={handleReload} />
-      <AIElements.WebPreviewUrl value={previewUrl} />
-      <SelectFigmaNode onClick={handleFigma} figmaNode={figmaNode} />
-      <SelectElement onClick={handleSelect} isSelecting={webPreviewIsSelecting} />
-      <OpenInNewWindow onClick={handleOpenInNewTab} />
-    </AIElements.WebPreviewNavigation>
-    
-    <div className="relative size-full">
-      {switch (previewFrame.contentDocument, previewFrame.contentWindow) {
-      | (Some(document), Some(window)) => <Client__WebPreview__Stage document={document} window={window} />
-      | (_, _) => React.null
-      }}
+    <AIElements.WebPreview defaultUrl={previewUrl}>
+      <AIElements.WebPreviewNavigation>
+        <BackButton onClick={handleBack} />
+        <ForwardButton onClick={handleForward} />
+        <ReloadButton onClick={handleReload} />
+        <AIElements.WebPreviewUrl value={previewUrl} />
+        <SelectFigmaNode onClick={handleFigma} figmaNode={figmaNode} />
+        <SelectElement onClick={handleSelect} isSelecting={webPreviewIsSelecting} />
+        <OpenInNewWindow onClick={handleOpenInNewTab} />
+      </AIElements.WebPreviewNavigation>
 
-      {allTasks
-      ->Array.map(task => {
-        let isActive = currentTaskId->Option.mapOr(false, id => id == task.id)
-        <Client__WebPreview__Body
-          key={task.id}
-          taskId={task.id}
-          url={task.previewFrame.url}
-          isActive={isActive}
-        />
-      })
-      ->React.array}
-    </div>
-  </AIElements.WebPreview>
-  
-  <AlertDialog open_={showExtensionAlert} onOpenChange={isOpen => setShowExtensionAlert(_ => isOpen)}>
-    <AlertDialogContent>
-      <AlertDialogHeader>
-        <AlertDialogTitle>
-          {React.string("Frontman Extension Required")}
-        </AlertDialogTitle>
-        <AlertDialogDescription>
-          {React.string(
-            `To use the Figma selection feature, you need to install the Frontman browser extension. The extension allows you to import designs directly from Figma into your project.`
-          )}
-        </AlertDialogDescription>
-      </AlertDialogHeader>
-      <AlertDialogFooter>
-        <AlertDialogAction onClick={_ => {
-          WebAPI.Window.open_(
-            WebAPI.Global.window, 
-            ~url="https://chrome.google.com/webstore", 
-            ~target="_blank", 
-            ~features="noopener,noreferrer"
-          )->ignore
-          setShowExtensionAlert(_ => false)
-        }}>
-          {React.string("Install Extension")}
-        </AlertDialogAction>
-      </AlertDialogFooter>
-    </AlertDialogContent>
-  </AlertDialog>
+      <div className="relative size-full">
+        {switch (previewFrame.contentDocument, previewFrame.contentWindow) {
+        | (Some(document), Some(window)) =>
+          <Client__WebPreview__Stage document={document} window={window} />
+        | (_, _) => React.null
+        }}
+
+        {allTasks
+        ->Array.map(task => {
+          let isActive = currentTaskId->Option.mapOr(false, id => id == task.id)
+          <Client__WebPreview__Body
+            key={task.id} taskId={task.id} url={task.previewFrame.url} isActive={isActive}
+          />
+        })
+        ->React.array}
+      </div>
+    </AIElements.WebPreview>
+
+    <AlertDialog
+      open_={showExtensionAlert} onOpenChange={isOpen => setShowExtensionAlert(_ => isOpen)}
+    >
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle> {React.string("Frontman Extension Required")} </AlertDialogTitle>
+          <AlertDialogDescription>
+            {React.string(`To use the Figma selection feature, you need to install the Frontman browser extension. The extension allows you to import designs directly from Figma into your project.`)}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogAction
+            onClick={_ => {
+              WebAPI.Window.open_(
+                WebAPI.Global.window,
+                ~url="https://chrome.google.com/webstore",
+                ~target="_blank",
+                ~features="noopener,noreferrer",
+              )->ignore
+              setShowExtensionAlert(_ => false)
+            }}
+          >
+            {React.string("Install Extension")}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   </>
 }

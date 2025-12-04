@@ -73,14 +73,6 @@ module SourceLocation = {
     column: int,
     parent: option<t>,
   }
-  let rec toNextJsType: t => AskTheLlmNextjs.Nextjs__Types.sourceLocation = sl => {
-    componentName: sl.componentName,
-    tagName: sl.tagName,
-    file: sl.file,
-    line: sl.line,
-    column: sl.column,
-    parent: sl.parent->Option.map(toNextJsType),
-  }
 }
 
 type reactComponent = {

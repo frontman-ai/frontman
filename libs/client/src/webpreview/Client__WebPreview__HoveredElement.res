@@ -30,4 +30,3 @@ let make = (~element: option<Null.t<WebAPI.EventAPI.eventTarget>>, ~scrollTimest
   })
   ->Option.getOr(React.null)
 }
-

@@ -30,7 +30,10 @@ type contextValue = {
   session: option<ACP.session>,
   relay: option<Relay.t>,
   createSession: (Types.sessionUpdate => unit) => promise<result<ACP.session, string>>,
-  sendPrompt: (string, ~additionalBlocks: array<Types.contentBlock>) => promise<result<Types.promptResult, string>>,
+  sendPrompt: (
+    string,
+    ~additionalBlocks: array<Types.contentBlock>,
+  ) => promise<result<Types.promptResult, string>>,
 }
 
 // Default context value
@@ -40,7 +43,9 @@ let defaultContextValue: contextValue = {
   session: None,
   relay: None,
   createSession: async (_): result<ACP.session, string> => Error("Not connected"),
-  sendPrompt: async (_, ~additionalBlocks as _): result<Types.promptResult, string> => Error("No active session"),
+  sendPrompt: async (_, ~additionalBlocks as _): result<Types.promptResult, string> => Error(
+    "No active session",
+  ),
 }
 
 // Create the React context
@@ -71,10 +76,10 @@ module Provider = {
     let mcpHandlerRef = React.useRef(None: option<MCP.mcpHandler<MCPServer.t>>)
 
     // Get base URL from current location for relay
-    let getBaseUrl = () => {
+    let getBaseUrl = React.useCallback(() => {
       let location = WebAPI.Global.location
       `${location.protocol}//${location.host}`
-    }
+    }, [])
 
     // Log message handler for debugging
     let logMessage = React.useCallback((direction: ACP.messageDirection, payload: JSON.t) => {
@@ -94,23 +99,25 @@ module Provider = {
       Console.log("[FrontmanProvider] Connecting to relay...")
 
       let relayInstance = Relay.make(~baseUrl=getBaseUrl())
-      
+
       let connectRelay = async () => {
         let result = await Relay.connect(relayInstance)
-        
+
         switch result {
         | Ok() =>
           Console.log("[FrontmanProvider] Relay connected")
           setRelay(_ => Some(relayInstance))
           setMCPState(_ => MCPReady)
-          
+
           // Log available tools
           switch Relay.getState(relayInstance) {
           | Connected({tools, serverInfo}) =>
             Console.log3(
-              `[FrontmanProvider] ${serverInfo.name} v${serverInfo.version} - ${tools->Array.length->Int.toString} relay tools available`,
+              `[FrontmanProvider] ${serverInfo.name} v${serverInfo.version} - ${tools
+                ->Array.length
+                ->Int.toString} relay tools available`,
               tools->Array.map(t => t.name),
-              ()
+              (),
             )
           | _ => ()
           }
@@ -124,10 +131,12 @@ module Provider = {
 
       connectRelay()->ignore
 
-      Some(() => {
-        Relay.disconnect(relayInstance)
-      })
-    }, [])
+      Some(
+        () => {
+          Relay.disconnect(relayInstance)
+        },
+      )
+    }, (getBaseUrl, setMCPState, setRelay))
 
     // Create session function - accepts the update handler from consumer
     let createSession = React.useCallback(
@@ -142,7 +151,7 @@ module Provider = {
             setSession(_ => Some(sess))
             setConnectionState(_ => SessionActive(sess.sessionId))
             Console.log2("[FrontmanProvider] Session created:", sess.sessionId)
-            
+
             // Attach MCP handler to session channel if relay is ready
             switch relay {
             | Some(relayInstance) =>
@@ -157,10 +166,9 @@ module Provider = {
               )
               mcpHandlerRef.current = Some(handler)
               Console.log("[FrontmanProvider] MCP handler attached to session")
-            | None =>
-              Console.warn("[FrontmanProvider] Relay not ready, MCP handler not attached")
+            | None => Console.warn("[FrontmanProvider] Relay not ready, MCP handler not attached")
             }
-            
+
             Ok(sess)
           | Error(err) =>
             Console.error2("[FrontmanProvider] Failed to create session:", err)
@@ -168,16 +176,22 @@ module Provider = {
           }
         }
       },
-      (connection, relay, clientName, clientVersion, logMCPMessage),
+      (connection, relay, clientName, clientVersion, logMCPMessage, setSession, setConnectionState),
     )
 
     // Send prompt function with additional content blocks
-    let sendPrompt = React.useCallback(async (text: string, ~additionalBlocks: array<Types.contentBlock>): result<Types.promptResult, string> => {
-      switch session {
-      | None => Error("No active session")
-      | Some(sess) => await ACP.sendPrompt(sess, text, ~additionalBlocks)
-      }
-    }, [session])
+    let sendPrompt = React.useCallback(
+      async (text: string, ~additionalBlocks: array<Types.contentBlock>): result<
+        Types.promptResult,
+        string,
+      > => {
+        switch session {
+        | None => Error("No active session")
+        | Some(sess) => await ACP.sendPrompt(sess, text, ~additionalBlocks)
+        }
+      },
+      [session],
+    )
 
     // Connect to ACP on mount
     React.useEffect(() => {
@@ -211,18 +225,18 @@ module Provider = {
       Some(
         () => {
           Console.log("[FrontmanProvider] Cleaning up...")
-          
+
           // Detach MCP handler
           mcpHandlerRef.current->Option.forEach(handler => {
             MCP.detach(handler)
           })
           mcpHandlerRef.current = None
-          
+
           setConnection(_ => None)
           setSession(_ => None)
         },
       )
-    }, (endpoint, clientName, clientVersion, logMessage))
+    }, (endpoint, clientName, clientVersion, logMessage, setConnection, setConnectionState, setSession))
 
     let contextValue: contextValue = {
       connectionState,

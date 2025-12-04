@@ -5,19 +5,22 @@ let make = (~taskId, ~url, ~isActive) => {
   let iframeRef: React.ref<Nullable.t<Dom.element>> = React.useRef(Nullable.null)
   let lastLocationRef: React.ref<option<string>> = React.useRef(None)
   let location = Client__Hooks.useIFrameLocation(~iframeRef=iframeRef.current->Obj.magic)
-  Client__Hooks.useDisableIFrameAnchorPointerEvents(~iframeRef=iframeRef.current->Obj.magic, ~activate=isSelecting && isActive)
-  
+  Client__Hooks.useDisableIFrameAnchorPointerEvents(
+    ~iframeRef=iframeRef.current->Obj.magic,
+    ~activate=isSelecting && isActive,
+  )
+
   React.useEffect(() => {
     if isActive {
       switch location {
-      | Some(location) => 
+      | Some(location) =>
         if location->String.startsWith("http") {
           // Only update if location actually changed
           let locationChanged = switch lastLocationRef.current {
           | None => true
           | Some(lastLocation) => lastLocation != location
           }
-          
+
           if locationChanged {
             lastLocationRef.current = Some(location)
             Client__State.Actions.setPreviewUrl(~url=location)
@@ -33,7 +36,7 @@ let make = (~taskId, ~url, ~isActive) => {
   let onLoad = (_e: JsxEvent.Image.t) => {
     // Only update state if this iframe belongs to the current task
     let shouldUpdate = currentTaskId->Option.mapOr(false, id => id == taskId)
-    
+
     if shouldUpdate {
       iframeRef.current
       ->Nullable.toOption
@@ -41,11 +44,8 @@ let make = (~taskId, ~url, ~isActive) => {
         let iframeElement = iframe->Obj.magic
         let contentDocument = WebAPI.HTMLIFrameElement.contentDocument(iframeElement)->Null.toOption
         let contentWindow = WebAPI.HTMLIFrameElement.contentWindow(iframeElement)->Null.toOption
-        
-        Client__State.Actions.setPreviewFrame(
-          ~contentDocument,
-          ~contentWindow,
-        )
+
+        Client__State.Actions.setPreviewFrame(~contentDocument, ~contentWindow)
       })
     }
   }
@@ -59,20 +59,21 @@ let make = (~taskId, ~url, ~isActive) => {
         let iframeElement = iframe->Obj.magic
         let contentDocument = WebAPI.HTMLIFrameElement.contentDocument(iframeElement)->Null.toOption
         let contentWindow = WebAPI.HTMLIFrameElement.contentWindow(iframeElement)->Null.toOption
-        
+
         // Only update if the iframe has content loaded
         if contentDocument->Option.isSome {
-          Client__State.Actions.setPreviewFrame(
-            ~contentDocument,
-            ~contentWindow,
-          )
+          Client__State.Actions.setPreviewFrame(~contentDocument, ~contentWindow)
         }
       })
     }
     None
   }, [isActive])
 
-  <div className={isActive ? "flex-1 size-full" : "absolute -left-[9999px] -top-[9999px] invisible size-full"}>
+  <div
+    className={isActive
+      ? "flex-1 size-full"
+      : "absolute -left-[9999px] -top-[9999px] invisible size-full"}
+  >
     <iframe
       className={"size-full"}
       src={url}
@@ -80,9 +81,11 @@ let make = (~taskId, ~url, ~isActive) => {
       onLoad={onLoad}
       ref={ReactDOM.Ref.callbackDomRef(iframe => {
         iframeRef.current = iframe
-        Some(() => {
-          iframeRef.current = Nullable.null
-        })
+        Some(
+          () => {
+            iframeRef.current = Nullable.null
+          },
+        )
       })}
     />
   </div>

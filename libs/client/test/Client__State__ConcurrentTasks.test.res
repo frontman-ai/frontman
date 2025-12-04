@@ -6,7 +6,6 @@ open Vitest
  * These tests verify that SSE events are routed to the correct task
  * based on the taskId in the event, not the currently selected task.
  */
-
 module StateReducer = Client__State__StateReducer
 
 describe("Concurrent Tasks Event Routing", () => {
@@ -66,8 +65,7 @@ describe("Concurrent Tasks Event Routing", () => {
 
     let taskAMessage = taskA.messages->Dict.get("msg-1")->Option.getOrThrow
     switch taskAMessage {
-    | Assistant(Streaming({textBuffer})) =>
-      t->expect(textBuffer)->Expect.toBe("Hello from Task A")
+    | Assistant(Streaming({textBuffer})) => t->expect(textBuffer)->Expect.toBe("Hello from Task A")
     | _ => t->expect(false)->Expect.toBe(true)
     }
 
@@ -275,8 +273,7 @@ describe("Concurrent Tasks Event Routing", () => {
 
     let message = taskA.messages->Dict.get("msg-1")->Option.getOrThrow
     switch message {
-    | Assistant(Streaming({textBuffer})) =>
-      t->expect(textBuffer)->Expect.toBe("Part 1. Part 2.")
+    | Assistant(Streaming({textBuffer})) => t->expect(textBuffer)->Expect.toBe("Part 1. Part 2.")
     | _ => t->expect(false)->Expect.toBe(true)
     }
 

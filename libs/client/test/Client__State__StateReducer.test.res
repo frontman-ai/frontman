@@ -32,16 +32,19 @@ module TestHelpers = {
     let tasks = Dict.make()
     tasks->Dict.set(taskId, taskWithMessages)
 
-    ({
-      tasks,
-      currentTaskId: Some(taskId),
-      connectionState: Disconnected,
-    }: Client__State__Types.state)
+    (
+      {
+        tasks,
+        currentTaskId: Some(taskId),
+        connectionState: Disconnected,
+      }: Client__State__Types.state
+    )
   }
 
   let getMessages = Reducer.Selectors.messages
   let getMessage = (state, index) => getMessages(state)->Array.get(index)
-  let getTaskCount = (state: Client__State__Types.state) => state.tasks->Dict.valuesToArray->Array.length
+  let getTaskCount = (state: Client__State__Types.state) =>
+    state.tasks->Dict.valuesToArray->Array.length
 }
 
 describe("Client State Reducer", () => {
@@ -141,7 +144,10 @@ describe("Client State Reducer", () => {
     let (state, _) = Reducer.next(state, StreamingStarted({taskId, id: "assistant-1"}))
 
     // Add text delta
-    let (state, _) = Reducer.next(state, TextDeltaReceived({taskId, id: "assistant-1", text: "Hello"}))
+    let (state, _) = Reducer.next(
+      state,
+      TextDeltaReceived({taskId, id: "assistant-1", text: "Hello"}),
+    )
 
     // Complete message
     let (state, _) = Reducer.next(state, MessageCompleted({taskId, id: "assistant-1"}))
@@ -226,7 +232,7 @@ describe("Client State Reducer", () => {
     }
 
     let taskId = state.currentTaskId->Option.getOrThrow
-    let action = Reducer.ToolCallReceived({taskId, toolCall: toolCall})
+    let action = Reducer.ToolCallReceived({taskId, toolCall})
     let (nextState, _effects) = Reducer.next(state, action)
 
     let messages = TestHelpers.getMessages(nextState)
@@ -263,10 +269,11 @@ describe("Client State Reducer - MessageCompleted Content Conversion", () => {
     let message = TestHelpers.getMessage(nextState, 0)->Option.getOrThrow
 
     switch message {
-    | Assistant(Completed({content, _})) => {
-        t->expect(content->Array.length)->Expect.toBe(0)
-      }
-    | _ => t->expect("Expected Completed message with empty content")->Expect.toBe("Got wrong message type")
+    | Assistant(Completed({content, _})) => t->expect(content->Array.length)->Expect.toBe(0)
+    | _ =>
+      t
+      ->expect("Expected Completed message with empty content")
+      ->Expect.toBe("Got wrong message type")
     }
   })
 
@@ -293,8 +300,7 @@ describe("Client State Reducer - MessageCompleted Content Conversion", () => {
 
         // Should be text content
         switch content->Array.get(0) {
-        | Some(AssistantContentPart.Text({text})) =>
-          t->expect(text)->Expect.toBe("Listing files")
+        | Some(AssistantContentPart.Text({text})) => t->expect(text)->Expect.toBe("Listing files")
         | _ => t->expect("Got text content")->Expect.toBe("Expected text content")
         }
       }
@@ -348,7 +354,10 @@ describe("Client State Reducer - Streaming Flow", () => {
 
     // 2. Receive text deltas
     let (state, _) = Reducer.next(state, TextDeltaReceived({taskId, id: "text-abc", text: "Hello"}))
-    let (state, _) = Reducer.next(state, TextDeltaReceived({taskId, id: "text-abc", text: " world"}))
+    let (state, _) = Reducer.next(
+      state,
+      TextDeltaReceived({taskId, id: "text-abc", text: " world"}),
+    )
 
     // 3. Complete message
     let (state, _) = Reducer.next(state, MessageCompleted({taskId, id: "text-abc"}))
@@ -426,7 +435,8 @@ describe("Client State Reducer - Tool Lifecycle", () => {
     )
 
     let taskId = state.currentTaskId->Option.getOrThrow
-    let action = Reducer.ToolInputStartReceived({taskId,
+    let action = Reducer.ToolInputStartReceived({
+      taskId,
       id: "call-1",
       toolName: "read_file",
     })
@@ -463,7 +473,8 @@ describe("Client State Reducer - Tool Lifecycle", () => {
     )
 
     let taskId = state.currentTaskId->Option.getOrThrow
-    let action = Reducer.ToolInputDeltaReceived({taskId,
+    let action = Reducer.ToolInputDeltaReceived({
+      taskId,
       id: "call-1",
       delta: "\": \"test.res\"}",
     })
@@ -557,7 +568,8 @@ describe("Client State Reducer - Tool Lifecycle", () => {
     )
 
     let taskId = state.currentTaskId->Option.getOrThrow
-    let action = Reducer.ToolErrorReceived({taskId,
+    let action = Reducer.ToolErrorReceived({
+      taskId,
       id: "call-1",
       error: "File not found",
     })
@@ -609,7 +621,7 @@ describe("Client State Reducer - Tool Lifecycle", () => {
       createdAt: 0.0,
     }
     let taskId = state.currentTaskId->Option.getOrThrow
-    let action = Reducer.ToolCallReceived({taskId, toolCall: toolCall})
+    let action = Reducer.ToolCallReceived({taskId, toolCall})
     let (nextState, _) = Reducer.next(state, action)
 
     let messages = TestHelpers.getMessages(nextState)
@@ -817,7 +829,8 @@ describe("Client State Reducer - Task Management Actions", () => {
     | (
         Some(Reducer.SendMessageToAPI({taskId: taskId1, _})),
         Some(Reducer.SendMessageToAPI({taskId: taskId2, _})),
-      ) => t->expect(taskId1)->Expect.toBe(taskId2)
+      ) =>
+      t->expect(taskId1)->Expect.toBe(taskId2)
     | _ => t->expect("Both effects should have task IDs")->Expect.toBe("Missing task IDs")
     }
   })

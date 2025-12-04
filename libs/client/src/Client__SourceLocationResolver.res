@@ -1,8 +1,9 @@
 // Helper to resolve source locations via the dedicated API endpoint
 
-let resolve = async (
-  sourceLocation: Client__Types.SourceLocation.t,
-): result<Client__Types.SourceLocation.t, string> => {
+let resolve = async (sourceLocation: Client__Types.SourceLocation.t): result<
+  Client__Types.SourceLocation.t,
+  string,
+> => {
   let baseUrl = {
     let location = WebAPI.Global.location
     `${location.protocol}//${location.host}`
@@ -33,22 +34,42 @@ let resolve = async (
     } else {
       let json = await response->WebAPI.Response.json
       let resultObj = json->JSON.Decode.object
-      
+
       switch resultObj {
       | Some(obj) =>
-        let componentName = obj->Dict.get("componentName")->Option.flatMap(JSON.Decode.string)->Option.getOr(sourceLocation.componentName)
-        let file = obj->Dict.get("file")->Option.flatMap(JSON.Decode.string)->Option.getOr(sourceLocation.file)
-        let line = obj->Dict.get("line")->Option.flatMap(JSON.Decode.float)->Option.mapOr(sourceLocation.line, Float.toInt)
-        let column = obj->Dict.get("column")->Option.flatMap(JSON.Decode.float)->Option.mapOr(sourceLocation.column, Float.toInt)
-        
-        Ok({
-          componentName,
-          tagName: sourceLocation.tagName,
-          file,
-          line,
-          column,
-          parent: sourceLocation.parent, // Keep parent as-is for now
-        }: Client__Types.SourceLocation.t)
+        let componentName =
+          obj
+          ->Dict.get("componentName")
+          ->Option.flatMap(JSON.Decode.string)
+          ->Option.getOr(sourceLocation.componentName)
+        let file =
+          obj
+          ->Dict.get("file")
+          ->Option.flatMap(JSON.Decode.string)
+          ->Option.getOr(sourceLocation.file)
+        let line =
+          obj
+          ->Dict.get("line")
+          ->Option.flatMap(JSON.Decode.float)
+          ->Option.mapOr(sourceLocation.line, Float.toInt)
+        let column =
+          obj
+          ->Dict.get("column")
+          ->Option.flatMap(JSON.Decode.float)
+          ->Option.mapOr(sourceLocation.column, Float.toInt)
+
+        Ok(
+          (
+            {
+              componentName,
+              tagName: sourceLocation.tagName,
+              file,
+              line,
+              column,
+              parent: sourceLocation.parent, // Keep parent as-is for now
+            }: Client__Types.SourceLocation.t
+          ),
+        )
       | None => Error("Invalid response format")
       }
     }
@@ -58,4 +79,3 @@ let resolve = async (
     Error(`Failed to resolve source location: ${msg}`)
   }
 }
-

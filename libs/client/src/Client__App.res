@@ -9,13 +9,13 @@ let useExtensionState = () => {
     let maxAttempts = 3
     let checkInterval = 1666.0 // ~5 seconds total / 3 attempts
     let timeoutId = ref(None)
-    
+
     let chromeRuntimeExists: unit => bool = %raw(`
       function() {
         return typeof chrome !== 'undefined' && chrome.runtime;
       }
     `)
-    
+
     let hasExtensionClass = () => {
       WebAPI.Global.document
       ->WebAPI.Document.body
@@ -26,18 +26,15 @@ let useExtensionState = () => {
         ->WebAPI.DOMTokenList.contains("frontman-extension-active")
       })
     }
-    
+
     let rec checkExtension = () => {
       checkAttempts.contents = checkAttempts.contents + 1
-      
+
       if !chromeRuntimeExists() || !hasExtensionClass() {
         if checkAttempts.contents < maxAttempts {
-          let id = WebAPI.Global.setTimeout(
-            ~handler=() => {
-              checkExtension()
-            },
-            ~timeout=checkInterval->Float.toInt,
-          )
+          let id = WebAPI.Global.setTimeout(~handler=() => {
+            checkExtension()
+          }, ~timeout=checkInterval->Float.toInt)
           timeoutId.contents = Some(id)
         } else {
           Client__ExtensionState.Actions.setExtensionNotInstalled()
@@ -49,9 +46,11 @@ let useExtensionState = () => {
             "kfdpjbmabcelpgoipaccjijhehdmeghp",
             Some({name: "AskTheLlmClient"}),
           )
-          
+
           // Set up message listener
-          let messageListener = (message: Client__ExtensionState__StateReducer.extensionMessage) => {
+          let messageListener = (
+            message: Client__ExtensionState__StateReducer.extensionMessage,
+          ) => {
             switch message.type_ {
             | "DevServerImportFigmaNodeResponse" =>
               message.selectedFigmaNode->Option.forEach(data => {
@@ -60,9 +59,9 @@ let useExtensionState = () => {
             | _ => ()
             }
           }
-          
+
           Chrome.Port.addMessageListener(port, messageListener)
-          
+
           Client__ExtensionState.Actions.setExtensionInstalled(~port)
         } catch {
         | exn => {
@@ -72,20 +71,21 @@ let useExtensionState = () => {
         }
       }
     }
-    
+
     checkExtension()
-    
-    Some(() => {
-      timeoutId.contents->Option.forEach(id => {
-        WebAPI.Global.clearTimeout(id)
-      })
-    })
+
+    Some(
+      () => {
+        timeoutId.contents->Option.forEach(id => {
+          WebAPI.Global.clearTimeout(id)
+        })
+      },
+    )
   }, [])
 }
 
 @react.component
 let make = () => {
-
   useExtensionState()
 
   // Use Frontman context for ACP connection
@@ -196,8 +196,7 @@ let make = () => {
         createSession(handleSessionUpdate)
         ->Promise.thenResolve(result => {
           switch result {
-          | Ok(_sess) =>
-            ()
+          | Ok(_sess) => ()
           | Error(err) =>
             sessionCreatedRef.current = false
             Console.error2("[App] Failed to create session:", err)
@@ -213,10 +212,8 @@ let make = () => {
   // Separate effect to update sendPrompt in state when session becomes active
   React.useEffect(() => {
     switch connectionState {
-    | SessionActive(_sessionId) =>
-      Client__State.Actions.connect(~sendPrompt)
-    | Disconnected | Error(_) =>
-      Client__State.Actions.disconnect()
+    | SessionActive(_sessionId) => Client__State.Actions.connect(~sendPrompt)
+    | Disconnected | Error(_) => Client__State.Actions.disconnect()
     | _ => ()
     }
     None
