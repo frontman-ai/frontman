@@ -27,8 +27,9 @@
 		"next": "^16.0.3"
 	},
 	"devDependencies": {
-		"@ask-the-llm/nextjs": "*",
 		"@types/node": "^24.10.0",
+		"react": "^19.2.0",
+		"react-dom": "^19.2.0",
 		"typescript": "^5.9.3",
 		"vite": "^7.1.12",
 		"vite-plugin-dts": "^4.5.4"
