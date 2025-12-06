@@ -23,8 +23,10 @@ if config_env() == :dev do
     anthropic_api_key: env!("ANTHROPIC_API_KEY", :string!),
     google_api_key: env!("GOOGLE_API_KEY", :string!),
     xai_api_key: env!("XAI_API_KEY", :string!),
-    openrouter_api_key: env!("OPENROUTER_API_KEY", :string!)
+    openrouter_api_key: env!("OPENROUTER_API_KEY", :string!),
+    openai_api_key: env!("OPEN_AI_API_KEY", :string!)
 end
+
 if config_env() == :prod do
   database_url =
     System.get_env("DATABASE_URL") ||

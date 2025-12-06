@@ -4,7 +4,17 @@ defmodule FrontmanServer.FinchLogger do
 
   def handle_event(_event, _measurements, metadata, _config) do
     case metadata do
-      %{request: %{method: method, host: host, port: port, path: path, scheme: scheme, headers: headers, body: body}} ->
+      %{
+        request: %{
+          method: method,
+          host: host,
+          port: port,
+          path: path,
+          scheme: scheme,
+          headers: headers,
+          body: body
+        }
+      } ->
         Logger.debug("""
         Finch Request:
           URL: #{method} #{scheme}://#{host}:#{port}#{path}

@@ -194,10 +194,22 @@ defmodule FrontmanServerWeb.ACP do
   end
 
   defp validate_priority!(priority) when priority in ["high", "medium", "low"], do: :ok
-  defp validate_priority!(priority), do: raise(ArgumentError, "priority must be one of: high, medium, low, got: #{inspect(priority)}")
+
+  defp validate_priority!(priority),
+    do:
+      raise(
+        ArgumentError,
+        "priority must be one of: high, medium, low, got: #{inspect(priority)}"
+      )
 
   defp validate_status!(status) when status in ["pending", "in_progress", "completed"], do: :ok
-  defp validate_status!(status), do: raise(ArgumentError, "status must be one of: pending, in_progress, completed, got: #{inspect(status)}")
+
+  defp validate_status!(status),
+    do:
+      raise(
+        ArgumentError,
+        "status must be one of: pending, in_progress, completed, got: #{inspect(status)}"
+      )
 
   @doc """
   Converts domain todos to ACP plan entries format.

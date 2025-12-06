@@ -68,6 +68,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       interactions = [
         %ToolResult{
           id: "1",
+          agent_id: "agent_1",
           tool_call_id: "call_123",
           tool_name: "calculator",
           result: 42,
@@ -123,6 +124,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
         },
         %ToolResult{
           id: "4",
+          agent_id: "a1",
           tool_call_id: "c1",
           tool_name: "calc",
           result: 4,
@@ -142,6 +144,172 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       # UserMessage, AgentResponse (with tools), ToolResult, AgentResponse (final)
       # ToolCall is skipped
       assert length(messages) == 4
+    end
+  end
+
+describe "to_llm_messages/1 with sub-agent results" do
+    test "includes sub-agent results in LLM message history" do
+      # This test demonstrates a bug: SubAgentResult is filtered out
+      # and the parent LLM never sees sub-agent results
+      now = DateTime.utc_now()
+
+      interactions = [
+        %UserMessage{
+          id: "1",
+          content_blocks: [%{"type" => "text", "text" => "Use a research sub-agent"}],
+          timestamp: now,
+          metadata: %{}
+        },
+        %AgentResponse{
+          id: "2",
+          agent_id: "agent_1",
+          content: "I'll spawn a sub-agent",
+          timestamp: now,
+          metadata: %{tool_calls: [%{id: "call_1", name: "spawn_sub_agent", arguments: %{}}]}
+        },
+        %Interaction.SubAgentResult{
+          id: "3",
+          agent_id: "agent_1",
+          sub_agent_id: "sub_123",
+          tool_call_id: "call_1",
+          agent_key: :research,
+          task: "Research this",
+          result: "Research findings here",
+          partial: false,
+          iterations: 1,
+          duration_ms: 500,
+          timestamp: now
+        }
+      ]
+
+      messages = Interaction.to_llm_messages(interactions)
+
+      # Should have 3 messages: user, assistant (with tool call), tool_result
+      assert length(messages) == 3
+
+      # Last message should be the sub-agent result as tool result
+      tool_result = List.last(messages)
+      assert tool_result.role == :tool
+
+      # Content is wrapped in ContentPart structs - extract text
+      [content_part] = tool_result.content
+      assert content_part.text =~ "Research findings here"
+      assert content_part.text =~ "research"
+    end
+  end
+
+  describe "to_llm_messages/2 with agent_id filtering" do
+    test "returns only messages belonging to specified agent" do
+      now = DateTime.utc_now()
+
+      interactions = [
+        # UserMessage - should always be included (no agent_id)
+        %UserMessage{
+          id: "1",
+          content_blocks: [%{"type" => "text", "text" => "Hello"}],
+          timestamp: now,
+          metadata: %{}
+        },
+        # Agent A's response
+        %AgentResponse{
+          id: "2",
+          agent_id: "agent_a",
+          content: "Response from A",
+          timestamp: now,
+          metadata: %{}
+        },
+        # Agent B's response (sub-agent) - should be excluded when filtering for A
+        %AgentResponse{
+          id: "3",
+          agent_id: "agent_b",
+          content: "Response from B",
+          timestamp: now,
+          metadata: %{tool_calls: [%{id: "call_b", name: "some_tool", arguments: %{}}]}
+        },
+        # Agent A's final response
+        %AgentResponse{
+          id: "4",
+          agent_id: "agent_a",
+          content: "Final from A",
+          timestamp: now,
+          metadata: %{}
+        }
+      ]
+
+      # Filter for agent_a
+      messages = Interaction.to_llm_messages(interactions, "agent_a")
+
+      # Should have: UserMessage + Agent A's 2 responses = 3 messages
+      assert length(messages) == 3
+
+      # Verify no agent_b content
+      refute Enum.any?(messages, fn msg ->
+        msg.role == :assistant and
+          match?([%{text: "Response from B"}], msg.content)
+      end)
+    end
+
+    test "includes ToolResult for the correct agent" do
+      now = DateTime.utc_now()
+
+      interactions = [
+        %UserMessage{
+          id: "1",
+          content_blocks: [%{"type" => "text", "text" => "Hello"}],
+          timestamp: now,
+          metadata: %{}
+        },
+        %AgentResponse{
+          id: "2",
+          agent_id: "agent_a",
+          content: "Let me use a tool",
+          timestamp: now,
+          metadata: %{tool_calls: [%{id: "call_1", name: "test_tool", arguments: %{}}]}
+        },
+        %ToolResult{
+          id: "3",
+          agent_id: "agent_a",
+          tool_call_id: "call_1",
+          tool_name: "test_tool",
+          result: "tool output",
+          is_error: false,
+          timestamp: now
+        },
+        # Another agent's tool result - should be excluded
+        %ToolResult{
+          id: "4",
+          agent_id: "agent_b",
+          tool_call_id: "call_2",
+          tool_name: "other_tool",
+          result: "other output",
+          is_error: false,
+          timestamp: now
+        }
+      ]
+
+      messages = Interaction.to_llm_messages(interactions, "agent_a")
+
+      # UserMessage + AgentResponse + ToolResult for agent_a = 3
+      assert length(messages) == 3
+    end
+
+    test "always includes UserMessage regardless of agent_id" do
+      now = DateTime.utc_now()
+
+      interactions = [
+        %UserMessage{
+          id: "1",
+          content_blocks: [%{"type" => "text", "text" => "Initial prompt"}],
+          timestamp: now,
+          metadata: %{}
+        }
+      ]
+
+      # Filter for any agent - should still get UserMessage
+      messages = Interaction.to_llm_messages(interactions, "some_agent")
+
+      assert length(messages) == 1
+      assert hd(messages).role == :user
     end
   end
 
@@ -167,6 +335,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
     test "encodes ToolResult to JSON" do
       tool_result = %ToolResult{
         id: "1",
+        agent_id: "agent_1",
         tool_call_id: "call_123",
         tool_name: "calculator",
         result: 42,
@@ -178,6 +347,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       decoded = Jason.decode!(json)
 
       assert decoded["type"] == "tool_result"
+      assert decoded["agent_id"] == "agent_1"
       assert decoded["result"] == 42
       assert decoded["is_error"] == false
     end

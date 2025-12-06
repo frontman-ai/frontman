@@ -38,6 +38,31 @@ defmodule FrontmanServer.TasksTest do
     end
   end
 
+  describe "get_llm_messages/2" do
+    test "filters messages by agent_id" do
+      task_id = "test_llm_filter_#{System.unique_integer([:positive])}"
+      {:ok, ^task_id} = Tasks.create_task(task_id)
+
+      # Add a user message
+      Tasks.add_user_message(task_id, [%{"type" => "text", "text" => "Hello"}])
+
+      # Add responses from two different agents
+      Tasks.add_agent_response(task_id, "agent_a", "Response from A", %{})
+      Tasks.add_agent_response(task_id, "agent_b", "Response from B", %{})
+      Tasks.add_agent_response(task_id, "agent_a", "Another from A", %{})
+
+      # Filter for agent_a
+      messages = Tasks.get_llm_messages(task_id, "agent_a")
+
+      # Should have: UserMessage + 2 responses from agent_a = 3 messages
+      assert length(messages) == 3
+
+      # All assistant messages should be from agent_a
+      assistant_messages = Enum.filter(messages, &(&1.role == :assistant))
+      assert length(assistant_messages) == 2
+    end
+  end
+
   describe "add_tool_call/3" do
     test "creates tool call interaction" do
       task_id = "test_tool_call_#{System.unique_integer([:positive])}"
@@ -59,7 +84,9 @@ defmodule FrontmanServer.TasksTest do
 
     test "returns error for non-existent task" do
       tool_call_data = %{id: "call_123", name: "test", arguments: %{}}
-      assert {:error, :task_not_found} = Tasks.add_tool_call("nonexistent", "agent", tool_call_data)
+
+      assert {:error, :task_not_found} =
+               Tasks.add_tool_call("nonexistent", "agent", tool_call_data)
     end
   end
 
@@ -67,26 +94,48 @@ defmodule FrontmanServer.TasksTest do
     test "creates tool result interaction" do
       task_id = "test_tool_result_#{System.unique_integer([:positive])}"
       {:ok, ^task_id} = Tasks.create_task(task_id)
+      agent_id = "agent_#{System.unique_integer([:positive])}"
 
       tool_call_data = %{id: "call_123", name: "calculator"}
+
+      # Register the tool call in Registry (simulating what agent does)
+      Registry.register(FrontmanServer.AgentRegistry, {:tool_call, tool_call_data.id}, agent_id)
 
       {:ok, interaction} = Tasks.add_tool_result(task_id, tool_call_data, 2, false)
 
       assert interaction.result == 2
       assert interaction.is_error == false
       assert interaction.tool_call_id == "call_123"
+      assert interaction.agent_id == agent_id
     end
 
     test "creates error tool result" do
       task_id = "test_tool_error_#{System.unique_integer([:positive])}"
       {:ok, ^task_id} = Tasks.create_task(task_id)
+      agent_id = "agent_#{System.unique_integer([:positive])}"
 
       tool_call_data = %{id: "call_456", name: "failing_tool"}
+
+      # Register the tool call in Registry
+      Registry.register(FrontmanServer.AgentRegistry, {:tool_call, tool_call_data.id}, agent_id)
 
       {:ok, interaction} = Tasks.add_tool_result(task_id, tool_call_data, "error message", true)
 
       assert interaction.is_error == true
       assert interaction.result == "error message"
+      assert interaction.agent_id == agent_id
+    end
+
+    test "returns error when tool call not registered" do
+      task_id = "test_tool_no_agent_#{System.unique_integer([:positive])}"
+      {:ok, ^task_id} = Tasks.create_task(task_id)
+
+      # Don't register the tool call
+      tool_call_data = %{id: "unregistered_call", name: "some_tool"}
+
+      result = Tasks.add_tool_result(task_id, tool_call_data, "result", false)
+
+      assert result == {:error, :agent_not_found}
     end
   end
 

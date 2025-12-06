@@ -9,13 +9,13 @@ let name = "list_files"
 let description = `Lists files and directories in a given path.
 
 Parameters:
-- path (required): Relative path to directory from project root
+- path (optional): Relative path to directory from project root. Defaults to "." (root directory). Use "." to list the project root.
 
 Returns array of entries with name, path, and type information.`
 
 @schema
 type input = {
-  path: string,
+  path?: string,
 }
 
 @schema
@@ -30,7 +30,8 @@ type fileEntry = {
 type output = array<fileEntry>
 
 let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.toolResult<output> => {
-  let fullPath = Path.join([ctx.projectRoot, input.path])
+  let path = input.path->Option.getOr(".")
+  let fullPath = Path.join([ctx.projectRoot, path])
 
   try {
     let entries = await Fs.Promises.readdir(fullPath)
@@ -43,7 +44,7 @@ let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.toolR
 
         {
           name,
-          path: Path.join([input.path, name]),
+          path: Path.join([path, name]),
           isFile: Fs.isFile(stats),
           isDirectory: Fs.isDirectory(stats),
         }
@@ -55,6 +56,6 @@ let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.toolR
   | exn =>
     let msg =
       exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
-    Error(`Failed to list files in ${input.path}: ${msg}`)
+    Error(`Failed to list files in ${path}: ${msg}`)
   }
 }

@@ -1,7 +1,7 @@
 defmodule FrontmanServer.Tasks.Todos.Tools.TodoUpdated do
   @moduledoc """
   TodoUpdated event and tool definition.
-  
+
   Self-contained module with both the event struct and its tool definition.
   """
 
@@ -98,6 +98,7 @@ defmodule FrontmanServer.Tasks.Todos.Tools.TodoUpdated do
                   updated_at: todo.updated_at,
                   timestamp: DateTime.utc_now()
                 }
+
                 {:ok, event}
 
               {:error, :not_found} ->

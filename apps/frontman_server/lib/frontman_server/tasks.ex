@@ -66,6 +66,19 @@ defmodule FrontmanServer.Tasks do
   end
 
   @doc """
+  Gets interactions formatted as LLM messages, filtered by agent_id.
+
+  Only includes interactions belonging to the specified agent.
+  UserMessage is always included.
+  """
+  @spec get_llm_messages(String.t(), String.t()) :: list(map())
+  def get_llm_messages(task_id, agent_id) do
+    task_id
+    |> get_interactions()
+    |> Interaction.to_llm_messages(agent_id)
+  end
+
+  @doc """
   Checks if an interaction is a user message.
   """
   defdelegate user_message?(interaction), to: Interaction
@@ -165,18 +178,79 @@ defmodule FrontmanServer.Tasks do
   Notifies Agents directly so the agent can continue its iteration.
   """
   @spec add_tool_result(String.t(), map(), term(), boolean()) ::
-          {:ok, Interaction.t()} | {:error, :task_not_found}
+          {:ok, Interaction.t()} | {:error, :task_not_found | :agent_not_found}
   def add_tool_result(task_id, tool_call_data, result, is_error \\ false) do
-    interaction = Interaction.ToolResult.new(tool_call_data, result, is_error)
+    # Look up agent_id that owns this tool call
+    case Agents.get_agent_for_tool_call(tool_call_data.id) do
+      {:ok, agent_id} ->
+        interaction = Interaction.ToolResult.new(agent_id, tool_call_data, result, is_error)
 
-    case append_interaction(task_id, interaction) do
-      {:ok, interaction} ->
-        Agents.notify_tool_result(task_id, tool_call_data.id, result, is_error)
-        {:ok, interaction}
+        case append_interaction(task_id, interaction) do
+          {:ok, interaction} ->
+            Agents.notify_tool_result(task_id, tool_call_data.id, result, is_error)
+            {:ok, interaction}
 
-      {:error, reason} ->
-        {:error, reason}
+          {:error, reason} ->
+            {:error, reason}
+        end
+
+      {:error, :not_found} ->
+        {:error, :agent_not_found}
     end
+  end
+
+  # Sub-Agent Management
+
+  @doc """
+  Records a sub-agent being spawned.
+  """
+  def add_sub_agent_spawned(task_id, agent_id, sub_agent) do
+    interaction =
+      Interaction.SubAgentSpawned.new(
+        agent_id,
+        sub_agent.id,
+        sub_agent.role,
+        sub_agent.task
+      )
+
+    append_interaction(task_id, interaction)
+  end
+
+  @doc """
+  Records a sub-agent's successful result.
+  """
+  def add_sub_agent_result(task_id, agent_id, sub_agent, duration_ms) do
+    interaction =
+      Interaction.SubAgentResult.new(
+        agent_id,
+        sub_agent.id,
+        sub_agent.tool_call_id,
+        sub_agent.role,
+        sub_agent.task,
+        sub_agent.result,
+        1,
+        duration_ms
+      )
+
+    append_interaction(task_id, interaction)
+  end
+
+  @doc """
+  Records a sub-agent's failure.
+  """
+  def add_sub_agent_failed(task_id, agent_id, sub_agent, duration_ms) do
+    interaction =
+      Interaction.SubAgentFailed.new(
+        agent_id,
+        sub_agent.id,
+        sub_agent.role,
+        sub_agent.task,
+        inspect(sub_agent.error),
+        1,
+        duration_ms
+      )
+
+    append_interaction(task_id, interaction)
   end
 
   # Todo Management
@@ -202,14 +276,16 @@ defmodule FrontmanServer.Tasks do
     case get_task(task_id) do
       {:ok, task} ->
         todos_map = Todos.list_todos(task.interactions)
-        todos_list = todos_map
+
+        todos_list =
+          todos_map
           |> Map.values()
           |> Enum.sort_by(& &1.created_at, DateTime)
+
         {:ok, todos_list}
 
       {:error, :not_found} ->
         {:error, :not_found}
     end
   end
-
 end

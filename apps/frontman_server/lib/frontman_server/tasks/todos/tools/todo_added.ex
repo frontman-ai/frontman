@@ -1,7 +1,7 @@
 defmodule FrontmanServer.Tasks.Todos.Tools.TodoAdded do
   @moduledoc """
   TodoAdded event and tool definition.
-  
+
   Self-contained module with both the event struct and its tool definition.
   """
 
@@ -93,8 +93,7 @@ defmodule FrontmanServer.Tasks.Todos.Tools.TodoAdded do
         "properties" => %{
           "content" => %{
             "type" => "string",
-            "description" =>
-              "The todo description in imperative form (e.g., 'Fix bug in login')"
+            "description" => "The todo description in imperative form (e.g., 'Fix bug in login')"
           },
           "active_form" => %{
             "type" => "string",

@@ -1,7 +1,7 @@
 defmodule FrontmanServer.Tasks.Todos.Tools.TodoRemoved do
   @moduledoc """
   TodoRemoved event and tool definition.
-  
+
   Self-contained module with both the event struct and its tool definition.
   """
 
@@ -79,6 +79,7 @@ defmodule FrontmanServer.Tasks.Todos.Tools.TodoRemoved do
                   todo_id: todo_id,
                   timestamp: DateTime.utc_now()
                 }
+
                 {:ok, event}
 
               {:error, :not_found} ->

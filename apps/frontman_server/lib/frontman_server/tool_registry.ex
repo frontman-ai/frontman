@@ -1,11 +1,11 @@
 defmodule FrontmanServer.ToolRegistry do
   @moduledoc """
   Generic tool registry.
-  
+
   Maps tool names to their event modules. Simple map-based approach.
   Each domain registers its tools here.
   """
-  
+
   # Simple map: tool_name => event_module
   # nil means tool doesn't produce events (e.g., query tools)
   @registry %{
@@ -14,7 +14,7 @@ defmodule FrontmanServer.ToolRegistry do
     "todo_remove" => FrontmanServer.Tasks.Todos.Tools.TodoRemoved,
     "todo_list" => nil
   }
-  
+
   @doc """
   Returns the event module for a tool name, or nil if tool doesn't produce events.
   """
@@ -22,7 +22,7 @@ defmodule FrontmanServer.ToolRegistry do
   def event_module(tool_name) when is_binary(tool_name) do
     Map.get(@registry, tool_name)
   end
-  
+
   @doc """
   Checks if a tool produces events.
   """

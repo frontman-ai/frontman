@@ -1,7 +1,7 @@
 defmodule FrontmanServer.Tasks.Todos.Tools.TodoList do
   @moduledoc """
   TodoList tool definition.
-  
+
   Query tool that doesn't produce events.
   """
 

@@ -18,8 +18,8 @@ Returns file content with metadata about total lines and whether more content ex
 @schema
 type input = {
   path: string,
-  @s.default(0) offset: int,
-  @s.default(500) limit: int,
+  @s.default(0) offset?: int,
+  @s.default(500) limit?: int,
 }
 
 @schema
@@ -31,15 +31,17 @@ type output = {
 
 let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.toolResult<output> => {
   let fullPath = Path.join([ctx.projectRoot, input.path])
+  let offset = input.offset->Option.getOr(0)
+  let limit = input.limit->Option.getOr(500)
 
   try {
     let content = await Fs.Promises.readFile(fullPath)
     let lines = content->String.split("\n")
     let totalLines = lines->Array.length
 
-    let selectedLines = lines->Array.slice(~start=input.offset, ~end=input.offset + input.limit)
+    let selectedLines = lines->Array.slice(~start=offset, ~end=offset + limit)
     let selectedContent = selectedLines->Array.join("\n")
-    let hasMore = input.offset + input.limit < totalLines
+    let hasMore = offset + limit < totalLines
 
     Ok({
       content: selectedContent,

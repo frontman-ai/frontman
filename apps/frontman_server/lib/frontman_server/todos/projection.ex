@@ -1,7 +1,7 @@
 defmodule Todos.Projection do
   @moduledoc """
   Projects todo events into current state.
-  
+
   Uses Event protocol to identify events, pattern matches on event types.
   """
 
@@ -28,16 +28,19 @@ defmodule Todos.Projection do
   defp is_event_tool_result?(%ToolResult{tool_name: name}) do
     ToolRegistry.produces_events?(name)
   end
+
   defp is_event_tool_result?(_), do: false
 
   defp extract_event(%ToolResult{result: event}) when is_struct(event) do
     event
   end
+
   defp extract_event(%ToolResult{result: _}), do: nil
 
   defp implements_event?(event) when is_struct(event) do
     Event.impl_for(event) != nil
   end
+
   defp implements_event?(_), do: false
 
   defp apply_event(%TodoAdded{} = event, state) do
@@ -49,13 +52,17 @@ defmodule Todos.Projection do
       created_at: event.created_at,
       updated_at: event.created_at
     }
+
     Map.put(state, todo.id, todo)
   end
 
   defp apply_event(%TodoUpdated{} = event, state) do
     case Map.get(state, event.todo_id) do
-      nil -> state
-      todo -> Map.put(state, event.todo_id, %{todo | status: event.status, updated_at: event.updated_at})
+      nil ->
+        state
+
+      todo ->
+        Map.put(state, event.todo_id, %{todo | status: event.status, updated_at: event.updated_at})
     end
   end
 

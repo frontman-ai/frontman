@@ -1,7 +1,7 @@
 defmodule FrontmanServer.Tasks.Todos.Tools do
   @moduledoc """
   Todo tool definitions aggregator.
-  
+
   Collects all todo tools from their individual modules.
   """
 

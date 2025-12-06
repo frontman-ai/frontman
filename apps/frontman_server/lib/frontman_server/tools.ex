@@ -8,6 +8,7 @@ defmodule FrontmanServer.Tools do
 
   require Logger
 
+  alias FrontmanServer.Agents.SubAgentTool
   alias FrontmanServer.Tasks.Interaction.ToolCall
   alias FrontmanServer.Tasks.Todos.Tools, as: TodoTools
 
@@ -18,7 +19,22 @@ defmodule FrontmanServer.Tools do
   """
   @spec backend_tools(String.t()) :: [ReqLLM.Tool.t()]
   def backend_tools(task_id) do
-    TodoTools.todo_tools(task_id)
+    TodoTools.todo_tools(task_id) ++ agent_tools()
+  end
+
+  defp agent_tools do
+    # spawn_sub_agent is intercepted by AgentServer, but needs to be in the tool list
+    # so the LLM knows it's available. The callback is never actually called.
+    definition = SubAgentTool.tool_definition()
+
+    [
+      ReqLLM.Tool.new!(
+        name: definition.name,
+        description: definition.description,
+        parameter_schema: definition.parameters,
+        callback: fn _args -> {:error, "spawn_sub_agent handled by AgentServer"} end
+      )
+    ]
   end
 
   @doc """

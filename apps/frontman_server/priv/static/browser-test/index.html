@@ -607,26 +607,26 @@
     }
 
     function handleSessionUpdate(update) {
-      // ReScript variants compile to {TAG: "VariantName", ...fields}
-      switch (update.TAG) {
-        case 'AgentMessageChunk': {
+      // Server sends {sessionUpdate: "agent_message_chunk", content: {...}, ...}
+      switch (update.sessionUpdate) {
+        case 'agent_message_chunk': {
           const content = update.content;
           if (content && content.text) {
             appendAssistantChunk(content.text);
           }
           break;
         }
-        case 'ToolCall': {
+        case 'tool_call': {
           // Store tool call metadata for later lookups
           const { toolCallId, title, kind } = update;
           toolCallsMap.set(toolCallId, { title, kind });
           break;
         }
-        case 'ToolCallUpdate': {
+        case 'tool_call_update': {
           handleToolCallUpdate(update);
           break;
         }
-        case 'Plan': {
+        case 'plan': {
           handlePlanUpdate(update);
           break;
         }

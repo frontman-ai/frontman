@@ -74,7 +74,7 @@ defmodule FrontmanServer.Tasks.Todos do
 
   @doc """
   Lists all current todos by rebuilding state from interactions.
-  
+
   Uses event projection instead of string matching.
   """
   @spec list_todos(list(Interaction.t())) :: %{String.t() => Todo.t()}

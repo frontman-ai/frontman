@@ -47,7 +47,11 @@ defmodule FrontmanServerWeb.SessionsChannel do
         case payload do
           %{"id" => id} ->
             error_response =
-              JsonRpc.error_response(id, JsonRpc.error_invalid_request(), "Invalid JSON-RPC message")
+              JsonRpc.error_response(
+                id,
+                JsonRpc.error_invalid_request(),
+                "Invalid JSON-RPC message"
+              )
 
             push(socket, "acp:message", error_response)
             {:noreply, socket}

@@ -14,6 +14,9 @@ defmodule FrontmanServer.Tasks.Interaction do
           | AgentCompleted.t()
           | ToolCall.t()
           | ToolResult.t()
+          | SubAgentSpawned.t()
+          | SubAgentResult.t()
+          | SubAgentFailed.t()
 
   defmodule UserMessage do
     @moduledoc """
@@ -249,6 +252,7 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     typedstruct enforce: true do
       field(:id, String.t())
+      field(:agent_id, String.t())
       field(:tool_call_id, String.t())
       field(:tool_name, String.t())
       field(:result, term())
@@ -256,11 +260,12 @@ defmodule FrontmanServer.Tasks.Interaction do
       field(:timestamp, DateTime.t())
     end
 
-    def new(tool_call_data, result, is_error \\ false) do
+    def new(agent_id, tool_call_data, result, is_error \\ false) do
       alias FrontmanServer.Tasks.Interaction
 
       %__MODULE__{
         id: Interaction.new_id(),
+        agent_id: agent_id,
         tool_call_id: tool_call_data.id,
         tool_name: tool_call_data.name,
         result: result,
@@ -276,10 +281,190 @@ defmodule FrontmanServer.Tasks.Interaction do
         %{
           type: "tool_result",
           id: value.id,
+          agent_id: value.agent_id,
           tool_call_id: value.tool_call_id,
           tool_name: value.tool_name,
           result: value.result,
           is_error: value.is_error,
+          timestamp: DateTime.to_iso8601(value.timestamp)
+        },
+        opts
+      )
+    end
+  end
+
+  defmodule SubAgentSpawned do
+    @moduledoc "Interaction recording when a sub-agent is spawned"
+    use TypedStruct
+
+    @derive Jason.Encoder
+    typedstruct enforce: true do
+      field(:id, String.t())
+      field(:agent_id, String.t())
+      field(:sub_agent_id, String.t())
+      field(:agent_key, atom())
+      field(:task, String.t())
+      field(:timestamp, DateTime.t())
+    end
+
+    def new(agent_id, sub_agent_id, agent_key, task) do
+      alias FrontmanServer.Tasks.Interaction
+
+      %__MODULE__{
+        id: Interaction.new_id(),
+        agent_id: agent_id,
+        sub_agent_id: sub_agent_id,
+        agent_key: agent_key,
+        task: task,
+        timestamp: Interaction.now()
+      }
+    end
+  end
+
+  defimpl Jason.Encoder, for: SubAgentSpawned do
+    def encode(value, opts) do
+      Jason.Encode.map(
+        %{
+          type: "sub_agent_spawned",
+          id: value.id,
+          agent_id: value.agent_id,
+          sub_agent_id: value.sub_agent_id,
+          agent_key: value.agent_key,
+          task: value.task,
+          timestamp: DateTime.to_iso8601(value.timestamp)
+        },
+        opts
+      )
+    end
+  end
+
+  defmodule SubAgentResult do
+    @moduledoc "Interaction recording a sub-agent's successful result"
+    use TypedStruct
+
+    typedstruct enforce: true do
+      field(:id, String.t())
+      field(:agent_id, String.t())
+      field(:sub_agent_id, String.t())
+      field(:tool_call_id, String.t())
+      field(:agent_key, atom())
+      field(:task, String.t())
+      field(:result, String.t())
+      field(:partial, boolean(), default: false)
+      field(:iterations, integer())
+      field(:duration_ms, integer())
+      field(:timestamp, DateTime.t())
+    end
+
+    def new(
+          agent_id,
+          sub_agent_id,
+          tool_call_id,
+          agent_key,
+          task,
+          result,
+          iterations,
+          duration_ms,
+          partial \\ false
+        ) do
+      alias FrontmanServer.Tasks.Interaction
+
+      %__MODULE__{
+        id: Interaction.new_id(),
+        agent_id: agent_id,
+        sub_agent_id: sub_agent_id,
+        tool_call_id: tool_call_id,
+        agent_key: agent_key,
+        task: task,
+        result: result,
+        partial: partial,
+        iterations: iterations,
+        duration_ms: duration_ms,
+        timestamp: Interaction.now()
+      }
+    end
+  end
+
+  defimpl Jason.Encoder, for: SubAgentResult do
+    def encode(value, opts) do
+      Jason.Encode.map(
+        %{
+          type: "sub_agent_result",
+          id: value.id,
+          agent_id: value.agent_id,
+          sub_agent_id: value.sub_agent_id,
+          tool_call_id: value.tool_call_id,
+          agent_key: value.agent_key,
+          task: value.task,
+          result: value.result,
+          partial: value.partial,
+          iterations: value.iterations,
+          duration_ms: value.duration_ms,
+          timestamp: DateTime.to_iso8601(value.timestamp)
+        },
+        opts
+      )
+    end
+  end
+
+  defmodule SubAgentFailed do
+    @moduledoc "Interaction recording a sub-agent's failure"
+    use TypedStruct
+
+    typedstruct enforce: true do
+      field(:id, String.t())
+      field(:agent_id, String.t())
+      field(:sub_agent_id, String.t())
+      field(:agent_key, atom())
+      field(:task, String.t())
+      field(:error, String.t())
+      field(:partial_result, String.t() | nil, enforce: false)
+      field(:iterations, integer())
+      field(:duration_ms, integer())
+      field(:timestamp, DateTime.t())
+    end
+
+    def new(
+          agent_id,
+          sub_agent_id,
+          agent_key,
+          task,
+          error,
+          iterations,
+          duration_ms,
+          partial_result \\ nil
+        ) do
+      alias FrontmanServer.Tasks.Interaction
+
+      %__MODULE__{
+        id: Interaction.new_id(),
+        agent_id: agent_id,
+        sub_agent_id: sub_agent_id,
+        agent_key: agent_key,
+        task: task,
+        error: error,
+        partial_result: partial_result,
+        iterations: iterations,
+        duration_ms: duration_ms,
+        timestamp: Interaction.now()
+      }
+    end
+  end
+
+  defimpl Jason.Encoder, for: SubAgentFailed do
+    def encode(value, opts) do
+      Jason.Encode.map(
+        %{
+          type: "sub_agent_failed",
+          id: value.id,
+          agent_id: value.agent_id,
+          sub_agent_id: value.sub_agent_id,
+          agent_key: value.agent_key,
+          task: value.task,
+          error: value.error,
+          partial_result: value.partial_result,
+          iterations: value.iterations,
+          duration_ms: value.duration_ms,
           timestamp: DateTime.to_iso8601(value.timestamp)
         },
         opts
@@ -324,10 +509,29 @@ defmodule FrontmanServer.Tasks.Interaction do
     |> Enum.reject(&is_nil/1)
   end
 
+  @doc """
+  Converts interactions to LLM messages, filtering by agent_id.
+
+  Only includes interactions that belong to the specified agent.
+  UserMessage is always included (it has no agent_id).
+  """
+  @spec to_llm_messages(list(t()), String.t()) :: list(map())
+  def to_llm_messages(interactions, agent_id) when is_binary(agent_id) do
+    interactions
+    |> Enum.filter(&(is_conversation_message(&1) and belongs_to_agent?(&1, agent_id)))
+    |> Enum.map(&to_llm_message/1)
+    |> Enum.reject(&is_nil/1)
+  end
+
+  defp belongs_to_agent?(%UserMessage{}, _agent_id), do: true
+  defp belongs_to_agent?(%{agent_id: id}, agent_id), do: id == agent_id
+  defp belongs_to_agent?(_, _agent_id), do: false
+
   defp is_conversation_message(%UserMessage{}), do: true
   defp is_conversation_message(%AgentResponse{}), do: true
   # ToolCall is skipped - it's embedded in AgentResponse metadata
   defp is_conversation_message(%ToolResult{}), do: true
+  defp is_conversation_message(%SubAgentResult{}), do: true
   defp is_conversation_message(_), do: false
 
   defp to_llm_message(%UserMessage{content_blocks: content_blocks}) do
@@ -337,10 +541,20 @@ defmodule FrontmanServer.Tasks.Interaction do
   end
 
   defp to_llm_message(%AgentResponse{content: content, metadata: metadata}) do
-    case Map.get(metadata || %{}, :tool_calls) do
+    tool_calls = Map.get(metadata || %{}, :tool_calls)
+    response_id = Map.get(metadata || %{}, :response_id)
+
+    case tool_calls do
       nil -> ReqLLM.Context.assistant(content)
       [] -> ReqLLM.Context.assistant(content)
-      tool_calls -> ReqLLM.Context.assistant(content, tool_calls: tool_calls)
+      tool_calls ->
+        # Build Message struct with metadata for OpenAI Responses API (previous_response_id)
+        %ReqLLM.Message{
+          role: :assistant,
+          content: [ReqLLM.Message.ContentPart.text(content)],
+          tool_calls: tool_calls,
+          metadata: if(response_id, do: %{response_id: response_id}, else: %{})
+        }
     end
   end
 
@@ -353,6 +567,18 @@ defmodule FrontmanServer.Tasks.Interaction do
     # Serialize structured data to JSON for LLM projection
     json_result = if is_binary(result), do: result, else: Jason.encode!(result)
     ReqLLM.Context.tool_result_message(name, id, json_result)
+  end
+
+  defp to_llm_message(%SubAgentResult{tool_call_id: id, agent_key: role, task: task, result: result}) do
+    # Format sub-agent result as tool result for spawn_sub_agent call
+    content = """
+    Sub-agent (#{role}) completed task: "#{task}"
+
+    Result:
+    #{result}
+    """
+
+    ReqLLM.Context.tool_result_message("spawn_sub_agent", id, content)
   end
 
   # Convert content blocks to LLM message content format
@@ -382,12 +608,14 @@ defmodule FrontmanServer.Tasks.Interaction do
   # Convert resource_link (file reference) to text description
   defp content_block_to_llm_format(%{"type" => "resource_link", "uri" => uri}) do
     # Extract file path from URI (format: file://path:line:column)
-    text = case Regex.run(~r/^file:\/\/(.+):(\d+):(\d+)$/, uri) do
-      [_, file_path, line, column] ->
-        "\n\n[Selected Component Location]\nFile: #{file_path}\nLine: #{line}, Column: #{column}"
-      _ ->
-        "\n\n[Selected Component]\nURI: #{uri}"
-    end
+    text =
+      case Regex.run(~r/^file:\/\/(.+):(\d+):(\d+)$/, uri) do
+        [_, file_path, line, column] ->
+          "\n\n[Selected Component Location]\nFile: #{file_path}\nLine: #{line}, Column: #{column}"
+
+        _ ->
+          "\n\n[Selected Component]\nURI: #{uri}"
+      end
 
     %{"type" => "text", "text" => text}
   end

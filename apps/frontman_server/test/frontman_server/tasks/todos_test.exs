@@ -115,12 +115,14 @@ defmodule FrontmanServer.Tasks.TodosTest do
 
       {:ok, task} = Tasks.get_task(task_id)
       {:ok, updated} = Todos.update_todo_status(task.interactions, todo.id, "completed")
+
       update_event = %TodoUpdated{
         todo_id: updated.id,
         status: updated.status,
         updated_at: updated.updated_at,
         timestamp: DateTime.utc_now()
       }
+
       Tasks.add_tool_result(task_id, %{id: "call2", name: "todo_update"}, update_event, false)
 
       {:ok, task} = Tasks.get_task(task_id)
@@ -142,6 +144,7 @@ defmodule FrontmanServer.Tasks.TodosTest do
         todo_id: todo1.id,
         timestamp: DateTime.utc_now()
       }
+
       Tasks.add_tool_result(task_id, %{id: "c3", name: "todo_remove"}, remove_event, false)
 
       {:ok, task} = Tasks.get_task(task_id)

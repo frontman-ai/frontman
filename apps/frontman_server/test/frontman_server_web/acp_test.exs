@@ -25,12 +25,21 @@ defmodule FrontmanServerWeb.ACPTest do
       later = DateTime.add(base_time, 10, :second)
 
       todo1 = %Todos.Todo{
-        id: "id1", content: "First", active_form: "First",
-        status: :pending, created_at: earlier, updated_at: earlier
+        id: "id1",
+        content: "First",
+        active_form: "First",
+        status: :pending,
+        created_at: earlier,
+        updated_at: earlier
       }
+
       todo2 = %Todos.Todo{
-        id: "id2", content: "Second", active_form: "Second",
-        status: :pending, created_at: later, updated_at: later
+        id: "id2",
+        content: "Second",
+        active_form: "Second",
+        status: :pending,
+        created_at: later,
+        updated_at: later
       }
 
       # Pass in wrong order
@@ -46,16 +55,30 @@ defmodule FrontmanServerWeb.ACPTest do
       t3 = base_time
 
       todo1 = %Todos.Todo{
-        id: "id1", content: "Task 1", active_form: "Working 1",
-        status: :pending, created_at: t1, updated_at: t1
+        id: "id1",
+        content: "Task 1",
+        active_form: "Working 1",
+        status: :pending,
+        created_at: t1,
+        updated_at: t1
       }
+
       todo2 = %Todos.Todo{
-        id: "id2", content: "Task 2", active_form: "Working 2",
-        status: :in_progress, created_at: t2, updated_at: t2
+        id: "id2",
+        content: "Task 2",
+        active_form: "Working 2",
+        status: :in_progress,
+        created_at: t2,
+        updated_at: t2
       }
+
       todo3 = %Todos.Todo{
-        id: "id3", content: "Task 3", active_form: "Working 3",
-        status: :completed, created_at: t3, updated_at: t3
+        id: "id3",
+        content: "Task 3",
+        active_form: "Working 3",
+        status: :completed,
+        created_at: t3,
+        updated_at: t3
       }
 
       # Pass in wrong order
