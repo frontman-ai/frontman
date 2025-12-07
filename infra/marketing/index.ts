@@ -1,9 +1,9 @@
-import * as pulumi from "@pulumi/pulumi";
 import * as cloudflare from "@pulumi/cloudflare";
+import * as pulumi from "@pulumi/pulumi";
 
 const config = new pulumi.Config();
 const accountId = config.require("accountId");
-const projectName = config.get("projectName") || "ask-the-llm-marketing";
+const projectName = config.get("projectName") || "frontman-marketing";
 
 // Create Cloudflare Pages project
 // Deployments are handled via Wrangler in CI/CD pipeline
