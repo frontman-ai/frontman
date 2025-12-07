@@ -1,6 +1,6 @@
 defmodule FrontmanServer.Agents.AgentServer do
   @moduledoc """
-  Agent server that executes an agentic loop with LLM.
+  GenServer managing agent process lifecycle.
 
   Uses a push model where all data is pushed to the agent:
   - Messages arrive via {:execute_iteration, messages}
@@ -9,6 +9,9 @@ defmodule FrontmanServer.Agents.AgentServer do
 
   The agent emits events via the on_event callback and has no knowledge
   of Tasks, PubSub, or any other bounded context.
+
+  Domain state is held in the Agent struct; this module handles
+  process lifecycle, timeouts, and message routing.
   """
   use GenServer
   require Logger
@@ -16,65 +19,15 @@ defmodule FrontmanServer.Agents.AgentServer do
   @default_model "openai:gpt-5-chat-latest"
   @idle_timeout_ms 5 * 60 * 1000
 
-  @base_system_prompt """
-  You are a coding assistant for a Next.js app (TypeScript, React, Tailwind, some ReScript output).
+  alias FrontmanServer.Agents.{Agent, Prompts, SubAgent, SubAgentTool}
 
-  ## Rules
-
-  - Paths relative to repo root.
-  - List → Read → Modify. Never edit unseen files.
-  - Keep diffs small and reversible. Match repo style.
-  - After 2 failed tool calls, ask one clarifying question.
-
-  ## ReScript handling (explicit)
-
-  - Treat generated files (*.res.mjs) as read-only.
-  - Always edit the source *.res.
-  - Procedure when you see X.res.mjs:
-    1. Locate X.res by name/path. If not found, search siblings or module index.
-    2. read_file both X.res and X.res.mjs to understand mapping and exports.
-    3. Apply changes to X.res only. Preserve types and module boundaries.
-  - If no matching *.res exists or mapping is unclear, stop and ask for the exact source path.
-  - Never write to generated artifacts. Note this in the output if a change seems required there.
-
-  ## Next.js
-
-  - Detect router (app/pages) and stick to it.
-  - "use client" only when required.
-  - Keep server actions and non-serializable logic on the server.
-
-  ## TypeScript / React / Tailwind
-
-  - Avoid any. Prefer discriminated unions.
-  - Pure components and stable hooks.
-  - Use Tailwind utilities and existing tokens.
-
-  ## Output
-
-  - Short plan
-  - Single unified diff block
-  - Brief notes: build/test results or follow-ups
-  """
-
-  alias FrontmanServer.Agents
-  alias FrontmanServer.Agents.{SubAgent, SubAgentTool}
-
+  # Infrastructure state - domain state lives in `agent`
   defstruct [
-    :agent_id,
-    :task_id,
+    :agent,
     :tools,
     :on_event,
-    :pending_tool_calls,
     :idle_timer_ref,
-    # Sub-agent support
-    :parent_agent_id,
-    :parent_pid,
-    :role,
-    :task,
-    :sub_agent_supervisor,
-    :pending_sub_agents,
-    :started_at,
-    :iteration_count
+    :parent_pid
   ]
 
   # Client API
@@ -179,44 +132,18 @@ defmodule FrontmanServer.Agents.AgentServer do
     end)
   end
 
-  defp with_root_agent_by_task(task_id, fun) do
-    match_spec = [
-      {{{:agent, :"$1"}, :"$2", :"$3"},
-       [
-         {:andalso, {:==, {:map_get, :task_id, :"$3"}, task_id},
-          {:==, {:map_get, :parent_agent_id, :"$3"}, nil}}
-       ], [{{:"$1", :"$2"}}]}
-    ]
-
-    case Registry.select(FrontmanServer.AgentRegistry, match_spec) do
-      [{_agent_id, pid}] -> fun.(pid)
-      [] -> {:error, :not_found}
-    end
-  end
-
   # Server Callbacks
 
   @impl true
   def init({:root, %{agent_id: agent_id, task_id: task_id, tools: tools, on_event: on_event}}) do
-    # Flat supervision: all agents under FrontmanServer.AgentSupervisor
-    # No more nested DynamicSupervisor per agent
+    agent = Agent.new_root(agent_id, task_id)
 
     state = %__MODULE__{
-      agent_id: agent_id,
-      task_id: task_id,
+      agent: agent,
       tools: tools,
       on_event: on_event,
       idle_timer_ref: nil,
-      pending_tool_calls: %{},
-      # Root agent fields
-      parent_agent_id: nil,
-      parent_pid: nil,
-      role: nil,
-      task: nil,
-      sub_agent_supervisor: nil,
-      pending_sub_agents: %{},
-      started_at: System.monotonic_time(:millisecond),
-      iteration_count: 0
+      parent_pid: nil
     }
 
     {:ok, state}
@@ -234,25 +161,16 @@ defmodule FrontmanServer.Agents.AgentServer do
       task: task
     } = opts
 
-    # Monitor parent for crash detection
     Process.monitor(parent_pid)
 
+    agent = Agent.new_sub_agent(agent_id, task_id, parent_agent_id, role, task)
+
     state = %__MODULE__{
-      agent_id: agent_id,
-      task_id: task_id,
+      agent: agent,
       tools: tools,
       on_event: on_event,
       idle_timer_ref: nil,
-      pending_tool_calls: %{},
-      # Sub-agent fields
-      parent_agent_id: parent_agent_id,
-      parent_pid: parent_pid,
-      role: role,
-      task: task,
-      sub_agent_supervisor: nil,
-      pending_sub_agents: %{},
-      started_at: System.monotonic_time(:millisecond),
-      iteration_count: 0
+      parent_pid: parent_pid
     }
 
     {:ok, state}
@@ -260,45 +178,45 @@ defmodule FrontmanServer.Agents.AgentServer do
 
   @impl true
   def handle_info({:execute_iteration, messages}, state) do
-    Logger.info("Agent #{state.agent_id} starting iteration with #{length(messages)} messages")
-    set_registry_state(state.agent_id, :processing)
+    agent = state.agent
+    Logger.info("Agent #{agent.id} starting iteration with #{length(messages)} messages")
+    set_registry_state(agent.id, :processing)
 
     case stream_and_handle_response(state, messages) do
       {:wait_for_tools, state} ->
-        set_registry_state(state.agent_id, :waiting_for_tools)
+        set_registry_state(state.agent.id, :waiting_for_tools)
         state = schedule_idle_timeout(state)
         {:noreply, state}
 
       {:stop, state} ->
-        emit(state, {:completed, state.agent_id})
-        set_registry_state(state.agent_id, :idle)
+        emit(state, {:completed, state.agent.id})
+        set_registry_state(state.agent.id, :idle)
         state = schedule_idle_timeout(state)
         {:noreply, state}
 
       {:error, reason, state} ->
-        emit(state, {:error, state.agent_id, reason})
+        emit(state, {:error, state.agent.id, reason})
         {:stop, :normal, state}
     end
   end
 
   @impl true
   def handle_info({:tool_result, tool_call_id, _result, _is_error}, state) do
-    case Map.get(state.pending_tool_calls, tool_call_id) do
+    {tool_call, agent} = Agent.complete_tool(state.agent, tool_call_id)
+
+    case tool_call do
       nil ->
-        # With direct routing, this shouldn't happen
-        Logger.warning("Received tool result for unknown tool_call_id: #{tool_call_id}")
+        Logger.error("Received tool result for unknown tool_call_id: #{tool_call_id}")
         {:noreply, state}
 
       tool_call ->
         Logger.info("Tool #{tool_call.name} completed")
-        # Unregister tool call from Registry
         Registry.unregister(FrontmanServer.AgentRegistry, {:tool_call, tool_call_id})
-        pending = Map.delete(state.pending_tool_calls, tool_call_id)
-        state = %{state | pending_tool_calls: pending}
+        state = %{state | agent: agent}
 
-        if Enum.empty?(pending) and not has_pending_sub_agents?(state) do
+        if not Agent.has_pending_work?(agent) do
           state = cancel_idle_timeout(state)
-          emit(state, {:need_iteration, state.agent_id})
+          emit(state, {:need_iteration, agent.id})
           {:noreply, state}
         else
           state = schedule_idle_timeout(state)
@@ -309,11 +227,11 @@ defmodule FrontmanServer.Agents.AgentServer do
 
   @impl true
   def handle_info(:wake_agent, state) do
-    case Registry.lookup(FrontmanServer.AgentRegistry, {:agent, state.agent_id}) do
+    case Registry.lookup(FrontmanServer.AgentRegistry, {:agent, state.agent.id}) do
       [{_pid, %{state: :idle}}] ->
         state = cancel_idle_timeout(state)
-        set_registry_state(state.agent_id, :processing)
-        emit(state, {:need_iteration, state.agent_id})
+        set_registry_state(state.agent.id, :processing)
+        emit(state, {:need_iteration, state.agent.id})
         {:noreply, state}
 
       [{_pid, %{state: :processing}}] ->
@@ -326,7 +244,7 @@ defmodule FrontmanServer.Agents.AgentServer do
 
   @impl true
   def handle_info(:idle_timeout, state) do
-    Logger.info("Agent #{state.agent_id} idle timeout - terminating")
+    Logger.info("Agent #{state.agent.id} idle timeout - terminating")
     {:stop, :normal, state}
   end
 
@@ -337,7 +255,9 @@ defmodule FrontmanServer.Agents.AgentServer do
 
   @impl true
   def handle_info({:sub_agent_result, sub_agent_id, result}, state) do
-    case Map.get(state.pending_sub_agents, sub_agent_id) do
+    {sub_agent, agent} = Agent.remove_sub_agent(state.agent, sub_agent_id)
+
+    case sub_agent do
       nil ->
         {:noreply, state}
 
@@ -345,15 +265,15 @@ defmodule FrontmanServer.Agents.AgentServer do
         duration_ms = System.monotonic_time(:millisecond) - sub_agent.started_at
         completed = %{sub_agent | status: :completed, result: result}
 
-        emit(state, {:sub_agent_completed, state.agent_id, completed, duration_ms})
+        emit(state, {:sub_agent_completed, agent.id, completed, duration_ms})
 
-        state = %{state | pending_sub_agents: Map.delete(state.pending_sub_agents, sub_agent_id)}
+        state = %{state | agent: agent}
 
-        if has_pending_work?(state) do
+        if Agent.has_pending_work?(agent) do
           {:noreply, state}
         else
           state = cancel_idle_timeout(state)
-          emit(state, {:need_iteration, state.agent_id})
+          emit(state, {:need_iteration, agent.id})
           {:noreply, state}
         end
     end
@@ -361,12 +281,11 @@ defmodule FrontmanServer.Agents.AgentServer do
 
   @impl true
   def handle_info({:DOWN, _ref, :process, pid, reason}, state) do
-    # Check if it's a sub-agent that died
-    case Enum.find(state.pending_sub_agents, fn {_id, sa} -> sa.pid == pid end) do
+    case Agent.find_sub_agent_by_pid(state.agent, pid) do
       nil ->
         # Check if parent died (for sub-agents)
         if state.parent_pid == pid do
-          Logger.info("Sub-agent #{state.agent_id} parent died, terminating")
+          Logger.info("Sub-agent #{state.agent.id} parent died, terminating")
           {:stop, :normal, state}
         else
           {:noreply, state}
@@ -376,15 +295,16 @@ defmodule FrontmanServer.Agents.AgentServer do
         duration_ms = System.monotonic_time(:millisecond) - sub_agent.started_at
         failed = %{sub_agent | status: :failed, error: reason}
 
-        emit(state, {:sub_agent_failed, state.agent_id, failed, duration_ms})
+        {_removed, agent} = Agent.remove_sub_agent(state.agent, sub_agent_id)
+        emit(state, {:sub_agent_failed, agent.id, failed, duration_ms})
 
-        state = %{state | pending_sub_agents: Map.delete(state.pending_sub_agents, sub_agent_id)}
+        state = %{state | agent: agent}
 
-        if has_pending_work?(state) do
+        if Agent.has_pending_work?(agent) do
           {:noreply, state}
         else
           state = cancel_idle_timeout(state)
-          emit(state, {:need_iteration, state.agent_id})
+          emit(state, {:need_iteration, agent.id})
           {:noreply, state}
         end
     end
@@ -392,16 +312,20 @@ defmodule FrontmanServer.Agents.AgentServer do
 
   # Private Functions
 
+  # -- Event Emission --
+
   defp emit(state, event) do
-    Logger.debug("Agent #{state.agent_id} emitting: #{elem(event, 0)}")
+    Logger.debug("Agent #{state.agent.id} emitting: #{elem(event, 0)}")
     state.on_event.(event)
   end
+
+  # -- LLM Streaming & Response Handling --
 
   defp stream_and_handle_response(state, messages) do
     api_key = get_api_key(@default_model)
 
     # Build system prompt - use role prompt for sub-agents, base prompt for root
-    system_prompt = build_system_prompt(state)
+    system_prompt = Prompts.build(state.agent.role)
     system_msg = ReqLLM.Context.system(system_prompt, cache_control: %{type: "ephemeral"})
     messages_with_system = [system_msg | messages]
 
@@ -414,18 +338,20 @@ defmodule FrontmanServer.Agents.AgentServer do
         tools -> Keyword.put(llm_opts, :tools, tools)
       end
 
-    IO.inspect(System.get_env("REQ_LLM_TIMEOUT"), label: "REQ_LLM_TIMEOUT")
-
     case ReqLLM.stream_text(@default_model, messages_with_system, llm_opts) do
       {:ok, response} ->
         chunks = stream_chunks(state, response.stream)
-        text = extract_text(chunks)
+        text = Enum.map_join(chunks, "", fn chunk -> chunk.text || "" end)
         tool_calls = extract_tool_calls(chunks)
-        response_id = extract_response_id(chunks)
 
-        # DEBUG: Log what we extracted from chunks
+        response_id =
+          Enum.find_value(chunks, fn
+            %{type: :meta, metadata: %{response_id: id}} when is_binary(id) -> id
+            _ -> nil
+          end)
+
         Logger.info(
-          "Agent #{state.agent_id} extracted: text=#{byte_size(text || "")} bytes, tool_calls=#{length(tool_calls)}, response_id=#{inspect(response_id)}, chunks=#{length(chunks)}"
+          "Agent #{state.agent.id} extracted: text=#{byte_size(text || "")} bytes, tool_calls=#{length(tool_calls)}, response_id=#{inspect(response_id)}, chunks=#{length(chunks)}"
         )
 
         handle_response(state, text, tool_calls, response_id)
@@ -437,14 +363,12 @@ defmodule FrontmanServer.Agents.AgentServer do
   end
 
   defp stream_chunks(state, chunk_stream) do
-    # ACP compliant: First agent_message_chunk implicitly signals message start
-    # No need for explicit message_start event
     chunk_stream
     |> Enum.map(fn chunk ->
       text = Map.get(chunk, :text) || ""
 
       if text != "" do
-        emit(state, {:token, state.agent_id, text})
+        emit(state, {:token, state.agent.id, text})
       end
 
       chunk
@@ -452,11 +376,11 @@ defmodule FrontmanServer.Agents.AgentServer do
   end
 
   defp handle_response(state, text, [], _response_id) do
-    Logger.info("Agent #{state.agent_id} completing with text: #{byte_size(text || "")} bytes")
-    emit(state, {:response, state.agent_id, text, %{}})
+    Logger.info("Agent #{state.agent.id} completing with text: #{byte_size(text || "")} bytes")
+    emit(state, {:response, state.agent.id, text, %{}})
 
-    if sub_agent?(state) do
-      send(state.parent_pid, {:sub_agent_result, state.agent_id, text})
+    if not Agent.root?(state.agent) do
+      send(state.parent_pid, {:sub_agent_result, state.agent.id, text})
     end
 
     {:stop, state}
@@ -464,13 +388,12 @@ defmodule FrontmanServer.Agents.AgentServer do
 
   defp handle_response(state, text, tool_calls, response_id) do
     Logger.info(
-      "Agent #{state.agent_id} has #{length(tool_calls)} tool calls, text: #{byte_size(text || "")} bytes"
+      "Agent #{state.agent.id} has #{length(tool_calls)} tool calls, text: #{byte_size(text || "")} bytes"
     )
 
-    # Include response_id in metadata for OpenAI Responses API (previous_response_id)
     metadata = %{tool_calls: tool_calls}
     metadata = if response_id, do: Map.put(metadata, :response_id, response_id), else: metadata
-    emit(state, {:response, state.agent_id, text, metadata})
+    emit(state, {:response, state.agent.id, text, metadata})
 
     {spawn_calls, regular_tools} =
       Enum.split_with(tool_calls, fn tc -> tc.name == SubAgentTool.tool_name() end)
@@ -480,128 +403,99 @@ defmodule FrontmanServer.Agents.AgentServer do
       |> track_tool_calls(regular_tools)
       |> spawn_sub_agents(spawn_calls)
 
-    if has_pending_work?(state) do
+    if Agent.has_pending_work?(state.agent) do
       {:wait_for_tools, state}
     else
       {:stop, state}
     end
   end
 
+  # -- Tool Call Tracking --
+
   defp track_tool_calls(state, []), do: state
 
   defp track_tool_calls(state, tool_calls) do
-    Enum.each(tool_calls, fn tc ->
-      emit(state, {:tool_call, state.agent_id, tc})
-      # Register tool call for direct routing
-      Registry.register(FrontmanServer.AgentRegistry, {:tool_call, tc.id}, state.agent_id)
-    end)
+    agent =
+      Enum.reduce(tool_calls, state.agent, fn tc, agent ->
+        emit(state, {:tool_call, agent.id, tc})
+        Registry.register(FrontmanServer.AgentRegistry, {:tool_call, tc.id}, agent.id)
+        Agent.track_tool(agent, tc)
+      end)
 
-    new_pending = Map.new(tool_calls, &{&1.id, &1})
-    %{state | pending_tool_calls: Map.merge(state.pending_tool_calls, new_pending)}
+    %{state | agent: agent}
   end
 
+  # -- Sub-Agent Management --
+
   defp spawn_sub_agents(state, []), do: state
-  defp spawn_sub_agents(state, _calls) when state.parent_agent_id != nil, do: state
+  defp spawn_sub_agents(state, _calls) when state.agent.parent_id != nil, do: state
 
   defp spawn_sub_agents(state, calls) do
     Enum.reduce(calls, state, fn call, acc ->
       case spawn_sub_agent(acc, call) do
         {:ok, sub_agent} ->
-          emit(acc, {:sub_agent_spawned, acc.agent_id, sub_agent})
-          %{acc | pending_sub_agents: Map.put(acc.pending_sub_agents, sub_agent.id, sub_agent)}
+          emit(acc, {:sub_agent_spawned, acc.agent.id, sub_agent})
+          agent = Agent.track_sub_agent(acc.agent, sub_agent)
+          %{acc | agent: agent}
 
-        {:error, _reason} ->
+        {:error, role, task, reason} ->
+          emit(acc, {:sub_agent_spawn_failed, acc.agent.id, call.id, role, task, reason})
           acc
       end
     end)
   end
 
   defp spawn_sub_agent(state, tool_call) do
-    with {:ok, %{role: role, task: task}} <- SubAgentTool.parse_arguments(tool_call.arguments) do
-      id = generate_sub_agent_id()
+    case SubAgentTool.parse_arguments(tool_call.arguments) do
+      {:ok, %{role: role, task: task}} ->
+        id = "sub_#{:crypto.strong_rand_bytes(8) |> Base.encode16(case: :lower)}"
 
-      child_spec = %{
-        id: id,
-        start:
-          {__MODULE__, :start_sub_agent,
-           [
+        child_spec = %{
+          id: id,
+          start:
+            {__MODULE__, :start_sub_agent,
              [
-               agent_id: id,
-               task_id: state.task_id,
-               tools: state.tools,
-               on_event: state.on_event,
-               parent_agent_id: state.agent_id,
-               parent_pid: self(),
-               role: role,
-               task: task
-             ]
-           ]},
-        restart: :temporary
-      }
+               [
+                 agent_id: id,
+                 task_id: state.agent.task_id,
+                 tools: state.tools,
+                 on_event: state.on_event,
+                 parent_agent_id: state.agent.id,
+                 parent_pid: self(),
+                 role: role,
+                 task: task
+               ]
+             ]},
+          restart: :temporary
+        }
 
-      # Spawn under global supervisor (flat supervision)
-      case DynamicSupervisor.start_child(FrontmanServer.AgentSupervisor, child_spec) do
-        {:ok, pid} ->
-          Process.monitor(pid)
+        case DynamicSupervisor.start_child(FrontmanServer.AgentSupervisor, child_spec) do
+          {:ok, pid} ->
+            Process.monitor(pid)
 
-          sub_agent = %SubAgent{
-            id: id,
-            tool_call_id: tool_call.id,
-            role: role,
-            task: task,
-            pid: pid,
-            status: :running,
-            started_at: System.monotonic_time(:millisecond)
-          }
+            sub_agent = %SubAgent{
+              id: id,
+              tool_call_id: tool_call.id,
+              role: role,
+              task: task,
+              pid: pid,
+              status: :running,
+              started_at: System.monotonic_time(:millisecond)
+            }
 
-          send(pid, {:execute_iteration, [%{role: "user", content: task}]})
-          {:ok, sub_agent}
+            send(pid, {:execute_iteration, [%{role: "user", content: task}]})
+            {:ok, sub_agent}
 
-        {:error, reason} ->
-          {:error, reason}
-      end
+          {:error, reason} ->
+            {:error, role, task, reason}
+        end
+
+      {:error, reason} ->
+        {:error, :unknown, inspect(tool_call.arguments), reason}
     end
   end
 
-  defp generate_sub_agent_id do
-    "sub_#{:crypto.strong_rand_bytes(8) |> Base.encode16(case: :lower)}"
-  end
-
-  defp build_system_prompt(%{role: nil}) do
-    @base_system_prompt <> "\n" <> sub_agent_guidance()
-  end
-
-  defp build_system_prompt(%{role: role}) do
-    {:ok, config} = Agents.get_role(role)
-    config.system_prompt
-  end
-
-  defp sub_agent_guidance do
-    role_list =
-      Agents.roles()
-      |> Enum.map(fn role ->
-        {:ok, config} = Agents.get_role(role)
-        "- **#{role}**: #{config.description}"
-      end)
-      |> Enum.join("\n")
-
-    """
-    ## Sub-agents
-
-    Use `spawn_sub_agent` to delegate specialized work:
-    #{role_list}
-
-    Spawn sub-agents early for complex tasks. They run autonomously and return results.
-    """
-  end
-
-  defp sub_agent?(state), do: state.parent_agent_id != nil
-
-  defp has_pending_work?(state) do
-    not Enum.empty?(state.pending_tool_calls) or not Enum.empty?(state.pending_sub_agents)
-  end
-
-  defp has_pending_sub_agents?(state), do: not Enum.empty?(state.pending_sub_agents)
+  # -- Configuration & Utilities --
 
   defp get_api_key(model) do
     cond do
@@ -623,11 +517,6 @@ defmodule FrontmanServer.Agents.AgentServer do
       true ->
         Application.get_env(:frontman_server, :anthropic_api_key)
     end
-  end
-
-  defp extract_text(chunks) do
-    chunks
-    |> Enum.map_join("", fn chunk -> chunk.text || "" end)
   end
 
   defp extract_tool_calls(chunks) do
@@ -670,13 +559,21 @@ defmodule FrontmanServer.Agents.AgentServer do
     end)
   end
 
-  # Extract response_id from meta chunks (for OpenAI Responses API previous_response_id)
-  defp extract_response_id(chunks) do
-    chunks
-    |> Enum.find_value(fn
-      %{type: :meta, metadata: %{response_id: id}} when is_binary(id) -> id
-      _ -> nil
-    end)
+  # -- Registry Helpers --
+
+  defp with_root_agent_by_task(task_id, fun) do
+    match_spec = [
+      {{{:agent, :"$1"}, :"$2", :"$3"},
+       [
+         {:andalso, {:==, {:map_get, :task_id, :"$3"}, task_id},
+          {:==, {:map_get, :parent_agent_id, :"$3"}, nil}}
+       ], [{{:"$1", :"$2"}}]}
+    ]
+
+    case Registry.select(FrontmanServer.AgentRegistry, match_spec) do
+      [{_agent_id, pid}] -> fun.(pid)
+      [] -> {:error, :not_found}
+    end
   end
 
   defp set_registry_state(agent_id, new_state) do
@@ -684,6 +581,8 @@ defmodule FrontmanServer.Agents.AgentServer do
       %{metadata | state: new_state}
     end)
   end
+
+  # -- Timer Management --
 
   defp schedule_idle_timeout(state) do
     state = cancel_idle_timeout(state)

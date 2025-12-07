@@ -17,6 +17,7 @@ defmodule FrontmanServer.Tasks.Interaction do
           | SubAgentSpawned.t()
           | SubAgentResult.t()
           | SubAgentFailed.t()
+          | SubAgentSpawnFailed.t()
 
   defmodule UserMessage do
     @moduledoc """
@@ -465,6 +466,53 @@ defmodule FrontmanServer.Tasks.Interaction do
           partial_result: value.partial_result,
           iterations: value.iterations,
           duration_ms: value.duration_ms,
+          timestamp: DateTime.to_iso8601(value.timestamp)
+        },
+        opts
+      )
+    end
+  end
+
+  defmodule SubAgentSpawnFailed do
+    @moduledoc "Interaction recording when a sub-agent fails to spawn"
+    use TypedStruct
+
+    typedstruct enforce: true do
+      field(:id, String.t())
+      field(:agent_id, String.t())
+      field(:tool_call_id, String.t())
+      field(:agent_key, atom())
+      field(:task, String.t())
+      field(:error, String.t())
+      field(:timestamp, DateTime.t())
+    end
+
+    def new(agent_id, tool_call_id, agent_key, task, error) do
+      alias FrontmanServer.Tasks.Interaction
+
+      %__MODULE__{
+        id: Interaction.new_id(),
+        agent_id: agent_id,
+        tool_call_id: tool_call_id,
+        agent_key: agent_key,
+        task: task,
+        error: error,
+        timestamp: Interaction.now()
+      }
+    end
+  end
+
+  defimpl Jason.Encoder, for: SubAgentSpawnFailed do
+    def encode(value, opts) do
+      Jason.Encode.map(
+        %{
+          type: "sub_agent_spawn_failed",
+          id: value.id,
+          agent_id: value.agent_id,
+          tool_call_id: value.tool_call_id,
+          agent_key: value.agent_key,
+          task: value.task,
+          error: value.error,
           timestamp: DateTime.to_iso8601(value.timestamp)
         },
         opts
