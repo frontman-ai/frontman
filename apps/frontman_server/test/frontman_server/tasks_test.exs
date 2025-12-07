@@ -90,7 +90,7 @@ defmodule FrontmanServer.TasksTest do
     end
   end
 
-  describe "add_tool_result/4" do
+  describe "add_tool_result/5" do
     test "creates tool result interaction" do
       task_id = "test_tool_result_#{System.unique_integer([:positive])}"
       {:ok, ^task_id} = Tasks.create_task(task_id)
@@ -101,7 +101,7 @@ defmodule FrontmanServer.TasksTest do
       # Register the tool call in Registry (simulating what agent does)
       Registry.register(FrontmanServer.AgentRegistry, {:tool_call, tool_call_data.id}, agent_id)
 
-      {:ok, interaction} = Tasks.add_tool_result(task_id, tool_call_data, 2, false)
+      {:ok, interaction} = Tasks.add_tool_result(task_id, agent_id, tool_call_data, 2, false)
 
       assert interaction.result == 2
       assert interaction.is_error == false
@@ -119,23 +119,28 @@ defmodule FrontmanServer.TasksTest do
       # Register the tool call in Registry
       Registry.register(FrontmanServer.AgentRegistry, {:tool_call, tool_call_data.id}, agent_id)
 
-      {:ok, interaction} = Tasks.add_tool_result(task_id, tool_call_data, "error message", true)
+      {:ok, interaction} = Tasks.add_tool_result(task_id, agent_id, tool_call_data, "error message", true)
 
       assert interaction.is_error == true
       assert interaction.result == "error message"
       assert interaction.agent_id == agent_id
     end
 
-    test "returns error when tool call not registered" do
-      task_id = "test_tool_no_agent_#{System.unique_integer([:positive])}"
+    test "notifies agent via Registry" do
+      task_id = "test_tool_notify_#{System.unique_integer([:positive])}"
       {:ok, ^task_id} = Tasks.create_task(task_id)
+      agent_id = "agent_#{System.unique_integer([:positive])}"
 
-      # Don't register the tool call
-      tool_call_data = %{id: "unregistered_call", name: "some_tool"}
+      tool_call_data = %{id: "call_notify", name: "some_tool"}
 
-      result = Tasks.add_tool_result(task_id, tool_call_data, "result", false)
+      # Register the tool call in Registry
+      Registry.register(FrontmanServer.AgentRegistry, {:tool_call, tool_call_data.id}, agent_id)
 
-      assert result == {:error, :agent_not_found}
+      {:ok, _interaction} = Tasks.add_tool_result(task_id, agent_id, tool_call_data, "result", false)
+
+      # The tool result should have been stored successfully
+      interactions = Tasks.get_interactions(task_id)
+      assert length(interactions) == 1
     end
   end
 
@@ -154,14 +159,15 @@ defmodule FrontmanServer.TasksTest do
     test "returns todos from task" do
       task_id = "test_list_todos_#{System.unique_integer([:positive])}"
       {:ok, ^task_id} = Tasks.create_task(task_id)
+      agent_id = "agent_#{System.unique_integer([:positive])}"
 
       {:ok, todo1} = Tasks.create_todo("First", "First", "pending")
       event1 = FrontmanServer.Tasks.Todos.Tools.TodoAdded.from_todo(todo1)
-      Tasks.add_tool_result(task_id, %{id: "c1", name: "todo_add"}, event1, false)
+      Tasks.add_tool_result(task_id, agent_id, %{id: "c1", name: "todo_add"}, event1, false)
 
       {:ok, todo2} = Tasks.create_todo("Second", "Second", "in_progress")
       event2 = FrontmanServer.Tasks.Todos.Tools.TodoAdded.from_todo(todo2)
-      Tasks.add_tool_result(task_id, %{id: "c2", name: "todo_add"}, event2, false)
+      Tasks.add_tool_result(task_id, agent_id, %{id: "c2", name: "todo_add"}, event2, false)
 
       {:ok, todos} = Tasks.list_todos(task_id)
 
@@ -176,10 +182,11 @@ defmodule FrontmanServer.TasksTest do
       task_b = "test_isolation_b_#{System.unique_integer([:positive])}"
       {:ok, ^task_a} = Tasks.create_task(task_a)
       {:ok, ^task_b} = Tasks.create_task(task_b)
+      agent_id = "agent_#{System.unique_integer([:positive])}"
 
       {:ok, todo} = Tasks.create_todo("Task A todo", "Working", "pending")
       event = FrontmanServer.Tasks.Todos.Tools.TodoAdded.from_todo(todo)
-      Tasks.add_tool_result(task_a, %{id: "c1", name: "todo_add"}, event, false)
+      Tasks.add_tool_result(task_a, agent_id, %{id: "c1", name: "todo_add"}, event, false)
 
       {:ok, todos_a} = Tasks.list_todos(task_a)
       {:ok, todos_b} = Tasks.list_todos(task_b)

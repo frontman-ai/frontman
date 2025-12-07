@@ -168,6 +168,7 @@ defmodule FrontmanServerWeb.SessionChannel do
         # Store result and notify agent
         Tasks.add_tool_result(
           session_id,
+          tool_call.agent_id,
           %{id: tool_call.tool_call_id, name: tool_call.tool_name},
           text_result,
           is_error
@@ -217,6 +218,7 @@ defmodule FrontmanServerWeb.SessionChannel do
         # Store error result and notify agent
         Tasks.add_tool_result(
           session_id,
+          tool_call.agent_id,
           %{id: tool_call.tool_call_id, name: tool_call.tool_name},
           error_message,
           true
@@ -427,6 +429,7 @@ defmodule FrontmanServerWeb.SessionChannel do
     # Store structured data (not JSON)
     Tasks.add_tool_result(
       session_id,
+      tool_call.agent_id,
       %{id: tool_call.tool_call_id, name: tool_call.tool_name},
       result,
       false
@@ -447,6 +450,7 @@ defmodule FrontmanServerWeb.SessionChannel do
     # Store error
     Tasks.add_tool_result(
       session_id,
+      tool_call.agent_id,
       %{id: tool_call.tool_call_id, name: tool_call.tool_name},
       error_message,
       true

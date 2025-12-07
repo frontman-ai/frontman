@@ -54,15 +54,17 @@ defmodule FrontmanServer.Tasks do
   end
 
   @doc """
-  Gets interactions formatted as LLM messages.
+  Gets interactions formatted as LLM messages for a specific agent.
 
   Transforms task interactions into the format expected by LLM APIs.
+  Filters to only include interactions belonging to the specified agent.
+  UserMessages are always included as shared context.
   """
-  @spec get_llm_messages(String.t()) :: list(map())
-  def get_llm_messages(task_id) do
+  @spec get_llm_messages(String.t(), String.t()) :: list(map())
+  def get_llm_messages(task_id, agent_id) do
     task_id
     |> get_interactions()
-    |> Interaction.to_llm_messages()
+    |> Interaction.to_llm_messages(agent_id)
   end
 
   @doc """
@@ -162,12 +164,13 @@ defmodule FrontmanServer.Tasks do
   @doc """
   Creates and appends a ToolResult interaction.
 
+  The agent_id identifies which agent (root or sub-agent) owns this tool result.
   Notifies Agents directly so the agent can continue its iteration.
   """
-  @spec add_tool_result(String.t(), map(), term(), boolean()) ::
+  @spec add_tool_result(String.t(), String.t(), map(), term(), boolean()) ::
           {:ok, Interaction.t()} | {:error, :task_not_found}
-  def add_tool_result(task_id, tool_call_data, result, is_error \\ false) do
-    interaction = Interaction.ToolResult.new(tool_call_data, result, is_error)
+  def add_tool_result(task_id, agent_id, tool_call_data, result, is_error \\ false) do
+    interaction = Interaction.ToolResult.new(agent_id, tool_call_data, result, is_error)
 
     case append_interaction(task_id, interaction) do
       {:ok, interaction} ->
@@ -228,6 +231,25 @@ defmodule FrontmanServer.Tasks do
         inspect(sub_agent.error),
         1,
         duration_ms
+      )
+
+    append_interaction(task_id, interaction)
+  end
+
+  @doc """
+  Records a sub-agent spawn failure.
+
+  Called when a parent agent attempts to spawn a sub-agent but it fails.
+  Records the parent agent_id and the failed spawn details.
+  """
+  def add_sub_agent_spawn_failed(task_id, agent_id, tool_call_id, role, task, reason) do
+    interaction =
+      Interaction.SubAgentSpawnFailed.new(
+        agent_id,
+        tool_call_id,
+        role,
+        task,
+        inspect(reason)
       )
 
     append_interaction(task_id, interaction)
