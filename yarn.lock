@@ -197,6 +197,7 @@ __metadata:
     rescript: "catalog:"
     rescript-vitest: "catalog:"
     typescript: "npm:^5.9.2"
+    vite: "catalog:"
     wxt: "npm:^0.20.6"
   languageName: unknown
   linkType: soft
@@ -264,7 +265,6 @@ __metadata:
     use-stick-to-bottom: "npm:^1.1.1"
     use-sync-external-store: "npm:^1.6.0"
     vite: "npm:^7.1.12"
-    vite-plugin-biome: "npm:^1.0.12"
     vitest: "catalog:"
     zod: "npm:^4.1.12"
   languageName: unknown
@@ -292,6 +292,7 @@ __metadata:
     rescript: "catalog:"
     rescript-vitest: "catalog:"
     sury: "catalog:"
+    vite: "catalog:"
     vitest: "catalog:"
   languageName: unknown
   linkType: soft
@@ -305,6 +306,7 @@ __metadata:
     rescript: "catalog:"
     rescript-vitest: "catalog:"
     sury: "catalog:"
+    vite: "catalog:"
     vitest: "catalog:"
   languageName: unknown
   linkType: soft
@@ -331,26 +333,6 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@ask-the-llm/logger@workspace:libs/logger"
   dependencies:
-    rescript: "catalog:"
-    rescript-vitest: "catalog:"
-    sury: "catalog:"
-    sury-ppx: "npm:^11.0.0-alpha.2"
-    vite: "catalog:"
-    vitest: "catalog:"
-  languageName: unknown
-  linkType: soft
-
-"@ask-the-llm/nextjs@npm:*, @ask-the-llm/nextjs@workspace:libs/nextjs":
-  version: 0.0.0-use.local
-  resolution: "@ask-the-llm/nextjs@workspace:libs/nextjs"
-  dependencies:
-    "@rescript/webapi": "catalog:"
-    "@vitest/ui": "catalog:"
-    dom-element-to-component-source: "npm:^0.3.1"
-    dotenv: "catalog:"
-    next: "npm:^15.5.6"
-    react: "npm:^19.2.0"
-    react-dom: "npm:^19.2.0"
     rescript: "catalog:"
     rescript-vitest: "catalog:"
     sury: "catalog:"
@@ -388,9 +370,10 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@ask-the-llm/vite-plugin@workspace:libs/vite-plugin"
   dependencies:
-    "@ask-the-llm/nextjs": "npm:*"
     "@types/node": "npm:^24.10.0"
     next: "npm:^16.0.3"
+    react: "npm:^19.2.0"
+    react-dom: "npm:^19.2.0"
     typescript: "npm:^5.9.3"
     vite: "npm:^7.1.12"
     vite-plugin-dts: "npm:^4.5.4"
@@ -7754,17 +7737,17 @@ __metadata:
   languageName: node
   linkType: hard
 
-"dotenv@npm:17.2.3, dotenv@npm:^17.2.1, dotenv@npm:^17.2.2, dotenv@npm:^17.2.3":
-  version: 17.2.3
-  resolution: "dotenv@npm:17.2.3"
-  checksum: 10c0/c884403209f713214a1b64d4d1defa4934c2aa5b0002f5a670ae298a51e3c3ad3ba79dfee2f8df49f01ae74290fcd9acdb1ab1d09c7bfb42b539036108bb2ba0
-  languageName: node
-  linkType: hard
-
 "dotenv@npm:^16.4.5":
   version: 16.6.1
   resolution: "dotenv@npm:16.6.1"
   checksum: 10c0/15ce56608326ea0d1d9414a5c8ee6dcf0fffc79d2c16422b4ac2268e7e2d76ff5a572d37ffe747c377de12005f14b3cc22361e79fc7f1061cce81f77d2c973dc
+  languageName: node
+  linkType: hard
+
+"dotenv@npm:^17.2.1, dotenv@npm:^17.2.2, dotenv@npm:^17.2.3":
+  version: 17.2.3
+  resolution: "dotenv@npm:17.2.3"
+  checksum: 10c0/c884403209f713214a1b64d4d1defa4934c2aa5b0002f5a670ae298a51e3c3ad3ba79dfee2f8df49f01ae74290fcd9acdb1ab1d09c7bfb42b539036108bb2ba0
   languageName: node
   linkType: hard
 
@@ -11771,65 +11754,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"next@npm:^15.5.6, next@npm:~15.5.5":
-  version: 15.5.6
-  resolution: "next@npm:15.5.6"
-  dependencies:
-    "@next/env": "npm:15.5.6"
-    "@next/swc-darwin-arm64": "npm:15.5.6"
-    "@next/swc-darwin-x64": "npm:15.5.6"
-    "@next/swc-linux-arm64-gnu": "npm:15.5.6"
-    "@next/swc-linux-arm64-musl": "npm:15.5.6"
-    "@next/swc-linux-x64-gnu": "npm:15.5.6"
-    "@next/swc-linux-x64-musl": "npm:15.5.6"
-    "@next/swc-win32-arm64-msvc": "npm:15.5.6"
-    "@next/swc-win32-x64-msvc": "npm:15.5.6"
-    "@swc/helpers": "npm:0.5.15"
-    caniuse-lite: "npm:^1.0.30001579"
-    postcss: "npm:8.4.31"
-    sharp: "npm:^0.34.3"
-    styled-jsx: "npm:5.1.6"
-  peerDependencies:
-    "@opentelemetry/api": ^1.1.0
-    "@playwright/test": ^1.51.1
-    babel-plugin-react-compiler: "*"
-    react: ^18.2.0 || 19.0.0-rc-de68d2f4-20241204 || ^19.0.0
-    react-dom: ^18.2.0 || 19.0.0-rc-de68d2f4-20241204 || ^19.0.0
-    sass: ^1.3.0
-  dependenciesMeta:
-    "@next/swc-darwin-arm64":
-      optional: true
-    "@next/swc-darwin-x64":
-      optional: true
-    "@next/swc-linux-arm64-gnu":
-      optional: true
-    "@next/swc-linux-arm64-musl":
-      optional: true
-    "@next/swc-linux-x64-gnu":
-      optional: true
-    "@next/swc-linux-x64-musl":
-      optional: true
-    "@next/swc-win32-arm64-msvc":
-      optional: true
-    "@next/swc-win32-x64-msvc":
-      optional: true
-    sharp:
-      optional: true
-  peerDependenciesMeta:
-    "@opentelemetry/api":
-      optional: true
-    "@playwright/test":
-      optional: true
-    babel-plugin-react-compiler:
-      optional: true
-    sass:
-      optional: true
-  bin:
-    next: dist/bin/next
-  checksum: 10c0/17d08dda8e0503aff9f2de27ea77bde193fd5f9f3faaaefa9dfb0f8957880c49f47cb1ebb6c3a014664890dee2aafa1da31e3093e7fd8c205caf956d25781704
-  languageName: node
-  linkType: hard
-
 "next@npm:^16.0.3":
   version: 16.0.3
   resolution: "next@npm:16.0.3"
@@ -11886,6 +11810,65 @@ __metadata:
   bin:
     next: dist/bin/next
   checksum: 10c0/0eb0fbe0b9a3287ab447638d04dd564db854ad100bab0f935290ab83e0c6267111ffea1fef2769765e60824c386c2c2e13ad935ac9149960e616af108546b89c
+  languageName: node
+  linkType: hard
+
+"next@npm:~15.5.5":
+  version: 15.5.6
+  resolution: "next@npm:15.5.6"
+  dependencies:
+    "@next/env": "npm:15.5.6"
+    "@next/swc-darwin-arm64": "npm:15.5.6"
+    "@next/swc-darwin-x64": "npm:15.5.6"
+    "@next/swc-linux-arm64-gnu": "npm:15.5.6"
+    "@next/swc-linux-arm64-musl": "npm:15.5.6"
+    "@next/swc-linux-x64-gnu": "npm:15.5.6"
+    "@next/swc-linux-x64-musl": "npm:15.5.6"
+    "@next/swc-win32-arm64-msvc": "npm:15.5.6"
+    "@next/swc-win32-x64-msvc": "npm:15.5.6"
+    "@swc/helpers": "npm:0.5.15"
+    caniuse-lite: "npm:^1.0.30001579"
+    postcss: "npm:8.4.31"
+    sharp: "npm:^0.34.3"
+    styled-jsx: "npm:5.1.6"
+  peerDependencies:
+    "@opentelemetry/api": ^1.1.0
+    "@playwright/test": ^1.51.1
+    babel-plugin-react-compiler: "*"
+    react: ^18.2.0 || 19.0.0-rc-de68d2f4-20241204 || ^19.0.0
+    react-dom: ^18.2.0 || 19.0.0-rc-de68d2f4-20241204 || ^19.0.0
+    sass: ^1.3.0
+  dependenciesMeta:
+    "@next/swc-darwin-arm64":
+      optional: true
+    "@next/swc-darwin-x64":
+      optional: true
+    "@next/swc-linux-arm64-gnu":
+      optional: true
+    "@next/swc-linux-arm64-musl":
+      optional: true
+    "@next/swc-linux-x64-gnu":
+      optional: true
+    "@next/swc-linux-x64-musl":
+      optional: true
+    "@next/swc-win32-arm64-msvc":
+      optional: true
+    "@next/swc-win32-x64-msvc":
+      optional: true
+    sharp:
+      optional: true
+  peerDependenciesMeta:
+    "@opentelemetry/api":
+      optional: true
+    "@playwright/test":
+      optional: true
+    babel-plugin-react-compiler:
+      optional: true
+    sass:
+      optional: true
+  bin:
+    next: dist/bin/next
+  checksum: 10c0/17d08dda8e0503aff9f2de27ea77bde193fd5f9f3faaaefa9dfb0f8957880c49f47cb1ebb6c3a014664890dee2aafa1da31e3093e7fd8c205caf956d25781704
   languageName: node
   linkType: hard
 
@@ -15879,15 +15862,6 @@ __metadata:
   bin:
     vite-node: vite-node.mjs
   checksum: 10c0/6ceca67c002f8ef6397d58b9539f80f2b5d79e103a18367288b3f00a8ab55affa3d711d86d9112fce5a7fa658a212a087a005a045eb8f4758947dd99af2a6c6b
-  languageName: node
-  linkType: hard
-
-"vite-plugin-biome@npm:^1.0.12":
-  version: 1.0.12
-  resolution: "vite-plugin-biome@npm:1.0.12"
-  peerDependencies:
-    "@biomejs/biome": ^1.8.0
-  checksum: 10c0/93d0a2157d957f276874f98fa81c9c726a3ebb25599333c5780df2626fde4db775f2df1217324e81680ce90ff8f73f8cca24c0a410e9552545b8cf649e09d4aa
   languageName: node
   linkType: hard
 
