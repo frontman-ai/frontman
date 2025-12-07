@@ -1,0 +1,95 @@
+---
+// Section
+// ------------
+// Description: a foundational component representing a section of content within page. The section component can contain any number of rows.
+// Properties:
+// - Id: the id of the section
+// - FullWidth: whether the section is will expand to full width or not
+// - StickyCol: specifies wether the section can contain a sticky column or not
+// - Mode:  use that to overide the light/dark mode for a specific section. Usefull if you have a section that might contain a dark background
+// - Padding: by default each section has a vertical padding. The padding property defines where the padding is applied (top, bottom, both, none), default is both
+// - Bg: the background image of the section
+// - BgPosition: the position of the background (center, top, bottom)
+// - BgHeight: the height of the background
+// - classes: additional classes
+
+// Props
+type BgProps =  {
+	src: string
+	width: number
+	height: number
+	format: string
+}
+type Props = {
+	id?: string
+	fullWidth?: boolean
+	stickyCol?: boolean
+	mode?: 'dark' | 'light'
+	padding?: 'both' | 'top' | 'bottom' | 'none'
+	bg?: BgProps
+	bgPosition?: string
+	bgHeight?: string
+	classes?: string
+}
+const {
+	id,
+	fullWidth,
+	stickyCol = false,
+	mode,
+	padding = 'both',
+	bg,
+	bgPosition = 'center',
+	bgHeight = '100%',
+	classes
+} = Astro.props
+
+const bgStyle = bg
+	? {
+			backgroundImage: `url(${bg.src})`,
+			height: bgHeight,
+			backgroundPosition: bgPosition
+		}
+	: {
+			height: bgHeight
+		}
+---
+
+<section
+	{...id ? { id } : {}}
+	class:list={[
+		'section',
+		{ 'section--sticky-col': stickyCol },
+		{ 'section--fullwidth': fullWidth },
+		{ 'section--padded': padding === 'both' },
+		{ 'section--padded-t': padding === 'top' },
+		{ 'section--padded-b': padding === 'bottom' },
+		{ [`${mode}`]: mode },
+		{ [`${classes}`]: classes }
+	]}
+>
+	<div class="section__bg" style={bgStyle}></div>
+	<div class="container">
+		<slot />
+	</div>
+</section>
+
+<style>
+	.section {
+		@apply relative text-neutral-500 dark:text-neutral-400 [&.dark:not([class*='bg-'])]:bg-neutral-950 [&.dark]:text-neutral-400 [&.light:not([class*='bg-'])]:bg-white [&.light]:bg-white [&.light]:text-neutral-500 [&.section--sticky-col_.container]:h-full [&:not(.section--sticky-col)]:overflow-hidden;
+	}
+	.section--padded {
+		@apply py-12 lg:py-24;
+	}
+	.section--padded-t {
+		@apply pt-12 lg:pt-24;
+	}
+	.section--padded-b {
+		@apply pb-12 lg:pb-24;
+	}
+	.section__bg {
+		@apply absolute inset-0 bg-cover;
+	}
+	.container {
+		@apply relative z-[1] mx-auto px-6 [.section--fullwidth_&]:max-w-full [.section--fullwidth_&]:px-0;
+	}
+</style>

@@ -1,0 +1,109 @@
+---
+// Button
+// ------------
+// Description: Buttons are interactive elements activated by a user with a mouse, keyboard, or tap
+// Properties:
+// - Type: the type of the button (link, button, submit, reset). If its type is link, the button will be rendered as an anchor tag
+// - Size: the size of the button (lg, base, sm)
+// - Link: the link of the button (if type is link)
+// - Modal: The id of the modal that the button can trigger (optional)
+// - Style: the style of the button (primary, secondary, neutral)
+// - Variation: the variation of the button (defaultoutline, link)
+// - Elevated: whether the button is elevated or not (optional)
+// - classes: additional classes
+// Reference: https://wind-ui.com/components/buttons/
+
+// Props
+type Props = {
+	type?: 'link' | 'button' | 'submit' | 'reset'
+	size?: 'lg' | 'base' | 'sm'
+	link?: string
+	modal?: string
+	style?: 'primary' | 'secondary' | 'neutral' | 'white'
+	variation?: 'outline' | 'link'
+	elevated?: boolean
+	classes?: string
+}
+const {
+	type = 'button',
+	size = 'base',
+	link,
+	modal,
+	style = 'primary',
+	variation,
+	elevated,
+	classes
+} = Astro.props
+---
+
+{
+	type === 'link' || link ? (
+		<a
+			href={link}
+			target={link?.startsWith('http') ? '_blank' : '_self'}
+			class:list={[
+				'button',
+				{ ['button--' + `${size}`]: size },
+				{ ['button--' + `${style}`]: style },
+				{ ['button--' + `${variation}`]: variation },
+				{ ['button--elevated']: elevated },
+				{ [`${classes}`]: classes }
+			]}
+		>
+			<slot />
+		</a>
+	) : (
+		<button
+			type={type}
+			class:list={[
+				'button',
+				{ ['button--' + `${size}`]: size },
+				{ ['button--' + `${style}`]: style },
+				{ ['button--' + `${variation}`]: variation },
+				{ ['button--elevated']: elevated },
+				{ [`${classes}`]: classes }
+			]}
+			{...(modal ? { 'data-modal': modal } : {})}
+		>
+			<slot />
+		</button>
+	)
+}
+<style>
+	.button {
+		@apply inline-flex cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded font-bold tracking-wide transition duration-300 focus-visible:outline-none disabled:cursor-not-allowed disabled:shadow-none;
+	}
+
+	.button--lg {
+		@apply h-12 px-6 text-sm [&.button--elevated]:shadow-lg [&.button--elevated]:hover:shadow-md [&.button--elevated]:focus:shadow-md;
+	}
+
+	.button--base {
+		@apply h-10 px-5 text-sm [&.button--elevated]:shadow-md [&.button--elevated]:hover:shadow-sm [&.button--elevated]:focus:shadow-sm;
+	}
+
+	.button--sm {
+		@apply h-8 px-4 text-xs [&.button--elevated]:shadow-md [&.button--elevated]:hover:shadow-sm [&.button--elevated]:focus:shadow-sm;
+	}
+	.button--outline {
+		@apply border;
+	}
+	.button--link {
+		@apply inline-flex items-center justify-start gap-2 px-0 font-normal;
+	}
+	.button--primary {
+		@apply bg-primary-500 text-white hover:bg-primary-700 focus:bg-primary-700 disabled:border-primary-300 disabled:bg-primary-300 [&.button--elevated]:shadow-lg [&.button--elevated]:shadow-primary-500/30 [&.button--elevated]:hover:shadow-primary-500/30 [&.button--elevated]:focus:shadow-primary-500/30 [&.button--link]:bg-transparent [&.button--link]:text-primary-500 hover:[&.button--link]:text-primary-600 focus:[&.button--link]:text-primary-600 [&.button--outline]:border-primary-500 [&.button--outline]:bg-transparent [&.button--outline]:text-primary-500 [&.button--outline]:hover:border-primary-600 [&.button--outline]:hover:text-primary-600;
+	}
+
+	.button--secondary {
+		@apply bg-primary-50 text-primary-500 hover:bg-primary-100 hover:text-primary-600 focus:bg-primary-200 focus:text-primary-700 disabled:border-primary-300 disabled:bg-primary-100 disabled:text-primary-400 [&.button--elevated]:shadow-primary-500/30 [&.button--elevated]:hover:shadow-primary-500/30 [&.button--elevated]:focus:shadow-primary-500/30 [&.button--link]:bg-transparent [&.button--link]:text-primary-500 hover:[&.button--link]:text-primary-600 focus:[&.button--link]:text-primary-600 [&.button--link_svg]:stroke-primary-500 [&.button--outline]:border-primary-500 [&.button--outline]:bg-transparent [&.button--outline]:text-primary-500 [&.button--outline]:hover:border-primary-600 [&.button--outline]:hover:text-primary-600 [&_svg]:stroke-primary-500;
+	}
+
+	.button--neutral {
+		@apply bg-neutral-700 text-white hover:bg-neutral-800 focus:bg-neutral-900 disabled:border-neutral-300 disabled:bg-neutral-300 [&.button--elevated]:shadow-neutral-500/30 [&.button--elevated]:hover:shadow-neutral-500/30 [&.button--elevated]:focus:shadow-neutral-500/30 [&.button--link]:bg-transparent [&.button--link]:text-neutral-700 hover:[&.button--link]:text-neutral-800 focus:[&.button--link]:text-neutral-900 [&.button--outline]:border-neutral-700 [&.button--outline]:bg-transparent [&.button--outline]:text-neutral-700 [&.button--outline]:hover:border-neutral-800 [&.button--outline]:hover:text-neutral-800;
+	}
+
+	.button--white {
+		@apply bg-white text-white disabled:border-neutral-300 disabled:bg-neutral-300 [&.button--elevated]:shadow-neutral-500/30 [&.button--elevated]:hover:shadow-neutral-500/30 [&.button--elevated]:focus:shadow-neutral-500/30 [&.button--link]:bg-transparent [&.button--link]:text-white [&.button--outline]:border-white [&.button--outline]:bg-transparent [&.button--outline]:text-white;
+	}
+</style>

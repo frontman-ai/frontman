@@ -1,0 +1,82 @@
+---
+// Text and Image Section
+// ------------
+// Description: A basic section with text and a side image.
+// Properties:
+// - id: The id of the section
+// - title: The title of the section
+// - image: The image of the section
+// - imageW: The width of the image
+// - imageH: The height of the image
+// - mobileImage: if provided, this image will be used instead on mobile devices
+// - imagePosition: The position of the image (left or right of the text)
+// - text: The text of the section
+// - classes: Additional classes to be added to the section
+// - offsetImage: Determines if the image should be offset (positioned absolutely)
+
+// Components
+// - Layout
+import Section from '../../ui/Section.astro'
+import Row from '../../ui/Row.astro'
+import Col from '../../ui/Col.astro'
+
+// Props
+type Props = {
+	id?: string
+	title?: string
+	image?: any
+	imageWidth?: number
+	imageHeight?: number
+	mobileImage?: any
+	imagePosition?: 'left' | 'right'
+	text?: string
+	classes?: string
+	offsetImage?: boolean
+}
+const {
+	id,
+	title ,
+	image ,
+	imageWidth,
+	imageHeight,
+	mobileImage,
+	imagePosition = 'right',
+	text ,
+	classes ,
+	offsetImage = false
+} = Astro.props
+---
+
+<Section id={id} classes={classes}>
+	<Row>
+		<Col span="6" classes="relative">
+			<picture
+				class=`text-image__picture ${offsetImage  ? 'text-image__picture--offset' : ''} ${imagePosition === 'right' ? 'text-image__picture--offset-right' : ''}`
+			>
+				{mobileImage && <source srcset={mobileImage.src} media="(max-width: 1024px)" />}
+				<img src={image.src} alt={title} width={imageWidth} height={imageHeight} />
+			</picture>
+		</Col>
+		<Col span="6" classes={`self-center ${imagePosition === 'right' ? 'lg:-order-1' : ''}`}>
+			<div class="text-image__content">
+				<h2 class="text-image__heading" set:html={title} />
+				<p class="text-image__text">{text}</p>
+			</div>
+		</Col>
+	</Row>
+</Section>
+
+<style>
+	.text-image__picture {
+		@apply flex justify-center lg:[&.text-image\_\_picture--offset-right_img]:left-0 lg:[&.text-image\_\_picture--offset-right_img]:right-auto lg:[&.text-image\_\_picture--offset]:h-full lg:[&.text-image\_\_picture--offset_img]:absolute lg:[&.text-image\_\_picture--offset_img]:right-0 lg:[&.text-image\_\_picture--offset_img]:top-1/2 lg:[&.text-image\_\_picture--offset_img]:max-w-none lg:[&.text-image\_\_picture--offset_img]:-translate-y-1/2;
+	}
+	.text-image__content {
+		@apply max-w-xl;
+	}
+	.text-image__heading {
+		@apply text-pretty text-2xl lg:text-3xl;
+	}
+	.text-image__text {
+		@apply text-lg leading-relaxed;
+	}
+</style>

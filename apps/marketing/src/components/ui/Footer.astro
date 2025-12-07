@@ -1,0 +1,116 @@
+---
+// Footer
+// ------------
+// Description: the website footer is the section of content
+// Reference: https://wind-ui.com/components/footers/
+
+// Components
+// - UI
+import { Icon } from 'astro-icon/components'
+
+// Data
+import { socialLinks } from '../../config/socialLinks'
+import { footerNavigationData } from '../../config/footerNavigation'
+
+const { footerAbout, footerColumns, subFooter } = footerNavigationData
+---
+
+<footer class="footer">
+	<!-- Main footer -->
+	<div class="footer__main">
+		<div class="footer__container">
+			<div class="footer__cols">
+				<div class="footer__col">
+					<a aria-label="webiste logo" aria-current="page" class="footer__main-brand" href="/">
+						<img src={footerAbout.logo.src} alt={footerAbout.logo.alt} width="32" height="32" />
+						{footerAbout.logo.text}
+					</a>
+					<p>
+						{footerAbout.aboutText}
+					</p>
+				</div>
+				{
+					footerColumns.map((column) => (
+						<div class="footer__col">
+							<h3>{column.category}</h3>
+							<ul>
+								{column.subCategories.map((subCategory) => (
+									<li>
+										<a href={subCategory.subCategoryLink}> {subCategory.subCategory} </a>
+									</li>
+								))}
+							</ul>
+						</div>
+					))
+				}
+			</div>
+		</div>
+	</div>
+	<!-- Sub Footer -->
+	<div class="footer__sub">
+		<div class="footer__container">
+			<div class="footer__sub-cols">
+				<div class="footer__sub-col">{subFooter.copywriteText}</div>
+				<nav aria-labelledby="footer-social-links-dark" class="footer__sub-col text-right">
+					<h2 class="sr-only" id="footer-social-links-dark">Social Media Links</h2>
+					<ul>
+						{
+							socialLinks.map((social) => (
+								<li>
+									<a href={social.link} aria-label={social.name}>
+										<Icon name={social.icon} />
+									</a>
+								</li>
+							))
+						}
+					</ul>
+				</nav>
+			</div>
+		</div>
+	</div>
+</footer>
+
+<style>
+	.footer {
+		@apply text-neutral-500 dark:text-neutral-300;
+	}
+	.footer a {
+		@apply transition-colors duration-300 hover:text-primary-500 focus:text-primary-600;
+	}
+	.footer__main {
+		@apply border-t border-neutral-100 bg-neutral-50 pb-12 pt-16 text-sm dark:border-neutral-900 dark:bg-neutral-950 [&_li]:mb-2 [&_li]:leading-6;
+	}
+	.footer__main h3 {
+		@apply mb-6 text-base font-medium leading-8 text-neutral-700 dark:text-neutral-50;
+	}
+	.footer__main-brand {
+		@apply mb-6 flex items-center gap-2 whitespace-nowrap font-headings text-xl font-bold leading-6 text-neutral-700 focus:outline-none dark:text-neutral-50;
+	}
+	.footer__container {
+		@apply container mx-auto px-6;
+	}
+
+	.footer__cols {
+		@apply grid grid-cols-4 gap-6 md:grid-cols-8 lg:grid-cols-12;
+	}
+
+	.footer__col {
+		@apply col-span-2 first:col-span-4 md:col-span-4 md:first:col-span-8 lg:col-span-2 lg:first:col-span-6 lg:first:max-w-96;
+	}
+	.footer__sub {
+		@apply border-t border-neutral-200 bg-neutral-100 py-4 text-sm text-neutral-600 dark:border-neutral-900 dark:bg-neutral-800/50 dark:text-neutral-400;
+	}
+	.footer__sub ul {
+		@apply flex items-center justify-end gap-6;
+	}
+	.footer__sub a {
+		@apply [&_svg]:h-4 [&_svg]:w-4 [&_svg]:shrink-0;
+	}
+	.footer__sub-cols {
+		@apply grid grid-cols-4 items-center gap-6 md:grid-cols-8 lg:grid-cols-12;
+	}
+
+	.footer__sub-col {
+		@apply col-span-2 md:col-span-4 lg:col-span-6;
+	}
+</style>

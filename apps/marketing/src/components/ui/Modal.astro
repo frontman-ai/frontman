@@ -1,0 +1,59 @@
+---
+// Modal
+// ------------
+// Description: the modal component is a ui element that displays a dialog box that appears on top of the current page.
+// Properties:
+// - Id: the id of the modal (use this id in the "modal" prop of the button)
+// - Title: the title of the modal
+// - classes: additional classes
+// Reference: https://wind-ui.com/components/modals/
+
+// Components
+// - UI
+import Button from './Button.astro'
+import { Icon } from 'astro-icon/components'
+
+// Props
+type Props = {
+	id?: string
+	title?: string
+	classes?: string
+}
+const { id, title, classes } = Astro.props
+---
+
+<div {...id ? { id } : {}} class:list={['modal', { [`${classes}`]: classes }]}>
+	<div class="modal__popup">
+		<div class="modal__header">
+			{title && <h2 class="modal__title">{title}</h2>}
+			<Button size="sm" style="neutral" classes="modal__close" variation="link">
+				<Icon name="x-mark" class="dark:text-neutral-50" />
+				<span class="sr-only">Close</span>
+			</Button>
+		</div>
+		<div class="modal__body">
+			<slot />
+		</div>
+	</div>
+</div>
+
+<style>
+	.modal {
+		@apply fixed left-0 top-0 z-30 flex h-0 w-full items-center justify-center overflow-hidden bg-white/50 lg:backdrop-blur-sm dark:bg-neutral-900/50 [&.open]:h-full;
+	}
+	.modal__popup {
+		@apply m-6 flex w-80 max-w-full translate-y-6 flex-col overflow-hidden rounded border border-neutral-100 bg-white text-neutral-500 opacity-0 shadow-xl shadow-neutral-700/5 transition-all duration-500 dark:border-neutral-800 dark:bg-neutral-900 dark:shadow-neutral-950/50 [.open_&]:translate-y-0 [.open_&]:opacity-100;
+	}
+	.modal__header {
+		@apply flex items-center justify-between gap-6 border-b border-neutral-100 px-6 py-2 text-lg font-medium dark:border-neutral-800;
+	}
+	.modal__close {
+		@apply !rounded-full !px-2.5;
+	}
+	.modal__title {
+		@apply mb-0 truncate text-lg;
+	}
+	.modal__body {
+		@apply p-6;
+	}
+</style>

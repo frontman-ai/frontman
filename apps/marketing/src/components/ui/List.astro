@@ -1,0 +1,58 @@
+---
+// List
+// ------------
+// Description: the list component is a ui element that displays a list of items in a vertical order.
+// Properties:
+// - Type: the type of the list (basic, checklist)
+// - ListItems: the list items of the list
+// - classes: additional classes
+// - listColor: the color of the marker (primary, neutral, white)
+
+// Components
+// - UI
+import { Icon } from 'astro-icon/components'
+
+// Props
+type Props = {
+	type?: 'basic' | 'checklist'
+	listItems: Array<any>
+	classes?: string
+	listColor?: 'primary' | 'neutral' | 'white'
+}
+const { type = 'basic', listColor = 'primary', listItems, classes } = Astro.props
+---
+
+<ul
+	class:list={[
+		'list',
+		{ ['list--' + `${type}`]: type },
+		{ ['list--' + `${listColor}`]: listColor },
+		{ [`${classes}`]: classes }
+	]}
+>
+	{
+		listItems.map((item) => (
+			<li>
+				{type === 'checklist' && <Icon name="check-circle" />} {item.listItem}
+			</li>
+		))
+	}
+</ul>
+
+<style>
+	.list li {
+		@apply mb-2 ml-4 list-disc text-neutral-700 dark:text-neutral-50;
+	}
+	.list--checklist {
+		@apply [&_li]:flex [&_li]:items-start [&_li]:gap-2 [&_svg]:h-6 [&_svg]:w-6 [&_svg]:shrink-0 [&_svg]:p-1 [&_svg]:text-primary-500;
+	}
+	.list--primary {
+		@apply [&.list--checklist_svg]:text-primary-500 [&_li]:marker:text-primary-500;
+	}
+	.list--white {
+		@apply [&.list--checklist_svg]:text-white [&_li]:marker:text-white;
+	}
+	.list--neutral {
+		@apply [&.list--checklist_svg]:text-neutral-500 [&_li]:marker:text-neutral-500;
+	}
+</style>

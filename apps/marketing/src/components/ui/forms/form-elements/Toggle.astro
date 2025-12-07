@@ -1,0 +1,61 @@
+---
+// Toggle input
+// ------------
+// Description: Switches - toggle the state of a single setting on or off.
+// Properties:
+// - id: The id of the text field
+// - label: The label of the text field
+// - showLabel: Whether to show the label (default: true)
+// - checked: Whether the toggle is checked (default: false)
+// - helperText: The helper text to be displayed
+// - disabled: Whether the toggle is disabled
+// - classes: Additional classes to be added to the toggle
+
+// Reference: https://wind-ui.com/components/form-elements/toggles/
+
+// Props
+type Props = {
+	id: string
+	label: string
+	showLabel?: boolean
+	checked?: boolean
+	helperText?: string
+	disabled?: boolean
+	classes?: string
+}
+const { id, label, showLabel = true, checked = false, helperText, disabled, classes } = Astro.props
+---
+
+<div class:list={['toggle', { [`${classes}`]: classes }]}>
+	<input
+		class:list={['toggle__input peer']}
+		type="checkbox"
+		value=""
+		id={id}
+		disabled={disabled}
+		checked={checked}
+	/>
+	<label class:list={['toggle__label', { ['sr-only']: !showLabel }]} for={id}>{label}</label>
+	{
+		helperText && (
+			<small class="toggle__helper-text">
+				<span>{helperText}</span>
+			</small>
+		)
+	}
+</div>
+
+<style>
+	.toggle {
+		@apply relative flex flex-wrap items-center;
+	}
+	.toggle__input {
+		@apply relative h-6 w-12 cursor-pointer appearance-none rounded-xl bg-neutral-300 transition-colors after:absolute after:left-0 after:top-0 after:h-6 after:w-6 after:rounded-full after:bg-neutral-500 after:transition-all checked:bg-primary-200 checked:after:left-6 checked:after:bg-primary-500 hover:bg-neutral-400 after:hover:bg-neutral-600 checked:hover:bg-primary-300 checked:after:hover:bg-primary-600 focus:outline-none checked:focus:bg-primary-400 checked:after:focus:bg-primary-700 focus-visible:outline-none disabled:cursor-not-allowed disabled:bg-neutral-200 disabled:after:bg-neutral-300 dark:bg-neutral-700 dark:hover:bg-neutral-800;
+	}
+	.toggle__label {
+		@apply cursor-pointer pl-2 text-neutral-500 peer-disabled:cursor-not-allowed peer-disabled:text-neutral-400 dark:text-neutral-300;
+	}
+	.toggle__helper-text {
+		@apply w-full py-2 pl-14 text-xs text-neutral-400 transition peer-invalid:text-red-500;
+	}
+</style>

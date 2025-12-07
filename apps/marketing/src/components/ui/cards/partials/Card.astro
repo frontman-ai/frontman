@@ -1,0 +1,32 @@
+---
+// Card
+// ------------
+// Description: the basic card foundation. Contains the background, shadow and border radius
+// Properties:
+// - link: will allow the whole card to be linkable
+// - classes: extra classes
+
+// Props
+type Props = {
+	link?: string
+	classes?: string
+}
+const { link, classes } = Astro.props
+---
+
+{
+	link ? (
+		<a href={link} class:list={['card', { [`${classes}`]: classes }]}>
+			<slot />
+		</a>
+	) : (
+		<div class:list={['card', { [`${classes}`]: classes }]}>
+			<slot />
+		</div>
+	)
+}
+<style>
+	.card {
+		@apply flex flex-col overflow-hidden rounded border border-neutral-100 bg-white text-neutral-500 shadow-lg shadow-neutral-700/5 dark:border-neutral-800 dark:bg-neutral-900 dark:shadow-neutral-950/50;
+	}
+</style>

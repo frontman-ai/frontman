@@ -1,0 +1,85 @@
+/* Layout rules */
+html {
+	@apply scroll-smooth antialiased;
+}
+body {
+	@apply bg-white text-neutral-500 has-[.header\_\_menu--open]:overflow-hidden lg:has-[.header\_\_menu--open]:overflow-auto dark:bg-neutral-950 dark:text-neutral-400 [.dark_&]:text-neutral-400 [.light_&]:text-neutral-500;
+}
+
+/* Main typography */
+p {
+	@apply mb-6 last:mb-0;
+}
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+	@apply font-headings text-neutral-700 last:mb-0 dark:text-neutral-50 [&>strong]:text-primary-500 [.dark_&]:text-neutral-50 [.light_&]:text-neutral-700;
+}
+h1 strong,
+h2 strong,
+h3 strong,
+h4 strong,
+h5 strong,
+h6 strong {
+	font-weight: inherit;
+}
+h1,
+h2,
+h3 {
+	@apply mb-6 font-bold;
+}
+
+h4,
+h5,
+h6 {
+	@apply mb-4 font-semibold;
+}
+
+h1 {
+	@apply text-4xl lg:text-6xl;
+}
+
+h2 {
+	@apply text-3xl lg:text-5xl;
+}
+
+h3 {
+	@apply text-2xl lg:text-3xl;
+}
+
+h4 {
+	@apply text-xl lg:text-2xl;
+}
+
+h5 {
+	@apply text-lg lg:text-xl;
+}
+
+h6 {
+	@apply text-base lg:text-lg;
+}
+main a {
+	@apply text-primary-500 hover:text-primary-600;
+}
+.highlight {
+	@apply text-primary-500;
+}
+.small {
+	@apply text-sm font-normal text-neutral-400 dark:text-neutral-500;
+}
+/* Global basic styling */
+.basic-text {
+	@apply [&_blockquote]:relative [&_blockquote]:mb-6 [&_blockquote]:rounded [&_blockquote]:border [&_blockquote]:border-neutral-100 [&_blockquote]:bg-neutral-50 [&_blockquote]:p-6 [&_blockquote]:text-lg [&_blockquote]:leading-relaxed [&_blockquote]:text-neutral-700 [&_blockquote]:before:absolute [&_blockquote]:before:left-0 [&_blockquote]:before:top-0 [&_blockquote]:before:z-[0] [&_blockquote]:before:block [&_blockquote]:before:text-9xl [&_blockquote]:before:italic [&_blockquote]:before:text-neutral-200 [&_blockquote]:before:opacity-50 [&_blockquote]:before:content-['"'] lg:[&_blockquote]:-mx-12 dark:[&_blockquote]:border-neutral-600 dark:[&_blockquote]:bg-neutral-700 dark:[&_blockquote]:text-neutral-50 dark:[&_blockquote]:before:text-neutral-600 [&_blockquote_p]:relative [&_blockquote_p]:z-[1] [&_blockquote_p]:px-6 [&_h1:not(:first-child)]:mt-24 [&_h2:not(:first-child)]:mt-24 [&_h3:not(:first-child)]:mt-24 [&_h4:not(:first-child)]:mt-12 [&_img]:rounded [&_img]:border [&_img]:border-neutral-100 dark:[&_img]:border-neutral-600 [&_li]:mb-2 [&_li]:ml-4 [&_li]:list-disc [&_li]:marker:text-primary-500 lg:[&_p:has(img)]:-mx-12;
+}
+.basic-text--lg {
+	@apply text-lg leading-relaxed [&_blockquote]:text-xl [&_blockquote]:leading-loose;
+}
+
+/* Scroll animations */
+/* To disable scroll animations remove the class "sroll-animation" from root html in the layout file */
+.scroll-animation .col {
+	@apply translate-y-4 transform opacity-0 transition-all duration-1000 [&.scroll-animated]:translate-y-0 [&.scroll-animated]:opacity-100 [&:nth-child(1)]:delay-[50ms] [&:nth-child(10)]:delay-[725ms] [&:nth-child(11)]:delay-[800ms] [&:nth-child(12)]:delay-[875ms] [&:nth-child(2)]:delay-[125ms] [&:nth-child(3)]:delay-[200ms] [&:nth-child(4)]:delay-[275ms] [&:nth-child(5)]:delay-[350ms] [&:nth-child(6)]:delay-[425ms] [&:nth-child(7)]:delay-[500ms] [&:nth-child(8)]:delay-[575ms] [&:nth-child(9)]:delay-[650ms];
+}

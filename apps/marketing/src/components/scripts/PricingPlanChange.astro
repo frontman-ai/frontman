@@ -1,0 +1,23 @@
+<!-- Pricing plans: A simple script to toggle the pricing plans between annualy and monthly -->
+<script>
+	document.addEventListener('astro:page-load', () => {
+		const pricingTypeCheckbox = document.getElementById('pricingType')
+		const montlyLabel = document.getElementById('monthlyLabel')
+		const annualyLabel = document.getElementById('annualLabel')
+		const plans = ['plan-0', 'plan-1', 'plan-2']
+		if (pricingTypeCheckbox) {
+			pricingTypeCheckbox.addEventListener('change', function () {
+				plans.forEach((plan) => {
+					const planElement = document.getElementById(plan)
+
+					if (planElement && montlyLabel && annualyLabel) {
+						planElement.classList.toggle('pricing--annualy')
+						planElement.classList.toggle('pricing--monthly')
+						montlyLabel.classList.toggle('text-primary-500')
+						annualyLabel.classList.toggle('text-primary-500')
+					}
+				})
+			})
+		}
+	})
+</script>

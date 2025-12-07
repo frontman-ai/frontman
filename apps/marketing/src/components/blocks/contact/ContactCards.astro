@@ -1,0 +1,72 @@
+---
+// Basic Cards grid Section
+// ------------
+// Description: A grid of cards with basic contact information in a 4 column layout.
+// Properties:
+// - classes: Additional classes to be added to the Section
+
+// Components
+// - Layout
+import Section from '../../ui/Section.astro'
+import Row from '../../ui/Row.astro'
+import Col from '../../ui/Col.astro'
+// - UI
+import Card from '../../ui/cards/BasicCard.astro'
+
+// 	Props
+type Props = {
+	classes?: string
+}
+const { classes } = Astro.props
+---
+
+<Section id="requests" classes={classes}>
+	<Row>
+		<Col span="12" align="center" classes="mb-12 max-w-4xl mx-auto">
+			<h2 class="text-balance">Have a Special Request? We’re Here to <strong>Help!</strong></h2>
+			<p class="pb-0 text-lg">
+				Choose from one of the options below to get the specific help you need. Whether it's
+				customer support, sales inquiries, feature requests, or general feedback, we're here to
+				provide you with the best assistance possible.
+			</p>
+		</Col>
+	</Row>
+	<Row>
+		<Col span="3">
+			<Card
+				title="Customer Support"
+				subtitle="Need help with Foxi? Our support team is available 24/7 to assist you with any issues or questions you might have."
+				icon="rocket"
+				classes="text-center dark:!bg-neutral-800/50"
+				link="/contact"
+			/>
+		</Col>
+		<Col span="3">
+			<Card
+				title="Sales Inquiries "
+				subtitle="Interested in our plans or want a custom solution? Get in touch with our sales team to find the perfect fit. "
+				icon="document-text"
+				classes="text-center dark:!bg-neutral-800/50"
+				link="/contact"
+			/>
+		</Col>
+		<Col span="3">
+			<Card
+				title="Feature Requests"
+				subtitle="Have an idea to make Foxi even better? We’d love to hear from you! Share your feature requests and help us improve "
+				icon="bolt"
+				classes="text-center dark:!bg-neutral-800/50"
+				link="/contact"
+			/>
+		</Col>
+		<Col span="3" classes="flex flex-col gap-6">
+			<Card
+				title="General Feedback"
+				subtitle="Your feedback is invaluable to us. Let us know how we’re doing and how we can improve. "
+				icon="chat-bubble-left-ellipsis"
+				classes="text-center dark:!bg-neutral-800/50"
+				link="/contact"
+			/>
+		</Col>
+	</Row>
+</Section>

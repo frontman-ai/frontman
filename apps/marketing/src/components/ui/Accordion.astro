@@ -1,0 +1,57 @@
+---
+// Accordion
+// ------------
+// Description: the accordion element creates a disclosure widget in which information is visible only when the widget is toggled into an "open" state.
+// Properties:
+// - Title: the title of the accordion (usually represents a question)
+// - Text: the text of the accordion (usually represents an answer)
+// - Open: whether the accordion is open or not
+// - classes: additional classes
+// Reference: https://wind-ui.com/components/accordions/
+
+// Components
+// - UI
+import { Icon } from 'astro-icon/components'
+
+// Props
+type Props = {
+	title: string
+	text: string
+	open?: boolean
+	classes?: string
+}
+const {
+	title = 'Foxi. Tailwind CSS Astro Starter Kit by Oxygenna',
+	text = 'Foxi is a design and development agency that specializes in creating beautiful and functional websites.',
+	open = false,
+	classes 
+} = Astro.props
+---
+
+<details
+	class:list={['accordion group', { [`${classes}`]: classes }]}
+	open={open ? true : undefined}
+>
+	<summary class="accordion__summary">
+		{title}
+		<Icon name="plus" class="accordion__icon" />
+	</summary>
+	<p class="accordion__text">
+		{text}
+	</p>
+</details>
+
+<style>
+	.accordion {
+		@apply cursor-pointer;
+	}
+	.accordion__summary {
+		@apply relative list-none px-6 py-4 text-lg font-medium text-neutral-700 transition focus-visible:outline-none dark:text-neutral-300 [&::-webkit-details-marker]:hidden;
+	}
+	.accordion__icon {
+		@apply absolute right-4 top-[1.375rem] h-4 w-4 shrink-0 transition duration-300 group-open:rotate-45;
+	}
+	.accordion__text {
+		@apply mb-0 bg-neutral-50 p-6 transition dark:bg-neutral-800/50;
+	}
+</style>

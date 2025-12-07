@@ -1,0 +1,4 @@
+config:
+  marketing:accountId: 8c7cdfc21b5e8079b949ce45baddf9c5
+  cloudflare:apiToken:
+    secure: AAABAKj1A6WeQcoO5gD9SMge2VWx1IpVOa5zLB9zG7YKHfpURUINrB+yq6r/n36iS7hjimRSDL3RdZXU4w6TsWxeEzsYZ2bo

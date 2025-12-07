@@ -1,0 +1,44 @@
+---
+// Highlight
+// ------------
+// Description: a simple component to highlight specific words or phrases
+// Properties:
+// - Type: the type of the highlight (1, 2, 3, 4)
+// - classes: additional classes
+// - colorFrom: For the type 4 (gradient) the initial color
+// - colorTo: For the type 4 (gradient) the final color
+
+// Props
+type Props = {
+	type?: string
+	classes?: string
+	colorFrom?: string
+	colorTo?: string
+}
+const { type = '1', classes, colorFrom, colorTo } = Astro.props
+---
+
+<span
+	class:list={['highlight', { [`highlight--${type}`]: type }, { [`${classes}`]: classes }]}
+	style=`background-image:linear-gradient(to right, ${colorFrom} 0%, ${colorTo} 100%)`
+>
+	<slot />
+</span>
+
+<style>
+	.highlight {
+		@apply relative inline-block before:absolute before:-bottom-1 before:-left-1 before:-right-1 before:-top-1 before:z-[-1];
+	}
+	.highlight--1 {
+		@apply text-primary-500;
+	}
+	.highlight--2 {
+		@apply px-4 text-white before:bg-primary-500;
+	}
+	.highlight--3 {
+		@apply px-4 text-white before:-rotate-2 before:bg-primary-500 lg:before:-bottom-2 lg:before:-top-2;
+	}
+	.highlight--4 {
+		@apply bg-gradient-to-r bg-clip-text text-transparent;
+	}
+</style>

@@ -1,0 +1,32 @@
+---
+// FAQ with sticky sidebar
+// ------------
+// Description: an FAQ section with the title as a sticky sidebar.
+
+// Components
+// - UI
+import StickySidebar from '../basic/StickySidebar.astro'
+import FAQ from '../../ui/Accordion.astro'
+import Card from '../../ui/cards/partials/Card.astro'
+
+// Props
+type Props = {
+	title: string
+	text?: string
+	data: any
+	type?: 'left' | 'right'
+	classes?: string
+}
+const { title, text, data, type = 'left', classes } = Astro.props
+---
+
+<StickySidebar classes={classes} type={type}>
+	<header slot="sidebar">
+		{title && <h3 class="text-3xl">{title}</h3>}
+		{text && <p class="text-lg leading-relaxed">{text}</p>}
+	</header>
+
+	<Card classes="divide-y divide-neutral-100 dark:divide-neutral-800">
+		{data.map((faq: any) => <FAQ title={faq.question} text={faq.reply} open={faq.open} />)}
+	</Card>
+</StickySidebar>

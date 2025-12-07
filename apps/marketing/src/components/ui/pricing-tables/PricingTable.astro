@@ -1,0 +1,179 @@
+---
+// Pricing table
+// ------------
+// Description: The pricing table component allows users to get an overview of what pricing plans are offered and how they differ, on a product or service.
+// Properties:
+// - Title: the title of the pricing plan
+// - Subtitle: the subtitle of the pricing plan
+// - Currency: the currency of the pricing plan
+// - Price: the anual (default)price of the pricing plan
+// - PriceLabel: the label of the anual price
+// - PriceMontly: the monthly price of the pricing plan
+// - PriceLabelMontly: the monthly label
+// - ButtonName: the name of the button
+// - ButtonLink: the link of the button
+// - Type: the type of the pricing plan (basic, featured)
+// - classes: additional classes
+// Reference: https://wind-ui.com/components/pricing/
+
+// Components
+// - UI
+import Button from '../Button.astro'
+import List from '../List.astro'
+// -- Partials
+import Header from './partials/Header.astro'
+import Body from './partials/Body.astro'
+import Footer from './partials/Footer.astro'
+
+// Props
+type PricingTableProps = {
+	type:'basic' | 'featured'
+	header: {
+		title: string
+		subtitle: string
+		currency: string
+		price: string
+		priceLabel: string
+		priceMontly?: string
+		priceLabelMontly?: string
+		buttonName: string
+		buttonLink: string
+	}
+	body?: {
+		listItems: Array<{ listItem: string }>
+	}
+	footer?: {
+		buttonName: string
+		buttonLink: string
+	}
+}
+type Props = {
+	data: PricingTableProps
+	id?: string
+	listType?: 'basic' | 'checklist'
+	classes?: string
+}
+const { data, id, listType, classes } = Astro.props
+const { type, header, body, footer } = data
+---
+
+<div
+	id={id}
+	class:list={[
+		'pricing pricing--annualy',
+		{ [`pricing--${type}`]: type },
+		{ [`${classes}`]: classes }
+	]}
+>
+	<div class="pricing__container">
+		<Header type={type}>
+			<h3
+				class:list={[
+					'pricing__header-title',
+					{ [`pricing__header-title--featured`]: type === 'featured' }
+				]}
+			>
+				{header.title}
+
+				<span class="pricing__header-subtitle">{header.subtitle}</span>
+			</h3>
+			<div class="pricing__header-info">
+				<h4
+					class:list={[
+						'pricing__header-info-annualy text-5xl font-bold text-neutral-700 lg:text-6xl dark:text-neutral-50',
+						{ [`text-primary-50`]: type === 'featured' }
+					]}
+				>
+					<span class="pricing__header-currency">{header.currency}</span>
+					<span class="pricing__header-price">{header.price}</span>
+					<span class="pricing__header-perTime">/{header.priceLabel}</span>
+				</h4>
+				<h4
+					class:list={[
+						'pricing__header-info-monthly text-5xl font-bold text-neutral-700 lg:text-6xl dark:text-neutral-50',
+						{ [`text-primary-50`]: type === 'featured' }
+					]}
+				>
+					<span class="pricing__header-currency">{header.currency}</span>
+					<span class="pricing__header-price">{header.priceMontly}</span>
+					<span class="pricing__header-perTime">/{header.priceLabelMontly}</span>
+				</h4>
+			</div>
+
+			<Button
+				size="lg"
+				style={type === 'featured' ? 'secondary' : 'primary'}
+				elevated
+				type="link"
+				link={header.buttonLink}
+			>
+				{header.buttonName}
+			</Button>
+		</Header>
+
+		{
+			body && (
+				<Body>
+					<List
+						type={listType}
+						listItems={body.listItems}
+						classes={type === 'featured' ? '[&_li]:!text-primary-50 space-y-4' : 'space-y-4'}
+						listColor={type === 'featured' ? 'white' : 'primary'}
+					/>
+				</Body>
+			)
+		}
+		{
+			footer && (
+				<Footer type={type}>
+					<Button
+						size="lg"
+						style="primary"
+						type="link"
+						link={footer.buttonLink}
+						variation="link"
+						classes={'!font-medium ' + (type === 'featured' ? '!text-white' : '')}
+					>
+						{footer.buttonName}
+					</Button>
+				</Footer>
+			)
+		}
+	</div>
+</div>
+
+<style>
+	.pricing {
+		@apply mx-auto max-w-sm overflow-hidden rounded border border-neutral-100 bg-white text-neutral-500 shadow-xl shadow-neutral-700/5 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300 dark:shadow-neutral-950/50 [&_.pricing\_\_header-subtitle]:text-neutral-400;
+	}
+	.pricing__container {
+		@apply flex flex-col;
+	}
+	.pricing__header-title {
+		@apply mb-0 text-xl font-bold text-neutral-700 dark:text-neutral-50 [&.pricing\_\_header-title--featured]:text-primary-50;
+	}
+	.pricing__header-subtitle {
+		@apply block text-sm font-normal;
+	}
+	.pricing__header-currency {
+		@apply text-3xl;
+	}
+	.pricing__header-price {
+		@apply tracking-tighter;
+	}
+	.pricing__header-perTime {
+		@apply text-sm;
+	}
+	.pricing__header-info {
+		@apply h-16 overflow-hidden;
+	}
+	.pricing__header-info-annualy {
+		@apply mb-0 h-16 transition-all duration-300 [.pricing--monthly_&]:-translate-y-16 [.pricing--monthly_&]:opacity-0;
+	}
+	.pricing__header-info-monthly {
+		@apply mb-0 h-16 opacity-0 transition-all duration-300 [.pricing--monthly_&]:-translate-y-16 [.pricing--monthly_&]:opacity-100;
+	}
+	.pricing--featured {
+		@apply border-primary-500 bg-primary-500 text-primary-100 shadow-2xl shadow-primary-500/30 [&_.pricing\_\_header-subtitle]:text-primary-200;
+	}
+</style>

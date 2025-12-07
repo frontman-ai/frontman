@@ -1,0 +1,66 @@
+---
+// Feed
+// ------------
+// Description: the feed component is a ui element that displays a stream of content (static or dynamic), such as comments, activity updates, posts, in a chronological order.
+// Properties:
+// - Data: the data of the feed (consists of title, date, text, and image)
+// - classes: additional classes
+
+// Props
+type Props = {
+	data: Array<{
+		title: string
+		date?: string
+		text?: string
+		image?: string
+	}>
+	classes?: string
+}
+const { data, classes } = Astro.props
+---
+
+<ul aria-label="Changelog feed" role="feed" class:list={['feed', { [`${classes}`]: classes }]}>
+	{
+		data.map((item) => (
+			<li role="article" class="feed__item">
+				<span class="feed__item-date"> {item.date}</span>
+				<div class="feed__item-container">
+					<h4 class="feed__item-header">
+						{item.title}
+						<span> - {item.date}</span>
+					</h4>
+					{item.image && (
+						<div class="feed__item-image">
+							<img src={item.image} alt={item.title} width="1000" height="500" />
+						</div>
+					)}
+					<div class="feed__item-text basic-text" set:html={item.text} />
+				</div>
+			</li>
+		))
+	}
+</ul>
+
+<style>
+	.feed {
+		@apply relative flex flex-col gap-24 py-12 pl-6 before:absolute before:left-6 before:top-0 before:h-full before:-translate-x-1/2 before:border before:border-dashed before:border-neutral-100 after:absolute after:bottom-6 after:left-6 after:top-6 after:-translate-x-1/2 after:border after:border-neutral-100 lg:before:left-44 lg:after:left-44 dark:before:border-neutral-800 dark:after:border-neutral-800;
+	}
+	.feed__item {
+		@apply flex gap-6;
+	}
+	.feed__item-container {
+		@apply relative flex flex-1 flex-col pl-6 before:absolute before:left-0 before:top-2 before:z-10 before:h-2 before:w-2 before:-translate-x-1/2 before:rounded-full before:bg-primary-500 before:ring-2 before:ring-neutral-100 lg:pl-12 dark:before:ring-neutral-800 [&_p]:m-0;
+	}
+	.feed__item-date {
+		@apply hidden text-lg font-medium text-primary-500 lg:block lg:w-32;
+	}
+	.feed__item-header {
+		@apply text-lg font-medium text-primary-500 lg:[&_span]:hidden;
+	}
+	.feed__item-text {
+		@apply max-w-5xl;
+	}
+	.feed__item-image {
+		@apply mb-6 overflow-hidden rounded border border-neutral-100 bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900;
+	}
+</style>

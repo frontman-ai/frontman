@@ -1,0 +1,53 @@
+---
+// Imports
+// Components
+import NavigationBar from '../components/ui/NavigationBar.astro'
+import Main from '../components/ui/Main.astro'
+import Footer from '../components/ui/Footer.astro'
+import Modal from '../components/blocks/modal/SignUp.astro'
+import Header from '../components/blocks/head/Header.astro'
+import Toast from '../components/ui/Toast.astro'
+// Scripts
+import Scriprs from '../components/scripts/LocalScripts.astro'
+import GoogleTagManagerBody from '../components/scripts/googleTagManagerBody.astro'
+// Styles
+import '../styles/global.css'
+// Fonts
+import '@fontsource-variable/inter'
+import '@fontsource-variable/outfit'
+// Data
+import { configData } from '../config/config'
+
+// Props
+type Props = {
+	title?: string
+	description?: string
+	ogImage?: string
+	noindex?: boolean
+	classes?: string
+}
+// Page Metadata
+const { title, description, ogImage, noindex, classes } = Astro.props
+---
+
+<!doctype html>
+<html lang="en" class="scroll-animation mode-auto relative">
+	<Header title={title} description={description} ogImage={ogImage} noindex={noindex} />
+	<body
+		class:list={[
+			{ ['mode-' + `${configData.mode}`]: configData.mode },
+			{ ['scroll-animation']: configData.scrollAnimations },
+			{ [`${classes}`]: classes }
+		]}
+	>
+		<GoogleTagManagerBody />
+		<NavigationBar />
+		<Main>
+			<slot />
+		</Main>
+		<Footer />
+		<Modal />
+		<Toast />
+		<Scriprs />
+	</body>
+</html>

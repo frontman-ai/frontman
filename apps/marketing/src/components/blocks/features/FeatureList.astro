@@ -1,0 +1,40 @@
+---
+// Feature List Section
+// ------------
+// Description: A list of features with icons and descriptions in a 4 column layout.
+
+// Components
+// - Layout
+import Section from '../../ui/Section.astro'
+import Row from '../../ui/Row.astro'
+import Col from '../../ui/Col.astro'
+// - UI
+import Feature from '../../ui/Feature.astro'
+
+// Data
+import features from '../../../data/json-files/featuresData.json'
+---
+
+<Section id="features">
+	<Row>
+		<Col span="12" align="center" classes="mb-12 max-w-4xl mx-auto">
+			<h2 class="text-pretty">Whats included on <strong>all</strong> foxi plans</h2>
+			<p class="pb-0 text-lg">
+				Explore the suite of tools designed to streamline your workflow, enhance productivity, and
+				drive growth. Each product is crafted with precision to meet your needs and exceed your
+				expectations.
+			</p>
+		</Col>
+	</Row>
+	<Row>
+		{
+			features.slice(0, 8).map((feature) => (
+				<Col span="3">
+					<Feature title={feature.title} icon={feature.icon} align="left" classes="mb-12">
+						{feature.description}
+					</Feature>
+				</Col>
+			))
+		}
+	</Row>
+</Section>

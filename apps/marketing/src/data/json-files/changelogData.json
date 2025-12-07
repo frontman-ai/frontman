@@ -1,0 +1,36 @@
+[
+	{
+		"title": "v1.0.6: Enhanced Security Features",
+		"date": "2024-07-01",
+		"text": "<p>We've implemented new security protocols to safeguard your data. Enjoy peace of mind with improved encryption and multi-factor authentication.</p> <ul><li>2FA enabled by default</li><li>HubSpot integration</li><li>Zoho CRM integration</li></ul>",
+		"image": "/feeds/feed-01.png"
+	},
+	{
+		"title": "v1.0.5: User Interface Improvements",
+		"date": "2024-06-15",
+		"text": "<p>Our latest update brings a revamped user interface for a more intuitive and visually appealing experience. Navigation and usability have been greatly enhanced.</p><ul><li>Updated dashboard layout</li><li>Improved accessibility features</li><li>Streamlined navigation menus</li></ul>",
+		"image": "/feeds/feed-02.png"
+	},
+	{
+		"title": "v1.0.4: New In-App Messaging",
+		"date": "2024-05-20",
+		"text": "<p>Introducing in-app messaging! Communicate directly within the app to keep conversations organized and accessible without switching between tools.</p>"
+	},
+	{
+		"title": "v1.0.3: Performance Enhancements",
+		"date": "2024-04-10",
+		"text": "<p>We've optimized the app to run faster and smoother. Experience improved load times and overall performance.</p>",
+		"image": "/feeds/feed-03.png"
+	},
+	{
+		"title": "v1.0.2: CRM Integration",
+		"date": "2024-03-25",
+		"text": "<p>Connect your app with popular CRM systems to streamline customer management. Synchronize data and improve customer relationship processes.</p><ul><li>Salesforce integration</li><li>HubSpot integration</li><li>Zoho CRM integration</li></ul>"
+	},
+	{
+		"title": "v1.0.1: Third-Party API Support",
+		"date": "2024-02-15",
+		"text": "<p>Seamlessly integrate with third-party APIs to extend the functionality of your app. Enjoy smooth data exchange and enhanced performance.</p>",
+		"image": "/feeds/feed-04.png"
+	}
+]

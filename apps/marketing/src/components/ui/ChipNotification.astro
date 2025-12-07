@@ -1,0 +1,37 @@
+---
+// Chip Notification
+// ------------
+// Description: Compact elements that allow to highlight meaningful information, or direct users to important content.
+// Properties:
+// - Elevated: whether the chip is elevated or not
+// - Radius: the radius of the chip
+// - classes: additional classes
+// Reference: https://wind-ui.com/components/chip-notifications
+
+// Props
+type Props = {
+	elevated?: boolean
+	radius?: string
+	classes?: string
+}
+const { elevated, radius = 'rounded', classes } = Astro.props
+---
+
+<div class:list={['chip', { ['chip--elevated']: elevated }, { [`${classes}`]: classes }, radius]}>
+	<slot name="button" />
+	<span class="chip--body">
+		<slot />
+	</span>
+</div>
+
+<style>
+	.chip {
+		@apply inline-flex items-center border border-neutral-200 bg-white/50 px-0.5 py-0.5 text-neutral-500 dark:border-neutral-800 dark:bg-neutral-800/50 dark:text-neutral-300 [&_p]:m-0;
+	}
+	.chip--elevated {
+		@apply shadow-sm shadow-slate-700/10;
+	}
+	.chip--body {
+		@apply inline-flex items-center px-4 [&_strong]:pr-1 [&_strong]:font-bold;
+	}
+</style>

@@ -1,0 +1,42 @@
+---
+// Sticky sidebar Section
+// ------------
+// Description: A section with a sticky sidebar. The sticky sidebar content is using the "sidebar" slot
+// Properties:
+// - id: The id of the section
+// - type: determines the position of the sticky sidebar (left or right)
+// - classes: Additional classes to be added to the section
+
+// Components
+// - Layout
+import Section from '../../ui/Section.astro'
+import Row from '../../ui/Row.astro'
+import Col from '../../ui/Col.astro'
+
+// Props
+type Props = {
+	id?: string
+	type?: 'left' | 'right'
+	classes?: string
+}
+const { id, type = 'left', classes } = Astro.props
+---
+
+<Section {...id ? { id } : {}} classes={classes} stickyCol>
+	<Row>
+		<Col span="3" classes={type === 'right' ? 'lg:order-2' : ''}>
+			<div class="sticky-sidebar">
+				<slot name="sidebar" />
+			</div>
+		</Col>
+		<Col span="9">
+			<slot />
+		</Col>
+	</Row>
+</Section>
+
+<style>
+	.sticky-sidebar {
+		@apply lg:sticky lg:top-32;
+	}
+</style>

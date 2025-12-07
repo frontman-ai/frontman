@@ -1,0 +1,106 @@
+---
+// Input field
+// ------------
+// Description: The component for the basic form input field
+// Properties:
+// - id: The id of the input field
+// - type: The type of the input field (text, email, password, tel)
+// - label: The label of the input field
+// - iconName: The name of the icon to be displayed (optional)
+// - iconPosition: The position of the icon (lead or trail)
+// - helperText: The helper text to be displayed
+// - required: Whether the input field is required
+// - disabled: Whether the input field is disabled
+// - value: The value of the input field
+// - classes: Additional classes to be added to the input field
+
+// Reference: https://wind-ui.com/components/form-elements/input-groups/
+
+// Components
+// - UI
+import { Icon } from 'astro-icon/components'
+
+// Props
+type Props = {
+	id: string
+	type?: 'text' | 'email' | 'password' | 'tel'
+	label: string
+	iconName?: string
+	iconPosition?: 'lead' | 'trail'
+	helperText?: string
+	required?: boolean
+	disabled?: boolean
+	value?: string
+	classes?: string
+}
+const {
+	type = 'text',
+	id,
+	label,
+	iconName,
+	iconPosition,
+	helperText,
+	required,
+	disabled,
+	value,
+	classes
+} = Astro.props
+---
+
+<div
+	class:list={[
+		'input',
+		{ ['input--icon-' + `${iconPosition}`]: iconPosition },
+		,
+		{ [`${classes}`]: classes }
+	]}
+>
+	<input
+		id={id}
+		type={type}
+		name={id}
+		placeholder={label}
+		required={required}
+		disabled={disabled}
+		value={value}
+		class="input__field peer"
+	/>
+	<label
+		for={id}
+		class={`input__label ${iconPosition === 'lead' ? 'peer-placeholder-shown:left-10 peer-focus:left-2' : ''}`}
+	>
+		{label}
+	</label>
+	{iconName && <Icon name={iconName} class="input__icon" />}
+	{
+		helperText && (
+			<small class="input__helper-text">
+				<span> {helperText} </span>
+			</small>
+		)
+	}
+</div>
+
+<style>
+	.input {
+		@apply relative w-full;
+	}
+	.input__field {
+		@apply relative h-12 w-full rounded border border-neutral-200 px-4 text-neutral-500 placeholder-transparent outline-none transition-all autofill:bg-white invalid:border-red-500 invalid:text-red-500 focus:border-primary-500 focus:outline-none invalid:focus:border-red-500 focus-visible:outline-none disabled:cursor-not-allowed disabled:bg-neutral-50 disabled:text-neutral-400 dark:border-neutral-800 dark:bg-neutral-900 dark:autofill:bg-neutral-900 dark:disabled:bg-neutral-600;
+	}
+	.input__label {
+		@apply absolute -top-2 left-2 z-[1] cursor-text px-2 text-xs text-neutral-400 transition-all before:absolute before:left-0 before:top-0 before:z-[-1] before:block before:h-full before:w-full before:bg-white before:transition-all peer-placeholder-shown:top-3 peer-placeholder-shown:text-base peer-autofill:-top-2 peer-required:after:text-red-500 peer-required:after:content-['\00a0*'] peer-invalid:text-red-500 peer-focus:-top-2 peer-focus:cursor-default peer-focus:text-xs peer-focus:text-primary-500 peer-invalid:peer-focus:text-red-500 peer-disabled:cursor-not-allowed peer-disabled:text-neutral-400 peer-disabled:before:bg-transparent dark:before:bg-neutral-900;
+	}
+	.input__icon {
+		@apply absolute left-4 top-3 h-6 w-6 stroke-neutral-400 peer-disabled:cursor-not-allowed;
+	}
+	.input__helper-text {
+		@apply absolute flex w-full justify-between px-4 py-1 text-xs text-neutral-400 transition peer-invalid:text-red-500;
+	}
+	.input--icon-lead {
+		@apply [&_.input\_\_field]:!pl-12 [&_.input\_\_icon]:left-4;
+	}
+	.input--icon-trail {
+		@apply [&_.input\_\_field]:!pr-12 [&_.input\_\_icon]:right-4;
+	}
+</style>

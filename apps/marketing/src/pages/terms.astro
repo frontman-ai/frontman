@@ -1,0 +1,170 @@
+---
+// Components
+// - Layout
+import Layout from '../layouts/Layout.astro'
+// - UI
+import SidebarContent from '../components/blocks/basic/StickySidebar.astro'
+import Hero from '../components/blocks/hero/PageHeader.astro'
+
+// Content
+// - SEO
+const SEO = {
+	title: 'Foxi | Terms of Service',
+	description:
+		"Foxi's terms of service outlines the rules and regulations that govern your use of our services. Please read them carefully to understand your rights and responsibilities."
+}
+// - Page Header
+const header = {
+	title: 'Terms and Conditions: Read, Relax, <strong>Enjoy!</strong>',
+	text: 'Please read them carefully to understand your rights and responsibilities.'
+}
+---
+
+<Layout title={SEO.title} description={SEO.description}>
+	<Hero title={header.title} text={header.text} />
+	<SidebarContent>
+		<div slot="sidebar">
+			<h3>Introduction</h3>
+			<p>
+				Please take a moment to read through these terms to understand your rights and
+				responsibilities while using our services.
+			</p>
+		</div>
+		<div class="basic-text">
+			<h4>Welcome to Foxi</h4>
+			<p>
+				Welcome to Foxi! We’re thrilled to have you on board. Our services are designed to help you
+				stay organized, communicate effectively, and boost your productivity. By using Foxi, you are
+				agreeing to these terms and conditions, so please read them carefully.
+			</p>
+			<p>
+				Your satisfaction is important to us. If you have any questions or concerns about these
+				terms, please do not hesitate to contact us. Our team is here to assist you and ensure you
+				have a great experience with Foxi.
+			</p>
+
+			<h4>Acceptance of Terms</h4>
+			<p>
+				By accessing or using our services, you agree to comply with and be bound by these Terms of
+				Service and our Privacy Policy. If you do not agree with any part of these terms, you must
+				not use our services. Your continued use of Foxi signifies your acceptance of these terms.
+			</p>
+			<p>
+				We reserve the right to modify these terms at any time. We will notify you of any changes by
+				posting the new terms on our website. It is your responsibility to review these terms
+				periodically. Continued use of the service after any changes means you accept the new terms.
+			</p>
+
+			<h4>Our Commitment to You</h4>
+			<p>
+				At Foxi, we are committed to providing you with reliable, high-quality services. Our goal is
+				to help you achieve your productivity and organizational objectives with ease. We
+				continuously work to improve our services and provide you with the best possible experience.
+			</p>
+			<p>
+				We value your feedback and suggestions. Please feel free to reach out to us with any
+				comments or ideas on how we can serve you better. Your input helps us enhance Foxi and meet
+				your
+			</p>
+		</div>
+	</SidebarContent>
+	<SidebarContent classes="bg-neutral-50 dark:bg-neutral-900">
+		<div slot="sidebar">
+			<h3>User Accounts</h3>
+			<p>
+				This section explains the requirements and responsibilities associated with creating and
+				maintaining a user account on Foxi. Please ensure you understand and comply with these
+				guidelines to use our services effectively.
+			</p>
+		</div>
+		<div class="basic-text">
+			<h4>Registration</h4>
+			<p>
+				To access certain features of Foxi, you must create a user account. During registration, you
+				agree to provide accurate and complete information. This information helps us serve you
+				better and ensures the security and functionality of your account.
+			</p>
+			<p>
+				By registering, you also agree to keep your information up-to-date. Inaccurate or outdated
+				information can lead to issues with your account and may affect your ability to use certain
+				features of Foxi.
+			</p>
+
+			<h4>Account Security</h4>
+			<p>
+				Maintaining the security of your account is your responsibility. You agree to keep your
+				password confidential and not share it with anyone. If you suspect any unauthorized use of
+				your account, you must notify us immediately.
+			</p>
+			<p>
+				We recommend using a strong and unique password for your Foxi account. Regularly updating
+				your password and using two-factor authentication, if available, can further enhance the
+				security of your account.
+			</p>
+
+			<h4>Account Usage</h4>
+			<p>
+				As the account holder, you are responsible for all activities that occur under your account.
+				This includes any actions taken by others who may have access to your account. Ensure that
+				you monitor and manage your account usage appropriately.
+			</p>
+			<p>
+				If we detect any suspicious or unauthorized activities, we may take actions to protect your
+				account, including temporarily suspending access or requiring additional verification steps.
+				Our goal is to safeguard your account and personal information.
+			</p>
+		</div>
+	</SidebarContent>
+	<SidebarContent>
+		<div slot="sidebar">
+			<h3>Limitation of Liability</h3>
+			<p>
+				This section outlines the limitations of our liability regarding the use of Foxi services.
+				Understanding these limitations helps you know the extent of our responsibilities and your
+				rights.
+			</p>
+		</div>
+		<div class="basic-text">
+			<h4>General Limitations</h4>
+			<p>
+				Foxi is provided on an "as is" and "as available" basis. We do not warrant that the service
+				will be uninterrupted, error-free, or completely secure. We disclaim all warranties, whether
+				express or implied, including but not limited to the implied warranties of merchantability,
+				fitness for a particular purpose, and non-infringement.
+			</p>
+			<p>
+				We are not liable for any damages resulting from the use or inability to use our services,
+				including but not limited to direct, indirect, incidental, special, consequential, or
+				punitive damages. This includes damages for loss of profits, data, or other intangibles.
+			</p>
+
+			<h4>Third-Party Services</h4>
+			<p>
+				Foxi may include links to third-party websites or services that are not owned or controlled
+				by us. We do not endorse or assume any responsibility for any such third-party sites,
+				information, materials, products, or services. Accessing and using these third-party
+				services is at your own risk.
+			</p>
+			<p>
+				We are not liable for any loss or damage incurred as a result of any dealings with
+				third-party websites or services, including the sharing of your information with such third
+				parties. It is your responsibility to review the terms and conditions and privacy policies
+				of any third-party websites or services you use.
+			</p>
+
+			<h4>Maximum Liability</h4>
+			<p>
+				In no event shall our total liability to you for all claims arising out of or relating to
+				the use of or inability to use the service exceed the amount paid by you, if any, for
+				accessing Foxi during the twelve (12) months immediately preceding the date of the claim.
+				This limitation applies regardless of the form or source of the claim or loss, whether such
+				liability arises out of any claim based upon contract, warranty, tort, or otherwise.
+			</p>
+			<p>
+				Some jurisdictions do not allow the exclusion or limitation of liability for consequential
+				or incidental damages, so the above limitation may not apply to you. In such cases, our
+				liability will be limited to the fullest extent permitted by applicable law.
+			</p>
+		</div>
+	</SidebarContent>
+</Layout>

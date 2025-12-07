@@ -1,0 +1,60 @@
+---
+// Breadcrumbs
+// ------------
+// Description: Breadcrumbs consist of a list of links that help a user visualize a page's location within the hierarchical structure of a website, and allow navigation up to any of its "ancestors".
+// Properties:
+// - Classes: additional classes
+
+// Reference: https://wind-ui.com/components/breadcrumbs/
+
+// Components
+// - UI
+import { Icon } from 'astro-icon/components'
+
+// URL Parsing and breadcrumb generation
+const url = new URL(Astro.request.url)
+const pathname = url.pathname
+const segments = pathname.split('/').filter(Boolean)
+const breadcrumbs = ['Home', ...segments]
+
+// Props
+type Props = {
+	classes?: string
+}
+const { classes } = Astro.props
+---
+
+<nav aria-label="Breadcrumb" class:list={['breadcrumbs', { [`${classes}`]: classes }]}>
+	<ol class="breadcrumbs__list">
+		{
+			breadcrumbs.map((segment, index) => (
+				<li class="breadcrumbs__list-item">
+					<a href={`/${segments.slice(0, index).join('/')}`} class="breadcrumbs__item-link">
+						{index === 0 ? segment : segment.replace(/-/g, ' ')}
+					</a>
+					{index < breadcrumbs.length - 1 && (
+						<Icon name="chevron-left" class="breadcrumbs__item-icon" />
+					)}
+				</li>
+			))
+		}
+	</ol>
+</nav>
+
+<style>
+	.breadcrumbs {
+		@apply inline-flex rounded border border-neutral-200 bg-white/50 px-4 py-2 text-sm text-neutral-500 dark:border-neutral-800 dark:bg-neutral-800/50 dark:text-neutral-300;
+	}
+	.breadcrumbs__list {
+		@apply inline-flex items-center;
+	}
+	.breadcrumbs__list-item {
+		@apply flex items-center gap-2 [&:not(:first-child):not(:last-child)]:hidden [&:not(:first-child):not(:last-child)]:md:flex;
+	}
+	.breadcrumbs__item-link {
+		@apply flex items-center gap-1 truncate whitespace-nowrap capitalize text-neutral-700 transition-colors last:pointer-events-none last:text-neutral-400 hover:text-primary-500 dark:text-neutral-50;
+	}
+	.breadcrumbs__item-icon {
+		@apply h-4 w-4 flex-none text-neutral-700 transition-transform md:rotate-180 dark:text-neutral-50;
+	}
+</style>

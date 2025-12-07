@@ -1,0 +1,35 @@
+---
+// A Feed section
+// ------------
+// Description: A  section with feeds organised a a vertical list of items.
+
+// Components
+// - Layout
+import Section from '../../ui/Section.astro'
+import Col from '../../ui/Col.astro'
+import Row from '../../ui/Row.astro'
+// - UI
+import Feed from '../../ui/Feed.astro'
+
+// Props
+type Props = {
+	data: Array<{
+		title: string
+		date?: string
+		body?: string
+		listItems?: Array<{ listItem: string }>
+	}>
+	classes?: string
+}
+const { data, classes } = Astro.props
+---
+
+<Section id="changelog">
+	<Row>
+		<Col span="2" />
+		<Col span="8">
+			<Feed data={data} classes={classes} />
+		</Col>
+		<Col span="2" />
+	</Row>
+</Section>

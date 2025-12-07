@@ -5,6 +5,8 @@
 	"workspaces": [
 		"apps/chrome-extension",
 		"apps/frontman_server/assets",
+		"apps/marketing",
+		"infra/marketing",
 		"libs/bindings",
 		"libs/client",
 		"libs/context-loader",

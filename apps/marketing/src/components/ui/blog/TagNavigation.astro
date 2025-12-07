@@ -1,0 +1,36 @@
+---
+// Tags for the Blog and post pages
+
+// Components
+// - UI
+import Badge from '../Badge.astro'
+
+//Data
+import { getCollection } from 'astro:content'
+const posts = await getCollection('blog')
+const tags = [...new Set(posts.map((post) => post.data.tags).flat())]
+const currentPath = new URL(Astro.request.url).pathname
+const pathSegments = currentPath.split('/').filter((segment) => segment.length > 0)
+const currentTag = pathSegments[pathSegments.length - 1] || ''
+---
+
+<div class="tags">
+	<Badge link={`/blog/`} name={`All`} type={`${currentTag === 'blog' ? 'primary' : 'neutral'}`} />
+	{
+		tags.map((tag) => (
+			<>
+				<Badge
+					link={`/blog/tags/${tag}`}
+					name={tag}
+					type={`${currentTag === tag ? 'primary' : 'neutral'}`}
+				/>
+			</>
+		))
+	}
+</div>
+
+<style>
+	.tags {
+		@apply mb-6 flex flex-row flex-wrap items-center justify-start gap-2 capitalize;
+	}
+</style>

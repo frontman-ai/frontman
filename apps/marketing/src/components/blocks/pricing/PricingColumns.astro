@@ -1,0 +1,68 @@
+---
+// Pricing plabs Section
+// ------------
+// Description: A section with a list of 3 pricing plans with toggle to switch between monthly and annual pricing.
+
+// Components
+// - Layout
+import Section from '../../ui/Section.astro'
+import Row from '../../ui/Row.astro'
+import Col from '../../ui/Col.astro'
+// - UI
+import PricingTable from '../../ui/pricing-tables/PricingTable.astro'
+import Toggle from '../../ui/forms/form-elements/Toggle.astro'
+
+// Content
+import pricingTablesData from '../../../data/json-files/pricingTablesdata.json'
+
+// Script
+import PricingChange from '../../scripts/PricingPlanChange.astro'
+
+// Props
+type PricingTableData = {
+	header: {
+		title: string
+		subtitle: string
+		currency: string
+		price: string
+		priceLabel: string
+		priceMonthly?: string
+		priceLabelMonthly?: string
+		buttonName: string
+		buttonLink: string
+	}
+	body?: {
+		listItems: Array<{ listItem: string }>
+	}
+	footer?: {
+		buttonName: string
+		buttonLink: string
+	}
+	type: 'basic' | 'featured'
+}
+
+const pricingData: PricingTableData[] = pricingTablesData as PricingTableData[]
+---
+
+<Section>
+	<Row>
+		<Col span="12" align="center" classes="flex items-center justify-center gap-4 mb-12">
+			<span id="monthlyLabel" class="font-semibold text-neutral-400 transition-colors"
+				>Bill monthly</span
+			>
+			<Toggle id="pricingType" label="pricing" showLabel={false} checked={true} />
+			<span
+				class="font-semibold text-neutral-400 text-primary-500 transition-colors"
+				id="annualLabel">Bill annually</span
+			>
+		</Col>
+		{
+			pricingData.map((item, key) => (
+				<Col span="4">
+					<PricingTable data={item} listType="checklist" id={`plan-${key}`} />
+				</Col>
+			))
+		}
+	</Row>
+</Section>
+<PricingChange />

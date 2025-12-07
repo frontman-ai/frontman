@@ -1,0 +1,37 @@
+---
+// Pricing Footer
+// ------------
+// Description:  The footer area of the pricing table
+// Properties:
+// - classes: Additional classes to be added to the text field
+// - type: The type of the pricing table (basic, featured)
+
+// Props
+type Props = {
+	type?: 'basic' | 'featured'
+	classes?: string
+}
+const { classes, type } = Astro.props
+---
+
+<footer
+	class:list={[
+		'pricing__footer',
+		{ [` pricing__footer--${type}`]: type },
+		{ [`${classes}`]: classes }
+	]}
+>
+	<slot />
+</footer>
+
+<style>
+	.pricing__footer {
+		@apply border-t p-6 text-center text-sm;
+	}
+	.pricing__footer--basic {
+		@apply border-neutral-100 bg-neutral-50/50 dark:border-neutral-800 dark:bg-neutral-800/50;
+	}
+	.pricing__footer--featured {
+		@apply border-primary-700 bg-primary-700/50;
+	}
+</style>

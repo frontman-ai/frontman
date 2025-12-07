@@ -1,0 +1,70 @@
+---
+// Basic Card
+// ------------
+// Description: The basic card component
+// Properties:
+// - Title: the title of the card
+// - Subtitle: the subtitle of the card
+// - TitleSize: the size of the title
+// - Image: the main image of the card
+// - Icon: the icon of the card
+// - Link: If provided, the card will be a link
+// - Type: Image-top or Image-bottom (refers to the image position)
+// - classes: extra classes
+// Reference: https://wind-ui.com/components/cards/
+
+// Components
+// - UI
+import { Image } from 'astro:assets'
+import { Icon } from 'astro-icon/components'
+import Card from './partials/Card.astro'
+import CardBody from './partials/CardBody.astro'
+
+// Props
+type Props = {
+	title?: string
+	subtitle?: string
+	titleSize?: 'sm' | 'base' | 'lg' | 'xl'
+	image?: any
+	icon?: string
+	link?: string
+	type?: 'image-top' | 'image-bottom'
+	classes?: string
+}
+const { title = '', subtitle, titleSize = 'lg', image, icon, link, type, classes } = Astro.props
+---
+
+<Card classes={classes} link={link}>
+	{
+		image && (
+			<Image
+				src={image}
+				alt={title}
+				class={type === 'image-bottom' ? 'order-2' : ''}
+				width={600}
+				height={400}
+			/>
+		)
+	}
+	{
+		icon && (
+			<div class="px-6 pt-6">
+				<Icon name={`${icon}`} class="card__icon" />
+			</div>
+		)
+	}
+	<CardBody>
+		{
+			title && (
+				<h3 class:list={[['text-' + `${titleSize} ` + `lg:text` + `${titleSize}`]]}>{title}</h3>
+			)
+		}
+		{subtitle && <p>{subtitle}</p>}
+		<slot />
+	</CardBody>
+</Card>
+<style>
+	.card__icon {
+		@apply inline-block size-6 shrink-0 text-primary-500;
+	}
+</style>

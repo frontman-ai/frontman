@@ -1,0 +1,78 @@
+[
+	{
+		"header": {
+			"title": "Basic",
+			"subtitle": "Ideal for individual developers.",
+			"currency": "$",
+			"price": "19",
+			"priceLabel": "month, billed anually",
+			"priceMontly": "25",
+			"priceLabelMontly": "month",
+			"buttonName": "Try for free",
+			"buttonLink": "/"
+		},
+		"body": {
+			"listItems": [
+				{ "listItem": "Join forces with fellow architects" },
+				{ "listItem": "Present your projects with flair and captivate your audience." },
+				{ "listItem": "Immerse yourself in the dynamic realm of architecture." }
+			]
+		},
+		"footer": {
+			"buttonName": "See all features",
+			"buttonLink": "/"
+		},
+		"type": "basic"
+	},
+	{
+		"header": {
+			"title": "Team",
+			"subtitle": "Ideal for small teams",
+			"currency": "$",
+			"price": "29",
+			"priceLabel": "month, billed anually",
+			"priceMontly": "35",
+			"priceLabelMontly": "month",
+			"buttonName": "Try for free",
+			"buttonLink": "/"
+		},
+		"body": {
+			"listItems": [
+				{ "listItem": "Join forces with fellow architects" },
+				{ "listItem": "Present your projects with flair and captivate your audience." },
+				{ "listItem": "Immerse yourself in the dynamic realm of architecture." },
+				{ "listItem": "Unlock endless inspiration" }
+			]
+		},
+		"footer": {
+			"buttonName": "See all features",
+			"buttonLink": "/"
+		},
+		"type": "featured"
+	},
+	{
+		"header": {
+			"title": "Enterprise",
+			"subtitle": "Ideal for companies",
+			"currency": "$",
+			"price": "49",
+			"priceLabel": "month, billed anually",
+			"priceMontly": "65",
+			"priceLabelMontly": "month",
+			"buttonName": "Try for free",
+			"buttonLink": "/"
+		},
+		"body": {
+			"listItems": [
+				{ "listItem": "Join forces with fellow architects" },
+				{ "listItem": "Present your projects with flair and captivate your audience." },
+				{ "listItem": "Immerse yourself in the dynamic realm of architecture." }
+			]
+		},
+		"footer": {
+			"buttonName": "See all features",
+			"buttonLink": "/"
+		},
+		"type": "basic"
+	}
+]

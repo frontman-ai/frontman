@@ -1,0 +1,230 @@
+[
+	{
+		"title": "Real-Time Analytics",
+		"icon": "chart-pie",
+		"description": "Gain valuable insights instantly with Foxi's real-time analytics. Track performance metrics, user behavior, and campaign effectiveness effortlessly.",
+		"category": "Analytics"
+	},
+	{
+		"title": "Customizable Dashboards",
+		"icon": "squares-plus",
+		"description": "Tailor your workspace with personalized dashboards that suit your workflow. Stay organized and focused on what matters most to your business.",
+		"category": "Analytics"
+	},
+	{
+		"title": "Task Management",
+		"icon": "cliboard-document-check",
+		"description": "Efficiently manage tasks and projects with Foxi's intuitive task management tools. Assign, track progress, and collaborate seamlessly.",
+		"category": "Productivity"
+	},
+	{
+		"title": "Third-Party Apps",
+		"icon": "rocket",
+		"description": "Connect Foxi with your favorite tools and apps effortlessly. Streamline workflows and enhance productivity with seamless integrations.",
+		"category": "Productivity"
+	},
+	{
+		"title": "Mobile Accessibility",
+		"icon": "device-phone-mobile",
+		"description": "Stay productive on the go with Foxi's mobile app. Access key features, collaborate with your team, and manage tasks anytime, anywhere.",
+		"category": "Support"
+	},
+	{
+		"title": "Dedicated Customer Support",
+		"icon": "trophy",
+		"description": "Receive exceptional customer support whenever you need it. Our dedicated team is here 24/7 to assist you with any questions or issues.",
+		"category": "Support"
+	},
+	{
+		"title": "Robust Data Security",
+		"icon": "shield-check",
+		"description": "Rest assured knowing your data is safe with Foxi's robust security measures. We employ industry-standard protocols to protect your information.",
+		"category": "Security"
+	},
+	{
+		"title": "Scalability",
+		"icon": "arrow-treding-up",
+		"description": "Grow your business with confidence using Foxi's scalable platform. Whether you're a startup or a large enterprise, our solution adapts to your needs.",
+		"category": "Security"
+	},
+	{
+		"title": "Real-Time Notifications",
+		"icon": "bell-alert",
+		"description": "Stay updated with real-time notifications for important events and updates. Never miss out on critical information with instant alerts.",
+		"category": "Security"
+	},
+	{
+		"title": "Advanced Reporting",
+		"icon": "clipboard-document-list",
+		"description": "Generate detailed reports with advanced analytics features. Customize reports to track key performance indicators and gain deeper insights.",
+		"category": "Analytics"
+	},
+	{
+		"title": "Team Collaboration Tools",
+		"icon": "user-group",
+		"description": "Enhance team collaboration with tools designed for effective communication and project management. Share updates, files, and feedback seamlessly.",
+		"category": "Productivity"
+	},
+	{
+		"title": "In-App Messaging",
+		"icon": "chat-bubble-left-right",
+		"description": "Communicate directly within the app using in-app messaging. Keep conversations organized and accessible without switching between tools.",
+		"category": "Integrations"
+	},
+	{
+		"title": "Multi-Device Sync",
+		"icon": "computer-desktop",
+		"description": "Ensure seamless access to your data across all devices. Sync your information in real-time, so you can work from anywhere with consistency.",
+		"category": "Support"
+	},
+	{
+		"title": "Customizable Alerts",
+		"icon": "bell",
+		"description": "Set up customizable alerts to notify you of important events and changes. Tailor notifications to your needs for better management and response.",
+		"category": "Support"
+	},
+	{
+		"title": "API Integrations",
+		"icon": "arrow-path-rounded-square",
+		"description": "Integrate with other systems and services using our flexible API. Expand functionality and connect with external tools effortlessly.",
+		"category": "Integrations"
+	},
+	{
+		"title": "User Role Management",
+		"icon": "user",
+		"description": "Manage user roles and permissions with ease. Control access levels and ensure the right people have the right permissions for your project.",
+		"category": "Security"
+	},
+	{
+		"title": "Custom Themes",
+		"icon": "paint-brush",
+		"description": "Customize the look and feel of your workspace with custom themes. Choose from various design options to match your brand's style.",
+		"category": "Analytics"
+	},
+	{
+		"title": "Data Backup",
+		"icon": "circle-stack",
+		"description": "Protect your data with regular backups. Ensure that your information is safe and recoverable in case of unexpected issues or data loss.",
+		"category": "Security"
+	},
+	{
+		"title": "Performance Tracking",
+		"icon": "arrow-trending-up",
+		"description": "Monitor and track performance metrics to ensure optimal efficiency. Use performance data to make informed decisions and improvements.",
+		"category": "Analytics"
+	},
+	{
+		"title": "Interactive Tutorials",
+		"icon": "document-chart-bar",
+		"description": "Access interactive tutorials to get the most out of our features. Learn new skills and improve your proficiency with guided, hands-on experiences.",
+		"category": "Support"
+	},
+	{
+		"title": "Custom Widgets",
+		"icon": "squares-plus",
+		"description": "Enhance your dashboard with custom widgets. Add and configure widgets to display the most relevant information for your needs.",
+		"category": "Analytics"
+	},
+	{
+		"title": "Data Visualization",
+		"icon": "eye",
+		"description": "Visualize your data with advanced charting and graphing tools. Create insightful visual representations to better understand your metrics.",
+		"category": "Analytics"
+	},
+	{
+		"title": "Integration Marketplace",
+		"icon": "shopping-cart",
+		"description": "Explore our marketplace for additional integrations and plugins. Extend the functionality of your platform with third-party solutions.",
+		"category": "Integrations"
+	},
+	{
+		"title": "Onboarding Assistance",
+		"icon": "user",
+		"description": "Get personalized onboarding assistance to help you set up and start using our platform effectively. Benefit from expert guidance to ensure a smooth start.",
+		"category": "Support"
+	},
+	{
+		"title": "Knowledge Base",
+		"icon": "document-text",
+		"description": "Access a comprehensive knowledge base with articles, guides, and FAQs. Find answers to common questions and learn how to make the most of our features.",
+		"category": "Support"
+	},
+	{
+		"title": "Live Chat Support",
+		"icon": "chat-bubble-left-ellipsis",
+		"description": "Connect with our support team via live chat for immediate assistance. Get answers to your questions and resolve issues in real time.",
+		"category": "Support"
+	},
+	{
+		"title": "Customizable Workspaces",
+		"icon": "cursor-arrow-ripple",
+		"description": "Personalize your workspace layout to fit your needs. Adjust and configure your workspace for maximum efficiency and comfort.",
+		"category": "Productivity"
+	},
+	{
+		"title": "Task Automation",
+		"icon": "rectangle-stack",
+		"description": "Automate routine tasks to improve efficiency and reduce manual work. Set up automated processes to streamline your workflow.",
+		"category": "Productivity"
+	},
+	{
+		"title": "Accessibility Features",
+		"icon": "eye-slash",
+		"description": "Explore features designed to enhance accessibility. Ensure your tools and workspace are usable for all team members, including those with disabilities.",
+		"category": "Security"
+	},
+	{
+		"title": "Enhanced Mobile Access",
+		"icon": "mobile",
+		"description": "Benefit from enhanced mobile access features. Use our app to stay connected and productive with improved functionality on mobile devices.",
+		"category": "Security"
+	},
+	{
+		"title": "Advanced Bug Tracking",
+		"icon": "bug-ant",
+		"description": "Track tasks and projects with advanced tracking features. Monitor progress, set milestones, and manage your projects more effectively.",
+		"category": "Productivity"
+	},
+	{
+		"title": "Comprehensive Balancer",
+		"icon": "scale",
+		"description": "Access comprehensive support resources to assist users at all levels. From troubleshooting to advanced tips, get the help you need.",
+		"category": "Support"
+	},
+	{
+		"title": "Voice Recordings",
+		"icon": "microphone",
+		"description": "Receive real-time updates on accessibility features and improvements. Stay informed about changes that impact your mobile and web access.",
+		"category": "Support"
+	},
+	{
+		"title": "User Identity Verification",
+		"icon": "identification",
+		"description": "Analyze productivity metrics to optimize performance. Gain insights into team and individual productivity to drive improvements.",
+		"category": "Productivity"
+	},
+	{
+		"title": "Payment Integrations",
+		"icon": "credit-card",
+		"description": "Communicate directly within the app using in-app messaging. Keep conversations organized and accessible without switching between tools.",
+		"category": "Integrations"
+	},
+	{
+		"title": "Transparent API ",
+		"icon": "cube-transparent",
+		"description": "Seamlessly integrate with third-party APIs to extend the functionality of your app. Enjoy smooth data exchange and enhanced performance.",
+		"category": "Integrations"
+	},
+	{
+		"title": "Clever CRM Integration",
+		"icon": "light-bulb",
+		"description": "Connect your app with popular CRM systems to streamline customer management. Synchronize data and improve customer relationship processes.",
+		"category": "Integrations"
+	},
+	{
+		"title": "API key Integration",
+		"icon": "key",
+		"description": "Integrate multiple payment gateways to offer diverse payment options. Ensure secure transactions and smooth payment processing for users.",
+		"category": "Integrations"
+	}
+]

@@ -1,0 +1,18 @@
+---
+// Spacer
+// ------------
+// Description: a simple component to add space between elements
+// Properties:
+// - Size: the size of the spacer (0, 2, 3, 4, 6, 8, 12, 16, 24, 32)
+// - DesktopSize: the size of the spacer on desktop (0, 2, 3, 4, 6, 8, 12, 16, 24, 32)
+
+// Props
+type Props = {
+	size: '0' | '2' | '3' | '4' | '6' | '8' | '12' | '16' | '24' | '32'
+	desktopSize: '0' | '2' | '3' | '4' | '6' | '8' | '12' | '16' | '24' | '32'
+}
+const { size = '6', desktopSize = '12' } = Astro.props
+---
+
+<div class:list={[{ ['h-' + `${size}`]: size }, { ['lg:h-' + `${desktopSize}`]: desktopSize }]}>
+</div>

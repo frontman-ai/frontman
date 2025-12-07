@@ -1,0 +1,181 @@
+---
+// Header - Navigation bar
+// ------------
+// Description: navigation bars offer a persistent and convenient way to switch between primary destinations in an app.
+// Structure:
+// - Logo: the logo of the website
+// - Menu toggle: the mobile menu toggle of the navigation bar
+// - Navigation Links: the navigation links of the menu
+// - Actions: action buttons for the navigation bar
+// - Theme Switcher: the mode (light/dark) switcher of the website
+
+// Reference: https://wind-ui.com/components/navbars/
+
+// Components
+// - UI
+import { Icon } from 'astro-icon/components'
+import Button from './Button.astro'
+import Switcher from './ModeSwitcher.astro'
+
+// Data
+import { navigationBarData } from '../../config/navigationBar'
+const { logo, navItems, navActions } = navigationBarData
+
+// Determine current path
+const path = new URL(Astro.request.url).pathname
+function isActivePath(currentPath: string): boolean {
+	return path === currentPath || path === `${currentPath}/`
+}
+
+// Type assertion for navActions to ensure type safety
+const savedNavActions = navActions.map((action) => ({
+	...action,
+	size: action.size as 'base' | 'lg' | 'sm',
+	style: action.style as 'primary' | 'secondary' | 'neutral'
+}))
+---
+
+<header class="header">
+	<div class="header__container">
+		<nav aria-label="main navigation" role="navigation" class="header__nav">
+			<!-- Logo -->
+			<a href="/" class="header__logo">
+				<img src={logo.src} alt={logo.alt} width="48" height="48" />
+				<span>{logo.text}</span>
+			</a>
+
+			<!-- Menu toggle -->
+			<button
+				id="header-toggle"
+				class="header__toggle"
+				aria-expanded="false"
+				aria-label="Toggle navigation"
+			>
+				<div class="header__toggle-inner">
+					<span aria-hidden="true"></span>
+					<span aria-hidden="true"></span>
+					<span aria-hidden="true"></span>
+				</div>
+			</button>
+
+			<!-- Navigation links -->
+			<ul role="menubar" aria-label="Select page" class="header__menu">
+				{
+					navItems.map((item) => (
+						<li role="none" class="header__menu-item">
+							{!item.submenu ? (
+								<a
+									href={item.link}
+									role="menuitem"
+									class={`header__menu-link ${isActivePath(item.link) ? 'active' : ''}`}
+								>
+									{item.name}
+								</a>
+							) : (
+								<span
+									role="menuitem"
+									class={`header__menu-link ${isActivePath(item.link) ? 'active' : ''}`}
+								>
+									{item.name}
+									<Icon name="chevron-down" class="header__menu-chevron" />
+								</span>
+							)}
+							{item.submenu && (
+								<ul class="header__submenu">
+									{item.submenu.map((subItem) => (
+										<li role="none" class="header__submenu-item">
+											<a
+												href={subItem.link}
+												role="menuitem"
+												class={`header__menu-link ${isActivePath(item.link) ? 'active' : ''}`}
+											>
+												{subItem.name}
+											</a>
+										</li>
+									))}
+								</ul>
+							)}
+						</li>
+					))
+				}
+			</ul>
+
+			<!-- Theme Switcher -->
+			<Switcher />
+
+			<!-- Navigation action buttons -->
+			<div class="header__actions">
+				{
+					savedNavActions.map((action) => (
+						<Button classes="flex-auto" size={action.size} style={action.style} modal="signup">
+							{action.name}
+						</Button>
+					))
+				}
+			</div>
+		</nav>
+	</div>
+</header>
+
+<style>
+	.header {
+		@apply sticky top-0 z-20 w-full animate-fadeInShadowLight [animation-range:0%_20rem] [animation-timeline:scroll()] before:absolute after:absolute after:left-0 after:top-full after:z-10 after:block after:h-px after:w-full lg:after:hidden dark:animate-fadeInShadowDark dark:[animation-range:0%_20rem] dark:[animation-timeline:scroll()];
+	}
+	.header:before {
+		@apply block h-full w-full bg-white/90 lg:backdrop-blur-sm dark:bg-neutral-900/90;
+	}
+	.header__container {
+		@apply container relative mx-auto px-6;
+	}
+	.header__logo {
+		@apply flex flex-auto items-center gap-2 whitespace-nowrap py-3 font-headings text-2xl font-black tracking-wider focus:outline-none;
+	}
+	.header__nav {
+		@apply flex h-[5.5rem] items-stretch gap-6 font-medium text-neutral-700 lg:justify-between dark:text-neutral-50;
+	}
+	.header__menu {
+		@apply invisible absolute left-0 top-0 z-[-1] ml-auto h-dvh w-full justify-center overflow-hidden overflow-y-auto overscroll-contain bg-white/90 px-8 py-[6rem] font-medium opacity-0 transition-[opacity,visibility] duration-300 lg:visible lg:relative lg:top-0 lg:z-0 lg:flex lg:h-full lg:w-auto lg:items-stretch lg:overflow-visible lg:bg-white/0 lg:px-0 lg:py-0 lg:pt-0 lg:opacity-100 dark:bg-neutral-900/90 dark:lg:bg-transparent;
+	}
+	.header__menu--open {
+		@apply visible opacity-100 backdrop-blur-sm;
+	}
+	.header__menu-item {
+		@apply relative flex cursor-pointer flex-col items-stretch lg:flex-row;
+	}
+	.header__menu-link {
+		@apply relative flex items-center gap-1 py-4 transition-colors duration-300 hover:text-primary-500 focus:text-primary-600 focus:outline-none focus-visible:outline-none lg:px-6 [&.active]:text-primary-500;
+	}
+	.header__menu-chevron {
+		@apply h-4 w-4 transition-transform [.header\_\_menu-item.open_&]:rotate-180;
+	}
+	.header__submenu {
+		@apply left-0 top-full hidden animate-dropdown rounded bg-neutral-300/10 px-4 lg:absolute lg:min-w-48 lg:rounded-t-none lg:bg-white/90 lg:p-0 lg:shadow-lg lg:shadow-neutral-700/5 lg:backdrop-blur-sm dark:bg-neutral-500/10 lg:dark:bg-neutral-900/90 lg:dark:shadow-neutral-950/50 [.header\_\_menu-item.open_&]:block;
+	}
+	.header__submenu-item {
+		@apply hidden [.header\_\_menu-item.open_&]:block;
+	}
+	.header__submenu-link {
+		@apply px-8 py-4 hover:text-primary-500 [.header\_\_menu-item.open_&]:flex;
+	}
+	.header__toggle {
+		@apply relative order-10 block h-10 w-10 self-center lg:hidden [&--open]:visible [&--open]:opacity-100;
+	}
+	.header__toggle-inner {
+		@apply absolute left-1/2 top-1/2 w-6 -translate-x-1/2 -translate-y-1/2 transform;
+	}
+	.header__toggle-inner span {
+		@apply absolute block h-0.5 transform rounded-full bg-neutral-900 transition-all duration-300 dark:bg-white;
+	}
+	.header__toggle-inner span:nth-child(1) {
+		@apply w-9/12 -translate-y-2 [.header\_\_toggle--open_&]:w-6 [.header\_\_toggle--open_&]:translate-y-0 [.header\_\_toggle--open_&]:rotate-45;
+	}
+	.header__toggle-inner span:nth-child(2) {
+		@apply w-6 [.header\_\_toggle--open_&]:-rotate-45;
+	}
+	.header__toggle-inner span:nth-child(3) {
+		@apply w-1/2 origin-top-left translate-y-2 [.header\_\_toggle--open_&]:w-0;
+	}
+	.header__actions {
+		@apply fixed bottom-0 left-0 hidden w-full items-center justify-between gap-4 border-t border-neutral-100 bg-white px-6 py-4 lg:relative lg:ml-auto lg:flex lg:w-auto lg:border-none lg:bg-transparent lg:px-0 lg:py-0 dark:border-neutral-800 dark:bg-neutral-950 lg:dark:bg-transparent [.header\_\_menu--open~&]:flex;
+	}
+</style>

@@ -1,0 +1,17 @@
+---
+// Google Tag Manager head script
+import { googleTagManagerID } from '../../config/analytics'
+---
+
+{
+	googleTagManagerID && (
+		<noscript>
+			<iframe
+				src={`https://www.googletagmanager.com/ns.html?id=${googleTagManagerID}`}
+				height="0"
+				width="0"
+				style="display:none;visibility:hidden"
+			/>
+		</noscript>
+	)
+}

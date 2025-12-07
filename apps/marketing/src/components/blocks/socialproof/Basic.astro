@@ -1,0 +1,73 @@
+---
+// Social Proof Section
+// ------------
+// Description: A section with logos of social media platforms to enchance the trust of the users.
+
+// Components
+// - Layout
+import Section from '../../ui/Section.astro'
+import Row from '../../ui/Row.astro'
+import Col from '../../ui/Col.astro'
+// - UI
+import { Image } from 'astro:assets'
+
+// Content
+import airtable from '../../../assets/logos/airtable-logo.svg'
+import asana from '../../../assets/logos/asana-logo.svg'
+import basecamp from '../../../assets/logos/basecamp-logo.svg'
+import evernote from '../../../assets/logos/evernote-logo.svg'
+import notion from '../../../assets/logos/notion-logo.svg'
+import slack from '../../../assets/logos/slack-logo.svg'
+
+const images = [
+	{
+		image: airtable,
+		alt: 'Airtable logo'
+	},
+	{
+		image: asana,
+		alt: 'Asana logo'
+	},
+	{
+		image: basecamp,
+		alt: 'Basecamp logo'
+	},
+	{
+		image: evernote,
+		alt: 'Evernote logo'
+	},
+	{
+		image: notion,
+		alt: 'Notion logo'
+	},
+	{
+		image: slack,
+		alt: 'Slack logo'
+	}
+]
+
+// Props
+type Props = {
+	classes?: string
+}
+const { classes } = Astro.props
+---
+
+<Section padding="bottom" classes={classes}>
+	<Row>
+		<Col span="12" align="center">
+			<h2 class="!mb-6 text-base font-normal text-neutral-400 dark:text-neutral-600">
+				Trusted by <strong class="highlight">50,000+</strong> businesses
+			</h2></Col
+		>
+	</Row>
+	<Row flex classes="!flex-row">
+		{
+			images.map((item) => (
+				<Col>
+					<Image src={item.image} alt={item.alt} />
+				</Col>
+			))
+		}
+	</Row>
+</Section>

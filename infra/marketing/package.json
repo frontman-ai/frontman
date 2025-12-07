@@ -1,0 +1,17 @@
+{
+  "name": "infra-marketing",
+  "version": "1.0.0",
+  "description": "Pulumi infrastructure for marketing site",
+  "main": "index.ts",
+  "scripts": {
+    "build": "tsc"
+  },
+  "dependencies": {
+    "@pulumi/cloudflare": "^6.11.0",
+    "@pulumi/pulumi": "^3.175.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.4.5"
+  }
+}

@@ -1,0 +1,50 @@
+---
+// CTA
+// ------------
+// Description: a basic call to action component
+// Properties:
+// - Title: the title of the CTA
+// - Text: the text of the CTA
+// - Mode: the mode of the CTA (light, dark)
+// - Bg: the background of the CTA
+// - classes: additional classes
+
+// Props
+type Props = {
+	title?: string
+	text?: string
+	mode?: 'light' | 'dark'
+	bg?: any
+	classes?: string
+}
+const {
+	title = 'Get started now',
+	text = 'Get started today and see the difference for yourself!',
+	mode ,
+	bg,
+	classes
+} = Astro.props
+---
+
+<div
+	class:list={['cta', { [`${classes}`]: classes }, { [`${mode}`]: mode }]}
+	style={bg ? { backgroundImage: `url(${bg.src})` } : {}}
+>
+	<div class="cta__body">
+		<h2 class="cta__heading" set:html={title} />
+		<p class="cta__text" set:html={text} />
+	</div>
+	<slot />
+</div>
+
+<style>
+	.cta {
+		@apply flex flex-col items-center justify-center gap-8 rounded border border-neutral-100 bg-neutral-50 bg-cover bg-center p-8 text-center shadow-2xl shadow-neutral-600/20 lg:p-16 dark:border-neutral-800 dark:bg-neutral-900;
+	}
+	.cta__heading {
+		@apply mb-6 text-pretty text-2xl lg:text-4xl;
+	}
+	.cta__text {
+		@apply max-w-4xl text-lg leading-relaxed;
+	}
+</style>

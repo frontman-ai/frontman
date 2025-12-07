@@ -1,0 +1,76 @@
+---
+// Feature
+// ------------
+// Description: the Feature component is designed to highlight and showcase a specific feature, functionality, or offering within a product, application, or website.
+// Properties:
+// - Type: the type of the feature (top-icon, side-icon)
+// - Title: the title of the feature
+// - Icon: the icon of the feature
+// - IconStyle: the style of the icon (normal, square)
+// - Align: the content alignment of the feature (left, center)
+// - classes: additional classes
+// Reference: https://wind-ui.com/components/features/
+
+// Components
+// - UI
+import { Icon } from 'astro-icon/components'
+
+// Props
+type Props = {
+	type?: 'top-icon' | 'side-icon'
+	title?: string
+	icon?: string
+	iconStyle?: 'normal' | 'square'
+	align?: 'left' | 'center'
+	classes?: string
+}
+const { type = 'top-icon', title, icon = 'rocket', iconStyle, align, classes } = Astro.props
+---
+
+<div
+	class:list={[
+		'feature',
+		{ ['feature--' + `${type}`]: type },
+		{ ['feature--' + `${align}`]: align },
+		{ [`${classes}`]: classes }
+	]}
+>
+	<Icon
+		name=`${icon}`
+		class:list={[
+			'shrink-0',
+			{ [`size-6 text-primary-500`]: iconStyle != 'square' },
+			{ [`size-10 rounded bg-primary-500 p-2 text-white`]: iconStyle === 'square' }
+		]}
+	/>
+	<div class="feature__body">
+		{
+			title && (
+				<h3
+					class:list={[
+						'feature__title',
+						{ [`mb-2 py-2`]: iconStyle === 'square' && type === 'side-icon' }
+					]}
+				>
+					{title}
+				</h3>
+			)
+		}
+		<slot />
+	</div>
+
+	<style>
+		.feature {
+			@apply flex flex-col gap-4;
+		}
+		.feature__title {
+			@apply mb-4 text-lg font-normal leading-6;
+		}
+		.feature--center {
+			@apply items-center text-center;
+		}
+		.feature--side-icon {
+			@apply flex-row;
+		}
+	</style>
+</div>

@@ -1,0 +1,52 @@
+---
+// Basic Dark Testimonial section
+// ------------
+// Description: A centered testimonial section that contains: a quote, a caption and a cite in a dark section with a background image.
+
+// Components
+// - Layout
+import Section from '../../ui/Section.astro'
+import Row from '../../ui/Row.astro'
+import Col from '../../ui/Col.astro'
+// - UI
+import Testimonial from '../../ui/Testimonial.astro'
+
+// Props
+type Props = {
+	blockquote?: string
+	figcaption?: string
+	cite?: string
+	bg?: any
+	bgPosition?: 'left' | 'right' | 'center'
+}
+const {
+	blockquote = 'Foxi is like a rocket boost for our productivity! Its sleek design and out-of-this-world features make managing projects and team communication a breeze.',
+	figcaption = 'Sheryl Sandberg',
+	cite = 'CEO, Facebook',
+	bg,
+	bgPosition = 'center'
+} = Astro.props
+---
+
+<Section
+	id="testimonial"
+	mode="dark"
+	bg={bg}
+	bgPosition={bgPosition}
+	classes="dark:border-t border-y border-neutral-800"
+>
+	<Row>
+		<Col span="12">
+			<Testimonial
+				blockquote={blockquote}
+				figcaption={figcaption}
+				cite={cite}
+				align="center"
+				size="4xl"
+				mobileSize="2xl"
+				classes="!leading-tight font-bold xl:text-5xl max-w-4xl mx-auto"
+				quoteSize={112}
+			/>
+		</Col>
+	</Row>
+</Section>

@@ -1,0 +1,47 @@
+---
+// Avatar
+// ------------
+// Description: the avatar component is used to represent a user or entity.
+// Properties:
+// - Size: the size of the avatar (lg, base, sm, xs)
+// - Link: the link of the avatar
+// - Radius: the radius of the avatar
+// - Image: the image of the avatar
+// - classes: additional classes
+// Reference: https://wind-ui.com/components/avatars/
+
+// Props
+type Props = {
+	size?: 'lg' | 'base' | 'sm' | 'xs'
+	link?: string
+	radius?: string
+	image: { src: string; alt: string }
+	classes?: string
+}
+const { size = 'base', link = '#', radius, image, classes } = Astro.props
+---
+
+<a
+	href={link}
+	class:list={['avatar', { ['avatar--' + `${size}`]: size }, , { [`${classes}`]: classes }]}
+>
+	<img src={image.src} alt={image.alt} title={image.alt} class={radius} />
+</a>
+
+<style>
+	.avatar {
+		@apply relative inline-flex items-center justify-center text-white [&_img]:max-w-full;
+	}
+	.avatar--lg {
+		@apply h-12 w-12 [&_img]:h-12 [&_img]:w-12;
+	}
+	.avatar--base {
+		@apply h-10 w-10 [&_img]:h-10 [&_img]:w-10;
+	}
+	.avatar--sm {
+		@apply h-8 w-8 [&_img]:h-8 [&_img]:w-8;
+	}
+	.avatar--xs {
+		@apply h-6 w-6 [&_img]:h-6 [&_img]:w-6;
+	}
+</style>

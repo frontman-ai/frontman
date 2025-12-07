@@ -1,0 +1,36 @@
+---
+// Contact Hero Section
+// ------------
+// Description: A hero section with a contact form
+
+// Components
+// - Layout
+import Section from '../../ui/Section.astro'
+import Row from '../../ui/Row.astro'
+import Col from '../../ui/Col.astro'
+// - UI
+import Form from '../contact/BasicForm.astro'
+
+// Props
+type Props = {
+	id?: string
+	title?: string
+	text?: string
+	classes?: string
+}
+const { id, title, text, classes } = Astro.props
+---
+
+<Section id={id} classes={classes}>
+	<Row>
+		<Col span="6" classes={`self-center`}>
+			<header class="max-w-xl">
+				<h1 set:html={title} />
+				<p class="text-lg leading-relaxed">{text}</p>
+			</header>
+		</Col>
+		<Col span="6" classes="relative">
+			<Form classes="max-w-xl" />
+		</Col>
+	</Row>
+</Section>

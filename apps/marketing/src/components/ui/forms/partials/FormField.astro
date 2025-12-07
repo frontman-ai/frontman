@@ -1,0 +1,23 @@
+---
+// Input Field container
+// ------------
+// Description: The container for all form elements
+// Properties:
+// - classes: Additional classes to be added to the text field
+
+// Props
+type Props = {
+	classes?: string
+}
+const { classes } = Astro.props
+---
+
+<div class:list={['form__field', { [`${classes}`]: classes }]}>
+	<slot />
+</div>
+
+<style>
+	.form__field {
+		@apply my-8 flex flex-col items-baseline justify-between gap-6 lg:flex-row;
+	}
+</style>

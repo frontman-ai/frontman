@@ -1,0 +1,23 @@
+---
+// Pricing body
+// ------------
+// Description:  The body of the pricing table
+// Properties:
+// - classes: Additional classes to be added to the text field
+
+// Props
+type Props = {
+	classes?: string
+}
+const { classes } = Astro.props
+---
+
+<div class:list={['pricing__body', { [`${classes}`]: classes }]}>
+	<slot />
+</div>
+
+<style>
+	.pricing__body {
+		@apply p-6;
+	}
+</style>

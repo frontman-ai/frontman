@@ -1,0 +1,71 @@
+---
+// Hero Section for Blog Posts
+// ------------
+// Description: A hero section (page header) for the post pages.
+// Properties:
+// - tags: An array of tags for the post
+// - title: The title of the section (usually the title of the post)
+// - author: The author of the post
+// - publishDate: The publish date of the post
+
+// Components
+// - Layout
+import Section from '../../../components/ui/Section.astro'
+import Row from '../../../components/ui/Row.astro'
+import Col from '../../../components/ui/Col.astro'
+// - UI
+import Badge from '../../../components/ui/Badge.astro'
+import Breadcrumbs from '../../../components/ui/Breadcrumbs.astro'
+
+// Props
+type Props = {
+	tags?: any
+	title: string
+	author?: string
+	publishDate?: string
+}
+const { tags, title, author, publishDate } = Astro.props
+---
+
+<Section id="post-intro" classes="bg-neutral-50 dark:bg-neutral-900">
+	<Row>
+		<Col span="12" align="center">
+			<header class="post-header">
+				<Breadcrumbs classes="mb-6" />
+				<h1 class="post-header__title">
+					{title}
+				</h1>
+				{
+					author ? (
+						<p class="page-header__text">
+							Written by, {author} {publishDate && 'on ' + publishDate}
+						</p>
+					) : (
+						publishDate && <p class="page-header__text">Published on, {publishDate}</p>
+					)
+				}
+			</header>
+			{
+				tags && (
+					<div class="post-header__tags">
+						{tags.map((tag: string) => (
+							<Badge name={tag} link={`/blog/tags/` + tag} classes="capitalize" />
+						))}
+					</div>
+				)
+			}
+		</Col>
+	</Row>
+</Section>
+
+<style>
+	.page-header {
+		@apply mx-auto max-w-4xl;
+	}
+	.page-header__text {
+		@apply text-lg leading-relaxed;
+	}
+	.post-header__tags {
+		@apply mt-6 flex flex-row items-center justify-center gap-2 pb-2;
+	}
+</style>

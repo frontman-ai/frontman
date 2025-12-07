@@ -1,0 +1,44 @@
+---
+// Avatar
+// ------------
+// Description: a group of avatars
+// Properties:
+// - Size: the size of the avatar (lg, base, sm, xs)
+// - Avatars: the avatars of the group
+// - Radius: the radius of the avatar
+// - classes: additional classes
+// Reference: https://wind-ui.com/components/avatars/
+
+// Components
+// - UI
+import Avatar from './Avatar.astro'
+
+// Props
+type Props = {
+	size?: 'lg' | 'base' | 'sm' | 'xs'
+	avatars: Array<any>
+	radius?: string
+	classes?: string
+}
+const { size = 'base', avatars, radius = 'rounded', classes } = Astro.props
+---
+
+<span class:list={['avatar-group', { [`${classes}`]: classes }]}>
+	{
+		avatars.map((item) => (
+			<Avatar
+				size={size}
+				image={item.image}
+				link={item.link}
+				radius={radius}
+				classes="-mx-2 first:ml-0"
+			/>
+		))
+	}
+</span>
+
+<style>
+	.avatar-group {
+		@apply flex -space-x-2;
+	}
+</style>

@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help install build clean dev test lint dev-client dev-nextjs pull-webapi
+.PHONY: help install build clean dev test lint dev-client dev-nextjs pull-webapi infra-install infra-preview-marketing infra-up-marketing
 
 help: ## Display available commands
 	@awk 'BEGIN {FS = ":.*##"} /^[a-zA-Z_-]+:.*##/ { printf "  %-15s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
@@ -43,5 +43,17 @@ kill-all-processes: ## Kill all processes
 dev-dogfooding: ## Start development server for dogfooding app
 	cd apps/dogfooding && npm install && $(MAKE) dev
 
+dev-marketing: ## Start development server for marketing site
+	cd apps/marketing && $(MAKE) dev
+
 open-dogfooding: ## Open dogfooding app in browser
 	open -n -a "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --args --user-data-dir="/tmp/chrome_dev_test" --disable-web-security http://localhost:6123
+
+infra-install: ## Install infrastructure dependencies
+	cd infra && $(MAKE) install
+
+infra-preview-marketing: ## Preview marketing infrastructure changes
+	cd infra && $(MAKE) preview-marketing
+
+infra-up-marketing: ## Deploy marketing infrastructure
+	cd infra && $(MAKE) up-marketing

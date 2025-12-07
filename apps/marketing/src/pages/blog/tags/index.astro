@@ -1,0 +1,21 @@
+---
+// Blog Tags Page
+// ------------
+// Description: The blog tags page.
+
+// Components
+// - Layout
+import Layout from '../../../layouts/Layout.astro'
+// - UI
+import Hero from '../../../components/blocks/hero/PageHeader.astro'
+import BlogPosts from '../../../components/blocks/blog/BlogPosts.astro'
+
+// Data
+import { getCollection } from 'astro:content'
+const allPosts = await getCollection('blog')
+---
+
+<Layout>
+	<Hero title="Tags" />
+	<BlogPosts data={allPosts} />
+</Layout>

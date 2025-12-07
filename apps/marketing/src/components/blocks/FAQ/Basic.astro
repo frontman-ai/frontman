@@ -1,0 +1,69 @@
+---
+// Basic FAQ section
+// ------------
+// Description: A section that contains a list of frequently asked questions with answers.
+
+// Components
+// - Layout
+import Section from '../../ui/Section.astro'
+import Row from '../../ui/Row.astro'
+import Col from '../../ui/Col.astro'
+// - UI
+import Accordion from '../../ui/Accordion.astro'
+import Card from '../../ui/cards/partials/Card.astro'
+
+// Props
+type Props = {
+	classes?: string
+}
+const { classes } = Astro.props
+---
+
+<Section id="FAQ" classes={classes}>
+	<Row>
+		<Col span="12" align="center" classes="mb-12 max-w-4xl mx-auto">
+			<h2 class="text-pretty">
+				Demystifying <strong>pricing,</strong> common queries resolved
+			</h2>
+			<p class="text-lg leading-relaxed">
+				Curious about our pricing plans? We’re here to help. Below are some of the most frequently
+				asked questions about our pricing options.
+			</p>
+		</Col>
+		<Col span="2" />
+		<Col span="8">
+			<Card classes="divide-y divide-neutral-100 dark:divide-neutral-800">
+				<Accordion
+					title="What is included in the free trial?"
+					text="Our free trial gives you full access to all features of our platform for 14 days. You can explore and use all functionalities to see how they fit your business needs, without any cost."
+				/>
+				<Accordion
+					title="Can I change my plan later?"
+					text="Yes, you can upgrade or downgrade your plan at any time from your account settings. The changes will take effect immediately, and any cost adjustments will be prorated."
+				/>
+				<Accordion
+					title="Are there any hidden fees?"
+					text="No, there are no hidden fees. The price you see is the price you pay. We believe in transparent pricing with no surprises."
+				/>
+				<Accordion
+					title="What payment methods do you accept?"
+					text="We accept all major credit cards, including Visa, MasterCard, American Express, and PayPal. For enterprise plans, we also offer invoicing options."
+				/>
+				<Accordion
+					title="Do you offer discounts for annual subscriptions?"
+					text="Yes, we offer a discount for annual subscriptions. By choosing an annual plan, you can save up to 20% compared to the monthly plan."
+				/>
+			</Card>
+		</Col>
+		<Col span="2" />
+	</Row>
+</Section>
+
+<style>
+	.page-header {
+		@apply mx-auto max-w-3xl;
+	}
+	.page-header__text {
+		@apply text-lg leading-relaxed;
+	}
+</style>

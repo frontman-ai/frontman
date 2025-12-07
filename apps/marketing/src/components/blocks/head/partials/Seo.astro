@@ -1,0 +1,40 @@
+---
+// SEO Component
+// ------------
+// Description: A component to add SEO meta tags to the page.
+// Properties:
+// - title: The page title
+// - description: The page description
+// - ogImage: The page image for Open Graph
+// - canonical: Whether to use the canonical URL
+// - noindex: Whether to add noindex and nofollow meta tags
+
+// Props
+type Props = {
+	title?: string
+	description?: string
+	ogImage?: string
+	canonical?: boolean
+	noindex?: boolean
+}
+
+const { title, description, ogImage, canonical, noindex } = Astro.props
+---
+
+<Fragment>
+	<title>{title}</title>
+	<meta name="description" content={description} />
+	<meta property="og:type" content="website" />
+	<meta property="og:url" content={Astro.url} />
+	<meta property="og:title" content={title} />
+	<meta property="og:description" content={description} />
+	<meta property="og:image" content={ogImage} />
+	<meta property="twitter:card" content="summary_large_image" />
+	<meta property="twitter:url" content={Astro.url} />
+	<meta property="twitter:title" content={title} />
+	<meta property="twitter:description" content={description} />
+	<meta property="twitter:image" content={ogImage} />
+	<link rel="canonical" href={Astro.url} />
+	{canonical && <link rel="canonical" href={Astro.url} item-prop="url" />}
+	{noindex && <meta name="robots" content="noindex,nofollow" />}
+</Fragment>

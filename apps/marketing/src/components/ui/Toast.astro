@@ -1,0 +1,123 @@
+---
+// Toast
+// ------------
+// Description: The toast component is a user interface element that displays brief,
+// informative messages to users. It is typically used to provide feedback or
+// toasts about the status of an action or to display important information.
+// Reference: https://wind-ui.com/components/notifications/
+---
+
+<div id="foxi-toast" class="toast" style="display: none">
+	<div class="toast__container" role="status">
+		<!-- Heading with close button -->
+		<div class="toast__heading">
+			<!-- Headline -->
+			<h3 class="toast__headline">Ready to go bigger?</h3>
+			<!-- Close button -->
+			<button aria-label="Close" class="toast__close-button" id="foxi-toast-close">
+				<span class="toast__close-button-icon">
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						class="h-4 w-4"
+						fill="none"
+						viewBox="0 0 24 24"
+						stroke="currentColor"
+						stroke-width="2"
+					>
+						<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"></path>
+					</svg>
+				</span>
+			</button>
+		</div>
+		<!-- Body -->
+		<div class="toast__body">
+			<p>
+				Unlock <a href="https://astro.build/themes/details/foxi-pro/" target="_blank">Foxi Pro</a> —
+				CMS, multilingual, animations, and advanced UI. View all available themes from <a href="https://oxygenna.com/themes" target="_blank">Oxygenna</a>.
+			</p>
+		</div>
+		<!-- Actions -->
+		<div class="toast__actions"></div>
+	</div>
+</div>
+
+<style>
+	.toast {
+		@apply fixed bottom-4 right-4 z-50;
+	}
+	.toast__container {
+		@apply flex max-h-[95vh] w-80 max-w-full translate-y-4 flex-col overflow-hidden rounded bg-primary-500/80 px-4 py-3 text-sm text-white opacity-0 shadow-lg shadow-primary-400/20 ring-1 ring-inset ring-primary-700 backdrop-blur-sm transition-all duration-500 dark:ring-primary-400 [.toast--show_&]:animate-fadeUp;
+	}
+	.toast__heading {
+		@apply mb-0 flex items-center gap-4;
+	}
+	.toast__headline {
+		@apply mb-0 flex-1 text-base font-semibold text-white;
+	}
+	.toast__close-button {
+		@apply inline-flex h-8 items-center justify-center gap-2 justify-self-center whitespace-nowrap rounded-full px-4 text-xs font-medium tracking-wide text-white transition duration-300 hover:bg-primary-50 hover:text-primary-600 focus:bg-primary-100 focus:text-primary-700 focus-visible:outline-none disabled:cursor-not-allowed disabled:text-primary-600 disabled:shadow-none disabled:hover:bg-transparent;
+	}
+	.toast__close-button-icon {
+		@apply relative only:-mx-4;
+	}
+	.toast__body {
+		@apply text-sm text-white/80 [&_a]:font-bold [&_a]:text-white [&_a]:underline [&_p]:mb-0;
+	}
+	.toast__actions {
+		@apply mt-4 flex gap-4 pb-1 empty:hidden;
+	}
+</style>
+
+<script is:inline>
+	function initializeToast() {
+		const toast = document.getElementById('foxi-toast')
+		const closeButton = document.getElementById('foxi-toast-close')
+
+		if (!toast) return // Don't run if toast isn't present
+
+		// Function to show the toast
+		function showToast() {
+			toast.style.display = 'block'
+			toast.classList.add('toast--show')
+		}
+
+		// Function to hide the toast and store dismissal time
+		function hideToast() {
+			toast.style.display = 'none'
+			localStorage.setItem('foxiToastDismissed', Date.now())
+			toast.classList.remove('toast--show')
+		}
+
+		// Check if toast should be shown
+		function checkToastEligibility() {
+			const lastDismissed = localStorage.getItem('foxiToastDismissed')
+
+			if (!lastDismissed) {
+				setTimeout(showToast, 3000)
+				return
+			}
+
+			const twoSecondsInMs = 7 * 24 * 60 * 60 * 1000
+			const timeSinceDismissal = Date.now() - parseInt(lastDismissed)
+
+			if (timeSinceDismissal >= twoSecondsInMs) {
+				setTimeout(showToast, 3000)
+			}
+		}
+
+		// Initialize
+		checkToastEligibility()
+
+		// Close button click handler
+		if (closeButton) {
+			closeButton.addEventListener('click', hideToast)
+		}
+	}
+
+	// Run once on initial page load
+	document.addEventListener('DOMContentLoaded', initializeToast)
+
+	// Run again on Astro SPA-style page loads
+	document.addEventListener('astro:page-loaded', initializeToast)
+	document.addEventListener('astro:after-swap', initializeToast)
+</script>

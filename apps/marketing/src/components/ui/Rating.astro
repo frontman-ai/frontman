@@ -1,0 +1,82 @@
+---
+// Rating
+// ------------
+// Description: the rating component is a ui element that allows users to rate a product or service.
+// Properties:
+// - Title: the title of the rating
+// - Text: the text of the rating
+// - HelperText: the helper text of the rating
+// - Rating: the rating of the rating (0 to 5)
+// - Size: the size of the rating (base, sm)
+// - Elevated: whether the rating is elevated or not
+// - classes: additional classes
+// Reference: https://wind-ui.com/components/ratings/
+
+// Components
+// - UI
+import { Icon } from 'astro-icon/components'
+
+// Props
+type Props = {
+	title?: string
+	text?: string
+	helperText?: string
+	rating: 0 | 1 | 2 | 3 | 4 | 5
+	size?: 'base' | 'sm'
+	elevated?: boolean
+	classes?: string
+}
+const { rating = 0, size = 'base', elevated, title, text, helperText, classes } = Astro.props
+---
+
+<div
+	class:list={[
+		'rating',
+		{ ['rating--elevated']: elevated },
+		{ ['rating--' + `${size}`]: size },
+		{ [`${classes}`]: classes }
+	]}
+>
+	{title && <h4 class="rating__title">{title}</h4>}
+	<span class="rating__body">
+		<span class="rating__stars" role="img" aria-label={`Rating: ${rating} out of 5 stars`}>
+			{
+				Array.from({ length: 5 }, (_, index) => (
+					<span aria-hidden="true">
+						<Icon name={index < rating ? 'filled-star' : 'empty-star'} />
+					</span>
+				))
+			}
+		</span>
+		{text && <span>{text}</span>}
+	</span>
+	{helperText && <span class="rating__helper-text"> {helperText} </span>}
+</div>
+
+<style>
+	.rating {
+		@apply inline-flex flex-col items-center gap-2;
+	}
+	.rating__title {
+		@apply m-0 text-base font-bold;
+	}
+	.rating__body {
+		@apply flex items-center gap-4 rounded text-sm text-neutral-500 dark:text-neutral-300;
+	}
+	.rating--elevated .rating__body {
+		@apply bg-neutral-50 px-4 py-2 shadow-md shadow-neutral-200 dark:bg-neutral-700 dark:shadow-neutral-700/30;
+	}
+	.rating__stars {
+		@apply flex text-amber-400;
+	}
+	.rating--base .rating__stars {
+		@apply gap-1 [&_svg]:h-6 [&_svg]:w-6;
+	}
+
+	.rating--sm .rating__stars {
+		@apply [&_svg]:h-4 [&_svg]:w-4;
+	}
+	.rating__helper-text {
+		@apply text-xs leading-6 text-neutral-400;
+	}
+</style>

@@ -1,0 +1,41 @@
+---
+// Signup Modal
+// ------------
+// Description: A modal with a form to sign up.
+
+// Components
+// - UI
+import Modal from '../../ui/Modal.astro'
+import Form from '../../ui/forms/Form.astro'
+import FormField from '../../ui/forms/partials/FormField.astro'
+import InputField from '../../ui/forms/form-elements/InputField.astro'
+import Button from '../../ui/Button.astro'
+import { Icon } from 'astro-icon/components'
+
+// Props
+type Props = {
+	classes?: string
+}
+const { classes } = Astro.props
+---
+
+<Modal id="signup" classes={classes} title="Sign up">
+	<p class="mb-0">Enter your email bellow to get started with Foxi.</p>
+	<Form>
+		<FormField>
+			<InputField type="email" id="email" label="Your Email" />
+		</FormField>
+		<Button style="primary" type="submit" classes="w-full" size="lg">Sign up</Button>
+		<div class="my-2 text-center">or</div>
+		<Button
+			style="primary"
+			type="submit"
+			classes="w-full"
+			size="lg"
+			classes="!bg-white w-full !text-neutral-500 border border-neutral-100"
+		>
+			<Icon name="google-logo" class="h-6 w-6" />
+			Signup with Google
+		</Button>
+	</Form>
+</Modal>
