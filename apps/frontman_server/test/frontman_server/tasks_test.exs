@@ -69,13 +69,9 @@ defmodule FrontmanServer.TasksTest do
       {:ok, ^task_id} = Tasks.create_task(task_id)
       agent_id = Ecto.UUID.generate()
 
-      tool_call_data = %{
-        id: "call_123",
-        name: "calculator",
-        arguments: %{"expression" => "1 + 1"}
-      }
+      tool_call = ReqLLM.ToolCall.new("call_123", "calculator", ~s({"expression": "1 + 1"}))
 
-      {:ok, interaction} = Tasks.add_tool_call(task_id, agent_id, tool_call_data)
+      {:ok, interaction} = Tasks.add_tool_call(task_id, agent_id, tool_call)
 
       assert interaction.tool_name == "calculator"
       assert interaction.tool_call_id == "call_123"
@@ -83,10 +79,10 @@ defmodule FrontmanServer.TasksTest do
     end
 
     test "returns error for non-existent task" do
-      tool_call_data = %{id: "call_123", name: "test", arguments: %{}}
+      tool_call = ReqLLM.ToolCall.new("call_123", "test", "{}")
 
       assert {:error, :task_not_found} =
-               Tasks.add_tool_call("nonexistent", "agent", tool_call_data)
+               Tasks.add_tool_call("nonexistent", "agent", tool_call)
     end
   end
 

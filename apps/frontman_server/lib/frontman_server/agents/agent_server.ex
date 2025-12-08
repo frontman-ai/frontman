@@ -16,10 +16,11 @@ defmodule FrontmanServer.Agents.AgentServer do
   use GenServer
   require Logger
 
-  @default_model "openrouter:anthropic/claude-sonnet-4.5"
+  @default_model "anthropic:claude-sonnet-4"
   @idle_timeout_ms 5 * 60 * 1000
 
   alias FrontmanServer.Agents.{Agent, Prompts, SubAgent, SubAgentTool}
+  alias ReqLLM.ToolCall
 
   # Infrastructure state - domain state lives in `agent`
   defstruct [
@@ -210,7 +211,7 @@ defmodule FrontmanServer.Agents.AgentServer do
         {:noreply, state}
 
       tool_call ->
-        Logger.info("Tool #{tool_call.name} completed")
+        Logger.info("Tool #{ToolCall.name(tool_call)} completed")
         Registry.unregister(FrontmanServer.AgentRegistry, {:tool_call, tool_call_id})
         state = %{state | agent: agent}
 
@@ -396,7 +397,7 @@ defmodule FrontmanServer.Agents.AgentServer do
     emit(state, {:response, state.agent.id, text, metadata})
 
     {spawn_calls, regular_tools} =
-      Enum.split_with(tool_calls, fn tc -> tc.name == SubAgentTool.tool_name() end)
+      Enum.split_with(tool_calls, fn tc -> ToolCall.name(tc) == SubAgentTool.tool_name() end)
 
     state =
       state
@@ -446,7 +447,7 @@ defmodule FrontmanServer.Agents.AgentServer do
   end
 
   defp spawn_sub_agent(state, tool_call) do
-    case SubAgentTool.parse_arguments(tool_call.arguments) do
+    case SubAgentTool.parse_arguments(ToolCall.args_map(tool_call)) do
       {:ok, %{role: role, task: task}} ->
         id = "sub_#{:crypto.strong_rand_bytes(8) |> Base.encode16(case: :lower)}"
 
@@ -491,7 +492,7 @@ defmodule FrontmanServer.Agents.AgentServer do
         end
 
       {:error, reason} ->
-        {:error, :unknown, inspect(tool_call.arguments), reason}
+        {:error, :unknown, ToolCall.args_json(tool_call), reason}
     end
   end
 
@@ -519,8 +520,10 @@ defmodule FrontmanServer.Agents.AgentServer do
     end
   end
 
+  @spec extract_tool_calls([map()]) :: [ToolCall.t()]
   defp extract_tool_calls(chunks) do
-    tool_calls =
+    # Extract raw tool call info (keeping index for fragment matching)
+    raw_calls =
       chunks
       |> Enum.filter(&(&1.type == :tool_call))
       |> Enum.map(fn chunk ->
@@ -532,6 +535,7 @@ defmodule FrontmanServer.Agents.AgentServer do
         }
       end)
 
+    # Collect streamed argument fragments grouped by tool call index
     arg_fragments =
       chunks
       |> Enum.filter(fn
@@ -544,19 +548,27 @@ defmodule FrontmanServer.Agents.AgentServer do
         {index, json}
       end)
 
-    tool_calls
+    # Merge arguments and convert to proper ToolCall structs
+    raw_calls
     |> Enum.map(fn call ->
-      case Map.get(arg_fragments, call.index) do
-        nil ->
-          Map.delete(call, :index)
-
-        json ->
-          case Jason.decode(json) do
-            {:ok, args} -> call |> Map.put(:arguments, args) |> Map.delete(:index)
-            {:error, _} -> Map.delete(call, :index)
-          end
-      end
+      args = resolve_arguments(call, arg_fragments)
+      args_json = if is_binary(args), do: args, else: Jason.encode!(args)
+      ToolCall.new(call.id, call.name, args_json)
     end)
+  end
+
+  # Resolve final arguments: prefer streamed fragments, fall back to inline args
+  defp resolve_arguments(call, arg_fragments) do
+    case Map.get(arg_fragments, call.index) do
+      nil ->
+        call.arguments
+
+      json ->
+        case Jason.decode(json) do
+          {:ok, args} -> args
+          {:error, _} -> call.arguments
+        end
+    end
   end
 
   # -- Registry Helpers --

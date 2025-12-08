@@ -214,15 +214,15 @@ defmodule FrontmanServer.Tasks.Interaction do
       field(:timestamp, DateTime.t())
     end
 
-    def new(agent_id, tool_call_data) do
+    def new(agent_id, %ReqLLM.ToolCall{} = tc) do
       alias FrontmanServer.Tasks.Interaction
 
       %__MODULE__{
         id: Interaction.new_id(),
         agent_id: agent_id,
-        tool_call_id: tool_call_data.id,
-        tool_name: tool_call_data.name,
-        arguments: tool_call_data.arguments,
+        tool_call_id: tc.id,
+        tool_name: ReqLLM.ToolCall.name(tc),
+        arguments: ReqLLM.ToolCall.args_map(tc) || %{},
         timestamp: Interaction.now()
       }
     end

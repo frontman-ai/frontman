@@ -154,7 +154,7 @@ defmodule FrontmanServer.Tasks do
   @doc """
   Creates and appends a ToolCall interaction.
   """
-  @spec add_tool_call(String.t(), String.t(), map()) ::
+  @spec add_tool_call(String.t(), String.t(), ReqLLM.ToolCall.t()) ::
           {:ok, Interaction.t()} | {:error, :task_not_found}
   def add_tool_call(task_id, agent_id, tool_call_data) do
     interaction = Interaction.ToolCall.new(agent_id, tool_call_data)
