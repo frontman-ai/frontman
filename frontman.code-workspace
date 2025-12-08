@@ -1,0 +1,12 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "apps/frontman_server",
+			"name": "Frontman Server"
+		}
+	],
+	"settings": {}
+}

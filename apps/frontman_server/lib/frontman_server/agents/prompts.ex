@@ -133,10 +133,13 @@ defmodule FrontmanServer.Agents.Prompts do
 
   Returns a ReqLLM system message with cache control.
   Pass `nil` for root agents, or a role atom for sub-agents.
+
+  ## Options
+  - `:has_figma_context` - When true, adds Figma-specific guidance for breaking down designs
   """
-  @spec build_system_message(atom() | nil) :: map()
-  def build_system_message(role) do
-    system_prompt = build(role)
+  @spec build_system_message(atom() | nil, keyword()) :: map()
+  def build_system_message(role, opts \\ []) do
+    system_prompt = build(role, opts)
     ReqLLM.Context.system(system_prompt, cache_control: %{type: "ephemeral"})
   end
 
@@ -145,15 +148,37 @@ defmodule FrontmanServer.Agents.Prompts do
 
   For root agents (role: nil), returns the base prompt with sub-agent guidance.
   For sub-agents, returns the role-specific prompt.
+
+  ## Options
+  - `:has_figma_context` - When true, adds Figma-specific guidance for breaking down designs
   """
-  @spec build(atom() | nil) :: String.t()
-  def build(nil) do
-    @base_system_prompt <> "\n" <> sub_agent_guidance()
+  @spec build(atom() | nil, keyword()) :: String.t()
+  def build(role, opts \\ [])
+
+  def build(nil, opts) do
+    base = @base_system_prompt <> "\n" <> sub_agent_guidance()
+
+    if Keyword.get(opts, :has_figma_context, false) do
+      base <> "\n" <> figma_context_guidance()
+    else
+      base
+    end
   end
 
-  def build(role) do
+  def build(role, _opts) do
     {:ok, config} = get_role(role)
     config.system_prompt
+  end
+
+  defp figma_context_guidance do
+    """
+    ## Figma Design Context Detected
+
+    You have received Figma design context (a design image and/or node DSL structure).
+
+    Use this context to understand the visual design and implement components accordingly.
+    The Figma node data includes layout, styling, and hierarchy information that should guide your implementation.
+    """
   end
 
   defp sub_agent_guidance do

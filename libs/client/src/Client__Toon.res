@@ -8,3 +8,5 @@ external encode: JSON.t => string = "encode"
 // Decode TOON string back to JSON
 @module("@toon-format/toon")
 external decode: string => JSON.t = "decode"
+
+

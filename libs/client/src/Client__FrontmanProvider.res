@@ -159,6 +159,10 @@ module Provider = {
                 MCPServer.make(~relay=relayInstance, ~serverName=clientName, ~serverVersion=clientVersion)
                 ->MCPServer.registerToolModule(module(ConsoleLogTool))
                 ->MCPServer.registerToolModule(module(Client__Tool__GetErrors))
+                ->MCPServer.registerToolModule(module(Client__Tool__GetFigmaNode))
+                ->MCPServer.registerToolModule(module(Client__Tool__TakeScreenshot))
+                ->MCPServer.registerToolModule(module(Client__Tool__Navigate))
+                ->MCPServer.registerToolModule(module(Client__Tool__NavigateBack))
               let handler = MCP.attach(
                 ~channel=sess.channel,
                 ~serverInterface=MCPServer.toInterface(mcpServer),

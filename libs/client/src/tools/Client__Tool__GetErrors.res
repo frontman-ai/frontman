@@ -25,13 +25,29 @@ type error = {
 @schema
 type output = {errors: array<error>}
 
+// Query Next.js error portal from shadow DOM
+let getNextJsPortalError: WebAPI.DOMAPI.document => option<string> = %raw(`
+  function(doc) {
+    try {
+      const portal = doc.querySelector("nextjs-portal");
+      if (!portal || !portal.shadowRoot) return undefined;
+      const errorDesc = portal.shadowRoot.querySelector("#nextjs__container_errors_desc");
+      if (!errorDesc || !errorDesc.innerText) return undefined;
+      return errorDesc.innerText;
+    } catch (e) {
+      return undefined;
+    }
+  }
+`)
+
 let execute = async (input: input): toolResult<output> => {
   let state = AskTheLlmReactStatestore.StateStore.getState(Client__State__Store.store)
   let limit = input.limit->Option.getOr(100)
 
-  let errors: array<error> =
-    state.currentTaskId
-    ->Option.flatMap(taskId => Dict.get(state.tasks, taskId))
+  let task = state.currentTaskId->Option.flatMap(taskId => Dict.get(state.tasks, taskId))
+
+  let consoleErrors: array<error> =
+    task
     ->Option.map(task => task.previewFrame.errors)
     ->Option.getOr([])
     ->Array.slice(~start=0, ~end=limit)
@@ -43,6 +59,28 @@ let execute = async (input: input): toolResult<output> => {
         name: clientError.name,
       }
     })
+
+  // If no console errors, check for Next.js portal errors
+  let errors = if Array.length(consoleErrors) == 0 {
+    let nextJsError =
+      task
+      ->Option.flatMap(task => task.previewFrame.contentDocument)
+      ->Option.flatMap(getNextJsPortalError)
+
+    switch nextJsError {
+    | Some(message) => [
+        {
+          createdAt: Date.now(),
+          message,
+          stack: "",
+          name: Some("NextJsError"),
+        },
+      ]
+    | None => []
+    }
+  } else {
+    consoleErrors
+  }
 
   Ok({errors: errors})
 }

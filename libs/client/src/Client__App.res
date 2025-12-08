@@ -54,7 +54,32 @@ let useExtensionState = () => {
             switch message.type_ {
             | "DevServerImportFigmaNodeResponse" =>
               message.selectedFigmaNode->Option.forEach(data => {
-                Client__State.Actions.setFigmaNode(~figmaNode=data)
+                // Parse the data structure: { nodeId: string, nodeDSL: string, image: option<string> }
+                let parsedData: Client__State__Types.FigmaNode.selectedNodeData = {
+                  nodeId: %raw(`data.nodeId`),
+                  nodeDSL: %raw(`data.nodeDSL`),
+                  image: %raw(`data.image ? (data.image === null ? null : data.image) : null`)->Js.Nullable.toOption,
+                }
+                Client__State.Actions.setFigmaNode(~figmaNode=parsedData)
+              })
+            | "GetFigmaNodeResponse" =>
+              // Route response to the pending tool request
+              // Note: fields are Js.Nullable.t since they come from JS as null, not undefined
+              message.requestId->Js.Nullable.toOption->Option.forEach(requestId => {
+                let result = switch message.error->Js.Nullable.toOption {
+                | Some(error) => Error(error)
+                | None =>
+                  switch message.node->Js.Nullable.toOption {
+                  | Some(node) =>
+                    let image = message.image->Js.Nullable.toOption
+                    Ok({
+                      Client__Tool__GetFigmaNode.node: node,
+                      Client__Tool__GetFigmaNode.image: image,
+                    })
+                  | None => Error("No node data in response")
+                  }
+                }
+                Client__Tool__GetFigmaNode.handleResponse(requestId, result)
               })
             | _ => ()
             }

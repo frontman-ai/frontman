@@ -15,6 +15,7 @@ defmodule FrontmanServer.Agents do
 
   alias FrontmanServer.Agents.{AgentServer, Prompts}
   alias FrontmanServer.Tasks
+  alias Jason
 
   # Re-export role type from Prompts
   @type role :: Prompts.role()
@@ -118,7 +119,8 @@ defmodule FrontmanServer.Agents do
       {:ok, _pid} ->
         Tasks.add_agent_spawned(%{task_id: task_id, agent_id: agent_id}, %{tools: tools})
         messages = Tasks.get_llm_messages(task_id, agent_id)
-        system_msg = Prompts.build_system_message(nil)
+        has_figma = Tasks.has_figma_context?(task_id)
+        system_msg = Prompts.build_system_message(nil, has_figma_context: has_figma)
         AgentServer.execute_iteration(agent_id, [system_msg | messages])
         {:ok, agent_id}
 
@@ -221,7 +223,9 @@ defmodule FrontmanServer.Agents do
     messages = Tasks.get_llm_messages(task_id, agent_id)
     {:ok, _pid, %{role: role}} = get_agent(agent_id)
     role_for_prompt = if role == :root, do: nil, else: role
-    system_msg = Prompts.build_system_message(role_for_prompt)
+    # Only check for Figma context for root agents
+    opts = if role == :root, do: [has_figma_context: Tasks.has_figma_context?(task_id)], else: []
+    system_msg = Prompts.build_system_message(role_for_prompt, opts)
     AgentServer.execute_iteration(agent_id, [system_msg | messages])
   end
 

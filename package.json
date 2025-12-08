@@ -11,6 +11,7 @@
 		"libs/client",
 		"libs/context-loader",
 		"libs/experimental-rescript-webapi",
+		"libs/figma-client-api",
 		"libs/frontman-client",
 		"libs/frontman-protocol",
 		"libs/frontman-nextjs",

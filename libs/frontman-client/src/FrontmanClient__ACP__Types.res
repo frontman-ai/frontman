@@ -98,13 +98,60 @@ type sessionNewResult = {
   sessionId: string,
 }
 
-// Embedded resource for ContentBlock::Resource
+// Annotations for embedded resources
 @schema
-type embeddedResource = {
+type annotations = {
+  @as("_meta")
+  _meta: option<JSON.t>,
+}
+
+// Text resource contents (for EmbeddedResourceResource)
+@schema
+type textResourceContents = {
   uri: string,
   @as("mimeType")
-  mimeType: string,
-  text: option<string>,
+  mimeType: option<string>,
+  text: string,
+}
+
+// Blob resource contents (for EmbeddedResourceResource)
+@schema
+type blobResourceContents = {
+  uri: string,
+  @as("mimeType")
+  mimeType: option<string>,
+  blob: string,
+}
+
+// EmbeddedResourceResource union type
+type embeddedResourceResource =
+  | TextResourceContents(textResourceContents)
+  | BlobResourceContents(blobResourceContents)
+
+let embeddedResourceResourceSchema = S.union([
+  S.object(s => {
+    TextResourceContents({
+      uri: s.field("uri", S.string),
+      mimeType: s.field("mimeType", S.option(S.string)),
+      text: s.field("text", S.string),
+    })
+  }),
+  S.object(s => {
+    BlobResourceContents({
+      uri: s.field("uri", S.string),
+      mimeType: s.field("mimeType", S.option(S.string)),
+      blob: s.field("blob", S.string),
+    })
+  }),
+])
+
+// Embedded resource for ContentBlock::Resource (per ACP spec)
+@schema
+type embeddedResource = {
+  @as("_meta")
+  _meta: option<JSON.t>,
+  annotations: option<annotations>,
+  resource: embeddedResourceResource,
 }
 
 // Content block for prompts and responses
@@ -117,14 +164,29 @@ type contentBlock = {
   text: option<string>,
   // For type="resource_link"
   uri: option<string>,
-  // For type="resource"
+  // For type="resource" - contains EmbeddedResource wrapper
   resource: option<embeddedResource>,
-  // For type="resource" - mimeType is required per ACP spec
-  @as("mimeType")
-  mimeType: option<string>,
   // For structured JSON content from backend tools
   content: option<JSON.t>,
 }
+
+let contentBlockSchema = S.object(s => {
+  type_: s.field("type", S.string),
+  text: s.field("text", S.option(S.string)),
+  uri: s.field("uri", S.option(S.string)),
+  resource: s.field("resource", S.option(embeddedResourceSchema)),
+  content: s.field("content", S.option(S.json)),
+})
+
+let embeddedResourceSchema = S.object(s => {
+  _meta: s.field("_meta", S.option(S.json)),
+  annotations: s.field("annotations", S.option(annotationsSchema)),
+  resource: s.field("resource", embeddedResourceResourceSchema),
+})
+
+let annotationsSchema = S.object(s => {
+  _meta: s.field("_meta", S.option(S.json)),
+})
 
 // Tool call content item (for tool_call_update)
 @schema
@@ -133,6 +195,11 @@ type toolCallContentItem = {
   type_: string,
   content: option<contentBlock>,
 }
+
+let toolCallContentItemSchema = S.object(s => {
+  type_: s.field("type", S.string),
+  content: s.field("content", S.option(contentBlockSchema)),
+})
 
 // Tool call status
 type toolCallStatus =

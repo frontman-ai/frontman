@@ -149,6 +149,9 @@ defmodule FrontmanServerWeb.SessionChannel do
           |> Enum.map(fn block -> Map.get(block, "text", "") end)
           |> Enum.join("\n")
 
+        # Try to parse the result as JSON to preserve structured data (e.g., screenshots)
+        parsed_result = parse_tool_result(text_result)
+
         # Check if the tool call resulted in an error
         is_error = Map.get(result, "isError", false)
 
@@ -173,12 +176,12 @@ defmodule FrontmanServerWeb.SessionChannel do
 
         push(socket, "acp:message", notification)
 
-        # Store result and notify agent
+        # Store result and notify agent (use parsed result to preserve structured data like screenshots)
         Tasks.add_tool_result(
           session_id,
           tool_call.agent_id,
           %{id: tool_call.tool_call_id, name: tool_call.tool_name},
-          text_result,
+          parsed_result,
           is_error
         )
 
@@ -189,6 +192,17 @@ defmodule FrontmanServerWeb.SessionChannel do
         {:noreply, socket}
     end
   end
+
+  # Try to parse tool result as JSON to preserve structured data (e.g., screenshots, figma nodes)
+  # Falls back to original string if parsing fails
+  defp parse_tool_result(text_result) when is_binary(text_result) do
+    case Jason.decode(text_result) do
+      {:ok, parsed} when is_map(parsed) -> parsed
+      _ -> text_result
+    end
+  end
+
+  defp parse_tool_result(result), do: result
 
   defp handle_mcp_error(id, error, socket) do
     pending_calls = socket.assigns[:pending_mcp_calls] || %{}

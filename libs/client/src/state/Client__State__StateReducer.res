@@ -94,7 +94,7 @@ type action =
   | ClearCurrentTask // Used when clicking "+" to start a new task - clears selection so next message creates new task
   | UpdateTaskTitle({taskId: string, title: string})
   // Figma node actions
-  | SetFigmaNode({figmaNode: FigmaNode.nodeData})
+  | SetFigmaNode({figmaNode: FigmaNode.selectedNodeData})
   | ClearFigmaNode
   | SetFigmaNodeWaiting
   | ClearFigmaNodeWaiting

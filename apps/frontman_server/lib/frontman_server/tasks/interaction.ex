@@ -583,9 +583,47 @@ defmodule FrontmanServer.Tasks.Interaction do
   defp is_conversation_message(_), do: false
 
   defp to_llm_message(%UserMessage{content_blocks: content_blocks}) do
+    # Filter out ContentBlocks with _meta figma_image: true or figma_node: true
+    filtered_blocks = Enum.reject(content_blocks, &has_figma_meta?/1)
+
     # Convert content blocks to LLM message content format
-    llm_content = convert_content_blocks_to_llm_format(content_blocks)
-    ReqLLM.Context.user(llm_content)
+    llm_content = convert_content_blocks_to_llm_format(filtered_blocks)
+
+    # If content is an array (has images), build Message struct manually
+    # Otherwise, use ReqLLM.Context.user which handles strings
+    case llm_content do
+      content when is_list(content) ->
+        # Build Message struct with content parts (text + images)
+        %ReqLLM.Message{
+          role: :user,
+          content:
+            Enum.map(content, fn
+              %{"type" => "text", "text" => text} ->
+                ReqLLM.Message.ContentPart.text(text)
+
+              %{"type" => "image", "data" => base64_data, "mimeType" => mime_type} ->
+                # Decode base64 data before passing to ContentPart.image/2
+                # ContentPart.image expects binary data and will encode it to base64 during JSON encoding
+                # Use safe decode64 to avoid crashing on malformed data
+                case Base.decode64(base64_data) do
+                  {:ok, decoded_data} ->
+                    ReqLLM.Message.ContentPart.image(decoded_data, mime_type)
+
+                  :error ->
+                    ReqLLM.Message.ContentPart.text("[Invalid image: malformed base64 data]")
+                end
+
+              _other ->
+                ReqLLM.Message.ContentPart.text("[Unknown content type]")
+            end)
+        }
+
+      content when is_binary(content) ->
+        ReqLLM.Context.user(content)
+
+      _ ->
+        ReqLLM.Context.user("")
+    end
   end
 
   defp to_llm_message(%AgentResponse{content: content, metadata: metadata}) do
@@ -593,8 +631,12 @@ defmodule FrontmanServer.Tasks.Interaction do
     response_id = Map.get(metadata || %{}, :response_id)
 
     case tool_calls do
-      nil -> ReqLLM.Context.assistant(content)
-      [] -> ReqLLM.Context.assistant(content)
+      nil ->
+        ReqLLM.Context.assistant(content)
+
+      [] ->
+        ReqLLM.Context.assistant(content)
+
       tool_calls ->
         # Build Message struct with metadata for OpenAI Responses API (previous_response_id)
         %ReqLLM.Message{
@@ -612,13 +654,36 @@ defmodule FrontmanServer.Tasks.Interaction do
   end
 
   defp to_llm_message(%ToolResult{tool_name: name, tool_call_id: id, result: result}) do
-    # Serialize structured data to JSON for LLM projection
-    json_result = if is_binary(result), do: result, else: Jason.encode!(result)
-    ReqLLM.Context.tool_result_message(name, id, json_result)
+    # Check if this tool result contains an image that should be sent as image content
+    case extract_image_from_result(name, result) do
+      {image_binary, mime_type, text_content} ->
+        build_tool_message_with_image(name, id, image_binary, mime_type, text_content)
+
+      nil ->
+        json_result = if is_binary(result), do: result, else: Jason.encode!(result)
+        ReqLLM.Context.tool_result_message(name, id, json_result)
+    end
   end
 
-  defp to_llm_message(%SubAgentResult{tool_call_id: id, agent_key: role, message: message, result: result}) do
-    # Format sub-agent result as tool result for spawn_sub_agent call
+  defp to_llm_message(%SubAgentResult{
+         tool_call_id: id,
+         agent_key: role,
+         message: message,
+         result: result
+       }) do
+    # Sub-agents can be spawned by different "tool-like" mechanisms:
+    # - `spawn_sub_agent` (generic delegation)
+    # - `breakdown_figma_node` (figma_breakdown sub-agent)
+    # - `implement_component` (component_implementor sub-agent)
+    #
+    # The LLM will only associate the result if the tool name matches the original call.
+    tool_name =
+      case role do
+        :figma_breakdown -> "breakdown_figma_node"
+        :component_implementor -> "implement_component"
+        _ -> "spawn_sub_agent"
+      end
+
     content = """
     Sub-agent (#{role}) completed message: "#{message}"
 
@@ -626,7 +691,77 @@ defmodule FrontmanServer.Tasks.Interaction do
     #{result}
     """
 
-    ReqLLM.Context.tool_result_message("spawn_sub_agent", id, content)
+    ReqLLM.Context.tool_result_message(tool_name, id, content)
+  end
+
+  # Tools that return images: {image_field, extra_text_fields}
+  @image_tool_configs %{
+    "take_screenshot" => {:screenshot, []},
+    "get_figma_node" => {:image, [:node]}
+  }
+
+  defp extract_image_from_result(tool_name, result) when is_map(result) do
+    with {image_field, text_fields} <- Map.get(@image_tool_configs, tool_name),
+         data_url when is_binary(data_url) <- get_field(result, image_field),
+         {:ok, binary, mime} <- decode_data_url(data_url) do
+      text_content = build_text_content(result, text_fields)
+      {binary, mime, text_content}
+    else
+      _ -> nil
+    end
+  end
+
+  defp extract_image_from_result(_, _), do: nil
+
+  defp build_tool_message_with_image(name, id, image_binary, mime_type, text_content) do
+    content =
+      case text_content do
+        "" ->
+          [ReqLLM.Message.ContentPart.image(image_binary, mime_type)]
+
+        text ->
+          [
+            ReqLLM.Message.ContentPart.text(text),
+            ReqLLM.Message.ContentPart.image(image_binary, mime_type)
+          ]
+      end
+
+    %ReqLLM.Message{role: :tool, name: name, tool_call_id: id, content: content}
+  end
+
+  defp build_text_content(result, fields) do
+    text_parts =
+      Enum.flat_map(fields, fn field ->
+        case get_field(result, field) do
+          nil -> []
+          value -> [format_field(field, value)]
+        end
+      end)
+
+    error = get_field(result, :error)
+    text_parts = if error, do: text_parts ++ ["Error: #{error}"], else: text_parts
+
+    Enum.join(text_parts, "\n\n")
+  end
+
+  defp format_field(:node, value), do: "Node data:\n#{encode_json(value)}"
+  defp format_field(field, value), do: "#{field}: #{encode_json(value)}"
+
+  defp encode_json(value) when is_binary(value), do: value
+  defp encode_json(value), do: Jason.encode!(value)
+
+  # Get field from map, supporting both string and atom keys
+  defp get_field(map, key) when is_atom(key) do
+    Map.get(map, Atom.to_string(key)) || Map.get(map, key)
+  end
+
+  defp decode_data_url(data_url) do
+    with [_, mime_type, base64] <- Regex.run(~r/^data:([^;]+);base64,(.+)$/s, data_url),
+         {:ok, binary} <- Base.decode64(base64) do
+      {:ok, binary, mime_type}
+    else
+      _ -> :error
+    end
   end
 
   # Convert content blocks to LLM message content format
@@ -640,11 +775,35 @@ defmodule FrontmanServer.Tasks.Interaction do
       [] ->
         ""
 
-      text_blocks ->
-        # All blocks are now text blocks - concatenate them into a single string
-        text_blocks
-        |> Enum.map(fn %{"text" => text} -> text end)
-        |> Enum.join("")
+      blocks ->
+        # Check if we have any image blocks
+        image_blocks = Enum.filter(blocks, fn block -> Map.get(block, "type") == "image" end)
+        text_blocks = Enum.filter(blocks, fn block -> Map.get(block, "type") == "text" end)
+
+        # If we have images, return array format with both text and images
+        if Enum.any?(image_blocks) do
+          # Combine text blocks into a single text content
+          text_content =
+            text_blocks
+            |> Enum.map(fn %{"text" => text} -> text end)
+            |> Enum.join("")
+
+          # Build content array with text (if any) and images
+          content_parts = []
+
+          content_parts =
+            if text_content != "",
+              do: [%{"type" => "text", "text" => text_content} | content_parts],
+              else: content_parts
+
+          content_parts = Enum.reverse(image_blocks) ++ content_parts
+          Enum.reverse(content_parts)
+        else
+          # All blocks are text blocks - concatenate them into a single string
+          text_blocks
+          |> Enum.map(fn %{"text" => text} -> text end)
+          |> Enum.join("")
+        end
     end
   end
 
@@ -665,17 +824,98 @@ defmodule FrontmanServer.Tasks.Interaction do
           "\n\n[Selected Component]\nURI: #{uri}"
       end
 
-    %{"type" => "text", "text" => text}
+    %{
+      "type" => "text",
+      "text" => text,
+      "cache_control" => %{
+        "type" => "ephemeral"
+      }
+    }
   end
 
-  # Convert resource (embedded JSON) to text description
-  defp content_block_to_llm_format(%{"type" => "resource", "resource" => resource}) do
-    case resource do
-      %{"uri" => uri, "mimeType" => _mime_type, "text" => text} ->
-        # For Figma nodes or other resources, include the data as text
+  # Convert resource (embedded JSON or image) to text description
+  # New structure: resource is EmbeddedResource containing EmbeddedResourceResource
+  defp content_block_to_llm_format(%{"type" => "resource", "resource" => embedded_resource}) do
+    case embedded_resource do
+      # EmbeddedResource with BlobResourceContents (image)
+      %{"resource" => %{"blob" => base64_data, "mimeType" => mime_type}}
+      when mime_type in ["image/png", "image/jpeg", "image/gif"] ->
+        # For image resources, include as image content part
+        %{
+          "type" => "image",
+          "data" => base64_data,
+          "mimeType" => mime_type || "image/png",
+          "cache_control" => %{
+            "type" => "ephemeral"
+          }
+        }
+
+      # EmbeddedResource with TextResourceContents (text/plain for DSL)
+      %{"resource" => %{"uri" => uri, "mimeType" => "text/plain", "text" => text}}
+      when is_binary(text) ->
+        # For Figma node DSL (text/plain), include the DSL as text
+        # Check if it's a Figma node URI (figma://node/...)
+        dsl_text =
+          if String.starts_with?(uri, "figma://node/") do
+            "\n\n## Figma Node Structure (DSL)\n\n```\n#{text}\n```"
+          else
+            "\n\n[Embedded Resource: #{uri}]\n#{text}"
+          end
+
         %{
           "type" => "text",
-          "text" => "\n\n[Embedded Resource: #{uri}]\n#{text}"
+          "text" => dsl_text,
+          "cache_control" => %{
+            "type" => "ephemeral"
+          }
+        }
+
+      # EmbeddedResource with TextResourceContents (application/json)
+      %{"resource" => %{"uri" => uri, "mimeType" => "application/json", "text" => text}} ->
+        # For Figma nodes or other JSON resources, include the data as text
+        %{
+          "type" => "text",
+          "text" => "\n\n[Embedded Resource: #{uri}]\n#{text}",
+          "cache_control" => %{
+            "type" => "ephemeral"
+          },
+          "annotations" => [
+            %{
+              "usage" => """
+              ## Figma Node DSL Format
+
+              When you receive Figma design context, it will be in a compact DSL format optimized for understanding UI structure.
+
+              ### Syntax
+
+              node-name(v:N) #ID:
+                child-name #ID
+                icon:type #ID
+                +N more item-name
+
+              ### Key elements:
+
+              - **`node-name`** — Normalized component/layer name (lowercase, hyphenated)
+              - **`(v:N)`** — Volume indicator (1-10 scale of complexity/token count). Higher = more content
+              - **`#ID`** — Figma node ID (e.g., `#0:1927`). Use with `get_figma_node` tool to fetch full details
+              - **`:`** after a node — Indicates it has children (indented below)
+              - **`icon:type`** — Normalized icon reference (e.g., `icon:check`, `icon:arrow`)
+              - **`+N more name`** — N additional items with identical structure (template pattern)
+              - **`(N)`** — N homogeneous children collapsed (e.g., `list-item(5)` = 5 identical items)
+
+              ### Volume scale:
+
+              v:1-3 = Small/simple, v:4-6 = Medium complexity, v:7-10 = Large/complex
+
+              ### Reading strategy:
+
+              1. Start with high-level structure (root nodes that are not with large/complex volume)
+              2. For large/complex nodes (v:7+), use `breakdown_figma_node` to get a component todo list
+              3. Use `get_figma_node` tool on specific node IDs to fetch full Tailwind/styling details
+              4. Collapsed nodes (no `:`) contain implementation details you can expand on-demand
+              """
+            }
+          ]
         }
 
       _ ->
@@ -685,4 +925,39 @@ defmodule FrontmanServer.Tasks.Interaction do
 
   # Skip unknown block types
   defp content_block_to_llm_format(_), do: nil
+
+  @doc """
+  Checks if any user messages in the interactions contain Figma context.
+  Returns true if there's a content block with figma_image or figma_node metadata.
+  """
+  @spec has_figma_context?(list(t())) :: boolean()
+  def has_figma_context?(interactions) do
+    interactions
+    |> Enum.any?(fn
+      %UserMessage{content_blocks: content_blocks} ->
+        Enum.any?(content_blocks, &has_figma_meta?/1)
+
+      _ ->
+        false
+    end)
+  end
+
+  # Helper to check if a ContentBlock has _meta with figma_image or figma_node set to true
+  defp has_figma_meta?(content_block) do
+    # Check _meta on embedded resource if it's a resource block
+    # _meta is stored on the embedded_resource, not directly on the ContentBlock
+    case Map.get(content_block, "resource") do
+      %{"_meta" => meta} when is_map(meta) ->
+        Map.get(meta, "figma_image") == true || Map.get(meta, "figma_node") == true
+
+      # Fallback: check URI patterns for backward compatibility
+      %{"resource" => %{"uri" => uri}} when is_binary(uri) ->
+        String.starts_with?(uri, "figma://node/")
+
+      _ ->
+        false
+    end
+  rescue
+    _ -> false
+  end
 end

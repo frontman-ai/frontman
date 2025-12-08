@@ -306,15 +306,41 @@ defmodule FrontmanServer.Test.Fixtures.Agents do
     case {tags[:fixture_path], tags[:llm_fixture]} do
       {path, _} when is_binary(path) ->
         # Fixture path from LLMIntegrationCase setup
-        [fixture_path: path]
+        llm_model = infer_llm_model_from_fixture(path)
+        opts = [fixture_path: path]
+        if llm_model, do: Keyword.put(opts, :llm_model, llm_model), else: opts
 
       {_, fixture_name} when is_binary(fixture_name) ->
         # Explicit fixture name via tag - use FixturePath to resolve
         path = ReqLLM.Test.FixturePath.for_explicit(fixture_name)
-        [fixture_path: path]
+        llm_model = infer_llm_model_from_fixture(path)
+        opts = [fixture_path: path]
+        if llm_model, do: Keyword.put(opts, :llm_model, llm_model), else: opts
 
       _ ->
         []
+    end
+  end
+
+  defp infer_llm_model_from_fixture(path) do
+    # The fixture format stores:
+    # - provider: "anthropic" | "openai" | ...
+    # - model_spec: "claude-sonnet-4-20250514" (sometimes already prefixed)
+    #
+    # We want a model string like "anthropic:claude-sonnet-4-20250514" so the
+    # correct provider parser is used during replay.
+    with true <- File.exists?(path),
+         {:ok, body} <- File.read(path),
+         {:ok, json} <- Jason.decode(body),
+         provider when is_binary(provider) <- Map.get(json, "provider"),
+         model_spec when is_binary(model_spec) <- Map.get(json, "model_spec") do
+      if String.contains?(model_spec, ":") do
+        model_spec
+      else
+        "#{provider}:#{model_spec}"
+      end
+    else
+      _ -> nil
     end
   end
 end

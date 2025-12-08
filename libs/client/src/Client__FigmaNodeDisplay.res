@@ -2,29 +2,25 @@
 module Icons = Bindings__RadixUI__Icons
 module FigmaNode = Client__State__Types.FigmaNode
 
-// Extract name from either optimized format or legacy format
-let getNodeName = (json: JSON.t): string => {
-  switch json->JSON.Decode.object {
-  | Some(obj) =>
-    // Try optimized format first: { $: { N: "name" } }
-    switch obj->Dict.get("$") {
-    | Some(root) =>
-      switch root->JSON.Decode.object {
-      | Some(rootObj) =>
-        switch rootObj->Dict.get("N") {
-        | Some(name) => name->JSON.Decode.string->Option.getOr("Figma Node")
-        | None => "Figma Node"
-        }
-      | None => "Figma Node"
-      }
-    // Try legacy format: { name: "name" }
-    | None =>
-      switch obj->Dict.get("name") {
-      | Some(name) => name->JSON.Decode.string->Option.getOr("Figma Node")
-      | None => "Figma Node"
-      }
-    }
-  | None => "Figma Node"
+// Extract name from DSL string
+// DSL format: "name(v:volume) #id:" on the first line
+let getNodeNameFromDSL = (dsl: string): string => {
+  // Get first line
+  let firstLine = dsl->String.split("\n")->Array.get(0)->Option.getOr("")
+  // Extract name before the first "(" or " #" or ":"
+  let name = firstLine
+    ->String.split("(")
+    ->Array.get(0)
+    ->Option.getOr(firstLine)
+    ->String.split(" #")
+    ->Array.get(0)
+    ->Option.getOr(firstLine)
+    ->String.trim
+  
+  if name == "" {
+    "Figma Node"
+  } else {
+    name
   }
 }
 
@@ -46,15 +42,24 @@ let make = () => {
         <Icons.Cross2Icon style={{"width": "14px", "height": "14px"}} />
       </button>
     </div>
-  | FigmaNode.SelectedNode(node) =>
-    let nodeName = getNodeName(node)
+  | FigmaNode.SelectedNode({nodeDSL, image, _}) =>
+    let nodeName = getNodeNameFromDSL(nodeDSL)
     <div
       className="flex items-center gap-2 p-3 bg-blue-50 border-t border-blue-200 text-sm text-blue-900"
     >
       <Icons.FigmaIcon style={{"width": "16px", "height": "16px"}} />
-      <span className="font-medium"> {React.string(`Figma Node Selected: ${nodeName}`)} </span>
+      {image->Option.mapOr(React.null, imageUrl =>
+        <img
+          src={imageUrl}
+          alt="Figma node preview"
+          className="w-8 h-8 object-contain rounded border border-blue-200 flex-shrink-0"
+        />
+      )}
+      <span className="font-medium flex-grow min-w-0 truncate">
+        {React.string(`Figma Node Selected: ${nodeName}`)}
+      </span>
       <button
-        className="ml-auto text-blue-600 hover:text-blue-800"
+        className="ml-auto text-blue-600 hover:text-blue-800 flex-shrink-0"
         onClick={_ => Client__State.Actions.clearFigmaNode()}
       >
         <Icons.Cross2Icon style={{"width": "14px", "height": "14px"}} />

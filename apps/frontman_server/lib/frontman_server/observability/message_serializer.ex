@@ -7,6 +7,8 @@ defmodule FrontmanServer.Observability.MessageSerializer do
   - Output messages: Assistant response with tool_calls if present
   """
 
+  alias ReqLLM.ToolCall
+
   @doc """
   Serializes input messages to OTel GenAI format.
 
@@ -23,18 +25,15 @@ defmodule FrontmanServer.Observability.MessageSerializer do
   Includes tool_calls when present.
   """
   @spec serialize_output(String.t(), list()) :: list(map())
-  def serialize_output(text, []) when is_binary(text) do
-    [%{"role" => "assistant", "content" => text}]
-  end
+  def serialize_output(text, tool_calls) when is_binary(text) and is_list(tool_calls) do
+    base = %{"role" => "assistant", "content" => text}
 
-  def serialize_output(text, tool_calls) when is_binary(text) do
-    [
-      %{
-        "role" => "assistant",
-        "content" => text,
-        "tool_calls" => Enum.map(tool_calls, &serialize_tool_call/1)
-      }
-    ]
+    case tool_calls do
+      [] ->
+        [base]
+      tool_calls ->
+        [Map.put(base, "tool_calls", Enum.map(tool_calls, &serialize_tool_call/1))]
+    end
   end
 
   # ReqLLM.ToolCall struct from production LLM responses
@@ -43,8 +42,8 @@ defmodule FrontmanServer.Observability.MessageSerializer do
       "id" => tc.id,
       "type" => "function",
       "function" => %{
-        "name" => ReqLLM.ToolCall.name(tc),
-        "arguments" => ReqLLM.ToolCall.args_json(tc)
+        "name" => ToolCall.name(tc),
+        "arguments" => ToolCall.args_json(tc)
       }
     }
   end

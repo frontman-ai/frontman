@@ -150,7 +150,7 @@ let make = () => {
         <OpenInNewWindow onClick={handleOpenInNewTab} />
       </AIElements.WebPreviewNavigation>
 
-      <div className="relative size-full">
+      <div className="relative size-full overflow-y-hidden">
         {switch (previewFrame.contentDocument, previewFrame.contentWindow) {
         | (Some(document), Some(window)) =>
           <Client__WebPreview__Stage document={document} window={window} />

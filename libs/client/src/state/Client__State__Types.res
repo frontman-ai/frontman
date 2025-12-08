@@ -79,15 +79,17 @@ module SelectedElement = {
 }
 
 module FigmaNode = {
-  // Node data is now JSON - can be either:
-  // - Legacy format: { id, name, type, css, width, height, x, y, visible, locked, children }
-  // - Optimized format: { _: legend, $: { root node with N, T, C, K, H } }
-  type nodeData = JSON.t
+  // Selected node with DSL representation and image
+  type selectedNodeData = {
+    nodeId: string,
+    nodeDSL: string, // DSL representation of the Figma node
+    image: option<string>, // Base64 data URL (data:image/png;base64,...)
+  }
 
   type t =
     | NoSelection
     | WaitingForSelection
-    | SelectedNode(nodeData)
+    | SelectedNode(selectedNodeData)
 }
 
 module Task = {
@@ -155,46 +157,26 @@ let selectedElementToContentBlock = (sel: SelectedElement.t): option<ACPTypes.co
       uri: Some(uri),
       text: None,
       resource: None,
-      mimeType: None,
       content: None,
     }
   })
 }
 
-// Build a Resource ContentBlock from FigmaNode
-// Contains the full Figma node data encoded as TOON (30-60% fewer tokens than JSON)
-let figmaNodeToContentBlock = (node: FigmaNode.nodeData): ACPTypes.contentBlock => {
-  // Encode node as TOON string (more token-efficient than JSON)
-  let nodeToon = Client__Toon.encode(node)
-
-  // Try to extract ID for URI (works with both formats)
-  let nodeId = switch node->JSON.Decode.object {
-  | Some(obj) =>
-    // Try optimized format: { $: { ... } }
-    switch obj->Dict.get("$") {
-    | Some(root) =>
-      switch root->JSON.Decode.object {
-      | Some(rootObj) =>
-        switch rootObj->Dict.get("i") {
-        | Some(id) => id->JSON.Decode.string->Option.getOr("unknown")
-        | None => "unknown"
-        }
-      | None => "unknown"
-      }
-    // Try legacy format: { id: "..." }
-    | None =>
-      switch obj->Dict.get("id") {
-      | Some(id) => id->JSON.Decode.string->Option.getOr("unknown")
-      | None => "unknown"
-      }
-    }
-  | None => "unknown"
+// Build a Resource ContentBlock from FigmaNode DSL data
+// Contains the Figma node as DSL string (compact, token-efficient format)
+let figmaNodeToContentBlock = (nodeId: string, nodeDSL: string): ACPTypes.contentBlock => {
+  let textResource: ACPTypes.textResourceContents = {
+    uri: `figma://node/${nodeId}`,
+    mimeType: Some("text/plain"),
+    text: nodeDSL,
   }
 
+  // Create _meta with figma_node annotation
+  let _meta: JSON.t = %raw(`{"figma_node": true}`)
   let embeddedResource: ACPTypes.embeddedResource = {
-    uri: `figma://node/${nodeId}`,
-    mimeType: "application/x-toon",
-    text: Some(nodeToon),
+    _meta: Some(_meta),
+    annotations: None,
+    resource: ACPTypes.TextResourceContents(textResource),
   }
 
   {
@@ -202,7 +184,45 @@ let figmaNodeToContentBlock = (node: FigmaNode.nodeData): ACPTypes.contentBlock 
     text: None,
     uri: None,
     resource: Some(embeddedResource),
-    mimeType: Some("application/x-toon"),
+    content: None,
+  }
+}
+
+// Build an Image ContentBlock from FigmaNode image data
+// Uses resource type with image/png mimeType
+let figmaImageToContentBlock = (imageDataUrl: string): ACPTypes.contentBlock => {
+  // Extract base64 data from data URL (data:image/png;base64,<data>)
+  // Remove the "data:image/png;base64," prefix to get just the base64 data
+  let base64Data = switch imageDataUrl->String.split(";base64,") {
+  | [_, base64] => base64
+  | _ => 
+    // If no "base64," found, try to extract after "data:image/png,"
+    switch imageDataUrl->String.split("data:image/png,") {
+    | [_, base64] => base64
+    | _ => imageDataUrl // Fallback to full string if format unexpected
+    }
+  }
+
+  let blobResource: ACPTypes.blobResourceContents = {
+    uri: "figma://node/image",
+    mimeType: Some("image/png"),
+    blob: base64Data,
+  }
+
+  // Create _meta with figma_image annotation
+  let _meta: JSON.t = %raw(`{"figma_image": true}`)
+
+  let embeddedResource: ACPTypes.embeddedResource = {
+    _meta: Some(_meta),
+    annotations: None,
+    resource: ACPTypes.BlobResourceContents(blobResource),
+  }
+
+  {
+    ACPTypes.type_: "resource",
+    text: None,
+    uri: None,
+    resource: Some(embeddedResource),
     content: None,
   }
 }
@@ -218,9 +238,16 @@ let taskToContentBlocks = (task: Task.t): array<ACPTypes.contentBlock> => {
   | None => blocks
   }
 
-  // Add figmaNode as Resource if available
+  // Add figmaNode as Resource and Image if available
   let blocks = switch task.figmaNode {
-  | FigmaNode.SelectedNode(nodeData) => Array.concat(blocks, [figmaNodeToContentBlock(nodeData)])
+  | FigmaNode.SelectedNode({nodeId, nodeDSL, image}) => {
+      let blocks = Array.concat(blocks, [figmaNodeToContentBlock(nodeId, nodeDSL)])
+      // Add image as separate content block if available
+      switch image {
+      | Some(imageDataUrl) => Array.concat(blocks, [figmaImageToContentBlock(imageDataUrl)])
+      | None => blocks
+      }
+    }
   | FigmaNode.NoSelection | FigmaNode.WaitingForSelection => blocks
   }
 

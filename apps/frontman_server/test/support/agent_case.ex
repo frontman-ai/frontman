@@ -99,6 +99,24 @@ defmodule FrontmanServer.AgentCase do
     end
   end
 
+  @doc """
+  Build LLM options with fixture support included (when available).
+
+  Intended for tests that call ReqLLM directly and want to reuse the
+  automatically computed `:fixture_path` from this case template.
+  """
+  @spec fixture_opts(map()) :: keyword()
+  def fixture_opts(context) when is_map(context), do: fixture_opts(context, [])
+
+  @spec fixture_opts(map(), keyword()) :: keyword()
+  def fixture_opts(context, opts) when is_map(context) and is_list(opts) do
+    case Map.get(context, :fixture_path) do
+      path when is_binary(path) -> Keyword.merge([fixture_path: path], opts)
+      _ -> opts
+    end
+  end
+
+  @doc false
   defp compute_fixture_path(%{llm_fixture: explicit_path}) when is_binary(explicit_path) do
     FixturePath.for_explicit(explicit_path)
   end

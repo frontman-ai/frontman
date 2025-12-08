@@ -74,6 +74,17 @@ defmodule FrontmanServer.Tasks do
   """
   defdelegate user_message?(interaction), to: Interaction
 
+  @doc """
+  Checks if any user messages in the task contain Figma context.
+  Returns true if there's a content block with figma_image or figma_node metadata.
+  """
+  @spec has_figma_context?(String.t()) :: boolean()
+  def has_figma_context?(task_id) do
+    task_id
+    |> get_interactions()
+    |> Interaction.has_figma_context?()
+  end
+
   @spec append_interaction(String.t(), Interaction.t()) ::
           {:ok, Interaction.t()} | {:error, :task_not_found}
   defp append_interaction(task_id, interaction) do

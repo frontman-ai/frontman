@@ -193,6 +193,7 @@ __metadata:
   resolution: "@ask-the-llm/chrome-extension@workspace:apps/chrome-extension"
   dependencies:
     "@ask-the-llm/bindings": "npm:*"
+    "@ask-the-llm/figma-client-api": "npm:*"
     "@rescript/react": "npm:^0.14.0"
     "@rescript/webapi": "catalog:"
     "@toon-format/toon": "npm:^1.0.0"
@@ -285,6 +286,18 @@ __metadata:
     rescript: "catalog:"
     rescript-vitest: "catalog:"
     vite: "catalog:"
+    vitest: "catalog:"
+  languageName: unknown
+  linkType: soft
+
+"@ask-the-llm/figma-client-api@npm:*, @ask-the-llm/figma-client-api@workspace:libs/figma-client-api":
+  version: 0.0.0-use.local
+  resolution: "@ask-the-llm/figma-client-api@workspace:libs/figma-client-api"
+  dependencies:
+    "@types/node": "npm:^22.0.0"
+    typescript: "npm:^5.7.0"
+    vite: "catalog:"
+    vite-plugin-dts: "npm:^4.5.0"
     vitest: "catalog:"
   languageName: unknown
   linkType: soft
@@ -18553,7 +18566,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"typescript@npm:5.9.3, typescript@npm:^5.4.5, typescript@npm:^5.9.2, typescript@npm:^5.9.3":
+"typescript@npm:5.9.3, typescript@npm:^5.4.5, typescript@npm:^5.7.0, typescript@npm:^5.9.2, typescript@npm:^5.9.3":
   version: 5.9.3
   resolution: "typescript@npm:5.9.3"
   bin:
@@ -18573,7 +18586,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"typescript@patch:typescript@npm%3A5.9.3#optional!builtin<compat/typescript>, typescript@patch:typescript@npm%3A^5.4.5#optional!builtin<compat/typescript>, typescript@patch:typescript@npm%3A^5.9.2#optional!builtin<compat/typescript>, typescript@patch:typescript@npm%3A^5.9.3#optional!builtin<compat/typescript>":
+"typescript@patch:typescript@npm%3A5.9.3#optional!builtin<compat/typescript>, typescript@patch:typescript@npm%3A^5.4.5#optional!builtin<compat/typescript>, typescript@patch:typescript@npm%3A^5.7.0#optional!builtin<compat/typescript>, typescript@patch:typescript@npm%3A^5.9.2#optional!builtin<compat/typescript>, typescript@patch:typescript@npm%3A^5.9.3#optional!builtin<compat/typescript>":
   version: 5.9.3
   resolution: "typescript@patch:typescript@npm%3A5.9.3#optional!builtin<compat/typescript>::version=5.9.3&hash=5786d5"
   bin:
@@ -19237,7 +19250,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"vite-plugin-dts@npm:^4.5.4":
+"vite-plugin-dts@npm:^4.5.0, vite-plugin-dts@npm:^4.5.4":
   version: 4.5.4
   resolution: "vite-plugin-dts@npm:4.5.4"
   dependencies:
