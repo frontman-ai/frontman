@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@ask-the-llm/bindings": "*",
+    "@ask-the-llm/figma-client-api": "*",
     "@toon-format/toon": "^1.0.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1"

@@ -57,7 +57,7 @@ let figmaExists: unit => bool = %raw(`
 `)
 
 // Wait for window.figma and window.figma.on to be available
-let waitForFigma: unit => promise<FigmaClientAPI.figmaApi> = %raw(`
+let waitForFigma: unit => promise<FigmaClientApiBindings.figmaApi> = %raw(`
   function() {
     return new Promise((resolve) => {
       let timeoutId = null;
@@ -96,14 +96,19 @@ let main = () => {
     Console.log("[Frontman] Figma API is ready!")
 
     // Serialize first selected node when selection changes
-    FigmaClientAPI.onSelectionChange(figma, () => {
+    FigmaClientApiBindings.onSelectionChange(figma, () => {
       let runSerialize = async () => {
-        let selection = figma->FigmaClientAPI.currentPage->FigmaClientAPI.selection
+        let selection =
+          figma->FigmaClientApiBindings.currentPage->FigmaClientApiBindings.selection
         switch selection[0] {
         | Some(firstNode) =>
-          let serialized = await FigmaClientAPI.traverseAndSerialize(firstNode)
+          let serialized =
+            await FigmaClientApiBindings.figmaToTailwindJSON(
+              firstNode,
+              FigmaClientApiBindings.defaultSettings,
+            )
           Console.log2("[Frontman] Serialized first node:", serialized)
-          
+
           // Send to extension
           let data = {"selectedFigmaNode": serialized, "type": "FigmaNodeSelected"}
           Chrome.Runtime.sendMessageExternal("kfdpjbmabcelpgoipaccjijhehdmeghp", data, response => {
