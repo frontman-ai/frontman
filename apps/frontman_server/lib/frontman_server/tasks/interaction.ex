@@ -8,16 +8,16 @@ defmodule FrontmanServer.Tasks.Interaction do
   """
 
   @type t ::
-          UserMessage.t()
-          | AgentResponse.t()
-          | AgentSpawned.t()
-          | AgentCompleted.t()
-          | ToolCall.t()
-          | ToolResult.t()
-          | SubAgentSpawned.t()
-          | SubAgentResult.t()
-          | SubAgentFailed.t()
-          | SubAgentSpawnFailed.t()
+          __MODULE__.UserMessage.t()
+          | __MODULE__.AgentResponse.t()
+          | __MODULE__.AgentSpawned.t()
+          | __MODULE__.AgentCompleted.t()
+          | __MODULE__.ToolCall.t()
+          | __MODULE__.ToolResult.t()
+          | __MODULE__.SubAgentSpawned.t()
+          | __MODULE__.SubAgentResult.t()
+          | __MODULE__.SubAgentFailed.t()
+          | __MODULE__.SubAgentSpawnFailed.t()
 
   defmodule UserMessage do
     @moduledoc """

@@ -19,7 +19,7 @@ defmodule FrontmanServer.Agents.AgentServer do
   @default_model "anthropic:claude-sonnet-4"
   @idle_timeout_ms 5 * 60 * 1000
 
-  alias FrontmanServer.Agents.{Agent, Prompts, SubAgent, SubAgentTool}
+  alias FrontmanServer.Agents.{Agent, Prompts, StreamParser, SubAgent, SubAgentTool}
   alias ReqLLM.ToolCall
 
   # Infrastructure state - domain state lives in `agent`
@@ -343,7 +343,7 @@ defmodule FrontmanServer.Agents.AgentServer do
       {:ok, response} ->
         chunks = stream_chunks(state, response.stream)
         text = Enum.map_join(chunks, "", fn chunk -> chunk.text || "" end)
-        tool_calls = extract_tool_calls(chunks)
+        tool_calls = StreamParser.extract_tool_calls(chunks)
 
         response_id =
           Enum.find_value(chunks, fn
@@ -352,7 +352,7 @@ defmodule FrontmanServer.Agents.AgentServer do
           end)
 
         Logger.info(
-          "Agent #{state.agent.id} extracted: text=#{byte_size(text || "")} bytes, tool_calls=#{length(tool_calls)}, response_id=#{inspect(response_id)}, chunks=#{length(chunks)}"
+          "Agent #{state.agent.id} extracted: text=#{byte_size(text)} bytes, tool_calls=#{length(tool_calls)}, response_id=#{inspect(response_id)}, chunks=#{length(chunks)}"
         )
 
         handle_response(state, text, tool_calls, response_id)
@@ -377,7 +377,7 @@ defmodule FrontmanServer.Agents.AgentServer do
   end
 
   defp handle_response(state, text, [], _response_id) do
-    Logger.info("Agent #{state.agent.id} completing with text: #{byte_size(text || "")} bytes")
+    Logger.info("Agent #{state.agent.id} completing with text: #{byte_size(text)} bytes")
     emit(state, {:response, state.agent.id, text, %{}})
 
     if not Agent.root?(state.agent) do
@@ -389,7 +389,7 @@ defmodule FrontmanServer.Agents.AgentServer do
 
   defp handle_response(state, text, tool_calls, response_id) do
     Logger.info(
-      "Agent #{state.agent.id} has #{length(tool_calls)} tool calls, text: #{byte_size(text || "")} bytes"
+      "Agent #{state.agent.id} has #{length(tool_calls)} tool calls, text: #{byte_size(text)} bytes"
     )
 
     metadata = %{tool_calls: tool_calls}
@@ -517,57 +517,6 @@ defmodule FrontmanServer.Agents.AgentServer do
 
       true ->
         Application.get_env(:frontman_server, :anthropic_api_key)
-    end
-  end
-
-  @spec extract_tool_calls([map()]) :: [ToolCall.t()]
-  defp extract_tool_calls(chunks) do
-    # Extract raw tool call info (keeping index for fragment matching)
-    raw_calls =
-      chunks
-      |> Enum.filter(&(&1.type == :tool_call))
-      |> Enum.map(fn chunk ->
-        %{
-          id: Map.get(chunk.metadata, :id) || "call_#{:erlang.unique_integer([:positive])}",
-          name: chunk.name,
-          arguments: chunk.arguments || %{},
-          index: Map.get(chunk.metadata, :index, 0)
-        }
-      end)
-
-    # Collect streamed argument fragments grouped by tool call index
-    arg_fragments =
-      chunks
-      |> Enum.filter(fn
-        %{type: :meta, metadata: %{tool_call_args: _}} -> true
-        _ -> false
-      end)
-      |> Enum.group_by(& &1.metadata.tool_call_args.index)
-      |> Map.new(fn {index, fragments} ->
-        json = fragments |> Enum.map_join("", & &1.metadata.tool_call_args.fragment)
-        {index, json}
-      end)
-
-    # Merge arguments and convert to proper ToolCall structs
-    raw_calls
-    |> Enum.map(fn call ->
-      args = resolve_arguments(call, arg_fragments)
-      args_json = if is_binary(args), do: args, else: Jason.encode!(args)
-      ToolCall.new(call.id, call.name, args_json)
-    end)
-  end
-
-  # Resolve final arguments: prefer streamed fragments, fall back to inline args
-  defp resolve_arguments(call, arg_fragments) do
-    case Map.get(arg_fragments, call.index) do
-      nil ->
-        call.arguments
-
-      json ->
-        case Jason.decode(json) do
-          {:ok, args} -> args
-          {:error, _} -> call.arguments
-        end
     end
   end
 
