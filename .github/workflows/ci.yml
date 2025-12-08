@@ -93,11 +93,21 @@ jobs:
           key: ${{ runner.os }}-build-${{ hashFiles('apps/frontman_server/mix.lock') }}
           restore-keys: ${{ runner.os }}-build-
 
+      - name: Cache PLT
+        uses: actions/cache@v4
+        with:
+          path: apps/frontman_server/priv/plts
+          key: ${{ runner.os }}-plt-${{ hashFiles('apps/frontman_server/mix.lock') }}
+          restore-keys: ${{ runner.os }}-plt-
+
       - name: Install dependencies
         run: make -C apps/frontman_server install
 
       - name: Run tests
         run: make -C apps/frontman_server test
+
+      - name: Run Dialyzer
+        run: make -C apps/frontman_server dialyzer
 
   lint-client:
     name: Lint libs/client

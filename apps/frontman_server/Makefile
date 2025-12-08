@@ -4,7 +4,7 @@
 # Run 'make help' to see available commands
 
 .DEFAULT_GOAL := help
-.PHONY: help install test test-record lint dev build clean check setup db-setup db-reset db-migrate db-seed assets-setup assets-build assets-deploy precommit
+.PHONY: help install test test-record lint dev build clean check setup db-setup db-reset db-migrate db-seed assets-setup assets-build assets-deploy precommit dialyzer quality
 
 SHELL := /bin/bash
 
@@ -80,3 +80,8 @@ precommit: ## Run precommit checks (compile with warnings as errors, format, tes
 	mix test
 
 check: lint test ## Run all checks (lint + test)
+
+dialyzer: ## Run Dialyzer static analysis
+	mix dialyzer
+
+quality: lint test dialyzer ## Run all quality checks (lint + test + dialyzer)
