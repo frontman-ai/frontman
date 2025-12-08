@@ -27,6 +27,7 @@ defmodule FrontmanServer.Test.Fixtures.Agents do
   """
 
   alias FrontmanServer.Agents.{Agent, AgentServer, SubAgent}
+  alias ReqLLM.ToolCall
 
   @doc """
   Build multiple fixtures from a list of atoms.
@@ -165,10 +166,12 @@ defmodule FrontmanServer.Test.Fixtures.Agents do
   end
 
   def build_fixture(:tool_call, ctx, tags) do
-    tool_call = %{
-      id: tags[:tool_call_id] || "tool_#{ctx.unique_id}",
-      name: tags[:tool_name] || "test_tool"
-    }
+    tool_call =
+      ToolCall.new(
+        tags[:tool_call_id] || "tool_#{ctx.unique_id}",
+        tags[:tool_name] || "test_tool",
+        tags[:tool_args] || "{}"
+      )
 
     Map.put(ctx, :tool_call, tool_call)
   end
@@ -239,7 +242,7 @@ defmodule FrontmanServer.Test.Fixtures.Agents do
   end
 
   @doc "Inject a tool call into agent's state"
-  @spec inject_tool_call(pid(), map()) :: :ok
+  @spec inject_tool_call(pid(), ToolCall.t()) :: :ok
   def inject_tool_call(agent_pid, tool_call) do
     :sys.replace_state(agent_pid, fn state ->
       agent = Agent.track_tool(state.agent, tool_call)
@@ -281,16 +284,15 @@ defmodule FrontmanServer.Test.Fixtures.Agents do
     struct!(SubAgent, Keyword.merge(defaults, overrides))
   end
 
-  @doc "Create a tool call map with optional overrides"
-  @spec tool_call_map(keyword()) :: map()
-  def tool_call_map(overrides \\ []) do
+  @doc "Create a ToolCall struct with optional overrides"
+  @spec tool_call_struct(keyword()) :: ToolCall.t()
+  def tool_call_struct(overrides \\ []) do
     unique = System.unique_integer([:positive])
 
-    defaults = [
-      id: "tool_#{unique}",
-      name: "test_tool"
-    ]
+    id = Keyword.get(overrides, :id, "tool_#{unique}")
+    name = Keyword.get(overrides, :name, "test_tool")
+    args = Keyword.get(overrides, :args, "{}")
 
-    Keyword.merge(defaults, overrides) |> Map.new()
+    ToolCall.new(id, name, args)
   end
 end

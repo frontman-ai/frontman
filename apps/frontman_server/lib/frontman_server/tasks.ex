@@ -11,6 +11,8 @@ defmodule FrontmanServer.Tasks do
 
   alias FrontmanServer.Tasks.{Interaction, Task, TaskStore}
   alias FrontmanServer.Agents
+  alias FrontmanServer.Agents.SubAgent
+  alias ReqLLM.ToolCall
 
   defdelegate task_exists?(task_id), to: TaskStore, as: :exists?
   defdelegate get_task(task_id), to: TaskStore, as: :get
@@ -154,9 +156,9 @@ defmodule FrontmanServer.Tasks do
   @doc """
   Creates and appends a ToolCall interaction.
   """
-  @spec add_tool_call(String.t(), String.t(), ReqLLM.ToolCall.t()) ::
+  @spec add_tool_call(String.t(), String.t(), ToolCall.t()) ::
           {:ok, Interaction.t()} | {:error, :task_not_found}
-  def add_tool_call(task_id, agent_id, tool_call_data) do
+  def add_tool_call(task_id, agent_id, %ToolCall{} = tool_call_data) do
     interaction = Interaction.ToolCall.new(agent_id, tool_call_data)
     append_interaction(task_id, interaction)
   end
@@ -167,14 +169,14 @@ defmodule FrontmanServer.Tasks do
   The agent_id identifies which agent (root or sub-agent) owns this tool result.
   Notifies Agents directly so the agent can continue its iteration.
   """
-  @spec add_tool_result(String.t(), String.t(), map(), term(), boolean()) ::
+  @spec add_tool_result(String.t(), String.t(), %{id: String.t(), name: String.t()}, term(), boolean()) ::
           {:ok, Interaction.t()} | {:error, :task_not_found}
-  def add_tool_result(task_id, agent_id, tool_call_data, result, is_error \\ false) do
+  def add_tool_result(task_id, agent_id, %{id: tool_call_id, name: _} = tool_call_data, result, is_error \\ false) do
     interaction = Interaction.ToolResult.new(agent_id, tool_call_data, result, is_error)
 
     case append_interaction(task_id, interaction) do
       {:ok, interaction} ->
-        Agents.notify_tool_result(task_id, tool_call_data.id, result, is_error)
+        Agents.notify_tool_result(task_id, tool_call_id, result, is_error)
         {:ok, interaction}
 
       {:error, reason} ->
@@ -187,22 +189,15 @@ defmodule FrontmanServer.Tasks do
   @doc """
   Records a sub-agent being spawned.
   """
-  def add_sub_agent_spawned(task_id, agent_id, sub_agent) do
-    interaction =
-      Interaction.SubAgentSpawned.new(
-        agent_id,
-        sub_agent.id,
-        sub_agent.role,
-        sub_agent.task
-      )
-
+  def add_sub_agent_spawned(task_id, agent_id, %SubAgent{id: sub_id, role: role, task: task}) do
+    interaction = Interaction.SubAgentSpawned.new(agent_id, sub_id, role, task)
     append_interaction(task_id, interaction)
   end
 
   @doc """
   Records a sub-agent's successful result.
   """
-  def add_sub_agent_result(task_id, agent_id, sub_agent, duration_ms) do
+  def add_sub_agent_result(task_id, agent_id, %SubAgent{} = sub_agent, duration_ms) do
     interaction =
       Interaction.SubAgentResult.new(
         agent_id,
@@ -221,7 +216,7 @@ defmodule FrontmanServer.Tasks do
   @doc """
   Records a sub-agent's failure.
   """
-  def add_sub_agent_failed(task_id, agent_id, sub_agent, duration_ms) do
+  def add_sub_agent_failed(task_id, agent_id, %SubAgent{} = sub_agent, duration_ms) do
     interaction =
       Interaction.SubAgentFailed.new(
         agent_id,

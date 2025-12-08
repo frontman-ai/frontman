@@ -30,7 +30,7 @@ defmodule FrontmanServer.AgentCase do
   - `:sub_agent` - Starts a sub-agent, provides `%{pid, id, task_id, parent_id}`
   - `:registered_sub_agent` - Same as above but registered with Registry
   - `:fake_sub_agent` - Creates a `SubAgent` struct (no process)
-  - `:tool_call` - Creates a tool call map
+  - `:tool_call` - Creates a ToolCall struct
 
   ## Tag options
 
@@ -50,7 +50,7 @@ defmodule FrontmanServer.AgentCase do
   - `register_tool_call/2` - Register tool for direct routing
   - `get_agent_state/1` - Get agent's internal state
   - `sub_agent_struct/1` - Factory for SubAgent structs
-  - `tool_call_map/1` - Factory for tool call maps
+  - `tool_call_struct/1` - Factory for ToolCall structs
   """
 
   use ExUnit.CaseTemplate
