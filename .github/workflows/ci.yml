@@ -106,17 +106,13 @@ jobs:
       - name: Run tests with coverage
         run: make -C apps/frontman_server test-coverage
 
-      - name: Coverage summary
-        run: |
-          echo "## 📊 Coverage Report" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          COVERAGE_FILE="apps/frontman_server/cover/excoveralls.json"
-          TOTAL=$(jq '[.source_files[].coverage | map(select(. != null)) | {hit: map(select(. > 0)) | length, total: length}] | {hit: map(.hit) | add, total: map(.total) | add} | (.hit / .total * 100 * 10 | floor / 10)' "$COVERAGE_FILE")
-          echo "**Total Coverage: ${TOTAL}%**" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| File | Coverage |" >> $GITHUB_STEP_SUMMARY
-          echo "|------|----------|" >> $GITHUB_STEP_SUMMARY
-          jq -r '.source_files | sort_by(.name) | .[] | .name as $name | .coverage | map(select(. != null)) | {hit: map(select(. > 0)) | length, total: length} | "\($name | split("/")[-1]) | \(if .total > 0 then (.hit / .total * 100 * 10 | floor / 10) else 100 end)%"' "$COVERAGE_FILE" >> $GITHUB_STEP_SUMMARY
+      - name: Coverage report
+        uses: 5monkeys/cobertura-action@master
+        with:
+          path: apps/frontman_server/cover/cobertura.xml
+          minimum_coverage: 75
+          show_missing: true
+          only_changed_files: true
 
       - name: Run Dialyzer
         run: make -C apps/frontman_server dialyzer

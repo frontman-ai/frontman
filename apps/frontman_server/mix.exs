@@ -27,7 +27,11 @@ defmodule FrontmanServer.MixProject do
         "coveralls.detail": :test,
         "coveralls.post": :test,
         "coveralls.html": :test,
-        "coveralls.github": :test
+        "coveralls.github": :test,
+        "coveralls.json": :test,
+        "coveralls.cobertura": :test,
+        "coveralls.lcov": :test,
+        "coveralls.xml": :test
       ]
     ]
   end
