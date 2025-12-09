@@ -110,13 +110,17 @@ jobs:
       - name: Run tests with coverage
         run: make -C apps/frontman_server test-coverage
 
+      - name: Coverage details
+        run: cd apps/frontman_server && MIX_ENV=test mix coveralls.detail
+
       - name: Coverage report
         uses: 5monkeys/cobertura-action@master
         with:
           path: apps/frontman_server/cover/cobertura.xml
           minimum_coverage: 75
           show_missing: true
-          only_changed_files: true
+          skip_covered: false
+          only_changed_files: false
 
       - name: Run Dialyzer
         run: make -C apps/frontman_server dialyzer
