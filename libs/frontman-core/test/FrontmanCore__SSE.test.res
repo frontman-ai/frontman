@@ -1,6 +1,6 @@
 open Vitest
 
-module SSE = FrontmanNextjs__SSE
+module SSE = FrontmanCore__SSE
 module MCP = AskTheLlmFrontmanProtocol.FrontmanProtocol__MCP
 
 describe("SSE", _t => {

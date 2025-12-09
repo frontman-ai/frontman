@@ -302,6 +302,22 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@ask-the-llm/frontman-astro@workspace:*, @ask-the-llm/frontman-astro@workspace:libs/frontman-astro":
+  version: 0.0.0-use.local
+  resolution: "@ask-the-llm/frontman-astro@workspace:libs/frontman-astro"
+  dependencies:
+    "@rescript/webapi": "catalog:"
+    "@vitest/ui": "catalog:"
+    rescript: "catalog:"
+    rescript-vitest: "catalog:"
+    sury: "catalog:"
+    vite: "catalog:"
+    vitest: "catalog:"
+  peerDependencies:
+    astro: ^5.0.0
+  languageName: unknown
+  linkType: soft
+
 "@ask-the-llm/frontman-client@workspace:*, @ask-the-llm/frontman-client@workspace:libs/frontman-client":
   version: 0.0.0-use.local
   resolution: "@ask-the-llm/frontman-client@workspace:libs/frontman-client"
@@ -309,6 +325,20 @@ __metadata:
     "@rescript/webapi": "catalog:"
     "@vitest/ui": "catalog:"
     phoenix: "npm:^1.7.0"
+    rescript: "catalog:"
+    rescript-vitest: "catalog:"
+    sury: "catalog:"
+    vite: "catalog:"
+    vitest: "catalog:"
+  languageName: unknown
+  linkType: soft
+
+"@ask-the-llm/frontman-core@workspace:libs/frontman-core":
+  version: 0.0.0-use.local
+  resolution: "@ask-the-llm/frontman-core@workspace:libs/frontman-core"
+  dependencies:
+    "@rescript/webapi": "catalog:"
+    "@vitest/ui": "catalog:"
     rescript: "catalog:"
     rescript-vitest: "catalog:"
     sury: "catalog:"
@@ -540,6 +570,19 @@ __metadata:
   peerDependencies:
     astro: ^5.0.0
   checksum: 10c0/5c0ca849703aed2e9c57e69f87a452085238f22c629fab8573a2ec21fc892931d65a96c5e82dfa49450741027231fcf3816e68e7d70616822304668cd5b71eaa
+  languageName: node
+  linkType: hard
+
+"@astrojs/node@npm:^9.0.0":
+  version: 9.5.1
+  resolution: "@astrojs/node@npm:9.5.1"
+  dependencies:
+    "@astrojs/internal-helpers": "npm:0.7.5"
+    send: "npm:^1.2.0"
+    server-destroy: "npm:^1.0.1"
+  peerDependencies:
+    astro: ^5.14.3
+  checksum: 10c0/be25ff17867c86892f27399b803fe6538477b7539524fb07f845b88c55b8c50aa9de0f1a7d890b0047e7cdb163aca1f21b02371095de103c7e4feca9c4189837
   languageName: node
   linkType: hard
 
@@ -12886,7 +12929,9 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "marketing@workspace:apps/marketing"
   dependencies:
+    "@ask-the-llm/frontman-astro": "workspace:*"
     "@astrojs/check": "npm:^0.9.5"
+    "@astrojs/node": "npm:^9.0.0"
     "@astrojs/partytown": "npm:^2.1.4"
     "@astrojs/preact": "npm:^4.1.3"
     "@astrojs/sitemap": "npm:^3.6.0"
@@ -16956,6 +17001,13 @@ __metadata:
     parseurl: "npm:^1.3.3"
     send: "npm:^1.2.0"
   checksum: 10c0/30e2ed1dbff1984836cfd0c65abf5d3f3f83bcd696c99d2d3c97edbd4e2a3ff4d3f87108a7d713640d290a7b6fe6c15ddcbc61165ab2eaad48ea8d3b52c7f913
+  languageName: node
+  linkType: hard
+
+"server-destroy@npm:^1.0.1":
+  version: 1.0.1
+  resolution: "server-destroy@npm:1.0.1"
+  checksum: 10c0/ab771f12b24cde1bc622cce0c14a1365f3ab0685937c641c762916fb43aa7a03d6c577cc4375ea5361d6bc1bb20ab689ec5723086e5798c6781edb61287e24b8
   languageName: node
   linkType: hard
 

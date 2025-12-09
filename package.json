@@ -14,6 +14,8 @@
 		"libs/figma-client-api",
 		"libs/frontman-client",
 		"libs/frontman-protocol",
+		"libs/frontman-core",
+		"libs/frontman-astro",
 		"libs/frontman-nextjs",
 		"test/sites/blog-starter",
 		"libs/react-statestore",

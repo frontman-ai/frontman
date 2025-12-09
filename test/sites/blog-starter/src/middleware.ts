@@ -1,22 +1,33 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { createMiddleware } from "@ask-the-llm/frontman-nextjs/src/FrontmanNextjs.res.mjs";
 
 export const config = {
 	runtime: "nodejs",
 };
 
-const frontmanMiddleware = createMiddleware({
-	projectRoot: process.cwd(),
-	basePath: "__frontman",
-	serverName: "blog-starter",
-	serverVersion: "1.0.0",
-})
+const FRONTMAN_ENABLED = process.env.NODE_ENV === "development";
+
+// Only load frontman in dev mode - completely safe in production
+const frontmanMiddleware = FRONTMAN_ENABLED
+	? await (async () => {
+			const { createMiddleware } = await import(
+				"@ask-the-llm/frontman-nextjs/src/FrontmanNextjs.res.mjs"
+			);
+			return createMiddleware({
+				projectRoot: process.cwd(),
+				basePath: "__frontman",
+				serverName: "blog-starter",
+				serverVersion: "1.0.0",
+			});
+		})()
+	: null;
 
 export default async function middleware(request: NextRequest) {
-	const response = await frontmanMiddleware(request);
-	if (response) {
-		return response;
+	if (frontmanMiddleware) {
+		const response = await frontmanMiddleware(request);
+		if (response) {
+			return response;
+		}
 	}
 	return NextResponse.next();
 }

@@ -1,0 +1,15 @@
+{
+	"name": "@ask-the-llm/frontman-core",
+	"version": "0.1.0",
+	"type": "module",
+	"main": "./src/FrontmanCore.res.mjs",
+	"devDependencies": {
+		"@rescript/webapi": "catalog:",
+		"@vitest/ui": "catalog:",
+		"rescript": "catalog:",
+		"rescript-vitest": "catalog:",
+		"sury": "catalog:",
+		"vite": "catalog:",
+		"vitest": "catalog:"
+	}
+}

@@ -1,10 +1,10 @@
-// Frontman NextJS Integration - exposes framework tools via HTTP
+// Frontman Astro Integration - exposes framework tools via HTTP
 // Used by FrontmanClient__Relay to execute file system operations
 
-module Config = FrontmanNextjs__Config
-module Middleware = FrontmanNextjs__Middleware
-module Server = FrontmanNextjs__Server
-module ToolRegistry = FrontmanNextjs__ToolRegistry
+module Config = FrontmanAstro__Config
+module Middleware = FrontmanAstro__Middleware
+module Server = FrontmanAstro__Server
+module ToolRegistry = FrontmanAstro__ToolRegistry
 
 // Re-export core SSE for convenience
 module SSE = AskTheLlmFrontmanCore.FrontmanCore__SSE

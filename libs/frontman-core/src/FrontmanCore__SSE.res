@@ -2,7 +2,6 @@
 
 module Protocol = AskTheLlmFrontmanProtocol
 module MCP = Protocol.FrontmanProtocol__MCP
-module WebStreams = AskTheLlmBindings.WebStreams
 
 // Format SSE event
 let formatEvent = (~eventType: string, ~data: string): string => {

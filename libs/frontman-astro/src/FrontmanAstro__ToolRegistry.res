@@ -1,4 +1,4 @@
-// Tool registry for Next.js - composes core tools with Next.js specific tools
+// Tool registry for Astro - composes core tools with Astro specific tools
 
 module Core = AskTheLlmFrontmanCore
 module CoreRegistry = Core.FrontmanCore__ToolRegistry
@@ -7,14 +7,14 @@ module CoreRegistry = Core.FrontmanCore__ToolRegistry
 type tool = CoreRegistry.tool
 type t = CoreRegistry.t
 
-// Next.js specific tools
-let nextjsTools: array<tool> = [
-  module(FrontmanNextjs__Tool__GetRoutes),
+// Astro specific tools
+let astroTools: array<tool> = [
+  module(FrontmanAstro__Tool__GetPages),
 ]
 
-// Create registry with core + Next.js tools
+// Create registry with core + Astro tools
 let make = (): t => {
-  CoreRegistry.coreTools()->CoreRegistry.addTools(nextjsTools)
+  CoreRegistry.coreTools()->CoreRegistry.addTools(astroTools)
 }
 
 // Re-export functions from core
