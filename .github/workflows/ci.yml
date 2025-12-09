@@ -58,6 +58,7 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
+      checks: write
     services:
       postgres:
         image: postgres:16
