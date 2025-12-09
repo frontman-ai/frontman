@@ -64,7 +64,7 @@ test-record: ## Record new LLM fixtures (makes real API calls)
 test-coverage: ## Run tests with coverage report
 	MIX_ENV=test mix ecto.create --quiet
 	MIX_ENV=test mix ecto.migrate --quiet
-	mix coveralls.xml
+	mix coveralls.json
 
 lint: ## Run code formatter
 	mix format
