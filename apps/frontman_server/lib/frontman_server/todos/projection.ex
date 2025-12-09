@@ -2,7 +2,7 @@ defmodule Todos.Projection do
   @moduledoc """
   Projects todo events into current state.
 
-  Uses Event protocol to identify events, pattern matches on event types.
+  Filters for known event types, then pattern matches to apply them.
   """
 
   alias FrontmanServer.Tasks.Interaction
@@ -22,7 +22,7 @@ defmodule Todos.Projection do
     interactions
     |> Enum.filter(&is_event_tool_result?/1)
     |> Enum.map(&extract_event/1)
-    |> Enum.filter(&implements_event?/1)
+    |> Enum.filter(&is_known_event?/1)
   end
 
   defp is_event_tool_result?(%ToolResult{tool_name: name}) do
@@ -37,11 +37,10 @@ defmodule Todos.Projection do
 
   defp extract_event(%ToolResult{result: _}), do: nil
 
-  defp implements_event?(event) when is_struct(event) do
-    Event.impl_for(event) != nil
-  end
+  @event_types [TodoAdded, TodoUpdated, TodoRemoved]
 
-  defp implements_event?(_), do: false
+  defp is_known_event?(%{__struct__: struct}) when struct in @event_types, do: true
+  defp is_known_event?(_), do: false
 
   defp apply_event(%TodoAdded{} = event, state) do
     todo = %Todo{

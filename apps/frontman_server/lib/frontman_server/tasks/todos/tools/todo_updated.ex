@@ -16,10 +16,6 @@ defmodule FrontmanServer.Tasks.Todos.Tools.TodoUpdated do
     field :timestamp, DateTime.t()
   end
 
-  defimpl Event do
-    def timestamp(event), do: event.timestamp
-  end
-
   defimpl Jason.Encoder do
     def encode(event, opts) do
       %{
