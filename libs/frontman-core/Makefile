@@ -7,7 +7,7 @@ help: ## Display this help message
 build: ## Build ReScript
 	yarn rescript build
 
-test: ## Run tests
+test: build ## Run tests
 	yarn vitest run
 
 test-watch: ## Run tests in watch mode
