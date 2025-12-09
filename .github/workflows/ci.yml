@@ -52,6 +52,48 @@ jobs:
       - name: Run tests
         run: make -C libs/frontman-client test
 
+  test-frontman-core:
+    name: Test frontman-core
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.4.1'
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install dependencies
+        run: yarn install --immutable
+
+      - name: Run tests
+        run: make -C libs/frontman-core test
+
+  test-frontman-nextjs:
+    name: Test frontman-nextjs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.4.1'
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install dependencies
+        run: yarn install --immutable
+
+      - name: Run tests
+        run: make -C libs/frontman-nextjs test
+
   test-frontman-server:
     name: Test frontman-server
     runs-on: ubuntu-latest
