@@ -11,10 +11,23 @@ defmodule FrontmanServer.MixProject do
       deps: deps(),
       compilers: [:phoenix_live_view] ++ Mix.compilers(),
       listeners: [Phoenix.CodeReloader],
+      test_coverage: [tool: ExCoveralls],
       dialyzer: [
         plt_add_apps: [:mix],
         plt_local_path: "priv/plts",
         ignore_warnings: ".dialyzer_ignore.exs"
+      ]
+    ]
+  end
+
+  def cli do
+    [
+      preferred_envs: [
+        coveralls: :test,
+        "coveralls.detail": :test,
+        "coveralls.post": :test,
+        "coveralls.html": :test,
+        "coveralls.github": :test
       ]
     ]
   end
@@ -70,7 +83,8 @@ defmodule FrontmanServer.MixProject do
       {:esbuild, "~> 0.10", runtime: Mix.env() == :dev},
       {:mix_test_watch, "~> 1.0", only: [:dev, :test], runtime: false},
       {:lazy_html, ">= 0.1.0", only: :test},
-      {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false}
+      {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
+      {:excoveralls, "~> 0.18", only: :test}
     ]
   end
 end

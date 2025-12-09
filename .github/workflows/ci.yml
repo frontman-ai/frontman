@@ -103,8 +103,10 @@ jobs:
       - name: Install dependencies
         run: make -C apps/frontman_server install
 
-      - name: Run tests
-        run: make -C apps/frontman_server test
+      - name: Run tests with coverage
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: make -C apps/frontman_server test-coverage
 
       - name: Run Dialyzer
         run: make -C apps/frontman_server dialyzer
