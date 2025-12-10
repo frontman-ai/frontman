@@ -113,16 +113,6 @@ defmodule FrontmanServer.AgentCase do
 
       llm_opts = fixture_opts(context, api_key: key, tools: tools)
   """
-  def fixture_opts(context_or_path, extra_opts \\ [])
-
-  def fixture_opts(%{fixture_path: fixture_path}, extra_opts) do
-    Keyword.merge([fixture_path: fixture_path], extra_opts)
-  end
-
-  def fixture_opts(fixture_path, extra_opts) when is_binary(fixture_path) do
-    Keyword.merge([fixture_path: fixture_path], extra_opts)
-  end
-
   defp compute_fixture_path(%{llm_fixture: explicit_path}) when is_binary(explicit_path) do
     FixturePath.for_explicit(explicit_path)
   end
