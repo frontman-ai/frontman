@@ -57,8 +57,8 @@ test: ## Run test suite
 	mix test
 
 test-record: ## Record new LLM fixtures (makes real API calls)
-	mix ecto.create --quiet
-	mix ecto.migrate --quiet
+	MIX_ENV=test mix ecto.create --quiet
+	MIX_ENV=test mix ecto.migrate --quiet
 	REQ_LLM_FIXTURES_MODE=record mix test
 
 test-coverage: ## Run tests with coverage report

@@ -59,13 +59,15 @@ defmodule FrontmanServer.Test.Fixtures.Agents do
 
     agent_id = tags[:parent_id] || "parent_#{ctx.unique_id}"
     task_id = tags[:task_id] || "task_#{ctx.unique_id}"
+    llm_opts = build_llm_opts(ctx, tags)
 
     {:ok, pid} =
       GenServer.start_link(AgentServer, {:root, %{
         agent_id: agent_id,
         task_id: task_id,
         tools: tags[:tools] || [],
-        on_event: ctx.on_event
+        on_event: ctx.on_event,
+        llm_opts: llm_opts
       }})
 
     Map.merge(ctx, %{
@@ -78,6 +80,7 @@ defmodule FrontmanServer.Test.Fixtures.Agents do
 
     agent_id = tags[:parent_id] || "parent_#{ctx.unique_id}"
     task_id = tags[:task_id] || "task_#{ctx.unique_id}"
+    llm_opts = build_llm_opts(ctx, tags)
 
     {:ok, pid} =
       GenServer.start_link(
@@ -86,7 +89,8 @@ defmodule FrontmanServer.Test.Fixtures.Agents do
           agent_id: agent_id,
           task_id: task_id,
           tools: tags[:tools] || [],
-          on_event: ctx.on_event
+          on_event: ctx.on_event,
+          llm_opts: llm_opts
         }},
         name: via_registry(agent_id, task_id, nil, :root)
       )
@@ -294,5 +298,23 @@ defmodule FrontmanServer.Test.Fixtures.Agents do
     args = Keyword.get(overrides, :args, "{}")
 
     ToolCall.new(id, name, args)
+  end
+
+  # Build llm_opts from context and tags for VCR fixture support
+  # Note: fixture_path comes from tags (ExUnit context) via LLMIntegrationCase setup
+  defp build_llm_opts(_ctx, tags) do
+    case {tags[:fixture_path], tags[:llm_fixture]} do
+      {path, _} when is_binary(path) ->
+        # Fixture path from LLMIntegrationCase setup
+        [fixture_path: path]
+
+      {_, fixture_name} when is_binary(fixture_name) ->
+        # Explicit fixture name via tag - use FixturePath to resolve
+        path = ReqLLM.Test.FixturePath.for_explicit(fixture_name)
+        [fixture_path: path]
+
+      _ ->
+        []
+    end
   end
 end

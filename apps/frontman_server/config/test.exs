@@ -36,7 +36,3 @@ config :phoenix, :plug_init_mode, :runtime
 config :phoenix_live_view,
   enable_expensive_runtime_checks: true
 
-# LLM Configuration
-config :frontman_server,
-  anthropic_api_key: "sk-ant-test-key",
-  openai_api_key: "sk-proj-test-key"

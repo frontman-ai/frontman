@@ -17,14 +17,14 @@ if System.get_env("PHX_SERVER") do
   config :frontman_server, FrontmanServerWeb.Endpoint, server: true
 end
 
-# LLM API keys - loaded at runtime from environment (dev only)
-if config_env() == :dev do
+# LLM API keys - loaded at runtime from environment
+if config_env() in [:dev, :test] do
   config :frontman_server,
     anthropic_api_key: env!("ANTHROPIC_API_KEY", :string!),
-    google_api_key: env!("GOOGLE_API_KEY", :string!),
-    xai_api_key: env!("XAI_API_KEY", :string!),
-    openrouter_api_key: env!("OPENROUTER_API_KEY", :string!),
-    openai_api_key: env!("OPEN_AI_API_KEY", :string!)
+    google_api_key: env!("GOOGLE_API_KEY", :string, nil),
+    xai_api_key: env!("XAI_API_KEY", :string, nil),
+    openrouter_api_key: env!("OPENROUTER_API_KEY", :string, nil),
+    openai_api_key: env!("OPENAI_API_KEY", :string, nil)
 end
 
 if config_env() == :prod do
