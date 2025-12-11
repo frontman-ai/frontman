@@ -73,6 +73,7 @@ dev: ## Start development server
 	mix phx.server
 
 build: ## Build the project for production
+	MIX_ENV=prod mix sentry.package_source_code
 	MIX_ENV=prod mix compile
 
 clean: ## Clean build artifacts and dependencies

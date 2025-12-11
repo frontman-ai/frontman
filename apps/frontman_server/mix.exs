@@ -85,6 +85,9 @@ defmodule FrontmanServer.MixProject do
       {:typed_struct, "~> 0.3"},
       {:zoi, "~> 0.10"},
       {:dotenvy, "~> 1.1"},
+      # Sentry error tracking
+      {:sentry, "~> 10.2.0"},
+      {:hackney, "~> 1.8"},
       # ==================DEV/Test=========================
       {:phoenix_live_reload, "~> 1.2", only: :dev},
       {:tailwind, "~> 0.3", runtime: Mix.env() == :dev},

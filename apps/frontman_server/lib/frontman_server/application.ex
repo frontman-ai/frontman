@@ -10,6 +10,11 @@ defmodule FrontmanServer.Application do
     # Configure OpenTelemetry early
     FrontmanServer.Observability.OTelSetup.configure()
 
+    # Add Sentry logger handler to capture crashed process exceptions
+    :logger.add_handler(:sentry_handler, Sentry.LoggerHandler, %{
+      config: %{metadata: [:file, :line]}
+    })
+
     # Create ETS tables
     :ets.new(:tasks, [:named_table, :public, :set, read_concurrency: true])
 
