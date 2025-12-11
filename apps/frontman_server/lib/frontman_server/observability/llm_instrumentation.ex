@@ -54,8 +54,9 @@ defmodule FrontmanServer.Observability.LLMInstrumentation do
   Ends an agent lifecycle span. Call from terminate/2.
   """
   @spec end_agent_span(OpenTelemetry.span_ctx()) :: :ok
-  def end_agent_span(span_ctx) do
-    Tracer.end_span(span_ctx)
+  def end_agent_span({:span_ctx, _, _, _, _, _, _, _, _, _, _} = span_ctx) do
+    Tracer.set_current_span(span_ctx)
+    Tracer.end_span()
     :ok
   end
 
@@ -389,7 +390,7 @@ defmodule FrontmanServer.Observability.LLMInstrumentation do
       {:"tool.duration_ms", duration},
       {:"tool.status", "success"}
     ])
-    Tracer.end_span(span_ctx)
+    Tracer.end_span()
     :ok
   end
 
@@ -408,7 +409,7 @@ defmodule FrontmanServer.Observability.LLMInstrumentation do
       {:"tool.error", error_message}
     ])
     Tracer.set_status(:error, error_message)
-    Tracer.end_span(span_ctx)
+    Tracer.end_span()
     :ok
   end
 
