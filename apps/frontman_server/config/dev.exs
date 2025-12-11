@@ -93,4 +93,7 @@ config :swoosh, :api_client, false
 # OpenTelemetry - disabled by default in dev, enabled via runtime.exs if env vars set
 config :opentelemetry, traces_exporter: :none
 
-config :opentelemetry, :resource, deployment: [environment: "dev"]
+config :opentelemetry, :resource, %{
+  service: %{name: "frontman-server", version: "0.0.1"},
+  deployment: %{environment: "dev"}
+}

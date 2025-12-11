@@ -41,7 +41,8 @@ defmodule FrontmanServer.Observability.LLMInstrumentation do
         {:"gen_ai.operation.name", "chat"},
         {:"gen_ai.system", provider},
         {:"gen_ai.request.model", model_name},
-        {:"gen_ai.input.messages", messages |> MessageSerializer.serialize_input() |> Jason.encode!()}
+        {:"gen_ai.input.messages", messages |> MessageSerializer.serialize_input() |> Jason.encode!()},
+        {:"deployment.environment", deployment_environment()}
       ]
       |> maybe_add_attribute(:agent_id, opts[:agent_id], "frontman.agent.id")
       |> maybe_add_attribute(:task_id, opts[:task_id], "frontman.task.id")
@@ -168,5 +169,12 @@ defmodule FrontmanServer.Observability.LLMInstrumentation do
 
   defp maybe_add_attribute(attributes, _key, value, attr_name) do
     [{String.to_atom(attr_name), value} | attributes]
+  end
+
+  defp deployment_environment do
+    case Application.get_env(:opentelemetry, :resource) do
+      %{deployment: %{environment: env}} -> env
+      _ -> "unknown"
+    end
   end
 end
