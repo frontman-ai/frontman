@@ -191,7 +191,7 @@ defmodule FrontmanServer.Agents do
       {:ok, _pid} ->
         Tasks.add_agent_spawned(%{task_id: task_id, agent_id: agent_id}, %{tools: tools})
         messages = Tasks.get_llm_messages(task_id, agent_id)
-        AgentServer.execute_iteration(agent_id, messages)
+        AgentServer.execute_iteration(agent_id, messages, "initial")
         {:ok, agent_id}
 
       {:error, reason} ->
@@ -255,8 +255,8 @@ defmodule FrontmanServer.Agents do
       {:response, agent_id, text, metadata} ->
         Tasks.add_agent_response(task_id, agent_id, text, metadata)
 
-      {:tool_call, agent_id, tool_call} ->
-        Tasks.add_tool_call(task_id, agent_id, tool_call)
+      {:tool_call, agent_id, tool_call, span_ctx} ->
+        Tasks.add_tool_call(task_id, agent_id, tool_call, span_ctx)
 
       {:completed, agent_id} ->
         Tasks.add_agent_completed(task_id, agent_id)
@@ -265,8 +265,8 @@ defmodule FrontmanServer.Agents do
       {:error, agent_id, reason} ->
         broadcast(task_id, {:agent_error, agent_id, inspect(reason)})
 
-      {:need_iteration, agent_id} ->
-        push_iteration(task_id, agent_id)
+      {:need_iteration, agent_id, trigger} ->
+        push_iteration(task_id, agent_id, trigger)
 
       {:sub_agent_spawned, agent_id, sub_agent} ->
         Tasks.add_sub_agent_spawned(task_id, agent_id, sub_agent)
@@ -290,9 +290,9 @@ defmodule FrontmanServer.Agents do
     end
   end
 
-  defp push_iteration(task_id, agent_id) do
+  defp push_iteration(task_id, agent_id, trigger) do
     messages = Tasks.get_llm_messages(task_id, agent_id)
-    AgentServer.execute_iteration(agent_id, messages)
+    AgentServer.execute_iteration(agent_id, messages, trigger)
   end
 
   defp broadcast(task_id, message) do

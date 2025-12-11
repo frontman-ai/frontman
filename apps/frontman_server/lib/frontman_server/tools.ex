@@ -60,7 +60,7 @@ defmodule FrontmanServer.Tools do
   Returns :not_found if the tool is not a backend tool.
   """
   @spec execute_backend_tool(ToolCall.t(), String.t()) :: {:executed, term()} | :not_found
-  def execute_backend_tool(%ToolCall{} = tool_call, task_id) do
+  def execute_backend_tool(%ToolCall{agent_id: agent_id} = tool_call, task_id) do
     case find_backend_tool(tool_call.tool_name, task_id) do
       {:ok, tool} ->
         Logger.info("Executing backend tool: #{tool_call.tool_name}")
@@ -70,6 +70,7 @@ defmodule FrontmanServer.Tools do
           LLMInstrumentation.with_tool_span(
             tool_call.tool_name,
             tool_call.id,
+            [agent_id: agent_id, task_id: task_id, tool_type: "backend"],
             fn -> execute_tool(tool, tool_call.arguments) end
           )
 

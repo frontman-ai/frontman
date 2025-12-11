@@ -30,6 +30,7 @@ defmodule FrontmanServer.Agents.AgentServer do
     :on_event,
     :idle_timer_ref,
     :parent_pid,
+    :span_ctx,
     llm_opts: []
   ]
 
@@ -100,11 +101,11 @@ defmodule FrontmanServer.Agents.AgentServer do
   @doc """
   Triggers a specific agent to execute an iteration with the given messages.
   """
-  @spec execute_iteration(String.t(), list()) :: :ok | {:error, :not_found}
-  def execute_iteration(agent_id, messages) do
+  @spec execute_iteration(String.t(), list(), String.t()) :: :ok | {:error, :not_found}
+  def execute_iteration(agent_id, messages, trigger) do
     case Registry.lookup(FrontmanServer.AgentRegistry, {:agent, agent_id}) do
       [{pid, _metadata}] ->
-        send(pid, {:execute_iteration, messages})
+        send(pid, {:execute_iteration, messages, trigger})
         :ok
 
       [] ->
@@ -140,6 +141,7 @@ defmodule FrontmanServer.Agents.AgentServer do
   @impl true
   def init({:root, %{agent_id: agent_id, task_id: task_id, tools: tools, on_event: on_event} = opts}) do
     agent = Agent.new_root(agent_id, task_id)
+    span_ctx = LLMInstrumentation.start_agent_span(agent_id, task_id)
 
     state = %__MODULE__{
       agent: agent,
@@ -147,6 +149,7 @@ defmodule FrontmanServer.Agents.AgentServer do
       on_event: on_event,
       idle_timer_ref: nil,
       parent_pid: nil,
+      span_ctx: span_ctx,
       llm_opts: Map.get(opts, :llm_opts, [])
     }
 
@@ -168,6 +171,7 @@ defmodule FrontmanServer.Agents.AgentServer do
     Process.monitor(parent_pid)
 
     agent = Agent.new_sub_agent(agent_id, task_id, parent_agent_id, role, task)
+    span_ctx = LLMInstrumentation.start_agent_span(agent_id, task_id, parent_agent_id, role)
 
     state = %__MODULE__{
       agent: agent,
@@ -175,6 +179,7 @@ defmodule FrontmanServer.Agents.AgentServer do
       on_event: on_event,
       idle_timer_ref: nil,
       parent_pid: parent_pid,
+      span_ctx: span_ctx,
       llm_opts: Map.get(opts, :llm_opts, [])
     }
 
@@ -182,12 +187,24 @@ defmodule FrontmanServer.Agents.AgentServer do
   end
 
   @impl true
-  def handle_info({:execute_iteration, messages}, state) do
-    agent = state.agent
-    Logger.info("Agent #{agent.id} starting iteration with #{length(messages)} messages")
+  def handle_info({:execute_iteration, messages, trigger}, state) do
+    agent = Agent.increment_iteration(state.agent)
+    state = %{state | agent: agent}
+    iteration_number = agent.iteration_count
+
+    Logger.info("Agent #{agent.id} starting iteration #{iteration_number} (#{trigger}) with #{length(messages)} messages")
     set_registry_state(agent.id, :processing)
 
-    case stream_and_handle_response(state, messages) do
+    result =
+      LLMInstrumentation.with_iteration_span(
+        state.span_ctx,
+        agent.id,
+        iteration_number,
+        trigger,
+        fn -> stream_and_handle_response(state, messages) end
+      )
+
+    case result do
       {:wait_for_tools, state} ->
         set_registry_state(state.agent.id, :waiting_for_tools)
         state = schedule_idle_timeout(state)
@@ -221,7 +238,7 @@ defmodule FrontmanServer.Agents.AgentServer do
 
         if not Agent.has_pending_work?(agent) do
           state = cancel_idle_timeout(state)
-          emit(state, {:need_iteration, agent.id})
+          emit(state, {:need_iteration, agent.id, "tool_results"})
           {:noreply, state}
         else
           state = schedule_idle_timeout(state)
@@ -236,7 +253,7 @@ defmodule FrontmanServer.Agents.AgentServer do
       [{_pid, %{state: :idle}}] ->
         state = cancel_idle_timeout(state)
         set_registry_state(state.agent.id, :processing)
-        emit(state, {:need_iteration, state.agent.id})
+        emit(state, {:need_iteration, state.agent.id, "user_message"})
         {:noreply, state}
 
       [{_pid, %{state: :processing}}] ->
@@ -278,7 +295,7 @@ defmodule FrontmanServer.Agents.AgentServer do
           {:noreply, state}
         else
           state = cancel_idle_timeout(state)
-          emit(state, {:need_iteration, agent.id})
+          emit(state, {:need_iteration, agent.id, "tool_results"})
           {:noreply, state}
         end
     end
@@ -309,10 +326,19 @@ defmodule FrontmanServer.Agents.AgentServer do
           {:noreply, state}
         else
           state = cancel_idle_timeout(state)
-          emit(state, {:need_iteration, agent.id})
+          emit(state, {:need_iteration, agent.id, "tool_results"})
           {:noreply, state}
         end
     end
+  end
+
+  @impl true
+  def terminate(_reason, state) do
+    if state.span_ctx do
+      LLMInstrumentation.end_agent_span(state.span_ctx)
+    end
+
+    :ok
   end
 
   # Private Functions
@@ -435,9 +461,13 @@ defmodule FrontmanServer.Agents.AgentServer do
   defp track_tool_calls(state, []), do: state
 
   defp track_tool_calls(state, tool_calls) do
+    # Capture current span context (iteration span) for MCP tool span parenting
+    require OpenTelemetry.Tracer, as: Tracer
+    span_ctx = Tracer.current_span_ctx()
+
     agent =
       Enum.reduce(tool_calls, state.agent, fn tc, agent ->
-        emit(state, {:tool_call, agent.id, tc})
+        emit(state, {:tool_call, agent.id, tc, span_ctx})
         Registry.register(FrontmanServer.AgentRegistry, {:tool_call, tc.id}, agent.id)
         Agent.track_tool(agent, tc)
       end)
@@ -468,50 +498,56 @@ defmodule FrontmanServer.Agents.AgentServer do
   defp spawn_sub_agent(state, tool_call) do
     case SubAgentTool.parse_arguments(ToolCall.args_map(tool_call)) do
       {:ok, %{role: role, task: task}} ->
-        id = "sub_#{:crypto.strong_rand_bytes(8) |> Base.encode16(case: :lower)}"
-
-        child_spec = %{
-          id: id,
-          start:
-            {__MODULE__, :start_sub_agent,
-             [
-               [
-                 agent_id: id,
-                 task_id: state.agent.task_id,
-                 tools: state.tools,
-                 on_event: state.on_event,
-                 parent_agent_id: state.agent.id,
-                 parent_pid: self(),
-                 role: role,
-                 task: task
-               ]
-             ]},
-          restart: :temporary
-        }
-
-        case DynamicSupervisor.start_child(FrontmanServer.AgentSupervisor, child_spec) do
-          {:ok, pid} ->
-            Process.monitor(pid)
-
-            sub_agent = %SubAgent{
-              id: id,
-              tool_call_id: tool_call.id,
-              role: role,
-              task: task,
-              pid: pid,
-              status: :running,
-              started_at: System.monotonic_time(:millisecond)
-            }
-
-            send(pid, {:execute_iteration, [%{role: "user", content: task}]})
-            {:ok, sub_agent}
-
-          {:error, reason} ->
-            {:error, role, task, reason}
-        end
+        LLMInstrumentation.with_spawn_sub_agent_span(state.agent, role, task, fn ->
+          do_spawn_sub_agent(state, tool_call, role, task)
+        end)
 
       {:error, reason} ->
         {:error, :unknown, ToolCall.args_json(tool_call), reason}
+    end
+  end
+
+  defp do_spawn_sub_agent(state, tool_call, role, task) do
+    id = "sub_#{:crypto.strong_rand_bytes(8) |> Base.encode16(case: :lower)}"
+
+    child_spec = %{
+      id: id,
+      start:
+        {__MODULE__, :start_sub_agent,
+         [
+           [
+             agent_id: id,
+             task_id: state.agent.task_id,
+             tools: state.tools,
+             on_event: state.on_event,
+             parent_agent_id: state.agent.id,
+             parent_pid: self(),
+             role: role,
+             task: task
+           ]
+         ]},
+      restart: :temporary
+    }
+
+    case DynamicSupervisor.start_child(FrontmanServer.AgentSupervisor, child_spec) do
+      {:ok, pid} ->
+        Process.monitor(pid)
+
+        sub_agent = %SubAgent{
+          id: id,
+          tool_call_id: tool_call.id,
+          role: role,
+          task: task,
+          pid: pid,
+          status: :running,
+          started_at: System.monotonic_time(:millisecond)
+        }
+
+        send(pid, {:execute_iteration, [%{role: "user", content: task}], "initial"})
+        {:ok, sub_agent}
+
+      {:error, reason} ->
+        {:error, role, task, reason}
     end
   end
 

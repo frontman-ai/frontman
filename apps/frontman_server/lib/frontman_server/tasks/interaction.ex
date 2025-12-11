@@ -212,9 +212,11 @@ defmodule FrontmanServer.Tasks.Interaction do
       field(:tool_name, String.t())
       field(:arguments, map())
       field(:timestamp, DateTime.t())
+      # OpenTelemetry span context for parent correlation (not serialized)
+      field(:span_ctx, term(), enforce: false)
     end
 
-    def new(agent_id, %ReqLLM.ToolCall{} = tc) do
+    def new(agent_id, %ReqLLM.ToolCall{} = tc, span_ctx \\ nil) do
       alias FrontmanServer.Tasks.Interaction
 
       %__MODULE__{
@@ -223,7 +225,8 @@ defmodule FrontmanServer.Tasks.Interaction do
         tool_call_id: tc.id,
         tool_name: ReqLLM.ToolCall.name(tc),
         arguments: ReqLLM.ToolCall.args_map(tc) || %{},
-        timestamp: Interaction.now()
+        timestamp: Interaction.now(),
+        span_ctx: span_ctx
       }
     end
   end

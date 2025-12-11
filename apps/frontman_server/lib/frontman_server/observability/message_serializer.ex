@@ -34,8 +34,7 @@ defmodule FrontmanServer.Observability.MessageSerializer do
     end
   end
 
-  # Serialize tool calls from different sources
-
+  # ReqLLM.ToolCall struct from production LLM responses
   defp serialize_tool_call(%ReqLLM.ToolCall{} = tc) do
     %{
       "id" => tc.id,
@@ -47,16 +46,20 @@ defmodule FrontmanServer.Observability.MessageSerializer do
     }
   end
 
-  defp serialize_tool_call(%{id: id, tool_name: name, arguments: args}) do
+  # Plain map format (for tests or other internal uses)
+  defp serialize_tool_call(%{id: id, tool_name: name, arguments: arguments}) do
     %{
       "id" => id,
       "type" => "function",
       "function" => %{
         "name" => name,
-        "arguments" => Jason.encode!(args)
+        "arguments" => encode_if_needed(arguments)
       }
     }
   end
+
+  defp encode_if_needed(arguments) when is_binary(arguments), do: arguments
+  defp encode_if_needed(arguments), do: Jason.encode!(arguments)
 
   # Serialize different message formats
 

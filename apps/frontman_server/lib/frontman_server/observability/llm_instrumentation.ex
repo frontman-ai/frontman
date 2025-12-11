@@ -3,12 +3,128 @@ defmodule FrontmanServer.Observability.LLMInstrumentation do
   OpenTelemetry instrumentation for LLM operations.
 
   Provides spans following OpenTelemetry GenAI semantic conventions
-  for chat operations and tool executions.
+  for chat operations, tool executions, and agent lifecycle tracking.
+
+  ## Span Hierarchy
+
+  ```
+  agent [lifecycle span]
+  └── iteration 1
+      ├── chat anthropic [LLM call]
+      ├── execute_tool [backend tool]
+      └── spawn_sub_agent
+  └── iteration 2
+      └── chat anthropic
+  ```
   """
 
   require OpenTelemetry.Tracer, as: Tracer
 
   alias FrontmanServer.Observability.MessageSerializer
+
+  # -- Agent Lifecycle Spans --
+
+  @doc """
+  Starts an agent lifecycle span. Returns span context to store in state.
+
+  This span lives for the entire agent lifecycle (init → terminate).
+  Call `end_agent_span/1` when the agent terminates.
+  """
+  @spec start_agent_span(String.t(), String.t(), String.t() | nil, atom() | nil) ::
+          OpenTelemetry.span_ctx()
+  def start_agent_span(agent_id, task_id, parent_agent_id \\ nil, role \\ nil) do
+    role_str = if role, do: Atom.to_string(role), else: "root"
+    span_name = "agent #{role_str}"
+
+    attributes =
+      [
+        {:"frontman.agent.id", agent_id},
+        {:"frontman.task.id", task_id},
+        {:"gen_ai.operation.name", "invoke_agent"},
+        {:"gen_ai.agent.name", "frontman-agent"},
+        {:"deployment.environment", deployment_environment()}
+      ]
+      |> maybe_add_attribute(:parent_agent_id, parent_agent_id, "frontman.agent.parent_id")
+      |> maybe_add_attribute(:role, role_str, "frontman.agent.role")
+
+    Tracer.start_span(span_name, %{attributes: attributes})
+  end
+
+  @doc """
+  Ends an agent lifecycle span. Call from terminate/2.
+  """
+  @spec end_agent_span(OpenTelemetry.span_ctx()) :: :ok
+  def end_agent_span(span_ctx) do
+    Tracer.end_span(span_ctx)
+    :ok
+  end
+
+  @doc """
+  Adds an event to the agent span (e.g., state transitions).
+  """
+  @spec add_agent_event(OpenTelemetry.span_ctx(), String.t(), keyword()) :: :ok
+  def add_agent_event(span_ctx, event_name, attributes \\ []) do
+    Tracer.set_current_span(span_ctx)
+    Tracer.add_event(event_name, attributes)
+    :ok
+  end
+
+  # -- Iteration Spans --
+
+  @doc """
+  Wraps an iteration with an OpenTelemetry span.
+
+  Creates a span named "iteration {n}" as a child of the agent span.
+  """
+  @spec with_iteration_span(
+          OpenTelemetry.span_ctx(),
+          String.t(),
+          pos_integer(),
+          String.t(),
+          (-> result)
+        ) :: result
+        when result: term()
+  def with_iteration_span(agent_span_ctx, agent_id, iteration_number, trigger, callback)
+      when is_function(callback, 0) do
+    span_name = "iteration #{iteration_number}"
+
+    # Set the agent span as current so iteration becomes its child
+    Tracer.set_current_span(agent_span_ctx)
+
+    attributes = [
+      {:"frontman.agent.id", agent_id},
+      {:"frontman.iteration.number", iteration_number},
+      {:"frontman.iteration.trigger", trigger},
+      {:"gen_ai.operation.name", "iteration"}
+    ]
+
+    Tracer.with_span span_name, %{attributes: attributes} do
+      Tracer.add_event("iteration.started", [])
+      result = callback.()
+
+      case result do
+        {:wait_for_tools, _state} ->
+          Tracer.add_event("iteration.waiting_for_tools", [])
+
+        {:stop, _state} ->
+          Tracer.add_event("iteration.complete", [])
+
+        {:error, reason, _state} ->
+          Tracer.add_event("iteration.error", [{:reason, inspect(reason)}])
+      end
+
+      result
+    end
+  end
+
+  @doc """
+  Records that the iteration is now waiting for tools/sub-agents.
+  """
+  @spec record_waiting_for_tools(non_neg_integer()) :: :ok
+  def record_waiting_for_tools(pending_count) do
+    Tracer.add_event("iteration.waiting_for_tools", [{:pending_count, pending_count}])
+    :ok
+  end
 
   @doc """
   Wraps an LLM call with an OpenTelemetry span.
@@ -57,21 +173,32 @@ defmodule FrontmanServer.Observability.LLMInstrumentation do
 
   Creates a span named "execute_tool {tool_name}" with tool-specific attributes.
 
+  ## Options
+
+  - `:agent_id` - Agent ID for context
+  - `:task_id` - Task ID for context
+  - `:tool_type` - "backend" or "mcp" (defaults to "backend")
+
   ## Example
 
-      LLMInstrumentation.with_tool_span("list_todos", "call_123", fn ->
+      LLMInstrumentation.with_tool_span("list_todos", "call_123", [agent_id: "agent_123"], fn ->
         execute_tool(tool, arguments)
       end)
   """
-  @spec with_tool_span(String.t(), String.t(), (-> result)) :: result when result: term()
-  def with_tool_span(tool_name, tool_call_id, callback) when is_function(callback, 0) do
+  @spec with_tool_span(String.t(), String.t(), keyword(), (-> result)) :: result
+        when result: term()
+  def with_tool_span(tool_name, tool_call_id, opts \\ [], callback) when is_function(callback, 0) do
     span_name = "execute_tool #{tool_name}"
 
-    attributes = [
-      {:"gen_ai.tool.name", tool_name},
-      {:"gen_ai.tool.call.id", tool_call_id},
-      {:"gen_ai.tool.type", "function"}
-    ]
+    attributes =
+      [
+        {:"gen_ai.tool.name", tool_name},
+        {:"gen_ai.tool.call.id", tool_call_id},
+        {:"gen_ai.tool.type", "function"},
+        {:"frontman.tool.type", Keyword.get(opts, :tool_type, "backend")}
+      ]
+      |> maybe_add_attribute(:agent_id, opts[:agent_id], "frontman.agent.id")
+      |> maybe_add_attribute(:task_id, opts[:task_id], "frontman.task.id")
 
     Tracer.with_span span_name, %{attributes: attributes} do
       start_time = System.monotonic_time(:millisecond)
@@ -153,6 +280,135 @@ defmodule FrontmanServer.Observability.LLMInstrumentation do
   @spec record_error(term()) :: :ok
   def record_error(reason) do
     Tracer.set_status(:error, inspect(reason))
+    :ok
+  end
+
+  # -- Sub-Agent Spans --
+
+  alias FrontmanServer.Agents.Agent
+
+  @doc """
+  Wraps sub-agent spawn with an OpenTelemetry span.
+
+  Creates a span named "spawn_sub_agent {role}" capturing the spawn decision and outcome.
+  - `parent` - The agent that is spawning the sub-agent
+  - `role` - The role atom for the sub-agent (:research, :planning, :validator)
+  - `sub_agent_task_description` - String describing what the sub-agent should do
+  """
+  @spec with_spawn_sub_agent_span(Agent.t(), atom(), String.t(), (-> result)) :: result
+        when result: term()
+  def with_spawn_sub_agent_span(
+        %Agent{id: agent_id, task_id: task_id},
+        role,
+        sub_agent_task_description,
+        callback
+      )
+      when is_function(callback, 0) do
+    role_str = Atom.to_string(role)
+    span_name = "spawn_sub_agent #{role_str}"
+
+    attributes = [
+      {:"frontman.agent.id", agent_id},
+      {:"frontman.task.id", task_id},
+      {:"frontman.sub_agent.role", role_str},
+      {:"frontman.sub_agent.task", sub_agent_task_description},
+      {:"gen_ai.operation.name", "spawn_sub_agent"}
+    ]
+
+    Tracer.with_span span_name, %{attributes: attributes} do
+      result = callback.()
+
+      case result do
+        {:ok, sub_agent} ->
+          Tracer.set_attributes([
+            {:"frontman.sub_agent.id", sub_agent.id},
+            {:"spawn.status", "success"}
+          ])
+          Tracer.add_event("sub_agent.spawned", [{:sub_agent_id, sub_agent.id}])
+
+        {:error, _role, _task, reason} ->
+          Tracer.set_attributes([{:"spawn.status", "error"}])
+          Tracer.set_status(:error, inspect(reason))
+          Tracer.add_event("sub_agent.spawn_failed", [{:reason, inspect(reason)}])
+      end
+
+      result
+    end
+  end
+
+  # -- MCP Tool Spans --
+
+  @doc """
+  Starts a span for an MCP (remote) tool call.
+
+  Returns a map containing span context and start time for later completion.
+  Store this in pending_mcp_calls and pass to `end_mcp_tool_span/3` when response arrives.
+
+  The optional `parent_span_ctx` is used to make this span a child of the iteration
+  span that triggered the tool call.
+  """
+  @spec start_mcp_tool_span(String.t(), String.t(), String.t(), String.t(), integer(), term()) ::
+          map()
+  def start_mcp_tool_span(tool_name, tool_call_id, agent_id, task_id, request_id, parent_span_ctx \\ nil) do
+    span_name = "mcp_tool #{tool_name}"
+
+    attributes = [
+      {:"gen_ai.tool.name", tool_name},
+      {:"gen_ai.tool.call.id", tool_call_id},
+      {:"gen_ai.tool.type", "function"},
+      {:"frontman.tool.type", "mcp"},
+      {:"frontman.mcp.request_id", request_id},
+      {:"frontman.agent.id", agent_id},
+      {:"frontman.task.id", task_id}
+    ]
+
+    # If we have a parent span context, set it as current so the new span becomes a child
+    if parent_span_ctx do
+      Tracer.set_current_span(parent_span_ctx)
+    end
+
+    span_ctx = Tracer.start_span(span_name, %{attributes: attributes})
+    Tracer.add_event("mcp.request_sent", [])
+
+    %{
+      span_ctx: span_ctx,
+      start_time: System.monotonic_time(:millisecond)
+    }
+  end
+
+  @doc """
+  Ends an MCP tool span with success status.
+  """
+  @spec end_mcp_tool_span_success(map()) :: :ok
+  def end_mcp_tool_span_success(%{span_ctx: span_ctx, start_time: start_time}) do
+    duration = System.monotonic_time(:millisecond) - start_time
+
+    Tracer.set_current_span(span_ctx)
+    Tracer.add_event("mcp.response_received", [])
+    Tracer.set_attributes([
+      {:"tool.duration_ms", duration},
+      {:"tool.status", "success"}
+    ])
+    Tracer.end_span(span_ctx)
+    :ok
+  end
+
+  @doc """
+  Ends an MCP tool span with error status.
+  """
+  @spec end_mcp_tool_span_error(map(), String.t()) :: :ok
+  def end_mcp_tool_span_error(%{span_ctx: span_ctx, start_time: start_time}, error_message) do
+    duration = System.monotonic_time(:millisecond) - start_time
+
+    Tracer.set_current_span(span_ctx)
+    Tracer.add_event("mcp.response_received", [])
+    Tracer.set_attributes([
+      {:"tool.duration_ms", duration},
+      {:"tool.status", "error"},
+      {:"tool.error", error_message}
+    ])
+    Tracer.set_status(:error, error_message)
+    Tracer.end_span(span_ctx)
     :ok
   end
 

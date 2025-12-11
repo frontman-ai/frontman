@@ -9,6 +9,7 @@ defmodule FrontmanServerWeb.SessionChannel do
   use FrontmanServerWeb, :channel
   require Logger
 
+  alias FrontmanServer.Observability.LLMInstrumentation
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.ToolRegistry
@@ -138,7 +139,7 @@ defmodule FrontmanServerWeb.SessionChannel do
         {:noreply, socket}
 
       Map.has_key?(pending_calls, id) ->
-        tool_call = pending_calls[id]
+        %{tool_call: tool_call, span_info: span_info} = pending_calls[id]
         session_id = socket.assigns.session_id
 
         # Extract text from MCP content array
@@ -150,6 +151,13 @@ defmodule FrontmanServerWeb.SessionChannel do
 
         # Check if the tool call resulted in an error
         is_error = Map.get(result, "isError", false)
+
+        # End the span with appropriate status
+        if is_error do
+          LLMInstrumentation.end_mcp_tool_span_error(span_info, text_result)
+        else
+          LLMInstrumentation.end_mcp_tool_span_success(span_info)
+        end
 
         status = if is_error, do: "failed", else: "completed"
         Logger.info("MCP tool #{tool_call.tool_name} #{status}: #{text_result}")
@@ -198,9 +206,12 @@ defmodule FrontmanServerWeb.SessionChannel do
         {:noreply, socket}
 
       Map.has_key?(pending_calls, id) ->
-        tool_call = pending_calls[id]
+        %{tool_call: tool_call, span_info: span_info} = pending_calls[id]
         session_id = socket.assigns.session_id
         error_message = error["message"] || "Unknown MCP error"
+
+        # End the span with error status
+        LLMInstrumentation.end_mcp_tool_span_error(span_info, error_message)
 
         Logger.error("MCP tool #{tool_call.tool_name} failed: #{error_message}")
 
@@ -466,6 +477,18 @@ defmodule FrontmanServerWeb.SessionChannel do
     session_id = socket.assigns.session_id
     request_id = System.unique_integer([:positive])
 
+    # Start span for MCP tool call (async - will end when response arrives)
+    # Pass the iteration span context so MCP spans appear as children of the iteration
+    span_info =
+      LLMInstrumentation.start_mcp_tool_span(
+        tool_call.tool_name,
+        tool_call.tool_call_id,
+        tool_call.agent_id,
+        session_id,
+        request_id,
+        tool_call.span_ctx
+      )
+
     request =
       JsonRpc.request(request_id, "tools/call", %{
         "name" => tool_call.tool_name,
@@ -479,9 +502,10 @@ defmodule FrontmanServerWeb.SessionChannel do
 
     push(socket, "acp:message", in_progress_notification)
 
-    # Track pending call for response correlation
+    # Track pending call with span info for response correlation
     pending_calls = socket.assigns[:pending_mcp_calls] || %{}
-    socket = assign(socket, :pending_mcp_calls, Map.put(pending_calls, request_id, tool_call))
+    pending_entry = %{tool_call: tool_call, span_info: span_info}
+    socket = assign(socket, :pending_mcp_calls, Map.put(pending_calls, request_id, pending_entry))
 
     push(socket, "mcp:message", request)
     {:noreply, socket}
