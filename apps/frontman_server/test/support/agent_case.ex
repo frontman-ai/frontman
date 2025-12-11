@@ -51,32 +51,73 @@ defmodule FrontmanServer.AgentCase do
   - `get_agent_state/1` - Get agent's internal state
   - `sub_agent_struct/1` - Factory for SubAgent structs
   - `tool_call_struct/1` - Factory for ToolCall structs
+
+  ## LLM Integration Tests (VCR-style fixtures)
+
+  Tests that create agents with `:parent_agent` or similar fixtures automatically
+  get VCR-style fixture support. Fixture paths are auto-generated based on
+  module and test name:
+
+      test/support/fixtures/llm/{module_name}/{test_name}.json
+
+  Tests run normally using recorded cassettes. To record new fixtures:
+
+      REQ_LLM_FIXTURES_MODE=record mix test
+
+  Override fixture path with:
+
+      @tag llm_fixture: "custom/path/to/fixture"
   """
 
   use ExUnit.CaseTemplate
 
   alias FrontmanServer.Test.Fixtures.Agents, as: AgentFixtures
+  alias ReqLLM.Test.FixturePath
 
   using do
     quote do
       alias FrontmanServer.Agents.{Agent, AgentServer, SubAgent}
       import FrontmanServer.Test.Fixtures.Agents
+      import FrontmanServer.AgentCase, only: [fixture_opts: 1, fixture_opts: 2]
     end
   end
 
-  setup tags do
-    fixtures = Map.get(tags, :fixtures, [])
+  setup context do
+    # Compute fixture_path for LLM integration tests
+    fixture_path = compute_fixture_path(context)
+
+    # Build agent fixtures if requested
+    fixtures = Map.get(context, :fixtures, [])
 
     if Enum.empty?(fixtures) do
-      :ok
+      {:ok, fixture_path: fixture_path}
     else
-      ctx = AgentFixtures.build_fixtures(fixtures, tags)
+      # Pass fixture_path through context so agents get llm_opts
+      context_with_fixture = Map.put(context, :fixture_path, fixture_path)
+      ctx = AgentFixtures.build_fixtures(fixtures, context_with_fixture)
 
       on_exit(fn ->
         AgentFixtures.cleanup_agents(ctx)
       end)
 
-      {:ok, ctx}
+      {:ok, Map.put(ctx, :fixture_path, fixture_path)}
     end
+  end
+
+  @doc """
+  Build LLM options with fixture path included.
+
+  Merges fixture_path with any additional options.
+
+  ## Examples
+
+      llm_opts = fixture_opts(context, api_key: key, tools: tools)
+  """
+  defp compute_fixture_path(%{llm_fixture: explicit_path}) when is_binary(explicit_path) do
+    FixturePath.for_explicit(explicit_path)
+  end
+
+  defp compute_fixture_path(%{module: module, test: test_name}) do
+    FixturePath.for_test(module, test_name)
   end
 end

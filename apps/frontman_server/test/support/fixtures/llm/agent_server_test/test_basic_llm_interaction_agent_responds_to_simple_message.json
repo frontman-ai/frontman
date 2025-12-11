@@ -1,0 +1,96 @@
+{
+  "captured_at": "2025-12-10T16:30:42.864725Z",
+  "chunks": [
+    {
+      "b64": "ZXZlbnQ6IG1lc3NhZ2Vfc3RhcnQKZGF0YTogeyJ0eXBlIjoibWVzc2FnZV9zdGFydCIsIm1lc3NhZ2UiOnsibW9kZWwiOiJjbGF1ZGUtc29ubmV0LTQtMjAyNTA1MTQiLCJpZCI6Im1zZ18wMURwazY2VTNnTVE3amtVY1gxUnNNRk4iLCJ0eXBlIjoibWVzc2FnZSIsInJvbGUiOiJhc3Npc3RhbnQiLCJjb250ZW50IjpbXSwic3RvcF9yZWFzb24iOm51bGwsInN0b3Bfc2VxdWVuY2UiOm51bGwsInVzYWdlIjp7ImlucHV0X3Rva2VucyI6NDYwLCJjYWNoZV9jcmVhdGlvbl9pbnB1dF90b2tlbnMiOjAsImNhY2hlX3JlYWRfaW5wdXRfdG9rZW5zIjowLCJjYWNoZV9jcmVhdGlvbiI6eyJlcGhlbWVyYWxfNW1faW5wdXRfdG9rZW5zIjowLCJlcGhlbWVyYWxfMWhfaW5wdXRfdG9rZW5zIjowfSwib3V0cHV0X3Rva2VucyI6Miwic2VydmljZV90aWVyIjoic3RhbmRhcmQifX0gICAgICAgICAgIH0KCg=="
+    },
+    {
+      "b64": "ZXZlbnQ6IGNvbnRlbnRfYmxvY2tfc3RhcnQKZGF0YTogeyJ0eXBlIjoiY29udGVudF9ibG9ja19zdGFydCIsImluZGV4IjowLCJjb250ZW50X2Jsb2NrIjp7InR5cGUiOiJ0ZXh0IiwidGV4dCI6IiJ9IH0KCg=="
+    },
+    {
+      "b64": "ZXZlbnQ6IGNvbnRlbnRfYmxvY2tfZGVsdGEKZGF0YTogeyJ0eXBlIjoiY29udGVudF9ibG9ja19kZWx0YSIsImluZGV4IjowLCJkZWx0YSI6eyJ0eXBlIjoidGV4dF9kZWx0YSIsInRleHQiOiJIZWxsbyB0aGVyZSJ9ICAgICAgICAgICB9Cgo="
+    },
+    {
+      "b64": "ZXZlbnQ6IGNvbnRlbnRfYmxvY2tfZGVsdGEKZGF0YTogeyJ0eXBlIjoiY29udGVudF9ibG9ja19kZWx0YSIsImluZGV4IjowLCJkZWx0YSI6eyJ0eXBlIjoidGV4dF9kZWx0YSIsInRleHQiOiIgZnJpZW4ifSAgICAgIH0KCg=="
+    },
+    {
+      "b64": "ZXZlbnQ6IHBpbmcKZGF0YTogeyJ0eXBlIjogInBpbmcifQoK"
+    },
+    {
+      "b64": "ZXZlbnQ6IGNvbnRlbnRfYmxvY2tfZGVsdGEKZGF0YTogeyJ0eXBlIjoiY29udGVudF9ibG9ja19kZWx0YSIsImluZGV4IjowLCJkZWx0YSI6eyJ0eXBlIjoidGV4dF9kZWx0YSIsInRleHQiOiJkISJ9ICAgICAgICAgICAgfQoK"
+    },
+    {
+      "b64": "ZXZlbnQ6IHBpbmcKZGF0YTogeyJ0eXBlIjogInBpbmcifQoK"
+    },
+    {
+      "b64": "ZXZlbnQ6IGNvbnRlbnRfYmxvY2tfc3RvcApkYXRhOiB7InR5cGUiOiJjb250ZW50X2Jsb2NrX3N0b3AiLCJpbmRleCI6MCAgICAgICAgICAgICAgIH0KCg=="
+    },
+    {
+      "b64": "ZXZlbnQ6IHBpbmcKZGF0YTogeyJ0eXBlIjogInBpbmcifQoK"
+    },
+    {
+      "b64": "ZXZlbnQ6IHBpbmcKZGF0YTogeyJ0eXBlIjogInBpbmcifQoK"
+    },
+    {
+      "b64": "ZXZlbnQ6IG1lc3NhZ2VfZGVsdGEKZGF0YTogeyJ0eXBlIjoibWVzc2FnZV9kZWx0YSIsImRlbHRhIjp7InN0b3BfcmVhc29uIjoiZW5kX3R1cm4iLCJzdG9wX3NlcXVlbmNlIjpudWxsfSwidXNhZ2UiOnsiaW5wdXRfdG9rZW5zIjo0NjAsImNhY2hlX2NyZWF0aW9uX2lucHV0X3Rva2VucyI6MCwiY2FjaGVfcmVhZF9pbnB1dF90b2tlbnMiOjAsIm91dHB1dF90b2tlbnMiOjd9ICAgICAgICAgICAgICAgfQoKZXZlbnQ6IG1lc3NhZ2Vfc3RvcApkYXRhOiB7InR5cGUiOiJtZXNzYWdlX3N0b3AiICAgICAgICAgfQoK"
+    }
+  ],
+  "model_spec": "claude-sonnet-4-20250514",
+  "provider": "anthropic",
+  "request": {
+    "body": {
+      "b64": "eyJtYXhfdG9rZW5zIjoxMDI0LCJtZXNzYWdlcyI6W3siY29udGVudCI6IlNheSBoZWxsbyBpbiBleGFjdGx5IDMgd29yZHMuIiwicm9sZSI6InVzZXIifV0sIm1vZGVsIjoiY2xhdWRlLXNvbm5ldC00LTIwMjUwNTE0Iiwic3RyZWFtIjp0cnVlLCJzeXN0ZW0iOiJZb3UgYXJlIGEgY29kaW5nIGFzc2lzdGFudCBmb3IgYSBOZXh0LmpzIGFwcCAoVHlwZVNjcmlwdCwgUmVhY3QsIFRhaWx3aW5kLCBzb21lIFJlU2NyaXB0IG91dHB1dCkuXG5cbiMjIFJ1bGVzXG5cbi0gUGF0aHMgcmVsYXRpdmUgdG8gcmVwbyByb290LlxuLSBMaXN0IOKGkiBSZWFkIOKGkiBNb2RpZnkuIE5ldmVyIGVkaXQgdW5zZWVuIGZpbGVzLlxuLSBLZWVwIGRpZmZzIHNtYWxsIGFuZCByZXZlcnNpYmxlLiBNYXRjaCByZXBvIHN0eWxlLlxuLSBBZnRlciAyIGZhaWxlZCB0b29sIGNhbGxzLCBhc2sgb25lIGNsYXJpZnlpbmcgcXVlc3Rpb24uXG5cbiMjIFJlU2NyaXB0IGhhbmRsaW5nIChleHBsaWNpdClcblxuLSBUcmVhdCBnZW5lcmF0ZWQgZmlsZXMgKCoucmVzLm1qcykgYXMgcmVhZC1vbmx5LlxuLSBBbHdheXMgZWRpdCB0aGUgc291cmNlICoucmVzLlxuLSBQcm9jZWR1cmUgd2hlbiB5b3Ugc2VlIFgucmVzLm1qczpcbiAgMS4gTG9jYXRlIFgucmVzIGJ5IG5hbWUvcGF0aC4gSWYgbm90IGZvdW5kLCBzZWFyY2ggc2libGluZ3Mgb3IgbW9kdWxlIGluZGV4LlxuICAyLiByZWFkX2ZpbGUgYm90aCBYLnJlcyBhbmQgWC5yZXMubWpzIHRvIHVuZGVyc3RhbmQgbWFwcGluZyBhbmQgZXhwb3J0cy5cbiAgMy4gQXBwbHkgY2hhbmdlcyB0byBYLnJlcyBvbmx5LiBQcmVzZXJ2ZSB0eXBlcyBhbmQgbW9kdWxlIGJvdW5kYXJpZXMuXG4tIElmIG5vIG1hdGNoaW5nICoucmVzIGV4aXN0cyBvciBtYXBwaW5nIGlzIHVuY2xlYXIsIHN0b3AgYW5kIGFzayBmb3IgdGhlIGV4YWN0IHNvdXJjZSBwYXRoLlxuLSBOZXZlciB3cml0ZSB0byBnZW5lcmF0ZWQgYXJ0aWZhY3RzLiBOb3RlIHRoaXMgaW4gdGhlIG91dHB1dCBpZiBhIGNoYW5nZSBzZWVtcyByZXF1aXJlZCB0aGVyZS5cblxuIyMgTmV4dC5qc1xuXG4tIERldGVjdCByb3V0ZXIgKGFwcC9wYWdlcykgYW5kIHN0aWNrIHRvIGl0LlxuLSBcInVzZSBjbGllbnRcIiBvbmx5IHdoZW4gcmVxdWlyZWQuXG4tIEtlZXAgc2VydmVyIGFjdGlvbnMgYW5kIG5vbi1zZXJpYWxpemFibGUgbG9naWMgb24gdGhlIHNlcnZlci5cblxuIyMgVHlwZVNjcmlwdCAvIFJlYWN0IC8gVGFpbHdpbmRcblxuLSBBdm9pZCBhbnkuIFByZWZlciBkaXNjcmltaW5hdGVkIHVuaW9ucy5cbi0gUHVyZSBjb21wb25lbnRzIGFuZCBzdGFibGUgaG9va3MuXG4tIFVzZSBUYWlsd2luZCB1dGlsaXRpZXMgYW5kIGV4aXN0aW5nIHRva2Vucy5cblxuIyMgT3V0cHV0XG5cbi0gU2hvcnQgcGxhblxuLSBTaW5nbGUgdW5pZmllZCBkaWZmIGJsb2NrXG4tIEJyaWVmIG5vdGVzOiBidWlsZC90ZXN0IHJlc3VsdHMgb3IgZm9sbG93LXVwc1xuXG4jIyBTdWItYWdlbnRzXG5cblVzZSBgc3Bhd25fc3ViX2FnZW50YCB0byBkZWxlZ2F0ZSBzcGVjaWFsaXplZCB3b3JrOlxuLSAqKnJlc2VhcmNoKio6IEludmVzdGlnYXRlcyBxdWVzdGlvbnMsIGZpbmRzIGluZm9ybWF0aW9uLCBhbmFseXplcyBkYXRhXG4tICoqcGxhbm5pbmcqKjogQnJlYWtzIGRvd24gY29tcGxleCB0YXNrcywgY3JlYXRlcyBzdGVwLWJ5LXN0ZXAgcGxhbnNcbi0gKip2YWxpZGF0b3IqKjogVmFsaWRhdGVzIHdvcmsgY29tcGxldGVuZXNzLCBjaGVja3MgZm9yIGVycm9ycyBvciBvbWlzc2lvbnNcblxuU3Bhd24gc3ViLWFnZW50cyBlYXJseSBmb3IgY29tcGxleCB0YXNrcy4gVGhleSBydW4gYXV0b25vbW91c2x5IGFuZCByZXR1cm4gcmVzdWx0cy5cbiJ9"
+    },
+    "canonical_json": {
+      "max_tokens": 1024,
+      "messages": [
+        {
+          "content": "Say hello in exactly 3 words.",
+          "role": "user"
+        }
+      ],
+      "model": "claude-sonnet-4-20250514",
+      "stream": true,
+      "system": "You are a coding assistant for a Next.js app (TypeScript, React, Tailwind, some ReScript output).\n\n## Rules\n\n- Paths relative to repo root.\n- List → Read → Modify. Never edit unseen files.\n- Keep diffs small and reversible. Match repo style.\n- After 2 failed tool calls, ask one clarifying question.\n\n## ReScript handling (explicit)\n\n- Treat generated files (*.res.mjs) as read-only.\n- Always edit the source *.res.\n- Procedure when you see X.res.mjs:\n  1. Locate X.res by name/path. If not found, search siblings or module index.\n  2. read_file both X.res and X.res.mjs to understand mapping and exports.\n  3. Apply changes to X.res only. Preserve types and module boundaries.\n- If no matching *.res exists or mapping is unclear, stop and ask for the exact source path.\n- Never write to generated artifacts. Note this in the output if a change seems required there.\n\n## Next.js\n\n- Detect router (app/pages) and stick to it.\n- \"use client\" only when required.\n- Keep server actions and non-serializable logic on the server.\n\n## TypeScript / React / Tailwind\n\n- Avoid any. Prefer discriminated unions.\n- Pure components and stable hooks.\n- Use Tailwind utilities and existing tokens.\n\n## Output\n\n- Short plan\n- Single unified diff block\n- Brief notes: build/test results or follow-ups\n\n## Sub-agents\n\nUse `spawn_sub_agent` to delegate specialized work:\n- **research**: Investigates questions, finds information, analyzes data\n- **planning**: Breaks down complex tasks, creates step-by-step plans\n- **validator**: Validates work completeness, checks for errors or omissions\n\nSpawn sub-agents early for complex tasks. They run autonomously and return results.\n"
+    },
+    "headers": {
+      "accept": "text/event-stream",
+      "anthropic-version": "2023-06-01",
+      "content-type": "application/json",
+      "x-api-key": "[REDACTED:x-api-key]"
+    },
+    "method": "post",
+    "url": "https://api.anthropic.com/v1/messages"
+  },
+  "response": {
+    "body": null,
+    "headers": {
+      "anthropic-organization-id": "5d4c8348-827c-4a6f-aec2-aad465d26ae5",
+      "anthropic-ratelimit-input-tokens-limit": "30000",
+      "anthropic-ratelimit-input-tokens-remaining": "30000",
+      "anthropic-ratelimit-input-tokens-reset": "2025-12-10T16:30:40Z",
+      "anthropic-ratelimit-output-tokens-limit": "8000",
+      "anthropic-ratelimit-output-tokens-remaining": "8000",
+      "anthropic-ratelimit-output-tokens-reset": "2025-12-10T16:30:40Z",
+      "anthropic-ratelimit-requests-limit": "50",
+      "anthropic-ratelimit-requests-remaining": "49",
+      "anthropic-ratelimit-requests-reset": "2025-12-10T16:30:41Z",
+      "anthropic-ratelimit-tokens-limit": "38000",
+      "anthropic-ratelimit-tokens-remaining": "38000",
+      "anthropic-ratelimit-tokens-reset": "2025-12-10T16:30:40Z",
+      "cache-control": "no-cache",
+      "cf-cache-status": "DYNAMIC",
+      "cf-ray": "9abe20cbafc68715-CPH",
+      "connection": "keep-alive",
+      "content-type": "text/event-stream; charset=utf-8",
+      "date": "Wed, 10 Dec 2025 16:30:42 GMT",
+      "request-id": "req_011CVyKoaeKwy8BCX7SSEctY",
+      "server": "cloudflare",
+      "strict-transport-security": "max-age=31536000; includeSubDomains; preload",
+      "transfer-encoding": "chunked",
+      "x-envoy-upstream-service-time": "2458",
+      "x-robots-tag": "none"
+    },
+    "status": 200
+  }
+}

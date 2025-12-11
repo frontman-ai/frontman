@@ -29,7 +29,8 @@ defmodule FrontmanServer.Agents.AgentServer do
     :tools,
     :on_event,
     :idle_timer_ref,
-    :parent_pid
+    :parent_pid,
+    llm_opts: []
   ]
 
   # Client API
@@ -137,7 +138,7 @@ defmodule FrontmanServer.Agents.AgentServer do
   # Server Callbacks
 
   @impl true
-  def init({:root, %{agent_id: agent_id, task_id: task_id, tools: tools, on_event: on_event}}) do
+  def init({:root, %{agent_id: agent_id, task_id: task_id, tools: tools, on_event: on_event} = opts}) do
     agent = Agent.new_root(agent_id, task_id)
 
     state = %__MODULE__{
@@ -145,7 +146,8 @@ defmodule FrontmanServer.Agents.AgentServer do
       tools: tools,
       on_event: on_event,
       idle_timer_ref: nil,
-      parent_pid: nil
+      parent_pid: nil,
+      llm_opts: Map.get(opts, :llm_opts, [])
     }
 
     {:ok, state}
@@ -172,7 +174,8 @@ defmodule FrontmanServer.Agents.AgentServer do
       tools: tools,
       on_event: on_event,
       idle_timer_ref: nil,
-      parent_pid: parent_pid
+      parent_pid: parent_pid,
+      llm_opts: Map.get(opts, :llm_opts, [])
     }
 
     {:ok, state}
@@ -331,14 +334,16 @@ defmodule FrontmanServer.Agents.AgentServer do
     system_msg = ReqLLM.Context.system(system_prompt, cache_control: %{type: "ephemeral"})
     messages_with_system = [system_msg | messages]
 
-    # Base options with API key
-    llm_opts = [api_key: api_key]
-
+    # Build options: state.llm_opts (for test fixtures) + api_key + tools
     llm_opts =
-      case state.tools do
-        [] -> llm_opts
-        tools -> Keyword.put(llm_opts, :tools, tools)
-      end
+      state.llm_opts
+      |> Keyword.put(:api_key, api_key)
+      |> then(fn opts ->
+        case state.tools do
+          [] -> opts
+          tools -> Keyword.put(opts, :tools, tools)
+        end
+      end)
 
     # Wrap LLM call with OpenTelemetry instrumentation
     LLMInstrumentation.with_llm_span(
