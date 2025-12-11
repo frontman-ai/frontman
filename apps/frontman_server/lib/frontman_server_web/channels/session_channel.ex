@@ -486,6 +486,7 @@ defmodule FrontmanServerWeb.SessionChannel do
         tool_call.agent_id,
         session_id,
         request_id,
+        tool_call.arguments,
         tool_call.span_ctx
       )
 

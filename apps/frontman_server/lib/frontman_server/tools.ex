@@ -70,7 +70,7 @@ defmodule FrontmanServer.Tools do
           LLMInstrumentation.with_tool_span(
             tool_call.tool_name,
             tool_call.id,
-            [agent_id: agent_id, task_id: task_id, tool_type: "backend"],
+            [agent_id: agent_id, task_id: task_id, tool_type: "backend", arguments: tool_call.arguments],
             fn -> execute_tool(tool, tool_call.arguments) end
           )
 

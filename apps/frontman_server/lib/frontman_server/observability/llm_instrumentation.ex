@@ -89,8 +89,8 @@ defmodule FrontmanServer.Observability.LLMInstrumentation do
       when is_function(callback, 0) do
     span_name = "iteration #{iteration_number}"
 
-    # Set the agent span as current so iteration becomes its child
-    Tracer.set_current_span(agent_span_ctx)
+    # Create a context with the agent span as parent
+    ctx = :otel_tracer.set_current_span(:otel_ctx.new(), agent_span_ctx)
 
     attributes = [
       {:"frontman.agent.id", agent_id},
@@ -99,7 +99,7 @@ defmodule FrontmanServer.Observability.LLMInstrumentation do
       {:"gen_ai.operation.name", "iteration"}
     ]
 
-    Tracer.with_span span_name, %{attributes: attributes} do
+    Tracer.with_span ctx, span_name, %{attributes: attributes} do
       Tracer.add_event("iteration.started", [])
       result = callback.()
 
@@ -179,10 +179,11 @@ defmodule FrontmanServer.Observability.LLMInstrumentation do
   - `:agent_id` - Agent ID for context
   - `:task_id` - Task ID for context
   - `:tool_type` - "backend" or "mcp" (defaults to "backend")
+  - `:arguments` - Tool input arguments (map)
 
   ## Example
 
-      LLMInstrumentation.with_tool_span("list_todos", "call_123", [agent_id: "agent_123"], fn ->
+      LLMInstrumentation.with_tool_span("list_todos", "call_123", [agent_id: "agent_123", arguments: %{"list_id" => "123"}], fn ->
         execute_tool(tool, arguments)
       end)
   """
@@ -200,6 +201,7 @@ defmodule FrontmanServer.Observability.LLMInstrumentation do
       ]
       |> maybe_add_attribute(:agent_id, opts[:agent_id], "frontman.agent.id")
       |> maybe_add_attribute(:task_id, opts[:task_id], "frontman.task.id")
+      |> maybe_add_json_attribute(:arguments, opts[:arguments], "gen_ai.tool.arguments")
 
     Tracer.with_span span_name, %{attributes: attributes} do
       start_time = System.monotonic_time(:millisecond)
@@ -348,9 +350,9 @@ defmodule FrontmanServer.Observability.LLMInstrumentation do
   The optional `parent_span_ctx` is used to make this span a child of the iteration
   span that triggered the tool call.
   """
-  @spec start_mcp_tool_span(String.t(), String.t(), String.t(), String.t(), integer(), term()) ::
+  @spec start_mcp_tool_span(String.t(), String.t(), String.t(), String.t(), integer(), map(), term()) ::
           map()
-  def start_mcp_tool_span(tool_name, tool_call_id, agent_id, task_id, request_id, parent_span_ctx \\ nil) do
+  def start_mcp_tool_span(tool_name, tool_call_id, agent_id, task_id, request_id, arguments, parent_span_ctx \\ nil) do
     span_name = "mcp_tool #{tool_name}"
 
     attributes = [
@@ -360,15 +362,20 @@ defmodule FrontmanServer.Observability.LLMInstrumentation do
       {:"frontman.tool.type", "mcp"},
       {:"frontman.mcp.request_id", request_id},
       {:"frontman.agent.id", agent_id},
-      {:"frontman.task.id", task_id}
+      {:"frontman.task.id", task_id},
+      {:"gen_ai.tool.arguments", Jason.encode!(arguments)}
     ]
 
-    # If we have a parent span context, set it as current so the new span becomes a child
-    if parent_span_ctx do
-      Tracer.set_current_span(parent_span_ctx)
-    end
+    # Create context with parent span if provided
+    ctx =
+      if parent_span_ctx do
+        :otel_tracer.set_current_span(:otel_ctx.new(), parent_span_ctx)
+      else
+        :otel_ctx.get_current()
+      end
 
-    span_ctx = Tracer.start_span(span_name, %{attributes: attributes})
+    span_ctx = Tracer.start_span(ctx, span_name, %{attributes: attributes})
+    Tracer.set_current_span(span_ctx)
     Tracer.add_event("mcp.request_sent", [])
 
     %{
@@ -426,6 +433,12 @@ defmodule FrontmanServer.Observability.LLMInstrumentation do
 
   defp maybe_add_attribute(attributes, _key, value, attr_name) do
     [{String.to_atom(attr_name), value} | attributes]
+  end
+
+  defp maybe_add_json_attribute(attributes, _key, nil, _attr_name), do: attributes
+
+  defp maybe_add_json_attribute(attributes, _key, value, attr_name) do
+    [{String.to_atom(attr_name), Jason.encode!(value)} | attributes]
   end
 
   defp deployment_environment do
