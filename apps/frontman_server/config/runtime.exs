@@ -1,17 +1,14 @@
 import Config
 import Dotenvy
 
-require Logger
-
 env_dir_prefix = System.get_env("RELEASE_ROOT") || Path.expand("./envs")
 
-result =
-  source!([
-    Path.absname(".env", env_dir_prefix),
-    Path.absname(".#{config_env()}.env", env_dir_prefix),
-    Path.absname(".#{config_env()}.overrides.env", env_dir_prefix),
-    System.get_env()
-  ])
+source!([
+  Path.absname(".env", env_dir_prefix),
+  Path.absname(".#{config_env()}.env", env_dir_prefix),
+  Path.absname(".#{config_env()}.overrides.env", env_dir_prefix),
+  System.get_env()
+])
 
 if System.get_env("PHX_SERVER") do
   config :frontman_server, FrontmanServerWeb.Endpoint, server: true
@@ -25,6 +22,31 @@ if config_env() == :dev do
     xai_api_key: env!("XAI_API_KEY", :string!),
     openrouter_api_key: env!("OPENROUTER_API_KEY", :string!),
     openai_api_key: env!("OPEN_AI_API_KEY", :string!)
+end
+
+# Braintrust / OpenTelemetry configuration
+# Required in prod, optional in dev (enabled if BRAINTRUST_API_KEY is set)
+braintrust_api_key =
+  if config_env() == :prod do
+    env!("BRAINTRUST_API_KEY", :string!)
+  else
+    env!("BRAINTRUST_API_KEY", :string, nil)
+  end
+
+if braintrust_api_key do
+  braintrust_project = env!("BRAINTRUST_PROJECT_NAME", :string!)
+
+  config :opentelemetry,
+    span_processor: :batch,
+    traces_exporter: :otlp
+
+  config :opentelemetry_exporter,
+    otlp_protocol: :http_protobuf,
+    otlp_endpoint: "https://api.braintrust.dev/otel",
+    otlp_headers: [
+      {"Authorization", "Bearer #{braintrust_api_key}"},
+      {"x-bt-parent", "project_name:#{braintrust_project}"}
+    ]
 end
 
 if config_env() == :prod do

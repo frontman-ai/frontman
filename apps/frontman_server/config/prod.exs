@@ -17,5 +17,9 @@ config :swoosh, local: false
 # Do not print debug messages in production
 config :logger, level: :info
 
+# OpenTelemetry resource - deployment environment
+config :opentelemetry, :resource,
+  deployment: [environment: "production"]
+
 # Runtime production configuration, including reading
 # of environment variables, is done on config/runtime.exs.

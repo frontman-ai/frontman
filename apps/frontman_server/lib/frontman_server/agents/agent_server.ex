@@ -20,6 +20,7 @@ defmodule FrontmanServer.Agents.AgentServer do
   @idle_timeout_ms 5 * 60 * 1000
 
   alias FrontmanServer.Agents.{Agent, Prompts, StreamParser, SubAgent, SubAgentTool}
+  alias FrontmanServer.Observability.LLMInstrumentation
   alias ReqLLM.ToolCall
 
   # Infrastructure state - domain state lives in `agent`
@@ -339,28 +340,41 @@ defmodule FrontmanServer.Agents.AgentServer do
         tools -> Keyword.put(llm_opts, :tools, tools)
       end
 
-    case ReqLLM.stream_text(@default_model, messages_with_system, llm_opts) do
-      {:ok, response} ->
-        chunks = stream_chunks(state, response.stream)
-        text = Enum.map_join(chunks, "", fn chunk -> chunk.text || "" end)
-        tool_calls = StreamParser.extract_tool_calls(chunks)
+    # Wrap LLM call with OpenTelemetry instrumentation
+    LLMInstrumentation.with_llm_span(
+      @default_model,
+      messages_with_system,
+      [agent_id: state.agent.id, task_id: state.agent.task_id],
+      fn ->
+        case ReqLLM.stream_text(@default_model, messages_with_system, llm_opts) do
+          {:ok, response} ->
+            chunks = stream_chunks(state, response.stream)
+            text = Enum.map_join(chunks, "", fn chunk -> chunk.text || "" end)
+            tool_calls = StreamParser.extract_tool_calls(chunks)
 
-        response_id =
-          Enum.find_value(chunks, fn
-            %{type: :meta, metadata: %{response_id: id}} when is_binary(id) -> id
-            _ -> nil
-          end)
+            response_id =
+              Enum.find_value(chunks, fn
+                %{type: :meta, metadata: %{response_id: id}} when is_binary(id) -> id
+                _ -> nil
+              end)
 
-        Logger.info(
-          "Agent #{state.agent.id} extracted: text=#{byte_size(text)} bytes, tool_calls=#{length(tool_calls)}, response_id=#{inspect(response_id)}, chunks=#{length(chunks)}"
-        )
+            # Record observability data
+            LLMInstrumentation.record_response_id(response_id)
+            LLMInstrumentation.record_output(text, tool_calls)
 
-        handle_response(state, text, tool_calls, response_id)
+            Logger.info(
+              "Agent #{state.agent.id} extracted: text=#{byte_size(text)} bytes, tool_calls=#{length(tool_calls)}, response_id=#{inspect(response_id)}, chunks=#{length(chunks)}"
+            )
 
-      {:error, reason} ->
-        Logger.error("LLM stream failed: #{inspect(reason)}")
-        {:error, reason, state}
-    end
+            handle_response(state, text, tool_calls, response_id)
+
+          {:error, reason} ->
+            LLMInstrumentation.record_error(reason)
+            Logger.error("LLM stream failed: #{inspect(reason)}")
+            {:error, reason, state}
+        end
+      end
+    )
   end
 
   defp stream_chunks(state, chunk_stream) do

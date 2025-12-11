@@ -40,3 +40,11 @@ config :phoenix_live_view,
 config :frontman_server,
   anthropic_api_key: "sk-ant-test-key",
   openai_api_key: "sk-proj-test-key"
+
+# OpenTelemetry - disable in tests
+config :opentelemetry,
+  span_processor: :simple,
+  traces_exporter: :none
+
+config :opentelemetry, :resource,
+  deployment: [environment: "test"]

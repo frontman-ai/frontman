@@ -9,6 +9,7 @@ defmodule FrontmanServer.Tools do
   require Logger
 
   alias FrontmanServer.Agents.SubAgentTool
+  alias FrontmanServer.Observability.LLMInstrumentation
   alias FrontmanServer.Tasks.Interaction.ToolCall
   alias FrontmanServer.Tasks.Todos.Tools, as: TodoTools
 
@@ -64,7 +65,13 @@ defmodule FrontmanServer.Tools do
       {:ok, tool} ->
         Logger.info("Executing backend tool: #{tool_call.tool_name}")
 
-        result = execute_tool(tool, tool_call.arguments)
+        # Wrap tool execution with OpenTelemetry span
+        result =
+          LLMInstrumentation.with_tool_span(
+            tool_call.tool_name,
+            tool_call.id,
+            fn -> execute_tool(tool, tool_call.arguments) end
+          )
 
         Logger.debug("Backend tool #{tool_call.tool_name} result: #{inspect(result)}")
 

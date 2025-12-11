@@ -7,6 +7,9 @@ defmodule FrontmanServer.Application do
 
   @impl true
   def start(_type, _args) do
+    # Configure OpenTelemetry early
+    FrontmanServer.Observability.OTelSetup.configure()
+
     # Create ETS tables
     :ets.new(:tasks, [:named_table, :public, :set, read_concurrency: true])
 
