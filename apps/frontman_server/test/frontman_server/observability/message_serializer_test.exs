@@ -109,5 +109,21 @@ defmodule FrontmanServer.Observability.MessageSerializerTest do
       assert result["content"] == "Let me check..."
       assert length(result["tool_calls"]) == 2
     end
+
+    test "serializes ReqLLM.ToolCall structs" do
+      tool_call = ReqLLM.ToolCall.new("call_abc", "read_file", ~s({"path":"./README.md"}))
+
+      [result] = MessageSerializer.serialize_output("Reading file...", [tool_call])
+
+      assert result["role"] == "assistant"
+      assert result["content"] == "Reading file..."
+      assert length(result["tool_calls"]) == 1
+
+      tc = hd(result["tool_calls"])
+      assert tc["id"] == "call_abc"
+      assert tc["type"] == "function"
+      assert tc["function"]["name"] == "read_file"
+      assert tc["function"]["arguments"] == ~s({"path":"./README.md"})
+    end
   end
 end

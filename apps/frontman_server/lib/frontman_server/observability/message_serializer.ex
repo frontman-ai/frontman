@@ -29,20 +29,33 @@ defmodule FrontmanServer.Observability.MessageSerializer do
     if Enum.empty?(tool_calls) do
       [base]
     else
-      tool_calls_data =
-        Enum.map(tool_calls, fn tc ->
-          %{
-            "id" => tc.id,
-            "type" => "function",
-            "function" => %{
-              "name" => tc.tool_name,
-              "arguments" => Jason.encode!(tc.arguments)
-            }
-          }
-        end)
-
+      tool_calls_data = Enum.map(tool_calls, &serialize_tool_call/1)
       [Map.put(base, "tool_calls", tool_calls_data)]
     end
+  end
+
+  # Serialize tool calls from different sources
+
+  defp serialize_tool_call(%ReqLLM.ToolCall{} = tc) do
+    %{
+      "id" => tc.id,
+      "type" => "function",
+      "function" => %{
+        "name" => ReqLLM.ToolCall.name(tc),
+        "arguments" => ReqLLM.ToolCall.args_json(tc)
+      }
+    }
+  end
+
+  defp serialize_tool_call(%{id: id, tool_name: name, arguments: args}) do
+    %{
+      "id" => id,
+      "type" => "function",
+      "function" => %{
+        "name" => name,
+        "arguments" => Jason.encode!(args)
+      }
+    }
   end
 
   # Serialize different message formats
