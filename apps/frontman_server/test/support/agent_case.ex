@@ -82,16 +82,12 @@ defmodule FrontmanServer.AgentCase do
   end
 
   setup context do
-    # Compute fixture_path for LLM integration tests
     fixture_path = compute_fixture_path(context)
-
-    # Build agent fixtures if requested
     fixtures = Map.get(context, :fixtures, [])
 
     if Enum.empty?(fixtures) do
       {:ok, fixture_path: fixture_path}
     else
-      # Pass fixture_path through context so agents get llm_opts
       context_with_fixture = Map.put(context, :fixture_path, fixture_path)
       ctx = AgentFixtures.build_fixtures(fixtures, context_with_fixture)
 
