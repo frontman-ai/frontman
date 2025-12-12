@@ -16,6 +16,9 @@ defmodule FrontmanServer.Agents do
   alias FrontmanServer.Agents.{AgentServer, Prompts}
   alias FrontmanServer.Tasks
 
+  # Re-export role type from Prompts
+  @type role :: Prompts.role()
+
   # Delegate role functions to Prompts module
   defdelegate roles(), to: Prompts
   defdelegate get_role(key), to: Prompts
