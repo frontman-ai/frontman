@@ -17,7 +17,7 @@ defmodule FrontmanServer.Agents.SubAgentLifecycleTest do
       assert completed.result == "The research result"
       assert duration >= 0
 
-      assert_receive {:event, {:need_iteration, ^parent_id, "tool_results"}}, 1000
+      assert_receive {:event, {:need_iteration, ^parent_id}}, 1000
     end
   end
 
@@ -39,7 +39,7 @@ defmodule FrontmanServer.Agents.SubAgentLifecycleTest do
       assert failed.error == {:error, :crashed}
       assert duration >= 0
 
-      assert_receive {:event, {:need_iteration, ^parent_id, "tool_results"}}, 1000
+      assert_receive {:event, {:need_iteration, ^parent_id}}, 1000
     end
   end
 
@@ -78,7 +78,7 @@ defmodule FrontmanServer.Agents.SubAgentLifecycleTest do
 
       :ok = FrontmanServer.Agents.notify_tool_result(task_id, tool_call.id, "the result", false)
 
-      assert_receive {:event, {:need_iteration, ^sub_agent_id, "tool_results"}}, 1000
+      assert_receive {:event, {:need_iteration, ^sub_agent_id}}, 1000
     end
 
     @tag fixtures: [:registered_parent_agent, :registered_sub_agent, :tool_call]
@@ -93,10 +93,10 @@ defmodule FrontmanServer.Agents.SubAgentLifecycleTest do
       :ok = FrontmanServer.Agents.notify_tool_result(task_id, tool_call.id, "the result", false)
 
       # Sub-agent receives the result
-      assert_receive {:event, {:need_iteration, ^sub_agent_id, "tool_results"}}, 1000
+      assert_receive {:event, {:need_iteration, ^sub_agent_id}}, 1000
 
       # Parent should NOT receive anything
-      refute_receive {:event, {:need_iteration, _, _}}, 100
+      refute_receive {:event, {:need_iteration, _}}, 100
     end
   end
 
@@ -113,12 +113,12 @@ defmodule FrontmanServer.Agents.SubAgentLifecycleTest do
       send(parent_pid, {:sub_agent_result, "sub_1", "Result 1"})
 
       assert_receive {:event, {:sub_agent_completed, ^parent_id, _, _}}, 1000
-      refute_receive {:event, {:need_iteration, _, _}}, 100
+      refute_receive {:event, {:need_iteration, _}}, 100
 
       send(parent_pid, {:sub_agent_result, "sub_2", "Result 2"})
 
       assert_receive {:event, {:sub_agent_completed, ^parent_id, _, _}}, 1000
-      assert_receive {:event, {:need_iteration, ^parent_id, "tool_results"}}, 1000
+      assert_receive {:event, {:need_iteration, ^parent_id}}, 1000
     end
   end
 end

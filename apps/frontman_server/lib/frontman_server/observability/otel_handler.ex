@@ -162,14 +162,13 @@ defmodule FrontmanServer.Observability.OtelHandler do
   # -- Iteration Handlers --
 
   defp handle_iteration_start(_event, _measurements, metadata, _config) do
-    %{agent_id: agent_id, iteration_number: iteration_number, trigger: trigger} = metadata
+    %{agent_id: agent_id, iteration_number: iteration_number} = metadata
 
     span_name = "iteration #{iteration_number}"
 
     attributes = [
       {:"frontman.agent.id", agent_id},
       {:"frontman.iteration.number", iteration_number},
-      {:"frontman.iteration.trigger", trigger},
       {:"gen_ai.operation.name", "iteration"}
     ]
 

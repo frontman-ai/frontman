@@ -100,11 +100,11 @@ defmodule FrontmanServer.Agents.AgentServer do
   @doc """
   Triggers a specific agent to execute an iteration with the given messages.
   """
-  @spec execute_iteration(String.t(), list(), String.t()) :: :ok | {:error, :not_found}
-  def execute_iteration(agent_id, messages, trigger) do
+  @spec execute_iteration(String.t(), list()) :: :ok | {:error, :not_found}
+  def execute_iteration(agent_id, messages) do
     case Registry.lookup(FrontmanServer.AgentRegistry, {:agent, agent_id}) do
       [{pid, _metadata}] ->
-        send(pid, {:execute_iteration, messages, trigger})
+        send(pid, {:execute_iteration, messages})
         :ok
 
       [] ->
@@ -188,33 +188,29 @@ defmodule FrontmanServer.Agents.AgentServer do
   end
 
   @impl true
-  def handle_info({:execute_iteration, messages, trigger}, state) do
-    previous_iteration = state.agent.iteration_count
+  def handle_info({:execute_iteration, messages}, state) do
     agent = Agent.increment_iteration(state.agent)
     state = %{state | agent: agent}
     iteration_number = agent.iteration_count
 
     Logger.info(
-      "Agent #{agent.id} starting iteration #{iteration_number} (#{trigger}) with #{length(messages)} messages"
+      "Agent #{agent.id} starting iteration #{iteration_number} with #{length(messages)} messages"
     )
 
     set_registry_state(agent.id, :processing)
 
-    # End previous iteration (no-op if none exists)
-    TelemetryEvents.iteration_stop(agent.id, previous_iteration, status: :stop)
-    TelemetryEvents.iteration_start(agent.id, iteration_number, trigger)
+    TelemetryEvents.iteration_start(agent.id, iteration_number)
 
     result = stream_and_handle_response(state, messages)
 
     case result do
       {:wait_for_tools, state} ->
-        # Don't end iteration yet - tools are still part of this iteration
         set_registry_state(state.agent.id, :waiting_for_tools)
         state = schedule_idle_timeout(state)
         {:noreply, state}
 
       {:stop, state} ->
-        TelemetryEvents.iteration_stop(agent.id, iteration_number, status: :stop)
+        TelemetryEvents.iteration_stop(agent.id, iteration_number)
         emit(state, {:completed, state.agent.id})
         set_registry_state(state.agent.id, :idle)
         state = schedule_idle_timeout(state)
@@ -243,7 +239,7 @@ defmodule FrontmanServer.Agents.AgentServer do
 
         if not Agent.has_pending_work?(agent) do
           state = cancel_idle_timeout(state)
-          emit(state, {:need_iteration, agent.id, "tool_results"})
+          emit(state, {:need_iteration, agent.id})
           {:noreply, state}
         else
           state = schedule_idle_timeout(state)
@@ -258,7 +254,7 @@ defmodule FrontmanServer.Agents.AgentServer do
       [{_pid, %{state: :idle}}] ->
         state = cancel_idle_timeout(state)
         set_registry_state(state.agent.id, :processing)
-        emit(state, {:need_iteration, state.agent.id, "user_message"})
+        emit(state, {:need_iteration, state.agent.id})
         {:noreply, state}
 
       [{_pid, %{state: :processing}}] ->
@@ -300,7 +296,7 @@ defmodule FrontmanServer.Agents.AgentServer do
           {:noreply, state}
         else
           state = cancel_idle_timeout(state)
-          emit(state, {:need_iteration, agent.id, "tool_results"})
+          emit(state, {:need_iteration, agent.id})
           {:noreply, state}
         end
     end
@@ -331,7 +327,7 @@ defmodule FrontmanServer.Agents.AgentServer do
           {:noreply, state}
         else
           state = cancel_idle_timeout(state)
-          emit(state, {:need_iteration, agent.id, "tool_results"})
+          emit(state, {:need_iteration, agent.id})
           {:noreply, state}
         end
     end
@@ -555,7 +551,7 @@ defmodule FrontmanServer.Agents.AgentServer do
           started_at: System.monotonic_time(:millisecond)
         }
 
-        send(pid, {:execute_iteration, [%{role: "user", content: task}], "initial"})
+        send(pid, {:execute_iteration, [%{role: "user", content: task}]})
         {:ok, sub_agent}
 
       {:error, reason} ->

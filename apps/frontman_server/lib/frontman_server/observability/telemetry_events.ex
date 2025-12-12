@@ -77,12 +77,16 @@ defmodule FrontmanServer.Observability.TelemetryEvents do
   # ============================================================================
 
   @doc "Emits iteration start. Called when agent begins a new iteration."
-  @spec iteration_start(String.t(), pos_integer(), String.t()) :: :ok
-  def iteration_start(agent_id, iteration_number, trigger) do
+  @spec iteration_start(String.t(), pos_integer()) :: :ok
+  def iteration_start(agent_id, iteration_number) do
+    # End previous iteration if any (handles :wait_for_tools case where iteration wasn't closed)
+    if iteration_number > 1 do
+      iteration_stop(agent_id, iteration_number - 1)
+    end
+
     emit([:iteration, :start], %{
       agent_id: agent_id,
-      iteration_number: iteration_number,
-      trigger: trigger
+      iteration_number: iteration_number
     })
   end
 

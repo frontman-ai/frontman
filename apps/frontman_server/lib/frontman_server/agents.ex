@@ -133,8 +133,7 @@ defmodule FrontmanServer.Agents do
   @spec get_agents_for_task(String.t()) :: [{String.t(), pid(), map()}]
   def get_agents_for_task(task_id) do
     match_spec = [
-      {{{:agent, :"$1"}, :"$2", :"$3"},
-       [{:==, {:map_get, :task_id, :"$3"}, task_id}],
+      {{{:agent, :"$1"}, :"$2", :"$3"}, [{:==, {:map_get, :task_id, :"$3"}, task_id}],
        [{{:"$1", :"$2", :"$3"}}]}
     ]
 
@@ -184,18 +183,14 @@ defmodule FrontmanServer.Agents do
     result =
       DynamicSupervisor.start_child(
         FrontmanServer.AgentSupervisor,
-        {AgentServer,
-         agent_id: agent_id,
-         task_id: task_id,
-         tools: tools,
-         on_event: on_event}
+        {AgentServer, agent_id: agent_id, task_id: task_id, tools: tools, on_event: on_event}
       )
 
     case result do
       {:ok, _pid} ->
         Tasks.add_agent_spawned(%{task_id: task_id, agent_id: agent_id}, %{tools: tools})
         messages = Tasks.get_llm_messages(task_id, agent_id)
-        AgentServer.execute_iteration(agent_id, messages, "initial")
+        AgentServer.execute_iteration(agent_id, messages)
         {:ok, agent_id}
 
       {:error, reason} ->
@@ -269,8 +264,8 @@ defmodule FrontmanServer.Agents do
       {:error, agent_id, reason} ->
         broadcast(task_id, {:agent_error, agent_id, inspect(reason)})
 
-      {:need_iteration, agent_id, trigger} ->
-        push_iteration(task_id, agent_id, trigger)
+      {:need_iteration, agent_id} ->
+        push_iteration(task_id, agent_id)
 
       {:sub_agent_spawned, agent_id, sub_agent} ->
         Tasks.add_sub_agent_spawned(task_id, agent_id, sub_agent)
@@ -294,9 +289,9 @@ defmodule FrontmanServer.Agents do
     end
   end
 
-  defp push_iteration(task_id, agent_id, trigger) do
+  defp push_iteration(task_id, agent_id) do
     messages = Tasks.get_llm_messages(task_id, agent_id)
-    AgentServer.execute_iteration(agent_id, messages, trigger)
+    AgentServer.execute_iteration(agent_id, messages)
   end
 
   defp broadcast(task_id, message) do

@@ -78,7 +78,6 @@ defmodule FrontmanServer.AgentCase do
     quote do
       alias FrontmanServer.Agents.{Agent, AgentServer, SubAgent}
       import FrontmanServer.Test.Fixtures.Agents
-      import FrontmanServer.AgentCase, only: [fixture_opts: 1, fixture_opts: 2]
     end
   end
 
@@ -104,15 +103,6 @@ defmodule FrontmanServer.AgentCase do
     end
   end
 
-  @doc """
-  Build LLM options with fixture path included.
-
-  Merges fixture_path with any additional options.
-
-  ## Examples
-
-      llm_opts = fixture_opts(context, api_key: key, tools: tools)
-  """
   defp compute_fixture_path(%{llm_fixture: explicit_path}) when is_binary(explicit_path) do
     FixturePath.for_explicit(explicit_path)
   end

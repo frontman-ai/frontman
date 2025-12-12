@@ -17,7 +17,7 @@ defmodule FrontmanServer.Agents.AgentServerTest do
       ]
 
       # Execute the iteration
-      send(pid, {:execute_iteration, messages, "initial"})
+      send(pid, {:execute_iteration, messages})
 
       # Should receive tokens as they stream
       assert_receive {:event, {:token, ^agent_id, _text}}, 10_000
