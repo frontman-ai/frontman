@@ -353,11 +353,6 @@ defmodule FrontmanServer.Agents.AgentServer do
   defp stream_and_handle_response(state, messages) do
     api_key = get_api_key(@default_model)
 
-    # Build system prompt - use role prompt for sub-agents, base prompt for root
-    system_prompt = Prompts.build(state.agent.role)
-    system_msg = ReqLLM.Context.system(system_prompt, cache_control: %{type: "ephemeral"})
-    messages_with_system = [system_msg | messages]
-
     # Build options: state.llm_opts (for test fixtures) + api_key + tools
     llm_opts =
       state.llm_opts
@@ -373,10 +368,10 @@ defmodule FrontmanServer.Agents.AgentServer do
       state.agent.id,
       state.agent.task_id,
       @default_model,
-      messages_with_system
+      messages
     )
 
-    case ReqLLM.stream_text(@default_model, messages_with_system, llm_opts) do
+    case ReqLLM.stream_text(@default_model, messages, llm_opts) do
       {:ok, response} ->
         chunks = stream_chunks(state, response.stream)
         text = Enum.map_join(chunks, "", fn chunk -> chunk.text || "" end)
@@ -551,7 +546,9 @@ defmodule FrontmanServer.Agents.AgentServer do
           started_at: System.monotonic_time(:millisecond)
         }
 
-        send(pid, {:execute_iteration, [%{role: "user", content: task}]})
+        system_msg = Prompts.build_system_message(role)
+        user_msg = %{role: "user", content: task}
+        send(pid, {:execute_iteration, [system_msg, user_msg]})
         {:ok, sub_agent}
 
       {:error, reason} ->

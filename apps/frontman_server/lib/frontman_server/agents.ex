@@ -14,7 +14,7 @@ defmodule FrontmanServer.Agents do
 
   require Logger
 
-  alias FrontmanServer.Agents.AgentServer
+  alias FrontmanServer.Agents.{AgentServer, Prompts}
   alias FrontmanServer.Tasks
 
   # Role configuration - each role defines a specialized system prompt
@@ -190,7 +190,8 @@ defmodule FrontmanServer.Agents do
       {:ok, _pid} ->
         Tasks.add_agent_spawned(%{task_id: task_id, agent_id: agent_id}, %{tools: tools})
         messages = Tasks.get_llm_messages(task_id, agent_id)
-        AgentServer.execute_iteration(agent_id, messages)
+        system_msg = Prompts.build_system_message(nil)
+        AgentServer.execute_iteration(agent_id, [system_msg | messages])
         {:ok, agent_id}
 
       {:error, reason} ->
@@ -291,7 +292,10 @@ defmodule FrontmanServer.Agents do
 
   defp push_iteration(task_id, agent_id) do
     messages = Tasks.get_llm_messages(task_id, agent_id)
-    AgentServer.execute_iteration(agent_id, messages)
+    {:ok, _pid, %{role: role}} = get_agent(agent_id)
+    role_for_prompt = if role == :root, do: nil, else: role
+    system_msg = Prompts.build_system_message(role_for_prompt)
+    AgentServer.execute_iteration(agent_id, [system_msg | messages])
   end
 
   defp broadcast(task_id, message) do

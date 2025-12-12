@@ -49,6 +49,18 @@ defmodule FrontmanServer.Agents.Prompts do
   """
 
   @doc """
+  Builds a complete system message for the LLM.
+
+  Returns a ReqLLM system message with cache control.
+  Pass `nil` for root agents, or a role atom for sub-agents.
+  """
+  @spec build_system_message(atom() | nil) :: map()
+  def build_system_message(role) do
+    system_prompt = build(role)
+    ReqLLM.Context.system(system_prompt, cache_control: %{type: "ephemeral"})
+  end
+
+  @doc """
   Builds the system prompt for an agent.
 
   For root agents (role: nil), returns the base prompt with sub-agent guidance.
