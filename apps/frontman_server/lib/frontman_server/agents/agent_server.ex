@@ -20,7 +20,7 @@ defmodule FrontmanServer.Agents.AgentServer do
   @idle_timeout_ms 5 * 60 * 1000
 
   alias FrontmanServer.Agents.{Agent, Prompts, StreamParser, SubAgent, SubAgentTool}
-  alias FrontmanServer.Observability.LLMInstrumentation
+  alias FrontmanServer.Observability.TelemetryEvents
   alias ReqLLM.ToolCall
 
   # Infrastructure state - domain state lives in `agent`
@@ -30,7 +30,6 @@ defmodule FrontmanServer.Agents.AgentServer do
     :on_event,
     :idle_timer_ref,
     :parent_pid,
-    :span_ctx,
     llm_opts: []
   ]
 
@@ -139,9 +138,13 @@ defmodule FrontmanServer.Agents.AgentServer do
   # Server Callbacks
 
   @impl true
-  def init({:root, %{agent_id: agent_id, task_id: task_id, tools: tools, on_event: on_event} = opts}) do
+  def init(
+        {:root, %{agent_id: agent_id, task_id: task_id, tools: tools, on_event: on_event} = opts}
+      ) do
     agent = Agent.new_root(agent_id, task_id)
-    span_ctx = LLMInstrumentation.start_agent_span(agent_id, task_id)
+
+    # Emit telemetry event for root agent start
+    TelemetryEvents.agent_start(agent_id, task_id)
 
     state = %__MODULE__{
       agent: agent,
@@ -149,7 +152,6 @@ defmodule FrontmanServer.Agents.AgentServer do
       on_event: on_event,
       idle_timer_ref: nil,
       parent_pid: nil,
-      span_ctx: span_ctx,
       llm_opts: Map.get(opts, :llm_opts, [])
     }
 
@@ -171,7 +173,7 @@ defmodule FrontmanServer.Agents.AgentServer do
     Process.monitor(parent_pid)
 
     agent = Agent.new_sub_agent(agent_id, task_id, parent_agent_id, role, task)
-    span_ctx = LLMInstrumentation.start_agent_span(agent_id, task_id, parent_agent_id, role)
+    TelemetryEvents.sub_agent_start(agent_id, task_id, parent_agent_id, role)
 
     state = %__MODULE__{
       agent: agent,
@@ -179,7 +181,6 @@ defmodule FrontmanServer.Agents.AgentServer do
       on_event: on_event,
       idle_timer_ref: nil,
       parent_pid: parent_pid,
-      span_ctx: span_ctx,
       llm_opts: Map.get(opts, :llm_opts, [])
     }
 
@@ -188,35 +189,39 @@ defmodule FrontmanServer.Agents.AgentServer do
 
   @impl true
   def handle_info({:execute_iteration, messages, trigger}, state) do
+    previous_iteration = state.agent.iteration_count
     agent = Agent.increment_iteration(state.agent)
     state = %{state | agent: agent}
     iteration_number = agent.iteration_count
 
-    Logger.info("Agent #{agent.id} starting iteration #{iteration_number} (#{trigger}) with #{length(messages)} messages")
+    Logger.info(
+      "Agent #{agent.id} starting iteration #{iteration_number} (#{trigger}) with #{length(messages)} messages"
+    )
+
     set_registry_state(agent.id, :processing)
 
-    result =
-      LLMInstrumentation.with_iteration_span(
-        state.span_ctx,
-        agent.id,
-        iteration_number,
-        trigger,
-        fn -> stream_and_handle_response(state, messages) end
-      )
+    # End previous iteration (no-op if none exists)
+    TelemetryEvents.iteration_stop(agent.id, previous_iteration, status: :stop)
+    TelemetryEvents.iteration_start(agent.id, iteration_number, trigger)
+
+    result = stream_and_handle_response(state, messages)
 
     case result do
       {:wait_for_tools, state} ->
+        # Don't end iteration yet - tools are still part of this iteration
         set_registry_state(state.agent.id, :waiting_for_tools)
         state = schedule_idle_timeout(state)
         {:noreply, state}
 
       {:stop, state} ->
+        TelemetryEvents.iteration_stop(agent.id, iteration_number, status: :stop)
         emit(state, {:completed, state.agent.id})
         set_registry_state(state.agent.id, :idle)
         state = schedule_idle_timeout(state)
         {:noreply, state}
 
       {:error, reason, state} ->
+        TelemetryEvents.iteration_stop(agent.id, iteration_number, status: :error, error: reason)
         emit(state, {:error, state.agent.id, reason})
         {:stop, :normal, state}
     end
@@ -334,10 +339,7 @@ defmodule FrontmanServer.Agents.AgentServer do
 
   @impl true
   def terminate(_reason, state) do
-    if state.span_ctx do
-      LLMInstrumentation.end_agent_span(state.span_ctx)
-    end
-
+    TelemetryEvents.agent_stop(state.agent.id)
     :ok
   end
 
@@ -371,41 +373,43 @@ defmodule FrontmanServer.Agents.AgentServer do
         end
       end)
 
-    # Wrap LLM call with OpenTelemetry instrumentation
-    LLMInstrumentation.with_llm_span(
+    TelemetryEvents.llm_start(
+      state.agent.id,
+      state.agent.task_id,
       @default_model,
-      messages_with_system,
-      [agent_id: state.agent.id, task_id: state.agent.task_id],
-      fn ->
-        case ReqLLM.stream_text(@default_model, messages_with_system, llm_opts) do
-          {:ok, response} ->
-            chunks = stream_chunks(state, response.stream)
-            text = Enum.map_join(chunks, "", fn chunk -> chunk.text || "" end)
-            tool_calls = StreamParser.extract_tool_calls(chunks)
-
-            response_id =
-              Enum.find_value(chunks, fn
-                %{type: :meta, metadata: %{response_id: id}} when is_binary(id) -> id
-                _ -> nil
-              end)
-
-            # Record observability data
-            LLMInstrumentation.record_response_id(response_id)
-            LLMInstrumentation.record_output(text, tool_calls)
-
-            Logger.info(
-              "Agent #{state.agent.id} extracted: text=#{byte_size(text)} bytes, tool_calls=#{length(tool_calls)}, response_id=#{inspect(response_id)}, chunks=#{length(chunks)}"
-            )
-
-            handle_response(state, text, tool_calls, response_id)
-
-          {:error, reason} ->
-            LLMInstrumentation.record_error(reason)
-            Logger.error("LLM stream failed: #{inspect(reason)}")
-            {:error, reason, state}
-        end
-      end
+      messages_with_system
     )
+
+    case ReqLLM.stream_text(@default_model, messages_with_system, llm_opts) do
+      {:ok, response} ->
+        chunks = stream_chunks(state, response.stream)
+        text = Enum.map_join(chunks, "", fn chunk -> chunk.text || "" end)
+        tool_calls = StreamParser.extract_tool_calls(chunks)
+
+        response_id =
+          Enum.find_value(chunks, fn
+            %{type: :meta, metadata: %{response_id: id}} when is_binary(id) -> id
+            _ -> nil
+          end)
+
+        TelemetryEvents.llm_stop(state.agent.id,
+          response_id: response_id,
+          output_text: text,
+          tool_calls: tool_calls
+        )
+
+        Logger.info(
+          "Agent #{state.agent.id} extracted: text=#{byte_size(text)} bytes, tool_calls=#{length(tool_calls)}, response_id=#{inspect(response_id)}, chunks=#{length(chunks)}"
+        )
+
+        handle_response(state, text, tool_calls, response_id)
+
+      {:error, reason} ->
+        # Emit LLM stop event with error
+        TelemetryEvents.llm_stop(state.agent.id, error: reason)
+        Logger.error("LLM stream failed: #{inspect(reason)}")
+        {:error, reason, state}
+    end
   end
 
   defp stream_chunks(state, chunk_stream) do
@@ -461,13 +465,9 @@ defmodule FrontmanServer.Agents.AgentServer do
   defp track_tool_calls(state, []), do: state
 
   defp track_tool_calls(state, tool_calls) do
-    # Capture current span context (iteration span) for MCP tool span parenting
-    require OpenTelemetry.Tracer, as: Tracer
-    span_ctx = Tracer.current_span_ctx()
-
     agent =
       Enum.reduce(tool_calls, state.agent, fn tc, agent ->
-        emit(state, {:tool_call, agent.id, tc, span_ctx})
+        emit(state, {:tool_call, agent.id, tc})
         Registry.register(FrontmanServer.AgentRegistry, {:tool_call, tc.id}, agent.id)
         Agent.track_tool(agent, tc)
       end)
@@ -498,9 +498,21 @@ defmodule FrontmanServer.Agents.AgentServer do
   defp spawn_sub_agent(state, tool_call) do
     case SubAgentTool.parse_arguments(ToolCall.args_map(tool_call)) do
       {:ok, %{role: role, task: task}} ->
-        LLMInstrumentation.with_spawn_sub_agent_span(state.agent, role, task, fn ->
-          do_spawn_sub_agent(state, tool_call, role, task)
-        end)
+        # Emit spawn start event
+        TelemetryEvents.spawn_sub_agent_start(state.agent.id, state.agent.task_id, role, task)
+
+        result = do_spawn_sub_agent(state, tool_call, role, task)
+
+        # Emit spawn stop event based on result
+        case result do
+          {:ok, sub_agent} ->
+            TelemetryEvents.spawn_sub_agent_stop(state.agent.id, sub_agent_id: sub_agent.id)
+
+          {:error, _role, _task, reason} ->
+            TelemetryEvents.spawn_sub_agent_stop(state.agent.id, error: reason)
+        end
+
+        result
 
       {:error, reason} ->
         {:error, :unknown, ToolCall.args_json(tool_call), reason}

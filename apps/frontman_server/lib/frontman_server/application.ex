@@ -10,6 +10,9 @@ defmodule FrontmanServer.Application do
     # Configure OpenTelemetry early
     FrontmanServer.Observability.OTelSetup.configure()
 
+    # Setup telemetry -> OTEL span translation
+    FrontmanServer.Observability.OtelHandler.setup()
+
     # Add Sentry logger handler to capture crashed process exceptions
     :logger.add_handler(:sentry_handler, Sentry.LoggerHandler, %{
       config: %{metadata: [:file, :line]}

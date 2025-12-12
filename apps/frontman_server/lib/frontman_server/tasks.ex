@@ -155,14 +155,11 @@ defmodule FrontmanServer.Tasks do
 
   @doc """
   Creates and appends a ToolCall interaction.
-
-  The optional `span_ctx` parameter is used to propagate OpenTelemetry span context
-  from the agent's iteration span to MCP tool spans.
   """
-  @spec add_tool_call(String.t(), String.t(), ToolCall.t(), term()) ::
+  @spec add_tool_call(String.t(), String.t(), ToolCall.t()) ::
           {:ok, Interaction.t()} | {:error, :task_not_found}
-  def add_tool_call(task_id, agent_id, %ToolCall{} = tool_call_data, span_ctx \\ nil) do
-    interaction = Interaction.ToolCall.new(agent_id, tool_call_data, span_ctx)
+  def add_tool_call(task_id, agent_id, %ToolCall{} = tool_call_data) do
+    interaction = Interaction.ToolCall.new(agent_id, tool_call_data)
     append_interaction(task_id, interaction)
   end
 

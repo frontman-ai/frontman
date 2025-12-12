@@ -9,7 +9,7 @@ defmodule FrontmanServerWeb.SessionChannel do
   use FrontmanServerWeb, :channel
   require Logger
 
-  alias FrontmanServer.Observability.LLMInstrumentation
+  alias FrontmanServer.Observability.TelemetryEvents
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.ToolRegistry
@@ -139,7 +139,7 @@ defmodule FrontmanServerWeb.SessionChannel do
         {:noreply, socket}
 
       Map.has_key?(pending_calls, id) ->
-        %{tool_call: tool_call, span_info: span_info} = pending_calls[id]
+        tool_call = pending_calls[id]
         session_id = socket.assigns.session_id
 
         # Extract text from MCP content array
@@ -152,11 +152,11 @@ defmodule FrontmanServerWeb.SessionChannel do
         # Check if the tool call resulted in an error
         is_error = Map.get(result, "isError", false)
 
-        # End the span with appropriate status
+        # Emit MCP tool stop telemetry event
         if is_error do
-          LLMInstrumentation.end_mcp_tool_span_error(span_info, text_result)
+          TelemetryEvents.mcp_tool_stop(id, status: "error", error: text_result)
         else
-          LLMInstrumentation.end_mcp_tool_span_success(span_info)
+          TelemetryEvents.mcp_tool_stop(id, status: "success")
         end
 
         status = if is_error, do: "failed", else: "completed"
@@ -206,12 +206,12 @@ defmodule FrontmanServerWeb.SessionChannel do
         {:noreply, socket}
 
       Map.has_key?(pending_calls, id) ->
-        %{tool_call: tool_call, span_info: span_info} = pending_calls[id]
+        tool_call = pending_calls[id]
         session_id = socket.assigns.session_id
         error_message = error["message"] || "Unknown MCP error"
 
-        # End the span with error status
-        LLMInstrumentation.end_mcp_tool_span_error(span_info, error_message)
+        # Emit MCP tool stop telemetry event with error
+        TelemetryEvents.mcp_tool_stop(id, status: "error", error: error_message)
 
         Logger.error("MCP tool #{tool_call.tool_name} failed: #{error_message}")
 
@@ -269,15 +269,16 @@ defmodule FrontmanServerWeb.SessionChannel do
       Logger.info("Prompt includes embedded context (resource_link or resource)")
     end
 
+    # Emit task start telemetry event
+    TelemetryEvents.task_start(session_id)
+
     socket = assign(socket, :pending_prompt_id, id)
 
     # Merge backend tools with client tools
     backend_tools = FrontmanServer.Tools.backend_tools(session_id)
     all_tools = backend_tools ++ mcp_tools_to_llm_format(mcp_tools)
 
-    opts = [
-      tools: all_tools
-    ]
+    opts = [tools: all_tools]
 
     # Add user message to task - this triggers the agent with ALL tools and content blocks
     case Tasks.add_user_message(session_id, prompt_content, opts) do
@@ -332,6 +333,12 @@ defmodule FrontmanServerWeb.SessionChannel do
 
   def handle_info({:agent_completed, _agent_id}, socket) do
     Logger.debug("Channel received agent_completed, pending_prompt_id=#{inspect(socket.assigns[:pending_prompt_id])}")
+
+    session_id = socket.assigns.session_id
+
+    # Emit task stop telemetry event
+    TelemetryEvents.task_stop(session_id)
+
     # Translate domain event to ACP response
     case socket.assigns[:pending_prompt_id] do
       nil ->
@@ -342,7 +349,9 @@ defmodule FrontmanServerWeb.SessionChannel do
         response = JsonRpc.success_response(id, ACP.build_prompt_result("end_turn"))
         Logger.info("Pushing prompt response with id=#{id}")
         push(socket, "acp:message", response)
+
         socket = assign(socket, :pending_prompt_id, nil)
+
         {:noreply, socket}
     end
   end
@@ -477,18 +486,15 @@ defmodule FrontmanServerWeb.SessionChannel do
     session_id = socket.assigns.session_id
     request_id = System.unique_integer([:positive])
 
-    # Start span for MCP tool call (async - will end when response arrives)
-    # Pass the iteration span context so MCP spans appear as children of the iteration
-    span_info =
-      LLMInstrumentation.start_mcp_tool_span(
-        tool_call.tool_name,
-        tool_call.tool_call_id,
-        tool_call.agent_id,
-        session_id,
-        request_id,
-        tool_call.arguments,
-        tool_call.span_ctx
-      )
+    # Emit MCP tool start telemetry event
+    TelemetryEvents.mcp_tool_start(
+      request_id,
+      tool_call.tool_call_id,
+      tool_call.tool_name,
+      tool_call.agent_id,
+      session_id,
+      tool_call.arguments
+    )
 
     request =
       JsonRpc.request(request_id, "tools/call", %{
@@ -503,10 +509,9 @@ defmodule FrontmanServerWeb.SessionChannel do
 
     push(socket, "acp:message", in_progress_notification)
 
-    # Track pending call with span info for response correlation
+    # Track pending call for response correlation (request_id -> tool_call)
     pending_calls = socket.assigns[:pending_mcp_calls] || %{}
-    pending_entry = %{tool_call: tool_call, span_info: span_info}
-    socket = assign(socket, :pending_mcp_calls, Map.put(pending_calls, request_id, pending_entry))
+    socket = assign(socket, :pending_mcp_calls, Map.put(pending_calls, request_id, tool_call))
 
     push(socket, "mcp:message", request)
     {:noreply, socket}
@@ -529,6 +534,12 @@ defmodule FrontmanServerWeb.SessionChannel do
   def terminate(reason, socket) do
     session_id = socket.assigns[:session_id]
     Logger.info("Client disconnected from session #{session_id}: #{inspect(reason)}")
+
+    # Emit task stop if still processing (client disconnected mid-prompt)
+    if socket.assigns[:pending_prompt_id] do
+      TelemetryEvents.task_stop(session_id)
+    end
+
     :ok
   end
 end

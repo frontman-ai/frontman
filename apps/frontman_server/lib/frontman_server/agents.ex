@@ -184,7 +184,11 @@ defmodule FrontmanServer.Agents do
     result =
       DynamicSupervisor.start_child(
         FrontmanServer.AgentSupervisor,
-        {AgentServer, agent_id: agent_id, task_id: task_id, tools: tools, on_event: on_event}
+        {AgentServer,
+         agent_id: agent_id,
+         task_id: task_id,
+         tools: tools,
+         on_event: on_event}
       )
 
     case result do
@@ -255,8 +259,8 @@ defmodule FrontmanServer.Agents do
       {:response, agent_id, text, metadata} ->
         Tasks.add_agent_response(task_id, agent_id, text, metadata)
 
-      {:tool_call, agent_id, tool_call, span_ctx} ->
-        Tasks.add_tool_call(task_id, agent_id, tool_call, span_ctx)
+      {:tool_call, agent_id, tool_call} ->
+        Tasks.add_tool_call(task_id, agent_id, tool_call)
 
       {:completed, agent_id} ->
         Tasks.add_agent_completed(task_id, agent_id)
