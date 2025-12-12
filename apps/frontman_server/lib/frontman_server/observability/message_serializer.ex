@@ -23,15 +23,18 @@ defmodule FrontmanServer.Observability.MessageSerializer do
   Includes tool_calls when present.
   """
   @spec serialize_output(String.t(), list()) :: list(map())
-  def serialize_output(text, tool_calls) when is_binary(text) do
-    base = %{"role" => "assistant", "content" => text}
+  def serialize_output(text, []) when is_binary(text) do
+    [%{"role" => "assistant", "content" => text}]
+  end
 
-    if Enum.empty?(tool_calls) do
-      [base]
-    else
-      tool_calls_data = Enum.map(tool_calls, &serialize_tool_call/1)
-      [Map.put(base, "tool_calls", tool_calls_data)]
-    end
+  def serialize_output(text, tool_calls) when is_binary(text) do
+    [
+      %{
+        "role" => "assistant",
+        "content" => text,
+        "tool_calls" => Enum.map(tool_calls, &serialize_tool_call/1)
+      }
+    ]
   end
 
   # ReqLLM.ToolCall struct from production LLM responses
@@ -58,6 +61,9 @@ defmodule FrontmanServer.Observability.MessageSerializer do
     }
   end
 
+  # Crashing here is intentional: if arguments can't be JSON-encoded, we have
+  # a bug in our tool call construction. Better to fail loudly than emit
+  # malformed telemetry that silently corrupts our observability data.
   defp encode_if_needed(arguments) when is_binary(arguments), do: arguments
   defp encode_if_needed(arguments), do: Jason.encode!(arguments)
 
@@ -77,10 +83,8 @@ defmodule FrontmanServer.Observability.MessageSerializer do
     }
   end
 
-  defp serialize_message(msg) when is_map(msg) do
-    role = Map.get(msg, :role) || Map.get(msg, "role") || "unknown"
-    content = Map.get(msg, :content) || Map.get(msg, "content") || ""
-
+  # String-keyed maps (from external JSON sources)
+  defp serialize_message(%{"role" => role, "content" => content}) do
     %{
       "role" => to_string(role),
       "content" => serialize_content(content)

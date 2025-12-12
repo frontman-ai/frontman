@@ -7,9 +7,6 @@ defmodule FrontmanServer.Application do
 
   @impl true
   def start(_type, _args) do
-    # Configure OpenTelemetry early
-    FrontmanServer.Observability.OTelSetup.configure()
-
     # Setup telemetry -> OTEL span translation
     FrontmanServer.Observability.OtelHandler.setup()
 

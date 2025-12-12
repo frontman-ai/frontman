@@ -28,6 +28,7 @@ defmodule FrontmanServer.Observability.OtelHandler do
   require Logger
   require OpenTelemetry.Tracer, as: Tracer
 
+  alias FrontmanServer.Observability.Events
   alias FrontmanServer.Observability.MessageSerializer
 
   @tables [
@@ -43,7 +44,7 @@ defmodule FrontmanServer.Observability.OtelHandler do
   @doc """
   Sets up telemetry handlers and creates ETS tables for span storage.
 
-  Call this during application startup, after OTelSetup.configure().
+  Call this early in application startup.
   """
   def setup do
     create_ets_tables()
@@ -51,30 +52,30 @@ defmodule FrontmanServer.Observability.OtelHandler do
     :ok
   end
 
+  # No defensive checks - if tables already exist, setup/0 was called twice,
+  # which is a bug in application startup. Let it crash.
   defp create_ets_tables do
     Enum.each(@tables, fn table ->
-      if :ets.whereis(table) == :undefined do
-        :ets.new(table, [:named_table, :public, :set, read_concurrency: true])
-      end
+      :ets.new(table, [:named_table, :public, :set, read_concurrency: true])
     end)
   end
 
   defp attach_handlers do
     events = [
-      {[:frontman, :task, :start], &handle_task_start/4},
-      {[:frontman, :task, :stop], &handle_task_stop/4},
-      {[:frontman, :agent, :start], &handle_agent_start/4},
-      {[:frontman, :agent, :stop], &handle_agent_stop/4},
-      {[:frontman, :iteration, :start], &handle_iteration_start/4},
-      {[:frontman, :iteration, :stop], &handle_iteration_stop/4},
-      {[:frontman, :llm, :start], &handle_llm_start/4},
-      {[:frontman, :llm, :stop], &handle_llm_stop/4},
-      {[:frontman, :tool, :start], &handle_tool_start/4},
-      {[:frontman, :tool, :stop], &handle_tool_stop/4},
-      {[:frontman, :mcp_tool, :start], &handle_mcp_tool_start/4},
-      {[:frontman, :mcp_tool, :stop], &handle_mcp_tool_stop/4},
-      {[:frontman, :spawn_sub_agent, :start], &handle_spawn_start/4},
-      {[:frontman, :spawn_sub_agent, :stop], &handle_spawn_stop/4}
+      {Events.task_start(), &handle_task_start/4},
+      {Events.task_stop(), &handle_task_stop/4},
+      {Events.agent_start(), &handle_agent_start/4},
+      {Events.agent_stop(), &handle_agent_stop/4},
+      {Events.iteration_start(), &handle_iteration_start/4},
+      {Events.iteration_stop(), &handle_iteration_stop/4},
+      {Events.llm_start(), &handle_llm_start/4},
+      {Events.llm_stop(), &handle_llm_stop/4},
+      {Events.tool_start(), &handle_tool_start/4},
+      {Events.tool_stop(), &handle_tool_stop/4},
+      {Events.mcp_tool_start(), &handle_mcp_tool_start/4},
+      {Events.mcp_tool_stop(), &handle_mcp_tool_stop/4},
+      {Events.spawn_sub_agent_start(), &handle_spawn_start/4},
+      {Events.spawn_sub_agent_stop(), &handle_spawn_stop/4}
     ]
 
     Enum.each(events, fn {event, handler} ->
@@ -108,7 +109,7 @@ defmodule FrontmanServer.Observability.OtelHandler do
         :ets.delete(:frontman_spans_task, task_id)
 
       [] ->
-        :ok
+        Logger.error("Orphaned task stop event: task_id=#{task_id} has no span. Start event missing?")
     end
   end
 
@@ -128,8 +129,8 @@ defmodule FrontmanServer.Observability.OtelHandler do
         {:"gen_ai.agent.name", "frontman-agent"},
         {:"deployment.environment", deployment_environment()}
       ]
-      |> maybe_add_attribute(parent_agent_id, "frontman.agent.parent_id")
-      |> maybe_add_attribute(role_str, "frontman.agent.role")
+      |> maybe_add_attribute(:"frontman.agent.parent_id", parent_agent_id)
+      |> maybe_add_attribute(:"frontman.agent.role", role_str)
 
     tracer = :opentelemetry.get_tracer(:frontman_server)
 
@@ -155,7 +156,7 @@ defmodule FrontmanServer.Observability.OtelHandler do
         :ets.delete(:frontman_spans_agent, agent_id)
 
       [] ->
-        :ok
+        Logger.error("Orphaned agent stop event: agent_id=#{agent_id} has no span")
     end
   end
 
@@ -220,7 +221,7 @@ defmodule FrontmanServer.Observability.OtelHandler do
         :ets.delete(:frontman_spans_iteration, key)
 
       [] ->
-        :ok
+        Logger.error("Orphaned iteration stop: agent_id=#{agent_id} iteration=#{iteration_number} has no span")
     end
   end
 
@@ -263,36 +264,69 @@ defmodule FrontmanServer.Observability.OtelHandler do
 
     case :ets.lookup(:frontman_spans_llm, agent_id) do
       [{^agent_id, span_ctx}] ->
-        # Record response details
-        if response_id = metadata[:response_id] do
-          :otel_span.set_attributes(span_ctx, [{:"gen_ai.response.id", response_id}])
-        end
+        attributes = build_llm_response_attributes(metadata)
+        :otel_span.set_attributes(span_ctx, attributes)
 
-        if output_text = metadata[:output_text] do
-          tool_calls = metadata[:tool_calls] || []
-          output = MessageSerializer.serialize_output(output_text, tool_calls)
-          finish_reasons = if Enum.empty?(tool_calls), do: ["stop"], else: ["tool_calls"]
-
-          :otel_span.set_attributes(span_ctx, [
-            {:"gen_ai.output.messages", Jason.encode!(output)},
-            {:"gen_ai.response.finish_reasons", finish_reasons}
-          ])
-        end
-
-        if usage = metadata[:usage] do
-          record_usage_on_span(span_ctx, usage)
-        end
-
-        if error = metadata[:error] do
-          :otel_span.set_status(span_ctx, :error, inspect(error))
-        end
+        set_llm_error_status(span_ctx, metadata[:error])
 
         :otel_span.end_span(span_ctx)
         :ets.delete(:frontman_spans_llm, agent_id)
 
       [] ->
-        :ok
+        Logger.error("Orphaned LLM stop event: agent_id=#{agent_id} has no span")
     end
+  end
+
+  defp build_llm_response_attributes(metadata) do
+    []
+    |> add_response_id(metadata[:response_id])
+    |> add_output_attributes(metadata[:output_text], metadata[:tool_calls])
+    |> add_usage_attributes(metadata[:usage])
+  end
+
+  defp add_response_id(attrs, nil), do: attrs
+  defp add_response_id(attrs, response_id), do: [{:"gen_ai.response.id", response_id} | attrs]
+
+  defp add_output_attributes(attrs, nil, _tool_calls), do: attrs
+
+  defp add_output_attributes(attrs, output_text, tool_calls) do
+    tool_calls = tool_calls || []
+    output = MessageSerializer.serialize_output(output_text, tool_calls)
+    finish_reasons = if Enum.empty?(tool_calls), do: ["stop"], else: ["tool_calls"]
+
+    [
+      {:"gen_ai.output.messages", Jason.encode!(output)},
+      {:"gen_ai.response.finish_reasons", finish_reasons}
+      | attrs
+    ]
+  end
+
+  defp add_usage_attributes(attrs, nil), do: attrs
+
+  defp add_usage_attributes(attrs, %{tokens: tokens} = usage) do
+    attrs = [
+      {:"gen_ai.usage.input_tokens", tokens[:input] || 0},
+      {:"gen_ai.usage.output_tokens", tokens[:output] || 0}
+      | attrs
+    ]
+
+    case usage[:cost] do
+      nil -> attrs
+      cost -> [{:"gen_ai.usage.cost", cost} | attrs]
+    end
+  end
+
+  defp add_usage_attributes(attrs, _), do: attrs
+
+  defp set_llm_error_status(_span_ctx, nil), do: :ok
+  defp set_llm_error_status(span_ctx, error), do: :otel_span.set_status(span_ctx, :error, inspect(error))
+
+  defp set_tool_error_status(_span_ctx, nil), do: :ok
+
+  defp set_tool_error_status(span_ctx, error) do
+    error_str = inspect(error)
+    :otel_span.set_attributes(span_ctx, [{:"tool.error", error_str}])
+    :otel_span.set_status(span_ctx, :error, error_str)
   end
 
   # -- Backend Tool Handlers --
@@ -339,7 +373,6 @@ defmodule FrontmanServer.Observability.OtelHandler do
 
   defp handle_tool_stop(_event, _measurements, metadata, _config) do
     %{tool_call_id: tool_call_id, status: status} = metadata
-    error = Map.get(metadata, :error)
 
     case :ets.lookup(:frontman_spans_tool, tool_call_id) do
       [{^tool_call_id, {span_ctx, start_time}}] ->
@@ -350,16 +383,13 @@ defmodule FrontmanServer.Observability.OtelHandler do
           {:"tool.status", status}
         ])
 
-        if status == "error" and error do
-          :otel_span.set_attributes(span_ctx, [{:"tool.error", inspect(error)}])
-          :otel_span.set_status(span_ctx, :error, inspect(error))
-        end
+        set_tool_error_status(span_ctx, metadata[:error])
 
         :otel_span.end_span(span_ctx)
         :ets.delete(:frontman_spans_tool, tool_call_id)
 
       [] ->
-        :ok
+        Logger.error("Orphaned tool stop event: tool_call_id=#{tool_call_id} has no span")
     end
   end
 
@@ -409,7 +439,6 @@ defmodule FrontmanServer.Observability.OtelHandler do
 
   defp handle_mcp_tool_stop(_event, _measurements, metadata, _config) do
     %{request_id: request_id, status: status} = metadata
-    error = Map.get(metadata, :error)
 
     case :ets.lookup(:frontman_spans_mcp, request_id) do
       [{^request_id, {span_ctx, start_time}}] ->
@@ -421,16 +450,13 @@ defmodule FrontmanServer.Observability.OtelHandler do
           {:"tool.status", status}
         ])
 
-        if status == "error" and error do
-          :otel_span.set_attributes(span_ctx, [{:"tool.error", error}])
-          :otel_span.set_status(span_ctx, :error, error)
-        end
+        set_tool_error_status(span_ctx, metadata[:error])
 
         :otel_span.end_span(span_ctx)
         :ets.delete(:frontman_spans_mcp, request_id)
 
       [] ->
-        :ok
+        Logger.error("Orphaned MCP tool stop event: request_id=#{request_id} has no span")
     end
   end
 
@@ -489,7 +515,7 @@ defmodule FrontmanServer.Observability.OtelHandler do
         :ets.delete(:frontman_spans_spawn, agent_id)
 
       [] ->
-        :ok
+        Logger.error("Orphaned spawn stop event: agent_id=#{agent_id} has no span")
     end
   end
 
@@ -519,29 +545,11 @@ defmodule FrontmanServer.Observability.OtelHandler do
     end
   end
 
-  defp maybe_add_attribute(attributes, nil, _attr_name), do: attributes
+  defp maybe_add_attribute(attributes, _attr_name, nil), do: attributes
 
-  defp maybe_add_attribute(attributes, value, attr_name) do
-    [{String.to_atom(attr_name), value} | attributes]
+  defp maybe_add_attribute(attributes, attr_name, value) when is_atom(attr_name) do
+    [{attr_name, value} | attributes]
   end
-
-  defp record_usage_on_span(span_ctx, %{tokens: tokens} = usage) do
-    attributes = [
-      {:"gen_ai.usage.input_tokens", tokens[:input] || 0},
-      {:"gen_ai.usage.output_tokens", tokens[:output] || 0}
-    ]
-
-    attributes =
-      if cost = usage[:cost] do
-        [{:"gen_ai.usage.cost", cost} | attributes]
-      else
-        attributes
-      end
-
-    :otel_span.set_attributes(span_ctx, attributes)
-  end
-
-  defp record_usage_on_span(_span_ctx, _), do: :ok
 
   defp deployment_environment do
     case Application.get_env(:opentelemetry, :resource) do

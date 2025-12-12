@@ -22,7 +22,7 @@ defmodule FrontmanServer.Observability.TelemetryEvents do
   ```
   """
 
-  @prefix [:frontman]
+  alias FrontmanServer.Observability.Events
 
   # ============================================================================
   # Task
@@ -31,13 +31,13 @@ defmodule FrontmanServer.Observability.TelemetryEvents do
   @doc "Emits task start. Called when a new prompt begins processing."
   @spec task_start(String.t()) :: :ok
   def task_start(task_id) do
-    emit([:task, :start], %{task_id: task_id})
+    emit(Events.task_start(), %{task_id: task_id})
   end
 
   @doc "Emits task stop. Called when prompt completes or session terminates."
   @spec task_stop(String.t()) :: :ok
   def task_stop(task_id) do
-    emit([:task, :stop], %{task_id: task_id})
+    emit(Events.task_stop(), %{task_id: task_id})
   end
 
   # ============================================================================
@@ -47,7 +47,7 @@ defmodule FrontmanServer.Observability.TelemetryEvents do
   @doc "Emits root agent start."
   @spec agent_start(String.t(), String.t()) :: :ok
   def agent_start(agent_id, task_id) do
-    emit([:agent, :start], %{
+    emit(Events.agent_start(), %{
       agent_id: agent_id,
       task_id: task_id,
       parent_agent_id: nil,
@@ -58,7 +58,7 @@ defmodule FrontmanServer.Observability.TelemetryEvents do
   @doc "Emits sub-agent start."
   @spec sub_agent_start(String.t(), String.t(), String.t(), atom()) :: :ok
   def sub_agent_start(agent_id, task_id, parent_agent_id, role) do
-    emit([:agent, :start], %{
+    emit(Events.agent_start(), %{
       agent_id: agent_id,
       task_id: task_id,
       parent_agent_id: parent_agent_id,
@@ -69,7 +69,7 @@ defmodule FrontmanServer.Observability.TelemetryEvents do
   @doc "Emits agent stop. Called when agent terminates."
   @spec agent_stop(String.t()) :: :ok
   def agent_stop(agent_id) do
-    emit([:agent, :stop], %{agent_id: agent_id})
+    emit(Events.agent_stop(), %{agent_id: agent_id})
   end
 
   # ============================================================================
@@ -84,7 +84,7 @@ defmodule FrontmanServer.Observability.TelemetryEvents do
       iteration_stop(agent_id, iteration_number - 1)
     end
 
-    emit([:iteration, :start], %{
+    emit(Events.iteration_start(), %{
       agent_id: agent_id,
       iteration_number: iteration_number
     })
@@ -97,7 +97,7 @@ defmodule FrontmanServer.Observability.TelemetryEvents do
   """
   @spec iteration_stop(String.t(), pos_integer(), keyword()) :: :ok
   def iteration_stop(agent_id, iteration_number, opts \\ []) do
-    emit([:iteration, :stop], %{
+    emit(Events.iteration_stop(), %{
       agent_id: agent_id,
       iteration_number: iteration_number,
       status: Keyword.get(opts, :status, :stop),
@@ -112,7 +112,7 @@ defmodule FrontmanServer.Observability.TelemetryEvents do
   @doc "Emits LLM call start. Called before streaming begins."
   @spec llm_start(String.t(), String.t(), String.t(), list()) :: :ok
   def llm_start(agent_id, task_id, model, messages) do
-    emit([:llm, :start], %{
+    emit(Events.llm_start(), %{
       agent_id: agent_id,
       task_id: task_id,
       model: model,
@@ -127,7 +127,7 @@ defmodule FrontmanServer.Observability.TelemetryEvents do
   """
   @spec llm_stop(String.t(), keyword()) :: :ok
   def llm_stop(agent_id, opts \\ []) do
-    emit([:llm, :stop], %{
+    emit(Events.llm_stop(), %{
       agent_id: agent_id,
       response_id: Keyword.get(opts, :response_id),
       output_text: Keyword.get(opts, :output_text),
@@ -144,7 +144,7 @@ defmodule FrontmanServer.Observability.TelemetryEvents do
   @doc "Emits backend tool start. Called before executing a server-side tool."
   @spec tool_start(String.t(), String.t(), String.t(), String.t(), map()) :: :ok
   def tool_start(tool_call_id, tool_name, agent_id, task_id, arguments) do
-    emit([:tool, :start], %{
+    emit(Events.tool_start(), %{
       tool_call_id: tool_call_id,
       tool_name: tool_name,
       agent_id: agent_id,
@@ -160,7 +160,7 @@ defmodule FrontmanServer.Observability.TelemetryEvents do
   """
   @spec tool_stop(String.t(), keyword()) :: :ok
   def tool_stop(tool_call_id, opts \\ []) do
-    emit([:tool, :stop], %{
+    emit(Events.tool_stop(), %{
       tool_call_id: tool_call_id,
       status: Keyword.get(opts, :status, "success"),
       error: Keyword.get(opts, :error)
@@ -174,7 +174,7 @@ defmodule FrontmanServer.Observability.TelemetryEvents do
   @doc "Emits MCP tool start. Called when routing a tool call to the client."
   @spec mcp_tool_start(integer(), String.t(), String.t(), String.t(), String.t(), map()) :: :ok
   def mcp_tool_start(request_id, tool_call_id, tool_name, agent_id, task_id, arguments) do
-    emit([:mcp_tool, :start], %{
+    emit(Events.mcp_tool_start(), %{
       request_id: request_id,
       tool_call_id: tool_call_id,
       tool_name: tool_name,
@@ -191,7 +191,7 @@ defmodule FrontmanServer.Observability.TelemetryEvents do
   """
   @spec mcp_tool_stop(integer(), keyword()) :: :ok
   def mcp_tool_stop(request_id, opts \\ []) do
-    emit([:mcp_tool, :stop], %{
+    emit(Events.mcp_tool_stop(), %{
       request_id: request_id,
       status: Keyword.get(opts, :status, "success"),
       error: Keyword.get(opts, :error)
@@ -205,7 +205,7 @@ defmodule FrontmanServer.Observability.TelemetryEvents do
   @doc "Emits sub-agent spawn start."
   @spec spawn_sub_agent_start(String.t(), String.t(), atom(), String.t()) :: :ok
   def spawn_sub_agent_start(agent_id, task_id, role, task_description) do
-    emit([:spawn_sub_agent, :start], %{
+    emit(Events.spawn_sub_agent_start(), %{
       agent_id: agent_id,
       task_id: task_id,
       role: role,
@@ -220,7 +220,7 @@ defmodule FrontmanServer.Observability.TelemetryEvents do
   """
   @spec spawn_sub_agent_stop(String.t(), keyword()) :: :ok
   def spawn_sub_agent_stop(agent_id, opts \\ []) do
-    emit([:spawn_sub_agent, :stop], %{
+    emit(Events.spawn_sub_agent_stop(), %{
       agent_id: agent_id,
       sub_agent_id: Keyword.get(opts, :sub_agent_id),
       error: Keyword.get(opts, :error)
@@ -231,11 +231,7 @@ defmodule FrontmanServer.Observability.TelemetryEvents do
   # Private
   # ============================================================================
 
-  defp emit(event_suffix, metadata) do
-    :telemetry.execute(
-      @prefix ++ event_suffix,
-      %{system_time: System.system_time()},
-      metadata
-    )
+  defp emit(event, metadata) do
+    :telemetry.execute(event, %{system_time: System.system_time()}, metadata)
   end
 end
