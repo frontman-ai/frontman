@@ -283,8 +283,8 @@ defmodule FrontmanServer.Agents do
           {:sub_agent_failed, sub_agent.id, sub_agent.role, sub_agent.error}
         )
 
-      {:sub_agent_spawn_failed, agent_id, tool_call_id, role, task, reason} ->
-        Tasks.add_sub_agent_spawn_failed(task_id, agent_id, tool_call_id, role, task, reason)
+      {:sub_agent_spawn_failed, agent_id, tool_call_id, role, message, reason} ->
+        Tasks.add_sub_agent_spawn_failed(task_id, agent_id, tool_call_id, role, message, reason)
         broadcast(task_id, {:sub_agent_spawn_failed, tool_call_id, role, reason})
     end
   end

@@ -37,7 +37,7 @@ defmodule FrontmanServer.AgentCase do
   You can customize fixtures via tags:
 
       @tag fixtures: [:parent_agent], parent_id: "custom_parent", task_id: "custom_task"
-      @tag fixtures: [:sub_agent], role: :planning, task: "plan something"
+      @tag fixtures: [:sub_agent], role: :planning, message: "plan something"
       @tag fixtures: [:fake_sub_agent], fake_sub_agent_id: "specific_id"
 
   ## Helper functions

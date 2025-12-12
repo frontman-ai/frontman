@@ -9,14 +9,14 @@ defmodule FrontmanServer.Agents.SubAgent do
 
   @type status :: :running | :completed | :failed
 
-  @enforce_keys [:id, :tool_call_id, :role, :task, :pid, :status, :started_at]
-  defstruct [:id, :tool_call_id, :role, :task, :pid, :status, :started_at, :result, :error]
+  @enforce_keys [:id, :tool_call_id, :role, :message, :pid, :status, :started_at]
+  defstruct [:id, :tool_call_id, :role, :message, :pid, :status, :started_at, :result, :error]
 
   @type t :: %__MODULE__{
           id: String.t(),
           tool_call_id: String.t(),
           role: Agents.role(),
-          task: String.t(),
+          message: String.t(),
           pid: pid(),
           status: status(),
           started_at: integer(),

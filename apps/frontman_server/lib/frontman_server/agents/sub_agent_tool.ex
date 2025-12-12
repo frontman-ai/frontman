@@ -43,26 +43,26 @@ defmodule FrontmanServer.Agents.SubAgentTool do
             enum: Enum.map(Agents.roles(), &Atom.to_string/1),
             description: "The type of agent to spawn"
           },
-          task: %{
+          message: %{
             type: "string",
             description: "A clear, specific description of what the agent should do"
           }
         },
-        required: ["agent", "task"]
+        required: ["agent", "message"]
       }
     }
   end
 
   @doc "Parses tool call arguments and validates them"
   @spec parse_arguments(map()) ::
-          {:ok, %{role: Agents.role(), task: String.t()}} | {:error, String.t()}
-  def parse_arguments(%{"agent" => agent_str, "task" => task}) when is_binary(task) do
+          {:ok, %{role: Agents.role(), message: String.t()}} | {:error, String.t()}
+  def parse_arguments(%{"agent" => agent_str, "message" => message}) when is_binary(message) do
     case Agents.parse_role(agent_str) do
       {:ok, role} ->
-        if String.trim(task) == "" do
-          {:error, "Task description cannot be empty"}
+        if String.trim(message) == "" do
+          {:error, "Message cannot be empty"}
         else
-          {:ok, %{role: role, task: task}}
+          {:ok, %{role: role, message: message}}
         end
 
       {:error, :not_found} ->
@@ -71,7 +71,7 @@ defmodule FrontmanServer.Agents.SubAgentTool do
     end
   end
 
-  def parse_arguments(%{"agent" => _}), do: {:error, "Missing or invalid 'task' parameter"}
-  def parse_arguments(%{"task" => _}), do: {:error, "Missing 'agent' parameter"}
-  def parse_arguments(_), do: {:error, "Missing required parameters 'agent' and 'task'"}
+  def parse_arguments(%{"agent" => _}), do: {:error, "Missing or invalid 'message' parameter"}
+  def parse_arguments(%{"message" => _}), do: {:error, "Missing 'agent' parameter"}
+  def parse_arguments(_), do: {:error, "Missing required parameters 'agent' and 'message'"}
 end

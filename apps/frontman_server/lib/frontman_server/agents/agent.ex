@@ -21,7 +21,7 @@ defmodule FrontmanServer.Agents.Agent do
     field :id, String.t()
     field :task_id, String.t()
     field :role, atom() | nil, enforce: false
-    field :task, String.t() | nil, enforce: false
+    field :message, String.t() | nil, enforce: false
     field :parent_id, String.t() | nil, enforce: false
     field :pending_tools, %{String.t() => ToolCall.t()}, default: %{}
     field :sub_agents, %{String.t() => SubAgent.t()}, default: %{}
@@ -41,12 +41,12 @@ defmodule FrontmanServer.Agents.Agent do
 
   @doc "Creates a new sub-agent"
   @spec new_sub_agent(String.t(), String.t(), String.t(), atom(), String.t()) :: t()
-  def new_sub_agent(agent_id, task_id, parent_id, role, task) do
+  def new_sub_agent(agent_id, task_id, parent_id, role, message) do
     %__MODULE__{
       id: agent_id,
       task_id: task_id,
       role: role,
-      task: task,
+      message: message,
       parent_id: parent_id,
       started_at: System.monotonic_time(:millisecond)
     }

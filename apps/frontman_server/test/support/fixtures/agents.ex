@@ -117,7 +117,7 @@ defmodule FrontmanServer.Test.Fixtures.Agents do
         parent_agent_id: parent_id,
         parent_pid: parent_pid,
         role: tags[:role] || :research,
-        task: tags[:task] || "test task"
+        message: tags[:message] || "test message"
       }})
 
     Map.merge(ctx, %{
@@ -145,7 +145,7 @@ defmodule FrontmanServer.Test.Fixtures.Agents do
           parent_agent_id: parent_id,
           parent_pid: parent_pid,
           role: role,
-          task: tags[:task] || "test task"
+          message: tags[:message] || "test message"
         }},
         name: via_registry(agent_id, task_id, parent_id, role)
       )
@@ -160,7 +160,7 @@ defmodule FrontmanServer.Test.Fixtures.Agents do
       id: tags[:fake_sub_agent_id] || "sub_#{ctx.unique_id}",
       tool_call_id: tags[:tool_call_id] || "call_#{ctx.unique_id}",
       role: tags[:role] || :research,
-      task: tags[:task] || "fake task",
+      message: tags[:message] || "fake message",
       pid: self(),
       status: :running,
       started_at: System.monotonic_time(:millisecond)
@@ -279,7 +279,7 @@ defmodule FrontmanServer.Test.Fixtures.Agents do
       id: "sub_#{unique}",
       tool_call_id: "call_#{unique}",
       role: :research,
-      task: "test task",
+      message: "test message",
       pid: self(),
       status: :running,
       started_at: System.monotonic_time(:millisecond)

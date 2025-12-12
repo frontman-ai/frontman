@@ -173,7 +173,7 @@ describe "to_llm_messages/1 with sub-agent results" do
           sub_agent_id: "sub_123",
           tool_call_id: "call_1",
           agent_key: :research,
-          task: "Research this",
+          message: "Research this",
           result: "Research findings here",
           partial: false,
           iterations: 1,

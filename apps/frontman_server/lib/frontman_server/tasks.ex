@@ -189,8 +189,8 @@ defmodule FrontmanServer.Tasks do
   @doc """
   Records a sub-agent being spawned.
   """
-  def add_sub_agent_spawned(task_id, agent_id, %SubAgent{id: sub_id, role: role, task: task}) do
-    interaction = Interaction.SubAgentSpawned.new(agent_id, sub_id, role, task)
+  def add_sub_agent_spawned(task_id, agent_id, %SubAgent{id: sub_id, role: role, message: message}) do
+    interaction = Interaction.SubAgentSpawned.new(agent_id, sub_id, role, message)
     append_interaction(task_id, interaction)
   end
 
@@ -204,7 +204,7 @@ defmodule FrontmanServer.Tasks do
         sub_agent.id,
         sub_agent.tool_call_id,
         sub_agent.role,
-        sub_agent.task,
+        sub_agent.message,
         sub_agent.result,
         1,
         duration_ms
@@ -222,7 +222,7 @@ defmodule FrontmanServer.Tasks do
         agent_id,
         sub_agent.id,
         sub_agent.role,
-        sub_agent.task,
+        sub_agent.message,
         inspect(sub_agent.error),
         1,
         duration_ms
@@ -237,13 +237,13 @@ defmodule FrontmanServer.Tasks do
   Called when a parent agent attempts to spawn a sub-agent but it fails.
   Records the parent agent_id and the failed spawn details.
   """
-  def add_sub_agent_spawn_failed(task_id, agent_id, tool_call_id, role, task, reason) do
+  def add_sub_agent_spawn_failed(task_id, agent_id, tool_call_id, role, message, reason) do
     interaction =
       Interaction.SubAgentSpawnFailed.new(
         agent_id,
         tool_call_id,
         role,
-        task,
+        message,
         inspect(reason)
       )
 

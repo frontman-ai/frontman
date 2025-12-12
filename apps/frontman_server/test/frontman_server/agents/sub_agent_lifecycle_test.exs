@@ -105,8 +105,8 @@ defmodule FrontmanServer.Agents.SubAgentLifecycleTest do
     test "waits for all before triggering next iteration", %{
       parent_agent: %{pid: parent_pid, id: parent_id}
     } do
-      sub1 = sub_agent_struct(id: "sub_1", tool_call_id: "call_1", role: :research, task: "task 1")
-      sub2 = sub_agent_struct(id: "sub_2", tool_call_id: "call_2", role: :planning, task: "task 2")
+      sub1 = sub_agent_struct(id: "sub_1", tool_call_id: "call_1", role: :research, message: "message 1")
+      sub2 = sub_agent_struct(id: "sub_2", tool_call_id: "call_2", role: :planning, message: "message 2")
 
       inject_sub_agents(parent_pid, [sub1, sub2])
 

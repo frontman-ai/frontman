@@ -304,11 +304,11 @@ defmodule FrontmanServer.Tasks.Interaction do
       field(:agent_id, String.t())
       field(:sub_agent_id, String.t())
       field(:agent_key, atom())
-      field(:task, String.t())
+      field(:message, String.t())
       field(:timestamp, DateTime.t())
     end
 
-    def new(agent_id, sub_agent_id, agent_key, task) do
+    def new(agent_id, sub_agent_id, agent_key, message) do
       alias FrontmanServer.Tasks.Interaction
 
       %__MODULE__{
@@ -316,7 +316,7 @@ defmodule FrontmanServer.Tasks.Interaction do
         agent_id: agent_id,
         sub_agent_id: sub_agent_id,
         agent_key: agent_key,
-        task: task,
+        message: message,
         timestamp: Interaction.now()
       }
     end
@@ -331,7 +331,7 @@ defmodule FrontmanServer.Tasks.Interaction do
           agent_id: value.agent_id,
           sub_agent_id: value.sub_agent_id,
           agent_key: value.agent_key,
-          task: value.task,
+          message: value.message,
           timestamp: DateTime.to_iso8601(value.timestamp)
         },
         opts
@@ -349,7 +349,7 @@ defmodule FrontmanServer.Tasks.Interaction do
       field(:sub_agent_id, String.t())
       field(:tool_call_id, String.t())
       field(:agent_key, atom())
-      field(:task, String.t())
+      field(:message, String.t())
       field(:result, String.t())
       field(:partial, boolean(), default: false)
       field(:iterations, integer())
@@ -362,7 +362,7 @@ defmodule FrontmanServer.Tasks.Interaction do
           sub_agent_id,
           tool_call_id,
           agent_key,
-          task,
+          message,
           result,
           iterations,
           duration_ms,
@@ -376,7 +376,7 @@ defmodule FrontmanServer.Tasks.Interaction do
         sub_agent_id: sub_agent_id,
         tool_call_id: tool_call_id,
         agent_key: agent_key,
-        task: task,
+        message: message,
         result: result,
         partial: partial,
         iterations: iterations,
@@ -396,7 +396,7 @@ defmodule FrontmanServer.Tasks.Interaction do
           sub_agent_id: value.sub_agent_id,
           tool_call_id: value.tool_call_id,
           agent_key: value.agent_key,
-          task: value.task,
+          message: value.message,
           result: value.result,
           partial: value.partial,
           iterations: value.iterations,
@@ -417,7 +417,7 @@ defmodule FrontmanServer.Tasks.Interaction do
       field(:agent_id, String.t())
       field(:sub_agent_id, String.t())
       field(:agent_key, atom())
-      field(:task, String.t())
+      field(:message, String.t())
       field(:error, String.t())
       field(:partial_result, String.t() | nil, enforce: false)
       field(:iterations, integer())
@@ -429,7 +429,7 @@ defmodule FrontmanServer.Tasks.Interaction do
           agent_id,
           sub_agent_id,
           agent_key,
-          task,
+          message,
           error,
           iterations,
           duration_ms,
@@ -442,7 +442,7 @@ defmodule FrontmanServer.Tasks.Interaction do
         agent_id: agent_id,
         sub_agent_id: sub_agent_id,
         agent_key: agent_key,
-        task: task,
+        message: message,
         error: error,
         partial_result: partial_result,
         iterations: iterations,
@@ -461,7 +461,7 @@ defmodule FrontmanServer.Tasks.Interaction do
           agent_id: value.agent_id,
           sub_agent_id: value.sub_agent_id,
           agent_key: value.agent_key,
-          task: value.task,
+          message: value.message,
           error: value.error,
           partial_result: value.partial_result,
           iterations: value.iterations,
@@ -482,12 +482,12 @@ defmodule FrontmanServer.Tasks.Interaction do
       field(:agent_id, String.t())
       field(:tool_call_id, String.t())
       field(:agent_key, atom())
-      field(:task, String.t())
+      field(:message, String.t())
       field(:error, String.t())
       field(:timestamp, DateTime.t())
     end
 
-    def new(agent_id, tool_call_id, agent_key, task, error) do
+    def new(agent_id, tool_call_id, agent_key, message, error) do
       alias FrontmanServer.Tasks.Interaction
 
       %__MODULE__{
@@ -495,7 +495,7 @@ defmodule FrontmanServer.Tasks.Interaction do
         agent_id: agent_id,
         tool_call_id: tool_call_id,
         agent_key: agent_key,
-        task: task,
+        message: message,
         error: error,
         timestamp: Interaction.now()
       }
@@ -511,7 +511,7 @@ defmodule FrontmanServer.Tasks.Interaction do
           agent_id: value.agent_id,
           tool_call_id: value.tool_call_id,
           agent_key: value.agent_key,
-          task: value.task,
+          message: value.message,
           error: value.error,
           timestamp: DateTime.to_iso8601(value.timestamp)
         },
@@ -617,10 +617,10 @@ defmodule FrontmanServer.Tasks.Interaction do
     ReqLLM.Context.tool_result_message(name, id, json_result)
   end
 
-  defp to_llm_message(%SubAgentResult{tool_call_id: id, agent_key: role, task: task, result: result}) do
+  defp to_llm_message(%SubAgentResult{tool_call_id: id, agent_key: role, message: message, result: result}) do
     # Format sub-agent result as tool result for spawn_sub_agent call
     content = """
-    Sub-agent (#{role}) completed task: "#{task}"
+    Sub-agent (#{role}) completed message: "#{message}"
 
     Result:
     #{result}

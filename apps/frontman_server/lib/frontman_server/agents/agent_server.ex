@@ -70,7 +70,7 @@ defmodule FrontmanServer.Agents.AgentServer do
     parent_agent_id = Keyword.fetch!(opts, :parent_agent_id)
     parent_pid = Keyword.fetch!(opts, :parent_pid)
     role = Keyword.fetch!(opts, :role)
-    task = Keyword.fetch!(opts, :task)
+    message = Keyword.fetch!(opts, :message)
 
     GenServer.start_link(
       __MODULE__,
@@ -83,7 +83,7 @@ defmodule FrontmanServer.Agents.AgentServer do
          parent_agent_id: parent_agent_id,
          parent_pid: parent_pid,
          role: role,
-         task: task
+         message: message
        }},
       name:
         {:via, Registry,
@@ -167,12 +167,12 @@ defmodule FrontmanServer.Agents.AgentServer do
       parent_agent_id: parent_agent_id,
       parent_pid: parent_pid,
       role: role,
-      task: task
+      message: message
     } = opts
 
     Process.monitor(parent_pid)
 
-    agent = Agent.new_sub_agent(agent_id, task_id, parent_agent_id, role, task)
+    agent = Agent.new_sub_agent(agent_id, task_id, parent_agent_id, role, message)
     TelemetryEvents.sub_agent_start(agent_id, task_id, parent_agent_id, role)
 
     state = %__MODULE__{
@@ -484,8 +484,8 @@ defmodule FrontmanServer.Agents.AgentServer do
           agent = Agent.track_sub_agent(acc.agent, sub_agent)
           %{acc | agent: agent}
 
-        {:error, role, task, reason} ->
-          emit(acc, {:sub_agent_spawn_failed, acc.agent.id, call.id, role, task, reason})
+        {:error, role, message, reason} ->
+          emit(acc, {:sub_agent_spawn_failed, acc.agent.id, call.id, role, message, reason})
           acc
       end
     end)
@@ -493,18 +493,18 @@ defmodule FrontmanServer.Agents.AgentServer do
 
   defp spawn_sub_agent(state, tool_call) do
     case SubAgentTool.parse_arguments(ToolCall.args_map(tool_call)) do
-      {:ok, %{role: role, task: task}} ->
+      {:ok, %{role: role, message: message}} ->
         # Emit spawn start event
-        TelemetryEvents.spawn_sub_agent_start(state.agent.id, state.agent.task_id, role, task)
+        TelemetryEvents.spawn_sub_agent_start(state.agent.id, state.agent.task_id, role, message)
 
-        result = do_spawn_sub_agent(state, tool_call, role, task)
+        result = do_spawn_sub_agent(state, tool_call, role, message)
 
         # Emit spawn stop event based on result
         case result do
           {:ok, sub_agent} ->
             TelemetryEvents.spawn_sub_agent_stop(state.agent.id, sub_agent_id: sub_agent.id)
 
-          {:error, _role, _task, reason} ->
+          {:error, _role, _message, reason} ->
             TelemetryEvents.spawn_sub_agent_stop(state.agent.id, error: reason)
         end
 
@@ -515,7 +515,7 @@ defmodule FrontmanServer.Agents.AgentServer do
     end
   end
 
-  defp do_spawn_sub_agent(state, tool_call, role, task) do
+  defp do_spawn_sub_agent(state, tool_call, role, message) do
     id = "sub_#{:crypto.strong_rand_bytes(8) |> Base.encode16(case: :lower)}"
 
     child_spec = %{
@@ -531,7 +531,7 @@ defmodule FrontmanServer.Agents.AgentServer do
              parent_agent_id: state.agent.id,
              parent_pid: self(),
              role: role,
-             task: task
+             message: message
            ]
          ]},
       restart: :temporary
@@ -545,17 +545,17 @@ defmodule FrontmanServer.Agents.AgentServer do
           id: id,
           tool_call_id: tool_call.id,
           role: role,
-          task: task,
+          message: message,
           pid: pid,
           status: :running,
           started_at: System.monotonic_time(:millisecond)
         }
 
-        send(pid, {:execute_iteration, [%{role: "user", content: task}]})
+        send(pid, {:execute_iteration, [%{role: "user", content: message}]})
         {:ok, sub_agent}
 
       {:error, reason} ->
-        {:error, role, task, reason}
+        {:error, role, message, reason}
     end
   end
 
