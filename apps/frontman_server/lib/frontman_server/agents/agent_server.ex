@@ -30,6 +30,7 @@ defmodule FrontmanServer.Agents.AgentServer do
     :on_event,
     :idle_timer_ref,
     :parent_pid,
+    status: :processing,
     llm_opts: []
   ]
 
@@ -53,8 +54,7 @@ defmodule FrontmanServer.Agents.AgentServer do
           %{
             task_id: task_id,
             parent_agent_id: nil,
-            role: :root,
-            state: :processing
+            role: :root
           }}}
     )
   end
@@ -91,8 +91,7 @@ defmodule FrontmanServer.Agents.AgentServer do
           %{
             task_id: task_id,
             parent_agent_id: parent_agent_id,
-            role: role,
-            state: :processing
+            role: role
           }}}
     )
   end
@@ -188,16 +187,19 @@ defmodule FrontmanServer.Agents.AgentServer do
   end
 
   @impl true
+  def handle_call(:get_status, _from, state) do
+    {:reply, state.status, state}
+  end
+
+  @impl true
   def handle_info({:execute_iteration, messages}, state) do
     agent = Agent.increment_iteration(state.agent)
-    state = %{state | agent: agent}
+    state = %{state | agent: agent, status: :processing}
     iteration_number = agent.iteration_count
 
     Logger.info(
       "Agent #{agent.id} starting iteration #{iteration_number} with #{length(messages)} messages"
     )
-
-    set_registry_state(agent.id, :processing)
 
     TelemetryEvents.iteration_start(agent.id, iteration_number)
 
@@ -205,14 +207,14 @@ defmodule FrontmanServer.Agents.AgentServer do
 
     case result do
       {:wait_for_tools, state} ->
-        set_registry_state(state.agent.id, :waiting_for_tools)
+        state = %{state | status: :waiting_for_tools}
         state = schedule_idle_timeout(state)
         {:noreply, state}
 
       {:stop, state} ->
         TelemetryEvents.iteration_stop(agent.id, iteration_number)
         emit(state, {:completed, state.agent.id})
-        set_registry_state(state.agent.id, :idle)
+        state = %{state | status: :idle}
         state = schedule_idle_timeout(state)
         {:noreply, state}
 
@@ -249,20 +251,16 @@ defmodule FrontmanServer.Agents.AgentServer do
   end
 
   @impl true
+  def handle_info(:wake_agent, %{status: :idle} = state) do
+    state = cancel_idle_timeout(state)
+    state = %{state | status: :processing}
+    emit(state, {:need_iteration, state.agent.id})
+    {:noreply, state}
+  end
+
   def handle_info(:wake_agent, state) do
-    case Registry.lookup(FrontmanServer.AgentRegistry, {:agent, state.agent.id}) do
-      [{_pid, %{state: :idle}}] ->
-        state = cancel_idle_timeout(state)
-        set_registry_state(state.agent.id, :processing)
-        emit(state, {:need_iteration, state.agent.id})
-        {:noreply, state}
-
-      [{_pid, %{state: :processing}}] ->
-        {:noreply, state}
-
-      [] ->
-        {:noreply, state}
-    end
+    # Already processing or waiting_for_tools - ignore wake
+    {:noreply, state}
   end
 
   @impl true
@@ -595,12 +593,6 @@ defmodule FrontmanServer.Agents.AgentServer do
       [{_agent_id, pid}] -> fun.(pid)
       [] -> {:error, :not_found}
     end
-  end
-
-  defp set_registry_state(agent_id, new_state) do
-    Registry.update_value(FrontmanServer.AgentRegistry, {:agent, agent_id}, fn metadata ->
-      %{metadata | state: new_state}
-    end)
   end
 
   # -- Timer Management --

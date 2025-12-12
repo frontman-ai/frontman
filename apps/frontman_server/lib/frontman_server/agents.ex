@@ -35,7 +35,7 @@ defmodule FrontmanServer.Agents do
   @spec agent_state(String.t()) :: :processing | :waiting_for_tools | :idle | :not_running
   def agent_state(task_id) do
     case get_root_agent_for_task(task_id) do
-      {:ok, _pid, %{state: state}} -> state
+      {:ok, pid, _metadata} -> GenServer.call(pid, :get_status)
       {:error, :not_found} -> :not_running
     end
   end
