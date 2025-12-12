@@ -9,92 +9,20 @@ defmodule FrontmanServer.Agents do
   - Starting agents with callback injection
   - Routing notifications to running agents
   - Translating agent events to Tasks operations and transport broadcasts
-  - Managing agent roles (research, planning, validator)
   """
 
   require Logger
 
-  alias FrontmanServer.Agents.AgentServer
+  alias FrontmanServer.Agents.{AgentServer, Prompts}
   alias FrontmanServer.Tasks
 
-  # Role configuration - each role defines a specialized system prompt
-  @roles %{
-    research: %{
-      name: "ResearchAgent",
-      description: "Investigates questions, finds information, analyzes data",
-      system_prompt: """
-      You are a research specialist. Your task is to investigate and find information.
+  # Re-export role type from Prompts
+  @type role :: Prompts.role()
 
-      IMPORTANT INSTRUCTIONS:
-      - Focus ONLY on the specific task assigned to you
-      - Return a concise summary of your findings
-      - Do NOT engage in conversation or ask clarifying questions
-      - Do NOT include unnecessary context or explanations
-      - Complete your task and return a final answer
-      - Your response will be incorporated into a larger workflow
-      """
-    },
-    planning: %{
-      name: "PlanningAgent",
-      description: "Breaks down complex tasks, creates step-by-step plans",
-      system_prompt: """
-      You are a planning specialist. Your task is to break down complex tasks into actionable steps.
-
-      IMPORTANT INSTRUCTIONS:
-      - Focus ONLY on the specific task assigned to you
-      - Return a clear, structured plan
-      - Do NOT engage in conversation or ask clarifying questions
-      - Do NOT include unnecessary context or explanations
-      - Complete your task and return a final answer
-      - Your response will be incorporated into a larger workflow
-      """
-    },
-    validator: %{
-      name: "ValidatorAgent",
-      description: "Validates work completeness, checks for errors or omissions",
-      system_prompt: """
-      You are a validation specialist. Your task is to check work for completeness and correctness.
-
-      IMPORTANT INSTRUCTIONS:
-      - Focus ONLY on the specific task assigned to you
-      - Return a concise validation report
-      - Do NOT engage in conversation or ask clarifying questions
-      - Do NOT include unnecessary context or explanations
-      - Complete your task and return a final answer
-      - Your response will be incorporated into a larger workflow
-      """
-    }
-  }
-
-  @type role :: :research | :planning | :validator
-
-  @type role_config :: %{
-          name: String.t(),
-          description: String.t(),
-          system_prompt: String.t()
-        }
-
-  @doc "Returns all available role keys"
-  @spec roles() :: [role()]
-  def roles, do: Map.keys(@roles)
-
-  @doc "Gets role configuration by key"
-  @spec get_role(role()) :: {:ok, role_config()} | {:error, :not_found}
-  def get_role(key) when is_atom(key) do
-    case Map.get(@roles, key) do
-      nil -> {:error, :not_found}
-      config -> {:ok, config}
-    end
-  end
-
-  @doc "Parses a string into a role atom"
-  @spec parse_role(String.t()) :: {:ok, role()} | {:error, :not_found}
-  def parse_role(key_string) when is_binary(key_string) do
-    key = String.to_existing_atom(key_string)
-    if Map.has_key?(@roles, key), do: {:ok, key}, else: {:error, :not_found}
-  rescue
-    ArgumentError -> {:error, :not_found}
-  end
+  # Delegate role functions to Prompts module
+  defdelegate roles(), to: Prompts
+  defdelegate get_role(key), to: Prompts
+  defdelegate parse_role(key_string), to: Prompts
 
   @doc """
   Returns the current state of the agent for a task.
@@ -190,7 +118,8 @@ defmodule FrontmanServer.Agents do
       {:ok, _pid} ->
         Tasks.add_agent_spawned(%{task_id: task_id, agent_id: agent_id}, %{tools: tools})
         messages = Tasks.get_llm_messages(task_id, agent_id)
-        AgentServer.execute_iteration(agent_id, messages)
+        system_msg = Prompts.build_system_message(nil)
+        AgentServer.execute_iteration(agent_id, [system_msg | messages])
         {:ok, agent_id}
 
       {:error, reason} ->
@@ -209,7 +138,6 @@ defmodule FrontmanServer.Agents do
   @spec notify_tool_result(String.t(), String.t(), term(), boolean()) ::
           :ok | {:error, :agent_not_found}
   def notify_tool_result(_task_id, tool_call_id, result, is_error) do
-    # Direct routing: look up agent by tool_call_id, then send directly
     with {:ok, agent_id} <- get_agent_for_tool_call(tool_call_id),
          {:ok, pid, _metadata} <- get_agent(agent_id) do
       send(pid, {:tool_result, tool_call_id, result, is_error})
@@ -291,7 +219,10 @@ defmodule FrontmanServer.Agents do
 
   defp push_iteration(task_id, agent_id) do
     messages = Tasks.get_llm_messages(task_id, agent_id)
-    AgentServer.execute_iteration(agent_id, messages)
+    {:ok, _pid, %{role: role}} = get_agent(agent_id)
+    role_for_prompt = if role == :root, do: nil, else: role
+    system_msg = Prompts.build_system_message(role_for_prompt)
+    AgentServer.execute_iteration(agent_id, [system_msg | messages])
   end
 
   defp broadcast(task_id, message) do

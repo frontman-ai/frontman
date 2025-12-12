@@ -68,7 +68,7 @@ defmodule FrontmanServer.Agents.SubAgentLifecycleTest do
   end
 
   describe "direct tool result routing" do
-    @tag fixtures: [:registered_sub_agent, :tool_call]
+    @tag fixtures: [:registered_parent_agent, :registered_sub_agent, :tool_call]
     test "tool result delivered directly to owning agent via Registry", %{
       sub_agent: %{pid: sub_agent_pid, id: sub_agent_id, task_id: task_id},
       tool_call: tool_call

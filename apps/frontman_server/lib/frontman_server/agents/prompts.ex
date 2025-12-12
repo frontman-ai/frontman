@@ -1,12 +1,10 @@
 defmodule FrontmanServer.Agents.Prompts do
   @moduledoc """
-  Builds system prompts for agents based on their role.
+  Manages system prompts and role configurations for agents.
 
   Root agents receive the base system prompt plus sub-agent guidance.
-  Sub-agents receive role-specific prompts from the Agents configuration.
+  Sub-agents receive role-specific prompts based on their assigned role.
   """
-
-  alias FrontmanServer.Agents
 
   @base_system_prompt """
   You are a coding assistant for a Next.js app (TypeScript, React, Tailwind, some ReScript output).
@@ -48,8 +46,102 @@ defmodule FrontmanServer.Agents.Prompts do
   - Brief notes: build/test results or follow-ups
   """
 
+  @roles %{
+    research: %{
+      name: "ResearchAgent",
+      description: "Investigates questions, finds information, analyzes data",
+      system_prompt: """
+      You are a research specialist. Your task is to investigate and find information.
+
+      IMPORTANT INSTRUCTIONS:
+      - Focus ONLY on the specific task assigned to you
+      - Return a concise summary of your findings
+      - Do NOT engage in conversation or ask clarifying questions
+      - Do NOT include unnecessary context or explanations
+      - Complete your task and return a final answer
+      - Your response will be incorporated into a larger workflow
+      """
+    },
+    planning: %{
+      name: "PlanningAgent",
+      description: "Breaks down complex tasks, creates step-by-step plans",
+      system_prompt: """
+      You are a planning specialist. Your task is to break down complex tasks into actionable steps.
+
+      IMPORTANT INSTRUCTIONS:
+      - Focus ONLY on the specific task assigned to you
+      - Return a clear, structured plan
+      - Do NOT engage in conversation or ask clarifying questions
+      - Do NOT include unnecessary context or explanations
+      - Complete your task and return a final answer
+      - Your response will be incorporated into a larger workflow
+      """
+    },
+    validator: %{
+      name: "ValidatorAgent",
+      description: "Validates work completeness, checks for errors or omissions",
+      system_prompt: """
+      You are a validation specialist. Your task is to check work for completeness and correctness.
+
+      IMPORTANT INSTRUCTIONS:
+      - Focus ONLY on the specific task assigned to you
+      - Return a concise validation report
+      - Do NOT engage in conversation or ask clarifying questions
+      - Do NOT include unnecessary context or explanations
+      - Complete your task and return a final answer
+      - Your response will be incorporated into a larger workflow
+      """
+    }
+  }
+
+  @type role :: :research | :planning | :validator
+
+  @type role_config :: %{
+          name: String.t(),
+          description: String.t(),
+          system_prompt: String.t()
+        }
+
+  # Role Configuration API
+
+  @doc "Returns all available role keys"
+  @spec roles() :: [role()]
+  def roles, do: Map.keys(@roles)
+
+  @doc "Gets role configuration by key"
+  @spec get_role(role()) :: {:ok, role_config()} | {:error, :not_found}
+  def get_role(key) when is_atom(key) do
+    case Map.get(@roles, key) do
+      nil -> {:error, :not_found}
+      config -> {:ok, config}
+    end
+  end
+
+  @doc "Parses a string into a role atom"
+  @spec parse_role(String.t()) :: {:ok, role()} | {:error, :not_found}
+  def parse_role(key_string) when is_binary(key_string) do
+    key = String.to_existing_atom(key_string)
+    if Map.has_key?(@roles, key), do: {:ok, key}, else: {:error, :not_found}
+  rescue
+    ArgumentError -> {:error, :not_found}
+  end
+
+  # Prompt Building API
+
   @doc """
-  Builds the system prompt for an agent.
+  Builds a complete system message for the LLM.
+
+  Returns a ReqLLM system message with cache control.
+  Pass `nil` for root agents, or a role atom for sub-agents.
+  """
+  @spec build_system_message(atom() | nil) :: map()
+  def build_system_message(role) do
+    system_prompt = build(role)
+    ReqLLM.Context.system(system_prompt, cache_control: %{type: "ephemeral"})
+  end
+
+  @doc """
+  Builds the system prompt text for an agent.
 
   For root agents (role: nil), returns the base prompt with sub-agent guidance.
   For sub-agents, returns the role-specific prompt.
@@ -60,15 +152,15 @@ defmodule FrontmanServer.Agents.Prompts do
   end
 
   def build(role) do
-    {:ok, config} = Agents.get_role(role)
+    {:ok, config} = get_role(role)
     config.system_prompt
   end
 
   defp sub_agent_guidance do
     role_list =
-      Agents.roles()
+      roles()
       |> Enum.map(fn role ->
-        {:ok, config} = Agents.get_role(role)
+        {:ok, config} = get_role(role)
         "- **#{role}**: #{config.description}"
       end)
       |> Enum.join("\n")
