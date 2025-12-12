@@ -511,6 +511,12 @@ defmodule FrontmanServer.Agents.AgentServer do
   defp do_spawn_sub_agent(state, tool_call, role, message) do
     id = "sub_#{:crypto.strong_rand_bytes(8) |> Base.encode16(case: :lower)}"
 
+    # Sub-agents cannot spawn their own sub-agents, so filter out that tool
+    sub_agent_tools =
+      Enum.reject(state.tools, fn tool ->
+        Map.get(tool, :name) == SubAgentTool.tool_name()
+      end)
+
     child_spec = %{
       id: id,
       start:
@@ -519,7 +525,7 @@ defmodule FrontmanServer.Agents.AgentServer do
            [
              agent_id: id,
              task_id: state.agent.task_id,
-             tools: state.tools,
+             tools: sub_agent_tools,
              on_event: state.on_event,
              parent_agent_id: state.agent.id,
              parent_pid: self(),
