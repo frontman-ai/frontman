@@ -21,12 +21,15 @@ let make = (): Bindings.astroIntegration => {
   name: "frontman",
   hooks: {
     configSetup: ?Some(ctx => {
-      ctx.addDevToolbarApp({
-        id: "frontman:toolbar",
-        name: "Frontman",
-        icon,
-        entrypoint: getToolbarAppPath(),
-      })
+      // Only add dev toolbar app in dev mode
+      if ctx.command == #dev {
+        ctx.addDevToolbarApp({
+          id: "frontman:toolbar",
+          name: "Frontman",
+          icon,
+          entrypoint: getToolbarAppPath(),
+        })
+      }
     }),
   },
 }

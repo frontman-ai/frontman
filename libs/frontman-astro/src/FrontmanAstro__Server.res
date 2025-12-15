@@ -51,6 +51,7 @@ let handleToolCall = async (
     // Execute tool using core
     let ctx: CoreServer.executionContext = {
       projectRoot: config.projectRoot,
+      sourceRoot: config.sourceRoot,
       onProgress: None,
     }
 

@@ -9,7 +9,7 @@ let name = "write_file"
 let description = `Writes content to a file.
 
 Parameters:
-- path (required): Relative path to file from project root
+- path (required): Relative path to file from source root
 - content (required): Content to write
 
 Creates parent directories if they don't exist. Overwrites existing files.`
@@ -26,7 +26,7 @@ external nullValue: output = "null"
 let outputSchema = S.literal(nullValue)
 
 let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.toolResult<output> => {
-  let fullPath = Path.join([ctx.projectRoot, input.path])
+  let fullPath = Path.join([ctx.sourceRoot, input.path])
   let dirPath = Path.dirname(fullPath)
 
   try {

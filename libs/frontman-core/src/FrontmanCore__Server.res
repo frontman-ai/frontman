@@ -8,6 +8,7 @@ module ToolRegistry = FrontmanCore__ToolRegistry
 
 type executionContext = {
   projectRoot: string,
+  sourceRoot: string,
   onProgress: option<string => unit>,
 }
 
@@ -31,6 +32,7 @@ let executeTool = async (
 
     let toolCtx: Tool.serverExecutionContext = {
       projectRoot: ctx.projectRoot,
+      sourceRoot: ctx.sourceRoot,
     }
 
     let inputJson = arguments->Option.getOr(Dict.make())->JSON.Encode.object

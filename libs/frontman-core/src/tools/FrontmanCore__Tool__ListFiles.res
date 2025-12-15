@@ -9,7 +9,7 @@ let name = "list_files"
 let description = `Lists files and directories in a given path.
 
 Parameters:
-- path (optional): Relative path to directory from project root. Defaults to "." (root directory). Use "." to list the project root.
+- path (optional): Relative path to directory from source root. Defaults to "." (root directory). Use "." to list the source root.
 
 Returns array of entries with name, path, and type information.`
 
@@ -31,7 +31,7 @@ type output = array<fileEntry>
 
 let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.toolResult<output> => {
   let path = input.path->Option.getOr(".")
-  let fullPath = Path.join([ctx.projectRoot, path])
+  let fullPath = Path.join([ctx.sourceRoot, path])
 
   try {
     let entries = await Fs.Promises.readdir(fullPath)

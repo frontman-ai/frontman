@@ -9,7 +9,7 @@ let name = "read_file"
 let description = `Reads a file from the filesystem.
 
 Parameters:
-- path (required): Path to file - either relative to project root or absolute (must be under project root)
+- path (required): Path to file - either relative to source root or absolute (must be under source root)
 - offset (optional): Line number to start from (0-indexed, default: 0)
 - limit (optional): Maximum lines to read (default: 500)
 
@@ -30,18 +30,18 @@ type output = {
 }
 
 // Resolve path and validate security constraints
-let resolvePath = (~projectRoot: string, ~inputPath: string): result<string, string> => {
+let resolvePath = (~sourceRoot: string, ~inputPath: string): result<string, string> => {
   if Path.isAbsolute(inputPath) {
-    // Security: absolute paths must be under projectRoot
+    // Security: absolute paths must be under sourceRoot
     let normalizedPath = Path.normalize(inputPath)
-    let normalizedRoot = Path.normalize(projectRoot)
+    let normalizedRoot = Path.normalize(sourceRoot)
     if normalizedPath->String.startsWith(normalizedRoot) {
       Ok(normalizedPath)
     } else {
-      Error(`Absolute path must be under project root: ${inputPath}`)
+      Error(`Absolute path must be under source root: ${inputPath}`)
     }
   } else {
-    Ok(Path.join([projectRoot, inputPath]))
+    Ok(Path.join([sourceRoot, inputPath]))
   }
 }
 
@@ -49,7 +49,7 @@ let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.toolR
   let offset = input.offset->Option.getOr(0)
   let limit = input.limit->Option.getOr(500)
 
-  switch resolvePath(~projectRoot=ctx.projectRoot, ~inputPath=input.path) {
+  switch resolvePath(~sourceRoot=ctx.sourceRoot, ~inputPath=input.path) {
   | Error(msg) => Error(msg)
   | Ok(fullPath) =>
     try {

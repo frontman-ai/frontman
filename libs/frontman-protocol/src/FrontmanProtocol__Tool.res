@@ -4,7 +4,11 @@ type toolResult<'a> = result<'a, string>
 
 // Execution context for server-side tools
 type serverExecutionContext = {
+  // projectRoot: where the app lives (for finding pages, routes, etc.)
   projectRoot: string,
+  // sourceRoot: root for resolving file paths from framework source annotations
+  // In a monorepo, this is typically the monorepo root. Defaults to projectRoot.
+  sourceRoot: string,
 }
 
 // Browser tool - executes in browser, no context needed

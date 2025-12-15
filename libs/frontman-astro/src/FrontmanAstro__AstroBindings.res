@@ -9,10 +9,14 @@ type devToolbarAppConfig = {
   entrypoint: string,
 }
 
+// Astro command type
+type astroCommand = [#dev | #build | #preview | #sync]
+
 // Hook context for astro:config:setup
 type configSetupHookContext = {
   addDevToolbarApp: devToolbarAppConfig => unit,
   config: {root: string},
+  command: astroCommand,
 }
 
 // Astro integration hooks

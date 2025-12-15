@@ -78,20 +78,25 @@ let serveUI = (config: Config.t): WebAPI.FetchAPI.response => {
   WebAPI.Response.fromString(html, ~init={headers: headers})
 }
 
-// Type for Astro middleware context (minimal interface)
-type astroContext = {request: WebAPI.FetchAPI.request}
+// Type for Astro URL object (subset we need)
+type astroUrl = {pathname: string}
+
+// Type for Astro middleware context (subset of APIContext we actually use)
+type astroContext = {
+  request: WebAPI.FetchAPI.request,
+  url: astroUrl,
+}
 
 // Type for Astro next function
 type astroNext = unit => promise<WebAPI.FetchAPI.response>
 
 // Create middleware handler
-// Returns a function that can be used with Astro's sequence() or directly
+// Returns a function that can be used directly as Astro middleware
 let createMiddleware = (config: Config.t) => {
   let registry = ToolRegistry.make()
 
   async (context: astroContext, next: astroNext): WebAPI.FetchAPI.response => {
-    let url = WebAPI.URL.parse(~url=context.request.url)
-    let pathname = url.pathname
+    let pathname = context.url.pathname
     let method = context.request.method
 
     let basePath = `/${config.basePath}`

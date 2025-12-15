@@ -13,6 +13,8 @@ module DOMElementToComponentSource = AskTheLlmBindings.DOMElementToComponentSour
 
 type config = {
   projectRoot: string,
+  // sourceRoot: root for file paths (monorepo root in monorepo setups, same as projectRoot otherwise)
+  sourceRoot: string,
   serverName: string,
   serverVersion: string,
 }
@@ -22,9 +24,15 @@ type t = {
   registry: ToolRegistry.t,
 }
 
-let make = (~projectRoot: string, ~serverName="frontman-nextjs", ~serverVersion="1.0.0"): t => {
+let make = (
+  ~projectRoot: string,
+  ~sourceRoot: option<string>=?,
+  ~serverName="frontman-nextjs",
+  ~serverVersion="1.0.0",
+): t => {
   config: {
     projectRoot,
+    sourceRoot: sourceRoot->Option.getOr(projectRoot),
     serverName,
     serverVersion,
   },
@@ -67,6 +75,7 @@ let handleToolCall = async (server: t, req: WebAPI.FetchAPI.request): WebAPI.Fet
     // Execute tool using core
     let ctx: CoreServer.executionContext = {
       projectRoot: server.config.projectRoot,
+      sourceRoot: server.config.sourceRoot,
       onProgress: None,
     }
 

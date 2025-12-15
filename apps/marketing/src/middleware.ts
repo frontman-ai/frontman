@@ -1,17 +1,20 @@
-import { sequence } from "astro:middleware";
+import type { MiddlewareHandler } from "astro";
 import { createMiddleware, makeConfig } from "@ask-the-llm/frontman-astro";
 import path from "node:path";
 
 const FRONTMAN_ENABLED = import.meta.env.DEV;
 
-// Astro provides paths relative to monorepo root (e.g., "apps/marketing/src/...")
-// so projectRoot needs to be the monorepo root, not the app directory
-const monorepoRoot = path.resolve(process.cwd(), "../..");
+// Use import.meta.dirname for reliable path resolution
+const appRoot = path.resolve(import.meta.dirname, "..");
+// In a monorepo, sourceRoot should be the monorepo root since Astro's
+// data-astro-source-file paths are relative to it
+const monorepoRoot = path.resolve(appRoot, "../..");
 
 const frontman = FRONTMAN_ENABLED
   ? createMiddleware(
       makeConfig(
-        monorepoRoot,
+        appRoot,
+        monorepoRoot,  // sourceRoot for file path resolution
         "__frontman",
         "marketing",
         "1.0.0"
@@ -19,9 +22,9 @@ const frontman = FRONTMAN_ENABLED
     )
   : null;
 
-export const onRequest = sequence(async (context, next) => {
+export const onRequest: MiddlewareHandler = async (context, next) => {
   if (frontman) {
     return frontman(context, next);
   }
   return next();
-});
+};
