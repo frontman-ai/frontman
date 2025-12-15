@@ -370,16 +370,18 @@ let handleEffect = (effect, state: state, dispatch) => {
           Promise.resolve(None)
         })
 
-      // Fetch source location
+      // Fetch source location (cascading: React fiber first, then Astro annotations)
       let sourceLocationPromise =
-        Bindings__DOMElementToComponentSource.getElementSourceLocation(~element)
-        ->Promise.then(sourceLocationOpt => {
-          Promise.resolve(sourceLocationOpt)
-        })
-        ->Promise.catch(error => {
-          Console.error2("Failed to get source location:", error)
-          Promise.resolve(None)
-        })
+        switch Selectors.previewFrame(state).contentWindow {
+        | Some(window) =>
+          Bindings__SourceDetection.getElementSourceLocation(~element, ~window)
+          ->Promise.then(sourceLocationOpt => Promise.resolve(sourceLocationOpt))
+          ->Promise.catch(error => {
+            Console.error2("Failed to get source location:", error)
+            Promise.resolve(None)
+          })
+        | None => Promise.resolve(None)
+        }
 
       // Wait for all promises and update state once
       let _ = Promise.all3((

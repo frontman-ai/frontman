@@ -4,6 +4,49 @@ module Config = FrontmanAstro__Config
 module Server = FrontmanAstro__Server
 module ToolRegistry = FrontmanAstro__ToolRegistry
 
+// Annotation capture script - injected before </body>
+// Stores paths exactly as Astro provides them (should be absolute paths)
+let annotationCaptureScript = `
+<script>
+(function() {
+  var annotations = new Map();
+  document.querySelectorAll('[data-astro-source-file]').forEach(function(el) {
+    annotations.set(el, {
+      file: el.getAttribute('data-astro-source-file'),
+      loc: el.getAttribute('data-astro-source-loc')
+    });
+  });
+  window.__frontman_annotations__ = {
+    _map: annotations,
+    get: function(el) { return annotations.get(el); },
+    has: function(el) { return annotations.has(el); },
+    size: function() { return annotations.size; }
+  };
+  console.log('[Frontman] Captured ' + annotations.size + ' elements');
+})();
+</script>
+`
+
+// Helper to inject script into HTML response
+let injectAnnotationScript = async (response: WebAPI.FetchAPI.response): WebAPI.FetchAPI.response => {
+  let contentType = response.headers->WebAPI.Headers.get("content-type")->Null.toOption
+
+  switch contentType {
+  | Some(ct) if ct->String.includes("text/html") =>
+    let html = await response->WebAPI.Response.text
+    let injectedHtml = html->String.replace("</body>", `${annotationCaptureScript}</body>`)
+
+    WebAPI.Response.fromString(
+      injectedHtml,
+      ~init={
+        status: response.status,
+        headers: WebAPI.HeadersInit.fromHeaders(response.headers),
+      },
+    )
+  | _ => response
+  }
+}
+
 // HTML template for the Frontman UI
 let uiHtml = (~clientUrl: string) => {
   `<!DOCTYPE html>
@@ -55,7 +98,9 @@ let createMiddleware = (config: Config.t) => {
 
     // Check if this is a frontman route
     if !(pathname->String.startsWith(basePath)) {
-      await next()
+      // Not a frontman route - pass through but inject script into HTML
+      let response = await next()
+      await injectAnnotationScript(response)
     } else if method == "OPTIONS" {
       // Handle CORS preflight
       Server.handleCORS()
@@ -70,6 +115,9 @@ let createMiddleware = (config: Config.t) => {
 
       | p if p == `${basePath}/tools/call` && method == "POST" =>
         await Server.handleToolCall(~registry, ~config, context.request)
+
+      | p if p == `${basePath}/resolve-source-location` && method == "POST" =>
+        await Server.handleResolveSourceLocation(context.request)
 
       | _ =>
         // Unknown frontman route

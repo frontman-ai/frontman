@@ -4,6 +4,7 @@ import tailwind from "@astrojs/tailwind";
 import icon from "astro-icon";
 import sitemap from "@astrojs/sitemap";
 import node from "@astrojs/node";
+import { frontmanIntegration } from "@ask-the-llm/frontman-astro";
 
 // https://astro.build/config
 export default defineConfig({
@@ -13,6 +14,7 @@ export default defineConfig({
   output: "server",
   adapter: node({ mode: "standalone" }),
   integrations: [
+    frontmanIntegration(),
     tailwind(),
     icon(),
     sitemap(),

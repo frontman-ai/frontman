@@ -5,6 +5,7 @@ module Config = FrontmanAstro__Config
 module Middleware = FrontmanAstro__Middleware
 module Server = FrontmanAstro__Server
 module ToolRegistry = FrontmanAstro__ToolRegistry
+module Integration = FrontmanAstro__Integration
 
 // Re-export core SSE for convenience
 module SSE = AskTheLlmFrontmanCore.FrontmanCore__SSE
@@ -13,3 +14,6 @@ module SSE = AskTheLlmFrontmanCore.FrontmanCore__SSE
 let createMiddleware = Middleware.createMiddleware
 let makeConfig = Config.make
 type config = Config.t
+
+// Integration export
+let frontmanIntegration = Integration.make

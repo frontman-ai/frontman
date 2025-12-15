@@ -9,7 +9,7 @@ let name = "read_file"
 let description = `Reads a file from the filesystem.
 
 Parameters:
-- path (required): Relative path to file from project root
+- path (required): Path to file - either relative to project root or absolute (must be under project root)
 - offset (optional): Line number to start from (0-indexed, default: 0)
 - limit (optional): Maximum lines to read (default: 500)
 
@@ -29,29 +29,48 @@ type output = {
   hasMore: bool,
 }
 
+// Resolve path and validate security constraints
+let resolvePath = (~projectRoot: string, ~inputPath: string): result<string, string> => {
+  if Path.isAbsolute(inputPath) {
+    // Security: absolute paths must be under projectRoot
+    let normalizedPath = Path.normalize(inputPath)
+    let normalizedRoot = Path.normalize(projectRoot)
+    if normalizedPath->String.startsWith(normalizedRoot) {
+      Ok(normalizedPath)
+    } else {
+      Error(`Absolute path must be under project root: ${inputPath}`)
+    }
+  } else {
+    Ok(Path.join([projectRoot, inputPath]))
+  }
+}
+
 let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.toolResult<output> => {
-  let fullPath = Path.join([ctx.projectRoot, input.path])
   let offset = input.offset->Option.getOr(0)
   let limit = input.limit->Option.getOr(500)
 
-  try {
-    let content = await Fs.Promises.readFile(fullPath)
-    let lines = content->String.split("\n")
-    let totalLines = lines->Array.length
+  switch resolvePath(~projectRoot=ctx.projectRoot, ~inputPath=input.path) {
+  | Error(msg) => Error(msg)
+  | Ok(fullPath) =>
+    try {
+      let content = await Fs.Promises.readFile(fullPath)
+      let lines = content->String.split("\n")
+      let totalLines = lines->Array.length
 
-    let selectedLines = lines->Array.slice(~start=offset, ~end=offset + limit)
-    let selectedContent = selectedLines->Array.join("\n")
-    let hasMore = offset + limit < totalLines
+      let selectedLines = lines->Array.slice(~start=offset, ~end=offset + limit)
+      let selectedContent = selectedLines->Array.join("\n")
+      let hasMore = offset + limit < totalLines
 
-    Ok({
-      content: selectedContent,
-      totalLines,
-      hasMore,
-    })
-  } catch {
-  | exn =>
-    let msg =
-      exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
-    Error(`Failed to read file ${input.path}: ${msg}`)
+      Ok({
+        content: selectedContent,
+        totalLines,
+        hasMore,
+      })
+    } catch {
+    | exn =>
+      let msg =
+        exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
+      Error(`Failed to read file ${input.path}: ${msg}`)
+    }
   }
 }
