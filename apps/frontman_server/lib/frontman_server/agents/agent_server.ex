@@ -16,7 +16,7 @@ defmodule FrontmanServer.Agents.AgentServer do
   use GenServer
   require Logger
 
-  @default_model "anthropic:claude-sonnet-4"
+  @default_model "openrouter:anthropic/claude-sonnet-4.5"
   @idle_timeout_ms 5 * 60 * 1000
 
   alias FrontmanServer.Agents.{Agent, Prompts, StreamParser, SubAgent, SubAgentTool}
