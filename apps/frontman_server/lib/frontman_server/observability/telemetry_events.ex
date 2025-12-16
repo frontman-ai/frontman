@@ -17,8 +17,7 @@ defmodule FrontmanServer.Observability.TelemetryEvents do
       └── iteration
           ├── llm (chat)
           ├── tool (backend)
-          ├── mcp_tool (client)
-          └── spawn_sub_agent
+          └── mcp_tool (client)
   ```
   """
 
@@ -44,25 +43,12 @@ defmodule FrontmanServer.Observability.TelemetryEvents do
   # Agent
   # ============================================================================
 
-  @doc "Emits root agent start."
+  @doc "Emits agent start."
   @spec agent_start(String.t(), String.t()) :: :ok
   def agent_start(agent_id, task_id) do
     emit(Events.agent_start(), %{
       agent_id: agent_id,
-      task_id: task_id,
-      parent_agent_id: nil,
-      role: nil
-    })
-  end
-
-  @doc "Emits sub-agent start."
-  @spec sub_agent_start(String.t(), String.t(), String.t(), atom()) :: :ok
-  def sub_agent_start(agent_id, task_id, parent_agent_id, role) do
-    emit(Events.agent_start(), %{
-      agent_id: agent_id,
-      task_id: task_id,
-      parent_agent_id: parent_agent_id,
-      role: role
+      task_id: task_id
     })
   end
 
@@ -194,35 +180,6 @@ defmodule FrontmanServer.Observability.TelemetryEvents do
     emit(Events.mcp_tool_stop(), %{
       request_id: request_id,
       status: Keyword.get(opts, :status, "success"),
-      error: Keyword.get(opts, :error)
-    })
-  end
-
-  # ============================================================================
-  # Sub-Agent Spawn
-  # ============================================================================
-
-  @doc "Emits sub-agent spawn start."
-  @spec spawn_sub_agent_start(String.t(), String.t(), atom(), String.t()) :: :ok
-  def spawn_sub_agent_start(agent_id, task_id, role, task_description) do
-    emit(Events.spawn_sub_agent_start(), %{
-      agent_id: agent_id,
-      task_id: task_id,
-      role: role,
-      task_description: task_description
-    })
-  end
-
-  @doc """
-  Emits sub-agent spawn stop.
-
-  Options: `:sub_agent_id` (on success), `:error` (on failure)
-  """
-  @spec spawn_sub_agent_stop(String.t(), keyword()) :: :ok
-  def spawn_sub_agent_stop(agent_id, opts \\ []) do
-    emit(Events.spawn_sub_agent_stop(), %{
-      agent_id: agent_id,
-      sub_agent_id: Keyword.get(opts, :sub_agent_id),
       error: Keyword.get(opts, :error)
     })
   end

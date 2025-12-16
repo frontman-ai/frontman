@@ -15,15 +15,6 @@ defmodule FrontmanServer.Agents do
 
   alias FrontmanServer.Agents.{AgentServer, Prompts}
   alias FrontmanServer.Tasks
-  alias Jason
-
-  # Re-export role type from Prompts
-  @type role :: Prompts.role()
-
-  # Delegate role functions to Prompts module
-  defdelegate roles(), to: Prompts
-  defdelegate get_role(key), to: Prompts
-  defdelegate parse_role(key_string), to: Prompts
 
   @doc """
   Returns the current state of the agent for a task.
@@ -196,36 +187,13 @@ defmodule FrontmanServer.Agents do
 
       {:need_iteration, agent_id} ->
         push_iteration(task_id, agent_id)
-
-      {:sub_agent_spawned, agent_id, sub_agent} ->
-        Tasks.add_sub_agent_spawned(task_id, agent_id, sub_agent)
-        broadcast(task_id, {:sub_agent_spawned, sub_agent.id, sub_agent.role})
-
-      {:sub_agent_completed, agent_id, sub_agent, duration_ms} ->
-        Tasks.add_sub_agent_result(task_id, agent_id, sub_agent, duration_ms)
-        broadcast(task_id, {:sub_agent_completed, sub_agent.id, sub_agent.role})
-
-      {:sub_agent_failed, agent_id, sub_agent, duration_ms} ->
-        Tasks.add_sub_agent_failed(task_id, agent_id, sub_agent, duration_ms)
-
-        broadcast(
-          task_id,
-          {:sub_agent_failed, sub_agent.id, sub_agent.role, sub_agent.error}
-        )
-
-      {:sub_agent_spawn_failed, agent_id, tool_call_id, role, message, reason} ->
-        Tasks.add_sub_agent_spawn_failed(task_id, agent_id, tool_call_id, role, message, reason)
-        broadcast(task_id, {:sub_agent_spawn_failed, tool_call_id, role, reason})
     end
   end
 
   defp push_iteration(task_id, agent_id) do
     messages = Tasks.get_llm_messages(task_id, agent_id)
-    {:ok, _pid, %{role: role}} = get_agent(agent_id)
-    role_for_prompt = if role == :root, do: nil, else: role
-    # Only check for Figma context for root agents
-    opts = if role == :root, do: [has_figma_context: Tasks.has_figma_context?(task_id)], else: []
-    system_msg = Prompts.build_system_message(role_for_prompt, opts)
+    opts = [has_figma_context: Tasks.has_figma_context?(task_id)]
+    system_msg = Prompts.build_system_message(nil, opts)
     AgentServer.execute_iteration(agent_id, [system_msg | messages])
   end
 

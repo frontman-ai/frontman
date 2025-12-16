@@ -147,57 +147,6 @@ defmodule FrontmanServer.Tasks.InteractionTest do
     end
   end
 
-describe "to_llm_messages/1 with sub-agent results" do
-    test "includes sub-agent results in LLM message history" do
-      # This test demonstrates a bug: SubAgentResult is filtered out
-      # and the parent LLM never sees sub-agent results
-      now = DateTime.utc_now()
-
-      interactions = [
-        %UserMessage{
-          id: "1",
-          content_blocks: [%{"type" => "text", "text" => "Use a research sub-agent"}],
-          timestamp: now,
-          metadata: %{}
-        },
-        %AgentResponse{
-          id: "2",
-          agent_id: "agent_1",
-          content: "I'll spawn a sub-agent",
-          timestamp: now,
-          metadata: %{tool_calls: [%{id: "call_1", name: "spawn_sub_agent", arguments: %{}}]}
-        },
-        %Interaction.SubAgentResult{
-          id: "3",
-          agent_id: "agent_1",
-          sub_agent_id: "sub_123",
-          tool_call_id: "call_1",
-          agent_key: :research,
-          message: "Research this",
-          result: "Research findings here",
-          partial: false,
-          iterations: 1,
-          duration_ms: 500,
-          timestamp: now
-        }
-      ]
-
-      messages = Interaction.to_llm_messages(interactions)
-
-      # Should have 3 messages: user, assistant (with tool call), tool_result
-      assert length(messages) == 3
-
-      # Last message should be the sub-agent result as tool result
-      tool_result = List.last(messages)
-      assert tool_result.role == :tool
-
-      # Content is wrapped in ContentPart structs - extract text
-      [content_part] = tool_result.content
-      assert content_part.text =~ "Research findings here"
-      assert content_part.text =~ "research"
-    end
-  end
-
   describe "to_llm_messages/2 with agent_id filtering" do
     test "returns only messages belonging to specified agent" do
       now = DateTime.utc_now()

@@ -9,9 +9,8 @@ defmodule FrontmanServer.Test.Fixtures.Agents do
 
       use FrontmanServer.AgentCase, async: true
 
-      @tag fixtures: [:parent_agent, :fake_sub_agent]
-      test "something", %{parent_agent: parent, fake_sub_agent: sub} do
-        inject_sub_agent(parent.pid, sub)
+      @tag fixtures: [:parent_agent]
+      test "something", %{parent_agent: parent} do
         # ...
       end
 
@@ -26,7 +25,7 @@ defmodule FrontmanServer.Test.Fixtures.Agents do
       end
   """
 
-  alias FrontmanServer.Agents.{Agent, AgentServer, SubAgent}
+  alias FrontmanServer.Agents.{Agent, AgentServer}
   alias ReqLLM.ToolCall
 
   @doc """
@@ -100,75 +99,6 @@ defmodule FrontmanServer.Test.Fixtures.Agents do
     })
   end
 
-  def build_fixture(:sub_agent, ctx, tags) do
-    ctx = ensure_fixture(ctx, :event_collector, tags)
-
-    agent_id = tags[:sub_agent_id] || "sub_#{ctx.unique_id}"
-    task_id = get_in(ctx, [:parent_agent, :task_id]) || tags[:task_id] || "task_#{ctx.unique_id}"
-    parent_id = get_in(ctx, [:parent_agent, :id]) || tags[:parent_agent_id] || "fake_parent"
-    parent_pid = get_in(ctx, [:parent_agent, :pid]) || self()
-
-    {:ok, pid} =
-      GenServer.start_link(AgentServer, {:sub_agent, %{
-        agent_id: agent_id,
-        task_id: task_id,
-        tools: tags[:tools] || [],
-        on_event: ctx.on_event,
-        parent_agent_id: parent_id,
-        parent_pid: parent_pid,
-        role: tags[:role] || :research,
-        message: tags[:message] || "test message"
-      }})
-
-    Map.merge(ctx, %{
-      sub_agent: %{pid: pid, id: agent_id, task_id: task_id, parent_id: parent_id}
-    })
-  end
-
-  def build_fixture(:registered_sub_agent, ctx, tags) do
-    ctx = ensure_fixture(ctx, :event_collector, tags)
-
-    agent_id = tags[:sub_agent_id] || "sub_#{ctx.unique_id}"
-    task_id = get_in(ctx, [:parent_agent, :task_id]) || tags[:task_id] || "task_#{ctx.unique_id}"
-    parent_id = get_in(ctx, [:parent_agent, :id]) || tags[:parent_agent_id] || "fake_parent"
-    parent_pid = get_in(ctx, [:parent_agent, :pid]) || self()
-    role = tags[:role] || :research
-
-    {:ok, pid} =
-      GenServer.start_link(
-        AgentServer,
-        {:sub_agent, %{
-          agent_id: agent_id,
-          task_id: task_id,
-          tools: tags[:tools] || [],
-          on_event: ctx.on_event,
-          parent_agent_id: parent_id,
-          parent_pid: parent_pid,
-          role: role,
-          message: tags[:message] || "test message"
-        }},
-        name: via_registry(agent_id, task_id, parent_id, role)
-      )
-
-    Map.merge(ctx, %{
-      sub_agent: %{pid: pid, id: agent_id, task_id: task_id, parent_id: parent_id, registered: true}
-    })
-  end
-
-  def build_fixture(:fake_sub_agent, ctx, tags) do
-    sub_agent = %SubAgent{
-      id: tags[:fake_sub_agent_id] || "sub_#{ctx.unique_id}",
-      tool_call_id: tags[:tool_call_id] || "call_#{ctx.unique_id}",
-      role: tags[:role] || :research,
-      message: tags[:message] || "fake message",
-      pid: self(),
-      status: :running,
-      started_at: System.monotonic_time(:millisecond)
-    }
-
-    Map.put(ctx, :fake_sub_agent, sub_agent)
-  end
-
   def build_fixture(:tool_call, ctx, tags) do
     tool_call =
       ToolCall.new(
@@ -203,7 +133,7 @@ defmodule FrontmanServer.Test.Fixtures.Agents do
   @doc "Cleanup agent processes"
   @spec cleanup_agents(map()) :: :ok
   def cleanup_agents(ctx) do
-    [:parent_agent, :sub_agent]
+    [:parent_agent]
     |> Enum.each(fn key ->
       case Map.get(ctx, key) do
         %{pid: pid} when is_pid(pid) ->
@@ -218,32 +148,6 @@ defmodule FrontmanServer.Test.Fixtures.Agents do
   end
 
   # State manipulation helpers
-
-  @doc "Inject a sub-agent into parent's state"
-  @spec inject_sub_agent(pid(), SubAgent.t()) :: :ok
-  def inject_sub_agent(parent_pid, sub_agent) do
-    :sys.replace_state(parent_pid, fn state ->
-      agent = Agent.track_sub_agent(state.agent, sub_agent)
-      %{state | agent: agent}
-    end)
-
-    :ok
-  end
-
-  @doc "Inject multiple sub-agents into parent's state"
-  @spec inject_sub_agents(pid(), [SubAgent.t()]) :: :ok
-  def inject_sub_agents(parent_pid, sub_agents) do
-    :sys.replace_state(parent_pid, fn state ->
-      agent =
-        Enum.reduce(sub_agents, state.agent, fn sub, acc ->
-          Agent.track_sub_agent(acc, sub)
-        end)
-
-      %{state | agent: agent}
-    end)
-
-    :ok
-  end
 
   @doc "Inject a tool call into agent's state"
   @spec inject_tool_call(pid(), ToolCall.t()) :: :ok
@@ -269,24 +173,6 @@ defmodule FrontmanServer.Test.Fixtures.Agents do
   end
 
   # Factory functions for creating structs with defaults
-
-  @doc "Create a SubAgent struct with optional overrides"
-  @spec sub_agent_struct(keyword()) :: SubAgent.t()
-  def sub_agent_struct(overrides \\ []) do
-    unique = System.unique_integer([:positive])
-
-    defaults = [
-      id: "sub_#{unique}",
-      tool_call_id: "call_#{unique}",
-      role: :research,
-      message: "test message",
-      pid: self(),
-      status: :running,
-      started_at: System.monotonic_time(:millisecond)
-    ]
-
-    struct!(SubAgent, Keyword.merge(defaults, overrides))
-  end
 
   @doc "Create a ToolCall struct with optional overrides"
   @spec tool_call_struct(keyword()) :: ToolCall.t()

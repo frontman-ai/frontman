@@ -31,8 +31,4 @@ defmodule FrontmanServer.Observability.Events do
   # MCP tool
   def mcp_tool_start, do: @prefix ++ [:mcp_tool, :start]
   def mcp_tool_stop, do: @prefix ++ [:mcp_tool, :stop]
-
-  # Spawn sub-agent
-  def spawn_sub_agent_start, do: @prefix ++ [:spawn_sub_agent, :start]
-  def spawn_sub_agent_stop, do: @prefix ++ [:spawn_sub_agent, :stop]
 end

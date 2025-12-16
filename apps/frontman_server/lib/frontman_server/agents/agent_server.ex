@@ -16,10 +16,10 @@ defmodule FrontmanServer.Agents.AgentServer do
   use GenServer
   require Logger
 
-  @default_model "openrouter:anthropic/claude-sonnet-4.5"
+  @default_model "openrouter:anthropic/claude-haiku-4.5"
   @idle_timeout_ms 5 * 60 * 1000
 
-  alias FrontmanServer.Agents.{Agent, Prompts, StreamParser, SubAgent, SubAgentTool}
+  alias FrontmanServer.Agents.{Agent, StreamParser}
   alias FrontmanServer.Observability.TelemetryEvents
   alias ReqLLM.ToolCall
 
@@ -29,7 +29,6 @@ defmodule FrontmanServer.Agents.AgentServer do
     :tools,
     :on_event,
     :idle_timer_ref,
-    :parent_pid,
     status: :processing,
     llm_opts: []
   ]
@@ -55,43 +54,6 @@ defmodule FrontmanServer.Agents.AgentServer do
             task_id: task_id,
             parent_agent_id: nil,
             role: :root
-          }}}
-    )
-  end
-
-  @doc """
-  Starts a sub-agent under a parent's supervisor.
-  """
-  def start_sub_agent(opts) do
-    agent_id = Keyword.fetch!(opts, :agent_id)
-    task_id = Keyword.fetch!(opts, :task_id)
-    tools = Keyword.get(opts, :tools, [])
-    on_event = Keyword.fetch!(opts, :on_event)
-    parent_agent_id = Keyword.fetch!(opts, :parent_agent_id)
-    parent_pid = Keyword.fetch!(opts, :parent_pid)
-    role = Keyword.fetch!(opts, :role)
-    message = Keyword.fetch!(opts, :message)
-
-    GenServer.start_link(
-      __MODULE__,
-      {:sub_agent,
-       %{
-         agent_id: agent_id,
-         task_id: task_id,
-         tools: tools,
-         on_event: on_event,
-         parent_agent_id: parent_agent_id,
-         parent_pid: parent_pid,
-         role: role,
-         message: message
-       }},
-      name:
-        {:via, Registry,
-         {FrontmanServer.AgentRegistry, {:agent, agent_id},
-          %{
-            task_id: task_id,
-            parent_agent_id: parent_agent_id,
-            role: role
           }}}
     )
   end
@@ -150,36 +112,6 @@ defmodule FrontmanServer.Agents.AgentServer do
       tools: tools,
       on_event: on_event,
       idle_timer_ref: nil,
-      parent_pid: nil,
-      llm_opts: Map.get(opts, :llm_opts, [])
-    }
-
-    {:ok, state}
-  end
-
-  def init({:sub_agent, opts}) do
-    %{
-      agent_id: agent_id,
-      task_id: task_id,
-      tools: tools,
-      on_event: on_event,
-      parent_agent_id: parent_agent_id,
-      parent_pid: parent_pid,
-      role: role,
-      message: message
-    } = opts
-
-    Process.monitor(parent_pid)
-
-    agent = Agent.new_sub_agent(agent_id, task_id, parent_agent_id, role, message)
-    TelemetryEvents.sub_agent_start(agent_id, task_id, parent_agent_id, role)
-
-    state = %__MODULE__{
-      agent: agent,
-      tools: tools,
-      on_event: on_event,
-      idle_timer_ref: nil,
-      parent_pid: parent_pid,
       llm_opts: Map.get(opts, :llm_opts, [])
     }
 
@@ -275,63 +207,6 @@ defmodule FrontmanServer.Agents.AgentServer do
   end
 
   @impl true
-  def handle_info({:sub_agent_result, sub_agent_id, result}, state) do
-    {sub_agent, agent} = Agent.remove_sub_agent(state.agent, sub_agent_id)
-
-    case sub_agent do
-      nil ->
-        {:noreply, state}
-
-      sub_agent ->
-        duration_ms = System.monotonic_time(:millisecond) - sub_agent.started_at
-        completed = %{sub_agent | status: :completed, result: result}
-
-        emit(state, {:sub_agent_completed, agent.id, completed, duration_ms})
-
-        state = %{state | agent: agent}
-
-        if Agent.has_pending_work?(agent) do
-          {:noreply, state}
-        else
-          state = cancel_idle_timeout(state)
-          emit(state, {:need_iteration, agent.id})
-          {:noreply, state}
-        end
-    end
-  end
-
-  @impl true
-  def handle_info({:DOWN, _ref, :process, pid, reason}, state) do
-    case Agent.find_sub_agent_by_pid(state.agent, pid) do
-      nil ->
-        # Check if parent died (for sub-agents)
-        if state.parent_pid == pid do
-          Logger.info("Sub-agent #{state.agent.id} parent died, terminating")
-          {:stop, :normal, state}
-        else
-          {:noreply, state}
-        end
-
-      {sub_agent_id, sub_agent} ->
-        duration_ms = System.monotonic_time(:millisecond) - sub_agent.started_at
-        failed = %{sub_agent | status: :failed, error: reason}
-
-        {_removed, agent} = Agent.remove_sub_agent(state.agent, sub_agent_id)
-        emit(state, {:sub_agent_failed, agent.id, failed, duration_ms})
-
-        state = %{state | agent: agent}
-
-        if Agent.has_pending_work?(agent) do
-          {:noreply, state}
-        else
-          state = cancel_idle_timeout(state)
-          emit(state, {:need_iteration, agent.id})
-          {:noreply, state}
-        end
-    end
-  end
-
-  @impl true
   def terminate(_reason, state) do
     TelemetryEvents.agent_stop(state.agent.id)
     :ok
@@ -417,11 +292,6 @@ defmodule FrontmanServer.Agents.AgentServer do
   defp handle_response(state, text, [], _response_id) do
     Logger.info("Agent #{state.agent.id} completing with text: #{byte_size(text)} bytes")
     emit(state, {:response, state.agent.id, text, %{}})
-
-    if not Agent.root?(state.agent) do
-      send(state.parent_pid, {:sub_agent_result, state.agent.id, text})
-    end
-
     {:stop, state}
   end
 
@@ -434,13 +304,7 @@ defmodule FrontmanServer.Agents.AgentServer do
     metadata = if response_id, do: Map.put(metadata, :response_id, response_id), else: metadata
     emit(state, {:response, state.agent.id, text, metadata})
 
-    {spawn_calls, regular_tools} =
-      Enum.split_with(tool_calls, fn tc -> ToolCall.name(tc) == SubAgentTool.tool_name() end)
-
-    state =
-      state
-      |> track_tool_calls(regular_tools)
-      |> spawn_sub_agents(spawn_calls)
+    state = track_tool_calls(state, tool_calls)
 
     if Agent.has_pending_work?(state.agent) do
       {:wait_for_tools, state}
@@ -451,8 +315,6 @@ defmodule FrontmanServer.Agents.AgentServer do
 
   # -- Tool Call Tracking --
 
-  defp track_tool_calls(state, []), do: state
-
   defp track_tool_calls(state, tool_calls) do
     agent =
       Enum.reduce(tool_calls, state.agent, fn tc, agent ->
@@ -462,102 +324,6 @@ defmodule FrontmanServer.Agents.AgentServer do
       end)
 
     %{state | agent: agent}
-  end
-
-  # -- Sub-Agent Management --
-
-  defp spawn_sub_agents(state, []), do: state
-  defp spawn_sub_agents(state, _calls) when state.agent.parent_id != nil, do: state
-
-  defp spawn_sub_agents(state, calls) do
-    Enum.reduce(calls, state, fn call, acc ->
-      case spawn_sub_agent(acc, call) do
-        {:ok, sub_agent} ->
-          emit(acc, {:sub_agent_spawned, acc.agent.id, sub_agent})
-          agent = Agent.track_sub_agent(acc.agent, sub_agent)
-          %{acc | agent: agent}
-
-        {:error, role, message, reason} ->
-          emit(acc, {:sub_agent_spawn_failed, acc.agent.id, call.id, role, message, reason})
-          acc
-      end
-    end)
-  end
-
-  defp spawn_sub_agent(state, tool_call) do
-    case SubAgentTool.parse_arguments(ToolCall.args_map(tool_call)) do
-      {:ok, %{role: role, message: message}} ->
-        # Emit spawn start event
-        TelemetryEvents.spawn_sub_agent_start(state.agent.id, state.agent.task_id, role, message)
-
-        result = do_spawn_sub_agent(state, tool_call, role, message)
-
-        # Emit spawn stop event based on result
-        case result do
-          {:ok, sub_agent} ->
-            TelemetryEvents.spawn_sub_agent_stop(state.agent.id, sub_agent_id: sub_agent.id)
-
-          {:error, _role, _message, reason} ->
-            TelemetryEvents.spawn_sub_agent_stop(state.agent.id, error: reason)
-        end
-
-        result
-
-      {:error, reason} ->
-        {:error, :unknown, ToolCall.args_json(tool_call), reason}
-    end
-  end
-
-  defp do_spawn_sub_agent(state, tool_call, role, message) do
-    id = "sub_#{:crypto.strong_rand_bytes(8) |> Base.encode16(case: :lower)}"
-
-    # Sub-agents cannot spawn their own sub-agents, so filter out that tool
-    sub_agent_tools =
-      Enum.reject(state.tools, fn tool ->
-        Map.get(tool, :name) == SubAgentTool.tool_name()
-      end)
-
-    child_spec = %{
-      id: id,
-      start:
-        {__MODULE__, :start_sub_agent,
-         [
-           [
-             agent_id: id,
-             task_id: state.agent.task_id,
-             tools: sub_agent_tools,
-             on_event: state.on_event,
-             parent_agent_id: state.agent.id,
-             parent_pid: self(),
-             role: role,
-             message: message
-           ]
-         ]},
-      restart: :temporary
-    }
-
-    case DynamicSupervisor.start_child(FrontmanServer.AgentSupervisor, child_spec) do
-      {:ok, pid} ->
-        Process.monitor(pid)
-
-        sub_agent = %SubAgent{
-          id: id,
-          tool_call_id: tool_call.id,
-          role: role,
-          message: message,
-          pid: pid,
-          status: :running,
-          started_at: System.monotonic_time(:millisecond)
-        }
-
-        system_msg = Prompts.build_system_message(role)
-        user_msg = %{role: "user", content: message}
-        send(pid, {:execute_iteration, [system_msg, user_msg]})
-        {:ok, sub_agent}
-
-      {:error, reason} ->
-        {:error, role, message, reason}
-    end
   end
 
   # -- Configuration & Utilities --

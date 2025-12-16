@@ -15,11 +15,7 @@ defmodule FrontmanServer.Observability.OtelHandler do
   └── agent root [lifecycle span]
       └── iteration 1
           ├── chat anthropic [LLM call]
-          ├── execute_tool [backend tool]
-          └── spawn_sub_agent
-              └── agent research [sub-agent lifecycle]
-                  └── iteration 1
-                      └── chat anthropic
+          └── execute_tool [backend tool]
       └── iteration 2
           └── chat anthropic
   ```
@@ -37,8 +33,7 @@ defmodule FrontmanServer.Observability.OtelHandler do
     :frontman_spans_iteration,
     :frontman_spans_tool,
     :frontman_spans_mcp,
-    :frontman_spans_llm,
-    :frontman_spans_spawn
+    :frontman_spans_llm
   ]
 
   @doc """
@@ -73,9 +68,7 @@ defmodule FrontmanServer.Observability.OtelHandler do
       {Events.tool_start(), &handle_tool_start/4},
       {Events.tool_stop(), &handle_tool_stop/4},
       {Events.mcp_tool_start(), &handle_mcp_tool_start/4},
-      {Events.mcp_tool_stop(), &handle_mcp_tool_stop/4},
-      {Events.spawn_sub_agent_start(), &handle_spawn_start/4},
-      {Events.spawn_sub_agent_stop(), &handle_spawn_stop/4}
+      {Events.mcp_tool_stop(), &handle_mcp_tool_stop/4}
     ]
 
     Enum.each(events, fn {event, handler} ->
@@ -116,21 +109,17 @@ defmodule FrontmanServer.Observability.OtelHandler do
   # -- Agent Handlers --
 
   defp handle_agent_start(_event, _measurements, metadata, _config) do
-    %{agent_id: agent_id, task_id: task_id, parent_agent_id: parent_agent_id, role: role} = metadata
+    %{agent_id: agent_id, task_id: task_id} = metadata
 
-    role_str = if role, do: Atom.to_string(role), else: "root"
-    span_name = "agent #{role_str}"
+    span_name = "agent"
 
-    attributes =
-      [
-        {:"frontman.agent.id", agent_id},
-        {:"frontman.task.id", task_id},
-        {:"gen_ai.operation.name", "invoke_agent"},
-        {:"gen_ai.agent.name", "frontman-agent"},
-        {:"deployment.environment", deployment_environment()}
-      ]
-      |> maybe_add_attribute(:"frontman.agent.parent_id", parent_agent_id)
-      |> maybe_add_attribute(:"frontman.agent.role", role_str)
+    attributes = [
+      {:"frontman.agent.id", agent_id},
+      {:"frontman.task.id", task_id},
+      {:"gen_ai.operation.name", "invoke_agent"},
+      {:"gen_ai.agent.name", "frontman-agent"},
+      {:"deployment.environment", deployment_environment()}
+    ]
 
     tracer = :opentelemetry.get_tracer(:frontman_server)
 
@@ -460,65 +449,6 @@ defmodule FrontmanServer.Observability.OtelHandler do
     end
   end
 
-  # -- Spawn Sub-Agent Handlers --
-
-  defp handle_spawn_start(_event, _measurements, metadata, _config) do
-    %{agent_id: agent_id, task_id: task_id, role: role, task_description: task_description} = metadata
-
-    role_str = Atom.to_string(role)
-    span_name = "spawn_sub_agent #{role_str}"
-
-    attributes = [
-      {:"frontman.agent.id", agent_id},
-      {:"frontman.task.id", task_id},
-      {:"frontman.sub_agent.role", role_str},
-      {:"frontman.sub_agent.task", task_description},
-      {:"gen_ai.operation.name", "spawn_sub_agent"}
-    ]
-
-    tracer = :opentelemetry.get_tracer(:frontman_server)
-
-    # Parent is current iteration span
-    ctx =
-      case find_latest_iteration_span(agent_id) do
-        {:ok, iteration_span_ctx} ->
-          :otel_tracer.set_current_span(:otel_ctx.new(), iteration_span_ctx)
-
-        :not_found ->
-          :otel_ctx.get_current()
-      end
-
-    span_ctx = :otel_tracer.start_span(ctx, tracer, span_name, %{attributes: attributes})
-    :ets.insert(:frontman_spans_spawn, {agent_id, span_ctx})
-  end
-
-  defp handle_spawn_stop(_event, _measurements, metadata, _config) do
-    %{agent_id: agent_id} = metadata
-
-    case :ets.lookup(:frontman_spans_spawn, agent_id) do
-      [{^agent_id, span_ctx}] ->
-        if sub_agent_id = metadata[:sub_agent_id] do
-          :otel_span.set_attributes(span_ctx, [
-            {:"frontman.sub_agent.id", sub_agent_id},
-            {:"spawn.status", "success"}
-          ])
-          :otel_span.add_event(span_ctx, "sub_agent.spawned", [{:sub_agent_id, sub_agent_id}])
-        end
-
-        if error = metadata[:error] do
-          :otel_span.set_attributes(span_ctx, [{:"spawn.status", "error"}])
-          :otel_span.set_status(span_ctx, :error, inspect(error))
-          :otel_span.add_event(span_ctx, "sub_agent.spawn_failed", [{:reason, inspect(error)}])
-        end
-
-        :otel_span.end_span(span_ctx)
-        :ets.delete(:frontman_spans_spawn, agent_id)
-
-      [] ->
-        Logger.error("Orphaned spawn stop event: agent_id=#{agent_id} has no span")
-    end
-  end
-
   # -- Helpers --
 
   defp find_latest_iteration_span(agent_id) do
@@ -543,12 +473,6 @@ defmodule FrontmanServer.Observability.OtelHandler do
       [provider, name] -> {provider, name}
       [name] -> {"unknown", name}
     end
-  end
-
-  defp maybe_add_attribute(attributes, _attr_name, nil), do: attributes
-
-  defp maybe_add_attribute(attributes, attr_name, value) when is_atom(attr_name) do
-    [{attr_name, value} | attributes]
   end
 
   defp deployment_environment do

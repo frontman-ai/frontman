@@ -13,16 +13,15 @@ defmodule FrontmanServer.ToolsTest do
   end
 
   describe "backend_tools/1" do
-    test "returns 5 backend tools", %{task_id: task_id} do
+    test "returns 4 backend tools", %{task_id: task_id} do
       tools = Tools.backend_tools(task_id)
-      assert length(tools) == 5
+      assert length(tools) == 4
 
       tool_names = Enum.map(tools, & &1.name)
       assert "todo_list" in tool_names
       assert "todo_add" in tool_names
       assert "todo_update" in tool_names
       assert "todo_remove" in tool_names
-      assert "spawn_sub_agent" in tool_names
     end
 
     test "all tools have proper structure", %{task_id: task_id} do

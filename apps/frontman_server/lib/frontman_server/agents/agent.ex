@@ -2,29 +2,18 @@ defmodule FrontmanServer.Agents.Agent do
   @moduledoc """
   Domain entity representing an AI agent.
 
-  An agent processes tasks by iterating with an LLM, executing tools,
-  and optionally delegating work to sub-agents. This struct holds
-  the domain state - process lifecycle is managed by AgentServer.
-
-  ## Root vs Sub-agents
-
-  - Root agents have `parent_id: nil` and `role: nil`
-  - Sub-agents have a parent_id and a role from the Agents configuration
+  An agent processes tasks by iterating with an LLM and executing tools.
+  This struct holds the domain state - process lifecycle is managed by AgentServer.
   """
 
   use TypedStruct
 
-  alias FrontmanServer.Agents.SubAgent
   alias ReqLLM.ToolCall
 
   typedstruct enforce: true do
     field :id, String.t()
     field :task_id, String.t()
-    field :role, atom() | nil, enforce: false
-    field :message, String.t() | nil, enforce: false
-    field :parent_id, String.t() | nil, enforce: false
     field :pending_tools, %{String.t() => ToolCall.t()}, default: %{}
-    field :sub_agents, %{String.t() => SubAgent.t()}, default: %{}
     field :started_at, integer(), default: 0
     field :iteration_count, non_neg_integer(), default: 0
   end
@@ -39,34 +28,10 @@ defmodule FrontmanServer.Agents.Agent do
     }
   end
 
-  @doc "Creates a new sub-agent"
-  @spec new_sub_agent(String.t(), String.t(), String.t(), atom(), String.t()) :: t()
-  def new_sub_agent(agent_id, task_id, parent_id, role, message) do
-    %__MODULE__{
-      id: agent_id,
-      task_id: task_id,
-      role: role,
-      message: message,
-      parent_id: parent_id,
-      started_at: System.monotonic_time(:millisecond)
-    }
-  end
-
-  @doc "Is this a root agent (no parent)?"
-  @spec root?(t()) :: boolean()
-  def root?(%__MODULE__{parent_id: nil}), do: true
-  def root?(_), do: false
-
-  @doc "Does the agent have pending work (tools or sub-agents)?"
+  @doc "Does the agent have pending work (tools)?"
   @spec has_pending_work?(t()) :: boolean()
   def has_pending_work?(%__MODULE__{} = agent) do
-    map_size(agent.pending_tools) > 0 or map_size(agent.sub_agents) > 0
-  end
-
-  @doc "Does the agent have pending sub-agents?"
-  @spec has_pending_sub_agents?(t()) :: boolean()
-  def has_pending_sub_agents?(%__MODULE__{} = agent) do
-    map_size(agent.sub_agents) > 0
+    map_size(agent.pending_tools) > 0
   end
 
   @doc "Track a new tool call"
@@ -82,26 +47,6 @@ defmodule FrontmanServer.Agents.Agent do
       {nil, _} -> {nil, agent}
       {tool_call, remaining} -> {tool_call, %{agent | pending_tools: remaining}}
     end
-  end
-
-  @doc "Track a spawned sub-agent"
-  @spec track_sub_agent(t(), SubAgent.t()) :: t()
-  def track_sub_agent(%__MODULE__{} = agent, sub_agent) do
-    %{agent | sub_agents: Map.put(agent.sub_agents, sub_agent.id, sub_agent)}
-  end
-
-  @doc "Remove a sub-agent (completed or failed)"
-  @spec remove_sub_agent(t(), String.t()) :: {SubAgent.t() | nil, t()}
-  def remove_sub_agent(%__MODULE__{} = agent, sub_agent_id) do
-    sub_agent = Map.get(agent.sub_agents, sub_agent_id)
-    updated = %{agent | sub_agents: Map.delete(agent.sub_agents, sub_agent_id)}
-    {sub_agent, updated}
-  end
-
-  @doc "Find a sub-agent by its pid"
-  @spec find_sub_agent_by_pid(t(), pid()) :: {String.t(), SubAgent.t()} | nil
-  def find_sub_agent_by_pid(%__MODULE__{} = agent, pid) do
-    Enum.find(agent.sub_agents, fn {_id, sa} -> sa.pid == pid end)
   end
 
   @doc "Increment iteration count"

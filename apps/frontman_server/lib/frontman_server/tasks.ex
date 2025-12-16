@@ -11,7 +11,6 @@ defmodule FrontmanServer.Tasks do
 
   alias FrontmanServer.Tasks.{Interaction, Task, TaskStore}
   alias FrontmanServer.Agents
-  alias FrontmanServer.Agents.SubAgent
   alias ReqLLM.ToolCall
 
   defdelegate task_exists?(task_id), to: TaskStore, as: :exists?
@@ -205,72 +204,6 @@ defmodule FrontmanServer.Tasks do
       {:error, reason} ->
         {:error, reason}
     end
-  end
-
-  # Sub-Agent Management
-
-  @doc """
-  Records a sub-agent being spawned.
-  """
-  def add_sub_agent_spawned(task_id, agent_id, %SubAgent{id: sub_id, role: role, message: message}) do
-    interaction = Interaction.SubAgentSpawned.new(agent_id, sub_id, role, message)
-    append_interaction(task_id, interaction)
-  end
-
-  @doc """
-  Records a sub-agent's successful result.
-  """
-  def add_sub_agent_result(task_id, agent_id, %SubAgent{} = sub_agent, duration_ms) do
-    interaction =
-      Interaction.SubAgentResult.new(
-        agent_id,
-        sub_agent.id,
-        sub_agent.tool_call_id,
-        sub_agent.role,
-        sub_agent.message,
-        sub_agent.result,
-        1,
-        duration_ms
-      )
-
-    append_interaction(task_id, interaction)
-  end
-
-  @doc """
-  Records a sub-agent's failure.
-  """
-  def add_sub_agent_failed(task_id, agent_id, %SubAgent{} = sub_agent, duration_ms) do
-    interaction =
-      Interaction.SubAgentFailed.new(
-        agent_id,
-        sub_agent.id,
-        sub_agent.role,
-        sub_agent.message,
-        inspect(sub_agent.error),
-        1,
-        duration_ms
-      )
-
-    append_interaction(task_id, interaction)
-  end
-
-  @doc """
-  Records a sub-agent spawn failure.
-
-  Called when a parent agent attempts to spawn a sub-agent but it fails.
-  Records the parent agent_id and the failed spawn details.
-  """
-  def add_sub_agent_spawn_failed(task_id, agent_id, tool_call_id, role, message, reason) do
-    interaction =
-      Interaction.SubAgentSpawnFailed.new(
-        agent_id,
-        tool_call_id,
-        role,
-        message,
-        inspect(reason)
-      )
-
-    append_interaction(task_id, interaction)
   end
 
   # Todo Management
