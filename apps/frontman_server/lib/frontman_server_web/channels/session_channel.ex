@@ -202,8 +202,6 @@ defmodule FrontmanServerWeb.SessionChannel do
     end
   end
 
-  defp parse_tool_result(result), do: result
-
   defp handle_mcp_error(id, error, socket) do
     pending_calls = socket.assigns[:pending_mcp_calls] || %{}
 

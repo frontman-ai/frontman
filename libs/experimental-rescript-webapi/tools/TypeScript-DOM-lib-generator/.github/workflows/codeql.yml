@@ -30,8 +30,8 @@ defaults:
 
 jobs:
   CodeQL-Build:
-    # CodeQL runs on ubuntu-latest, windows-latest, and macos-latest
-    runs-on: ubuntu-latest
+    # CodeQL runs on ubuntu-slim, windows-latest, and macos-latest
+    runs-on: ubuntu-slim
     if: github.repository == 'microsoft/TypeScript-DOM-lib-generator'
 
     permissions:

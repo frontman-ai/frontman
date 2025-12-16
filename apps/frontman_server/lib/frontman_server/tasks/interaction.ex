@@ -620,9 +620,6 @@ defmodule FrontmanServer.Tasks.Interaction do
 
       content when is_binary(content) ->
         ReqLLM.Context.user(content)
-
-      _ ->
-        ReqLLM.Context.user("")
     end
   end
 
@@ -844,7 +841,7 @@ defmodule FrontmanServer.Tasks.Interaction do
         %{
           "type" => "image",
           "data" => base64_data,
-          "mimeType" => mime_type || "image/png",
+          "mimeType" => mime_type,
           "cache_control" => %{
             "type" => "ephemeral"
           }

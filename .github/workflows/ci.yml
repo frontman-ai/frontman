@@ -9,7 +9,7 @@ on:
 jobs:
   build:
     name: Build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -33,7 +33,7 @@ jobs:
 
   test-frontman-client:
     name: Test frontman-client
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -127,7 +127,7 @@ jobs:
 
   lint-client:
     name: Lint libs/client
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     permissions:
       contents: read
       pull-requests: read
