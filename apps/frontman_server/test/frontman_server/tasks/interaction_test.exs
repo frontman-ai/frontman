@@ -193,9 +193,9 @@ defmodule FrontmanServer.Tasks.InteractionTest do
 
       # Verify no agent_b content
       refute Enum.any?(messages, fn msg ->
-        msg.role == :assistant and
-          match?([%{text: "Response from B"}], msg.content)
-      end)
+               msg.role == :assistant and
+                 match?([%{text: "Response from B"}], msg.content)
+             end)
     end
 
     test "includes ToolResult for the correct agent" do

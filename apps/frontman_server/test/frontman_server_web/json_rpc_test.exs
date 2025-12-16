@@ -18,7 +18,8 @@ defmodule FrontmanServerWeb.JsonRpcTest do
     end
 
     test "parses notification with params" do
-      message = notification_message(method: "session/update", params: %{"sessionId" => "sess_123"})
+      message =
+        notification_message(method: "session/update", params: %{"sessionId" => "sess_123"})
 
       assert {:ok, {:notification, "session/update", %{"sessionId" => "sess_123"}}} =
                JsonRpc.parse(message)
@@ -92,7 +93,8 @@ defmodule FrontmanServerWeb.JsonRpcTest do
     end
 
     test "returns error for response with malformed error object (missing message)" do
-      assert {:error, :invalid_message} = JsonRpc.parse_response(malformed_error_missing_message())
+      assert {:error, :invalid_message} =
+               JsonRpc.parse_response(malformed_error_missing_message())
     end
 
     test "returns error for non-map input" do
@@ -125,7 +127,10 @@ defmodule FrontmanServerWeb.JsonRpcTest do
   describe "notification/2" do
     test "builds valid notification" do
       assert JsonRpc.notification("session/update", %{"sessionId" => "sess_123"}) ==
-               notification_message(method: "session/update", params: %{"sessionId" => "sess_123"})
+               notification_message(
+                 method: "session/update",
+                 params: %{"sessionId" => "sess_123"}
+               )
     end
 
     test "notification has no id field" do

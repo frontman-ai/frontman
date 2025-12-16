@@ -29,6 +29,7 @@ defmodule FrontmanServer.Agents.AgentServer do
     :tools,
     :on_event,
     :idle_timer_ref,
+    :parent_agent_id,
     status: :processing,
     llm_opts: []
   ]
@@ -36,24 +37,41 @@ defmodule FrontmanServer.Agents.AgentServer do
   # Client API
 
   @doc """
-  Starts a root agent for a task.
+  Starts an agent for a task.
+
+  Options:
+  - `:agent_id` - required, unique identifier for this agent
+  - `:task_id` - required, the task this agent belongs to
+  - `:tools` - optional, list of tools available to the agent
+  - `:on_event` - required, callback function for agent events
+  - `:parent_agent_id` - optional, if set this is a sub-agent spawned by parent
   """
   def start_link(opts) do
     agent_id = Keyword.fetch!(opts, :agent_id)
     task_id = Keyword.fetch!(opts, :task_id)
     tools = Keyword.get(opts, :tools, [])
     on_event = Keyword.fetch!(opts, :on_event)
+    parent_agent_id = Keyword.get(opts, :parent_agent_id)
+
+    role = if parent_agent_id, do: :sub_agent, else: :root
 
     GenServer.start_link(
       __MODULE__,
-      {:root, %{agent_id: agent_id, task_id: task_id, tools: tools, on_event: on_event}},
+      {:root,
+       %{
+         agent_id: agent_id,
+         task_id: task_id,
+         tools: tools,
+         on_event: on_event,
+         parent_agent_id: parent_agent_id
+       }},
       name:
         {:via, Registry,
          {FrontmanServer.AgentRegistry, {:agent, agent_id},
           %{
             task_id: task_id,
-            parent_agent_id: nil,
-            role: :root
+            parent_agent_id: parent_agent_id,
+            role: role
           }}}
     )
   end
@@ -99,12 +117,11 @@ defmodule FrontmanServer.Agents.AgentServer do
   # Server Callbacks
 
   @impl true
-  def init(
-        {:root, %{agent_id: agent_id, task_id: task_id, tools: tools, on_event: on_event} = opts}
-      ) do
+  def init({:root, %{agent_id: agent_id, task_id: task_id, tools: tools, on_event: on_event} = opts}) do
     agent = Agent.new_root(agent_id, task_id)
+    parent_agent_id = Map.get(opts, :parent_agent_id)
 
-    # Emit telemetry event for root agent start
+    # Emit telemetry event for agent start
     TelemetryEvents.agent_start(agent_id, task_id)
 
     state = %__MODULE__{
@@ -112,8 +129,11 @@ defmodule FrontmanServer.Agents.AgentServer do
       tools: tools,
       on_event: on_event,
       idle_timer_ref: nil,
+      parent_agent_id: parent_agent_id,
       llm_opts: Map.get(opts, :llm_opts, [])
     }
+
+    Logger.info("#{agent_log_label(state)} started")
 
     {:ok, state}
   end
@@ -129,8 +149,10 @@ defmodule FrontmanServer.Agents.AgentServer do
     state = %{state | agent: agent, status: :processing}
     iteration_number = agent.iteration_count
 
+    agent_label = agent_log_label(state)
+
     Logger.info(
-      "Agent #{agent.id} starting iteration #{iteration_number} with #{length(messages)} messages"
+      "#{agent_label} starting iteration #{iteration_number} with #{length(messages)} messages"
     )
 
     TelemetryEvents.iteration_start(agent.id, iteration_number)
@@ -167,7 +189,7 @@ defmodule FrontmanServer.Agents.AgentServer do
         {:noreply, state}
 
       tool_call ->
-        Logger.info("Tool #{ToolCall.name(tool_call)} completed")
+        Logger.info("#{agent_log_label(state)} tool #{ToolCall.name(tool_call)} completed")
         Registry.unregister(FrontmanServer.AgentRegistry, {:tool_call, tool_call_id})
         state = %{state | agent: agent}
 
@@ -197,7 +219,7 @@ defmodule FrontmanServer.Agents.AgentServer do
 
   @impl true
   def handle_info(:idle_timeout, state) do
-    Logger.info("Agent #{state.agent.id} idle timeout - terminating")
+    Logger.info("#{agent_log_label(state)} idle timeout - terminating")
     {:stop, :normal, state}
   end
 
@@ -217,7 +239,7 @@ defmodule FrontmanServer.Agents.AgentServer do
   # -- Event Emission --
 
   defp emit(state, event) do
-    Logger.debug("Agent #{state.agent.id} emitting: #{elem(event, 0)}")
+    Logger.debug("#{agent_log_label(state)} emitting: #{elem(event, 0)}")
     state.on_event.(event)
   end
 
@@ -236,6 +258,17 @@ defmodule FrontmanServer.Agents.AgentServer do
           tools -> Keyword.put(opts, :tools, tools)
         end
       end)
+
+    # Debug: log tools being passed to LLM
+    tool_count = length(state.tools)
+
+    if tool_count > 0 do
+      tool_names = Enum.map(state.tools, fn t -> t.name end)
+      agent_label = agent_log_label(state)
+      Logger.info("#{agent_label} LLM call with #{tool_count} tools: #{inspect(tool_names)}")
+    else
+      Logger.info("#{agent_log_label(state)} LLM call with no tools")
+    end
 
     TelemetryEvents.llm_start(
       state.agent.id,
@@ -263,7 +296,7 @@ defmodule FrontmanServer.Agents.AgentServer do
         )
 
         Logger.info(
-          "Agent #{state.agent.id} extracted: text=#{byte_size(text)} bytes, tool_calls=#{length(tool_calls)}, response_id=#{inspect(response_id)}, chunks=#{length(chunks)}"
+          "#{agent_log_label(state)} extracted: text=#{byte_size(text)} bytes, tool_calls=#{length(tool_calls)}, response_id=#{inspect(response_id)}, chunks=#{length(chunks)}"
         )
 
         handle_response(state, text, tool_calls, response_id)
@@ -271,7 +304,7 @@ defmodule FrontmanServer.Agents.AgentServer do
       {:error, reason} ->
         # Emit LLM stop event with error
         TelemetryEvents.llm_stop(state.agent.id, error: reason)
-        Logger.error("LLM stream failed: #{inspect(reason)}")
+        Logger.error("#{agent_log_label(state)} LLM stream failed: #{inspect(reason)}")
         {:error, reason, state}
     end
   end
@@ -290,14 +323,14 @@ defmodule FrontmanServer.Agents.AgentServer do
   end
 
   defp handle_response(state, text, [], _response_id) do
-    Logger.info("Agent #{state.agent.id} completing with text: #{byte_size(text)} bytes")
+    Logger.info("#{agent_log_label(state)} completing with text: #{byte_size(text)} bytes")
     emit(state, {:response, state.agent.id, text, %{}})
     {:stop, state}
   end
 
   defp handle_response(state, text, tool_calls, response_id) do
     Logger.info(
-      "Agent #{state.agent.id} has #{length(tool_calls)} tool calls, text: #{byte_size(text)} bytes"
+      "#{agent_log_label(state)} has #{length(tool_calls)} tool calls, text: #{byte_size(text)} bytes"
     )
 
     metadata = %{tool_calls: tool_calls}
@@ -364,6 +397,16 @@ defmodule FrontmanServer.Agents.AgentServer do
     case Registry.select(FrontmanServer.AgentRegistry, match_spec) do
       [{_agent_id, pid}] -> fun.(pid)
       [] -> {:error, :not_found}
+    end
+  end
+
+  # -- Logging Helpers --
+
+  defp agent_log_label(state) do
+    if state.parent_agent_id do
+      "SubAgent #{state.agent.id} (parent: #{state.parent_agent_id})"
+    else
+      "Agent #{state.agent.id}"
     end
   end
 

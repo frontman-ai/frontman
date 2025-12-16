@@ -17,6 +17,34 @@ defmodule FrontmanServer.Tasks do
   defdelegate get_task(task_id), to: TaskStore, as: :get
 
   @doc """
+  Sets the MCP tools for a task.
+
+  MCP tools are stored in raw format (as received from client).
+  Returns :ok on success, {:error, :not_found} if task doesn't exist.
+  """
+  @spec set_mcp_tools(String.t(), list()) :: :ok | {:error, :not_found}
+  def set_mcp_tools(task_id, mcp_tools) do
+    case TaskStore.update(task_id, &Task.set_mcp_tools(&1, mcp_tools)) do
+      {:ok, _} -> :ok
+      {:error, :not_found} = error -> error
+    end
+  end
+
+  @doc """
+  Gets the MCP tools for a task.
+
+  Returns the raw MCP tool definitions (not LLM-formatted).
+  Returns [] if task not found or no tools set.
+  """
+  @spec get_mcp_tools(String.t()) :: list()
+  def get_mcp_tools(task_id) do
+    case get_task(task_id) do
+      {:ok, task} -> task.mcp_tools || []
+      {:error, :not_found} -> []
+    end
+  end
+
+  @doc """
   Returns the PubSub topic for a task.
   """
   @spec topic(String.t()) :: String.t()

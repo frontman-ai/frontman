@@ -115,7 +115,8 @@ defmodule FrontmanServer.TasksTest do
       # Register the tool call in Registry
       Registry.register(FrontmanServer.AgentRegistry, {:tool_call, tool_call_data.id}, agent_id)
 
-      {:ok, interaction} = Tasks.add_tool_result(task_id, agent_id, tool_call_data, "error message", true)
+      {:ok, interaction} =
+        Tasks.add_tool_result(task_id, agent_id, tool_call_data, "error message", true)
 
       assert interaction.is_error == true
       assert interaction.result == "error message"
@@ -132,7 +133,8 @@ defmodule FrontmanServer.TasksTest do
       # Register the tool call in Registry
       Registry.register(FrontmanServer.AgentRegistry, {:tool_call, tool_call_data.id}, agent_id)
 
-      {:ok, _interaction} = Tasks.add_tool_result(task_id, agent_id, tool_call_data, "result", false)
+      {:ok, _interaction} =
+        Tasks.add_tool_result(task_id, agent_id, tool_call_data, "result", false)
 
       # The tool result should have been stored successfully
       interactions = Tasks.get_interactions(task_id)

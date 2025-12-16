@@ -50,4 +50,3 @@ config :opentelemetry, :resource, %{
   service: %{name: "frontman-server", version: "0.0.1"},
   deployment: %{environment: "test"}
 }
-

@@ -13,15 +13,19 @@ defmodule FrontmanServer.ToolsTest do
   end
 
   describe "backend_tools/1" do
-    test "returns 4 backend tools", %{task_id: task_id} do
+    test "returns 6 backend tools (4 todo + 2 figma)", %{task_id: task_id} do
       tools = Tools.backend_tools(task_id)
-      assert length(tools) == 4
+      assert length(tools) == 6
 
       tool_names = Enum.map(tools, & &1.name)
+      # Todo tools
       assert "todo_list" in tool_names
       assert "todo_add" in tool_names
       assert "todo_update" in tool_names
       assert "todo_remove" in tool_names
+      # Figma tools
+      assert "breakdown_figma_node" in tool_names
+      assert "implement_component" in tool_names
     end
 
     test "all tools have proper structure", %{task_id: task_id} do
@@ -150,7 +154,13 @@ defmodule FrontmanServer.ToolsTest do
 
       assert update_event.status == :completed
 
-      Tasks.add_tool_result(task_id, agent_id, %{id: "call2", name: "todo_update"}, update_event, false)
+      Tasks.add_tool_result(
+        task_id,
+        agent_id,
+        %{id: "call2", name: "todo_update"},
+        update_event,
+        false
+      )
 
       {:ok, list_tool} = Tools.find_backend_tool("todo_list", task_id)
       {:ok, %{"todos" => todos}} = list_tool.callback.(%{})
@@ -174,7 +184,13 @@ defmodule FrontmanServer.ToolsTest do
       {:ok, %FrontmanServer.Tasks.Todos.Tools.TodoRemoved{} = remove_event} =
         remove_tool.callback.(%{"id" => add_event.todo_id})
 
-      Tasks.add_tool_result(task_id, agent_id, %{id: "call2", name: "todo_remove"}, remove_event, false)
+      Tasks.add_tool_result(
+        task_id,
+        agent_id,
+        %{id: "call2", name: "todo_remove"},
+        remove_event,
+        false
+      )
 
       {:ok, list_tool} = Tools.find_backend_tool("todo_list", task_id)
       {:ok, %{"todos" => todos}} = list_tool.callback.(%{})

@@ -12,6 +12,19 @@ defmodule FrontmanServer.Agents.Prompts do
   - List → Read → Modify. Never edit unseen files.
   - Keep diffs small and reversible. Match repo style.
   - After 2 failed tool calls, ask one clarifying question.
+  - IMPORTANT: If you have a figma design and node selected, use the `breakdown_figma_node` tool to analyze the design into components, then use `implement_component` for each one.
+
+  ## Figma Tools
+
+  ### CRITICAL: get_figma_node Tool Usage
+
+  **NEVER call `get_figma_node` with a node that has a volume (`v`) parameter larger than 6!**
+
+  When using `get_figma_node`:
+  - **Use the nodeDSL** that comes along with the Figma image to figure out which nodes can be selected
+  - **Select nodes that don't exceed the volume limit** - choose smaller, more specific nodes if needed
+  - **Use `withChildren` parameter** - Select parent nodes with `withChildren: true` to get the complete picture of a component hierarchy without exceeding volume limits
+  - **Plan your selections carefully** - Analyze the nodeDSL structure first to identify which nodes you need before making any `get_figma_node` calls
 
   ## ReScript handling (explicit)
 
@@ -76,12 +89,19 @@ defmodule FrontmanServer.Agents.Prompts do
 
   defp figma_context_guidance do
     """
-    ## Figma Design Context Detected
+    ## IMPORTANT: Figma Design Context Detected
 
     You have received Figma design context (a design image and/or node DSL structure).
 
-    Use this context to understand the visual design and implement components accordingly.
-    The Figma node data includes layout, styling, and hierarchy information that should guide your implementation.
+    **Your FIRST action should be to use the `breakdown_figma_node` tool** to:
+    1. Analyze the Figma design structure
+    2. Create a component breakdown with a todo list
+    3. Identify which components need to be built
+
+    After the breakdown is complete, use the `implement_component` tool for each component.
+    IMPORTANT: Unless the user told you otherwise (implement just one component, or specific components).
+
+    Do NOT start implementing code directly - always break down the design first!
     """
   end
 end

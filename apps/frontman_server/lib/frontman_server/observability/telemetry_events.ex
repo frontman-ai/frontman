@@ -17,7 +17,9 @@ defmodule FrontmanServer.Observability.TelemetryEvents do
       └── iteration
           ├── llm (chat)
           ├── tool (backend)
-          └── mcp_tool (client)
+          ├── mcp_tool (client)
+          └── spawn_sub_agent
+              └── agent [sub-agent lifecycle]
   ```
   """
 
@@ -179,6 +181,34 @@ defmodule FrontmanServer.Observability.TelemetryEvents do
   def mcp_tool_stop(request_id, opts \\ []) do
     emit(Events.mcp_tool_stop(), %{
       request_id: request_id,
+      status: Keyword.get(opts, :status, "success"),
+      error: Keyword.get(opts, :error)
+    })
+  end
+
+  # ============================================================================
+  # Sub-Agent Spawn
+  # ============================================================================
+
+  @doc "Emits sub-agent spawn start."
+  @spec spawn_sub_agent_start(String.t(), String.t(), String.t()) :: :ok
+  def spawn_sub_agent_start(agent_id, task_id, role) do
+    emit(Events.spawn_sub_agent_start(), %{
+      agent_id: agent_id,
+      task_id: task_id,
+      role: role
+    })
+  end
+
+  @doc """
+  Emits sub-agent spawn stop.
+
+  Options: `:status` ("success" | "error"), `:error`
+  """
+  @spec spawn_sub_agent_stop(String.t(), keyword()) :: :ok
+  def spawn_sub_agent_stop(agent_id, opts \\ []) do
+    emit(Events.spawn_sub_agent_stop(), %{
+      agent_id: agent_id,
       status: Keyword.get(opts, :status, "success"),
       error: Keyword.get(opts, :error)
     })

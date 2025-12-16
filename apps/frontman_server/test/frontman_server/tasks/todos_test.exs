@@ -124,7 +124,13 @@ defmodule FrontmanServer.Tasks.TodosTest do
         timestamp: DateTime.utc_now()
       }
 
-      Tasks.add_tool_result(task_id, agent_id, %{id: "call2", name: "todo_update"}, update_event, false)
+      Tasks.add_tool_result(
+        task_id,
+        agent_id,
+        %{id: "call2", name: "todo_update"},
+        update_event,
+        false
+      )
 
       {:ok, task} = Tasks.get_task(task_id)
       todos = Todos.list_todos(task.interactions)
@@ -146,7 +152,13 @@ defmodule FrontmanServer.Tasks.TodosTest do
         timestamp: DateTime.utc_now()
       }
 
-      Tasks.add_tool_result(task_id, agent_id, %{id: "c3", name: "todo_remove"}, remove_event, false)
+      Tasks.add_tool_result(
+        task_id,
+        agent_id,
+        %{id: "c3", name: "todo_remove"},
+        remove_event,
+        false
+      )
 
       {:ok, task} = Tasks.get_task(task_id)
       todos = Todos.list_todos(task.interactions)

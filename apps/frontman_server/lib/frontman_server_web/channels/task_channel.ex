@@ -285,9 +285,13 @@ defmodule FrontmanServerWeb.TaskChannel do
 
     socket = assign(socket, :pending_prompt_id, id)
 
+    # Store raw MCP tools on task (for backend tools like Figma to access)
+    Tasks.set_mcp_tools(task_id, mcp_tools)
+
     # Merge backend tools with client tools
+    mcp_tools_formatted = mcp_tools_to_llm_format(mcp_tools)
     backend_tools = FrontmanServer.Tools.backend_tools(task_id)
-    all_tools = backend_tools ++ mcp_tools_to_llm_format(mcp_tools)
+    all_tools = backend_tools ++ mcp_tools_formatted
 
     opts = [tools: all_tools]
 
@@ -379,15 +383,35 @@ defmodule FrontmanServerWeb.TaskChannel do
     pending_notification = ACP.build_tool_call_notification(task_id, tool_call, "pending")
     push(socket, "acp:message", pending_notification)
 
-    # Try backend execution first
-    case FrontmanServer.Tools.execute_backend_tool(tool_call, task_id) do
-      {:executed, result} ->
-        handle_backend_tool_result(tool_call, result, socket)
+    # Check if it's a backend tool
+    case FrontmanServer.Tools.find_backend_tool(tool_call.tool_name, task_id) do
+      {:ok, _tool} ->
+        # Execute backend tool ASYNC to avoid blocking the channel
+        # This allows sub-agent tool calls to be processed while parent tool runs
+        channel_pid = self()
+
+        Task.start(fn ->
+          result = FrontmanServer.Tools.execute_backend_tool(tool_call, task_id)
+          send(channel_pid, {:backend_tool_completed, tool_call, result})
+        end)
+
+        {:noreply, socket}
 
       :not_found ->
         # Not a backend tool, route to MCP
         route_to_mcp(tool_call, socket)
     end
+  end
+
+  def handle_info({:backend_tool_completed, tool_call, {:executed, result}}, socket) do
+    handle_backend_tool_result(tool_call, result, socket)
+  end
+
+  def handle_info({:backend_tool_completed, tool_call, :not_found}, socket) do
+    # This shouldn't happen since we checked find_backend_tool first,
+    # but handle it gracefully by routing to MCP
+    Logger.warning("Backend tool #{tool_call.tool_name} not found after async execution")
+    route_to_mcp(tool_call, socket)
   end
 
   def handle_info({:interaction, %Interaction.ToolResult{} = tool_result}, socket) do

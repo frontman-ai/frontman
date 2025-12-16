@@ -15,7 +15,9 @@ defmodule FrontmanServer.Observability.OtelHandler do
   └── agent root [lifecycle span]
       └── iteration 1
           ├── chat anthropic [LLM call]
-          └── execute_tool [backend tool]
+          ├── execute_tool [backend tool]
+          └── spawn_sub_agent [figma_breakdown]
+              └── agent [sub-agent lifecycle]
       └── iteration 2
           └── chat anthropic
   ```
@@ -33,7 +35,8 @@ defmodule FrontmanServer.Observability.OtelHandler do
     :frontman_spans_iteration,
     :frontman_spans_tool,
     :frontman_spans_mcp,
-    :frontman_spans_llm
+    :frontman_spans_llm,
+    :frontman_spans_spawn
   ]
 
   @doc """
@@ -68,7 +71,9 @@ defmodule FrontmanServer.Observability.OtelHandler do
       {Events.tool_start(), &handle_tool_start/4},
       {Events.tool_stop(), &handle_tool_stop/4},
       {Events.mcp_tool_start(), &handle_mcp_tool_start/4},
-      {Events.mcp_tool_stop(), &handle_mcp_tool_stop/4}
+      {Events.mcp_tool_stop(), &handle_mcp_tool_stop/4},
+      {Events.spawn_sub_agent_start(), &handle_spawn_start/4},
+      {Events.spawn_sub_agent_stop(), &handle_spawn_stop/4}
     ]
 
     Enum.each(events, fn {event, handler} ->
@@ -89,7 +94,9 @@ defmodule FrontmanServer.Observability.OtelHandler do
     ]
 
     tracer = :opentelemetry.get_tracer(:frontman_server)
-    span_ctx = :otel_tracer.start_span(:otel_ctx.new(), tracer, span_name, %{attributes: attributes})
+
+    span_ctx =
+      :otel_tracer.start_span(:otel_ctx.new(), tracer, span_name, %{attributes: attributes})
 
     :ets.insert(:frontman_spans_task, {task_id, span_ctx})
   end
@@ -102,7 +109,9 @@ defmodule FrontmanServer.Observability.OtelHandler do
         :ets.delete(:frontman_spans_task, task_id)
 
       [] ->
-        Logger.error("Orphaned task stop event: task_id=#{task_id} has no span. Start event missing?")
+        Logger.error(
+          "Orphaned task stop event: task_id=#{task_id} has no span. Start event missing?"
+        )
     end
   end
 
@@ -210,7 +219,9 @@ defmodule FrontmanServer.Observability.OtelHandler do
         :ets.delete(:frontman_spans_iteration, key)
 
       [] ->
-        Logger.error("Orphaned iteration stop: agent_id=#{agent_id} iteration=#{iteration_number} has no span")
+        Logger.error(
+          "Orphaned iteration stop: agent_id=#{agent_id} iteration=#{iteration_number} has no span"
+        )
     end
   end
 
@@ -226,7 +237,8 @@ defmodule FrontmanServer.Observability.OtelHandler do
       {:"gen_ai.operation.name", "chat"},
       {:"gen_ai.system", provider},
       {:"gen_ai.request.model", model_name},
-      {:"gen_ai.input.messages", messages |> MessageSerializer.serialize_input() |> Jason.encode!()},
+      {:"gen_ai.input.messages",
+       messages |> MessageSerializer.serialize_input() |> Jason.encode!()},
       {:"frontman.agent.id", agent_id},
       {:"frontman.task.id", task_id},
       {:"deployment.environment", deployment_environment()}
@@ -308,7 +320,9 @@ defmodule FrontmanServer.Observability.OtelHandler do
   defp add_usage_attributes(attrs, _), do: attrs
 
   defp set_llm_error_status(_span_ctx, nil), do: :ok
-  defp set_llm_error_status(span_ctx, error), do: :otel_span.set_status(span_ctx, :error, inspect(error))
+
+  defp set_llm_error_status(span_ctx, error),
+    do: :otel_span.set_status(span_ctx, :error, inspect(error))
 
   defp set_tool_error_status(_span_ctx, nil), do: :ok
 
@@ -434,6 +448,7 @@ defmodule FrontmanServer.Observability.OtelHandler do
         duration = System.monotonic_time(:millisecond) - start_time
 
         :otel_span.add_event(span_ctx, "mcp.response_received", [])
+
         :otel_span.set_attributes(span_ctx, [
           {:"tool.duration_ms", duration},
           {:"tool.status", status}
@@ -446,6 +461,54 @@ defmodule FrontmanServer.Observability.OtelHandler do
 
       [] ->
         Logger.error("Orphaned MCP tool stop event: request_id=#{request_id} has no span")
+    end
+  end
+
+  # -- Spawn Sub-Agent Handlers --
+
+  defp handle_spawn_start(_event, _measurements, metadata, _config) do
+    %{agent_id: agent_id, task_id: task_id, role: role} = metadata
+
+    span_name = "spawn_sub_agent #{role}"
+
+    attributes = [
+      {:"frontman.sub_agent.id", agent_id},
+      {:"frontman.task.id", task_id},
+      {:"frontman.sub_agent.role", role},
+      {:"gen_ai.operation.name", "spawn_sub_agent"}
+    ]
+
+    tracer = :opentelemetry.get_tracer(:frontman_server)
+
+    # Parent is current context (should be within a tool execution or iteration)
+    ctx = :otel_ctx.get_current()
+    span_ctx = :otel_tracer.start_span(ctx, tracer, span_name, %{attributes: attributes})
+
+    start_time = System.monotonic_time(:millisecond)
+    :ets.insert(:frontman_spans_spawn, {agent_id, {span_ctx, start_time}})
+  end
+
+  defp handle_spawn_stop(_event, _measurements, metadata, _config) do
+    %{agent_id: agent_id, status: status} = metadata
+
+    case :ets.lookup(:frontman_spans_spawn, agent_id) do
+      [{^agent_id, {span_ctx, start_time}}] ->
+        duration = System.monotonic_time(:millisecond) - start_time
+
+        :otel_span.set_attributes(span_ctx, [
+          {:"spawn.duration_ms", duration},
+          {:"spawn.status", status}
+        ])
+
+        if error = metadata[:error] do
+          :otel_span.set_status(span_ctx, :error, inspect(error))
+        end
+
+        :otel_span.end_span(span_ctx)
+        :ets.delete(:frontman_spans_spawn, agent_id)
+
+      [] ->
+        Logger.error("Orphaned spawn stop event: agent_id=#{agent_id} has no span")
     end
   end
 

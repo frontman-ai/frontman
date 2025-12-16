@@ -31,6 +31,7 @@ defmodule FrontmanServer.Observability.MessageSerializer do
     case tool_calls do
       [] ->
         [base]
+
       tool_calls ->
         [Map.put(base, "tool_calls", Enum.map(tool_calls, &serialize_tool_call/1))]
     end

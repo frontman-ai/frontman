@@ -8,6 +8,7 @@ defmodule FrontmanServer.Tools do
 
   require Logger
 
+  alias FrontmanServer.Agents.FigmaTools
   alias FrontmanServer.Observability.TelemetryEvents
   alias FrontmanServer.Tasks.Interaction.ToolCall
   alias FrontmanServer.Tasks.Todos.Tools, as: TodoTools
@@ -16,10 +17,11 @@ defmodule FrontmanServer.Tools do
   Returns the list of backend tools for a given task.
 
   All backend tools have access to the task_id via closure.
+  MCP tools are stored on the Task and retrieved when tools execute.
   """
   @spec backend_tools(String.t()) :: [ReqLLM.Tool.t()]
   def backend_tools(task_id) do
-    TodoTools.todo_tools(task_id)
+    TodoTools.todo_tools(task_id) ++ FigmaTools.figma_tools(task_id)
   end
 
   @doc """
@@ -58,7 +60,9 @@ defmodule FrontmanServer.Tools do
           tool_call.arguments
         )
 
-        result = execute_tool(tool, tool_call.arguments)
+        # Context passed to tools that support it (arity 2)
+        context = %{agent_id: agent_id, task_id: task_id}
+        result = execute_tool(tool, tool_call.arguments, context)
 
         # Emit tool stop telemetry event
         case result do
@@ -78,13 +82,27 @@ defmodule FrontmanServer.Tools do
     end
   end
 
-  defp execute_tool(tool, arguments) do
+  defp execute_tool(tool, arguments, context) do
     try do
-      tool.callback.(arguments)
+      # Store context in process dictionary for tools that need it
+      Process.put(:backend_tool_context, context)
+      result = tool.callback.(arguments)
+      Process.delete(:backend_tool_context)
+      result
     rescue
       error ->
+        Process.delete(:backend_tool_context)
         Logger.error("Backend tool execution failed: #{inspect(error)}")
         {:error, "Tool execution failed: #{Exception.message(error)}"}
     end
+  end
+
+  @doc """
+  Gets the current tool execution context (agent_id, task_id).
+  Used by tools that spawn sub-agents and need to know their parent.
+  """
+  @spec get_tool_context() :: map()
+  def get_tool_context do
+    Process.get(:backend_tool_context, %{})
   end
 end

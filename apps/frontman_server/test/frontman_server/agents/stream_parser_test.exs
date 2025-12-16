@@ -6,7 +6,8 @@ defmodule FrontmanServer.Agents.StreamParserTest do
 
   describe "tool_call_from_raw/3" do
     test "creates ToolCall with map arguments" do
-      tool_call = StreamParser.tool_call_from_raw("call_123", "read_file", %{path: "/tmp/test.txt"})
+      tool_call =
+        StreamParser.tool_call_from_raw("call_123", "read_file", %{path: "/tmp/test.txt"})
 
       assert %ToolCall{} = tool_call
       assert ToolCall.name(tool_call) == "read_file"
@@ -30,23 +31,24 @@ defmodule FrontmanServer.Agents.StreamParserTest do
 
   describe "tool_call wire format encoding" do
     test "ToolCall encodes to OpenAI-compatible wire format" do
-      tool_call = StreamParser.tool_call_from_raw(
-        "call_abc123",
-        "read_file",
-        %{path: "/tmp/data.json"}
-      )
+      tool_call =
+        StreamParser.tool_call_from_raw(
+          "call_abc123",
+          "read_file",
+          %{path: "/tmp/data.json"}
+        )
 
       # Encode to JSON and back to verify wire format
       json = Jason.encode!(tool_call) |> Jason.decode!()
 
       assert json == %{
-        "id" => "call_abc123",
-        "type" => "function",
-        "function" => %{
-          "name" => "read_file",
-          "arguments" => ~s({"path":"/tmp/data.json"})
-        }
-      }
+               "id" => "call_abc123",
+               "type" => "function",
+               "function" => %{
+                 "name" => "read_file",
+                 "arguments" => ~s({"path":"/tmp/data.json"})
+               }
+             }
     end
 
     test "arguments remain as JSON string, not double-encoded" do
@@ -63,7 +65,12 @@ defmodule FrontmanServer.Agents.StreamParserTest do
   describe "extract_tool_calls/1" do
     test "extracts tool calls from stream chunks" do
       chunks = [
-        %{type: :tool_call, name: "read_file", arguments: %{path: "/tmp"}, metadata: %{id: "call_1", index: 0}},
+        %{
+          type: :tool_call,
+          name: "read_file",
+          arguments: %{path: "/tmp"},
+          metadata: %{id: "call_1", index: 0}
+        },
         %{type: :content, text: "Some text", metadata: %{}}
       ]
 
@@ -77,8 +84,18 @@ defmodule FrontmanServer.Agents.StreamParserTest do
 
     test "handles multiple tool calls" do
       chunks = [
-        %{type: :tool_call, name: "read_file", arguments: %{path: "/a"}, metadata: %{id: "call_1", index: 0}},
-        %{type: :tool_call, name: "write_file", arguments: %{path: "/b", content: "x"}, metadata: %{id: "call_2", index: 1}}
+        %{
+          type: :tool_call,
+          name: "read_file",
+          arguments: %{path: "/a"},
+          metadata: %{id: "call_1", index: 0}
+        },
+        %{
+          type: :tool_call,
+          name: "write_file",
+          arguments: %{path: "/b", content: "x"},
+          metadata: %{id: "call_2", index: 1}
+        }
       ]
 
       tool_calls = StreamParser.extract_tool_calls(chunks)
@@ -89,7 +106,12 @@ defmodule FrontmanServer.Agents.StreamParserTest do
 
     test "handles streamed argument fragments" do
       chunks = [
-        %{type: :tool_call, name: "read_file", arguments: nil, metadata: %{id: "call_1", index: 0}},
+        %{
+          type: :tool_call,
+          name: "read_file",
+          arguments: nil,
+          metadata: %{id: "call_1", index: 0}
+        },
         %{type: :meta, metadata: %{tool_call_args: %{index: 0, fragment: ~s({"path")}}},
         %{type: :meta, metadata: %{tool_call_args: %{index: 0, fragment: ~s(:"/tmp"})}}}
       ]

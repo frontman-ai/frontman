@@ -61,13 +61,17 @@ defmodule FrontmanServer.Test.Fixtures.Agents do
     llm_opts = build_llm_opts(ctx, tags)
 
     {:ok, pid} =
-      GenServer.start_link(AgentServer, {:root, %{
-        agent_id: agent_id,
-        task_id: task_id,
-        tools: tags[:tools] || [],
-        on_event: ctx.on_event,
-        llm_opts: llm_opts
-      }})
+      GenServer.start_link(
+        AgentServer,
+        {:root,
+         %{
+           agent_id: agent_id,
+           task_id: task_id,
+           tools: tags[:tools] || [],
+           on_event: ctx.on_event,
+           llm_opts: llm_opts
+         }}
+      )
 
     Map.merge(ctx, %{
       parent_agent: %{pid: pid, id: agent_id, task_id: task_id}
@@ -84,13 +88,14 @@ defmodule FrontmanServer.Test.Fixtures.Agents do
     {:ok, pid} =
       GenServer.start_link(
         AgentServer,
-        {:root, %{
-          agent_id: agent_id,
-          task_id: task_id,
-          tools: tags[:tools] || [],
-          on_event: ctx.on_event,
-          llm_opts: llm_opts
-        }},
+        {:root,
+         %{
+           agent_id: agent_id,
+           task_id: task_id,
+           tools: tags[:tools] || [],
+           on_event: ctx.on_event,
+           llm_opts: llm_opts
+         }},
         name: via_registry(agent_id, task_id, nil, :root)
       )
 
