@@ -1,13 +1,16 @@
 // Main ACP Client entry point
-// Orchestrates connection and initialization flow
+// Thin orchestrator - delegates to Protocol for messaging, uses Constants for topics
 
 module Types = FrontmanClient__ACP__Types
 module Client = FrontmanClient__ACP__Client
+module Protocol = FrontmanClient__ACP__Protocol
 module Channel = FrontmanClient__Phoenix__Channel
 module Socket = FrontmanClient__Phoenix__Socket
-module JsonRpc = FrontmanClient__JsonRpc
+module Constants = FrontmanClient__Transport__Constants
 
-type messageDirection = Send | Receive
+type messageDirection = Protocol.messageDirection
+let send = Protocol.Send
+let receive = Protocol.Receive
 
 type config = {
   endpoint: string,
@@ -68,39 +71,10 @@ let joinChannel = (channel: Channel.t): promise<result<unit, string>> => {
   })
 }
 
-let sendInitialize = (
-  channel: Channel.t,
-  state: ref<Client.state>,
-  clientConfig: Client.config,
-  onMessage: option<(messageDirection, JSON.t) => unit>,
-): promise<result<Types.initializeResult, string>> => {
-  Promise.make((resolve, _) => {
-    let id = state.contents.currentId + 1
-    let params = Client.buildInitializeParams(clientConfig)
-    let request = JsonRpc.Request.make(~id, ~method="initialize", ~params=Some(params))
-
-    let pending: Client.pendingRequest = {
-      resolve: json => {
-        switch Client.parseInitializeResult(json) {
-        | Ok(result) => resolve(Ok(result))
-        | Error(e) => resolve(Error(e))
-        }
-      },
-      reject: e => resolve(Error(e)),
-    }
-
-    state := state.contents->Client.reduce(Client.RequestSent(id, pending))
-
-    let payload = request->JsonRpc.Request.toJson
-    onMessage->Option.forEach(cb => cb(Send, payload))
-    channel->Channel.push(~event=#"acp:message", ~payload)->ignore
-  })
-}
-
 // Connect and initialize ACP
 let connect = async (config: config): result<connection, string> => {
   let socket = Socket.make(~endpoint=config.endpoint)
-  let channel = socket->Socket.channel(~topic="sessions")
+  let channel = socket->Socket.channel(~topic=Constants.tasksTopic)
   let state = ref(Client.initialState)
   let clientConfig: Client.config = {
     channel,
@@ -108,19 +82,23 @@ let connect = async (config: config): result<connection, string> => {
     clientCapabilities: config.clientCapabilities,
   }
 
-  channel->Channel.on(~event=#"acp:message", ~callback=payload => {
-    config.onMessage->Option.forEach(cb => cb(Receive, payload))
-    state := Client.handleResponse(state.contents, payload)
-  })
+  Protocol.attachMessageHandler(
+    ~channel,
+    ~state,
+    ~onUpdate=None,
+    ~onMessage=config.onMessage,
+    ~onParseError=None,
+  )
 
-  let initResult = await (
-    waitForSocket(socket)
-    ->Result.flatMapOkAsync(_ => joinChannel(channel))
-    ->Result.flatMapOkAsync(_ => sendInitialize(channel, state, clientConfig, config.onMessage))
+  let initResult = await waitForSocket(socket)
+  ->Result.flatMapOkAsync(_ => joinChannel(channel))
+  ->Result.flatMapOkAsync(_ =>
+    Protocol.sendInitialize(~channel, ~state, ~clientConfig, ~onMessage=config.onMessage)
   )
 
   initResult->Result.map(result => {
-    state := state.contents->Client.reduce(Client.ConnectionStateChanged(Client.Initialized(result)))
+    state :=
+      state.contents->Client.reduce(Client.ConnectionStateChanged(Client.Initialized(result)))
     {socket, channel, clientConfig, state, onMessage: config.onMessage}
   })
 }
@@ -135,24 +113,21 @@ let isInitialized = (conn: connection): bool => {
   Client.isInitialized(conn.state.contents)
 }
 
-// Join a session channel
+// Join a session channel (internal helper)
 let joinSession = async (
   conn: connection,
   sessionId: string,
   ~onUpdate: Types.sessionUpdate => unit,
 ): result<session, string> => {
-  let sessionChannel = conn.socket->Socket.channel(~topic=`session:${sessionId}`)
+  let sessionChannel = conn.socket->Socket.channel(~topic=Constants.makeTaskTopic(sessionId))
 
-  sessionChannel->Channel.on(~event=#"acp:message", ~callback=payload => {
-    conn.onMessage->Option.forEach(cb => cb(Receive, payload))
-
-    switch Client.parseSessionUpdateNotification(payload) {
-    | Ok(notification) => onUpdate(notification.params.update)
-    | Error(_) =>
-      // Not a notification - handle as response
-      conn.state := Client.handleResponse(conn.state.contents, payload)
-    }
-  })
+  Protocol.attachMessageHandler(
+    ~channel=sessionChannel,
+    ~state=conn.state,
+    ~onUpdate=Some(onUpdate),
+    ~onMessage=conn.onMessage,
+    ~onParseError=Some(err => Console.warn(`Session message parse error: ${err}`)),
+  )
 
   let joinResult = await joinChannel(sessionChannel)
 
@@ -165,34 +140,15 @@ let joinSession = async (
 }
 
 // Create a new ACP session and auto-join the session channel
-let createSession = async (
-  conn: connection,
-  ~onUpdate: Types.sessionUpdate => unit,
-): result<session, string> => {
-  let sessionNewResult = await Promise.make((resolve, _) => {
-    let id = conn.state.contents.currentId + 1
-    let request = JsonRpc.Request.make(
-      ~id,
-      ~method="session/new",
-      ~params=Some(JSON.Encode.object(Dict.make())),
-    )
-
-    let pending: Client.pendingRequest = {
-      resolve: json => {
-        switch Client.parseSessionNewResult(json) {
-        | Ok(result) => resolve(Ok(result))
-        | Error(e) => resolve(Error(e))
-        }
-      },
-      reject: e => resolve(Error(e)),
-    }
-
-    conn.state := conn.state.contents->Client.reduce(Client.RequestSent(id, pending))
-
-    let payload = request->JsonRpc.Request.toJson
-    conn.onMessage->Option.forEach(cb => cb(Send, payload))
-    conn.channel->Channel.push(~event=#"acp:message", ~payload)->ignore
-  })
+let createSession = async (conn: connection, ~onUpdate: Types.sessionUpdate => unit): result<
+  session,
+  string,
+> => {
+  let sessionNewResult = await Protocol.sendSessionNew(
+    ~channel=conn.channel,
+    ~state=conn.state,
+    ~onMessage=conn.onMessage,
+  )
 
   switch sessionNewResult {
   | Ok(result) => await joinSession(conn, result.sessionId, ~onUpdate)
@@ -206,49 +162,26 @@ let sendPrompt = async (
   text: string,
   ~additionalBlocks: array<Types.contentBlock>=[],
 ): result<Types.promptResult, string> => {
-  let id = session.connection.state.contents.currentId + 1
-
   // Build prompt array starting with the text block
   let textBlock = JSON.Encode.object(
     Dict.fromArray([("type", JSON.Encode.string("text")), ("text", JSON.Encode.string(text))]),
   )
 
-  // Add additional blocks (for embedded context like resource_link and resource)
-  let allBlocks = [textBlock]
   let allBlocks = if Array.length(additionalBlocks) > 0 {
-    let additionalBlocksJson = additionalBlocks->Array.map(block =>
-      block->S.reverseConvertToJsonOrThrow(Types.contentBlockSchema)
-    )
-    Array.concat(allBlocks, additionalBlocksJson)
+    let additionalBlocksJson =
+      additionalBlocks->Array.map(block =>
+        block->S.reverseConvertToJsonOrThrow(Types.contentBlockSchema)
+      )
+    Array.concat([textBlock], additionalBlocksJson)
   } else {
-    allBlocks
+    [textBlock]
   }
 
-  let promptParams = JSON.Encode.object(
-    Dict.fromArray([
-      ("sessionId", JSON.Encode.string(session.sessionId)),
-      ("prompt", JSON.Encode.array(allBlocks)),
-    ]),
+  await Protocol.sendPrompt(
+    ~channel=session.channel,
+    ~state=session.connection.state,
+    ~sessionId=session.sessionId,
+    ~prompt=allBlocks,
+    ~onMessage=session.connection.onMessage,
   )
-
-  let request = JsonRpc.Request.make(~id, ~method="session/prompt", ~params=Some(promptParams))
-
-  await Promise.make((resolve, _) => {
-    let pending: Client.pendingRequest = {
-      resolve: json => {
-        switch Client.parsePromptResult(json) {
-        | Ok(result) => resolve(Ok(result))
-        | Error(e) => resolve(Error(e))
-        }
-      },
-      reject: e => resolve(Error(e)),
-    }
-
-    session.connection.state :=
-      session.connection.state.contents->Client.reduce(Client.RequestSent(id, pending))
-
-    let payload = request->JsonRpc.Request.toJson
-    session.connection.onMessage->Option.forEach(cb => cb(Send, payload))
-    session.channel->Channel.push(~event=#"acp:message", ~payload)->ignore
-  })
 }

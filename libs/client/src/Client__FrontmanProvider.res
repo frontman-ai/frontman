@@ -73,7 +73,7 @@ module Provider = {
     let (connection, setConnection) = React.useState((): option<ACP.connection> => None)
     let (session, setSession) = React.useState((): option<ACP.session> => None)
     let (relay, setRelay) = React.useState((): option<Relay.t> => None)
-    let mcpHandlerRef = React.useRef(None: option<MCP.mcpHandler<MCPServer.t>>)
+    let mcpHandlerRef = React.useRef((None: option<MCP.mcpHandler<MCPServer.t>>))
 
     // Get base URL from current location for relay
     let getBaseUrl = React.useCallback(() => {
@@ -156,7 +156,11 @@ module Provider = {
             switch relay {
             | Some(relayInstance) =>
               let mcpServer =
-                MCPServer.make(~relay=relayInstance, ~serverName=clientName, ~serverVersion=clientVersion)
+                MCPServer.make(
+                  ~relay=relayInstance,
+                  ~serverName=clientName,
+                  ~serverVersion=clientVersion,
+                )
                 ->MCPServer.registerToolModule(module(ConsoleLogTool))
                 ->MCPServer.registerToolModule(module(Client__Tool__GetErrors))
                 ->MCPServer.registerToolModule(module(Client__Tool__GetFigmaNode))
@@ -240,7 +244,15 @@ module Provider = {
           setSession(_ => None)
         },
       )
-    }, (endpoint, clientName, clientVersion, logMessage, setConnection, setConnectionState, setSession))
+    }, (
+      endpoint,
+      clientName,
+      clientVersion,
+      logMessage,
+      setConnection,
+      setConnectionState,
+      setSession,
+    ))
 
     let contextValue: contextValue = {
       connectionState,
