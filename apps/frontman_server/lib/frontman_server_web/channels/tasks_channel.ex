@@ -1,6 +1,6 @@
-defmodule FrontmanServerWeb.SessionsChannel do
+defmodule FrontmanServerWeb.TasksChannel do
   @moduledoc """
-  Channel for ACP session management.
+  Channel for Tasks management.
 
   Handles protocol initialization and session creation.
   Clients join this channel first, then join session-specific
@@ -16,8 +16,8 @@ defmodule FrontmanServerWeb.SessionsChannel do
   @acp_protocol_version ACP.protocol_version()
 
   @impl true
-  def join("sessions", _params, socket) do
-    Logger.info("Client joining sessions channel")
+  def join("tasks", _params, socket) do
+    Logger.info("Client joining tasks channel")
     socket = assign(socket, :acp_initialized, false)
     {:ok, %{status: "connected"}, socket}
   end
@@ -25,15 +25,15 @@ defmodule FrontmanServerWeb.SessionsChannel do
   @impl true
   def handle_in("acp:message", payload, socket) do
     case JsonRpc.parse(payload) do
-      {:ok, {:request, id, "initialize", params}} ->
-        handle_initialize(id, params, socket)
+      {:ok, {:request, req_id, "initialize", params}} ->
+        handle_initialize(req_id, params, socket)
 
-      {:ok, {:request, id, "session/new", _params}} ->
-        handle_session_new(id, socket)
+      {:ok, {:request, req_id, "session/new", _params}} ->
+        handle_new_acp_session(req_id, socket)
 
-      {:ok, {:request, id, method, _params}} ->
+      {:ok, {:request, req_id, method, _params}} ->
         Logger.info("ACP unknown method: #{method}")
-        push_error(socket, id, JsonRpc.error_method_not_found(), "Method not found")
+        push_error(socket, req_id, JsonRpc.error_method_not_found(), "Method not found")
 
       {:ok, {:notification, _method, _params}} ->
         {:noreply, socket}
@@ -45,10 +45,10 @@ defmodule FrontmanServerWeb.SessionsChannel do
 
         # If payload has an id, send error response; otherwise ignore (can't respond to malformed request)
         case payload do
-          %{"id" => id} ->
+          %{"id" => req_id} ->
             error_response =
               JsonRpc.error_response(
-                id,
+                req_id,
                 JsonRpc.error_invalid_request(),
                 "Invalid JSON-RPC message"
               )
@@ -90,12 +90,12 @@ defmodule FrontmanServerWeb.SessionsChannel do
     end
   end
 
-  defp handle_session_new(id, socket) do
+  defp handle_new_acp_session(req_id, socket) do
     Logger.info("ACP session/new request received")
-    session_id = ACP.generate_session_id()
-    {:ok, ^session_id} = Tasks.create_task(session_id, %{})
+    task_id = ACP.generate_session_id()
+    {:ok, ^task_id} = Tasks.create_task(task_id)
 
-    response = JsonRpc.success_response(id, ACP.build_session_new_result(session_id))
+    response = JsonRpc.success_response(req_id, ACP.build_session_new_result(task_id))
     push(socket, "acp:message", response)
     {:noreply, socket}
   end

@@ -1,9 +1,9 @@
-defmodule FrontmanServerWeb.SessionChannel do
+defmodule FrontmanServerWeb.TaskChannel do
   @moduledoc """
-  Channel for session-specific ACP events.
+  Channel for task-specific ACP events.
 
-  Clients join this channel after creating a session via the
-  sessions channel. Handles prompt messages and streams
+  Clients join this channel after creating a task via the
+  tasks channel. Handles prompt messages and streams
   agent responses back to the client.
   """
   use FrontmanServerWeb, :channel
@@ -16,23 +16,22 @@ defmodule FrontmanServerWeb.SessionChannel do
   alias FrontmanServerWeb.{ACP, JsonRpc, MCPProtocol}
 
   @impl true
-  def join("session:" <> session_id, _params, socket) do
-    case Tasks.get_task(session_id) do
+  def join("task:" <> task_id, _params, socket) do
+    case Tasks.get_task(task_id) do
       {:ok, _task} ->
-        Logger.info("Client joining session: #{session_id}")
-        Phoenix.PubSub.subscribe(FrontmanServer.PubSub, "task:#{session_id}")
+        Logger.info("Client joining: #{task_id}, socket_id: #{inspect(self())}")
 
         socket =
           socket
-          |> assign(:session_id, session_id)
+          |> assign(:task_id, task_id)
           |> assign(:mcp_status, :pending)
 
         send(self(), :init_mcp)
-        {:ok, %{session_id: session_id}, socket}
+        {:ok, %{task_id: task_id}, socket}
 
       {:error, :not_found} ->
-        Logger.warning("Client tried to join non-existent session: #{session_id}")
-        {:error, %{reason: "session_not_found"}}
+        Logger.warning("Client tried to join non-existent task: #{task_id}")
+        {:error, %{reason: "task_not_found"}}
     end
   end
 
@@ -43,7 +42,7 @@ defmodule FrontmanServerWeb.SessionChannel do
         handle_prompt(id, params, socket)
 
       {:ok, {:request, id, method, _params}} ->
-        Logger.warning("Unknown ACP method in session channel: #{method}")
+        Logger.warning("Unknown ACP method in task channel: #{method}")
 
         response =
           JsonRpc.error_response(
@@ -59,7 +58,7 @@ defmodule FrontmanServerWeb.SessionChannel do
 
       {:error, reason} ->
         Logger.error(
-          "Invalid ACP message in session channel: #{inspect(reason)}, payload: #{inspect(payload)}"
+          "Invalid ACP message in task channel: #{inspect(reason)}, payload: #{inspect(payload)}"
         )
 
         # If payload has an id, send error response
@@ -111,7 +110,7 @@ defmodule FrontmanServerWeb.SessionChannel do
 
     cond do
       socket.assigns[:mcp_init_request_id] == id ->
-        Logger.info("MCP initialized for session #{socket.assigns.session_id}")
+        Logger.info("MCP initialized for task #{socket.assigns.task_id}")
 
         socket =
           socket
@@ -140,7 +139,7 @@ defmodule FrontmanServerWeb.SessionChannel do
 
       Map.has_key?(pending_calls, id) ->
         tool_call = pending_calls[id]
-        session_id = socket.assigns.session_id
+        task_id = socket.assigns.task_id
 
         # Extract text from MCP content array
         text_result =
@@ -168,7 +167,7 @@ defmodule FrontmanServerWeb.SessionChannel do
         # Send ACP notification with appropriate status
         notification =
           ACP.build_tool_call_update_notification(
-            session_id,
+            task_id,
             tool_call.tool_call_id,
             status,
             text_result
@@ -178,7 +177,7 @@ defmodule FrontmanServerWeb.SessionChannel do
 
         # Store result and notify agent (use parsed result to preserve structured data like screenshots)
         Tasks.add_tool_result(
-          session_id,
+          task_id,
           tool_call.agent_id,
           %{id: tool_call.tool_call_id, name: tool_call.tool_name},
           parsed_result,
@@ -219,7 +218,7 @@ defmodule FrontmanServerWeb.SessionChannel do
 
       Map.has_key?(pending_calls, id) ->
         tool_call = pending_calls[id]
-        session_id = socket.assigns.session_id
+        task_id = socket.assigns.task_id
         error_message = error["message"] || "Unknown MCP error"
 
         # Emit MCP tool stop telemetry event with error
@@ -230,7 +229,7 @@ defmodule FrontmanServerWeb.SessionChannel do
         # Send ACP notification: failed
         failed_notification =
           ACP.build_tool_call_update_notification(
-            session_id,
+            task_id,
             tool_call.tool_call_id,
             "failed",
             error_message
@@ -240,7 +239,7 @@ defmodule FrontmanServerWeb.SessionChannel do
 
         # Store error result and notify agent
         Tasks.add_tool_result(
-          session_id,
+          task_id,
           tool_call.agent_id,
           %{id: tool_call.tool_call_id, name: tool_call.tool_name},
           error_message,
@@ -256,7 +255,7 @@ defmodule FrontmanServerWeb.SessionChannel do
   end
 
   defp handle_prompt(id, params, socket) do
-    session_id = socket.assigns.session_id
+    task_id = socket.assigns.task_id
     prompt_content = Map.get(params, "prompt", [])
     mcp_tools = socket.assigns[:mcp_tools] || []
 
@@ -267,7 +266,7 @@ defmodule FrontmanServerWeb.SessionChannel do
       |> Enum.map(fn block -> Map.get(block, "text", "") end)
       |> Enum.join("\n")
 
-    Logger.info("Received prompt for session #{session_id}: #{text_content}")
+    Logger.info("Received prompt for task #{task_id}: #{text_content}")
 
     # Pass the full prompt_content (ContentBlocks) to the agent
     # The agent will convert these to the appropriate LLM format
@@ -282,20 +281,20 @@ defmodule FrontmanServerWeb.SessionChannel do
     end
 
     # Emit task start telemetry event
-    TelemetryEvents.task_start(session_id)
+    TelemetryEvents.task_start(task_id)
 
     socket = assign(socket, :pending_prompt_id, id)
 
     # Merge backend tools with client tools
-    backend_tools = FrontmanServer.Tools.backend_tools(session_id)
+    backend_tools = FrontmanServer.Tools.backend_tools(task_id)
     all_tools = backend_tools ++ mcp_tools_to_llm_format(mcp_tools)
 
     opts = [tools: all_tools]
 
     # Add user message to task - this triggers the agent with ALL tools and content blocks
-    case Tasks.add_user_message(session_id, prompt_content, opts) do
+    case Tasks.add_user_message(task_id, prompt_content, opts) do
       {:ok, _interaction} ->
-        Logger.info("User message added, agent spawned for session #{session_id}")
+        Logger.info("User message added, agent spawned for task #{task_id}")
 
       {:error, reason} ->
         Logger.error("Failed to add user message: #{inspect(reason)}")
@@ -335,21 +334,26 @@ defmodule FrontmanServerWeb.SessionChannel do
   def handle_info({:agent_stream_token, _agent_id, text}, socket) do
     # Translate domain event to ACP notification
     # ACP compliant: agent_message_chunk implicitly signals message start
-    Logger.debug("Channel received agent_stream_token: #{byte_size(text)} bytes, text=#{inspect(text)}")
-    session_id = socket.assigns.session_id
-    notification = ACP.build_agent_message_chunk_notification(session_id, text)
+    Logger.debug(
+      "Channel received agent_stream_token: #{byte_size(text)} bytes, text=#{inspect(text)}"
+    )
+
+    task_id = socket.assigns.task_id
+    notification = ACP.build_agent_message_chunk_notification(task_id, text)
     Logger.debug("Pushing notification: #{inspect(notification)}")
     push(socket, "acp:message", notification)
     {:noreply, socket}
   end
 
   def handle_info({:agent_completed, _agent_id}, socket) do
-    Logger.debug("Channel received agent_completed, pending_prompt_id=#{inspect(socket.assigns[:pending_prompt_id])}")
+    Logger.debug(
+      "Channel received agent_completed, pending_prompt_id=#{inspect(socket.assigns[:pending_prompt_id])}"
+    )
 
-    session_id = socket.assigns.session_id
+    task_id = socket.assigns.task_id
 
     # Emit task stop telemetry event
-    TelemetryEvents.task_stop(session_id)
+    TelemetryEvents.task_stop(task_id)
 
     # Translate domain event to ACP response
     case socket.assigns[:pending_prompt_id] do
@@ -369,14 +373,14 @@ defmodule FrontmanServerWeb.SessionChannel do
   end
 
   def handle_info({:interaction, %Interaction.ToolCall{} = tool_call}, socket) do
-    session_id = socket.assigns.session_id
+    task_id = socket.assigns.task_id
 
     # Send ACP notification: pending
-    pending_notification = ACP.build_tool_call_notification(session_id, tool_call, "pending")
+    pending_notification = ACP.build_tool_call_notification(task_id, tool_call, "pending")
     push(socket, "acp:message", pending_notification)
 
     # Try backend execution first
-    case FrontmanServer.Tools.execute_backend_tool(tool_call, session_id) do
+    case FrontmanServer.Tools.execute_backend_tool(tool_call, task_id) do
       {:executed, result} ->
         handle_backend_tool_result(tool_call, result, socket)
 
@@ -389,12 +393,12 @@ defmodule FrontmanServerWeb.SessionChannel do
   def handle_info({:interaction, %Interaction.ToolResult{} = tool_result}, socket) do
     # Check if this was a todo tool that produces events
     if ToolRegistry.produces_events?(tool_result.tool_name) do
-      session_id = socket.assigns.session_id
+      task_id = socket.assigns.task_id
 
-      case Tasks.list_todos(session_id) do
+      case Tasks.list_todos(task_id) do
         {:ok, todos} ->
           entries = ACP.todos_to_plan_entries(todos)
-          notification = ACP.plan_update(session_id, entries)
+          notification = ACP.plan_update(task_id, entries)
           push(socket, "acp:message", notification)
 
         {:error, _reason} ->
@@ -430,10 +434,10 @@ defmodule FrontmanServerWeb.SessionChannel do
   end
 
   defp handle_backend_tool_result(tool_call, result, socket) do
-    session_id = socket.assigns.session_id
+    task_id = socket.assigns.task_id
 
     # Send in_progress update
-    notification = ACP.tool_call_update(session_id, tool_call.tool_call_id, "in_progress")
+    notification = ACP.tool_call_update(task_id, tool_call.tool_call_id, "in_progress")
     push(socket, "acp:message", notification)
 
     # Handle result
@@ -449,18 +453,18 @@ defmodule FrontmanServerWeb.SessionChannel do
   end
 
   defp handle_tool_success(tool_call, result, socket) do
-    session_id = socket.assigns.session_id
+    task_id = socket.assigns.task_id
 
     # Convert result to ACP content format
     content = format_tool_content(result)
 
     # Send completed update
-    notification = ACP.tool_call_update(session_id, tool_call.tool_call_id, "completed", content)
+    notification = ACP.tool_call_update(task_id, tool_call.tool_call_id, "completed", content)
     push(socket, "acp:message", notification)
 
     # Store structured data (not JSON)
     Tasks.add_tool_result(
-      session_id,
+      task_id,
       tool_call.agent_id,
       %{id: tool_call.tool_call_id, name: tool_call.tool_name},
       result,
@@ -469,19 +473,19 @@ defmodule FrontmanServerWeb.SessionChannel do
   end
 
   defp handle_tool_error(tool_call, error, socket) do
-    session_id = socket.assigns.session_id
+    task_id = socket.assigns.task_id
     error_message = to_string(error)
 
     # Convert error to ACP content format
     content = [%{type: "content", content: %{type: "text", text: error_message}}]
 
     # Send failed update
-    notification = ACP.tool_call_update(session_id, tool_call.tool_call_id, "failed", content)
+    notification = ACP.tool_call_update(task_id, tool_call.tool_call_id, "failed", content)
     push(socket, "acp:message", notification)
 
     # Store error
     Tasks.add_tool_result(
-      session_id,
+      task_id,
       tool_call.agent_id,
       %{id: tool_call.tool_call_id, name: tool_call.tool_name},
       error_message,
@@ -495,7 +499,7 @@ defmodule FrontmanServerWeb.SessionChannel do
   end
 
   defp route_to_mcp(tool_call, socket) do
-    session_id = socket.assigns.session_id
+    task_id = socket.assigns.task_id
     request_id = System.unique_integer([:positive])
 
     # Emit MCP tool start telemetry event
@@ -504,7 +508,7 @@ defmodule FrontmanServerWeb.SessionChannel do
       tool_call.tool_call_id,
       tool_call.tool_name,
       tool_call.agent_id,
-      session_id,
+      task_id,
       tool_call.arguments
     )
 
@@ -517,7 +521,7 @@ defmodule FrontmanServerWeb.SessionChannel do
 
     # Send ACP notification: in_progress
     in_progress_notification =
-      ACP.build_tool_call_update_notification(session_id, tool_call.tool_call_id, "in_progress")
+      ACP.build_tool_call_update_notification(task_id, tool_call.tool_call_id, "in_progress")
 
     push(socket, "acp:message", in_progress_notification)
 
@@ -531,7 +535,7 @@ defmodule FrontmanServerWeb.SessionChannel do
 
   defp mcp_tools_to_llm_format(mcp_tools) do
     Enum.map(mcp_tools, fn tool ->
-      # MCP tools are executed externally via SessionChannel, so we use a dummy callback.
+      # MCP tools are executed externally via TaskChannel, so we use a dummy callback.
       # The callback is never actually called - tool calls are routed to MCP instead.
       ReqLLM.Tool.new!(
         name: tool["name"],
@@ -544,12 +548,12 @@ defmodule FrontmanServerWeb.SessionChannel do
 
   @impl true
   def terminate(reason, socket) do
-    session_id = socket.assigns[:session_id]
-    Logger.info("Client disconnected from session #{session_id}: #{inspect(reason)}")
+    task_id = socket.assigns[:task_id]
+    Logger.info("Client disconnected from task #{task_id}: #{inspect(reason)}")
 
     # Emit task stop if still processing (client disconnected mid-prompt)
     if socket.assigns[:pending_prompt_id] do
-      TelemetryEvents.task_stop(session_id)
+      TelemetryEvents.task_stop(task_id)
     end
 
     :ok

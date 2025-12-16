@@ -7,10 +7,10 @@ defmodule FrontmanServerWeb.UserSocket do
   # assign values that can be accessed by your channel topics.
 
   ## Channels
-  # Session management (initialize, session/new)
-  channel("sessions", FrontmanServerWeb.SessionsChannel)
-  # Session-specific events (prompt, streaming, etc.)
-  channel("session:*", FrontmanServerWeb.SessionChannel)
+  # Tasks management (initialize, acp session/new)
+  channel("tasks", FrontmanServerWeb.TasksChannel)
+  # Task-specific events (prompt, streaming, etc.)
+  channel("task:*", FrontmanServerWeb.TaskChannel)
 
   # Socket params are passed from the client and can
   # be used to verify and authenticate a user. After

@@ -13,9 +13,7 @@ defmodule FrontmanServer.Tasks.Task do
   typedstruct enforce: true do
     field :task_id, String.t()
     field :short_desc, String.t()
-    field :session_id, String.t() | nil, enforce: false
     field :interactions, list(Interaction.t()), default: []
-    field :metadata, map(), default: %{}, enforce: false
   end
 
   @doc """
@@ -23,14 +21,12 @@ defmodule FrontmanServer.Tasks.Task do
 
   Returns a Task struct ready to be persisted.
   """
-  @spec new(String.t(), map()) :: t()
-  def new(task_id, metadata \\ %{}) do
+  @spec new(String.t()) :: t()
+  def new(task_id) do
     %__MODULE__{
       task_id: task_id,
       short_desc: short_description(task_id),
-      session_id: Map.get(metadata, :session_id),
-      interactions: [],
-      metadata: metadata
+      interactions: []
     }
   end
 

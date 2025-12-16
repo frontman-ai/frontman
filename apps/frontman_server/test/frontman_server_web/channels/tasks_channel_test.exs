@@ -1,31 +1,33 @@
-defmodule FrontmanServerWeb.SessionsChannelTest do
+defmodule FrontmanServerWeb.TasksChannelTest do
   use FrontmanServerWeb.ChannelCase, async: true
 
-  alias FrontmanServerWeb.UserSocket
+  alias FrontmanServerWeb.{ACP, UserSocket}
 
   setup do
     {:ok, _, socket} =
       UserSocket
       |> socket("user_id", %{})
-      |> subscribe_and_join("sessions", %{})
+      |> subscribe_and_join("tasks", %{})
 
     {:ok, socket: socket}
   end
 
-  describe "join sessions" do
-    test "succeeds and returns status", %{socket: socket} do
+  describe "join tasks" do
+    test "succeeds and sets acp_initialized to false", %{socket: socket} do
       assert socket.assigns.acp_initialized == false
     end
   end
 
   describe "ACP initialize" do
     test "succeeds with matching protocol version", %{socket: socket} do
+      version = ACP.protocol_version()
+
       push(socket, "acp:message", %{
         "jsonrpc" => "2.0",
         "id" => 1,
         "method" => "initialize",
         "params" => %{
-          "protocolVersion" => 1,
+          "protocolVersion" => version,
           "clientInfo" => %{"name" => "test-client", "version" => "1.0.0"}
         }
       })
@@ -34,7 +36,7 @@ defmodule FrontmanServerWeb.SessionsChannelTest do
         "jsonrpc" => "2.0",
         "id" => 1,
         "result" => %{
-          "protocolVersion" => 1,
+          "protocolVersion" => ^version,
           "agentInfo" => %{"name" => "frontman-server"}
         }
       }
@@ -45,9 +47,7 @@ defmodule FrontmanServerWeb.SessionsChannelTest do
         "jsonrpc" => "2.0",
         "id" => 1,
         "method" => "initialize",
-        "params" => %{
-          "protocolVersion" => 999
-        }
+        "params" => %{"protocolVersion" => 999}
       })
 
       assert_push "acp:message", %{
@@ -80,7 +80,7 @@ defmodule FrontmanServerWeb.SessionsChannelTest do
   end
 
   describe "ACP session/new" do
-    test "creates new session and returns sessionId", %{socket: socket} do
+    test "creates task and returns sessionId", %{socket: socket} do
       push(socket, "acp:message", %{
         "jsonrpc" => "2.0",
         "id" => 1,
@@ -94,11 +94,12 @@ defmodule FrontmanServerWeb.SessionsChannelTest do
         "result" => %{"sessionId" => session_id}
       }
 
+      # Session ID format: "sess_" + 24 hex chars
       assert String.starts_with?(session_id, "sess_")
-      assert String.length(session_id) == 29
+      assert byte_size(session_id) == 5 + 24
 
-      # Verify task was created
-      {:ok, task} = FrontmanServer.Tasks.get_task(session_id)
+      # Verify task was created in domain
+      assert {:ok, task} = FrontmanServer.Tasks.get_task(session_id)
       assert task.task_id == session_id
     end
   end

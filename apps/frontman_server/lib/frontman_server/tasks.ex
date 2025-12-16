@@ -37,10 +37,10 @@ defmodule FrontmanServer.Tasks do
   The task_id must be provided by the client.
   Returns `{:ok, task_id}` on success.
   """
-  @spec create_task(String.t(), map()) :: {:ok, String.t()} | {:error, term()}
-  def create_task(task_id, config \\ %{}) do
-    task = Task.new(task_id, config)
-    TaskStore.insert(task)
+  @spec create_task(String.t()) :: {:ok, String.t()} | {:error, term()}
+  def create_task(task_id) do
+    task = Task.new(task_id)
+    :ok = TaskStore.insert(task)
     {:ok, task_id}
   end
 
@@ -180,9 +180,21 @@ defmodule FrontmanServer.Tasks do
   The agent_id identifies which agent (root or sub-agent) owns this tool result.
   Notifies Agents directly so the agent can continue its iteration.
   """
-  @spec add_tool_result(String.t(), String.t(), %{id: String.t(), name: String.t()}, term(), boolean()) ::
+  @spec add_tool_result(
+          String.t(),
+          String.t(),
+          %{id: String.t(), name: String.t()},
+          term(),
+          boolean()
+        ) ::
           {:ok, Interaction.t()} | {:error, :task_not_found}
-  def add_tool_result(task_id, agent_id, %{id: tool_call_id, name: _} = tool_call_data, result, is_error \\ false) do
+  def add_tool_result(
+        task_id,
+        agent_id,
+        %{id: tool_call_id, name: _} = tool_call_data,
+        result,
+        is_error \\ false
+      ) do
     interaction = Interaction.ToolResult.new(agent_id, tool_call_data, result, is_error)
 
     case append_interaction(task_id, interaction) do
