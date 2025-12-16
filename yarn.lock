@@ -349,19 +349,6 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@ask-the-llm/logger@workspace:libs/logger":
-  version: 0.0.0-use.local
-  resolution: "@ask-the-llm/logger@workspace:libs/logger"
-  dependencies:
-    rescript: "catalog:"
-    rescript-vitest: "catalog:"
-    sury: "catalog:"
-    sury-ppx: "npm:^11.0.0-alpha.2"
-    vite: "catalog:"
-    vitest: "catalog:"
-  languageName: unknown
-  linkType: soft
-
 "@ask-the-llm/react-statestore@workspace:*, @ask-the-llm/react-statestore@workspace:libs/react-statestore":
   version: 0.0.0-use.local
   resolution: "@ask-the-llm/react-statestore@workspace:libs/react-statestore"

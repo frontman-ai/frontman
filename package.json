@@ -17,8 +17,7 @@
 		"libs/frontman-nextjs",
 		"test/sites/blog-starter",
 		"libs/react-statestore",
-		"libs/vite-plugin",
-		"libs/logger"
+		"libs/vite-plugin"
 	],
 	"dependencies": {
 		"rescript": "catalog:"
