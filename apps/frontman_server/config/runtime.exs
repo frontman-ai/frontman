@@ -17,7 +17,7 @@ end
 # LLM API keys - loaded at runtime from environment
 if config_env() in [:dev, :test] do
   config :frontman_server,
-    anthropic_api_key: env!("ANTHROPIC_API_KEY", :string!),
+    anthropic_api_key: env!("ANTHROPIC_API_KEY", :string, nil),
     google_api_key: env!("GOOGLE_API_KEY", :string, nil),
     xai_api_key: env!("XAI_API_KEY", :string, nil),
     openrouter_api_key: env!("OPENROUTER_API_KEY", :string, nil),
