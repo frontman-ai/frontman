@@ -53,12 +53,12 @@ let useExtensionState = () => {
           ) => {
             switch message.type_ {
             | "DevServerImportFigmaNodeResponse" =>
-              message.selectedFigmaNode->Option.forEach(_data => {
+              message.selectedFigmaNode->Option.forEach(data => {
                 // Parse the data structure: { nodeId: string, nodeDSL: string, image: option<string> }
                 let parsedData: Client__State__Types.FigmaNode.selectedNodeData = {
-                  nodeId: %raw(`data.nodeId`),
-                  nodeDSL: %raw(`data.nodeDSL`),
-                  image: %raw(`data.image ? (data.image === null ? null : data.image) : null`)->Js.Nullable.toOption,
+                  nodeId: data.nodeId,
+                  nodeDSL: data.nodeDSL,
+                  image: data.image,
                 }
                 Client__State.Actions.setFigmaNode(~figmaNode=parsedData)
               })

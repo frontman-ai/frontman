@@ -1,6 +1,18 @@
 defmodule FrontmanServer.Tools.ImplementComponent do
   @moduledoc """
   Spawns a sub-agent to implement a single UI component from Figma design.
+
+  This tool is typically called after a breakdown_figma_node analysis, where
+  each component from the breakdown can be implemented by spawning an
+  implement_component sub-agent.
+
+  The sub-agent focuses ONLY on implementation (no screenshots or browser navigation):
+  1. Fetch the full Figma node data via get_figma_node
+  2. Analyze the design and take notes on key details
+  3. Implement the component based on the Figma data
+
+  After this tool completes, use `finish_component` to visually verify
+  the implementation against the Figma design.
   """
 
   @behaviour FrontmanServer.Tools.Backend
@@ -8,6 +20,8 @@ defmodule FrontmanServer.Tools.ImplementComponent do
   require Logger
 
   alias FrontmanServer.Agents
+  alias FrontmanServer.Tasks
+  alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Tools.Backend.Context
   alias FrontmanServer.Tools.MCP
 
@@ -15,10 +29,25 @@ defmodule FrontmanServer.Tools.ImplementComponent do
   You are a frontend component implementation specialist. Your task is to implement
   a single UI component based on Figma design data.
 
+  ## Project Context & Conventions
+
+  **CRITICAL:** If you have been provided with project documentation, research findings,
+  or convention files (typically loaded as markdown files in your context), you MUST
+  take them into account throughout the entire implementation process. These documents
+  contain essential information about:
+  - Project-specific coding patterns and conventions
+  - Technology choices and their rationale
+  - Design system guidelines
+  - Component structure preferences
+  - Research findings about the project
+  - Best practices specific to this codebase
+
+  Always prioritize and follow these project-specific guidelines over generic conventions.
+
   ## Instructions
 
   1. **Fetch the Figma node** - Use `get_figma_node` with:
-     - nodeId: (provided in your task)
+     - nodeId: (provided in your task - use WITHOUT the # prefix)
      - includeImage: true
      - withChildren: true
      - embedVectors: true
@@ -29,32 +58,50 @@ defmodule FrontmanServer.Tools.ImplementComponent do
      - Typography and colors
      - Interactive states (if any)
      - Responsive behavior hints
+     **Take detailed notes** on the key design details (colors, fonts, spacing values, etc.)
+     as these will be passed to the verification step.
 
   3. **Implement the component** - Create a React component that:
      - Matches the Figma design precisely
-     - Uses Tailwind CSS for styling
-     - Follows project conventions (TypeScript, proper types)
+     - CRITICAL! Follows ALL project conventions and research findings provided in your context
+     - Uses TypeScript with proper types
      - Is reusable and well-structured
+     - Adheres to the project's design system and component patterns
 
-  4. **Verify the implementation** - Visual verification loop:
-     a. **Create a test page** - Create a temporary test page file that renders your component in isolation
-     b. **Navigate to test page** - Use `navigate` tool with a relative URL to the test page
-     c. **Check for errors** - Use `get_errors` tool to check for errors, iterate if needed
-     d. **Take a screenshot** - Use `take_screenshot` tool to capture how the component renders
-     e. **Compare with Figma** - Compare the screenshot against the original Figma design image
-     f. **Iterate if needed** - If the implementation doesn't match, fix and retry
-     g. **Navigate back** - Once verified, use `navigate_back` tool
-     h. **Clean up** - Delete the temporary test page file
+  4. **Return the implementation details** - Your response MUST include:
+     - **File paths created**: List ALL files you created or modified
+     - **Implementation summary**: A brief summary of what was implemented, key decisions made,
+       and patterns used
+     - **Design details**: Key details from the Figma design (colors, typography, spacing values)
+       that will help verify the implementation
 
-  5. **Return the implementation** - Provide the complete, verified component code
+  ## Output Format
+
+  At the end of your response, include a structured summary in this exact format:
+
+  ```
+  ## Implementation Complete
+
+  ### Files Created
+  - path/to/Component.tsx
+  - path/to/styles.css (if applicable)
+
+  ### Implementation Summary
+  [Brief description of what was implemented, key decisions, patterns used]
+
+  ### Design Details
+  [Key design details from Figma: colors, typography, spacing, etc.]
+  ```
 
   IMPORTANT INSTRUCTIONS:
-  - ONLY SHOW THE COMPONENT AND NOTHING ELSE ON THE TEST PAGE
-  - Match the Figma design as precisely as possible
+  - **DO NOT take screenshots or navigate to test pages** - focus ONLY on implementing the component
+  - **DO NOT use browser tools** (navigate, take_screenshot, get_errors) - verification happens separately
+  - Match the Figma design as precisely as possible based on the Figma node data
   - Write clean, reusable TypeScript React code
-  - Follow project conventions (check existing components if available)
+  - STRICTLY follow project conventions and research findings from provided documentation
+  - Check existing components in the project for reference patterns
   - Do NOT engage in conversation or ask clarifying questions
-  - Complete your task and return the implementation code
+  - Complete your task and return the implementation details in the specified format
   """
 
   @impl true
@@ -66,8 +113,11 @@ defmodule FrontmanServer.Tools.ImplementComponent do
     Implement a single UI component based on Figma design data.
 
     Use this after breaking down a Figma design to implement each component.
-    The tool will spawn a sub-agent that has access to browser tools for
-    visual verification.
+    The tool will spawn a sub-agent that fetches the Figma node, analyzes the design,
+    and implements the component.
+
+    After this tool completes, use `finish_component` to visually verify the implementation.
+    This tool returns the file paths created and implementation summary needed for verification.
     """
   end
 
@@ -123,10 +173,19 @@ defmodule FrontmanServer.Tools.ImplementComponent do
       "ImplementComponent: Starting implementation of #{component_name} (#{node_id}) with #{length(mcp_tools)} MCP tools"
     )
 
-    system_msg = ReqLLM.Context.system(@system_prompt, cache_control: %{type: "ephemeral"})
+    system_msg = ReqLLM.Context.system(@system_prompt)
     user_msg = build_user_message(args)
 
-    case Agents.execute_sub_agent(task.id, [system_msg, user_msg],
+    # Extract markdown files from read_file tool results (e.g., project conventions,
+    # research findings, AGENTS.md files) and add them as user messages.
+    # These provide critical project-specific context that the sub-agent MUST follow.
+    markdown_messages = extract_markdown_messages_from_task(task.task_id)
+
+    # Build message list: system, markdown files (conventions/research), then user message
+    messages = [system_msg | markdown_messages] ++ [user_msg]
+
+    # Execute sub-agent with MCP tools
+    case Agents.execute_sub_agent(task.task_id, messages,
            tools: mcp_tools,
            role: "component_implementor",
            parent_agent_id: parent_agent_id
@@ -189,5 +248,13 @@ defmodule FrontmanServer.Tools.ImplementComponent do
     """
 
     ReqLLM.Context.user(task_text)
+  end
+
+  # Extracts markdown file contents from read_file ToolResult interactions
+  # in the task and converts them to user messages.
+  defp extract_markdown_messages_from_task(task_id) do
+    task_id
+    |> Tasks.get_interactions()
+    |> Interaction.extract_markdown_messages()
   end
 end

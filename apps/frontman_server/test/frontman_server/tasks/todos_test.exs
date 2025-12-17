@@ -106,7 +106,13 @@ defmodule FrontmanServer.Tasks.TodosTest do
       {:ok, task} = Tasks.get_task(task_id)
       {:ok, updated} = Todos.update_todo_status(task.interactions, todo.id, "completed")
 
-      Tasks.add_tool_result(task_id, agent_id, %{id: "call2", name: "todo_update"}, updated, false)
+      Tasks.add_tool_result(
+        task_id,
+        agent_id,
+        %{id: "call2", name: "todo_update"},
+        updated,
+        false
+      )
 
       {:ok, task} = Tasks.get_task(task_id)
       todos = Todos.list_todos(task.interactions)

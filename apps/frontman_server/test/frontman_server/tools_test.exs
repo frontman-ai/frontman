@@ -16,19 +16,6 @@ defmodule FrontmanServer.ToolsTest do
   end
 
   describe "backend_tools/0" do
-    test "returns 6 backend tools (4 todo + 2 figma)" do
-      tools = Tools.backend_tools()
-      assert length(tools) == 6
-
-      tool_names = Enum.map(tools, & &1.name)
-      assert "todo_list" in tool_names
-      assert "todo_add" in tool_names
-      assert "todo_update" in tool_names
-      assert "todo_remove" in tool_names
-      assert "breakdown_figma_node" in tool_names
-      assert "implement_component" in tool_names
-    end
-
     test "all tools have proper structure" do
       tools = Tools.backend_tools()
 

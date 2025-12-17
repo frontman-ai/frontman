@@ -351,6 +351,88 @@ defmodule FrontmanServer.Tasks.Interaction do
   defp is_conversation_message(%ToolResult{}), do: true
   defp is_conversation_message(_), do: false
 
+  @doc """
+  Extracts markdown file contents from read_file ToolResult interactions
+  and converts them to user messages.
+
+  Only includes ToolResults where:
+  - tool_name is "read_file"
+  - The filename/path (from the matching ToolCall arguments) ends with .md
+  - The result is not an error
+  """
+  @spec extract_markdown_messages(list(t())) :: list(map())
+  def extract_markdown_messages(interactions) do
+    # Build a map of tool_call_id -> ToolCall for quick lookup
+    tool_calls_map = build_tool_calls_map(interactions)
+
+    interactions
+    |> Enum.filter(fn
+      %ToolResult{tool_name: "read_file", is_error: false} -> true
+      _ -> false
+    end)
+    |> Enum.flat_map(&extract_markdown_from_tool_result(&1, tool_calls_map))
+  end
+
+  defp build_tool_calls_map(interactions) do
+    interactions
+    |> Enum.filter(fn
+      %ToolCall{} -> true
+      _ -> false
+    end)
+    |> Enum.reduce(%{}, fn %ToolCall{tool_call_id: id} = tc, acc ->
+      Map.put(acc, id, tc)
+    end)
+  end
+
+  defp extract_markdown_from_tool_result(
+         %ToolResult{tool_call_id: tool_call_id, result: result},
+         tool_calls_map
+       ) do
+    # Get the path from the matching ToolCall arguments
+    case Map.get(tool_calls_map, tool_call_id) do
+      %ToolCall{arguments: args} ->
+        path = get_field(args, :path)
+
+        if path && String.ends_with?(path, ".md") do
+          extract_content_from_result(result)
+        else
+          []
+        end
+
+      nil ->
+        []
+    end
+  end
+
+  defp extract_content_from_result(result) do
+    case result do
+      # Result is a map - check for text/content field
+      result when is_map(result) ->
+        content = get_field(result, :text) || get_field(result, :content)
+
+        if content && is_binary(content) do
+          [ReqLLM.Context.user(content)]
+        else
+          []
+        end
+
+      # Result is a string - this is the file content directly
+      result when is_binary(result) ->
+        # Try to decode as JSON first in case it's structured
+        case Jason.decode(result) do
+          {:ok, decoded} when is_map(decoded) ->
+            extract_content_from_result(decoded)
+
+          _ ->
+            # Plain text content - use as is
+            [ReqLLM.Context.user(result)]
+        end
+
+      _ ->
+        []
+    end
+  end
+
   defp to_llm_message(%UserMessage{content_blocks: content_blocks}) do
     # Filter out ContentBlocks with _meta figma_image: true or figma_node: true
     filtered_blocks = Enum.reject(content_blocks, &has_figma_meta?/1)
@@ -492,6 +574,10 @@ defmodule FrontmanServer.Tasks.Interaction do
     Map.get(map, Atom.to_string(key)) || Map.get(map, key)
   end
 
+  defp get_field(map, key) when is_binary(key) do
+    Map.get(map, key) || Map.get(map, String.to_atom(key))
+  end
+
   defp decode_data_url(data_url) do
     with [_, mime_type, base64] <- Regex.run(~r/^data:([^;]+);base64,(.+)$/s, data_url),
          {:ok, binary} <- Base.decode64(base64) do
@@ -563,10 +649,7 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     %{
       "type" => "text",
-      "text" => text,
-      "cache_control" => %{
-        "type" => "ephemeral"
-      }
+      "text" => text
     }
   end
 
@@ -581,10 +664,7 @@ defmodule FrontmanServer.Tasks.Interaction do
         %{
           "type" => "image",
           "data" => base64_data,
-          "mimeType" => mime_type,
-          "cache_control" => %{
-            "type" => "ephemeral"
-          }
+          "mimeType" => mime_type
         }
 
       # EmbeddedResource with TextResourceContents (text/plain for DSL)
@@ -601,10 +681,7 @@ defmodule FrontmanServer.Tasks.Interaction do
 
         %{
           "type" => "text",
-          "text" => dsl_text,
-          "cache_control" => %{
-            "type" => "ephemeral"
-          }
+          "text" => dsl_text
         }
 
       # EmbeddedResource with TextResourceContents (application/json)
@@ -612,47 +689,7 @@ defmodule FrontmanServer.Tasks.Interaction do
         # For Figma nodes or other JSON resources, include the data as text
         %{
           "type" => "text",
-          "text" => "\n\n[Embedded Resource: #{uri}]\n#{text}",
-          "cache_control" => %{
-            "type" => "ephemeral"
-          },
-          "annotations" => [
-            %{
-              "usage" => """
-              ## Figma Node DSL Format
-
-              When you receive Figma design context, it will be in a compact DSL format optimized for understanding UI structure.
-
-              ### Syntax
-
-              node-name(v:N) #ID:
-                child-name #ID
-                icon:type #ID
-                +N more item-name
-
-              ### Key elements:
-
-              - **`node-name`** — Normalized component/layer name (lowercase, hyphenated)
-              - **`(v:N)`** — Volume indicator (1-10 scale of complexity/token count). Higher = more content
-              - **`#ID`** — Figma node ID (e.g., `#0:1927`). Use with `get_figma_node` tool to fetch full details
-              - **`:`** after a node — Indicates it has children (indented below)
-              - **`icon:type`** — Normalized icon reference (e.g., `icon:check`, `icon:arrow`)
-              - **`+N more name`** — N additional items with identical structure (template pattern)
-              - **`(N)`** — N homogeneous children collapsed (e.g., `list-item(5)` = 5 identical items)
-
-              ### Volume scale:
-
-              v:1-3 = Small/simple, v:4-6 = Medium complexity, v:7-10 = Large/complex
-
-              ### Reading strategy:
-
-              1. Start with high-level structure (root nodes that are not with large/complex volume)
-              2. For large/complex nodes (v:7+), use `breakdown_figma_node` to get a component todo list
-              3. Use `get_figma_node` tool on specific node IDs to fetch full Tailwind/styling details
-              4. Collapsed nodes (no `:`) contain implementation details you can expand on-demand
-              """
-            }
-          ]
+          "text" => "\n\n[Embedded Resource: #{uri}]\n#{text}"
         }
 
       _ ->

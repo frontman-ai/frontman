@@ -16,7 +16,8 @@ defmodule FrontmanServer.Tools do
     FrontmanServer.Tools.TodoUpdate,
     FrontmanServer.Tools.TodoRemove,
     FrontmanServer.Tools.BreakdownFigmaNode,
-    FrontmanServer.Tools.ImplementComponent
+    FrontmanServer.Tools.ImplementComponent,
+    FrontmanServer.Tools.FinishComponent
   ]
 
   @todo_mutations ["todo_add", "todo_update", "todo_remove"]

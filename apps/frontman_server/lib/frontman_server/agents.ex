@@ -111,7 +111,11 @@ defmodule FrontmanServer.Agents do
         Tasks.add_agent_spawned(%{task_id: task_id, agent_id: agent_id}, %{tools: tools})
         messages = Tasks.get_llm_messages(task_id, agent_id)
         has_figma = Tasks.has_figma_context?(task_id)
-        system_msg = Prompts.build_system_message(nil, has_figma_context: has_figma)
+        framework = get_framework(task_id)
+
+        system_msg =
+          Prompts.build_system_message(nil, has_figma_context: has_figma, framework: framework)
+
         AgentServer.execute_iteration(agent_id, [system_msg | messages])
         {:ok, agent_id}
 
@@ -209,9 +213,17 @@ defmodule FrontmanServer.Agents do
 
   defp push_iteration(task_id, agent_id) do
     messages = Tasks.get_llm_messages(task_id, agent_id)
-    opts = [has_figma_context: Tasks.has_figma_context?(task_id)]
+    framework = get_framework(task_id)
+    opts = [has_figma_context: Tasks.has_figma_context?(task_id), framework: framework]
     system_msg = Prompts.build_system_message(nil, opts)
     AgentServer.execute_iteration(agent_id, [system_msg | messages])
+  end
+
+  defp get_framework(task_id) do
+    case Tasks.get_task(task_id) do
+      {:ok, task} -> task.framework
+      {:error, :not_found} -> nil
+    end
   end
 
   defp broadcast(task_id, message) do

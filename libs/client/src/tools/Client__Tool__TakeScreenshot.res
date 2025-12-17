@@ -55,7 +55,7 @@ let execute = async (input: input): toolResult<output> => {
     | Ok(element) =>
       try {
         let captureResult = await Bindings__Snapdom.snapdom(~element)
-        let pngImage = await captureResult.toPng(~options={})
+        let pngImage = await captureResult.toPng(~options={scale: 2.0})
         Ok({screenshot: Some(pngImage.src), error: None})
       } catch {
       | exn =>

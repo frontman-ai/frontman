@@ -29,7 +29,7 @@ defmodule FrontmanServer.Tools.BreakdownFigmaNode do
   3. **Consider volume** - Break down large sections into smaller, manageable pieces
   4. **Create the todo list** - List each component with:
      - A descriptive name (e.g., "Header Navigation", "Hero Section", "Feature Card")
-     - The Figma node ID (from the skeleton, marked with #ID)
+     - The Figma node ID (from the skeleton, marked with #ID - but output WITHOUT the # prefix)
      - Estimated complexity (1-10)
      - Any dependencies on other components
 
@@ -41,7 +41,7 @@ defmodule FrontmanServer.Tools.BreakdownFigmaNode do
   ## Component Breakdown
 
   ### 1. [Component Name]
-  - **Node ID:** #X:XXX
+  - **Node ID:** X:XXX (WITHOUT the # prefix - e.g., "0:1927" not "#0:1927")
   - **Complexity:** X/10
   - **Description:** Brief description of what this component does
   - **Dependencies:** List any components this depends on (or "None")
@@ -117,12 +117,12 @@ defmodule FrontmanServer.Tools.BreakdownFigmaNode do
 
     case extract_figma_data(task.interactions) do
       {:ok, figma_image, figma_skeleton} ->
-        system_msg = ReqLLM.Context.system(@system_prompt, cache_control: %{type: "ephemeral"})
+        system_msg = ReqLLM.Context.system(@system_prompt)
 
         user_msg =
           build_user_message(node_id, max_volume, figma_context, figma_image, figma_skeleton)
 
-        case Agents.execute_sub_agent(task.id, [system_msg, user_msg],
+        case Agents.execute_sub_agent(task.task_id, [system_msg, user_msg],
                tools: mcp_tools,
                role: "figma_breakdown",
                parent_agent_id: parent_agent_id

@@ -16,6 +16,7 @@ defmodule FrontmanServer.Tasks.Todos do
 
   defmodule Todo do
     use TypedStruct
+    @derive Jason.Encoder
     @valid_statuses [:pending, :in_progress, :completed]
 
     @new_schema Zoi.object(%{

@@ -6,11 +6,11 @@ module Tool = AskTheLlmFrontmanClient.FrontmanClient__MCP__Tool
 type toolResult<'a> = Tool.toolResult<'a>
 
 let name = "navigate"
-let description = "Navigate the web preview to a specified URL. Changes the current page in the preview frame."
+let description = "Navigate the web preview to a specified relative URL. Changes the current page in the preview frame. Only relative paths should be passed (e.g., '/about', '/products/123')."
 
 @schema
 type input = {
-  @s.describe("The URL to navigate to (e.g., '/about', 'https://example.com/page')")
+  @s.describe("The relative URL to navigate to. Only relative paths should be passed (e.g., '/about', '/products/123')")
   url: string,
 }
 
@@ -59,6 +59,8 @@ let execute = async (input: input): toolResult<output> => {
     }
   }
 }
+
+
 
 
 

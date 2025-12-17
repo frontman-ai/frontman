@@ -117,7 +117,9 @@ defmodule FrontmanServer.Agents.AgentServer do
   # Server Callbacks
 
   @impl true
-  def init({:root, %{agent_id: agent_id, task_id: task_id, tools: tools, on_event: on_event} = opts}) do
+  def init(
+        {:root, %{agent_id: agent_id, task_id: task_id, tools: tools, on_event: on_event} = opts}
+      ) do
     agent = Agent.new_root(agent_id, task_id)
     parent_agent_id = Map.get(opts, :parent_agent_id)
 
