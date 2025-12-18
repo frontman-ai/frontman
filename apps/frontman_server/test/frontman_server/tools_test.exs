@@ -1,35 +1,36 @@
 defmodule FrontmanServer.ToolsTest do
   use ExUnit.Case, async: true
 
+  alias FrontmanServer.Tools.Backend.Context
   alias FrontmanServer.Tools
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Interaction.ToolCall
+  alias FrontmanServer.Tasks.Todos.Todo
 
   setup do
     task_id = "test_task_#{:rand.uniform(1_000_000)}"
     agent_id = "agent_#{:rand.uniform(1_000_000)}"
     {:ok, ^task_id} = Tasks.create_task(task_id)
-    {:ok, task_id: task_id, agent_id: agent_id}
+    {:ok, task} = Tasks.get_task(task_id)
+    {:ok, task_id: task_id, agent_id: agent_id, task: task}
   end
 
-  describe "backend_tools/1" do
-    test "returns 6 backend tools (4 todo + 2 figma)", %{task_id: task_id} do
-      tools = Tools.backend_tools(task_id)
+  describe "backend_tools/0" do
+    test "returns 6 backend tools (4 todo + 2 figma)" do
+      tools = Tools.backend_tools()
       assert length(tools) == 6
 
       tool_names = Enum.map(tools, & &1.name)
-      # Todo tools
       assert "todo_list" in tool_names
       assert "todo_add" in tool_names
       assert "todo_update" in tool_names
       assert "todo_remove" in tool_names
-      # Figma tools
       assert "breakdown_figma_node" in tool_names
       assert "implement_component" in tool_names
     end
 
-    test "all tools have proper structure", %{task_id: task_id} do
-      tools = Tools.backend_tools(task_id)
+    test "all tools have proper structure" do
+      tools = Tools.backend_tools()
 
       Enum.each(tools, fn tool ->
         assert is_binary(tool.name)
@@ -40,14 +41,28 @@ defmodule FrontmanServer.ToolsTest do
     end
   end
 
-  describe "find_backend_tool/2" do
-    test "finds existing tool", %{task_id: task_id} do
-      assert {:ok, tool} = Tools.find_backend_tool("todo_list", task_id)
-      assert tool.name == "todo_list"
+  describe "find_tool/1" do
+    test "finds existing tool" do
+      assert {:ok, module} = Tools.find_tool("todo_list")
+      assert module == FrontmanServer.Tools.TodoList
     end
 
-    test "returns :not_found for non-existent tool", %{task_id: task_id} do
-      assert :not_found = Tools.find_backend_tool("nonexistent", task_id)
+    test "returns :not_found for non-existent tool" do
+      assert :not_found = Tools.find_tool("nonexistent")
+    end
+  end
+
+  describe "todo_mutation?/1" do
+    test "returns true for todo mutation tools" do
+      assert Tools.todo_mutation?("todo_add")
+      assert Tools.todo_mutation?("todo_update")
+      assert Tools.todo_mutation?("todo_remove")
+    end
+
+    test "returns false for non-mutation tools" do
+      refute Tools.todo_mutation?("todo_list")
+      refute Tools.todo_mutation?("breakdown_figma_node")
+      refute Tools.todo_mutation?("some_mcp_tool")
     end
   end
 
@@ -93,108 +108,94 @@ defmodule FrontmanServer.ToolsTest do
     end
   end
 
-  describe "tool execution" do
-    test "todo_add tool callback works", %{task_id: task_id} do
-      {:ok, tool} = Tools.find_backend_tool("todo_add", task_id)
+  describe "tool execution via module.execute/2" do
+    test "todo_add returns Todo struct", %{task: task, agent_id: agent_id} do
+      context = %Context{task: task, agent_id: agent_id}
 
       result =
-        tool.callback.(%{
-          "content" => "Test todo",
-          "active_form" => "Testing todo"
-        })
+        FrontmanServer.Tools.TodoAdd.execute(
+          %{"content" => "Test todo", "active_form" => "Testing todo"},
+          context
+        )
 
-      assert {:ok, %FrontmanServer.Tasks.Todos.Tools.TodoAdded{} = event} = result
-      assert event.content == "Test todo"
-      assert event.status == :pending
+      assert {:ok, %Todo{} = todo} = result
+      assert todo.content == "Test todo"
+      assert todo.status == :pending
     end
 
-    test "todo_list tool callback works", %{task_id: task_id, agent_id: agent_id} do
-      {:ok, add_tool} = Tools.find_backend_tool("todo_add", task_id)
-
-      {:ok, %FrontmanServer.Tasks.Todos.Tools.TodoAdded{} = event} =
-        add_tool.callback.(%{
-          "content" => "Test",
-          "active_form" => "Testing"
-        })
-
-      {:ok, _interaction} =
-        Tasks.add_tool_result(task_id, agent_id, %{id: "call1", name: "todo_add"}, event, false)
-
+    test "todo_list returns todos after adding", %{task_id: task_id, agent_id: agent_id} do
       {:ok, task} = Tasks.get_task(task_id)
-      assert length(task.interactions) == 1
+      context = %Context{task: task, agent_id: agent_id}
 
-      [interaction] = task.interactions
-      assert %FrontmanServer.Tasks.Interaction.ToolResult{} = interaction
-      assert %FrontmanServer.Tasks.Todos.Tools.TodoAdded{} = interaction.result
+      # Add a todo
+      {:ok, todo} =
+        FrontmanServer.Tools.TodoAdd.execute(
+          %{"content" => "Test", "active_form" => "Testing"},
+          context
+        )
 
-      {:ok, list_tool} = Tools.find_backend_tool("todo_list", task_id)
-      {:ok, result} = list_tool.callback.(%{})
+      # Store the result
+      Tasks.add_tool_result(task_id, agent_id, %{id: "call1", name: "todo_add"}, todo, false)
+
+      # Refresh task to get updated interactions
+      {:ok, updated_task} = Tasks.get_task(task_id)
+      updated_context = %Context{task: updated_task, agent_id: agent_id}
+
+      # List todos
+      {:ok, result} = FrontmanServer.Tools.TodoList.execute(%{}, updated_context)
       assert %{"todos" => todos} = result
       assert length(todos) == 1
     end
 
-    test "todo_update tool callback works", %{task_id: task_id, agent_id: agent_id} do
-      {:ok, add_tool} = Tools.find_backend_tool("todo_add", task_id)
+    test "todo_update returns updated Todo", %{task_id: task_id, agent_id: agent_id} do
+      {:ok, task} = Tasks.get_task(task_id)
+      context = %Context{task: task, agent_id: agent_id}
 
-      {:ok, %FrontmanServer.Tasks.Todos.Tools.TodoAdded{} = add_event} =
-        add_tool.callback.(%{
-          "content" => "Test",
-          "active_form" => "Testing"
-        })
+      # Add a todo
+      {:ok, todo} =
+        FrontmanServer.Tools.TodoAdd.execute(
+          %{"content" => "Test", "active_form" => "Testing"},
+          context
+        )
 
-      Tasks.add_tool_result(task_id, agent_id, %{id: "call1", name: "todo_add"}, add_event, false)
+      Tasks.add_tool_result(task_id, agent_id, %{id: "call1", name: "todo_add"}, todo, false)
 
-      {:ok, update_tool} = Tools.find_backend_tool("todo_update", task_id)
+      # Refresh task to get updated interactions
+      {:ok, updated_task} = Tasks.get_task(task_id)
+      updated_context = %Context{task: updated_task, agent_id: agent_id}
 
-      {:ok, %FrontmanServer.Tasks.Todos.Tools.TodoUpdated{} = update_event} =
-        update_tool.callback.(%{
-          "id" => add_event.todo_id,
-          "status" => "completed"
-        })
+      # Update it
+      {:ok, %Todo{} = updated} =
+        FrontmanServer.Tools.TodoUpdate.execute(
+          %{"id" => todo.id, "status" => "completed"},
+          updated_context
+        )
 
-      assert update_event.status == :completed
-
-      Tasks.add_tool_result(
-        task_id,
-        agent_id,
-        %{id: "call2", name: "todo_update"},
-        update_event,
-        false
-      )
-
-      {:ok, list_tool} = Tools.find_backend_tool("todo_list", task_id)
-      {:ok, %{"todos" => todos}} = list_tool.callback.(%{})
-      updated_todo = Enum.find(todos, &(&1["id"] == add_event.todo_id))
-      assert updated_todo["status"] == "completed"
+      assert updated.status == :completed
     end
 
-    test "todo_remove tool callback works", %{task_id: task_id, agent_id: agent_id} do
-      {:ok, add_tool} = Tools.find_backend_tool("todo_add", task_id)
+    test "todo_remove returns todo_id", %{task_id: task_id, agent_id: agent_id} do
+      {:ok, task} = Tasks.get_task(task_id)
+      context = %Context{task: task, agent_id: agent_id}
 
-      {:ok, %FrontmanServer.Tasks.Todos.Tools.TodoAdded{} = add_event} =
-        add_tool.callback.(%{
-          "content" => "Test",
-          "active_form" => "Testing"
-        })
+      # Add a todo
+      {:ok, todo} =
+        FrontmanServer.Tools.TodoAdd.execute(
+          %{"content" => "Test", "active_form" => "Testing"},
+          context
+        )
 
-      Tasks.add_tool_result(task_id, agent_id, %{id: "call1", name: "todo_add"}, add_event, false)
+      Tasks.add_tool_result(task_id, agent_id, %{id: "call1", name: "todo_add"}, todo, false)
 
-      {:ok, remove_tool} = Tools.find_backend_tool("todo_remove", task_id)
+      # Refresh task to get updated interactions
+      {:ok, updated_task} = Tasks.get_task(task_id)
+      updated_context = %Context{task: updated_task, agent_id: agent_id}
 
-      {:ok, %FrontmanServer.Tasks.Todos.Tools.TodoRemoved{} = remove_event} =
-        remove_tool.callback.(%{"id" => add_event.todo_id})
+      # Remove it
+      {:ok, removed_id} =
+        FrontmanServer.Tools.TodoRemove.execute(%{"id" => todo.id}, updated_context)
 
-      Tasks.add_tool_result(
-        task_id,
-        agent_id,
-        %{id: "call2", name: "todo_remove"},
-        remove_event,
-        false
-      )
-
-      {:ok, list_tool} = Tools.find_backend_tool("todo_list", task_id)
-      {:ok, %{"todos" => todos}} = list_tool.callback.(%{})
-      assert Enum.empty?(todos)
+      assert removed_id == todo.id
     end
   end
 end

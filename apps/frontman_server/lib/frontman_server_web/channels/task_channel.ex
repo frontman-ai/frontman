@@ -12,7 +12,7 @@ defmodule FrontmanServerWeb.TaskChannel do
   alias FrontmanServer.Observability.TelemetryEvents
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Interaction
-  alias FrontmanServer.ToolRegistry
+  alias FrontmanServer.Tools
   alias FrontmanServerWeb.{ACP, JsonRpc, MCPProtocol}
 
   @impl true
@@ -289,8 +289,8 @@ defmodule FrontmanServerWeb.TaskChannel do
     Tasks.set_mcp_tools(task_id, mcp_tools)
 
     # Merge backend tools with client tools
-    mcp_tools_formatted = mcp_tools_to_llm_format(mcp_tools)
-    backend_tools = FrontmanServer.Tools.backend_tools(task_id)
+    mcp_tools_formatted = Tools.MCP.to_llm_format(mcp_tools)
+    backend_tools = Tools.backend_tools()
     all_tools = backend_tools ++ mcp_tools_formatted
 
     opts = [tools: all_tools]
@@ -384,14 +384,13 @@ defmodule FrontmanServerWeb.TaskChannel do
     push(socket, "acp:message", pending_notification)
 
     # Check if it's a backend tool
-    case FrontmanServer.Tools.find_backend_tool(tool_call.tool_name, task_id) do
-      {:ok, _tool} ->
+    case Tools.find_tool(tool_call.tool_name) do
+      {:ok, _tool_module} ->
         # Execute backend tool ASYNC to avoid blocking the channel
-        # This allows sub-agent tool calls to be processed while parent tool runs
         channel_pid = self()
 
         Task.start(fn ->
-          result = FrontmanServer.Tools.execute_backend_tool(tool_call, task_id)
+          result = Tools.execute_backend_tool(tool_call, task_id)
           send(channel_pid, {:backend_tool_completed, tool_call, result})
         end)
 
@@ -415,8 +414,7 @@ defmodule FrontmanServerWeb.TaskChannel do
   end
 
   def handle_info({:interaction, %Interaction.ToolResult{} = tool_result}, socket) do
-    # Check if this was a todo tool that produces events
-    if ToolRegistry.produces_events?(tool_result.tool_name) do
+    if Tools.todo_mutation?(tool_result.tool_name) do
       task_id = socket.assigns.task_id
 
       case Tasks.list_todos(task_id) do
@@ -555,19 +553,6 @@ defmodule FrontmanServerWeb.TaskChannel do
 
     push(socket, "mcp:message", request)
     {:noreply, socket}
-  end
-
-  defp mcp_tools_to_llm_format(mcp_tools) do
-    Enum.map(mcp_tools, fn tool ->
-      # MCP tools are executed externally via TaskChannel, so we use a dummy callback.
-      # The callback is never actually called - tool calls are routed to MCP instead.
-      ReqLLM.Tool.new!(
-        name: tool["name"],
-        description: tool["description"] || "",
-        parameter_schema: tool["inputSchema"] || %{"type" => "object", "properties" => %{}},
-        callback: fn _args -> {:ok, "MCP tool - executed externally"} end
-      )
-    end)
   end
 
   @impl true

@@ -70,7 +70,7 @@ defmodule FrontmanServer.Tasks.Todos do
     end
   end
 
-  alias Todos.Projection
+  alias FrontmanServer.Tasks.Todos.Projection
 
   @doc """
   Lists all current todos by rebuilding state from interactions.

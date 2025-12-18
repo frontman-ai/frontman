@@ -160,12 +160,10 @@ defmodule FrontmanServer.TasksTest do
       agent_id = "agent_#{System.unique_integer([:positive])}"
 
       {:ok, todo1} = Tasks.create_todo("First", "First", "pending")
-      event1 = FrontmanServer.Tasks.Todos.Tools.TodoAdded.from_todo(todo1)
-      Tasks.add_tool_result(task_id, agent_id, %{id: "c1", name: "todo_add"}, event1, false)
+      Tasks.add_tool_result(task_id, agent_id, %{id: "c1", name: "todo_add"}, todo1, false)
 
       {:ok, todo2} = Tasks.create_todo("Second", "Second", "in_progress")
-      event2 = FrontmanServer.Tasks.Todos.Tools.TodoAdded.from_todo(todo2)
-      Tasks.add_tool_result(task_id, agent_id, %{id: "c2", name: "todo_add"}, event2, false)
+      Tasks.add_tool_result(task_id, agent_id, %{id: "c2", name: "todo_add"}, todo2, false)
 
       {:ok, todos} = Tasks.list_todos(task_id)
 
@@ -183,8 +181,7 @@ defmodule FrontmanServer.TasksTest do
       agent_id = "agent_#{System.unique_integer([:positive])}"
 
       {:ok, todo} = Tasks.create_todo("Task A todo", "Working", "pending")
-      event = FrontmanServer.Tasks.Todos.Tools.TodoAdded.from_todo(todo)
-      Tasks.add_tool_result(task_a, agent_id, %{id: "c1", name: "todo_add"}, event, false)
+      Tasks.add_tool_result(task_a, agent_id, %{id: "c1", name: "todo_add"}, todo, false)
 
       {:ok, todos_a} = Tasks.list_todos(task_a)
       {:ok, todos_b} = Tasks.list_todos(task_b)

@@ -1,17 +1,15 @@
-defmodule FrontmanServer.Agents.FigmaTools.BreakdownFigmaNode do
+defmodule FrontmanServer.Tools.BreakdownFigmaNode do
   @moduledoc """
-  Backend tool that spawns a sub-agent to analyze a Figma node and break it
-  down into a component todo list.
-
-  This tool extracts the figma_node and figma_image from the task's interactions,
-  then spawns a sub-agent with a specialized system prompt to analyze the design
-  and produce a structured breakdown of components to build.
+  Spawns a sub-agent to analyze a Figma node and break it down into components.
   """
+
+  @behaviour FrontmanServer.Tools.Backend
 
   require Logger
 
-  alias FrontmanServer.Agents.SubAgentExecutor
-  alias FrontmanServer.Tasks
+  alias FrontmanServer.Agents
+  alias FrontmanServer.Tools.Backend.Context
+  alias FrontmanServer.Tools.MCP
   alias FrontmanServer.Tasks.Interaction
 
   @system_prompt """
@@ -64,75 +62,67 @@ defmodule FrontmanServer.Agents.FigmaTools.BreakdownFigmaNode do
   - Your response will be used to plan the implementation work
   """
 
-  @doc """
-  Returns the tool definition for LLM.
-  """
-  @spec tool(String.t()) :: ReqLLM.Tool.t()
-  def tool(task_id) do
-    ReqLLM.Tool.new!(
-      name: "breakdown_figma_node",
-      description: """
-      Analyze a Figma node and break it down into a list of components to build.
+  @impl true
+  def name, do: "breakdown_figma_node"
 
-      Use this tool when you have a Figma design that needs to be implemented.
-      The tool will analyze the node structure and image to identify individual
-      components that should be built separately.
+  @impl true
+  def description do
+    """
+    Analyze a Figma node and break it down into a list of components to build.
 
-      The output is a todo list of components with their node IDs, descriptions,
-      and suggested build order.
-      """,
-      parameter_schema: %{
-        "type" => "object",
-        "properties" => %{
-          "nodeId" => %{
-            "type" => "string",
-            "description" => "The root Figma node ID to analyze (e.g., '0:1927' or '123:456')"
-          },
-          "maxComponentVolume" => %{
-            "type" => "integer",
-            "description" =>
-              "Maximum complexity volume (1-10) for any single component. Components exceeding this will be split further. Default: 5"
-          },
-          "context" => %{
-            "type" => "string",
-            "description" =>
-              "Optional context about what's being built (e.g., 'landing page', 'dashboard'). Helps with component naming."
-          }
-        },
-        "required" => ["nodeId"]
-      },
-      callback: fn args -> execute(task_id, args) end
-    )
+    Use this tool when you have a Figma design that needs to be implemented.
+    The tool will analyze the node structure and image to identify individual
+    components that should be built separately.
+
+    The output is a todo list of components with their node IDs, descriptions,
+    and suggested build order.
+    """
   end
 
-  @doc """
-  Executes the breakdown tool by spawning a sub-agent.
-  """
-  @spec execute(String.t(), map()) :: {:ok, map()} | {:error, String.t()}
-  def execute(task_id, args) do
+  @impl true
+  def parameter_schema do
+    %{
+      "type" => "object",
+      "properties" => %{
+        "nodeId" => %{
+          "type" => "string",
+          "description" => "The root Figma node ID to analyze (e.g., '0:1927' or '123:456')"
+        },
+        "maxComponentVolume" => %{
+          "type" => "integer",
+          "description" =>
+            "Maximum complexity volume (1-10) for any single component. Components exceeding this will be split further. Default: 5"
+        },
+        "context" => %{
+          "type" => "string",
+          "description" =>
+            "Optional context about what's being built (e.g., 'landing page', 'dashboard'). Helps with component naming."
+        }
+      },
+      "required" => ["nodeId"]
+    }
+  end
+
+  @impl true
+  def execute(args, %Context{task: task, agent_id: parent_agent_id}) do
     node_id = Map.get(args, "nodeId")
     max_volume = Map.get(args, "maxComponentVolume", 5)
     figma_context = Map.get(args, "context")
 
-    # Get parent agent context from process dictionary (set by Tools.execute_tool)
-    context = FrontmanServer.Tools.get_tool_context()
-    parent_agent_id = Map.get(context, :agent_id)
+    mcp_tools = MCP.to_llm_format(task.mcp_tools)
 
-    # Get MCP tools from task and convert to LLM format
-    raw_mcp_tools = Tasks.get_mcp_tools(task_id)
-    mcp_tools = mcp_tools_to_llm_format(raw_mcp_tools)
+    Logger.info(
+      "BreakdownFigmaNode: Starting breakdown for node #{node_id} with #{length(mcp_tools)} MCP tools"
+    )
 
-    Logger.info("BreakdownFigmaNode: Starting breakdown for node #{node_id} with #{length(mcp_tools)} MCP tools")
-
-    # Extract figma content from task interactions
-    case extract_figma_from_task(task_id) do
+    case extract_figma_data(task.interactions) do
       {:ok, figma_image, figma_skeleton} ->
-        # Build messages for sub-agent
         system_msg = ReqLLM.Context.system(@system_prompt, cache_control: %{type: "ephemeral"})
-        user_msg = build_user_message(node_id, max_volume, figma_context, figma_image, figma_skeleton)
 
-        # Execute sub-agent with MCP tools
-        case SubAgentExecutor.execute(task_id, [system_msg, user_msg],
+        user_msg =
+          build_user_message(node_id, max_volume, figma_context, figma_image, figma_skeleton)
+
+        case Agents.execute_sub_agent(task.id, [system_msg, user_msg],
                tools: mcp_tools,
                role: "figma_breakdown",
                parent_agent_id: parent_agent_id
@@ -193,24 +183,20 @@ defmodule FrontmanServer.Agents.FigmaTools.BreakdownFigmaNode do
     end
   end
 
-  defp extract_figma_from_task(task_id) do
-    interactions = Tasks.get_interactions(task_id)
-
+  defp extract_figma_data(interactions) do
     content_blocks =
       interactions
       |> Enum.filter(&Interaction.user_message?/1)
       |> Enum.flat_map(fn %Interaction.UserMessage{content_blocks: blocks} -> blocks end)
 
-    # Find figma_image content block
     figma_image =
       content_blocks
-      |> Enum.find(&has_figma_meta?(&1, "figma_image"))
+      |> Enum.find(&figma_image?/1)
       |> extract_image_blob()
 
-    # Find figma_node content block (skeleton/DSL)
     figma_skeleton =
       content_blocks
-      |> Enum.find(&has_figma_meta?(&1, "figma_node"))
+      |> Enum.find(&figma_node?/1)
       |> extract_text_content()
 
     if figma_skeleton do
@@ -220,60 +206,52 @@ defmodule FrontmanServer.Agents.FigmaTools.BreakdownFigmaNode do
     end
   end
 
-  defp has_figma_meta?(nil, _), do: false
+  defp figma_image?(nil), do: false
 
-  defp has_figma_meta?(block, meta_key) do
-    case Map.get(block, "resource") do
-      %{"_meta" => meta} when is_map(meta) ->
-        Map.get(meta, meta_key) == true
+  defp figma_image?(block) do
+    get_in(block, ["resource", "_meta", "figma_image"]) == true
+  end
 
-      # Fallback: check URI for figma_node
-      %{"resource" => %{"uri" => uri}} when is_binary(uri) and meta_key == "figma_node" ->
-        String.starts_with?(uri, "figma://node/")
+  defp figma_node?(nil), do: false
 
-      _ ->
-        false
+  defp figma_node?(block) do
+    case get_in(block, ["resource", "_meta", "figma_node"]) do
+      true -> true
+      _ -> figma_uri?(get_in(block, ["resource", "resource", "uri"]))
     end
   end
 
+  defp figma_uri?("figma://node/" <> _), do: true
+  defp figma_uri?(_), do: false
+
   defp extract_image_blob(nil), do: nil
 
-  defp extract_image_blob(%{
-         "resource" => %{"resource" => %{"blob" => base64, "mimeType" => mime}}
-       }) do
-    mime_type = mime || "image/png"
-    "data:#{mime_type};base64,#{base64}"
+  defp extract_image_blob(block) do
+    case get_in(block, ["resource", "resource"]) do
+      %{"blob" => base64, "mimeType" => mime} ->
+        "data:#{mime || "image/png"};base64,#{base64}"
+
+      _ ->
+        nil
+    end
   end
 
-  defp extract_image_blob(_), do: nil
-
   defp extract_text_content(nil), do: nil
-  defp extract_text_content(%{"resource" => %{"resource" => %{"text" => text}}}), do: text
-  defp extract_text_content(_), do: nil
+  defp extract_text_content(block), do: get_in(block, ["resource", "resource", "text"])
 
   defp decode_image_data(data_url) do
-    # Handle both raw base64 and data URL format
-    data_url = ensure_data_url(data_url)
+    case Regex.run(~r/^data:([^;]+);base64,(.+)$/s, ensure_data_url(data_url)) do
+      [_, mime_type, base64] ->
+        case Base.decode64(base64) do
+          {:ok, binary} -> {:ok, binary, mime_type}
+          _ -> :error
+        end
 
-    with [_, mime_type, base64] <- Regex.run(~r/^data:([^;]+);base64,(.+)$/s, data_url),
-         {:ok, binary} <- Base.decode64(base64) do
-      {:ok, binary, mime_type}
-    else
-      _ -> :error
+      _ ->
+        :error
     end
   end
 
   defp ensure_data_url("data:" <> _ = url), do: url
   defp ensure_data_url(base64_data), do: "data:image/png;base64,#{base64_data}"
-
-  defp mcp_tools_to_llm_format(mcp_tools) do
-    Enum.map(mcp_tools, fn tool ->
-      ReqLLM.Tool.new!(
-        name: tool["name"],
-        description: tool["description"] || "",
-        parameter_schema: tool["inputSchema"] || %{"type" => "object", "properties" => %{}},
-        callback: fn _args -> {:ok, "MCP tool - executed externally"} end
-      )
-    end)
-  end
 end

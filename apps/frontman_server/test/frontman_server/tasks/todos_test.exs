@@ -3,10 +3,8 @@ defmodule FrontmanServer.Tasks.TodosTest do
 
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Todos
-  alias FrontmanServer.Tasks.Todos.Tools.{TodoAdded, TodoUpdated, TodoRemoved}
 
   setup do
-    # Create a task for testing
     task_id = "test_task_#{:rand.uniform(1_000_000)}"
     agent_id = "agent_#{:rand.uniform(1_000_000)}"
     {:ok, ^task_id} = Tasks.create_task(task_id)
@@ -49,12 +47,9 @@ defmodule FrontmanServer.Tasks.TodosTest do
 
   describe "update_todo_status/3" do
     test "updates todo status", %{task_id: task_id, agent_id: agent_id} do
-      # Add todo via tool result
       {:ok, todo} = Todos.create_todo("Fix bug", "Fixing bug")
-      event = TodoAdded.from_todo(todo)
-      Tasks.add_tool_result(task_id, agent_id, %{id: "call1", name: "todo_add"}, event, false)
+      Tasks.add_tool_result(task_id, agent_id, %{id: "call1", name: "todo_add"}, todo, false)
 
-      # Get interactions and update
       {:ok, task} = Tasks.get_task(task_id)
       assert {:ok, updated} = Todos.update_todo_status(task.interactions, todo.id, "completed")
       assert updated.status == :completed
@@ -76,10 +71,8 @@ defmodule FrontmanServer.Tasks.TodosTest do
 
   describe "validate_todo_exists/2" do
     test "validates todo exists", %{task_id: task_id, agent_id: agent_id} do
-      # Add todo via tool result
       {:ok, todo} = Todos.create_todo("Fix bug", "Fixing bug")
-      event = TodoAdded.from_todo(todo)
-      Tasks.add_tool_result(task_id, agent_id, %{id: "call1", name: "todo_add"}, event, false)
+      Tasks.add_tool_result(task_id, agent_id, %{id: "call1", name: "todo_add"}, todo, false)
 
       {:ok, task} = Tasks.get_task(task_id)
       assert :ok = Todos.validate_todo_exists(task.interactions, todo.id)
@@ -93,16 +86,13 @@ defmodule FrontmanServer.Tasks.TodosTest do
     end
   end
 
-  describe "event sourcing" do
+  describe "projection from tool results" do
     test "rebuilds state from tool result interactions", %{task_id: task_id, agent_id: agent_id} do
       {:ok, todo1} = Todos.create_todo("Fix bug", "Fixing bug")
       {:ok, todo2} = Todos.create_todo("Write tests", "Writing tests")
 
-      event1 = TodoAdded.from_todo(todo1)
-      event2 = TodoAdded.from_todo(todo2)
-
-      Tasks.add_tool_result(task_id, agent_id, %{id: "call1", name: "todo_add"}, event1, false)
-      Tasks.add_tool_result(task_id, agent_id, %{id: "call2", name: "todo_add"}, event2, false)
+      Tasks.add_tool_result(task_id, agent_id, %{id: "call1", name: "todo_add"}, todo1, false)
+      Tasks.add_tool_result(task_id, agent_id, %{id: "call2", name: "todo_add"}, todo2, false)
 
       {:ok, task} = Tasks.get_task(task_id)
       todos = Todos.list_todos(task.interactions)
@@ -111,26 +101,12 @@ defmodule FrontmanServer.Tasks.TodosTest do
 
     test "applies updates correctly", %{task_id: task_id, agent_id: agent_id} do
       {:ok, todo} = Todos.create_todo("Fix bug", "Fixing bug")
-      event = TodoAdded.from_todo(todo)
-      Tasks.add_tool_result(task_id, agent_id, %{id: "call1", name: "todo_add"}, event, false)
+      Tasks.add_tool_result(task_id, agent_id, %{id: "call1", name: "todo_add"}, todo, false)
 
       {:ok, task} = Tasks.get_task(task_id)
       {:ok, updated} = Todos.update_todo_status(task.interactions, todo.id, "completed")
 
-      update_event = %TodoUpdated{
-        todo_id: updated.id,
-        status: updated.status,
-        updated_at: updated.updated_at,
-        timestamp: DateTime.utc_now()
-      }
-
-      Tasks.add_tool_result(
-        task_id,
-        agent_id,
-        %{id: "call2", name: "todo_update"},
-        update_event,
-        false
-      )
+      Tasks.add_tool_result(task_id, agent_id, %{id: "call2", name: "todo_update"}, updated, false)
 
       {:ok, task} = Tasks.get_task(task_id)
       todos = Todos.list_todos(task.interactions)
@@ -141,24 +117,11 @@ defmodule FrontmanServer.Tasks.TodosTest do
       {:ok, todo1} = Todos.create_todo("Fix bug", "Fixing bug")
       {:ok, todo2} = Todos.create_todo("Write tests", "Writing tests")
 
-      event1 = TodoAdded.from_todo(todo1)
-      event2 = TodoAdded.from_todo(todo2)
+      Tasks.add_tool_result(task_id, agent_id, %{id: "c1", name: "todo_add"}, todo1, false)
+      Tasks.add_tool_result(task_id, agent_id, %{id: "c2", name: "todo_add"}, todo2, false)
 
-      Tasks.add_tool_result(task_id, agent_id, %{id: "c1", name: "todo_add"}, event1, false)
-      Tasks.add_tool_result(task_id, agent_id, %{id: "c2", name: "todo_add"}, event2, false)
-
-      remove_event = %TodoRemoved{
-        todo_id: todo1.id,
-        timestamp: DateTime.utc_now()
-      }
-
-      Tasks.add_tool_result(
-        task_id,
-        agent_id,
-        %{id: "c3", name: "todo_remove"},
-        remove_event,
-        false
-      )
+      # Remove returns the todo_id
+      Tasks.add_tool_result(task_id, agent_id, %{id: "c3", name: "todo_remove"}, todo1.id, false)
 
       {:ok, task} = Tasks.get_task(task_id)
       todos = Todos.list_todos(task.interactions)

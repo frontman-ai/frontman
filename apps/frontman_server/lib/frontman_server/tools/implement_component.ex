@@ -1,22 +1,15 @@
-defmodule FrontmanServer.Agents.FigmaTools.ImplementComponent do
+defmodule FrontmanServer.Tools.ImplementComponent do
   @moduledoc """
-  Backend tool that spawns a sub-agent to implement a single UI component
-  based on Figma design data.
-
-  This tool is typically called after a breakdown_figma_node analysis, where
-  each component from the breakdown can be implemented by spawning an
-  implement_component sub-agent.
-
-  The sub-agent has access to MCP tools (file operations, browser, etc.) to:
-  1. Fetch the full Figma node data via get_figma_node
-  2. Implement the component
-  3. Verify the implementation visually
+  Spawns a sub-agent to implement a single UI component from Figma design.
   """
+
+  @behaviour FrontmanServer.Tools.Backend
 
   require Logger
 
-  alias FrontmanServer.Agents.SubAgentExecutor
-  alias FrontmanServer.Tasks
+  alias FrontmanServer.Agents
+  alias FrontmanServer.Tools.Backend.Context
+  alias FrontmanServer.Tools.MCP
 
   @system_prompt """
   You are a frontend component implementation specialist. Your task is to implement
@@ -64,87 +57,76 @@ defmodule FrontmanServer.Agents.FigmaTools.ImplementComponent do
   - Complete your task and return the implementation code
   """
 
-  @doc """
-  Returns the tool definition for LLM.
-  """
-  @spec tool(String.t()) :: ReqLLM.Tool.t()
-  def tool(task_id) do
-    ReqLLM.Tool.new!(
-      name: "implement_component",
-      description: """
-      Implement a single UI component based on Figma design data.
+  @impl true
+  def name, do: "implement_component"
 
-      Use this after breaking down a Figma design to implement each component.
-      The tool will spawn a sub-agent that has access to browser tools for
-      visual verification.
-      """,
-      parameter_schema: %{
-        "type" => "object",
-        "properties" => %{
-          "componentName" => %{
-            "type" => "string",
-            "description" =>
-              "A descriptive name for the component (e.g., 'Header Navigation', 'Feature Card')"
-          },
-          "nodeId" => %{
-            "type" => "string",
-            "description" => "The Figma node ID for this component (e.g., '0:1927')"
-          },
-          "description" => %{
-            "type" => "string",
-            "description" => "Brief description of what the component does and its purpose"
-          },
-          "complexity" => %{
-            "type" => "integer",
-            "description" => "Estimated complexity (1-10) from the breakdown analysis"
-          },
-          "dependencies" => %{
-            "type" => "string",
-            "description" =>
-              "Components this depends on, or 'None'. Used to understand build order."
-          },
-          "targetPath" => %{
-            "type" => "string",
-            "description" =>
-              "Optional target file path where the component should be created (e.g., 'components/Header.tsx')"
-          },
-          "additionalContext" => %{
-            "type" => "string",
-            "description" => "Any additional context or requirements for this specific component"
-          }
-        },
-        "required" => ["componentName", "nodeId", "description"]
-      },
-      callback: fn args -> execute(task_id, args) end
-    )
+  @impl true
+  def description do
+    """
+    Implement a single UI component based on Figma design data.
+
+    Use this after breaking down a Figma design to implement each component.
+    The tool will spawn a sub-agent that has access to browser tools for
+    visual verification.
+    """
   end
 
-  @doc """
-  Executes the implement component tool by spawning a sub-agent.
-  """
-  @spec execute(String.t(), map()) :: {:ok, map()} | {:error, String.t()}
-  def execute(task_id, args) do
+  @impl true
+  def parameter_schema do
+    %{
+      "type" => "object",
+      "properties" => %{
+        "componentName" => %{
+          "type" => "string",
+          "description" =>
+            "A descriptive name for the component (e.g., 'Header Navigation', 'Feature Card')"
+        },
+        "nodeId" => %{
+          "type" => "string",
+          "description" => "The Figma node ID for this component (e.g., '0:1927')"
+        },
+        "description" => %{
+          "type" => "string",
+          "description" => "Brief description of what the component does and its purpose"
+        },
+        "complexity" => %{
+          "type" => "integer",
+          "description" => "Estimated complexity (1-10) from the breakdown analysis"
+        },
+        "dependencies" => %{
+          "type" => "string",
+          "description" =>
+            "Components this depends on, or 'None'. Used to understand build order."
+        },
+        "targetPath" => %{
+          "type" => "string",
+          "description" =>
+            "Optional target file path where the component should be created (e.g., 'components/Header.tsx')"
+        },
+        "additionalContext" => %{
+          "type" => "string",
+          "description" => "Any additional context or requirements for this specific component"
+        }
+      },
+      "required" => ["componentName", "nodeId", "description"]
+    }
+  end
+
+  @impl true
+  def execute(args, %Context{task: task, agent_id: parent_agent_id}) do
     component_name = Map.get(args, "componentName")
     node_id = Map.get(args, "nodeId")
 
-    # Get parent agent context from process dictionary (set by Tools.execute_tool)
-    context = FrontmanServer.Tools.get_tool_context()
-    parent_agent_id = Map.get(context, :agent_id)
-
-    # Get MCP tools from task and convert to LLM format
-    raw_mcp_tools = Tasks.get_mcp_tools(task_id)
-    mcp_tools = mcp_tools_to_llm_format(raw_mcp_tools)
+    mcp_tools = MCP.to_llm_format(task.mcp_tools)
 
     Logger.info(
       "ImplementComponent: Starting implementation of #{component_name} (#{node_id}) with #{length(mcp_tools)} MCP tools"
     )
 
-    # Build messages for sub-agent
     system_msg = ReqLLM.Context.system(@system_prompt, cache_control: %{type: "ephemeral"})
     user_msg = build_user_message(args)
 
-    # Execute sub-agent with MCP tools
-    case SubAgentExecutor.execute(task_id, [system_msg, user_msg],
+    case Agents.execute_sub_agent(task.id, [system_msg, user_msg],
            tools: mcp_tools,
            role: "component_implementor",
            parent_agent_id: parent_agent_id
@@ -207,16 +189,5 @@ defmodule FrontmanServer.Agents.FigmaTools.ImplementComponent do
     """
 
     ReqLLM.Context.user(task_text)
-  end
-
-  defp mcp_tools_to_llm_format(mcp_tools) do
-    Enum.map(mcp_tools, fn tool ->
-      ReqLLM.Tool.new!(
-        name: tool["name"],
-        description: tool["description"] || "",
-        parameter_schema: tool["inputSchema"] || %{"type" => "object", "properties" => %{}},
-        callback: fn _args -> {:ok, "MCP tool - executed externally"} end
-      )
-    end)
   end
 end
