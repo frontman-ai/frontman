@@ -25,84 +25,76 @@ defmodule FrontmanServerWeb.TasksChannel do
   @impl true
   def handle_in("acp:message", payload, socket) do
     case JsonRpc.parse(payload) do
-      {:ok, {:request, req_id, "initialize", params}} ->
-        handle_initialize(req_id, params, socket)
-
-      {:ok, {:request, req_id, "session/new", _params}} ->
-        handle_new_acp_session(req_id, socket)
-
-      {:ok, {:request, req_id, method, _params}} ->
-        Logger.info("ACP unknown method: #{method}")
-        push_error(socket, req_id, JsonRpc.error_method_not_found(), "Method not found")
-
-      {:ok, {:notification, _method, _params}} ->
-        {:noreply, socket}
-
-      {:error, reason} ->
-        Logger.error(
-          "Invalid ACP message in sessions channel: #{inspect(reason)}, payload: #{inspect(payload)}"
-        )
-
-        # If payload has an id, send error response; otherwise ignore (can't respond to malformed request)
-        case payload do
-          %{"id" => req_id} ->
-            error_response =
-              JsonRpc.error_response(
-                req_id,
-                JsonRpc.error_invalid_request(),
-                "Invalid JSON-RPC message"
-              )
-
-            push(socket, "acp:message", error_response)
-            {:noreply, socket}
-
-          _ ->
-            {:noreply, socket}
-        end
+      {:ok, message} -> handle_message(message, socket)
+      {:error, reason} -> handle_parse_error(reason, payload, socket)
     end
   end
 
-  defp handle_initialize(id, params, socket) do
-    case params do
-      %{"protocolVersion" => @acp_protocol_version} ->
-        Logger.info("ACP initialize from #{inspect(params["clientInfo"])}")
+  # Initialize with correct protocol version
+  defp handle_message(
+         {:request, id, "initialize", %{"protocolVersion" => @acp_protocol_version} = params},
+         socket
+       ) do
+    Logger.info("ACP initialize from #{inspect(params["clientInfo"])}")
 
-        socket =
-          socket
-          |> assign(:acp_initialized, true)
-          |> assign(:acp_client_info, params["clientInfo"])
-          |> assign(:acp_client_capabilities, params["clientCapabilities"])
+    socket =
+      socket
+      |> assign(:acp_initialized, true)
+      |> assign(:acp_client_info, params["clientInfo"])
+      |> assign(:acp_client_capabilities, params["clientCapabilities"])
 
-        response = JsonRpc.success_response(id, ACP.build_initialize_result())
-        push(socket, "acp:message", response)
-        {:noreply, socket}
-
-      %{"protocolVersion" => _wrong_version} ->
-        push_error(socket, id, JsonRpc.error_invalid_request(), "Unsupported protocol version")
-
-      _ ->
-        push_error(
-          socket,
-          id,
-          JsonRpc.error_invalid_params(),
-          "Missing required field: protocolVersion"
-        )
-    end
+    push_response(socket, id, ACP.build_initialize_result())
   end
 
-  defp handle_new_acp_session(req_id, socket) do
+  defp handle_message({:request, id, "initialize", %{"protocolVersion" => _}}, socket) do
+    push_error(socket, id, JsonRpc.error_invalid_request(), "Unsupported protocol version")
+  end
+
+  defp handle_message({:request, id, "initialize", _params}, socket) do
+    push_error(
+      socket,
+      id,
+      JsonRpc.error_invalid_params(),
+      "Missing required field: protocolVersion"
+    )
+  end
+
+  # Create new session
+  defp handle_message({:request, id, "session/new", _params}, socket) do
     Logger.info("ACP session/new request received")
     task_id = ACP.generate_session_id()
     {:ok, ^task_id} = Tasks.create_task(task_id)
+    push_response(socket, id, ACP.build_session_new_result(task_id))
+  end
 
-    response = JsonRpc.success_response(req_id, ACP.build_session_new_result(task_id))
-    push(socket, "acp:message", response)
+  # Unknown method
+  defp handle_message({:request, id, method, _params}, socket) do
+    Logger.info("ACP unknown method: #{method}")
+    push_error(socket, id, JsonRpc.error_method_not_found(), "Method not found")
+  end
+
+  defp handle_message({:notification, _method, _params}, socket) do
+    {:noreply, socket}
+  end
+
+  # Parse errors
+  defp handle_parse_error(reason, %{"id" => id}, socket) do
+    Logger.error("Invalid ACP message: #{inspect(reason)}")
+    push_error(socket, id, JsonRpc.error_invalid_request(), "Invalid JSON-RPC message")
+  end
+
+  defp handle_parse_error(reason, payload, socket) do
+    Logger.error("Invalid ACP message: #{inspect(reason)}, payload: #{inspect(payload)}")
+    {:noreply, socket}
+  end
+
+  defp push_response(socket, id, result) do
+    push(socket, "acp:message", JsonRpc.success_response(id, result))
     {:noreply, socket}
   end
 
   defp push_error(socket, id, code, message) do
-    response = JsonRpc.error_response(id, code, message)
-    push(socket, "acp:message", response)
+    push(socket, "acp:message", JsonRpc.error_response(id, code, message))
     {:noreply, socket}
   end
 end
