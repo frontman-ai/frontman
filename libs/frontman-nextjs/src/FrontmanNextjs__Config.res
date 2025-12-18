@@ -33,19 +33,20 @@ let make = (
   let isLightTheme = isLightTheme->Option.getOr(false)
 
   let projectRoot =
-    projectRoot->Option.orElse(
+    projectRoot
+    ->Option.orElse(
       Bindings.Process.env
       ->Dict.get("PROJECT_ROOT")
-      ->Option.orElse(Bindings.Process.env->Dict.get("PWD"))
-    )->Option.getOr(".")
-
-  let clientUrl =
-    clientUrl->Option.getOr(
-      switch isDev {
-      | true => "http://localhost:5173/src/Main.res.mjs"
-      | false => "https://ask-the-llm.vercel.app/frontman.es.js"
-      },
+      ->Option.orElse(Bindings.Process.env->Dict.get("PWD")),
     )
+    ->Option.getOr(".")
+
+  let clientUrl = clientUrl->Option.getOr(
+    switch isDev {
+    | true => "http://localhost:5173/src/Main.res.mjs?clientName=nextjs"
+    | false => "https://ask-the-llm.vercel.app/frontman.es.js?clientName=nextjs"
+    },
+  )
 
   {
     isDev,
@@ -59,4 +60,3 @@ let make = (
     projectRoot,
   }
 }
-
