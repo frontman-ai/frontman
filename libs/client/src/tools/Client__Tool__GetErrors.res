@@ -5,6 +5,7 @@ module Tool = AskTheLlmFrontmanClient.FrontmanClient__MCP__Tool
 type toolResult<'a> = Tool.toolResult<'a>
 
 let name = "get_errors"
+let visibleToAgent = true
 let description = "Get console errors from the web preview frame. Returns an array of error objects with message, stack trace, and timestamp."
 
 @schema

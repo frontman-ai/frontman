@@ -6,6 +6,7 @@ module Tool = AskTheLlmFrontmanClient.FrontmanClient__MCP__Tool
 type toolResult<'a> = Tool.toolResult<'a>
 
 let name = "navigate"
+let visibleToAgent = true
 let description = "Navigate the web preview to a specified relative URL. Changes the current page in the preview frame. Only relative paths should be passed (e.g., '/about', '/products/123')."
 
 @schema
@@ -41,7 +42,8 @@ let execute = async (input: input): toolResult<output> => {
     ->Option.map(task => task.previewFrame)
 
   switch previewFrame {
-  | None => Ok({success: false, navigatedTo: None, error: Some("No active task with preview frame")})
+  | None =>
+    Ok({success: false, navigatedTo: None, error: Some("No active task with preview frame")})
   | Some({contentWindow: None, _}) =>
     Ok({success: false, navigatedTo: None, error: Some("Preview frame window not available")})
   | Some({contentWindow: Some(win), _}) =>
@@ -59,15 +61,3 @@ let execute = async (input: input): toolResult<output> => {
     }
   }
 }
-
-
-
-
-
-
-
-
-
-
-
-

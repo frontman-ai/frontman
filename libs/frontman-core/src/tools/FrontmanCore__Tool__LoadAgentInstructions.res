@@ -5,7 +5,7 @@ module Fs = AskTheLlmBindings.Fs
 module Tool = AskTheLlmFrontmanProtocol.FrontmanProtocol__Tool
 
 let name = "load_agent_instructions"
-
+let visibleToAgent = false
 let description = `Discovers and loads agent instruction files (Agents.md or CLAUDE.md) following Claude Code's discovery algorithm.
 
 Parameters:
@@ -20,9 +20,7 @@ Discovery:
 - Returns all found instruction files`
 
 @schema
-type input = {
-  startPath?: string,
-}
+type input = {startPath?: string}
 
 @schema
 type instructionFile = {
@@ -98,10 +96,9 @@ let resolveStartPath = (sourceRoot: string, startPath: option<string>): string =
 }
 
 // Recursively walk up directories until root
-let rec walkUpDirectories = async (
-  current: string,
-  acc: array<instructionFile>,
-): array<instructionFile> => {
+let rec walkUpDirectories = async (current: string, acc: array<instructionFile>): array<
+  instructionFile,
+> => {
   if current == "/" {
     acc
   } else {
@@ -118,8 +115,7 @@ let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.toolR
     Ok(results)
   } catch {
   | exn =>
-    let msg =
-      exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
+    let msg = exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
     Error(`Failed to load agent instructions: ${msg}`)
   }
 }

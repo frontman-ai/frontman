@@ -6,16 +6,13 @@ module Relay = Protocol.FrontmanProtocol__Relay
 
 type tool = module(Tool.ServerTool)
 
-type t = {
-  tools: array<tool>,
-}
+type t = {tools: array<tool>}
 
 // Create empty registry
 let make = (): t => {
   tools: [],
 }
 
-// Create registry with core tools (file operations)
 let coreTools = (): t => {
   tools: [
     module(FrontmanCore__Tool__ReadFile),

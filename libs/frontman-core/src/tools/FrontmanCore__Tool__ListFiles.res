@@ -5,7 +5,7 @@ module Fs = AskTheLlmBindings.Fs
 module Tool = AskTheLlmFrontmanProtocol.FrontmanProtocol__Tool
 
 let name = "list_files"
-
+let visibleToAgent = true
 let description = `Lists files and directories in a given path.
 
 Parameters:
@@ -14,9 +14,7 @@ Parameters:
 Returns array of entries with name, path, and type information.`
 
 @schema
-type input = {
-  path?: string,
-}
+type input = {path?: string}
 
 @schema
 type fileEntry = {
@@ -36,26 +34,24 @@ let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.toolR
   try {
     let entries = await Fs.Promises.readdir(fullPath)
 
-    let entriesWithStats =
-      await entries
-      ->Array.map(async name => {
-        let entryPath = Path.join([fullPath, name])
-        let stats = await Fs.Promises.stat(entryPath)
+    let entriesWithStats = await entries
+    ->Array.map(async name => {
+      let entryPath = Path.join([fullPath, name])
+      let stats = await Fs.Promises.stat(entryPath)
 
-        {
-          name,
-          path: Path.join([path, name]),
-          isFile: Fs.isFile(stats),
-          isDirectory: Fs.isDirectory(stats),
-        }
-      })
-      ->Promise.all
+      {
+        name,
+        path: Path.join([path, name]),
+        isFile: Fs.isFile(stats),
+        isDirectory: Fs.isDirectory(stats),
+      }
+    })
+    ->Promise.all
 
     Ok(entriesWithStats)
   } catch {
   | exn =>
-    let msg =
-      exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
+    let msg = exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
     Error(`Failed to list files in ${path}: ${msg}`)
   }
 }

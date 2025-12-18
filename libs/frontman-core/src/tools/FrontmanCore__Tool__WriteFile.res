@@ -5,7 +5,7 @@ module Fs = AskTheLlmBindings.Fs
 module Tool = AskTheLlmFrontmanProtocol.FrontmanProtocol__Tool
 
 let name = "write_file"
-
+let visibleToAgent = true
 let description = `Writes content to a file.
 
 Parameters:
@@ -35,8 +35,7 @@ let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.toolR
     Ok(nullValue)
   } catch {
   | exn =>
-    let msg =
-      exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
+    let msg = exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
     Error(`Failed to write file ${input.path}: ${msg}`)
   }
 }

@@ -65,7 +65,7 @@ defmodule FrontmanServer.TasksTest do
       {:ok, ^task_id} = Tasks.create_task(task_id)
 
       # Add a user message
-      Tasks.add_user_message(task_id, [%{"type" => "text", "text" => "Hello"}])
+      Tasks.add_user_message(task_id, [%{"type" => "text", "text" => "Hello"}], [])
 
       # Add responses from two different agents
       Tasks.add_agent_response(task_id, "agent_a", "Response from A", %{})
@@ -161,6 +161,119 @@ defmodule FrontmanServer.TasksTest do
       interactions = Tasks.get_interactions(task_id)
       assert length(interactions) == 1
     end
+  end
+
+  describe "add_discovered_project_rule/3" do
+    test "adds rule to task" do
+      task_id = "test_rule_#{System.unique_integer([:positive])}"
+      {:ok, ^task_id} = Tasks.create_task(task_id)
+
+      {:ok, rule} = Tasks.add_discovered_project_rule(task_id, "/project/AGENTS.md", "# Rules")
+
+      assert rule.path == "/project/AGENTS.md"
+      assert rule.content == "# Rules"
+    end
+
+    test "deduplicates by path" do
+      task_id = "test_rule_dedup_#{System.unique_integer([:positive])}"
+      {:ok, ^task_id} = Tasks.create_task(task_id)
+
+      {:ok, _rule} = Tasks.add_discovered_project_rule(task_id, "/project/AGENTS.md", "# Rules v1")
+      {:ok, :already_loaded} = Tasks.add_discovered_project_rule(task_id, "/project/AGENTS.md", "# Rules v2")
+
+      rules = Tasks.get_discovered_project_rules(task_id)
+      assert length(rules) == 1
+      assert hd(rules).content == "# Rules v1"
+    end
+
+    test "returns error for non-existent task" do
+      assert {:error, :task_not_found} =
+               Tasks.add_discovered_project_rule("nonexistent", "/path", "content")
+    end
+  end
+
+  describe "get_discovered_project_rules/1" do
+    test "returns empty list for task with no rules" do
+      task_id = "test_get_rules_#{System.unique_integer([:positive])}"
+      {:ok, ^task_id} = Tasks.create_task(task_id)
+
+      assert Tasks.get_discovered_project_rules(task_id) == []
+    end
+
+    test "returns all rules for task" do
+      task_id = "test_get_rules_#{System.unique_integer([:positive])}"
+      {:ok, ^task_id} = Tasks.create_task(task_id)
+
+      Tasks.add_discovered_project_rule(task_id, "/a/AGENTS.md", "A rules")
+      Tasks.add_discovered_project_rule(task_id, "/b/AGENTS.md", "B rules")
+
+      rules = Tasks.get_discovered_project_rules(task_id)
+      assert length(rules) == 2
+    end
+  end
+
+  describe "get_llm_messages/2 with discovered rules" do
+    test "prepends rules to first user message" do
+      task_id = "test_rules_inject_#{System.unique_integer([:positive])}"
+      {:ok, ^task_id} = Tasks.create_task(task_id)
+
+      Tasks.add_discovered_project_rule(task_id, "/project/AGENTS.md", "# Project Rules")
+      Tasks.add_user_message(task_id, [%{"type" => "text", "text" => "Hello"}], [])
+
+      messages = Tasks.get_llm_messages(task_id, "agent_1")
+
+      assert length(messages) == 1
+      [msg] = messages
+      assert msg.role == :user
+
+      content_text = extract_content_text(msg.content)
+      assert content_text =~ "<system-reminder>"
+      assert content_text =~ "# Project Rules"
+      assert content_text =~ "Hello"
+    end
+
+    test "returns messages unchanged when no rules" do
+      task_id = "test_no_rules_#{System.unique_integer([:positive])}"
+      {:ok, ^task_id} = Tasks.create_task(task_id)
+
+      Tasks.add_user_message(task_id, [%{"type" => "text", "text" => "Hello"}], [])
+
+      messages = Tasks.get_llm_messages(task_id, "agent_1")
+
+      assert length(messages) == 1
+      [msg] = messages
+
+      content_text = extract_content_text(msg.content)
+      refute content_text =~ "<system-reminder>"
+    end
+
+    test "includes multiple rules separated by ---" do
+      task_id = "test_multi_rules_#{System.unique_integer([:positive])}"
+      {:ok, ^task_id} = Tasks.create_task(task_id)
+
+      Tasks.add_discovered_project_rule(task_id, "/a/AGENTS.md", "Rule A")
+      Tasks.add_discovered_project_rule(task_id, "/b/AGENTS.md", "Rule B")
+      Tasks.add_user_message(task_id, [%{"type" => "text", "text" => "Hello"}], [])
+
+      messages = Tasks.get_llm_messages(task_id, "agent_1")
+
+      [msg] = messages
+      content_text = extract_content_text(msg.content)
+      assert content_text =~ "Rule A"
+      assert content_text =~ "---"
+      assert content_text =~ "Rule B"
+    end
+  end
+
+  defp extract_content_text(content) when is_binary(content), do: content
+
+  defp extract_content_text(content) when is_list(content) do
+    content
+    |> Enum.map(fn
+      %{text: text} -> text
+      _ -> ""
+    end)
+    |> Enum.join("")
   end
 
   describe "list_todos/1" do

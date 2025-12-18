@@ -20,6 +20,8 @@ module type BrowserTool = {
   let inputSchema: S.t<input>
   let outputSchema: S.t<output>
   let execute: input => promise<toolResult<output>>
+  //some tools we want to execute manually, and never have the llm see them
+  let visibleToAgent: bool
 }
 
 // Server tool - executes on server with context
@@ -31,4 +33,6 @@ module type ServerTool = {
   let inputSchema: S.t<input>
   let outputSchema: S.t<output>
   let execute: (serverExecutionContext, input) => promise<toolResult<output>>
+  //some tools we want to execute manually, and never have the llm see them
+  let visibleToAgent: bool
 }

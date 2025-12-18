@@ -5,7 +5,7 @@ module Fs = AskTheLlmBindings.Fs
 module Tool = AskTheLlmFrontmanProtocol.FrontmanProtocol__Tool
 
 let name = "file_exists"
-
+let visibleToAgent = true
 let description = `Checks if a file or directory exists.
 
 Parameters:
@@ -14,9 +14,7 @@ Parameters:
 Returns true if the path exists, false otherwise.`
 
 @schema
-type input = {
-  path: string,
-}
+type input = {path: string}
 
 @schema
 type output = bool

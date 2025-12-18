@@ -1,6 +1,7 @@
 // console_log MCP tool - logs messages to browser console
 
 let name = "console_log"
+let visibleToAgent = true
 let description = "Logs a message to the browser console"
 
 @schema

@@ -6,6 +6,7 @@ module Tool = AskTheLlmFrontmanClient.FrontmanClient__MCP__Tool
 type toolResult<'a> = Tool.toolResult<'a>
 
 let name = "get_figma_node"
+let visibleToAgent = true
 let description = "Get the full JSON representation of a Figma node by its ID. The node must be in the currently open Figma document. Returns the node structure including tailwind classes, text content, SVG data, and children."
 
 @schema
@@ -62,8 +63,7 @@ let handleResponse = (requestId: string, result: result<responseData, string>) =
   | Some(resolve) =>
     Dict.delete(pendingRequests, requestId)
     resolve(result)
-  | None =>
-    Console.warn2("[GetFigmaNode] No pending request found for ID:", requestId)
+  | None => Console.warn2("[GetFigmaNode] No pending request found for ID:", requestId)
   }
 }
 
@@ -86,8 +86,7 @@ let execute = async (input: input): toolResult<output> => {
   )
 
   switch Client__ExtensionState.Selectors.getPort(extensionState) {
-  | None =>
-    Ok({node: None, error: Some("Chrome extension is not connected"), image: None})
+  | None => Ok({node: None, error: Some("Chrome extension is not connected"), image: None})
   | Some(port) =>
     // Generate unique request ID
     requestIdCounter.contents = requestIdCounter.contents + 1
@@ -95,15 +94,14 @@ let execute = async (input: input): toolResult<output> => {
 
     // Create settings object
     let volume = input.volume
-    let withChildren =
-      switch input.withChildren {
-      | Some(value) => value
-      | None =>
-        switch volume {
-        | Some(v) if v > 6 => false
-        | _ => true
-        }
+    let withChildren = switch input.withChildren {
+    | Some(value) => value
+    | None =>
+      switch volume {
+      | Some(v) if v > 6 => false
+      | _ => true
       }
+    }
     let settings = {
       "embedVectors": input.embedVectors->Option.getOr(true),
       "embedImages": input.embedImages->Option.getOr(true),

@@ -153,14 +153,14 @@ defmodule FrontmanServer.Agents do
   ## Options
   - `:tools` - List of tool definitions for LLM (default: [])
   """
-  @spec notify_user_message(String.t(), keyword()) :: :ok
-  def notify_user_message(task_id, opts \\ []) do
+  @spec notify_user_message(String.t(), list(FrontmanServer.Tools.MCP.t())) :: :ok
+  def notify_user_message(task_id, tools) do
     case AgentServer.wake(task_id) do
       :ok ->
         :ok
 
       {:error, :not_found} ->
-        start_agent(task_id, tools: Keyword.get(opts, :tools, []))
+        start_agent(task_id, tools: tools)
         :ok
     end
   end

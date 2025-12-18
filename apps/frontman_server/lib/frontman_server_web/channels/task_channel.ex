@@ -127,7 +127,8 @@ defmodule FrontmanServerWeb.TaskChannel do
         {:noreply, socket}
 
       socket.assigns[:mcp_tools_request_id] == id ->
-        tools = Map.get(result, "tools", [])
+        raw_tools = Map.get(result, "tools", [])
+        tools = Tools.MCP.from_maps(raw_tools)
         Logger.info("Received #{length(tools)} tools from MCP server")
 
         socket =
@@ -280,23 +281,18 @@ defmodule FrontmanServerWeb.TaskChannel do
       Logger.info("Prompt includes embedded context (resource_link or resource)")
     end
 
-    # Emit task start telemetry event
     TelemetryEvents.task_start(task_id)
 
     socket = assign(socket, :pending_prompt_id, id)
 
-    # Store raw MCP tools on task (for backend tools like Figma to access)
+    # Store MCP tools on task (for backend tools like Figma to access)
     Tasks.set_mcp_tools(task_id, mcp_tools)
 
-    # Merge backend tools with client tools
     mcp_tools_formatted = Tools.MCP.to_llm_format(mcp_tools)
     backend_tools = Tools.backend_tools()
     all_tools = backend_tools ++ mcp_tools_formatted
 
-    opts = [tools: all_tools]
-
-    # Add user message to task - this triggers the agent with ALL tools and content blocks
-    case Tasks.add_user_message(task_id, prompt_content, opts) do
+    case Tasks.add_user_message(task_id, prompt_content, all_tools) do
       {:ok, _interaction} ->
         Logger.info("User message added, agent spawned for task #{task_id}")
 
@@ -516,7 +512,6 @@ defmodule FrontmanServerWeb.TaskChannel do
   end
 
   defp format_tool_content(result) when is_map(result) do
-    # Wrap structured result in ACP content block
     [%{type: "content", content: %{type: "text", text: Jason.encode!(result)}}]
   end
 
@@ -524,7 +519,6 @@ defmodule FrontmanServerWeb.TaskChannel do
     task_id = socket.assigns.task_id
     request_id = System.unique_integer([:positive])
 
-    # Emit MCP tool start telemetry event
     TelemetryEvents.mcp_tool_start(
       request_id,
       tool_call.tool_call_id,

@@ -5,7 +5,7 @@ module Fs = AskTheLlmBindings.Fs
 module Tool = AskTheLlmFrontmanProtocol.FrontmanProtocol__Tool
 
 let name = "read_file"
-
+let visibleToAgent = true
 let description = `Reads a file from the filesystem.
 
 Parameters:

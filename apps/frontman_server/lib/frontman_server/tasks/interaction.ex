@@ -14,6 +14,7 @@ defmodule FrontmanServer.Tasks.Interaction do
           | __MODULE__.AgentCompleted.t()
           | __MODULE__.ToolCall.t()
           | __MODULE__.ToolResult.t()
+          | __MODULE__.DiscoveredProjectRule.t()
 
   defmodule UserMessage do
     @moduledoc """
@@ -27,18 +28,16 @@ defmodule FrontmanServer.Tasks.Interaction do
     typedstruct enforce: true do
       field(:id, String.t())
       field(:timestamp, DateTime.t())
-      field(:metadata, map(), enforce: false)
       # Content blocks from the prompt (includes text, resource_link, resource)
       field(:content_blocks, list())
     end
 
-    def new(content_blocks, metadata \\ %{}) do
+    def new(content_blocks) do
       alias FrontmanServer.Tasks.Interaction
 
       %__MODULE__{
         id: Interaction.new_id(),
         timestamp: Interaction.now(),
-        metadata: metadata,
         content_blocks: content_blocks
       }
     end
@@ -60,8 +59,7 @@ defmodule FrontmanServer.Tasks.Interaction do
           type: "user_message",
           id: value.id,
           content: content,
-          timestamp: DateTime.to_iso8601(value.timestamp),
-          metadata: value.metadata
+          timestamp: DateTime.to_iso8601(value.timestamp)
         },
         opts
       )
@@ -290,6 +288,46 @@ defmodule FrontmanServer.Tasks.Interaction do
     end
   end
 
+  defmodule DiscoveredProjectRule do
+    @moduledoc """
+    Represents a discovered project rule file (e.g., AGENTS.md, CLAUDE.md).
+
+    These are task-scoped (not agent-scoped) and accumulate as the agent
+    explores the codebase. They are injected into LLM messages as context.
+    """
+    use TypedStruct
+
+    typedstruct enforce: true do
+      field(:path, String.t())
+      field(:content, String.t())
+      field(:timestamp, DateTime.t())
+    end
+
+    def new(path, content) do
+      alias FrontmanServer.Tasks.Interaction
+
+      %__MODULE__{
+        path: path,
+        content: content,
+        timestamp: Interaction.now()
+      }
+    end
+  end
+
+  defimpl Jason.Encoder, for: DiscoveredProjectRule do
+    def encode(value, opts) do
+      Jason.Encode.map(
+        %{
+          type: "discovered_project_rule",
+          path: value.path,
+          content: value.content,
+          timestamp: DateTime.to_iso8601(value.timestamp)
+        },
+        opts
+      )
+    end
+  end
+
   @doc """
   Generates a new interaction ID (UUID v4).
   """
@@ -349,6 +387,8 @@ defmodule FrontmanServer.Tasks.Interaction do
   defp is_conversation_message(%AgentResponse{}), do: true
   # ToolCall is skipped - it's embedded in AgentResponse metadata
   defp is_conversation_message(%ToolResult{}), do: true
+  # DiscoveredProjectRule is context, not conversation - injected separately
+  defp is_conversation_message(%DiscoveredProjectRule{}), do: false
   defp is_conversation_message(_), do: false
 
   @doc """

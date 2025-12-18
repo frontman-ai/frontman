@@ -10,8 +10,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
         %UserMessage{
           id: "1",
           content_blocks: [%{"type" => "text", "text" => "Hello"}],
-          timestamp: DateTime.utc_now(),
-          metadata: %{}
+          timestamp: DateTime.utc_now()
         }
       ]
 
@@ -104,8 +103,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
         %UserMessage{
           id: "1",
           content_blocks: [%{"type" => "text", "text" => "Calculate 2+2"}],
-          timestamp: now,
-          metadata: %{}
+          timestamp: now
         },
         %AgentResponse{
           id: "2",
@@ -156,8 +154,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
         %UserMessage{
           id: "1",
           content_blocks: [%{"type" => "text", "text" => "Hello"}],
-          timestamp: now,
-          metadata: %{}
+          timestamp: now
         },
         # Agent A's response
         %AgentResponse{
@@ -205,8 +202,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
         %UserMessage{
           id: "1",
           content_blocks: [%{"type" => "text", "text" => "Hello"}],
-          timestamp: now,
-          metadata: %{}
+          timestamp: now
         },
         %AgentResponse{
           id: "2",
@@ -249,8 +245,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
         %UserMessage{
           id: "1",
           content_blocks: [%{"type" => "text", "text" => "Initial prompt"}],
-          timestamp: now,
-          metadata: %{}
+          timestamp: now
         }
       ]
 

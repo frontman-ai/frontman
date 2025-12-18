@@ -8,11 +8,8 @@ type tool = CoreRegistry.tool
 type t = CoreRegistry.t
 
 // Astro specific tools
-let astroTools: array<tool> = [
-  module(FrontmanAstro__Tool__GetPages),
-]
+let astroTools: array<tool> = [module(FrontmanAstro__Tool__GetPages)]
 
-// Create registry with core + Astro tools
 let make = (): t => {
   CoreRegistry.coreTools()->CoreRegistry.addTools(astroTools)
 }

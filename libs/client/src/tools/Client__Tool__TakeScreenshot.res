@@ -6,6 +6,7 @@ module Tool = AskTheLlmFrontmanClient.FrontmanClient__MCP__Tool
 type toolResult<'a> = Tool.toolResult<'a>
 
 let name = "take_screenshot"
+let visibleToAgent = true
 let description = "Take a screenshot of the current web preview page. Returns a base64-encoded PNG image data URL of the page body."
 
 @schema
@@ -69,4 +70,3 @@ let execute = async (input: input): toolResult<output> => {
     }
   }
 }
-

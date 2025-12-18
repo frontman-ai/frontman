@@ -6,6 +6,7 @@ module Tool = AskTheLlmFrontmanClient.FrontmanClient__MCP__Tool
 type toolResult<'a> = Tool.toolResult<'a>
 
 let name = "navigate_back"
+let visibleToAgent = true
 let description = "Navigate back to the previous page in the web preview's browser history. Equivalent to clicking the browser's back button."
 
 @schema
@@ -57,15 +58,3 @@ let execute = async (_input: input): toolResult<output> => {
     }
   }
 }
-
-
-
-
-
-
-
-
-
-
-
-

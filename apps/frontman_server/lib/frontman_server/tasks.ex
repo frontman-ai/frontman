@@ -10,6 +10,7 @@ defmodule FrontmanServer.Tasks do
   """
 
   alias FrontmanServer.Tasks.{Interaction, Task, TaskStore}
+  alias FrontmanServer.Tools.MCP
   alias FrontmanServer.Agents
   alias ReqLLM.ToolCall
 
@@ -19,10 +20,10 @@ defmodule FrontmanServer.Tasks do
   @doc """
   Sets the MCP tools for a task.
 
-  MCP tools are stored in raw format (as received from client).
+  MCP tools are stored as structured `MCP.t()` structs.
   Returns :ok on success, {:error, :not_found} if task doesn't exist.
   """
-  @spec set_mcp_tools(String.t(), list()) :: :ok | {:error, :not_found}
+  @spec set_mcp_tools(String.t(), [MCP.t()]) :: :ok | {:error, :not_found}
   def set_mcp_tools(task_id, mcp_tools) do
     case TaskStore.update(task_id, &Task.set_mcp_tools(&1, mcp_tools)) do
       {:ok, _} -> :ok
@@ -33,10 +34,10 @@ defmodule FrontmanServer.Tasks do
   @doc """
   Gets the MCP tools for a task.
 
-  Returns the raw MCP tool definitions (not LLM-formatted).
+  Returns the MCP tool structs (not LLM-formatted).
   Returns [] if task not found or no tools set.
   """
-  @spec get_mcp_tools(String.t()) :: list()
+  @spec get_mcp_tools(String.t()) :: [MCP.t()]
   def get_mcp_tools(task_id) do
     case get_task(task_id) do
       {:ok, task} -> task.mcp_tools || []
@@ -82,18 +83,82 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
-  @doc """
-  Gets interactions formatted as LLM messages for a specific agent.
-
-  Transforms task interactions into the format expected by LLM APIs.
-  Filters to only include interactions belonging to the specified agent.
-  UserMessages are always included as shared context.
-  """
   @spec get_llm_messages(String.t(), String.t()) :: list(map())
   def get_llm_messages(task_id, agent_id) do
+    interactions = get_interactions(task_id)
+    discovered_rules = get_discovered_project_rules(task_id)
+    messages = Interaction.to_llm_messages(interactions, agent_id)
+
+    prepend_rules_to_first_user_message(messages, discovered_rules)
+  end
+
+  @spec add_discovered_project_rule(String.t(), String.t(), String.t()) ::
+          {:ok, Interaction.DiscoveredProjectRule.t()} | {:ok, :already_loaded} | {:error, term()}
+  def add_discovered_project_rule(task_id, path, content) do
+    if discovered_project_rule_loaded?(task_id, path) do
+      {:ok, :already_loaded}
+    else
+      interaction = Interaction.DiscoveredProjectRule.new(path, content)
+      append_interaction(task_id, interaction)
+    end
+  end
+
+  @spec get_discovered_project_rules(String.t()) :: list(Interaction.DiscoveredProjectRule.t())
+  def get_discovered_project_rules(task_id) do
     task_id
     |> get_interactions()
-    |> Interaction.to_llm_messages(agent_id)
+    |> Enum.filter(&match?(%Interaction.DiscoveredProjectRule{}, &1))
+  end
+
+  @spec discovered_project_rule_loaded?(String.t(), String.t()) :: boolean()
+  def discovered_project_rule_loaded?(task_id, path) do
+    task_id
+    |> get_discovered_project_rules()
+    |> Enum.any?(&(&1.path == path))
+  end
+
+  defp prepend_rules_to_first_user_message(messages, []), do: messages
+
+  defp prepend_rules_to_first_user_message(messages, rules) do
+    reminder = build_rules_reminder(rules)
+    do_prepend_to_first_user_message(messages, reminder)
+  end
+
+  defp do_prepend_to_first_user_message([], _reminder), do: []
+
+  defp do_prepend_to_first_user_message([%{role: :user} = msg | rest], reminder) do
+    updated_content =
+      case msg.content do
+        content when is_binary(content) ->
+          reminder <> "\n" <> content
+
+        content when is_list(content) ->
+          [ReqLLM.Message.ContentPart.text(reminder) | content]
+      end
+
+    [%{msg | content: updated_content} | rest]
+  end
+
+  defp do_prepend_to_first_user_message([msg | rest], reminder) do
+    [msg | do_prepend_to_first_user_message(rest, reminder)]
+  end
+
+  defp build_rules_reminder(rules) do
+    sections =
+      rules
+      |> Enum.sort_by(& &1.timestamp, DateTime)
+      |> Enum.map(fn rule -> "Contents of #{rule.path}:\n\n#{rule.content}" end)
+
+    """
+    <system-reminder>
+    As you answer the user's questions, you can use the following context:
+    # Project Rules
+
+    #{Enum.join(sections, "\n\n---\n\n")}
+
+    IMPORTANT: this context may or may not be relevant to your tasks.
+    </system-reminder>
+    """
   end
 
   @doc """
@@ -144,16 +209,14 @@ defmodule FrontmanServer.Tasks do
     - `:tools` - List of tool definitions to pass to the agent
     - `:metadata` - Additional metadata for the message
   """
-  @spec add_user_message(String.t(), list(), keyword()) ::
+  @spec add_user_message(String.t(), list(), list(FrontmanServer.Tools.MCP.t())) ::
           {:ok, Interaction.t()} | {:error, :task_not_found}
-  def add_user_message(task_id, content_blocks, opts \\ []) do
-    metadata = Keyword.get(opts, :metadata, %{})
-
-    interaction = Interaction.UserMessage.new(content_blocks, metadata)
+  def add_user_message(task_id, content_blocks, tools) do
+    interaction = Interaction.UserMessage.new(content_blocks)
 
     case append_interaction(task_id, interaction) do
       {:ok, interaction} ->
-        Agents.notify_user_message(task_id, opts)
+        Agents.notify_user_message(task_id, tools)
         {:ok, interaction}
 
       {:error, reason} ->
