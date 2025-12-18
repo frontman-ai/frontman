@@ -22,6 +22,7 @@ let coreTools = (): t => {
     module(FrontmanCore__Tool__WriteFile),
     module(FrontmanCore__Tool__ListFiles),
     module(FrontmanCore__Tool__FileExists),
+    module(FrontmanCore__Tool__LoadAgentInstructions),
   ],
 }
 

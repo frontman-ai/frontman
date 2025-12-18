@@ -3,10 +3,10 @@ open Vitest
 module ToolRegistry = FrontmanCore__ToolRegistry
 
 describe("ToolRegistry", _t => {
-  test("coreTools creates registry with 4 file tools", t => {
+  test("coreTools creates registry with 5 core tools", t => {
     let registry = ToolRegistry.coreTools()
 
-    t->expect(registry->ToolRegistry.count)->Expect.toBe(4)
+    t->expect(registry->ToolRegistry.count)->Expect.toBe(5)
   })
 
   test("make creates empty registry", t => {
