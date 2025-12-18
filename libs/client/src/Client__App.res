@@ -53,7 +53,7 @@ let useExtensionState = () => {
           ) => {
             switch message.type_ {
             | "DevServerImportFigmaNodeResponse" =>
-              message.selectedFigmaNode->Option.forEach(data => {
+              message.selectedFigmaNode->Option.forEach(_data => {
                 // Parse the data structure: { nodeId: string, nodeDSL: string, image: option<string> }
                 let parsedData: Client__State__Types.FigmaNode.selectedNodeData = {
                   nodeId: %raw(`data.nodeId`),
@@ -65,7 +65,9 @@ let useExtensionState = () => {
             | "GetFigmaNodeResponse" =>
               // Route response to the pending tool request
               // Note: fields are Js.Nullable.t since they come from JS as null, not undefined
-              message.requestId->Js.Nullable.toOption->Option.forEach(requestId => {
+              message.requestId
+              ->Js.Nullable.toOption
+              ->Option.forEach(requestId => {
                 let result = switch message.error->Js.Nullable.toOption {
                 | Some(error) => Error(error)
                 | None =>
@@ -73,8 +75,8 @@ let useExtensionState = () => {
                   | Some(node) =>
                     let image = message.image->Js.Nullable.toOption
                     Ok({
-                      Client__Tool__GetFigmaNode.node: node,
-                      Client__Tool__GetFigmaNode.image: image,
+                      Client__Tool__GetFigmaNode.node,
+                      Client__Tool__GetFigmaNode.image,
                     })
                   | None => Error("No node data in response")
                   }
@@ -125,7 +127,9 @@ let make = () => {
     switch update {
     | AgentMessageChunk({content}) =>
       // Text delta from assistant
-      content->Option.flatMap(c => c.text)->Option.forEach(text => {
+      content
+      ->Option.flatMap(c => c.text)
+      ->Option.forEach(text => {
         // Use a consistent ID for the current message stream
         let id = `msg_${taskId}`
         // The reducer will handle creating a new streaming message if needed
@@ -188,15 +192,12 @@ let make = () => {
           ->Option.getOr("Unknown error")
         Client__State.Actions.toolErrorReceived(~taskId, ~id=toolCallId, ~error)
 
-      | Some("in_progress") =>
-        // Tool is running - could update UI state if needed
+      | Some("in_progress") => // Tool is running - could update UI state if needed
         ()
 
-      | Some(_status) =>
-        ()
+      | Some(_status) => ()
 
-      | None =>
-        ()
+      | None => ()
       }
 
     | Plan({entries}) =>
@@ -204,8 +205,7 @@ let make = () => {
         Client__State.Actions.planReceived(~taskId, ~entries=planEntries)
       })
 
-    | Unknown({sessionUpdate}) =>
-      Console.log2("[ACP] Unhandled session update:", sessionUpdate)
+    | Unknown({sessionUpdate}) => Console.log2("[ACP] Unhandled session update:", sessionUpdate)
     }
   }, [])
 
