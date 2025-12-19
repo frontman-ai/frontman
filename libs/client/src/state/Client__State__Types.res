@@ -269,4 +269,5 @@ type state = {
   tasks: Dict.t<Task.t>,
   currentTaskId: option<string>,
   connectionState: connectionState,
+  sessionInitialized: bool,
 }

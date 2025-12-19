@@ -104,4 +104,8 @@ module Actions = {
   // Plan action creators
   let planReceived = (~taskId: string, ~entries: array<Client__State__Types.ACPTypes.planEntry>) =>
     Client__State__Store.dispatch(PlanReceived({taskId, entries}))
+
+  // Initialization action creators
+  let receivedDiscoveredProjectRule = (~taskId: string) =>
+    Client__State__Store.dispatch(ReceivedDiscoveredProjectRule({taskId: taskId}))
 }

@@ -76,6 +76,27 @@ let make = () => {
   let isStreaming = Client__State.useSelector(Client__State.Selectors.isStreaming)
   let isConnected = Client__State.useSelector(Client__State.Selectors.isConnected)
   let planEntries = Client__State.useSelector(Client__State.Selectors.currentPlanEntries)
+  let sessionInitialized = Client__State.useSelector(Client__State.Selectors.sessionInitialized)
+
+  let currentTaskId = Client__State.useSelector(Client__State.Selectors.currentTaskId)
+
+  // Timeout fallback: mark initialized after 3 seconds if not already initialized
+  React.useEffect(() => {
+    if !sessionInitialized {
+      let timeoutId = Js.Global.setTimeout(() => {
+        // Timeout - mark as initialized to avoid blocking forever
+        switch currentTaskId {
+        | Some(taskId) =>
+          Client__State.Actions.receivedDiscoveredProjectRule(~taskId)
+        | None => ()
+        }
+      }, 3000)
+
+      Some(() => Js.Global.clearTimeout(timeoutId))
+    } else {
+      None
+    }
+  }, (sessionInitialized, currentTaskId))
 
   let handleSubmit = (message: {"text": string, "files": option<array<WebAPI.FileAPI.file>>}) => {
     let hasText = message["text"] !== ""
@@ -97,6 +118,16 @@ let make = () => {
     <TaskTabs />
     <AIElements.Conversation className="flex-grow overflow-hidden">
       <AIElements.ConversationContent>
+        {
+          // Show loading indicator while initializing
+          if !sessionInitialized {
+            <div className="flex items-center justify-center py-8">
+              <AIElements.Shimmer> {React.string("Loading project context...")} </AIElements.Shimmer>
+            </div>
+          } else {
+            React.null
+          }
+        }
         {
           // Check if the last message in the conversation is completed (turn ended)
           // or streaming (hide shimmer immediately)

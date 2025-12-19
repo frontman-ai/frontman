@@ -103,6 +103,8 @@ type action =
   | Disconnect
   // Plan actions
   | PlanReceived({taskId: string, entries: array<Client__State__Types.ACPTypes.planEntry>})
+  // Initialization actions
+  | ReceivedDiscoveredProjectRule({taskId: string})
 
 // Effects for side effects
 type effect =
@@ -138,6 +140,7 @@ let defaultState: state = {
   tasks: Dict.make(),
   currentTaskId: None,
   connectionState: Disconnected,
+  sessionInitialized: false,
 }
 
 let actionToString = action => {
@@ -170,6 +173,7 @@ let actionToString = action => {
   | Connect(_) => `Connect`
   | Disconnect => `Disconnect`
   | PlanReceived({taskId, _}) => `PlanReceived(${taskId})`
+  | ReceivedDiscoveredProjectRule({taskId}) => `ReceivedDiscoveredProjectRule(${taskId})`
   }
 }
 
@@ -302,6 +306,11 @@ module Selectors = {
   // Get current task's plan entries
   let currentPlanEntries = (state: state): array<Client__State__Types.ACPTypes.planEntry> => {
     currentTask(state)->Option.mapOr([], task => task.planEntries)
+  }
+
+  // Check if session has been initialized (project rules loaded)
+  let sessionInitialized = (state: state): bool => {
+    state.sessionInitialized
   }
 }
 
@@ -869,5 +878,12 @@ let next = (state, action) => {
     state
     ->Lens.updateTask(taskId, task => {...task, planEntries: entries})
     ->AskTheLlmReactStatestore.StateReducer.update
+
+  | ReceivedDiscoveredProjectRule({taskId: _}) =>
+    // Mark initialization complete
+    {
+      ...state,
+      sessionInitialized: true,
+    }->AskTheLlmReactStatestore.StateReducer.update
   }
 }
