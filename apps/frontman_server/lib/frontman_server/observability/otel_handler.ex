@@ -59,32 +59,34 @@ defmodule FrontmanServer.Observability.OtelHandler do
   end
 
   defp attach_handlers do
-    events = [
-      {Events.task_start(), &handle_task_start/4},
-      {Events.task_stop(), &handle_task_stop/4},
-      {Events.agent_start(), &handle_agent_start/4},
-      {Events.agent_stop(), &handle_agent_stop/4},
-      {Events.iteration_start(), &handle_iteration_start/4},
-      {Events.iteration_stop(), &handle_iteration_stop/4},
-      {Events.llm_start(), &handle_llm_start/4},
-      {Events.llm_stop(), &handle_llm_stop/4},
-      {Events.tool_start(), &handle_tool_start/4},
-      {Events.tool_stop(), &handle_tool_stop/4},
-      {Events.mcp_tool_start(), &handle_mcp_tool_start/4},
-      {Events.mcp_tool_stop(), &handle_mcp_tool_stop/4},
-      {Events.spawn_sub_agent_start(), &handle_spawn_start/4},
-      {Events.spawn_sub_agent_stop(), &handle_spawn_stop/4}
+    handlers = [
+      {Events.task_start(), &__MODULE__.handle_task_start/4},
+      {Events.task_stop(), &__MODULE__.handle_task_stop/4},
+      {Events.agent_start(), &__MODULE__.handle_agent_start/4},
+      {Events.agent_stop(), &__MODULE__.handle_agent_stop/4},
+      {Events.iteration_start(), &__MODULE__.handle_iteration_start/4},
+      {Events.iteration_stop(), &__MODULE__.handle_iteration_stop/4},
+      {Events.llm_start(), &__MODULE__.handle_llm_start/4},
+      {Events.llm_stop(), &__MODULE__.handle_llm_stop/4},
+      {Events.tool_start(), &__MODULE__.handle_tool_start/4},
+      {Events.tool_stop(), &__MODULE__.handle_tool_stop/4},
+      {Events.mcp_tool_start(), &__MODULE__.handle_mcp_tool_start/4},
+      {Events.mcp_tool_stop(), &__MODULE__.handle_mcp_tool_stop/4},
+      {Events.spawn_sub_agent_start(), &__MODULE__.handle_spawn_start/4},
+      {Events.spawn_sub_agent_stop(), &__MODULE__.handle_spawn_stop/4}
     ]
 
-    Enum.each(events, fn {event, handler} ->
+    Enum.each(handlers, fn {event, handler} ->
       handler_id = "frontman_otel_#{Enum.join(event, "_")}"
       :telemetry.attach(handler_id, event, handler, nil)
     end)
   end
 
   # -- Task Handlers --
+  # These handlers are public for telemetry registration but are not part of the public API.
 
-  defp handle_task_start(_event, _measurements, %{task_id: task_id}, _config) do
+  @doc false
+  def handle_task_start(_event, _measurements, %{task_id: task_id}, _config) do
     span_name = "task"
 
     attributes = [
@@ -101,7 +103,8 @@ defmodule FrontmanServer.Observability.OtelHandler do
     :ets.insert(:frontman_spans_task, {task_id, span_ctx})
   end
 
-  defp handle_task_stop(_event, _measurements, %{task_id: task_id}, _config) do
+  @doc false
+  def handle_task_stop(_event, _measurements, %{task_id: task_id}, _config) do
     case :ets.lookup(:frontman_spans_task, task_id) do
       [{^task_id, span_ctx}] ->
         Tracer.set_current_span(span_ctx)
@@ -117,7 +120,8 @@ defmodule FrontmanServer.Observability.OtelHandler do
 
   # -- Agent Handlers --
 
-  defp handle_agent_start(_event, _measurements, metadata, _config) do
+  @doc false
+  def handle_agent_start(_event, _measurements, metadata, _config) do
     %{agent_id: agent_id, task_id: task_id} = metadata
 
     span_name = "agent"
@@ -146,7 +150,8 @@ defmodule FrontmanServer.Observability.OtelHandler do
     :ets.insert(:frontman_spans_agent, {agent_id, span_ctx})
   end
 
-  defp handle_agent_stop(_event, _measurements, %{agent_id: agent_id}, _config) do
+  @doc false
+  def handle_agent_stop(_event, _measurements, %{agent_id: agent_id}, _config) do
     case :ets.lookup(:frontman_spans_agent, agent_id) do
       [{^agent_id, span_ctx}] ->
         Tracer.set_current_span(span_ctx)
@@ -160,7 +165,8 @@ defmodule FrontmanServer.Observability.OtelHandler do
 
   # -- Iteration Handlers --
 
-  defp handle_iteration_start(_event, _measurements, metadata, _config) do
+  @doc false
+  def handle_iteration_start(_event, _measurements, metadata, _config) do
     %{agent_id: agent_id, iteration_number: iteration_number} = metadata
 
     span_name = "iteration #{iteration_number}"
@@ -193,7 +199,8 @@ defmodule FrontmanServer.Observability.OtelHandler do
     Tracer.set_current_span(span_ctx)
   end
 
-  defp handle_iteration_stop(_event, _measurements, metadata, _config) do
+  @doc false
+  def handle_iteration_stop(_event, _measurements, metadata, _config) do
     %{agent_id: agent_id, iteration_number: iteration_number, status: status} = metadata
     error = Map.get(metadata, :error)
 
@@ -227,7 +234,8 @@ defmodule FrontmanServer.Observability.OtelHandler do
 
   # -- LLM Handlers --
 
-  defp handle_llm_start(_event, _measurements, metadata, _config) do
+  @doc false
+  def handle_llm_start(_event, _measurements, metadata, _config) do
     %{agent_id: agent_id, task_id: task_id, model: model, messages: messages} = metadata
 
     {provider, model_name} = parse_model(model)
@@ -260,7 +268,8 @@ defmodule FrontmanServer.Observability.OtelHandler do
     :ets.insert(:frontman_spans_llm, {agent_id, span_ctx})
   end
 
-  defp handle_llm_stop(_event, _measurements, metadata, _config) do
+  @doc false
+  def handle_llm_stop(_event, _measurements, metadata, _config) do
     %{agent_id: agent_id} = metadata
 
     case :ets.lookup(:frontman_spans_llm, agent_id) do
@@ -334,7 +343,8 @@ defmodule FrontmanServer.Observability.OtelHandler do
 
   # -- Backend Tool Handlers --
 
-  defp handle_tool_start(_event, _measurements, metadata, _config) do
+  @doc false
+  def handle_tool_start(_event, _measurements, metadata, _config) do
     %{
       tool_call_id: tool_call_id,
       tool_name: tool_name,
@@ -374,7 +384,8 @@ defmodule FrontmanServer.Observability.OtelHandler do
     :ets.insert(:frontman_spans_tool, {tool_call_id, {span_ctx, start_time}})
   end
 
-  defp handle_tool_stop(_event, _measurements, metadata, _config) do
+  @doc false
+  def handle_tool_stop(_event, _measurements, metadata, _config) do
     %{tool_call_id: tool_call_id, status: status} = metadata
 
     case :ets.lookup(:frontman_spans_tool, tool_call_id) do
@@ -398,7 +409,8 @@ defmodule FrontmanServer.Observability.OtelHandler do
 
   # -- MCP Tool Handlers --
 
-  defp handle_mcp_tool_start(_event, _measurements, metadata, _config) do
+  @doc false
+  def handle_mcp_tool_start(_event, _measurements, metadata, _config) do
     %{
       request_id: request_id,
       tool_call_id: tool_call_id,
@@ -440,7 +452,8 @@ defmodule FrontmanServer.Observability.OtelHandler do
     :ets.insert(:frontman_spans_mcp, {request_id, {span_ctx, start_time}})
   end
 
-  defp handle_mcp_tool_stop(_event, _measurements, metadata, _config) do
+  @doc false
+  def handle_mcp_tool_stop(_event, _measurements, metadata, _config) do
     %{request_id: request_id, status: status} = metadata
 
     case :ets.lookup(:frontman_spans_mcp, request_id) do
@@ -466,7 +479,8 @@ defmodule FrontmanServer.Observability.OtelHandler do
 
   # -- Spawn Sub-Agent Handlers --
 
-  defp handle_spawn_start(_event, _measurements, metadata, _config) do
+  @doc false
+  def handle_spawn_start(_event, _measurements, metadata, _config) do
     %{agent_id: agent_id, task_id: task_id, role: role} = metadata
 
     span_name = "spawn_sub_agent #{role}"
@@ -488,7 +502,8 @@ defmodule FrontmanServer.Observability.OtelHandler do
     :ets.insert(:frontman_spans_spawn, {agent_id, {span_ctx, start_time}})
   end
 
-  defp handle_spawn_stop(_event, _measurements, metadata, _config) do
+  @doc false
+  def handle_spawn_stop(_event, _measurements, metadata, _config) do
     %{agent_id: agent_id, status: status} = metadata
 
     case :ets.lookup(:frontman_spans_spawn, agent_id) do
