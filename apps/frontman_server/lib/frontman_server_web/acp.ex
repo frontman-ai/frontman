@@ -211,25 +211,6 @@ defmodule FrontmanServerWeb.ACP do
         "status must be one of: pending, in_progress, completed, got: #{inspect(status)}"
       )
 
-  @doc """
-  Converts domain todos to ACP plan entries format.
-  Uses "medium" as default priority since todos have no priority concept.
-  """
-  @spec todos_to_plan_entries(list(FrontmanServer.Tasks.Todos.Todo.t())) :: list(map())
-  def todos_to_plan_entries(todos) when is_list(todos) do
-    todos
-    |> Enum.sort_by(& &1.created_at, DateTime)
-    |> Enum.map(&todo_to_plan_entry/1)
-  end
-
-  defp todo_to_plan_entry(todo) do
-    %{
-      "content" => todo.content,
-      "priority" => "medium",
-      "status" => Atom.to_string(todo.status)
-    }
-  end
-
   # Deprecated - use tool_call_create/5 instead
   def build_tool_call_notification(session_id, tool_call, status) do
     tool_call_create(
@@ -262,5 +243,65 @@ defmodule FrontmanServerWeb.ACP do
       ) do
     content = [%{"type" => "content", "content" => structured_content}]
     tool_call_update(session_id, tool_call_id, status, content)
+  end
+
+  @doc """
+  Extracts text content from ACP prompt content blocks.
+
+  Filters for text blocks and joins their text content with newlines.
+  Used for logging and analysis of prompts.
+  """
+  @spec extract_text_content(list(map())) :: String.t()
+  def extract_text_content(prompt_content) when is_list(prompt_content) do
+    prompt_content
+    |> Enum.filter(&(&1["type"] == "text"))
+    |> Enum.map(&(&1["text"] || ""))
+    |> Enum.join("\n")
+  end
+
+  def extract_text_content(_), do: ""
+
+  @doc """
+  Checks if prompt content includes embedded resources.
+
+  Returns true if any content blocks are of type "resource_link" or "resource".
+  These indicate the client has embedded context into the prompt.
+  """
+  @spec has_embedded_resources?(list(map())) :: boolean()
+  def has_embedded_resources?(prompt_content) when is_list(prompt_content) do
+    Enum.any?(prompt_content, fn block ->
+      block["type"] in ["resource_link", "resource"]
+    end)
+  end
+
+  def has_embedded_resources?(_), do: false
+
+  @doc """
+  Parses ACP session/prompt params into a structured format.
+
+  Returns a map with:
+  - `content`: The full ACP content blocks (for passing to agent)
+  - `text_summary`: Extracted text for logging
+  - `has_resources`: Whether embedded resources are present
+  """
+  @spec parse_prompt_params(map()) :: %{
+          content: list(map()),
+          text_summary: String.t(),
+          has_resources: boolean()
+        }
+  def parse_prompt_params(%{"prompt" => content}) do
+    %{
+      content: content,
+      text_summary: extract_text_content(content),
+      has_resources: has_embedded_resources?(content)
+    }
+  end
+
+  def parse_prompt_params(_params) do
+    %{
+      content: [],
+      text_summary: "",
+      has_resources: false
+    }
   end
 end

@@ -38,6 +38,30 @@ defmodule FrontmanServer.Tools do
   @spec todo_mutation?(String.t()) :: boolean()
   def todo_mutation?(tool_name), do: tool_name in @todo_mutations
 
+  @doc """
+  Prepares all available tools for a task.
+
+  Aggregates backend tools and MCP tools, stores MCP tools on the task
+  for later retrieval by backend tools (e.g., Figma tools), and returns
+  all tools in LLM format.
+
+  ## Example
+      mcp_tools |> Tools.prepare_for_task(task_id)
+  """
+  @spec prepare_for_task([FrontmanServer.Tools.MCP.t()], String.t()) :: [ReqLLM.Tool.t()]
+  def prepare_for_task(mcp_tools, task_id) do
+    # Store MCP tools on task for backend tools to access
+    if mcp_tools != [] do
+      Tasks.set_mcp_tools(task_id, mcp_tools)
+    end
+
+    # Aggregate all tools
+    mcp_formatted = FrontmanServer.Tools.MCP.to_llm_format(mcp_tools)
+    backend = backend_tools()
+
+    backend ++ mcp_formatted
+  end
+
   @spec execute_backend_tool(ToolCall.t(), String.t()) :: {:executed, term()} | :not_found
   def execute_backend_tool(%ToolCall{agent_id: agent_id} = tool_call, task_id) do
     case find_tool(tool_call.tool_name) do

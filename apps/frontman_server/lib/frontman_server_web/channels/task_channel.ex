@@ -243,50 +243,37 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   defp handle_prompt(id, params, socket) do
     task_id = socket.assigns.task_id
-    prompt_content = Map.get(params, "prompt", [])
     mcp_tools = socket.assigns[:mcp_tools] || []
 
-    # Extract text content from text blocks
-    text_content =
-      prompt_content
-      |> Enum.filter(fn block -> Map.get(block, "type") == "text" end)
-      |> Enum.map(fn block -> Map.get(block, "text", "") end)
-      |> Enum.join("\n")
+    # Parse ACP prompt (protocol layer)
+    prompt = ACP.parse_prompt_params(params)
 
-    Logger.info("Received prompt for task #{task_id}: #{text_content}")
+    # Logging
+    Logger.info("Received prompt for task #{task_id}: #{prompt.text_summary}")
 
-    # Pass the full prompt_content (ContentBlocks) to the agent
-    # The agent will convert these to the appropriate LLM format
-    has_embedded_context =
-      Enum.any?(prompt_content, fn block ->
-        type = Map.get(block, "type")
-        type == "resource_link" or type == "resource"
-      end)
-
-    if has_embedded_context do
-      Logger.info("Prompt includes embedded context (resource_link or resource)")
+    if prompt.has_resources do
+      Logger.info("Prompt includes embedded context")
     end
 
-    TelemetryEvents.task_start(task_id)
+    # Prepare tools (domain service)
+    all_tools = mcp_tools |> Tools.prepare_for_task(task_id)
 
+    # Track request ID (channel state)
     socket = assign(socket, :pending_prompt_id, id)
 
-    # Store MCP tools on task (for backend tools like Figma to access)
-    Tasks.set_mcp_tools(task_id, mcp_tools)
+    # Execute domain command with telemetry
+    TelemetryEvents.task_start(task_id)
 
-    mcp_tools_formatted = Tools.MCP.to_llm_format(mcp_tools)
-    backend_tools = Tools.backend_tools()
-    all_tools = backend_tools ++ mcp_tools_formatted
-
-    case Tasks.add_user_message(task_id, prompt_content, all_tools) do
+    case Tasks.add_user_message(task_id, prompt.content, all_tools) do
       {:ok, _interaction} ->
         Logger.info("User message added, agent spawned for task #{task_id}")
+        {:noreply, socket}
 
       {:error, reason} ->
         Logger.error("Failed to add user message: #{inspect(reason)}")
+        error_response = JsonRpc.error_response(id, -32000, to_string(reason))
+        {:reply, {:ok, %{"acp:message" => error_response}}, socket}
     end
-
-    {:noreply, socket}
   end
 
   @impl true
@@ -374,7 +361,7 @@ defmodule FrontmanServerWeb.TaskChannel do
 
       case Tasks.list_todos(task_id) do
         {:ok, todos} ->
-          entries = ACP.todos_to_plan_entries(todos)
+          entries = todos_to_plan_entries(todos)
           notification = ACP.plan_update(task_id, entries)
           push(socket, "acp:message", notification)
 
@@ -560,6 +547,20 @@ defmodule FrontmanServerWeb.TaskChannel do
 
     push(socket, "mcp:message", request)
     {:noreply, socket}
+  end
+
+  defp todos_to_plan_entries(todos) when is_list(todos) do
+    todos
+    |> Enum.sort_by(& &1.created_at, DateTime)
+    |> Enum.map(&todo_to_plan_entry/1)
+  end
+
+  defp todo_to_plan_entry(todo) do
+    %{
+      "content" => todo.content,
+      "priority" => "medium",
+      "status" => Atom.to_string(todo.status)
+    }
   end
 
   @impl true
