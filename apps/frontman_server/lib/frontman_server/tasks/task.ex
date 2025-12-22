@@ -16,6 +16,7 @@ defmodule FrontmanServer.Tasks.Task do
     field :interactions, list(Interaction.t()), default: []
     # Raw MCP tools from client (not LLM-formatted)
     field :mcp_tools, list(), default: []
+    field :framework, String.t() | nil, default: nil
   end
 
   @doc """
@@ -23,12 +24,13 @@ defmodule FrontmanServer.Tasks.Task do
 
   Returns a Task struct ready to be persisted.
   """
-  @spec new(String.t()) :: t()
-  def new(task_id) do
+  @spec new(String.t(), String.t() | nil) :: t()
+  def new(task_id, framework \\ nil) do
     %__MODULE__{
       task_id: task_id,
       short_desc: short_description(task_id),
-      interactions: []
+      interactions: [],
+      framework: framework
     }
   end
 

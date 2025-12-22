@@ -64,9 +64,9 @@ defmodule FrontmanServer.Tasks do
   The task_id must be provided by the client.
   Returns `{:ok, task_id}` on success.
   """
-  @spec create_task(String.t()) :: {:ok, String.t()} | {:error, term()}
-  def create_task(task_id) do
-    task = Task.new(task_id)
+  @spec create_task(String.t(), String.t() | nil) :: {:ok, String.t()} | {:error, term()}
+  def create_task(task_id, framework \\ nil) do
+    task = Task.new(task_id, framework)
     :ok = TaskStore.insert(task)
     {:ok, task_id}
   end

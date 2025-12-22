@@ -25,6 +25,27 @@ defmodule FrontmanServer.TasksTest do
     end
   end
 
+  describe "create_task/2" do
+    test "creates task without framework" do
+      task_id = "test_no_framework_#{System.unique_integer([:positive])}"
+      {:ok, ^task_id} = Tasks.create_task(task_id)
+
+      {:ok, task} = Tasks.get_task(task_id)
+      assert task.task_id == task_id
+      assert task.framework == nil
+    end
+
+    test "creates task with framework" do
+      task_id = "test_with_framework_#{System.unique_integer([:positive])}"
+      framework = "test-client"
+      {:ok, ^task_id} = Tasks.create_task(task_id, framework)
+
+      {:ok, task} = Tasks.get_task(task_id)
+      assert task.task_id == task_id
+      assert task.framework == framework
+    end
+  end
+
   describe "get_interactions/1" do
     test "returns empty list for non-existent task" do
       assert Tasks.get_interactions("nonexistent") == []

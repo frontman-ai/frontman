@@ -63,7 +63,8 @@ defmodule FrontmanServerWeb.TasksChannel do
   defp handle_message({:request, id, "session/new", _params}, socket) do
     Logger.info("ACP session/new request received")
     task_id = ACP.generate_session_id()
-    {:ok, ^task_id} = Tasks.create_task(task_id)
+    framework = extract_framework(socket.assigns[:acp_client_info])
+    {:ok, ^task_id} = Tasks.create_task(task_id, framework)
     push_response(socket, id, ACP.build_session_new_result(task_id))
   end
 
@@ -76,6 +77,10 @@ defmodule FrontmanServerWeb.TasksChannel do
   defp handle_message({:notification, _method, _params}, socket) do
     {:noreply, socket}
   end
+
+  defp extract_framework(nil), do: nil
+  defp extract_framework(client_info) when is_map(client_info), do: Map.get(client_info, "name")
+  defp extract_framework(_), do: nil
 
   # Parse errors
   defp handle_parse_error(reason, %{"id" => id}, socket) do

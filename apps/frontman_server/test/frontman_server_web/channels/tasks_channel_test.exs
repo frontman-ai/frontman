@@ -102,6 +102,71 @@ defmodule FrontmanServerWeb.TasksChannelTest do
       assert {:ok, task} = FrontmanServer.Tasks.get_task(session_id)
       assert task.task_id == session_id
     end
+
+    test "extracts and stores framework from clientInfo", %{socket: socket} do
+      version = ACP.protocol_version()
+      framework = "test-client-app"
+
+      # First initialize with clientInfo
+      push(socket, "acp:message", %{
+        "jsonrpc" => "2.0",
+        "id" => 1,
+        "method" => "initialize",
+        "params" => %{
+          "protocolVersion" => version,
+          "clientInfo" => %{"name" => framework, "version" => "1.0.0"}
+        }
+      })
+
+      assert_push "acp:message", %{
+        "jsonrpc" => "2.0",
+        "id" => 1,
+        "result" => %{
+          "protocolVersion" => ^version,
+          "agentInfo" => %{"name" => "frontman-server"}
+        }
+      }
+
+      # Then create a session
+      push(socket, "acp:message", %{
+        "jsonrpc" => "2.0",
+        "id" => 2,
+        "method" => "session/new",
+        "params" => %{}
+      })
+
+      assert_push "acp:message", %{
+        "jsonrpc" => "2.0",
+        "id" => 2,
+        "result" => %{"sessionId" => session_id}
+      }
+
+      # Verify task was created with framework
+      assert {:ok, task} = FrontmanServer.Tasks.get_task(session_id)
+      assert task.task_id == session_id
+      assert task.framework == framework
+    end
+
+    test "handles session/new without clientInfo gracefully", %{socket: socket} do
+      # Create session without initializing first
+      push(socket, "acp:message", %{
+        "jsonrpc" => "2.0",
+        "id" => 1,
+        "method" => "session/new",
+        "params" => %{}
+      })
+
+      assert_push "acp:message", %{
+        "jsonrpc" => "2.0",
+        "id" => 1,
+        "result" => %{"sessionId" => session_id}
+      }
+
+      # Verify task was created without framework (nil)
+      assert {:ok, task} = FrontmanServer.Tasks.get_task(session_id)
+      assert task.task_id == session_id
+      assert task.framework == nil
+    end
   end
 
   describe "ACP unknown method" do
