@@ -127,14 +127,13 @@ defmodule FrontmanServer.Tasks do
   defp do_prepend_to_first_user_message([], _reminder), do: []
 
   defp do_prepend_to_first_user_message([%{role: :user} = msg | rest], reminder) do
-    updated_content =
+    content_parts =
       case msg.content do
-        content when is_binary(content) ->
-          reminder <> "\n" <> content
-
-        content when is_list(content) ->
-          [ReqLLM.Message.ContentPart.text(reminder) | content]
+        content when is_binary(content) -> [ReqLLM.Message.ContentPart.text(content)]
+        content when is_list(content) -> content
       end
+
+    updated_content = [ReqLLM.Message.ContentPart.text(reminder) | content_parts]
 
     [%{msg | content: updated_content} | rest]
   end
