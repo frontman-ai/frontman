@@ -264,7 +264,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     end
   end
 
-  # Completes the MCP handshake (initialize + tools/list)
+  # Completes the MCP handshake (initialize + tools/list + load_agent_instructions)
   defp complete_mcp_handshake(socket) do
     assert_push "mcp:message", %{"id" => init_request_id, "method" => "initialize"}
 
@@ -280,5 +280,25 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     assert_push "mcp:message", %{"id" => tools_request_id, "method" => "tools/list"}
 
     push(socket, "mcp:message", JsonRpc.success_response(tools_request_id, %{"tools" => []}))
+
+    # Handle the load_agent_instructions call that happens after tools/list
+    assert_push "mcp:message", %{
+      "id" => project_rules_request_id,
+      "method" => "tools/call",
+      "params" => %{"name" => "load_agent_instructions"}
+    }
+
+    # Respond with empty project rules
+    push(
+      socket,
+      "mcp:message",
+      JsonRpc.success_response(project_rules_request_id, %{"content" => []})
+    )
+
+    # Wait for initialization complete notification
+    assert_push "acp:message", %{
+      "method" => "project_rules_initialized",
+      "params" => %{"count" => 0}
+    }
   end
 end
