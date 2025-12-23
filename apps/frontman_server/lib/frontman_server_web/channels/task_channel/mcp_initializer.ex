@@ -173,7 +173,7 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
     request_project_rules(tools, state)
   end
 
-  defp request_project_rules(tools, state) do
+  defp request_project_rules(_tools, state) do
     request_id = System.unique_integer([:positive])
     call_id = "project_rules_init_#{request_id}"
 
