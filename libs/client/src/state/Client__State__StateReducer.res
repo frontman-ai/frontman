@@ -110,6 +110,7 @@ type action =
 type effect =
   | SendMessageToAPI({message: string, taskId: string})
   | FetchElementDetails({element: WebAPI.DOMAPI.element, document: option<WebAPI.DOMAPI.document>})
+  | StartInitializationTimeout({taskId: string, timeoutMs: int})
 
 let getInitialUrl = () => {
   let entrypointUrl =
@@ -449,6 +450,13 @@ let handleEffect = (effect, state: state, dispatch) => {
         Promise.resolve()
       })
     }
+  | StartInitializationTimeout({taskId, timeoutMs}) =>
+    let taskId = taskId
+    let _ = Js.Global.setTimeout(() => {
+      if !state.sessionInitialized {
+        dispatch(ReceivedDiscoveredProjectRule({taskId: taskId}))
+      }
+    }, timeoutMs)
   }
 }
 
@@ -869,7 +877,12 @@ let next = (state, action) => {
     ->AskTheLlmReactStatestore.StateReducer.update
 
   | Connect({sendPrompt}) =>
-    {...state, connectionState: Connected(sendPrompt)}->AskTheLlmReactStatestore.StateReducer.update
+    {...state, connectionState: Connected(sendPrompt)}
+    ->AskTheLlmReactStatestore.StateReducer.update(
+      ~sideEffects=state.currentTaskId
+      ->Option.map(taskId => [StartInitializationTimeout({taskId, timeoutMs: 3000})])
+      ->Option.getOr([]),
+    )
 
   | Disconnect =>
     {...state, connectionState: Disconnected}->AskTheLlmReactStatestore.StateReducer.update

@@ -78,26 +78,6 @@ let make = () => {
   let planEntries = Client__State.useSelector(Client__State.Selectors.currentPlanEntries)
   let sessionInitialized = Client__State.useSelector(Client__State.Selectors.sessionInitialized)
 
-  let currentTaskId = Client__State.useSelector(Client__State.Selectors.currentTaskId)
-
-  // Timeout fallback: mark initialized after 3 seconds if not already initialized
-  React.useEffect(() => {
-    if !sessionInitialized {
-      let timeoutId = Js.Global.setTimeout(() => {
-        // Timeout - mark as initialized to avoid blocking forever
-        switch currentTaskId {
-        | Some(taskId) =>
-          Client__State.Actions.receivedDiscoveredProjectRule(~taskId)
-        | None => ()
-        }
-      }, 3000)
-
-      Some(() => Js.Global.clearTimeout(timeoutId))
-    } else {
-      None
-    }
-  }, (sessionInitialized, currentTaskId))
-
   let handleSubmit = (message: {"text": string, "files": option<array<WebAPI.FileAPI.file>>}) => {
     let hasText = message["text"] !== ""
     let hasAttachments = message["files"]->Option.mapOr(false, files => files->Array.length > 0)
