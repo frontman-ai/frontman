@@ -288,11 +288,17 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       "params" => %{"name" => "load_agent_instructions"}
     }
 
-    # Respond with empty project rules (initialization will complete asynchronously)
+    # Respond with empty project rules
     push(
       socket,
       "mcp:message",
       JsonRpc.success_response(project_rules_request_id, %{"content" => []})
     )
+
+    # Wait for initialization to complete (this ensures mcp_status is :ready)
+    # Without this, tool call responses get routed to MCPInitializer instead of being handled properly
+    assert_push "acp:message", %{
+      "method" => "project_rules_initialized"
+    }
   end
 end
