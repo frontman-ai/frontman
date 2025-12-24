@@ -20,23 +20,12 @@ defmodule FrontmanServer.AgentCase do
 
   - `:event_collector` - Creates `on_event` callback that sends to test process
   - `:parent_agent` - Starts a root agent, provides `%{pid, id, task_id}`
-  - `:registered_parent_agent` - Same as above but registered with Registry
-  - `:tool_call` - Creates a ToolCall struct
 
   ## Tag options
 
   You can customize fixtures via tags:
 
       @tag fixtures: [:parent_agent], parent_id: "custom_parent", task_id: "custom_task"
-
-  ## Helper functions
-
-  The following helpers are imported automatically:
-
-  - `inject_tool_call/2` - Add tool call to agent state
-  - `register_tool_call/2` - Register tool for direct routing
-  - `get_agent_state/1` - Get agent's internal state
-  - `tool_call_struct/1` - Factory for ToolCall structs
 
   ## LLM Integration Tests (VCR-style fixtures)
 

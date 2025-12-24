@@ -25,8 +25,7 @@ defmodule FrontmanServer.Test.Fixtures.Agents do
       end
   """
 
-  alias FrontmanServer.Agents.{Agent, AgentServer}
-  alias ReqLLM.ToolCall
+  alias FrontmanServer.Agents.AgentServer
 
   @doc """
   Build multiple fixtures from a list of atoms.
@@ -78,42 +77,6 @@ defmodule FrontmanServer.Test.Fixtures.Agents do
     })
   end
 
-  def build_fixture(:registered_parent_agent, ctx, tags) do
-    ctx = ensure_fixture(ctx, :event_collector, tags)
-
-    agent_id = tags[:parent_id] || "parent_#{ctx.unique_id}"
-    task_id = tags[:task_id] || "task_#{ctx.unique_id}"
-    llm_opts = build_llm_opts(ctx, tags)
-
-    {:ok, pid} =
-      GenServer.start_link(
-        AgentServer,
-        {:root,
-         %{
-           agent_id: agent_id,
-           task_id: task_id,
-           tools: tags[:tools] || [],
-           on_event: ctx.on_event,
-           llm_opts: llm_opts
-         }},
-        name: via_registry(agent_id, task_id, nil, :root)
-      )
-
-    Map.merge(ctx, %{
-      parent_agent: %{pid: pid, id: agent_id, task_id: task_id, registered: true}
-    })
-  end
-
-  def build_fixture(:tool_call, ctx, tags) do
-    tool_call =
-      ToolCall.new(
-        tags[:tool_call_id] || "tool_#{ctx.unique_id}",
-        tags[:tool_name] || "test_tool",
-        tags[:tool_args] || "{}"
-      )
-
-    Map.put(ctx, :tool_call, tool_call)
-  end
 
   # Ensure a dependency fixture exists
   defp ensure_fixture(ctx, fixture, tags) do
@@ -128,12 +91,6 @@ defmodule FrontmanServer.Test.Fixtures.Agents do
 
   defp fixture_key(:event_collector), do: :on_event
   defp fixture_key(other), do: other
-
-  defp via_registry(agent_id, task_id, parent_id, role) do
-    {:via, Registry,
-     {FrontmanServer.AgentRegistry, {:agent, agent_id},
-      %{task_id: task_id, parent_agent_id: parent_id, role: role, state: :processing}}}
-  end
 
   @doc "Cleanup agent processes"
   @spec cleanup_agents(map()) :: :ok
@@ -150,45 +107,6 @@ defmodule FrontmanServer.Test.Fixtures.Agents do
     end)
 
     :ok
-  end
-
-  # State manipulation helpers
-
-  @doc "Inject a tool call into agent's state"
-  @spec inject_tool_call(pid(), ToolCall.t()) :: :ok
-  def inject_tool_call(agent_pid, tool_call) do
-    :sys.replace_state(agent_pid, fn state ->
-      agent = Agent.track_tool(state.agent, tool_call)
-      %{state | agent: agent}
-    end)
-
-    :ok
-  end
-
-  @doc "Register a tool call for direct routing"
-  @spec register_tool_call(String.t(), String.t()) :: {:ok, pid()} | {:error, term()}
-  def register_tool_call(tool_call_id, agent_id) do
-    Registry.register(FrontmanServer.AgentRegistry, {:tool_call, tool_call_id}, agent_id)
-  end
-
-  @doc "Get agent state for inspection"
-  @spec get_agent_state(pid()) :: map()
-  def get_agent_state(pid) do
-    :sys.get_state(pid)
-  end
-
-  # Factory functions for creating structs with defaults
-
-  @doc "Create a ToolCall struct with optional overrides"
-  @spec tool_call_struct(keyword()) :: ToolCall.t()
-  def tool_call_struct(overrides \\ []) do
-    unique = System.unique_integer([:positive])
-
-    id = Keyword.get(overrides, :id, "tool_#{unique}")
-    name = Keyword.get(overrides, :name, "test_tool")
-    args = Keyword.get(overrides, :args, "{}")
-
-    ToolCall.new(id, name, args)
   end
 
   # Build llm_opts from context and tags for VCR fixture support
