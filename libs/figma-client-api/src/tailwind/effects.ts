@@ -88,8 +88,9 @@ export function shadowClasses(node: FigmaNode, settings: ConversionSettings): st
 
 /**
  * Generate blend mode, opacity, rotation, and visibility classes
+ * @param skipRotation - If true, skip rotation classes (for SVG nodes where rotation is baked in)
  */
-export function blendClasses(node: FigmaNode): string[] {
+export function blendClasses(node: FigmaNode, skipRotation: boolean = false): string[] {
   const classes: string[] = [];
 
   // Opacity
@@ -102,8 +103,8 @@ export function blendClasses(node: FigmaNode): string[] {
     classes.push(BLEND_MODES[node.blendMode]);
   }
 
-  // Rotation
-  if (node.rotation && Math.round(node.rotation) !== 0) {
+  // Rotation - skip for SVG nodes where rotation is baked into the SVG
+  if (!skipRotation && node.rotation && Math.round(node.rotation) !== 0) {
     const rot = -node.rotation; // Figma uses clockwise, CSS uses counter-clockwise
     const nearest = exactValue(rot, ROTATION_VALUES);
 

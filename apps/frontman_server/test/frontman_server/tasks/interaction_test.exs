@@ -4,13 +4,292 @@ defmodule FrontmanServer.Tasks.InteractionTest do
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Tasks.Interaction.{UserMessage, AgentResponse, ToolCall, ToolResult}
 
+  describe "UserMessage.new/1" do
+    test "extracts selected_component from resource with _meta annotation" do
+      content_blocks = [
+        %{"type" => "text", "text" => "Hello"},
+        %{
+          "type" => "resource",
+          "resource" => %{
+            "_meta" => %{
+              "selected_component" => true,
+              "file" => "/path/to/component.tsx",
+              "line" => 42,
+              "column" => 10
+            },
+            "resource" => %{
+              "uri" => "file:///path/to/component.tsx:42:10",
+              "mimeType" => "text/plain",
+              "text" => "Selected component: div at /path/to/component.tsx:42:10"
+            }
+          }
+        }
+      ]
+
+      msg = UserMessage.new(content_blocks)
+
+      assert msg.selected_component == %{
+               file: "/path/to/component.tsx",
+               line: 42,
+               column: 10
+             }
+
+      assert msg.figma_node == nil
+      assert msg.figma_image == nil
+    end
+
+    test "extracts figma_image from resource with _meta annotation" do
+      content_blocks = [
+        %{"type" => "text", "text" => "Implement this design"},
+        %{
+          "type" => "resource",
+          "resource" => %{
+            "_meta" => %{"figma_image" => true},
+            "resource" => %{
+              "uri" => "figma://node/image",
+              "mimeType" => "image/png",
+              "blob" => "base64imagedata"
+            }
+          }
+        }
+      ]
+
+      msg = UserMessage.new(content_blocks)
+
+      assert msg.figma_image == "base64imagedata"
+      assert msg.figma_node == nil
+      assert msg.selected_component == nil
+    end
+
+    test "extracts figma_node from resource with _meta annotation" do
+      content_blocks = [
+        %{"type" => "text", "text" => "Implement this design"},
+        %{
+          "type" => "resource",
+          "resource" => %{
+            "_meta" => %{"figma_node" => true},
+            "resource" => %{
+              "uri" => "figma://node/123:456",
+              "mimeType" => "text/plain",
+              "text" => "Frame(id=123:456)"
+            }
+          }
+        }
+      ]
+
+      msg = UserMessage.new(content_blocks)
+
+      assert msg.figma_node == "Frame(id=123:456)"
+      assert msg.figma_image == nil
+    end
+
+    test "returns nil for all context fields when no context" do
+      content_blocks = [%{"type" => "text", "text" => "Hello"}]
+
+      msg = UserMessage.new(content_blocks)
+
+      assert msg.selected_component == nil
+      assert msg.selected_component_screenshot == nil
+      assert msg.figma_node == nil
+      assert msg.figma_image == nil
+    end
+
+    test "handles both selected_component and figma_context together" do
+      content_blocks = [
+        %{"type" => "text", "text" => "Implement this"},
+        %{
+          "type" => "resource",
+          "resource" => %{
+            "_meta" => %{
+              "selected_component" => true,
+              "file" => "/src/Button.tsx",
+              "line" => 10,
+              "column" => 5
+            },
+            "resource" => %{
+              "uri" => "file:///src/Button.tsx:10:5",
+              "mimeType" => "text/plain",
+              "text" => "Selected component"
+            }
+          }
+        },
+        %{
+          "type" => "resource",
+          "resource" => %{
+            "_meta" => %{"figma_node" => true},
+            "resource" => %{
+              "uri" => "figma://node/0:1",
+              "mimeType" => "text/plain",
+              "text" => "Frame(id=0:1)"
+            }
+          }
+        }
+      ]
+
+      msg = UserMessage.new(content_blocks)
+
+      assert msg.selected_component == %{file: "/src/Button.tsx", line: 10, column: 5}
+      assert msg.figma_node == "Frame(id=0:1)"
+    end
+
+    test "prefers _meta extraction over URI parsing" do
+      # When both _meta and URI are present, _meta takes precedence
+      content_blocks = [
+        %{
+          "type" => "resource",
+          "resource" => %{
+            "_meta" => %{
+              "selected_component" => true,
+              "file" => "/correct/path.tsx",
+              "line" => 100,
+              "column" => 50
+            },
+            "resource" => %{
+              "uri" => "file:///wrong/path.tsx:1:1",
+              "mimeType" => "text/plain",
+              "text" => "Selected component"
+            }
+          }
+        }
+      ]
+
+      msg = UserMessage.new(content_blocks)
+
+      # Should use _meta values, not parsed URI
+      assert msg.selected_component == %{file: "/correct/path.tsx", line: 100, column: 50}
+    end
+
+    test "extracts selected_component_screenshot from resource with _meta annotation" do
+      content_blocks = [
+        %{"type" => "text", "text" => "Hello"},
+        %{
+          "type" => "resource",
+          "resource" => %{
+            "_meta" => %{"selected_component_screenshot" => true},
+            "resource" => %{
+              "uri" => "component://screenshot",
+              "mimeType" => "image/png",
+              "blob" => "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk"
+            }
+          }
+        }
+      ]
+
+      msg = UserMessage.new(content_blocks)
+
+      assert msg.selected_component_screenshot ==
+               "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk"
+    end
+
+    test "extracts both selected_component and screenshot together" do
+      content_blocks = [
+        %{"type" => "text", "text" => "Fix this button"},
+        %{
+          "type" => "resource",
+          "resource" => %{
+            "_meta" => %{
+              "selected_component" => true,
+              "file" => "/src/Button.tsx",
+              "line" => 15,
+              "column" => 3
+            },
+            "resource" => %{
+              "uri" => "file:///src/Button.tsx:15:3",
+              "mimeType" => "text/plain",
+              "text" => "Selected component: button"
+            }
+          }
+        },
+        %{
+          "type" => "resource",
+          "resource" => %{
+            "_meta" => %{"selected_component_screenshot" => true},
+            "resource" => %{
+              "uri" => "component://screenshot",
+              "mimeType" => "image/png",
+              "blob" => "base64screenshotdata"
+            }
+          }
+        }
+      ]
+
+      msg = UserMessage.new(content_blocks)
+
+      assert msg.selected_component == %{file: "/src/Button.tsx", line: 15, column: 3}
+      assert msg.selected_component_screenshot == "base64screenshotdata"
+    end
+  end
+
+  describe "has_figma_context?/1" do
+    test "returns true when UserMessage has figma context" do
+      interactions = [
+        UserMessage.new([
+          %{"type" => "text", "text" => "Hello"},
+          %{
+            "type" => "resource",
+            "resource" => %{
+              "_meta" => %{"figma_image" => true},
+              "resource" => %{"uri" => "figma://node/image", "blob" => "data"}
+            }
+          }
+        ])
+      ]
+
+      assert Interaction.has_figma_context?(interactions) == true
+    end
+
+    test "returns false when no figma context" do
+      interactions = [
+        UserMessage.new([%{"type" => "text", "text" => "Hello"}])
+      ]
+
+      assert Interaction.has_figma_context?(interactions) == false
+    end
+  end
+
+  describe "has_selected_component?/1" do
+    test "returns true when UserMessage has selected component" do
+      interactions = [
+        UserMessage.new([
+          %{"type" => "text", "text" => "Hello"},
+          %{
+            "type" => "resource",
+            "resource" => %{
+              "_meta" => %{
+                "selected_component" => true,
+                "file" => "/path/to/file.tsx",
+                "line" => 1,
+                "column" => 1
+              },
+              "resource" => %{"uri" => "file:///path/to/file.tsx:1:1", "text" => "Component"}
+            }
+          }
+        ])
+      ]
+
+      assert Interaction.has_selected_component?(interactions) == true
+    end
+
+    test "returns false when no selected component" do
+      interactions = [
+        UserMessage.new([%{"type" => "text", "text" => "Hello"}])
+      ]
+
+      assert Interaction.has_selected_component?(interactions) == false
+    end
+  end
+
   describe "to_llm_messages/1" do
     test "converts user messages" do
       interactions = [
         %UserMessage{
           id: "1",
-          content_blocks: [%{"type" => "text", "text" => "Hello"}],
-          timestamp: DateTime.utc_now()
+          messages: ["Hello"],
+          timestamp: DateTime.utc_now(),
+          selected_component: nil,
+          selected_component_screenshot: nil,
+          figma_node: nil,
+          figma_image: nil
         }
       ]
 
@@ -102,8 +381,12 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       interactions = [
         %UserMessage{
           id: "1",
-          content_blocks: [%{"type" => "text", "text" => "Calculate 2+2"}],
-          timestamp: now
+          messages: ["Calculate 2+2"],
+          timestamp: now,
+          selected_component: nil,
+          selected_component_screenshot: nil,
+          figma_node: nil,
+          figma_image: nil
         },
         %AgentResponse{
           id: "2",
@@ -153,8 +436,12 @@ defmodule FrontmanServer.Tasks.InteractionTest do
         # UserMessage - should always be included (no agent_id)
         %UserMessage{
           id: "1",
-          content_blocks: [%{"type" => "text", "text" => "Hello"}],
-          timestamp: now
+          messages: ["Hello"],
+          timestamp: now,
+          selected_component: nil,
+          selected_component_screenshot: nil,
+          figma_node: nil,
+          figma_image: nil
         },
         # Agent A's response
         %AgentResponse{
@@ -201,8 +488,12 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       interactions = [
         %UserMessage{
           id: "1",
-          content_blocks: [%{"type" => "text", "text" => "Hello"}],
-          timestamp: now
+          messages: ["Hello"],
+          timestamp: now,
+          selected_component: nil,
+          selected_component_screenshot: nil,
+          figma_node: nil,
+          figma_image: nil
         },
         %AgentResponse{
           id: "2",
@@ -244,8 +535,12 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       interactions = [
         %UserMessage{
           id: "1",
-          content_blocks: [%{"type" => "text", "text" => "Initial prompt"}],
-          timestamp: now
+          messages: ["Initial prompt"],
+          timestamp: now,
+          selected_component: nil,
+          selected_component_screenshot: nil,
+          figma_node: nil,
+          figma_image: nil
         }
       ]
 
@@ -258,6 +553,70 @@ defmodule FrontmanServer.Tasks.InteractionTest do
   end
 
   describe "JSON encoding" do
+    test "encodes UserMessage to JSON with messages and selected_component" do
+      msg =
+        UserMessage.new([
+          %{"type" => "text", "text" => "Hello"},
+          %{
+            "type" => "resource",
+            "resource" => %{
+              "_meta" => %{
+                "selected_component" => true,
+                "file" => "/path/to/file.tsx",
+                "line" => 10,
+                "column" => 5
+              },
+              "resource" => %{"uri" => "file:///path/to/file.tsx:10:5", "text" => "Component"}
+            }
+          }
+        ])
+
+      json = Jason.encode!(msg)
+      decoded = Jason.decode!(json)
+
+      assert decoded["type"] == "user_message"
+      assert decoded["messages"] == ["Hello"]
+
+      assert decoded["selected_component"] == %{
+               "file" => "/path/to/file.tsx",
+               "line" => 10,
+               "column" => 5
+             }
+
+      assert decoded["figma_node"] == false
+      assert decoded["figma_image"] == false
+    end
+
+    test "encodes UserMessage with figma context to JSON" do
+      msg =
+        UserMessage.new([
+          %{"type" => "text", "text" => "Build this"},
+          %{
+            "type" => "resource",
+            "resource" => %{
+              "_meta" => %{"figma_image" => true},
+              "resource" => %{"blob" => "imagedata"}
+            }
+          },
+          %{
+            "type" => "resource",
+            "resource" => %{
+              "_meta" => %{"figma_node" => true},
+              "resource" => %{"text" => "Frame(id=0:1)"}
+            }
+          }
+        ])
+
+      json = Jason.encode!(msg)
+      decoded = Jason.decode!(json)
+
+      assert decoded["type"] == "user_message"
+      assert decoded["messages"] == ["Build this"]
+      assert decoded["figma_node"] == true
+      assert decoded["figma_image"] == true
+      assert decoded["selected_component"] == nil
+    end
+
     test "encodes ToolCall to JSON" do
       tool_call = %ToolCall{
         id: "1",

@@ -178,8 +178,11 @@ defmodule FrontmanServer.TasksTest do
       task_id = "test_rule_dedup_#{System.unique_integer([:positive])}"
       {:ok, ^task_id} = Tasks.create_task(task_id)
 
-      {:ok, _rule} = Tasks.add_discovered_project_rule(task_id, "/project/AGENTS.md", "# Rules v1")
-      {:ok, :already_loaded} = Tasks.add_discovered_project_rule(task_id, "/project/AGENTS.md", "# Rules v2")
+      {:ok, _rule} =
+        Tasks.add_discovered_project_rule(task_id, "/project/AGENTS.md", "# Rules v1")
+
+      {:ok, :already_loaded} =
+        Tasks.add_discovered_project_rule(task_id, "/project/AGENTS.md", "# Rules v2")
 
       rules = Tasks.get_discovered_project_rules(task_id)
       assert length(rules) == 1

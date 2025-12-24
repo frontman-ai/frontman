@@ -16,7 +16,8 @@ defmodule FrontmanServer.Agents.AgentServer do
   use GenServer
   require Logger
 
-  @default_model "openrouter:anthropic/claude-haiku-4.5"
+  # @default_model "openrouter:anthropic/claude-haiku-4.5"
+  @default_model "openrouter:google/gemini-3-flash-preview"
   @idle_timeout_ms 5 * 60 * 1000
 
   alias FrontmanServer.Agents.{Agent, StreamParser}
@@ -291,6 +292,20 @@ defmodule FrontmanServer.Agents.AgentServer do
             _ -> nil
           end)
 
+        # Extract reasoning_details from meta chunks (for Gemini via OpenRouter)
+        # Collect ALL reasoning_details from all chunks - we filter to encrypted-only when sending to LLM
+        reasoning_details =
+          chunks
+          |> Enum.filter(fn
+            %{type: :meta, metadata: %{reasoning_details: details}} when is_list(details) -> true
+            _ -> false
+          end)
+          |> Enum.flat_map(fn chunk -> chunk.metadata.reasoning_details end)
+          |> case do
+            [] -> nil
+            details -> details
+          end
+
         TelemetryEvents.llm_stop(state.agent.id,
           response_id: response_id,
           output_text: text,
@@ -301,7 +316,7 @@ defmodule FrontmanServer.Agents.AgentServer do
           "#{agent_log_label(state)} extracted: text=#{byte_size(text)} bytes, tool_calls=#{length(tool_calls)}, response_id=#{inspect(response_id)}, chunks=#{length(chunks)}"
         )
 
-        handle_response(state, text, tool_calls, response_id)
+        handle_response(state, text, tool_calls, response_id, reasoning_details)
 
       {:error, reason} ->
         # Emit LLM stop event with error
@@ -324,19 +339,26 @@ defmodule FrontmanServer.Agents.AgentServer do
     end)
   end
 
-  defp handle_response(state, text, [], _response_id) do
+  defp handle_response(state, text, [], _response_id, _reasoning_details) do
     Logger.info("#{agent_log_label(state)} completing with text: #{byte_size(text)} bytes")
     emit(state, {:response, state.agent.id, text, %{}})
     {:stop, state}
   end
 
-  defp handle_response(state, text, tool_calls, response_id) do
+  defp handle_response(state, text, tool_calls, response_id, reasoning_details) do
     Logger.info(
       "#{agent_log_label(state)} has #{length(tool_calls)} tool calls, text: #{byte_size(text)} bytes"
     )
 
     metadata = %{tool_calls: tool_calls}
     metadata = if response_id, do: Map.put(metadata, :response_id, response_id), else: metadata
+
+    # Include reasoning_details for Gemini models (required for tool call round-trips)
+    metadata =
+      if reasoning_details,
+        do: Map.put(metadata, :reasoning_details, reasoning_details),
+        else: metadata
+
     emit(state, {:response, state.agent.id, text, metadata})
 
     state = track_tool_calls(state, tool_calls)

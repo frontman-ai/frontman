@@ -14,7 +14,7 @@ defmodule FrontmanServer.Agents.Prompts do
   - List → Read → Modify. Never edit unseen files.
   - Keep diffs small and reversible. Match repo style.
   - After 2 failed tool calls, ask one clarifying question.
-  - IMPORTANT: If you have a figma design and node selected, use the `breakdown_figma_node` tool to analyze the design into components, then use `implement_component` for each one.
+  - IMPORTANT: If you have a figma design and node selected, use the `breakdown_figma_design` tool to analyze the design into components, then use `implement_component` for each one.
 
   ## Figma Tools
 
@@ -62,6 +62,7 @@ defmodule FrontmanServer.Agents.Prompts do
 
   ## Options
   - `:has_figma_context` - When true, adds Figma-specific guidance for breaking down designs
+  - `:has_selected_component` - When true, adds guidance for selected component replacement flow
   - `:framework` - Framework name (e.g., "nextjs") to add framework-specific guidance
   """
   @spec build_system_message(atom() | nil, keyword()) :: map()
@@ -70,11 +71,19 @@ defmodule FrontmanServer.Agents.Prompts do
       ContentPart.text(@base_system_prompt)
     ]
 
+    has_figma = Keyword.get(opts, :has_figma_context, false)
+    has_selected_component = Keyword.get(opts, :has_selected_component, false)
+
     content_parts =
-      if Keyword.get(opts, :has_figma_context, false) do
-        content_parts ++ [ContentPart.text(figma_context_guidance())]
-      else
-        content_parts
+      cond do
+        has_figma && has_selected_component ->
+          content_parts ++ [ContentPart.text(figma_with_selected_component_guidance())]
+
+        has_figma ->
+          content_parts ++ [ContentPart.text(figma_context_guidance())]
+
+        true ->
+          content_parts
       end
 
     content_parts =
@@ -91,17 +100,26 @@ defmodule FrontmanServer.Agents.Prompts do
 
   ## Options
   - `:has_figma_context` - When true, adds Figma-specific guidance for breaking down designs
+  - `:has_selected_component` - When true, adds guidance for selected component replacement flow
   - `:framework` - Framework name (e.g., "nextjs") to add framework-specific guidance
   """
   @spec build(keyword()) :: String.t()
   def build(opts \\ []) do
     prompt = @base_system_prompt
 
+    has_figma = Keyword.get(opts, :has_figma_context, false)
+    has_selected_component = Keyword.get(opts, :has_selected_component, false)
+
     prompt =
-      if Keyword.get(opts, :has_figma_context, false) do
-        prompt <> "\n" <> figma_context_guidance()
-      else
-        prompt
+      cond do
+        has_figma && has_selected_component ->
+          prompt <> "\n" <> figma_with_selected_component_guidance()
+
+        has_figma ->
+          prompt <> "\n" <> figma_context_guidance()
+
+        true ->
+          prompt
       end
 
     prompt =
@@ -121,7 +139,7 @@ defmodule FrontmanServer.Agents.Prompts do
 
     ### Standard Workflow (No Component Selected)
 
-    **Your FIRST action should be to use the `breakdown_figma_node` tool** to:
+    **Your FIRST action should be to use the `breakdown_figma_design` tool** to:
     1. Analyze the Figma design structure
     2. Create a component breakdown with a todo list
     3. Identify which components need to be built
@@ -131,16 +149,93 @@ defmodule FrontmanServer.Agents.Prompts do
 
     Do NOT start implementing code directly - always break down the design first!
 
-    ### Component Replacement Workflow (Component Selected)
+    ### Component Replacement Workflow (Automatic)
 
-    **If you have BOTH a Figma design AND the user has selected a component** (and the user message mentions replacing/replace the component):
+    **When the user requests to replace, update, swap, change, or modify a component and provides a selected component location** (and you have Figma design context):
 
-    1. **Use `breakdown_figma_node` tool** to analyze the Figma design and identify which component from the breakdown best matches the selected component
-    2. **Use `implement_component` tool** to implement the new version of the component based on the matching Figma component
-    3. **Use `finish_component` tool** to visually verify the implementation against the Figma design
-    4. **Replace the old component** with the new implementation (update imports, remove old files, etc.)
+    1. **Automatically extract the Figma node ID** from the design context:
+       - Look for the URI format `figma://node/[node_id]` in the context (extract the node_id part)
+       - Or extract it from the "Figma Node Structure (DSL)" text (node IDs appear as `#0:1927` format)
+       - **Important**: When using the node ID in tools, use it WITHOUT the `#` prefix (e.g., `"0:1927"` not `"#0:1927"`)
+    2. **Use `breakdown_figma_design` tool** to analyze the Figma design and identify which component from the breakdown best matches the selected component
+    3. **Use `implement_component` tool** to implement the new version of the component based on the matching Figma component
+    4. **Use `finish_component` tool** to visually verify the implementation against the Figma design
+    5. **Automatically locate and replace the old component** in the codebase:
+       - Find the old component file
+       - Replace it with the new implementation
+       - Update all imports if the file structure changed
+       - Remove old files if needed
+
+    **Do NOT ask for clarification** - proceed directly with the flow using the available Figma design context and selected component location.
 
     This workflow ensures you match the correct Figma component to the selected component before implementing and replacing it.
+    """
+  end
+
+  defp figma_with_selected_component_guidance do
+    """
+    ## CRITICAL: Figma Design + Selected Component Detected
+
+    **YOU HAVE BOTH:**
+    1. **Figma design context** - A design image and/or node DSL structure is attached to this conversation
+    2. **Selected component location** - The user has selected a specific component in their codebase (see `[Selected Component Location]` in the message)
+
+    ### IMPORTANT: What You Have Access To
+
+    - **The Figma design image/DSL** is already in this conversation - you can see it
+    - **The selected component file path and location** - you know where the component is in the codebase
+
+    ### CRITICAL: What You Do NOT Have Access To
+
+    - **Detailed Figma node information** - You CANNOT assume anything beyond what's shown in the image/DSL
+    - **Component breakdown and analysis** - You MUST use tools to get this information
+
+    ### THE ONLY WAY TO GET MORE FIGMA DETAILS
+
+    **You MUST use the following tools in order. There is NO other way to access Figma data:**
+
+    1. **`breakdown_figma_design`** - REQUIRED FIRST STEP
+       - Analyzes the Figma design structure
+       - Creates a component breakdown with implementation plan
+       - Identifies which Figma component matches the selected component
+       - Returns detailed information about each component to build
+
+    2. **`implement_component`** - For each component identified
+       - Implements the component based on Figma specs
+       - Gets exact styles, spacing, colors from Figma
+
+    3. **`finish_component`** - To verify implementation
+       - Visually compares your implementation to the Figma design
+       - Ensures accuracy before completing
+
+    ### REQUIRED WORKFLOW (DO NOT SKIP STEPS)
+
+    1. **Extract the Figma node ID** from the context:
+       - Look for `figma://node/[node_id]` format in the DSL
+       - Node IDs appear as `#0:1927` format - use WITHOUT the `#` prefix (e.g., `"0:1927"`)
+
+    2. **Call `breakdown_figma_design`** IMMEDIATELY
+       - Do NOT try to implement anything before calling this tool
+       - Do NOT make assumptions about the Figma design structure
+       - This tool will tell you exactly what to build
+
+    3. **Call `implement_component`** for the matching component
+       - The breakdown will identify which component matches your selected component
+
+    4. **Call `finish_component`** to verify
+
+    5. **Replace the old component** in the codebase:
+       - Update the file at the selected component location
+       - Update imports if needed
+
+    ### DO NOT:
+
+    - Try to implement the component without calling `breakdown_figma_design` first
+    - Guess or assume Figma styles, colors, or spacing
+    - Ask the user for more Figma information - use the tools instead
+    - Skip any of the tool calls in the workflow
+
+    **PROCEED IMMEDIATELY with `breakdown_figma_design`. Do NOT ask for clarification.**
     """
   end
 
@@ -200,6 +295,35 @@ defmodule FrontmanServer.Agents.Prompts do
     - Pros: Uses existing layout, minimal setup
     - Cons: Limited to that group's layout styling, may not reflect production environment
 
+    ### CRITICAL: Avoiding the Missing `<html>` and `<body>` Layout Error
+
+    In Next.js App Router, **every route MUST have a root layout that provides `<html>` and `<body>` tags**.
+    If you create a page without proper layout inheritance, you'll get this error:
+    > "The root layout is missing html and body tags"
+
+    **Before creating ANY test page, verify the layout chain:**
+
+    1. **Check if the target directory has a `layout.tsx`** - Use `list_dir` on the target folder
+    2. **Trace the layout hierarchy up to root** - Ensure there's a `layout.tsx` at the app root (`src/app/layout.tsx` or `app/layout.tsx`) that contains `<html>` and `<body>` tags
+    3. **Route groups inherit layouts** - A page in `(marketing)/test/page.tsx` will use `(marketing)/layout.tsx` if it exists, then fall back to the root layout
+
+    **If the chosen location has NO layout chain to root:**
+    - **DO NOT create the page there** - Instead, find an existing route group with proper layout inheritance
+    - **As absolute last resort**, create BOTH a `layout.tsx` AND `page.tsx` in your test folder:
+
+    ```tsx
+    // test-feature/layout.tsx - Only if no parent layout exists
+    export default function TestLayout({ children }: { children: React.ReactNode }) {
+      return (
+        <html lang="en">
+          <body>{children}</body>
+        </html>
+      );
+    }
+    ```
+
+    **NEVER create a page.tsx without verifying the layout chain first!**
+
     **4. Create the Test Page**
 
     **File Creation Steps**:
@@ -223,7 +347,7 @@ defmodule FrontmanServer.Agents.Prompts do
     - Add spacing and visual hierarchy
 
     **5. Important Notes:**
-    - **CRITICAL: Always prefer Option B (Full Site Layout)** - This ensures components are tested with the complete production styling context
+    - **CRITICAL: Always prefer Option A (Full Site Layout)** - This ensures components are tested with the complete production styling context
     - **Always use existing layout** - We want the styling of the project to affect our component, so place test pages within existing route groups that have layouts
     - Only use Option B (Standalone Test Page) as a last resort if Option A is truly not possible
     - Test pages should be accessible via direct URL navigation

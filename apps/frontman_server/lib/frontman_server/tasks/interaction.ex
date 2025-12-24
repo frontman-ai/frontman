@@ -7,6 +7,8 @@ defmodule FrontmanServer.Tasks.Interaction do
   transport mechanisms for real-time UX.
   """
 
+  require Logger
+
   @type t ::
           __MODULE__.UserMessage.t()
           | __MODULE__.AgentResponse.t()
@@ -20,16 +22,35 @@ defmodule FrontmanServer.Tasks.Interaction do
     @moduledoc """
     Represents a message sent by the user.
 
-    Uses content blocks as the single source of truth for message content.
-    The first ContentBlock is typically type="text" with the user's message.
+    All fields are extracted from content blocks at creation time:
+    - `messages` - array of text messages from the user
+    - `selected_component` - source location of selected element
+    - `selected_component_screenshot` - screenshot of selected element
+    - `figma_node` - Figma node DSL text
+    - `figma_image` - Figma node screenshot (base64)
     """
     use TypedStruct
+
+    @type selected_component :: %{
+            file: String.t(),
+            line: integer(),
+            column: integer()
+          }
 
     typedstruct enforce: true do
       field(:id, String.t())
       field(:timestamp, DateTime.t())
-      # Content blocks from the prompt (includes text, resource_link, resource)
-      field(:content_blocks, list())
+      # Text messages from the user (extracted from text content blocks)
+      field(:messages, list(String.t()), default: [])
+      # Extracted source location from resource with _meta.selected_component
+      field(:selected_component, selected_component() | nil, enforce: false)
+
+      # Extracted screenshot (base64 PNG data) from resource with _meta.selected_component_screenshot
+      field(:selected_component_screenshot, String.t() | nil, enforce: false)
+      # Extracted Figma node DSL text from resource with _meta.figma_node
+      field(:figma_node, String.t() | nil, enforce: false)
+      # Extracted Figma image (base64 PNG data) from resource with _meta.figma_image
+      field(:figma_image, String.t() | nil, enforce: false)
     end
 
     def new(content_blocks) do
@@ -38,28 +59,117 @@ defmodule FrontmanServer.Tasks.Interaction do
       %__MODULE__{
         id: Interaction.new_id(),
         timestamp: Interaction.now(),
-        content_blocks: content_blocks
+        messages: extract_messages(content_blocks),
+        selected_component: extract_selected_component(content_blocks),
+        selected_component_screenshot: extract_selected_component_screenshot(content_blocks),
+        figma_node: extract_figma_node(content_blocks),
+        figma_image: extract_figma_image(content_blocks)
       }
+    end
+
+    # Extract text messages from content blocks
+    defp extract_messages(content_blocks) do
+      content_blocks
+      |> Enum.filter(&match?(%{"type" => "text"}, &1))
+      |> Enum.map(&Map.get(&1, "text", ""))
+      |> Enum.reject(&(&1 == ""))
+    end
+
+    # Extract selected component from content blocks
+    # Looks for _meta.selected_component with structured data
+    defp extract_selected_component(content_blocks) do
+      Enum.find_value(content_blocks, fn
+        %{
+          "type" => "resource",
+          "resource" => %{"_meta" => %{"selected_component" => true} = meta}
+        } ->
+          file = Map.get(meta, "file")
+          line = Map.get(meta, "line")
+          column = Map.get(meta, "column")
+
+          if is_binary(file) and is_integer(line) and is_integer(column) do
+            %{file: file, line: line, column: column}
+          else
+            nil
+          end
+
+        _ ->
+          nil
+      end)
+    end
+
+    # Extract selected component screenshot from content blocks
+    # Looks for _meta.selected_component_screenshot with blob data
+    defp extract_selected_component_screenshot(content_blocks) do
+      content_blocks
+      |> Enum.find_value(fn
+        %{"type" => "resource", "resource" => resource} ->
+          case resource do
+            %{
+              "_meta" => %{"selected_component_screenshot" => true},
+              "resource" => %{"blob" => blob}
+            }
+            when is_binary(blob) ->
+              blob
+
+            _ ->
+              nil
+          end
+
+        _ ->
+          nil
+      end)
+    end
+
+    # Extract Figma node DSL from content blocks
+    # Looks for _meta.figma_node with text content
+    defp extract_figma_node(content_blocks) do
+      Enum.find_value(content_blocks, fn
+        %{
+          "type" => "resource",
+          "resource" => %{"_meta" => %{"figma_node" => true}, "resource" => %{"text" => text}}
+        }
+        when is_binary(text) ->
+          text
+
+        _ ->
+          nil
+      end)
+    end
+
+    # Extract Figma image from content blocks
+    # Looks for _meta.figma_image with blob data
+    defp extract_figma_image(content_blocks) do
+      content_blocks
+      |> Enum.find_value(fn
+        %{"type" => "resource", "resource" => resource} ->
+          case resource do
+            %{"_meta" => %{"figma_image" => true}, "resource" => %{"blob" => blob}}
+            when is_binary(blob) ->
+              blob
+
+            _ ->
+              nil
+          end
+
+        _ ->
+          nil
+      end)
     end
   end
 
   defimpl Jason.Encoder, for: UserMessage do
     def encode(value, opts) do
-      # Extract text content from content_blocks for backward compatibility
-      content =
-        value.content_blocks
-        |> Enum.find(fn block -> Map.get(block, "type") == "text" end)
-        |> case do
-          nil -> ""
-          block -> Map.get(block, "text", "")
-        end
-
       Jason.Encode.map(
         %{
           type: "user_message",
           id: value.id,
-          content: content,
-          timestamp: DateTime.to_iso8601(value.timestamp)
+          messages: value.messages,
+          timestamp: DateTime.to_iso8601(value.timestamp),
+          selected_component: value.selected_component,
+          selected_component_screenshot: value.selected_component_screenshot != nil,
+          figma_node: value.figma_node != nil,
+          figma_image: value.figma_image != nil
         },
         opts
       )
@@ -473,50 +583,72 @@ defmodule FrontmanServer.Tasks.Interaction do
     end
   end
 
-  defp to_llm_message(%UserMessage{content_blocks: content_blocks}) do
-    # Filter out ContentBlocks with _meta figma_image: true or figma_node: true
-    filtered_blocks = Enum.reject(content_blocks, &has_figma_meta?/1)
+  defp to_llm_message(%UserMessage{} = msg) do
+    # Build text content from messages array
+    text_content = Enum.join(msg.messages, "\n\n")
 
-    # Convert content blocks to LLM message content format
-    llm_content = convert_content_blocks_to_llm_format(filtered_blocks)
+    # Build content parts - start with text
+    content_parts =
+      if text_content != "" do
+        [ReqLLM.Message.ContentPart.text(text_content)]
+      else
+        []
+      end
 
-    # If content is an array (has images), build Message struct manually
-    # Otherwise, use ReqLLM.Context.user which handles strings
-    case llm_content do
-      content when is_list(content) ->
-        # Build Message struct with content parts (text + images)
-        %ReqLLM.Message{
-          role: :user,
-          content:
-            Enum.map(content, fn
-              %{"type" => "text", "text" => text} ->
-                ReqLLM.Message.ContentPart.text(text)
+    # Add selected component screenshot if present
+    content_parts =
+      case msg.selected_component_screenshot do
+        nil ->
+          content_parts
 
-              %{"type" => "image", "data" => base64_data, "mimeType" => mime_type} ->
-                # Decode base64 data before passing to ContentPart.image/2
-                # ContentPart.image expects binary data and will encode it to base64 during JSON encoding
-                # Use safe decode64 to avoid crashing on malformed data
-                case Base.decode64(base64_data) do
-                  {:ok, decoded_data} ->
-                    ReqLLM.Message.ContentPart.image(decoded_data, mime_type)
+        base64_data ->
+          case Base.decode64(base64_data) do
+            {:ok, decoded_data} ->
+              content_parts ++ [ReqLLM.Message.ContentPart.image(decoded_data, "image/png")]
 
-                  :error ->
-                    ReqLLM.Message.ContentPart.text("[Invalid image: malformed base64 data]")
-                end
+            :error ->
+              content_parts
+          end
+      end
 
-              _other ->
-                ReqLLM.Message.ContentPart.text("[Unknown content type]")
-            end)
-        }
+    # Note: figma_node and figma_image are NOT included here
+    # They are handled separately by backend tools (breakdown_figma_design, etc.)
 
-      content when is_binary(content) ->
-        ReqLLM.Context.user(content)
+    case content_parts do
+      [] ->
+        # Empty message - return minimal user message
+        ReqLLM.Context.user("")
+
+      [%{type: :text, text: text}] ->
+        # Single text content - use simple format
+        ReqLLM.Context.user(text)
+
+      parts ->
+        # Multiple parts (text + images) - use Message struct
+        %ReqLLM.Message{role: :user, content: parts}
     end
   end
 
   defp to_llm_message(%AgentResponse{content: content, metadata: metadata}) do
     tool_calls = Map.get(metadata || %{}, :tool_calls)
     response_id = Map.get(metadata || %{}, :response_id)
+    # Extract reasoning_details for Gemini models (required for tool call round-trips)
+    # Filter to only keep "reasoning.encrypted" entries - the encrypted signature is what
+    # Gemini needs for tool call continuations, not the plain text reasoning
+    all_reasoning_details = Map.get(metadata || %{}, :reasoning_details)
+
+    encrypted_reasoning_details =
+      case all_reasoning_details do
+        nil ->
+          nil
+
+        details when is_list(details) ->
+          filtered = Enum.filter(details, &(&1["type"] == "reasoning.encrypted"))
+          if filtered == [], do: nil, else: filtered
+
+        _ ->
+          nil
+      end
 
     case tool_calls do
       nil ->
@@ -527,11 +659,13 @@ defmodule FrontmanServer.Tasks.Interaction do
 
       tool_calls ->
         # Build Message struct with metadata for OpenAI Responses API (previous_response_id)
+        # and reasoning_details for Gemini models (encrypted signatures only)
         %ReqLLM.Message{
           role: :assistant,
           content: [ReqLLM.Message.ContentPart.text(content)],
           tool_calls: tool_calls,
-          metadata: if(response_id, do: %{response_id: response_id}, else: %{})
+          metadata: if(response_id, do: %{response_id: response_id}, else: %{}),
+          reasoning_details: encrypted_reasoning_details
         }
     end
   end
@@ -560,13 +694,43 @@ defmodule FrontmanServer.Tasks.Interaction do
   }
 
   defp extract_image_from_result(tool_name, result) when is_map(result) do
-    with {image_field, text_fields} <- Map.get(@image_tool_configs, tool_name),
-         data_url when is_binary(data_url) <- get_field(result, image_field),
-         {:ok, binary, mime} <- decode_data_url(data_url) do
-      text_content = build_text_content(result, text_fields)
-      {binary, mime, text_content}
-    else
-      _ -> nil
+    case Map.get(@image_tool_configs, tool_name) do
+      nil ->
+        # Not an image tool
+        nil
+
+      {image_field, text_fields} ->
+        image_data = get_field(result, image_field)
+
+        cond do
+          is_nil(image_data) ->
+            # Image field is nil (e.g., includeImage was false)
+            nil
+
+          not is_binary(image_data) ->
+            Logger.warning(
+              "Tool #{tool_name}: image field #{inspect(image_field)} is not a binary: #{inspect(image_data)}"
+            )
+
+            nil
+
+          true ->
+            case decode_data_url(image_data) do
+              {:ok, binary, mime} ->
+                text_content = build_text_content(result, text_fields)
+                {binary, mime, text_content}
+
+              :error ->
+                # Log first 100 chars of data URL for debugging format issues
+                preview = String.slice(image_data, 0, 100)
+
+                Logger.warning(
+                  "Tool #{tool_name}: failed to decode image data URL. Preview: #{preview}..."
+                )
+
+                nil
+            end
+        end
     end
   end
 
@@ -627,151 +791,31 @@ defmodule FrontmanServer.Tasks.Interaction do
     end
   end
 
-  # Convert content blocks to LLM message content format
-  defp convert_content_blocks_to_llm_format(blocks) do
-    content =
-      blocks
-      |> Enum.map(&content_block_to_llm_format/1)
-      |> Enum.reject(&is_nil/1)
-
-    case content do
-      [] ->
-        ""
-
-      blocks ->
-        # Check if we have any image blocks
-        image_blocks = Enum.filter(blocks, fn block -> Map.get(block, "type") == "image" end)
-        text_blocks = Enum.filter(blocks, fn block -> Map.get(block, "type") == "text" end)
-
-        # If we have images, return array format with both text and images
-        if Enum.any?(image_blocks) do
-          # Combine text blocks into a single text content
-          text_content =
-            text_blocks
-            |> Enum.map(fn %{"text" => text} -> text end)
-            |> Enum.join("")
-
-          # Build content array with text (if any) and images
-          content_parts = []
-
-          content_parts =
-            if text_content != "",
-              do: [%{"type" => "text", "text" => text_content} | content_parts],
-              else: content_parts
-
-          content_parts = Enum.reverse(image_blocks) ++ content_parts
-          Enum.reverse(content_parts)
-        else
-          # All blocks are text blocks - concatenate them into a single string
-          text_blocks
-          |> Enum.map(fn %{"text" => text} -> text end)
-          |> Enum.join("")
-        end
-    end
-  end
-
-  # Convert text block
-  defp content_block_to_llm_format(%{"type" => "text", "text" => text}) do
-    %{"type" => "text", "text" => text}
-  end
-
-  # Convert resource_link (file reference) to text description
-  defp content_block_to_llm_format(%{"type" => "resource_link", "uri" => uri}) do
-    # Extract file path from URI (format: file://path:line:column)
-    text =
-      case Regex.run(~r/^file:\/\/(.+):(\d+):(\d+)$/, uri) do
-        [_, file_path, line, column] ->
-          "\n\n[Selected Component Location]\nFile: #{file_path}\nLine: #{line}, Column: #{column}"
-
-        _ ->
-          "\n\n[Selected Component]\nURI: #{uri}"
-      end
-
-    %{
-      "type" => "text",
-      "text" => text
-    }
-  end
-
-  # Convert resource (embedded JSON or image) to text description
-  # New structure: resource is EmbeddedResource containing EmbeddedResourceResource
-  defp content_block_to_llm_format(%{"type" => "resource", "resource" => embedded_resource}) do
-    case embedded_resource do
-      # EmbeddedResource with BlobResourceContents (image)
-      %{"resource" => %{"blob" => base64_data, "mimeType" => mime_type}}
-      when mime_type in ["image/png", "image/jpeg", "image/gif"] ->
-        # For image resources, include as image content part
-        %{
-          "type" => "image",
-          "data" => base64_data,
-          "mimeType" => mime_type
-        }
-
-      # EmbeddedResource with TextResourceContents (text/plain for DSL)
-      %{"resource" => %{"uri" => uri, "mimeType" => "text/plain", "text" => text}}
-      when is_binary(text) ->
-        # For Figma node DSL (text/plain), include the DSL as text
-        # Check if it's a Figma node URI (figma://node/...)
-        dsl_text =
-          if String.starts_with?(uri, "figma://node/") do
-            "\n\n## Figma Node Structure (DSL)\n\n```\n#{text}\n```"
-          else
-            "\n\n[Embedded Resource: #{uri}]\n#{text}"
-          end
-
-        %{
-          "type" => "text",
-          "text" => dsl_text
-        }
-
-      # EmbeddedResource with TextResourceContents (application/json)
-      %{"resource" => %{"uri" => uri, "mimeType" => "application/json", "text" => text}} ->
-        # For Figma nodes or other JSON resources, include the data as text
-        %{
-          "type" => "text",
-          "text" => "\n\n[Embedded Resource: #{uri}]\n#{text}"
-        }
-
-      _ ->
-        nil
-    end
-  end
-
-  # Skip unknown block types
-  defp content_block_to_llm_format(_), do: nil
-
   @doc """
   Checks if any user messages in the interactions contain Figma context.
-  Returns true if there's a content block with figma_image or figma_node metadata.
+  Uses the pre-extracted `figma_node` and `figma_image` fields on UserMessage for efficiency.
   """
   @spec has_figma_context?(list(t())) :: boolean()
   def has_figma_context?(interactions) do
-    interactions
-    |> Enum.any?(fn
-      %UserMessage{content_blocks: content_blocks} ->
-        Enum.any?(content_blocks, &has_figma_meta?/1)
+    Enum.any?(interactions, fn
+      %UserMessage{figma_node: node, figma_image: image}
+      when not is_nil(node) or not is_nil(image) ->
+        true
 
       _ ->
         false
     end)
   end
 
-  # Helper to check if a ContentBlock has _meta with figma_image or figma_node set to true
-  defp has_figma_meta?(content_block) do
-    # Check _meta on embedded resource if it's a resource block
-    # _meta is stored on the embedded_resource, not directly on the ContentBlock
-    case Map.get(content_block, "resource") do
-      %{"_meta" => meta} when is_map(meta) ->
-        Map.get(meta, "figma_image") == true || Map.get(meta, "figma_node") == true
-
-      # Fallback: check URI patterns for backward compatibility
-      %{"resource" => %{"uri" => uri}} when is_binary(uri) ->
-        String.starts_with?(uri, "figma://node/")
-
-      _ ->
-        false
-    end
-  rescue
-    _ -> false
+  @doc """
+  Checks if any user messages in the interactions contain a selected component.
+  Uses the pre-extracted `selected_component` field on UserMessage for efficiency.
+  """
+  @spec has_selected_component?(list(t())) :: boolean()
+  def has_selected_component?(interactions) do
+    Enum.any?(interactions, fn
+      %UserMessage{selected_component: sc} when not is_nil(sc) -> true
+      _ -> false
+    end)
   end
 end

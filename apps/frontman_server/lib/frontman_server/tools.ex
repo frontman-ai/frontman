@@ -15,7 +15,7 @@ defmodule FrontmanServer.Tools do
     FrontmanServer.Tools.TodoAdd,
     FrontmanServer.Tools.TodoUpdate,
     FrontmanServer.Tools.TodoRemove,
-    FrontmanServer.Tools.BreakdownFigmaNode,
+    FrontmanServer.Tools.BreakdownFigmaDesign,
     FrontmanServer.Tools.ImplementComponent,
     FrontmanServer.Tools.FinishComponent
   ]

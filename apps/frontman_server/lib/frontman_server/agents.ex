@@ -111,10 +111,15 @@ defmodule FrontmanServer.Agents do
         Tasks.add_agent_spawned(%{task_id: task_id, agent_id: agent_id}, %{tools: tools})
         messages = Tasks.get_llm_messages(task_id, agent_id)
         has_figma = Tasks.has_figma_context?(task_id)
+        has_selected_component = Tasks.has_selected_component?(task_id)
         framework = get_framework(task_id)
 
         system_msg =
-          Prompts.build_system_message(nil, has_figma_context: has_figma, framework: framework)
+          Prompts.build_system_message(nil,
+            has_figma_context: has_figma,
+            has_selected_component: has_selected_component,
+            framework: framework
+          )
 
         AgentServer.execute_iteration(agent_id, [system_msg | messages])
         {:ok, agent_id}
@@ -214,7 +219,13 @@ defmodule FrontmanServer.Agents do
   defp push_iteration(task_id, agent_id) do
     messages = Tasks.get_llm_messages(task_id, agent_id)
     framework = get_framework(task_id)
-    opts = [has_figma_context: Tasks.has_figma_context?(task_id), framework: framework]
+
+    opts = [
+      has_figma_context: Tasks.has_figma_context?(task_id),
+      has_selected_component: Tasks.has_selected_component?(task_id),
+      framework: framework
+    ]
+
     system_msg = Prompts.build_system_message(nil, opts)
     AgentServer.execute_iteration(agent_id, [system_msg | messages])
   end

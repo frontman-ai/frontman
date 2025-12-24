@@ -53,6 +53,17 @@ defmodule FrontmanServer.Tools.FinishComponent do
   2. **Create a test page** - Create a temporary test page file that renders the component
      in isolation. Import the component from the file path provided.
 
+     **CRITICAL for Next.js App Router:** Before creating the test page:
+     - Check the project structure to find an existing route group with layouts (e.g., `(app)`, `(marketing)`)
+     - Place the test page WITHIN an existing route group that has a `layout.tsx` chain to root
+     - **NEVER create a standalone `page.tsx` without verifying it inherits from a layout with `<html>` and `<body>`**
+     - If you must create outside existing groups, also create a `layout.tsx` with:
+       ```tsx
+       export default function Layout({ children }: { children: React.ReactNode }) {
+         return <html lang="en"><body>{children}</body></html>;
+       }
+       ```
+
   3. **Navigate to test page** - Use `navigate` tool with a relative URL to the test page
 
   4. **Check for errors** - Use `get_errors` tool to check for errors. Fix any errors found.

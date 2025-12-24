@@ -7,6 +7,7 @@ import {
   retrieveTopFill,
   needsAbsolutePositioning,
   needsRelativePositioning,
+  hasSvgChildren,
   ICON_TYPES,
   CONTAINER_TYPES,
 } from "../src/detection.js";
@@ -251,6 +252,69 @@ describe("needsRelativePositioning", () => {
   it("should return false when no children", () => {
     const node = createNode({ type: "FRAME" });
     expect(needsRelativePositioning(node)).toBe(false);
+  });
+});
+
+describe("hasSvgChildren", () => {
+  it("should return true for container with VECTOR children", () => {
+    const node = createNode({
+      type: "FRAME",
+      children: [
+        createNode({ type: "VECTOR", width: 24, height: 24 }),
+        createNode({ type: "ELLIPSE", width: 24, height: 24 }),
+      ],
+    });
+    expect(hasSvgChildren(node, DEFAULT_SETTINGS)).toBe(true);
+  });
+
+  it("should return true for container with vector-only container child", () => {
+    const vectorContainer = createNode({
+      type: "GROUP",
+      children: [createNode({ type: "VECTOR", width: 24, height: 24 })],
+    });
+    const node = createNode({
+      type: "FRAME",
+      children: [vectorContainer],
+    });
+    expect(hasSvgChildren(node, DEFAULT_SETTINGS)).toBe(true);
+  });
+
+  it("should return false for container with only TEXT children", () => {
+    const node = createNode({
+      type: "FRAME",
+      children: [createNode({ type: "TEXT" })],
+    });
+    expect(hasSvgChildren(node, DEFAULT_SETTINGS)).toBe(false);
+  });
+
+  it("should return false for container with no children", () => {
+    const node = createNode({ type: "FRAME" });
+    expect(hasSvgChildren(node, DEFAULT_SETTINGS)).toBe(false);
+  });
+
+  it("should ignore invisible children", () => {
+    const node = createNode({
+      type: "FRAME",
+      children: [
+        createNode({ type: "VECTOR", width: 24, height: 24, visible: false }),
+      ],
+    });
+    expect(hasSvgChildren(node, DEFAULT_SETTINGS)).toBe(false);
+  });
+
+  it("should return true for container with likely icon child", () => {
+    const node = createNode({
+      type: "FRAME",
+      children: [
+        createNode({
+          type: "FRAME",
+          width: 32,
+          height: 32,
+          children: [createNode({ type: "VECTOR", width: 24, height: 24 })],
+        }),
+      ],
+    });
+    expect(hasSvgChildren(node, DEFAULT_SETTINGS)).toBe(true);
   });
 });
 

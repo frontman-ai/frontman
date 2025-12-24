@@ -8,15 +8,17 @@ import { numToFixed } from "../utils.js";
 
 /**
  * Generate position classes (absolute, relative, top, left)
+ * @param skipCoordinateTransforms - If true, skip x/y coordinate transforms (left/top) but keep positioning type (absolute/relative)
  */
-export function positionClasses(node: FigmaNode): string[] {
+export function positionClasses(node: FigmaNode, skipCoordinateTransforms: boolean = false): string[] {
   const classes: string[] = [];
 
   // Check if this node needs absolute positioning
   if (needsAbsolutePositioning(node)) {
     classes.push("absolute");
 
-    if (node.x !== undefined && node.y !== undefined) {
+    // Skip x/y coordinates if transforms are baked in (e.g., SVG export)
+    if (!skipCoordinateTransforms && node.x !== undefined && node.y !== undefined) {
       const x = numToFixed(node.x);
       const y = numToFixed(node.y);
       classes.push(x === "0" ? "left-0" : `left-[${x}px]`);

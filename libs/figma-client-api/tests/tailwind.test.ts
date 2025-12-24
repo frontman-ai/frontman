@@ -241,6 +241,21 @@ describe("positionClasses", () => {
     expect(classes).toContain("left-0");
     expect(classes).toContain("top-0");
   });
+
+  it("should skip x/y coordinates but keep positioning type when skipCoordinateTransforms is true", () => {
+    const node = createNode({
+      type: "FRAME",
+      layoutPositioning: "ABSOLUTE",
+      x: 10,
+      y: 20,
+    });
+    const classes = positionClasses(node, true);
+    // Should still contain positioning type
+    expect(classes).toContain("absolute");
+    // But should not contain x/y coordinate transforms
+    expect(classes).not.toContain("left-[10px]");
+    expect(classes).not.toContain("top-[20px]");
+  });
 });
 
 describe("shadowClasses", () => {
@@ -331,6 +346,32 @@ describe("blendClasses", () => {
     expect(classes.some((c) => c.includes("rotate-45"))).toBe(true);
   });
 
+  it("should skip rotation when skipRotation is true (for SVG nodes)", () => {
+    const node = createNode({
+      type: "VECTOR",
+      rotation: -45,
+    });
+    const classes = blendClasses(node, true);
+    // Should not contain rotation classes
+    expect(classes.some((c) => c.includes("rotate"))).toBe(false);
+    expect(classes.some((c) => c.includes("origin-top-left"))).toBe(false);
+  });
+
+  it("should still include opacity and blend mode when skipRotation is true", () => {
+    const node = createNode({
+      type: "VECTOR",
+      rotation: -45,
+      opacity: 0.5,
+      blendMode: "MULTIPLY",
+    });
+    const classes = blendClasses(node, true);
+    // Should not contain rotation
+    expect(classes.some((c) => c.includes("rotate"))).toBe(false);
+    // But should still contain opacity and blend mode
+    expect(classes).toContain("opacity-50");
+    expect(classes).toContain("mix-blend-multiply");
+  });
+
   it("should generate invisible class", () => {
     const node = createNode({
       type: "FRAME",
@@ -391,6 +432,113 @@ describe("generateTailwindClasses", () => {
     expect(classes).toContain("p-2");
     expect(classes).toContain("rounded");
     expect(classes).toContain("bg-white");
+  });
+
+  it("should exclude rotation when skipTransforms is true", () => {
+    const node = createNode({
+      type: "VECTOR",
+      width: 24,
+      height: 24,
+      rotation: -45,
+    });
+    const classes = generateTailwindClasses(node, DEFAULT_SETTINGS, true);
+    // Should not contain rotation classes
+    expect(classes).not.toMatch(/rotate-45/);
+    expect(classes).not.toContain("origin-top-left");
+    // But should still contain size classes
+    expect(classes).toContain("w-6");
+    expect(classes).toContain("h-6");
+  });
+
+  it("should exclude x/y coordinate transforms but keep positioning type when skipTransforms is true", () => {
+    const node = createNode({
+      type: "VECTOR",
+      width: 24,
+      height: 24,
+      layoutPositioning: "ABSOLUTE",
+      x: 10,
+      y: 20,
+    });
+    const classes = generateTailwindClasses(node, DEFAULT_SETTINGS, true);
+    // Should still contain positioning type (absolute) for layout flow
+    expect(classes).toContain("absolute");
+    // But should not contain x/y coordinate transforms (baked into SVG)
+    expect(classes).not.toContain("left-[10px]");
+    expect(classes).not.toContain("top-[20px]");
+    // But should still contain size classes
+    expect(classes).toContain("w-6");
+    expect(classes).toContain("h-6");
+  });
+
+  it("should exclude rotation and x/y coordinates but keep positioning type when skipTransforms is true", () => {
+    const node = createNode({
+      type: "VECTOR",
+      width: 24,
+      height: 24,
+      layoutPositioning: "ABSOLUTE",
+      x: 10,
+      y: 20,
+      rotation: -45,
+    });
+    const classes = generateTailwindClasses(node, DEFAULT_SETTINGS, true);
+    // Should not contain rotation or x/y coordinate transforms
+    expect(classes).not.toMatch(/rotate-45/);
+    expect(classes).not.toContain("origin-top-left");
+    expect(classes).not.toContain("left-[10px]");
+    expect(classes).not.toContain("top-[20px]");
+    // But should still contain positioning type (absolute) for layout flow
+    expect(classes).toContain("absolute");
+    // And should still contain other classes like size
+    expect(classes).toContain("w-6");
+    expect(classes).toContain("h-6");
+  });
+
+  it("should include rotation and position when skipTransforms is false", () => {
+    const node = createNode({
+      type: "FRAME",
+      width: 24,
+      height: 24,
+      layoutPositioning: "ABSOLUTE",
+      x: 10,
+      y: 20,
+      rotation: -45,
+    });
+    const classes = generateTailwindClasses(node, DEFAULT_SETTINGS, false);
+    // Should contain rotation and position classes
+    expect(classes).toContain("absolute");
+    expect(classes).toContain("left-[10px]");
+    expect(classes).toContain("top-[20px]");
+    expect(classes).toMatch(/rotate-45/);
+  });
+
+  it("should skip transforms by default for containers with SVG children but keep positioning type", () => {
+    const svgChild = createNode({
+      type: "VECTOR",
+      width: 24,
+      height: 24,
+    });
+    const container = createNode({
+      type: "FRAME",
+      width: 100,
+      height: 100,
+      layoutPositioning: "ABSOLUTE",
+      x: 10,
+      y: 20,
+      rotation: -45,
+      children: [svgChild],
+    });
+    // When skipTransforms is true (default for containers with SVG children)
+    const classes = generateTailwindClasses(container, DEFAULT_SETTINGS, true);
+    // Should not contain rotation or x/y coordinate transforms
+    expect(classes).not.toMatch(/rotate-45/);
+    expect(classes).not.toContain("origin-top-left");
+    expect(classes).not.toContain("left-[10px]");
+    expect(classes).not.toContain("top-[20px]");
+    // But should still contain positioning type (absolute) for layout flow
+    expect(classes).toContain("absolute");
+    // And should still contain size classes (100px = w-24 in Tailwind)
+    expect(classes).toContain("w-24");
+    expect(classes).toContain("h-24");
   });
 });
 

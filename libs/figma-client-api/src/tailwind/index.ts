@@ -24,15 +24,18 @@ export { textAlignClasses, textStyleClasses } from "./text.js";
 
 /**
  * Generate all Tailwind classes for a node
+ * @param skipTransforms - If true, skip rotation and x/y coordinate transforms (for SVG nodes where transforms are baked in)
+ *                          Note: positioning type (absolute/relative) is still included for layout flow
  */
 export function generateTailwindClasses(
   node: FigmaNode,
-  settings: ConversionSettings
+  settings: ConversionSettings,
+  skipTransforms: boolean = false
 ): string {
   const classes: string[] = [];
 
-  // Position (absolute, relative)
-  classes.push(...positionClasses(node));
+  // Position (absolute, relative) - skip x/y coordinates for SVG nodes but keep positioning type
+  classes.push(...positionClasses(node, skipTransforms));
 
   // Size (width, height, min/max)
   classes.push(...sizeClasses(node, settings));
@@ -63,8 +66,8 @@ export function generateTailwindClasses(
   // Shadows and blur
   classes.push(...shadowClasses(node, settings));
 
-  // Blend mode, opacity, rotation, visibility
-  classes.push(...blendClasses(node));
+  // Blend mode, opacity, rotation, visibility - skip rotation for SVG nodes
+  classes.push(...blendClasses(node, skipTransforms));
 
   // Text alignment (for TEXT nodes)
   if (node.type === "TEXT") {
@@ -76,13 +79,15 @@ export function generateTailwindClasses(
 
 /**
  * Safe wrapper for generateTailwindClasses that catches errors
+ * @param skipTransforms - If true, skip rotation and position transforms (for SVG nodes where transforms are baked in)
  */
 export function safeGenerateTailwindClasses(
   node: FigmaNode,
-  settings: ConversionSettings
+  settings: ConversionSettings,
+  skipTransforms: boolean = false
 ): string {
   try {
-    return generateTailwindClasses(node, settings);
+    return generateTailwindClasses(node, settings, skipTransforms);
   } catch (e) {
     console.warn(
       `Tailwind generation failed for ${node.name}:`,

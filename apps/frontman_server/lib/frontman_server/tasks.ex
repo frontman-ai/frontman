@@ -176,6 +176,17 @@ defmodule FrontmanServer.Tasks do
     |> Interaction.has_figma_context?()
   end
 
+  @doc """
+  Checks if any user messages in the task contain a selected component.
+  Returns true if there's a resource_link content block with a file:// URI.
+  """
+  @spec has_selected_component?(String.t()) :: boolean()
+  def has_selected_component?(task_id) do
+    task_id
+    |> get_interactions()
+    |> Interaction.has_selected_component?()
+  end
+
   @spec append_interaction(String.t(), Interaction.t()) ::
           {:ok, Interaction.t()} | {:error, :task_not_found}
   defp append_interaction(task_id, interaction) do

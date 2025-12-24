@@ -232,4 +232,30 @@ export function needsRelativePositioning(node: FigmaNode): boolean {
   );
 }
 
+/**
+ * Check if a container node has SVG children (children that will be exported as SVG)
+ * Containers wrapping SVG elements should skip transforms since SVG export bakes them in
+ */
+export function hasSvgChildren(
+  node: FigmaNode,
+  settings: ConversionSettings
+): boolean {
+  if (!node.children || node.children.length === 0) {
+    return false;
+  }
+
+  const visibleChildren = node.children.filter((c) => c.visible !== false);
+  if (visibleChildren.length === 0) {
+    return false;
+  }
+
+  // Check if any child is a vector type or likely icon that would be exported as SVG
+  return visibleChildren.some(
+    (child) =>
+      ICON_TYPES.has(child.type) ||
+      (settings.embedVectors && isLikelyIcon(child, settings)) ||
+      (CONTAINER_TYPES.has(child.type) && isVectorOnlyContainer(child))
+  );
+}
+
 

@@ -147,19 +147,80 @@ module ACPTypes = AskTheLlmFrontmanClient.FrontmanClient__ACP__Types
 // ContentBlock builders for embedded context (ACP embeddedContext)
 // ============================================================================
 
-// Build a ResourceLink ContentBlock from SelectedElement
-// URI format: file://{path}:{line}:{column}
+// Helper to create _meta JSON for selected component
+let makeSelectedComponentMeta: (string, int, int) => JSON.t = %raw(`
+  function(file, line, column) {
+    return {
+      "selected_component": true,
+      "file": file,
+      "line": line,
+      "column": column
+    };
+  }
+`)
+
+// Build a Resource ContentBlock from SelectedElement with _meta annotation
+// Contains the source location as structured data in _meta for safe extraction
 let selectedElementToContentBlock = (sel: SelectedElement.t): option<ACPTypes.contentBlock> => {
   sel.sourceLocation->Option.map(loc => {
     let uri = `file://${loc.file}:${loc.line->Int.toString}:${loc.column->Int.toString}`
+
+    let textResource: ACPTypes.textResourceContents = {
+      uri,
+      mimeType: Some("text/plain"),
+      text: `Selected component: ${loc.tagName} at ${loc.file}:${loc.line->Int.toString}:${loc.column->Int.toString}`,
+    }
+
+    // Create _meta with selected_component annotation containing structured data
+    let _meta = makeSelectedComponentMeta(loc.file, loc.line, loc.column)
+
+    let embeddedResource: ACPTypes.embeddedResource = {
+      _meta: Some(_meta),
+      annotations: None,
+      resource: ACPTypes.TextResourceContents(textResource),
+    }
+
     {
-      ACPTypes.type_: "resource_link",
-      uri: Some(uri),
+      ACPTypes.type_: "resource",
       text: None,
-      resource: None,
+      uri: None,
+      resource: Some(embeddedResource),
       content: None,
     }
   })
+}
+
+// Build an Image ContentBlock from SelectedElement screenshot
+// Uses resource type with image/png mimeType and selected_component_screenshot meta
+let selectedElementScreenshotToContentBlock = (screenshotDataUrl: string): ACPTypes.contentBlock => {
+  // Extract base64 data from data URL (data:image/png;base64,<data>)
+  let base64Data = switch screenshotDataUrl->String.split(";base64,") {
+  | [_, base64] => base64
+  | _ => screenshotDataUrl // Fallback to full string if format unexpected
+  }
+
+  let blobResource: ACPTypes.blobResourceContents = {
+    uri: "component://screenshot",
+    mimeType: Some("image/png"),
+    blob: base64Data,
+  }
+
+  // Create _meta with selected_component_screenshot annotation
+  let _meta: JSON.t = %raw(`{"selected_component_screenshot": true}`)
+
+  let embeddedResource: ACPTypes.embeddedResource = {
+    _meta: Some(_meta),
+    annotations: None,
+    resource: ACPTypes.BlobResourceContents(blobResource),
+  }
+
+  {
+    ACPTypes.type_: "resource",
+    text: None,
+    uri: None,
+    resource: Some(embeddedResource),
+    content: None,
+  }
 }
 
 // Build a Resource ContentBlock from FigmaNode DSL data
@@ -232,9 +293,15 @@ let figmaImageToContentBlock = (imageDataUrl: string): ACPTypes.contentBlock => 
 let taskToContentBlocks = (task: Task.t): array<ACPTypes.contentBlock> => {
   let blocks = []
 
-  // Add selectedElement as ResourceLink if available
+  // Add selectedElement as Resource if available (with source location)
   let blocks = switch task.selectedElement->Option.flatMap(selectedElementToContentBlock) {
   | Some(block) => Array.concat(blocks, [block])
+  | None => blocks
+  }
+
+  // Add selectedElement screenshot as Image if available
+  let blocks = switch task.selectedElement->Option.flatMap(sel => sel.screenshot) {
+  | Some(screenshot) => Array.concat(blocks, [selectedElementScreenshotToContentBlock(screenshot)])
   | None => blocks
   }
 

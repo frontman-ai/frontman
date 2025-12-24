@@ -83,7 +83,7 @@ defmodule FrontmanServer.MixProject do
       {:dns_cluster, "~> 0.2.0"},
       {:bandit, "~> 1.5"},
       {:typed_struct, "~> 0.3"},
-      {:zoi, "~> 0.10"},
+      {:zoi, "~> 0.14"},
       {:dotenvy, "~> 1.1"},
       # Sentry error tracking
       {:sentry, "~> 10.2.0"},

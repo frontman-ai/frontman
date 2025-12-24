@@ -27,6 +27,7 @@ import {
   isLikelyIcon,
   isVectorOnlyContainer,
   hasImageFill,
+  hasSvgChildren,
   ICON_TYPES,
 } from "./detection.js";
 import { safeGenerateTailwindClasses, textStyleClasses } from "./tailwind/index.js";
@@ -178,7 +179,8 @@ export async function processNode(
       if (node.exportAsync) {
         const svg = await node.exportAsync({ format: "SVG_STRING" }) as string;
         if (svg && svg.length > 0 && !svg.includes('viewBox="0 0 0 0"')) {
-          const tailwind = safeGenerateTailwindClasses(node, settings);
+          // Skip transforms for SVG nodes - Figma SVG export already bakes in rotation and position
+          const tailwind = safeGenerateTailwindClasses(node, settings, true);
           const result: ConvertedNode = { id: node.id, name: node.name, type: "SVG", tailwind, svg };
           const selfTokenCount = calculateSelfTokenCount(result);
           result.selfTokenCount = selfTokenCount;
@@ -206,7 +208,8 @@ export async function processNode(
         const svg = await node.exportAsync({ format: "SVG_STRING" }) as string;
         // Only return SVG result if we actually got valid content
         if (svg && svg.length > 0 && !svg.includes('viewBox="0 0 0 0"')) {
-          const tailwind = safeGenerateTailwindClasses(node, settings);
+          // Skip transforms for SVG nodes - Figma SVG export already bakes in rotation and position
+          const tailwind = safeGenerateTailwindClasses(node, settings, true);
           const result: ConvertedNode = { id: node.id, name: node.name, type: "SVG", tailwind, svg };
           const selfTokenCount = calculateSelfTokenCount(result);
           result.selfTokenCount = selfTokenCount;
@@ -304,7 +307,9 @@ export async function processNode(
   }
 
   // Standard nodes
-  const tailwind = safeGenerateTailwindClasses(node, settings);
+  // If this is a container with SVG children, skip transforms (SVG export bakes them in)
+  const skipTransforms = hasSvgChildren(node, settings);
+  const tailwind = safeGenerateTailwindClasses(node, settings, skipTransforms);
   const result: ConvertedNode = {
     id: node.id,
     name: node.name,

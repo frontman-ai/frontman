@@ -1,4 +1,4 @@
-defmodule FrontmanServer.Tools.BreakdownFigmaNode do
+defmodule FrontmanServer.Tools.BreakdownFigmaDesign do
   @moduledoc """
   Spawns a sub-agent to analyze a Figma node and break it down into components.
   """
@@ -63,7 +63,7 @@ defmodule FrontmanServer.Tools.BreakdownFigmaNode do
   """
 
   @impl true
-  def name, do: "breakdown_figma_node"
+  def name, do: "breakdown_figma_design"
 
   @impl true
   def description do
@@ -112,7 +112,7 @@ defmodule FrontmanServer.Tools.BreakdownFigmaNode do
     mcp_tools = MCP.to_llm_format(task.mcp_tools)
 
     Logger.info(
-      "BreakdownFigmaNode: Starting breakdown for node #{node_id} with #{length(mcp_tools)} MCP tools"
+      "BreakdownFigmaDesign: Starting breakdown for node #{node_id} with #{length(mcp_tools)} MCP tools"
     )
 
     case extract_figma_data(task.interactions) do
@@ -128,11 +128,11 @@ defmodule FrontmanServer.Tools.BreakdownFigmaNode do
                parent_agent_id: parent_agent_id
              ) do
           {:ok, result} ->
-            Logger.info("BreakdownFigmaNode: Completed breakdown for node #{node_id}")
+            Logger.info("BreakdownFigmaDesign: Completed breakdown for node #{node_id}")
             {:ok, %{"breakdown" => result, "nodeId" => node_id}}
 
           {:error, reason} ->
-            Logger.error("BreakdownFigmaNode: Failed - #{inspect(reason)}")
+            Logger.error("BreakdownFigmaDesign: Failed - #{inspect(reason)}")
             {:error, "Breakdown failed: #{inspect(reason)}"}
         end
 
@@ -177,27 +177,33 @@ defmodule FrontmanServer.Tools.BreakdownFigmaNode do
             }
 
           :error ->
-            Logger.warning("BreakdownFigmaNode: Failed to decode image, using text-only")
+            Logger.warning("BreakdownFigmaDesign: Failed to decode image, using text-only")
             ReqLLM.Context.user(task_text)
         end
     end
   end
 
   defp extract_figma_data(interactions) do
-    content_blocks =
+    # Find the first UserMessage with figma context
+    user_messages =
       interactions
       |> Enum.filter(&Interaction.user_message?/1)
-      |> Enum.flat_map(fn %Interaction.UserMessage{content_blocks: blocks} -> blocks end)
 
     figma_image =
-      content_blocks
-      |> Enum.find(&figma_image?/1)
-      |> extract_image_blob()
+      Enum.find_value(user_messages, fn
+        %Interaction.UserMessage{figma_image: image} when is_binary(image) ->
+          # Convert to data URL format expected by decode_image_data
+          "data:image/png;base64,#{image}"
+
+        _ ->
+          nil
+      end)
 
     figma_skeleton =
-      content_blocks
-      |> Enum.find(&figma_node?/1)
-      |> extract_text_content()
+      Enum.find_value(user_messages, fn
+        %Interaction.UserMessage{figma_node: node} when is_binary(node) -> node
+        _ -> nil
+      end)
 
     if figma_skeleton do
       {:ok, figma_image, figma_skeleton}
@@ -205,39 +211,6 @@ defmodule FrontmanServer.Tools.BreakdownFigmaNode do
       {:error, "No Figma node skeleton found in task interactions"}
     end
   end
-
-  defp figma_image?(nil), do: false
-
-  defp figma_image?(block) do
-    get_in(block, ["resource", "_meta", "figma_image"]) == true
-  end
-
-  defp figma_node?(nil), do: false
-
-  defp figma_node?(block) do
-    case get_in(block, ["resource", "_meta", "figma_node"]) do
-      true -> true
-      _ -> figma_uri?(get_in(block, ["resource", "resource", "uri"]))
-    end
-  end
-
-  defp figma_uri?("figma://node/" <> _), do: true
-  defp figma_uri?(_), do: false
-
-  defp extract_image_blob(nil), do: nil
-
-  defp extract_image_blob(block) do
-    case get_in(block, ["resource", "resource"]) do
-      %{"blob" => base64, "mimeType" => mime} ->
-        "data:#{mime || "image/png"};base64,#{base64}"
-
-      _ ->
-        nil
-    end
-  end
-
-  defp extract_text_content(nil), do: nil
-  defp extract_text_content(block), do: get_in(block, ["resource", "resource", "text"])
 
   defp decode_image_data(data_url) do
     case Regex.run(~r/^data:([^;]+);base64,(.+)$/s, ensure_data_url(data_url)) do

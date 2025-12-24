@@ -2,7 +2,7 @@ defmodule FrontmanServer.Tools.ImplementComponent do
   @moduledoc """
   Spawns a sub-agent to implement a single UI component from Figma design.
 
-  This tool is typically called after a breakdown_figma_node analysis, where
+  This tool is typically called after a breakdown_figma_design analysis, where
   each component from the breakdown can be implemented by spawning an
   implement_component sub-agent.
 
