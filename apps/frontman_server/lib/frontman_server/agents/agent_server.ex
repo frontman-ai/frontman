@@ -451,4 +451,5 @@ defmodule FrontmanServer.Agents.AgentServer do
     Process.cancel_timer(ref)
     %{state | idle_timer_ref: nil}
   end
+
 end

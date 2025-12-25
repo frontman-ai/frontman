@@ -1,9 +1,16 @@
 // Extension state types
 module Chrome = AskTheLlmBindings.Chrome
 
+// Raw Figma node data from the extension
+type rawFigmaNodeData = {
+  nodeId: string,
+  nodeData: string, // DSL representation - extension always sends DSL
+  image: option<string>,
+}
+
 type extensionMessage = {
   @as("type") type_: string,
-  selectedFigmaNode: option<Client__State__Types.FigmaNode.selectedNodeData>,
+  selectedFigmaNode: option<rawFigmaNodeData>,
   // GetFigmaNode response fields (use Nullable since they come from JS as null, not undefined)
   requestId: Js.Nullable.t<string>,
   node: Js.Nullable.t<JSON.t>,

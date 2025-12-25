@@ -77,7 +77,6 @@ defmodule FrontmanServer.Test.Fixtures.Agents do
     })
   end
 
-
   # Ensure a dependency fixture exists
   defp ensure_fixture(ctx, fixture, tags) do
     key = fixture_key(fixture)

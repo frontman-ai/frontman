@@ -187,6 +187,18 @@ defmodule FrontmanServer.Tasks do
     |> Interaction.has_selected_component?()
   end
 
+  @doc """
+  Gets the selected Figma node ID from the task interactions.
+  Returns nil if no Figma context is found.
+  """
+  @spec get_figma_node_id(String.t()) :: String.t() | nil
+  def get_figma_node_id(task_id) do
+    case task_id |> get_interactions() |> Interaction.get_selected_figma_node() do
+      %Interaction.FigmaNode{id: id} -> id
+      nil -> nil
+    end
+  end
+
   @spec append_interaction(String.t(), Interaction.t()) ::
           {:ok, Interaction.t()} | {:error, :task_not_found}
   defp append_interaction(task_id, interaction) do

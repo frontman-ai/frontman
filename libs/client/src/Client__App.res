@@ -54,11 +54,13 @@ let useExtensionState = () => {
             switch message.type_ {
             | "DevServerImportFigmaNodeResponse" =>
               message.selectedFigmaNode->Option.forEach(data => {
-                // Parse the data structure: { nodeId: string, nodeDSL: string, image: option<string> }
+                // Transform from extension format to internal format
+                // Extension always sends DSL data, so isDsl is always true
                 let parsedData: Client__State__Types.FigmaNode.selectedNodeData = {
                   nodeId: data.nodeId,
-                  nodeDSL: data.nodeDSL,
+                  nodeData: data.nodeData,
                   image: data.image,
+                  isDsl: true, // Extension always sends DSL representation
                 }
                 Client__State.Actions.setFigmaNode(~figmaNode=parsedData)
               })

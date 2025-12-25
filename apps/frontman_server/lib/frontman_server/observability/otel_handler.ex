@@ -234,6 +234,9 @@ defmodule FrontmanServer.Observability.OtelHandler do
 
   # -- LLM Handlers --
 
+  # Content blocks larger than this threshold will be flagged in telemetry
+  @large_text_threshold 100_000
+
   @doc false
   def handle_llm_start(_event, _measurements, metadata, _config) do
     %{agent_id: agent_id, task_id: task_id, model: model, messages: messages} = metadata
@@ -265,6 +268,10 @@ defmodule FrontmanServer.Observability.OtelHandler do
       end
 
     span_ctx = :otel_tracer.start_span(ctx, tracer, span_name, %{attributes: attributes})
+
+    # Check for large content blocks and add events/attributes
+    add_large_content_events(span_ctx, messages)
+
     :ets.insert(:frontman_spans_llm, {agent_id, span_ctx})
   end
 
@@ -528,6 +535,104 @@ defmodule FrontmanServer.Observability.OtelHandler do
   end
 
   # -- Helpers --
+
+  defp add_large_content_events(span_ctx, messages) do
+    large_blocks = find_large_content_blocks(messages)
+
+    if large_blocks != [] do
+      max_size = large_blocks |> Enum.map(& &1.size) |> Enum.max()
+      total_large = length(large_blocks)
+
+      :otel_span.set_attributes(span_ctx, [
+        {:"frontman.content.has_large_blocks", true},
+        {:"frontman.content.large_block_count", total_large},
+        {:"frontman.content.max_block_size_bytes", max_size}
+      ])
+
+      Enum.each(large_blocks, fn block ->
+        :otel_span.add_event(span_ctx, "large_content_block", [
+          {:message_index, block.msg_idx},
+          {:block_index, block.block_idx},
+          {:role, block.role},
+          {:tool_name, block.tool_name || "N/A"},
+          {:size_bytes, block.size},
+          {:size_formatted, format_size(block.size)},
+          {:preview, block.preview}
+        ])
+      end)
+    end
+  end
+
+  defp find_large_content_blocks(messages) do
+    messages
+    |> Enum.with_index()
+    |> Enum.flat_map(fn {msg, msg_idx} ->
+      check_message_for_large_content(msg, msg_idx)
+    end)
+  end
+
+  defp check_message_for_large_content(%{role: role, content: content} = msg, msg_idx)
+       when is_list(content) do
+    tool_name = Map.get(msg, :name) || Map.get(msg, :tool_name)
+
+    content
+    |> Enum.with_index()
+    |> Enum.flat_map(fn {block, block_idx} ->
+      check_content_block(role, tool_name, msg_idx, block_idx, block)
+    end)
+  end
+
+  defp check_message_for_large_content(%{role: role, content: content} = msg, msg_idx)
+       when is_binary(content) do
+    size = byte_size(content)
+
+    if size > @large_text_threshold do
+      tool_name = Map.get(msg, :name) || Map.get(msg, :tool_name)
+
+      [
+        %{
+          msg_idx: msg_idx,
+          block_idx: 0,
+          role: to_string(role),
+          tool_name: tool_name,
+          size: size,
+          preview: String.slice(content, 0, 200)
+        }
+      ]
+    else
+      []
+    end
+  end
+
+  defp check_message_for_large_content(_msg, _msg_idx), do: []
+
+  defp check_content_block(role, tool_name, msg_idx, block_idx, block) do
+    text =
+      case block do
+        %{type: :text, text: text} when is_binary(text) -> text
+        %{text: text} when is_binary(text) -> text
+        _ -> nil
+      end
+
+    if text && byte_size(text) > @large_text_threshold do
+      [
+        %{
+          msg_idx: msg_idx,
+          block_idx: block_idx,
+          role: to_string(role),
+          tool_name: tool_name,
+          size: byte_size(text),
+          preview: String.slice(text, 0, 200)
+        }
+      ]
+    else
+      []
+    end
+  end
+
+  defp format_size(bytes) when bytes >= 1_000_000, do: "#{Float.round(bytes / 1_000_000, 2)} MB"
+  defp format_size(bytes) when bytes >= 1_000, do: "#{Float.round(bytes / 1_000, 2)} KB"
+  defp format_size(bytes), do: "#{bytes} bytes"
 
   defp find_latest_iteration_span(agent_id) do
     # Find all iteration spans for this agent

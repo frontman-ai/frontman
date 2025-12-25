@@ -20,7 +20,8 @@ defmodule FrontmanServer.Tools.ImplementComponentTest do
     {:ok, task} = Tasks.get_task(task_id)
 
     # Extract fixture_path from context for VCR fixture recording
-    llm_opts = if fixture_path = context[:fixture_path], do: [fixture_path: fixture_path], else: []
+    llm_opts =
+      if fixture_path = context[:fixture_path], do: [fixture_path: fixture_path], else: []
 
     # Build tool execution context
     context = tool_context(task, agent_id, llm_opts)
@@ -147,5 +148,4 @@ defmodule FrontmanServer.Tools.ImplementComponentTest do
       overrides
     )
   end
-
 end

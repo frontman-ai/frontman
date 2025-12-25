@@ -11,7 +11,7 @@ let description = "Get the full JSON representation of a Figma node by its ID. T
 
 @schema
 type input = {
-  @s.describe("The Figma node ID (e.g., '0:1927' or '123:456')")
+  @s.describe("The Figma node ID")
   nodeId: string,
   @s.describe("Whether to embed vector graphics as SVG strings (default: true)")
   embedVectors: option<bool>,

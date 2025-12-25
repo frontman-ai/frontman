@@ -1,17 +1,19 @@
-defmodule FrontmanServer.Tools.FinishComponent do
+defmodule FrontmanServer.Tools.MakeComponentPixelPerfect do
   @moduledoc """
-  Spawns a sub-agent to verify and finish a component implementation.
+  Spawns a sub-agent to refine a component implementation to be pixel-perfect.
 
-  This tool is called after implement_component completes. It takes the implementation
-  results (file paths, summary) and performs visual verification against the Figma design.
+  This tool is called when a high degree of visual accuracy is required. It takes the implementation
+  results and performs rigorous visual verification and iterative refinement against the Figma design.
 
   The sub-agent:
-  1. Creates a test page to render the component
-  2. Takes screenshots and compares with the Figma design
-  3. Makes adjustments until the component roughly matches the design
-  4. Cleans up and reports completion
+  1. Creates a test page to render the component in isolation
+  2. Takes screenshots of the component using a specific CSS selector
+  3. Compares the screenshot with the Figma design node
+  4. Makes precise code adjustments to match the design (layout, colors, typography, spacing)
+  5. Repeats the loop (up to 5 times) until the component is pixel-perfect
+  6. Ensures code follows project guidelines and avoids hacks
 
-  Note: The verification aims for a close match, not pixel-perfect accuracy.
+  The verification aims for the highest possible visual fidelity.
   """
 
   @behaviour FrontmanServer.Tools.Backend
@@ -25,30 +27,32 @@ defmodule FrontmanServer.Tools.FinishComponent do
   alias FrontmanServer.Tools.MCP
 
   @system_prompt """
-  You are a frontend component verification specialist. Your task is to verify and finish
-  a component implementation by comparing it visually against the original Figma design.
+  You are a frontend visual perfectionist. Your task is to refine a component implementation
+  to achieve a **pixel-perfect match** with the original Figma design, while strictly
+  adhering to project conventions and maintaining high code quality.
 
   ## Project Context & Conventions
 
   **CRITICAL:** If you have been provided with project documentation, research findings,
-  or convention files, you MUST follow them throughout the verification process.
+  or convention files, you MUST follow them. Use modern CSS (Flexbox, Grid) and Tailwind
+  classes as preferred by the project. AVOID hacks or non-standard solutions.
 
   ## Your Goal
 
-  Verify that the implemented component **roughly matches** the Figma design. You are NOT
-  aiming for pixel-perfect accuracy - instead, ensure:
-  - Overall layout and structure match
-  - Colors and typography are approximately correct
-  - Spacing and proportions are reasonable
-  - Interactive elements are in the right positions
-  - The component is visually acceptable for the intended use
+  Refine the component until it matches the Figma design as closely as possible.
+  Focus on:
+  - Exact layout, alignment, and proportions
+  - Precise colors, gradients, and shadows
+  - Accurate typography (font-size, weight, line-height, letter-spacing)
+  - Perfect spacing (margins, padding)
+  - Correct implementation of micro-interactions and hover states
 
   ## Instructions
 
   1. **Fetch the Figma node** - Use `get_figma_node` with:
      - nodeId: (provided in your task - use WITHOUT the # prefix)
      - includeImage: true
-     - withChildren: false (we only need the image for comparison)
+     - withChildren: true (you need full details for pixel perfection)
 
   2. **Create a test page** - Create a temporary test page file that renders the component
      in isolation. Import the component from the file path provided.
@@ -68,16 +72,16 @@ defmodule FrontmanServer.Tools.FinishComponent do
 
   4. **Check for errors** - Use `get_errors` tool to check for errors. Fix any errors found.
 
-  5. **Visual verification loop**:
-     a. **Take a screenshot** - Use `take_screenshot` tool to capture the rendered component.
-        If a CSS selector (e.g., `[data-test-id="..."]`) is provided in your task, use it with the `selector` parameter
-        of `take_screenshot` to capture ONLY the component.
-     b. **Compare with Figma** - Compare the screenshot against the Figma design image
-     c. **Assess the match** - Determine if the implementation roughly matches:
-        - If YES: Proceed to the final audit
-        - If NO: Make targeted fixes and repeat the loop (max 3 iterations)
+  5. **Pixel-Perfect Refinement Loop**:
+     a. **Take a screenshot** - Use `take_screenshot` tool with the provided CSS selector
+        (e.g., `[data-test-id="..."]`) to capture ONLY the component.
+     b. **Compare with Figma** - Analyze the differences between the screenshot and the Figma design.
+     c. **Adjust Implementation** - Make precise code changes to the component files to
+        narrow the gap. Use Tailwind classes and project-approved CSS.
+     d. **Repeat** - Repeat this loop until the component is pixel-perfect or you reach the
+        iteration limit (max 5 iterations for refinement).
 
-  6. **Final Page Audit** - After completing the verification loop:
+  6. **Final Page Audit** - After completing the refinement loop:
      a. **Check for errors again** - Use `get_errors` tool to ensure no runtime errors occurred during rendering or interaction.
      b. **Take a full-page screenshot** - Use `take_screenshot` tool WITHOUT a selector to capture the entire page. Verify the component is correctly positioned and no error overlays or blocking elements are present.
 
@@ -89,26 +93,25 @@ defmodule FrontmanServer.Tools.FinishComponent do
   ## Important Guidelines
 
   - ONLY SHOW THE COMPONENT AND NOTHING ELSE ON THE TEST PAGE
-  - Focus on structural and visual correctness, not pixel-perfect matching
-  - Make minimal, targeted fixes - don't refactor or over-engineer
-  - After 3 verification iterations, accept the current state if reasonably close
+  - Aim for visual perfection without sacrificing code quality
+  - Use standard layouts (Flexbox/Grid) instead of absolute positioning where possible
   - Do NOT engage in conversation or ask clarifying questions
-  - Complete your task and return the verification result
+  - Complete your task and return the refinement result
   """
 
   @impl true
-  def name, do: "finish_component"
+  def name, do: "make_component_pixel_perfect"
 
   @impl true
   def description do
     """
-    Verify and finish a component implementation by comparing it visually against the Figma design.
+    Refine a component implementation to be pixel-perfect by comparing it visually against the Figma design.
 
-    Use this after implement_component completes to verify the implementation matches
-    the original design. The tool will create a test page, take screenshots, and compare
-    against the Figma design, making adjustments if needed.
+    Use this when a high degree of visual accuracy is required. The tool will create a test page,
+    take screenshots using a specific selector, and compare against the Figma design node,
+    making precise adjustments until the component matches perfectly.
 
-    The verification aims for a close match, not pixel-perfect accuracy.
+    The process is iterative and focused on layout, colors, typography, and spacing.
     """
   end
 
@@ -119,7 +122,7 @@ defmodule FrontmanServer.Tools.FinishComponent do
       "properties" => %{
         "componentName" => %{
           "type" => "string",
-          "description" => "Name of the component being verified"
+          "description" => "Name of the component being refined"
         },
         "nodeId" => %{
           "type" => "string",
@@ -128,7 +131,7 @@ defmodule FrontmanServer.Tools.FinishComponent do
         "filePaths" => %{
           "type" => "array",
           "items" => %{"type" => "string"},
-          "description" => "List of file paths created by the implementation"
+          "description" => "List of file paths for the component implementation"
         },
         "implementationSummary" => %{
           "type" => "string",
@@ -163,7 +166,7 @@ defmodule FrontmanServer.Tools.FinishComponent do
     mcp_tools = MCP.to_llm_format(task.mcp_tools)
 
     Logger.info(
-      "FinishComponent: Starting verification of #{component_name} (#{node_id}) with #{length(mcp_tools)} MCP tools"
+      "MakeComponentPixelPerfect: Starting refinement of #{component_name} (#{node_id}) with #{length(mcp_tools)} MCP tools"
     )
 
     system_msg = ReqLLM.Context.system(@system_prompt)
@@ -179,23 +182,23 @@ defmodule FrontmanServer.Tools.FinishComponent do
     # Execute sub-agent with MCP tools
     case Agents.execute_sub_agent(task.task_id, messages,
            tools: mcp_tools,
-           role: "component_finisher",
+           role: "pixel_perfectionist",
            parent_agent_id: parent_agent_id
          ) do
       {:ok, result} ->
-        Logger.info("FinishComponent: Completed verification of #{component_name}")
+        Logger.info("MakeComponentPixelPerfect: Completed refinement of #{component_name}")
 
         {:ok,
          %{
-           "verificationResult" => result,
+           "refinementResult" => result,
            "componentName" => component_name,
            "nodeId" => node_id,
-           "status" => "verified"
+           "status" => "pixel-perfect"
          }}
 
       {:error, reason} ->
-        Logger.error("FinishComponent: Failed - #{inspect(reason)}")
-        {:error, "Verification failed: #{inspect(reason)}"}
+        Logger.error("MakeComponentPixelPerfect: Failed - #{inspect(reason)}")
+        {:error, "Refinement failed: #{inspect(reason)}"}
     end
   end
 
@@ -234,13 +237,13 @@ defmodule FrontmanServer.Tools.FinishComponent do
       end
 
     task_text = """
-    ## Verify Component Implementation
+    ## Refine Component to Pixel-Perfect
 
     - **Component:** #{component_name}
     - **Node ID:** #{node_id}
     - **Data Test ID:** `#{data_test_id || "None"}`#{selector_instruction}
 
-    ## Files Created
+    ## Files to Refine
 
     #{file_paths_str}
 
@@ -253,9 +256,9 @@ defmodule FrontmanServer.Tools.FinishComponent do
     Use `get_figma_node` with:
     - nodeId: "#{node_id}"
     - includeImage: true
-    - withChildren: false
+    - withChildren: true
 
-    After fetching, create a test page and begin the visual verification process.
+    After fetching, create a test page and begin the pixel-perfect refinement process.
     """
 
     ReqLLM.Context.user(task_text)

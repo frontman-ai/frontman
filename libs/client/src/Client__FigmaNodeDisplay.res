@@ -42,8 +42,9 @@ let make = () => {
         <Icons.Cross2Icon style={{"width": "14px", "height": "14px"}} />
       </button>
     </div>
-  | FigmaNode.SelectedNode({nodeDSL, image, _}) =>
-    let nodeName = getNodeNameFromDSL(nodeDSL)
+  | FigmaNode.SelectedNode({nodeData, image, isDsl, _}) =>
+    // For display, try to get node name from DSL format, otherwise show generic name
+    let nodeName = isDsl ? getNodeNameFromDSL(nodeData) : "Figma Node"
     <div
       className="flex items-center gap-2 p-3 bg-blue-50 border-t border-blue-200 text-sm text-blue-900"
     >

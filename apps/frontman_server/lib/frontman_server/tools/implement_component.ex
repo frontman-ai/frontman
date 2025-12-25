@@ -67,13 +67,33 @@ defmodule FrontmanServer.Tools.ImplementComponent do
      - Uses TypeScript with proper types
      - Is reusable and well-structured
      - Adheres to the project's design system and component patterns
+     - **MUST add the provided `data-test-id` attribute to the top-level/root element** of the component.
+       This is required for testing and verification purposes.
 
-  4. **Return the implementation details** - Your response MUST include:
+  4. **Verify implementation compliance** - Before finalizing, you MUST:
+     - Review the source code you've written against ALL project guidelines loaded from:
+       - AGENTS.md files (if provided)
+       - Project convention documentation (if provided)
+       - Research findings and best practices (if provided)
+       - Any other markdown documentation files in your context
+     - Check that your implementation follows:
+       - Coding patterns and conventions specified in the documentation
+       - Technology choices and their proper usage
+       - Design system guidelines and component structure preferences
+       - File organization and naming conventions
+       - Import/export patterns
+       - Styling approaches (CSS modules, Tailwind, inline styles, etc.)
+       - TypeScript/type definitions patterns
+     - If you find any discrepancies, **you MUST correct them** before proceeding
+     - Ensure the final code is fully compliant with all project-specific guidelines
+
+  5. **Return the implementation details** - Your response MUST include:
      - **File paths created**: List ALL files you created or modified
      - **Implementation summary**: A brief summary of what was implemented, key decisions made,
        and patterns used
      - **Design details**: Key details from the Figma design (colors, typography, spacing values)
        that will help verify the implementation
+     - **Data Test ID**: Confirm the `data-test-id` value used on the top-level element
 
   ## Output Format
 
@@ -85,6 +105,9 @@ defmodule FrontmanServer.Tools.ImplementComponent do
   ### Files Created
   - path/to/Component.tsx
   - path/to/styles.css (if applicable)
+
+  ### Data Test ID
+  [The exact data-test-id value used on the top-level element, e.g., "header-navigation"]
 
   ### Implementation Summary
   [Brief description of what was implemented, key decisions, patterns used]
@@ -100,6 +123,7 @@ defmodule FrontmanServer.Tools.ImplementComponent do
   - Write clean, reusable TypeScript React code
   - STRICTLY follow project conventions and research findings from provided documentation
   - Check existing components in the project for reference patterns
+  - **CRITICAL: Before finalizing, verify your source code complies with ALL project guidelines** from AGENTS.md and other documentation files loaded in your context
   - Do NOT engage in conversation or ask clarifying questions
   - Complete your task and return the implementation details in the specified format
   """
@@ -133,7 +157,7 @@ defmodule FrontmanServer.Tools.ImplementComponent do
         },
         "nodeId" => %{
           "type" => "string",
-          "description" => "The Figma node ID for this component (e.g., '0:1927')"
+          "description" => "The Figma node ID for this component"
         },
         "description" => %{
           "type" => "string",
@@ -166,6 +190,7 @@ defmodule FrontmanServer.Tools.ImplementComponent do
   def execute(args, %Context{task: task, agent_id: parent_agent_id, llm_opts: llm_opts}) do
     component_name = Map.get(args, "componentName")
     node_id = Map.get(args, "nodeId")
+    data_test_id = generate_data_test_id(component_name)
 
     mcp_tools = MCP.to_llm_format(task.mcp_tools)
 
@@ -174,7 +199,7 @@ defmodule FrontmanServer.Tools.ImplementComponent do
     )
 
     system_msg = ReqLLM.Context.system(@system_prompt)
-    user_msg = build_user_message(args)
+    user_msg = build_user_message(args, data_test_id)
 
     # Extract markdown files from read_file tool results (e.g., project conventions,
     # research findings, AGENTS.md files) and add them as user messages.
@@ -198,7 +223,8 @@ defmodule FrontmanServer.Tools.ImplementComponent do
          %{
            "implementation" => result,
            "componentName" => component_name,
-           "nodeId" => node_id
+           "nodeId" => node_id,
+           "dataTestId" => data_test_id
          }}
 
       {:error, reason} ->
@@ -207,7 +233,7 @@ defmodule FrontmanServer.Tools.ImplementComponent do
     end
   end
 
-  defp build_user_message(args) do
+  defp build_user_message(args, data_test_id) do
     component_name = Map.get(args, "componentName")
     node_id = Map.get(args, "nodeId")
     description = Map.get(args, "description")
@@ -234,6 +260,7 @@ defmodule FrontmanServer.Tools.ImplementComponent do
     - **Description:** #{description}
     - **Complexity:** #{complexity_str}
     - **Dependencies:** #{dependencies}#{target_path_str}
+    - **Data Test ID:** `#{data_test_id}` (MUST be added to the top-level/root element as `data-test-id="#{data_test_id}"`)
 
     ## First Step: Fetch the Figma Node
 
@@ -246,9 +273,21 @@ defmodule FrontmanServer.Tools.ImplementComponent do
     #{additional_context_str}
 
     After fetching, implement the component following your instructions.
+    Remember: The top-level element MUST have `data-test-id="#{data_test_id}"`.
     """
 
     ReqLLM.Context.user(task_text)
+  end
+
+  # Generates a kebab-case data-test-id from the component name
+  # e.g., "Header Navigation" -> "header-navigation"
+  defp generate_data_test_id(component_name) do
+    component_name
+    |> String.downcase()
+    |> String.replace(~r/[^a-z0-9\s-]/, "")
+    |> String.replace(~r/\s+/, "-")
+    |> String.replace(~r/-+/, "-")
+    |> String.trim("-")
   end
 
   # Extracts markdown file contents from read_file ToolResult interactions

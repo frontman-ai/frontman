@@ -79,11 +79,12 @@ module SelectedElement = {
 }
 
 module FigmaNode = {
-  // Selected node with DSL representation and image
+  // Selected node with DSL representation or full node data, and image
   type selectedNodeData = {
     nodeId: string,
-    nodeDSL: string, // DSL representation of the Figma node
+    nodeData: string, // DSL representation OR full JSON node data
     image: option<string>, // Base64 data URL (data:image/png;base64,...)
+    isDsl: bool, // true if nodeData is DSL text, false if full JSON data
   }
 
   type t =
@@ -223,17 +224,28 @@ let selectedElementScreenshotToContentBlock = (screenshotDataUrl: string): ACPTy
   }
 }
 
-// Build a Resource ContentBlock from FigmaNode DSL data
-// Contains the Figma node as DSL string (compact, token-efficient format)
-let figmaNodeToContentBlock = (nodeId: string, nodeDSL: string): ACPTypes.contentBlock => {
+// Helper to create _meta JSON for figma node with nodeId and is_dsl flag
+let makeFigmaNodeMeta: (string, bool) => JSON.t = %raw(`
+  function(nodeId, isDsl) {
+    return {
+      "figma_node": true,
+      "node_id": nodeId,
+      "is_dsl": isDsl
+    };
+  }
+`)
+
+// Build a Resource ContentBlock from FigmaNode data
+// Contains the Figma node as DSL string (compact, token-efficient format) or full JSON data
+let figmaNodeToContentBlock = (nodeId: string, nodeData: string, isDsl: bool): ACPTypes.contentBlock => {
   let textResource: ACPTypes.textResourceContents = {
-    uri: `figma://node/${nodeId}`,
+    uri: nodeId,
     mimeType: Some("text/plain"),
-    text: nodeDSL,
+    text: nodeData,
   }
 
-  // Create _meta with figma_node annotation
-  let _meta: JSON.t = %raw(`{"figma_node": true}`)
+  // Create _meta with figma_node annotation, nodeId, and is_dsl flag
+  let _meta = makeFigmaNodeMeta(nodeId, isDsl)
   let embeddedResource: ACPTypes.embeddedResource = {
     _meta: Some(_meta),
     annotations: None,
@@ -307,8 +319,8 @@ let taskToContentBlocks = (task: Task.t): array<ACPTypes.contentBlock> => {
 
   // Add figmaNode as Resource and Image if available
   let blocks = switch task.figmaNode {
-  | FigmaNode.SelectedNode({nodeId, nodeDSL, image}) => {
-      let blocks = Array.concat(blocks, [figmaNodeToContentBlock(nodeId, nodeDSL)])
+  | FigmaNode.SelectedNode({nodeId, nodeData, image, isDsl}) => {
+      let blocks = Array.concat(blocks, [figmaNodeToContentBlock(nodeId, nodeData, isDsl)])
       // Add image as separate content block if available
       switch image {
       | Some(imageDataUrl) => Array.concat(blocks, [figmaImageToContentBlock(imageDataUrl)])

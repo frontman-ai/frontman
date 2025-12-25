@@ -112,12 +112,14 @@ defmodule FrontmanServer.Agents do
         messages = Tasks.get_llm_messages(task_id, agent_id)
         has_figma = Tasks.has_figma_context?(task_id)
         has_selected_component = Tasks.has_selected_component?(task_id)
+        figma_node_id = Tasks.get_figma_node_id(task_id)
         framework = get_framework(task_id)
 
         system_msg =
           Prompts.build_system_message(nil,
             has_figma_context: has_figma,
             has_selected_component: has_selected_component,
+            figma_node_id: figma_node_id,
             framework: framework
           )
 
@@ -224,6 +226,7 @@ defmodule FrontmanServer.Agents do
     opts = [
       has_figma_context: Tasks.has_figma_context?(task_id),
       has_selected_component: Tasks.has_selected_component?(task_id),
+      figma_node_id: Tasks.get_figma_node_id(task_id),
       framework: framework
     ]
 

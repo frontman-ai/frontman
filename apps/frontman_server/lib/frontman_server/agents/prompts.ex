@@ -23,7 +23,7 @@ defmodule FrontmanServer.Agents.Prompts do
   **NEVER call `get_figma_node` with a node that has a volume (`v`) parameter larger than 6!**
 
   When using `get_figma_node`:
-  - **Node ID format** - Use the node ID WITHOUT the `#` prefix (e.g., use `"0:1927"` not `"#0:1927"`)
+  - **Node ID format** - Use the node ID WITHOUT the `#` prefix
   - **Use the nodeDSL** that comes along with the Figma image to figure out which nodes can be selected
   - **Select nodes that don't exceed the volume limit** - choose smaller, more specific nodes if needed
   - **Use `withChildren` parameter** - Select parent nodes with `withChildren: true` to get the complete picture of a component hierarchy without exceeding volume limits
@@ -63,6 +63,7 @@ defmodule FrontmanServer.Agents.Prompts do
   ## Options
   - `:has_figma_context` - When true, adds Figma-specific guidance for breaking down designs
   - `:has_selected_component` - When true, adds guidance for selected component replacement flow
+  - `:figma_node_id` - The Figma node ID to use for breakdown_figma_design (extracted from resource URI)
   - `:framework` - Framework name (e.g., "nextjs") to add framework-specific guidance
   """
   @spec build_system_message(atom() | nil, keyword()) :: map()
@@ -73,14 +74,16 @@ defmodule FrontmanServer.Agents.Prompts do
 
     has_figma = Keyword.get(opts, :has_figma_context, false)
     has_selected_component = Keyword.get(opts, :has_selected_component, false)
+    figma_node_id = Keyword.get(opts, :figma_node_id)
 
     content_parts =
       cond do
         has_figma && has_selected_component ->
-          content_parts ++ [ContentPart.text(figma_with_selected_component_guidance())]
+          content_parts ++
+            [ContentPart.text(figma_with_selected_component_guidance(figma_node_id))]
 
         has_figma ->
-          content_parts ++ [ContentPart.text(figma_context_guidance())]
+          content_parts ++ [ContentPart.text(figma_context_guidance(figma_node_id))]
 
         true ->
           content_parts
@@ -101,6 +104,7 @@ defmodule FrontmanServer.Agents.Prompts do
   ## Options
   - `:has_figma_context` - When true, adds Figma-specific guidance for breaking down designs
   - `:has_selected_component` - When true, adds guidance for selected component replacement flow
+  - `:figma_node_id` - The Figma node ID to use for breakdown_figma_design (extracted from resource URI)
   - `:framework` - Framework name (e.g., "nextjs") to add framework-specific guidance
   """
   @spec build(keyword()) :: String.t()
@@ -109,14 +113,15 @@ defmodule FrontmanServer.Agents.Prompts do
 
     has_figma = Keyword.get(opts, :has_figma_context, false)
     has_selected_component = Keyword.get(opts, :has_selected_component, false)
+    figma_node_id = Keyword.get(opts, :figma_node_id)
 
     prompt =
       cond do
         has_figma && has_selected_component ->
-          prompt <> "\n" <> figma_with_selected_component_guidance()
+          prompt <> "\n" <> figma_with_selected_component_guidance(figma_node_id)
 
         has_figma ->
-          prompt <> "\n" <> figma_context_guidance()
+          prompt <> "\n" <> figma_context_guidance(figma_node_id)
 
         true ->
           prompt
@@ -131,11 +136,41 @@ defmodule FrontmanServer.Agents.Prompts do
     prompt
   end
 
-  defp figma_context_guidance do
+  defp figma_context_guidance(figma_node_id) do
+    node_id_section =
+      if figma_node_id do
+        """
+
+        ### Selected Figma Node ID
+
+        **The root Figma node ID for this design is: `#{figma_node_id}`**
+
+        Use this node ID when calling `breakdown_figma_design`:
+        ```
+        breakdown_figma_design(nodeId: "#{figma_node_id}")
+        ```
+
+        """
+      else
+        ""
+      end
+
     """
     ## IMPORTANT: Figma Design Context Detected
 
     You have received Figma design context (a design image and/or node DSL structure).
+    #{node_id_section}
+    ### Figma Data Types
+
+    The Figma context attached to this conversation is a **DSL (Domain Specific Language) representation**.
+    This is a compact, token-efficient format used for:
+    - Understanding the overall design structure
+    - Breaking down the design into components via `breakdown_figma_design`
+
+    **Tool-specific data requirements:**
+    - **`breakdown_figma_design`**: Receives the DSL representation (already in context)
+    - **`implement_component`**: Will fetch full node JSON via `get_figma_node` for detailed implementation
+    - **`finish_component`**: Will fetch node image via `get_figma_node` for visual comparison
 
     ### Standard Workflow (No Component Selected)
 
@@ -153,12 +188,10 @@ defmodule FrontmanServer.Agents.Prompts do
 
     **When the user requests to replace, update, swap, change, or modify a component and provides a selected component location** (and you have Figma design context):
 
-    1. **Automatically extract the Figma node ID** from the design context:
-       - Look for the URI format `figma://node/[node_id]` in the context (extract the node_id part)
-       - Or extract it from the "Figma Node Structure (DSL)" text (node IDs appear as `#0:1927` format)
-       - **Important**: When using the node ID in tools, use it WITHOUT the `#` prefix (e.g., `"0:1927"` not `"#0:1927"`)
+    1. **Use the provided Figma node ID** (see above) for `breakdown_figma_design`
     2. **Use `breakdown_figma_design` tool** to analyze the Figma design and identify which component from the breakdown best matches the selected component
     3. **Use `implement_component` tool** to implement the new version of the component based on the matching Figma component
+       - The breakdown will provide inner node IDs for each component - use those for `implement_component`
     4. **Use `finish_component` tool** to visually verify the implementation against the Figma design
     5. **Automatically locate and replace the old component** in the codebase:
        - Find the old component file
@@ -172,18 +205,46 @@ defmodule FrontmanServer.Agents.Prompts do
     """
   end
 
-  defp figma_with_selected_component_guidance do
+  defp figma_with_selected_component_guidance(figma_node_id) do
+    node_id_section =
+      if figma_node_id do
+        """
+
+        ### Selected Figma Node ID
+
+        **The root Figma node ID for this design is: `#{figma_node_id}`**
+
+        Use this node ID when calling `breakdown_figma_design`:
+        ```
+        breakdown_figma_design(nodeId: "#{figma_node_id}")
+        ```
+
+        """
+      else
+        ""
+      end
+
     """
     ## CRITICAL: Figma Design + Selected Component Detected
 
     **YOU HAVE BOTH:**
     1. **Figma design context** - A design image and/or node DSL structure is attached to this conversation
     2. **Selected component location** - The user has selected a specific component in their codebase (see `[Selected Component Location]` in the message)
+    #{node_id_section}
+    ### Figma Data Types
+
+    The Figma context attached is a **DSL (Domain Specific Language) representation** - a compact format for design breakdown.
+
+    **Tool-specific data requirements:**
+    - **`breakdown_figma_design`**: Uses the DSL in context to analyze structure and identify components
+    - **`implement_component`**: Fetches full node JSON via `get_figma_node` for detailed specs
+    - **`finish_component`**: Fetches node image via `get_figma_node` for visual comparison
 
     ### IMPORTANT: What You Have Access To
 
     - **The Figma design image/DSL** is already in this conversation - you can see it
     - **The selected component file path and location** - you know where the component is in the codebase
+    - **The root Figma node ID** - provided above for use with `breakdown_figma_design`
 
     ### CRITICAL: What You Do NOT Have Access To
 
@@ -195,12 +256,13 @@ defmodule FrontmanServer.Agents.Prompts do
     **You MUST use the following tools in order. There is NO other way to access Figma data:**
 
     1. **`breakdown_figma_design`** - REQUIRED FIRST STEP
+       - Use with the root node ID: `#{figma_node_id || "[node_id from DSL]"}`
        - Analyzes the Figma design structure
        - Creates a component breakdown with implementation plan
-       - Identifies which Figma component matches the selected component
-       - Returns detailed information about each component to build
+       - Returns inner node IDs for each component to build
 
     2. **`implement_component`** - For each component identified
+       - Use the inner node ID from the breakdown (NOT the root node ID)
        - Implements the component based on Figma specs
        - Gets exact styles, spacing, colors from Figma
 
@@ -210,21 +272,18 @@ defmodule FrontmanServer.Agents.Prompts do
 
     ### REQUIRED WORKFLOW (DO NOT SKIP STEPS)
 
-    1. **Extract the Figma node ID** from the context:
-       - Look for `figma://node/[node_id]` format in the DSL
-       - Node IDs appear as `#0:1927` format - use WITHOUT the `#` prefix (e.g., `"0:1927"`)
-
-    2. **Call `breakdown_figma_design`** IMMEDIATELY
+    1. **Call `breakdown_figma_design`** IMMEDIATELY with nodeId: "#{figma_node_id || "[node_id]"}"
        - Do NOT try to implement anything before calling this tool
        - Do NOT make assumptions about the Figma design structure
-       - This tool will tell you exactly what to build
+       - This tool will tell you exactly what to build and provide inner node IDs
 
-    3. **Call `implement_component`** for the matching component
+    2. **Call `implement_component`** for the matching component
+       - Use the inner node ID from the breakdown response
        - The breakdown will identify which component matches your selected component
 
-    4. **Call `finish_component`** to verify
+    3. **Call `finish_component`** to verify
 
-    5. **Replace the old component** in the codebase:
+    4. **Replace the old component** in the codebase:
        - Update the file at the selected component location
        - Update imports if needed
 
@@ -235,7 +294,7 @@ defmodule FrontmanServer.Agents.Prompts do
     - Ask the user for more Figma information - use the tools instead
     - Skip any of the tool calls in the workflow
 
-    **PROCEED IMMEDIATELY with `breakdown_figma_design`. Do NOT ask for clarification.**
+    **PROCEED IMMEDIATELY with `breakdown_figma_design(nodeId: "#{figma_node_id || "[node_id]"}")`. Do NOT ask for clarification.**
     """
   end
 

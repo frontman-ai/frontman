@@ -7,8 +7,6 @@ defmodule FrontmanServer.Tasks.Interaction do
   transport mechanisms for real-time UX.
   """
 
-  require Logger
-
   @type t ::
           __MODULE__.UserMessage.t()
           | __MODULE__.AgentResponse.t()
@@ -18,6 +16,38 @@ defmodule FrontmanServer.Tasks.Interaction do
           | __MODULE__.ToolResult.t()
           | __MODULE__.DiscoveredProjectRule.t()
 
+  defmodule FigmaNode do
+    @moduledoc """
+    Represents a selected Figma node with its associated data.
+
+    Contains:
+    - `id` - the Figma node ID extracted from the resource URI (e.g., "123:456")
+    - `node` - the DSL text representation OR full node JSON data
+    - `image` - base64 encoded screenshot of the Figma node
+    - `is_dsl` - true if `node` contains DSL text, false if it contains full node JSON data
+
+    When `is_dsl` is true:
+    - The `node` field contains a compact DSL text representation for design breakdown
+    - Used by `breakdown_figma_design` tool to analyze design structure
+
+    When `is_dsl` is false:
+    - The `node` field contains full JSON node data from get_figma_node
+    - Used by `implement_component`, `finish_component`, etc. for detailed implementation
+    """
+    use TypedStruct
+
+    typedstruct enforce: true do
+      # The Figma node ID extracted from the resource URI (e.g., "123:456")
+      field(:id, String.t())
+      # DSL text representation OR full JSON node data (depending on is_dsl)
+      field(:node, String.t() | nil, enforce: false)
+      # Base64 encoded PNG image of the node
+      field(:image, String.t() | nil, enforce: false)
+      # True if node contains DSL text, false if it contains full JSON data
+      field(:is_dsl, boolean(), default: true)
+    end
+  end
+
   defmodule UserMessage do
     @moduledoc """
     Represents a message sent by the user.
@@ -26,10 +56,11 @@ defmodule FrontmanServer.Tasks.Interaction do
     - `messages` - array of text messages from the user
     - `selected_component` - source location of selected element
     - `selected_component_screenshot` - screenshot of selected element
-    - `figma_node` - Figma node DSL text
-    - `figma_image` - Figma node screenshot (base64)
+    - `selected_figma_node` - structured Figma node data (id, node DSL, image)
     """
     use TypedStruct
+
+    alias FrontmanServer.Tasks.Interaction.FigmaNode
 
     @type selected_component :: %{
             file: String.t(),
@@ -47,10 +78,8 @@ defmodule FrontmanServer.Tasks.Interaction do
 
       # Extracted screenshot (base64 PNG data) from resource with _meta.selected_component_screenshot
       field(:selected_component_screenshot, String.t() | nil, enforce: false)
-      # Extracted Figma node DSL text from resource with _meta.figma_node
-      field(:figma_node, String.t() | nil, enforce: false)
-      # Extracted Figma image (base64 PNG data) from resource with _meta.figma_image
-      field(:figma_image, String.t() | nil, enforce: false)
+      # Extracted Figma node with id, node data (DSL or full JSON), and image
+      field(:selected_figma_node, FigmaNode.t() | nil, enforce: false)
     end
 
     def new(content_blocks) do
@@ -62,8 +91,7 @@ defmodule FrontmanServer.Tasks.Interaction do
         messages: extract_messages(content_blocks),
         selected_component: extract_selected_component(content_blocks),
         selected_component_screenshot: extract_selected_component_screenshot(content_blocks),
-        figma_node: extract_figma_node(content_blocks),
-        figma_image: extract_figma_image(content_blocks)
+        selected_figma_node: extract_selected_figma_node(content_blocks)
       }
     end
 
@@ -121,27 +149,36 @@ defmodule FrontmanServer.Tasks.Interaction do
       end)
     end
 
-    # Extract Figma node DSL from content blocks
-    # Looks for _meta.figma_node with text content
-    defp extract_figma_node(content_blocks) do
+    # Extract Figma node data from content blocks
+    # Combines figma_node (DSL text or full JSON) and figma_image (blob) into FigmaNode
+    # The node_id and is_dsl flag are extracted from _meta
+    defp extract_selected_figma_node(content_blocks) do
       Enum.find_value(content_blocks, fn
         %{
           "type" => "resource",
-          "resource" => %{"_meta" => %{"figma_node" => true}, "resource" => %{"text" => text}}
+          "resource" => %{
+            "_meta" => %{"figma_node" => true, "node_id" => node_id} = meta,
+            "resource" => %{"text" => text}
+          }
         }
-        when is_binary(text) ->
-          text
+        when is_binary(text) and is_binary(node_id) ->
+          is_dsl = Map.get(meta, "is_dsl", true)
+
+          %FigmaNode{
+            id: node_id,
+            node: text,
+            image: extract_figma_image_blob(content_blocks),
+            is_dsl: is_dsl
+          }
 
         _ ->
           nil
       end)
     end
 
-    # Extract Figma image from content blocks
-    # Looks for _meta.figma_image with blob data
-    defp extract_figma_image(content_blocks) do
-      content_blocks
-      |> Enum.find_value(fn
+    # Extract Figma image blob from content blocks
+    defp extract_figma_image_blob(content_blocks) do
+      Enum.find_value(content_blocks, fn
         %{"type" => "resource", "resource" => resource} ->
           case resource do
             %{"_meta" => %{"figma_image" => true}, "resource" => %{"blob" => blob}}
@@ -160,6 +197,20 @@ defmodule FrontmanServer.Tasks.Interaction do
 
   defimpl Jason.Encoder, for: UserMessage do
     def encode(value, opts) do
+      selected_figma_node =
+        case value.selected_figma_node do
+          nil ->
+            nil
+
+          %{id: id, node: node, image: image, is_dsl: is_dsl} ->
+            %{
+              id: id,
+              has_node: node != nil,
+              has_image: image != nil,
+              is_dsl: is_dsl
+            }
+        end
+
       Jason.Encode.map(
         %{
           type: "user_message",
@@ -168,8 +219,7 @@ defmodule FrontmanServer.Tasks.Interaction do
           timestamp: DateTime.to_iso8601(value.timestamp),
           selected_component: value.selected_component,
           selected_component_screenshot: value.selected_component_screenshot != nil,
-          figma_node: value.figma_node != nil,
-          figma_image: value.figma_image != nil
+          selected_figma_node: selected_figma_node
         },
         opts
       )
@@ -611,8 +661,8 @@ defmodule FrontmanServer.Tasks.Interaction do
           end
       end
 
-    # Note: figma_node and figma_image are NOT included here
-    # They are handled separately by backend tools (breakdown_figma_design, etc.)
+    # Note: selected_figma_node is NOT included here
+    # It is handled separately by backend tools (breakdown_figma_design, etc.)
 
     case content_parts do
       [] ->
@@ -694,43 +744,13 @@ defmodule FrontmanServer.Tasks.Interaction do
   }
 
   defp extract_image_from_result(tool_name, result) when is_map(result) do
-    case Map.get(@image_tool_configs, tool_name) do
-      nil ->
-        # Not an image tool
-        nil
-
-      {image_field, text_fields} ->
-        image_data = get_field(result, image_field)
-
-        cond do
-          is_nil(image_data) ->
-            # Image field is nil (e.g., includeImage was false)
-            nil
-
-          not is_binary(image_data) ->
-            Logger.warning(
-              "Tool #{tool_name}: image field #{inspect(image_field)} is not a binary: #{inspect(image_data)}"
-            )
-
-            nil
-
-          true ->
-            case decode_data_url(image_data) do
-              {:ok, binary, mime} ->
-                text_content = build_text_content(result, text_fields)
-                {binary, mime, text_content}
-
-              :error ->
-                # Log first 100 chars of data URL for debugging format issues
-                preview = String.slice(image_data, 0, 100)
-
-                Logger.warning(
-                  "Tool #{tool_name}: failed to decode image data URL. Preview: #{preview}..."
-                )
-
-                nil
-            end
-        end
+    with {image_field, text_fields} <- Map.get(@image_tool_configs, tool_name),
+         data_url when is_binary(data_url) <- get_field(result, image_field),
+         {:ok, binary, mime} <- decode_data_url(data_url) do
+      text_content = build_text_content(result, text_fields)
+      {binary, mime, text_content}
+    else
+      _ -> nil
     end
   end
 
@@ -793,17 +813,33 @@ defmodule FrontmanServer.Tasks.Interaction do
 
   @doc """
   Checks if any user messages in the interactions contain Figma context.
-  Uses the pre-extracted `figma_node` and `figma_image` fields on UserMessage for efficiency.
+  Uses the pre-extracted `selected_figma_node` field on UserMessage for efficiency.
   """
   @spec has_figma_context?(list(t())) :: boolean()
   def has_figma_context?(interactions) do
     Enum.any?(interactions, fn
-      %UserMessage{figma_node: node, figma_image: image}
-      when not is_nil(node) or not is_nil(image) ->
+      %UserMessage{selected_figma_node: figma_node} when not is_nil(figma_node) ->
         true
 
       _ ->
         false
+    end)
+  end
+
+  @doc """
+  Gets the selected Figma node from the most recent user message that has one.
+  Returns nil if no Figma context is found.
+  """
+  @spec get_selected_figma_node(list(t())) :: FigmaNode.t() | nil
+  def get_selected_figma_node(interactions) do
+    interactions
+    |> Enum.reverse()
+    |> Enum.find_value(fn
+      %UserMessage{selected_figma_node: figma_node} when not is_nil(figma_node) ->
+        figma_node
+
+      _ ->
+        nil
     end)
   end
 

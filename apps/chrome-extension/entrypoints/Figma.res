@@ -231,15 +231,15 @@ let main = () => {
             None
           }
 
-          // Send to extension with both node DSL and image
-          let dslData = switch nodeDSL->Js.Nullable.toOption {
+          // Send to extension with both node data (DSL) and image
+          let nodeData = switch nodeDSL->Js.Nullable.toOption {
           | Some(dsl) => dsl->Obj.magic
           | None => %raw(`null`)->Obj.magic
           }
           
           let figmaNodeData = {
             "nodeId": nodeId,
-            "nodeDSL": dslData,
+            "nodeData": nodeData, // DSL representation (isDsl: true)
             "image": imageDataUrl->Option.map(dataUrl => dataUrl->Obj.magic)->Option.getOr(Js.Nullable.null)->Obj.magic,
           }
           

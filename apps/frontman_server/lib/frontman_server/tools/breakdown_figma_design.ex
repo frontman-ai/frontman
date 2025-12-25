@@ -41,7 +41,7 @@ defmodule FrontmanServer.Tools.BreakdownFigmaDesign do
   ## Component Breakdown
 
   ### 1. [Component Name]
-  - **Node ID:** X:XXX (WITHOUT the # prefix - e.g., "0:1927" not "#0:1927")
+  - **Node ID:** X:XXX (WITHOUT the # prefix)
   - **Complexity:** X/10
   - **Description:** Brief description of what this component does
   - **Dependencies:** List any components this depends on (or "None")
@@ -71,11 +71,15 @@ defmodule FrontmanServer.Tools.BreakdownFigmaDesign do
     Analyze a Figma node and break it down into a list of components to build.
 
     Use this tool when you have a Figma design that needs to be implemented.
-    The tool will analyze the node structure and image to identify individual
+    This tool uses the DSL (Domain Specific Language) representation of the Figma
+    design - a compact, token-efficient format that shows the design structure.
+
+    The tool will analyze the node structure (DSL) and image to identify individual
     components that should be built separately.
 
     The output is a todo list of components with their node IDs, descriptions,
-    and suggested build order.
+    and suggested build order. Use these node IDs with `implement_component` and
+    `finish_component` tools, which will fetch full node data via `get_figma_node`.
     """
   end
 
@@ -86,7 +90,7 @@ defmodule FrontmanServer.Tools.BreakdownFigmaDesign do
       "properties" => %{
         "nodeId" => %{
           "type" => "string",
-          "description" => "The root Figma node ID to analyze (e.g., '0:1927' or '123:456')"
+          "description" => "The root Figma node ID to analyze"
         },
         "maxComponentVolume" => %{
           "type" => "integer",
@@ -153,7 +157,7 @@ defmodule FrontmanServer.Tools.BreakdownFigmaDesign do
     ## Node Skeleton (DSL Format)
 
     ```
-    #{figma_skeleton || "No skeleton available"}
+    #{figma_skeleton}
     ```
 
     ## Output Format
@@ -184,31 +188,17 @@ defmodule FrontmanServer.Tools.BreakdownFigmaDesign do
   end
 
   defp extract_figma_data(interactions) do
-    # Find the first UserMessage with figma context
-    user_messages =
-      interactions
-      |> Enum.filter(&Interaction.user_message?/1)
+    # Get the selected Figma node from interactions
+    case Interaction.get_selected_figma_node(interactions) do
+      %Interaction.FigmaNode{node: node, image: image} when is_binary(node) ->
+        # Convert image to data URL format expected by decode_image_data
+        figma_image =
+          if is_binary(image), do: "data:image/png;base64,#{image}", else: nil
 
-    figma_image =
-      Enum.find_value(user_messages, fn
-        %Interaction.UserMessage{figma_image: image} when is_binary(image) ->
-          # Convert to data URL format expected by decode_image_data
-          "data:image/png;base64,#{image}"
+        {:ok, figma_image, node}
 
-        _ ->
-          nil
-      end)
-
-    figma_skeleton =
-      Enum.find_value(user_messages, fn
-        %Interaction.UserMessage{figma_node: node} when is_binary(node) -> node
-        _ -> nil
-      end)
-
-    if figma_skeleton do
-      {:ok, figma_image, figma_skeleton}
-    else
-      {:error, "No Figma node skeleton found in task interactions"}
+      _ ->
+        {:error, "No Figma node skeleton found in task interactions"}
     end
   end
 
