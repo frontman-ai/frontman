@@ -1,4 +1,10 @@
-module AIElements = Bindings__AIElements
+/**
+ * Client__WebPreview - Web preview panel with navigation
+ * 
+ * Uses pure ReScript navigation components instead of AIElements.
+ */
+
+module Nav = Client__WebPreview__Nav
 module RadixUI__Icons = Bindings__RadixUI__Icons
 module FigmaNode = Client__State__Types.FigmaNode
 module AlertDialog = Bindings__UI__AlertDialog.AlertDialog
@@ -12,27 +18,27 @@ module AlertDialogAction = Bindings__UI__AlertDialog.AlertDialogAction
 module BackButton = {
   @react.component
   let make = (~onClick: unit => unit) => {
-    <AIElements.WebPreviewNavigationButton onClick={onClick} tooltip="Go back">
+    <Nav.NavButton onClick={onClick} tooltip="Go back">
       <RadixUI__Icons.ArrowLeftIcon className="size-4" />
-    </AIElements.WebPreviewNavigationButton>
+    </Nav.NavButton>
   }
 }
 
 module ForwardButton = {
   @react.component
   let make = (~onClick: unit => unit) => {
-    <AIElements.WebPreviewNavigationButton onClick={onClick} tooltip="Go forward">
+    <Nav.NavButton onClick={onClick} tooltip="Go forward">
       <RadixUI__Icons.ArrowRightIcon className="size-4" />
-    </AIElements.WebPreviewNavigationButton>
+    </Nav.NavButton>
   }
 }
 
 module ReloadButton = {
   @react.component
   let make = (~onClick: unit => unit) => {
-    <AIElements.WebPreviewNavigationButton onClick={onClick} tooltip="Reload">
+    <Nav.NavButton onClick={onClick} tooltip="Reload">
       <RadixUI__Icons.ReloadIcon className="size-4" />
-    </AIElements.WebPreviewNavigationButton>
+    </Nav.NavButton>
   }
 }
 
@@ -45,7 +51,7 @@ module SelectFigmaNode = {
       | _ => ""
       }}
     >
-      <AIElements.WebPreviewNavigationButton onClick={onClick} tooltip="Import from Figma">
+      <Nav.NavButton onClick={onClick} tooltip="Import from Figma">
         <RadixUI__Icons.FigmaIcon
           className={switch figmaNode {
           | FigmaNode.WaitingForSelection => "size-4 text-purple-500"
@@ -53,7 +59,7 @@ module SelectFigmaNode = {
           }}
           style={{"width": "16px", "height": "16px"}}
         />
-      </AIElements.WebPreviewNavigationButton>
+      </Nav.NavButton>
     </div>
   }
 }
@@ -62,11 +68,11 @@ module SelectElement = {
   @react.component
   let make = (~onClick: unit => unit, ~isSelecting: bool) => {
     <div className={isSelecting ? "rounded bg-blue-500/20" : ""}>
-      <AIElements.WebPreviewNavigationButton onClick={onClick} tooltip="Select">
+      <Nav.NavButton onClick={onClick} tooltip="Select">
         <RadixUI__Icons.Crosshair1Icon
           className={isSelecting ? "size-4 text-blue-500" : "size-4"}
         />
-      </AIElements.WebPreviewNavigationButton>
+      </Nav.NavButton>
     </div>
   }
 }
@@ -74,9 +80,9 @@ module SelectElement = {
 module OpenInNewWindow = {
   @react.component
   let make = (~onClick: unit => unit) => {
-    <AIElements.WebPreviewNavigationButton onClick={onClick} tooltip="Open in new tab">
+    <Nav.NavButton onClick={onClick} tooltip="Open in new tab">
       <RadixUI__Icons.OpenInNewWindowIcon className="size-4" />
-    </AIElements.WebPreviewNavigationButton>
+    </Nav.NavButton>
   }
 }
 
@@ -138,17 +144,18 @@ let make = () => {
       ~features="noopener,noreferrer",
     )->ignore
   }
+  
   <>
-    <AIElements.WebPreview defaultUrl={previewUrl}>
-      <AIElements.WebPreviewNavigation>
+    <Nav.Container>
+      <Nav.Navigation>
         <BackButton onClick={handleBack} />
         <ForwardButton onClick={handleForward} />
         <ReloadButton onClick={handleReload} />
-        <AIElements.WebPreviewUrl value={previewUrl} />
+        <Nav.UrlInput value={previewUrl} />
         <SelectFigmaNode onClick={handleFigma} figmaNode={figmaNode} />
         <SelectElement onClick={handleSelect} isSelecting={webPreviewIsSelecting} />
         <OpenInNewWindow onClick={handleOpenInNewTab} />
-      </AIElements.WebPreviewNavigation>
+      </Nav.Navigation>
 
       <div className="relative size-full overflow-y-hidden">
         {switch (previewFrame.contentDocument, previewFrame.contentWindow) {
@@ -166,7 +173,7 @@ let make = () => {
         })
         ->React.array}
       </div>
-    </AIElements.WebPreview>
+    </Nav.Container>
 
     <AlertDialog
       open_={showExtensionAlert} onOpenChange={isOpen => setShowExtensionAlert(_ => isOpen)}

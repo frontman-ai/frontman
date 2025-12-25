@@ -9,6 +9,7 @@ defmodule FrontmanServerWeb.TaskChannel do
   use FrontmanServerWeb, :channel
   require Logger
 
+  alias FrontmanServer.Agents
   alias FrontmanServer.Observability.TelemetryEvents
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Interaction
@@ -321,9 +322,37 @@ defmodule FrontmanServerWeb.TaskChannel do
   def handle_info({:interaction, %Interaction.ToolCall{} = tool_call}, socket) do
     task_id = socket.assigns.task_id
 
-    # Send ACP notification: pending
-    pending_notification = ACP.build_tool_call_notification(task_id, tool_call, "pending")
+    # Check if this tool call is from a sub-agent and get spawning tool name
+    parent_agent_id = Agents.get_parent_agent_id(tool_call.agent_id)
+    spawning_tool_name = Agents.get_spawning_tool_name(tool_call.agent_id)
+
+    acp_opts =
+      []
+      |> then(fn opts ->
+        if parent_agent_id, do: [{:parent_agent_id, parent_agent_id} | opts], else: opts
+      end)
+      |> then(fn opts ->
+        if spawning_tool_name, do: [{:spawning_tool_name, spawning_tool_name} | opts], else: opts
+      end)
+
+    # Send ACP notification: pending with tool arguments in content
+    pending_notification =
+      ACP.build_tool_call_notification(task_id, tool_call, "pending", acp_opts)
+
     push(socket, "acp:message", pending_notification)
+
+    # Send tool arguments immediately so the UI can display them
+    args_content = [
+      %{
+        "type" => "content",
+        "content" => %{"type" => "text", "text" => Jason.encode!(tool_call.arguments)}
+      }
+    ]
+
+    args_notification =
+      ACP.tool_call_update(task_id, tool_call.tool_call_id, "pending", args_content)
+
+    push(socket, "acp:message", args_notification)
 
     # Check if it's a backend tool
     case Tools.find_tool(tool_call.tool_name) do

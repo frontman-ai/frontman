@@ -54,6 +54,7 @@ defmodule FrontmanServer.Agents.AgentServer do
     tools = Keyword.get(opts, :tools, [])
     on_event = Keyword.fetch!(opts, :on_event)
     parent_agent_id = Keyword.get(opts, :parent_agent_id)
+    spawning_tool_name = Keyword.get(opts, :spawning_tool_name)
     llm_opts = Keyword.get(opts, :llm_opts, [])
 
     role = if parent_agent_id, do: :sub_agent, else: :root
@@ -75,7 +76,8 @@ defmodule FrontmanServer.Agents.AgentServer do
           %{
             task_id: task_id,
             parent_agent_id: parent_agent_id,
-            role: role
+            role: role,
+            spawning_tool_name: spawning_tool_name
           }}}
     )
   end
@@ -451,5 +453,4 @@ defmodule FrontmanServer.Agents.AgentServer do
     Process.cancel_timer(ref)
     %{state | idle_timer_ref: nil}
   end
-
 end

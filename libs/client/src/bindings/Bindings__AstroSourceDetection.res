@@ -47,7 +47,7 @@ let getElementSourceLocation = (
   ->Option.flatMap(api => api.get(element)->Nullable.toOption)
   ->Option.flatMap(annotation =>
     parseLoc(annotation.loc)->Option.map(((line, column)) => {
-      Client__Types.SourceLocation.componentName: extractFilename(annotation.file),
+      Client__Types.SourceLocation.componentName: Some(extractFilename(annotation.file)),
       tagName: element.tagName->String.toLowerCase,
       file: annotation.file,
       line,

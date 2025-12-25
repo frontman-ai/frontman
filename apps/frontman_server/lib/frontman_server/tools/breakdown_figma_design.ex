@@ -129,7 +129,8 @@ defmodule FrontmanServer.Tools.BreakdownFigmaDesign do
         case Agents.execute_sub_agent(task.task_id, [system_msg, user_msg],
                tools: mcp_tools,
                role: "figma_breakdown",
-               parent_agent_id: parent_agent_id
+               parent_agent_id: parent_agent_id,
+               spawning_tool_name: name()
              ) do
           {:ok, result} ->
             Logger.info("BreakdownFigmaDesign: Completed breakdown for node #{node_id}")

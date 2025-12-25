@@ -66,7 +66,7 @@ type chatMessage = {
 
 module SourceLocation = {
   type rec t = {
-    componentName: string,
+    componentName: option<string>,
     tagName: string,
     file: string,
     line: int,

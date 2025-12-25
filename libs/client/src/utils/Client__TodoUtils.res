@@ -1,0 +1,258 @@
+/**
+ * TodoUtils - Utility functions for TODO handling
+ * 
+ * Helpers for identifying TODO tools and extracting TODO data from tool results.
+ */
+
+module Message = Client__State__Types.Message
+
+// TODO item type for display
+type todoItem = {
+  id: string,
+  content: string,
+  status: [#pending | #in_progress | #completed | #cancelled],
+}
+
+/**
+ * Check if a tool name is a TODO-related tool
+ */
+let isTodoTool = (toolName: string): bool => {
+  let lowerName = String.toLowerCase(toolName)
+  
+  String.includes(lowerName, "todo_list") ||
+  String.includes(lowerName, "todo_add") ||
+  String.includes(lowerName, "todo_update") ||
+  String.includes(lowerName, "todo_remove") ||
+  String.includes(lowerName, "todo_read") ||
+  String.includes(lowerName, "todo_write") ||
+  String.includes(lowerName, "todo_get") ||
+  String.includes(lowerName, "todo_set")
+}
+
+/**
+ * Parse a status string to the todoStatus variant
+ */
+let parseStatus = (statusStr: string): [#pending | #in_progress | #completed | #cancelled] => {
+  switch String.toLowerCase(statusStr) {
+  | "in_progress" | "in-progress" | "inprogress" | "running" | "active" => #in_progress
+  | "completed" | "complete" | "done" | "finished" => #completed
+  | "cancelled" | "canceled" | "removed" | "deleted" => #cancelled
+  | _ => #pending
+  }
+}
+
+/**
+ * Extract TODO items from a tool result JSON
+ * Attempts to handle various response formats
+ */
+let extractTodosFromToolResult = (resultJson: JSON.t): option<array<todoItem>> => {
+  // Try to decode as an object first
+  switch JSON.Decode.object(resultJson) {
+  | Some(obj) =>
+    // Look for a "todos" or "items" array field
+    let todosField = obj->Dict.get("todos")->Option.orElse(obj->Dict.get("items"))
+    
+    switch todosField {
+    | Some(todosJson) =>
+      switch JSON.Decode.array(todosJson) {
+      | Some(arr) =>
+        let items = arr->Array.filterMap(item => {
+          switch JSON.Decode.object(item) {
+          | Some(itemObj) =>
+            let id = itemObj->Dict.get("id")
+              ->Option.flatMap(JSON.Decode.string)
+              ->Option.getOr(WebAPI.Global.crypto->WebAPI.Crypto.randomUUID)
+            
+            let content = itemObj->Dict.get("content")
+              ->Option.orElse(itemObj->Dict.get("text"))
+              ->Option.orElse(itemObj->Dict.get("description"))
+              ->Option.orElse(itemObj->Dict.get("title"))
+              ->Option.flatMap(JSON.Decode.string)
+            
+            let status = itemObj->Dict.get("status")
+              ->Option.flatMap(JSON.Decode.string)
+              ->Option.mapOr(#pending, parseStatus)
+            
+            switch content {
+            | Some(c) => Some({ id, content: c, status })
+            | None => None
+            }
+          | None => None
+          }
+        })
+        
+        if Array.length(items) > 0 { Some(items) } else { None }
+        
+      | None => None
+      }
+    | None => None
+    }
+    
+  | None =>
+    // Maybe it's directly an array
+    switch JSON.Decode.array(resultJson) {
+    | Some(arr) =>
+      let items = arr->Array.filterMap(item => {
+        switch JSON.Decode.object(item) {
+        | Some(itemObj) =>
+          let id = itemObj->Dict.get("id")
+            ->Option.flatMap(JSON.Decode.string)
+            ->Option.getOr(WebAPI.Global.crypto->WebAPI.Crypto.randomUUID)
+          
+          let content = itemObj->Dict.get("content")
+            ->Option.orElse(itemObj->Dict.get("text"))
+            ->Option.flatMap(JSON.Decode.string)
+          
+          let status = itemObj->Dict.get("status")
+            ->Option.flatMap(JSON.Decode.string)
+            ->Option.mapOr(#pending, parseStatus)
+          
+          switch content {
+          | Some(c) => Some({ id, content: c, status })
+          | None => None
+          }
+        | None => None
+        }
+      })
+      
+      if Array.length(items) > 0 { Some(items) } else { None }
+      
+    | None => None
+    }
+  }
+}
+
+/**
+ * Get the appropriate label for a TODO tool operation
+ */
+let getTodoOperationLabel = (toolName: string, state: Message.toolCallState): string => {
+  let lowerName = String.toLowerCase(toolName)
+  
+  let (progressive, completed) = if String.includes(lowerName, "read") || String.includes(lowerName, "list") || String.includes(lowerName, "get") {
+    ("Reading todos", "Read todos")
+  } else if String.includes(lowerName, "add") || String.includes(lowerName, "create") {
+    ("Creating todo", "Created todo")
+  } else if String.includes(lowerName, "remove") || String.includes(lowerName, "delete") {
+    ("Removing todo", "Removed todo")
+  } else {
+    ("Updating todos", "Updated todos")
+  }
+  
+  switch state {
+  | InputStreaming | InputAvailable => progressive ++ "..."
+  | OutputAvailable => completed
+  | OutputError => "Failed"
+  }
+}
+
+/**
+ * Calculate summary stats for a TODO list
+ */
+type todoStats = {
+  total: int,
+  pending: int,
+  inProgress: int,
+  completed: int,
+  cancelled: int,
+}
+
+let calculateStats = (todos: array<todoItem>): todoStats => {
+  let initial = { total: 0, pending: 0, inProgress: 0, completed: 0, cancelled: 0 }
+  
+  todos->Array.reduce(initial, (acc, todo) => {
+    let base = { ...acc, total: acc.total + 1 }
+    switch todo.status {
+    | #pending => { ...base, pending: base.pending + 1 }
+    | #in_progress => { ...base, inProgress: base.inProgress + 1 }
+    | #completed => { ...base, completed: base.completed + 1 }
+    | #cancelled => { ...base, cancelled: base.cancelled + 1 }
+    }
+  })
+}
+
+/**
+ * Generate a summary label for TODO stats
+ * e.g., "Completed 2 of 5 to-dos"
+ */
+let generateSummaryLabel = (stats: todoStats): string => {
+  if stats.total == 0 {
+    // No todos - return empty, caller should use operation label
+    ""
+  } else if stats.completed > 0 && stats.completed < stats.total {
+    `Completed ${Int.toString(stats.completed)} of ${Int.toString(stats.total)} to-dos`
+  } else if stats.completed == stats.total && stats.total > 0 {
+    `Completed all ${Int.toString(stats.total)} to-dos`
+  } else if stats.inProgress > 0 {
+    `${Int.toString(stats.inProgress)} to-do${stats.inProgress > 1 ? "s" : ""} in progress`
+  } else if stats.pending > 0 {
+    `${Int.toString(stats.pending)} to-do${stats.pending > 1 ? "s" : ""} pending`
+  } else {
+    `${Int.toString(stats.total)} to-do${stats.total != 1 ? "s" : ""}`
+  }
+}
+
+/**
+ * Extract TODO items from tool INPUT (for todo_write)
+ * The input contains the todos array being written
+ */
+let extractTodosFromInput = (inputJson: JSON.t): option<array<todoItem>> => {
+  switch JSON.Decode.object(inputJson) {
+  | Some(obj) =>
+    // Look for "todos" array in input
+    let todosField = obj->Dict.get("todos")
+    
+    switch todosField {
+    | Some(todosJson) =>
+      switch JSON.Decode.array(todosJson) {
+      | Some(arr) =>
+        let items = arr->Array.filterMap(item => {
+          switch JSON.Decode.object(item) {
+          | Some(itemObj) =>
+            let id = itemObj->Dict.get("id")
+              ->Option.flatMap(JSON.Decode.string)
+              ->Option.getOr(WebAPI.Global.crypto->WebAPI.Crypto.randomUUID)
+            
+            let content = itemObj->Dict.get("content")
+              ->Option.flatMap(JSON.Decode.string)
+            
+            let status = itemObj->Dict.get("status")
+              ->Option.flatMap(JSON.Decode.string)
+              ->Option.mapOr(#pending, parseStatus)
+            
+            switch content {
+            | Some(c) => Some({ id, content: c, status })
+            | None => None
+            }
+          | None => None
+          }
+        })
+        
+        if Array.length(items) > 0 { Some(items) } else { None }
+        
+      | None => None
+      }
+    | None => None
+    }
+  | None => None
+  }
+}
+
+/**
+ * Extract todos from either input or result
+ * Tries input first (for todo_write), then result
+ */
+let extractTodos = (
+  ~input: option<JSON.t>,
+  ~result: option<JSON.t>,
+): array<todoItem> => {
+  // Try input first (for todo_write)
+  let fromInput = input->Option.flatMap(extractTodosFromInput)
+  
+  switch fromInput {
+  | Some(todos) => todos
+  | None =>
+    // Try result
+    result->Option.flatMap(extractTodosFromToolResult)->Option.getOr([])
+  }
+}
+

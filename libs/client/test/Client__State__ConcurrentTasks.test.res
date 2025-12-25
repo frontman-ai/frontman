@@ -84,7 +84,7 @@ describe("Concurrent Tasks Event Routing", () => {
     // Act: Receive tool call for Task A while Task B is current
     let (finalState, _) = StateReducer.next(
       stateWithBothTasks,
-      ToolInputStartReceived({taskId: taskAId, id: "tool-1", toolName: "ReadFile"}),
+      ToolInputStartReceived({taskId: taskAId, id: "tool-1", toolName: "ReadFile", parentAgentId: None, spawningToolName: None}),
     )
 
     // Assert: Tool call should be in Task A
@@ -212,7 +212,7 @@ describe("Concurrent Tasks Event Routing", () => {
     // Create tool call in Task A
     let (stateWithTool, _) = StateReducer.next(
       stateWithBothTasks,
-      ToolInputStartReceived({taskId: taskAId, id: "tool-1", toolName: "ReadFile"}),
+      ToolInputStartReceived({taskId: taskAId, id: "tool-1", toolName: "ReadFile", parentAgentId: None, spawningToolName: None}),
     )
     let (stateWithInput, _) = StateReducer.next(
       stateWithTool,

@@ -42,14 +42,17 @@ module Actions = {
   let toolCallReceived = (~taskId, ~toolCall) =>
     Client__State__Store.dispatch(ToolCallReceived({taskId, toolCall}))
 
-  let toolInputStartReceived = (~taskId, ~id, ~toolName) =>
-    Client__State__Store.dispatch(ToolInputStartReceived({taskId, id, toolName}))
+  let toolInputStartReceived = (~taskId, ~id, ~toolName, ~parentAgentId=?, ~spawningToolName=?) =>
+    Client__State__Store.dispatch(ToolInputStartReceived({taskId, id, toolName, parentAgentId, spawningToolName}))
 
   let toolInputDeltaReceived = (~taskId, ~id, ~delta) =>
     Client__State__Store.dispatch(ToolInputDeltaReceived({taskId, id, delta}))
 
   let toolInputEndReceived = (~taskId, ~id) =>
     Client__State__Store.dispatch(ToolInputEndReceived({taskId, id}))
+
+  let toolInputReceived = (~taskId, ~id, ~input) =>
+    Client__State__Store.dispatch(ToolInputReceived({taskId, id, input}))
 
   let toolResultReceived = (~taskId, ~id, ~result) =>
     Client__State__Store.dispatch(ToolResultReceived({taskId, id, result}))

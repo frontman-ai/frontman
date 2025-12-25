@@ -183,7 +183,8 @@ defmodule FrontmanServer.Tools.MakeComponentPixelPerfect do
     case Agents.execute_sub_agent(task.task_id, messages,
            tools: mcp_tools,
            role: "pixel_perfectionist",
-           parent_agent_id: parent_agent_id
+           parent_agent_id: parent_agent_id,
+           spawning_tool_name: name()
          ) do
       {:ok, result} ->
         Logger.info("MakeComponentPixelPerfect: Completed refinement of #{component_name}")

@@ -214,6 +214,7 @@ defmodule FrontmanServer.Tools.ImplementComponent do
            tools: mcp_tools,
            role: "component_implementor",
            parent_agent_id: parent_agent_id,
+           spawning_tool_name: name(),
            llm_opts: llm_opts
          ) do
       {:ok, result} ->

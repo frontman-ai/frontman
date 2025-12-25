@@ -115,15 +115,16 @@ let make = () => {
               <span className="font-semibold text-blue-900 dark:text-blue-100">
                 {React.string("React Component:")}
               </span>
-              {sourceLocation->Option.mapOr(React.null, loc =>
+              {sourceLocation->Option.mapOr(React.null, loc => {
+                let compName = loc.componentName->Option.getOr(loc.tagName)
                 <span
                   className="font-medium font-mono text-xs text-yellow-700 dark:text-yellow-300"
                 >
                   {React.string(
-                    `<${loc.componentName}><${loc.tagName->String.toLowerCase} /></${loc.componentName}>`,
+                    `<${compName}><${loc.tagName->String.toLowerCase} /></${compName}>`,
                   )}
                 </span>
-              )}
+              })}
             </div>
           </div>
 

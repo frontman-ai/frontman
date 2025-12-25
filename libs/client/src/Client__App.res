@@ -1,4 +1,3 @@
-module AIElements = Bindings__AIElements
 module RadixUI__Icons = Bindings__RadixUI__Icons
 module Chrome = AskTheLlmBindings.Chrome
 module ACPTypes = AskTheLlmFrontmanClient.FrontmanClient__ACP__Types
@@ -147,7 +146,7 @@ let make = () => {
       let id = `msg_${taskId}`
       Client__State.Actions.messageCompleted(~taskId, ~id)
 
-    | ToolCall({toolCallId, title}) =>
+    | ToolCall({toolCallId, title, parentAgentId, spawningToolName}) =>
       // Tool call started - create tool call entry
       let toolName = title->Option.getOr("unknown_tool")
       Client__State.Actions.toolCallReceived(
@@ -161,12 +160,33 @@ let make = () => {
           errorText: None,
           state: InputStreaming,
           createdAt: Date.now(),
+          parentAgentId, // If present, this is a sub-agent tool call
+          spawningToolName, // Tool name that spawned the sub-agent
         },
       )
 
     | ToolCallUpdate({toolCallId, status, content}) =>
       // Tool call status update
       switch status {
+      | Some("pending") =>
+        // Pending update with content contains the tool input arguments
+        let inputJson =
+          content
+          ->Option.flatMap(contents => contents->Array.get(0))
+          ->Option.flatMap(item => item.content)
+          ->Option.flatMap(c => c.text)
+          ->Option.flatMap(text => {
+            try {
+              Some(JSON.parseOrThrow(text))
+            } catch {
+            | _ => None
+            }
+          })
+        
+        inputJson->Option.forEach(input => {
+          Client__State.Actions.toolInputReceived(~taskId, ~id=toolCallId, ~input)
+        })
+        
       | Some("completed") =>
         // Extract result from content if available
         let result =
@@ -239,7 +259,9 @@ let make = () => {
   // Separate effect to update sendPrompt in state when session becomes active
   React.useEffect(() => {
     switch connectionState {
-    | SessionActive(_sessionId) => Client__State.Actions.connect(~sendPrompt)
+    | SessionActive(_sessionId) =>
+      Client__Debug.init()
+      Client__State.Actions.connect(~sendPrompt)
     | Disconnected | Error(_) => Client__State.Actions.disconnect()
     | _ => ()
     }

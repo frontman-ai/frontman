@@ -180,7 +180,8 @@ defmodule FrontmanServer.Tools.FinishComponent do
     case Agents.execute_sub_agent(task.task_id, messages,
            tools: mcp_tools,
            role: "component_finisher",
-           parent_agent_id: parent_agent_id
+           parent_agent_id: parent_agent_id,
+           spawning_tool_name: name()
          ) do
       {:ok, result} ->
         Logger.info("FinishComponent: Completed verification of #{component_name}")

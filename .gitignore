@@ -1,3 +1,4 @@
+test/sites/glitter
 # ReScript build output
 *.res.mjs
 *.res.js

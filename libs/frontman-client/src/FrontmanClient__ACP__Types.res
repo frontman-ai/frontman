@@ -262,6 +262,8 @@ type sessionUpdate =
       title: option<string>,
       kind: option<string>,
       status: option<string>,
+      parentAgentId: option<string>, // If present, this is a sub-agent tool call
+      spawningToolName: option<string>, // Tool name that spawned the sub-agent
     })
   | ToolCallUpdate({
       toolCallId: string,
@@ -294,6 +296,8 @@ let sessionUpdateSchema = S.union([
       title: s.field("title", S.option(S.string)),
       kind: s.field("kind", S.option(S.string)),
       status: s.field("status", S.option(S.string)),
+      parentAgentId: s.field("parentAgentId", S.option(S.string)),
+      spawningToolName: s.field("spawningToolName", S.option(S.string)),
     })
   }),
   S.object(s => {

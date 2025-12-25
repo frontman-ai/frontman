@@ -38,6 +38,8 @@ module Message = {
     result: option<JSON.t>,
     errorText: option<string>,
     createdAt: float,
+    parentAgentId: option<string>, // If present, this is a sub-agent tool call
+    spawningToolName: option<string>, // Tool name that spawned the sub-agent (e.g., "breakdown_figma_design")
   }
 
   type t =

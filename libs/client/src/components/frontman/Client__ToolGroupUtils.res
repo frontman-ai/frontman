@@ -1,0 +1,719 @@
+/**
+ * ToolGroupUtils - Logic for grouping consecutive tool calls
+ * 
+ * Groups consecutive "exploration" tools (read, list, search, grep)
+ * into collapsible "Explored" summaries while keeping "action" tools separate.
+ * 
+ * Uses substring-based pattern matching to handle various tool naming conventions
+ * (MCP tools, backend tools, etc.)
+ * 
+ * Key rules:
+ * - Read-only operations are grouped → Reduces noise
+ * - Mutations break groups → Important changes are always visible
+ * - Error states are NOT grouped → Failures should be visible
+ * - Single items are NOT grouped → No grouping overhead for singles
+ */
+
+module Message = Client__State__Types.Message
+module Types = Client__ToolGroupTypes
+module ToolLabels = Client__ToolLabels
+module TodoUtils = Client__TodoUtils
+
+// ============================================================================
+// Helper Functions
+// ============================================================================
+
+/**
+ * Extract the base tool name by stripping common prefixes like "Calling "
+ * This normalizes tool names for comparison with spawningToolName
+ */
+let getBaseToolName = (toolName: string): string => {
+  let name = String.toLowerCase(toolName)
+  if String.startsWith(name, "calling ") {
+    String.slice(name, ~start=8, ~end=String.length(name)) // "calling " is 8 characters
+  } else {
+    name
+  }
+}
+
+// ============================================================================
+// Tool Classification (using substring matching like ToolLabels)
+// ============================================================================
+
+/**
+ * Check if tool is a browser action (not exploration)
+ * Browser actions mutate state (clicking, typing, navigating)
+ */
+let isBrowserAction = (toolName: string): bool => {
+  let name = String.toLowerCase(toolName)
+  String.includes(name, "click") ||
+  String.includes(name, "type") ||
+  String.includes(name, "hover") ||
+  String.includes(name, "select") ||
+  String.includes(name, "press_key") ||
+  String.includes(name, "resize") ||
+  // Navigate is an action (except navigate_back which is exploratory)
+  (String.includes(name, "navigate") && !String.includes(name, "navigate_back"))
+}
+
+/**
+ * Check if tool is browser exploration (not action)
+ * Snapshots, console logs, network requests are read-only
+ */
+let isBrowserExploration = (toolName: string): bool => {
+  let name = String.toLowerCase(toolName)
+  String.includes(name, "snapshot") ||
+  String.includes(name, "screenshot") ||
+  String.includes(name, "console") ||
+  String.includes(name, "network") ||
+  String.includes(name, "navigate_back")
+}
+
+/**
+ * Groupable tools (Read-Only/Exploratory)
+ * Uses substring matching to handle various naming conventions.
+ */
+let isGroupableTool = (toolName: string): bool => {
+  let name = String.toLowerCase(toolName)
+
+  // File/content reading
+  String.includes(name, "read") ||
+  String.includes(name, "get") ||
+  String.includes(name, "fetch") ||
+  // Directory listing
+  String.includes(name, "list") ||
+  // Search operations
+  String.includes(name, "search") ||
+  String.includes(name, "grep") ||
+  String.includes(name, "find") ||
+  // Definition/symbol lookup
+  String.includes(name, "definition") ||
+  String.includes(name, "symbol") ||
+  // Figma data retrieval
+  String.includes(name, "figma") ||
+  // Lint reading (not fixing)
+  (String.includes(name, "lint") && String.includes(name, "read")) ||
+  // Browser exploration (not actions)
+  isBrowserExploration(name)
+}
+
+/**
+ * Non-Groupable tools (Mutations / Group Breakers)
+ * When any of these are encountered, the current group closes.
+ */
+let breaksGrouping = (toolName: string): bool => {
+  let name = String.toLowerCase(toolName)
+
+  // File mutations
+  String.includes(name, "edit") ||
+  String.includes(name, "write") ||
+  String.includes(name, "create") ||
+  String.includes(name, "delete") ||
+  String.includes(name, "remove") ||
+  // Terminal/command execution
+  String.includes(name, "terminal") ||
+  String.includes(name, "command") ||
+  String.includes(name, "run") ||
+  String.includes(name, "exec") ||
+  String.includes(name, "shell") ||
+  // Browser actions (clicking, typing, etc.)
+  isBrowserAction(name) ||
+  // Task/agent spawning
+  String.includes(name, "task") ||
+  // Fix operations (lint fix, etc.)
+  (String.includes(name, "fix") && !String.includes(name, "prefix"))
+}
+
+/**
+ * Check if tool call is from a subagent
+ */
+let isSubagentToolCall = (tc: Message.toolCall): bool => {
+  Option.isSome(tc.parentAgentId)
+}
+
+/**
+ * Check if this is a backend tool that spawns subagents
+ * These tools don't need to be shown individually because their work
+ * is represented by the subagent tool group
+ * 
+ * NOTE: Be careful not to match regular read tools like get_figma_node
+ */
+let isSubagentSpawnerTool = (toolName: string): bool => {
+  let name = String.toLowerCase(toolName)
+  // Figma design breakdown (spawns subagent work)
+  String.includes(name, "breakdown_figma") ||
+  String.includes(name, "figma_design") ||
+  // Component implementation tools (spawn subagent work)
+  String.includes(name, "implement_component") ||
+  String.includes(name, "finish_component") ||
+  String.includes(name, "pixel_perfect") ||
+  String.includes(name, "make_component")
+}
+
+/**
+ * Determine the group type for a tool
+ */
+let getGroupType = (toolName: string): Types.groupType => {
+  let name = String.toLowerCase(toolName)
+  if String.includes(name, "browser") || String.includes(name, "snapshot") {
+    Types.Browser
+  } else if String.includes(name, "plan") {
+    Types.PrePlan
+  } else {
+    Types.Activity
+  }
+}
+
+// ============================================================================
+// Summary Calculation
+// ============================================================================
+
+/**
+ * Extract file path from tool input
+ */
+let extractFilePath = (input: option<JSON.t>): option<string> => {
+  ToolLabels.extractTargetFromInput(input)
+}
+
+/**
+ * Extract todo statistics from a todo_write tool's input
+ * The input contains the todos array with status changes
+ */
+let extractTodoStatsFromInput = (input: option<JSON.t>): (int, int, int, int, int) => {
+  // Returns: (total, created, completed, started, cancelled)
+  switch input {
+  | Some(json) =>
+    switch JSON.Decode.object(json) {
+    | Some(obj) =>
+      // Check for "todos" array in input
+      let todosField = obj->Dict.get("todos")
+      switch todosField {
+      | Some(todosJson) =>
+        switch JSON.Decode.array(todosJson) {
+        | Some(arr) =>
+          let (created, completed, started, cancelled) = arr->Array.reduce(
+            (0, 0, 0, 0),
+            ((c, comp, s, can), item) => {
+              switch JSON.Decode.object(item) {
+              | Some(itemObj) =>
+                let status = itemObj
+                  ->Dict.get("status")
+                  ->Option.flatMap(JSON.Decode.string)
+                  ->Option.getOr("")
+                  ->String.toLowerCase
+
+                // Count by status
+                switch status {
+                | "completed" | "complete" | "done" => (c, comp + 1, s, can)
+                | "in_progress" | "in-progress" | "started" | "running" => (c, comp, s + 1, can)
+                | "cancelled" | "canceled" | "removed" => (c, comp, s, can + 1)
+                | "pending" => (c + 1, comp, s, can) // New pending = created
+                | _ => (c, comp, s, can)
+                }
+              | None => (c, comp, s, can)
+              }
+            },
+          )
+          (Array.length(arr), created, completed, started, cancelled)
+        | None => (0, 0, 0, 0, 0)
+        }
+      | None => (0, 0, 0, 0, 0)
+      }
+    | None => (0, 0, 0, 0, 0)
+    }
+  | None => (0, 0, 0, 0, 0)
+  }
+}
+
+/**
+ * Calculate summary statistics from grouped tool calls
+ */
+let calculateSummary = (tools: array<Message.toolCall>): Types.toolsSummary => {
+  tools->Array.reduce(Types.emptySummary, (acc, tool) => {
+    let name = String.toLowerCase(tool.toolName)
+    let path = extractFilePath(tool.input)
+
+    // File reads
+    let files = if String.includes(name, "read") && !String.includes(name, "lint") {
+      path->Option.mapOr(acc.files, p => Array.concat(acc.files, [p]))
+    } else {
+      acc.files
+    }
+
+    // Directory listings
+    let directories = if String.includes(name, "list") || String.includes(name, "dir") {
+      path->Option.mapOr(acc.directories, p => Array.concat(acc.directories, [p]))
+    } else {
+      acc.directories
+    }
+
+    // Searches (grep, search, find)
+    let searches = if (
+      String.includes(name, "search") ||
+      String.includes(name, "grep") ||
+      String.includes(name, "find")
+    ) {
+      acc.searches + 1
+    } else {
+      acc.searches
+    }
+
+    // Definition/symbol lookups
+    let definitions = if String.includes(name, "definition") || String.includes(name, "symbol") {
+      acc.definitions + 1
+    } else {
+      acc.definitions
+    }
+
+    // Browser snapshots/screenshots
+    let browserSnapshots = if String.includes(name, "snapshot") || String.includes(name, "screenshot") {
+      acc.browserSnapshots + 1
+    } else {
+      acc.browserSnapshots
+    }
+
+    // Todo operations
+    let (todos, todosNewlyCreated, todosNewlyCompleted, todosNewlyStarted, todosNewlyCancelled) =
+      if TodoUtils.isTodoTool(tool.toolName) {
+        let (total, created, completed, started, cancelled) = extractTodoStatsFromInput(tool.input)
+        (
+          acc.todos + total,
+          acc.todosNewlyCreated + created,
+          acc.todosNewlyCompleted + completed,
+          acc.todosNewlyStarted + started,
+          acc.todosNewlyCancelled + cancelled,
+        )
+      } else {
+        (acc.todos, acc.todosNewlyCreated, acc.todosNewlyCompleted, acc.todosNewlyStarted, acc.todosNewlyCancelled)
+      }
+
+    {
+      files,
+      directories,
+      searches,
+      definitions,
+      browserSnapshots,
+      tools: Array.concat(acc.tools, [tool.toolName]),
+      todos,
+      todosNewlyCreated,
+      todosNewlyCompleted,
+      todosNewlyStarted,
+      todosNewlyCancelled,
+    }
+  })
+}
+
+// ============================================================================
+// Label Generation
+// ============================================================================
+
+/**
+ * Get unique items from an array
+ */
+let unique = (arr: array<string>): array<string> => {
+  arr->Array.reduce([], (acc, item) => {
+    if acc->Array.includes(item) {
+      acc
+    } else {
+      Array.concat(acc, [item])
+    }
+  })
+}
+
+/**
+ * Generate a nice label for todo changes
+ * Returns labels like:
+ * - "completed 2 to-dos"
+ * - "started 1 to-do"
+ * - "created 3 to-dos, completed 2"
+ */
+let generateTodoLabel = (summary: Types.toolsSummary): option<string> => {
+  let parts = []
+
+  // Created todos
+  let parts = if summary.todosNewlyCreated > 0 {
+    let label = `created ${Int.toString(summary.todosNewlyCreated)} to-do${summary.todosNewlyCreated == 1 ? "" : "s"}`
+    Array.concat(parts, [label])
+  } else {
+    parts
+  }
+
+  // Completed todos
+  let parts = if summary.todosNewlyCompleted > 0 {
+    let label = `completed ${Int.toString(summary.todosNewlyCompleted)}`
+    Array.concat(parts, [label])
+  } else {
+    parts
+  }
+
+  // Started todos (in_progress)
+  let parts = if summary.todosNewlyStarted > 0 {
+    let label = `started ${Int.toString(summary.todosNewlyStarted)}`
+    Array.concat(parts, [label])
+  } else {
+    parts
+  }
+
+  // Cancelled todos
+  let parts = if summary.todosNewlyCancelled > 0 {
+    let label = `cancelled ${Int.toString(summary.todosNewlyCancelled)}`
+    Array.concat(parts, [label])
+  } else {
+    parts
+  }
+
+  // If we have any parts, join them
+  if Array.length(parts) > 0 {
+    Some(Array.join(parts, ", "))
+  } else if summary.todos > 0 {
+    // Fallback: just show total count if we have todos but no specific actions
+    Some(`${Int.toString(summary.todos)} to-do${summary.todos == 1 ? "" : "s"}`)
+  } else {
+    None
+  }
+}
+
+/**
+ * Generate summary labels from statistics
+ * Returns an array like ["1 directory", "2 files", "3 searches"]
+ * 
+ * Activity Order:
+ * 1. list → "N director(y|ies)"
+ * 2. file → "N file(s)"  
+ * 3. search → "N search(es)"
+ * 4. definition → "found N definition(s)"
+ * 5. todo → "completed N to-dos, started N"
+ * 6. snapshot → "N snapshot(s)"
+ */
+let generateSummaryLabels = (summary: Types.toolsSummary): array<string> => {
+  let labels = []
+
+  // 1. Directories (list)
+  let uniqueDirs = unique(summary.directories)
+  let labels = if Array.length(uniqueDirs) > 0 {
+    let count = Array.length(uniqueDirs)
+    let label = `${Int.toString(count)} director${count == 1 ? "y" : "ies"}`
+    Array.concat(labels, [label])
+  } else {
+    labels
+  }
+
+  // 2. Files
+  let uniqueFiles = unique(summary.files)
+  let labels = if Array.length(uniqueFiles) > 0 {
+    let count = Array.length(uniqueFiles)
+    let label = `${Int.toString(count)} file${count == 1 ? "" : "s"}`
+    Array.concat(labels, [label])
+  } else {
+    labels
+  }
+
+  // 3. Searches
+  let labels = if summary.searches > 0 {
+    let label = `${Int.toString(summary.searches)} search${summary.searches == 1 ? "" : "es"}`
+    Array.concat(labels, [label])
+  } else {
+    labels
+  }
+
+  // 4. Definitions
+  let labels = if summary.definitions > 0 {
+    let label = if summary.definitions == 1 {
+      "found definition"
+    } else {
+      `found ${Int.toString(summary.definitions)} definitions`
+    }
+    Array.concat(labels, [label])
+  } else {
+    labels
+  }
+
+  // 5. Todos
+  let labels = switch generateTodoLabel(summary) {
+  | Some(todoLabel) => Array.concat(labels, [todoLabel])
+  | None => labels
+  }
+
+  // 6. Browser snapshots
+  let labels = if summary.browserSnapshots > 0 {
+    let label = `${Int.toString(summary.browserSnapshots)} snapshot${summary.browserSnapshots == 1 ? "" : "s"}`
+    Array.concat(labels, [label])
+  } else {
+    labels
+  }
+
+  // Fallback if no specific labels - show operation count
+  if Array.length(labels) == 0 {
+    let count = Array.length(summary.tools)
+    [`${Int.toString(count)} operation${count == 1 ? "" : "s"}`]
+  } else {
+    labels
+  }
+}
+
+/**
+ * Generate a single combined summary label
+ * e.g., "1 directory · 2 files · 3 searches"
+ */
+let generateSummaryLabel = (summary: Types.toolsSummary): string => {
+  generateSummaryLabels(summary)->Array.join(" · ")
+}
+
+// ============================================================================
+// Grouping Logic
+// ============================================================================
+
+/**
+ * Check if a tool call has an error state
+ * Error states should NOT be grouped - failures should be visible
+ */
+let hasError = (tc: Message.toolCall): bool => {
+  tc.state == Message.OutputError || Option.isSome(tc.errorText)
+}
+
+/**
+ * Group consecutive tool calls into display items
+ * 
+ * Algorithm:
+ * 1. For each message, check if it's groupable
+ * 2. If groupable AND no error → add to current group
+ * 3. If not groupable OR has error → close current group, render individually
+ * 4. At end, close any remaining group
+ * 5. Single-item groups are expanded to individuals (no grouping overhead)
+ * 6. Subagent tool calls are grouped separately with "Processed" prefix
+ * 7. When starting a subagent group, check if the previous tool was the spawner
+ *    and include it in the subagent group
+ * 
+ * @param toolCalls Array of tool calls to group
+ * @param groupReads Whether to include read operations in groups (default: true)
+ * @param groupTodos Whether to include todo tools in groups (default: true)
+ * @param groupSubagents Whether to group subagent tool calls (default: true)
+ * @param minGroupSize Minimum tools needed to form a group (default: 2)
+ */
+let groupToolCalls = (
+  toolCalls: array<Message.toolCall>,
+  ~groupReads: bool=true,
+  ~groupTodos: bool=true,
+  ~groupSubagents: bool=true,
+  ~minGroupSize: int=2,
+): array<Types.displayItem> => {
+  // First pass: build a set of spawner tool names that have matching subagent groups
+  // These spawners will be HIDDEN since the subagent group shows their name in the header
+  let spawnerNamesToHide = {
+    let set = Set.make()
+    toolCalls->Array.forEach(tc => {
+      switch tc.spawningToolName {
+      | Some(name) => set->Set.add(String.toLowerCase(name))
+      | None => ()
+      }
+    })
+    set
+  }
+  
+  let result: array<Types.displayItem> = []
+  let currentGroup: ref<array<Message.toolCall>> = ref([])
+  let currentGroupType: ref<option<Types.groupType>> = ref(None)
+  let currentIsSubagent: ref<bool> = ref(false)
+  let currentParentAgentId: ref<option<string>> = ref(None)
+
+  // Flush current group to results
+  let flushGroup = () => {
+    let group = currentGroup.contents
+    let isSubagentGroup = currentIsSubagent.contents
+    
+    if Array.length(group) >= minGroupSize {
+      // Create a proper group
+      let summary = calculateSummary(group)
+      let groupType = currentGroupType.contents->Option.getOr(Types.Activity)
+      // Get spawningToolName from first tool in group (for subagent groups)
+      let spawningToolName = group->Array.get(0)->Option.flatMap(tc => tc.spawningToolName)
+      // Generate stable ID from first tool call's ID (stable across re-renders)
+      let firstToolId = group->Array.get(0)->Option.mapOr("unknown", tc => tc.id)
+      let toolGroup: Types.toolGroup = {
+        id: `group-${firstToolId}`,
+        groupType,
+        toolCalls: group,
+        summary,
+        prefix: Types.getPrefixForGroupType(groupType),
+        spawningToolName,
+      }
+      result->Array.push(Types.ToolGroup(toolGroup))
+    } else {
+      // Not enough to group - emit as singles
+      // Only apply SpawnerTool styling when groupSubagents is true
+      // When groupSubagents=false, we're doing nested grouping inside a subagent group
+      // and should treat all tools as normal SingleTools
+      group->Array.forEach(tc => {
+        if groupSubagents && (isSubagentGroup || isSubagentToolCall(tc)) {
+          result->Array.push(Types.SpawnerTool(tc))
+        } else {
+          result->Array.push(Types.SingleTool(tc))
+        }
+      })
+    }
+    currentGroup := []
+    currentGroupType := None
+    currentIsSubagent := false
+    currentParentAgentId := None
+  }
+
+  // Check if this specific tool call should be grouped (for main agent)
+  let shouldGroupToolCall = (tc: Message.toolCall): bool => {
+    // Error states are NEVER grouped - failures should be visible
+    if hasError(tc) {
+      false
+    } else {
+      let name = String.toLowerCase(tc.toolName)
+
+      // Check if it breaks grouping first (mutations)
+      if breaksGrouping(tc.toolName) {
+        false
+      }
+      // Check if it's a groupable tool
+      else if isGroupableTool(tc.toolName) {
+        // Check groupReads flag for read operations
+        if String.includes(name, "read") && !groupReads {
+          false
+        }
+        // Check groupTodos flag for todo tools
+        else if TodoUtils.isTodoTool(tc.toolName) && !groupTodos {
+          false
+        } else {
+          true
+        }
+      } else {
+        false
+      }
+    }
+  }
+
+  toolCalls->Array.forEach(tc => {
+    let isSubagent = isSubagentToolCall(tc)
+
+    // Only check subagent switching when groupSubagents is true
+    // When groupSubagents is false, we're treating all tools as normal tools
+    if groupSubagents {
+      // If switching between subagent and main agent, flush the current group
+      if currentIsSubagent.contents != isSubagent && Array.length(currentGroup.contents) > 0 {
+        flushGroup()
+      }
+
+      // If switching to a different subagent (different parentAgentId), flush the current group
+      if isSubagent && currentIsSubagent.contents {
+        let currentParent = currentParentAgentId.contents
+        let newParent = tc.parentAgentId
+        switch (currentParent, newParent) {
+        | (Some(current), Some(new_)) if current != new_ =>
+          // Different subagent - flush and start new group
+          flushGroup()
+        | _ => ()
+        }
+      }
+    }
+
+    if isSubagent && groupSubagents {
+      // Subagent tool calls are grouped together regardless of tool type
+      // INCLUDING error states - we want to keep the group together
+      currentIsSubagent := true
+      currentGroupType := Some(Types.Subagent)
+      currentParentAgentId := tc.parentAgentId
+      currentGroup.contents->Array.push(tc)
+    } else if isSubagentSpawnerTool(tc.toolName) {
+      flushGroup()
+      // Check if this spawner has matching subagent tool calls
+      if spawnerNamesToHide->Set.has(getBaseToolName(tc.toolName)) {
+        // Spawner with matching subagent group - HIDE IT
+        // The subagent group header already shows "Processed {spawnerName}"
+        // Don't add to result - intentionally hidden
+        ()
+      } else {
+        // Spawner without matching subagent - render with indigo styling
+        result->Array.push(Types.SpawnerTool(tc))
+      }
+    } else if shouldGroupToolCall(tc) {
+      let toolGroupType = getGroupType(tc.toolName)
+
+      // If group type changes, flush current group first
+      switch currentGroupType.contents {
+      | Some(current) if current != toolGroupType => flushGroup()
+      | _ => ()
+      }
+
+      currentIsSubagent := false
+      currentGroupType := Some(toolGroupType)
+      currentGroup.contents->Array.push(tc)
+    } else {
+      // Non-groupable tool or spawner without subagent - render individually
+      flushGroup()
+      result->Array.push(Types.SingleTool(tc))
+    }
+  })
+
+  // Flush any remaining group at the end
+  flushGroup()
+
+  result
+}
+
+/**
+ * Check if a sequence of messages should potentially be grouped
+ * This is useful for determining if grouping UI is relevant
+ */
+let shouldGroupMessages = (
+  messages: array<Message.t>,
+  ~minConsecutive: int=2,
+): bool => {
+  let consecutiveGroupable = ref(0)
+  let maxConsecutive = ref(0)
+
+  messages->Array.forEach(msg => {
+    switch msg {
+    | Message.ToolCall(tc) if isGroupableTool(tc.toolName) && !hasError(tc) => {
+        consecutiveGroupable := consecutiveGroupable.contents + 1
+        if consecutiveGroupable.contents > maxConsecutive.contents {
+          maxConsecutive := consecutiveGroupable.contents
+        }
+      }
+    | _ => consecutiveGroupable := 0
+    }
+  })
+
+  maxConsecutive.contents >= minConsecutive
+}
+
+/**
+ * Get prefix for current group based on loading state
+ * Returns "Exploring" if any tool is still loading, "Explored" when complete
+ */
+let getGroupPrefix = (group: Types.toolGroup): string => {
+  let isLoading = group.toolCalls->Array.some(tc => {
+    switch tc.state {
+    | Message.InputStreaming | Message.InputAvailable => true
+    | Message.OutputAvailable | Message.OutputError => false
+    }
+  })
+
+  if isLoading {
+    switch group.groupType {
+    | Types.Activity => "Exploring..."
+    | Types.Browser => "Performing..."
+    | Types.PrePlan => "Preparing plan..."
+    | Types.Subagent => "Processing..."
+    }
+  } else {
+    group.prefix
+  }
+}
+
+/**
+ * Generate a summary label for subagent grouped tools
+ * Shows tool types executed by the subagent
+ */
+let generateSubagentSummaryLabel = (summary: Types.toolsSummary): string => {
+  let count = Array.length(summary.tools)
+  if count == 1 {
+    "1 operation"
+  } else {
+    `${Int.toString(count)} operations`
+  }
+}

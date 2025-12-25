@@ -94,17 +94,42 @@ defmodule FrontmanServerWeb.ACP do
   Creates a new tool call notification (sessionUpdate: "tool_call").
 
   Used when the LLM first requests a tool invocation.
+
+  Options:
+    - `:parent_agent_id` - If present, indicates this tool call is from a sub-agent
+    - `:spawning_tool_name` - Name of the tool that spawned this agent (e.g., "breakdown_figma_design")
   """
-  def tool_call_create(session_id, tool_call_id, title, kind, status \\ "pending") do
+  def tool_call_create(session_id, tool_call_id, title, kind, status \\ "pending", opts \\ []) do
+    parent_agent_id = Keyword.get(opts, :parent_agent_id)
+    spawning_tool_name = Keyword.get(opts, :spawning_tool_name)
+
+    update = %{
+      "sessionUpdate" => "tool_call",
+      "toolCallId" => tool_call_id,
+      "title" => title,
+      "kind" => kind,
+      "status" => status
+    }
+
+    # Add parentAgentId if this is a sub-agent tool call
+    update =
+      if parent_agent_id do
+        Map.put(update, "parentAgentId", parent_agent_id)
+      else
+        update
+      end
+
+    # Add spawningToolName if available (for sub-agent tool calls)
+    update =
+      if spawning_tool_name do
+        Map.put(update, "spawningToolName", spawning_tool_name)
+      else
+        update
+      end
+
     params = %{
       "sessionId" => session_id,
-      "update" => %{
-        "sessionUpdate" => "tool_call",
-        "toolCallId" => tool_call_id,
-        "title" => title,
-        "kind" => kind,
-        "status" => status
-      }
+      "update" => update
     }
 
     JsonRpc.notification("session/update", params)
@@ -211,14 +236,15 @@ defmodule FrontmanServerWeb.ACP do
         "status must be one of: pending, in_progress, completed, got: #{inspect(status)}"
       )
 
-  # Deprecated - use tool_call_create/5 instead
-  def build_tool_call_notification(session_id, tool_call, status) do
+  # Deprecated - use tool_call_create/6 instead
+  def build_tool_call_notification(session_id, tool_call, status, opts \\ []) do
     tool_call_create(
       session_id,
       tool_call.tool_call_id,
       "Calling #{tool_call.tool_name}",
       "other",
-      status
+      status,
+      opts
     )
   end
 

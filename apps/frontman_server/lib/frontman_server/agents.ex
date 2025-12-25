@@ -49,6 +49,24 @@ defmodule FrontmanServer.Agents do
     end
   end
 
+  @doc "Gets parent_agent_id for an agent, or nil if it's the root agent"
+  @spec get_parent_agent_id(String.t()) :: String.t() | nil
+  def get_parent_agent_id(agent_id) do
+    case get_agent(agent_id) do
+      {:ok, _pid, metadata} -> Map.get(metadata, :parent_agent_id)
+      {:error, :not_found} -> nil
+    end
+  end
+
+  @doc "Gets spawning_tool_name for an agent (e.g., 'breakdown_figma_design'), or nil if not set"
+  @spec get_spawning_tool_name(String.t()) :: String.t() | nil
+  def get_spawning_tool_name(agent_id) do
+    case get_agent(agent_id) do
+      {:ok, _pid, metadata} -> Map.get(metadata, :spawning_tool_name)
+      {:error, :not_found} -> nil
+    end
+  end
+
   @doc "Gets all agents for a task"
   @spec get_agents_for_task(String.t()) :: [{String.t(), pid(), map()}]
   def get_agents_for_task(task_id) do

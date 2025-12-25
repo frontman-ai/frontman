@@ -70,9 +70,10 @@ type action =
   | StreamingStarted({taskId: string, id: string})
   | TextDeltaReceived({taskId: string, id: string, text: string})
   | ToolCallReceived({taskId: string, toolCall: Message.toolCall})
-  | ToolInputStartReceived({taskId: string, id: string, toolName: string})
+  | ToolInputStartReceived({taskId: string, id: string, toolName: string, parentAgentId: option<string>, spawningToolName: option<string>})
   | ToolInputDeltaReceived({taskId: string, id: string, delta: string})
   | ToolInputEndReceived({taskId: string, id: string})
+  | ToolInputReceived({taskId: string, id: string, input: JSON.t})
   | ToolResultReceived({taskId: string, id: string, result: JSON.t})
   | ToolErrorReceived({taskId: string, id: string, error: string})
   // Completion action
@@ -150,10 +151,11 @@ let actionToString = action => {
   | StreamingStarted({taskId, id}) => `StreamingStarted(${taskId}, ${id})`
   | TextDeltaReceived({taskId, id, text}) => `TextDeltaReceived(${taskId}, ${id}, "${text}")`
   | ToolCallReceived({taskId, toolCall}) => `ToolCallReceived(${taskId}, ${toolCall.toolName})`
-  | ToolInputStartReceived({taskId, id, toolName}) =>
+  | ToolInputStartReceived({taskId, id, toolName, parentAgentId: _}) =>
     `ToolInputStartReceived(${taskId}, ${id}, ${toolName})`
   | ToolInputDeltaReceived({taskId, id}) => `ToolInputDeltaReceived(${taskId}, ${id})`
   | ToolInputEndReceived({taskId, id}) => `ToolInputEndReceived(${taskId}, ${id})`
+  | ToolInputReceived({taskId, id, _}) => `ToolInputReceived(${taskId}, ${id})`
   | ToolResultReceived({taskId, id}) => `ToolResultReceived(${taskId}, ${id})`
   | ToolErrorReceived({taskId, id}) => `ToolErrorReceived(${taskId}, ${id})`
   | MessageCompleted({taskId, id}) => `MessageCompleted(${taskId}, ${id})`
@@ -601,13 +603,15 @@ let next = (state, action) => {
               result: toolCall.result,
               errorText: toolCall.errorText,
               createdAt: toolCall.createdAt,
+              parentAgentId: toolCall.parentAgentId,
+              spawningToolName: toolCall.spawningToolName,
             }),
           )
         }
       })
       ->AskTheLlmReactStatestore.StateReducer.update
 
-  | ToolInputStartReceived({taskId, id, toolName}) =>
+  | ToolInputStartReceived({taskId, id, toolName, parentAgentId, spawningToolName}) =>
     state
     ->Lens.updateTask(taskId, task =>
       Lens.insertTaskMessage(
@@ -621,6 +625,8 @@ let next = (state, action) => {
           result: None,
           errorText: None,
           createdAt: Date.now(),
+          parentAgentId,
+          spawningToolName,
         }),
       )
     )
@@ -664,6 +670,20 @@ let next = (state, action) => {
             }
             Message.ToolCall({...tool, input: parsedInput, state: Message.InputAvailable})
           }
+        | other => other
+        }
+      )
+    )
+    ->AskTheLlmReactStatestore.StateReducer.update
+
+  | ToolInputReceived({taskId, id, input}) =>
+    // Directly set the parsed input on the tool call
+    state
+    ->Lens.updateTask(taskId, task =>
+      Lens.updateTaskMessage(task, id, msg =>
+        switch msg {
+        | Message.ToolCall(tool) =>
+          Message.ToolCall({...tool, input: Some(input)})
         | other => other
         }
       )

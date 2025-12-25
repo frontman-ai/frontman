@@ -217,6 +217,8 @@ describe("Client State Reducer", () => {
           errorText: None,
           state: Reducer.Message.InputStreaming,
           createdAt: 0.0,
+          parentAgentId: None,
+          spawningToolName: None,
         }),
       ],
     )
@@ -230,6 +232,8 @@ describe("Client State Reducer", () => {
       errorText: None,
       state: Reducer.Message.InputAvailable,
       createdAt: 0.0,
+      parentAgentId: None,
+          spawningToolName: None,
     }
 
     let taskId = state.currentTaskId->Option.getOrThrow
@@ -411,6 +415,8 @@ describe("Client State Reducer - Selectors", () => {
       result: None,
       errorText: None,
       createdAt: 0.0,
+      parentAgentId: None,
+          spawningToolName: None,
     })
 
     t->expect(Reducer.Selectors.getMessageId(userMsg))->Expect.toBe("user-1")
@@ -440,6 +446,8 @@ describe("Client State Reducer - Tool Lifecycle", () => {
       taskId,
       id: "call-1",
       toolName: "read_file",
+      parentAgentId: None,
+          spawningToolName: None,
     })
     let (nextState, _) = Reducer.next(state, action)
 
@@ -469,6 +477,8 @@ describe("Client State Reducer - Tool Lifecycle", () => {
           errorText: None,
           state: Reducer.Message.InputStreaming,
           createdAt: 0.0,
+          parentAgentId: None,
+          spawningToolName: None,
         }),
       ],
     )
@@ -501,6 +511,8 @@ describe("Client State Reducer - Tool Lifecycle", () => {
           errorText: None,
           state: Reducer.Message.InputStreaming,
           createdAt: 0.0,
+          parentAgentId: None,
+          spawningToolName: None,
         }),
       ],
     )
@@ -532,6 +544,8 @@ describe("Client State Reducer - Tool Lifecycle", () => {
           errorText: None,
           state: Reducer.Message.InputAvailable,
           createdAt: 0.0,
+          parentAgentId: None,
+          spawningToolName: None,
         }),
       ],
     )
@@ -564,6 +578,8 @@ describe("Client State Reducer - Tool Lifecycle", () => {
           errorText: None,
           state: Reducer.Message.InputAvailable,
           createdAt: 0.0,
+          parentAgentId: None,
+          spawningToolName: None,
         }),
       ],
     )
@@ -607,6 +623,8 @@ describe("Client State Reducer - Tool Lifecycle", () => {
           errorText: None,
           state: Reducer.Message.InputStreaming,
           createdAt: 0.0,
+          parentAgentId: None,
+          spawningToolName: None,
         }),
       ],
     )
@@ -620,6 +638,8 @@ describe("Client State Reducer - Tool Lifecycle", () => {
       errorText: None,
       state: Reducer.Message.InputAvailable,
       createdAt: 0.0,
+      parentAgentId: None,
+          spawningToolName: None,
     }
     let taskId = state.currentTaskId->Option.getOrThrow
     let action = Reducer.ToolCallReceived({taskId, toolCall})

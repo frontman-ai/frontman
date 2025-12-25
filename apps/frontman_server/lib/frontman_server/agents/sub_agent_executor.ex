@@ -64,12 +64,16 @@ defmodule FrontmanServer.Agents.SubAgentExecutor do
     tool_names = Enum.map(tools, fn t -> t.name end)
     Logger.info("SubAgentExecutor tools for #{role}: #{inspect(tool_names)}")
 
+    # The spawning tool name is passed via :spawning_tool_name option
+    spawning_tool_name = Keyword.get(opts, :spawning_tool_name)
+
     case AgentServer.start_link(
            agent_id: agent_id,
            task_id: task_id,
            tools: tools,
            on_event: on_event,
            parent_agent_id: parent_agent_id,
+           spawning_tool_name: spawning_tool_name,
            llm_opts: llm_opts
          ) do
       {:ok, _pid} ->

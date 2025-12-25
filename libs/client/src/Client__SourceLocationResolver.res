@@ -11,7 +11,7 @@ let resolve = async (sourceLocation: Client__Types.SourceLocation.t): result<
   let url = `${baseUrl}/__frontman/resolve-source-location`
 
   let requestBody = {
-    "componentName": sourceLocation.componentName,
+    "componentName": sourceLocation.componentName->Option.getOr(""),
     "file": sourceLocation.file,
     "line": sourceLocation.line,
     "column": sourceLocation.column,
@@ -41,7 +41,7 @@ let resolve = async (sourceLocation: Client__Types.SourceLocation.t): result<
           obj
           ->Dict.get("componentName")
           ->Option.flatMap(JSON.Decode.string)
-          ->Option.getOr(sourceLocation.componentName)
+          ->Option.orElse(sourceLocation.componentName)
         let file =
           obj
           ->Dict.get("file")
