@@ -181,6 +181,7 @@ defmodule FrontmanServer.Agents do
   - `:role` - Role name for telemetry (e.g., "figma_breakdown")
   - `:parent_agent_id` - The agent spawning this sub-agent
   - `:timeout` - Timeout in milliseconds (default: 5 minutes)
+  - `:llm_opts` - LLM options (e.g., fixture_path for testing) passed to AgentServer
   """
   @spec execute_sub_agent(String.t(), list(), keyword()) :: {:ok, String.t()} | {:error, term()}
   def execute_sub_agent(task_id, messages, opts \\ []) do

@@ -11,9 +11,10 @@ defmodule FrontmanServer.Tools.Backend do
 
     alias FrontmanServer.Tasks.Task
 
-    typedstruct enforce: true do
-      field :task, Task.t()
-      field :agent_id, String.t()
+    typedstruct do
+      field :task, Task.t(), enforce: true
+      field :agent_id, String.t(), enforce: true
+      field :llm_opts, keyword(), default: []
     end
   end
 

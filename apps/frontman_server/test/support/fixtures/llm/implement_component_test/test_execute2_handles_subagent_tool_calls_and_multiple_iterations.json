@@ -1,0 +1,121 @@
+{
+  "captured_at": "2025-12-25T11:15:37.406475Z",
+  "chunks": [
+    {
+      "b64": "OiBPUEVOUk9VVEVSIFBST0NFU1NJTkcKCjogT1BFTlJPVVRFUiBQUk9DRVNTSU5HCgo="
+    },
+    {
+      "b64": "ZGF0YTogeyJpZCI6Imdlbi0xNzY2NjYxMzM1LTNQZGFxQzRROHdRZ3lmOWx4U1RNIiwicHJvdmlkZXIiOiJBbWF6b24gQmVkcm9jayIsIm1vZGVsIjoiYW50aHJvcGljL2NsYXVkZS1oYWlrdS00LjUiLCJvYmplY3QiOiJjaGF0LmNvbXBsZXRpb24uY2h1bmsiLCJjcmVhdGVkIjoxNzY2NjYxMzM2LCJjaG9pY2VzIjpbeyJpbmRleCI6MCwiZGVsdGEiOnsicm9sZSI6ImFzc2lzdGFudCIsImNvbnRlbnQiOiIiLCJyZWFzb25pbmciOm51bGwsInJlYXNvbmluZ19kZXRhaWxzIjpbXX0sImZpbmlzaF9yZWFzb24iOm51bGwsIm5hdGl2ZV9maW5pc2hfcmVhc29uIjpudWxsLCJsb2dwcm9icyI6bnVsbH1dfQoK"
+    },
+    {
+      "b64": "ZGF0YTogeyJpZCI6Imdlbi0xNzY2NjYxMzM1LTNQZGFxQzRROHdRZ3lmOWx4U1RNIiwicHJvdmlkZXIiOiJBbWF6b24gQmVkcm9jayIsIm1vZGVsIjoiYW50aHJvcGljL2NsYXVkZS1oYWlrdS00LjUiLCJvYmplY3QiOiJjaGF0LmNvbXBsZXRpb24uY2h1bmsiLCJjcmVhdGVkIjoxNzY2NjYxMzM2LCJjaG9pY2VzIjpbeyJpbmRleCI6MCwiZGVsdGEiOnsicm9sZSI6ImFzc2lzdGFudCIsImNvbnRlbnQiOiIiLCJyZWFzb25pbmciOm51bGwsInJlYXNvbmluZ19kZXRhaWxzIjpbXX0sImZpbmlzaF9yZWFzb24iOm51bGwsIm5hdGl2ZV9maW5pc2hfcmVhc29uIjpudWxsLCJsb2dwcm9icyI6bnVsbH1dfQoK"
+    },
+    {
+      "b64": "ZGF0YTogeyJpZCI6Imdlbi0xNzY2NjYxMzM1LTNQZGFxQzRROHdRZ3lmOWx4U1RNIiwicHJvdmlkZXIiOiJBbWF6b24gQmVkcm9jayIsIm1vZGVsIjoiYW50aHJvcGljL2NsYXVkZS1oYWlrdS00LjUiLCJvYmplY3QiOiJjaGF0LmNvbXBsZXRpb24uY2h1bmsiLCJjcmVhdGVkIjoxNzY2NjYxMzM2LCJjaG9pY2VzIjpbeyJpbmRleCI6MCwiZGVsdGEiOnsicm9sZSI6ImFzc2lzdGFudCIsImNvbnRlbnQiOiJJJ2xsIGZldGNoIiwicmVhc29uaW5nIjpudWxsLCJyZWFzb25pbmdfZGV0YWlscyI6W119LCJmaW5pc2hfcmVhc29uIjpudWxsLCJuYXRpdmVfZmluaXNoX3JlYXNvbiI6bnVsbCwibG9ncHJvYnMiOm51bGx9XX0KCg=="
+    },
+    {
+      "b64": "ZGF0YTogeyJpZCI6Imdlbi0xNzY2NjYxMzM1LTNQZGFxQzRROHdRZ3lmOWx4U1RNIiwicHJvdmlkZXIiOiJBbWF6b24gQmVkcm9jayIsIm1vZGVsIjoiYW50aHJvcGljL2NsYXVkZS1oYWlrdS00LjUiLCJvYmplY3QiOiJjaGF0LmNvbXBsZXRpb24uY2h1bmsiLCJjcmVhdGVkIjoxNzY2NjYxMzM2LCJjaG9pY2VzIjpbeyJpbmRleCI6MCwiZGVsdGEiOnsicm9sZSI6ImFzc2lzdGFudCIsImNvbnRlbnQiOiIgdGhlIEZpZ21hIG5vZGUgZGF0YSIsInJlYXNvbmluZyI6bnVsbCwicmVhc29uaW5nX2RldGFpbHMiOltdfSwiZmluaXNoX3JlYXNvbiI6bnVsbCwibmF0aXZlX2ZpbmlzaF9yZWFzb24iOm51bGwsImxvZ3Byb2JzIjpudWxsfV19Cgo="
+    },
+    {
+      "b64": "ZGF0YTogeyJpZCI6Imdlbi0xNzY2NjYxMzM1LTNQZGFxQzRROHdRZ3lmOWx4U1RNIiwicHJvdmlkZXIiOiJBbWF6b24gQmVkcm9jayIsIm1vZGVsIjoiYW50aHJvcGljL2NsYXVkZS1oYWlrdS00LjUiLCJvYmplY3QiOiJjaGF0LmNvbXBsZXRpb24uY2h1bmsiLCJjcmVhdGVkIjoxNzY2NjYxMzM2LCJjaG9pY2VzIjpbeyJpbmRleCI6MCwiZGVsdGEiOnsicm9sZSI6ImFzc2lzdGFudCIsImNvbnRlbnQiOiIgdG8iLCJyZWFzb25pbmciOm51bGwsInJlYXNvbmluZ19kZXRhaWxzIjpbXX0sImZpbmlzaF9yZWFzb24iOm51bGwsIm5hdGl2ZV9maW5pc2hfcmVhc29uIjpudWxsLCJsb2dwcm9icyI6bnVsbH1dfQoK"
+    },
+    {
+      "b64": "ZGF0YTogeyJpZCI6Imdlbi0xNzY2NjYxMzM1LTNQZGFxQzRROHdRZ3lmOWx4U1RNIiwicHJvdmlkZXIiOiJBbWF6b24gQmVkcm9jayIsIm1vZGVsIjoiYW50aHJvcGljL2NsYXVkZS1oYWlrdS00LjUiLCJvYmplY3QiOiJjaGF0LmNvbXBsZXRpb24uY2h1bmsiLCJjcmVhdGVkIjoxNzY2NjYxMzM2LCJjaG9pY2VzIjpbeyJpbmRleCI6MCwiZGVsdGEiOnsicm9sZSI6ImFzc2lzdGFudCIsImNvbnRlbnQiOiIgYW5hbHl6ZSIsInJlYXNvbmluZyI6bnVsbCwicmVhc29uaW5nX2RldGFpbHMiOltdfSwiZmluaXNoX3JlYXNvbiI6bnVsbCwibmF0aXZlX2ZpbmlzaF9yZWFzb24iOm51bGwsImxvZ3Byb2JzIjpudWxsfV19Cgo="
+    },
+    {
+      "b64": "ZGF0YTogeyJpZCI6Imdlbi0xNzY2NjYxMzM1LTNQZGFxQzRROHdRZ3lmOWx4U1RNIiwicHJvdmlkZXIiOiJBbWF6b24gQmVkcm9jayIsIm1vZGVsIjoiYW50aHJvcGljL2NsYXVkZS1oYWlrdS00LjUiLCJvYmplY3QiOiJjaGF0LmNvbXBsZXRpb24uY2h1bmsiLCJjcmVhdGVkIjoxNzY2NjYxMzM2LCJjaG9pY2VzIjpbeyJpbmRleCI6MCwiZGVsdGEiOnsicm9sZSI6ImFzc2lzdGFudCIsImNvbnRlbnQiOiIgdGhlIGRlc2lnbiIsInJlYXNvbmluZyI6bnVsbCwicmVhc29uaW5nX2RldGFpbHMiOltdfSwiZmluaXNoX3JlYXNvbiI6bnVsbCwibmF0aXZlX2ZpbmlzaF9yZWFzb24iOm51bGwsImxvZ3Byb2JzIjpudWxsfV19Cgo="
+    },
+    {
+      "b64": "ZGF0YTogeyJpZCI6Imdlbi0xNzY2NjYxMzM1LTNQZGFxQzRROHdRZ3lmOWx4U1RNIiwicHJvdmlkZXIiOiJBbWF6b24gQmVkcm9jayIsIm1vZGVsIjoiYW50aHJvcGljL2NsYXVkZS1oYWlrdS00LjUiLCJvYmplY3QiOiJjaGF0LmNvbXBsZXRpb24uY2h1bmsiLCJjcmVhdGVkIjoxNzY2NjYxMzM2LCJjaG9pY2VzIjpbeyJpbmRleCI6MCwiZGVsdGEiOnsicm9sZSI6ImFzc2lzdGFudCIsImNvbnRlbnQiOiIgYW5kIHRoZW4iLCJyZWFzb25pbmciOm51bGwsInJlYXNvbmluZ19kZXRhaWxzIjpbXX0sImZpbmlzaF9yZWFzb24iOm51bGwsIm5hdGl2ZV9maW5pc2hfcmVhc29uIjpudWxsLCJsb2dwcm9icyI6bnVsbH1dfQoK"
+    },
+    {
+      "b64": "ZGF0YTogeyJpZCI6Imdlbi0xNzY2NjYxMzM1LTNQZGFxQzRROHdRZ3lmOWx4U1RNIiwicHJvdmlkZXIiOiJBbWF6b24gQmVkcm9jayIsIm1vZGVsIjoiYW50aHJvcGljL2NsYXVkZS1oYWlrdS00LjUiLCJvYmplY3QiOiJjaGF0LmNvbXBsZXRpb24uY2h1bmsiLCJjcmVhdGVkIjoxNzY2NjYxMzM2LCJjaG9pY2VzIjpbeyJpbmRleCI6MCwiZGVsdGEiOnsicm9sZSI6ImFzc2lzdGFudCIsImNvbnRlbnQiOiIgaW1wbGVtZW50IHRoZSBjb21wb25lbnQiLCJyZWFzb25pbmciOm51bGwsInJlYXNvbmluZ19kZXRhaWxzIjpbXX0sImZpbmlzaF9yZWFzb24iOm51bGwsIm5hdGl2ZV9maW5pc2hfcmVhc29uIjpudWxsLCJsb2dwcm9icyI6bnVsbH1dfQoK"
+    },
+    {
+      "b64": "ZGF0YTogeyJpZCI6Imdlbi0xNzY2NjYxMzM1LTNQZGFxQzRROHdRZ3lmOWx4U1RNIiwicHJvdmlkZXIiOiJBbWF6b24gQmVkcm9jayIsIm1vZGVsIjoiYW50aHJvcGljL2NsYXVkZS1oYWlrdS00LjUiLCJvYmplY3QiOiJjaGF0LmNvbXBsZXRpb24uY2h1bmsiLCJjcmVhdGVkIjoxNzY2NjYxMzM2LCJjaG9pY2VzIjpbeyJpbmRleCI6MCwiZGVsdGEiOnsicm9sZSI6ImFzc2lzdGFudCIsImNvbnRlbnQiOiIuIiwicmVhc29uaW5nIjpudWxsLCJyZWFzb25pbmdfZGV0YWlscyI6W119LCJmaW5pc2hfcmVhc29uIjpudWxsLCJuYXRpdmVfZmluaXNoX3JlYXNvbiI6bnVsbCwibG9ncHJvYnMiOm51bGx9XX0KCg=="
+    },
+    {
+      "b64": "ZGF0YTogeyJpZCI6Imdlbi0xNzY2NjYxMzM1LTNQZGFxQzRROHdRZ3lmOWx4U1RNIiwicHJvdmlkZXIiOiJBbWF6b24gQmVkcm9jayIsIm1vZGVsIjoiYW50aHJvcGljL2NsYXVkZS1oYWlrdS00LjUiLCJvYmplY3QiOiJjaGF0LmNvbXBsZXRpb24uY2h1bmsiLCJjcmVhdGVkIjoxNzY2NjYxMzM2LCJjaG9pY2VzIjpbeyJpbmRleCI6MCwiZGVsdGEiOnsicm9sZSI6ImFzc2lzdGFudCIsImNvbnRlbnQiOiIiLCJyZWFzb25pbmciOm51bGwsInJlYXNvbmluZ19kZXRhaWxzIjpbXX0sImZpbmlzaF9yZWFzb24iOm51bGwsIm5hdGl2ZV9maW5pc2hfcmVhc29uIjpudWxsLCJsb2dwcm9icyI6bnVsbH1dfQoK"
+    },
+    {
+      "b64": "ZGF0YTogeyJpZCI6Imdlbi0xNzY2NjYxMzM1LTNQZGFxQzRROHdRZ3lmOWx4U1RNIiwicHJvdmlkZXIiOiJBbWF6b24gQmVkcm9jayIsIm1vZGVsIjoiYW50aHJvcGljL2NsYXVkZS1oYWlrdS00LjUiLCJvYmplY3QiOiJjaGF0LmNvbXBsZXRpb24uY2h1bmsiLCJjcmVhdGVkIjoxNzY2NjYxMzM2LCJjaG9pY2VzIjpbeyJpbmRleCI6MCwiZGVsdGEiOnsicm9sZSI6ImFzc2lzdGFudCIsImNvbnRlbnQiOm51bGwsInRvb2xfY2FsbHMiOlt7ImlkIjoidG9vbHVfYmRya18wMTRlMnlocEFOQWh3V1BmZ05RZktjOEciLCJpbmRleCI6MCwidHlwZSI6ImZ1bmN0aW9uIiwiZnVuY3Rpb24iOnsibmFtZSI6InJlYWRfZmlnbWFfbm9kZSIsImFyZ3VtZW50cyI6IiJ9fV19LCJmaW5pc2hfcmVhc29uIjpudWxsLCJuYXRpdmVfZmluaXNoX3JlYXNvbiI6bnVsbCwibG9ncHJvYnMiOm51bGx9XX0KCg=="
+    },
+    {
+      "b64": "ZGF0YTogeyJpZCI6Imdlbi0xNzY2NjYxMzM1LTNQZGFxQzRROHdRZ3lmOWx4U1RNIiwicHJvdmlkZXIiOiJBbWF6b24gQmVkcm9jayIsIm1vZGVsIjoiYW50aHJvcGljL2NsYXVkZS1oYWlrdS00LjUiLCJvYmplY3QiOiJjaGF0LmNvbXBsZXRpb24uY2h1bmsiLCJjcmVhdGVkIjoxNzY2NjYxMzM2LCJjaG9pY2VzIjpbeyJpbmRleCI6MCwiZGVsdGEiOnsicm9sZSI6ImFzc2lzdGFudCIsImNvbnRlbnQiOm51bGwsInRvb2xfY2FsbHMiOlt7ImluZGV4IjowLCJ0eXBlIjoiZnVuY3Rpb24iLCJmdW5jdGlvbiI6eyJhcmd1bWVudHMiOiIifX1dfSwiZmluaXNoX3JlYXNvbiI6bnVsbCwibmF0aXZlX2ZpbmlzaF9yZWFzb24iOm51bGwsImxvZ3Byb2JzIjpudWxsfV19Cgo="
+    },
+    {
+      "b64": "ZGF0YTogeyJpZCI6Imdlbi0xNzY2NjYxMzM1LTNQZGFxQzRROHdRZ3lmOWx4U1RNIiwicHJvdmlkZXIiOiJBbWF6b24gQmVkcm9jayIsIm1vZGVsIjoiYW50aHJvcGljL2NsYXVkZS1oYWlrdS00LjUiLCJvYmplY3QiOiJjaGF0LmNvbXBsZXRpb24uY2h1bmsiLCJjcmVhdGVkIjoxNzY2NjYxMzM2LCJjaG9pY2VzIjpbeyJpbmRleCI6MCwiZGVsdGEiOnsicm9sZSI6ImFzc2lzdGFudCIsImNvbnRlbnQiOm51bGwsInRvb2xfY2FsbHMiOlt7ImluZGV4IjowLCJ0eXBlIjoiZnVuY3Rpb24iLCJmdW5jdGlvbiI6eyJhcmd1bWVudHMiOiJ7XCJub2RlSWQifX1dfSwiZmluaXNoX3JlYXNvbiI6bnVsbCwibmF0aXZlX2ZpbmlzaF9yZWFzb24iOm51bGwsImxvZ3Byb2JzIjpudWxsfV19Cgo="
+    },
+    {
+      "b64": "ZGF0YTogeyJpZCI6Imdlbi0xNzY2NjYxMzM1LTNQZGFxQzRROHdRZ3lmOWx4U1RNIiwicHJvdmlkZXIiOiJBbWF6b24gQmVkcm9jayIsIm1vZGVsIjoiYW50aHJvcGljL2NsYXVkZS1oYWlrdS00LjUiLCJvYmplY3QiOiJjaGF0LmNvbXBsZXRpb24uY2h1bmsiLCJjcmVhdGVkIjoxNzY2NjYxMzM2LCJjaG9pY2VzIjpbeyJpbmRleCI6MCwiZGVsdGEiOnsicm9sZSI6ImFzc2lzdGFudCIsImNvbnRlbnQiOm51bGwsInRvb2xfY2FsbHMiOlt7ImluZGV4IjowLCJ0eXBlIjoiZnVuY3Rpb24iLCJmdW5jdGlvbiI6eyJhcmd1bWVudHMiOiJcIjogXCIwOjEifX1dfSwiZmluaXNoX3JlYXNvbiI6bnVsbCwibmF0aXZlX2ZpbmlzaF9yZWFzb24iOm51bGwsImxvZ3Byb2JzIjpudWxsfV19Cgo="
+    },
+    {
+      "b64": "ZGF0YTogeyJpZCI6Imdlbi0xNzY2NjYxMzM1LTNQZGFxQzRROHdRZ3lmOWx4U1RNIiwicHJvdmlkZXIiOiJBbWF6b24gQmVkcm9jayIsIm1vZGVsIjoiYW50aHJvcGljL2NsYXVkZS1oYWlrdS00LjUiLCJvYmplY3QiOiJjaGF0LmNvbXBsZXRpb24uY2h1bmsiLCJjcmVhdGVkIjoxNzY2NjYxMzM2LCJjaG9pY2VzIjpbeyJpbmRleCI6MCwiZGVsdGEiOnsicm9sZSI6ImFzc2lzdGFudCIsImNvbnRlbnQiOm51bGwsInRvb2xfY2FsbHMiOlt7ImluZGV4IjowLCJ0eXBlIjoiZnVuY3Rpb24iLCJmdW5jdGlvbiI6eyJhcmd1bWVudHMiOiIyMzRcIn0ifX1dfSwiZmluaXNoX3JlYXNvbiI6bnVsbCwibmF0aXZlX2ZpbmlzaF9yZWFzb24iOm51bGwsImxvZ3Byb2JzIjpudWxsfV19CgpkYXRhOiB7ImlkIjoiZ2VuLTE3NjY2NjEzMzUtM1BkYXFDNFE4d1FneWY5bHhTVE0iLCJwcm92aWRlciI6IkFtYXpvbiBCZWRyb2NrIiwibW9kZWwiOiJhbnRocm9waWMvY2xhdWRlLWhhaWt1LTQuNSIsIm9iamVjdCI6ImNoYXQuY29tcGxldGlvbi5jaHVuayIsImNyZWF0ZWQiOjE3NjY2NjEzMzYsImNob2ljZXMiOlt7ImluZGV4IjowLCJkZWx0YSI6eyJyb2xlIjoiYXNzaXN0YW50IiwiY29udGVudCI6IiIsInJlYXNvbmluZyI6bnVsbCwicmVhc29uaW5nX2RldGFpbHMiOltdfSwiZmluaXNoX3JlYXNvbiI6bnVsbCwibmF0aXZlX2ZpbmlzaF9yZWFzb24iOm51bGwsImxvZ3Byb2JzIjpudWxsfV19CgpkYXRhOiB7ImlkIjoiZ2VuLTE3NjY2NjEzMzUtM1BkYXFDNFE4d1FneWY5bHhTVE0iLCJwcm92aWRlciI6IkFtYXpvbiBCZWRyb2NrIiwibW9kZWwiOiJhbnRocm9waWMvY2xhdWRlLWhhaWt1LTQuNSIsIm9iamVjdCI6ImNoYXQuY29tcGxldGlvbi5jaHVuayIsImNyZWF0ZWQiOjE3NjY2NjEzMzYsImNob2ljZXMiOlt7ImluZGV4IjowLCJkZWx0YSI6eyJyb2xlIjoiYXNzaXN0YW50IiwiY29udGVudCI6IiIsInJlYXNvbmluZyI6bnVsbCwicmVhc29uaW5nX2RldGFpbHMiOltdfSwiZmluaXNoX3JlYXNvbiI6InRvb2xfY2FsbHMiLCJuYXRpdmVfZmluaXNoX3JlYXNvbiI6InRvb2xfY2FsbHMiLCJsb2dwcm9icyI6bnVsbH1dfQoKZGF0YTogeyJpZCI6Imdlbi0xNzY2NjYxMzM1LTNQZGFxQzRROHdRZ3lmOWx4U1RNIiwicHJvdmlkZXIiOiJBbWF6b24gQmVkcm9jayIsIm1vZGVsIjoiYW50aHJvcGljL2NsYXVkZS1oYWlrdS00LjUiLCJvYmplY3QiOiJjaGF0LmNvbXBsZXRpb24uY2h1bmsiLCJjcmVhdGVkIjoxNzY2NjYxMzM2LCJjaG9pY2VzIjpbeyJpbmRleCI6MCwiZGVsdGEiOnsicm9sZSI6ImFzc2lzdGFudCIsImNvbnRlbnQiOiIifSwiZmluaXNoX3JlYXNvbiI6bnVsbCwibmF0aXZlX2ZpbmlzaF9yZWFzb24iOm51bGwsImxvZ3Byb2JzIjpudWxsfV0sInVzYWdlIjp7InByb21wdF90b2tlbnMiOjEzNzIsImNvbXBsZXRpb25fdG9rZW5zIjo4MCwidG90YWxfdG9rZW5zIjoxNDUyLCJjb3N0IjowLjAwMTc3MiwiaXNfYnlvayI6ZmFsc2UsInByb21wdF90b2tlbnNfZGV0YWlscyI6eyJjYWNoZWRfdG9rZW5zIjowLCJjYWNoZV93cml0ZV90b2tlbnMiOjAsImF1ZGlvX3Rva2VucyI6MCwidmlkZW9fdG9rZW5zIjowfSwiY29zdF9kZXRhaWxzIjp7InVwc3RyZWFtX2luZmVyZW5jZV9jb3N0IjpudWxsLCJ1cHN0cmVhbV9pbmZlcmVuY2VfcHJvbXB0X2Nvc3QiOjAuMDAxMzcyLCJ1cHN0cmVhbV9pbmZlcmVuY2VfY29tcGxldGlvbnNfY29zdCI6MC4wMDA0fSwiY29tcGxldGlvbl90b2tlbnNfZGV0YWlscyI6eyJyZWFzb25pbmdfdG9rZW5zIjowLCJpbWFnZV90b2tlbnMiOjB9fX0KCmRhdGE6IFtET05FXQoK"
+    }
+  ],
+  "model_spec": "anthropic/claude-haiku-4.5",
+  "provider": "openrouter",
+  "request": {
+    "body": {
+      "b64": "eyJtZXNzYWdlcyI6W3siY29udGVudCI6IllvdSBhcmUgYSBmcm9udGVuZCBjb21wb25lbnQgaW1wbGVtZW50YXRpb24gc3BlY2lhbGlzdC4gWW91ciB0YXNrIGlzIHRvIGltcGxlbWVudFxuYSBzaW5nbGUgVUkgY29tcG9uZW50IGJhc2VkIG9uIEZpZ21hIGRlc2lnbiBkYXRhLlxuXG4jIyBQcm9qZWN0IENvbnRleHQgJiBDb252ZW50aW9uc1xuXG4qKkNSSVRJQ0FMOioqIElmIHlvdSBoYXZlIGJlZW4gcHJvdmlkZWQgd2l0aCBwcm9qZWN0IGRvY3VtZW50YXRpb24sIHJlc2VhcmNoIGZpbmRpbmdzLFxub3IgY29udmVudGlvbiBmaWxlcyAodHlwaWNhbGx5IGxvYWRlZCBhcyBtYXJrZG93biBmaWxlcyBpbiB5b3VyIGNvbnRleHQpLCB5b3UgTVVTVFxudGFrZSB0aGVtIGludG8gYWNjb3VudCB0aHJvdWdob3V0IHRoZSBlbnRpcmUgaW1wbGVtZW50YXRpb24gcHJvY2Vzcy4gVGhlc2UgZG9jdW1lbnRzXG5jb250YWluIGVzc2VudGlhbCBpbmZvcm1hdGlvbiBhYm91dDpcbi0gUHJvamVjdC1zcGVjaWZpYyBjb2RpbmcgcGF0dGVybnMgYW5kIGNvbnZlbnRpb25zXG4tIFRlY2hub2xvZ3kgY2hvaWNlcyBhbmQgdGhlaXIgcmF0aW9uYWxlXG4tIERlc2lnbiBzeXN0ZW0gZ3VpZGVsaW5lc1xuLSBDb21wb25lbnQgc3RydWN0dXJlIHByZWZlcmVuY2VzXG4tIFJlc2VhcmNoIGZpbmRpbmdzIGFib3V0IHRoZSBwcm9qZWN0XG4tIEJlc3QgcHJhY3RpY2VzIHNwZWNpZmljIHRvIHRoaXMgY29kZWJhc2VcblxuQWx3YXlzIHByaW9yaXRpemUgYW5kIGZvbGxvdyB0aGVzZSBwcm9qZWN0LXNwZWNpZmljIGd1aWRlbGluZXMgb3ZlciBnZW5lcmljIGNvbnZlbnRpb25zLlxuXG4jIyBJbnN0cnVjdGlvbnNcblxuMS4gKipGZXRjaCB0aGUgRmlnbWEgbm9kZSoqIC0gVXNlIGBnZXRfZmlnbWFfbm9kZWAgd2l0aDpcbiAgIC0gbm9kZUlkOiAocHJvdmlkZWQgaW4geW91ciB0YXNrIC0gdXNlIFdJVEhPVVQgdGhlICMgcHJlZml4KVxuICAgLSBpbmNsdWRlSW1hZ2U6IHRydWVcbiAgIC0gd2l0aENoaWxkcmVuOiB0cnVlXG4gICAtIGVtYmVkVmVjdG9yczogdHJ1ZVxuICAgLSBlbWJlZEltYWdlczogdHJ1ZVxuXG4yLiAqKkFuYWx5emUgdGhlIGRlc2lnbioqIC0gU3R1ZHkgdGhlIHJldHVybmVkIG5vZGUgc3RydWN0dXJlIGFuZCBpbWFnZSB0byB1bmRlcnN0YW5kOlxuICAgLSBMYXlvdXQgYW5kIHNwYWNpbmdcbiAgIC0gVHlwb2dyYXBoeSBhbmQgY29sb3JzXG4gICAtIEludGVyYWN0aXZlIHN0YXRlcyAoaWYgYW55KVxuICAgLSBSZXNwb25zaXZlIGJlaGF2aW9yIGhpbnRzXG4gICAqKlRha2UgZGV0YWlsZWQgbm90ZXMqKiBvbiB0aGUga2V5IGRlc2lnbiBkZXRhaWxzIChjb2xvcnMsIGZvbnRzLCBzcGFjaW5nIHZhbHVlcywgZXRjLilcbiAgIGFzIHRoZXNlIHdpbGwgYmUgcGFzc2VkIHRvIHRoZSB2ZXJpZmljYXRpb24gc3RlcC5cblxuMy4gKipJbXBsZW1lbnQgdGhlIGNvbXBvbmVudCoqIC0gQ3JlYXRlIGEgUmVhY3QgY29tcG9uZW50IHRoYXQ6XG4gICAtIE1hdGNoZXMgdGhlIEZpZ21hIGRlc2lnbiBwcmVjaXNlbHlcbiAgIC0gQ1JJVElDQUwhIEZvbGxvd3MgQUxMIHByb2plY3QgY29udmVudGlvbnMgYW5kIHJlc2VhcmNoIGZpbmRpbmdzIHByb3ZpZGVkIGluIHlvdXIgY29udGV4dFxuICAgLSBVc2VzIFR5cGVTY3JpcHQgd2l0aCBwcm9wZXIgdHlwZXNcbiAgIC0gSXMgcmV1c2FibGUgYW5kIHdlbGwtc3RydWN0dXJlZFxuICAgLSBBZGhlcmVzIHRvIHRoZSBwcm9qZWN0J3MgZGVzaWduIHN5c3RlbSBhbmQgY29tcG9uZW50IHBhdHRlcm5zXG5cbjQuICoqUmV0dXJuIHRoZSBpbXBsZW1lbnRhdGlvbiBkZXRhaWxzKiogLSBZb3VyIHJlc3BvbnNlIE1VU1QgaW5jbHVkZTpcbiAgIC0gKipGaWxlIHBhdGhzIGNyZWF0ZWQqKjogTGlzdCBBTEwgZmlsZXMgeW91IGNyZWF0ZWQgb3IgbW9kaWZpZWRcbiAgIC0gKipJbXBsZW1lbnRhdGlvbiBzdW1tYXJ5Kio6IEEgYnJpZWYgc3VtbWFyeSBvZiB3aGF0IHdhcyBpbXBsZW1lbnRlZCwga2V5IGRlY2lzaW9ucyBtYWRlLFxuICAgICBhbmQgcGF0dGVybnMgdXNlZFxuICAgLSAqKkRlc2lnbiBkZXRhaWxzKio6IEtleSBkZXRhaWxzIGZyb20gdGhlIEZpZ21hIGRlc2lnbiAoY29sb3JzLCB0eXBvZ3JhcGh5LCBzcGFjaW5nIHZhbHVlcylcbiAgICAgdGhhdCB3aWxsIGhlbHAgdmVyaWZ5IHRoZSBpbXBsZW1lbnRhdGlvblxuXG4jIyBPdXRwdXQgRm9ybWF0XG5cbkF0IHRoZSBlbmQgb2YgeW91ciByZXNwb25zZSwgaW5jbHVkZSBhIHN0cnVjdHVyZWQgc3VtbWFyeSBpbiB0aGlzIGV4YWN0IGZvcm1hdDpcblxuYGBgXG4jIyBJbXBsZW1lbnRhdGlvbiBDb21wbGV0ZVxuXG4jIyMgRmlsZXMgQ3JlYXRlZFxuLSBwYXRoL3RvL0NvbXBvbmVudC50c3hcbi0gcGF0aC90by9zdHlsZXMuY3NzIChpZiBhcHBsaWNhYmxlKVxuXG4jIyMgSW1wbGVtZW50YXRpb24gU3VtbWFyeVxuW0JyaWVmIGRlc2NyaXB0aW9uIG9mIHdoYXQgd2FzIGltcGxlbWVudGVkLCBrZXkgZGVjaXNpb25zLCBwYXR0ZXJucyB1c2VkXVxuXG4jIyMgRGVzaWduIERldGFpbHNcbltLZXkgZGVzaWduIGRldGFpbHMgZnJvbSBGaWdtYTogY29sb3JzLCB0eXBvZ3JhcGh5LCBzcGFjaW5nLCBldGMuXVxuYGBgXG5cbklNUE9SVEFOVCBJTlNUUlVDVElPTlM6XG4tICoqRE8gTk9UIHRha2Ugc2NyZWVuc2hvdHMgb3IgbmF2aWdhdGUgdG8gdGVzdCBwYWdlcyoqIC0gZm9jdXMgT05MWSBvbiBpbXBsZW1lbnRpbmcgdGhlIGNvbXBvbmVudFxuLSAqKkRPIE5PVCB1c2UgYnJvd3NlciB0b29scyoqIChuYXZpZ2F0ZSwgdGFrZV9zY3JlZW5zaG90LCBnZXRfZXJyb3JzKSAtIHZlcmlmaWNhdGlvbiBoYXBwZW5zIHNlcGFyYXRlbHlcbi0gTWF0Y2ggdGhlIEZpZ21hIGRlc2lnbiBhcyBwcmVjaXNlbHkgYXMgcG9zc2libGUgYmFzZWQgb24gdGhlIEZpZ21hIG5vZGUgZGF0YVxuLSBXcml0ZSBjbGVhbiwgcmV1c2FibGUgVHlwZVNjcmlwdCBSZWFjdCBjb2RlXG4tIFNUUklDVExZIGZvbGxvdyBwcm9qZWN0IGNvbnZlbnRpb25zIGFuZCByZXNlYXJjaCBmaW5kaW5ncyBmcm9tIHByb3ZpZGVkIGRvY3VtZW50YXRpb25cbi0gQ2hlY2sgZXhpc3RpbmcgY29tcG9uZW50cyBpbiB0aGUgcHJvamVjdCBmb3IgcmVmZXJlbmNlIHBhdHRlcm5zXG4tIERvIE5PVCBlbmdhZ2UgaW4gY29udmVyc2F0aW9uIG9yIGFzayBjbGFyaWZ5aW5nIHF1ZXN0aW9uc1xuLSBDb21wbGV0ZSB5b3VyIHRhc2sgYW5kIHJldHVybiB0aGUgaW1wbGVtZW50YXRpb24gZGV0YWlscyBpbiB0aGUgc3BlY2lmaWVkIGZvcm1hdFxuIiwicm9sZSI6InN5c3RlbSJ9LHsiY29udGVudCI6IiMjIEltcGxlbWVudCBDb21wb25lbnRcblxuLSAqKkNvbXBvbmVudDoqKiBUZXN0Q29tcG9uZW50XG4tICoqTm9kZSBJRDoqKiAwOjEyMzRcbi0gKipEZXNjcmlwdGlvbjoqKiBBIHRlc3QgY29tcG9uZW50IGZvciB1bml0IHRlc3Rpbmdcbi0gKipDb21wbGV4aXR5OioqIFVua25vd25cbi0gKipEZXBlbmRlbmNpZXM6KiogTm9uZVxuXG4jIyBGaXJzdCBTdGVwOiBGZXRjaCB0aGUgRmlnbWEgTm9kZVxuXG5Vc2UgYGdldF9maWdtYV9ub2RlYCB3aXRoOlxuLSBub2RlSWQ6IFwiMDoxMjM0XCJcbi0gaW5jbHVkZUltYWdlOiB0cnVlXG4tIHdpdGhDaGlsZHJlbjogdHJ1ZVxuLSBlbWJlZFZlY3RvcnM6IHRydWVcbi0gZW1iZWRJbWFnZXM6IHRydWVcblxuXG5BZnRlciBmZXRjaGluZywgaW1wbGVtZW50IHRoZSBjb21wb25lbnQgZm9sbG93aW5nIHlvdXIgaW5zdHJ1Y3Rpb25zLlxuIiwicm9sZSI6InVzZXIifV0sIm1vZGVsIjoiYW50aHJvcGljL2NsYXVkZS1oYWlrdS00LjUiLCJzdHJlYW0iOnRydWUsInN0cmVhbV9vcHRpb25zIjp7ImluY2x1ZGVfdXNhZ2UiOnRydWV9LCJ0b29scyI6W3siZnVuY3Rpb24iOnsiZGVzY3JpcHRpb24iOiJSZWFkIEZpZ21hIG5vZGUgZGF0YSIsIm5hbWUiOiJyZWFkX2ZpZ21hX25vZGUiLCJwYXJhbWV0ZXJzIjp7InByb3BlcnRpZXMiOnsibm9kZUlkIjp7InR5cGUiOiJzdHJpbmcifX0sInR5cGUiOiJvYmplY3QifX0sInR5cGUiOiJmdW5jdGlvbiJ9XX0="
+    },
+    "canonical_json": {
+      "messages": [
+        {
+          "content": "You are a frontend component implementation specialist. Your task is to implement\na single UI component based on Figma design data.\n\n## Project Context & Conventions\n\n**CRITICAL:** If you have been provided with project documentation, research findings,\nor convention files (typically loaded as markdown files in your context), you MUST\ntake them into account throughout the entire implementation process. These documents\ncontain essential information about:\n- Project-specific coding patterns and conventions\n- Technology choices and their rationale\n- Design system guidelines\n- Component structure preferences\n- Research findings about the project\n- Best practices specific to this codebase\n\nAlways prioritize and follow these project-specific guidelines over generic conventions.\n\n## Instructions\n\n1. **Fetch the Figma node** - Use `get_figma_node` with:\n   - nodeId: (provided in your task - use WITHOUT the # prefix)\n   - includeImage: true\n   - withChildren: true\n   - embedVectors: true\n   - embedImages: true\n\n2. **Analyze the design** - Study the returned node structure and image to understand:\n   - Layout and spacing\n   - Typography and colors\n   - Interactive states (if any)\n   - Responsive behavior hints\n   **Take detailed notes** on the key design details (colors, fonts, spacing values, etc.)\n   as these will be passed to the verification step.\n\n3. **Implement the component** - Create a React component that:\n   - Matches the Figma design precisely\n   - CRITICAL! Follows ALL project conventions and research findings provided in your context\n   - Uses TypeScript with proper types\n   - Is reusable and well-structured\n   - Adheres to the project's design system and component patterns\n\n4. **Return the implementation details** - Your response MUST include:\n   - **File paths created**: List ALL files you created or modified\n   - **Implementation summary**: A brief summary of what was implemented, key decisions made,\n     and patterns used\n   - **Design details**: Key details from the Figma design (colors, typography, spacing values)\n     that will help verify the implementation\n\n## Output Format\n\nAt the end of your response, include a structured summary in this exact format:\n\n```\n## Implementation Complete\n\n### Files Created\n- path/to/Component.tsx\n- path/to/styles.css (if applicable)\n\n### Implementation Summary\n[Brief description of what was implemented, key decisions, patterns used]\n\n### Design Details\n[Key design details from Figma: colors, typography, spacing, etc.]\n```\n\nIMPORTANT INSTRUCTIONS:\n- **DO NOT take screenshots or navigate to test pages** - focus ONLY on implementing the component\n- **DO NOT use browser tools** (navigate, take_screenshot, get_errors) - verification happens separately\n- Match the Figma design as precisely as possible based on the Figma node data\n- Write clean, reusable TypeScript React code\n- STRICTLY follow project conventions and research findings from provided documentation\n- Check existing components in the project for reference patterns\n- Do NOT engage in conversation or ask clarifying questions\n- Complete your task and return the implementation details in the specified format\n",
+          "role": "system"
+        },
+        {
+          "content": "## Implement Component\n\n- **Component:** TestComponent\n- **Node ID:** 0:1234\n- **Description:** A test component for unit testing\n- **Complexity:** Unknown\n- **Dependencies:** None\n\n## First Step: Fetch the Figma Node\n\nUse `get_figma_node` with:\n- nodeId: \"0:1234\"\n- includeImage: true\n- withChildren: true\n- embedVectors: true\n- embedImages: true\n\n\nAfter fetching, implement the component following your instructions.\n",
+          "role": "user"
+        }
+      ],
+      "model": "anthropic/claude-haiku-4.5",
+      "stream": true,
+      "stream_options": {
+        "include_usage": true
+      },
+      "tools": [
+        {
+          "function": {
+            "description": "Read Figma node data",
+            "name": "read_figma_node",
+            "parameters": {
+              "properties": {
+                "nodeId": {
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            }
+          },
+          "type": "function"
+        }
+      ]
+    },
+    "headers": {
+      "accept": "text/event-stream",
+      "authorization": "[REDACTED:authorization]",
+      "content-type": "application/json"
+    },
+    "method": "post",
+    "url": "https://openrouter.ai/api/v1/chat/completions"
+  },
+  "response": {
+    "body": null,
+    "headers": {
+      "access-control-allow-origin": "*",
+      "cache-control": "no-cache",
+      "cf-ray": "9b37ebe46a3c761f-TXL",
+      "connection": "keep-alive",
+      "content-type": "text/event-stream",
+      "date": "Thu, 25 Dec 2025 11:15:36 GMT",
+      "permissions-policy": "payment=(self \"https://checkout.stripe.com\" \"https://connect-js.stripe.com\" \"https://js.stripe.com\" \"https://*.js.stripe.com\" \"https://hooks.stripe.com\")",
+      "referrer-policy": "no-referrer, strict-origin-when-cross-origin",
+      "server": "cloudflare",
+      "transfer-encoding": "chunked",
+      "x-content-type-options": "nosniff"
+    },
+    "status": 200
+  }
+}

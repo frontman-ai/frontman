@@ -163,7 +163,7 @@ defmodule FrontmanServer.Tools.ImplementComponent do
   end
 
   @impl true
-  def execute(args, %Context{task: task, agent_id: parent_agent_id}) do
+  def execute(args, %Context{task: task, agent_id: parent_agent_id, llm_opts: llm_opts}) do
     component_name = Map.get(args, "componentName")
     node_id = Map.get(args, "nodeId")
 
@@ -188,7 +188,8 @@ defmodule FrontmanServer.Tools.ImplementComponent do
     case Agents.execute_sub_agent(task.task_id, messages,
            tools: mcp_tools,
            role: "component_implementor",
-           parent_agent_id: parent_agent_id
+           parent_agent_id: parent_agent_id,
+           llm_opts: llm_opts
          ) do
       {:ok, result} ->
         Logger.info("ImplementComponent: Completed #{component_name}")

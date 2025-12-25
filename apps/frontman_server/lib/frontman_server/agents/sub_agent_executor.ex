@@ -39,6 +39,7 @@ defmodule FrontmanServer.Agents.SubAgentExecutor do
     - `:role` - Role name for telemetry (e.g., "figma_breakdown")
     - `:timeout` - Timeout in milliseconds (default: 5 minutes)
     - `:parent_agent_id` - The parent agent that spawned this sub-agent
+    - `:llm_opts` - LLM options (e.g., fixture_path for testing) passed to AgentServer
 
   ## Returns
   - `{:ok, text}` - The agent's response text
@@ -52,6 +53,7 @@ defmodule FrontmanServer.Agents.SubAgentExecutor do
     role = Keyword.get(opts, :role, "sub_agent")
     timeout = Keyword.get(opts, :timeout, @default_timeout_ms)
     parent_agent_id = Keyword.get(opts, :parent_agent_id)
+    llm_opts = Keyword.get(opts, :llm_opts, [])
 
     # Emit telemetry start
     TelemetryEvents.spawn_sub_agent_start(agent_id, task_id, role)
@@ -67,7 +69,8 @@ defmodule FrontmanServer.Agents.SubAgentExecutor do
            task_id: task_id,
            tools: tools,
            on_event: on_event,
-           parent_agent_id: parent_agent_id
+           parent_agent_id: parent_agent_id,
+           llm_opts: llm_opts
          ) do
       {:ok, _pid} ->
         Logger.info(

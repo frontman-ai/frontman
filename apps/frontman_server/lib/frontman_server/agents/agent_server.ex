@@ -46,6 +46,7 @@ defmodule FrontmanServer.Agents.AgentServer do
   - `:tools` - optional, list of tools available to the agent
   - `:on_event` - required, callback function for agent events
   - `:parent_agent_id` - optional, if set this is a sub-agent spawned by parent
+  - `:llm_opts` - optional, LLM options (e.g., fixture_path for testing)
   """
   def start_link(opts) do
     agent_id = Keyword.fetch!(opts, :agent_id)
@@ -53,6 +54,7 @@ defmodule FrontmanServer.Agents.AgentServer do
     tools = Keyword.get(opts, :tools, [])
     on_event = Keyword.fetch!(opts, :on_event)
     parent_agent_id = Keyword.get(opts, :parent_agent_id)
+    llm_opts = Keyword.get(opts, :llm_opts, [])
 
     role = if parent_agent_id, do: :sub_agent, else: :root
 
@@ -64,7 +66,8 @@ defmodule FrontmanServer.Agents.AgentServer do
          task_id: task_id,
          tools: tools,
          on_event: on_event,
-         parent_agent_id: parent_agent_id
+         parent_agent_id: parent_agent_id,
+         llm_opts: llm_opts
        }},
       name:
         {:via, Registry,
