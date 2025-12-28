@@ -84,7 +84,6 @@ type action =
       contentDocument: option<WebAPI.DOMAPI.document>,
       contentWindow: option<WebAPI.DOMAPI.window>,
     })
-  | AddConsoleError({error: Client__Types.consoleError})
   // WebPreview selection actions
   | ToggleWebPreviewSelection
   | SetSelectedElement({selectedElement: option<SelectedElement.t>})
@@ -171,7 +170,6 @@ let actionToString = action => {
   | MessageCompleted({taskId, id}) => `MessageCompleted(${taskId}, ${id})`
   | SetPreviewUrl({url}) => `SetPreviewUrl(${url})`
   | SetPreviewFrame(_) => `SetPreviewFrame(contentDocument, contentWindow)`
-  | AddConsoleError(_) => `AddConsoleError`
   | ToggleWebPreviewSelection => `ToggleWebPreviewSelection`
   | SetSelectedElement(_) => `SetSelectedElement`
   | CreateTask({title}) => `CreateTask("${title}")`
@@ -259,7 +257,6 @@ module Selectors = {
       url: getInitialUrl(),
       contentDocument: None,
       contentWindow: None,
-      errors: [],
     }
     currentTask(state)->Option.mapOr(previewFrame, task => task.previewFrame)
   }
@@ -420,17 +417,16 @@ let handleEffect = (effect, state: state, dispatch) => {
         })
 
       // Fetch source location (cascading: React fiber first, then Astro annotations)
-      let sourceLocationPromise =
-        switch Selectors.previewFrame(state).contentWindow {
-        | Some(window) =>
-          Bindings__SourceDetection.getElementSourceLocation(~element, ~window)
-          ->Promise.then(sourceLocationOpt => Promise.resolve(sourceLocationOpt))
-          ->Promise.catch(error => {
-            Console.error2("Failed to get source location:", error)
-            Promise.resolve(None)
-          })
-        | None => Promise.resolve(None)
-        }
+      let sourceLocationPromise = switch Selectors.previewFrame(state).contentWindow {
+      | Some(window) =>
+        Bindings__SourceDetection.getElementSourceLocation(~element, ~window)
+        ->Promise.then(sourceLocationOpt => Promise.resolve(sourceLocationOpt))
+        ->Promise.catch(error => {
+          Console.error2("Failed to get source location:", error)
+          Promise.resolve(None)
+        })
+      | None => Promise.resolve(None)
+      }
 
       // Wait for all promises and update state once
       let _ = Promise.all3((
@@ -552,101 +548,102 @@ let next = (state, action) => {
   | StreamingStarted({taskId, id}) =>
     state
     ->Lens.updateTask(taskId, task => {
-        // Check if message with this ID already exists
-        switch task.messages->Dict.get(id) {
-        | Some(Message.Assistant(Streaming(_))) =>
-          // Already have a streaming message with this ID
-          task
-        | _ =>
-          // Create new streaming message with the provided ID
-          let newMessage = Message.Assistant(
-            Streaming({
-              id,
-              textBuffer: "",
-              createdAt: Date.now(),
-            }),
-          )
-          let updatedMessages = task.messages->Dict.copy
-          updatedMessages->Dict.set(id, newMessage)
-          {...task, messages: updatedMessages}
-        }
-      })
+      // Check if message with this ID already exists
+      switch task.messages->Dict.get(id) {
+      | Some(Message.Assistant(Streaming(_))) => // Already have a streaming message with this ID
+        task
+      | _ =>
+        // Create new streaming message with the provided ID
+        let newMessage = Message.Assistant(
+          Streaming({
+            id,
+            textBuffer: "",
+            createdAt: Date.now(),
+          }),
+        )
+        let updatedMessages = task.messages->Dict.copy
+        updatedMessages->Dict.set(id, newMessage)
+        {...task, messages: updatedMessages}
+      }
+    })
     ->AskTheLlmReactStatestore.StateReducer.update
 
   | TextDeltaReceived({taskId, id, text}) =>
     state
     ->Lens.updateTask(taskId, task => {
-        // Look up message by the provided ID
-        switch task.messages->Dict.get(id) {
-        | Some(Message.Assistant(Streaming({id: msgId, textBuffer, createdAt}))) =>
-          // Append to existing streaming message
-          let newBuffer = textBuffer ++ text
-          let updatedMsg = Message.Assistant(
-            Streaming({
-              id: msgId,
-              textBuffer: newBuffer,
-              createdAt,
-            }),
-          )
-          let updatedMessages = task.messages->Dict.copy
-          updatedMessages->Dict.set(msgId, updatedMsg)
-          {...task, messages: updatedMessages}
-        | _ =>
-          // Message not found or not streaming - create new streaming message with provided ID
-          let newMessage = Message.Assistant(
-            Streaming({
-              id,
-              textBuffer: text,
-              createdAt: Date.now(),
-            }),
-          )
-          let updatedMessages = task.messages->Dict.copy
-          updatedMessages->Dict.set(id, newMessage)
-          {...task, messages: updatedMessages}
-        }
-      })
+      // Look up message by the provided ID
+      switch task.messages->Dict.get(id) {
+      | Some(Message.Assistant(Streaming({id: msgId, textBuffer, createdAt}))) =>
+        // Append to existing streaming message
+        let newBuffer = textBuffer ++ text
+        let updatedMsg = Message.Assistant(
+          Streaming({
+            id: msgId,
+            textBuffer: newBuffer,
+            createdAt,
+          }),
+        )
+        let updatedMessages = task.messages->Dict.copy
+        updatedMessages->Dict.set(msgId, updatedMsg)
+        {...task, messages: updatedMessages}
+      | _ =>
+        // Message not found or not streaming - create new streaming message with provided ID
+        let newMessage = Message.Assistant(
+          Streaming({
+            id,
+            textBuffer: text,
+            createdAt: Date.now(),
+          }),
+        )
+        let updatedMessages = task.messages->Dict.copy
+        updatedMessages->Dict.set(id, newMessage)
+        {...task, messages: updatedMessages}
+      }
+    })
     ->AskTheLlmReactStatestore.StateReducer.update
 
   | ToolCallReceived({taskId, toolCall}) =>
-      state
-      ->Lens.updateTask(taskId, task => {
-        // Check if message already exists
-        let existingMessage = task.messages->Dict.get(toolCall.id)
-        switch existingMessage {
-        | Some(Message.ToolCall(existingToolCall)) =>
-          // Update existing tool call
-          Lens.updateTaskMessage(task, toolCall.id, msg =>
-            switch msg {
-            | Message.ToolCall(_) =>
-              Message.ToolCall({
-                ...existingToolCall,
-                input: toolCall.input,
-                state: Message.InputAvailable,
-              })
-            | Assistant(_) => failwith("expected toolcall got assistant message")
-            | User(_) => failwith("expected toolcall got user message")
-            }
-          )
-        | _ =>
-          // Insert new tool call message
-          Lens.insertTaskMessage(
-            task,
+    state
+    ->Lens.updateTask(taskId, task => {
+      // Check if message already exists
+      let existingMessage = task.messages->Dict.get(toolCall.id)
+      switch existingMessage {
+      | Some(Message.ToolCall(existingToolCall)) =>
+        // Update existing tool call
+        Lens.updateTaskMessage(task, toolCall.id, msg =>
+          switch msg {
+          | Message.ToolCall(_) =>
             Message.ToolCall({
-              id: toolCall.id,
-              toolName: toolCall.toolName,
-              state: toolCall.state,
-              inputBuffer: toolCall.inputBuffer,
+              ...existingToolCall,
               input: toolCall.input,
-              result: toolCall.result,
-              errorText: toolCall.errorText,
-              createdAt: toolCall.createdAt,
+              state: Message.InputAvailable,
               parentAgentId: toolCall.parentAgentId,
               spawningToolName: toolCall.spawningToolName,
-            }),
-          )
-        }
-      })
-      ->AskTheLlmReactStatestore.StateReducer.update
+            })
+          | Assistant(_) => failwith("expected toolcall got assistant message")
+          | User(_) => failwith("expected toolcall got user message")
+          }
+        )
+      | _ =>
+        // Insert new tool call message
+        Lens.insertTaskMessage(
+          task,
+          Message.ToolCall({
+            id: toolCall.id,
+            toolName: toolCall.toolName,
+            state: toolCall.state,
+            inputBuffer: toolCall.inputBuffer,
+            input: toolCall.input,
+            result: toolCall.result,
+            errorText: toolCall.errorText,
+            createdAt: toolCall.createdAt,
+            parentAgentId: toolCall.parentAgentId,
+            spawningToolName: toolCall.spawningToolName,
+          }),
+        )
+      }
+    })
+    ->AskTheLlmReactStatestore.StateReducer.update
 
   | ToolInputStartReceived({taskId, id, toolName, parentAgentId, spawningToolName}) =>
     state
@@ -756,35 +753,27 @@ let next = (state, action) => {
   | MessageCompleted({taskId, id}) =>
     state
     ->Lens.updateTask(taskId, task => {
-        // Complete only the specific message with the given ID
-        Lens.updateTaskMessage(task, id, msg =>
-          switch msg {
-          | Message.Assistant(Streaming({id: msgId, textBuffer, createdAt})) => {
-              let content = if String.length(textBuffer) > 0 {
-                [AssistantContentPart.Text({text: textBuffer})]
-              } else {
-                []
-              }
-              Message.Assistant(Completed({id: msgId, content, createdAt}))
+      // Complete only the specific message with the given ID
+      Lens.updateTaskMessage(task, id, msg =>
+        switch msg {
+        | Message.Assistant(Streaming({id: msgId, textBuffer, createdAt})) => {
+            let content = if String.length(textBuffer) > 0 {
+              [AssistantContentPart.Text({text: textBuffer})]
+            } else {
+              []
             }
-          | other => other
+            Message.Assistant(Completed({id: msgId, content, createdAt}))
           }
-        )
-      })
+        | other => other
+        }
+      )
+    })
     ->AskTheLlmReactStatestore.StateReducer.update
 
   | SetPreviewUrl({url}) =>
     state
     ->Lens.updateCurrentTask(task => {
-      // Normalize URLs for comparison (remove trailing slashes)
-      let oldUrlNormalized = normalizeUrl(task.previewFrame.url)
-      let newUrlNormalized = normalizeUrl(url)
-      let urlChanged = oldUrlNormalized != newUrlNormalized
-      if urlChanged {
-        {...task, previewFrame: {...task.previewFrame, url, errors: []}}
-      } else {
-        {...task, previewFrame: {...task.previewFrame, url}}
-      }
+      {...task, previewFrame: {...task.previewFrame, url}}
     })
     ->AskTheLlmReactStatestore.StateReducer.update
 
@@ -795,22 +784,6 @@ let next = (state, action) => {
       {...task, previewFrame: {...task.previewFrame, contentDocument, contentWindow}}
     })
     ->AskTheLlmReactStatestore.StateReducer.update
-
-  // Add console error to current task's preview frame
-  | AddConsoleError({error}) => {
-      let newState = state->Lens.updateCurrentTask(task => {
-        let updatedTask = {
-          ...task,
-          previewFrame: {
-            ...task.previewFrame,
-            errors: Array.concat(task.previewFrame.errors, [error]),
-          },
-        }
-        updatedTask
-      })
-
-      newState->AskTheLlmReactStatestore.StateReducer.update
-    }
 
   // Toggle WebPreview selection mode
   | ToggleWebPreviewSelection => {
@@ -934,8 +907,10 @@ let next = (state, action) => {
     ->AskTheLlmReactStatestore.StateReducer.update
 
   | Connect({sendPrompt}) =>
-    {...state, connectionState: Connected(sendPrompt)}
-    ->AskTheLlmReactStatestore.StateReducer.update(
+    {
+      ...state,
+      connectionState: Connected(sendPrompt),
+    }->AskTheLlmReactStatestore.StateReducer.update(
       ~sideEffects=state.currentTaskId
       ->Option.map(taskId => [StartInitializationTimeout({taskId, timeoutMs: 3000})])
       ->Option.getOr([]),

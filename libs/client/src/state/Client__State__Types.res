@@ -145,7 +145,6 @@ module Task = {
     url: string,
     contentDocument: option<WebAPI.DOMAPI.document>,
     contentWindow: option<WebAPI.DOMAPI.window>,
-    errors: array<Client__Types.consoleError>,
   }
 
   type t = {
@@ -182,7 +181,7 @@ module Task = {
       title: normalizedTitle,
       messages,
       createdAt: timestamp,
-      previewFrame: {url: previewUrl, contentDocument: None, contentWindow: None, errors: []},
+      previewFrame: {url: previewUrl, contentDocument: None, contentWindow: None},
       lastMessageAt: None,
       webPreviewIsSelecting: false,
       selectedElement: None,
@@ -247,7 +246,9 @@ let selectedElementToContentBlock = (sel: SelectedElement.t): option<ACPTypes.co
 
 // Build an Image ContentBlock from SelectedElement screenshot
 // Uses resource type with image/png mimeType and selected_component_screenshot meta
-let selectedElementScreenshotToContentBlock = (screenshotDataUrl: string): ACPTypes.contentBlock => {
+let selectedElementScreenshotToContentBlock = (
+  screenshotDataUrl: string,
+): ACPTypes.contentBlock => {
   // Extract base64 data from data URL (data:image/png;base64,<data>)
   let base64Data = switch screenshotDataUrl->String.split(";base64,") {
   | [_, base64] => base64
@@ -291,7 +292,11 @@ let makeFigmaNodeMeta: (string, bool) => JSON.t = %raw(`
 
 // Build a Resource ContentBlock from FigmaNode data
 // Contains the Figma node as DSL string (compact, token-efficient format) or full JSON data
-let figmaNodeToContentBlock = (nodeId: string, nodeData: string, isDsl: bool): ACPTypes.contentBlock => {
+let figmaNodeToContentBlock = (
+  nodeId: string,
+  nodeData: string,
+  isDsl: bool,
+): ACPTypes.contentBlock => {
   let textResource: ACPTypes.textResourceContents = {
     uri: nodeId,
     mimeType: Some("text/plain"),
@@ -322,7 +327,7 @@ let figmaImageToContentBlock = (imageDataUrl: string): ACPTypes.contentBlock => 
   // Remove the "data:image/png;base64," prefix to get just the base64 data
   let base64Data = switch imageDataUrl->String.split(";base64,") {
   | [_, base64] => base64
-  | _ => 
+  | _ =>
     // If no "base64," found, try to extract after "data:image/png,"
     switch imageDataUrl->String.split("data:image/png,") {
     | [_, base64] => base64

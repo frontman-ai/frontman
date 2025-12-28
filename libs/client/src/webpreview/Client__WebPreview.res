@@ -158,10 +158,9 @@ let make = () => {
       </Nav.Navigation>
 
       <div className="relative size-full overflow-y-hidden">
-        {switch (previewFrame.contentDocument, previewFrame.contentWindow) {
-        | (Some(document), Some(window)) =>
-          <Client__WebPreview__Stage document={document} window={window} />
-        | (_, _) => React.null
+        {switch previewFrame.contentDocument {
+        | Some(document) => <Client__WebPreview__Stage document={document} />
+        | _ => React.null
         }}
 
         {allTasks

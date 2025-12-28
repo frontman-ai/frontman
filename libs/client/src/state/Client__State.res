@@ -65,8 +65,6 @@ module Actions = {
   let setPreviewFrame = (~contentDocument, ~contentWindow) =>
     Client__State__Store.dispatch(SetPreviewFrame({contentDocument, contentWindow}))
 
-  let addConsoleError = (~error) => Client__State__Store.dispatch(AddConsoleError({error: error}))
-
   let toggleWebPreviewSelection = () => Client__State__Store.dispatch(ToggleWebPreviewSelection)
 
   let setSelectedElement = (~selectedElement) =>
