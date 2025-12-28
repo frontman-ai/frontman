@@ -7,8 +7,8 @@ describe("ToolRegistry", _t => {
     let registry = ToolRegistry.make()
     let definitions = registry->ToolRegistry.getToolDefinitions
 
-    // 5 core tools + 1 Next.js tool (get_routes)
-    t->expect(definitions->Array.length)->Expect.toBe(6)
+    // 5 core tools + 2 Next.js tools (get_routes, get_logs)
+    t->expect(definitions->Array.length)->Expect.toBe(7)
   })
 
   test("finds tool by name", t => {

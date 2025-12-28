@@ -8,7 +8,10 @@ type tool = CoreRegistry.tool
 type t = CoreRegistry.t
 
 // Next.js specific tools
-let nextjsTools: array<tool> = [module(FrontmanNextjs__Tool__GetRoutes)]
+let nextjsTools: array<tool> = [
+  module(FrontmanNextjs__Tool__GetRoutes),
+  module(FrontmanNextjs__Tool__GetLogs),
+]
 
 let make = (): t => {
   CoreRegistry.coreTools()->CoreRegistry.addTools(nextjsTools)

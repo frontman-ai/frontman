@@ -9,10 +9,6 @@ let useUnsafeCleanupEffects = (effects, handleEffect, dispatch, state: 'state) =
   React.useEffect(_ => {
     let state = stateRef.current
     effects.contents->Array.forEach(e => handleEffect(e, state, dispatch))
-
-    /* NOTE @Roland - We need to make sure we reset the effects after we've ran
-     * them, we can safely do this as this useEffect is triggered in the same
-     * loop */
     effects := []
     None
   }, (effects, handleEffect, dispatch))

@@ -68,7 +68,6 @@ external useSyncExternalStoreWithSelector: (
   option<('selection, 'selection) => bool>,
 ) => 'selection = "useSyncExternalStoreWithSelector"
 
-// NOTE(Jaap)
 // this is a copy of the caml_equal function from the ReScript runtime
 // the part that is removed is the deep equal comparison of object values
 // which is expensive. We can assume that in reducers objects are immutable

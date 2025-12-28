@@ -2,6 +2,7 @@
 
 module Server = FrontmanNextjs__Server
 module Config = FrontmanNextjs__Config
+module LogCapture = FrontmanNextjs__LogCapture
 
 type config = Config.t
 
@@ -73,6 +74,8 @@ let createMiddleware = (
   ~isLightTheme: option<bool>=?,
   ~projectRoot: option<string>=?,
 ) => {
+  LogCapture.initialize()
+
   let config = Config.make(
     ~isDev,
     ~basePath,
