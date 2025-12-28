@@ -23,5 +23,8 @@
 	],
 	"dependencies": {
 		"rescript": "catalog:"
+	},
+	"devDependencies": {
+		"@rescript/tools": "^0.6.6"
 	}
 }

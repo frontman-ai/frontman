@@ -5278,6 +5278,17 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@rescript/tools@npm:^0.6.6":
+  version: 0.6.6
+  resolution: "@rescript/tools@npm:0.6.6"
+  dependencies:
+    rescript: "npm:^11.0.0-rc.7"
+  bin:
+    rescript-tools: npm/cli.js
+  checksum: 10c0/6e6af66809e86aacd07e74c6e08a66ff49da254ceb2b970fffa92041e7a2c02972396cc431cabe84c194be9e9dc79475ac1bd836a2b635dda5788c4891c3c3b4
+  languageName: node
+  linkType: hard
+
 "@rescript/webapi@npm:*, @rescript/webapi@workspace:libs/experimental-rescript-webapi":
   version: 0.0.0-use.local
   resolution: "@rescript/webapi@workspace:libs/experimental-rescript-webapi"
@@ -8133,6 +8144,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "ask-the-llm@workspace:."
   dependencies:
+    "@rescript/tools": "npm:^0.6.6"
     rescript: "catalog:"
   languageName: unknown
   linkType: soft
@@ -17580,6 +17592,17 @@ __metadata:
     rescript-legacy: cli/rescript-legacy.js
     rescript-tools: cli/rescript-tools.js
   checksum: 10c0/5701a64daf4e7c21625bb6d695f456c2fa6f7ef59b970565e0439aea592c69518d681d0e276c68d29fe9a006ae1c0f916482730270d9f15fc89fd4fd8f9866f0
+  languageName: node
+  linkType: hard
+
+"rescript@npm:^11.0.0-rc.7":
+  version: 11.1.4
+  resolution: "rescript@npm:11.1.4"
+  bin:
+    bsc: bsc
+    bstracing: lib/bstracing
+    rescript: rescript
+  checksum: 10c0/7f12186a84209f586457a60e65755fcdfbcbb503ac805c60ab5132ce4c927bc264c3b851419ed5498ba7dc4066723377bb7453f893f482a0ccd424986d02beba
   languageName: node
   linkType: hard
 
