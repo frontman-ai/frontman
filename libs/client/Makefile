@@ -14,10 +14,10 @@ test: build ## Run test suite
 	yarn vitest run
 
 lint: ## Run linters and code formatters
-	biome check .
+	yarn biome check .
 
 format: ## Format code with biome
-	biome check --write .
+	yarn biome check --write .
 
 dev: 
 	yarn vite

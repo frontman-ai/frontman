@@ -1,40 +1,40 @@
 {
-    "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
-    "files": {
-        "includes": ["**", "!lib/bs", "!dist", "!**/*.d.ts", "!**/*.res.mjs"]
-    },
-    "linter": {
-        "enabled": true,
-        "rules": {
-            "recommended": true,
-            "a11y": {
-                "useSemanticElements": "off",
-                "useKeyWithClickEvents": "off"
-            },
-            "style": {
-                "useConst": "off",
-                "useTemplate": "off"
-            },
-            "complexity": {
-                "useLiteralKeys": "off",
-                "useArrowFunction": "off"
-            },
-            "correctness": {
-                "noSwitchDeclarations": "off",
-                "noUnusedVariables": "off",
-                "noUnusedFunctionParameters": "off",
-                "noInnerDeclarations": "off"
-            },
-            "suspicious": {
-                "useIterableCallbackReturn": "off",
-                "noFallthroughSwitchClause": "off",
-                "noExplicitAny": "off"
-            }
-        }
-    },
-    "css": {
-        "parser": {
-            "tailwindDirectives": true
-        }
-    }
+	"$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+	"files": {
+		"includes": ["**", "!lib/bs", "!dist", "!**/*.d.ts", "!**/*.res.mjs"]
+	},
+	"linter": {
+		"enabled": true,
+		"rules": {
+			"recommended": true,
+			"a11y": {
+				"useSemanticElements": "off",
+				"useKeyWithClickEvents": "off"
+			},
+			"style": {
+				"useConst": "off",
+				"useTemplate": "off"
+			},
+			"complexity": {
+				"useLiteralKeys": "off",
+				"useArrowFunction": "off"
+			},
+			"correctness": {
+				"noSwitchDeclarations": "off",
+				"noUnusedVariables": "off",
+				"noUnusedFunctionParameters": "off",
+				"noInnerDeclarations": "off"
+			},
+			"suspicious": {
+				"useIterableCallbackReturn": "off",
+				"noFallthroughSwitchClause": "off",
+				"noExplicitAny": "off"
+			}
+		}
+	},
+	"css": {
+		"parser": {
+			"tailwindDirectives": true
+		}
+	}
 }

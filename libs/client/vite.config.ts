@@ -16,12 +16,7 @@ export default vite.defineConfig({
 			fileName: "index",
 		},
 		rollupOptions: {
-			external: [
-				"react",
-				"react-dom",
-				"react/jsx-runtime",
-				/^node:.*/,
-			],
+			external: ["react", "react-dom", "react/jsx-runtime", /^node:.*/],
 			output: {
 				inlineDynamicImports: true,
 			},

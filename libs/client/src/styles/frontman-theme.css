@@ -1,6 +1,6 @@
 /**
  * Frontman Theme - Minimal CSS
- * 
+ *
  * Only contains animations and effects that cannot be achieved with pure Tailwind.
  * All other styling uses Tailwind utility classes directly in components.
  */
@@ -10,29 +10,29 @@
  * ============================================================================ */
 
 @keyframes frontman-shimmer {
-  0% {
-    background-position: 200% 0;
-  }
-  100% {
-    background-position: -200% 0;
-  }
+	0% {
+		background-position: 200% 0;
+	}
+	100% {
+		background-position: -200% 0;
+	}
 }
 
 /* Shimmer text effect - gradient sweep for loading states */
 .shimmer-text {
-  background: linear-gradient(
-    90deg,
-    rgb(156 163 175) 0%,
-    rgb(209 213 219) 25%,
-    rgb(255 255 255 / 0.9) 50%,
-    rgb(209 213 219) 75%,
-    rgb(156 163 175) 100%
-  );
-  background-size: 200% 100%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  animation: frontman-shimmer 2s linear infinite;
+	background: linear-gradient(
+		90deg,
+		rgb(156 163 175) 0%,
+		rgb(209 213 219) 25%,
+		rgb(255 255 255 / 0.9) 50%,
+		rgb(209 213 219) 75%,
+		rgb(156 163 175) 100%
+	);
+	background-size: 200% 100%;
+	-webkit-background-clip: text;
+	background-clip: text;
+	-webkit-text-fill-color: transparent;
+	animation: frontman-shimmer 2s linear infinite;
 }
 
 /* ============================================================================
@@ -40,16 +40,17 @@
  * ============================================================================ */
 
 @keyframes frontman-active-pulse {
-  0%, 100% {
-    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.3);
-  }
-  50% {
-    box-shadow: 0 0 12px 2px rgba(59, 130, 246, 0.15);
-  }
+	0%,
+	100% {
+		box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.3);
+	}
+	50% {
+		box-shadow: 0 0 12px 2px rgba(59, 130, 246, 0.15);
+	}
 }
 
 .frontman-tool-active {
-  animation: frontman-active-pulse 2s ease-in-out infinite;
+	animation: frontman-active-pulse 2s ease-in-out infinite;
 }
 
 /* ============================================================================
@@ -57,11 +58,11 @@
  * ============================================================================ */
 
 .frontman-collapse-transition {
-  transition: 
-    max-height 0.2s ease-in-out,
-    opacity 0.15s ease-in-out,
-    padding 0.15s ease-in-out,
-    margin 0.15s ease-in-out;
+	transition:
+		max-height 0.2s ease-in-out,
+		opacity 0.15s ease-in-out,
+		padding 0.15s ease-in-out,
+		margin 0.15s ease-in-out;
 }
 
 /* ============================================================================
@@ -69,16 +70,16 @@
  * ============================================================================ */
 
 @keyframes frontman-chevron-fade-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+	from {
+		opacity: 0;
+	}
+	to {
+		opacity: 1;
+	}
 }
 
 .chevron-animate {
-  animation: frontman-chevron-fade-in 0.1s ease-in forwards;
+	animation: frontman-chevron-fade-in 0.1s ease-in forwards;
 }
 
 /* ============================================================================
@@ -87,12 +88,12 @@
 
 /* Subtle background for expanded group children area */
 .frontman-group-children {
-  background: linear-gradient(
-    to right,
-    rgba(63, 63, 70, 0.3) 0px,
-    rgba(63, 63, 70, 0.1) 4px,
-    transparent 4px
-  );
+	background: linear-gradient(
+		to right,
+		rgba(63, 63, 70, 0.3) 0px,
+		rgba(63, 63, 70, 0.1) 4px,
+		transparent 4px
+	);
 }
 
 /* ============================================================================
@@ -101,16 +102,16 @@
 
 /* Task header hover state */
 .frontman-task-header:hover {
-  background-color: rgba(63, 63, 70, 0.5);
+	background-color: rgba(63, 63, 70, 0.5);
 }
 
 /* Task preview area */
 .frontman-task-preview {
-  background: linear-gradient(
-    to bottom,
-    rgba(39, 39, 42, 0.8),
-    rgba(39, 39, 42, 1)
-  );
+	background: linear-gradient(
+		to bottom,
+		rgba(39, 39, 42, 0.8),
+		rgba(39, 39, 42, 1)
+	);
 }
 
 /* ============================================================================
@@ -119,14 +120,14 @@
 
 /* Background color not available in Tailwind by default */
 .bg-zinc-750 {
-  background-color: rgb(48, 48, 54);
+	background-color: rgb(48, 48, 54);
 }
 
 .bg-zinc-850 {
-  background-color: rgb(32, 32, 36);
+	background-color: rgb(32, 32, 36);
 }
 
 /* Hover variant for bg-zinc-750 */
 .hover\:bg-zinc-750:hover {
-  background-color: rgb(48, 48, 54);
+	background-color: rgb(48, 48, 54);
 }
