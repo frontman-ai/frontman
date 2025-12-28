@@ -495,7 +495,7 @@ let groupToolCalls = (
   ~groupReads: bool=true,
   ~groupTodos: bool=true,
   ~groupSubagents: bool=true,
-  ~minGroupSize: int=2,
+  ~minGroupSize: int=1,
 ): array<Types.displayItem> => {
   // First pass: build a set of spawner tool names that have matching subagent groups
   // These spawners will be HIDDEN since the subagent group shows their name in the header
@@ -521,7 +521,15 @@ let groupToolCalls = (
     let group = currentGroup.contents
     let isSubagentGroup = currentIsSubagent.contents
     
-    if Array.length(group) >= minGroupSize {
+    // Check if group is entirely todo tools - use minGroupSize=2 for those
+    let isTodoOnlyGroup = Array.length(group) > 0 && 
+      group->Array.every(tc => TodoUtils.isTodoTool(tc.toolName))
+    
+    // For subagent and explored groups: minGroupSize=1
+    // For todo-only groups: minGroupSize=2
+    let effectiveMinSize = if isTodoOnlyGroup { 2 } else { minGroupSize }
+    
+    if Array.length(group) >= effectiveMinSize {
       // Create a proper group
       let summary = calculateSummary(group)
       let groupType = currentGroupType.contents->Option.getOr(Types.Activity)
@@ -682,10 +690,11 @@ let shouldGroupMessages = (
 }
 
 /**
- * Get prefix for current group based on loading state
- * Returns "Exploring" if any tool is still loading, "Explored" when complete
+ * Get prefix for current group based on loading state and open state
+ * Returns "Exploring" if any tool is still loading OR if group is still open
+ * A group is "open" when it's the last group and the agent is still running
  */
-let getGroupPrefix = (group: Types.toolGroup): string => {
+let getGroupPrefix = (group: Types.toolGroup, ~isOpen: bool=false): string => {
   let isLoading = group.toolCalls->Array.some(tc => {
     switch tc.state {
     | Message.InputStreaming | Message.InputAvailable => true
@@ -693,7 +702,8 @@ let getGroupPrefix = (group: Types.toolGroup): string => {
     }
   })
 
-  if isLoading {
+  // Show loading prefix if any tool is loading OR if group is still open
+  if isLoading || isOpen {
     switch group.groupType {
     | Types.Activity => "Exploring..."
     | Types.Browser => "Performing..."

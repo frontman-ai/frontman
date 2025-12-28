@@ -7,7 +7,11 @@
  * 
  * Subagent groups show with "Processed" prefix and distinct styling.
  * 
- * If isLastGroup=true and the group is still loading, it auto-expands.
+ * Auto-expand/collapse behavior:
+ * - If isLastToolGroup=true, the group auto-expands
+ * - When a group is no longer the last (new group created), it auto-collapses
+ * - If user manually toggles, their preference is preserved
+ * - Shows "Exploring..." while isLastToolGroup && isAgentRunning
  */
 
 module Icons = Client__ToolIcons
@@ -18,9 +22,7 @@ module ToolCallBlock = Client__ToolCallBlock
 // Nested tool group for displaying "Explored" groups within subagent groups
 module NestedToolGroup = {
   @react.component
-  let make = (~group: Types.toolGroup, ~messageId: string) => {
-    let (isExpanded, setIsExpanded) = React.useState(() => false)
-    
+  let make = (~group: Types.toolGroup, ~messageId: string, ~isLastNestedGroup: bool=false, ~isParentOpen: bool=false) => {
     let isLoading = group.toolCalls->Array.some(tc => {
       switch tc.state {
       | Client__State__Types.Message.InputStreaming
@@ -29,13 +31,45 @@ module NestedToolGroup = {
       }
     })
     
+    // Nested group is "open" if it's the last nested group AND parent group is still open
+    // This prevents flickering - the nested group stays "Exploring..." while parent is open
+    let isOpen = isLastNestedGroup && isParentOpen
+    
+    // Track if user has manually toggled expansion
+    let hasUserToggled = React.useRef(false)
+    
+    // Track previous isLastNestedGroup state for auto-collapse detection
+    let prevIsLastNestedGroup = React.useRef(isLastNestedGroup)
+    
+    // Auto-expand if this is the last nested group (always expand last group)
+    let (isExpanded, setIsExpanded) = React.useState(() => isLastNestedGroup)
+    
+    // Auto-expand when becoming the last nested group
+    // Auto-collapse when no longer the last nested group (unless user manually toggled)
+    React.useEffect2(() => {
+      if isLastNestedGroup && !prevIsLastNestedGroup.current {
+        // Just became the last nested group - auto-expand
+        setIsExpanded(_ => true)
+      } else if !isLastNestedGroup && prevIsLastNestedGroup.current && !hasUserToggled.current {
+        // No longer the last nested group and user hasn't toggled - auto-collapse
+        setIsExpanded(_ => false)
+      }
+      prevIsLastNestedGroup.current = isLastNestedGroup
+      None
+    }, (isLastNestedGroup, hasUserToggled.current))
+    
     let summaryLabels = Utils.generateSummaryLabels(group.summary)
     let toolCount = Array.length(group.toolCalls)
-    let displayPrefix = Utils.getGroupPrefix(group)
+    let displayPrefix = Utils.getGroupPrefix(group, ~isOpen)
     
-    let handleToggle = _ => setIsExpanded(prev => !prev)
+    let handleToggle = _ => {
+      hasUserToggled.current = true
+      setIsExpanded(prev => !prev)
+    }
     
-    let prefixColorClass = if isLoading { "shimmer-text" } else { "text-zinc-400" }
+    // Show shimmer when parent is open (not just when loading)
+    let showShimmer = isLoading || isOpen
+    let prefixColorClass = if showShimmer { "shimmer-text" } else { "text-zinc-400" }
     
     <div className="my-0.5">
       <div
@@ -89,7 +123,7 @@ module NestedToolGroup = {
 }
 
 @react.component
-let make = (~group: Types.toolGroup, ~defaultExpanded: bool=false, ~isLastGroup: bool=false, ~messageId: string) => {
+let make = (~group: Types.toolGroup, ~defaultExpanded: bool=false, ~isLastToolGroup: bool=false, ~isLastItem: bool=false, ~isAgentRunning: bool=false, ~messageId: string) => {
   // Check if any tool in the group is still loading
   let isLoading = group.toolCalls->Array.some(tc => {
     switch tc.state {
@@ -98,9 +132,17 @@ let make = (~group: Types.toolGroup, ~defaultExpanded: bool=false, ~isLastGroup:
     | _ => false
     }
   })
+  
+  // Group is "open" if it's the last tool group, the last item, and agent is still running
+  // Must be last item because if there are items after (like assistant messages),
+  // no more tools can be added to this group
+  let isOpen = isLastToolGroup && isLastItem && isAgentRunning
 
   // Track if user has manually toggled expansion
   let hasUserToggled = React.useRef(false)
+  
+  // Track previous isLastToolGroup state for auto-collapse detection
+  let prevIsLastToolGroup = React.useRef(isLastToolGroup)
   
   // Ref for the scrollable container to auto-scroll
   let scrollContainerRef = React.useRef(Nullable.null)
@@ -108,9 +150,22 @@ let make = (~group: Types.toolGroup, ~defaultExpanded: bool=false, ~isLastGroup:
   // Track tool count for auto-scroll detection
   let prevToolCount = React.useRef(Array.length(group.toolCalls))
   
-  // Auto-expand if this is the last group and it's still loading
-  let shouldAutoExpand = isLastGroup && isLoading
-  let (isExpanded, setIsExpanded) = React.useState(() => defaultExpanded || shouldAutoExpand)
+  // Auto-expand if this is the last tool group (always expand last group)
+  let (isExpanded, setIsExpanded) = React.useState(() => defaultExpanded || isLastToolGroup)
+  
+  // Auto-expand when becoming the last tool group
+  // Auto-collapse when no longer the last tool group (unless user manually toggled)
+  React.useEffect2(() => {
+    if isLastToolGroup && !prevIsLastToolGroup.current {
+      // Just became the last tool group - auto-expand
+      setIsExpanded(_ => true)
+    } else if !isLastToolGroup && prevIsLastToolGroup.current && !hasUserToggled.current {
+      // No longer the last tool group and user hasn't toggled - auto-collapse
+      setIsExpanded(_ => false)
+    }
+    prevIsLastToolGroup.current = isLastToolGroup
+    None
+  }, (isLastToolGroup, hasUserToggled.current))
   
   // Raw JS helper for smooth scrolling to bottom
   let scrollToBottom: Dom.element => unit = %raw(`
@@ -122,7 +177,7 @@ let make = (~group: Types.toolGroup, ~defaultExpanded: bool=false, ~isLastGroup:
   // Auto-scroll to bottom when new tools are added to the last group
   React.useEffect2(() => {
     let currentCount = Array.length(group.toolCalls)
-    if isLastGroup && isExpanded && currentCount > prevToolCount.current {
+    if isLastToolGroup && isExpanded && currentCount > prevToolCount.current {
       // New tool was added - scroll to bottom
       switch scrollContainerRef.current->Nullable.toOption {
       | Some(container) => scrollToBottom(container)
@@ -144,8 +199,8 @@ let make = (~group: Types.toolGroup, ~defaultExpanded: bool=false, ~isLastGroup:
   }
   let toolCount = Array.length(group.toolCalls)
 
-  // Get dynamic prefix (Exploring/Explored based on loading state)
-  let displayPrefix = Utils.getGroupPrefix(group)
+  // Get dynamic prefix (Exploring/Explored based on loading state and open state)
+  let displayPrefix = Utils.getGroupPrefix(group, ~isOpen)
 
   // Toggle expansion - mark as user-toggled to prevent auto-expand interference
   let handleToggle = _ => {
@@ -166,10 +221,12 @@ let make = (~group: Types.toolGroup, ~defaultExpanded: bool=false, ~isLastGroup:
     "border-zinc-600/40"
   }
 
+  // Show shimmer effect when group is loading OR open (last group with agent running)
+  let showShimmer = isLoading || isOpen
   let prefixColorClass = if isSubagent {
-    if isLoading { "shimmer-text" } else { "text-indigo-400" }
+    if showShimmer { "shimmer-text" } else { "text-indigo-400" }
   } else {
-    if isLoading { "shimmer-text" } else { "text-zinc-400" }
+    if showShimmer { "shimmer-text" } else { "text-zinc-400" }
   }
 
   <div className="my-1.5 animate-in fade-in duration-100">
@@ -237,9 +294,20 @@ let make = (~group: Types.toolGroup, ~defaultExpanded: bool=false, ~isLastGroup:
         // Apply grouping to subagent tool calls
         // Pass ~groupSubagents=false so tool calls are grouped by type (read vs write)
         // instead of all being lumped together as a single subagent group
-        let groupedItems = Utils.groupToolCalls(group.toolCalls, ~minGroupSize=2, ~groupSubagents=false)
+        let groupedItems = Utils.groupToolCalls(group.toolCalls, ~minGroupSize=1, ~groupSubagents=false)
+        let groupedItemsCount = Array.length(groupedItems)
+        // Find the index of the last ToolGroup (not just last item)
+        let lastNestedGroupIndex = groupedItems->Array.reduceWithIndex(-1, (acc, item, idx) => {
+          switch item {
+          | Types.ToolGroup(_) => idx
+          | _ => acc
+          }
+        })
+        // Check if last nested group is also the last item (no items after it)
+        let isLastNestedGroupAlsoLastItem = lastNestedGroupIndex == groupedItemsCount - 1
         groupedItems->Array.mapWithIndex((item, i) => {
           let key = `${messageId}-${Int.toString(i)}`
+          let isLastNestedGroup = i == lastNestedGroupIndex && isLastNestedGroupAlsoLastItem
           switch item {
           | Types.SingleTool(tc) =>
             <ToolCallBlock
@@ -270,7 +338,8 @@ let make = (~group: Types.toolGroup, ~defaultExpanded: bool=false, ~isLastGroup:
             />
           | Types.ToolGroup(nestedGroup) =>
             // Render nested group (e.g., "Explored 3 files" within subagent)
-            <NestedToolGroup key={nestedGroup.id} group={nestedGroup} messageId={key} />
+            // Pass isParentOpen so nested groups know if parent subagent is still active
+            <NestedToolGroup key={nestedGroup.id} group={nestedGroup} messageId={key} isLastNestedGroup isParentOpen={isOpen} />
           }
         })->React.array
       } else {

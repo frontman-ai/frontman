@@ -19,8 +19,6 @@ type attachment = {
   url: string,
 }
 
-// Submit status
-type submitStatus = Idle | Streaming | Submitted | Error
 
 // Generate unique ID
 let generateId: unit => string = %raw(`
@@ -104,31 +102,20 @@ module ModelSelector = {
 // Submit button
 module SubmitButton = {
   @react.component
-  let make = (~disabled: bool, ~status: submitStatus, ~onClick: unit => unit) => {
-    let icon = switch status {
-    | Streaming => <Icons.StopIcon size=16 />
-    | Submitted => <Icons.LoaderIcon size=16 />
-    | Error => <Icons.XIcon size=16 />
-    | Idle => <Icons.SendIcon size=16 />
-    }
-    
-    let bgClass = switch status {
-    | Streaming => "bg-amber-600 hover:bg-amber-500"
-    | _ => "bg-blue-600 hover:bg-blue-500 disabled:bg-zinc-700"
-    }
-    
+  let make = (~disabled: bool, ~onClick: unit => unit) => {
     <button
       type_="submit"
-      disabled={disabled && status != Streaming}
+      disabled
       onClick={e => {
         ReactEvent.Mouse.preventDefault(e)
         onClick()
       }}
-      className={`flex items-center justify-center w-8 h-8 rounded-md
-                  text-white transition-colors
-                  disabled:opacity-50 disabled:cursor-not-allowed ${bgClass}`}
+      className="flex items-center justify-center w-8 h-8 rounded-md
+                 text-white transition-colors
+                 bg-blue-600 hover:bg-blue-500 disabled:bg-zinc-700
+                 disabled:opacity-50 disabled:cursor-not-allowed"
     >
-      {icon}
+      <Icons.SendIcon size=16 />
     </button>
   }
 }
@@ -142,7 +129,7 @@ let make = (
   ~models: array<model>,
   ~selectedModel: string,
   ~onModelChange: string => unit,
-  ~isStreaming: bool,
+  ~isAgentRunning: bool,
   ~isConnected: bool,
   ~placeholder: string="What would you like to change?",
 ) => {
@@ -211,7 +198,8 @@ let make = (
     
     if key == "Enter" && !shiftKey {
       ReactEvent.Keyboard.preventDefault(e)
-      if value != "" || Array.length(attachments) > 0 {
+      // Don't submit while agent is running or disconnected
+      if !isAgentRunning && isConnected && (value != "" || Array.length(attachments) > 0) {
         onSubmit()
         setAttachments(_ => [])
       }
@@ -220,14 +208,16 @@ let make = (
   
   // Handle form submit
   let handleSubmit = () => {
-    if value != "" || Array.length(attachments) > 0 {
+    // Don't submit while agent is running or disconnected
+    if !isAgentRunning && isConnected && (value != "" || Array.length(attachments) > 0) {
       onSubmit()
       setAttachments(_ => [])
     }
   }
   
-  let status = if isStreaming { Streaming } else { Idle }
-  let isDisabled = !isConnected || (value == "" && Array.length(attachments) == 0)
+  let hasContent = value != "" || Array.length(attachments) > 0
+  let isInputDisabled = !isConnected || isAgentRunning
+  let isSubmitDisabled = isInputDisabled || !hasContent
   
   <div 
     className={`bg-zinc-900 border-t border-zinc-800 ${isDragging ? "ring-2 ring-blue-500/50" : ""}`}
@@ -248,19 +238,23 @@ let make = (
       <textarea
         ref={ReactDOM.Ref.domRef(textareaRef)}
         value
+        disabled={isInputDisabled}
         onChange={e => {
           let target = ReactEvent.Form.target(e)
           onChange(target["value"])
         }}
         onKeyDown={handleKeyDown}
-        placeholder
+        placeholder={isAgentRunning ? "Waiting for response..." : placeholder}
         rows=1
-        className="w-full min-h-[40px] max-h-[200px] px-3 py-2 
-                   bg-zinc-800 border border-zinc-700 rounded-lg
-                   text-sm text-zinc-200 placeholder-zinc-500
-                   resize-none overflow-y-auto
-                   focus:outline-none focus:ring-1 focus:ring-blue-500/50 focus:border-blue-500/50
-                   field-sizing-content"
+        className={[
+          "w-full min-h-[40px] max-h-[200px] px-3 py-2",
+          "bg-zinc-800 border border-zinc-700 rounded-lg",
+          "text-sm text-zinc-200 placeholder-zinc-500",
+          "resize-none overflow-y-auto",
+          "focus:outline-none focus:ring-1 focus:ring-blue-500/50 focus:border-blue-500/50",
+          "field-sizing-content",
+          if isInputDisabled { "opacity-60 cursor-not-allowed" } else { "" },
+        ]->Array.filter(c => c != "")->Array.join(" ")}
       />
     </div>
     
@@ -296,7 +290,7 @@ let make = (
         <ModelSelector models value={selectedModel} onChange={onModelChange} />
       </div>
       
-      <SubmitButton disabled={isDisabled} status onClick={handleSubmit} />
+      <SubmitButton disabled={isSubmitDisabled} onClick={handleSubmit} />
     </div>
   </div>
 }

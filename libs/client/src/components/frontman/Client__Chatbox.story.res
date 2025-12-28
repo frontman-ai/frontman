@@ -41,6 +41,10 @@ module Snapshot = {
     // Import complex snapshot from fixture file
     @module("../../../test/fixtures/state_snapshot_complex_1.json")
     external complexSnapshotJson: JSON.t = "default"
+    
+    // Import subagent spawner snapshot for testing spawner hiding
+    @module("../../../test/fixtures/state_snapshot_subagent_spawner.json")
+    external subagentSpawnerJson: JSON.t = "default"
 }
 
 /** Complex snapshot with many tool calls */
@@ -52,6 +56,41 @@ let complexSnapshot: Story.t<args> = {
 
     React.useEffect0(() => {
       let jsonString = JSON.stringify(Snapshot.complexSnapshotJson)
+      switch Client__StateSnapshot__Storybook.loadSnapshot(jsonString) {
+      | Ok() => setLoaded(_ => true)
+      | Error(err) => setError(_ => Some(err))
+      }
+      Some(() => Client__StateSnapshot__Storybook.resetState())
+    })
+
+    if error->Option.isSome {
+      <div style={{padding: "20px", color: "#ef4444"}}>
+        {React.string("Failed to load snapshot")}
+        <pre style={{marginTop: "10px", fontSize: "12px"}}>
+          {React.string(error->Option.getOr(""))}
+        </pre>
+      </div>
+    } else if !loaded {
+      <div style={{padding: "20px", color: "#a1a1aa"}}>
+        {React.string("Loading snapshot...")}
+      </div>
+    } else {
+      <div style={{width: "400px", height: "600px"}}>
+        <Client__Chatbox />
+      </div>
+    }
+  },
+}
+
+/** Subagent spawner snapshot - tests that spawner tools are hidden when subagent group exists */
+let subagentSpawner: Story.t<args> = {
+  name: "Subagent Spawner (should hide Calling implement_component)",
+  render: _ => {
+    let (loaded, setLoaded) = React.useState(() => false)
+    let (error, setError) = React.useState(() => None)
+
+    React.useEffect0(() => {
+      let jsonString = JSON.stringify(Snapshot.subagentSpawnerJson)
       switch Client__StateSnapshot__Storybook.loadSnapshot(jsonString) {
       | Ok() => setLoaded(_ => true)
       | Error(err) => setError(_ => Some(err))

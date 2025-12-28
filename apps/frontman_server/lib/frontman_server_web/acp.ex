@@ -330,4 +330,86 @@ defmodule FrontmanServerWeb.ACP do
       has_resources: false
     }
   end
+
+  # ===========================================================================
+  # Todo Event Notifications
+  # ===========================================================================
+
+  @doc """
+  Sends a notification when a batch of todos has been created.
+
+  Used to show "Added X todos" in the UI with the ability to expand and see all entries.
+
+  ## Parameters
+    - `session_id` - The ACP session ID
+    - `entries` - List of todo entry maps with fields:
+      - `id` (string): The todo ID
+      - `content` (string): The todo description
+      - `active_form` (string): Present continuous form for display
+      - `status` (string): Current status
+
+  ## Example
+      entries = [
+        %{"id" => "abc123", "content" => "Fix authentication bug", "status" => "pending"}
+      ]
+      ACP.todo_batch_created(session_id, entries)
+  """
+  def todo_batch_created(session_id, entries) when is_list(entries) do
+    params = %{
+      "sessionId" => session_id,
+      "update" => %{
+        "sessionUpdate" => "todo_batch_created",
+        "entries" => entries,
+        "count" => length(entries)
+      }
+    }
+
+    JsonRpc.notification("session/update", params)
+  end
+
+  @doc """
+  Sends a notification when a todo has been started (status changed to in_progress).
+
+  Used to show "Starting: <todo content>" inline in the chat.
+
+  ## Parameters
+    - `session_id` - The ACP session ID
+    - `todo_id` - The ID of the todo being started
+    - `content` - The human-readable content/description of the todo
+  """
+  def todo_started(session_id, todo_id, content) do
+    params = %{
+      "sessionId" => session_id,
+      "update" => %{
+        "sessionUpdate" => "todo_started",
+        "todoId" => todo_id,
+        "content" => content
+      }
+    }
+
+    JsonRpc.notification("session/update", params)
+  end
+
+  @doc """
+  Sends a notification when a todo has been completed.
+
+  Used to show "Finished: <todo content>" inline in the chat.
+
+  ## Parameters
+    - `session_id` - The ACP session ID
+    - `todo_id` - The ID of the completed todo
+    - `content` - The human-readable content/description of the todo
+  """
+  def todo_completed(session_id, todo_id, content) do
+    params = %{
+      "sessionId" => session_id,
+      "update" => %{
+        "sessionUpdate" => "todo_completed",
+        "todoId" => todo_id,
+        "content" => content
+      }
+    }
+
+    JsonRpc.notification("session/update", params)
+  end
 end

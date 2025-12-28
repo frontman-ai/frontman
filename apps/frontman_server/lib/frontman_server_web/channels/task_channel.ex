@@ -385,9 +385,10 @@ defmodule FrontmanServerWeb.TaskChannel do
   end
 
   def handle_info({:interaction, %Interaction.ToolResult{} = tool_result}, socket) do
-    if Tools.todo_mutation?(tool_result.tool_name) do
-      task_id = socket.assigns.task_id
+    task_id = socket.assigns.task_id
 
+    if Tools.todo_mutation?(tool_result.tool_name) do
+      # Send plan_update as before
       case Tasks.list_todos(task_id) do
         {:ok, todos} ->
           entries = todos_to_plan_entries(todos)
@@ -397,6 +398,9 @@ defmodule FrontmanServerWeb.TaskChannel do
         {:error, _reason} ->
           :ok
       end
+
+      # Send additional todo-specific notifications for UX
+      emit_todo_event_notification(socket, tool_result)
     end
 
     {:noreply, socket}
@@ -590,6 +594,78 @@ defmodule FrontmanServerWeb.TaskChannel do
       "priority" => "medium",
       "status" => Atom.to_string(todo.status)
     }
+  end
+
+  # ===========================================================================
+  # Todo Event Notification Helpers
+  # ===========================================================================
+
+  # Emit todo-specific UX notifications based on tool result
+  defp emit_todo_event_notification(socket, %Interaction.ToolResult{} = tool_result) do
+    task_id = socket.assigns.task_id
+
+    case tool_result.tool_name do
+      "todo_add" ->
+        # For todo_add, emit todo_batch_created with the single entry
+        # The UI will aggregate consecutive todo_add calls
+        emit_todo_batch_created(socket, task_id, tool_result)
+
+      "todo_update" ->
+        # For todo_update, emit started/completed based on new status
+        emit_todo_status_change(socket, task_id, tool_result)
+
+      _ ->
+        # todo_list, todo_remove, etc. - no special notification needed
+        :ok
+    end
+  end
+
+  # Emit todo_batch_created for a single todo_add result
+  # Note: The UI will handle batching consecutive adds visually
+  # The result is the raw todo struct (not wrapped in {:ok, ...})
+  defp emit_todo_batch_created(socket, task_id, tool_result) do
+    todo = tool_result.result
+
+    if is_map(todo) and Map.has_key?(todo, :id) and Map.has_key?(todo, :content) do
+      entry = %{
+        "id" => todo.id,
+        "content" => todo.content,
+        "active_form" => Map.get(todo, :active_form, todo.content),
+        "status" => Atom.to_string(todo.status)
+      }
+
+      notification = ACP.todo_batch_created(task_id, [entry])
+      push(socket, "acp:message", notification)
+    else
+      :ok
+    end
+  end
+
+  # Emit todo_started or todo_completed based on the update result
+  # The result is the raw todo struct (not wrapped in {:ok, ...})
+  defp emit_todo_status_change(socket, task_id, tool_result) do
+    todo = tool_result.result
+
+    if is_map(todo) and Map.has_key?(todo, :status) do
+      # Get the content for display (prefer active_form, fallback to content)
+      content = Map.get(todo, :active_form) || todo.content
+
+      case todo.status do
+        :in_progress ->
+          notification = ACP.todo_started(task_id, todo.id, content)
+          push(socket, "acp:message", notification)
+
+        :completed ->
+          notification = ACP.todo_completed(task_id, todo.id, content)
+          push(socket, "acp:message", notification)
+
+        _ ->
+          # pending or other status - no notification
+          :ok
+      end
+    else
+      :ok
+    end
   end
 
   @impl true

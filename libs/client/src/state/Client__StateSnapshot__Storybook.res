@@ -150,6 +150,9 @@ let convertTask = (task: Snapshot.Task.t): StateTypes.Task.t => {
     selectedElement: None, // Cannot restore DOM element from snapshot
     figmaNode: convertFigmaNode(task.figmaNode),
     planEntries: task.planEntries->Array.map(convertPlanEntry),
+    isAgentRunning: false, // Default to not running when restoring from snapshot
+    todoBatchEvents: [], // Todo events not stored in snapshots - derived from tool calls
+    todoStatusEvents: [],
   }
 }
 

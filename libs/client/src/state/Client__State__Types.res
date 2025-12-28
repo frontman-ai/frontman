@@ -95,6 +95,51 @@ module FigmaNode = {
     | SelectedNode(selectedNodeData)
 }
 
+// Todo batch event - represents "Added X todos" in the chat
+module TodoBatchEvent = {
+  // Re-export the entry type from ACP
+  type entry = AskTheLlmFrontmanClient.FrontmanClient__ACP__Types.todoBatchEntry
+
+  type t = {
+    id: string,
+    entries: array<entry>,
+    count: int,
+    createdAt: float,
+  }
+
+  let make = (~entries: array<entry>, ~count: int): t => {
+    {
+      id: WebAPI.Global.crypto->WebAPI.Crypto.randomUUID,
+      entries,
+      count,
+      createdAt: Date.now(),
+    }
+  }
+}
+
+// Todo status event - represents "Starting: X" or "Finished: X" notifications
+module TodoStatusEvent = {
+  type eventType = [#started | #completed]
+
+  type t = {
+    id: string,
+    todoId: string,
+    content: string,
+    eventType: eventType,
+    createdAt: float,
+  }
+
+  let make = (~todoId: string, ~content: string, ~eventType: eventType): t => {
+    {
+      id: WebAPI.Global.crypto->WebAPI.Crypto.randomUUID,
+      todoId,
+      content,
+      eventType,
+      createdAt: Date.now(),
+    }
+  }
+}
+
 module Task = {
   type previewFrame = {
     url: string,
@@ -114,6 +159,10 @@ module Task = {
     selectedElement: option<SelectedElement.t>,
     figmaNode: FigmaNode.t,
     planEntries: array<AskTheLlmFrontmanClient.FrontmanClient__ACP__Types.planEntry>,
+    isAgentRunning: bool, // True when waiting for agent response, false when turn is complete
+    // Todo UX events
+    todoBatchEvents: array<TodoBatchEvent.t>,
+    todoStatusEvents: array<TodoStatusEvent.t>,
   }
 
   let make = (~title: string, ~previewUrl: string, ~messages=Dict.make()): t => {
@@ -139,6 +188,9 @@ module Task = {
       selectedElement: None,
       figmaNode: FigmaNode.NoSelection,
       planEntries: [],
+      isAgentRunning: false,
+      todoBatchEvents: [],
+      todoStatusEvents: [],
     }
   }
 }

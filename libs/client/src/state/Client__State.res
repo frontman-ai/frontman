@@ -108,7 +108,24 @@ module Actions = {
   let planReceived = (~taskId: string, ~entries: array<Client__State__Types.ACPTypes.planEntry>) =>
     Client__State__Store.dispatch(PlanReceived({taskId, entries}))
 
+  // Todo UX event action creators
+  let todoBatchCreated = (
+    ~taskId: string,
+    ~entries: array<Client__State__Types.ACPTypes.todoBatchEntry>,
+    ~count: int,
+  ) => Client__State__Store.dispatch(TodoBatchCreated({taskId, entries, count}))
+
+  let todoStarted = (~taskId: string, ~todoId: string, ~content: string) =>
+    Client__State__Store.dispatch(TodoStarted({taskId, todoId, content}))
+
+  let todoCompleted = (~taskId: string, ~todoId: string, ~content: string) =>
+    Client__State__Store.dispatch(TodoCompleted({taskId, todoId, content}))
+
   // Initialization action creators
   let receivedDiscoveredProjectRule = (~taskId: string) =>
     Client__State__Store.dispatch(ReceivedDiscoveredProjectRule({taskId: taskId}))
+
+  // Turn completion action creators
+  let turnCompleted = (~taskId: string) =>
+    Client__State__Store.dispatch(TurnCompleted({taskId: taskId}))
 }

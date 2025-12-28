@@ -32,17 +32,39 @@ Story files should be co-located with components: `Client__MyComponent.story.res
    module Message = Client__State__Types.Message
    let x = Message.SomeVariant
    
-   // GOOD - use fully qualified names
+   // ALSO BAD - module S = SomeModule gets exported
+   module ACPTypes = FrontmanClient__ACP__Types
+   
+   // GOOD - use fully qualified names or `open`
    let x = Client__State__Types.Message.SomeVariant
+   // or
+   open Client__State__Types
+   let x = Message.SomeVariant
    ```
 
-2. **Prefix private helpers with underscore** - Prevents them from being indexed as stories:
+2. **Wrap fixtures/samples in a module** - Top-level `let` bindings get exported as stories:
+   ```rescript
+   // BAD - these become story entries in the sidebar
+   let sampleData = [...]
+   let mockEntries = [...]
+   
+   // GOOD - wrap in a module (modules are not exported as stories)
+   module Samples = {
+     let sampleData = [...]
+     let mockEntries = [...]
+   }
+   
+   // Usage in stories
+   render: _ => <MyComponent data={Samples.sampleData} />
+   ```
+
+3. **Prefix private helpers with underscore** - Prevents them from being indexed as stories:
    ```rescript
    // Private helper (won't appear in sidebar)
    let _stateFromString = str => switch str { ... }
    ```
 
-3. **Use inline string arrays for tags** - Don't use variables:
+4. **Use inline string arrays for tags** - Don't use variables:
    ```rescript
    // GOOD
    tags: ["autodocs"]
@@ -51,7 +73,7 @@ Story files should be co-located with components: `Client__MyComponent.story.res
    tags: [Tags.autodocs]
    ```
 
-4. **Use ArgsAdapter for variant types** - Avoids module aliases and reduces boilerplate:
+5. **Use ArgsAdapter for variant types** - Avoids module aliases and reduces boilerplate:
    ```rescript
    // Define adapter once (use underscore prefix to hide from story list)
    let _stateAdapter = ArgsAdapter.fromPairs([
@@ -64,7 +86,7 @@ Story files should be co-located with components: `Client__MyComponent.story.res
    render: args => <MyComponent state={_stateAdapter.get(args.state)} />
    ```
 
-5. **Story structure**:
+6. **Story structure**:
    ```rescript
    open Bindings__Storybook
    
@@ -83,7 +105,7 @@ Story files should be co-located with components: `Client__MyComponent.story.res
    }
    ```
 
-6. **Browser testing with play functions**:
+7. **Browser testing with play functions**:
    ```rescript
    let myStory: Story.t<args> = {
      name: "My Story",

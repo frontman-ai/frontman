@@ -104,8 +104,18 @@ type action =
   | Disconnect
   // Plan actions
   | PlanReceived({taskId: string, entries: array<Client__State__Types.ACPTypes.planEntry>})
+  // Todo UX events
+  | TodoBatchCreated({
+      taskId: string,
+      entries: array<Client__State__Types.ACPTypes.todoBatchEntry>,
+      count: int,
+    })
+  | TodoStarted({taskId: string, todoId: string, content: string})
+  | TodoCompleted({taskId: string, todoId: string, content: string})
   // Initialization actions
   | ReceivedDiscoveredProjectRule({taskId: string})
+  // Turn completion actions
+  | TurnCompleted({taskId: string})
 
 // Effects for side effects
 type effect =
@@ -176,7 +186,11 @@ let actionToString = action => {
   | Connect(_) => `Connect`
   | Disconnect => `Disconnect`
   | PlanReceived({taskId, _}) => `PlanReceived(${taskId})`
+  | TodoBatchCreated({taskId, count, _}) => `TodoBatchCreated(${taskId}, count=${Int.toString(count)})`
+  | TodoStarted({taskId, todoId, content}) => `TodoStarted(${taskId}, ${todoId}, "${content}")`
+  | TodoCompleted({taskId, todoId, content}) => `TodoCompleted(${taskId}, ${todoId}, "${content}")`
   | ReceivedDiscoveredProjectRule({taskId}) => `ReceivedDiscoveredProjectRule(${taskId})`
+  | TurnCompleted({taskId}) => `TurnCompleted(${taskId})`
   }
 }
 
@@ -311,9 +325,24 @@ module Selectors = {
     currentTask(state)->Option.mapOr([], task => task.planEntries)
   }
 
+  // Get current task's todo batch events
+  let currentTodoBatchEvents = (state: state): array<Client__State__Types.TodoBatchEvent.t> => {
+    currentTask(state)->Option.mapOr([], task => task.todoBatchEvents)
+  }
+
+  // Get current task's todo status events
+  let currentTodoStatusEvents = (state: state): array<Client__State__Types.TodoStatusEvent.t> => {
+    currentTask(state)->Option.mapOr([], task => task.todoStatusEvents)
+  }
+
   // Check if session has been initialized (project rules loaded)
   let sessionInitialized = (state: state): bool => {
     state.sessionInitialized
+  }
+
+  // Check if the agent is currently running (waiting for response)
+  let isAgentRunning = (state: state): bool => {
+    currentTask(state)->Option.mapOr(false, task => task.isAgentRunning)
   }
 }
 
@@ -337,18 +366,26 @@ let handleEffect = (effect, state: state, dispatch) => {
       | Some(Message.Completed(_)) | None => ()
       }
 
+      // Capture taskId for use in async callbacks
+      let capturedTaskId = taskId
       let _ =
         sendPrompt(message, ~additionalBlocks)
         ->Promise.thenResolve(result => {
           switch result {
-          | Ok(_) => // ACP compliant: session/prompt response with stopReason signals message end
-            // The message was already completed above, this is just confirmation
-            ()
-          | Error(error) => Console.error2("[Effect] Failed to send message:", error)
+          | Ok(_) =>
+            // ACP compliant: session/prompt response with stopReason signals turn end
+            // Mark the turn as complete so input is re-enabled
+            dispatch(TurnCompleted({taskId: capturedTaskId}))
+          | Error(error) =>
+            Console.error2("[Effect] Failed to send message:", error)
+            // Also mark turn as complete on error so user can retry
+            dispatch(TurnCompleted({taskId: capturedTaskId}))
           }
         })
         ->Promise.catch(error => {
           Console.error2("[Effect] Failed to send message:", error)
+          // Also mark turn as complete on error so user can retry
+          dispatch(TurnCompleted({taskId: capturedTaskId}))
           Promise.resolve()
         })
     | Disconnected => Console.error("[Effect] Cannot send message: not connected")
@@ -505,7 +542,7 @@ let next = (state, action) => {
       ->Lens.updateCurrentTask(task => {
         let updatedMessages = task.messages->Dict.copy
         updatedMessages->Dict.set(Message.getId(message), message)
-        {...task, messages: updatedMessages, lastMessageAt: Some(timestamp)}
+        {...task, messages: updatedMessages, lastMessageAt: Some(timestamp), isAgentRunning: true}
       })
       ->AskTheLlmReactStatestore.StateReducer.update(
         ~sideEffects=[SendMessageToAPI({message: textContent, taskId})],
@@ -912,11 +949,47 @@ let next = (state, action) => {
     ->Lens.updateTask(taskId, task => {...task, planEntries: entries})
     ->AskTheLlmReactStatestore.StateReducer.update
 
+  | TodoBatchCreated({taskId, entries, count}) =>
+    // Create a new batch event and append to the task's batch events
+    let batchEvent = Client__State__Types.TodoBatchEvent.make(~entries, ~count)
+    state
+    ->Lens.updateTask(taskId, task => {
+      ...task,
+      todoBatchEvents: task.todoBatchEvents->Array.concat([batchEvent]),
+    })
+    ->AskTheLlmReactStatestore.StateReducer.update
+
+  | TodoStarted({taskId, todoId, content}) =>
+    // Create a "started" status event
+    let statusEvent = Client__State__Types.TodoStatusEvent.make(~todoId, ~content, ~eventType=#started)
+    state
+    ->Lens.updateTask(taskId, task => {
+      ...task,
+      todoStatusEvents: task.todoStatusEvents->Array.concat([statusEvent]),
+    })
+    ->AskTheLlmReactStatestore.StateReducer.update
+
+  | TodoCompleted({taskId, todoId, content}) =>
+    // Create a "completed" status event
+    let statusEvent = Client__State__Types.TodoStatusEvent.make(~todoId, ~content, ~eventType=#completed)
+    state
+    ->Lens.updateTask(taskId, task => {
+      ...task,
+      todoStatusEvents: task.todoStatusEvents->Array.concat([statusEvent]),
+    })
+    ->AskTheLlmReactStatestore.StateReducer.update
+
   | ReceivedDiscoveredProjectRule({taskId: _}) =>
     // Mark initialization complete
     {
       ...state,
       sessionInitialized: true,
     }->AskTheLlmReactStatestore.StateReducer.update
+
+  | TurnCompleted({taskId}) =>
+    // Mark agent turn as complete
+    state
+    ->Lens.updateTask(taskId, task => {...task, isAgentRunning: false})
+    ->AskTheLlmReactStatestore.StateReducer.update
   }
 }
