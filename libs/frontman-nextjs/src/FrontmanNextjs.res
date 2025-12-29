@@ -9,6 +9,9 @@ module ToolRegistry = FrontmanNextjs__ToolRegistry
 // Re-export core SSE for convenience
 module SSE = AskTheLlmFrontmanCore.FrontmanCore__SSE
 
+// OpenTelemetry (optional - requires peer dependencies)
+module OpenTelemetry = FrontmanNextjs__OpenTelemetry
+
 // Re-export for convenience
 let createMiddleware = Middleware.createMiddleware
 let makeConfig = Config.make

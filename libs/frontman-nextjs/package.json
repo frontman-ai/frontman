@@ -3,6 +3,22 @@
 	"version": "0.1.0",
 	"type": "module",
 	"main": "./src/FrontmanNextjs.res.mjs",
+	"peerDependencies": {
+		"@opentelemetry/api": "^1.9.0",
+		"@opentelemetry/sdk-logs": "^0.52.0",
+		"@opentelemetry/sdk-trace-base": "^1.25.0"
+	},
+	"peerDependenciesMeta": {
+		"@opentelemetry/api": {
+			"optional": true
+		},
+		"@opentelemetry/sdk-logs": {
+			"optional": true
+		},
+		"@opentelemetry/sdk-trace-base": {
+			"optional": true
+		}
+	},
 	"devDependencies": {
 		"@rescript/webapi": "catalog:",
 		"@vitest/ui": "catalog:",

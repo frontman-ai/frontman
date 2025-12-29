@@ -20,10 +20,8 @@ type rejectionReason
 @val @scope("process")
 external onProcessEvent: (string, 'a => unit) => unit = "on"
 
-// Browser detection binding
-@val external window: option<'a> = "window"
-
-let isBrowser = (): bool => window->Option.isSome
+// Browser detection - use typeof to avoid ReferenceError in Node.js
+let isBrowser = (): bool => %raw(`typeof window !== 'undefined'`)
 
 // Global patch flag for double-patch prevention
 type globalThis
