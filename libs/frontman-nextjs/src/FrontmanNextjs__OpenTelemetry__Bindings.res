@@ -49,6 +49,12 @@ module Trace = {
   // Regular span (in-flight)
   type span
 
+  // Tracer for creating spans
+  type tracer
+
+  // TracerProvider for managing tracers
+  type tracerProvider
+
   // SpanProcessor interface
   type spanProcessor = {
     "onStart": (. span, context) => unit,

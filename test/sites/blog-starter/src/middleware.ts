@@ -11,9 +11,10 @@ const FRONTMAN_ENABLED = process.env.NODE_ENV === "development";
 const frontmanMiddleware = FRONTMAN_ENABLED
 	? await (async () => {
 			const { createMiddleware } = await import(
-				"@ask-the-llm/frontman-nextjs/src/FrontmanNextjs.res.mjs"
+				"@ask-the-llm/frontman-nextjs"
 			);
 			return createMiddleware({
+				isDev: true,
 				projectRoot: process.cwd(),
 				basePath: "__frontman",
 				serverName: "blog-starter",

@@ -12,6 +12,10 @@ module SSE = AskTheLlmFrontmanCore.FrontmanCore__SSE
 // OpenTelemetry (optional - requires peer dependencies)
 module OpenTelemetry = FrontmanNextjs__OpenTelemetry
 
+// Instrumentation - use this in Next.js instrumentation.ts
+// Auto-initializes LogCapture and exports OTEL processors
+module Instrumentation = FrontmanNextjs__Instrumentation
+
 // Re-export for convenience
 let createMiddleware = Middleware.createMiddleware
 let makeConfig = Config.make

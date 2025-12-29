@@ -31,14 +31,13 @@ let getNum = (attrs: attributes, key: string): option<float> => {
 }
 
 let make = (): Trace.spanProcessor => {
-  let onStart = (. _span: Trace.span, _ctx: context): unit => ()
+  let onStart = (_span: Trace.span, _ctx: context): unit => ()
 
-  let onEnd = (. span: Trace.readableSpan): unit => {
+  let onEnd = (span: Trace.readableSpan): unit => {
     try {
       let attrs = span->Trace.attributes
       let spanType = getStr(attrs, "next.span_type")
 
-      // Filter: only relevant Next.js spans (from Tidewave)
       let relevantTypes = [
         "BaseServer.handleRequest",
         "AppRender.getBodyResult",
@@ -56,7 +55,6 @@ let make = (): Trace.spanProcessor => {
         let statusCode = getNum(attrs, "http.status_code")
         let path = route->Option.getOr("unknown")
 
-        // Filter out /frontman paths (like Tidewave filters /tidewave)
         if !(path->String.startsWith("/frontman")) {
           let durationMs = calculateDuration(span)
 
@@ -64,13 +62,13 @@ let make = (): Trace.spanProcessor => {
           let (message, level) = switch spanType {
           | Some("BaseServer.handleRequest") => {
               let method = httpMethod->Option.getOr("UNKNOWN")
-              let status = statusCode->Option.map(code => Float.toString(code))->Option.getOr(
-                "unknown",
-              )
+              let status =
+                statusCode->Option.map(code => Float.toString(code))->Option.getOr("unknown")
               let msg = `${method} ${path} ${status} ${durationMs->Float.toFixed(~digits=2)}ms`
-              let lvl = statusCode->Option.mapOr(LogCapture.Console, code =>
-                code >= 500.0 ? LogCapture.Error : LogCapture.Console
-              )
+              let lvl =
+                statusCode->Option.mapOr(LogCapture.Console, code =>
+                  code >= 500.0 ? LogCapture.Error : LogCapture.Console
+                )
               (msg, lvl)
             }
           | Some("AppRender.getBodyResult") => {
@@ -115,8 +113,8 @@ let make = (): Trace.spanProcessor => {
     }
   }
 
-  let forceFlush = (. ()): promise<unit> => Promise.resolve()
-  let shutdown = (. ()): promise<unit> => Promise.resolve()
+  let forceFlush = (): promise<unit> => Promise.resolve()
+  let shutdown = (): promise<unit> => Promise.resolve()
 
   Trace.makeProcessor({
     "onStart": onStart,

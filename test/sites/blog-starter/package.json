@@ -8,6 +8,10 @@
 	},
 	"dependencies": {
 		"@ask-the-llm/frontman-nextjs": "workspace:*",
+		"@opentelemetry/api": "^1.9.0",
+		"@opentelemetry/sdk-logs": "^0.52.0",
+		"@opentelemetry/sdk-node": "^0.52.0",
+		"@opentelemetry/sdk-trace-base": "^1.25.0",
 		"classnames": "^2.5.1",
 		"date-fns": "^3.6.0",
 		"gray-matter": "^4.0.3",
