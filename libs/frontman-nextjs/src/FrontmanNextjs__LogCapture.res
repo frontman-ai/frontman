@@ -11,28 +11,23 @@ module CircularBuffer = FrontmanNextjs__CircularBuffer
 
 S.enableJson()
 
-// Process error bindings
 type processError = {
   message: option<string>,
   stack: option<string>,
   name: string,
 }
 
-// Rejection reason can be anything
 type rejectionReason
 
 @get external getReasonMessage: rejectionReason => option<string> = "message"
 @get external getReasonStack: rejectionReason => option<string> = "stack"
 @scope("String") external stringFromReason: rejectionReason => string = "toString"
 
-// Process event listener binding
 @val @scope("process")
 external onProcessEvent: (string, 'a => unit) => unit = "on"
 
-// Browser detection - use typeof to avoid ReferenceError in Node.js
 let isBrowser = (): bool => %raw(`typeof window !== 'undefined'`)
 
-// Global patch flag for double-patch prevention
 type globalThis
 @val external globalThis: globalThis = "globalThis"
 
@@ -125,7 +120,6 @@ let argsToString = (args: array<'a>): string => {
 }
 
 let stripAnsi = (str: string): string => {
-  // Matches: ESC followed by [@-Z\\-_] OR [ followed by optional params and final char
   str->String.replaceRegExp(/\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])/g, "")
 }
 
@@ -151,7 +145,6 @@ let addLog = (
   }
 }
 
-// Handlers for console methods - written in ReScript to use proper variants
 let handleConsoleLog = (state: state, args: array<'a>): unit => {
   try {
     addLog(state, Console, argsToString(args), ~consoleMethod=Log)
@@ -227,7 +220,6 @@ let interceptConsole = (state: state): unit => {
   })()`)
 }
 
-// Handler for stdout write - written in ReScript to use proper variants
 let handleStdoutWrite = (state: state, message: string): unit => {
   try {
     let matchesPattern = state.config.stdoutPatterns->Array.some(pattern =>
@@ -254,7 +246,6 @@ let interceptStdout = (state: state): unit => {
 }
 
 let interceptUncaughtErrors = (state: state): unit => {
-  // Handle uncaught exceptions
   onProcessEvent("uncaughtException", (error: processError) => {
     try {
       let errorMessage = error.message->Option.getOr("Unknown error")
@@ -269,7 +260,6 @@ let interceptUncaughtErrors = (state: state): unit => {
     }
   })
 
-  // Handle unhandled rejections
   onProcessEvent("unhandledRejection", (reason: rejectionReason) => {
     try {
       let reasonMessage =
@@ -293,15 +283,12 @@ let interceptUncaughtErrors = (state: state): unit => {
 }
 
 let initialize = (~config: config=defaultConfig, ()): unit => {
-  // Skip initialization in browser environments - use inline check to avoid ReferenceError
   if isBrowser() {
     ()
   } else {
-    // Check if already patched globally
     switch getPatchedFlag() {
-    | Some(true) => () // Already patched, skip
+    | Some(true) => ()
     | _ => {
-        // Set flag BEFORE intercepting to prevent race condition
         setPatchedFlag(true)
         let state = getOrCreateInstance(~config)
         interceptConsole(state)
@@ -312,7 +299,6 @@ let initialize = (~config: config=defaultConfig, ()): unit => {
   }
 }
 
-// Regex cache to avoid recompiling the same pattern repeatedly
 type regexCache = {
   mutable pattern: option<string>,
   mutable regex: option<Js.Re.t>,

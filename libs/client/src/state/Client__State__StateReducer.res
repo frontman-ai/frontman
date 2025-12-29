@@ -548,12 +548,10 @@ let next = (state, action) => {
   | StreamingStarted({taskId, id}) =>
     state
     ->Lens.updateTask(taskId, task => {
-      // Check if message with this ID already exists
       switch task.messages->Dict.get(id) {
-      | Some(Message.Assistant(Streaming(_))) => // Already have a streaming message with this ID
+      | Some(Message.Assistant(Streaming(_))) =>
         task
       | _ =>
-        // Create new streaming message with the provided ID
         let newMessage = Message.Assistant(
           Streaming({
             id,
@@ -571,10 +569,8 @@ let next = (state, action) => {
   | TextDeltaReceived({taskId, id, text}) =>
     state
     ->Lens.updateTask(taskId, task => {
-      // Look up message by the provided ID
       switch task.messages->Dict.get(id) {
       | Some(Message.Assistant(Streaming({id: msgId, textBuffer, createdAt}))) =>
-        // Append to existing streaming message
         let newBuffer = textBuffer ++ text
         let updatedMsg = Message.Assistant(
           Streaming({
@@ -587,7 +583,6 @@ let next = (state, action) => {
         updatedMessages->Dict.set(msgId, updatedMsg)
         {...task, messages: updatedMessages}
       | _ =>
-        // Message not found or not streaming - create new streaming message with provided ID
         let newMessage = Message.Assistant(
           Streaming({
             id,
@@ -605,11 +600,9 @@ let next = (state, action) => {
   | ToolCallReceived({taskId, toolCall}) =>
     state
     ->Lens.updateTask(taskId, task => {
-      // Check if message already exists
       let existingMessage = task.messages->Dict.get(toolCall.id)
       switch existingMessage {
       | Some(Message.ToolCall(existingToolCall)) =>
-        // Update existing tool call
         Lens.updateTaskMessage(task, toolCall.id, msg =>
           switch msg {
           | Message.ToolCall(_) =>
@@ -625,7 +618,6 @@ let next = (state, action) => {
           }
         )
       | _ =>
-        // Insert new tool call message
         Lens.insertTaskMessage(
           task,
           Message.ToolCall({
@@ -753,7 +745,6 @@ let next = (state, action) => {
   | MessageCompleted({taskId, id}) =>
     state
     ->Lens.updateTask(taskId, task => {
-      // Complete only the specific message with the given ID
       Lens.updateTaskMessage(task, id, msg =>
         switch msg {
         | Message.Assistant(Streaming({id: msgId, textBuffer, createdAt})) => {

@@ -1,11 +1,7 @@
-// LogRecordProcessor for OpenTelemetry
-// Captures OTEL log records and stores them in LogCapture
-
 open FrontmanNextjs__OpenTelemetry__Bindings
 
 module LogCapture = FrontmanNextjs__LogCapture
 
-// Convert OTEL severity to our logLevel
 let mapSeverity = (severityText: option<string>): LogCapture.logLevel => {
   switch severityText {
   | Some("ERROR") | Some("FATAL") | Some("CRITICAL") => LogCapture.Error
@@ -14,7 +10,6 @@ let mapSeverity = (severityText: option<string>): LogCapture.logLevel => {
   }
 }
 
-// Convert hrTime to ISO timestamp
 let hrTimeToISO = ((seconds, nanos): hrTime): string => {
   let ms = seconds *. 1000.0 +. nanos /. 1_000_000.0
   ms->Date.fromTime->Date.toISOString
@@ -26,14 +21,12 @@ let make = (): Logs.logRecordProcessor => {
       let body = logRecord->Logs.body->Option.getOr("")
       let level = logRecord->Logs.severityText->mapSeverity
 
-      // Convert OTEL attributes to JSON
       let attributes = logRecord->Logs.attributes->Option.map(attrs => attrs->JSON.Encode.object)
 
-      // Add to LogCapture
       let state = LogCapture.getInstance()
       LogCapture.addLog(state, level, body, ~attributes?)
     } catch {
-    | _ => () // Silently fail - don't break logging
+    | _ => ()
     }
   }
 

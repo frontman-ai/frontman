@@ -1,17 +1,12 @@
-// SpanProcessor for OpenTelemetry
-// Captures relevant Next.js HTTP spans and stores them in LogCapture
-
 open FrontmanNextjs__OpenTelemetry__Bindings
 
 module LogCapture = FrontmanNextjs__LogCapture
 
-// Convert hrTime to ISO timestamp
 let hrTimeToISO = ((seconds, nanos): hrTime): string => {
   let ms = seconds *. 1000.0 +. nanos /. 1_000_000.0
   ms->Date.fromTime->Date.toISOString
 }
 
-// Calculate span duration in ms
 let calculateDuration = (span: Trace.readableSpan): float => {
   let (startSec, startNano) = span->Trace.startTime
   let (endSec, endNano) = span->Trace.endTime
@@ -20,12 +15,10 @@ let calculateDuration = (span: Trace.readableSpan): float => {
   endMs -. startMs
 }
 
-// Get string attribute
 let getStr = (attrs: attributes, key: string): option<string> => {
   attrs->Dict.get(key)->Option.flatMap(JSON.Decode.string)
 }
 
-// Get number attribute
 let getNum = (attrs: attributes, key: string): option<float> => {
   attrs->Dict.get(key)->Option.flatMap(JSON.Decode.float)
 }
@@ -58,7 +51,6 @@ let make = (): Trace.spanProcessor => {
         if !(path->String.startsWith("/frontman")) {
           let durationMs = calculateDuration(span)
 
-          // Build message and level based on span type
           let (message, level) = switch spanType {
           | Some("BaseServer.handleRequest") => {
               let method = httpMethod->Option.getOr("UNKNOWN")
@@ -83,7 +75,6 @@ let make = (): Trace.spanProcessor => {
           }
 
           if message != "" {
-            // Build attributes
             let logAttrs =
               Dict.fromArray([
                 ("log.origin", "opentelemetry-span"->JSON.Encode.string),
@@ -98,18 +89,16 @@ let make = (): Trace.spanProcessor => {
                 ("duration.ms", durationMs->JSON.Encode.float),
               ])->JSON.Encode.object
 
-            // Convert timestamp
             let (endSec, endNano) = span->Trace.endTime
             let _timestamp = (endSec, endNano)->hrTimeToISO
 
-            // Add to LogCapture
             let state = LogCapture.getInstance()
             LogCapture.addLog(state, level, message, ~attributes=logAttrs)
           }
         }
       }
     } catch {
-    | _ => () // Silently fail
+    | _ => ()
     }
   }
 
