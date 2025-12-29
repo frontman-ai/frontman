@@ -1,3 +1,12 @@
+@moduledoc(`
+Captures console logs, build output, and uncaught errors in Node.js environments.
+
+Logs are stored in a circular buffer and can be queried with filters. Call
+\`initialize()\` once at app startup. Browser environments are automatically skipped.
+
+Configure buffer size and stdout patterns via optional config parameter.
+`)
+
 module CircularBuffer = FrontmanNextjs__CircularBuffer
 
 S.enableJson()
@@ -60,23 +69,40 @@ type logEntry = {
   consoleMethod: option<consoleMethod>,
 }
 
+type config = {
+  bufferCapacity: int,
+  stdoutPatterns: array<string>,
+}
+
+let defaultConfig: config = {
+  bufferCapacity: 1024,
+  stdoutPatterns: ["webpack", "turbopack", "Compiled", "Failed"],
+}
+
 type state = {
   buffer: ref<CircularBuffer.t<logEntry>>,
-  initialized: bool,
+  config: config,
 }
 
 let instance: ref<option<state>> = ref(None)
 
-let getInstance = (): state => {
+let getOrCreateInstance = (~config: config): state => {
   switch instance.contents {
   | Some(state) => state
   | None =>
     let state = {
-      buffer: ref(CircularBuffer.make(~capacity=1024)),
-      initialized: false,
+      buffer: ref(CircularBuffer.make(~capacity=config.bufferCapacity)),
+      config,
     }
     instance := Some(state)
     state
+  }
+}
+
+let getInstance = (): state => {
+  switch instance.contents {
+  | Some(state) => state
+  | None => getOrCreateInstance(~config=defaultConfig)
   }
 }
 
@@ -167,51 +193,47 @@ let handleConsoleDebug = (state: state, args: array<'a>): unit => {
 }
 
 let interceptConsole = (state: state): unit => {
-  if !state.initialized {
-    %raw(`(function() {
-      const originalLog = console.log.bind(console)
-      const originalWarn = console.warn.bind(console)
-      const originalError = console.error.bind(console)
-      const originalInfo = console.info.bind(console)
-      const originalDebug = console.debug.bind(console)
+  %raw(`(function() {
+    const originalLog = console.log.bind(console)
+    const originalWarn = console.warn.bind(console)
+    const originalError = console.error.bind(console)
+    const originalInfo = console.info.bind(console)
+    const originalDebug = console.debug.bind(console)
 
-      console.log = function(...args) {
-        handleConsoleLog(state, args)
-        originalLog.apply(console, args)
-      }
+    console.log = function(...args) {
+      handleConsoleLog(state, args)
+      originalLog.apply(console, args)
+    }
 
-      console.warn = function(...args) {
-        handleConsoleWarn(state, args)
-        originalWarn.apply(console, args)
-      }
+    console.warn = function(...args) {
+      handleConsoleWarn(state, args)
+      originalWarn.apply(console, args)
+    }
 
-      console.error = function(...args) {
-        handleConsoleError(state, args)
-        originalError.apply(console, args)
-      }
+    console.error = function(...args) {
+      handleConsoleError(state, args)
+      originalError.apply(console, args)
+    }
 
-      console.info = function(...args) {
-        handleConsoleInfo(state, args)
-        originalInfo.apply(console, args)
-      }
+    console.info = function(...args) {
+      handleConsoleInfo(state, args)
+      originalInfo.apply(console, args)
+    }
 
-      console.debug = function(...args) {
-        handleConsoleDebug(state, args)
-        originalDebug.apply(console, args)
-      }
-    })()`)
-  }
+    console.debug = function(...args) {
+      handleConsoleDebug(state, args)
+      originalDebug.apply(console, args)
+    }
+  })()`)
 }
 
 // Handler for stdout write - written in ReScript to use proper variants
 let handleStdoutWrite = (state: state, message: string): unit => {
   try {
-    if (
-      message->String.includes("webpack") ||
-      message->String.includes("turbopack") ||
-      message->String.includes("Compiled") ||
-      message->String.includes("Failed")
-    ) {
+    let matchesPattern = state.config.stdoutPatterns->Array.some(pattern =>
+      message->String.includes(pattern)
+    )
+    if matchesPattern {
       addLog(state, Build, message)
     }
   } catch {
@@ -220,62 +242,58 @@ let handleStdoutWrite = (state: state, message: string): unit => {
 }
 
 let interceptStdout = (state: state): unit => {
-  if !state.initialized {
-    %raw(`(function() {
-      const originalWrite = process.stdout.write.bind(process.stdout)
+  %raw(`(function() {
+    const originalWrite = process.stdout.write.bind(process.stdout)
 
-      process.stdout.write = function(chunk, ...args) {
-        const message = typeof chunk === 'string' ? chunk : chunk.toString()
-        handleStdoutWrite(state, message)
-        return originalWrite.apply(process.stdout, [chunk, ...args])
-      }
-    })()`)
-  }
+    process.stdout.write = function(chunk, ...args) {
+      const message = typeof chunk === 'string' ? chunk : chunk.toString()
+      handleStdoutWrite(state, message)
+      return originalWrite.apply(process.stdout, [chunk, ...args])
+    }
+  })()`)
 }
 
 let interceptUncaughtErrors = (state: state): unit => {
-  if !state.initialized {
-    // Handle uncaught exceptions
-    onProcessEvent("uncaughtException", (error: processError) => {
-      try {
-        let errorMessage = error.message->Option.getOr("Unknown error")
-        let attributes =
-          Dict.fromArray([
-            ("stack", error.stack->Option.map(JSON.Encode.string)->Option.getOr(JSON.Encode.null)),
-            ("name", error.name->JSON.Encode.string),
-          ])->JSON.Encode.object
-        addLog(state, Error, errorMessage, ~attributes)
-      } catch {
-      | _ => ()
-      }
-    })
-
-    // Handle unhandled rejections
-    onProcessEvent("unhandledRejection", (reason: rejectionReason) => {
-      try {
-        let reasonMessage =
-          reason
-          ->getReasonMessage
-          ->Option.getOr(reason->stringFromReason)
-        let attributes = Dict.fromArray([
-          (
-            "stack",
-            reason
-            ->getReasonStack
-            ->Option.map(JSON.Encode.string)
-            ->Option.getOr(JSON.Encode.null),
-          ),
+  // Handle uncaught exceptions
+  onProcessEvent("uncaughtException", (error: processError) => {
+    try {
+      let errorMessage = error.message->Option.getOr("Unknown error")
+      let attributes =
+        Dict.fromArray([
+          ("stack", error.stack->Option.map(JSON.Encode.string)->Option.getOr(JSON.Encode.null)),
+          ("name", error.name->JSON.Encode.string),
         ])->JSON.Encode.object
-        addLog(state, Error, reasonMessage, ~attributes)
-      } catch {
-      | _ => ()
-      }
-    })
-  }
+      addLog(state, Error, errorMessage, ~attributes)
+    } catch {
+    | _ => ()
+    }
+  })
+
+  // Handle unhandled rejections
+  onProcessEvent("unhandledRejection", (reason: rejectionReason) => {
+    try {
+      let reasonMessage =
+        reason
+        ->getReasonMessage
+        ->Option.getOr(reason->stringFromReason)
+      let attributes = Dict.fromArray([
+        (
+          "stack",
+          reason
+          ->getReasonStack
+          ->Option.map(JSON.Encode.string)
+          ->Option.getOr(JSON.Encode.null),
+        ),
+      ])->JSON.Encode.object
+      addLog(state, Error, reasonMessage, ~attributes)
+    } catch {
+    | _ => ()
+    }
+  })
 }
 
-let initialize = (): unit => {
-  // Skip initialization in browser environments
+let initialize = (~config: config=defaultConfig, ()): unit => {
+  // Skip initialization in browser environments - use inline check to avoid ReferenceError
   if isBrowser() {
     ()
   } else {
@@ -283,14 +301,43 @@ let initialize = (): unit => {
     switch getPatchedFlag() {
     | Some(true) => () // Already patched, skip
     | _ => {
-        let state = getInstance()
+        // Set flag BEFORE intercepting to prevent race condition
+        setPatchedFlag(true)
+        let state = getOrCreateInstance(~config)
         interceptConsole(state)
         interceptStdout(state)
         interceptUncaughtErrors(state)
-        setPatchedFlag(true)
-        instance := Some({...state, initialized: true})
       }
     }
+  }
+}
+
+// Regex cache to avoid recompiling the same pattern repeatedly
+type regexCache = {
+  mutable pattern: option<string>,
+  mutable regex: option<Js.Re.t>,
+}
+
+let regexCache: regexCache = {
+  pattern: None,
+  regex: None,
+}
+
+let getCompiledRegex = (pattern: string): Js.Re.t => {
+  switch regexCache.pattern {
+  | Some(cached) if cached === pattern =>
+    switch regexCache.regex {
+    | Some(r) => r
+    | None =>
+      let regex = Js.Re.fromStringWithFlags(pattern, ~flags="i")
+      regexCache.regex = Some(regex)
+      regex
+    }
+  | _ =>
+    let regex = Js.Re.fromStringWithFlags(pattern, ~flags="i")
+    regexCache.pattern = Some(pattern)
+    regexCache.regex = Some(regex)
+    regex
   }
 }
 
@@ -317,7 +364,7 @@ let getLogs = (
 
     let logs = switch pattern {
     | Some(p) =>
-      let regex = Js.Re.fromStringWithFlags(p, ~flags="i")
+      let regex = getCompiledRegex(p)
       logs->Array.filter(entry => Js.Re.test_(regex, entry.message))
     | None => logs
     }
