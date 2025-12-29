@@ -365,6 +365,17 @@ __metadata:
     sury: "catalog:"
     vite: "catalog:"
     vitest: "catalog:"
+  peerDependencies:
+    "@opentelemetry/api": ^1.9.0
+    "@opentelemetry/sdk-logs": ^0.52.0
+    "@opentelemetry/sdk-trace-base": ^1.25.0
+  peerDependenciesMeta:
+    "@opentelemetry/api":
+      optional: true
+    "@opentelemetry/sdk-logs":
+      optional: true
+    "@opentelemetry/sdk-trace-base":
+      optional: true
   languageName: unknown
   linkType: soft
 

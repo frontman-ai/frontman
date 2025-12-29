@@ -1,13 +1,13 @@
 S.enableJson()
 /**
  * Client__StateSnapshot__Storybook - Helpers for using state snapshots in Storybook
- * 
+ *
  * Provides utilities to load captured state snapshots into the app for story testing.
- * 
+ *
  * Usage in a story file:
  * ```rescript
  * let snapshotJson = `{"tasks": [...], ...}` // Pasted from clipboard
- * 
+ *
  * let complexScenario: Story.t<args> = {
  *   name: "Complex Tool Calls",
  *   decorators: [Client__StateSnapshot__Storybook.withSnapshot(snapshotJson)],
@@ -15,7 +15,6 @@ S.enableJson()
  * }
  * ```
  */
-
 module Snapshot = Client__StateSnapshot
 module StateTypes = Client__State__Types
 
@@ -39,8 +38,7 @@ let convertFigmaNode = (node: Snapshot.FigmaNode.t): StateTypes.FigmaNode.t => {
   switch node {
   | NoSelection => NoSelection
   | WaitingForSelection => WaitingForSelection
-  | SelectedNode({nodeId, nodeData, image, isDsl}) =>
-    SelectedNode({nodeId, nodeData, image, isDsl})
+  | SelectedNode({nodeId, nodeData, image, isDsl}) => SelectedNode({nodeId, nodeData, image, isDsl})
   }
 }
 
@@ -144,7 +142,6 @@ let convertTask = (task: Snapshot.Task.t): StateTypes.Task.t => {
       url: task.previewUrl,
       contentDocument: None,
       contentWindow: None,
-      errors: [],
     },
     webPreviewIsSelecting: task.webPreviewIsSelecting,
     selectedElement: None, // Cannot restore DOM element from snapshot
@@ -208,9 +205,9 @@ let resetState = (): unit => {
   )
 }
 
-/** 
+/**
  * Create a Storybook decorator that loads a snapshot before rendering
- * 
+ *
  * Usage:
  * ```rescript
  * let myStory: Story.t<args> = {
@@ -227,11 +224,11 @@ let withSnapshot = (jsonString: string): ((unit => React.element) => React.eleme
       | Ok() => Console.log("[Storybook] Snapshot loaded successfully")
       | Error(err) => Console.error2("[Storybook] Failed to load snapshot:", err)
       }
-      
+
       // Cleanup: reset state when story unmounts
       Some(() => resetState())
     })
-    
+
     storyFn()
   }
 }
@@ -244,17 +241,17 @@ let withSnapshotObject = (snapshot: Snapshot.t): ((unit => React.element) => Rea
     React.useEffect0(() => {
       loadSnapshotFromObject(snapshot)
       Console.log("[Storybook] Snapshot loaded successfully")
-      
+
       Some(() => resetState())
     })
-    
+
     storyFn()
   }
 }
 
 /**
  * MockStateProvider - A React component that wraps children with a loaded snapshot
- * 
+ *
  * Usage in stories:
  * ```rescript
  * let myStory: Story.t<args> = {
@@ -270,7 +267,7 @@ let withSnapshotObject = (snapshot: Snapshot.t): ((unit => React.element) => Rea
 let make = (~snapshotJson: string, ~children: React.element) => {
   let (loaded, setLoaded) = React.useState(() => false)
   let (error, setError) = React.useState((): option<string> => None)
-  
+
   React.useEffect0(() => {
     switch loadSnapshot(snapshotJson) {
     | Ok() => {
@@ -282,10 +279,10 @@ let make = (~snapshotJson: string, ~children: React.element) => {
         Console.error2("[Storybook] Failed to load snapshot:", err)
       }
     }
-    
+
     Some(() => resetState())
   })
-  
+
   switch error {
   | Some(err) =>
     <div style={{padding: "20px", color: "red", backgroundColor: "#1a1a1a"}}>
@@ -296,9 +293,7 @@ let make = (~snapshotJson: string, ~children: React.element) => {
     if loaded {
       children
     } else {
-      <div style={{padding: "20px", color: "#888"}}>
-        {React.string("Loading snapshot...")}
-      </div>
+      <div style={{padding: "20px", color: "#888"}}> {React.string("Loading snapshot...")} </div>
     }
   }
 }
@@ -312,11 +307,10 @@ module FromObject = {
     React.useEffect0(() => {
       loadSnapshotFromObject(snapshot)
       Console.log("[Storybook] Snapshot loaded successfully")
-      
+
       Some(() => resetState())
     })
-    
+
     children
   }
 }
-
