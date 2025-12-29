@@ -278,11 +278,29 @@ let make = () => {
     None
   }, (connectionState, sendPrompt))
 
+  // Get resizable width for chatbox panel
+  let (chatboxWidth, isResizing, handleResizeMouseDown) = Client__UseResizableWidth.use()
+
   <div className="flex h-screen w-screen bg-background text-foreground">
-    <div className="h-full w-96 border-r flex flex-col p-2 overflow-hidden">
+    // Transparent overlay during resize to prevent iframe from stealing mouse events
+    {isResizing
+      ? <div className="fixed inset-0 z-50 cursor-col-resize" />
+      : React.null}
+    <div
+      style={{width: `${Int.toString(chatboxWidth)}px`}}
+      className="h-full border-r flex flex-col p-2 overflow-hidden relative shrink-0"
+    >
       <Client__Chatbox />
+      // Resize handle on right edge
+      <div
+        className={[
+          "absolute top-0 right-0 w-1 h-full cursor-col-resize transition-colors",
+          isResizing ? "bg-zinc-500" : "hover:bg-zinc-600",
+        ]->Array.join(" ")}
+        onMouseDown={handleResizeMouseDown}
+      />
     </div>
-    <div className="grow h-full p-1">
+    <div className="grow h-full p-1 min-w-0">
       <Client__WebPreview />
     </div>
   </div>
