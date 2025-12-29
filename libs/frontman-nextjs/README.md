@@ -65,18 +65,30 @@ export async function register() {
 
 ## What Gets Captured
 
-### Via Console Patching
-- `console.log()`, `console.error()`, `console.warn()`, etc.
-- Build output (webpack/turbopack compilation messages)
-- Uncaught exceptions and unhandled promise rejections
+### Automatic Console Patching (Node.js only)
+LogCapture automatically initializes when the module is imported and patches:
+- All console methods: `console.log()`, `console.error()`, `console.warn()`, `console.info()`, `console.debug()`
+- `process.stdout.write()` for build output (webpack/turbopack compilation messages)
+- `process.on('uncaughtException')` for unhandled errors
+- `process.on('unhandledRejection')` for unhandled promise rejections
 
-### Via OpenTelemetry Spans
+**Browser environments are automatically skipped** - no console patching occurs in the browser.
+
+### Via OpenTelemetry Spans (Optional)
+When you set up `instrumentation.ts`:
 - HTTP requests (`BaseServer.handleRequest`)
 - Route rendering (`AppRender.getBodyResult`)
 - API route execution (`AppRouteRouteHandlers.runHandler`)
 - Request method, path, status code, duration
 
-All captured data is stored in a circular buffer (1024 entries) and accessible through the Frontman UI.
+### Storage & Cross-Context Sharing
+All captured data is stored in a **circular buffer** (1024 entries by default) using a `globalThis` singleton pattern. This ensures logs are shared across Next.js/Turbopack execution contexts:
+- Instrumentation context (startup)
+- Page render context
+- API route context
+- Middleware context (Edge runtime - read-only)
+
+The buffer persists for the lifetime of the Node.js process and is accessible through the Frontman UI and `get_logs` tool.
 
 ## Configuration Options
 
@@ -106,19 +118,44 @@ Both versions have built-in OpenTelemetry support with no additional configurati
 ## Architecture
 
 ```
-Next.js App
+Next.js App (Turbopack/Webpack)
 │
-├─> instrumentation.ts (startup)
-│   └─> setup() initializes LogCapture + returns OTEL processors
-│       └─> Console patching, error handlers
+├─> Module Import (first context - instrumentation)
+│   └─> LogCapture auto-initializes at module level
+│       ├─> Creates globalThis.__FRONTMAN_INSTANCE__
+│       ├─> Patches console.log/warn/error/info/debug
+│       ├─> Intercepts process.stdout.write
+│       └─> Listens to uncaughtException/unhandledRejection
+│
+├─> Module Import (second context - page render)
+│   └─> LogCapture reuses existing globalThis.__FRONTMAN_INSTANCE__
+│       └─> Same buffer, no re-patching (guarded by __FRONTMAN_CONSOLE_PATCHED__ flag)
+│
+├─> instrumentation.ts (startup) - OPTIONAL
+│   └─> setup() returns OTEL processors that write to same buffer
 │
 ├─> middleware.ts (per-request)
 │   └─> Serves Frontman UI at /__frontman
+│       └─> get_logs tool queries the shared buffer
 │
-└─> OpenTelemetry SDK
-    ├─> LogRecordProcessor → LogCapture buffer
-    └─> SpanProcessor → LogCapture buffer
+└─> OpenTelemetry SDK (optional)
+    ├─> LogRecordProcessor → globalThis.__FRONTMAN_INSTANCE__.buffer
+    └─> SpanProcessor → globalThis.__FRONTMAN_INSTANCE__.buffer
 ```
+
+### Key Technical Details
+
+**Cross-Context Buffer Sharing**
+- Next.js 15+ with Turbopack runs code in multiple isolated contexts
+- `globalThis.__FRONTMAN_INSTANCE__` stores the singleton buffer instance
+- All contexts read/write to the same circular buffer
+- Console patching happens only once (protected by `__FRONTMAN_CONSOLE_PATCHED__` flag)
+
+**Circular Buffer**
+- Fixed capacity: 1024 entries (configurable)
+- Oldest entries automatically evicted when full
+- Entries include: timestamp, level, message, attributes, consoleMethod
+- Thread-safe for concurrent writes from different contexts
 
 ## Advanced Usage
 
@@ -153,13 +190,74 @@ export async function register() {
 ### Without OpenTelemetry
 
 Frontman works without OpenTelemetry! If you only set up middleware (skip `instrumentation.ts`):
-- ✅ Console logs are still captured (via `createMiddleware()`)
+- ✅ Console logs are still captured (auto-initialized at module import)
 - ✅ Build output is tracked
 - ✅ Errors are logged
 - ✅ Frontman UI available at `/__frontman`
 - ❌ HTTP spans are not captured (requires OTEL)
 
-The middleware automatically calls `LogCapture.initialize()`, so console patching happens even without `instrumentation.ts`.
+LogCapture auto-initializes when the module is imported, so console patching happens automatically in Node.js environments - no explicit initialization needed.
+
+### Custom LogCapture Configuration
+
+You can customize the buffer size and stdout patterns:
+
+```typescript
+import { initialize } from '@ask-the-llm/frontman-nextjs/LogCapture';
+
+// Call this BEFORE any console.log() calls (e.g., in instrumentation.ts)
+initialize({
+  bufferCapacity: 2048,  // Default: 1024
+  stdoutPatterns: ['webpack', 'turbopack', 'Compiled', 'Failed', 'custom-pattern'],
+});
+```
+
+**Note:** Configuration only takes effect on the first call. Subsequent calls are ignored because the singleton instance is already created.
+
+## Troubleshooting
+
+### Logs not being captured
+
+**Check 1: Verify module is imported**
+LogCapture only initializes when the module is imported in a Node.js context. Make sure either:
+- You have `instrumentation.ts` that imports from `@ask-the-llm/frontman-nextjs/Instrumentation`
+- OR you have `middleware.ts` that imports from `@ask-the-llm/frontman-nextjs`
+
+**Check 2: Verify Node.js runtime**
+LogCapture doesn't run in browser or Edge runtime. Check your environment:
+```javascript
+console.log('Runtime:', process.env.NEXT_RUNTIME); // Should be 'nodejs'
+```
+
+**Check 3: Verify buffer contents**
+Query the buffer directly to see if logs are present:
+```typescript
+import { getLogs } from '@ask-the-llm/frontman-nextjs/LogCapture';
+
+const allLogs = getLogs();
+console.log('Buffer contains', allLogs.length, 'logs');
+```
+
+**Check 4: Multiple contexts**
+In Next.js 15+, code may run in different contexts. Verify all contexts share the same buffer:
+```javascript
+console.log('Instance:', globalThis.__FRONTMAN_INSTANCE__);
+console.log('Buffer size:', globalThis.__FRONTMAN_INSTANCE__?.buffer.contents.items.length);
+```
+
+### Console logs appear twice
+
+This is normal behavior - LogCapture captures logs AND calls the original console method so logs still appear in your terminal/browser console.
+
+### Build output not captured
+
+By default, only these patterns are captured from `process.stdout`:
+- "webpack"
+- "turbopack"
+- "Compiled"
+- "Failed"
+
+To capture additional patterns, use custom configuration (see above).
 
 ## API
 
@@ -167,13 +265,75 @@ The middleware automatically calls `LogCapture.initialize()`, so console patchin
 
 Creates a Next.js middleware handler that serves the Frontman UI and handles tool requests.
 
+```typescript
+import { createMiddleware } from '@ask-the-llm/frontman-nextjs';
+
+const middleware = createMiddleware({
+  isDev: boolean,              // Enable dev features (default: false)
+  basePath: string,            // Base path (default: "__frontman")
+  serverName: string,          // Server name (default: "frontman-nextjs")
+  serverVersion: string,       // Version (default: package version)
+  projectRoot: string,         // Project root (default: process.cwd())
+});
+```
+
 **Returns:** `(request: NextRequest) => Promise<NextResponse | undefined>`
 
 ### `setup()`
 
-Initializes LogCapture (console patching, error handlers) and returns OTEL processors.
+Initializes LogCapture (console patching, error handlers) and returns OTEL processors for use with OpenTelemetry SDK.
 
-**Returns:** `[logRecordProcessor, spanProcessor]`
+```typescript
+import { setup } from '@ask-the-llm/frontman-nextjs/Instrumentation';
+
+const [logProcessor, spanProcessor] = setup();
+```
+
+**Returns:** `[LogRecordProcessor, SpanProcessor]`
+
+### `initialize(config?)`
+
+Manually initialize LogCapture with custom configuration. Usually not needed since auto-initialization happens at module import.
+
+```typescript
+import { initialize } from '@ask-the-llm/frontman-nextjs/LogCapture';
+
+initialize({
+  bufferCapacity: number,           // Buffer size (default: 1024)
+  stdoutPatterns: string[],         // Patterns to capture from stdout
+});
+```
+
+**Returns:** `void`
+
+### `getLogs(options?)`
+
+Query the log buffer with optional filters.
+
+```typescript
+import { getLogs } from '@ask-the-llm/frontman-nextjs/LogCapture';
+
+const logs = getLogs({
+  pattern: string,        // Regex pattern to match messages (case-insensitive)
+  level: 'console' | 'build' | 'error',  // Filter by log level
+  since: number,          // Unix timestamp - only logs after this time
+  tail: number,           // Limit to last N logs
+});
+```
+
+**Returns:** `LogEntry[]`
+
+**LogEntry type:**
+```typescript
+type LogEntry = {
+  timestamp: string;                           // ISO 8601 timestamp
+  level: 'console' | 'build' | 'error';       // Log level
+  message: string;                             // Log message (ANSI codes stripped)
+  attributes?: Record<string, any>;            // Additional attributes
+  resource?: Record<string, any>;              // Resource info
+  consoleMethod?: 'log' | 'info' | 'warn' | 'error' | 'debug';  // Original console method
+};
+```
 
 ## License
 

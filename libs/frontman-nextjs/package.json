@@ -3,6 +3,10 @@
 	"version": "0.1.0",
 	"type": "module",
 	"main": "./src/FrontmanNextjs.res.mjs",
+	"exports": {
+		".": "./src/FrontmanNextjs.res.mjs",
+		"./Instrumentation": "./src/FrontmanNextjs__Instrumentation.res.mjs"
+	},
 	"peerDependencies": {
 		"@opentelemetry/api": "^1.9.0",
 		"@opentelemetry/sdk-logs": "^0.52.0",

@@ -30,18 +30,17 @@ let handlePreflight = (): WebAPI.FetchAPI.response => {
 
 // Handle UI endpoint - serves the frontman client HTML
 let handleUI = (config: config): WebAPI.FetchAPI.response => {
-  let clientCssTag = config.clientCssUrl->Option.mapOr("", url => 
-    `<link rel="stylesheet" href="${url}">`
-  )
-  
-  let entrypointTemplate = config.entrypointUrl->Option.mapOr("", url => 
-    `<script type="template" id="frontman-entrypoint-url">${url}</script>`
-  )
-  
+  let clientCssTag =
+    config.clientCssUrl->Option.mapOr("", url => `<link rel="stylesheet" href="${url}">`)
+
+  let entrypointTemplate =
+    config.entrypointUrl->Option.mapOr("", url =>
+      `<script type="template" id="frontman-entrypoint-url">${url}</script>`
+    )
+
   let themeClass = config.isLightTheme ? "" : "dark"
-  
-  let html = 
-    `<!DOCTYPE html>
+
+  let html = `<!DOCTYPE html>
 <html lang="en" class="${themeClass}">
 <head>
     <meta charset="UTF-8">
@@ -74,8 +73,6 @@ let createMiddleware = (
   ~isLightTheme: option<bool>=?,
   ~projectRoot: option<string>=?,
 ) => {
-  LogCapture.initialize()
-
   let config = Config.make(
     ~isDev,
     ~basePath,
@@ -93,7 +90,9 @@ let createMiddleware = (
     ~serverVersion=config.serverVersion,
   )
 
-  let middleware: WebAPI.FetchAPI.request => promise<option<WebAPI.FetchAPI.response>> = async req => {
+  let middleware: WebAPI.FetchAPI.request => promise<
+    option<WebAPI.FetchAPI.response>,
+  > = async req => {
     let method = req.method->String.toLowerCase
     let pathname = WebAPI.URL.parse(~url=req.url).pathname
 
@@ -107,19 +106,26 @@ let createMiddleware = (
 
     let toolsPath = config.basePath->String.toLowerCase ++ "/tools"
     let toolsCallPath = config.basePath->String.toLowerCase ++ "/tools/call"
-    let resolveSourceLocationPath = config.basePath->String.toLowerCase ++ "/resolve-source-location"
+    let resolveSourceLocationPath =
+      config.basePath->String.toLowerCase ++ "/resolve-source-location"
 
     let uiPath = config.basePath->String.toLowerCase
 
     // Check if this is a frontman route (for CORS preflight)
-    let isFrontmanRoute = path == toolsPath || path == toolsCallPath || path == resolveSourceLocationPath || path == uiPath
+    let isFrontmanRoute =
+      path == toolsPath ||
+      path == toolsCallPath ||
+      path == resolveSourceLocationPath ||
+      path == uiPath
 
     switch (method, path) {
     | ("options", _) if isFrontmanRoute => Some(handlePreflight())
     | ("get", p) if p == uiPath => Some(handleUI(config)->withCors)
     | ("get", p) if p == toolsPath => Some(server->Server.handleGetTools->withCors)
-    | ("post", p) if p == toolsCallPath => Some((await server->Server.handleToolCall(req))->withCors)
-    | ("post", p) if p == resolveSourceLocationPath => Some((await server->Server.handleResolveSourceLocation(req))->withCors)
+    | ("post", p) if p == toolsCallPath =>
+      Some((await server->Server.handleToolCall(req))->withCors)
+    | ("post", p) if p == resolveSourceLocationPath =>
+      Some((await server->Server.handleResolveSourceLocation(req))->withCors)
     | _ => None
     }
   }

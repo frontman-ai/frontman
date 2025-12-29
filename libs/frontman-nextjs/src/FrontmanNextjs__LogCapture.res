@@ -6,7 +6,6 @@ Logs are stored in a circular buffer and can be queried with filters. Call
 
 Configure buffer size and stdout patterns via optional config parameter.
 `)
-
 module CircularBuffer = FrontmanNextjs__CircularBuffer
 
 S.enableJson()
@@ -79,23 +78,24 @@ type state = {
   config: config,
 }
 
-let instance: ref<option<state>> = ref(None)
+@get external getGlobalInstanceOpt: globalThis => option<state> = "__FRONTMAN_INSTANCE__"
+@set external setGlobalInstance: (globalThis, state) => unit = "__FRONTMAN_INSTANCE__"
 
 let getOrCreateInstance = (~config: config): state => {
-  switch instance.contents {
+  switch globalThis->getGlobalInstanceOpt {
   | Some(state) => state
   | None =>
     let state = {
       buffer: ref(CircularBuffer.make(~capacity=config.bufferCapacity)),
       config,
     }
-    instance := Some(state)
+    globalThis->setGlobalInstance(state)
     state
   }
 }
 
 let getInstance = (): state => {
-  switch instance.contents {
+  switch globalThis->getGlobalInstanceOpt {
   | Some(state) => state
   | None => getOrCreateInstance(~config=defaultConfig)
   }
@@ -104,16 +104,16 @@ let getInstance = (): state => {
 let argsToString = (args: array<'a>): string => {
   args
   ->Array.map(arg => {
-    switch %raw(`typeof arg`) {
-    | "string" => arg->Obj.magic
-    | "object" =>
+    switch arg->Type.typeof {
+    | #string => arg->Obj.magic
+    | #object =>
       if %raw(`arg instanceof Error`) {
         let error = arg->Obj.magic
         error["stack"]->Obj.magic->Option.getOr(error["message"]->Obj.magic)
       } else {
-        %raw(`JSON.stringify(arg)`)
+        arg->JSON.stringifyAny->Option.getOr("null")
       }
-    | _ => %raw(`String(arg)`)
+    | _ => arg->String.make
     }
   })
   ->Array.join(" ")
@@ -185,46 +185,40 @@ let handleConsoleDebug = (state: state, args: array<'a>): unit => {
   }
 }
 
-let interceptConsole = (state: state): unit => {
-  %raw(`(function() {
-    const originalLog = console.log.bind(console)
-    const originalWarn = console.warn.bind(console)
-    const originalError = console.error.bind(console)
-    const originalInfo = console.info.bind(console)
-    const originalDebug = console.debug.bind(console)
+// Variadic interceptConsole implemented in raw JavaScript to fix variadic arguments bug
+let interceptConsole: state => unit = %raw(`(function(state) {
+  const originalLog = console.log.bind(console);
+  const originalWarn = console.warn.bind(console);
+  const originalError = console.error.bind(console);
+  const originalInfo = console.info.bind(console);
+  const originalDebug = console.debug.bind(console);
 
-    console.log = function(...args) {
-      handleConsoleLog(state, args)
-      originalLog.apply(console, args)
-    }
-
-    console.warn = function(...args) {
-      handleConsoleWarn(state, args)
-      originalWarn.apply(console, args)
-    }
-
-    console.error = function(...args) {
-      handleConsoleError(state, args)
-      originalError.apply(console, args)
-    }
-
-    console.info = function(...args) {
-      handleConsoleInfo(state, args)
-      originalInfo.apply(console, args)
-    }
-
-    console.debug = function(...args) {
-      handleConsoleDebug(state, args)
-      originalDebug.apply(console, args)
-    }
-  })()`)
-}
+  console.log = (...args) => {
+    handleConsoleLog(state, args);
+    originalLog(...args);
+  };
+  console.warn = (...args) => {
+    handleConsoleWarn(state, args);
+    originalWarn(...args);
+  };
+  console.error = (...args) => {
+    handleConsoleError(state, args);
+    originalError(...args);
+  };
+  console.info = (...args) => {
+    handleConsoleInfo(state, args);
+    originalInfo(...args);
+  };
+  console.debug = (...args) => {
+    handleConsoleDebug(state, args);
+    originalDebug(...args);
+  };
+})`)
 
 let handleStdoutWrite = (state: state, message: string): unit => {
   try {
-    let matchesPattern = state.config.stdoutPatterns->Array.some(pattern =>
-      message->String.includes(pattern)
-    )
+    let matchesPattern =
+      state.config.stdoutPatterns->Array.some(pattern => message->String.includes(pattern))
     if matchesPattern {
       addLog(state, Build, message)
     }
@@ -233,16 +227,28 @@ let handleStdoutWrite = (state: state, message: string): unit => {
   }
 }
 
-let interceptStdout = (state: state): unit => {
-  %raw(`(function() {
-    const originalWrite = process.stdout.write.bind(process.stdout)
+type stdout
+type processType
+@val @scope("process") external stdout: stdout = "stdout"
 
-    process.stdout.write = function(chunk, ...args) {
-      const message = typeof chunk === 'string' ? chunk : chunk.toString()
-      handleStdoutWrite(state, message)
-      return originalWrite.apply(process.stdout, [chunk, ...args])
+type chunk
+external chunkToString: chunk => string = "toString"
+
+type writeMethod<'a> = (chunk, array<'a>) => bool
+
+@set external setWrite: (stdout, writeMethod<'a>) => unit = "write"
+
+let interceptStdout = (state: state): unit => {
+  let originalWrite: writeMethod<'a> = %raw(`process.stdout.write.bind(process.stdout)`)
+
+  stdout->setWrite((chunk, args) => {
+    let message = switch chunk->Type.typeof {
+    | #string => chunk->Obj.magic
+    | _ => chunk->chunkToString
     }
-  })()`)
+    handleStdoutWrite(state, message)
+    originalWrite(chunk, args)
+  })
 }
 
 let interceptUncaughtErrors = (state: state): unit => {
@@ -365,3 +371,12 @@ let getLogs = (
   | _ => []
   }
 }
+
+// This ensures console is patched before any other code runs
+// Use %%raw to ensure this executes at module load time
+%%raw(`
+// Initialize LogCapture when module is imported
+if (typeof window === 'undefined') {
+  initialize();
+}
+`)
