@@ -2,11 +2,55 @@ module CircularBuffer = FrontmanNextjs__CircularBuffer
 
 S.enableJson()
 
+// Process error bindings
+type processError = {
+  message: option<string>,
+  stack: option<string>,
+  name: string,
+}
+
+// Rejection reason can be anything
+type rejectionReason
+
+@get external getReasonMessage: rejectionReason => option<string> = "message"
+@get external getReasonStack: rejectionReason => option<string> = "stack"
+@scope("String") external stringFromReason: rejectionReason => string = "toString"
+
+// Process event listener binding
+@val @scope("process")
+external onProcessEvent: (string, 'a => unit) => unit = "on"
+
+// Browser detection binding
+@val external window: option<'a> = "window"
+
+let isBrowser = (): bool => window->Option.isSome
+
+// Global patch flag for double-patch prevention
+type globalThis
+@val external globalThis: globalThis = "globalThis"
+
+@get
+external getPatchedFlag: globalThis => option<bool> = "__FRONTMAN_CONSOLE_PATCHED__"
+
+@set
+external setPatchedFlagRaw: (globalThis, bool) => unit = "__FRONTMAN_CONSOLE_PATCHED__"
+
+let getPatchedFlag = (): option<bool> => globalThis->getPatchedFlag
+let setPatchedFlag = (value: bool): unit => globalThis->setPatchedFlagRaw(value)
+
 @schema
 type logLevel =
   | @as("console") Console
   | @as("build") Build
   | @as("error") Error
+
+@schema
+type consoleMethod =
+  | @as("log") Log
+  | @as("info") Info
+  | @as("warn") Warn
+  | @as("error") ConsoleError
+  | @as("debug") Debug
 
 @schema
 type logEntry = {
@@ -15,6 +59,7 @@ type logEntry = {
   message: string,
   attributes: option<JSON.t>,
   resource: option<JSON.t>,
+  consoleMethod: option<consoleMethod>,
 }
 
 type state = {
@@ -37,10 +82,6 @@ let getInstance = (): state => {
   }
 }
 
-let stripAnsi = (str: string): string => {
-  str->String.replaceRegExp(/\x1b\[[0-9;]*m/g, "")
-}
-
 let argsToString = (args: array<'a>): string => {
   args
   ->Array.map(arg => {
@@ -59,7 +100,18 @@ let argsToString = (args: array<'a>): string => {
   ->Array.join(" ")
 }
 
-let addLog = (state: state, level: logLevel, message: string, ~attributes=?): unit => {
+let stripAnsi = (str: string): string => {
+  // Matches: ESC followed by [@-Z\\-_] OR [ followed by optional params and final char
+  str->String.replaceRegExp(/\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])/g, "")
+}
+
+let addLog = (
+  state: state,
+  level: logLevel,
+  message: string,
+  ~attributes=?,
+  ~consoleMethod=?,
+): unit => {
   let cleanMessage = message->stripAnsi->String.trim
 
   if cleanMessage != "" {
@@ -69,8 +121,50 @@ let addLog = (state: state, level: logLevel, message: string, ~attributes=?): un
       message: cleanMessage,
       attributes,
       resource: None,
+      consoleMethod,
     }
     state.buffer := state.buffer.contents->CircularBuffer.push(entry)
+  }
+}
+
+// Handlers for console methods - written in ReScript to use proper variants
+let handleConsoleLog = (state: state, args: array<'a>): unit => {
+  try {
+    addLog(state, Console, argsToString(args), ~consoleMethod=Log)
+  } catch {
+  | _ => ()
+  }
+}
+
+let handleConsoleWarn = (state: state, args: array<'a>): unit => {
+  try {
+    addLog(state, Console, argsToString(args), ~consoleMethod=Warn)
+  } catch {
+  | _ => ()
+  }
+}
+
+let handleConsoleError = (state: state, args: array<'a>): unit => {
+  try {
+    addLog(state, Console, argsToString(args), ~consoleMethod=ConsoleError)
+  } catch {
+  | _ => ()
+  }
+}
+
+let handleConsoleInfo = (state: state, args: array<'a>): unit => {
+  try {
+    addLog(state, Console, argsToString(args), ~consoleMethod=Info)
+  } catch {
+  | _ => ()
+  }
+}
+
+let handleConsoleDebug = (state: state, args: array<'a>): unit => {
+  try {
+    addLog(state, Console, argsToString(args), ~consoleMethod=Debug)
+  } catch {
+  | _ => ()
   }
 }
 
@@ -84,40 +178,46 @@ let interceptConsole = (state: state): unit => {
       const originalDebug = console.debug.bind(console)
 
       console.log = function(...args) {
-        try {
-          addLog(state, {TAG: 0}, argsToString(args))
-        } catch {}
+        handleConsoleLog(state, args)
         originalLog.apply(console, args)
       }
 
       console.warn = function(...args) {
-        try {
-          addLog(state, {TAG: 0}, argsToString(args))
-        } catch {}
+        handleConsoleWarn(state, args)
         originalWarn.apply(console, args)
       }
 
       console.error = function(...args) {
-        try {
-          addLog(state, {TAG: 0}, argsToString(args))
-        } catch {}
+        handleConsoleError(state, args)
         originalError.apply(console, args)
       }
 
       console.info = function(...args) {
-        try {
-          addLog(state, {TAG: 0}, argsToString(args))
-        } catch {}
+        handleConsoleInfo(state, args)
         originalInfo.apply(console, args)
       }
 
       console.debug = function(...args) {
-        try {
-          addLog(state, {TAG: 0}, argsToString(args))
-        } catch {}
+        handleConsoleDebug(state, args)
         originalDebug.apply(console, args)
       }
     })()`)
+  }
+}
+
+// Handler for stdout write - written in ReScript to use proper variants
+let handleStdoutWrite = (state: state, message: string): unit => {
+  try {
+    if (
+      message->String.includes("webpack") ||
+      message->String.includes("turbopack") ||
+      message->String.includes("Compiled") ||
+      message->String.includes("Failed")
+    ) {
+      addLog(state, Build, message)
+    }
+  } catch {
+  | _ => ()
   }
 }
 
@@ -127,13 +227,8 @@ let interceptStdout = (state: state): unit => {
       const originalWrite = process.stdout.write.bind(process.stdout)
 
       process.stdout.write = function(chunk, ...args) {
-        try {
-          const message = typeof chunk === 'string' ? chunk : chunk.toString()
-          if (message.includes('webpack') || message.includes('turbopack') ||
-              message.includes('Compiled') || message.includes('Failed')) {
-            addLog(state, {TAG: 1}, message)
-          }
-        } catch {}
+        const message = typeof chunk === 'string' ? chunk : chunk.toString()
+        handleStdoutWrite(state, message)
         return originalWrite.apply(process.stdout, [chunk, ...args])
       }
     })()`)
@@ -142,38 +237,62 @@ let interceptStdout = (state: state): unit => {
 
 let interceptUncaughtErrors = (state: state): unit => {
   if !state.initialized {
-    %raw(`
-      process.on('uncaughtException', (error) => {
-        try {
-          const attributes = {
-            stack: error.stack,
-            name: error.name
-          }
-          addLog(state, {TAG: 3}, error.message || String(error), attributes)
-        } catch {}
-      })
-    `)
+    // Handle uncaught exceptions
+    onProcessEvent("uncaughtException", (error: processError) => {
+      try {
+        let errorMessage = error.message->Option.getOr("Unknown error")
+        let attributes =
+          Dict.fromArray([
+            ("stack", error.stack->Option.map(JSON.Encode.string)->Option.getOr(JSON.Encode.null)),
+            ("name", error.name->JSON.Encode.string),
+          ])->JSON.Encode.object
+        addLog(state, Error, errorMessage, ~attributes)
+      } catch {
+      | _ => ()
+      }
+    })
 
-    %raw(`
-      process.on('unhandledRejection', (reason) => {
-        try {
-          const attributes = {
-            stack: reason?.stack
-          }
-          addLog(state, {TAG: 3}, reason?.message || String(reason), attributes)
-        } catch {}
-      })
-    `)
+    // Handle unhandled rejections
+    onProcessEvent("unhandledRejection", (reason: rejectionReason) => {
+      try {
+        let reasonMessage =
+          reason
+          ->getReasonMessage
+          ->Option.getOr(reason->stringFromReason)
+        let attributes = Dict.fromArray([
+          (
+            "stack",
+            reason
+            ->getReasonStack
+            ->Option.map(JSON.Encode.string)
+            ->Option.getOr(JSON.Encode.null),
+          ),
+        ])->JSON.Encode.object
+        addLog(state, Error, reasonMessage, ~attributes)
+      } catch {
+      | _ => ()
+      }
+    })
   }
 }
 
 let initialize = (): unit => {
-  let state = getInstance()
-  if !state.initialized {
-    interceptConsole(state)
-    interceptStdout(state)
-    interceptUncaughtErrors(state)
-    instance := Some({...state, initialized: true})
+  // Skip initialization in browser environments
+  if isBrowser() {
+    ()
+  } else {
+    // Check if already patched globally
+    switch getPatchedFlag() {
+    | Some(true) => () // Already patched, skip
+    | _ => {
+        let state = getInstance()
+        interceptConsole(state)
+        interceptStdout(state)
+        interceptUncaughtErrors(state)
+        setPatchedFlag(true)
+        instance := Some({...state, initialized: true})
+      }
+    }
   }
 }
 
@@ -189,9 +308,7 @@ let getLogs = (
 
     let logs = switch since {
     | Some(timestamp) =>
-      allLogs->Array.filter(entry =>
-        entry.timestamp->Date.fromString->Date.getTime >= timestamp
-      )
+      allLogs->Array.filter(entry => entry.timestamp->Date.fromString->Date.getTime >= timestamp)
     | None => allLogs
     }
 
