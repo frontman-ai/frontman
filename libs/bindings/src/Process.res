@@ -17,3 +17,19 @@ external cwd: unit => string = "cwd"
 // Timeout function
 @val
 external setTimeout: (unit => unit, int) => float = "setTimeout"
+
+// Process event handling
+@val @scope("process")
+external on: (string, 'a => unit) => unit = "on"
+
+// Error/rejection types for event handlers
+type processError = {
+  message: option<string>,
+  stack: option<string>,
+  name: string,
+}
+
+type rejectionReason
+@get external getReasonMessage: rejectionReason => option<string> = "message"
+@get external getReasonStack: rejectionReason => option<string> = "stack"
+@scope("String") external stringFromReason: rejectionReason => string = "toString"

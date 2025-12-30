@@ -10,34 +10,11 @@ module CircularBuffer = FrontmanNextjs__CircularBuffer
 
 S.enableJson()
 
-type processError = {
-  message: option<string>,
-  stack: option<string>,
-  name: string,
-}
-
-type rejectionReason
-
-@get external getReasonMessage: rejectionReason => option<string> = "message"
-@get external getReasonStack: rejectionReason => option<string> = "stack"
-@scope("String") external stringFromReason: rejectionReason => string = "toString"
-
-@val @scope("process")
-external onProcessEvent: (string, 'a => unit) => unit = "on"
-
 let isBrowser = (): bool => %raw(`typeof window !== 'undefined'`)
 
-type globalThis
-@val external globalThis: globalThis = "globalThis"
-
-@get
-external getPatchedFlag: globalThis => option<bool> = "__FRONTMAN_CONSOLE_PATCHED__"
-
-@set
-external setPatchedFlagRaw: (globalThis, bool) => unit = "__FRONTMAN_CONSOLE_PATCHED__"
-
-let getPatchedFlag = (): option<bool> => globalThis->getPatchedFlag
-let setPatchedFlag = (value: bool): unit => globalThis->setPatchedFlagRaw(value)
+// Custom globalThis properties for Frontman
+let getPatchedFlag = (): option<bool> => %raw(`globalThis.__FRONTMAN_CONSOLE_PATCHED__`)
+let setPatchedFlag = (value: bool): unit => %raw(`globalThis.__FRONTMAN_CONSOLE_PATCHED__ = value`)
 
 @schema
 type logLevel =
@@ -78,24 +55,24 @@ type state = {
   config: config,
 }
 
-@get external getGlobalInstanceOpt: globalThis => option<state> = "__FRONTMAN_INSTANCE__"
-@set external setGlobalInstance: (globalThis, state) => unit = "__FRONTMAN_INSTANCE__"
+let getGlobalInstanceOpt = (): option<state> => %raw(`globalThis.__FRONTMAN_INSTANCE__`)
+let setGlobalInstance = (state: state): unit => %raw(`globalThis.__FRONTMAN_INSTANCE__ = state`)
 
 let getOrCreateInstance = (~config: config): state => {
-  switch globalThis->getGlobalInstanceOpt {
+  switch getGlobalInstanceOpt() {
   | Some(state) => state
   | None =>
     let state = {
       buffer: ref(CircularBuffer.make(~capacity=config.bufferCapacity)),
       config,
     }
-    globalThis->setGlobalInstance(state)
+    setGlobalInstance(state)
     state
   }
 }
 
 let getInstance = (): state => {
-  switch globalThis->getGlobalInstanceOpt {
+  switch getGlobalInstanceOpt() {
   | Some(state) => state
   | None => getOrCreateInstance(~config=defaultConfig)
   }
@@ -227,29 +204,31 @@ let handleStdoutWrite = (state: state, message: string): unit => {
   }
 }
 
-type stdout
-type processType
-@val @scope("process") external stdout: stdout = "stdout"
-
-type chunk
-external chunkToString: chunk => string = "toString"
-
-type writeMethod<'a> = (chunk, array<'a>) => bool
-
-@set external setWrite: (stdout, writeMethod<'a>) => unit = "write"
-
 let interceptStdout = (state: state): unit => {
-  let originalWrite: writeMethod<'a> = %raw(`process.stdout.write.bind(process.stdout)`)
-
-  stdout->setWrite((chunk, args) => {
-    let message = switch chunk->Type.typeof {
-    | #string => chunk->Obj.magic
-    | _ => chunk->chunkToString
-    }
-    handleStdoutWrite(state, message)
-    originalWrite(chunk, args)
-  })
+  %raw(`(function(state) {
+    const originalWrite = process.stdout.write.bind(process.stdout);
+    process.stdout.write = (chunk, ...args) => {
+      const message = typeof chunk === 'string' ? chunk : chunk.toString();
+      handleStdoutWrite(state, message);
+      return originalWrite(chunk, ...args);
+    };
+  })(state)`)
 }
+
+// Temporary inline bindings until workspace linking is fixed
+type processError = {
+  message: option<string>,
+  stack: option<string>,
+  name: string,
+}
+
+type rejectionReason
+@get external getReasonMessage: rejectionReason => option<string> = "message"
+@get external getReasonStack: rejectionReason => option<string> = "stack"
+@scope("String") external stringFromReason: rejectionReason => string = "toString"
+
+@val @scope("process")
+external onProcessEvent: (string, 'a => unit) => unit = "on"
 
 let interceptUncaughtErrors = (state: state): unit => {
   onProcessEvent("uncaughtException", (error: processError) => {
