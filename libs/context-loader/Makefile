@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help install build dev clean test test-watch lint format check
+.PHONY: help install build dev clean test test-watch test-coverage lint format check
 
 SHELL := /bin/bash
 
@@ -24,6 +24,9 @@ test: build ## Run tests
 test-watch: ## Run tests in watch mode
 	echo "Please run make dev on another shell to rebuild the source code"
 	yarn vitest --inspect-brk --pool threads --poolOptions.threads.singleThread
+
+test-coverage: build ## Run tests with coverage
+	yarn vitest run --coverage
 
 lint: ## Check code formatting
 	yarn rescript format -check src

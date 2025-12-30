@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help install test lint format dev dev-hot build build-lib clean serve preview check storybook storybook-build
+.PHONY: help install test test-coverage lint format dev dev-hot build build-lib clean serve preview check storybook storybook-build
 
 SHELL := /bin/bash
 PATH := ./node_modules/.bin:$(PATH)
@@ -12,6 +12,9 @@ install: ## Install project dependencies
 
 test: build ## Run test suite
 	yarn vitest run
+
+test-coverage: build ## Run tests with coverage
+	yarn vitest run --coverage
 
 lint: ## Run linters and code formatters
 	yarn biome check .
