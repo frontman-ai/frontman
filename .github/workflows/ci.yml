@@ -34,6 +34,10 @@ jobs:
   test-frontman-client:
     name: Test frontman-client
     runs-on: ubuntu-slim
+    permissions:
+      contents: read
+      pull-requests: write
+      checks: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -49,12 +53,25 @@ jobs:
       - name: Install dependencies
         run: yarn install --immutable
 
-      - name: Run tests
-        run: make -C libs/frontman-client test
+      - name: Run tests with coverage
+        run: make -C libs/frontman-client test-coverage
+
+      - name: Coverage report
+        uses: 5monkeys/cobertura-action@master
+        with:
+          path: libs/frontman-client/coverage/cobertura-coverage.xml
+          minimum_coverage: 70
+          show_missing: true
+          skip_covered: false
+          only_changed_files: false
 
   test-frontman-core:
     name: Test frontman-core
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      checks: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -70,12 +87,25 @@ jobs:
       - name: Install dependencies
         run: yarn install --immutable
 
-      - name: Run tests
-        run: make -C libs/frontman-core test
+      - name: Run tests with coverage
+        run: make -C libs/frontman-core test-coverage
+
+      - name: Coverage report
+        uses: 5monkeys/cobertura-action@master
+        with:
+          path: libs/frontman-core/coverage/cobertura-coverage.xml
+          minimum_coverage: 70
+          show_missing: true
+          skip_covered: false
+          only_changed_files: false
 
   test-frontman-nextjs:
     name: Test frontman-nextjs
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      checks: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -91,8 +121,17 @@ jobs:
       - name: Install dependencies
         run: yarn install --immutable
 
-      - name: Run tests
-        run: make -C libs/frontman-nextjs test
+      - name: Run tests with coverage
+        run: make -C libs/frontman-nextjs test-coverage
+
+      - name: Coverage report
+        uses: 5monkeys/cobertura-action@master
+        with:
+          path: libs/frontman-nextjs/coverage/cobertura-coverage.xml
+          minimum_coverage: 70
+          show_missing: true
+          skip_covered: false
+          only_changed_files: false
 
   test-frontman-server:
     name: Test frontman-server
@@ -166,6 +205,40 @@ jobs:
 
       - name: Run Dialyzer
         run: make -C apps/frontman_server dialyzer
+
+  test-react-statestore:
+    name: Test react-statestore
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      checks: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.4.1'
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install dependencies
+        run: yarn install --immutable
+
+      - name: Run tests with coverage
+        run: make -C libs/react-statestore test-coverage
+
+      - name: Coverage report
+        uses: 5monkeys/cobertura-action@master
+        with:
+          path: libs/react-statestore/coverage/cobertura-coverage.xml
+          minimum_coverage: 70
+          show_missing: true
+          skip_covered: false
+          only_changed_files: false
 
   lint-client:
     name: Lint libs/client

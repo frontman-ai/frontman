@@ -25,6 +25,8 @@
 		"rescript": "catalog:"
 	},
 	"devDependencies": {
-		"@rescript/tools": "^0.6.6"
+		"@rescript/tools": "^0.6.6",
+		"@vitest/coverage-v8": "^4.0.16",
+		"vitest": "^4.0.16"
 	}
 }

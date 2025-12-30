@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help build test test-watch lint format clean
+.PHONY: help build test test-watch test-coverage lint format clean
 
 help: ## Display this help message
 	@awk 'BEGIN {FS = ":.*##"} /^[a-zA-Z_-]+:.*##/ { printf "  %-15s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
@@ -12,6 +12,9 @@ test: build ## Run tests
 
 test-watch: ## Run tests in watch mode
 	yarn vitest
+
+test-coverage: build ## Run tests with coverage
+	yarn vitest run --coverage
 
 lint: ## Check formatting
 	yarn rescript format -check src test

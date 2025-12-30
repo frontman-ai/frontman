@@ -20,9 +20,14 @@ export default defineConfig({
     // Coverage configuration
     coverage: {
       provider: "v8",
-      reporter: ["text", "json", "html"],
+      reporter: ["text", "json-summary", "cobertura"],
       include: ["src/**/*.res.mjs"],
-      exclude: ["src/**/*.res.d.ts", "test/**", "src/Bindings__*.res.mjs"],
+      exclude: [
+        "**/*.test.*",
+        "**/*.story.*",
+        "src/**/*.res.d.ts",
+        "src/Bindings__*.res.mjs",
+      ],
     },
   },
 });

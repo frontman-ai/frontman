@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help install test test-watch build clean lint format check
+.PHONY: help install test test-watch test-coverage build clean lint format check
 
 SHELL := /bin/bash
 PATH := ./node_modules/.bin:$(PATH)
@@ -20,6 +20,9 @@ test: build ## Run test suite
 
 test-watch: ## Run tests in watch mode
 	yarn vitest watch
+
+test-coverage: build ## Run tests with coverage
+	yarn vitest run --coverage
 
 lint: ## Check code formatting
 	yarn rescript format -check
