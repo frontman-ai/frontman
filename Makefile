@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help install build clean dev test lint dev-client dev-nextjs pull-webapi infra-install infra-preview-marketing infra-up-marketing
+.PHONY: help install build clean dev test lint dev-client dev-nextjs pull-webapi infra-install infra-preview-marketing infra-up-marketing worktree-create worktree-create-from worktree-list worktree-remove worktree-clean worktree-status
 
 help: ## Display available commands
 	@awk 'BEGIN {FS = ":.*##"} /^[a-zA-Z_-]+:.*##/ { printf "  %-15s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
@@ -57,3 +57,81 @@ infra-preview-marketing: ## Preview marketing infrastructure changes
 
 infra-up-marketing: ## Deploy marketing infrastructure
 	cd infra && $(MAKE) up-marketing
+
+worktree-create: ## Create a new worktree (usage: make worktree-create BRANCH=feature-name)
+	@if [ -z "$(BRANCH)" ]; then \
+		echo "Error: BRANCH is required. Usage: make worktree-create BRANCH=feature-name"; \
+		exit 1; \
+	fi
+	@echo "Creating worktree for branch: $(BRANCH)"
+	@git worktree add .worktrees/$(BRANCH) -b $(BRANCH)
+	@echo "Setting up Claude Code context..."
+	@mkdir -p .worktrees/$(BRANCH)/.claude/projects
+	@mkdir -p .worktrees/$(BRANCH)/.claude/plans
+	@mkdir -p .worktrees/$(BRANCH)/.claude/todos
+	@ln -sf ~/.claude/CLAUDE.md .worktrees/$(BRANCH)/.claude/
+	@ln -sf ~/.claude/docs .worktrees/$(BRANCH)/.claude/
+	@ln -sf ~/.claude/agents .worktrees/$(BRANCH)/.claude/
+	@ln -sf ~/.claude/commands .worktrees/$(BRANCH)/.claude/
+	@touch .worktrees/$(BRANCH)/.claude/history.jsonl
+	@echo "Linking dependencies..."
+	@ln -sf $(PWD)/node_modules .worktrees/$(BRANCH)/
+	@echo "Worktree created at: .worktrees/$(BRANCH)"
+	@echo "Next steps:"
+	@echo "  1. cd .worktrees/$(BRANCH)"
+	@echo "  2. make install  # Install any branch-specific deps"
+	@echo "  3. Open in Claude Code"
+
+worktree-create-from: ## Create worktree from existing branch (usage: make worktree-create-from BRANCH=origin/feature NAME=local-name)
+	@if [ -z "$(BRANCH)" ] || [ -z "$(NAME)" ]; then \
+		echo "Error: BRANCH and NAME required"; \
+		echo "Usage: make worktree-create-from BRANCH=origin/feature NAME=feature"; \
+		exit 1; \
+	fi
+	@echo "Creating worktree from: $(BRANCH)"
+	@git worktree add .worktrees/$(NAME) $(BRANCH)
+	@mkdir -p .worktrees/$(NAME)/.claude/projects
+	@mkdir -p .worktrees/$(NAME)/.claude/plans
+	@mkdir -p .worktrees/$(NAME)/.claude/todos
+	@ln -sf ~/.claude/CLAUDE.md .worktrees/$(NAME)/.claude/
+	@ln -sf ~/.claude/docs .worktrees/$(NAME)/.claude/
+	@ln -sf ~/.claude/agents .worktrees/$(NAME)/.claude/
+	@ln -sf ~/.claude/commands .worktrees/$(NAME)/.claude/
+	@touch .worktrees/$(NAME)/.claude/history.jsonl
+	@ln -sf $(PWD)/node_modules .worktrees/$(NAME)/
+	@echo "Worktree created at: .worktrees/$(NAME)"
+
+worktree-list: ## List all worktrees
+	@echo "Active worktrees:"
+	@git worktree list
+
+worktree-remove: ## Remove a worktree (usage: make worktree-remove NAME=feature-name)
+	@if [ -z "$(NAME)" ]; then \
+		echo "Error: NAME is required"; \
+		exit 1; \
+	fi
+	@echo "Removing worktree: $(NAME)"
+	@if git -C .worktrees/$(NAME) diff --quiet && git -C .worktrees/$(NAME) diff --cached --quiet; then \
+		git worktree remove --force .worktrees/$(NAME); \
+		echo "Worktree removed"; \
+	else \
+		echo "Error: Worktree has uncommitted changes"; \
+		echo "Commit changes first, or use: git worktree remove -f .worktrees/$(NAME)"; \
+		exit 1; \
+	fi
+
+worktree-clean: ## Remove all stale worktrees
+	@echo "Cleaning stale worktrees..."
+	@git worktree prune
+	@echo "Done"
+
+worktree-status: ## Show status of all worktrees
+	@echo "Worktree Status:"
+	@echo ""
+	@for wt in .worktrees/*; do \
+		if [ -d "$$wt" ]; then \
+			echo "$$(basename $$wt):"; \
+			git -C "$$wt" status -s || true; \
+			echo ""; \
+		fi \
+	done

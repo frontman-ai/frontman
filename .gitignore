@@ -37,3 +37,6 @@ yarn-error.log
 Thumbs.db
 .claude/settings.local.json
 # thoughts/shared
+
+# Git worktrees
+.worktrees/

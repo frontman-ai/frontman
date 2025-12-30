@@ -6,6 +6,33 @@
 - **Agent test single**: `cd libs/agent && yarn vitest run --run path/to/test`
 - **Agent format**: `cd libs/agent && make format`
 
+## Worktree Workflow
+
+This repo uses git worktrees for parallel feature development with isolated Claude contexts.
+
+**Create worktree:**
+```bash
+make worktree-create BRANCH=feature/my-feature
+cd .worktrees/feature/my-feature
+```
+
+**Benefits:**
+- Work on multiple features without branch switching
+- Isolated Claude Code context per feature (separate history)
+- Parallel dev servers on different ports
+- Shared dependencies (node_modules symlinked)
+
+**Management:**
+- `make worktree-list` - List all worktrees
+- `make worktree-status` - Show git status of all worktrees
+- `make worktree-remove NAME=feature/my-feature` - Remove worktree
+- `make worktree-clean` - Clean stale worktrees
+
+**Structure:**
+- `.worktrees/<branch-name>/` - Worktree directory
+- `.worktrees/<branch-name>/.claude/` - Isolated Claude context
+- `.worktrees/<branch-name>/node_modules` - Symlink to main repo
+
 ## Key Principles
 - ReScript codebase - functional style, Result types for errors
 - File naming: `Client__ComponentName.res` (flat folder + namespacing)
