@@ -5,19 +5,19 @@ type extensionState = Types.extensionState
 
 // State store instance - Create a separate store module
 module Store = {
-  let store = AskTheLlmReactStatestore.StateStore.make(
+  let store = FrontmanReactStatestore.StateStore.make(
     module(Client__ExtensionState__StateReducer),
     Client__ExtensionState__StateReducer.defaultState,
   )
 
   let dispatch = action => {
-    store->AskTheLlmReactStatestore.StateStore.dispatch(action)
+    store->FrontmanReactStatestore.StateStore.dispatch(action)
   }
 }
 
 // Hook to use selector
 let useSelector = selection =>
-  AskTheLlmReactStatestore.StateStore.useSelector(Store.store, selection)
+  FrontmanReactStatestore.StateStore.useSelector(Store.store, selection)
 
 // Actions module
 module Actions = {
@@ -42,7 +42,7 @@ module Selectors = {
   }
 
   let getPort = (state: state): option<
-    AskTheLlmBindings.Chrome.port<Client__ExtensionState__StateReducer.extensionMessage>,
+    FrontmanBindings.Chrome.port<Client__ExtensionState__StateReducer.extensionMessage>,
   > => {
     switch state {
     | NotInstalled => None

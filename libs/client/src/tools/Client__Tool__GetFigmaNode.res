@@ -2,7 +2,7 @@
 // The request is forwarded to the Figma content script which calls getFigmaNodeJSON
 
 S.enableJson()
-module Tool = AskTheLlmFrontmanClient.FrontmanClient__MCP__Tool
+module Tool = FrontmanFrontmanClient.FrontmanClient__MCP__Tool
 type toolResult<'a> = Tool.toolResult<'a>
 
 let name = "get_figma_node"
@@ -81,7 +81,7 @@ let registerResponseHandler = () => {
 let execute = async (input: input): toolResult<output> => {
   registerResponseHandler()
 
-  let extensionState = AskTheLlmReactStatestore.StateStore.getState(
+  let extensionState = FrontmanReactStatestore.StateStore.getState(
     Client__ExtensionState.Store.store,
   )
 

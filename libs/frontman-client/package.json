@@ -1,5 +1,5 @@
 {
-	"name": "@ask-the-llm/frontman-client",
+	"name": "@frontman/frontman-client",
 	"version": "0.1.0",
 	"type": "module",
 	"main": "./src/FrontmanClient.res.mjs",

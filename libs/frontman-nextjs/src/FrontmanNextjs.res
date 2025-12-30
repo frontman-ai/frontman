@@ -6,7 +6,7 @@ module Middleware = FrontmanNextjs__Middleware
 module Server = FrontmanNextjs__Server
 module ToolRegistry = FrontmanNextjs__ToolRegistry
 
-module SSE = AskTheLlmFrontmanCore.FrontmanCore__SSE
+module SSE = FrontmanFrontmanCore.FrontmanCore__SSE
 
 module OpenTelemetry = FrontmanNextjs__OpenTelemetry
 

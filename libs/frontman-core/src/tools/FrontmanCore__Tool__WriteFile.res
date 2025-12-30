@@ -1,8 +1,8 @@
 // Write file tool - writes content to a file
 
-module Path = AskTheLlmBindings.Path
-module Fs = AskTheLlmBindings.Fs
-module Tool = AskTheLlmFrontmanProtocol.FrontmanProtocol__Tool
+module Path = FrontmanBindings.Path
+module Fs = FrontmanBindings.Fs
+module Tool = FrontmanFrontmanProtocol.FrontmanProtocol__Tool
 
 let name = "write_file"
 let visibleToAgent = true

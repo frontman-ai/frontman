@@ -1,6 +1,6 @@
 {
-  "name": "@ask-the-llm/chrome-extension",
-  "description": "Chrome extension for ask-the-llm",
+  "name": "@frontman/chrome-extension",
+  "description": "Chrome extension for frontman",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -14,8 +14,8 @@
     "compile": "tsc --noEmit"
   },
   "dependencies": {
-    "@ask-the-llm/bindings": "*",
-    "@ask-the-llm/figma-client-api": "*",
+    "@frontman/bindings": "*",
+    "@frontman/figma-client-api": "*",
     "@toon-format/toon": "^1.0.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1"

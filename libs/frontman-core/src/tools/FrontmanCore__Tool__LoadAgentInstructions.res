@@ -1,8 +1,8 @@
 // Load agent instructions tool - discovers and loads Agents.md or CLAUDE.md files
 
-module Path = AskTheLlmBindings.Path
-module Fs = AskTheLlmBindings.Fs
-module Tool = AskTheLlmFrontmanProtocol.FrontmanProtocol__Tool
+module Path = FrontmanBindings.Path
+module Fs = FrontmanBindings.Fs
+module Tool = FrontmanFrontmanProtocol.FrontmanProtocol__Tool
 
 let name = "load_agent_instructions"
 let visibleToAgent = false

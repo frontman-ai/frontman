@@ -1,3 +1,3 @@
 // Re-export from protocol package
-type toolResult<'a> = AskTheLlmFrontmanProtocol.FrontmanProtocol__Tool.toolResult<'a>
-module type Tool = AskTheLlmFrontmanProtocol.FrontmanProtocol__Tool.BrowserTool
+type toolResult<'a> = FrontmanFrontmanProtocol.FrontmanProtocol__Tool.toolResult<'a>
+module type Tool = FrontmanFrontmanProtocol.FrontmanProtocol__Tool.BrowserTool

@@ -1,8 +1,8 @@
 // Get routes tool - lists Next.js routes from the filesystem
 
-module Path = AskTheLlmBindings.Path
-module Fs = AskTheLlmBindings.Fs
-module Tool = AskTheLlmFrontmanProtocol.FrontmanProtocol__Tool
+module Path = FrontmanBindings.Path
+module Fs = FrontmanBindings.Fs
+module Tool = FrontmanFrontmanProtocol.FrontmanProtocol__Tool
 
 let name = "get_routes"
 let visibleToAgent = true

@@ -110,16 +110,16 @@ let convertMessage = (msg: Snapshot.Message.t): StateTypes.Message.t => {
 
 let convertPlanEntry = (
   entry: Snapshot.PlanEntry.t,
-): AskTheLlmFrontmanClient.FrontmanClient__ACP__Types.planEntry => {
+): FrontmanFrontmanClient.FrontmanClient__ACP__Types.planEntry => {
   let priority = switch entry.priority {
-  | High => AskTheLlmFrontmanClient.FrontmanClient__ACP__Types.High
-  | Medium => AskTheLlmFrontmanClient.FrontmanClient__ACP__Types.Medium
-  | Low => AskTheLlmFrontmanClient.FrontmanClient__ACP__Types.Low
+  | High => FrontmanFrontmanClient.FrontmanClient__ACP__Types.High
+  | Medium => FrontmanFrontmanClient.FrontmanClient__ACP__Types.Medium
+  | Low => FrontmanFrontmanClient.FrontmanClient__ACP__Types.Low
   }
   let status = switch entry.status {
-  | Pending => AskTheLlmFrontmanClient.FrontmanClient__ACP__Types.Pending
-  | InProgress => AskTheLlmFrontmanClient.FrontmanClient__ACP__Types.InProgress
-  | Completed => AskTheLlmFrontmanClient.FrontmanClient__ACP__Types.Completed
+  | Pending => FrontmanFrontmanClient.FrontmanClient__ACP__Types.Pending
+  | InProgress => FrontmanFrontmanClient.FrontmanClient__ACP__Types.InProgress
+  | Completed => FrontmanFrontmanClient.FrontmanClient__ACP__Types.Completed
   }
   {content: entry.content, priority, status}
 }
@@ -178,7 +178,7 @@ let loadSnapshot = (jsonString: string): result<unit, string> => {
   switch Snapshot.fromJsonString(jsonString) {
   | Ok(snapshot) => {
       let state = snapshotToState(snapshot)
-      AskTheLlmReactStatestore.StateStore.forceSetStateOnlyUseForTestingDoNotUseOtherwiseAtAll(
+      FrontmanReactStatestore.StateStore.forceSetStateOnlyUseForTestingDoNotUseOtherwiseAtAll(
         Client__State__Store.store,
         state,
       )
@@ -191,7 +191,7 @@ let loadSnapshot = (jsonString: string): result<unit, string> => {
 /** Load a snapshot object and apply it to the store */
 let loadSnapshotFromObject = (snapshot: Snapshot.t): unit => {
   let state = snapshotToState(snapshot)
-  AskTheLlmReactStatestore.StateStore.forceSetStateOnlyUseForTestingDoNotUseOtherwiseAtAll(
+  FrontmanReactStatestore.StateStore.forceSetStateOnlyUseForTestingDoNotUseOtherwiseAtAll(
     Client__State__Store.store,
     state,
   )
@@ -199,7 +199,7 @@ let loadSnapshotFromObject = (snapshot: Snapshot.t): unit => {
 
 /** Reset the store to default state */
 let resetState = (): unit => {
-  AskTheLlmReactStatestore.StateStore.forceSetStateOnlyUseForTestingDoNotUseOtherwiseAtAll(
+  FrontmanReactStatestore.StateStore.forceSetStateOnlyUseForTestingDoNotUseOtherwiseAtAll(
     Client__State__Store.store,
     Client__State__StateReducer.defaultState,
   )

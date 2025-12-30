@@ -1,5 +1,5 @@
 import type { MiddlewareHandler } from "astro";
-import { createMiddleware, makeConfig } from "@ask-the-llm/frontman-astro";
+import { createMiddleware, makeConfig } from "@frontman/frontman-astro";
 import path from "node:path";
 
 const FRONTMAN_ENABLED = import.meta.env.DEV;

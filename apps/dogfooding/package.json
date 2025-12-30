@@ -1,5 +1,5 @@
 {
-	"name": "@ask-the-llm/dogfooding",
+	"name": "@frontman/dogfooding",
 	"version": "0.0.1",
 	"type": "module",
 	"main": "./dist/index.js",
@@ -19,8 +19,8 @@
 		"dist"
 	],
 	"dependencies": {
-		"@ask-the-llm/client": "0.1.6",
-		"@ask-the-llm/vite-plugin": "0.1.13",
+		"@frontman/client": "0.1.6",
+		"@frontman/vite-plugin": "0.1.13",
 		"react": "^19.2.0",
 		"react-dom": "^19.2.0"
 	},

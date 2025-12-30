@@ -7,5 +7,5 @@
 		"allowSyntheticDefaultImports": true,
 		"strict": true
 	},
-	"include": ["vite.config.ts", "ask-the-llm-nextjs.d.ts"]
+	"include": ["vite.config.ts", "frontman-nextjs.d.ts"]
 }

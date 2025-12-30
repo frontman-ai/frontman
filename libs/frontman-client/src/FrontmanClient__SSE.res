@@ -1,7 +1,7 @@
 // SSE (Server-Sent Events) Parser
 // Parses SSE stream from fetch response, returns first result event or error.
 
-module WebStreams = AskTheLlmBindings.WebStreams
+module WebStreams = FrontmanBindings.WebStreams
 
 type eventType = [#progress | #result | #error | #unknown]
 

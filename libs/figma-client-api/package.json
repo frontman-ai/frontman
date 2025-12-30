@@ -1,5 +1,5 @@
 {
-  "name": "@ask-the-llm/figma-client-api",
+  "name": "@frontman/figma-client-api",
   "version": "0.1.0",
   "description": "Figma Node to Tailwind JSON Converter - modular and testable",
   "type": "module",

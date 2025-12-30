@@ -1,4 +1,4 @@
-module Tool = AskTheLlmFrontmanProtocol.FrontmanProtocol__Tool
+module Tool = FrontmanFrontmanProtocol.FrontmanProtocol__Tool
 module LogCapture = FrontmanNextjs__LogCapture
 
 let name = "get_logs"

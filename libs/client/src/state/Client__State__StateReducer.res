@@ -125,7 +125,7 @@ type effect =
 let getInitialUrl = () => {
   let entrypointUrl =
     WebAPI.Global.document
-    ->WebAPI.Document.querySelector("#ask-the-llm-entrypoint-url")
+    ->WebAPI.Document.querySelector("#frontman-entrypoint-url")
     ->Null.toOption
     ->Option.map(element => {
       element->WebAPI.Element.asNode->WebAPI.Node.textContent->Null.toOption->Option.getOr("")
@@ -540,7 +540,7 @@ let next = (state, action) => {
         updatedMessages->Dict.set(Message.getId(message), message)
         {...task, messages: updatedMessages, lastMessageAt: Some(timestamp), isAgentRunning: true}
       })
-      ->AskTheLlmReactStatestore.StateReducer.update(
+      ->FrontmanReactStatestore.StateReducer.update(
         ~sideEffects=[SendMessageToAPI({message: textContent, taskId})],
       )
     }
@@ -564,7 +564,7 @@ let next = (state, action) => {
         {...task, messages: updatedMessages}
       }
     })
-    ->AskTheLlmReactStatestore.StateReducer.update
+    ->FrontmanReactStatestore.StateReducer.update
 
   | TextDeltaReceived({taskId, id, text}) =>
     state
@@ -595,7 +595,7 @@ let next = (state, action) => {
         {...task, messages: updatedMessages}
       }
     })
-    ->AskTheLlmReactStatestore.StateReducer.update
+    ->FrontmanReactStatestore.StateReducer.update
 
   | ToolCallReceived({taskId, toolCall}) =>
     state
@@ -635,7 +635,7 @@ let next = (state, action) => {
         )
       }
     })
-    ->AskTheLlmReactStatestore.StateReducer.update
+    ->FrontmanReactStatestore.StateReducer.update
 
   | ToolInputStartReceived({taskId, id, toolName, parentAgentId, spawningToolName}) =>
     state
@@ -656,7 +656,7 @@ let next = (state, action) => {
         }),
       )
     )
-    ->AskTheLlmReactStatestore.StateReducer.update
+    ->FrontmanReactStatestore.StateReducer.update
 
   | ToolInputDeltaReceived({taskId, id, delta}) =>
     state
@@ -669,7 +669,7 @@ let next = (state, action) => {
         }
       )
     )
-    ->AskTheLlmReactStatestore.StateReducer.update
+    ->FrontmanReactStatestore.StateReducer.update
 
   | ToolInputEndReceived({taskId, id}) =>
     state
@@ -700,7 +700,7 @@ let next = (state, action) => {
         }
       )
     )
-    ->AskTheLlmReactStatestore.StateReducer.update
+    ->FrontmanReactStatestore.StateReducer.update
 
   | ToolInputReceived({taskId, id, input}) =>
     // Directly set the parsed input on the tool call
@@ -714,7 +714,7 @@ let next = (state, action) => {
         }
       )
     )
-    ->AskTheLlmReactStatestore.StateReducer.update
+    ->FrontmanReactStatestore.StateReducer.update
 
   | ToolResultReceived({taskId, id, result}) =>
     state
@@ -727,7 +727,7 @@ let next = (state, action) => {
         }
       )
     )
-    ->AskTheLlmReactStatestore.StateReducer.update
+    ->FrontmanReactStatestore.StateReducer.update
 
   | ToolErrorReceived({taskId, id, error}) =>
     state
@@ -740,7 +740,7 @@ let next = (state, action) => {
         }
       )
     )
-    ->AskTheLlmReactStatestore.StateReducer.update
+    ->FrontmanReactStatestore.StateReducer.update
 
   | MessageCompleted({taskId, id}) =>
     state
@@ -759,14 +759,14 @@ let next = (state, action) => {
         }
       )
     })
-    ->AskTheLlmReactStatestore.StateReducer.update
+    ->FrontmanReactStatestore.StateReducer.update
 
   | SetPreviewUrl({url}) =>
     state
     ->Lens.updateCurrentTask(task => {
       {...task, previewFrame: {...task.previewFrame, url}}
     })
-    ->AskTheLlmReactStatestore.StateReducer.update
+    ->FrontmanReactStatestore.StateReducer.update
 
   // Set preview frame (keep existing URL and errors, just update references)
   | SetPreviewFrame({contentDocument, contentWindow}) =>
@@ -774,7 +774,7 @@ let next = (state, action) => {
     ->Lens.updateCurrentTask(task => {
       {...task, previewFrame: {...task.previewFrame, contentDocument, contentWindow}}
     })
-    ->AskTheLlmReactStatestore.StateReducer.update
+    ->FrontmanReactStatestore.StateReducer.update
 
   // Toggle WebPreview selection mode
   | ToggleWebPreviewSelection => {
@@ -801,7 +801,7 @@ let next = (state, action) => {
           task.selectedElement
         },
       })
-      ->AskTheLlmReactStatestore.StateReducer.update
+      ->FrontmanReactStatestore.StateReducer.update
     }
 
   // Set selected element and reset selection mode
@@ -821,7 +821,7 @@ let next = (state, action) => {
 
       state
       ->Lens.updateCurrentTask(task => {...task, webPreviewIsSelecting: false, selectedElement})
-      ->AskTheLlmReactStatestore.StateReducer.update(
+      ->FrontmanReactStatestore.StateReducer.update(
         ~sideEffects=shouldFetchDetails->Option.mapOr([], effect => [effect]),
       )
     }
@@ -837,12 +837,12 @@ let next = (state, action) => {
         ...state,
         tasks: updatedTasks,
         currentTaskId: Some(newTask.id),
-      }->AskTheLlmReactStatestore.StateReducer.update
+      }->FrontmanReactStatestore.StateReducer.update
     }
 
   // Switch to different task
   | SwitchTask({taskId}) =>
-    {...state, currentTaskId: Some(taskId)}->AskTheLlmReactStatestore.StateReducer.update
+    {...state, currentTaskId: Some(taskId)}->FrontmanReactStatestore.StateReducer.update
 
   // Delete task
   | DeleteTask({taskId}) => {
@@ -866,54 +866,54 @@ let next = (state, action) => {
         ...state,
         tasks: updatedTasks,
         currentTaskId: newCurrentTaskId,
-      }->AskTheLlmReactStatestore.StateReducer.update
+      }->FrontmanReactStatestore.StateReducer.update
     }
 
   | ClearCurrentTask =>
-    {...state, currentTaskId: None}->AskTheLlmReactStatestore.StateReducer.update
+    {...state, currentTaskId: None}->FrontmanReactStatestore.StateReducer.update
 
   | UpdateTaskTitle({taskId, title}) =>
     state
     ->Lens.updateTask(taskId, task => {...task, title})
-    ->AskTheLlmReactStatestore.StateReducer.update
+    ->FrontmanReactStatestore.StateReducer.update
 
   | SetFigmaNode({figmaNode}) =>
     state
     ->Lens.updateCurrentTask(task => {...task, figmaNode: FigmaNode.SelectedNode(figmaNode)})
-    ->AskTheLlmReactStatestore.StateReducer.update
+    ->FrontmanReactStatestore.StateReducer.update
 
   | ClearFigmaNode =>
     state
     ->Lens.updateCurrentTask(task => {...task, figmaNode: FigmaNode.NoSelection})
-    ->AskTheLlmReactStatestore.StateReducer.update
+    ->FrontmanReactStatestore.StateReducer.update
 
   | SetFigmaNodeWaiting =>
     state
     ->Lens.updateCurrentTask(task => {...task, figmaNode: FigmaNode.WaitingForSelection})
-    ->AskTheLlmReactStatestore.StateReducer.update
+    ->FrontmanReactStatestore.StateReducer.update
 
   | ClearFigmaNodeWaiting =>
     state
     ->Lens.updateCurrentTask(task => {...task, figmaNode: FigmaNode.NoSelection})
-    ->AskTheLlmReactStatestore.StateReducer.update
+    ->FrontmanReactStatestore.StateReducer.update
 
   | Connect({sendPrompt}) =>
     {
       ...state,
       connectionState: Connected(sendPrompt),
-    }->AskTheLlmReactStatestore.StateReducer.update(
+    }->FrontmanReactStatestore.StateReducer.update(
       ~sideEffects=state.currentTaskId
       ->Option.map(taskId => [StartInitializationTimeout({taskId, timeoutMs: 3000})])
       ->Option.getOr([]),
     )
 
   | Disconnect =>
-    {...state, connectionState: Disconnected}->AskTheLlmReactStatestore.StateReducer.update
+    {...state, connectionState: Disconnected}->FrontmanReactStatestore.StateReducer.update
 
   | PlanReceived({taskId, entries}) =>
     state
     ->Lens.updateTask(taskId, task => {...task, planEntries: entries})
-    ->AskTheLlmReactStatestore.StateReducer.update
+    ->FrontmanReactStatestore.StateReducer.update
 
   | TodoBatchCreated({taskId, entries, count}) =>
     // Create a new batch event and append to the task's batch events
@@ -923,7 +923,7 @@ let next = (state, action) => {
       ...task,
       todoBatchEvents: task.todoBatchEvents->Array.concat([batchEvent]),
     })
-    ->AskTheLlmReactStatestore.StateReducer.update
+    ->FrontmanReactStatestore.StateReducer.update
 
   | TodoStarted({taskId, todoId, content}) =>
     // Create a "started" status event
@@ -933,7 +933,7 @@ let next = (state, action) => {
       ...task,
       todoStatusEvents: task.todoStatusEvents->Array.concat([statusEvent]),
     })
-    ->AskTheLlmReactStatestore.StateReducer.update
+    ->FrontmanReactStatestore.StateReducer.update
 
   | TodoCompleted({taskId, todoId, content}) =>
     // Create a "completed" status event
@@ -943,19 +943,19 @@ let next = (state, action) => {
       ...task,
       todoStatusEvents: task.todoStatusEvents->Array.concat([statusEvent]),
     })
-    ->AskTheLlmReactStatestore.StateReducer.update
+    ->FrontmanReactStatestore.StateReducer.update
 
   | ReceivedDiscoveredProjectRule({taskId: _}) =>
     // Mark initialization complete
     {
       ...state,
       sessionInitialized: true,
-    }->AskTheLlmReactStatestore.StateReducer.update
+    }->FrontmanReactStatestore.StateReducer.update
 
   | TurnCompleted({taskId}) =>
     // Mark agent turn as complete
     state
     ->Lens.updateTask(taskId, task => {...task, isAgentRunning: false})
-    ->AskTheLlmReactStatestore.StateReducer.update
+    ->FrontmanReactStatestore.StateReducer.update
   }
 }

@@ -127,7 +127,7 @@ let make = () => {
       setShowExtensionAlert(_ => true)
     } else {
       Client__State.Actions.setFigmaNodeWaiting()
-      AskTheLlmBindings.Chrome.Runtime.sendMessageExternal(
+      FrontmanBindings.Chrome.Runtime.sendMessageExternal(
         "kfdpjbmabcelpgoipaccjijhehdmeghp",
         {"type": "DevServerImportFigmaNodeRequest"},
         response => {

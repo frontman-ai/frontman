@@ -4,7 +4,7 @@
  * Demonstrates the "Added X todos" component with various states.
  */
 open Bindings__Storybook
-open AskTheLlmFrontmanClient.FrontmanClient__ACP__Types
+open FrontmanFrontmanClient.FrontmanClient__ACP__Types
 S.enableJson()
 
 type args = unit

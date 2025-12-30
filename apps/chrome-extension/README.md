@@ -1,4 +1,4 @@
-# Chrome Extension for AskTheLLM
+# Chrome Extension for Frontman
 
 ## Features
 

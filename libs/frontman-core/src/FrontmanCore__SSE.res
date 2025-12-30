@@ -1,6 +1,6 @@
 // SSE (Server-Sent Events) response helpers
 
-module Protocol = AskTheLlmFrontmanProtocol
+module Protocol = FrontmanFrontmanProtocol
 module MCP = Protocol.FrontmanProtocol__MCP
 
 // Format SSE event

@@ -1,4 +1,4 @@
-open AskTheLlmBindings
+open FrontmanBindings
 
 module ImportFigmaNodeRequest = {
   type t = {tabId: int}

@@ -1,11 +1,11 @@
-# @ask-the-llm/figma-client-api
+# @frontman/figma-client-api
 
 Figma Node to Tailwind JSON Converter - A modular and testable library for converting Figma design nodes to Tailwind CSS classes.
 
 ## Installation
 
 ```bash
-yarn add @ask-the-llm/figma-client-api
+yarn add @frontman/figma-client-api
 ```
 
 ## Usage
@@ -13,7 +13,7 @@ yarn add @ask-the-llm/figma-client-api
 ### Basic Usage
 
 ```typescript
-import { figmaToTailwindJSON, convertNodes } from '@ask-the-llm/figma-client-api';
+import { figmaToTailwindJSON, convertNodes } from '@frontman/figma-client-api';
 
 // Convert a single node
 const result = await figmaToTailwindJSON(node, { embedVectors: true });
@@ -25,7 +25,7 @@ const results = await convertNodes(nodes, { embedImages: false });
 ### In Figma Plugin
 
 ```typescript
-import { figmaToTailwindJSON } from '@ask-the-llm/figma-client-api';
+import { figmaToTailwindJSON } from '@frontman/figma-client-api';
 
 // Convert selection
 const selection = figma.currentPage.selection;
@@ -51,7 +51,7 @@ import {
   blendClasses,
   colorToTailwind,
   fillToTailwind,
-} from '@ask-the-llm/figma-client-api';
+} from '@frontman/figma-client-api';
 
 // Use individual generators
 const sizes = sizeClasses(node, settings);

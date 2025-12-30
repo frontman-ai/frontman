@@ -1,4 +1,4 @@
-open AskTheLlmBindings
+open FrontmanBindings
 
 // Monkey patch Error.prototype.stack to hide chrome-extension:// URLs
 let patchErrorStack: unit => unit = %raw(`

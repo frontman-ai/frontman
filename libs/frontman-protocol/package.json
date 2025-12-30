@@ -1,5 +1,5 @@
 {
-	"name": "@ask-the-llm/frontman-protocol",
+	"name": "@frontman/frontman-protocol",
 	"version": "0.1.0",
 	"type": "module",
 	"main": "./src/FrontmanProtocol.res.mjs",

@@ -1,4 +1,4 @@
-# ReScript Patterns for ask-the-llm
+# ReScript Patterns for Frontman
 
 ## Core Principles
 - Never use mutable - use `ref` instead. Functional programming style.

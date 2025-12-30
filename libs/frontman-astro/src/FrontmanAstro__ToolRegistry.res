@@ -1,6 +1,6 @@
 // Tool registry for Astro - composes core tools with Astro specific tools
 
-module Core = AskTheLlmFrontmanCore
+module Core = FrontmanFrontmanCore
 module CoreRegistry = Core.FrontmanCore__ToolRegistry
 
 // Re-export types from core

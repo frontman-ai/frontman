@@ -1,15 +1,15 @@
-# @ask-the-llm/vite-plugin
+# @frontman/vite-plugin
 
-A Vite plugin that integrates the Ask-the-LLM agent into your Vite development server.
+A Vite plugin that integrates the Frontman agent into your Vite development server.
 
 ## Installation
 
 ```bash
-npm install @ask-the-llm/vite-plugin
+npm install @frontman/vite-plugin
 # or
-yarn add @ask-the-llm/vite-plugin
+yarn add @frontman/vite-plugin
 # or
-pnpm add @ask-the-llm/vite-plugin
+pnpm add @frontman/vite-plugin
 ```
 
 ## Usage
@@ -18,14 +18,14 @@ Add the plugin to your `vite.config.ts`:
 
 ```typescript
 import { defineConfig } from 'vite';
-import { askTheLlmPlugin } from '@ask-the-llm/vite-plugin';
+import { frontmanPlugin } from '@frontman/vite-plugin';
 
 export default defineConfig({
   plugins: [
-    askTheLlmPlugin({
+    frontmanPlugin({
       isDev: true,
       isLightTheme: true,
-      entrypointUrl: 'http://localhost:5173/api/ask-the-llm',
+      entrypointUrl: 'http://localhost:5173/__frontman',
     }),
   ],
 });
@@ -50,24 +50,24 @@ Whether to use light theme for the UI. Set to `false` for dark theme.
 ### `entrypointUrl`
 
 - **Type:** `string`
-- **Default:** `"http://localhost:3000/api/ask-the-llm"`
+- **Default:** `"http://localhost:3000/__frontman"`
 
-The entrypoint URL for the Ask-the-LLM API. This should match the URL where your Vite server is running.
+The entrypoint URL for the Frontman API. This should match the URL where your Vite server is running.
 
 ### `clientUrl`
 
 - **Type:** `string`
 - **Default:** `"http://localhost:5173/src/Main.js"`
 
-The URL where the Ask-the-LLM client script is served.
+The URL where the Frontman client script is served.
 
 ## API Routes
 
 The plugin automatically sets up the following API routes:
 
-- `GET /api/ask-the-llm` - Serves the Ask-the-LLM UI
-- `POST /api/ask-the-llm/chat` - Handles chat messages
-- `GET /api/ask-the-llm/chat-sse` - Server-Sent Events endpoint for streaming responses
+- `GET /__frontman` - Serves the Frontman UI
+- `POST /__frontman/chat` - Handles chat messages
+- `GET /__frontman/chat-sse` - Server-Sent Events endpoint for streaming responses
 
 ## License
 

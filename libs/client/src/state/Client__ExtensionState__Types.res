@@ -1,5 +1,5 @@
 // Extension state types
-module Chrome = AskTheLlmBindings.Chrome
+module Chrome = FrontmanBindings.Chrome
 
 // Raw Figma node data from the extension
 type rawFigmaNodeData = {

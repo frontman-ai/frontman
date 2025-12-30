@@ -1,5 +1,5 @@
 {
-	"name": "@ask-the-llm/bindings",
+	"name": "@frontman/bindings",
 	"namespace": true,
 	"sources": [
 		{

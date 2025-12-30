@@ -1,8 +1,8 @@
 // File exists tool - checks if a file or directory exists
 
-module Path = AskTheLlmBindings.Path
-module Fs = AskTheLlmBindings.Fs
-module Tool = AskTheLlmFrontmanProtocol.FrontmanProtocol__Tool
+module Path = FrontmanBindings.Path
+module Fs = FrontmanBindings.Fs
+module Tool = FrontmanFrontmanProtocol.FrontmanProtocol__Tool
 
 let name = "file_exists"
 let visibleToAgent = true

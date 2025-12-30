@@ -1,6 +1,6 @@
 open ContextLoader__Types
 
-module Bindings = AskTheLlmBindings
+module Bindings = FrontmanBindings
 module Path = Bindings.Path
 module Os = Bindings.Os
 

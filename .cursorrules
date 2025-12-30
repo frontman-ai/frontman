@@ -1,4 +1,4 @@
-# Cursor Project Rules for ask-the-llm
+# Cursor Project Rules for Frontman
 
 ## Project Overview
 This is a multi-language project with ReScript, TypeScript, and JavaScript components. The main client library is being converted from TypeScript to ReScript.

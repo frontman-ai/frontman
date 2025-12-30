@@ -11,6 +11,6 @@
     "declaration": true,
     "outDir": "./dist"
   },
-  "include": ["index.ts", "ask-the-llm-nextjs.d.ts"]
+  "include": ["index.ts", "frontman-nextjs.d.ts"]
 }
 

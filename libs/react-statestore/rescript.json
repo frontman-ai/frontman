@@ -1,5 +1,5 @@
 {
-	"name": "@ask-the-llm/react-statestore",
+	"name": "@frontman/react-statestore",
 	"namespace": true,
 	"sources": [
 		{

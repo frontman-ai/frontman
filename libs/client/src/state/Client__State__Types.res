@@ -98,7 +98,7 @@ module FigmaNode = {
 // Todo batch event - represents "Added X todos" in the chat
 module TodoBatchEvent = {
   // Re-export the entry type from ACP
-  type entry = AskTheLlmFrontmanClient.FrontmanClient__ACP__Types.todoBatchEntry
+  type entry = FrontmanFrontmanClient.FrontmanClient__ACP__Types.todoBatchEntry
 
   type t = {
     id: string,
@@ -157,7 +157,7 @@ module Task = {
     webPreviewIsSelecting: bool,
     selectedElement: option<SelectedElement.t>,
     figmaNode: FigmaNode.t,
-    planEntries: array<AskTheLlmFrontmanClient.FrontmanClient__ACP__Types.planEntry>,
+    planEntries: array<FrontmanFrontmanClient.FrontmanClient__ACP__Types.planEntry>,
     isAgentRunning: bool, // True when waiting for agent response, false when turn is complete
     // Todo UX events
     todoBatchEvents: array<TodoBatchEvent.t>,
@@ -195,7 +195,7 @@ module Task = {
 }
 
 // Re-export ACP types for convenience
-module ACPTypes = AskTheLlmFrontmanClient.FrontmanClient__ACP__Types
+module ACPTypes = FrontmanFrontmanClient.FrontmanClient__ACP__Types
 
 // ============================================================================
 // ContentBlock builders for embedded context (ACP embeddedContext)

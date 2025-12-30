@@ -1,6 +1,6 @@
 module RadixUI__Icons = Bindings__RadixUI__Icons
-module Chrome = AskTheLlmBindings.Chrome
-module ACPTypes = AskTheLlmFrontmanClient.FrontmanClient__ACP__Types
+module Chrome = FrontmanBindings.Chrome
+module ACPTypes = FrontmanFrontmanClient.FrontmanClient__ACP__Types
 
 let useExtensionState = () => {
   React.useEffect(() => {
@@ -43,7 +43,7 @@ let useExtensionState = () => {
         try {
           let port = Chrome.Runtime.Connect.connectExternal(
             "kfdpjbmabcelpgoipaccjijhehdmeghp",
-            Some({name: "AskTheLlmClient"}),
+            Some({name: "FrontmanClient"}),
           )
 
           // Set up message listener
@@ -122,7 +122,7 @@ let make = () => {
   // Handle ACP session updates (streaming messages from the agent)
   let handleSessionUpdate = React.useCallback((update: ACPTypes.sessionUpdate) => {
     // Get current task ID directly from the store
-    let state = AskTheLlmReactStatestore.StateStore.getState(Client__State__Store.store)
+    let state = FrontmanReactStatestore.StateStore.getState(Client__State__Store.store)
     let taskId = state.currentTaskId->Option.getOr("unknown")
 
     switch update {

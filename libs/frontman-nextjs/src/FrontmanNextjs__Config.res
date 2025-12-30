@@ -1,4 +1,4 @@
-module Bindings = AskTheLlmBindings
+module Bindings = FrontmanBindings
 
 type t = {
   isDev: bool,
@@ -44,7 +44,7 @@ let make = (
   let clientUrl = clientUrl->Option.getOr(
     switch isDev {
     | true => "http://localhost:5173/src/Main.res.mjs?clientName=nextjs"
-    | false => "https://ask-the-llm.vercel.app/frontman.es.js?clientName=nextjs"
+    | false => "https://frontman.dev/frontman.es.js?clientName=nextjs"
     },
   )
 

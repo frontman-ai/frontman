@@ -1,9 +1,9 @@
 // Get client pages tool - lists Astro pages from the filesystem
 // Excludes API routes (src/pages/api/) - use a separate tool for those
 
-module Path = AskTheLlmBindings.Path
-module Fs = AskTheLlmBindings.Fs
-module Tool = AskTheLlmFrontmanProtocol.FrontmanProtocol__Tool
+module Path = FrontmanBindings.Path
+module Fs = FrontmanBindings.Fs
+module Tool = FrontmanFrontmanProtocol.FrontmanProtocol__Tool
 
 let name = "get_client_pages"
 

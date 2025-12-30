@@ -1,7 +1,7 @@
 module Types = ContextLoader__Types
 module Core = ContextLoader__Core
 module IO = ContextLoader__IO
-module Bindings = AskTheLlmBindings
+module Bindings = FrontmanBindings
 
 type options = Types.options
 @schema

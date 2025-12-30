@@ -1,4 +1,4 @@
-# Agent Guidelines for ask-the-llm
+# Agent Guidelines for Frontman
 
 ## Build/Test Commands
 - **Build all**: `make build`

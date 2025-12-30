@@ -1,12 +1,12 @@
 // FrontmanProvider - React context provider for FrontmanClient ACP connection
 // Now with MCP support for browser-as-server tool execution
 
-module ACP = AskTheLlmFrontmanClient.FrontmanClient__ACP
-module Types = AskTheLlmFrontmanClient.FrontmanClient__ACP__Types
-module Relay = AskTheLlmFrontmanClient.FrontmanClient__Relay
-module MCP = AskTheLlmFrontmanClient.FrontmanClient__MCP
-module MCPServer = AskTheLlmFrontmanClient.FrontmanClient__MCP__Server
-module ConsoleLogTool = AskTheLlmFrontmanClient.FrontmanClient__MCP__Tool__ConsoleLog
+module ACP = FrontmanFrontmanClient.FrontmanClient__ACP
+module Types = FrontmanFrontmanClient.FrontmanClient__ACP__Types
+module Relay = FrontmanFrontmanClient.FrontmanClient__Relay
+module MCP = FrontmanFrontmanClient.FrontmanClient__MCP
+module MCPServer = FrontmanFrontmanClient.FrontmanClient__MCP__Server
+module ConsoleLogTool = FrontmanFrontmanClient.FrontmanClient__MCP__Tool__ConsoleLog
 
 // Connection state type for the context
 type connectionState =

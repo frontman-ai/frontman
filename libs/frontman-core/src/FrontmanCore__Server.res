@@ -1,6 +1,6 @@
 // Core server execution logic - framework agnostic
 
-module Protocol = AskTheLlmFrontmanProtocol
+module Protocol = FrontmanFrontmanProtocol
 module MCP = Protocol.FrontmanProtocol__MCP
 module Relay = Protocol.FrontmanProtocol__Relay
 module Tool = Protocol.FrontmanProtocol__Tool

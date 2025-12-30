@@ -28,9 +28,9 @@
     "typescript": "^5.4.5"
   },
   "devDependencies": {
-    "@ask-the-llm/frontman-astro": "workspace:*",
     "@astrojs/node": "^9.0.0",
     "@astrojs/partytown": "^2.1.4",
+    "@frontman/frontman-astro": "workspace:*",
     "@tailwindcss/typography": "^0.5.13"
   }
 }

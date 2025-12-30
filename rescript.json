@@ -1,14 +1,14 @@
 {
-	"name": "ask-the-llm",
+	"name": "frontman",
 	"namespace": true,
 	"dependencies": [
-		"@ask-the-llm/chrome-extension",
-		"@ask-the-llm/bindings",
-		"@ask-the-llm/client",
-		"@ask-the-llm/frontman-client",
-		"@ask-the-llm/frontman-nextjs",
-		"@ask-the-llm/frontman-protocol",
-		"@ask-the-llm/react-statestore",
+		"@frontman/chrome-extension",
+		"@frontman/bindings",
+		"@frontman/client",
+		"@frontman/frontman-client",
+		"@frontman/frontman-nextjs",
+		"@frontman/frontman-protocol",
+		"@frontman/react-statestore",
 		"@rescript/webapi"
 	],
 	"package-specs": {

@@ -6,7 +6,7 @@
  */
 
 module Icons = Client__ToolIcons
-module ACPTypes = AskTheLlmFrontmanClient.FrontmanClient__ACP__Types
+module ACPTypes = FrontmanFrontmanClient.FrontmanClient__ACP__Types
 
 // Status helpers
 let statusToCompleted = (status: ACPTypes.planEntryStatus): bool => {

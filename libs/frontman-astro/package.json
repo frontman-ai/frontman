@@ -1,5 +1,5 @@
 {
-	"name": "@ask-the-llm/frontman-astro",
+	"name": "@frontman/frontman-astro",
 	"version": "0.1.0",
 	"type": "module",
 	"main": "./src/FrontmanAstro.res.mjs",

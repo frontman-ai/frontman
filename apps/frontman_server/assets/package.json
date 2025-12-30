@@ -1,8 +1,8 @@
 {
-	"name": "@ask-the-llm/frontman-server-assets",
+	"name": "@frontman/frontman-server-assets",
 	"version": "0.1.0",
 	"private": true,
 	"dependencies": {
-		"@ask-the-llm/frontman-client": "workspace:*"
+		"@frontman/frontman-client": "workspace:*"
 	}
 }

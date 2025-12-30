@@ -3,7 +3,7 @@ type state = Client__State__Types.state
 
 // Hook for selecting state
 let useSelector = selection =>
-  AskTheLlmReactStatestore.StateStore.useSelector(Client__State__Store.store, selection)
+  FrontmanReactStatestore.StateStore.useSelector(Client__State__Store.store, selection)
 
 // Re-export selectors
 module Selectors = Client__State__StateReducer.Selectors

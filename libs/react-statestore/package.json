@@ -1,5 +1,5 @@
 {
-	"name": "@ask-the-llm/react-statestore",
+	"name": "@frontman/react-statestore",
 	"private": true,
 	"version": "0.0.1",
 	"type": "module",

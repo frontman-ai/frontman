@@ -1,5 +1,5 @@
 {
-	"name": "@ask-the-llm/chrome-extension",
+	"name": "@frontman/chrome-extension",
 	"namespace": true,
 	"sources": [
 		{
@@ -20,7 +20,7 @@
 		}
 	],
 	"dependencies": [
-		"@ask-the-llm/bindings",
+		"@frontman/bindings",
 		"@rescript/react",
 		"@rescript/webapi",
 		"sury"

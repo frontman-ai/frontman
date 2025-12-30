@@ -5,7 +5,7 @@
  * 
  * @example
  * ```ts
- * import { getFigmaNodeJSON, figmaToDSL } from '@ask-the-llm/figma-client-api';
+ * import { getFigmaNodeJSON, figmaToDSL } from '@frontman/figma-client-api';
  * 
  * // Get full JSON for a node by ID
  * const json = await getFigmaNodeJSON("0:1927", { embedVectors: true });

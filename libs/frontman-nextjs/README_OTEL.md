@@ -15,7 +15,7 @@ npm install @opentelemetry/sdk-node @opentelemetry/sdk-trace-base @opentelemetry
 In Next.js `instrumentation.ts`:
 
 ```typescript
-import { setup } from '@ask-the-llm/frontman-nextjs/Instrumentation';
+import { setup } from '@frontman/frontman-nextjs/Instrumentation';
 import { NodeSDK } from '@opentelemetry/sdk-node';
 
 export async function register() {
@@ -38,7 +38,7 @@ That's it! Frontman processors will now capture OTEL logs and spans into the sam
 If you need to export to external OTEL collectors AND capture in Frontman:
 
 ```typescript
-import { setup } from '@ask-the-llm/frontman-nextjs/Instrumentation';
+import { setup } from '@frontman/frontman-nextjs/Instrumentation';
 import { NodeSDK } from '@opentelemetry/sdk-node';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
 import { BatchSpanProcessor } from '@opentelemetry/sdk-trace-base';

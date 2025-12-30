@@ -7,7 +7,7 @@
 		"start": "next start"
 	},
 	"dependencies": {
-		"@ask-the-llm/frontman-nextjs": "workspace:*",
+		"@frontman/frontman-nextjs": "workspace:*",
 		"@opentelemetry/api": "^1.9.0",
 		"@opentelemetry/sdk-logs": "^0.52.0",
 		"@opentelemetry/sdk-node": "^0.52.0",

@@ -1,5 +1,5 @@
 // Extension state reducer for managing Chrome extension connection
-module Chrome = AskTheLlmBindings.Chrome
+module Chrome = FrontmanBindings.Chrome
 module Types = Client__ExtensionState__Types
 
 type extensionMessage = Types.extensionMessage
@@ -17,8 +17,8 @@ let defaultState: state = Types.NotInstalled
 let next = (_state, action) => {
   switch action {
   | SetExtensionInstalled(port) =>
-    Types.Installed(port)->AskTheLlmReactStatestore.StateReducer.update
-  | SetExtensionNotInstalled => Types.NotInstalled->AskTheLlmReactStatestore.StateReducer.update
+    Types.Installed(port)->FrontmanReactStatestore.StateReducer.update
+  | SetExtensionNotInstalled => Types.NotInstalled->FrontmanReactStatestore.StateReducer.update
   }
 }
 

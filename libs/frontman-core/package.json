@@ -1,5 +1,5 @@
 {
-	"name": "@ask-the-llm/frontman-core",
+	"name": "@frontman/frontman-core",
 	"version": "0.1.0",
 	"type": "module",
 	"main": "./src/FrontmanCore.res.mjs",

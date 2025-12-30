@@ -1,5 +1,5 @@
 {
-	"name": "@ask-the-llm/frontman-core",
+	"name": "@frontman/frontman-core",
 	"namespace": true,
 	"sources": [
 		{
@@ -20,7 +20,7 @@
 		}
 	],
 	"ppx-flags": ["sury-ppx/bin"],
-	"dependencies": ["@rescript/webapi", "sury", "@ask-the-llm/frontman-protocol", "@ask-the-llm/bindings"],
+	"dependencies": ["@rescript/webapi", "sury", "@frontman/frontman-protocol", "@frontman/bindings"],
 	"dev-dependencies": ["rescript-vitest"],
 	"jsx": {
 		"version": 4

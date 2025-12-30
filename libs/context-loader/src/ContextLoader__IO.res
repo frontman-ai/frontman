@@ -1,4 +1,4 @@
-module Bindings = AskTheLlmBindings
+module Bindings = FrontmanBindings
 module Fs = Bindings.Fs
 
 let fileExists = async (path: string): bool => {

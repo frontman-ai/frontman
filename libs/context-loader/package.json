@@ -1,10 +1,10 @@
 {
-  "name": "@ask-the-llm/context-loader",
+  "name": "@frontman/context-loader",
   "version": "0.0.1",
   "type": "module",
   "main": "./src/ContextLoader.res.mjs",
   "dependencies": {
-    "@ask-the-llm/bindings": "workspace:*"
+    "@frontman/bindings": "workspace:*"
   },
   "devDependencies": {
     "rescript": "catalog:",

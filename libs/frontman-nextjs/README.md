@@ -1,11 +1,11 @@
-# @ask-the-llm/frontman-nextjs
+# @frontman/frontman-nextjs
 
 Next.js integration for Frontman - provides development tools and observability for Next.js applications.
 
 ## Installation
 
 ```bash
-npm install @ask-the-llm/frontman-nextjs
+npm install @frontman/frontman-nextjs
 ```
 
 ## Quick Start
@@ -15,7 +15,7 @@ npm install @ask-the-llm/frontman-nextjs
 Create or update `middleware.ts` in your Next.js project root:
 
 ```typescript
-import { createMiddleware } from '@ask-the-llm/frontman-nextjs';
+import { createMiddleware } from '@frontman/frontman-nextjs';
 import { NextRequest, NextResponse } from 'next/server';
 
 const frontman = createMiddleware({
@@ -44,7 +44,7 @@ npm install @opentelemetry/sdk-node @opentelemetry/sdk-trace-base @opentelemetry
 Create `instrumentation.ts` in your project root:
 
 ```typescript
-import { setup } from '@ask-the-llm/frontman-nextjs/Instrumentation';
+import { setup } from '@frontman/frontman-nextjs/Instrumentation';
 import { NodeSDK } from '@opentelemetry/sdk-node';
 
 export async function register() {
@@ -164,7 +164,7 @@ Next.js App (Turbopack/Webpack)
 If you need more control over OpenTelemetry setup:
 
 ```typescript
-import { setup } from '@ask-the-llm/frontman-nextjs/Instrumentation';
+import { setup } from '@frontman/frontman-nextjs/Instrumentation';
 import { NodeSDK } from '@opentelemetry/sdk-node';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
 
@@ -203,7 +203,7 @@ LogCapture auto-initializes when the module is imported, so console patching hap
 You can customize the buffer size and stdout patterns:
 
 ```typescript
-import { initialize } from '@ask-the-llm/frontman-nextjs/LogCapture';
+import { initialize } from '@frontman/frontman-nextjs/LogCapture';
 
 // Call this BEFORE any console.log() calls (e.g., in instrumentation.ts)
 initialize({
@@ -220,8 +220,8 @@ initialize({
 
 **Check 1: Verify module is imported**
 LogCapture only initializes when the module is imported in a Node.js context. Make sure either:
-- You have `instrumentation.ts` that imports from `@ask-the-llm/frontman-nextjs/Instrumentation`
-- OR you have `middleware.ts` that imports from `@ask-the-llm/frontman-nextjs`
+- You have `instrumentation.ts` that imports from `@frontman/frontman-nextjs/Instrumentation`
+- OR you have `middleware.ts` that imports from `@frontman/frontman-nextjs`
 
 **Check 2: Verify Node.js runtime**
 LogCapture doesn't run in browser or Edge runtime. Check your environment:
@@ -232,7 +232,7 @@ console.log('Runtime:', process.env.NEXT_RUNTIME); // Should be 'nodejs'
 **Check 3: Verify buffer contents**
 Query the buffer directly to see if logs are present:
 ```typescript
-import { getLogs } from '@ask-the-llm/frontman-nextjs/LogCapture';
+import { getLogs } from '@frontman/frontman-nextjs/LogCapture';
 
 const allLogs = getLogs();
 console.log('Buffer contains', allLogs.length, 'logs');
@@ -266,7 +266,7 @@ To capture additional patterns, use custom configuration (see above).
 Creates a Next.js middleware handler that serves the Frontman UI and handles tool requests.
 
 ```typescript
-import { createMiddleware } from '@ask-the-llm/frontman-nextjs';
+import { createMiddleware } from '@frontman/frontman-nextjs';
 
 const middleware = createMiddleware({
   isDev: boolean,              // Enable dev features (default: false)
@@ -284,7 +284,7 @@ const middleware = createMiddleware({
 Initializes LogCapture (console patching, error handlers) and returns OTEL processors for use with OpenTelemetry SDK.
 
 ```typescript
-import { setup } from '@ask-the-llm/frontman-nextjs/Instrumentation';
+import { setup } from '@frontman/frontman-nextjs/Instrumentation';
 
 const [logProcessor, spanProcessor] = setup();
 ```
@@ -296,7 +296,7 @@ const [logProcessor, spanProcessor] = setup();
 Manually initialize LogCapture with custom configuration. Usually not needed since auto-initialization happens at module import.
 
 ```typescript
-import { initialize } from '@ask-the-llm/frontman-nextjs/LogCapture';
+import { initialize } from '@frontman/frontman-nextjs/LogCapture';
 
 initialize({
   bufferCapacity: number,           // Buffer size (default: 1024)
@@ -311,7 +311,7 @@ initialize({
 Query the log buffer with optional filters.
 
 ```typescript
-import { getLogs } from '@ask-the-llm/frontman-nextjs/LogCapture';
+import { getLogs } from '@frontman/frontman-nextjs/LogCapture';
 
 const logs = getLogs({
   pattern: string,        // Regex pattern to match messages (case-insensitive)

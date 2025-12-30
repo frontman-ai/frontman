@@ -1,6 +1,6 @@
 open Vitest
 
-module Bindings = AskTheLlmBindings
+module Bindings = FrontmanBindings
 
 describe("ContextLoader__Core", () => {
   // Test pure functions

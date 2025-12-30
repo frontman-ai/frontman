@@ -1,5 +1,5 @@
 {
-	"name": "@ask-the-llm/frontman-protocol",
+	"name": "@frontman/frontman-protocol",
 	"namespace": true,
 	"sources": [
 		{

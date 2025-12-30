@@ -36,4 +36,4 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy apps/marketing/dist --project-name=ask-the-llm-marketing --branch=main
+          command: pages deploy apps/marketing/dist --project-name=frontman-marketing --branch=main

@@ -1,5 +1,5 @@
 {
-	"name": "ask-the-llm",
+	"name": "frontman",
 	"packageManager": "yarn@4.10.3",
 	"enableGlobalCache": false,
 	"workspaces": [

@@ -1,5 +1,5 @@
 {
-	"name": "@ask-the-llm/frontman-nextjs",
+	"name": "@frontman/frontman-nextjs",
 	"version": "0.1.0",
 	"type": "module",
 	"main": "./src/FrontmanNextjs.res.mjs",

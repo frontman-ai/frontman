@@ -1,15 +1,15 @@
 // Request handlers for Frontman Astro endpoints
 
-module Protocol = AskTheLlmFrontmanProtocol
+module Protocol = FrontmanFrontmanProtocol
 module MCP = Protocol.FrontmanProtocol__MCP
 module Relay = Protocol.FrontmanProtocol__Relay
-module Core = AskTheLlmFrontmanCore
+module Core = FrontmanFrontmanCore
 module CoreServer = Core.FrontmanCore__Server
 module CoreSSE = Core.FrontmanCore__SSE
 module ToolRegistry = FrontmanAstro__ToolRegistry
 module Config = FrontmanAstro__Config
-module WebStreams = AskTheLlmBindings.WebStreams
-module DOMElementToComponentSource = AskTheLlmBindings.DOMElementToComponentSource
+module WebStreams = FrontmanBindings.WebStreams
+module DOMElementToComponentSource = FrontmanBindings.DOMElementToComponentSource
 
 // GET /__frontman/tools
 let handleGetTools = (~registry: ToolRegistry.t, ~config: Config.t): WebAPI.FetchAPI.response => {

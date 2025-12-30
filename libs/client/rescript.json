@@ -1,5 +1,5 @@
 {
-	"name": "@ask-the-llm/client",
+	"name": "@frontman/client",
 	"namespace": true,
 	"sources": [
 		{
@@ -27,13 +27,13 @@
 	},
 	"ppx-flags": ["sury-ppx/bin"],
 	"dependencies": [
-		"@ask-the-llm/bindings",
+		"@frontman/bindings",
 		"@rescript/react",
 		"@rescript/webapi",
-		"@ask-the-llm/frontman-client",
-		"@ask-the-llm/frontman-nextjs",
-		"@ask-the-llm/frontman-protocol",
-		"@ask-the-llm/react-statestore",
+		"@frontman/frontman-client",
+		"@frontman/frontman-nextjs",
+		"@frontman/frontman-protocol",
+		"@frontman/react-statestore",
 		"sury"
 	],
 	"dev-dependencies": ["rescript-vitest"],

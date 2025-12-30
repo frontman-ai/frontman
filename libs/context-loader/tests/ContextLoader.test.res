@@ -1,6 +1,6 @@
 open Vitest
 
-module Bindings = AskTheLlmBindings
+module Bindings = FrontmanBindings
 
 let fixturesPath = Bindings.Path.join([Bindings.Process.cwd(), "tests", "fixtures"])
 

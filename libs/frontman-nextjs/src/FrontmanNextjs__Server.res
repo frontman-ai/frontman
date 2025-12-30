@@ -1,15 +1,15 @@
 // Request handlers for Frontman endpoints
 
-module Protocol = AskTheLlmFrontmanProtocol
+module Protocol = FrontmanFrontmanProtocol
 module MCP = Protocol.FrontmanProtocol__MCP
 module Relay = Protocol.FrontmanProtocol__Relay
 module Tool = Protocol.FrontmanProtocol__Tool
-module Core = AskTheLlmFrontmanCore
+module Core = FrontmanFrontmanCore
 module CoreServer = Core.FrontmanCore__Server
 module CoreSSE = Core.FrontmanCore__SSE
 module ToolRegistry = FrontmanNextjs__ToolRegistry
-module WebStreams = AskTheLlmBindings.WebStreams
-module DOMElementToComponentSource = AskTheLlmBindings.DOMElementToComponentSource
+module WebStreams = FrontmanBindings.WebStreams
+module DOMElementToComponentSource = FrontmanBindings.DOMElementToComponentSource
 
 type config = {
   projectRoot: string,

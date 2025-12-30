@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Plugin } from "vite";
-import { createMiddleware } from "@ask-the-llm/nextjs/src/Vite__Middleware.res.mjs";
-import { make as makeConfig } from "@ask-the-llm/nextjs/src/Nextjs__Config.res.mjs";
+import { createMiddleware } from "@frontman/nextjs/src/Vite__Middleware.res.mjs";
+import { make as makeConfig } from "@frontman/nextjs/src/Nextjs__Config.res.mjs";
 
 /**
  * Helper to adapt middleware (Web API Request/Response) to Vite middleware (Node.js IncomingMessage/ServerResponse)
@@ -60,7 +60,7 @@ const adaptMiddlewareToVite = (middleware: any) => {
 	};
 };
 
-export interface AskTheLlmPluginOptions {
+export interface FrontmanPluginOptions {
 	/**
 	 * Whether to run in development mode
 	 * @default process.env.NODE_ENV !== "production"
@@ -68,12 +68,12 @@ export interface AskTheLlmPluginOptions {
 	isDev?: boolean;
 	/**
 	 * Base path for the middleware routes
-	 * @default "ask-the-llm"
+	 * @default "__frontman"
 	 */
 	basePath?: string;
 	/**
 	 * URL to the client JavaScript bundle
-	 * @default "http://localhost:5173/src/Main.res.mjs" (dev) or "https://ask-the-llm.vercel.app/ask-the-llm.es.js" (prod)
+	 * @default "http://localhost:5173/src/Main.res.mjs" (dev) or "https://frontman.dev/frontman.es.js" (prod)
 	 */
 	clientUrl?: string;
 	/**
@@ -82,7 +82,7 @@ export interface AskTheLlmPluginOptions {
 	clientCssUrl?: string;
 	/**
 	 * Entrypoint URL for the API (optional)
-	 * Will be injected as a template script tag with id "ask-the-llm-entrypoint-url"
+	 * Will be injected as a template script tag with id "frontman-entrypoint-url"
 	 */
 	entrypointUrl?: string;
 	/**
@@ -93,14 +93,14 @@ export interface AskTheLlmPluginOptions {
 }
 
 /**
- * Vite plugin for integrating Ask-the-LLM middleware
+ * Vite plugin for integrating Frontman middleware
  */
-export const askTheLlmPlugin = (
-	options: AskTheLlmPluginOptions = {},
+export const frontmanPlugin = (
+	options: FrontmanPluginOptions = {},
 ): Plugin => {
 	const {
 		isDev = process.env.NODE_ENV !== "production",
-		basePath = "ask-the-llm",
+		basePath = "__frontman",
 		clientUrl,
 		clientCssUrl,
 		entrypointUrl,
@@ -110,7 +110,7 @@ export const askTheLlmPlugin = (
 	let middleware: any;
 
 	return {
-		name: "ask-the-llm-middleware",
+		name: "frontman-middleware",
 		configureServer(server) {
 			// Create the config and middleware
 			const config = makeConfig(isDev, basePath, clientUrl, clientCssUrl, entrypointUrl, isLightTheme);

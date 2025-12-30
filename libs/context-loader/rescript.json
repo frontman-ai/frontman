@@ -1,5 +1,5 @@
 {
-	"name": "@ask-the-llm/context-loader",
+	"name": "@frontman/context-loader",
 	"namespace": true,
 	"exposed-modules": ["ContextLoader"],
 	"sources": [
@@ -19,6 +19,6 @@
 			"suffix": ".res.mjs"
 		}
 	],
-	"dependencies": ["@ask-the-llm/bindings"],
+	"dependencies": ["@frontman/bindings"],
 	"dev-dependencies": ["rescript-vitest"]
 }

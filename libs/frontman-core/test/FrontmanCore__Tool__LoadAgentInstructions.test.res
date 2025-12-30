@@ -1,8 +1,8 @@
 open Vitest
 
 module Tool = FrontmanCore__Tool__LoadAgentInstructions
-module Bindings = AskTheLlmBindings
-module Protocol = AskTheLlmFrontmanProtocol.FrontmanProtocol__Tool
+module Bindings = FrontmanBindings
+module Protocol = FrontmanFrontmanProtocol.FrontmanProtocol__Tool
 
 let fixturesPath = Bindings.Path.join([Bindings.Process.cwd(), "test", "fixtures", "load-agent-instructions"])
 

@@ -1,4 +1,4 @@
-// Bindings for @ask-the-llm/figma-client-api
+// Bindings for @frontman/figma-client-api
 
 // Figma node type from Figma Plugin API
 type figmaNode
@@ -36,7 +36,7 @@ type rec convertedNode = {
 }
 
 // Convert Figma node to DSL string
-@module("@ask-the-llm/figma-client-api")
+@module("@frontman/figma-client-api")
 external figmaToDSL: (
   figmaNode,
   conversionSettings,
@@ -44,7 +44,7 @@ external figmaToDSL: (
 ) => promise<Js.Nullable.t<string>> = "figmaToDSL"
 
 // Get full JSON for a node by ID
-@module("@ask-the-llm/figma-client-api")
+@module("@frontman/figma-client-api")
 external getFigmaNodeJSON: (figmaApi, string, conversionSettings) => promise<Js.Nullable.t<convertedNode>> =
   "getFigmaNodeJSON"
 

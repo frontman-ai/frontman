@@ -1,10 +1,10 @@
-# Ask-the-LLM
+# Frontman
 
 A framework-integrated AI coding agent that embeds directly into web development frameworks, providing real-time assistance with compilation errors, code generation, and debugging.
 
 ## Overview
 
-Unlike traditional IDE-based coding assistants, Ask-the-LLM integrates directly into your running application, gaining access to:
+Unlike traditional IDE-based coding assistants, Frontman integrates directly into your running application, gaining access to:
 
 - Real-time compilation errors and warnings
 - Runtime logs and framework events
@@ -37,7 +37,7 @@ The system consists of two main components:
 ## Project Structure
 
 ```
-ask-the-llm/
+frontman/
 ├── apps/
 │   └── agent/              # Agent core executable
 ├── libs/

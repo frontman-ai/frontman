@@ -11,7 +11,7 @@ const FRONTMAN_ENABLED = process.env.NODE_ENV === "development";
 const frontmanMiddleware = FRONTMAN_ENABLED
 	? await (async () => {
 			const { createMiddleware } = await import(
-				"@ask-the-llm/frontman-nextjs"
+				"@frontman/frontman-nextjs"
 			);
 			return createMiddleware({
 				isDev: true,

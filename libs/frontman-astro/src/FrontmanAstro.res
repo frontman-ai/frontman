@@ -8,7 +8,7 @@ module ToolRegistry = FrontmanAstro__ToolRegistry
 module Integration = FrontmanAstro__Integration
 
 // Re-export core SSE for convenience
-module SSE = AskTheLlmFrontmanCore.FrontmanCore__SSE
+module SSE = FrontmanFrontmanCore.FrontmanCore__SSE
 
 // Re-export for convenience
 let createMiddleware = Middleware.createMiddleware

@@ -2,7 +2,7 @@
 // Uses window.history.back() to go to the previous page
 
 S.enableJson()
-module Tool = AskTheLlmFrontmanClient.FrontmanClient__MCP__Tool
+module Tool = FrontmanFrontmanClient.FrontmanClient__MCP__Tool
 type toolResult<'a> = Tool.toolResult<'a>
 
 let name = "navigate_back"
@@ -31,7 +31,7 @@ let historyBack: WebAPI.DOMAPI.window => unit = %raw(`
 `)
 
 let execute = async (_input: input): toolResult<output> => {
-  let state = AskTheLlmReactStatestore.StateStore.getState(Client__State__Store.store)
+  let state = FrontmanReactStatestore.StateStore.getState(Client__State__Store.store)
 
   // Get the current task's preview frame
   let previewFrame =
