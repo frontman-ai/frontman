@@ -1,4 +1,4 @@
-defmodule FrontmanServerWeb.ACP do
+defmodule AgentClientProtocol do
   @moduledoc """
   ACP (Agent Client Protocol) translation layer.
 
@@ -9,8 +9,6 @@ defmodule FrontmanServerWeb.ACP do
   ACP is used for chat communication between the browser client and
   the agent server, separate from MCP which handles tool invocation.
   """
-
-  alias FrontmanServerWeb.JsonRpc
 
   @protocol_version 1
 

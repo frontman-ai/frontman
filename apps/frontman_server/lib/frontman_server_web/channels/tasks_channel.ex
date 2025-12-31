@@ -9,9 +9,8 @@ defmodule FrontmanServerWeb.TasksChannel do
   use FrontmanServerWeb, :channel
   require Logger
 
-  alias FrontmanServerWeb.ACP
+  alias AgentClientProtocol, as: ACP
   alias FrontmanServer.Tasks
-  alias FrontmanServerWeb.JsonRpc
 
   @acp_protocol_version ACP.protocol_version()
 

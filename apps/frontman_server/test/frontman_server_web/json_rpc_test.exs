@@ -1,7 +1,6 @@
 defmodule FrontmanServerWeb.JsonRpcTest do
   use ExUnit.Case, async: true
 
-  alias FrontmanServerWeb.JsonRpc
   import FrontmanServer.Test.Fixtures.JsonRpc
 
   describe "parse/1" do

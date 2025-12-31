@@ -1,4 +1,4 @@
-defmodule FrontmanServerWeb.MCPProtocol do
+defmodule ModelContextProtocol do
   @moduledoc """
   MCP (Model Context Protocol) message builders and parsers.
 
@@ -14,8 +14,6 @@ defmodule FrontmanServerWeb.MCPProtocol do
 
   Use with JsonRpc for complete message handling.
   """
-
-  alias FrontmanServerWeb.JsonRpc
 
   @protocol_version "DRAFT-2025-v3"
   @client_name "frontman-server"

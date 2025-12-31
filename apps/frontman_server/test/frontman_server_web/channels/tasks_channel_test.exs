@@ -1,7 +1,8 @@
 defmodule FrontmanServerWeb.TasksChannelTest do
   use FrontmanServerWeb.ChannelCase, async: true
 
-  alias FrontmanServerWeb.{ACP, UserSocket}
+  alias AgentClientProtocol, as: ACP
+  alias FrontmanServerWeb.UserSocket
 
   setup do
     {:ok, _, socket} =

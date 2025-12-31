@@ -1,4 +1,4 @@
-defmodule FrontmanServerWeb.JsonRpc do
+defmodule JsonRpc do
   @moduledoc """
   JSON-RPC 2.0 message parsing and construction.
 

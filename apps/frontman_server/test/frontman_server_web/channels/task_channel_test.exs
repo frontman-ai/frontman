@@ -2,7 +2,6 @@ defmodule FrontmanServerWeb.TaskChannelTest do
   use FrontmanServerWeb.ChannelCase, async: true
 
   alias FrontmanServerWeb.UserSocket
-  alias FrontmanServerWeb.{JsonRpc, MCPProtocol}
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Interaction
 
@@ -122,7 +121,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         |> socket("user_id", %{})
         |> subscribe_and_join("task:#{task_id}", %{})
 
-      expected_version = MCPProtocol.protocol_version()
+      expected_version = ModelContextProtocol.protocol_version()
 
       assert_push "mcp:message", %{
         "jsonrpc" => "2.0",
@@ -147,7 +146,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       assert_push "mcp:message", %{"id" => request_id}
 
       init_result = %{
-        "protocolVersion" => MCPProtocol.protocol_version(),
+        "protocolVersion" => ModelContextProtocol.protocol_version(),
         "capabilities" => %{"tools" => %{}},
         "serverInfo" => %{"name" => "browser-mcp", "version" => "1.0.0"}
       }
@@ -269,7 +268,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     assert_push "mcp:message", %{"id" => init_request_id, "method" => "initialize"}
 
     init_result = %{
-      "protocolVersion" => MCPProtocol.protocol_version(),
+      "protocolVersion" => ModelContextProtocol.protocol_version(),
       "capabilities" => %{"tools" => %{}},
       "serverInfo" => %{"name" => "test-mcp", "version" => "1.0.0"}
     }

@@ -14,7 +14,8 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
   require Logger
 
   alias FrontmanServer.Tasks
-  alias FrontmanServerWeb.{JsonRpc, MCPProtocol}
+  alias JsonRpc
+  alias ModelContextProtocol, as: MCP
 
   @type status ::
           :pending
@@ -80,7 +81,7 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
   @impl true
   def handle_info(:start_initialization, state) do
     request_id = System.unique_integer([:positive])
-    request = JsonRpc.request(request_id, "initialize", MCPProtocol.initialize_params())
+    request = JsonRpc.request(request_id, "initialize", MCP.initialize_params())
 
     # Send request to channel, which will push to client
     send(state.channel_pid, {:mcp_initializer_request, request})

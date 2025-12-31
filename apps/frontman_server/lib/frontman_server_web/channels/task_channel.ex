@@ -14,8 +14,8 @@ defmodule FrontmanServerWeb.TaskChannel do
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Tools
-  alias FrontmanServerWeb.{ACP, JsonRpc}
-  alias FrontmanServerWeb.MCPProtocol
+  alias AgentClientProtocol, as: ACP
+  alias ModelContextProtocol, as: MCP
   alias FrontmanServerWeb.TaskChannel.MCPInitializer
 
   @impl true
@@ -139,17 +139,10 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   defp handle_tool_call_response(id, tool_call, result, socket, remaining_requests) do
     task_id = socket.assigns.task_id
+    text_result = MCP.extract_content_text(result)
+    parsed_result = MCP.parse_tool_result(text_result)
+    is_error = MCP.is_error?(result)
 
-    # Extract text from MCP content array
-    text_result = MCPProtocol.extract_content_text(result)
-
-    # Try to parse the result as JSON to preserve structured data (e.g., screenshots)
-    parsed_result = MCPProtocol.parse_tool_result(text_result)
-
-    # Check if the tool call resulted in an error
-    is_error = MCPProtocol.is_error?(result)
-
-    # Emit MCP tool stop telemetry event
     if is_error do
       TelemetryEvents.mcp_tool_stop(id, status: "error", error: text_result)
     else
@@ -603,7 +596,7 @@ defmodule FrontmanServerWeb.TaskChannel do
     )
 
     request =
-      MCPProtocol.tools_call_request(%MCPProtocol.ToolCallParams{
+      MCP.tools_call_request(%MCP.ToolCallParams{
         request_id: request_id,
         tool_name: tool_call.tool_name,
         arguments: tool_call.arguments,
