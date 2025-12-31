@@ -33,6 +33,10 @@ module Promises = {
   @module("fs") @scope("promises")
   external mkdir: (string, mkdirOptions) => promise<option<string>> = "mkdir"
 
+  // Resolve canonical path (handles symlinks and case normalization)
+  @module("fs") @scope("promises")
+  external realpath: string => promise<string> = "realpath"
+
   // Access mode constants (from fs.promises.constants)
   module Constants = {
     @module("fs") @scope(("promises", "constants")) external f_OK: int = "F_OK"

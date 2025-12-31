@@ -32,8 +32,17 @@ type instructionFile = {
 type output = array<instructionFile>
 
 // File variants to check at each directory level
-let agentsVariants = ["Agents.md", ".claude/Agents.md", "Agents.local.md"]
-let claudeVariants = ["CLAUDE.md", ".claude/CLAUDE.md", "CLAUDE.local.md"]
+// Support all common case variations for cross-platform compatibility
+let agentsVariants = [
+  "AGENTS.md", ".claude/AGENTS.md", "AGENTS.local.md",  // All caps
+  "Agents.md", ".claude/Agents.md", "Agents.local.md",  // Title case
+  "agents.md", ".claude/agents.md", "agents.local.md",  // All lowercase
+]
+let claudeVariants = [
+  "CLAUDE.md", ".claude/CLAUDE.md", "CLAUDE.local.md",  // All caps
+  "Claude.md", ".claude/Claude.md", "Claude.local.md",  // Title case
+  "claude.md", ".claude/claude.md", "claude.local.md",  // All lowercase
+]
 
 // Check if a file exists
 let fileExists = async (path: string): bool => {
@@ -46,11 +55,13 @@ let fileExists = async (path: string): bool => {
 }
 
 // Load a single file if it exists
+// Returns canonical path for proper deduplication on case-insensitive filesystems
 let loadIfExists = async (path: string): option<instructionFile> => {
   if await fileExists(path) {
     try {
       let content = await Fs.Promises.readFile(path)
-      Some({content, fullPath: path})
+      let fullPath = await Fs.Promises.realpath(path)
+      Some({content, fullPath})
     } catch {
     | _ => None
     }
@@ -60,13 +71,23 @@ let loadIfExists = async (path: string): option<instructionFile> => {
 }
 
 // Load all existing files from a list of variants in a directory
+// Deduplicates by resolved path (handles case-insensitive filesystems)
 let loadVariants = async (dir: string, variants: array<string>): array<instructionFile> => {
   let results = []
+  let seenPaths = Set.make()
+  
   for i in 0 to Array.length(variants) - 1 {
     let variant = variants->Array.getUnsafe(i)
     let path = Path.join([dir, variant])
+    
     switch await loadIfExists(path) {
-    | Some(file) => results->Array.push(file)->ignore
+    | Some(file) => {
+        // Deduplicate by fullPath (handles case-insensitive filesystems)
+        if !Set.has(seenPaths, file.fullPath) {
+          Set.add(seenPaths, file.fullPath)
+          results->Array.push(file)->ignore
+        }
+      }
     | None => ()
     }
   }
