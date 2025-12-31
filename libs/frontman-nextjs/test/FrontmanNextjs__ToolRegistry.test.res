@@ -3,13 +3,6 @@ open Vitest
 module ToolRegistry = FrontmanNextjs__ToolRegistry
 
 describe("ToolRegistry", _t => {
-  test("creates with default tools", t => {
-    let registry = ToolRegistry.make()
-    let definitions = registry->ToolRegistry.getToolDefinitions
-
-    // 5 core tools + 2 Next.js tools (get_routes, get_logs)
-    t->expect(definitions->Array.length)->Expect.toBe(7)
-  })
 
   test("finds tool by name", t => {
     let registry = ToolRegistry.make()

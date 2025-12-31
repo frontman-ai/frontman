@@ -3,6 +3,9 @@
 	"version": "0.1.0",
 	"type": "module",
 	"main": "./src/FrontmanCore.res.mjs",
+	"dependencies": {
+		"vscode-ripgrep": "^1.13.2"
+	},
 	"devDependencies": {
 		"@rescript/webapi": "catalog:",
 		"@vitest/ui": "catalog:",

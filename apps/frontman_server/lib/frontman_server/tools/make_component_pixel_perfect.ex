@@ -21,6 +21,7 @@ defmodule FrontmanServer.Tools.MakeComponentPixelPerfect do
   require Logger
 
   alias FrontmanServer.Agents
+  alias FrontmanServer.Agents.Prompts
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Tools.Backend.Context
@@ -169,7 +170,7 @@ defmodule FrontmanServer.Tools.MakeComponentPixelPerfect do
       "MakeComponentPixelPerfect: Starting refinement of #{component_name} (#{node_id}) with #{length(mcp_tools)} MCP tools"
     )
 
-    system_msg = ReqLLM.Context.system(@system_prompt)
+    system_msg = ReqLLM.Context.system(Prompts.tool_selection_guidance() <> @system_prompt)
     user_msg = build_user_message(args)
 
     # Extract markdown files from read_file tool results (e.g., project conventions,

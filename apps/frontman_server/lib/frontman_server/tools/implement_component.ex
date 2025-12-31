@@ -6,10 +6,11 @@ defmodule FrontmanServer.Tools.ImplementComponent do
   each component from the breakdown can be implemented by spawning an
   implement_component sub-agent.
 
-  The sub-agent focuses ONLY on implementation (no screenshots or browser navigation):
+  The sub-agent focuses on implementation and test page creation:
   1. Fetch the full Figma node data via get_figma_node
   2. Analyze the design and take notes on key details
   3. Implement the component based on the Figma data
+  4. Create a test page to render the component
 
   After this tool completes, use `finish_component` to visually verify
   the implementation against the Figma design.
@@ -20,6 +21,7 @@ defmodule FrontmanServer.Tools.ImplementComponent do
   require Logger
 
   alias FrontmanServer.Agents
+  alias FrontmanServer.Agents.Prompts
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Tools.Backend.Context
@@ -70,7 +72,23 @@ defmodule FrontmanServer.Tools.ImplementComponent do
      - **MUST add the provided `data-test-id` attribute to the top-level/root element** of the component.
        This is required for testing and verification purposes.
 
-  4. **Verify implementation compliance** - Before finalizing, you MUST:
+  4. **Create a test page** - Create a temporary test page file that renders the component
+     in isolation. Import the component from the file path where you created it.
+
+     **CRITICAL for Next.js App Router:** Before creating the test page:
+     - Check the project structure to find an existing route group with layouts (e.g., `(app)`, `(marketing)`)
+     - Place the test page WITHIN an existing route group that has a `layout.tsx` chain to root
+     - **NEVER create a standalone `page.tsx` without verifying it inherits from a layout with `<html>` and `<body>`**
+     - If you must create outside existing groups, also create a `layout.tsx` with:
+       ```tsx
+       export default function Layout({ children }: { children: React.ReactNode }) {
+         return <html lang="en"><body>{children}</body></html>;
+       }
+       ```
+     - The test page should ONLY render the component and nothing else
+     - Choose a clear test page path like `app/(group)/test-component-name/page.tsx`
+
+  5. **Verify implementation compliance** - Before finalizing, you MUST:
      - Review the source code you've written against ALL project guidelines loaded from:
        - AGENTS.md files (if provided)
        - Project convention documentation (if provided)
@@ -87,8 +105,10 @@ defmodule FrontmanServer.Tools.ImplementComponent do
      - If you find any discrepancies, **you MUST correct them** before proceeding
      - Ensure the final code is fully compliant with all project-specific guidelines
 
-  5. **Return the implementation details** - Your response MUST include:
-     - **File paths created**: List ALL files you created or modified
+  6. **Return the implementation details** - Your response MUST include:
+     - **File paths created**: List ALL files you created or modified (including the test page)
+     - **Test page path**: The full path to the test page you created
+     - **Test page URL**: The URL path to navigate to (e.g., "/test-component-name")
      - **Implementation summary**: A brief summary of what was implemented, key decisions made,
        and patterns used
      - **Design details**: Key details from the Figma design (colors, typography, spacing values)
@@ -105,6 +125,11 @@ defmodule FrontmanServer.Tools.ImplementComponent do
   ### Files Created
   - path/to/Component.tsx
   - path/to/styles.css (if applicable)
+  - path/to/test-page/page.tsx
+
+  ### Test Page
+  - **File Path:** path/to/test-page/page.tsx
+  - **URL Path:** /test-component-name
 
   ### Data Test ID
   [The exact data-test-id value used on the top-level element, e.g., "header-navigation"]
@@ -117,7 +142,7 @@ defmodule FrontmanServer.Tools.ImplementComponent do
   ```
 
   IMPORTANT INSTRUCTIONS:
-  - **DO NOT take screenshots or navigate to test pages** - focus ONLY on implementing the component
+  - **DO NOT take screenshots or navigate to test pages** - just CREATE the test page, verification happens separately
   - **DO NOT use browser tools** (navigate, take_screenshot, get_errors) - verification happens separately
   - Match the Figma design as precisely as possible based on the Figma node data
   - Write clean, reusable TypeScript React code
@@ -138,10 +163,10 @@ defmodule FrontmanServer.Tools.ImplementComponent do
 
     Use this after breaking down a Figma design to implement each component.
     The tool will spawn a sub-agent that fetches the Figma node, analyzes the design,
-    and implements the component.
+    implements the component, and creates a test page to render it.
 
     After this tool completes, use `finish_component` to visually verify the implementation.
-    This tool returns the file paths created and implementation summary needed for verification.
+    This tool returns the file paths created, test page path/URL, and implementation summary needed for verification.
     """
   end
 
@@ -198,7 +223,7 @@ defmodule FrontmanServer.Tools.ImplementComponent do
       "ImplementComponent: Starting implementation of #{component_name} (#{node_id}) with #{length(mcp_tools)} MCP tools"
     )
 
-    system_msg = ReqLLM.Context.system(@system_prompt)
+    system_msg = ReqLLM.Context.system(Prompts.tool_selection_guidance() <> @system_prompt)
     user_msg = build_user_message(args, data_test_id)
 
     # Extract markdown files from read_file tool results (e.g., project conventions,

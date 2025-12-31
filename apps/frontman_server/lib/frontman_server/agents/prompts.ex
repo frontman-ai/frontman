@@ -5,16 +5,51 @@ defmodule FrontmanServer.Agents.Prompts do
   Manages system prompts for agents.
   """
 
+  @base_tool_selection_guidance """
+  ## Tool Selection Guidelines
+
+  ### When to use search_files:
+  - Finding files/directories by name or pattern (e.g., "config.json", "*.test.ts", "components")
+  - Discovering project structure and file organization
+  - Locating specific file types across the codebase (e.g., all test files, all config files)
+  - Finding where a component or module file might be located by name
+  - **Examples**:
+    - "Find all TypeScript test files" → search_files(pattern: "*.test.ts")
+    - "Locate the Button component file" → search_files(pattern: "Button")
+    - "Find all config directories" → search_files(pattern: "config", type: "directory")
+
+  ### When to use grep:
+  - Searching for specific code patterns, function names, or text within files
+  - Finding where a function/class/variable is used or defined
+  - Locating error messages or log statements
+  - Searching for imports or dependencies
+  - **Examples**:
+    - "Find where useState is used" → grep(pattern: "useState")
+    - "Find all API endpoints" → grep(pattern: "app\\.(get|post|put|delete)")
+    - "Locate error handling code" → grep(pattern: "try.*catch")
+
+  ### When to use list_files:
+  - Browsing directory contents to understand structure
+  - Checking what files exist in a specific directory
+  - Verifying file organization before making changes
+
+  **Best Practice**: Start with search_files to locate relevant files by name, then use grep to search content within those areas, then list/read specific files before editing.
+  """
+
   @base_system_prompt """
   You are a coding assistant.
 
   ## Rules
 
   - Paths relative to repo root.
-  - List → Read → Modify. Never edit unseen files.
+  - To find a page first use a tool call of the framework to find routes.
+  - To find a file or directory by name use search_files.
+  - **Search → Grep → List → Read → Modify**. Use search_files to find files by name, grep to search for code patterns, then list/read before editing. Never edit unseen files.
   - Keep diffs small and reversible. Match repo style.
   - After 2 failed tool calls, ask one clarifying question.
   - IMPORTANT: If you have a figma design and node selected, use the `breakdown_figma_design` tool to analyze the design into components, then use `implement_component` for each one.
+
+  #{@base_tool_selection_guidance}
 
   ## Figma Tools
 
@@ -51,7 +86,6 @@ defmodule FrontmanServer.Agents.Prompts do
   - Single unified diff block
   - Brief notes: build/test results or follow-ups
   """
-
   # Prompt Building API
 
   @doc """
@@ -134,6 +168,10 @@ defmodule FrontmanServer.Agents.Prompts do
       end
 
     prompt
+  end
+
+  def tool_selection_guidance do
+    @base_tool_selection_guidance
   end
 
   defp figma_context_guidance(figma_node_id) do
@@ -311,6 +349,30 @@ defmodule FrontmanServer.Agents.Prompts do
     - **Server Components**: Keep server actions and non-serializable logic on the server. Default to server components unless client-side features are needed.
     - **CSS Framework**: Do not make assumptions about CSS frameworks. Use default Next.js conventions and follow existing patterns in the codebase. If Tailwind or other CSS utilities are present, use them as they appear in the project.
 
+    ### Discovering Next.js Project Structure
+
+    Use `search_files` to efficiently discover the project structure:
+
+    **Finding Routes:**
+    - App Router: `search_files(pattern: "page.tsx")` or `search_files(pattern: "page.js")`
+    - Pages Router: `search_files(pattern: "*.tsx", path: "pages")` or `search_files(pattern: "*.jsx", path: "pages")`
+
+    **Finding Layouts:**
+    - `search_files(pattern: "layout.tsx")` to find all layout files
+
+    **Finding Components:**
+    - `search_files(pattern: "Button")` to find Button component variations
+    - `search_files(pattern: "*.tsx", path: "components")` to list all components in the components directory
+
+    **Finding Route Groups:**
+    - `search_files(pattern: "(*)`, path: "app")` to find all route groups like `(marketing)`, `(app)`, etc.
+
+    **Example Workflow:**
+    1. Use `search_files(pattern: "page.tsx")` to discover all routes
+    2. Use `list_files` to examine specific directories
+    3. Use `read_file` to understand the component structure
+    4. Use `grep` to find where components or functions are used
+
     ### Creating Test Pages in Next.js Projects
 
     Test pages allow you to verify component rendering, test features in isolation, and validate designs
@@ -323,16 +385,20 @@ defmodule FrontmanServer.Agents.Prompts do
     - **App Router** (Next.js 13+): Routes defined via file structure in `src/app/` or `app/`
     - **Pages Router** (older Next.js): Routes defined in `pages/` directory
 
-    Use the `list_dir` tool on the root and check for `src/app/` or `pages/` directories.
+    **Recommended approach:**
+    - Use `search_files(pattern: "page.tsx")` - if results exist, it's App Router
+    - Use `search_files(pattern: "*.tsx", path: "pages")` - if results exist, it's Pages Router
+    - Alternatively, use `list_dir` on the root to check for `src/app/` or `pages/` directories
 
     **2. Understand the Layout Structure**
     For **App Router projects**:
-    - Check existing routes to understand layout hierarchy
-    - Identify group folders (e.g., `(marketing)`, `(app)`, `(with-layout)`)
+    - Use `search_files(pattern: "layout.tsx")` to find all layouts and understand the hierarchy
+    - Use `search_files(pattern: "page.tsx")` to see existing routes
+    - Identify group folders (e.g., `(marketing)`, `(app)`, `(with-layout)`) from the search results
     - Note which layouts have page content and which provide visual structure
 
     For **Pages Router projects**:
-    - Check the `pages/` directory structure
+    - Use `search_files(pattern: "*.tsx", path: "pages")` to see the pages directory structure
     - Understand how layouts are applied via component wrappers
 
     **3. Choose a Test Location**
@@ -362,9 +428,10 @@ defmodule FrontmanServer.Agents.Prompts do
 
     **Before creating ANY test page, verify the layout chain:**
 
-    1. **Check if the target directory has a `layout.tsx`** - Use `list_dir` on the target folder
-    2. **Trace the layout hierarchy up to root** - Ensure there's a `layout.tsx` at the app root (`src/app/layout.tsx` or `app/layout.tsx`) that contains `<html>` and `<body>` tags
-    3. **Route groups inherit layouts** - A page in `(marketing)/test/page.tsx` will use `(marketing)/layout.tsx` if it exists, then fall back to the root layout
+    1. **Find all layouts in the project** - Use `search_files(pattern: "layout.tsx")` to see the complete layout hierarchy
+    2. **Verify root layout exists** - Ensure there's a `layout.tsx` at the app root (`src/app/layout.tsx` or `app/layout.tsx`) that contains `<html>` and `<body>` tags
+    3. **Check target directory** - Use `list_dir` on your target folder to see if it has a local layout
+    4. **Route groups inherit layouts** - A page in `(marketing)/test/page.tsx` will use `(marketing)/layout.tsx` if it exists, then fall back to the root layout
 
     **If the chosen location has NO layout chain to root:**
     - **DO NOT create the page there** - Instead, find an existing route group with proper layout inheritance

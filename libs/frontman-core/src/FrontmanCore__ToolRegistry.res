@@ -20,6 +20,8 @@ let coreTools = (): t => {
     module(FrontmanCore__Tool__ListFiles),
     module(FrontmanCore__Tool__FileExists),
     module(FrontmanCore__Tool__LoadAgentInstructions),
+    module(FrontmanCore__Tool__Grep),
+    module(FrontmanCore__Tool__SearchFiles),
   ],
 }
 

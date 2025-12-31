@@ -3,13 +3,13 @@ defmodule FrontmanServer.Tools.FinishComponent do
   Spawns a sub-agent to verify and finish a component implementation.
 
   This tool is called after implement_component completes. It takes the implementation
-  results (file paths, summary) and performs visual verification against the Figma design.
+  results (file paths, test page URL, summary) and performs visual verification against the Figma design.
 
   The sub-agent:
-  1. Creates a test page to render the component
+  1. Navigates to the test page created by implement_component
   2. Takes screenshots and compares with the Figma design
   3. Makes adjustments until the component roughly matches the design
-  4. Cleans up and reports completion
+  4. Cleans up the test page and reports completion
 
   Note: The verification aims for a close match, not pixel-perfect accuracy.
   """
@@ -19,6 +19,7 @@ defmodule FrontmanServer.Tools.FinishComponent do
   require Logger
 
   alias FrontmanServer.Agents
+  alias FrontmanServer.Agents.Prompts
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Tools.Backend.Context
@@ -50,25 +51,11 @@ defmodule FrontmanServer.Tools.FinishComponent do
      - includeImage: true
      - withChildren: false (we only need the image for comparison)
 
-  2. **Create a test page** - Create a temporary test page file that renders the component
-     in isolation. Import the component from the file path provided.
+  2. **Navigate to test page** - Use `navigate` tool with the test page URL provided in your task
 
-     **CRITICAL for Next.js App Router:** Before creating the test page:
-     - Check the project structure to find an existing route group with layouts (e.g., `(app)`, `(marketing)`)
-     - Place the test page WITHIN an existing route group that has a `layout.tsx` chain to root
-     - **NEVER create a standalone `page.tsx` without verifying it inherits from a layout with `<html>` and `<body>`**
-     - If you must create outside existing groups, also create a `layout.tsx` with:
-       ```tsx
-       export default function Layout({ children }: { children: React.ReactNode }) {
-         return <html lang="en"><body>{children}</body></html>;
-       }
-       ```
+  3. **Check for errors** - Use `get_errors` tool to check for errors. Fix any errors found.
 
-  3. **Navigate to test page** - Use `navigate` tool with a relative URL to the test page
-
-  4. **Check for errors** - Use `get_errors` tool to check for errors. Fix any errors found.
-
-  5. **Visual verification loop**:
+  4. **Visual verification loop**:
      a. **Take a screenshot** - Use `take_screenshot` tool to capture the rendered component.
         If a CSS selector (e.g., `[data-test-id="..."]`) is provided in your task, use it with the `selector` parameter
         of `take_screenshot` to capture ONLY the component.
@@ -77,18 +64,18 @@ defmodule FrontmanServer.Tools.FinishComponent do
         - If YES: Proceed to the final audit
         - If NO: Make targeted fixes and repeat the loop (max 3 iterations)
 
-  6. **Final Page Audit** - After completing the verification loop:
+  5. **Final Page Audit** - After completing the verification loop:
      a. **Check for errors again** - Use `get_errors` tool to ensure no runtime errors occurred during rendering or interaction.
      b. **Take a full-page screenshot** - Use `take_screenshot` tool WITHOUT a selector to capture the entire page. Verify the component is correctly positioned and no error overlays or blocking elements are present.
 
-  7. **Cleanup and complete**:
+  6. **Cleanup and complete**:
      a. Use `navigate_back` tool to leave the test page
-     b. Delete the temporary test page file
+     b. Delete the test page file (path provided in your task)
      c. Report your findings
 
   ## Important Guidelines
 
-  - ONLY SHOW THE COMPONENT AND NOTHING ELSE ON THE TEST PAGE
+  - The test page was already created by implement_component - just navigate to it
   - Focus on structural and visual correctness, not pixel-perfect matching
   - Make minimal, targeted fixes - don't refactor or over-engineer
   - After 3 verification iterations, accept the current state if reasonably close
@@ -105,8 +92,8 @@ defmodule FrontmanServer.Tools.FinishComponent do
     Verify and finish a component implementation by comparing it visually against the Figma design.
 
     Use this after implement_component completes to verify the implementation matches
-    the original design. The tool will create a test page, take screenshots, and compare
-    against the Figma design, making adjustments if needed.
+    the original design. The tool will navigate to the test page created by implement_component,
+    take screenshots, and compare against the Figma design, making adjustments if needed.
 
     The verification aims for a close match, not pixel-perfect accuracy.
     """
@@ -128,7 +115,15 @@ defmodule FrontmanServer.Tools.FinishComponent do
         "filePaths" => %{
           "type" => "array",
           "items" => %{"type" => "string"},
-          "description" => "List of file paths created by the implementation"
+          "description" => "List of file paths created by the implementation (including component and test page)"
+        },
+        "testPageFilePath" => %{
+          "type" => "string",
+          "description" => "The file path to the test page created by implement_component"
+        },
+        "testPageUrl" => %{
+          "type" => "string",
+          "description" => "The URL path to navigate to the test page (e.g., '/test-component-name')"
         },
         "implementationSummary" => %{
           "type" => "string",
@@ -149,6 +144,8 @@ defmodule FrontmanServer.Tools.FinishComponent do
         "componentName",
         "nodeId",
         "filePaths",
+        "testPageFilePath",
+        "testPageUrl",
         "implementationSummary",
         "dataTestId"
       ]
@@ -166,7 +163,7 @@ defmodule FrontmanServer.Tools.FinishComponent do
       "FinishComponent: Starting verification of #{component_name} (#{node_id}) with #{length(mcp_tools)} MCP tools"
     )
 
-    system_msg = ReqLLM.Context.system(@system_prompt)
+    system_msg = ReqLLM.Context.system(Prompts.tool_selection_guidance() <> @system_prompt)
     user_msg = build_user_message(args)
 
     # Extract markdown files from read_file tool results (e.g., project conventions,
@@ -204,6 +201,8 @@ defmodule FrontmanServer.Tools.FinishComponent do
     component_name = Map.get(args, "componentName")
     node_id = Map.get(args, "nodeId")
     file_paths = Map.get(args, "filePaths", [])
+    test_page_file_path = Map.get(args, "testPageFilePath")
+    test_page_url = Map.get(args, "testPageUrl")
     implementation_summary = Map.get(args, "implementationSummary", "")
     design_details = Map.get(args, "designDetails")
     data_test_id = Map.get(args, "dataTestId")
@@ -240,6 +239,8 @@ defmodule FrontmanServer.Tools.FinishComponent do
     - **Component:** #{component_name}
     - **Node ID:** #{node_id}
     - **Data Test ID:** `#{data_test_id || "None"}`#{selector_instruction}
+    - **Test Page File Path:** #{test_page_file_path}
+    - **Test Page URL:** #{test_page_url}
 
     ## Files Created
 
@@ -256,7 +257,8 @@ defmodule FrontmanServer.Tools.FinishComponent do
     - includeImage: true
     - withChildren: false
 
-    After fetching, create a test page and begin the visual verification process.
+    After fetching, navigate to the test page at `#{test_page_url}` and begin the visual verification process.
+    Remember to delete the test page file at `#{test_page_file_path}` when you're done.
     """
 
     ReqLLM.Context.user(task_text)
