@@ -1,4 +1,4 @@
-defmodule FrontmanServerWeb.MCPProtocolTest do
+defmodule ModelContextProtocolTest do
   use ExUnit.Case, async: true
 
   describe "initialize_params/0" do

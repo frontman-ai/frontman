@@ -1,4 +1,4 @@
-defmodule FrontmanServerWeb.JsonRpcTest do
+defmodule JsonRpcTest do
   use ExUnit.Case, async: true
 
   import FrontmanServer.Test.Fixtures.JsonRpc
