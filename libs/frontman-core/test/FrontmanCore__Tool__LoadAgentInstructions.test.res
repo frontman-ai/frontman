@@ -4,7 +4,12 @@ module Tool = FrontmanCore__Tool__LoadAgentInstructions
 module Bindings = FrontmanBindings
 module Protocol = FrontmanFrontmanProtocol.FrontmanProtocol__Tool
 
-let fixturesPath = Bindings.Path.join([Bindings.Process.cwd(), "test", "fixtures", "load-agent-instructions"])
+let fixturesPath = Bindings.Path.join([
+  Bindings.Process.cwd(),
+  "test",
+  "fixtures",
+  "load-agent-instructions",
+])
 
 // ============================================
 // Test Helpers
@@ -14,7 +19,7 @@ let fixture = name => Bindings.Path.join([fixturesPath, name])
 
 let makeCtx = (sourceRoot: string): Protocol.serverExecutionContext => {
   projectRoot: sourceRoot,
-  sourceRoot: sourceRoot,
+  sourceRoot,
 }
 
 /** Filter results to only files within a specific directory (tool walks up to /) */
@@ -51,261 +56,483 @@ describe("LoadAgentInstructions", () => {
   // Priority Logic
   // ===========================================
   describe("priority logic", () => {
-    testAsync("Agents.md wins over CLAUDE.md at same level", async t => {
-      let result = await executeAndFilter(fixture("priority-agents-over-claude"))
+    testAsync(
+      "Agents.md wins over CLAUDE.md at same level",
+      async t => {
+        let result = await executeAndFilter(fixture("priority-agents-over-claude"))
 
-      t->assertOk(result, files => {
-        t->expect(Array.length(files))->Expect.toBe(1)
-        let file = files->Array.getUnsafe(0)
-        t->expect(hasPathContaining([file], "Agents.md"))->Expect.toBe(true)
-        t->expect(hasPathContaining([file], "CLAUDE"))->Expect.toBe(false)
-      })
-    })
+        t->assertOk(
+          result,
+          files => {
+            t->expect(Array.length(files))->Expect.toBe(1)
+            let file = files->Array.getUnsafe(0)
+            t->expect(hasPathContaining([file], "Agents.md"))->Expect.toBe(true)
+            t->expect(hasPathContaining([file], "CLAUDE"))->Expect.toBe(false)
+          },
+        )
+      },
+    )
 
-    testAsync("any Agents variant skips all CLAUDE variants at same level", async t => {
-      let result = await executeAndFilter(fixture("priority-agents-over-claude"))
+    testAsync(
+      "any Agents variant skips all CLAUDE variants at same level",
+      async t => {
+        let result = await executeAndFilter(fixture("priority-agents-over-claude"))
 
-      t->assertOk(result, files => {
-        t->expect(hasPathContaining(files, "CLAUDE"))->Expect.toBe(false)
-      })
-    })
+        t->assertOk(
+          result,
+          files => {
+            t->expect(hasPathContaining(files, "CLAUDE"))->Expect.toBe(false)
+          },
+        )
+      },
+    )
 
-    testAsync("hidden .claude/Agents.md has priority over CLAUDE.md", async t => {
-      let result = await executeAndFilter(fixture("hidden-agents-priority"))
+    testAsync(
+      "hidden .claude/Agents.md has priority over CLAUDE.md",
+      async t => {
+        let result = await executeAndFilter(fixture("hidden-agents-priority"))
 
-      t->assertOk(result, files => {
-        t->expect(Array.length(files))->Expect.toBe(1)
-        t->expect(hasPathContaining(files, ".claude/Agents.md"))->Expect.toBe(true)
-      })
-    })
+        t->assertOk(
+          result,
+          files => {
+            t->expect(Array.length(files))->Expect.toBe(1)
+            t->expect(hasPathContaining(files, ".claude/Agents.md"))->Expect.toBe(true)
+          },
+        )
+      },
+    )
 
-    testAsync("CLAUDE.md returned when no Agents exist", async t => {
-      let result = await executeAndFilter(fixture("claude-only"))
+    testAsync(
+      "CLAUDE.md returned when no Agents exist",
+      async t => {
+        let result = await executeAndFilter(fixture("claude-only"))
 
-      t->assertOk(result, files => {
-        t->expect(Array.length(files))->Expect.toBe(1)
-        let file = files->Array.getUnsafe(0)
-        t->expect(hasPathContaining([file], "CLAUDE.md"))->Expect.toBe(true)
-        t->expect(file.content)->Expect.toBe("claude content")
-      })
-    })
+        t->assertOk(
+          result,
+          files => {
+            t->expect(Array.length(files))->Expect.toBe(1)
+            let file = files->Array.getUnsafe(0)
+            t->expect(hasPathContaining([file], "CLAUDE.md"))->Expect.toBe(true)
+            t->expect(file.content)->Expect.toBe("claude content")
+          },
+        )
+      },
+    )
   })
 
   // ===========================================
   // Multiple Files Same Level
   // ===========================================
   describe("multiple files at same level", () => {
-    testAsync("multiple Agents variants coexist", async t => {
-      let result = await executeAndFilter(fixture("multiple-agents-variants"))
+    testAsync(
+      "multiple Agents variants coexist",
+      async t => {
+        let result = await executeAndFilter(fixture("multiple-agents-variants"))
 
-      t->assertOk(result, files => {
-        t->expect(Array.length(files))->Expect.toBe(3)
-      })
-    })
+        t->assertOk(
+          result,
+          files => {
+            t->expect(Array.length(files))->Expect.toBe(3)
+          },
+        )
+      },
+    )
 
-    testAsync("all three Agents variants are returned", async t => {
-      let result = await executeAndFilter(fixture("multiple-agents-variants"))
+    testAsync(
+      "all three Agents variants are returned",
+      async t => {
+        let result = await executeAndFilter(fixture("multiple-agents-variants"))
 
-      t->assertOk(result, files => {
-        t->expect(hasPathWith(files, ~containing="Agents.md", ~excluding=".claude"))->Expect.toBe(true)
-        t->expect(hasPathContaining(files, ".claude/Agents.md"))->Expect.toBe(true)
-        t->expect(hasPathContaining(files, "Agents.local.md"))->Expect.toBe(true)
-      })
-    })
+        t->assertOk(
+          result,
+          files => {
+            t
+            ->expect(hasPathWith(files, ~containing="Agents.md", ~excluding=".claude"))
+            ->Expect.toBe(true)
+            t->expect(hasPathContaining(files, ".claude/Agents.md"))->Expect.toBe(true)
+            t->expect(hasPathContaining(files, "Agents.local.md"))->Expect.toBe(true)
+          },
+        )
+      },
+    )
 
-    testAsync("all three CLAUDE variants returned when no Agents", async t => {
-      let result = await executeAndFilter(fixture("multiple-claude-variants"))
+    testAsync(
+      "all three CLAUDE variants returned when no Agents",
+      async t => {
+        let result = await executeAndFilter(fixture("multiple-claude-variants"))
 
-      t->assertOk(result, files => {
-        t->expect(Array.length(files))->Expect.toBe(3)
-        t->expect(hasPathWith(files, ~containing="CLAUDE.md", ~excluding=".claude"))->Expect.toBe(true)
-        t->expect(hasPathContaining(files, ".claude/CLAUDE.md"))->Expect.toBe(true)
-        t->expect(hasPathContaining(files, "CLAUDE.local.md"))->Expect.toBe(true)
-      })
-    })
+        t->assertOk(
+          result,
+          files => {
+            t->expect(Array.length(files))->Expect.toBe(3)
+            t
+            ->expect(hasPathWith(files, ~containing="CLAUDE.md", ~excluding=".claude"))
+            ->Expect.toBe(true)
+            t->expect(hasPathContaining(files, ".claude/CLAUDE.md"))->Expect.toBe(true)
+            t->expect(hasPathContaining(files, "CLAUDE.local.md"))->Expect.toBe(true)
+          },
+        )
+      },
+    )
   })
 
   // ===========================================
   // Upward Traversal
   // ===========================================
   describe("upward traversal", () => {
-    testAsync("finds file in parent when none in startPath", async t => {
-      let parentDir = fixture("parent-only")
-      let childDir = Bindings.Path.join([parentDir, "child"])
-      let ctx = makeCtx(childDir)
-      let result = await Tool.execute(ctx, {})
+    testAsync(
+      "finds file in parent when none in startPath",
+      async t => {
+        let parentDir = fixture("parent-only")
+        let childDir = Bindings.Path.join([parentDir, "child"])
+        let ctx = makeCtx(childDir)
+        let result = await Tool.execute(ctx, {})
 
-      t->assertOk(result->Result.map(files => filterWithinDir(files, parentDir)), files => {
-        t->expect(hasPathContaining(files, "parent-only/CLAUDE.md"))->Expect.toBe(true)
-      })
-    })
+        t->assertOk(
+          result->Result.map(files => filterWithinDir(files, parentDir)),
+          files => {
+            t->expect(hasPathContaining(files, "parent-only/CLAUDE.md"))->Expect.toBe(true)
+          },
+        )
+      },
+    )
 
-    testAsync("collects from multiple levels", async t => {
-      let multiLevelDir = fixture("multi-level")
-      let deepDir = Bindings.Path.join([multiLevelDir, "child", "deep"])
-      let ctx = makeCtx(deepDir)
-      let result = await Tool.execute(ctx, {})
+    testAsync(
+      "collects from multiple levels",
+      async t => {
+        let multiLevelDir = fixture("multi-level")
+        let deepDir = Bindings.Path.join([multiLevelDir, "child", "deep"])
+        let ctx = makeCtx(deepDir)
+        let result = await Tool.execute(ctx, {})
 
-      t->assertOk(result->Result.map(files => filterWithinDir(files, multiLevelDir)), files => {
-        t->expect(Array.length(files))->Expect.toBe(3)
-      })
-    })
+        t->assertOk(
+          result->Result.map(files => filterWithinDir(files, multiLevelDir)),
+          files => {
+            t->expect(Array.length(files))->Expect.toBe(3)
+          },
+        )
+      },
+    )
 
-    testAsync("result ordering: startPath first, then parents", async t => {
-      let multiLevelDir = fixture("multi-level")
-      let deepDir = Bindings.Path.join([multiLevelDir, "child", "deep"])
-      let ctx = makeCtx(deepDir)
-      let result = await Tool.execute(ctx, {})
+    testAsync(
+      "result ordering: startPath first, then parents",
+      async t => {
+        let multiLevelDir = fixture("multi-level")
+        let deepDir = Bindings.Path.join([multiLevelDir, "child", "deep"])
+        let ctx = makeCtx(deepDir)
+        let result = await Tool.execute(ctx, {})
 
-      t->assertOk(result->Result.map(files => filterWithinDir(files, multiLevelDir)), files => {
-        let first = files->Array.getUnsafe(0)
-        let second = files->Array.getUnsafe(1)
-        let third = files->Array.getUnsafe(2)
+        t->assertOk(
+          result->Result.map(files => filterWithinDir(files, multiLevelDir)),
+          files => {
+            let first = files->Array.getUnsafe(0)
+            let second = files->Array.getUnsafe(1)
+            let third = files->Array.getUnsafe(2)
 
-        t->expect(hasPathContaining([first], "deep/Agents.md"))->Expect.toBe(true)
-        t->expect(hasPathContaining([second], "child/CLAUDE.md"))->Expect.toBe(true)
-        t->expect(hasPathWith([third], ~containing="multi-level/Agents.md", ~excluding="child"))->Expect.toBe(true)
-      })
-    })
+            t->expect(hasPathContaining([first], "deep/Agents.md"))->Expect.toBe(true)
+            t->expect(hasPathContaining([second], "child/CLAUDE.md"))->Expect.toBe(true)
+            t
+            ->expect(hasPathWith([third], ~containing="multi-level/Agents.md", ~excluding="child"))
+            ->Expect.toBe(true)
+          },
+        )
+      },
+    )
 
-    testAsync("each level is independent (Agents at child, CLAUDE at parent)", async t => {
-      let deepDir = Bindings.Path.join([fixture("multi-level"), "child", "deep"])
-      let ctx = makeCtx(deepDir)
-      let result = await Tool.execute(ctx, {})
+    testAsync(
+      "each level is independent (Agents at child, CLAUDE at parent)",
+      async t => {
+        let deepDir = Bindings.Path.join([fixture("multi-level"), "child", "deep"])
+        let ctx = makeCtx(deepDir)
+        let result = await Tool.execute(ctx, {})
 
-      t->assertOk(result, files => {
-        t->expect(hasPathContaining(files, "deep/Agents.md"))->Expect.toBe(true)
-        t->expect(hasPathContaining(files, "child/CLAUDE.md"))->Expect.toBe(true)
-      })
-    })
+        t->assertOk(
+          result,
+          files => {
+            t->expect(hasPathContaining(files, "deep/Agents.md"))->Expect.toBe(true)
+            t->expect(hasPathContaining(files, "child/CLAUDE.md"))->Expect.toBe(true)
+          },
+        )
+      },
+    )
   })
 
   // ===========================================
   // startPath Parameter
   // ===========================================
   describe("startPath parameter", () => {
-    testAsync("default startPath uses sourceRoot", async t => {
-      let result = await executeAndFilter(fixture("multi-level"))
+    testAsync(
+      "default startPath uses sourceRoot",
+      async t => {
+        let result = await executeAndFilter(fixture("multi-level"))
 
-      t->assertOk(result, files => {
-        t->expect(hasPathWith(files, ~containing="multi-level/Agents.md", ~excluding="child"))->Expect.toBe(true)
-      })
-    })
+        t->assertOk(
+          result,
+          files => {
+            t
+            ->expect(hasPathWith(files, ~containing="multi-level/Agents.md", ~excluding="child"))
+            ->Expect.toBe(true)
+          },
+        )
+      },
+    )
 
-    testAsync("relative startPath is resolved from sourceRoot", async t => {
-      let result = await executeAndFilter(fixture("multi-level"), ~startPath="child/deep")
+    testAsync(
+      "relative startPath is resolved from sourceRoot",
+      async t => {
+        let result = await executeAndFilter(fixture("multi-level"), ~startPath="child/deep")
 
-      t->assertOk(result, files => {
-        t->expect(Array.length(files))->Expect.toBe(3)
-        let first = files->Array.getUnsafe(0)
-        t->expect(hasPathContaining([first], "deep/Agents.md"))->Expect.toBe(true)
-      })
-    })
+        t->assertOk(
+          result,
+          files => {
+            t->expect(Array.length(files))->Expect.toBe(3)
+            let first = files->Array.getUnsafe(0)
+            t->expect(hasPathContaining([first], "deep/Agents.md"))->Expect.toBe(true)
+          },
+        )
+      },
+    )
   })
 
   // ===========================================
   // Edge Cases
   // ===========================================
   describe("edge cases", () => {
-    testAsync("returns empty array when no instruction files in fixture", async t => {
-      let emptyDir = fixture("empty")
-      let subdir = Bindings.Path.join([emptyDir, "subdir"])
-      let ctx = makeCtx(subdir)
-      let result = await Tool.execute(ctx, {})
+    testAsync(
+      "returns empty array when no instruction files in fixture",
+      async t => {
+        let emptyDir = fixture("empty")
+        let subdir = Bindings.Path.join([emptyDir, "subdir"])
+        let ctx = makeCtx(subdir)
+        let result = await Tool.execute(ctx, {})
 
-      t->assertOk(result->Result.map(files => filterWithinDir(files, emptyDir)), files => {
-        t->expect(Array.length(files))->Expect.toBe(0)
-      })
-    })
+        t->assertOk(
+          result->Result.map(files => filterWithinDir(files, emptyDir)),
+          files => {
+            t->expect(Array.length(files))->Expect.toBe(0)
+          },
+        )
+      },
+    )
 
-    testAsync(".claude as file (not directory) is handled gracefully", async t => {
-      let result = await executeAndFilter(fixture("dotclaude-as-file"))
+    testAsync(
+      ".claude as file (not directory) is handled gracefully",
+      async t => {
+        let result = await executeAndFilter(fixture("dotclaude-as-file"))
 
-      t->assertOk(result, files => {
-        t->expect(Array.length(files))->Expect.toBe(1)
-        t->expect(hasPathContaining(files, "CLAUDE.md"))->Expect.toBe(true)
-      })
-    })
+        t->assertOk(
+          result,
+          files => {
+            t->expect(Array.length(files))->Expect.toBe(1)
+            t->expect(hasPathContaining(files, "CLAUDE.md"))->Expect.toBe(true)
+          },
+        )
+      },
+    )
 
-    testAsync(".claude directory exists but is empty", async t => {
-      let result = await executeAndFilter(fixture("dotclaude-empty"))
+    testAsync(
+      ".claude directory exists but is empty",
+      async t => {
+        let result = await executeAndFilter(fixture("dotclaude-empty"))
 
-      t->assertOk(result, files => {
-        t->expect(Array.length(files))->Expect.toBe(1)
-        t->expect(hasPathContaining(files, "CLAUDE.md"))->Expect.toBe(true)
-      })
-    })
+        t->assertOk(
+          result,
+          files => {
+            t->expect(Array.length(files))->Expect.toBe(1)
+            t->expect(hasPathContaining(files, "CLAUDE.md"))->Expect.toBe(true)
+          },
+        )
+      },
+    )
   })
 
   // ===========================================
   // Content Loading
   // ===========================================
   describe("content loading", () => {
-    testAsync("content is correctly loaded", async t => {
-      let result = await executeAndFilter(fixture("content-check"))
+    testAsync(
+      "content is correctly loaded",
+      async t => {
+        let result = await executeAndFilter(fixture("content-check"))
 
-      t->assertOk(result, files => {
-        t->expect(Array.length(files))->Expect.toBe(1)
-        t->expect((files->Array.getUnsafe(0)).content)->Expect.toBe("Hello World")
-      })
-    })
+        t->assertOk(
+          result,
+          files => {
+            t->expect(Array.length(files))->Expect.toBe(1)
+            t->expect((files->Array.getUnsafe(0)).content)->Expect.toBe("Hello World")
+          },
+        )
+      },
+    )
 
-    testAsync("empty file returns empty content", async t => {
-      let result = await executeAndFilter(fixture("empty-file"))
+    testAsync(
+      "empty file returns empty content",
+      async t => {
+        let result = await executeAndFilter(fixture("empty-file"))
 
-      t->assertOk(result, files => {
-        t->expect(Array.length(files))->Expect.toBe(1)
-        t->expect((files->Array.getUnsafe(0)).content)->Expect.toBe("")
-      })
-    })
+        t->assertOk(
+          result,
+          files => {
+            t->expect(Array.length(files))->Expect.toBe(1)
+            t->expect((files->Array.getUnsafe(0)).content)->Expect.toBe("")
+          },
+        )
+      },
+    )
 
-    testAsync("unicode content is preserved", async t => {
-      let result = await executeAndFilter(fixture("unicode-content"))
+    testAsync(
+      "unicode content is preserved",
+      async t => {
+        let result = await executeAndFilter(fixture("unicode-content"))
 
-      t->assertOk(result, files => {
-        t->expect(Array.length(files))->Expect.toBe(1)
-        t->expect((files->Array.getUnsafe(0)).content)->Expect.toBe(`Hello 🌍 世界 café`)
-      })
-    })
+        t->assertOk(
+          result,
+          files => {
+            t->expect(Array.length(files))->Expect.toBe(1)
+            t->expect((files->Array.getUnsafe(0)).content)->Expect.toBe(`Hello 🌍 世界 café`)
+          },
+        )
+      },
+    )
+  })
+
+  // ===========================================
+  // Case-Insensitive Discovery (Issue #114)
+  // ===========================================
+  describe("case-insensitive discovery", () => {
+    testAsync(
+      "discovers lowercase agents.md file",
+      async t => {
+        let result = await executeAndFilter(fixture("case-insensitive-agents"))
+
+        t->assertOk(
+          result,
+          files => {
+            t->expect(Array.length(files))->Expect.toBe(1)
+            let file = files->Array.getUnsafe(0)
+            t->expect(hasPathContaining([file], "agents.md"))->Expect.toBe(true)
+            t->expect(file.content)->Expect.toBe("lowercase agents content")
+          },
+        )
+      },
+    )
+
+    testAsync(
+      "discovers lowercase claude.md file",
+      async t => {
+        let result = await executeAndFilter(fixture("case-insensitive-claude"))
+
+        t->assertOk(
+          result,
+          files => {
+            t->expect(Array.length(files))->Expect.toBe(1)
+            let file = files->Array.getUnsafe(0)
+            t->expect(hasPathContaining([file], "claude.md"))->Expect.toBe(true)
+            t->expect(file.content)->Expect.toBe("lowercase claude content")
+          },
+        )
+      },
+    )
+
+    testAsync(
+      "discovers files with uppercase extensions (Agents.MD)",
+      async t => {
+        let result = await executeAndFilter(fixture("case-variations"))
+
+        t->assertOk(
+          result,
+          files => {
+            t->expect(Array.length(files))->Expect.Int.toBeGreaterThan(0)
+            t->expect(hasPathContaining(files, "Agents.MD"))->Expect.toBe(true)
+          },
+        )
+      },
+    )
+
+    testAsync(
+      "discovers hidden .claude/agents.md with lowercase",
+      async t => {
+        let result = await executeAndFilter(fixture("case-variations"))
+
+        t->assertOk(
+          result,
+          files => {
+            t->expect(Array.length(files))->Expect.Int.toBeGreaterThan(0)
+            t->expect(hasPathContaining(files, ".claude/agents.md"))->Expect.toBe(true)
+          },
+        )
+      },
+    )
   })
 
   // ===========================================
   // Path Handling
   // ===========================================
   describe("path handling", () => {
-    testAsync("fullPath is absolute", async t => {
-      let result = await executeAndFilter(fixture("content-check"))
+    testAsync(
+      "fullPath is absolute",
+      async t => {
+        let result = await executeAndFilter(fixture("content-check"))
 
-      t->assertOk(result, files => {
-        t->expect(Array.length(files))->Expect.toBe(1)
-        t->expect(String.startsWith((files->Array.getUnsafe(0)).fullPath, "/"))->Expect.toBe(true)
-      })
-    })
-
-    testAsync("paths with spaces are handled correctly", async t => {
-      let result = await executeAndFilter(fixture("spaces in path"))
-
-      t->assertOk(result, files => {
-        t->expect(Array.length(files))->Expect.toBe(1)
-        let file = files->Array.getUnsafe(0)
-        t->expect(hasPathContaining([file], "spaces in path"))->Expect.toBe(true)
-        t->expect(file.content)->Expect.toBe("spaces test")
-      })
-    })
-
-    testAsync("deeply nested directories (10+ levels) are traversed", async t => {
-      let deepPath = Bindings.Path.join([
-        fixture("deeply-nested"), "a", "b", "c", "d", "e", "f", "g", "h", "i", "j"
-      ])
-      let ctx = makeCtx(deepPath)
-      let result = await Tool.execute(ctx, {})
-
-      t->assertOk(result, files => {
-        let hasDeepFile = files->Array.some(f =>
-          hasPathContaining([f], "deeply-nested") && hasPathContaining([f], "Agents.md")
+        t->assertOk(
+          result,
+          files => {
+            t->expect(Array.length(files))->Expect.toBe(1)
+            t
+            ->expect(String.startsWith((files->Array.getUnsafe(0)).fullPath, "/"))
+            ->Expect.toBe(true)
+          },
         )
-        t->expect(hasDeepFile)->Expect.toBe(true)
-      })
-    })
+      },
+    )
+
+    testAsync(
+      "paths with spaces are handled correctly",
+      async t => {
+        let result = await executeAndFilter(fixture("spaces in path"))
+
+        t->assertOk(
+          result,
+          files => {
+            t->expect(Array.length(files))->Expect.toBe(1)
+            let file = files->Array.getUnsafe(0)
+            t->expect(hasPathContaining([file], "spaces in path"))->Expect.toBe(true)
+            t->expect(file.content)->Expect.toBe("spaces test")
+          },
+        )
+      },
+    )
+
+    testAsync(
+      "deeply nested directories (10+ levels) are traversed",
+      async t => {
+        let deepPath = Bindings.Path.join([
+          fixture("deeply-nested"),
+          "a",
+          "b",
+          "c",
+          "d",
+          "e",
+          "f",
+          "g",
+          "h",
+          "i",
+          "j",
+        ])
+        let ctx = makeCtx(deepPath)
+        let result = await Tool.execute(ctx, {})
+
+        t->assertOk(
+          result,
+          files => {
+            let hasDeepFile =
+              files->Array.some(
+                f => hasPathContaining([f], "deeply-nested") && hasPathContaining([f], "Agents.md"),
+              )
+            t->expect(hasDeepFile)->Expect.toBe(true)
+          },
+        )
+      },
+    )
   })
 })

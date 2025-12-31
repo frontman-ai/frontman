@@ -45,17 +45,41 @@ let fileExists = async (path: string): bool => {
   }
 }
 
-// Load a single file if it exists
+// Find a file case-insensitively in a directory (directory path is case-sensitive, only filename is case-insensitive)
+let findFileCaseInsensitive = async (dir: string, targetFileName: string): option<string> => {
+  try {
+    let files = await Fs.Promises.readdir(dir)
+    let targetLower = String.toLowerCase(targetFileName)
+
+    let found = files->Array.find(file => String.toLowerCase(file) == targetLower)
+
+    switch found {
+    | Some(actualFileName) => Some(Path.join([dir, actualFileName]))
+    | None => None
+    }
+  } catch {
+  | _ => None
+  }
+}
+
+// Load a single file if it exists (case-insensitive filename matching)
 let loadIfExists = async (path: string): option<instructionFile> => {
-  if await fileExists(path) {
+  // Directory path must be exact, only the filename is case-insensitive
+  let dir = Path.dirname(path)
+  let fileName = Path.basename(path)
+
+  // Try to find the file case-insensitively in the directory
+  let actualPath = await findFileCaseInsensitive(dir, fileName)
+
+  switch actualPath {
+  | Some(foundPath) =>
     try {
-      let content = await Fs.Promises.readFile(path)
-      Some({content, fullPath: path})
+      let content = await Fs.Promises.readFile(foundPath)
+      Some({content, fullPath: foundPath})
     } catch {
     | _ => None
     }
-  } else {
-    None
+  | None => None
   }
 }
 
