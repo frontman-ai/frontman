@@ -244,6 +244,32 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   defp handle_prompt(id, params, socket) do
     task_id = socket.assigns.task_id
+
+    # Check if MCP initialization is complete
+    case socket.assigns[:mcp_status] do
+      :ready ->
+        # MCP is ready, process the prompt immediately
+        process_prompt(id, params, socket)
+
+      :failed ->
+        # MCP failed, process anyway with empty tools (best effort)
+        Logger.warning("Processing prompt with failed MCP initialization for task #{task_id}")
+        process_prompt(id, params, socket)
+
+      _pending ->
+        # MCP still initializing, queue the prompt
+        Logger.info("MCP still initializing, queueing prompt for task #{task_id}")
+
+        socket =
+          socket
+          |> assign(:queued_prompt, {id, params})
+
+        {:noreply, socket}
+    end
+  end
+
+  defp process_prompt(id, params, socket) do
+    task_id = socket.assigns.task_id
     mcp_tools = socket.assigns[:mcp_tools] || []
 
     # Parse ACP prompt (protocol layer)
@@ -459,18 +485,40 @@ defmodule FrontmanServerWeb.TaskChannel do
       |> assign(:mcp_server_info, data.mcp_server_info)
       |> assign(:mcp_tools, data.tools)
 
-    {:noreply, socket}
+    # Process any queued prompt that was waiting for MCP initialization
+    case socket.assigns[:queued_prompt] do
+      {id, params} ->
+        Logger.info("Processing queued prompt after MCP initialization for task #{task_id}")
+        socket = assign(socket, :queued_prompt, nil)
+        process_prompt(id, params, socket)
+
+      nil ->
+        {:noreply, socket}
+    end
   end
 
   def handle_info({:mcp_initializer, {:initialization_failed, error}}, socket) do
     Logger.error("MCP initialization failed: #{inspect(error)}")
+    task_id = socket.assigns.task_id
 
     socket =
       socket
       |> assign(:mcp_status, :failed)
       |> assign(:mcp_error, error)
 
-    {:noreply, socket}
+    # Process any queued prompt with empty tools (best effort)
+    case socket.assigns[:queued_prompt] do
+      {id, params} ->
+        Logger.warning(
+          "Processing queued prompt with failed MCP initialization for task #{task_id}"
+        )
+
+        socket = assign(socket, :queued_prompt, nil)
+        process_prompt(id, params, socket)
+
+      nil ->
+        {:noreply, socket}
+    end
   end
 
   def handle_info(_msg, socket) do

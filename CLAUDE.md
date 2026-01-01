@@ -1,10 +1,5 @@
 # Agent Guidelines for Frontman
 
-## Build/Test Commands
-- **Build all**: `make build`
-- **Agent test**: `cd libs/agent && make test`
-- **Agent test single**: `cd libs/agent && yarn vitest run --run path/to/test`
-- **Agent format**: `cd libs/agent && make format`
 
 ## Worktree Workflow
 
@@ -58,10 +53,10 @@ Story files should be co-located with components: `Client__MyComponent.story.res
    // BAD - causes runtime errors
    module Message = Client__State__Types.Message
    let x = Message.SomeVariant
-   
+
    // ALSO BAD - module S = SomeModule gets exported
    module ACPTypes = FrontmanClient__ACP__Types
-   
+
    // GOOD - use fully qualified names or `open`
    let x = Client__State__Types.Message.SomeVariant
    // or
@@ -74,13 +69,13 @@ Story files should be co-located with components: `Client__MyComponent.story.res
    // BAD - these become story entries in the sidebar
    let sampleData = [...]
    let mockEntries = [...]
-   
+
    // GOOD - wrap in a module (modules are not exported as stories)
    module Samples = {
      let sampleData = [...]
      let mockEntries = [...]
    }
-   
+
    // Usage in stories
    render: _ => <MyComponent data={Samples.sampleData} />
    ```
@@ -95,7 +90,7 @@ Story files should be co-located with components: `Client__MyComponent.story.res
    ```rescript
    // GOOD
    tags: ["autodocs"]
-   
+
    // BAD - CSF parser can't resolve variable references
    tags: [Tags.autodocs]
    ```
@@ -108,7 +103,7 @@ Story files should be co-located with components: `Client__MyComponent.story.res
      ("available", Client__State__Types.Message.InputAvailable),
      ("done", Client__State__Types.Message.OutputAvailable),
    ])
-   
+
    // Use in render
    render: args => <MyComponent state={_stateAdapter.get(args.state)} />
    ```
@@ -116,16 +111,16 @@ Story files should be co-located with components: `Client__MyComponent.story.res
 6. **Story structure**:
    ```rescript
    open Bindings__Storybook
-   
+
    type args = { myProp: string }
-   
+
    let default: Meta.t<args> = {
      title: "Components/MyComponent",
      tags: ["autodocs"],
      decorators: [Decorators.darkBackground],
      render: args => <MyComponent prop={args.myProp} />,
    }
-   
+
    let primary: Story.t<args> = {
      name: "Primary",
      args: { myProp: "value" },

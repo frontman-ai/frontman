@@ -3,14 +3,6 @@
 ## Project Overview
 This is a multi-language project with ReScript, TypeScript, and JavaScript components. The main client library is being converted from TypeScript to ReScript.
 
-## Build/Test Commands
-- **Build all**: `make build` (ReScript compilation)
-- **Agent test**: `cd libs/agent && make test` (Vitest)
-- **Agent test single**: `cd libs/agent && yarn vitest run --run path/to/test`
-- **Agent test watch**: `cd libs/agent && make test-watch`
-- **Agent format check**: `cd libs/agent && make lint`
-- **Agent format**: `cd libs/agent && make format`
-
 ## ReScript Guidelines
 
 ### Core Patterns

@@ -114,10 +114,13 @@ let isInitialized = (conn: connection): bool => {
 }
 
 // Join a session channel (internal helper)
+// onBeforeJoin is called after channel creation but before join - use it to attach
+// additional handlers (like MCP) that must be ready before server sends messages
 let joinSession = async (
   conn: connection,
   sessionId: string,
   ~onUpdate: Types.sessionUpdate => unit,
+  ~onBeforeJoin: option<Channel.t => unit>=?,
 ): result<session, string> => {
   let sessionChannel = conn.socket->Socket.channel(~topic=Constants.makeTaskTopic(sessionId))
 
@@ -128,6 +131,11 @@ let joinSession = async (
     ~onMessage=conn.onMessage,
     ~onParseError=Some(err => Console.warn(`Session message parse error: ${err}`)),
   )
+
+  // Call onBeforeJoin callback to allow attaching additional handlers (e.g., MCP)
+  // This MUST happen before joinChannel to avoid race conditions where the server
+  // sends messages before handlers are attached
+  onBeforeJoin->Option.forEach(cb => cb(sessionChannel))
 
   let joinResult = await joinChannel(sessionChannel)
 
@@ -140,10 +148,13 @@ let joinSession = async (
 }
 
 // Create a new ACP session and auto-join the session channel
-let createSession = async (conn: connection, ~onUpdate: Types.sessionUpdate => unit): result<
-  session,
-  string,
-> => {
+// onBeforeJoin is called after channel creation but before join - use it to attach
+// additional handlers (like MCP) that must be ready before server sends messages
+let createSession = async (
+  conn: connection,
+  ~onUpdate: Types.sessionUpdate => unit,
+  ~onBeforeJoin: option<Channel.t => unit>=?,
+): result<session, string> => {
   let sessionNewResult = await Protocol.sendSessionNew(
     ~channel=conn.channel,
     ~state=conn.state,
@@ -151,7 +162,7 @@ let createSession = async (conn: connection, ~onUpdate: Types.sessionUpdate => u
   )
 
   switch sessionNewResult {
-  | Ok(result) => await joinSession(conn, result.sessionId, ~onUpdate)
+  | Ok(result) => await joinSession(conn, result.sessionId, ~onUpdate, ~onBeforeJoin?)
   | Error(err) => Error(err)
   }
 }

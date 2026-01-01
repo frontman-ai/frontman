@@ -117,7 +117,7 @@ let make = () => {
   useExtensionState()
 
   // Use Frontman context for ACP connection
-  let {connectionState, createSession, sendPrompt} = Client__FrontmanProvider.useFrontman()
+  let {state, isReady, isSessionActive, createSession, sendPrompt} = Client__FrontmanProvider.useFrontman()
 
   // Handle ACP session updates (streaming messages from the agent)
   let handleSessionUpdate = React.useCallback((update: ACPTypes.sessionUpdate) => {
@@ -244,39 +244,38 @@ let make = () => {
   // Track if session was created to avoid duplicate creation
   let sessionCreatedRef = React.useRef(false)
 
-  // Auto-create session when connected
+  // Auto-create session when ready (both ACP and relay initialized)
   React.useEffect(() => {
-    switch connectionState {
-    | Connected =>
-      if !sessionCreatedRef.current {
-        sessionCreatedRef.current = true
-        createSession(handleSessionUpdate)
-        ->Promise.thenResolve(result => {
-          switch result {
-          | Ok(_sess) => ()
-          | Error(err) =>
-            sessionCreatedRef.current = false
-            Console.error2("[App] Failed to create session:", err)
-          }
-        })
-        ->ignore
-      }
-    | _ => ()
+    if isReady && !sessionCreatedRef.current {
+      sessionCreatedRef.current = true
+      Console.log("[App] Provider ready, creating session...")
+      createSession(handleSessionUpdate)
+      ->Promise.thenResolve(result => {
+        switch result {
+        | Ok(_sess) => ()
+        | Error(err) =>
+          sessionCreatedRef.current = false
+          Console.error2("[App] Failed to create session:", err)
+        }
+      })
+      ->ignore
     }
     None
-  }, (connectionState, handleSessionUpdate, createSession))
+  }, (isReady, handleSessionUpdate, createSession))
 
   // Separate effect to update sendPrompt in state when session becomes active
   React.useEffect(() => {
-    switch connectionState {
-    | SessionActive(_sessionId) =>
+    if isSessionActive {
       Client__Debug.init()
       Client__State.Actions.connect(~sendPrompt)
-    | Disconnected | Error(_) => Client__State.Actions.disconnect()
-    | _ => ()
+    } else {
+      switch state {
+      | Disconnected | Error(_) => Client__State.Actions.disconnect()
+      | _ => ()
+      }
     }
     None
-  }, (connectionState, sendPrompt))
+  }, (state, isSessionActive, sendPrompt))
 
   // Get resizable width for chatbox panel
   let (chatboxWidth, isResizing, handleResizeMouseDown) = Client__UseResizableWidth.use()
