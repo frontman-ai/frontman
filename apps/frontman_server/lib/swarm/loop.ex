@@ -1,0 +1,120 @@
+defmodule Swarm.Loop do
+  @moduledoc """
+  Represents an agentic execution loop as an explicit, inspectable data structure.
+
+  The loop continues until a termination condition is met:
+  - No more tool calls (default)
+  - Max steps reached
+  - Custom condition from the agent
+  - Explicit stop signal from a tool
+  """
+
+  alias Swarm.Loop.Config
+  alias Swarm.Loop.Step
+  use TypedStruct
+
+  @type status :: :ready | :running | :completed | :failed | :paused | :max_steps
+  typedstruct do
+    field :id, Swarm.Id.t(), enforce: true
+    field :agent, Swarm.Agent.t(), enforce: true
+    field :status, status(), enforce: true
+    field :steps, [Step.t()], default: []
+    field :current_step, non_neg_integer(), enforce: true
+    field :config, Config.t(), enforce: true
+    field :result, term()
+    field :error, term()
+  end
+
+  @spec make(Swarm.Agent.t(), %Config{}) :: __MODULE__
+  def make(agent, %Config{} = config) do
+    %__MODULE__{
+      id: Swarm.Id.generate("loop"),
+      agent: agent,
+      status: :ready,
+      steps: [],
+      current_step: 0,
+      config: config,
+      result: nil,
+      error: nil
+    }
+  end
+
+  @doc """
+  Starts the loop with the given messages.
+  Creates a step internally, updates status to :running.
+  Only works when loop is in :ready status.
+  """
+  @spec start(__MODULE__.t(), [map()]) :: __MODULE__.t()
+  def start(%__MODULE__{status: :ready} = loop, messages) do
+    step_number = length(loop.steps) + 1
+    step = Step.new(step_number, messages)
+
+    %{loop | status: :running, steps: loop.steps ++ [step], current_step: step_number}
+  end
+
+  @doc """
+  Completes the loop with LLM response data.
+  Updates the current step and sets status to :completed.
+  Only works when loop is in :running status.
+  """
+  @spec complete(__MODULE__.t(), Swarm.LLM.Response.t()) :: __MODULE__.t()
+  def complete(%__MODULE__{status: :running, steps: steps} = loop, response) when steps != [] do
+    now = DateTime.utc_now()
+
+    # Update the last step with response data
+    updated_steps =
+      List.update_at(steps, -1, fn step ->
+        %{
+          step
+          | content: response.content,
+            usage: response.usage,
+            completed_at: now,
+            duration_ms: DateTime.diff(now, step.started_at, :millisecond)
+        }
+      end)
+
+    %{loop | status: :completed, steps: updated_steps, result: response.content}
+  end
+
+  @doc """
+  Marks the loop as failed with the given error.
+  """
+  @spec fail(__MODULE__.t(), term()) :: __MODULE__.t()
+  def fail(%__MODULE__{} = loop, error) do
+    %{loop | status: :failed, error: error}
+  end
+
+  # --- Public API for Execution ---
+
+  @doc """
+  Starts execution with a message and returns effects to execute.
+
+  This is the public API for starting a loop. Returns updated loop and effects.
+  """
+  @spec execute(__MODULE__.t(), Swarm.Agent.t(), String.t()) ::
+          {__MODULE__.t(), [Swarm.Effect.t()]}
+  def execute(%__MODULE__{status: :ready} = loop, agent, message) do
+    Swarm.Loop.Runner.start(loop, agent, message)
+  end
+
+  @doc """
+  Handles successful LLM response and returns effects.
+
+  This is the public API for processing LLM responses.
+  """
+  @spec handle_response(__MODULE__.t(), Swarm.LLM.Response.t()) ::
+          {__MODULE__.t(), [Swarm.Effect.t()]}
+  def handle_response(%__MODULE__{status: :running} = loop, response) do
+    Swarm.Loop.Runner.handle_llm_response(loop, response)
+  end
+
+  @doc """
+  Handles LLM error and returns effects.
+
+  This is the public API for processing errors.
+  """
+  @spec handle_error(__MODULE__.t(), term()) :: {__MODULE__.t(), [Swarm.Effect.t()]}
+  def handle_error(%__MODULE__{} = loop, error) do
+    Swarm.Loop.Runner.handle_llm_error(loop, error)
+  end
+end
