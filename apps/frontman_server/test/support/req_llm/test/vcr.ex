@@ -4,17 +4,17 @@ defmodule ReqLLM.Test.VCR do
 
   Test-only module that combines recording (from live API calls) and
   playback (from cached fixtures) in a unified interface. Uses the
-  Transcript format for storage and ChunkCollector for streaming capture.
+  Transcript format for storage.
 
   ## Recording
 
-      # Record from collected chunks (streaming)
-      {:ok, collector} = ChunkCollector.start_link()
-      # ... add chunks ...
-      :ok = VCR.record(path, provider, model, request, response, collector)
-
-      # Record from body (non-streaming)
-      :ok = VCR.record(path, provider, model, request, response, body)
+      :ok = VCR.record(path,
+        provider: provider,
+        model: model,
+        request: request,
+        response: response,
+        body: body
+      )
 
   ## Playback
 
@@ -28,7 +28,7 @@ defmodule ReqLLM.Test.VCR do
       stream = VCR.replay_stream(transcript)
   """
 
-  alias ReqLLM.Test.{ChunkCollector, Transcript}
+  alias ReqLLM.Test.Transcript
 
   @type provider :: atom()
   @type model_spec :: binary()
@@ -61,20 +61,16 @@ defmodule ReqLLM.Test.VCR do
   def load!(path), do: Transcript.read!(path)
 
   @doc """
-  Record a transcript from a ChunkCollector (streaming).
+  Record a transcript from a response body.
 
   ## Examples
 
-      {:ok, collector} = ChunkCollector.start_link()
-      ChunkCollector.add_chunk(collector, "data: chunk1\\n\\n")
-      ChunkCollector.add_chunk(collector, "data: chunk2\\n\\n")
-
-      :ok = VCR.record("fixtures/stream.json",
+      :ok = VCR.record("fixtures/response.json",
         provider: :openai,
         model: "gpt-4",
         request: %{method: "POST", url: "...", headers: [], canonical_json: %{}},
         response: %{status: 200, headers: []},
-        collector: collector
+        body: ~s({"content": "Hello"})
       )
   """
   @spec record(Path.t(), keyword()) :: :ok | {:error, term()}
@@ -83,24 +79,9 @@ defmodule ReqLLM.Test.VCR do
     model = Keyword.fetch!(opts, :model)
     request = Keyword.fetch!(opts, :request)
     response = Keyword.fetch!(opts, :response)
+    body = Keyword.fetch!(opts, :body)
 
-    collector = Keyword.get(opts, :collector)
-    body = Keyword.get(opts, :body)
-
-    events =
-      cond do
-        collector != nil and body != nil ->
-          raise ArgumentError, "cannot provide both :collector and :body"
-
-        collector != nil ->
-          build_events_from_collector(collector, response)
-
-        body != nil ->
-          build_events_from_body(body, response)
-
-        true ->
-          raise ArgumentError, "must provide either :collector or :body"
-      end
+    events = build_events_from_body(body, response)
 
     transcript =
       Transcript.new(
@@ -245,23 +226,6 @@ defmodule ReqLLM.Test.VCR do
           :ok
       end
     end)
-  end
-
-  defp build_events_from_collector(collector, response) do
-    chunks = ChunkCollector.finish(collector)
-    status_event = {:status, Map.get(response, :status, 200)}
-    headers_event = {:headers, Map.get(response, :headers, [])}
-
-    # Filter out empty chunks (trailing reads or boundaries)
-    data_events =
-      chunks
-      |> Enum.map(fn %{bin: bin} -> bin end)
-      |> Enum.reject(&(&1 == ""))
-      |> Enum.map(&{:data, &1})
-
-    done_event = {:done, :ok}
-
-    [status_event, headers_event] ++ data_events ++ [done_event]
   end
 
   defp build_events_from_body(body, response) do
