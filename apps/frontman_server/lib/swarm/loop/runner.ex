@@ -57,8 +57,8 @@ defmodule Swarm.Loop.Runner do
   @doc """
   Handles successful LLM response.
 
-  Completes the loop and returns effects to emit the Completed event
-  and complete execution.
+  If the response contains tool calls, emits `{:execute_tool, tool_call}` effects.
+  Otherwise completes the loop.
 
   ## Example
 
@@ -69,6 +69,14 @@ defmodule Swarm.Loop.Runner do
   """
   @spec handle_llm_response(Loop.t(), LLM.Response.t()) :: {Loop.t(), [Effect.t()]}
   def handle_llm_response(%Loop{status: :running} = loop, %LLM.Response{} = response) do
+    if LLM.Response.has_tool_calls?(response) do
+      handle_tool_calls(loop, response)
+    else
+      handle_completion(loop, response)
+    end
+  end
+
+  defp handle_completion(loop, response) do
     loop = Loop.complete(loop, response)
 
     effects = [
@@ -81,6 +89,14 @@ defmodule Swarm.Loop.Runner do
     ]
 
     {loop, effects}
+  end
+
+  defp handle_tool_calls(loop, response) do
+    # TODO: Track pending tools in loop state, update step with response
+    # For now, just emit execute_tool effects
+    tool_effects = Enum.map(response.tool_calls, &{:execute_tool, &1})
+
+    {loop, tool_effects}
   end
 
   @doc """
