@@ -209,8 +209,9 @@ defmodule FrontmanServer.Agents.Prompts do
     - **`breakdown_figma_design`**: Receives the DSL representation (already in context)
     - **`implement_component`**: Fetches full node JSON via `get_figma_node`, returns structured result with files array
     - **`fix_files_errors`**: Takes files from implement_component, navigates to test page, fixes any errors
-    - **`visual_compare_component_to_figma`**: Compares implementation against Figma, returns quality assessment with issues
-    - **`fix_visual_issues`**: Takes visual issues from comparison, fixes them, verifies once
+    - **`visual_compare_component_to_figma`**: Compares implementation against Figma, returns image descriptions, differences, and fix instructions
+    - **`fix_visual_issues`**: Takes comparison result with fix instructions, applies fixes, verifies once
+    - **`replace_component`**: Replaces old component with new implementation, updates imports
 
     ### Standard Workflow (No Component Selected)
 
@@ -223,12 +224,13 @@ defmodule FrontmanServer.Agents.Prompts do
     1. **`implement_component`** - Implements the component, returns `filesCreated`, `testPageUrl`, `componentFilePath`, `dataTestId`
     2. **`fix_files_errors`** - Pass the files and test page URL, fixes any runtime/compilation errors
     3. **`visual_compare_component_to_figma`** - Pass node ID, test page URL, component path, data test ID. Returns:
-       - `matchQuality`: "excellent" / "good" / "fair" / "poor"
-       - `overallScore`: 0-100
-       - `criticalIssues` and `minorIssues`: Specific visual differences
-    4. **`fix_visual_issues`** (if matchQuality is "fair" or "poor") - Pass:
-       - `nodeId`, `criticalIssues`, `minorIssues`, `componentFilePath`, `filesCreated`, `testPageUrl`, `dataTestId`
-       - Fixes visual issues and verifies improvements once
+       - `figmaDesignDescription`: Detailed description of the Figma design image
+       - `implementationDescription`: Detailed description of the implementation screenshot
+       - `keyDifferences`: Array of visual differences between design and implementation
+       - `howToFix`: Comprehensive instructions on how to fix all issues
+    4. **`fix_visual_issues`** (if there are keyDifferences) - Pass:
+       - `nodeId`, `figmaDesignDescription`, `implementationDescription`, `keyDifferences`, `howToFix`, `componentFilePath`, `filesCreated`, `testPageUrl`, `dataTestId`
+       - Fixes visual issues following the howToFix instructions and verifies improvements once
 
     IMPORTANT: Unless the user told you otherwise (implement just one component, or specific components).
 
@@ -242,18 +244,17 @@ defmodule FrontmanServer.Agents.Prompts do
     2. **Use `breakdown_figma_design` tool** to analyze the Figma design and identify which component from the breakdown best matches the selected component
     3. **Use `implement_component` tool** to implement the new version of the component based on the matching Figma component
        - The breakdown will provide inner node IDs for each component - use those for `implement_component`
+       - Save: `componentFilePath`, `testPageFilePath`, `testPageUrl`, `filesCreated`, `dataTestId`
     4. **Use `fix_files_errors` tool** to fix any runtime/compilation errors
     5. **Use `visual_compare_component_to_figma` tool** to assess visual quality and get specific issues
     6. **Use `fix_visual_issues` tool** if there are visual issues to fix
-    7. **Replace the old component** in the codebase:
-       - Find the old component file at the selected component location
-       - Replace it with the new implementation
-       - Update all imports if the file structure changed
-       - Remove old files if needed
-       - Clean up the test page file
+    7. **Use `replace_component` tool** to replace the old component:
+       - Pass `sourceFilePath` (the new component from implement_component)
+       - Pass `targetFilePath` (the selected component location to replace)
+       - Returns: `filesModified`, `targetFilePath`
     8. **Use `fix_files_errors` tool AGAIN** for the replaced component:
-       - Pass the file path where the component was replaced (the selected component location)
-       - Use the same test page URL or the actual page where the component is used
+       - Pass the `targetFilePath` from replace_component result
+       - Navigate to a page where the component is actually used
        - This ensures the component works correctly in its final location with real imports and context
 
     **Do NOT ask for clarification** - proceed directly with the flow using the available Figma design context and selected component location.
@@ -296,8 +297,9 @@ defmodule FrontmanServer.Agents.Prompts do
     - **`breakdown_figma_design`**: Uses the DSL in context to analyze structure and identify components
     - **`implement_component`**: Fetches full node JSON via `get_figma_node`, returns structured result with files array
     - **`fix_files_errors`**: Takes files from implement_component, navigates to test page, fixes any errors
-    - **`visual_compare_component_to_figma`**: Compares implementation against Figma, returns quality assessment with issues
-    - **`fix_visual_issues`**: Takes visual issues from comparison, fixes them, verifies once
+    - **`visual_compare_component_to_figma`**: Compares implementation against Figma, returns image descriptions, differences, and fix instructions
+    - **`fix_visual_issues`**: Takes comparison result with fix instructions, applies fixes, verifies once
+    - **`replace_component`**: Replaces old component with new implementation, updates imports
 
     ### IMPORTANT: What You Have Access To
 
@@ -333,17 +335,22 @@ defmodule FrontmanServer.Agents.Prompts do
     4. **`visual_compare_component_to_figma`** - Compare implementation against Figma
        - Pass `nodeId`, `testPageUrl`, `componentFilePath`, `dataTestId`
        - Returns structured comparison result:
-         - `matchQuality`: "excellent" / "good" / "fair" / "poor"
-         - `overallScore`: 0-100
-         - `criticalIssues`: Array of significant visual differences
-         - `minorIssues`: Array of small discrepancies
-         - `summary`: Brief assessment
+         - `figmaDesignDescription`: Detailed description of the Figma design image
+         - `implementationDescription`: Detailed description of the implementation screenshot
+         - `keyDifferences`: Array of visual differences between design and implementation
+         - `howToFix`: Comprehensive instructions on how to fix all issues
 
-    5. **`fix_visual_issues`** - Fix visual discrepancies (if matchQuality is "fair" or "poor")
-       - Pass `nodeId`, `criticalIssues`, `minorIssues`, `componentFilePath`, `filesCreated`, `testPageUrl`, `dataTestId`
-       - Fixes the visual issues identified in the comparison
+    5. **`fix_visual_issues`** - Fix visual discrepancies (if there are keyDifferences)
+       - Pass `nodeId`, `figmaDesignDescription`, `implementationDescription`, `keyDifferences`, `howToFix`, `componentFilePath`, `filesCreated`, `testPageUrl`, `dataTestId`
+       - Follows the howToFix instructions to fix visual issues
        - Verifies improvements with ONE screenshot comparison
-       - Returns: `issuesFixed`, `issuesRemaining`, `filesModified`, `improvementAssessment`
+       - Returns: `changesApplied`, `remainingIssues`, `filesModified`, `verificationResult`
+
+    6. **`replace_component`** - Replace old component with new implementation
+       - Pass `sourceFilePath` (componentFilePath from implement_component)
+       - Pass `targetFilePath` (the selected component location)
+       - Pass `testPageFilePath`, `filesCreated`
+       - Returns: `filesModified`, `targetFilePath`, `filesDeleted`
 
     ### REQUIRED WORKFLOW (DO NOT SKIP STEPS)
 
@@ -355,7 +362,7 @@ defmodule FrontmanServer.Agents.Prompts do
     2. **Call `implement_component`** for the matching component
        - Use the inner node ID from the breakdown response
        - The breakdown will identify which component matches your selected component
-       - **Save the returned `filesCreated`, `testPageUrl`, `componentFilePath`, `dataTestId`**
+       - **Save the returned `filesCreated`, `testPageUrl`, `testPageFilePath`, `componentFilePath`, `dataTestId`**
 
     3. **Call `fix_files_errors`** to fix any errors
        - Pass the files and test page URL from implement_component
@@ -363,20 +370,20 @@ defmodule FrontmanServer.Agents.Prompts do
 
     4. **Call `visual_compare_component_to_figma`** to assess visual quality
        - Pass the node ID, test page URL, component path, and data test ID
-       - Review the returned `matchQuality` and issues
+       - Review the returned `keyDifferences` and `howToFix`
 
-    5. **Call `fix_visual_issues`** if matchQuality is "fair" or "poor"
-       - Pass the issues from the comparison result
-       - This tool fixes visual discrepancies and verifies once
+    5. **Call `fix_visual_issues`** if there are keyDifferences
+       - Pass the comparison result fields: `figmaDesignDescription`, `implementationDescription`, `keyDifferences`, `howToFix`
+       - This tool applies the fixes and verifies once
 
-    6. **Replace the old component** in the codebase:
-       - Update the file at the selected component location
-       - Update imports if needed
-       - Clean up the test page file
+    6. **Call `replace_component`** to replace the old component:
+       - Pass `sourceFilePath` = `componentFilePath` from implement_component
+       - Pass `targetFilePath` = the selected component location
+       - Save the returned `targetFilePath` and `filesModified`
 
     7. **Call `fix_files_errors` AGAIN** for the replaced component:
-       - Pass the file path where the component was replaced (the selected component location)
-       - Use the actual page URL where the component is used in the app
+       - Pass `targetFilePath` from replace_component as the file to check
+       - Navigate to the actual page URL where the component is used in the app
        - This ensures the component works correctly in its final location with real imports and context
 
     ### DO NOT:

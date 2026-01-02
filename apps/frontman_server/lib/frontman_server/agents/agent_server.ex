@@ -254,11 +254,15 @@ defmodule FrontmanServer.Agents.AgentServer do
   # -- LLM Streaming & Response Handling --
 
   defp stream_and_handle_response(state, messages) do
-    api_key = get_api_key(@default_model)
+    # Allow model override via llm_opts, otherwise use default
+    model = Keyword.get(state.llm_opts, :model, @default_model)
+    api_key = get_api_key(model)
 
     # Build options: state.llm_opts (for test fixtures) + api_key + tools
+    # Remove :model from llm_opts since it's not a ReqLLM option
     llm_opts =
       state.llm_opts
+      |> Keyword.delete(:model)
       |> Keyword.put(:api_key, api_key)
       |> then(fn opts ->
         case state.tools do
@@ -273,19 +277,19 @@ defmodule FrontmanServer.Agents.AgentServer do
     if tool_count > 0 do
       tool_names = Enum.map(state.tools, fn t -> t.name end)
       agent_label = agent_log_label(state)
-      Logger.info("#{agent_label} LLM call with #{tool_count} tools: #{inspect(tool_names)}")
+      Logger.info("#{agent_label} LLM call with model #{model} and #{tool_count} tools: #{inspect(tool_names)}")
     else
-      Logger.info("#{agent_log_label(state)} LLM call with no tools")
+      Logger.info("#{agent_log_label(state)} LLM call with model #{model} and no tools")
     end
 
     TelemetryEvents.llm_start(
       state.agent.id,
       state.agent.task_id,
-      @default_model,
+      model,
       messages
     )
 
-    case ReqLLM.stream_text(@default_model, messages, llm_opts) do
+    case ReqLLM.stream_text(model, messages, llm_opts) do
       {:ok, response} ->
         chunks = stream_chunks(state, response.stream)
         text = Enum.map_join(chunks, "", fn chunk -> chunk.text || "" end)

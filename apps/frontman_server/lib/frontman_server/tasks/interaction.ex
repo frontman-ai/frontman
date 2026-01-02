@@ -743,6 +743,17 @@ defmodule FrontmanServer.Tasks.Interaction do
     "get_figma_node" => {:image, [:node]}
   }
 
+  # Handle JSON string results by decoding first
+  defp extract_image_from_result(tool_name, result) when is_binary(result) do
+    case Jason.decode(result) do
+      {:ok, decoded} when is_map(decoded) ->
+        extract_image_from_result(tool_name, decoded)
+
+      _ ->
+        nil
+    end
+  end
+
   defp extract_image_from_result(tool_name, result) when is_map(result) do
     with {image_field, text_fields} <- Map.get(@image_tool_configs, tool_name),
          data_url when is_binary(data_url) <- get_field(result, image_field),

@@ -82,6 +82,8 @@ defmodule FrontmanServer.Tools.FixFilesErrors do
   - Make minimal, targeted fixes
   - Do NOT refactor or change component functionality
   - Do NOT engage in conversation or ask clarifying questions
+  - **DO NOT use `take_screenshot`** - visual comparison is done by a separate tool
+  - **DO NOT use `get_figma_node`** - you only need to fix code errors
   - **ALWAYS use `navigate_back` before returning** to leave the test page
   - Complete your task and return the JSON result
   """

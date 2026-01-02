@@ -25,15 +25,18 @@ defmodule FrontmanServer.Tools.VisualCompareComponentToFigma do
   alias FrontmanServer.Tools.Backend.Context
   alias FrontmanServer.Tools.MCP
 
+  # Use Claude Sonnet 4 for visual comparison - it has better vision capabilities
+  @visual_comparison_model "openrouter:anthropic/claude-sonnet-4"
+
   @system_prompt """
   You are a meticulous visual comparison specialist. Your task is to compare an implemented
   component against its original Figma design and provide a detailed, actionable assessment.
 
   ## Your Goal
 
-  Perform a **pixel-level visual comparison** between the implementation and Figma design.
-  Your assessment must be thorough and catch all visual discrepancies, especially focusing
-  on element positioning and spatial relationships.
+  Perform a **thorough visual comparison** between the implementation and Figma design.
+  Describe both images in detail, identify all differences, and provide clear instructions
+  on how to fix them.
 
   ## Instructions
 
@@ -47,114 +50,54 @@ defmodule FrontmanServer.Tools.VisualCompareComponentToFigma do
   3. **Take a screenshot** - Use `take_screenshot` tool with the provided CSS selector
      to capture ONLY the component
 
-  4. **Perform detailed comparison** - Follow the comprehensive checklist below
+  4. **Describe both images thoroughly** - Study each image and write a comprehensive description
 
-  5. **Navigate back** - Use `navigate_back` tool to leave the test page
+  5. **Identify all differences** - Compare the two images and list every visual difference
 
-  6. **Return assessment** - Provide a structured JSON result with specific, actionable issues
+  6. **Write fix instructions** - For each difference, explain exactly how to fix it
 
-  ## CRITICAL: Comprehensive Visual Comparison Checklist
+  7. **Navigate back** - Use `navigate_back` tool to leave the test page
 
-  ### 1. ELEMENT POSITIONING & SPATIAL RELATIONSHIPS (Most Important!)
+  8. **Return assessment** - Provide a structured JSON result
 
-  **Relative Positioning Between Elements:**
-  - Are elements positioned correctly relative to EACH OTHER?
-  - Check horizontal alignment: Are elements that should be on the same horizontal line aligned?
-  - Check vertical alignment: Are elements that should be on the same vertical line aligned?
-  - Compare distances BETWEEN elements (not just within them)
-  - Check if elements maintain correct relative positions (left-of, right-of, above, below)
+  ## What to Look For
 
-  **Edge Alignment & Boundaries:**
-  - Do left edges of elements align where they should?
-  - Do right edges of elements align where they should?
-  - Do top edges of elements align where they should?
-  - Do bottom edges of elements align where they should?
-  - Are elements properly contained within their parent boundaries?
+  When describing and comparing images, pay attention to:
 
-  **Proportional Relationships:**
-  - Are width ratios between elements correct? (e.g., sidebar should be 1/3 of container)
-  - Are height ratios between elements correct?
-  - Do elements maintain correct aspect ratios?
+  **Layout & Positioning:**
+  - Element positions relative to each other
+  - Horizontal and vertical alignment
+  - Container structure and nesting
+  - Width and height proportions
 
-  ### 2. SPACING & GAPS
+  **Spacing:**
+  - Padding inside containers
+  - Margins between elements
+  - Gaps in flex/grid layouts
+  - Whitespace distribution
 
-  **Internal Spacing (Padding):**
-  - Top padding within containers
-  - Bottom padding within containers
-  - Left padding within containers
-  - Right padding within containers
-
-  **External Spacing (Margins/Gaps):**
-  - Horizontal gaps between sibling elements
-  - Vertical gaps between stacked elements
-  - Spacing from parent container edges
-  - Consistent spacing patterns (e.g., all cards should have same gap)
-
-  **Negative Space:**
-  - Is whitespace distributed correctly?
-  - Are empty areas the right size?
-
-  ### 3. LAYOUT STRUCTURE
-
-  **Flex/Grid Behavior:**
-  - Is the layout direction correct (row vs column)?
-  - Is content distribution correct (space-between, center, etc.)?
-  - Do elements wrap correctly?
-  - Is alignment on cross-axis correct?
-
-  **Container Sizing:**
-  - Are container widths correct?
-  - Are container heights correct?
-  - Do containers grow/shrink appropriately?
-
-  ### 4. TYPOGRAPHY
-
-  **Text Properties:**
-  - Font family (is it the correct font?)
-  - Font size (compare visually - is text same size?)
-  - Font weight (bold, medium, regular?)
-  - Line height (spacing between text lines)
-  - Letter spacing (tracking)
+  **Typography:**
+  - Font family, size, weight
   - Text color
+  - Line height, letter spacing
+  - Text alignment
 
-  **Text Layout:**
-  - Text alignment (left, center, right, justify)
-  - Text truncation/overflow behavior
-  - Multi-line text wrapping
-
-  ### 5. COLORS & VISUAL STYLING
-
-  **CRITICAL - Backgrounds (Missing backgrounds = CRITICAL ISSUE!):**
-  - Is there a background color? If Figma shows one and implementation doesn't, this is CRITICAL
-  - Is there a gradient background? Gradient backgrounds are often missed - check carefully!
-  - Does the gradient direction match (linear-gradient angle, radial-gradient position)?
-  - Are gradient color stops correct (colors and positions)?
-  - Is the background applied to the correct element (not a parent or child)?
-  - **A missing background or gradient is a CRITICAL issue that breaks the design**
-
-  **Colors:**
-  - Background colors (exact match?)
+  **Colors & Backgrounds:**
+  - Background colors (solid or gradient)
+  - Gradient direction and color stops
   - Text colors
   - Border colors
-  - Icon/SVG fill colors
 
-  **Effects:**
-  - Box shadows (size, blur, color, offset)
-  - Border radius (corner rounding)
-  - Border width and style
-  - Opacity/transparency
+  **Visual Effects:**
+  - Border radius (rounded corners)
+  - Shadows
+  - Borders
+  - Opacity
 
-  ### 6. ELEMENTS & CONTENT
-
-  **Presence Check:**
-  - Are all elements from the design present?
-  - Are there any extra elements not in the design?
-  - Are icons/images correct?
-
-  **Element Sizing:**
-  - Are icons the right size?
-  - Are images the right dimensions?
-  - Are buttons the right size?
+  **Elements:**
+  - Missing or extra elements
+  - Icon sizes and colors
+  - Image dimensions
 
   ## Output Format
 
@@ -162,102 +105,65 @@ defmodule FrontmanServer.Tools.VisualCompareComponentToFigma do
 
   ```json
   {
-    "matchQuality": "fair",
-    "overallScore": 65,
-    "categories": {
-      "positioning": {
-        "score": 80,
-        "issues": [
-          "Button is 8px too far right relative to the title",
-          "Icon is not vertically centered with text - appears 2px too high",
-          "Cards are not aligned - second card's left edge is 4px off from first"
-        ]
-      },
-      "spacing": {
-        "score": 75,
-        "issues": [
-          "Gap between title and description is 16px, should be 24px",
-          "Container has 12px padding, design shows 20px",
-          "Horizontal gap between buttons is 8px, should be 12px"
-        ]
-      },
-      "layout": {
-        "score": 90,
-        "issues": ["Content is not centered within container"]
-      },
-      "typography": {
-        "score": 85,
-        "issues": [
-          "Title font weight is 500, should be 600",
-          "Body text line-height appears tighter than design"
-        ]
-      },
-      "backgrounds": {
-        "score": 0,
-        "issues": [
-          "MISSING gradient background - Figma shows linear-gradient(135deg, #667eea 0%, #764ba2 100%) but implementation has no background",
-          "Card has white background in Figma but implementation shows transparent"
-        ]
-      },
-      "colors": {
-        "score": 95,
-        "issues": ["Border color is #E5E5E5, design shows #D1D5DB"]
-      },
-      "elements": {
-        "score": 100,
-        "issues": []
-      }
-    },
-    "criticalIssues": [
-      "MISSING gradient background - Figma shows linear-gradient(135deg, #667eea 0%, #764ba2 100%) but implementation has no background",
-      "Card has white background in Figma but implementation shows transparent"
+    "figmaDesignDescription": "Detailed description of the Figma design image. Describe the overall layout, structure, and visual hierarchy. List all visible elements from top to bottom or left to right. For each element, describe: its position, size (estimate in pixels), colors (with hex values), typography (font weight, size), spacing from other elements, and any visual effects like shadows or rounded corners. Be thorough - this description should paint a complete picture of the design.",
+
+    "implementationDescription": "Detailed description of the implementation screenshot using the same structure as above. Describe what you actually see, not what you expect to see. Note any visual differences you observe compared to the design.",
+
+    "keyDifferences": [
+      "Most important difference - describe what's wrong and how it differs from the design",
+      "Second difference - be specific about values (e.g., '16px instead of 24px')",
+      "Third difference - include color values where relevant",
+      "Continue listing all visible differences..."
     ],
-    "minorIssues": [
-      "Icon is not vertically centered with text - appears 2px too high",
-      "Border color is #E5E5E5, design shows #D1D5DB"
-    ],
-    "summary": "CRITICAL: Missing gradient background completely changes the look. Layout structure is mostly correct but the missing background is a major issue that must be fixed."
+
+    "howToFix": "A comprehensive explanation of how to fix all the visual issues. Start with the most impactful changes first. For each issue, explain:\n\n1. **[Issue name]**: Describe the problem and the exact CSS/code change needed. Example: 'The container is missing its gradient background. Add `background: linear-gradient(135deg, #667eea 0%, #764ba2 100%)` to the root element.'\n\n2. **[Next issue]**: Continue with specific, actionable instructions...\n\nGroup related fixes together (e.g., all spacing fixes, all typography fixes). Include exact CSS property names and values. If a fix affects multiple properties, list them all."
   }
   ```
 
-  **JSON Field Requirements:**
-  - `matchQuality`: One of "excellent" (90+), "good" (70-89), "fair" (50-69), "poor" (<50)
-  - `overallScore`: Number 0-100 representing overall visual match
-  - `categories`: Object with scores and issues for each visual category
-    - `positioning`: Element positions relative to each other, alignment, boundaries
-    - `spacing`: Padding, margins, gaps between and around elements
-    - `layout`: Overall structure, flex/grid behavior, container sizing
-    - `typography`: Fonts, sizes, weights, text styling
-    - `backgrounds`: Background colors and gradients (CRITICAL - missing = score 0)
-    - `colors`: Text colors, border colors, shadows
-    - `elements`: Missing/extra elements, icons, images
-  - `criticalIssues`: Issues that make the component look noticeably different from design
-    - **Missing backgrounds or gradients are ALWAYS critical issues**
-  - `minorIssues`: Small discrepancies that are visible but don't break the design
-  - `summary`: Brief overall assessment with the main problems highlighted
+  **Field Requirements:**
 
-  ## Issue Writing Guidelines
+  - `figmaDesignDescription`: A comprehensive, detailed description of the Figma design image.
+    Write as if describing the image to someone who cannot see it. Include:
+    - Overall structure and layout
+    - All visible elements and their positions
+    - Colors with hex values
+    - Typography details (weight, size estimates)
+    - Spacing estimates in pixels
+    - Visual effects (shadows, gradients, rounded corners)
 
-  **BE SPECIFIC AND ACTIONABLE:**
-  - BAD: "Spacing is wrong"
-  - GOOD: "Gap between header and content is 16px, should be 32px"
+  - `implementationDescription`: An equally detailed description of the implementation screenshot.
+    Use the same structure to make comparison easy. Describe what you actually see.
 
-  - BAD: "Button is misaligned"
-  - GOOD: "Button's right edge should align with card's right edge, currently 12px short"
+  - `keyDifferences`: An array of strings listing every visual difference between the two images.
+    Order from most impactful to least. Be specific with values.
 
-  - BAD: "Text looks different"
-  - GOOD: "Title font-weight is 400 (regular), design shows 600 (semi-bold)"
+  - `howToFix`: A single comprehensive string explaining how to fix ALL issues.
+    This should read like a step-by-step guide. Include exact CSS properties and values.
+    Group related fixes together. Start with the most impactful changes.
 
-  **INCLUDE MEASUREMENTS WHEN POSSIBLE:**
-  - Estimate pixel values based on visual comparison
-  - Reference specific elements by name/description
-  - Describe spatial relationships clearly
+  ## Writing Guidelines
+
+  **For descriptions:**
+  - Be thorough and specific
+  - Include measurements (estimate in pixels)
+  - Use hex color values when possible
+  - Describe spatial relationships
+
+  **For differences:**
+  - Start with "The [element]..." or similar
+  - Include both the current and expected values
+  - Be specific: "padding is 16px, should be 24px"
+
+  **For fix instructions:**
+  - Use exact CSS property names
+  - Include complete values
+  - Explain the reasoning when helpful
+  - Group related changes together
 
   IMPORTANT INSTRUCTIONS:
+  - ALWAYS start by describing both images in detail
   - Be extremely thorough - catching issues now saves iteration later
-  - Focus especially on POSITIONING and SPATIAL RELATIONSHIPS between elements
-  - Check alignment both within elements AND across element boundaries
-  - Be specific and actionable in your issue descriptions
+  - Focus on what IS different, not what matches
   - Do NOT engage in conversation or ask clarifying questions
   - Do NOT make any code changes - just assess and report
   - **ALWAYS use `navigate_back` before returning** to leave the test page
@@ -274,9 +180,9 @@ defmodule FrontmanServer.Tools.VisualCompareComponentToFigma do
 
     Use this after fix_files_errors to verify the visual accuracy of the implementation.
     The tool fetches the Figma design, takes a screenshot of the component, and provides
-    a structured assessment of how well they match.
+    detailed descriptions of both images, their differences, and how to fix them.
 
-    Returns a detailed comparison result with scores and specific issues to fix.
+    Returns: figmaDesignDescription, implementationDescription, keyDifferences, howToFix
     """
   end
 
@@ -318,7 +224,7 @@ defmodule FrontmanServer.Tools.VisualCompareComponentToFigma do
     mcp_tools = MCP.to_llm_format(task.mcp_tools)
 
     Logger.info(
-      "VisualCompareComponentToFigma: Starting comparison for #{component_name} (#{node_id})"
+      "VisualCompareComponentToFigma: Starting comparison for #{component_name} (#{node_id}) using model #{@visual_comparison_model}"
     )
 
     system_msg = ReqLLM.Context.system(Prompts.tool_selection_guidance() <> @system_prompt)
@@ -330,13 +236,16 @@ defmodule FrontmanServer.Tools.VisualCompareComponentToFigma do
     # Build message list
     messages = [system_msg | markdown_messages] ++ [user_msg]
 
-    # Execute sub-agent with MCP tools
+    # Use Claude Sonnet 4 for visual comparison - override the model in llm_opts
+    visual_llm_opts = Keyword.put(llm_opts, :model, @visual_comparison_model)
+
+    # Execute sub-agent with MCP tools and custom model
     case Agents.execute_sub_agent(task.task_id, messages,
            tools: mcp_tools,
            role: "visual_comparator",
            parent_agent_id: parent_agent_id,
            spawning_tool_name: name(),
-           llm_opts: llm_opts
+           llm_opts: visual_llm_opts
          ) do
       {:ok, result} ->
         Logger.info("VisualCompareComponentToFigma: Completed comparison for #{component_name}")
@@ -400,12 +309,10 @@ defmodule FrontmanServer.Tools.VisualCompareComponentToFigma do
         %{
           "componentName" => component_name,
           "nodeId" => node_id,
-          "matchQuality" => Map.get(json_data, "matchQuality", "unknown"),
-          "overallScore" => Map.get(json_data, "overallScore", 0),
-          "categories" => Map.get(json_data, "categories", %{}),
-          "criticalIssues" => Map.get(json_data, "criticalIssues", []),
-          "minorIssues" => Map.get(json_data, "minorIssues", []),
-          "summary" => Map.get(json_data, "summary", ""),
+          "figmaDesignDescription" => Map.get(json_data, "figmaDesignDescription", ""),
+          "implementationDescription" => Map.get(json_data, "implementationDescription", ""),
+          "keyDifferences" => Map.get(json_data, "keyDifferences", []),
+          "howToFix" => Map.get(json_data, "howToFix", ""),
           "rawResponse" => result
         }
 
@@ -415,12 +322,10 @@ defmodule FrontmanServer.Tools.VisualCompareComponentToFigma do
         %{
           "componentName" => component_name,
           "nodeId" => node_id,
-          "matchQuality" => "unknown",
-          "overallScore" => 0,
-          "categories" => %{},
-          "criticalIssues" => ["Could not parse comparison result"],
-          "minorIssues" => [],
-          "summary" => result,
+          "figmaDesignDescription" => "",
+          "implementationDescription" => "",
+          "keyDifferences" => ["Could not parse comparison result"],
+          "howToFix" => result,
           "rawResponse" => result
         }
     end
@@ -434,7 +339,8 @@ defmodule FrontmanServer.Tools.VisualCompareComponentToFigma do
         parse_json(json_content)
 
       nil ->
-        case Regex.run(~r/\{[\s\S]*"matchQuality"[\s\S]*\}/, response) do
+        # Try to find JSON with our expected fields
+        case Regex.run(~r/\{[\s\S]*"figmaDesignDescription"[\s\S]*\}/, response) do
           [json_content] -> parse_json(json_content)
           nil -> :error
         end

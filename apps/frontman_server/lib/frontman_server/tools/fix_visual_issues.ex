@@ -27,8 +27,8 @@ defmodule FrontmanServer.Tools.FixVisualIssues do
   alias FrontmanServer.Tools.MCP
 
   @system_prompt """
-  You are a visual refinement specialist. Your task is to fix specific visual issues
-  in a component implementation to better match the Figma design.
+  You are a visual refinement specialist. Your task is to fix visual issues
+  in a component implementation to make it match the Figma design.
 
   ## Project Context & Conventions
 
@@ -38,33 +38,36 @@ defmodule FrontmanServer.Tools.FixVisualIssues do
 
   ## Your Goal
 
-  Fix the specific visual issues identified in the comparison to make the component
-  more closely match the Figma design. Focus on the issues provided - do not over-engineer
-  or make unnecessary changes.
+  You are provided with:
+  - A description of what the Figma design looks like
+  - A description of what the current implementation looks like
+  - Key differences between them
+  - Instructions on how to fix those differences
+
+  Your job is to implement those fixes to make the component match the design.
 
   ## Instructions
 
-  1. **Review the issues** - Study the visual issues provided in your task:
-     - Critical issues should be fixed first
-     - Minor issues should also be addressed
-     - Each issue describes what is wrong and often includes specific values
+  1. **Understand the context** - Study the descriptions of both images and the differences
 
-  2. **Make targeted fixes** - Update the component files to address each issue:
-     - Fix spacing values (padding, margin, gap)
-     - Correct colors and typography
-     - Adjust layout alignment
-     - Use project-appropriate CSS patterns
+  2. **Follow the fix instructions** - The "How to Fix" section provides specific guidance
+     on what CSS/code changes to make. Follow these instructions carefully.
 
-  3. **Verify your improvements (ONCE)** - After making all fixes:
+  3. **Make targeted fixes** - Update the component files:
+     - Apply the exact fixes described
+     - Use proper CSS properties and values
+     - Follow project styling conventions
+
+  4. **Verify your improvements (ONCE)** - After making all fixes:
      a. Use `get_figma_node` to fetch the Figma design image for reference
      b. Navigate to the test page
      c. Take a screenshot using the provided selector
      d. Compare to verify improvements
      - **You may only do this verification step ONCE** - make all your fixes before checking
 
-  4. **Navigate back** - Use `navigate_back` tool to leave the test page
+  5. **Navigate back** - Use `navigate_back` tool to leave the test page
 
-  5. **Report result** - Provide a structured JSON result
+  6. **Report result** - Provide a structured JSON result
 
   ## Output Format
 
@@ -72,35 +75,36 @@ defmodule FrontmanServer.Tools.FixVisualIssues do
 
   ```json
   {
-    "issuesFixed": [
-      "Fixed padding from 16px to 24px",
-      "Updated font weight from 400 to 600"
+    "changesApplied": [
+      "Added gradient background: linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+      "Updated title color to white (#FFFFFF)",
+      "Increased padding from 16px to 24px"
     ],
-    "issuesRemaining": [],
+    "remainingIssues": [],
     "filesModified": ["path/to/Component.tsx"],
-    "improvementAssessment": "good",
-    "summary": "Fixed all critical and minor issues. Component now closely matches the design."
+    "verificationResult": "Component now matches the Figma design closely",
+    "summary": "Applied all recommended fixes. The gradient background, typography, and spacing now match the design."
   }
   ```
 
   **JSON Field Requirements:**
-  - `issuesFixed`: Array of issues that were successfully fixed
-  - `issuesRemaining`: Array of issues that could not be fixed or need more work
+  - `changesApplied`: Array of specific changes you made
+  - `remainingIssues`: Array of issues that could not be fixed or need more work
   - `filesModified`: Array of file paths that were modified
-  - `improvementAssessment`: One of "excellent", "good", "partial", "minimal"
+  - `verificationResult`: What you observed when comparing after your fixes
   - `summary`: Brief summary of what was done and the result
 
   ## Guidelines
 
   - Make precise, targeted changes - don't refactor unrelated code
-  - Use the exact values mentioned in the issues when available
+  - Use the exact values from the fix instructions when provided
   - Follow project styling conventions
   - Avoid hacks or workarounds - use proper CSS
   - You have ONE verification step - use it wisely after making all fixes
 
   IMPORTANT INSTRUCTIONS:
   - Do NOT engage in conversation or ask clarifying questions
-  - Focus ONLY on fixing the specific visual issues provided
+  - Focus ONLY on implementing the fixes described
   - **ALWAYS use `navigate_back` before returning** to leave the test page
   - Complete your task and return the JSON result
   """
@@ -134,19 +138,25 @@ defmodule FrontmanServer.Tools.FixVisualIssues do
           "type" => "string",
           "description" => "The Figma node ID for reference (WITHOUT the # prefix)"
         },
-        "description" => %{
+        "figmaDesignDescription" => %{
           "type" => "string",
-          "description" => "Description of the component and what it should look like"
+          "description" =>
+            "Detailed description of the Figma design image from visual comparison"
         },
-        "criticalIssues" => %{
+        "implementationDescription" => %{
+          "type" => "string",
+          "description" =>
+            "Detailed description of the current implementation from visual comparison"
+        },
+        "keyDifferences" => %{
           "type" => "array",
           "items" => %{"type" => "string"},
-          "description" => "Critical visual issues that must be fixed"
+          "description" => "Key visual differences identified between design and implementation"
         },
-        "minorIssues" => %{
-          "type" => "array",
-          "items" => %{"type" => "string"},
-          "description" => "Minor visual issues that should be fixed"
+        "howToFix" => %{
+          "type" => "string",
+          "description" =>
+            "Comprehensive instructions on how to fix all visual issues"
         },
         "componentFilePath" => %{
           "type" => "string",
@@ -173,7 +183,8 @@ defmodule FrontmanServer.Tools.FixVisualIssues do
       "required" => [
         "componentName",
         "nodeId",
-        "criticalIssues",
+        "keyDifferences",
+        "howToFix",
         "componentFilePath",
         "testPageUrl",
         "dataTestId"
@@ -224,9 +235,10 @@ defmodule FrontmanServer.Tools.FixVisualIssues do
   defp build_user_message(args) do
     component_name = Map.get(args, "componentName")
     node_id = Map.get(args, "nodeId")
-    description = Map.get(args, "description", "")
-    critical_issues = Map.get(args, "criticalIssues", [])
-    minor_issues = Map.get(args, "minorIssues", [])
+    figma_description = Map.get(args, "figmaDesignDescription", "")
+    implementation_description = Map.get(args, "implementationDescription", "")
+    key_differences = Map.get(args, "keyDifferences", [])
+    how_to_fix = Map.get(args, "howToFix", "")
     component_file_path = Map.get(args, "componentFilePath")
     files_created = Map.get(args, "filesCreated", [])
     test_page_url = Map.get(args, "testPageUrl")
@@ -234,13 +246,6 @@ defmodule FrontmanServer.Tools.FixVisualIssues do
     data_test_id = Map.get(args, "dataTestId")
 
     selector_str = if data_test_id, do: "[data-test-id=\"#{data_test_id}\"]", else: nil
-
-    description_str =
-      if description != "" do
-        "\n- **Description:** #{description}"
-      else
-        ""
-      end
 
     test_page_path_str =
       if test_page_file_path,
@@ -271,37 +276,55 @@ defmodule FrontmanServer.Tools.FixVisualIssues do
         ""
       end
 
-    critical_issues_str =
-      if critical_issues != [] do
-        issues_list =
-          critical_issues
-          |> Enum.with_index(1)
-          |> Enum.map(fn {issue, idx} -> "#{idx}. #{issue}" end)
-          |> Enum.join("\n")
-
+    figma_description_str =
+      if figma_description != "" do
         """
 
-        ## Critical Issues to Fix
+        ## What the Figma Design Looks Like
 
-        #{issues_list}
+        #{figma_description}
         """
       else
-        "\n## Critical Issues to Fix\n\nNone - focus on minor issues."
+        ""
       end
 
-    minor_issues_str =
-      if minor_issues != [] do
-        issues_list =
-          minor_issues
+    implementation_description_str =
+      if implementation_description != "" do
+        """
+
+        ## What the Current Implementation Looks Like
+
+        #{implementation_description}
+        """
+      else
+        ""
+      end
+
+    key_differences_str =
+      if key_differences != [] do
+        differences_list =
+          key_differences
           |> Enum.with_index(1)
-          |> Enum.map(fn {issue, idx} -> "#{idx}. #{issue}" end)
+          |> Enum.map(fn {diff, idx} -> "#{idx}. #{diff}" end)
           |> Enum.join("\n")
 
         """
 
-        ## Minor Issues to Fix
+        ## Key Differences to Fix
 
-        #{issues_list}
+        #{differences_list}
+        """
+      else
+        ""
+      end
+
+    how_to_fix_str =
+      if how_to_fix != "" do
+        """
+
+        ## How to Fix These Issues
+
+        #{how_to_fix}
         """
       else
         ""
@@ -311,15 +334,15 @@ defmodule FrontmanServer.Tools.FixVisualIssues do
     ## Fix Visual Issues
 
     - **Component:** #{component_name}
-    - **Node ID:** #{node_id}#{description_str}
+    - **Node ID:** #{node_id}
     - **Component File:** #{component_file_path}
     - **Test Page URL:** #{test_page_url}#{test_page_path_str}
     - **Data Test ID:** `#{data_test_id}`#{selector_instruction}
-    #{files_str}#{critical_issues_str}#{minor_issues_str}
+    #{files_str}#{figma_description_str}#{implementation_description_str}#{key_differences_str}#{how_to_fix_str}
     ## Instructions
 
     1. Read the component file(s) and understand the current implementation
-    2. Make targeted fixes to address each issue listed above
+    2. Follow the "How to Fix" instructions above to make all necessary changes
     3. After ALL fixes are made, verify ONCE:
        - Use `get_figma_node` with nodeId: "#{node_id}", includeImage: true
        - Navigate to `#{test_page_url}`
@@ -339,10 +362,10 @@ defmodule FrontmanServer.Tools.FixVisualIssues do
         %{
           "componentName" => component_name,
           "nodeId" => node_id,
-          "issuesFixed" => Map.get(json_data, "issuesFixed", []),
-          "issuesRemaining" => Map.get(json_data, "issuesRemaining", []),
+          "changesApplied" => Map.get(json_data, "changesApplied", []),
+          "remainingIssues" => Map.get(json_data, "remainingIssues", []),
           "filesModified" => Map.get(json_data, "filesModified", []),
-          "improvementAssessment" => Map.get(json_data, "improvementAssessment", "unknown"),
+          "verificationResult" => Map.get(json_data, "verificationResult", ""),
           "summary" => Map.get(json_data, "summary", ""),
           "rawResponse" => result
         }
@@ -353,10 +376,10 @@ defmodule FrontmanServer.Tools.FixVisualIssues do
         %{
           "componentName" => component_name,
           "nodeId" => node_id,
-          "issuesFixed" => [],
-          "issuesRemaining" => ["Could not parse fix result"],
+          "changesApplied" => [],
+          "remainingIssues" => ["Could not parse fix result"],
           "filesModified" => [],
-          "improvementAssessment" => "unknown",
+          "verificationResult" => "",
           "summary" => result,
           "rawResponse" => result
         }
@@ -371,7 +394,7 @@ defmodule FrontmanServer.Tools.FixVisualIssues do
         parse_json(json_content)
 
       nil ->
-        case Regex.run(~r/\{[\s\S]*"issuesFixed"[\s\S]*\}/, response) do
+        case Regex.run(~r/\{[\s\S]*"changesApplied"[\s\S]*\}/, response) do
           [json_content] -> parse_json(json_content)
           nil -> :error
         end
