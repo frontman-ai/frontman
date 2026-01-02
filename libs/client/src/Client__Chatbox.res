@@ -59,31 +59,26 @@ let getMessageCreatedAt = (msg: Message.t): float => {
 
 /**
  * Merge messages and todo events into a chronologically sorted list
+ * Optimized to use immutable array operations instead of mutations
  */
 let mergeChronologically = (
   messages: array<Message.t>,
   batchEvents: array<StateTypes.TodoBatchEvent.t>,
   statusEvents: array<StateTypes.TodoStatusEvent.t>,
 ): array<chronoItem> => {
-  let items: array<chronoItem> = []
+  // Convert messages to chrono items
+  let messageItems = messages->Array.map(msg => 
+    ChronoMessage(msg, getMessageCreatedAt(msg))
+  )
 
-  // Add all messages
-  messages->Array.forEach(msg => {
-    items->Array.push(ChronoMessage(msg, getMessageCreatedAt(msg)))
-  })
+  // Convert batch events to chrono items
+  let batchItems = batchEvents->Array.map(event => ChronoBatchEvent(event))
 
-  // Add all batch events
-  batchEvents->Array.forEach(event => {
-    items->Array.push(ChronoBatchEvent(event))
-  })
+  // Convert status events to chrono items
+  let statusItems = statusEvents->Array.map(event => ChronoStatusEvent(event))
 
-  // Add all status events
-  statusEvents->Array.forEach(event => {
-    items->Array.push(ChronoStatusEvent(event))
-  })
-
-  // Sort by timestamp
-  items->Array.toSorted((a, b) => {
+  // Concatenate all items and sort by timestamp
+  messageItems->Array.concat(batchItems)->Array.concat(statusItems)->Array.toSorted((a, b) => {
     let timeA = switch a {
     | ChronoMessage(_, t) => t
     | ChronoBatchEvent(e) => e.createdAt
@@ -100,6 +95,7 @@ let mergeChronologically = (
 
 /**
  * Transform messages into display items, grouping consecutive tool calls
+ * Optimized to reduce array mutations and improve performance
  * 
  * Algorithm:
  * 1. Merge messages with todo events chronologically
@@ -114,104 +110,102 @@ let groupMessagesWithEvents = (
   batchEvents: array<StateTypes.TodoBatchEvent.t>,
   statusEvents: array<StateTypes.TodoStatusEvent.t>,
 ): array<displayItem> => {
-  let result: array<displayItem> = []
-  let pendingToolCalls: ref<array<(Message.toolCall, int)>> = ref([])
-  let pendingBatchEvents: ref<array<StateTypes.TodoBatchEvent.t>> = ref([])
-
   // Merge everything chronologically
   let chronoItems = mergeChronologically(messages, batchEvents, statusEvents)
 
-  // Flush pending batch events by merging them into one
-  let flushBatchEvents = () => {
-    let pending = pendingBatchEvents.contents
+  // Helper to flush batch events by merging them into one
+  let flushBatchEvents = (pending: array<StateTypes.TodoBatchEvent.t>): option<displayItem> => {
     if Array.length(pending) > 0 {
       // Merge all entries from consecutive batch events
       let allEntries = pending->Array.flatMap(e => e.entries)
       let totalCount = pending->Array.reduce(0, (acc, e) => acc + e.count)
-      // Use first event's id and timestamp for the merged batch
       let firstEvent = pending->Array.getUnsafe(0)
 
-      let mergedEvent: StateTypes.TodoBatchEvent.t = {
+      Some(TodoBatch({
         id: firstEvent.id,
         entries: allEntries,
         count: totalCount,
         createdAt: firstEvent.createdAt,
-      }
-
-      result->Array.push(TodoBatch(mergedEvent))
-      pendingBatchEvents := []
+      }))
+    } else {
+      None
     }
   }
 
-  // Flush pending tool calls by grouping them
-  let flushToolCalls = () => {
-    let pending = pendingToolCalls.contents
-    if Array.length(pending) > 0 {
-      // Extract just the tool calls for grouping
+  // Helper to flush tool calls by grouping them
+  let flushToolCalls = (pending: array<(Message.toolCall, int)>): array<displayItem> => {
+    if Array.length(pending) == 0 {
+      []
+    } else {
       let toolCalls = pending->Array.map(((tc, _)) => tc)
       let firstIndex = pending->Array.getUnsafe(0)->Pair.second
-
-      // Use the grouping utility - it handles what to group vs not
       let grouped = ToolGroupUtils.groupToolCalls(toolCalls, ~minGroupSize=1)
 
-      grouped->Array.forEach(item => {
+      grouped->Array.map(item => {
         switch item {
         | ToolGroupTypes.SingleTool(tc) =>
-          // Check if it's a TODO tool - render with special component
           if TodoUtils.isTodoTool(tc.toolName) {
-            result->Array.push(TodoToolCall(tc, firstIndex))
+            TodoToolCall(tc, firstIndex)
           } else {
-            result->Array.push(SingleToolCall(tc, firstIndex))
+            SingleToolCall(tc, firstIndex)
           }
-        | ToolGroupTypes.SpawnerTool(tc) =>
-          // Subagent spawner tool - render with indigo styling
-          result->Array.push(SpawnerToolCall(tc, firstIndex))
-        | ToolGroupTypes.ToolGroup(group) => result->Array.push(ToolGroup(group, firstIndex))
+        | ToolGroupTypes.SpawnerTool(tc) => SpawnerToolCall(tc, firstIndex)
+        | ToolGroupTypes.ToolGroup(group) => ToolGroup(group, firstIndex)
         }
       })
-
-      pendingToolCalls := []
     }
   }
 
-  // Flush all pending items
-  let flushAll = () => {
-    flushToolCalls()
-    flushBatchEvents()
-  }
-
-  chronoItems->Array.forEachWithIndex((chronoItem, index) => {
-    switch chronoItem {
-    | ChronoMessage(msg, _) =>
-      switch msg {
-      | Message.ToolCall(tc) =>
-        // Don't flush batch events here - todo_add calls interleave with their batch events
-        // and we want to batch consecutive adds together
-        pendingToolCalls.contents->Array.push((tc, index))
-      | Message.User(_) =>
-        // Flush all pending, then add user message
-        flushAll()
-        result->Array.push(UserMsg(msg, index))
-      | Message.Assistant(_) =>
-        // Flush all pending, then add assistant message
-        flushAll()
-        result->Array.push(AssistantMsg(msg, index))
+  // Process all items using reduce for better performance
+  let (result, pendingToolCalls, pendingBatchEvents) = chronoItems->Array.reduceWithIndex(
+    ([], [], []),
+    ((accResult, accToolCalls, accBatchEvents), chronoItem, index) => {
+      switch chronoItem {
+      | ChronoMessage(msg, _) =>
+        switch msg {
+        | Message.ToolCall(tc) =>
+          // Accumulate tool calls
+          (accResult, accToolCalls->Array.concat([(tc, index)]), accBatchEvents)
+        | Message.User(_) =>
+          // Flush all pending, then add user message
+          let flushedTools = flushToolCalls(accToolCalls)
+          let flushedBatch = flushBatchEvents(accBatchEvents)
+          let newItems = flushedTools
+            ->Array.concat(flushedBatch->Option.mapOr([], item => [item]))
+            ->Array.concat([UserMsg(msg, index)])
+          (accResult->Array.concat(newItems), [], [])
+        | Message.Assistant(_) =>
+          // Flush all pending, then add assistant message
+          let flushedTools = flushToolCalls(accToolCalls)
+          let flushedBatch = flushBatchEvents(accBatchEvents)
+          let newItems = flushedTools
+            ->Array.concat(flushedBatch->Option.mapOr([], item => [item]))
+            ->Array.concat([AssistantMsg(msg, index)])
+          (accResult->Array.concat(newItems), [], [])
+        }
+      | ChronoBatchEvent(event) =>
+        // Flush tool calls, then accumulate batch events
+        let flushedTools = flushToolCalls(accToolCalls)
+        let newResult = accResult->Array.concat(flushedTools)
+        (newResult, [], accBatchEvents->Array.concat([event]))
+      | ChronoStatusEvent(event) =>
+        // Flush everything first
+        let flushedTools = flushToolCalls(accToolCalls)
+        let flushedBatch = flushBatchEvents(accBatchEvents)
+        let newItems = flushedTools
+          ->Array.concat(flushedBatch->Option.mapOr([], item => [item]))
+          ->Array.concat([TodoStatus(event)])
+        (accResult->Array.concat(newItems), [], [])
       }
-    | ChronoBatchEvent(event) =>
-      // Flush tool calls, then accumulate batch events
-      flushToolCalls()
-      pendingBatchEvents.contents->Array.push(event)
-    | ChronoStatusEvent(event) =>
-      // Status events break batch grouping - flush everything first
-      flushAll()
-      result->Array.push(TodoStatus(event))
-    }
-  })
+    },
+  )
 
   // Flush any remaining items
-  flushAll()
-
+  let flushedTools = flushToolCalls(pendingToolCalls)
+  let flushedBatch = flushBatchEvents(pendingBatchEvents)
   result
+    ->Array.concat(flushedTools)
+    ->Array.concat(flushedBatch->Option.mapOr([], item => [item]))
 }
 
 // Legacy function for backwards compatibility (used in tests)
@@ -266,15 +260,17 @@ let make = () => {
 
   // Find the index of the last ToolGroup in displayItems
   // This is used to determine which group should show "Exploring..." state
-  let lastToolGroupIndex = displayItems->Array.reduceWithIndex(-1, (acc, item, idx) => {
-    switch item {
-    | ToolGroup(_, _) => idx
-    | _ => acc
-    }
-  })
+  let lastToolGroupIndex = React.useMemo1(() => {
+    displayItems->Array.reduceWithIndex(-1, (acc, item, idx) => {
+      switch item {
+      | ToolGroup(_, _) => idx
+      | _ => acc
+      }
+    })
+  }, [displayItems])
 
-  // Render a single display item
-  let renderDisplayItem = (item: displayItem, itemIndex: int) => {
+  // Render a single display item - memoized to avoid recreating on every render
+  let renderDisplayItem = React.useCallback4((item: displayItem, itemIndex: int) => {
     let isLastItem = itemIndex == totalItems - 1
     let isLastToolGroup = itemIndex == lastToolGroupIndex
 
@@ -407,7 +403,7 @@ let make = () => {
     // Handle any unexpected message types
     | UserMsg(_, _) | AssistantMsg(_, _) => React.null
     }
-  }
+  }, (totalItems, lastToolGroupIndex, displayItems, isAgentRunning))
 
   <div className="flex flex-col h-full bg-zinc-900 text-zinc-200">
     <TaskTabs />
@@ -455,3 +451,4 @@ let make = () => {
     />
   </div>
 }
+

@@ -35,11 +35,21 @@ module Content = {
   ) => React.element = "Content"
 }
 
+// Cached className for scroll button
+let scrollButtonBaseClassName = "absolute bottom-4 left-[50%] translate-x-[-50%] rounded-full w-8 h-8 flex items-center justify-center bg-zinc-800 border border-zinc-600 text-zinc-200 hover:bg-zinc-700 transition-colors"
+
 // Scroll to bottom button
 module ScrollButton = {
   @react.component
-  let make = (~className: string=?) => {
+  let make = (~className: option<string>=?) => {
     let {isAtBottom, scrollToBottom} = useStickToBottomContext()
+    
+    let buttonClassName = React.useMemo1(() => {
+      switch className {
+      | None => scrollButtonBaseClassName
+      | Some(extra) => `${scrollButtonBaseClassName} ${extra}`
+      }
+    }, [className])
     
     if isAtBottom {
       React.null
@@ -47,13 +57,7 @@ module ScrollButton = {
       <button
         type_="button"
         onClick={_ => scrollToBottom()}
-        className={[
-          "absolute bottom-4 left-[50%] translate-x-[-50%] rounded-full",
-          "w-8 h-8 flex items-center justify-center",
-          "bg-zinc-800 border border-zinc-600 text-zinc-200",
-          "hover:bg-zinc-700 transition-colors",
-          className->Option.getOr(""),
-        ]->Array.filter(s => s != "")->Array.join(" ")}
+        className={buttonClassName}
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"
@@ -73,14 +77,21 @@ module ScrollButton = {
   }
 }
 
+// Cached base className for main container
+let containerBaseClassName = "relative flex-1 overflow-y-auto"
+
 // Main component wrapper for convenient usage
 @react.component
-let make = (~className: string=?, ~children: React.element) => {
+let make = (~className: option<string>=?, ~children: React.element) => {
+  let containerClassName = React.useMemo1(() => {
+    switch className {
+    | None => containerBaseClassName
+    | Some(extra) => `${containerBaseClassName} ${extra}`
+    }
+  }, [className])
+  
   <StickToBottom
-    className={[
-      "relative flex-1 overflow-y-auto",
-      className->Option.getOr(""),
-    ]->Array.filter(s => s != "")->Array.join(" ")}
+    className={containerClassName}
     initial="smooth"
     resize="smooth"
     role="log"
@@ -89,16 +100,21 @@ let make = (~className: string=?, ~children: React.element) => {
   </StickToBottom>
 }
 
+// Cached base className for content wrapper
+let contentBaseClassName = "p-4"
+
 // Content subcomponent
 module ContentWrapper = {
   @react.component
-  let make = (~className: string=?, ~children: React.element) => {
-    <Content
-      className={[
-        "p-4",
-        className->Option.getOr(""),
-      ]->Array.filter(s => s != "")->Array.join(" ")}
-    >
+  let make = (~className: option<string>=?, ~children: React.element) => {
+    let contentClassName = React.useMemo1(() => {
+      switch className {
+      | None => contentBaseClassName
+      | Some(extra) => `${contentBaseClassName} ${extra}`
+      }
+    }, [className])
+    
+    <Content className={contentClassName}>
       {children}
     </Content>
   }

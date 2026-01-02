@@ -163,14 +163,18 @@ let make = () => {
         | _ => React.null
         }}
 
-        {allTasks
-        ->Array.map(task => {
-          let isActive = currentTaskId->Option.mapOr(false, id => id == task.id)
-          <Client__WebPreview__Body
-            key={task.id} taskId={task.id} url={task.previewFrame.url} isActive={isActive}
-          />
-        })
-        ->React.array}
+        {React.useMemo2(
+          () =>
+            allTasks
+            ->Array.map(task => {
+              let isActive = currentTaskId->Option.mapOr(false, id => id == task.id)
+              <Client__WebPreview__Body
+                key={task.id} taskId={task.id} url={task.previewFrame.url} isActive={isActive}
+              />
+            })
+            ->React.array,
+          (allTasks, currentTaskId),
+        )}
       </div>
     </Nav.Container>
 

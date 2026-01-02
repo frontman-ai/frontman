@@ -46,62 +46,65 @@ let make = () => {
     setTaskToDelete(_ => None)
   }
 
-  // Tab rendering function
-  let renderTab = (task: Client__State__StateReducer.Task.t, isEditing: bool) => {
-    let handleDoubleClick = (_e: ReactEvent.Mouse.t) => {
-      setEditingTaskId(_ => Some(task.id))
-    }
+  // Tab rendering function - memoized to avoid recreating on every render
+  let renderTab = React.useCallback2(
+    (task: Client__State__StateReducer.Task.t, isEditing: bool) => {
+      let handleDoubleClick = (_e: ReactEvent.Mouse.t) => {
+        setEditingTaskId(_ => Some(task.id))
+      }
 
-    <UI.TabsTrigger
-      key={task.id}
-      value={task.id}
-      className="min-w-[80px] max-w-[120px] px-2 flex items-center gap-2 relative group cursor-pointer bg-transparent data-[state=active]:bg-transparent"
-    >
-      {isEditing
-        ? <Input.Input
-            autoFocus={true}
-            defaultValue={task.title}
-            className="max-w-[90px] text-xs"
-            onKeyDown={e => {
-              let key = e->ReactEvent.Keyboard.key
-              if key == "Enter" {
-                let target = ReactEvent.Keyboard.target(e)
+      <UI.TabsTrigger
+        key={task.id}
+        value={task.id}
+        className="min-w-[80px] max-w-[120px] px-2 flex items-center gap-2 relative group cursor-pointer bg-transparent data-[state=active]:bg-transparent"
+      >
+        {isEditing
+          ? <Input.Input
+              autoFocus={true}
+              defaultValue={task.title}
+              className="max-w-[90px] text-xs"
+              onKeyDown={e => {
+                let key = e->ReactEvent.Keyboard.key
+                if key == "Enter" {
+                  let target = ReactEvent.Keyboard.target(e)
+                  let newTitle = target["value"]->String.trim
+                  if String.length(newTitle) > 0 {
+                    Client__State.Actions.updateTaskTitle(~taskId=task.id, ~title=newTitle)
+                  }
+                  setEditingTaskId(_ => None)
+                  ReactEvent.Keyboard.preventDefault(e)
+                } else if key == "Escape" {
+                  setEditingTaskId(_ => None)
+                  ReactEvent.Keyboard.preventDefault(e)
+                }
+              }}
+              onBlur={e => {
+                let target = ReactEvent.Focus.target(e)
                 let newTitle = target["value"]->String.trim
                 if String.length(newTitle) > 0 {
                   Client__State.Actions.updateTaskTitle(~taskId=task.id, ~title=newTitle)
                 }
                 setEditingTaskId(_ => None)
-                ReactEvent.Keyboard.preventDefault(e)
-              } else if key == "Escape" {
-                setEditingTaskId(_ => None)
-                ReactEvent.Keyboard.preventDefault(e)
-              }
-            }}
-            onBlur={e => {
-              let target = ReactEvent.Focus.target(e)
-              let newTitle = target["value"]->String.trim
-              if String.length(newTitle) > 0 {
-                Client__State.Actions.updateTaskTitle(~taskId=task.id, ~title=newTitle)
-              }
-              setEditingTaskId(_ => None)
-            }}
-          />
-        : <>
-            <span
-              className="truncate max-w-[90px] text-xs cursor-pointer"
-              onDoubleClick={handleDoubleClick}
-            >
-              {React.string(task.title)}
-            </span>
-            <span
-              className="ml-auto p-0.5 rounded-sm opacity-0 group-hover:opacity-100 data-[state=active]:opacity-100 hover:bg-accent transition-opacity duration-150 cursor-pointer"
-              onClick={e => handleDeleteClick(e, task.id)}
-            >
-              <Icons.Cross2Icon style={{"width": "14px", "height": "14px"}} />
-            </span>
-          </>}
-    </UI.TabsTrigger>
-  }
+              }}
+            />
+          : <>
+              <span
+                className="truncate max-w-[90px] text-xs cursor-pointer"
+                onDoubleClick={handleDoubleClick}
+              >
+                {React.string(task.title)}
+              </span>
+              <span
+                className="ml-auto p-0.5 rounded-sm opacity-0 group-hover:opacity-100 data-[state=active]:opacity-100 hover:bg-accent transition-opacity duration-150 cursor-pointer"
+                onClick={e => handleDeleteClick(e, task.id)}
+              >
+                <Icons.Cross2Icon style={{"width": "14px", "height": "14px"}} />
+              </span>
+            </>}
+      </UI.TabsTrigger>
+    },
+    (setEditingTaskId, handleDeleteClick),
+  )
 
   // Main render
   <div className="h-12 border-b">

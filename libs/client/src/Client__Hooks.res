@@ -457,12 +457,16 @@ module MouseMove = {
   let useIFrameDocument = (~document: option<WebAPI.DOMAPI.document>, ~withCapture=false, ()) => {
     let (state, setState) = React.useState(() => None)
     let stateRef = React.useRef(state)
+    let rafIdRef = React.useRef(None)
+    let pendingTargetRef = React.useRef(None)
+    
     React.useEffect(() => {
       stateRef.current = state
       None
     }, [state])
 
     React.useEffect(() => {
+      // Throttle mousemove events using requestAnimationFrame for better performance
       let onMouseMove = ev => {
         let target = WebAPI.MouseEvent.asMouseEvent(ev).target
 
@@ -473,9 +477,23 @@ module MouseMove = {
             | Some(el) => el != target
             }
         ) {
-          setState(_ => Some(target))
+          // Store the pending target
+          pendingTargetRef.current = Some(target)
+          
+          // Cancel any existing pending update
+          rafIdRef.current->Option.forEach(id => WebAPI.Global.cancelAnimationFrame(id))
+          
+          // Schedule update using RAF
+          let rafId = WebAPI.Global.requestAnimationFrame(_timestamp => {
+            pendingTargetRef.current->Option.forEach(pendingTarget => {
+              setState(_ => Some(pendingTarget))
+              pendingTargetRef.current = None
+            })
+          })
+          rafIdRef.current = Some(rafId)
         }
       }
+      
       document->Option.map(document => {
         WebAPI.Document.addEventListener(
           document,
@@ -496,6 +514,9 @@ module MouseMove = {
           Some(document),
         )->Option.ignore
         () => {
+          // Cancel any pending animation frame
+          rafIdRef.current->Option.forEach(id => WebAPI.Global.cancelAnimationFrame(id))
+          
           WebAPI.Document.removeEventListener(
             document,
             Custom("mousemove"),
@@ -825,10 +846,20 @@ let useIsOnline = () => {
 module Scroll = {
   let useIFrameDocument = (~document: option<WebAPI.DOMAPI.document>, ~withCapture=false, ()) => {
     let (scrollTimestamp, setScrollTimestamp) = React.useState(() => Js.Date.now())
+    let rafIdRef = React.useRef(None)
+    let isScheduledRef = React.useRef(false)
 
     React.useEffect(() => {
+      // Throttle scroll events using requestAnimationFrame for better performance
       let onScroll = _ev => {
-        setScrollTimestamp(_ => Js.Date.now())
+        if !isScheduledRef.current {
+          isScheduledRef.current = true
+          let rafId = WebAPI.Global.requestAnimationFrame(_timestamp => {
+            setScrollTimestamp(_ => Js.Date.now())
+            isScheduledRef.current = false
+          })
+          rafIdRef.current = Some(rafId)
+        }
       }
 
       document
@@ -853,6 +884,9 @@ module Scroll = {
         )->Option.ignore
 
         () => {
+          // Cancel any pending animation frame
+          rafIdRef.current->Option.forEach(id => WebAPI.Global.cancelAnimationFrame(id))
+          
           WebAPI.Document.removeEventListener(
             document,
             Custom("scroll"),

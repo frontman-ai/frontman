@@ -14,19 +14,24 @@ let make = (~document) => {
   let clickedElement = Client__Hooks.MouseClick.useIFrameDocument(~document, ~withCapture=false, ())
   let hoveredElement = Client__Hooks.MouseMove.useIFrameDocument(~document, ~withCapture=true, ())
 
-  React.useEffect(() => {
-    // Handle mode transitions
-    let justEnteredSelectionMode = webPreviewIsSelecting && !wasSelecting.current
-    let justExitedSelectionMode = !webPreviewIsSelecting && wasSelecting.current
-
-    if justEnteredSelectionMode {
+  // Split effect: Handle mode transitions separately from click handling
+  // This prevents unnecessary effect runs when only clickedElement changes
+  React.useEffect1(() => {
+    if webPreviewIsSelecting && !wasSelecting.current {
+      // Entering selection mode
       lastProcessedClick.current = clickedElement
       wasSelecting.current = true
-    } else if justExitedSelectionMode {
+    } else if !webPreviewIsSelecting && wasSelecting.current {
+      // Exiting selection mode
       lastProcessedClick.current = None
       wasSelecting.current = false
-    } else if webPreviewIsSelecting {
-      // In selection mode, handle clicks
+    }
+    None
+  }, [webPreviewIsSelecting])
+
+  // Separate effect for handling clicks in selection mode
+  React.useEffect2(() => {
+    if webPreviewIsSelecting {
       clickedElement->Option.forEach(target => {
         let isNewClick = switch (lastProcessedClick.current, clickedElement) {
         | (Some(lastClick), Some(currentClick)) => lastClick !== currentClick
