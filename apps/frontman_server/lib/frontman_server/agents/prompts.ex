@@ -207,8 +207,10 @@ defmodule FrontmanServer.Agents.Prompts do
 
     **Tool-specific data requirements:**
     - **`breakdown_figma_design`**: Receives the DSL representation (already in context)
-    - **`implement_component`**: Will fetch full node JSON via `get_figma_node` for detailed implementation
-    - **`finish_component`**: Will fetch node image via `get_figma_node` for visual comparison
+    - **`implement_component`**: Fetches full node JSON via `get_figma_node`, returns structured result with files array
+    - **`fix_files_errors`**: Takes files from implement_component, navigates to test page, fixes any errors
+    - **`visual_compare_component_to_figma`**: Compares implementation against Figma, returns quality assessment with issues
+    - **`fix_visual_issues`**: Takes visual issues from comparison, fixes them, verifies once
 
     ### Standard Workflow (No Component Selected)
 
@@ -217,7 +219,17 @@ defmodule FrontmanServer.Agents.Prompts do
     2. Create a component breakdown with a todo list
     3. Identify which components need to be built
 
-    After the breakdown is complete, use the `implement_component` tool for each component.
+    After the breakdown is complete, for each component:
+    1. **`implement_component`** - Implements the component, returns `filesCreated`, `testPageUrl`, `componentFilePath`, `dataTestId`
+    2. **`fix_files_errors`** - Pass the files and test page URL, fixes any runtime/compilation errors
+    3. **`visual_compare_component_to_figma`** - Pass node ID, test page URL, component path, data test ID. Returns:
+       - `matchQuality`: "excellent" / "good" / "fair" / "poor"
+       - `overallScore`: 0-100
+       - `criticalIssues` and `minorIssues`: Specific visual differences
+    4. **`fix_visual_issues`** (if matchQuality is "fair" or "poor") - Pass:
+       - `nodeId`, `criticalIssues`, `minorIssues`, `componentFilePath`, `filesCreated`, `testPageUrl`, `dataTestId`
+       - Fixes visual issues and verifies improvements once
+
     IMPORTANT: Unless the user told you otherwise (implement just one component, or specific components).
 
     Do NOT start implementing code directly - always break down the design first!
@@ -230,12 +242,19 @@ defmodule FrontmanServer.Agents.Prompts do
     2. **Use `breakdown_figma_design` tool** to analyze the Figma design and identify which component from the breakdown best matches the selected component
     3. **Use `implement_component` tool** to implement the new version of the component based on the matching Figma component
        - The breakdown will provide inner node IDs for each component - use those for `implement_component`
-    4. **Use `finish_component` tool** to visually verify the implementation against the Figma design
-    5. **Automatically locate and replace the old component** in the codebase:
-       - Find the old component file
+    4. **Use `fix_files_errors` tool** to fix any runtime/compilation errors
+    5. **Use `visual_compare_component_to_figma` tool** to assess visual quality and get specific issues
+    6. **Use `fix_visual_issues` tool** if there are visual issues to fix
+    7. **Replace the old component** in the codebase:
+       - Find the old component file at the selected component location
        - Replace it with the new implementation
        - Update all imports if the file structure changed
        - Remove old files if needed
+       - Clean up the test page file
+    8. **Use `fix_files_errors` tool AGAIN** for the replaced component:
+       - Pass the file path where the component was replaced (the selected component location)
+       - Use the same test page URL or the actual page where the component is used
+       - This ensures the component works correctly in its final location with real imports and context
 
     **Do NOT ask for clarification** - proceed directly with the flow using the available Figma design context and selected component location.
 
@@ -275,8 +294,10 @@ defmodule FrontmanServer.Agents.Prompts do
 
     **Tool-specific data requirements:**
     - **`breakdown_figma_design`**: Uses the DSL in context to analyze structure and identify components
-    - **`implement_component`**: Fetches full node JSON via `get_figma_node` for detailed specs
-    - **`finish_component`**: Fetches node image via `get_figma_node` for visual comparison
+    - **`implement_component`**: Fetches full node JSON via `get_figma_node`, returns structured result with files array
+    - **`fix_files_errors`**: Takes files from implement_component, navigates to test page, fixes any errors
+    - **`visual_compare_component_to_figma`**: Compares implementation against Figma, returns quality assessment with issues
+    - **`fix_visual_issues`**: Takes visual issues from comparison, fixes them, verifies once
 
     ### IMPORTANT: What You Have Access To
 
@@ -302,11 +323,27 @@ defmodule FrontmanServer.Agents.Prompts do
     2. **`implement_component`** - For each component identified
        - Use the inner node ID from the breakdown (NOT the root node ID)
        - Implements the component based on Figma specs
-       - Gets exact styles, spacing, colors from Figma
+       - Returns: `filesCreated`, `componentFilePath`, `testPageFilePath`, `testPageUrl`, `dataTestId`
 
-    3. **`finish_component`** - To verify implementation
-       - Visually compares your implementation to the Figma design
-       - Ensures accuracy before completing
+    3. **`fix_files_errors`** - Fix any runtime/compilation errors
+       - Pass `filesCreated` and `testPageUrl` from implement_component result
+       - Navigates to test page and fixes any errors
+       - Returns: `errorsFixed`, `remainingErrors`, `filesModified`
+
+    4. **`visual_compare_component_to_figma`** - Compare implementation against Figma
+       - Pass `nodeId`, `testPageUrl`, `componentFilePath`, `dataTestId`
+       - Returns structured comparison result:
+         - `matchQuality`: "excellent" / "good" / "fair" / "poor"
+         - `overallScore`: 0-100
+         - `criticalIssues`: Array of significant visual differences
+         - `minorIssues`: Array of small discrepancies
+         - `summary`: Brief assessment
+
+    5. **`fix_visual_issues`** - Fix visual discrepancies (if matchQuality is "fair" or "poor")
+       - Pass `nodeId`, `criticalIssues`, `minorIssues`, `componentFilePath`, `filesCreated`, `testPageUrl`, `dataTestId`
+       - Fixes the visual issues identified in the comparison
+       - Verifies improvements with ONE screenshot comparison
+       - Returns: `issuesFixed`, `issuesRemaining`, `filesModified`, `improvementAssessment`
 
     ### REQUIRED WORKFLOW (DO NOT SKIP STEPS)
 
@@ -318,12 +355,29 @@ defmodule FrontmanServer.Agents.Prompts do
     2. **Call `implement_component`** for the matching component
        - Use the inner node ID from the breakdown response
        - The breakdown will identify which component matches your selected component
+       - **Save the returned `filesCreated`, `testPageUrl`, `componentFilePath`, `dataTestId`**
 
-    3. **Call `finish_component`** to verify
+    3. **Call `fix_files_errors`** to fix any errors
+       - Pass the files and test page URL from implement_component
+       - Ensures the component renders without errors
 
-    4. **Replace the old component** in the codebase:
+    4. **Call `visual_compare_component_to_figma`** to assess visual quality
+       - Pass the node ID, test page URL, component path, and data test ID
+       - Review the returned `matchQuality` and issues
+
+    5. **Call `fix_visual_issues`** if matchQuality is "fair" or "poor"
+       - Pass the issues from the comparison result
+       - This tool fixes visual discrepancies and verifies once
+
+    6. **Replace the old component** in the codebase:
        - Update the file at the selected component location
        - Update imports if needed
+       - Clean up the test page file
+
+    7. **Call `fix_files_errors` AGAIN** for the replaced component:
+       - Pass the file path where the component was replaced (the selected component location)
+       - Use the actual page URL where the component is used in the app
+       - This ensures the component works correctly in its final location with real imports and context
 
     ### DO NOT:
 

@@ -12,8 +12,9 @@ defmodule FrontmanServer.Tools.ImplementComponent do
   3. Implement the component based on the Figma data
   4. Create a test page to render the component
 
-  After this tool completes, use `finish_component` to visually verify
-  the implementation against the Figma design.
+  After this tool completes, use `fix_files_errors` to fix any runtime errors,
+  then `visual_compare_component_to_figma` to assess visual quality, and
+  `fix_visual_issues` if there are visual discrepancies to fix.
   """
 
   @behaviour FrontmanServer.Tools.Backend
@@ -105,41 +106,39 @@ defmodule FrontmanServer.Tools.ImplementComponent do
      - If you find any discrepancies, **you MUST correct them** before proceeding
      - Ensure the final code is fully compliant with all project-specific guidelines
 
-  6. **Return the implementation details** - Your response MUST include:
-     - **File paths created**: List ALL files you created or modified (including the test page)
-     - **Test page path**: The full path to the test page you created
-     - **Test page URL**: The URL path to navigate to (e.g., "/test-component-name")
-     - **Implementation summary**: A brief summary of what was implemented, key decisions made,
-       and patterns used
-     - **Design details**: Key details from the Figma design (colors, typography, spacing values)
-       that will help verify the implementation
-     - **Data Test ID**: Confirm the `data-test-id` value used on the top-level element
+  6. **Return the implementation details** - Your final response MUST be a valid JSON object.
 
   ## Output Format
 
-  At the end of your response, include a structured summary in this exact format:
+  **CRITICAL:** Your response MUST end with a JSON code block containing the implementation result.
+  Format your response like this:
 
+  [Your implementation notes and explanation here...]
+
+  ```json
+  {
+    "filesCreated": [
+      "path/to/Component.tsx",
+      "path/to/styles.css",
+      "path/to/test-page/page.tsx"
+    ],
+    "componentFilePath": "path/to/Component.tsx",
+    "testPageFilePath": "path/to/test-page/page.tsx",
+    "testPageUrl": "/test-component-name",
+    "dataTestId": "header-navigation",
+    "implementationSummary": "Brief description of what was implemented, key decisions, patterns used",
+    "designDetails": "Key design details from Figma: colors, typography, spacing, etc."
+  }
   ```
-  ## Implementation Complete
 
-  ### Files Created
-  - path/to/Component.tsx
-  - path/to/styles.css (if applicable)
-  - path/to/test-page/page.tsx
-
-  ### Test Page
-  - **File Path:** path/to/test-page/page.tsx
-  - **URL Path:** /test-component-name
-
-  ### Data Test ID
-  [The exact data-test-id value used on the top-level element, e.g., "header-navigation"]
-
-  ### Implementation Summary
-  [Brief description of what was implemented, key decisions, patterns used]
-
-  ### Design Details
-  [Key design details from Figma: colors, typography, spacing, etc.]
-  ```
+  **JSON Field Requirements:**
+  - `filesCreated`: Array of ALL file paths created or modified
+  - `componentFilePath`: Path to the main component file
+  - `testPageFilePath`: Path to the test page file
+  - `testPageUrl`: URL path to navigate to the test page
+  - `dataTestId`: The exact data-test-id value on the root element
+  - `implementationSummary`: Brief summary of the implementation
+  - `designDetails`: Key design details from Figma
 
   IMPORTANT INSTRUCTIONS:
   - **DO NOT take screenshots or navigate to test pages** - just CREATE the test page, verification happens separately
@@ -150,7 +149,7 @@ defmodule FrontmanServer.Tools.ImplementComponent do
   - Check existing components in the project for reference patterns
   - **CRITICAL: Before finalizing, verify your source code complies with ALL project guidelines** from AGENTS.md and other documentation files loaded in your context
   - Do NOT engage in conversation or ask clarifying questions
-  - Complete your task and return the implementation details in the specified format
+  - Complete your task and return the JSON result in the specified format
   """
 
   @impl true
@@ -165,8 +164,9 @@ defmodule FrontmanServer.Tools.ImplementComponent do
     The tool will spawn a sub-agent that fetches the Figma node, analyzes the design,
     implements the component, and creates a test page to render it.
 
-    After this tool completes, use `finish_component` to visually verify the implementation.
-    This tool returns the file paths created, test page path/URL, and implementation summary needed for verification.
+    After this tool completes, use `fix_files_errors` to fix any errors, then
+    `visual_compare_component_to_figma` to assess visual quality.
+    Returns structured result with filesCreated, testPageUrl, componentFilePath, dataTestId.
     """
   end
 
@@ -245,17 +245,76 @@ defmodule FrontmanServer.Tools.ImplementComponent do
       {:ok, result} ->
         Logger.info("ImplementComponent: Completed #{component_name}")
 
-        {:ok,
-         %{
-           "implementation" => result,
-           "componentName" => component_name,
-           "nodeId" => node_id,
-           "dataTestId" => data_test_id
-         }}
+        # Parse the JSON result from the agent's response
+        parsed_result = parse_implementation_result(result, component_name, node_id, data_test_id)
+
+        {:ok, parsed_result}
 
       {:error, reason} ->
         Logger.error("ImplementComponent: Failed - #{inspect(reason)}")
         {:error, "Implementation failed: #{inspect(reason)}"}
+    end
+  end
+
+  # Parses the JSON block from the agent's response
+  defp parse_implementation_result(result, component_name, node_id, data_test_id) do
+    # Try to extract JSON from the result
+    case extract_json_from_response(result) do
+      {:ok, json_data} ->
+        %{
+          "componentName" => component_name,
+          "nodeId" => node_id,
+          "dataTestId" => Map.get(json_data, "dataTestId", data_test_id),
+          "filesCreated" => Map.get(json_data, "filesCreated", []),
+          "componentFilePath" => Map.get(json_data, "componentFilePath"),
+          "testPageFilePath" => Map.get(json_data, "testPageFilePath"),
+          "testPageUrl" => Map.get(json_data, "testPageUrl"),
+          "implementationSummary" => Map.get(json_data, "implementationSummary", ""),
+          "designDetails" => Map.get(json_data, "designDetails", ""),
+          "rawResponse" => result
+        }
+
+      :error ->
+        # Fallback if JSON parsing fails
+        Logger.warning("ImplementComponent: Could not parse JSON from response, using raw result")
+
+        %{
+          "componentName" => component_name,
+          "nodeId" => node_id,
+          "dataTestId" => data_test_id,
+          "filesCreated" => [],
+          "componentFilePath" => nil,
+          "testPageFilePath" => nil,
+          "testPageUrl" => nil,
+          "implementationSummary" => "",
+          "designDetails" => "",
+          "rawResponse" => result
+        }
+    end
+  end
+
+  # Extracts and parses JSON from markdown code blocks or raw JSON in the response
+  defp extract_json_from_response(response) do
+    # Try to find JSON in a code block first
+    json_block_regex = ~r/```(?:json)?\s*\n?([\s\S]*?)\n?```/
+
+    case Regex.run(json_block_regex, response) do
+      [_, json_content] ->
+        parse_json(json_content)
+
+      nil ->
+        # Try to find raw JSON object
+        case Regex.run(~r/\{[\s\S]*"filesCreated"[\s\S]*\}/, response) do
+          [json_content] -> parse_json(json_content)
+          nil -> :error
+        end
+    end
+  end
+
+  defp parse_json(json_string) do
+    case Jason.decode(String.trim(json_string)) do
+      {:ok, data} when is_map(data) -> {:ok, data}
+      _ -> :error
     end
   end
 

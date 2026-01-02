@@ -78,8 +78,9 @@ defmodule FrontmanServer.Tools.BreakdownFigmaDesign do
     components that should be built separately.
 
     The output is a todo list of components with their node IDs, descriptions,
-    and suggested build order. Use these node IDs with `implement_component` and
-    `finish_component` tools, which will fetch full node data via `get_figma_node`.
+    and suggested build order. Use these node IDs with `implement_component`,
+    `fix_files_errors`, `visual_compare_component_to_figma`, and `fix_visual_issues`
+    tools, which will fetch full node data via `get_figma_node`.
     """
   end
 

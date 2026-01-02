@@ -32,7 +32,7 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     When `is_dsl` is false:
     - The `node` field contains full JSON node data from get_figma_node
-    - Used by `implement_component`, `finish_component`, etc. for detailed implementation
+    - Used by `implement_component`, `visual_compare_component_to_figma`, etc. for detailed implementation
     """
     use TypedStruct
 

@@ -17,7 +17,9 @@ defmodule FrontmanServer.Tools do
     FrontmanServer.Tools.TodoRemove,
     FrontmanServer.Tools.BreakdownFigmaDesign,
     FrontmanServer.Tools.ImplementComponent,
-    FrontmanServer.Tools.FinishComponent,
+    FrontmanServer.Tools.FixFilesErrors,
+    FrontmanServer.Tools.VisualCompareComponentToFigma,
+    FrontmanServer.Tools.FixVisualIssues,
     FrontmanServer.Tools.MakeComponentPixelPerfect
   ]
 
