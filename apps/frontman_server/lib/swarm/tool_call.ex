@@ -1,15 +1,29 @@
 defmodule Swarm.ToolCall do
   @moduledoc """
-  Represents a tool call from the LLM.
+  Represents a tool call from the LLM and its result.
 
   Simple, flat structure. Adapters translate from provider formats.
+  The result field is populated after the tool has been executed.
   """
   use TypedStruct
 
-  typedstruct enforce: true do
-    field :id, String.t()
-    field :name, String.t()
-    field :arguments, String.t()
+  alias Swarm.ToolResult
+
+  typedstruct do
+    field :id, String.t(), enforce: true
+    field :name, String.t(), enforce: true
+    field :arguments, String.t(), enforce: true
+    field :result, ToolResult.t()
+  end
+
+  @doc "Returns true if the tool call has a result."
+  @spec completed?(t()) :: boolean()
+  def completed?(%__MODULE__{result: result}), do: result != nil
+
+  @doc "Adds a result to the tool call."
+  @spec with_result(t(), ToolResult.t()) :: t()
+  def with_result(%__MODULE__{} = tc, %ToolResult{} = result) do
+    %{tc | result: result}
   end
 
   @doc """

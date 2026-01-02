@@ -211,4 +211,61 @@ defmodule FrontmanServer.SwarmCase do
       step_timeout_ms: Keyword.get(opts, :step_timeout_ms, 30_000)
     }
   end
+
+  @doc """
+  Creates a multi-turn LLM that returns tool calls first, then completes.
+
+  ## Example
+
+      llm = multi_turn_llm([
+        {:tool_calls, [%ToolCall{...}], "Let me check"},
+        {:complete, "Here's the result"}
+      ])
+  """
+  def multi_turn_llm(responses) do
+    {:ok, agent} = Agent.start_link(fn -> responses end)
+
+    %MockLLM{
+      response: fn ->
+        case Agent.get_and_update(agent, fn
+               [h | t] -> {h, t}
+               [] -> {nil, []}
+             end) do
+          {:tool_calls, tcs, content} ->
+            {:ok,
+             %LLM.Response{
+               content: content,
+               tool_calls: tcs,
+               usage: %{input_tokens: 10, output_tokens: 5},
+               raw: nil
+             }}
+
+          {:complete, content} ->
+            {:ok,
+             %LLM.Response{
+               content: content,
+               tool_calls: [],
+               usage: %{input_tokens: 10, output_tokens: 5},
+               raw: nil
+             }}
+
+          {:error, reason} ->
+            {:error, reason}
+
+          nil ->
+            {:error, :no_more_responses}
+        end
+      end
+    }
+  end
+
+  @doc """
+  Creates an LLM that returns tool calls on first call, then a final response.
+  """
+  def tool_then_complete_llm(tool_calls, final_response) do
+    multi_turn_llm([
+      {:tool_calls, tool_calls, "Calling tools..."},
+      {:complete, final_response}
+    ])
+  end
 end

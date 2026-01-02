@@ -40,7 +40,7 @@ defmodule Swarm do
     {:ok, %{pid: pid, execution_id: exec_id}} =
       ExecutionProcess.start_async(agent, message, opts, subscriber)
 
-    {:ok, %Swarm.Execution{id: exec_id, pid: pid}}
+    {:ok, %Swarm.Execution{id: exec_id, pid: pid, agent: agent}}
   end
 
   @doc """
@@ -77,5 +77,25 @@ defmodule Swarm do
     after
       timeout -> {:error, :timeout}
     end
+  end
+
+  @doc """
+  Sends a tool result to an execution.
+
+  Call this after receiving a `ToolCallRequested` event and executing the tool.
+
+  ## Example
+
+      receive do
+        {:swarm, _id, %Events.ToolCallRequested{tool_call: tc}} ->
+          result = execute_my_tool(tc)
+          Swarm.notify_tool_result(execution, tc.id, result, false)
+      end
+  """
+  @spec notify_tool_result(Swarm.Execution.t(), String.t(), String.t(), boolean()) :: :ok
+  def notify_tool_result(%Swarm.Execution{pid: pid}, tool_call_id, content, is_error \\ false) do
+    result = %Swarm.ToolResult{id: tool_call_id, content: content, is_error: is_error}
+    send(pid, {:tool_result, result})
+    :ok
   end
 end

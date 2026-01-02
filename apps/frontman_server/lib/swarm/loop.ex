@@ -13,7 +13,7 @@ defmodule Swarm.Loop do
   alias Swarm.Loop.Step
   use TypedStruct
 
-  @type status :: :ready | :running | :completed | :failed | :paused | :max_steps
+  @type status :: :ready | :running | :waiting_for_tools | :completed | :failed | :paused | :max_steps
   typedstruct do
     field :id, Swarm.Id.t(), enforce: true
     field :agent, Swarm.Agent.t(), enforce: true
@@ -84,6 +84,46 @@ defmodule Swarm.Loop do
     %{loop | status: :failed, error: error}
   end
 
+  @doc """
+  Transitions to :waiting_for_tools with tool calls from the response.
+  """
+  @spec wait_for_tools(__MODULE__.t(), Swarm.LLM.Response.t()) :: __MODULE__.t()
+  def wait_for_tools(%__MODULE__{status: :running, steps: steps} = loop, response)
+      when steps != [] do
+    updated_steps = List.update_at(steps, -1, &Step.record_response(&1, response))
+    %{loop | status: :waiting_for_tools, steps: updated_steps}
+  end
+
+  @doc """
+  Adds a tool result to the current step.
+  """
+  @spec add_tool_result(__MODULE__.t(), Swarm.ToolResult.t()) ::
+          {:ok, __MODULE__.t()} | {:error, term()}
+  def add_tool_result(%__MODULE__{status: :waiting_for_tools, steps: steps} = loop, result)
+      when steps != [] do
+    current_step = List.last(steps)
+
+    case Step.add_tool_result(current_step, result) do
+      {:ok, updated_step} ->
+        updated_steps = List.replace_at(steps, -1, updated_step)
+        {:ok, %{loop | steps: updated_steps}}
+
+      {:error, _} = error ->
+        error
+    end
+  end
+
+  def add_tool_result(%__MODULE__{status: status}, _result) do
+    {:error, {:invalid_status, status}}
+  end
+
+  @doc """
+  Returns the current step.
+  """
+  @spec current_step(__MODULE__.t()) :: Step.t() | nil
+  def current_step(%__MODULE__{steps: []}), do: nil
+  def current_step(%__MODULE__{steps: steps}), do: List.last(steps)
+
   # --- Public API for Execution ---
 
   @doc """
@@ -115,5 +155,16 @@ defmodule Swarm.Loop do
   @spec handle_error(__MODULE__.t(), term()) :: {__MODULE__.t(), [Swarm.Effect.t()]}
   def handle_error(%__MODULE__{} = loop, error) do
     Swarm.Loop.Runner.handle_llm_error(loop, error)
+  end
+
+  @doc """
+  Handles a tool result and returns effects.
+
+  This is the public API for processing tool results.
+  """
+  @spec handle_tool_result(__MODULE__.t(), Swarm.ToolResult.t()) ::
+          {__MODULE__.t(), [Swarm.Effect.t()]}
+  def handle_tool_result(%__MODULE__{status: :waiting_for_tools} = loop, result) do
+    Swarm.Loop.Runner.handle_tool_result(loop, result)
   end
 end

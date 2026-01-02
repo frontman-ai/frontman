@@ -117,6 +117,13 @@ defmodule Swarm.ExecutionProcess do
     process_effects(effects, %{state | loop: loop})
   end
 
+  # Handle tool result
+  @impl true
+  def handle_info({:tool_result, %Swarm.ToolResult{} = result}, state) do
+    {loop, effects} = Loop.handle_tool_result(state.loop, result)
+    process_effects(effects, %{state | loop: loop})
+  end
+
   # --- Effect Interpreter ---
 
   defp process_effects([], state), do: {:noreply, state}
@@ -134,6 +141,16 @@ defmodule Swarm.ExecutionProcess do
   end
 
   defp execute_effect({:emit_event, event}, state) do
+    send(state.subscriber, {:swarm, state.loop.id, event})
+    {:continue, state}
+  end
+
+  defp execute_effect({:execute_tool, %Swarm.ToolCall{} = tool_call}, state) do
+    event = %Swarm.Events.ToolCallRequested{
+      execution_id: state.loop.id,
+      tool_call: tool_call
+    }
+
     send(state.subscriber, {:swarm, state.loop.id, event})
     {:continue, state}
   end

@@ -25,6 +25,7 @@ defmodule Swarm.Loop.Step do
     field :input_messages, [map()], default: []
     field :content, String.t()
     field :usage, usage()
+    field :tool_calls, [Swarm.ToolCall.t()], default: []
     field :started_at, DateTime.t(), enforce: true
     field :completed_at, DateTime.t()
     field :duration_ms, non_neg_integer()
@@ -47,5 +48,47 @@ defmodule Swarm.Loop.Step do
       input_messages: input_messages,
       started_at: DateTime.utc_now()
     }
+  end
+
+  @doc "Records the LLM response on this step, including any tool calls."
+  @spec record_response(t(), Swarm.LLM.Response.t()) :: t()
+  def record_response(%__MODULE__{} = step, %Swarm.LLM.Response{} = response) do
+    %{step | content: response.content, usage: response.usage, tool_calls: response.tool_calls}
+  end
+
+  @doc "Returns true if any tool calls are pending (no result yet)."
+  @spec has_pending_tools?(t()) :: boolean()
+  def has_pending_tools?(%__MODULE__{tool_calls: calls}) do
+    Enum.any?(calls, &(not Swarm.ToolCall.completed?(&1)))
+  end
+
+  @doc "Returns true if there are tool calls and all have results."
+  @spec all_tools_complete?(t()) :: boolean()
+  def all_tools_complete?(%__MODULE__{tool_calls: []}), do: true
+
+  def all_tools_complete?(%__MODULE__{tool_calls: calls}) do
+    Enum.all?(calls, &Swarm.ToolCall.completed?/1)
+  end
+
+  @doc "Adds a result to the tool call with matching ID."
+  @spec add_tool_result(t(), Swarm.ToolResult.t()) ::
+          {:ok, t()} | {:error, :not_found | :already_completed}
+  def add_tool_result(%__MODULE__{tool_calls: calls} = step, %Swarm.ToolResult{id: id} = result) do
+    with {:ok, index} <- find_index(calls, id),
+         tc = Enum.at(calls, index),
+         false <- Swarm.ToolCall.completed?(tc) do
+      updated_tc = Swarm.ToolCall.with_result(tc, result)
+      {:ok, %{step | tool_calls: List.replace_at(calls, index, updated_tc)}}
+    else
+      :error -> {:error, :not_found}
+      true -> {:error, :already_completed}
+    end
+  end
+
+  defp find_index(calls, id) do
+    case Enum.find_index(calls, &(&1.id == id)) do
+      nil -> :error
+      index -> {:ok, index}
+    end
   end
 end

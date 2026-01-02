@@ -28,5 +28,14 @@ defmodule Swarm.Events do
     end
   end
 
-  @type event :: Started.t() | Completed.t() | Failed.t()
+  defmodule ToolCallRequested do
+    use TypedStruct
+
+    typedstruct do
+      field :execution_id, Swarm.Id.t()
+      field :tool_call, Swarm.ToolCall.t()
+    end
+  end
+
+  @type event :: Started.t() | Completed.t() | Failed.t() | ToolCallRequested.t()
 end

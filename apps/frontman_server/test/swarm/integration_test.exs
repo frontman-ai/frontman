@@ -88,4 +88,79 @@ defmodule Swarm.IntegrationTest do
       assert {:ok, "Response"} = Swarm.await(execution)
     end
   end
+
+  describe "multi-turn tool flow" do
+    test "LLM → tool call → tool result → LLM → complete" do
+      tc = %Swarm.ToolCall{id: "tc_1", name: "get_data", arguments: ~s({"key":"value"})}
+
+      llm =
+        multi_turn_llm([
+          {:tool_calls, [tc], "Let me fetch that"},
+          {:complete, "Here's the data: processed_result"}
+        ])
+
+      agent = test_agent(llm)
+
+      {:ok, execution} = Swarm.start(agent, "Get my data")
+
+      # 1. Started
+      assert_receive {:swarm, _, %Events.Started{message: "Get my data"}}, 1000
+
+      # 2. Tool call requested
+      assert_receive {:swarm, _, %Events.ToolCallRequested{tool_call: received_tc}}, 1000
+      assert received_tc.id == "tc_1"
+      assert received_tc.name == "get_data"
+
+      # 3. Provide tool result
+      Swarm.notify_tool_result(execution, "tc_1", "processed_result", false)
+
+      # 4. Completed
+      assert_receive {:swarm, _, %Events.Completed{result: result}}, 1000
+      assert result =~ "processed_result"
+    end
+
+    test "handles multiple parallel tool calls" do
+      tc1 = %Swarm.ToolCall{id: "tc_1", name: "tool_a", arguments: "{}"}
+      tc2 = %Swarm.ToolCall{id: "tc_2", name: "tool_b", arguments: "{}"}
+
+      llm =
+        multi_turn_llm([
+          {:tool_calls, [tc1, tc2], "Calling two tools"},
+          {:complete, "Combined: result_a + result_b"}
+        ])
+
+      agent = test_agent(llm)
+
+      {:ok, execution} = Swarm.start(agent, "Test")
+
+      assert_receive {:swarm, _, %Events.Started{}}, 1000
+      assert_receive {:swarm, _, %Events.ToolCallRequested{tool_call: %{id: "tc_1"}}}, 1000
+      assert_receive {:swarm, _, %Events.ToolCallRequested{tool_call: %{id: "tc_2"}}}, 1000
+
+      # Order shouldn't matter
+      Swarm.notify_tool_result(execution, "tc_2", "result_b", false)
+      Swarm.notify_tool_result(execution, "tc_1", "result_a", false)
+
+      assert_receive {:swarm, _, %Events.Completed{}}, 1000
+    end
+
+    test "handles error tool results" do
+      tc = %Swarm.ToolCall{id: "tc_1", name: "failing_tool", arguments: "{}"}
+
+      llm =
+        multi_turn_llm([
+          {:tool_calls, [tc], "Trying tool"},
+          {:complete, "Handled the error gracefully"}
+        ])
+
+      agent = test_agent(llm)
+
+      {:ok, execution} = Swarm.start(agent, "Test")
+
+      assert_receive {:swarm, _, %Events.ToolCallRequested{}}, 1000
+      Swarm.notify_tool_result(execution, "tc_1", "Error: something failed", true)
+
+      assert_receive {:swarm, _, %Events.Completed{}}, 1000
+    end
+  end
 end

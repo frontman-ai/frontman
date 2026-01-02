@@ -92,11 +92,63 @@ defmodule Swarm.Loop.Runner do
   end
 
   defp handle_tool_calls(loop, response) do
-    # TODO: Track pending tools in loop state, update step with response
-    # For now, just emit execute_tool effects
+    loop = Loop.wait_for_tools(loop, response)
     tool_effects = Enum.map(response.tool_calls, &{:execute_tool, &1})
 
     {loop, tool_effects}
+  end
+
+  @doc """
+  Handles a tool result. Adds it to the current step.
+  If all tools complete, starts a new LLM call with tool results.
+  """
+  @spec handle_tool_result(Loop.t(), Swarm.ToolResult.t()) :: {Loop.t(), [Effect.t()]}
+  def handle_tool_result(
+        %Loop{status: :waiting_for_tools, steps: [_ | _]} = loop,
+        %Swarm.ToolResult{} = result
+      ) do
+    case Loop.add_tool_result(loop, result) do
+      {:ok, updated_loop} ->
+        %Loop.Step{tool_calls: [_ | _]} = step = Loop.current_step(updated_loop)
+
+        if Loop.Step.all_tools_complete?(step) do
+          continue_after_tools(updated_loop, step)
+        else
+          {updated_loop, []}
+        end
+
+      {:error, reason} ->
+        {loop, [{:fail, {:tool_result_error, reason}}]}
+    end
+  end
+
+  defp continue_after_tools(
+         %Loop{agent: agent, steps: steps} = loop,
+         %Loop.Step{input_messages: input_msgs, tool_calls: tool_calls, content: content}
+       ) do
+    llm = Agent.llm(agent)
+
+    assistant_msg = %{
+      role: "assistant",
+      content: content,
+      tool_calls: Enum.map(tool_calls, &format_tool_call/1)
+    }
+
+    tool_msgs = Enum.map(tool_calls, &format_tool_result/1)
+    messages = input_msgs ++ [assistant_msg | tool_msgs]
+
+    new_step = Loop.Step.new(length(steps) + 1, messages)
+    loop = %{loop | status: :running, steps: steps ++ [new_step], current_step: new_step.number}
+
+    {loop, [{:call_llm, llm, messages}]}
+  end
+
+  defp format_tool_call(%Swarm.ToolCall{id: id, name: name, arguments: args}) do
+    %{id: id, type: "function", function: %{name: name, arguments: args}}
+  end
+
+  defp format_tool_result(%Swarm.ToolCall{id: id, result: %Swarm.ToolResult{content: content}}) do
+    %{role: "tool", tool_call_id: id, content: content}
   end
 
   @doc """
