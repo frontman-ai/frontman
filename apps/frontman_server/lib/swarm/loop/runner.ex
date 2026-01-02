@@ -30,12 +30,12 @@ defmodule Swarm.Loop.Runner do
 
   ## Example
 
-      {loop, effects} = Runner.start(loop, agent, "Hello")
+      {loop, effects} = Runner.start(loop, "Hello")
       loop.status # => :running
       effects     # => [{:emit_event, %Started{}}, {:call_llm, llm, messages}]
   """
-  @spec start(Loop.t(), Agent.t(), String.t()) :: {Loop.t(), [Effect.t()]}
-  def start(%Loop{status: :ready} = loop, agent, message) do
+  @spec start(Loop.t(), String.t()) :: {Loop.t(), [Effect.t()]}
+  def start(%Loop{status: :ready, agent: agent} = loop, message) do
     system_prompt = Agent.system_prompt(agent)
     llm = Agent.llm(agent)
 

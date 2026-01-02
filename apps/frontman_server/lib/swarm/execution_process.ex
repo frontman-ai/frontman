@@ -8,48 +8,54 @@ defmodule Swarm.ExecutionProcess do
   ## Responsibilities
 
   - Spawns async tasks for LLM calls
-  - Emits events via callback
-  - Replies to caller on completion/failure
+  - Sends events as messages to subscriber
   - Handles task crashes gracefully
 
   ## Flow
 
-      1. Client calls run(agent, message, opts) → starts process and blocks
-      2. Server calls Loop.execute → gets effects
-      3. Server interprets effects:
+      1. Client calls start_async/4 → starts process, returns handle
+      2. Client casts :run → triggers execution
+      3. Server calls Loop.execute → gets effects
+      4. Server interprets effects:
          - {:call_llm, ...} → Task.async
-         - {:emit_event, ...} → callback
-         - {:complete, ...} → reply and stop
-         - {:fail, ...} → reply and stop
-      4. LLM task finishes → handle_info
-      5. Server calls Loop.handle_response → gets effects
-      6. Repeat step 3
+         - {:emit_event, ...} → send message to subscriber
+         - {:complete, ...} → stop
+         - {:fail, ...} → stop
+      5. LLM task finishes → handle_info
+      6. Server calls Loop.handle_response → gets effects
+      7. Repeat step 4
   """
 
   use GenServer, restart: :temporary
 
   alias Swarm.{Loop, LLM}
 
-  defstruct [:loop, :agent, :opts, :caller, :message]
+  defstruct [:loop, :opts, :message, :subscriber]
 
   # --- Public API ---
 
   @doc """
-  Executes an agent with a message and blocks until complete.
+  Starts an execution asynchronously.
 
-  Starts a process under the supervisor, runs the execution, and returns
-  the result. The process terminates after completion.
+  Spawns a supervised process, retrieves the execution_id, and triggers
+  execution via cast. Returns immediately with pid and execution_id.
 
-  Returns {:ok, result} on success or {:error, reason} on failure.
+  Events are sent to the subscriber as `{:swarm, execution_id, event}` messages.
   """
-  def run(agent, message, opts) do
+  def start_async(agent, message, opts, subscriber) do
     {:ok, pid} =
       DynamicSupervisor.start_child(
         Swarm.ExecutionSupervisor,
-        {__MODULE__, %{agent: agent, message: message, opts: opts}}
+        {__MODULE__, %{agent: agent, message: message, opts: opts, subscriber: subscriber}}
       )
 
-    GenServer.call(pid, :run, :infinity)
+    # Get execution_id synchronously before triggering async execution
+    execution_id = GenServer.call(pid, :get_execution_id)
+
+    # Trigger execution asynchronously
+    GenServer.cast(pid, :run)
+
+    {:ok, %{pid: pid, execution_id: execution_id}}
   end
 
   @doc false
@@ -60,7 +66,7 @@ defmodule Swarm.ExecutionProcess do
   # --- Server Callbacks ---
 
   @impl true
-  def init(%{agent: agent, message: message, opts: opts}) do
+  def init(%{agent: agent, message: message, opts: opts, subscriber: subscriber}) do
     config = %Loop.Config{
       max_steps: opts.max_steps,
       timeout_ms: opts.timeout_ms,
@@ -69,19 +75,23 @@ defmodule Swarm.ExecutionProcess do
 
     state = %__MODULE__{
       loop: Loop.make(agent, config),
-      agent: agent,
       opts: opts,
-      message: message
+      message: message,
+      subscriber: subscriber
     }
 
     {:ok, state}
   end
 
   @impl true
-  def handle_call(:run, from, state) do
-    {loop, effects} = Loop.execute(state.loop, state.agent, state.message)
-    state = %{state | loop: loop, caller: from}
-    process_effects(effects, state)
+  def handle_call(:get_execution_id, _from, state) do
+    {:reply, state.loop.id, state}
+  end
+
+  @impl true
+  def handle_cast(:run, state) do
+    {loop, effects} = Loop.execute(state.loop, state.message)
+    process_effects(effects, %{state | loop: loop})
   end
 
   # Handle successful LLM response
@@ -124,17 +134,15 @@ defmodule Swarm.ExecutionProcess do
   end
 
   defp execute_effect({:emit_event, event}, state) do
-    state.opts.on_event.(event)
+    send(state.subscriber, {:swarm, state.loop.id, event})
     {:continue, state}
   end
 
-  defp execute_effect({:complete, result}, state) do
-    GenServer.reply(state.caller, {:ok, result})
+  defp execute_effect({:complete, _result}, state) do
     {:stop, :normal, state}
   end
 
-  defp execute_effect({:fail, error}, state) do
-    GenServer.reply(state.caller, {:error, error})
+  defp execute_effect({:fail, _error}, state) do
     {:stop, :normal, state}
   end
 end

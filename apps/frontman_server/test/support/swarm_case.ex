@@ -8,8 +8,10 @@ defmodule FrontmanServer.SwarmCase do
 
       use FrontmanServer.SwarmCase, async: true
 
+      @tag echo_agent: true
       test "executes agent", %{echo_agent: agent} do
-        assert {:ok, "Echo: Hello"} = Swarm.execute(agent, "Hello")
+        {:ok, execution} = Swarm.start(agent, "Hello")
+        assert {:ok, "Echo: Hello"} = Swarm.await(execution)
       end
 
   ## Available fixtures
@@ -23,11 +25,12 @@ defmodule FrontmanServer.SwarmCase do
 
   ## Event collection
 
-  When using `:execute_opts`, events are collected and sent to test process:
+  Events are sent to the subscriber as `{:swarm, execution_id, event}` messages:
 
-      test "emits events", %{echo_agent: agent, execute_opts: opts} do
-        Swarm.ExecutionProcess.run(agent, "Test", opts)
-        assert_received {:event, %Swarm.Events.Started{}}
+      @tag echo_agent: true
+      test "emits events", %{echo_agent: agent} do
+        {:ok, execution} = Swarm.start(agent, "Test")
+        assert_receive {:swarm, _, %Swarm.Events.Started{}}, 1000
       end
   """
 
@@ -169,10 +172,8 @@ defmodule FrontmanServer.SwarmCase do
   defp maybe_add_error_agent(context), do: context
 
   defp maybe_add_execute_opts(%{execute_opts: true} = context) do
-    test_pid = self()
-
     opts = %ExecuteOpts{
-      on_event: fn event -> send(test_pid, {:event, event}) end,
+      subscriber: self(),
       max_steps: 10,
       timeout_ms: 60_000,
       step_timeout_ms: 30_000
@@ -200,13 +201,11 @@ defmodule FrontmanServer.SwarmCase do
   end
 
   @doc """
-  Creates ExecuteOpts that sends events to the test process.
+  Creates ExecuteOpts with subscriber set to the test process.
   """
   def test_opts(opts \\ []) do
-    test_pid = self()
-
     %ExecuteOpts{
-      on_event: Keyword.get(opts, :on_event, fn e -> send(test_pid, {:event, e}) end),
+      subscriber: Keyword.get(opts, :subscriber, self()),
       max_steps: Keyword.get(opts, :max_steps, 10),
       timeout_ms: Keyword.get(opts, :timeout_ms, 60_000),
       step_timeout_ms: Keyword.get(opts, :step_timeout_ms, 30_000)

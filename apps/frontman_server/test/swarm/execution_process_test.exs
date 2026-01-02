@@ -1,58 +1,62 @@
 defmodule Swarm.ExecutionProcessTest do
   use FrontmanServer.SwarmCase, async: true
 
-  describe "ExecutionProcess.run/3 success path" do
-    @tag execute_opts: true
-    test "returns result from successful LLM call", %{execute_opts: opts} do
+  describe "ExecutionProcess.start_async/4 success path" do
+    test "returns pid and execution_id" do
       agent = test_agent(mock_llm("Success!"))
+      subscriber = self()
 
-      assert {:ok, "Success!"} = ExecutionProcess.run(agent, "Hello", opts)
+      {:ok, %{pid: pid, execution_id: exec_id}} =
+        ExecutionProcess.start_async(agent, "Hello", test_opts(), subscriber)
+
+      assert is_pid(pid)
+      assert is_binary(exec_id)
+      assert String.starts_with?(exec_id, "loop_")
     end
 
-    @tag execute_opts: true
-    test "emits Started event when execution begins", %{execute_opts: opts} do
+    test "sends Started event when execution begins" do
       agent = test_agent(mock_llm("Done", delay_ms: 20))
+      subscriber = self()
 
-      Task.async(fn -> ExecutionProcess.run(agent, "Hello", opts) end)
+      {:ok, %{execution_id: exec_id}} =
+        ExecutionProcess.start_async(agent, "Hello", test_opts(), subscriber)
 
-      assert_receive {:event, %Events.Started{message: "Hello"}}, 1000
+      assert_receive {:swarm, ^exec_id, %Events.Started{message: "Hello"}}, 1000
     end
 
-    @tag execute_opts: true
-    test "emits Completed event when execution succeeds", %{execute_opts: opts} do
+    test "sends Completed event when execution succeeds" do
       agent = test_agent(mock_llm("Success"))
+      subscriber = self()
 
-      ExecutionProcess.run(agent, "Hello", opts)
+      {:ok, %{execution_id: exec_id}} =
+        ExecutionProcess.start_async(agent, "Hello", test_opts(), subscriber)
 
-      assert_received {:event, %Events.Started{}}
-      assert_received {:event, %Events.Completed{result: "Success"}}
+      assert_receive {:swarm, ^exec_id, %Events.Started{}}, 1000
+      assert_receive {:swarm, ^exec_id, %Events.Completed{result: "Success"}}, 1000
     end
   end
 
-  describe "ExecutionProcess.run/3 error handling" do
-    @tag execute_opts: true
-    test "returns error when LLM fails", %{execute_opts: opts} do
+  describe "ExecutionProcess.start_async/4 error handling" do
+    test "sends Failed event when LLM fails" do
       agent = test_agent(mock_llm({:error, :timeout}))
+      subscriber = self()
 
-      assert {:error, :timeout} = ExecutionProcess.run(agent, "Hello", opts)
+      {:ok, %{execution_id: exec_id}} =
+        ExecutionProcess.start_async(agent, "Hello", test_opts(), subscriber)
+
+      assert_receive {:swarm, ^exec_id, %Events.Started{}}, 1000
+      assert_receive {:swarm, ^exec_id, %Events.Failed{error: :timeout}}, 1000
     end
 
-    @tag execute_opts: true
-    test "emits Failed event when LLM errors", %{execute_opts: opts} do
+    test "sends Failed event with error details" do
       agent = test_agent(mock_llm({:error, :rate_limited}))
+      subscriber = self()
 
-      ExecutionProcess.run(agent, "Hello", opts)
+      {:ok, %{execution_id: exec_id}} =
+        ExecutionProcess.start_async(agent, "Hello", test_opts(), subscriber)
 
-      assert_received {:event, %Events.Started{}}
-      assert_received {:event, %Events.Failed{error: :rate_limited}}
-    end
-
-    @tag execute_opts: true
-    test "handles LLM errors from exceptions", %{execute_opts: opts} do
-      error_fn = fn -> {:error, :something_went_wrong} end
-      agent = test_agent(mock_llm(error_fn))
-
-      assert {:error, :something_went_wrong} = ExecutionProcess.run(agent, "Hello", opts)
+      assert_receive {:swarm, ^exec_id, %Events.Started{}}, 1000
+      assert_receive {:swarm, ^exec_id, %Events.Failed{error: :rate_limited}}, 1000
     end
   end
 
@@ -61,13 +65,18 @@ defmodule Swarm.ExecutionProcessTest do
       agent1 = test_agent(mock_llm("Response 1", delay_ms: 50))
       agent2 = test_agent(mock_llm("Response 2", delay_ms: 50))
 
+      subscriber = self()
       opts = test_opts()
 
-      task1 = Task.async(fn -> ExecutionProcess.run(agent1, "First", opts) end)
-      task2 = Task.async(fn -> ExecutionProcess.run(agent2, "Second", opts) end)
+      {:ok, %{execution_id: exec_id1}} =
+        ExecutionProcess.start_async(agent1, "First", opts, subscriber)
 
-      assert {:ok, "Response 1"} = Task.await(task1)
-      assert {:ok, "Response 2"} = Task.await(task2)
+      {:ok, %{execution_id: exec_id2}} =
+        ExecutionProcess.start_async(agent2, "Second", opts, subscriber)
+
+      # Both should complete
+      assert_receive {:swarm, ^exec_id1, %Events.Completed{result: "Response 1"}}, 1000
+      assert_receive {:swarm, ^exec_id2, %Events.Completed{result: "Response 2"}}, 1000
     end
   end
 end

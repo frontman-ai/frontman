@@ -91,10 +91,9 @@ defmodule Swarm.Loop do
 
   This is the public API for starting a loop. Returns updated loop and effects.
   """
-  @spec execute(__MODULE__.t(), Swarm.Agent.t(), String.t()) ::
-          {__MODULE__.t(), [Swarm.Effect.t()]}
-  def execute(%__MODULE__{status: :ready} = loop, agent, message) do
-    Swarm.Loop.Runner.start(loop, agent, message)
+  @spec execute(__MODULE__.t(), String.t()) :: {__MODULE__.t(), [Swarm.Effect.t()]}
+  def execute(%__MODULE__{status: :ready} = loop, message) do
+    Swarm.Loop.Runner.start(loop, message)
   end
 
   @doc """
