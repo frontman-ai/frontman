@@ -20,34 +20,31 @@ defmodule Swarm.Loop.Runner do
         → if pending: [] (wait for more)
   """
 
-  alias Swarm.{Loop, Agent, Effect, Events, LLM}
+  alias Swarm.{Loop, Agent, Effect, Events, LLM, Message}
 
   @doc """
-  Starts the execution loop with an initial message.
+  Starts the execution loop with user messages.
 
-  Builds messages, starts the loop, and returns effects to emit the Started
-  event and call the LLM.
+  Prepends the system prompt, starts the loop, and returns effects to emit
+  the Started event and call the LLM.
 
   ## Example
 
-      {loop, effects} = Runner.start(loop, "Hello")
+      {loop, effects} = Runner.start(loop, [Message.user("Hello")])
       loop.status # => :running
       effects     # => [{:emit_event, %Started{}}, {:call_llm, llm, messages}]
   """
-  @spec start(Loop.t(), String.t()) :: {Loop.t(), [Effect.t()]}
-  def start(%Loop{status: :ready, agent: agent} = loop, message) do
+  @spec start(Loop.t(), [Message.t()]) :: {Loop.t(), [Effect.t()]}
+  def start(%Loop{status: :ready, agent: agent} = loop, user_messages) when is_list(user_messages) do
     system_prompt = Agent.system_prompt(agent)
     llm = Agent.llm(agent)
 
-    messages = [
-      %{role: "system", content: system_prompt},
-      %{role: "user", content: message}
-    ]
+    messages = [Message.system(system_prompt) | user_messages]
 
     loop = Loop.start(loop, messages)
 
     effects = [
-      {:emit_event, %Events.Started{execution_id: loop.id, message: message}},
+      {:emit_event, %Events.Started{execution_id: loop.id}},
       {:call_llm, llm, messages}
     ]
 
@@ -128,12 +125,7 @@ defmodule Swarm.Loop.Runner do
        ) do
     llm = Agent.llm(agent)
 
-    assistant_msg = %{
-      role: "assistant",
-      content: content,
-      tool_calls: Enum.map(tool_calls, &format_tool_call/1)
-    }
-
+    assistant_msg = Message.assistant(content, tool_calls)
     tool_msgs = Enum.map(tool_calls, &format_tool_result/1)
     messages = input_msgs ++ [assistant_msg | tool_msgs]
 
@@ -143,12 +135,8 @@ defmodule Swarm.Loop.Runner do
     {loop, [{:call_llm, llm, messages}]}
   end
 
-  defp format_tool_call(%Swarm.ToolCall{id: id, name: name, arguments: args}) do
-    %{id: id, type: "function", function: %{name: name, arguments: args}}
-  end
-
-  defp format_tool_result(%Swarm.ToolCall{id: id, result: %Swarm.ToolResult{content: content}}) do
-    %{role: "tool", tool_call_id: id, content: content}
+  defp format_tool_result(%Swarm.ToolCall{id: id, name: name, result: %Swarm.ToolResult{content: content}}) do
+    Message.tool_result(name, id, content)
   end
 
   @doc """

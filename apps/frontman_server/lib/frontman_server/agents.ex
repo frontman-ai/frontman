@@ -154,18 +154,31 @@ defmodule FrontmanServer.Agents do
   Notifies the agent that a tool result has arrived.
 
   Called by Tasks when a tool result is added.
-  Uses direct routing via Registry to deliver to the owning agent.
-  Returns `{:error, :agent_not_found}` if no agent owns this tool call.
+  Routes based on executor type in Registry metadata:
+  - `:agent_runner` - sends directly to blocking caller
+  - `:agent_server` - sends to AgentServer GenServer
   """
   @spec notify_tool_result(String.t(), String.t(), term(), boolean()) ::
           :ok | {:error, :agent_not_found}
   def notify_tool_result(_task_id, tool_call_id, result, is_error) do
-    with {:ok, agent_id} <- get_agent_for_tool_call(tool_call_id),
-         {:ok, pid, _metadata} <- get_agent(agent_id) do
-      send(pid, {:tool_result, tool_call_id, result, is_error})
-      :ok
-    else
-      {:error, :not_found} -> {:error, :agent_not_found}
+    case Registry.lookup(FrontmanServer.AgentRegistry, {:tool_call, tool_call_id}) do
+      [{_pid, %{executor: :agent_runner, caller_ref: ref, caller_pid: caller}}] ->
+        send(caller, {:tool_result, ref, result, is_error})
+        :ok
+
+      [{_pid, agent_id}] when is_binary(agent_id) ->
+        # Legacy: AgentServer registered with just agent_id
+        case get_agent(agent_id) do
+          {:ok, pid, _metadata} ->
+            send(pid, {:tool_result, tool_call_id, result, is_error})
+            :ok
+
+          {:error, :not_found} ->
+            {:error, :agent_not_found}
+        end
+
+      [] ->
+        {:error, :agent_not_found}
     end
   end
 

@@ -22,7 +22,7 @@ defmodule Swarm.Loop.Step do
 
   typedstruct do
     field :number, pos_integer(), enforce: true
-    field :input_messages, [map()], default: []
+    field :input_messages, [Swarm.Message.t()], default: []
     field :content, String.t()
     field :usage, usage()
     field :tool_calls, [Swarm.ToolCall.t()], default: []
@@ -37,11 +37,11 @@ defmodule Swarm.Loop.Step do
   ## Example
 
       step = Step.new(1, [
-        %{role: "system", content: "You are helpful"},
-        %{role: "user", content: "Hello"}
+        Swarm.Message.system("You are helpful"),
+        Swarm.Message.user("Hello")
       ])
   """
-  @spec new(pos_integer(), [map()]) :: t()
+  @spec new(pos_integer(), [Swarm.Message.t()]) :: t()
   def new(number, input_messages) do
     %__MODULE__{
       number: number,

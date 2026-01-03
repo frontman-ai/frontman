@@ -2,7 +2,7 @@ defmodule FrontmanServer.SwarmCase do
   @moduledoc """
   Test case for Swarm framework tests.
 
-  Provides common fixtures, agents, and LLM mocks for testing Swarm execution.
+  Provides common fixtures, agents, and LLM mocks for testing Swarm.run execution.
 
   ## Usage
 
@@ -10,8 +10,8 @@ defmodule FrontmanServer.SwarmCase do
 
       @tag echo_agent: true
       test "executes agent", %{echo_agent: agent} do
-        {:ok, execution} = Swarm.start(agent, "Hello")
-        assert {:ok, "Echo: Hello"} = Swarm.await(execution)
+        result = Swarm.run(agent, "Hello", %{tool_handler: fn _ -> {:ok, ""} end})
+        assert {:ok, "Echo: Hello"} = result
       end
 
   ## Available fixtures
@@ -21,22 +21,11 @@ defmodule FrontmanServer.SwarmCase do
   - `:echo_agent` - Agent with EchoLLM that echoes back messages
   - `:error_agent` - Agent with ErrorLLM that returns errors
   - `:mock_llm` - Configurable MockLLM (use `mock_llm: response`)
-  - `:execute_opts` - Standard ExecuteOpts with event collector
-
-  ## Event collection
-
-  Events are sent to the subscriber as `{:swarm, execution_id, event}` messages:
-
-      @tag echo_agent: true
-      test "emits events", %{echo_agent: agent} do
-        {:ok, execution} = Swarm.start(agent, "Test")
-        assert_receive {:swarm, _, %Swarm.Events.Started{}}, 1000
-      end
   """
 
   use ExUnit.CaseTemplate
 
-  alias Swarm.{LLM, ExecuteOpts, Events}
+  alias Swarm.{LLM, Events}
 
   # --- Test Agents ---
 
@@ -98,8 +87,9 @@ defmodule FrontmanServer.SwarmCase do
 
   defimpl Swarm.LLM, for: FrontmanServer.SwarmCase.EchoLLM do
     def call(_client, messages, _opts) do
-      user_msg = Enum.find(messages, &(&1.role == "user"))
-      content = "Echo: #{user_msg.content}"
+      user_msg = Enum.find(messages, &(&1.role == :user))
+      text_content = Swarm.Message.text(user_msg)
+      content = "Echo: #{text_content}"
 
       {:ok,
        %LLM.Response{
@@ -126,7 +116,7 @@ defmodule FrontmanServer.SwarmCase do
   using do
     quote do
       import FrontmanServer.SwarmCase
-      alias Swarm.{Events, LLM, ExecutionProcess, ExecuteOpts}
+      alias Swarm.{Events, LLM, ToolCall, ToolResult}
       alias FrontmanServer.SwarmCase.{TestAgent, MockLLM, EchoLLM, ErrorLLM}
     end
   end
@@ -143,7 +133,6 @@ defmodule FrontmanServer.SwarmCase do
     |> maybe_add_mock_llm()
     |> maybe_add_echo_agent()
     |> maybe_add_error_agent()
-    |> maybe_add_execute_opts()
   end
 
   defp maybe_add_mock_llm(%{mock_llm: response} = context) when is_map(response) do
@@ -171,19 +160,6 @@ defmodule FrontmanServer.SwarmCase do
 
   defp maybe_add_error_agent(context), do: context
 
-  defp maybe_add_execute_opts(%{execute_opts: true} = context) do
-    opts = %ExecuteOpts{
-      subscriber: self(),
-      max_steps: 10,
-      timeout_ms: 60_000,
-      step_timeout_ms: 30_000
-    }
-
-    Map.put(context, :execute_opts, opts)
-  end
-
-  defp maybe_add_execute_opts(context), do: context
-
   # --- Helper Functions ---
 
   @doc """
@@ -198,18 +174,6 @@ defmodule FrontmanServer.SwarmCase do
   """
   def mock_llm(response, opts \\ []) do
     struct!(MockLLM, [{:response, response} | opts])
-  end
-
-  @doc """
-  Creates ExecuteOpts with subscriber set to the test process.
-  """
-  def test_opts(opts \\ []) do
-    %ExecuteOpts{
-      subscriber: Keyword.get(opts, :subscriber, self()),
-      max_steps: Keyword.get(opts, :max_steps, 10),
-      timeout_ms: Keyword.get(opts, :timeout_ms, 60_000),
-      step_timeout_ms: Keyword.get(opts, :step_timeout_ms, 30_000)
-    }
   end
 
   @doc """

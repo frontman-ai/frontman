@@ -44,7 +44,7 @@ defmodule Swarm.Loop do
   Creates a step internally, updates status to :running.
   Only works when loop is in :ready status.
   """
-  @spec start(__MODULE__.t(), [map()]) :: __MODULE__.t()
+  @spec start(__MODULE__.t(), [Swarm.Message.t()]) :: __MODULE__.t()
   def start(%__MODULE__{status: :ready} = loop, messages) do
     step_number = length(loop.steps) + 1
     step = Step.new(step_number, messages)
@@ -127,13 +127,13 @@ defmodule Swarm.Loop do
   # --- Public API for Execution ---
 
   @doc """
-  Starts execution with a message and returns effects to execute.
+  Starts execution with messages and returns effects to execute.
 
   This is the public API for starting a loop. Returns updated loop and effects.
   """
-  @spec execute(__MODULE__.t(), String.t()) :: {__MODULE__.t(), [Swarm.Effect.t()]}
-  def execute(%__MODULE__{status: :ready} = loop, message) do
-    Swarm.Loop.Runner.start(loop, message)
+  @spec execute(__MODULE__.t(), [Swarm.Message.t()]) :: {__MODULE__.t(), [Swarm.Effect.t()]}
+  def execute(%__MODULE__{status: :ready} = loop, messages) when is_list(messages) do
+    Swarm.Loop.Runner.start(loop, messages)
   end
 
   @doc """

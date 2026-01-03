@@ -1,7 +1,7 @@
 defmodule Swarm.Loop.RunnerTest do
   use FrontmanServer.SwarmCase, async: true
 
-  alias Swarm.{Loop, Events, LLM}
+  alias Swarm.{Loop, Events, LLM, Message}
   alias Swarm.Loop.{Runner, Config, Step}
 
   setup do
@@ -14,27 +14,30 @@ defmodule Swarm.Loop.RunnerTest do
 
   describe "Runner.start/2" do
     test "transitions loop from :ready to :running", %{loop: loop} do
-      {updated_loop, _effects} = Runner.start(loop, "Test")
+      {updated_loop, _effects} = Runner.start(loop, [Message.user("Test")])
 
       assert updated_loop.status == :running
     end
 
     test "creates step with system and user messages", %{loop: loop} do
-      {updated_loop, _effects} = Runner.start(loop, "Hello")
+      {updated_loop, _effects} = Runner.start(loop, [Message.user("Hello")])
 
       assert [%Step{input_messages: messages}] = updated_loop.steps
 
       assert [
-               %{role: "system", content: "You are TestBot"},
-               %{role: "user", content: "Hello"}
+               %Message{role: :system} = system_msg,
+               %Message{role: :user} = user_msg
              ] = messages
+
+      assert Message.text(system_msg) == "You are TestBot"
+      assert Message.text(user_msg) == "Hello"
     end
 
     test "returns Started event and call_llm effect", %{loop: loop} do
-      {updated_loop, effects} = Runner.start(loop, "Test message")
+      {updated_loop, effects} = Runner.start(loop, [Message.user("Test message")])
 
       assert [
-               {:emit_event, %Events.Started{execution_id: exec_id, message: "Test message"}},
+               {:emit_event, %Events.Started{execution_id: exec_id}},
                {:call_llm, _llm, messages}
              ] = effects
 
@@ -43,7 +46,7 @@ defmodule Swarm.Loop.RunnerTest do
     end
 
     test "includes agent's LLM client in effect", %{loop: loop} do
-      {_loop, effects} = Runner.start(loop, "Test")
+      {_loop, effects} = Runner.start(loop, [Message.user("Test")])
 
       assert {:call_llm, llm, _messages} = Enum.at(effects, 1)
       assert llm == loop.agent.llm
@@ -52,7 +55,7 @@ defmodule Swarm.Loop.RunnerTest do
 
   describe "Runner.handle_llm_response/2" do
     test "transitions loop from :running to :completed", %{loop: loop} do
-      {running_loop, _} = Runner.start(loop, "Hello")
+      {running_loop, _} = Runner.start(loop, [Message.user("Hello")])
       response = %LLM.Response{content: "Done", usage: nil, raw: nil}
 
       {completed_loop, _effects} = Runner.handle_llm_response(running_loop, response)
@@ -62,7 +65,7 @@ defmodule Swarm.Loop.RunnerTest do
     end
 
     test "updates step with response content and usage", %{loop: loop} do
-      {running_loop, _} = Runner.start(loop, "Test")
+      {running_loop, _} = Runner.start(loop, [Message.user("Test")])
 
       response = %LLM.Response{
         content: "Response text",
@@ -80,7 +83,7 @@ defmodule Swarm.Loop.RunnerTest do
     end
 
     test "returns Completed event and complete effect", %{loop: loop} do
-      {running_loop, _} = Runner.start(loop, "Test")
+      {running_loop, _} = Runner.start(loop, [Message.user("Test")])
       response = %LLM.Response{content: "Final answer", usage: nil, raw: nil}
 
       {_loop, effects} = Runner.handle_llm_response(running_loop, response)
@@ -123,9 +126,9 @@ defmodule Swarm.Loop.RunnerTest do
   describe "effect flow" do
     test "happy path produces correct effect sequence", %{loop: loop} do
       # Start
-      {running_loop, start_effects} = Runner.start(loop, "Hello")
+      {running_loop, start_effects} = Runner.start(loop, [Message.user("Hello")])
 
-      assert {:emit_event, %Events.Started{message: "Hello"}} = Enum.at(start_effects, 0)
+      assert {:emit_event, %Events.Started{}} = Enum.at(start_effects, 0)
       assert {:call_llm, _, _} = Enum.at(start_effects, 1)
 
       # Response
@@ -139,7 +142,7 @@ defmodule Swarm.Loop.RunnerTest do
 
     test "error path produces correct effect sequence", %{loop: loop} do
       # Start
-      {running_loop, start_effects} = Runner.start(loop, "Test")
+      {running_loop, start_effects} = Runner.start(loop, [Message.user("Test")])
 
       assert {:emit_event, %Events.Started{}} = Enum.at(start_effects, 0)
       assert {:call_llm, _, _} = Enum.at(start_effects, 1)
@@ -155,7 +158,7 @@ defmodule Swarm.Loop.RunnerTest do
 
   describe "loop state tracking" do
     test "increments step number correctly", %{loop: loop} do
-      {loop_after_start, _} = Runner.start(loop, "Test")
+      {loop_after_start, _} = Runner.start(loop, [Message.user("Test")])
 
       assert loop_after_start.current_step == 1
       assert length(loop_after_start.steps) == 1
@@ -163,7 +166,7 @@ defmodule Swarm.Loop.RunnerTest do
     end
 
     test "preserves loop configuration", %{loop: loop} do
-      {updated_loop, _} = Runner.start(loop, "Test")
+      {updated_loop, _} = Runner.start(loop, [Message.user("Test")])
 
       assert updated_loop.config == loop.config
       assert updated_loop.id == loop.id

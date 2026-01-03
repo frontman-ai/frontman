@@ -7,10 +7,11 @@ defmodule FrontmanServer.Tools.BreakdownFigmaDesign do
 
   require Logger
 
-  alias FrontmanServer.Agents
+  alias FrontmanServer.Agents.AgentRunner
   alias FrontmanServer.Tools.Backend.Context
   alias FrontmanServer.Tools.MCP
   alias FrontmanServer.Tasks.Interaction
+  alias Swarm.Message
 
   @system_prompt """
   You are a Figma design breakdown specialist. Your task is to analyze a Figma node
@@ -121,16 +122,14 @@ defmodule FrontmanServer.Tools.BreakdownFigmaDesign do
 
     case extract_figma_data(task.interactions) do
       {:ok, figma_image, figma_skeleton} ->
-        system_msg = ReqLLM.Context.system(@system_prompt)
-
         user_msg =
           build_user_message(node_id, max_volume, figma_context, figma_image, figma_skeleton)
 
-        case Agents.execute_sub_agent(task.task_id, [system_msg, user_msg],
+        agent_id = "figma_breakdown_#{parent_agent_id}"
+
+        case AgentRunner.execute(task.task_id, agent_id, @system_prompt,
                tools: mcp_tools,
-               role: "figma_breakdown",
-               parent_agent_id: parent_agent_id,
-               spawning_tool_name: name()
+               messages: [user_msg]
              ) do
           {:ok, result} ->
             Logger.info("BreakdownFigmaDesign: Completed breakdown for node #{node_id}")
@@ -168,22 +167,22 @@ defmodule FrontmanServer.Tools.BreakdownFigmaDesign do
 
     case figma_image do
       nil ->
-        ReqLLM.Context.user(task_text)
+        Message.user(task_text)
 
       image_data when is_binary(image_data) ->
         case decode_image_data(image_data) do
           {:ok, binary_data, mime_type} ->
-            %ReqLLM.Message{
+            %Message{
               role: :user,
               content: [
-                ReqLLM.Message.ContentPart.text(task_text),
-                ReqLLM.Message.ContentPart.image(binary_data, mime_type)
+                Message.ContentPart.text(task_text),
+                Message.ContentPart.image(binary_data, mime_type)
               ]
             }
 
           :error ->
             Logger.warning("BreakdownFigmaDesign: Failed to decode image, using text-only")
-            ReqLLM.Context.user(task_text)
+            Message.user(task_text)
         end
     end
   end

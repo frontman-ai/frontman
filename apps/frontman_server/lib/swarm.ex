@@ -1,101 +1,178 @@
 defmodule Swarm do
   @moduledoc """
-  Swarm is our agent execution framework.
-  This is the public API
+  Swarm is an agent execution framework with a synchronous, callback-based API.
+
+  ## Usage
+
+  The primary entry point is `run/4`, which executes an agent synchronously:
+
+      result = Swarm.run(agent, "Hello", %{
+        tool_handler: fn tool_call ->
+          case tool_call.name do
+            "get_weather" -> {:ok, "Sunny, 22°C"}
+            _ -> {:error, "Unknown tool"}
+          end
+        end
+      })
+
+  ## Streaming
+
+  To stream tokens during LLM calls, provide an `on_llm_call` callback:
+
+      Swarm.run(agent, "Hello", %{
+        tool_handler: &execute_tool/1,
+        on_llm_call: fn llm, messages ->
+          stream_with_tokens(llm, messages, fn token ->
+            IO.write(token)
+          end)
+        end
+      })
+
+  ## Low-Level API
+
+  For full control over the execution loop, use the Loop module directly:
+
+      loop = Swarm.Loop.make(agent, config)
+      {loop, effects} = Swarm.Loop.execute(loop, message)
+      # Interpret effects manually...
   """
 
-  use TypedStruct
+  alias Swarm.{Loop, Message, ToolResult}
 
-  alias Swarm.ExecutionProcess
+  @typedoc """
+  Message input can be a string, a single Message, or a list of Messages.
+  Strings are automatically wrapped as user messages.
+  """
+  @type message_input :: String.t() | Message.t() | [Message.t()]
 
-  typedstruct module: ExecuteOpts do
-    field :subscriber, pid() | nil, default: nil
-    field :parent_id, String.t()
-    field :max_steps, pos_integer(), default: 10
-    field :timeout_ms, pos_integer(), default: 300_000
-    field :step_timeout_ms, pos_integer(), default: 60_000
-  end
+  @typedoc """
+  Callbacks for synchronous execution.
+
+  - `tool_handler` - Required. Called for each tool call, returns result.
+  - `on_llm_call` - Optional. Called before each LLM call for custom execution (e.g., streaming).
+                    Return `{:ok, response}` to use custom result, or `:default` to use standard call.
+  """
+  @type callbacks :: %{
+          required(:tool_handler) =>
+            (Swarm.ToolCall.t() -> {:ok, String.t()} | {:error, String.t()}),
+          optional(:on_llm_call) =>
+            (Swarm.LLM.t(), [map()] -> {:ok, Swarm.LLM.Response.t()} | :default | {:error, term()})
+        }
 
   @doc """
-  Starts an agent execution asynchronously.
+  Run an agent synchronously, blocking until completion.
 
-  Returns immediately with an execution handle. Events are sent to the
-  subscriber (defaults to calling process) as `{:swarm, execution_id, event}`
-  messages.
+  ## Arguments
 
-  ## Example
+  - `agent` - An agent implementing the `Swarm.Agent` protocol
+  - `message` - The user message to start the conversation
+  - `callbacks` - Map with `:tool_handler` (required) and optional `:on_llm_call`
+  - `opts` - Options:
+    - `:max_steps` - Maximum LLM iterations (default: 10)
 
-      {:ok, execution} = Swarm.start(agent, "Hello")
+  ## Returns
 
-      receive do
-        {:swarm, _id, %Events.Started{}} -> IO.puts("Started!")
-        {:swarm, _id, %Events.Completed{result: r}} -> IO.puts("Done: \#{r}")
-      end
+  - `{:ok, result}` - Agent completed successfully
+  - `{:error, reason}` - Agent failed
+
+  ## Examples
+
+      # Simple execution
+      Swarm.run(agent, "What's 2+2?", %{
+        tool_handler: fn tc ->
+          case tc.name do
+            "calculate" -> {:ok, "4"}
+            _ -> {:error, "Unknown tool"}
+          end
+        end
+      })
+
+      # With streaming
+      Swarm.run(agent, "Tell me a story", %{
+        tool_handler: fn _ -> {:ok, ""} end,
+        on_llm_call: fn llm, messages ->
+          # Custom LLM call with streaming
+          stream_response(llm, messages, &IO.write/1)
+        end
+      })
   """
-  @spec start(Swarm.Agent.t(), String.t(), ExecuteOpts.t()) ::
-          {:ok, Swarm.Execution.t()}
-  def start(agent, message, opts \\ %ExecuteOpts{}) do
-    subscriber = opts.subscriber || self()
+  @spec run(Swarm.Agent.t(), message_input(), callbacks(), keyword()) ::
+          {:ok, String.t()} | {:error, term()}
+  def run(agent, message, callbacks, opts \\ []) do
+    max_steps = Keyword.get(opts, :max_steps, 10)
+    config = %Loop.Config{max_steps: max_steps}
+    messages = normalize_messages(message)
 
-    {:ok, %{pid: pid, execution_id: exec_id}} =
-      ExecutionProcess.start_async(agent, message, opts, subscriber)
-
-    {:ok, %Swarm.Execution{id: exec_id, pid: pid, agent: agent}}
+    loop = Loop.make(agent, config)
+    {loop, effects} = Loop.execute(loop, messages)
+    process_effects(loop, effects, callbacks, 0, max_steps)
   end
 
-  @doc """
-  Blocks until execution completes and returns the result.
+  defp normalize_messages(msg) when is_binary(msg), do: [Message.user(msg)]
+  defp normalize_messages(%Message{} = msg), do: [msg]
+  defp normalize_messages(msgs) when is_list(msgs), do: msgs
 
-  Consumes Started events while waiting for Completed or Failed.
-
-  ## Options
-
-    * `:timeout` - Max time to wait in ms (default: 300_000)
-
-  ## Example
-
-      {:ok, execution} = Swarm.start(agent, "Hello")
-      {:ok, result} = Swarm.await(execution)
-  """
-  @spec await(Swarm.Execution.t(), keyword()) :: {:ok, term()} | {:error, term()}
-  def await(%Swarm.Execution{id: exec_id}, opts \\ []) do
-    timeout = Keyword.get(opts, :timeout, 300_000)
-    do_await(exec_id, timeout)
-  end
-
-  defp do_await(exec_id, timeout) do
-    receive do
-      {:swarm, ^exec_id, %Swarm.Events.Completed{result: result}} ->
-        {:ok, result}
-
-      {:swarm, ^exec_id, %Swarm.Events.Failed{error: error}} ->
-        {:error, error}
-
-      {:swarm, ^exec_id, _other} ->
-        # Ignore Started and other events, keep waiting
-        do_await(exec_id, timeout)
-    after
-      timeout -> {:error, :timeout}
+  # Process effects returned by Loop operations
+  defp process_effects(loop, [], _callbacks, _step, _max_steps) do
+    case loop.status do
+      :completed -> {:ok, loop.result}
+      :failed -> {:error, loop.error}
+      :waiting_for_tools -> {:error, :stuck_waiting_for_tools}
+      other -> {:error, {:unexpected_status, other}}
     end
   end
 
-  @doc """
-  Sends a tool result to an execution.
+  defp process_effects(_loop, _effects, _callbacks, step, max_steps) when step >= max_steps do
+    {:error, {:max_steps_exceeded, max_steps}}
+  end
 
-  Call this after receiving a `ToolCallRequested` event and executing the tool.
+  defp process_effects(loop, [{:call_llm, llm, messages} | rest], callbacks, step, max_steps) do
+    result =
+      case Map.get(callbacks, :on_llm_call) do
+        nil ->
+          Swarm.LLM.call(llm, messages, [])
 
-  ## Example
-
-      receive do
-        {:swarm, _id, %Events.ToolCallRequested{tool_call: tc}} ->
-          result = execute_my_tool(tc)
-          Swarm.notify_tool_result(execution, tc.id, result, false)
+        handler ->
+          case handler.(llm, messages) do
+            :default -> Swarm.LLM.call(llm, messages, [])
+            {:ok, _} = ok -> ok
+            {:error, _} = err -> err
+          end
       end
-  """
-  @spec notify_tool_result(Swarm.Execution.t(), String.t(), String.t(), boolean()) :: :ok
-  def notify_tool_result(%Swarm.Execution{pid: pid}, tool_call_id, content, is_error \\ false) do
-    result = %Swarm.ToolResult{id: tool_call_id, content: content, is_error: is_error}
-    send(pid, {:tool_result, result})
-    :ok
+
+    case result do
+      {:ok, response} ->
+        {loop, new_effects} = Loop.handle_response(loop, response)
+        process_effects(loop, new_effects ++ rest, callbacks, step + 1, max_steps)
+
+      {:error, reason} ->
+        {loop, new_effects} = Loop.handle_error(loop, reason)
+        process_effects(loop, new_effects ++ rest, callbacks, step, max_steps)
+    end
+  end
+
+  defp process_effects(loop, [{:execute_tool, tool_call} | rest], callbacks, step, max_steps) do
+    {content, is_error} =
+      case callbacks.tool_handler.(tool_call) do
+        {:ok, result} -> {result, false}
+        {:error, reason} -> {to_string(reason), true}
+      end
+
+    result = %ToolResult{id: tool_call.id, content: content, is_error: is_error}
+    {loop, new_effects} = Loop.handle_tool_result(loop, result)
+    process_effects(loop, new_effects ++ rest, callbacks, step, max_steps)
+  end
+
+  defp process_effects(loop, [{:emit_event, _event} | rest], callbacks, step, max_steps) do
+    # Events are informational - skip in sync mode
+    process_effects(loop, rest, callbacks, step, max_steps)
+  end
+
+  defp process_effects(_loop, [{:complete, result} | _rest], _callbacks, _step, _max_steps) do
+    {:ok, result}
+  end
+
+  defp process_effects(_loop, [{:fail, error} | _rest], _callbacks, _step, _max_steps) do
+    {:error, error}
   end
 end
