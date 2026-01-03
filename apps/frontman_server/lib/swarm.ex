@@ -37,7 +37,7 @@ defmodule Swarm do
       # Interpret effects manually...
   """
 
-  alias Swarm.{Loop, Message, ToolResult}
+  alias Swarm.{Loop, Message, Telemetry, ToolResult}
 
   @typedoc """
   Message input can be a string, a single Message, or a list of Messages.
@@ -53,10 +53,10 @@ defmodule Swarm do
                     Return `{:ok, response}` to use custom result, or `:default` to use standard call.
   """
   @type callbacks :: %{
-          required(:tool_handler) =>
-            (Swarm.ToolCall.t() -> {:ok, String.t()} | {:error, String.t()}),
-          optional(:on_llm_call) =>
-            (Swarm.LLM.t(), [map()] -> {:ok, Swarm.LLM.Response.t()} | :default | {:error, term()})
+          required(:tool_handler) => (Swarm.ToolCall.t() ->
+                                        {:ok, String.t()} | {:error, String.t()}),
+          optional(:on_llm_call) => (Swarm.LLM.t(), [map()] ->
+                                       {:ok, Swarm.LLM.Response.t()} | :default | {:error, term()})
         }
 
   @doc """
@@ -104,8 +104,36 @@ defmodule Swarm do
     messages = normalize_messages(message)
 
     loop = Loop.make(agent, config)
-    {loop, effects} = Loop.execute(loop, messages)
-    process_effects(loop, effects, callbacks, 0, max_steps)
+    agent_module = agent.__struct__
+
+    Telemetry.run_start(loop.id, agent_module)
+
+    try do
+      {loop, effects} = Loop.execute(loop, messages)
+      {final_loop, result} = process_effects(loop, effects, callbacks, 0, max_steps)
+
+      case result do
+        {:ok, _} ->
+          Telemetry.run_stop(loop.id,
+            status: :completed,
+            result: final_loop.result,
+            step_count: final_loop.current_step
+          )
+
+        {:error, reason} ->
+          Telemetry.run_stop(loop.id,
+            status: :failed,
+            error: reason,
+            step_count: final_loop.current_step
+          )
+      end
+
+      result
+    rescue
+      e ->
+        Telemetry.run_exception(loop.id, :error, e, __STACKTRACE__)
+        reraise e, __STACKTRACE__
+    end
   end
 
   defp normalize_messages(msg) when is_binary(msg), do: [Message.user(msg)]
@@ -113,50 +141,98 @@ defmodule Swarm do
   defp normalize_messages(msgs) when is_list(msgs), do: msgs
 
   # Process effects returned by Loop operations
+  # Returns {loop, result} tuple for telemetry access to final state
   defp process_effects(loop, [], _callbacks, _step, _max_steps) do
-    case loop.status do
-      :completed -> {:ok, loop.result}
-      :failed -> {:error, loop.error}
-      :waiting_for_tools -> {:error, :stuck_waiting_for_tools}
-      other -> {:error, {:unexpected_status, other}}
-    end
+    result =
+      case loop.status do
+        :completed -> {:ok, loop.result}
+        :failed -> {:error, loop.error}
+        :waiting_for_tools -> {:error, :stuck_waiting_for_tools}
+        other -> {:error, {:unexpected_status, other}}
+      end
+
+    {loop, result}
   end
 
-  defp process_effects(_loop, _effects, _callbacks, step, max_steps) when step >= max_steps do
-    {:error, {:max_steps_exceeded, max_steps}}
+  defp process_effects(loop, _effects, _callbacks, step, max_steps) when step >= max_steps do
+    {loop, {:error, {:max_steps_exceeded, max_steps}}}
   end
 
   defp process_effects(loop, [{:call_llm, llm, messages} | rest], callbacks, step, max_steps) do
-    result =
-      case Map.get(callbacks, :on_llm_call) do
-        nil ->
-          Swarm.LLM.call(llm, messages, [])
+    Telemetry.llm_call_start(loop.id, step + 1, Map.get(llm, :model))
 
-        handler ->
-          case handler.(llm, messages) do
-            :default -> Swarm.LLM.call(llm, messages, [])
-            {:ok, _} = ok -> ok
-            {:error, _} = err -> err
-          end
+    result =
+      try do
+        case Map.get(callbacks, :on_llm_call) do
+          nil ->
+            Swarm.LLM.call(llm, messages, [])
+
+          handler ->
+            case handler.(llm, messages) do
+              :default -> Swarm.LLM.call(llm, messages, [])
+              {:ok, _} = ok -> ok
+              {:error, _} = err -> err
+            end
+        end
+      rescue
+        e ->
+          Telemetry.llm_call_exception(loop.id, step + 1, :error, e, __STACKTRACE__)
+          reraise e, __STACKTRACE__
       end
 
     case result do
+      {:ok, %{usage: %{input_tokens: input, output_tokens: output}} = response} ->
+        Telemetry.llm_call_stop(loop.id, step + 1,
+          input_tokens: input,
+          output_tokens: output,
+          tool_call_count: length(response.tool_calls || [])
+        )
+
+        {loop, new_effects} = Loop.handle_response(loop, response)
+        process_effects(loop, new_effects ++ rest, callbacks, step + 1, max_steps)
+
       {:ok, response} ->
+        Telemetry.llm_call_stop(loop.id, step + 1,
+          input_tokens: 0,
+          output_tokens: 0,
+          tool_call_count: length(response.tool_calls || [])
+        )
+
         {loop, new_effects} = Loop.handle_response(loop, response)
         process_effects(loop, new_effects ++ rest, callbacks, step + 1, max_steps)
 
       {:error, reason} ->
+        Telemetry.llm_call_stop(loop.id, step + 1, error: reason)
         {loop, new_effects} = Loop.handle_error(loop, reason)
         process_effects(loop, new_effects ++ rest, callbacks, step, max_steps)
     end
   end
 
   defp process_effects(loop, [{:execute_tool, tool_call} | rest], callbacks, step, max_steps) do
+    Telemetry.tool_execute_start(loop.id, step, tool_call.id, tool_call.name)
+
     {content, is_error} =
-      case callbacks.tool_handler.(tool_call) do
-        {:ok, result} -> {result, false}
-        {:error, reason} -> {to_string(reason), true}
+      try do
+        case callbacks.tool_handler.(tool_call) do
+          {:ok, result} -> {result, false}
+          {:error, reason} -> {to_string(reason), true}
+        end
+      rescue
+        e ->
+          Telemetry.tool_execute_exception(
+            loop.id,
+            step,
+            tool_call.id,
+            tool_call.name,
+            :error,
+            e,
+            __STACKTRACE__
+          )
+
+          reraise e, __STACKTRACE__
       end
+
+    Telemetry.tool_execute_stop(loop.id, step, tool_call.id, tool_call.name, is_error: is_error)
 
     result = %ToolResult{id: tool_call.id, content: content, is_error: is_error}
     {loop, new_effects} = Loop.handle_tool_result(loop, result)
@@ -168,11 +244,11 @@ defmodule Swarm do
     process_effects(loop, rest, callbacks, step, max_steps)
   end
 
-  defp process_effects(_loop, [{:complete, result} | _rest], _callbacks, _step, _max_steps) do
-    {:ok, result}
+  defp process_effects(loop, [{:complete, result} | _rest], _callbacks, _step, _max_steps) do
+    {loop, {:ok, result}}
   end
 
-  defp process_effects(_loop, [{:fail, error} | _rest], _callbacks, _step, _max_steps) do
-    {:error, error}
+  defp process_effects(loop, [{:fail, error} | _rest], _callbacks, _step, _max_steps) do
+    {loop, {:error, error}}
   end
 end
