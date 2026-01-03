@@ -1,6 +1,11 @@
 defprotocol Swarm.LLM do
-  @doc "Call the LLM with messages and optional tools"
-  @spec call(t, messages :: [Swarm.Message.t()], opts :: keyword()) ::
-          {:ok, Swarm.LLM.Response.t()} | {:error, term()}
-  def call(client, messages, args)
+  @doc """
+  Stream LLM response as chunks.
+
+  This is the primitive operation - batch responses are built via
+  Response.from_stream/1. Returns a lazy enumerable of Chunk.t().
+  """
+  @spec stream(t, messages :: [Swarm.Message.t()], opts :: keyword()) ::
+          {:ok, Enumerable.t(Swarm.LLM.Chunk.t())} | {:error, term()}
+  def stream(client, messages, opts)
 end

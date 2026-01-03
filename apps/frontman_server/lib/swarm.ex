@@ -1,6 +1,6 @@
 defmodule Swarm do
   @moduledoc """
-  Swarm is an agent execution framework with a synchronous, callback-based API.
+  Swarm is an agent execution framework with a stream-first, callback-based API.
 
   ## Usage
 
@@ -17,14 +17,15 @@ defmodule Swarm do
 
   ## Streaming
 
-  To stream tokens during LLM calls, provide an `on_llm_call` callback:
+  To stream tokens during LLM calls, provide an `on_chunk` callback:
 
       Swarm.run(agent, "Hello", %{
         tool_handler: &execute_tool/1,
-        on_llm_call: fn llm, messages ->
-          stream_with_tokens(llm, messages, fn token ->
-            IO.write(token)
-          end)
+        on_chunk: fn chunk ->
+          case chunk.type do
+            :token -> IO.write(chunk.text)
+            _ -> :ok
+          end
         end
       })
 
@@ -49,14 +50,12 @@ defmodule Swarm do
   Callbacks for synchronous execution.
 
   - `tool_handler` - Required. Called for each tool call, returns result.
-  - `on_llm_call` - Optional. Called before each LLM call for custom execution (e.g., streaming).
-                    Return `{:ok, response}` to use custom result, or `:default` to use standard call.
+  - `on_chunk` - Optional. Called for each stream chunk (tokens, tool calls, etc).
   """
   @type callbacks :: %{
           required(:tool_handler) => (Swarm.ToolCall.t() ->
                                         {:ok, String.t()} | {:error, String.t()}),
-          optional(:on_llm_call) => (Swarm.LLM.t(), [map()] ->
-                                       {:ok, Swarm.LLM.Response.t()} | :default | {:error, term()})
+          optional(:on_chunk) => (Swarm.LLM.Chunk.t() -> any())
         }
 
   @doc """
@@ -66,7 +65,7 @@ defmodule Swarm do
 
   - `agent` - An agent implementing the `Swarm.Agent` protocol
   - `message` - The user message to start the conversation
-  - `callbacks` - Map with `:tool_handler` (required) and optional `:on_llm_call`
+  - `callbacks` - Map with `:tool_handler` (required) and optional `:on_chunk`
   - `opts` - Options:
     - `:max_steps` - Maximum LLM iterations (default: 10)
 
@@ -87,12 +86,12 @@ defmodule Swarm do
         end
       })
 
-      # With streaming
+      # With token streaming
       Swarm.run(agent, "Tell me a story", %{
         tool_handler: fn _ -> {:ok, ""} end,
-        on_llm_call: fn llm, messages ->
-          # Custom LLM call with streaming
-          stream_response(llm, messages, &IO.write/1)
+        on_chunk: fn
+          %{type: :token, text: text} -> IO.write(text)
+          _ -> :ok
         end
       })
   """
@@ -159,20 +158,20 @@ defmodule Swarm do
   end
 
   defp process_effects(loop, [{:call_llm, llm, messages} | rest], callbacks, step, max_steps) do
+    alias Swarm.LLM.Response
+
     Telemetry.llm_call_start(loop.id, step + 1, Map.get(llm, :model))
+    on_chunk = Map.get(callbacks, :on_chunk)
 
     result =
       try do
-        case Map.get(callbacks, :on_llm_call) do
-          nil ->
-            Swarm.LLM.call(llm, messages, [])
+        with {:ok, stream} <- Swarm.LLM.stream(llm, messages, []) do
+          response =
+            stream
+            |> maybe_tap_stream(on_chunk)
+            |> Response.from_stream()
 
-          handler ->
-            case handler.(llm, messages) do
-              :default -> Swarm.LLM.call(llm, messages, [])
-              {:ok, _} = ok -> ok
-              {:error, _} = err -> err
-            end
+          {:ok, response}
         end
       rescue
         e ->
@@ -180,32 +179,7 @@ defmodule Swarm do
           reraise e, __STACKTRACE__
       end
 
-    case result do
-      {:ok, %{usage: %{input_tokens: input, output_tokens: output}} = response} ->
-        Telemetry.llm_call_stop(loop.id, step + 1,
-          input_tokens: input,
-          output_tokens: output,
-          tool_call_count: length(response.tool_calls || [])
-        )
-
-        {loop, new_effects} = Loop.handle_response(loop, response)
-        process_effects(loop, new_effects ++ rest, callbacks, step + 1, max_steps)
-
-      {:ok, response} ->
-        Telemetry.llm_call_stop(loop.id, step + 1,
-          input_tokens: 0,
-          output_tokens: 0,
-          tool_call_count: length(response.tool_calls || [])
-        )
-
-        {loop, new_effects} = Loop.handle_response(loop, response)
-        process_effects(loop, new_effects ++ rest, callbacks, step + 1, max_steps)
-
-      {:error, reason} ->
-        Telemetry.llm_call_stop(loop.id, step + 1, error: reason)
-        {loop, new_effects} = Loop.handle_error(loop, reason)
-        process_effects(loop, new_effects ++ rest, callbacks, step, max_steps)
-    end
+    handle_llm_result(loop, result, rest, callbacks, step, max_steps)
   end
 
   defp process_effects(loop, [{:execute_tool, tool_call} | rest], callbacks, step, max_steps) do
@@ -251,4 +225,31 @@ defmodule Swarm do
   defp process_effects(loop, [{:fail, error} | _rest], _callbacks, _step, _max_steps) do
     {loop, {:error, error}}
   end
+
+  # --- Helper functions ---
+
+  defp handle_llm_result(loop, {:ok, response}, rest, callbacks, step, max_steps) do
+    {input, output} = extract_usage(response)
+
+    Telemetry.llm_call_stop(loop.id, step + 1,
+      input_tokens: input,
+      output_tokens: output,
+      tool_call_count: length(response.tool_calls || [])
+    )
+
+    {loop, new_effects} = Loop.handle_response(loop, response)
+    process_effects(loop, new_effects ++ rest, callbacks, step + 1, max_steps)
+  end
+
+  defp handle_llm_result(loop, {:error, reason}, rest, callbacks, step, max_steps) do
+    Telemetry.llm_call_stop(loop.id, step + 1, error: reason)
+    {loop, new_effects} = Loop.handle_error(loop, reason)
+    process_effects(loop, new_effects ++ rest, callbacks, step, max_steps)
+  end
+
+  defp extract_usage(%{usage: %{input_tokens: input, output_tokens: output}}), do: {input, output}
+  defp extract_usage(_), do: {0, 0}
+
+  defp maybe_tap_stream(stream, nil), do: stream
+  defp maybe_tap_stream(stream, on_chunk), do: Stream.each(stream, on_chunk)
 end

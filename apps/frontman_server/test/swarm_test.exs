@@ -154,43 +154,31 @@ defmodule SwarmTest do
     end
   end
 
-  describe "run/4 with on_llm_call callback" do
-    test "uses custom LLM handler when provided" do
-      llm = mock_llm("Should not see this")
+  describe "run/4 with on_chunk callback" do
+    test "receives chunks during streaming" do
+      llm = mock_llm("Hello world")
       agent = test_agent(llm)
+      test_pid = self()
 
       callbacks = %{
         tool_handler: fn _ -> {:ok, ""} end,
-        on_llm_call: fn _llm, _messages ->
-          {:ok, %LLM.Response{content: "Custom response", usage: %{input_tokens: 1, output_tokens: 1}, raw: nil}}
-        end
+        on_chunk: fn chunk -> send(test_pid, {:chunk, chunk}) end
       }
 
-      assert {:ok, "Custom response"} = Swarm.run(agent, "Hello", callbacks)
+      assert {:ok, "Hello world"} = Swarm.run(agent, "Hello", callbacks)
+
+      assert_received {:chunk, %{type: :token, text: "Hello world"}}
+      assert_received {:chunk, %{type: :usage}}
+      assert_received {:chunk, %{type: :done}}
     end
 
-    test "falls back to default when handler returns :default" do
-      llm = mock_llm("Default LLM response")
+    test "on_chunk is optional" do
+      llm = mock_llm("Response without callback")
       agent = test_agent(llm)
 
-      callbacks = %{
-        tool_handler: fn _ -> {:ok, ""} end,
-        on_llm_call: fn _llm, _messages -> :default end
-      }
+      callbacks = %{tool_handler: fn _ -> {:ok, ""} end}
 
-      assert {:ok, "Default LLM response"} = Swarm.run(agent, "Hello", callbacks)
-    end
-
-    test "propagates errors from custom handler" do
-      llm = mock_llm("Should not see this")
-      agent = test_agent(llm)
-
-      callbacks = %{
-        tool_handler: fn _ -> {:ok, ""} end,
-        on_llm_call: fn _llm, _messages -> {:error, :custom_error} end
-      }
-
-      assert {:error, :custom_error} = Swarm.run(agent, "Hello", callbacks)
+      assert {:ok, "Response without callback"} = Swarm.run(agent, "Hello", callbacks)
     end
   end
 end

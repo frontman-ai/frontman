@@ -57,23 +57,40 @@ defmodule FrontmanServer.SwarmCase do
   end
 
   defimpl Swarm.LLM, for: FrontmanServer.SwarmCase.MockLLM do
-    def call(%{response: response, delay_ms: delay}, _messages, _opts) do
+    alias Swarm.LLM.{Chunk, Usage}
+
+    def stream(%{response: response, delay_ms: delay}, _messages, _opts) do
       if delay > 0, do: Process.sleep(delay)
 
       case response do
         text when is_binary(text) ->
-          {:ok, %LLM.Response{content: text, usage: default_usage(), raw: nil}}
+          {:ok, response_to_stream(%LLM.Response{content: text, usage: default_usage(), raw: nil})}
 
-        {:ok, _} = ok ->
-          ok
+        {:ok, %LLM.Response{} = resp} ->
+          {:ok, response_to_stream(resp)}
 
         {:error, _} = error ->
           error
 
         fun when is_function(fun, 0) ->
-          fun.()
+          case fun.() do
+            {:ok, %LLM.Response{} = resp} -> {:ok, response_to_stream(resp)}
+            {:error, _} = error -> error
+          end
       end
     end
+
+    defp response_to_stream(%LLM.Response{} = response) do
+      chunks = []
+      chunks = if response.content && response.content != "", do: [Chunk.token(response.content) | chunks], else: chunks
+      chunks = Enum.reduce(response.tool_calls || [], chunks, fn tc, acc -> [Chunk.tool_call_end(tc) | acc] end)
+      chunks = if response.usage, do: [Chunk.usage(to_usage(response.usage)) | chunks], else: chunks
+      chunks = [Chunk.done(response.finish_reason || :stop) | chunks]
+      Enum.reverse(chunks)
+    end
+
+    defp to_usage(%Usage{} = u), do: u
+    defp to_usage(%{input_tokens: i, output_tokens: o}), do: %Usage{input_tokens: i, output_tokens: o}
 
     defp default_usage, do: %{input_tokens: 10, output_tokens: 5}
   end
@@ -86,17 +103,20 @@ defmodule FrontmanServer.SwarmCase do
   end
 
   defimpl Swarm.LLM, for: FrontmanServer.SwarmCase.EchoLLM do
-    def call(_client, messages, _opts) do
+    alias Swarm.LLM.{Chunk, Usage}
+
+    def stream(_client, messages, _opts) do
       user_msg = Enum.find(messages, &(&1.role == :user))
       text_content = Swarm.Message.text(user_msg)
       content = "Echo: #{text_content}"
 
-      {:ok,
-       %LLM.Response{
-         content: content,
-         usage: %{input_tokens: 5, output_tokens: 3},
-         raw: nil
-       }}
+      chunks = [
+        Chunk.token(content),
+        Chunk.usage(%Usage{input_tokens: 5, output_tokens: 3}),
+        Chunk.done(:stop)
+      ]
+
+      {:ok, chunks}
     end
   end
 
@@ -108,7 +128,7 @@ defmodule FrontmanServer.SwarmCase do
   end
 
   defimpl Swarm.LLM, for: FrontmanServer.SwarmCase.ErrorLLM do
-    def call(%{error: error}, _messages, _opts), do: {:error, error}
+    def stream(%{error: error}, _messages, _opts), do: {:error, error}
   end
 
   # --- Setup ---

@@ -2,8 +2,8 @@ defmodule FrontmanServer.Agents.LLMClient do
   @moduledoc """
   Swarm.LLM implementation using ReqLLM.
 
-  Provides non-streaming LLM calls. For streaming, use the `on_llm_call`
-  callback in Swarm.run/4 with custom streaming logic.
+  Stream-first design: returns a lazy stream of chunks that can be
+  consumed with callbacks or collected into a Response.
   """
 
   use TypedStruct
@@ -27,24 +27,62 @@ defmodule FrontmanServer.Agents.LLMClient do
 end
 
 defimpl Swarm.LLM, for: FrontmanServer.Agents.LLMClient do
-  alias Swarm.LLM.Response, as: SwarmResponse
+  alias Swarm.LLM.{Chunk, Usage}
   alias Swarm.Message
   alias Swarm.Message.ContentPart
+  alias Swarm.ToolCall
 
-  def call(client, messages, _opts) do
+  def stream(client, messages, _opts) do
     llm_opts = if client.tools != [], do: [tools: client.tools], else: []
-
-    # Convert Swarm.Message to ReqLLM.Message at the boundary
     reqllm_messages = Enum.map(messages, &to_reqllm_message/1)
 
-    case ReqLLM.generate_text(client.model, reqllm_messages, llm_opts) do
+    case ReqLLM.stream_text(client.model, reqllm_messages, llm_opts) do
       {:ok, response} ->
-        {:ok, to_swarm_response(response)}
+        swarm_stream =
+          response.stream
+          |> Stream.map(&to_swarm_chunk/1)
+          |> Stream.reject(&is_nil/1)
+
+        {:ok, swarm_stream}
 
       {:error, reason} ->
         {:error, reason}
     end
   end
+
+  defp to_swarm_chunk(%{type: :content, text: text}) when is_binary(text) do
+    Chunk.token(text)
+  end
+
+  defp to_swarm_chunk(%{type: :thinking, text: text}) when is_binary(text) do
+    Chunk.thinking(text)
+  end
+
+  defp to_swarm_chunk(%{type: :tool_call, name: name, arguments: args, metadata: meta}) do
+    id = Map.get(meta, :id) || "call_#{:erlang.unique_integer([:positive])}"
+    args_json = if is_binary(args), do: args, else: Jason.encode!(args || %{})
+    tool_call = %ToolCall{id: id, name: name, arguments: args_json}
+    Chunk.tool_call_end(tool_call)
+  end
+
+  defp to_swarm_chunk(%{type: :meta, metadata: %{tool_call_args: %{index: _, fragment: _}}}) do
+    # Argument fragments require an ID to associate with tool_call_start.
+    # ReqLLM sends complete tool_calls, so we skip fragments for now.
+    nil
+  end
+
+  defp to_swarm_chunk(%{type: :meta, metadata: %{usage: usage}}) when is_map(usage) do
+    Chunk.usage(%Usage{
+      input_tokens: Map.get(usage, :input_tokens, 0),
+      output_tokens: Map.get(usage, :output_tokens, 0)
+    })
+  end
+
+  defp to_swarm_chunk(%{type: :meta, metadata: %{finish_reason: reason}}) do
+    Chunk.done(reason)
+  end
+
+  defp to_swarm_chunk(_), do: nil
 
   # --- Swarm.Message -> ReqLLM.Message conversion ---
 
@@ -77,34 +115,5 @@ defimpl Swarm.LLM, for: FrontmanServer.Agents.LLMClient do
     Enum.map(tool_calls, fn tc ->
       ReqLLM.ToolCall.new(tc.id, tc.name, tc.arguments)
     end)
-  end
-
-  # --- ReqLLM.Response -> Swarm.LLM.Response conversion ---
-
-  defp to_swarm_response(response) do
-    %SwarmResponse{
-      content: ReqLLM.Response.text(response) || "",
-      tool_calls: Enum.map(ReqLLM.Response.tool_calls(response), &to_swarm_tool_call/1),
-      finish_reason: response.finish_reason || :stop,
-      usage: response.usage,
-      raw: response
-    }
-  end
-
-  defp to_swarm_tool_call(%ReqLLM.ToolCall{} = tc) do
-    %Swarm.ToolCall{
-      id: tc.id,
-      name: tc.function.name,
-      arguments: tc.function.arguments
-    }
-  end
-
-  # Handle map format that might come from some providers
-  defp to_swarm_tool_call(%{name: name, arguments: args} = tc) do
-    %Swarm.ToolCall{
-      id: Map.get(tc, :id) || "call_#{:erlang.unique_integer([:positive])}",
-      name: name,
-      arguments: if(is_binary(args), do: args, else: Jason.encode!(args))
-    }
   end
 end
