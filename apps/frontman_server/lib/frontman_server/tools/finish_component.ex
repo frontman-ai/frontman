@@ -18,12 +18,12 @@ defmodule FrontmanServer.Tools.FinishComponent do
 
   require Logger
 
-  alias FrontmanServer.Agents
-  alias FrontmanServer.Agents.Prompts
+  alias FrontmanServer.Agents.{AgentRunner, LLMClient, ToolExecutor}
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Tools.Backend.Context
   alias FrontmanServer.Tools.MCP
+  alias Swarm.Message
 
   @system_prompt """
   You are a frontend component verification specialist. Your task is to verify and finish
@@ -153,33 +153,33 @@ defmodule FrontmanServer.Tools.FinishComponent do
   end
 
   @impl true
-  def execute(args, %Context{task: task, agent_id: parent_agent_id}) do
+  def execute(args, %Context{task: task, agent_id: parent_agent_id, llm_opts: llm_opts}) do
     component_name = Map.get(args, "componentName")
     node_id = Map.get(args, "nodeId")
 
-    mcp_tools = MCP.to_llm_format(task.mcp_tools)
+    mcp_tools = MCP.to_swarm_tools(task.mcp_tools)
 
     Logger.info(
       "FinishComponent: Starting verification of #{component_name} (#{node_id}) with #{length(mcp_tools)} MCP tools"
     )
 
-    system_msg = ReqLLM.Context.system(Prompts.tool_selection_guidance() <> @system_prompt)
     user_msg = build_user_message(args)
 
     # Extract markdown files from read_file tool results (e.g., project conventions,
     # research findings, AGENTS.md files) and add them as user messages.
     markdown_messages = extract_markdown_messages_from_task(task.task_id)
 
-    # Build message list: system, markdown files (conventions/research), then user message
-    messages = [system_msg | markdown_messages] ++ [user_msg]
+    # Build message list: markdown files (conventions/research), then user message
+    # Note: system prompt is in the AgentRunner.Agent struct, added by Swarm Runner
+    messages = markdown_messages ++ [user_msg]
 
-    # Execute sub-agent with MCP tools
-    case Agents.execute_sub_agent(task.task_id, messages,
-           tools: mcp_tools,
-           role: "component_finisher",
-           parent_agent_id: parent_agent_id,
-           spawning_tool_name: name()
-         ) do
+    # Build agent and executor, then run with Swarm directly
+    agent_id = "component_finisher_#{parent_agent_id}"
+    llm = LLMClient.new(tools: mcp_tools, llm_opts: llm_opts)
+    agent = %AgentRunner.Agent{system_prompt: @system_prompt, llm: llm}
+    tool_executor = ToolExecutor.make_executor(task.task_id, agent_id)
+
+    case Swarm.run_blocking(agent, messages, tool_executor) do
       {:ok, result} ->
         Logger.info("FinishComponent: Completed verification of #{component_name}")
 
@@ -261,7 +261,7 @@ defmodule FrontmanServer.Tools.FinishComponent do
     Remember to delete the test page file at `#{test_page_file_path}` when you're done.
     """
 
-    ReqLLM.Context.user(task_text)
+    Message.user(task_text)
   end
 
   # Extracts markdown file contents from read_file ToolResult interactions

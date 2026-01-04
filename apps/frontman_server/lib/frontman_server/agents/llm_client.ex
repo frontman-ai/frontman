@@ -6,11 +6,14 @@ defmodule FrontmanServer.Agents.LLMClient do
   consumed with callbacks or collected into a Response.
   """
 
+  @default_model "openrouter:anthropic/claude-haiku-4.5"
+
   use TypedStruct
 
   typedstruct do
-    field :model, String.t(), default: "anthropic:claude-sonnet-4-20250514"
-    field :tools, [ReqLLM.Tool.t()], default: []
+    field :model, String.t(), default: @default_model
+    field :tools, [Swarm.Tool.t()], default: []
+    field :llm_opts, keyword(), default: []
   end
 
   @doc """
@@ -18,11 +21,25 @@ defmodule FrontmanServer.Agents.LLMClient do
 
   ## Options
 
-  - `:model` - Model spec string (default: "anthropic:claude-sonnet-4-20250514")
-  - `:tools` - List of ReqLLM.Tool structs
+  - `:model` - Model spec string (default: "openrouter:anthropic/claude-haiku-4.5")
+  - `:tools` - List of Swarm.Tool structs
+  - `:llm_opts` - Additional options for ReqLLM (e.g., fixture_path for tests)
   """
   def new(opts \\ []) do
     struct!(__MODULE__, opts)
+  end
+
+  @doc """
+  Converts Swarm.Tool to ReqLLM.Tool format.
+  """
+  @spec to_reqllm_tool(Swarm.Tool.t()) :: ReqLLM.Tool.t()
+  def to_reqllm_tool(%Swarm.Tool{} = tool) do
+    ReqLLM.Tool.new!(
+      name: tool.name,
+      description: tool.description,
+      parameter_schema: tool.parameter_schema,
+      callback: fn _args -> {:ok, nil} end
+    )
   end
 end
 
@@ -32,8 +49,16 @@ defimpl Swarm.LLM, for: FrontmanServer.Agents.LLMClient do
   alias Swarm.Message.ContentPart
   alias Swarm.ToolCall
 
+  alias FrontmanServer.Agents.LLMClient
+
   def stream(client, messages, _opts) do
-    llm_opts = if client.tools != [], do: [tools: client.tools], else: []
+    reqllm_tools = Enum.map(client.tools, &LLMClient.to_reqllm_tool/1)
+
+    llm_opts =
+      client.llm_opts
+      |> Keyword.put_new(:tools, reqllm_tools)
+      |> Keyword.reject(fn {_k, v} -> v == [] end)
+
     reqllm_messages = Enum.map(messages, &to_reqllm_message/1)
 
     case ReqLLM.stream_text(client.model, reqllm_messages, llm_opts) do

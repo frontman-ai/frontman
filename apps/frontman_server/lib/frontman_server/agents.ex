@@ -13,7 +13,7 @@ defmodule FrontmanServer.Agents do
 
   require Logger
 
-  alias FrontmanServer.Agents.{AgentServer, Prompts, SubAgentExecutor}
+  alias FrontmanServer.Agents.{AgentServer, Prompts}
   alias FrontmanServer.Tasks
 
   @doc """
@@ -201,24 +201,6 @@ defmodule FrontmanServer.Agents do
         start_agent(task_id, tools: tools)
         :ok
     end
-  end
-
-  @doc """
-  Executes a sub-agent synchronously, blocking until completion.
-
-  Used by backend tools that need to delegate complex work to a specialized agent.
-  Returns the accumulated response text or an error.
-
-  ## Options
-  - `:tools` - Tool definitions available to the sub-agent
-  - `:role` - Role name for telemetry (e.g., "figma_breakdown")
-  - `:parent_agent_id` - The agent spawning this sub-agent
-  - `:timeout` - Timeout in milliseconds (default: 5 minutes)
-  - `:llm_opts` - LLM options (e.g., fixture_path for testing) passed to AgentServer
-  """
-  @spec execute_sub_agent(String.t(), list(), keyword()) :: {:ok, String.t()} | {:error, term()}
-  def execute_sub_agent(task_id, messages, opts \\ []) do
-    SubAgentExecutor.execute(task_id, messages, opts)
   end
 
   # Private Functions

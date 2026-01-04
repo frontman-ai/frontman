@@ -1,13 +1,15 @@
 defmodule FrontmanServer.Tools.BreakdownFigmaDesign do
   @moduledoc """
   Spawns a sub-agent to analyze a Figma node and break it down into components.
+
+  Uses Swarm.run_blocking directly with ToolExecutor for MCP tool execution.
   """
 
   @behaviour FrontmanServer.Tools.Backend
 
   require Logger
 
-  alias FrontmanServer.Agents.AgentRunner
+  alias FrontmanServer.Agents.{AgentRunner, LLMClient, ToolExecutor}
   alias FrontmanServer.Tools.Backend.Context
   alias FrontmanServer.Tools.MCP
   alias FrontmanServer.Tasks.Interaction
@@ -114,7 +116,7 @@ defmodule FrontmanServer.Tools.BreakdownFigmaDesign do
     max_volume = Map.get(args, "maxComponentVolume", 5)
     figma_context = Map.get(args, "context")
 
-    mcp_tools = MCP.to_llm_format(task.mcp_tools)
+    mcp_tools = MCP.to_swarm_tools(task.mcp_tools)
 
     Logger.info(
       "BreakdownFigmaDesign: Starting breakdown for node #{node_id} with #{length(mcp_tools)} MCP tools"
@@ -127,10 +129,12 @@ defmodule FrontmanServer.Tools.BreakdownFigmaDesign do
 
         agent_id = "figma_breakdown_#{parent_agent_id}"
 
-        case AgentRunner.execute(task.task_id, agent_id, @system_prompt,
-               tools: mcp_tools,
-               messages: [user_msg]
-             ) do
+        # Build agent and executor, then run with Swarm directly
+        llm = LLMClient.new(tools: mcp_tools)
+        agent = %AgentRunner.Agent{system_prompt: @system_prompt, llm: llm}
+        tool_executor = ToolExecutor.make_executor(task.task_id, agent_id)
+
+        case Swarm.run_blocking(agent, [user_msg], tool_executor) do
           {:ok, result} ->
             Logger.info("BreakdownFigmaDesign: Completed breakdown for node #{node_id}")
             {:ok, %{"breakdown" => result, "nodeId" => node_id}}

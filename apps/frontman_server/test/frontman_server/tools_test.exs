@@ -20,10 +20,10 @@ defmodule FrontmanServer.ToolsTest do
       tools = Tools.backend_tools()
 
       Enum.each(tools, fn tool ->
+        assert %Swarm.Tool{} = tool
         assert is_binary(tool.name)
         assert is_binary(tool.description)
         assert is_map(tool.parameter_schema)
-        assert is_function(tool.callback)
       end)
     end
   end

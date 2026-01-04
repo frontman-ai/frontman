@@ -23,9 +23,9 @@ defmodule FrontmanServer.Tools do
 
   @todo_mutations ["todo_add", "todo_update", "todo_remove"]
 
-  @spec backend_tools() :: [ReqLLM.Tool.t()]
+  @spec backend_tools() :: [Swarm.Tool.t()]
   def backend_tools do
-    Enum.map(@backend_tools, &Backend.to_llm_tool/1)
+    Enum.map(@backend_tools, &Backend.to_swarm_tool/1)
   end
 
   @spec find_tool(String.t()) :: {:ok, module()} | :not_found
@@ -49,7 +49,7 @@ defmodule FrontmanServer.Tools do
   ## Example
       mcp_tools |> Tools.prepare_for_task(task_id)
   """
-  @spec prepare_for_task([FrontmanServer.Tools.MCP.t()], String.t()) :: [ReqLLM.Tool.t()]
+  @spec prepare_for_task([FrontmanServer.Tools.MCP.t()], String.t()) :: [Swarm.Tool.t()]
   def prepare_for_task(mcp_tools, task_id) do
     # Store MCP tools on task for backend tools to access
     if mcp_tools != [] do
@@ -57,7 +57,7 @@ defmodule FrontmanServer.Tools do
     end
 
     # Aggregate all tools
-    mcp_formatted = FrontmanServer.Tools.MCP.to_llm_format(mcp_tools)
+    mcp_formatted = FrontmanServer.Tools.MCP.to_swarm_tools(mcp_tools)
     backend = backend_tools()
 
     backend ++ mcp_formatted

@@ -132,6 +132,76 @@ defmodule Swarm do
     process_until_yield(loop, effects)
   end
 
+  @typedoc """
+  A function that executes a single tool call and returns the result.
+  """
+  @type tool_executor :: (Swarm.ToolCall.t() -> {:ok, String.t()} | {:error, String.t()})
+
+  @doc """
+  Run an agent to completion, using the provided executor for tool calls.
+
+  This is a convenience function that handles the run/continue loop internally.
+  It blocks until the agent completes or fails.
+
+  ## Arguments
+
+  - `agent` - An agent implementing the `Swarm.Agent` protocol
+  - `message` - The user message(s) to start the conversation
+  - `tool_executor` - A function that takes a ToolCall and returns `{:ok, result}` or `{:error, reason}`
+
+  ## Returns
+
+  - `{:ok, result}` - Agent completed successfully
+  - `{:error, reason}` - Agent failed
+
+  ## Examples
+
+      Swarm.run_blocking(agent, "What's the weather?", fn tool_call ->
+        case tool_call.name do
+          "get_weather" -> {:ok, "Sunny, 22°C"}
+          _ -> {:error, "Unknown tool"}
+        end
+      end)
+  """
+  @spec run_blocking(Swarm.Agent.t(), message_input(), tool_executor()) ::
+          {:ok, String.t()} | {:error, term()}
+  def run_blocking(agent, message, tool_executor) when is_function(tool_executor, 1) do
+    case run(agent, message) do
+      {:completed, loop} ->
+        {:ok, loop.result}
+
+      {:tool_calls, loop, tool_calls} ->
+        results = execute_tools_with_executor(tool_calls, tool_executor)
+        continue_blocking(loop, results, tool_executor)
+
+      {:error, loop} ->
+        {:error, loop.error}
+    end
+  end
+
+  defp continue_blocking(loop, results, tool_executor) do
+    case continue(loop, results) do
+      {:completed, loop} ->
+        {:ok, loop.result}
+
+      {:tool_calls, loop, tool_calls} ->
+        results = execute_tools_with_executor(tool_calls, tool_executor)
+        continue_blocking(loop, results, tool_executor)
+
+      {:error, loop} ->
+        {:error, loop.error}
+    end
+  end
+
+  defp execute_tools_with_executor(tool_calls, executor) do
+    Enum.map(tool_calls, fn tc ->
+      case executor.(tc) do
+        {:ok, content} -> %ToolResult{id: tc.id, content: content, is_error: false}
+        {:error, reason} -> %ToolResult{id: tc.id, content: to_string(reason), is_error: true}
+      end
+    end)
+  end
+
   # --- Private helpers ---
 
   defp normalize_messages(msg) when is_binary(msg), do: [Message.user(msg)]

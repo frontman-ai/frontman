@@ -25,14 +25,12 @@ defmodule FrontmanServer.Tools.Backend do
   @callback parameter_schema() :: map()
   @callback execute(args :: map(), context :: Context.t()) :: result()
 
-  @spec to_llm_tool(module()) :: ReqLLM.Tool.t()
-  def to_llm_tool(module) do
-    ReqLLM.Tool.new!(
-      name: module.name(),
-      description: module.description(),
-      parameter_schema: module.parameter_schema(),
-      # Dummy callback - backend tools are intercepted and routed through Tools.execute_backend_tool/2
-      callback: fn _args -> {:ok, nil} end
+  @spec to_swarm_tool(module()) :: Swarm.Tool.t()
+  def to_swarm_tool(module) do
+    Swarm.Tool.new(
+      module.name(),
+      module.description(),
+      module.parameter_schema()
     )
   end
 end
