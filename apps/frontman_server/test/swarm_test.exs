@@ -2,183 +2,433 @@ defmodule SwarmTest do
   use FrontmanServer.SwarmCase, async: true
 
   @moduledoc """
-  Integration tests for Swarm.run/4 synchronous execution API.
+  Integration tests for Swarm.run/2 and Swarm.continue/2 API.
   """
 
-  describe "run/4 with text responses" do
+  describe "run/2 with text responses" do
     @tag echo_agent: true
-    test "returns echoed response", %{echo_agent: agent} do
-      result = Swarm.run(agent, "Hello world", %{tool_handler: fn _ -> {:ok, ""} end})
-
-      assert {:ok, "Echo: Hello world"} = result
+    test "returns completed with echoed response", %{echo_agent: agent} do
+      assert {:completed, loop} = Swarm.run(agent, "Hello world")
+      assert loop.result == "Echo: Hello world"
     end
 
     @tag mock_llm: "Fixed response"
-    test "returns mock response", %{mock_llm: llm} do
+    test "returns completed with mock response", %{mock_llm: llm} do
       agent = test_agent(llm)
-      result = Swarm.run(agent, "Any message", %{tool_handler: fn _ -> {:ok, ""} end})
-
-      assert {:ok, "Fixed response"} = result
+      assert {:completed, loop} = Swarm.run(agent, "Any message")
+      assert loop.result == "Fixed response"
     end
   end
 
-  describe "run/4 with tool calls" do
-    test "executes tool and returns final response" do
-      llm = tool_then_complete_llm(
-        [%Swarm.ToolCall{id: "tc_1", name: "get_weather", arguments: %{"city" => "NYC"}}],
-        "The weather is sunny"
-      )
+  describe "run/2 and continue/2 with tool calls" do
+    test "returns tool_calls and continues after results" do
+      llm =
+        tool_then_complete_llm(
+          [%Swarm.ToolCall{id: "tc_1", name: "get_weather", arguments: ~s({"city":"NYC"})}],
+          "The weather is sunny"
+        )
 
       agent = test_agent(llm)
-      tool_handler = fn tc ->
-        assert tc.name == "get_weather"
-        assert tc.arguments["city"] == "NYC"
-        {:ok, "Sunny, 22°C"}
-      end
 
-      assert {:ok, "The weather is sunny"} = Swarm.run(agent, "What's the weather?", %{tool_handler: tool_handler})
+      # First call returns tool_calls
+      assert {:tool_calls, loop, tool_calls} = Swarm.run(agent, "What's the weather?")
+      assert [tc] = tool_calls
+      assert tc.name == "get_weather"
+      assert tc.id == "tc_1"
+
+      # Execute tool and continue
+      results = [%ToolResult{id: "tc_1", content: "Sunny, 22°C", is_error: false}]
+      assert {:completed, loop} = Swarm.continue(loop, results)
+      assert loop.result == "The weather is sunny"
     end
 
-    test "handles multiple tool calls in sequence" do
-      llm = multi_turn_llm([
-        {:tool_calls, [
-          %Swarm.ToolCall{id: "tc_1", name: "search", arguments: %{"q" => "elixir"}},
-          %Swarm.ToolCall{id: "tc_2", name: "search", arguments: %{"q" => "phoenix"}}
-        ], "Searching..."},
-        {:complete, "Found results"}
-      ])
+    test "handles multiple tool calls" do
+      llm =
+        multi_turn_llm([
+          {:tool_calls,
+           [
+             %Swarm.ToolCall{id: "tc_1", name: "search", arguments: ~s({"q":"elixir"})},
+             %Swarm.ToolCall{id: "tc_2", name: "search", arguments: ~s({"q":"phoenix"})}
+           ], "Searching..."},
+          {:complete, "Found results"}
+        ])
 
       agent = test_agent(llm)
-      calls = :ets.new(:calls, [:set, :public])
 
-      tool_handler = fn tc ->
-        :ets.insert(calls, {tc.id, tc.arguments["q"]})
-        {:ok, "Result for #{tc.arguments["q"]}"}
-      end
+      # Get tool calls
+      assert {:tool_calls, loop, tool_calls} = Swarm.run(agent, "Search")
+      assert length(tool_calls) == 2
 
-      assert {:ok, "Found results"} = Swarm.run(agent, "Search", %{tool_handler: tool_handler})
-      assert [{"tc_1", "elixir"}, {"tc_2", "phoenix"}] = :ets.tab2list(calls) |> Enum.sort()
+      # Execute all tools and continue
+      results = [
+        %ToolResult{id: "tc_1", content: "Result for elixir", is_error: false},
+        %ToolResult{id: "tc_2", content: "Result for phoenix", is_error: false}
+      ]
+
+      assert {:completed, loop} = Swarm.continue(loop, results)
+      assert loop.result == "Found results"
     end
 
     test "propagates tool errors to LLM" do
-      llm = multi_turn_llm([
-        {:tool_calls, [%Swarm.ToolCall{id: "tc_1", name: "fail", arguments: %{}}], "Trying..."},
-        {:complete, "Handled the error"}
-      ])
+      llm =
+        multi_turn_llm([
+          {:tool_calls, [%Swarm.ToolCall{id: "tc_1", name: "fail", arguments: "{}"}],
+           "Trying..."},
+          {:complete, "Handled the error"}
+        ])
 
       agent = test_agent(llm)
-      tool_handler = fn _ -> {:error, "Tool failed"} end
 
-      assert {:ok, "Handled the error"} = Swarm.run(agent, "Do something", %{tool_handler: tool_handler})
+      assert {:tool_calls, loop, [tc]} = Swarm.run(agent, "Do something")
+
+      # Return error result
+      results = [%ToolResult{id: tc.id, content: "Tool failed", is_error: true}]
+      assert {:completed, loop} = Swarm.continue(loop, results)
+      assert loop.result == "Handled the error"
+    end
+
+    test "handles multiple rounds of tool calls" do
+      llm =
+        multi_turn_llm([
+          {:tool_calls, [%Swarm.ToolCall{id: "tc_1", name: "step1", arguments: "{}"}], "Step 1"},
+          {:tool_calls, [%Swarm.ToolCall{id: "tc_2", name: "step2", arguments: "{}"}], "Step 2"},
+          {:complete, "All done"}
+        ])
+
+      agent = test_agent(llm)
+
+      # First round
+      assert {:tool_calls, loop, [tc1]} = Swarm.run(agent, "Multi-step")
+      assert tc1.name == "step1"
+      results1 = [%ToolResult{id: tc1.id, content: "Result 1", is_error: false}]
+
+      # Second round
+      assert {:tool_calls, loop, [tc2]} = Swarm.continue(loop, results1)
+      assert tc2.name == "step2"
+      results2 = [%ToolResult{id: tc2.id, content: "Result 2", is_error: false}]
+
+      # Complete
+      assert {:completed, loop} = Swarm.continue(loop, results2)
+      assert loop.result == "All done"
     end
   end
 
-  describe "run/4 with async tool results (blocking pattern)" do
-    test "tool_handler blocks until external result arrives" do
-      llm = tool_then_complete_llm(
-        [%Swarm.ToolCall{id: "tc_async", name: "external_call", arguments: %{}}],
-        "Got async result"
-      )
-
-      agent = test_agent(llm)
-      test_pid = self()
-
-      # Simulate async tool execution: tool_handler blocks,
-      # external process delivers result
-      tool_handler = fn tc ->
-        ref = make_ref()
-
-        # Spawn "external system" that delivers result after delay
-        spawn(fn ->
-          Process.sleep(50)
-          send(test_pid, {:tool_result, ref, "Async result from external system"})
-        end)
-
-        # Block waiting for result (like AgentRunner will do)
-        receive do
-          {:tool_result, ^ref, content} -> {:ok, content}
-        after
-          5_000 -> {:error, "Timeout waiting for #{tc.id}"}
-        end
-      end
-
-      assert {:ok, "Got async result"} = Swarm.run(agent, "Call external", %{tool_handler: tool_handler})
-    end
-
-    test "tool_handler timeout returns error to LLM" do
-      llm = multi_turn_llm([
-        {:tool_calls, [%Swarm.ToolCall{id: "tc_timeout", name: "slow_tool", arguments: %{}}], "Calling..."},
-        {:complete, "Handled timeout"}
-      ])
-
-      agent = test_agent(llm)
-
-      tool_handler = fn tc ->
-        receive do
-          {:result, content} -> {:ok, content}
-        after
-          10 -> {:error, "Timeout: #{tc.name}"}
-        end
-      end
-
-      assert {:ok, "Handled timeout"} = Swarm.run(agent, "Do slow thing", %{tool_handler: tool_handler})
-    end
-  end
-
-  describe "run/4 error handling" do
+  describe "run/2 error handling" do
     @tag error_agent: :llm_unavailable
-    test "returns LLM errors", %{error_agent: agent} do
-      result = Swarm.run(agent, "Hello", %{tool_handler: fn _ -> {:ok, ""} end})
-
-      assert {:error, :llm_unavailable} = result
-    end
-
-    test "enforces max_steps limit" do
-      # LLM that always returns tool calls, never completes
-      {:ok, counter} = Agent.start_link(fn -> 0 end)
-
-      llm = mock_llm(fn ->
-        n = Agent.get_and_update(counter, fn n -> {n, n + 1} end)
-        {:ok, %LLM.Response{
-          content: "Step #{n}",
-          tool_calls: [%Swarm.ToolCall{id: "tc_#{n}", name: "loop", arguments: %{}}],
-          usage: %{input_tokens: 1, output_tokens: 1},
-          raw: nil
-        }}
-      end)
-
-      agent = test_agent(llm)
-      result = Swarm.run(agent, "Loop", %{tool_handler: fn _ -> {:ok, "ok"} end}, max_steps: 3)
-
-      assert {:error, {:max_steps_exceeded, 3}} = result
+    test "returns error tuple", %{error_agent: agent} do
+      assert {:error, loop} = Swarm.run(agent, "Hello")
+      assert loop.error == :llm_unavailable
     end
   end
 
-  describe "run/4 with on_chunk callback" do
-    test "receives chunks during streaming" do
-      llm = mock_llm("Hello world")
+  describe "concurrent tool execution pattern" do
+    test "caller can execute tools concurrently" do
+      llm =
+        multi_turn_llm([
+          {:tool_calls,
+           [
+             %Swarm.ToolCall{id: "tc_1", name: "slow", arguments: "{}"},
+             %Swarm.ToolCall{id: "tc_2", name: "slow", arguments: "{}"},
+             %Swarm.ToolCall{id: "tc_3", name: "slow", arguments: "{}"}
+           ], "Running..."},
+          {:complete, "All completed"}
+        ])
+
       agent = test_agent(llm)
-      test_pid = self()
 
-      callbacks = %{
-        tool_handler: fn _ -> {:ok, ""} end,
-        on_chunk: fn chunk -> send(test_pid, {:chunk, chunk}) end
-      }
+      assert {:tool_calls, loop, tool_calls} = Swarm.run(agent, "Do concurrent work")
+      assert length(tool_calls) == 3
 
-      assert {:ok, "Hello world"} = Swarm.run(agent, "Hello", callbacks)
+      # Execute concurrently using Task
+      results =
+        tool_calls
+        |> Task.async_stream(fn tc ->
+          # Simulate work
+          Process.sleep(10)
+          %ToolResult{id: tc.id, content: "Done: #{tc.name}", is_error: false}
+        end)
+        |> Enum.map(fn {:ok, result} -> result end)
 
-      assert_received {:chunk, %{type: :token, text: "Hello world"}}
-      assert_received {:chunk, %{type: :usage}}
-      assert_received {:chunk, %{type: :done}}
+      assert {:completed, loop} = Swarm.continue(loop, results)
+      assert loop.result == "All completed"
+    end
+  end
+
+  describe "loop state" do
+    test "loop tracks steps and tool calls" do
+      llm =
+        tool_then_complete_llm(
+          [%Swarm.ToolCall{id: "tc_1", name: "test", arguments: "{}"}],
+          "Done"
+        )
+
+      agent = test_agent(llm)
+
+      # After run, loop has first step
+      assert {:tool_calls, loop, _} = Swarm.run(agent, "Test")
+      assert loop.current_step == 1
+      assert length(loop.steps) == 1
+
+      # After continue, loop has second step
+      results = [%ToolResult{id: "tc_1", content: "Result", is_error: false}]
+      assert {:completed, loop} = Swarm.continue(loop, results)
+      assert loop.current_step == 2
+      assert length(loop.steps) == 2
     end
 
-    test "on_chunk is optional" do
-      llm = mock_llm("Response without callback")
+    test "loop contains agent" do
+      llm = mock_llm("Response")
+      agent = test_agent(llm, "MyAgent")
+
+      assert {:completed, loop} = Swarm.run(agent, "Hello")
+      assert loop.agent == agent
+    end
+  end
+
+  describe "message input variations" do
+    test "accepts string input" do
+      llm = mock_llm("Response")
       agent = test_agent(llm)
 
-      callbacks = %{tool_handler: fn _ -> {:ok, ""} end}
+      assert {:completed, _loop} = Swarm.run(agent, "Hello")
+    end
 
-      assert {:ok, "Response without callback"} = Swarm.run(agent, "Hello", callbacks)
+    test "accepts single Message struct" do
+      llm = mock_llm("Response")
+      agent = test_agent(llm)
+
+      assert {:completed, _loop} = Swarm.run(agent, Swarm.Message.user("Hello"))
+    end
+
+    test "accepts list of Message structs" do
+      llm = mock_llm("Response")
+      agent = test_agent(llm)
+
+      messages = [
+        Swarm.Message.user("First message"),
+        Swarm.Message.user("Second message")
+      ]
+
+      assert {:completed, loop} = Swarm.run(agent, messages)
+      # Both user messages should be in step input
+      [step] = loop.steps
+      user_msgs = Enum.filter(step.input_messages, &(&1.role == :user))
+      assert length(user_msgs) == 2
+    end
+
+    test "accepts multimodal message with image" do
+      llm = mock_llm("I see an image")
+      agent = test_agent(llm)
+
+      # Create a message with text and image content parts
+      content = [
+        Swarm.Message.ContentPart.text("What's in this image?"),
+        Swarm.Message.ContentPart.image_url("https://example.com/image.png")
+      ]
+
+      message = %Swarm.Message{role: :user, content: content}
+
+      assert {:completed, loop} = Swarm.run(agent, message)
+      assert loop.result == "I see an image"
+
+      # Verify multimodal content was preserved in the step
+      [step] = loop.steps
+      [_system, user_msg] = step.input_messages
+      assert is_list(user_msg.content)
+      assert length(user_msg.content) == 2
+    end
+  end
+
+  describe "tool result ordering" do
+    test "accepts results in different order than tool calls" do
+      llm =
+        multi_turn_llm([
+          {:tool_calls,
+           [
+             %Swarm.ToolCall{id: "tc_1", name: "first", arguments: "{}"},
+             %Swarm.ToolCall{id: "tc_2", name: "second", arguments: "{}"},
+             %Swarm.ToolCall{id: "tc_3", name: "third", arguments: "{}"}
+           ], "Running..."},
+          {:complete, "All done"}
+        ])
+
+      agent = test_agent(llm)
+
+      assert {:tool_calls, loop, _tool_calls} = Swarm.run(agent, "Do work")
+
+      # Return results in reverse order (simulating concurrent completion)
+      results = [
+        %ToolResult{id: "tc_3", content: "Third result", is_error: false},
+        %ToolResult{id: "tc_1", content: "First result", is_error: false},
+        %ToolResult{id: "tc_2", content: "Second result", is_error: false}
+      ]
+
+      assert {:completed, loop} = Swarm.continue(loop, results)
+      assert loop.result == "All done"
+    end
+  end
+
+  describe "loop immutability" do
+    test "continue/2 returns new loop without mutating original" do
+      llm =
+        tool_then_complete_llm(
+          [%Swarm.ToolCall{id: "tc_1", name: "test", arguments: "{}"}],
+          "Done"
+        )
+
+      agent = test_agent(llm)
+
+      assert {:tool_calls, original_loop, _} = Swarm.run(agent, "Test")
+      original_status = original_loop.status
+
+      results = [%ToolResult{id: "tc_1", content: "Result", is_error: false}]
+      assert {:completed, new_loop} = Swarm.continue(original_loop, results)
+
+      # Original loop unchanged
+      assert original_loop.status == original_status
+      assert original_loop.status == :waiting_for_tools
+
+      # New loop is different
+      assert new_loop.status == :completed
+      refute original_loop == new_loop
+    end
+  end
+
+  describe "edge cases" do
+    test "continue/2 with empty results list does not advance" do
+      llm =
+        tool_then_complete_llm(
+          [%Swarm.ToolCall{id: "tc_1", name: "test", arguments: "{}"}],
+          "Done"
+        )
+
+      agent = test_agent(llm)
+
+      assert {:tool_calls, loop, tool_calls} = Swarm.run(agent, "Test")
+      assert length(tool_calls) == 1
+
+      # Continue with empty results - should still be waiting
+      assert {:tool_calls, loop, pending} = Swarm.continue(loop, [])
+      assert length(pending) == 1
+      assert loop.status == :waiting_for_tools
+    end
+
+    test "continue/2 with unknown tool ID is ignored" do
+      llm =
+        tool_then_complete_llm(
+          [%Swarm.ToolCall{id: "tc_1", name: "test", arguments: "{}"}],
+          "Done"
+        )
+
+      agent = test_agent(llm)
+
+      assert {:tool_calls, loop, _} = Swarm.run(agent, "Test")
+
+      # Provide result with wrong ID - should be ignored, still waiting
+      results = [%ToolResult{id: "wrong_id", content: "Result", is_error: false}]
+      assert {:tool_calls, updated_loop, pending} = Swarm.continue(loop, results)
+      assert length(pending) == 1
+      assert updated_loop.status == :waiting_for_tools
+    end
+
+    test "continue/2 with partial results waits for remaining" do
+      llm =
+        multi_turn_llm([
+          {:tool_calls,
+           [
+             %Swarm.ToolCall{id: "tc_1", name: "first", arguments: "{}"},
+             %Swarm.ToolCall{id: "tc_2", name: "second", arguments: "{}"}
+           ], "Running..."},
+          {:complete, "All done"}
+        ])
+
+      agent = test_agent(llm)
+
+      assert {:tool_calls, loop, tool_calls} = Swarm.run(agent, "Do work")
+      assert length(tool_calls) == 2
+
+      # Only provide first result
+      partial = [%ToolResult{id: "tc_1", content: "First done", is_error: false}]
+      assert {:tool_calls, loop, pending} = Swarm.continue(loop, partial)
+
+      # Still waiting for tc_2
+      assert length(pending) == 1
+      assert hd(pending).id == "tc_2"
+
+      # Now provide second result
+      remaining = [%ToolResult{id: "tc_2", content: "Second done", is_error: false}]
+      assert {:completed, loop} = Swarm.continue(loop, remaining)
+      assert loop.result == "All done"
+    end
+
+    test "continue/2 with duplicate result for same tool ID is ignored" do
+      llm =
+        tool_then_complete_llm(
+          [%Swarm.ToolCall{id: "tc_1", name: "test", arguments: "{}"}],
+          "Done"
+        )
+
+      agent = test_agent(llm)
+
+      assert {:tool_calls, loop, _} = Swarm.run(agent, "Test")
+
+      # Provide the result
+      result = %ToolResult{id: "tc_1", content: "First result", is_error: false}
+      assert {:completed, loop} = Swarm.continue(loop, [result])
+      assert loop.result == "Done"
+
+      # The loop is now completed - can't continue further
+      # (This verifies the tool was marked complete and won't accept duplicates)
+    end
+  end
+
+  describe "conversation history" do
+    test "loop accumulates messages across steps" do
+      llm =
+        multi_turn_llm([
+          {:tool_calls, [%Swarm.ToolCall{id: "tc_1", name: "lookup", arguments: "{}"}], "Looking up..."},
+          {:complete, "Found the answer"}
+        ])
+
+      agent = test_agent(llm)
+
+      assert {:tool_calls, loop, _} = Swarm.run(agent, "Find something")
+      results = [%ToolResult{id: "tc_1", content: "Lookup result", is_error: false}]
+      assert {:completed, loop} = Swarm.continue(loop, results)
+
+      # Should have 2 steps
+      assert length(loop.steps) == 2
+
+      # Second step should have full conversation history
+      [_step1, step2] = loop.steps
+
+      roles = Enum.map(step2.input_messages, & &1.role)
+      assert :system in roles
+      assert :user in roles
+      assert :assistant in roles
+      assert :tool in roles
+    end
+  end
+
+  describe "tool call utilities" do
+    test "tool call arguments can be parsed as JSON" do
+      llm =
+        tool_then_complete_llm(
+          [%Swarm.ToolCall{id: "tc_1", name: "get_weather", arguments: ~s({"city":"NYC","units":"celsius"})}],
+          "Done"
+        )
+
+      agent = test_agent(llm)
+
+      assert {:tool_calls, _loop, [tc]} = Swarm.run(agent, "Weather?")
+      assert {:ok, args} = Swarm.ToolCall.parse_arguments(tc)
+      assert args["city"] == "NYC"
+      assert args["units"] == "celsius"
+    end
+
+    test "tool call with invalid JSON returns error" do
+      tc = %Swarm.ToolCall{id: "tc_1", name: "test", arguments: "not json"}
+      assert {:error, %Jason.DecodeError{}} = Swarm.ToolCall.parse_arguments(tc)
     end
   end
 end

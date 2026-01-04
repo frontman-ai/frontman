@@ -96,6 +96,23 @@ defmodule Swarm.Loop.Runner do
   end
 
   @doc """
+  Continues execution after all tool results have been added to the loop.
+
+  Returns effects to call LLM with the accumulated tool results.
+  If not all tools are complete, returns empty effects.
+  """
+  @spec continue(Loop.t()) :: {Loop.t(), [Effect.t()]}
+  def continue(%Loop{status: :waiting_for_tools} = loop) do
+    step = Loop.current_step(loop)
+
+    if Loop.Step.all_tools_complete?(step) do
+      continue_after_tools(loop, step)
+    else
+      {loop, []}
+    end
+  end
+
+  @doc """
   Handles a tool result. Adds it to the current step.
   If all tools complete, starts a new LLM call with tool results.
   """

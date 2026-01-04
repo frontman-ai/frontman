@@ -8,7 +8,6 @@ defmodule Swarm.LLM.Response do
   use TypedStruct
 
   alias Swarm.LLM.{Chunk, Usage}
-  alias Swarm.ToolCall
 
   @type finish_reason :: :stop | :tool_calls | :length | :error | nil
 
@@ -50,30 +49,8 @@ defmodule Swarm.LLM.Response do
 
   defp accumulate_chunk(%Chunk{type: :thinking}, acc), do: acc
 
-  defp accumulate_chunk(%Chunk{type: :tool_call_start} = chunk, acc) do
-    tc_state = %{
-      id: chunk.tool_call_id,
-      name: chunk.tool_call_name,
-      arguments_fragments: []
-    }
-
-    %{acc | tool_calls: Map.put(acc.tool_calls, chunk.tool_call_id, tc_state)}
-  end
-
-  defp accumulate_chunk(%Chunk{type: :tool_call_delta} = chunk, acc) do
-    update_fn = fn tc_state ->
-      %{
-        tc_state
-        | arguments_fragments: [tc_state.arguments_fragments, chunk.tool_call_arguments_fragment]
-      }
-    end
-
-    %{acc | tool_calls: Map.update!(acc.tool_calls, chunk.tool_call_id, update_fn)}
-  end
-
   defp accumulate_chunk(%Chunk{type: :tool_call_end, tool_call: tool_call}, acc) do
-    tc_state = %{id: tool_call.id, name: tool_call.name, arguments: tool_call.arguments, complete: true}
-    %{acc | tool_calls: Map.put(acc.tool_calls, tool_call.id, tc_state)}
+    %{acc | tool_calls: Map.put(acc.tool_calls, tool_call.id, tool_call)}
   end
 
   defp accumulate_chunk(%Chunk{type: :usage, usage: usage}, acc) do
@@ -85,17 +62,6 @@ defmodule Swarm.LLM.Response do
   end
 
   defp build_tool_calls(tool_calls_map) do
-    tool_calls_map
-    |> Map.values()
-    |> Enum.map(&finalize_tool_call/1)
-  end
-
-  defp finalize_tool_call(%{complete: true} = tc) do
-    %ToolCall{id: tc.id, name: tc.name, arguments: tc.arguments}
-  end
-
-  defp finalize_tool_call(tc) do
-    arguments = IO.iodata_to_binary(tc.arguments_fragments)
-    %ToolCall{id: tc.id, name: tc.name, arguments: arguments}
+    Map.values(tool_calls_map)
   end
 end

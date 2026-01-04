@@ -14,8 +14,6 @@ defmodule Swarm.LLM.Chunk do
   @type chunk_type ::
           :token
           | :thinking
-          | :tool_call_start
-          | :tool_call_delta
           | :tool_call_end
           | :usage
           | :done
@@ -23,9 +21,6 @@ defmodule Swarm.LLM.Chunk do
   typedstruct do
     field :type, chunk_type(), enforce: true
     field :text, String.t()
-    field :tool_call_id, String.t()
-    field :tool_call_name, String.t()
-    field :tool_call_arguments_fragment, String.t()
     field :tool_call, ToolCall.t()
     field :usage, Usage.t()
     field :finish_reason, atom()
@@ -42,28 +37,6 @@ defmodule Swarm.LLM.Chunk do
     %__MODULE__{type: :thinking, text: text, metadata: metadata}
   end
 
-  @spec tool_call_start(String.t(), String.t(), map()) :: t()
-  def tool_call_start(id, name, metadata \\ %{})
-      when is_binary(id) and is_binary(name) do
-    %__MODULE__{
-      type: :tool_call_start,
-      tool_call_id: id,
-      tool_call_name: name,
-      metadata: metadata
-    }
-  end
-
-  @spec tool_call_delta(String.t(), String.t(), map()) :: t()
-  def tool_call_delta(id, arguments_fragment, metadata \\ %{})
-      when is_binary(id) and is_binary(arguments_fragment) do
-    %__MODULE__{
-      type: :tool_call_delta,
-      tool_call_id: id,
-      tool_call_arguments_fragment: arguments_fragment,
-      metadata: metadata
-    }
-  end
-
   @spec tool_call_end(ToolCall.t(), map()) :: t()
   def tool_call_end(%ToolCall{} = tool_call, metadata \\ %{}) do
     %__MODULE__{type: :tool_call_end, tool_call: tool_call, metadata: metadata}
@@ -78,19 +51,4 @@ defmodule Swarm.LLM.Chunk do
   def done(finish_reason, metadata \\ %{}) when is_atom(finish_reason) do
     %__MODULE__{type: :done, finish_reason: finish_reason, metadata: metadata}
   end
-
-  @spec text?(t()) :: boolean()
-  def text?(%__MODULE__{type: type}) when type in [:token, :thinking], do: true
-  def text?(_), do: false
-
-  @spec tool_call?(t()) :: boolean()
-  def tool_call?(%__MODULE__{type: type})
-      when type in [:tool_call_start, :tool_call_delta, :tool_call_end],
-      do: true
-
-  def tool_call?(_), do: false
-
-  @spec done?(t()) :: boolean()
-  def done?(%__MODULE__{type: :done}), do: true
-  def done?(_), do: false
 end

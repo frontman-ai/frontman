@@ -1,12 +1,13 @@
 defmodule FrontmanServer.Agents.AgentRunner do
   @moduledoc """
-  Runs Swarm agents with blocking tool execution for MCP integration.
+  Runs Swarm agents with concurrent tool execution for MCP integration.
   """
 
   require Logger
 
   alias FrontmanServer.Agents.LLMClient
   alias FrontmanServer.Tasks
+  alias Swarm.ToolResult
 
   @tool_timeout_ms 60_000
 
@@ -23,12 +24,11 @@ defmodule FrontmanServer.Agents.AgentRunner do
   end
 
   @doc """
-  Executes an agent synchronously with blocking tool calls.
+  Executes an agent with concurrent tool execution.
 
   ## Options
   - `:tools` - List of ReqLLM.Tool definitions
   - `:model` - LLM model spec
-  - `:max_steps` - Max LLM iterations (default: 10)
   - `:messages` - List of Swarm.Message.t() for the conversation (supports multimodal)
   """
   @spec execute(String.t(), String.t(), String.t(), keyword()) ::
@@ -36,20 +36,60 @@ defmodule FrontmanServer.Agents.AgentRunner do
   def execute(task_id, agent_id, system_prompt, opts \\ []) do
     tools = Keyword.get(opts, :tools, [])
     model = Keyword.get(opts, :model)
-    max_steps = Keyword.get(opts, :max_steps, 10)
     messages = Keyword.get(opts, :messages, [])
 
     llm_opts = if model, do: [model: model, tools: tools], else: [tools: tools]
     llm = LLMClient.new(llm_opts)
     agent = %Agent{system_prompt: system_prompt, llm: llm}
 
-    callbacks = %{
-      tool_handler: fn tool_call ->
-        execute_tool_blocking(tool_call, task_id, agent_id)
-      end
-    }
+    run_agent(agent, messages, task_id, agent_id)
+  end
 
-    Swarm.run(agent, messages, callbacks, max_steps: max_steps)
+  defp run_agent(agent, messages, task_id, agent_id) do
+    case Swarm.run(agent, messages) do
+      {:completed, loop} ->
+        {:ok, loop.result}
+
+      {:tool_calls, loop, tool_calls} ->
+        results = execute_tools_concurrent(tool_calls, task_id, agent_id)
+        continue_agent(loop, results, task_id, agent_id)
+
+      {:error, loop} ->
+        {:error, loop.error}
+    end
+  end
+
+  defp continue_agent(loop, results, task_id, agent_id) do
+    case Swarm.continue(loop, results) do
+      {:completed, loop} ->
+        {:ok, loop.result}
+
+      {:tool_calls, loop, tool_calls} ->
+        results = execute_tools_concurrent(tool_calls, task_id, agent_id)
+        continue_agent(loop, results, task_id, agent_id)
+
+      {:error, loop} ->
+        {:error, loop.error}
+    end
+  end
+
+  defp execute_tools_concurrent(tool_calls, task_id, agent_id) do
+    tool_calls
+    |> Enum.map(fn tc ->
+      Task.async(fn ->
+        {tc, execute_tool_blocking(tc, task_id, agent_id)}
+      end)
+    end)
+    |> Task.await_many(@tool_timeout_ms)
+    |> Enum.map(fn {tc, result} ->
+      case result do
+        {:ok, content} ->
+          %ToolResult{id: tc.id, content: content, is_error: false}
+
+        {:error, reason} ->
+          %ToolResult{id: tc.id, content: to_string(reason), is_error: true}
+      end
+    end)
   end
 
   defp execute_tool_blocking(tool_call, task_id, agent_id) do

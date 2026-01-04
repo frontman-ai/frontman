@@ -1,128 +1,12 @@
 defmodule Swarm.TelemetryTest do
   use FrontmanServer.SwarmCase, async: true
 
-  alias Swarm.ToolCall
+  @moduledoc """
+  Tests for Swarm telemetry events.
 
-  describe "run telemetry" do
-    @tag echo_agent: true
-    test "emits start and stop events on successful run", %{echo_agent: agent} do
-      events = capture_telemetry(fn ->
-        {:ok, _} = Swarm.run(agent, "Hello", %{tool_handler: fn _ -> {:ok, ""} end})
-      end)
-
-      assert_event(events, [:swarm, :run, :start], fn measurements, metadata ->
-        assert is_integer(measurements.system_time)
-        assert is_binary(metadata.loop_id)
-        assert metadata.agent_module == FrontmanServer.SwarmCase.TestAgent
-      end)
-
-      assert_event(events, [:swarm, :run, :stop], fn measurements, metadata ->
-        assert is_integer(measurements.system_time)
-        assert metadata.status == :completed
-        assert metadata.result == "Echo: Hello"
-        assert metadata.step_count >= 1
-      end)
-    end
-
-    @tag error_agent: :intentional_error
-    test "emits stop event with error status on failed run", %{error_agent: agent} do
-      events = capture_telemetry(fn ->
-        {:error, _} = Swarm.run(agent, "Hello", %{tool_handler: fn _ -> {:ok, ""} end})
-      end)
-
-      assert_event(events, [:swarm, :run, :stop], fn _measurements, metadata ->
-        assert metadata.status == :failed
-        assert metadata.error == :intentional_error
-      end)
-    end
-  end
-
-  describe "LLM call telemetry" do
-    @tag echo_agent: true
-    test "emits start and stop events for LLM calls", %{echo_agent: agent} do
-      events = capture_telemetry(fn ->
-        {:ok, _} = Swarm.run(agent, "Hello", %{tool_handler: fn _ -> {:ok, ""} end})
-      end)
-
-      assert_event(events, [:swarm, :llm, :call, :start], fn measurements, metadata ->
-        assert is_integer(measurements.system_time)
-        assert is_binary(metadata.loop_id)
-        assert metadata.step == 1
-      end)
-
-      assert_event(events, [:swarm, :llm, :call, :stop], fn measurements, metadata ->
-        assert is_integer(measurements.system_time)
-        assert metadata.input_tokens == 5
-        assert metadata.output_tokens == 3
-        assert metadata.tool_call_count == 0
-      end)
-    end
-
-    test "includes token usage from response" do
-      llm = mock_llm({:ok, %LLM.Response{
-        content: "Response",
-        tool_calls: [],
-        usage: %{input_tokens: 100, output_tokens: 50},
-        raw: nil
-      }})
-      agent = test_agent(llm)
-
-      events = capture_telemetry(fn ->
-        {:ok, _} = Swarm.run(agent, "Hello", %{tool_handler: fn _ -> {:ok, ""} end})
-      end)
-
-      assert_event(events, [:swarm, :llm, :call, :stop], fn _measurements, metadata ->
-        assert metadata.input_tokens == 100
-        assert metadata.output_tokens == 50
-      end)
-    end
-  end
-
-  describe "tool execution telemetry" do
-    test "emits start and stop events for tool execution" do
-      tool_call = %ToolCall{id: "tc_123", name: "get_weather", arguments: ~s({"city":"NYC"})}
-
-      llm = tool_then_complete_llm([tool_call], "The weather is sunny")
-      agent = test_agent(llm)
-
-      events = capture_telemetry(fn ->
-        {:ok, _} = Swarm.run(agent, "What's the weather?", %{
-          tool_handler: fn
-            %{name: "get_weather"} -> {:ok, "Sunny, 22C"}
-          end
-        })
-      end)
-
-      assert_event(events, [:swarm, :tool, :execute, :start], fn measurements, metadata ->
-        assert is_integer(measurements.system_time)
-        assert metadata.tool_id == "tc_123"
-        assert metadata.tool_name == "get_weather"
-      end)
-
-      assert_event(events, [:swarm, :tool, :execute, :stop], fn _measurements, metadata ->
-        assert metadata.tool_id == "tc_123"
-        assert metadata.tool_name == "get_weather"
-        assert metadata.is_error == false
-      end)
-    end
-
-    test "marks tool execution as error when handler returns error" do
-      tool_call = %ToolCall{id: "tc_456", name: "bad_tool", arguments: "{}"}
-
-      llm = tool_then_complete_llm([tool_call], "Done")
-      agent = test_agent(llm)
-
-      events = capture_telemetry(fn ->
-        {:ok, _} = Swarm.run(agent, "Call the tool", %{
-          tool_handler: fn _ -> {:error, "Tool failed"} end
-        })
-      end)
-
-      assert_event(events, [:swarm, :tool, :execute, :stop], fn _measurements, metadata ->
-        assert metadata.is_error == true
-      end)
-    end
-  end
+  Note: With the new Swarm.run/2 and Swarm.continue/2 API, tool execution
+  telemetry is the caller's responsibility since the caller controls tool execution.
+  """
 
   describe "Telemetry.Events.all/0" do
     test "returns all event names for handler attachment" do
@@ -137,6 +21,96 @@ defmodule Swarm.TelemetryTest do
       assert [:swarm, :tool, :execute, :start] in events
       assert [:swarm, :tool, :execute, :stop] in events
       assert [:swarm, :tool, :execute, :exception] in events
+    end
+  end
+
+  describe "Telemetry helpers" do
+    test "span helper executes function and returns result" do
+      result =
+        Swarm.Telemetry.span(:run, %{loop_id: "test", agent_module: TestAgent}, fn ->
+          {"my_result", %{status: :completed}}
+        end)
+
+      assert result == "my_result"
+    end
+  end
+
+  describe "manual telemetry emission" do
+    test "run_start emits correct event" do
+      events = capture_telemetry(fn ->
+        Swarm.Telemetry.run_start("loop_123", TestAgent)
+      end)
+
+      assert_event(events, [:swarm, :run, :start], fn measurements, metadata ->
+        assert is_integer(measurements.system_time)
+        assert metadata.loop_id == "loop_123"
+        assert metadata.agent_module == TestAgent
+      end)
+    end
+
+    test "run_stop emits correct event" do
+      events = capture_telemetry(fn ->
+        Swarm.Telemetry.run_stop("loop_123", status: :completed, result: "done", step_count: 2)
+      end)
+
+      assert_event(events, [:swarm, :run, :stop], fn measurements, metadata ->
+        assert is_integer(measurements.system_time)
+        assert metadata.loop_id == "loop_123"
+        assert metadata.status == :completed
+        assert metadata.result == "done"
+        assert metadata.step_count == 2
+      end)
+    end
+
+    test "llm_call_start emits correct event" do
+      events = capture_telemetry(fn ->
+        Swarm.Telemetry.llm_call_start("loop_123", 1, "claude-3")
+      end)
+
+      assert_event(events, [:swarm, :llm, :call, :start], fn measurements, metadata ->
+        assert is_integer(measurements.system_time)
+        assert metadata.loop_id == "loop_123"
+        assert metadata.step == 1
+        assert metadata.model == "claude-3"
+      end)
+    end
+
+    test "llm_call_stop emits correct event" do
+      events = capture_telemetry(fn ->
+        Swarm.Telemetry.llm_call_stop("loop_123", 1, input_tokens: 100, output_tokens: 50, tool_call_count: 2)
+      end)
+
+      assert_event(events, [:swarm, :llm, :call, :stop], fn measurements, metadata ->
+        assert is_integer(measurements.system_time)
+        assert metadata.input_tokens == 100
+        assert metadata.output_tokens == 50
+        assert metadata.tool_call_count == 2
+      end)
+    end
+
+    test "tool_execute_start emits correct event" do
+      events = capture_telemetry(fn ->
+        Swarm.Telemetry.tool_execute_start("loop_123", 1, "tc_456", "get_weather")
+      end)
+
+      assert_event(events, [:swarm, :tool, :execute, :start], fn measurements, metadata ->
+        assert is_integer(measurements.system_time)
+        assert metadata.tool_id == "tc_456"
+        assert metadata.tool_name == "get_weather"
+      end)
+    end
+
+    test "tool_execute_stop emits correct event" do
+      events = capture_telemetry(fn ->
+        Swarm.Telemetry.tool_execute_stop("loop_123", 1, "tc_456", "get_weather", is_error: false)
+      end)
+
+      assert_event(events, [:swarm, :tool, :execute, :stop], fn measurements, metadata ->
+        assert is_integer(measurements.system_time)
+        assert metadata.tool_id == "tc_456"
+        assert metadata.tool_name == "get_weather"
+        assert metadata.is_error == false
+      end)
     end
   end
 
