@@ -12,8 +12,10 @@ defmodule FrontmanServer.Agents.SpecializedAgent do
 
   - `:figma_breakdown` - Analyzes Figma designs and breaks them into components
   - `:component_implement` - Implements UI components from Figma designs
-  - `:component_finish` - Verifies and finishes component implementations
-  - `:component_pixel_perfect` - Refines components to pixel-perfect accuracy
+  - `:fix_files_errors` - Fixes compilation/runtime errors after implementation
+  - `:visual_compare` - Compares implementation against Figma design
+  - `:fix_visual_issues` - Fixes visual discrepancies based on comparison
+  - `:replace_component` - Replaces old component with new implementation
   """
 
   use TypedStruct
@@ -23,8 +25,10 @@ defmodule FrontmanServer.Agents.SpecializedAgent do
   @type agent_type ::
           :figma_breakdown
           | :component_implement
-          | :component_finish
-          | :component_pixel_perfect
+          | :fix_files_errors
+          | :visual_compare
+          | :fix_visual_issues
+          | :replace_component
 
   typedstruct do
     field :type, agent_type(), enforce: true

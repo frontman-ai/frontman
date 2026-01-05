@@ -12,8 +12,8 @@ defmodule FrontmanServer.Tools.ImplementComponent do
   3. Implement the component based on the Figma data
   4. Create a test page to render the component
 
-  After this tool completes, use `finish_component` to visually verify
-  the implementation against the Figma design.
+  After this tool completes, use `fix_files_errors` to fix any errors, then
+  `visual_compare_component_to_figma` to compare against the Figma design.
   """
 
   @behaviour FrontmanServer.Tools.Backend
@@ -39,8 +39,8 @@ defmodule FrontmanServer.Tools.ImplementComponent do
     The tool will spawn a sub-agent that fetches the Figma node, analyzes the design,
     implements the component, and creates a test page to render it.
 
-    After this tool completes, use `finish_component` to visually verify the implementation.
-    This tool returns the file paths created, test page path/URL, and implementation summary needed for verification.
+    After this tool completes, use `fix_files_errors` then `visual_compare_component_to_figma`.
+    This tool returns the file paths created and implementation summary needed for verification.
     """
   end
 

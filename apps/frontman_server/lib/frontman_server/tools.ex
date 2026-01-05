@@ -13,8 +13,10 @@ defmodule FrontmanServer.Tools do
     FrontmanServer.Tools.TodoRemove,
     FrontmanServer.Tools.BreakdownFigmaDesign,
     FrontmanServer.Tools.ImplementComponent,
-    FrontmanServer.Tools.FinishComponent,
-    FrontmanServer.Tools.MakeComponentPixelPerfect
+    FrontmanServer.Tools.FixFilesErrors,
+    FrontmanServer.Tools.VisualCompareComponentToFigma,
+    FrontmanServer.Tools.FixVisualIssues,
+    FrontmanServer.Tools.ReplaceComponent
   ]
 
   @todo_mutations ["todo_add", "todo_update", "todo_remove"]
