@@ -3,12 +3,6 @@ defmodule FrontmanServer.AgentsTest do
 
   alias FrontmanServer.Agents
 
-  describe "agent_state/1" do
-    test "returns :not_running when no agent exists" do
-      assert Agents.agent_state("nonexistent_task") == :not_running
-    end
-  end
-
   describe "agent_running?/1" do
     test "returns false when no agent exists" do
       refute Agents.agent_running?("nonexistent_task")
@@ -16,9 +10,10 @@ defmodule FrontmanServer.AgentsTest do
   end
 
   describe "notify_tool_result/4" do
-    test "returns error when no agent exists" do
+    test "returns :ok even when no agent is waiting (backend tool case)" do
+      # Backend tools don't have a waiting agent - they execute synchronously
       result = Agents.notify_tool_result("nonexistent", "call_123", "result", false)
-      assert result == {:error, :agent_not_found}
+      assert result == :ok
     end
   end
 

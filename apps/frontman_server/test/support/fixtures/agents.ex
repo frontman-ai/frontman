@@ -9,9 +9,9 @@ defmodule FrontmanServer.Test.Fixtures.Agents do
 
       use FrontmanServer.AgentCase, async: true
 
-      @tag fixtures: [:parent_agent]
-      test "something", %{parent_agent: parent} do
-        # ...
+      @tag fixtures: [:event_collector]
+      test "something", %{on_event: on_event} do
+        # on_event callback sends to test process
       end
 
   ## Direct usage
@@ -19,13 +19,10 @@ defmodule FrontmanServer.Test.Fixtures.Agents do
       import FrontmanServer.Test.Fixtures.Agents
 
       setup do
-        ctx = build_fixtures([:event_collector, :parent_agent], %{})
-        on_exit(fn -> cleanup_agents(ctx) end)
+        ctx = build_fixtures([:event_collector], %{})
         ctx
       end
   """
-
-  alias FrontmanServer.Agents.AgentServer
 
   @doc """
   Build multiple fixtures from a list of atoms.
@@ -52,65 +49,9 @@ defmodule FrontmanServer.Test.Fixtures.Agents do
     Map.merge(ctx, %{on_event: on_event})
   end
 
-  def build_fixture(:parent_agent, ctx, tags) do
-    ctx = ensure_fixture(ctx, :event_collector, tags)
-
-    agent_id = tags[:parent_id] || "parent_#{ctx.unique_id}"
-    task_id = tags[:task_id] || "task_#{ctx.unique_id}"
-    llm_opts = build_llm_opts(ctx, tags)
-
-    {:ok, pid} =
-      GenServer.start_link(
-        AgentServer,
-        {:root,
-         %{
-           agent_id: agent_id,
-           task_id: task_id,
-           tools: tags[:tools] || [],
-           on_event: ctx.on_event,
-           llm_opts: llm_opts
-         }}
-      )
-
-    Map.merge(ctx, %{
-      parent_agent: %{pid: pid, id: agent_id, task_id: task_id}
-    })
-  end
-
-  # Ensure a dependency fixture exists
-  defp ensure_fixture(ctx, fixture, tags) do
-    key = fixture_key(fixture)
-
-    if Map.has_key?(ctx, key) do
-      ctx
-    else
-      build_fixture(fixture, ctx, tags)
-    end
-  end
-
-  defp fixture_key(:event_collector), do: :on_event
-  defp fixture_key(other), do: other
-
-  @doc "Cleanup agent processes"
-  @spec cleanup_agents(map()) :: :ok
-  def cleanup_agents(ctx) do
-    [:parent_agent]
-    |> Enum.each(fn key ->
-      case Map.get(ctx, key) do
-        %{pid: pid} when is_pid(pid) ->
-          if Process.alive?(pid), do: GenServer.stop(pid, :normal, 100)
-
-        _ ->
-          :ok
-      end
-    end)
-
-    :ok
-  end
-
-  # Build llm_opts from context and tags for VCR fixture support
-  # Note: fixture_path comes from tags (ExUnit context) via LLMIntegrationCase setup
-  defp build_llm_opts(_ctx, tags) do
+  @doc "Build LLM options from context and tags for VCR fixture support"
+  @spec build_llm_opts(map(), map()) :: keyword()
+  def build_llm_opts(_ctx, tags) do
     case {tags[:fixture_path], tags[:llm_fixture]} do
       {path, _} when is_binary(path) ->
         # Fixture path from LLMIntegrationCase setup

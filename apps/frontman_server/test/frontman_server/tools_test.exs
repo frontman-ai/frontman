@@ -4,7 +4,6 @@ defmodule FrontmanServer.ToolsTest do
   alias FrontmanServer.Tools.Backend.Context
   alias FrontmanServer.Tools
   alias FrontmanServer.Tasks
-  alias FrontmanServer.Tasks.Interaction.ToolCall
   alias FrontmanServer.Tasks.Todos.Todo
 
   setup do
@@ -53,47 +52,7 @@ defmodule FrontmanServer.ToolsTest do
     end
   end
 
-  describe "execute_backend_tool/2" do
-    test "executes backend tool successfully", %{task_id: task_id} do
-      tool_call = %ToolCall{
-        id: "call_123",
-        agent_id: "agent_456",
-        tool_call_id: "call_123",
-        tool_name: "todo_list",
-        arguments: %{},
-        timestamp: DateTime.utc_now()
-      }
-
-      assert {:executed, {:ok, result}} = Tools.execute_backend_tool(tool_call, task_id)
-      assert %{"todos" => []} = result
-    end
-
-    test "returns :not_found for non-backend tool", %{task_id: task_id} do
-      tool_call = %ToolCall{
-        id: "call_123",
-        agent_id: "agent_456",
-        tool_call_id: "call_123",
-        tool_name: "some_mcp_tool",
-        arguments: %{},
-        timestamp: DateTime.utc_now()
-      }
-
-      assert :not_found = Tools.execute_backend_tool(tool_call, task_id)
-    end
-
-    test "handles tool execution errors", %{task_id: task_id} do
-      tool_call = %ToolCall{
-        id: "call_123",
-        agent_id: "agent_456",
-        tool_call_id: "call_123",
-        tool_name: "todo_update",
-        arguments: %{"id" => "nonexistent", "status" => "completed"},
-        timestamp: DateTime.utc_now()
-      }
-
-      assert {:executed, {:error, _message}} = Tools.execute_backend_tool(tool_call, task_id)
-    end
-  end
+  # Note: execute_backend_tool/2 functionality moved to ToolExecutor.execute/3
 
   describe "tool execution via module.execute/2" do
     test "todo_add returns Todo struct", %{task: task, agent_id: agent_id} do

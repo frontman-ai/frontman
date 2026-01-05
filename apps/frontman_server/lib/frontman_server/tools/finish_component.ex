@@ -18,70 +18,12 @@ defmodule FrontmanServer.Tools.FinishComponent do
 
   require Logger
 
-  alias FrontmanServer.Agents.{AgentRunner, LLMClient, ToolExecutor}
+  alias FrontmanServer.Agents.{ComponentFinishAgent, ToolExecutor}
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Tools.Backend.Context
   alias FrontmanServer.Tools.MCP
   alias Swarm.Message
-
-  @system_prompt """
-  You are a frontend component verification specialist. Your task is to verify and finish
-  a component implementation by comparing it visually against the original Figma design.
-
-  ## Project Context & Conventions
-
-  **CRITICAL:** If you have been provided with project documentation, research findings,
-  or convention files, you MUST follow them throughout the verification process.
-
-  ## Your Goal
-
-  Verify that the implemented component **roughly matches** the Figma design. You are NOT
-  aiming for pixel-perfect accuracy - instead, ensure:
-  - Overall layout and structure match
-  - Colors and typography are approximately correct
-  - Spacing and proportions are reasonable
-  - Interactive elements are in the right positions
-  - The component is visually acceptable for the intended use
-
-  ## Instructions
-
-  1. **Fetch the Figma node** - Use `get_figma_node` with:
-     - nodeId: (provided in your task - use WITHOUT the # prefix)
-     - includeImage: true
-     - withChildren: false (we only need the image for comparison)
-
-  2. **Navigate to test page** - Use `navigate` tool with the test page URL provided in your task
-
-  3. **Check for errors** - Use `get_errors` tool to check for errors. Fix any errors found.
-
-  4. **Visual verification loop**:
-     a. **Take a screenshot** - Use `take_screenshot` tool to capture the rendered component.
-        If a CSS selector (e.g., `[data-test-id="..."]`) is provided in your task, use it with the `selector` parameter
-        of `take_screenshot` to capture ONLY the component.
-     b. **Compare with Figma** - Compare the screenshot against the Figma design image
-     c. **Assess the match** - Determine if the implementation roughly matches:
-        - If YES: Proceed to the final audit
-        - If NO: Make targeted fixes and repeat the loop (max 3 iterations)
-
-  5. **Final Page Audit** - After completing the verification loop:
-     a. **Check for errors again** - Use `get_errors` tool to ensure no runtime errors occurred during rendering or interaction.
-     b. **Take a full-page screenshot** - Use `take_screenshot` tool WITHOUT a selector to capture the entire page. Verify the component is correctly positioned and no error overlays or blocking elements are present.
-
-  6. **Cleanup and complete**:
-     a. Use `navigate_back` tool to leave the test page
-     b. Delete the test page file (path provided in your task)
-     c. Report your findings
-
-  ## Important Guidelines
-
-  - The test page was already created by implement_component - just navigate to it
-  - Focus on structural and visual correctness, not pixel-perfect matching
-  - Make minimal, targeted fixes - don't refactor or over-engineer
-  - After 3 verification iterations, accept the current state if reasonably close
-  - Do NOT engage in conversation or ask clarifying questions
-  - Complete your task and return the verification result
-  """
 
   @impl true
   def name, do: "finish_component"
@@ -165,18 +107,13 @@ defmodule FrontmanServer.Tools.FinishComponent do
 
     user_msg = build_user_message(args)
 
-    # Extract markdown files from read_file tool results (e.g., project conventions,
-    # research findings, AGENTS.md files) and add them as user messages.
+    # Extract markdown files for project conventions
     markdown_messages = extract_markdown_messages_from_task(task.task_id)
-
-    # Build message list: markdown files (conventions/research), then user message
-    # Note: system prompt is in the AgentRunner.Agent struct, added by Swarm Runner
     messages = markdown_messages ++ [user_msg]
 
-    # Build agent and executor, then run with Swarm directly
+    # Build ComponentFinishAgent and executor
     agent_id = "component_finisher_#{parent_agent_id}"
-    llm = LLMClient.new(tools: mcp_tools, llm_opts: llm_opts)
-    agent = %AgentRunner.Agent{system_prompt: @system_prompt, llm: llm}
+    agent = ComponentFinishAgent.new(tools: mcp_tools, llm_opts: llm_opts)
     tool_executor = ToolExecutor.make_executor(task.task_id, agent_id)
 
     case Swarm.run_blocking(agent, messages, tool_executor) do
@@ -264,8 +201,6 @@ defmodule FrontmanServer.Tools.FinishComponent do
     Message.user(task_text)
   end
 
-  # Extracts markdown file contents from read_file ToolResult interactions
-  # in the task and converts them to user messages.
   defp extract_markdown_messages_from_task(task_id) do
     task_id
     |> Tasks.get_interactions()

@@ -1,14 +1,10 @@
 defmodule FrontmanServer.Tools do
   @moduledoc """
-  Backend tool aggregator and executor.
+  Backend tool aggregator.
   """
 
-  require Logger
-
   alias FrontmanServer.Tools.Backend
-  alias FrontmanServer.Observability.TelemetryEvents
   alias FrontmanServer.Tasks
-  alias FrontmanServer.Tasks.Interaction.ToolCall
 
   @backend_tools [
     FrontmanServer.Tools.TodoList,
@@ -61,45 +57,5 @@ defmodule FrontmanServer.Tools do
     backend = backend_tools()
 
     backend ++ mcp_formatted
-  end
-
-  @spec execute_backend_tool(ToolCall.t(), String.t()) :: {:executed, term()} | :not_found
-  def execute_backend_tool(%ToolCall{agent_id: agent_id} = tool_call, task_id) do
-    case find_tool(tool_call.tool_name) do
-      {:ok, tool_module} ->
-        case Tasks.get_task(task_id) do
-          {:ok, task} ->
-            Logger.info("Executing backend tool: #{tool_call.tool_name}")
-
-            TelemetryEvents.tool_start(
-              tool_call.tool_call_id,
-              tool_call.tool_name,
-              agent_id,
-              task_id,
-              tool_call.arguments
-            )
-
-            context = %Backend.Context{task: task, agent_id: agent_id}
-            result = tool_module.execute(tool_call.arguments, context)
-
-            case result do
-              {:ok, _} ->
-                TelemetryEvents.tool_stop(tool_call.tool_call_id, status: "success")
-
-              {:error, reason} ->
-                TelemetryEvents.tool_stop(tool_call.tool_call_id, status: "error", error: reason)
-            end
-
-            Logger.debug("Backend tool #{tool_call.tool_name} result: #{inspect(result)}")
-
-            {:executed, result}
-
-          {:error, :not_found} ->
-            {:executed, {:error, "Task not found"}}
-        end
-
-      :not_found ->
-        :not_found
-    end
   end
 end

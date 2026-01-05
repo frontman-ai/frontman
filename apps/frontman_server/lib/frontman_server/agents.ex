@@ -6,38 +6,26 @@ defmodule FrontmanServer.Agents do
   Each agent run gets a unique agent_id.
 
   This module handles:
-  - Starting agents with callback injection
-  - Routing notifications to running agents
+  - Starting agents using the Swarm-based Executor
+  - Routing tool result notifications to waiting executors
   - Translating agent events to Tasks operations and transport broadcasts
   """
 
   require Logger
 
-  alias FrontmanServer.Agents.{AgentServer, Prompts}
+  alias FrontmanServer.Agents.{Executor, RootAgent}
   alias FrontmanServer.Tasks
-
-  @doc """
-  Returns the current state of the agent for a task.
-
-  - `:processing` - agent is actively working
-  - `:waiting_for_tools` - agent is blocked waiting for tool results
-  - `:idle` - agent is waiting for new messages
-  - `:not_running` - no agent exists for this task
-  """
-  @spec agent_state(String.t()) :: :processing | :waiting_for_tools | :idle | :not_running
-  def agent_state(task_id) do
-    case get_root_agent_for_task(task_id) do
-      {:ok, pid, _metadata} -> GenServer.call(pid, :get_status)
-      {:error, :not_found} -> :not_running
-    end
-  end
+  alias Swarm.Message
 
   @doc """
   Checks if an agent is currently running for the given task.
   """
   @spec agent_running?(String.t()) :: boolean()
   def agent_running?(task_id) do
-    agent_state(task_id) != :not_running
+    case get_root_agent_for_task(task_id) do
+      {:ok, _pid, _metadata} -> true
+      {:error, :not_found} -> false
+    end
   end
 
   @doc "Gets agent metadata by agent_id"
@@ -82,8 +70,16 @@ defmodule FrontmanServer.Agents do
   @spec get_agent_for_tool_call(String.t()) :: {:ok, String.t()} | {:error, :not_found}
   def get_agent_for_tool_call(tool_call_id) do
     case Registry.lookup(FrontmanServer.AgentRegistry, {:tool_call, tool_call_id}) do
-      [{_self, agent_id}] -> {:ok, agent_id}
-      [] -> {:error, :not_found}
+      [{_self, %{} = _metadata}] ->
+        # New format: metadata map with caller info
+        # The agent_id is not stored directly, but the executor handles routing
+        {:error, :not_found}
+
+      [{_self, agent_id}] when is_binary(agent_id) ->
+        {:ok, agent_id}
+
+      [] ->
+        {:error, :not_found}
     end
   end
 
@@ -107,8 +103,8 @@ defmodule FrontmanServer.Agents do
   @doc """
   Starts a new agent for the given task and begins execution.
 
-  Creates a unique agent_id and spawns AgentServer with callback injection.
-  The agent receives messages via push model - no direct Tasks access.
+  Creates a unique agent_id and spawns an Executor task with RootAgent.
+  The executor runs the full agent loop (LLM calls + tool execution) until completion.
 
   ## Options
   - `:tools` - List of tool definitions for LLM (default: [])
@@ -118,67 +114,50 @@ defmodule FrontmanServer.Agents do
     tools = Keyword.get(opts, :tools, [])
     on_event = build_event_handler(task_id)
 
-    result =
-      DynamicSupervisor.start_child(
-        FrontmanServer.AgentSupervisor,
-        {AgentServer, agent_id: agent_id, task_id: task_id, tools: tools, on_event: on_event}
+    # Build context for dynamic system prompt
+    has_figma = Tasks.has_figma_context?(task_id)
+    has_selected_component = Tasks.has_selected_component?(task_id)
+    figma_node_id = Tasks.get_figma_node_id(task_id)
+    framework = get_framework(task_id)
+
+    # Create RootAgent with context
+    agent =
+      RootAgent.new(
+        tools: tools,
+        has_figma_context: has_figma,
+        has_selected_component: has_selected_component,
+        figma_node_id: figma_node_id,
+        framework: framework
       )
 
-    case result do
-      {:ok, _pid} ->
-        Tasks.add_agent_spawned(%{task_id: task_id, agent_id: agent_id}, %{tools: tools})
-        messages = Tasks.get_llm_messages(task_id, agent_id)
-        has_figma = Tasks.has_figma_context?(task_id)
-        has_selected_component = Tasks.has_selected_component?(task_id)
-        figma_node_id = Tasks.get_figma_node_id(task_id)
-        framework = get_framework(task_id)
+    # Get messages and convert to Swarm.Message format
+    messages = build_messages(task_id, agent_id)
 
-        system_msg =
-          Prompts.build_system_message(nil,
-            has_figma_context: has_figma,
-            has_selected_component: has_selected_component,
-            figma_node_id: figma_node_id,
-            framework: framework
-          )
+    # Track agent spawned in task
+    Tasks.add_agent_spawned(%{task_id: task_id, agent_id: agent_id}, %{tools: tools})
 
-        AgentServer.execute_iteration(agent_id, [system_msg | messages])
-        {:ok, agent_id}
-
-      {:error, reason} ->
-        Logger.error("Failed to start agent: #{inspect(reason)}")
-        {:error, reason}
-    end
+    # Start executor - always returns {:ok, ref} since it spawns a Task
+    {:ok, _ref} = Executor.run(agent, task_id, agent_id, messages, on_event: on_event)
+    {:ok, agent_id}
   end
 
   @doc """
   Notifies the agent that a tool result has arrived.
 
   Called by Tasks when a tool result is added.
-  Routes based on executor type in Registry metadata:
-  - `:agent_runner` - sends directly to blocking caller
-  - `:agent_server` - sends to AgentServer GenServer
+  Routes to the blocking caller via Registry metadata.
   """
-  @spec notify_tool_result(String.t(), String.t(), term(), boolean()) ::
-          :ok | {:error, :agent_not_found}
+  @spec notify_tool_result(String.t(), String.t(), term(), boolean()) :: :ok
   def notify_tool_result(_task_id, tool_call_id, result, is_error) do
     case Registry.lookup(FrontmanServer.AgentRegistry, {:tool_call, tool_call_id}) do
-      [{_pid, %{executor: :agent_runner, caller_ref: ref, caller_pid: caller}}] ->
+      [{_pid, %{executor: :tool_executor, caller_ref: ref, caller_pid: caller}}] ->
+        # MCP tool - send result to waiting executor
         send(caller, {:tool_result, ref, result, is_error})
         :ok
 
-      [{_pid, agent_id}] when is_binary(agent_id) ->
-        # Legacy: AgentServer registered with just agent_id
-        case get_agent(agent_id) do
-          {:ok, pid, _metadata} ->
-            send(pid, {:tool_result, tool_call_id, result, is_error})
-            :ok
-
-          {:error, :not_found} ->
-            {:error, :agent_not_found}
-        end
-
       [] ->
-        {:error, :agent_not_found}
+        # No waiter - this is normal for backend tools (they execute synchronously)
+        :ok
     end
   end
 
@@ -186,20 +165,20 @@ defmodule FrontmanServer.Agents do
   Notifies that a user message has been added.
 
   Called by Tasks when a user message is added.
-  Spawns a new agent if none exists, or wakes an idle agent.
+  Spawns a new agent if none exists.
 
   ## Options
   - `:tools` - List of tool definitions for LLM (default: [])
   """
   @spec notify_user_message(String.t(), list(FrontmanServer.Tools.MCP.t())) :: :ok
   def notify_user_message(task_id, tools) do
-    case AgentServer.wake(task_id) do
-      :ok ->
-        :ok
-
-      {:error, :not_found} ->
-        start_agent(task_id, tools: tools)
-        :ok
+    # Check if agent is already running
+    if agent_running?(task_id) do
+      # Agent is running - it will pick up new messages on next iteration
+      :ok
+    else
+      start_agent(task_id, tools: tools)
+      :ok
     end
   end
 
@@ -226,25 +205,62 @@ defmodule FrontmanServer.Agents do
 
       {:error, agent_id, reason} ->
         broadcast(task_id, {:agent_error, agent_id, inspect(reason)})
-
-      {:need_iteration, agent_id} ->
-        push_iteration(task_id, agent_id)
     end
   end
 
-  defp push_iteration(task_id, agent_id) do
-    messages = Tasks.get_llm_messages(task_id, agent_id)
-    framework = get_framework(task_id)
+  defp build_messages(task_id, agent_id) do
+    task_id
+    |> Tasks.get_llm_messages(agent_id)
+    |> Enum.map(&to_swarm_message/1)
+  end
 
-    opts = [
-      has_figma_context: Tasks.has_figma_context?(task_id),
-      has_selected_component: Tasks.has_selected_component?(task_id),
-      figma_node_id: Tasks.get_figma_node_id(task_id),
-      framework: framework
-    ]
+  defp to_swarm_message(%ReqLLM.Message{} = msg) do
+    content =
+      case msg.content do
+        text when is_binary(text) ->
+          [Message.ContentPart.text(text)]
 
-    system_msg = Prompts.build_system_message(nil, opts)
-    AgentServer.execute_iteration(agent_id, [system_msg | messages])
+        parts when is_list(parts) ->
+          Enum.map(parts, &to_swarm_content_part/1)
+
+        nil ->
+          []
+      end
+
+    %Message{
+      role: msg.role,
+      content: content,
+      tool_calls: to_swarm_tool_calls(msg.tool_calls),
+      tool_call_id: msg.tool_call_id,
+      name: msg.name
+    }
+  end
+
+  defp to_swarm_content_part(%ReqLLM.Message.ContentPart{type: :text, text: text}) do
+    Message.ContentPart.text(text)
+  end
+
+  defp to_swarm_content_part(%ReqLLM.Message.ContentPart{type: :image, data: data, media_type: mt}) do
+    Message.ContentPart.image(data, mt)
+  end
+
+  defp to_swarm_content_part(%ReqLLM.Message.ContentPart{type: :image_url, url: url}) do
+    Message.ContentPart.image_url(url)
+  end
+
+  defp to_swarm_content_part(_), do: nil
+
+  defp to_swarm_tool_calls(nil), do: []
+  defp to_swarm_tool_calls([]), do: []
+
+  defp to_swarm_tool_calls(tool_calls) do
+    Enum.map(tool_calls, fn tc ->
+      %Swarm.ToolCall{
+        id: tc.id,
+        name: ReqLLM.ToolCall.name(tc),
+        arguments: tc.arguments
+      }
+    end)
   end
 
   defp get_framework(task_id) do

@@ -10,28 +10,20 @@ defmodule FrontmanServer.AgentCase do
       use FrontmanServer.AgentCase, async: true
 
       describe "some feature" do
-        @tag fixtures: [:parent_agent]
-        test "does something", %{parent_agent: %{pid: pid, id: id}} do
-          # pid and id are available
+        @tag fixtures: [:event_collector]
+        test "does something", %{on_event: on_event} do
+          # on_event callback sends events to test process
         end
       end
 
   ## Available fixtures
 
   - `:event_collector` - Creates `on_event` callback that sends to test process
-  - `:parent_agent` - Starts a root agent, provides `%{pid, id, task_id}`
-
-  ## Tag options
-
-  You can customize fixtures via tags:
-
-      @tag fixtures: [:parent_agent], parent_id: "custom_parent", task_id: "custom_task"
 
   ## LLM Integration Tests (VCR-style fixtures)
 
-  Tests that create agents with `:parent_agent` or similar fixtures automatically
-  get VCR-style fixture support. Fixture paths are auto-generated based on
-  module and test name:
+  Tests using AgentCase automatically get VCR-style fixture support.
+  Fixture paths are auto-generated based on module and test name:
 
       test/support/fixtures/llm/{module_name}/{test_name}.json
 
@@ -51,7 +43,6 @@ defmodule FrontmanServer.AgentCase do
 
   using do
     quote do
-      alias FrontmanServer.Agents.{Agent, AgentServer}
       import FrontmanServer.Test.Fixtures.Agents
     end
   end

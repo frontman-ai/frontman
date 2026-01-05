@@ -386,7 +386,8 @@ defmodule SwarmTest do
     test "loop accumulates messages across steps" do
       llm =
         multi_turn_llm([
-          {:tool_calls, [%Swarm.ToolCall{id: "tc_1", name: "lookup", arguments: "{}"}], "Looking up..."},
+          {:tool_calls, [%Swarm.ToolCall{id: "tc_1", name: "lookup", arguments: "{}"}],
+           "Looking up..."},
           {:complete, "Found the answer"}
         ])
 
@@ -414,7 +415,13 @@ defmodule SwarmTest do
     test "tool call arguments can be parsed as JSON" do
       llm =
         tool_then_complete_llm(
-          [%Swarm.ToolCall{id: "tc_1", name: "get_weather", arguments: ~s({"city":"NYC","units":"celsius"})}],
+          [
+            %Swarm.ToolCall{
+              id: "tc_1",
+              name: "get_weather",
+              arguments: ~s({"city":"NYC","units":"celsius"})
+            }
+          ],
           "Done"
         )
 

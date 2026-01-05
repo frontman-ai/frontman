@@ -35,7 +35,8 @@ defmodule Swarm.Loop.Runner do
       effects     # => [{:emit_event, %Started{}}, {:call_llm, llm, messages}]
   """
   @spec start(Loop.t(), [Message.t()]) :: {Loop.t(), [Effect.t()]}
-  def start(%Loop{status: :ready, agent: agent} = loop, user_messages) when is_list(user_messages) do
+  def start(%Loop{status: :ready, agent: agent} = loop, user_messages)
+      when is_list(user_messages) do
     system_prompt = Agent.system_prompt(agent)
     llm = Agent.llm(agent)
 
@@ -152,7 +153,11 @@ defmodule Swarm.Loop.Runner do
     {loop, [{:call_llm, llm, messages}]}
   end
 
-  defp format_tool_result(%Swarm.ToolCall{id: id, name: name, result: %Swarm.ToolResult{content: content}}) do
+  defp format_tool_result(%Swarm.ToolCall{
+         id: id,
+         name: name,
+         result: %Swarm.ToolResult{content: content}
+       }) do
     Message.tool_result(name, id, content)
   end
 

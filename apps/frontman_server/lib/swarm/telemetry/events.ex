@@ -9,8 +9,9 @@ defmodule Swarm.Telemetry.Events do
 
   ```
   [:swarm, :run, :start/:stop/:exception]
-  └── [:swarm, :llm, :call, :start/:stop/:exception]
-  └── [:swarm, :tool, :execute, :start/:stop/:exception]
+  ├── [:swarm, :llm, :call, :start/:stop/:exception]
+  ├── [:swarm, :tool, :execute, :start/:stop/:exception]
+  └── [:swarm, :child, :spawn, :start/:stop/:exception]
   ```
   """
 
@@ -31,6 +32,11 @@ defmodule Swarm.Telemetry.Events do
   def tool_execute_stop, do: @prefix ++ [:tool, :execute, :stop]
   def tool_execute_exception, do: @prefix ++ [:tool, :execute, :exception]
 
+  # Child spawn lifecycle
+  def child_spawn_start, do: @prefix ++ [:child, :spawn, :start]
+  def child_spawn_stop, do: @prefix ++ [:child, :spawn, :stop]
+  def child_spawn_exception, do: @prefix ++ [:child, :spawn, :exception]
+
   @doc """
   Returns all event names for handler attachment.
 
@@ -48,7 +54,10 @@ defmodule Swarm.Telemetry.Events do
       llm_call_exception(),
       tool_execute_start(),
       tool_execute_stop(),
-      tool_execute_exception()
+      tool_execute_exception(),
+      child_spawn_start(),
+      child_spawn_stop(),
+      child_spawn_exception()
     ]
   end
 end

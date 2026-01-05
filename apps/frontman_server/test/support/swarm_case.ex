@@ -64,7 +64,8 @@ defmodule FrontmanServer.SwarmCase do
 
       case response do
         text when is_binary(text) ->
-          {:ok, response_to_stream(%LLM.Response{content: text, usage: default_usage(), raw: nil})}
+          {:ok,
+           response_to_stream(%LLM.Response{content: text, usage: default_usage(), raw: nil})}
 
         {:ok, %LLM.Response{} = resp} ->
           {:ok, response_to_stream(resp)}
@@ -82,15 +83,28 @@ defmodule FrontmanServer.SwarmCase do
 
     defp response_to_stream(%LLM.Response{} = response) do
       chunks = []
-      chunks = if response.content && response.content != "", do: [Chunk.token(response.content) | chunks], else: chunks
-      chunks = Enum.reduce(response.tool_calls || [], chunks, fn tc, acc -> [Chunk.tool_call_end(tc) | acc] end)
-      chunks = if response.usage, do: [Chunk.usage(to_usage(response.usage)) | chunks], else: chunks
+
+      chunks =
+        if response.content && response.content != "",
+          do: [Chunk.token(response.content) | chunks],
+          else: chunks
+
+      chunks =
+        Enum.reduce(response.tool_calls || [], chunks, fn tc, acc ->
+          [Chunk.tool_call_end(tc) | acc]
+        end)
+
+      chunks =
+        if response.usage, do: [Chunk.usage(to_usage(response.usage)) | chunks], else: chunks
+
       chunks = [Chunk.done(response.finish_reason || :stop) | chunks]
       Enum.reverse(chunks)
     end
 
     defp to_usage(%Usage{} = u), do: u
-    defp to_usage(%{input_tokens: i, output_tokens: o}), do: %Usage{input_tokens: i, output_tokens: o}
+
+    defp to_usage(%{input_tokens: i, output_tokens: o}),
+      do: %Usage{input_tokens: i, output_tokens: o}
 
     defp default_usage, do: %{input_tokens: 10, output_tokens: 5}
   end

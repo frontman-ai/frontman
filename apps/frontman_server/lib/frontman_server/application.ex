@@ -30,10 +30,10 @@ defmodule FrontmanServer.Application do
       FrontmanServer.Repo,
       {DNSCluster, query: Application.get_env(:frontman_server, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: FrontmanServer.PubSub},
-      # Registry for tracking agents by task_id
+      # Registry for tracking agents and tool calls
       {Registry, keys: :unique, name: FrontmanServer.AgentRegistry},
-      # DynamicSupervisor for agents
-      {DynamicSupervisor, name: FrontmanServer.AgentSupervisor, strategy: :one_for_one},
+      # TaskSupervisor for agent execution tasks
+      {Task.Supervisor, name: FrontmanServer.TaskSupervisor},
       # Start to serve requests, typically the last entry
       FrontmanServerWeb.Endpoint
     ]

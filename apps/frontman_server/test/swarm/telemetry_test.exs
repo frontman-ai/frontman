@@ -37,9 +37,10 @@ defmodule Swarm.TelemetryTest do
 
   describe "manual telemetry emission" do
     test "run_start emits correct event" do
-      events = capture_telemetry(fn ->
-        Swarm.Telemetry.run_start("loop_123", TestAgent)
-      end)
+      events =
+        capture_telemetry(fn ->
+          Swarm.Telemetry.run_start("loop_123", TestAgent)
+        end)
 
       assert_event(events, [:swarm, :run, :start], fn measurements, metadata ->
         assert is_integer(measurements.system_time)
@@ -49,9 +50,10 @@ defmodule Swarm.TelemetryTest do
     end
 
     test "run_stop emits correct event" do
-      events = capture_telemetry(fn ->
-        Swarm.Telemetry.run_stop("loop_123", status: :completed, result: "done", step_count: 2)
-      end)
+      events =
+        capture_telemetry(fn ->
+          Swarm.Telemetry.run_stop("loop_123", status: :completed, result: "done", step_count: 2)
+        end)
 
       assert_event(events, [:swarm, :run, :stop], fn measurements, metadata ->
         assert is_integer(measurements.system_time)
@@ -63,9 +65,10 @@ defmodule Swarm.TelemetryTest do
     end
 
     test "llm_call_start emits correct event" do
-      events = capture_telemetry(fn ->
-        Swarm.Telemetry.llm_call_start("loop_123", 1, "claude-3")
-      end)
+      events =
+        capture_telemetry(fn ->
+          Swarm.Telemetry.llm_call_start("loop_123", 1, "claude-3")
+        end)
 
       assert_event(events, [:swarm, :llm, :call, :start], fn measurements, metadata ->
         assert is_integer(measurements.system_time)
@@ -76,9 +79,14 @@ defmodule Swarm.TelemetryTest do
     end
 
     test "llm_call_stop emits correct event" do
-      events = capture_telemetry(fn ->
-        Swarm.Telemetry.llm_call_stop("loop_123", 1, input_tokens: 100, output_tokens: 50, tool_call_count: 2)
-      end)
+      events =
+        capture_telemetry(fn ->
+          Swarm.Telemetry.llm_call_stop("loop_123", 1,
+            input_tokens: 100,
+            output_tokens: 50,
+            tool_call_count: 2
+          )
+        end)
 
       assert_event(events, [:swarm, :llm, :call, :stop], fn measurements, metadata ->
         assert is_integer(measurements.system_time)
@@ -89,9 +97,10 @@ defmodule Swarm.TelemetryTest do
     end
 
     test "tool_execute_start emits correct event" do
-      events = capture_telemetry(fn ->
-        Swarm.Telemetry.tool_execute_start("loop_123", 1, "tc_456", "get_weather")
-      end)
+      events =
+        capture_telemetry(fn ->
+          Swarm.Telemetry.tool_execute_start("loop_123", 1, "tc_456", "get_weather")
+        end)
 
       assert_event(events, [:swarm, :tool, :execute, :start], fn measurements, metadata ->
         assert is_integer(measurements.system_time)
@@ -101,9 +110,12 @@ defmodule Swarm.TelemetryTest do
     end
 
     test "tool_execute_stop emits correct event" do
-      events = capture_telemetry(fn ->
-        Swarm.Telemetry.tool_execute_stop("loop_123", 1, "tc_456", "get_weather", is_error: false)
-      end)
+      events =
+        capture_telemetry(fn ->
+          Swarm.Telemetry.tool_execute_stop("loop_123", 1, "tc_456", "get_weather",
+            is_error: false
+          )
+        end)
 
       assert_event(events, [:swarm, :tool, :execute, :stop], fn measurements, metadata ->
         assert is_integer(measurements.system_time)

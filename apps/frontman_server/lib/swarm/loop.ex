@@ -13,7 +13,8 @@ defmodule Swarm.Loop do
   alias Swarm.Loop.Step
   use TypedStruct
 
-  @type status :: :ready | :running | :waiting_for_tools | :completed | :failed | :paused | :max_steps
+  @type status ::
+          :ready | :running | :waiting_for_tools | :completed | :failed | :paused | :max_steps
   typedstruct do
     field :id, Swarm.Id.t(), enforce: true
     field :agent, Swarm.Agent.t(), enforce: true
@@ -23,6 +24,8 @@ defmodule Swarm.Loop do
     field :config, Config.t(), enforce: true
     field :result, term()
     field :error, term()
+    field :parent_id, Swarm.Id.t()
+    field :parent_step, pos_integer()
   end
 
   @spec make(Swarm.Agent.t(), %Config{}) :: __MODULE__
@@ -35,7 +38,28 @@ defmodule Swarm.Loop do
       current_step: 0,
       config: config,
       result: nil,
-      error: nil
+      error: nil,
+      parent_id: nil,
+      parent_step: nil
+    }
+  end
+
+  @doc """
+  Creates a child loop linked to a parent.
+  """
+  @spec make_child(Swarm.Agent.t(), Config.t(), Swarm.Id.t(), pos_integer()) :: t()
+  def make_child(agent, %Config{} = config, parent_id, parent_step) do
+    %__MODULE__{
+      id: Swarm.Id.generate("loop"),
+      agent: agent,
+      status: :ready,
+      steps: [],
+      current_step: 0,
+      config: config,
+      result: nil,
+      error: nil,
+      parent_id: parent_id,
+      parent_step: parent_step
     }
   end
 

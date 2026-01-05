@@ -172,7 +172,15 @@ defmodule Swarm.Telemetry do
   end
 
   @doc "Emit tool execution exception event."
-  @spec tool_execute_exception(String.t(), pos_integer(), String.t(), String.t(), atom(), term(), list()) ::
+  @spec tool_execute_exception(
+          String.t(),
+          pos_integer(),
+          String.t(),
+          String.t(),
+          atom(),
+          term(),
+          list()
+        ) ::
           :ok
   def tool_execute_exception(loop_id, step, tool_id, tool_name, kind, reason, stacktrace) do
     emit(Events.tool_execute_exception(), %{
@@ -180,6 +188,52 @@ defmodule Swarm.Telemetry do
       step: step,
       tool_id: tool_id,
       tool_name: tool_name,
+      kind: kind,
+      reason: reason,
+      stacktrace: stacktrace
+    })
+  end
+
+  # =============================================================================
+  # Child Spawn
+  # =============================================================================
+
+  @doc "Emit child spawn start event."
+  @spec child_spawn_start(String.t(), pos_integer(), String.t(), Swarm.SpawnChildAgent.t()) :: :ok
+  def child_spawn_start(
+        parent_loop_id,
+        parent_step,
+        tool_call_id,
+        %Swarm.SpawnChildAgent{} = request
+      ) do
+    emit(Events.child_spawn_start(), %{
+      parent_loop_id: parent_loop_id,
+      parent_step: parent_step,
+      tool_call_id: tool_call_id,
+      child_agent_module: request.agent.__struct__,
+      task: request.task
+    })
+  end
+
+  @doc "Emit child spawn stop event."
+  @spec child_spawn_stop(String.t(), Swarm.ChildResult.t()) :: :ok
+  def child_spawn_stop(parent_loop_id, %Swarm.ChildResult{} = result) do
+    emit(Events.child_spawn_stop(), %{
+      parent_loop_id: parent_loop_id,
+      child_loop_id: result.child_loop_id,
+      child_status: result.status,
+      child_step_count: result.step_count,
+      child_total_tokens: result.total_tokens,
+      duration_ms: result.duration_ms
+    })
+  end
+
+  @doc "Emit child spawn exception event."
+  @spec child_spawn_exception(String.t(), String.t(), atom(), term(), list()) :: :ok
+  def child_spawn_exception(parent_loop_id, tool_call_id, kind, reason, stacktrace) do
+    emit(Events.child_spawn_exception(), %{
+      parent_loop_id: parent_loop_id,
+      tool_call_id: tool_call_id,
       kind: kind,
       reason: reason,
       stacktrace: stacktrace
@@ -212,7 +266,8 @@ defmodule Swarm.Telemetry do
     end)
   end
 
-  defp events_for_operation(:run), do: {Events.run_start(), Events.run_stop(), Events.run_exception()}
+  defp events_for_operation(:run),
+    do: {Events.run_start(), Events.run_stop(), Events.run_exception()}
 
   defp events_for_operation(:llm_call),
     do: {Events.llm_call_start(), Events.llm_call_stop(), Events.llm_call_exception()}

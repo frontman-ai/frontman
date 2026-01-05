@@ -115,9 +115,6 @@ defmodule FrontmanServer.TasksTest do
 
       tool_call_data = %{id: "call_123", name: "calculator"}
 
-      # Register the tool call in Registry (simulating what agent does)
-      Registry.register(FrontmanServer.AgentRegistry, {:tool_call, tool_call_data.id}, agent_id)
-
       {:ok, interaction} = Tasks.add_tool_result(task_id, agent_id, tool_call_data, 2, false)
 
       assert interaction.result == 2
@@ -133,9 +130,6 @@ defmodule FrontmanServer.TasksTest do
 
       tool_call_data = %{id: "call_456", name: "failing_tool"}
 
-      # Register the tool call in Registry
-      Registry.register(FrontmanServer.AgentRegistry, {:tool_call, tool_call_data.id}, agent_id)
-
       {:ok, interaction} =
         Tasks.add_tool_result(task_id, agent_id, tool_call_data, "error message", true)
 
@@ -144,15 +138,12 @@ defmodule FrontmanServer.TasksTest do
       assert interaction.agent_id == agent_id
     end
 
-    test "notifies agent via Registry" do
+    test "stores tool result in interactions" do
       task_id = "test_tool_notify_#{System.unique_integer([:positive])}"
       {:ok, ^task_id} = Tasks.create_task(task_id)
       agent_id = "agent_#{System.unique_integer([:positive])}"
 
       tool_call_data = %{id: "call_notify", name: "some_tool"}
-
-      # Register the tool call in Registry
-      Registry.register(FrontmanServer.AgentRegistry, {:tool_call, tool_call_data.id}, agent_id)
 
       {:ok, _interaction} =
         Tasks.add_tool_result(task_id, agent_id, tool_call_data, "result", false)

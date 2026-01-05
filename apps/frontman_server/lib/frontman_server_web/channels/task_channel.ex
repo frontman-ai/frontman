@@ -373,46 +373,36 @@ defmodule FrontmanServerWeb.TaskChannel do
 
     push(socket, "acp:message", args_notification)
 
-    # Check if it's a backend tool
+    # Check if it's a backend tool or MCP tool
     case Tools.find_tool(tool_call.tool_name) do
       {:ok, _tool_module} ->
-        # Execute backend tool ASYNC to avoid blocking the channel
-        channel_pid = self()
-
-        Task.start(fn ->
-          result = Tools.execute_backend_tool(tool_call, task_id)
-          send(channel_pid, {:backend_tool_completed, tool_call, result})
-        end)
-
+        # Backend tools are executed by ToolExecutor in the agent loop.
+        # The channel just notifies the UI (already done above).
+        # When the tool completes, we'll receive a ToolResult notification.
         {:noreply, socket}
 
       :not_found ->
-        # Not a backend tool, route to MCP
+        # Not a backend tool, route to MCP client for execution
         route_to_mcp(tool_call, socket)
     end
-  end
-
-  def handle_info({:backend_tool_completed, tool_call, {:executed, result}}, socket) do
-    handle_backend_tool_result(tool_call, result, socket)
-  end
-
-  def handle_info({:backend_tool_completed, tool_call, :not_found}, socket) do
-    # This shouldn't happen since we checked find_backend_tool first,
-    # but handle it gracefully by routing to MCP
-    Logger.warning("Backend tool #{tool_call.tool_name} not found after async execution")
-    route_to_mcp(tool_call, socket)
   end
 
   def handle_info({:interaction, %Interaction.ToolResult{} = tool_result}, socket) do
     task_id = socket.assigns.task_id
 
+    # Send ACP update for tool completion/error
+    status = if tool_result.is_error, do: "error", else: "completed"
+    content = format_tool_content(tool_result.result)
+    notification = ACP.tool_call_update(task_id, tool_result.tool_call_id, status, content)
+    push(socket, "acp:message", notification)
+
+    # Handle todo mutations (plan updates)
     if Tools.todo_mutation?(tool_result.tool_name) do
-      # Send plan_update as before
       case Tasks.list_todos(task_id) do
         {:ok, todos} ->
           entries = todos_to_plan_entries(todos)
-          notification = ACP.plan_update(task_id, entries)
-          push(socket, "acp:message", notification)
+          plan_notification = ACP.plan_update(task_id, entries)
+          push(socket, "acp:message", plan_notification)
 
         {:error, _reason} ->
           :ok
@@ -518,68 +508,16 @@ defmodule FrontmanServerWeb.TaskChannel do
     {:noreply, socket}
   end
 
-  defp handle_backend_tool_result(tool_call, result, socket) do
-    task_id = socket.assigns.task_id
-
-    # Send in_progress update
-    notification = ACP.tool_call_update(task_id, tool_call.tool_call_id, "in_progress")
-    push(socket, "acp:message", notification)
-
-    # Handle result
-    case result do
-      {:ok, content} ->
-        handle_tool_success(tool_call, content, socket)
-
-      {:error, reason} ->
-        handle_tool_error(tool_call, reason, socket)
-    end
-
-    {:noreply, socket}
-  end
-
-  defp handle_tool_success(tool_call, result, socket) do
-    task_id = socket.assigns.task_id
-
-    # Convert result to ACP content format
-    content = format_tool_content(result)
-
-    # Send completed update
-    notification = ACP.tool_call_update(task_id, tool_call.tool_call_id, "completed", content)
-    push(socket, "acp:message", notification)
-
-    # Store structured data (not JSON)
-    Tasks.add_tool_result(
-      task_id,
-      tool_call.agent_id,
-      %{id: tool_call.tool_call_id, name: tool_call.tool_name},
-      result,
-      false
-    )
-  end
-
-  defp handle_tool_error(tool_call, error, socket) do
-    task_id = socket.assigns.task_id
-    error_message = to_string(error)
-
-    # Convert error to ACP content format
-    content = [%{type: "content", content: %{type: "text", text: error_message}}]
-
-    # Send failed update
-    notification = ACP.tool_call_update(task_id, tool_call.tool_call_id, "failed", content)
-    push(socket, "acp:message", notification)
-
-    # Store error
-    Tasks.add_tool_result(
-      task_id,
-      tool_call.agent_id,
-      %{id: tool_call.tool_call_id, name: tool_call.tool_name},
-      error_message,
-      true
-    )
-  end
-
   defp format_tool_content(result) when is_map(result) do
     [%{type: "content", content: %{type: "text", text: Jason.encode!(result)}}]
+  end
+
+  defp format_tool_content(result) when is_binary(result) do
+    [%{type: "content", content: %{type: "text", text: result}}]
+  end
+
+  defp format_tool_content(result) do
+    [%{type: "content", content: %{type: "text", text: inspect(result)}}]
   end
 
   defp route_to_mcp(tool_call, socket) do
