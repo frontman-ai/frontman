@@ -49,6 +49,14 @@ defmodule FrontmanServer.Test.Fixtures.Agents do
     Map.merge(ctx, %{on_event: on_event})
   end
 
+  @doc """
+  Cleanup any resources created by fixtures.
+
+  Currently a no-op since existing fixtures don't create resources that need cleanup.
+  """
+  @spec cleanup_agents(map()) :: :ok
+  def cleanup_agents(_ctx), do: :ok
+
   @doc "Build LLM options from context and tags for VCR fixture support"
   @spec build_llm_opts(map(), map()) :: keyword()
   def build_llm_opts(_ctx, tags) do
