@@ -327,7 +327,7 @@
   </div>
 
   <script type="module">
-    import { ACP, MCP, MCPServer, Relay, ConsoleLogTool } from './browser-test.js';
+    import { ACP, MCP, MCPServer, Relay, ConsoleLogTool, Socket, Channel } from './browser-test.js';
 
     // DOM Elements
     const logEl = document.getElementById('log');
@@ -471,6 +471,7 @@
           if (state.TAG === 'Connected') {
             const { tools, serverInfo } = state;
             log(`${serverInfo.name} v${serverInfo.version} - ${tools.length} tools`, 'relay');
+            tools.forEach((tool) => log(`==> ${JSON.stringify(tool)}`));
             displayRelayTools(tools);
           }
 
@@ -551,6 +552,15 @@
         MCP.detach(mcpHandler);
         mcpHandler = null;
       }
+
+      // Properly leave session channel and disconnect socket to prevent stale rejoins
+      if (session && session.channel) {
+        Channel.leave(session.channel);
+      }
+      if (connection && connection.socket) {
+        Socket.disconnect(connection.socket);
+      }
+
       connection = null;
       session = null;
 
@@ -607,31 +617,35 @@
     }
 
     function handleSessionUpdate(update) {
-      // Server sends {sessionUpdate: "agent_message_chunk", content: {...}, ...}
-      switch (update.sessionUpdate) {
-        case 'agent_message_chunk': {
+      // ReScript variants compile to {TAG: "VariantName", ...fields}
+      switch (update.TAG) {
+        case 'AgentMessageChunk': {
           const content = update.content;
           if (content && content.text) {
             appendAssistantChunk(content.text);
           }
           break;
         }
-        case 'tool_call': {
+        case 'ToolCall': {
           // Store tool call metadata for later lookups
           const { toolCallId, title, kind } = update;
           toolCallsMap.set(toolCallId, { title, kind });
           break;
         }
-        case 'tool_call_update': {
+        case 'ToolCallUpdate': {
           handleToolCallUpdate(update);
           break;
         }
-        case 'plan': {
+        case 'Plan': {
           handlePlanUpdate(update);
           break;
         }
+        case 'Unknown': {
+          console.log('[ACP] Unknown update type:', update.sessionUpdate, update);
+          break;
+        }
         default:
-          console.log('[ACP] Unknown update:', update);
+          console.log('[ACP] Unhandled update:', update);
       }
     }
 
@@ -803,6 +817,16 @@
     });
     clearToolsBtn.addEventListener('click', () => {
       toolResultsEl.innerHTML = '';
+    });
+
+    // Clean up on page unload to prevent stale session rejoins
+    window.addEventListener('beforeunload', () => {
+      if (session && session.channel) {
+        Channel.leave(session.channel);
+      }
+      if (connection && connection.socket) {
+        Socket.disconnect(connection.socket);
+      }
     });
 
     log('Ready', 'success');

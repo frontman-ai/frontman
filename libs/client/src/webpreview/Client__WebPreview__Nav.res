@@ -43,7 +43,7 @@ module UrlInput = {
     <input
       type_="text"
       value={value->Option.getOr("")}
-      onChange=?{onChange}
+      onChange={onChange->Option.getOr(_ => ())}
       onKeyDown=?{onKeyDown}
       className="flex-1 h-8 px-3 text-xs bg-zinc-800 border border-zinc-700 rounded
                  text-zinc-200 placeholder-zinc-500

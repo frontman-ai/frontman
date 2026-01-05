@@ -108,27 +108,34 @@ defmodule FrontmanServer.Agents do
 
   ## Options
   - `:tools` - List of tool definitions for LLM (default: [])
+  - `:agent` - Custom agent struct implementing Swarm.Agent (for testing)
   """
   def start_agent(task_id, opts \\ []) do
     agent_id = Ecto.UUID.generate()
     tools = Keyword.get(opts, :tools, [])
     on_event = build_event_handler(task_id)
 
-    # Build context for dynamic system prompt
-    has_figma = Tasks.has_figma_context?(task_id)
-    has_selected_component = Tasks.has_selected_component?(task_id)
-    figma_node_id = Tasks.get_figma_node_id(task_id)
-    framework = get_framework(task_id)
-
-    # Create RootAgent with context
     agent =
-      RootAgent.new(
-        tools: tools,
-        has_figma_context: has_figma,
-        has_selected_component: has_selected_component,
-        figma_node_id: figma_node_id,
-        framework: framework
-      )
+      case Keyword.get(opts, :agent) do
+        nil ->
+          # Build context for dynamic system prompt
+          has_figma = Tasks.has_figma_context?(task_id)
+          has_selected_component = Tasks.has_selected_component?(task_id)
+          figma_node_id = Tasks.get_figma_node_id(task_id)
+          framework = get_framework(task_id)
+
+          # Create RootAgent with context
+          RootAgent.new(
+            tools: tools,
+            has_figma_context: has_figma,
+            has_selected_component: has_selected_component,
+            figma_node_id: figma_node_id,
+            framework: framework
+          )
+
+        custom_agent ->
+          custom_agent
+      end
 
     # Get messages and convert to Swarm.Message format
     messages = build_messages(task_id, agent_id)
@@ -152,7 +159,9 @@ defmodule FrontmanServer.Agents do
     case Registry.lookup(FrontmanServer.AgentRegistry, {:tool_call, tool_call_id}) do
       [{_pid, %{executor: :tool_executor, caller_ref: ref, caller_pid: caller}}] ->
         # MCP tool - send result to waiting executor
-        send(caller, {:tool_result, ref, result, is_error})
+        # Encode non-string results since Swarm.Message.ContentPart.text/1 requires strings
+        encoded = encode_result_for_swarm(result)
+        send(caller, {:tool_result, ref, encoded, is_error})
         :ok
 
       [] ->
@@ -169,15 +178,16 @@ defmodule FrontmanServer.Agents do
 
   ## Options
   - `:tools` - List of tool definitions for LLM (default: [])
+  - `:agent` - Custom agent struct implementing Swarm.Agent (for testing)
   """
-  @spec notify_user_message(String.t(), list(FrontmanServer.Tools.MCP.t())) :: :ok
-  def notify_user_message(task_id, tools) do
+  @spec notify_user_message(String.t(), list(FrontmanServer.Tools.MCP.t()), keyword()) :: :ok
+  def notify_user_message(task_id, tools, opts \\ []) do
     # Check if agent is already running
     if agent_running?(task_id) do
       # Agent is running - it will pick up new messages on next iteration
       :ok
     else
-      start_agent(task_id, tools: tools)
+      start_agent(task_id, Keyword.merge([tools: tools], opts))
       :ok
     end
   end
@@ -273,4 +283,8 @@ defmodule FrontmanServer.Agents do
   defp broadcast(task_id, message) do
     Phoenix.PubSub.broadcast(FrontmanServer.PubSub, Tasks.topic(task_id), message)
   end
+
+  # Encode non-string results to JSON for Swarm.Message.ContentPart.text/1
+  defp encode_result_for_swarm(value) when is_binary(value), do: value
+  defp encode_result_for_swarm(value), do: Jason.encode!(value)
 end

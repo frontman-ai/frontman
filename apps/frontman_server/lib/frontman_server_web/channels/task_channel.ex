@@ -88,6 +88,8 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   @impl true
   def handle_in("mcp:message", payload, socket) do
+    Logger.debug("Received mcp:message payload: #{inspect(payload)}")
+
     case JsonRpc.parse_response(payload) do
       {:ok, {:success, id, result}} ->
         handle_mcp_response(id, result, socket)
@@ -113,15 +115,14 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   defp handle_mcp_response(id, result, socket) do
     pending_requests = socket.assigns[:pending_requests] || %{}
+    initializer_pid = socket.assigns[:mcp_initializer_pid]
+
+    Logger.debug("MCP response received: id=#{id}, pending_keys=#{inspect(Map.keys(pending_requests))}")
 
     cond do
-      # During initialization, forward all responses to MCPInitializer
-      socket.assigns[:mcp_status] != :ready and socket.assigns[:mcp_initializer_pid] ->
-        MCPInitializer.handle_mcp_response(socket.assigns.mcp_initializer_pid, id, result)
-        {:noreply, socket}
-
-      # After initialization, handle tool call responses
+      # Tool call response - channel owns these IDs
       Map.has_key?(pending_requests, id) ->
+        Logger.debug("MCP response #{id} matched pending tool call")
         case Map.pop(pending_requests, id) do
           {{:tool_call, tool_call}, remaining_requests} ->
             handle_tool_call_response(id, tool_call, result, socket, remaining_requests)
@@ -131,9 +132,30 @@ defmodule FrontmanServerWeb.TaskChannel do
             {:noreply, socket}
         end
 
+      # Initialization response - MCPInitializer owns these IDs
+      initializer_pid && initializer_expects_response?(initializer_pid, id) ->
+        Logger.debug("MCP response #{id} matched MCPInitializer")
+        MCPInitializer.handle_mcp_response(initializer_pid, id, result)
+        {:noreply, socket}
+
       true ->
         Logger.warning("Received MCP response for unknown request_id: #{id}")
         {:noreply, socket}
+    end
+  end
+
+  # Safely check if MCPInitializer expects this response, with timeout protection
+  defp initializer_expects_response?(pid, id) do
+    try do
+      MCPInitializer.expects_response?(pid, id)
+    catch
+      :exit, {:timeout, _} ->
+        Logger.warning("MCPInitializer.expects_response? timed out for id=#{id}")
+        false
+
+      :exit, reason ->
+        Logger.warning("MCPInitializer.expects_response? failed: #{inspect(reason)}")
+        false
     end
   end
 
@@ -178,14 +200,12 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   defp handle_mcp_error(id, error, socket) do
     pending_requests = socket.assigns[:pending_requests] || %{}
+    initializer_pid = socket.assigns[:mcp_initializer_pid]
+
+    Logger.debug("MCP error received: id=#{id}, pending_keys=#{inspect(Map.keys(pending_requests))}")
 
     cond do
-      # During initialization, forward all errors to MCPInitializer
-      socket.assigns[:mcp_status] != :ready and socket.assigns[:mcp_initializer_pid] ->
-        MCPInitializer.handle_mcp_error(socket.assigns.mcp_initializer_pid, id, error)
-        {:noreply, socket}
-
-      # After initialization, handle tool call errors
+      # Tool call error - channel owns these IDs
       Map.has_key?(pending_requests, id) ->
         case Map.pop(pending_requests, id) do
           {{:tool_call, tool_call}, remaining_requests} ->
@@ -195,6 +215,11 @@ defmodule FrontmanServerWeb.TaskChannel do
             Logger.warning("Received MCP error for unknown request_id: #{id}")
             {:noreply, socket}
         end
+
+      # Initialization error - MCPInitializer owns these IDs
+      initializer_pid && initializer_expects_response?(initializer_pid, id) ->
+        MCPInitializer.handle_mcp_error(initializer_pid, id, error)
+        {:noreply, socket}
 
       true ->
         Logger.warning("Received MCP error for unknown request_id: #{id}")

@@ -97,6 +97,14 @@ let sendPrompt = (
   )
 }
 
+// Extract method from JSON-RPC message (notifications have method, responses have id)
+let getMethod = (payload: JSON.t): option<string> => {
+  payload
+  ->JSON.Decode.object
+  ->Option.flatMap(obj => obj->Dict.get("method"))
+  ->Option.flatMap(JSON.Decode.string)
+}
+
 // Message handler with proper error reporting (no silent swallowing)
 let handleIncomingMessage = (
   ~state: ref<Client.state>,
@@ -107,18 +115,20 @@ let handleIncomingMessage = (
 ): unit => {
   onMessage->Option.forEach(cb => cb(Receive, payload))
 
-  // Try parsing as session update notification first
-  switch Client.parseSessionUpdateNotification(payload) {
-  | Ok(notification) => onUpdate->Option.forEach(cb => cb(notification.params.update))
-  | Error(notificationError) =>
-    // Not a notification - try handling as response
-    let prevState = state.contents
-    state := Client.handleResponse(prevState, payload)
-
-    // If state unchanged and we have onUpdate, it might be a malformed message
-    if state.contents === prevState && Option.isSome(onUpdate) {
-      onParseError->Option.forEach(cb => cb(notificationError))
+  // Dispatch based on message type
+  switch getMethod(payload) {
+  | Some("session/update") =>
+    // Session update notification - parse and dispatch
+    switch Client.parseSessionUpdateNotification(payload) {
+    | Ok(notification) => onUpdate->Option.forEach(cb => cb(notification.params.update))
+    | Error(parseError) => onParseError->Option.forEach(cb => cb(parseError))
     }
+  | Some(_) =>
+    // Other notification types (e.g., project_rules_initialized) - no action needed
+    ()
+  | None =>
+    // No method field - must be a response
+    state := Client.handleResponse(state.contents, payload)
   }
 }
 

@@ -55,6 +55,15 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
     GenServer.cast(pid, {:mcp_error, request_id, error})
   end
 
+  @doc """
+  Returns true if this initializer is expecting a response with the given request_id.
+  Used by TaskChannel to route MCP responses to the correct handler.
+  """
+  @spec expects_response?(pid(), integer()) :: boolean()
+  def expects_response?(pid, request_id) do
+    GenServer.call(pid, {:expects_response?, request_id})
+  end
+
   # Server Callbacks
 
   @impl true
@@ -76,6 +85,16 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
     send(self(), :start_initialization)
 
     {:ok, state}
+  end
+
+  @impl true
+  def handle_call({:expects_response?, request_id}, _from, state) do
+    owns_id =
+      request_id == state.mcp_init_request_id or
+        request_id == state.tools_request_id or
+        request_id == state.project_rules_request_id
+
+    {:reply, owns_id, state}
   end
 
   @impl true

@@ -637,6 +637,29 @@ defmodule FrontmanServer.Tasks.Interaction do
     # Build text content from messages array
     text_content = Enum.join(msg.messages, "\n\n")
 
+    # Add selected component location if present
+    # This tells the LLM exactly where to look/edit
+    text_content =
+      case msg.selected_component do
+        %{file: file, line: line, column: column} ->
+          location_info = """
+
+          [Selected Component Location]
+          File: #{file}
+          Line: #{line}
+          Column: #{column}
+
+          IMPORTANT: The user has selected a specific component at this location.
+          Start by reading this exact file and making changes at or near the specified line.
+          Do NOT explore or search for files - go directly to the selected file.
+          """
+
+          text_content <> location_info
+
+        _ ->
+          text_content
+      end
+
     # Build content parts - start with text
     content_parts =
       if text_content != "" do

@@ -560,6 +560,9 @@ defmodule FrontmanServer.Agents.Prompts do
         has_figma ->
           content_parts ++ [ContentPart.text(figma_context_guidance(figma_node_id))]
 
+        has_selected_component ->
+          content_parts ++ [ContentPart.text(selected_component_guidance())]
+
         true ->
           content_parts
       end
@@ -597,6 +600,9 @@ defmodule FrontmanServer.Agents.Prompts do
 
         has_figma ->
           prompt <> "\n" <> figma_context_guidance(figma_node_id)
+
+        has_selected_component ->
+          prompt <> "\n" <> selected_component_guidance()
 
         true ->
           prompt
@@ -836,6 +842,47 @@ defmodule FrontmanServer.Agents.Prompts do
     """
   end
 
+  defp selected_component_guidance do
+    """
+    ## CRITICAL: Selected Component Detected
+
+    **The user has selected a specific component in their codebase.**
+
+    The message contains a `[Selected Component Location]` section with:
+    - **File path** - The exact file containing the component
+    - **Line number** - The specific line where the component is located
+    - **Column number** - The column position
+
+    ### REQUIRED WORKFLOW
+
+    **DO NOT explore or search the codebase.** Go directly to the selected file:
+
+    1. **Read the file** - Use `read_file` with the exact path from `[Selected Component Location]`
+    2. **Find the relevant code** - Look at the specified line number
+    3. **Make the change** - Apply the user's requested modification
+    4. **Write the file** - Save the changes
+
+    ### IMPORTANT
+
+    - The user has ALREADY told you exactly where to make changes
+    - Do NOT use `list_files` to explore directories
+    - Do NOT search for the component in multiple files
+    - Trust the provided location and go directly there
+    - If the file read shows the component, proceed with the change immediately
+    - Only if the exact line doesn't contain what's expected should you look nearby
+
+    ### Example
+
+    If the user says "change the text to Danni" and selects a component at `src/components/Header.tsx:42:5`:
+
+    1. `read_file("src/components/Header.tsx")`
+    2. Look at line 42 for text content
+    3. `write_file` with the text changed to "Danni"
+
+    **PROCEED DIRECTLY to reading the selected file. Do NOT ask for clarification or explore.**
+    """
+  end
+
   defp nextjs_guidance do
     """
     ## Next.js Expert Developer
@@ -885,10 +932,7 @@ defmodule FrontmanServer.Agents.Prompts do
     - **App Router** (Next.js 13+): Routes defined via file structure in `src/app/` or `app/`
     - **Pages Router** (older Next.js): Routes defined in `pages/` directory
 
-    **Recommended approach:**
-    - Use `search_files(pattern: "page.tsx")` - if results exist, it's App Router
-    - Use `search_files(pattern: "*.tsx", path: "pages")` - if results exist, it's Pages Router
-    - Alternatively, use `list_dir` on the root to check for `src/app/` or `pages/` directories
+    Check the project root for `src/app/` or `pages/` directories.
 
     **2. Understand the Layout Structure**
     For **App Router projects**:
@@ -928,10 +972,9 @@ defmodule FrontmanServer.Agents.Prompts do
 
     **Before creating ANY test page, verify the layout chain:**
 
-    1. **Find all layouts in the project** - Use `search_files(pattern: "layout.tsx")` to see the complete layout hierarchy
-    2. **Verify root layout exists** - Ensure there's a `layout.tsx` at the app root (`src/app/layout.tsx` or `app/layout.tsx`) that contains `<html>` and `<body>` tags
-    3. **Check target directory** - Use `list_dir` on your target folder to see if it has a local layout
-    4. **Route groups inherit layouts** - A page in `(marketing)/test/page.tsx` will use `(marketing)/layout.tsx` if it exists, then fall back to the root layout
+    1. **Check if the target directory has a `layout.tsx`**
+    2. **Trace the layout hierarchy up to root** - Ensure there's a `layout.tsx` at the app root (`src/app/layout.tsx` or `app/layout.tsx`) that contains `<html>` and `<body>` tags
+    3. **Route groups inherit layouts** - A page in `(marketing)/test/page.tsx` will use `(marketing)/layout.tsx` if it exists, then fall back to the root layout
 
     **If the chosen location has NO layout chain to root:**
     - **DO NOT create the page there** - Instead, find an existing route group with proper layout inheritance
@@ -952,11 +995,10 @@ defmodule FrontmanServer.Agents.Prompts do
 
     **4. Create the Test Page**
 
-    **File Creation Steps**:
-    1. Use `write_file` to create the page at the chosen location
-    2. Format: `src/app/[group]/[section]/test-[feature-name]/page.tsx` for App Router
-    3. Or: `pages/test/[feature-name].tsx` for Pages Router
-    4. Ensure the file path matches the desired URL route
+    **File Creation**:
+    - App Router format: `src/app/[group]/[section]/test-[feature-name]/page.tsx`
+    - Pages Router format: `pages/test/[feature-name].tsx`
+    - Ensure the file path matches the desired URL route
 
     **Page Content Guidelines**:
     - Export a default React component

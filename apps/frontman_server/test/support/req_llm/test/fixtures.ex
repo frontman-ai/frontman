@@ -63,9 +63,8 @@ defmodule ReqLLM.Test.Fixtures do
         if File.exists?(path) do
           {:fixture, path}
         else
-          IO.puts("""
-
-          ⚠️  Fixture not found: #{path}
+          Logger.warning("""
+          Fixture not found: #{path}
 
           To record this fixture, run:
             REQ_LLM_FIXTURES_MODE=record mix test --only integration

@@ -416,13 +416,18 @@ defmodule Swarm do
   end
 
   defp process_until_yield(loop, [{:call_llm, llm, messages} | rest]) do
+    require Logger
+    Logger.info("Swarm.process_until_yield calling LLM stream with #{length(messages)} messages")
+
     case Swarm.LLM.stream(llm, messages, []) do
       {:ok, stream} ->
+        Logger.info("Swarm.process_until_yield LLM stream succeeded")
         response = Response.from_stream(stream)
         {loop, new_effects} = Loop.handle_response(loop, response)
         process_until_yield(loop, new_effects ++ rest)
 
       {:error, reason} ->
+        Logger.error("Swarm.process_until_yield LLM stream failed: #{inspect(reason)}")
         {loop, new_effects} = Loop.handle_error(loop, reason)
         process_until_yield(loop, new_effects ++ rest)
     end

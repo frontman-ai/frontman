@@ -54,16 +54,15 @@ defmodule FrontmanServer.Agents.Executor do
     on_event = Keyword.fetch!(opts, :on_event)
     parent_agent_id = Keyword.get(opts, :parent_agent_id)
     spawning_tool_name = Keyword.get(opts, :spawning_tool_name)
-
-    # Register agent in Registry for discovery
     role = if parent_agent_id, do: :sub_agent, else: :root
 
-    Registry.register(FrontmanServer.AgentRegistry, {:agent, agent_id}, %{
+    # Build registry metadata to pass to the task
+    registry_metadata = %{
       task_id: task_id,
       parent_agent_id: parent_agent_id,
       role: role,
       spawning_tool_name: spawning_tool_name
-    })
+    }
 
     TelemetryEvents.agent_start(agent_id, task_id)
 
@@ -71,6 +70,8 @@ defmodule FrontmanServer.Agents.Executor do
       Task.Supervisor.async_nolink(
         FrontmanServer.TaskSupervisor,
         fn ->
+          # Register in the Task process so we can unregister from the same process
+          Registry.register(FrontmanServer.AgentRegistry, {:agent, agent_id}, registry_metadata)
           execute(agent, task_id, agent_id, messages, on_event)
         end
       )
@@ -125,6 +126,11 @@ defmodule FrontmanServer.Agents.Executor do
     try do
       result = execute_loop(agent, messages, tool_executor, streaming_callback, on_event, agent_id)
 
+      # Unregister BEFORE emitting completion event to prevent race condition.
+      # If we emit {:completed} while still registered, a new message could arrive,
+      # agent_running?() would return true, and no new agent would be started.
+      Registry.unregister(FrontmanServer.AgentRegistry, {:agent, agent_id})
+
       case result do
         {:ok, _result} ->
           on_event.({:completed, agent_id})
@@ -139,11 +145,10 @@ defmodule FrontmanServer.Agents.Executor do
     rescue
       e ->
         Logger.error("Executor #{agent_id} crashed: #{inspect(e)}")
+        Registry.unregister(FrontmanServer.AgentRegistry, {:agent, agent_id})
         on_event.({:error, agent_id, inspect(e)})
         TelemetryEvents.agent_stop(agent_id)
         {:error, e}
-    after
-      Registry.unregister(FrontmanServer.AgentRegistry, {:agent, agent_id})
     end
   end
 
@@ -157,9 +162,17 @@ defmodule FrontmanServer.Agents.Executor do
 
   defp process_effects(loop, [], _tool_executor, _streaming_callback, _on_event, _agent_id) do
     case loop.status do
-      :completed -> {:ok, loop.result}
-      :failed -> {:error, loop.error}
-      other -> {:error, "Unexpected loop status: #{other}"}
+      :completed ->
+        Logger.info("Executor loop completed with result")
+        {:ok, loop.result}
+
+      :failed ->
+        Logger.error("Executor loop failed with error: #{inspect(loop.error)}")
+        {:error, loop.error}
+
+      other ->
+        Logger.error("Executor loop has unexpected status: #{other}")
+        {:error, "Unexpected loop status: #{other}"}
     end
   end
 
@@ -171,8 +184,11 @@ defmodule FrontmanServer.Agents.Executor do
          on_event,
          agent_id
        ) do
+    Logger.info("Executor calling LLM with #{length(messages)} messages, llm: #{inspect(llm.__struct__)}")
+
     case Swarm.LLM.stream(llm, messages, []) do
       {:ok, stream} ->
+        Logger.info("Executor LLM stream succeeded")
         # Wrap stream to emit tokens while consuming
         stream_with_callback =
           Stream.each(stream, fn chunk ->

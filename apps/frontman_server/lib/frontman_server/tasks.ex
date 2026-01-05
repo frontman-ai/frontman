@@ -230,15 +230,16 @@ defmodule FrontmanServer.Tasks do
   Options:
     - `:tools` - List of tool definitions to pass to the agent
     - `:metadata` - Additional metadata for the message
+    - `:agent` - Custom agent struct for testing (passed to Agents.notify_user_message)
   """
-  @spec add_user_message(String.t(), list(), list(FrontmanServer.Tools.MCP.t())) ::
+  @spec add_user_message(String.t(), list(), list(FrontmanServer.Tools.MCP.t()), keyword()) ::
           {:ok, Interaction.t()} | {:error, :task_not_found}
-  def add_user_message(task_id, content_blocks, tools) do
+  def add_user_message(task_id, content_blocks, tools, opts \\ []) do
     interaction = Interaction.UserMessage.new(content_blocks)
 
     case append_interaction(task_id, interaction) do
       {:ok, interaction} ->
-        Agents.notify_user_message(task_id, tools)
+        Agents.notify_user_message(task_id, tools, opts)
         {:ok, interaction}
 
       {:error, reason} ->

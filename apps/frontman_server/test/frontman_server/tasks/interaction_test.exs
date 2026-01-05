@@ -477,6 +477,73 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       assert length(messages) == 0
     end
 
+    test "includes selected_component location in user message content" do
+      interactions = [
+        %UserMessage{
+          id: "1",
+          messages: ["Change the text"],
+          timestamp: DateTime.utc_now(),
+          selected_component: %{
+            file: "file:///path/to/Component.tsx",
+            line: 42,
+            column: 5
+          },
+          selected_component_screenshot: nil,
+          selected_figma_node: nil
+        }
+      ]
+
+      messages = Interaction.to_llm_messages(interactions)
+      assert length(messages) == 1
+
+      msg = hd(messages)
+      assert msg.role == :user
+
+      # Extract text content
+      text =
+        case msg.content do
+          content when is_binary(content) -> content
+          [%{text: t} | _] -> t
+          _ -> ""
+        end
+
+      # Should include the original message
+      assert text =~ "Change the text"
+
+      # Should include selected component location info
+      assert text =~ "[Selected Component Location]"
+      assert text =~ "file:///path/to/Component.tsx"
+      assert text =~ "Line: 42"
+      assert text =~ "Column: 5"
+    end
+
+    test "does not add selected_component section when selected_component is nil" do
+      interactions = [
+        %UserMessage{
+          id: "1",
+          messages: ["Just a regular message"],
+          timestamp: DateTime.utc_now(),
+          selected_component: nil,
+          selected_component_screenshot: nil,
+          selected_figma_node: nil
+        }
+      ]
+
+      messages = Interaction.to_llm_messages(interactions)
+      msg = hd(messages)
+
+      text =
+        case msg.content do
+          content when is_binary(content) -> content
+          [%{text: t} | _] -> t
+          _ -> ""
+        end
+
+      # Should have the message but NOT the selected component section
+      assert text =~ "Just a regular message"
+      refute text =~ "[Selected Component Location]"
+    end
+
     test "handles mixed interactions in order" do
       now = DateTime.utc_now()
 

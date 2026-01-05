@@ -1,5 +1,8 @@
 import Config
 
+# Mark environment for runtime checks
+config :frontman_server, env: :dev
+
 config :req_llm, receive_timeout: 600_000
 
 # Configure your database

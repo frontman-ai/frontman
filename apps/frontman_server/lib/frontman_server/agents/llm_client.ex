@@ -6,7 +6,7 @@ defmodule FrontmanServer.Agents.LLMClient do
   consumed with callbacks or collected into a Response.
   """
 
-  @default_model "openrouter:anthropic/claude-haiku-4.5"
+  @default_model "openrouter:google/gemini-3-flash-preview"
 
   use TypedStruct
 
@@ -21,12 +21,34 @@ defmodule FrontmanServer.Agents.LLMClient do
 
   ## Options
 
-  - `:model` - Model spec string (default: "openrouter:anthropic/claude-haiku-4.5")
+  - `:model` - Model spec string (default: "openrouter:google/gemini-2.5-flash-preview")
   - `:tools` - List of Swarm.Tool structs
   - `:llm_opts` - Additional options for ReqLLM (e.g., fixture_path for tests)
   """
   def new(opts \\ []) do
     struct!(__MODULE__, opts)
+  end
+
+  @doc """
+  Gets the API key for a given model from Application config.
+  """
+  def get_api_key(model) when is_binary(model) do
+    cond do
+      String.starts_with?(model, "openrouter:") ->
+        Application.get_env(:frontman_server, :openrouter_api_key)
+
+      String.starts_with?(model, "anthropic:") ->
+        Application.get_env(:frontman_server, :anthropic_api_key)
+
+      String.starts_with?(model, "google:") ->
+        Application.get_env(:frontman_server, :google_api_key)
+
+      String.starts_with?(model, "openai:") ->
+        Application.get_env(:frontman_server, :openai_api_key)
+
+      true ->
+        nil
+    end
   end
 
   @doc """
@@ -51,18 +73,23 @@ defimpl Swarm.LLM, for: FrontmanServer.Agents.LLMClient do
 
   alias FrontmanServer.Agents.LLMClient
 
+  require Logger
+
   def stream(client, messages, _opts) do
     reqllm_tools = Enum.map(client.tools, &LLMClient.to_reqllm_tool/1)
+    api_key = LLMClient.get_api_key(client.model)
 
     llm_opts =
       client.llm_opts
       |> Keyword.put_new(:tools, reqllm_tools)
+      |> then(fn opts -> if api_key, do: Keyword.put_new(opts, :api_key, api_key), else: opts end)
       |> Keyword.reject(fn {_k, v} -> v == [] end)
 
     reqllm_messages = Enum.map(messages, &to_reqllm_message/1)
 
     case ReqLLM.stream_text(client.model, reqllm_messages, llm_opts) do
       {:ok, response} ->
+
         swarm_stream =
           response.stream
           |> Stream.map(&to_swarm_chunk/1)
@@ -71,6 +98,7 @@ defimpl Swarm.LLM, for: FrontmanServer.Agents.LLMClient do
         {:ok, swarm_stream}
 
       {:error, reason} ->
+        Logger.error("LLMClient.stream ReqLLM.stream_text failed: #{inspect(reason)}")
         {:error, reason}
     end
   end

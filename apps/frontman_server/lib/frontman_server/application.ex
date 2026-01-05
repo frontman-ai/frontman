@@ -10,6 +10,11 @@ defmodule FrontmanServer.Application do
     # Setup telemetry -> OTEL span translation
     FrontmanServer.Observability.OtelHandler.setup()
 
+    # Setup console telemetry logging in dev
+    if Application.get_env(:frontman_server, :env) == :dev do
+      FrontmanServer.Observability.ConsoleHandler.setup()
+    end
+
     # Add Sentry logger handler to capture crashed process exceptions
     :logger.add_handler(:sentry_handler, Sentry.LoggerHandler, %{
       config: %{metadata: [:file, :line]}

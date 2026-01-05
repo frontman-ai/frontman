@@ -134,7 +134,7 @@ defmodule FrontmanServer.Agents.ToolExecutor do
 
   # --- MCP Tool Execution ---
 
-  defp execute_mcp_tool(tool_call, task_id, agent_id) do
+  defp execute_mcp_tool(tool_call, _task_id, _agent_id) do
     Logger.info("ToolExecutor: Routing to MCP tool #{tool_call.name}")
 
     ref = make_ref()
@@ -145,7 +145,8 @@ defmodule FrontmanServer.Agents.ToolExecutor do
       caller_pid: self()
     })
 
-    Tasks.add_tool_call(task_id, agent_id, to_req_llm_tool_call(tool_call))
+    # Note: Tasks.add_tool_call is called by the executor's on_tool_call callback
+    # which fires BEFORE this function runs. We should NOT call it again here.
 
     receive do
       {:tool_result, ^ref, content, is_error} ->
@@ -156,9 +157,5 @@ defmodule FrontmanServer.Agents.ToolExecutor do
         Registry.unregister(FrontmanServer.AgentRegistry, {:tool_call, tool_call.id})
         {:error, "Tool timeout: #{tool_call.name}"}
     end
-  end
-
-  defp to_req_llm_tool_call(%Swarm.ToolCall{} = tc) do
-    ReqLLM.ToolCall.new(tc.id, tc.name, tc.arguments)
   end
 end
