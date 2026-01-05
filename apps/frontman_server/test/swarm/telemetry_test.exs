@@ -24,14 +24,32 @@ defmodule Swarm.TelemetryTest do
     end
   end
 
-  describe "Telemetry helpers" do
-    test "span helper executes function and returns result" do
+  describe "Telemetry span helpers" do
+    test "run_span executes function and returns result" do
       result =
-        Swarm.Telemetry.span(:run, %{loop_id: "test", agent_module: TestAgent}, fn ->
+        Swarm.Telemetry.run_span(%{loop_id: "test", agent_module: TestAgent}, fn ->
           {"my_result", %{status: :completed}}
         end)
 
       assert result == "my_result"
+    end
+
+    test "llm_span executes function and returns result" do
+      result =
+        Swarm.Telemetry.llm_span(%{loop_id: "test", step: 1, model: "claude"}, fn ->
+          {"response", %{input_tokens: 100, output_tokens: 50}}
+        end)
+
+      assert result == "response"
+    end
+
+    test "tool_span executes function and returns result" do
+      result =
+        Swarm.Telemetry.tool_span(%{loop_id: "test", step: 1, tool_id: "tc1", tool_name: "search"}, fn ->
+          {"tool_result", %{is_error: false}}
+        end)
+
+      assert result == "tool_result"
     end
   end
 

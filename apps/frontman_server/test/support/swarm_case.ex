@@ -52,8 +52,9 @@ defmodule FrontmanServer.SwarmCase do
     - `response: {:error, reason}` - Returns error
     - `response: fn -> ... end` - Calls function for dynamic behavior
     - `delay_ms: integer` - Adds delay before response
+    - `model: string` - Model name for telemetry
     """
-    defstruct response: "default response", delay_ms: 0
+    defstruct response: "default response", delay_ms: 0, model: "mock"
   end
 
   defimpl Swarm.LLM, for: FrontmanServer.SwarmCase.MockLLM do
@@ -113,7 +114,7 @@ defmodule FrontmanServer.SwarmCase do
     @moduledoc """
     LLM that echoes the user message with "Echo: " prefix.
     """
-    defstruct []
+    defstruct model: "echo"
   end
 
   defimpl Swarm.LLM, for: FrontmanServer.SwarmCase.EchoLLM do
@@ -138,7 +139,7 @@ defmodule FrontmanServer.SwarmCase do
     @moduledoc """
     LLM that always returns an error.
     """
-    defstruct error: :llm_error
+    defstruct error: :llm_error, model: "error"
   end
 
   defimpl Swarm.LLM, for: FrontmanServer.SwarmCase.ErrorLLM do

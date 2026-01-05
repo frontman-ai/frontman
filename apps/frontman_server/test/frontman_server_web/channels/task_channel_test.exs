@@ -297,12 +297,9 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       tool_call_id = "call_delivery_#{:rand.uniform(1_000_000)}"
       test_pid = self()
-      ref = make_ref()
 
       # Executor registers and waits for tool result
       Registry.register(FrontmanServer.AgentRegistry, {:tool_call, tool_call_id}, %{
-        executor: :tool_executor,
-        caller_ref: ref,
         caller_pid: test_pid
       })
 
@@ -330,7 +327,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       push(socket, "mcp:message", JsonRpc.success_response(mcp_request_id, tool_result))
 
       # Executor should receive the result
-      assert_receive {:tool_result, ^ref, content, false}, 5_000
+      assert_receive {:tool_result, ^tool_call_id, content, false}, 5_000
 
       assert is_binary(content)
       assert content =~ "file1.txt"
@@ -349,12 +346,9 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       tool_call_id = "call_json_result_#{:rand.uniform(1_000_000)}"
       test_pid = self()
-      ref = make_ref()
 
       # Simulate what ToolExecutor.execute_mcp_tool does - register and wait
       Registry.register(FrontmanServer.AgentRegistry, {:tool_call, tool_call_id}, %{
-        executor: :tool_executor,
-        caller_ref: ref,
         caller_pid: test_pid
       })
 
@@ -403,7 +397,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       # The waiting executor should receive a message with the result
       # The result should be a STRING (encoded JSON), not a map
-      assert_receive {:tool_result, ^ref, content, false}, 5_000
+      assert_receive {:tool_result, ^tool_call_id, content, false}, 5_000
 
       # This is the key assertion - content must be a string for Swarm.Message.ContentPart.text/1
       assert is_binary(content),

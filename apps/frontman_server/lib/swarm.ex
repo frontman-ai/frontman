@@ -4,7 +4,22 @@ defmodule Swarm do
 
   ## Usage
 
-  The primary entry points are `run/2` and `continue/2`:
+  ### Simple blocking execution
+
+      {:ok, result} = Swarm.run_blocking(agent, "Hello", fn tool_call ->
+        {:ok, execute_my_tool(tool_call)}
+      end)
+
+  ### Streaming execution with callbacks
+
+      {:ok, result} = Swarm.run_streaming(agent, "Hello",
+        tool_executor: fn tc -> {:ok, execute(tc)} end,
+        on_chunk: fn chunk -> IO.write(chunk.text || "") end,
+        on_response: fn response -> Logger.info("Got response") end,
+        on_tool_call: fn tc -> Logger.info("Calling \#{tc.name}") end
+      )
+
+  ### Manual control over tool execution
 
       case Swarm.run(agent, "Hello") do
         {:completed, loop} ->
@@ -13,9 +28,10 @@ defmodule Swarm do
         {:tool_calls, loop, tool_calls} ->
           results = execute_tools(tool_calls)
           Swarm.continue(loop, results)
-      end
 
-  The caller controls tool execution - sync, async, concurrent, or any strategy.
+        {:error, loop} ->
+          {:error, loop.error}
+      end
 
   ## Sub-Agent Spawning
 
@@ -31,47 +47,12 @@ defmodule Swarm do
         end
       end
 
-  When handling spawns, use `run_child/5`:
-
-      results = Enum.map(tool_calls, fn tc ->
-        case my_tool_executor(tc) do
-          {:ok, content} ->
-            %ToolResult{id: tc.id, content: content}
-
-          {:error, msg} ->
-            %ToolResult{id: tc.id, content: msg, is_error: true}
-
-          {:spawn, request} ->
-            child_result = Swarm.run_child(
-              loop.id,
-              loop.current_step,
-              tc.id,
-              request,
-              &my_tool_executor/1
-            )
-
-            %ToolResult{
-              id: tc.id,
-              content: child_result.result || "Failed: \#{inspect(child_result.error)}",
-              is_error: child_result.status == :failed
-            }
-        end
-      end)
-
-  Child agents can spawn grandchildren recursively - the same `tool_executor`
-  is used throughout the hierarchy.
-
-  ## Low-Level API
-
-  For full control over the execution loop, use the Loop module directly:
-
-      loop = Swarm.Loop.make(agent, config)
-      {loop, effects} = Swarm.Loop.execute(loop, messages)
-      # Interpret effects manually...
+  The `run_streaming/3` and `run_blocking/3` functions handle spawns automatically
+  when the tool_executor returns `{:spawn, request}`.
   """
 
-  alias Swarm.{Loop, Message, ToolResult}
-  alias Swarm.LLM.Response
+  alias Swarm.{Loop, Message, ToolResult, Telemetry}
+  alias Swarm.LLM.{Chunk, Response}
 
   @typedoc """
   Message input can be a string, a single Message, or a list of Messages.
@@ -91,16 +72,122 @@ defmodule Swarm do
           | {:tool_calls, Loop.t(), [Swarm.ToolCall.t()]}
           | {:error, Loop.t()}
 
+  @typedoc """
+  A function that executes a single tool call and returns the result.
+
+  Returns:
+  - `{:ok, content}` - Tool executed successfully
+  - `{:error, reason}` - Tool failed
+  - `{:spawn, request}` - Delegate to a child agent
+  """
+  @type tool_executor ::
+          (Swarm.ToolCall.t() ->
+             {:ok, String.t()} | {:error, String.t()} | {:spawn, Swarm.SpawnChildAgent.t()})
+
+  @typedoc """
+  Callback options for run_streaming/3.
+
+  - `:tool_executor` - Required. Function to execute tool calls.
+  - `:on_chunk` - Called for each LLM streaming chunk
+  - `:on_response` - Called when LLM response is complete
+  - `:on_tool_call` - Called before each tool is executed
+  """
+  @type streaming_opts :: [
+          {:tool_executor, tool_executor()}
+          | {:on_chunk, (Chunk.t() -> any())}
+          | {:on_response, (Response.t() -> any())}
+          | {:on_tool_call, (Swarm.ToolCall.t() -> any())}
+        ]
+
+  # =============================================================================
+  # Primary API
+  # =============================================================================
+
   @doc """
-  Start agent execution with messages.
+  Run an agent to completion with streaming callbacks.
 
-  Returns immediately when the agent needs tools executed, giving the caller
-  full control over how to execute them.
+  This is the primary API for running agents. It handles the full execution loop,
+  calling the tool_executor when tools are needed and emitting callbacks for
+  streaming, responses, and tool calls.
 
-  ## Arguments
+  Telemetry is emitted automatically for all LLM calls, tool executions, and
+  child agent spawns.
 
-  - `agent` - An agent implementing the `Swarm.Agent` protocol
-  - `message` - The user message(s) to start the conversation
+  ## Options
+
+  - `:tool_executor` - Required. Function `(ToolCall.t() -> {:ok, result} | {:error, reason} | {:spawn, request})`
+  - `:on_chunk` - Called for each streaming chunk from LLM
+  - `:on_response` - Called when LLM response is complete (before tool execution)
+  - `:on_tool_call` - Called before each tool is executed
+
+  ## Examples
+
+      # With streaming
+      Swarm.run_streaming(agent, "Analyze this code",
+        tool_executor: &execute_tool/1,
+        on_chunk: fn chunk -> IO.write(chunk.text || "") end
+      )
+
+      # Minimal (no streaming callbacks)
+      Swarm.run_streaming(agent, "Hello", tool_executor: fn _ -> {:ok, "done"} end)
+  """
+  @spec run_streaming(Swarm.Agent.t(), message_input(), streaming_opts()) ::
+          {:ok, String.t()} | {:error, term()}
+  def run_streaming(agent, message, opts) when is_list(opts) do
+    tool_executor = Keyword.fetch!(opts, :tool_executor)
+    callbacks = build_callbacks(opts)
+
+    config = %Loop.Config{}
+    messages = normalize_messages(message)
+    loop = Loop.make(agent, config)
+
+    Telemetry.run_span(
+      %{loop_id: loop.id, agent_module: agent.__struct__},
+      fn ->
+        {loop, effects} = Loop.execute(loop, messages)
+        final_loop = execute_loop(loop, effects, tool_executor, callbacks)
+
+        result =
+          case final_loop.status do
+            :completed -> {:ok, final_loop.result}
+            :failed -> {:error, final_loop.error}
+            other -> {:error, {:unexpected_status, other}}
+          end
+
+        {result, %{status: final_loop.status, step_count: length(final_loop.steps)}}
+      end
+    )
+  end
+
+  @doc """
+  Run an agent to completion with a tool executor.
+
+  Convenience wrapper around `run_streaming/3` without streaming callbacks.
+
+  ## Examples
+
+      Swarm.run_blocking(agent, "What's the weather?", fn tool_call ->
+        case tool_call.name do
+          "get_weather" -> {:ok, "Sunny, 22°C"}
+          _ -> {:error, "Unknown tool"}
+        end
+      end)
+  """
+  @spec run_blocking(Swarm.Agent.t(), message_input(), tool_executor()) ::
+          {:ok, String.t()} | {:error, term()}
+  def run_blocking(agent, message, tool_executor) when is_function(tool_executor, 1) do
+    run_streaming(agent, message, tool_executor: tool_executor)
+  end
+
+  # =============================================================================
+  # Manual Control API
+  # =============================================================================
+
+  @doc """
+  Start agent execution, yielding when tools are needed.
+
+  Use this when you want manual control over tool execution timing and strategy.
+  For most cases, prefer `run_streaming/3` or `run_blocking/3`.
 
   ## Returns
 
@@ -120,40 +207,32 @@ defmodule Swarm do
       end
   """
   @spec run(Swarm.Agent.t(), message_input()) :: run_result()
-  def run(agent, message) do
+  @spec run(Swarm.Agent.t(), message_input(), keyword()) :: run_result()
+  def run(agent, message, opts \\ []) do
+    callbacks = build_callbacks(opts)
+
     config = %Loop.Config{}
     messages = normalize_messages(message)
     loop = Loop.make(agent, config)
 
+    Telemetry.run_start(loop.id, agent.__struct__)
+
     {loop, effects} = Loop.execute(loop, messages)
-    process_until_yield(loop, effects)
+    result = execute_until_yield(loop, effects, callbacks)
+
+    emit_run_stop(result)
+    result
   end
 
   @doc """
   Continue agent execution with tool results.
 
   Call this after executing the tool calls returned by `run/2` or a previous
-  `continue/2`. The loop tracks which tools are pending.
-
-  ## Arguments
-
-  - `loop` - The loop returned by `run/2` or `continue/2`
-  - `tool_results` - List of `Swarm.ToolResult` structs with results
-
-  ## Returns
-
-  Same as `run/2`:
-  - `{:completed, loop}` - Agent completed
-  - `{:tool_calls, loop, tool_calls}` - Agent needs more tools
-  - `{:error, loop}` - Agent failed
+  `continue/2`.
 
   ## Examples
 
-      # Execute tools concurrently
-      results =
-        tool_calls
-        |> Task.async_stream(&execute_tool/1)
-        |> Enum.map(fn {:ok, r} -> r end)
+      results = Enum.map(tool_calls, &execute_tool/1)
 
       case Swarm.continue(loop, results) do
         {:completed, loop} -> {:ok, loop.result}
@@ -161,9 +240,11 @@ defmodule Swarm do
       end
   """
   @spec continue(Loop.t(), [ToolResult.t()]) :: run_result()
-  def continue(%Loop{status: :waiting_for_tools} = loop, tool_results)
+  @spec continue(Loop.t(), [ToolResult.t()], keyword()) :: run_result()
+  def continue(%Loop{status: :waiting_for_tools} = loop, tool_results, opts \\ [])
       when is_list(tool_results) do
-    # Add all results to the loop
+    callbacks = build_callbacks(opts)
+
     loop =
       Enum.reduce(tool_results, loop, fn result, acc ->
         case Loop.add_tool_result(acc, result) do
@@ -172,125 +253,26 @@ defmodule Swarm do
         end
       end)
 
-    # Continue execution
     {loop, effects} = Loop.Runner.continue(loop)
-    process_until_yield(loop, effects)
-  end
+    result = execute_until_yield(loop, effects, callbacks)
 
-  @typedoc """
-  A function that executes a single tool call and returns the result.
-
-  Returns:
-  - `{:ok, content}` - Tool executed successfully
-  - `{:error, reason}` - Tool failed
-  - `{:spawn, request}` - Delegate to a child agent (see `run_child/5`)
-  """
-  @type tool_executor ::
-          (Swarm.ToolCall.t() ->
-             {:ok, String.t()} | {:error, String.t()} | {:spawn, SpawnChildAgent.t()})
-
-  @doc """
-  Run an agent to completion, using the provided executor for tool calls.
-
-  This is a convenience function that handles the run/continue loop internally.
-  It blocks until the agent completes or fails.
-
-  ## Arguments
-
-  - `agent` - An agent implementing the `Swarm.Agent` protocol
-  - `message` - The user message(s) to start the conversation
-  - `tool_executor` - A function that takes a ToolCall and returns `{:ok, result}` or `{:error, reason}`
-
-  ## Returns
-
-  - `{:ok, result}` - Agent completed successfully
-  - `{:error, reason}` - Agent failed
-
-  ## Examples
-
-      Swarm.run_blocking(agent, "What's the weather?", fn tool_call ->
-        case tool_call.name do
-          "get_weather" -> {:ok, "Sunny, 22°C"}
-          _ -> {:error, "Unknown tool"}
-        end
-      end)
-  """
-  @spec run_blocking(Swarm.Agent.t(), message_input(), tool_executor()) ::
-          {:ok, String.t()} | {:error, term()}
-  def run_blocking(agent, message, tool_executor) when is_function(tool_executor, 1) do
-    case run(agent, message) do
-      {:completed, loop} ->
-        {:ok, loop.result}
-
-      {:tool_calls, loop, tool_calls} ->
-        results = execute_tools_with_executor(tool_calls, tool_executor)
-        continue_blocking(loop, results, tool_executor)
-
-      {:error, loop} ->
-        {:error, loop.error}
-    end
-  end
-
-  defp continue_blocking(loop, results, tool_executor) do
-    case continue(loop, results) do
-      {:completed, loop} ->
-        {:ok, loop.result}
-
-      {:tool_calls, loop, tool_calls} ->
-        results = execute_tools_with_executor(tool_calls, tool_executor)
-        continue_blocking(loop, results, tool_executor)
-
-      {:error, loop} ->
-        {:error, loop.error}
-    end
-  end
-
-  defp execute_tools_with_executor(tool_calls, executor) do
-    Enum.map(tool_calls, fn tc ->
-      case executor.(tc) do
-        {:ok, content} -> %ToolResult{id: tc.id, content: content, is_error: false}
-        {:error, reason} -> %ToolResult{id: tc.id, content: to_string(reason), is_error: true}
-      end
-    end)
+    emit_run_stop(result)
+    result
   end
 
   # =============================================================================
   # Child Agent Execution
   # =============================================================================
 
-  alias Swarm.{SpawnChildAgent, ChildResult, Telemetry}
+  alias Swarm.{SpawnChildAgent, ChildResult}
 
   @doc """
   Runs a child agent and returns ChildResult.
 
-  Handles:
-  - Creating child loop linked to parent
-  - Building messages from spawn request
-  - Telemetry linkage between parent and child
-  - Running child to completion
+  Used internally by `run_streaming/3` when a tool returns `{:spawn, request}`.
+  Can also be called directly for manual child agent management.
 
-  ## Arguments
-
-  - `parent_loop_id` - ID of the parent loop for telemetry linkage
-  - `parent_step` - Step number that spawned this child
-  - `tool_call_id` - ID of the tool call that triggered this spawn (for telemetry)
-  - `spawn_request` - SpawnChildAgent struct with child config
-  - `tool_executor` - Function to execute tool calls (same as run_blocking)
-
-  ## Example
-
-      child_result = Swarm.run_child(
-        loop.id,
-        loop.current_step,
-        tool_call.id,
-        SpawnChildAgent.new(agent, "Analyze the auth module"),
-        &my_tool_executor/1
-      )
-
-      case child_result.status do
-        :completed -> child_result.result
-        :failed -> "Error: \#{inspect(child_result.error)}"
-      end
+  Telemetry is automatically emitted for the child's lifecycle.
   """
   @spec run_child(Swarm.Id.t(), pos_integer(), String.t(), SpawnChildAgent.t(), tool_executor()) ::
           ChildResult.t()
@@ -301,93 +283,217 @@ defmodule Swarm do
         %SpawnChildAgent{} = spawn_request,
         tool_executor
       ) do
-    start_time = System.monotonic_time(:millisecond)
+    config = %Loop.Config{
+      max_steps: spawn_request.max_steps || 20,
+      timeout_ms: spawn_request.timeout_ms || 300_000
+    }
 
-    Telemetry.child_spawn_start(parent_loop_id, parent_step, tool_call_id, spawn_request)
+    child_loop = Loop.make_child(spawn_request.agent, config, parent_loop_id, parent_step)
+    callbacks = %{on_chunk: fn _ -> :ok end, on_response: fn _ -> :ok end, on_tool_call: fn _ -> :ok end}
 
-    try do
-      config = %Loop.Config{
-        max_steps: spawn_request.max_steps || 20,
-        timeout_ms: spawn_request.timeout_ms || 300_000
-      }
+    Telemetry.child_span(
+      %{
+        parent_loop_id: parent_loop_id,
+        parent_step: parent_step,
+        tool_call_id: tool_call_id,
+        child_agent_module: spawn_request.agent.__struct__,
+        task: spawn_request.task
+      },
+      fn ->
+        messages = [Message.user(spawn_request.task)]
+        {child_loop, effects} = Loop.execute(child_loop, messages)
+        final_loop = execute_loop(child_loop, effects, tool_executor, callbacks)
 
-      child_loop = Loop.make_child(spawn_request.agent, config, parent_loop_id, parent_step)
-      messages = [Message.user(spawn_request.task)]
+        child_result = %ChildResult{
+          child_loop_id: child_loop.id,
+          status: if(final_loop.status == :completed, do: :completed, else: :failed),
+          result: final_loop.result,
+          error: final_loop.error,
+          step_count: length(final_loop.steps),
+          total_tokens: sum_tokens(final_loop.steps),
+          duration_ms: 0,
+          loop: final_loop
+        }
 
-      final_loop = run_child_loop(child_loop, messages, tool_executor)
-      duration_ms = System.monotonic_time(:millisecond) - start_time
-
-      child_result = %ChildResult{
-        child_loop_id: child_loop.id,
-        status: if(final_loop.status == :completed, do: :completed, else: :failed),
-        result: final_loop.result,
-        error: final_loop.error,
-        step_count: length(final_loop.steps),
-        total_tokens: sum_tokens(final_loop.steps),
-        duration_ms: duration_ms,
-        loop: final_loop
-      }
-
-      Telemetry.child_spawn_stop(parent_loop_id, child_result)
-
-      child_result
-    rescue
-      e ->
-        Telemetry.child_spawn_exception(parent_loop_id, tool_call_id, :error, e, __STACKTRACE__)
-        reraise e, __STACKTRACE__
-    end
-  end
-
-  defp run_child_loop(loop, messages, tool_executor) do
-    {loop, effects} = Loop.execute(loop, messages)
-    process_child_effects(loop, effects, tool_executor)
-  end
-
-  defp process_child_effects(loop, [], _tool_executor), do: loop
-
-  defp process_child_effects(loop, [{:call_llm, llm, messages} | rest], tool_executor) do
-    case Swarm.LLM.stream(llm, messages, []) do
-      {:ok, stream} ->
-        response = Response.from_stream(stream)
-        {loop, new_effects} = Loop.handle_response(loop, response)
-        process_child_effects(loop, new_effects ++ rest, tool_executor)
-
-      {:error, reason} ->
-        {loop, new_effects} = Loop.handle_error(loop, reason)
-        process_child_effects(loop, new_effects ++ rest, tool_executor)
-    end
-  end
-
-  defp process_child_effects(loop, [{:execute_tool, tc} | rest], tool_executor) do
-    result =
-      case tool_executor.(tc) do
-        {:ok, content} ->
-          %ToolResult{id: tc.id, content: content, is_error: false}
-
-        {:error, msg} ->
-          %ToolResult{id: tc.id, content: to_string(msg), is_error: true}
-
-        {:spawn, request} ->
-          # Recursive: child spawns grandchild
-          grandchild_result = run_child(loop.id, loop.current_step, tc.id, request, tool_executor)
-
-          %ToolResult{
-            id: tc.id,
-            content:
-              grandchild_result.result || "Child failed: #{inspect(grandchild_result.error)}",
-            is_error: grandchild_result.status == :failed
-          }
+        {child_result,
+         %{
+           parent_loop_id: parent_loop_id,
+           child_loop_id: child_loop.id,
+           child_status: child_result.status,
+           child_step_count: child_result.step_count,
+           child_total_tokens: child_result.total_tokens
+         }}
       end
-
-    {loop, new_effects} = Loop.handle_tool_result(loop, result)
-    process_child_effects(loop, new_effects ++ rest, tool_executor)
+    )
   end
 
-  defp process_child_effects(loop, [{:complete, _result} | _rest], _tool_executor), do: loop
-  defp process_child_effects(loop, [{:fail, _error} | _rest], _tool_executor), do: loop
+  # =============================================================================
+  # Core Execution Loop
+  # =============================================================================
 
-  defp process_child_effects(loop, [{:emit_event, _event} | rest], tool_executor) do
-    process_child_effects(loop, rest, tool_executor)
+  # Execute loop to completion (for run_streaming/run_blocking)
+  defp execute_loop(loop, [], _tool_executor, _callbacks), do: loop
+
+  defp execute_loop(loop, [{:call_llm, llm, messages} | rest], tool_executor, callbacks) do
+    {loop, new_effects} = execute_llm_call(loop, llm, messages, callbacks)
+    execute_loop(loop, new_effects ++ rest, tool_executor, callbacks)
+  end
+
+  defp execute_loop(loop, [{:execute_tool, tc} | rest], tool_executor, callbacks) do
+    callbacks.on_tool_call.(tc)
+
+    result = execute_tool_with_spawn(loop, tc, tool_executor)
+    {loop, new_effects} = Loop.handle_tool_result(loop, result)
+
+    execute_loop(loop, new_effects ++ rest, tool_executor, callbacks)
+  end
+
+  defp execute_loop(loop, [{:complete, _result} | _rest], _tool_executor, _callbacks), do: loop
+  defp execute_loop(loop, [{:fail, _error} | _rest], _tool_executor, _callbacks), do: loop
+  defp execute_loop(loop, [{:emit_event, _event} | rest], tool_executor, callbacks) do
+    execute_loop(loop, rest, tool_executor, callbacks)
+  end
+
+  # Execute loop until tool_calls are needed (for run/continue)
+  defp execute_until_yield(loop, [], _callbacks) do
+    case loop.status do
+      :completed -> {:completed, loop}
+      :failed -> {:error, loop}
+      :waiting_for_tools -> {:tool_calls, loop, pending_tool_calls(loop)}
+      _other -> {:error, loop}
+    end
+  end
+
+  defp execute_until_yield(loop, [{:call_llm, llm, messages} | rest], callbacks) do
+    {loop, new_effects} = execute_llm_call(loop, llm, messages, callbacks)
+    execute_until_yield(loop, new_effects ++ rest, callbacks)
+  end
+
+  defp execute_until_yield(loop, [{:execute_tool, _} | _] = effects, _callbacks) do
+    # Yield to caller for tool execution
+    tool_calls = Enum.map(effects, fn {:execute_tool, tc} -> tc end)
+    {:tool_calls, loop, tool_calls}
+  end
+
+  defp execute_until_yield(loop, [{:complete, _result} | _rest], _callbacks) do
+    {:completed, loop}
+  end
+
+  defp execute_until_yield(loop, [{:fail, _error} | _rest], _callbacks) do
+    {:error, loop}
+  end
+
+  defp execute_until_yield(loop, [{:emit_event, _event} | rest], callbacks) do
+    execute_until_yield(loop, rest, callbacks)
+  end
+
+  # =============================================================================
+  # LLM Call Execution (shared by both paths)
+  # =============================================================================
+
+  defp execute_llm_call(loop, llm, messages, callbacks) do
+    Telemetry.llm_span(
+      %{loop_id: loop.id, step: loop.current_step, model: llm.model},
+      fn ->
+        case Swarm.LLM.stream(llm, messages, []) do
+          {:ok, stream} ->
+            # Wrap stream to emit chunk callbacks
+            stream_with_callbacks =
+              Stream.each(stream, fn chunk ->
+                callbacks.on_chunk.(chunk)
+              end)
+
+            response = Response.from_stream(stream_with_callbacks)
+            callbacks.on_response.(response)
+
+            {loop, new_effects} = Loop.handle_response(loop, response)
+            usage = response.usage || %{}
+
+            {{loop, new_effects},
+             %{
+               input_tokens: Map.get(usage, :input_tokens, 0),
+               output_tokens: Map.get(usage, :output_tokens, 0),
+               tool_call_count: length(response.tool_calls || [])
+             }}
+
+          {:error, reason} ->
+            {loop, new_effects} = Loop.handle_error(loop, reason)
+            # Re-raise to trigger exception telemetry
+            if new_effects == [] do
+              {{loop, new_effects}, %{}}
+            else
+              {{loop, new_effects}, %{}}
+            end
+        end
+      end
+    )
+  end
+
+  # =============================================================================
+  # Tool Execution with Spawn Support
+  # =============================================================================
+
+  defp execute_tool_with_spawn(loop, tc, tool_executor) do
+    Telemetry.tool_span(
+      %{loop_id: loop.id, step: loop.current_step, tool_id: tc.id, tool_name: tc.name},
+      fn ->
+        result =
+          case tool_executor.(tc) do
+            {:ok, content} ->
+              %ToolResult{id: tc.id, content: content, is_error: false}
+
+            {:error, reason} ->
+              %ToolResult{id: tc.id, content: to_string(reason), is_error: true}
+
+            {:spawn, request} ->
+              child_result = run_child(loop.id, loop.current_step, tc.id, request, tool_executor)
+
+              %ToolResult{
+                id: tc.id,
+                content: child_result.result || "Child failed: #{inspect(child_result.error)}",
+                is_error: child_result.status == :failed
+              }
+          end
+
+        {result, %{is_error: result.is_error}}
+      end
+    )
+  end
+
+  # =============================================================================
+  # Helpers
+  # =============================================================================
+
+  defp build_callbacks(opts) do
+    %{
+      on_chunk: Keyword.get(opts, :on_chunk, fn _ -> :ok end),
+      on_response: Keyword.get(opts, :on_response, fn _ -> :ok end),
+      on_tool_call: Keyword.get(opts, :on_tool_call, fn _ -> :ok end)
+    }
+  end
+
+  defp normalize_messages(msg) when is_binary(msg), do: [Message.user(msg)]
+  defp normalize_messages(%Message{} = msg), do: [msg]
+  defp normalize_messages(msgs) when is_list(msgs), do: msgs
+
+  defp pending_tool_calls(%Loop{} = loop) do
+    case Loop.current_step(loop) do
+      nil -> []
+      step -> Enum.reject(step.tool_calls, &Swarm.ToolCall.completed?/1)
+    end
+  end
+
+  defp emit_run_stop({:completed, loop}) do
+    Telemetry.run_stop(loop.id, status: :completed, step_count: length(loop.steps))
+  end
+
+  defp emit_run_stop({:error, loop}) do
+    Telemetry.run_stop(loop.id, status: :failed, step_count: length(loop.steps), error: loop.error)
+  end
+
+  defp emit_run_stop({:tool_calls, _loop, _tool_calls}) do
+    # Don't emit stop yet - run is still in progress
+    :ok
   end
 
   defp sum_tokens(steps) do
@@ -397,65 +503,5 @@ defmodule Swarm do
         _ -> acc
       end
     end)
-  end
-
-  # --- Private helpers ---
-
-  defp normalize_messages(msg) when is_binary(msg), do: [Message.user(msg)]
-  defp normalize_messages(%Message{} = msg), do: [msg]
-  defp normalize_messages(msgs) when is_list(msgs), do: msgs
-
-  # Process effects until we need to yield to caller (tool calls) or complete
-  defp process_until_yield(loop, []) do
-    case loop.status do
-      :completed -> {:completed, loop}
-      :failed -> {:error, loop}
-      :waiting_for_tools -> {:tool_calls, loop, pending_tool_calls(loop)}
-      _other -> {:error, loop}
-    end
-  end
-
-  defp process_until_yield(loop, [{:call_llm, llm, messages} | rest]) do
-    require Logger
-    Logger.info("Swarm.process_until_yield calling LLM stream with #{length(messages)} messages")
-
-    case Swarm.LLM.stream(llm, messages, []) do
-      {:ok, stream} ->
-        Logger.info("Swarm.process_until_yield LLM stream succeeded")
-        response = Response.from_stream(stream)
-        {loop, new_effects} = Loop.handle_response(loop, response)
-        process_until_yield(loop, new_effects ++ rest)
-
-      {:error, reason} ->
-        Logger.error("Swarm.process_until_yield LLM stream failed: #{inspect(reason)}")
-        {loop, new_effects} = Loop.handle_error(loop, reason)
-        process_until_yield(loop, new_effects ++ rest)
-    end
-  end
-
-  defp process_until_yield(loop, [{:execute_tool, _} | _] = effects) do
-    # Don't execute tools - yield to caller
-    tool_calls = Enum.map(effects, fn {:execute_tool, tc} -> tc end)
-    {:tool_calls, loop, tool_calls}
-  end
-
-  defp process_until_yield(loop, [{:complete, _result} | _rest]) do
-    {:completed, loop}
-  end
-
-  defp process_until_yield(loop, [{:fail, _error} | _rest]) do
-    {:error, loop}
-  end
-
-  defp process_until_yield(loop, [{:emit_event, _event} | rest]) do
-    # Events are informational - skip
-    process_until_yield(loop, rest)
-  end
-
-  defp pending_tool_calls(%Loop{} = loop) do
-    case Loop.current_step(loop) do
-      nil -> []
-      step -> Enum.reject(step.tool_calls, &Swarm.ToolCall.completed?/1)
-    end
   end
 end

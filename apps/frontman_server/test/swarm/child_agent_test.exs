@@ -163,11 +163,12 @@ defmodule Swarm.ChildAgentTest do
       _result =
         Swarm.run_child(parent_loop_id, 1, "tc_1", spawn_request, fn _ -> {:ok, ""} end)
 
-      assert_receive {^ref, [:swarm, :child, :spawn, :stop], _measurements, metadata}
+      assert_receive {^ref, [:swarm, :child, :spawn, :stop], measurements, metadata}
       assert metadata.parent_loop_id == parent_loop_id
       assert metadata.child_status == :completed
       assert is_integer(metadata.child_step_count)
-      assert is_integer(metadata.duration_ms)
+      # Duration is in measurements (native time units) per telemetry convention
+      assert is_integer(measurements.duration)
     end
 
     test "emits exception event with tool_call_id on crash", %{telemetry_ref: ref} do

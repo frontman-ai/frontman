@@ -42,8 +42,25 @@ defmodule FrontmanServer.Agents.ToolExecutor do
     on_tool_call = Keyword.get(opts, :on_tool_call, fn _agent_id, _tc -> :ok end)
 
     fn tool_call ->
+      # For MCP tools, register BEFORE broadcasting to prevent race condition.
+      # If we broadcast first, fast MCP responses could arrive before we're
+      # ready to receive them.
+      maybe_register_mcp_tool(tool_call)
+
       on_tool_call.(agent_id, tool_call)
       execute(tool_call, task_id, agent_id)
+    end
+  end
+
+  defp maybe_register_mcp_tool(tool_call) do
+    case Tools.find_tool(tool_call.name) do
+      {:ok, _module} ->
+        :ok
+
+      :not_found ->
+        Registry.register(FrontmanServer.AgentRegistry, {:tool_call, tool_call.id}, %{
+          caller_pid: self()
+        })
     end
   end
 
@@ -137,24 +154,16 @@ defmodule FrontmanServer.Agents.ToolExecutor do
   defp execute_mcp_tool(tool_call, _task_id, _agent_id) do
     Logger.info("ToolExecutor: Routing to MCP tool #{tool_call.name}")
 
-    ref = make_ref()
-
-    Registry.register(FrontmanServer.AgentRegistry, {:tool_call, tool_call.id}, %{
-      executor: :tool_executor,
-      caller_ref: ref,
-      caller_pid: self()
-    })
-
-    # Note: Tasks.add_tool_call is called by the executor's on_tool_call callback
-    # which fires BEFORE this function runs. We should NOT call it again here.
+    # Registration already happened in maybe_register_mcp_tool before broadcast
+    tool_call_id = tool_call.id
 
     receive do
-      {:tool_result, ^ref, content, is_error} ->
-        Registry.unregister(FrontmanServer.AgentRegistry, {:tool_call, tool_call.id})
+      {:tool_result, ^tool_call_id, content, is_error} ->
+        Registry.unregister(FrontmanServer.AgentRegistry, {:tool_call, tool_call_id})
         if is_error, do: {:error, content}, else: {:ok, content}
     after
       @tool_timeout_ms ->
-        Registry.unregister(FrontmanServer.AgentRegistry, {:tool_call, tool_call.id})
+        Registry.unregister(FrontmanServer.AgentRegistry, {:tool_call, tool_call_id})
         {:error, "Tool timeout: #{tool_call.name}"}
     end
   end
