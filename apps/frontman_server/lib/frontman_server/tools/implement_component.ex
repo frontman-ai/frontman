@@ -20,7 +20,7 @@ defmodule FrontmanServer.Tools.ImplementComponent do
 
   require Logger
 
-  alias FrontmanServer.Agents.{ComponentImplementAgent, ToolExecutor}
+  alias FrontmanServer.Agents.{SpecializedAgent, ToolExecutor}
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Tools.Backend.Context
@@ -108,7 +108,7 @@ defmodule FrontmanServer.Tools.ImplementComponent do
 
     # Build ComponentImplementAgent and executor
     agent_id = "component_implementor_#{parent_agent_id}"
-    agent = ComponentImplementAgent.new(tools: mcp_tools, llm_opts: llm_opts)
+    agent = SpecializedAgent.new(:component_implement, tools: mcp_tools, llm_opts: llm_opts)
     tool_executor = ToolExecutor.make_executor(task.task_id, agent_id)
 
     case Swarm.run_blocking(agent, messages, tool_executor) do

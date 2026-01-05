@@ -9,7 +9,7 @@ defmodule FrontmanServer.Tools.BreakdownFigmaDesign do
 
   require Logger
 
-  alias FrontmanServer.Agents.{FigmaBreakdownAgent, ToolExecutor}
+  alias FrontmanServer.Agents.{SpecializedAgent, ToolExecutor}
   alias FrontmanServer.Tools.Backend.Context
   alias FrontmanServer.Tools.MCP
   alias FrontmanServer.Tasks.Interaction
@@ -80,7 +80,7 @@ defmodule FrontmanServer.Tools.BreakdownFigmaDesign do
         agent_id = "figma_breakdown_#{parent_agent_id}"
 
         # Build FigmaBreakdownAgent and executor
-        agent = FigmaBreakdownAgent.new(tools: mcp_tools)
+        agent = SpecializedAgent.new(:figma_breakdown, tools: mcp_tools)
         tool_executor = ToolExecutor.make_executor(task.task_id, agent_id)
 
         case Swarm.run_blocking(agent, [user_msg], tool_executor) do

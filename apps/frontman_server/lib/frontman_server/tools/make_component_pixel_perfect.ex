@@ -20,7 +20,7 @@ defmodule FrontmanServer.Tools.MakeComponentPixelPerfect do
 
   require Logger
 
-  alias FrontmanServer.Agents.{ComponentPixelPerfectAgent, ToolExecutor}
+  alias FrontmanServer.Agents.{SpecializedAgent, ToolExecutor}
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Tools.Backend.Context
@@ -105,7 +105,7 @@ defmodule FrontmanServer.Tools.MakeComponentPixelPerfect do
 
     # Build ComponentPixelPerfectAgent and executor
     agent_id = "pixel_perfectionist_#{parent_agent_id}"
-    agent = ComponentPixelPerfectAgent.new(tools: mcp_tools, llm_opts: llm_opts)
+    agent = SpecializedAgent.new(:component_pixel_perfect, tools: mcp_tools, llm_opts: llm_opts)
     tool_executor = ToolExecutor.make_executor(task.task_id, agent_id)
 
     case Swarm.run_blocking(agent, messages, tool_executor) do
