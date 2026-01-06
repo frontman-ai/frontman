@@ -4,6 +4,16 @@ defmodule FrontmanServer.Agents.ToolExecutor do
 
   Backend tools are executed directly server-side.
   MCP tools use Registry-based result routing to wait for client execution.
+
+  ## MCP Tool Routing
+
+  For MCP tools, the executor handles the complete routing flow:
+  1. Registers in AgentRegistry (for receiving response)
+  2. Publishes interaction via Tasks.add_tool_call (for TaskChannel routing)
+  3. Waits for client response via receive
+
+  This ensures MCP tools work correctly for both main agents and sub-agents
+  without requiring callers to handle interaction publishing.
   """
 
   require Logger
@@ -22,46 +32,63 @@ defmodule FrontmanServer.Agents.ToolExecutor do
   1. Tries to execute as a backend tool first
   2. Falls back to MCP routing if not a backend tool
 
-  ## Options
-
-  - `:on_tool_call` - Optional callback `fn(agent_id, tool_call) -> :ok` called before execution
+  For MCP tools, the executor automatically publishes interactions to enable
+  routing through TaskChannel. Callers don't need to handle this.
 
   ## Examples
 
       executor = ToolExecutor.make_executor(task_id, agent_id)
       Swarm.run_blocking(agent, messages, executor)
-
-      # With callback
-      executor = ToolExecutor.make_executor(task_id, agent_id,
-        on_tool_call: fn _agent_id, tc -> IO.puts("Calling \#{tc.name}") end
-      )
   """
-  @spec make_executor(String.t(), String.t(), keyword()) ::
+  @spec make_executor(String.t(), String.t()) ::
           (Swarm.ToolCall.t() -> {:ok, String.t()} | {:error, String.t()})
-  def make_executor(task_id, agent_id, opts \\ []) do
-    on_tool_call = Keyword.get(opts, :on_tool_call, fn _agent_id, _tc -> :ok end)
-
+  def make_executor(task_id, agent_id) do
     fn tool_call ->
-      # For MCP tools, register BEFORE broadcasting to prevent race condition.
-      # If we broadcast first, fast MCP responses could arrive before we're
-      # ready to receive them.
-      maybe_register_mcp_tool(tool_call)
+      is_mcp_tool = register_if_mcp_tool(tool_call)
 
-      on_tool_call.(agent_id, tool_call)
+      # For MCP tools, publish interaction so TaskChannel can route to client.
+      # This must happen AFTER registration to prevent race conditions.
+      if is_mcp_tool do
+        publish_mcp_tool_call(task_id, agent_id, tool_call)
+      end
+
       execute(tool_call, task_id, agent_id)
     end
   end
 
-  defp maybe_register_mcp_tool(tool_call) do
+  # Returns true if this is an MCP tool (registered for response), false for backend tools
+  defp register_if_mcp_tool(tool_call) do
     case Tools.find_tool(tool_call.name) do
       {:ok, _module} ->
-        :ok
+        false
 
       :not_found ->
         Registry.register(FrontmanServer.AgentRegistry, {:tool_call, tool_call.id}, %{
           caller_pid: self()
         })
+
+        true
     end
+  end
+
+  defp publish_mcp_tool_call(task_id, agent_id, tool_call) do
+    reqllm_tc = to_reqllm_tool_call(tool_call)
+
+    case Tasks.add_tool_call(task_id, agent_id, reqllm_tc) do
+      {:ok, _interaction} ->
+        :ok
+
+      {:error, reason} ->
+        Logger.error(
+          "ToolExecutor: Failed to publish MCP tool call #{tool_call.id}: #{inspect(reason)}"
+        )
+
+        raise "Failed to publish MCP tool call: #{inspect(reason)}"
+    end
+  end
+
+  defp to_reqllm_tool_call(%Swarm.ToolCall{} = tc) do
+    ReqLLM.ToolCall.new(tc.id, tc.name, tc.arguments)
   end
 
   @doc """

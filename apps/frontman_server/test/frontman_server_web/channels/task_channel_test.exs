@@ -533,6 +533,93 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     end
   end
 
+  describe "MCP tools race condition" do
+    test "task gets MCP tools even when prompt arrives before MCP init completes" do
+      # Verifies the fix: MCP tools are stored on task when MCP init completes,
+      # independent of prompt timing. ToolExecutor fetches fresh task, so backend
+      # tools will have access to tools.
+
+      task_id = "sess_race_#{:rand.uniform(1_000_000)}"
+      {:ok, ^task_id} = Tasks.create_task(task_id)
+
+      {:ok, _reply, socket} =
+        UserSocket
+        |> socket("user_id", %{})
+        |> subscribe_and_join("task:#{task_id}", %{})
+
+      # MCP init has started - we receive the initialize request
+      assert_push "mcp:message", %{"id" => init_request_id, "method" => "initialize"}
+
+      # Send prompt BEFORE completing MCP handshake
+      prompt_request = %{
+        "jsonrpc" => "2.0",
+        "id" => 1,
+        "method" => "session/prompt",
+        "params" => %{
+          "prompt" => %{
+            "messages" => [
+              %{"role" => "user", "content" => %{"type" => "text", "text" => "Implement the header"}}
+            ]
+          }
+        }
+      }
+
+      push(socket, "acp:message", prompt_request)
+      :sys.get_state(socket.channel_pid)
+
+      # At this point, task has no MCP tools (prompt arrived before init)
+      {:ok, task_before} = Tasks.get_task(task_id)
+      assert task_before.mcp_tools == []
+
+      # NOW complete MCP init with tools
+      init_result = %{
+        "protocolVersion" => ModelContextProtocol.protocol_version(),
+        "capabilities" => %{"tools" => %{}},
+        "serverInfo" => %{"name" => "test-mcp", "version" => "1.0.0"}
+      }
+
+      push(socket, "mcp:message", JsonRpc.success_response(init_request_id, init_result))
+
+      assert_push "mcp:message", %{"method" => "notifications/initialized"}
+      assert_push "mcp:message", %{"id" => tools_request_id, "method" => "tools/list"}
+
+      tools_result = %{
+        "tools" => [
+          %{
+            "name" => "get_figma_node",
+            "description" => "Fetches Figma node data",
+            "inputSchema" => %{"type" => "object", "properties" => %{}}
+          }
+        ]
+      }
+
+      push(socket, "mcp:message", JsonRpc.success_response(tools_request_id, tools_result))
+
+      # Handle load_agent_instructions
+      assert_push "mcp:message", %{
+        "id" => project_rules_request_id,
+        "method" => "tools/call",
+        "params" => %{"name" => "load_agent_instructions"}
+      }
+
+      push(
+        socket,
+        "mcp:message",
+        JsonRpc.success_response(project_rules_request_id, %{"content" => []})
+      )
+
+      assert_push "acp:message", %{"method" => "project_rules_initialized"}
+
+      # Force synchronization
+      :sys.get_state(socket.channel_pid)
+
+      # THE FIX: Task now has MCP tools even though prompt arrived first
+      {:ok, task_after} = Tasks.get_task(task_id)
+      assert length(task_after.mcp_tools) == 1
+      assert hd(task_after.mcp_tools).name == "get_figma_node"
+    end
+  end
+
   # Completes the MCP handshake with tools registered
   defp complete_mcp_handshake_with_tools(socket) do
     assert_push "mcp:message", %{"id" => init_request_id, "method" => "initialize"}

@@ -1,43 +1,23 @@
 // FrontmanProvider - React context provider for FrontmanClient ACP connection
-// Uses explicit state machine for initialization handshake
+// Uses ConnectionReducer for centralized state management
 
 module ACP = FrontmanFrontmanClient.FrontmanClient__ACP
 module Types = FrontmanFrontmanClient.FrontmanClient__ACP__Types
 module Relay = FrontmanFrontmanClient.FrontmanClient__Relay
-module MCP = FrontmanFrontmanClient.FrontmanClient__MCP
 module MCPServer = FrontmanFrontmanClient.FrontmanClient__MCP__Server
 module ConsoleLogTool = FrontmanFrontmanClient.FrontmanClient__MCP__Tool__ConsoleLog
-module Channel = FrontmanFrontmanClient.FrontmanClient__Phoenix__Channel
+module Reducer = Client__ConnectionReducer
 
-// Explicit state machine for the initialization handshake
-// Each state represents a clear step in the connection process
-type providerState =
-  | Disconnected // Initial state
-  | ConnectingACP // Step 1: Connecting socket and initializing ACP protocol
-  | ConnectingRelay // Step 2: ACP ready, now connecting to relay for MCP tools
-  | Ready(ACP.connection, Relay.t) // Step 3: Both ready, can create sessions
-  | CreatingSession // Step 4: Session creation in progress
-  | SessionActive({sessionId: string, session: ACP.session}) // Step 5: Session active
-  | Error(string) // Error state
+// Re-export status types for consumers
+type connectionState = Reducer.Selectors.connectionStatus
+type mcpState = Reducer.Selectors.mcpStatus
 
-// Helper to get a display name for logging
-let stateToString = state =>
-  switch state {
-  | Disconnected => "Disconnected"
-  | ConnectingACP => "ConnectingACP"
-  | ConnectingRelay => "ConnectingRelay"
-  | Ready(_, _) => "Ready"
-  | CreatingSession => "CreatingSession"
-  | SessionActive({sessionId}) => `SessionActive(${sessionId})`
-  | Error(msg) => `Error(${msg})`
-  }
-
-// Context value type - simplified, derived from state
+// Context value type
 type contextValue = {
-  state: providerState,
-  isReady: bool,
-  isSessionActive: bool,
-  sessionId: option<string>,
+  connectionState: connectionState,
+  mcpState: mcpState,
+  session: option<ACP.session>,
+  relay: option<Relay.t>,
   createSession: (Types.sessionUpdate => unit) => promise<result<ACP.session, string>>,
   sendPrompt: (
     string,
@@ -47,11 +27,11 @@ type contextValue = {
 
 // Default context value
 let defaultContextValue: contextValue = {
-  state: Disconnected,
-  isReady: false,
-  isSessionActive: false,
-  sessionId: None,
-  createSession: async (_): result<ACP.session, string> => Error("Not initialized"),
+  connectionState: Disconnected,
+  mcpState: MCPDisconnected,
+  session: None,
+  relay: None,
+  createSession: async (_): result<ACP.session, string> => Error("Not connected"),
   sendPrompt: async (_, ~additionalBlocks as _): result<Types.promptResult, string> => Error(
     "No active session",
   ),
@@ -77,208 +57,169 @@ module Provider = {
     ~clientVersion: string="1.0.0",
     ~children: React.element,
   ) => {
-    let (state, setState) = React.useState(() => Disconnected)
-    let mcpHandlerRef = React.useRef((None: option<MCP.mcpHandler<MCPServer.t>>))
+    // Centralized state via reducer
+    let (state, dispatch) = React.useReducer(
+      (state, action) => {
+        let (nextState, effects) = Reducer.reduce(state, action)
+        // Execute effects (side effects from reducer)
+        effects->Array.forEach(effect => {
+          switch effect {
+          | Reducer.LogError(msg) => Console.error(`[FrontmanProvider] ${msg}`)
+          | Reducer.LogInfo(msg) => Console.log(`[FrontmanProvider] ${msg}`)
+          | Reducer.ConnectRelay(_) => () // Handled in relay effect
+          | Reducer.CreateMCPServer(_) => () // Handled in relay effect
+          | Reducer.DisconnectRelay(relay) => Relay.disconnect(relay)
+          }
+        })
+        nextState
+      },
+      Reducer.initialState,
+    )
 
     // Get base URL from current location for relay
-    let getBaseUrl = React.useCallback(() => {
+    let getBaseUrl = React.useCallback0(() => {
       let location = WebAPI.Global.location
       `${location.protocol}//${location.host}`
-    }, [])
+    })
 
-    // Log message handler for debugging
-    let logMessage = React.useCallback((direction: ACP.messageDirection, payload: JSON.t) => {
+    // Log message handlers
+    let logACPMessage = React.useCallback0((direction: ACP.messageDirection, payload: JSON.t) => {
       let arrow = direction == Send ? `→` : `←`
       Console.log2(`[ACP] ${arrow}`, payload)
-    }, [])
+    })
 
-    // Log MCP messages
-    let logMCPMessage = React.useCallback((direction: MCP.messageDirection, payload: JSON.t) => {
-      let arrow = direction == Send ? `→` : `←`
+    let logMCPMessage = React.useCallback0((direction, payload) => {
+      let arrow = direction == FrontmanFrontmanClient.FrontmanClient__MCP.Send ? `→` : `←`
       Console.log2(`[MCP] ${arrow}`, payload)
-    }, [])
+    })
 
-    // Log state transitions
-    let transitionTo = React.useCallback((newState: providerState) => {
-      Console.log(`[FrontmanProvider] State: ${stateToString(newState)}`)
-      setState(_ => newState)
-    }, [])
+    // Initialize relay and MCPServer on mount
+    React.useEffect0(() => {
+      Console.log("[FrontmanProvider] Initializing relay...")
 
-    // Sequential initialization effect
-    React.useEffect(() => {
-      let cancelled = ref(false)
+      // Create relay instance
+      let relayInstance = Relay.make(~baseUrl=getBaseUrl())
+      dispatch(RelayInstanceCreated(relayInstance))
 
-      let initialize = async () => {
-        // Step 1: Connect ACP
-        transitionTo(ConnectingACP)
-        Console.log("[FrontmanProvider] Step 1/3: Connecting to ACP...")
+      // Create MCPServer with relay instance
+      let mcpServer =
+        MCPServer.make(~relay=relayInstance, ~serverName=clientName, ~serverVersion=clientVersion)
+        ->MCPServer.registerToolModule(module(ConsoleLogTool))
+        ->MCPServer.registerToolModule(module(Client__Tool__GetFigmaNode))
+        ->MCPServer.registerToolModule(module(Client__Tool__TakeScreenshot))
+        ->MCPServer.registerToolModule(module(Client__Tool__Navigate))
+        ->MCPServer.registerToolModule(module(Client__Tool__NavigateBack))
+      dispatch(MCPServerCreated(mcpServer))
 
-        let config = ACP.makeConfig(
-          ~endpoint,
-          ~name=clientName,
-          ~version=clientVersion,
-          ~onMessage=logMessage,
-        )
-
-        let acpResult = await ACP.connect(config)
-
-        if !cancelled.contents {
-          switch acpResult {
-          | Error(err) =>
-            Console.error2("[FrontmanProvider] ACP connection failed:", err)
-            transitionTo(Error(`ACP connection failed: ${err}`))
-
-          | Ok(conn) =>
-            Console.log("[FrontmanProvider] Step 1/3: ACP connected ✓")
-
-            // Step 2: Connect Relay
-            transitionTo(ConnectingRelay)
-            Console.log("[FrontmanProvider] Step 2/3: Connecting to relay...")
-
-            let relayInstance = Relay.make(~baseUrl=getBaseUrl())
-            let relayResult = await Relay.connect(relayInstance)
-
-            if !cancelled.contents {
-              switch relayResult {
-              | Error(err) =>
-                // Relay failure is non-fatal - proceed with limited functionality
-                Console.warn2("[FrontmanProvider] Relay connection failed (continuing anyway):", err)
-                Console.log("[FrontmanProvider] Step 2/3: Relay skipped (tools may be limited)")
-                transitionTo(Ready(conn, relayInstance))
-
-              | Ok() =>
-                Console.log("[FrontmanProvider] Step 2/3: Relay connected ✓")
-
-                // Log available tools
-                switch Relay.getState(relayInstance) {
-                | Connected({tools, serverInfo}) =>
-                  Console.log3(
-                    `[FrontmanProvider] ${serverInfo.name} v${serverInfo.version} - ${tools
-                      ->Array.length
-                      ->Int.toString} relay tools available`,
-                    tools->Array.map(t => t.name),
-                    (),
-                  )
-                | _ => ()
-                }
-
-                // Step 3: Ready!
-                Console.log("[FrontmanProvider] Step 3/3: Initialization complete ✓")
-                transitionTo(Ready(conn, relayInstance))
-              }
-            }
+      // Start relay connection
+      dispatch(RelayConnectStart)
+      let connectRelay = async () => {
+        let result = await Relay.connect(relayInstance)
+        switch result {
+        | Ok() =>
+          dispatch(RelayConnectSuccess)
+          // Log available tools
+          switch Relay.getState(relayInstance) {
+          | Connected({tools, serverInfo}) =>
+            Console.log3(
+              `[FrontmanProvider] ${serverInfo.name} v${serverInfo.version} - ${tools
+                ->Array.length
+                ->Int.toString} relay tools available`,
+              tools->Array.map(t => t.name),
+              (),
+            )
+          | _ => ()
           }
+        | Error(err) => dispatch(RelayConnectError(err))
+        }
+      }
+      connectRelay()->ignore
+
+      Some(() => dispatch(Cleanup))
+    })
+
+    // Connect to ACP on mount
+    React.useEffect0(() => {
+      dispatch(ACPConnectStart)
+      Console.log("[FrontmanProvider] Connecting to ACP...")
+
+      let config = ACP.makeConfig(
+        ~endpoint,
+        ~name=clientName,
+        ~version=clientVersion,
+        ~onMessage=logACPMessage,
+      )
+
+      let connectAsync = async () => {
+        let result = await ACP.connect(config)
+        switch result {
+        | Ok(conn) =>
+          Console.log("[FrontmanProvider] ACP connected and initialized")
+          dispatch(ACPConnectSuccess(conn))
+        | Error(err) =>
+          Console.error2("[FrontmanProvider] ACP connection failed:", err)
+          dispatch(ACPConnectError(err))
         }
       }
 
-      initialize()->ignore
+      connectAsync()->ignore
 
-      // Cleanup on unmount
-      Some(
-        () => {
-          cancelled := true
-          Console.log("[FrontmanProvider] Cleaning up...")
-
-          // Detach MCP handler
-          mcpHandlerRef.current->Option.forEach(handler => {
-            MCP.detach(handler)
-          })
-          mcpHandlerRef.current = None
-        },
-      )
-    }, (endpoint, clientName, clientVersion, logMessage, getBaseUrl, transitionTo))
+      None
+    })
 
     // Create session function
-    let createSession = React.useCallback(
+    let createSession = React.useCallback2(
       async (onUpdate: Types.sessionUpdate => unit): result<ACP.session, string> => {
-        switch state {
-        | Ready(conn, relayInstance) =>
-          Console.log("[FrontmanProvider] Creating session...")
-          setState(_ => CreatingSession)
-
-          // Build MCP setup callback - runs BEFORE channel join
-          let onBeforeJoin = (channel: Channel.t) => {
-            Console.log("[FrontmanProvider] Attaching MCP handler before channel join...")
-            let mcpServer =
-              MCPServer.make(
-                ~relay=relayInstance,
-                ~serverName=clientName,
-                ~serverVersion=clientVersion,
-              )
-              ->MCPServer.registerToolModule(module(ConsoleLogTool))
-              ->MCPServer.registerToolModule(module(Client__Tool__GetFigmaNode))
-              ->MCPServer.registerToolModule(module(Client__Tool__TakeScreenshot))
-              ->MCPServer.registerToolModule(module(Client__Tool__Navigate))
-              ->MCPServer.registerToolModule(module(Client__Tool__NavigateBack))
-            let handler = MCP.attach(
-              ~channel,
-              ~serverInterface=MCPServer.toInterface(mcpServer),
-              ~onMessage=logMCPMessage,
+        if !Reducer.Selectors.canCreateSession(state) {
+          Error("Not ready to create session")
+        } else {
+          switch (Reducer.Selectors.getACPConnection(state), Reducer.Selectors.getMCPServer(state)) {
+          | (Some(conn), Some(mcpServer)) =>
+            dispatch(SessionCreateStart)
+            // Pass MCPServer interface so handler is attached BEFORE channel join
+            let mcpServerInterface = MCPServer.toInterface(mcpServer)
+            let result = await ACP.createSession(
+              conn,
+              ~onUpdate,
+              ~mcpServerInterface,
+              ~onMcpMessage=logMCPMessage,
             )
-            mcpHandlerRef.current = Some(handler)
-            Console.log("[FrontmanProvider] MCP handler attached ✓")
+            switch result {
+            | Ok(sess) =>
+              dispatch(SessionCreateSuccess(sess))
+              Console.log2("[FrontmanProvider] Session created:", sess.sessionId)
+              Ok(sess)
+            | Error(err) =>
+              dispatch(SessionCreateError(err))
+              Console.error2("[FrontmanProvider] Failed to create session:", err)
+              Error(err)
+            }
+          | _ => Error("Connection or MCPServer not available")
           }
-
-          let result = await ACP.createSession(conn, ~onUpdate, ~onBeforeJoin)
-
-          switch result {
-          | Ok(sess) =>
-            Console.log2("[FrontmanProvider] Session created:", sess.sessionId)
-            setState(_ => SessionActive({sessionId: sess.sessionId, session: sess}))
-            Ok(sess)
-          | Error(err) =>
-            Console.error2("[FrontmanProvider] Session creation failed:", err)
-            // Revert to Ready state on failure
-            setState(_ => Ready(conn, relayInstance))
-            Error(err)
-          }
-
-        | Disconnected => Error("Not initialized - still disconnected")
-        | ConnectingACP => Error("Not ready - ACP connection in progress")
-        | ConnectingRelay => Error("Not ready - relay connection in progress")
-        | CreatingSession => Error("Session creation already in progress")
-        | SessionActive(_) => Error("Session already active")
-        | Error(msg) => Error(`Initialization failed: ${msg}`)
         }
       },
-      (state, clientName, clientVersion, logMCPMessage),
+      (state, logMCPMessage),
     )
 
     // Send prompt function
-    let sendPrompt = React.useCallback(
+    let sendPrompt = React.useCallback1(
       async (text: string, ~additionalBlocks: array<Types.contentBlock>): result<
         Types.promptResult,
         string,
       > => {
-        switch state {
-        | SessionActive({session}) => await ACP.sendPrompt(session, text, ~additionalBlocks)
-        | _ => Error("No active session")
+        switch Reducer.Selectors.getSession(state) {
+        | None => Error("No active session")
+        | Some(sess) => await ACP.sendPrompt(sess, text, ~additionalBlocks)
         }
       },
       [state],
     )
 
-    // Derive helper values from state
-    let isReady = switch state {
-    | Ready(_, _) => true
-    | _ => false
-    }
-
-    let isSessionActive = switch state {
-    | SessionActive(_) => true
-    | _ => false
-    }
-
-    let sessionId = switch state {
-    | SessionActive({sessionId}) => Some(sessionId)
-    | _ => None
-    }
-
     let contextValue: contextValue = {
-      state,
-      isReady,
-      isSessionActive,
-      sessionId,
+      connectionState: Reducer.Selectors.getConnectionStatus(state),
+      mcpState: Reducer.Selectors.getMCPStatus(state),
+      session: Reducer.Selectors.getSession(state),
+      relay: state.relayInstance,
       createSession,
       sendPrompt,
     }

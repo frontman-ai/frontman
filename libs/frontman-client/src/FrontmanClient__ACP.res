@@ -113,17 +113,21 @@ let isInitialized = (conn: connection): bool => {
   Client.isInitialized(conn.state.contents)
 }
 
+module MCP = FrontmanClient__MCP
+module MCPTypes = FrontmanClient__MCP__Types
+
 // Join a session channel (internal helper)
-// onBeforeJoin is called after channel creation but before join - use it to attach
-// additional handlers (like MCP) that must be ready before server sends messages
+// mcpServerInterface is used to create MCP handler BEFORE joining to avoid race with server MCP init
 let joinSession = async (
   conn: connection,
   sessionId: string,
   ~onUpdate: Types.sessionUpdate => unit,
-  ~onBeforeJoin: option<Channel.t => unit>=?,
+  ~mcpServerInterface: option<MCPTypes.serverInterface<'server>>=?,
+  ~onMcpMessage: option<(MCP.messageDirection, JSON.t) => unit>=?,
 ): result<session, string> => {
   let sessionChannel = conn.socket->Socket.channel(~topic=Constants.makeTaskTopic(sessionId))
 
+  // Attach ACP handler before joining
   Protocol.attachMessageHandler(
     ~channel=sessionChannel,
     ~state=conn.state,
@@ -132,10 +136,17 @@ let joinSession = async (
     ~onParseError=Some(err => Console.warn(`Session message parse error: ${err}`)),
   )
 
-  // Call onBeforeJoin callback to allow attaching additional handlers (e.g., MCP)
-  // This MUST happen before joinChannel to avoid race conditions where the server
-  // sends messages before handlers are attached
-  onBeforeJoin->Option.forEach(cb => cb(sessionChannel))
+  // Attach MCP handler before joining - server sends mcp:message immediately on join
+  mcpServerInterface->Option.forEach(serverInterface => {
+    let handler: MCP.mcpHandler<'server> = {
+      serverInterface,
+      channel: sessionChannel,
+      onMessage: onMcpMessage,
+    }
+    sessionChannel->Channel.on(~event=#"mcp:message", ~callback=payload => {
+      MCP.handleMessage(handler, payload)->ignore
+    })
+  })
 
   let joinResult = await joinChannel(sessionChannel)
 
@@ -148,12 +159,12 @@ let joinSession = async (
 }
 
 // Create a new ACP session and auto-join the session channel
-// onBeforeJoin is called after channel creation but before join - use it to attach
-// additional handlers (like MCP) that must be ready before server sends messages
+// mcpServerInterface is attached before channel join to handle server's immediate MCP init
 let createSession = async (
   conn: connection,
   ~onUpdate: Types.sessionUpdate => unit,
-  ~onBeforeJoin: option<Channel.t => unit>=?,
+  ~mcpServerInterface: option<MCPTypes.serverInterface<'server>>=?,
+  ~onMcpMessage: option<(MCP.messageDirection, JSON.t) => unit>=?,
 ): result<session, string> => {
   let sessionNewResult = await Protocol.sendSessionNew(
     ~channel=conn.channel,
@@ -162,7 +173,8 @@ let createSession = async (
   )
 
   switch sessionNewResult {
-  | Ok(result) => await joinSession(conn, result.sessionId, ~onUpdate, ~onBeforeJoin?)
+  | Ok(result) =>
+    await joinSession(conn, result.sessionId, ~onUpdate, ~mcpServerInterface?, ~onMcpMessage?)
   | Error(err) => Error(err)
   }
 }

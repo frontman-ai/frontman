@@ -473,11 +473,14 @@ defmodule FrontmanServerWeb.TaskChannel do
   end
 
   def handle_info({:mcp_initializer, {:initialization_complete, data}}, socket) do
-    Logger.info("MCP initialization complete for task #{socket.assigns.task_id}")
+    task_id = socket.assigns.task_id
+    Logger.info("MCP initialization complete for task #{task_id}")
+
+    # Store MCP tools on task immediately - ensures backend tools have access
+    # even if prompt arrived before MCP init completed
+    Tasks.set_mcp_tools(task_id, data.tools)
 
     # Notify client that project rules are initialized
-    task_id = socket.assigns.task_id
-
     notification =
       JsonRpc.notification("project_rules_initialized", %{
         "count" => length(data.tools),

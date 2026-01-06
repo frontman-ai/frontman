@@ -42,32 +42,9 @@ defmodule FrontmanServer.Agents.ExecutionTest do
       # Build initial message
       messages = [Swarm.Message.user("Please call the MCP tool")]
 
-      # Track events received
-      test_pid = self()
-
-      # IMPORTANT: Mirror production behavior - on_event calls Tasks.add_tool_call
-      # This is what Agents.handle_agent_event does for :tool_call events
-      on_event = fn event ->
-        send(test_pid, {:executor_event, event})
-
-        case event do
-          {:tool_call, _agent_id, tool_call} ->
-            Tasks.add_tool_call(task_id, agent_id, tool_call)
-
-          _ ->
-            :ok
-        end
-      end
-
-      # Start the executor - this will:
-      # 1. Call LLM which returns a tool call
-      # 2. on_tool_call callback fires -> Tasks.add_tool_call
-      # 3. ToolExecutor.execute_mcp_tool is called -> should NOT call Tasks.add_tool_call again
-      # 4. Tool times out (no MCP client), executor handles error
-      # 5. LLM is called again with tool result, returns completion
-
-      # We use run_agent_sync with a short timeout since MCP tool will timeout
-      # The key assertion is about the number of broadcasts, not success
+      # ToolExecutor now handles interaction publishing internally.
+      # on_event no longer receives :tool_call events.
+      on_event = fn _event -> :ok end
 
       # Start execution in a task so we can collect broadcasts
       executor_task =
@@ -111,51 +88,48 @@ defmodule FrontmanServer.Agents.ExecutionTest do
     end
   end
 
-  describe "MCP tool result delivery" do
+  describe "MCP tool registration timing" do
     setup do
       task_id = "test_race_#{System.unique_integer([:positive])}"
       {:ok, ^task_id} = Tasks.create_task(task_id)
+
+      # Subscribe to receive broadcasts
+      Phoenix.PubSub.subscribe(FrontmanServer.PubSub, Tasks.topic(task_id))
+
       {:ok, task_id: task_id}
     end
 
-    test "agent is registered before tool call broadcast", %{task_id: task_id} do
-      # Verify registration happens BEFORE broadcast to prevent race condition
+    test "agent is registered before interaction is broadcast", %{task_id: task_id} do
+      # Verify registration happens BEFORE broadcast to prevent race condition.
+      # ToolExecutor registers in AgentRegistry, then publishes interaction.
+      # When we receive the interaction broadcast, the agent should be registered.
       agent_id = "agent_#{System.unique_integer([:positive])}"
       tool_call_id = "call_#{System.unique_integer([:positive])}"
-      test_pid = self()
 
       mcp_tool_call = %ToolCall{id: tool_call_id, name: "mcp_tool", arguments: ~s({})}
       llm = tool_then_complete_llm([mcp_tool_call], "Done!")
       agent = test_agent(llm, "TestAgent")
       messages = [Swarm.Message.user("Call tool")]
 
-      on_event = fn event ->
-        case event do
-          {:tool_call, _agent_id, tc} ->
-            # Check registration status when broadcast fires
-            registered =
-              case Registry.lookup(FrontmanServer.AgentRegistry, {:tool_call, tc.id}) do
-                [{_pid, _}] -> true
-                [] -> false
-              end
+      task =
+        Task.async(fn ->
+          Agents.run_agent_sync(agent, task_id, agent_id, messages, on_event: fn _ -> :ok end)
+        end)
 
-            send(test_pid, {:registration_check, registered})
-            Tasks.add_tool_call(task_id, agent_id, tc)
+      # Wait for the interaction broadcast
+      assert_receive {:interaction, %Tasks.Interaction.ToolCall{tool_call_id: ^tool_call_id}},
+                     5_000
 
-          _ ->
-            :ok
+      # At this point, agent should be registered
+      registered =
+        case Registry.lookup(FrontmanServer.AgentRegistry, {:tool_call, tool_call_id}) do
+          [{_pid, _}] -> true
+          [] -> false
         end
-      end
 
-      task = Task.async(fn ->
-        Agents.run_agent_sync(agent, task_id, agent_id, messages, on_event: on_event)
-      end)
-
-      # Wait for the registration check message
-      assert_receive {:registration_check, was_registered}, 5_000
       Task.shutdown(task, :brutal_kill)
 
-      assert was_registered,
+      assert registered,
              "Agent not registered when tool call broadcast - race condition exists"
     end
   end

@@ -59,8 +59,10 @@ let pendingRequests: Dict.t<result<responseData, string> => unit> = Dict.make()
 
 // Handle incoming response messages from the extension
 let handleResponse = (requestId: string, result: result<responseData, string>) => {
+  Console.log2("[GetFigmaNode] handleResponse called for:", requestId)
   switch Dict.get(pendingRequests, requestId) {
   | Some(resolve) =>
+    Console.log2("[GetFigmaNode] Found pending request, resolving:", requestId)
     Dict.delete(pendingRequests, requestId)
     resolve(result)
   | None => Console.warn2("[GetFigmaNode] No pending request found for ID:", requestId)
@@ -79,6 +81,7 @@ let registerResponseHandler = () => {
 }
 
 let execute = async (input: input): toolResult<output> => {
+  Console.log2("[GetFigmaNode] execute called with nodeId:", input.nodeId)
   registerResponseHandler()
 
   let extensionState = FrontmanReactStatestore.StateStore.getState(
@@ -86,8 +89,11 @@ let execute = async (input: input): toolResult<output> => {
   )
 
   switch Client__ExtensionState.Selectors.getPort(extensionState) {
-  | None => Ok({node: None, error: Some("Chrome extension is not connected"), image: None})
+  | None =>
+    Console.warn("[GetFigmaNode] No extension port - returning error")
+    Ok({node: None, error: Some("Chrome extension is not connected"), image: None})
   | Some(port) =>
+    Console.log("[GetFigmaNode] Extension port found, sending request...")
     // Generate unique request ID
     requestIdCounter.contents = requestIdCounter.contents + 1
     let requestId = `figma_node_${requestIdCounter.contents->Int.toString}`
@@ -127,27 +133,34 @@ let execute = async (input: input): toolResult<output> => {
       "nodeId": input.nodeId,
       "settings": settings,
     }
+    Console.log2("[GetFigmaNode] Sending message with requestId:", requestId)
     postMessageRaw(port, message)
+    Console.log("[GetFigmaNode] Message sent, waiting for response...")
 
     // Wait for response with timeout
     let timeoutPromise = Promise.make((resolve, _reject) => {
       let _ = WebAPI.Global.setTimeout(~handler=() => {
         // Remove pending request on timeout
+        Console.warn2("[GetFigmaNode] Request timed out for:", requestId)
         Dict.delete(pendingRequests, requestId)
         resolve(Error("Request timed out after 30 seconds"))
       }, ~timeout=30000)
     })
 
     let result = await Promise.race([responsePromise, timeoutPromise])
+    Console.log2("[GetFigmaNode] Got result for:", requestId)
 
     switch result {
     | Ok({node: nodeJson, image: imageData}) =>
+      Console.log("[GetFigmaNode] Success - returning node data")
       Ok({
         node: Some(nodeJson),
         error: None,
         image: imageData,
       })
-    | Error(errorMsg) => Ok({node: None, error: Some(errorMsg), image: None})
+    | Error(errorMsg) =>
+      Console.log2("[GetFigmaNode] Error:", errorMsg)
+      Ok({node: None, error: Some(errorMsg), image: None})
     }
   }
 }

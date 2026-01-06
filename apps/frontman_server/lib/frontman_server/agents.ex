@@ -259,9 +259,6 @@ defmodule FrontmanServer.Agents do
       {:response, agent_id, text, metadata} ->
         Tasks.add_agent_response(task_id, agent_id, text, metadata)
 
-      {:tool_call, agent_id, tool_call} ->
-        Tasks.add_tool_call(task_id, agent_id, tool_call)
-
       {:completed, agent_id} ->
         Tasks.add_agent_completed(task_id, agent_id)
         broadcast(task_id, {:agent_completed, agent_id})
@@ -345,14 +342,8 @@ defmodule FrontmanServer.Agents do
 
   defp execute_agent(agent, task_id, agent_id, messages, on_event) do
     # Build tool executor that handles both backend and MCP tools.
-    # on_tool_call is handled here (not in Swarm) because ToolExecutor needs to
-    # register MCP tools BEFORE broadcasting to prevent race conditions.
-    tool_executor =
-      ToolExecutor.make_executor(task_id, agent_id,
-        on_tool_call: fn _agent_id, tool_call ->
-          on_event.({:tool_call, agent_id, to_reqllm_tool_call(tool_call)})
-        end
-      )
+    # ToolExecutor owns interaction publishing for MCP tools internally.
+    tool_executor = ToolExecutor.make_executor(task_id, agent_id)
 
     Logger.info("Agent #{agent_id} starting execution via Swarm.run_streaming")
 

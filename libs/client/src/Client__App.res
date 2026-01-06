@@ -66,20 +66,27 @@ let useExtensionState = () => {
             | "GetFigmaNodeResponse" =>
               // Route response to the pending tool request
               // Note: fields are Js.Nullable.t since they come from JS as null, not undefined
+              Console.log2("[App] Received GetFigmaNodeResponse, requestId:", message.requestId)
               message.requestId
               ->Js.Nullable.toOption
               ->Option.forEach(requestId => {
+                Console.log2("[App] Routing response to handler for:", requestId)
                 let result = switch message.error->Js.Nullable.toOption {
-                | Some(error) => Error(error)
+                | Some(error) =>
+                  Console.log2("[App] Response has error:", error)
+                  Error(error)
                 | None =>
                   switch message.node->Js.Nullable.toOption {
                   | Some(node) =>
+                    Console.log("[App] Response has node data")
                     let image = message.image->Js.Nullable.toOption
                     Ok({
                       Client__Tool__GetFigmaNode.node,
                       Client__Tool__GetFigmaNode.image,
                     })
-                  | None => Error("No node data in response")
+                  | None =>
+                    Console.warn("[App] Response has no node data")
+                    Error("No node data in response")
                   }
                 }
                 Client__Tool__GetFigmaNode.handleResponse(requestId, result)

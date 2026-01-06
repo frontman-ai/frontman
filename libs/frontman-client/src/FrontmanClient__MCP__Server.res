@@ -70,10 +70,13 @@ let executeLocalTool = async (
   ~arguments: option<Dict.t<JSON.t>>,
 ): Types.callToolResult => {
   module T = unpack(toolModule)
+  Console.log2("[MCPServer] Executing local tool:", T.name)
   let inputJson = arguments->Option.getOr(Dict.make())->JSON.Encode.object
   try {
     let input = inputJson->S.parseOrThrow(T.inputSchema)
+    Console.log2("[MCPServer] Calling execute for:", T.name)
     let result = await T.execute(input)
+    Console.log2("[MCPServer] Execute returned for:", T.name)
     switch result {
     | Ok(output) =>
       let outputJson = output->S.reverseConvertToJsonOrThrow(T.outputSchema)
@@ -87,7 +90,9 @@ let executeLocalTool = async (
       }
     }
   } catch {
-  | S.Error(e) => {
+  | S.Error(e) =>
+    Console.error2("[MCPServer] Schema error for:", T.name)
+    {
       content: [{type_: "text", text: `Invalid input: ${e.message}`}],
       isError: Some(true),
     }
