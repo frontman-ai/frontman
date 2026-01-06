@@ -482,10 +482,8 @@ defmodule FrontmanServer.Agents.Prompts do
 
   ## Rules
 
-  - Paths relative to repo root.
-  - To find a page first use a tool call of the framework to find routes.
-  - To find a file or directory by name use search_files.
-  - **Search → Grep → List → Read → Modify**. Use search_files to find files by name, grep to search for code patterns, then list/read before editing. Never edit unseen files.
+  - Use paths as provided. If given an absolute path, use it as-is.
+  - List → Read → Modify. Never edit unseen files.
   - Keep diffs small and reversible. Match repo style.
   - After 2 failed tool calls, ask one clarifying question.
   - IMPORTANT: If you have a figma design and node selected, use the `breakdown_figma_design` tool to analyze the design into components, then use `implement_component` for each one.
@@ -749,7 +747,7 @@ defmodule FrontmanServer.Agents.Prompts do
     ### IMPORTANT: What You Have Access To
 
     - **The Figma design image/DSL** is already in this conversation - you can see it
-    - **The selected component file path and location** - you know where the component is in the codebase
+    - **The selected component file path and location** - use this path EXACTLY as provided (do not modify it)
     - **The root Figma node ID** - provided above for use with `breakdown_figma_design`
 
     ### CRITICAL: What You Do NOT Have Access To
@@ -849,7 +847,7 @@ defmodule FrontmanServer.Agents.Prompts do
     **The user has selected a specific component in their codebase.**
 
     The message contains a `[Selected Component Location]` section with:
-    - **File path** - The exact file containing the component
+    - **File path** - The exact file path (use as-is, do not modify)
     - **Line number** - The specific line where the component is located
     - **Column number** - The column position
 
@@ -857,27 +855,20 @@ defmodule FrontmanServer.Agents.Prompts do
 
     **DO NOT explore or search the codebase.** Go directly to the selected file:
 
-    1. **Read the file** - Use `read_file` with the exact path from `[Selected Component Location]`
+    1. **Read the file** - Use the EXACT path from `[Selected Component Location]` without modification
     2. **Find the relevant code** - Look at the specified line number
     3. **Make the change** - Apply the user's requested modification
-    4. **Write the file** - Save the changes
+    4. **Write the file** - Save the changes using the same path
 
     ### IMPORTANT
 
+    - **Use the file path EXACTLY as provided** - do not convert or modify the path in any way
     - The user has ALREADY told you exactly where to make changes
     - Do NOT use `list_files` to explore directories
     - Do NOT search for the component in multiple files
     - Trust the provided location and go directly there
     - If the file read shows the component, proceed with the change immediately
     - Only if the exact line doesn't contain what's expected should you look nearby
-
-    ### Example
-
-    If the user says "change the text to Danni" and selects a component at `src/components/Header.tsx:42:5`:
-
-    1. `read_file("src/components/Header.tsx")`
-    2. Look at line 42 for text content
-    3. `write_file` with the text changed to "Danni"
 
     **PROCEED DIRECTLY to reading the selected file. Do NOT ask for clarification or explore.**
     """
