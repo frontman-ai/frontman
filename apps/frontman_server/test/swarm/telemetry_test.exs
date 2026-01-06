@@ -34,6 +34,27 @@ defmodule Swarm.TelemetryTest do
       assert result == "my_result"
     end
 
+    test "run_span stop event includes loop_id from callback return" do
+      # This test verifies that ConsoleHandler can access loop_id in stop events.
+      # The callback MUST return loop_id in its metadata because :telemetry.span/3
+      # does NOT merge start metadata with stop metadata.
+      events =
+        capture_telemetry(fn ->
+          Swarm.Telemetry.run_span(%{loop_id: "loop_123", agent_module: TestAgent}, fn ->
+            # The callback must include loop_id in return metadata
+            {"result", %{loop_id: "loop_123", status: :completed, step_count: 3}}
+          end)
+        end)
+
+      assert_event(events, [:swarm, :run, :stop], fn _measurements, metadata ->
+        # loop_id MUST be present for ConsoleHandler to work
+        assert Map.has_key?(metadata, :loop_id), "stop event must include loop_id"
+        assert metadata.loop_id == "loop_123"
+        assert metadata.status == :completed
+        assert metadata.step_count == 3
+      end)
+    end
+
     test "llm_span executes function and returns result" do
       result =
         Swarm.Telemetry.llm_span(%{loop_id: "test", step: 1, model: "claude"}, fn ->

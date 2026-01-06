@@ -201,6 +201,29 @@ module ACPTypes = FrontmanFrontmanClient.FrontmanClient__ACP__Types
 // ContentBlock builders for embedded context (ACP embeddedContext)
 // ============================================================================
 
+// Helper to strip file:// URI prefix and convert to filesystem path
+// Handles both Unix (file:///path) and Windows (file:///C:/path) URIs
+let stripFileUriPrefix = (path: string): string => {
+  if path->String.startsWith("file:///") {
+    // Check if it's a Windows path (file:///C:/...)
+    let afterPrefix = path->String.slice(~start=8, ~end=path->String.length) // Skip "file:///"
+    // Windows paths have a drive letter followed by colon (e.g., "C:/...")
+    if afterPrefix->String.length >= 2 && afterPrefix->String.charAt(1) == ":" {
+      // Windows path - return without the file:/// prefix (keeps drive letter)
+      afterPrefix
+    } else {
+      // Unix path - return with leading slash
+      "/" ++ afterPrefix
+    }
+  } else if path->String.startsWith("file://") {
+    // Malformed URI with only two slashes - strip and add leading slash
+    "/" ++ path->String.slice(~start=7, ~end=path->String.length)
+  } else {
+    // Not a file:// URI, return as-is
+    path
+  }
+}
+
 // Helper to create _meta JSON for selected component
 let makeSelectedComponentMeta: (string, int, int) => JSON.t = %raw(`
   function(file, line, column) {
@@ -217,16 +240,20 @@ let makeSelectedComponentMeta: (string, int, int) => JSON.t = %raw(`
 // Contains the source location as structured data in _meta for safe extraction
 let selectedElementToContentBlock = (sel: SelectedElement.t): option<ACPTypes.contentBlock> => {
   sel.sourceLocation->Option.map(loc => {
-    let uri = `file://${loc.file}:${loc.line->Int.toString}:${loc.column->Int.toString}`
+    // Strip file:// prefix to get clean filesystem path for the agent
+    let cleanFilePath = stripFileUriPrefix(loc.file)
+
+    // Build URI with the original file path (preserve for display purposes)
+    let uri = `file://${cleanFilePath}:${loc.line->Int.toString}:${loc.column->Int.toString}`
 
     let textResource: ACPTypes.textResourceContents = {
       uri,
       mimeType: Some("text/plain"),
-      text: `Selected component: ${loc.tagName} at ${loc.file}:${loc.line->Int.toString}:${loc.column->Int.toString}`,
+      text: `Selected component: ${loc.tagName} at ${cleanFilePath}:${loc.line->Int.toString}:${loc.column->Int.toString}`,
     }
 
-    // Create _meta with selected_component annotation containing structured data
-    let _meta = makeSelectedComponentMeta(loc.file, loc.line, loc.column)
+    // Create _meta with selected_component annotation containing the clean path
+    let _meta = makeSelectedComponentMeta(cleanFilePath, loc.line, loc.column)
 
     let embeddedResource: ACPTypes.embeddedResource = {
       _meta: Some(_meta),

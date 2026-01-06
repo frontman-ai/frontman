@@ -154,7 +154,9 @@ defmodule Swarm do
             other -> {:error, {:unexpected_status, other}}
           end
 
-        {result, %{status: final_loop.status, step_count: length(final_loop.steps)}}
+        # Include loop_id in stop metadata - :telemetry.span/3 does NOT merge
+        # start metadata with stop metadata, so handlers need loop_id here
+        {result, %{loop_id: loop.id, status: final_loop.status, step_count: length(final_loop.steps)}}
       end
     )
   end
@@ -392,8 +394,11 @@ defmodule Swarm do
   # =============================================================================
 
   defp execute_llm_call(loop, llm, messages, callbacks) do
+    loop_id = loop.id
+    step = loop.current_step
+
     Telemetry.llm_span(
-      %{loop_id: loop.id, step: loop.current_step, model: llm.model},
+      %{loop_id: loop_id, step: step, model: llm.model},
       fn ->
         case Swarm.LLM.stream(llm, messages, []) do
           {:ok, stream} ->
@@ -409,8 +414,11 @@ defmodule Swarm do
             {loop, new_effects} = Loop.handle_response(loop, response)
             usage = response.usage || %{}
 
+            # Include loop_id/step in stop metadata for telemetry handlers
             {{loop, new_effects},
              %{
+               loop_id: loop_id,
+               step: step,
                input_tokens: Map.get(usage, :input_tokens, 0),
                output_tokens: Map.get(usage, :output_tokens, 0),
                tool_call_count: length(response.tool_calls || [])
@@ -418,12 +426,7 @@ defmodule Swarm do
 
           {:error, reason} ->
             {loop, new_effects} = Loop.handle_error(loop, reason)
-            # Re-raise to trigger exception telemetry
-            if new_effects == [] do
-              {{loop, new_effects}, %{}}
-            else
-              {{loop, new_effects}, %{}}
-            end
+            {{loop, new_effects}, %{loop_id: loop_id, step: step}}
         end
       end
     )
@@ -434,8 +437,13 @@ defmodule Swarm do
   # =============================================================================
 
   defp execute_tool_with_spawn(loop, tc, tool_executor) do
+    loop_id = loop.id
+    step = loop.current_step
+    tool_id = tc.id
+    tool_name = tc.name
+
     Telemetry.tool_span(
-      %{loop_id: loop.id, step: loop.current_step, tool_id: tc.id, tool_name: tc.name},
+      %{loop_id: loop_id, step: step, tool_id: tool_id, tool_name: tool_name},
       fn ->
         result =
           case tool_executor.(tc) do
@@ -446,7 +454,7 @@ defmodule Swarm do
               %ToolResult{id: tc.id, content: to_string(reason), is_error: true}
 
             {:spawn, request} ->
-              child_result = run_child(loop.id, loop.current_step, tc.id, request, tool_executor)
+              child_result = run_child(loop_id, step, tc.id, request, tool_executor)
 
               %ToolResult{
                 id: tc.id,
@@ -455,7 +463,8 @@ defmodule Swarm do
               }
           end
 
-        {result, %{is_error: result.is_error}}
+        # Include all keys in stop metadata for telemetry handlers
+        {result, %{loop_id: loop_id, tool_id: tool_id, tool_name: tool_name, is_error: result.is_error}}
       end
     )
   end

@@ -56,6 +56,126 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     end
   end
 
+  describe "PubSub subscription" do
+    @moduledoc """
+    Tests that verify the channel is properly subscribed to PubSub.
+
+    This is critical because tool calls are broadcast via PubSub from the agent,
+    and the channel must receive them to route to MCP. Previous tests used
+    send(socket.channel_pid, ...) which bypassed PubSub entirely.
+    """
+
+    setup do
+      task_id = "sess_pubsub_#{:rand.uniform(1_000_000)}"
+      {:ok, ^task_id} = Tasks.create_task(task_id)
+
+      {:ok, _reply, socket} =
+        UserSocket
+        |> socket("user_id", %{})
+        |> subscribe_and_join("task:#{task_id}", %{})
+
+      complete_mcp_handshake(socket)
+
+      {:ok, socket: socket, task_id: task_id}
+    end
+
+    test "channel receives tool call interactions via PubSub broadcast", %{
+      socket: _socket,
+      task_id: task_id
+    } do
+      # This test verifies the REAL path: PubSub.broadcast -> channel receives
+      # Unlike other tests that use send(socket.channel_pid, ...) directly
+
+      tool_call = %Interaction.ToolCall{
+        id: Interaction.new_id(),
+        agent_id: "test_agent",
+        tool_call_id: "call_pubsub_#{:rand.uniform(1_000_000)}",
+        tool_name: "testTool",
+        arguments: %{"key" => "value"},
+        timestamp: Interaction.now()
+      }
+
+      # Broadcast via PubSub - this is what Tasks.add_tool_call does in production
+      Phoenix.PubSub.broadcast(
+        FrontmanServer.PubSub,
+        Tasks.topic(task_id),
+        {:interaction, tool_call}
+      )
+
+      # If the channel is subscribed to PubSub, it should route this to MCP
+      assert_push "mcp:message", %{
+        "method" => "tools/call",
+        "params" => %{"name" => "testTool"}
+      }
+    end
+
+    test "channel does NOT receive broadcasts to different topics", %{
+      socket: _socket,
+      task_id: task_id
+    } do
+      # Verify that the channel only receives broadcasts to its specific topic
+      # This proves the subscription is topic-specific, not global
+      different_topic = "task:different_#{:rand.uniform(1_000_000)}"
+
+      tool_call = %Interaction.ToolCall{
+        id: Interaction.new_id(),
+        agent_id: "test_agent",
+        tool_call_id: "call_different_#{:rand.uniform(1_000_000)}",
+        tool_name: "otherTool",
+        arguments: %{},
+        timestamp: Interaction.now()
+      }
+
+      # Broadcast to a DIFFERENT topic
+      Phoenix.PubSub.broadcast(
+        FrontmanServer.PubSub,
+        different_topic,
+        {:interaction, tool_call}
+      )
+
+      # Channel should NOT receive this since it's subscribed to task_id's topic
+      refute_push "mcp:message", %{"params" => %{"name" => "otherTool"}}
+
+      # But it SHOULD still receive broadcasts to its own topic
+      tool_call2 = %{tool_call | tool_call_id: "call_own_#{:rand.uniform(1_000_000)}", tool_name: "ownTool"}
+
+      Phoenix.PubSub.broadcast(
+        FrontmanServer.PubSub,
+        Tasks.topic(task_id),
+        {:interaction, tool_call2}
+      )
+
+      assert_push "mcp:message", %{
+        "method" => "tools/call",
+        "params" => %{"name" => "ownTool"}
+      }
+    end
+
+    test "channel receives agent stream tokens via PubSub broadcast", %{
+      socket: _socket,
+      task_id: task_id
+    } do
+      # Broadcast a stream token via PubSub
+      Phoenix.PubSub.broadcast(
+        FrontmanServer.PubSub,
+        Tasks.topic(task_id),
+        {:agent_stream_token, "test_agent", "Hello world"}
+      )
+
+      # Channel should forward this as an ACP notification
+      # Note: content is wrapped in a map with type: "text"
+      assert_push "acp:message", %{
+        "method" => "session/update",
+        "params" => %{
+          "update" => %{
+            "sessionUpdate" => "agent_message_chunk",
+            "content" => %{"type" => "text", "text" => "Hello world"}
+          }
+        }
+      }
+    end
+  end
+
   describe "MCP tool call result extraction" do
     setup do
       task_id = "sess_tool_#{:rand.uniform(1_000_000)}"
