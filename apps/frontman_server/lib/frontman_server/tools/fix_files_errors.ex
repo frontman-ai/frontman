@@ -54,7 +54,8 @@ defmodule FrontmanServer.Tools.FixFilesErrors do
         },
         "testPageUrl" => %{
           "type" => "string",
-          "description" => "The URL path to navigate to the test page (e.g., '/test-component-name')"
+          "description" =>
+            "The URL path to navigate to the test page (e.g., '/test-component-name')"
         }
       },
       "required" => ["componentName", "filesCreated", "testPageUrl"]

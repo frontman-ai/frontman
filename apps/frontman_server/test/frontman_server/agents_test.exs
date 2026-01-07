@@ -52,7 +52,7 @@ defmodule FrontmanServer.AgentsTest do
 
       # Verify agent is no longer running
       refute Agents.agent_running?(task_id),
-        "Agent should not be running after completion"
+             "Agent should not be running after completion"
 
       # Add second user message with different agent
       user_content2 = [%{"type" => "text", "text" => "Second message"}]
@@ -69,7 +69,7 @@ defmodule FrontmanServer.AgentsTest do
         |> Enum.filter(&match?(%Interaction.AgentResponse{}, &1))
 
       assert length(agent_responses) == 2,
-        "Expected 2 agent responses, got #{length(agent_responses)}"
+             "Expected 2 agent responses, got #{length(agent_responses)}"
     end
 
     test "second message sent immediately after first completion is processed", %{
@@ -96,8 +96,9 @@ defmodule FrontmanServer.AgentsTest do
       {:ok, _} = Tasks.add_user_message(task_id, user_content2, [], agent: agent2)
 
       # The second message MUST be processed - if this times out, we have the race condition bug
-      assert_receive {:interaction, %Interaction.AgentCompleted{}}, 5_000,
-        "Second message was not processed - likely race condition in agent registration"
+      assert_receive {:interaction, %Interaction.AgentCompleted{}},
+                     5_000,
+                     "Second message was not processed - likely race condition in agent registration"
     end
 
     test "conversation with tool calls supports follow-up messages", %{task_id: task_id} do
@@ -114,11 +115,19 @@ defmodule FrontmanServer.AgentsTest do
       agent2 = test_agent(mock_llm("Based on the previous results..."), "Agent2")
 
       # First message triggers tool usage
-      {:ok, _} = Tasks.add_user_message(task_id, [%{"type" => "text", "text" => "Show todos"}], [], agent: agent1)
+      {:ok, _} =
+        Tasks.add_user_message(task_id, [%{"type" => "text", "text" => "Show todos"}], [],
+          agent: agent1
+        )
+
       assert_receive {:interaction, %Interaction.AgentCompleted{}}, 5_000
 
       # Follow-up message should have access to full conversation history
-      {:ok, _} = Tasks.add_user_message(task_id, [%{"type" => "text", "text" => "Summarize"}], [], agent: agent2)
+      {:ok, _} =
+        Tasks.add_user_message(task_id, [%{"type" => "text", "text" => "Summarize"}], [],
+          agent: agent2
+        )
+
       assert_receive {:interaction, %Interaction.AgentCompleted{}}, 5_000
 
       {:ok, task} = Tasks.get_task(task_id)

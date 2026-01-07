@@ -89,7 +89,6 @@ defimpl Swarm.LLM, for: FrontmanServer.Agents.LLMClient do
 
     case ReqLLM.stream_text(client.model, reqllm_messages, llm_opts) do
       {:ok, response} ->
-
         swarm_stream =
           response.stream
           |> Stream.map(&to_swarm_chunk/1)

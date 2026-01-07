@@ -318,7 +318,7 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
-  # Todos Management
+  # Task List Management
 
   alias FrontmanServer.Tasks.Todos
 

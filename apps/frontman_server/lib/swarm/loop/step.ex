@@ -54,11 +54,12 @@ defmodule Swarm.Loop.Step do
   @doc "Records the LLM response on this step, including any tool calls."
   @spec record_response(t(), Swarm.LLM.Response.t()) :: t()
   def record_response(%__MODULE__{} = step, %Swarm.LLM.Response{} = response) do
-    %{step |
-      content: response.content,
-      reasoning_details: response.reasoning_details,
-      usage: response.usage,
-      tool_calls: response.tool_calls
+    %{
+      step
+      | content: response.content,
+        reasoning_details: response.reasoning_details,
+        usage: response.usage,
+        tool_calls: response.tool_calls
     }
   end
 

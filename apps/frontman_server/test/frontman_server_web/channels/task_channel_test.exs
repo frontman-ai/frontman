@@ -135,7 +135,11 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       refute_push "mcp:message", %{"params" => %{"name" => "otherTool"}}
 
       # But it SHOULD still receive broadcasts to its own topic
-      tool_call2 = %{tool_call | tool_call_id: "call_own_#{:rand.uniform(1_000_000)}", tool_name: "ownTool"}
+      tool_call2 = %{
+        tool_call
+        | tool_call_id: "call_own_#{:rand.uniform(1_000_000)}",
+          tool_name: "ownTool"
+      }
 
       Phoenix.PubSub.broadcast(
         FrontmanServer.PubSub,
@@ -552,7 +556,10 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         "params" => %{
           "prompt" => %{
             "messages" => [
-              %{"role" => "user", "content" => %{"type" => "text", "text" => "Implement the header"}}
+              %{
+                "role" => "user",
+                "content" => %{"type" => "text", "text" => "Implement the header"}
+              }
             ]
           }
         }

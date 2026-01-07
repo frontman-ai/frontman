@@ -329,7 +329,7 @@ defmodule AgentClientProtocol do
   end
 
   # ===========================================================================
-  # Todos Event Notifications
+  # Task List Event Notifications
   # ===========================================================================
 
   @doc """

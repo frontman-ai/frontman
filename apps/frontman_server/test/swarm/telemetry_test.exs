@@ -68,9 +68,12 @@ defmodule Swarm.TelemetryTest do
 
     test "tool_span executes function and returns result" do
       result =
-        Swarm.Telemetry.tool_span(%{loop_id: "test", step: 1, tool_id: "tc1", tool_name: "search"}, fn ->
-          {"tool_result", %{tool_id: "tc1", is_error: false}}
-        end)
+        Swarm.Telemetry.tool_span(
+          %{loop_id: "test", step: 1, tool_id: "tc1", tool_name: "search"},
+          fn ->
+            {"tool_result", %{tool_id: "tc1", is_error: false}}
+          end
+        )
 
       assert result == "tool_result"
     end

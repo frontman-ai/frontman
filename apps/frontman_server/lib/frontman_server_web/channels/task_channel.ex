@@ -116,12 +116,15 @@ defmodule FrontmanServerWeb.TaskChannel do
     pending_requests = socket.assigns[:pending_requests] || %{}
     initializer_pid = socket.assigns[:mcp_initializer_pid]
 
-    Logger.debug("MCP response received: id=#{id}, pending_keys=#{inspect(Map.keys(pending_requests))}")
+    Logger.debug(
+      "MCP response received: id=#{id}, pending_keys=#{inspect(Map.keys(pending_requests))}"
+    )
 
     cond do
       # Tool call response - channel owns these IDs
       Map.has_key?(pending_requests, id) ->
         Logger.debug("MCP response #{id} matched pending tool call")
+
         case Map.pop(pending_requests, id) do
           {{:tool_call, tool_call}, remaining_requests} ->
             handle_tool_call_response(id, tool_call, result, socket, remaining_requests)
@@ -198,7 +201,9 @@ defmodule FrontmanServerWeb.TaskChannel do
     pending_requests = socket.assigns[:pending_requests] || %{}
     initializer_pid = socket.assigns[:mcp_initializer_pid]
 
-    Logger.debug("MCP error received: id=#{id}, pending_keys=#{inspect(Map.keys(pending_requests))}")
+    Logger.debug(
+      "MCP error received: id=#{id}, pending_keys=#{inspect(Map.keys(pending_requests))}"
+    )
 
     cond do
       # Tool call error - channel owns these IDs
@@ -317,9 +322,7 @@ defmodule FrontmanServerWeb.TaskChannel do
   def handle_info({:stream_token, text}, socket) do
     # Translate domain event to ACP notification
     # ACP compliant: agent_message_chunk implicitly signals message start
-    Logger.debug(
-      "Channel received stream_token: #{byte_size(text)} bytes, text=#{inspect(text)}"
-    )
+    Logger.debug("Channel received stream_token: #{byte_size(text)} bytes, text=#{inspect(text)}")
 
     task_id = socket.assigns.task_id
     notification = ACP.build_agent_message_chunk_notification(task_id, text)
@@ -577,7 +580,7 @@ defmodule FrontmanServerWeb.TaskChannel do
   end
 
   # ===========================================================================
-  # Todos Event Notification Helpers
+  # Task List Event Notification Helpers
   # ===========================================================================
 
   # Emit todo-specific UX notifications based on tool result

@@ -147,5 +147,4 @@ defmodule FrontmanServer.Tools.ImplementComponentTest do
       overrides
     )
   end
-
 end

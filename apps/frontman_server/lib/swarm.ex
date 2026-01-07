@@ -143,7 +143,12 @@ defmodule Swarm do
     loop = Loop.make(agent, config, metadata: metadata)
 
     Telemetry.run_span(
-      %{loop_id: loop.id, agent_module: agent.__struct__, metadata: loop.metadata, input_messages: messages},
+      %{
+        loop_id: loop.id,
+        agent_module: agent.__struct__,
+        metadata: loop.metadata,
+        input_messages: messages
+      },
       fn ->
         {loop, effects} = Loop.execute(loop, messages)
         final_loop = execute_loop(loop, effects, tool_executor, callbacks)
@@ -156,13 +161,14 @@ defmodule Swarm do
           end
 
         # Include loop_id, metadata, and output in stop metadata
-        {result, %{
-          loop_id: loop.id,
-          status: final_loop.status,
-          step_count: length(final_loop.steps),
-          metadata: loop.metadata,
-          output: final_loop.result
-        }}
+        {result,
+         %{
+           loop_id: loop.id,
+           status: final_loop.status,
+           step_count: length(final_loop.steps),
+           metadata: loop.metadata,
+           output: final_loop.result
+         }}
       end
     )
   end
@@ -296,7 +302,12 @@ defmodule Swarm do
 
     # Child loop inherits metadata from parent
     child_loop = Loop.make_child(spawn_request.agent, config, parent_loop)
-    callbacks = %{on_chunk: fn _ -> :ok end, on_response: fn _ -> :ok end, on_tool_call: fn _ -> :ok end}
+
+    callbacks = %{
+      on_chunk: fn _ -> :ok end,
+      on_response: fn _ -> :ok end,
+      on_tool_call: fn _ -> :ok end
+    }
 
     Telemetry.child_span(
       %{
@@ -479,7 +490,13 @@ defmodule Swarm do
     tool_name = tc.name
 
     Telemetry.tool_span(
-      %{loop_id: loop_id, step: step, tool_id: tool_id, tool_name: tool_name, metadata: loop.metadata},
+      %{
+        loop_id: loop_id,
+        step: step,
+        tool_id: tool_id,
+        tool_name: tool_name,
+        metadata: loop.metadata
+      },
       fn ->
         result =
           case tool_executor.(tc) do
@@ -537,11 +554,20 @@ defmodule Swarm do
   end
 
   defp emit_run_stop({:completed, loop}) do
-    Telemetry.run_stop(loop.id, status: :completed, step_count: length(loop.steps), metadata: loop.metadata)
+    Telemetry.run_stop(loop.id,
+      status: :completed,
+      step_count: length(loop.steps),
+      metadata: loop.metadata
+    )
   end
 
   defp emit_run_stop({:error, loop}) do
-    Telemetry.run_stop(loop.id, status: :failed, step_count: length(loop.steps), error: loop.error, metadata: loop.metadata)
+    Telemetry.run_stop(loop.id,
+      status: :failed,
+      step_count: length(loop.steps),
+      error: loop.error,
+      metadata: loop.metadata
+    )
   end
 
   defp emit_run_stop({:tool_calls, _loop, _tool_calls}) do

@@ -96,6 +96,7 @@ defmodule FrontmanServer.Observability.ConsoleHandler do
         :ets.delete(@table, {:swarm_run, loop_id})
 
         status_str = format_status(status)
+
         Logger.info(
           "[swarm] run:stop  loop=#{short_id(loop_id)} agent=#{inspect(agent_module)} " <>
             "#{status_str} steps=#{step_count} (#{duration}ms)"
@@ -120,11 +121,20 @@ defmodule FrontmanServer.Observability.ConsoleHandler do
     %{loop_id: loop_id, step: step, model: model} = metadata
     start_time = System.monotonic_time(:millisecond)
     :ets.insert(@table, {{:swarm_llm, loop_id, step}, start_time, model})
-    Logger.info("[swarm] llm:start  loop=#{short_id(loop_id)} step=#{step} model=#{model || "unknown"}")
+
+    Logger.info(
+      "[swarm] llm:start  loop=#{short_id(loop_id)} step=#{step} model=#{model || "unknown"}"
+    )
   end
 
   def handle_swarm_llm_stop(_event, _measurements, metadata, _config) do
-    %{loop_id: loop_id, step: step, input_tokens: input, output_tokens: output, tool_call_count: tools} = metadata
+    %{
+      loop_id: loop_id,
+      step: step,
+      input_tokens: input,
+      output_tokens: output,
+      tool_call_count: tools
+    } = metadata
 
     case :ets.lookup(@table, {:swarm_llm, loop_id, step}) do
       [{{:swarm_llm, ^loop_id, ^step}, start_time, model}] ->
@@ -144,7 +154,10 @@ defmodule FrontmanServer.Observability.ConsoleHandler do
   def handle_swarm_llm_exception(_event, _measurements, metadata, _config) do
     %{loop_id: loop_id, step: step, kind: kind, reason: reason} = metadata
     :ets.delete(@table, {:swarm_llm, loop_id, step})
-    Logger.error("[swarm] llm:exception loop=#{short_id(loop_id)} step=#{step} #{kind}: #{inspect(reason)}")
+
+    Logger.error(
+      "[swarm] llm:exception loop=#{short_id(loop_id)} step=#{step} #{kind}: #{inspect(reason)}"
+    )
   end
 
   # ===========================================================================
@@ -167,7 +180,10 @@ defmodule FrontmanServer.Observability.ConsoleHandler do
         :ets.delete(@table, {:swarm_tool, loop_id, tool_id})
 
         status_str = if is_error, do: "✗", else: "✓"
-        Logger.info("[swarm] tool:stop  loop=#{short_id(loop_id)} #{tool_name} #{status_str} (#{duration}ms)")
+
+        Logger.info(
+          "[swarm] tool:stop  loop=#{short_id(loop_id)} #{tool_name} #{status_str} (#{duration}ms)"
+        )
 
       [] ->
         Logger.warning("[swarm] tool:stop orphaned tool_id=#{tool_id}")
@@ -175,9 +191,14 @@ defmodule FrontmanServer.Observability.ConsoleHandler do
   end
 
   def handle_swarm_tool_exception(_event, _measurements, metadata, _config) do
-    %{loop_id: loop_id, tool_id: tool_id, tool_name: tool_name, kind: kind, reason: reason} = metadata
+    %{loop_id: loop_id, tool_id: tool_id, tool_name: tool_name, kind: kind, reason: reason} =
+      metadata
+
     :ets.delete(@table, {:swarm_tool, loop_id, tool_id})
-    Logger.error("[swarm] tool:exception loop=#{short_id(loop_id)} #{tool_name} #{kind}: #{inspect(reason)}")
+
+    Logger.error(
+      "[swarm] tool:exception loop=#{short_id(loop_id)} #{tool_name} #{kind}: #{inspect(reason)}"
+    )
   end
 
   # ===========================================================================
@@ -185,11 +206,18 @@ defmodule FrontmanServer.Observability.ConsoleHandler do
   # ===========================================================================
 
   def handle_swarm_child_start(_event, _measurements, metadata, _config) do
-    %{parent_loop_id: parent_id, tool_call_id: tool_call_id, child_agent_module: child_module, task: task} = metadata
+    %{
+      parent_loop_id: parent_id,
+      tool_call_id: tool_call_id,
+      child_agent_module: child_module,
+      task: task
+    } = metadata
+
     start_time = System.monotonic_time(:millisecond)
     :ets.insert(@table, {{:swarm_child, parent_id, tool_call_id}, start_time, child_module})
 
     task_preview = String.slice(task || "", 0, 50)
+
     Logger.info(
       "[swarm] child:start parent=#{short_id(parent_id)} agent=#{inspect(child_module)} task=\"#{task_preview}...\""
     )
@@ -209,6 +237,7 @@ defmodule FrontmanServer.Observability.ConsoleHandler do
     :ets.match_delete(@table, {{:swarm_child, parent_id, :_}, :_, :_})
 
     status_str = format_status(status)
+
     Logger.info(
       "[swarm] child:stop  parent=#{short_id(parent_id)} child=#{short_id(child_id)} " <>
         "#{status_str} steps=#{steps} tokens=#{tokens} (#{duration}ms)"
@@ -216,9 +245,14 @@ defmodule FrontmanServer.Observability.ConsoleHandler do
   end
 
   def handle_swarm_child_exception(_event, _measurements, metadata, _config) do
-    %{parent_loop_id: parent_id, tool_call_id: tool_call_id, kind: kind, reason: reason} = metadata
+    %{parent_loop_id: parent_id, tool_call_id: tool_call_id, kind: kind, reason: reason} =
+      metadata
+
     :ets.delete(@table, {:swarm_child, parent_id, tool_call_id})
-    Logger.error("[swarm] child:exception parent=#{short_id(parent_id)} #{kind}: #{inspect(reason)}")
+
+    Logger.error(
+      "[swarm] child:exception parent=#{short_id(parent_id)} #{kind}: #{inspect(reason)}"
+    )
   end
 
   # ===========================================================================

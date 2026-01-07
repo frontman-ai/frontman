@@ -74,9 +74,7 @@ defmodule FrontmanServer.Tools.ReplaceComponent do
 
     mcp_tools = MCP.to_swarm_tools(task.mcp_tools)
 
-    Logger.info(
-      "ReplaceComponent: Replacing #{target_file_path} with #{source_file_path}"
-    )
+    Logger.info("ReplaceComponent: Replacing #{target_file_path} with #{source_file_path}")
 
     user_msg = build_user_message(args)
 

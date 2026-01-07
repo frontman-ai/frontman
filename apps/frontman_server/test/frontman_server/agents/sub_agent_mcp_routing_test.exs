@@ -65,7 +65,8 @@ defmodule FrontmanServer.Agents.SubAgentMcpRoutingTest do
         end)
 
       # MCP request SHOULD be pushed to channel automatically
-      assert_push "mcp:message", %{
+      assert_push "mcp:message",
+                  %{
                     "method" => "tools/call",
                     "params" => %{"name" => "get_figma_node"}
                   },
@@ -100,7 +101,8 @@ defmodule FrontmanServer.Agents.SubAgentMcpRoutingTest do
         end)
 
       # Verify MCP request is pushed to channel
-      assert_push "mcp:message", %{
+      assert_push "mcp:message",
+                  %{
                     "method" => "tools/call",
                     "id" => mcp_request_id,
                     "params" => %{"name" => "get_figma_node"}
@@ -121,5 +123,4 @@ defmodule FrontmanServer.Agents.SubAgentMcpRoutingTest do
       assert {:ok, "Component implemented!"} = result
     end
   end
-
 end

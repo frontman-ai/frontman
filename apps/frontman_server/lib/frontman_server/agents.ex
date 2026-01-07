@@ -213,7 +213,11 @@ defmodule FrontmanServer.Agents do
     Message.ContentPart.text(text)
   end
 
-  defp to_swarm_content_part(%ReqLLM.Message.ContentPart{type: :image, data: data, media_type: mt}) do
+  defp to_swarm_content_part(%ReqLLM.Message.ContentPart{
+         type: :image,
+         data: data,
+         media_type: mt
+       }) do
     Message.ContentPart.image(data, mt)
   end
 

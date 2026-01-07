@@ -25,7 +25,7 @@ defmodule FrontmanServer.SwarmCase do
 
   use ExUnit.CaseTemplate
 
-  alias Swarm.{Events, LLM}
+  alias Swarm.LLM
 
   # --- Test Agents ---
 
