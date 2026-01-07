@@ -96,9 +96,7 @@ defmodule FrontmanServer.Observability.MessageSerializer do
   defp serialize_content(content) when is_binary(content), do: content
 
   defp serialize_content(content) when is_list(content) do
-    content
-    |> Enum.map(&serialize_content_part/1)
-    |> Enum.join("\n")
+    Enum.map_join(content, "\n", &serialize_content_part/1)
   end
 
   defp serialize_content(nil), do: ""

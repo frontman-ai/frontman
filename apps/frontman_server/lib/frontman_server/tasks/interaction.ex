@@ -16,6 +16,8 @@ defmodule FrontmanServer.Tasks.Interaction do
           | __MODULE__.ToolResult.t()
           | __MODULE__.DiscoveredProjectRule.t()
 
+  alias Swarm.Message.ContentPart
+
   defmodule FigmaNode do
     @moduledoc """
     Represents a selected Figma node with its associated data.
@@ -236,18 +238,16 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     typedstruct enforce: true do
       field(:id, String.t())
-      field(:agent_id, String.t())
       field(:content, String.t())
       field(:timestamp, DateTime.t())
       field(:metadata, map(), enforce: false)
     end
 
-    def new(agent_id, content, metadata \\ %{}) do
+    def new(content, metadata \\ %{}) do
       alias FrontmanServer.Tasks.Interaction
 
       %__MODULE__{
         id: Interaction.new_id(),
-        agent_id: agent_id,
         content: content,
         timestamp: Interaction.now(),
         metadata: metadata
@@ -261,7 +261,6 @@ defmodule FrontmanServer.Tasks.Interaction do
         %{
           type: "agent_response",
           id: value.id,
-          agent_id: value.agent_id,
           content: value.content,
           timestamp: DateTime.to_iso8601(value.timestamp),
           metadata: value.metadata
@@ -273,24 +272,21 @@ defmodule FrontmanServer.Tasks.Interaction do
 
   defmodule AgentSpawned do
     @moduledoc """
-    Represents the creation of a new agent (including sub-agents).
+    Represents the creation of a new agent run.
     """
     use TypedStruct
 
     typedstruct enforce: true do
       field(:id, String.t())
-      field(:agent_id, String.t())
       field(:config, map(), enforce: false)
-      field(:parent_agent_id, String.t() | nil, enforce: false)
       field(:timestamp, DateTime.t())
     end
 
-    def new(agent_id, config \\ %{}) do
+    def new(config \\ %{}) do
       alias FrontmanServer.Tasks.Interaction
 
       %__MODULE__{
         id: Interaction.new_id(),
-        agent_id: agent_id,
         config: config,
         timestamp: Interaction.now()
       }
@@ -303,9 +299,7 @@ defmodule FrontmanServer.Tasks.Interaction do
         %{
           type: "agent_spawned",
           id: value.id,
-          agent_id: value.agent_id,
           config: value.config,
-          parent_agent_id: value.parent_agent_id,
           timestamp: DateTime.to_iso8601(value.timestamp)
         },
         opts
@@ -321,17 +315,15 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     typedstruct enforce: true do
       field(:id, String.t())
-      field(:agent_id, String.t())
       field(:timestamp, DateTime.t())
       field(:result, term(), enforce: false)
     end
 
-    def new(agent_id, result \\ nil) do
+    def new(result \\ nil) do
       alias FrontmanServer.Tasks.Interaction
 
       %__MODULE__{
         id: Interaction.new_id(),
-        agent_id: agent_id,
         timestamp: Interaction.now(),
         result: result
       }
@@ -344,7 +336,6 @@ defmodule FrontmanServer.Tasks.Interaction do
         %{
           type: "agent_completed",
           id: value.id,
-          agent_id: value.agent_id,
           timestamp: DateTime.to_iso8601(value.timestamp),
           result: value.result
         },
@@ -361,19 +352,17 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     typedstruct enforce: true do
       field(:id, String.t())
-      field(:agent_id, String.t())
       field(:tool_call_id, String.t())
       field(:tool_name, String.t())
       field(:arguments, map())
       field(:timestamp, DateTime.t())
     end
 
-    def new(agent_id, %ReqLLM.ToolCall{} = tc) do
+    def new(%ReqLLM.ToolCall{} = tc) do
       alias FrontmanServer.Tasks.Interaction
 
       %__MODULE__{
         id: Interaction.new_id(),
-        agent_id: agent_id,
         tool_call_id: tc.id,
         tool_name: ReqLLM.ToolCall.name(tc),
         arguments: ReqLLM.ToolCall.args_map(tc) || %{},
@@ -388,7 +377,6 @@ defmodule FrontmanServer.Tasks.Interaction do
         %{
           type: "tool_call",
           id: value.id,
-          agent_id: value.agent_id,
           tool_call_id: value.tool_call_id,
           tool_name: value.tool_name,
           arguments: value.arguments,
@@ -407,7 +395,6 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     typedstruct enforce: true do
       field(:id, String.t())
-      field(:agent_id, String.t())
       field(:tool_call_id, String.t())
       field(:tool_name, String.t())
       field(:result, term())
@@ -415,12 +402,11 @@ defmodule FrontmanServer.Tasks.Interaction do
       field(:timestamp, DateTime.t())
     end
 
-    def new(agent_id, tool_call_data, result, is_error \\ false) do
+    def new(tool_call_data, result, is_error \\ false) do
       alias FrontmanServer.Tasks.Interaction
 
       %__MODULE__{
         id: Interaction.new_id(),
-        agent_id: agent_id,
         tool_call_id: tool_call_data.id,
         tool_name: tool_call_data.name,
         result: result,
@@ -436,7 +422,6 @@ defmodule FrontmanServer.Tasks.Interaction do
         %{
           type: "tool_result",
           id: value.id,
-          agent_id: value.agent_id,
           tool_call_id: value.tool_call_id,
           tool_name: value.tool_name,
           result: value.result,
@@ -520,36 +505,18 @@ defmodule FrontmanServer.Tasks.Interaction do
   @spec to_llm_messages(list(t())) :: list(map())
   def to_llm_messages(interactions) do
     interactions
-    |> Enum.filter(&is_conversation_message/1)
+    |> Enum.filter(&conversation_message?/1)
     |> Enum.map(&to_llm_message/1)
     |> Enum.reject(&is_nil/1)
   end
 
-  @doc """
-  Converts interactions to LLM messages, filtering by agent_id.
-
-  Only includes interactions that belong to the specified agent.
-  UserMessage is always included (it has no agent_id).
-  """
-  @spec to_llm_messages(list(t()), String.t()) :: list(map())
-  def to_llm_messages(interactions, agent_id) when is_binary(agent_id) do
-    interactions
-    |> Enum.filter(&(is_conversation_message(&1) and belongs_to_agent?(&1, agent_id)))
-    |> Enum.map(&to_llm_message/1)
-    |> Enum.reject(&is_nil/1)
-  end
-
-  defp belongs_to_agent?(%UserMessage{}, _agent_id), do: true
-  defp belongs_to_agent?(%{agent_id: id}, agent_id), do: id == agent_id
-  defp belongs_to_agent?(_, _agent_id), do: false
-
-  defp is_conversation_message(%UserMessage{}), do: true
-  defp is_conversation_message(%AgentResponse{}), do: true
+  defp conversation_message?(%UserMessage{}), do: true
+  defp conversation_message?(%AgentResponse{}), do: true
   # ToolCall is skipped - it's embedded in AgentResponse metadata
-  defp is_conversation_message(%ToolResult{}), do: true
+  defp conversation_message?(%ToolResult{}), do: true
   # DiscoveredProjectRule is context, not conversation - injected separately
-  defp is_conversation_message(%DiscoveredProjectRule{}), do: false
-  defp is_conversation_message(_), do: false
+  defp conversation_message?(%DiscoveredProjectRule{}), do: false
+  defp conversation_message?(_), do: false
 
   @doc """
   Extracts markdown file contents from read_file ToolResult interactions
@@ -663,7 +630,7 @@ defmodule FrontmanServer.Tasks.Interaction do
     # Build content parts - start with text
     content_parts =
       if text_content != "" do
-        [ReqLLM.Message.ContentPart.text(text_content)]
+        [ContentPart.text(text_content)]
       else
         []
       end
@@ -677,7 +644,7 @@ defmodule FrontmanServer.Tasks.Interaction do
         base64_data ->
           case Base.decode64(base64_data) do
             {:ok, decoded_data} ->
-              content_parts ++ [ReqLLM.Message.ContentPart.image(decoded_data, "image/png")]
+              content_parts ++ [ContentPart.image(decoded_data, "image/png")]
 
             :error ->
               content_parts
@@ -735,7 +702,7 @@ defmodule FrontmanServer.Tasks.Interaction do
         # and reasoning_details for Gemini models (encrypted signatures only)
         %ReqLLM.Message{
           role: :assistant,
-          content: [ReqLLM.Message.ContentPart.text(content)],
+          content: [ContentPart.text(content)],
           tool_calls: tool_calls,
           metadata: if(response_id, do: %{response_id: response_id}, else: %{}),
           reasoning_details: encrypted_reasoning_details
@@ -783,12 +750,12 @@ defmodule FrontmanServer.Tasks.Interaction do
     content =
       case text_content do
         "" ->
-          [ReqLLM.Message.ContentPart.image(image_binary, mime_type)]
+          [ContentPart.image(image_binary, mime_type)]
 
         text ->
           [
-            ReqLLM.Message.ContentPart.text(text),
-            ReqLLM.Message.ContentPart.image(image_binary, mime_type)
+            ContentPart.text(text),
+            ContentPart.image(image_binary, mime_type)
           ]
       end
 

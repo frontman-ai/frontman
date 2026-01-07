@@ -55,7 +55,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
         "jsonrpc" => "2.0",
         "id" => 1,
         "error" => %{
-          "code" => -32600,
+          "code" => -32_600,
           "message" => "Unsupported protocol version"
         }
       }
@@ -73,7 +73,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
         "jsonrpc" => "2.0",
         "id" => 1,
         "error" => %{
-          "code" => -32602,
+          "code" => -32_602,
           "message" => "Missing required field: protocolVersion"
         }
       }
@@ -183,7 +183,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
         "jsonrpc" => "2.0",
         "id" => 1,
         "error" => %{
-          "code" => -32601,
+          "code" => -32_601,
           "message" => "Method not found"
         }
       }

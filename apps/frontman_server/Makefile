@@ -4,7 +4,7 @@
 # Run 'make help' to see available commands
 
 .DEFAULT_GOAL := help
-.PHONY: help install test test-record test-coverage lint dev build clean check setup db-setup db-reset db-migrate db-seed assets-setup assets-build assets-deploy precommit dialyzer quality
+.PHONY: help install test test-record test-coverage lint dev build clean check setup db-setup db-reset db-migrate db-seed assets-setup assets-build assets-deploy precommit dialyzer credo
 
 SHELL := /bin/bash
 
@@ -51,10 +51,11 @@ assets-deploy: ## Build and minify assets for production
 	mix esbuild browser_test --minify
 	mix phx.digest
 
-test: ## Run test suite
+test: ## Run test suite and type checking
 	MIX_ENV=test mix ecto.create --quiet
 	MIX_ENV=test mix ecto.migrate --quiet
 	mix test
+	mix dialyzer
 
 test-record: ## Record new LLM fixtures (makes real API calls)
 	MIX_ENV=test mix ecto.create --quiet
@@ -66,8 +67,9 @@ test-coverage: ## Run tests with coverage report
 	MIX_ENV=test mix ecto.migrate --quiet
 	MIX_ENV=test mix coveralls.cobertura
 
-lint: ## Run code formatter
+lint: ## Run formatter and static analysis
 	mix format
+	mix credo --strict
 
 dev: ## Start development server
 	mix phx.server
@@ -79,15 +81,17 @@ build: ## Build the project for production
 clean: ## Clean build artifacts and dependencies
 	rm -rf _build deps
 
-precommit: ## Run precommit checks (compile with warnings as errors, format, test)
+precommit: ## Run precommit checks (compile, format, credo, test)
 	mix compile --warning-as-errors
 	mix deps.unlock --unused
 	mix format
+	mix credo --strict
 	mix test
 
-check: lint test ## Run all checks (lint + test)
-
-dialyzer: ## Run Dialyzer static analysis
+dialyzer: ## Run Dialyzer type checking
 	mix dialyzer
 
-quality: lint test dialyzer ## Run all quality checks (lint + test + dialyzer)
+credo: ## Run Credo static analysis
+	mix credo --strict
+
+check: lint test ## Run all checks (lint + test)

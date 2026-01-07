@@ -15,6 +15,7 @@ defmodule FrontmanServer.Tasks.Todos do
   alias FrontmanServer.Tasks.Interaction
 
   defmodule Todo do
+    @moduledoc false
     use TypedStruct
     @derive Jason.Encoder
     @valid_statuses [:pending, :in_progress, :completed]

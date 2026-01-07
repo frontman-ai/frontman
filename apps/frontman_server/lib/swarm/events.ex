@@ -1,7 +1,11 @@
 defmodule Swarm.Events do
+  @moduledoc """
+  Domain events emitted during Swarm execution.
+  """
   use TypedStruct
 
   defmodule Started do
+    @moduledoc false
     use TypedStruct
 
     typedstruct do
@@ -11,6 +15,7 @@ defmodule Swarm.Events do
   end
 
   defmodule Completed do
+    @moduledoc false
     use TypedStruct
 
     typedstruct do
@@ -20,6 +25,7 @@ defmodule Swarm.Events do
   end
 
   defmodule Failed do
+    @moduledoc false
     use TypedStruct
 
     typedstruct do
@@ -29,6 +35,7 @@ defmodule Swarm.Events do
   end
 
   defmodule ToolCallRequested do
+    @moduledoc false
     use TypedStruct
 
     typedstruct do

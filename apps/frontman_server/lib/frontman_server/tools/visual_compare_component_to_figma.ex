@@ -68,7 +68,7 @@ defmodule FrontmanServer.Tools.VisualCompareComponentToFigma do
   end
 
   @impl true
-  def execute(args, %Context{task: task, agent_id: parent_agent_id, llm_opts: llm_opts}) do
+  def execute(args, %Context{task: task, llm_opts: llm_opts}) do
     component_name = Map.get(args, "componentName")
     node_id = Map.get(args, "nodeId")
 
@@ -80,9 +80,8 @@ defmodule FrontmanServer.Tools.VisualCompareComponentToFigma do
 
     user_msg = build_user_message(args)
 
-    agent_id = "visual_compare_#{parent_agent_id}"
     agent = SpecializedAgent.new(:visual_compare, tools: mcp_tools, llm_opts: llm_opts)
-    tool_executor = ToolExecutor.make_executor(task.task_id, agent_id)
+    tool_executor = ToolExecutor.make_executor(task.task_id)
 
     case Swarm.run_blocking(agent, [user_msg], tool_executor) do
       {:ok, result} ->

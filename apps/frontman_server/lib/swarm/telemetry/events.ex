@@ -9,9 +9,10 @@ defmodule Swarm.Telemetry.Events do
 
   ```
   [:swarm, :run, :start/:stop/:exception]
-  ├── [:swarm, :llm, :call, :start/:stop/:exception]
-  ├── [:swarm, :tool, :execute, :start/:stop/:exception]
-  └── [:swarm, :child, :spawn, :start/:stop/:exception]
+  └── [:swarm, :step, :start/:stop/:exception]
+      ├── [:swarm, :llm, :call, :start/:stop/:exception]
+      ├── [:swarm, :tool, :execute, :start/:stop/:exception]
+      └── [:swarm, :child, :spawn, :start/:stop/:exception]
   ```
   """
 
@@ -21,6 +22,11 @@ defmodule Swarm.Telemetry.Events do
   def run_start, do: @prefix ++ [:run, :start]
   def run_stop, do: @prefix ++ [:run, :stop]
   def run_exception, do: @prefix ++ [:run, :exception]
+
+  # Step lifecycle
+  def step_start, do: @prefix ++ [:step, :start]
+  def step_stop, do: @prefix ++ [:step, :stop]
+  def step_exception, do: @prefix ++ [:step, :exception]
 
   # LLM call
   def llm_call_start, do: @prefix ++ [:llm, :call, :start]
@@ -49,6 +55,9 @@ defmodule Swarm.Telemetry.Events do
       run_start(),
       run_stop(),
       run_exception(),
+      step_start(),
+      step_stop(),
+      step_exception(),
       llm_call_start(),
       llm_call_stop(),
       llm_call_exception(),

@@ -86,7 +86,7 @@ defmodule FrontmanServer.Tools.ImplementComponent do
   end
 
   @impl true
-  def execute(args, %Context{task: task, agent_id: parent_agent_id, llm_opts: llm_opts}) do
+  def execute(args, %Context{task: task, llm_opts: llm_opts}) do
     component_name = Map.get(args, "componentName")
     node_id = Map.get(args, "nodeId")
     data_test_id = generate_data_test_id(component_name)
@@ -107,9 +107,8 @@ defmodule FrontmanServer.Tools.ImplementComponent do
     messages = markdown_messages ++ [user_msg]
 
     # Build ComponentImplementAgent and executor
-    agent_id = "component_implementor_#{parent_agent_id}"
     agent = SpecializedAgent.new(:component_implement, tools: mcp_tools, llm_opts: llm_opts)
-    tool_executor = ToolExecutor.make_executor(task.task_id, agent_id)
+    tool_executor = ToolExecutor.make_executor(task.task_id)
 
     case Swarm.run_blocking(agent, messages, tool_executor) do
       {:ok, result} ->

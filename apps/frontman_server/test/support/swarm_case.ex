@@ -25,7 +25,7 @@ defmodule FrontmanServer.SwarmCase do
 
   use ExUnit.CaseTemplate
 
-  alias Swarm.{LLM, Events}
+  alias Swarm.{Events, LLM}
 
   # --- Test Agents ---
 
@@ -151,8 +151,14 @@ defmodule FrontmanServer.SwarmCase do
   using do
     quote do
       import FrontmanServer.SwarmCase
-      alias Swarm.{Events, LLM, ToolCall, ToolResult}
-      alias FrontmanServer.SwarmCase.{TestAgent, MockLLM, EchoLLM, ErrorLLM}
+      alias FrontmanServer.SwarmCase.EchoLLM
+      alias FrontmanServer.SwarmCase.ErrorLLM
+      alias FrontmanServer.SwarmCase.MockLLM
+      alias FrontmanServer.SwarmCase.TestAgent
+      alias Swarm.Events
+      alias Swarm.LLM
+      alias Swarm.ToolCall
+      alias Swarm.ToolResult
     end
   end
 

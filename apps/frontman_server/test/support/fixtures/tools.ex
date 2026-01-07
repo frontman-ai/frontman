@@ -9,8 +9,8 @@ defmodule FrontmanServer.Test.Fixtures.Tools do
 
       import FrontmanServer.Test.Fixtures.Tools
 
-      setup %{task: task, agent_id: agent_id, llm_opts: llm_opts} do
-        context = tool_context(task, agent_id, llm_opts)
+      setup %{task: task, llm_opts: llm_opts} do
+        context = tool_context(task, llm_opts)
         {:ok, context: context}
       end
   """
@@ -24,9 +24,9 @@ defmodule FrontmanServer.Test.Fixtures.Tools do
   Generic helper for creating a Context struct with the standard fields
   needed for tool execution.
   """
-  @spec tool_context(map(), String.t(), keyword()) :: Context.t()
-  def tool_context(task, agent_id, llm_opts) do
-    %Context{task: task, agent_id: agent_id, llm_opts: llm_opts}
+  @spec tool_context(map(), keyword()) :: Context.t()
+  def tool_context(task, llm_opts) do
+    %Context{task: task, llm_opts: llm_opts}
   end
 
   @doc """
@@ -43,6 +43,6 @@ defmodule FrontmanServer.Test.Fixtures.Tools do
     }
 
     result = %{"path" => filename, "text" => content}
-    Tasks.add_tool_result(task_id, "setup_agent", tool_call, result, false)
+    Tasks.add_tool_result(task_id, tool_call, result, false)
   end
 end

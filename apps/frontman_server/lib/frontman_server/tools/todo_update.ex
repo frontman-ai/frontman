@@ -5,8 +5,8 @@ defmodule FrontmanServer.Tools.TodoUpdate do
 
   @behaviour FrontmanServer.Tools.Backend
 
-  alias FrontmanServer.Tools.Backend.Context
   alias FrontmanServer.Tasks.Todos
+  alias FrontmanServer.Tools.Backend.Context
 
   @todo_statuses ["pending", "in_progress", "completed"]
 

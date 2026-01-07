@@ -49,6 +49,7 @@ custom classes must fully style the input
 <!-- phoenix:elixir-start -->
 ## Elixir guidelines
 
+- NEVER write defensive code unless any other solution is explored.
 - Elixir lists **do not support index based access via the access syntax**
 
   **Never do this (invalid)**:

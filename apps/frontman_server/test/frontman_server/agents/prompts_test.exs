@@ -82,8 +82,8 @@ defmodule FrontmanServer.Agents.PromptsTest do
       with_sc = Prompts.build_system_message(nil, has_selected_component: true)
 
       # With selected component should have more content
-      without_text = without.content |> Enum.map(& &1.text) |> Enum.join()
-      with_sc_text = with_sc.content |> Enum.map(& &1.text) |> Enum.join()
+      without_text = Enum.map_join(without.content, & &1.text)
+      with_sc_text = Enum.map_join(with_sc.content, & &1.text)
 
       assert String.length(with_sc_text) > String.length(without_text)
       assert with_sc_text =~ "Selected Component"

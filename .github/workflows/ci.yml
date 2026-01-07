@@ -133,6 +133,39 @@ jobs:
           skip_covered: false
           only_changed_files: false
 
+  lint-frontman-server:
+    name: Lint frontman-server
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Elixir
+        uses: erlef/setup-beam@v1
+        with:
+          otp-version: '27.0'
+          elixir-version: '1.19'
+
+      - name: Cache deps
+        uses: actions/cache@v4
+        with:
+          path: apps/frontman_server/deps
+          key: ${{ runner.os }}-mix-${{ hashFiles('apps/frontman_server/mix.lock') }}
+          restore-keys: ${{ runner.os }}-mix-
+
+      - name: Cache _build
+        uses: actions/cache@v4
+        with:
+          path: apps/frontman_server/_build
+          key: ${{ runner.os }}-build-${{ hashFiles('apps/frontman_server/mix.lock') }}
+          restore-keys: ${{ runner.os }}-build-
+
+      - name: Install dependencies
+        run: make -C apps/frontman_server install
+
+      - name: Run lint
+        run: make -C apps/frontman_server lint
+
   test-frontman-server:
     name: Test frontman-server
     runs-on: ubuntu-latest
@@ -178,13 +211,6 @@ jobs:
           key: ${{ runner.os }}-build-${{ hashFiles('apps/frontman_server/mix.lock') }}
           restore-keys: ${{ runner.os }}-build-
 
-      - name: Cache PLT
-        uses: actions/cache@v4
-        with:
-          path: apps/frontman_server/priv/plts
-          key: ${{ runner.os }}-plt-${{ hashFiles('apps/frontman_server/mix.lock') }}
-          restore-keys: ${{ runner.os }}-plt-
-
       - name: Install dependencies
         run: make -C apps/frontman_server install
 
@@ -202,6 +228,43 @@ jobs:
           show_missing: true
           skip_covered: false
           only_changed_files: false
+
+  dialyzer-frontman-server:
+    name: Dialyzer frontman-server
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Elixir
+        uses: erlef/setup-beam@v1
+        with:
+          otp-version: '27.0'
+          elixir-version: '1.19'
+
+      - name: Cache deps
+        uses: actions/cache@v4
+        with:
+          path: apps/frontman_server/deps
+          key: ${{ runner.os }}-mix-${{ hashFiles('apps/frontman_server/mix.lock') }}
+          restore-keys: ${{ runner.os }}-mix-
+
+      - name: Cache _build
+        uses: actions/cache@v4
+        with:
+          path: apps/frontman_server/_build
+          key: ${{ runner.os }}-build-${{ hashFiles('apps/frontman_server/mix.lock') }}
+          restore-keys: ${{ runner.os }}-build-
+
+      - name: Cache PLT
+        uses: actions/cache@v4
+        with:
+          path: apps/frontman_server/priv/plts
+          key: ${{ runner.os }}-plt-${{ hashFiles('apps/frontman_server/mix.lock') }}
+          restore-keys: ${{ runner.os }}-plt-
+
+      - name: Install dependencies
+        run: make -C apps/frontman_server install
 
       - name: Run Dialyzer
         run: make -C apps/frontman_server dialyzer

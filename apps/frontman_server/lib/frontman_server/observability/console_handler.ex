@@ -4,6 +4,10 @@ defmodule FrontmanServer.Observability.ConsoleHandler do
 
   Useful for development to see timing info without needing a tracing backend.
   Uses ETS to track start times for duration calculation.
+
+  Handles:
+  - FrontmanServer events: MCP tool start/stop
+  - Swarm events: run, llm, tool, child lifecycle
   """
 
   require Logger
@@ -21,13 +25,9 @@ defmodule FrontmanServer.Observability.ConsoleHandler do
 
   defp attach_handlers do
     handlers = [
-      # FrontmanServer events
+      # FrontmanServer events (MCP tools only)
       {Events.mcp_tool_start(), &__MODULE__.handle_mcp_tool_start/4},
       {Events.mcp_tool_stop(), &__MODULE__.handle_mcp_tool_stop/4},
-      {Events.tool_start(), &__MODULE__.handle_tool_start/4},
-      {Events.tool_stop(), &__MODULE__.handle_tool_stop/4},
-      {Events.llm_start(), &__MODULE__.handle_llm_start/4},
-      {Events.llm_stop(), &__MODULE__.handle_llm_stop/4},
       # Swarm events
       {SwarmEvents.run_start(), &__MODULE__.handle_swarm_run_start/4},
       {SwarmEvents.run_stop(), &__MODULE__.handle_swarm_run_stop/4},
@@ -49,7 +49,9 @@ defmodule FrontmanServer.Observability.ConsoleHandler do
     end)
   end
 
-  # MCP Tools
+  # ===========================================================================
+  # MCP Tools (FrontmanServer events)
+  # ===========================================================================
 
   def handle_mcp_tool_start(_event, _measurements, metadata, _config) do
     %{request_id: request_id, tool_name: tool_name} = metadata
@@ -73,72 +75,6 @@ defmodule FrontmanServer.Observability.ConsoleHandler do
         Logger.warning("[telemetry] mcp_tool:stop orphaned request_id=#{request_id}")
     end
   end
-
-  # Backend Tools
-
-  def handle_tool_start(_event, _measurements, metadata, _config) do
-    %{tool_call_id: tool_call_id, tool_name: tool_name} = metadata
-    start_time = System.monotonic_time(:millisecond)
-    :ets.insert(@table, {{:tool, tool_call_id}, start_time, tool_name})
-    Logger.info("[telemetry] tool:start #{tool_name}")
-  end
-
-  def handle_tool_stop(_event, _measurements, metadata, _config) do
-    %{tool_call_id: tool_call_id, status: status} = metadata
-
-    case :ets.lookup(@table, {:tool, tool_call_id}) do
-      [{{:tool, ^tool_call_id}, start_time, tool_name}] ->
-        duration = System.monotonic_time(:millisecond) - start_time
-        :ets.delete(@table, {:tool, tool_call_id})
-
-        status_str = if status == "success", do: "✓", else: "✗ #{status}"
-        Logger.info("[telemetry] tool:stop  #{tool_name} #{status_str} (#{duration}ms)")
-
-      [] ->
-        Logger.warning("[telemetry] tool:stop orphaned tool_call_id=#{tool_call_id}")
-    end
-  end
-
-  # LLM Calls
-
-  def handle_llm_start(_event, _measurements, metadata, _config) do
-    %{agent_id: agent_id, model: model} = metadata
-    start_time = System.monotonic_time(:millisecond)
-    :ets.insert(@table, {{:llm, agent_id}, start_time, model})
-    Logger.info("[telemetry] llm:start #{model || "unknown"}")
-  end
-
-  def handle_llm_stop(_event, _measurements, metadata, _config) do
-    %{agent_id: agent_id} = metadata
-
-    case :ets.lookup(@table, {:llm, agent_id}) do
-      [{{:llm, ^agent_id}, start_time, model}] ->
-        duration = System.monotonic_time(:millisecond) - start_time
-        :ets.delete(@table, {:llm, agent_id})
-
-        usage = format_usage(metadata[:usage])
-        Logger.info("[telemetry] llm:stop  #{model || "unknown"} (#{duration}ms)#{usage}")
-
-      [] ->
-        # LLM stop without start can happen if multiple LLM calls for same agent
-        :ok
-    end
-  end
-
-  defp format_usage(nil), do: ""
-
-  defp format_usage(usage) when is_map(usage) do
-    input = Map.get(usage, :input_tokens) || Map.get(usage, "input_tokens")
-    output = Map.get(usage, :output_tokens) || Map.get(usage, "output_tokens")
-
-    if input || output do
-      " [#{input || 0} in / #{output || 0} out]"
-    else
-      ""
-    end
-  end
-
-  defp format_usage(_), do: ""
 
   # ===========================================================================
   # Swarm Run Lifecycle

@@ -3,8 +3,9 @@ defmodule FrontmanServer.Tools do
   Backend tool aggregator.
   """
 
-  alias FrontmanServer.Tools.Backend
   alias FrontmanServer.Tasks
+  alias FrontmanServer.Tools.Backend
+  alias FrontmanServer.Tools.MCP
 
   @backend_tools [
     FrontmanServer.Tools.TodoList,
@@ -55,7 +56,7 @@ defmodule FrontmanServer.Tools do
     end
 
     # Aggregate all tools
-    mcp_formatted = FrontmanServer.Tools.MCP.to_swarm_tools(mcp_tools)
+    mcp_formatted = MCP.to_swarm_tools(mcp_tools)
     backend = backend_tools()
 
     backend ++ mcp_formatted

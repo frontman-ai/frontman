@@ -20,7 +20,7 @@ defmodule Swarm.Loop.Runner do
         → if pending: [] (wait for more)
   """
 
-  alias Swarm.{Loop, Agent, Effect, Events, LLM, Message}
+  alias Swarm.{Agent, Effect, Events, LLM, Loop, Message}
 
   @doc """
   Starts the execution loop with user messages.
@@ -142,6 +142,7 @@ defmodule Swarm.Loop.Runner do
          %Loop.Step{input_messages: input_msgs, tool_calls: tool_calls, content: content}
        ) do
     llm = Agent.llm(agent)
+    completed_step = loop.current_step
 
     assistant_msg = Message.assistant(content, tool_calls)
     tool_msgs = Enum.map(tool_calls, &format_tool_result/1)
@@ -150,7 +151,8 @@ defmodule Swarm.Loop.Runner do
     new_step = Loop.Step.new(length(steps) + 1, messages)
     loop = %{loop | status: :running, steps: steps ++ [new_step], current_step: new_step.number}
 
-    {loop, [{:call_llm, llm, messages}]}
+    # Emit step_ended before starting the new LLM call
+    {loop, [{:step_ended, completed_step}, {:call_llm, llm, messages}]}
   end
 
   defp format_tool_result(%Swarm.ToolCall{

@@ -5,9 +5,9 @@ defmodule FrontmanServer.Tools.TodoList do
 
   @behaviour FrontmanServer.Tools.Backend
 
-  alias FrontmanServer.Tools.Backend.Context
   alias FrontmanServer.Tasks.Todos
   alias FrontmanServer.Tasks.Todos.Todo
+  alias FrontmanServer.Tools.Backend.Context
 
   @impl true
   def name, do: "todo_list"

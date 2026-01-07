@@ -279,8 +279,7 @@ defmodule AgentClientProtocol do
   def extract_text_content(prompt_content) when is_list(prompt_content) do
     prompt_content
     |> Enum.filter(&(&1["type"] == "text"))
-    |> Enum.map(&(&1["text"] || ""))
-    |> Enum.join("\n")
+    |> Enum.map_join("\n", &(&1["text"] || ""))
   end
 
   def extract_text_content(_), do: ""
@@ -330,7 +329,7 @@ defmodule AgentClientProtocol do
   end
 
   # ===========================================================================
-  # Todo Event Notifications
+  # Todos Event Notifications
   # ===========================================================================
 
   @doc """

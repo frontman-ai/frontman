@@ -21,10 +21,17 @@ let hasLogInfo = effects =>
     | _ => false
     }
   )
-let hasCreateMCPServer = effects =>
+let hasConnectACP = effects =>
   hasEffect(effects, e =>
     switch e {
-    | Reducer.CreateMCPServer(_) => true
+    | Reducer.ConnectACP(_) => true
+    | _ => false
+    }
+  )
+let hasConnectRelay = effects =>
+  hasEffect(effects, e =>
+    switch e {
+    | Reducer.ConnectRelay(_) => true
     | _ => false
     }
   )
@@ -59,13 +66,57 @@ describe("Connection Reducer", () => {
     })
   })
 
+  describe("Initialize", () => {
+    test("Initialize sets up relay, mcpServer and emits connection effects", t => {
+      let mockRelay = Obj.magic({"id": "relay-1"})
+      let mockServer = Obj.magic({"tools": []})
+      let mockConfig: Reducer.initConfig = {
+        endpoint: "ws://test",
+        clientName: "test",
+        clientVersion: "1.0.0",
+        baseUrl: "http://test",
+        onACPMessage: (_, _) => (),
+      }
+      let (nextState, effects) = Reducer.reduce(
+        Reducer.initialState,
+        Initialize({config: mockConfig, relay: mockRelay, mcpServer: mockServer}),
+      )
+
+      t->expect(nextState.acp)->Expect.toBe(Reducer.ACPConnecting)
+      t->expect(nextState.relay)->Expect.toBe(Reducer.RelayConnecting)
+      t->expect(Option.isSome(nextState.relayInstance))->Expect.toBe(true)
+      t->expect(Option.isSome(nextState.mcpServer))->Expect.toBe(true)
+      t->expect(hasConnectACP(effects))->Expect.toBe(true)
+      t->expect(hasConnectRelay(effects))->Expect.toBe(true)
+    })
+
+    test("Initialize rejects when already initialized", t => {
+      let mockRelay = Obj.magic({"id": "relay-1"})
+      let mockServer = Obj.magic({"tools": []})
+      let mockConfig: Reducer.initConfig = {
+        endpoint: "ws://test",
+        clientName: "test",
+        clientVersion: "1.0.0",
+        baseUrl: "http://test",
+        onACPMessage: (_, _) => (),
+      }
+      let state = {...Reducer.initialState, acp: ACPConnecting}
+      let (_, effects) = Reducer.reduce(
+        state,
+        Initialize({config: mockConfig, relay: mockRelay, mcpServer: mockServer}),
+      )
+
+      t->expect(hasLogError(effects))->Expect.toBe(true)
+    })
+  })
+
   describe("Relay Lifecycle", () => {
-    test("RelayInstanceCreated triggers CreateMCPServer effect", t => {
+    test("RelayInstanceCreated stores relay (legacy action)", t => {
       let mockRelay = Obj.magic({"id": "relay-1"})
       let (nextState, effects) = Reducer.reduce(Reducer.initialState, RelayInstanceCreated(mockRelay))
 
       t->expect(Option.isSome(nextState.relayInstance))->Expect.toBe(true)
-      t->expect(hasCreateMCPServer(effects))->Expect.toBe(true)
+      t->expect(effects->Array.length)->Expect.toBe(0)
     })
 
     test("RelayConnectStart requires relay instance", t => {
@@ -218,22 +269,64 @@ describe("Connection Reducer", () => {
   })
 
   describe("Cleanup", () => {
-    test("resets session but preserves relay instance and MCPServer", t => {
+    test("fully resets state to initial", t => {
       let mockRelay = Obj.magic({"id": "relay-1"})
       let mockServer = Obj.magic({"tools": []})
       let mockSession = Obj.magic({"sessionId": "sess-1"})
-      let state = {
-        ...Reducer.initialState,
+      let mockConn = Obj.magic({"socket": null})
+      let mockAbortController = WebAPI.AbortController.make()
+      let state: Reducer.state = {
+        acp: ACPConnected(mockConn),
+        relay: RelayConnected,
+        session: SessionActive(mockSession),
         relayInstance: Some(mockRelay),
         mcpServer: Some(mockServer),
-        session: SessionActive(mockSession),
+        abortController: Some(mockAbortController),
       }
 
-      let (nextState, _) = Reducer.reduce(state, Cleanup)
+      let (nextState, effects) = Reducer.reduce(state, Cleanup)
 
+      // State fully reset
+      t->expect(nextState.acp)->Expect.toBe(Reducer.ACPDisconnected)
+      t->expect(nextState.relay)->Expect.toBe(Reducer.RelayDisconnected)
       t->expect(nextState.session)->Expect.toBe(Reducer.NoSession)
-      t->expect(Option.isSome(nextState.relayInstance))->Expect.toBe(true)
-      t->expect(Option.isSome(nextState.mcpServer))->Expect.toBe(true)
+      t->expect(nextState.relayInstance)->Expect.toBe(None)
+      t->expect(nextState.mcpServer)->Expect.toBe(None)
+      t->expect(nextState.abortController)->Expect.toBe(None)
+
+      // Emits abort effect first
+      t
+      ->expect(
+        hasEffect(effects, e =>
+          switch e {
+          | Reducer.AbortConnections(_) => true
+          | _ => false
+          }
+        ),
+      )
+      ->Expect.toBe(true)
+
+      // Emits disconnect effects
+      t
+      ->expect(
+        hasEffect(effects, e =>
+          switch e {
+          | Reducer.DisconnectRelay(_) => true
+          | _ => false
+          }
+        ),
+      )
+      ->Expect.toBe(true)
+      t
+      ->expect(
+        hasEffect(effects, e =>
+          switch e {
+          | Reducer.DisconnectACP(_) => true
+          | _ => false
+          }
+        ),
+      )
+      ->Expect.toBe(true)
     })
   })
 })

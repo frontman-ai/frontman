@@ -1,8 +1,8 @@
 defmodule Swarm.Loop.RunnerTest do
   use FrontmanServer.SwarmCase, async: true
 
-  alias Swarm.{Loop, Events, LLM, Message}
-  alias Swarm.Loop.{Runner, Config, Step}
+  alias Swarm.{Events, LLM, Loop, Message}
+  alias Swarm.Loop.{Config, Runner, Step}
 
   setup do
     agent = test_agent(mock_llm("test"))
@@ -80,6 +80,27 @@ defmodule Swarm.Loop.RunnerTest do
       assert step.usage == %{input_tokens: 20, output_tokens: 15}
       assert step.completed_at != nil
       assert is_integer(step.duration_ms)
+    end
+
+    test "updates step with reasoning_details from response", %{loop: loop} do
+      {running_loop, _} = Runner.start(loop, [Message.user("Test")])
+
+      reasoning = [
+        %{"type" => "reasoning.text", "index" => 0, "text" => "Let me think..."},
+        %{"type" => "reasoning.text", "index" => 1, "text" => "Got it!"}
+      ]
+
+      response = %LLM.Response{
+        content: "Answer",
+        reasoning_details: reasoning,
+        usage: nil,
+        raw: nil
+      }
+
+      {completed_loop, _} = Runner.handle_llm_response(running_loop, response)
+
+      [step] = completed_loop.steps
+      assert step.reasoning_details == reasoning
     end
 
     test "returns Completed event and complete effect", %{loop: loop} do
@@ -170,6 +191,43 @@ defmodule Swarm.Loop.RunnerTest do
 
       assert updated_loop.config == loop.config
       assert updated_loop.id == loop.id
+    end
+  end
+
+  describe "LLM.Response.from_stream/1 reasoning_details" do
+    alias Swarm.LLM.Chunk
+
+    test "accumulates thinking chunks into reasoning_details" do
+      stream = [
+        Chunk.thinking("Let me think...", %{"type" => "reasoning.text", "format" => "test"}),
+        Chunk.thinking("Still thinking...", %{}),
+        Chunk.token("Here's my answer"),
+        Chunk.done(:stop)
+      ]
+
+      response = LLM.Response.from_stream(stream)
+
+      assert response.content == "Here's my answer"
+      assert length(response.reasoning_details) == 2
+
+      [first, second] = response.reasoning_details
+      assert first["text"] == "Let me think..."
+      assert first["index"] == 0
+      assert first["type"] == "reasoning.text"
+
+      assert second["text"] == "Still thinking..."
+      assert second["index"] == 1
+    end
+
+    test "returns empty reasoning_details when no thinking chunks" do
+      stream = [
+        Chunk.token("Just content"),
+        Chunk.done(:stop)
+      ]
+
+      response = LLM.Response.from_stream(stream)
+
+      assert response.reasoning_details == []
     end
   end
 end

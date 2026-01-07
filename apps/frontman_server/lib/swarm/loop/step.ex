@@ -24,6 +24,7 @@ defmodule Swarm.Loop.Step do
     field :number, pos_integer(), enforce: true
     field :input_messages, [Swarm.Message.t()], default: []
     field :content, String.t()
+    field :reasoning_details, [map()], default: []
     field :usage, usage()
     field :tool_calls, [Swarm.ToolCall.t()], default: []
     field :started_at, DateTime.t(), enforce: true
@@ -53,7 +54,12 @@ defmodule Swarm.Loop.Step do
   @doc "Records the LLM response on this step, including any tool calls."
   @spec record_response(t(), Swarm.LLM.Response.t()) :: t()
   def record_response(%__MODULE__{} = step, %Swarm.LLM.Response{} = response) do
-    %{step | content: response.content, usage: response.usage, tool_calls: response.tool_calls}
+    %{step |
+      content: response.content,
+      reasoning_details: response.reasoning_details,
+      usage: response.usage,
+      tool_calls: response.tool_calls
+    }
   end
 
   @doc "Returns true if any tool calls are pending (no result yet)."

@@ -10,6 +10,7 @@ defmodule Swarm.Loop do
   """
 
   alias Swarm.Loop.Config
+  alias Swarm.Loop.Runner
   alias Swarm.Loop.Step
   use TypedStruct
 
@@ -26,10 +27,13 @@ defmodule Swarm.Loop do
     field :error, term()
     field :parent_id, Swarm.Id.t()
     field :parent_step, pos_integer()
+    field :metadata, map(), default: %{}
   end
 
-  @spec make(Swarm.Agent.t(), %Config{}) :: __MODULE__
-  def make(agent, %Config{} = config) do
+  @spec make(Swarm.Agent.t(), Config.t(), keyword()) :: t()
+  def make(agent, %Config{} = config, opts \\ []) do
+    metadata = Keyword.get(opts, :metadata, %{})
+
     %__MODULE__{
       id: Swarm.Id.generate("loop"),
       agent: agent,
@@ -40,15 +44,23 @@ defmodule Swarm.Loop do
       result: nil,
       error: nil,
       parent_id: nil,
-      parent_step: nil
+      parent_step: nil,
+      metadata: metadata
     }
   end
 
   @doc """
   Creates a child loop linked to a parent.
+
+  The child inherits metadata from the parent loop by default.
+  Additional metadata can be passed via opts to merge or override.
   """
-  @spec make_child(Swarm.Agent.t(), Config.t(), Swarm.Id.t(), pos_integer()) :: t()
-  def make_child(agent, %Config{} = config, parent_id, parent_step) do
+  @spec make_child(Swarm.Agent.t(), Config.t(), t(), keyword()) :: t()
+  def make_child(agent, %Config{} = config, parent_loop, opts \\ []) do
+    child_metadata = Keyword.get(opts, :metadata, %{})
+    # Merge parent metadata with child metadata (child overrides)
+    metadata = Map.merge(parent_loop.metadata, child_metadata)
+
     %__MODULE__{
       id: Swarm.Id.generate("loop"),
       agent: agent,
@@ -58,8 +70,9 @@ defmodule Swarm.Loop do
       config: config,
       result: nil,
       error: nil,
-      parent_id: parent_id,
-      parent_step: parent_step
+      parent_id: parent_loop.id,
+      parent_step: parent_loop.current_step,
+      metadata: metadata
     }
   end
 
@@ -91,6 +104,7 @@ defmodule Swarm.Loop do
         %{
           step
           | content: response.content,
+            reasoning_details: response.reasoning_details,
             usage: response.usage,
             completed_at: now,
             duration_ms: DateTime.diff(now, step.started_at, :millisecond)
@@ -157,7 +171,7 @@ defmodule Swarm.Loop do
   """
   @spec execute(__MODULE__.t(), [Swarm.Message.t()]) :: {__MODULE__.t(), [Swarm.Effect.t()]}
   def execute(%__MODULE__{status: :ready} = loop, messages) when is_list(messages) do
-    Swarm.Loop.Runner.start(loop, messages)
+    Runner.start(loop, messages)
   end
 
   @doc """
@@ -168,7 +182,7 @@ defmodule Swarm.Loop do
   @spec handle_response(__MODULE__.t(), Swarm.LLM.Response.t()) ::
           {__MODULE__.t(), [Swarm.Effect.t()]}
   def handle_response(%__MODULE__{status: :running} = loop, response) do
-    Swarm.Loop.Runner.handle_llm_response(loop, response)
+    Runner.handle_llm_response(loop, response)
   end
 
   @doc """
@@ -178,7 +192,7 @@ defmodule Swarm.Loop do
   """
   @spec handle_error(__MODULE__.t(), term()) :: {__MODULE__.t(), [Swarm.Effect.t()]}
   def handle_error(%__MODULE__{} = loop, error) do
-    Swarm.Loop.Runner.handle_llm_error(loop, error)
+    Runner.handle_llm_error(loop, error)
   end
 
   @doc """
@@ -189,6 +203,6 @@ defmodule Swarm.Loop do
   @spec handle_tool_result(__MODULE__.t(), Swarm.ToolResult.t()) ::
           {__MODULE__.t(), [Swarm.Effect.t()]}
   def handle_tool_result(%__MODULE__{status: :waiting_for_tools} = loop, result) do
-    Swarm.Loop.Runner.handle_tool_result(loop, result)
+    Runner.handle_tool_result(loop, result)
   end
 end

@@ -63,12 +63,10 @@ defmodule ModelContextProtocol do
   """
   @spec extract_content_text(map()) :: String.t()
   def extract_content_text(%{"content" => content}) do
-    content
-    |> Enum.map(fn
+    Enum.map_join(content, "\n", fn
       %{"text" => text} -> text
       _ -> ""
     end)
-    |> Enum.join("\n")
   end
 
   def extract_content_text(_), do: ""
@@ -76,9 +74,9 @@ defmodule ModelContextProtocol do
   @doc """
   Checks if MCP result indicates an error.
   """
-  @spec is_error?(map()) :: boolean()
-  def is_error?(%{"isError" => is_error}), do: is_error
-  def is_error?(_), do: false
+  @spec error?(map()) :: boolean()
+  def error?(%{"isError" => is_error}), do: is_error
+  def error?(_), do: false
 
   @doc """
   Parses tool result text as JSON if possible, falls back to string.

@@ -9,9 +9,10 @@ defmodule FrontmanServer.Tasks do
   delegating to the domain layer and infrastructure as appropriate.
   """
 
+  alias FrontmanServer.Agents
   alias FrontmanServer.Tasks.{Interaction, Task, TaskStore}
   alias FrontmanServer.Tools.MCP
-  alias FrontmanServer.Agents
+  alias ReqLLM.Message.ContentPart
   alias ReqLLM.ToolCall
 
   defdelegate task_exists?(task_id), to: TaskStore, as: :exists?
@@ -83,11 +84,11 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
-  @spec get_llm_messages(String.t(), String.t()) :: list(map())
-  def get_llm_messages(task_id, agent_id) do
+  @spec get_llm_messages(String.t()) :: list(map())
+  def get_llm_messages(task_id) do
     interactions = get_interactions(task_id)
     discovered_rules = get_discovered_project_rules(task_id)
-    messages = Interaction.to_llm_messages(interactions, agent_id)
+    messages = Interaction.to_llm_messages(interactions)
 
     prepend_rules_to_first_user_message(messages, discovered_rules)
   end
@@ -129,11 +130,11 @@ defmodule FrontmanServer.Tasks do
   defp do_prepend_to_first_user_message([%{role: :user} = msg | rest], reminder) do
     content_parts =
       case msg.content do
-        content when is_binary(content) -> [ReqLLM.Message.ContentPart.text(content)]
+        content when is_binary(content) -> [ContentPart.text(content)]
         content when is_list(content) -> content
       end
 
-    updated_content = [ReqLLM.Message.ContentPart.text(reminder) | content_parts]
+    updated_content = [ContentPart.text(reminder) | content_parts]
 
     [%{msg | content: updated_content} | rest]
   end
@@ -250,51 +251,49 @@ defmodule FrontmanServer.Tasks do
   @doc """
   Creates and appends an AgentResponse interaction.
   """
-  @spec add_agent_response(String.t(), String.t(), String.t(), map()) ::
+  @spec add_agent_response(String.t(), String.t(), map()) ::
           {:ok, Interaction.t()} | {:error, :task_not_found}
-  def add_agent_response(task_id, agent_id, content, metadata \\ %{}) do
-    interaction = Interaction.AgentResponse.new(agent_id, content, metadata)
+  def add_agent_response(task_id, content, metadata \\ %{}) do
+    interaction = Interaction.AgentResponse.new(content, metadata)
     append_interaction(task_id, interaction)
   end
 
   @doc """
   Creates and appends an AgentSpawned interaction.
   """
-  @spec add_agent_spawned(%{task_id: String.t(), agent_id: String.t()}, map()) ::
+  @spec add_agent_spawned(String.t(), map()) ::
           {:ok, Interaction.t()} | {:error, :task_not_found}
-  def add_agent_spawned(%{task_id: task_id, agent_id: agent_id}, config \\ %{}) do
-    interaction = Interaction.AgentSpawned.new(agent_id, config)
+  def add_agent_spawned(task_id, config \\ %{}) do
+    interaction = Interaction.AgentSpawned.new(config)
     append_interaction(task_id, interaction)
   end
 
   @doc """
   Creates and appends an AgentCompleted interaction.
   """
-  @spec add_agent_completed(String.t(), String.t(), term()) ::
+  @spec add_agent_completed(String.t(), term()) ::
           {:ok, Interaction.t()} | {:error, :task_not_found}
-  def add_agent_completed(task_id, agent_id, result \\ nil) do
-    interaction = Interaction.AgentCompleted.new(agent_id, result)
+  def add_agent_completed(task_id, result \\ nil) do
+    interaction = Interaction.AgentCompleted.new(result)
     append_interaction(task_id, interaction)
   end
 
   @doc """
   Creates and appends a ToolCall interaction.
   """
-  @spec add_tool_call(String.t(), String.t(), ToolCall.t()) ::
+  @spec add_tool_call(String.t(), ToolCall.t()) ::
           {:ok, Interaction.t()} | {:error, :task_not_found}
-  def add_tool_call(task_id, agent_id, %ToolCall{} = tool_call_data) do
-    interaction = Interaction.ToolCall.new(agent_id, tool_call_data)
+  def add_tool_call(task_id, %ToolCall{} = tool_call_data) do
+    interaction = Interaction.ToolCall.new(tool_call_data)
     append_interaction(task_id, interaction)
   end
 
   @doc """
   Creates and appends a ToolResult interaction.
 
-  The agent_id identifies which agent (root or sub-agent) owns this tool result.
   Notifies Agents directly so the agent can continue its iteration.
   """
   @spec add_tool_result(
-          String.t(),
           String.t(),
           %{id: String.t(), name: String.t()},
           term(),
@@ -303,12 +302,11 @@ defmodule FrontmanServer.Tasks do
           {:ok, Interaction.t()} | {:error, :task_not_found}
   def add_tool_result(
         task_id,
-        agent_id,
         %{id: tool_call_id, name: _} = tool_call_data,
         result,
         is_error \\ false
       ) do
-    interaction = Interaction.ToolResult.new(agent_id, tool_call_data, result, is_error)
+    interaction = Interaction.ToolResult.new(tool_call_data, result, is_error)
 
     case append_interaction(task_id, interaction) do
       {:ok, interaction} ->
@@ -320,7 +318,7 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
-  # Todo Management
+  # Todos Management
 
   alias FrontmanServer.Tasks.Todos
 

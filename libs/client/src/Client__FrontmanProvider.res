@@ -7,6 +7,7 @@ module Relay = FrontmanFrontmanClient.FrontmanClient__Relay
 module MCPServer = FrontmanFrontmanClient.FrontmanClient__MCP__Server
 module ConsoleLogTool = FrontmanFrontmanClient.FrontmanClient__MCP__Tool__ConsoleLog
 module Reducer = Client__ConnectionReducer
+module StateReducer = FrontmanReactStatestore.StateReducer
 
 // Re-export status types for consumers
 type connectionState = Reducer.Selectors.connectionStatus
@@ -57,31 +58,6 @@ module Provider = {
     ~clientVersion: string="1.0.0",
     ~children: React.element,
   ) => {
-    // Centralized state via reducer
-    let (state, dispatch) = React.useReducer(
-      (state, action) => {
-        let (nextState, effects) = Reducer.reduce(state, action)
-        // Execute effects (side effects from reducer)
-        effects->Array.forEach(effect => {
-          switch effect {
-          | Reducer.LogError(msg) => Console.error(`[FrontmanProvider] ${msg}`)
-          | Reducer.LogInfo(msg) => Console.log(`[FrontmanProvider] ${msg}`)
-          | Reducer.ConnectRelay(_) => () // Handled in relay effect
-          | Reducer.CreateMCPServer(_) => () // Handled in relay effect
-          | Reducer.DisconnectRelay(relay) => Relay.disconnect(relay)
-          }
-        })
-        nextState
-      },
-      Reducer.initialState,
-    )
-
-    // Get base URL from current location for relay
-    let getBaseUrl = React.useCallback0(() => {
-      let location = WebAPI.Global.location
-      `${location.protocol}//${location.host}`
-    })
-
     // Log message handlers
     let logACPMessage = React.useCallback0((direction: ACP.messageDirection, payload: JSON.t) => {
       let arrow = direction == Send ? `→` : `←`
@@ -93,78 +69,34 @@ module Provider = {
       Console.log2(`[MCP] ${arrow}`, payload)
     })
 
-    // Initialize relay and MCPServer on mount
+    // Use StateReducer - effects are executed in useEffect, not during dispatch
+    let (state, dispatch) = StateReducer.useReducer(module(Reducer), Reducer.initialState)
+
+    // Single initialization effect
     React.useEffect0(() => {
-      Console.log("[FrontmanProvider] Initializing relay...")
+      let location = WebAPI.Global.location
+      let baseUrl = `${location.protocol}//${location.host}`
 
-      // Create relay instance
-      let relayInstance = Relay.make(~baseUrl=getBaseUrl())
-      dispatch(RelayInstanceCreated(relayInstance))
-
-      // Create MCPServer with relay instance
+      let relay = Relay.make(~baseUrl)
       let mcpServer =
-        MCPServer.make(~relay=relayInstance, ~serverName=clientName, ~serverVersion=clientVersion)
+        MCPServer.make(~relay, ~serverName=clientName, ~serverVersion=clientVersion)
         ->MCPServer.registerToolModule(module(ConsoleLogTool))
         ->MCPServer.registerToolModule(module(Client__Tool__GetFigmaNode))
         ->MCPServer.registerToolModule(module(Client__Tool__TakeScreenshot))
         ->MCPServer.registerToolModule(module(Client__Tool__Navigate))
         ->MCPServer.registerToolModule(module(Client__Tool__NavigateBack))
-      dispatch(MCPServerCreated(mcpServer))
 
-      // Start relay connection
-      dispatch(RelayConnectStart)
-      let connectRelay = async () => {
-        let result = await Relay.connect(relayInstance)
-        switch result {
-        | Ok() =>
-          dispatch(RelayConnectSuccess)
-          // Log available tools
-          switch Relay.getState(relayInstance) {
-          | Connected({tools, serverInfo}) =>
-            Console.log3(
-              `[FrontmanProvider] ${serverInfo.name} v${serverInfo.version} - ${tools
-                ->Array.length
-                ->Int.toString} relay tools available`,
-              tools->Array.map(t => t.name),
-              (),
-            )
-          | _ => ()
-          }
-        | Error(err) => dispatch(RelayConnectError(err))
-        }
+      let config: Reducer.initConfig = {
+        endpoint,
+        clientName,
+        clientVersion,
+        baseUrl,
+        onACPMessage: logACPMessage,
       }
-      connectRelay()->ignore
+
+      dispatch(Initialize({config, relay, mcpServer}))
 
       Some(() => dispatch(Cleanup))
-    })
-
-    // Connect to ACP on mount
-    React.useEffect0(() => {
-      dispatch(ACPConnectStart)
-      Console.log("[FrontmanProvider] Connecting to ACP...")
-
-      let config = ACP.makeConfig(
-        ~endpoint,
-        ~name=clientName,
-        ~version=clientVersion,
-        ~onMessage=logACPMessage,
-      )
-
-      let connectAsync = async () => {
-        let result = await ACP.connect(config)
-        switch result {
-        | Ok(conn) =>
-          Console.log("[FrontmanProvider] ACP connected and initialized")
-          dispatch(ACPConnectSuccess(conn))
-        | Error(err) =>
-          Console.error2("[FrontmanProvider] ACP connection failed:", err)
-          dispatch(ACPConnectError(err))
-        }
-      }
-
-      connectAsync()->ignore
-
-      None
     })
 
     // Create session function

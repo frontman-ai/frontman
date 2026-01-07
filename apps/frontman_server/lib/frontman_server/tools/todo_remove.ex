@@ -5,8 +5,8 @@ defmodule FrontmanServer.Tools.TodoRemove do
 
   @behaviour FrontmanServer.Tools.Backend
 
-  alias FrontmanServer.Tools.Backend.Context
   alias FrontmanServer.Tasks.Todos
+  alias FrontmanServer.Tools.Backend.Context
 
   @impl true
   def name, do: "todo_remove"

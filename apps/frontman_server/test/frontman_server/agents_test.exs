@@ -48,7 +48,7 @@ defmodule FrontmanServer.AgentsTest do
       {:ok, _} = Tasks.add_user_message(task_id, user_content, [], agent: agent1)
 
       # Wait for first agent to complete
-      assert_receive {:agent_completed, first_agent_id}, 5_000
+      assert_receive {:interaction, %Interaction.AgentCompleted{}}, 5_000
 
       # Verify agent is no longer running
       refute Agents.agent_running?(task_id),
@@ -59,11 +59,7 @@ defmodule FrontmanServer.AgentsTest do
       {:ok, _} = Tasks.add_user_message(task_id, user_content2, [], agent: agent2)
 
       # Wait for second agent to complete
-      assert_receive {:agent_completed, second_agent_id}, 5_000
-
-      # The two agents should be different
-      assert first_agent_id != second_agent_id,
-        "Second message should spawn a new agent"
+      assert_receive {:interaction, %Interaction.AgentCompleted{}}, 5_000
 
       # Verify both responses are in the task history
       {:ok, task} = Tasks.get_task(task_id)
@@ -80,7 +76,7 @@ defmodule FrontmanServer.AgentsTest do
       task_id: task_id
     } do
       # This test specifically catches the race condition where:
-      # 1. First agent completes and emits {:completed, agent_id}
+      # 1. First agent completes
       # 2. Second message arrives before Registry.unregister runs
       # 3. agent_running?() returns true (still registered)
       # 4. No new agent is spawned
@@ -93,15 +89,41 @@ defmodule FrontmanServer.AgentsTest do
       {:ok, _} = Tasks.add_user_message(task_id, user_content, [], agent: agent1)
 
       # Wait for completion
-      assert_receive {:agent_completed, _first_agent_id}, 5_000
+      assert_receive {:interaction, %Interaction.AgentCompleted{}}, 5_000
 
       # Immediately send second message (no delay - maximize race condition chance)
       user_content2 = [%{"type" => "text", "text" => "Second message"}]
       {:ok, _} = Tasks.add_user_message(task_id, user_content2, [], agent: agent2)
 
       # The second message MUST be processed - if this times out, we have the race condition bug
-      assert_receive {:agent_completed, _second_agent_id}, 5_000,
+      assert_receive {:interaction, %Interaction.AgentCompleted{}}, 5_000,
         "Second message was not processed - likely race condition in agent registration"
+    end
+
+    test "conversation with tool calls supports follow-up messages", %{task_id: task_id} do
+      # A conversation where the agent uses tools should preserve full history,
+      # allowing follow-up messages to reference prior tool usage.
+
+      tool_call = %Swarm.ToolCall{
+        id: "tc_#{System.unique_integer([:positive])}",
+        name: "todo_list",
+        arguments: "{}"
+      }
+
+      agent1 = test_agent(tool_then_complete_llm([tool_call], "Here are your todos"), "Agent1")
+      agent2 = test_agent(mock_llm("Based on the previous results..."), "Agent2")
+
+      # First message triggers tool usage
+      {:ok, _} = Tasks.add_user_message(task_id, [%{"type" => "text", "text" => "Show todos"}], [], agent: agent1)
+      assert_receive {:interaction, %Interaction.AgentCompleted{}}, 5_000
+
+      # Follow-up message should have access to full conversation history
+      {:ok, _} = Tasks.add_user_message(task_id, [%{"type" => "text", "text" => "Summarize"}], [], agent: agent2)
+      assert_receive {:interaction, %Interaction.AgentCompleted{}}, 5_000
+
+      {:ok, task} = Tasks.get_task(task_id)
+      completions = Enum.filter(task.interactions, &match?(%Interaction.AgentCompleted{}, &1))
+      assert length(completions) == 2
     end
   end
 end

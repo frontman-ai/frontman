@@ -24,11 +24,11 @@ defmodule FrontmanServer.Test.Fixtures.JsonRpc do
   @jsonrpc_version "2.0"
 
   # Standard JSON-RPC 2.0 error codes
-  @error_parse -32700
-  @error_invalid_request -32600
-  @error_method_not_found -32601
-  @error_invalid_params -32602
-  @error_internal -32603
+  @error_parse -32_700
+  @error_invalid_request -32_600
+  @error_method_not_found -32_601
+  @error_invalid_params -32_602
+  @error_internal -32_603
 
   # ---------------------------------------------------------------------------
   # Request Messages
@@ -216,7 +216,7 @@ defmodule FrontmanServer.Test.Fixtures.JsonRpc do
       "jsonrpc" => @jsonrpc_version,
       "id" => Keyword.get(overrides, :id, 1),
       "result" => Keyword.get(overrides, :result, %{}),
-      "error" => Keyword.get(overrides, :error, %{"code" => -32601, "message" => "Error"})
+      "error" => Keyword.get(overrides, :error, %{"code" => -32_601, "message" => "Error"})
     }
   end
 
@@ -245,7 +245,7 @@ defmodule FrontmanServer.Test.Fixtures.JsonRpc do
     %{
       "jsonrpc" => @jsonrpc_version,
       "id" => Keyword.get(overrides, :id, 1),
-      "error" => %{"code" => Keyword.get(overrides, :code, -32601)}
+      "error" => %{"code" => Keyword.get(overrides, :code, -32_601)}
     }
   end
 

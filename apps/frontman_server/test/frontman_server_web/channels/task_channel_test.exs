@@ -1,9 +1,9 @@
 defmodule FrontmanServerWeb.TaskChannelTest do
   use FrontmanServerWeb.ChannelCase, async: true
 
-  alias FrontmanServerWeb.UserSocket
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Interaction
+  alias FrontmanServerWeb.UserSocket
 
   describe "join task:<id>" do
     test "succeeds when task exists" do
@@ -51,7 +51,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         })
 
       assert_reply ref, :ok, %{"acp:message" => response}
-      assert response["error"]["code"] == -32601
+      assert response["error"]["code"] == -32_601
       assert response["error"]["message"] =~ "Method not found"
     end
   end
@@ -88,7 +88,6 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       tool_call = %Interaction.ToolCall{
         id: Interaction.new_id(),
-        agent_id: "test_agent",
         tool_call_id: "call_pubsub_#{:rand.uniform(1_000_000)}",
         tool_name: "testTool",
         arguments: %{"key" => "value"},
@@ -119,7 +118,6 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       tool_call = %Interaction.ToolCall{
         id: Interaction.new_id(),
-        agent_id: "test_agent",
         tool_call_id: "call_different_#{:rand.uniform(1_000_000)}",
         tool_name: "otherTool",
         arguments: %{},
@@ -159,7 +157,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       Phoenix.PubSub.broadcast(
         FrontmanServer.PubSub,
         Tasks.topic(task_id),
-        {:agent_stream_token, "test_agent", "Hello world"}
+        {:stream_token, "Hello world"}
       )
 
       # Channel should forward this as an ACP notification
@@ -194,7 +192,6 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     test "extracts text content from MCP tool result", %{socket: socket, task_id: task_id} do
       tool_call = %Interaction.ToolCall{
         id: Interaction.new_id(),
-        agent_id: "test_agent",
         tool_call_id: "call_123",
         tool_name: "consoleLog",
         arguments: %{"message" => "hello"},
@@ -347,7 +344,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
             "jsonrpc" => "2.0",
             "id" => 999,
             "result" => %{},
-            "error" => %{"code" => -32601, "message" => "Error"}
+            "error" => %{"code" => -32_601, "message" => "Error"}
           })
 
           assert_push "mcp:message", %{"method" => "error"}
@@ -359,7 +356,6 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     test "accepts valid MCP response", %{socket: socket, task_id: task_id} do
       tool_call = %Interaction.ToolCall{
         id: Interaction.new_id(),
-        agent_id: "test_agent",
         tool_call_id: "call_valid_test",
         tool_name: "testTool",
         arguments: %{},
@@ -425,7 +421,6 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       tool_call = %Interaction.ToolCall{
         id: Interaction.new_id(),
-        agent_id: "test_agent",
         tool_call_id: tool_call_id,
         tool_name: "list_dir",
         arguments: %{"path" => "/"},
@@ -475,7 +470,6 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       # Simulate a tool call interaction being broadcast
       tool_call = %Interaction.ToolCall{
         id: Interaction.new_id(),
-        agent_id: "test_agent",
         tool_call_id: tool_call_id,
         tool_name: "get_logs",
         arguments: %{"tail" => 10},

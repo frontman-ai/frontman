@@ -1,6 +1,8 @@
 defmodule Swarm.TelemetryTest do
   use FrontmanServer.SwarmCase, async: true
 
+  alias Swarm.Telemetry.Events, as: TelemetryEvents
+
   @moduledoc """
   Tests for Swarm telemetry events.
 
@@ -10,7 +12,7 @@ defmodule Swarm.TelemetryTest do
 
   describe "Telemetry.Events.all/0" do
     test "returns all event names for handler attachment" do
-      events = Swarm.Telemetry.Events.all()
+      events = TelemetryEvents.all()
 
       assert [:swarm, :run, :start] in events
       assert [:swarm, :run, :stop] in events
@@ -28,7 +30,7 @@ defmodule Swarm.TelemetryTest do
     test "run_span executes function and returns result" do
       result =
         Swarm.Telemetry.run_span(%{loop_id: "test", agent_module: TestAgent}, fn ->
-          {"my_result", %{status: :completed}}
+          {"my_result", %{loop_id: "test", status: :completed, step_count: 1}}
         end)
 
       assert result == "my_result"
@@ -58,7 +60,7 @@ defmodule Swarm.TelemetryTest do
     test "llm_span executes function and returns result" do
       result =
         Swarm.Telemetry.llm_span(%{loop_id: "test", step: 1, model: "claude"}, fn ->
-          {"response", %{input_tokens: 100, output_tokens: 50}}
+          {"response", %{loop_id: "test", step: 1, input_tokens: 100, output_tokens: 50}}
         end)
 
       assert result == "response"
@@ -67,7 +69,7 @@ defmodule Swarm.TelemetryTest do
     test "tool_span executes function and returns result" do
       result =
         Swarm.Telemetry.tool_span(%{loop_id: "test", step: 1, tool_id: "tc1", tool_name: "search"}, fn ->
-          {"tool_result", %{is_error: false}}
+          {"tool_result", %{tool_id: "tc1", is_error: false}}
         end)
 
       assert result == "tool_result"
@@ -173,7 +175,7 @@ defmodule Swarm.TelemetryTest do
 
     :telemetry.attach_many(
       handler_id,
-      Swarm.Telemetry.Events.all(),
+      TelemetryEvents.all(),
       fn event, measurements, metadata, _config ->
         :ets.insert(events, {event, measurements, metadata})
       end,
@@ -192,7 +194,7 @@ defmodule Swarm.TelemetryTest do
   defp assert_event(events, event_name, assertions) do
     matching = Enum.filter(events, fn {event, _m, _md} -> event == event_name end)
 
-    assert length(matching) >= 1,
+    assert matching != [],
            "Expected event #{inspect(event_name)} but found: #{inspect(Enum.map(events, &elem(&1, 0)))}"
 
     {_event, measurements, metadata} = hd(matching)

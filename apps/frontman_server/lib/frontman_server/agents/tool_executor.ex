@@ -14,6 +14,11 @@ defmodule FrontmanServer.Agents.ToolExecutor do
 
   This ensures MCP tools work correctly for both main agents and sub-agents
   without requiring callers to handle interaction publishing.
+
+  ## Telemetry
+
+  Tool execution telemetry is handled by Swarm. This module focuses only
+  on executing tools.
   """
 
   require Logger
@@ -21,7 +26,6 @@ defmodule FrontmanServer.Agents.ToolExecutor do
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tools
   alias FrontmanServer.Tools.Backend
-  alias FrontmanServer.Observability.TelemetryEvents
 
   @tool_timeout_ms 60_000
 
@@ -37,22 +41,22 @@ defmodule FrontmanServer.Agents.ToolExecutor do
 
   ## Examples
 
-      executor = ToolExecutor.make_executor(task_id, agent_id)
+      executor = ToolExecutor.make_executor(task_id)
       Swarm.run_blocking(agent, messages, executor)
   """
-  @spec make_executor(String.t(), String.t()) ::
+  @spec make_executor(String.t()) ::
           (Swarm.ToolCall.t() -> {:ok, String.t()} | {:error, String.t()})
-  def make_executor(task_id, agent_id) do
+  def make_executor(task_id) do
     fn tool_call ->
       is_mcp_tool = register_if_mcp_tool(tool_call)
 
       # For MCP tools, publish interaction so TaskChannel can route to client.
       # This must happen AFTER registration to prevent race conditions.
       if is_mcp_tool do
-        publish_mcp_tool_call(task_id, agent_id, tool_call)
+        publish_mcp_tool_call(task_id, tool_call)
       end
 
-      execute(tool_call, task_id, agent_id)
+      execute(tool_call, task_id)
     end
   end
 
@@ -71,10 +75,10 @@ defmodule FrontmanServer.Agents.ToolExecutor do
     end
   end
 
-  defp publish_mcp_tool_call(task_id, agent_id, tool_call) do
+  defp publish_mcp_tool_call(task_id, tool_call) do
     reqllm_tc = to_reqllm_tool_call(tool_call)
 
-    case Tasks.add_tool_call(task_id, agent_id, reqllm_tc) do
+    case Tasks.add_tool_call(task_id, reqllm_tc) do
       {:ok, _interaction} ->
         :ok
 
@@ -94,47 +98,37 @@ defmodule FrontmanServer.Agents.ToolExecutor do
   @doc """
   Execute a single tool, trying backend first then MCP.
   """
-  @spec execute(Swarm.ToolCall.t(), String.t(), String.t()) ::
+  @spec execute(Swarm.ToolCall.t(), String.t()) ::
           {:ok, String.t()} | {:error, String.t()}
-  def execute(tool_call, task_id, agent_id) do
+  def execute(tool_call, task_id) do
     case Tools.find_tool(tool_call.name) do
       {:ok, module} ->
-        execute_backend_tool(module, tool_call, task_id, agent_id)
+        execute_backend_tool(module, tool_call, task_id)
 
       :not_found ->
-        execute_mcp_tool(tool_call, task_id, agent_id)
+        execute_mcp_tool(tool_call, task_id)
     end
   end
 
   # --- Backend Tool Execution ---
 
-  defp execute_backend_tool(module, tool_call, task_id, agent_id) do
+  defp execute_backend_tool(module, tool_call, task_id) do
     Logger.info("ToolExecutor: Executing backend tool #{tool_call.name}")
-
-    TelemetryEvents.tool_start(
-      tool_call.id,
-      tool_call.name,
-      agent_id,
-      task_id,
-      tool_call.arguments
-    )
 
     case Tasks.get_task(task_id) do
       {:ok, task} ->
-        context = %Backend.Context{task: task, agent_id: agent_id}
+        context = %Backend.Context{task: task}
         args = parse_arguments(tool_call.arguments)
 
         result = module.execute(args, context)
 
         case result do
           {:ok, value} ->
-            TelemetryEvents.tool_stop(tool_call.id, status: "success")
             encoded = encode_result(value)
 
             # Store tool result for interaction history and UI notification
             Tasks.add_tool_result(
               task_id,
-              agent_id,
               %{id: tool_call.id, name: tool_call.name},
               value,
               false
@@ -143,12 +137,9 @@ defmodule FrontmanServer.Agents.ToolExecutor do
             {:ok, encoded}
 
           {:error, reason} ->
-            TelemetryEvents.tool_stop(tool_call.id, status: "error", error: reason)
-
             # Store error result for interaction history and UI notification
             Tasks.add_tool_result(
               task_id,
-              agent_id,
               %{id: tool_call.id, name: tool_call.name},
               reason,
               true
@@ -158,7 +149,6 @@ defmodule FrontmanServer.Agents.ToolExecutor do
         end
 
       {:error, :not_found} ->
-        TelemetryEvents.tool_stop(tool_call.id, status: "error", error: "Task not found")
         {:error, "Task not found"}
     end
   end
@@ -178,10 +168,10 @@ defmodule FrontmanServer.Agents.ToolExecutor do
 
   # --- MCP Tool Execution ---
 
-  defp execute_mcp_tool(tool_call, _task_id, _agent_id) do
+  defp execute_mcp_tool(tool_call, _task_id) do
     Logger.info("ToolExecutor: Routing to MCP tool #{tool_call.name}")
 
-    # Registration already happened in maybe_register_mcp_tool before broadcast
+    # Registration already happened in register_if_mcp_tool before broadcast
     tool_call_id = tool_call.id
 
     receive do

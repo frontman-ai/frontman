@@ -3,12 +3,18 @@ defmodule FrontmanServer.Agents do
   Public API for agent management.
 
   Agents process user messages and generate responses using LLM.
-  Each agent run gets a unique agent_id.
+  Swarm generates a unique loop_id for each agent run.
 
   This module handles:
   - Starting and executing agents using Swarm's public API
   - Routing tool result notifications to waiting executors
   - Translating agent events to Tasks operations and transport broadcasts
+
+  ## Telemetry
+
+  All agent telemetry is emitted by Swarm. FrontmanServer passes `task_id` via
+  metadata, which flows through all Swarm telemetry events. This allows
+  correlation without FrontmanServer needing to track agent IDs.
   """
 
   require Logger
@@ -16,162 +22,66 @@ defmodule FrontmanServer.Agents do
   alias FrontmanServer.Agents.{RootAgent, ToolExecutor}
   alias FrontmanServer.Observability.TelemetryEvents
   alias FrontmanServer.Tasks
-  alias Swarm.Message
   alias Swarm.LLM.Chunk
+  alias Swarm.Message
 
   @doc """
   Checks if an agent is currently running for the given task.
   """
   @spec agent_running?(String.t()) :: boolean()
   def agent_running?(task_id) do
-    case get_root_agent_for_task(task_id) do
-      {:ok, _pid, _metadata} -> true
-      {:error, :not_found} -> false
-    end
-  end
-
-  @doc "Gets agent metadata by agent_id"
-  @spec get_agent(String.t()) :: {:ok, pid(), map()} | {:error, :not_found}
-  def get_agent(agent_id) do
-    case Registry.lookup(FrontmanServer.AgentRegistry, {:agent, agent_id}) do
-      [{pid, metadata}] -> {:ok, pid, metadata}
-      [] -> {:error, :not_found}
-    end
-  end
-
-  @doc "Gets parent_agent_id for an agent, or nil if it's the root agent"
-  @spec get_parent_agent_id(String.t()) :: String.t() | nil
-  def get_parent_agent_id(agent_id) do
-    case get_agent(agent_id) do
-      {:ok, _pid, metadata} -> Map.get(metadata, :parent_agent_id)
-      {:error, :not_found} -> nil
-    end
-  end
-
-  @doc "Gets spawning_tool_name for an agent (e.g., 'breakdown_figma_design'), or nil if not set"
-  @spec get_spawning_tool_name(String.t()) :: String.t() | nil
-  def get_spawning_tool_name(agent_id) do
-    case get_agent(agent_id) do
-      {:ok, _pid, metadata} -> Map.get(metadata, :spawning_tool_name)
-      {:error, :not_found} -> nil
-    end
-  end
-
-  @doc "Gets all agents for a task"
-  @spec get_agents_for_task(String.t()) :: [{String.t(), pid(), map()}]
-  def get_agents_for_task(task_id) do
-    match_spec = [
-      {{{:agent, :"$1"}, :"$2", :"$3"}, [{:==, {:map_get, :task_id, :"$3"}, task_id}],
-       [{{:"$1", :"$2", :"$3"}}]}
-    ]
-
-    Registry.select(FrontmanServer.AgentRegistry, match_spec)
-  end
-
-  @doc "Gets agent that owns a tool call"
-  @spec get_agent_for_tool_call(String.t()) :: {:ok, String.t()} | {:error, :not_found}
-  def get_agent_for_tool_call(tool_call_id) do
-    case Registry.lookup(FrontmanServer.AgentRegistry, {:tool_call, tool_call_id}) do
-      [{_self, %{} = _metadata}] ->
-        # New format: metadata map with caller info
-        # The agent_id is not stored directly, but the executor handles routing
-        {:error, :not_found}
-
-      [{_self, agent_id}] when is_binary(agent_id) ->
-        {:ok, agent_id}
-
-      [] ->
-        {:error, :not_found}
-    end
-  end
-
-  @doc "Gets the root agent for a task"
-  @spec get_root_agent_for_task(String.t()) :: {:ok, pid(), map()} | {:error, :not_found}
-  def get_root_agent_for_task(task_id) do
-    match_spec = [
-      {{{:agent, :"$1"}, :"$2", :"$3"},
-       [
-         {:andalso, {:==, {:map_get, :task_id, :"$3"}, task_id},
-          {:==, {:map_get, :parent_agent_id, :"$3"}, nil}}
-       ], [{{:"$2", :"$3"}}]}
-    ]
-
-    case Registry.select(FrontmanServer.AgentRegistry, match_spec) do
-      [{pid, metadata}] -> {:ok, pid, metadata}
-      [] -> {:error, :not_found}
+    case Registry.lookup(FrontmanServer.AgentRegistry, {:running_agent, task_id}) do
+      [{_pid, _metadata}] -> true
+      [] -> false
     end
   end
 
   @doc """
   Starts a new agent for the given task and begins execution.
 
-  Creates a unique agent_id and spawns a supervised task that runs the agent
-  using Swarm's public API. The task runs the full agent loop (LLM calls +
-  tool execution) until completion.
+  Spawns a supervised task that runs the agent using Swarm's public API.
+  Swarm generates the loop_id internally; task_id is passed via metadata
+  for telemetry correlation.
 
   ## Options
   - `:tools` - List of tool definitions for LLM (default: [])
   - `:agent` - Custom agent struct implementing Swarm.Agent (for testing)
   """
   def start_agent(task_id, opts \\ []) do
-    agent_id = Ecto.UUID.generate()
     tools = Keyword.get(opts, :tools, [])
     on_event = build_event_handler(task_id)
 
     agent = build_agent(task_id, tools, opts)
 
     # Get messages and convert to Swarm.Message format
-    messages = build_messages(task_id, agent_id)
-
-    # Track agent spawned in task
-    Tasks.add_agent_spawned(%{task_id: task_id, agent_id: agent_id}, %{tools: tools})
+    messages = build_messages(task_id)
 
     # Start agent execution in supervised task
-    {:ok, _ref} = run_agent(agent, task_id, agent_id, messages, on_event: on_event)
-    {:ok, agent_id}
-  end
-
-  @doc """
-  Runs an agent synchronously (blocking) with streaming callbacks.
-
-  Useful for testing and sub-agent execution within backend tools.
-
-  ## Returns
-  - `{:ok, result}` - Agent completed successfully
-  - `{:error, reason}` - Agent failed
-  """
-  @spec run_agent_sync(Swarm.Agent.t(), String.t(), String.t(), [Message.t()], keyword()) ::
-          {:ok, String.t()} | {:error, term()}
-  def run_agent_sync(agent, task_id, agent_id, messages, opts) do
-    on_event = Keyword.get(opts, :on_event, fn _event -> :ok end)
-    execute_agent(agent, task_id, agent_id, messages, on_event)
+    {:ok, _ref} = run_agent(agent, task_id, messages, on_event: on_event)
+    :ok
   end
 
   # Runs an agent in a supervised Task with streaming callbacks.
   # Returns `{:ok, task_ref}` where task_ref can be used to monitor the task.
-  @spec run_agent(Swarm.Agent.t(), String.t(), String.t(), [Message.t()], keyword()) ::
+  @spec run_agent(Swarm.Agent.t(), String.t(), [Message.t()], keyword()) ::
           {:ok, reference()} | {:error, term()}
-  defp run_agent(agent, task_id, agent_id, messages, opts) do
+  defp run_agent(agent, task_id, messages, opts) do
     on_event = Keyword.fetch!(opts, :on_event)
-    parent_agent_id = Keyword.get(opts, :parent_agent_id)
-    spawning_tool_name = Keyword.get(opts, :spawning_tool_name)
-    role = if parent_agent_id, do: :sub_agent, else: :root
-
-    registry_metadata = %{
-      task_id: task_id,
-      parent_agent_id: parent_agent_id,
-      role: role,
-      spawning_tool_name: spawning_tool_name
-    }
-
-    TelemetryEvents.agent_start(agent_id, task_id)
+    registry_key = {:running_agent, task_id}
 
     task =
       Task.Supervisor.async_nolink(
         FrontmanServer.TaskSupervisor,
         fn ->
-          Registry.register(FrontmanServer.AgentRegistry, {:agent, agent_id}, registry_metadata)
-          execute_agent(agent, task_id, agent_id, messages, on_event)
+          # Register that an agent is running for this task
+          Registry.register(FrontmanServer.AgentRegistry, registry_key, %{})
+
+          try do
+            execute_agent(agent, task_id, messages, registry_key, on_event)
+          after
+            # Ensure cleanup even on unexpected exits (unregister is idempotent)
+            Registry.unregister(FrontmanServer.AgentRegistry, registry_key)
+          end
         end
       )
 
@@ -253,24 +163,27 @@ defmodule FrontmanServer.Agents do
 
   defp handle_agent_event(task_id, event) do
     case event do
-      {:token, agent_id, token} ->
-        broadcast(task_id, {:agent_stream_token, agent_id, token})
+      {:token, token} ->
+        broadcast(task_id, {:stream_token, token})
 
-      {:response, agent_id, text, metadata} ->
-        Tasks.add_agent_response(task_id, agent_id, text, metadata)
+      {:thinking, text} ->
+        broadcast(task_id, {:stream_thinking, text})
 
-      {:completed, agent_id} ->
-        Tasks.add_agent_completed(task_id, agent_id)
-        broadcast(task_id, {:agent_completed, agent_id})
+      {:response, text, metadata} ->
+        Tasks.add_agent_response(task_id, text, metadata)
 
-      {:error, agent_id, reason} ->
-        broadcast(task_id, {:agent_error, agent_id, inspect(reason)})
+      :completed ->
+        Tasks.add_agent_completed(task_id)
+        broadcast(task_id, :agent_completed)
+
+      {:error, reason} ->
+        broadcast(task_id, {:agent_error, inspect(reason)})
     end
   end
 
-  defp build_messages(task_id, agent_id) do
+  defp build_messages(task_id) do
     task_id
-    |> Tasks.get_llm_messages(agent_id)
+    |> Tasks.get_llm_messages()
     |> Enum.map(&to_swarm_message/1)
   end
 
@@ -318,7 +231,7 @@ defmodule FrontmanServer.Agents do
       %Swarm.ToolCall{
         id: tc.id,
         name: ReqLLM.ToolCall.name(tc),
-        arguments: tc.arguments
+        arguments: ReqLLM.ToolCall.args_json(tc)
       }
     end)
   end
@@ -340,25 +253,31 @@ defmodule FrontmanServer.Agents do
 
   # --- Agent Execution ---
 
-  defp execute_agent(agent, task_id, agent_id, messages, on_event) do
+  defp execute_agent(agent, task_id, messages, registry_key, on_event) do
     # Build tool executor that handles both backend and MCP tools.
     # ToolExecutor owns interaction publishing for MCP tools internally.
-    tool_executor = ToolExecutor.make_executor(task_id, agent_id)
+    tool_executor = ToolExecutor.make_executor(task_id)
 
-    Logger.info("Agent #{agent_id} starting execution via Swarm.run_streaming")
+    Logger.info("Starting agent execution for task #{task_id} via Swarm.run_streaming")
+
+    # Emit task start telemetry - creates the root OTEL span for this task
+    TelemetryEvents.task_start(task_id)
 
     try do
       # Use Swarm's public API with streaming callbacks.
-      # Note: on_tool_call is NOT passed here because ToolExecutor handles it.
-      # ToolExecutor's callback fires AFTER MCP tool registration, which prevents
-      # race conditions where broadcasts happen before tools are registered.
+      # Pass task_id in metadata for telemetry correlation.
+      # Swarm generates loop_id internally and includes metadata in all telemetry events.
       result =
         Swarm.run_streaming(agent, messages,
+          metadata: %{task_id: task_id},
           tool_executor: tool_executor,
           on_chunk: fn chunk ->
             case chunk do
               %Chunk{type: :token, text: text} when is_binary(text) and text != "" ->
-                on_event.({:token, agent_id, text})
+                on_event.({:token, text})
+
+              %Chunk{type: :thinking, text: text} when is_binary(text) and text != "" ->
+                on_event.({:thinking, text})
 
               _ ->
                 :ok
@@ -366,40 +285,55 @@ defmodule FrontmanServer.Agents do
           end,
           on_response: fn response ->
             metadata = build_response_metadata(response)
-            on_event.({:response, agent_id, response.content || "", metadata})
+            on_event.({:response, response.content || "", metadata})
           end
         )
 
-      # Unregister BEFORE emitting completion event to prevent race condition.
-      Registry.unregister(FrontmanServer.AgentRegistry, {:agent, agent_id})
+      # Unregister BEFORE broadcasting completion so consumers see consistent state
+      if registry_key, do: Registry.unregister(FrontmanServer.AgentRegistry, registry_key)
 
       case result do
         {:ok, _result} ->
-          on_event.({:completed, agent_id})
-          TelemetryEvents.agent_stop(agent_id)
+          on_event.(:completed)
 
         {:error, reason} ->
-          on_event.({:error, agent_id, reason})
-          TelemetryEvents.agent_stop(agent_id)
+          on_event.({:error, reason})
       end
+
+      # Emit task stop telemetry - closes the root OTEL span
+      TelemetryEvents.task_stop(task_id)
 
       result
     rescue
       e ->
-        Logger.error("Agent #{agent_id} crashed: #{inspect(e)}")
-        Registry.unregister(FrontmanServer.AgentRegistry, {:agent, agent_id})
-        on_event.({:error, agent_id, inspect(e)})
-        TelemetryEvents.agent_stop(agent_id)
+        # Unregister before error callback too
+        if registry_key, do: Registry.unregister(FrontmanServer.AgentRegistry, registry_key)
+        Logger.error("Agent crashed for task #{task_id}: #{inspect(e)}")
+        on_event.({:error, inspect(e)})
+        # Still emit task_stop on error to close the span
+        TelemetryEvents.task_stop(task_id)
         {:error, e}
     end
   end
 
   defp build_response_metadata(%Swarm.LLM.Response{} = response) do
-    if response.tool_calls && response.tool_calls != [] do
-      %{tool_calls: Enum.map(response.tool_calls, &to_reqllm_tool_call/1)}
-    else
-      %{}
-    end
+    metadata = %{}
+
+    metadata =
+      if response.tool_calls && response.tool_calls != [] do
+        Map.put(metadata, :tool_calls, Enum.map(response.tool_calls, &to_reqllm_tool_call/1))
+      else
+        metadata
+      end
+
+    metadata =
+      if response.reasoning_details && response.reasoning_details != [] do
+        Map.put(metadata, :reasoning_details, response.reasoning_details)
+      else
+        metadata
+      end
+
+    metadata
   end
 
   defp to_reqllm_tool_call(%Swarm.ToolCall{} = tc) do

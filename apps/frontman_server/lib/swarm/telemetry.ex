@@ -5,6 +5,12 @@ defmodule Swarm.Telemetry do
   Swarm emits `:telemetry` events following Erlang/Elixir ecosystem conventions.
   All events use the `[:swarm, ...]` prefix and follow the start/stop/exception pattern.
 
+  ## Metadata Propagation
+
+  All events include a `metadata` field that is passed from the caller through `Swarm.run_streaming/3`
+  or `Swarm.run/3`. This allows callers to attach arbitrary context (like `task_id`) that flows
+  through all telemetry events, enabling correlation without requiring process-based hacks.
+
   ## Events
 
   ### Run Lifecycle (`[:swarm, :run, ...]`)
@@ -13,9 +19,19 @@ defmodule Swarm.Telemetry do
 
   | Event | Measurements | Metadata |
   |-------|--------------|----------|
-  | `[:swarm, :run, :start]` | `system_time` | `loop_id`, `agent_module` |
-  | `[:swarm, :run, :stop]` | `duration` | `loop_id`, `status`, `step_count`, `result`, `error` |
-  | `[:swarm, :run, :exception]` | `duration` | `loop_id`, `kind`, `reason`, `stacktrace` |
+  | `[:swarm, :run, :start]` | `system_time` | `loop_id`, `agent_module`, `metadata` |
+  | `[:swarm, :run, :stop]` | `duration` | `loop_id`, `status`, `step_count`, `result`, `error`, `metadata` |
+  | `[:swarm, :run, :exception]` | `duration` | `loop_id`, `kind`, `reason`, `stacktrace`, `metadata` |
+
+  ### Step Lifecycle (`[:swarm, :step, ...]`)
+
+  Emitted around each step (iteration) of the agent loop.
+
+  | Event | Measurements | Metadata |
+  |-------|--------------|----------|
+  | `[:swarm, :step, :start]` | `system_time` | `loop_id`, `step`, `metadata` |
+  | `[:swarm, :step, :stop]` | `duration` | `loop_id`, `step`, `metadata` |
+  | `[:swarm, :step, :exception]` | `duration` | `loop_id`, `step`, `kind`, `reason`, `stacktrace`, `metadata` |
 
   ### LLM Calls (`[:swarm, :llm, :call, ...]`)
 
@@ -23,9 +39,9 @@ defmodule Swarm.Telemetry do
 
   | Event | Measurements | Metadata |
   |-------|--------------|----------|
-  | `[:swarm, :llm, :call, :start]` | `system_time` | `loop_id`, `step`, `model` |
-  | `[:swarm, :llm, :call, :stop]` | `duration` | `loop_id`, `step`, `input_tokens`, `output_tokens`, `tool_call_count` |
-  | `[:swarm, :llm, :call, :exception]` | `duration` | `loop_id`, `step`, `kind`, `reason`, `stacktrace` |
+  | `[:swarm, :llm, :call, :start]` | `system_time` | `loop_id`, `step`, `model`, `metadata` |
+  | `[:swarm, :llm, :call, :stop]` | `duration` | `loop_id`, `step`, `input_tokens`, `output_tokens`, `tool_call_count`, `metadata` |
+  | `[:swarm, :llm, :call, :exception]` | `duration` | `loop_id`, `step`, `kind`, `reason`, `stacktrace`, `metadata` |
 
   ### Tool Execution (`[:swarm, :tool, :execute, ...]`)
 
@@ -33,9 +49,9 @@ defmodule Swarm.Telemetry do
 
   | Event | Measurements | Metadata |
   |-------|--------------|----------|
-  | `[:swarm, :tool, :execute, :start]` | `system_time` | `loop_id`, `step`, `tool_id`, `tool_name` |
-  | `[:swarm, :tool, :execute, :stop]` | `duration` | `loop_id`, `step`, `tool_id`, `tool_name`, `is_error` |
-  | `[:swarm, :tool, :execute, :exception]` | `duration` | `loop_id`, `step`, `tool_id`, `tool_name`, `kind`, `reason`, `stacktrace` |
+  | `[:swarm, :tool, :execute, :start]` | `system_time` | `loop_id`, `step`, `tool_id`, `tool_name`, `metadata` |
+  | `[:swarm, :tool, :execute, :stop]` | `duration` | `loop_id`, `step`, `tool_id`, `tool_name`, `is_error`, `metadata` |
+  | `[:swarm, :tool, :execute, :exception]` | `duration` | `loop_id`, `step`, `tool_id`, `tool_name`, `kind`, `reason`, `stacktrace`, `metadata` |
 
   ### Child Agent Spawning (`[:swarm, :child, :spawn, ...]`)
 
@@ -43,9 +59,9 @@ defmodule Swarm.Telemetry do
 
   | Event | Measurements | Metadata |
   |-------|--------------|----------|
-  | `[:swarm, :child, :spawn, :start]` | `system_time` | `parent_loop_id`, `parent_step`, `tool_call_id`, `child_agent_module`, `task` |
-  | `[:swarm, :child, :spawn, :stop]` | `duration` | `parent_loop_id`, `child_loop_id`, `child_status`, `child_step_count`, `child_total_tokens` |
-  | `[:swarm, :child, :spawn, :exception]` | `duration` | `parent_loop_id`, `tool_call_id`, `kind`, `reason`, `stacktrace` |
+  | `[:swarm, :child, :spawn, :start]` | `system_time` | `parent_loop_id`, `parent_step`, `tool_call_id`, `child_agent_module`, `task`, `metadata` |
+  | `[:swarm, :child, :spawn, :stop]` | `duration` | `parent_loop_id`, `child_loop_id`, `child_status`, `child_step_count`, `child_total_tokens`, `metadata` |
+  | `[:swarm, :child, :spawn, :exception]` | `duration` | `parent_loop_id`, `tool_call_id`, `kind`, `reason`, `stacktrace`, `metadata` |
 
   ## Usage
 
@@ -78,11 +94,12 @@ defmodule Swarm.Telemetry do
   # =============================================================================
 
   @doc "Emit run start event."
-  @spec run_start(String.t(), module()) :: :ok
-  def run_start(loop_id, agent_module) do
+  @spec run_start(String.t(), module(), map()) :: :ok
+  def run_start(loop_id, agent_module, metadata \\ %{}) do
     emit(Events.run_start(), %{
       loop_id: loop_id,
-      agent_module: agent_module
+      agent_module: agent_module,
+      metadata: metadata
     })
   end
 
@@ -94,18 +111,57 @@ defmodule Swarm.Telemetry do
       status: Keyword.get(opts, :status),
       result: Keyword.get(opts, :result),
       error: Keyword.get(opts, :error),
-      step_count: Keyword.get(opts, :step_count, 0)
+      step_count: Keyword.get(opts, :step_count, 0),
+      metadata: Keyword.get(opts, :metadata, %{})
     })
   end
 
   @doc "Emit run exception event."
-  @spec run_exception(String.t(), atom(), term(), list()) :: :ok
-  def run_exception(loop_id, kind, reason, stacktrace) do
+  @spec run_exception(String.t(), atom(), term(), list(), map()) :: :ok
+  def run_exception(loop_id, kind, reason, stacktrace, metadata \\ %{}) do
     emit(Events.run_exception(), %{
       loop_id: loop_id,
       kind: kind,
       reason: reason,
-      stacktrace: stacktrace
+      stacktrace: stacktrace,
+      metadata: metadata
+    })
+  end
+
+  # =============================================================================
+  # Step Lifecycle
+  # =============================================================================
+
+  @doc "Emit step start event."
+  @spec step_start(String.t(), pos_integer(), map()) :: :ok
+  def step_start(loop_id, step, metadata \\ %{}) do
+    emit(Events.step_start(), %{
+      loop_id: loop_id,
+      step: step,
+      metadata: metadata
+    })
+  end
+
+  @doc "Emit step stop event."
+  @spec step_stop(String.t(), pos_integer(), map()) :: :ok
+  def step_stop(loop_id, step, metadata \\ %{}) do
+    emit(Events.step_stop(), %{
+      loop_id: loop_id,
+      step: step,
+      metadata: metadata
+    })
+  end
+
+  @doc "Emit step exception event."
+  @spec step_exception(String.t(), pos_integer(), atom(), term(), list(), map()) :: :ok
+  def step_exception(loop_id, step, kind, reason, stacktrace, metadata \\ %{}) do
+    emit(Events.step_exception(), %{
+      loop_id: loop_id,
+      step: step,
+      kind: kind,
+      reason: reason,
+      stacktrace: stacktrace,
+      metadata: metadata
     })
   end
 
@@ -114,12 +170,13 @@ defmodule Swarm.Telemetry do
   # =============================================================================
 
   @doc "Emit LLM call start event."
-  @spec llm_call_start(String.t(), pos_integer(), String.t() | nil) :: :ok
-  def llm_call_start(loop_id, step, model) do
+  @spec llm_call_start(String.t(), pos_integer(), String.t() | nil, map()) :: :ok
+  def llm_call_start(loop_id, step, model, metadata \\ %{}) do
     emit(Events.llm_call_start(), %{
       loop_id: loop_id,
       step: step,
-      model: model
+      model: model,
+      metadata: metadata
     })
   end
 
@@ -131,19 +188,21 @@ defmodule Swarm.Telemetry do
       step: step,
       input_tokens: Keyword.get(opts, :input_tokens, 0),
       output_tokens: Keyword.get(opts, :output_tokens, 0),
-      tool_call_count: Keyword.get(opts, :tool_call_count, 0)
+      tool_call_count: Keyword.get(opts, :tool_call_count, 0),
+      metadata: Keyword.get(opts, :metadata, %{})
     })
   end
 
   @doc "Emit LLM call exception event."
-  @spec llm_call_exception(String.t(), pos_integer(), atom(), term(), list()) :: :ok
-  def llm_call_exception(loop_id, step, kind, reason, stacktrace) do
+  @spec llm_call_exception(String.t(), pos_integer(), atom(), term(), list(), map()) :: :ok
+  def llm_call_exception(loop_id, step, kind, reason, stacktrace, metadata \\ %{}) do
     emit(Events.llm_call_exception(), %{
       loop_id: loop_id,
       step: step,
       kind: kind,
       reason: reason,
-      stacktrace: stacktrace
+      stacktrace: stacktrace,
+      metadata: metadata
     })
   end
 
@@ -152,13 +211,14 @@ defmodule Swarm.Telemetry do
   # =============================================================================
 
   @doc "Emit tool execution start event."
-  @spec tool_execute_start(String.t(), pos_integer(), String.t(), String.t()) :: :ok
-  def tool_execute_start(loop_id, step, tool_id, tool_name) do
+  @spec tool_execute_start(String.t(), pos_integer(), String.t(), String.t(), map()) :: :ok
+  def tool_execute_start(loop_id, step, tool_id, tool_name, metadata \\ %{}) do
     emit(Events.tool_execute_start(), %{
       loop_id: loop_id,
       step: step,
       tool_id: tool_id,
-      tool_name: tool_name
+      tool_name: tool_name,
+      metadata: metadata
     })
   end
 
@@ -170,7 +230,8 @@ defmodule Swarm.Telemetry do
       step: step,
       tool_id: tool_id,
       tool_name: tool_name,
-      is_error: Keyword.get(opts, :is_error, false)
+      is_error: Keyword.get(opts, :is_error, false),
+      metadata: Keyword.get(opts, :metadata, %{})
     })
   end
 
@@ -182,10 +243,11 @@ defmodule Swarm.Telemetry do
           String.t(),
           atom(),
           term(),
-          list()
+          list(),
+          map()
         ) ::
           :ok
-  def tool_execute_exception(loop_id, step, tool_id, tool_name, kind, reason, stacktrace) do
+  def tool_execute_exception(loop_id, step, tool_id, tool_name, kind, reason, stacktrace, metadata \\ %{}) do
     emit(Events.tool_execute_exception(), %{
       loop_id: loop_id,
       step: step,
@@ -193,7 +255,8 @@ defmodule Swarm.Telemetry do
       tool_name: tool_name,
       kind: kind,
       reason: reason,
-      stacktrace: stacktrace
+      stacktrace: stacktrace,
+      metadata: metadata
     })
   end
 
@@ -202,44 +265,48 @@ defmodule Swarm.Telemetry do
   # =============================================================================
 
   @doc "Emit child spawn start event."
-  @spec child_spawn_start(String.t(), pos_integer(), String.t(), Swarm.SpawnChildAgent.t()) :: :ok
+  @spec child_spawn_start(String.t(), pos_integer(), String.t(), Swarm.SpawnChildAgent.t(), map()) :: :ok
   def child_spawn_start(
         parent_loop_id,
         parent_step,
         tool_call_id,
-        %Swarm.SpawnChildAgent{} = request
+        %Swarm.SpawnChildAgent{} = request,
+        metadata \\ %{}
       ) do
     emit(Events.child_spawn_start(), %{
       parent_loop_id: parent_loop_id,
       parent_step: parent_step,
       tool_call_id: tool_call_id,
       child_agent_module: request.agent.__struct__,
-      task: request.task
+      task: request.task,
+      metadata: metadata
     })
   end
 
   @doc "Emit child spawn stop event."
-  @spec child_spawn_stop(String.t(), Swarm.ChildResult.t()) :: :ok
-  def child_spawn_stop(parent_loop_id, %Swarm.ChildResult{} = result) do
+  @spec child_spawn_stop(String.t(), Swarm.ChildResult.t(), map()) :: :ok
+  def child_spawn_stop(parent_loop_id, %Swarm.ChildResult{} = result, metadata \\ %{}) do
     emit(Events.child_spawn_stop(), %{
       parent_loop_id: parent_loop_id,
       child_loop_id: result.child_loop_id,
       child_status: result.status,
       child_step_count: result.step_count,
       child_total_tokens: result.total_tokens,
-      duration_ms: result.duration_ms
+      duration_ms: result.duration_ms,
+      metadata: metadata
     })
   end
 
   @doc "Emit child spawn exception event."
-  @spec child_spawn_exception(String.t(), String.t(), atom(), term(), list()) :: :ok
-  def child_spawn_exception(parent_loop_id, tool_call_id, kind, reason, stacktrace) do
+  @spec child_spawn_exception(String.t(), String.t(), atom(), term(), list(), map()) :: :ok
+  def child_spawn_exception(parent_loop_id, tool_call_id, kind, reason, stacktrace, metadata \\ %{}) do
     emit(Events.child_spawn_exception(), %{
       parent_loop_id: parent_loop_id,
       tool_call_id: tool_call_id,
       kind: kind,
       reason: reason,
-      stacktrace: stacktrace
+      stacktrace: stacktrace,
+      metadata: metadata
     })
   end
 
@@ -262,6 +329,23 @@ defmodule Swarm.Telemetry do
   @spec run_span(map(), (-> {term(), map()})) :: term()
   def run_span(metadata, fun) when is_function(fun, 0) do
     :telemetry.span([:swarm, :run], metadata, fun)
+  end
+
+  @doc """
+  Execute a function within a step telemetry span.
+
+  Automatically emits `[:swarm, :step, :start/:stop/:exception]` events with timing.
+
+  ## Example
+
+      Swarm.Telemetry.step_span(%{loop_id: id, step: 1, metadata: %{}}, fn ->
+        result = do_step_work()
+        {result, %{}}
+      end)
+  """
+  @spec step_span(map(), (-> {term(), map()})) :: term()
+  def step_span(metadata, fun) when is_function(fun, 0) do
+    :telemetry.span([:swarm, :step], metadata, fun)
   end
 
   @doc """
@@ -376,6 +460,23 @@ defmodule Swarm.Telemetry do
     duration = Map.get(measurements, :duration, 0) |> native_to_ms()
 
     "[swarm] run:exception loop=#{short_id(metadata.loop_id)} " <>
+      "#{metadata.kind}: #{inspect(metadata.reason)} (#{duration}ms)"
+  end
+
+  defp format_event([:swarm, :step, :start], _measurements, metadata) do
+    "[swarm] step:start loop=#{short_id(metadata.loop_id)} step=#{metadata.step}"
+  end
+
+  defp format_event([:swarm, :step, :stop], measurements, metadata) do
+    duration = Map.get(measurements, :duration, 0) |> native_to_ms()
+
+    "[swarm] step:stop  loop=#{short_id(metadata.loop_id)} step=#{metadata.step} (#{duration}ms)"
+  end
+
+  defp format_event([:swarm, :step, :exception], measurements, metadata) do
+    duration = Map.get(measurements, :duration, 0) |> native_to_ms()
+
+    "[swarm] step:exception loop=#{short_id(metadata.loop_id)} step=#{metadata.step} " <>
       "#{metadata.kind}: #{inspect(metadata.reason)} (#{duration}ms)"
   end
 

@@ -5,14 +5,19 @@ defmodule FrontmanServer.Application do
 
   use Application
 
+  alias FrontmanServer.Observability.ConsoleHandler
+  alias FrontmanServer.Observability.OtelHandler
+  alias FrontmanServer.Observability.SwarmOtelHandler
+
   @impl true
   def start(_type, _args) do
     # Setup telemetry -> OTEL span translation
-    FrontmanServer.Observability.OtelHandler.setup()
+    OtelHandler.setup()
+    SwarmOtelHandler.setup()
 
     # Setup console telemetry logging in dev
     if Application.get_env(:frontman_server, :env) == :dev do
-      FrontmanServer.Observability.ConsoleHandler.setup()
+      ConsoleHandler.setup()
     end
 
     # Add Sentry logger handler to capture crashed process exceptions

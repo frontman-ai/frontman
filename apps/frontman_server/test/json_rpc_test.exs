@@ -59,7 +59,7 @@ defmodule JsonRpcTest do
     test "parses valid error response" do
       message = error_response_message(id: 1)
 
-      assert {:ok, {:error, 1, %{"code" => -32601, "message" => "Method not found"}}} =
+      assert {:ok, {:error, 1, %{"code" => -32_601, "message" => "Method not found"}}} =
                JsonRpc.parse_response(message)
     end
 
@@ -118,7 +118,7 @@ defmodule JsonRpcTest do
 
   describe "error_response/3" do
     test "builds valid error response" do
-      assert JsonRpc.error_response(1, -32601, "Method not found") ==
+      assert JsonRpc.error_response(1, -32_601, "Method not found") ==
                error_response_message(id: 1)
     end
   end

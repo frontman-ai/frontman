@@ -25,11 +25,11 @@ defmodule JsonRpc do
   @jsonrpc_version "2.0"
 
   # Standard JSON-RPC 2.0 error codes
-  @error_parse -32700
-  @error_invalid_request -32600
-  @error_method_not_found -32601
-  @error_invalid_params -32602
-  @error_internal -32603
+  @error_parse -32_700
+  @error_invalid_request -32_600
+  @error_method_not_found -32_601
+  @error_invalid_params -32_602
+  @error_internal -32_603
 
   def error_parse, do: @error_parse
   def error_invalid_request, do: @error_invalid_request
@@ -85,9 +85,8 @@ defmodule JsonRpc do
   """
   def parse_response(message) when is_map(message) do
     with {:ok, _version} <- validate_version(message),
-         {:ok, _id} <- extract_id(message),
-         {:ok, response_type} <- extract_response_type(message) do
-      {:ok, response_type}
+         {:ok, _id} <- extract_id(message) do
+      extract_response_type(message)
     end
   end
 

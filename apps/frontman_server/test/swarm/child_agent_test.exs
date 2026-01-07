@@ -1,22 +1,23 @@
 defmodule Swarm.ChildAgentTest do
   @moduledoc """
-  Integration tests for sub-agent spawning via run_child/5.
+  Integration tests for sub-agent spawning via run_child/4.
   """
   use FrontmanServer.SwarmCase, async: true
 
-  alias Swarm.{SpawnChildAgent, ChildResult, Message}
+  alias Swarm.{ChildResult, Loop, Message, SpawnChildAgent}
 
-  describe "run_child/5" do
+  describe "run_child/4" do
     test "executes child agent to completion" do
       child_agent = test_agent(mock_llm("Child completed the analysis"))
       spawn_request = SpawnChildAgent.new(child_agent, "Analyze the auth module")
 
-      parent_loop_id = Swarm.Id.generate("loop")
+      parent_agent = test_agent(mock_llm("parent"))
+      parent_loop = Loop.make(parent_agent, %Loop.Config{})
       tool_call_id = "tc_spawn_123"
       tool_executor = fn _tc -> {:ok, "tool result"} end
 
       child_result =
-        Swarm.run_child(parent_loop_id, 1, tool_call_id, spawn_request, tool_executor)
+        Swarm.run_child(parent_loop, tool_call_id, spawn_request, tool_executor)
 
       assert %ChildResult{} = child_result
       assert child_result.status == :completed
@@ -29,22 +30,25 @@ defmodule Swarm.ChildAgentTest do
       child_agent = test_agent(mock_llm("Done"))
       spawn_request = SpawnChildAgent.new(child_agent, "Task")
 
-      parent_loop_id = Swarm.Id.generate("loop")
-      parent_step = 3
+      parent_agent = test_agent(mock_llm("parent"))
+      parent_loop = Loop.make(parent_agent, %Loop.Config{}) |> Map.put(:current_step, 3)
 
       child_result =
-        Swarm.run_child(parent_loop_id, parent_step, "tc_1", spawn_request, fn _ -> {:ok, ""} end)
+        Swarm.run_child(parent_loop, "tc_1", spawn_request, fn _ -> {:ok, ""} end)
 
-      assert child_result.loop.parent_id == parent_loop_id
-      assert child_result.loop.parent_step == parent_step
+      assert child_result.loop.parent_id == parent_loop.id
+      assert child_result.loop.parent_step == 3
     end
 
     test "child receives task as user message" do
       child_agent = test_agent(mock_llm("Acknowledged"))
       spawn_request = SpawnChildAgent.new(child_agent, "Please analyze module X")
 
+      parent_agent = test_agent(mock_llm("parent"))
+      parent_loop = Loop.make(parent_agent, %Loop.Config{})
+
       child_result =
-        Swarm.run_child(Swarm.Id.generate("loop"), 1, "tc_1", spawn_request, fn _ -> {:ok, ""} end)
+        Swarm.run_child(parent_loop, "tc_1", spawn_request, fn _ -> {:ok, ""} end)
 
       [step | _] = child_result.loop.steps
       user_message = Enum.find(step.input_messages, &(&1.role == :user))
@@ -68,8 +72,11 @@ defmodule Swarm.ChildAgentTest do
         {:ok, "def authenticate(user), do: :ok"}
       end
 
+      parent_agent = test_agent(mock_llm("parent"))
+      parent_loop = Loop.make(parent_agent, %Loop.Config{})
+
       child_result =
-        Swarm.run_child(Swarm.Id.generate("loop"), 1, "tc_spawn", spawn_request, tool_executor)
+        Swarm.run_child(parent_loop, "tc_spawn", spawn_request, tool_executor)
 
       assert child_result.status == :completed
       assert child_result.result == "Analysis complete: found 3 issues"
@@ -80,8 +87,11 @@ defmodule Swarm.ChildAgentTest do
       child_agent = test_agent(mock_llm({:error, :network_timeout}))
       spawn_request = SpawnChildAgent.new(child_agent, "Do something")
 
+      parent_agent = test_agent(mock_llm("parent"))
+      parent_loop = Loop.make(parent_agent, %Loop.Config{})
+
       child_result =
-        Swarm.run_child(Swarm.Id.generate("loop"), 1, "tc_1", spawn_request, fn _ -> {:ok, ""} end)
+        Swarm.run_child(parent_loop, "tc_1", spawn_request, fn _ -> {:ok, ""} end)
 
       assert child_result.status == :failed
       assert child_result.error == :network_timeout
@@ -106,8 +116,11 @@ defmodule Swarm.ChildAgentTest do
         end
       end
 
+      parent_agent = test_agent(mock_llm("parent"))
+      parent_loop = Loop.make(parent_agent, %Loop.Config{})
+
       child_result =
-        Swarm.run_child(Swarm.Id.generate("loop"), 1, "tc_spawn", spawn_request, tool_executor)
+        Swarm.run_child(parent_loop, "tc_spawn", spawn_request, tool_executor)
 
       assert child_result.status == :completed
       assert child_result.result == "Child got grandchild result"
@@ -141,14 +154,15 @@ defmodule Swarm.ChildAgentTest do
       child_agent = test_agent(mock_llm("Done"))
       spawn_request = SpawnChildAgent.new(child_agent, "Task")
 
-      parent_loop_id = Swarm.Id.generate("loop")
+      parent_agent = test_agent(mock_llm("parent"))
+      parent_loop = Loop.make(parent_agent, %Loop.Config{}) |> Map.put(:current_step, 2)
       tool_call_id = "tc_spawn_456"
 
       _result =
-        Swarm.run_child(parent_loop_id, 2, tool_call_id, spawn_request, fn _ -> {:ok, ""} end)
+        Swarm.run_child(parent_loop, tool_call_id, spawn_request, fn _ -> {:ok, ""} end)
 
       assert_receive {^ref, [:swarm, :child, :spawn, :start], _measurements, metadata}
-      assert metadata.parent_loop_id == parent_loop_id
+      assert metadata.parent_loop_id == parent_loop.id
       assert metadata.parent_step == 2
       assert metadata.tool_call_id == tool_call_id
       assert metadata.task == "Task"
@@ -158,13 +172,14 @@ defmodule Swarm.ChildAgentTest do
       child_agent = test_agent(mock_llm("Child completed"))
       spawn_request = SpawnChildAgent.new(child_agent, "Task")
 
-      parent_loop_id = Swarm.Id.generate("loop")
+      parent_agent = test_agent(mock_llm("parent"))
+      parent_loop = Loop.make(parent_agent, %Loop.Config{})
 
       _result =
-        Swarm.run_child(parent_loop_id, 1, "tc_1", spawn_request, fn _ -> {:ok, ""} end)
+        Swarm.run_child(parent_loop, "tc_1", spawn_request, fn _ -> {:ok, ""} end)
 
       assert_receive {^ref, [:swarm, :child, :spawn, :stop], measurements, metadata}
-      assert metadata.parent_loop_id == parent_loop_id
+      assert metadata.parent_loop_id == parent_loop.id
       assert metadata.child_status == :completed
       assert is_integer(metadata.child_step_count)
       # Duration is in measurements (native time units) per telemetry convention
@@ -180,17 +195,18 @@ defmodule Swarm.ChildAgentTest do
       child_agent = test_agent(child_llm)
       spawn_request = SpawnChildAgent.new(child_agent, "Crash test")
 
-      parent_loop_id = Swarm.Id.generate("loop")
+      parent_agent = test_agent(mock_llm("parent"))
+      parent_loop = Loop.make(parent_agent, %Loop.Config{})
       tool_call_id = "tc_spawn_crash"
 
       assert_raise RuntimeError, "kaboom", fn ->
-        Swarm.run_child(parent_loop_id, 1, tool_call_id, spawn_request, fn _tc ->
+        Swarm.run_child(parent_loop, tool_call_id, spawn_request, fn _tc ->
           raise "kaboom"
         end)
       end
 
       assert_receive {^ref, [:swarm, :child, :spawn, :exception], _measurements, metadata}
-      assert metadata.parent_loop_id == parent_loop_id
+      assert metadata.parent_loop_id == parent_loop.id
       assert metadata.tool_call_id == tool_call_id
       assert metadata.kind == :error
     end

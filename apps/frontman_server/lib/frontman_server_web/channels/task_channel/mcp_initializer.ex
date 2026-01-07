@@ -14,6 +14,7 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
   require Logger
 
   alias FrontmanServer.Tasks
+  alias FrontmanServer.Tools.MCP, as: MCPTools
   alias JsonRpc
   alias ModelContextProtocol, as: MCP
 
@@ -184,7 +185,7 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
 
   defp handle_tools_response(result, state) do
     raw_tools = Map.get(result, "tools", [])
-    tools = FrontmanServer.Tools.MCP.from_maps(raw_tools)
+    tools = MCPTools.from_maps(raw_tools)
 
     Logger.info("MCPInitializer: Received #{length(tools)} tools from MCP server")
 
@@ -217,7 +218,7 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
     content = Map.get(result, "content", [])
 
     text_result =
-      Enum.map(content, fn block -> Map.get(block, "text", "") end) |> Enum.join("\n")
+      Enum.map_join(content, "\n", fn block -> Map.get(block, "text", "") end)
 
     case Jason.decode(text_result) do
       {:ok, results} when is_list(results) ->

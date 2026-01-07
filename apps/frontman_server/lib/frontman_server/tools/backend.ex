@@ -13,7 +13,6 @@ defmodule FrontmanServer.Tools.Backend do
 
     typedstruct do
       field :task, Task.t(), enforce: true
-      field :agent_id, String.t(), enforce: true
       field :llm_opts, keyword(), default: []
     end
   end

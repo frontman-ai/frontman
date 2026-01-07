@@ -67,7 +67,7 @@ defmodule FrontmanServer.Tools.ReplaceComponent do
   end
 
   @impl true
-  def execute(args, %Context{task: task, agent_id: parent_agent_id, llm_opts: llm_opts}) do
+  def execute(args, %Context{task: task, llm_opts: llm_opts}) do
     component_name = Map.get(args, "componentName")
     source_file_path = Map.get(args, "sourceFilePath")
     target_file_path = Map.get(args, "targetFilePath")
@@ -80,9 +80,8 @@ defmodule FrontmanServer.Tools.ReplaceComponent do
 
     user_msg = build_user_message(args)
 
-    agent_id = "replace_component_#{parent_agent_id}"
     agent = SpecializedAgent.new(:replace_component, tools: mcp_tools, llm_opts: llm_opts)
-    tool_executor = ToolExecutor.make_executor(task.task_id, agent_id)
+    tool_executor = ToolExecutor.make_executor(task.task_id)
 
     case Swarm.run_blocking(agent, [user_msg], tool_executor) do
       {:ok, result} ->
@@ -109,10 +108,7 @@ defmodule FrontmanServer.Tools.ReplaceComponent do
     test_page_file_path = Map.get(args, "testPageFilePath")
     files_created = Map.get(args, "filesCreated", [])
 
-    files_str =
-      files_created
-      |> Enum.map(&"  - #{&1}")
-      |> Enum.join("\n")
+    files_str = Enum.map_join(files_created, "\n", &"  - #{&1}")
 
     cleanup_instructions =
       if test_page_file_path do

@@ -1,17 +1,20 @@
 defmodule FrontmanServer.ToolsTest do
   use ExUnit.Case, async: true
 
-  alias FrontmanServer.Tools.Backend.Context
-  alias FrontmanServer.Tools
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Todos.Todo
+  alias FrontmanServer.Tools
+  alias FrontmanServer.Tools.Backend.Context
+  alias FrontmanServer.Tools.TodoAdd
+  alias FrontmanServer.Tools.TodoList
+  alias FrontmanServer.Tools.TodoRemove
+  alias FrontmanServer.Tools.TodoUpdate
 
   setup do
     task_id = "test_task_#{:rand.uniform(1_000_000)}"
-    agent_id = "agent_#{:rand.uniform(1_000_000)}"
     {:ok, ^task_id} = Tasks.create_task(task_id)
     {:ok, task} = Tasks.get_task(task_id)
-    {:ok, task_id: task_id, agent_id: agent_id, task: task}
+    {:ok, task_id: task_id, task: task}
   end
 
   describe "backend_tools/0" do
@@ -30,7 +33,7 @@ defmodule FrontmanServer.ToolsTest do
   describe "find_tool/1" do
     test "finds existing tool" do
       assert {:ok, module} = Tools.find_tool("todo_list")
-      assert module == FrontmanServer.Tools.TodoList
+      assert module == TodoList
     end
 
     test "returns :not_found for non-existent tool" do
@@ -55,11 +58,11 @@ defmodule FrontmanServer.ToolsTest do
   # Note: execute_backend_tool/2 functionality moved to ToolExecutor.execute/3
 
   describe "tool execution via module.execute/2" do
-    test "todo_add returns Todo struct", %{task: task, agent_id: agent_id} do
-      context = %Context{task: task, agent_id: agent_id}
+    test "todo_add returns Todo struct", %{task: task} do
+      context = %Context{task: task}
 
       result =
-        FrontmanServer.Tools.TodoAdd.execute(
+        TodoAdd.execute(
           %{"content" => "Test todo", "active_form" => "Testing todo"},
           context
         )
@@ -69,50 +72,50 @@ defmodule FrontmanServer.ToolsTest do
       assert todo.status == :pending
     end
 
-    test "todo_list returns todos after adding", %{task_id: task_id, agent_id: agent_id} do
+    test "todo_list returns todos after adding", %{task_id: task_id} do
       {:ok, task} = Tasks.get_task(task_id)
-      context = %Context{task: task, agent_id: agent_id}
+      context = %Context{task: task}
 
       # Add a todo
       {:ok, todo} =
-        FrontmanServer.Tools.TodoAdd.execute(
+        TodoAdd.execute(
           %{"content" => "Test", "active_form" => "Testing"},
           context
         )
 
       # Store the result
-      Tasks.add_tool_result(task_id, agent_id, %{id: "call1", name: "todo_add"}, todo, false)
+      Tasks.add_tool_result(task_id, %{id: "call1", name: "todo_add"}, todo, false)
 
       # Refresh task to get updated interactions
       {:ok, updated_task} = Tasks.get_task(task_id)
-      updated_context = %Context{task: updated_task, agent_id: agent_id}
+      updated_context = %Context{task: updated_task}
 
       # List todos
-      {:ok, result} = FrontmanServer.Tools.TodoList.execute(%{}, updated_context)
+      {:ok, result} = TodoList.execute(%{}, updated_context)
       assert %{"todos" => todos} = result
       assert length(todos) == 1
     end
 
-    test "todo_update returns updated Todo", %{task_id: task_id, agent_id: agent_id} do
+    test "todo_update returns updated Todo", %{task_id: task_id} do
       {:ok, task} = Tasks.get_task(task_id)
-      context = %Context{task: task, agent_id: agent_id}
+      context = %Context{task: task}
 
       # Add a todo
       {:ok, todo} =
-        FrontmanServer.Tools.TodoAdd.execute(
+        TodoAdd.execute(
           %{"content" => "Test", "active_form" => "Testing"},
           context
         )
 
-      Tasks.add_tool_result(task_id, agent_id, %{id: "call1", name: "todo_add"}, todo, false)
+      Tasks.add_tool_result(task_id, %{id: "call1", name: "todo_add"}, todo, false)
 
       # Refresh task to get updated interactions
       {:ok, updated_task} = Tasks.get_task(task_id)
-      updated_context = %Context{task: updated_task, agent_id: agent_id}
+      updated_context = %Context{task: updated_task}
 
       # Update it
       {:ok, %Todo{} = updated} =
-        FrontmanServer.Tools.TodoUpdate.execute(
+        TodoUpdate.execute(
           %{"id" => todo.id, "status" => "completed"},
           updated_context
         )
@@ -120,26 +123,26 @@ defmodule FrontmanServer.ToolsTest do
       assert updated.status == :completed
     end
 
-    test "todo_remove returns todo_id", %{task_id: task_id, agent_id: agent_id} do
+    test "todo_remove returns todo_id", %{task_id: task_id} do
       {:ok, task} = Tasks.get_task(task_id)
-      context = %Context{task: task, agent_id: agent_id}
+      context = %Context{task: task}
 
       # Add a todo
       {:ok, todo} =
-        FrontmanServer.Tools.TodoAdd.execute(
+        TodoAdd.execute(
           %{"content" => "Test", "active_form" => "Testing"},
           context
         )
 
-      Tasks.add_tool_result(task_id, agent_id, %{id: "call1", name: "todo_add"}, todo, false)
+      Tasks.add_tool_result(task_id, %{id: "call1", name: "todo_add"}, todo, false)
 
       # Refresh task to get updated interactions
       {:ok, updated_task} = Tasks.get_task(task_id)
-      updated_context = %Context{task: updated_task, agent_id: agent_id}
+      updated_context = %Context{task: updated_task}
 
       # Remove it
       {:ok, removed_id} =
-        FrontmanServer.Tools.TodoRemove.execute(%{"id" => todo.id}, updated_context)
+        TodoRemove.execute(%{"id" => todo.id}, updated_context)
 
       assert removed_id == todo.id
     end

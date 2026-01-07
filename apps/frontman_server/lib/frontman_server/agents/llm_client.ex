@@ -107,6 +107,10 @@ defimpl Swarm.LLM, for: FrontmanServer.Agents.LLMClient do
     Chunk.token(text)
   end
 
+  defp to_swarm_chunk(%{type: :thinking, text: text, metadata: meta}) when is_binary(text) do
+    Chunk.thinking(text, meta || %{})
+  end
+
   defp to_swarm_chunk(%{type: :thinking, text: text}) when is_binary(text) do
     Chunk.thinking(text)
   end

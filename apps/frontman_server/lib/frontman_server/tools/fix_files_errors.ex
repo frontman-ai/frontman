@@ -62,7 +62,7 @@ defmodule FrontmanServer.Tools.FixFilesErrors do
   end
 
   @impl true
-  def execute(args, %Context{task: task, agent_id: parent_agent_id, llm_opts: llm_opts}) do
+  def execute(args, %Context{task: task, llm_opts: llm_opts}) do
     component_name = Map.get(args, "componentName")
     files_created = Map.get(args, "filesCreated", [])
     test_page_url = Map.get(args, "testPageUrl")
@@ -79,9 +79,8 @@ defmodule FrontmanServer.Tools.FixFilesErrors do
     markdown_messages = extract_markdown_messages_from_task(task.task_id)
     messages = markdown_messages ++ [user_msg]
 
-    agent_id = "fix_errors_#{parent_agent_id}"
     agent = SpecializedAgent.new(:fix_files_errors, tools: mcp_tools, llm_opts: llm_opts)
-    tool_executor = ToolExecutor.make_executor(task.task_id, agent_id)
+    tool_executor = ToolExecutor.make_executor(task.task_id)
 
     case Swarm.run_blocking(agent, messages, tool_executor) do
       {:ok, result} ->
@@ -106,10 +105,7 @@ defmodule FrontmanServer.Tools.FixFilesErrors do
     files_created = Map.get(args, "filesCreated", [])
     test_page_url = Map.get(args, "testPageUrl")
 
-    files_str =
-      files_created
-      |> Enum.map(&"  - #{&1}")
-      |> Enum.join("\n")
+    files_str = Enum.map_join(files_created, "\n", &"  - #{&1}")
 
     task_text = """
     ## Fix Component Errors

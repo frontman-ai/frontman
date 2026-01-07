@@ -8,6 +8,15 @@ module ACP = FrontmanFrontmanClient.FrontmanClient__ACP
 module Relay = FrontmanFrontmanClient.FrontmanClient__Relay
 module MCPServer = FrontmanFrontmanClient.FrontmanClient__MCP__Server
 
+// Configuration for initialization
+type initConfig = {
+  endpoint: string,
+  clientName: string,
+  clientVersion: string,
+  baseUrl: string,
+  onACPMessage: (ACP.messageDirection, JSON.t) => unit,
+}
+
 // Connection states
 type acpState =
   | ACPDisconnected
@@ -35,10 +44,20 @@ type state = {
   relayInstance: option<Relay.t>,
   // MCPServer created once relay instance exists
   mcpServer: option<MCPServer.t>,
+  // AbortController for cancelling in-flight connections on cleanup
+  abortController: option<WebAPI.EventAPI.abortController>,
+}
+
+// Initialization payload - includes pre-created instances
+type initPayload = {
+  config: initConfig,
+  relay: Relay.t,
+  mcpServer: MCPServer.t,
 }
 
 // Actions
 type action =
+  | Initialize(initPayload)
   | ACPConnectStart
   | ACPConnectSuccess(ACP.connection)
   | ACPConnectError(string)
@@ -56,9 +75,11 @@ type action =
 type effect =
   | LogError(string)
   | LogInfo(string)
+  | ConnectACP({config: ACP.config, signal: WebAPI.EventAPI.abortSignal})
   | ConnectRelay(Relay.t)
-  | CreateMCPServer(Relay.t)
   | DisconnectRelay(Relay.t)
+  | DisconnectACP(ACP.connection)
+  | AbortConnections(WebAPI.EventAPI.abortController)
 
 let initialState: state = {
   acp: ACPDisconnected,
@@ -66,6 +87,7 @@ let initialState: state = {
   session: NoSession,
   relayInstance: None,
   mcpServer: None,
+  abortController: None,
 }
 
 module Selectors = {
@@ -157,6 +179,32 @@ module Selectors = {
 
 let reduce = (state: state, action: action): (state, array<effect>) => {
   switch (state, action) {
+  // === Initialize - single entry point for connection setup ===
+  | ({acp: ACPDisconnected, relay: RelayDisconnected}, Initialize({config, relay, mcpServer})) =>
+    let acpConfig = ACP.makeConfig(
+      ~endpoint=config.endpoint,
+      ~name=config.clientName,
+      ~version=config.clientVersion,
+      ~onMessage=config.onACPMessage,
+    )
+    // Create AbortController to cancel connections on cleanup
+    let abortController = WebAPI.AbortController.make()
+    (
+      {
+        acp: ACPConnecting,
+        relay: RelayConnecting,
+        session: NoSession,
+        relayInstance: Some(relay),
+        mcpServer: Some(mcpServer),
+        abortController: Some(abortController),
+      },
+      [
+        ConnectACP({config: acpConfig, signal: abortController.signal}),
+        ConnectRelay(relay),
+        LogInfo("Initializing connections..."),
+      ],
+    )
+
   // === ACP connection flow ===
   | ({acp: ACPDisconnected}, ACPConnectStart) => ({...state, acp: ACPConnecting}, [])
 
@@ -171,10 +219,10 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
     )
 
   // === Relay lifecycle ===
-  // Relay instance created - triggers MCPServer creation
+  // Legacy: Relay instance created (now handled by Initialize)
   | ({relayInstance: None}, RelayInstanceCreated(relay)) => (
       {...state, relayInstance: Some(relay)},
-      [CreateMCPServer(relay)],
+      [],
     )
 
   | ({relay: RelayDisconnected, relayInstance: Some(relay)}, RelayConnectStart) => (
@@ -227,20 +275,26 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
 
   // === Cleanup ===
   | (_, Cleanup) =>
-    let effects = switch state.relayInstance {
+    let abortEffects = switch state.abortController {
+    | Some(controller) => [AbortConnections(controller)]
+    | None => []
+    }
+    let relayEffects = switch state.relayInstance {
     | Some(relay) => [DisconnectRelay(relay)]
     | None => []
     }
-    (
-      {
-        ...initialState,
-        relayInstance: state.relayInstance,
-        mcpServer: state.mcpServer,
-      },
-      effects,
-    )
+    let acpEffects = switch state.acp {
+    | ACPConnected(conn) => [DisconnectACP(conn)]
+    | _ => []
+    }
+    (initialState, Array.flat([abortEffects, relayEffects, acpEffects]))
 
   // === Invalid transitions ===
+  | (_, Initialize(_)) => (
+      state,
+      [LogError("Invalid: already initialized")],
+    )
+
   | ({acp: ACPConnecting | ACPConnected(_) | ACPError(_)}, ACPConnectStart) => (
       state,
       [LogError("Invalid: ACP connect already in progress or completed")],
@@ -273,5 +327,61 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
 
   // Ignore other invalid transitions silently
   | _ => (state, [])
+  }
+}
+
+// StateReducer.Interface implementation
+let name = "ConnectionReducer"
+
+// Alias for StateReducer compatibility
+let next = reduce
+
+// Effect handler - executed in useEffect, not during dispatch
+// This receives current state and dispatch, so async callbacks can safely dispatch
+let handleEffect = (effect: effect, _state: state, dispatch: action => unit) => {
+  switch effect {
+  | LogError(msg) => Console.error(`[FrontmanProvider] ${msg}`)
+  | LogInfo(msg) => Console.log(`[FrontmanProvider] ${msg}`)
+  | DisconnectRelay(relay) => Relay.disconnect(relay)
+  | DisconnectACP(_) => ()
+  | AbortConnections(controller) =>
+    Console.log("[FrontmanProvider] Aborting in-flight connections")
+    WebAPI.AbortController.abort(controller)
+  | ConnectACP({config, signal}) =>
+    let connect = async () => {
+      let result = await ACP.connect(config, ~signal)
+      switch result {
+      | Ok(conn) => dispatch(ACPConnectSuccess(conn))
+      | Error(err) =>
+        // Don't dispatch error for aborted connections - component is unmounting
+        if signal.aborted {
+          Console.log(`[FrontmanProvider] ACP connection aborted (cleanup): ${err}`)
+        } else {
+          dispatch(ACPConnectError(err))
+        }
+      }
+    }
+    connect()->ignore
+  | ConnectRelay(relay) =>
+    let connect = async () => {
+      let result = await Relay.connect(relay)
+      switch result {
+      | Ok() =>
+        dispatch(RelayConnectSuccess)
+        switch Relay.getState(relay) {
+        | Connected({tools, serverInfo}) =>
+          Console.log3(
+            `[FrontmanProvider] ${serverInfo.name} v${serverInfo.version} - ${tools
+              ->Array.length
+              ->Int.toString} relay tools available`,
+            tools->Array.map(t => t.name),
+            (),
+          )
+        | _ => ()
+        }
+      | Error(err) => dispatch(RelayConnectError(err))
+      }
+    }
+    connect()->ignore
   }
 }

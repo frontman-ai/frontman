@@ -10,12 +10,11 @@ defmodule FrontmanServer.Tools.ImplementComponentTest do
 
   import FrontmanServer.Test.Fixtures.Tools
 
-  alias FrontmanServer.Tools.ImplementComponent
   alias FrontmanServer.Tasks
+  alias FrontmanServer.Tools.ImplementComponent
 
   setup context do
     task_id = "test_task_#{System.unique_integer([:positive])}"
-    agent_id = "agent_#{System.unique_integer([:positive])}"
     {:ok, ^task_id} = Tasks.create_task(task_id)
     {:ok, task} = Tasks.get_task(task_id)
 
@@ -26,9 +25,9 @@ defmodule FrontmanServer.Tools.ImplementComponentTest do
       if fixture_path, do: [fixture_path: fixture_path], else: []
 
     # Build tool execution context
-    context = tool_context(task, agent_id, llm_opts)
+    context = tool_context(task, llm_opts)
 
-    {:ok, task_id: task_id, agent_id: agent_id, task: task, llm_opts: llm_opts, context: context}
+    {:ok, task_id: task_id, task: task, llm_opts: llm_opts, context: context}
   end
 
   describe "execute/2" do
@@ -49,7 +48,6 @@ defmodule FrontmanServer.Tools.ImplementComponentTest do
 
     test "injects markdown context from task interactions into sub-agent", %{
       task_id: task_id,
-      agent_id: agent_id,
       llm_opts: llm_opts
     } do
       # Add markdown file to task interactions
@@ -64,7 +62,7 @@ defmodule FrontmanServer.Tools.ImplementComponentTest do
 
       # Get updated task with markdown in interactions
       {:ok, updated_task} = Tasks.get_task(task_id)
-      context = tool_context(updated_task, agent_id, llm_opts)
+      context = tool_context(updated_task, llm_opts)
 
       args = build_args()
 
@@ -114,7 +112,6 @@ defmodule FrontmanServer.Tools.ImplementComponentTest do
 
     test "injects multiple markdown files in order", %{
       task_id: task_id,
-      agent_id: agent_id,
       llm_opts: llm_opts
     } do
       # Add multiple markdown files
@@ -128,7 +125,7 @@ defmodule FrontmanServer.Tools.ImplementComponentTest do
       )
 
       {:ok, updated_task} = Tasks.get_task(task_id)
-      context = tool_context(updated_task, agent_id, llm_opts)
+      context = tool_context(updated_task, llm_opts)
 
       args = build_args()
 

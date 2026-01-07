@@ -24,6 +24,8 @@ defmodule FrontmanServer.Test.Fixtures.Agents do
       end
   """
 
+  alias FixturePath
+
   @doc """
   Build multiple fixtures from a list of atoms.
 
@@ -69,7 +71,7 @@ defmodule FrontmanServer.Test.Fixtures.Agents do
 
       {_, fixture_name} when is_binary(fixture_name) ->
         # Explicit fixture name via tag - use FixturePath to resolve
-        path = ReqLLM.Test.FixturePath.for_explicit(fixture_name)
+        path = FixturePath.for_explicit(fixture_name)
         llm_model = infer_llm_model_from_fixture(path)
         opts = [fixture_path: path]
         if llm_model, do: Keyword.put(opts, :llm_model, llm_model), else: opts

@@ -10,9 +10,9 @@ defmodule FrontmanServer.Tools.BreakdownFigmaDesign do
   require Logger
 
   alias FrontmanServer.Agents.{SpecializedAgent, ToolExecutor}
+  alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Tools.Backend.Context
   alias FrontmanServer.Tools.MCP
-  alias FrontmanServer.Tasks.Interaction
   alias Swarm.Message
 
   @impl true
@@ -62,7 +62,7 @@ defmodule FrontmanServer.Tools.BreakdownFigmaDesign do
   end
 
   @impl true
-  def execute(args, %Context{task: task, agent_id: parent_agent_id}) do
+  def execute(args, %Context{task: task}) do
     node_id = Map.get(args, "nodeId")
     max_volume = Map.get(args, "maxComponentVolume", 5)
     figma_context = Map.get(args, "context")
@@ -78,11 +78,9 @@ defmodule FrontmanServer.Tools.BreakdownFigmaDesign do
         user_msg =
           build_user_message(node_id, max_volume, figma_context, figma_image, figma_skeleton)
 
-        agent_id = "figma_breakdown_#{parent_agent_id}"
-
         # Build FigmaBreakdownAgent and executor
         agent = SpecializedAgent.new(:figma_breakdown, tools: mcp_tools)
-        tool_executor = ToolExecutor.make_executor(task.task_id, agent_id)
+        tool_executor = ToolExecutor.make_executor(task.task_id)
 
         case Swarm.run_blocking(agent, [user_msg], tool_executor) do
           {:ok, result} ->

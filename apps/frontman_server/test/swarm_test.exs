@@ -1,6 +1,8 @@
 defmodule SwarmTest do
   use FrontmanServer.SwarmCase, async: true
 
+  alias Swarm.Message.ContentPart
+
   @moduledoc """
   Integration tests for Swarm.run/2 and Swarm.continue/2 API.
   """
@@ -222,8 +224,8 @@ defmodule SwarmTest do
 
       # Create a message with text and image content parts
       content = [
-        Swarm.Message.ContentPart.text("What's in this image?"),
-        Swarm.Message.ContentPart.image_url("https://example.com/image.png")
+        ContentPart.text("What's in this image?"),
+        ContentPart.image_url("https://example.com/image.png")
       ]
 
       message = %Swarm.Message{role: :user, content: content}

@@ -1,5 +1,9 @@
-# lib/my_app/finch_logger.ex
 defmodule FrontmanServer.FinchLogger do
+  @moduledoc """
+  Telemetry handler for Finch HTTP client events.
+  Logs HTTP request details while filtering sensitive headers.
+  """
+
   require Logger
 
   @safe_headers ["content-type", "accept", "user-agent", "content-length", "host"]

@@ -71,36 +71,63 @@ let joinChannel = (channel: Channel.t): promise<result<unit, string>> => {
   })
 }
 
-// Connect and initialize ACP
-let connect = async (config: config): result<connection, string> => {
-  let socket = Socket.make(~endpoint=config.endpoint)
-  let channel = socket->Socket.channel(~topic=Constants.tasksTopic)
-  let state = ref(Client.initialState)
-  let clientConfig: Client.config = {
-    channel,
-    clientInfo: config.clientInfo,
-    clientCapabilities: config.clientCapabilities,
+// Helper to check abort status
+let checkAborted = (signal: option<WebAPI.EventAPI.abortSignal>): result<unit, string> => {
+  switch signal {
+  | Some(s) if s.aborted => Error("Connection aborted")
+  | _ => Ok()
   }
+}
 
-  Protocol.attachMessageHandler(
-    ~channel,
-    ~state,
-    ~onUpdate=None,
-    ~onMessage=config.onMessage,
-    ~onParseError=None,
-  )
+// Connect and initialize ACP
+let connect = async (config: config, ~signal: option<WebAPI.EventAPI.abortSignal>=?): result<
+  connection,
+  string,
+> => {
+  switch checkAborted(signal) {
+  | Error(e) => Error(e)
+  | Ok() =>
+    let socket = Socket.make(~endpoint=config.endpoint)
+    let channel = socket->Socket.channel(~topic=Constants.tasksTopic)
+    let state = ref(Client.initialState)
+    let clientConfig: Client.config = {
+      channel,
+      clientInfo: config.clientInfo,
+      clientCapabilities: config.clientCapabilities,
+    }
 
-  let initResult = await waitForSocket(socket)
-  ->Result.flatMapOkAsync(_ => joinChannel(channel))
-  ->Result.flatMapOkAsync(_ =>
-    Protocol.sendInitialize(~channel, ~state, ~clientConfig, ~onMessage=config.onMessage)
-  )
+    Protocol.attachMessageHandler(
+      ~channel,
+      ~state,
+      ~onUpdate=None,
+      ~onMessage=config.onMessage,
+      ~onParseError=None,
+    )
 
-  initResult->Result.map(result => {
-    state :=
-      state.contents->Client.reduce(Client.ConnectionStateChanged(Client.Initialized(result)))
-    {socket, channel, clientConfig, state, onMessage: config.onMessage}
-  })
+    let initResult = await waitForSocket(socket)
+    ->Result.flatMapOkAsync(async _ => {
+      switch checkAborted(signal) {
+      | Error(e) => Error(e)
+      | Ok() => await joinChannel(channel)
+      }
+    })
+    ->Result.flatMapOkAsync(async _ => {
+      switch checkAborted(signal) {
+      | Error(e) => Error(e)
+      | Ok() =>
+        await Protocol.sendInitialize(~channel, ~state, ~clientConfig, ~onMessage=config.onMessage)
+      }
+    })
+
+    switch (initResult, checkAborted(signal)) {
+    | (_, Error(e)) => Error(e)
+    | (Error(e), _) => Error(e)
+    | (Ok(result), Ok()) =>
+      state :=
+        state.contents->Client.reduce(Client.ConnectionStateChanged(Client.Initialized(result)))
+      Ok({socket, channel, clientConfig, state, onMessage: config.onMessage})
+    }
+  }
 }
 
 // Get current connection state

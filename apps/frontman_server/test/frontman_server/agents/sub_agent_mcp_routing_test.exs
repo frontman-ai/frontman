@@ -51,8 +51,7 @@ defmodule FrontmanServer.Agents.SubAgentMcpRoutingTest do
       task_id: task_id
     } do
       # ToolExecutor now owns interaction publishing - MCP tools are automatically routed
-      agent_id = "subagent_#{:rand.uniform(1_000_000)}"
-      executor = ToolExecutor.make_executor(task_id, agent_id)
+      executor = ToolExecutor.make_executor(task_id)
 
       tool_call = %ToolCall{
         id: "call_#{:rand.uniform(1_000_000)}",
@@ -83,8 +82,6 @@ defmodule FrontmanServer.Agents.SubAgentMcpRoutingTest do
       task_id: task_id
     } do
       # Integration test using full Swarm execution with a test LLM that returns an MCP tool call
-      agent_id = "component_impl_#{:rand.uniform(1_000_000)}"
-
       mcp_tool_call = %ToolCall{
         id: "call_figma_#{:rand.uniform(1_000_000)}",
         name: "get_figma_node",
@@ -95,7 +92,7 @@ defmodule FrontmanServer.Agents.SubAgentMcpRoutingTest do
       agent = test_agent(llm, "ComponentImplementAgent")
 
       # Simple executor - ToolExecutor handles MCP routing internally
-      executor = ToolExecutor.make_executor(task_id, agent_id)
+      executor = ToolExecutor.make_executor(task_id)
 
       executor_task =
         Task.async(fn ->
