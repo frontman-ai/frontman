@@ -40,6 +40,7 @@ type state = {
   acp: acpState,
   relay: relayState,
   session: sessionState,
+  isSendingPrompt: bool,
   // Relay instance exists before connection completes - needed for MCPServer
   relayInstance: option<Relay.t>,
   // MCPServer created once relay instance exists
@@ -69,6 +70,16 @@ type action =
   | SessionCreateStart
   | SessionCreateSuccess(ACP.session)
   | SessionCreateError(string)
+  | CreateSession({
+      onUpdate: FrontmanFrontmanClient.FrontmanClient__ACP__Types.sessionUpdate => unit,
+      onMcpMessage: (FrontmanFrontmanClient.FrontmanClient__MCP.messageDirection, JSON.t) => unit,
+    })
+  | SendPrompt({
+      text: string,
+      additionalBlocks: array<FrontmanFrontmanClient.FrontmanClient__ACP__Types.contentBlock>,
+      onComplete: result<FrontmanFrontmanClient.FrontmanClient__ACP__Types.promptResult, string> => unit,
+    })
+  | PromptSent
   | Cleanup
 
 // Effects - side effects the reducer wants to trigger
@@ -80,11 +91,24 @@ type effect =
   | DisconnectRelay(Relay.t)
   | DisconnectACP(ACP.connection)
   | AbortConnections(WebAPI.EventAPI.abortController)
+  | CreateSessionEffect({
+      connection: ACP.connection,
+      mcpServer: MCPServer.t,
+      onUpdate: FrontmanFrontmanClient.FrontmanClient__ACP__Types.sessionUpdate => unit,
+      onMcpMessage: (FrontmanFrontmanClient.FrontmanClient__MCP.messageDirection, JSON.t) => unit,
+    })
+  | SendPromptEffect({
+      session: ACP.session,
+      text: string,
+      additionalBlocks: array<FrontmanFrontmanClient.FrontmanClient__ACP__Types.contentBlock>,
+      onComplete: result<FrontmanFrontmanClient.FrontmanClient__ACP__Types.promptResult, string> => unit,
+    })
 
 let initialState: state = {
   acp: ACPDisconnected,
   relay: RelayDisconnected,
   session: NoSession,
+  isSendingPrompt: false,
   relayInstance: None,
   mcpServer: None,
   abortController: None,
@@ -194,6 +218,7 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
         acp: ACPConnecting,
         relay: RelayConnecting,
         session: NoSession,
+        isSendingPrompt: false,
         relayInstance: Some(relay),
         mcpServer: Some(mcpServer),
         abortController: Some(abortController),
@@ -271,6 +296,39 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
   | ({session: SessionCreating}, SessionCreateError(msg)) => (
       {...state, session: SessionError(msg)},
       [LogError(`Session failed: ${msg}`)],
+    )
+
+  | (
+      {acp: ACPConnected(conn), relay: RelayConnected, mcpServer: Some(mcpServer), session: NoSession},
+      CreateSession({onUpdate, onMcpMessage}),
+    ) => (
+      {...state, session: SessionCreating},
+      [CreateSessionEffect({connection: conn, mcpServer, onUpdate, onMcpMessage})],
+    )
+
+  | ({session: SessionActive(session), isSendingPrompt: false}, SendPrompt({text, additionalBlocks, onComplete})) => (
+      {...state, isSendingPrompt: true},
+      [SendPromptEffect({session, text, additionalBlocks, onComplete})],
+    )
+
+  | ({isSendingPrompt: true}, PromptSent) => (
+      {...state, isSendingPrompt: false},
+      [],
+    )
+
+  | ({isSendingPrompt: true}, SendPrompt(_)) => (
+      state,
+      [LogError("Cannot send prompt: already sending")],
+    )
+
+  | ({session: NoSession | SessionCreating | SessionError(_)}, SendPrompt(_)) => (
+      state,
+      [LogError("Cannot send prompt: no active session")],
+    )
+
+  | (_, CreateSession(_)) => (
+      state,
+      [LogError("Cannot create session: not ready")],
     )
 
   // === Cleanup ===
@@ -383,5 +441,31 @@ let handleEffect = (effect: effect, _state: state, dispatch: action => unit) => 
       }
     }
     connect()->ignore
+  | CreateSessionEffect({connection, mcpServer, onUpdate, onMcpMessage}) =>
+    let create = async () => {
+      let mcpServerInterface = MCPServer.toInterface(mcpServer)
+      let result = await ACP.createSession(
+        connection,
+        ~onUpdate,
+        ~mcpServerInterface,
+        ~onMcpMessage,
+      )
+      switch result {
+      | Ok(sess) =>
+        dispatch(SessionCreateSuccess(sess))
+        Console.log2("[ConnectionReducer] Session created:", sess.sessionId)
+      | Error(err) =>
+        dispatch(SessionCreateError(err))
+        Console.error2("[ConnectionReducer] Session creation failed:", err)
+      }
+    }
+    create()->ignore
+  | SendPromptEffect({session, text, additionalBlocks, onComplete}) =>
+    let send = async () => {
+      let result = await ACP.sendPrompt(session, text, ~additionalBlocks)
+      dispatch(PromptSent)
+      onComplete(result)
+    }
+    send()->ignore
   }
 }

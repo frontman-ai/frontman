@@ -253,19 +253,14 @@ let make = () => {
 
   // Auto-create session when ready (both ACP and relay initialized)
   React.useEffect(() => {
-    if isReady && !sessionCreatedRef.current {
-      sessionCreatedRef.current = true
-      Console.log("[App] Provider ready, creating session...")
-      createSession(handleSessionUpdate)
-      ->Promise.thenResolve(result => {
-        switch result {
-        | Ok(_sess) => ()
-        | Error(err) =>
-          sessionCreatedRef.current = false
-          Console.error2("[App] Failed to create session:", err)
-        }
-      })
-      ->ignore
+    switch connectionState {
+    | Connected =>
+      if !sessionCreatedRef.current {
+        sessionCreatedRef.current = true
+        createSession(handleSessionUpdate)
+      }
+    | Error(_) | Disconnected => sessionCreatedRef.current = false
+    | _ => ()
     }
     None
   }, (isReady, handleSessionUpdate, createSession))

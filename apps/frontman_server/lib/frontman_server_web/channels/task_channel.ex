@@ -23,7 +23,12 @@ defmodule FrontmanServerWeb.TaskChannel do
       {:ok, _task} ->
         Logger.info("Client joining: #{task_id}, socket_id: #{inspect(self())}")
 
-        # Start MCP initialization process
+        # Start MCP initialization process.
+        # Note: We always reinitialize on join because:
+        # 1. MCPInitializer performs a stateful handshake with the browser-side MCP client
+        # 2. Each websocket connection needs its own MCP session
+        # 3. Project rules loading depends on client-specific context
+        # Tools are persisted to task.mcp_tools for agent access, not for reuse on reconnect.
         {:ok, initializer_pid} = MCPInitializer.start_link(self(), task_id)
 
         socket =
@@ -331,6 +336,12 @@ defmodule FrontmanServerWeb.TaskChannel do
     {:noreply, socket}
   end
 
+  def handle_info({:stream_thinking, _text}, socket) do
+    # Thinking tokens not forwarded to client yet - client infers thinking state from message status
+    # Broadcast kept in agents.ex for future implementation of visible thinking
+    {:noreply, socket}
+  end
+
   def handle_info(:agent_completed, socket) do
     Logger.debug(
       "Channel received agent_completed, pending_prompt_id=#{inspect(socket.assigns[:pending_prompt_id])}"
@@ -509,7 +520,7 @@ defmodule FrontmanServerWeb.TaskChannel do
     end
   end
 
-  def handle_info(msg, socket) do
+  def handle_info(msg, _socket) do
     raise "Unhandled message in TaskChannel: #{inspect(msg)}"
   end
 
@@ -527,6 +538,12 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   defp route_to_mcp(tool_call, socket) do
     task_id = socket.assigns.task_id
+
+    # Log file operations for debugging path consistency issues
+    if tool_call.tool_name in ["read_file", "write_file"] do
+      Logger.info("MCP file op: #{tool_call.tool_name} path=#{inspect(tool_call.arguments["path"])}")
+    end
+
     request_id = System.unique_integer([:positive])
 
     TelemetryEvents.mcp_tool_start(

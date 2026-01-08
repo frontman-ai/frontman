@@ -17,25 +17,26 @@ type mcpState = Reducer.Selectors.mcpStatus
 type contextValue = {
   connectionState: connectionState,
   mcpState: mcpState,
+  isSendingPrompt: bool,
   session: option<ACP.session>,
   relay: option<Relay.t>,
-  createSession: (Types.sessionUpdate => unit) => promise<result<ACP.session, string>>,
+  createSession: (Types.sessionUpdate => unit) => unit,
   sendPrompt: (
     string,
     ~additionalBlocks: array<Types.contentBlock>,
-  ) => promise<result<Types.promptResult, string>>,
+    ~onComplete: result<Types.promptResult, string> => unit,
+  ) => unit,
 }
 
 // Default context value
 let defaultContextValue: contextValue = {
   connectionState: Disconnected,
   mcpState: MCPDisconnected,
+  isSendingPrompt: false,
   session: None,
   relay: None,
-  createSession: async (_): result<ACP.session, string> => Error("Not connected"),
-  sendPrompt: async (_, ~additionalBlocks as _): result<Types.promptResult, string> => Error(
-    "No active session",
-  ),
+  createSession: _ => (),
+  sendPrompt: (_, ~additionalBlocks as _, ~onComplete as _) => (),
 }
 
 // Create the React context
@@ -99,57 +100,24 @@ module Provider = {
       Some(() => dispatch(Cleanup))
     })
 
-    // Create session function
-    let createSession = React.useCallback2(
-      async (onUpdate: Types.sessionUpdate => unit): result<ACP.session, string> => {
-        if !Reducer.Selectors.canCreateSession(state) {
-          Error("Not ready to create session")
-        } else {
-          switch (Reducer.Selectors.getACPConnection(state), Reducer.Selectors.getMCPServer(state)) {
-          | (Some(conn), Some(mcpServer)) =>
-            dispatch(SessionCreateStart)
-            // Pass MCPServer interface so handler is attached BEFORE channel join
-            let mcpServerInterface = MCPServer.toInterface(mcpServer)
-            let result = await ACP.createSession(
-              conn,
-              ~onUpdate,
-              ~mcpServerInterface,
-              ~onMcpMessage=logMCPMessage,
-            )
-            switch result {
-            | Ok(sess) =>
-              dispatch(SessionCreateSuccess(sess))
-              Console.log2("[FrontmanProvider] Session created:", sess.sessionId)
-              Ok(sess)
-            | Error(err) =>
-              dispatch(SessionCreateError(err))
-              Console.error2("[FrontmanProvider] Failed to create session:", err)
-              Error(err)
-            }
-          | _ => Error("Connection or MCPServer not available")
-          }
-        }
+    let createSession = React.useCallback1(
+      (onUpdate: Types.sessionUpdate => unit) => {
+        dispatch(CreateSession({onUpdate, onMcpMessage: logMCPMessage}))
       },
-      (state, logMCPMessage),
+      [dispatch],
     )
 
-    // Send prompt function
     let sendPrompt = React.useCallback1(
-      async (text: string, ~additionalBlocks: array<Types.contentBlock>): result<
-        Types.promptResult,
-        string,
-      > => {
-        switch Reducer.Selectors.getSession(state) {
-        | None => Error("No active session")
-        | Some(sess) => await ACP.sendPrompt(sess, text, ~additionalBlocks)
-        }
+      (text: string, ~additionalBlocks, ~onComplete) => {
+        dispatch(SendPrompt({text, additionalBlocks, onComplete}))
       },
-      [state],
+      [dispatch],
     )
 
     let contextValue: contextValue = {
       connectionState: Reducer.Selectors.getConnectionStatus(state),
       mcpState: Reducer.Selectors.getMCPStatus(state),
+      isSendingPrompt: state.isSendingPrompt,
       session: Reducer.Selectors.getSession(state),
       relay: state.relayInstance,
       createSession,

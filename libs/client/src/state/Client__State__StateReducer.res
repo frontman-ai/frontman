@@ -346,45 +346,31 @@ module Selectors = {
 let handleEffect = (effect, state: state, dispatch) => {
   switch effect {
   | SendMessageToAPI({message, taskId}) =>
-    // Use ACP sendPrompt via the stored function
     switch state.connectionState {
     | Connected(sendPrompt) =>
-      // Get ContentBlocks from the task (selectedElement, figmaNode)
       let additionalBlocks =
         state.tasks
         ->Dict.get(taskId)
         ->Option.mapOr([], Client__State__Types.taskToContentBlocks)
 
-      // Complete any existing streaming message before sending new prompt
-      // This ensures new chunks go to a new message
       let streamingMessages = Selectors.streamingMessages(state)
       switch streamingMessages[Array.length(streamingMessages) - 1] {
       | Some(Message.Streaming({id, _})) => dispatch(MessageCompleted({taskId, id}))
       | Some(Message.Completed(_)) | None => ()
       }
 
-      // Capture taskId for use in async callbacks
-      let capturedTaskId = taskId
-      let _ =
-        sendPrompt(message, ~additionalBlocks)
-        ->Promise.thenResolve(result => {
+      sendPrompt(
+        message,
+        ~additionalBlocks,
+        ~onComplete=result => {
           switch result {
-          | Ok(_) =>
-            // ACP compliant: session/prompt response with stopReason signals turn end
-            // Mark the turn as complete so input is re-enabled
-            dispatch(TurnCompleted({taskId: capturedTaskId}))
+          | Ok(_) => dispatch(TurnCompleted({taskId: taskId}))
           | Error(error) =>
             Console.error2("[Effect] Failed to send message:", error)
-            // Also mark turn as complete on error so user can retry
-            dispatch(TurnCompleted({taskId: capturedTaskId}))
+            dispatch(TurnCompleted({taskId: taskId}))
           }
-        })
-        ->Promise.catch(error => {
-          Console.error2("[Effect] Failed to send message:", error)
-          // Also mark turn as complete on error so user can retry
-          dispatch(TurnCompleted({taskId: capturedTaskId}))
-          Promise.resolve()
-        })
+        },
+      )
     | Disconnected => Console.error("[Effect] Cannot send message: not connected")
     }
   | FetchElementDetails({element, document}) => {

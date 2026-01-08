@@ -57,35 +57,37 @@ defmodule FrontmanServer.Agents do
     messages = build_messages(task_id)
 
     # Start agent execution in supervised task
-    {:ok, _ref} = run_agent(agent, task_id, messages, on_event: on_event)
+    {:ok, _pid} = run_agent(agent, task_id, messages, on_event: on_event)
     :ok
   end
 
   # Runs an agent in a supervised Task with streaming callbacks.
-  # Returns `{:ok, task_ref}` where task_ref can be used to monitor the task.
+  # Uses start_child (fire-and-forget) since all communication happens via PubSub events.
+  #
+  # Dialyzer warning suppressed: the anonymous function calls execute_agent which
+  # has the same protocol dispatch issue. See execute_agent comment for details.
+  @dialyzer {:nowarn_function, run_agent: 4}
   @spec run_agent(Swarm.Agent.t(), String.t(), [Message.t()], keyword()) ::
-          {:ok, reference()} | {:error, term()}
+          {:ok, pid()} | {:error, term()}
   defp run_agent(agent, task_id, messages, opts) do
     on_event = Keyword.fetch!(opts, :on_event)
     registry_key = {:running_agent, task_id}
 
-    task =
-      Task.Supervisor.async_nolink(
-        FrontmanServer.TaskSupervisor,
-        fn ->
-          # Register that an agent is running for this task
-          Registry.register(FrontmanServer.AgentRegistry, registry_key, %{})
+    Task.Supervisor.start_child(
+      FrontmanServer.TaskSupervisor,
+      fn ->
+        # Register that an agent is running for this task
+        Registry.register(FrontmanServer.AgentRegistry, registry_key, %{})
 
-          try do
-            execute_agent(agent, task_id, messages, registry_key, on_event)
-          after
-            # Ensure cleanup even on unexpected exits (unregister is idempotent)
-            Registry.unregister(FrontmanServer.AgentRegistry, registry_key)
-          end
+        try do
+          # registry_key passed for explicit cleanup timing (must unregister before completion event)
+          execute_agent(agent, task_id, messages, registry_key, on_event)
+        after
+          # Safety net for crashes - idempotent if already unregistered in execute_agent
+          Registry.unregister(FrontmanServer.AgentRegistry, registry_key)
         end
-      )
-
-    {:ok, task.ref}
+      end
+    )
   end
 
   defp build_agent(task_id, tools, opts) do
@@ -257,6 +259,14 @@ defmodule FrontmanServer.Agents do
 
   # --- Agent Execution ---
 
+  # Note: registry_key is passed for explicit cleanup timing.
+  # We MUST unregister BEFORE broadcasting completion so consumers
+  # checking agent_running? see consistent state.
+  #
+  # Dialyzer thinks this has no return because it can't prove protocol dispatch
+  # won't use the Any fallback (which raises). At runtime, RootAgent is always used.
+  # Exceptions are intentionally not rescued - they propagate to error monitoring.
+  @dialyzer {:nowarn_function, execute_agent: 5}
   defp execute_agent(agent, task_id, messages, registry_key, on_event) do
     # Build tool executor that handles both backend and MCP tools.
     # ToolExecutor owns interaction publishing for MCP tools internally.
@@ -267,57 +277,48 @@ defmodule FrontmanServer.Agents do
     # Emit task start telemetry - creates the root OTEL span for this task
     TelemetryEvents.task_start(task_id)
 
-    try do
-      # Use Swarm's public API with streaming callbacks.
-      # Pass task_id in metadata for telemetry correlation.
-      # Swarm generates loop_id internally and includes metadata in all telemetry events.
-      result =
-        Swarm.run_streaming(agent, messages,
-          metadata: %{task_id: task_id},
-          tool_executor: tool_executor,
-          on_chunk: fn chunk ->
-            case chunk do
-              %Chunk{type: :token, text: text} when is_binary(text) and text != "" ->
-                on_event.({:token, text})
+    # Use Swarm's public API with streaming callbacks.
+    # Pass task_id in metadata for telemetry correlation.
+    # Swarm generates loop_id internally and includes metadata in all telemetry events.
+    result =
+      Swarm.run_streaming(agent, messages,
+        metadata: %{task_id: task_id},
+        tool_executor: tool_executor,
+        on_chunk: fn chunk ->
+          case chunk do
+            %Chunk{type: :token, text: text} when is_binary(text) and text != "" ->
+              on_event.({:token, text})
 
-              %Chunk{type: :thinking, text: text} when is_binary(text) and text != "" ->
-                on_event.({:thinking, text})
+            %Chunk{type: :thinking, text: text} when is_binary(text) and text != "" ->
+              on_event.({:thinking, text})
 
-              _ ->
-                :ok
-            end
-          end,
-          on_response: fn response ->
-            metadata = build_response_metadata(response)
-            on_event.({:response, response.content || "", metadata})
+            _ ->
+              :ok
           end
-        )
+        end,
+        on_response: fn response ->
+          metadata = build_response_metadata(response)
+          on_event.({:response, response.content || "", metadata})
+        end
+      )
 
-      # Unregister BEFORE broadcasting completion so consumers see consistent state
-      if registry_key, do: Registry.unregister(FrontmanServer.AgentRegistry, registry_key)
+    # Unregister BEFORE broadcasting completion so consumers see consistent state.
+    # This is intentionally explicit (not just in after block) because the
+    # timing matters for agent handoff.
+    Registry.unregister(FrontmanServer.AgentRegistry, registry_key)
 
-      case result do
-        {:ok, _result} ->
-          on_event.(:completed)
+    case result do
+      {:ok, _result} ->
+        on_event.(:completed)
 
-        {:error, reason} ->
-          on_event.({:error, reason})
-      end
-
-      # Emit task stop telemetry - closes the root OTEL span
-      TelemetryEvents.task_stop(task_id)
-
-      result
-    rescue
-      e ->
-        # Unregister before error callback too
-        if registry_key, do: Registry.unregister(FrontmanServer.AgentRegistry, registry_key)
-        Logger.error("Agent crashed for task #{task_id}: #{inspect(e)}")
-        on_event.({:error, inspect(e)})
-        # Still emit task_stop on error to close the span
-        TelemetryEvents.task_stop(task_id)
-        {:error, e}
+      {:error, reason} ->
+        on_event.({:error, reason})
     end
+
+    # Emit task stop telemetry - closes the root OTEL span
+    TelemetryEvents.task_stop(task_id)
+
+    result
   end
 
   defp build_response_metadata(%Swarm.LLM.Response{} = response) do

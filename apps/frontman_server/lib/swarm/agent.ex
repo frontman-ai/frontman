@@ -27,6 +27,13 @@ defprotocol Swarm.Agent do
 end
 
 defimpl Swarm.Agent, for: Any do
+  # This implementation provides the __deriving__ macro for @derive support.
+  # Without @fallback_to_any, the protocol will raise Protocol.UndefinedError
+  # for unimplemented types (Elixir's default behavior).
+  #
+  # The actual function implementations here are required by defimpl but are
+  # effectively unreachable - Elixir's protocol dispatch raises before reaching them.
+
   defmacro __deriving__(module, _struct, _opts) do
     quote do
       defimpl Swarm.Agent, for: unquote(module) do
@@ -38,8 +45,17 @@ defimpl Swarm.Agent, for: Any do
     end
   end
 
-  def system_prompt(v), do: raise(Protocol.UndefinedError, protocol: Swarm.Agent, value: v)
-  def init(v), do: raise(Protocol.UndefinedError, protocol: Swarm.Agent, value: v)
+  # Required implementations - unreachable without @fallback_to_any true
+  # Using no_return spec to tell dialyzer these always raise
+  @spec system_prompt(term()) :: no_return()
+  def system_prompt(_), do: raise(Protocol.UndefinedError, protocol: __MODULE__, value: :any)
+
+  @spec init(term()) :: no_return()
+  def init(_), do: raise(Protocol.UndefinedError, protocol: __MODULE__, value: :any)
+
+  @spec should_terminate?(term(), term(), term()) :: false
   def should_terminate?(_, _, _), do: false
-  def llm(v), do: raise(Protocol.UndefinedError, protocol: Swarm.Agent, value: v)
+
+  @spec llm(term()) :: no_return()
+  def llm(_), do: raise(Protocol.UndefinedError, protocol: __MODULE__, value: :any)
 end

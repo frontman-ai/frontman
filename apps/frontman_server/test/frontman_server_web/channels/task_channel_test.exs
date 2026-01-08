@@ -176,6 +176,43 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         }
       }
     end
+
+    test "channel handles stream_thinking without crashing", %{
+      socket: socket,
+      task_id: task_id
+    } do
+      # Broadcast a thinking token via PubSub
+      # This should be handled gracefully (no-op handler) rather than crashing
+      Phoenix.PubSub.broadcast(
+        FrontmanServer.PubSub,
+        Tasks.topic(task_id),
+        {:stream_thinking, "reasoning about the task..."}
+      )
+
+      # Channel should NOT forward thinking tokens to client (client infers thinking state)
+      refute_push "acp:message", %{"params" => %{"update" => %{"sessionUpdate" => "agent_thinking_chunk"}}}
+
+      # But the channel should still be alive and functional
+      # Verify by sending a stream_token which SHOULD work
+      Phoenix.PubSub.broadcast(
+        FrontmanServer.PubSub,
+        Tasks.topic(task_id),
+        {:stream_token, "after thinking"}
+      )
+
+      assert_push "acp:message", %{
+        "method" => "session/update",
+        "params" => %{
+          "update" => %{
+            "sessionUpdate" => "agent_message_chunk",
+            "content" => %{"type" => "text", "text" => "after thinking"}
+          }
+        }
+      }
+
+      # Verify channel process is still alive
+      assert Process.alive?(socket.channel_pid)
+    end
   end
 
   describe "MCP tool call result extraction" do

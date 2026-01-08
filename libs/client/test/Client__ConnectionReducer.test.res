@@ -279,6 +279,7 @@ describe("Connection Reducer", () => {
         acp: ACPConnected(mockConn),
         relay: RelayConnected,
         session: SessionActive(mockSession),
+        isSendingPrompt: false,
         relayInstance: Some(mockRelay),
         mcpServer: Some(mockServer),
         abortController: Some(mockAbortController),

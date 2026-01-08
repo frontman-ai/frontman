@@ -419,11 +419,11 @@ let taskToContentBlocks = (task: Task.t): array<ACPTypes.contentBlock> => {
   blocks
 }
 
-// Send prompt function type (from ACP) - now accepts ContentBlocks
 type sendPromptFn = (
   string,
   ~additionalBlocks: array<ACPTypes.contentBlock>,
-) => promise<result<ACPTypes.promptResult, string>>
+  ~onComplete: result<ACPTypes.promptResult, string> => unit,
+) => unit
 
 // Connection state for the Frontman ACP session
 type connectionState =

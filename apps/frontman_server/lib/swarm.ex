@@ -467,7 +467,7 @@ defmodule Swarm do
                step: step,
                input_tokens: Map.get(usage, :input_tokens, 0),
                output_tokens: Map.get(usage, :output_tokens, 0),
-               tool_call_count: length(response.tool_calls || []),
+               tool_call_count: length(response.tool_calls),
                metadata: loop.metadata
              }}
 
