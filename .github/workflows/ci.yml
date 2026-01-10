@@ -140,11 +140,12 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Elixir
-        uses: erlef/setup-beam@v1
+      # Uses mise.toml as single source of truth for Erlang/Elixir versions
+      - name: Setup Erlang/Elixir via mise
+        uses: jdx/mise-action@v2
         with:
-          otp-version: '27.0'
-          elixir-version: '1.19'
+          install: true
+          cache: true
 
       - name: Cache deps
         uses: actions/cache@v4
@@ -191,11 +192,12 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Elixir
-        uses: erlef/setup-beam@v1
+      # Uses mise.toml as single source of truth for Erlang/Elixir versions
+      - name: Setup Erlang/Elixir via mise
+        uses: jdx/mise-action@v2
         with:
-          otp-version: '27.0'
-          elixir-version: '1.19'
+          install: true
+          cache: true
 
       - name: Cache deps
         uses: actions/cache@v4
@@ -236,11 +238,12 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Elixir
-        uses: erlef/setup-beam@v1
+      # Uses mise.toml as single source of truth for Erlang/Elixir versions
+      - name: Setup Erlang/Elixir via mise
+        uses: jdx/mise-action@v2
         with:
-          otp-version: '27.0'
-          elixir-version: '1.19'
+          install: true
+          cache: true
 
       - name: Cache deps
         uses: actions/cache@v4
@@ -256,11 +259,12 @@ jobs:
           key: ${{ runner.os }}-build-${{ hashFiles('apps/frontman_server/mix.lock') }}
           restore-keys: ${{ runner.os }}-build-
 
+      # PLT cache includes mise.toml hash to invalidate when Erlang/Elixir versions change
       - name: Cache PLT
         uses: actions/cache@v4
         with:
           path: apps/frontman_server/priv/plts
-          key: ${{ runner.os }}-plt-${{ hashFiles('apps/frontman_server/mix.lock') }}
+          key: ${{ runner.os }}-plt-${{ hashFiles('mise.toml', 'apps/frontman_server/mix.lock') }}
           restore-keys: ${{ runner.os }}-plt-
 
       - name: Install dependencies
