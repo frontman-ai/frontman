@@ -447,15 +447,17 @@ defmodule Swarm do
     Telemetry.step_start(loop_id, step, loop.metadata)
 
     Telemetry.llm_span(
-      %{loop_id: loop_id, step: step, model: llm.model, messages: messages, metadata: loop.metadata},
+      %{
+        loop_id: loop_id,
+        step: step,
+        model: llm.model,
+        messages: messages,
+        metadata: loop.metadata
+      },
       fn ->
         case Swarm.LLM.stream(llm, messages, []) do
           {:ok, stream} ->
-            # Wrap stream to emit chunk callbacks
-            stream_with_callbacks =
-              Stream.each(stream, fn chunk ->
-                callbacks.on_chunk.(chunk)
-              end)
+            stream_with_callbacks = Stream.each(stream, callbacks.on_chunk)
 
             response = Response.from_stream(stream_with_callbacks)
             callbacks.on_response.(response)

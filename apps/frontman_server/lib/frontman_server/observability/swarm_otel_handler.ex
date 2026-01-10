@@ -139,7 +139,9 @@ defmodule FrontmanServer.Observability.SwarmOtelHandler do
     case lookup_span(:frontman_spans_loop, loop_id) do
       {:ok, span_ctx} ->
         if output do
-          :otel_span.set_attributes(span_ctx, [{:"output.value", truncate(to_string(output), 10_000)}])
+          :otel_span.set_attributes(span_ctx, [
+            {:"output.value", truncate(to_string(output), 10_000)}
+          ])
         end
 
         :otel_span.end_span(span_ctx)
@@ -351,7 +353,9 @@ defmodule FrontmanServer.Observability.SwarmOtelHandler do
     case lookup_span(:frontman_spans_tool, tool_id) do
       {:ok, span_ctx} ->
         if output do
-          :otel_span.set_attributes(span_ctx, [{:"tool.output", truncate(to_string(output), 10_000)}])
+          :otel_span.set_attributes(span_ctx, [
+            {:"tool.output", truncate(to_string(output), 10_000)}
+          ])
         end
 
         if is_error do
@@ -418,7 +422,9 @@ defmodule FrontmanServer.Observability.SwarmOtelHandler do
     case lookup_span(:frontman_spans_spawn, tool_call_id) do
       {:ok, span_ctx} ->
         if output do
-          :otel_span.set_attributes(span_ctx, [{:"output.value", truncate(to_string(output), 10_000)}])
+          :otel_span.set_attributes(span_ctx, [
+            {:"output.value", truncate(to_string(output), 10_000)}
+          ])
         end
 
         :otel_span.end_span(span_ctx)
@@ -462,12 +468,14 @@ defmodule FrontmanServer.Observability.SwarmOtelHandler do
   end
 
   defp store_span(table, key, span_ctx), do: :ets.insert(table, {key, span_ctx})
+
   defp lookup_span(table, key) do
     case :ets.lookup(table, key) do
       [{^key, span_ctx}] -> {:ok, span_ctx}
       [] -> :not_found
     end
   end
+
   defp delete_span(table, key), do: :ets.delete(table, key)
 
   # =============================================================================
@@ -517,7 +525,8 @@ defmodule FrontmanServer.Observability.SwarmOtelHandler do
 
   defp flatten_message(_, _), do: []
 
-  defp flatten_msg_tool_calls(%{role: :assistant, tool_calls: tcs}, prefix) when is_list(tcs) and tcs != [] do
+  defp flatten_msg_tool_calls(%{role: :assistant, tool_calls: tcs}, prefix)
+       when is_list(tcs) and tcs != [] do
     Enum.flat_map(Enum.with_index(tcs), fn {tc, idx} ->
       tc_prefix = "#{prefix}.message.tool_calls.#{idx}"
 

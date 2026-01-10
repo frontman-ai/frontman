@@ -327,5 +327,4 @@ defmodule AgentClientProtocol do
       has_resources: false
     }
   end
-
 end

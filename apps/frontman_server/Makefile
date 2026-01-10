@@ -94,4 +94,4 @@ dialyzer: ## Run Dialyzer type checking
 credo: ## Run Credo static analysis
 	mix credo --strict
 
-check: lint test ## Run all checks (lint + test)
+check: lint dialyzer test ## Run all checks (lint + test)

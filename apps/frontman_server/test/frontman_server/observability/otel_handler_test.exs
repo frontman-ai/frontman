@@ -152,7 +152,10 @@ defmodule FrontmanServer.Observability.OtelHandlerTest do
       # === Verify LLM span has tool calls ===
       first_llm = hd(llm_spans)
 
-      assert attr(first_llm, :"llm.output_messages.0.message.tool_calls.0.tool_call.function.name") ==
+      assert attr(
+               first_llm,
+               :"llm.output_messages.0.message.tool_calls.0.tool_call.function.name"
+             ) ==
                "todo_list",
              "LLM span should capture tool call name"
     end

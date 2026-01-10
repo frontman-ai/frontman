@@ -609,148 +609,24 @@ defmodule FrontmanServer.Tasks.Interaction do
   end
 
   defp to_llm_message(%UserMessage{} = msg) do
-    # Build text content from messages array
-    text_content = Enum.join(msg.messages, "\n\n")
-
-    # Add selected component location if present
-    # This tells the LLM exactly where to look/edit
     text_content =
-      case msg.selected_component do
-        %{file: file, line: line, column: column} = sc ->
-          # Build source context section if available
-          source_context =
-            case {Map.get(sc, :source_snippet), Map.get(sc, :source_type)} do
-              {nil, nil} ->
-                ""
+      msg.messages
+      |> Enum.join("\n\n")
+      |> append_component_location(msg.selected_component)
 
-              {snippet, nil} when is_binary(snippet) ->
-                """
-
-                Source Context:
-                ```
-                #{snippet}
-                ```
-                """
-
-              {nil, source_type} when is_binary(source_type) ->
-                """
-
-                Source Type: #{source_type}
-                """
-
-              {snippet, source_type} when is_binary(snippet) and is_binary(source_type) ->
-                """
-
-                Source Type: #{source_type}
-                Source Context:
-                ```
-                #{snippet}
-                ```
-                """
-
-              _ ->
-                ""
-            end
-
-          location_info = """
-
-          [Selected Component Location]
-          File: #{file}
-          Line: #{line}
-          Column: #{column}#{source_context}
-
-          IMPORTANT: The user has selected a specific component at this location.
-          Start by reading this exact file and making changes at or near the specified line.
-          Do NOT explore or search for files - go directly to the selected file.
-          """
-
-          text_content <> location_info
-
-        _ ->
-          text_content
-      end
-
-    # Build content parts - start with text
     content_parts =
-      if text_content != "" do
-        [ContentPart.text(text_content)]
-      else
-        []
-      end
+      text_content
+      |> build_text_parts()
+      |> append_screenshot(msg.selected_component_screenshot)
 
-    # Add selected component screenshot if present
-    content_parts =
-      case msg.selected_component_screenshot do
-        nil ->
-          content_parts
-
-        base64_data ->
-          case Base.decode64(base64_data) do
-            {:ok, decoded_data} ->
-              content_parts ++ [ContentPart.image(decoded_data, "image/png")]
-
-            :error ->
-              content_parts
-          end
-      end
-
-    # Note: selected_figma_node is NOT included here
-    # It is handled separately by backend tools (breakdown_figma_design, etc.)
-
-    case content_parts do
-      [] ->
-        # Empty message - return minimal user message
-        ReqLLM.Context.user("")
-
-      [%{type: :text, text: text}] ->
-        # Single text content - use simple format
-        ReqLLM.Context.user(text)
-
-      parts ->
-        # Multiple parts (text + images) - use Message struct
-        %ReqLLM.Message{role: :user, content: parts}
-    end
+    build_user_message(content_parts)
   end
 
   defp to_llm_message(%AgentResponse{content: content, metadata: metadata}) do
-    tool_calls = Map.get(metadata || %{}, :tool_calls)
-    response_id = Map.get(metadata || %{}, :response_id)
-    # Extract reasoning_details for Gemini models (required for tool call round-trips)
-    # Filter to only keep "reasoning.encrypted" entries - the encrypted signature is what
-    # Gemini needs for tool call continuations, not the plain text reasoning
-    all_reasoning_details = Map.get(metadata || %{}, :reasoning_details)
+    meta = metadata || %{}
+    tool_calls = Map.get(meta, :tool_calls)
 
-    encrypted_reasoning_details =
-      case all_reasoning_details do
-        nil ->
-          nil
-
-        details when is_list(details) ->
-          filtered = Enum.filter(details, &(&1["type"] == "reasoning.encrypted"))
-          if filtered == [], do: nil, else: filtered
-
-        _ ->
-          nil
-      end
-
-    case tool_calls do
-      nil ->
-        ReqLLM.Context.assistant(content)
-
-      [] ->
-        ReqLLM.Context.assistant(content)
-
-      tool_calls ->
-        # Build Message struct with metadata for OpenAI Responses API (previous_response_id)
-        # and reasoning_details for Gemini models (encrypted signatures only)
-        %ReqLLM.Message{
-          role: :assistant,
-          content: [ContentPart.text(content)],
-          tool_calls: tool_calls,
-          metadata: if(response_id, do: %{response_id: response_id}, else: %{}),
-          reasoning_details: encrypted_reasoning_details
-        }
-    end
+    build_assistant_message(content, tool_calls, meta)
   end
 
   defp to_llm_message(%ToolCall{}) do
@@ -767,6 +643,107 @@ defmodule FrontmanServer.Tasks.Interaction do
       nil ->
         json_result = if is_binary(result), do: result, else: Jason.encode!(result)
         ReqLLM.Context.tool_result_message(name, id, json_result)
+    end
+  end
+
+  # Helper functions for to_llm_message(%UserMessage{})
+
+  defp append_component_location(text, %{file: file, line: line, column: column} = sc) do
+    source_context = build_source_context(sc)
+
+    location_info = """
+
+    [Selected Component Location]
+    File: #{file}
+    Line: #{line}
+    Column: #{column}#{source_context}
+
+    IMPORTANT: The user has selected a specific component at this location.
+    Start by reading this exact file and making changes at or near the specified line.
+    Do NOT explore or search for files - go directly to the selected file.
+    """
+
+    text <> location_info
+  end
+
+  defp append_component_location(text, _), do: text
+
+  defp build_source_context(sc) do
+    case {Map.get(sc, :source_snippet), Map.get(sc, :source_type)} do
+      {nil, nil} ->
+        ""
+
+      {snippet, nil} when is_binary(snippet) ->
+        """
+
+        Source Context:
+        ```
+        #{snippet}
+        ```
+        """
+
+      {nil, source_type} when is_binary(source_type) ->
+        """
+
+        Source Type: #{source_type}
+        """
+
+      {snippet, source_type} when is_binary(snippet) and is_binary(source_type) ->
+        """
+
+        Source Type: #{source_type}
+        Source Context:
+        ```
+        #{snippet}
+        ```
+        """
+
+      _ ->
+        ""
+    end
+  end
+
+  defp build_text_parts(""), do: []
+  defp build_text_parts(text), do: [ContentPart.text(text)]
+
+  defp append_screenshot(parts, nil), do: parts
+
+  defp append_screenshot(parts, base64_data) do
+    case Base.decode64(base64_data) do
+      {:ok, decoded_data} -> parts ++ [ContentPart.image(decoded_data, "image/png")]
+      :error -> parts
+    end
+  end
+
+  defp build_user_message([]), do: ReqLLM.Context.user("")
+  defp build_user_message([%{type: :text, text: text}]), do: ReqLLM.Context.user(text)
+  defp build_user_message(parts), do: %ReqLLM.Message{role: :user, content: parts}
+
+  # Helper functions for to_llm_message(%AgentResponse{})
+
+  defp build_assistant_message(content, nil, _meta), do: ReqLLM.Context.assistant(content)
+  defp build_assistant_message(content, [], _meta), do: ReqLLM.Context.assistant(content)
+
+  defp build_assistant_message(content, tool_calls, meta) do
+    response_id = Map.get(meta, :response_id)
+    encrypted_reasoning = filter_encrypted_reasoning(Map.get(meta, :reasoning_details))
+
+    %ReqLLM.Message{
+      role: :assistant,
+      content: [ContentPart.text(content)],
+      tool_calls: tool_calls,
+      metadata: if(response_id, do: %{response_id: response_id}, else: %{}),
+      reasoning_details: encrypted_reasoning
+    }
+  end
+
+  defp filter_encrypted_reasoning(nil), do: nil
+  defp filter_encrypted_reasoning(details) when not is_list(details), do: nil
+
+  defp filter_encrypted_reasoning(details) do
+    case Enum.filter(details, &(&1["type"] == "reasoning.encrypted")) do
+      [] -> nil
+      filtered -> filtered
     end
   end
 

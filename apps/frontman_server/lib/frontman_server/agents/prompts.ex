@@ -525,6 +525,7 @@ defmodule FrontmanServer.Agents.Prompts do
   - Single unified diff block
   - Brief notes: build/test results or follow-ups
   """
+
   # Prompt Building API
 
   @doc """

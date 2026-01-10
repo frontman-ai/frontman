@@ -392,7 +392,6 @@ defmodule FrontmanServerWeb.TaskChannel do
     task_id = socket.assigns.task_id
 
     if Tools.todo_mutation?(tool_result.tool_name) do
-      # Todo tools: send only plan update (ACP compliant)
       case Tasks.list_todos(task_id) do
         {:ok, todos} ->
           entries = todos_to_plan_entries(todos)
@@ -526,7 +525,9 @@ defmodule FrontmanServerWeb.TaskChannel do
 
     # Log file operations for debugging path consistency issues
     if tool_call.tool_name in ["read_file", "write_file"] do
-      Logger.info("MCP file op: #{tool_call.tool_name} path=#{inspect(tool_call.arguments["path"])}")
+      Logger.info(
+        "MCP file op: #{tool_call.tool_name} path=#{inspect(tool_call.arguments["path"])}"
+      )
     end
 
     request_id = System.unique_integer([:positive])

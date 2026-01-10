@@ -220,6 +220,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
                source_snippet: nil,
                source_type: nil
              }
+
       assert msg.selected_figma_node != nil
       assert msg.selected_figma_node.id == "0:1"
       assert msg.selected_figma_node.node == "Frame(id=0:1)"

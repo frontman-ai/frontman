@@ -190,7 +190,9 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       )
 
       # Channel should NOT forward thinking tokens to client (client infers thinking state)
-      refute_push "acp:message", %{"params" => %{"update" => %{"sessionUpdate" => "agent_thinking_chunk"}}}
+      refute_push "acp:message", %{
+        "params" => %{"update" => %{"sessionUpdate" => "agent_thinking_chunk"}}
+      }
 
       # But the channel should still be alive and functional
       # Verify by sending a stream_token which SHOULD work

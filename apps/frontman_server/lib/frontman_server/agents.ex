@@ -190,22 +190,7 @@ defmodule FrontmanServer.Agents do
   end
 
   defp to_swarm_message(%ReqLLM.Message{} = msg) do
-    content =
-      case msg.content do
-        text when is_binary(text) ->
-          [Message.ContentPart.text(text)]
-
-        parts when is_list(parts) ->
-          Enum.flat_map(parts, fn part ->
-            case to_swarm_content_part(part) do
-              {:ok, content_part} -> [content_part]
-              :skip -> []
-            end
-          end)
-
-        nil ->
-          []
-      end
+    content = convert_content(msg.content)
 
     %Message{
       role: msg.role,
@@ -214,6 +199,20 @@ defmodule FrontmanServer.Agents do
       tool_call_id: msg.tool_call_id,
       name: msg.name
     }
+  end
+
+  defp convert_content(text) when is_binary(text), do: [Message.ContentPart.text(text)]
+  defp convert_content(nil), do: []
+
+  defp convert_content(parts) when is_list(parts) do
+    Enum.flat_map(parts, &unwrap_content_part/1)
+  end
+
+  defp unwrap_content_part(part) do
+    case to_swarm_content_part(part) do
+      {:ok, content_part} -> [content_part]
+      :skip -> []
+    end
   end
 
   defp to_swarm_content_part(%ReqLLM.Message.ContentPart{type: :text, text: text}) do
