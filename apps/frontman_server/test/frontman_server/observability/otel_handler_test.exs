@@ -1,17 +1,18 @@
 defmodule FrontmanServer.Observability.OtelHandlerTest do
   @moduledoc """
-  Integration tests for OTEL span hierarchy and attributes.
+  Integration tests for OTEL span hierarchy and OpenInference attributes.
 
   These tests run actual agents through production code paths and verify
-  the resulting telemetry spans have correct structure and attributes.
+  the resulting telemetry spans have correct structure and attributes
+  for Arize Phoenix consumption.
 
-  Expected trace structure:
+  Expected trace structure (OpenInference span kinds):
   ```
-  task (root)
-  └── loop
-      └── step N
+  task (CHAIN, root)
+  └── agent (AGENT)
+      └── step N (CHAIN)
           ├── chat (LLM)
-          └── tool (backend)
+          └── tool (TOOL)
   ```
   """
   use FrontmanServer.SwarmCase, async: false
@@ -80,25 +81,25 @@ defmodule FrontmanServer.Observability.OtelHandlerTest do
       # Collect spans from this trace
       spans = collect_spans_for_task(task_id)
 
-      # Verify we got expected span types
+      # Verify we got expected span types (using OpenInference naming)
       task = by_name(spans, "task")
-      loop = by_name(spans, "loop")
+      agent = by_name(spans, "agent")
       step_spans = all_by_name(spans, ~r/^step/)
       llm_spans = all_by_name(spans, ~r/^chat/)
       tool = by_name(spans, ~r/^tool /)
 
       assert task != nil, "Missing task span"
-      assert loop != nil, "Missing loop span"
+      assert agent != nil, "Missing agent span"
       assert step_spans != [], "Missing step spans"
       assert llm_spans != [], "Missing LLM span"
       assert tool != nil, "Missing tool span"
 
       # === Parent-Child Chain ===
       assert_parent_child(task, nil, "task should be root")
-      assert_parent_child(loop, task, "loop → task")
+      assert_parent_child(agent, task, "agent → task")
 
       for step <- step_spans do
-        assert_parent_child(step, loop, "step → loop")
+        assert_parent_child(step, agent, "step → agent")
       end
 
       # Each LLM span should have a step parent (from step_spans)
@@ -119,45 +120,52 @@ defmodule FrontmanServer.Observability.OtelHandlerTest do
 
       # === Shared Trace ID ===
       trace_id = field(task, :trace_id)
-      all_spans = [task, loop, tool] ++ step_spans ++ llm_spans
+      all_spans = [task, agent, tool] ++ step_spans ++ llm_spans
 
       for span <- all_spans do
         assert field(span, :trace_id) == trace_id, "#{field(span, :name)} has wrong trace_id"
       end
 
-      # === Task Attributes ===
-      assert attr(task, :"frontman.task.id") == task_id
-      assert attr(task, :"gen_ai.operation.name") == "task"
+      # === Task Attributes (OpenInference) ===
+      assert attr(task, :"session.id") == task_id
+      assert attr(task, :"openinference.span.kind") == "CHAIN"
 
-      # === Loop Attributes ===
-      assert attr(loop, :"gen_ai.operation.name") == "loop"
-      assert attr(loop, :"frontman.task.id") == task_id
-      assert attr(loop, :"swarm.loop.status") == "completed"
-      assert is_binary(attr(loop, :"gen_ai.prompt")), "Loop should have prompt"
+      # === Agent Attributes (OpenInference) ===
+      assert attr(agent, :"openinference.span.kind") == "AGENT"
+      assert attr(agent, :"session.id") == task_id
 
-      # === Step Attributes ===
+      # === Step Attributes (OpenInference) ===
       step = hd(step_spans)
-      assert attr(step, :"gen_ai.operation.name") == "step"
-      assert is_integer(attr(step, :"swarm.step.number"))
+      assert attr(step, :"openinference.span.kind") == "CHAIN"
 
-      # === LLM Attributes ===
+      # === LLM Attributes (OpenInference) ===
       llm = hd(llm_spans)
-      assert attr(llm, :"gen_ai.operation.name") == "chat"
+      assert attr(llm, :"openinference.span.kind") == "LLM"
+      assert is_binary(attr(llm, :"llm.model_name"))
 
-      # === Tool Attributes ===
-      assert attr(tool, :"gen_ai.operation.name") == "tool"
-      assert attr(tool, :"gen_ai.tool.name") == "todo_list"
+      # === Tool Attributes (OpenInference) ===
+      assert attr(tool, :"openinference.span.kind") == "TOOL"
+      assert attr(tool, :"tool.name") == "todo_list"
+      assert attr(tool, :"tool.parameters") != nil, "Tool span should have parameters"
+      assert attr(tool, :"tool.output") != nil, "Tool span should have output"
+
+      # === Verify LLM span has tool calls ===
+      first_llm = hd(llm_spans)
+
+      assert attr(first_llm, :"llm.output_messages.0.message.tool_calls.0.tool_call.function.name") ==
+               "todo_list",
+             "LLM span should capture tool call name"
     end
 
     test "simple text response creates expected spans", %{task_id: task_id} do
-      agent = test_agent(mock_llm("Hello!"), "SimpleAgent")
+      agent_mod = test_agent(mock_llm("Hello!"), "SimpleAgent")
 
       {:ok, _} =
         Tasks.add_user_message(
           task_id,
           [%{"type" => "text", "text" => "Hi"}],
           [],
-          agent: agent
+          agent: agent_mod
         )
 
       assert_receive {:interaction, %Interaction.AgentCompleted{}}, 5_000
@@ -165,19 +173,41 @@ defmodule FrontmanServer.Observability.OtelHandlerTest do
       spans = collect_spans_for_task(task_id)
 
       task = by_name(spans, "task")
-      loop = by_name(spans, "loop")
+      agent = by_name(spans, "agent")
       step = by_name(spans, ~r/^step/)
       llm = by_name(spans, ~r/^chat/)
 
       assert task != nil
-      assert loop != nil
+      assert agent != nil
       assert step != nil
       assert llm != nil
 
       # Verify chain
-      assert_parent_child(loop, task, "loop → task")
-      assert_parent_child(step, loop, "step → loop")
+      assert_parent_child(agent, task, "agent → task")
+      assert_parent_child(step, agent, "step → agent")
       assert_parent_child(llm, step, "llm → step")
+
+      # === Verify LLM input messages ===
+      # System prompt should be first message
+      assert attr(llm, :"llm.input_messages.0.message.role") == "system",
+             "LLM span should have system message as input"
+
+      assert is_binary(attr(llm, :"llm.input_messages.0.message.content")),
+             "System message should have content"
+
+      # User message should be second
+      assert attr(llm, :"llm.input_messages.1.message.role") == "user",
+             "LLM span should have user message as input"
+
+      assert attr(llm, :"llm.input_messages.1.message.content") =~ "Hi",
+             "User message content should match"
+
+      # === Verify LLM output messages ===
+      assert attr(llm, :"llm.output_messages.0.message.role") == "assistant",
+             "LLM span should have assistant output"
+
+      assert attr(llm, :"llm.output_messages.0.message.content") =~ "Hello!",
+             "Output content should match LLM response"
     end
   end
 
@@ -213,10 +243,10 @@ defmodule FrontmanServer.Observability.OtelHandlerTest do
     # Collect all spans from the mailbox
     all_spans = collect_spans([])
 
-    # Find the task span for this task_id
+    # Find the task span for this task_id (using session.id attribute)
     task_span =
       Enum.find(all_spans, fn s ->
-        to_string(field(s, :name)) == "task" and attr(s, :"frontman.task.id") == task_id
+        to_string(field(s, :name)) == "task" and attr(s, :"session.id") == task_id
       end)
 
     if task_span do

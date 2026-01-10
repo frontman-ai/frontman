@@ -59,33 +59,11 @@ let handleUI = (config: config): WebAPI.FetchAPI.response => {
   WebAPI.Response.fromString(html, ~init={headers: headers})
 }
 
-// Create middleware that handles /__frontman/* routes
-// Returns None if route doesn't match, Some(response) if handled
-// Accepts individual optional parameters for JS/TS interop (partial config support)
-let createMiddleware = (
-  ~isDev: option<bool>=?,
-  ~basePath: option<string>=?,
-  ~serverName: option<string>=?,
-  ~serverVersion: option<string>=?,
-  ~clientUrl: option<string>=?,
-  ~clientCssUrl: option<string>=?,
-  ~entrypointUrl: option<string>=?,
-  ~isLightTheme: option<bool>=?,
-  ~projectRoot: option<string>=?,
-) => {
-  let config = Config.make(
-    ~isDev,
-    ~basePath,
-    ~serverName,
-    ~serverVersion,
-    ~clientUrl,
-    ~clientCssUrl,
-    ~entrypointUrl,
-    ~isLightTheme,
-    ~projectRoot,
-  )
+// Create middleware from a config object
+let createMiddleware = (config: Config.t) => {
   let server = Server.make(
     ~projectRoot=config.projectRoot,
+    ~sourceRoot=config.sourceRoot,
     ~serverName=config.serverName,
     ~serverVersion=config.serverVersion,
   )

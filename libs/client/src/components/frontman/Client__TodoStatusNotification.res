@@ -1,25 +1,35 @@
 /**
  * TodoStatusNotification - Inline notification for todo status changes
- * 
+ *
  * Renders inline notifications like:
- * [play icon] Starting: Analyze codebase structure  
+ * [play icon] Starting: Analyze codebase structure
  * [check icon] Finished: Implement authentication
- * 
+ *
  * These appear in the chat stream to indicate progress on todos.
  */
 
 module Icons = Client__ToolIcons
-module StateTypes = Client__State__Types
+module Todo = Client__State__Types.Todo
 
 @react.component
-let make = (
-  ~content: string,
-  ~eventType: StateTypes.TodoStatusEvent.eventType,
-  ~messageId as _: string,
-) => {
-  let (icon, iconColor, labelText, textColor) = switch eventType {
-  | #started => (
-      // Play/arrow icon for starting
+let make = (~content: string, ~status: Todo.status) => {
+  let (icon, iconColor, labelText, textColor) = switch status {
+  | Todo.Pending => (
+      // Clock icon for pending
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 16 16"
+        fill="currentColor"
+        width="12"
+        height="12">
+        <path d="M8 2a6 6 0 100 12A6 6 0 008 2zm.75 3a.75.75 0 00-1.5 0v3c0 .414.336.75.75.75h2a.75.75 0 000-1.5H8.75V5z" />
+      </svg>,
+      "text-zinc-400",
+      "Pending",
+      "text-zinc-300",
+    )
+  | Todo.InProgress => (
+      // Play/arrow icon for in progress
       <svg
         xmlns="http://www.w3.org/2000/svg"
         viewBox="0 0 16 16"
@@ -31,13 +41,13 @@ let make = (
         />
       </svg>,
       "text-blue-400",
-      "Starting",
+      "In Progress",
       "text-blue-300",
     )
-  | #completed => (
+  | Todo.Completed => (
       <Icons.CheckIcon size=12 />,
       "text-teal-400",
-      "Finished",
+      "Completed",
       "text-teal-300",
     )
   }

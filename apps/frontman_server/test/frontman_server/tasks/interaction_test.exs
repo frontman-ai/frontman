@@ -31,7 +31,9 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       assert msg.selected_component == %{
                file: "/path/to/component.tsx",
                line: 42,
-               column: 10
+               column: 10,
+               source_snippet: nil,
+               source_type: nil
              }
 
       assert msg.selected_figma_node == nil
@@ -211,7 +213,13 @@ defmodule FrontmanServer.Tasks.InteractionTest do
 
       msg = UserMessage.new(content_blocks)
 
-      assert msg.selected_component == %{file: "/src/Button.tsx", line: 10, column: 5}
+      assert msg.selected_component == %{
+               file: "/src/Button.tsx",
+               line: 10,
+               column: 5,
+               source_snippet: nil,
+               source_type: nil
+             }
       assert msg.selected_figma_node != nil
       assert msg.selected_figma_node.id == "0:1"
       assert msg.selected_figma_node.node == "Frame(id=0:1)"
@@ -241,7 +249,13 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       msg = UserMessage.new(content_blocks)
 
       # Should use _meta values, not parsed URI
-      assert msg.selected_component == %{file: "/correct/path.tsx", line: 100, column: 50}
+      assert msg.selected_component == %{
+               file: "/correct/path.tsx",
+               line: 100,
+               column: 50,
+               source_snippet: nil,
+               source_type: nil
+             }
     end
 
     test "extracts selected_component_screenshot from resource with _meta annotation" do
@@ -300,7 +314,14 @@ defmodule FrontmanServer.Tasks.InteractionTest do
 
       msg = UserMessage.new(content_blocks)
 
-      assert msg.selected_component == %{file: "/src/Button.tsx", line: 15, column: 3}
+      assert msg.selected_component == %{
+               file: "/src/Button.tsx",
+               line: 15,
+               column: 3,
+               source_snippet: nil,
+               source_type: nil
+             }
+
       assert msg.selected_component_screenshot == "base64screenshotdata"
     end
   end
@@ -615,7 +636,9 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       assert decoded["selected_component"] == %{
                "file" => "/path/to/file.tsx",
                "line" => 10,
-               "column" => 5
+               "column" => 5,
+               "source_snippet" => nil,
+               "source_type" => nil
              }
 
       assert decoded["selected_figma_node"] == nil

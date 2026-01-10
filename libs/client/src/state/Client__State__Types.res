@@ -95,48 +95,57 @@ module FigmaNode = {
     | SelectedNode(selectedNodeData)
 }
 
-// Todo batch event - represents "Added X todos" in the chat
-module TodoBatchEvent = {
-  // Re-export the entry type from ACP
-  type entry = FrontmanFrontmanClient.FrontmanClient__ACP__Types.todoBatchEntry
+// Todo - single source of truth for todo state (updated by reducer)
+module Todo = {
+  type status =
+    | Pending
+    | InProgress
+    | Completed
 
   type t = {
     id: string,
-    entries: array<entry>,
-    count: int,
-    createdAt: float,
-  }
-
-  let make = (~entries: array<entry>, ~count: int): t => {
-    {
-      id: WebAPI.Global.crypto->WebAPI.Crypto.randomUUID,
-      entries,
-      count,
-      createdAt: Date.now(),
-    }
-  }
-}
-
-// Todo status event - represents "Starting: X" or "Finished: X" notifications
-module TodoStatusEvent = {
-  type eventType = [#started | #completed]
-
-  type t = {
-    id: string,
-    todoId: string,
     content: string,
-    eventType: eventType,
+    activeForm: string,
+    status: status,
     createdAt: float,
+    updatedAt: float,
   }
 
-  let make = (~todoId: string, ~content: string, ~eventType: eventType): t => {
-    {
-      id: WebAPI.Global.crypto->WebAPI.Crypto.randomUUID,
-      todoId,
-      content,
-      eventType,
-      createdAt: Date.now(),
+  let parseStatus = (statusStr: string): status => {
+    switch String.toLowerCase(statusStr) {
+    | "in_progress" | "in-progress" | "inprogress" => InProgress
+    | "completed" | "complete" | "done" => Completed
+    | _ => Pending
     }
+  }
+
+  // Parse a Todo from JSON tool result
+  let fromResult = (json: JSON.t): t => {
+    let statusSchema = S.string->S.transform(_ => {
+      parser: str => parseStatus(str),
+      serializer: status =>
+        switch status {
+        | Pending => "pending"
+        | InProgress => "in_progress"
+        | Completed => "completed"
+        },
+    })
+
+    let schema = S.object(s => (
+      s.field("id", S.string),
+      s.field("content", S.string),
+      s.field("active_form", S.string),
+      s.field("status", statusSchema),
+    ))
+
+    let (id, content, activeForm, status) = S.parseOrThrow(json, schema)
+    let now = Date.now()
+    {id, content, activeForm, status, createdAt: now, updatedAt: now}
+  }
+
+  // Extract todo ID from a remove result
+  let idFromResult = (json: JSON.t): string => {
+    S.parseOrThrow(json, S.object(s => s.field("id", S.string)))
   }
 }
 
@@ -157,18 +166,14 @@ module Task = {
     webPreviewIsSelecting: bool,
     selectedElement: option<SelectedElement.t>,
     figmaNode: FigmaNode.t,
+    isAgentRunning: bool,
     planEntries: array<FrontmanFrontmanClient.FrontmanClient__ACP__Types.planEntry>,
-    isAgentRunning: bool, // True when waiting for agent response, false when turn is complete
-    // Todo UX events
-    todoBatchEvents: array<TodoBatchEvent.t>,
-    todoStatusEvents: array<TodoStatusEvent.t>,
   }
 
   let make = (~title: string, ~previewUrl: string, ~messages=Dict.make()): t => {
     let newId = WebAPI.Global.crypto->WebAPI.Crypto.randomUUID
     let timestamp = Date.now()
 
-    // Normalize title: trim, truncate, add ellipsis, or default
     let normalizedTitle = switch String.trim(title) {
     | "" => "New Chat"
     | text => {
@@ -186,10 +191,8 @@ module Task = {
       webPreviewIsSelecting: false,
       selectedElement: None,
       figmaNode: FigmaNode.NoSelection,
-      planEntries: [],
       isAgentRunning: false,
-      todoBatchEvents: [],
-      todoStatusEvents: [],
+      planEntries: [],
     }
   }
 }

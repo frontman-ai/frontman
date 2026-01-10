@@ -842,35 +842,57 @@ defmodule FrontmanServer.Agents.Prompts do
 
   defp selected_component_guidance do
     """
-    ## CRITICAL: Selected Component Detected
+    ## Selected Component Context
 
-    **The user has selected a specific component in their codebase.**
+    The user has selected a specific element in their application. The message contains a
+    `[Selected Component Location]` section with contextual information.
 
-    The message contains a `[Selected Component Location]` section with:
-    - **File path** - The exact file path (use as-is, do not modify)
-    - **Line number** - The specific line where the component is located
-    - **Column number** - The column position
+    ### What You Have
 
-    ### REQUIRED WORKFLOW
+    - **File path and location** - Exact file path, line number, and column
+    - **Rendered text** - What the user sees in their browser (if available)
+    - **Source type** - Whether this is JSX text, a comment, an attribute, or code (if available)
 
-    **DO NOT explore or search the codebase.** Go directly to the selected file:
+    ### Required Workflow
 
-    1. **Read the file** - Use the EXACT path from `[Selected Component Location]` without modification
-    2. **Find the relevant code** - Look at the specified line number
-    3. **Make the change** - Apply the user's requested modification
-    4. **Write the file** - Save the changes using the same path
+    1. **Read the file** - Use the EXACT path from `[Selected Component Location]`
+    2. **Examine the source** - Understand what code is at that location
+    3. **Compare rendered text to source** - Ensure you're editing what the user sees, not comments or inactive code
+    4. **Make the change** - Apply the user's requested modification
+    5. **Write the file** - Save the changes using the same path
 
-    ### IMPORTANT
+    ### Clarification Policy
 
-    - **Use the file path EXACTLY as provided** - do not convert or modify the path in any way
-    - The user has ALREADY told you exactly where to make changes
-    - Do NOT use `list_files` to explore directories
-    - Do NOT search for the component in multiple files
-    - Trust the provided location and go directly there
-    - If the file read shows the component, proceed with the change immediately
-    - Only if the exact line doesn't contain what's expected should you look nearby
+    **Ask for clarification using the ask_user tool when:**
+    - The instruction has multiple valid interpretations that would produce DIFFERENT outputs
+    - Example: "change text to X" when there's no obvious word to replace
+    - Example: The rendered text doesn't match what's in the source (stale selection)
+    - Example: You would need to modify commented-out code to fulfill the request
 
-    **PROCEED DIRECTLY to reading the selected file. Do NOT ask for clarification or explore.**
+    **Proceed without asking when:**
+    - The intent is clear and unambiguous
+    - There's only one reasonable interpretation
+    - The rendered text matches the source and indicates what to change
+
+    ### CRITICAL: Never Do These Things
+
+    - **Never resurrect commented code** without explicit instruction
+    - **Never modify comments** when the user is referring to rendered/visible text
+    - **Never guess** which of several interpretations the user meant - ask instead
+    - **Never explore or search** the codebase - go directly to the selected file
+
+    ### Example of When to Clarify
+
+    User says: "change text to Danni"
+    Rendered text: "Documentation done for you - in seconds"
+
+    This is ambiguous - does the user want:
+    - The whole sentence replaced with "Danni"?
+    - "Documentation" replaced with "Danni"?
+    - Something else?
+
+    → Use ask_user tool: "Which text should I change to 'Danni'?"
+      Options: ["Replace entire sentence", "Replace 'Documentation'", "Other"]
     """
   end
 

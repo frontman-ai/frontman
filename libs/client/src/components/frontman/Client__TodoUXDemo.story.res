@@ -1,15 +1,11 @@
 /**
  * TodoUXDemo Stories
- * 
- * Demonstrates the complete todo UX experience with:
- * - "Added X todos" batch blocks
- * - "Starting:" and "Finished:" notifications
- * - Mixed together as they would appear in a real session
+ *
+ * Demonstrates the todo status notifications as they appear in a chat session.
  */
 
 open Bindings__Storybook
-open FrontmanFrontmanClient.FrontmanClient__ACP__Types
-S.enableJson()
+module Todo = Client__State__Types.Todo
 
 type args = unit
 
@@ -33,33 +29,6 @@ let default: Meta.t<args> = {
 let fullWorkflow: Story.t<args> = {
   name: "Full Workflow",
   render: _ => {
-    let batchEntries: array<todoBatchEntry> = [
-      {
-        id: "todo-1",
-        content: "Analyze Figma design structure",
-        activeForm: Some("Analyzing Figma design structure"),
-        status: "completed",
-      },
-      {
-        id: "todo-2",
-        content: "Implement component from Figma specs",
-        activeForm: Some("Implementing the component from Figma specs"),
-        status: "in_progress",
-      },
-      {
-        id: "todo-3",
-        content: "Verify component implementation",
-        activeForm: Some("Verifying component implementation"),
-        status: "pending",
-      },
-      {
-        id: "todo-4",
-        content: "Write unit tests",
-        activeForm: Some("Writing unit tests"),
-        status: "pending",
-      },
-    ]
-
     <div
       style={{
         width: "440px",
@@ -90,14 +59,8 @@ let fullWorkflow: Story.t<args> = {
           }}>
           {React.string("Convert the Figma design to a React component")}
         </div>
-        // Agent creates todos
-        <Client__TodoBatchBlock
-          entries=batchEntries count=4 createdAt={Date.now()} messageId="demo-batch"
-        />
         // Agent starts first todo
-        <Client__TodoStatusNotification
-          content="Analyzing Figma design structure" eventType=#started messageId="demo-start-1"
-        />
+        <Client__TodoStatusNotification content="Analyzing Figma design structure" status=Todo.InProgress />
         // Simulated tool calls would go here...
         <div
           style={{
@@ -112,45 +75,20 @@ let fullWorkflow: Story.t<args> = {
           {React.string("... exploration tool calls ...")}
         </div>
         // First todo completed
-        <Client__TodoStatusNotification
-          content="Analyzing Figma design structure" eventType=#completed messageId="demo-end-1"
-        />
+        <Client__TodoStatusNotification content="Analyzing Figma design structure" status=Todo.Completed />
         // Start second todo
         <Client__TodoStatusNotification
-          content="Implementing the component from Figma specs"
-          eventType=#started
-          messageId="demo-start-2"
+          content="Implementing the component from Figma specs" status=Todo.InProgress
         />
       </div>
     </div>
   },
 }
 
-/** Cursor-style todo experience */
-let cursorStyle: Story.t<args> = {
-  name: "Cursor IDE Style",
+/** Todo list view demonstration */
+let todoListView: Story.t<args> = {
+  name: "Todo List View",
   render: _ => {
-    let todoEntries: array<todoBatchEntry> = [
-      {
-        id: "t1",
-        content: "Add dark mode toggle to settings",
-        activeForm: Some("Adding dark mode toggle"),
-        status: "completed",
-      },
-      {
-        id: "t2",
-        content: "Implement theme persistence",
-        activeForm: Some("Implementing theme persistence"),
-        status: "completed",
-      },
-      {
-        id: "t3",
-        content: "Update component styles",
-        activeForm: Some("Updating component styles"),
-        status: "in_progress",
-      },
-    ]
-
     <div
       style={{
         width: "440px",
@@ -178,29 +116,19 @@ let cursorStyle: Story.t<args> = {
           flexDirection: "column",
           gap: "4px",
         }}>
-        // Batch with progress
-        <Client__TodoBatchBlock
-          entries=todoEntries count=3 createdAt={Date.now()} messageId="cursor-batch"
-        />
         // Completed items
-        <Client__TodoStatusNotification
-          content="Adding dark mode toggle" eventType=#completed messageId="cursor-done-1"
-        />
-        <Client__TodoStatusNotification
-          content="Implementing theme persistence" eventType=#completed messageId="cursor-done-2"
-        />
+        <Client__TodoStatusNotification content="Adding dark mode toggle" status=Todo.Completed />
+        <Client__TodoStatusNotification content="Implementing theme persistence" status=Todo.Completed />
         // Currently in progress
-        <Client__TodoStatusNotification
-          content="Updating component styles" eventType=#started messageId="cursor-current"
-        />
+        <Client__TodoStatusNotification content="Updating component styles" status=Todo.InProgress />
       </div>
     </div>
   },
 }
 
-/** Just notifications (no batch) */
-let notificationsOnly: Story.t<args> = {
-  name: "Status Notifications Flow",
+/** Status progression demonstration */
+let statusProgression: Story.t<args> = {
+  name: "Status Progression",
   render: _ => {
     <div
       style={{
@@ -225,21 +153,11 @@ let notificationsOnly: Story.t<args> = {
           flexDirection: "column",
           gap: "2px",
         }}>
-        <Client__TodoStatusNotification
-          content="Setting up project structure" eventType=#started messageId="flow-1"
-        />
-        <Client__TodoStatusNotification
-          content="Setting up project structure" eventType=#completed messageId="flow-2"
-        />
-        <Client__TodoStatusNotification
-          content="Creating database schema" eventType=#started messageId="flow-3"
-        />
-        <Client__TodoStatusNotification
-          content="Creating database schema" eventType=#completed messageId="flow-4"
-        />
-        <Client__TodoStatusNotification
-          content="Implementing API endpoints" eventType=#started messageId="flow-5"
-        />
+        <Client__TodoStatusNotification content="Setting up project structure" status=Todo.Completed />
+        <Client__TodoStatusNotification content="Creating database schema" status=Todo.Completed />
+        <Client__TodoStatusNotification content="Implementing API endpoints" status=Todo.InProgress />
+        <Client__TodoStatusNotification content="Writing tests" status=Todo.Pending />
+        <Client__TodoStatusNotification content="Documentation" status=Todo.Pending />
       </div>
     </div>
   },

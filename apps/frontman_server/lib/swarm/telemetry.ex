@@ -188,6 +188,8 @@ defmodule Swarm.Telemetry do
       step: step,
       input_tokens: Keyword.get(opts, :input_tokens, 0),
       output_tokens: Keyword.get(opts, :output_tokens, 0),
+      reasoning_tokens: Keyword.get(opts, :reasoning_tokens, 0),
+      cached_tokens: Keyword.get(opts, :cached_tokens, 0),
       tool_call_count: Keyword.get(opts, :tool_call_count, 0),
       metadata: Keyword.get(opts, :metadata, %{})
     })

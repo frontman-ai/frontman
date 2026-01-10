@@ -24,7 +24,7 @@ defmodule FrontmanServer.Test.Fixtures.Agents do
       end
   """
 
-  alias FixturePath
+  alias ReqLLM.Test.FixturePath
 
   @doc """
   Build multiple fixtures from a list of atoms.

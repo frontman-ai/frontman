@@ -16,7 +16,7 @@ defmodule FrontmanServer.Tasks.Interaction do
           | __MODULE__.ToolResult.t()
           | __MODULE__.DiscoveredProjectRule.t()
 
-  alias Swarm.Message.ContentPart
+  alias ReqLLM.Message.ContentPart
 
   defmodule FigmaNode do
     @moduledoc """
@@ -67,7 +67,9 @@ defmodule FrontmanServer.Tasks.Interaction do
     @type selected_component :: %{
             file: String.t(),
             line: integer(),
-            column: integer()
+            column: integer(),
+            source_snippet: String.t() | nil,
+            source_type: String.t() | nil
           }
 
     typedstruct enforce: true do
@@ -118,7 +120,13 @@ defmodule FrontmanServer.Tasks.Interaction do
           column = Map.get(meta, "column")
 
           if is_binary(file) and is_integer(line) and is_integer(column) do
-            %{file: file, line: line, column: column}
+            %{
+              file: file,
+              line: line,
+              column: column,
+              source_snippet: Map.get(meta, "source_snippet"),
+              source_type: Map.get(meta, "source_type")
+            }
           else
             nil
           end
@@ -608,13 +616,48 @@ defmodule FrontmanServer.Tasks.Interaction do
     # This tells the LLM exactly where to look/edit
     text_content =
       case msg.selected_component do
-        %{file: file, line: line, column: column} ->
+        %{file: file, line: line, column: column} = sc ->
+          # Build source context section if available
+          source_context =
+            case {Map.get(sc, :source_snippet), Map.get(sc, :source_type)} do
+              {nil, nil} ->
+                ""
+
+              {snippet, nil} when is_binary(snippet) ->
+                """
+
+                Source Context:
+                ```
+                #{snippet}
+                ```
+                """
+
+              {nil, source_type} when is_binary(source_type) ->
+                """
+
+                Source Type: #{source_type}
+                """
+
+              {snippet, source_type} when is_binary(snippet) and is_binary(source_type) ->
+                """
+
+                Source Type: #{source_type}
+                Source Context:
+                ```
+                #{snippet}
+                ```
+                """
+
+              _ ->
+                ""
+            end
+
           location_info = """
 
           [Selected Component Location]
           File: #{file}
           Line: #{line}
-          Column: #{column}
+          Column: #{column}#{source_context}
 
           IMPORTANT: The user has selected a specific component at this location.
           Start by reading this exact file and making changes at or near the specified line.

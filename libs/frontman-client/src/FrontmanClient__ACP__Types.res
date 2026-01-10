@@ -252,21 +252,6 @@ let planEntrySchema = S.object(s => {
   status: s.field("status", planEntryStatusSchema),
 })
 
-// Todo batch entry structure (for todo_batch_created events)
-type todoBatchEntry = {
-  id: string,
-  content: string,
-  activeForm: option<string>,
-  status: string,
-}
-
-let todoBatchEntrySchema = S.object(s => {
-  id: s.field("id", S.string),
-  content: s.field("content", S.string),
-  activeForm: s.field("active_form", S.option(S.string)),
-  status: s.field("status", S.string),
-})
-
 // Session update variants - discriminated by sessionUpdate field
 type sessionUpdate =
   | AgentMessageChunk({content: option<contentBlock>})
@@ -286,10 +271,6 @@ type sessionUpdate =
       content: option<array<toolCallContentItem>>,
     })
   | Plan({entries: option<array<planEntry>>})
-  // Todo UX events
-  | TodoBatchCreated({entries: array<todoBatchEntry>, count: int})
-  | TodoStarted({todoId: string, content: string})
-  | TodoCompleted({todoId: string, content: string})
   | Unknown({sessionUpdate: string})
 
 // Session update schema using S.union with s.tag for proper discrimination
@@ -331,28 +312,6 @@ let sessionUpdateSchema = S.union([
     s.tag("sessionUpdate", "plan")
     Plan({
       entries: s.field("entries", S.option(S.array(planEntrySchema))),
-    })
-  }),
-  // Todo UX events
-  S.object(s => {
-    s.tag("sessionUpdate", "todo_batch_created")
-    TodoBatchCreated({
-      entries: s.field("entries", S.array(todoBatchEntrySchema)),
-      count: s.field("count", S.int),
-    })
-  }),
-  S.object(s => {
-    s.tag("sessionUpdate", "todo_started")
-    TodoStarted({
-      todoId: s.field("todoId", S.string),
-      content: s.field("content", S.string),
-    })
-  }),
-  S.object(s => {
-    s.tag("sessionUpdate", "todo_completed")
-    TodoCompleted({
-      todoId: s.field("todoId", S.string),
-      content: s.field("content", S.string),
     })
   }),
   // Fallback for unknown session update types

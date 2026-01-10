@@ -196,7 +196,12 @@ defmodule FrontmanServer.Agents do
           [Message.ContentPart.text(text)]
 
         parts when is_list(parts) ->
-          Enum.map(parts, &to_swarm_content_part/1)
+          Enum.flat_map(parts, fn part ->
+            case to_swarm_content_part(part) do
+              {:ok, content_part} -> [content_part]
+              :skip -> []
+            end
+          end)
 
         nil ->
           []
@@ -212,7 +217,7 @@ defmodule FrontmanServer.Agents do
   end
 
   defp to_swarm_content_part(%ReqLLM.Message.ContentPart{type: :text, text: text}) do
-    Message.ContentPart.text(text)
+    {:ok, Message.ContentPart.text(text)}
   end
 
   defp to_swarm_content_part(%ReqLLM.Message.ContentPart{
@@ -220,14 +225,16 @@ defmodule FrontmanServer.Agents do
          data: data,
          media_type: mt
        }) do
-    Message.ContentPart.image(data, mt)
+    {:ok, Message.ContentPart.image(data, mt)}
   end
 
   defp to_swarm_content_part(%ReqLLM.Message.ContentPart{type: :image_url, url: url}) do
-    Message.ContentPart.image_url(url)
+    {:ok, Message.ContentPart.image_url(url)}
   end
 
-  defp to_swarm_content_part(_), do: nil
+  # Intentionally skip - these are transient/internal types not needed in conversation
+  defp to_swarm_content_part(%ReqLLM.Message.ContentPart{type: :thinking}), do: :skip
+  defp to_swarm_content_part(%ReqLLM.Message.ContentPart{type: :file}), do: :skip
 
   defp to_swarm_tool_calls(nil), do: []
   defp to_swarm_tool_calls([]), do: []

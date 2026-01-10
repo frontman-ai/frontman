@@ -4,6 +4,7 @@
 module ToolRegistry = FrontmanCore__ToolRegistry
 module SSE = FrontmanCore__SSE
 module Server = FrontmanCore__Server
+module SafePath = FrontmanCore__SafePath
 
 // Re-export tools for direct access
 module Tool = {

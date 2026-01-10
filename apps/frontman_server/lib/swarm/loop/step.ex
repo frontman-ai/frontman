@@ -5,7 +5,7 @@ defmodule Swarm.Loop.Step do
   Each step tracks one LLM iteration:
   - `input_messages` - Messages sent TO the LLM (system, user, assistant messages)
   - `content` - Text response received FROM the LLM
-  - `usage` - Token usage stats: %{input_tokens: int, output_tokens: int}
+  - `usage` - Token usage stats: %{input_tokens: int, output_tokens: int, reasoning_tokens: int, cached_tokens: int}
   - `started_at` - When the LLM call was initiated
   - `completed_at` - When the LLM response was received
   - `duration_ms` - How long the LLM call took
@@ -17,7 +17,9 @@ defmodule Swarm.Loop.Step do
 
   @type usage :: %{
           input_tokens: non_neg_integer(),
-          output_tokens: non_neg_integer()
+          output_tokens: non_neg_integer(),
+          reasoning_tokens: non_neg_integer(),
+          cached_tokens: non_neg_integer()
         }
 
   typedstruct do

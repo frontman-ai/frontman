@@ -122,7 +122,7 @@ let createMiddleware = (config: Config.t) => {
         await Server.handleToolCall(~registry, ~config, context.request)
 
       | p if p == `${basePath}/resolve-source-location` && method == "POST" =>
-        await Server.handleResolveSourceLocation(context.request)
+        await Server.handleResolveSourceLocation(~config, context.request)
 
       | _ =>
         // Unknown frontman route

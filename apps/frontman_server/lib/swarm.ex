@@ -300,8 +300,11 @@ defmodule Swarm do
       timeout_ms: spawn_request.timeout_ms || 300_000
     }
 
-    # Child loop inherits metadata from parent
-    child_loop = Loop.make_child(spawn_request.agent, config, parent_loop)
+    # Child loop inherits metadata from parent, plus parent_agent_module for graph tracking
+    child_loop =
+      Loop.make_child(spawn_request.agent, config, parent_loop,
+        metadata: %{parent_agent_module: parent_loop.agent.__struct__}
+      )
 
     callbacks = %{
       on_chunk: fn _ -> :ok end,
@@ -444,7 +447,7 @@ defmodule Swarm do
     Telemetry.step_start(loop_id, step, loop.metadata)
 
     Telemetry.llm_span(
-      %{loop_id: loop_id, step: step, model: llm.model, metadata: loop.metadata},
+      %{loop_id: loop_id, step: step, model: llm.model, messages: messages, metadata: loop.metadata},
       fn ->
         case Swarm.LLM.stream(llm, messages, []) do
           {:ok, stream} ->
@@ -465,8 +468,14 @@ defmodule Swarm do
              %{
                loop_id: loop_id,
                step: step,
+               response: response.content,
+               reasoning_details: response.reasoning_details,
+               tool_calls: response.tool_calls,
+               usage: usage,
                input_tokens: Map.get(usage, :input_tokens, 0),
                output_tokens: Map.get(usage, :output_tokens, 0),
+               reasoning_tokens: Map.get(usage, :reasoning_tokens, 0),
+               cached_tokens: Map.get(usage, :cached_tokens, 0),
                tool_call_count: length(response.tool_calls),
                metadata: loop.metadata
              }}
@@ -495,6 +504,7 @@ defmodule Swarm do
         step: step,
         tool_id: tool_id,
         tool_name: tool_name,
+        arguments: tc.arguments,
         metadata: loop.metadata
       },
       fn ->
@@ -522,6 +532,7 @@ defmodule Swarm do
           tool_id: tool_id,
           tool_name: tool_name,
           is_error: result.is_error,
+          output: result.content,
           metadata: loop.metadata
         }
 

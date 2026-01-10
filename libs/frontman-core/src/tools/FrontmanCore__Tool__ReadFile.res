@@ -1,8 +1,8 @@
 // Read file tool - reads file content with optional offset/limit
 
-module Path = FrontmanBindings.Path
 module Fs = FrontmanBindings.Fs
 module Tool = FrontmanFrontmanProtocol.FrontmanProtocol__Tool
+module SafePath = FrontmanCore__SafePath
 
 let name = "read_file"
 let visibleToAgent = true
@@ -29,31 +29,15 @@ type output = {
   hasMore: bool,
 }
 
-// Resolve path and validate security constraints
-let resolvePath = (~sourceRoot: string, ~inputPath: string): result<string, string> => {
-  if Path.isAbsolute(inputPath) {
-    // Security: absolute paths must be under sourceRoot
-    let normalizedPath = Path.normalize(inputPath)
-    let normalizedRoot = Path.normalize(sourceRoot)
-    if normalizedPath->String.startsWith(normalizedRoot) {
-      Ok(normalizedPath)
-    } else {
-      Error(`Absolute path must be under source root: ${inputPath}`)
-    }
-  } else {
-    Ok(Path.join([sourceRoot, inputPath]))
-  }
-}
-
 let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.toolResult<output> => {
   let offset = input.offset->Option.getOr(0)
   let limit = input.limit->Option.getOr(500)
 
-  switch resolvePath(~sourceRoot=ctx.sourceRoot, ~inputPath=input.path) {
+  switch SafePath.resolve(~sourceRoot=ctx.sourceRoot, ~inputPath=input.path) {
   | Error(msg) => Error(msg)
-  | Ok(fullPath) =>
+  | Ok(safePath) =>
     try {
-      let content = await Fs.Promises.readFile(fullPath)
+      let content = await Fs.Promises.readFile(SafePath.toString(safePath))
       let lines = content->String.split("\n")
       let totalLines = lines->Array.length
 

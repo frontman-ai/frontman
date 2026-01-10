@@ -230,19 +230,10 @@ let make = () => {
       }
 
     | Plan({entries}) =>
+      // ACP plan update - replace plan entries completely
       entries->Option.forEach(planEntries => {
         Client__State.Actions.planReceived(~taskId, ~entries=planEntries)
       })
-
-    // Todo UX events
-    | TodoBatchCreated({entries, count}) =>
-      Client__State.Actions.todoBatchCreated(~taskId, ~entries, ~count)
-
-    | TodoStarted({todoId, content}) =>
-      Client__State.Actions.todoStarted(~taskId, ~todoId, ~content)
-
-    | TodoCompleted({todoId, content}) =>
-      Client__State.Actions.todoCompleted(~taskId, ~todoId, ~content)
 
     | Unknown({sessionUpdate}) => Console.log2("[ACP] Unhandled session update:", sessionUpdate)
     }

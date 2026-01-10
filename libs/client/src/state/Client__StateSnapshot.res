@@ -253,43 +253,6 @@ module Message = {
   }
 }
 
-module PlanEntry = {
-  // Re-use the ACP types since they already have proper schemas
-  type priority =
-    | @as("high") High
-    | @as("medium") Medium
-    | @as("low") Low
-
-  let prioritySchema = S.union([
-    S.literal(High),
-    S.literal(Medium),
-    S.literal(Low),
-  ])
-
-  type status =
-    | @as("pending") Pending
-    | @as("in_progress") InProgress
-    | @as("completed") Completed
-
-  let statusSchema = S.union([
-    S.literal(Pending),
-    S.literal(InProgress),
-    S.literal(Completed),
-  ])
-
-  type t = {
-    content: string,
-    priority: priority,
-    status: status,
-  }
-
-  let schema = S.object(s => {
-    content: s.field("content", S.string),
-    priority: s.field("priority", prioritySchema),
-    status: s.field("status", statusSchema),
-  })
-}
-
 module Task = {
   type t = {
     id: string,
@@ -300,7 +263,6 @@ module Task = {
     webPreviewIsSelecting: bool,
     selectedElement: option<SelectedElement.t>,
     figmaNode: FigmaNode.t,
-    planEntries: array<PlanEntry.t>,
     previewUrl: string,
   }
 
@@ -313,7 +275,6 @@ module Task = {
     webPreviewIsSelecting: s.field("webPreviewIsSelecting", S.bool),
     selectedElement: s.field("selectedElement", nullableToOption(SelectedElement.schema)),
     figmaNode: s.field("figmaNode", FigmaNode.schema),
-    planEntries: s.field("planEntries", S.array(PlanEntry.schema)),
     previewUrl: s.field("previewUrl", S.string),
   })
 }
@@ -430,20 +391,6 @@ let convertMessage = (msg: Client__State__Types.Message.t): Message.t => {
   }
 }
 
-let convertPlanEntry = (entry: ACPTypes.planEntry): PlanEntry.t => {
-  let priority = switch entry.priority {
-  | High => PlanEntry.High
-  | Medium => PlanEntry.Medium
-  | Low => PlanEntry.Low
-  }
-  let status = switch entry.status {
-  | Pending => PlanEntry.Pending
-  | InProgress => PlanEntry.InProgress
-  | Completed => PlanEntry.Completed
-  }
-  {content: entry.content, priority, status}
-}
-
 let convertTask = (task: Client__State__Types.Task.t): Task.t => {
   // Sort messages by createdAt for consistent ordering
   let messages =
@@ -470,7 +417,6 @@ let convertTask = (task: Client__State__Types.Task.t): Task.t => {
     webPreviewIsSelecting: task.webPreviewIsSelecting,
     selectedElement: task.selectedElement->Option.map(convertSelectedElement),
     figmaNode: convertFigmaNode(task.figmaNode),
-    planEntries: task.planEntries->Array.map(convertPlanEntry),
     previewUrl: task.previewFrame.url,
   }
 }
@@ -593,24 +539,6 @@ let messageToJson = (msg: Message.t): JSON.t => {
   }
 }
 
-let planEntryToJson = (entry: PlanEntry.t): JSON.t => {
-  let priorityStr = switch entry.priority {
-  | High => "high"
-  | Medium => "medium"
-  | Low => "low"
-  }
-  let statusStr = switch entry.status {
-  | Pending => "pending"
-  | InProgress => "in_progress"
-  | Completed => "completed"
-  }
-  obj([
-    ("content", JSON.Encode.string(entry.content)),
-    ("priority", JSON.Encode.string(priorityStr)),
-    ("status", JSON.Encode.string(statusStr)),
-  ])
-}
-
 let rec sourceLocationToJson = (loc: SourceLocation.t): JSON.t => {
   obj([
     ("componentName", loc.componentName->Option.mapOr(JSON.Encode.null, JSON.Encode.string)),
@@ -655,7 +583,6 @@ let taskToJson = (task: Task.t): JSON.t => {
     ("webPreviewIsSelecting", JSON.Encode.bool(task.webPreviewIsSelecting)),
     ("selectedElement", task.selectedElement->Option.mapOr(JSON.Encode.null, selectedElementToJson)),
     ("figmaNode", figmaNodeToJson(task.figmaNode)),
-    ("planEntries", JSON.Encode.array(task.planEntries->Array.map(planEntryToJson))),
     ("previewUrl", JSON.Encode.string(task.previewUrl)),
   ])
 }

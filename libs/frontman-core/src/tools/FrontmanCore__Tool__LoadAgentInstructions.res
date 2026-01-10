@@ -3,13 +3,14 @@
 module Path = FrontmanBindings.Path
 module Fs = FrontmanBindings.Fs
 module Tool = FrontmanFrontmanProtocol.FrontmanProtocol__Tool
+module SafePath = FrontmanCore__SafePath
 
 let name = "load_agent_instructions"
 let visibleToAgent = false
 let description = `Discovers and loads agent instruction files (Agents.md or CLAUDE.md) following Claude Code's discovery algorithm.
 
 Parameters:
-- startPath (optional): Starting directory for discovery. Defaults to "." (source root).
+- startPath (optional): Starting directory for discovery - must be under source root. Defaults to "." (source root).
 
 Discovery:
 - Walks up from startPath to filesystem root
@@ -111,14 +112,6 @@ let findAtDirectory = async (dir: string): array<instructionFile> => {
   }
 }
 
-// Resolve start path to absolute path
-let resolveStartPath = (sourceRoot: string, startPath: option<string>): string => {
-  switch startPath {
-  | Some(p) => Path.resolve(Path.join([sourceRoot, p]))
-  | None => Path.resolve(sourceRoot)
-  }
-}
-
 // Recursively walk up directories until root
 let rec walkUpDirectories = async (current: string, acc: array<instructionFile>): array<
   instructionFile,
@@ -133,13 +126,23 @@ let rec walkUpDirectories = async (current: string, acc: array<instructionFile>)
 }
 
 let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.toolResult<output> => {
-  try {
-    let startPath = resolveStartPath(ctx.sourceRoot, input.startPath)
-    let results = await walkUpDirectories(startPath, [])
-    Ok(results)
-  } catch {
-  | exn =>
-    let msg = exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
-    Error(`Failed to load agent instructions: ${msg}`)
+  // Validate startPath is under sourceRoot (prevents starting from arbitrary locations)
+  let inputPath = input.startPath->Option.getOr(".")
+
+  switch SafePath.resolve(~sourceRoot=ctx.sourceRoot, ~inputPath) {
+  | Error(msg) => Error(msg)
+  | Ok(safePath) =>
+    try {
+      // Start from the validated path and walk up to find instruction files
+      // Note: walkUpDirectories intentionally goes above sourceRoot - that's by design
+      // for finding CLAUDE.md files in parent directories
+      let startPath = SafePath.toString(safePath)
+      let results = await walkUpDirectories(startPath, [])
+      Ok(results)
+    } catch {
+    | exn =>
+      let msg = exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
+      Error(`Failed to load agent instructions: ${msg}`)
+    }
   }
 }

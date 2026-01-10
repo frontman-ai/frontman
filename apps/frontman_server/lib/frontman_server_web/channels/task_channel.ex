@@ -10,7 +10,6 @@ defmodule FrontmanServerWeb.TaskChannel do
   require Logger
 
   alias AgentClientProtocol, as: ACP
-  alias FrontmanServer.Observability.TelemetryEvents
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Tools
@@ -164,18 +163,11 @@ defmodule FrontmanServerWeb.TaskChannel do
       false
   end
 
-  defp handle_tool_call_response(id, tool_call, result, socket, remaining_requests) do
+  defp handle_tool_call_response(_id, tool_call, result, socket, remaining_requests) do
     task_id = socket.assigns.task_id
     text_result = MCP.extract_content_text(result)
     parsed_result = MCP.parse_tool_result(text_result)
     is_error = MCP.error?(result)
-
-    if is_error do
-      TelemetryEvents.mcp_tool_stop(id, status: "error", error: text_result)
-    else
-      TelemetryEvents.mcp_tool_stop(id, status: "success")
-    end
-
     status = if is_error, do: "failed", else: "completed"
     Logger.info("MCP tool #{tool_call.tool_name} #{status}: #{text_result}")
 
@@ -233,13 +225,9 @@ defmodule FrontmanServerWeb.TaskChannel do
     end
   end
 
-  defp handle_tool_call_error(id, tool_call, error, socket, remaining_requests) do
+  defp handle_tool_call_error(_id, tool_call, error, socket, remaining_requests) do
     task_id = socket.assigns.task_id
     error_message = error["message"] || "Unknown MCP error"
-
-    # Emit MCP tool stop telemetry event with error
-    TelemetryEvents.mcp_tool_stop(id, status: "error", error: error_message)
-
     Logger.error("MCP tool #{tool_call.tool_name} failed: #{error_message}")
 
     # Send ACP notification: failed
@@ -403,14 +391,8 @@ defmodule FrontmanServerWeb.TaskChannel do
   def handle_info({:interaction, %Interaction.ToolResult{} = tool_result}, socket) do
     task_id = socket.assigns.task_id
 
-    # Send ACP update for tool completion/error
-    status = if tool_result.is_error, do: "error", else: "completed"
-    content = format_tool_content(tool_result.result)
-    notification = ACP.tool_call_update(task_id, tool_result.tool_call_id, status, content)
-    push(socket, "acp:message", notification)
-
-    # Handle todo mutations (plan updates)
     if Tools.todo_mutation?(tool_result.tool_name) do
+      # Todo tools: send only plan update (ACP compliant)
       case Tasks.list_todos(task_id) do
         {:ok, todos} ->
           entries = todos_to_plan_entries(todos)
@@ -420,9 +402,12 @@ defmodule FrontmanServerWeb.TaskChannel do
         {:error, _reason} ->
           :ok
       end
-
-      # Send additional todo-specific notifications for UX
-      emit_todo_event_notification(socket, tool_result)
+    else
+      # Regular tools: send tool_call_update
+      status = if tool_result.is_error, do: "error", else: "completed"
+      content = format_tool_content(tool_result.result)
+      notification = ACP.tool_call_update(task_id, tool_result.tool_call_id, status, content)
+      push(socket, "acp:message", notification)
     end
 
     {:noreply, socket}
@@ -546,14 +531,6 @@ defmodule FrontmanServerWeb.TaskChannel do
 
     request_id = System.unique_integer([:positive])
 
-    TelemetryEvents.mcp_tool_start(
-      request_id,
-      tool_call.tool_call_id,
-      tool_call.tool_name,
-      task_id,
-      tool_call.arguments
-    )
-
     request =
       MCP.tools_call_request(%MCP.ToolCallParams{
         request_id: request_id,
@@ -582,6 +559,7 @@ defmodule FrontmanServerWeb.TaskChannel do
     {:noreply, socket}
   end
 
+  # Convert todos to ACP plan entries
   defp todos_to_plan_entries(todos) when is_list(todos) do
     todos
     |> Enum.sort_by(& &1.created_at, DateTime)
@@ -594,78 +572,6 @@ defmodule FrontmanServerWeb.TaskChannel do
       "priority" => "medium",
       "status" => Atom.to_string(todo.status)
     }
-  end
-
-  # ===========================================================================
-  # Task List Event Notification Helpers
-  # ===========================================================================
-
-  # Emit todo-specific UX notifications based on tool result
-  defp emit_todo_event_notification(socket, %Interaction.ToolResult{} = tool_result) do
-    task_id = socket.assigns.task_id
-
-    case tool_result.tool_name do
-      "todo_add" ->
-        # For todo_add, emit todo_batch_created with the single entry
-        # The UI will aggregate consecutive todo_add calls
-        emit_todo_batch_created(socket, task_id, tool_result)
-
-      "todo_update" ->
-        # For todo_update, emit started/completed based on new status
-        emit_todo_status_change(socket, task_id, tool_result)
-
-      _ ->
-        # other tools (list, remove, etc.) - no special notification needed
-        :ok
-    end
-  end
-
-  # Emit todo_batch_created for a single todo_add result
-  # Note: The UI will handle batching consecutive adds visually
-  # The result is the raw todo struct (not wrapped in {:ok, ...})
-  defp emit_todo_batch_created(socket, task_id, tool_result) do
-    todo = tool_result.result
-
-    if is_map(todo) and Map.has_key?(todo, :id) and Map.has_key?(todo, :content) do
-      entry = %{
-        "id" => todo.id,
-        "content" => todo.content,
-        "active_form" => Map.get(todo, :active_form, todo.content),
-        "status" => Atom.to_string(todo.status)
-      }
-
-      notification = ACP.todo_batch_created(task_id, [entry])
-      push(socket, "acp:message", notification)
-    else
-      :ok
-    end
-  end
-
-  # Emit todo_started or todo_completed based on the update result
-  # The result is the raw todo struct (not wrapped in {:ok, ...})
-  defp emit_todo_status_change(socket, task_id, tool_result) do
-    todo = tool_result.result
-
-    if is_map(todo) and Map.has_key?(todo, :status) do
-      # Get the content for display (prefer active_form, fallback to content)
-      content = Map.get(todo, :active_form) || todo.content
-
-      case todo.status do
-        :in_progress ->
-          notification = ACP.todo_started(task_id, todo.id, content)
-          push(socket, "acp:message", notification)
-
-        :completed ->
-          notification = ACP.todo_completed(task_id, todo.id, content)
-          push(socket, "acp:message", notification)
-
-        _ ->
-          # pending or other status - no notification
-          :ok
-      end
-    else
-      :ok
-    end
   end
 
   @impl true

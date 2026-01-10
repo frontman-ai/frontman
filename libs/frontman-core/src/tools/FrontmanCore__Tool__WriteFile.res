@@ -1,15 +1,15 @@
 // Write file tool - writes content to a file
 
-module Path = FrontmanBindings.Path
 module Fs = FrontmanBindings.Fs
 module Tool = FrontmanFrontmanProtocol.FrontmanProtocol__Tool
+module SafePath = FrontmanCore__SafePath
 
 let name = "write_file"
 let visibleToAgent = true
 let description = `Writes content to a file.
 
 Parameters:
-- path (required): Relative path to file from source root
+- path (required): Path to file - either relative to source root or absolute (must be under source root)
 - content (required): Content to write
 
 Creates parent directories if they don't exist. Overwrites existing files.`
@@ -26,16 +26,18 @@ external nullValue: output = "null"
 let outputSchema = S.literal(nullValue)
 
 let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.toolResult<output> => {
-  let fullPath = Path.join([ctx.sourceRoot, input.path])
-  let dirPath = Path.dirname(fullPath)
-
-  try {
-    let _ = await Fs.Promises.mkdir(dirPath, {recursive: true})
-    await Fs.Promises.writeFile(fullPath, input.content)
-    Ok(nullValue)
-  } catch {
-  | exn =>
-    let msg = exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
-    Error(`Failed to write file ${input.path}: ${msg}`)
+  switch SafePath.resolve(~sourceRoot=ctx.sourceRoot, ~inputPath=input.path) {
+  | Error(msg) => Error(msg)
+  | Ok(safePath) =>
+    let dirPath = SafePath.dirname(safePath)
+    try {
+      let _ = await Fs.Promises.mkdir(dirPath, {recursive: true})
+      await Fs.Promises.writeFile(SafePath.toString(safePath), input.content)
+      Ok(nullValue)
+    } catch {
+    | exn =>
+      let msg = exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
+      Error(`Failed to write file ${input.path}: ${msg}`)
+    }
   }
 }

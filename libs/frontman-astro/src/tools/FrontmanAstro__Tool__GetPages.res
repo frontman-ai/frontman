@@ -6,6 +6,7 @@ module Fs = FrontmanBindings.Fs
 module Tool = FrontmanFrontmanProtocol.FrontmanProtocol__Tool
 
 let name = "get_client_pages"
+let visibleToAgent = true
 
 let description = `Lists Astro client pages from the pages directory.
 

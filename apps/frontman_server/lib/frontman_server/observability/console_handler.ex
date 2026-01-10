@@ -5,14 +5,11 @@ defmodule FrontmanServer.Observability.ConsoleHandler do
   Useful for development to see timing info without needing a tracing backend.
   Uses ETS to track start times for duration calculation.
 
-  Handles:
-  - FrontmanServer events: MCP tool start/stop
-  - Swarm events: run, llm, tool, child lifecycle
+  Handles Swarm events: run, llm, tool, child lifecycle.
   """
 
   require Logger
 
-  alias FrontmanServer.Observability.Events
   alias Swarm.Telemetry.Events, as: SwarmEvents
 
   @table :frontman_console_timing
@@ -25,9 +22,6 @@ defmodule FrontmanServer.Observability.ConsoleHandler do
 
   defp attach_handlers do
     handlers = [
-      # FrontmanServer events (MCP tools only)
-      {Events.mcp_tool_start(), &__MODULE__.handle_mcp_tool_start/4},
-      {Events.mcp_tool_stop(), &__MODULE__.handle_mcp_tool_stop/4},
       # Swarm events
       {SwarmEvents.run_start(), &__MODULE__.handle_swarm_run_start/4},
       {SwarmEvents.run_stop(), &__MODULE__.handle_swarm_run_stop/4},
@@ -47,33 +41,6 @@ defmodule FrontmanServer.Observability.ConsoleHandler do
       handler_id = "frontman_console_#{Enum.join(event, "_")}"
       :telemetry.attach(handler_id, event, handler, nil)
     end)
-  end
-
-  # ===========================================================================
-  # MCP Tools (FrontmanServer events)
-  # ===========================================================================
-
-  def handle_mcp_tool_start(_event, _measurements, metadata, _config) do
-    %{request_id: request_id, tool_name: tool_name} = metadata
-    start_time = System.monotonic_time(:millisecond)
-    :ets.insert(@table, {{:mcp, request_id}, start_time, tool_name})
-    Logger.info("[telemetry] mcp_tool:start #{tool_name}")
-  end
-
-  def handle_mcp_tool_stop(_event, _measurements, metadata, _config) do
-    %{request_id: request_id, status: status} = metadata
-
-    case :ets.lookup(@table, {:mcp, request_id}) do
-      [{{:mcp, ^request_id}, start_time, tool_name}] ->
-        duration = System.monotonic_time(:millisecond) - start_time
-        :ets.delete(@table, {:mcp, request_id})
-
-        status_str = if status == "success", do: "✓", else: "✗ #{status}"
-        Logger.info("[telemetry] mcp_tool:stop  #{tool_name} #{status_str} (#{duration}ms)")
-
-      [] ->
-        Logger.warning("[telemetry] mcp_tool:stop orphaned request_id=#{request_id}")
-    end
   end
 
   # ===========================================================================

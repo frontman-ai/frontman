@@ -12,7 +12,8 @@ module SSE = FrontmanFrontmanCore.FrontmanCore__SSE
 
 // Re-export for convenience
 let createMiddleware = Middleware.createMiddleware
-let makeConfig = Config.make
+// makeConfig accepts an object with optional fields - JS-friendly API
+let makeConfig = Config.makeFromObject
 type config = Config.t
 
 // Integration export

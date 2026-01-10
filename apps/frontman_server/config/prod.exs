@@ -17,12 +17,6 @@ config :swoosh, local: false
 # Do not print debug messages in production
 config :logger, level: :info
 
-# OpenTelemetry resource configuration
-config :opentelemetry, :resource, %{
-  service: %{name: "frontman-server", version: "0.0.1"},
-  deployment: %{environment: "production"}
-}
-
 # Sentry error tracking
 config :sentry,
   dsn:

@@ -14,8 +14,4 @@ defmodule FrontmanServer.Observability.Events do
   # Task
   def task_start, do: @prefix ++ [:task, :start]
   def task_stop, do: @prefix ++ [:task, :stop]
-
-  # MCP tool (client-side)
-  def mcp_tool_start, do: @prefix ++ [:mcp_tool, :start]
-  def mcp_tool_stop, do: @prefix ++ [:mcp_tool, :stop]
 end

@@ -9,5 +9,7 @@ defmodule Swarm.LLM.Usage do
   typedstruct do
     field :input_tokens, non_neg_integer(), enforce: true
     field :output_tokens, non_neg_integer(), enforce: true
+    field :reasoning_tokens, non_neg_integer(), default: 0
+    field :cached_tokens, non_neg_integer(), default: 0
   end
 end

@@ -98,20 +98,32 @@ defmodule FrontmanServer.Observability.SwarmOtelHandler do
     agent_module = metadata.agent_module
     loop_meta = Map.get(metadata, :metadata, %{})
     task_id = Map.get(loop_meta, :task_id)
+    parent_agent_module = Map.get(loop_meta, :parent_agent_module)
     input_messages = Map.get(metadata, :input_messages, [])
 
-    span_name = "loop"
+    span_name = "agent"
 
-    attributes = [
-      {:"gen_ai.operation.name", "loop"},
-      {:"swarm.loop.id", loop_id},
-      {:"swarm.agent.module", inspect(agent_module)},
-      {:"frontman.task.id", task_id},
-      {:"gen_ai.prompt", format_messages_for_span(input_messages)}
+    base_attributes = [
+      {:"openinference.span.kind", "AGENT"},
+      {:"agent.name", inspect(agent_module)},
+      # Arize agent graph attributes - use "agent" as node_id, steps reference this
+      {:"graph.node.id", "agent"}
     ]
 
+    # Add parent reference for child agents (enables Arize agent graph visualization)
+    base_attributes =
+      if parent_agent_module do
+        [{:"graph.node.parent_id", "agent"} | base_attributes]
+      else
+        base_attributes
+      end
+
+    base_attributes =
+      if task_id, do: [{:"session.id", task_id} | base_attributes], else: base_attributes
+
+    attributes = base_attributes ++ flatten_input_messages(input_messages)
+
     tracer = :opentelemetry.get_tracer(:frontman_server)
-    # Parent loop span under task span (looked up from ETS)
     ctx = with_parent_span(:frontman_spans_task, task_id)
 
     span_ctx = :otel_tracer.start_span(ctx, tracer, span_name, %{attributes: attributes})
@@ -120,35 +132,21 @@ defmodule FrontmanServer.Observability.SwarmOtelHandler do
   end
 
   @doc false
-  def handle_run_stop(_event, measurements, metadata, _config) do
+  def handle_run_stop(_event, _measurements, metadata, _config) do
     loop_id = metadata.loop_id
-    status = Map.get(metadata, :status, :unknown)
-    step_count = Map.get(metadata, :step_count, 0)
     output = Map.get(metadata, :output)
 
     case lookup_span(:frontman_spans_loop, loop_id) do
       {:ok, span_ctx} ->
-        attributes = [
-          {:"swarm.loop.status", to_string(status)},
-          {:"swarm.loop.step_count", step_count}
-        ]
+        if output do
+          :otel_span.set_attributes(span_ctx, [{:"output.value", truncate(to_string(output), 10_000)}])
+        end
 
-        # Add output if present
-        attributes =
-          if output do
-            [{:"gen_ai.completion", truncate(to_string(output), 10_000)} | attributes]
-          else
-            attributes
-          end
-
-        :otel_span.set_attributes(span_ctx, attributes)
-
-        add_duration_event(span_ctx, measurements)
         :otel_span.end_span(span_ctx)
         delete_span(:frontman_spans_loop, loop_id)
 
       :not_found ->
-        Logger.warning("Orphaned loop stop event: loop_id=#{loop_id} has no span")
+        Logger.warning("Orphaned agent stop event: loop_id=#{loop_id} has no span")
     end
   end
 
@@ -175,20 +173,16 @@ defmodule FrontmanServer.Observability.SwarmOtelHandler do
   @doc false
   def handle_step_start(_event, _measurements, metadata, _config) do
     %{loop_id: loop_id, step: step} = metadata
-    loop_meta = Map.get(metadata, :metadata, %{})
-    task_id = Map.get(loop_meta, :task_id)
 
     span_name = "step #{step}"
 
     attributes = [
-      {:"gen_ai.operation.name", "step"},
-      {:"swarm.loop.id", loop_id},
-      {:"swarm.step.number", step},
-      {:"frontman.task.id", task_id}
+      {:"openinference.span.kind", "CHAIN"},
+      {:"graph.node.id", "step_#{step}"},
+      {:"graph.node.parent_id", "agent"}
     ]
 
     tracer = :opentelemetry.get_tracer(:frontman_server)
-    # Parent step span under loop span
     ctx = with_parent_span(:frontman_spans_loop, loop_id)
 
     span_ctx = :otel_tracer.start_span(ctx, tracer, span_name, %{attributes: attributes})
@@ -197,13 +191,12 @@ defmodule FrontmanServer.Observability.SwarmOtelHandler do
   end
 
   @doc false
-  def handle_step_stop(_event, measurements, metadata, _config) do
+  def handle_step_stop(_event, _measurements, metadata, _config) do
     %{loop_id: loop_id, step: step} = metadata
     key = {loop_id, step}
 
     case lookup_span(:frontman_spans_swarm_step, key) do
       {:ok, span_ctx} ->
-        add_duration_event(span_ctx, measurements)
         :otel_span.end_span(span_ctx)
         delete_span(:frontman_spans_swarm_step, key)
 
@@ -237,22 +230,21 @@ defmodule FrontmanServer.Observability.SwarmOtelHandler do
   @doc false
   def handle_llm_start(_event, _measurements, metadata, _config) do
     %{loop_id: loop_id, step: step, model: model} = metadata
-    loop_meta = Map.get(metadata, :metadata, %{})
-    task_id = Map.get(loop_meta, :task_id)
+    input_messages = Map.get(metadata, :messages, [])
 
     span_name = "chat #{model}"
 
-    attributes = [
-      {:"gen_ai.operation.name", "chat"},
-      {:"gen_ai.request.model", model},
-      {:"gen_ai.system", llm_system_from_model(model)},
-      {:"swarm.loop.id", loop_id},
-      {:"swarm.step.number", step},
-      {:"frontman.task.id", task_id}
-    ]
+    attributes =
+      [
+        {:"openinference.span.kind", "LLM"},
+        {:"llm.model_name", model},
+        {:"llm.system", llm_system_from_model(model)},
+        {:"llm.provider", llm_provider_from_model(model)},
+        {:"graph.node.id", "llm"},
+        {:"graph.node.parent_id", "step_#{step}"}
+      ] ++ flatten_input_messages(input_messages)
 
     tracer = :opentelemetry.get_tracer(:frontman_server)
-    # Parent LLM span under step span
     ctx = with_parent_span(:frontman_spans_swarm_step, {loop_id, step})
 
     span_ctx = :otel_tracer.start_span(ctx, tracer, span_name, %{attributes: attributes})
@@ -261,25 +253,36 @@ defmodule FrontmanServer.Observability.SwarmOtelHandler do
   end
 
   @doc false
-  def handle_llm_stop(_event, measurements, metadata, _config) do
+  def handle_llm_stop(_event, _measurements, metadata, _config) do
     %{loop_id: loop_id, step: step} = metadata
     key = {loop_id, step}
 
     case lookup_span(:frontman_spans_llm, key) do
       {:ok, span_ctx} ->
-        # Add usage metrics
+        # Token usage (OpenInference format)
         if usage = metadata[:usage] do
+          prompt_tokens = Map.get(usage, :input_tokens, 0)
+          completion_tokens = Map.get(usage, :output_tokens, 0)
+          reasoning_tokens = Map.get(usage, :reasoning_tokens, 0)
+          cached_tokens = Map.get(usage, :cached_tokens, 0)
+
           :otel_span.set_attributes(span_ctx, [
-            {:"gen_ai.usage.input_tokens", Map.get(usage, :input_tokens, 0)},
-            {:"gen_ai.usage.output_tokens", Map.get(usage, :output_tokens, 0)}
+            {:"llm.token_count.prompt", prompt_tokens},
+            {:"llm.token_count.completion", completion_tokens},
+            {:"llm.token_count.reasoning", reasoning_tokens},
+            {:"llm.token_count.cached", cached_tokens},
+            {:"llm.token_count.total", prompt_tokens + completion_tokens + reasoning_tokens}
           ])
         end
 
-        if tool_call_count = metadata[:tool_call_count] do
-          :otel_span.set_attributes(span_ctx, [{:"gen_ai.tool_call_count", tool_call_count}])
-        end
+        # Output messages (flattened format)
+        output_attrs = flatten_output_messages(metadata[:response], metadata[:tool_calls])
+        :otel_span.set_attributes(span_ctx, output_attrs)
 
-        add_duration_event(span_ctx, measurements)
+        # Reasoning details (thinking text)
+        reasoning_attrs = flatten_reasoning_details(metadata[:reasoning_details])
+        :otel_span.set_attributes(span_ctx, reasoning_attrs)
+
         :otel_span.end_span(span_ctx)
         delete_span(:frontman_spans_llm, key)
 
@@ -313,22 +316,25 @@ defmodule FrontmanServer.Observability.SwarmOtelHandler do
   @doc false
   def handle_tool_start(_event, _measurements, metadata, _config) do
     %{loop_id: loop_id, step: step, tool_id: tool_id, tool_name: tool_name} = metadata
-    loop_meta = Map.get(metadata, :metadata, %{})
-    task_id = Map.get(loop_meta, :task_id)
+    arguments = Map.get(metadata, :arguments)
 
     span_name = "tool #{tool_name}"
 
     attributes = [
-      {:"gen_ai.operation.name", "tool"},
-      {:"gen_ai.tool.name", tool_name},
-      {:"gen_ai.tool.call.id", tool_id},
-      {:"swarm.loop.id", loop_id},
-      {:"swarm.step.number", step},
-      {:"frontman.task.id", task_id}
+      {:"openinference.span.kind", "TOOL"},
+      {:"tool.name", tool_name},
+      {:"graph.node.id", "tool_#{tool_name}"},
+      {:"graph.node.parent_id", "step_#{step}"}
     ]
 
+    attributes =
+      if arguments do
+        [{:"tool.parameters", Jason.encode!(arguments)} | attributes]
+      else
+        attributes
+      end
+
     tracer = :opentelemetry.get_tracer(:frontman_server)
-    # Parent tool span under step span
     ctx = with_parent_span(:frontman_spans_swarm_step, {loop_id, step})
 
     span_ctx = :otel_tracer.start_span(ctx, tracer, span_name, %{attributes: attributes})
@@ -337,17 +343,21 @@ defmodule FrontmanServer.Observability.SwarmOtelHandler do
   end
 
   @doc false
-  def handle_tool_stop(_event, measurements, metadata, _config) do
+  def handle_tool_stop(_event, _measurements, metadata, _config) do
     tool_id = metadata.tool_id
     is_error = Map.get(metadata, :is_error, false)
+    output = Map.get(metadata, :output)
 
     case lookup_span(:frontman_spans_tool, tool_id) do
       {:ok, span_ctx} ->
+        if output do
+          :otel_span.set_attributes(span_ctx, [{:"tool.output", truncate(to_string(output), 10_000)}])
+        end
+
         if is_error do
           :otel_span.set_status(span_ctx, :error, "Tool returned error")
         end
 
-        add_duration_event(span_ctx, measurements)
         :otel_span.end_span(span_ctx)
         delete_span(:frontman_spans_tool, tool_id)
 
@@ -385,22 +395,14 @@ defmodule FrontmanServer.Observability.SwarmOtelHandler do
       task: task
     } = metadata
 
-    loop_meta = Map.get(metadata, :metadata, %{})
-    task_id = Map.get(loop_meta, :task_id)
-
     span_name = "spawn_child"
 
     attributes = [
-      {:"gen_ai.operation.name", "spawn_child"},
-      {:"swarm.parent.loop_id", parent_loop_id},
-      {:"swarm.parent.step", parent_step},
-      {:"swarm.tool_call_id", tool_call_id},
-      {:"swarm.child.task", truncate(task, 200)},
-      {:"frontman.task.id", task_id}
+      {:"openinference.span.kind", "CHAIN"},
+      {:"input.value", truncate(task, 2000)}
     ]
 
     tracer = :opentelemetry.get_tracer(:frontman_server)
-    # Parent child spawn under step span of the parent loop
     ctx = with_parent_span(:frontman_spans_swarm_step, {parent_loop_id, parent_step})
 
     span_ctx = :otel_tracer.start_span(ctx, tracer, span_name, %{attributes: attributes})
@@ -409,23 +411,16 @@ defmodule FrontmanServer.Observability.SwarmOtelHandler do
   end
 
   @doc false
-  def handle_child_stop(_event, measurements, metadata, _config) do
+  def handle_child_stop(_event, _measurements, metadata, _config) do
     tool_call_id = metadata.tool_call_id
-    child_status = Map.get(metadata, :child_status, :unknown)
-    child_step_count = Map.get(metadata, :child_step_count, 0)
+    output = Map.get(metadata, :output)
 
     case lookup_span(:frontman_spans_spawn, tool_call_id) do
       {:ok, span_ctx} ->
-        :otel_span.set_attributes(span_ctx, [
-          {:"swarm.child.status", to_string(child_status)},
-          {:"swarm.child.step_count", child_step_count}
-        ])
-
-        if child_loop_id = metadata[:child_loop_id] do
-          :otel_span.set_attributes(span_ctx, [{:"swarm.child.loop_id", child_loop_id}])
+        if output do
+          :otel_span.set_attributes(span_ctx, [{:"output.value", truncate(to_string(output), 10_000)}])
         end
 
-        add_duration_event(span_ctx, measurements)
         :otel_span.end_span(span_ctx)
         delete_span(:frontman_spans_spawn, tool_call_id)
 
@@ -455,52 +450,201 @@ defmodule FrontmanServer.Observability.SwarmOtelHandler do
   # =============================================================================
 
   # Look up parent span from ETS and create context with it as current span.
-  # This enables proper parent-child relationships across processes.
   defp with_parent_span(table, key) do
     case :ets.lookup(table, key) do
       [{^key, parent_span}] ->
-        # Create a fresh context and set the parent span as current
         ctx = :otel_ctx.new()
         :otel_tracer.set_current_span(ctx, parent_span)
 
       [] ->
-        # No parent found, use current context (will be root span)
         :otel_ctx.get_current()
     end
   end
 
-  defp store_span(table, key, span_ctx) do
-    :ets.insert(table, {key, span_ctx})
-  end
-
+  defp store_span(table, key, span_ctx), do: :ets.insert(table, {key, span_ctx})
   defp lookup_span(table, key) do
     case :ets.lookup(table, key) do
       [{^key, span_ctx}] -> {:ok, span_ctx}
       [] -> :not_found
     end
   end
+  defp delete_span(table, key), do: :ets.delete(table, key)
 
-  defp delete_span(table, key) do
-    :ets.delete(table, key)
+  # =============================================================================
+  # OpenInference Message Flattening
+  # =============================================================================
+  # OpenInference uses flattened attribute names with indices:
+  # llm.input_messages.0.message.role, llm.input_messages.0.message.content, etc.
+
+  defp flatten_input_messages(messages) when is_list(messages) do
+    messages
+    |> Enum.with_index()
+    |> Enum.flat_map(fn {msg, idx} -> flatten_message(msg, "llm.input_messages.#{idx}") end)
   end
 
-  defp add_duration_event(span_ctx, measurements) do
-    if duration = measurements[:duration] do
-      duration_ms = System.convert_time_unit(duration, :native, :millisecond)
-      :otel_span.add_event(span_ctx, "completed", [{:duration_ms, duration_ms}])
-    end
+  defp flatten_input_messages(_), do: []
+
+  defp flatten_output_messages(response, tool_calls) do
+    role_attr = {:"llm.output_messages.0.message.role", "assistant"}
+
+    content_attr =
+      if response && response != "" do
+        [{:"llm.output_messages.0.message.content", truncate(response, 10_000)}]
+      else
+        []
+      end
+
+    tool_attrs = flatten_tool_calls(tool_calls || [])
+
+    [role_attr | content_attr] ++ tool_attrs
   end
+
+  defp flatten_message(%{role: role} = msg, prefix) do
+    base = [
+      {String.to_atom("#{prefix}.message.role"), to_string(role)},
+      {String.to_atom("#{prefix}.message.content"), extract_text_content(Map.get(msg, :content))}
+    ]
+
+    base ++ flatten_msg_tool_calls(msg, prefix)
+  end
+
+  defp flatten_message(%{"role" => role, "content" => content}, prefix) do
+    [
+      {String.to_atom("#{prefix}.message.role"), to_string(role)},
+      {String.to_atom("#{prefix}.message.content"), extract_text_content(content)}
+    ]
+  end
+
+  defp flatten_message(_, _), do: []
+
+  defp flatten_msg_tool_calls(%{role: :assistant, tool_calls: tcs}, prefix) when is_list(tcs) and tcs != [] do
+    Enum.flat_map(Enum.with_index(tcs), fn {tc, idx} ->
+      tc_prefix = "#{prefix}.message.tool_calls.#{idx}"
+
+      [
+        {String.to_atom("#{tc_prefix}.tool_call.function.name"), tool_call_name(tc)},
+        {String.to_atom("#{tc_prefix}.tool_call.function.arguments"), tool_call_args(tc)}
+      ]
+    end)
+  end
+
+  defp flatten_msg_tool_calls(_, _), do: []
+
+  defp flatten_tool_calls(tool_calls) when is_list(tool_calls) do
+    tool_calls
+    |> Enum.with_index()
+    |> Enum.flat_map(fn {tc, idx} ->
+      prefix = "llm.output_messages.0.message.tool_calls.#{idx}"
+
+      [
+        {String.to_atom("#{prefix}.tool_call.function.name"), tool_call_name(tc)},
+        {String.to_atom("#{prefix}.tool_call.function.arguments"), tool_call_args(tc)}
+      ]
+    end)
+  end
+
+  defp flatten_tool_calls(_), do: []
+
+  # Flatten reasoning_details into OTel attributes
+  # Each entry has "text", "index", and possibly "type" (e.g. "reasoning.encrypted")
+  defp flatten_reasoning_details(nil), do: []
+  defp flatten_reasoning_details([]), do: []
+
+  defp flatten_reasoning_details(details) when is_list(details) do
+    # Separate plain thinking text from encrypted signatures
+    {plain, encrypted} =
+      Enum.split_with(details, fn entry ->
+        Map.get(entry, "type") != "reasoning.encrypted"
+      end)
+
+    plain_text =
+      plain
+      |> Enum.sort_by(&Map.get(&1, "index", 0))
+      |> Enum.map_join("\n", &Map.get(&1, "text", ""))
+
+    attrs = []
+
+    # Add plain thinking text if present
+    attrs =
+      if plain_text != "" do
+        [{:"llm.reasoning", truncate(plain_text, 10_000)} | attrs]
+      else
+        attrs
+      end
+
+    # Track if encrypted signatures are present (don't log the actual signatures)
+    attrs =
+      if encrypted != [] do
+        [{:"llm.reasoning.has_encrypted_signature", true} | attrs]
+      else
+        attrs
+      end
+
+    attrs
+  end
+
+  defp flatten_reasoning_details(_), do: []
+
+  defp tool_call_name(%ReqLLM.ToolCall{} = tc), do: ReqLLM.ToolCall.name(tc)
+  defp tool_call_name(%Swarm.ToolCall{name: name}), do: name
+  defp tool_call_name(%{tool_name: name}), do: name
+  defp tool_call_name(%{name: name}), do: name
+  defp tool_call_name(%{"function" => %{"name" => name}}), do: name
+  defp tool_call_name(_), do: "unknown"
+
+  defp tool_call_args(%ReqLLM.ToolCall{} = tc), do: ReqLLM.ToolCall.args_json(tc)
+  defp tool_call_args(%Swarm.ToolCall{arguments: args}), do: args
+  defp tool_call_args(%{arguments: args}) when is_binary(args), do: args
+  defp tool_call_args(%{arguments: args}), do: Jason.encode!(args)
+  defp tool_call_args(%{"function" => %{"arguments" => args}}), do: args
+  defp tool_call_args(_), do: "{}"
+
+  defp extract_text_content(content) when is_binary(content), do: truncate(content, 10_000)
+
+  defp extract_text_content(content) when is_list(content) do
+    content
+    |> Enum.filter(&text_content?/1)
+    |> Enum.map_join("\n", &get_text/1)
+    |> truncate(10_000)
+  end
+
+  defp extract_text_content(_), do: ""
+
+  defp text_content?(%{type: :text}), do: true
+  defp text_content?(%{"type" => "text"}), do: true
+  defp text_content?(_), do: false
+
+  defp get_text(%{text: text}), do: text
+  defp get_text(%{"text" => text}), do: text
+  defp get_text(_), do: ""
+
+  # =============================================================================
+  # Model Detection
+  # =============================================================================
 
   defp llm_system_from_model(model) when is_binary(model) do
     cond do
       String.contains?(model, "claude") -> "anthropic"
       String.contains?(model, "gpt") -> "openai"
       String.contains?(model, "gemini") -> "google"
+      String.contains?(model, "grok") -> "xai"
       true -> "unknown"
     end
   end
 
   defp llm_system_from_model(_), do: "unknown"
+
+  defp llm_provider_from_model(model) when is_binary(model) do
+    cond do
+      String.contains?(model, "claude") -> "anthropic"
+      String.contains?(model, "gpt") -> "openai"
+      String.contains?(model, "gemini") -> "google"
+      String.contains?(model, "grok") -> "xai"
+      true -> "unknown"
+    end
+  end
+
+  defp llm_provider_from_model(_), do: "unknown"
 
   defp truncate(string, max_length) when is_binary(string) do
     if String.length(string) > max_length do
@@ -511,16 +655,4 @@ defmodule FrontmanServer.Observability.SwarmOtelHandler do
   end
 
   defp truncate(other, _), do: inspect(other)
-
-  # Format messages for span attribute - extract user content for readability
-  defp format_messages_for_span(messages) when is_list(messages) do
-    messages
-    |> Enum.filter(&match?(%{role: :user}, &1))
-    |> Enum.flat_map(fn msg -> msg.content end)
-    |> Enum.filter(&match?(%{type: :text}, &1))
-    |> Enum.map_join("\n", & &1.text)
-    |> truncate(10_000)
-  end
-
-  defp format_messages_for_span(_), do: ""
 end

@@ -15,9 +15,9 @@ defmodule FrontmanServer.Agents.PromptsTest do
 
       # Should include selected component specific section
       assert prompt =~ "Selected Component"
-      assert prompt =~ "read_file"
+      assert prompt =~ "Read the file"
       # Should include direct-action guidance (not exploration)
-      assert prompt =~ "DO NOT explore"
+      assert prompt =~ "Never explore"
     end
 
     test "figma_context alone adds figma guidance (no selected component guidance)" do

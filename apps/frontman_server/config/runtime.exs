@@ -24,29 +24,51 @@ if config_env() in [:dev, :test] do
     openai_api_key: env!("OPENAI_API_KEY", :string, nil)
 end
 
-# Braintrust / OpenTelemetry configuration
-# Required in prod, optional in dev (enabled if BRAINTRUST_API_KEY is set)
-braintrust_api_key =
+# OpenTelemetry configuration
+# Arize export enabled if both ARIZE_API_KEY and ARIZE_SPACE_ID are set
+# Required in prod, optional in dev
+{arize_api_key, arize_space_id} =
   if config_env() == :prod do
-    env!("BRAINTRUST_API_KEY", :string!)
+    {env!("ARIZE_API_KEY", :string!), env!("ARIZE_SPACE_ID", :string!)}
   else
-    env!("BRAINTRUST_API_KEY", :string, nil)
+    {env!("ARIZE_API_KEY", :string, nil), env!("ARIZE_SPACE_ID", :string, nil)}
   end
 
-if braintrust_api_key do
-  braintrust_project = env!("BRAINTRUST_PROJECT_NAME", :string!)
+if arize_api_key && arize_space_id do
+  arize_endpoint =
+    env!("ARIZE_COLLECTOR_ENDPOINT", :string, "https://otlp.eu-west-1a.arize.com")
+
+  arize_project = env!("ARIZE_PROJECT_NAME", :string, "frontman")
 
   config :opentelemetry,
     span_processor: :batch,
     traces_exporter: :otlp
 
+  config :opentelemetry, :resource, [
+    {"service.name", "frontman-server"},
+    {"service.version", "0.0.1"},
+    {"deployment.environment", to_string(config_env())},
+    {"project.name", arize_project},
+    {"model_id", "frontman"},
+    {"model_version", "0.0.1"}
+  ]
+
   config :opentelemetry_exporter,
     otlp_protocol: :http_protobuf,
-    otlp_endpoint: "https://api.braintrust.dev/otel",
+    otlp_endpoint: arize_endpoint,
     otlp_headers: [
-      {"Authorization", "Bearer #{braintrust_api_key}"},
-      {"x-bt-parent", "project_name:#{braintrust_project}"}
+      {"space_id", arize_space_id},
+      {"api_key", arize_api_key}
     ]
+else
+  # No Arize - disable export, basic resource only
+  config :opentelemetry, traces_exporter: :none
+
+  config :opentelemetry, :resource, [
+    {"service.name", "frontman-server"},
+    {"service.version", "0.0.1"},
+    {"deployment.environment", to_string(config_env())}
+  ]
 end
 
 if config_env() == :prod do

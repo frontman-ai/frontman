@@ -1,11 +1,11 @@
 /**
  * TodoStatusNotification Stories
- * 
- * Demonstrates the "Starting:" and "Finished:" inline notifications.
+ *
+ * Demonstrates the inline notifications for todo status.
  */
 
 open Bindings__Storybook
-S.enableJson()
+module Todo = Client__State__Types.Todo
 
 type args = unit
 
@@ -17,26 +17,32 @@ let default: Meta.t<args> = {
   decorators: [Decorators.darkBackground],
 }
 
-/** Starting notification */
-let starting: Story.t<args> = {
-  name: "Starting Todo",
+/** Pending notification */
+let pending: Story.t<args> = {
+  name: "Pending Todo",
   render: _ => {
     <div style={{width: "400px", padding: "20px", backgroundColor: "#18181b"}}>
-      <Client__TodoStatusNotification
-        content="Analyzing codebase structure" eventType=#started messageId="story-1"
-      />
+      <Client__TodoStatusNotification content="Waiting to start" status=Todo.Pending />
     </div>
   },
 }
 
-/** Finished notification */
-let finished: Story.t<args> = {
-  name: "Finished Todo",
+/** In Progress notification */
+let inProgress: Story.t<args> = {
+  name: "In Progress Todo",
   render: _ => {
     <div style={{width: "400px", padding: "20px", backgroundColor: "#18181b"}}>
-      <Client__TodoStatusNotification
-        content="Implement authentication" eventType=#completed messageId="story-2"
-      />
+      <Client__TodoStatusNotification content="Analyzing codebase structure" status=Todo.InProgress />
+    </div>
+  },
+}
+
+/** Completed notification */
+let completed: Story.t<args> = {
+  name: "Completed Todo",
+  render: _ => {
+    <div style={{width: "400px", padding: "20px", backgroundColor: "#18181b"}}>
+      <Client__TodoStatusNotification content="Implement authentication" status=Todo.Completed />
     </div>
   },
 }
@@ -47,15 +53,9 @@ let sequence: Story.t<args> = {
   render: _ => {
     <div style={{width: "400px", padding: "20px", backgroundColor: "#18181b"}}>
       <div style={{display: "flex", flexDirection: "column", gap: "4px"}}>
-        <Client__TodoStatusNotification
-          content="Analyze Figma design structure" eventType=#started messageId="story-3a"
-        />
-        <Client__TodoStatusNotification
-          content="Analyze Figma design structure" eventType=#completed messageId="story-3b"
-        />
-        <Client__TodoStatusNotification
-          content="Implement component from specs" eventType=#started messageId="story-3c"
-        />
+        <Client__TodoStatusNotification content="Analyze Figma design structure" status=Todo.Completed />
+        <Client__TodoStatusNotification content="Implement component from specs" status=Todo.InProgress />
+        <Client__TodoStatusNotification content="Write tests" status=Todo.Pending />
       </div>
     </div>
   },
@@ -68,10 +68,8 @@ let longContent: Story.t<args> = {
     <div style={{width: "400px", padding: "20px", backgroundColor: "#18181b"}}>
       <Client__TodoStatusNotification
         content="Refactoring the entire authentication system including OAuth2 integration, session management, and token refresh logic"
-        eventType=#started
-        messageId="story-4"
+        status=Todo.InProgress
       />
     </div>
   },
 }
-

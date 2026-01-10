@@ -108,22 +108,6 @@ let convertMessage = (msg: Snapshot.Message.t): StateTypes.Message.t => {
   }
 }
 
-let convertPlanEntry = (
-  entry: Snapshot.PlanEntry.t,
-): FrontmanFrontmanClient.FrontmanClient__ACP__Types.planEntry => {
-  let priority = switch entry.priority {
-  | High => FrontmanFrontmanClient.FrontmanClient__ACP__Types.High
-  | Medium => FrontmanFrontmanClient.FrontmanClient__ACP__Types.Medium
-  | Low => FrontmanFrontmanClient.FrontmanClient__ACP__Types.Low
-  }
-  let status = switch entry.status {
-  | Pending => FrontmanFrontmanClient.FrontmanClient__ACP__Types.Pending
-  | InProgress => FrontmanFrontmanClient.FrontmanClient__ACP__Types.InProgress
-  | Completed => FrontmanFrontmanClient.FrontmanClient__ACP__Types.Completed
-  }
-  {content: entry.content, priority, status}
-}
-
 let convertTask = (task: Snapshot.Task.t): StateTypes.Task.t => {
   // Convert messages array to Dict
   let messagesDict = Dict.make()
@@ -146,10 +130,8 @@ let convertTask = (task: Snapshot.Task.t): StateTypes.Task.t => {
     webPreviewIsSelecting: task.webPreviewIsSelecting,
     selectedElement: None, // Cannot restore DOM element from snapshot
     figmaNode: convertFigmaNode(task.figmaNode),
-    planEntries: task.planEntries->Array.map(convertPlanEntry),
     isAgentRunning: false, // Default to not running when restoring from snapshot
-    todoBatchEvents: [], // Todo events not stored in snapshots - derived from tool calls
-    todoStatusEvents: [],
+    planEntries: [], // Plan entries not stored in snapshots yet
   }
 }
 
