@@ -124,7 +124,13 @@ let make = () => {
   useExtensionState()
 
   // Use Frontman context for ACP connection
-  let {state, isReady, isSessionActive, createSession, sendPrompt} = Client__FrontmanProvider.useFrontman()
+  let {connectionState, createSession, sendPrompt} = Client__FrontmanProvider.useFrontman()
+
+  // Derive session active state from connectionState
+  let isSessionActive = switch connectionState {
+  | SessionActive(_) => true
+  | _ => false
+  }
 
   // Handle ACP session updates (streaming messages from the agent)
   let handleSessionUpdate = React.useCallback((update: ACPTypes.sessionUpdate) => {
@@ -254,7 +260,7 @@ let make = () => {
     | _ => ()
     }
     None
-  }, (isReady, handleSessionUpdate, createSession))
+  }, (connectionState, handleSessionUpdate, createSession))
 
   // Separate effect to update sendPrompt in state when session becomes active
   React.useEffect(() => {
@@ -262,13 +268,13 @@ let make = () => {
       Client__Debug.init()
       Client__State.Actions.connect(~sendPrompt)
     } else {
-      switch state {
+      switch connectionState {
       | Disconnected | Error(_) => Client__State.Actions.disconnect()
       | _ => ()
       }
     }
     None
-  }, (state, isSessionActive, sendPrompt))
+  }, (connectionState, isSessionActive, sendPrompt))
 
   // Get resizable width for chatbox panel
   let (chatboxWidth, isResizing, handleResizeMouseDown) = Client__UseResizableWidth.use()
