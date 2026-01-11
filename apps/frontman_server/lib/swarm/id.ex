@@ -3,7 +3,7 @@ defmodule Swarm.Id do
   Generates prefixed UUIDv7 identifiers for entities in the swarm system.
   """
 
-  @opaque t() :: String.t()
+  @type t() :: String.t()
 
   @doc """
   Generates a new ID with the given prefix.
