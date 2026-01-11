@@ -260,12 +260,13 @@ jobs:
           restore-keys: ${{ runner.os }}-build-
 
       # PLT cache includes mise.toml hash to invalidate when Erlang/Elixir versions change
+      # v2: bust cache after removing accidentally committed PLT files
       - name: Cache PLT
         uses: actions/cache@v4
         with:
           path: apps/frontman_server/priv/plts
-          key: ${{ runner.os }}-plt-${{ hashFiles('mise.toml', 'apps/frontman_server/mix.lock') }}
-          restore-keys: ${{ runner.os }}-plt-
+          key: ${{ runner.os }}-plt-v2-${{ hashFiles('mise.toml', 'apps/frontman_server/mix.lock') }}
+          restore-keys: ${{ runner.os }}-plt-v2-
 
       - name: Install dependencies
         run: make -C apps/frontman_server install

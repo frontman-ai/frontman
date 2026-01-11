@@ -16,6 +16,9 @@
 # If the VM crashes, it generates a dump, let's ignore it too.
 erl_crash.dump
 
+# Dialyzer PLT files - machine-specific, should be built locally/cached in CI
+/priv/plts/
+
 # Also ignore archive artifacts (built via "mix archive.build").
 *.ez
 
