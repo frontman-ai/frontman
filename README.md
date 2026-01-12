@@ -15,23 +15,15 @@ Unlike traditional IDE-based coding assistants, Frontman integrates directly int
 
 Install the plugin for your framework:
 
-- **Next.js:** See `libs/nextjs-plugin`
-- **Other frameworks:** Coming soon
-
-For development and testing, see the `examples/` directory for working integrations.
-
-## Architecture
-
-The system consists of two main components:
-
-- **Agent Core** (`apps/agent`) - Stateless executable that processes requests and executes the agentic loop
-- **Framework Plugin** - Framework integration that collects context and manages communication
-
+- **Next.js:** See [`libs/frontman-nextjs`](./libs/frontman-nextjs)
+- **Astro:** See [`libs/frontman-astro`](./libs/frontman-astro)
+- **Vite:** See [`libs/vite-plugin`](./libs/vite-plugin)
 
 ## Technology Stack
 
 - **Language:** ReScript
 - **Runtime:** Node.js
+- **Backend:** Elixir/Phoenix
 - **UI:** React
 
 ## Project Structure
@@ -39,17 +31,25 @@ The system consists of two main components:
 ```
 frontman/
 ├── apps/
-│   └── agent/              # Agent core executable
+│   ├── chrome-extension/   # Browser extension
+│   ├── dogfooding/         # Internal testing app
+│   ├── frontman_server/    # Elixir/Phoenix backend
+│   └── marketing/          # Marketing website
 ├── libs/
-│   └── nextjs-plugin/      # Next.js integration
-├── examples/
-│   └── nextjs/             # Example Next.js app for development/testing
-└── docs/
-    └── architecture.md     # Detailed architecture documentation
+│   ├── bindings/           # ReScript bindings for Node/browser APIs
+│   ├── client/             # React component library
+│   ├── context-loader/     # Config file discovery and loading
+│   ├── frontman-astro/     # Astro framework integration
+│   ├── frontman-client/    # Browser MCP client
+│   ├── frontman-core/      # Core server tools
+│   ├── frontman-nextjs/    # Next.js integration
+│   ├── frontman-protocol/  # Protocol definitions
+│   ├── react-statestore/   # React state management
+│   └── vite-plugin/        # Vite plugin
+├── docs/                   # Protocol documentation
+└── infra/                  # Infrastructure configs
 ```
 
 ## Documentation
 
-For detailed information, see the [`docs/`](./docs) directory:
-
-- [Architecture](./docs/architecture.md) - System architecture and design decisions
+For detailed information, see the [`docs/`](./docs) directory.
