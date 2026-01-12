@@ -140,24 +140,15 @@ let make = () => {
 
     switch update {
     | AgentMessageChunk({content}) =>
-      // Text delta from assistant
       content
       ->Option.flatMap(c => c.text)
       ->Option.forEach(text => {
-        // Use a consistent ID for the current message stream
-        let id = `msg_${taskId}`
-        // The reducer will handle creating a new streaming message if needed
-        // (e.g., if last message is not an assistant message)
-        Client__State.Actions.textDeltaReceived(~taskId, ~id, ~text)
+        Client__State.Actions.textDeltaReceived(~taskId, ~text)
       })
 
-    | AgentMessageStart =>
-      let id = `msg_${taskId}`
-      Client__State.Actions.streamingStarted(~taskId, ~id)
+    | AgentMessageStart => Client__State.Actions.streamingStarted(~taskId)
 
-    | AgentMessageEnd =>
-      let id = `msg_${taskId}`
-      Client__State.Actions.messageCompleted(~taskId, ~id)
+    | AgentMessageEnd => Client__State.Actions.messageCompleted(~taskId)
 
     | ToolCall({toolCallId, title, parentAgentId, spawningToolName}) =>
       // Tool call started - create tool call entry

@@ -24,7 +24,7 @@ describe("Concurrent Tasks Event Routing", () => {
     // Act: Receive StreamingStarted event for Task A (not current task)
     let (finalState, _) = StateReducer.next(
       stateWithBothTasks,
-      StreamingStarted({taskId: taskAId, id: "msg-1"}),
+      StreamingStarted({taskId: taskAId}),
     )
 
     // Assert: Message should be in Task A, not Task B
@@ -47,7 +47,7 @@ describe("Concurrent Tasks Event Routing", () => {
     // Add streaming message to Task A
     let (stateWithMessage, _) = StateReducer.next(
       stateWithBothTasks,
-      StreamingStarted({taskId: taskAId, id: "msg-1"}),
+      StreamingStarted({taskId: taskAId}),
     )
 
     // Current task is still B
@@ -56,16 +56,16 @@ describe("Concurrent Tasks Event Routing", () => {
     // Act: Receive text delta for Task A
     let (finalState, _) = StateReducer.next(
       stateWithMessage,
-      TextDeltaReceived({taskId: taskAId, id: "msg-1", text: "Hello from Task A"}),
+      TextDeltaReceived({taskId: taskAId, text: "Hello from Task A"}),
     )
 
     // Assert: Text should be in Task A's message, not Task B
     let taskA = finalState.tasks->Dict.get(taskAId)->Option.getOrThrow
     let taskB = finalState.tasks->Dict.get(taskBId)->Option.getOrThrow
 
-    let taskAMessage = taskA.messages->Dict.get("msg-1")->Option.getOrThrow
-    switch taskAMessage {
-    | Assistant(Streaming({textBuffer})) => t->expect(textBuffer)->Expect.toBe("Hello from Task A")
+    switch StateReducer.Lens.getStreamingMessage(taskA) {
+    | Some(StateReducer.Message.Streaming({textBuffer})) =>
+      t->expect(textBuffer)->Expect.toBe("Hello from Task A")
     | _ => t->expect(false)->Expect.toBe(true)
     }
 
@@ -114,26 +114,14 @@ describe("Concurrent Tasks Event Routing", () => {
     let taskCId = stateWithAllTasks.currentTaskId->Option.getOrThrow
 
     // Act: Start streaming in all three tasks
-    let (state1, _) = StateReducer.next(
-      stateWithAllTasks,
-      StreamingStarted({taskId: taskAId, id: "msg-a"}),
-    )
-    let (state2, _) = StateReducer.next(state1, StreamingStarted({taskId: taskBId, id: "msg-b"}))
-    let (state3, _) = StateReducer.next(state2, StreamingStarted({taskId: taskCId, id: "msg-c"}))
+    let (state1, _) = StateReducer.next(stateWithAllTasks, StreamingStarted({taskId: taskAId}))
+    let (state2, _) = StateReducer.next(state1, StreamingStarted({taskId: taskBId}))
+    let (state3, _) = StateReducer.next(state2, StreamingStarted({taskId: taskCId}))
 
     // Send text deltas to each task
-    let (state4, _) = StateReducer.next(
-      state3,
-      TextDeltaReceived({taskId: taskAId, id: "msg-a", text: "A"}),
-    )
-    let (state5, _) = StateReducer.next(
-      state4,
-      TextDeltaReceived({taskId: taskBId, id: "msg-b", text: "B"}),
-    )
-    let (finalState, _) = StateReducer.next(
-      state5,
-      TextDeltaReceived({taskId: taskCId, id: "msg-c", text: "C"}),
-    )
+    let (state4, _) = StateReducer.next(state3, TextDeltaReceived({taskId: taskAId, text: "A"}))
+    let (state5, _) = StateReducer.next(state4, TextDeltaReceived({taskId: taskBId, text: "B"}))
+    let (finalState, _) = StateReducer.next(state5, TextDeltaReceived({taskId: taskCId, text: "C"}))
 
     // Assert: Each task has its own message with correct content
     let taskA = finalState.tasks->Dict.get(taskAId)->Option.getOrThrow
@@ -144,16 +132,16 @@ describe("Concurrent Tasks Event Routing", () => {
     t->expect(taskB.messages->Dict.size)->Expect.toBe(1)
     t->expect(taskC.messages->Dict.size)->Expect.toBe(1)
 
-    let getStreamingText = (task: StateReducer.Task.t, msgId) => {
-      switch task.messages->Dict.get(msgId) {
-      | Some(Assistant(Streaming({textBuffer}))) => textBuffer
+    let getStreamingText = (task: StateReducer.Task.t) => {
+      switch StateReducer.Lens.getStreamingMessage(task) {
+      | Some(StateReducer.Message.Streaming({textBuffer})) => textBuffer
       | _ => ""
       }
     }
 
-    t->expect(getStreamingText(taskA, "msg-a"))->Expect.toBe("A")
-    t->expect(getStreamingText(taskB, "msg-b"))->Expect.toBe("B")
-    t->expect(getStreamingText(taskC, "msg-c"))->Expect.toBe("C")
+    t->expect(getStreamingText(taskA))->Expect.toBe("A")
+    t->expect(getStreamingText(taskB))->Expect.toBe("B")
+    t->expect(getStreamingText(taskC))->Expect.toBe("C")
   })
 
   test("MessageCompleted event routes to correct task", t => {
@@ -168,26 +156,34 @@ describe("Concurrent Tasks Event Routing", () => {
     // Start streaming in Task A
     let (stateWithStream, _) = StateReducer.next(
       stateWithBothTasks,
-      StreamingStarted({taskId: taskAId, id: "msg-1"}),
+      StreamingStarted({taskId: taskAId}),
     )
     let (stateWithText, _) = StateReducer.next(
       stateWithStream,
-      TextDeltaReceived({taskId: taskAId, id: "msg-1", text: "Complete message"}),
+      TextDeltaReceived({taskId: taskAId, text: "Complete message"}),
     )
 
     // Act: Complete the message in Task A
-    let (finalState, _) = StateReducer.next(
-      stateWithText,
-      MessageCompleted({taskId: taskAId, id: "msg-1"}),
-    )
+    let (finalState, _) = StateReducer.next(stateWithText, MessageCompleted({taskId: taskAId}))
 
     // Assert: Message in Task A should be completed
     let taskA = finalState.tasks->Dict.get(taskAId)->Option.getOrThrow
     let taskB = finalState.tasks->Dict.get(taskBId)->Option.getOrThrow
 
-    let message = taskA.messages->Dict.get("msg-1")->Option.getOrThrow
-    switch message {
-    | Assistant(Completed({content})) => {
+    // Find the completed message (there should be exactly one)
+    let completedMessages =
+      taskA.messages
+      ->Dict.valuesToArray
+      ->Array.filter(msg =>
+        switch msg {
+        | Assistant(Completed(_)) => true
+        | _ => false
+        }
+      )
+
+    t->expect(Array.length(completedMessages))->Expect.toBe(1)
+    switch completedMessages[0] {
+    | Some(Assistant(Completed({content}))) => {
         t->expect(Array.length(content))->Expect.toBe(1)
         switch content[0] {
         | Some(Text({text})) => t->expect(text)->Expect.toBe("Complete message")
@@ -248,13 +244,10 @@ describe("Concurrent Tasks Event Routing", () => {
     let taskAId = stateWithTaskA.currentTaskId->Option.getOrThrow
 
     // Start streaming in Task A
-    let (stateWithStream, _) = StateReducer.next(
-      stateWithTaskA,
-      StreamingStarted({taskId: taskAId, id: "msg-1"}),
-    )
+    let (stateWithStream, _) = StateReducer.next(stateWithTaskA, StreamingStarted({taskId: taskAId}))
     let (stateWithText1, _) = StateReducer.next(
       stateWithStream,
-      TextDeltaReceived({taskId: taskAId, id: "msg-1", text: "Part 1. "}),
+      TextDeltaReceived({taskId: taskAId, text: "Part 1. "}),
     )
 
     // Switch to Task B mid-stream
@@ -264,16 +257,16 @@ describe("Concurrent Tasks Event Routing", () => {
     // Continue receiving text for Task A
     let (finalState, _) = StateReducer.next(
       stateWithTaskB,
-      TextDeltaReceived({taskId: taskAId, id: "msg-1", text: "Part 2."}),
+      TextDeltaReceived({taskId: taskAId, text: "Part 2."}),
     )
 
     // Assert: All text should be in Task A, Task B should be empty
     let taskA = finalState.tasks->Dict.get(taskAId)->Option.getOrThrow
     let taskB = finalState.tasks->Dict.get(taskBId)->Option.getOrThrow
 
-    let message = taskA.messages->Dict.get("msg-1")->Option.getOrThrow
-    switch message {
-    | Assistant(Streaming({textBuffer})) => t->expect(textBuffer)->Expect.toBe("Part 1. Part 2.")
+    switch StateReducer.Lens.getStreamingMessage(taskA) {
+    | Some(StateReducer.Message.Streaming({textBuffer})) =>
+      t->expect(textBuffer)->Expect.toBe("Part 1. Part 2.")
     | _ => t->expect(false)->Expect.toBe(true)
     }
 

@@ -61,14 +61,30 @@ module Lens = {
   let getTaskById = (state: state, taskId: string): option<Task.t> => {
     state.tasks->Dict.get(taskId)
   }
+
+  // Get the streaming message in a task (at most one per task).
+  let getStreamingMessage = (task: Task.t): option<Message.assistantMessage> => {
+    let streaming =
+      task.messages
+      ->Dict.valuesToArray
+      ->Array.filterMap(msg => {
+        switch msg {
+        | Message.Assistant(Streaming(_) as streaming) => Some(streaming)
+        | _ => None
+        }
+      })
+
+    assert(Array.length(streaming) <= 1)
+    streaming->Array.get(0)
+  }
 }
 
 type action =
   // User actions
   | AddUserMessage({id: string, content: array<UserContentPart.t>})
-  // Streaming actions (from SSE events)
-  | StreamingStarted({taskId: string, id: string})
-  | TextDeltaReceived({taskId: string, id: string, text: string})
+  // Streaming actions (from ACP session updates)
+  | StreamingStarted({taskId: string})
+  | TextDeltaReceived({taskId: string, text: string})
   | ToolCallReceived({taskId: string, toolCall: Message.toolCall})
   | ToolInputStartReceived({taskId: string, id: string, toolName: string, parentAgentId: option<string>, spawningToolName: option<string>})
   | ToolInputDeltaReceived({taskId: string, id: string, delta: string})
@@ -77,7 +93,7 @@ type action =
   | ToolResultReceived({taskId: string, id: string, result: JSON.t})
   | ToolErrorReceived({taskId: string, id: string, error: string})
   // Completion action
-  | MessageCompleted({taskId: string, id: string})
+  | MessageCompleted({taskId: string})
   // Preview frame actions
   | SetPreviewUrl({url: string})
   | SetPreviewFrame({
@@ -149,8 +165,8 @@ let defaultState: state = {
 let actionToString = action => {
   switch action {
   | AddUserMessage({id}) => `AddUserMessage(${id})`
-  | StreamingStarted({taskId, id}) => `StreamingStarted(${taskId}, ${id})`
-  | TextDeltaReceived({taskId, id, text}) => `TextDeltaReceived(${taskId}, ${id}, "${text}")`
+  | StreamingStarted({taskId}) => `StreamingStarted(${taskId})`
+  | TextDeltaReceived({taskId, text}) => `TextDeltaReceived(${taskId}, "${text}")`
   | ToolCallReceived({taskId, toolCall}) => `ToolCallReceived(${taskId}, ${toolCall.toolName})`
   | ToolInputStartReceived({taskId, id, toolName, parentAgentId: _}) =>
     `ToolInputStartReceived(${taskId}, ${id}, ${toolName})`
@@ -159,7 +175,7 @@ let actionToString = action => {
   | ToolInputReceived({taskId, id, _}) => `ToolInputReceived(${taskId}, ${id})`
   | ToolResultReceived({taskId, id}) => `ToolResultReceived(${taskId}, ${id})`
   | ToolErrorReceived({taskId, id}) => `ToolErrorReceived(${taskId}, ${id})`
-  | MessageCompleted({taskId, id}) => `MessageCompleted(${taskId}, ${id})`
+  | MessageCompleted({taskId}) => `MessageCompleted(${taskId})`
   | SetPreviewUrl({url}) => `SetPreviewUrl(${url})`
   | SetPreviewFrame(_) => `SetPreviewFrame(contentDocument, contentWindow)`
   | ToggleWebPreviewSelection => `ToggleWebPreviewSelection`
@@ -334,7 +350,7 @@ let handleEffect = (effect, state: state, dispatch) => {
 
       let streamingMessages = Selectors.streamingMessages(state)
       switch streamingMessages[Array.length(streamingMessages) - 1] {
-      | Some(Message.Streaming({id, _})) => dispatch(MessageCompleted({taskId, id}))
+      | Some(Message.Streaming(_)) => dispatch(MessageCompleted({taskId: taskId}))
       | Some(Message.Completed(_)) | None => ()
       }
 
@@ -504,13 +520,15 @@ let next = (state, action) => {
       )
     }
 
-  | StreamingStarted({taskId, id}) =>
+  | StreamingStarted({taskId}) =>
     state
     ->Lens.updateTask(taskId, task => {
-      switch task.messages->Dict.get(id) {
-      | Some(Message.Assistant(Streaming(_))) =>
+      switch Lens.getStreamingMessage(task) {
+      | Some(_) =>
+        // Already have a streaming message, don't create another
         task
-      | _ =>
+      | None =>
+        let id = `msg_${taskId}_${Date.now()->Float.toString}`
         let newMessage = Message.Assistant(
           Streaming({
             id,
@@ -518,40 +536,29 @@ let next = (state, action) => {
             createdAt: Date.now(),
           }),
         )
-        let updatedMessages = task.messages->Dict.copy
-        updatedMessages->Dict.set(id, newMessage)
-        {...task, messages: updatedMessages}
+        Lens.insertTaskMessage(task, newMessage)
       }
     })
     ->FrontmanReactStatestore.StateReducer.update
 
-  | TextDeltaReceived({taskId, id, text}) =>
+  | TextDeltaReceived({taskId, text}) =>
     state
     ->Lens.updateTask(taskId, task => {
-      switch task.messages->Dict.get(id) {
-      | Some(Message.Assistant(Streaming({id: msgId, textBuffer, createdAt}))) =>
-        let newBuffer = textBuffer ++ text
+      switch Lens.getStreamingMessage(task) {
+      | Some(Message.Streaming({id, textBuffer, createdAt})) =>
         let updatedMsg = Message.Assistant(
-          Streaming({
-            id: msgId,
-            textBuffer: newBuffer,
-            createdAt,
-          }),
+          Streaming({id, textBuffer: textBuffer ++ text, createdAt}),
         )
         let updatedMessages = task.messages->Dict.copy
-        updatedMessages->Dict.set(msgId, updatedMsg)
+        updatedMessages->Dict.set(id, updatedMsg)
         {...task, messages: updatedMessages}
-      | _ =>
-        let newMessage = Message.Assistant(
-          Streaming({
-            id,
-            textBuffer: text,
-            createdAt: Date.now(),
-          }),
+      | Some(Message.Completed(_)) => task
+      | None =>
+        let id = `msg_${taskId}_${Date.now()->Float.toString}`
+        Lens.insertTaskMessage(
+          task,
+          Message.Assistant(Streaming({id, textBuffer: text, createdAt: Date.now()})),
         )
-        let updatedMessages = task.messages->Dict.copy
-        updatedMessages->Dict.set(id, newMessage)
-        {...task, messages: updatedMessages}
       }
     })
     ->FrontmanReactStatestore.StateReducer.update
@@ -703,22 +710,22 @@ let next = (state, action) => {
     )
     ->FrontmanReactStatestore.StateReducer.update
 
-  | MessageCompleted({taskId, id}) =>
+  | MessageCompleted({taskId}) =>
     state
     ->Lens.updateTask(taskId, task => {
-      Lens.updateTaskMessage(task, id, msg =>
-        switch msg {
-        | Message.Assistant(Streaming({id: msgId, textBuffer, createdAt})) => {
-            let content = if String.length(textBuffer) > 0 {
-              [AssistantContentPart.Text({text: textBuffer})]
-            } else {
-              []
-            }
-            Message.Assistant(Completed({id: msgId, content, createdAt}))
-          }
-        | other => other
+      switch Lens.getStreamingMessage(task) {
+      | Some(Message.Streaming({id, textBuffer, createdAt})) =>
+        let content = if String.length(textBuffer) > 0 {
+          [AssistantContentPart.Text({text: textBuffer})]
+        } else {
+          []
         }
-      )
+        let completedMsg = Message.Assistant(Completed({id, content, createdAt}))
+        let updatedMessages = task.messages->Dict.copy
+        updatedMessages->Dict.set(id, completedMsg)
+        {...task, messages: updatedMessages}
+      | Some(Message.Completed(_)) | None => task
+      }
     })
     ->FrontmanReactStatestore.StateReducer.update
 

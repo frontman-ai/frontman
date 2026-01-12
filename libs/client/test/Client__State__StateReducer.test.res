@@ -87,7 +87,7 @@ describe("Client State Reducer", () => {
     )
 
     let taskId = state.currentTaskId->Option.getOrThrow
-    let action = Reducer.TextDeltaReceived({taskId, id: "assistant-1", text: " world"})
+    let action = Reducer.TextDeltaReceived({taskId, text: " world"})
     let (nextState, _effects) = Reducer.next(state, action)
 
     let message = TestHelpers.getMessage(nextState, 0)->Option.getOrThrow
@@ -107,7 +107,7 @@ describe("Client State Reducer", () => {
     )
 
     let taskId = state.currentTaskId->Option.getOrThrow
-    let action = Reducer.MessageCompleted({taskId, id: "assistant-1"})
+    let action = Reducer.MessageCompleted({taskId: taskId})
     let (nextState, _effects) = Reducer.next(state, action)
 
     let message = TestHelpers.getMessage(nextState, 0)->Option.getOrThrow
@@ -142,16 +142,13 @@ describe("Client State Reducer", () => {
     let taskId = state.currentTaskId->Option.getOrThrow
 
     // Start assistant streaming
-    let (state, _) = Reducer.next(state, StreamingStarted({taskId, id: "assistant-1"}))
+    let (state, _) = Reducer.next(state, StreamingStarted({taskId: taskId}))
 
     // Add text delta
-    let (state, _) = Reducer.next(
-      state,
-      TextDeltaReceived({taskId, id: "assistant-1", text: "Hello"}),
-    )
+    let (state, _) = Reducer.next(state, TextDeltaReceived({taskId, text: "Hello"}))
 
     // Complete message
-    let (state, _) = Reducer.next(state, MessageCompleted({taskId, id: "assistant-1"}))
+    let (state, _) = Reducer.next(state, MessageCompleted({taskId: taskId}))
 
     let messages = TestHelpers.getMessages(state)
     t->expect(messages->Array.length)->Expect.toBe(2)
@@ -269,7 +266,7 @@ describe("Client State Reducer - MessageCompleted Content Conversion", () => {
     )
 
     let taskId = state.currentTaskId->Option.getOrThrow
-    let (nextState, _) = Reducer.next(state, MessageCompleted({taskId, id: "msg-2"}))
+    let (nextState, _) = Reducer.next(state, MessageCompleted({taskId: taskId}))
 
     let message = TestHelpers.getMessage(nextState, 0)->Option.getOrThrow
 
@@ -296,7 +293,7 @@ describe("Client State Reducer - MessageCompleted Content Conversion", () => {
     )
 
     let taskId = state.currentTaskId->Option.getOrThrow
-    let (nextState, _) = Reducer.next(state, MessageCompleted({taskId, id: "msg-3"}))
+    let (nextState, _) = Reducer.next(state, MessageCompleted({taskId: taskId}))
 
     let messages = TestHelpers.getMessages(nextState)
     switch messages->Array.get(0) {
@@ -327,11 +324,12 @@ describe("Client State Reducer - MessageCompleted Content Conversion", () => {
     )
 
     let taskId = state.currentTaskId->Option.getOrThrow
-    let (nextState, _) = Reducer.next(state, MessageCompleted({taskId, id: "stable-id-123"}))
+    let (nextState, _) = Reducer.next(state, MessageCompleted({taskId: taskId}))
 
     let message = TestHelpers.getMessage(nextState, 0)->Option.getOrThrow
 
     switch message {
+    // The message ID should be preserved from the streaming message
     | Assistant(Completed({id, _})) => t->expect(id)->Expect.toBe("stable-id-123")
     | _ => JsExn.throw("Expected Assistant Completed message")
     }
@@ -354,24 +352,28 @@ describe("Client State Reducer - Streaming Flow", () => {
     // Get taskId after task creation
     let taskId = state.currentTaskId->Option.getOrThrow
 
-    // 1. Start streaming
-    let (state, _) = Reducer.next(state, StreamingStarted({taskId, id: "text-abc"}))
+    // 1. Start streaming (ID is now generated internally)
+    let (state, _) = Reducer.next(state, StreamingStarted({taskId: taskId}))
+
+    // Get the generated message ID
+    let task = state.tasks->Dict.get(taskId)->Option.getOrThrow
+    let generatedId = switch Reducer.Lens.getStreamingMessage(task) {
+    | Some(Reducer.Message.Streaming({id})) => id
+    | _ => JsExn.throw("Expected streaming message")
+    }
 
     // 2. Receive text deltas
-    let (state, _) = Reducer.next(state, TextDeltaReceived({taskId, id: "text-abc", text: "Hello"}))
-    let (state, _) = Reducer.next(
-      state,
-      TextDeltaReceived({taskId, id: "text-abc", text: " world"}),
-    )
+    let (state, _) = Reducer.next(state, TextDeltaReceived({taskId, text: "Hello"}))
+    let (state, _) = Reducer.next(state, TextDeltaReceived({taskId, text: " world"}))
 
     // 3. Complete message
-    let (state, _) = Reducer.next(state, MessageCompleted({taskId, id: "text-abc"}))
+    let (state, _) = Reducer.next(state, MessageCompleted({taskId: taskId}))
 
     // Verify: Message ID stayed stable throughout (check second message, first is user)
     let messages = TestHelpers.getMessages(state)
     switch messages->Array.get(1) {
     | Some(Assistant(Completed({id, content, _}))) => {
-        t->expect(id)->Expect.toBe("text-abc")
+        t->expect(id)->Expect.toBe(generatedId)
         switch content->Array.get(0) {
         | Some(AssistantContentPart.Text({text})) => t->expect(text)->Expect.toBe("Hello world")
         | _ => t->expect("Got text content")->Expect.toBe("Expected text content")

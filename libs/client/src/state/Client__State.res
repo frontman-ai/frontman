@@ -29,14 +29,14 @@ module Actions = {
       }),
     )
 
-  let messageCompleted = (~taskId, ~id) =>
-    Client__State__Store.dispatch(MessageCompleted({taskId, id}))
+  let messageCompleted = (~taskId) =>
+    Client__State__Store.dispatch(MessageCompleted({taskId: taskId}))
 
-  let textDeltaReceived = (~taskId, ~id, ~text) =>
-    Client__State__Store.dispatch(TextDeltaReceived({taskId, id, text}))
+  let textDeltaReceived = (~taskId, ~text) =>
+    Client__State__Store.dispatch(TextDeltaReceived({taskId, text}))
 
-  let streamingStarted = (~taskId, ~id) =>
-    Client__State__Store.dispatch(StreamingStarted({taskId, id}))
+  let streamingStarted = (~taskId) =>
+    Client__State__Store.dispatch(StreamingStarted({taskId: taskId}))
 
   // TOOLS
   let toolCallReceived = (~taskId, ~toolCall) =>
