@@ -74,7 +74,7 @@ describe("LogCapture", _t => {
     test("raw JavaScript console.log with multiple arguments", t => {
       // This tests the variadic arguments bug fix
       // Raw JS console.log must use ...args, not args
-      %raw(`console.log("raw", "javascript", "test", 42)`)
+      ignore(%raw(`console.log("raw", "javascript", "test", 42)`))
 
       let logs = LogCapture.getLogs()
       let found = logs->Array.some(log => log.message == "raw javascript test 42")
@@ -83,7 +83,7 @@ describe("LogCapture", _t => {
     })
 
     test("raw JavaScript console.error with multiple arguments", t => {
-      %raw(`console.error("error", "with", "multiple", "args")`)
+      ignore(%raw(`console.error("error", "with", "multiple", "args")`))
 
       let logs = LogCapture.getLogs()
       let found = logs->Array.some(log => log.message == "error with multiple args")

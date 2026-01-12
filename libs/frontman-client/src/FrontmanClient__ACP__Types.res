@@ -156,7 +156,6 @@ type embeddedResource = {
 
 // Content block for prompts and responses
 // Supports text, resource_link, resource types per ACP spec, and structured JSON content
-@schema
 type contentBlock = {
   @as("type")
   type_: string,
@@ -189,7 +188,6 @@ let annotationsSchema = S.object(s => {
 })
 
 // Tool call content item (for tool_call_update)
-@schema
 type toolCallContentItem = {
   @as("type")
   type_: string,

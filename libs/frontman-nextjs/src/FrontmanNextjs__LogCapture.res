@@ -14,7 +14,7 @@ let isBrowser = (): bool => %raw(`typeof window !== 'undefined'`)
 
 // Custom globalThis properties for Frontman
 let getPatchedFlag = (): option<bool> => %raw(`globalThis.__FRONTMAN_CONSOLE_PATCHED__`)
-let setPatchedFlag = (value: bool): unit => %raw(`globalThis.__FRONTMAN_CONSOLE_PATCHED__ = value`)
+let setPatchedFlag = (_value: bool): unit => %raw(`globalThis.__FRONTMAN_CONSOLE_PATCHED__ = _value`)
 
 @schema
 type logLevel =
@@ -56,7 +56,7 @@ type state = {
 }
 
 let getGlobalInstanceOpt = (): option<state> => %raw(`globalThis.__FRONTMAN_INSTANCE__`)
-let setGlobalInstance = (state: state): unit => %raw(`globalThis.__FRONTMAN_INSTANCE__ = state`)
+let setGlobalInstance = (_state: state): unit => %raw(`globalThis.__FRONTMAN_INSTANCE__ = _state`)
 
 let getOrCreateInstance = (~config: config): state => {
   switch getGlobalInstanceOpt() {
@@ -204,15 +204,15 @@ let handleStdoutWrite = (state: state, message: string): unit => {
   }
 }
 
-let interceptStdout = (state: state): unit => {
-  %raw(`(function(state) {
+let interceptStdout = (_state: state): unit => {
+  %raw(`(function(_state) {
     const originalWrite = process.stdout.write.bind(process.stdout);
     process.stdout.write = (chunk, ...args) => {
       const message = typeof chunk === 'string' ? chunk : chunk.toString();
-      handleStdoutWrite(state, message);
+      handleStdoutWrite(_state, message);
       return originalWrite(chunk, ...args);
     };
-  })(state)`)
+  })(_state)`)
 }
 
 // Temporary inline bindings until workspace linking is fixed
