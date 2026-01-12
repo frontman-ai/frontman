@@ -2,6 +2,7 @@
 
 module Path = FrontmanBindings.Path
 module Fs = FrontmanBindings.Fs
+module ChildProcess = FrontmanBindings.ChildProcess
 module Tool = FrontmanFrontmanProtocol.FrontmanProtocol__Tool
 module SafePath = FrontmanCore__SafePath
 
@@ -28,6 +29,34 @@ type fileEntry = {
 @schema
 type output = array<fileEntry>
 
+// Get entries that are ignored by git (respects .gitignore)
+let getIgnoredEntries = async (~cwd: string, entries: array<string>): result<
+  array<string>,
+  string,
+> => {
+  if Array.length(entries) == 0 {
+    Ok([])
+  } else {
+    try {
+      let entriesArg = entries->Array.join("\n")
+      let command = `printf "%s" "${entriesArg}" | git check-ignore --stdin`
+      let result = await ChildProcess.execWithOptions(command, {cwd: cwd})
+
+      switch result {
+      | Ok({stdout}) => Ok(stdout->String.trim->String.split("\n")->Array.filter(s => s !== ""))
+      | Error({code: Some(1), _}) => Ok([]) // Exit code 1 = no files ignored
+      | Error({code: Some(128), stderr}) => Error(`Not a git repository: ${stderr}`)
+      | Error({stderr}) => Error(`git check-ignore failed: ${stderr}`)
+      }
+    } catch {
+    | exn =>
+      let msg =
+        exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
+      Error(`git check-ignore error: ${msg}`)
+    }
+  }
+}
+
 let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.toolResult<output> => {
   let path = input.path->Option.getOr(".")
 
@@ -38,24 +67,34 @@ let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.toolR
       let fullPath = SafePath.toString(safePath)
       let entries = await Fs.Promises.readdir(fullPath)
 
-      let entriesWithStats = await entries
-      ->Array.map(async name => {
-        let entryPath = Path.join([fullPath, name])
-        let stats = await Fs.Promises.stat(entryPath)
+      let filteredEntriesResult =
+        (await getIgnoredEntries(~cwd=fullPath, entries))->Result.map(ignored =>
+          entries->Array.filter(name => !(ignored->Array.includes(name)))
+        )
 
-        {
-          name,
-          path: Path.join([path, name]),
-          isFile: Fs.isFile(stats),
-          isDirectory: Fs.isDirectory(stats),
-        }
-      })
-      ->Promise.all
+      switch filteredEntriesResult {
+      | Error(msg) => Error(msg)
+      | Ok(filteredEntries) =>
+        let entriesWithStats = await filteredEntries
+        ->Array.map(async name => {
+          let entryPath = Path.join([fullPath, name])
+          let stats = await Fs.Promises.stat(entryPath)
 
-      Ok(entriesWithStats)
+          {
+            name,
+            path: Path.join([path, name]),
+            isFile: Fs.isFile(stats),
+            isDirectory: Fs.isDirectory(stats),
+          }
+        })
+        ->Promise.all
+
+        Ok(entriesWithStats)
+      }
     } catch {
     | exn =>
-      let msg = exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
+      let msg =
+        exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
       Error(`Failed to list files in ${path}: ${msg}`)
     }
   }
