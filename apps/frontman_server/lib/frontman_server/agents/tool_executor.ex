@@ -62,11 +62,11 @@ defmodule FrontmanServer.Agents.ToolExecutor do
 
   # Returns true if this is an MCP tool (registered for response), false for backend tools
   defp register_if_mcp_tool(tool_call) do
-    case Tools.find_tool(tool_call.name) do
-      {:ok, _module} ->
+    case Tools.execution_target(tool_call.name) do
+      :backend ->
         false
 
-      :not_found ->
+      :mcp ->
         Registry.register(FrontmanServer.AgentRegistry, {:tool_call, tool_call.id}, %{
           caller_pid: self()
         })

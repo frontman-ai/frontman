@@ -374,16 +374,15 @@ defmodule FrontmanServerWeb.TaskChannel do
 
     push(socket, "acp:message", args_notification)
 
-    # Check if it's a backend tool or MCP tool
-    case Tools.find_tool(tool_call.tool_name) do
-      {:ok, _tool_module} ->
+    case Tools.execution_target(tool_call.tool_name) do
+      :backend ->
         # Backend tools are executed by ToolExecutor in the agent loop.
         # The channel just notifies the UI (already done above).
         # When the tool completes, we'll receive a ToolResult notification.
         {:noreply, socket}
 
-      :not_found ->
-        # Not a backend tool, route to MCP client for execution
+      :mcp ->
+        # Route to MCP client for execution
         route_to_mcp(tool_call, socket)
     end
   end

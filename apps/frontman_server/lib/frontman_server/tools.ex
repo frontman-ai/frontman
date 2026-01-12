@@ -35,6 +35,20 @@ defmodule FrontmanServer.Tools do
     end
   end
 
+  @doc """
+  Returns the execution target for a tool.
+
+  Backend tools are executed server-side by ToolExecutor.
+  MCP tools are routed to the browser client for execution.
+  """
+  @spec execution_target(String.t()) :: :backend | :mcp
+  def execution_target(tool_name) do
+    case find_tool(tool_name) do
+      {:ok, _module} -> :backend
+      :not_found -> :mcp
+    end
+  end
+
   @spec todo_mutation?(String.t()) :: boolean()
   def todo_mutation?(tool_name), do: tool_name in @todo_mutations
 
