@@ -69,13 +69,14 @@ worktree-create: ## Create a new worktree (usage: make worktree-create BRANCH=fe
 	@mkdir -p .worktrees/$(BRANCH)/.claude/projects
 	@mkdir -p .worktrees/$(BRANCH)/.claude/plans
 	@mkdir -p .worktrees/$(BRANCH)/.claude/todos
-	@ln -sf ~/.claude/CLAUDE.md .worktrees/$(BRANCH)/.claude/
-	@ln -sf ~/.claude/docs .worktrees/$(BRANCH)/.claude/
-	@ln -sf ~/.claude/agents .worktrees/$(BRANCH)/.claude/
-	@ln -sf ~/.claude/commands .worktrees/$(BRANCH)/.claude/
+	@ln -sfn ~/.claude/CLAUDE.md .worktrees/$(BRANCH)/.claude/
+	@ln -sfn ~/.claude/docs .worktrees/$(BRANCH)/.claude/
+	@ln -sfn ~/.claude/agents .worktrees/$(BRANCH)/.claude/
+	@rm -rf .worktrees/$(BRANCH)/.claude/commands
+	@ln -sfn ~/.claude/commands .worktrees/$(BRANCH)/.claude/
 	@touch .worktrees/$(BRANCH)/.claude/history.jsonl
 	@echo "Linking dependencies..."
-	@ln -sf $(PWD)/node_modules .worktrees/$(BRANCH)/
+	@ln -sfn $(PWD)/node_modules .worktrees/$(BRANCH)/
 	@echo "Worktree created at: .worktrees/$(BRANCH)"
 	@echo "Next steps:"
 	@echo "  1. cd .worktrees/$(BRANCH)"
@@ -93,12 +94,13 @@ worktree-create-from: ## Create worktree from existing branch (usage: make workt
 	@mkdir -p .worktrees/$(NAME)/.claude/projects
 	@mkdir -p .worktrees/$(NAME)/.claude/plans
 	@mkdir -p .worktrees/$(NAME)/.claude/todos
-	@ln -sf ~/.claude/CLAUDE.md .worktrees/$(NAME)/.claude/
-	@ln -sf ~/.claude/docs .worktrees/$(NAME)/.claude/
-	@ln -sf ~/.claude/agents .worktrees/$(NAME)/.claude/
-	@ln -sf ~/.claude/commands .worktrees/$(NAME)/.claude/
+	@ln -sfn ~/.claude/CLAUDE.md .worktrees/$(NAME)/.claude/
+	@ln -sfn ~/.claude/docs .worktrees/$(NAME)/.claude/
+	@ln -sfn ~/.claude/agents .worktrees/$(NAME)/.claude/
+	@rm -rf .worktrees/$(NAME)/.claude/commands
+	@ln -sfn ~/.claude/commands .worktrees/$(NAME)/.claude/
 	@touch .worktrees/$(NAME)/.claude/history.jsonl
-	@ln -sf $(PWD)/node_modules .worktrees/$(NAME)/
+	@ln -sfn $(PWD)/node_modules .worktrees/$(NAME)/
 	@echo "Worktree created at: .worktrees/$(NAME)"
 
 worktree-list: ## List all worktrees
