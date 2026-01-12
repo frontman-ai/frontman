@@ -2,7 +2,7 @@ defmodule AgentClientProtocol.ContentTest do
   use ExUnit.Case, async: true
 
   alias AgentClientProtocol.Content
-  alias AgentClientProtocol.Content.{TextBlock, ContentItem}
+  alias AgentClientProtocol.Content.{ContentItem, TextBlock}
 
   describe "text/1" do
     test "builds TextBlock struct" do
@@ -19,16 +19,20 @@ defmodule AgentClientProtocol.ContentTest do
 
   describe "from_tool_result/1" do
     test "formats map as JSON-encoded text" do
-      [%ContentItem{content: %TextBlock{text: text}}] = Content.from_tool_result(%{"key" => "value"})
+      [%ContentItem{content: %TextBlock{text: text}}] =
+        Content.from_tool_result(%{"key" => "value"})
+
       assert Jason.decode!(text) == %{"key" => "value"}
     end
 
     test "formats binary as text" do
-      assert [%ContentItem{content: %TextBlock{text: "Hello"}}] = Content.from_tool_result("Hello")
+      assert [%ContentItem{content: %TextBlock{text: "Hello"}}] =
+               Content.from_tool_result("Hello")
     end
 
     test "formats other types using inspect" do
-      assert [%ContentItem{content: %TextBlock{text: "{:ok, 123}"}}] = Content.from_tool_result({:ok, 123})
+      assert [%ContentItem{content: %TextBlock{text: "{:ok, 123}"}}] =
+               Content.from_tool_result({:ok, 123})
     end
   end
 
@@ -41,13 +45,21 @@ defmodule AgentClientProtocol.ContentTest do
     test "encodes ContentItem to ACP format" do
       item = Content.text("Hello") |> Content.wrap()
       decoded = Jason.decode!(Jason.encode!(item))
-      assert decoded == %{"type" => "content", "content" => %{"type" => "text", "text" => "Hello"}}
+
+      assert decoded == %{
+               "type" => "content",
+               "content" => %{"type" => "text", "text" => "Hello"}
+             }
     end
 
     test "encodes from_tool_result output" do
       [item] = Content.from_tool_result("Hello")
       decoded = Jason.decode!(Jason.encode!(item))
-      assert decoded == %{"type" => "content", "content" => %{"type" => "text", "text" => "Hello"}}
+
+      assert decoded == %{
+               "type" => "content",
+               "content" => %{"type" => "text", "text" => "Hello"}
+             }
     end
   end
 end

@@ -34,7 +34,9 @@ defmodule AgentClientProtocol.Content do
   def wrap(%TextBlock{} = block), do: %ContentItem{content: block}
 
   @spec from_tool_result(term()) :: [ContentItem.t()]
-  def from_tool_result(result) when is_map(result), do: [result |> Jason.encode!() |> text() |> wrap()]
+  def from_tool_result(result) when is_map(result),
+    do: [result |> Jason.encode!() |> text() |> wrap()]
+
   def from_tool_result(result) when is_binary(result), do: [result |> text() |> wrap()]
   def from_tool_result(result), do: [result |> inspect() |> text() |> wrap()]
 end
