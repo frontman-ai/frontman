@@ -362,12 +362,7 @@ defmodule FrontmanServerWeb.TaskChannel do
     push(socket, "acp:message", pending_notification)
 
     # Send tool arguments immediately so the UI can display them
-    args_content = [
-      %{
-        "type" => "content",
-        "content" => %{"type" => "text", "text" => Jason.encode!(tool_call.arguments)}
-      }
-    ]
+    args_content = ACP.Content.from_tool_result(tool_call.arguments)
 
     args_notification =
       ACP.tool_call_update(task_id, tool_call.tool_call_id, "pending", args_content)
@@ -404,7 +399,7 @@ defmodule FrontmanServerWeb.TaskChannel do
     else
       # Regular tools: send tool_call_update
       status = if tool_result.is_error, do: "error", else: "completed"
-      content = format_tool_content(tool_result.result)
+      content = ACP.Content.from_tool_result(tool_result.result)
       notification = ACP.tool_call_update(task_id, tool_result.tool_call_id, status, content)
       push(socket, "acp:message", notification)
     end
@@ -506,18 +501,6 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   def handle_info(msg, _socket) do
     raise "Unhandled message in TaskChannel: #{inspect(msg)}"
-  end
-
-  defp format_tool_content(result) when is_map(result) do
-    [%{type: "content", content: %{type: "text", text: Jason.encode!(result)}}]
-  end
-
-  defp format_tool_content(result) when is_binary(result) do
-    [%{type: "content", content: %{type: "text", text: result}}]
-  end
-
-  defp format_tool_content(result) do
-    [%{type: "content", content: %{type: "text", text: inspect(result)}}]
   end
 
   defp route_to_mcp(tool_call, socket) do

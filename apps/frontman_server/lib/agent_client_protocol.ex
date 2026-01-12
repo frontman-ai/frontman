@@ -10,6 +10,7 @@ defmodule AgentClientProtocol do
   the agent server, separate from MCP which handles tool invocation.
   """
 
+
   @protocol_version 1
 
   def protocol_version, do: @protocol_version
