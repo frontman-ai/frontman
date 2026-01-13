@@ -5,6 +5,7 @@
 module Types = FrontmanClient__MCP__Types
 module Channel = FrontmanClient__Phoenix__Channel
 module JsonRpc = FrontmanClient__JsonRpc
+module Decoders = FrontmanClient__Decoders
 
 type messageDirection = Send | Receive
 
@@ -49,11 +50,7 @@ let hasIdField = (json: JSON.t): bool => {
 // Discriminates by presence of 'id' field
 let parse = (json: JSON.t): result<mcpMessage, string> => {
   let schema = if hasIdField(json) { requestSchema } else { notificationSchema }
-  try {
-    Ok(json->S.parseOrThrow(schema))
-  } catch {
-  | S.Error(e) => Error(e.message)
-  }
+  json->Decoders.parseSchema(schema)
 }
 
 // Send a JSON-RPC response

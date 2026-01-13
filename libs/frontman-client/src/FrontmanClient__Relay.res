@@ -3,6 +3,7 @@
 module Types = FrontmanClient__Relay__Types
 module MCPTypes = FrontmanClient__MCP__Types
 module SSE = FrontmanClient__SSE
+module Decoders = FrontmanClient__Decoders
 
 type connectionState =
   | Disconnected
@@ -39,13 +40,12 @@ let connect = async (relay: t): result<unit, string> => {
     Error(msg)
   } else {
     let json = await response->WebAPI.Response.json
-    try {
-      let data = json->S.parseOrThrow(Types.toolsResponseSchema)
+    switch json->Decoders.parseSchema(Types.toolsResponseSchema) {
+    | Ok(data) =>
       relay.state = Connected({tools: data.tools, serverInfo: data.serverInfo})
       Ok()
-    } catch {
-    | S.Error(e) =>
-      let msg = `Invalid tools response: ${e.message}`
+    | Error(parseError) =>
+      let msg = `Invalid tools response: ${parseError}`
       relay.state = Error(msg)
       Error(msg)
     }
@@ -116,12 +116,9 @@ let executeTool = async (
       // Read SSE stream and return result
       switch await SSE.readStream(response, ~onProgress?) {
       | Ok(json) =>
-        try {
-          let result = json->S.parseOrThrow(MCPTypes.callToolResultSchema)
-          Ok(result)
-        } catch {
-        | S.Error(e) => Error(`Invalid result: ${e.message}`)
-        }
+        json
+        ->Decoders.parseSchema(MCPTypes.callToolResultSchema)
+        ->Result.mapError(msg => `Invalid result: ${msg}`)
       | Error(msg) => Error(msg)
       }
     }

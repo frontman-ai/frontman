@@ -4,6 +4,7 @@
 module Types = FrontmanClient__ACP__Types
 module JsonRpc = FrontmanClient__JsonRpc
 module Channel = FrontmanClient__Phoenix__Channel
+module Decoders = FrontmanClient__Decoders
 
 type connectionState =
   | Disconnected
@@ -97,42 +98,17 @@ let buildInitializeParams = (config: config): JSON.t => {
 }
 
 // Parse initialize result
-let parseInitializeResult = (json: JSON.t): result<Types.initializeResult, string> => {
-  try {
-    Ok(json->S.parseOrThrow(Types.initializeResultSchema))
-  } catch {
-  | S.Error(e) => Error(e.message)
-  }
-}
+let parseInitializeResult = json => json->Decoders.parseSchema(Types.initializeResultSchema)
 
 // Parse session/new result
-let parseSessionNewResult = (json: JSON.t): result<Types.sessionNewResult, string> => {
-  try {
-    Ok(json->S.parseOrThrow(Types.sessionNewResultSchema))
-  } catch {
-  | S.Error(e) => Error(e.message)
-  }
-}
+let parseSessionNewResult = json => json->Decoders.parseSchema(Types.sessionNewResultSchema)
 
 // Parse session/prompt result
-let parsePromptResult = (json: JSON.t): result<Types.promptResult, string> => {
-  try {
-    Ok(json->S.parseOrThrow(Types.promptResultSchema))
-  } catch {
-  | S.Error(e) => Error(e.message)
-  }
-}
+let parsePromptResult = json => json->Decoders.parseSchema(Types.promptResultSchema)
 
 // Parse session/update notification
-let parseSessionUpdateNotification = (
-  json: JSON.t,
-): result<Types.sessionUpdateNotification, string> => {
-  try {
-    Ok(json->S.parseOrThrow(Types.sessionUpdateNotificationSchema))
-  } catch {
-  | S.Error(e) => Error(e.message)
-  }
-}
+let parseSessionUpdateNotification = json =>
+  json->Decoders.parseSchema(Types.sessionUpdateNotificationSchema)
 
 // Check if initialized
 let isInitialized = (state: state): bool => {
