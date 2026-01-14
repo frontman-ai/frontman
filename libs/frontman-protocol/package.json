@@ -8,7 +8,6 @@
 		"./src/*": "./src/*"
 	},
 	"dependencies": {
-		"@rescript/runtime": "12.0.0-beta.14",
 		"sury": "11.0.0-alpha.4"
 	},
 	"devDependencies": {
