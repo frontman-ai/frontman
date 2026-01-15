@@ -53,6 +53,7 @@ let serializeTool = (m: tool): Relay.remoteTool => {
     name: T.name,
     description: T.description,
     inputSchema: T.inputSchema->S.toJSONSchema->jsonSchemaAsJson,
+    visibleToAgent: T.visibleToAgent,
   }
 }
 

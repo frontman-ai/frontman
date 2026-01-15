@@ -8,6 +8,7 @@ type remoteTool = {
   name: string,
   description: string,
   inputSchema: JSON.t,
+  visibleToAgent: bool,
 }
 
 // Tools list response from dev server

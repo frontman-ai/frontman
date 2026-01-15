@@ -7,6 +7,7 @@ module Tool = Protocol.FrontmanProtocol__Tool
 module Core = FrontmanFrontmanCore
 module CoreServer = Core.FrontmanCore__Server
 module CoreSSE = Core.FrontmanCore__SSE
+module PathContext = Core.FrontmanCore__PathContext
 module ToolRegistry = FrontmanNextjs__ToolRegistry
 module WebStreams = FrontmanBindings.WebStreams
 module DOMElementToComponentSource = FrontmanBindings.DOMElementToComponentSource
@@ -30,13 +31,17 @@ let make = (
   ~serverName="frontman-nextjs",
   ~serverVersion="1.0.0",
 ): t => {
-  config: {
-    projectRoot,
-    sourceRoot: sourceRoot->Option.getOr(projectRoot),
-    serverName,
-    serverVersion,
-  },
-  registry: ToolRegistry.make(),
+  let resolvedSourceRoot = sourceRoot->Option.getOr(projectRoot)
+
+  {
+    config: {
+      projectRoot,
+      sourceRoot: resolvedSourceRoot,
+      serverName,
+      serverVersion,
+    },
+    registry: ToolRegistry.make(),
+  }
 }
 
 // GET /__frontman/tools
@@ -106,26 +111,6 @@ let handleToolCall = async (server: t, req: WebAPI.FetchAPI.request): WebAPI.Fet
   }
 }
 
-// Helper to convert absolute path to relative path (relative to sourceRoot)
-// If the path starts with sourceRoot, strip it; otherwise return as-is
-let toRelativePath = (absolutePath: string, sourceRoot: string): string => {
-  // Ensure sourceRoot ends with / for proper stripping
-  let normalizedRoot = if sourceRoot->String.endsWith("/") {
-    sourceRoot
-  } else {
-    sourceRoot ++ "/"
-  }
-
-  if absolutePath->String.startsWith(normalizedRoot) {
-    absolutePath->String.slice(~start=normalizedRoot->String.length, ~end=absolutePath->String.length)
-  } else if absolutePath->String.startsWith(sourceRoot) {
-    // Handle case where sourceRoot doesn't end with / but path matches exactly
-    absolutePath->String.slice(~start=sourceRoot->String.length, ~end=absolutePath->String.length)
-  } else {
-    absolutePath
-  }
-}
-
 // POST /__frontman/resolve-source-location - resolves source location
 let handleResolveSourceLocation = async (
   server: t,
@@ -165,7 +150,7 @@ let handleResolveSourceLocation = async (
 
         // Convert absolute path to relative path (relative to sourceRoot)
         // This ensures the agent can use the path directly with MCP tools
-        let relativeFile = toRelativePath(resolved.file, server.config.sourceRoot)
+        let relativeFile = PathContext.toRelativePath(~sourceRoot=server.config.sourceRoot, ~absolutePath=resolved.file)
 
         let responseJson = JSON.Encode.object(
           Dict.fromArray([

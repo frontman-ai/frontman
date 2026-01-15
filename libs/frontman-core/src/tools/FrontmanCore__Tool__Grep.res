@@ -3,6 +3,7 @@
 module Path = FrontmanBindings.Path
 module ChildProcess = FrontmanBindings.ChildProcess
 module Tool = FrontmanFrontmanProtocol.FrontmanProtocol__Tool
+module PathContext = FrontmanCore__PathContext
 
 let name = "grep"
 let visibleToAgent = true
@@ -74,25 +75,6 @@ let getRipgrepPath = (): option<string> => {
     Some(vsCodeRipgrep["rgPath"])
   } catch {
   | _ => None
-  }
-}
-
-// Resolve search path
-let resolveSearchPath = (~sourceRoot: string, ~inputPath: option<string>): string => {
-  switch inputPath {
-  | None => sourceRoot
-  | Some(path) =>
-    if Path.isAbsolute(path) {
-      let normalizedPath = Path.normalize(path)
-      let normalizedRoot = Path.normalize(sourceRoot)
-      if normalizedPath->String.startsWith(normalizedRoot) {
-        normalizedPath
-      } else {
-        sourceRoot // Fallback to source root if path is outside
-      }
-    } else {
-      Path.join([sourceRoot, path])
-    }
   }
 }
 
@@ -286,7 +268,7 @@ let executeGitGrep = async (
 }
 
 let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.toolResult<output> => {
-  let searchPath = resolveSearchPath(~sourceRoot=ctx.sourceRoot, ~inputPath=input.path)
+  let searchPath = PathContext.resolveSearchPath(~sourceRoot=ctx.sourceRoot, ~inputPath=input.path)
   let caseInsensitive = input.caseInsensitive->Option.getOr(false)
   let literal = input.literal->Option.getOr(false)
   let maxResults = input.maxResults->Option.getOr(100)

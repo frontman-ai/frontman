@@ -4,7 +4,7 @@ module Path = FrontmanBindings.Path
 module Fs = FrontmanBindings.Fs
 module ChildProcess = FrontmanBindings.ChildProcess
 module Tool = FrontmanFrontmanProtocol.FrontmanProtocol__Tool
-module SafePath = FrontmanCore__SafePath
+module PathContext = FrontmanCore__PathContext
 
 let name = "list_files"
 let visibleToAgent = true
@@ -60,11 +60,11 @@ let getIgnoredEntries = async (~cwd: string, entries: array<string>): result<
 let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.toolResult<output> => {
   let path = input.path->Option.getOr(".")
 
-  switch SafePath.resolve(~sourceRoot=ctx.sourceRoot, ~inputPath=path) {
-  | Error(msg) => Error(msg)
-  | Ok(safePath) =>
+  switch PathContext.resolve(~sourceRoot=ctx.sourceRoot, ~inputPath=path) {
+  | Error(err) => Error(PathContext.formatError(err))
+  | Ok(result) =>
     try {
-      let fullPath = SafePath.toString(safePath)
+      let fullPath = result.resolvedPath
       let entries = await Fs.Promises.readdir(fullPath)
 
       let filteredEntriesResult =

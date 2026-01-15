@@ -3,6 +3,10 @@
 	"version": "0.1.0",
 	"type": "module",
 	"main": "./src/FrontmanCore.res.mjs",
+	"exports": {
+		".": "./src/FrontmanCore.res.mjs",
+		"./src/*": "./src/*"
+	},
 	"dependencies": {
 		"@frontman/bindings": "0.1.0",
 		"@frontman/frontman-protocol": "0.1.0",
@@ -15,7 +19,6 @@
 		"@vitest/ui": "catalog:",
 		"rescript": "catalog:",
 		"rescript-vitest": "catalog:",
-		"sury": "catalog:",
 		"vite": "catalog:",
 		"vitest": "catalog:"
 	}

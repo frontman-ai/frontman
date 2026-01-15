@@ -1,0 +1,174 @@
+// PathContext - Agent-facing path utilities with helpful errors and context
+//
+// This module wraps SafePath and provides:
+// - Rich error messages with path confusion detection
+// - Path conversion utilities (relative/absolute)
+// - Response context generation for tool outputs
+//
+// Architecture:
+// - SafePath: Low-level security (traversal prevention)
+// - PathContext: Developer experience (helpful errors, context)
+
+module SafePath = FrontmanCore__SafePath
+module Path = FrontmanBindings.Path
+
+// ============================================
+// Types
+// ============================================
+
+type resolveResult = {
+  safePath: SafePath.t,
+  sourceRoot: string,
+  resolvedPath: string,
+  relativePath: string,
+}
+
+type resolveError = {
+  message: string,
+  hint: option<string>,
+  sourceRoot: string,
+  requestedPath: string,
+}
+
+type responseContext = {
+  sourceRoot: string,
+  resolvedPath: string,
+  relativePath: string,
+}
+
+// ============================================
+// Path Conversion Utilities
+// ============================================
+
+// Convert absolute path to relative (relative to sourceRoot)
+let toRelativePath = (~sourceRoot: string, ~absolutePath: string): string => {
+  let normalizedRoot = if sourceRoot->String.endsWith("/") {
+    sourceRoot
+  } else {
+    sourceRoot ++ "/"
+  }
+
+  if absolutePath->String.startsWith(normalizedRoot) {
+    absolutePath->String.slice(~start=normalizedRoot->String.length, ~end=absolutePath->String.length)
+  } else if absolutePath->String.startsWith(sourceRoot) {
+    // Handle case where path matches exactly without trailing /
+    absolutePath->String.slice(~start=sourceRoot->String.length, ~end=absolutePath->String.length)
+  } else {
+    absolutePath
+  }
+}
+
+// ============================================
+// Search Path Resolution
+// ============================================
+
+// Resolve search path for commands that accept optional path parameter
+// Returns sourceRoot if no path provided, otherwise validates path is under sourceRoot
+let resolveSearchPath = (~sourceRoot: string, ~inputPath: option<string>): string => {
+  switch inputPath {
+  | None => sourceRoot
+  | Some(path) =>
+    if Path.isAbsolute(path) {
+      let normalizedPath = Path.normalize(path)
+      let normalizedRoot = Path.normalize(sourceRoot)
+      if normalizedPath->String.startsWith(normalizedRoot) {
+        normalizedPath
+      } else {
+        sourceRoot // Fallback to sourceRoot if outside
+      }
+    } else {
+      Path.join([sourceRoot, path])
+    }
+  }
+}
+
+// ============================================
+// Path Confusion Detection
+// ============================================
+
+// Detect if agent might be confused about paths
+// e.g., asking for "web" when sourceRoot=/repo/web
+let detectPathConfusion = (~sourceRoot: string, ~requestedPath: string): option<string> => {
+  // Strip leading ./ or /
+  let normalizedPath = requestedPath
+    ->String.replaceRegExp(%re("/^\.\//"), "")
+    ->String.replaceRegExp(%re("/^\//"), "")
+
+  // Get first segment of requested path
+  let firstSegment = normalizedPath->String.split("/")->Array.get(0)->Option.getOr("")
+
+  // Check if first segment appears in sourceRoot path segments
+  let sourceSegments = sourceRoot->String.split("/")
+
+  if firstSegment != "" && sourceSegments->Array.includes(firstSegment) {
+    Some(`Path '${requestedPath}' not found. The sourceRoot is '${sourceRoot}' which already includes '${firstSegment}/'. Try using '.' or a path relative to sourceRoot instead.`)
+  } else {
+    None
+  }
+}
+
+// ============================================
+// Path Operations
+// ============================================
+
+// Get the parent directory of a resolved path
+// Safe because the parent of a validated path is always under sourceRoot (or equal to it)
+let dirname = (result: resolveResult): string => {
+  SafePath.dirname(result.safePath)
+}
+
+// ============================================
+// Core Resolution
+// ============================================
+
+let resolve = (~sourceRoot: string, ~inputPath: string): result<resolveResult, resolveError> => {
+  switch SafePath.resolve(~sourceRoot, ~inputPath) {
+  | Ok(safePath) =>
+    let resolvedPath = SafePath.toString(safePath)
+    Ok({
+      safePath,
+      sourceRoot,
+      resolvedPath,
+      relativePath: toRelativePath(~sourceRoot, ~absolutePath=resolvedPath),
+    })
+  | Error(msg) => Error({
+      message: msg,
+      hint: detectPathConfusion(~sourceRoot, ~requestedPath=inputPath),
+      sourceRoot,
+      requestedPath: inputPath,
+    })
+  }
+}
+
+// ============================================
+// Error Formatting
+// ============================================
+
+let formatError = (err: resolveError): string => {
+  let base = `${err.message} (sourceRoot: ${err.sourceRoot})`
+  switch err.hint {
+  | Some(hint) => `${base}\n\nHint: ${hint}`
+  | None => base
+  }
+}
+
+// ============================================
+// Response Context Generation
+// ============================================
+
+let makeResponseContext = (~sourceRoot: string, ~resolvedPath: string): responseContext => {
+  {
+    sourceRoot,
+    resolvedPath,
+    relativePath: toRelativePath(~sourceRoot, ~absolutePath=resolvedPath),
+  }
+}
+
+// Convenience: create context from resolveResult
+let contextFromResult = (result: resolveResult): responseContext => {
+  {
+    sourceRoot: result.sourceRoot,
+    resolvedPath: result.resolvedPath,
+    relativePath: result.relativePath,
+  }
+}

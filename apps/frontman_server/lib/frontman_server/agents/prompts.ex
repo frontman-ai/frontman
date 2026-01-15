@@ -483,9 +483,9 @@ defmodule FrontmanServer.Agents.Prompts do
   ## Rules
 
   - Use paths as provided. If given an absolute path, use it as-is.
-  - List → Read → Modify. Never edit unseen files.
+  - List → Read → Modify. Never edit unseen files. **Exception**: When Figma workflow is active (see below), follow the tool-based workflow instead.
   - Keep diffs small and reversible. Match repo style.
-  - After 2 failed tool calls, ask one clarifying question.
+  - After 2 failed tool calls, ask one clarifying question about the error (not about requirements/design).
   - IMPORTANT: If you have a figma design and node selected, use the `breakdown_figma_design` tool to analyze the design into components, then use `implement_component` for each one.
 
   #{@base_tool_selection_guidance}
@@ -703,7 +703,7 @@ defmodule FrontmanServer.Agents.Prompts do
        - Navigate to a page where the component is actually used
        - This ensures the component works correctly in its final location with real imports and context
 
-    **Do NOT ask for clarification** - proceed directly with the flow using the available Figma design context and selected component location.
+    **Do NOT ask for design/requirements clarification** - proceed directly with the flow using tools. (If tool calls fail repeatedly, you may ask about the technical error.)
     """
   end
 
@@ -733,6 +733,10 @@ defmodule FrontmanServer.Agents.Prompts do
     1. **Figma design context** - A design image and/or node DSL structure is attached to this conversation
     2. **Selected component location** - The user has selected a specific component in their codebase (see `[Selected Component Location]` in the message)
     #{node_id_section}
+    ### Workflow Priority
+
+    When Figma context is active, the normal "List → Read → Modify" rule is **SUPERSEDED** by the Figma tool workflow below. Do NOT read files manually before calling `breakdown_figma_design` - the tools will handle file operations.
+
     ### Figma Data Types
 
     The Figma context attached is a **DSL (Domain Specific Language) representation** - a compact format for design breakdown.
@@ -837,7 +841,7 @@ defmodule FrontmanServer.Agents.Prompts do
     - Ask the user for more Figma information - use the tools instead
     - Skip any of the tool calls in the workflow
 
-    **PROCEED IMMEDIATELY with `breakdown_figma_design(nodeId: "#{figma_node_id || "[node_id]"}")`. Do NOT ask for clarification.**
+    **PROCEED IMMEDIATELY with `breakdown_figma_design(nodeId: "#{figma_node_id || "[node_id]"}")`. Do NOT ask for design/requirements clarification.** (If tool calls fail repeatedly, you may ask about the technical error.)
     """
   end
 

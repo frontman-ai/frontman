@@ -67,6 +67,7 @@ let getToolsJson = (relay: t): array<JSON.t> => {
           "name": JSON.Encode.string(tool.name),
           "description": JSON.Encode.string(tool.description),
           "inputSchema": tool.inputSchema,
+          "visibleToAgent": JSON.Encode.bool(tool.visibleToAgent),
         },
       )
     )
