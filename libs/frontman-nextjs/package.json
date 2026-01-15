@@ -14,6 +14,13 @@
 		".": "./src/FrontmanNextjs.res.mjs",
 		"./Instrumentation": "./src/FrontmanNextjs__Instrumentation.res.mjs"
 	},
+	"dependencies": {
+		"@frontman/frontman-core": "*",
+		"@frontman/frontman-protocol": "*",
+		"@rescript/runtime": "12.0.0-beta.14",
+		"dom-element-to-component-source": "0.4.2",
+		"sury": "11.0.0-alpha.4"
+	},
 	"peerDependencies": {
 		"@opentelemetry/api": "^1.9.0",
 		"@opentelemetry/sdk-logs": "^0.52.0",
