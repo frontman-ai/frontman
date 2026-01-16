@@ -1,4 +1,4 @@
 [
-  # Add patterns here to ignore specific Dialyzer warnings
-  # Example: {"lib/some_module.ex", :call}
+  # Ecto.Multi returns an opaque type that dialyzer doesn't understand well
+  {"lib/frontman_server/organizations.ex", :call_without_opaque}
 ]

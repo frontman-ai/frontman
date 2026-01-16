@@ -144,7 +144,10 @@ defimpl Swarm.LLM, for: FrontmanServer.Agents.LLMClient do
   end
 
   # Handle argument fragment chunks from ReqLLM streaming
-  defp to_swarm_chunk(%{type: :meta, metadata: %{tool_call_args: %{index: index, fragment: fragment}}}) do
+  defp to_swarm_chunk(%{
+         type: :meta,
+         metadata: %{tool_call_args: %{index: index, fragment: fragment}}
+       }) do
     Chunk.tool_call_args(index, fragment)
   end
 

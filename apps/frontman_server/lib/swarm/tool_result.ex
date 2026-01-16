@@ -57,8 +57,6 @@ defmodule Swarm.ToolResult do
     end
   end
 
-  defp extract_image(_, _), do: nil
-
   defp build_multimodal_content("", image_binary, mime_type),
     do: [ContentPart.image(image_binary, mime_type)]
 

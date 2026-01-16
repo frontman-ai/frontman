@@ -78,7 +78,8 @@ defmodule FrontmanServer.Tools.ImplementComponent do
         },
         "additionalContext" => %{
           "type" => "string",
-          "description" => "(Optional) Any additional context or requirements for this specific component"
+          "description" =>
+            "(Optional) Any additional context or requirements for this specific component"
         }
       },
       "required" => ["componentName", "nodeId", "description"]
