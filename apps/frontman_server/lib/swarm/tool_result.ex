@@ -47,7 +47,7 @@ defmodule Swarm.ToolResult do
     end
   end
 
-  defp extract_image(tool_name, result) when is_map(result) do
+  defp extract_image(tool_name, result) do
     with {image_field, text_fields} <- Map.get(@image_tool_configs, tool_name),
          data_url when is_binary(data_url) <- get_field(result, image_field),
          {:ok, binary, mime} <- decode_data_url(data_url) do
@@ -56,8 +56,6 @@ defmodule Swarm.ToolResult do
       _ -> nil
     end
   end
-
-  defp extract_image(_, _), do: nil
 
   defp build_multimodal_content("", image_binary, mime_type),
     do: [ContentPart.image(image_binary, mime_type)]

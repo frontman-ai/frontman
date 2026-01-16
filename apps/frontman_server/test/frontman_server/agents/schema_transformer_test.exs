@@ -20,6 +20,7 @@ defmodule FrontmanServer.Agents.SchemaTransformerTest do
 
     test "returns :flexible for Anthropic" do
       assert SchemaTransformer.provider_for_model("anthropic:claude-3-opus") == :flexible
+
       assert SchemaTransformer.provider_for_model("openrouter:anthropic/claude-3-opus") ==
                :flexible
     end
@@ -31,6 +32,7 @@ defmodule FrontmanServer.Agents.SchemaTransformerTest do
 
     test "returns :flexible for other models" do
       assert SchemaTransformer.provider_for_model("openrouter:meta-llama/llama-3") == :flexible
+
       assert SchemaTransformer.provider_for_model("openrouter:mistralai/mistral-large") ==
                :flexible
     end

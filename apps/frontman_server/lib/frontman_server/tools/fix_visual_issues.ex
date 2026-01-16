@@ -56,7 +56,8 @@ defmodule FrontmanServer.Tools.FixVisualIssues do
         },
         "implementationDescription" => %{
           "type" => "string",
-          "description" => "(Optional) Description of the current implementation from the comparison"
+          "description" =>
+            "(Optional) Description of the current implementation from the comparison"
         },
         "keyDifferences" => %{
           "type" => "array",
