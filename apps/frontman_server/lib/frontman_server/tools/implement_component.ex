@@ -20,11 +20,8 @@ defmodule FrontmanServer.Tools.ImplementComponent do
 
   require Logger
 
-  alias FrontmanServer.Agents.{SpecializedAgent, ToolExecutor}
-  alias FrontmanServer.Tasks
-  alias FrontmanServer.Tasks.Interaction
+  alias FrontmanServer.Agents.SpecializedAgent
   alias FrontmanServer.Tools.Backend.Context
-  alias FrontmanServer.Tools.MCP
   alias Swarm.Message
 
   @impl true
@@ -87,12 +84,12 @@ defmodule FrontmanServer.Tools.ImplementComponent do
   end
 
   @impl true
-  def execute(args, %Context{task: task, llm_opts: llm_opts}) do
+  def execute(args, %Context{} = context) do
+    %{tool_executor: tool_executor, mcp_tools: mcp_tools, context_messages: context_messages, llm_opts: llm_opts} = context
+
     component_name = Map.get(args, "componentName")
     node_id = Map.get(args, "nodeId")
     data_test_id = generate_data_test_id(component_name)
-
-    mcp_tools = MCP.to_swarm_tools(task.mcp_tools)
 
     Logger.info(
       "ImplementComponent: Starting implementation of #{component_name} (#{node_id}) with #{length(mcp_tools)} MCP tools"
@@ -100,16 +97,11 @@ defmodule FrontmanServer.Tools.ImplementComponent do
 
     user_msg = build_user_message(args, data_test_id)
 
-    # Extract markdown files from read_file tool results (e.g., project conventions,
-    # research findings, AGENTS.md files) and add them as user messages.
-    markdown_messages = extract_markdown_messages_from_task(task.task_id)
+    # Build message list: context files (conventions/research), then user message
+    messages = context_messages ++ [user_msg]
 
-    # Build message list: markdown files (conventions/research), then user message
-    messages = markdown_messages ++ [user_msg]
-
-    # Build ComponentImplementAgent and executor
+    # Build ComponentImplementAgent - use executor from context
     agent = SpecializedAgent.new(:component_implement, tools: mcp_tools, llm_opts: llm_opts)
-    tool_executor = ToolExecutor.make_executor(task.task_id)
 
     case Swarm.run_blocking(agent, messages, tool_executor) do
       {:ok, result} ->
@@ -184,9 +176,4 @@ defmodule FrontmanServer.Tools.ImplementComponent do
     |> String.trim("-")
   end
 
-  defp extract_markdown_messages_from_task(task_id) do
-    task_id
-    |> Tasks.get_interactions()
-    |> Interaction.extract_markdown_messages()
-  end
 end

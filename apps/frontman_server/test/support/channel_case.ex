@@ -17,6 +17,9 @@ defmodule FrontmanServerWeb.ChannelCase do
 
   use ExUnit.CaseTemplate
 
+  alias FrontmanServer.Accounts
+  alias FrontmanServer.Accounts.Scope
+
   using do
     quote do
       # Import conveniences for testing with channels
@@ -28,7 +31,19 @@ defmodule FrontmanServerWeb.ChannelCase do
     end
   end
 
-  setup _tags do
-    :ok
+  setup tags do
+    pid = Ecto.Adapters.SQL.Sandbox.start_owner!(FrontmanServer.Repo, shared: not tags[:async])
+    on_exit(fn -> Ecto.Adapters.SQL.Sandbox.stop_owner(pid) end)
+
+    # Create a test user for scope
+    {:ok, user} =
+      Accounts.register_user(%{
+        email: "channel_test_#{System.unique_integer([:positive])}@test.local",
+        name: "Test User",
+        password: "testpassword123!"
+      })
+
+    scope = Scope.for_user(user)
+    {:ok, scope: scope, user: user}
   end
 end

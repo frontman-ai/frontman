@@ -8,22 +8,36 @@ defmodule FrontmanServer.Agents.ExecutionTest do
 
   use FrontmanServer.SwarmCase, async: false
 
+  alias FrontmanServer.Accounts
+  alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Tasks
   alias Swarm.ToolCall
 
   describe "MCP tool call broadcast" do
     setup do
-      task_id = "test_task_#{System.unique_integer([:positive])}"
-      {:ok, ^task_id} = Tasks.create_task(task_id)
+      pid = Ecto.Adapters.SQL.Sandbox.start_owner!(FrontmanServer.Repo, shared: true)
+      on_exit(fn -> Ecto.Adapters.SQL.Sandbox.stop_owner(pid) end)
+
+      {:ok, user} =
+        Accounts.register_user(%{
+          email: "exec_test_#{System.unique_integer([:positive])}@test.local",
+          name: "Test User",
+          password: "testpassword123!"
+        })
+
+      scope = Scope.for_user(user)
+      task_id = Ecto.UUID.generate()
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
 
       # Subscribe to task topic to receive interaction broadcasts
       Phoenix.PubSub.subscribe(FrontmanServer.PubSub, Tasks.topic(task_id))
 
-      {:ok, task_id: task_id}
+      {:ok, task_id: task_id, scope: scope}
     end
 
     test "broadcasts tool call interaction exactly once for MCP tools", %{
-      task_id: task_id
+      task_id: task_id,
+      scope: scope
     } do
       # Create a tool call that will be routed to MCP (not a backend tool)
       mcp_tool_call = %ToolCall{
@@ -38,7 +52,7 @@ defmodule FrontmanServer.Agents.ExecutionTest do
 
       # Start agent via add_user_message with custom agent
       user_content = [%{"type" => "text", "text" => "Please call the MCP tool"}]
-      {:ok, _} = Tasks.add_user_message(task_id, user_content, [], agent: agent)
+      {:ok, _} = Tasks.add_user_message(scope, task_id, user_content, [], agent: agent)
 
       # Collect all tool call interactions broadcast via PubSub
       # Wait for broadcasts (tool executor has 60s timeout, but we'll collect what we get)
@@ -75,16 +89,27 @@ defmodule FrontmanServer.Agents.ExecutionTest do
 
   describe "MCP tool registration timing" do
     setup do
-      task_id = "test_race_#{System.unique_integer([:positive])}"
-      {:ok, ^task_id} = Tasks.create_task(task_id)
+      pid = Ecto.Adapters.SQL.Sandbox.start_owner!(FrontmanServer.Repo, shared: true)
+      on_exit(fn -> Ecto.Adapters.SQL.Sandbox.stop_owner(pid) end)
+
+      {:ok, user} =
+        Accounts.register_user(%{
+          email: "timing_test_#{System.unique_integer([:positive])}@test.local",
+          name: "Test User",
+          password: "testpassword123!"
+        })
+
+      scope = Scope.for_user(user)
+      task_id = Ecto.UUID.generate()
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
 
       # Subscribe to receive broadcasts
       Phoenix.PubSub.subscribe(FrontmanServer.PubSub, Tasks.topic(task_id))
 
-      {:ok, task_id: task_id}
+      {:ok, task_id: task_id, scope: scope}
     end
 
-    test "agent is registered before interaction is broadcast", %{task_id: task_id} do
+    test "agent is registered before interaction is broadcast", %{task_id: task_id, scope: scope} do
       # Verify registration happens BEFORE broadcast to prevent race condition.
       # ToolExecutor registers in AgentRegistry, then publishes interaction.
       # When we receive the interaction broadcast, the agent should be registered.
@@ -96,7 +121,7 @@ defmodule FrontmanServer.Agents.ExecutionTest do
 
       # Start agent via add_user_message with custom agent
       user_content = [%{"type" => "text", "text" => "Call tool"}]
-      {:ok, _} = Tasks.add_user_message(task_id, user_content, [], agent: agent)
+      {:ok, _} = Tasks.add_user_message(scope, task_id, user_content, [], agent: agent)
 
       # Wait for the interaction broadcast
       assert_receive {:interaction, %Tasks.Interaction.ToolCall{tool_call_id: ^tool_call_id}},

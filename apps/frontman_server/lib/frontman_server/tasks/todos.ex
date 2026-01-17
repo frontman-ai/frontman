@@ -72,8 +72,6 @@ defmodule FrontmanServer.Tasks.Todos do
     end
   end
 
-  alias FrontmanServer.Tasks.Todos.Projection
-
   @doc """
   Lists all current todos by rebuilding state from interactions.
 
@@ -81,7 +79,56 @@ defmodule FrontmanServer.Tasks.Todos do
   """
   @spec list_todos(list(Interaction.t())) :: %{String.t() => Todo.t()}
   def list_todos(interactions) do
-    Projection.project(interactions)
+    interactions
+    |> Enum.filter(&todo_tool_result?/1)
+    |> Enum.reduce(%{}, &apply_result/2)
+  end
+
+  defp todo_tool_result?(%Interaction.ToolResult{tool_name: name}) do
+    name in ["todo_add", "todo_update", "todo_remove"]
+  end
+
+  defp todo_tool_result?(_), do: false
+
+  defp apply_result(%Interaction.ToolResult{tool_name: "todo_add", result: result}, state) do
+    todo = to_todo(result)
+    Map.put(state, todo.id, todo)
+  end
+
+  defp apply_result(%Interaction.ToolResult{tool_name: "todo_update", result: result}, state) do
+    todo = to_todo(result)
+    Map.put(state, todo.id, todo)
+  end
+
+  defp apply_result(%Interaction.ToolResult{tool_name: "todo_remove", result: todo_id}, state) do
+    Map.delete(state, todo_id)
+  end
+
+  defp apply_result(_, state), do: state
+
+  defp to_todo(%Todo{} = todo), do: todo
+
+  defp to_todo(map) when is_map(map) do
+    %Todo{
+      id: map["id"],
+      content: map["content"],
+      active_form: map["active_form"],
+      status: to_atom(map["status"]),
+      created_at: to_datetime(map["created_at"]),
+      updated_at: to_datetime(map["updated_at"])
+    }
+  end
+
+  defp to_atom(s) when is_atom(s), do: s
+  defp to_atom(s) when is_binary(s), do: String.to_existing_atom(s)
+
+  defp to_datetime(%DateTime{} = dt), do: dt
+
+  defp to_datetime(s) when is_binary(s) do
+    case DateTime.from_iso8601(s) do
+      {:ok, dt, _} -> dt
+      _ -> DateTime.utc_now()
+    end
   end
 
   @doc """
@@ -124,19 +171,4 @@ defmodule FrontmanServer.Tasks.Todos do
     end
   end
 
-  @doc """
-  Validates a todo exists by rebuilding state.
-
-  Caller must provide interactions list.
-  """
-  @spec validate_todo_exists(list(Interaction.t()), String.t()) :: :ok | {:error, :not_found}
-  def validate_todo_exists(interactions, todo_id) do
-    state = list_todos(interactions)
-
-    if Map.has_key?(state, todo_id) do
-      :ok
-    else
-      {:error, :not_found}
-    end
-  end
 end

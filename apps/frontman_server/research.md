@@ -171,3 +171,328 @@ Swarm.run(my_agent, "Hello", %{
 3. **Protocol-based extensibility** - `Swarm.Agent` and `Swarm.LLM` are protocols
 4. **Multi-modal ready** - Messages support text, images, and URLs via ContentPart
 5. **Telemetry built-in** - All operations instrumented for observability
+
+---
+
+# Task Persistence Research
+
+**Date**: 2026-01-16
+**Git Commit**: 4089461d678912b434c08f6c4aadb46e27fd54ce
+**Branch**: feature/139-task-persistence
+
+## Research Question
+
+Investigate the Frontman codebase to understand how to implement persistent task storage, focusing on current task/state architecture, server infrastructure, existing persistence patterns, and client-server communication.
+
+---
+
+## Summary
+
+Frontman is a Phoenix/ReScript application with:
+- **Server**: Phoenix 1.8 with Ecto/PostgreSQL, WebSocket channels for real-time ACP/MCP communication
+- **Client**: Custom Redux-like state store in ReScript, React 18 integration
+- **Tasks are ephemeral**: Currently stored only in browser memory with no persistence to server or localStorage
+- **Existing persistence**: User authentication, organizations, memberships - but no task/conversation storage
+- **Communication**: WebSocket channels (JSON-RPC 2.0) + HTTP endpoints for relay tools
+
+Implementing task persistence would require:
+1. New Ecto schema(s) for tasks and messages
+2. New API endpoints or channel handlers for CRUD operations
+3. Client-side changes to serialize/deserialize state to/from server
+4. Task loading on app initialization
+
+---
+
+## Detailed Findings
+
+### 1. Current Task/State Architecture (Client-Side)
+
+**State Management Pattern**: Custom Redux-like store using `StateStore` library
+
+**File**: `libs/react-statestore/src/StateStore.res:1-178`
+
+```rescript
+type t<'state, 'action, 'effect> = {
+  subscriptions: ref<array<unit => unit>>,
+  next: ('state, 'action) => ('state, array<'effect>),  // Pure reducer
+  handleEffect: ('effect, 'state, 'action => unit) => unit,  // Side effects
+  effects: ref<array<'effect>>,
+  state: ref<'state>,
+}
+```
+
+**Main State Shape** (`libs/client/src/state/Client__State__Types.res:436-441`):
+```rescript
+type state = {
+  tasks: Dict.t<Task.t>,           // Task dictionary keyed by ID
+  currentTaskId: option<string>,   // Currently selected task
+  connectionState: connectionState,
+  sessionInitialized: bool,
+}
+```
+
+**Task Type** (`libs/client/src/state/Client__State__Types.res:159-171`):
+```rescript
+type t = {
+  id: string,
+  title: string,
+  messages: Dict.t<Message.t>,
+  createdAt: float,
+  lastMessageAt: option<float>,
+  previewFrame: previewFrame,
+  webPreviewIsSelecting: bool,
+  selectedElement: option<SelectedElement.t>,
+  figmaNode: FigmaNode.t,
+  isAgentRunning: bool,
+  planEntries: array<planEntry>,
+}
+```
+
+**Message Types** (`libs/client/src/state/Client__State__Types.res:21-58`):
+- `User` - User input with content parts (text, image, file)
+- `Assistant` - Either `Streaming` or `Completed` with content blocks
+- `ToolCall` - Tool invocations with states: `InputStreaming`, `InputAvailable`, `OutputAvailable`, `OutputError`
+
+**Current Initialization** (`libs/client/src/Main.res:19-36`):
+- On `DOMContentLoaded`, creates empty task with `Client__State.Actions.createNewTask()`
+- No loading of previous tasks - starts fresh each session
+
+**Persistence Status**: **NONE**
+- Tasks exist only in browser memory
+- Only UI state persisted: chatbox width via localStorage (`libs/client/src/hooks/Client__UseResizableWidth.res:14-49`)
+- Snapshot system exists for debug/storybook but not used at runtime (`libs/client/src/state/Client__StateSnapshot.res`)
+
+---
+
+### 2. Server Infrastructure (Elixir/Phoenix)
+
+**Stack**: Phoenix 1.8.1, Phoenix LiveView 1.1.0, Ecto 3.13, PostgreSQL
+
+**Application Structure** (`apps/frontman_server/lib/frontman_server/application.ex:38-49`):
+- `FrontmanServer.Repo` - Ecto repository
+- `Phoenix.PubSub` - Real-time pub/sub
+- `FrontmanServer.AgentRegistry` - Agent process tracking
+- `FrontmanServer.TaskSupervisor` - Agent execution tasks
+- ETS table `:tasks` for in-memory task state (line 29)
+
+**Router** (`apps/frontman_server/lib/frontman_server_web/router.ex`):
+
+| Scope | Path | Purpose |
+|-------|------|---------|
+| Public | `/` | Landing page |
+| Auth (unauth) | `/users/register`, `/users/log-in` | Registration, login |
+| Auth (auth) | `/users/settings` | User settings |
+| Org-scoped | `/orgs/:org_slug/*` | Organization routes (empty) |
+
+**WebSocket Channels** (`apps/frontman_server/lib/frontman_server_web/channels/`):
+
+| Topic | Channel | Purpose |
+|-------|---------|---------|
+| `"tasks"` | `TasksChannel` | ACP initialization, session creation |
+| `"task:*"` | `TaskChannel` | Task-specific ACP/MCP events, prompt handling |
+
+**Channel Join Flow**:
+1. Client connects to `/socket` → `UserSocket` (anonymous)
+2. Joins `"tasks"` topic → `TasksChannel`
+3. Sends `initialize` JSON-RPC → validates protocol version
+4. Sends `session/new` → creates task via `Tasks.create_task/2`
+5. Joins `"task:<id>"` topic → `TaskChannel`
+
+**Tasks Context** (`apps/frontman_server/lib/frontman_server/tasks/`):
+- Uses ETS table for in-memory storage
+- `Tasks.create_task/2` - Creates task struct in ETS
+- `Tasks.get_task/1` - Retrieves task from ETS
+- **No database persistence** - tasks live only in ETS
+
+---
+
+### 3. Existing Persistence Patterns
+
+**Database**: PostgreSQL with Ecto
+
+**Existing Tables** (migrations in `priv/repo/migrations/`):
+
+| Table | Key Columns | Purpose |
+|-------|-------------|---------|
+| `users` | id (binary_id), email (citext), name, hashed_password, confirmed_at | User accounts |
+| `users_tokens` | id, user_id, token, context, sent_to, authenticated_at | Session/magic link tokens |
+| `organizations` | id (binary_id), name, slug | Multi-tenant organizations |
+| `memberships` | id, user_id, organization_id, role (enum) | Organization membership |
+
+**Schema Patterns**:
+- Binary UUID primary keys: `@primary_key {:id, :binary_id, autogenerate: true}`
+- UTC timestamps: `timestamps(type: :utc_datetime)`
+- Composable query functions in schemas
+- Scope-based authorization via `%Scope{user, organization}`
+
+**Context Patterns** (`apps/frontman_server/lib/frontman_server/accounts.ex`, `organizations.ex`):
+- Public API functions with scope parameter
+- Transaction wrapping via `Repo.transact/1`
+- PubSub broadcasting for real-time updates
+
+**API Response Format**: Not standardized - channels use JSON-RPC 2.0, no REST API yet
+
+---
+
+### 4. Client-Server Communication
+
+**WebSocket Protocol**: Phoenix Channels with JSON-RPC 2.0 messages
+
+**ACP (Agent Client Protocol)** - Client → Server:
+- `initialize` - Protocol handshake
+- `session/new` - Create new task/session
+- `session/prompt` - Send user prompt
+
+**ACP Notifications** - Server → Client:
+- `AgentMessageChunk` - Streaming text
+- `ToolCall` - Tool invocation
+- `ToolCallUpdate` - Tool result
+- `Plan` - Agent plan updates
+
+**MCP (Model Context Protocol)** - Server → Browser:
+- Browser acts as MCP server
+- Responds to `tools/list`, `tools/call` requests
+- Executes browser-side tools (DOM inspection, etc.)
+
+**HTTP Endpoints** (Relay):
+- `GET /__frontman/tools` - Discover relay tools
+- `POST /__frontman/tools/call` - Execute relay tool (SSE response)
+- `POST /__frontman/resolve-source-location` - Resolve source maps
+
+**Client HTTP Pattern** (`libs/frontman-client/src/FrontmanClient__Relay.res`):
+```rescript
+let response = await WebAPI.Global.fetch(url, ~init={
+  method: "POST",
+  headers: {"Content-Type": "application/json"},
+  body: WebAPI.BodyInit.fromString(JSON.stringify(body)),
+})
+```
+
+---
+
+### 5. Key Files Located
+
+**Task/Message Type Definitions**:
+- `libs/client/src/state/Client__State__Types.res` - Main state types
+- `libs/frontman-client/src/FrontmanClient__ACP__Types.res` - ACP protocol types
+- `libs/frontman-protocol/src/FrontmanProtocol__MCP.res` - MCP protocol types
+
+**State Management**:
+- `libs/react-statestore/src/StateStore.res` - Store implementation
+- `libs/client/src/state/Client__State__Store.res` - Store instantiation
+- `libs/client/src/state/Client__State__StateReducer.res` - Reducer + effects
+- `libs/client/src/state/Client__State.res` - Public API
+
+**Server Router/Controllers**:
+- `apps/frontman_server/lib/frontman_server_web/router.ex` - Routes
+- `apps/frontman_server/lib/frontman_server_web/channels/tasks_channel.ex` - Session init
+- `apps/frontman_server/lib/frontman_server_web/channels/task_channel.ex` - Task events
+- `apps/frontman_server/lib/frontman_server/tasks/` - Tasks context (ETS-based)
+
+**Existing Ecto Schemas**:
+- `apps/frontman_server/lib/frontman_server/accounts/user.ex`
+- `apps/frontman_server/lib/frontman_server/accounts/user_token.ex`
+- `apps/frontman_server/lib/frontman_server/organizations/organization.ex`
+- `apps/frontman_server/lib/frontman_server/organizations/membership.ex`
+
+**API Client Utilities**:
+- `libs/frontman-client/src/FrontmanClient__Phoenix__Socket.res` - Socket bindings
+- `libs/frontman-client/src/FrontmanClient__Phoenix__Channel.res` - Channel bindings
+- `libs/frontman-client/src/FrontmanClient__ACP.res` - ACP connection
+- `libs/frontman-client/src/FrontmanClient__JsonRpc.res` - JSON-RPC helpers
+
+---
+
+## Architecture Documentation
+
+### State Flow
+
+```
+User Input (PromptInput)
+    │
+    ▼
+dispatch(AddUserMessage) ───────────────────────────────────────────┐
+    │                                                                │
+    ▼                                                                │
+StateReducer.next() ─────► (newState, [SendMessageToAPI effect])    │
+    │                                                                │
+    ▼                                                                │
+handleEffect(SendMessageToAPI) ─────► connection.sendPrompt()       │
+    │                                                                │
+    ▼                                                                │
+Phoenix Channel ─────► "acp:message" ─────► session/prompt          │
+    │                                                                │
+    ▼                                                                │
+Swarm Agent Execution                                                │
+    │                                                                │
+    ▼                                                                │
+"session/update" notifications ─────────────────────────────────────┘
+    │
+    ▼
+handleSessionUpdate() ─────► dispatch(StreamingStarted, TextDeltaReceived, etc.)
+    │
+    ▼
+StateReducer.next() ─────► updated state
+    │
+    ▼
+React re-render via useSyncExternalStore
+```
+
+### Current Task Lifecycle
+
+1. **Creation**: `DOMContentLoaded` → `createNewTask()` → empty task in memory
+2. **WebSocket Connect**: Join `"tasks"` → `initialize` → `session/new` → Join `"task:<id>"`
+3. **Prompt**: User types → `AddUserMessage` → `sendPrompt` → agent executes
+4. **Streaming**: Server pushes `session/update` → reducer updates messages
+5. **Termination**: Tab close → all data lost (no persistence)
+
+### Authentication Flow
+
+```
+Register/Login ─────► UserSession ─────► Cookie (14-day validity)
+       │
+       ▼
+fetch_current_scope_for_user plug ─────► Scope{user, organization}
+       │
+       ▼
+require_authenticated_user plug ─────► 403 or continue
+```
+
+---
+
+## Open Questions
+
+1. **Task-User Association**: Should tasks belong to a user, organization, or both?
+2. **Message Storage**: Store as JSON blob or normalized relational tables?
+3. **Partial Sync**: How to handle tasks created offline?
+4. **Retention Policy**: How long to keep task history?
+5. **Channel Authentication**: Currently anonymous - needs authentication for persistence
+6. **ETS Migration**: How to migrate from ETS to Ecto without breaking existing functionality?
+
+---
+
+## Implementation Considerations
+
+### What Exists That You Can Build On
+
+1. **Server Infrastructure**
+   - Phoenix 1.8 + Ecto + PostgreSQL fully set up
+   - Existing schemas for users, organizations, memberships follow good patterns (binary UUIDs, UTC timestamps, composable queries, scope-based auth)
+   - WebSocket channels already handle task creation and messaging (`TasksChannel`, `TaskChannel`)
+
+2. **Client State**
+   - Well-structured Redux-like store with types at `libs/client/src/state/Client__State__Types.res`
+   - Snapshot serialization already exists for debug/storybook (`Client__StateSnapshot.res`)
+   - Clean separation: pure reducer + side effects
+
+3. **Communication**
+   - JSON-RPC 2.0 over Phoenix Channels already working
+   - HTTP fetch patterns established in `FrontmanClient__Relay.res`
+
+### What Needs Building
+
+1. **Ecto Schema(s)** for tasks and messages (follow existing patterns in `accounts/`, `organizations/`)
+2. **Tasks Context** - replace ETS-based storage with Ecto
+3. **Channel Authentication** - associate socket with user scope
+4. **Client Persistence Layer** - serialize state to server on changes, load on startup
+5. **API Endpoints** (or channel handlers) for task CRUD

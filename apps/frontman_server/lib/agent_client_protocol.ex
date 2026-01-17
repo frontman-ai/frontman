@@ -52,11 +52,10 @@ defmodule AgentClientProtocol do
   @doc """
   Generates ACP session ID.
 
-  Session IDs are prefixed with "sess_" to distinguish them from other IDs.
-  In ACP, sessions map 1:1 with domain Tasks.
+  Session IDs are UUIDs. In ACP, sessions map 1:1 with domain Tasks.
   """
   def generate_session_id do
-    "sess_" <> Base.encode16(:crypto.strong_rand_bytes(12), case: :lower)
+    Ecto.UUID.generate()
   end
 
   @doc """

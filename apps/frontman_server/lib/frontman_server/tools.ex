@@ -3,7 +3,6 @@ defmodule FrontmanServer.Tools do
   Backend tool aggregator.
   """
 
-  alias FrontmanServer.Tasks
   alias FrontmanServer.Tools.Backend
   alias FrontmanServer.Tools.MCP
 
@@ -63,13 +62,7 @@ defmodule FrontmanServer.Tools do
       mcp_tools |> Tools.prepare_for_task(task_id)
   """
   @spec prepare_for_task([FrontmanServer.Tools.MCP.t()], String.t()) :: [Swarm.Tool.t()]
-  def prepare_for_task(mcp_tools, task_id) do
-    # Store MCP tools on task for backend tools to access
-    if mcp_tools != [] do
-      Tasks.set_mcp_tools(task_id, mcp_tools)
-    end
-
-    # Aggregate all tools
+  def prepare_for_task(mcp_tools, _task_id) do
     mcp_formatted = MCP.to_swarm_tools(mcp_tools)
     backend = backend_tools()
 

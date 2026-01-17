@@ -16,9 +16,8 @@ defmodule FrontmanServer.Tools.VisualCompareComponentToFigma do
 
   require Logger
 
-  alias FrontmanServer.Agents.{SpecializedAgent, ToolExecutor}
+  alias FrontmanServer.Agents.SpecializedAgent
   alias FrontmanServer.Tools.Backend.Context
-  alias FrontmanServer.Tools.MCP
   alias Swarm.Message
 
   @impl true
@@ -68,11 +67,9 @@ defmodule FrontmanServer.Tools.VisualCompareComponentToFigma do
   end
 
   @impl true
-  def execute(args, %Context{task: task, llm_opts: llm_opts}) do
+  def execute(args, %Context{tool_executor: tool_executor, mcp_tools: mcp_tools, llm_opts: llm_opts}) do
     component_name = Map.get(args, "componentName")
     node_id = Map.get(args, "nodeId")
-
-    mcp_tools = MCP.to_swarm_tools(task.mcp_tools)
 
     Logger.info(
       "VisualCompare: Starting comparison for #{component_name} (#{node_id}) with #{length(mcp_tools)} MCP tools"
@@ -81,7 +78,6 @@ defmodule FrontmanServer.Tools.VisualCompareComponentToFigma do
     user_msg = build_user_message(args)
 
     agent = SpecializedAgent.new(:visual_compare, tools: mcp_tools, llm_opts: llm_opts)
-    tool_executor = ToolExecutor.make_executor(task.task_id)
 
     case Swarm.run_blocking(agent, [user_msg], tool_executor) do
       {:ok, result} ->

@@ -28,14 +28,14 @@ defmodule FrontmanServer.Agents.SubAgentMcpRoutingTest do
   alias Swarm.ToolCall
 
   describe "ToolExecutor MCP tool routing" do
-    setup do
-      task_id = "sess_subagent_mcp_#{:rand.uniform(1_000_000)}"
-      {:ok, ^task_id} = Tasks.create_task(task_id)
+    setup %{scope: scope} do
+      task_id = Ecto.UUID.generate()
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
 
       # Join TaskChannel to intercept MCP requests
       {:ok, _reply, socket} =
         UserSocket
-        |> socket("user_id", %{})
+        |> socket("user_id", %{scope: scope})
         |> subscribe_and_join("task:#{task_id}", %{})
 
       # Drain MCP initialization request
@@ -44,14 +44,15 @@ defmodule FrontmanServer.Agents.SubAgentMcpRoutingTest do
       # Subscribe to PubSub to see what interactions are published
       Phoenix.PubSub.subscribe(FrontmanServer.PubSub, Tasks.topic(task_id))
 
-      {:ok, socket: socket, task_id: task_id}
+      {:ok, socket: socket, task_id: task_id, scope: scope}
     end
 
     test "MCP tool calls are automatically routed to channel", %{
-      task_id: task_id
+      task_id: task_id,
+      scope: scope
     } do
       # ToolExecutor now owns interaction publishing - MCP tools are automatically routed
-      executor = ToolExecutor.make_executor(task_id)
+      executor = ToolExecutor.make_executor(scope, task_id)
 
       tool_call = %ToolCall{
         id: "call_#{:rand.uniform(1_000_000)}",
@@ -80,7 +81,8 @@ defmodule FrontmanServer.Agents.SubAgentMcpRoutingTest do
 
     test "full agent execution with MCP tool routing", %{
       socket: socket,
-      task_id: task_id
+      task_id: task_id,
+      scope: scope
     } do
       # Integration test using full Swarm execution with a test LLM that returns an MCP tool call
       mcp_tool_call = %ToolCall{
@@ -93,7 +95,7 @@ defmodule FrontmanServer.Agents.SubAgentMcpRoutingTest do
       agent = test_agent(llm, "ComponentImplementAgent")
 
       # Simple executor - ToolExecutor handles MCP routing internally
-      executor = ToolExecutor.make_executor(task_id)
+      executor = ToolExecutor.make_executor(scope, task_id)
 
       executor_task =
         Task.async(fn ->

@@ -10,13 +10,26 @@ defmodule FrontmanServer.Tools.ImplementComponentTest do
 
   import FrontmanServer.Test.Fixtures.Tools
 
+  alias FrontmanServer.Accounts
+  alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tools.ImplementComponent
 
   setup context do
-    task_id = "test_task_#{System.unique_integer([:positive])}"
-    {:ok, ^task_id} = Tasks.create_task(task_id)
-    {:ok, task} = Tasks.get_task(task_id)
+    pid = Ecto.Adapters.SQL.Sandbox.start_owner!(FrontmanServer.Repo, shared: true)
+    on_exit(fn -> Ecto.Adapters.SQL.Sandbox.stop_owner(pid) end)
+
+    {:ok, user} =
+      Accounts.register_user(%{
+        email: "impl_test_#{System.unique_integer([:positive])}@test.local",
+        name: "Test User",
+        password: "testpassword123!"
+      })
+
+    scope = Scope.for_user(user)
+    task_id = Ecto.UUID.generate()
+    {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
+    {:ok, task} = Tasks.get_task(scope, task_id)
 
     # Extract fixture_path from context for VCR fixture recording
     fixture_path = context[:fixture_path]
@@ -27,7 +40,7 @@ defmodule FrontmanServer.Tools.ImplementComponentTest do
     # Build tool execution context
     context = tool_context(task, llm_opts)
 
-    {:ok, task_id: task_id, task: task, llm_opts: llm_opts, context: context}
+    {:ok, task_id: task_id, task: task, llm_opts: llm_opts, context: context, scope: scope}
   end
 
   describe "execute/2" do
@@ -48,7 +61,8 @@ defmodule FrontmanServer.Tools.ImplementComponentTest do
 
     test "injects markdown context from task interactions into sub-agent", %{
       task_id: task_id,
-      llm_opts: llm_opts
+      llm_opts: llm_opts,
+      scope: scope
     } do
       # Add markdown file to task interactions
       markdown_content = """
@@ -58,10 +72,10 @@ defmodule FrontmanServer.Tools.ImplementComponentTest do
       Follow these conventions when implementing components.
       """
 
-      add_markdown_to_task(task_id, "AGENTS.md", markdown_content)
+      add_markdown_to_task(scope, task_id, "AGENTS.md", markdown_content)
 
       # Get updated task with markdown in interactions
-      {:ok, updated_task} = Tasks.get_task(task_id)
+      {:ok, updated_task} = Tasks.get_task(scope, task_id)
       context = tool_context(updated_task, llm_opts)
 
       args = build_args()
@@ -112,19 +126,21 @@ defmodule FrontmanServer.Tools.ImplementComponentTest do
 
     test "injects multiple markdown files in order", %{
       task_id: task_id,
-      llm_opts: llm_opts
+      llm_opts: llm_opts,
+      scope: scope
     } do
       # Add multiple markdown files
-      add_markdown_to_task(task_id, "AGENTS.md", "# Agent Guidelines\nFollow these patterns.")
-      add_markdown_to_task(task_id, "research.md", "# Research Findings\nKey insights...")
+      add_markdown_to_task(scope, task_id, "AGENTS.md", "# Agent Guidelines\nFollow these patterns.")
+      add_markdown_to_task(scope, task_id, "research.md", "# Research Findings\nKey insights...")
 
       add_markdown_to_task(
+        scope,
         task_id,
         "conventions.md",
         "# Code Conventions\nUse these standards."
       )
 
-      {:ok, updated_task} = Tasks.get_task(task_id)
+      {:ok, updated_task} = Tasks.get_task(scope, task_id)
       context = tool_context(updated_task, llm_opts)
 
       args = build_args()

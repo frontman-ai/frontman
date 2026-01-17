@@ -1,6 +1,8 @@
 defmodule FrontmanServer.ToolsTest do
-  use ExUnit.Case, async: true
+  use FrontmanServer.DataCase, async: false
 
+  alias FrontmanServer.Accounts
+  alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Todos.Todo
   alias FrontmanServer.Tools
@@ -11,10 +13,19 @@ defmodule FrontmanServer.ToolsTest do
   alias FrontmanServer.Tools.TodoUpdate
 
   setup do
-    task_id = "test_task_#{:rand.uniform(1_000_000)}"
-    {:ok, ^task_id} = Tasks.create_task(task_id)
-    {:ok, task} = Tasks.get_task(task_id)
-    {:ok, task_id: task_id, task: task}
+    # Create a test user for scope
+    {:ok, user} =
+      Accounts.register_user(%{
+        email: "tools_test_#{System.unique_integer([:positive])}@test.local",
+        name: "Test User",
+        password: "testpassword123!"
+      })
+
+    scope = Scope.for_user(user)
+    task_id = Ecto.UUID.generate()
+    {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
+    {:ok, task} = Tasks.get_task(scope, task_id)
+    {:ok, task_id: task_id, task: task, scope: scope}
   end
 
   describe "backend_tools/0" do
@@ -75,9 +86,12 @@ defmodule FrontmanServer.ToolsTest do
 
   # Note: execute_backend_tool/2 functionality moved to ToolExecutor.execute/3
 
+  # No-op executor for tests that don't actually execute sub-agents
+  defp noop_executor(_tool_call), do: {:ok, "mock result"}
+
   describe "tool execution via module.execute/2" do
     test "todo_add returns Todo struct", %{task: task} do
-      context = %Context{task: task}
+      context = %Context{task: task, tool_executor: &noop_executor/1}
 
       result =
         TodoAdd.execute(
@@ -90,9 +104,9 @@ defmodule FrontmanServer.ToolsTest do
       assert todo.status == :pending
     end
 
-    test "todo_list returns todos after adding", %{task_id: task_id} do
-      {:ok, task} = Tasks.get_task(task_id)
-      context = %Context{task: task}
+    test "todo_list returns todos after adding", %{task_id: task_id, scope: scope} do
+      {:ok, task} = Tasks.get_task(scope, task_id)
+      context = %Context{task: task, tool_executor: &noop_executor/1}
 
       # Add a todo
       {:ok, todo} =
@@ -102,11 +116,11 @@ defmodule FrontmanServer.ToolsTest do
         )
 
       # Store the result
-      Tasks.add_tool_result(task_id, %{id: "call1", name: "todo_add"}, todo, false)
+      Tasks.add_tool_result(scope, task_id, %{id: "call1", name: "todo_add"}, todo, false)
 
       # Refresh task to get updated interactions
-      {:ok, updated_task} = Tasks.get_task(task_id)
-      updated_context = %Context{task: updated_task}
+      {:ok, updated_task} = Tasks.get_task(scope, task_id)
+      updated_context = %Context{task: updated_task, tool_executor: &noop_executor/1}
 
       # List todos
       {:ok, result} = TodoList.execute(%{}, updated_context)
@@ -114,9 +128,9 @@ defmodule FrontmanServer.ToolsTest do
       assert length(todos) == 1
     end
 
-    test "todo_update returns updated Todo", %{task_id: task_id} do
-      {:ok, task} = Tasks.get_task(task_id)
-      context = %Context{task: task}
+    test "todo_update returns updated Todo", %{task_id: task_id, scope: scope} do
+      {:ok, task} = Tasks.get_task(scope, task_id)
+      context = %Context{task: task, tool_executor: &noop_executor/1}
 
       # Add a todo
       {:ok, todo} =
@@ -125,11 +139,11 @@ defmodule FrontmanServer.ToolsTest do
           context
         )
 
-      Tasks.add_tool_result(task_id, %{id: "call1", name: "todo_add"}, todo, false)
+      Tasks.add_tool_result(scope, task_id, %{id: "call1", name: "todo_add"}, todo, false)
 
       # Refresh task to get updated interactions
-      {:ok, updated_task} = Tasks.get_task(task_id)
-      updated_context = %Context{task: updated_task}
+      {:ok, updated_task} = Tasks.get_task(scope, task_id)
+      updated_context = %Context{task: updated_task, tool_executor: &noop_executor/1}
 
       # Update it
       {:ok, %Todo{} = updated} =
@@ -141,9 +155,9 @@ defmodule FrontmanServer.ToolsTest do
       assert updated.status == :completed
     end
 
-    test "todo_remove returns todo_id", %{task_id: task_id} do
-      {:ok, task} = Tasks.get_task(task_id)
-      context = %Context{task: task}
+    test "todo_remove returns todo_id", %{task_id: task_id, scope: scope} do
+      {:ok, task} = Tasks.get_task(scope, task_id)
+      context = %Context{task: task, tool_executor: &noop_executor/1}
 
       # Add a todo
       {:ok, todo} =
@@ -152,11 +166,11 @@ defmodule FrontmanServer.ToolsTest do
           context
         )
 
-      Tasks.add_tool_result(task_id, %{id: "call1", name: "todo_add"}, todo, false)
+      Tasks.add_tool_result(scope, task_id, %{id: "call1", name: "todo_add"}, todo, false)
 
       # Refresh task to get updated interactions
-      {:ok, updated_task} = Tasks.get_task(task_id)
-      updated_context = %Context{task: updated_task}
+      {:ok, updated_task} = Tasks.get_task(scope, task_id)
+      updated_context = %Context{task: updated_task, tool_executor: &noop_executor/1}
 
       # Remove it
       {:ok, removed_id} =

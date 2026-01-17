@@ -1,7 +1,22 @@
 defmodule FrontmanServer.TasksTest do
-  use ExUnit.Case, async: false
+  use FrontmanServer.DataCase, async: false
 
+  alias FrontmanServer.Accounts
+  alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Tasks
+
+  setup do
+    # Create a test user for scope
+    {:ok, user} =
+      Accounts.register_user(%{
+        email: "test_#{System.unique_integer([:positive])}@test.local",
+        name: "Test User",
+        password: "testpassword123!"
+      })
+
+    scope = Scope.for_user(user)
+    %{scope: scope, user: user}
+  end
 
   describe "topic/1" do
     test "returns topic string for task_id" do
@@ -11,7 +26,7 @@ defmodule FrontmanServer.TasksTest do
 
   describe "subscribe/2" do
     test "subscribes calling process to task topic" do
-      task_id = "test_sub_#{System.unique_integer([:positive])}"
+      task_id = Ecto.UUID.generate()
 
       :ok = Tasks.subscribe(FrontmanServer.PubSub, task_id)
 
@@ -25,53 +40,94 @@ defmodule FrontmanServer.TasksTest do
     end
   end
 
-  describe "create_task/2" do
-    test "creates task without framework" do
-      task_id = "test_no_framework_#{System.unique_integer([:positive])}"
-      {:ok, ^task_id} = Tasks.create_task(task_id)
-
-      {:ok, task} = Tasks.get_task(task_id)
-      assert task.task_id == task_id
-      assert task.framework == nil
-    end
-
-    test "creates task with framework" do
-      task_id = "test_with_framework_#{System.unique_integer([:positive])}"
+  describe "create_task/3" do
+    test "creates task with framework", %{scope: scope} do
+      task_id = Ecto.UUID.generate()
       framework = "test-client"
-      {:ok, ^task_id} = Tasks.create_task(task_id, framework)
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, framework)
 
-      {:ok, task} = Tasks.get_task(task_id)
+      {:ok, task} = Tasks.get_task(scope, task_id)
       assert task.task_id == task_id
       assert task.framework == framework
     end
   end
 
-  describe "get_interactions/1" do
-    test "returns empty list for non-existent task" do
-      assert Tasks.get_interactions("nonexistent") == []
+  describe "task_exists?/2" do
+    test "returns true for existing task owned by user", %{scope: scope} do
+      task_id = Ecto.UUID.generate()
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
+
+      assert Tasks.task_exists?(scope, task_id) == true
     end
 
-    test "returns interactions for existing task" do
-      task_id = "test_interactions_#{System.unique_integer([:positive])}"
-      {:ok, ^task_id} = Tasks.create_task(task_id)
+    test "returns false for non-existent task", %{scope: scope} do
+      assert Tasks.task_exists?(scope, Ecto.UUID.generate()) == false
+    end
 
-      assert Tasks.get_interactions(task_id) == []
+    test "returns false for task owned by different user", %{scope: scope} do
+      task_id = Ecto.UUID.generate()
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
+
+      # Create a different user/scope
+      {:ok, other_user} =
+        Accounts.register_user(%{
+          email: "other_#{System.unique_integer([:positive])}@test.local",
+          name: "Other User",
+          password: "testpassword123!"
+        })
+
+      other_scope = Scope.for_user(other_user)
+
+      assert Tasks.task_exists?(other_scope, task_id) == false
     end
   end
 
-  describe "get_llm_messages/1" do
-    test "returns all messages for task" do
-      task_id = "test_llm_messages_#{System.unique_integer([:positive])}"
-      {:ok, ^task_id} = Tasks.create_task(task_id)
+  describe "get_task/2 authorization" do
+    test "returns error when accessing task owned by different user", %{scope: scope} do
+      task_id = Ecto.UUID.generate()
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
+
+      # Create a different user/scope
+      {:ok, other_user} =
+        Accounts.register_user(%{
+          email: "other_#{System.unique_integer([:positive])}@test.local",
+          name: "Other User",
+          password: "testpassword123!"
+        })
+
+      other_scope = Scope.for_user(other_user)
+
+      assert {:error, :unauthorized} = Tasks.get_task(other_scope, task_id)
+    end
+  end
+
+  describe "get_interactions/2" do
+    test "returns error for non-existent task", %{scope: scope} do
+      task_id = Ecto.UUID.generate()
+      assert {:error, :not_found} = Tasks.get_interactions(scope, task_id)
+    end
+
+    test "returns interactions for existing task", %{scope: scope} do
+      task_id = Ecto.UUID.generate()
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
+
+      assert {:ok, []} = Tasks.get_interactions(scope, task_id)
+    end
+  end
+
+  describe "get_llm_messages/2" do
+    test "returns all messages for task", %{scope: scope} do
+      task_id = Ecto.UUID.generate()
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
 
       # Add a user message
-      Tasks.add_user_message(task_id, [%{"type" => "text", "text" => "Hello"}], [])
+      Tasks.add_user_message(scope, task_id, [%{"type" => "text", "text" => "Hello"}], [])
 
       # Add responses
-      Tasks.add_agent_response(task_id, "Response from agent", %{})
-      Tasks.add_agent_response(task_id, "Another response", %{})
+      Tasks.add_agent_response(scope, task_id, "Response from agent", %{})
+      Tasks.add_agent_response(scope, task_id, "Another response", %{})
 
-      messages = Tasks.get_llm_messages(task_id)
+      {:ok, messages} = Tasks.get_llm_messages(scope, task_id)
 
       # Should have: UserMessage + 2 responses = 3 messages
       assert length(messages) == 3
@@ -82,131 +138,134 @@ defmodule FrontmanServer.TasksTest do
     end
   end
 
-  describe "add_tool_call/2" do
-    test "creates tool call interaction" do
-      task_id = "test_tool_call_#{System.unique_integer([:positive])}"
-      {:ok, ^task_id} = Tasks.create_task(task_id)
+  describe "add_tool_call/3" do
+    test "creates tool call interaction", %{scope: scope} do
+      task_id = Ecto.UUID.generate()
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
 
       tool_call = ReqLLM.ToolCall.new("call_123", "calculator", ~s({"expression": "1 + 1"}))
 
-      {:ok, interaction} = Tasks.add_tool_call(task_id, tool_call)
+      {:ok, interaction} = Tasks.add_tool_call(scope, task_id, tool_call)
 
       assert interaction.tool_name == "calculator"
       assert interaction.tool_call_id == "call_123"
       assert interaction.arguments == %{"expression" => "1 + 1"}
     end
 
-    test "returns error for non-existent task" do
+    test "returns error for non-existent task", %{scope: scope} do
+      nonexistent_id = Ecto.UUID.generate()
       tool_call = ReqLLM.ToolCall.new("call_123", "test", "{}")
 
-      assert {:error, :task_not_found} =
-               Tasks.add_tool_call("nonexistent", tool_call)
+      assert {:error, :not_found} =
+               Tasks.add_tool_call(scope, nonexistent_id, tool_call)
     end
   end
 
-  describe "add_tool_result/4" do
-    test "creates tool result interaction" do
-      task_id = "test_tool_result_#{System.unique_integer([:positive])}"
-      {:ok, ^task_id} = Tasks.create_task(task_id)
+  describe "add_tool_result/5" do
+    test "creates tool result interaction", %{scope: scope} do
+      task_id = Ecto.UUID.generate()
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
 
       tool_call_data = %{id: "call_123", name: "calculator"}
 
-      {:ok, interaction} = Tasks.add_tool_result(task_id, tool_call_data, 2, false)
+      {:ok, interaction} = Tasks.add_tool_result(scope, task_id, tool_call_data, 2, false)
 
       assert interaction.result == 2
       assert interaction.is_error == false
       assert interaction.tool_call_id == "call_123"
     end
 
-    test "creates error tool result" do
-      task_id = "test_tool_error_#{System.unique_integer([:positive])}"
-      {:ok, ^task_id} = Tasks.create_task(task_id)
+    test "creates error tool result", %{scope: scope} do
+      task_id = Ecto.UUID.generate()
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
 
       tool_call_data = %{id: "call_456", name: "failing_tool"}
 
       {:ok, interaction} =
-        Tasks.add_tool_result(task_id, tool_call_data, "error message", true)
+        Tasks.add_tool_result(scope, task_id, tool_call_data, "error message", true)
 
       assert interaction.is_error == true
       assert interaction.result == "error message"
     end
 
-    test "stores tool result in interactions" do
-      task_id = "test_tool_notify_#{System.unique_integer([:positive])}"
-      {:ok, ^task_id} = Tasks.create_task(task_id)
+    test "stores tool result in interactions", %{scope: scope} do
+      task_id = Ecto.UUID.generate()
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
 
       tool_call_data = %{id: "call_notify", name: "some_tool"}
 
       {:ok, _interaction} =
-        Tasks.add_tool_result(task_id, tool_call_data, "result", false)
+        Tasks.add_tool_result(scope, task_id, tool_call_data, "result", false)
 
       # The tool result should have been stored successfully
-      interactions = Tasks.get_interactions(task_id)
+      {:ok, interactions} = Tasks.get_interactions(scope, task_id)
       assert length(interactions) == 1
     end
   end
 
-  describe "add_discovered_project_rule/3" do
-    test "adds rule to task" do
-      task_id = "test_rule_#{System.unique_integer([:positive])}"
-      {:ok, ^task_id} = Tasks.create_task(task_id)
+  describe "add_discovered_project_rule/4" do
+    test "adds rule to task", %{scope: scope} do
+      task_id = Ecto.UUID.generate()
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
 
-      {:ok, rule} = Tasks.add_discovered_project_rule(task_id, "/project/AGENTS.md", "# Rules")
+      {:ok, rule} = Tasks.add_discovered_project_rule(scope, task_id, "/project/AGENTS.md", "# Rules")
 
       assert rule.path == "/project/AGENTS.md"
       assert rule.content == "# Rules"
     end
 
-    test "deduplicates by path" do
-      task_id = "test_rule_dedup_#{System.unique_integer([:positive])}"
-      {:ok, ^task_id} = Tasks.create_task(task_id)
+    test "deduplicates by path", %{scope: scope} do
+      task_id = Ecto.UUID.generate()
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
 
       {:ok, _rule} =
-        Tasks.add_discovered_project_rule(task_id, "/project/AGENTS.md", "# Rules v1")
+        Tasks.add_discovered_project_rule(scope, task_id, "/project/AGENTS.md", "# Rules v1")
 
       {:ok, :already_loaded} =
-        Tasks.add_discovered_project_rule(task_id, "/project/AGENTS.md", "# Rules v2")
+        Tasks.add_discovered_project_rule(scope, task_id, "/project/AGENTS.md", "# Rules v2")
 
-      rules = Tasks.get_discovered_project_rules(task_id)
+      {:ok, rules} = Tasks.get_discovered_project_rules(scope, task_id)
       assert length(rules) == 1
       assert hd(rules).content == "# Rules v1"
     end
 
-    test "returns error for non-existent task" do
-      assert {:error, :task_not_found} =
-               Tasks.add_discovered_project_rule("nonexistent", "/path", "content")
+    test "returns error for non-existent task", %{scope: scope} do
+      nonexistent_id = Ecto.UUID.generate()
+
+      assert {:error, :not_found} =
+               Tasks.add_discovered_project_rule(scope, nonexistent_id, "/path", "content")
     end
   end
 
-  describe "get_discovered_project_rules/1" do
-    test "returns empty list for task with no rules" do
-      task_id = "test_get_rules_#{System.unique_integer([:positive])}"
-      {:ok, ^task_id} = Tasks.create_task(task_id)
+  describe "get_discovered_project_rules/2" do
+    test "returns empty list for task with no rules", %{scope: scope} do
+      task_id = Ecto.UUID.generate()
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
 
-      assert Tasks.get_discovered_project_rules(task_id) == []
+      assert {:ok, []} = Tasks.get_discovered_project_rules(scope, task_id)
     end
 
-    test "returns all rules for task" do
-      task_id = "test_get_rules_#{System.unique_integer([:positive])}"
-      {:ok, ^task_id} = Tasks.create_task(task_id)
+    test "returns all rules for task", %{scope: scope} do
+      task_id = Ecto.UUID.generate()
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
 
-      Tasks.add_discovered_project_rule(task_id, "/a/AGENTS.md", "A rules")
-      Tasks.add_discovered_project_rule(task_id, "/b/AGENTS.md", "B rules")
+      Tasks.add_discovered_project_rule(scope, task_id, "/a/AGENTS.md", "A rules")
+      Tasks.add_discovered_project_rule(scope, task_id, "/b/AGENTS.md", "B rules")
 
-      rules = Tasks.get_discovered_project_rules(task_id)
+      {:ok, rules} = Tasks.get_discovered_project_rules(scope, task_id)
       assert length(rules) == 2
     end
   end
 
-  describe "get_llm_messages/1 with discovered rules" do
-    test "prepends rules to first user message" do
-      task_id = "test_rules_inject_#{System.unique_integer([:positive])}"
-      {:ok, ^task_id} = Tasks.create_task(task_id)
+  describe "get_llm_messages/2 with discovered rules" do
+    test "prepends rules to first user message", %{scope: scope} do
+      task_id = Ecto.UUID.generate()
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
 
-      Tasks.add_discovered_project_rule(task_id, "/project/AGENTS.md", "# Project Rules")
-      Tasks.add_user_message(task_id, [%{"type" => "text", "text" => "Hello"}], [])
+      Tasks.add_discovered_project_rule(scope, task_id, "/project/AGENTS.md", "# Project Rules")
+      Tasks.add_user_message(scope, task_id, [%{"type" => "text", "text" => "Hello"}], [])
 
-      messages = Tasks.get_llm_messages(task_id)
+      {:ok, messages} = Tasks.get_llm_messages(scope, task_id)
 
       assert length(messages) == 1
       [msg] = messages
@@ -218,13 +277,13 @@ defmodule FrontmanServer.TasksTest do
       assert content_text =~ "Hello"
     end
 
-    test "returns messages unchanged when no rules" do
-      task_id = "test_no_rules_#{System.unique_integer([:positive])}"
-      {:ok, ^task_id} = Tasks.create_task(task_id)
+    test "returns messages unchanged when no rules", %{scope: scope} do
+      task_id = Ecto.UUID.generate()
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
 
-      Tasks.add_user_message(task_id, [%{"type" => "text", "text" => "Hello"}], [])
+      Tasks.add_user_message(scope, task_id, [%{"type" => "text", "text" => "Hello"}], [])
 
-      messages = Tasks.get_llm_messages(task_id)
+      {:ok, messages} = Tasks.get_llm_messages(scope, task_id)
 
       assert length(messages) == 1
       [msg] = messages
@@ -233,15 +292,15 @@ defmodule FrontmanServer.TasksTest do
       refute content_text =~ "<system-reminder>"
     end
 
-    test "includes multiple rules separated by ---" do
-      task_id = "test_multi_rules_#{System.unique_integer([:positive])}"
-      {:ok, ^task_id} = Tasks.create_task(task_id)
+    test "includes multiple rules separated by ---", %{scope: scope} do
+      task_id = Ecto.UUID.generate()
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
 
-      Tasks.add_discovered_project_rule(task_id, "/a/AGENTS.md", "Rule A")
-      Tasks.add_discovered_project_rule(task_id, "/b/AGENTS.md", "Rule B")
-      Tasks.add_user_message(task_id, [%{"type" => "text", "text" => "Hello"}], [])
+      Tasks.add_discovered_project_rule(scope, task_id, "/a/AGENTS.md", "Rule A")
+      Tasks.add_discovered_project_rule(scope, task_id, "/b/AGENTS.md", "Rule B")
+      Tasks.add_user_message(scope, task_id, [%{"type" => "text", "text" => "Hello"}], [])
 
-      messages = Tasks.get_llm_messages(task_id)
+      {:ok, messages} = Tasks.get_llm_messages(scope, task_id)
 
       [msg] = messages
       content_text = extract_content_text(msg.content)
@@ -260,29 +319,30 @@ defmodule FrontmanServer.TasksTest do
     end)
   end
 
-  describe "list_todos/1" do
-    test "returns empty list for task with no todos" do
-      task_id = "test_list_todos_#{System.unique_integer([:positive])}"
-      {:ok, ^task_id} = Tasks.create_task(task_id)
+  describe "list_todos/2" do
+    test "returns empty list for task with no todos", %{scope: scope} do
+      task_id = Ecto.UUID.generate()
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
 
-      assert {:ok, []} = Tasks.list_todos(task_id)
+      assert {:ok, []} = Tasks.list_todos(scope, task_id)
     end
 
-    test "returns error for non-existent task" do
-      assert {:error, :not_found} = Tasks.list_todos("nonexistent")
+    test "returns error for non-existent task", %{scope: scope} do
+      nonexistent_id = Ecto.UUID.generate()
+      assert {:error, :not_found} = Tasks.list_todos(scope, nonexistent_id)
     end
 
-    test "returns todos from task" do
-      task_id = "test_list_todos_#{System.unique_integer([:positive])}"
-      {:ok, ^task_id} = Tasks.create_task(task_id)
+    test "returns todos from task", %{scope: scope} do
+      task_id = Ecto.UUID.generate()
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
 
       {:ok, todo1} = Tasks.create_todo("First", "First", "pending")
-      Tasks.add_tool_result(task_id, %{id: "c1", name: "todo_add"}, todo1, false)
+      Tasks.add_tool_result(scope, task_id, %{id: "c1", name: "todo_add"}, todo1, false)
 
       {:ok, todo2} = Tasks.create_todo("Second", "Second", "in_progress")
-      Tasks.add_tool_result(task_id, %{id: "c2", name: "todo_add"}, todo2, false)
+      Tasks.add_tool_result(scope, task_id, %{id: "c2", name: "todo_add"}, todo2, false)
 
-      {:ok, todos} = Tasks.list_todos(task_id)
+      {:ok, todos} = Tasks.list_todos(scope, task_id)
 
       assert length(todos) == 2
       contents = Enum.map(todos, & &1.content)
@@ -290,17 +350,17 @@ defmodule FrontmanServer.TasksTest do
       assert "Second" in contents
     end
 
-    test "todos are isolated per task" do
-      task_a = "test_isolation_a_#{System.unique_integer([:positive])}"
-      task_b = "test_isolation_b_#{System.unique_integer([:positive])}"
-      {:ok, ^task_a} = Tasks.create_task(task_a)
-      {:ok, ^task_b} = Tasks.create_task(task_b)
+    test "todos are isolated per task", %{scope: scope} do
+      task_a = Ecto.UUID.generate()
+      task_b = Ecto.UUID.generate()
+      {:ok, ^task_a} = Tasks.create_task(scope, task_a, "test-framework")
+      {:ok, ^task_b} = Tasks.create_task(scope, task_b, "test-framework")
 
       {:ok, todo} = Tasks.create_todo("Task A todo", "Working", "pending")
-      Tasks.add_tool_result(task_a, %{id: "c1", name: "todo_add"}, todo, false)
+      Tasks.add_tool_result(scope, task_a, %{id: "c1", name: "todo_add"}, todo, false)
 
-      {:ok, todos_a} = Tasks.list_todos(task_a)
-      {:ok, todos_b} = Tasks.list_todos(task_b)
+      {:ok, todos_a} = Tasks.list_todos(scope, task_a)
+      {:ok, todos_b} = Tasks.list_todos(scope, task_b)
 
       assert match?([_], todos_a)
       assert todos_b == []

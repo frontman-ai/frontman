@@ -23,6 +23,7 @@ defmodule FrontmanServer.Agents.ToolExecutor do
 
   require Logger
 
+  alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tools
   alias FrontmanServer.Tools.Backend
@@ -39,24 +40,30 @@ defmodule FrontmanServer.Agents.ToolExecutor do
   For MCP tools, the executor automatically publishes interactions to enable
   routing through TaskChannel. Callers don't need to handle this.
 
+  ## Options
+
+  - `:mcp_tools` - List of Swarm.Tool.t() for sub-agents to use (default: [])
+
   ## Examples
 
-      executor = ToolExecutor.make_executor(task_id)
+      executor = ToolExecutor.make_executor(scope, task_id, mcp_tools: mcp_tools)
       Swarm.run_blocking(agent, messages, executor)
   """
-  @spec make_executor(String.t()) ::
+  @spec make_executor(Scope.t(), String.t(), keyword()) ::
           (Swarm.ToolCall.t() -> {:ok, String.t()} | {:error, String.t()})
-  def make_executor(task_id) do
+  def make_executor(%Scope{} = scope, task_id, opts \\ []) do
+    mcp_tools = Keyword.get(opts, :mcp_tools, [])
+
     fn tool_call ->
       is_mcp_tool = register_if_mcp_tool(tool_call)
 
       # For MCP tools, publish interaction so TaskChannel can route to client.
       # This must happen AFTER registration to prevent race conditions.
       if is_mcp_tool do
-        publish_mcp_tool_call(task_id, tool_call)
+        publish_mcp_tool_call(scope, task_id, tool_call)
       end
 
-      execute(tool_call, task_id)
+      execute(scope, tool_call, task_id, mcp_tools)
     end
   end
 
@@ -75,10 +82,10 @@ defmodule FrontmanServer.Agents.ToolExecutor do
     end
   end
 
-  defp publish_mcp_tool_call(task_id, tool_call) do
+  defp publish_mcp_tool_call(scope, task_id, tool_call) do
     reqllm_tc = to_reqllm_tool_call(tool_call)
 
-    case Tasks.add_tool_call(task_id, reqllm_tc) do
+    case Tasks.add_tool_call(scope, task_id, reqllm_tc) do
       {:ok, _interaction} ->
         :ok
 
@@ -98,12 +105,12 @@ defmodule FrontmanServer.Agents.ToolExecutor do
   @doc """
   Execute a single tool, trying backend first then MCP.
   """
-  @spec execute(Swarm.ToolCall.t(), String.t()) ::
+  @spec execute(Scope.t(), Swarm.ToolCall.t(), String.t(), [Swarm.Tool.t()]) ::
           {:ok, String.t()} | {:error, String.t()}
-  def execute(tool_call, task_id) do
+  def execute(scope, tool_call, task_id, mcp_tools \\ []) do
     case Tools.find_tool(tool_call.name) do
       {:ok, module} ->
-        execute_backend_tool(module, tool_call, task_id)
+        execute_backend_tool(scope, module, tool_call, task_id, mcp_tools)
 
       :not_found ->
         execute_mcp_tool(tool_call, task_id)
@@ -112,12 +119,25 @@ defmodule FrontmanServer.Agents.ToolExecutor do
 
   # --- Backend Tool Execution ---
 
-  defp execute_backend_tool(module, tool_call, task_id) do
+  defp execute_backend_tool(scope, module, tool_call, task_id, mcp_tools) do
     Logger.info("ToolExecutor: Executing backend tool #{tool_call.name}")
 
-    case Tasks.get_task(task_id) do
+    case Tasks.get_task(scope, task_id) do
       {:ok, task} ->
-        context = %Backend.Context{task: task}
+        # Pass the executor itself so backend tools can spawn sub-agents
+        executor = make_executor(scope, task_id, mcp_tools: mcp_tools)
+
+        # Pre-compute context messages from read_file results for sub-agents
+        context_messages =
+          FrontmanServer.Tasks.Interaction.extract_markdown_messages(task.interactions)
+
+        context = %Backend.Context{
+          task: task,
+          tool_executor: executor,
+          mcp_tools: mcp_tools,
+          context_messages: context_messages
+        }
+
         args = parse_arguments(tool_call.arguments)
 
         result = module.execute(args, context)
@@ -128,6 +148,7 @@ defmodule FrontmanServer.Agents.ToolExecutor do
 
             # Store tool result for interaction history and UI notification
             Tasks.add_tool_result(
+              scope,
               task_id,
               %{id: tool_call.id, name: tool_call.name},
               value,
@@ -139,6 +160,7 @@ defmodule FrontmanServer.Agents.ToolExecutor do
           {:error, reason} ->
             # Store error result for interaction history and UI notification
             Tasks.add_tool_result(
+              scope,
               task_id,
               %{id: tool_call.id, name: tool_call.name},
               reason,
@@ -148,8 +170,8 @@ defmodule FrontmanServer.Agents.ToolExecutor do
             {:error, reason}
         end
 
-      {:error, :not_found} ->
-        {:error, "Task not found"}
+      {:error, _} ->
+        {:error, "Task not found or unauthorized"}
     end
   end
 

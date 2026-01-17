@@ -16,10 +16,15 @@ defmodule FrontmanServer.Accounts.Scope do
   growing application requirements.
   """
 
+  use TypedStruct
+
   alias FrontmanServer.Accounts.User
   alias FrontmanServer.Organizations.Organization
 
-  defstruct user: nil, organization: nil
+  typedstruct do
+    field :user, %User{}
+    field :organization, %Organization{}
+  end
 
   @doc """
   Creates a scope for the given user.

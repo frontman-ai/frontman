@@ -61,10 +61,17 @@ defmodule FrontmanServerWeb.TasksChannel do
   # Create new session
   defp handle_message({:request, id, "session/new", _params}, socket) do
     Logger.info("ACP session/new request received")
-    task_id = ACP.generate_session_id()
-    framework = extract_framework(socket.assigns[:acp_client_info])
-    {:ok, ^task_id} = Tasks.create_task(task_id, framework)
-    push_response(socket, id, ACP.build_session_new_result(task_id))
+
+    case extract_framework(socket.assigns[:acp_client_info]) do
+      nil ->
+        push_error(socket, id, JsonRpc.error_invalid_params(), "Missing framework in clientInfo")
+
+      framework ->
+        scope = socket.assigns.scope
+        task_id = ACP.generate_session_id()
+        {:ok, ^task_id} = Tasks.create_task(scope, task_id, framework)
+        push_response(socket, id, ACP.build_session_new_result(task_id))
+    end
   end
 
   # Unknown method

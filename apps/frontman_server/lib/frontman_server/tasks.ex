@@ -7,43 +7,89 @@ defmodule FrontmanServer.Tasks do
 
   This context provides the boundary for all task-related operations,
   delegating to the domain layer and infrastructure as appropriate.
+
+  ## Authorization Model
+
+  All operations require a `Scope` as the first parameter to enforce
+  defense in depth - we don't trust callers even if they've already
+  authenticated via channels.
+
+  Authorization validates that `scope.user.id == task.user_id` for
+  every operation. Returns `{:error, :unauthorized}` on mismatch.
   """
 
+  import Ecto.Query, warn: false
+
+  alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Agents
-  alias FrontmanServer.Tasks.{Interaction, Task, TaskStore}
-  alias FrontmanServer.Tools.MCP
-  alias ReqLLM.Message.ContentPart
+  alias FrontmanServer.Repo
+  alias FrontmanServer.Tasks.{Interaction, InteractionSchema, Task, TaskSchema}
   alias ReqLLM.ToolCall
 
-  defdelegate task_exists?(task_id), to: TaskStore, as: :exists?
-  defdelegate get_task(task_id), to: TaskStore, as: :get
+  @type authorization_error :: :not_found | :unauthorized
+
+  # --- Authorization Helpers ---
+
+  @spec authorize_task_access(Scope.t(), TaskSchema.t()) :: :ok | {:error, :unauthorized}
+  defp authorize_task_access(%Scope{user: %{id: user_id}}, %TaskSchema{user_id: task_user_id}) do
+    if user_id == task_user_id, do: :ok, else: {:error, :unauthorized}
+  end
+
+  @spec fetch_task_schema(String.t()) :: {:ok, TaskSchema.t()} | {:error, :not_found}
+  defp fetch_task_schema(task_id) do
+    case Repo.one(TaskSchema.by_id(task_id)) do
+      nil -> {:error, :not_found}
+      schema -> {:ok, schema}
+    end
+  end
+
+  # --- Public API ---
 
   @doc """
-  Sets the MCP tools for a task.
-
-  MCP tools are stored as structured `MCP.t()` structs.
-  Returns :ok on success, {:error, :not_found} if task doesn't exist.
+  Checks if a task exists for the given scope.
   """
-  @spec set_mcp_tools(String.t(), [MCP.t()]) :: :ok | {:error, :not_found}
-  def set_mcp_tools(task_id, mcp_tools) do
-    case TaskStore.update(task_id, &Task.set_mcp_tools(&1, mcp_tools)) do
-      {:ok, _} -> :ok
-      {:error, :not_found} = error -> error
+  @spec task_exists?(Scope.t(), String.t()) :: boolean()
+  def task_exists?(%Scope{} = scope, task_id) do
+    with {:ok, schema} <- fetch_task_schema(task_id),
+         :ok <- authorize_task_access(scope, schema) do
+      true
+    else
+      _ -> false
     end
   end
 
   @doc """
-  Gets the MCP tools for a task.
+  Gets a task by ID. Returns the task with interactions loaded.
 
-  Returns the MCP tool structs (not LLM-formatted).
-  Returns [] if task not found or no tools set.
+  Requires authorization - scope.user.id must match task.user_id.
   """
-  @spec get_mcp_tools(String.t()) :: [MCP.t()]
-  def get_mcp_tools(task_id) do
-    case get_task(task_id) do
-      {:ok, task} -> task.mcp_tools || []
-      {:error, :not_found} -> []
+  @spec get_task(Scope.t(), String.t()) :: {:ok, Task.t()} | {:error, authorization_error()}
+  def get_task(%Scope{} = scope, task_id) do
+    with {:ok, schema} <- fetch_task_schema(task_id),
+         :ok <- authorize_task_access(scope, schema) do
+      {:ok, schema_to_task(schema)}
     end
+  end
+
+  @spec schema_to_task(TaskSchema.t()) :: Task.t()
+  defp schema_to_task(schema) do
+    interactions = load_interactions(schema.id)
+
+    %Task{
+      task_id: schema.id,
+      short_desc: schema.short_desc,
+      framework: schema.framework,
+      interactions: interactions
+    }
+  end
+
+  @spec load_interactions(String.t()) :: [Interaction.t()]
+  defp load_interactions(task_id) do
+    InteractionSchema
+    |> InteractionSchema.for_task(task_id)
+    |> InteractionSchema.ordered_by_inserted()
+    |> Repo.all()
+    |> Enum.map(&InteractionSchema.to_struct/1)
   end
 
   @doc """
@@ -64,228 +110,222 @@ defmodule FrontmanServer.Tasks do
   Creates a new task and stores it.
 
   The task_id must be provided by the client.
+  Requires a scope with a user.
   Returns `{:ok, task_id}` on success.
   """
-  @spec create_task(String.t(), String.t() | nil) :: {:ok, String.t()} | {:error, term()}
-  def create_task(task_id, framework \\ nil) do
-    task = Task.new(task_id, framework)
-    :ok = TaskStore.insert(task)
-    {:ok, task_id}
+  @spec create_task(Scope.t(), String.t(), String.t()) :: {:ok, String.t()} | {:error, term()}
+  def create_task(%Scope{user: user}, task_id, framework) do
+    attrs = %{
+      id: task_id,
+      short_desc: Task.short_description(task_id),
+      framework: framework,
+      user_id: user.id
+    }
+
+    case TaskSchema.create_changeset(attrs) |> Repo.insert() do
+      {:ok, _schema} -> {:ok, task_id}
+      {:error, changeset} -> {:error, changeset}
+    end
   end
 
   @doc """
   Gets all interactions for a task.
+
+  Requires authorization - scope.user.id must match task.user_id.
   """
-  @spec get_interactions(String.t()) :: list(Interaction.t())
-  def get_interactions(task_id) do
-    case TaskStore.get(task_id) do
-      {:ok, task} -> task.interactions
-      {:error, :not_found} -> []
+  @spec get_interactions(Scope.t(), String.t()) :: {:ok, [Interaction.t()]} | {:error, authorization_error()}
+  def get_interactions(%Scope{} = scope, task_id) do
+    with {:ok, schema} <- fetch_task_schema(task_id),
+         :ok <- authorize_task_access(scope, schema) do
+      {:ok, load_interactions(task_id)}
     end
-  end
-
-  @spec get_llm_messages(String.t()) :: list(map())
-  def get_llm_messages(task_id) do
-    interactions = get_interactions(task_id)
-    discovered_rules = get_discovered_project_rules(task_id)
-    messages = Interaction.to_llm_messages(interactions)
-
-    prepend_rules_to_first_user_message(messages, discovered_rules)
-  end
-
-  @spec add_discovered_project_rule(String.t(), String.t(), String.t()) ::
-          {:ok, Interaction.DiscoveredProjectRule.t()} | {:ok, :already_loaded} | {:error, term()}
-  def add_discovered_project_rule(task_id, path, content) do
-    if discovered_project_rule_loaded?(task_id, path) do
-      {:ok, :already_loaded}
-    else
-      interaction = Interaction.DiscoveredProjectRule.new(path, content)
-      append_interaction(task_id, interaction)
-    end
-  end
-
-  @spec get_discovered_project_rules(String.t()) :: list(Interaction.DiscoveredProjectRule.t())
-  def get_discovered_project_rules(task_id) do
-    task_id
-    |> get_interactions()
-    |> Enum.filter(&match?(%Interaction.DiscoveredProjectRule{}, &1))
-  end
-
-  @spec discovered_project_rule_loaded?(String.t(), String.t()) :: boolean()
-  def discovered_project_rule_loaded?(task_id, path) do
-    task_id
-    |> get_discovered_project_rules()
-    |> Enum.any?(&(&1.path == path))
-  end
-
-  defp prepend_rules_to_first_user_message(messages, []), do: messages
-
-  defp prepend_rules_to_first_user_message(messages, rules) do
-    reminder = build_rules_reminder(rules)
-    do_prepend_to_first_user_message(messages, reminder)
-  end
-
-  defp do_prepend_to_first_user_message([], _reminder), do: []
-
-  defp do_prepend_to_first_user_message([%{role: :user} = msg | rest], reminder) do
-    content_parts =
-      case msg.content do
-        content when is_binary(content) -> [ContentPart.text(content)]
-        content when is_list(content) -> content
-      end
-
-    updated_content = [ContentPart.text(reminder) | content_parts]
-
-    [%{msg | content: updated_content} | rest]
-  end
-
-  defp do_prepend_to_first_user_message([msg | rest], reminder) do
-    [msg | do_prepend_to_first_user_message(rest, reminder)]
-  end
-
-  defp build_rules_reminder(rules) do
-    sections =
-      rules
-      |> Enum.sort_by(& &1.timestamp, DateTime)
-      |> Enum.map(fn rule -> "Contents of #{rule.path}:\n\n#{rule.content}" end)
-
-    """
-    <system-reminder>
-    As you answer the user's questions, you can use the following context:
-    # Project Rules
-
-    #{Enum.join(sections, "\n\n---\n\n")}
-
-    IMPORTANT: this context may or may not be relevant to your tasks.
-    </system-reminder>
-    """
   end
 
   @doc """
-  Checks if an interaction is a user message.
+  Gets LLM-formatted messages for a task.
+
+  Requires authorization - scope.user.id must match task.user_id.
   """
-  defdelegate user_message?(interaction), to: Interaction
+  @spec get_llm_messages(Scope.t(), String.t()) :: {:ok, list(map())} | {:error, authorization_error()}
+  def get_llm_messages(%Scope{} = scope, task_id) do
+    with {:ok, interactions} <- get_interactions(scope, task_id),
+         {:ok, discovered_rules} <- get_discovered_project_rules(scope, task_id) do
+      messages =
+        interactions
+        |> Interaction.to_llm_messages()
+        |> Interaction.prepend_project_rules(discovered_rules)
+
+      {:ok, messages}
+    end
+  end
+
+  @doc """
+  Adds a discovered project rule to the task.
+
+  Deduplicates by path - returns `{:ok, :already_loaded}` if already present.
+  """
+  @spec add_discovered_project_rule(Scope.t(), String.t(), String.t(), String.t()) ::
+          {:ok, Interaction.DiscoveredProjectRule.t() | :already_loaded} | {:error, authorization_error()}
+  def add_discovered_project_rule(%Scope{} = scope, task_id, path, content) do
+    with {:ok, schema} <- fetch_task_schema(task_id),
+         :ok <- authorize_task_access(scope, schema) do
+      if discovered_project_rule_loaded?(scope, task_id, path) do
+        {:ok, :already_loaded}
+      else
+        interaction = Interaction.DiscoveredProjectRule.new(path, content)
+        append_interaction(schema, interaction)
+      end
+    end
+  end
+
+  @doc """
+  Gets all discovered project rules for a task.
+  """
+  @spec get_discovered_project_rules(Scope.t(), String.t()) ::
+          {:ok, [Interaction.DiscoveredProjectRule.t()]} | {:error, authorization_error()}
+  def get_discovered_project_rules(%Scope{} = scope, task_id) do
+    with {:ok, interactions} <- get_interactions(scope, task_id) do
+      rules = Enum.filter(interactions, &match?(%Interaction.DiscoveredProjectRule{}, &1))
+      {:ok, rules}
+    end
+  end
+
+  @doc """
+  Checks if a project rule with the given path has already been loaded.
+  """
+  @spec discovered_project_rule_loaded?(Scope.t(), String.t(), String.t()) :: boolean()
+  def discovered_project_rule_loaded?(%Scope{} = scope, task_id, path) do
+    case get_discovered_project_rules(scope, task_id) do
+      {:ok, rules} -> Enum.any?(rules, &(&1.path == path))
+      {:error, _} -> false
+    end
+  end
 
   @doc """
   Checks if any user messages in the task contain Figma context.
-  Returns true if there's a content block with figma_image or figma_node metadata.
   """
-  @spec has_figma_context?(String.t()) :: boolean()
-  def has_figma_context?(task_id) do
-    task_id
-    |> get_interactions()
-    |> Interaction.has_figma_context?()
+  @spec has_figma_context?(Scope.t(), String.t()) :: boolean()
+  def has_figma_context?(%Scope{} = scope, task_id) do
+    case get_interactions(scope, task_id) do
+      {:ok, interactions} -> Interaction.has_figma_context?(interactions)
+      {:error, _} -> false
+    end
   end
 
   @doc """
   Checks if any user messages in the task contain a selected component.
-  Returns true if there's a resource_link content block with a file:// URI.
   """
-  @spec has_selected_component?(String.t()) :: boolean()
-  def has_selected_component?(task_id) do
-    task_id
-    |> get_interactions()
-    |> Interaction.has_selected_component?()
+  @spec has_selected_component?(Scope.t(), String.t()) :: boolean()
+  def has_selected_component?(%Scope{} = scope, task_id) do
+    case get_interactions(scope, task_id) do
+      {:ok, interactions} -> Interaction.has_selected_component?(interactions)
+      {:error, _} -> false
+    end
   end
 
   @doc """
   Gets the selected Figma node ID from the task interactions.
   Returns nil if no Figma context is found.
   """
-  @spec get_figma_node_id(String.t()) :: String.t() | nil
-  def get_figma_node_id(task_id) do
-    case task_id |> get_interactions() |> Interaction.get_selected_figma_node() do
-      %Interaction.FigmaNode{id: id} -> id
-      nil -> nil
+  @spec get_figma_node_id(Scope.t(), String.t()) :: String.t() | nil
+  def get_figma_node_id(%Scope{} = scope, task_id) do
+    case get_interactions(scope, task_id) do
+      {:ok, interactions} ->
+        case Interaction.get_selected_figma_node(interactions) do
+          %{id: id} -> id
+          nil -> nil
+        end
+
+      {:error, _} ->
+        nil
     end
   end
 
-  @spec append_interaction(String.t(), Interaction.t()) ::
-          {:ok, Interaction.t()} | {:error, :task_not_found}
-  defp append_interaction(task_id, interaction) do
-    case TaskStore.update(task_id, &Task.append_interaction(&1, interaction)) do
-      {:ok, _updated_task} ->
-        # Broadcast the new interaction to all subscribers
-        Phoenix.PubSub.broadcast(
-          FrontmanServer.PubSub,
-          "task:#{task_id}",
-          {:interaction, interaction}
-        )
-
+  @spec append_interaction(TaskSchema.t(), Interaction.t()) ::
+          {:ok, Interaction.t()} | {:error, Ecto.Changeset.t()}
+  defp append_interaction(%TaskSchema{id: task_id}, interaction) do
+    case InteractionSchema.create_changeset(task_id, interaction) |> Repo.insert() do
+      {:ok, _schema} ->
+        broadcast_task(task_id, {:interaction, interaction})
         {:ok, interaction}
 
-      {:error, :not_found} ->
-        {:error, :task_not_found}
+      {:error, changeset} ->
+        {:error, changeset}
     end
+  end
+
+  @spec broadcast_task(String.t(), term()) :: :ok
+  defp broadcast_task(task_id, message) do
+    Phoenix.PubSub.broadcast(FrontmanServer.PubSub, topic(task_id), message)
   end
 
   @doc """
   Creates and appends a UserMessage interaction.
 
   Notifies Agents which decides whether to spawn or wake an agent.
-
-  Arguments:
-    - `task_id` - The ID of the task
-    - `content_blocks` - Array of content blocks (text, resource_link, resource)
-
-  Options:
-    - `:tools` - List of tool definitions to pass to the agent
-    - `:metadata` - Additional metadata for the message
-    - `:agent` - Custom agent struct for testing (passed to Agents.notify_user_message)
   """
-  @spec add_user_message(String.t(), list(), list(FrontmanServer.Tools.MCP.t()), keyword()) ::
-          {:ok, Interaction.t()} | {:error, :task_not_found}
-  def add_user_message(task_id, content_blocks, tools, opts \\ []) do
-    interaction = Interaction.UserMessage.new(content_blocks)
-
-    case append_interaction(task_id, interaction) do
-      {:ok, interaction} ->
-        Agents.notify_user_message(task_id, tools, opts)
-        {:ok, interaction}
-
-      {:error, reason} ->
-        {:error, reason}
+  @spec add_user_message(Scope.t(), String.t(), list(), list(), keyword()) ::
+          {:ok, Interaction.UserMessage.t()} | {:error, authorization_error()}
+  def add_user_message(%Scope{} = scope, task_id, content_blocks, tools, opts \\ []) do
+    with {:ok, schema} <- fetch_task_schema(task_id),
+         :ok <- authorize_task_access(scope, schema),
+         interaction = Interaction.UserMessage.new(content_blocks),
+         {:ok, interaction} <- append_interaction(schema, interaction) do
+      Agents.notify_user_message(scope, task_id, tools, opts)
+      {:ok, interaction}
     end
   end
 
   @doc """
   Creates and appends an AgentResponse interaction.
   """
-  @spec add_agent_response(String.t(), String.t(), map()) ::
-          {:ok, Interaction.t()} | {:error, :task_not_found}
-  def add_agent_response(task_id, content, metadata \\ %{}) do
-    interaction = Interaction.AgentResponse.new(content, metadata)
-    append_interaction(task_id, interaction)
+  @spec add_agent_response(Scope.t(), String.t(), String.t(), map()) ::
+          {:ok, Interaction.AgentResponse.t()} | {:error, authorization_error()}
+  def add_agent_response(%Scope{} = scope, task_id, content, metadata \\ %{}) do
+    with {:ok, schema} <- fetch_task_schema(task_id),
+         :ok <- authorize_task_access(scope, schema) do
+      interaction = Interaction.AgentResponse.new(content, metadata)
+      append_interaction(schema, interaction)
+    end
   end
 
   @doc """
   Creates and appends an AgentSpawned interaction.
   """
-  @spec add_agent_spawned(String.t(), map()) ::
-          {:ok, Interaction.t()} | {:error, :task_not_found}
-  def add_agent_spawned(task_id, config \\ %{}) do
-    interaction = Interaction.AgentSpawned.new(config)
-    append_interaction(task_id, interaction)
+  @spec add_agent_spawned(Scope.t(), String.t(), map()) ::
+          {:ok, Interaction.AgentSpawned.t()} | {:error, authorization_error()}
+  def add_agent_spawned(%Scope{} = scope, task_id, config \\ %{}) do
+    with {:ok, schema} <- fetch_task_schema(task_id),
+         :ok <- authorize_task_access(scope, schema) do
+      interaction = Interaction.AgentSpawned.new(config)
+      append_interaction(schema, interaction)
+    end
   end
 
   @doc """
   Creates and appends an AgentCompleted interaction.
   """
-  @spec add_agent_completed(String.t(), term()) ::
-          {:ok, Interaction.t()} | {:error, :task_not_found}
-  def add_agent_completed(task_id, result \\ nil) do
-    interaction = Interaction.AgentCompleted.new(result)
-    append_interaction(task_id, interaction)
+  @spec add_agent_completed(Scope.t(), String.t(), term()) ::
+          {:ok, Interaction.AgentCompleted.t()} | {:error, authorization_error()}
+  def add_agent_completed(%Scope{} = scope, task_id, result \\ nil) do
+    with {:ok, schema} <- fetch_task_schema(task_id),
+         :ok <- authorize_task_access(scope, schema) do
+      interaction = Interaction.AgentCompleted.new(result)
+      append_interaction(schema, interaction)
+    end
   end
 
   @doc """
   Creates and appends a ToolCall interaction.
   """
-  @spec add_tool_call(String.t(), ToolCall.t()) ::
-          {:ok, Interaction.t()} | {:error, :task_not_found}
-  def add_tool_call(task_id, %ToolCall{} = tool_call_data) do
-    interaction = Interaction.ToolCall.new(tool_call_data)
-    append_interaction(task_id, interaction)
+  @spec add_tool_call(Scope.t(), String.t(), ToolCall.t()) ::
+          {:ok, Interaction.ToolCall.t()} | {:error, authorization_error()}
+  def add_tool_call(%Scope{} = scope, task_id, %ToolCall{} = tool_call_data) do
+    with {:ok, schema} <- fetch_task_schema(task_id),
+         :ok <- authorize_task_access(scope, schema) do
+      interaction = Interaction.ToolCall.new(tool_call_data)
+      append_interaction(schema, interaction)
+    end
   end
 
   @doc """
@@ -293,28 +333,15 @@ defmodule FrontmanServer.Tasks do
 
   Notifies Agents directly so the agent can continue its iteration.
   """
-  @spec add_tool_result(
-          String.t(),
-          %{id: String.t(), name: String.t()},
-          term(),
-          boolean()
-        ) ::
-          {:ok, Interaction.t()} | {:error, :task_not_found}
-  def add_tool_result(
-        task_id,
-        %{id: tool_call_id, name: _} = tool_call_data,
-        result,
-        is_error \\ false
-      ) do
-    interaction = Interaction.ToolResult.new(tool_call_data, result, is_error)
-
-    case append_interaction(task_id, interaction) do
-      {:ok, interaction} ->
-        Agents.notify_tool_result(task_id, tool_call_id, result, is_error)
-        {:ok, interaction}
-
-      {:error, reason} ->
-        {:error, reason}
+  @spec add_tool_result(Scope.t(), String.t(), map(), term(), boolean()) ::
+          {:ok, Interaction.ToolResult.t()} | {:error, authorization_error()}
+  def add_tool_result(%Scope{} = scope, task_id, %{id: tool_call_id, name: _} = tool_call_data, result, is_error \\ false) do
+    with {:ok, schema} <- fetch_task_schema(task_id),
+         :ok <- authorize_task_access(scope, schema),
+         interaction = Interaction.ToolResult.new(tool_call_data, result, is_error),
+         {:ok, interaction} <- append_interaction(schema, interaction) do
+      Agents.notify_tool_result(task_id, tool_call_id, result, is_error)
+      {:ok, interaction}
     end
   end
 
@@ -331,14 +358,24 @@ defmodule FrontmanServer.Tasks do
   defdelegate create_todo(content, active_form, status \\ "pending"), to: Todos
 
   @doc """
+  Updates a todo's status. Used by todo_update tool.
+  """
+  defdelegate update_todo_status(interactions, todo_id, status), to: Todos
+
+  @doc """
+  Projects todos from interactions. Used by todo_list tool.
+  """
+  defdelegate project_todos(interactions), to: Todos, as: :list_todos
+
+  @doc """
   Lists all todos for a task.
 
   Todos are managed through tool calls, not direct API calls.
   This function is for reading the current state only.
   """
-  @spec list_todos(String.t()) :: {:ok, [Todos.Todo.t()]} | {:error, :not_found}
-  def list_todos(task_id) do
-    case get_task(task_id) do
+  @spec list_todos(Scope.t(), String.t()) :: {:ok, [Todos.Todo.t()]} | {:error, authorization_error()}
+  def list_todos(%Scope{} = scope, task_id) do
+    case get_task(scope, task_id) do
       {:ok, task} ->
         todos_map = Todos.list_todos(task.interactions)
 
@@ -349,8 +386,8 @@ defmodule FrontmanServer.Tasks do
 
         {:ok, todos_list}
 
-      {:error, :not_found} ->
-        {:error, :not_found}
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 end

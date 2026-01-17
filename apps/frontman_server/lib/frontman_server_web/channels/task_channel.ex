@@ -11,14 +11,15 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   alias AgentClientProtocol, as: ACP
   alias FrontmanServer.Tasks
-  alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Tools
   alias FrontmanServerWeb.TaskChannel.MCPInitializer
   alias ModelContextProtocol, as: MCP
 
   @impl true
   def join("task:" <> task_id, _params, socket) do
-    case Tasks.get_task(task_id) do
+    scope = socket.assigns.scope
+
+    case Tasks.get_task(scope, task_id) do
       {:ok, _task} ->
         Logger.info("Client joining: #{task_id}, socket_id: #{inspect(self())}")
 
@@ -28,7 +29,7 @@ defmodule FrontmanServerWeb.TaskChannel do
         # 2. Each websocket connection needs its own MCP session
         # 3. Project rules loading depends on client-specific context
         # Tools are persisted to task.mcp_tools for agent access, not for reuse on reconnect.
-        {:ok, initializer_pid} = MCPInitializer.start_link(self(), task_id)
+        {:ok, initializer_pid} = MCPInitializer.start_link(self(), task_id, scope)
 
         socket =
           socket
@@ -41,6 +42,10 @@ defmodule FrontmanServerWeb.TaskChannel do
       {:error, :not_found} ->
         Logger.warning("Client tried to join non-existent task: #{task_id}")
         {:error, %{reason: "task_not_found"}}
+
+      {:error, :unauthorized} ->
+        Logger.warning("Client unauthorized to join task: #{task_id}")
+        {:error, %{reason: "unauthorized"}}
     end
   end
 
@@ -184,6 +189,7 @@ defmodule FrontmanServerWeb.TaskChannel do
 
     # Store result and notify agent (use parsed result to preserve structured data like screenshots)
     Tasks.add_tool_result(
+      socket.assigns.scope,
       task_id,
       %{id: tool_call.tool_call_id, name: tool_call.tool_name},
       parsed_result,
@@ -243,6 +249,7 @@ defmodule FrontmanServerWeb.TaskChannel do
 
     # Store error result and notify agent
     Tasks.add_tool_result(
+      socket.assigns.scope,
       task_id,
       %{id: tool_call.tool_call_id, name: tool_call.tool_name},
       error_message,
@@ -281,6 +288,7 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   defp process_prompt(id, params, socket) do
     task_id = socket.assigns.task_id
+    scope = socket.assigns.scope
     mcp_tools = socket.assigns[:mcp_tools] || []
 
     # Parse ACP prompt (protocol layer)
@@ -299,7 +307,7 @@ defmodule FrontmanServerWeb.TaskChannel do
     # Track request ID (channel state)
     socket = assign(socket, :pending_prompt_id, id)
 
-    case Tasks.add_user_message(task_id, prompt.content, all_tools) do
+    case Tasks.add_user_message(scope, task_id, prompt.content, all_tools) do
       {:ok, _interaction} ->
         Logger.info("User message added, agent spawned for task #{task_id}")
         {:noreply, socket}
@@ -352,7 +360,7 @@ defmodule FrontmanServerWeb.TaskChannel do
     end
   end
 
-  def handle_info({:interaction, %Interaction.ToolCall{} = tool_call}, socket) do
+  def handle_info({:interaction, %Tasks.Interaction.ToolCall{} = tool_call}, socket) do
     task_id = socket.assigns.task_id
 
     # Send ACP notification: pending with tool arguments in content
@@ -382,11 +390,12 @@ defmodule FrontmanServerWeb.TaskChannel do
     end
   end
 
-  def handle_info({:interaction, %Interaction.ToolResult{} = tool_result}, socket) do
+  def handle_info({:interaction, %Tasks.Interaction.ToolResult{} = tool_result}, socket) do
     task_id = socket.assigns.task_id
+    scope = socket.assigns.scope
 
     if Tools.todo_mutation?(tool_result.tool_name) do
-      case Tasks.list_todos(task_id) do
+      case Tasks.list_todos(scope, task_id) do
         {:ok, todos} ->
           entries = todos_to_plan_entries(todos)
           plan_notification = ACP.plan_update(task_id, entries)
@@ -441,10 +450,6 @@ defmodule FrontmanServerWeb.TaskChannel do
   def handle_info({:mcp_initializer, {:initialization_complete, data}}, socket) do
     task_id = socket.assigns.task_id
     Logger.info("MCP initialization complete for task #{task_id}")
-
-    # Store MCP tools on task immediately - ensures backend tools have access
-    # even if prompt arrived before MCP init completed
-    Tasks.set_mcp_tools(task_id, data.tools)
 
     # Notify client that project rules are initialized
     notification =

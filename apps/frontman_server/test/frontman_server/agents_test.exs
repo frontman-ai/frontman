@@ -1,6 +1,8 @@
 defmodule FrontmanServer.AgentsTest do
   use FrontmanServer.SwarmCase, async: false
 
+  alias FrontmanServer.Accounts
+  alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.{Agents, Tasks}
   alias FrontmanServer.Tasks.Interaction
 
@@ -18,34 +20,47 @@ defmodule FrontmanServer.AgentsTest do
     end
   end
 
-  describe "notify_user_message/2" do
+  describe "notify_user_message/4" do
     test "returns ok even when no agent exists (spawns new agent)" do
       # Note: This would actually try to spawn an agent, which would fail
       # without a proper task. In a real test we'd set up the task first.
       # For now we just verify the function exists and has correct arity.
-      assert is_function(&Agents.notify_user_message/2)
+      assert is_function(&Agents.notify_user_message/4)
     end
   end
 
   describe "consecutive messages" do
     setup do
-      task_id = "test_task_#{System.unique_integer([:positive])}"
-      {:ok, ^task_id} = Tasks.create_task(task_id)
+      # Set up database sandbox
+      pid = Ecto.Adapters.SQL.Sandbox.start_owner!(FrontmanServer.Repo, shared: true)
+      on_exit(fn -> Ecto.Adapters.SQL.Sandbox.stop_owner(pid) end)
+
+      # Create a test user for scope
+      {:ok, user} =
+        Accounts.register_user(%{
+          email: "agents_test_#{System.unique_integer([:positive])}@test.local",
+          name: "Test User",
+          password: "testpassword123!"
+        })
+
+      scope = Scope.for_user(user)
+      task_id = Ecto.UUID.generate()
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
 
       # Subscribe to task topic to receive events
       Phoenix.PubSub.subscribe(FrontmanServer.PubSub, Tasks.topic(task_id))
 
-      {:ok, task_id: task_id}
+      {:ok, task_id: task_id, scope: scope}
     end
 
-    test "processes second message after first message completes", %{task_id: task_id} do
+    test "processes second message after first message completes", %{task_id: task_id, scope: scope} do
       # Create mock agents that respond immediately
       agent1 = test_agent(mock_llm("First response"), "TestAgent1")
       agent2 = test_agent(mock_llm("Second response"), "TestAgent2")
 
       # Add first user message with custom agent
       user_content = [%{"type" => "text", "text" => "First message"}]
-      {:ok, _} = Tasks.add_user_message(task_id, user_content, [], agent: agent1)
+      {:ok, _} = Tasks.add_user_message(scope, task_id, user_content, [], agent: agent1)
 
       # Wait for first agent to complete
       assert_receive {:interaction, %Interaction.AgentCompleted{}}, 5_000
@@ -56,13 +71,13 @@ defmodule FrontmanServer.AgentsTest do
 
       # Add second user message with different agent
       user_content2 = [%{"type" => "text", "text" => "Second message"}]
-      {:ok, _} = Tasks.add_user_message(task_id, user_content2, [], agent: agent2)
+      {:ok, _} = Tasks.add_user_message(scope, task_id, user_content2, [], agent: agent2)
 
       # Wait for second agent to complete
       assert_receive {:interaction, %Interaction.AgentCompleted{}}, 5_000
 
       # Verify both responses are in the task history
-      {:ok, task} = Tasks.get_task(task_id)
+      {:ok, task} = Tasks.get_task(scope, task_id)
 
       agent_responses =
         task.interactions
@@ -73,7 +88,8 @@ defmodule FrontmanServer.AgentsTest do
     end
 
     test "second message sent immediately after first completion is processed", %{
-      task_id: task_id
+      task_id: task_id,
+      scope: scope
     } do
       # This test specifically catches the race condition where:
       # 1. First agent completes
@@ -86,14 +102,14 @@ defmodule FrontmanServer.AgentsTest do
       agent2 = test_agent(mock_llm("Second response"), "TestAgent2")
 
       user_content = [%{"type" => "text", "text" => "First message"}]
-      {:ok, _} = Tasks.add_user_message(task_id, user_content, [], agent: agent1)
+      {:ok, _} = Tasks.add_user_message(scope, task_id, user_content, [], agent: agent1)
 
       # Wait for completion
       assert_receive {:interaction, %Interaction.AgentCompleted{}}, 5_000
 
       # Immediately send second message (no delay - maximize race condition chance)
       user_content2 = [%{"type" => "text", "text" => "Second message"}]
-      {:ok, _} = Tasks.add_user_message(task_id, user_content2, [], agent: agent2)
+      {:ok, _} = Tasks.add_user_message(scope, task_id, user_content2, [], agent: agent2)
 
       # The second message MUST be processed - if this times out, we have the race condition bug
       assert_receive {:interaction, %Interaction.AgentCompleted{}},
@@ -101,7 +117,7 @@ defmodule FrontmanServer.AgentsTest do
                      "Second message was not processed - likely race condition in agent registration"
     end
 
-    test "conversation with tool calls supports follow-up messages", %{task_id: task_id} do
+    test "conversation with tool calls supports follow-up messages", %{task_id: task_id, scope: scope} do
       # A conversation where the agent uses tools should preserve full history,
       # allowing follow-up messages to reference prior tool usage.
 
@@ -116,7 +132,7 @@ defmodule FrontmanServer.AgentsTest do
 
       # First message triggers tool usage
       {:ok, _} =
-        Tasks.add_user_message(task_id, [%{"type" => "text", "text" => "Show todos"}], [],
+        Tasks.add_user_message(scope, task_id, [%{"type" => "text", "text" => "Show todos"}], [],
           agent: agent1
         )
 
@@ -124,13 +140,13 @@ defmodule FrontmanServer.AgentsTest do
 
       # Follow-up message should have access to full conversation history
       {:ok, _} =
-        Tasks.add_user_message(task_id, [%{"type" => "text", "text" => "Summarize"}], [],
+        Tasks.add_user_message(scope, task_id, [%{"type" => "text", "text" => "Summarize"}], [],
           agent: agent2
         )
 
       assert_receive {:interaction, %Interaction.AgentCompleted{}}, 5_000
 
-      {:ok, task} = Tasks.get_task(task_id)
+      {:ok, task} = Tasks.get_task(scope, task_id)
       completions = Enum.filter(task.interactions, &match?(%Interaction.AgentCompleted{}, &1))
       assert length(completions) == 2
     end

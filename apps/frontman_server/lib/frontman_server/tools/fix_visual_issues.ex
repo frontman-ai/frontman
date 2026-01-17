@@ -16,11 +16,8 @@ defmodule FrontmanServer.Tools.FixVisualIssues do
 
   require Logger
 
-  alias FrontmanServer.Agents.{SpecializedAgent, ToolExecutor}
-  alias FrontmanServer.Tasks
-  alias FrontmanServer.Tasks.Interaction
+  alias FrontmanServer.Agents.SpecializedAgent
   alias FrontmanServer.Tools.Backend.Context
-  alias FrontmanServer.Tools.MCP
   alias Swarm.Message
 
   @impl true
@@ -98,23 +95,19 @@ defmodule FrontmanServer.Tools.FixVisualIssues do
   end
 
   @impl true
-  def execute(args, %Context{task: task, llm_opts: llm_opts}) do
-    component_name = Map.get(args, "componentName")
+  def execute(args, %Context{} = context) do
+    %{tool_executor: tool_executor, mcp_tools: mcp_tools, context_messages: context_messages, llm_opts: llm_opts} = context
 
-    mcp_tools = MCP.to_swarm_tools(task.mcp_tools)
+    component_name = Map.get(args, "componentName")
 
     Logger.info(
       "FixVisualIssues: Starting visual fixes for #{component_name} with #{length(mcp_tools)} MCP tools"
     )
 
     user_msg = build_user_message(args)
-
-    # Extract markdown files for project conventions
-    markdown_messages = extract_markdown_messages_from_task(task.task_id)
-    messages = markdown_messages ++ [user_msg]
+    messages = context_messages ++ [user_msg]
 
     agent = SpecializedAgent.new(:fix_visual_issues, tools: mcp_tools, llm_opts: llm_opts)
-    tool_executor = ToolExecutor.make_executor(task.task_id)
 
     case Swarm.run_blocking(agent, messages, tool_executor) do
       {:ok, result} ->
@@ -198,9 +191,4 @@ defmodule FrontmanServer.Tools.FixVisualIssues do
     Message.user(task_text)
   end
 
-  defp extract_markdown_messages_from_task(task_id) do
-    task_id
-    |> Tasks.get_interactions()
-    |> Interaction.extract_markdown_messages()
-  end
 end

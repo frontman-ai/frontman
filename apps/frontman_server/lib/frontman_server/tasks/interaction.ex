@@ -520,9 +520,7 @@ defmodule FrontmanServer.Tasks.Interaction do
 
   defp conversation_message?(%UserMessage{}), do: true
   defp conversation_message?(%AgentResponse{}), do: true
-  # ToolCall is skipped - it's embedded in AgentResponse metadata
   defp conversation_message?(%ToolResult{}), do: true
-  # DiscoveredProjectRule is context, not conversation - injected separately
   defp conversation_message?(%DiscoveredProjectRule{}), do: false
   defp conversation_message?(_), do: false
 
@@ -863,5 +861,54 @@ defmodule FrontmanServer.Tasks.Interaction do
       %UserMessage{selected_component: sc} when not is_nil(sc) -> true
       _ -> false
     end)
+  end
+
+  @doc """
+  Prepends discovered project rules to the first user message in LLM messages.
+
+  Project rules are formatted as a system reminder and injected into the first
+  user message's content to provide context to the LLM.
+  """
+  @spec prepend_project_rules(list(map()), list(DiscoveredProjectRule.t())) :: list(map())
+  def prepend_project_rules(messages, []), do: messages
+
+  def prepend_project_rules(messages, rules) do
+    reminder = build_rules_reminder(rules)
+    do_prepend_to_first_user_message(messages, reminder)
+  end
+
+  defp do_prepend_to_first_user_message([], _reminder), do: []
+
+  defp do_prepend_to_first_user_message([%{role: :user} = msg | rest], reminder) do
+    content_parts =
+      case msg.content do
+        content when is_binary(content) -> [ContentPart.text(content)]
+        content when is_list(content) -> content
+      end
+
+    updated_content = [ContentPart.text(reminder) | content_parts]
+    [%{msg | content: updated_content} | rest]
+  end
+
+  defp do_prepend_to_first_user_message([msg | rest], reminder) do
+    [msg | do_prepend_to_first_user_message(rest, reminder)]
+  end
+
+  defp build_rules_reminder(rules) do
+    sections =
+      rules
+      |> Enum.sort_by(& &1.timestamp)
+      |> Enum.map(fn rule -> "Contents of #{rule.path}:\n\n#{rule.content}" end)
+
+    """
+    <system-reminder>
+    As you answer the user's questions, you can use the following context:
+    # Project Rules
+
+    #{Enum.join(sections, "\n\n---\n\n")}
+
+    IMPORTANT: this context may or may not be relevant to your tasks.
+    </system-reminder>
+    """
   end
 end

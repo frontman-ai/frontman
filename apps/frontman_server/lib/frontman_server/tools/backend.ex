@@ -6,13 +6,27 @@ defmodule FrontmanServer.Tools.Backend do
   defmodule Context do
     @moduledoc """
     Execution context passed to backend tools.
+
+    The tool_executor is a pre-built function that handles both backend and MCP tool
+    execution. Backend tools that spawn sub-agents should use this executor rather than
+    creating their own.
+
+    Tools receive all needed data through this context rather than calling back into
+    contexts:
+    - `mcp_tools`: Pre-converted Swarm tools for sub-agent spawning
+    - `context_messages`: Pre-extracted context from read_file results (AGENTS.md, etc.)
     """
     use TypedStruct
 
     alias FrontmanServer.Tasks.Task
 
+    @type executor :: (Swarm.ToolCall.t() -> {:ok, String.t()} | {:error, String.t()})
+
     typedstruct do
       field :task, Task.t(), enforce: true
+      field :tool_executor, executor(), enforce: true
+      field :mcp_tools, [Swarm.Tool.t()], default: []
+      field :context_messages, [Swarm.Message.t()], default: []
       field :llm_opts, keyword(), default: []
     end
   end

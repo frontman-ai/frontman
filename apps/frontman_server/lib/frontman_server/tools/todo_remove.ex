@@ -5,7 +5,6 @@ defmodule FrontmanServer.Tools.TodoRemove do
 
   @behaviour FrontmanServer.Tools.Backend
 
-  alias FrontmanServer.Tasks.Todos
   alias FrontmanServer.Tools.Backend.Context
 
   @impl true
@@ -53,15 +52,8 @@ defmodule FrontmanServer.Tools.TodoRemove do
   end
 
   @impl true
-  def execute(args, %Context{task: %{interactions: interactions}}) do
+  def execute(args, %Context{}) do
     todo_id = Map.get(args, "id")
-
-    case Todos.validate_todo_exists(interactions, todo_id) do
-      :ok ->
-        {:ok, todo_id}
-
-      {:error, :not_found} ->
-        {:error, "Todo not found"}
-    end
+    {:ok, todo_id}
   end
 end

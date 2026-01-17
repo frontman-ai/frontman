@@ -13,6 +13,7 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
   use GenServer
   require Logger
 
+  alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tools.MCP, as: MCPTools
   alias JsonRpc
@@ -30,6 +31,7 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
           status: status(),
           channel_pid: pid(),
           task_id: String.t(),
+          scope: Scope.t(),
           mcp_init_request_id: integer() | nil,
           tools_request_id: integer() | nil,
           project_rules_request_id: integer() | nil,
@@ -41,9 +43,9 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
 
   # Client API
 
-  @spec start_link(pid(), String.t()) :: GenServer.on_start()
-  def start_link(channel_pid, task_id) do
-    GenServer.start_link(__MODULE__, {channel_pid, task_id})
+  @spec start_link(pid(), String.t(), Scope.t()) :: GenServer.on_start()
+  def start_link(channel_pid, task_id, scope) do
+    GenServer.start_link(__MODULE__, {channel_pid, task_id, scope})
   end
 
   @spec handle_mcp_response(pid(), integer(), map()) :: :ok
@@ -68,11 +70,12 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
   # Server Callbacks
 
   @impl true
-  def init({channel_pid, task_id}) do
+  def init({channel_pid, task_id, scope}) do
     state = %{
       status: :pending,
       channel_pid: channel_pid,
       task_id: task_id,
+      scope: scope,
       mcp_init_request_id: nil,
       tools_request_id: nil,
       project_rules_request_id: nil,
@@ -226,7 +229,7 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
         Enum.each(results, fn file ->
           file_content = Map.get(file, "content", "")
           path = Map.get(file, "fullPath", "")
-          Tasks.add_discovered_project_rule(state.task_id, path, file_content)
+          Tasks.add_discovered_project_rule(state.scope, state.task_id, path, file_content)
         end)
 
         Logger.info("MCPInitializer: Initialized #{length(results)} project rules")

@@ -16,7 +16,7 @@ defmodule FrontmanServer.Tools.ReplaceComponent do
 
   require Logger
 
-  alias FrontmanServer.Agents.{SpecializedAgent, ToolExecutor}
+  alias FrontmanServer.Agents.SpecializedAgent
   alias FrontmanServer.Tools.Backend.Context
   alias FrontmanServer.Tools.MCP
   alias Swarm.Message
@@ -67,7 +67,7 @@ defmodule FrontmanServer.Tools.ReplaceComponent do
   end
 
   @impl true
-  def execute(args, %Context{task: task, llm_opts: llm_opts}) do
+  def execute(args, %Context{task: task, tool_executor: tool_executor, llm_opts: llm_opts}) do
     component_name = Map.get(args, "componentName")
     source_file_path = Map.get(args, "sourceFilePath")
     target_file_path = Map.get(args, "targetFilePath")
@@ -79,7 +79,6 @@ defmodule FrontmanServer.Tools.ReplaceComponent do
     user_msg = build_user_message(args)
 
     agent = SpecializedAgent.new(:replace_component, tools: mcp_tools, llm_opts: llm_opts)
-    tool_executor = ToolExecutor.make_executor(task.task_id)
 
     case Swarm.run_blocking(agent, [user_msg], tool_executor) do
       {:ok, result} ->

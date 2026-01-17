@@ -17,6 +17,8 @@ defmodule FrontmanServer.Observability.OtelHandlerTest do
   """
   use FrontmanServer.SwarmCase, async: false
 
+  alias FrontmanServer.Accounts
+  alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Interaction
 
@@ -46,19 +48,33 @@ defmodule FrontmanServer.Observability.OtelHandlerTest do
   end
 
   setup do
+    # Set up database sandbox
+    pid = Ecto.Adapters.SQL.Sandbox.start_owner!(FrontmanServer.Repo, shared: true)
+    on_exit(fn -> Ecto.Adapters.SQL.Sandbox.stop_owner(pid) end)
+
+    # Create a test user for scope
+    {:ok, user} =
+      Accounts.register_user(%{
+        email: "otel_test_#{System.unique_integer([:positive])}@test.local",
+        name: "Test User",
+        password: "testpassword123!"
+      })
+
+    scope = Scope.for_user(user)
+
     ensure_ets_tables()
     :otel_simple_processor.set_exporter(:otel_exporter_pid, self())
 
-    task_id = "task_#{System.unique_integer([:positive])}"
-    {:ok, ^task_id} = Tasks.create_task(task_id)
+    task_id = Ecto.UUID.generate()
+    {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
     Phoenix.PubSub.subscribe(FrontmanServer.PubSub, Tasks.topic(task_id))
 
     on_exit(&cleanup_ets_tables/0)
-    {:ok, task_id: task_id}
+    {:ok, task_id: task_id, scope: scope}
   end
 
   describe "full trace hierarchy" do
-    test "complete parent-child chain with all expected attributes", %{task_id: task_id} do
+    test "complete parent-child chain with all expected attributes", %{task_id: task_id, scope: scope} do
       # Run a real agent with a tool call through production code
       tool_call = %Swarm.ToolCall{
         id: "tc_#{System.unique_integer([:positive])}",
@@ -70,6 +86,7 @@ defmodule FrontmanServer.Observability.OtelHandlerTest do
 
       {:ok, _} =
         Tasks.add_user_message(
+          scope,
           task_id,
           [%{"type" => "text", "text" => "Show my todos"}],
           [],
@@ -160,11 +177,12 @@ defmodule FrontmanServer.Observability.OtelHandlerTest do
              "LLM span should capture tool call name"
     end
 
-    test "simple text response creates expected spans", %{task_id: task_id} do
+    test "simple text response creates expected spans", %{task_id: task_id, scope: scope} do
       agent_mod = test_agent(mock_llm("Hello!"), "SimpleAgent")
 
       {:ok, _} =
         Tasks.add_user_message(
+          scope,
           task_id,
           [%{"type" => "text", "text" => "Hi"}],
           [],

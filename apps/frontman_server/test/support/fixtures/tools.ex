@@ -22,11 +22,13 @@ defmodule FrontmanServer.Test.Fixtures.Tools do
   Build a tool execution context.
 
   Generic helper for creating a Context struct with the standard fields
-  needed for tool execution.
+  needed for tool execution. Includes a no-op executor for testing.
   """
   @spec tool_context(map(), keyword()) :: Context.t()
   def tool_context(task, llm_opts) do
-    %Context{task: task, llm_opts: llm_opts}
+    # No-op executor for tests that don't actually execute sub-agents
+    noop_executor = fn _tool_call -> {:ok, "mock result"} end
+    %Context{task: task, tool_executor: noop_executor, llm_opts: llm_opts}
   end
 
   @doc """
@@ -35,14 +37,14 @@ defmodule FrontmanServer.Test.Fixtures.Tools do
   Simulates the task having read a markdown file via read_file tool,
   making it available for injection into sub-agent context.
   """
-  @spec add_markdown_to_task(String.t(), String.t(), String.t()) :: :ok
-  def add_markdown_to_task(task_id, filename, content) do
+  @spec add_markdown_to_task(FrontmanServer.Accounts.Scope.t(), String.t(), String.t(), String.t()) :: :ok
+  def add_markdown_to_task(scope, task_id, filename, content) do
     tool_call = %{
       id: "call_#{:rand.uniform(1_000_000)}",
       name: "read_file"
     }
 
     result = %{"path" => filename, "text" => content}
-    Tasks.add_tool_result(task_id, tool_call, result, false)
+    Tasks.add_tool_result(scope, task_id, tool_call, result, false)
   end
 end

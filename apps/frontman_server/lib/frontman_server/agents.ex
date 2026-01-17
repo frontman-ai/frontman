@@ -19,6 +19,7 @@ defmodule FrontmanServer.Agents do
 
   require Logger
 
+  alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Agents.{RootAgent, ToolExecutor}
   alias FrontmanServer.Observability.TelemetryEvents
   alias FrontmanServer.Tasks
@@ -47,17 +48,18 @@ defmodule FrontmanServer.Agents do
   - `:tools` - List of tool definitions for LLM (default: [])
   - `:agent` - Custom agent struct implementing Swarm.Agent (for testing)
   """
-  def start_agent(task_id, opts \\ []) do
+  @spec start_agent(Scope.t(), String.t(), keyword()) :: :ok
+  def start_agent(%Scope{} = scope, task_id, opts \\ []) do
     tools = Keyword.get(opts, :tools, [])
-    on_event = build_event_handler(task_id)
+    on_event = build_event_handler(scope, task_id)
 
-    agent = build_agent(task_id, tools, opts)
+    agent = build_agent(scope, task_id, tools, opts)
 
     # Get messages and convert to Swarm.Message format
-    messages = build_messages(task_id)
+    messages = build_messages(scope, task_id)
 
     # Start agent execution in supervised task
-    {:ok, _pid} = run_agent(agent, task_id, messages, on_event: on_event)
+    {:ok, _pid} = run_agent(scope, agent, task_id, messages, on_event: on_event)
     :ok
   end
 
@@ -66,10 +68,10 @@ defmodule FrontmanServer.Agents do
   #
   # Dialyzer warning suppressed: the anonymous function calls execute_agent which
   # has the same protocol dispatch issue. See execute_agent comment for details.
-  @dialyzer {:nowarn_function, run_agent: 4}
-  @spec run_agent(Swarm.Agent.t(), String.t(), [Message.t()], keyword()) ::
+  @dialyzer {:nowarn_function, run_agent: 5}
+  @spec run_agent(Scope.t(), Swarm.Agent.t(), String.t(), [Message.t()], keyword()) ::
           {:ok, pid()} | {:error, term()}
-  defp run_agent(agent, task_id, messages, opts) do
+  defp run_agent(scope, agent, task_id, messages, opts) do
     on_event = Keyword.fetch!(opts, :on_event)
     registry_key = {:running_agent, task_id}
 
@@ -81,7 +83,7 @@ defmodule FrontmanServer.Agents do
 
         try do
           # registry_key passed for explicit cleanup timing (must unregister before completion event)
-          execute_agent(agent, task_id, messages, registry_key, on_event)
+          execute_agent(scope, agent, task_id, messages, registry_key, on_event)
         after
           # Safety net for crashes - idempotent if already unregistered in execute_agent
           Registry.unregister(FrontmanServer.AgentRegistry, registry_key)
@@ -90,14 +92,14 @@ defmodule FrontmanServer.Agents do
     )
   end
 
-  defp build_agent(task_id, tools, opts) do
+  defp build_agent(scope, task_id, tools, opts) do
     case Keyword.get(opts, :agent) do
       nil ->
         # Build context for dynamic system prompt
-        has_figma = Tasks.has_figma_context?(task_id)
-        has_selected_component = Tasks.has_selected_component?(task_id)
-        figma_node_id = Tasks.get_figma_node_id(task_id)
-        framework = get_framework(task_id)
+        has_figma = Tasks.has_figma_context?(scope, task_id)
+        has_selected_component = Tasks.has_selected_component?(scope, task_id)
+        figma_node_id = Tasks.get_figma_node_id(scope, task_id)
+        framework = get_framework(scope, task_id)
 
         # Create RootAgent with context
         RootAgent.new(
@@ -145,25 +147,25 @@ defmodule FrontmanServer.Agents do
   - `:tools` - List of tool definitions for LLM (default: [])
   - `:agent` - Custom agent struct implementing Swarm.Agent (for testing)
   """
-  @spec notify_user_message(String.t(), list(FrontmanServer.Tools.MCP.t()), keyword()) :: :ok
-  def notify_user_message(task_id, tools, opts \\ []) do
+  @spec notify_user_message(Scope.t(), String.t(), list(FrontmanServer.Tools.MCP.t()), keyword()) :: :ok
+  def notify_user_message(%Scope{} = scope, task_id, tools, opts \\ []) do
     # Check if agent is already running
     if agent_running?(task_id) do
       # Agent is running - it will pick up new messages on next iteration
       :ok
     else
-      start_agent(task_id, Keyword.merge([tools: tools], opts))
+      start_agent(scope, task_id, Keyword.merge([tools: tools], opts))
       :ok
     end
   end
 
   # Private Functions
 
-  defp build_event_handler(task_id) do
-    fn event -> handle_agent_event(task_id, event) end
+  defp build_event_handler(scope, task_id) do
+    fn event -> handle_agent_event(scope, task_id, event) end
   end
 
-  defp handle_agent_event(task_id, event) do
+  defp handle_agent_event(scope, task_id, event) do
     case event do
       {:token, token} ->
         broadcast(task_id, {:stream_token, token})
@@ -172,10 +174,10 @@ defmodule FrontmanServer.Agents do
         broadcast(task_id, {:stream_thinking, text})
 
       {:response, text, metadata} ->
-        Tasks.add_agent_response(task_id, text, metadata)
+        Tasks.add_agent_response(scope, task_id, text, metadata)
 
       :completed ->
-        Tasks.add_agent_completed(task_id)
+        Tasks.add_agent_completed(scope, task_id)
         broadcast(task_id, :agent_completed)
 
       {:error, reason} ->
@@ -183,10 +185,11 @@ defmodule FrontmanServer.Agents do
     end
   end
 
-  defp build_messages(task_id) do
-    task_id
-    |> Tasks.get_llm_messages()
-    |> Enum.map(&to_swarm_message/1)
+  defp build_messages(scope, task_id) do
+    case Tasks.get_llm_messages(scope, task_id) do
+      {:ok, messages} -> Enum.map(messages, &to_swarm_message/1)
+      {:error, _} -> []
+    end
   end
 
   defp to_swarm_message(%ReqLLM.Message{} = msg) do
@@ -248,10 +251,10 @@ defmodule FrontmanServer.Agents do
     end)
   end
 
-  defp get_framework(task_id) do
-    case Tasks.get_task(task_id) do
+  defp get_framework(scope, task_id) do
+    case Tasks.get_task(scope, task_id) do
       {:ok, task} -> task.framework
-      {:error, :not_found} -> nil
+      {:error, _} -> nil
     end
   end
 
@@ -272,11 +275,13 @@ defmodule FrontmanServer.Agents do
   # Dialyzer thinks this has no return because it can't prove protocol dispatch
   # won't use the Any fallback (which raises). At runtime, RootAgent is always used.
   # Exceptions are intentionally not rescued - they propagate to error monitoring.
-  @dialyzer {:nowarn_function, execute_agent: 5}
-  defp execute_agent(agent, task_id, messages, registry_key, on_event) do
+  @dialyzer {:nowarn_function, execute_agent: 6}
+  defp execute_agent(scope, agent, task_id, messages, registry_key, on_event) do
     # Build tool executor that handles both backend and MCP tools.
     # ToolExecutor owns interaction publishing for MCP tools internally.
-    tool_executor = ToolExecutor.make_executor(task_id)
+    # Pass MCP tools so backend tools that spawn sub-agents can access them.
+    mcp_tools = Map.get(agent, :tools, [])
+    tool_executor = ToolExecutor.make_executor(scope, task_id, mcp_tools: mcp_tools)
 
     Logger.info("Starting agent execution for task #{task_id} via Swarm.run_streaming")
 
