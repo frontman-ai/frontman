@@ -1706,13 +1706,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@frontman/bindings@npm:*, @frontman/bindings@workspace:*, @frontman/bindings@workspace:libs/bindings":
+"@frontman/bindings@npm:*, @frontman/bindings@npm:0.1.0, @frontman/bindings@workspace:*, @frontman/bindings@workspace:libs/bindings":
   version: 0.0.0-use.local
   resolution: "@frontman/bindings@workspace:libs/bindings"
   dependencies:
+    "@rescript/runtime": "npm:12.0.0-beta.14"
     dom-element-to-component-source: "npm:^0.4.2"
     rescript: "catalog:"
-    sury: "catalog:"
+    sury: "npm:11.0.0-alpha.4"
     sury-ppx: "npm:^11.0.0-alpha.2"
   languageName: unknown
   linkType: soft
@@ -1862,15 +1863,18 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@frontman/frontman-core@workspace:libs/frontman-core":
+"@frontman/frontman-core@npm:*, @frontman/frontman-core@workspace:libs/frontman-core":
   version: 0.0.0-use.local
   resolution: "@frontman/frontman-core@workspace:libs/frontman-core"
   dependencies:
+    "@frontman/bindings": "npm:0.1.0"
+    "@frontman/frontman-protocol": "npm:0.1.0"
+    "@rescript/runtime": "npm:12.0.0-beta.14"
     "@rescript/webapi": "catalog:"
     "@vitest/ui": "catalog:"
     rescript: "catalog:"
     rescript-vitest: "catalog:"
-    sury: "catalog:"
+    sury: "npm:11.0.0-alpha.4"
     vite: "catalog:"
     vitest: "catalog:"
     vscode-ripgrep: "npm:^1.13.2"
@@ -1881,11 +1885,15 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@frontman/frontman-nextjs@workspace:libs/frontman-nextjs"
   dependencies:
+    "@frontman/frontman-core": "npm:*"
+    "@frontman/frontman-protocol": "npm:*"
+    "@rescript/runtime": "npm:12.0.0-beta.14"
     "@rescript/webapi": "catalog:"
     "@vitest/ui": "catalog:"
+    dom-element-to-component-source: "npm:0.4.2"
     rescript: "catalog:"
     rescript-vitest: "catalog:"
-    sury: "catalog:"
+    sury: "npm:11.0.0-alpha.4"
     vite: "catalog:"
     vitest: "catalog:"
   peerDependencies:
@@ -1902,13 +1910,14 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@frontman/frontman-protocol@workspace:*, @frontman/frontman-protocol@workspace:libs/frontman-protocol":
+"@frontman/frontman-protocol@npm:*, @frontman/frontman-protocol@npm:0.1.0, @frontman/frontman-protocol@workspace:*, @frontman/frontman-protocol@workspace:libs/frontman-protocol":
   version: 0.0.0-use.local
   resolution: "@frontman/frontman-protocol@workspace:libs/frontman-protocol"
   dependencies:
+    "@rescript/runtime": "npm:12.0.0-beta.14"
     "@rescript/webapi": "catalog:"
     rescript: "catalog:"
-    sury: "catalog:"
+    sury: "npm:11.0.0-alpha.4"
   languageName: unknown
   linkType: soft
 
@@ -10751,7 +10760,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"dom-element-to-component-source@npm:^0.4.2":
+"dom-element-to-component-source@npm:0.4.2, dom-element-to-component-source@npm:^0.4.2":
   version: 0.4.2
   resolution: "dom-element-to-component-source@npm:0.4.2"
   dependencies:
