@@ -1878,6 +1878,9 @@ __metadata:
     vite: "catalog:"
     vitest: "catalog:"
     vscode-ripgrep: "npm:^1.13.2"
+  dependenciesMeta:
+    vscode-ripgrep:
+      optional: true
   languageName: unknown
   linkType: soft
 
