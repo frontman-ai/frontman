@@ -208,7 +208,8 @@ defmodule FrontmanServer.TasksTest do
       task_id = Ecto.UUID.generate()
       {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
 
-      {:ok, rule} = Tasks.add_discovered_project_rule(scope, task_id, "/project/AGENTS.md", "# Rules")
+      {:ok, rule} =
+        Tasks.add_discovered_project_rule(scope, task_id, "/project/AGENTS.md", "# Rules")
 
       assert rule.path == "/project/AGENTS.md"
       assert rule.content == "# Rules"

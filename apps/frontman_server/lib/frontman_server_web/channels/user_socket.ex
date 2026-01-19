@@ -10,8 +10,6 @@ defmodule FrontmanServerWeb.UserSocket do
 
   @impl true
   def connect(_params, socket, _connect_info) do
-    # In dev, use hardcoded dev user
-    # TODO: In production, authenticate from token
     case Accounts.get_user_by_email("dev@frontman.local") do
       nil ->
         {:error, :no_dev_user}

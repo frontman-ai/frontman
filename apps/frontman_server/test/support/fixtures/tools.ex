@@ -37,7 +37,12 @@ defmodule FrontmanServer.Test.Fixtures.Tools do
   Simulates the task having read a markdown file via read_file tool,
   making it available for injection into sub-agent context.
   """
-  @spec add_markdown_to_task(FrontmanServer.Accounts.Scope.t(), String.t(), String.t(), String.t()) :: :ok
+  @spec add_markdown_to_task(
+          FrontmanServer.Accounts.Scope.t(),
+          String.t(),
+          String.t(),
+          String.t()
+        ) :: :ok
   def add_markdown_to_task(scope, task_id, filename, content) do
     tool_call = %{
       id: "call_#{:rand.uniform(1_000_000)}",

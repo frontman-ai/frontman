@@ -67,7 +67,11 @@ defmodule FrontmanServer.Tools.VisualCompareComponentToFigma do
   end
 
   @impl true
-  def execute(args, %Context{tool_executor: tool_executor, mcp_tools: mcp_tools, llm_opts: llm_opts}) do
+  def execute(args, %Context{
+        tool_executor: tool_executor,
+        mcp_tools: mcp_tools,
+        llm_opts: llm_opts
+      }) do
     component_name = Map.get(args, "componentName")
     node_id = Map.get(args, "nodeId")
 

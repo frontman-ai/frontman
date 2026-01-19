@@ -133,7 +133,8 @@ defmodule FrontmanServer.Tasks do
 
   Requires authorization - scope.user.id must match task.user_id.
   """
-  @spec get_interactions(Scope.t(), String.t()) :: {:ok, [Interaction.t()]} | {:error, authorization_error()}
+  @spec get_interactions(Scope.t(), String.t()) ::
+          {:ok, [Interaction.t()]} | {:error, authorization_error()}
   def get_interactions(%Scope{} = scope, task_id) do
     with {:ok, schema} <- fetch_task_schema(task_id),
          :ok <- authorize_task_access(scope, schema) do
@@ -146,7 +147,8 @@ defmodule FrontmanServer.Tasks do
 
   Requires authorization - scope.user.id must match task.user_id.
   """
-  @spec get_llm_messages(Scope.t(), String.t()) :: {:ok, list(map())} | {:error, authorization_error()}
+  @spec get_llm_messages(Scope.t(), String.t()) ::
+          {:ok, list(map())} | {:error, authorization_error()}
   def get_llm_messages(%Scope{} = scope, task_id) do
     with {:ok, interactions} <- get_interactions(scope, task_id),
          {:ok, discovered_rules} <- get_discovered_project_rules(scope, task_id) do
@@ -165,7 +167,8 @@ defmodule FrontmanServer.Tasks do
   Deduplicates by path - returns `{:ok, :already_loaded}` if already present.
   """
   @spec add_discovered_project_rule(Scope.t(), String.t(), String.t(), String.t()) ::
-          {:ok, Interaction.DiscoveredProjectRule.t() | :already_loaded} | {:error, authorization_error()}
+          {:ok, Interaction.DiscoveredProjectRule.t() | :already_loaded}
+          | {:error, authorization_error()}
   def add_discovered_project_rule(%Scope{} = scope, task_id, path, content) do
     with {:ok, schema} <- fetch_task_schema(task_id),
          :ok <- authorize_task_access(scope, schema) do
@@ -335,7 +338,13 @@ defmodule FrontmanServer.Tasks do
   """
   @spec add_tool_result(Scope.t(), String.t(), map(), term(), boolean()) ::
           {:ok, Interaction.ToolResult.t()} | {:error, authorization_error()}
-  def add_tool_result(%Scope{} = scope, task_id, %{id: tool_call_id, name: _} = tool_call_data, result, is_error \\ false) do
+  def add_tool_result(
+        %Scope{} = scope,
+        task_id,
+        %{id: tool_call_id, name: _} = tool_call_data,
+        result,
+        is_error \\ false
+      ) do
     with {:ok, schema} <- fetch_task_schema(task_id),
          :ok <- authorize_task_access(scope, schema),
          interaction = Interaction.ToolResult.new(tool_call_data, result, is_error),
@@ -373,7 +382,8 @@ defmodule FrontmanServer.Tasks do
   Todos are managed through tool calls, not direct API calls.
   This function is for reading the current state only.
   """
-  @spec list_todos(Scope.t(), String.t()) :: {:ok, [Todos.Todo.t()]} | {:error, authorization_error()}
+  @spec list_todos(Scope.t(), String.t()) ::
+          {:ok, [Todos.Todo.t()]} | {:error, authorization_error()}
   def list_todos(%Scope{} = scope, task_id) do
     case get_task(scope, task_id) do
       {:ok, task} ->

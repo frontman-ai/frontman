@@ -51,5 +51,4 @@ defmodule FrontmanServer.Tasks.Task do
   def short_description(task_id) do
     "Task #{String.slice(task_id, 0..7)}"
   end
-
 end

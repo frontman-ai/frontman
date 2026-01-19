@@ -170,5 +170,4 @@ defmodule FrontmanServer.Tasks.Todos do
         {:error, Zoi.prettify_errors(errors)}
     end
   end
-
 end

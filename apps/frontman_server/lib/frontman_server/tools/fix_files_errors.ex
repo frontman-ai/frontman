@@ -61,7 +61,12 @@ defmodule FrontmanServer.Tools.FixFilesErrors do
 
   @impl true
   def execute(args, %Context{} = context) do
-    %{tool_executor: tool_executor, mcp_tools: mcp_tools, context_messages: context_messages, llm_opts: llm_opts} = context
+    %{
+      tool_executor: tool_executor,
+      mcp_tools: mcp_tools,
+      context_messages: context_messages,
+      llm_opts: llm_opts
+    } = context
 
     component_name = Map.get(args, "componentName")
     files_created = Map.get(args, "filesCreated", [])
@@ -123,5 +128,4 @@ defmodule FrontmanServer.Tools.FixFilesErrors do
 
     Message.user(task_text)
   end
-
 end

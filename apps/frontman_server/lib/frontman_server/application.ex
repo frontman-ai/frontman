@@ -25,7 +25,6 @@ defmodule FrontmanServer.Application do
       config: %{metadata: [:file, :line]}
     })
 
-
     :telemetry.attach(
       "finch-logger",
       [:finch, :request, :start],

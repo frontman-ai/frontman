@@ -147,7 +147,8 @@ defmodule FrontmanServer.Agents do
   - `:tools` - List of tool definitions for LLM (default: [])
   - `:agent` - Custom agent struct implementing Swarm.Agent (for testing)
   """
-  @spec notify_user_message(Scope.t(), String.t(), list(FrontmanServer.Tools.MCP.t()), keyword()) :: :ok
+  @spec notify_user_message(Scope.t(), String.t(), list(FrontmanServer.Tools.MCP.t()), keyword()) ::
+          :ok
   def notify_user_message(%Scope{} = scope, task_id, tools, opts \\ []) do
     # Check if agent is already running
     if agent_running?(task_id) do

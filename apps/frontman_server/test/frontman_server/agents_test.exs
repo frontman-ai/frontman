@@ -1,6 +1,7 @@
 defmodule FrontmanServer.AgentsTest do
   use FrontmanServer.SwarmCase, async: false
 
+  alias Ecto.Adapters.SQL.Sandbox
   alias FrontmanServer.Accounts
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.{Agents, Tasks}
@@ -32,8 +33,8 @@ defmodule FrontmanServer.AgentsTest do
   describe "consecutive messages" do
     setup do
       # Set up database sandbox
-      pid = Ecto.Adapters.SQL.Sandbox.start_owner!(FrontmanServer.Repo, shared: true)
-      on_exit(fn -> Ecto.Adapters.SQL.Sandbox.stop_owner(pid) end)
+      pid = Sandbox.start_owner!(FrontmanServer.Repo, shared: true)
+      on_exit(fn -> Sandbox.stop_owner(pid) end)
 
       # Create a test user for scope
       {:ok, user} =
@@ -53,7 +54,10 @@ defmodule FrontmanServer.AgentsTest do
       {:ok, task_id: task_id, scope: scope}
     end
 
-    test "processes second message after first message completes", %{task_id: task_id, scope: scope} do
+    test "processes second message after first message completes", %{
+      task_id: task_id,
+      scope: scope
+    } do
       # Create mock agents that respond immediately
       agent1 = test_agent(mock_llm("First response"), "TestAgent1")
       agent2 = test_agent(mock_llm("Second response"), "TestAgent2")
@@ -117,7 +121,10 @@ defmodule FrontmanServer.AgentsTest do
                      "Second message was not processed - likely race condition in agent registration"
     end
 
-    test "conversation with tool calls supports follow-up messages", %{task_id: task_id, scope: scope} do
+    test "conversation with tool calls supports follow-up messages", %{
+      task_id: task_id,
+      scope: scope
+    } do
       # A conversation where the agent uses tools should preserve full history,
       # allowing follow-up messages to reference prior tool usage.
 

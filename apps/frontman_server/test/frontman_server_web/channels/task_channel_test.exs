@@ -574,9 +574,6 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
   describe "MCP tools race condition" do
     @tag :skip
-    # TODO: With DB persistence, mcp_tools are no longer stored on the Task (they're
-    # session-specific and kept in socket assigns). Backend tools need a different
-    # mechanism to access MCP tools. See feature/139-task-persistence.
     test "task gets MCP tools even when prompt arrives before MCP init completes", %{scope: scope} do
       # Verifies the fix: MCP tools are stored on task when MCP init completes,
       # independent of prompt timing. ToolExecutor fetches fresh task, so backend

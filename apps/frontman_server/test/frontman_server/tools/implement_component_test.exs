@@ -10,14 +10,15 @@ defmodule FrontmanServer.Tools.ImplementComponentTest do
 
   import FrontmanServer.Test.Fixtures.Tools
 
+  alias Ecto.Adapters.SQL.Sandbox
   alias FrontmanServer.Accounts
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tools.ImplementComponent
 
   setup context do
-    pid = Ecto.Adapters.SQL.Sandbox.start_owner!(FrontmanServer.Repo, shared: true)
-    on_exit(fn -> Ecto.Adapters.SQL.Sandbox.stop_owner(pid) end)
+    pid = Sandbox.start_owner!(FrontmanServer.Repo, shared: true)
+    on_exit(fn -> Sandbox.stop_owner(pid) end)
 
     {:ok, user} =
       Accounts.register_user(%{
@@ -130,7 +131,13 @@ defmodule FrontmanServer.Tools.ImplementComponentTest do
       scope: scope
     } do
       # Add multiple markdown files
-      add_markdown_to_task(scope, task_id, "AGENTS.md", "# Agent Guidelines\nFollow these patterns.")
+      add_markdown_to_task(
+        scope,
+        task_id,
+        "AGENTS.md",
+        "# Agent Guidelines\nFollow these patterns."
+      )
+
       add_markdown_to_task(scope, task_id, "research.md", "# Research Findings\nKey insights...")
 
       add_markdown_to_task(

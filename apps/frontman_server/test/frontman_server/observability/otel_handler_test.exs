@@ -17,6 +17,7 @@ defmodule FrontmanServer.Observability.OtelHandlerTest do
   """
   use FrontmanServer.SwarmCase, async: false
 
+  alias Ecto.Adapters.SQL.Sandbox
   alias FrontmanServer.Accounts
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Tasks
@@ -49,8 +50,8 @@ defmodule FrontmanServer.Observability.OtelHandlerTest do
 
   setup do
     # Set up database sandbox
-    pid = Ecto.Adapters.SQL.Sandbox.start_owner!(FrontmanServer.Repo, shared: true)
-    on_exit(fn -> Ecto.Adapters.SQL.Sandbox.stop_owner(pid) end)
+    pid = Sandbox.start_owner!(FrontmanServer.Repo, shared: true)
+    on_exit(fn -> Sandbox.stop_owner(pid) end)
 
     # Create a test user for scope
     {:ok, user} =
@@ -74,7 +75,10 @@ defmodule FrontmanServer.Observability.OtelHandlerTest do
   end
 
   describe "full trace hierarchy" do
-    test "complete parent-child chain with all expected attributes", %{task_id: task_id, scope: scope} do
+    test "complete parent-child chain with all expected attributes", %{
+      task_id: task_id,
+      scope: scope
+    } do
       # Run a real agent with a tool call through production code
       tool_call = %Swarm.ToolCall{
         id: "tc_#{System.unique_integer([:positive])}",

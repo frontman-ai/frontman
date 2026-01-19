@@ -8,6 +8,7 @@ defmodule FrontmanServer.Agents.ExecutionTest do
 
   use FrontmanServer.SwarmCase, async: false
 
+  alias Ecto.Adapters.SQL.Sandbox
   alias FrontmanServer.Accounts
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Tasks
@@ -15,8 +16,8 @@ defmodule FrontmanServer.Agents.ExecutionTest do
 
   describe "MCP tool call broadcast" do
     setup do
-      pid = Ecto.Adapters.SQL.Sandbox.start_owner!(FrontmanServer.Repo, shared: true)
-      on_exit(fn -> Ecto.Adapters.SQL.Sandbox.stop_owner(pid) end)
+      pid = Sandbox.start_owner!(FrontmanServer.Repo, shared: true)
+      on_exit(fn -> Sandbox.stop_owner(pid) end)
 
       {:ok, user} =
         Accounts.register_user(%{
@@ -89,8 +90,8 @@ defmodule FrontmanServer.Agents.ExecutionTest do
 
   describe "MCP tool registration timing" do
     setup do
-      pid = Ecto.Adapters.SQL.Sandbox.start_owner!(FrontmanServer.Repo, shared: true)
-      on_exit(fn -> Ecto.Adapters.SQL.Sandbox.stop_owner(pid) end)
+      pid = Sandbox.start_owner!(FrontmanServer.Repo, shared: true)
+      on_exit(fn -> Sandbox.stop_owner(pid) end)
 
       {:ok, user} =
         Accounts.register_user(%{

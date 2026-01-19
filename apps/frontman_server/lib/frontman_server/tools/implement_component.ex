@@ -85,7 +85,12 @@ defmodule FrontmanServer.Tools.ImplementComponent do
 
   @impl true
   def execute(args, %Context{} = context) do
-    %{tool_executor: tool_executor, mcp_tools: mcp_tools, context_messages: context_messages, llm_opts: llm_opts} = context
+    %{
+      tool_executor: tool_executor,
+      mcp_tools: mcp_tools,
+      context_messages: context_messages,
+      llm_opts: llm_opts
+    } = context
 
     component_name = Map.get(args, "componentName")
     node_id = Map.get(args, "nodeId")
@@ -175,5 +180,4 @@ defmodule FrontmanServer.Tools.ImplementComponent do
     |> String.replace(~r/-+/, "-")
     |> String.trim("-")
   end
-
 end

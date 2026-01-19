@@ -25,6 +25,7 @@ defmodule FrontmanServer.Agents.ToolExecutor do
 
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Tasks
+  alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Tools
   alias FrontmanServer.Tools.Backend
 
@@ -129,7 +130,7 @@ defmodule FrontmanServer.Agents.ToolExecutor do
 
         # Pre-compute context messages from read_file results for sub-agents
         context_messages =
-          FrontmanServer.Tasks.Interaction.extract_markdown_messages(task.interactions)
+          Interaction.extract_markdown_messages(task.interactions)
 
         context = %Backend.Context{
           task: task,
