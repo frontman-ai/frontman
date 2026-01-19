@@ -573,11 +573,11 @@ defmodule FrontmanServerWeb.TaskChannelTest do
   end
 
   describe "MCP tools race condition" do
-    @tag :skip
-    test "task gets MCP tools even when prompt arrives before MCP init completes", %{scope: scope} do
-      # Verifies the fix: MCP tools are stored on task when MCP init completes,
-      # independent of prompt timing. ToolExecutor fetches fresh task, so backend
-      # tools will have access to tools.
+    test "queued prompt is processed with MCP tools after initialization completes", %{scope: scope} do
+      # Verifies the prompt queuing mechanism:
+      # 1. Prompt sent before MCP init is queued in socket assigns
+      # 2. MCP init completes, storing tools in socket assigns
+      # 3. Queued prompt is processed with the loaded MCP tools
 
       task_id = Ecto.UUID.generate()
       {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
@@ -609,10 +609,6 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       push(socket, "acp:message", prompt_request)
       :sys.get_state(socket.channel_pid)
-
-      # At this point, task has no MCP tools (prompt arrived before init)
-      {:ok, task_before} = Tasks.get_task(scope, task_id)
-      assert task_before.mcp_tools == []
 
       # NOW complete MCP init with tools
       init_result = %{
@@ -653,13 +649,14 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       assert_push "acp:message", %{"method" => "project_rules_initialized"}
 
-      # Force synchronization
-      :sys.get_state(socket.channel_pid)
+      # Verify MCP tools are now stored in socket assigns
+      channel_socket = :sys.get_state(socket.channel_pid)
+      assert length(channel_socket.assigns.mcp_tools) == 1
+      assert hd(channel_socket.assigns.mcp_tools).name == "get_figma_node"
 
-      # THE FIX: Task now has MCP tools even though prompt arrived first
-      {:ok, task_after} = Tasks.get_task(scope, task_id)
-      assert length(task_after.mcp_tools) == 1
-      assert hd(task_after.mcp_tools).name == "get_figma_node"
+      # After MCP init completes, the queued prompt is processed (task_channel.ex:471-479)
+      # This creates a UserMessage interaction broadcast via PubSub
+      assert_receive {:interaction, %Tasks.Interaction.UserMessage{}}
     end
   end
 

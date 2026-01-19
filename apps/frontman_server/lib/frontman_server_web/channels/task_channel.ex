@@ -28,7 +28,7 @@ defmodule FrontmanServerWeb.TaskChannel do
         # 1. MCPInitializer performs a stateful handshake with the browser-side MCP client
         # 2. Each websocket connection needs its own MCP session
         # 3. Project rules loading depends on client-specific context
-        # Tools are persisted to task.mcp_tools for agent access, not for reuse on reconnect.
+        # Tools are stored in socket assigns and passed through Backend.Context for agent access.
         {:ok, initializer_pid} = MCPInitializer.start_link(self(), task_id, scope)
 
         socket =

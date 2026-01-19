@@ -54,9 +54,8 @@ defmodule FrontmanServer.Tools do
   @doc """
   Prepares all available tools for a task.
 
-  Aggregates backend tools and MCP tools, stores MCP tools on the task
-  for later retrieval by backend tools (e.g., Figma tools), and returns
-  all tools in LLM format.
+  Aggregates backend tools and MCP tools into LLM format.
+  MCP tools are passed through the agent execution chain via Backend.Context.
 
   ## Example
       mcp_tools |> Tools.prepare_for_task(task_id)
