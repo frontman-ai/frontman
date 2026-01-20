@@ -14,6 +14,9 @@ if System.get_env("PHX_SERVER") do
   config :frontman_server, FrontmanServerWeb.Endpoint, server: true
 end
 
+# Cloak encryption key for API keys at rest (required)
+config :frontman_server, cloak_key: env!("CLOAK_KEY", :string!)
+
 # LLM API keys - loaded at runtime from environment
 if config_env() in [:dev, :test] do
   config :frontman_server,

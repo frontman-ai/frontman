@@ -38,6 +38,12 @@ module TestHelpers = {
         currentTaskId: Some(taskId),
         connectionState: Disconnected,
         sessionInitialized: false,
+        usageInfo: None,
+        apiBaseUrl: None,
+        openrouterKeySettings: {
+          source: Client__State__Types.None,
+          saveStatus: Client__State__Types.Idle,
+        },
       }: Client__State__Types.state
     )
   }
@@ -753,6 +759,12 @@ describe("Client State Reducer - Task Management Actions", () => {
       currentTaskId: Some("task-1"),
       connectionState: Disconnected,
       sessionInitialized: false,
+      usageInfo: None,
+      apiBaseUrl: None,
+      openrouterKeySettings: {
+        source: Client__State__Types.None,
+        saveStatus: Client__State__Types.Idle,
+      },
     }
 
     let (nextState, _) = Reducer.next(state, SwitchTask({taskId: "task-2"}))
@@ -791,6 +803,12 @@ describe("Client State Reducer - Task Management Actions", () => {
       currentTaskId: Some("task-1"),
       connectionState: Disconnected,
       sessionInitialized: false,
+      usageInfo: None,
+      apiBaseUrl: None,
+      openrouterKeySettings: {
+        source: Client__State__Types.None,
+        saveStatus: Client__State__Types.Idle,
+      },
     }
 
     t->expect(Reducer.Selectors.webPreviewIsSelecting(state))->Expect.toBe(true)
@@ -814,6 +832,12 @@ describe("Client State Reducer - Task Management Actions", () => {
       currentTaskId: Some("task-1"),
       connectionState: Disconnected,
       sessionInitialized: false,
+      usageInfo: None,
+      apiBaseUrl: None,
+      openrouterKeySettings: {
+        source: Client__State__Types.None,
+        saveStatus: Client__State__Types.Idle,
+      },
     }
 
     let (nextState, _) = Reducer.next(state, DeleteTask({taskId: "task-1"}))
@@ -833,6 +857,12 @@ describe("Client State Reducer - Task Management Actions", () => {
       currentTaskId: Some("task-1"),
       connectionState: Disconnected,
       sessionInitialized: false,
+      usageInfo: None,
+      apiBaseUrl: None,
+      openrouterKeySettings: {
+        source: Client__State__Types.None,
+        saveStatus: Client__State__Types.Idle,
+      },
     }
 
     // Add message to task 1

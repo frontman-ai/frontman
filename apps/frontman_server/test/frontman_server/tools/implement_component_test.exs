@@ -39,7 +39,7 @@ defmodule FrontmanServer.Tools.ImplementComponentTest do
       if fixture_path, do: [fixture_path: fixture_path], else: []
 
     # Build tool execution context
-    context = tool_context(task, llm_opts)
+    context = tool_context(scope, task, llm_opts)
 
     {:ok, task_id: task_id, task: task, llm_opts: llm_opts, context: context, scope: scope}
   end
@@ -77,7 +77,7 @@ defmodule FrontmanServer.Tools.ImplementComponentTest do
 
       # Get updated task with markdown in interactions
       {:ok, updated_task} = Tasks.get_task(scope, task_id)
-      context = tool_context(updated_task, llm_opts)
+      context = tool_context(scope, updated_task, llm_opts)
 
       args = build_args()
 
@@ -148,7 +148,7 @@ defmodule FrontmanServer.Tools.ImplementComponentTest do
       )
 
       {:ok, updated_task} = Tasks.get_task(scope, task_id)
-      context = tool_context(updated_task, llm_opts)
+      context = tool_context(scope, updated_task, llm_opts)
 
       args = build_args()
 

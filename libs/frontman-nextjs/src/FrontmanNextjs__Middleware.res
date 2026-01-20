@@ -40,6 +40,23 @@ let handleUI = (config: config): WebAPI.FetchAPI.response => {
 
   let themeClass = config.isLightTheme ? "" : "dark"
 
+  let runtimeConfigScript = {
+    // Get the raw env var and filter out empty strings
+    let openrouterKey =
+      FrontmanBindings.Process.env
+      ->Dict.get("OPENROUTER_API_KEY")
+      ->Option.flatMap(key => key != "" ? Some(key) : None)
+    let frameworkLabel = "Next.js"
+    // Build JSON payload using proper JSON encoding to handle special characters
+    let configObj = Dict.fromArray([("framework", JSON.Encode.string(frameworkLabel))])
+    // Add key value if present and non-empty
+    openrouterKey->Option.forEach(key => {
+      configObj->Dict.set("openrouterKeyValue", JSON.Encode.string(key))
+    })
+    let payload = JSON.stringify(JSON.Encode.object(configObj))
+    `<script>window.__frontmanRuntime=${payload}</script>`
+  }
+
   let html = `<!DOCTYPE html>
 <html lang="en" class="${themeClass}">
 <head>
@@ -51,6 +68,7 @@ let handleUI = (config: config): WebAPI.FetchAPI.response => {
 </head>
 <body>
     <div id="root"></div>
+    ${runtimeConfigScript}
     <script type="module" src="${config.clientUrl}"></script>
 </body>
 </html>`

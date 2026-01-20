@@ -78,6 +78,7 @@ describe("Connection Reducer", () => {
         clientVersion: "1.0.0",
         baseUrl: "http://test",
         onACPMessage: (_, _) => (),
+        metadata: None,
       }
       let (nextState, effects) = Reducer.reduce(
         Reducer.initialState,
@@ -103,6 +104,7 @@ describe("Connection Reducer", () => {
         clientVersion: "1.0.0",
         baseUrl: "http://test",
         onACPMessage: (_, _) => (),
+        metadata: None,
       }
       let state = {...Reducer.initialState, acp: ACPConnecting}
       let (_, effects) = Reducer.reduce(

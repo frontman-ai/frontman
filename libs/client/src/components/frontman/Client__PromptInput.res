@@ -132,6 +132,8 @@ let make = (
   ~isAgentRunning: bool,
   ~isConnected: bool,
   ~placeholder: string="What would you like to change?",
+  ~disabled: bool=false,
+  ~disabledPlaceholder: option<string>=?,
 ) => {
   let (attachments, setAttachments) = React.useState(() => [])
   let (isDragging, setIsDragging) = React.useState(() => false)
@@ -216,8 +218,17 @@ let make = (
   }
   
   let hasContent = value != "" || Array.length(attachments) > 0
-  let isInputDisabled = !isConnected || isAgentRunning
+  let isInputDisabled = !isConnected || isAgentRunning || disabled
   let isSubmitDisabled = isInputDisabled || !hasContent
+  
+  // Determine placeholder text based on state
+  let currentPlaceholder = if disabled {
+    disabledPlaceholder->Option.getOr("Input disabled")
+  } else if isAgentRunning {
+    "Waiting for response..."
+  } else {
+    placeholder
+  }
   
   <div 
     className={`bg-zinc-900 border-t border-zinc-800 ${isDragging ? "ring-2 ring-blue-500/50" : ""}`}
@@ -244,7 +255,7 @@ let make = (
           onChange(target["value"])
         }}
         onKeyDown={handleKeyDown}
-        placeholder={isAgentRunning ? "Waiting for response..." : placeholder}
+        placeholder={currentPlaceholder}
         rows=1
         className={[
           "w-full min-h-[40px] max-h-[200px] px-3 py-2",

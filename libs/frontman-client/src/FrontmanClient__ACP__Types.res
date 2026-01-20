@@ -13,6 +13,8 @@ type implementation = {
   name: string,
   version: string,
   title: option<string>,
+  // Frontman extension: optional metadata for passing extra info (e.g., env key detection)
+  metadata: option<JSON.t>,
 }
 
 // File system capabilities

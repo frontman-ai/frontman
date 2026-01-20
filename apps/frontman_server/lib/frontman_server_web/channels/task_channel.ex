@@ -291,6 +291,9 @@ defmodule FrontmanServerWeb.TaskChannel do
     scope = socket.assigns.scope
     mcp_tools = socket.assigns[:mcp_tools] || []
 
+    # Extract env API key from prompt metadata (sent with each prompt request)
+    env_api_key = extract_env_api_key_from_params(params)
+
     # Parse ACP prompt (protocol layer)
     prompt = ACP.parse_prompt_params(params)
 
@@ -307,7 +310,10 @@ defmodule FrontmanServerWeb.TaskChannel do
     # Track request ID (channel state)
     socket = assign(socket, :pending_prompt_id, id)
 
-    case Tasks.add_user_message(scope, task_id, prompt.content, all_tools) do
+    # Pass env_api_key to the agent through opts
+    opts = [env_api_key: env_api_key]
+
+    case Tasks.add_user_message(scope, task_id, prompt.content, all_tools, opts) do
       {:ok, _interaction} ->
         Logger.info("User message added, agent spawned for task #{task_id}")
         {:noreply, socket}
@@ -318,6 +324,16 @@ defmodule FrontmanServerWeb.TaskChannel do
         {:reply, {:ok, %{"acp:message" => error_response}}, socket}
     end
   end
+
+  # Extract env API key from prompt params metadata
+  defp extract_env_api_key_from_params(params) when is_map(params) do
+    case get_in(params, ["metadata", "openrouterKeyValue"]) do
+      key when is_binary(key) and key != "" -> %{"openrouter" => key}
+      _ -> %{}
+    end
+  end
+
+  defp extract_env_api_key_from_params(_), do: %{}
 
   @impl true
   def handle_info({:stream_token, text}, socket) do

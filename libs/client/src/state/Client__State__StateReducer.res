@@ -86,7 +86,13 @@ type action =
   | StreamingStarted({taskId: string})
   | TextDeltaReceived({taskId: string, text: string})
   | ToolCallReceived({taskId: string, toolCall: Message.toolCall})
-  | ToolInputStartReceived({taskId: string, id: string, toolName: string, parentAgentId: option<string>, spawningToolName: option<string>})
+  | ToolInputStartReceived({
+      taskId: string,
+      id: string,
+      toolName: string,
+      parentAgentId: option<string>,
+      spawningToolName: option<string>,
+    })
   | ToolInputDeltaReceived({taskId: string, id: string, delta: string})
   | ToolInputEndReceived({taskId: string, id: string})
   | ToolInputReceived({taskId: string, id: string, input: JSON.t})
@@ -115,7 +121,7 @@ type action =
   | SetFigmaNodeWaiting
   | ClearFigmaNodeWaiting
   // Connection actions
-  | Connect({sendPrompt: Client__State__Types.sendPromptFn})
+  | Connect({sendPrompt: Client__State__Types.sendPromptFn, apiBaseUrl: string})
   | Disconnect
   // Initialization actions
   | ReceivedDiscoveredProjectRule({taskId: string})
@@ -123,12 +129,25 @@ type action =
   | TurnCompleted({taskId: string})
   // Plan actions (ACP compliant)
   | PlanReceived({taskId: string, entries: array<Client__State__Types.ACPTypes.planEntry>})
+  // Usage info actions
+  | UsageInfoReceived({usageInfo: Client__State__Types.usageInfo})
+  // API key settings actions
+  | FetchApiKeySettings
+  | ApiKeySettingsReceived({source: Client__State__Types.apiKeySource})
+  | SaveOpenRouterKey({key: string})
+  | OpenRouterKeySaveStarted
+  | OpenRouterKeySaved
+  | OpenRouterKeySaveError({error: string})
+  | ResetOpenRouterKeySaveStatus
 
 // Effects for side effects
 type effect =
   | SendMessageToAPI({message: string, taskId: string})
   | FetchElementDetails({element: WebAPI.DOMAPI.element, document: option<WebAPI.DOMAPI.document>})
   | StartInitializationTimeout({taskId: string, timeoutMs: int})
+  | FetchUsageInfo({apiBaseUrl: string})
+  | FetchApiKeySettingsEffect({apiBaseUrl: string})
+  | SaveOpenRouterKeyEffect({apiBaseUrl: string, key: string})
 
 let getInitialUrl = () => {
   let entrypointUrl =
@@ -160,6 +179,12 @@ let defaultState: state = {
   currentTaskId: None,
   connectionState: Disconnected,
   sessionInitialized: false,
+  usageInfo: None,
+  apiBaseUrl: None,
+  openrouterKeySettings: {
+    source: Client__State__Types.None,
+    saveStatus: Client__State__Types.Idle,
+  },
 }
 
 let actionToString = action => {
@@ -193,7 +218,22 @@ let actionToString = action => {
   | Disconnect => `Disconnect`
   | ReceivedDiscoveredProjectRule({taskId}) => `ReceivedDiscoveredProjectRule(${taskId})`
   | TurnCompleted({taskId}) => `TurnCompleted(${taskId})`
-  | PlanReceived({taskId, entries}) => `PlanReceived(${taskId}, ${entries->Array.length->Int.toString} entries)`
+  | PlanReceived({taskId, entries}) =>
+    `PlanReceived(${taskId}, ${entries->Array.length->Int.toString} entries)`
+  | UsageInfoReceived(_) => `UsageInfoReceived`
+  | FetchApiKeySettings => `FetchApiKeySettings`
+  | ApiKeySettingsReceived({source}) =>
+    let sourceStr = switch source {
+    | Client__State__Types.None => "None"
+    | Client__State__Types.FromEnv => "FromEnv"
+    | Client__State__Types.UserOverride => "UserOverride"
+    }
+    `ApiKeySettingsReceived(${sourceStr})`
+  | SaveOpenRouterKey(_) => `SaveOpenRouterKey`
+  | OpenRouterKeySaveStarted => `OpenRouterKeySaveStarted`
+  | OpenRouterKeySaved => `OpenRouterKeySaved`
+  | OpenRouterKeySaveError({error}) => `OpenRouterKeySaveError(${error})`
+  | ResetOpenRouterKeySaveStatus => `ResetOpenRouterKeySaveStatus`
   }
 }
 
@@ -336,6 +376,16 @@ module Selectors = {
   let isAgentRunning = (state: state): bool => {
     currentTask(state)->Option.mapOr(false, task => task.isAgentRunning)
   }
+
+  // Get usage info
+  let usageInfo = (state: state): option<Client__State__Types.usageInfo> => {
+    state.usageInfo
+  }
+
+  // Get OpenRouter API key settings
+  let openrouterKeySettings = (state: state): Client__State__Types.apiKeySettings => {
+    state.openrouterKeySettings
+  }
 }
 
 let handleEffect = (effect, state: state, dispatch) => {
@@ -354,6 +404,10 @@ let handleEffect = (effect, state: state, dispatch) => {
       | Some(Message.Completed(_)) | None => ()
       }
 
+      // Include runtime config metadata (e.g., openrouterKeyValue) with each prompt
+      let runtimeConfig = Client__RuntimeConfig.read()
+      let metadata = Client__RuntimeConfig.toMetadata(runtimeConfig)
+
       sendPrompt(
         message,
         ~additionalBlocks,
@@ -365,9 +419,41 @@ let handleEffect = (effect, state: state, dispatch) => {
             dispatch(TurnCompleted({taskId: taskId}))
           }
         },
+        ~metadata,
       )
     | Disconnected => Console.error("[Effect] Cannot send message: not connected")
     }
+  | FetchUsageInfo({apiBaseUrl}) =>
+    let fetch = async () => {
+      let url = `${apiBaseUrl}/api/user/api-key-usage`
+
+      try {
+        let response = await WebAPI.Global.fetch(url, ~init={credentials: Include})
+        if response.ok {
+          let json = await response->WebAPI.Response.json
+
+          // Parse the JSON to extract usage info
+          let getInt = (dict, key) =>
+            dict->Dict.get(key)->Option.flatMap(JSON.Decode.float)->Option.map(Float.toInt)
+          let getBool = (dict, key) => dict->Dict.get(key)->Option.flatMap(JSON.Decode.bool)
+
+          switch json->JSON.Decode.object {
+          | Some(dict) =>
+            let usageInfo: Client__State__Types.usageInfo = {
+              limit: getInt(dict, "limit"),
+              remaining: getInt(dict, "remaining"),
+              hasUserKey: getBool(dict, "hasUserKey"),
+              hasServerKey: getBool(dict, "hasServerKey"),
+            }
+            dispatch(UsageInfoReceived({usageInfo: usageInfo}))
+          | None => ()
+          }
+        }
+      } catch {
+      | _ => ()
+      }
+    }
+    fetch()->ignore
   | FetchElementDetails({element, document}) => {
       // Fetch selector
       let selectorPromise = Promise.resolve()->Promise.then(_ => {
@@ -467,6 +553,82 @@ let handleEffect = (effect, state: state, dispatch) => {
         dispatch(ReceivedDiscoveredProjectRule({taskId: taskId}))
       }
     }, timeoutMs)
+  | FetchApiKeySettingsEffect({apiBaseUrl}) =>
+    let fetch = async () => {
+      let url = `${apiBaseUrl}/api/user/api-key-usage`
+
+      try {
+        let response = await WebAPI.Global.fetch(url, ~init={credentials: Include})
+        if response.ok {
+          let json = await response->WebAPI.Response.json
+
+          let getBool = (dict, key) => dict->Dict.get(key)->Option.flatMap(JSON.Decode.bool)
+
+          switch json->JSON.Decode.object {
+          | Some(dict) =>
+            let hasUserKey = getBool(dict, "hasUserKey")->Option.getOr(false)
+
+            // Check if the Next.js project has OPENROUTER_API_KEY from runtime config
+            // This is set by the framework middleware (e.g., FrontmanNextjs__Middleware)
+            let runtimeConfig = Client__RuntimeConfig.read()
+            let hasEnvKey = Client__RuntimeConfig.hasOpenrouterKey(runtimeConfig)
+
+            // Determine the source: user key takes precedence, then env key, else none
+            let source: Client__State__Types.apiKeySource = if hasUserKey {
+              UserOverride
+            } else if hasEnvKey {
+              FromEnv
+            } else {
+              None
+            }
+            dispatch(ApiKeySettingsReceived({source: source}))
+          | None => ()
+          }
+        }
+      } catch {
+      | _ => ()
+      }
+    }
+    fetch()->ignore
+  | SaveOpenRouterKeyEffect({apiBaseUrl, key}) =>
+    let save = async () => {
+      dispatch(OpenRouterKeySaveStarted)
+      let url = `${apiBaseUrl}/api/user/api-keys`
+      let body = {
+        "provider": "openrouter",
+        "key": key,
+      }
+
+      try {
+        let response = await WebAPI.Global.fetch(
+          url,
+          ~init={
+            credentials: Include,
+            method: "POST",
+            headers: WebAPI.HeadersInit.fromDict(
+              Dict.fromArray([("Content-Type", "application/json")]),
+            ),
+            body: WebAPI.BodyInit.fromString(JSON.stringifyAny(body)->Option.getOr("{}")),
+          },
+        )
+
+        if !response.ok {
+          dispatch(
+            OpenRouterKeySaveError({
+              error: `HTTP ${response.status->Int.toString}: ${response.statusText}`,
+            }),
+          )
+        } else {
+          dispatch(OpenRouterKeySaved)
+        }
+      } catch {
+      | exn =>
+        let msg =
+          exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
+        dispatch(OpenRouterKeySaveError({error: `Failed to save API key: ${msg}`}))
+      }
+    }
+    save()->ignore
   }
 }
 
@@ -524,8 +686,7 @@ let next = (state, action) => {
     state
     ->Lens.updateTask(taskId, task => {
       switch Lens.getStreamingMessage(task) {
-      | Some(_) =>
-        // Already have a streaming message, don't create another
+      | Some(_) => // Already have a streaming message, don't create another
         task
       | None =>
         let id = `msg_${taskId}_${Date.now()->Float.toString}`
@@ -674,8 +835,7 @@ let next = (state, action) => {
     ->Lens.updateTask(taskId, task =>
       Lens.updateTaskMessage(task, id, msg =>
         switch msg {
-        | Message.ToolCall(tool) =>
-          Message.ToolCall({...tool, input: Some(input)})
+        | Message.ToolCall(tool) => Message.ToolCall({...tool, input: Some(input)})
         | other => other
         }
       )
@@ -837,8 +997,7 @@ let next = (state, action) => {
       }->FrontmanReactStatestore.StateReducer.update
     }
 
-  | ClearCurrentTask =>
-    {...state, currentTaskId: None}->FrontmanReactStatestore.StateReducer.update
+  | ClearCurrentTask => {...state, currentTaskId: None}->FrontmanReactStatestore.StateReducer.update
 
   | UpdateTaskTitle({taskId, title}) =>
     state
@@ -865,14 +1024,18 @@ let next = (state, action) => {
     ->Lens.updateCurrentTask(task => {...task, figmaNode: FigmaNode.NoSelection})
     ->FrontmanReactStatestore.StateReducer.update
 
-  | Connect({sendPrompt}) =>
+  | Connect({sendPrompt, apiBaseUrl}) =>
     {
       ...state,
       connectionState: Connected(sendPrompt),
+      apiBaseUrl: Some(apiBaseUrl),
     }->FrontmanReactStatestore.StateReducer.update(
-      ~sideEffects=state.currentTaskId
-      ->Option.map(taskId => [StartInitializationTimeout({taskId, timeoutMs: 3000})])
-      ->Option.getOr([]),
+      ~sideEffects=Array.concat(
+        state.currentTaskId
+        ->Option.map(taskId => [StartInitializationTimeout({taskId, timeoutMs: 3000})])
+        ->Option.getOr([]),
+        [FetchUsageInfo({apiBaseUrl: apiBaseUrl})],
+      ),
     )
 
   | Disconnect =>
@@ -886,15 +1049,99 @@ let next = (state, action) => {
     }->FrontmanReactStatestore.StateReducer.update
 
   | TurnCompleted({taskId}) =>
-    // Mark agent turn as complete
+    // Mark agent turn as complete and fetch updated usage
+    let sideEffects = switch state.apiBaseUrl {
+    | Some(apiBaseUrl) => [FetchUsageInfo({apiBaseUrl: apiBaseUrl})]
+    | None => []
+    }
     state
     ->Lens.updateTask(taskId, task => {...task, isAgentRunning: false})
-    ->FrontmanReactStatestore.StateReducer.update
+    ->FrontmanReactStatestore.StateReducer.update(~sideEffects)
 
   | PlanReceived({taskId, entries}) =>
     // Replace plan entries completely (per ACP spec)
     state
     ->Lens.updateTask(taskId, task => {...task, planEntries: entries})
     ->FrontmanReactStatestore.StateReducer.update
+
+  | UsageInfoReceived({usageInfo}) =>
+    // Update usage info in state
+    {...state, usageInfo: Some(usageInfo)}->FrontmanReactStatestore.StateReducer.update
+
+  // API key settings actions
+  | FetchApiKeySettings =>
+    switch state.apiBaseUrl {
+    | Some(apiBaseUrl) =>
+      state->FrontmanReactStatestore.StateReducer.update(
+        ~sideEffects=[FetchApiKeySettingsEffect({apiBaseUrl: apiBaseUrl})],
+      )
+    | None => state->FrontmanReactStatestore.StateReducer.update
+    }
+
+  | ApiKeySettingsReceived({source}) =>
+    {
+      ...state,
+      openrouterKeySettings: {
+        ...state.openrouterKeySettings,
+        source,
+      },
+    }->FrontmanReactStatestore.StateReducer.update
+
+  | SaveOpenRouterKey({key}) =>
+    switch state.apiBaseUrl {
+    | Some(apiBaseUrl) =>
+      state->FrontmanReactStatestore.StateReducer.update(
+        ~sideEffects=[SaveOpenRouterKeyEffect({apiBaseUrl, key})],
+      )
+    | None =>
+      {
+        ...state,
+        openrouterKeySettings: {
+          ...state.openrouterKeySettings,
+          saveStatus: SaveError("Not connected to server"),
+        },
+      }->FrontmanReactStatestore.StateReducer.update
+    }
+
+  | OpenRouterKeySaveStarted =>
+    {
+      ...state,
+      openrouterKeySettings: {
+        ...state.openrouterKeySettings,
+        saveStatus: Saving,
+      },
+    }->FrontmanReactStatestore.StateReducer.update
+
+  | OpenRouterKeySaved =>
+    // After saving the API key, refresh usage info so the chatbox reflects the new state
+    let effects = switch state.apiBaseUrl {
+    | Some(apiBaseUrl) => [FetchUsageInfo({apiBaseUrl: apiBaseUrl})]
+    | None => []
+    }
+    {
+      ...state,
+      openrouterKeySettings: {
+        source: UserOverride,
+        saveStatus: Saved,
+      },
+    }->FrontmanReactStatestore.StateReducer.update(~sideEffects=effects)
+
+  | OpenRouterKeySaveError({error}) =>
+    {
+      ...state,
+      openrouterKeySettings: {
+        ...state.openrouterKeySettings,
+        saveStatus: SaveError(error),
+      },
+    }->FrontmanReactStatestore.StateReducer.update
+
+  | ResetOpenRouterKeySaveStatus =>
+    {
+      ...state,
+      openrouterKeySettings: {
+        ...state.openrouterKeySettings,
+        saveStatus: Idle,
+      },
+    }->FrontmanReactStatestore.StateReducer.update
   }
 }

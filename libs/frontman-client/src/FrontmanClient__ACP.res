@@ -27,6 +27,7 @@ let makeConfig = (
   ~loginUrl: string,
   ~name: string,
   ~version: string,
+  ~metadata: option<JSON.t>=?,
   ~onMessage: option<(messageDirection, JSON.t) => unit>=?,
 ): config => {
   endpoint,
@@ -36,6 +37,7 @@ let makeConfig = (
     name,
     version,
     title: None,
+    metadata,
   },
   clientCapabilities: {
     fs: Some({readTextFile: Some(true), writeTextFile: Some(true)}),
@@ -281,6 +283,7 @@ let sendPrompt = async (
   session: session,
   text: string,
   ~additionalBlocks: array<Types.contentBlock>=[],
+  ~metadata: option<JSON.t>=None,
 ): result<Types.promptResult, string> => {
   // Build prompt array starting with the text block
   let textBlock = JSON.Encode.object(
@@ -302,6 +305,7 @@ let sendPrompt = async (
     ~state=session.connection.state,
     ~sessionId=session.sessionId,
     ~prompt=allBlocks,
+    ~metadata,
     ~onMessage=session.connection.onMessage,
   )
 }

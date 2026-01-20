@@ -148,6 +148,12 @@ let snapshotToState = (snapshot: Snapshot.t): StateTypes.state => {
     currentTaskId: snapshot.currentTaskId,
     connectionState: Disconnected, // Cannot restore connection from snapshot
     sessionInitialized: snapshot.sessionInitialized,
+    usageInfo: None,
+    apiBaseUrl: None,
+    openrouterKeySettings: {
+      source: Client__State__Types.None,
+      saveStatus: Client__State__Types.Idle,
+    },
   }
 }
 

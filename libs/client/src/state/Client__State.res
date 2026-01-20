@@ -98,7 +98,7 @@ module Actions = {
   let clearFigmaNodeWaiting = () => Client__State__Store.dispatch(ClearFigmaNodeWaiting)
 
   // Connection action creators
-  let connect = (~sendPrompt) => Client__State__Store.dispatch(Connect({sendPrompt: sendPrompt}))
+  let connect = (~sendPrompt, ~apiBaseUrl) => Client__State__Store.dispatch(Connect({sendPrompt: sendPrompt, apiBaseUrl: apiBaseUrl}))
 
   let disconnect = () => Client__State__Store.dispatch(Disconnect)
 
@@ -113,4 +113,12 @@ module Actions = {
   // Plan action creators (ACP compliant)
   let planReceived = (~taskId: string, ~entries) =>
     Client__State__Store.dispatch(PlanReceived({taskId, entries}))
+
+  // API key settings action creators
+  let fetchApiKeySettings = () => Client__State__Store.dispatch(FetchApiKeySettings)
+
+  let saveOpenRouterKey = (~key) => Client__State__Store.dispatch(SaveOpenRouterKey({key: key}))
+
+  let resetOpenRouterKeySaveStatus = () =>
+    Client__State__Store.dispatch(ResetOpenRouterKeySaveStatus)
 }

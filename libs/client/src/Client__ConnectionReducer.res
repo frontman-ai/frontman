@@ -17,6 +17,8 @@ type initConfig = {
   clientVersion: string,
   baseUrl: string,
   onACPMessage: (ACP.messageDirection, JSON.t) => unit,
+  // Optional metadata to pass in ACP clientInfo (e.g., env key detection)
+  metadata: option<JSON.t>,
 }
 
 // Connection states
@@ -80,6 +82,7 @@ type action =
       text: string,
       additionalBlocks: array<FrontmanFrontmanClient.FrontmanClient__ACP__Types.contentBlock>,
       onComplete: result<FrontmanFrontmanClient.FrontmanClient__ACP__Types.promptResult, string> => unit,
+      metadata: option<JSON.t>,
     })
   | PromptSent
   | Cleanup
@@ -104,6 +107,7 @@ type effect =
       text: string,
       additionalBlocks: array<FrontmanFrontmanClient.FrontmanClient__ACP__Types.contentBlock>,
       onComplete: result<FrontmanFrontmanClient.FrontmanClient__ACP__Types.promptResult, string> => unit,
+      metadata: option<JSON.t>,
     })
 
 let initialState: state = {
@@ -213,6 +217,7 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
       ~loginUrl=config.loginUrl,
       ~name=config.clientName,
       ~version=config.clientVersion,
+      ~metadata=?config.metadata,
       ~onMessage=config.onACPMessage,
     )
     // Create AbortController to cancel connections on cleanup
@@ -310,9 +315,9 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
       [CreateSessionEffect({connection: conn, mcpServer, onUpdate, onMcpMessage})],
     )
 
-  | ({session: SessionActive(session), isSendingPrompt: false}, SendPrompt({text, additionalBlocks, onComplete})) => (
+  | ({session: SessionActive(session), isSendingPrompt: false}, SendPrompt({text, additionalBlocks, onComplete, metadata})) => (
       {...state, isSendingPrompt: true},
-      [SendPromptEffect({session, text, additionalBlocks, onComplete})],
+      [SendPromptEffect({session, text, additionalBlocks, onComplete, metadata})],
     )
 
   | ({isSendingPrompt: true}, PromptSent) => (
@@ -474,9 +479,9 @@ let handleEffect = (effect: effect, _state: state, dispatch: action => unit) => 
       }
     }
     create()->ignore
-  | SendPromptEffect({session, text, additionalBlocks, onComplete}) =>
+  | SendPromptEffect({session, text, additionalBlocks, onComplete, metadata}) =>
     let send = async () => {
-      let result = await ACP.sendPrompt(session, text, ~additionalBlocks)
+      let result = await ACP.sendPrompt(session, text, ~additionalBlocks, ~metadata)
       dispatch(PromptSent)
       onComplete(result)
     }

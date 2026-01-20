@@ -9,16 +9,18 @@ defmodule FrontmanServer.Accounts.User do
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
   schema "users" do
-    field :email, :string
-    field :name, :string
-    field :password, :string, virtual: true, redact: true
-    field :hashed_password, :string, redact: true
-    field :confirmed_at, :utc_datetime
-    field :authenticated_at, :utc_datetime, virtual: true
+    field(:email, :string)
+    field(:name, :string)
+    field(:password, :string, virtual: true, redact: true)
+    field(:hashed_password, :string, redact: true)
+    field(:confirmed_at, :utc_datetime)
+    field(:authenticated_at, :utc_datetime, virtual: true)
 
-    has_many :memberships, FrontmanServer.Organizations.Membership
-    has_many :organizations, through: [:memberships, :organization]
-    has_many :identities, FrontmanServer.Accounts.UserIdentity
+    has_many(:api_keys, FrontmanServer.Providers.ApiKey)
+    has_many(:key_usages, FrontmanServer.Providers.UserKeyUsage)
+    has_many(:memberships, FrontmanServer.Organizations.Membership)
+    has_many(:organizations, through: [:memberships, :organization])
+    has_many(:identities, FrontmanServer.Accounts.UserIdentity)
 
     timestamps(type: :utc_datetime)
   end

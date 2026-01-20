@@ -81,7 +81,12 @@ defmodule FrontmanServer.Tools.VisualCompareComponentToFigma do
 
     user_msg = build_user_message(args)
 
-    agent = SpecializedAgent.new(:visual_compare, tools: mcp_tools, llm_opts: llm_opts)
+    agent =
+      SpecializedAgent.new(:visual_compare,
+        tools: mcp_tools,
+        model: llm_opts[:model],
+        llm_opts: llm_opts
+      )
 
     case Swarm.run_blocking(agent, [user_msg], tool_executor) do
       {:ok, result} ->

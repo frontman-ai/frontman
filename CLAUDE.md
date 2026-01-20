@@ -35,6 +35,107 @@ cd .worktrees/feature/my-feature
 - Test files: `*.test.res.mjs`
 - Story files: `*.story.res` (co-located with components)
 
+## State Management in Client (libs/client)
+
+**All API calls and side effects MUST go through the StateReducer** unless explicitly instructed otherwise.
+
+### Architecture
+- `Client__State.res` - Public API: `useSelector`, `Actions`, `Selectors`
+- `Client__State__StateReducer.res` - Reducer with actions, effects, and state transitions
+- `Client__State__Store.res` - Store instance and dispatch
+- `Client__State__Types.res` - Type definitions
+
+### Reading State
+Always use selectors via `useSelector`:
+```rescript
+let messages = Client__State.useSelector(Client__State.Selectors.messages)
+let isStreaming = Client__State.useSelector(Client__State.Selectors.isStreaming)
+```
+
+### Dispatching Actions (Including API Calls)
+Use `Client__State.Actions.*` for ALL state changes and API operations:
+```rescript
+// User interactions
+Client__State.Actions.addUserMessage(~content)
+Client__State.Actions.switchTask(~taskId)
+
+// API operations - these trigger side effects
+Client__State.Actions.fetchApiKeySettings()
+Client__State.Actions.saveOpenRouterKey(~key)
+```
+
+### Adding New API Actions
+1. **Define the action** in `Client__State__StateReducer.res`:
+   ```rescript
+   type action =
+     | ...
+     | FetchSomething
+     | FetchSomethingSuccess({data: someType})
+     | FetchSomethingError({error: string})
+   ```
+
+2. **Define the effect** for async work:
+   ```rescript
+   type effect =
+     | ...
+     | FetchSomethingEffect({apiBaseUrl: string})
+   ```
+
+3. **Handle the action** in `next` function - return state + effects:
+   ```rescript
+   | FetchSomething =>
+     state->FrontmanReactStatestore.StateReducer.update(
+       ~sideEffects=[FetchSomethingEffect({apiBaseUrl: state.apiBaseUrl})],
+     )
+   ```
+
+4. **Implement the effect handler** in `handleEffect`:
+   ```rescript
+   | FetchSomethingEffect({apiBaseUrl}) =>
+     let fetch = async () => {
+       let response = await Fetch.fetch(...)
+       if response.ok {
+         dispatch(FetchSomethingSuccess({data: ...}))
+       } else {
+         dispatch(FetchSomethingError({error: "..."}))
+       }
+     }
+     fetch()->ignore
+   ```
+
+5. **Expose action creator** in `Client__State.res`:
+   ```rescript
+   module Actions = {
+     let fetchSomething = () => dispatch(FetchSomething)
+   }
+   ```
+
+### What NOT to Do
+```rescript
+// BAD - Direct API call in component
+@react.component
+let make = () => {
+  let handleClick = async () => {
+    let response = await Fetch.fetch("/api/something")
+    // ...
+  }
+}
+
+// GOOD - Dispatch action that triggers effect
+@react.component
+let make = () => {
+  let handleClick = () => {
+    Client__State.Actions.fetchSomething()
+  }
+}
+```
+
+### Exception
+Only bypass the reducer when explicitly requested for:
+- One-off debugging/testing
+- External library integrations that manage their own state
+- Performance-critical operations where the overhead is unacceptable
+
 ## Storybook Guidelines (libs/client)
 
 ### Running Storybook

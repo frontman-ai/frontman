@@ -4,17 +4,28 @@ defmodule FrontmanServer.Agents.LLMClient do
 
   Stream-first design: returns a lazy stream of chunks that can be
   consumed with callbacks or collected into a Response.
+
+  API key resolution happens at the domain layer (Agents context) before
+  this client is created. The resolved key is passed via `llm_opts[:api_key]`.
   """
 
   @default_model "openrouter:openai/gpt-5.1-codex"
 
   use TypedStruct
 
+  alias FrontmanServer.Agents.SchemaTransformer
+
   typedstruct do
-    field :model, String.t(), default: @default_model
-    field :tools, [Swarm.Tool.t()], default: []
-    field :llm_opts, keyword(), default: []
+    field(:model, String.t(), default: @default_model)
+    field(:tools, [Swarm.Tool.t()], default: [])
+    # llm_opts must include :api_key (resolved at domain layer)
+    field(:llm_opts, keyword(), default: [])
   end
+
+  @doc """
+  Returns the default model.
+  """
+  def default_model, do: @default_model
 
   @doc """
   Creates a new LLMClient.
@@ -23,35 +34,11 @@ defmodule FrontmanServer.Agents.LLMClient do
 
   - `:model` - Model spec string (default: "openrouter:openai/gpt-5.1-codex")
   - `:tools` - List of Swarm.Tool structs
-  - `:llm_opts` - Additional options for ReqLLM (e.g., fixture_path for tests)
+  - `:llm_opts` - Options for ReqLLM, must include `:api_key`
   """
   def new(opts \\ []) do
     struct!(__MODULE__, opts)
   end
-
-  @doc """
-  Gets the API key for a given model from Application config.
-  """
-  def get_api_key(model) when is_binary(model) do
-    cond do
-      String.starts_with?(model, "openrouter:") ->
-        Application.get_env(:frontman_server, :openrouter_api_key)
-
-      String.starts_with?(model, "anthropic:") ->
-        Application.get_env(:frontman_server, :anthropic_api_key)
-
-      String.starts_with?(model, "google:") ->
-        Application.get_env(:frontman_server, :google_api_key)
-
-      String.starts_with?(model, "openai:") ->
-        Application.get_env(:frontman_server, :openai_api_key)
-
-      true ->
-        nil
-    end
-  end
-
-  alias FrontmanServer.Agents.SchemaTransformer
 
   @doc """
   Converts Swarm.Tool to ReqLLM.Tool format.
@@ -74,23 +61,21 @@ defmodule FrontmanServer.Agents.LLMClient do
 end
 
 defimpl Swarm.LLM, for: FrontmanServer.Agents.LLMClient do
+  alias FrontmanServer.Agents.LLMClient
   alias Swarm.LLM.{Chunk, Usage}
   alias Swarm.Message
   alias Swarm.Message.ContentPart
   alias Swarm.ToolCall
 
-  alias FrontmanServer.Agents.LLMClient
-
   require Logger
 
   def stream(client, messages, _opts) do
     reqllm_tools = Enum.map(client.tools, &LLMClient.to_reqllm_tool(&1, client.model))
-    api_key = LLMClient.get_api_key(client.model)
 
+    # API key must be provided via llm_opts (resolved at domain layer)
     llm_opts =
       client.llm_opts
       |> Keyword.put_new(:tools, reqllm_tools)
-      |> then(fn opts -> if api_key, do: Keyword.put_new(opts, :api_key, api_key), else: opts end)
       |> Keyword.reject(fn {_k, v} -> v == [] end)
 
     reqllm_messages = Enum.map(messages, &to_reqllm_message/1)

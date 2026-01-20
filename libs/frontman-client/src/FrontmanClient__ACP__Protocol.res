@@ -79,14 +79,19 @@ let sendPrompt = (
   ~state: ref<Client.state>,
   ~sessionId: string,
   ~prompt: array<JSON.t>,
+  ~metadata: option<JSON.t>,
   ~onMessage: option<(messageDirection, JSON.t) => unit>,
 ): promise<result<Types.promptResult, string>> => {
-  let promptParams = JSON.Encode.object(
-    Dict.fromArray([
-      ("sessionId", JSON.Encode.string(sessionId)),
-      ("prompt", JSON.Encode.array(prompt)),
-    ]),
-  )
+  let entries = [
+    ("sessionId", JSON.Encode.string(sessionId)),
+    ("prompt", JSON.Encode.array(prompt)),
+  ]
+  // Add metadata if provided
+  let entries = switch metadata {
+  | Some(meta) => Array.concat(entries, [("metadata", meta)])
+  | None => entries
+  }
+  let promptParams = JSON.Encode.object(Dict.fromArray(entries))
   sendRequest(
     ~channel,
     ~state,

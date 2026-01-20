@@ -8,6 +8,7 @@ type clientConfig = {
   endpoint: string,
   tokenUrl: string,
   loginUrl: string,
+  apiBaseUrl: string,
 }
 
 let getConfig = (): clientConfig => {
@@ -28,6 +29,7 @@ let getConfig = (): clientConfig => {
     endpoint: `wss://${host}/socket`,
     tokenUrl: `https://${host}/api/socket-token`,
     loginUrl: `https://${host}/users/log-in`,
+    apiBaseUrl: `https://${host}`,
   }
 }
 
@@ -46,7 +48,7 @@ WebAPI.Global.document->WebAPI.Document.addEventListener(Custom("DOMContentLoade
           endpoint={config.endpoint}
           tokenUrl={config.tokenUrl}
           loginUrl={config.loginUrl}>
-          <Client__App />
+          <Client__App apiBaseUrl={config.apiBaseUrl} />
         </Client__FrontmanProvider.Provider>
       </React.StrictMode>,
     )

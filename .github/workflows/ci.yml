@@ -218,6 +218,8 @@ jobs:
 
       - name: Run tests with coverage
         run: make -C apps/frontman_server test-coverage
+        env:
+          CLOAK_KEY: "dGVzdC1rZXktZm9yLWNpLXRoaXMtaXMtMzJieXRlc3M="
 
       - name: Coverage details
         run: cd apps/frontman_server && MIX_ENV=test mix coveralls.detail

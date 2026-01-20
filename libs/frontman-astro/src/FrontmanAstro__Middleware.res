@@ -49,6 +49,17 @@ let injectAnnotationScript = async (response: WebAPI.FetchAPI.response): WebAPI.
 
 // HTML template for the Frontman UI
 let uiHtml = (~clientUrl: string) => {
+  // Get the raw env var and filter out empty strings
+  let openrouterKey =
+    FrontmanBindings.Process.env
+    ->Dict.get("OPENROUTER_API_KEY")
+    ->Option.flatMap(key => key != "" ? Some(key) : None)
+  // Build JSON payload using proper JSON encoding to handle special characters
+  let configObj = Dict.fromArray([("framework", JSON.Encode.string("Astro"))])
+  openrouterKey->Option.forEach(key => {
+    configObj->Dict.set("openrouterKeyValue", JSON.Encode.string(key))
+  })
+  let runtimeConfig = JSON.stringify(JSON.Encode.object(configObj))
   `<!DOCTYPE html>
 <html>
 <head>
@@ -66,6 +77,7 @@ let uiHtml = (~clientUrl: string) => {
 </head>
 <body>
   <div id="root"></div>
+  <script>window.__frontmanRuntime=${runtimeConfig}</script>
   <script type="module" src="${clientUrl}"></script>
 </body>
 </html>`

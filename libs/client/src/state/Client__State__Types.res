@@ -426,6 +426,7 @@ type sendPromptFn = (
   string,
   ~additionalBlocks: array<ACPTypes.contentBlock>,
   ~onComplete: result<ACPTypes.promptResult, string> => unit,
+  ~metadata: option<JSON.t>,
 ) => unit
 
 // Connection state for the Frontman ACP session
@@ -433,9 +434,39 @@ type connectionState =
   | Disconnected
   | Connected(sendPromptFn)
 
+// Usage info from API
+type usageInfo = {
+  limit: option<int>,
+  remaining: option<int>,
+  hasUserKey: option<bool>,
+  hasServerKey: option<bool>,
+}
+
+// API key source status for settings display
+type apiKeySource =
+  | None // No key configured
+  | FromEnv // Key loaded from environment variable
+  | UserOverride // User has saved their own key (stored in DB)
+
+// API key save operation status
+type apiKeySaveStatus =
+  | Idle
+  | Saving
+  | Saved
+  | SaveError(string)
+
+// API key settings for a provider
+type apiKeySettings = {
+  source: apiKeySource,
+  saveStatus: apiKeySaveStatus,
+}
+
 type state = {
   tasks: Dict.t<Task.t>,
   currentTaskId: option<string>,
   connectionState: connectionState,
   sessionInitialized: bool,
+  usageInfo: option<usageInfo>,
+  apiBaseUrl: option<string>,
+  openrouterKeySettings: apiKeySettings,
 }

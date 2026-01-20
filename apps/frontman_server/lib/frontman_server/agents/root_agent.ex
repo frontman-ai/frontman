@@ -10,6 +10,9 @@ defmodule FrontmanServer.Agents.RootAgent do
   - Figma design context
   - Selected component information
   - Framework-specific guidance
+
+  API key resolution happens at the domain layer (Agents context) before this agent
+  is created. The resolved key is passed via `llm_opts[:api_key]`.
   """
 
   use TypedStruct
@@ -17,13 +20,14 @@ defmodule FrontmanServer.Agents.RootAgent do
   alias FrontmanServer.Agents.{LLMClient, Prompts}
 
   typedstruct do
-    field :tools, [Swarm.Tool.t()], default: []
-    field :has_figma_context, boolean(), default: false
-    field :has_selected_component, boolean(), default: false
-    field :figma_node_id, String.t() | nil, default: nil
-    field :framework, String.t() | nil, default: nil
-    field :llm_opts, keyword(), default: []
-    field :model, String.t() | nil, default: nil
+    field(:tools, [Swarm.Tool.t()], default: [])
+    field(:has_figma_context, boolean(), default: false)
+    field(:has_selected_component, boolean(), default: false)
+    field(:figma_node_id, String.t() | nil, default: nil)
+    field(:framework, String.t() | nil, default: nil)
+    # llm_opts must include :api_key (resolved at domain layer)
+    field(:llm_opts, keyword(), default: [])
+    field(:model, String.t() | nil, default: nil)
   end
 
   @doc """
@@ -36,7 +40,7 @@ defmodule FrontmanServer.Agents.RootAgent do
   - `:has_selected_component` - Whether a component is selected in the codebase
   - `:figma_node_id` - The Figma node ID for breakdown_figma_design
   - `:framework` - Framework name (e.g., "nextjs") for framework-specific guidance
-  - `:llm_opts` - Additional LLM options (e.g., fixture_path for tests)
+  - `:llm_opts` - LLM options, must include `:api_key`
   - `:model` - LLM model spec (defaults to LLMClient default)
   """
   @spec new(keyword()) :: t()
@@ -67,7 +71,10 @@ defimpl Swarm.Agent, for: FrontmanServer.Agents.RootAgent do
 
   def llm(%RootAgent{} = agent) do
     opts =
-      [tools: agent.tools, llm_opts: agent.llm_opts]
+      [
+        tools: agent.tools,
+        llm_opts: agent.llm_opts
+      ]
       |> then(fn opts ->
         if agent.model, do: Keyword.put(opts, :model, agent.model), else: opts
       end)
