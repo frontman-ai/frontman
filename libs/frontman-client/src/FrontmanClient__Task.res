@@ -48,7 +48,8 @@ let make = (
   }
 }
 
-let getInteractions = (t: t): array<FrontmanClient__Types.interaction> => t.state.interactions.contents
+let getInteractions = (t: t): array<FrontmanClient__Types.interaction> =>
+  t.state.interactions.contents
 
 let isStreaming = (t: t): bool => t.state.isStreaming.contents
 
@@ -135,8 +136,7 @@ let joinChannel = (t: t, message: string): promise<FrontmanClient__Types.result<
     // Join channel
     let pushRef = channel->FrontmanClient__Phoenix__Channel.join
 
-    pushRef
-    .receive(~status="ok", ~callback=response => {
+    pushRef.receive(~status="ok", ~callback=response => {
       // Extract task_id from response
       switch response->JSON.Decode.object {
       | Some(dict) =>
@@ -151,11 +151,9 @@ let joinChannel = (t: t, message: string): promise<FrontmanClient__Types.result<
         }
       | None => resolve(FrontmanClient__Types.Error("Invalid response format"))
       }
-    })
-    .receive(~status="error", ~callback=_error => {
+    }).receive(~status="error", ~callback=_error => {
       resolve(FrontmanClient__Types.Error("Failed to join channel"))
-    })
-    ->ignore
+    })->ignore
   })
 }
 
@@ -171,14 +169,11 @@ let sendMessage = (t: t, message: string): promise<FrontmanClient__Types.result<
 
       let pushRef = channel->FrontmanClient__Phoenix__Channel.push(~event=#send_message, ~payload)
 
-      pushRef
-      .receive(~status="ok", ~callback=_response => {
+      pushRef.receive(~status="ok", ~callback=_response => {
         resolve(FrontmanClient__Types.Ok())
-      })
-      .receive(~status="error", ~callback=_error => {
+      }).receive(~status="error", ~callback=_error => {
         resolve(FrontmanClient__Types.Error("Failed to send message"))
-      })
-      ->ignore
+      })->ignore
     })
   }
 }

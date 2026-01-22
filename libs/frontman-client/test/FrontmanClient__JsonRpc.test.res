@@ -108,12 +108,14 @@ describe("JsonRpc RpcError", _t => {
       (JsonRpc.InternalError, -32603),
     ]
 
-    codes->Array.forEach(((code, expected)) => {
-      let error = JsonRpc.RpcError.make(~code, ~message="test", ~data=None)
-      let json = error->S.reverseConvertToJsonOrThrow(JsonRpc.RpcError.schema)
-      let obj = json->JSON.Decode.object->Option.getOrThrow
-      t->expect(obj->Dict.get("code"))->Expect.toEqual(Some(JSON.Encode.int(expected)))
-    })
+    codes->Array.forEach(
+      ((code, expected)) => {
+        let error = JsonRpc.RpcError.make(~code, ~message="test", ~data=None)
+        let json = error->S.reverseConvertToJsonOrThrow(JsonRpc.RpcError.schema)
+        let obj = json->JSON.Decode.object->Option.getOrThrow
+        t->expect(obj->Dict.get("code"))->Expect.toEqual(Some(JSON.Encode.int(expected)))
+      },
+    )
   })
 })
 
@@ -131,7 +133,9 @@ describe("JsonRpc Notification", _t => {
     let obj = json->JSON.Decode.object->Option.getOrThrow
 
     t->expect(obj->Dict.get("jsonrpc"))->Expect.toEqual(Some(JSON.Encode.string("2.0")))
-    t->expect(obj->Dict.get("method"))->Expect.toEqual(Some(JSON.Encode.string("test_notification")))
+    t
+    ->expect(obj->Dict.get("method"))
+    ->Expect.toEqual(Some(JSON.Encode.string("test_notification")))
     t->expect(obj->Dict.get("id"))->Expect.toEqual(None)
   })
 })

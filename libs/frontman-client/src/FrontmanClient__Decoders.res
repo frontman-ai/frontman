@@ -9,11 +9,9 @@ let parseSchema = (json: JSON.t, schema: S.t<'a>): result<'a, string> => {
   }
 }
 
-let getString = (dict, key) =>
-  dict->Dict.get(key)->Option.flatMap(JSON.Decode.string)
+let getString = (dict, key) => dict->Dict.get(key)->Option.flatMap(JSON.Decode.string)
 
-let getDict = (dict, key) =>
-  dict->Dict.get(key)->Option.flatMap(JSON.Decode.object)
+let getDict = (dict, key) => dict->Dict.get(key)->Option.flatMap(JSON.Decode.object)
 
 let decodeInteraction = (json: JSON.t): result<FrontmanClient__Types.interaction, string> => {
   switch json->JSON.Decode.object {
@@ -21,11 +19,7 @@ let decodeInteraction = (json: JSON.t): result<FrontmanClient__Types.interaction
   | Some(dict) =>
     switch getString(dict, "type") {
     | Some("user_message") =>
-      switch (
-        getString(dict, "id"),
-        getString(dict, "content"),
-        getString(dict, "timestamp"),
-      ) {
+      switch (getString(dict, "id"), getString(dict, "content"), getString(dict, "timestamp")) {
       | (Some(id), Some(content), Some(timestampStr)) =>
         Ok(
           FrontmanClient__Types.UserMessage({

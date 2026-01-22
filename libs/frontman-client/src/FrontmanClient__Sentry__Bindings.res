@@ -34,8 +34,10 @@ type initOptions = {
 
 // Main Sentry functions from @sentry/browser
 @module("@sentry/browser") external init: initOptions => unit = "init"
-@module("@sentry/browser") external captureException: (exn, ~hint: eventHint=?) => string = "captureException"
-@module("@sentry/browser") external captureMessage: (string, ~level: severity=?) => string = "captureMessage"
+@module("@sentry/browser")
+external captureException: (exn, ~hint: eventHint=?) => string = "captureException"
+@module("@sentry/browser")
+external captureMessage: (string, ~level: severity=?) => string = "captureMessage"
 @module("@sentry/browser") external setTag: (string, string) => unit = "setTag"
 @module("@sentry/browser") external setTags: Dict.t<string> => unit = "setTags"
 @module("@sentry/browser") external setExtra: (string, JSON.t) => unit = "setExtra"

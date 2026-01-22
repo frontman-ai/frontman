@@ -123,8 +123,7 @@ let handleIncomingMessage = (
     | Ok(notification) => onUpdate->Option.forEach(cb => cb(notification.params.update))
     | Error(parseError) => onParseError->Option.forEach(cb => cb(parseError))
     }
-  | Some(_) =>
-    // Other notification types (e.g., project_rules_initialized) - no action needed
+  | Some(_) => // Other notification types (e.g., project_rules_initialized) - no action needed
     ()
   | None =>
     // No method field - must be a response
@@ -140,9 +139,7 @@ let attachMessageHandler = (
   ~onMessage: option<(messageDirection, JSON.t) => unit>,
   ~onParseError: option<string => unit>,
 ): unit => {
-  channel->Channel.on(
-    ~event=Constants.acpMessageEvent,
-    ~callback=payload =>
-      handleIncomingMessage(~state, ~onUpdate, ~onMessage, ~onParseError, payload),
+  channel->Channel.on(~event=Constants.acpMessageEvent, ~callback=payload =>
+    handleIncomingMessage(~state, ~onUpdate, ~onMessage, ~onParseError, payload)
   )
 }

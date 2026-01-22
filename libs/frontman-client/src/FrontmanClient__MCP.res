@@ -49,7 +49,11 @@ let hasIdField = (json: JSON.t): bool => {
 // Parse incoming MCP message
 // Discriminates by presence of 'id' field
 let parse = (json: JSON.t): result<mcpMessage, string> => {
-  let schema = if hasIdField(json) { requestSchema } else { notificationSchema }
+  let schema = if hasIdField(json) {
+    requestSchema
+  } else {
+    notificationSchema
+  }
   json->Decoders.parseSchema(schema)
 }
 
@@ -87,7 +91,11 @@ let handleToolsList = (handler: mcpHandler<'server>, id: int): unit => {
 }
 
 // Handle tools/call request
-let handleToolsCall = async (handler: mcpHandler<'server>, id: int, params: option<JSON.t>): unit => {
+let handleToolsCall = async (
+  handler: mcpHandler<'server>,
+  id: int,
+  params: option<JSON.t>,
+): unit => {
   switch params {
   | Some(paramsJson) =>
     try {
@@ -106,8 +114,7 @@ let handleToolsCall = async (handler: mcpHandler<'server>, id: int, params: opti
     | S.Error(e) =>
       sendError(handler, id, Types.ErrorCode.invalidParams, `Invalid params: ${e.message}`)
     }
-  | None =>
-    sendError(handler, id, Types.ErrorCode.invalidParams, "Missing params for tools/call")
+  | None => sendError(handler, id, Types.ErrorCode.invalidParams, "Missing params for tools/call")
   }
 }
 
@@ -123,11 +130,11 @@ let handleMessage = async (handler: mcpHandler<'server>, payload: JSON.t): unit 
     | "tools/call" => await handleToolsCall(handler, id, params)
     | _ => sendError(handler, id, Types.ErrorCode.methodNotFound, `Method not found: ${method}`)
     }
-  | Ok(Notification({method: "notifications/initialized"})) =>
-    // Agent acknowledged initialization - nothing to do
+  | Ok(Notification({
+      method: "notifications/initialized",
+    })) => // Agent acknowledged initialization - nothing to do
     ()
-  | Ok(Notification(_)) =>
-    // Other notifications - ignore for now
+  | Ok(Notification(_)) => // Other notifications - ignore for now
     ()
   | Error(msg) => Console.error(`Failed to parse MCP message: ${msg}`)
   }

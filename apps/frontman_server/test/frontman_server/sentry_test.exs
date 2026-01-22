@@ -127,8 +127,7 @@ defmodule FrontmanServer.SentryTest do
       reports1 = Sentry.Test.pop_sentry_reports()
       assert length(reports1) == 1
 
-      reports2 = Sentry.Test.pop_sentry_reports()
-      assert length(reports2) == 0
+      assert [] = Sentry.Test.pop_sentry_reports()
 
       Sentry.capture_message("Message 2")
 

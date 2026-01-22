@@ -219,11 +219,7 @@ type planEntryPriority =
   | @as("medium") Medium
   | @as("low") Low
 
-let planEntryPrioritySchema = S.union([
-  S.literal(High),
-  S.literal(Medium),
-  S.literal(Low),
-])
+let planEntryPrioritySchema = S.union([S.literal(High), S.literal(Medium), S.literal(Low)])
 
 // Plan entry status (per ACP spec)
 type planEntryStatus =
@@ -261,8 +257,8 @@ type sessionUpdate =
       kind: option<string>,
       status: option<string>,
       parentAgentId: option<string>, // If present, this is a sub-agent tool call
-      spawningToolName: option<string>, // Tool name that spawned the sub-agent
-    })
+      spawningToolName: option<string>,
+    }) // Tool name that spawned the sub-agent
   | ToolCallUpdate({
       toolCallId: string,
       status: option<string>,

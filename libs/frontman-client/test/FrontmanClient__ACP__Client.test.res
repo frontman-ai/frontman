@@ -49,9 +49,8 @@ describe("ACP Client State Reducer", _t => {
       authMethods: None,
     }
 
-    let newState = state->Client.reduce(
-      Client.ConnectionStateChanged(Client.Initialized(initResult)),
-    )
+    let newState =
+      state->Client.reduce(Client.ConnectionStateChanged(Client.Initialized(initResult)))
 
     t->expect(Client.isInitialized(newState))->Expect.toEqual(true)
   })

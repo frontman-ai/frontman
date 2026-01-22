@@ -112,13 +112,13 @@ type tokenError =
 // Fetch socket auth token from the server (for cross-origin auth)
 let fetchSocketToken = async (tokenUrl: string): result<string, tokenError> => {
   try {
-    let response = await WebAPI.Global.fetch(
-      tokenUrl,
-      ~init={credentials: Include},
-    )
+    let response = await WebAPI.Global.fetch(tokenUrl, ~init={credentials: Include})
     if response.ok {
       let json = await response->WebAPI.Response.json
-      switch json->JSON.Decode.object->Option.flatMap(obj => obj->Dict.get("token"))->Option.flatMap(JSON.Decode.string) {
+      switch json
+      ->JSON.Decode.object
+      ->Option.flatMap(obj => obj->Dict.get("token"))
+      ->Option.flatMap(JSON.Decode.string) {
       | Some(token) => Ok(token)
       | None => Error(InvalidResponse)
       }
@@ -187,7 +187,11 @@ let connect = async (config: config, ~signal: option<WebAPI.EventAPI.abortSignal
       switch await joinChannel(channel) {
       | Error(AuthRequired({loginUrl})) => Error(AuthRequired({loginUrl: loginUrl}))
       | Error(JoinFailed(e)) =>
-        Sentry.captureProtocolError(`Channel join failed: ${e}`, ~protocol=#ACP, ~operation="joinChannel")
+        Sentry.captureProtocolError(
+          `Channel join failed: ${e}`,
+          ~protocol=#ACP,
+          ~operation="joinChannel",
+        )
         Error(ConnectionFailed(e))
       | Ok() => Ok()
       }
@@ -198,13 +202,23 @@ let connect = async (config: config, ~signal: option<WebAPI.EventAPI.abortSignal
     | (Error(e), _) => Error(e)
     | (Ok(), Ok()) =>
       Sentry.addBreadcrumb(~category=#acp, ~message="Channel joined, sending initialize")
-      switch await Protocol.sendInitialize(~channel, ~state, ~clientConfig, ~onMessage=config.onMessage) {
+      switch await Protocol.sendInitialize(
+        ~channel,
+        ~state,
+        ~clientConfig,
+        ~onMessage=config.onMessage,
+      ) {
       | Error(e) =>
-        Sentry.captureProtocolError(`ACP initialize failed: ${e}`, ~protocol=#ACP, ~operation="initialize")
+        Sentry.captureProtocolError(
+          `ACP initialize failed: ${e}`,
+          ~protocol=#ACP,
+          ~operation="initialize",
+        )
         Error(ConnectionFailed(e))
       | Ok(result) =>
         Sentry.addBreadcrumb(~category=#acp, ~message="ACP initialized successfully")
-        state := state.contents->Client.reduce(Client.ConnectionStateChanged(Client.Initialized(result)))
+        state :=
+          state.contents->Client.reduce(Client.ConnectionStateChanged(Client.Initialized(result)))
         Ok({socket, channel, clientConfig, state, onMessage: config.onMessage})
       }
     }
@@ -264,7 +278,11 @@ let joinSession = async (
     | AuthRequired({loginUrl}) => `Auth required: ${loginUrl}`
     | JoinFailed(msg) => msg
     }
-    Sentry.captureProtocolError(`Session join failed: ${errMsg}`, ~protocol=#ACP, ~operation="joinSession")
+    Sentry.captureProtocolError(
+      `Session join failed: ${errMsg}`,
+      ~protocol=#ACP,
+      ~operation="joinSession",
+    )
     errMsg
   })
   ->Result.map(_ => {
@@ -298,7 +316,11 @@ let createSession = async (
   | Ok(result) =>
     await joinSession(conn, result.sessionId, ~onUpdate, ~mcpServerInterface?, ~onMcpMessage?)
   | Error(err) =>
-    Sentry.captureProtocolError(`Session creation failed: ${err}`, ~protocol=#ACP, ~operation="createSession")
+    Sentry.captureProtocolError(
+      `Session creation failed: ${err}`,
+      ~protocol=#ACP,
+      ~operation="createSession",
+    )
     Error(err)
   }
 }
