@@ -157,6 +157,7 @@ let snapshotToState = (snapshot: Snapshot.t): StateTypes.state => {
     anthropicOAuthStatus: Client__State__Types.NotConnected,
     modelsConfig: None,
     selectedModel: None,
+    sessionsLoadState: Client__State__Types.SessionsNotLoaded, // Cannot restore load state from snapshot
   }
 }
 

@@ -151,6 +151,15 @@ let make = (~apiBaseUrl: string) => {
 
     | AgentMessageEnd => Client__State.Actions.messageCompleted(~taskId)
 
+    | UserMessageChunk({content}) =>
+      // Hydration: user message from session/load history replay
+      content
+      ->Option.flatMap(c => c.text)
+      ->Option.forEach(text => {
+        let id = `user-hydrated-${Date.now()->Float.toString}`
+        Client__State.Actions.userMessageReceived(~taskId, ~id, ~text)
+      })
+
     | ToolCall({toolCallId, title, parentAgentId, spawningToolName}) =>
       // Tool call started - create tool call entry
       let toolName = title->Option.getOr("unknown_tool")

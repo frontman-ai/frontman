@@ -358,3 +358,63 @@ let sendPrompt = async (
     ~onMessage=session.connection.onMessage,
   )
 }
+
+module Decoders = FrontmanClient__Decoders
+
+// List user's sessions (non-ACP channel message)
+let listSessions = (conn: connection): promise<result<array<Types.sessionSummary>, string>> => {
+  Promise.make((resolve, _) => {
+    let pushRef = conn.channel->Channel.push(~event=#list_sessions, ~payload=JSON.Encode.object(Dict.make()))
+    pushRef
+    .receive(~status="ok", ~callback=response => {
+      switch response->Decoders.parseSchema(Types.listSessionsResultSchema) {
+      | Ok({sessions}) => resolve(Ok(sessions))
+      | Error(e) => resolve(Error(e))
+      }
+    })
+    .receive(~status="error", ~callback=err => {
+      resolve(Error(JSON.stringify(err)))
+    })
+    ->ignore
+  })
+}
+
+// Load an existing session (ACP compliant)
+// History is streamed via session/update notifications to onUpdate callback
+let loadSession = async (
+  conn: connection,
+  sessionId: string,
+  ~onUpdate: Types.sessionUpdate => unit,
+  ~mcpServerInterface: option<MCPTypes.serverInterface<'server>>=?,
+  ~onMcpMessage: option<(MCP.messageDirection, JSON.t) => unit>=?,
+): result<session, string> => {
+  // First join the session channel to receive history updates
+  let joinResult = await joinSession(conn, sessionId, ~onUpdate, ~mcpServerInterface?, ~onMcpMessage?)
+
+  switch joinResult {
+  | Error(e) => Error(e)
+  | Ok(session) =>
+    // Send ACP session/load request - history comes via session/update notifications
+    let loadResult = await Protocol.sendRequest(
+      ~channel=conn.channel,
+      ~state=conn.state,
+      ~method="session/load",
+      ~params=Some(
+        JSON.Encode.object(
+          Dict.fromArray([
+            ("sessionId", JSON.Encode.string(sessionId)),
+            ("cwd", JSON.Encode.string("/")),
+            ("mcpServers", JSON.Encode.array([])),
+          ]),
+        ),
+      ),
+      ~parseResult=_ => Ok(),
+      ~onMessage=conn.onMessage,
+    )
+
+    switch loadResult {
+    | Ok() => Ok(session)
+    | Error(e) => Error(e)
+    }
+  }
+}

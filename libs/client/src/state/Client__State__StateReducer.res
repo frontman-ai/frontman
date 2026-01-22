@@ -154,6 +154,11 @@ type action =
   | DisconnectAnthropicOAuth
   | AnthropicOAuthDisconnected
   | ResetAnthropicOAuthError
+  // Hydration actions (for session/load)
+  | UserMessageReceived({taskId: string, id: string, text: string})
+  | SessionsLoadStarted
+  | SessionsLoadSuccess({sessions: array<FrontmanFrontmanClient.FrontmanClient__ACP__Types.sessionSummary>})
+  | SessionsLoadError({error: string})
 
 // Effects for side effects
 type effect =
@@ -246,6 +251,7 @@ let defaultState: state = {
   anthropicOAuthStatus: Client__State__Types.NotConnected,
   modelsConfig: None,
   selectedModel: loadSelectedModelFromStorage(), // Load from localStorage on init
+  sessionsLoadState: Client__State__Types.SessionsNotLoaded,
 }
 
 let actionToString = action => {
@@ -309,6 +315,11 @@ let actionToString = action => {
   | DisconnectAnthropicOAuth => `DisconnectAnthropicOAuth`
   | AnthropicOAuthDisconnected => `AnthropicOAuthDisconnected`
   | ResetAnthropicOAuthError => `ResetAnthropicOAuthError`
+  | UserMessageReceived({taskId, id, _}) => `UserMessageReceived(${taskId}, ${id})`
+  | SessionsLoadStarted => `SessionsLoadStarted`
+  | SessionsLoadSuccess({sessions}) =>
+    `SessionsLoadSuccess(${sessions->Array.length->Int.toString} sessions)`
+  | SessionsLoadError({error}) => `SessionsLoadError(${error})`
   }
 }
 
@@ -1499,5 +1510,49 @@ let next = (state, action) => {
       {...state, anthropicOAuthStatus: Client__State__Types.NotConnected}->FrontmanReactStatestore.StateReducer.update
     | _ => state->FrontmanReactStatestore.StateReducer.update
     }
+
+  | UserMessageReceived({taskId, id, text}) =>
+    // Hydrate user message during session load
+    let userMessage = Message.User({
+      id,
+      content: [UserContentPart.Text({text: text})],
+      createdAt: Date.now(),
+    })
+    state
+    ->Lens.updateTask(taskId, task => Lens.insertTaskMessage(task, userMessage))
+    ->FrontmanReactStatestore.StateReducer.update
+
+  | SessionsLoadStarted =>
+    {...state, sessionsLoadState: Client__State__Types.SessionsLoading}->FrontmanReactStatestore.StateReducer.update
+
+  | SessionsLoadSuccess({sessions}) =>
+    // Add persisted sessions to tasks dict (only if not already present)
+    let previewUrl = getInitialUrl()
+    let updatedTasks = state.tasks->Dict.copy
+
+    sessions->Array.forEach(session => {
+      // Skip if task already exists
+      if !(updatedTasks->Dict.has(session.sessionId)) {
+        // Parse ISO timestamp to float
+        let createdAt = Date.fromString(session.createdAt)->Date.getTime
+
+        let task = Task.makeWithId(
+          ~id=session.sessionId,
+          ~title=session.title,
+          ~previewUrl,
+          ~createdAt,
+        )
+        updatedTasks->Dict.set(session.sessionId, task)
+      }
+    })
+
+    {
+      ...state,
+      tasks: updatedTasks,
+      sessionsLoadState: Client__State__Types.SessionsLoaded,
+    }->FrontmanReactStatestore.StateReducer.update
+
+  | SessionsLoadError({error}) =>
+    {...state, sessionsLoadState: Client__State__Types.SessionsLoadError(error)}->FrontmanReactStatestore.StateReducer.update
   }
 }

@@ -8,10 +8,13 @@ type channelEvent = [
   | #agent_completed
   | #agent_error
   | #send_message
-  | // ACP events
-  #"acp:message"
-  | // MCP events (all MCP JSON-RPC goes through mcp:message)
-  #"mcp:message"
+  // ACP events
+  | #"acp:message"
+  // MCP events (all MCP JSON-RPC goes through mcp:message)
+  | #"mcp:message"
+  // Session management (non-ACP)
+  | #list_sessions
+  | #delete_session
 ]
 
 type rec pushResponse = {receive: (~status: string, ~callback: JSON.t => unit) => pushResponse}

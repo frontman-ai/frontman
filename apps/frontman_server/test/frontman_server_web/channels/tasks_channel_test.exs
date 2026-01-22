@@ -202,4 +202,194 @@ defmodule FrontmanServerWeb.TasksChannelTest do
       }
     end
   end
+
+  describe "list_sessions" do
+    test "returns empty list when user has no tasks", %{socket: socket} do
+      ref = push(socket, "list_sessions", %{})
+      assert_reply ref, :ok, %{"sessions" => []}
+    end
+
+    test "returns sessions with correct fields", %{socket: socket, scope: scope} do
+      task_id = Ecto.UUID.generate()
+      {:ok, ^task_id} = FrontmanServer.Tasks.create_task(scope, task_id, "test-framework")
+
+      ref = push(socket, "list_sessions", %{})
+      assert_reply ref, :ok, %{"sessions" => [session]}
+
+      assert session["sessionId"] == task_id
+      assert session["title"] =~ "Task"
+      assert {:ok, _, _} = DateTime.from_iso8601(session["createdAt"])
+      assert {:ok, _, _} = DateTime.from_iso8601(session["updatedAt"])
+    end
+
+    test "returns multiple sessions", %{socket: socket, scope: scope} do
+      task1_id = Ecto.UUID.generate()
+      {:ok, ^task1_id} = FrontmanServer.Tasks.create_task(scope, task1_id, "test-framework")
+
+      task2_id = Ecto.UUID.generate()
+      {:ok, ^task2_id} = FrontmanServer.Tasks.create_task(scope, task2_id, "test-framework")
+
+      ref = push(socket, "list_sessions", %{})
+      assert_reply ref, :ok, %{"sessions" => sessions}
+
+      assert length(sessions) == 2
+      session_ids = Enum.map(sessions, & &1["sessionId"])
+      assert task1_id in session_ids
+      assert task2_id in session_ids
+    end
+
+    test "only returns tasks for authenticated user", %{socket: socket, scope: scope} do
+      my_task_id = Ecto.UUID.generate()
+      {:ok, ^my_task_id} = FrontmanServer.Tasks.create_task(scope, my_task_id, "test-framework")
+
+      {:ok, other_user} =
+        FrontmanServer.Accounts.register_user(%{
+          email: "other_#{System.unique_integer([:positive])}@test.local",
+          name: "Other",
+          password: "testpassword123!"
+        })
+
+      other_scope = FrontmanServer.Accounts.Scope.for_user(other_user)
+      other_task_id = Ecto.UUID.generate()
+      {:ok, ^other_task_id} = FrontmanServer.Tasks.create_task(other_scope, other_task_id, "other")
+
+      ref = push(socket, "list_sessions", %{})
+      assert_reply ref, :ok, %{"sessions" => [session]}
+      assert session["sessionId"] == my_task_id
+    end
+  end
+
+  describe "ACP session/load" do
+    setup %{scope: scope} do
+      task_id = Ecto.UUID.generate()
+      {:ok, ^task_id} = FrontmanServer.Tasks.create_task(scope, task_id, "test-framework")
+      {:ok, task_id: task_id}
+    end
+
+    test "returns success for valid session", %{socket: socket, task_id: task_id} do
+      push(socket, "acp:message", acp_request(1, "session/load", %{"sessionId" => task_id}))
+
+      assert_push "acp:message", %{
+        "jsonrpc" => "2.0",
+        "id" => 1,
+        "result" => %{}
+      }
+    end
+
+    test "streams user message history", %{socket: socket, scope: scope, task_id: task_id} do
+      FrontmanServer.Tasks.add_user_message(scope, task_id, [%{"type" => "text", "text" => "Hello"}], [])
+      FrontmanServer.Tasks.add_user_message(scope, task_id, [%{"type" => "text", "text" => "World"}], [])
+
+      push(socket, "acp:message", acp_request(1, "session/load", %{"sessionId" => task_id}))
+
+      assert_push "acp:message", %{
+        "method" => "session/update",
+        "params" => %{
+          "sessionId" => ^task_id,
+          "update" => %{"sessionUpdate" => "user_message_chunk", "content" => %{"text" => "Hello"}}
+        }
+      }
+
+      assert_push "acp:message", %{
+        "method" => "session/update",
+        "params" => %{
+          "sessionId" => ^task_id,
+          "update" => %{"sessionUpdate" => "user_message_chunk", "content" => %{"text" => "World"}}
+        }
+      }
+
+      assert_push "acp:message", %{"id" => 1, "result" => %{}}
+    end
+
+    test "streams agent message history", %{socket: socket, scope: scope, task_id: task_id} do
+      FrontmanServer.Tasks.add_agent_response(scope, task_id, "Response 1", %{})
+      FrontmanServer.Tasks.add_agent_response(scope, task_id, "Response 2", %{})
+
+      push(socket, "acp:message", acp_request(1, "session/load", %{"sessionId" => task_id}))
+
+      assert_push "acp:message", %{
+        "method" => "session/update",
+        "params" => %{
+          "sessionId" => ^task_id,
+          "update" => %{"sessionUpdate" => "agent_message_chunk", "content" => %{"text" => "Response 1"}}
+        }
+      }
+
+      assert_push "acp:message", %{
+        "method" => "session/update",
+        "params" => %{
+          "sessionId" => ^task_id,
+          "update" => %{"sessionUpdate" => "agent_message_chunk", "content" => %{"text" => "Response 2"}}
+        }
+      }
+
+      assert_push "acp:message", %{"id" => 1, "result" => %{}}
+    end
+
+    test "streams mixed history in order", %{socket: socket, scope: scope, task_id: task_id} do
+      FrontmanServer.Tasks.add_user_message(scope, task_id, [%{"type" => "text", "text" => "Question"}], [])
+      FrontmanServer.Tasks.add_agent_response(scope, task_id, "Answer", %{})
+
+      push(socket, "acp:message", acp_request(1, "session/load", %{"sessionId" => task_id}))
+
+      assert_push "acp:message", %{
+        "params" => %{"update" => %{"sessionUpdate" => "user_message_chunk", "content" => %{"text" => "Question"}}}
+      }
+
+      assert_push "acp:message", %{
+        "params" => %{"update" => %{"sessionUpdate" => "agent_message_chunk", "content" => %{"text" => "Answer"}}}
+      }
+
+      assert_push "acp:message", %{"id" => 1, "result" => %{}}
+    end
+
+    test "returns empty history for task with no messages", %{socket: socket, task_id: task_id} do
+      push(socket, "acp:message", acp_request(1, "session/load", %{"sessionId" => task_id}))
+
+      assert_push "acp:message", %{"id" => 1, "result" => %{}}
+      refute_push "acp:message", %{"method" => "session/update"}, 100
+    end
+
+    test "returns error for non-existent session", %{socket: socket} do
+      push(socket, "acp:message", acp_request(1, "session/load", %{"sessionId" => Ecto.UUID.generate()}))
+
+      assert_push "acp:message", %{
+        "id" => 1,
+        "error" => %{"code" => -32_602, "message" => "Session not found"}
+      }
+    end
+
+    test "returns error for unauthorized session", %{socket: socket} do
+      {:ok, other_user} =
+        FrontmanServer.Accounts.register_user(%{
+          email: "other_load_#{System.unique_integer([:positive])}@test.local",
+          name: "Other",
+          password: "testpassword123!"
+        })
+
+      other_scope = FrontmanServer.Accounts.Scope.for_user(other_user)
+      other_task_id = Ecto.UUID.generate()
+      {:ok, ^other_task_id} = FrontmanServer.Tasks.create_task(other_scope, other_task_id, "other")
+
+      push(socket, "acp:message", acp_request(1, "session/load", %{"sessionId" => other_task_id}))
+
+      assert_push "acp:message", %{
+        "id" => 1,
+        "error" => %{"code" => -32_602, "message" => "Unauthorized"}
+      }
+    end
+
+    test "returns error when sessionId missing", %{socket: socket} do
+      push(socket, "acp:message", acp_request(1, "session/load", %{}))
+
+      assert_push "acp:message", %{
+        "id" => 1,
+        "error" => %{"code" => -32_602, "message" => "Missing sessionId parameter"}
+      }
+    end
+  end
+
+  defp acp_request(id, method, params) do
+    %{"jsonrpc" => "2.0", "id" => id, "method" => method, "params" => params}
+  end
 end

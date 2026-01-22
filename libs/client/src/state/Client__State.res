@@ -139,4 +139,16 @@ module Actions = {
   let disconnectAnthropicOAuth = () => Client__State__Store.dispatch(DisconnectAnthropicOAuth)
 
   let resetAnthropicOAuthError = () => Client__State__Store.dispatch(ResetAnthropicOAuthError)
+
+  // Hydration action creators (for session/load)
+  let userMessageReceived = (~taskId: string, ~id: string, ~text: string) =>
+    Client__State__Store.dispatch(UserMessageReceived({taskId, id, text}))
+
+  let sessionsLoadStarted = () => Client__State__Store.dispatch(SessionsLoadStarted)
+
+  let sessionsLoadSuccess = (~sessions) =>
+    Client__State__Store.dispatch(SessionsLoadSuccess({sessions: sessions}))
+
+  let sessionsLoadError = (~error: string) =>
+    Client__State__Store.dispatch(SessionsLoadError({error: error}))
 }

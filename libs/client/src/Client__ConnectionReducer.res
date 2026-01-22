@@ -109,6 +109,7 @@ type effect =
       onComplete: result<FrontmanFrontmanClient.FrontmanClient__ACP__Types.promptResult, string> => unit,
       metadata: option<JSON.t>,
     })
+  | FetchSessionsEffect(ACP.connection)
 
 let initialState: state = {
   acp: ACPDisconnected,
@@ -244,7 +245,7 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
 
   | ({acp: ACPConnecting}, ACPConnectSuccess(conn)) => (
       {...state, acp: ACPConnected(conn)},
-      [LogInfo("ACP connected")],
+      [LogInfo("ACP connected"), FetchSessionsEffect(conn)],
     )
 
   | ({acp: ACPConnecting}, ACPConnectError(msg)) => (
@@ -486,5 +487,16 @@ let handleEffect = (effect: effect, _state: state, dispatch: action => unit) => 
       onComplete(result)
     }
     send()->ignore
+  | FetchSessionsEffect(conn) =>
+    Client__State.Actions.sessionsLoadStarted()
+    let fetch = async () => {
+      switch await ACP.listSessions(conn) {
+      | Ok(sessions) => Client__State.Actions.sessionsLoadSuccess(~sessions)
+      | Error(err) =>
+        Console.error2("[ConnectionReducer] Failed to fetch sessions:", err)
+        Client__State.Actions.sessionsLoadError(~error=err)
+      }
+    }
+    fetch()->ignore
   }
 }

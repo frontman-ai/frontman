@@ -171,22 +171,42 @@ module Task = {
     planEntries: array<FrontmanFrontmanClient.FrontmanClient__ACP__Types.planEntry>,
   }
 
-  let make = (~title: string, ~previewUrl: string, ~messages=Dict.make()): t => {
-    let newId = WebAPI.Global.crypto->WebAPI.Crypto.randomUUID
-    let timestamp = Date.now()
-
-    let normalizedTitle = switch String.trim(title) {
+  let normalizeTitle = (title: string): string => {
+    switch String.trim(title) {
     | "" => "New Chat"
     | text => {
         let sliced = text->String.slice(~start=0, ~end=50)
         String.length(sliced) < String.length(text) ? sliced ++ "..." : sliced
       }
     }
+  }
+
+  let make = (~title: string, ~previewUrl: string, ~messages=Dict.make()): t => {
+    let newId = WebAPI.Global.crypto->WebAPI.Crypto.randomUUID
+    let timestamp = Date.now()
+
     {
       id: newId,
-      title: normalizedTitle,
+      title: normalizeTitle(title),
       messages,
       createdAt: timestamp,
+      previewFrame: {url: previewUrl, contentDocument: None, contentWindow: None},
+      lastMessageAt: None,
+      webPreviewIsSelecting: false,
+      selectedElement: None,
+      figmaNode: FigmaNode.NoSelection,
+      isAgentRunning: false,
+      planEntries: [],
+    }
+  }
+
+  // Create a task with a specific ID (for hydrating persisted sessions)
+  let makeWithId = (~id: string, ~title: string, ~previewUrl: string, ~createdAt: float): t => {
+    {
+      id,
+      title: normalizeTitle(title),
+      messages: Dict.make(),
+      createdAt,
       previewFrame: {url: previewUrl, contentDocument: None, contentWindow: None},
       lastMessageAt: None,
       webPreviewIsSelecting: false,
@@ -505,6 +525,13 @@ type anthropicOAuthStatus =
   | Connected({expiresAt: float})
   | Error(string)
 
+// Sessions load state for persisted sessions
+type sessionsLoadState =
+  | SessionsNotLoaded
+  | SessionsLoading
+  | SessionsLoaded
+  | SessionsLoadError(string)
+
 type state = {
   tasks: Dict.t<Task.t>,
   currentTaskId: option<string>,
@@ -516,4 +543,5 @@ type state = {
   anthropicOAuthStatus: anthropicOAuthStatus,
   modelsConfig: option<modelsConfig>,
   selectedModel: option<selectedModel>,
+  sessionsLoadState: sessionsLoadState,
 }

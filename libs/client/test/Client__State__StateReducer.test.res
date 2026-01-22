@@ -47,6 +47,7 @@ module TestHelpers = {
         anthropicOAuthStatus: Client__State__Types.NotConnected,
         modelsConfig: None,
         selectedModel: None,
+        sessionsLoadState: Client__State__Types.SessionsNotLoaded,
       }: Client__State__Types.state
     )
   }
@@ -771,6 +772,7 @@ describe("Client State Reducer - Task Management Actions", () => {
       anthropicOAuthStatus: Client__State__Types.NotConnected,
       modelsConfig: None,
       selectedModel: None,
+      sessionsLoadState: Client__State__Types.SessionsNotLoaded,
     }
 
     let (nextState, _) = Reducer.next(state, SwitchTask({taskId: "task-2"}))
@@ -818,6 +820,7 @@ describe("Client State Reducer - Task Management Actions", () => {
       anthropicOAuthStatus: Client__State__Types.NotConnected,
       modelsConfig: None,
       selectedModel: None,
+      sessionsLoadState: Client__State__Types.SessionsNotLoaded,
     }
 
     t->expect(Reducer.Selectors.webPreviewIsSelecting(state))->Expect.toBe(true)
@@ -850,6 +853,7 @@ describe("Client State Reducer - Task Management Actions", () => {
       anthropicOAuthStatus: Client__State__Types.NotConnected,
       modelsConfig: None,
       selectedModel: None,
+      sessionsLoadState: Client__State__Types.SessionsNotLoaded,
     }
 
     let (nextState, _) = Reducer.next(state, DeleteTask({taskId: "task-1"}))
@@ -878,6 +882,7 @@ describe("Client State Reducer - Task Management Actions", () => {
       anthropicOAuthStatus: Client__State__Types.NotConnected,
       modelsConfig: None,
       selectedModel: None,
+      sessionsLoadState: Client__State__Types.SessionsNotLoaded,
     }
 
     // Add message to task 1

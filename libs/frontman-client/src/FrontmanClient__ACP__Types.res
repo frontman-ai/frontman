@@ -253,6 +253,7 @@ type sessionUpdate =
   | AgentMessageChunk({content: option<contentBlock>})
   | AgentMessageStart
   | AgentMessageEnd
+  | UserMessageChunk({content: option<contentBlock>}) // For session/load history replay
   | ToolCall({
       toolCallId: string,
       title: option<string>,
@@ -284,6 +285,12 @@ let sessionUpdateSchema = S.union([
   S.object(s => {
     s.tag("sessionUpdate", "agent_message_end")
     AgentMessageEnd
+  }),
+  S.object(s => {
+    s.tag("sessionUpdate", "user_message_chunk")
+    UserMessageChunk({
+      content: s.field("content", S.option(contentBlockSchema)),
+    })
   }),
   S.object(s => {
     s.tag("sessionUpdate", "tool_call")
@@ -340,4 +347,25 @@ let sessionUpdateNotificationSchema = S.object(s => {
   jsonrpc: s.field("jsonrpc", S.string),
   method: s.field("method", S.string),
   params: s.field("params", sessionUpdateParamsSchema),
+})
+
+// Session summary for list_sessions response
+type sessionSummary = {
+  sessionId: string,
+  title: string,
+  createdAt: string,
+  updatedAt: string,
+}
+
+let sessionSummarySchema = S.object(s => {
+  sessionId: s.field("sessionId", S.string),
+  title: s.field("title", S.string),
+  createdAt: s.field("createdAt", S.string),
+  updatedAt: s.field("updatedAt", S.string),
+})
+
+type listSessionsResult = {sessions: array<sessionSummary>}
+
+let listSessionsResultSchema = S.object(s => {
+  sessions: s.field("sessions", S.array(sessionSummarySchema)),
 })
