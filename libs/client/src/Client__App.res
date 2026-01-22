@@ -134,10 +134,10 @@ let make = (~apiBaseUrl: string) => {
   }
 
   // Handle ACP session updates (streaming messages from the agent)
-  let handleSessionUpdate = React.useCallback((update: ACPTypes.sessionUpdate) => {
-    // Get current task ID directly from the store
-    let state = FrontmanReactStatestore.StateStore.getState(Client__State__Store.store)
-    let taskId = state.currentTaskId->Option.getOr("unknown")
+  // sessionId comes from the ACP session/update notification params
+  let handleSessionUpdate = React.useCallback((sessionId: string, update: ACPTypes.sessionUpdate) => {
+    // Use sessionId from the notification - this is the task the update belongs to
+    let taskId = sessionId
 
     switch update {
     | AgentMessageChunk({content}) =>

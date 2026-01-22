@@ -75,7 +75,7 @@ type action =
   | SessionCreateSuccess(ACP.session)
   | SessionCreateError(string)
   | CreateSession({
-      onUpdate: FrontmanFrontmanClient.FrontmanClient__ACP__Types.sessionUpdate => unit,
+      onUpdate: (string, FrontmanFrontmanClient.FrontmanClient__ACP__Types.sessionUpdate) => unit,
       onMcpMessage: (FrontmanFrontmanClient.FrontmanClient__MCP.messageDirection, JSON.t) => unit,
     })
   | SendPrompt({
@@ -99,7 +99,7 @@ type effect =
   | CreateSessionEffect({
       connection: ACP.connection,
       mcpServer: MCPServer.t,
-      onUpdate: FrontmanFrontmanClient.FrontmanClient__ACP__Types.sessionUpdate => unit,
+      onUpdate: (string, FrontmanFrontmanClient.FrontmanClient__ACP__Types.sessionUpdate) => unit,
       onMcpMessage: (FrontmanFrontmanClient.FrontmanClient__MCP.messageDirection, JSON.t) => unit,
     })
   | SendPromptEffect({

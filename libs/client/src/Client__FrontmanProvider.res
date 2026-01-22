@@ -21,7 +21,7 @@ type contextValue = {
   isSendingPrompt: bool,
   session: option<ACP.session>,
   relay: option<Relay.t>,
-  createSession: (Types.sessionUpdate => unit) => unit,
+  createSession: ((string, Types.sessionUpdate) => unit) => unit,
   sendPrompt: (
     string,
     ~additionalBlocks: array<Types.contentBlock>,
@@ -112,7 +112,7 @@ module Provider = {
     })
 
     let createSession = React.useCallback1(
-      (onUpdate: Types.sessionUpdate => unit) => {
+      (onUpdate: (string, Types.sessionUpdate) => unit) => {
         dispatch(CreateSession({onUpdate, onMcpMessage: logMCPMessage}))
       },
       [dispatch],

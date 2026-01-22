@@ -111,9 +111,10 @@ let getMethod = (payload: JSON.t): option<string> => {
 }
 
 // Message handler with proper error reporting (no silent swallowing)
+// onUpdate receives (sessionId, update) per ACP session/update notification params
 let handleIncomingMessage = (
   ~state: ref<Client.state>,
-  ~onUpdate: option<Types.sessionUpdate => unit>,
+  ~onUpdate: option<(string, Types.sessionUpdate) => unit>,
   ~onMessage: option<(messageDirection, JSON.t) => unit>,
   ~onParseError: option<string => unit>,
   payload: JSON.t,
@@ -123,9 +124,10 @@ let handleIncomingMessage = (
   // Dispatch based on message type
   switch getMethod(payload) {
   | Some("session/update") =>
-    // Session update notification - parse and dispatch
+    // Session update notification - parse and dispatch with sessionId
     switch Client.parseSessionUpdateNotification(payload) {
-    | Ok(notification) => onUpdate->Option.forEach(cb => cb(notification.params.update))
+    | Ok(notification) =>
+      onUpdate->Option.forEach(cb => cb(notification.params.sessionId, notification.params.update))
     | Error(parseError) => onParseError->Option.forEach(cb => cb(parseError))
     }
   | Some(_) => // Other notification types (e.g., project_rules_initialized) - no action needed
@@ -140,7 +142,7 @@ let handleIncomingMessage = (
 let attachMessageHandler = (
   ~channel: Channel.t,
   ~state: ref<Client.state>,
-  ~onUpdate: option<Types.sessionUpdate => unit>,
+  ~onUpdate: option<(string, Types.sessionUpdate) => unit>,
   ~onMessage: option<(messageDirection, JSON.t) => unit>,
   ~onParseError: option<string => unit>,
 ): unit => {

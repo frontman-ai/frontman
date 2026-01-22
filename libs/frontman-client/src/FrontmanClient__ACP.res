@@ -59,7 +59,7 @@ type session = {
   sessionId: string,
   channel: Channel.t,
   connection: connection,
-  onUpdate: Types.sessionUpdate => unit,
+  onUpdate: (string, Types.sessionUpdate) => unit,
 }
 
 let waitForSocket = (socket: Socket.t): promise<result<unit, string>> => {
@@ -242,10 +242,11 @@ module MCPTypes = FrontmanClient__MCP__Types
 
 // Join a session channel (internal helper)
 // mcpServerInterface is used to create MCP handler BEFORE joining to avoid race with server MCP init
+// onUpdate receives (sessionId, update) per ACP session/update notification params
 let joinSession = async (
   conn: connection,
   sessionId: string,
-  ~onUpdate: Types.sessionUpdate => unit,
+  ~onUpdate: (string, Types.sessionUpdate) => unit,
   ~mcpServerInterface: option<MCPTypes.serverInterface<'server>>=?,
   ~onMcpMessage: option<(MCP.messageDirection, JSON.t) => unit>=?,
 ): result<session, string> => {
@@ -300,9 +301,10 @@ let joinSession = async (
 
 // Create a new ACP session and auto-join the session channel
 // mcpServerInterface is attached before channel join to handle server's immediate MCP init
+// onUpdate receives (sessionId, update) per ACP session/update notification params
 let createSession = async (
   conn: connection,
-  ~onUpdate: Types.sessionUpdate => unit,
+  ~onUpdate: (string, Types.sessionUpdate) => unit,
   ~mcpServerInterface: option<MCPTypes.serverInterface<'server>>=?,
   ~onMcpMessage: option<(MCP.messageDirection, JSON.t) => unit>=?,
 ): result<session, string> => {
@@ -381,10 +383,11 @@ let listSessions = (conn: connection): promise<result<array<Types.sessionSummary
 
 // Load an existing session (ACP compliant)
 // History is streamed via session/update notifications to onUpdate callback
+// onUpdate receives (sessionId, update) per ACP session/update notification params
 let loadSession = async (
   conn: connection,
   sessionId: string,
-  ~onUpdate: Types.sessionUpdate => unit,
+  ~onUpdate: (string, Types.sessionUpdate) => unit,
   ~mcpServerInterface: option<MCPTypes.serverInterface<'server>>=?,
   ~onMcpMessage: option<(MCP.messageDirection, JSON.t) => unit>=?,
 ): result<session, string> => {
