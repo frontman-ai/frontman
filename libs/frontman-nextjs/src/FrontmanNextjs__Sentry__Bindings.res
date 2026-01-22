@@ -38,8 +38,10 @@ type initOptions = {
 
 // Main Sentry functions from @sentry/nextjs
 @module("@sentry/nextjs") external init: initOptions => unit = "init"
-@module("@sentry/nextjs") external captureException: (exn, ~hint: eventHint=?) => string = "captureException"
-@module("@sentry/nextjs") external captureMessage: (string, ~level: severity=?) => string = "captureMessage"
+@module("@sentry/nextjs")
+external captureException: (exn, ~hint: eventHint=?) => string = "captureException"
+@module("@sentry/nextjs")
+external captureMessage: (string, ~level: severity=?) => string = "captureMessage"
 @module("@sentry/nextjs") external setTag: (string, string) => unit = "setTag"
 @module("@sentry/nextjs") external setTags: Dict.t<string> => unit = "setTags"
 @module("@sentry/nextjs") external setExtra: (string, JSON.t) => unit = "setExtra"

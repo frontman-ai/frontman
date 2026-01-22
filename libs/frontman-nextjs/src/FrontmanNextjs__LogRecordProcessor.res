@@ -16,7 +16,7 @@ let hrTimeToISO = ((seconds, nanos): hrTime): string => {
 }
 
 let make = (): Logs.logRecordProcessor => {
-  let onEmit = (. logRecord: Logs.sdkLogRecord, _context: option<context>): unit => {
+  let onEmit = (logRecord: Logs.sdkLogRecord, _context: option<context>): unit => {
     try {
       let body = logRecord->Logs.body->Option.getOr("")
       let level = logRecord->Logs.severityText->mapSeverity
@@ -30,8 +30,8 @@ let make = (): Logs.logRecordProcessor => {
     }
   }
 
-  let forceFlush = (. ()): promise<unit> => Promise.resolve()
-  let shutdown = (. ()): promise<unit> => Promise.resolve()
+  let forceFlush = (): promise<unit> => Promise.resolve()
+  let shutdown = (): promise<unit> => Promise.resolve()
 
   Logs.makeProcessor({
     "onEmit": onEmit,

@@ -14,7 +14,8 @@ let isBrowser = (): bool => %raw(`typeof window !== 'undefined'`)
 
 // Custom globalThis properties for Frontman
 let getPatchedFlag = (): option<bool> => %raw(`globalThis.__FRONTMAN_CONSOLE_PATCHED__`)
-let setPatchedFlag = (_value: bool): unit => %raw(`globalThis.__FRONTMAN_CONSOLE_PATCHED__ = _value`)
+let setPatchedFlag = (_value: bool): unit =>
+  %raw(`globalThis.__FRONTMAN_CONSOLE_PATCHED__ = _value`)
 
 @schema
 type logLevel =

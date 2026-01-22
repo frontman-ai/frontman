@@ -6,7 +6,9 @@ module Bindings = FrontmanNextjs__OpenTelemetry__Bindings
 
 // External bindings for processor methods
 type logProcessor
-@send external logOnEmit: (logProcessor, Bindings.Logs.sdkLogRecord, option<Bindings.context>) => unit = "onEmit"
+@send
+external logOnEmit: (logProcessor, Bindings.Logs.sdkLogRecord, option<Bindings.context>) => unit =
+  "onEmit"
 
 type spanProcessor
 @send external spanOnEnd: (spanProcessor, Bindings.Trace.readableSpan) => unit = "onEnd"
@@ -17,7 +19,8 @@ beforeAll(_t => {
 
 describe("OpenTelemetry Integration", _t => {
   test("both processors can be created together", t => {
-    let (_logProc: logProcessor, _spanProc: spanProcessor) = OpenTelemetry.makeProcessors()->Obj.magic
+    let (_logProc: logProcessor, _spanProc: spanProcessor) =
+      OpenTelemetry.makeProcessors()->Obj.magic
     // If we get here without throwing, both processors were created successfully
     t->expect(true)->Expect.toBe(true)
   })

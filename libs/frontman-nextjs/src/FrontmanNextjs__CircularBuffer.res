@@ -29,7 +29,10 @@ let toArray = (buffer: t<'a>): array<'a> => {
   } else if buffer.count < buffer.maxSize {
     buffer.data->Array.slice(~start=0, ~end=buffer.count)->Array.filterMap(x => x)
   } else {
-    let tail = buffer.data->Array.slice(~start=buffer.writeIndex, ~end=buffer.maxSize)->Array.filterMap(x => x)
+    let tail =
+      buffer.data
+      ->Array.slice(~start=buffer.writeIndex, ~end=buffer.maxSize)
+      ->Array.filterMap(x => x)
     let head = buffer.data->Array.slice(~start=0, ~end=buffer.writeIndex)->Array.filterMap(x => x)
     Array.concat(tail, head)
   }

@@ -124,7 +124,9 @@ let handleResolveSourceLocation = async (
   switch requestObj {
   | None =>
     WebAPI.Response.jsonR(
-      ~data=JSON.Encode.object(Dict.fromArray([("error", JSON.Encode.string("Invalid request body"))])),
+      ~data=JSON.Encode.object(
+        Dict.fromArray([("error", JSON.Encode.string("Invalid request body"))]),
+      ),
       ~init={status: 400},
     )
   | Some(obj) =>
@@ -150,7 +152,10 @@ let handleResolveSourceLocation = async (
 
         // Convert absolute path to relative path (relative to sourceRoot)
         // This ensures the agent can use the path directly with MCP tools
-        let relativeFile = PathContext.toRelativePath(~sourceRoot=server.config.sourceRoot, ~absolutePath=resolved.file)
+        let relativeFile = PathContext.toRelativePath(
+          ~sourceRoot=server.config.sourceRoot,
+          ~absolutePath=resolved.file,
+        )
 
         let responseJson = JSON.Encode.object(
           Dict.fromArray([

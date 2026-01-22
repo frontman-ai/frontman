@@ -37,13 +37,10 @@ type output = {
   hasMore: bool,
 }
 
-let execute = async (_ctx: Tool.serverExecutionContext, input: input): Tool.toolResult<
-  output,
-> => {
+let execute = async (_ctx: Tool.serverExecutionContext, input: input): Tool.toolResult<output> => {
   try {
-    let sinceTimestamp = input.since->Option.map(isoString =>
-      isoString->Date.fromString->Date.getTime
-    )
+    let sinceTimestamp =
+      input.since->Option.map(isoString => isoString->Date.fromString->Date.getTime)
 
     let allMatchedLogs = LogCapture.getLogs(
       ~pattern=?input.pattern,

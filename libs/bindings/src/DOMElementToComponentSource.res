@@ -9,11 +9,8 @@ type sourceLocation = {
   column: int,
 }
 
-
 // The actual JavaScript function returns a sourceLocation object directly,
 // not wrapped in a result object
 @module("dom-element-to-component-source/server")
-external resolveSourceLocationInServer: (
-  sourceLocation,
-) => promise<sourceLocation> = "resolveSourceLocationInServer"
-
+external resolveSourceLocationInServer: sourceLocation => promise<sourceLocation> =
+  "resolveSourceLocationInServer"

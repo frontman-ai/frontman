@@ -87,17 +87,23 @@ let exec = async (command: string): result<execResult, execError> => {
       let actualError = error["_1"]->Nullable.toOption->Option.getOr(error)
       Error({
         code: actualError["code"]->Nullable.toOption,
-        stdout: actualError["stdout"]->Nullable.toOption->Option.map(bufferToString)->Option.getOr(""),
-        stderr: actualError["stderr"]->Nullable.toOption->Option.map(bufferToString)->Option.getOr(""),
+        stdout: actualError["stdout"]
+        ->Nullable.toOption
+        ->Option.map(bufferToString)
+        ->Option.getOr(""),
+        stderr: actualError["stderr"]
+        ->Nullable.toOption
+        ->Option.map(bufferToString)
+        ->Option.getOr(""),
       })
     }
   }
 }
 
-let execWithOptions = async (
-  command: string,
-  options: execOptions,
-): result<execResult, execError> => {
+let execWithOptions = async (command: string, options: execOptions): result<
+  execResult,
+  execError,
+> => {
   try {
     // Merge options with a default maxBuffer of 50MB if not specified
     let optionsWithDefaults = {
@@ -116,8 +122,14 @@ let execWithOptions = async (
       let actualError = error["_1"]->Nullable.toOption->Option.getOr(error)
       Error({
         code: actualError["code"]->Nullable.toOption,
-        stdout: actualError["stdout"]->Nullable.toOption->Option.map(bufferToString)->Option.getOr(""),
-        stderr: actualError["stderr"]->Nullable.toOption->Option.map(bufferToString)->Option.getOr(""),
+        stdout: actualError["stdout"]
+        ->Nullable.toOption
+        ->Option.map(bufferToString)
+        ->Option.getOr(""),
+        stderr: actualError["stderr"]
+        ->Nullable.toOption
+        ->Option.map(bufferToString)
+        ->Option.getOr(""),
       })
     }
   }

@@ -53,7 +53,11 @@ let captureError = (error: exn, ~operation: option<string>=?, ~extra: option<Dic
   }
 }
 
-let captureMessage = (message: string, ~level: Bindings.severity=#error, ~operation: option<string>=?) => {
+let captureMessage = (
+  message: string,
+  ~level: Bindings.severity=#error,
+  ~operation: option<string>=?,
+) => {
   if isEnabled() {
     Bindings.withScope(scope => {
       scope->Bindings.scopeSetTag("frontman.library", "frontman-nextjs")
@@ -76,7 +80,7 @@ let addBreadcrumb = (~category: string, ~message: string, ~data: option<Dict.t<J
       category: Some(category),
       message: Some(message),
       level: Some(#info),
-      data: data,
+      data,
     })
   }
 }

@@ -27,9 +27,9 @@ module Logs = {
 
   // LogRecordProcessor interface (what user passes to OTEL SDK)
   type logRecordProcessor = {
-    "onEmit": (. sdkLogRecord, option<context>) => unit,
-    "forceFlush": (. unit) => promise<unit>,
-    "shutdown": (. unit) => promise<unit>,
+    "onEmit": (sdkLogRecord, option<context>) => unit,
+    "forceFlush": unit => promise<unit>,
+    "shutdown": unit => promise<unit>,
   }
 
   @new external makeProcessor: {..} => logRecordProcessor = "Object"
@@ -57,10 +57,10 @@ module Trace = {
 
   // SpanProcessor interface
   type spanProcessor = {
-    "onStart": (. span, context) => unit,
-    "onEnd": (. readableSpan) => unit,
-    "forceFlush": (. unit) => promise<unit>,
-    "shutdown": (. unit) => promise<unit>,
+    "onStart": (span, context) => unit,
+    "onEnd": readableSpan => unit,
+    "forceFlush": unit => promise<unit>,
+    "shutdown": unit => promise<unit>,
   }
 
   @new external makeProcessor: {..} => spanProcessor = "Object"

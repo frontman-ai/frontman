@@ -12,10 +12,8 @@ module LogCapture = FrontmanNextjs__LogCapture
 external makeBasicTracerProvider: unit => Bindings.Trace.tracerProvider = "BasicTracerProvider"
 
 @send
-external addSpanProcessor: (
-  Bindings.Trace.tracerProvider,
-  Bindings.Trace.spanProcessor,
-) => unit = "addSpanProcessor"
+external addSpanProcessor: (Bindings.Trace.tracerProvider, Bindings.Trace.spanProcessor) => unit =
+  "addSpanProcessor"
 
 @send
 external getTracer: (Bindings.Trace.tracerProvider, string) => Bindings.Trace.tracer = "getTracer"
@@ -141,295 +139,378 @@ afterEach(_t => {
 
 describe("SpanProcessor Integration Tests", _t => {
   describe("BaseServer.handleRequest - HTTP Request Spans", _t => {
-    testAsync("processes successful GET request with full log structure", async t => {
-      let ctx = TestHelpers.setup()
+    testAsync(
+      "processes successful GET request with full log structure",
+      async t => {
+        let ctx = TestHelpers.setup()
 
-      let span = Fixtures.makeBaseServerSpan(ctx.tracer, {
-        method: "GET",
-        route: "/api/users",
-        statusCode: 200.0,
-      })
-      await ctx->TestHelpers.executeSpan(span)
+        let span = Fixtures.makeBaseServerSpan(
+          ctx.tracer,
+          {
+            method: "GET",
+            route: "/api/users",
+            statusCode: 200.0,
+          },
+        )
+        await ctx->TestHelpers.executeSpan(span)
 
-      let log = TestHelpers.getSingleLog(~pattern="/api/users")
+        let log = TestHelpers.getSingleLog(~pattern="/api/users")
 
-      // Verify message format: "METHOD /path STATUS DURATIONms"
-      TestHelpers.assertMessageContains(t, log.message, ["GET", "/api/users", "200", "ms"])
+        // Verify message format: "METHOD /path STATUS DURATIONms"
+        TestHelpers.assertMessageContains(t, log.message, ["GET", "/api/users", "200", "ms"])
 
-      // Verify log level
-      t->expect(log.level)->Expect.toBe(LogCapture.Console)
+        // Verify log level
+        t->expect(log.level)->Expect.toBe(LogCapture.Console)
 
-      // Verify attributes
-      TestHelpers.assertHasAttribute(t, log, "log.origin", "opentelemetry-span")
-      TestHelpers.assertHasAttribute(t, log, "http.method", "GET")
-      TestHelpers.assertHasAttribute(t, log, "http.route", "/api/users")
-      TestHelpers.assertHasAttribute(t, log, "http.status_code", 200.0)
-      TestHelpers.assertHasAttribute(t, log, "span.type", "BaseServer.handleRequest")
+        // Verify attributes
+        TestHelpers.assertHasAttribute(t, log, "log.origin", "opentelemetry-span")
+        TestHelpers.assertHasAttribute(t, log, "http.method", "GET")
+        TestHelpers.assertHasAttribute(t, log, "http.route", "/api/users")
+        TestHelpers.assertHasAttribute(t, log, "http.status_code", 200.0)
+        TestHelpers.assertHasAttribute(t, log, "span.type", "BaseServer.handleRequest")
 
-      // Verify duration.ms exists
-      switch log.attributes {
-      | Some(attrs) =>
-        t->expect(Dict.has(attrs->Obj.magic, "duration.ms"))->Expect.toBe(true)
-      | None => t->expect(false)->Expect.toBe(true)
-      }
+        // Verify duration.ms exists
+        switch log.attributes {
+        | Some(attrs) => t->expect(Dict.has(attrs->Obj.magic, "duration.ms"))->Expect.toBe(true)
+        | None => t->expect(false)->Expect.toBe(true)
+        }
 
-      // Verify timestamp is recent
-      let logTime = log.timestamp->Date.fromString->Date.getTime
-      t->expect(Date.now() -. logTime)->Expect.Float.toBeLessThan(5000.0)
-    })
+        // Verify timestamp is recent
+        let logTime = log.timestamp->Date.fromString->Date.getTime
+        t->expect(Date.now() -. logTime)->Expect.Float.toBeLessThan(5000.0)
+      },
+    )
 
-    testAsync("maps 5xx status codes to Error level", async t => {
-      let ctx = TestHelpers.setup()
+    testAsync(
+      "maps 5xx status codes to Error level",
+      async t => {
+        let ctx = TestHelpers.setup()
 
-      let span = Fixtures.makeBaseServerSpan(ctx.tracer, {
-        method: "POST",
-        route: "/api/fail",
-        statusCode: 500.0,
-      })
-      await ctx->TestHelpers.executeSpan(span)
+        let span = Fixtures.makeBaseServerSpan(
+          ctx.tracer,
+          {
+            method: "POST",
+            route: "/api/fail",
+            statusCode: 500.0,
+          },
+        )
+        await ctx->TestHelpers.executeSpan(span)
 
-      let log = TestHelpers.getSingleLog(~level=LogCapture.Error)
-      TestHelpers.assertMessageContains(t, log.message, ["POST", "/api/fail", "500"])
-      t->expect(log.level)->Expect.toBe(LogCapture.Error)
-    })
+        let log = TestHelpers.getSingleLog(~level=LogCapture.Error)
+        TestHelpers.assertMessageContains(t, log.message, ["POST", "/api/fail", "500"])
+        t->expect(log.level)->Expect.toBe(LogCapture.Error)
+      },
+    )
 
-    testAsync("maps 4xx status codes to Console level (not errors)", async t => {
-      let ctx = TestHelpers.setup()
+    testAsync(
+      "maps 4xx status codes to Console level (not errors)",
+      async t => {
+        let ctx = TestHelpers.setup()
 
-      let span = Fixtures.makeBaseServerSpan(ctx.tracer, {
-        method: "GET",
-        route: "/api/not-found",
-        statusCode: 404.0,
-      })
-      await ctx->TestHelpers.executeSpan(span)
+        let span = Fixtures.makeBaseServerSpan(
+          ctx.tracer,
+          {
+            method: "GET",
+            route: "/api/not-found",
+            statusCode: 404.0,
+          },
+        )
+        await ctx->TestHelpers.executeSpan(span)
 
-      let log = TestHelpers.getSingleLog(~pattern="/api/not-found")
-      t->expect(log.level)->Expect.toBe(LogCapture.Console)
-    })
+        let log = TestHelpers.getSingleLog(~pattern="/api/not-found")
+        t->expect(log.level)->Expect.toBe(LogCapture.Console)
+      },
+    )
 
-    testAsync("maps 3xx status codes to Console level", async t => {
-      let ctx = TestHelpers.setup()
+    testAsync(
+      "maps 3xx status codes to Console level",
+      async t => {
+        let ctx = TestHelpers.setup()
 
-      let span = Fixtures.makeBaseServerSpan(ctx.tracer, {
-        method: "GET",
-        route: "/redirect",
-        statusCode: 302.0,
-      })
-      await ctx->TestHelpers.executeSpan(span)
+        let span = Fixtures.makeBaseServerSpan(
+          ctx.tracer,
+          {
+            method: "GET",
+            route: "/redirect",
+            statusCode: 302.0,
+          },
+        )
+        await ctx->TestHelpers.executeSpan(span)
 
-      let log = TestHelpers.getSingleLog(~pattern="/redirect")
-      t->expect(log.level)->Expect.toBe(LogCapture.Console)
-    })
+        let log = TestHelpers.getSingleLog(~pattern="/redirect")
+        t->expect(log.level)->Expect.toBe(LogCapture.Console)
+      },
+    )
   })
 
   describe("AppRender.getBodyResult - Page Render Spans", _t => {
-    testAsync("processes page render spans with correct message format", async t => {
-      let ctx = TestHelpers.setup()
+    testAsync(
+      "processes page render spans with correct message format",
+      async t => {
+        let ctx = TestHelpers.setup()
 
-      let span = Fixtures.makeAppRenderSpan(ctx.tracer, "/dashboard")
-      await ctx->TestHelpers.executeSpan(span)
+        let span = Fixtures.makeAppRenderSpan(ctx.tracer, "/dashboard")
+        await ctx->TestHelpers.executeSpan(span)
 
-      let log = TestHelpers.getSingleLog(~pattern="Rendered route")
-      TestHelpers.assertMessageContains(t, log.message, ["Rendered route:", "/dashboard", "ms"])
-      t->expect(log.level)->Expect.toBe(LogCapture.Console)
-    })
+        let log = TestHelpers.getSingleLog(~pattern="Rendered route")
+        TestHelpers.assertMessageContains(t, log.message, ["Rendered route:", "/dashboard", "ms"])
+        t->expect(log.level)->Expect.toBe(LogCapture.Console)
+      },
+    )
   })
 
   describe("AppRouteRouteHandlers.runHandler - API Handler Spans", _t => {
-    testAsync("processes API handler spans with correct message format", async t => {
-      let ctx = TestHelpers.setup()
+    testAsync(
+      "processes API handler spans with correct message format",
+      async t => {
+        let ctx = TestHelpers.setup()
 
-      let span = Fixtures.makeApiHandlerSpan(ctx.tracer, "/api/data")
-      await ctx->TestHelpers.executeSpan(span)
+        let span = Fixtures.makeApiHandlerSpan(ctx.tracer, "/api/data")
+        await ctx->TestHelpers.executeSpan(span)
 
-      let log = TestHelpers.getSingleLog(~pattern="API route")
-      TestHelpers.assertMessageContains(t, log.message, ["API route:", "/api/data", "ms"])
-      t->expect(log.level)->Expect.toBe(LogCapture.Console)
-    })
+        let log = TestHelpers.getSingleLog(~pattern="API route")
+        TestHelpers.assertMessageContains(t, log.message, ["API route:", "/api/data", "ms"])
+        t->expect(log.level)->Expect.toBe(LogCapture.Console)
+      },
+    )
   })
 
   describe("Realistic Multi-Span Scenarios", _t => {
-    testAsync("Next.js page request creates multiple logs in correct order", async t => {
-      let ctx = TestHelpers.setup()
+    testAsync(
+      "Next.js page request creates multiple logs in correct order",
+      async t => {
+        let ctx = TestHelpers.setup()
 
-      let httpSpan = Fixtures.makeBaseServerSpan(ctx.tracer, {
-        method: "GET",
-        route: "/dashboard",
-        statusCode: 200.0,
-      })
-      let renderSpan = Fixtures.makeAppRenderSpan(ctx.tracer, "/dashboard")
+        let httpSpan = Fixtures.makeBaseServerSpan(
+          ctx.tracer,
+          {
+            method: "GET",
+            route: "/dashboard",
+            statusCode: 200.0,
+          },
+        )
+        let renderSpan = Fixtures.makeAppRenderSpan(ctx.tracer, "/dashboard")
 
-      await ctx->TestHelpers.executeSpans([httpSpan, renderSpan])
+        await ctx->TestHelpers.executeSpans([httpSpan, renderSpan])
 
-      let logs = LogCapture.getLogs()
-      t->expect(logs->Array.length)->Expect.Int.toBeGreaterThanOrEqual(2)
+        let logs = LogCapture.getLogs()
+        t->expect(logs->Array.length)->Expect.Int.toBeGreaterThanOrEqual(2)
 
-      // Verify both log types exist
-      let hasHttpLog =
-        logs->Array.some(log => log.message->String.includes("GET /dashboard 200"))
-      let hasRenderLog =
-        logs->Array.some(log => log.message->String.includes("Rendered route: /dashboard"))
+        // Verify both log types exist
+        let hasHttpLog = logs->Array.some(log => log.message->String.includes("GET /dashboard 200"))
+        let hasRenderLog =
+          logs->Array.some(log => log.message->String.includes("Rendered route: /dashboard"))
 
-      t->expect(hasHttpLog)->Expect.toBe(true)
-      t->expect(hasRenderLog)->Expect.toBe(true)
-    })
+        t->expect(hasHttpLog)->Expect.toBe(true)
+        t->expect(hasRenderLog)->Expect.toBe(true)
+      },
+    )
 
-    testAsync("API route request creates API handler log", async t => {
-      let ctx = TestHelpers.setup()
+    testAsync(
+      "API route request creates API handler log",
+      async t => {
+        let ctx = TestHelpers.setup()
 
-      let httpSpan = Fixtures.makeBaseServerSpan(ctx.tracer, {
-        method: "POST",
-        route: "/api/submit",
-        statusCode: 201.0,
-      })
-      let handlerSpan = Fixtures.makeApiHandlerSpan(ctx.tracer, "/api/submit")
+        let httpSpan = Fixtures.makeBaseServerSpan(
+          ctx.tracer,
+          {
+            method: "POST",
+            route: "/api/submit",
+            statusCode: 201.0,
+          },
+        )
+        let handlerSpan = Fixtures.makeApiHandlerSpan(ctx.tracer, "/api/submit")
 
-      await ctx->TestHelpers.executeSpans([httpSpan, handlerSpan])
+        await ctx->TestHelpers.executeSpans([httpSpan, handlerSpan])
 
-      let logs = LogCapture.getLogs(~pattern="/api/submit")
-      t->expect(logs->Array.length)->Expect.Int.toBeGreaterThanOrEqual(2)
+        let logs = LogCapture.getLogs(~pattern="/api/submit")
+        t->expect(logs->Array.length)->Expect.Int.toBeGreaterThanOrEqual(2)
 
-      let hasHttpLog =
-        logs->Array.some(log => log.message->String.includes("POST /api/submit 201"))
-      let hasHandlerLog =
-        logs->Array.some(log => log.message->String.includes("API route: /api/submit"))
+        let hasHttpLog =
+          logs->Array.some(log => log.message->String.includes("POST /api/submit 201"))
+        let hasHandlerLog =
+          logs->Array.some(log => log.message->String.includes("API route: /api/submit"))
 
-      t->expect(hasHttpLog)->Expect.toBe(true)
-      t->expect(hasHandlerLog)->Expect.toBe(true)
-    })
+        t->expect(hasHttpLog)->Expect.toBe(true)
+        t->expect(hasHandlerLog)->Expect.toBe(true)
+      },
+    )
   })
 
   describe("Filtering Logic", _t => {
-    testAsync("filters out /frontman paths", async t => {
-      let ctx = TestHelpers.setup()
+    testAsync(
+      "filters out /frontman paths",
+      async t => {
+        let ctx = TestHelpers.setup()
 
-      let noNewLogs = await ctx->TestHelpers.assertNoNewLogs(async () => {
-        let span = Fixtures.makeBaseServerSpan(ctx.tracer, {
-          method: "GET",
-          route: "/frontman/logs",
-          statusCode: 200.0,
-        })
-        await ctx->TestHelpers.executeSpan(span)
-      })
+        let noNewLogs = await ctx->TestHelpers.assertNoNewLogs(
+          async () => {
+            let span = Fixtures.makeBaseServerSpan(
+              ctx.tracer,
+              {
+                method: "GET",
+                route: "/frontman/logs",
+                statusCode: 200.0,
+              },
+            )
+            await ctx->TestHelpers.executeSpan(span)
+          },
+        )
 
-      t->expect(noNewLogs)->Expect.toBe(true)
-    })
+        t->expect(noNewLogs)->Expect.toBe(true)
+      },
+    )
 
-    testAsync("filters out /frontman subpaths", async t => {
-      let ctx = TestHelpers.setup()
+    testAsync(
+      "filters out /frontman subpaths",
+      async t => {
+        let ctx = TestHelpers.setup()
 
-      let noNewLogs = await ctx->TestHelpers.assertNoNewLogs(async () => {
-        let span = Fixtures.makeBaseServerSpan(ctx.tracer, {
-          method: "POST",
-          route: "/frontman/api/tools",
-          statusCode: 200.0,
-        })
-        await ctx->TestHelpers.executeSpan(span)
-      })
+        let noNewLogs = await ctx->TestHelpers.assertNoNewLogs(
+          async () => {
+            let span = Fixtures.makeBaseServerSpan(
+              ctx.tracer,
+              {
+                method: "POST",
+                route: "/frontman/api/tools",
+                statusCode: 200.0,
+              },
+            )
+            await ctx->TestHelpers.executeSpan(span)
+          },
+        )
 
-      t->expect(noNewLogs)->Expect.toBe(true)
-    })
+        t->expect(noNewLogs)->Expect.toBe(true)
+      },
+    )
 
-    testAsync("ignores irrelevant span types", async t => {
-      let ctx = TestHelpers.setup()
+    testAsync(
+      "ignores irrelevant span types",
+      async t => {
+        let ctx = TestHelpers.setup()
 
-      let noNewLogs = await ctx->TestHelpers.assertNoNewLogs(async () => {
-        let span = ctx.tracer->startSpan("some random operation")
-        span->setAttribute("next.span_type", "NextNodeServer.findPageComponents")
-        await ctx->TestHelpers.executeSpan(span)
-      })
+        let noNewLogs = await ctx->TestHelpers.assertNoNewLogs(
+          async () => {
+            let span = ctx.tracer->startSpan("some random operation")
+            span->setAttribute("next.span_type", "NextNodeServer.findPageComponents")
+            await ctx->TestHelpers.executeSpan(span)
+          },
+        )
 
-      t->expect(noNewLogs)->Expect.toBe(true)
-    })
+        t->expect(noNewLogs)->Expect.toBe(true)
+      },
+    )
   })
 
   describe("Edge Cases and Error Handling", _t => {
-    testAsync("handles missing http.route with next.route fallback", async t => {
-      let ctx = TestHelpers.setup()
+    testAsync(
+      "handles missing http.route with next.route fallback",
+      async t => {
+        let ctx = TestHelpers.setup()
 
-      let span = ctx.tracer->startSpan("page render")
-      span->setAttribute("next.span_type", "AppRender.getBodyResult")
-      span->setAttribute("next.route", "/about")
-      await ctx->TestHelpers.executeSpan(span)
-
-      let log = TestHelpers.getSingleLog(~pattern="/about")
-      TestHelpers.assertMessageContains(t, log.message, ["/about"])
-    })
-
-    testAsync("handles missing status code gracefully", async t => {
-      let ctx = TestHelpers.setup()
-
-      let span = ctx.tracer->startSpan("GET /test")
-      span->setAttribute("next.span_type", "BaseServer.handleRequest")
-      span->setAttribute("http.method", "GET")
-      span->setAttribute("http.route", "/test")
-      await ctx->TestHelpers.executeSpan(span)
-
-      let log = TestHelpers.getSingleLog(~pattern="/test")
-      TestHelpers.assertMessageContains(t, log.message, ["unknown"])
-    })
-
-    testAsync("handles missing http.method gracefully", async t => {
-      let ctx = TestHelpers.setup()
-
-      let span = ctx.tracer->startSpan("request")
-      span->setAttribute("next.span_type", "BaseServer.handleRequest")
-      span->setAttribute("http.route", "/test")
-      span->setAttribute("http.status_code", 200.0)
-      await ctx->TestHelpers.executeSpan(span)
-
-      let log = TestHelpers.getSingleLog(~pattern="/test")
-      TestHelpers.assertMessageContains(t, log.message, ["UNKNOWN"])
-    })
-
-    testAsync("handles span with no attributes gracefully", async t => {
-      let ctx = TestHelpers.setup()
-
-      let noNewLogs = await ctx->TestHelpers.assertNoNewLogs(async () => {
-        let span = ctx.tracer->startSpan("empty span")
+        let span = ctx.tracer->startSpan("page render")
+        span->setAttribute("next.span_type", "AppRender.getBodyResult")
+        span->setAttribute("next.route", "/about")
         await ctx->TestHelpers.executeSpan(span)
-      })
 
-      t->expect(noNewLogs)->Expect.toBe(true)
-    })
+        let log = TestHelpers.getSingleLog(~pattern="/about")
+        TestHelpers.assertMessageContains(t, log.message, ["/about"])
+      },
+    )
+
+    testAsync(
+      "handles missing status code gracefully",
+      async t => {
+        let ctx = TestHelpers.setup()
+
+        let span = ctx.tracer->startSpan("GET /test")
+        span->setAttribute("next.span_type", "BaseServer.handleRequest")
+        span->setAttribute("http.method", "GET")
+        span->setAttribute("http.route", "/test")
+        await ctx->TestHelpers.executeSpan(span)
+
+        let log = TestHelpers.getSingleLog(~pattern="/test")
+        TestHelpers.assertMessageContains(t, log.message, ["unknown"])
+      },
+    )
+
+    testAsync(
+      "handles missing http.method gracefully",
+      async t => {
+        let ctx = TestHelpers.setup()
+
+        let span = ctx.tracer->startSpan("request")
+        span->setAttribute("next.span_type", "BaseServer.handleRequest")
+        span->setAttribute("http.route", "/test")
+        span->setAttribute("http.status_code", 200.0)
+        await ctx->TestHelpers.executeSpan(span)
+
+        let log = TestHelpers.getSingleLog(~pattern="/test")
+        TestHelpers.assertMessageContains(t, log.message, ["UNKNOWN"])
+      },
+    )
+
+    testAsync(
+      "handles span with no attributes gracefully",
+      async t => {
+        let ctx = TestHelpers.setup()
+
+        let noNewLogs = await ctx->TestHelpers.assertNoNewLogs(
+          async () => {
+            let span = ctx.tracer->startSpan("empty span")
+            await ctx->TestHelpers.executeSpan(span)
+          },
+        )
+
+        t->expect(noNewLogs)->Expect.toBe(true)
+      },
+    )
   })
 
   describe("Duration Calculation", _t => {
-    testAsync("calculates duration from hrTime accurately", async t => {
-      let ctx = TestHelpers.setup()
+    testAsync(
+      "calculates duration from hrTime accurately",
+      async t => {
+        let ctx = TestHelpers.setup()
 
-      let span = Fixtures.makeBaseServerSpan(ctx.tracer, {
-        method: "GET",
-        route: "/slow",
-        statusCode: 200.0,
-      })
+        let span = Fixtures.makeBaseServerSpan(
+          ctx.tracer,
+          {
+            method: "GET",
+            route: "/slow",
+            statusCode: 200.0,
+          },
+        )
 
-      // Simulate processing time
-      await Promise.make((resolve, _reject) => {
-        setTimeout(() => resolve(), 50)->ignore
-      })
+        // Simulate processing time
+        await Promise.make(
+          (resolve, _reject) => {
+            setTimeout(() => resolve(), 50)->ignore
+          },
+        )
 
-      await ctx->TestHelpers.executeSpan(span)
+        await ctx->TestHelpers.executeSpan(span)
 
-      let log = TestHelpers.getSingleLog(~pattern="/slow")
-      TestHelpers.assertMessageContains(t, log.message, ["/slow", "ms"])
+        let log = TestHelpers.getSingleLog(~pattern="/slow")
+        TestHelpers.assertMessageContains(t, log.message, ["/slow", "ms"])
 
-      // Verify duration.ms attribute exists and is reasonable (account for timer imprecision)
-      switch log.attributes {
-      | Some(attrs) => {
-          let duration = attrs->Obj.magic->Dict.get("duration.ms")
-          switch duration {
-          | Some(d) => {
-              let durationValue = d->Obj.magic
-              // Timer imprecision means we check >= 40ms instead of > 50ms
-              t->expect(durationValue)->Expect.Float.toBeGreaterThanOrEqual(40.0)
-              t->expect(durationValue)->Expect.Float.toBeLessThan(200.0)
+        // Verify duration.ms attribute exists and is reasonable (account for timer imprecision)
+        switch log.attributes {
+        | Some(attrs) => {
+            let duration = attrs->Obj.magic->Dict.get("duration.ms")
+            switch duration {
+            | Some(d) => {
+                let durationValue = d->Obj.magic
+                // Timer imprecision means we check >= 40ms instead of > 50ms
+                t->expect(durationValue)->Expect.Float.toBeGreaterThanOrEqual(40.0)
+                t->expect(durationValue)->Expect.Float.toBeLessThan(200.0)
+              }
+            | None => t->expect(false)->Expect.toBe(true)
             }
-          | None => t->expect(false)->Expect.toBe(true)
           }
+        | None => t->expect(false)->Expect.toBe(true)
         }
-      | None => t->expect(false)->Expect.toBe(true)
-      }
-    })
+      },
+    )
   })
 })

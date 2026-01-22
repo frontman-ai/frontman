@@ -22,207 +22,256 @@ describe("FrontmanNextjs Sentry", () => {
   })
 
   describe("initialization", () => {
-    test("initializes only once", t => {
-      // Already initialized in beforeEach
-      t->expect(Sentry.isEnabled())->Expect.toBe(true)
+    test(
+      "initializes only once",
+      t => {
+        // Already initialized in beforeEach
+        t->expect(Sentry.isEnabled())->Expect.toBe(true)
 
-      // Try to initialize again - should be idempotent
-      Sentry.initialize()
-      Sentry.initialize()
+        // Try to initialize again - should be idempotent
+        Sentry.initialize()
+        Sentry.initialize()
 
-      t->expect(Sentry.isEnabled())->Expect.toBe(true)
-    })
+        t->expect(Sentry.isEnabled())->Expect.toBe(true)
+      },
+    )
 
-    test("isEnabled returns true after initialization", t => {
-      t->expect(Sentry.isEnabled())->Expect.toBe(true)
-    })
+    test(
+      "isEnabled returns true after initialization",
+      t => {
+        t->expect(Sentry.isEnabled())->Expect.toBe(true)
+      },
+    )
 
-    test("isEnabled returns false before initialization", t => {
-      Sentry.reset()
-      t->expect(Sentry.isEnabled())->Expect.toBe(false)
-    })
+    test(
+      "isEnabled returns false before initialization",
+      t => {
+        Sentry.reset()
+        t->expect(Sentry.isEnabled())->Expect.toBe(false)
+      },
+    )
   })
 
   describe("captureError", () => {
-    test("captures error and returns event id", t => {
-      let error = Exn.raiseError("Test error")
-      let eventId = try {
-        raise(error)
-      } catch {
-      | e => Sentry.captureError(e, ~operation="testOp")
-      }
-
-      t->expect(eventId->Option.isSome)->Expect.toBe(true)
-
-      switch testkit.contents {
-      | Some(tk) => t->expect(tk.reports()->Array.length)->Expect.toBeGreaterThanOrEqual(1)
-      | None => t->fail("Testkit not initialized")
-      }
-    })
-
-    test("captures error with operation context", t => {
-      let error = Exn.raiseError("Operation failed")
-      try {
-        raise(error)
-      } catch {
-      | e => Sentry.captureError(e, ~operation="serverConnection")->ignore
-      }
-
-      switch testkit.contents {
-      | Some(tk) => {
-          let reports = tk.reports()
-          t->expect(reports->Array.length)->Expect.toBeGreaterThanOrEqual(1)
+    test(
+      "captures error and returns event id",
+      t => {
+        let error = Exn.raiseError("Test error")
+        let eventId = try {
+          raise(error)
+        } catch {
+        | e => Sentry.captureError(e, ~operation="testOp")
         }
-      | None => t->fail("Testkit not initialized")
-      }
-    })
 
-    test("captures error with extra data", t => {
-      let error = Exn.raiseError("Error with context")
-      let extra = Dict.fromArray([
-        ("userId", JSON.Encode.string("123")),
-        ("endpoint", JSON.Encode.string("/api/test")),
-      ])
+        t->expect(eventId->Option.isSome)->Expect.toBe(true)
 
-      try {
-        raise(error)
-      } catch {
-      | e => Sentry.captureError(e, ~operation="apiCall", ~extra)->ignore
-      }
+        switch testkit.contents {
+        | Some(tk) => t->expect(tk.reports()->Array.length)->Expect.toBeGreaterThanOrEqual(1)
+        | None => t->fail("Testkit not initialized")
+        }
+      },
+    )
 
-      switch testkit.contents {
-      | Some(tk) => t->expect(tk.reports()->Array.length)->Expect.toBeGreaterThanOrEqual(1)
-      | None => t->fail("Testkit not initialized")
-      }
-    })
+    test(
+      "captures error with operation context",
+      t => {
+        let error = Exn.raiseError("Operation failed")
+        try {
+          raise(error)
+        } catch {
+        | e => Sentry.captureError(e, ~operation="serverConnection")->ignore
+        }
 
-    test("returns None when not initialized", t => {
-      Sentry.reset()
+        switch testkit.contents {
+        | Some(tk) => {
+            let reports = tk.reports()
+            t->expect(reports->Array.length)->Expect.toBeGreaterThanOrEqual(1)
+          }
+        | None => t->fail("Testkit not initialized")
+        }
+      },
+    )
 
-      let error = Exn.raiseError("Should not capture")
-      let eventId = try {
-        raise(error)
-      } catch {
-      | e => Sentry.captureError(e)
-      }
+    test(
+      "captures error with extra data",
+      t => {
+        let error = Exn.raiseError("Error with context")
+        let extra = Dict.fromArray([
+          ("userId", JSON.Encode.string("123")),
+          ("endpoint", JSON.Encode.string("/api/test")),
+        ])
 
-      t->expect(eventId)->Expect.toBe(None)
-    })
+        try {
+          raise(error)
+        } catch {
+        | e => Sentry.captureError(e, ~operation="apiCall", ~extra)->ignore
+        }
+
+        switch testkit.contents {
+        | Some(tk) => t->expect(tk.reports()->Array.length)->Expect.toBeGreaterThanOrEqual(1)
+        | None => t->fail("Testkit not initialized")
+        }
+      },
+    )
+
+    test(
+      "returns None when not initialized",
+      t => {
+        Sentry.reset()
+
+        let error = Exn.raiseError("Should not capture")
+        let eventId = try {
+          raise(error)
+        } catch {
+        | e => Sentry.captureError(e)
+        }
+
+        t->expect(eventId)->Expect.toBe(None)
+      },
+    )
   })
 
   describe("captureMessage", () => {
-    test("captures message with default error level", t => {
-      let eventId = Sentry.captureMessage("Something went wrong")
+    test(
+      "captures message with default error level",
+      t => {
+        let eventId = Sentry.captureMessage("Something went wrong")
 
-      t->expect(eventId->Option.isSome)->Expect.toBe(true)
+        t->expect(eventId->Option.isSome)->Expect.toBe(true)
 
-      switch testkit.contents {
-      | Some(tk) => {
-          let reports = tk.reports()
-          t->expect(reports->Array.length)->Expect.toBe(1)
+        switch testkit.contents {
+        | Some(tk) => {
+            let reports = tk.reports()
+            t->expect(reports->Array.length)->Expect.toBe(1)
 
-          switch reports->Array.get(0) {
-          | Some(report) => t->expect(report.message)->Expect.toBe(Some("Something went wrong"))
-          | None => t->fail("Expected a report")
+            switch reports->Array.get(0) {
+            | Some(report) => t->expect(report.message)->Expect.toBe(Some("Something went wrong"))
+            | None => t->fail("Expected a report")
+            }
           }
+        | None => t->fail("Testkit not initialized")
         }
-      | None => t->fail("Testkit not initialized")
-      }
-    })
+      },
+    )
 
-    test("captures message with custom level", t => {
-      Sentry.captureMessage("Warning message", ~level=#warning)->ignore
+    test(
+      "captures message with custom level",
+      t => {
+        Sentry.captureMessage("Warning message", ~level=#warning)->ignore
 
-      switch testkit.contents {
-      | Some(tk) => {
-          let reports = tk.reports()
-          t->expect(reports->Array.length)->Expect.toBe(1)
+        switch testkit.contents {
+        | Some(tk) => {
+            let reports = tk.reports()
+            t->expect(reports->Array.length)->Expect.toBe(1)
 
-          switch reports->Array.get(0) {
-          | Some(report) => t->expect(report.level)->Expect.toBe(Some("warning"))
-          | None => t->fail("Expected a report")
+            switch reports->Array.get(0) {
+            | Some(report) => t->expect(report.level)->Expect.toBe(Some("warning"))
+            | None => t->fail("Expected a report")
+            }
           }
+        | None => t->fail("Testkit not initialized")
         }
-      | None => t->fail("Testkit not initialized")
-      }
-    })
+      },
+    )
 
-    test("captures message with operation context", t => {
-      Sentry.captureMessage("Instrumentation error", ~operation="spanProcessor")->ignore
+    test(
+      "captures message with operation context",
+      t => {
+        Sentry.captureMessage("Instrumentation error", ~operation="spanProcessor")->ignore
 
-      switch testkit.contents {
-      | Some(tk) => t->expect(tk.reports()->Array.length)->Expect.toBe(1)
-      | None => t->fail("Testkit not initialized")
-      }
-    })
+        switch testkit.contents {
+        | Some(tk) => t->expect(tk.reports()->Array.length)->Expect.toBe(1)
+        | None => t->fail("Testkit not initialized")
+        }
+      },
+    )
 
-    test("returns None when not initialized", t => {
-      Sentry.reset()
-      let eventId = Sentry.captureMessage("Should not capture")
-      t->expect(eventId)->Expect.toBe(None)
-    })
+    test(
+      "returns None when not initialized",
+      t => {
+        Sentry.reset()
+        let eventId = Sentry.captureMessage("Should not capture")
+        t->expect(eventId)->Expect.toBe(None)
+      },
+    )
   })
 
   describe("addBreadcrumb", () => {
-    test("adds breadcrumb that appears in subsequent errors", t => {
-      Sentry.addBreadcrumb(~category="instrumentation", ~message="LogCapture initialized")
-      Sentry.addBreadcrumb(~category="instrumentation", ~message="SpanProcessor started")
-      Sentry.captureMessage("Error after breadcrumbs")->ignore
+    test(
+      "adds breadcrumb that appears in subsequent errors",
+      t => {
+        Sentry.addBreadcrumb(~category="instrumentation", ~message="LogCapture initialized")
+        Sentry.addBreadcrumb(~category="instrumentation", ~message="SpanProcessor started")
+        Sentry.captureMessage("Error after breadcrumbs")->ignore
 
-      switch testkit.contents {
-      | Some(tk) => {
-          let reports = tk.reports()
-          t->expect(reports->Array.length)->Expect.toBe(1)
+        switch testkit.contents {
+        | Some(tk) => {
+            let reports = tk.reports()
+            t->expect(reports->Array.length)->Expect.toBe(1)
 
-          switch reports->Array.get(0) {
-          | Some(report) =>
-            switch report.breadcrumbs {
-            | Some(breadcrumbs) => t->expect(breadcrumbs->Array.length)->Expect.toBeGreaterThanOrEqual(1)
-            | None => () // Breadcrumbs may not always be present
+            switch reports->Array.get(0) {
+            | Some(report) =>
+              switch report.breadcrumbs {
+              | Some(breadcrumbs) =>
+                t->expect(breadcrumbs->Array.length)->Expect.toBeGreaterThanOrEqual(1)
+              | None => () // Breadcrumbs may not always be present
+              }
+            | None => ()
             }
-          | None => ()
           }
+        | None => t->fail("Testkit not initialized")
         }
-      | None => t->fail("Testkit not initialized")
-      }
-    })
+      },
+    )
 
-    test("adds breadcrumb with custom data", t => {
-      let data = Dict.fromArray([("spanName", JSON.Encode.string("http.request"))])
-      Sentry.addBreadcrumb(~category="trace", ~message="Span started", ~data)
+    test(
+      "adds breadcrumb with custom data",
+      t => {
+        let data = Dict.fromArray([("spanName", JSON.Encode.string("http.request"))])
+        Sentry.addBreadcrumb(~category="trace", ~message="Span started", ~data)
 
-      // Should not throw
-      t->expect(true)->Expect.toBe(true)
-    })
+        // Should not throw
+        t->expect(true)->Expect.toBe(true)
+      },
+    )
   })
 
   describe("integration scenarios", () => {
-    test("multiple errors are captured independently", t => {
-      Sentry.captureMessage("Error 1")->ignore
-      Sentry.captureMessage("Error 2", ~level=#warning)->ignore
-      Sentry.captureMessage("Error 3", ~operation="test")->ignore
+    test(
+      "multiple errors are captured independently",
+      t => {
+        Sentry.captureMessage("Error 1")->ignore
+        Sentry.captureMessage("Error 2", ~level=#warning)->ignore
+        Sentry.captureMessage("Error 3", ~operation="test")->ignore
 
-      switch testkit.contents {
-      | Some(tk) => t->expect(tk.reports()->Array.length)->Expect.toBe(3)
-      | None => t->fail("Testkit not initialized")
-      }
-    })
+        switch testkit.contents {
+        | Some(tk) => t->expect(tk.reports()->Array.length)->Expect.toBe(3)
+        | None => t->fail("Testkit not initialized")
+        }
+      },
+    )
 
-    test("reset clears initialization state", t => {
-      t->expect(Sentry.isEnabled())->Expect.toBe(true)
-      Sentry.reset()
-      t->expect(Sentry.isEnabled())->Expect.toBe(false)
-    })
+    test(
+      "reset clears initialization state",
+      t => {
+        t->expect(Sentry.isEnabled())->Expect.toBe(true)
+        Sentry.reset()
+        t->expect(Sentry.isEnabled())->Expect.toBe(false)
+      },
+    )
 
-    test("can reinitialize after reset", t => {
-      Sentry.reset()
-      t->expect(Sentry.isEnabled())->Expect.toBe(false)
+    test(
+      "can reinitialize after reset",
+      t => {
+        Sentry.reset()
+        t->expect(Sentry.isEnabled())->Expect.toBe(false)
 
-      let (tk, transport) = SentryTestkit.setup()
-      testkit := Some(tk)
-      Sentry.initialize(~transport)
+        let (tk, transport) = SentryTestkit.setup()
+        testkit := Some(tk)
+        Sentry.initialize(~transport)
 
-      t->expect(Sentry.isEnabled())->Expect.toBe(true)
-    })
+        t->expect(Sentry.isEnabled())->Expect.toBe(true)
+      },
+    )
   })
 })
