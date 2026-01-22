@@ -26,6 +26,7 @@ defmodule FrontmanServerWeb.OAuthController do
 
       {:error, %AuthError{code: "email_verification_required"} = error} ->
         Logger.info("Email verification required, redirecting to verify-email page")
+
         conn
         |> put_session(:pending_auth_token, error.pending_authentication_token)
         |> put_session(:pending_auth_email, error.email)
@@ -33,12 +34,14 @@ defmodule FrontmanServerWeb.OAuthController do
 
       {:error, %AuthError{} = error} ->
         Logger.debug("OAuth AuthError: #{inspect(error)}")
+
         conn
         |> put_flash(:error, error.message || "Authentication failed. Please try again.")
         |> redirect(to: ~p"/users/log-in")
 
       {:error, reason} ->
         Logger.debug("OAuth unknown error: #{inspect(reason)}")
+
         conn
         |> put_flash(:error, "Authentication failed. Please try again.")
         |> redirect(to: ~p"/users/log-in")

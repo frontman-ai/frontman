@@ -96,7 +96,10 @@ defmodule FrontmanServer.Accounts.WorkOS do
         end
 
       {:ok, %Req.Response{status: status, body: error_body}} ->
-        Logger.debug("WorkOS email verify error - status: #{status}, body: #{inspect(error_body)}")
+        Logger.debug(
+          "WorkOS email verify error - status: #{status}, body: #{inspect(error_body)}"
+        )
+
         {:error, AuthError.from_response(error_body)}
 
       {:error, reason} ->

@@ -77,10 +77,10 @@ let captureMessage = (
 let addBreadcrumb = (~category: string, ~message: string, ~data: option<Dict.t<JSON.t>>=?) => {
   if isEnabled() {
     Bindings.addBreadcrumb({
-      category: Some(category),
-      message: Some(message),
-      level: Some(#info),
-      data,
+      category,
+      message,
+      level: #info,
+      ?data,
     })
   }
 }

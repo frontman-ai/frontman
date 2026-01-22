@@ -85,9 +85,9 @@ let addBreadcrumb = (~category: breadcrumbCategory, ~message: string) => {
     | #session => "session"
     }
     Bindings.addBreadcrumb({
-      category: Some(categoryStr),
-      message: Some(message),
-      level: Some(#info),
+      category: categoryStr,
+      message,
+      level: #info,
     })
   }
 }
