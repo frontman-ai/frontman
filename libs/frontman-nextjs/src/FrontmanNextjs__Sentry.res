@@ -1,0 +1,82 @@
+// Frontman Sentry integration for Next.js library
+// Reports errors to Frontman's own Sentry project
+
+module Bindings = FrontmanNextjs__Sentry__Bindings
+
+// Frontman's Sentry DSN - public (client-side DSNs are always public)
+let dsn = "https://442ae992e5a5ccfc42e6910220aeb2a9@o4510512511320064.ingest.de.sentry.io/4510512546185296"
+
+let initialized = ref(false)
+
+let initialize = (~transport: option<Bindings.transport>=?) => {
+  if !initialized.contents {
+    Bindings.init({
+      dsn,
+      environment: %raw(`process.env.NODE_ENV || "development"`),
+      release: %raw(`process.env.npm_package_version || "unknown"`),
+      sampleRate: 1.0,
+      ?transport,
+      initialScope: {
+        tags: Dict.fromArray([("frontman.library", "frontman-nextjs")]),
+      },
+    })
+    initialized.contents = true
+  }
+}
+
+// Reset initialization state - useful for tests
+let reset = () => {
+  initialized.contents = false
+}
+
+let isEnabled = () => initialized.contents && Bindings.isInitialized()
+
+let captureError = (error: exn, ~operation: option<string>=?, ~extra: option<Dict.t<JSON.t>>=?) => {
+  if isEnabled() {
+    Bindings.withScope(scope => {
+      scope->Bindings.scopeSetTag("frontman.library", "frontman-nextjs")
+
+      switch operation {
+      | Some(op) => scope->Bindings.scopeSetTag("frontman.operation", op)
+      | None => ()
+      }
+
+      switch extra {
+      | Some(data) => scope->Bindings.scopeSetContext("frontman", data)
+      | None => ()
+      }
+    })
+
+    Some(Bindings.captureException(error))
+  } else {
+    None
+  }
+}
+
+let captureMessage = (message: string, ~level: Bindings.severity=#error, ~operation: option<string>=?) => {
+  if isEnabled() {
+    Bindings.withScope(scope => {
+      scope->Bindings.scopeSetTag("frontman.library", "frontman-nextjs")
+
+      switch operation {
+      | Some(op) => scope->Bindings.scopeSetTag("frontman.operation", op)
+      | None => ()
+      }
+    })
+
+    Some(Bindings.captureMessage(message, ~level))
+  } else {
+    None
+  }
+}
+
+let addBreadcrumb = (~category: string, ~message: string, ~data: option<Dict.t<JSON.t>>=?) => {
+  if isEnabled() {
+    Bindings.addBreadcrumb({
+      category: Some(category),
+      message: Some(message),
+      level: Some(#info),
+      data: data,
+    })
+  }
+}

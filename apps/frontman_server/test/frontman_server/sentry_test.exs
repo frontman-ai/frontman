@@ -1,0 +1,148 @@
+defmodule FrontmanServer.SentryTest do
+  use ExUnit.Case, async: false
+
+  setup do
+    Sentry.Test.start_collecting_sentry_reports()
+    :ok
+  end
+
+  describe "Sentry configuration" do
+    test "sentry is configured with correct DSN" do
+      dsn = Application.get_env(:sentry, :dsn)
+      assert dsn != nil
+      assert is_binary(dsn)
+      assert String.starts_with?(dsn, "https://")
+    end
+
+    test "sentry has correct environment name" do
+      env = Application.get_env(:sentry, :environment_name)
+      assert env == :test
+    end
+
+    test "sentry has service tag configured" do
+      tags = Application.get_env(:sentry, :tags)
+      assert tags == %{service: "frontman-server"}
+    end
+
+    test "sentry has source code context enabled" do
+      assert Application.get_env(:sentry, :enable_source_code_context) == true
+    end
+  end
+
+  describe "error capturing" do
+    test "captures exception with Sentry.capture_exception/2" do
+      try do
+        raise "Test error for Sentry"
+      rescue
+        e -> Sentry.capture_exception(e, stacktrace: __STACKTRACE__)
+      end
+
+      [event] = Sentry.Test.pop_sentry_reports()
+      # Exception events have the error in the exception field, not message
+      [exception] = event.exception
+      assert exception.type == "RuntimeError"
+      assert exception.value =~ "Test error for Sentry"
+    end
+
+    test "captures message with Sentry.capture_message/2" do
+      Sentry.capture_message("Test message for Sentry")
+
+      [event] = Sentry.Test.pop_sentry_reports()
+      assert event.message.formatted == "Test message for Sentry"
+    end
+
+    test "captures exception with custom tags" do
+      try do
+        raise "Tagged error"
+      rescue
+        e ->
+          Sentry.capture_exception(e,
+            stacktrace: __STACKTRACE__,
+            tags: %{custom_tag: "custom_value"}
+          )
+      end
+
+      [event] = Sentry.Test.pop_sentry_reports()
+      assert event.tags[:custom_tag] == "custom_value"
+    end
+
+    test "captures exception with extra context" do
+      try do
+        raise "Error with context"
+      rescue
+        e ->
+          Sentry.capture_exception(e,
+            stacktrace: __STACKTRACE__,
+            extra: %{user_id: "123", action: "test_action"}
+          )
+      end
+
+      [event] = Sentry.Test.pop_sentry_reports()
+      assert event.extra[:user_id] == "123"
+      assert event.extra[:action] == "test_action"
+    end
+  end
+
+  describe "error levels" do
+    test "captures message with error level" do
+      Sentry.capture_message("Error level message", level: :error)
+
+      [event] = Sentry.Test.pop_sentry_reports()
+      assert event.level == :error
+    end
+
+    test "captures message with warning level" do
+      Sentry.capture_message("Warning level message", level: :warning)
+
+      [event] = Sentry.Test.pop_sentry_reports()
+      assert event.level == :warning
+    end
+
+    test "captures message with info level" do
+      Sentry.capture_message("Info level message", level: :info)
+
+      [event] = Sentry.Test.pop_sentry_reports()
+      assert event.level == :info
+    end
+  end
+
+  describe "multiple events" do
+    test "captures multiple independent events" do
+      Sentry.capture_message("First message")
+      Sentry.capture_message("Second message")
+      Sentry.capture_message("Third message")
+
+      reports = Sentry.Test.pop_sentry_reports()
+      assert length(reports) == 3
+
+      messages = Enum.map(reports, & &1.message.formatted)
+      assert "First message" in messages
+      assert "Second message" in messages
+      assert "Third message" in messages
+    end
+
+    test "pop_sentry_reports clears the reports" do
+      Sentry.capture_message("Message 1")
+
+      reports1 = Sentry.Test.pop_sentry_reports()
+      assert length(reports1) == 1
+
+      reports2 = Sentry.Test.pop_sentry_reports()
+      assert length(reports2) == 0
+
+      Sentry.capture_message("Message 2")
+
+      reports3 = Sentry.Test.pop_sentry_reports()
+      assert length(reports3) == 1
+    end
+  end
+
+  describe "integration with service tag" do
+    test "events include the frontman-server service tag" do
+      Sentry.capture_message("Service tag test")
+
+      [event] = Sentry.Test.pop_sentry_reports()
+      assert event.tags[:service] == "frontman-server"
+    end
+  end
+end

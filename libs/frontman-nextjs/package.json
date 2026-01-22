@@ -11,6 +11,7 @@
 		"@frontman/frontman-core": "*",
 		"@frontman/frontman-protocol": "*",
 		"@rescript/runtime": "12.0.0-beta.14",
+		"@sentry/nextjs": "^8.0.0",
 		"dom-element-to-component-source": "0.4.2",
 		"sury": "11.0.0-alpha.4"
 	},
@@ -35,6 +36,7 @@
 		"@vitest/ui": "catalog:",
 		"rescript": "catalog:",
 		"rescript-vitest": "catalog:",
+		"sentry-testkit": "^5.0.9",
 		"vite": "catalog:",
 		"vitest": "catalog:"
 	}

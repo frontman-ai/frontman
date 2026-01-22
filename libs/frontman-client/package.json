@@ -4,6 +4,7 @@
 	"type": "module",
 	"main": "./src/FrontmanClient.res.mjs",
 	"dependencies": {
+		"@sentry/browser": "^8.0.0",
 		"phoenix": "^1.7.0"
 	},
 	"devDependencies": {
@@ -11,6 +12,7 @@
 		"@vitest/ui": "catalog:",
 		"rescript": "catalog:",
 		"rescript-vitest": "catalog:",
+		"sentry-testkit": "^5.0.9",
 		"sury": "catalog:",
 		"vite": "catalog:",
 		"vitest": "catalog:"

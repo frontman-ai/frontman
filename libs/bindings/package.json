@@ -13,6 +13,7 @@
 		"sury-ppx": "^11.0.0-alpha.2"
 	},
 	"devDependencies": {
-		"rescript": "catalog:"
+		"rescript": "catalog:",
+		"sentry-testkit": "^5.0.9"
 	}
 }

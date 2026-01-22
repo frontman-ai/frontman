@@ -48,3 +48,7 @@ config :frontman_server,
 config :opentelemetry,
   span_processor: :simple,
   traces_exporter: :none
+
+# Sentry - enable test mode
+config :sentry,
+  test_mode: true

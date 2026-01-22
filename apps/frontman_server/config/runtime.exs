@@ -76,6 +76,15 @@ else
   ]
 end
 
+# Sentry error tracking
+config :sentry,
+  dsn: env!("SENTRY_DSN", :string!),
+  environment_name: config_env(),
+  release: "frontman_server@#{Application.spec(:frontman_server, :vsn) || "dev"}",
+  enable_source_code_context: true,
+  root_source_code_paths: [File.cwd!()],
+  tags: %{service: "frontman-server"}
+
 if config_env() == :prod do
   database_url =
     System.get_env("DATABASE_URL") ||
