@@ -398,19 +398,16 @@ let loadSession = async (
   | Error(e) => Error(e)
   | Ok(session) =>
     // Send ACP session/load request - history comes via session/update notifications
+    let params: Types.sessionLoadParams = {
+      sessionId,
+      cwd: "/",
+      mcpServers: [],
+    }
     let loadResult = await Protocol.sendRequest(
       ~channel=conn.channel,
       ~state=conn.state,
       ~method="session/load",
-      ~params=Some(
-        JSON.Encode.object(
-          Dict.fromArray([
-            ("sessionId", JSON.Encode.string(sessionId)),
-            ("cwd", JSON.Encode.string("/")),
-            ("mcpServers", JSON.Encode.array([])),
-          ]),
-        ),
-      ),
+      ~params=Some(params->S.reverseConvertToJsonOrThrow(Types.sessionLoadParamsSchema)),
       ~parseResult=_ => Ok(),
       ~onMessage=conn.onMessage,
     )

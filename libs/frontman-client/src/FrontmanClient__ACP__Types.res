@@ -100,6 +100,16 @@ type sessionNewResult = {
   sessionId: string,
 }
 
+// session/load request params
+@schema
+type sessionLoadParams = {
+  @as("sessionId")
+  sessionId: string,
+  cwd: string,
+  @as("mcpServers")
+  mcpServers: array<JSON.t>,
+}
+
 // Annotations for embedded resources
 @schema
 type annotations = {
