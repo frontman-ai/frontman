@@ -276,7 +276,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
       }
     end
 
-    test "streams user message history", %{socket: socket, scope: scope, task_id: task_id} do
+    test "streams user message history with timestamps", %{socket: socket, scope: scope, task_id: task_id} do
       FrontmanServer.Tasks.add_user_message(scope, task_id, [%{"type" => "text", "text" => "Hello"}], [])
       FrontmanServer.Tasks.add_user_message(scope, task_id, [%{"type" => "text", "text" => "World"}], [])
 
@@ -286,26 +286,47 @@ defmodule FrontmanServerWeb.TasksChannelTest do
         "method" => "session/update",
         "params" => %{
           "sessionId" => ^task_id,
-          "update" => %{"sessionUpdate" => "user_message_chunk", "content" => %{"text" => "Hello"}}
+          "update" => %{
+            "sessionUpdate" => "user_message_chunk",
+            "content" => %{"text" => "Hello"},
+            "timestamp" => timestamp1
+          }
         }
       }
+
+      assert is_binary(timestamp1)
 
       assert_push "acp:message", %{
         "method" => "session/update",
         "params" => %{
           "sessionId" => ^task_id,
-          "update" => %{"sessionUpdate" => "user_message_chunk", "content" => %{"text" => "World"}}
+          "update" => %{
+            "sessionUpdate" => "user_message_chunk",
+            "content" => %{"text" => "World"},
+            "timestamp" => timestamp2
+          }
         }
       }
+
+      assert is_binary(timestamp2)
 
       assert_push "acp:message", %{"id" => 1, "result" => %{}}
     end
 
-    test "streams agent message history", %{socket: socket, scope: scope, task_id: task_id} do
+    test "streams agent message history with full lifecycle", %{socket: socket, scope: scope, task_id: task_id} do
       FrontmanServer.Tasks.add_agent_response(scope, task_id, "Response 1", %{})
       FrontmanServer.Tasks.add_agent_response(scope, task_id, "Response 2", %{})
 
       push(socket, "acp:message", acp_request(1, "session/load", %{"sessionId" => task_id}))
+
+      # Response 1: start -> chunk -> end
+      assert_push "acp:message", %{
+        "method" => "session/update",
+        "params" => %{
+          "sessionId" => ^task_id,
+          "update" => %{"sessionUpdate" => "agent_message_start"}
+        }
+      }
 
       assert_push "acp:message", %{
         "method" => "session/update",
@@ -319,7 +340,32 @@ defmodule FrontmanServerWeb.TasksChannelTest do
         "method" => "session/update",
         "params" => %{
           "sessionId" => ^task_id,
+          "update" => %{"sessionUpdate" => "agent_message_end"}
+        }
+      }
+
+      # Response 2: start -> chunk -> end
+      assert_push "acp:message", %{
+        "method" => "session/update",
+        "params" => %{
+          "sessionId" => ^task_id,
+          "update" => %{"sessionUpdate" => "agent_message_start"}
+        }
+      }
+
+      assert_push "acp:message", %{
+        "method" => "session/update",
+        "params" => %{
+          "sessionId" => ^task_id,
           "update" => %{"sessionUpdate" => "agent_message_chunk", "content" => %{"text" => "Response 2"}}
+        }
+      }
+
+      assert_push "acp:message", %{
+        "method" => "session/update",
+        "params" => %{
+          "sessionId" => ^task_id,
+          "update" => %{"sessionUpdate" => "agent_message_end"}
         }
       }
 
@@ -332,12 +378,22 @@ defmodule FrontmanServerWeb.TasksChannelTest do
 
       push(socket, "acp:message", acp_request(1, "session/load", %{"sessionId" => task_id}))
 
+      # User message
       assert_push "acp:message", %{
         "params" => %{"update" => %{"sessionUpdate" => "user_message_chunk", "content" => %{"text" => "Question"}}}
       }
 
+      # Agent response with full lifecycle: start -> chunk -> end
+      assert_push "acp:message", %{
+        "params" => %{"update" => %{"sessionUpdate" => "agent_message_start"}}
+      }
+
       assert_push "acp:message", %{
         "params" => %{"update" => %{"sessionUpdate" => "agent_message_chunk", "content" => %{"text" => "Answer"}}}
+      }
+
+      assert_push "acp:message", %{
+        "params" => %{"update" => %{"sessionUpdate" => "agent_message_end"}}
       }
 
       assert_push "acp:message", %{"id" => 1, "result" => %{}}

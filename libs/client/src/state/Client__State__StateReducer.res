@@ -155,7 +155,7 @@ type action =
   | AnthropicOAuthDisconnected
   | ResetAnthropicOAuthError
   // Hydration actions (for session/load)
-  | UserMessageReceived({taskId: string, id: string, text: string})
+  | UserMessageReceived({taskId: string, id: string, text: string, timestamp: string})
   | SessionsLoadStarted
   | SessionsLoadSuccess({sessions: array<FrontmanFrontmanClient.FrontmanClient__ACP__Types.sessionSummary>})
   | SessionsLoadError({error: string})
@@ -1511,12 +1511,12 @@ let next = (state, action) => {
     | _ => state->FrontmanReactStatestore.StateReducer.update
     }
 
-  | UserMessageReceived({taskId, id, text}) =>
-    // Hydrate user message during session load
+  | UserMessageReceived({taskId, id, text, timestamp}) =>
+    let createdAt = Date.fromString(timestamp)->Date.getTime
     let userMessage = Message.User({
       id,
       content: [UserContentPart.Text({text: text})],
-      createdAt: Date.now(),
+      createdAt,
     })
     state
     ->Lens.updateTask(taskId, task => Lens.insertTaskMessage(task, userMessage))

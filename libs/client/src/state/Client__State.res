@@ -141,8 +141,8 @@ module Actions = {
   let resetAnthropicOAuthError = () => Client__State__Store.dispatch(ResetAnthropicOAuthError)
 
   // Hydration action creators (for session/load)
-  let userMessageReceived = (~taskId: string, ~id: string, ~text: string) =>
-    Client__State__Store.dispatch(UserMessageReceived({taskId, id, text}))
+  let userMessageReceived = (~taskId: string, ~id: string, ~text: string, ~timestamp: string) =>
+    Client__State__Store.dispatch(UserMessageReceived({taskId, id, text, timestamp}))
 
   let sessionsLoadStarted = () => Client__State__Store.dispatch(SessionsLoadStarted)
 

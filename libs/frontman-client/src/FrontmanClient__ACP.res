@@ -397,14 +397,16 @@ let loadSession = async (
   switch joinResult {
   | Error(e) => Error(e)
   | Ok(session) =>
-    // Send ACP session/load request - history comes via session/update notifications
+    // Send ACP session/load request to session channel (not tasks channel)
+    // History notifications are sent to the channel that receives this request,
+    // and the onUpdate callback is attached to the session channel in joinSession.
     let params: Types.sessionLoadParams = {
       sessionId,
       cwd: "/",
       mcpServers: [],
     }
     let loadResult = await Protocol.sendRequest(
-      ~channel=conn.channel,
+      ~channel=session.channel,
       ~state=conn.state,
       ~method="session/load",
       ~params=Some(params->S.reverseConvertToJsonOrThrow(Types.sessionLoadParamsSchema)),

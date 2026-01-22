@@ -2,13 +2,16 @@ alias FrontmanServer.Tasks.Interaction
 alias FrontmanServerWeb.ACPHistory
 
 defimpl ACPHistory, for: Interaction.UserMessage do
-  def to_history_items(%Interaction.UserMessage{messages: messages}, session_id) do
+  def to_history_items(%Interaction.UserMessage{messages: messages, timestamp: timestamp}, session_id) do
+    timestamp_iso = DateTime.to_iso8601(timestamp)
+
     Enum.map(messages, fn text ->
       JsonRpc.notification("session/update", %{
         "sessionId" => session_id,
         "update" => %{
           "sessionUpdate" => "user_message_chunk",
-          "content" => %{"type" => "text", "text" => text}
+          "content" => %{"type" => "text", "text" => text},
+          "timestamp" => timestamp_iso
         }
       })
     end)
@@ -17,13 +20,23 @@ end
 
 defimpl ACPHistory, for: Interaction.AgentResponse do
   def to_history_items(%Interaction.AgentResponse{content: content}, session_id) do
+    # Emit full message lifecycle: start -> chunk -> end
+    # This ensures client state machine transitions properly from Streaming to Completed
     [
+      JsonRpc.notification("session/update", %{
+        "sessionId" => session_id,
+        "update" => %{"sessionUpdate" => "agent_message_start"}
+      }),
       JsonRpc.notification("session/update", %{
         "sessionId" => session_id,
         "update" => %{
           "sessionUpdate" => "agent_message_chunk",
           "content" => %{"type" => "text", "text" => content}
         }
+      }),
+      JsonRpc.notification("session/update", %{
+        "sessionId" => session_id,
+        "update" => %{"sessionUpdate" => "agent_message_end"}
       })
     ]
   end

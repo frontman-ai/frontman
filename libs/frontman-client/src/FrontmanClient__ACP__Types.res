@@ -263,7 +263,7 @@ type sessionUpdate =
   | AgentMessageChunk({content: option<contentBlock>})
   | AgentMessageStart
   | AgentMessageEnd
-  | UserMessageChunk({content: option<contentBlock>}) // For session/load history replay
+  | UserMessageChunk({content: contentBlock, timestamp: string})
   | ToolCall({
       toolCallId: string,
       title: option<string>,
@@ -299,7 +299,8 @@ let sessionUpdateSchema = S.union([
   S.object(s => {
     s.tag("sessionUpdate", "user_message_chunk")
     UserMessageChunk({
-      content: s.field("content", S.option(contentBlockSchema)),
+      content: s.field("content", contentBlockSchema),
+      timestamp: s.field("timestamp", S.string),
     })
   }),
   S.object(s => {

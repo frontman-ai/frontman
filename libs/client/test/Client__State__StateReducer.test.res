@@ -1078,7 +1078,7 @@ describe("Client State Reducer - Session Loading Actions", () => {
 
     let (nextState, _effects) = Reducer.next(
       state,
-      UserMessageReceived({taskId: "task-123", id: "msg-1", text: "Hello from history"}),
+      UserMessageReceived({taskId: "task-123", id: "msg-1", text: "Hello from history", timestamp: "2024-01-15T10:30:00Z"}),
     )
 
     // Verify message was added to task

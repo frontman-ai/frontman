@@ -13,6 +13,7 @@ defmodule FrontmanServerWeb.TaskChannel do
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tools
   alias FrontmanServerWeb.TaskChannel.MCPInitializer
+  alias FrontmanServerWeb.ACPHistory
   alias ModelContextProtocol, as: MCP
 
   @impl true
@@ -54,6 +55,10 @@ defmodule FrontmanServerWeb.TaskChannel do
     case JsonRpc.parse(payload) do
       {:ok, {:request, id, "session/prompt", params}} ->
         handle_prompt(id, params, socket)
+
+      {:ok, {:request, id, "session/load", _params}} ->
+        # Load session history - streamed via session/update notifications
+        handle_session_load(id, socket)
 
       {:ok, {:request, id, method, _params}} ->
         Logger.warning("Unknown ACP method in task channel: #{method}")
@@ -284,6 +289,41 @@ defmodule FrontmanServerWeb.TaskChannel do
 
         {:noreply, socket}
     end
+  end
+
+  # Handle session/load - stream history via session/update notifications
+  # This is called after the client has joined the session channel, allowing
+  # history notifications to be received through the onUpdate callback.
+  defp handle_session_load(id, socket) do
+    task_id = socket.assigns.task_id
+    scope = socket.assigns.scope
+    Logger.info("ACP session/load request received on session channel for: #{task_id}")
+
+    case Tasks.get_task(scope, task_id) do
+      {:ok, task} ->
+        # Stream history via session/update notifications
+        stream_session_history(socket, task)
+        # Return ACP-compliant response
+        push(socket, "acp:message", JsonRpc.success_response(id, %{}))
+        {:noreply, socket}
+
+      {:error, :not_found} ->
+        push(socket, "acp:message", JsonRpc.error_response(id, JsonRpc.error_invalid_params(), "Session not found"))
+        {:noreply, socket}
+
+      {:error, :unauthorized} ->
+        push(socket, "acp:message", JsonRpc.error_response(id, JsonRpc.error_invalid_params(), "Unauthorized"))
+        {:noreply, socket}
+    end
+  end
+
+  # Streams session history as ACP session/update notifications
+  defp stream_session_history(socket, task) do
+    task.interactions
+    |> Enum.flat_map(&ACPHistory.to_history_items(&1, task.task_id))
+    |> Enum.each(fn notification ->
+      push(socket, "acp:message", notification)
+    end)
   end
 
   defp process_prompt(id, params, socket) do

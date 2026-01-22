@@ -151,13 +151,10 @@ let make = (~apiBaseUrl: string) => {
 
     | AgentMessageEnd => Client__State.Actions.messageCompleted(~taskId)
 
-    | UserMessageChunk({content}) =>
-      // Hydration: user message from session/load history replay
-      content
-      ->Option.flatMap(c => c.text)
-      ->Option.forEach(text => {
+    | UserMessageChunk({content, timestamp}) =>
+      content.text->Option.forEach(text => {
         let id = `user-hydrated-${Date.now()->Float.toString}`
-        Client__State.Actions.userMessageReceived(~taskId, ~id, ~text)
+        Client__State.Actions.userMessageReceived(~taskId, ~id, ~text, ~timestamp)
       })
 
     | ToolCall({toolCallId, title, parentAgentId, spawningToolName}) =>
