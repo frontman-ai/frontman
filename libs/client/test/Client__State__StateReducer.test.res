@@ -912,3 +912,189 @@ describe("Client State Reducer - Task Management Actions", () => {
     }
   })
 })
+
+describe("Client State Reducer - Session Loading Actions", () => {
+  test("SessionsLoadStarted transitions to Loading state", t => {
+    let state = Reducer.defaultState
+
+    let (nextState, _effects) = Reducer.next(state, SessionsLoadStarted)
+
+    t->expect(nextState.sessionsLoadState)->Expect.toEqual(Client__State__Types.SessionsLoading)
+  })
+
+  test("SessionsLoadSuccess adds sessions to tasks dict", t => {
+    let state = Reducer.defaultState
+
+    let sessions: array<FrontmanFrontmanClient.FrontmanClient__ACP__Types.sessionSummary> = [
+      {
+        sessionId: "session-1",
+        title: "First Session",
+        createdAt: "2024-01-15T10:00:00Z",
+        updatedAt: "2024-01-15T10:30:00Z",
+      },
+      {
+        sessionId: "session-2",
+        title: "Second Session",
+        createdAt: "2024-01-15T11:00:00Z",
+        updatedAt: "2024-01-15T11:30:00Z",
+      },
+    ]
+
+    let (nextState, _effects) = Reducer.next(state, SessionsLoadSuccess({sessions: sessions}))
+
+    // Verify state transitioned to Loaded
+    t->expect(nextState.sessionsLoadState)->Expect.toEqual(Client__State__Types.SessionsLoaded)
+
+    // Verify tasks were added
+    t->expect(TestHelpers.getTaskCount(nextState))->Expect.toBe(2)
+
+    // Verify task IDs match session IDs
+    t->expect(nextState.tasks->Dict.has("session-1"))->Expect.toBe(true)
+    t->expect(nextState.tasks->Dict.has("session-2"))->Expect.toBe(true)
+
+    // Verify task titles are set correctly
+    let task1 = nextState.tasks->Dict.get("session-1")->Option.getOrThrow
+    t->expect(task1.title)->Expect.toBe("First Session")
+
+    let task2 = nextState.tasks->Dict.get("session-2")->Option.getOrThrow
+    t->expect(task2.title)->Expect.toBe("Second Session")
+  })
+
+  test("SessionsLoadSuccess does not overwrite existing tasks", t => {
+    // Create state with an existing task
+    let existingTask = Reducer.Task.make(~title="Existing Task", ~previewUrl="http://localhost:3000")
+    let existingTask = {...existingTask, id: "session-1"}
+    let messagesDict = Dict.make()
+    messagesDict->Dict.set(
+      "user-1",
+      Reducer.Message.User({
+        id: "user-1",
+        content: [UserContentPart.Text({text: "Existing message"})],
+        createdAt: 1000.0,
+      }),
+    )
+    let existingTaskWithMessage = {...existingTask, messages: messagesDict}
+
+    let tasks = Dict.make()
+    tasks->Dict.set("session-1", existingTaskWithMessage)
+
+    let state: Reducer.state = {
+      tasks,
+      currentTaskId: Some("session-1"),
+      connectionState: Disconnected,
+      sessionInitialized: false,
+      usageInfo: None,
+      apiBaseUrl: None,
+      openrouterKeySettings: {
+        source: Client__State__Types.None,
+        saveStatus: Client__State__Types.Idle,
+      },
+      anthropicOAuthStatus: Client__State__Types.NotConnected,
+      modelsConfig: None,
+      selectedModel: None,
+      sessionsLoadState: Client__State__Types.SessionsLoading,
+    }
+
+    // Load sessions including one with the same ID as existing task
+    let sessions: array<FrontmanFrontmanClient.FrontmanClient__ACP__Types.sessionSummary> = [
+      {
+        sessionId: "session-1",
+        title: "Should Not Overwrite",
+        createdAt: "2024-01-15T10:00:00Z",
+        updatedAt: "2024-01-15T10:30:00Z",
+      },
+      {
+        sessionId: "session-2",
+        title: "New Session",
+        createdAt: "2024-01-15T11:00:00Z",
+        updatedAt: "2024-01-15T11:30:00Z",
+      },
+    ]
+
+    let (nextState, _effects) = Reducer.next(state, SessionsLoadSuccess({sessions: sessions}))
+
+    // Should have 2 tasks total
+    t->expect(TestHelpers.getTaskCount(nextState))->Expect.toBe(2)
+
+    // Existing task should retain its original title and messages
+    let task1 = nextState.tasks->Dict.get("session-1")->Option.getOrThrow
+    t->expect(task1.title)->Expect.toBe("Existing Task")
+    t->expect(task1.messages->Dict.has("user-1"))->Expect.toBe(true)
+
+    // New task should be added
+    let task2 = nextState.tasks->Dict.get("session-2")->Option.getOrThrow
+    t->expect(task2.title)->Expect.toBe("New Session")
+  })
+
+  test("SessionsLoadError transitions to error state with message", t => {
+    let state: Reducer.state = {
+      ...Reducer.defaultState,
+      sessionsLoadState: Client__State__Types.SessionsLoading,
+    }
+
+    let (nextState, _effects) = Reducer.next(
+      state,
+      SessionsLoadError({error: "Network request failed"}),
+    )
+
+    t
+    ->expect(nextState.sessionsLoadState)
+    ->Expect.toEqual(Client__State__Types.SessionsLoadError("Network request failed"))
+  })
+
+  test("SessionsLoadSuccess handles empty sessions array", t => {
+    let state = Reducer.defaultState
+
+    let (nextState, _effects) = Reducer.next(state, SessionsLoadSuccess({sessions: []}))
+
+    t->expect(nextState.sessionsLoadState)->Expect.toEqual(Client__State__Types.SessionsLoaded)
+    t->expect(TestHelpers.getTaskCount(nextState))->Expect.toBe(0)
+  })
+
+  test("UserMessageReceived hydrates message into existing task", t => {
+    // Create a task (simulating one loaded from session)
+    let task = Reducer.Task.make(~title="Loaded Session", ~previewUrl="http://localhost:3000")
+    let task = {...task, id: "task-123"}
+
+    let tasks = Dict.make()
+    tasks->Dict.set("task-123", task)
+
+    let state: Reducer.state = {
+      tasks,
+      currentTaskId: Some("task-123"),
+      connectionState: Disconnected,
+      sessionInitialized: false,
+      usageInfo: None,
+      apiBaseUrl: None,
+      openrouterKeySettings: {
+        source: Client__State__Types.None,
+        saveStatus: Client__State__Types.Idle,
+      },
+      anthropicOAuthStatus: Client__State__Types.NotConnected,
+      modelsConfig: None,
+      selectedModel: None,
+      sessionsLoadState: Client__State__Types.SessionsLoaded,
+    }
+
+    let (nextState, _effects) = Reducer.next(
+      state,
+      UserMessageReceived({taskId: "task-123", id: "msg-1", text: "Hello from history"}),
+    )
+
+    // Verify message was added to task
+    let updatedTask = nextState.tasks->Dict.get("task-123")->Option.getOrThrow
+    t->expect(updatedTask.messages->Dict.has("msg-1"))->Expect.toBe(true)
+
+    let message = updatedTask.messages->Dict.get("msg-1")->Option.getOrThrow
+    switch message {
+    | User({id, content, _}) => {
+        t->expect(id)->Expect.toBe("msg-1")
+        switch content->Array.get(0) {
+        | Some(UserContentPart.Text({text})) => t->expect(text)->Expect.toBe("Hello from history")
+        | _ => JsExn.throw("Expected Text content part")
+        }
+      }
+    | _ => JsExn.throw("Expected User message")
+    }
+  })
+})
