@@ -7,6 +7,12 @@ open Vitest
  * based on the taskId in the event, not the currently selected task.
  */
 module StateReducer = Client__State__StateReducer
+module Task = Client__State__Types.Task
+
+// Helper to get messages from a task's loadedData
+let getTaskMessages = (task: Task.t) => {
+  Task.getLoadedData(task)->Option.mapOr(Dict.make(), data => data.messages)
+}
 
 describe("Concurrent Tasks Event Routing", () => {
   test("StreamingStarted event routes to correct task, not current task", t => {
@@ -31,8 +37,8 @@ describe("Concurrent Tasks Event Routing", () => {
     let taskA = finalState.tasks->Dict.get(taskAId)->Option.getOrThrow
     let taskB = finalState.tasks->Dict.get(taskBId)->Option.getOrThrow
 
-    t->expect(taskA.messages->Dict.size)->Expect.toBe(1)
-    t->expect(taskB.messages->Dict.size)->Expect.toBe(0)
+    t->expect(getTaskMessages(taskA)->Dict.size)->Expect.toBe(1)
+    t->expect(getTaskMessages(taskB)->Dict.size)->Expect.toBe(0)
   })
 
   test("TextDeltaReceived event routes to correct task", t => {
@@ -63,13 +69,13 @@ describe("Concurrent Tasks Event Routing", () => {
     let taskA = finalState.tasks->Dict.get(taskAId)->Option.getOrThrow
     let taskB = finalState.tasks->Dict.get(taskBId)->Option.getOrThrow
 
-    switch StateReducer.Lens.getStreamingMessage(taskA) {
+    switch Task.getLoadedData(taskA)->Option.flatMap(StateReducer.Lens.getStreamingMessage) {
     | Some(StateReducer.Message.Streaming({textBuffer})) =>
       t->expect(textBuffer)->Expect.toBe("Hello from Task A")
     | _ => t->expect(false)->Expect.toBe(true)
     }
 
-    t->expect(taskB.messages->Dict.size)->Expect.toBe(0)
+    t->expect(getTaskMessages(taskB)->Dict.size)->Expect.toBe(0)
   })
 
   test("ToolInputStartReceived event routes to correct task", t => {
@@ -91,10 +97,10 @@ describe("Concurrent Tasks Event Routing", () => {
     let taskA = finalState.tasks->Dict.get(taskAId)->Option.getOrThrow
     let taskB = finalState.tasks->Dict.get(taskBId)->Option.getOrThrow
 
-    t->expect(taskA.messages->Dict.size)->Expect.toBe(1)
-    t->expect(taskB.messages->Dict.size)->Expect.toBe(0)
+    t->expect(getTaskMessages(taskA)->Dict.size)->Expect.toBe(1)
+    t->expect(getTaskMessages(taskB)->Dict.size)->Expect.toBe(0)
 
-    let toolMessage = taskA.messages->Dict.get("tool-1")->Option.getOrThrow
+    let toolMessage = getTaskMessages(taskA)->Dict.get("tool-1")->Option.getOrThrow
     switch toolMessage {
     | ToolCall({toolName}) => t->expect(toolName)->Expect.toBe("ReadFile")
     | _ => t->expect(false)->Expect.toBe(true)
@@ -128,12 +134,12 @@ describe("Concurrent Tasks Event Routing", () => {
     let taskB = finalState.tasks->Dict.get(taskBId)->Option.getOrThrow
     let taskC = finalState.tasks->Dict.get(taskCId)->Option.getOrThrow
 
-    t->expect(taskA.messages->Dict.size)->Expect.toBe(1)
-    t->expect(taskB.messages->Dict.size)->Expect.toBe(1)
-    t->expect(taskC.messages->Dict.size)->Expect.toBe(1)
+    t->expect(getTaskMessages(taskA)->Dict.size)->Expect.toBe(1)
+    t->expect(getTaskMessages(taskB)->Dict.size)->Expect.toBe(1)
+    t->expect(getTaskMessages(taskC)->Dict.size)->Expect.toBe(1)
 
     let getStreamingText = (task: StateReducer.Task.t) => {
-      switch StateReducer.Lens.getStreamingMessage(task) {
+      switch Task.getLoadedData(task)->Option.flatMap(StateReducer.Lens.getStreamingMessage) {
       | Some(StateReducer.Message.Streaming({textBuffer})) => textBuffer
       | _ => ""
       }
@@ -172,7 +178,7 @@ describe("Concurrent Tasks Event Routing", () => {
 
     // Find the completed message (there should be exactly one)
     let completedMessages =
-      taskA.messages
+      getTaskMessages(taskA)
       ->Dict.valuesToArray
       ->Array.filter(msg =>
         switch msg {
@@ -193,7 +199,7 @@ describe("Concurrent Tasks Event Routing", () => {
     | _ => t->expect(false)->Expect.toBe(true)
     }
 
-    t->expect(taskB.messages->Dict.size)->Expect.toBe(0)
+    t->expect(getTaskMessages(taskB)->Dict.size)->Expect.toBe(0)
   })
 
   test("Tool result events route to correct task", t => {
@@ -228,7 +234,7 @@ describe("Concurrent Tasks Event Routing", () => {
 
     // Assert: Tool result should be in Task A
     let taskA = finalState.tasks->Dict.get(taskAId)->Option.getOrThrow
-    let toolMessage = taskA.messages->Dict.get("tool-1")->Option.getOrThrow
+    let toolMessage = getTaskMessages(taskA)->Dict.get("tool-1")->Option.getOrThrow
 
     switch toolMessage {
     | ToolCall({state: OutputAvailable, result}) =>
@@ -264,12 +270,12 @@ describe("Concurrent Tasks Event Routing", () => {
     let taskA = finalState.tasks->Dict.get(taskAId)->Option.getOrThrow
     let taskB = finalState.tasks->Dict.get(taskBId)->Option.getOrThrow
 
-    switch StateReducer.Lens.getStreamingMessage(taskA) {
+    switch Task.getLoadedData(taskA)->Option.flatMap(StateReducer.Lens.getStreamingMessage) {
     | Some(StateReducer.Message.Streaming({textBuffer})) =>
       t->expect(textBuffer)->Expect.toBe("Part 1. Part 2.")
     | _ => t->expect(false)->Expect.toBe(true)
     }
 
-    t->expect(taskB.messages->Dict.size)->Expect.toBe(0)
+    t->expect(getTaskMessages(taskB)->Dict.size)->Expect.toBe(0)
   })
 })

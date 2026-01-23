@@ -75,6 +75,21 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
+  @doc """
+  Deletes a task and all its interactions.
+
+  Requires authorization - scope.user.id must match task.user_id.
+  Cascade deletes configured in migration handle interaction cleanup.
+  """
+  @spec delete_task(Scope.t(), String.t()) :: :ok | {:error, authorization_error()}
+  def delete_task(%Scope{} = scope, task_id) do
+    with {:ok, schema} <- fetch_task_schema(task_id),
+         :ok <- authorize_task_access(scope, schema),
+         {:ok, _} <- Repo.delete(schema) do
+      :ok
+    end
+  end
+
   @spec schema_to_task(TaskSchema.t()) :: Task.t()
   defp schema_to_task(schema) do
     interactions = load_interactions(schema.id)

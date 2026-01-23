@@ -55,6 +55,15 @@ defmodule FrontmanServerWeb.TasksChannel do
     {:reply, {:ok, %{"sessions" => sessions}}, socket}
   end
 
+  # Non-ACP channel event for deleting a session
+  @impl true
+  def handle_in("delete_session", %{"sessionId" => session_id}, socket) do
+    case Tasks.delete_task(socket.assigns.scope, session_id) do
+      :ok -> {:reply, {:ok, %{}}, socket}
+      {:error, reason} -> {:reply, {:error, %{reason: reason}}, socket}
+    end
+  end
+
   # Initialize with correct protocol version
   defp handle_message(
          {:request, id, "initialize", %{"protocolVersion" => @acp_protocol_version} = params},
@@ -88,7 +97,7 @@ defmodule FrontmanServerWeb.TasksChannel do
     )
   end
 
-  # Create new session
+  # Create new session (server generates sessionId per ACP spec)
   defp handle_message({:request, id, "session/new", _params}, socket) do
     Logger.info("ACP session/new request received")
 

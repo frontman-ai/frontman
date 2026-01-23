@@ -1,6 +1,5 @@
 module RadixUI__Icons = Bindings__RadixUI__Icons
 module Chrome = FrontmanBindings.Chrome
-module ACPTypes = FrontmanFrontmanClient.FrontmanClient__ACP__Types
 module SettingsModal = Client__SettingsModal
 
 let useExtensionState = () => {
@@ -125,154 +124,20 @@ let make = (~apiBaseUrl: string) => {
   useExtensionState()
 
   // Use Frontman context for ACP connection
-  let {connectionState, createSession, sendPrompt} = Client__FrontmanProvider.useFrontman()
+  let {connectionState, sendPrompt, loadTask, deleteSession, _} = Client__FrontmanProvider.useFrontman()
 
-  // Derive session active state from connectionState
-  let isSessionActive = switch connectionState {
-  | SessionActive(_) => true
-  | _ => false
-  }
-
-  // Handle ACP session updates (streaming messages from the agent)
-  // sessionId comes from the ACP session/update notification params
-  let handleSessionUpdate = React.useCallback((sessionId: string, update: ACPTypes.sessionUpdate) => {
-    // Use sessionId from the notification - this is the task the update belongs to
-    let taskId = sessionId
-
-    switch update {
-    | AgentMessageChunk({content}) =>
-      content
-      ->Option.flatMap(c => c.text)
-      ->Option.forEach(text => {
-        Client__State.Actions.textDeltaReceived(~taskId, ~text)
-      })
-
-    | AgentMessageStart => Client__State.Actions.streamingStarted(~taskId)
-
-    | AgentMessageEnd => Client__State.Actions.messageCompleted(~taskId)
-
-    | UserMessageChunk({content, timestamp}) =>
-      content.text->Option.forEach(text => {
-        let id = `user-hydrated-${Date.now()->Float.toString}`
-        Client__State.Actions.userMessageReceived(~taskId, ~id, ~text, ~timestamp)
-      })
-
-    | ToolCall({toolCallId, title, parentAgentId, spawningToolName}) =>
-      // Tool call started - create tool call entry
-      let toolName = title->Option.getOr("unknown_tool")
-      Client__State.Actions.toolCallReceived(
-        ~taskId,
-        ~toolCall={
-          id: toolCallId,
-          toolName,
-          inputBuffer: "",
-          input: None, // Input will be provided in tool_call_update
-          result: None,
-          errorText: None,
-          state: InputStreaming,
-          createdAt: Date.now(),
-          parentAgentId, // If present, this is a sub-agent tool call
-          spawningToolName, // Tool name that spawned the sub-agent
-        },
-      )
-
-    | ToolCallUpdate({toolCallId, status, content}) =>
-      // Tool call status update
-      switch status {
-      | Some("pending") =>
-        // Pending update with content contains the tool input arguments
-        let inputJson =
-          content
-          ->Option.flatMap(contents => contents->Array.get(0))
-          ->Option.flatMap(item => item.content)
-          ->Option.flatMap(c => c.text)
-          ->Option.flatMap(text => {
-            try {
-              Some(JSON.parseOrThrow(text))
-            } catch {
-            | _ => None
-            }
-          })
-        
-        inputJson->Option.forEach(input => {
-          Client__State.Actions.toolInputReceived(~taskId, ~id=toolCallId, ~input)
-        })
-        
-      | Some("completed") =>
-        // Extract result from content if available
-        let result =
-          content
-          ->Option.flatMap(contents => contents->Array.get(0))
-          ->Option.flatMap(item => item.content)
-          ->Option.flatMap(c => c.text)
-          ->Option.mapOr(JSON.Encode.null, text => {
-            // Try to parse as JSON, fallback to string
-            try {
-              JSON.parseOrThrow(text)
-            } catch {
-            | _ => JSON.Encode.string(text)
-            }
-          })
-        Client__State.Actions.toolResultReceived(~taskId, ~id=toolCallId, ~result)
-
-      | Some("failed") =>
-        // ACP spec uses "failed" status
-        let error =
-          content
-          ->Option.flatMap(contents => contents->Array.get(0))
-          ->Option.flatMap(item => item.content)
-          ->Option.flatMap(c => c.text)
-          ->Option.getOr("Unknown error")
-        Client__State.Actions.toolErrorReceived(~taskId, ~id=toolCallId, ~error)
-
-      | Some("in_progress") => // Tool is running - could update UI state if needed
-        ()
-
-      | Some(_status) => ()
-
-      | None => ()
-      }
-
-    | Plan({entries}) =>
-      // ACP plan update - replace plan entries completely
-      entries->Option.forEach(planEntries => {
-        Client__State.Actions.planReceived(~taskId, ~entries=planEntries)
-      })
-
-    | Unknown({sessionUpdate}) => Console.log2("[ACP] Unhandled session update:", sessionUpdate)
-    }
-  }, [])
-
-  // Track if session was created to avoid duplicate creation
-  let sessionCreatedRef = React.useRef(false)
-
-  // Auto-create session when ready (both ACP and relay initialized)
+  // Set up connection functions when ACP+Relay are ready
+  // Session creation is deferred until user sends first message (lazy session creation)
   React.useEffect(() => {
     switch connectionState {
-    | Connected =>
-      if !sessionCreatedRef.current {
-        sessionCreatedRef.current = true
-        createSession(handleSessionUpdate)
-      }
-    | Error(_) | Disconnected => sessionCreatedRef.current = false
+    | Connected | SessionActive(_) =>
+      Client__Debug.init()
+      Client__State.Actions.connect(~sendPrompt, ~loadTask, ~deleteSession, ~apiBaseUrl)
+    | Disconnected | Error(_) => Client__State.Actions.disconnect()
     | _ => ()
     }
     None
-  }, (connectionState, handleSessionUpdate, createSession))
-
-  // Separate effect to update sendPrompt in state when session becomes active
-  React.useEffect(() => {
-    if isSessionActive {
-      Client__Debug.init()
-      Client__State.Actions.connect(~sendPrompt, ~apiBaseUrl)
-    } else {
-      switch connectionState {
-      | Disconnected | Error(_) => Client__State.Actions.disconnect()
-      | _ => ()
-      }
-    }
-    None
-  }, (connectionState, isSessionActive, sendPrompt, apiBaseUrl))
+  }, (connectionState, sendPrompt, loadTask, deleteSession, apiBaseUrl))
 
   // Get resizable width for chatbox panel
   let (chatboxWidth, isResizing, handleResizeMouseDown) = Client__UseResizableWidth.use()

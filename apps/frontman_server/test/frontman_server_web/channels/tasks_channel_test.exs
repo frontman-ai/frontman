@@ -259,6 +259,49 @@ defmodule FrontmanServerWeb.TasksChannelTest do
     end
   end
 
+  describe "delete_session" do
+    test "deletes session and returns empty result", %{socket: socket, scope: scope} do
+      task_id = Ecto.UUID.generate()
+      {:ok, ^task_id} = FrontmanServer.Tasks.create_task(scope, task_id, "test-framework")
+
+      # Verify task exists
+      assert {:ok, _task} = FrontmanServer.Tasks.get_task(scope, task_id)
+
+      # Delete session
+      ref = push(socket, "delete_session", %{"sessionId" => task_id})
+      assert_reply ref, :ok, %{}
+
+      # Verify task is deleted
+      assert {:error, :not_found} = FrontmanServer.Tasks.get_task(scope, task_id)
+    end
+
+    test "only deletes own sessions", %{socket: socket, scope: scope} do
+      # Create task for current user
+      my_task_id = Ecto.UUID.generate()
+      {:ok, ^my_task_id} = FrontmanServer.Tasks.create_task(scope, my_task_id, "test-framework")
+
+      # Create another user and their task
+      {:ok, other_user} =
+        FrontmanServer.Accounts.register_user(%{
+          email: "other_delete_#{System.unique_integer([:positive])}@test.local",
+          name: "Other",
+          password: "testpassword123!"
+        })
+
+      other_scope = FrontmanServer.Accounts.Scope.for_user(other_user)
+      other_task_id = Ecto.UUID.generate()
+      {:ok, ^other_task_id} = FrontmanServer.Tasks.create_task(other_scope, other_task_id, "other")
+
+      # Trying to delete other user's task should fail (crashes the handler)
+      # The channel will crash and the test process will receive an error
+      ref = push(socket, "delete_session", %{"sessionId" => other_task_id})
+      assert_reply ref, :error, _
+
+      # Other user's task should still exist
+      assert {:ok, _task} = FrontmanServer.Tasks.get_task(other_scope, other_task_id)
+    end
+  end
+
   describe "ACP session/load" do
     setup %{scope: scope} do
       task_id = Ecto.UUID.generate()

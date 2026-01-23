@@ -274,6 +274,121 @@ describe("Connection Reducer", () => {
     })
   })
 
+  describe("Connection Lifecycle - Session Creation Trigger", () => {
+    // This test documents the critical flow: App.res should create session when
+    // connectionStatus becomes Connected (not SessionActive)
+    test("getConnectionStatus is Connected when ACP+Relay ready but no session", t => {
+      let mockConn = Obj.magic({"socket": null})
+      let state = {
+        ...Reducer.initialState,
+        acp: ACPConnected(mockConn),
+        relay: RelayConnected,
+        session: NoSession,
+      }
+
+      // This is the state where session creation should be triggered
+      switch Reducer.Selectors.getConnectionStatus(state) {
+      | Reducer.Selectors.Connected => t->expect(true)->Expect.toBe(true)
+      | _ => t->expect("Connected")->Expect.toBe("wrong state - should be Connected")
+      }
+    })
+
+    test("getConnectionStatus is SessionActive only AFTER session exists", t => {
+      let mockConn = Obj.magic({"socket": null})
+      let mockSession = Obj.magic({"sessionId": "sess-1"})
+      let state = {
+        ...Reducer.initialState,
+        acp: ACPConnected(mockConn),
+        relay: RelayConnected,
+        session: SessionActive(mockSession),
+      }
+
+      switch Reducer.Selectors.getConnectionStatus(state) {
+      | Reducer.Selectors.SessionActive(id) => t->expect(id)->Expect.toBe("sess-1")
+      | _ => t->expect("SessionActive")->Expect.toBe("wrong state")
+      }
+    })
+
+    test("CreateSession action works when connectionStatus is Connected", t => {
+      let mockConn = Obj.magic({"socket": null})
+      let mockServer = Obj.magic({"tools": []})
+      let state = {
+        ...Reducer.initialState,
+        acp: ACPConnected(mockConn),
+        relay: RelayConnected,
+        mcpServer: Some(mockServer),
+        session: NoSession,
+      }
+
+      // Verify we're in Connected state (the trigger for session creation)
+      switch Reducer.Selectors.getConnectionStatus(state) {
+      | Reducer.Selectors.Connected => ()
+      | _ => t->expect("setup")->Expect.toBe("should be Connected state")
+      }
+
+      // CreateSession should work from this state
+      let (nextState, effects) = Reducer.reduce(
+        state,
+        CreateSession({
+          onUpdate: (_, _) => (),
+          onMcpMessage: (_, _) => (),
+          onComplete: _ => (),
+        }),
+      )
+
+      t->expect(nextState.session)->Expect.toBe(Reducer.SessionCreating)
+      t
+      ->expect(
+        hasEffect(effects, e =>
+          switch e {
+          | Reducer.CreateSessionEffect(_) => true
+          | _ => false
+          }
+        ),
+      )
+      ->Expect.toBe(true)
+    })
+
+    test("full lifecycle: Connecting -> Connected -> SessionActive", t => {
+      let mockConn = Obj.magic({"socket": null})
+      let mockServer = Obj.magic({"tools": []})
+      let mockSession = Obj.magic({"sessionId": "sess-1"})
+
+      // Step 1: Initial state - Disconnected
+      let state0 = Reducer.initialState
+      switch Reducer.Selectors.getConnectionStatus(state0) {
+      | Reducer.Selectors.Disconnected => ()
+      | _ => t->expect("step1")->Expect.toBe("should be Disconnected")
+      }
+
+      // Step 2: ACP connecting - Connecting
+      let state1 = {...state0, acp: ACPConnecting}
+      switch Reducer.Selectors.getConnectionStatus(state1) {
+      | Reducer.Selectors.Connecting => ()
+      | _ => t->expect("step2")->Expect.toBe("should be Connecting")
+      }
+
+      // Step 3: ACP connected, relay connected - Connected (trigger for session creation!)
+      let state2 = {
+        ...state1,
+        acp: ACPConnected(mockConn),
+        relay: RelayConnected,
+        mcpServer: Some(mockServer),
+      }
+      switch Reducer.Selectors.getConnectionStatus(state2) {
+      | Reducer.Selectors.Connected => ()
+      | _ => t->expect("step3")->Expect.toBe("should be Connected - THIS IS SESSION CREATE TRIGGER")
+      }
+
+      // Step 4: Session active - SessionActive
+      let state3 = {...state2, session: SessionActive(mockSession)}
+      switch Reducer.Selectors.getConnectionStatus(state3) {
+      | Reducer.Selectors.SessionActive(_) => t->expect(true)->Expect.toBe(true)
+      | _ => t->expect("step4")->Expect.toBe("should be SessionActive")
+      }
+    })
+  })
+
   describe("Cleanup", () => {
     test("fully resets state to initial", t => {
       let mockRelay = Obj.magic({"id": "relay-1"})

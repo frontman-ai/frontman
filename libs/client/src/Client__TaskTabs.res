@@ -11,6 +11,9 @@ let make = () => {
   let (deleteDialogOpen, setDeleteDialogOpen) = React.useState(() => false)
   let (taskToDelete, setTaskToDelete) = React.useState(() => None)
 
+  // Get clearSession from FrontmanProvider context
+  let {clearSession} = Client__FrontmanProvider.useFrontman()
+
   // Global state selectors
   let tasks = Client__State.useSelector(Client__State.Selectors.tasks)
   let currentTaskId = Client__State.useSelector(Client__State.Selectors.currentTaskId)
@@ -21,7 +24,10 @@ let make = () => {
   }
 
   let handleNewTask = (_e: ReactEvent.Mouse.t) => {
-    Client__State.Actions.createNewTask()
+    // Clear both the ACP session and the current task selection
+    // The new task will be created when user sends their first message (lazy session creation)
+    clearSession()
+    Client__State.Actions.clearCurrentTask()
   }
 
   let handleDeleteClick = (e: ReactEvent.Mouse.t, taskId: string) => {

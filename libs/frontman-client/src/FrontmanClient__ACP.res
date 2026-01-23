@@ -386,6 +386,18 @@ let listSessions = (conn: connection): promise<result<array<Types.sessionSummary
   })
 }
 
+// Delete a session (non-ACP channel event)
+let deleteSession = (conn: connection, sessionId: string): promise<result<unit, string>> => {
+  Promise.make((resolve, _) => {
+    let payload = JSON.Encode.object(Dict.fromArray([("sessionId", JSON.Encode.string(sessionId))]))
+    let pushRef = conn.channel->Channel.push(~event=#delete_session, ~payload)
+    pushRef
+    .receive(~status="ok", ~callback=_ => resolve(Ok()))
+    .receive(~status="error", ~callback=err => resolve(Error(JSON.stringify(err))))
+    ->ignore
+  })
+}
+
 // Load an existing session (ACP compliant)
 // History is streamed via session/update notifications to onUpdate callback
 // onUpdate receives (sessionId, update) per ACP session/update notification params

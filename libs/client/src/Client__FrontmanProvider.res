@@ -21,13 +21,16 @@ type contextValue = {
   isSendingPrompt: bool,
   session: option<ACP.session>,
   relay: option<Relay.t>,
-  createSession: ((string, Types.sessionUpdate) => unit) => unit,
+  createSession: (~onComplete: result<string, string> => unit) => unit,
+  clearSession: unit => unit,
   sendPrompt: (
     string,
     ~additionalBlocks: array<Types.contentBlock>,
     ~onComplete: result<Types.promptResult, string> => unit,
     ~metadata: option<JSON.t>,
   ) => unit,
+  loadTask: (string, ~onComplete: result<unit, string> => unit) => unit,
+  deleteSession: (string, ~onComplete: result<unit, string> => unit) => unit,
 }
 
 // Default context value
@@ -37,8 +40,11 @@ let defaultContextValue: contextValue = {
   isSendingPrompt: false,
   session: None,
   relay: None,
-  createSession: _ => (),
+  createSession: (~onComplete as _) => (),
+  clearSession: () => (),
   sendPrompt: (_, ~additionalBlocks as _, ~onComplete as _, ~metadata as _) => (),
+  loadTask: (_, ~onComplete as _) => (),
+  deleteSession: (_, ~onComplete as _) => (),
 }
 
 // Create the React context
@@ -111,16 +117,81 @@ module Provider = {
       Some(() => dispatch(Cleanup))
     })
 
+    let handleSessionUpdate = React.useCallback0((sessionId: string, update: Types.sessionUpdate) => {
+      let taskId = sessionId
+      switch update {
+      | AgentMessageChunk({content}) =>
+        content->Option.flatMap(c => c.text)->Option.forEach(text => {
+          Client__State.Actions.textDeltaReceived(~taskId, ~text)
+        })
+      | AgentMessageStart => Client__State.Actions.streamingStarted(~taskId)
+      | AgentMessageEnd => Client__State.Actions.messageCompleted(~taskId)
+      | UserMessageChunk({content, timestamp}) =>
+        content.text->Option.forEach(text => {
+          let id = `user-hydrated-${Date.now()->Float.toString}`
+          Client__State.Actions.userMessageReceived(~taskId, ~id, ~text, ~timestamp)
+        })
+      | ToolCall({toolCallId, title, parentAgentId, spawningToolName}) =>
+        Client__State.Actions.toolCallReceived(~taskId, ~toolCall={
+          id: toolCallId,
+          toolName: title->Option.getOr("unknown_tool"),
+          inputBuffer: "",
+          input: None,
+          result: None,
+          errorText: None,
+          state: Client__State__Types.Message.InputStreaming,
+          createdAt: Date.now(),
+          parentAgentId,
+          spawningToolName,
+        })
+      | ToolCallUpdate({toolCallId, status, content}) =>
+        let text = content->Option.flatMap(c => c->Array.get(0))->Option.flatMap(i => i.content)->Option.flatMap(c => c.text)
+        switch status {
+        | Some("pending") =>
+          text->Option.flatMap(t => try { Some(JSON.parseOrThrow(t)) } catch { | _ => None })->Option.forEach(input => {
+            Client__State.Actions.toolInputReceived(~taskId, ~id=toolCallId, ~input)
+          })
+        | Some("completed") =>
+          let result = text->Option.mapOr(JSON.Encode.null, t =>
+            try { JSON.parseOrThrow(t) } catch { | _ => JSON.Encode.string(t) }
+          )
+          Client__State.Actions.toolResultReceived(~taskId, ~id=toolCallId, ~result)
+        | Some("failed") =>
+          Client__State.Actions.toolErrorReceived(~taskId, ~id=toolCallId, ~error=text->Option.getOr("Unknown error"))
+        | _ => ()
+        }
+      | Plan({entries}) =>
+        entries->Option.forEach(e => Client__State.Actions.planReceived(~taskId, ~entries=e))
+      | Unknown(_) => ()
+      }
+    })
+
     let createSession = React.useCallback1(
-      (onUpdate: (string, Types.sessionUpdate) => unit) => {
-        dispatch(CreateSession({onUpdate, onMcpMessage: logMCPMessage}))
+      (~onComplete: result<string, string> => unit) => {
+        dispatch(CreateSession({onUpdate: handleSessionUpdate, onMcpMessage: logMCPMessage, onComplete}))
       },
       [dispatch],
     )
 
+    let clearSession = React.useCallback1(() => dispatch(ClearSession), [dispatch])
+
     let sendPrompt = React.useCallback1(
       (text: string, ~additionalBlocks, ~onComplete, ~metadata) => {
         dispatch(SendPrompt({text, additionalBlocks, onComplete, metadata}))
+      },
+      [dispatch],
+    )
+
+    let loadTask = React.useCallback1(
+      (taskId: string, ~onComplete) => {
+        dispatch(LoadTask({taskId, onUpdate: handleSessionUpdate, onMcpMessage: logMCPMessage, onComplete}))
+      },
+      [dispatch],
+    )
+
+    let deleteSession = React.useCallback1(
+      (taskId: string, ~onComplete) => {
+        dispatch(DeleteSession({taskId, onComplete}))
       },
       [dispatch],
     )
@@ -132,7 +203,10 @@ module Provider = {
       session: Reducer.Selectors.getSession(state),
       relay: state.relayInstance,
       createSession,
+      clearSession,
       sendPrompt,
+      loadTask,
+      deleteSession,
     }
 
     <ContextProvider value={contextValue}> {children} </ContextProvider>

@@ -119,19 +119,21 @@ let convertTask = (task: Snapshot.Task.t): StateTypes.Task.t => {
   {
     id: task.id,
     title: task.title,
-    messages: messagesDict,
     createdAt: task.createdAt,
-    lastMessageAt: task.lastMessageAt,
     previewFrame: {
       url: task.previewUrl,
       contentDocument: None,
       contentWindow: None,
     },
-    webPreviewIsSelecting: task.webPreviewIsSelecting,
-    selectedElement: None, // Cannot restore DOM element from snapshot
-    figmaNode: convertFigmaNode(task.figmaNode),
-    isAgentRunning: false, // Default to not running when restoring from snapshot
-    planEntries: [], // Plan entries not stored in snapshots yet
+    loadState: StateTypes.Task.Loaded({
+      messages: messagesDict,
+      lastMessageAt: task.lastMessageAt,
+      webPreviewIsSelecting: task.webPreviewIsSelecting,
+      selectedElement: None, // Cannot restore DOM element from snapshot
+      figmaNode: convertFigmaNode(task.figmaNode),
+      isAgentRunning: false, // Default to not running when restoring from snapshot
+      planEntries: [], // Plan entries not stored in snapshots yet
+    }),
   }
 }
 

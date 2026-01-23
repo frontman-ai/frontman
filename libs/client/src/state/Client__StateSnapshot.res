@@ -392,31 +392,37 @@ let convertMessage = (msg: Client__State__Types.Message.t): Message.t => {
 }
 
 let convertTask = (task: Client__State__Types.Task.t): Task.t => {
+  // Get loaded data if available
+  let loadedData = Client__State__Types.Task.getLoadedData(task)
+
   // Sort messages by createdAt for consistent ordering
   let messages =
-    task.messages
-    ->Dict.valuesToArray
-    ->Array.toSorted((a, b) => {
-      let getCreatedAt = (msg: Client__State__Types.Message.t) =>
-        switch msg {
-        | User({createdAt, _}) => createdAt
-        | Assistant(Streaming({createdAt, _})) => createdAt
-        | Assistant(Completed({createdAt, _})) => createdAt
-        | ToolCall({createdAt, _}) => createdAt
-        }
-      getCreatedAt(a) -. getCreatedAt(b)
-    })
-    ->Array.map(convertMessage)
+    loadedData
+    ->Option.mapOr([], data =>
+      data.messages
+      ->Dict.valuesToArray
+      ->Array.toSorted((a, b) => {
+        let getCreatedAt = (msg: Client__State__Types.Message.t) =>
+          switch msg {
+          | User({createdAt, _}) => createdAt
+          | Assistant(Streaming({createdAt, _})) => createdAt
+          | Assistant(Completed({createdAt, _})) => createdAt
+          | ToolCall({createdAt, _}) => createdAt
+          }
+        getCreatedAt(a) -. getCreatedAt(b)
+      })
+      ->Array.map(convertMessage)
+    )
 
   {
     id: task.id,
     title: task.title,
     messages,
     createdAt: task.createdAt,
-    lastMessageAt: task.lastMessageAt,
-    webPreviewIsSelecting: task.webPreviewIsSelecting,
-    selectedElement: task.selectedElement->Option.map(convertSelectedElement),
-    figmaNode: convertFigmaNode(task.figmaNode),
+    lastMessageAt: loadedData->Option.flatMap(d => d.lastMessageAt),
+    webPreviewIsSelecting: loadedData->Option.mapOr(false, d => d.webPreviewIsSelecting),
+    selectedElement: loadedData->Option.flatMap(d => d.selectedElement)->Option.map(convertSelectedElement),
+    figmaNode: convertFigmaNode(loadedData->Option.mapOr(Client__State__Types.FigmaNode.NoSelection, d => d.figmaNode)),
     previewUrl: task.previewFrame.url,
   }
 }

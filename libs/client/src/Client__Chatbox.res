@@ -1,13 +1,12 @@
 /**
  * Client__Chatbox - Main chat interface component
- * 
+ *
  * Renders the conversation with Frontman-style UI components:
  * - User and assistant messages
  * - Tool call blocks with icons and status
  * - TODO list integration
  * - Thinking indicators
  */
-
 module Icons = Bindings__RadixUI__Icons
 module TaskTabs = Client__TaskTabs
 module Message = Client__State__Types.Message
@@ -83,8 +82,7 @@ let groupMessages = (messages: array<Message.t>): array<displayItem> => {
 
   messages->Array.forEachWithIndex((msg, index) => {
     switch msg {
-    | Message.ToolCall(tc) =>
-      pendingToolCalls.contents->Array.push((tc, index))
+    | Message.ToolCall(tc) => pendingToolCalls.contents->Array.push((tc, index))
     | Message.User(_) =>
       flushToolCalls()
       result->Array.push(UserMsg(msg, index))
@@ -103,8 +101,8 @@ let groupMessages = (messages: array<Message.t>): array<displayItem> => {
 @react.component
 let make = () => {
   let (input, setInput) = React.useState(() => "")
+  let {session, createSession} = Client__FrontmanProvider.useFrontman()
 
-  // Get messages from our state store
   let messages = Client__State.useSelector(Client__State.Selectors.messages)
   let isStreaming = Client__State.useSelector(Client__State.Selectors.isStreaming)
   let isAgentRunning = Client__State.useSelector(Client__State.Selectors.isAgentRunning)
@@ -117,18 +115,14 @@ let make = () => {
   let runtimeConfig = RuntimeConfig.read()
   let hasEnvKey = RuntimeConfig.hasOpenrouterKey(runtimeConfig)
 
-  // Get providers from modelsConfig
   let providers = modelsConfig->Option.mapOr([], config => config.providers)
 
-  // Check if free requests are exhausted (no user key, no env key, using server key with 0 remaining)
   let isUsageExhausted = switch usageInfo {
   | Some({remaining: Some(remaining), hasUserKey: Some(false), hasServerKey: Some(true)})
-    if remaining <= 0 && !hasEnvKey =>
-    true
+    if remaining <= 0 && !hasEnvKey => true
   | _ => false
   }
 
-  // Use the thinking state hook
   let (thinkingState, thinkingMessageId) = UseThinkingState.useWithMessageId(
     ~messages,
     ~isStreaming,
@@ -139,8 +133,19 @@ let make = () => {
   let handleSubmit = () => {
     if input !== "" {
       let content = [Client__State.UserContentPart.Text({text: input})]
-      Client__State.Actions.addUserMessage(~content)
-      setInput(_ => "")
+      let sendMessage = (sessionId: string) => {
+        Client__State.Actions.addUserMessage(~sessionId, ~content)
+        setInput(_ => "")
+      }
+      switch session {
+      | Some(sess) => sendMessage(sess.sessionId)
+      | None => createSession(~onComplete=result => {
+          switch result {
+          | Ok(sessionId) => sendMessage(sessionId)
+          | Error(_) => ()
+          }
+        })
+      }
     }
   }
 
@@ -268,7 +273,10 @@ let make = () => {
 
       <React.Fragment key={messageId}>
         <TodoListBlock
-          todos isLoading messageId operationLabel={TodoUtils.getTodoOperationLabel(tc.toolName, tc.state)}
+          todos
+          isLoading
+          messageId
+          operationLabel={TodoUtils.getTodoOperationLabel(tc.toolName, tc.state)}
         />
       </React.Fragment>
 
@@ -285,20 +293,18 @@ let make = () => {
           // Show loading indicator while initializing
           if !sessionInitialized {
             <div className="flex items-center gap-2 py-3 px-4 text-[13px] text-zinc-400">
-              <span className="shimmer-text">
-                {React.string("Loading project context...")}
-              </span>
+              <span className="shimmer-text"> {React.string("Loading project context...")} </span>
             </div>
           } else {
             React.null
           }
         }
-        
+
         // Render grouped messages
         {displayItems
         ->Array.mapWithIndex((item, index) => renderDisplayItem(item, index))
         ->React.array}
-        
+
         // Thinking indicator (shows after last message when waiting for response)
         <ThinkingIndicator
           show={thinkingState.showThinking}
@@ -308,30 +314,35 @@ let make = () => {
       </ScrollContainer.ContentWrapper>
       <ScrollContainer.ScrollButton />
     </ScrollContainer>
-     <Client__PlanDisplay entries=planEntries />
-     <Client__SelectedElementDisplay />
-     <Client__FigmaNodeDisplay />
-     {switch usageInfo {
-     | Some({limit: Some(limit), remaining: Some(remaining), hasUserKey: Some(false), hasServerKey: Some(true)})
-       if !hasEnvKey =>
-       <div className="px-4 pb-1 text-xs text-zinc-400">
-         {React.string(`Free requests remaining: ${remaining->Int.toString} / ${limit->Int.toString}. Add your API key in Settings to remove limits.`)}
-       </div>
-     | _ => React.null
-     }}
-     <PromptInput
-        value={input}
-        onChange={v => setInput(_ => v)}
-        onSubmit={handleSubmit}
-        providers
-        selectedModel
-        onModelChange={(~provider, ~value) =>
-          Client__State.Actions.setSelectedModel(~provider, ~value)}
-        isAgentRunning
-        isConnected
-        disabled={isUsageExhausted}
-        disabledPlaceholder="Free requests exhausted. Add your API key in Settings to continue."
-      />
-   </div>
- }
-
+    <Client__PlanDisplay entries=planEntries />
+    <Client__SelectedElementDisplay />
+    <Client__FigmaNodeDisplay />
+    {switch usageInfo {
+    | Some({
+        limit: Some(limit),
+        remaining: Some(remaining),
+        hasUserKey: Some(false),
+        hasServerKey: Some(true),
+      }) if !hasEnvKey =>
+      <div className="px-4 pb-1 text-xs text-zinc-400">
+        {React.string(
+          `Free requests remaining: ${remaining->Int.toString} / ${limit->Int.toString}. Add your API key in Settings to remove limits.`,
+        )}
+      </div>
+    | _ => React.null
+    }}
+    <PromptInput
+      value={input}
+      onChange={v => setInput(_ => v)}
+      onSubmit={handleSubmit}
+      providers
+      selectedModel
+      onModelChange={(~provider, ~value) =>
+        Client__State.Actions.setSelectedModel(~provider, ~value)}
+      isAgentRunning
+      isConnected
+      disabled={isUsageExhausted}
+      disabledPlaceholder="Free requests exhausted. Add your API key in Settings to continue."
+    />
+  </div>
+}

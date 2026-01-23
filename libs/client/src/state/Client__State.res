@@ -5,26 +5,21 @@ type state = Client__State__Types.state
 let useSelector = selection =>
   FrontmanReactStatestore.StateStore.useSelector(Client__State__Store.store, selection)
 
-// Re-export selectors
 module Selectors = Client__State__StateReducer.Selectors
-
-// Re-export content part modules for convenience
 module UserContentPart = Client__State__StateReducer.UserContentPart
 module AssistantContentPart = Client__State__StateReducer.AssistantContentPart
 
 // Action creators
 module Actions = {
-  // User message action
-  let addUserMessage = (~content) => {
+  let addUserMessage = (~sessionId, ~content) => {
     let id = `user-${Date.now()->Float.toString}`
-    Client__State__Store.dispatch(AddUserMessage({id, content}))
+    Client__State__Store.dispatch(AddUserMessage({id, sessionId, content}))
   }
-
-  // Convenience for text-only user messages
-  let addUserTextMessage = (~id, ~text) =>
+  let addUserTextMessage = (~id, ~sessionId, ~text) =>
     Client__State__Store.dispatch(
       AddUserMessage({
         id,
+        sessionId,
         content: [UserContentPart.Text({text: text})],
       }),
     )
@@ -43,7 +38,9 @@ module Actions = {
     Client__State__Store.dispatch(ToolCallReceived({taskId, toolCall}))
 
   let toolInputStartReceived = (~taskId, ~id, ~toolName, ~parentAgentId=?, ~spawningToolName=?) =>
-    Client__State__Store.dispatch(ToolInputStartReceived({taskId, id, toolName, parentAgentId, spawningToolName}))
+    Client__State__Store.dispatch(
+      ToolInputStartReceived({taskId, id, toolName, parentAgentId, spawningToolName}),
+    )
 
   let toolInputDeltaReceived = (~taskId, ~id, ~delta) =>
     Client__State__Store.dispatch(ToolInputDeltaReceived({taskId, id, delta}))
@@ -71,12 +68,8 @@ module Actions = {
     Client__State__Store.dispatch(SetSelectedElement({selectedElement: selectedElement}))
 
   // Task management action creators
-  let createTask = (~title) => Client__State__Store.dispatch(CreateTask({title: title}))
-
-  let createNewTask = () => {
-    let title = "New Chat"
-    Client__State__Store.dispatch(CreateTask({title: title}))
-  }
+  // Note: Tasks are created implicitly when user sends first message (lazy session creation)
+  // Use clearCurrentTask() to prepare for a new task
 
   let switchTask = (~taskId) => Client__State__Store.dispatch(SwitchTask({taskId: taskId}))
 
@@ -98,9 +91,19 @@ module Actions = {
   let clearFigmaNodeWaiting = () => Client__State__Store.dispatch(ClearFigmaNodeWaiting)
 
   // Connection action creators
-  let connect = (~sendPrompt, ~apiBaseUrl) => Client__State__Store.dispatch(Connect({sendPrompt: sendPrompt, apiBaseUrl: apiBaseUrl}))
+  let connect = (~sendPrompt, ~loadTask, ~deleteSession, ~apiBaseUrl) =>
+    Client__State__Store.dispatch(
+      Connect({sendPrompt, loadTask, deleteSession, apiBaseUrl}),
+    )
 
   let disconnect = () => Client__State__Store.dispatch(Disconnect)
+
+  // Task loading action creators
+  let taskLoadStarted = (~taskId) =>
+    Client__State__Store.dispatch(TaskLoadStarted({taskId: taskId}))
+
+  let taskLoadComplete = (~taskId) =>
+    Client__State__Store.dispatch(TaskLoadComplete({taskId: taskId}))
 
   // Initialization action creators
   let receivedDiscoveredProjectRule = (~taskId: string) =>
