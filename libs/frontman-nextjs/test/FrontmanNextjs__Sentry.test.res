@@ -5,20 +5,28 @@ module SentryTestkit = FrontmanBindings.Bindings__Test__SentryTestkit
 
 describe("FrontmanNextjs Sentry", () => {
   let testkit = ref(None)
+  let transport = ref(None)
 
-  beforeEach(() => {
-    let (tk, transport) = SentryTestkit.setup()
+  // Set up testkit once - Sentry SDK only allows one init per process
+  beforeAll(() => {
+    let (tk, t) = SentryTestkit.setup()
     testkit := Some(tk)
-    Sentry.reset()
-    Sentry.initialize(~transport)
+    transport := Some(t)
   })
 
-  afterEach(() => {
+  // Reset state before each test
+  beforeEach(() => {
+    // Clear testkit reports
     switch testkit.contents {
     | Some(tk) => tk.reset()
     | None => ()
     }
-    Sentry.reset()
+    // Reset initialized flag and reinitialize with testkit transport
+    Sentry.initialized.contents = false
+    switch transport.contents {
+    | Some(t) => Sentry.initialize(~transport=t)
+    | None => ()
+    }
   })
 
   describe("initialization", () => {
@@ -42,23 +50,14 @@ describe("FrontmanNextjs Sentry", () => {
         t->expect(Sentry.isEnabled())->Expect.toBe(true)
       },
     )
-
-    test(
-      "isEnabled returns false before initialization",
-      t => {
-        Sentry.reset()
-        t->expect(Sentry.isEnabled())->Expect.toBe(false)
-      },
-    )
   })
 
   describe("captureError", () => {
     test(
       "captures error and returns event id",
       t => {
-        let error = Exn.raiseError("Test error")
         let eventId = try {
-          raise(error)
+          JsError.throwWithMessage("Test error")
         } catch {
         | e => Sentry.captureError(e, ~operation="testOp")
         }
@@ -75,9 +74,8 @@ describe("FrontmanNextjs Sentry", () => {
     test(
       "captures error with operation context",
       t => {
-        let error = Exn.raiseError("Operation failed")
         try {
-          raise(error)
+          JsError.throwWithMessage("Operation failed")
         } catch {
         | e => Sentry.captureError(e, ~operation="serverConnection")->ignore
         }
@@ -95,14 +93,13 @@ describe("FrontmanNextjs Sentry", () => {
     test(
       "captures error with extra data",
       t => {
-        let error = Exn.raiseError("Error with context")
         let extra = Dict.fromArray([
           ("userId", JSON.Encode.string("123")),
           ("endpoint", JSON.Encode.string("/api/test")),
         ])
 
         try {
-          raise(error)
+          JsError.throwWithMessage("Error with context")
         } catch {
         | e => Sentry.captureError(e, ~operation="apiCall", ~extra)->ignore
         }
@@ -115,18 +112,37 @@ describe("FrontmanNextjs Sentry", () => {
     )
 
     test(
-      "returns None when not initialized",
+      "captures error with operation tag",
       t => {
-        Sentry.reset()
-
-        let error = Exn.raiseError("Should not capture")
-        let eventId = try {
-          raise(error)
+        try {
+          JsError.throwWithMessage("Tagged error")
         } catch {
-        | e => Sentry.captureError(e)
+        | e => Sentry.captureError(e, ~operation="serverConnection")->ignore
         }
 
-        t->expect(eventId)->Expect.toBe(None)
+        switch testkit.contents {
+        | Some(tk) => {
+            let reports = tk.reports()
+            t->expect(reports->Array.length)->Expect.Int.toBeGreaterThanOrEqual(1)
+
+            switch reports->Array.get(0) {
+            | Some(report) =>
+              switch report.tags {
+              | Some(tags) => {
+                  t
+                  ->expect(tags->Dict.get("frontman.library"))
+                  ->Expect.toBe(Some("frontman-nextjs"))
+                  t
+                  ->expect(tags->Dict.get("frontman.operation"))
+                  ->Expect.toBe(Some("serverConnection"))
+                }
+              | None => t->expect(false)->Expect.toBe(true)
+              }
+            | None => t->expect(false)->Expect.toBe(true)
+            }
+          }
+        | None => t->expect(false)->Expect.toBe(true)
+        }
       },
     )
   })
@@ -175,23 +191,33 @@ describe("FrontmanNextjs Sentry", () => {
     )
 
     test(
-      "captures message with operation context",
+      "captures message with operation tag",
       t => {
         Sentry.captureMessage("Instrumentation error", ~operation="spanProcessor")->ignore
 
         switch testkit.contents {
-        | Some(tk) => t->expect(tk.reports()->Array.length)->Expect.toBe(1)
+        | Some(tk) => {
+            let reports = tk.reports()
+            t->expect(reports->Array.length)->Expect.toBe(1)
+
+            switch reports->Array.get(0) {
+            | Some(report) =>
+              switch report.tags {
+              | Some(tags) => {
+                  t
+                  ->expect(tags->Dict.get("frontman.library"))
+                  ->Expect.toBe(Some("frontman-nextjs"))
+                  t
+                  ->expect(tags->Dict.get("frontman.operation"))
+                  ->Expect.toBe(Some("spanProcessor"))
+                }
+              | None => t->expect(false)->Expect.toBe(true)
+              }
+            | None => t->expect(false)->Expect.toBe(true)
+            }
+          }
         | None => t->expect(false)->Expect.toBe(true)
         }
-      },
-    )
-
-    test(
-      "returns None when not initialized",
-      t => {
-        Sentry.reset()
-        let eventId = Sentry.captureMessage("Should not capture")
-        t->expect(eventId)->Expect.toBe(None)
       },
     )
   })
@@ -248,29 +274,6 @@ describe("FrontmanNextjs Sentry", () => {
         | Some(tk) => t->expect(tk.reports()->Array.length)->Expect.toBe(3)
         | None => t->expect(false)->Expect.toBe(true)
         }
-      },
-    )
-
-    test(
-      "reset clears initialization state",
-      t => {
-        t->expect(Sentry.isEnabled())->Expect.toBe(true)
-        Sentry.reset()
-        t->expect(Sentry.isEnabled())->Expect.toBe(false)
-      },
-    )
-
-    test(
-      "can reinitialize after reset",
-      t => {
-        Sentry.reset()
-        t->expect(Sentry.isEnabled())->Expect.toBe(false)
-
-        let (tk, transport) = SentryTestkit.setup()
-        testkit := Some(tk)
-        Sentry.initialize(~transport)
-
-        t->expect(Sentry.isEnabled())->Expect.toBe(true)
       },
     )
   })

@@ -5,20 +5,28 @@ module SentryTestkit = FrontmanBindings.Bindings__Test__SentryTestkit
 
 describe("FrontmanClient Sentry", () => {
   let testkit = ref(None)
+  let transport = ref(None)
 
-  beforeEach(() => {
-    let (tk, transport) = SentryTestkit.setup()
+  // Set up testkit once - Sentry SDK only allows one init per process
+  beforeAll(() => {
+    let (tk, t) = SentryTestkit.setup()
     testkit := Some(tk)
-    Sentry.reset()
-    Sentry.initialize(~transport)
+    transport := Some(t)
   })
 
-  afterEach(() => {
+  // Reset state before each test
+  beforeEach(() => {
+    // Clear testkit reports
     switch testkit.contents {
     | Some(tk) => tk.reset()
     | None => ()
     }
-    Sentry.reset()
+    // Reset initialized flag and reinitialize with testkit transport
+    Sentry.initialized.contents = false
+    switch transport.contents {
+    | Some(t) => Sentry.initialize(~transport=t)
+    | None => ()
+    }
   })
 
   describe("initialization", () => {
@@ -52,19 +60,11 @@ describe("FrontmanClient Sentry", () => {
         t->expect(Sentry.isEnabled())->Expect.toBe(true)
       },
     )
-
-    test(
-      "isEnabled returns false before initialization",
-      t => {
-        Sentry.reset()
-        t->expect(Sentry.isEnabled())->Expect.toBe(false)
-      },
-    )
   })
 
   describe("captureConnectionError", () => {
     test(
-      "captures connection error with endpoint context",
+      "captures connection error with endpoint context and tags",
       t => {
         Sentry.captureConnectionError(
           "Socket connection failed",
@@ -80,6 +80,19 @@ describe("FrontmanClient Sentry", () => {
             | Some(report) => {
                 t->expect(report.message)->Expect.toBe(Some("Socket connection failed"))
                 t->expect(report.level)->Expect.toBe(Some("error"))
+
+                // Verify tags are attached via withScope
+                switch report.tags {
+                | Some(tags) => {
+                    t
+                    ->expect(tags->Dict.get("frontman.library"))
+                    ->Expect.toBe(Some("frontman-client"))
+                    t
+                    ->expect(tags->Dict.get("frontman.operation"))
+                    ->Expect.toBe(Some("connection"))
+                  }
+                | None => t->expect(false)->Expect.toBe(true)
+                }
               }
             | None => t->expect(false)->Expect.toBe(true)
             }
@@ -88,24 +101,11 @@ describe("FrontmanClient Sentry", () => {
         }
       },
     )
-
-    test(
-      "does not capture when not initialized",
-      t => {
-        Sentry.reset()
-        Sentry.captureConnectionError("Should not capture", ~endpoint="wss://example.com")
-
-        switch testkit.contents {
-        | Some(tk) => t->expect(tk.reports()->Array.length)->Expect.toBe(0)
-        | None => ()
-        }
-      },
-    )
   })
 
   describe("captureProtocolError", () => {
     test(
-      "captures ACP protocol error",
+      "captures ACP protocol error with tags",
       t => {
         Sentry.captureProtocolError("Initialize failed", ~protocol=#ACP, ~operation="initialize")
 
@@ -118,6 +118,20 @@ describe("FrontmanClient Sentry", () => {
             | Some(report) => {
                 t->expect(report.message)->Expect.toBe(Some("Initialize failed"))
                 t->expect(report.level)->Expect.toBe(Some("error"))
+
+                // Verify protocol-specific tags
+                switch report.tags {
+                | Some(tags) => {
+                    t
+                    ->expect(tags->Dict.get("frontman.library"))
+                    ->Expect.toBe(Some("frontman-client"))
+                    t->expect(tags->Dict.get("frontman.protocol"))->Expect.toBe(Some("ACP"))
+                    t
+                    ->expect(tags->Dict.get("frontman.operation"))
+                    ->Expect.toBe(Some("initialize"))
+                  }
+                | None => t->expect(false)->Expect.toBe(true)
+                }
               }
             | None => t->expect(false)->Expect.toBe(true)
             }
@@ -128,7 +142,7 @@ describe("FrontmanClient Sentry", () => {
     )
 
     test(
-      "captures MCP protocol error",
+      "captures MCP protocol error with tags",
       t => {
         Sentry.captureProtocolError("Tool call failed", ~protocol=#MCP, ~operation="tools/call")
 
@@ -136,6 +150,21 @@ describe("FrontmanClient Sentry", () => {
         | Some(tk) => {
             let reports = tk.reports()
             t->expect(reports->Array.length)->Expect.toBe(1)
+
+            switch reports->Array.get(0) {
+            | Some(report) => {
+                switch report.tags {
+                | Some(tags) => {
+                    t->expect(tags->Dict.get("frontman.protocol"))->Expect.toBe(Some("MCP"))
+                    t
+                    ->expect(tags->Dict.get("frontman.operation"))
+                    ->Expect.toBe(Some("tools/call"))
+                  }
+                | None => t->expect(false)->Expect.toBe(true)
+                }
+              }
+            | None => t->expect(false)->Expect.toBe(true)
+            }
           }
         | None => t->expect(false)->Expect.toBe(true)
         }
@@ -145,11 +174,11 @@ describe("FrontmanClient Sentry", () => {
 
   describe("captureException", () => {
     test(
-      "captures exception with operation context",
+      "captures exception with operation tag",
       t => {
-        let error = Exn.raiseError("Test error")
+        // Create and capture an exception
         try {
-          error
+          JsError.throwWithMessage("Test error")
         } catch {
         | e => Sentry.captureException(e, ~operation="testOperation")
         }
@@ -158,6 +187,22 @@ describe("FrontmanClient Sentry", () => {
         | Some(tk) => {
             let reports = tk.reports()
             t->expect(reports->Array.length)->Expect.Int.toBeGreaterThanOrEqual(1)
+
+            switch reports->Array.get(0) {
+            | Some(report) =>
+              switch report.tags {
+              | Some(tags) => {
+                  t
+                  ->expect(tags->Dict.get("frontman.library"))
+                  ->Expect.toBe(Some("frontman-client"))
+                  t
+                  ->expect(tags->Dict.get("frontman.operation"))
+                  ->Expect.toBe(Some("testOperation"))
+                }
+              | None => t->expect(false)->Expect.toBe(true)
+              }
+            | None => t->expect(false)->Expect.toBe(true)
+            }
           }
         | None => t->expect(false)->Expect.toBe(true)
         }

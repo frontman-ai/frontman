@@ -24,11 +24,6 @@ let initialize = (~transport: option<Bindings.transport>=?) => {
   }
 }
 
-// Reset initialization state - useful for tests
-let reset = () => {
-  initialized.contents = false
-}
-
 let isEnabled = () => initialized.contents && Bindings.isInitialized()
 
 let captureError = (error: exn, ~operation: option<string>=?, ~extra: option<Dict.t<JSON.t>>=?) => {
