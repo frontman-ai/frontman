@@ -110,6 +110,13 @@ type sessionLoadParams = {
   mcpServers: array<JSON.t>,
 }
 
+// delete_session request params (non-ACP channel event)
+@schema
+type deleteSessionParams = {
+  @as("sessionId")
+  sessionId: string,
+}
+
 // Annotations for embedded resources
 @schema
 type annotations = {

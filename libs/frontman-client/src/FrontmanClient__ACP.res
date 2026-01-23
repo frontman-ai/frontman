@@ -389,7 +389,8 @@ let listSessions = (conn: connection): promise<result<array<Types.sessionSummary
 // Delete a session (non-ACP channel event)
 let deleteSession = (conn: connection, sessionId: string): promise<result<unit, string>> => {
   Promise.make((resolve, _) => {
-    let payload = JSON.Encode.object(Dict.fromArray([("sessionId", JSON.Encode.string(sessionId))]))
+    let params: Types.deleteSessionParams = {sessionId: sessionId}
+    let payload = params->S.reverseConvertToJsonOrThrow(Types.deleteSessionParamsSchema)
     let pushRef = conn.channel->Channel.push(~event=#delete_session, ~payload)
     pushRef
     .receive(~status="ok", ~callback=_ => resolve(Ok()))
