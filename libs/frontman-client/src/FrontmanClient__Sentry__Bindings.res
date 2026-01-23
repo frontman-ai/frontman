@@ -19,7 +19,7 @@ type scopeContext = {
 }
 
 // Transport type for custom transports (e.g., sentry-testkit)
-type transport
+type transport = FrontmanBindings.Bindings__Sentry__Transport.t
 
 type initOptions = {
   dsn: string,
@@ -48,7 +48,7 @@ external captureMessage: (string, ~level: severity=?) => string = "captureMessag
 
 // Scope manipulation
 type scope
-@module("@sentry/browser") external withScope: (scope => unit) => unit = "withScope"
+@module("@sentry/browser") external withScope: (scope => 'a) => 'a = "withScope"
 @send external scopeSetTag: (scope, string, string) => unit = "setTag"
 @send external scopeSetExtra: (scope, string, JSON.t) => unit = "setExtra"
 @send external scopeSetContext: (scope, string, Dict.t<JSON.t>) => unit = "setContext"

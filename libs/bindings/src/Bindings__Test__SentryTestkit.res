@@ -31,7 +31,7 @@ type testkit = {
   findReport: string => Nullable.t<report>,
 }
 
-type transport
+type transport = Bindings__Sentry__Transport.t
 
 type testkitResult = {
   testkit: testkit,

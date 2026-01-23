@@ -1,7 +1,7 @@
 open Vitest
 
 module Sentry = FrontmanNextjs__Sentry
-module SentryTestkit = Bindings__Test__SentryTestkit
+module SentryTestkit = FrontmanBindings.Bindings__Test__SentryTestkit
 
 describe("FrontmanNextjs Sentry", () => {
   let testkit = ref(None)
@@ -66,8 +66,8 @@ describe("FrontmanNextjs Sentry", () => {
         t->expect(eventId->Option.isSome)->Expect.toBe(true)
 
         switch testkit.contents {
-        | Some(tk) => t->expect(tk.reports()->Array.length)->Expect.toBeGreaterThanOrEqual(1)
-        | None => t->fail("Testkit not initialized")
+        | Some(tk) => t->expect(tk.reports()->Array.length)->Expect.Int.toBeGreaterThanOrEqual(1)
+        | None => t->expect(false)->Expect.toBe(true)
         }
       },
     )
@@ -85,9 +85,9 @@ describe("FrontmanNextjs Sentry", () => {
         switch testkit.contents {
         | Some(tk) => {
             let reports = tk.reports()
-            t->expect(reports->Array.length)->Expect.toBeGreaterThanOrEqual(1)
+            t->expect(reports->Array.length)->Expect.Int.toBeGreaterThanOrEqual(1)
           }
-        | None => t->fail("Testkit not initialized")
+        | None => t->expect(false)->Expect.toBe(true)
         }
       },
     )
@@ -108,8 +108,8 @@ describe("FrontmanNextjs Sentry", () => {
         }
 
         switch testkit.contents {
-        | Some(tk) => t->expect(tk.reports()->Array.length)->Expect.toBeGreaterThanOrEqual(1)
-        | None => t->fail("Testkit not initialized")
+        | Some(tk) => t->expect(tk.reports()->Array.length)->Expect.Int.toBeGreaterThanOrEqual(1)
+        | None => t->expect(false)->Expect.toBe(true)
         }
       },
     )
@@ -146,10 +146,10 @@ describe("FrontmanNextjs Sentry", () => {
 
             switch reports->Array.get(0) {
             | Some(report) => t->expect(report.message)->Expect.toBe(Some("Something went wrong"))
-            | None => t->fail("Expected a report")
+            | None => t->expect(false)->Expect.toBe(true)
             }
           }
-        | None => t->fail("Testkit not initialized")
+        | None => t->expect(false)->Expect.toBe(true)
         }
       },
     )
@@ -166,10 +166,10 @@ describe("FrontmanNextjs Sentry", () => {
 
             switch reports->Array.get(0) {
             | Some(report) => t->expect(report.level)->Expect.toBe(Some("warning"))
-            | None => t->fail("Expected a report")
+            | None => t->expect(false)->Expect.toBe(true)
             }
           }
-        | None => t->fail("Testkit not initialized")
+        | None => t->expect(false)->Expect.toBe(true)
         }
       },
     )
@@ -181,7 +181,7 @@ describe("FrontmanNextjs Sentry", () => {
 
         switch testkit.contents {
         | Some(tk) => t->expect(tk.reports()->Array.length)->Expect.toBe(1)
-        | None => t->fail("Testkit not initialized")
+        | None => t->expect(false)->Expect.toBe(true)
         }
       },
     )
@@ -213,13 +213,13 @@ describe("FrontmanNextjs Sentry", () => {
             | Some(report) =>
               switch report.breadcrumbs {
               | Some(breadcrumbs) =>
-                t->expect(breadcrumbs->Array.length)->Expect.toBeGreaterThanOrEqual(1)
+                t->expect(breadcrumbs->Array.length)->Expect.Int.toBeGreaterThanOrEqual(1)
               | None => () // Breadcrumbs may not always be present
               }
             | None => ()
             }
           }
-        | None => t->fail("Testkit not initialized")
+        | None => t->expect(false)->Expect.toBe(true)
         }
       },
     )
@@ -246,7 +246,7 @@ describe("FrontmanNextjs Sentry", () => {
 
         switch testkit.contents {
         | Some(tk) => t->expect(tk.reports()->Array.length)->Expect.toBe(3)
-        | None => t->fail("Testkit not initialized")
+        | None => t->expect(false)->Expect.toBe(true)
         }
       },
     )

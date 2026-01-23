@@ -21,7 +21,7 @@ type scopeContext = {
 }
 
 // Transport type for custom transports (e.g., sentry-testkit)
-type transport
+type transport = FrontmanBindings.Bindings__Sentry__Transport.t
 
 // Standard Sentry init options
 type initOptions = {
@@ -52,7 +52,7 @@ external captureMessage: (string, ~level: severity=?) => string = "captureMessag
 
 // Scope manipulation
 type scope
-@module("@sentry/nextjs") external withScope: (scope => unit) => unit = "withScope"
+@module("@sentry/nextjs") external withScope: (scope => 'a) => 'a = "withScope"
 @send external scopeSetTag: (scope, string, string) => unit = "setTag"
 @send external scopeSetExtra: (scope, string, JSON.t) => unit = "setExtra"
 @send external scopeSetContext: (scope, string, Dict.t<JSON.t>) => unit = "setContext"

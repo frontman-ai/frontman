@@ -39,8 +39,8 @@ let captureConnectionError = (message: string, ~endpoint: string) => {
         "connection",
         Dict.fromArray([("endpoint", JSON.Encode.string(endpoint))]),
       )
+      Bindings.captureMessage(message, ~level=#error)->ignore
     })
-    Bindings.captureMessage(message, ~level=#error)->ignore
   }
 }
 
@@ -56,8 +56,8 @@ let captureProtocolError = (message: string, ~protocol: protocol, ~operation: st
       scope->Bindings.scopeSetTag("frontman.library", "frontman-client")
       scope->Bindings.scopeSetTag("frontman.protocol", protocolStr)
       scope->Bindings.scopeSetTag("frontman.operation", operation)
+      Bindings.captureMessage(message, ~level=#error)->ignore
     })
-    Bindings.captureMessage(message, ~level=#error)->ignore
   }
 }
 
@@ -69,8 +69,8 @@ let captureException = (error: exn, ~operation: option<string>=?) => {
       | Some(op) => scope->Bindings.scopeSetTag("frontman.operation", op)
       | None => ()
       }
+      Bindings.captureException(error)->ignore
     })
-    Bindings.captureException(error)->ignore
   }
 }
 

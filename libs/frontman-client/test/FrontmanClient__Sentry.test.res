@@ -1,7 +1,7 @@
 open Vitest
 
 module Sentry = FrontmanClient__Sentry
-module SentryTestkit = Bindings__Test__SentryTestkit
+module SentryTestkit = FrontmanBindings.Bindings__Test__SentryTestkit
 
 describe("FrontmanClient Sentry", () => {
   let testkit = ref(None)
@@ -81,10 +81,10 @@ describe("FrontmanClient Sentry", () => {
                 t->expect(report.message)->Expect.toBe(Some("Socket connection failed"))
                 t->expect(report.level)->Expect.toBe(Some("error"))
               }
-            | None => t->fail("Expected a report")
+            | None => t->expect(false)->Expect.toBe(true)
             }
           }
-        | None => t->fail("Testkit not initialized")
+        | None => t->expect(false)->Expect.toBe(true)
         }
       },
     )
@@ -119,10 +119,10 @@ describe("FrontmanClient Sentry", () => {
                 t->expect(report.message)->Expect.toBe(Some("Initialize failed"))
                 t->expect(report.level)->Expect.toBe(Some("error"))
               }
-            | None => t->fail("Expected a report")
+            | None => t->expect(false)->Expect.toBe(true)
             }
           }
-        | None => t->fail("Testkit not initialized")
+        | None => t->expect(false)->Expect.toBe(true)
         }
       },
     )
@@ -137,7 +137,7 @@ describe("FrontmanClient Sentry", () => {
             let reports = tk.reports()
             t->expect(reports->Array.length)->Expect.toBe(1)
           }
-        | None => t->fail("Testkit not initialized")
+        | None => t->expect(false)->Expect.toBe(true)
         }
       },
     )
@@ -157,9 +157,9 @@ describe("FrontmanClient Sentry", () => {
         switch testkit.contents {
         | Some(tk) => {
             let reports = tk.reports()
-            t->expect(reports->Array.length)->Expect.toBeGreaterThanOrEqual(1)
+            t->expect(reports->Array.length)->Expect.Int.toBeGreaterThanOrEqual(1)
           }
-        | None => t->fail("Testkit not initialized")
+        | None => t->expect(false)->Expect.toBe(true)
         }
       },
     )
@@ -183,13 +183,13 @@ describe("FrontmanClient Sentry", () => {
             | Some(report) =>
               switch report.breadcrumbs {
               | Some(breadcrumbs) =>
-                t->expect(breadcrumbs->Array.length)->Expect.toBeGreaterThanOrEqual(1)
+                t->expect(breadcrumbs->Array.length)->Expect.Int.toBeGreaterThanOrEqual(1)
               | None => () // Breadcrumbs may not be present in all report formats
               }
             | None => ()
             }
           }
-        | None => t->fail("Testkit not initialized")
+        | None => t->expect(false)->Expect.toBe(true)
         }
       },
     )
@@ -218,7 +218,7 @@ describe("FrontmanClient Sentry", () => {
 
         switch testkit.contents {
         | Some(tk) => t->expect(tk.reports()->Array.length)->Expect.toBe(3)
-        | None => t->fail("Testkit not initialized")
+        | None => t->expect(false)->Expect.toBe(true)
         }
       },
     )
@@ -236,7 +236,7 @@ describe("FrontmanClient Sentry", () => {
             let reports = tk.reports()
             t->expect(reports->Array.length)->Expect.toBe(1)
           }
-        | None => t->fail("Testkit not initialized")
+        | None => t->expect(false)->Expect.toBe(true)
         }
       },
     )
