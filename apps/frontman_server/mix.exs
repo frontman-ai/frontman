@@ -57,6 +57,7 @@ defmodule FrontmanServer.MixProject do
   defp deps do
     [
       {:bcrypt_elixir, "~> 3.0"},
+      {:cloak_ecto, "~> 1.3"},
       {:phoenix, "~> 1.8.1"},
       {:phoenix_ecto, "~> 4.5"},
       {:ecto_sql, "~> 3.13"},

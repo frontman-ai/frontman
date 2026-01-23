@@ -1,4 +1,5 @@
 // State type definitions - extracted to avoid circular dependencies
+S.enableJson()
 
 // Content part types for messages (simplified from Vercel AI SDK)
 module UserContentPart = {
@@ -426,6 +427,7 @@ type sendPromptFn = (
   string,
   ~additionalBlocks: array<ACPTypes.contentBlock>,
   ~onComplete: result<ACPTypes.promptResult, string> => unit,
+  ~metadata: option<JSON.t>,
 ) => unit
 
 // Connection state for the Frontman ACP session
@@ -433,9 +435,85 @@ type connectionState =
   | Disconnected
   | Connected(sendPromptFn)
 
+// Usage info from API
+@schema
+type usageInfo = {
+  limit: option<int>,
+  remaining: option<int>,
+  hasUserKey: option<bool>,
+  hasServerKey: option<bool>,
+}
+
+// API key source status for settings display
+type apiKeySource =
+  | None // No key configured
+  | FromEnv // Key loaded from environment variable
+  | UserOverride // User has saved their own key (stored in DB)
+
+// API key save operation status
+type apiKeySaveStatus =
+  | Idle
+  | Saving
+  | Saved
+  | SaveError(string)
+
+// API key settings for a provider
+type apiKeySettings = {
+  source: apiKeySource,
+  saveStatus: apiKeySaveStatus,
+}
+
+// Model configuration types
+@schema
+type modelConfig = {
+  displayName: string,
+  value: string,
+}
+
+@schema
+type providerConfig = {
+  id: string,
+  name: string,
+  models: array<modelConfig>,
+}
+
+@schema
+type modelsConfigDefaultModel = {
+  provider: string,
+  value: string,
+}
+
+@schema
+type modelsConfig = {
+  providers: array<providerConfig>,
+  defaultModel: modelsConfigDefaultModel,
+}
+
+// Selected model - what gets sent to the server
+@schema
+type selectedModel = {
+  provider: string,
+  value: string,
+}
+
+// Anthropic OAuth connection status
+type anthropicOAuthStatus =
+  | NotConnected
+  | FetchingStatus
+  | Authorizing({authorizeUrl: string, verifier: string})
+  | Exchanging
+  | Connected({expiresAt: float})
+  | Error(string)
+
 type state = {
   tasks: Dict.t<Task.t>,
   currentTaskId: option<string>,
   connectionState: connectionState,
   sessionInitialized: bool,
+  usageInfo: option<usageInfo>,
+  apiBaseUrl: option<string>,
+  openrouterKeySettings: apiKeySettings,
+  anthropicOAuthStatus: anthropicOAuthStatus,
+  modelsConfig: option<modelsConfig>,
+  selectedModel: option<selectedModel>,
 }

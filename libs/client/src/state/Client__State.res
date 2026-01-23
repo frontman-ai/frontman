@@ -98,7 +98,7 @@ module Actions = {
   let clearFigmaNodeWaiting = () => Client__State__Store.dispatch(ClearFigmaNodeWaiting)
 
   // Connection action creators
-  let connect = (~sendPrompt) => Client__State__Store.dispatch(Connect({sendPrompt: sendPrompt}))
+  let connect = (~sendPrompt, ~apiBaseUrl) => Client__State__Store.dispatch(Connect({sendPrompt: sendPrompt, apiBaseUrl: apiBaseUrl}))
 
   let disconnect = () => Client__State__Store.dispatch(Disconnect)
 
@@ -113,4 +113,30 @@ module Actions = {
   // Plan action creators (ACP compliant)
   let planReceived = (~taskId: string, ~entries) =>
     Client__State__Store.dispatch(PlanReceived({taskId, entries}))
+
+  // API key settings action creators
+  let fetchApiKeySettings = () => Client__State__Store.dispatch(FetchApiKeySettings)
+
+  let saveOpenRouterKey = (~key) => Client__State__Store.dispatch(SaveOpenRouterKey({key: key}))
+
+  let resetOpenRouterKeySaveStatus = () =>
+    Client__State__Store.dispatch(ResetOpenRouterKeySaveStatus)
+
+  // Model selection action creators
+  let fetchModelsConfig = () => Client__State__Store.dispatch(FetchModelsConfig)
+
+  let setSelectedModel = (~provider, ~value) =>
+    Client__State__Store.dispatch(SetSelectedModel({model: {provider, value}}))
+
+  // Anthropic OAuth action creators
+  let fetchAnthropicOAuthStatus = () => Client__State__Store.dispatch(FetchAnthropicOAuthStatus)
+
+  let initiateAnthropicOAuth = () => Client__State__Store.dispatch(InitiateAnthropicOAuth)
+
+  let exchangeAnthropicOAuthCode = (~code, ~verifier) =>
+    Client__State__Store.dispatch(ExchangeAnthropicOAuthCode({code, verifier}))
+
+  let disconnectAnthropicOAuth = () => Client__State__Store.dispatch(DisconnectAnthropicOAuth)
+
+  let resetAnthropicOAuthError = () => Client__State__Store.dispatch(ResetAnthropicOAuthError)
 }

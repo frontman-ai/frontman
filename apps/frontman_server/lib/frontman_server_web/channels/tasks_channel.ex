@@ -42,11 +42,15 @@ defmodule FrontmanServerWeb.TasksChannel do
        ) do
     Logger.info("ACP initialize from #{inspect(params["clientInfo"])}")
 
+    # Extract env API key from clientInfo metadata (if provided by the project)
+    env_api_key = extract_env_api_key(params["clientInfo"])
+
     socket =
       socket
       |> assign(:acp_initialized, true)
       |> assign(:acp_client_info, params["clientInfo"])
       |> assign(:acp_client_capabilities, params["clientCapabilities"])
+      |> assign(:env_api_key, env_api_key)
 
     push_response(socket, id, ACP.build_initialize_result())
   end
@@ -93,6 +97,16 @@ defmodule FrontmanServerWeb.TasksChannel do
   defp extract_framework(nil), do: nil
   defp extract_framework(client_info) when is_map(client_info), do: Map.get(client_info, "name")
   defp extract_framework(_), do: nil
+
+  # Extract env API key from clientInfo metadata (e.g., OPENROUTER_API_KEY from Next.js project)
+  defp extract_env_api_key(client_info) when is_map(client_info) do
+    case get_in(client_info, ["metadata", "openrouterKeyValue"]) do
+      key when is_binary(key) and key != "" -> %{"openrouter" => key}
+      _ -> %{}
+    end
+  end
+
+  defp extract_env_api_key(_), do: %{}
 
   # Parse errors
   defp handle_parse_error(reason, %{"id" => id}, socket) do

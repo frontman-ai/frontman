@@ -61,7 +61,12 @@ defmodule FrontmanServer.Tools.BreakdownFigmaDesign do
   end
 
   @impl true
-  def execute(args, %Context{task: task, tool_executor: tool_executor, mcp_tools: mcp_tools}) do
+  def execute(args, %Context{
+        task: task,
+        tool_executor: tool_executor,
+        mcp_tools: mcp_tools,
+        llm_opts: llm_opts
+      }) do
     node_id = Map.get(args, "nodeId")
     max_volume = Map.get(args, "maxComponentVolume", 5)
     figma_context = Map.get(args, "context")
@@ -76,7 +81,12 @@ defmodule FrontmanServer.Tools.BreakdownFigmaDesign do
           build_user_message(node_id, max_volume, figma_context, figma_image, figma_skeleton)
 
         # Build FigmaBreakdownAgent - use executor from context
-        agent = SpecializedAgent.new(:figma_breakdown, tools: mcp_tools)
+        agent =
+          SpecializedAgent.new(:figma_breakdown,
+            tools: mcp_tools,
+            model: llm_opts[:model],
+            llm_opts: llm_opts
+          )
 
         case Swarm.run_blocking(agent, [user_msg], tool_executor) do
           {:ok, result} ->

@@ -12,6 +12,7 @@ module Icons = Bindings__RadixUI__Icons
 module TaskTabs = Client__TaskTabs
 module Message = Client__State__Types.Message
 module StateTypes = Client__State__Types
+module RuntimeConfig = Client__RuntimeConfig
 
 // Import Frontman UI components
 module UserMessage = Client__UserMessage
@@ -99,15 +100,9 @@ let groupMessages = (messages: array<Message.t>): array<displayItem> => {
   result
 }
 
-let models: array<PromptInput.model> = [
-  {name: "GPT 4o", value: "openai/gpt-4o"},
-  {name: "Deepseek R1", value: "deepseek/deepseek-r1"},
-]
-
 @react.component
 let make = () => {
   let (input, setInput) = React.useState(() => "")
-  let (model, setModel) = React.useState(() => Array.getUnsafe(models, 0).value)
 
   // Get messages from our state store
   let messages = Client__State.useSelector(Client__State.Selectors.messages)
@@ -116,6 +111,22 @@ let make = () => {
   let isConnected = Client__State.useSelector(Client__State.Selectors.isConnected)
   let sessionInitialized = Client__State.useSelector(Client__State.Selectors.sessionInitialized)
   let planEntries = Client__State.useSelector(Client__State.Selectors.currentPlanEntries)
+  let usageInfo = Client__State.useSelector(Client__State.Selectors.usageInfo)
+  let modelsConfig = Client__State.useSelector(Client__State.Selectors.modelsConfig)
+  let selectedModel = Client__State.useSelector(Client__State.Selectors.selectedModel)
+  let runtimeConfig = RuntimeConfig.read()
+  let hasEnvKey = RuntimeConfig.hasOpenrouterKey(runtimeConfig)
+
+  // Get providers from modelsConfig
+  let providers = modelsConfig->Option.mapOr([], config => config.providers)
+
+  // Check if free requests are exhausted (no user key, no env key, using server key with 0 remaining)
+  let isUsageExhausted = switch usageInfo {
+  | Some({remaining: Some(remaining), hasUserKey: Some(false), hasServerKey: Some(true)})
+    if remaining <= 0 && !hasEnvKey =>
+    true
+  | _ => false
+  }
 
   // Use the thinking state hook
   let (thinkingState, thinkingMessageId) = UseThinkingState.useWithMessageId(
@@ -297,18 +308,30 @@ let make = () => {
       </ScrollContainer.ContentWrapper>
       <ScrollContainer.ScrollButton />
     </ScrollContainer>
-    <Client__PlanDisplay entries=planEntries />
-    <Client__SelectedElementDisplay />
-    <Client__FigmaNodeDisplay />
-    <PromptInput
-      value={input}
-      onChange={v => setInput(_ => v)}
-      onSubmit={handleSubmit}
-      models
-      selectedModel={model}
-      onModelChange={v => setModel(_ => v)}
-      isAgentRunning
-      isConnected
-    />
-  </div>
-}
+     <Client__PlanDisplay entries=planEntries />
+     <Client__SelectedElementDisplay />
+     <Client__FigmaNodeDisplay />
+     {switch usageInfo {
+     | Some({limit: Some(limit), remaining: Some(remaining), hasUserKey: Some(false), hasServerKey: Some(true)})
+       if !hasEnvKey =>
+       <div className="px-4 pb-1 text-xs text-zinc-400">
+         {React.string(`Free requests remaining: ${remaining->Int.toString} / ${limit->Int.toString}. Add your API key in Settings to remove limits.`)}
+       </div>
+     | _ => React.null
+     }}
+     <PromptInput
+        value={input}
+        onChange={v => setInput(_ => v)}
+        onSubmit={handleSubmit}
+        providers
+        selectedModel
+        onModelChange={(~provider, ~value) =>
+          Client__State.Actions.setSelectedModel(~provider, ~value)}
+        isAgentRunning
+        isConnected
+        disabled={isUsageExhausted}
+        disabledPlaceholder="Free requests exhausted. Add your API key in Settings to continue."
+      />
+   </div>
+ }
+

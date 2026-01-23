@@ -27,11 +27,8 @@ let generateId: unit => string = %raw(`
   }
 `)
 
-// Model type
-type model = {
-  name: string,
-  value: string,
-}
+// Re-export model types from state for external use
+module StateTypes = Client__State__Types
 
 // Attachment preview chip
 module AttachmentChip = {
@@ -68,16 +65,28 @@ module AttachmentChip = {
   }
 }
 
-// Model selector dropdown
+// Model selector dropdown - supports grouped providers
 module ModelSelector = {
   @react.component
-  let make = (~models: array<model>, ~value: string, ~onChange: string => unit) => {
+  let make = (
+    ~providers: array<StateTypes.providerConfig>,
+    ~selectedValue: string,
+    ~onModelChange: (~provider: string, ~value: string) => unit,
+  ) => {
     <div className="relative">
       <select
-        value
+        value={selectedValue}
         onChange={e => {
           let target = ReactEvent.Form.target(e)
-          onChange(target["value"])
+          let value: string = target["value"]
+          // Parse the combined value "provider:model_value"
+          switch value->String.split(":")->Array.get(0) {
+          | Some(provider) =>
+            // Value is everything after "provider:"
+            let modelValue = value->String.slice(~start=String.length(provider) + 1, ~end=String.length(value))
+            onModelChange(~provider, ~value=modelValue)
+          | None => ()
+          }
         }}
         className="appearance-none h-7 pl-2 pr-6 text-xs
                    bg-transparent text-zinc-400 
@@ -85,10 +94,16 @@ module ModelSelector = {
                    hover:text-zinc-200 hover:bg-zinc-700/30
                    focus:outline-none focus:ring-0"
       >
-        {models->Array.map(m => {
-          <option key={m.value} value={m.value}>
-            {React.string(m.name)}
-          </option>
+        {providers->Array.map(provider => {
+          <optgroup key={provider.id} label={provider.name}>
+            {provider.models->Array.map(model => {
+              // Combine provider:value for unique identification
+              let combinedValue = `${provider.id}:${model.value}`
+              <option key={combinedValue} value={combinedValue}>
+                {React.string(model.displayName)}
+              </option>
+            })->React.array}
+          </optgroup>
         })->React.array}
       </select>
       <Icons.ChevronDownIcon 
@@ -126,12 +141,14 @@ let make = (
   ~value: string,
   ~onChange: string => unit,
   ~onSubmit: unit => unit,
-  ~models: array<model>,
-  ~selectedModel: string,
-  ~onModelChange: string => unit,
+  ~providers: array<StateTypes.providerConfig>,
+  ~selectedModel: option<StateTypes.selectedModel>,
+  ~onModelChange: (~provider: string, ~value: string) => unit,
   ~isAgentRunning: bool,
   ~isConnected: bool,
   ~placeholder: string="What would you like to change?",
+  ~disabled: bool=false,
+  ~disabledPlaceholder: option<string>=?,
 ) => {
   let (attachments, setAttachments) = React.useState(() => [])
   let (isDragging, setIsDragging) = React.useState(() => false)
@@ -216,8 +233,17 @@ let make = (
   }
   
   let hasContent = value != "" || Array.length(attachments) > 0
-  let isInputDisabled = !isConnected || isAgentRunning
+  let isInputDisabled = !isConnected || isAgentRunning || disabled
   let isSubmitDisabled = isInputDisabled || !hasContent
+  
+  // Determine placeholder text based on state
+  let currentPlaceholder = if disabled {
+    disabledPlaceholder->Option.getOr("Input disabled")
+  } else if isAgentRunning {
+    "Waiting for response..."
+  } else {
+    placeholder
+  }
   
   <div 
     className={`bg-zinc-900 border-t border-zinc-800 ${isDragging ? "ring-2 ring-blue-500/50" : ""}`}
@@ -244,7 +270,7 @@ let make = (
           onChange(target["value"])
         }}
         onKeyDown={handleKeyDown}
-        placeholder={isAgentRunning ? "Waiting for response..." : placeholder}
+        placeholder={currentPlaceholder}
         rows=1
         className={[
           "w-full min-h-[40px] max-h-[200px] px-3 py-2",
@@ -286,8 +312,16 @@ let make = (
           className="hidden"
         />
         
-        // Model selector
-        <ModelSelector models value={selectedModel} onChange={onModelChange} />
+        // Model selector - only show if we have providers
+        {Array.length(providers) > 0
+          ? <ModelSelector
+              providers
+              selectedValue={selectedModel
+                ->Option.map(m => `${m.provider}:${m.value}`)
+                ->Option.getOr("")}
+              onModelChange
+            />
+          : React.null}
       </div>
       
       <SubmitButton disabled={isSubmitDisabled} onClick={handleSubmit} />

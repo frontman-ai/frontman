@@ -477,9 +477,10 @@ defmodule FrontmanServer.Agents.Prompts do
   **Best Practice**: Start with search_files to locate relevant files by name, then use grep to search content within those areas, then list/read specific files before editing.
   """
 
-  @base_system_prompt """
-  You are a coding assistant.
+  # Default identity line for the assistant
+  @default_identity "You are a coding assistant."
 
+  @base_system_prompt """
   ## Rules
 
   - Use paths as provided. If given an absolute path, use it as-is.
@@ -526,99 +527,149 @@ defmodule FrontmanServer.Agents.Prompts do
   - Brief notes: build/test results or follow-ups
   """
 
+  # ===========================================================================
   # Prompt Building API
+  # ===========================================================================
 
   @doc """
-  Builds a complete system message for the LLM.
+  Builds the system prompt for an agent.
 
-  Returns a ReqLLM system message with cache control.
-  Each guidance section is added as a separate content block.
+  Always returns a single string with identity + prompt combined.
+  OAuth transformations (identity override, content splitting) are handled
+  at the LLM boundary by LLMClient.
 
-  ## Options
-  - `:has_figma_context` - When true, adds Figma-specific guidance for breaking down designs
-  - `:has_selected_component` - When true, adds guidance for selected component replacement flow
-  - `:figma_node_id` - The Figma node ID to use for breakdown_figma_design (extracted from resource URI)
-  - `:framework` - Framework name (e.g., "nextjs") to add framework-specific guidance
-  """
-  @spec build_system_message(atom() | nil, keyword()) :: map()
-  def build_system_message(_role, opts \\ []) do
-    content_parts = [
-      ContentPart.text(@base_system_prompt)
-    ]
+  ## Structure
 
-    has_figma = Keyword.get(opts, :has_figma_context, false)
-    has_selected_component = Keyword.get(opts, :has_selected_component, false)
-    figma_node_id = Keyword.get(opts, :figma_node_id)
-
-    content_parts =
-      cond do
-        has_figma && has_selected_component ->
-          content_parts ++
-            [ContentPart.text(figma_with_selected_component_guidance(figma_node_id))]
-
-        has_figma ->
-          content_parts ++ [ContentPart.text(figma_context_guidance(figma_node_id))]
-
-        has_selected_component ->
-          content_parts ++ [ContentPart.text(selected_component_guidance())]
-
-        true ->
-          content_parts
-      end
-
-    content_parts =
-      case Keyword.get(opts, :framework) do
-        "nextjs" -> content_parts ++ [ContentPart.text(nextjs_guidance())]
-        _ -> content_parts
-      end
-
-    ReqLLM.Context.system(content_parts)
-  end
-
-  @doc """
-  Builds the system prompt text for an agent.
+  1. Identity line - "You are a coding assistant."
+  2. Base system prompt (rules, tool guidance, etc.)
+  3. Project rules (AGENTS.md, etc.) - if any
+  4. Context-specific guidance (Figma, framework, etc.)
 
   ## Options
-  - `:has_figma_context` - When true, adds Figma-specific guidance for breaking down designs
+
+  - `:project_rules` - List of project rule maps with `:path`, `:content`, and `:timestamp` keys
+  - `:has_figma_context` - When true, adds Figma-specific guidance
   - `:has_selected_component` - When true, adds guidance for selected component replacement flow
-  - `:figma_node_id` - The Figma node ID to use for breakdown_figma_design (extracted from resource URI)
+  - `:figma_node_id` - The Figma node ID to use for breakdown_figma_design
   - `:framework` - Framework name (e.g., "nextjs") to add framework-specific guidance
+
+  ## Examples
+
+      iex> Prompts.build()
+      "You are a coding assistant.\\n\\n## Rules..."
+
+      # With project rules
+      iex> Prompts.build(project_rules: [%{path: "AGENTS.md", content: "...", timestamp: ~U[...]}])
   """
   @spec build(keyword()) :: String.t()
   def build(opts \\ []) do
-    prompt = @base_system_prompt
+    project_rules = Keyword.get(opts, :project_rules, [])
 
+    # Build the main prompt content with identity prepended
+    (@default_identity <>
+       "\n\n" <>
+       @base_system_prompt)
+    |> append_project_rules(project_rules)
+    |> append_context_guidance(opts)
+  end
+
+  @doc """
+  Builds a complete system message with ContentPart structures for the LLM.
+
+  Returns a list of ReqLLM system messages with separate content blocks for
+  identity and main content (enables better caching behavior).
+
+  ## Options
+
+  Same as `build/1`.
+
+  ## Returns
+
+  A list with two system messages:
+  1. System message with identity text
+  2. System message with main prompt content
+  """
+  @spec build_system_message(atom() | nil, keyword()) :: [map()]
+  def build_system_message(_role \\ nil, opts \\ []) do
+    project_rules = Keyword.get(opts, :project_rules, [])
+
+    # Build main content parts
+    main_content =
+      @base_system_prompt
+      |> append_project_rules(project_rules)
+      |> append_context_guidance(opts)
+
+    content_parts = [ContentPart.text(main_content)]
+
+    [
+      ReqLLM.Context.system([ContentPart.text(@default_identity)]),
+      ReqLLM.Context.system(content_parts)
+    ]
+  end
+
+  @doc """
+  Returns the tool selection guidance text.
+  """
+  @spec tool_selection_guidance() :: String.t()
+  def tool_selection_guidance, do: @base_tool_selection_guidance
+
+  # ===========================================================================
+  # Private Helpers
+  # ===========================================================================
+
+  # Append context-specific guidance based on options
+  defp append_context_guidance(prompt, opts) do
     has_figma = Keyword.get(opts, :has_figma_context, false)
     has_selected_component = Keyword.get(opts, :has_selected_component, false)
     figma_node_id = Keyword.get(opts, :figma_node_id)
-
-    prompt =
-      cond do
-        has_figma && has_selected_component ->
-          prompt <> "\n" <> figma_with_selected_component_guidance(figma_node_id)
-
-        has_figma ->
-          prompt <> "\n" <> figma_context_guidance(figma_node_id)
-
-        has_selected_component ->
-          prompt <> "\n" <> selected_component_guidance()
-
-        true ->
-          prompt
-      end
-
-    prompt =
-      case Keyword.get(opts, :framework) do
-        "nextjs" -> prompt <> "\n" <> nextjs_guidance()
-        _ -> prompt
-      end
+    framework = Keyword.get(opts, :framework)
 
     prompt
+    |> append_figma_guidance(has_figma, has_selected_component, figma_node_id)
+    |> append_framework_guidance(framework)
   end
 
-  def tool_selection_guidance do
-    @base_tool_selection_guidance
+  defp append_figma_guidance(prompt, true, true, figma_node_id) do
+    prompt <> "\n" <> figma_with_selected_component_guidance(figma_node_id)
   end
+
+  defp append_figma_guidance(prompt, true, false, figma_node_id) do
+    prompt <> "\n" <> figma_context_guidance(figma_node_id)
+  end
+
+  defp append_figma_guidance(prompt, false, true, _figma_node_id) do
+    prompt <> "\n" <> selected_component_guidance()
+  end
+
+  defp append_figma_guidance(prompt, false, false, _figma_node_id), do: prompt
+
+  defp append_framework_guidance(prompt, "nextjs"), do: prompt <> "\n" <> nextjs_guidance()
+  defp append_framework_guidance(prompt, _), do: prompt
+
+  # Append project rules (AGENTS.md, etc.) to the system prompt
+  defp append_project_rules(prompt, []), do: prompt
+
+  defp append_project_rules(prompt, rules) when is_list(rules) do
+    sections =
+      rules
+      |> Enum.filter(&valid_rule?/1)
+      |> Enum.sort_by(& &1.timestamp)
+      |> Enum.map(&format_rule/1)
+
+    case sections do
+      [] -> prompt
+      _ -> prompt <> "\n" <> Enum.join(sections, "\n\n---\n\n")
+    end
+  end
+
+  defp valid_rule?(%{path: path, content: content, timestamp: _})
+       when is_binary(path) and is_binary(content),
+       do: true
+
+  defp valid_rule?(_), do: false
+
+  defp format_rule(%{path: path, content: content}),
+    do: "Instructions from: #{path}\n#{content}"
 
   defp figma_context_guidance(figma_node_id) do
     node_id_section =

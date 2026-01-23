@@ -10,7 +10,7 @@ describe("ACP Types encoding/decoding", _t => {
         fs: Some({readTextFile: Some(true), writeTextFile: Some(true)}),
         terminal: Some(false),
       }),
-      clientInfo: Some({name: "test-client", version: "1.0.0", title: None}),
+      clientInfo: Some({name: "test-client", version: "1.0.0", title: None, metadata: None}),
     }
 
     let _encoded = params->S.reverseConvertToJsonOrThrow(Types.initializeParamsSchema)
@@ -20,7 +20,7 @@ describe("ACP Types encoding/decoding", _t => {
     let params: Types.initializeParams = {
       protocolVersion: 1,
       clientCapabilities: None,
-      clientInfo: Some({name: "test", version: "1.0", title: Some("Test Client")}),
+      clientInfo: Some({name: "test", version: "1.0", title: Some("Test Client"), metadata: None}),
     }
 
     let json = params->S.reverseConvertToJsonOrThrow(Types.initializeParamsSchema)

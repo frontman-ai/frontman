@@ -134,17 +134,16 @@ defmodule FrontmanServer.Tasks do
   Gets LLM-formatted messages for a task.
 
   Requires authorization - scope.user.id must match task.user_id.
+
+  Note: Project rules (AGENTS.md, etc.) are now appended to the system prompt
+  in Prompts.build/1 rather than prepended to user messages. This ensures they
+  appear after the base prompt and before context-specific guidance.
   """
   @spec get_llm_messages(Scope.t(), String.t()) ::
           {:ok, list(map())} | {:error, authorization_error()}
   def get_llm_messages(%Scope{} = scope, task_id) do
-    with {:ok, interactions} <- get_interactions(scope, task_id),
-         {:ok, discovered_rules} <- get_discovered_project_rules(scope, task_id) do
-      messages =
-        interactions
-        |> Interaction.to_llm_messages()
-        |> Interaction.prepend_project_rules(discovered_rules)
-
+    with {:ok, interactions} <- get_interactions(scope, task_id) do
+      messages = Interaction.to_llm_messages(interactions)
       {:ok, messages}
     end
   end

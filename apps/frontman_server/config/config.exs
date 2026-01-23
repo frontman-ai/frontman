@@ -22,7 +22,9 @@ config :frontman_server, :scopes,
 
 config :frontman_server,
   ecto_repos: [FrontmanServer.Repo],
-  generators: [timestamp_type: :utc_datetime, binary_id: true]
+  generators: [timestamp_type: :utc_datetime, binary_id: true],
+  # Default usage limit for server-provided API keys
+  user_key_usage_limit: 10
 
 # Configures the endpoint
 config :frontman_server, FrontmanServerWeb.Endpoint,

@@ -9,35 +9,25 @@ defmodule FrontmanServerWeb.UserSessionControllerTest do
   end
 
   describe "GET /users/log-in" do
-    test "renders login page", %{conn: conn} do
+    test "renders login page with OAuth options", %{conn: conn} do
       conn = get(conn, ~p"/users/log-in")
       response = html_response(conn, 200)
       assert response =~ "Log in"
       assert response =~ ~p"/users/register"
-      assert response =~ "Log in with email"
+      # OAuth-only login now - shows GitHub and Google options
+      assert response =~ "Continue with GitHub"
+      assert response =~ "Continue with Google"
     end
 
-    test "renders login page with email filled in (sudo mode)", %{conn: conn, user: user} do
-      html =
+    test "redirects to home when already logged in", %{conn: conn, user: user} do
+      # The login route has redirect_if_user_is_authenticated plug,
+      # so authenticated users are redirected away from the login page
+      conn =
         conn
         |> log_in_user(user)
         |> get(~p"/users/log-in")
-        |> html_response(200)
 
-      assert html =~ "You need to reauthenticate"
-      refute html =~ "Register"
-      assert html =~ "Log in with email"
-
-      assert html =~
-               ~s(<input type="email" name="user[email]" id="login_form_magic_email" value="#{user.email}")
-    end
-
-    test "renders login page (email + password)", %{conn: conn} do
-      conn = get(conn, ~p"/users/log-in?mode=password")
-      response = html_response(conn, 200)
-      assert response =~ "Log in"
-      assert response =~ ~p"/users/register"
-      assert response =~ "Log in with email"
+      assert redirected_to(conn) == ~p"/"
     end
   end
 

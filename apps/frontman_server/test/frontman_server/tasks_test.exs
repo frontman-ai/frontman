@@ -259,7 +259,11 @@ defmodule FrontmanServer.TasksTest do
   end
 
   describe "get_llm_messages/2 with discovered rules" do
-    test "prepends rules to first user message", %{scope: scope} do
+    # Note: Project rules are NOT prepended to messages by get_llm_messages.
+    # They are retrieved separately via get_discovered_project_rules and
+    # included in the system prompt via Prompts.build(project_rules: rules).
+
+    test "returns messages without modification (rules stored separately)", %{scope: scope} do
       task_id = Ecto.UUID.generate()
       {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
 
@@ -268,13 +272,15 @@ defmodule FrontmanServer.TasksTest do
 
       {:ok, messages} = Tasks.get_llm_messages(scope, task_id)
 
+      # Messages are returned as-is, without rule injection
       assert length(messages) == 1
       [msg] = messages
       assert msg.role == :user
 
       content_text = extract_content_text(msg.content)
-      assert content_text =~ "<system-reminder>"
-      assert content_text =~ "# Project Rules"
+      # Rules are NOT in the user message - they go in the system prompt
+      refute content_text =~ "<system-reminder>"
+      refute content_text =~ "# Project Rules"
       assert content_text =~ "Hello"
     end
 
@@ -291,9 +297,10 @@ defmodule FrontmanServer.TasksTest do
 
       content_text = extract_content_text(msg.content)
       refute content_text =~ "<system-reminder>"
+      assert content_text =~ "Hello"
     end
 
-    test "includes multiple rules separated by ---", %{scope: scope} do
+    test "rules are retrievable separately via get_discovered_project_rules", %{scope: scope} do
       task_id = Ecto.UUID.generate()
       {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
 
@@ -301,13 +308,20 @@ defmodule FrontmanServer.TasksTest do
       Tasks.add_discovered_project_rule(scope, task_id, "/b/AGENTS.md", "Rule B")
       Tasks.add_user_message(scope, task_id, [%{"type" => "text", "text" => "Hello"}], [])
 
-      {:ok, messages} = Tasks.get_llm_messages(scope, task_id)
+      # Rules are stored and retrievable separately
+      {:ok, rules} = Tasks.get_discovered_project_rules(scope, task_id)
+      assert length(rules) == 2
 
+      rule_contents = Enum.map(rules, & &1.content)
+      assert "Rule A" in rule_contents
+      assert "Rule B" in rule_contents
+
+      # Messages don't contain the rules
+      {:ok, messages} = Tasks.get_llm_messages(scope, task_id)
       [msg] = messages
       content_text = extract_content_text(msg.content)
-      assert content_text =~ "Rule A"
-      assert content_text =~ "---"
-      assert content_text =~ "Rule B"
+      refute content_text =~ "Rule A"
+      refute content_text =~ "Rule B"
     end
   end
 

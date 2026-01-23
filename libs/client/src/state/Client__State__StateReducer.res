@@ -86,7 +86,13 @@ type action =
   | StreamingStarted({taskId: string})
   | TextDeltaReceived({taskId: string, text: string})
   | ToolCallReceived({taskId: string, toolCall: Message.toolCall})
-  | ToolInputStartReceived({taskId: string, id: string, toolName: string, parentAgentId: option<string>, spawningToolName: option<string>})
+  | ToolInputStartReceived({
+      taskId: string,
+      id: string,
+      toolName: string,
+      parentAgentId: option<string>,
+      spawningToolName: option<string>,
+    })
   | ToolInputDeltaReceived({taskId: string, id: string, delta: string})
   | ToolInputEndReceived({taskId: string, id: string})
   | ToolInputReceived({taskId: string, id: string, input: JSON.t})
@@ -115,7 +121,7 @@ type action =
   | SetFigmaNodeWaiting
   | ClearFigmaNodeWaiting
   // Connection actions
-  | Connect({sendPrompt: Client__State__Types.sendPromptFn})
+  | Connect({sendPrompt: Client__State__Types.sendPromptFn, apiBaseUrl: string})
   | Disconnect
   // Initialization actions
   | ReceivedDiscoveredProjectRule({taskId: string})
@@ -123,12 +129,46 @@ type action =
   | TurnCompleted({taskId: string})
   // Plan actions (ACP compliant)
   | PlanReceived({taskId: string, entries: array<Client__State__Types.ACPTypes.planEntry>})
+  // Usage info actions
+  | UsageInfoReceived({usageInfo: Client__State__Types.usageInfo})
+  // API key settings actions
+  | FetchApiKeySettings
+  | ApiKeySettingsReceived({source: Client__State__Types.apiKeySource})
+  | SaveOpenRouterKey({key: string})
+  | OpenRouterKeySaveStarted
+  | OpenRouterKeySaved
+  | OpenRouterKeySaveError({error: string})
+  | ResetOpenRouterKeySaveStatus
+  // Model selection actions
+  | FetchModelsConfig
+  | ModelsConfigReceived({config: Client__State__Types.modelsConfig})
+  | SetSelectedModel({model: Client__State__Types.selectedModel})
+  // Anthropic OAuth actions
+  | FetchAnthropicOAuthStatus
+  | AnthropicOAuthStatusReceived({connected: bool, expiresAt: option<string>})
+  | InitiateAnthropicOAuth
+  | AnthropicOAuthUrlReceived({authorizeUrl: string, verifier: string})
+  | ExchangeAnthropicOAuthCode({code: string, verifier: string})
+  | AnthropicOAuthConnected({expiresAt: string})
+  | AnthropicOAuthError({error: string})
+  | DisconnectAnthropicOAuth
+  | AnthropicOAuthDisconnected
+  | ResetAnthropicOAuthError
 
 // Effects for side effects
 type effect =
   | SendMessageToAPI({message: string, taskId: string})
   | FetchElementDetails({element: WebAPI.DOMAPI.element, document: option<WebAPI.DOMAPI.document>})
   | StartInitializationTimeout({taskId: string, timeoutMs: int})
+  | FetchUsageInfo({apiBaseUrl: string})
+  | FetchApiKeySettingsEffect({apiBaseUrl: string})
+  | SaveOpenRouterKeyEffect({apiBaseUrl: string, key: string})
+  | FetchModelsConfigEffect({apiBaseUrl: string})
+  // Anthropic OAuth effects
+  | FetchAnthropicOAuthStatusEffect({apiBaseUrl: string})
+  | GetAnthropicOAuthUrlEffect({apiBaseUrl: string})
+  | ExchangeAnthropicOAuthCodeEffect({apiBaseUrl: string, code: string, verifier: string})
+  | DisconnectAnthropicOAuthEffect({apiBaseUrl: string})
 
 let getInitialUrl = () => {
   let entrypointUrl =
@@ -155,11 +195,57 @@ let normalizeUrl = (url: string): string => {
     : url
 }
 
+// localStorage key for persisting selected model
+let selectedModelStorageKey = "frontman:selectedModel"
+
+// localStorage bindings
+@val @scope("localStorage")
+external getStorageItem: string => Nullable.t<string> = "getItem"
+
+@val @scope("localStorage")
+external setStorageItem: (string, string) => unit = "setItem"
+
+// Load selected model from localStorage
+let loadSelectedModelFromStorage = (): option<Client__State__Types.selectedModel> => {
+  try {
+    getStorageItem(selectedModelStorageKey)
+    ->Nullable.toOption
+    ->Option.flatMap(jsonString => {
+      try {
+        Some(S.parseJsonStringOrThrow(jsonString, Client__State__Types.selectedModelSchema))
+      } catch {
+      | _ => None
+      }
+    })
+  } catch {
+  | _ => None
+  }
+}
+
+// Save selected model to localStorage
+let saveSelectedModelToStorage = (model: Client__State__Types.selectedModel): unit => {
+  try {
+    let jsonString = S.reverseConvertToJsonStringOrThrow(model, Client__State__Types.selectedModelSchema)
+    setStorageItem(selectedModelStorageKey, jsonString)
+  } catch {
+  | _ => ()
+  }
+}
+
 let defaultState: state = {
   tasks: Dict.make(),
   currentTaskId: None,
   connectionState: Disconnected,
   sessionInitialized: false,
+  usageInfo: None,
+  apiBaseUrl: None,
+  openrouterKeySettings: {
+    source: Client__State__Types.None,
+    saveStatus: Client__State__Types.Idle,
+  },
+  anthropicOAuthStatus: Client__State__Types.NotConnected,
+  modelsConfig: None,
+  selectedModel: loadSelectedModelFromStorage(), // Load from localStorage on init
 }
 
 let actionToString = action => {
@@ -193,7 +279,36 @@ let actionToString = action => {
   | Disconnect => `Disconnect`
   | ReceivedDiscoveredProjectRule({taskId}) => `ReceivedDiscoveredProjectRule(${taskId})`
   | TurnCompleted({taskId}) => `TurnCompleted(${taskId})`
-  | PlanReceived({taskId, entries}) => `PlanReceived(${taskId}, ${entries->Array.length->Int.toString} entries)`
+  | PlanReceived({taskId, entries}) =>
+    `PlanReceived(${taskId}, ${entries->Array.length->Int.toString} entries)`
+  | UsageInfoReceived(_) => `UsageInfoReceived`
+  | FetchApiKeySettings => `FetchApiKeySettings`
+  | ApiKeySettingsReceived({source}) =>
+    let sourceStr = switch source {
+    | Client__State__Types.None => "None"
+    | Client__State__Types.FromEnv => "FromEnv"
+    | Client__State__Types.UserOverride => "UserOverride"
+    }
+    `ApiKeySettingsReceived(${sourceStr})`
+  | SaveOpenRouterKey(_) => `SaveOpenRouterKey`
+  | OpenRouterKeySaveStarted => `OpenRouterKeySaveStarted`
+  | OpenRouterKeySaved => `OpenRouterKeySaved`
+  | OpenRouterKeySaveError({error}) => `OpenRouterKeySaveError(${error})`
+  | ResetOpenRouterKeySaveStatus => `ResetOpenRouterKeySaveStatus`
+  | FetchModelsConfig => `FetchModelsConfig`
+  | ModelsConfigReceived(_) => `ModelsConfigReceived`
+  | SetSelectedModel({model}) => `SetSelectedModel(${model.provider}:${model.value})`
+  | FetchAnthropicOAuthStatus => `FetchAnthropicOAuthStatus`
+  | AnthropicOAuthStatusReceived({connected}) =>
+    `AnthropicOAuthStatusReceived(connected=${connected->string_of_bool})`
+  | InitiateAnthropicOAuth => `InitiateAnthropicOAuth`
+  | AnthropicOAuthUrlReceived(_) => `AnthropicOAuthUrlReceived`
+  | ExchangeAnthropicOAuthCode(_) => `ExchangeAnthropicOAuthCode`
+  | AnthropicOAuthConnected({expiresAt}) => `AnthropicOAuthConnected(${expiresAt})`
+  | AnthropicOAuthError({error}) => `AnthropicOAuthError(${error})`
+  | DisconnectAnthropicOAuth => `DisconnectAnthropicOAuth`
+  | AnthropicOAuthDisconnected => `AnthropicOAuthDisconnected`
+  | ResetAnthropicOAuthError => `ResetAnthropicOAuthError`
   }
 }
 
@@ -336,6 +451,43 @@ module Selectors = {
   let isAgentRunning = (state: state): bool => {
     currentTask(state)->Option.mapOr(false, task => task.isAgentRunning)
   }
+
+  // Get usage info
+  let usageInfo = (state: state): option<Client__State__Types.usageInfo> => {
+    state.usageInfo
+  }
+
+  // Get OpenRouter API key settings
+  let openrouterKeySettings = (state: state): Client__State__Types.apiKeySettings => {
+    state.openrouterKeySettings
+  }
+
+  // Get models config
+  let modelsConfig = (state: state): option<Client__State__Types.modelsConfig> => {
+    state.modelsConfig
+  }
+
+  // Get selected model
+  let selectedModel = (state: state): option<Client__State__Types.selectedModel> => {
+    state.selectedModel
+  }
+
+  // Get display name for currently selected model
+  let selectedModelDisplayName = (state: state): option<string> => {
+    switch (state.selectedModel, state.modelsConfig) {
+    | (Some(selected), Some(config)) =>
+      config.providers
+      ->Array.flatMap(provider => provider.models)
+      ->Array.find(model => model.value == selected.value)
+      ->Option.map(model => model.displayName)
+    | _ => None
+    }
+  }
+
+  // Get Anthropic OAuth status
+  let anthropicOAuthStatus = (state: state): Client__State__Types.anthropicOAuthStatus => {
+    state.anthropicOAuthStatus
+  }
 }
 
 let handleEffect = (effect, state: state, dispatch) => {
@@ -354,6 +506,33 @@ let handleEffect = (effect, state: state, dispatch) => {
       | Some(Message.Completed(_)) | None => ()
       }
 
+      // Include runtime config metadata (e.g., openrouterKeyValue) with each prompt
+      let runtimeConfig = Client__RuntimeConfig.read()
+      let baseMetadata = Client__RuntimeConfig.toMetadata(runtimeConfig)
+
+      // Add selected model to metadata if present
+      let metadata = switch state.selectedModel {
+      | Some(model) =>
+        let modelJson: JSON.t = %raw(`(function(provider, value) {
+          return { provider: provider, value: value };
+        })`)(model.provider, model.value)
+        switch baseMetadata {
+        | Some(meta) =>
+          switch meta->JSON.Decode.object {
+          | Some(dict) =>
+            let newDict = dict->Dict.copy
+            newDict->Dict.set("model", modelJson)
+            Some(newDict->Obj.magic)
+          | None => baseMetadata
+          }
+        | None =>
+          let dict = Dict.make()
+          dict->Dict.set("model", modelJson)
+          Some(dict->Obj.magic)
+        }
+      | None => baseMetadata
+      }
+
       sendPrompt(
         message,
         ~additionalBlocks,
@@ -365,9 +544,26 @@ let handleEffect = (effect, state: state, dispatch) => {
             dispatch(TurnCompleted({taskId: taskId}))
           }
         },
+        ~metadata,
       )
     | Disconnected => Console.error("[Effect] Cannot send message: not connected")
     }
+  | FetchUsageInfo({apiBaseUrl}) =>
+    let fetch = async () => {
+      let url = `${apiBaseUrl}/api/user/api-key-usage`
+
+      try {
+        let response = await WebAPI.Global.fetch(url, ~init={credentials: Include})
+        if response.ok {
+          let json = await response->WebAPI.Response.json
+          let usageInfo = S.parseJsonOrThrow(json, Client__State__Types.usageInfoSchema)
+          dispatch(UsageInfoReceived({usageInfo: usageInfo}))
+        }
+      } catch {
+      | _ => ()
+      }
+    }
+    fetch()->ignore
   | FetchElementDetails({element, document}) => {
       // Fetch selector
       let selectorPromise = Promise.resolve()->Promise.then(_ => {
@@ -467,6 +663,203 @@ let handleEffect = (effect, state: state, dispatch) => {
         dispatch(ReceivedDiscoveredProjectRule({taskId: taskId}))
       }
     }, timeoutMs)
+  | FetchApiKeySettingsEffect({apiBaseUrl}) =>
+    let fetch = async () => {
+      let url = `${apiBaseUrl}/api/user/api-key-usage`
+
+      try {
+        let response = await WebAPI.Global.fetch(url, ~init={credentials: Include})
+        if response.ok {
+          let json = await response->WebAPI.Response.json
+          let usageInfo = S.parseJsonOrThrow(json, Client__State__Types.usageInfoSchema)
+          let hasUserKey = usageInfo.hasUserKey->Option.getOr(false)
+
+          // Check if the Next.js project has OPENROUTER_API_KEY from runtime config
+          // This is set by the framework middleware (e.g., FrontmanNextjs__Middleware)
+          let runtimeConfig = Client__RuntimeConfig.read()
+          let hasEnvKey = Client__RuntimeConfig.hasOpenrouterKey(runtimeConfig)
+
+          // Determine the source: user key takes precedence, then env key, else none
+          let source: Client__State__Types.apiKeySource = if hasUserKey {
+            UserOverride
+          } else if hasEnvKey {
+            FromEnv
+          } else {
+            None
+          }
+          dispatch(ApiKeySettingsReceived({source: source}))
+        }
+      } catch {
+      | _ => ()
+      }
+    }
+    fetch()->ignore
+  | SaveOpenRouterKeyEffect({apiBaseUrl, key}) =>
+    let save = async () => {
+      dispatch(OpenRouterKeySaveStarted)
+      let url = `${apiBaseUrl}/api/user/api-keys`
+      let body = {
+        "provider": "openrouter",
+        "key": key,
+      }
+
+      try {
+        let response = await WebAPI.Global.fetch(
+          url,
+          ~init={
+            credentials: Include,
+            method: "POST",
+            headers: WebAPI.HeadersInit.fromDict(
+              Dict.fromArray([("Content-Type", "application/json")]),
+            ),
+            body: WebAPI.BodyInit.fromString(JSON.stringifyAny(body)->Option.getOr("{}")),
+          },
+        )
+
+        if !response.ok {
+          dispatch(
+            OpenRouterKeySaveError({
+              error: `HTTP ${response.status->Int.toString}: ${response.statusText}`,
+            }),
+          )
+        } else {
+          dispatch(OpenRouterKeySaved)
+        }
+      } catch {
+      | exn =>
+        let msg =
+          exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
+        dispatch(OpenRouterKeySaveError({error: `Failed to save API key: ${msg}`}))
+      }
+    }
+    save()->ignore
+  | FetchModelsConfigEffect({apiBaseUrl}) =>
+    let fetch = async () => {
+      let url = `${apiBaseUrl}/api/models`
+
+      try {
+        let response = await WebAPI.Global.fetch(url, ~init={credentials: Include})
+        if response.ok {
+          let json = await response->WebAPI.Response.json
+          let config = S.parseJsonOrThrow(json, Client__State__Types.modelsConfigSchema)
+          dispatch(ModelsConfigReceived({config: config}))
+        }
+      } catch {
+      | _ => ()
+      }
+    }
+    fetch()->ignore
+
+  | FetchAnthropicOAuthStatusEffect({apiBaseUrl}) =>
+    let fetch = async () => {
+      let url = `${apiBaseUrl}/api/oauth/anthropic/status`
+
+      try {
+        let response = await WebAPI.Global.fetch(url, ~init={credentials: Include})
+        if response.ok {
+          let json = await response->WebAPI.Response.json
+          let connected = json->JSON.Decode.object->Option.flatMap(obj =>
+            obj->Dict.get("connected")->Option.flatMap(JSON.Decode.bool)
+          )->Option.getOr(false)
+          let expiresAt = json->JSON.Decode.object->Option.flatMap(obj =>
+            obj->Dict.get("expires_at")->Option.flatMap(JSON.Decode.string)
+          )
+          dispatch(AnthropicOAuthStatusReceived({connected, expiresAt}))
+        }
+      } catch {
+      | _ => dispatch(AnthropicOAuthError({error: "Failed to fetch OAuth status"}))
+      }
+    }
+    fetch()->ignore
+
+  | GetAnthropicOAuthUrlEffect({apiBaseUrl}) =>
+    let fetch = async () => {
+      let url = `${apiBaseUrl}/api/oauth/anthropic/authorize-url`
+
+      try {
+        let response = await WebAPI.Global.fetch(url, ~init={credentials: Include})
+        if response.ok {
+          let json = await response->WebAPI.Response.json
+          let authorizeUrl = json->JSON.Decode.object->Option.flatMap(obj =>
+            obj->Dict.get("authorize_url")->Option.flatMap(JSON.Decode.string)
+          )
+          let verifier = json->JSON.Decode.object->Option.flatMap(obj =>
+            obj->Dict.get("verifier")->Option.flatMap(JSON.Decode.string)
+          )
+          switch (authorizeUrl, verifier) {
+          | (Some(authorizeUrl), Some(verifier)) =>
+            dispatch(AnthropicOAuthUrlReceived({authorizeUrl, verifier}))
+          | _ => dispatch(AnthropicOAuthError({error: "Invalid response from server"}))
+          }
+        } else {
+          dispatch(AnthropicOAuthError({error: "Failed to get authorization URL"}))
+        }
+      } catch {
+      | _ => dispatch(AnthropicOAuthError({error: "Failed to get authorization URL"}))
+      }
+    }
+    fetch()->ignore
+
+  | ExchangeAnthropicOAuthCodeEffect({apiBaseUrl, code, verifier}) =>
+    let exchange = async () => {
+      let url = `${apiBaseUrl}/api/oauth/anthropic/exchange`
+
+      try {
+        let body = JSON.Encode.object(
+          Dict.fromArray([
+            ("code", JSON.Encode.string(code)),
+            ("verifier", JSON.Encode.string(verifier)),
+          ])
+        )
+        let response = await WebAPI.Global.fetch(url, ~init={
+          method: "POST",
+          credentials: Include,
+          headers: WebAPI.HeadersInit.fromDict(
+            Dict.fromArray([("Content-Type", "application/json")]),
+          ),
+          body: WebAPI.BodyInit.fromString(JSON.stringify(body)),
+        })
+        if response.ok {
+          let json = await response->WebAPI.Response.json
+          let expiresAt = json->JSON.Decode.object->Option.flatMap(obj =>
+            obj->Dict.get("expires_at")->Option.flatMap(JSON.Decode.string)
+          )
+          switch expiresAt {
+          | Some(expiresAt) => dispatch(AnthropicOAuthConnected({expiresAt: expiresAt}))
+          | None => dispatch(AnthropicOAuthError({error: "Invalid response from server"}))
+          }
+        } else {
+          let json = await response->WebAPI.Response.json
+          let error = json->JSON.Decode.object->Option.flatMap(obj =>
+            obj->Dict.get("error")->Option.flatMap(JSON.Decode.string)
+          )->Option.getOr("Failed to exchange code")
+          dispatch(AnthropicOAuthError({error: error}))
+        }
+      } catch {
+      | _ => dispatch(AnthropicOAuthError({error: "Failed to exchange authorization code"}))
+      }
+    }
+    exchange()->ignore
+
+  | DisconnectAnthropicOAuthEffect({apiBaseUrl}) =>
+    let disconnect = async () => {
+      let url = `${apiBaseUrl}/api/oauth/anthropic/disconnect`
+
+      try {
+        let response = await WebAPI.Global.fetch(url, ~init={
+          method: "DELETE",
+          credentials: Include,
+        })
+        if response.ok {
+          dispatch(AnthropicOAuthDisconnected)
+        } else {
+          dispatch(AnthropicOAuthError({error: "Failed to disconnect"}))
+        }
+      } catch {
+      | _ => dispatch(AnthropicOAuthError({error: "Failed to disconnect"}))
+      }
+    }
+    disconnect()->ignore
   }
 }
 
@@ -524,8 +917,7 @@ let next = (state, action) => {
     state
     ->Lens.updateTask(taskId, task => {
       switch Lens.getStreamingMessage(task) {
-      | Some(_) =>
-        // Already have a streaming message, don't create another
+      | Some(_) => // Already have a streaming message, don't create another
         task
       | None =>
         let id = `msg_${taskId}_${Date.now()->Float.toString}`
@@ -674,8 +1066,7 @@ let next = (state, action) => {
     ->Lens.updateTask(taskId, task =>
       Lens.updateTaskMessage(task, id, msg =>
         switch msg {
-        | Message.ToolCall(tool) =>
-          Message.ToolCall({...tool, input: Some(input)})
+        | Message.ToolCall(tool) => Message.ToolCall({...tool, input: Some(input)})
         | other => other
         }
       )
@@ -837,8 +1228,7 @@ let next = (state, action) => {
       }->FrontmanReactStatestore.StateReducer.update
     }
 
-  | ClearCurrentTask =>
-    {...state, currentTaskId: None}->FrontmanReactStatestore.StateReducer.update
+  | ClearCurrentTask => {...state, currentTaskId: None}->FrontmanReactStatestore.StateReducer.update
 
   | UpdateTaskTitle({taskId, title}) =>
     state
@@ -865,14 +1255,21 @@ let next = (state, action) => {
     ->Lens.updateCurrentTask(task => {...task, figmaNode: FigmaNode.NoSelection})
     ->FrontmanReactStatestore.StateReducer.update
 
-  | Connect({sendPrompt}) =>
+  | Connect({sendPrompt, apiBaseUrl}) =>
     {
       ...state,
       connectionState: Connected(sendPrompt),
+      apiBaseUrl: Some(apiBaseUrl),
     }->FrontmanReactStatestore.StateReducer.update(
-      ~sideEffects=state.currentTaskId
-      ->Option.map(taskId => [StartInitializationTimeout({taskId, timeoutMs: 3000})])
-      ->Option.getOr([]),
+      ~sideEffects=Array.concat(
+        state.currentTaskId
+        ->Option.map(taskId => [StartInitializationTimeout({taskId, timeoutMs: 3000})])
+        ->Option.getOr([]),
+        [
+          FetchUsageInfo({apiBaseUrl: apiBaseUrl}),
+          FetchModelsConfigEffect({apiBaseUrl: apiBaseUrl}),
+        ],
+      ),
     )
 
   | Disconnect =>
@@ -886,15 +1283,221 @@ let next = (state, action) => {
     }->FrontmanReactStatestore.StateReducer.update
 
   | TurnCompleted({taskId}) =>
-    // Mark agent turn as complete
+    // Mark agent turn as complete and fetch updated usage
+    let sideEffects = switch state.apiBaseUrl {
+    | Some(apiBaseUrl) => [FetchUsageInfo({apiBaseUrl: apiBaseUrl})]
+    | None => []
+    }
     state
     ->Lens.updateTask(taskId, task => {...task, isAgentRunning: false})
-    ->FrontmanReactStatestore.StateReducer.update
+    ->FrontmanReactStatestore.StateReducer.update(~sideEffects)
 
   | PlanReceived({taskId, entries}) =>
     // Replace plan entries completely (per ACP spec)
     state
     ->Lens.updateTask(taskId, task => {...task, planEntries: entries})
     ->FrontmanReactStatestore.StateReducer.update
+
+  | UsageInfoReceived({usageInfo}) =>
+    // Update usage info in state
+    {...state, usageInfo: Some(usageInfo)}->FrontmanReactStatestore.StateReducer.update
+
+  // API key settings actions
+  | FetchApiKeySettings =>
+    switch state.apiBaseUrl {
+    | Some(apiBaseUrl) =>
+      state->FrontmanReactStatestore.StateReducer.update(
+        ~sideEffects=[FetchApiKeySettingsEffect({apiBaseUrl: apiBaseUrl})],
+      )
+    | None => state->FrontmanReactStatestore.StateReducer.update
+    }
+
+  | ApiKeySettingsReceived({source}) =>
+    {
+      ...state,
+      openrouterKeySettings: {
+        ...state.openrouterKeySettings,
+        source,
+      },
+    }->FrontmanReactStatestore.StateReducer.update
+
+  | SaveOpenRouterKey({key}) =>
+    switch state.apiBaseUrl {
+    | Some(apiBaseUrl) =>
+      state->FrontmanReactStatestore.StateReducer.update(
+        ~sideEffects=[SaveOpenRouterKeyEffect({apiBaseUrl, key})],
+      )
+    | None =>
+      {
+        ...state,
+        openrouterKeySettings: {
+          ...state.openrouterKeySettings,
+          saveStatus: SaveError("Not connected to server"),
+        },
+      }->FrontmanReactStatestore.StateReducer.update
+    }
+
+  | OpenRouterKeySaveStarted =>
+    {
+      ...state,
+      openrouterKeySettings: {
+        ...state.openrouterKeySettings,
+        saveStatus: Saving,
+      },
+    }->FrontmanReactStatestore.StateReducer.update
+
+  | OpenRouterKeySaved =>
+    // After saving the API key, refresh usage info so the chatbox reflects the new state
+    let effects = switch state.apiBaseUrl {
+    | Some(apiBaseUrl) => [FetchUsageInfo({apiBaseUrl: apiBaseUrl})]
+    | None => []
+    }
+    {
+      ...state,
+      openrouterKeySettings: {
+        source: UserOverride,
+        saveStatus: Saved,
+      },
+    }->FrontmanReactStatestore.StateReducer.update(~sideEffects=effects)
+
+  | OpenRouterKeySaveError({error}) =>
+    {
+      ...state,
+      openrouterKeySettings: {
+        ...state.openrouterKeySettings,
+        saveStatus: SaveError(error),
+      },
+    }->FrontmanReactStatestore.StateReducer.update
+
+  | ResetOpenRouterKeySaveStatus =>
+    {
+      ...state,
+      openrouterKeySettings: {
+        ...state.openrouterKeySettings,
+        saveStatus: Idle,
+      },
+    }->FrontmanReactStatestore.StateReducer.update
+
+  // Model selection actions
+  | FetchModelsConfig =>
+    switch state.apiBaseUrl {
+    | Some(apiBaseUrl) =>
+      state->FrontmanReactStatestore.StateReducer.update(
+        ~sideEffects=[FetchModelsConfigEffect({apiBaseUrl: apiBaseUrl})],
+      )
+    | None => state->FrontmanReactStatestore.StateReducer.update
+    }
+
+  | ModelsConfigReceived({config}) =>
+    // Set models config and initialize selected model if not already set
+    let selectedModel = switch state.selectedModel {
+    | Some(model) => Some(model)
+    | None =>
+      // Use default model from config
+      Some({
+        provider: config.defaultModel.provider,
+        value: config.defaultModel.value,
+      }: Client__State__Types.selectedModel)
+    }
+    {
+      ...state,
+      modelsConfig: Some(config),
+      selectedModel,
+    }->FrontmanReactStatestore.StateReducer.update
+
+  | SetSelectedModel({model}) =>
+    // Save to localStorage for persistence
+    saveSelectedModelToStorage(model)
+    {...state, selectedModel: Some(model)}->FrontmanReactStatestore.StateReducer.update
+
+  // Anthropic OAuth actions
+  | FetchAnthropicOAuthStatus =>
+    switch state.apiBaseUrl {
+    | Some(apiBaseUrl) =>
+      {
+        ...state,
+        anthropicOAuthStatus: Client__State__Types.FetchingStatus,
+      }->FrontmanReactStatestore.StateReducer.update(
+        ~sideEffects=[FetchAnthropicOAuthStatusEffect({apiBaseUrl: apiBaseUrl})],
+      )
+    | None => state->FrontmanReactStatestore.StateReducer.update
+    }
+
+  | AnthropicOAuthStatusReceived({connected, expiresAt}) =>
+    let status = if connected {
+      switch expiresAt {
+      | Some(expiresAtStr) =>
+        // Parse ISO8601 date string to timestamp
+        let expiresAtMs = Date.fromString(expiresAtStr)->Date.getTime
+        Client__State__Types.Connected({expiresAt: expiresAtMs})
+      | None => Client__State__Types.Connected({expiresAt: 0.0})
+      }
+    } else {
+      Client__State__Types.NotConnected
+    }
+    {...state, anthropicOAuthStatus: status}->FrontmanReactStatestore.StateReducer.update
+
+  | InitiateAnthropicOAuth =>
+    switch state.apiBaseUrl {
+    | Some(apiBaseUrl) =>
+      state->FrontmanReactStatestore.StateReducer.update(
+        ~sideEffects=[GetAnthropicOAuthUrlEffect({apiBaseUrl: apiBaseUrl})],
+      )
+    | None => state->FrontmanReactStatestore.StateReducer.update
+    }
+
+  | AnthropicOAuthUrlReceived({authorizeUrl, verifier}) =>
+    {
+      ...state,
+      anthropicOAuthStatus: Client__State__Types.Authorizing({authorizeUrl, verifier}),
+    }->FrontmanReactStatestore.StateReducer.update
+
+  | ExchangeAnthropicOAuthCode({code, verifier}) =>
+    switch state.apiBaseUrl {
+    | Some(apiBaseUrl) =>
+      {
+        ...state,
+        anthropicOAuthStatus: Client__State__Types.Exchanging,
+      }->FrontmanReactStatestore.StateReducer.update(
+        ~sideEffects=[ExchangeAnthropicOAuthCodeEffect({apiBaseUrl, code, verifier})],
+      )
+    | None => state->FrontmanReactStatestore.StateReducer.update
+    }
+
+  | AnthropicOAuthConnected({expiresAt}) =>
+    let expiresAtMs = Date.fromString(expiresAt)->Date.getTime
+    {
+      ...state,
+      anthropicOAuthStatus: Client__State__Types.Connected({expiresAt: expiresAtMs}),
+    }->FrontmanReactStatestore.StateReducer.update
+
+  | AnthropicOAuthError({error}) =>
+    {
+      ...state,
+      anthropicOAuthStatus: Client__State__Types.Error(error),
+    }->FrontmanReactStatestore.StateReducer.update
+
+  | DisconnectAnthropicOAuth =>
+    switch state.apiBaseUrl {
+    | Some(apiBaseUrl) =>
+      state->FrontmanReactStatestore.StateReducer.update(
+        ~sideEffects=[DisconnectAnthropicOAuthEffect({apiBaseUrl: apiBaseUrl})],
+      )
+    | None => state->FrontmanReactStatestore.StateReducer.update
+    }
+
+  | AnthropicOAuthDisconnected =>
+    {
+      ...state,
+      anthropicOAuthStatus: Client__State__Types.NotConnected,
+    }->FrontmanReactStatestore.StateReducer.update
+
+  | ResetAnthropicOAuthError =>
+    // Reset error state back to NotConnected
+    switch state.anthropicOAuthStatus {
+    | Client__State__Types.Error(_) =>
+      {...state, anthropicOAuthStatus: Client__State__Types.NotConnected}->FrontmanReactStatestore.StateReducer.update
+    | _ => state->FrontmanReactStatestore.StateReducer.update
+    }
   }
 }

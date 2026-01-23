@@ -35,6 +35,7 @@ defmodule FrontmanServer.Application do
     children = [
       FrontmanServerWeb.Telemetry,
       FrontmanServer.Repo,
+      FrontmanServer.Vault,
       {DNSCluster, query: Application.get_env(:frontman_server, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: FrontmanServer.PubSub},
       # Registry for tracking agents and tool calls

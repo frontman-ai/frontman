@@ -70,23 +70,101 @@ defmodule FrontmanServer.Agents.PromptsTest do
   end
 
   describe "build_system_message/2 produces valid message structure" do
-    test "returns system role message" do
-      result = Prompts.build_system_message(nil, [])
+    test "returns list of two system messages (identity and content)" do
+      [identity_msg, content_msg] = Prompts.build_system_message(nil, [])
 
-      assert result.role == :system
-      assert is_list(result.content)
+      assert identity_msg.role == :system
+      assert content_msg.role == :system
+      assert is_list(identity_msg.content)
+      assert is_list(content_msg.content)
+    end
+
+    test "first message contains identity line" do
+      [identity_msg, _content_msg] = Prompts.build_system_message(nil, [])
+
+      identity_text = Enum.map_join(identity_msg.content, & &1.text)
+      assert identity_text =~ "coding assistant"
+    end
+
+    test "always uses default identity (OAuth transformations happen at LLM boundary)" do
+      [identity_msg, _content_msg] = Prompts.build_system_message(nil, [])
+
+      identity_text = Enum.map_join(identity_msg.content, & &1.text)
+      assert identity_text =~ "coding assistant"
     end
 
     test "selected_component flag affects content" do
-      without = Prompts.build_system_message(nil, [])
-      with_sc = Prompts.build_system_message(nil, has_selected_component: true)
+      [_without_id, without_content] = Prompts.build_system_message(nil, [])
+
+      [_with_id, with_sc_content] =
+        Prompts.build_system_message(nil, has_selected_component: true)
 
       # With selected component should have more content
-      without_text = Enum.map_join(without.content, & &1.text)
-      with_sc_text = Enum.map_join(with_sc.content, & &1.text)
+      without_text = Enum.map_join(without_content.content, & &1.text)
+      with_sc_text = Enum.map_join(with_sc_content.content, & &1.text)
 
       assert String.length(with_sc_text) > String.length(without_text)
       assert with_sc_text =~ "Selected Component"
+    end
+  end
+
+  describe "build/1" do
+    test "returns single string with default identity" do
+      result = Prompts.build([])
+
+      assert is_binary(result)
+      assert result =~ "You are a coding assistant"
+    end
+
+    test "always returns string (OAuth transformations happen at LLM boundary)" do
+      result = Prompts.build([])
+
+      assert is_binary(result)
+      assert result =~ "You are a coding assistant"
+      assert result =~ "## Rules"
+    end
+  end
+
+  describe "build/1 project_rules option" do
+    test "project rules are appended to prompt" do
+      rules = [
+        %{
+          path: "AGENTS.md",
+          content: "Custom rule content here",
+          timestamp: ~U[2024-01-01 00:00:00Z]
+        }
+      ]
+
+      result = Prompts.build(project_rules: rules)
+
+      assert result =~ "Instructions from: AGENTS.md"
+      assert result =~ "Custom rule content here"
+    end
+
+    test "multiple rules are separated by ---" do
+      rules = [
+        %{path: "AGENTS.md", content: "Rule A", timestamp: ~U[2024-01-01 00:00:00Z]},
+        %{path: "CONVENTIONS.md", content: "Rule B", timestamp: ~U[2024-01-02 00:00:00Z]}
+      ]
+
+      result = Prompts.build(project_rules: rules)
+
+      assert result =~ "Rule A"
+      assert result =~ "Rule B"
+      assert result =~ "---"
+    end
+
+    test "malformed rules are filtered out" do
+      rules = [
+        %{path: "AGENTS.md", content: "Valid rule", timestamp: ~U[2024-01-01 00:00:00Z]},
+        %{invalid: "rule"},
+        nil
+      ]
+
+      result = Prompts.build(project_rules: rules)
+
+      assert result =~ "Valid rule"
+      # Should not crash
     end
   end
 end

@@ -62,5 +62,6 @@ defmodule FrontmanServerWeb.Endpoint do
   plug(Plug.Head)
   plug(Plug.Session, @session_options)
   plug(Sentry.PlugContext)
+  plug(FrontmanServerWeb.Plugs.CORS, path_prefix: "/api")
   plug(FrontmanServerWeb.Router)
 end

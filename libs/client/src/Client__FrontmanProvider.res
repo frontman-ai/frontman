@@ -8,6 +8,7 @@ module MCPServer = FrontmanFrontmanClient.FrontmanClient__MCP__Server
 module ConsoleLogTool = FrontmanFrontmanClient.FrontmanClient__MCP__Tool__ConsoleLog
 module Reducer = Client__ConnectionReducer
 module StateReducer = FrontmanReactStatestore.StateReducer
+module RuntimeConfig = Client__RuntimeConfig
 
 // Re-export status types for consumers
 type connectionState = Reducer.Selectors.connectionStatus
@@ -25,6 +26,7 @@ type contextValue = {
     string,
     ~additionalBlocks: array<Types.contentBlock>,
     ~onComplete: result<Types.promptResult, string> => unit,
+    ~metadata: option<JSON.t>,
   ) => unit,
 }
 
@@ -36,7 +38,7 @@ let defaultContextValue: contextValue = {
   session: None,
   relay: None,
   createSession: _ => (),
-  sendPrompt: (_, ~additionalBlocks as _, ~onComplete as _) => (),
+  sendPrompt: (_, ~additionalBlocks as _, ~onComplete as _, ~metadata as _) => (),
 }
 
 // Create the React context
@@ -80,6 +82,10 @@ module Provider = {
       let location = WebAPI.Global.location
       let baseUrl = `${location.protocol}//${location.host}`
 
+      // Read runtime config from window.__frontmanRuntime (injected by framework middleware)
+      let runtimeConfig = RuntimeConfig.read()
+      let metadata = RuntimeConfig.toMetadata(runtimeConfig)
+
       let relay = Relay.make(~baseUrl)
       let mcpServer =
         MCPServer.make(~relay, ~serverName=clientName, ~serverVersion=clientVersion)
@@ -97,6 +103,7 @@ module Provider = {
         clientVersion,
         baseUrl,
         onACPMessage: logACPMessage,
+        metadata,
       }
 
       dispatch(Initialize({config, relay, mcpServer}))
@@ -112,8 +119,8 @@ module Provider = {
     )
 
     let sendPrompt = React.useCallback1(
-      (text: string, ~additionalBlocks, ~onComplete) => {
-        dispatch(SendPrompt({text, additionalBlocks, onComplete}))
+      (text: string, ~additionalBlocks, ~onComplete, ~metadata) => {
+        dispatch(SendPrompt({text, additionalBlocks, onComplete, metadata}))
       },
       [dispatch],
     )

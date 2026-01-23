@@ -1,6 +1,7 @@
 module RadixUI__Icons = Bindings__RadixUI__Icons
 module Chrome = FrontmanBindings.Chrome
 module ACPTypes = FrontmanFrontmanClient.FrontmanClient__ACP__Types
+module SettingsModal = Client__SettingsModal
 
 let useExtensionState = () => {
   React.useEffect(() => {
@@ -120,7 +121,7 @@ let useExtensionState = () => {
 }
 
 @react.component
-let make = () => {
+let make = (~apiBaseUrl: string) => {
   useExtensionState()
 
   // Use Frontman context for ACP connection
@@ -257,7 +258,7 @@ let make = () => {
   React.useEffect(() => {
     if isSessionActive {
       Client__Debug.init()
-      Client__State.Actions.connect(~sendPrompt)
+      Client__State.Actions.connect(~sendPrompt, ~apiBaseUrl)
     } else {
       switch connectionState {
       | Disconnected | Error(_) => Client__State.Actions.disconnect()
@@ -265,12 +266,15 @@ let make = () => {
       }
     }
     None
-  }, (connectionState, isSessionActive, sendPrompt))
+  }, (connectionState, isSessionActive, sendPrompt, apiBaseUrl))
 
   // Get resizable width for chatbox panel
   let (chatboxWidth, isResizing, handleResizeMouseDown) = Client__UseResizableWidth.use()
 
+  let (settingsOpen, setSettingsOpen) = React.useState(() => false)
+
   <div className="flex h-screen w-screen bg-background text-foreground">
+    <SettingsModal open_={settingsOpen} onOpenChange={value => setSettingsOpen(_ => value)} />
     // Transparent overlay during resize to prevent iframe from stealing mouse events
     {isResizing
       ? <div className="fixed inset-0 z-50 cursor-col-resize" />
@@ -279,6 +283,14 @@ let make = () => {
       style={{width: `${Int.toString(chatboxWidth)}px`}}
       className="h-full border-r flex flex-col p-2 overflow-hidden relative shrink-0"
     >
+      <button
+        type_="button"
+        className="absolute top-3 right-3 z-50 h-9 w-9 rounded-lg border border-zinc-800/70 bg-zinc-900/70 text-zinc-200 shadow-sm backdrop-blur transition-all duration-200 flex items-center justify-center hover:border-zinc-700 hover:bg-zinc-800/90 hover:shadow-md"
+        onClick={_ => setSettingsOpen(_ => true)}
+        title="Settings"
+      >
+        <RadixUI__Icons.GearIcon className="size-4" />
+      </button>
       <Client__Chatbox />
       // Resize handle on right edge
       <div

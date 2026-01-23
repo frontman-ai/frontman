@@ -106,7 +106,12 @@ defmodule FrontmanServer.Tools.ImplementComponent do
     messages = context_messages ++ [user_msg]
 
     # Build ComponentImplementAgent - use executor from context
-    agent = SpecializedAgent.new(:component_implement, tools: mcp_tools, llm_opts: llm_opts)
+    agent =
+      SpecializedAgent.new(:component_implement,
+        tools: mcp_tools,
+        model: llm_opts[:model],
+        llm_opts: llm_opts
+      )
 
     case Swarm.run_blocking(agent, messages, tool_executor) do
       {:ok, result} ->

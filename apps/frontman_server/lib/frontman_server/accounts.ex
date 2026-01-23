@@ -80,8 +80,6 @@ defmodule FrontmanServer.Accounts do
     |> Repo.insert()
   end
 
-  ## Settings
-
   @doc """
   Checks whether the user is in sudo mode.
 

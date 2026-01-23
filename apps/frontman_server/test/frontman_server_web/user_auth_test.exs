@@ -219,7 +219,12 @@ defmodule FrontmanServerWeb.UserAuthTest do
 
   describe "redirect_if_user_is_authenticated/2" do
     setup %{conn: conn} do
-      %{conn: UserAuth.fetch_current_scope_for_user(conn, [])}
+      conn =
+        conn
+        |> Plug.Conn.fetch_query_params()
+        |> UserAuth.fetch_current_scope_for_user([])
+
+      %{conn: conn}
     end
 
     test "redirects if user is authenticated", %{conn: conn, user: user} do

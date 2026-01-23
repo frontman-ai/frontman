@@ -22,6 +22,8 @@ defmodule FrontmanServer.Agents do
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Agents.{RootAgent, ToolExecutor}
   alias FrontmanServer.Observability.TelemetryEvents
+  alias FrontmanServer.Providers
+  alias FrontmanServer.Providers.ResolvedKey
   alias FrontmanServer.Tasks
   alias Swarm.LLM.Chunk
   alias Swarm.Message
@@ -44,23 +46,47 @@ defmodule FrontmanServer.Agents do
   Swarm generates the loop_id internally; task_id is passed via metadata
   for telemetry correlation.
 
+  API key resolution happens here at the domain layer, before any LLM calls.
+  Usage is tracked after a successful agent run.
+
   ## Options
   - `:tools` - List of tool definitions for LLM (default: [])
+  - `:model` - LLM model spec (defaults to provider default)
+  - `:env_api_key` - Map of provider => api_key from client's environment
   - `:agent` - Custom agent struct implementing Swarm.Agent (for testing)
+
+  ## Returns
+  - `{:ok, pid}` - Agent started successfully
+  - `{:error, :no_api_key}` - No API key available
+  - `{:error, :usage_limit_exceeded}` - Server key quota exhausted
   """
-  @spec start_agent(Scope.t(), String.t(), keyword()) :: :ok
+  @spec start_agent(Scope.t(), String.t(), keyword()) ::
+          {:ok, pid()} | {:error, :no_api_key | :usage_limit_exceeded | term()}
   def start_agent(%Scope{} = scope, task_id, opts \\ []) do
     tools = Keyword.get(opts, :tools, [])
-    on_event = build_event_handler(scope, task_id)
+    model_config = Keyword.get(opts, :model)
+    env_api_key = Keyword.get(opts, :env_api_key, %{})
 
-    agent = build_agent(scope, task_id, tools, opts)
+    # Build model string from config: "provider:model_value"
+    # e.g., %{provider: "openrouter", value: "google/gemini-3-flash-preview"}
+    #    -> "openrouter:google/gemini-3-flash-preview"
+    model = build_model_string(model_config)
 
-    # Get messages and convert to Swarm.Message format
-    messages = build_messages(scope, task_id)
+    # Resolve API key at the domain layer (earliest point)
+    case Providers.prepare_api_key(scope, model, env_api_key) do
+      {:ok, api_key_info} ->
+        on_event = build_event_handler(scope, task_id)
+        agent = build_agent(scope, task_id, tools, opts, api_key_info)
+        messages = build_messages(scope, task_id)
 
-    # Start agent execution in supervised task
-    {:ok, _pid} = run_agent(scope, agent, task_id, messages, on_event: on_event)
-    :ok
+        run_agent(scope, agent, task_id, messages,
+          on_event: on_event,
+          api_key_info: api_key_info
+        )
+
+      {:error, reason} ->
+        {:error, reason}
+    end
   end
 
   # Runs an agent in a supervised Task with streaming callbacks.
@@ -73,6 +99,7 @@ defmodule FrontmanServer.Agents do
           {:ok, pid()} | {:error, term()}
   defp run_agent(scope, agent, task_id, messages, opts) do
     on_event = Keyword.fetch!(opts, :on_event)
+    api_key_info = Keyword.fetch!(opts, :api_key_info)
     registry_key = {:running_agent, task_id}
 
     Task.Supervisor.start_child(
@@ -83,7 +110,7 @@ defmodule FrontmanServer.Agents do
 
         try do
           # registry_key passed for explicit cleanup timing (must unregister before completion event)
-          execute_agent(scope, agent, task_id, messages, registry_key, on_event)
+          execute_agent(scope, agent, task_id, messages, registry_key, on_event, api_key_info)
         after
           # Safety net for crashes - idempotent if already unregistered in execute_agent
           Registry.unregister(FrontmanServer.AgentRegistry, registry_key)
@@ -92,7 +119,7 @@ defmodule FrontmanServer.Agents do
     )
   end
 
-  defp build_agent(scope, task_id, tools, opts) do
+  defp build_agent(scope, task_id, tools, opts, %ResolvedKey{} = resolved_key) do
     case Keyword.get(opts, :agent) do
       nil ->
         # Build context for dynamic system prompt
@@ -101,13 +128,34 @@ defmodule FrontmanServer.Agents do
         figma_node_id = Tasks.get_figma_node_id(scope, task_id)
         framework = get_framework(scope, task_id)
 
+        # Fetch discovered project rules (AGENTS.md, etc.)
+        project_rules =
+          case Tasks.get_discovered_project_rules(scope, task_id) do
+            {:ok, rules} -> rules
+            {:error, _} -> []
+          end
+
+        # Build llm_opts with resolved key info
+        # LLM transformation flags (requires_mcp_prefix, identity_override) come from ResolvedKey
+        # oauth_mode tells ReqLLM to use Bearer token auth instead of x-api-key
+        llm_opts = [
+          api_key: resolved_key.api_key,
+          requires_mcp_prefix: resolved_key.requires_mcp_prefix,
+          identity_override: resolved_key.identity_override,
+          oauth_mode: resolved_key.oauth_mode
+        ]
+
         # Create RootAgent with context
+        # API key is passed via llm_opts - no scope/env_api_key needed
         RootAgent.new(
           tools: tools,
           has_figma_context: has_figma,
           has_selected_component: has_selected_component,
           figma_node_id: figma_node_id,
-          framework: framework
+          framework: framework,
+          model: resolved_key.model,
+          llm_opts: llm_opts,
+          project_rules: project_rules
         )
 
       custom_agent ->
@@ -155,10 +203,36 @@ defmodule FrontmanServer.Agents do
       # Agent is running - it will pick up new messages on next iteration
       :ok
     else
-      start_agent(scope, task_id, Keyword.merge([tools: tools], opts))
-      :ok
+      case start_agent(scope, task_id, Keyword.merge([tools: tools], opts)) do
+        {:ok, _pid} ->
+          :ok
+
+        {:error, reason} ->
+          # Broadcast error to task channel
+          broadcast(task_id, {:agent_error, error_message(reason)})
+          :ok
+      end
     end
   end
+
+  defp error_message(:usage_limit_exceeded),
+    do: "Free requests exhausted. Add your API key in Settings to continue."
+
+  defp error_message(:no_api_key),
+    do: "No API key available for this request."
+
+  defp error_message(reason),
+    do: inspect(reason)
+
+  # Build model string from config map: "provider:model_value"
+  # e.g., %{provider: "openrouter", value: "google/gemini-3-flash-preview"}
+  #    -> "openrouter:google/gemini-3-flash-preview"
+  defp build_model_string(%{provider: provider, value: value})
+       when is_binary(provider) and is_binary(value) do
+    "#{provider}:#{value}"
+  end
+
+  defp build_model_string(_), do: nil
 
   # Private Functions
 
@@ -276,13 +350,26 @@ defmodule FrontmanServer.Agents do
   # Dialyzer thinks this has no return because it can't prove protocol dispatch
   # won't use the Any fallback (which raises). At runtime, RootAgent is always used.
   # Exceptions are intentionally not rescued - they propagate to error monitoring.
-  @dialyzer {:nowarn_function, execute_agent: 6}
-  defp execute_agent(scope, agent, task_id, messages, registry_key, on_event) do
+  @dialyzer {:nowarn_function, execute_agent: 7}
+  defp execute_agent(
+         scope,
+         agent,
+         task_id,
+         messages,
+         registry_key,
+         on_event,
+         %ResolvedKey{} = resolved_key
+       ) do
     # Build tool executor that handles both backend and MCP tools.
     # ToolExecutor owns interaction publishing for MCP tools internally.
-    # Pass MCP tools so backend tools that spawn sub-agents can access them.
+    # Pass MCP tools and llm_opts so backend tools that spawn sub-agents can use them.
     mcp_tools = Map.get(agent, :tools, [])
-    tool_executor = ToolExecutor.make_executor(scope, task_id, mcp_tools: mcp_tools)
+
+    # Build flat llm_opts from resolved_key for sub-agents
+    llm_opts = [api_key: resolved_key.api_key, model: resolved_key.model]
+
+    tool_executor =
+      ToolExecutor.make_executor(scope, task_id, mcp_tools: mcp_tools, llm_opts: llm_opts)
 
     Logger.info("Starting agent execution for task #{task_id} via Swarm.run_streaming")
 
@@ -321,6 +408,8 @@ defmodule FrontmanServer.Agents do
 
     case result do
       {:ok, _result} ->
+        # Track usage only on successful agent run
+        Providers.record_usage(scope, resolved_key)
         on_event.(:completed)
 
       {:error, reason} ->

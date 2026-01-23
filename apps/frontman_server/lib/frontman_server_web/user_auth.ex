@@ -232,6 +232,21 @@ defmodule FrontmanServerWeb.UserAuth do
     end
   end
 
+  @doc """
+  Plug for API routes that require the user to be authenticated.
+  Returns JSON error instead of redirect.
+  """
+  def require_authenticated_user_api(conn, _opts) do
+    if conn.assigns.current_scope && conn.assigns.current_scope.user do
+      conn
+    else
+      conn
+      |> put_status(:unauthorized)
+      |> Phoenix.Controller.json(%{error: "authentication_required"})
+      |> halt()
+    end
+  end
+
   defp maybe_store_return_to(%{method: "GET"} = conn) do
     put_session(conn, :user_return_to, current_path(conn))
   end

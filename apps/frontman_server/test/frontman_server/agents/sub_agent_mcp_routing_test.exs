@@ -39,7 +39,7 @@ defmodule FrontmanServer.Agents.SubAgentMcpRoutingTest do
         |> subscribe_and_join("task:#{task_id}", %{})
 
       # Drain MCP initialization request
-      assert_push "mcp:message", %{"method" => "initialize"}
+      assert_push("mcp:message", %{"method" => "initialize"})
 
       # Subscribe to PubSub to see what interactions are published
       Phoenix.PubSub.subscribe(FrontmanServer.PubSub, Tasks.topic(task_id))
@@ -52,7 +52,8 @@ defmodule FrontmanServer.Agents.SubAgentMcpRoutingTest do
       scope: scope
     } do
       # ToolExecutor now owns interaction publishing - MCP tools are automatically routed
-      executor = ToolExecutor.make_executor(scope, task_id)
+      llm_opts = [api_key: "test-key", model: "openrouter:anthropic/claude-sonnet-4-20250514"]
+      executor = ToolExecutor.make_executor(scope, task_id, llm_opts: llm_opts)
 
       tool_call = %ToolCall{
         id: "call_#{:rand.uniform(1_000_000)}",
@@ -66,12 +67,14 @@ defmodule FrontmanServer.Agents.SubAgentMcpRoutingTest do
         end)
 
       # MCP request SHOULD be pushed to channel automatically
-      assert_push "mcp:message",
-                  %{
-                    "method" => "tools/call",
-                    "params" => %{"name" => "get_figma_node"}
-                  },
-                  2_000
+      assert_push(
+        "mcp:message",
+        %{
+          "method" => "tools/call",
+          "params" => %{"name" => "get_figma_node"}
+        },
+        2_000
+      )
 
       # Verify interaction was published via PubSub
       assert_receive {:interaction, %Interaction.ToolCall{tool_name: "get_figma_node"}}, 500
@@ -95,7 +98,8 @@ defmodule FrontmanServer.Agents.SubAgentMcpRoutingTest do
       agent = test_agent(llm, "ComponentImplementAgent")
 
       # Simple executor - ToolExecutor handles MCP routing internally
-      executor = ToolExecutor.make_executor(scope, task_id)
+      llm_opts = [api_key: "test-key", model: "openrouter:anthropic/claude-sonnet-4-20250514"]
+      executor = ToolExecutor.make_executor(scope, task_id, llm_opts: llm_opts)
 
       executor_task =
         Task.async(fn ->
@@ -103,13 +107,15 @@ defmodule FrontmanServer.Agents.SubAgentMcpRoutingTest do
         end)
 
       # Verify MCP request is pushed to channel
-      assert_push "mcp:message",
-                  %{
-                    "method" => "tools/call",
-                    "id" => mcp_request_id,
-                    "params" => %{"name" => "get_figma_node"}
-                  },
-                  5_000
+      assert_push(
+        "mcp:message",
+        %{
+          "method" => "tools/call",
+          "id" => mcp_request_id,
+          "params" => %{"name" => "get_figma_node"}
+        },
+        5_000
+      )
 
       # Respond to the MCP request so agent can continue
       mcp_response = %{

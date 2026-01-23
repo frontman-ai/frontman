@@ -112,7 +112,12 @@ defmodule FrontmanServer.Tools.FixVisualIssues do
     user_msg = build_user_message(args)
     messages = context_messages ++ [user_msg]
 
-    agent = SpecializedAgent.new(:fix_visual_issues, tools: mcp_tools, llm_opts: llm_opts)
+    agent =
+      SpecializedAgent.new(:fix_visual_issues,
+        tools: mcp_tools,
+        model: llm_opts[:model],
+        llm_opts: llm_opts
+      )
 
     case Swarm.run_blocking(agent, messages, tool_executor) do
       {:ok, result} ->

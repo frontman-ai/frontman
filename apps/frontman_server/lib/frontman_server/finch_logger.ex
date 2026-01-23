@@ -11,21 +11,25 @@ defmodule FrontmanServer.FinchLogger do
   def handle_event(_event, _measurements, metadata, _config) do
     case metadata do
       %{
-        request: %{
-          method: method,
-          host: host,
-          port: port,
-          path: path,
-          scheme: scheme,
-          headers: headers,
-          body: body
-        }
+        request:
+          %{
+            method: method,
+            host: host,
+            port: port,
+            path: path,
+            scheme: scheme,
+            headers: headers,
+            body: body
+          } = request
       } ->
         sanitized_headers = sanitize_headers(headers)
+        # Include query string if present
+        query = Map.get(request, :query, nil)
+        url_with_query = if query && query != "", do: "#{path}?#{query}", else: path
 
         Logger.debug("""
         Finch Request:
-          URL: #{method} #{scheme}://#{host}:#{port}#{path}
+          URL: #{method} #{scheme}://#{host}:#{port}#{url_with_query}
           Headers: #{inspect(sanitized_headers, pretty: true)}
           Body: #{inspect(body, pretty: true, limit: :infinity)}
         """)

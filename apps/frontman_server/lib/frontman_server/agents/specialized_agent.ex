@@ -8,6 +8,10 @@ defmodule FrontmanServer.Agents.SpecializedAgent do
 
   The system prompt is retrieved from `Prompts.specialized/1` based on the type.
 
+  API key resolution happens at the domain layer (Agents context) before the
+  root agent runs. Sub-agents receive the resolved key via `llm_opts[:api_key]`
+  passed through `Backend.Context`.
+
   ## Types
 
   - `:figma_breakdown` - Analyzes Figma designs and breaks them into components
@@ -31,10 +35,11 @@ defmodule FrontmanServer.Agents.SpecializedAgent do
           | :replace_component
 
   typedstruct do
-    field :type, agent_type(), enforce: true
-    field :tools, [Swarm.Tool.t()], default: []
-    field :llm_opts, keyword(), default: []
-    field :model, String.t() | nil, default: nil
+    field(:type, agent_type(), enforce: true)
+    field(:tools, [Swarm.Tool.t()], default: [])
+    # llm_opts must include :api_key (resolved at domain layer, passed via Context)
+    field(:llm_opts, keyword(), default: [])
+    field(:model, String.t() | nil, default: nil)
   end
 
   @doc """
@@ -44,7 +49,7 @@ defmodule FrontmanServer.Agents.SpecializedAgent do
 
   - `:type` - The agent type (required)
   - `:tools` - List of Swarm.Tool structs
-  - `:llm_opts` - Additional LLM options (e.g., fixture_path for tests)
+  - `:llm_opts` - LLM options, must include `:api_key`
   - `:model` - LLM model spec (defaults to LLMClient default)
   """
   @spec new(agent_type(), keyword()) :: t()
@@ -67,7 +72,10 @@ defimpl Swarm.Agent, for: FrontmanServer.Agents.SpecializedAgent do
 
   def llm(%SpecializedAgent{} = agent) do
     opts =
-      [tools: agent.tools, llm_opts: agent.llm_opts]
+      [
+        tools: agent.tools,
+        llm_opts: agent.llm_opts
+      ]
       |> then(fn opts ->
         if agent.model, do: Keyword.put(opts, :model, agent.model), else: opts
       end)

@@ -10,6 +10,9 @@ defmodule FrontmanServer.Agents.RootAgent do
   - Figma design context
   - Selected component information
   - Framework-specific guidance
+
+  API key resolution happens at the domain layer (Agents context) before this agent
+  is created. The resolved key is passed via `llm_opts[:api_key]`.
   """
 
   use TypedStruct
@@ -17,13 +20,17 @@ defmodule FrontmanServer.Agents.RootAgent do
   alias FrontmanServer.Agents.{LLMClient, Prompts}
 
   typedstruct do
-    field :tools, [Swarm.Tool.t()], default: []
-    field :has_figma_context, boolean(), default: false
-    field :has_selected_component, boolean(), default: false
-    field :figma_node_id, String.t() | nil, default: nil
-    field :framework, String.t() | nil, default: nil
-    field :llm_opts, keyword(), default: []
-    field :model, String.t() | nil, default: nil
+    field(:tools, [Swarm.Tool.t()], default: [])
+    field(:has_figma_context, boolean(), default: false)
+    field(:has_selected_component, boolean(), default: false)
+    field(:figma_node_id, String.t() | nil, default: nil)
+    field(:framework, String.t() | nil, default: nil)
+    # llm_opts must include :api_key (resolved at domain layer)
+    # May also include :requires_mcp_prefix and :identity_override for OAuth
+    field(:llm_opts, keyword(), default: [])
+    field(:model, String.t() | nil, default: nil)
+    # Discovered project rules (AGENTS.md, etc.) to append to system prompt
+    field(:project_rules, list(), default: [])
   end
 
   @doc """
@@ -36,8 +43,10 @@ defmodule FrontmanServer.Agents.RootAgent do
   - `:has_selected_component` - Whether a component is selected in the codebase
   - `:figma_node_id` - The Figma node ID for breakdown_figma_design
   - `:framework` - Framework name (e.g., "nextjs") for framework-specific guidance
-  - `:llm_opts` - Additional LLM options (e.g., fixture_path for tests)
+  - `:llm_opts` - LLM options, must include `:api_key`. May include `:requires_mcp_prefix`
+    and `:identity_override` for OAuth transformations (handled by LLMClient).
   - `:model` - LLM model spec (defaults to LLMClient default)
+  - `:project_rules` - List of discovered project rules (AGENTS.md, etc.)
   """
   @spec new(keyword()) :: t()
   def new(opts \\ []) do
@@ -48,7 +57,8 @@ defmodule FrontmanServer.Agents.RootAgent do
       figma_node_id: Keyword.get(opts, :figma_node_id),
       framework: Keyword.get(opts, :framework),
       llm_opts: Keyword.get(opts, :llm_opts, []),
-      model: Keyword.get(opts, :model)
+      model: Keyword.get(opts, :model),
+      project_rules: Keyword.get(opts, :project_rules, [])
     }
   end
 end
@@ -57,17 +67,23 @@ defimpl Swarm.Agent, for: FrontmanServer.Agents.RootAgent do
   alias FrontmanServer.Agents.{LLMClient, Prompts, RootAgent}
 
   def system_prompt(%RootAgent{} = agent) do
+    # Build system prompt - always returns a string
+    # OAuth transformations (identity prepend, content splitting) are handled by LLMClient
     Prompts.build(
       has_figma_context: agent.has_figma_context,
       has_selected_component: agent.has_selected_component,
       figma_node_id: agent.figma_node_id,
-      framework: agent.framework
+      framework: agent.framework,
+      project_rules: agent.project_rules
     )
   end
 
   def llm(%RootAgent{} = agent) do
     opts =
-      [tools: agent.tools, llm_opts: agent.llm_opts]
+      [
+        tools: agent.tools,
+        llm_opts: agent.llm_opts
+      ]
       |> then(fn opts ->
         if agent.model, do: Keyword.put(opts, :model, agent.model), else: opts
       end)

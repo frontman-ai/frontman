@@ -44,16 +44,18 @@ defmodule FrontmanServer.Agents.ToolExecutor do
   ## Options
 
   - `:mcp_tools` - List of Swarm.Tool.t() for sub-agents to use (default: [])
+  - `:llm_opts` - Keyword list with :api_key and :model for sub-agents
 
   ## Examples
 
-      executor = ToolExecutor.make_executor(scope, task_id, mcp_tools: mcp_tools)
+      executor = ToolExecutor.make_executor(scope, task_id, mcp_tools: mcp_tools, llm_opts: llm_opts)
       Swarm.run_blocking(agent, messages, executor)
   """
   @spec make_executor(Scope.t(), String.t(), keyword()) ::
           (Swarm.ToolCall.t() -> {:ok, String.t()} | {:error, String.t()})
   def make_executor(%Scope{} = scope, task_id, opts \\ []) do
     mcp_tools = Keyword.get(opts, :mcp_tools, [])
+    llm_opts = Keyword.fetch!(opts, :llm_opts)
 
     fn tool_call ->
       is_mcp_tool = register_if_mcp_tool(tool_call)
@@ -64,7 +66,7 @@ defmodule FrontmanServer.Agents.ToolExecutor do
         publish_mcp_tool_call(scope, task_id, tool_call)
       end
 
-      execute(scope, tool_call, task_id, mcp_tools)
+      execute(scope, tool_call, task_id, mcp_tools: mcp_tools, llm_opts: llm_opts)
     end
   end
 
@@ -105,13 +107,20 @@ defmodule FrontmanServer.Agents.ToolExecutor do
 
   @doc """
   Execute a single tool, trying backend first then MCP.
+
+  ## Options
+    - `:mcp_tools` - List of Swarm.Tool.t() for sub-agents to use (default: [])
+    - `:llm_opts` - Keyword list with :api_key and :model for sub-agents
   """
-  @spec execute(Scope.t(), Swarm.ToolCall.t(), String.t(), [Swarm.Tool.t()]) ::
+  @spec execute(Scope.t(), Swarm.ToolCall.t(), String.t(), keyword()) ::
           {:ok, String.t()} | {:error, String.t()}
-  def execute(scope, tool_call, task_id, mcp_tools \\ []) do
+  def execute(scope, tool_call, task_id, opts \\ []) do
+    mcp_tools = Keyword.get(opts, :mcp_tools, [])
+    llm_opts = Keyword.fetch!(opts, :llm_opts)
+
     case Tools.find_tool(tool_call.name) do
       {:ok, module} ->
-        execute_backend_tool(scope, module, tool_call, task_id, mcp_tools)
+        execute_backend_tool(scope, module, tool_call, task_id, mcp_tools, llm_opts)
 
       :not_found ->
         execute_mcp_tool(tool_call, task_id)
@@ -120,23 +129,25 @@ defmodule FrontmanServer.Agents.ToolExecutor do
 
   # --- Backend Tool Execution ---
 
-  defp execute_backend_tool(scope, module, tool_call, task_id, mcp_tools) do
+  defp execute_backend_tool(scope, module, tool_call, task_id, mcp_tools, llm_opts) do
     Logger.info("ToolExecutor: Executing backend tool #{tool_call.name}")
 
     case Tasks.get_task(scope, task_id) do
       {:ok, task} ->
         # Pass the executor itself so backend tools can spawn sub-agents
-        executor = make_executor(scope, task_id, mcp_tools: mcp_tools)
+        executor = make_executor(scope, task_id, mcp_tools: mcp_tools, llm_opts: llm_opts)
 
         # Pre-compute context messages from read_file results for sub-agents
         context_messages =
           Interaction.extract_markdown_messages(task.interactions)
 
         context = %Backend.Context{
+          scope: scope,
           task: task,
           tool_executor: executor,
           mcp_tools: mcp_tools,
-          context_messages: context_messages
+          context_messages: context_messages,
+          llm_opts: llm_opts
         }
 
         args = parse_arguments(tool_call.arguments)

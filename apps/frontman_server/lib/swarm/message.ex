@@ -16,17 +16,27 @@ defmodule Swarm.Message do
   @type role :: :system | :user | :assistant | :tool
 
   typedstruct do
-    field :role, role(), enforce: true
-    field :content, [ContentPart.t()], default: []
-    field :tool_calls, [Swarm.ToolCall.t()], default: []
-    field :tool_call_id, String.t()
-    field :name, String.t()
+    field(:role, role(), enforce: true)
+    field(:content, [ContentPart.t()], default: [])
+    field(:tool_calls, [Swarm.ToolCall.t()], default: [])
+    field(:tool_call_id, String.t())
+    field(:name, String.t())
   end
 
-  @doc "Creates a system message"
-  @spec system(String.t()) :: t()
+  @doc "Creates a system message from text or a list of content parts"
+  @spec system(String.t() | [String.t()]) :: t()
   def system(text) when is_binary(text) do
     %__MODULE__{role: :system, content: [ContentPart.text(text)]}
+  end
+
+  def system(parts) when is_list(parts) do
+    content =
+      Enum.map(parts, fn
+        text when is_binary(text) -> ContentPart.text(text)
+        %ContentPart{} = part -> part
+      end)
+
+    %__MODULE__{role: :system, content: content}
   end
 
   @doc "Creates a user message"

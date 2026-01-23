@@ -1,0 +1,93 @@
+defmodule FrontmanServerWeb.ModelsController do
+  @moduledoc """
+  Returns available LLM models grouped by provider.
+
+  Models are served dynamically based on the user's configured providers:
+  - OpenRouter: Always available (server has API key)
+  - Anthropic: Available when user has OAuth connected (Claude Pro/Max subscription)
+  """
+  use FrontmanServerWeb, :controller
+
+  alias FrontmanServer.Providers
+
+  # OpenRouter provider (always available)
+  @openrouter_provider %{
+    id: "openrouter",
+    name: "OpenRouter",
+    models: [
+      # OpenAI models
+      %{displayName: "GPT-5.2", value: "openai/gpt-5.2"},
+      %{displayName: "GPT-5.1", value: "openai/gpt-5.1"},
+      %{displayName: "GPT-5", value: "openai/gpt-5"},
+      %{displayName: "GPT-5 mini", value: "openai/gpt-5-mini"},
+      %{displayName: "GPT-5 Chat", value: "openai/gpt-5-chat"},
+      %{displayName: "GPT-4.1", value: "openai/gpt-4.1"},
+      %{displayName: "o3", value: "openai/o3"},
+      %{displayName: "o4-mini", value: "openai/o4-mini"},
+      # Anthropic models (via OpenRouter)
+      %{displayName: "Claude Sonnet 4.5", value: "anthropic/claude-sonnet-4.5"},
+      %{displayName: "Claude Opus 4.5", value: "anthropic/claude-opus-4.5"},
+      %{displayName: "Claude Haiku 4.5", value: "anthropic/claude-haiku-4.5"},
+      # Google models
+      %{displayName: "Gemini 3 Pro Preview", value: "google/gemini-3-pro-preview"},
+      %{displayName: "Gemini 3 Flash Preview", value: "google/gemini-3-flash-preview"},
+      %{displayName: "Gemini 2.5 Pro", value: "google/gemini-2.5-pro"}
+    ]
+  }
+
+  # Anthropic provider (direct API, requires OAuth)
+  @anthropic_provider %{
+    id: "anthropic",
+    name: "Anthropic (Claude Pro/Max)",
+    models: [
+      %{displayName: "Claude Sonnet 4.5", value: "claude-sonnet-4-5"},
+      %{displayName: "Claude Opus 4.5", value: "claude-opus-4-5"},
+      %{displayName: "Claude Haiku 4.5", value: "claude-haiku-4-5"},
+      %{displayName: "Claude Sonnet 4", value: "claude-sonnet-4-20250514"},
+      %{displayName: "Claude Opus 4", value: "claude-opus-4-20250514"}
+    ]
+  }
+
+  # Default models for each scenario
+  @openrouter_default %{provider: "openrouter", value: "google/gemini-3-flash-preview"}
+  @anthropic_default %{provider: "anthropic", value: "claude-sonnet-4-5"}
+
+  @doc """
+  Returns the available models configuration.
+
+  GET /api/models
+
+  The response includes providers based on user's configuration:
+  - OpenRouter: Always included
+  - Anthropic: Included when user has OAuth connected
+
+  Response:
+  {
+    "providers": [...],
+    "defaultModel": {"provider": "...", "value": "..."}
+  }
+  """
+  def index(conn, _params) do
+    scope = conn.assigns.current_scope
+
+    has_anthropic_oauth = Providers.has_oauth_token?(scope, "anthropic")
+
+    # Build providers list: Anthropic first (if available), then OpenRouter
+    providers =
+      if has_anthropic_oauth do
+        [@anthropic_provider, @openrouter_provider]
+      else
+        [@openrouter_provider]
+      end
+
+    # Default to Anthropic Sonnet 4.5 if OAuth connected, otherwise Gemini Flash
+    default_model =
+      if has_anthropic_oauth do
+        @anthropic_default
+      else
+        @openrouter_default
+      end
+
+    json(conn, %{providers: providers, defaultModel: default_model})
+  end
+end
