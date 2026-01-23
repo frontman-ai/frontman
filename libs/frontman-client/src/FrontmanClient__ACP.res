@@ -130,7 +130,12 @@ let fetchSocketToken = async (tokenUrl: string): result<string, tokenError> => {
       Error(FetchFailed(`HTTP ${response.status->Int.toString}`))
     }
   } catch {
-  | Exn.Error(e) => Error(FetchFailed(Exn.message(e)->Option.getOr("Unknown error")))
+  | exn =>
+    Error(
+      FetchFailed(
+        exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error"),
+      ),
+    )
   }
 }
 

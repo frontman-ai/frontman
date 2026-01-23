@@ -7,13 +7,13 @@ type t = {
 }
 
 let read = (): t => {
-  let getRuntime: unit => option<{..}> = %raw(`
+  let getRuntime: unit => Nullable.t<{..}> = %raw(`
     function() {
       if (typeof window === 'undefined') return null;
       return window.__frontmanRuntime || null;
     }
   `)
-  let runtime = getRuntime()
+  let runtime = getRuntime()->Nullable.toOption
   runtime->Option.mapOr(
     {framework: None, openrouterKeyValue: None},
     runtimeObj => {
