@@ -2,7 +2,10 @@ alias FrontmanServer.Tasks.Interaction
 alias FrontmanServerWeb.ACPHistory
 
 defimpl ACPHistory, for: Interaction.UserMessage do
-  def to_history_items(%Interaction.UserMessage{messages: messages, timestamp: timestamp}, session_id) do
+  def to_history_items(
+        %Interaction.UserMessage{messages: messages, timestamp: timestamp},
+        session_id
+      ) do
     timestamp_iso = DateTime.to_iso8601(timestamp)
 
     Enum.map(messages, fn text ->
@@ -44,7 +47,11 @@ end
 
 defimpl ACPHistory, for: Interaction.ToolCall do
   def to_history_items(
-        %Interaction.ToolCall{tool_call_id: tool_call_id, tool_name: tool_name, arguments: arguments},
+        %Interaction.ToolCall{
+          tool_call_id: tool_call_id,
+          tool_name: tool_name,
+          arguments: arguments
+        },
         session_id
       ) do
     [

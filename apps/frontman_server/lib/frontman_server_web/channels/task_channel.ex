@@ -308,11 +308,21 @@ defmodule FrontmanServerWeb.TaskChannel do
         {:noreply, socket}
 
       {:error, :not_found} ->
-        push(socket, "acp:message", JsonRpc.error_response(id, JsonRpc.error_invalid_params(), "Session not found"))
+        push(
+          socket,
+          "acp:message",
+          JsonRpc.error_response(id, JsonRpc.error_invalid_params(), "Session not found")
+        )
+
         {:noreply, socket}
 
       {:error, :unauthorized} ->
-        push(socket, "acp:message", JsonRpc.error_response(id, JsonRpc.error_invalid_params(), "Unauthorized"))
+        push(
+          socket,
+          "acp:message",
+          JsonRpc.error_response(id, JsonRpc.error_invalid_params(), "Unauthorized")
+        )
+
         {:noreply, socket}
     end
   end

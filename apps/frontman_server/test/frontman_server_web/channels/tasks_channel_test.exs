@@ -251,7 +251,9 @@ defmodule FrontmanServerWeb.TasksChannelTest do
 
       other_scope = FrontmanServer.Accounts.Scope.for_user(other_user)
       other_task_id = Ecto.UUID.generate()
-      {:ok, ^other_task_id} = FrontmanServer.Tasks.create_task(other_scope, other_task_id, "other")
+
+      {:ok, ^other_task_id} =
+        FrontmanServer.Tasks.create_task(other_scope, other_task_id, "other")
 
       ref = push(socket, "list_sessions", %{})
       assert_reply ref, :ok, %{"sessions" => [session]}
@@ -290,7 +292,9 @@ defmodule FrontmanServerWeb.TasksChannelTest do
 
       other_scope = FrontmanServer.Accounts.Scope.for_user(other_user)
       other_task_id = Ecto.UUID.generate()
-      {:ok, ^other_task_id} = FrontmanServer.Tasks.create_task(other_scope, other_task_id, "other")
+
+      {:ok, ^other_task_id} =
+        FrontmanServer.Tasks.create_task(other_scope, other_task_id, "other")
 
       # Trying to delete other user's task should fail (crashes the handler)
       # The channel will crash and the test process will receive an error
@@ -319,9 +323,24 @@ defmodule FrontmanServerWeb.TasksChannelTest do
       }
     end
 
-    test "streams user message history with timestamps", %{socket: socket, scope: scope, task_id: task_id} do
-      FrontmanServer.Tasks.add_user_message(scope, task_id, [%{"type" => "text", "text" => "Hello"}], [])
-      FrontmanServer.Tasks.add_user_message(scope, task_id, [%{"type" => "text", "text" => "World"}], [])
+    test "streams user message history with timestamps", %{
+      socket: socket,
+      scope: scope,
+      task_id: task_id
+    } do
+      FrontmanServer.Tasks.add_user_message(
+        scope,
+        task_id,
+        [%{"type" => "text", "text" => "Hello"}],
+        []
+      )
+
+      FrontmanServer.Tasks.add_user_message(
+        scope,
+        task_id,
+        [%{"type" => "text", "text" => "World"}],
+        []
+      )
 
       push(socket, "acp:message", acp_request(1, "session/load", %{"sessionId" => task_id}))
 
@@ -356,7 +375,11 @@ defmodule FrontmanServerWeb.TasksChannelTest do
       assert_push "acp:message", %{"id" => 1, "result" => %{}}
     end
 
-    test "streams agent message history with full lifecycle", %{socket: socket, scope: scope, task_id: task_id} do
+    test "streams agent message history with full lifecycle", %{
+      socket: socket,
+      scope: scope,
+      task_id: task_id
+    } do
       FrontmanServer.Tasks.add_agent_response(scope, task_id, "Response 1", %{})
       FrontmanServer.Tasks.add_agent_response(scope, task_id, "Response 2", %{})
 
@@ -375,7 +398,10 @@ defmodule FrontmanServerWeb.TasksChannelTest do
         "method" => "session/update",
         "params" => %{
           "sessionId" => ^task_id,
-          "update" => %{"sessionUpdate" => "agent_message_chunk", "content" => %{"text" => "Response 1"}}
+          "update" => %{
+            "sessionUpdate" => "agent_message_chunk",
+            "content" => %{"text" => "Response 1"}
+          }
         }
       }
 
@@ -400,7 +426,10 @@ defmodule FrontmanServerWeb.TasksChannelTest do
         "method" => "session/update",
         "params" => %{
           "sessionId" => ^task_id,
-          "update" => %{"sessionUpdate" => "agent_message_chunk", "content" => %{"text" => "Response 2"}}
+          "update" => %{
+            "sessionUpdate" => "agent_message_chunk",
+            "content" => %{"text" => "Response 2"}
+          }
         }
       }
 
@@ -416,14 +445,25 @@ defmodule FrontmanServerWeb.TasksChannelTest do
     end
 
     test "streams mixed history in order", %{socket: socket, scope: scope, task_id: task_id} do
-      FrontmanServer.Tasks.add_user_message(scope, task_id, [%{"type" => "text", "text" => "Question"}], [])
+      FrontmanServer.Tasks.add_user_message(
+        scope,
+        task_id,
+        [%{"type" => "text", "text" => "Question"}],
+        []
+      )
+
       FrontmanServer.Tasks.add_agent_response(scope, task_id, "Answer", %{})
 
       push(socket, "acp:message", acp_request(1, "session/load", %{"sessionId" => task_id}))
 
       # User message
       assert_push "acp:message", %{
-        "params" => %{"update" => %{"sessionUpdate" => "user_message_chunk", "content" => %{"text" => "Question"}}}
+        "params" => %{
+          "update" => %{
+            "sessionUpdate" => "user_message_chunk",
+            "content" => %{"text" => "Question"}
+          }
+        }
       }
 
       # Agent response with full lifecycle: start -> chunk -> end
@@ -432,7 +472,12 @@ defmodule FrontmanServerWeb.TasksChannelTest do
       }
 
       assert_push "acp:message", %{
-        "params" => %{"update" => %{"sessionUpdate" => "agent_message_chunk", "content" => %{"text" => "Answer"}}}
+        "params" => %{
+          "update" => %{
+            "sessionUpdate" => "agent_message_chunk",
+            "content" => %{"text" => "Answer"}
+          }
+        }
       }
 
       assert_push "acp:message", %{
@@ -450,7 +495,11 @@ defmodule FrontmanServerWeb.TasksChannelTest do
     end
 
     test "returns error for non-existent session", %{socket: socket} do
-      push(socket, "acp:message", acp_request(1, "session/load", %{"sessionId" => Ecto.UUID.generate()}))
+      push(
+        socket,
+        "acp:message",
+        acp_request(1, "session/load", %{"sessionId" => Ecto.UUID.generate()})
+      )
 
       assert_push "acp:message", %{
         "id" => 1,
@@ -468,7 +517,9 @@ defmodule FrontmanServerWeb.TasksChannelTest do
 
       other_scope = FrontmanServer.Accounts.Scope.for_user(other_user)
       other_task_id = Ecto.UUID.generate()
-      {:ok, ^other_task_id} = FrontmanServer.Tasks.create_task(other_scope, other_task_id, "other")
+
+      {:ok, ^other_task_id} =
+        FrontmanServer.Tasks.create_task(other_scope, other_task_id, "other")
 
       push(socket, "acp:message", acp_request(1, "session/load", %{"sessionId" => other_task_id}))
 

@@ -114,7 +114,10 @@ defmodule FrontmanServerWeb.TasksChannel do
   end
 
   # ACP session/load - streams history via session/update notifications
-  defp handle_message({:request, id, "session/load", %{"sessionId" => session_id} = _params}, socket) do
+  defp handle_message(
+         {:request, id, "session/load", %{"sessionId" => session_id} = _params},
+         socket
+       ) do
     Logger.info("ACP session/load request received for session: #{session_id}")
     scope = socket.assigns.scope
 
