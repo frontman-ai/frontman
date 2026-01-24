@@ -41,7 +41,6 @@ module TestHelpers = {
         connectionState: Disconnected,
         sessionInitialized: false,
         usageInfo: None,
-        apiBaseUrl: None,
         openrouterKeySettings: {
           source: Client__State__Types.None,
           saveStatus: Client__State__Types.Idle,
@@ -771,7 +770,6 @@ describe("Client State Reducer - Task Management Actions", () => {
       connectionState: Disconnected,
       sessionInitialized: false,
       usageInfo: None,
-      apiBaseUrl: None,
       openrouterKeySettings: {
         source: Client__State__Types.None,
         saveStatus: Client__State__Types.Idle,
@@ -826,7 +824,6 @@ describe("Client State Reducer - Task Management Actions", () => {
       connectionState: Disconnected,
       sessionInitialized: false,
       usageInfo: None,
-      apiBaseUrl: None,
       openrouterKeySettings: {
         source: Client__State__Types.None,
         saveStatus: Client__State__Types.Idle,
@@ -859,7 +856,6 @@ describe("Client State Reducer - Task Management Actions", () => {
       connectionState: Disconnected,
       sessionInitialized: false,
       usageInfo: None,
-      apiBaseUrl: None,
       openrouterKeySettings: {
         source: Client__State__Types.None,
         saveStatus: Client__State__Types.Idle,
@@ -888,7 +884,6 @@ describe("Client State Reducer - Task Management Actions", () => {
       connectionState: Disconnected,
       sessionInitialized: false,
       usageInfo: None,
-      apiBaseUrl: None,
       openrouterKeySettings: {
         source: Client__State__Types.None,
         saveStatus: Client__State__Types.Idle,
@@ -1009,7 +1004,6 @@ describe("Client State Reducer - Session Loading Actions", () => {
       connectionState: Disconnected,
       sessionInitialized: false,
       usageInfo: None,
-      apiBaseUrl: None,
       openrouterKeySettings: {
         source: Client__State__Types.None,
         saveStatus: Client__State__Types.Idle,
@@ -1092,7 +1086,6 @@ describe("Client State Reducer - Session Loading Actions", () => {
       connectionState: Disconnected,
       sessionInitialized: false,
       usageInfo: None,
-      apiBaseUrl: None,
       openrouterKeySettings: {
         source: Client__State__Types.None,
         saveStatus: Client__State__Types.Idle,
