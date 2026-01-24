@@ -560,33 +560,36 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
     fetch()->ignore
 
   | LoadTaskEffect({connection, mcpServer, taskId, onUpdate, onMcpMessage, onComplete}) =>
-    // Clean up old session if switching to a different one
-    switch state.session {
-    | SessionActive(oldSession) when oldSession.sessionId != taskId => cleanupSession(oldSession)
-    | _ => ()
+    let loadNewSession = () => {
+      let load = async () => {
+        let mcpServerInterface = MCPServer.toInterface(mcpServer)
+        let result = await ACP.loadSession(
+          connection,
+          taskId, // taskId maps to sessionId at protocol level
+          ~onUpdate,
+          ~mcpServerInterface,
+          ~onMcpMessage,
+        )
+        switch result {
+        | Ok(session) =>
+          dispatch(SessionCreateSuccess(session))
+          Console.log2("[ConnectionReducer] Task loaded:", taskId)
+          onComplete(Ok())
+        | Error(err) =>
+          Console.error2("[ConnectionReducer] Failed to load task:", err)
+          onComplete(Error(err))
+        }
+      }
+      load()->ignore
     }
 
-    let load = async () => {
-      let mcpServerInterface = MCPServer.toInterface(mcpServer)
-      let result = await ACP.loadSession(
-        connection,
-        taskId, // taskId maps to sessionId at protocol level
-        ~onUpdate,
-        ~mcpServerInterface,
-        ~onMcpMessage,
-      )
-      switch result {
-      | Ok(session) =>
-        // Store the loaded session so SendPrompt works correctly
-        dispatch(SessionCreateSuccess(session))
-        Console.log2("[ConnectionReducer] Task loaded:", taskId)
-        onComplete(Ok())
-      | Error(err) =>
-        Console.error2("[ConnectionReducer] Failed to load task:", err)
-        onComplete(Error(err))
-      }
+    switch state.session {
+    | SessionActive({sessionId}) when sessionId == taskId => onComplete(Ok())
+    | SessionActive(oldSession) =>
+      cleanupSession(oldSession)
+      loadNewSession()
+    | NoSession | SessionCreating | SessionError(_) => loadNewSession()
     }
-    load()->ignore
 
   | DeleteSessionEffect({connection, taskId, onComplete}) =>
     let delete = async () => {

@@ -35,6 +35,17 @@ cd .worktrees/feature/my-feature
 - Test files: `*.test.res.mjs`
 - Story files: `*.story.res` (co-located with components)
 
+## Error Handling Philosophy
+
+**Crash early and obviously. Never swallow exceptions.**
+
+- Use `Option.getOrThrow`, `Result.getOrThrow` when the value should always exist
+- Let pattern match failures crash - they surface bugs faster than silent fallbacks
+- No defensive `Option.getOr(defaultValue)` to hide unexpected states
+- No catch-all handlers that silently ignore malformed input
+- When something unexpected happens, crash loudly so we see the error and fix the root cause
+- Server channel handlers: no fallback clauses for invalid payloads (zero silent failures)
+
 ## JSON Parsing with Sury
 
 **Always use Sury schemas for JSON parsing/serialization** instead of manual `JSON.Decode.*` / `Dict.get` patterns.
