@@ -13,13 +13,6 @@ module TestHelpers = {
   ) => {
     let task = Reducer.Task.make(~title="Test Task", ~previewUrl)
 
-    // Convert array of messages to Dict
-    let messagesDict = Dict.make()
-    messages->Array.forEach(msg => {
-      let id = Reducer.Message.getId(msg)
-      messagesDict->Dict.set(id, msg)
-    })
-
     // Override generated id, timestamp, and messages in loadedData
     let taskWithTestValues = {
       ...task,
@@ -27,7 +20,7 @@ module TestHelpers = {
       createdAt: timestamp,
       loadState: Reducer.Task.Loaded({
         ...Reducer.Task.makeLoadedData(),
-        messages: messagesDict,
+        messages,
       }),
     }
 
@@ -721,42 +714,38 @@ describe("Client State Reducer - Task ID Continuity", () => {
 describe("Client State Reducer - Task Management Actions", () => {
   test("SwitchTask restores task messages", t => {
     let task1 = Reducer.Task.make(~title="Task 1", ~previewUrl="http://localhost:3000")
-    let messagesDict1 = Dict.make()
-    messagesDict1->Dict.set(
-      "user-1",
+    let messages1 = [
       Reducer.Message.User({
         id: "user-1",
         content: [UserContentPart.Text({text: "Hello from task 1"})],
         createdAt: 1000.0,
       }),
-    )
+    ]
     let task1WithMessages = {
       ...task1,
       id: "task-1",
       createdAt: 1000.0,
       loadState: Reducer.Task.Loaded({
         ...Reducer.Task.makeLoadedData(),
-        messages: messagesDict1,
+        messages: messages1,
       }),
     }
 
     let task2 = Reducer.Task.make(~title="Task 2", ~previewUrl="http://localhost:3000")
-    let messagesDict2 = Dict.make()
-    messagesDict2->Dict.set(
-      "user-2",
+    let messages2 = [
       Reducer.Message.User({
         id: "user-2",
         content: [UserContentPart.Text({text: "Hello from task 2"})],
         createdAt: 2000.0,
       }),
-    )
+    ]
     let task2WithMessages = {
       ...task2,
       id: "task-2",
       createdAt: 2000.0,
       loadState: Reducer.Task.Loaded({
         ...Reducer.Task.makeLoadedData(),
-        messages: messagesDict2,
+        messages: messages2,
       }),
     }
 
@@ -977,21 +966,19 @@ describe("Client State Reducer - Session Loading Actions", () => {
       ~title="Existing Task",
       ~previewUrl="http://localhost:3000",
     )
-    let messagesDict = Dict.make()
-    messagesDict->Dict.set(
-      "user-1",
+    let messages = [
       Reducer.Message.User({
         id: "user-1",
         content: [UserContentPart.Text({text: "Existing message"})],
         createdAt: 1000.0,
       }),
-    )
+    ]
     let existingTaskWithMessage = {
       ...existingTask,
       id: "session-1",
       loadState: Reducer.Task.Loaded({
         ...Reducer.Task.makeLoadedData(),
-        messages: messagesDict,
+        messages,
       }),
     }
 
@@ -1039,8 +1026,8 @@ describe("Client State Reducer - Session Loading Actions", () => {
     let task1 = nextState.tasks->Dict.get("session-1")->Option.getOrThrow
     t->expect(task1.title)->Expect.toBe("Existing Task")
     let task1Messages =
-      Reducer.Task.getLoadedData(task1)->Option.mapOr(Dict.make(), d => d.messages)
-    t->expect(task1Messages->Dict.has("user-1"))->Expect.toBe(true)
+      Reducer.Task.getLoadedData(task1)->Option.mapOr([], d => d.messages)
+    t->expect(task1Messages->Array.some(msg => Reducer.Message.getId(msg) == "user-1"))->Expect.toBe(true)
 
     // New task should be added
     let task2 = nextState.tasks->Dict.get("session-2")->Option.getOrThrow
@@ -1109,10 +1096,10 @@ describe("Client State Reducer - Session Loading Actions", () => {
     // Verify message was added to task
     let updatedTask = nextState.tasks->Dict.get("task-123")->Option.getOrThrow
     let messages =
-      Reducer.Task.getLoadedData(updatedTask)->Option.mapOr(Dict.make(), d => d.messages)
-    t->expect(messages->Dict.has("msg-1"))->Expect.toBe(true)
+      Reducer.Task.getLoadedData(updatedTask)->Option.mapOr([], d => d.messages)
+    t->expect(messages->Array.some(msg => Reducer.Message.getId(msg) == "msg-1"))->Expect.toBe(true)
 
-    let message = messages->Dict.get("msg-1")->Option.getOrThrow
+    let message = messages->Array.find(msg => Reducer.Message.getId(msg) == "msg-1")->Option.getOrThrow
     switch message {
     | User({id, content, _}) => {
         t->expect(id)->Expect.toBe("msg-1")

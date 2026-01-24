@@ -49,15 +49,14 @@ module Lens = {
   }
 
   let updateTaskMessage = (data: Task.loadedData, msgId: string, fn: Message.t => Message.t): Task.loadedData => {
-    let updatedMessages =
-      data.messages->Dict.mapValues(msg => Message.getId(msg) == msgId ? fn(msg) : msg)
+    let updatedMessages = data.messages->Array.map(msg =>
+      Message.getId(msg) == msgId ? fn(msg) : msg
+    )
     {...data, messages: updatedMessages}
   }
 
   let insertTaskMessage = (data: Task.loadedData, message: Message.t): Task.loadedData => {
-    let messages = data.messages->Dict.copy
-    messages->Dict.set(Message.getId(message), message)
-    {...data, messages}
+    {...data, messages: data.messages->Array.concat([message])}
   }
 
   let updateCurrentTaskMessage = (
@@ -84,15 +83,12 @@ module Lens = {
 
   // Get the streaming message in a task's loaded data (at most one per task).
   let getStreamingMessage = (data: Task.loadedData): option<Message.assistantMessage> => {
-    let streaming =
-      data.messages
-      ->Dict.valuesToArray
-      ->Array.filterMap(msg => {
-        switch msg {
-        | Message.Assistant(Streaming(_) as streaming) => Some(streaming)
-        | _ => None
-        }
-      })
+    let streaming = data.messages->Array.filterMap(msg => {
+      switch msg {
+      | Message.Assistant(Streaming(_) as streaming) => Some(streaming)
+      | _ => None
+      }
+    })
 
     assert(Array.length(streaming) <= 1)
     streaming->Array.get(0)
@@ -377,15 +373,7 @@ module Selectors = {
   }
 
   let messages = (state: state) => {
-    currentTaskLoadedData(state)->Option.mapOr([], data =>
-      data.messages
-      ->Dict.valuesToArray
-      ->Array.toSorted((a, b) => {
-        let aTime = getMessageCreatedAt(a)
-        let bTime = getMessageCreatedAt(b)
-        aTime -. bTime
-      })
-    )
+    currentTaskLoadedData(state)->Option.mapOr([], data => data.messages)
   }
 
   let completedMessages = (state: state) =>
@@ -982,9 +970,7 @@ let next = (state, action) => {
 
       stateWithTask
       ->Lens.updateCurrentTaskLoadedData(data => {
-        let updatedMessages = data.messages->Dict.copy
-        updatedMessages->Dict.set(Message.getId(message), message)
-        {...data, messages: updatedMessages, isAgentRunning: true}
+        {...Lens.insertTaskMessage(data, message), isAgentRunning: true}
       })
       ->FrontmanReactStatestore.StateReducer.update(
         ~sideEffects=[SendMessageToAPI({message: textContent, taskId})],
@@ -1019,9 +1005,7 @@ let next = (state, action) => {
         let updatedMsg = Message.Assistant(
           Streaming({id, textBuffer: textBuffer ++ text, createdAt}),
         )
-        let updatedMessages = data.messages->Dict.copy
-        updatedMessages->Dict.set(id, updatedMsg)
-        {...data, messages: updatedMessages}
+        Lens.updateTaskMessage(data, id, _ => updatedMsg)
       | Some(Message.Completed(_)) => data
       | None =>
         let id = `msg_${taskId}_${Date.now()->Float.toString}`
@@ -1036,7 +1020,7 @@ let next = (state, action) => {
   | ToolCallReceived({taskId, toolCall}) =>
     state
     ->Lens.updateTaskLoadedData(taskId, data => {
-      let existingMessage = data.messages->Dict.get(toolCall.id)
+      let existingMessage = data.messages->Array.find(msg => Message.getId(msg) == toolCall.id)
       switch existingMessage {
       | Some(Message.ToolCall(existingToolCall)) =>
         Lens.updateTaskMessage(data, toolCall.id, msg =>
@@ -1190,9 +1174,7 @@ let next = (state, action) => {
           []
         }
         let completedMsg = Message.Assistant(Completed({id, content, createdAt}))
-        let updatedMessages = data.messages->Dict.copy
-        updatedMessages->Dict.set(id, completedMsg)
-        {...data, messages: updatedMessages}
+        Lens.updateTaskMessage(data, id, _ => completedMsg)
       | Some(Message.Completed(_)) | None => data
       }
     })
@@ -1614,11 +1596,17 @@ let next = (state, action) => {
     ->FrontmanReactStatestore.StateReducer.update
 
   | TaskLoadComplete({taskId}) =>
-    // Transition task from Loading to Loaded
+    // Transition task from Loading to Loaded, sorting messages once for correct display order
     state
     ->Lens.updateTask(taskId, task => {
       switch task.loadState {
-      | Task.Loading(data) => {...task, loadState: Loaded(data)}
+      | Task.Loading(data) =>
+        let sortedMessages = data.messages->Array.toSorted((a, b) => {
+          let aTime = Selectors.getMessageCreatedAt(a)
+          let bTime = Selectors.getMessageCreatedAt(b)
+          aTime -. bTime
+        })
+        {...task, loadState: Loaded({...data, messages: sortedMessages})}
       | NotLoaded | Loaded(_) => task // Shouldn't happen, but no-op
       }
     })

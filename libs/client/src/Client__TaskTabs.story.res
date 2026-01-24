@@ -30,11 +30,9 @@ module Fixtures = {
         content: [StateReducer.UserContentPart.Text({text: "Hello"})],
         createdAt,
       })
-      let dict = Dict.make()
-      dict->Dict.set(`msg-${id}`, msg)
-      dict
+      [msg]
     } else {
-      Dict.make()
+      []
     }
 
     {

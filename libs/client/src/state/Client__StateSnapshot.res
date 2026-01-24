@@ -399,24 +399,10 @@ let convertTask = (task: Client__State__Types.Task.t): Task.t => {
   // Get loaded data if available
   let loadedData = Client__State__Types.Task.getLoadedData(task)
 
-  // Sort messages by createdAt for consistent ordering
+  // Messages are already maintained in sorted order
   let messages =
     loadedData
-    ->Option.mapOr([], data =>
-      data.messages
-      ->Dict.valuesToArray
-      ->Array.toSorted((a, b) => {
-        let getCreatedAt = (msg: Client__State__Types.Message.t) =>
-          switch msg {
-          | User({createdAt, _}) => createdAt
-          | Assistant(Streaming({createdAt, _})) => createdAt
-          | Assistant(Completed({createdAt, _})) => createdAt
-          | ToolCall({createdAt, _}) => createdAt
-          }
-        getCreatedAt(a) -. getCreatedAt(b)
-      })
-      ->Array.map(convertMessage)
-    )
+    ->Option.mapOr([], data => data.messages->Array.map(convertMessage))
 
   {
     id: task.id,

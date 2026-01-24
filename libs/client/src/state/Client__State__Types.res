@@ -160,7 +160,7 @@ module Task = {
   // Data that only exists when a task is Loading or Loaded.
   // These fields represent ephemeral UI state that doesn't need persistence.
   type loadedData = {
-    messages: Dict.t<Message.t>,
+    messages: array<Message.t>,
     webPreviewIsSelecting: bool,
     // None until user explicitly selects an element via the web preview picker
     selectedElement: option<SelectedElement.t>,
@@ -201,7 +201,7 @@ module Task = {
   }
 
   // Create default loaded data
-  let makeLoadedData = (~messages=Dict.make()): loadedData => {
+  let makeLoadedData = (~messages=[]): loadedData => {
     messages,
     webPreviewIsSelecting: false,
     selectedElement: None,
@@ -211,7 +211,7 @@ module Task = {
   }
 
   // Create a new local task (always starts as Loaded)
-  let make = (~title: string, ~previewUrl: string, ~messages=Dict.make()): t => {
+  let make = (~title: string, ~previewUrl: string, ~messages=[]): t => {
     let newId = WebAPI.Global.crypto->WebAPI.Crypto.randomUUID
     let timestamp = Date.now()
 

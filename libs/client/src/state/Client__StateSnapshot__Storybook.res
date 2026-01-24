@@ -109,12 +109,8 @@ let convertMessage = (msg: Snapshot.Message.t): StateTypes.Message.t => {
 }
 
 let convertTask = (task: Snapshot.Task.t): StateTypes.Task.t => {
-  // Convert messages array to Dict
-  let messagesDict = Dict.make()
-  task.messages->Array.forEach(msg => {
-    let liveMsg = convertMessage(msg)
-    messagesDict->Dict.set(Snapshot.Message.getId(msg), liveMsg)
-  })
+  // Convert messages array
+  let messages = task.messages->Array.map(convertMessage)
 
   {
     id: task.id,
@@ -127,7 +123,7 @@ let convertTask = (task: Snapshot.Task.t): StateTypes.Task.t => {
       contentWindow: None,
     },
     loadState: StateTypes.Task.Loaded({
-      messages: messagesDict,
+      messages,
       webPreviewIsSelecting: task.webPreviewIsSelecting,
       selectedElement: None, // Cannot restore DOM element from snapshot
       figmaNode: convertFigmaNode(task.figmaNode),

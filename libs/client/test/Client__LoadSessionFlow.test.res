@@ -36,7 +36,7 @@ describe("Load Session Then Stream", () => {
     let (finalState, _) = State.next(stateAfterStream, TextDeltaReceived({taskId: createdTaskId, text: "Hello"}))
 
     let task = finalState.tasks->Dict.get(createdTaskId)->Option.getOrThrow
-    let messages = Task.getLoadedData(task)->Option.mapOr(Dict.make(), d => d.messages)
-    t->expect(messages->Dict.size)->Expect.toBe(1)
+    let messages = Task.getLoadedData(task)->Option.mapOr([], d => d.messages)
+    t->expect(messages->Array.length)->Expect.toBe(1)
   })
 })

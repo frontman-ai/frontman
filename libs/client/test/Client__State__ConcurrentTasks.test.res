@@ -11,7 +11,7 @@ module Task = Client__State__Types.Task
 
 // Helper to get messages from a task's loadedData
 let getTaskMessages = (task: Task.t) => {
-  Task.getLoadedData(task)->Option.mapOr(Dict.make(), data => data.messages)
+  Task.getLoadedData(task)->Option.mapOr([], data => data.messages)
 }
 
 describe("Concurrent Tasks Event Routing", () => {
@@ -37,8 +37,8 @@ describe("Concurrent Tasks Event Routing", () => {
     let taskA = finalState.tasks->Dict.get(taskAId)->Option.getOrThrow
     let taskB = finalState.tasks->Dict.get(taskBId)->Option.getOrThrow
 
-    t->expect(getTaskMessages(taskA)->Dict.size)->Expect.toBe(1)
-    t->expect(getTaskMessages(taskB)->Dict.size)->Expect.toBe(0)
+    t->expect(getTaskMessages(taskA)->Array.length)->Expect.toBe(1)
+    t->expect(getTaskMessages(taskB)->Array.length)->Expect.toBe(0)
   })
 
   test("TextDeltaReceived event routes to correct task", t => {
@@ -75,7 +75,7 @@ describe("Concurrent Tasks Event Routing", () => {
     | _ => t->expect(false)->Expect.toBe(true)
     }
 
-    t->expect(getTaskMessages(taskB)->Dict.size)->Expect.toBe(0)
+    t->expect(getTaskMessages(taskB)->Array.length)->Expect.toBe(0)
   })
 
   test("ToolInputStartReceived event routes to correct task", t => {
@@ -97,10 +97,10 @@ describe("Concurrent Tasks Event Routing", () => {
     let taskA = finalState.tasks->Dict.get(taskAId)->Option.getOrThrow
     let taskB = finalState.tasks->Dict.get(taskBId)->Option.getOrThrow
 
-    t->expect(getTaskMessages(taskA)->Dict.size)->Expect.toBe(1)
-    t->expect(getTaskMessages(taskB)->Dict.size)->Expect.toBe(0)
+    t->expect(getTaskMessages(taskA)->Array.length)->Expect.toBe(1)
+    t->expect(getTaskMessages(taskB)->Array.length)->Expect.toBe(0)
 
-    let toolMessage = getTaskMessages(taskA)->Dict.get("tool-1")->Option.getOrThrow
+    let toolMessage = getTaskMessages(taskA)->Array.find(msg => StateReducer.Message.getId(msg) == "tool-1")->Option.getOrThrow
     switch toolMessage {
     | ToolCall({toolName}) => t->expect(toolName)->Expect.toBe("ReadFile")
     | _ => t->expect(false)->Expect.toBe(true)
@@ -134,9 +134,9 @@ describe("Concurrent Tasks Event Routing", () => {
     let taskB = finalState.tasks->Dict.get(taskBId)->Option.getOrThrow
     let taskC = finalState.tasks->Dict.get(taskCId)->Option.getOrThrow
 
-    t->expect(getTaskMessages(taskA)->Dict.size)->Expect.toBe(1)
-    t->expect(getTaskMessages(taskB)->Dict.size)->Expect.toBe(1)
-    t->expect(getTaskMessages(taskC)->Dict.size)->Expect.toBe(1)
+    t->expect(getTaskMessages(taskA)->Array.length)->Expect.toBe(1)
+    t->expect(getTaskMessages(taskB)->Array.length)->Expect.toBe(1)
+    t->expect(getTaskMessages(taskC)->Array.length)->Expect.toBe(1)
 
     let getStreamingText = (task: StateReducer.Task.t) => {
       switch Task.getLoadedData(task)->Option.flatMap(StateReducer.Lens.getStreamingMessage) {
@@ -179,7 +179,6 @@ describe("Concurrent Tasks Event Routing", () => {
     // Find the completed message (there should be exactly one)
     let completedMessages =
       getTaskMessages(taskA)
-      ->Dict.valuesToArray
       ->Array.filter(msg =>
         switch msg {
         | Assistant(Completed(_)) => true
@@ -199,7 +198,7 @@ describe("Concurrent Tasks Event Routing", () => {
     | _ => t->expect(false)->Expect.toBe(true)
     }
 
-    t->expect(getTaskMessages(taskB)->Dict.size)->Expect.toBe(0)
+    t->expect(getTaskMessages(taskB)->Array.length)->Expect.toBe(0)
   })
 
   test("Tool result events route to correct task", t => {
@@ -234,7 +233,7 @@ describe("Concurrent Tasks Event Routing", () => {
 
     // Assert: Tool result should be in Task A
     let taskA = finalState.tasks->Dict.get(taskAId)->Option.getOrThrow
-    let toolMessage = getTaskMessages(taskA)->Dict.get("tool-1")->Option.getOrThrow
+    let toolMessage = getTaskMessages(taskA)->Array.find(msg => StateReducer.Message.getId(msg) == "tool-1")->Option.getOrThrow
 
     switch toolMessage {
     | ToolCall({state: OutputAvailable, result}) =>
@@ -276,6 +275,6 @@ describe("Concurrent Tasks Event Routing", () => {
     | _ => t->expect(false)->Expect.toBe(true)
     }
 
-    t->expect(getTaskMessages(taskB)->Dict.size)->Expect.toBe(0)
+    t->expect(getTaskMessages(taskB)->Array.length)->Expect.toBe(0)
   })
 })
