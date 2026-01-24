@@ -71,62 +71,59 @@ worktree-create: ## Create a new worktree (usage: make worktree-create BRANCH=fe
 		echo "Error: BRANCH is required. Usage: make worktree-create BRANCH=feature-name"; \
 		exit 1; \
 	fi
-	@echo "Creating worktree for branch: $(BRANCH)"
+	@if git show-ref --verify --quiet refs/heads/$(BRANCH); then \
+		echo "Error: Branch '$(BRANCH)' already exists locally"; \
+		echo "Use 'make worktree-create-from BRANCH=$(BRANCH)' to create a worktree from it"; \
+		exit 1; \
+	fi
+	@echo "Creating worktree for new branch: $(BRANCH)"
+	@mkdir -p .worktrees
 	@git worktree add .worktrees/$(BRANCH) -b $(BRANCH)
-	@echo "Setting up Claude Code context..."
-	@mkdir -p .worktrees/$(BRANCH)/.claude/projects
-	@mkdir -p .worktrees/$(BRANCH)/.claude/plans
-	@mkdir -p .worktrees/$(BRANCH)/.claude/todos
-	@ln -sfn ~/.claude/CLAUDE.md .worktrees/$(BRANCH)/.claude/
-	@ln -sfn ~/.claude/docs .worktrees/$(BRANCH)/.claude/
-	@ln -sfn ~/.claude/agents .worktrees/$(BRANCH)/.claude/
-	@rm -rf .worktrees/$(BRANCH)/.claude/commands
-	@ln -sfn ~/.claude/commands .worktrees/$(BRANCH)/.claude/
+	@mkdir -p .worktrees/$(BRANCH)/.claude/projects .worktrees/$(BRANCH)/.claude/plans .worktrees/$(BRANCH)/.claude/todos
 	@touch .worktrees/$(BRANCH)/.claude/history.jsonl
-	@echo "Linking dependencies..."
-	@ln -sfn $(PWD)/node_modules .worktrees/$(BRANCH)/
 	@echo "Worktree created at: .worktrees/$(BRANCH)"
 	@echo "Next steps:"
 	@echo "  1. cd .worktrees/$(BRANCH)"
-	@echo "  2. make install  # Install any branch-specific deps"
-	@echo "  3. Open in Claude Code"
+	@echo "  2. make install"
 
-worktree-create-from: ## Create worktree from existing branch (usage: make worktree-create-from BRANCH=origin/feature NAME=local-name)
-	@if [ -z "$(BRANCH)" ] || [ -z "$(NAME)" ]; then \
-		echo "Error: BRANCH and NAME required"; \
-		echo "Usage: make worktree-create-from BRANCH=origin/feature NAME=feature"; \
+worktree-create-from: ## Create worktree from existing branch (usage: make worktree-create-from BRANCH=feature-name)
+	@if [ -z "$(BRANCH)" ]; then \
+		echo "Error: BRANCH is required"; \
+		echo "Usage: make worktree-create-from BRANCH=origin/feature-name"; \
 		exit 1; \
 	fi
-	@echo "Creating worktree from: $(BRANCH)"
-	@git worktree add .worktrees/$(NAME) $(BRANCH)
-	@mkdir -p .worktrees/$(NAME)/.claude/projects
-	@mkdir -p .worktrees/$(NAME)/.claude/plans
-	@mkdir -p .worktrees/$(NAME)/.claude/todos
-	@ln -sfn ~/.claude/CLAUDE.md .worktrees/$(NAME)/.claude/
-	@ln -sfn ~/.claude/docs .worktrees/$(NAME)/.claude/
-	@ln -sfn ~/.claude/agents .worktrees/$(NAME)/.claude/
-	@rm -rf .worktrees/$(NAME)/.claude/commands
-	@ln -sfn ~/.claude/commands .worktrees/$(NAME)/.claude/
-	@touch .worktrees/$(NAME)/.claude/history.jsonl
-	@ln -sfn $(PWD)/node_modules .worktrees/$(NAME)/
-	@echo "Worktree created at: .worktrees/$(NAME)"
+	@WORKTREE_NAME=$$(echo "$(BRANCH)" | sed 's|^origin/||'); \
+	echo "Creating worktree from: $(BRANCH) as $$WORKTREE_NAME"; \
+	mkdir -p .worktrees; \
+	git worktree add .worktrees/$$WORKTREE_NAME $(BRANCH); \
+	mkdir -p .worktrees/$$WORKTREE_NAME/.claude/projects .worktrees/$$WORKTREE_NAME/.claude/plans .worktrees/$$WORKTREE_NAME/.claude/todos; \
+	touch .worktrees/$$WORKTREE_NAME/.claude/history.jsonl; \
+	echo "Worktree created at: .worktrees/$$WORKTREE_NAME"; \
+	echo "Next steps:"; \
+	echo "  1. cd .worktrees/$$WORKTREE_NAME"; \
+	echo "  2. make install"
 
 worktree-list: ## List all worktrees
 	@echo "Active worktrees:"
 	@git worktree list
 
-worktree-remove: ## Remove a worktree (usage: make worktree-remove NAME=feature-name)
-	@if [ -z "$(NAME)" ]; then \
-		echo "Error: NAME is required"; \
+worktree-remove: ## Remove a worktree (usage: make worktree-remove BRANCH=feature-name)
+	@if [ -z "$(BRANCH)" ]; then \
+		echo "Error: BRANCH is required. Usage: make worktree-remove BRANCH=feature-name"; \
 		exit 1; \
 	fi
-	@echo "Removing worktree: $(NAME)"
-	@if git -C .worktrees/$(NAME) diff --quiet && git -C .worktrees/$(NAME) diff --cached --quiet; then \
-		git worktree remove --force .worktrees/$(NAME); \
+	@if [ ! -d ".worktrees/$(BRANCH)" ]; then \
+		echo "Error: Worktree '.worktrees/$(BRANCH)' does not exist"; \
+		exit 1; \
+	fi
+	@echo "Removing worktree: $(BRANCH)"
+	@if git -C .worktrees/$(BRANCH) diff --quiet && git -C .worktrees/$(BRANCH) diff --cached --quiet; then \
+		git worktree remove .worktrees/$(BRANCH); \
 		echo "Worktree removed"; \
 	else \
 		echo "Error: Worktree has uncommitted changes"; \
-		echo "Commit changes first, or use: git worktree remove -f .worktrees/$(NAME)"; \
+		echo "Commit or stash changes first, or force remove with:"; \
+		echo "  git worktree remove --force .worktrees/$(BRANCH)"; \
 		exit 1; \
 	fi
 
@@ -138,10 +135,15 @@ worktree-clean: ## Remove all stale worktrees
 worktree-status: ## Show status of all worktrees
 	@echo "Worktree Status:"
 	@echo ""
-	@for wt in .worktrees/*; do \
-		if [ -d "$$wt" ]; then \
-			echo "$$(basename $$wt):"; \
-			git -C "$$wt" status -s || true; \
-			echo ""; \
-		fi \
-	done
+	@if [ ! -d ".worktrees" ] || [ -z "$$(ls -A .worktrees 2>/dev/null)" ]; then \
+		echo "No worktrees found in .worktrees/"; \
+	else \
+		for wt in .worktrees/*; do \
+			if [ -d "$$wt" ]; then \
+				branch=$$(git -C "$$wt" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown"); \
+				echo "$$(basename $$wt) ($$branch):"; \
+				git -C "$$wt" status -s || true; \
+				echo ""; \
+			fi \
+		done; \
+	fi

@@ -15,18 +15,17 @@ cd .worktrees/feature/my-feature
 - Work on multiple features without branch switching
 - Isolated Claude Code context per feature (separate history)
 - Parallel dev servers on different ports
-- Shared dependencies (node_modules symlinked)
+- Self-contained dependencies per worktree
 
 **Management:**
 - `make worktree-list` - List all worktrees
 - `make worktree-status` - Show git status of all worktrees
-- `make worktree-remove NAME=feature/my-feature` - Remove worktree
+- `make worktree-remove BRANCH=feature/my-feature` - Remove worktree
 - `make worktree-clean` - Clean stale worktrees
 
 **Structure:**
 - `.worktrees/<branch-name>/` - Worktree directory
-- `.worktrees/<branch-name>/.claude/` - Isolated Claude context
-- `.worktrees/<branch-name>/node_modules` - Symlink to main repo
+- `.worktrees/<branch-name>/.claude/` - Isolated Claude context (history, plans, todos)
 
 ## Key Principles
 - ReScript codebase - functional style, Result types for errors
