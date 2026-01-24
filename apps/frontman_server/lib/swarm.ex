@@ -513,15 +513,15 @@ defmodule Swarm do
         result =
           case tool_executor.(tc) do
             {:ok, content} ->
-              ToolResult.make(tc.id, tc.name, content, false)
+              ToolResult.make(tc.id, content, false)
 
             {:error, reason} ->
-              ToolResult.make(tc.id, tc.name, to_string(reason), true)
+              ToolResult.make(tc.id, to_string(reason), true)
 
             {:spawn, request} ->
               child_result = run_child(loop, tc.id, request, tool_executor)
               content = child_result.result || "Child failed: #{inspect(child_result.error)}"
-              ToolResult.make(tc.id, tc.name, content, child_result.status == :failed)
+              ToolResult.make(tc.id, content, child_result.status == :failed)
           end
 
         stop_meta = %{

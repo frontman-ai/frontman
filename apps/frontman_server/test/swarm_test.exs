@@ -39,7 +39,7 @@ defmodule SwarmTest do
       assert tc.id == "tc_1"
 
       # Execute tool and continue
-      results = [ToolResult.make("tc_1", "get_weather", "Sunny, 22°C", false)]
+      results = [ToolResult.make("tc_1", "Sunny, 22°C", false)]
       assert {:completed, loop} = Swarm.continue(loop, results)
       assert loop.result == "The weather is sunny"
     end
@@ -63,8 +63,8 @@ defmodule SwarmTest do
 
       # Execute all tools and continue
       results = [
-        ToolResult.make("tc_1", "search", "Result for elixir", false),
-        ToolResult.make("tc_2", "search", "Result for phoenix", false)
+        ToolResult.make("tc_1", "Result for elixir", false),
+        ToolResult.make("tc_2", "Result for phoenix", false)
       ]
 
       assert {:completed, loop} = Swarm.continue(loop, results)
@@ -84,7 +84,7 @@ defmodule SwarmTest do
       assert {:tool_calls, loop, [tc]} = Swarm.run(agent, "Do something")
 
       # Return error result
-      results = [ToolResult.make(tc.id, tc.name, "Tool failed", true)]
+      results = [ToolResult.make(tc.id, "Tool failed", true)]
       assert {:completed, loop} = Swarm.continue(loop, results)
       assert loop.result == "Handled the error"
     end
@@ -102,12 +102,12 @@ defmodule SwarmTest do
       # First round
       assert {:tool_calls, loop, [tc1]} = Swarm.run(agent, "Multi-step")
       assert tc1.name == "step1"
-      results1 = [ToolResult.make(tc1.id, tc1.name, "Result 1", false)]
+      results1 = [ToolResult.make(tc1.id, "Result 1", false)]
 
       # Second round
       assert {:tool_calls, loop, [tc2]} = Swarm.continue(loop, results1)
       assert tc2.name == "step2"
-      results2 = [ToolResult.make(tc2.id, tc2.name, "Result 2", false)]
+      results2 = [ToolResult.make(tc2.id, "Result 2", false)]
 
       # Complete
       assert {:completed, loop} = Swarm.continue(loop, results2)
@@ -147,7 +147,7 @@ defmodule SwarmTest do
         |> Task.async_stream(fn tc ->
           # Simulate work
           Process.sleep(10)
-          ToolResult.make(tc.id, tc.name, "Done: #{tc.name}", false)
+          ToolResult.make(tc.id, "Done: #{tc.name}", false)
         end)
         |> Enum.map(fn {:ok, result} -> result end)
 
@@ -172,7 +172,7 @@ defmodule SwarmTest do
       assert length(loop.steps) == 1
 
       # After continue, loop has second step
-      results = [ToolResult.make("tc_1", "test", "Result", false)]
+      results = [ToolResult.make("tc_1", "Result", false)]
       assert {:completed, loop} = Swarm.continue(loop, results)
       assert loop.current_step == 2
       assert length(loop.steps) == 2
@@ -260,9 +260,9 @@ defmodule SwarmTest do
 
       # Return results in reverse order (simulating concurrent completion)
       results = [
-        ToolResult.make("tc_3", "third", "Third result", false),
-        ToolResult.make("tc_1", "first", "First result", false),
-        ToolResult.make("tc_2", "second", "Second result", false)
+        ToolResult.make("tc_3", "Third result", false),
+        ToolResult.make("tc_1", "First result", false),
+        ToolResult.make("tc_2", "Second result", false)
       ]
 
       assert {:completed, loop} = Swarm.continue(loop, results)
@@ -283,7 +283,7 @@ defmodule SwarmTest do
       assert {:tool_calls, original_loop, _} = Swarm.run(agent, "Test")
       original_status = original_loop.status
 
-      results = [ToolResult.make("tc_1", "test", "Result", false)]
+      results = [ToolResult.make("tc_1", "Result", false)]
       assert {:completed, new_loop} = Swarm.continue(original_loop, results)
 
       # Original loop unchanged
@@ -327,7 +327,7 @@ defmodule SwarmTest do
       assert {:tool_calls, loop, _} = Swarm.run(agent, "Test")
 
       # Provide result with wrong ID - should be ignored, still waiting
-      results = [ToolResult.make("wrong_id", "test", "Result", false)]
+      results = [ToolResult.make("wrong_id", "Result", false)]
       assert {:tool_calls, updated_loop, pending} = Swarm.continue(loop, results)
       assert length(pending) == 1
       assert updated_loop.status == :waiting_for_tools
@@ -350,7 +350,7 @@ defmodule SwarmTest do
       assert length(tool_calls) == 2
 
       # Only provide first result
-      partial = [ToolResult.make("tc_1", "first", "First done", false)]
+      partial = [ToolResult.make("tc_1", "First done", false)]
       assert {:tool_calls, loop, pending} = Swarm.continue(loop, partial)
 
       # Still waiting for tc_2
@@ -358,7 +358,7 @@ defmodule SwarmTest do
       assert hd(pending).id == "tc_2"
 
       # Now provide second result
-      remaining = [ToolResult.make("tc_2", "second", "Second done", false)]
+      remaining = [ToolResult.make("tc_2", "Second done", false)]
       assert {:completed, loop} = Swarm.continue(loop, remaining)
       assert loop.result == "All done"
     end
@@ -375,7 +375,7 @@ defmodule SwarmTest do
       assert {:tool_calls, loop, _} = Swarm.run(agent, "Test")
 
       # Provide the result
-      result = ToolResult.make("tc_1", "test", "First result", false)
+      result = ToolResult.make("tc_1", "First result", false)
       assert {:completed, loop} = Swarm.continue(loop, [result])
       assert loop.result == "Done"
 
@@ -396,7 +396,7 @@ defmodule SwarmTest do
       agent = test_agent(llm)
 
       assert {:tool_calls, loop, _} = Swarm.run(agent, "Find something")
-      results = [ToolResult.make("tc_1", "lookup", "Lookup result", false)]
+      results = [ToolResult.make("tc_1", "Lookup result", false)]
       assert {:completed, loop} = Swarm.continue(loop, results)
 
       # Should have 2 steps
