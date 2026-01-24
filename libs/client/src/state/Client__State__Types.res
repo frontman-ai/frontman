@@ -178,6 +178,7 @@ module Task = {
     id: string,
     title: string,
     createdAt: float,
+    updatedAt: float,
     previewFrame: previewFrame,
     loadState: loadState,
   }
@@ -212,17 +213,19 @@ module Task = {
       id: newId,
       title: normalizeTitle(title),
       createdAt: timestamp,
+      updatedAt: timestamp,
       previewFrame: {url: previewUrl, contentDocument: None, contentWindow: None},
       loadState: Loaded(makeLoadedData(~messages)),
     }
   }
 
   // Create a task with a specific ID (for hydrating persisted sessions - starts as NotLoaded)
-  let makeWithId = (~id: string, ~title: string, ~previewUrl: string, ~createdAt: float): t => {
+  let makeWithId = (~id: string, ~title: string, ~previewUrl: string, ~createdAt: float, ~updatedAt: option<float>=?): t => {
     {
       id,
       title: normalizeTitle(title),
       createdAt,
+      updatedAt: updatedAt->Option.getOr(createdAt),
       previewFrame: {url: previewUrl, contentDocument: None, contentWindow: None},
       loadState: NotLoaded,
     }
@@ -234,6 +237,7 @@ module Task = {
       id,
       title: normalizeTitle(title),
       createdAt,
+      updatedAt: createdAt,
       previewFrame: {url: previewUrl, contentDocument: None, contentWindow: None},
       loadState: Loaded(makeLoadedData()),
     }

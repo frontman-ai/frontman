@@ -7,6 +7,7 @@
 module ACP = FrontmanFrontmanClient.FrontmanClient__ACP
 module Relay = FrontmanFrontmanClient.FrontmanClient__Relay
 module MCPServer = FrontmanFrontmanClient.FrontmanClient__MCP__Server
+module Channel = FrontmanFrontmanClient.FrontmanClient__Phoenix__Channel
 
 // Configuration for initialization
 type initConfig = {
@@ -129,6 +130,7 @@ type effect =
       onComplete: result<unit, string> => unit,
     })
   | DeleteSessionEffect({connection: ACP.connection, taskId: string, onComplete: result<unit, string> => unit})
+  | CleanupSessionEffect({session: ACP.session})
 
 let initialState: state = {
   acp: ACPDisconnected,
@@ -378,6 +380,10 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
     }
 
   // === Clear Session (for starting new task) ===
+  | ({session: SessionActive(oldSession)}, ClearSession) => (
+      {...state, session: NoSession},
+      [CleanupSessionEffect({session: oldSession})],
+    )
   | (_, ClearSession) => ({...state, session: NoSession}, [])
 
   | (_, CreateSession(_)) => (
@@ -448,9 +454,17 @@ let name = "ConnectionReducer"
 // Alias for StateReducer compatibility
 let next = reduce
 
+// Helper to clean up a session's channel handlers
+let cleanupSession = (session: ACP.session): unit => {
+  session.channel->Channel.off(~event=#"acp:message")
+  session.channel->Channel.off(~event=#"mcp:message")
+  Channel.leave(session.channel)->ignore
+  Console.log2("[ConnectionReducer] Cleaned up session channel:", session.sessionId)
+}
+
 // Effect handler - executed in useEffect, not during dispatch
 // This receives current state and dispatch, so async callbacks can safely dispatch
-let handleEffect = (effect: effect, _state: state, dispatch: action => unit) => {
+let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
   switch effect {
   | LogError(msg) => Console.error(`[FrontmanProvider] ${msg}`)
   | LogInfo(msg) => Console.log(`[FrontmanProvider] ${msg}`)
@@ -546,6 +560,12 @@ let handleEffect = (effect: effect, _state: state, dispatch: action => unit) => 
     fetch()->ignore
 
   | LoadTaskEffect({connection, mcpServer, taskId, onUpdate, onMcpMessage, onComplete}) =>
+    // Clean up old session if switching to a different one
+    switch state.session {
+    | SessionActive(oldSession) when oldSession.sessionId != taskId => cleanupSession(oldSession)
+    | _ => ()
+    }
+
     let load = async () => {
       let mcpServerInterface = MCPServer.toInterface(mcpServer)
       let result = await ACP.loadSession(
@@ -578,5 +598,7 @@ let handleEffect = (effect: effect, _state: state, dispatch: action => unit) => 
       onComplete(result)
     }
     delete()->ignore
+
+  | CleanupSessionEffect({session}) => cleanupSession(session)
   }
 }

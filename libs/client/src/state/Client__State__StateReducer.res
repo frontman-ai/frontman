@@ -18,27 +18,25 @@ type state = Client__State__Types.state
 
 module Lens = {
   let updateTask = (state: state, taskId: string, fn: Task.t => Task.t): state => {
-    state.tasks
-    ->Dict.get(taskId)
-    ->Option.map(task => {
-      let updated = fn(task)
-      let tasks = state.tasks->Dict.copy
-      tasks->Dict.set(taskId, updated)
-      {...state, tasks}
-    })
-    ->Option.getOr(state)
+    let task = state.tasks->Dict.get(taskId)->Option.getOrThrow
+    let updated = fn(task)
+    let tasks = state.tasks->Dict.copy
+    tasks->Dict.set(taskId, updated)
+    {...state, tasks}
   }
 
   let updateCurrentTask = (state: state, fn: Task.t => Task.t): state => {
     state.currentTaskId->Option.mapOr(state, taskId => updateTask(state, taskId, fn))
   }
 
-  // Update loaded data within a task (no-op if not loaded)
+  // Update loaded data within a task (throws if not loaded)
   let updateTaskLoadedData = (
     state: state,
     taskId: string,
     fn: Task.loadedData => Task.loadedData,
   ): state => {
+    let task = state.tasks->Dict.get(taskId)->Option.getOrThrow
+    let _ = Task.getLoadedData(task)->Option.getOrThrow
     updateTask(state, taskId, task => Task.updateLoadedData(task, fn))
   }
 
@@ -153,6 +151,7 @@ type action =
   // Task loading actions (for persisted sessions)
   | TaskLoadStarted({taskId: string})
   | TaskLoadComplete({taskId: string})
+  | TaskLoadError({taskId: string, error: string})
   // Initialization actions
   | ReceivedDiscoveredProjectRule({taskId: string})
   // Turn completion actions
@@ -317,6 +316,7 @@ let actionToString = action => {
   | Disconnect => `Disconnect`
   | TaskLoadStarted({taskId}) => `TaskLoadStarted(${taskId})`
   | TaskLoadComplete({taskId}) => `TaskLoadComplete(${taskId})`
+  | TaskLoadError({taskId, error}) => `TaskLoadError(${taskId}, ${error})`
   | ReceivedDiscoveredProjectRule({taskId}) => `ReceivedDiscoveredProjectRule(${taskId})`
   | TurnCompleted({taskId}) => `TurnCompleted(${taskId})`
   | PlanReceived({taskId, entries}) =>
@@ -453,10 +453,11 @@ module Selectors = {
   }
 
   // Helper to get lastMessageAt from a task (handles load state)
-  let getTaskLastMessageAt = (task: Task.t): option<float> => {
+  // Falls back to updatedAt for unloaded tasks
+  let getTaskLastMessageAt = (task: Task.t): float => {
     switch task.loadState {
-    | Loaded(data) | Loading(data) => data.lastMessageAt
-    | NotLoaded => None
+    | Loaded(data) | Loading(data) => data.lastMessageAt->Option.getOrThrow
+    | NotLoaded => task.updatedAt
     }
   }
 
@@ -465,8 +466,8 @@ module Selectors = {
     state.tasks
     ->Dict.valuesToArray
     ->Array.toSorted((a, b) => {
-      let aTime = getTaskLastMessageAt(a)->Option.getOr(a.createdAt)
-      let bTime = getTaskLastMessageAt(b)->Option.getOr(b.createdAt)
+      let aTime = getTaskLastMessageAt(a)
+      let bTime = getTaskLastMessageAt(b)
       bTime -. aTime
     })
   }
@@ -933,10 +934,10 @@ let handleEffect = (effect, state: state, dispatch) => {
       loadTask(taskId, ~onComplete=result => {
         switch result {
         | Ok() => dispatch(TaskLoadComplete({taskId: taskIdToLoad}))
-        | Error(err) => Console.error2("[LoadTaskEffect] Failed to load task:", err)
+        | Error(err) => dispatch(TaskLoadError({taskId: taskIdToLoad, error: err}))
         }
       })
-    | Disconnected => ()
+    | Disconnected => dispatch(TaskLoadError({taskId, error: "Not connected"}))
     }
   }
 }
@@ -1279,7 +1280,7 @@ let next = (state, action) => {
       }->FrontmanReactStatestore.StateReducer.update
     }
 
-  // Switch to different task
+  // Switch to different task - always re-activate session to ensure correct routing
   | SwitchTask({taskId}) => {
       let task = state.tasks->Dict.get(taskId)
       let needsLoad = switch task {
@@ -1287,7 +1288,7 @@ let next = (state, action) => {
       | _ => false
       }
 
-      // If task needs loading, transition to Loading state and emit effect
+      // If task needs loading, transition to Loading state
       let updatedState = if needsLoad {
         Lens.updateTask(state, taskId, t => {
           {...t, loadState: Task.Loading(Task.makeLoadedData())}
@@ -1296,14 +1297,9 @@ let next = (state, action) => {
         state
       }
 
-      let sideEffects = if needsLoad {
-        [LoadTaskEffect({taskId: taskId})]
-      } else {
-        []
-      }
-
+      // Always emit LoadTaskEffect to re-activate the session
       {...updatedState, currentTaskId: Some(taskId)}
-      ->FrontmanReactStatestore.StateReducer.update(~sideEffects)
+      ->FrontmanReactStatestore.StateReducer.update(~sideEffects=[LoadTaskEffect({taskId: taskId})])
     }
 
   // Delete task
@@ -1317,8 +1313,8 @@ let next = (state, action) => {
         updatedTasks
         ->Dict.valuesToArray
         ->Array.toSorted((a, b) => {
-          let aTime = Selectors.getTaskLastMessageAt(a)->Option.getOr(a.createdAt)
-          let bTime = Selectors.getTaskLastMessageAt(b)->Option.getOr(b.createdAt)
+          let aTime = Selectors.getTaskLastMessageAt(a)
+          let bTime = Selectors.getTaskLastMessageAt(b)
           bTime -. aTime
         })
         ->Array.get(0)
@@ -1631,6 +1627,18 @@ let next = (state, action) => {
     })
     ->FrontmanReactStatestore.StateReducer.update
 
+  | TaskLoadError({taskId, error}) =>
+    // Transition task back to NotLoaded so user can retry
+    Console.error2("[StateReducer] Task load failed:", error)
+    state
+    ->Lens.updateTask(taskId, task => {
+      switch task.loadState {
+      | Task.Loading(_) => {...task, loadState: NotLoaded}
+      | NotLoaded | Loaded(_) => task // No-op
+      }
+    })
+    ->FrontmanReactStatestore.StateReducer.update
+
   | UserMessageReceived({taskId, id, text, timestamp}) =>
     let createdAt = Date.fromString(timestamp)->Date.getTime
     let userMessage = Message.User({
@@ -1653,14 +1661,16 @@ let next = (state, action) => {
     sessions->Array.forEach(session => {
       // Skip if task already exists
       if !(updatedTasks->Dict.has(session.sessionId)) {
-        // Parse ISO timestamp to float
+        // Parse ISO timestamps to float
         let createdAt = Date.fromString(session.createdAt)->Date.getTime
+        let updatedAt = Date.fromString(session.updatedAt)->Date.getTime
 
         let task = Task.makeWithId(
           ~id=session.sessionId,
           ~title=session.title,
           ~previewUrl,
           ~createdAt,
+          ~updatedAt,
         )
         updatedTasks->Dict.set(session.sessionId, task)
       }

@@ -120,6 +120,7 @@ let convertTask = (task: Snapshot.Task.t): StateTypes.Task.t => {
     id: task.id,
     title: task.title,
     createdAt: task.createdAt,
+    updatedAt: task.createdAt, // Snapshots don't have updatedAt, use createdAt
     previewFrame: {
       url: task.previewUrl,
       contentDocument: None,

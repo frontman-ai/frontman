@@ -105,6 +105,9 @@ module Actions = {
   let taskLoadComplete = (~taskId) =>
     Client__State__Store.dispatch(TaskLoadComplete({taskId: taskId}))
 
+  let taskLoadError = (~taskId, ~error) =>
+    Client__State__Store.dispatch(TaskLoadError({taskId, error}))
+
   // Initialization action creators
   let receivedDiscoveredProjectRule = (~taskId: string) =>
     Client__State__Store.dispatch(ReceivedDiscoveredProjectRule({taskId: taskId}))

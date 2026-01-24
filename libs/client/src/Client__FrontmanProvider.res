@@ -128,7 +128,7 @@ module Provider = {
       | AgentMessageEnd => Client__State.Actions.messageCompleted(~taskId)
       | UserMessageChunk({content, timestamp}) =>
         content.text->Option.forEach(text => {
-          let id = `user-hydrated-${Date.now()->Float.toString}`
+          let id = `user-hydrated-${WebAPI.Global.crypto->WebAPI.Crypto.randomUUID}`
           Client__State.Actions.userMessageReceived(~taskId, ~id, ~text, ~timestamp)
         })
       | ToolCall({toolCallId, title, parentAgentId, spawningToolName}) =>

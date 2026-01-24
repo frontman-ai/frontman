@@ -64,6 +64,8 @@ defmodule FrontmanServerWeb.TasksChannel do
     end
   end
 
+  # No catch-all handler - let it crash on malformed requests (zero silent failures)
+
   # Initialize with correct protocol version
   defp handle_message(
          {:request, id, "initialize", %{"protocolVersion" => @acp_protocol_version} = params},
