@@ -99,43 +99,72 @@ let make = () => {
 
   switch selectedElement {
   | None => React.null
-  | Some({sourceLocation, _}) => {
+  | Some({sourceLocation, element, _}) => {
       let hasParent = sourceLocation->Option.mapOr(false, loc => loc.parent->Option.isSome)
       let hasHistory = Array.length(history) > 0
+      
+      // Get element info for display
+      let tagName = element.tagName->String.toLowerCase
+      let elementId = element.id->String.length > 0 ? Some(element.id) : None
+      let elementClass = switch element.className {
+      | "" => None
+      | cn => Some(cn->String.split(" ")->Array.get(0)->Option.getOr(""))
+      }
 
       <div
-        className="px-4 py-2 bg-blue-50 dark:bg-blue-950/20 border-b border-blue-200 dark:border-blue-800 text-sm overflow-hidden text-ellipsis text-nowrap text-ellipsis"
+        className="px-3 py-2.5 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 border-b border-blue-200/80 dark:border-blue-800/50"
       >
-        <div className="flex items-start gap-2">
-          <Icons.CubeIcon
-            className="size-4 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0"
-          />
-          <div className="flex-grow min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="font-semibold text-blue-900 dark:text-blue-100">
-                {React.string("React Component:")}
-              </span>
-              {sourceLocation->Option.mapOr(React.null, loc => {
-                let compName = loc.componentName->Option.getOr(loc.tagName)
-                <span
-                  className="font-medium font-mono text-xs text-yellow-700 dark:text-yellow-300"
-                >
-                  {React.string(
-                    `<${compName}><${loc.tagName->String.toLowerCase} /></${compName}>`,
-                  )}
-                </span>
-              })}
-            </div>
+        <div className="flex items-center gap-3">
+          // Component icon
+          <div className="flex-shrink-0 p-1.5 bg-blue-500 rounded-md shadow-sm">
+            <Icons.CubeIcon className="size-4 text-white" />
           </div>
-
-          <div className="flex items-center gap-1 flex-shrink-0">
+          // Component info
+          <div className="flex-grow min-w-0 flex items-center gap-2">
+            {sourceLocation->Option.mapOr(
+              // No source location - just show element
+              <span className="font-mono text-sm text-gray-700 dark:text-gray-300">
+                {React.string(`<${tagName}>`)}
+              </span>,
+              loc => {
+                let compName = loc.componentName->Option.getOr(tagName)
+                // Component name and badges
+                <>
+                  <span className="font-semibold text-sm text-blue-900 dark:text-blue-100">
+                    {React.string(compName)}
+                  </span>
+                  <span
+                    className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-mono bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400"
+                  >
+                    {React.string(`<${tagName}>`)}
+                  </span>
+                  {elementId->Option.mapOr(React.null, id =>
+                    <span
+                      className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-mono bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400"
+                    >
+                      {React.string(`#${id}`)}
+                    </span>
+                  )}
+                  {elementClass->Option.mapOr(React.null, cn =>
+                    <span
+                      className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-mono bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400"
+                    >
+                      {React.string(`.${cn}`)}
+                    </span>
+                  )}
+                </>
+              },
+            )}
+          </div>
+          // Navigation controls
+          <div className="flex items-center gap-0.5 flex-shrink-0">
             <button
               onClick={_ => navigateUp()}
               disabled={!hasParent}
-              className={hasParent
-                ? "text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200"
-                : "text-gray-400 dark:text-gray-600 cursor-not-allowed"}
-              title={hasParent ? "Go to parent component" : "No parent component"}
+              className={`p-1 rounded transition-colors ${hasParent
+                ? "text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50"
+                : "text-gray-300 dark:text-gray-600 cursor-not-allowed"}`}
+              title={hasParent ? "Select parent component" : "No parent component"}
             >
               <Icons.ChevronUpIcon className="size-4" />
             </button>
@@ -143,22 +172,24 @@ let make = () => {
             <button
               onClick={_ => navigateDown()}
               disabled={!hasHistory}
-              className={hasHistory
-                ? "text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200"
-                : "text-gray-400 dark:text-gray-600 cursor-not-allowed"}
-              title={hasHistory ? "Go back to child component" : "No navigation history"}
+              className={`p-1 rounded transition-colors ${hasHistory
+                ? "text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50"
+                : "text-gray-300 dark:text-gray-600 cursor-not-allowed"}`}
+              title={hasHistory ? "Go back to child" : "No navigation history"}
             >
               <Icons.ChevronDownIcon className="size-4" />
             </button>
-          </div>
+            
+            <div className="w-px h-4 bg-gray-200 dark:bg-gray-700 mx-1" />
 
-          <button
-            onClick={_ => Client__State.Actions.setSelectedElement(~selectedElement=None)}
-            className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200 flex-shrink-0"
-            title="Clear selection"
-          >
-            <Icons.Cross2Icon className="size-4" />
-          </button>
+            <button
+              onClick={_ => Client__State.Actions.setSelectedElement(~selectedElement=None)}
+              className="p-1 rounded text-gray-500 dark:text-gray-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
+              title="Clear selection"
+            >
+              <Icons.Cross2Icon className="size-4" />
+            </button>
+          </div>
         </div>
       </div>
     }

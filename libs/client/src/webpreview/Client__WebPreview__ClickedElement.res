@@ -18,6 +18,7 @@ let make = (
 
   rect
   ->Option.map(rect => {
+    // Selection border only - no label (label is shown on hover instead)
     <div
       style={
         position: "absolute",
@@ -26,8 +27,11 @@ let make = (
         width: `${Float.toString(rect.width)}px`,
         height: `${Float.toString(rect.height)}px`,
         border: "2px solid #3B82F6",
+        borderRadius: "2px",
         pointerEvents: "none",
         zIndex: "9999",
+        boxSizing: "border-box",
+        boxShadow: "0 0 0 1px rgba(59, 130, 246, 0.3)",
       }
     />
   })

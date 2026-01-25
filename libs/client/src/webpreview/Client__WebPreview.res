@@ -67,10 +67,19 @@ module SelectFigmaNode = {
 module SelectElement = {
   @react.component
   let make = (~onClick: unit => unit, ~isSelecting: bool) => {
-    <div className={isSelecting ? "rounded bg-blue-500/20" : ""}>
-      <Nav.NavButton onClick={onClick} tooltip="Select">
+    <div
+      className={isSelecting
+        ? "rounded-md bg-blue-500 shadow-sm shadow-blue-500/30"
+        : "rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"}
+    >
+      <Nav.NavButton
+        onClick={onClick}
+        tooltip={isSelecting ? "Exit selection mode" : "Select element"}
+      >
         <RadixUI__Icons.Crosshair1Icon
-          className={isSelecting ? "size-4 text-blue-500" : "size-4"}
+          className={isSelecting
+            ? "size-4 text-white"
+            : "size-4 text-gray-600 dark:text-gray-400"}
         />
       </Nav.NavButton>
     </div>

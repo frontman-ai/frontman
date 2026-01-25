@@ -61,7 +61,18 @@ let make = (~document) => {
     None
   }, (clickedElement, webPreviewIsSelecting))
 
+  // Selection overlay container
   <div className="pointer-events-none flex-1 absolute top-0 left-0 w-full h-full">
+    // Selection mode indicator - subtle border around the preview
+    {webPreviewIsSelecting
+      ? <div
+          className="absolute inset-0 pointer-events-none"
+          style={
+            boxShadow: "inset 0 0 0 2px rgba(59, 130, 246, 0.5)",
+            borderRadius: "0",
+          }
+        />
+      : React.null}
     {webPreviewIsSelecting
       ? <Client__WebPreview__HoveredElement
           key="hover" element={hoveredElement} scrollTimestamp={scrollTimestamp}
