@@ -325,7 +325,6 @@ let make = (~onSettingsClick: unit => unit) => {
     </ScrollContainer>
     <Client__PlanDisplay entries=planEntries />
     <Client__SelectedElementDisplay />
-    <Client__FigmaNodeDisplay />
     {switch (usageInfo, hasAnyKey) {
     | (Some({limit: Some(limit), remaining: Some(remaining), hasServerKey: Some(true)}), false) =>
       <div className="px-4 pb-1 text-xs text-zinc-400">

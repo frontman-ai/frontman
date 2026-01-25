@@ -46,53 +46,12 @@ let useExtensionState = () => {
             Some({name: "FrontmanClient"}),
           )
 
-          // Set up message listener
+          // Set up message listener for extension messages
           let messageListener = (
-            message: Client__ExtensionState__StateReducer.extensionMessage,
+            _message: Client__ExtensionState__StateReducer.extensionMessage,
           ) => {
-            switch message.type_ {
-            | "DevServerImportFigmaNodeResponse" =>
-              message.selectedFigmaNode->Option.forEach(data => {
-                // Transform from extension format to internal format
-                // Extension always sends DSL data, so isDsl is always true
-                let parsedData: Client__State__Types.FigmaNode.selectedNodeData = {
-                  nodeId: data.nodeId,
-                  nodeData: data.nodeData,
-                  image: data.image,
-                  isDsl: true, // Extension always sends DSL representation
-                }
-                Client__State.Actions.setFigmaNode(~figmaNode=parsedData)
-              })
-            | "GetFigmaNodeResponse" =>
-              // Route response to the pending tool request
-              // Note: fields are Js.Nullable.t since they come from JS as null, not undefined
-              Console.log2("[App] Received GetFigmaNodeResponse, requestId:", message.requestId)
-              message.requestId
-              ->Js.Nullable.toOption
-              ->Option.forEach(requestId => {
-                Console.log2("[App] Routing response to handler for:", requestId)
-                let result = switch message.error->Js.Nullable.toOption {
-                | Some(error) =>
-                  Console.log2("[App] Response has error:", error)
-                  Error(error)
-                | None =>
-                  switch message.node->Js.Nullable.toOption {
-                  | Some(node) =>
-                    Console.log("[App] Response has node data")
-                    let image = message.image->Js.Nullable.toOption
-                    Ok({
-                      Client__Tool__GetFigmaNode.node,
-                      Client__Tool__GetFigmaNode.image,
-                    })
-                  | None =>
-                    Console.warn("[App] Response has no node data")
-                    Error("No node data in response")
-                  }
-                }
-                Client__Tool__GetFigmaNode.handleResponse(requestId, result)
-              })
-            | _ => ()
-            }
+            // Currently no active extension message handlers
+            ()
           }
 
           Chrome.Port.addMessageListener(port, messageListener)
