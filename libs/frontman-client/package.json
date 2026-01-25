@@ -15,6 +15,7 @@
 		"rescript-vitest": "catalog:",
 		"sentry-testkit": "^5.0.9",
 		"sury": "catalog:",
+		"sury-ppx": "^11.0.0-alpha.2",
 		"vite": "catalog:",
 		"vitest": "catalog:"
 	}

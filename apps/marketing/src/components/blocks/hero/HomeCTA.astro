@@ -9,48 +9,198 @@ import Section from '../../ui/Section.astro'
 import Row from '../../ui/Row.astro'
 import Col from '../../ui/Col.astro'
 // - UI
-import ChipNotification from '../../ui/ChipNotification.astro'
+import OpenSourceBadge from '../../ui/OpenSourceBadge.astro'
 import { Image } from 'astro:assets'
 import Button from '../../ui/Button.astro'
-import AvatarGroup from '../../ui/AvatarGroup.astro'
 
 // Content
 // - Hero Image
-import heroImage from '../../../assets/hero-01.png'
-// - Avatars
-import user1 from '../../../assets/avatars/avatar-01.webp'
-import user2 from '../../../assets/avatars/avatar-02.webp'
-import user3 from '../../../assets/avatars/avatar-03.webp'
-const avatars = [
-	{ image: { src: user1.src, alt: 'user name' }, link: '/' },
-	{ image: { src: user2.src, alt: 'user name' }, link: '/' },
-	{ image: { src: user3.src, alt: 'user name' }, link: '/' }
-]
+import heroImage from '../../../assets/frontman-example.png'
+// - Background Pattern
+import gridNetBackground from '../../../assets/grid-net-background.svg'
+// - Logo (from public folder)
+const logoImage = { src: '/logo.svg' }
 ---
 
-<Section id="intro" padding="top" classes="bg-neutral-50 dark:bg-neutral-900">
-	<Row>
-		<Col span="2" />
-		<Col span="8" align="center">
-			<ChipNotification radius="rounded-full" classes="mb-6">
-				<strong>30K+</strong> satisfied customers
-				<AvatarGroup avatars={avatars} radius="rounded-full" slot="button" />
-			</ChipNotification>
-			<h1>Enhance team <strong>performance</strong> with seamless integration</h1>
+<section id="intro" class="hero-section" style="background-color: #F24E1E;">
+	<div class="hero-section__bg">
+		<img src={gridNetBackground.src} alt="" class="hero-section__bg-image" />
+	</div>
+	<div class="hero-section__container">
+		<div class="hero-section__content">
+			<div class="hero-section__text">
+				<img src={logoImage.src} alt="Frontman logo" class="hero-section__logo" />
+				<OpenSourceBadge classes="mb-6" />
+				<h1 class="hero-section__title">AI Frontend Editing Directly in Your Browser</h1>
+				<p class="hero-section__subtitle">Frontman lets you skip the "refresh and check" cycle and brings non-coding teammates into the workflow</p>
+				<div class="hero-section__cta">
+					<Button size="lg" style="white" link="/">Get Started For Free</Button>
+				</div>
+			</div>
+			<div class="hero-section__image-wrapper">
+				<Image
+					src={heroImage}
+					alt="Frontman - AI Frontend Editing"
+					class="hero-section__image"
+					format="webp"
+				/>
+			</div>
+		</div>
+	</div>
+</section>
 
-			<p class="pb-0 text-lg">Work smarter, not harder, with our innovative platform</p>
-			<Button size="lg" link="/">Get started for free</Button>
-		</Col>
-		<Col span="2" />
-		<Col span="2" />
-		<Col span="8">
-			<Image
-				src={heroImage}
-				alt="Foxi. The tailwind astro theme"
-				class="translate-y-8 shadow-2xl shadow-neutral-200 dark:shadow-neutral-950"
-				format="webp"
-			/></Col
-		>
-		<Col span="2" />
-	</Row>
-</Section>
+<style>
+	.hero-section {
+		position: relative;
+		overflow: hidden;
+		min-height: 600px;
+	}
+	@media (max-width: 1023px) {
+		.hero-section {
+			min-height: auto;
+		}
+	}
+	.hero-section__bg {
+		position: absolute;
+		inset: 0;
+		z-index: 0;
+		opacity: 0.3;
+	}
+	.hero-section__bg-image {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+		object-position: center;
+	}
+	.hero-section__container {
+		position: relative;
+		z-index: 1;
+		padding: 40px 0 40px 24px;
+		width: 100%;
+	}
+	@media (min-width: 1024px) {
+		.hero-section__container {
+			padding: 70px 0 90px 48px;
+		}
+	}
+	.hero-section__content {
+		display: flex;
+		flex-direction: column;
+		gap: 24px;
+		align-items: flex-start;
+		max-width: 1440px;
+		margin: 0 auto;
+		position: relative;
+	}
+	@media (min-width: 1024px) {
+		.hero-section__content {
+			flex-direction: row;
+			align-items: center;
+			gap: 48px;
+		}
+	}
+	.hero-section__text {
+		flex: 0 0 auto;
+		width: 100%;
+		max-width: 600px;
+		padding-right: 24px;
+	}
+	@media (min-width: 1024px) {
+		.hero-section__text {
+			width: 45%;
+			max-width: none;
+			padding-right: 48px;
+		}
+	}
+	.hero-section__logo {
+		display: none;
+	}
+	@media (min-width: 1024px) {
+		.hero-section__logo {
+			display: block;
+			width: 143px;
+			height: 143px;
+			margin-bottom: 32px;
+		}
+	}
+	.hero-section__title {
+		font-family: 'SF Pro Display', system-ui, helvetica, sans-serif;
+		font-size: 36px;
+		line-height: 42px;
+		font-weight: 700;
+		color: white;
+		margin-bottom: 16px;
+		max-width: 100%;
+	}
+	@media (min-width: 1024px) {
+		.hero-section__title {
+			font-size: 64px;
+			line-height: 70px;
+			margin-bottom: 24px;
+			max-width: 700px;
+		}
+	}
+	.hero-section__subtitle {
+		font-size: 16px;
+		line-height: 22px;
+		color: white;
+		margin-bottom: 24px;
+		max-width: 100%;
+	}
+	@media (min-width: 1024px) {
+		.hero-section__subtitle {
+			font-size: 18px;
+			line-height: 25px;
+			margin-bottom: 32px;
+			max-width: 700px;
+		}
+	}
+	.hero-section__cta {
+		max-width: 100%;
+		width: 100%;
+	}
+	.hero-section__cta .button {
+		width: 100%;
+	}
+	@media (min-width: 1024px) {
+		.hero-section__cta {
+			max-width: 300px;
+		}
+		.hero-section__cta .button {
+			width: auto;
+		}
+	}
+	.hero-section__image-wrapper {
+		flex: 1 1 auto;
+		width: 100%;
+		overflow: visible;
+		display: flex;
+		justify-content: center;
+		align-items: center;
+		margin-right: 0;
+		padding-right: 24px;
+		padding-left: 0;
+	}
+	@media (min-width: 1024px) {
+		.hero-section__image-wrapper {
+			width: 55%;
+			max-width: none;
+			justify-content: flex-end;
+			padding: 0;
+			margin-right: -30px;
+		}
+	}
+	.hero-section__image {
+		width: 964px;
+		height: auto;
+		object-fit: cover;
+		object-position: left center;
+		display: block;
+	}
+	@media (max-width: 1023px) {
+		.hero-section__image {
+			width: 100%;
+			max-width: 964px;
+		}
+	}
+</style>

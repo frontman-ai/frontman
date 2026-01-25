@@ -1,0 +1,589 @@
+---
+// Teamwork Section
+// ------------
+// Description: A section highlighting cross-functional collaboration between design, product, and engineering
+
+// Components
+// - Layout
+import Row from '../../ui/Row.astro'
+import Col from '../../ui/Col.astro'
+// - Assets
+import { Image } from 'astro:assets'
+import designerImage from '../../../assets/teamwork/desinger.png'
+import productManagerImage from '../../../assets/teamwork/productManager.png'
+import devImage from '../../../assets/teamwork/dev.png'
+import dashedBg from '../../../assets/teamwork/dashed bg.svg'
+
+type TeamMember = {
+	avatar: any
+	role: string
+}
+
+const teamMembers: TeamMember[] = [
+	{ avatar: designerImage, role: 'Designers' },
+	{ avatar: productManagerImage, role: 'Product Managers' },
+	{ avatar: devImage, role: 'Developers' }
+]
+---
+
+<section id="teamwork" class="teamwork-section" style={`background-image: url(${dashedBg.src});`}>
+	<div class="container">
+		<Row>
+			<!-- Left side: Avatars and Logo -->
+			<Col spanMobile="12" span="6">
+				<div class="teamwork-visual" id="teamwork-visual">
+					<!-- Decorative curved dashed line -->
+					<svg class="dashed-curve" viewBox="0 0 600 600" xmlns="http://www.w3.org/2000/svg">
+						<path
+							class="dashed-path"
+							d="M 150 150 Q 300 100 450 150 Q 500 200 450 300 Q 400 400 300 450 Q 200 400 150 300 Q 100 200 150 150"
+							fill="none"
+							stroke="#D872B8"
+							stroke-width="9"
+							stroke-dasharray="12,20"
+							stroke-linecap="round"
+						/>
+					</svg>
+
+					<!-- Three avatars in circles -->
+					<div class="avatar-grid">
+						{teamMembers.map((member, index) => (
+							<div class="avatar-item" data-avatar-index={index}>
+								<div class="avatar-circle">
+									<Image
+										src={member.avatar}
+										alt={member.role}
+										width={280}
+										height={280}
+										format="webp"
+									/>
+								</div>
+								<p class="avatar-label">{member.role}</p>
+							</div>
+						))}
+					</div>
+					<!-- Frontman logo in center -->
+					<div class="logo-center" id="logo-center">
+						<img
+							src="/logo.svg"
+							alt="Frontman"
+							width={100}
+							height={100}
+							class="frontman-logo"
+						/>
+					</div>
+				</div>
+			</Col>
+
+			<!-- Right side: Heading and Content -->
+			<Col spanMobile="12" span="6">
+				<div class="teamwork-content">
+					<h2 class="teamwork-title">
+						Break the walls between design, product, and engineering
+					</h2>
+					<p class="teamwork-description">
+						Frontman creates a collaborative environment where designers, product managers,
+						and developers can work together seamlessly. No more handoffs, no more
+						miscommunication, no more waiting.
+					</p>
+					<p class="teamwork-description">
+						With Frontman's visual editing capabilities, everyone on your team can contribute
+						to the frontend—whether they write code or not. Ship faster, iterate quicker, and
+						build better products together.
+					</p>
+				</div>
+			</Col>
+		</Row>
+	</div>
+</section>
+
+<style>
+	.teamwork-section {
+		@apply relative overflow-hidden pt-20 pb-12 lg:pt-32 lg:pb-16;
+		background-color: #FBC7FC;
+		background-repeat: no-repeat;
+		background-position: center;
+		background-size: cover;
+	}
+
+	.container {
+		@apply relative mx-auto px-6;
+	}
+
+	/* Visual Side */
+	.teamwork-visual {
+		@apply relative flex items-center justify-center;
+		min-height: 550px;
+	}
+
+	@media (min-width: 1024px) {
+		.teamwork-visual {
+			min-height: 700px;
+		}
+	}
+
+	.dashed-curve {
+		@apply absolute;
+		width: 100%;
+		height: 100%;
+		max-width: 700px;
+		max-height: 700px;
+		left: 50%;
+		top: 50%;
+		transform: translate(-50%, -50%);
+		z-index: 0;
+		opacity: 0.6;
+	}
+
+	.dashed-path {
+		animation: dashMove 1.5s linear infinite;
+	}
+
+	@keyframes dashMove {
+		0% {
+			stroke-dashoffset: 0;
+		}
+		100% {
+			stroke-dashoffset: 32;
+		}
+	}
+
+	.avatar-grid {
+		@apply relative w-full mx-auto;
+		position: relative;
+		width: 700px;
+		height: 700px;
+		max-width: 100%;
+		z-index: 10;
+	}
+
+	.avatar-item {
+		@apply absolute flex flex-col items-center gap-4;
+		z-index: 20;
+		opacity: 0;
+		transform: scale(0);
+		transition: none;
+	}
+
+	@keyframes popIn {
+		0% {
+			opacity: 0;
+			transform: scale(0);
+		}
+		70% {
+			opacity: 1;
+			transform: scale(1.1);
+		}
+		100% {
+			opacity: 1;
+			transform: scale(1);
+		}
+	}
+
+
+	/* Position avatars in a triangular arrangement */
+	.avatar-item:nth-child(1) {
+		/* Top left - Designers */
+		top: 0;
+		left: 0;
+	}
+
+	.avatar-item:nth-child(2) {
+		/* Top right - Product Managers */
+		top: 0;
+		right: 0;
+	}
+
+	.avatar-item:nth-child(3) {
+		/* Bottom center - Developers */
+		bottom: 0;
+		left: 50%;
+		transform: translateX(-50%) scale(0);
+	}
+
+	@keyframes popInCentered {
+		0% {
+			opacity: 0;
+			transform: translateX(-50%) scale(0);
+		}
+		70% {
+			opacity: 1;
+			transform: translateX(-50%) scale(1.1);
+		}
+		100% {
+			opacity: 1;
+			transform: translateX(-50%) scale(1);
+		}
+	}
+
+
+	.avatar-circle {
+		@apply relative rounded-full overflow-hidden;
+	}
+
+	/* Vary sizes for visual interest */
+	.avatar-item:nth-child(1) .avatar-circle {
+		/* Designers */
+		width: 230px;
+		height: 230px;
+	}
+
+	.avatar-item:nth-child(2) .avatar-circle {
+		/* Product Managers - largest */
+		width: 280px;
+		height: 280px;
+	}
+
+	.avatar-item:nth-child(3) .avatar-circle {
+		/* Developers - smallest */
+		width: 180px;
+		height: 180px;
+	}
+
+	.avatar-circle img {
+		@apply w-full h-full object-cover;
+	}
+
+	.avatar-label {
+		@apply font-headings text-xl text-black text-center;
+		font-weight: 400;
+	}
+
+	.avatar-item:nth-child(1) .avatar-label {
+		max-width: 230px;
+	}
+
+	.avatar-item:nth-child(2) .avatar-label {
+		max-width: 280px;
+	}
+
+	.avatar-item:nth-child(3) .avatar-label {
+		max-width: 180px;
+	}
+
+	.logo-center {
+		@apply absolute left-1/2 top-1/2 flex items-center justify-center;
+		width: 140px;
+		height: 140px;
+		z-index: 30;
+		opacity: 0;
+		transform: translate(-50%, calc(-50% - 60px)) scale(0);
+	}
+
+	.logo-center.pop-in {
+		animation: popInLogo 0.8s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards;
+		animation-delay: 0.5s;
+	}
+
+	@keyframes popInLogo {
+		0% {
+			opacity: 0;
+			transform: translate(-50%, calc(-50% - 60px)) scale(0);
+		}
+		70% {
+			opacity: 1;
+			transform: translate(-50%, calc(-50% - 60px)) scale(1.15);
+		}
+		100% {
+			opacity: 1;
+			transform: translate(-50%, calc(-50% - 60px)) scale(1);
+		}
+	}
+
+	.frontman-logo {
+		@apply w-full h-full;
+	}
+
+	/* Content Side */
+	.teamwork-content {
+		@apply flex flex-col justify-center h-full pt-8 pb-0 lg:py-0;
+	}
+
+	.teamwork-title {
+		@apply font-headings text-4xl lg:text-5xl font-bold text-black mb-6 relative;
+		z-index: 100;
+		line-height: 1.2;
+	}
+
+	.teamwork-description {
+		@apply text-base lg:text-lg text-neutral-700 mb-4 leading-relaxed relative;
+		z-index: 100;
+	}
+
+	.teamwork-description:last-child {
+		@apply mb-0;
+	}
+
+	/* Responsive adjustments */
+	/* Tablet and medium screens */
+	@media (max-width: 1200px) {
+		.avatar-item:nth-child(1) .avatar-circle {
+			width: 180px;
+			height: 180px;
+		}
+
+		.avatar-item:nth-child(2) .avatar-circle {
+			width: 220px;
+			height: 220px;
+		}
+
+		.avatar-item:nth-child(3) .avatar-circle {
+			width: 140px;
+			height: 140px;
+		}
+
+		.avatar-item:nth-child(1) .avatar-label {
+			max-width: 180px;
+		}
+
+		.avatar-item:nth-child(2) .avatar-label {
+			max-width: 220px;
+		}
+
+		.avatar-item:nth-child(3) .avatar-label {
+			max-width: 140px;
+		}
+
+		.logo-center {
+			width: 110px;
+			height: 110px;
+		}
+
+		.avatar-label {
+			@apply text-base;
+			font-weight: 400;
+		}
+	}
+
+	@media (max-width: 1100px) {
+		.avatar-item:nth-child(1) .avatar-circle {
+			width: 150px;
+			height: 150px;
+		}
+
+		.avatar-item:nth-child(2) .avatar-circle {
+			width: 180px;
+			height: 180px;
+		}
+
+		.avatar-item:nth-child(3) .avatar-circle {
+			width: 120px;
+			height: 120px;
+		}
+
+		.avatar-item:nth-child(1) .avatar-label {
+			max-width: 150px;
+		}
+
+		.avatar-item:nth-child(2) .avatar-label {
+			max-width: 180px;
+		}
+
+		.avatar-item:nth-child(3) .avatar-label {
+			max-width: 120px;
+		}
+
+		.logo-center {
+			width: 100px;
+			height: 100px;
+		}
+	}
+
+	@media (max-width: 1024px) {
+		.teamwork-visual {
+			min-height: 700px;
+		}
+
+		.avatar-grid {
+			width: 480px;
+			height: 600px;
+		}
+
+		.dashed-curve {
+			max-width: 480px;
+			max-height: 600px;
+		}
+
+		/* Adjust positioning for mobile - more vertical spacing */
+		.avatar-item:nth-child(1) {
+			top: 0;
+			left: 5%;
+		}
+
+		.avatar-item:nth-child(2) {
+			top: 0;
+			right: 5%;
+		}
+
+		.avatar-item:nth-child(3) {
+			bottom: 0;
+		}
+
+		.avatar-item:nth-child(1) .avatar-circle {
+			width: 130px;
+			height: 130px;
+		}
+
+		.avatar-item:nth-child(2) .avatar-circle {
+			width: 150px;
+			height: 150px;
+		}
+
+		.avatar-item:nth-child(3) .avatar-circle {
+			width: 110px;
+			height: 110px;
+		}
+
+		.logo-center {
+			width: 90px;
+			height: 90px;
+		}
+
+		.avatar-label {
+			@apply text-sm;
+			font-weight: 400;
+		}
+
+		.avatar-item:nth-child(1) .avatar-label {
+			max-width: 130px;
+		}
+
+		.avatar-item:nth-child(2) .avatar-label {
+			max-width: 150px;
+		}
+
+		.avatar-item:nth-child(3) .avatar-label {
+			max-width: 110px;
+		}
+	}
+
+	/* Extra small screens */
+	@media (max-width: 640px) {
+		.teamwork-section {
+			padding-top: 2rem;
+			padding-bottom: 2rem;
+		}
+
+		.teamwork-visual {
+			min-height: 500px;
+		}
+
+		.avatar-grid {
+			width: 100%;
+			max-width: 360px;
+			height: 450px;
+		}
+
+		.dashed-curve {
+			max-width: 360px;
+			max-height: 450px;
+		}
+
+		.avatar-item {
+			gap: 8px;
+		}
+
+		.avatar-item:nth-child(1) {
+			top: 10%;
+			left: 5%;
+		}
+
+		.avatar-item:nth-child(2) {
+			top: 10%;
+			right: 5%;
+		}
+
+		.avatar-item:nth-child(3) {
+			bottom: 10%;
+		}
+
+		.avatar-item:nth-child(1) .avatar-circle {
+			width: 100px;
+			height: 100px;
+		}
+
+		.avatar-item:nth-child(2) .avatar-circle {
+			width: 120px;
+			height: 120px;
+		}
+
+		.avatar-item:nth-child(3) .avatar-circle {
+			width: 85px;
+			height: 85px;
+		}
+
+		.logo-center {
+			width: 70px;
+			height: 70px;
+		}
+
+		.avatar-label {
+			@apply text-xs;
+		}
+
+		.avatar-item:nth-child(1) .avatar-label {
+			max-width: 100px;
+		}
+
+		.avatar-item:nth-child(2) .avatar-label {
+			max-width: 120px;
+		}
+
+		.avatar-item:nth-child(3) .avatar-label {
+			max-width: 85px;
+		}
+	}
+
+	/* Avatar animation delays */
+	.avatar-item[data-avatar-index="0"].pop-in {
+		animation: popIn 0.8s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards;
+		animation-delay: 0s;
+	}
+
+	.avatar-item[data-avatar-index="1"].pop-in {
+		animation: popIn 0.8s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards;
+		animation-delay: 0.15s;
+	}
+
+	.avatar-item[data-avatar-index="2"].pop-in {
+		animation: popInCentered 0.8s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards;
+		animation-delay: 0.3s;
+	}
+</style>
+
+<script>
+	document.addEventListener('DOMContentLoaded', () => {
+		const teamworkVisual = document.getElementById('teamwork-visual')
+		if (!teamworkVisual) return
+
+		const avatars = teamworkVisual.querySelectorAll('.avatar-item')
+		const logo = document.getElementById('logo-center')
+
+		const observer = new IntersectionObserver(
+			(entries) => {
+				entries.forEach((entry) => {
+					if (entry.isIntersecting) {
+						// Trigger avatar animations
+						avatars.forEach((avatar) => {
+							avatar.classList.add('pop-in')
+						})
+
+						// Trigger logo animation
+						if (logo) {
+							logo.classList.add('pop-in')
+						}
+
+						// Disconnect observer after animation triggers (only once)
+						observer.disconnect()
+					}
+				})
+			},
+			{
+				threshold: 0.2, // Trigger when 20% of the element is visible
+				rootMargin: '0px'
+			}
+		)
+
+		observer.observe(teamworkVisual)
+	})
+</script>

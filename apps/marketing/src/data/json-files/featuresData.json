@@ -2,7 +2,7 @@
 	{
 		"title": "Real-Time Analytics",
 		"icon": "chart-pie",
-		"description": "Gain valuable insights instantly with Foxi's real-time analytics. Track performance metrics, user behavior, and campaign effectiveness effortlessly.",
+		"description": "Gain valuable insights instantly with Frontman's real-time analytics. Track performance metrics, user behavior, and campaign effectiveness effortlessly.",
 		"category": "Analytics"
 	},
 	{
@@ -14,19 +14,19 @@
 	{
 		"title": "Task Management",
 		"icon": "cliboard-document-check",
-		"description": "Efficiently manage tasks and projects with Foxi's intuitive task management tools. Assign, track progress, and collaborate seamlessly.",
+		"description": "Efficiently manage tasks and projects with Frontman's intuitive task management tools. Assign, track progress, and collaborate seamlessly.",
 		"category": "Productivity"
 	},
 	{
 		"title": "Third-Party Apps",
 		"icon": "rocket",
-		"description": "Connect Foxi with your favorite tools and apps effortlessly. Streamline workflows and enhance productivity with seamless integrations.",
+		"description": "Connect Frontman with your favorite tools and apps effortlessly. Streamline workflows and enhance productivity with seamless integrations.",
 		"category": "Productivity"
 	},
 	{
 		"title": "Mobile Accessibility",
 		"icon": "device-phone-mobile",
-		"description": "Stay productive on the go with Foxi's mobile app. Access key features, collaborate with your team, and manage tasks anytime, anywhere.",
+		"description": "Stay productive on the go with Frontman's mobile app. Access key features, collaborate with your team, and manage tasks anytime, anywhere.",
 		"category": "Support"
 	},
 	{
@@ -38,13 +38,13 @@
 	{
 		"title": "Robust Data Security",
 		"icon": "shield-check",
-		"description": "Rest assured knowing your data is safe with Foxi's robust security measures. We employ industry-standard protocols to protect your information.",
+		"description": "Rest assured knowing your data is safe with Frontman's robust security measures. We employ industry-standard protocols to protect your information.",
 		"category": "Security"
 	},
 	{
 		"title": "Scalability",
 		"icon": "arrow-treding-up",
-		"description": "Grow your business with confidence using Foxi's scalable platform. Whether you're a startup or a large enterprise, our solution adapts to your needs.",
+		"description": "Grow your business with confidence using Frontman's scalable platform. Whether you're a startup or a large enterprise, our solution adapts to your needs.",
 		"category": "Security"
 	},
 	{

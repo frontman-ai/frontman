@@ -1,0 +1,69 @@
+---
+// Static Blobs
+// ------------
+// Description: Decorative circular blobs with fixed positions for background decoration
+// Properties:
+// - blobs: array of blob configurations { color, size, position }
+
+type BlobConfig = {
+	color: string
+	size: number
+	left?: string
+	right?: string
+	top?: string
+	bottom?: string
+	transform?: string
+}
+
+type Props = {
+	blobs?: BlobConfig[]
+}
+
+const defaultBlobs: BlobConfig[] = [
+	{
+		color: '#9D7CFF',
+		size: 450,
+		left: '-12%',
+		top: '50%',
+		transform: 'translateY(-50%)'
+	},
+	{
+		color: '#60A5FA',
+		size: 550,
+		right: '-15%',
+		top: '-30%'
+	},
+	{
+		color: '#FCD34D',
+		size: 500,
+		right: '-18%',
+		bottom: '-25%'
+	}
+]
+
+const { blobs = defaultBlobs } = Astro.props
+---
+
+{blobs.map((blob, index) => (
+	<div
+		class="static-blob"
+		style={`
+			background: ${blob.color};
+			width: ${blob.size}px;
+			height: ${blob.size}px;
+			${blob.left ? `left: ${blob.left};` : ''}
+			${blob.right ? `right: ${blob.right};` : ''}
+			${blob.top ? `top: ${blob.top};` : ''}
+			${blob.bottom ? `bottom: ${blob.bottom};` : ''}
+			${blob.transform ? `transform: ${blob.transform};` : ''}
+		`}
+		aria-hidden="true"
+	/>
+))}
+
+<style>
+	.static-blob {
+		@apply pointer-events-none absolute rounded-full;
+		z-index: -1;
+	}
+</style>

@@ -1,0 +1,170 @@
+---
+// Floating Blobs
+// ------------
+// Description: Animated decorative blobs that float slowly like a screensaver
+// The blobs drift in random directions with smooth ease-in-out transitions
+// They can move partially off-screen but always float back into view
+// Properties:
+// - blobs: array of blob configurations { color, size, startPosition }
+
+type BlobConfig = {
+	color: string
+	size: number
+	startX?: number // percentage
+	startY?: number // percentage
+}
+
+type Props = {
+	blobs?: BlobConfig[]
+	speed?: number // seconds for each movement (default: 15)
+}
+
+const defaultBlobs: BlobConfig[] = [
+	{
+		color: '#9D7CFF',
+		size: 450,
+		startX: -12,
+		startY: 50
+	},
+	{
+		color: '#60A5FA',
+		size: 550,
+		startX: 85,
+		startY: -15
+	},
+	{
+		color: '#FCD34D',
+		size: 500,
+		startX: 82,
+		startY: 90
+	}
+]
+
+const { blobs = defaultBlobs, speed = 15 } = Astro.props
+---
+
+<div class="floating-blobs-container">
+	{blobs.map((blob, index) => (
+		<div
+			class="floating-blob"
+			data-blob-index={index}
+			style={`
+				background: ${blob.color};
+				width: ${blob.size}px;
+				height: ${blob.size}px;
+				left: ${blob.startX ?? 50}%;
+				top: ${blob.startY ?? 50}%;
+			`}
+			aria-hidden="true"
+		/>
+	))}
+</div>
+
+<script is:inline define:vars={{ speed }}>
+	// Floating Blobs Animation - Screensaver Effect
+	class FloatingBlobsAnimation {
+		constructor(speed) {
+			this.speed = speed
+			this.blobs = []
+			this.isAnimating = false
+		}
+
+		init() {
+			const blobElements = document.querySelectorAll('.floating-blob')
+
+			blobElements.forEach((blobElement, index) => {
+				const blob = blobElement
+				const parent = blob.closest('.floating-blobs-container')
+				const parentRect = parent?.getBoundingClientRect() || { width: window.innerWidth, height: window.innerHeight }
+
+				this.blobs.push({
+					element: blob,
+					index,
+					currentX: parseFloat(blob.style.left) || 50,
+					currentY: parseFloat(blob.style.top) || 50,
+					targetX: 0,
+					targetY: 0,
+					size: parseFloat(getComputedStyle(blob).width),
+					parentWidth: parentRect.width,
+					parentHeight: parentRect.height
+				})
+
+				// Set transition
+				blob.style.transition = `left ${this.speed}s ease-in-out, top ${this.speed}s ease-in-out`
+			})
+
+			// Start animation
+			this.animate()
+		}
+
+		getRandomPosition(blob) {
+			// Calculate boundaries - allow blob to go partially off-screen
+			// But at least 30% must remain visible
+			const visiblePercentage = 30
+			const maxOffscreen = (100 - visiblePercentage)
+
+			// X boundaries: can go from -maxOffscreen% to (100 + maxOffscreen - 100)%
+			const minX = -maxOffscreen
+			const maxX = 100 + maxOffscreen
+
+			// Y boundaries: same for vertical
+			const minY = -maxOffscreen
+			const maxY = 100 + maxOffscreen
+
+			// Generate random position within boundaries
+			const x = minX + Math.random() * (maxX - minX)
+			const y = minY + Math.random() * (maxY - minY)
+
+			return { x, y }
+		}
+
+		moveBlob(blob) {
+			const newPos = this.getRandomPosition(blob)
+
+			blob.targetX = newPos.x
+			blob.targetY = newPos.y
+
+			blob.element.style.left = `${newPos.x}%`
+			blob.element.style.top = `${newPos.y}%`
+
+			blob.currentX = newPos.x
+			blob.currentY = newPos.y
+		}
+
+		animate() {
+			if (this.isAnimating) return
+			this.isAnimating = true
+
+			// Move all blobs to random positions
+			this.blobs.forEach(blob => {
+				this.moveBlob(blob)
+			})
+
+			// Schedule next movement after current animation completes
+			setTimeout(() => {
+				this.isAnimating = false
+				this.animate()
+			}, this.speed * 1000)
+		}
+	}
+
+	// Initialize on page load
+	document.addEventListener('DOMContentLoaded', () => {
+		const animation = new FloatingBlobsAnimation(speed)
+		animation.init()
+	})
+</script>
+
+<style>
+	.floating-blobs-container {
+		@apply absolute inset-0 overflow-hidden pointer-events-none;
+		z-index: 1;
+	}
+
+	.floating-blob {
+		@apply absolute rounded-full pointer-events-none;
+		transform: translate(-50%, -50%);
+		will-change: left, top;
+		z-index: 1;
+	}
+</style>

@@ -33,17 +33,17 @@ export default {
       colors: {
         transparent: "transparent",
         primary: {
-          50: "#fdf2f8",
-          100: "#fce7f3",
-          200: "#fbcfe8",
-          300: "#f9a8d4",
-          400: "#f472b6",
-          500: "#E2187D",
-          600: "#db2777",
-          700: "#be185d",
-          800: "#9d174d",
-          900: "#831843",
-          950: "#500724",
+          50: "#FFF4F0",
+          100: "#FFE4D6",
+          200: "#FFC9AD",
+          300: "#FFAD85",
+          400: "#FF7E52",
+          500: "#F24E1E",
+          600: "#D43F15",
+          700: "#B6330F",
+          800: "#97280A",
+          900: "#791E06",
+          950: "#5A1604",
         },
         neutral: {
           50: "#f8fafc",
@@ -57,6 +57,19 @@ export default {
           800: "#1e293b",
           900: "#0f172a",
           950: "#020617",
+        },
+        // Supporting accent colors
+        accent: {
+          purple: "#7C3AED",
+          cyan: "#06B6D4",
+          amber: "#D97706",
+        },
+        // Supporting background colors
+        bg: {
+          cream: "#FFF4CC",
+          lightblue: "#C4E0FF",
+          lavender: "#E8D5FF",
+          peach: "#FFE4D6",
         },
       },
       cursor: {

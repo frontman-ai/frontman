@@ -2298,6 +2298,7 @@ __metadata:
     rescript-vitest: "catalog:"
     sentry-testkit: "npm:^5.0.9"
     sury: "catalog:"
+    sury-ppx: "npm:^11.0.0-alpha.2"
     vite: "catalog:"
     vitest: "catalog:"
   languageName: unknown

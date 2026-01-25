@@ -1,0 +1,39 @@
+---
+// Open Source Badge
+// ------------
+// Description: A badge component to display "Open Source • Free Beta"
+
+// Props
+type Props = {
+	classes?: string
+}
+const { classes } = Astro.props
+---
+
+<div class:list={['open-source-badge', { [`${classes}`]: classes }]}>
+	<span class="open-source-badge__text">Open Source <span class="open-source-badge__bullet">•</span> Free Beta</span>
+</div>
+
+<style>
+	.open-source-badge {
+		@apply inline-flex items-center gap-2;
+		font-size: 14px;
+		color: #FFD700;
+		font-family: "SF Pro Display", system-ui, helvetica, sans-serif;
+		font-weight: 500;
+	}
+	@media (min-width: 1024px) {
+		.open-source-badge {
+			font-size: 18px;
+		}
+	}
+	.open-source-badge__icon {
+		@apply h-5 w-5;
+	}
+	.open-source-badge__text {
+		font-weight: 500;
+	}
+	.open-source-badge__bullet {
+		@apply mx-2;
+	}
+</style>

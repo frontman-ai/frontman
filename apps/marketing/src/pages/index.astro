@@ -4,7 +4,10 @@
 import Layout from '../layouts/Layout.astro'
 // - UI
 import Hero from '../components/blocks/hero/HomeCTA.astro'
+import InstallSteps from '../components/blocks/install/InstallSteps.astro'
+import TeamworkSection from '../components/blocks/teamwork/TeamworkSection.astro'
 import Features from '../components/blocks/features/FeatureCards.astro'
+import TestimonialsGallery from '../components/blocks/testimonials/TestimonialsGallery.astro'
 import Testimonial from '../components/blocks/testimonials/BasicDark.astro'
 import HighlightBlocks from '../components/blocks/highlights/HightlightRows.astro'
 import CTA from '../components/blocks/CTA/BasicDark.astro'
@@ -14,14 +17,17 @@ import CTA from '../components/blocks/CTA/BasicDark.astro'
 import testimonialBackground from '../assets/testimonial-bg-01.webp'
 // - SEO
 const SEO = {
-	title: 'Foxi | Your Productivity Toolkit',
+	title: 'Frontman | AI Frontend Editing Directly in Your Browser',
 	description:
-		'Foxi is a powerful productivity toolkit designed to enhance your workflow and boost your productivity. With features like analytics, security, and integrations, Foxi is the perfect solution for your business.'
+		'Frontman lets you skip the "refresh and check" cycle and brings non-coding teammates into the workflow.'
 }
 ---
 
 <Layout title={SEO.title} description={SEO.description}>
 	<Hero />
+	<InstallSteps />
+	<TeamworkSection />
+	<TestimonialsGallery />
 	<Features />
 	<Testimonial bg={testimonialBackground} bgPosition="right" />
 	<HighlightBlocks />

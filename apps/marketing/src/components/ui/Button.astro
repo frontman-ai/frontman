@@ -71,11 +71,12 @@ const {
 }
 <style>
 	.button {
-		@apply inline-flex cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded font-bold tracking-wide transition duration-300 focus-visible:outline-none disabled:cursor-not-allowed disabled:shadow-none;
+		@apply inline-flex cursor-pointer items-center justify-center gap-2 whitespace-nowrap font-bold tracking-wide transition duration-300 focus-visible:outline-none disabled:cursor-not-allowed disabled:shadow-none;
+		border-radius: 10px;
 	}
 
 	.button--lg {
-		@apply h-12 px-6 text-sm [&.button--elevated]:shadow-lg [&.button--elevated]:hover:shadow-md [&.button--elevated]:focus:shadow-md;
+		@apply h-14 px-8 text-base [&.button--elevated]:shadow-lg [&.button--elevated]:hover:shadow-md [&.button--elevated]:focus:shadow-md;
 	}
 
 	.button--base {
@@ -104,6 +105,11 @@ const {
 	}
 
 	.button--white {
-		@apply bg-white text-white disabled:border-neutral-300 disabled:bg-neutral-300 [&.button--elevated]:shadow-neutral-500/30 [&.button--elevated]:hover:shadow-neutral-500/30 [&.button--elevated]:focus:shadow-neutral-500/30 [&.button--link]:bg-transparent [&.button--link]:text-white [&.button--outline]:border-white [&.button--outline]:bg-transparent [&.button--outline]:text-white;
+		@apply bg-white border-2 border-black text-black disabled:border-neutral-300 disabled:bg-neutral-300 hover:bg-white hover:text-black focus:bg-white focus:text-black [&.button--elevated]:shadow-neutral-500/30 [&.button--elevated]:hover:shadow-neutral-500/30 [&.button--elevated]:focus:shadow-neutral-500/30 [&.button--link]:bg-transparent [&.button--link]:text-white [&.button--outline]:border-white [&.button--outline]:bg-transparent [&.button--outline]:text-white;
+		font-family: "SF Pro Display", system-ui, helvetica, sans-serif;
+		font-weight: 480;
+		font-size: 18px;
+		line-height: 25px;
+		color: rgb(0, 0, 0);
 	}
 </style>

@@ -1,15 +1,15 @@
 ---
 title: 'Enhancing Team Collaboration'
 pubDate: 2024-06-04T05:00:00Z
-description: 'At Foxi, we believe that effective team collaboration is key to achieving great results. Our latest update introduces new features designed to enhance how your team works together.'
+description: 'At Frontman, we believe that effective team collaboration is key to achieving great results. Our latest update introduces new features designed to enhance how your team works together.'
 author: 'Eleni K'
 image: '/blog/post-05-cover.png'
 tags: ['app', 'announcement']
 ---
 
-![Foxi is here.](/blog/post-05.png)
+![Frontman is here.](/blog/post-05.png)
 
-At Foxi, we believe that effective team collaboration is key to achieving great results. Our latest update introduces new features designed to enhance how your team works together.
+At Frontman, we believe that effective team collaboration is key to achieving great results. Our latest update introduces new features designed to enhance how your team works together.
 
 ### New Collaboration Features
 
@@ -21,6 +21,6 @@ At Foxi, we believe that effective team collaboration is key to achieving great 
 
 > The strength of the team is each individual member. The strength of each member is the team.
 
-Effective collaboration leads to better decision-making, faster problem-solving, and a more engaged team. With these new features, Foxi is more equipped than ever to help your team succeed.
+Effective collaboration leads to better decision-making, faster problem-solving, and a more engaged team. With these new features, Frontman is more equipped than ever to help your team succeed.
 
 Start using these features today and see the difference in your team's productivity and collaboration.

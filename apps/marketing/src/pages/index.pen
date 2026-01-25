@@ -1,0 +1,711 @@
+{
+  "version": "2.6",
+  "children": [
+    {
+      "type": "frame",
+      "id": "page",
+      "x": 0,
+      "y": 0,
+      "name": "Landing Page",
+      "width": 1440,
+      "height": 4500,
+      "fill": "#ffffff",
+      "layout": "vertical",
+      "gap": 0,
+      "padding": 0,
+      "placeholder": true,
+      "children": [
+        {
+          "type": "frame",
+          "id": "hero",
+          "name": "Hero Section",
+          "width": "fill_container",
+          "height": 700,
+          "fill": "#F24E1E",
+          "layout": "horizontal",
+          "gap": 48,
+          "padding": 80,
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "hero-left",
+              "width": 600,
+              "layout": "vertical",
+              "gap": 24,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "logo",
+                  "width": 143,
+                  "height": 143,
+                  "fill": "#1a1a1a",
+                  "cornerRadius": 20
+                },
+                {
+                  "type": "frame",
+                  "id": "badge",
+                  "width": 200,
+                  "height": 32,
+                  "layout": "horizontal",
+                  "gap": 8,
+                  "alignItems": "center",
+                  "padding": 8,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "badge-text",
+                      "content": "Open Source  •  Free Beta",
+                      "fontSize": 14,
+                      "fill": "#FFEB99",
+                      "fontWeight": "500"
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "hero-title",
+                  "content": "AI Frontend Editing Directly in Your Browser",
+                  "fontSize": 64,
+                  "fontWeight": "700",
+                  "fill": "#ffffff",
+                  "lineHeight": 1.1,
+                  "width": 600
+                },
+                {
+                  "type": "text",
+                  "id": "hero-subtitle",
+                  "content": "Frontman lets you skip the \"refresh and check\" cycle and brings non-coding teammates into the workflow",
+                  "fontSize": 18,
+                  "fill": "#ffffff",
+                  "lineHeight": 1.4,
+                  "width": 600
+                },
+                {
+                  "type": "frame",
+                  "id": "hero-button",
+                  "width": 280,
+                  "height": 56,
+                  "fill": "#ffffff",
+                  "cornerRadius": 8,
+                  "layout": "vertical",
+                  "alignItems": "center",
+                  "justifyContent": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "button-text",
+                      "content": "Get Started For Free",
+                      "fontSize": 16,
+                      "fontWeight": "600",
+                      "fill": "#1a1a1a"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "hero-image",
+              "width": 650,
+              "height": 550,
+              "fill": "#2a2a2a",
+              "cornerRadius": 12,
+              "stroke": "#3a3a3a",
+              "strokeThickness": 1
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "features",
+          "name": "Features Section",
+          "width": "fill_container",
+          "height": 1000,
+          "fill": "#0a0e1a",
+          "layout": "vertical",
+          "gap": 64,
+          "padding": 120,
+          "children": [
+            {
+              "type": "frame",
+              "id": "features-header",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 16,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "features-title",
+                  "content": "Innovative tools to transform your workflow",
+                  "fontSize": 48,
+                  "fontWeight": "700",
+                  "fill": "#ffffff",
+                  "textAlign": "center",
+                  "width": 900
+                },
+                {
+                  "type": "text",
+                  "id": "features-subtitle",
+                  "content": "Explore the suite of tools designed to streamline your workflow, enhance productivity, and drive growth. Each product is crafted with precision to meet your needs and exceed your expectations.",
+                  "fontSize": 18,
+                  "fill": "#9ca3af",
+                  "textAlign": "center",
+                  "width": 900,
+                  "lineHeight": 1.6
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "features-grid",
+              "width": "fill_container",
+              "height": 700,
+              "layout": "horizontal",
+              "gap": 32,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "feature-col-1",
+                  "width": "fill_container",
+                  "height": "fill_container",
+                  "fill": "#1a1f2e",
+                  "cornerRadius": 16,
+                  "layout": "vertical",
+                  "gap": 16,
+                  "padding": 32,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "f1-image",
+                      "width": "fill_container",
+                      "height": 250,
+                      "fill": "#2a3142",
+                      "cornerRadius": 12
+                    },
+                    {
+                      "type": "text",
+                      "id": "f1-title",
+                      "content": "All your data in one place",
+                      "fontSize": 24,
+                      "fontWeight": "700",
+                      "fill": "#ffffff"
+                    },
+                    {
+                      "type": "text",
+                      "id": "f1-subtitle",
+                      "content": "Stay on top of your tasks and deadlines with our intuitive project management tool. Visualize progress, assign tasks, and collaborate seamlessly.",
+                      "fontSize": 16,
+                      "fill": "#9ca3af",
+                      "lineHeight": 1.5
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "feature-col-2",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 24,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "feature-2",
+                      "width": "fill_container",
+                      "height": 330,
+                      "fill": "#1a1f2e",
+                      "cornerRadius": 16,
+                      "layout": "vertical",
+                      "gap": 16,
+                      "padding": 32,
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "f2-image",
+                          "width": "fill_container",
+                          "height": 120,
+                          "fill": "#2a3142",
+                          "cornerRadius": 12
+                        },
+                        {
+                          "type": "text",
+                          "id": "f2-title",
+                          "content": "Organize & manage your projects",
+                          "fontSize": 20,
+                          "fontWeight": "700",
+                          "fill": "#ffffff"
+                        },
+                        {
+                          "type": "text",
+                          "id": "f2-subtitle",
+                          "content": "Stay on top of your tasks and deadlines with our intuitive project management tool.",
+                          "fontSize": 15,
+                          "fill": "#9ca3af",
+                          "lineHeight": 1.5
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "feature-3",
+                      "width": "fill_container",
+                      "height": 330,
+                      "fill": "#1a1f2e",
+                      "cornerRadius": 16,
+                      "layout": "vertical",
+                      "gap": 16,
+                      "padding": 32,
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "f3-image",
+                          "width": "fill_container",
+                          "height": 120,
+                          "fill": "#2a3142",
+                          "cornerRadius": 12
+                        },
+                        {
+                          "type": "text",
+                          "id": "f3-title",
+                          "content": "Keep your team connected",
+                          "fontSize": 20,
+                          "fontWeight": "700",
+                          "fill": "#ffffff"
+                        },
+                        {
+                          "type": "text",
+                          "id": "f3-subtitle",
+                          "content": "With our integrated chat platform share updates, files, and messages in a secure and user-friendly environment.",
+                          "fontSize": 15,
+                          "fill": "#9ca3af",
+                          "lineHeight": 1.5
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "feature-col-3",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 24,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "feature-4",
+                      "width": "fill_container",
+                      "height": 330,
+                      "fill": "#1a1f2e",
+                      "cornerRadius": 16,
+                      "layout": "vertical",
+                      "gap": 16,
+                      "padding": 32,
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "f4-image",
+                          "width": "fill_container",
+                          "height": 120,
+                          "fill": "#2a3142",
+                          "cornerRadius": 12
+                        },
+                        {
+                          "type": "text",
+                          "id": "f4-title",
+                          "content": "Manage your customers",
+                          "fontSize": 20,
+                          "fontWeight": "700",
+                          "fill": "#ffffff"
+                        },
+                        {
+                          "type": "text",
+                          "id": "f4-subtitle",
+                          "content": "Build and nurture customer relationships with our powerful CRM system.",
+                          "fontSize": 15,
+                          "fill": "#9ca3af",
+                          "lineHeight": 1.5
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "feature-5",
+                      "width": "fill_container",
+                      "height": 330,
+                      "fill": "#1a1f2e",
+                      "cornerRadius": 16,
+                      "layout": "vertical",
+                      "gap": 16,
+                      "padding": 32,
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "f5-image",
+                          "width": "fill_container",
+                          "height": 120,
+                          "fill": "#2a3142",
+                          "cornerRadius": 12
+                        },
+                        {
+                          "type": "text",
+                          "id": "f5-title",
+                          "content": "Simplify your financial operations",
+                          "fontSize": 20,
+                          "fontWeight": "700",
+                          "fill": "#ffffff"
+                        },
+                        {
+                          "type": "text",
+                          "id": "f5-subtitle",
+                          "content": "Streamline your billing process with our easy-to-use invoicing tool. Create, send, and track invoices effortlessly.",
+                          "fontSize": 15,
+                          "fill": "#9ca3af",
+                          "lineHeight": 1.5
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "testimonial",
+          "name": "Testimonial Section",
+          "width": "fill_container",
+          "height": 500,
+          "fill": "#0a0e1a",
+          "layout": "vertical",
+          "gap": 32,
+          "padding": 120,
+          "alignItems": "center",
+          "justifyContent": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "testimonial-quote",
+              "content": "\"Frontman has completely transformed how our team works. We've cut our development time in half.\"",
+              "fontSize": 36,
+              "fontWeight": "600",
+              "fill": "#ffffff",
+              "textAlign": "center",
+              "width": 900,
+              "lineHeight": 1.4
+            },
+            {
+              "type": "frame",
+              "id": "author-container",
+              "layout": "vertical",
+              "gap": 8,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "testimonial-author",
+                  "content": "Sarah Chen",
+                  "fontSize": 18,
+                  "fontWeight": "600",
+                  "fill": "#ffffff",
+                  "textAlign": "center"
+                },
+                {
+                  "type": "text",
+                  "id": "testimonial-title",
+                  "content": "CTO at TechCorp",
+                  "fontSize": 16,
+                  "fill": "#9ca3af",
+                  "textAlign": "center"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "highlights",
+          "name": "Highlights Section",
+          "width": "fill_container",
+          "height": 1100,
+          "fill": "#ffffff",
+          "layout": "vertical",
+          "gap": 64,
+          "padding": 120,
+          "children": [
+            {
+              "type": "text",
+              "id": "highlights-title",
+              "content": "Why Choose Frontman",
+              "fontSize": 56,
+              "fontWeight": "800",
+              "fill": "#111827",
+              "textAlign": "center"
+            },
+            {
+              "type": "frame",
+              "id": "highlights-list",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 32,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "highlight-1",
+                  "width": "fill_container",
+                  "height": 180,
+                  "fill": "#ffffff",
+                  "cornerRadius": 16,
+                  "layout": "horizontal",
+                  "gap": 40,
+                  "padding": 48,
+                  "alignItems": "center",
+                  "stroke": "#e5e7eb",
+                  "strokeThickness": 1,
+                  "shadow": {
+                    "color": "#00000008",
+                    "x": 0,
+                    "y": 4,
+                    "blur": 16,
+                    "spread": 0
+                  },
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "h1-icon",
+                      "width": 80,
+                      "height": 80,
+                      "fill": "#2563eb",
+                      "cornerRadius": 40,
+                      "shadow": {
+                        "color": "#2563eb30",
+                        "x": 0,
+                        "y": 4,
+                        "blur": 12,
+                        "spread": 0
+                      }
+                    },
+                    {
+                      "type": "frame",
+                      "id": "h1-content",
+                      "width": "fill_container",
+                      "layout": "vertical",
+                      "gap": 12,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "h1-title",
+                          "content": "Fast Development",
+                          "fontSize": 32,
+                          "fontWeight": "700",
+                          "fill": "#111827"
+                        },
+                        {
+                          "type": "text",
+                          "id": "h1-desc",
+                          "content": "Build and iterate on your frontend 10x faster with real-time updates and instant feedback loops.",
+                          "fontSize": 18,
+                          "fill": "#6b7280",
+                          "lineHeight": 1.6
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "highlight-2",
+                  "width": "fill_container",
+                  "height": 180,
+                  "fill": "#ffffff",
+                  "cornerRadius": 16,
+                  "layout": "horizontal",
+                  "gap": 40,
+                  "padding": 48,
+                  "alignItems": "center",
+                  "stroke": "#e5e7eb",
+                  "strokeThickness": 1,
+                  "shadow": {
+                    "color": "#00000008",
+                    "x": 0,
+                    "y": 4,
+                    "blur": 16,
+                    "spread": 0
+                  },
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "h2-icon",
+                      "width": 80,
+                      "height": 80,
+                      "fill": "#10b981",
+                      "cornerRadius": 40,
+                      "shadow": {
+                        "color": "#10b98130",
+                        "x": 0,
+                        "y": 4,
+                        "blur": 12,
+                        "spread": 0
+                      }
+                    },
+                    {
+                      "type": "frame",
+                      "id": "h2-content",
+                      "width": "fill_container",
+                      "layout": "vertical",
+                      "gap": 12,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "h2-title",
+                          "content": "No Code Needed",
+                          "fontSize": 32,
+                          "fontWeight": "700",
+                          "fill": "#111827"
+                        },
+                        {
+                          "type": "text",
+                          "id": "h2-desc",
+                          "content": "Non-technical team members can make changes without touching code. Empower your entire team.",
+                          "fontSize": 18,
+                          "fill": "#6b7280",
+                          "lineHeight": 1.6
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "highlight-3",
+                  "width": "fill_container",
+                  "height": 180,
+                  "fill": "#ffffff",
+                  "cornerRadius": 16,
+                  "layout": "horizontal",
+                  "gap": 40,
+                  "padding": 48,
+                  "alignItems": "center",
+                  "stroke": "#e5e7eb",
+                  "strokeThickness": 1,
+                  "shadow": {
+                    "color": "#00000008",
+                    "x": 0,
+                    "y": 4,
+                    "blur": 16,
+                    "spread": 0
+                  },
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "h3-icon",
+                      "width": 80,
+                      "height": 80,
+                      "fill": "#f59e0b",
+                      "cornerRadius": 40,
+                      "shadow": {
+                        "color": "#f59e0b30",
+                        "x": 0,
+                        "y": 4,
+                        "blur": 12,
+                        "spread": 0
+                      }
+                    },
+                    {
+                      "type": "frame",
+                      "id": "h3-content",
+                      "width": "fill_container",
+                      "layout": "vertical",
+                      "gap": 12,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "h3-title",
+                          "content": "Version Control",
+                          "fontSize": 32,
+                          "fontWeight": "700",
+                          "fill": "#111827"
+                        },
+                        {
+                          "type": "text",
+                          "id": "h3-desc",
+                          "content": "Every change is tracked and can be rolled back instantly. Never lose work again.",
+                          "fontSize": 18,
+                          "fill": "#6b7280",
+                          "lineHeight": 1.6
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "cta",
+          "name": "CTA Section",
+          "width": "fill_container",
+          "height": 500,
+          "fill": "#0a0e1a",
+          "layout": "vertical",
+          "gap": 40,
+          "padding": 120,
+          "alignItems": "center",
+          "justifyContent": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "cta-title",
+              "content": "Ready to Transform Your Workflow?",
+              "fontSize": 56,
+              "fontWeight": "800",
+              "fill": "#ffffff",
+              "textAlign": "center",
+              "lineHeight": 1.2
+            },
+            {
+              "type": "text",
+              "id": "cta-subtitle",
+              "content": "Join thousands of teams already using Frontman",
+              "fontSize": 22,
+              "fill": "#9ca3af",
+              "textAlign": "center"
+            },
+            {
+              "type": "frame",
+              "id": "cta-button",
+              "width": 240,
+              "height": 64,
+              "fill": "#2563eb",
+              "cornerRadius": 12,
+              "layout": "vertical",
+              "alignItems": "center",
+              "justifyContent": "center",
+              "shadow": {
+                "color": "#2563eb50",
+                "x": 0,
+                "y": 8,
+                "blur": 24,
+                "spread": 0
+              },
+              "children": [
+                {
+                  "type": "text",
+                  "id": "cta-btn-text",
+                  "content": "Start Free Trial →",
+                  "fontSize": 18,
+                  "fontWeight": "600",
+                  "fill": "#ffffff"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,202 @@
+---
+// Testimonials Gallery
+// ------------
+// Description: An infinite scrolling horizontal gallery of testimonials with pause on hover
+
+type Testimonial = {
+	quote: string
+	author: string
+	role: string
+	color: string
+}
+
+const testimonials: Testimonial[] = [
+	{
+		quote: "I used to spend 20 minutes explaining a CSS change to Cursor. Now I just click and say 'fix this spacing.' Done in 30 seconds.",
+		author: "Alex Chen",
+		role: "Frontend Developer",
+		color: "#7C3AED"
+	},
+	{
+		quote: "Finally, my designer can show me exactly what's wrong instead of sending Loom videos.",
+		author: "Sarah Kim",
+		role: "Tech Lead",
+		color: "#3B82F6"
+	},
+	{
+		quote: "The fact that it's open source sealed the deal. I can see exactly what prompts it sends.",
+		author: "Mike Torres",
+		role: "Senior Engineer",
+		color: "#F59E0B"
+	},
+	{
+		quote: "Our QA team can now make minor UI fixes themselves. That's a game changer for velocity.",
+		author: "Jessica Park",
+		role: "Product Manager",
+		color: "#7C3AED"
+	},
+	{
+		quote: "I was skeptical about AI code tools, but Frontman's approach of editing in the browser just makes sense.",
+		author: "David Liu",
+		role: "Engineering Manager",
+		color: "#3B82F6"
+	},
+	{
+		quote: "Best part? No more 'can you move this 5px to the left' Slack messages. They just do it themselves now.",
+		author: "Rachel Green",
+		role: "Design Lead",
+		color: "#F59E0B"
+	}
+]
+---
+
+<section class="testimonials-gallery-section">
+	<div class="testimonials-header">
+		<h2 class="testimonials-title">
+			Loved by developers, designers, and product teams
+		</h2>
+		<p class="testimonials-description">
+			See what teams are saying about how Frontman transformed their workflow.
+		</p>
+	</div>
+	<div class="testimonials-container">
+		<div class="testimonials-track">
+			<!-- First set of testimonials -->
+			{testimonials.map((testimonial) => (
+				<div class="testimonial-card" style={`border-color: ${testimonial.color}; box-shadow: 9px 9px 0px 0px ${testimonial.color};`}>
+					<p class="testimonial-quote" style={`color: ${testimonial.color}`}>"{testimonial.quote}"</p>
+					<div class="testimonial-author">
+						<p class="author-name" style={`color: ${testimonial.color}`}>{testimonial.author}</p>
+						<p class="author-role" style={`color: ${testimonial.color}`}>{testimonial.role}</p>
+					</div>
+				</div>
+			))}
+			<!-- Duplicate set for infinite loop (desktop only) -->
+			<div class="testimonial-duplicate">
+				{testimonials.map((testimonial) => (
+					<div class="testimonial-card" style={`border-color: ${testimonial.color}; box-shadow: 9px 9px 0px 0px ${testimonial.color};`}>
+						<p class="testimonial-quote" style={`color: ${testimonial.color}`}>"{testimonial.quote}"</p>
+						<div class="testimonial-author">
+							<p class="author-name" style={`color: ${testimonial.color}`}>{testimonial.author}</p>
+							<p class="author-role" style={`color: ${testimonial.color}`}>{testimonial.role}</p>
+						</div>
+					</div>
+				))}
+			</div>
+		</div>
+	</div>
+</section>
+
+<style>
+	.testimonials-gallery-section {
+		@apply relative py-16 lg:py-24;
+		background: #FAFAFA;
+	}
+
+	.testimonials-header {
+		@apply text-center mx-auto px-6 mb-12 lg:mb-16;
+		max-width: 800px;
+	}
+
+	.testimonials-title {
+		@apply font-headings text-4xl lg:text-5xl font-bold text-black mb-6;
+		line-height: 1.2;
+	}
+
+	.testimonials-description {
+		@apply text-base lg:text-lg text-neutral-700 leading-relaxed;
+	}
+
+	.testimonials-container {
+		@apply w-full;
+	}
+
+	.testimonials-track {
+		@apply flex gap-8;
+		animation: scroll 30s linear infinite;
+	}
+
+	.testimonials-track:hover {
+		animation-play-state: paused;
+	}
+
+	@keyframes scroll {
+		0% {
+			transform: translateX(0);
+		}
+		100% {
+			transform: translateX(-50%);
+		}
+	}
+
+	.testimonial-card {
+		@apply flex-shrink-0 bg-white;
+		width: 500px;
+		min-height: 220px;
+		padding: 2.5rem;
+		border-width: 3px;
+		border-style: solid;
+		display: flex;
+		flex-direction: column;
+	}
+
+	.testimonial-quote {
+		@apply text-xl mb-8 leading-relaxed;
+		font-family: "SF Pro Display", system-ui, helvetica, sans-serif;
+		font-weight: 400;
+		flex-grow: 1;
+	}
+
+	.testimonial-author {
+		@apply mt-auto;
+	}
+
+	.author-name {
+		@apply font-headings text-xl mb-1;
+		font-weight: 700;
+	}
+
+	.author-role {
+		@apply text-base;
+		font-weight: 400;
+	}
+
+	.testimonial-duplicate {
+		@apply flex gap-8;
+	}
+
+	/* Mobile responsive */
+	@media (max-width: 640px) {
+		.testimonials-track {
+			@apply gap-6 flex-col items-center;
+			animation: none;
+		}
+
+		.testimonial-duplicate {
+			@apply hidden;
+		}
+
+		.testimonial-card:nth-child(n+4) {
+			@apply hidden;
+		}
+
+		.testimonial-card {
+			width: 100%;
+			max-width: 340px;
+			min-height: 200px;
+			padding: 2rem;
+		}
+
+		.testimonial-quote {
+			@apply text-base mb-5;
+		}
+
+		.author-name {
+			@apply text-lg;
+		}
+
+		.author-role {
+			@apply text-sm;
+		}
+	}
+</style>

@@ -1,0 +1,97 @@
+---
+// Install Steps Section
+// ------------
+// Description: A section displaying the 3-step installation process for FrontEnd
+// Note: This section doesn't use the Section wrapper component to allow
+// coast-to-coast decorative elements (floating blobs) while keeping content centered
+
+// Components
+// - Layout
+import Row from '../../ui/Row.astro'
+import Col from '../../ui/Col.astro'
+// - UI
+import StepCard from '../../ui/cards/StepCard.astro'
+// - Decorative
+import FloatingBlobs from '../../ui/decorative/FloatingBlobs.astro'
+---
+
+<section id="install" class="install-section">
+	<!-- Floating decorative blobs (coast to coast) -->
+	<FloatingBlobs
+		blobs={[
+			{ color: '#9D7CFF', size: 450, startX: -12, startY: 50 },
+			{ color: '#60A5FA', size: 550, startX: 85, startY: -15 },
+			{ color: '#FCD34D', size: 500, startX: 82, startY: 90 }
+		]}
+		speed={20}
+	/>
+
+	<!-- Content container (centered with padding) -->
+	<div class="container">
+		<Row>
+			<Col span="12" align="center" classes="mb-16">
+				<h2 class="install-title">
+					How to install FrontEnd
+				</h2>
+			</Col>
+		</Row>
+		<Row classes="install-cards-row">
+			<Col span="4">
+				<StepCard
+					stepNumber="Step 1"
+					title="Install locally"
+					description="Run one command in your project."
+					bgColor="#FFF4CC"
+				>
+					<div class="code-pill">
+						<code>frontman</code>
+					</div>
+				</StepCard>
+			</Col>
+			<Col span="4">
+				<StepCard
+					stepNumber="Step 2"
+					title="Open Frontman"
+					description="Visit localhost/frontman in your browser."
+					bgColor="#FFD6E8"
+				/>
+			</Col>
+			<Col span="4">
+				<StepCard
+					stepNumber="Step 3"
+					title="Edit visually"
+					description="Select elements, prompt changes, see them applied in code."
+					bgColor="#FFE4D6"
+				/>
+			</Col>
+		</Row>
+	</div>
+</section>
+
+<style>
+	.install-section {
+		@apply relative overflow-hidden py-20;
+		background: #FAFAFA;
+	}
+
+	.container {
+		@apply relative z-[100] mx-auto px-6;
+	}
+
+	.install-title {
+		@apply font-headings text-5xl lg:text-6xl font-bold text-black relative;
+		z-index: 100;
+	}
+
+	.install-cards-row {
+		@apply relative;
+		z-index: 100;
+	}
+
+	.code-pill {
+		@apply mt-4 inline-block px-6 py-3 font-mono text-sm;
+		background-color: rgba(0, 0, 0, 0.15);
+		color: rgba(0, 0, 0, 0.8);
+		border-radius: 12px;
+	}
+</style>

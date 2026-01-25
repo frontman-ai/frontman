@@ -21,13 +21,13 @@ export interface Config {
 }
 
 export const configData: Config = {
-	siteTitle: 'Foxi. Tailwind CSS Astro Starter Kit by Oxygenna',
+	siteTitle: 'Frontman | AI Frontend Editing Directly in Your Browser',
 	siteDescription:
-		'Foxi is a design and development agency that specializes in creating beautiful and functional websites.',
+		'Frontman lets you skip the "refresh and check" cycle and brings non-coding teammates into the workflow.',
 	ogImage: '/og.jpg',
 	logo: {
 		src: '/logo.svg',
-		alt: 'Foxi. logo'
+		alt: 'Frontman logo'
 	},
 	canonical: true,
 	noindex: false,

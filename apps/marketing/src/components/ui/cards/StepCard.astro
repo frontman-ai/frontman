@@ -1,0 +1,55 @@
+---
+// Step Card
+// ------------
+// Description: A bold bordered card component for displaying installation/process steps
+// Properties:
+// - stepNumber: the step number (e.g., "Step 1", "Step 2", "Step 3")
+// - title: the title of the step
+// - description: the description text
+// - bgColor: background color hex (e.g., "#FFF4CC", "#FFD6E8", "#FFE4D6")
+// - classes: additional classes
+
+// Props
+type Props = {
+	stepNumber: string
+	title: string
+	description: string
+	bgColor: string
+	classes?: string
+}
+const { stepNumber, title, description, bgColor, classes } = Astro.props
+---
+
+<div class={`bold-step-card ${classes || ''}`} style={`background-color: ${bgColor};`}>
+	<div class="bold-step-card__number">{stepNumber}</div>
+	<h3 class="bold-step-card__title">{title}</h3>
+	<p class="bold-step-card__description">{description}</p>
+	<slot />
+</div>
+
+<style>
+	.bold-step-card {
+		@apply relative p-8 border-4 border-black transition-transform hover:translate-x-1 hover:translate-y-1;
+		border-radius: 20px;
+		box-shadow: 10px 10px 0 0 rgba(0, 0, 0, 1);
+		min-height: 280px;
+		z-index: 100;
+		background-clip: padding-box;
+	}
+
+	.bold-step-card:hover {
+		box-shadow: 5px 5px 0 0 rgba(0, 0, 0, 1);
+	}
+
+	.bold-step-card__number {
+		@apply font-headings text-lg font-bold text-black mb-3;
+	}
+
+	.bold-step-card__title {
+		@apply text-2xl font-bold text-black mb-4;
+	}
+
+	.bold-step-card__description {
+		@apply text-base text-neutral-800 leading-relaxed;
+	}
+</style>

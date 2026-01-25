@@ -1,0 +1,620 @@
+---
+// Design System
+// ------------
+// Description: Internal design system documentation - NOT FOR CRAWLING
+
+// Components
+// - Layout
+import Layout from '../layouts/Layout.astro'
+import Section from '../components/ui/Section.astro'
+import Row from '../components/ui/Row.astro'
+import Col from '../components/ui/Col.astro'
+// - UI
+import Button from '../components/ui/Button.astro'
+import Highlight from '../components/ui/Highlight.astro'
+
+const SEO = {
+	title: 'Design System - Internal',
+	description: 'Internal design system documentation'
+}
+---
+
+<Layout title={SEO.title} description={SEO.description}>
+	<meta name="robots" content="noindex, nofollow" slot="head-extra" />
+
+	<!-- Overview -->
+	<Section padding="both">
+		<Row>
+			<Col span="12">
+				<h1>Frontman Design System</h1>
+				<p class="text-neutral-500 mb-4">Internal reference for building pages quickly</p>
+				<div class="bg-orange-50 border-l-4 border-primary-500 p-6 rounded-r-lg mb-8">
+					<h3 class="mb-2">Design Philosophy</h3>
+					<p class="text-neutral-700">Frontman is for <strong>everyone</strong> - designers, product managers, and developers. Our design is <strong>friendly, playful, and approachable</strong>. We use <strong class="text-primary-500">orange as our brand color</strong>, soft pastels, rounded corners, and fun visual elements to create a welcoming experience that breaks down walls between teams.</p>
+				</div>
+			</Col>
+		</Row>
+	</Section>
+
+	<!-- Bold Bordered Cards (Signature Style) -->
+	<Section padding="both" mode="light">
+		<Row>
+			<Col span="12" classes="mb-8">
+				<h2>Bold Bordered Cards (Signature Style)</h2>
+				<p class="text-neutral-600 mb-6">Our signature design element - friendly cards with thick black borders, rounded corners, and playful drop shadows. Approachable for all audiences: designers, PMs, and developers.</p>
+			</Col>
+		</Row>
+
+		<Row>
+			<Col span="4">
+				<div class="bold-card bold-card--yellow">
+					<div class="bold-card__number">01</div>
+					<h3 class="bold-card__title">Step Title</h3>
+					<p class="bold-card__text">Description text goes here with details about this step.</p>
+					<div class="code-block">
+						<code>frontman</code>
+					</div>
+				</div>
+				<code class="text-sm text-neutral-500 mt-2 block">Yellow variant</code>
+			</Col>
+			<Col span="4">
+				<div class="bold-card bold-card--blue">
+					<div class="bold-card__number">02</div>
+					<h3 class="bold-card__title">Another Step</h3>
+					<p class="bold-card__text">Each card can have different background colors for visual distinction.</p>
+				</div>
+				<code class="text-sm text-neutral-500 mt-2 block">Blue variant</code>
+			</Col>
+			<Col span="4">
+				<div class="bold-card bold-card--peach">
+					<div class="bold-card__number">03</div>
+					<h3 class="bold-card__title">Final Step</h3>
+					<p class="bold-card__text">The bold border creates a distinctive, modern look.</p>
+				</div>
+				<code class="text-sm text-neutral-500 mt-2 block">Peach variant</code>
+			</Col>
+		</Row>
+
+		<Row>
+			<Col span="12" classes="mt-8">
+				<h3 class="mb-4">Usage</h3>
+				<pre class="bg-neutral-900 text-white p-4 rounded overflow-x-auto"><code>&lt;div class="bold-card bold-card--yellow"&gt;
+  &lt;div class="bold-card__number"&gt;01&lt;/div&gt;
+  &lt;h3 class="bold-card__title"&gt;Title&lt;/h3&gt;
+  &lt;p class="bold-card__text"&gt;Description...&lt;/p&gt;
+&lt;/div&gt;</code></pre>
+			</Col>
+		</Row>
+	</Section>
+
+	<!-- Typography -->
+	<Section padding="both">
+		<Row>
+			<Col span="12" classes="mb-8">
+				<h2 class="mb-8">Typography</h2>
+				<div class="space-y-4">
+					<div>
+						<h1>Heading 1 - Main Page Title</h1>
+						<code class="text-sm text-neutral-500">&lt;h1&gt; - font-headings (Outfit Variable)</code>
+					</div>
+					<div>
+						<h2>Heading 2 - Section Title</h2>
+						<code class="text-sm text-neutral-500">&lt;h2&gt;</code>
+					</div>
+					<div>
+						<h3>Heading 3 - Subsection</h3>
+						<code class="text-sm text-neutral-500">&lt;h3&gt;</code>
+					</div>
+					<div>
+						<h4>Heading 4</h4>
+						<code class="text-sm text-neutral-500">&lt;h4&gt;</code>
+					</div>
+					<div class="mt-8">
+						<p>Regular paragraph text using Inter Variable. Lorem ipsum dolor sit amet, consectetur adipiscing elit.</p>
+						<code class="text-sm text-neutral-500">&lt;p&gt; - font-sans (Inter Variable)</code>
+					</div>
+					<div>
+						<p class="text-lg">Large paragraph with <strong>strong emphasis</strong> and <em>italic emphasis</em>.</p>
+						<code class="text-sm text-neutral-500">&lt;p class="text-lg"&gt;</code>
+					</div>
+				</div>
+			</Col>
+		</Row>
+
+		<!-- Highlights -->
+		<Row>
+			<Col span="12" classes="mt-8">
+				<h3 class="mb-4">Text Highlights (Orange)</h3>
+				<div class="space-y-4">
+					<div>
+						<p class="text-2xl">How to install <Highlight type="1">FrontEnd</Highlight></p>
+						<code class="text-sm text-neutral-500">type="1" - colored text (primary-500 orange)</code>
+					</div>
+					<div>
+						<p class="text-lg">Break the walls between <Highlight type="2">design, product, and engineering</Highlight></p>
+						<code class="text-sm text-neutral-500">type="2" - with orange background</code>
+					</div>
+				</div>
+			</Col>
+		</Row>
+	</Section>
+
+	<!-- Color Palette -->
+	<Section padding="both" mode="light">
+		<Row>
+			<Col span="12" classes="mb-8">
+				<h2>Color Palette</h2>
+				<p class="text-neutral-600 mb-6 text-lg"><strong>🍊 ORANGE is Frontman's main brand color.</strong> All tints are orange-based.</p>
+			</Col>
+		</Row>
+
+		<!-- Orange - PRIMARY BRAND COLOR -->
+		<Row>
+			<Col span="12" classes="mb-6">
+				<h3 class="mb-4">🎯 Orange (Primary Brand Color)</h3>
+				<p class="text-neutral-600 mb-4">All primary colors in Tailwind are orange tints. Use these for buttons, links, highlights, and accents.</p>
+				<div class="grid grid-cols-6 gap-4">
+					<div>
+						<div class="h-20 bg-primary-50 rounded border border-neutral-200"></div>
+						<code class="text-xs mt-1 block">primary-50</code>
+						<p class="text-xs text-neutral-500">#FFF4F0</p>
+					</div>
+					<div>
+						<div class="h-20 bg-primary-100 rounded border border-neutral-200"></div>
+						<code class="text-xs mt-1 block">primary-100</code>
+						<p class="text-xs text-neutral-500">#FFE4D6</p>
+					</div>
+					<div>
+						<div class="h-20 bg-primary-200 rounded"></div>
+						<code class="text-xs mt-1 block">primary-200</code>
+						<p class="text-xs text-neutral-500">#FFC9AD</p>
+					</div>
+					<div>
+						<div class="h-20 bg-primary-300 rounded"></div>
+						<code class="text-xs mt-1 block">primary-300</code>
+						<p class="text-xs text-neutral-500">#FFAD85</p>
+					</div>
+					<div>
+						<div class="h-20 bg-primary-400 rounded"></div>
+						<code class="text-xs mt-1 block">primary-400</code>
+						<p class="text-xs text-neutral-500">#FF7E52</p>
+					</div>
+					<div>
+						<div class="h-20 bg-primary-500 rounded"></div>
+						<code class="text-xs mt-1 block text-white font-bold">primary-500</code>
+						<p class="text-xs text-white font-bold">#F24E1E</p>
+					</div>
+				</div>
+				<div class="grid grid-cols-6 gap-4 mt-4">
+					<div>
+						<div class="h-20 bg-primary-600 rounded"></div>
+						<code class="text-xs mt-1 block text-white">primary-600</code>
+						<p class="text-xs text-white">#D43F15</p>
+					</div>
+					<div>
+						<div class="h-20 bg-primary-700 rounded"></div>
+						<code class="text-xs mt-1 block text-white">primary-700</code>
+						<p class="text-xs text-white">#B6330F</p>
+					</div>
+					<div>
+						<div class="h-20 bg-primary-800 rounded"></div>
+						<code class="text-xs mt-1 block text-white">primary-800</code>
+						<p class="text-xs text-white">#97280A</p>
+					</div>
+					<div>
+						<div class="h-20 bg-primary-900 rounded"></div>
+						<code class="text-xs mt-1 block text-white">primary-900</code>
+						<p class="text-xs text-white">#791E06</p>
+					</div>
+					<div>
+						<div class="h-20 bg-primary-950 rounded"></div>
+						<code class="text-xs mt-1 block text-white">primary-950</code>
+						<p class="text-xs text-white">#5A1604</p>
+					</div>
+				</div>
+			</Col>
+		</Row>
+
+		<!-- Supporting Colors -->
+		<Row>
+			<Col span="12" classes="mb-6">
+				<h3 class="mb-4">🎨 Supporting Colors (For Variety & Visual Interest)</h3>
+				<p class="text-neutral-600 mb-4">Complementary colors for cards, backgrounds, accents, and visual distinction. Use these to add variety while keeping orange as the primary brand color.</p>
+			</Col>
+		</Row>
+
+		<!-- Card Border Colors -->
+		<Row>
+			<Col span="12" classes="mb-6">
+				<h4 class="mb-3 text-lg font-semibold">Card Accent Colors</h4>
+				<p class="text-neutral-600 mb-4 text-sm">Use for card borders, testimonial cards, and visual differentiation</p>
+				<div class="grid grid-cols-3 gap-6">
+					<div>
+						<div class="h-24 rounded-lg border-4" style="background-color: white; border-color: #7C3AED;"></div>
+						<code class="text-xs mt-2 block font-semibold">#7C3AED</code>
+						<p class="text-xs text-neutral-600 font-medium">Purple Accent</p>
+						<p class="text-xs text-neutral-500 mt-1">Testimonials, developer cards</p>
+					</div>
+					<div>
+						<div class="h-24 rounded-lg border-4" style="background-color: white; border-color: #06B6D4;"></div>
+						<code class="text-xs mt-2 block font-semibold">#06B6D4</code>
+						<p class="text-xs text-neutral-600 font-medium">Cyan Accent</p>
+						<p class="text-xs text-neutral-500 mt-1">Testimonials, tech lead cards</p>
+					</div>
+					<div>
+						<div class="h-24 rounded-lg border-4" style="background-color: white; border-color: #D97706;"></div>
+						<code class="text-xs mt-2 block font-semibold">#D97706</code>
+						<p class="text-xs text-neutral-600 font-medium">Amber Accent</p>
+						<p class="text-xs text-neutral-500 mt-1">Testimonials, engineer cards</p>
+					</div>
+				</div>
+			</Col>
+		</Row>
+
+		<!-- Background Colors -->
+		<Row>
+			<Col span="12" classes="mb-6">
+				<h4 class="mb-3 text-lg font-semibold">Section Background Colors</h4>
+				<p class="text-neutral-600 mb-4 text-sm">Soft, friendly backgrounds for different sections</p>
+				<div class="grid grid-cols-4 gap-4">
+					<div>
+						<div class="h-20 rounded-lg border-2 border-black" style="background-color: #FFF4CC;"></div>
+						<code class="text-xs mt-1 block">#FFF4CC</code>
+						<p class="text-xs text-neutral-500">Cream Yellow</p>
+						<p class="text-xs text-neutral-400">Step cards</p>
+					</div>
+					<div>
+						<div class="h-20 rounded-lg border-2 border-black" style="background-color: #C4E0FF;"></div>
+						<code class="text-xs mt-1 block">#C4E0FF</code>
+						<p class="text-xs text-neutral-500">Light Blue</p>
+						<p class="text-xs text-neutral-400">Step cards</p>
+					</div>
+					<div>
+						<div class="h-20 rounded-lg border-2 border-black" style="background-color: #E8D5FF;"></div>
+						<code class="text-xs mt-1 block">#E8D5FF</code>
+						<p class="text-xs text-neutral-500">Lavender</p>
+						<p class="text-xs text-neutral-400">Section backgrounds</p>
+					</div>
+					<div>
+						<div class="h-20 rounded-lg border-2 border-black" style="background-color: #FFE4D6;"></div>
+						<code class="text-xs mt-1 block">#FFE4D6</code>
+						<p class="text-xs text-neutral-500">Peach</p>
+						<p class="text-xs text-neutral-400">Step cards</p>
+					</div>
+				</div>
+			</Col>
+		</Row>
+
+		<!-- Usage Guidelines -->
+		<Row>
+			<Col span="12" classes="mb-6">
+				<div class="bg-orange-50 border-l-4 border-primary-500 p-4 rounded-r">
+					<h4 class="font-semibold mb-2">💡 When to Use Supporting Colors</h4>
+					<ul class="text-sm text-neutral-700 space-y-1">
+						<li>• <strong>Card borders:</strong> Purple, Cyan, Amber for visual distinction (testimonials, role cards)</li>
+						<li>• <strong>Backgrounds:</strong> Soft pastels for section variety and friendliness</li>
+						<li>• <strong>Step cards:</strong> Yellow, Blue, Lavender, Peach for numbered installation steps</li>
+						<li>• <strong>Always keep orange:</strong> Primary buttons and main CTAs stay orange (#F24E1E)</li>
+					</ul>
+				</div>
+			</Col>
+		</Row>
+
+		<!-- Tailwind Classes -->
+		<Row>
+			<Col span="12" classes="mb-6 mt-4">
+				<h4 class="mb-3 text-lg font-semibold">Tailwind Classes</h4>
+				<p class="text-neutral-600 mb-4 text-sm">These colors are available as Tailwind classes:</p>
+				<pre class="bg-neutral-900 text-white p-4 rounded overflow-x-auto text-sm"><code>// Accent colors (borders, text)
+border-accent-purple   text-accent-purple   bg-accent-purple
+border-accent-cyan     text-accent-cyan     bg-accent-cyan
+border-accent-amber    text-accent-amber    bg-accent-amber
+
+// Background colors
+bg-bg-cream       (cream yellow #FFF4CC)
+bg-bg-lightblue   (light blue #C4E0FF)
+bg-bg-lavender    (lavender #E8D5FF)
+bg-bg-peach       (peach #FFE4D6)</code></pre>
+			</Col>
+		</Row>
+
+		<!-- Example Cards -->
+		<Row>
+			<Col span="12" classes="mb-6 mt-4">
+				<h4 class="mb-3 text-lg font-semibold">Example: Testimonial Cards</h4>
+				<div class="grid grid-cols-3 gap-4">
+					<div class="bg-white rounded-lg border-b-4 border-accent-purple p-6">
+						<p class="text-sm text-neutral-700 mb-3">"I used to spend 20 minutes explaining a CSS change..."</p>
+						<p class="text-xs font-bold text-accent-purple">Alex Chen</p>
+						<p class="text-xs text-neutral-500">Frontend Developer</p>
+					</div>
+					<div class="bg-white rounded-lg border-b-4 border-accent-cyan p-6">
+						<p class="text-sm text-neutral-700 mb-3">"Finally, my designer can show me exactly what's wrong..."</p>
+						<p class="text-xs font-bold text-accent-cyan">Sarah Kim</p>
+						<p class="text-xs text-neutral-500">Tech Lead</p>
+					</div>
+					<div class="bg-white rounded-lg border-b-4 border-accent-amber p-6">
+						<p class="text-sm text-neutral-700 mb-3">"The fact that it's open source sealed the deal..."</p>
+						<p class="text-xs font-bold text-accent-amber">Mike Torres</p>
+						<p class="text-xs text-neutral-500">Senior Engineer</p>
+					</div>
+				</div>
+			</Col>
+		</Row>
+
+	</Section>
+
+	<!-- Buttons -->
+	<Section padding="both">
+		<Row>
+			<Col span="12" classes="mb-8">
+				<h2>Buttons</h2>
+				<p class="text-neutral-600 mb-4">All primary buttons use <strong>orange (primary-500 = #F24E1E)</strong> - Frontman's main brand color.</p>
+			</Col>
+		</Row>
+
+		<Row>
+			<Col span="12" classes="mb-6">
+				<h3 class="mb-4">Primary Orange Buttons</h3>
+				<p class="text-neutral-600 mb-4">Use these for main actions: "Get Started", "Sign Up", "Learn More"</p>
+				<div class="flex flex-wrap items-center gap-4">
+					<Button size="lg" style="primary">Get Started for Free</Button>
+					<Button size="base" style="primary">Base Primary</Button>
+					<Button size="sm" style="primary">Small Primary</Button>
+				</div>
+				<code class="text-sm text-neutral-500 mt-4 block">Uses bg-primary-500 (orange) by default</code>
+			</Col>
+		</Row>
+
+		<Row>
+			<Col span="12" classes="mb-6">
+				<h3 class="mb-4">Orange Button Variants</h3>
+				<div class="flex flex-wrap items-center gap-4">
+					<Button size="base" style="primary" variation="outline">Orange Outline</Button>
+					<Button size="base" style="secondary">Orange Secondary</Button>
+					<Button type="link" link="#" style="primary" variation="link">Orange Link →</Button>
+				</div>
+			</Col>
+		</Row>
+
+		<Row>
+			<Col span="12" classes="mb-6">
+				<h3 class="mb-4">White Button (on dark/orange backgrounds)</h3>
+				<div class="p-8 rounded-lg inline-block" style="background-color: #F24E1E;">
+					<Button size="lg" style="white">Get Started for Free</Button>
+				</div>
+			</Col>
+		</Row>
+
+		<Row>
+			<Col span="12" classes="mb-6">
+				<h3 class="mb-4">Neutral Buttons (for less important actions)</h3>
+				<div class="flex flex-wrap items-center gap-4">
+					<Button size="base" style="neutral">Neutral</Button>
+					<Button size="base" style="neutral" variation="outline">Neutral Outline</Button>
+				</div>
+			</Col>
+		</Row>
+	</Section>
+
+	<!-- Decorative Elements -->
+	<Section padding="both" mode="light">
+		<Row>
+			<Col span="12" classes="mb-8">
+				<h2>Decorative Elements</h2>
+			</Col>
+		</Row>
+
+		<Row>
+			<Col span="12" classes="mb-6">
+				<h3 class="mb-4">Circular Blobs (Playful Backgrounds)</h3>
+				<p class="text-neutral-600 mb-4">Large, soft gradient circles that add visual interest and playfulness. These make the design feel alive and friendly - not corporate or rigid.</p>
+				<div class="relative h-64 bg-neutral-100 rounded-lg overflow-hidden">
+					<div class="blob blob--purple-large"></div>
+					<div class="blob blob--yellow-large"></div>
+					<div class="relative z-10 flex items-center justify-center h-full">
+						<p class="text-2xl font-bold">Content goes here</p>
+					</div>
+				</div>
+				<code class="text-sm text-neutral-500 mt-2 block">Use position: relative on parent, blobs with position: absolute</code>
+			</Col>
+		</Row>
+
+		<Row>
+			<Col span="12" classes="mt-8">
+				<h3 class="mb-4">Usage</h3>
+				<pre class="bg-neutral-900 text-white p-4 rounded overflow-x-auto"><code>&lt;div class="relative overflow-hidden"&gt;
+  &lt;div class="blob blob--purple-large"&gt;&lt;/div&gt;
+  &lt;div class="blob blob--yellow-large"&gt;&lt;/div&gt;
+  &lt;div class="relative z-10"&gt;Your content&lt;/div&gt;
+&lt;/div&gt;</code></pre>
+			</Col>
+		</Row>
+	</Section>
+
+	<!-- Layout System -->
+	<Section padding="both">
+		<Row>
+			<Col span="12" classes="mb-8">
+				<h2>Layout System</h2>
+				<p class="text-neutral-600 mb-4">12-column responsive grid using Section &gt; Row &gt; Col pattern</p>
+			</Col>
+		</Row>
+
+		<Row>
+			<Col span="12" classes="mb-4">
+				<div class="bg-primary-100 p-4 rounded">
+					<code>Col span="12" - Full width</code>
+				</div>
+			</Col>
+		</Row>
+
+		<Row>
+			<Col span="6" classes="mb-4">
+				<div class="bg-primary-100 p-4 rounded">
+					<code>Col span="6"</code>
+				</div>
+			</Col>
+			<Col span="6" classes="mb-4">
+				<div class="bg-primary-100 p-4 rounded">
+					<code>Col span="6"</code>
+				</div>
+			</Col>
+		</Row>
+
+		<Row>
+			<Col span="4" classes="mb-4">
+				<div class="bg-primary-100 p-4 rounded">
+					<code>span="4"</code>
+				</div>
+			</Col>
+			<Col span="4" classes="mb-4">
+				<div class="bg-primary-100 p-4 rounded">
+					<code>span="4"</code>
+				</div>
+			</Col>
+			<Col span="4" classes="mb-4">
+				<div class="bg-primary-100 p-4 rounded">
+					<code>span="4"</code>
+				</div>
+			</Col>
+		</Row>
+	</Section>
+
+	<!-- Common Patterns -->
+	<Section padding="both" mode="light">
+		<Row>
+			<Col span="12" classes="mb-8">
+				<h2>Common Patterns</h2>
+			</Col>
+		</Row>
+
+		<Row>
+			<Col span="12" classes="mb-6">
+				<h3 class="mb-4">Code Snippets (Pill Style)</h3>
+				<p class="text-neutral-600 mb-4">Code snippets look like soft pills/buttons - friendly and approachable, not intimidating terminal blocks</p>
+				<div class="code-block">
+					<code>npm install frontman</code>
+				</div>
+				<code class="text-sm text-neutral-500 mt-2 block">Rounded corners, subtle background, friendly typography</code>
+			</Col>
+		</Row>
+
+		<Row>
+			<Col span="12" classes="mb-6">
+				<h3 class="mb-4">Numbered Steps</h3>
+				<div class="flex gap-4">
+					<div class="step-number">01</div>
+					<div class="step-number">02</div>
+					<div class="step-number">03</div>
+					<div class="step-number">04</div>
+				</div>
+			</Col>
+		</Row>
+	</Section>
+</Layout>
+
+<style>
+	/* Bold Bordered Cards - Signature Design Element */
+	.bold-card {
+		@apply relative p-8 border-4 border-black transition-transform hover:translate-x-1 hover:translate-y-1;
+		border-radius: 20px;
+		box-shadow: 10px 10px 0 0 rgba(0, 0, 0, 1);
+	}
+
+	.bold-card:hover {
+		box-shadow: 5px 5px 0 0 rgba(0, 0, 0, 1);
+	}
+
+	.bold-card--yellow {
+		background-color: #FFF4CC;
+	}
+
+	.bold-card--blue {
+		background-color: #C4E0FF;
+	}
+
+	.bold-card--purple {
+		background-color: #E8D5FF;
+	}
+
+	.bold-card--peach {
+		background-color: #FFE4D6;
+	}
+
+	.bold-card--pink {
+		background-color: #FFD6E8;
+	}
+
+	.bold-card__number {
+		@apply font-headings text-5xl font-bold text-black mb-4;
+	}
+
+	.bold-card__title {
+		@apply text-xl font-bold text-black mb-3;
+	}
+
+	.bold-card__text {
+		@apply text-base text-neutral-800;
+	}
+
+	/* Code Blocks */
+	.code-block {
+		@apply mt-4 px-6 py-3 font-mono text-sm inline-block;
+		background-color: rgba(0, 0, 0, 0.1);
+		color: rgba(0, 0, 0, 0.7);
+		border-radius: 12px;
+	}
+
+	/* Decorative Blobs */
+	.blob {
+		@apply pointer-events-none absolute rounded-full;
+	}
+
+	.blob--purple-large {
+		@apply h-96 w-96 blur-3xl;
+		background: linear-gradient(135deg, #9D7CFF 0%, #C4B5FD 100%);
+		opacity: 0.6;
+		left: -8rem;
+		top: 20%;
+	}
+
+	.blob--yellow-large {
+		@apply h-96 w-96 blur-3xl;
+		background: linear-gradient(135deg, #FFD666 0%, #FFEB99 100%);
+		opacity: 0.6;
+		right: -8rem;
+		bottom: 20%;
+	}
+
+	/* Step Numbers */
+	.step-number {
+		@apply font-headings text-4xl font-bold text-neutral-900;
+	}
+
+	/* Hero Orange Buttons - Primary CTAs */
+	.hero-button {
+		@apply inline-flex cursor-pointer items-center justify-center gap-2 whitespace-nowrap font-bold tracking-wide transition duration-300 focus-visible:outline-none disabled:cursor-not-allowed disabled:shadow-none;
+		background-color: #F24E1E;
+		color: white;
+		border: 2px solid black;
+		border-radius: 10px;
+	}
+
+	.hero-button:hover {
+		background-color: #D43F15;
+		transform: translateY(-1px);
+	}
+
+	.hero-button--lg {
+		@apply h-14 px-8 text-base;
+	}
+
+	.hero-button--base {
+		@apply h-10 px-5 text-sm;
+	}
+
+	.hero-button--sm {
+		@apply h-8 px-4 text-xs;
+	}
+</style>

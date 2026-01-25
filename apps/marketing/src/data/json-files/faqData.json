@@ -7,7 +7,7 @@
 	},
 	{
 		"question": "Are there any discounts for annual subscriptions?",
-		"reply": "Yes, we offer a 20% discount on annual subscriptions for all our plans. By choosing an annual subscription, you can save money and ensure uninterrupted access to all Foxi features for the entire year.",
+		"reply": "Yes, we offer a 20% discount on annual subscriptions for all our plans. By choosing an annual subscription, you can save money and ensure uninterrupted access to all Frontman features for the entire year.",
 		"category": "pricing",
 		"open": false
 	},
@@ -19,7 +19,7 @@
 	},
 	{
 		"question": "Is there a free trial available?",
-		"reply": "Yes, we offer a 14-day free trial for all new users. During the trial, you can explore all the features of Foxi without any commitment, allowing you to see how it fits into your workflow.",
+		"reply": "Yes, we offer a 14-day free trial for all new users. During the trial, you can explore all the features of Frontman without any commitment, allowing you to see how it fits into your workflow.",
 		"category": "pricing",
 		"open": false
 	},
@@ -36,50 +36,50 @@
 		"open": false
 	},
 	{
-		"question": "Can I use Foxi with Google Calendar?",
-		"reply": "Yes, Foxi integrates seamlessly with Google Calendar for easy scheduling and task management. This integration helps you keep track of your events and tasks in one place.",
+		"question": "Can I use Frontman with Google Calendar?",
+		"reply": "Yes, Frontman integrates seamlessly with Google Calendar for easy scheduling and task management. This integration helps you keep track of your events and tasks in one place.",
 		"category": "integrations",
 		"open": true
 	},
 	{
-		"question": "Does Foxi work with Slack?",
-		"reply": "Yes, you can integrate Foxi with Slack to receive notifications and updates directly in your channels. This allows you to stay informed about your projects without leaving Slack.",
+		"question": "Does Frontman work with Slack?",
+		"reply": "Yes, you can integrate Frontman with Slack to receive notifications and updates directly in your channels. This allows you to stay informed about your projects without leaving Slack.",
 		"category": "integrations",
 		"open": false
 	},
 	{
-		"question": "How do I connect Foxi with Trello?",
-		"reply": "To connect Foxi with Trello, go to the integrations page in your settings and follow the instructions to link your accounts. This integration helps you manage your Trello boards and Foxi projects together.",
+		"question": "How do I connect Frontman with Trello?",
+		"reply": "To connect Frontman with Trello, go to the integrations page in your settings and follow the instructions to link your accounts. This integration helps you manage your Trello boards and Frontman projects together.",
 		"category": "integrations",
 		"open": false
 	},
 	{
 		"question": "Is there an API for custom integrations?",
-		"reply": "Yes, we provide an API that allows you to create custom integrations with Foxi. Our API documentation provides detailed instructions and examples to help you get started.",
+		"reply": "Yes, we provide an API that allows you to create custom integrations with Frontman. Our API documentation provides detailed instructions and examples to help you get started.",
 		"category": "integrations",
 		"open": false
 	},
 	{
-		"question": "Can I sync Foxi with my email?",
-		"reply": "Currently, we do not support email integration, but this feature is on our roadmap for future releases. Stay tuned for updates as we continue to enhance Foxi's capabilities.",
+		"question": "Can I sync Frontman with my email?",
+		"reply": "Currently, we do not support email integration, but this feature is on our roadmap for future releases. Stay tuned for updates as we continue to enhance Frontman's capabilities.",
 		"category": "integrations",
 		"open": false
 	},
 	{
-		"question": "Does Foxi support Zapier?",
-		"reply": "Yes, Foxi integrates with Zapier, allowing you to connect with over 2,000 apps and automate your workflows. This integration helps you streamline your processes and improve efficiency.",
+		"question": "Does Frontman support Zapier?",
+		"reply": "Yes, Frontman integrates with Zapier, allowing you to connect with over 2,000 apps and automate your workflows. This integration helps you streamline your processes and improve efficiency.",
 		"category": "integrations",
 		"open": false
 	},
 	{
-		"question": "What are the main features of Foxi?",
-		"reply": "Foxi includes in-app messaging, project management, time tracking, customizable dashboards, and more. These features are designed to help you stay organized, communicate effectively, and manage your time efficiently.",
+		"question": "What are the main features of Frontman?",
+		"reply": "Frontman includes in-app messaging, project management, time tracking, customizable dashboards, and more. These features are designed to help you stay organized, communicate effectively, and manage your time efficiently.",
 		"category": "features",
 		"open": true
 	},
 	{
 		"question": "How do I use the in-app messaging feature?",
-		"reply": "In-app messaging allows you to communicate with your team directly within Foxi. Simply navigate to the messaging tab to start a conversation. You can send messages, share files, and create group chats.",
+		"reply": "In-app messaging allows you to communicate with your team directly within Frontman. Simply navigate to the messaging tab to start a conversation. You can send messages, share files, and create group chats.",
 		"category": "features",
 		"open": false
 	},
@@ -96,8 +96,8 @@
 		"open": false
 	},
 	{
-		"question": "Is there a mobile app for Foxi?",
-		"reply": "Yes, Foxi is available on both iOS and Android, allowing you to manage your tasks and projects on the go. Download the app from the App Store or Google Play to stay productive anywhere.",
+		"question": "Is there a mobile app for Frontman?",
+		"reply": "Yes, Frontman is available on both iOS and Android, allowing you to manage your tasks and projects on the go. Download the app from the App Store or Google Play to stay productive anywhere.",
 		"category": "features",
 		"open": false
 	}

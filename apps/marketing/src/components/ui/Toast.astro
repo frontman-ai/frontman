@@ -7,14 +7,14 @@
 // Reference: https://wind-ui.com/components/notifications/
 ---
 
-<div id="foxi-toast" class="toast" style="display: none">
+<div id="frontman-toast" class="toast" style="display: none">
 	<div class="toast__container" role="status">
 		<!-- Heading with close button -->
 		<div class="toast__heading">
 			<!-- Headline -->
 			<h3 class="toast__headline">Ready to go bigger?</h3>
 			<!-- Close button -->
-			<button aria-label="Close" class="toast__close-button" id="foxi-toast-close">
+			<button aria-label="Close" class="toast__close-button" id="frontman-toast-close">
 				<span class="toast__close-button-icon">
 					<svg
 						xmlns="http://www.w3.org/2000/svg"
@@ -32,7 +32,7 @@
 		<!-- Body -->
 		<div class="toast__body">
 			<p>
-				Unlock <a href="https://astro.build/themes/details/foxi-pro/" target="_blank">Foxi Pro</a> —
+				Unlock <a href="https://astro.build/themes/details/frontman-pro/" target="_blank">Frontman Pro</a> —
 				CMS, multilingual, animations, and advanced UI. View all available themes from <a href="https://oxygenna.com/themes" target="_blank">Oxygenna</a>.
 			</p>
 		</div>
@@ -70,8 +70,8 @@
 
 <script is:inline>
 	function initializeToast() {
-		const toast = document.getElementById('foxi-toast')
-		const closeButton = document.getElementById('foxi-toast-close')
+		const toast = document.getElementById('frontman-toast')
+		const closeButton = document.getElementById('frontman-toast-close')
 
 		if (!toast) return // Don't run if toast isn't present
 
@@ -84,13 +84,13 @@
 		// Function to hide the toast and store dismissal time
 		function hideToast() {
 			toast.style.display = 'none'
-			localStorage.setItem('foxiToastDismissed', Date.now())
+			localStorage.setItem('frontmanToastDismissed', Date.now())
 			toast.classList.remove('toast--show')
 		}
 
 		// Check if toast should be shown
 		function checkToastEligibility() {
-			const lastDismissed = localStorage.getItem('foxiToastDismissed')
+			const lastDismissed = localStorage.getItem('frontmanToastDismissed')
 
 			if (!lastDismissed) {
 				setTimeout(showToast, 3000)
