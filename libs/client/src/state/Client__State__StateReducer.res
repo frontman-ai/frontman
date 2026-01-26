@@ -451,24 +451,11 @@ module Selectors = {
     currentTask(state)->Option.map(task => task.loadState)
   }
 
-  // Helper to get lastMessageAt from a task (handles load state)
-  // Falls back to updatedAt for unloaded tasks
-  let getTaskLastMessageAt = (task: Task.t): float => {
-    switch task.loadState {
-    | Loaded(data) | Loading(data) => data.lastMessageAt->Option.getOrThrow
-    | NotLoaded => task.updatedAt
-    }
-  }
-
-  // Get all tasks sorted by lastMessageAt (most recent first), then by createdAt
+  // Get all tasks sorted by updatedAt (most recent first)
   let tasks = (state: state): array<Task.t> => {
     state.tasks
     ->Dict.valuesToArray
-    ->Array.toSorted((a, b) => {
-      let aTime = getTaskLastMessageAt(a)
-      let bTime = getTaskLastMessageAt(b)
-      bTime -. aTime
-    })
+    ->Array.toSorted((a, b) => b.updatedAt -. a.updatedAt)
   }
 
   // Get recent tasks (excluding current, max 2)
@@ -983,10 +970,15 @@ let next = (state, action) => {
       let taskId = stateWithTask.currentTaskId->Option.getOr("")
 
       stateWithTask
-      ->Lens.updateCurrentTaskLoadedData(data => {
-        let updatedMessages = data.messages->Dict.copy
+      ->Lens.updateCurrentTask(task => {
+        let loadedData = Task.getLoadedData(task)->Option.getOrThrow
+        let updatedMessages = loadedData.messages->Dict.copy
         updatedMessages->Dict.set(Message.getId(message), message)
-        {...data, messages: updatedMessages, lastMessageAt: Some(timestamp), isAgentRunning: true}
+        {
+          ...task,
+          updatedAt: timestamp,
+          loadState: Loaded({...loadedData, messages: updatedMessages, isAgentRunning: true}),
+        }
       })
       ->FrontmanReactStatestore.StateReducer.update(
         ~sideEffects=[SendMessageToAPI({message: textContent, taskId})],
@@ -1311,11 +1303,7 @@ let next = (state, action) => {
       | Some(currentId) if currentId == taskId =>
         updatedTasks
         ->Dict.valuesToArray
-        ->Array.toSorted((a, b) => {
-          let aTime = Selectors.getTaskLastMessageAt(a)
-          let bTime = Selectors.getTaskLastMessageAt(b)
-          bTime -. aTime
-        })
+        ->Array.toSorted((a, b) => b.updatedAt -. a.updatedAt)
         ->Array.get(0)
         ->Option.map(task => task.id)
       | other => other

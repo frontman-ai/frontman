@@ -160,7 +160,6 @@ module Task = {
   // Data that only exists for loaded tasks
   type loadedData = {
     messages: Dict.t<Message.t>,
-    lastMessageAt: option<float>,
     webPreviewIsSelecting: bool,
     selectedElement: option<SelectedElement.t>,
     figmaNode: FigmaNode.t,
@@ -196,7 +195,6 @@ module Task = {
   // Create default loaded data
   let makeLoadedData = (~messages=Dict.make()): loadedData => {
     messages,
-    lastMessageAt: None,
     webPreviewIsSelecting: false,
     selectedElement: None,
     figmaNode: FigmaNode.NoSelection,

@@ -120,7 +120,7 @@ let convertTask = (task: Snapshot.Task.t): StateTypes.Task.t => {
     id: task.id,
     title: task.title,
     createdAt: task.createdAt,
-    updatedAt: task.createdAt, // Snapshots don't have updatedAt, use createdAt
+    updatedAt: task.updatedAt,
     previewFrame: {
       url: task.previewUrl,
       contentDocument: None,
@@ -128,7 +128,6 @@ let convertTask = (task: Snapshot.Task.t): StateTypes.Task.t => {
     },
     loadState: StateTypes.Task.Loaded({
       messages: messagesDict,
-      lastMessageAt: task.lastMessageAt,
       webPreviewIsSelecting: task.webPreviewIsSelecting,
       selectedElement: None, // Cannot restore DOM element from snapshot
       figmaNode: convertFigmaNode(task.figmaNode),
