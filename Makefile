@@ -192,18 +192,17 @@ worktree-urls: ## Show URLs for a worktree (usage: make worktree-urls BRANCH=fea
 		exit 1; \
 	fi
 	@HASH=$$(printf '%s' "$(BRANCH)" | md5 | cut -c1-4); \
-	WT_ID="wt-$$HASH"; \
 	echo ""; \
-	echo "Worktree: $(BRANCH) ($$WT_ID)"; \
+	echo "Worktree: $(BRANCH) ($$HASH)"; \
 	echo ""; \
 	echo "URLs (via tunnel):"; \
-	echo "  Next.js:   https://$$WT_ID-nextjs.local:8443"; \
-	echo "  Vite:      https://$$WT_ID-vite.local:8443"; \
-	echo "  Phoenix:   https://$$WT_ID-api.local:8443"; \
-	echo "  Storybook: https://$$WT_ID-storybook.local:8443"; \
+	echo "  Next.js:   https://$$HASH.nextjs.frontman.local:8443/__frontman"; \
+	echo "  Vite:      https://$$HASH.vite.frontman.local:8443"; \
+	echo "  Phoenix:   https://$$HASH.api.frontman.local:8443"; \
+	echo "  Storybook: https://$$HASH.storybook.frontman.local:8443"; \
 	echo ""; \
 	echo "Add to /etc/hosts:"; \
-	echo "127.0.0.1 $$WT_ID-nextjs.local $$WT_ID-vite.local $$WT_ID-api.local $$WT_ID-storybook.local $$WT_ID-dogfood.local"
+	echo "127.0.0.1 $$HASH.nextjs.frontman.local $$HASH.vite.frontman.local $$HASH.api.frontman.local $$HASH.storybook.frontman.local $$HASH.dogfood.frontman.local"
 
 worktree-hosts: ## Generate /etc/hosts entries for all worktrees
 	@echo "# Frontman DevPod worktrees"
@@ -212,7 +211,7 @@ worktree-hosts: ## Generate /etc/hosts entries for all worktrees
 			if [ -d "$$wt" ]; then \
 				name=$$(basename "$$wt"); \
 				hash=$$(printf '%s' "$$name" | md5 | cut -c1-4); \
-				echo "127.0.0.1 wt-$$hash-nextjs.local wt-$$hash-vite.local wt-$$hash-api.local wt-$$hash-storybook.local wt-$$hash-dogfood.local # $$name"; \
+				echo "127.0.0.1 $$hash.nextjs.frontman.local $$hash.vite.frontman.local $$hash.api.frontman.local $$hash.storybook.frontman.local $$hash.dogfood.frontman.local # $$name"; \
 			fi \
 		done; \
 	else \

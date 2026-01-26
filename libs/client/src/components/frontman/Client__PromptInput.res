@@ -66,51 +66,110 @@ module AttachmentChip = {
 }
 
 // Model selector dropdown - supports grouped providers
+// Uses Radix UI Select for consistent dark theme styling across all platforms (including Linux)
 module ModelSelector = {
+  module Select = Bindings__RadixUI__Select
+
+  // Get the display name for the currently selected model
+  let getSelectedModelDisplay = (
+    providers: array<StateTypes.providerConfig>,
+    selectedValue: string,
+  ): option<string> => {
+    // selectedValue is "provider:modelValue"
+    switch selectedValue->String.split(":")->Array.get(0) {
+    | Some(providerId) =>
+      let modelValue =
+        selectedValue->String.slice(~start=String.length(providerId) + 1, ~end=String.length(selectedValue))
+      providers
+      ->Array.findMap(provider => {
+        if provider.id == providerId {
+          provider.models->Array.findMap(model => {
+            if model.value == modelValue {
+              Some(model.displayName)
+            } else {
+              None
+            }
+          })
+        } else {
+          None
+        }
+      })
+    | None => None
+    }
+  }
+
   @react.component
   let make = (
     ~providers: array<StateTypes.providerConfig>,
     ~selectedValue: string,
     ~onModelChange: (~provider: string, ~value: string) => unit,
   ) => {
-    <div className="relative">
-      <select
-        value={selectedValue}
-        onChange={e => {
-          let target = ReactEvent.Form.target(e)
-          let value: string = target["value"]
-          // Parse the combined value "provider:model_value"
-          switch value->String.split(":")->Array.get(0) {
-          | Some(provider) =>
-            // Value is everything after "provider:"
-            let modelValue = value->String.slice(~start=String.length(provider) + 1, ~end=String.length(value))
-            onModelChange(~provider, ~value=modelValue)
-          | None => ()
-          }
-        }}
-        className="appearance-none h-7 pl-2 pr-6 text-xs
+    let selectedDisplay = getSelectedModelDisplay(providers, selectedValue)
+
+    <Select.Root
+      value={selectedValue}
+      onValueChange={value => {
+        // Parse the combined value "provider:model_value"
+        switch value->String.split(":")->Array.get(0) {
+        | Some(provider) =>
+          // Value is everything after "provider:"
+          let modelValue =
+            value->String.slice(~start=String.length(provider) + 1, ~end=String.length(value))
+          onModelChange(~provider, ~value=modelValue)
+        | None => ()
+        }
+      }}>
+      <Select.Trigger
+        className="inline-flex items-center justify-between gap-1 h-7 pl-2 pr-1 text-xs
                    bg-transparent text-zinc-400 
                    border-none rounded cursor-pointer
                    hover:text-zinc-200 hover:bg-zinc-700/30
-                   focus:outline-none focus:ring-0"
-      >
-        {providers->Array.map(provider => {
-          <optgroup key={provider.id} label={provider.name}>
-            {provider.models->Array.map(model => {
-              // Combine provider:value for unique identification
-              let combinedValue = `${provider.id}:${model.value}`
-              <option key={combinedValue} value={combinedValue}>
-                {React.string(model.displayName)}
-              </option>
-            })->React.array}
-          </optgroup>
-        })->React.array}
-      </select>
-      <Icons.ChevronDownIcon 
-        size=12 
-        className="absolute right-1 top-1/2 -translate-y-1/2 pointer-events-none text-zinc-400"
-      />
-    </div>
+                   focus:outline-none focus:ring-0
+                   data-[placeholder]:text-zinc-500">
+        <span className="truncate max-w-[140px]">
+          {React.string(selectedDisplay->Option.getOr("Select model..."))}
+        </span>
+        <Select.Icon className="text-zinc-400">
+          <Icons.ChevronDownIcon size=12 />
+        </Select.Icon>
+      </Select.Trigger>
+      <Select.Portal>
+        <Select.Content
+          position=#popper
+          sideOffset=4
+          className="z-50 min-w-[180px] max-h-[300px] overflow-hidden
+                     bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl
+                     animate-in fade-in-0 zoom-in-95">
+          <Select.Viewport className="p-1">
+            {providers
+            ->Array.map(provider => {
+              <Select.Group key={provider.id}>
+                <Select.Label
+                  className="px-2 py-1.5 text-xs font-medium text-zinc-400">
+                  {React.string(provider.name)}
+                </Select.Label>
+                {provider.models
+                ->Array.map(model => {
+                  // Combine provider:value for unique identification
+                  let combinedValue = `${provider.id}:${model.value}`
+                  <Select.Item
+                    key={combinedValue}
+                    value={combinedValue}
+                    className="relative flex items-center px-2 py-1.5 text-xs text-zinc-200 rounded
+                               cursor-pointer select-none outline-none
+                               data-[highlighted]:bg-zinc-700 data-[highlighted]:text-white
+                               data-[disabled]:opacity-50 data-[disabled]:pointer-events-none">
+                    <Select.ItemText> {React.string(model.displayName)} </Select.ItemText>
+                  </Select.Item>
+                })
+                ->React.array}
+              </Select.Group>
+            })
+            ->React.array}
+          </Select.Viewport>
+        </Select.Content>
+      </Select.Portal>
+    </Select.Root>
   }
 }
 

@@ -88,6 +88,16 @@ config :sentry,
   root_source_code_paths: [File.cwd!()],
   tags: %{service: "frontman-server"}
 
+# Dev/Test: Allow DB_HOST override for container development (e.g., DevPod)
+# The docker bridge gateway IP (172.17.0.1) is used to connect from container to host PostgreSQL
+if config_env() in [:dev, :test] do
+  db_host = env!("DB_HOST", :string, "localhost")
+
+  if db_host != "localhost" do
+    config :frontman_server, FrontmanServer.Repo, hostname: db_host
+  end
+end
+
 if config_env() == :prod do
   database_url =
     System.get_env("DATABASE_URL") ||

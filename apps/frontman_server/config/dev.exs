@@ -6,11 +6,12 @@ config :frontman_server, env: :dev
 config :req_llm, receive_timeout: 600_000
 
 # Configure your database
-# DB_HOST can be set to "host.docker.internal" for DevPod/container development
+# For DevPod: post-create.sh updates hostname to the Docker gateway IP
+# For local dev: uses localhost
 config :frontman_server, FrontmanServer.Repo,
   username: "postgres",
   password: "postgres",
-  hostname: System.get_env("DB_HOST") || "localhost",
+  hostname: "localhost",
   database: "frontman_server_dev",
   stacktrace: true,
   show_sensitive_data_on_connection_error: true,

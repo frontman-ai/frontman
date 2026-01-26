@@ -24,34 +24,36 @@ echo "==> Found workspace at: $WORKSPACE_DIR (worktree: $WORKTREE_NAME)"
 cd "$WORKSPACE_DIR"
 
 # Generate worktree hash for URL scheme
+# URL format: {hash}.{service}.frontman.local (required for WorkOS OAuth)
 WT_HASH=$(echo -n "$WORKTREE_NAME" | md5sum | cut -c1-4)
-WT_ID="wt-$WT_HASH"
-echo "==> Worktree ID: $WT_ID"
+echo "==> Worktree ID: $WT_HASH"
 
 # Create environment file with worktree-specific URLs
 cat > "$WORKSPACE_DIR/.env.devpod" << EOF
 # Auto-generated DevPod environment for worktree: $WORKTREE_NAME
-# Worktree ID: $WT_ID
-# Access via SSH tunnel: ./scripts/tunnel.sh
+# Worktree Hash: $WT_HASH
+# URL Format: {hash}.{service}.frontman.local (required for WorkOS OAuth)
+# Access via SSH tunnel: make tunnel
 
 # Worktree identification
 WORKTREE_NAME=$WORKTREE_NAME
-WORKTREE_ID=$WT_ID
+WORKTREE_ID=$WT_HASH
 
 # External URLs (via Caddy reverse proxy)
-FRONTMAN_HOST=$WT_ID-api.local:8443
-VITE_DEV_URL=https://$WT_ID-vite.local:8443
-VITE_HMR_HOST=$WT_ID-vite.local
+# Format: {hash}.{service}.frontman.local:8443
+FRONTMAN_HOST=$WT_HASH.api.frontman.local:8443
+VITE_DEV_URL=https://$WT_HASH.vite.frontman.local:8443
+VITE_HMR_HOST=$WT_HASH.vite.frontman.local
 VITE_HMR_PORT=8443
 VITE_HMR_PROTOCOL=wss
-NEXTJS_URL=https://$WT_ID-nextjs.local:8443
+NEXTJS_URL=https://$WT_HASH.nextjs.frontman.local:8443
 
 # Phoenix configuration
-PHX_HOST=$WT_ID-api.local
+PHX_HOST=$WT_HASH.api.frontman.local
 PHX_PORT=4000
 
 # Client URL for Next.js middleware
-FRONTMAN_CLIENT_URL=https://$WT_ID-vite.local:8443/src/Main.res.mjs
+FRONTMAN_CLIENT_URL=https://$WT_HASH.vite.frontman.local:8443/src/Main.res.mjs
 EOF
 
 echo "==> Created .env.devpod with worktree-specific URLs"
@@ -73,25 +75,63 @@ which elixir && elixir --version
 echo "==> Installing project dependencies..."
 yarn install
 
+echo "==> Building ReScript..."
+yarn rescript build
+
+echo "==> Setting up Phoenix database..."
+# Get Docker bridge gateway IP for PostgreSQL connection
+DOCKER_GATEWAY=$(ip route | grep default | awk '{print $3}' 2>/dev/null || echo "172.17.0.1")
+
+# Update Phoenix dev.env with database host
+cat >> "$WORKSPACE_DIR/apps/frontman_server/envs/.dev.env" << EOF
+
+# DevPod: Database connection to host PostgreSQL
+DB_HOST=$DOCKER_GATEWAY
+EOF
+
+# Update dev.exs to use the gateway IP (compile-time config)
+sed -i "s/hostname: \"localhost\"/hostname: \"$DOCKER_GATEWAY\"/" "$WORKSPACE_DIR/apps/frontman_server/config/dev.exs"
+
+# Install Elixir dependencies and run migrations
+cd "$WORKSPACE_DIR/apps/frontman_server"
+mix local.hex --force
+mix local.rebar --force
+mix deps.get
+mix ecto.create || true  # May already exist
+mix ecto.migrate
+cd "$WORKSPACE_DIR"
+
+echo "==> Setting up Next.js test site..."
+cd "$WORKSPACE_DIR/test/sites/blog-starter"
+# Disable Sentry instrumentation (causes issues in DevPod)
+if [ -f "instrumentation.ts" ]; then
+    mv instrumentation.ts instrumentation.ts.bak
+fi
+rm -rf .next
+cd "$WORKSPACE_DIR"
+
 echo ""
 echo "=========================================="
 echo "==> Setup complete!"
 echo "=========================================="
 echo ""
-echo "Worktree: $WORKTREE_NAME ($WT_ID)"
+echo "Worktree: $WORKTREE_NAME ($WT_HASH)"
 echo ""
 echo "URLs (via tunnel):"
-echo "  Next.js:   https://$WT_ID-nextjs.local:8443"
-echo "  Vite:      https://$WT_ID-vite.local:8443"
-echo "  Phoenix:   https://$WT_ID-api.local:8443"
-echo "  Storybook: https://$WT_ID-storybook.local:8443"
+echo "  Next.js:   https://$WT_HASH.nextjs.frontman.local:8443/__frontman"
+echo "  Vite:      https://$WT_HASH.vite.frontman.local:8443"
+echo "  Phoenix:   https://$WT_HASH.api.frontman.local:8443"
+echo "  Storybook: https://$WT_HASH.storybook.frontman.local:8443"
 echo ""
 echo "Add to /etc/hosts on your Mac:"
-echo "127.0.0.1 $WT_ID-nextjs.local $WT_ID-vite.local $WT_ID-api.local $WT_ID-storybook.local $WT_ID-dogfood.local"
+echo "127.0.0.1 $WT_HASH.nextjs.frontman.local $WT_HASH.vite.frontman.local $WT_HASH.api.frontman.local $WT_HASH.storybook.frontman.local $WT_HASH.dogfood.frontman.local"
 echo ""
 echo "Commands:"
 echo "  make dev-server  - Start Phoenix server"
 echo "  make dev-client  - Start Vite client"
 echo "  make dev-nextjs  - Start Next.js test site"
 echo ""
-echo "Database: postgres://postgres:postgres@host.docker.internal:5432/frontman_server_dev"
+echo "Database: postgres://postgres:postgres@$DOCKER_GATEWAY:5432/frontman_server_dev"
+echo ""
+echo "Note: Caddy config must be added on the server for this worktree."
+echo "Run: make worktree-register BRANCH=$WORKTREE_NAME CONTAINER=<container-name>"
