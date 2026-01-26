@@ -274,7 +274,6 @@ let defaultState: state = {
   connectionState: Disconnected,
   sessionInitialized: false,
   usageInfo: None,
-  apiBaseUrl: None,
   openrouterKeySettings: {
     source: Client__State__Types.None,
     saveStatus: Client__State__Types.Idle,
@@ -1365,10 +1364,10 @@ let next = (state, action) => {
   | Connect({sendPrompt, loadTask, deleteSession, apiBaseUrl}) =>
     // Just set up connection functions - task creation happens in AddUserMessage
     // when user sends their first message (lazy session creation)
+    // apiBaseUrl is now co-located in Connected to make illegal state unrepresentable
     {
       ...state,
-      connectionState: Connected({sendPrompt, loadTask, deleteSession}),
-      apiBaseUrl: Some(apiBaseUrl),
+      connectionState: Connected({sendPrompt, loadTask, deleteSession, apiBaseUrl}),
       sessionInitialized: true,
     }->FrontmanReactStatestore.StateReducer.update(
       ~sideEffects=[
@@ -1389,9 +1388,9 @@ let next = (state, action) => {
 
   | TurnCompleted({taskId}) =>
     // Mark agent turn as complete and fetch updated usage
-    let sideEffects = switch state.apiBaseUrl {
-    | Some(apiBaseUrl) => [FetchUsageInfo({apiBaseUrl: apiBaseUrl})]
-    | None => []
+    let sideEffects = switch state.connectionState {
+    | Connected({apiBaseUrl}) => [FetchUsageInfo({apiBaseUrl: apiBaseUrl})]
+    | Disconnected => []
     }
     state
     ->Lens.updateTaskLoadedData(taskId, data => {...data, isAgentRunning: false})
@@ -1409,12 +1408,12 @@ let next = (state, action) => {
 
   // API key settings actions
   | FetchApiKeySettings =>
-    switch state.apiBaseUrl {
-    | Some(apiBaseUrl) =>
+    switch state.connectionState {
+    | Connected({apiBaseUrl}) =>
       state->FrontmanReactStatestore.StateReducer.update(
         ~sideEffects=[FetchApiKeySettingsEffect({apiBaseUrl: apiBaseUrl})],
       )
-    | None => state->FrontmanReactStatestore.StateReducer.update
+    | Disconnected => state->FrontmanReactStatestore.StateReducer.update
     }
 
   | ApiKeySettingsReceived({source}) =>
@@ -1427,12 +1426,12 @@ let next = (state, action) => {
     }->FrontmanReactStatestore.StateReducer.update
 
   | SaveOpenRouterKey({key}) =>
-    switch state.apiBaseUrl {
-    | Some(apiBaseUrl) =>
+    switch state.connectionState {
+    | Connected({apiBaseUrl}) =>
       state->FrontmanReactStatestore.StateReducer.update(
         ~sideEffects=[SaveOpenRouterKeyEffect({apiBaseUrl, key})],
       )
-    | None =>
+    | Disconnected =>
       {
         ...state,
         openrouterKeySettings: {
@@ -1453,9 +1452,9 @@ let next = (state, action) => {
 
   | OpenRouterKeySaved =>
     // After saving the API key, refresh usage info so the chatbox reflects the new state
-    let effects = switch state.apiBaseUrl {
-    | Some(apiBaseUrl) => [FetchUsageInfo({apiBaseUrl: apiBaseUrl})]
-    | None => []
+    let effects = switch state.connectionState {
+    | Connected({apiBaseUrl}) => [FetchUsageInfo({apiBaseUrl: apiBaseUrl})]
+    | Disconnected => []
     }
     {
       ...state,
@@ -1485,12 +1484,12 @@ let next = (state, action) => {
 
   // Model selection actions
   | FetchModelsConfig =>
-    switch state.apiBaseUrl {
-    | Some(apiBaseUrl) =>
+    switch state.connectionState {
+    | Connected({apiBaseUrl}) =>
       state->FrontmanReactStatestore.StateReducer.update(
         ~sideEffects=[FetchModelsConfigEffect({apiBaseUrl: apiBaseUrl})],
       )
-    | None => state->FrontmanReactStatestore.StateReducer.update
+    | Disconnected => state->FrontmanReactStatestore.StateReducer.update
     }
 
   | ModelsConfigReceived({config}) =>
@@ -1517,15 +1516,15 @@ let next = (state, action) => {
 
   // Anthropic OAuth actions
   | FetchAnthropicOAuthStatus =>
-    switch state.apiBaseUrl {
-    | Some(apiBaseUrl) =>
+    switch state.connectionState {
+    | Connected({apiBaseUrl}) =>
       {
         ...state,
         anthropicOAuthStatus: Client__State__Types.FetchingStatus,
       }->FrontmanReactStatestore.StateReducer.update(
         ~sideEffects=[FetchAnthropicOAuthStatusEffect({apiBaseUrl: apiBaseUrl})],
       )
-    | None => state->FrontmanReactStatestore.StateReducer.update
+    | Disconnected => state->FrontmanReactStatestore.StateReducer.update
     }
 
   | AnthropicOAuthStatusReceived({connected, expiresAt}) =>
@@ -1543,12 +1542,12 @@ let next = (state, action) => {
     {...state, anthropicOAuthStatus: status}->FrontmanReactStatestore.StateReducer.update
 
   | InitiateAnthropicOAuth =>
-    switch state.apiBaseUrl {
-    | Some(apiBaseUrl) =>
+    switch state.connectionState {
+    | Connected({apiBaseUrl}) =>
       state->FrontmanReactStatestore.StateReducer.update(
         ~sideEffects=[GetAnthropicOAuthUrlEffect({apiBaseUrl: apiBaseUrl})],
       )
-    | None => state->FrontmanReactStatestore.StateReducer.update
+    | Disconnected => state->FrontmanReactStatestore.StateReducer.update
     }
 
   | AnthropicOAuthUrlReceived({authorizeUrl, verifier}) =>
@@ -1558,15 +1557,15 @@ let next = (state, action) => {
     }->FrontmanReactStatestore.StateReducer.update
 
   | ExchangeAnthropicOAuthCode({code, verifier}) =>
-    switch state.apiBaseUrl {
-    | Some(apiBaseUrl) =>
+    switch state.connectionState {
+    | Connected({apiBaseUrl}) =>
       {
         ...state,
         anthropicOAuthStatus: Client__State__Types.Exchanging,
       }->FrontmanReactStatestore.StateReducer.update(
         ~sideEffects=[ExchangeAnthropicOAuthCodeEffect({apiBaseUrl, code, verifier})],
       )
-    | None => state->FrontmanReactStatestore.StateReducer.update
+    | Disconnected => state->FrontmanReactStatestore.StateReducer.update
     }
 
   | AnthropicOAuthConnected({expiresAt}) =>
@@ -1583,12 +1582,12 @@ let next = (state, action) => {
     }->FrontmanReactStatestore.StateReducer.update
 
   | DisconnectAnthropicOAuth =>
-    switch state.apiBaseUrl {
-    | Some(apiBaseUrl) =>
+    switch state.connectionState {
+    | Connected({apiBaseUrl}) =>
       state->FrontmanReactStatestore.StateReducer.update(
         ~sideEffects=[DisconnectAnthropicOAuthEffect({apiBaseUrl: apiBaseUrl})],
       )
-    | None => state->FrontmanReactStatestore.StateReducer.update
+    | Disconnected => state->FrontmanReactStatestore.StateReducer.update
     }
 
   | AnthropicOAuthDisconnected =>

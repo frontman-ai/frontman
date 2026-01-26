@@ -45,3 +45,4 @@ Thumbs.db
 # Local SSL certificates
 .certs/
 opencode.json
+scripts/certs/

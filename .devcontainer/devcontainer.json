@@ -1,0 +1,29 @@
+{
+  "name": "Frontman Dev",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": ".."
+  },
+  "remoteEnv": {
+    "DATABASE_URL": "postgres://postgres:postgres@host.docker.internal:5432/frontman_server_dev",
+    "MIX_OS_DEPS_COMPILE_PARTITION_COUNT": "1"
+  },
+  "postCreateCommand": "bash .devcontainer/post-create.sh",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "rescript-lang.rescript-vscode",
+        "jakebecker.elixir-ls",
+        "bradlc.vscode-tailwindcss",
+        "esbenp.prettier-vscode",
+        "dbaeumer.vscode-eslint"
+      ],
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "bash"
+      }
+    }
+  },
+  "features": {
+    "ghcr.io/devcontainers/features/git:1": {}
+  }
+}

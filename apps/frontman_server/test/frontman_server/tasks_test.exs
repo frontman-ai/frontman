@@ -83,7 +83,7 @@ defmodule FrontmanServer.TasksTest do
   end
 
   describe "get_task/2 authorization" do
-    test "returns error when accessing task owned by different user", %{scope: scope} do
+    test "returns not_found when accessing task owned by different user", %{scope: scope} do
       task_id = Ecto.UUID.generate()
       {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
 
@@ -97,7 +97,8 @@ defmodule FrontmanServer.TasksTest do
 
       other_scope = Scope.for_user(other_user)
 
-      assert {:error, :unauthorized} = Tasks.get_task(other_scope, task_id)
+      # Returns :not_found to prevent task enumeration attacks
+      assert {:error, :not_found} = Tasks.get_task(other_scope, task_id)
     end
   end
 

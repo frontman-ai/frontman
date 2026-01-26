@@ -14,18 +14,17 @@ defmodule FrontmanServer.Tasks do
   alias FrontmanServer.Tasks.{Interaction, InteractionSchema, Task, TaskSchema}
   alias ReqLLM.ToolCall
 
-  @type authorization_error :: :not_found | :unauthorized
 
   # --- Authorization Helpers ---
 
-  @spec authorize_task_access(Scope.t(), TaskSchema.t()) :: :ok | {:error, :unauthorized}
-  defp authorize_task_access(%Scope{user: %{id: user_id}}, %TaskSchema{user_id: task_user_id}) do
-    if user_id == task_user_id, do: :ok, else: {:error, :unauthorized}
-  end
+  @spec get_task_by_id(Scope.t(), String.t()) :: {:ok, TaskSchema.t()} | {:error, :not_found}
+  defp get_task_by_id(%Scope{user: %{id: user_id}}, task_id) do
+    query =
+      TaskSchema
+      |> TaskSchema.by_id(task_id)
+      |> TaskSchema.for_user(user_id)
 
-  @spec fetch_task_schema(String.t()) :: {:ok, TaskSchema.t()} | {:error, :not_found}
-  defp fetch_task_schema(task_id) do
-    case Repo.one(TaskSchema.by_id(task_id)) do
+    case Repo.one(query) do
       nil -> {:error, :not_found}
       schema -> {:ok, schema}
     end
@@ -54,11 +53,9 @@ defmodule FrontmanServer.Tasks do
   """
   @spec task_exists?(Scope.t(), String.t()) :: boolean()
   def task_exists?(%Scope{} = scope, task_id) do
-    with {:ok, schema} <- fetch_task_schema(task_id),
-         :ok <- authorize_task_access(scope, schema) do
-      true
-    else
-      _ -> false
+    case get_task_by_id(scope, task_id) do
+      {:ok, _schema} -> true
+      {:error, :not_found} -> false
     end
   end
 
@@ -67,10 +64,9 @@ defmodule FrontmanServer.Tasks do
 
   Requires authorization - scope.user.id must match task.user_id.
   """
-  @spec get_task(Scope.t(), String.t()) :: {:ok, Task.t()} | {:error, authorization_error()}
+  @spec get_task(Scope.t(), String.t()) :: {:ok, Task.t()} | {:error, :not_found}
   def get_task(%Scope{} = scope, task_id) do
-    with {:ok, schema} <- fetch_task_schema(task_id),
-         :ok <- authorize_task_access(scope, schema) do
+    with {:ok, schema} <- get_task_by_id(scope, task_id) do
       {:ok, schema_to_task(schema)}
     end
   end
@@ -81,10 +77,9 @@ defmodule FrontmanServer.Tasks do
   Requires authorization - scope.user.id must match task.user_id.
   Cascade deletes configured in migration handle interaction cleanup.
   """
-  @spec delete_task(Scope.t(), String.t()) :: :ok | {:error, authorization_error()}
+  @spec delete_task(Scope.t(), String.t()) :: :ok | {:error, :not_found}
   def delete_task(%Scope{} = scope, task_id) do
-    with {:ok, schema} <- fetch_task_schema(task_id),
-         :ok <- authorize_task_access(scope, schema),
+    with {:ok, schema} <- get_task_by_id(scope, task_id),
          {:ok, _} <- Repo.delete(schema) do
       :ok
     end
@@ -153,10 +148,9 @@ defmodule FrontmanServer.Tasks do
   Requires authorization - scope.user.id must match task.user_id.
   """
   @spec get_interactions(Scope.t(), String.t()) ::
-          {:ok, [Interaction.t()]} | {:error, authorization_error()}
+          {:ok, [Interaction.t()]} | {:error, :not_found}
   def get_interactions(%Scope{} = scope, task_id) do
-    with {:ok, schema} <- fetch_task_schema(task_id),
-         :ok <- authorize_task_access(scope, schema) do
+    with {:ok, _schema} <- get_task_by_id(scope, task_id) do
       {:ok, load_interactions(task_id)}
     end
   end
@@ -171,7 +165,7 @@ defmodule FrontmanServer.Tasks do
   appear after the base prompt and before context-specific guidance.
   """
   @spec get_llm_messages(Scope.t(), String.t()) ::
-          {:ok, list(map())} | {:error, authorization_error()}
+          {:ok, list(map())} | {:error, :not_found}
   def get_llm_messages(%Scope{} = scope, task_id) do
     with {:ok, interactions} <- get_interactions(scope, task_id) do
       messages = Interaction.to_llm_messages(interactions)
@@ -186,10 +180,9 @@ defmodule FrontmanServer.Tasks do
   """
   @spec add_discovered_project_rule(Scope.t(), String.t(), String.t(), String.t()) ::
           {:ok, Interaction.DiscoveredProjectRule.t() | :already_loaded}
-          | {:error, authorization_error()}
+          | {:error, :not_found}
   def add_discovered_project_rule(%Scope{} = scope, task_id, path, content) do
-    with {:ok, schema} <- fetch_task_schema(task_id),
-         :ok <- authorize_task_access(scope, schema) do
+    with {:ok, schema} <- get_task_by_id(scope, task_id) do
       if discovered_project_rule_loaded?(scope, task_id, path) do
         {:ok, :already_loaded}
       else
@@ -203,7 +196,7 @@ defmodule FrontmanServer.Tasks do
   Gets all discovered project rules for a task.
   """
   @spec get_discovered_project_rules(Scope.t(), String.t()) ::
-          {:ok, [Interaction.DiscoveredProjectRule.t()]} | {:error, authorization_error()}
+          {:ok, [Interaction.DiscoveredProjectRule.t()]} | {:error, :not_found}
   def get_discovered_project_rules(%Scope{} = scope, task_id) do
     with {:ok, interactions} <- get_interactions(scope, task_id) do
       rules = Enum.filter(interactions, &match?(%Interaction.DiscoveredProjectRule{}, &1))
@@ -286,10 +279,9 @@ defmodule FrontmanServer.Tasks do
   Notifies Agents which decides whether to spawn or wake an agent.
   """
   @spec add_user_message(Scope.t(), String.t(), list(), list(), keyword()) ::
-          {:ok, Interaction.UserMessage.t()} | {:error, authorization_error()}
+          {:ok, Interaction.UserMessage.t()} | {:error, :not_found}
   def add_user_message(%Scope{} = scope, task_id, content_blocks, tools, opts \\ []) do
-    with {:ok, schema} <- fetch_task_schema(task_id),
-         :ok <- authorize_task_access(scope, schema),
+    with {:ok, schema} <- get_task_by_id(scope, task_id),
          interaction = Interaction.UserMessage.new(content_blocks),
          {:ok, interaction} <- append_interaction(schema, interaction) do
       Agents.notify_user_message(scope, task_id, tools, opts)
@@ -301,10 +293,9 @@ defmodule FrontmanServer.Tasks do
   Creates and appends an AgentResponse interaction.
   """
   @spec add_agent_response(Scope.t(), String.t(), String.t(), map()) ::
-          {:ok, Interaction.AgentResponse.t()} | {:error, authorization_error()}
+          {:ok, Interaction.AgentResponse.t()} | {:error, :not_found}
   def add_agent_response(%Scope{} = scope, task_id, content, metadata \\ %{}) do
-    with {:ok, schema} <- fetch_task_schema(task_id),
-         :ok <- authorize_task_access(scope, schema) do
+    with {:ok, schema} <- get_task_by_id(scope, task_id) do
       interaction = Interaction.AgentResponse.new(content, metadata)
       append_interaction(schema, interaction)
     end
@@ -314,10 +305,9 @@ defmodule FrontmanServer.Tasks do
   Creates and appends an AgentSpawned interaction.
   """
   @spec add_agent_spawned(Scope.t(), String.t(), map()) ::
-          {:ok, Interaction.AgentSpawned.t()} | {:error, authorization_error()}
+          {:ok, Interaction.AgentSpawned.t()} | {:error, :not_found}
   def add_agent_spawned(%Scope{} = scope, task_id, config \\ %{}) do
-    with {:ok, schema} <- fetch_task_schema(task_id),
-         :ok <- authorize_task_access(scope, schema) do
+    with {:ok, schema} <- get_task_by_id(scope, task_id) do
       interaction = Interaction.AgentSpawned.new(config)
       append_interaction(schema, interaction)
     end
@@ -327,10 +317,9 @@ defmodule FrontmanServer.Tasks do
   Creates and appends an AgentCompleted interaction.
   """
   @spec add_agent_completed(Scope.t(), String.t(), term()) ::
-          {:ok, Interaction.AgentCompleted.t()} | {:error, authorization_error()}
+          {:ok, Interaction.AgentCompleted.t()} | {:error, :not_found}
   def add_agent_completed(%Scope{} = scope, task_id, result \\ nil) do
-    with {:ok, schema} <- fetch_task_schema(task_id),
-         :ok <- authorize_task_access(scope, schema) do
+    with {:ok, schema} <- get_task_by_id(scope, task_id) do
       interaction = Interaction.AgentCompleted.new(result)
       append_interaction(schema, interaction)
     end
@@ -340,10 +329,9 @@ defmodule FrontmanServer.Tasks do
   Creates and appends a ToolCall interaction.
   """
   @spec add_tool_call(Scope.t(), String.t(), ToolCall.t()) ::
-          {:ok, Interaction.ToolCall.t()} | {:error, authorization_error()}
+          {:ok, Interaction.ToolCall.t()} | {:error, :not_found}
   def add_tool_call(%Scope{} = scope, task_id, %ToolCall{} = tool_call_data) do
-    with {:ok, schema} <- fetch_task_schema(task_id),
-         :ok <- authorize_task_access(scope, schema) do
+    with {:ok, schema} <- get_task_by_id(scope, task_id) do
       interaction = Interaction.ToolCall.new(tool_call_data)
       append_interaction(schema, interaction)
     end
@@ -355,7 +343,7 @@ defmodule FrontmanServer.Tasks do
   Notifies Agents directly so the agent can continue its iteration.
   """
   @spec add_tool_result(Scope.t(), String.t(), map(), term(), boolean()) ::
-          {:ok, Interaction.ToolResult.t()} | {:error, authorization_error()}
+          {:ok, Interaction.ToolResult.t()} | {:error, :not_found}
   def add_tool_result(
         %Scope{} = scope,
         task_id,
@@ -363,8 +351,7 @@ defmodule FrontmanServer.Tasks do
         result,
         is_error \\ false
       ) do
-    with {:ok, schema} <- fetch_task_schema(task_id),
-         :ok <- authorize_task_access(scope, schema),
+    with {:ok, schema} <- get_task_by_id(scope, task_id),
          interaction = Interaction.ToolResult.new(tool_call_data, result, is_error),
          {:ok, interaction} <- append_interaction(schema, interaction) do
       Agents.notify_tool_result(task_id, tool_call_id, result, is_error)
@@ -401,7 +388,7 @@ defmodule FrontmanServer.Tasks do
   This function is for reading the current state only.
   """
   @spec list_todos(Scope.t(), String.t()) ::
-          {:ok, [Todos.Todo.t()]} | {:error, authorization_error()}
+          {:ok, [Todos.Todo.t()]} | {:error, :not_found}
   def list_todos(%Scope{} = scope, task_id) do
     case get_task(scope, task_id) do
       {:ok, task} ->

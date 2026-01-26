@@ -1,6 +1,10 @@
 module Bindings = FrontmanBindings
 
-let defaultHost = "frontman.local:4000"
+// Default host can be overridden via FRONTMAN_HOST env var for remote development
+let defaultHost = switch Bindings.Process.env->Dict.get("FRONTMAN_HOST") {
+| Some(host) => host
+| None => "frontman.local:4000"
+}
 
 type t = {
   isDev: bool,
@@ -54,10 +58,15 @@ let make = (
   // sourceRoot defaults to projectRoot if not specified
   let sourceRoot = sourceRoot->Option.getOr(projectRoot)
 
+  // Client URL can be overridden via FRONTMAN_CLIENT_URL env var for remote development
   let clientUrl = clientUrl->Option.getOr(
-    switch isDev {
-    | true => `http://localhost:5173/src/Main.res.mjs?clientName=nextjs&host=${host}`
-    | false => `https://frontman.dev/frontman.es.js?clientName=nextjs&host=${host}`
+    switch Bindings.Process.env->Dict.get("FRONTMAN_CLIENT_URL") {
+    | Some(baseUrl) => `${baseUrl}?clientName=nextjs&host=${host}`
+    | None =>
+      switch isDev {
+      | true => `http://localhost:5173/src/Main.res.mjs?clientName=nextjs&host=${host}`
+      | false => `https://frontman.dev/frontman.es.js?clientName=nextjs&host=${host}`
+      }
     },
   )
 

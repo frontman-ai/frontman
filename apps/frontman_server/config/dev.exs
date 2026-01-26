@@ -6,10 +6,11 @@ config :frontman_server, env: :dev
 config :req_llm, receive_timeout: 600_000
 
 # Configure your database
+# DB_HOST can be set to "host.docker.internal" for DevPod/container development
 config :frontman_server, FrontmanServer.Repo,
   username: "postgres",
   password: "postgres",
-  hostname: "localhost",
+  hostname: System.get_env("DB_HOST") || "localhost",
   database: "frontman_server_dev",
   stacktrace: true,
   show_sensitive_data_on_connection_error: true,
@@ -22,11 +23,15 @@ config :frontman_server, FrontmanServer.Repo,
 # watchers to your application. For example, we can use it
 # to bundle .js and .css sources.
 config :frontman_server, FrontmanServerWeb.Endpoint,
-  # Binding to loopback ipv4 address prevents access from other machines.
-  # Change to `ip: {0, 0, 0, 0}` to allow access from other machines.
-  url: [host: "frontman.local", port: 4000, scheme: "https"],
+  # Binding to 0.0.0.0 allows access from containers/proxies
+  # URL host can be overridden via PHX_HOST env var for remote development
+  url: [
+    host: System.get_env("PHX_HOST") || "frontman.local",
+    port: String.to_integer(System.get_env("PHX_URL_PORT") || "4000"),
+    scheme: "https"
+  ],
   https: [
-    ip: {127, 0, 0, 1},
+    ip: {0, 0, 0, 0},
     port: String.to_integer(System.get_env("PORT") || "4000"),
     cipher_suite: :strong,
     keyfile: Path.expand("../../../.certs/frontman.local-key.pem", __DIR__),

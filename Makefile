@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help install build clean dev test lint dev-client dev-nextjs pull-webapi infra-install infra-preview-marketing infra-up-marketing ssl-setup worktree-create worktree-create-from worktree-list worktree-remove worktree-clean worktree-status
+.PHONY: help install build clean dev test lint dev-client dev-nextjs pull-webapi infra-install infra-preview-marketing infra-up-marketing ssl-setup worktree-create worktree-create-from worktree-list worktree-remove worktree-clean worktree-status worktree-devpod tunnel worktree-urls worktree-hosts worktree-register worktree-registry
 
 help: ## Display available commands
 	@awk 'BEGIN {FS = ":.*##"} /^[a-zA-Z_-]+:.*##/ { printf "  %-15s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
@@ -147,3 +147,85 @@ worktree-status: ## Show status of all worktrees
 			fi \
 		done; \
 	fi
+
+worktree-devpod: ## Create worktree + push branch + DevPod workspace (usage: make worktree-devpod BRANCH=feature-name)
+	@if [ -z "$(BRANCH)" ]; then \
+		echo "Error: BRANCH is required. Usage: make worktree-devpod BRANCH=feature-name"; \
+		exit 1; \
+	fi
+	@if ! command -v devpod >/dev/null 2>&1; then \
+		echo "Error: devpod is not installed. Install with: brew install devpod"; \
+		exit 1; \
+	fi
+	@echo "==> Creating worktree for: $(BRANCH)"
+	@$(MAKE) worktree-create BRANCH=$(BRANCH)
+	@echo ""
+	@echo "==> Pushing branch to origin..."
+	@cd .worktrees/$(BRANCH) && git push -u origin $(BRANCH)
+	@echo ""
+	@echo "==> Creating DevPod workspace on remote server..."
+	@devpod up . --branch $(BRANCH) --id $(BRANCH)
+	@echo ""
+	@echo "==> Done!"
+	@echo ""
+	@echo "Connect with:"
+	@echo "  devpod ssh $(BRANCH)"
+	@echo ""
+	@echo "Or open in VS Code:"
+	@echo "  devpod up $(BRANCH) --ide vscode"
+
+# Remote development with Caddy proxy
+DEVPOD_HOST ?= 77.42.16.199
+DEVPOD_USER ?= root
+
+tunnel: ## Start SSH tunnel to DevPod server (ports 8080/8443)
+	@echo "Starting SSH tunnel to $(DEVPOD_USER)@$(DEVPOD_HOST)"
+	@echo "  Local :8080 → Remote :80 (HTTP)"
+	@echo "  Local :8443 → Remote :443 (HTTPS)"
+	@echo ""
+	@echo "Press Ctrl+C to stop the tunnel"
+	ssh -L 8080:localhost:80 -L 8443:localhost:443 $(DEVPOD_USER)@$(DEVPOD_HOST) -N
+
+worktree-urls: ## Show URLs for a worktree (usage: make worktree-urls BRANCH=feature-name)
+	@if [ -z "$(BRANCH)" ]; then \
+		echo "Error: BRANCH is required. Usage: make worktree-urls BRANCH=feature-name"; \
+		exit 1; \
+	fi
+	@HASH=$$(printf '%s' "$(BRANCH)" | md5 | cut -c1-4); \
+	WT_ID="wt-$$HASH"; \
+	echo ""; \
+	echo "Worktree: $(BRANCH) ($$WT_ID)"; \
+	echo ""; \
+	echo "URLs (via tunnel):"; \
+	echo "  Next.js:   https://$$WT_ID-nextjs.local:8443"; \
+	echo "  Vite:      https://$$WT_ID-vite.local:8443"; \
+	echo "  Phoenix:   https://$$WT_ID-api.local:8443"; \
+	echo "  Storybook: https://$$WT_ID-storybook.local:8443"; \
+	echo ""; \
+	echo "Add to /etc/hosts:"; \
+	echo "127.0.0.1 $$WT_ID-nextjs.local $$WT_ID-vite.local $$WT_ID-api.local $$WT_ID-storybook.local $$WT_ID-dogfood.local"
+
+worktree-hosts: ## Generate /etc/hosts entries for all worktrees
+	@echo "# Frontman DevPod worktrees"
+	@if [ -d ".worktrees" ]; then \
+		for wt in .worktrees/*; do \
+			if [ -d "$$wt" ]; then \
+				name=$$(basename "$$wt"); \
+				hash=$$(printf '%s' "$$name" | md5 | cut -c1-4); \
+				echo "127.0.0.1 wt-$$hash-nextjs.local wt-$$hash-vite.local wt-$$hash-api.local wt-$$hash-storybook.local wt-$$hash-dogfood.local # $$name"; \
+			fi \
+		done; \
+	else \
+		echo "# No worktrees found"; \
+	fi
+
+worktree-register: ## Register a worktree with Caddy on the server (usage: make worktree-register BRANCH=feature-name CONTAINER=container-name)
+	@if [ -z "$(BRANCH)" ] || [ -z "$(CONTAINER)" ]; then \
+		echo "Error: BRANCH and CONTAINER are required."; \
+		echo "Usage: make worktree-register BRANCH=feature-name CONTAINER=container-name"; \
+		exit 1; \
+	fi
+	ssh $(DEVPOD_USER)@$(DEVPOD_HOST) "register-worktree $(BRANCH) $(CONTAINER)"
+
+worktree-registry: ## Show all registered worktrees on the server
+	@ssh $(DEVPOD_USER)@$(DEVPOD_HOST) "cat /etc/caddy/worktrees/registry.json 2>/dev/null | jq . || echo 'No worktrees registered'"

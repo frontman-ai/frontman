@@ -1,0 +1,28 @@
+# Caddy configuration for Frontman development worktrees
+# This file is managed - edit with care
+#
+# URL scheme: wt-{hash}-{service}.local
+# Example: wt-8f3a-nextjs.local, wt-8f3a-vite.local, wt-8f3a-api.local
+
+{
+    # Listen on standard ports (tunneled from local 8080/8443)
+    http_port 80
+    https_port 443
+    
+    # Admin API (for reloading)
+    admin localhost:2019
+}
+
+# TLS configuration for all *.local domains
+(local_tls) {
+    tls /etc/caddy/certs/worktree.pem /etc/caddy/certs/worktree-key.pem
+}
+
+# Import all worktree configurations
+import /etc/caddy/worktrees/*.caddy
+
+# Fallback for unmatched requests
+*.local {
+    import local_tls
+    respond "Frontman DevPod - Unknown worktree. Check /etc/caddy/worktrees/ for registered worktrees."
+}

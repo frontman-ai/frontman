@@ -512,9 +512,15 @@ type deleteSessionFn = (string, ~onComplete: result<unit, string> => unit) => un
 // Connection state for the Frontman ACP session
 // Note: sessionId is NOT stored here - it's managed by ConnectionReducer (ACP layer)
 // Tasks store their own ID which equals the ACP session ID
+// apiBaseUrl is co-located with Connected to make illegal state (Connected + no apiBaseUrl) unrepresentable
 type connectionState =
   | Disconnected
-  | Connected({sendPrompt: sendPromptFn, loadTask: loadTaskFn, deleteSession: deleteSessionFn})
+  | Connected({
+      sendPrompt: sendPromptFn,
+      loadTask: loadTaskFn,
+      deleteSession: deleteSessionFn,
+      apiBaseUrl: string,
+    })
 
 // Usage info from API
 @schema
@@ -599,7 +605,6 @@ type state = {
   connectionState: connectionState,
   sessionInitialized: bool,
   usageInfo: option<usageInfo>,
-  apiBaseUrl: option<string>,
   openrouterKeySettings: apiKeySettings,
   anthropicOAuthStatus: anthropicOAuthStatus,
   modelsConfig: option<modelsConfig>,
