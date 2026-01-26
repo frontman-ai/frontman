@@ -993,7 +993,6 @@ let next = (state, action) => {
         createdAt: Date.now(),
       })
       let textContent = extractTextFromUserContent(content)
-      let timestamp = Date.now()
 
       // Ensure we have a task, creating one if needed
       // Use provided sessionId as task ID so streaming updates route correctly
@@ -1012,16 +1011,16 @@ let next = (state, action) => {
       // Get the task ID - we know it exists now
       let taskId = stateWithTask.currentTaskId->Option.getOr("")
 
+      let timestamp = Date.now()
       stateWithTask
       ->Lens.updateCurrentTask(task => {
-        let loadedData = Task.getLoadedData(task)->Option.getOrThrow
-        let updatedMessages = loadedData.messages->Dict.copy
-        updatedMessages->Dict.set(Message.getId(message), message)
-        {
-          ...task,
-          updatedAt: timestamp,
-          loadState: Loaded({...loadedData, messages: updatedMessages, isAgentRunning: true}),
-        }
+        // Use Task.updateLoadedData which handles NotLoaded gracefully (returns task unchanged)
+        let updatedTask = Task.updateLoadedData(task, data => {
+          let updatedMessages = data.messages->Dict.copy
+          updatedMessages->Dict.set(Message.getId(message), message)
+          {...data, messages: updatedMessages, isAgentRunning: true}
+        })
+        {...updatedTask, updatedAt: timestamp}
       })
       ->FrontmanReactStatestore.StateReducer.update(
         ~sideEffects=[SendMessageToAPI({message: textContent, taskId})],
