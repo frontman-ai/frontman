@@ -1,5 +1,7 @@
 defmodule FrontmanServerWeb.TasksChannelTest do
-  use FrontmanServerWeb.ChannelCase, async: true
+  # async: false required because "ACP session/load" describe block uses shared_sandbox: true
+  # Shared sandbox mode is incompatible with async tests as it can interfere with other tests' connections
+  use FrontmanServerWeb.ChannelCase, async: false
 
   alias AgentClientProtocol, as: ACP
   alias FrontmanServerWeb.UserSocket
