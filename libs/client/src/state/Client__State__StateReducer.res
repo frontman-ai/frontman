@@ -1298,11 +1298,13 @@ let next = (state, action) => {
       let updatedTasks = state.tasks->Dict.copy
       updatedTasks->Dict.delete(taskId)
 
-      // If deleting current task, switch to most recent
+      // If deleting current task, switch to most recent loaded task
+      // (avoid selecting NotLoaded tasks which would crash on AddUserMessage)
       let newCurrentTaskId = switch state.currentTaskId {
       | Some(currentId) if currentId == taskId =>
         updatedTasks
         ->Dict.valuesToArray
+        ->Array.filter(task => Task.getLoadedData(task)->Option.isSome)
         ->Array.toSorted((a, b) => b.updatedAt -. a.updatedAt)
         ->Array.get(0)
         ->Option.map(task => task.id)
