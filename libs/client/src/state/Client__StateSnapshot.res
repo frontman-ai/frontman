@@ -267,16 +267,21 @@ module Task = {
   }
 
   let schema = S.object(s => {
-    id: s.field("id", S.string),
-    title: s.field("title", S.string),
-    messages: s.field("messages", S.array(Message.schema)),
-    createdAt: s.field("createdAt", S.float),
-    // Read updatedAt if present, otherwise fall back to createdAt for backward compat
-    updatedAt: s.fieldOr("updatedAt", S.float, s.field("createdAt", S.float)),
-    webPreviewIsSelecting: s.field("webPreviewIsSelecting", S.bool),
-    selectedElement: s.field("selectedElement", nullableToOption(SelectedElement.schema)),
-    figmaNode: s.field("figmaNode", FigmaNode.schema),
-    previewUrl: s.field("previewUrl", S.string),
+    let createdAt = s.field("createdAt", S.float)
+    let updatedAt = s.field("updatedAt", S.option(S.float))
+
+    {
+      id: s.field("id", S.string),
+      title: s.field("title", S.string),
+      messages: s.field("messages", S.array(Message.schema)),
+      createdAt,
+      // Fall back to createdAt for backward compat with snapshots that don't have updatedAt
+      updatedAt: updatedAt->Option.getOr(createdAt),
+      webPreviewIsSelecting: s.field("webPreviewIsSelecting", S.bool),
+      selectedElement: s.field("selectedElement", nullableToOption(SelectedElement.schema)),
+      figmaNode: s.field("figmaNode", FigmaNode.schema),
+      previewUrl: s.field("previewUrl", S.string),
+    }
   })
 }
 

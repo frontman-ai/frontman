@@ -64,7 +64,6 @@ module Fixtures = {
     connectionState: Disconnected,
     sessionInitialized: false,
     usageInfo: None,
-    apiBaseUrl: None,
     openrouterKeySettings: {
       source: StateTypes.None,
       saveStatus: StateTypes.Idle,
