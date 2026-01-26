@@ -6,18 +6,21 @@ defmodule Swarm do
 
   ### Simple blocking execution
 
-      {:ok, result} = Swarm.run_blocking(agent, "Hello", fn tool_call ->
+      {:ok, result, loop_id} = Swarm.run_blocking(agent, "Hello", fn tool_call ->
         {:ok, execute_my_tool(tool_call)}
       end)
 
   ### Streaming execution with callbacks
 
-      {:ok, result} = Swarm.run_streaming(agent, "Hello",
+      {:ok, result, loop_id} = Swarm.run_streaming(agent, "Hello",
         tool_executor: fn tc -> {:ok, execute(tc)} end,
         on_chunk: fn chunk -> IO.write(chunk.text || "") end,
         on_response: fn response -> Logger.info("Got response") end,
         on_tool_call: fn tc -> Logger.info("Calling \#{tc.name}") end
       )
+
+  The `loop_id` is a unique identifier for each execution, useful for telemetry
+  correlation and crash reporting.
 
   ### Manual control over tool execution
 
@@ -120,19 +123,26 @@ defmodule Swarm do
   - `:on_response` - Called when LLM response is complete (before tool execution)
   - `:on_tool_call` - Called before each tool is executed
 
+  ## Returns
+
+  - `{:ok, result, loop_id}` - Agent completed successfully
+  - `{:error, reason, loop_id}` - Agent failed
+
+  The `loop_id` is always returned for telemetry correlation and crash reporting.
+
   ## Examples
 
       # With streaming
-      Swarm.run_streaming(agent, "Analyze this code",
+      {:ok, result, loop_id} = Swarm.run_streaming(agent, "Analyze this code",
         tool_executor: &execute_tool/1,
         on_chunk: fn chunk -> IO.write(chunk.text || "") end
       )
 
       # Minimal (no streaming callbacks)
-      Swarm.run_streaming(agent, "Hello", tool_executor: fn _ -> {:ok, "done"} end)
+      {:ok, result, _loop_id} = Swarm.run_streaming(agent, "Hello", tool_executor: fn _ -> {:ok, "done"} end)
   """
   @spec run_streaming(Swarm.Agent.t(), message_input(), streaming_opts()) ::
-          {:ok, String.t()} | {:error, term()}
+          {:ok, String.t(), Swarm.Id.t()} | {:error, term(), Swarm.Id.t()}
   def run_streaming(agent, message, opts) when is_list(opts) do
     tool_executor = Keyword.fetch!(opts, :tool_executor)
     callbacks = build_callbacks(opts)
@@ -155,9 +165,9 @@ defmodule Swarm do
 
         result =
           case final_loop.status do
-            :completed -> {:ok, final_loop.result}
-            :failed -> {:error, final_loop.error}
-            other -> {:error, {:unexpected_status, other}}
+            :completed -> {:ok, final_loop.result, loop.id}
+            :failed -> {:error, final_loop.error, loop.id}
+            other -> {:error, {:unexpected_status, other}, loop.id}
           end
 
         # Include loop_id, metadata, and output in stop metadata
@@ -180,7 +190,7 @@ defmodule Swarm do
 
   ## Examples
 
-      Swarm.run_blocking(agent, "What's the weather?", fn tool_call ->
+      {:ok, result, loop_id} = Swarm.run_blocking(agent, "What's the weather?", fn tool_call ->
         case tool_call.name do
           "get_weather" -> {:ok, "Sunny, 22°C"}
           _ -> {:error, "Unknown tool"}
@@ -188,7 +198,7 @@ defmodule Swarm do
       end)
   """
   @spec run_blocking(Swarm.Agent.t(), message_input(), tool_executor()) ::
-          {:ok, String.t()} | {:error, term()}
+          {:ok, String.t(), Swarm.Id.t()} | {:error, term(), Swarm.Id.t()}
   def run_blocking(agent, message, tool_executor) when is_function(tool_executor, 1) do
     run_streaming(agent, message, tool_executor: tool_executor)
   end

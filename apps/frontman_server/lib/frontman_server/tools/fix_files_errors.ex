@@ -87,7 +87,7 @@ defmodule FrontmanServer.Tools.FixFilesErrors do
       )
 
     case Swarm.run_blocking(agent, messages, tool_executor) do
-      {:ok, result} ->
+      {:ok, result, _loop_id} ->
         Logger.info("FixFilesErrors: Completed for #{component_name}")
 
         {:ok,
@@ -98,7 +98,7 @@ defmodule FrontmanServer.Tools.FixFilesErrors do
            "testPageUrl" => test_page_url
          }}
 
-      {:error, reason} ->
+      {:error, reason, _loop_id} ->
         Logger.error("FixFilesErrors: Failed - #{inspect(reason)}")
         {:error, "Error fixing failed: #{inspect(reason)}"}
     end

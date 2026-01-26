@@ -89,11 +89,11 @@ defmodule FrontmanServer.Tools.BreakdownFigmaDesign do
           )
 
         case Swarm.run_blocking(agent, [user_msg], tool_executor) do
-          {:ok, result} ->
+          {:ok, result, _loop_id} ->
             Logger.info("BreakdownFigmaDesign: Completed breakdown for node #{node_id}")
             {:ok, %{"breakdown" => result, "nodeId" => node_id}}
 
-          {:error, reason} ->
+          {:error, reason, _loop_id} ->
             Logger.error("BreakdownFigmaDesign: Failed - #{inspect(reason)}")
             {:error, "Breakdown failed: #{inspect(reason)}"}
         end

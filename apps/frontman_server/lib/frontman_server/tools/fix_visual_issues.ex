@@ -120,7 +120,7 @@ defmodule FrontmanServer.Tools.FixVisualIssues do
       )
 
     case Swarm.run_blocking(agent, messages, tool_executor) do
-      {:ok, result} ->
+      {:ok, result, _loop_id} ->
         Logger.info("FixVisualIssues: Completed for #{component_name}")
 
         {:ok,
@@ -129,7 +129,7 @@ defmodule FrontmanServer.Tools.FixVisualIssues do
            "componentName" => component_name
          }}
 
-      {:error, reason} ->
+      {:error, reason, _loop_id} ->
         Logger.error("FixVisualIssues: Failed - #{inspect(reason)}")
         {:error, "Visual fixes failed: #{inspect(reason)}"}
     end

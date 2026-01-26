@@ -33,7 +33,11 @@ defmodule FrontmanServerWeb.ChannelCase do
   end
 
   setup tags do
-    pid = Sandbox.start_owner!(FrontmanServer.Repo, shared: not tags[:async])
+    # Use shared mode if:
+    # - async: false (default behavior), OR
+    # - @tag shared_sandbox: true (for tests spawning processes needing DB access)
+    shared = tags[:shared_sandbox] || not tags[:async]
+    pid = Sandbox.start_owner!(FrontmanServer.Repo, shared: shared)
     on_exit(fn -> Sandbox.stop_owner(pid) end)
 
     # Create a test user for scope

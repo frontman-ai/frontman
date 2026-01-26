@@ -114,7 +114,7 @@ defmodule FrontmanServer.Tools.ImplementComponent do
       )
 
     case Swarm.run_blocking(agent, messages, tool_executor) do
-      {:ok, result} ->
+      {:ok, result, _loop_id} ->
         Logger.info("ImplementComponent: Completed #{component_name}")
 
         {:ok,
@@ -125,7 +125,7 @@ defmodule FrontmanServer.Tools.ImplementComponent do
            "dataTestId" => data_test_id
          }}
 
-      {:error, reason} ->
+      {:error, reason, _loop_id} ->
         Logger.error("ImplementComponent: Failed - #{inspect(reason)}")
         {:error, "Implementation failed: #{inspect(reason)}"}
     end

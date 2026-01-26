@@ -128,7 +128,7 @@ defmodule FrontmanServer.Agents.SubAgentMcpRoutingTest do
 
       # Agent should complete
       result = Task.await(executor_task, 10_000)
-      assert {:ok, "Component implemented!"} = result
+      assert {:ok, "Component implemented!", _loop_id} = result
     end
   end
 end

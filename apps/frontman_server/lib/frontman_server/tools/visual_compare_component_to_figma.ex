@@ -89,7 +89,7 @@ defmodule FrontmanServer.Tools.VisualCompareComponentToFigma do
       )
 
     case Swarm.run_blocking(agent, [user_msg], tool_executor) do
-      {:ok, result} ->
+      {:ok, result, _loop_id} ->
         Logger.info("VisualCompare: Completed comparison for #{component_name}")
 
         {:ok,
@@ -99,7 +99,7 @@ defmodule FrontmanServer.Tools.VisualCompareComponentToFigma do
            "nodeId" => node_id
          }}
 
-      {:error, reason} ->
+      {:error, reason, _loop_id} ->
         Logger.error("VisualCompare: Failed - #{inspect(reason)}")
         {:error, "Comparison failed: #{inspect(reason)}"}
     end
