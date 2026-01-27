@@ -593,6 +593,7 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
         Console.log2("[ConnectionReducer] Session activated:", taskId)
         onComplete(Ok())
       | Error(err) =>
+        dispatch(SessionCreateError(err))
         Console.error2("[ConnectionReducer] Failed to activate session:", err)
         onComplete(Error(err))
       }
