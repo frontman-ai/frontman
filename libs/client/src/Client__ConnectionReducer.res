@@ -338,6 +338,12 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
       [LogInfo(`Session switched: ${sess.sessionId}`)],
     )
 
+  // Handle SessionCreateSuccess after previous failure - recovery
+  | ({session: SessionError(_)}, SessionCreateSuccess(sess)) => (
+      {...state, session: SessionActive(sess)},
+      [LogInfo(`Session recovered: ${sess.sessionId}`)],
+    )
+
   | ({session: SessionCreating}, SessionCreateError(msg)) => (
       {...state, session: SessionError(msg)},
       [LogError(`Session failed: ${msg}`)],
