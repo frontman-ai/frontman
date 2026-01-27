@@ -506,9 +506,10 @@ type sendPromptFn = (
 
 // Callback for loading a persisted task's messages
 // taskId: the task to load (maps to sessionId at protocol level)
+// needsHistory: true = load full history (task not loaded), false = just activate channel (task already loaded)
 // onComplete: called when loading finishes (success or error)
 // Note: onUpdate is baked in when the callback is created (uses handleSessionUpdate)
-type loadTaskFn = (string, ~onComplete: result<unit, string> => unit) => unit
+type loadTaskFn = (string, ~needsHistory: bool, ~onComplete: result<unit, string> => unit) => unit
 
 // Callback for deleting a persisted session
 // taskId: the task/session to delete

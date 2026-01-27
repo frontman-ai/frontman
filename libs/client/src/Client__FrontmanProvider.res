@@ -29,7 +29,7 @@ type contextValue = {
     ~onComplete: result<Types.promptResult, string> => unit,
     ~metadata: option<JSON.t>,
   ) => unit,
-  loadTask: (string, ~onComplete: result<unit, string> => unit) => unit,
+  loadTask: (string, ~needsHistory: bool, ~onComplete: result<unit, string> => unit) => unit,
   deleteSession: (string, ~onComplete: result<unit, string> => unit) => unit,
 }
 
@@ -43,7 +43,7 @@ let defaultContextValue: contextValue = {
   createSession: (~onComplete as _) => (),
   clearSession: () => (),
   sendPrompt: (_, ~additionalBlocks as _, ~onComplete as _, ~metadata as _) => (),
-  loadTask: (_, ~onComplete as _) => (),
+  loadTask: (_, ~needsHistory as _, ~onComplete as _) => (),
   deleteSession: (_, ~onComplete as _) => (),
 }
 
@@ -183,8 +183,8 @@ module Provider = {
     )
 
     let loadTask = React.useCallback1(
-      (taskId: string, ~onComplete) => {
-        dispatch(LoadTask({taskId, onUpdate: handleSessionUpdate, onMcpMessage: logMCPMessage, onComplete}))
+      (taskId: string, ~needsHistory, ~onComplete) => {
+        dispatch(LoadTask({taskId, needsHistory, onUpdate: handleSessionUpdate, onMcpMessage: logMCPMessage, onComplete}))
       },
       [dispatch],
     )

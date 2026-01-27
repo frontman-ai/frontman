@@ -159,10 +159,10 @@ type action =
   // Plan actions (ACP compliant)
   | PlanReceived({taskId: string, entries: array<Client__State__Types.ACPTypes.planEntry>})
   // Usage info actions
-  | UsageInfoFetched({result: result<Client__State__Types.usageInfo, string>})
+  | UsageInfoReceived({usageInfo: Client__State__Types.usageInfo})
   // API key settings actions
   | FetchApiKeySettings
-  | ApiKeySettingsFetched({result: result<Client__State__Types.apiKeySource, string>})
+  | ApiKeySettingsReceived({source: Client__State__Types.apiKeySource})
   | SaveOpenRouterKey({key: string})
   | OpenRouterKeySaveStarted
   | OpenRouterKeySaved
@@ -170,7 +170,7 @@ type action =
   | ResetOpenRouterKeySaveStatus
   // Model selection actions
   | FetchModelsConfig
-  | ModelsConfigFetched({result: result<Client__State__Types.modelsConfig, string>})
+  | ModelsConfigReceived({config: Client__State__Types.modelsConfig})
   | SetSelectedModel({model: Client__State__Types.selectedModel})
   // Anthropic OAuth actions
   | FetchAnthropicOAuthStatus
@@ -250,19 +250,11 @@ let loadSelectedModelFromStorage = (): option<Client__State__Types.selectedModel
       try {
         Some(S.parseJsonStringOrThrow(jsonString, Client__State__Types.selectedModelSchema))
       } catch {
-      | exn =>
-        let msg =
-          exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
-        Console.warn(`[StateReducer] Failed to parse stored model selection: ${msg}`)
-        None
+      | _ => None
       }
     })
   } catch {
-  | exn =>
-    let msg =
-      exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
-    Console.warn(`[StateReducer] Failed to load model selection from localStorage: ${msg}`)
-    None
+  | _ => None
   }
 }
 
@@ -272,10 +264,7 @@ let saveSelectedModelToStorage = (model: Client__State__Types.selectedModel): un
     let jsonString = S.reverseConvertToJsonStringOrThrow(model, Client__State__Types.selectedModelSchema)
     setStorageItem(selectedModelStorageKey, jsonString)
   } catch {
-  | exn =>
-    let msg =
-      exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
-    Console.warn(`[StateReducer] Failed to save model selection to localStorage: ${msg}`)
+  | _ => ()
   }
 }
 
@@ -331,34 +320,22 @@ let actionToString = action => {
   | TurnCompleted({taskId}) => `TurnCompleted(${taskId})`
   | PlanReceived({taskId, entries}) =>
     `PlanReceived(${taskId}, ${entries->Array.length->Int.toString} entries)`
-  | UsageInfoFetched({result}) =>
-    switch result {
-    | Ok(_) => `UsageInfoFetched(Ok)`
-    | Error(err) => `UsageInfoFetched(Error: ${err})`
-    }
+  | UsageInfoReceived(_) => `UsageInfoReceived`
   | FetchApiKeySettings => `FetchApiKeySettings`
-  | ApiKeySettingsFetched({result}) =>
-    switch result {
-    | Ok(source) =>
-      let sourceStr = switch source {
-      | Client__State__Types.None => "None"
-      | Client__State__Types.FromEnv => "FromEnv"
-      | Client__State__Types.UserOverride => "UserOverride"
-      }
-      `ApiKeySettingsFetched(Ok: ${sourceStr})`
-    | Error(err) => `ApiKeySettingsFetched(Error: ${err})`
+  | ApiKeySettingsReceived({source}) =>
+    let sourceStr = switch source {
+    | Client__State__Types.None => "None"
+    | Client__State__Types.FromEnv => "FromEnv"
+    | Client__State__Types.UserOverride => "UserOverride"
     }
+    `ApiKeySettingsReceived(${sourceStr})`
   | SaveOpenRouterKey(_) => `SaveOpenRouterKey`
   | OpenRouterKeySaveStarted => `OpenRouterKeySaveStarted`
   | OpenRouterKeySaved => `OpenRouterKeySaved`
   | OpenRouterKeySaveError({error}) => `OpenRouterKeySaveError(${error})`
   | ResetOpenRouterKeySaveStatus => `ResetOpenRouterKeySaveStatus`
   | FetchModelsConfig => `FetchModelsConfig`
-  | ModelsConfigFetched({result}) =>
-    switch result {
-    | Ok(_) => `ModelsConfigFetched(Ok)`
-    | Error(err) => `ModelsConfigFetched(Error: ${err})`
-    }
+  | ModelsConfigReceived(_) => `ModelsConfigReceived`
   | SetSelectedModel({model}) => `SetSelectedModel(${model.provider}:${model.value})`
   | FetchAnthropicOAuthStatus => `FetchAnthropicOAuthStatus`
   | AnthropicOAuthStatusReceived({connected}) =>
@@ -474,11 +451,18 @@ module Selectors = {
     currentTask(state)->Option.map(task => task.loadState)
   }
 
+  // Get the timestamp used for sorting tasks (server-provided updatedAt)
+  let getTaskSortTime = (task: Task.t): float => task.updatedAt
+
   // Get all tasks sorted by updatedAt (most recent first)
   let tasks = (state: state): array<Task.t> => {
     state.tasks
     ->Dict.valuesToArray
-    ->Array.toSorted((a, b) => b.updatedAt -. a.updatedAt)
+    ->Array.toSorted((a, b) => {
+      let aTime = getTaskSortTime(a)
+      let bTime = getTaskSortTime(b)
+      bTime -. aTime
+    })
   }
 
   // Get recent tasks (excluding current, max 2)
@@ -626,21 +610,16 @@ let handleEffect = (effect, state: state, dispatch) => {
   | FetchUsageInfo({apiBaseUrl}) =>
     let fetch = async () => {
       let url = `${apiBaseUrl}/api/user/api-key-usage`
-      let response = await WebAPI.Global.fetch(url, ~init={credentials: Include})
 
-      if !response.ok {
-        dispatch(
-          UsageInfoFetched({
-            result: Error(`HTTP ${response.status->Int.toString}: ${response.statusText}`),
-          }),
-        )
-      } else {
-        let json = await response->WebAPI.Response.json
-        let result = FrontmanFrontmanClient.FrontmanClient__Decoders.parseSchema(
-          json,
-          Client__State__Types.usageInfoSchema,
-        )
-        dispatch(UsageInfoFetched({result: result}))
+      try {
+        let response = await WebAPI.Global.fetch(url, ~init={credentials: Include})
+        if response.ok {
+          let json = await response->WebAPI.Response.json
+          let usageInfo = S.parseJsonOrThrow(json, Client__State__Types.usageInfoSchema)
+          dispatch(UsageInfoReceived({usageInfo: usageInfo}))
+        }
+      } catch {
+      | _ => ()
       }
     }
     fetch()->ignore
@@ -746,23 +725,12 @@ let handleEffect = (effect, state: state, dispatch) => {
   | FetchApiKeySettingsEffect({apiBaseUrl}) =>
     let fetch = async () => {
       let url = `${apiBaseUrl}/api/user/api-key-usage`
-      let response = await WebAPI.Global.fetch(url, ~init={credentials: Include})
 
-      if !response.ok {
-        dispatch(
-          ApiKeySettingsFetched({
-            result: Error(`HTTP ${response.status->Int.toString}: ${response.statusText}`),
-          }),
-        )
-      } else {
-        let json = await response->WebAPI.Response.json
-        let parseResult = FrontmanFrontmanClient.FrontmanClient__Decoders.parseSchema(
-          json,
-          Client__State__Types.usageInfoSchema,
-        )
-
-        switch parseResult {
-        | Ok(usageInfo) =>
+      try {
+        let response = await WebAPI.Global.fetch(url, ~init={credentials: Include})
+        if response.ok {
+          let json = await response->WebAPI.Response.json
+          let usageInfo = S.parseJsonOrThrow(json, Client__State__Types.usageInfoSchema)
           let hasUserKey = usageInfo.hasUserKey->Option.getOr(false)
 
           // Check if the Next.js project has OPENROUTER_API_KEY from runtime config
@@ -778,9 +746,10 @@ let handleEffect = (effect, state: state, dispatch) => {
           } else {
             None
           }
-          dispatch(ApiKeySettingsFetched({result: Ok(source)}))
-        | Error(err) => dispatch(ApiKeySettingsFetched({result: Error(err)}))
+          dispatch(ApiKeySettingsReceived({source: source}))
         }
+      } catch {
+      | _ => ()
       }
     }
     fetch()->ignore
@@ -826,21 +795,16 @@ let handleEffect = (effect, state: state, dispatch) => {
   | FetchModelsConfigEffect({apiBaseUrl}) =>
     let fetch = async () => {
       let url = `${apiBaseUrl}/api/models`
-      let response = await WebAPI.Global.fetch(url, ~init={credentials: Include})
 
-      if !response.ok {
-        dispatch(
-          ModelsConfigFetched({
-            result: Error(`HTTP ${response.status->Int.toString}: ${response.statusText}`),
-          }),
-        )
-      } else {
-        let json = await response->WebAPI.Response.json
-        let result = FrontmanFrontmanClient.FrontmanClient__Decoders.parseSchema(
-          json,
-          Client__State__Types.modelsConfigSchema,
-        )
-        dispatch(ModelsConfigFetched({result: result}))
+      try {
+        let response = await WebAPI.Global.fetch(url, ~init={credentials: Include})
+        if response.ok {
+          let json = await response->WebAPI.Response.json
+          let config = S.parseJsonOrThrow(json, Client__State__Types.modelsConfigSchema)
+          dispatch(ModelsConfigReceived({config: config}))
+        }
+      } catch {
+      | _ => ()
       }
     }
     fetch()->ignore
@@ -960,7 +924,12 @@ let handleEffect = (effect, state: state, dispatch) => {
     switch state.connectionState {
     | Connected({loadTask}) =>
       let taskIdToLoad = taskId
-      loadTask(taskId, ~onComplete=result => {
+      // Check if task needs history loading or just channel activation
+      let needsHistory = switch state.tasks->Dict.get(taskId) {
+      | Some({loadState: Task.NotLoaded}) | Some({loadState: Task.Loading(_)}) | None => true
+      | Some({loadState: Task.Loaded(_)}) => false
+      }
+      loadTask(taskId, ~needsHistory, ~onComplete=result => {
         switch result {
         | Ok() => dispatch(TaskLoadComplete({taskId: taskIdToLoad}))
         | Error(err) => dispatch(TaskLoadError({taskId: taskIdToLoad, error: err}))
@@ -1011,16 +980,11 @@ let next = (state, action) => {
       // Get the task ID - we know it exists now
       let taskId = stateWithTask.currentTaskId->Option.getOr("")
 
-      let timestamp = Date.now()
       stateWithTask
-      ->Lens.updateCurrentTask(task => {
-        // Use Task.updateLoadedData which handles NotLoaded gracefully (returns task unchanged)
-        let updatedTask = Task.updateLoadedData(task, data => {
-          let updatedMessages = data.messages->Dict.copy
-          updatedMessages->Dict.set(Message.getId(message), message)
-          {...data, messages: updatedMessages, isAgentRunning: true}
-        })
-        {...updatedTask, updatedAt: timestamp}
+      ->Lens.updateCurrentTaskLoadedData(data => {
+        let updatedMessages = data.messages->Dict.copy
+        updatedMessages->Dict.set(Message.getId(message), message)
+        {...data, messages: updatedMessages, isAgentRunning: true}
       })
       ->FrontmanReactStatestore.StateReducer.update(
         ~sideEffects=[SendMessageToAPI({message: textContent, taskId})],
@@ -1340,14 +1304,16 @@ let next = (state, action) => {
       let updatedTasks = state.tasks->Dict.copy
       updatedTasks->Dict.delete(taskId)
 
-      // If deleting current task, switch to most recent loaded task
-      // (avoid selecting NotLoaded tasks which would crash on AddUserMessage)
+      // If deleting current task, switch to most recent
       let newCurrentTaskId = switch state.currentTaskId {
       | Some(currentId) if currentId == taskId =>
         updatedTasks
         ->Dict.valuesToArray
-        ->Array.filter(task => Task.getLoadedData(task)->Option.isSome)
-        ->Array.toSorted((a, b) => b.updatedAt -. a.updatedAt)
+        ->Array.toSorted((a, b) => {
+          let aTime = Selectors.getTaskSortTime(a)
+          let bTime = Selectors.getTaskSortTime(b)
+          bTime -. aTime
+        })
         ->Array.get(0)
         ->Option.map(task => task.id)
       | other => other
@@ -1434,13 +1400,9 @@ let next = (state, action) => {
     ->Lens.updateTaskLoadedData(taskId, data => {...data, planEntries: entries})
     ->FrontmanReactStatestore.StateReducer.update
 
-  | UsageInfoFetched({result}) =>
-    switch result {
-    | Ok(usageInfo) => {...state, usageInfo: Some(usageInfo)}->FrontmanReactStatestore.StateReducer.update
-    | Error(err) =>
-      Console.error2("[StateReducer] Usage info fetch failed:", err)
-      state->FrontmanReactStatestore.StateReducer.update
-    }
+  | UsageInfoReceived({usageInfo}) =>
+    // Update usage info in state
+    {...state, usageInfo: Some(usageInfo)}->FrontmanReactStatestore.StateReducer.update
 
   // API key settings actions
   | FetchApiKeySettings =>
@@ -1452,20 +1414,14 @@ let next = (state, action) => {
     | Disconnected => state->FrontmanReactStatestore.StateReducer.update
     }
 
-  | ApiKeySettingsFetched({result}) =>
-    switch result {
-    | Ok(source) =>
-      {
-        ...state,
-        openrouterKeySettings: {
-          ...state.openrouterKeySettings,
-          source,
-        },
-      }->FrontmanReactStatestore.StateReducer.update
-    | Error(err) =>
-      Console.error2("[StateReducer] API key settings fetch failed:", err)
-      state->FrontmanReactStatestore.StateReducer.update
-    }
+  | ApiKeySettingsReceived({source}) =>
+    {
+      ...state,
+      openrouterKeySettings: {
+        ...state.openrouterKeySettings,
+        source,
+      },
+    }->FrontmanReactStatestore.StateReducer.update
 
   | SaveOpenRouterKey({key}) =>
     switch state.connectionState {
@@ -1534,28 +1490,22 @@ let next = (state, action) => {
     | Disconnected => state->FrontmanReactStatestore.StateReducer.update
     }
 
-  | ModelsConfigFetched({result}) =>
-    switch result {
-    | Ok(config) =>
-      // Set models config and initialize selected model if not already set
-      let selectedModel = switch state.selectedModel {
-      | Some(model) => Some(model)
-      | None =>
-        // Use default model from config
-        Some({
-          provider: config.defaultModel.provider,
-          value: config.defaultModel.value,
-        }: Client__State__Types.selectedModel)
-      }
-      {
-        ...state,
-        modelsConfig: Some(config),
-        selectedModel,
-      }->FrontmanReactStatestore.StateReducer.update
-    | Error(err) =>
-      Console.error2("[StateReducer] Models config fetch failed:", err)
-      state->FrontmanReactStatestore.StateReducer.update
+  | ModelsConfigReceived({config}) =>
+    // Set models config and initialize selected model if not already set
+    let selectedModel = switch state.selectedModel {
+    | Some(model) => Some(model)
+    | None =>
+      // Use default model from config
+      Some({
+        provider: config.defaultModel.provider,
+        value: config.defaultModel.value,
+      }: Client__State__Types.selectedModel)
     }
+    {
+      ...state,
+      modelsConfig: Some(config),
+      selectedModel,
+    }->FrontmanReactStatestore.StateReducer.update
 
   | SetSelectedModel({model}) =>
     // Save to localStorage for persistence
