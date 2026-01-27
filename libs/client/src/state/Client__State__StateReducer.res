@@ -264,7 +264,7 @@ let saveSelectedModelToStorage = (model: Client__State__Types.selectedModel): un
     let jsonString = S.reverseConvertToJsonStringOrThrow(model, Client__State__Types.selectedModelSchema)
     setStorageItem(selectedModelStorageKey, jsonString)
   } catch {
-  | _ => ()
+  | exn => Console.error2("[saveSelectedModelToStorage] Failed:", exn)
   }
 }
 
@@ -619,7 +619,7 @@ let handleEffect = (effect, state: state, dispatch) => {
           dispatch(UsageInfoReceived({usageInfo: usageInfo}))
         }
       } catch {
-      | _ => ()
+      | exn => Console.error2("[FetchUsageInfo] Failed:", exn)
       }
     }
     fetch()->ignore
@@ -749,7 +749,7 @@ let handleEffect = (effect, state: state, dispatch) => {
           dispatch(ApiKeySettingsReceived({source: source}))
         }
       } catch {
-      | _ => ()
+      | exn => Console.error2("[FetchApiKeySettings] Failed:", exn)
       }
     }
     fetch()->ignore
@@ -804,7 +804,7 @@ let handleEffect = (effect, state: state, dispatch) => {
           dispatch(ModelsConfigReceived({config: config}))
         }
       } catch {
-      | _ => ()
+      | exn => Console.error2("[FetchModelsConfig] Failed:", exn)
       }
     }
     fetch()->ignore
