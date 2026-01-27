@@ -33,9 +33,10 @@ defmodule FrontmanServerWeb.ChannelCase do
   end
 
   setup tags do
-    # Use shared mode if:
-    # - async: false (default behavior), OR
-    # - @tag shared_sandbox: true (for tests spawning processes needing DB access)
+    if tags[:shared_sandbox] && tags[:async] do
+      raise "Cannot combine shared_sandbox: true with async: true - shared sandbox requires synchronous execution"
+    end
+
     shared = tags[:shared_sandbox] || not tags[:async]
     pid = Sandbox.start_owner!(FrontmanServer.Repo, shared: shared)
     on_exit(fn -> Sandbox.stop_owner(pid) end)
