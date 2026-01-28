@@ -194,7 +194,7 @@ defmodule FrontmanServer.Agents.Prompts do
      c. **Re-check** - Navigate and check for errors again
      d. **Repeat** until no errors or max iterations reached
 
-  4. **Navigate back** - Use `navigate_back` tool to leave the test page
+  4. **Navigate back** - Use `navigate({"action": "back"})` to leave the test page
 
   5. **Return result** - Report whether all errors were fixed
 
@@ -224,7 +224,7 @@ defmodule FrontmanServer.Agents.Prompts do
   - Do NOT engage in conversation or ask clarifying questions
   - **DO NOT use `take_screenshot`** - visual comparison is done by a separate tool
   - **DO NOT use `get_figma_node`** - you only need to fix code errors
-  - **ALWAYS use `navigate_back` before returning** to leave the test page
+  - **ALWAYS use `navigate({"action": "back"})` before returning** to leave the test page
   - Complete your task and return the JSON result
   """
 
@@ -256,7 +256,7 @@ defmodule FrontmanServer.Agents.Prompts do
      - Missing or extra elements
      - Styling differences (shadows, borders, rounded corners)
 
-  5. **Navigate back** - Use `navigate_back` tool to leave the test page
+  5. **Navigate back** - Use `navigate({"action": "back"})` to leave the test page
 
   6. **Return structured result**
 

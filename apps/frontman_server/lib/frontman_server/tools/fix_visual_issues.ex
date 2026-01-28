@@ -190,7 +190,7 @@ defmodule FrontmanServer.Tools.FixVisualIssues do
     1. Apply the fixes described in "How to Fix" above
     2. Navigate to `#{test_page_url}`
     3. Take ONE screenshot to verify improvements
-    4. Use `navigate_back` to leave the test page
+    4. Use `navigate({"action": "back"})` to leave the test page
     5. Return a JSON result with:
        - `changesApplied`: Array of changes made
        - `remainingIssues`: Array of issues that couldn't be fixed

@@ -52,8 +52,8 @@ let isBrowserAction = (toolName: string): bool => {
   String.includes(name, "select") ||
   String.includes(name, "press_key") ||
   String.includes(name, "resize") ||
-  // Navigate is an action (except navigate_back which is exploratory)
-  (String.includes(name, "navigate") && !String.includes(name, "navigate_back"))
+  // Navigate is an action
+  String.includes(name, "navigate")
 }
 
 /**
@@ -65,8 +65,7 @@ let isBrowserExploration = (toolName: string): bool => {
   String.includes(name, "snapshot") ||
   String.includes(name, "screenshot") ||
   String.includes(name, "console") ||
-  String.includes(name, "network") ||
-  String.includes(name, "navigate_back")
+  String.includes(name, "network")
 }
 
 /**

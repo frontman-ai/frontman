@@ -127,7 +127,7 @@ defmodule FrontmanServer.Tools.FixFilesErrors do
     2. Use `get_errors` to check for any errors
     3. Fix any errors found in the component files
     4. Repeat until no errors remain (max 5 iterations)
-    5. Use `navigate_back` to leave the test page
+    5. Use `navigate({"action": "back"})` to leave the test page
     6. Return the result as JSON
     """
 

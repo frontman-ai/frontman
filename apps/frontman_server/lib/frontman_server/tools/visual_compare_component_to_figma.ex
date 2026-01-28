@@ -137,7 +137,7 @@ defmodule FrontmanServer.Tools.VisualCompareComponentToFigma do
 
     4. Compare the Figma design image with the implementation screenshot
 
-    5. Use `navigate_back` to leave the test page
+    5. Use `navigate({"action": "back"})` to leave the test page
 
     6. Return a JSON result with:
        - `figmaDesignDescription`: Detailed description of the Figma design

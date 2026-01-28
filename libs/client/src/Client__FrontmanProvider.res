@@ -99,7 +99,6 @@ module Provider = {
         ->MCPServer.registerToolModule(module(Client__Tool__GetFigmaNode))
         ->MCPServer.registerToolModule(module(Client__Tool__TakeScreenshot))
         ->MCPServer.registerToolModule(module(Client__Tool__Navigate))
-        ->MCPServer.registerToolModule(module(Client__Tool__NavigateBack))
 
       let config: Reducer.initConfig = {
         endpoint,
