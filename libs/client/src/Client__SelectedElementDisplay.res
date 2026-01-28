@@ -103,13 +103,10 @@ let make = () => {
       let hasParent = sourceLocation->Option.mapOr(false, loc => loc.parent->Option.isSome)
       let hasHistory = Array.length(history) > 0
       
-      // Get element info for display
+      // Get element info for display using shared utils
       let tagName = element.tagName->String.toLowerCase
-      let elementId = element.id->String.length > 0 ? Some(element.id) : None
-      let elementClass = switch element.className {
-      | "" => None
-      | cn => Some(cn->String.split(" ")->Array.get(0)->Option.getOr(""))
-      }
+      let elementId = Client__WebPreview__Utils.getElementId(element.id)
+      let elementClass = Client__WebPreview__Utils.getFirstClassName(element.className)
 
       <div
         className="px-3 py-2.5 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 border-b border-blue-200/80 dark:border-blue-800/50"

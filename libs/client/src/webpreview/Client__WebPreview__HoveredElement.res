@@ -22,38 +22,22 @@ let make = (~element: option<Null.t<WebAPI.EventAPI.eventTarget>>, ~scrollTimest
     let labelTop = rect.top > 24.0 ? rect.top -. 24.0 : rect.top +. rect.height +. 4.0
 
     // Highlight overlay with label
+    // Note: position/size must remain inline styles since they're dynamic values
     <>
       <div
+        className="absolute bg-blue-500/[0.08] border-[1.5px] border-blue-500/70 rounded-sm pointer-events-none z-[9998] box-border"
         style={
-          position: "absolute",
           left: `${Float.toString(rect.left)}px`,
           top: `${Float.toString(rect.top)}px`,
           width: `${Float.toString(rect.width)}px`,
           height: `${Float.toString(rect.height)}px`,
-          backgroundColor: "rgba(59, 130, 246, 0.08)",
-          border: "1.5px solid rgba(59, 130, 246, 0.7)",
-          borderRadius: "2px",
-          pointerEvents: "none",
-          zIndex: "9998",
-          boxSizing: "border-box",
         }
       />
       <div
+        className="absolute bg-blue-500 text-white text-[11px] font-mono font-medium px-1.5 py-0.5 rounded pointer-events-none z-[9999] whitespace-nowrap shadow"
         style={
-          position: "absolute",
           left: `${Float.toString(rect.left)}px`,
           top: `${Float.toString(labelTop)}px`,
-          backgroundColor: "#3B82F6",
-          color: "white",
-          fontSize: "11px",
-          fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-          fontWeight: "500",
-          padding: "2px 6px",
-          borderRadius: "3px",
-          pointerEvents: "none",
-          zIndex: "9999",
-          whiteSpace: "nowrap",
-          boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
         }
       >
         {React.string(label)}
