@@ -161,7 +161,7 @@ describe("Task - Load State Machine", () => {
     let task = TestHelpers.makeUnloadedTask()
     t->expect(Task.isUnloaded(task))->Expect.toBe(true)
 
-    let loadingTask = TaskReducer.next(task, LoadStarted)
+    let loadingTask = TaskReducer.next(task, LoadStarted({previewUrl: "http://localhost:3000"}))
     t->expect(Task.isLoading(loadingTask))->Expect.toBe(true)
   })
 

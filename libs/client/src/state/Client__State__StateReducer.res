@@ -1293,7 +1293,7 @@ let next = (state: state, action) => {
     | _ => state->FrontmanReactStatestore.StateReducer.update
     }
 
-  | TaskLoadStarted({taskId}) => state->Lens.delegateToTask(Task.Selected(taskId), LoadStarted)
+  | TaskLoadStarted({taskId}) => state->Lens.delegateToTask(Task.Selected(taskId), LoadStarted({previewUrl: getInitialUrl()}))
   | TaskLoadComplete({taskId}) => state->Lens.delegateToTask(Task.Selected(taskId), LoadComplete)
   | TaskLoadError({taskId, error}) => state->Lens.delegateToTask(Task.Selected(taskId), LoadError({error: error}))
   | UserMessageReceived({taskId, id, text, timestamp}) =>

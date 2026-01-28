@@ -304,7 +304,7 @@ type action =
   | PlanReceived({entries: array<ACPTypes.planEntry>})
   | TurnCompleted
   // Load state actions
-  | LoadStarted
+  | LoadStarted({previewUrl: string})
   | LoadComplete
   | LoadError({error: string})
   // Hydration actions
@@ -333,7 +333,7 @@ let actionToString = (action: action): string =>
   | ClearFigmaNodeWaiting => "ClearFigmaNodeWaiting"
   | PlanReceived(_) => "PlanReceived"
   | TurnCompleted => "TurnCompleted"
-  | LoadStarted => "LoadStarted"
+  | LoadStarted(_) => "LoadStarted"
   | LoadComplete => "LoadComplete"
   | LoadError(_) => "LoadError"
   | UserMessageReceived(_) => "UserMessageReceived"
@@ -513,14 +513,14 @@ let next = (task: Task.t, action: action): Task.t => {
   // ============================================================================
   // Load State Transitions
   // ============================================================================
-  | (Task.Unloaded({id, title, createdAt, updatedAt}), LoadStarted) =>
+  | (Task.Unloaded({id, title, createdAt, updatedAt}), LoadStarted({previewUrl})) =>
     Task.Loading({
       id,
       title,
       createdAt,
       updatedAt,
       messages: [],
-      previewFrame: {url: "", contentDocument: None, contentWindow: None},
+      previewFrame: {url: previewUrl, contentDocument: None, contentWindow: None},
       webPreviewIsSelecting: false,
       selectedElement: None,
       figmaNode: FigmaNode.NoSelection,
