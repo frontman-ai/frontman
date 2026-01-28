@@ -106,7 +106,7 @@ let make = () => {
   let messages = Client__State.useSelector(Client__State.Selectors.messages)
   let isStreaming = Client__State.useSelector(Client__State.Selectors.isStreaming)
   let isAgentRunning = Client__State.useSelector(Client__State.Selectors.isAgentRunning)
-  let isConnected = Client__State.useSelector(Client__State.Selectors.isConnected)
+  let hasActiveACPSession = Client__State.useSelector(Client__State.Selectors.hasActiveACPSession)
   let sessionInitialized = Client__State.useSelector(Client__State.Selectors.sessionInitialized)
   let planEntries = Client__State.useSelector(Client__State.Selectors.currentPlanEntries)
   let usageInfo = Client__State.useSelector(Client__State.Selectors.usageInfo)
@@ -126,7 +126,7 @@ let make = () => {
   let (thinkingState, thinkingMessageId) = UseThinkingState.useWithMessageId(
     ~messages,
     ~isStreaming,
-    ~isConnected,
+    ~hasActiveACPSession,
     ~sessionInitialized,
   )
 
@@ -340,7 +340,7 @@ let make = () => {
       onModelChange={(~provider, ~value) =>
         Client__State.Actions.setSelectedModel(~provider, ~value)}
       isAgentRunning
-      isConnected
+      hasActiveACPSession
       disabled={isUsageExhausted}
       disabledPlaceholder="Free requests exhausted. Add your API key in Settings to continue."
     />

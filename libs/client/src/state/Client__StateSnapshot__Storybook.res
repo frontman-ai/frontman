@@ -151,7 +151,7 @@ let snapshotToState = (snapshot: Snapshot.t): StateTypes.state => {
   {
     tasks: tasksDict,
     currentTask,
-    connectionState: Disconnected, // Cannot restore connection from snapshot
+    acpSession: NoAcpSession, // Cannot restore ACP session from snapshot
     sessionInitialized: snapshot.sessionInitialized,
     usageInfo: None,
     openrouterKeySettings: {

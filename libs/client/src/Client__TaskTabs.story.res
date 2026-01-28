@@ -58,7 +58,7 @@ module Fixtures = {
   let emptyState: StateTypes.state = {
     tasks: Dict.make(),
     currentTask: StateTypes.Task.New(StateTypes.Task.makeNew(~previewUrl="http://localhost:3000")),
-    connectionState: Disconnected,
+    acpSession: NoAcpSession,
     sessionInitialized: false,
     usageInfo: None,
     openrouterKeySettings: {

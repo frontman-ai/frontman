@@ -204,7 +204,7 @@ let make = (
   ~selectedModel: option<StateTypes.selectedModel>,
   ~onModelChange: (~provider: string, ~value: string) => unit,
   ~isAgentRunning: bool,
-  ~isConnected: bool,
+  ~hasActiveACPSession: bool,
   ~placeholder: string="What would you like to change?",
   ~disabled: bool=false,
   ~disabledPlaceholder: option<string>=?,
@@ -274,25 +274,25 @@ let make = (
     
     if key == "Enter" && !shiftKey {
       ReactEvent.Keyboard.preventDefault(e)
-      // Don't submit while agent is running or disconnected
-      if !isAgentRunning && isConnected && (value != "" || Array.length(attachments) > 0) {
+      // Don't submit while agent is running or no active session
+      if !isAgentRunning && hasActiveACPSession && (value != "" || Array.length(attachments) > 0) {
         onSubmit()
         setAttachments(_ => [])
       }
     }
   }
-  
+
   // Handle form submit
   let handleSubmit = () => {
-    // Don't submit while agent is running or disconnected
-    if !isAgentRunning && isConnected && (value != "" || Array.length(attachments) > 0) {
+    // Don't submit while agent is running or no active session
+    if !isAgentRunning && hasActiveACPSession && (value != "" || Array.length(attachments) > 0) {
       onSubmit()
       setAttachments(_ => [])
     }
   }
-  
+
   let hasContent = value != "" || Array.length(attachments) > 0
-  let isInputDisabled = !isConnected || isAgentRunning || disabled
+  let isInputDisabled = !hasActiveACPSession || isAgentRunning || disabled
   let isSubmitDisabled = isInputDisabled || !hasContent
   
   // Determine placeholder text based on state

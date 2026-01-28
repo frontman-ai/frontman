@@ -87,13 +87,13 @@ module Actions = {
 
   let clearFigmaNodeWaiting = () => Client__State__Store.dispatch(ClearFigmaNodeWaiting)
 
-  // Connection action creators
-  let connect = (~sendPrompt, ~loadTask, ~deleteSession, ~apiBaseUrl) =>
+  // ACP session action creators
+  let setAcpSession = (~sendPrompt, ~loadTask, ~deleteSession, ~apiBaseUrl) =>
     Client__State__Store.dispatch(
-      Connect({sendPrompt, loadTask, deleteSession, apiBaseUrl}),
+      SetAcpSession({sendPrompt, loadTask, deleteSession, apiBaseUrl}),
     )
 
-  let disconnect = () => Client__State__Store.dispatch(Disconnect)
+  let clearAcpSession = () => Client__State__Store.dispatch(ClearAcpSession)
 
   // Task loading action creators
   let taskLoadStarted = (~taskId) =>

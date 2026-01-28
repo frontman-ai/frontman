@@ -27,7 +27,7 @@ module TestHelpers = {
       {
         tasks,
         currentTask: Task.Selected(taskId),
-        connectionState: Disconnected,
+        acpSession: NoAcpSession,
         sessionInitialized: false,
         usageInfo: None,
         openrouterKeySettings: {
@@ -748,7 +748,7 @@ describe("Client State Reducer - Task Management Actions", () => {
     let state: Reducer.state = {
       tasks,
       currentTask: Task.Selected("task-1"),
-      connectionState: Disconnected,
+      acpSession: NoAcpSession,
       sessionInitialized: false,
       usageInfo: None,
       openrouterKeySettings: {
@@ -794,7 +794,7 @@ describe("Client State Reducer - Task Management Actions", () => {
     let state: Reducer.state = {
       tasks,
       currentTask: Task.Selected("task-1"),
-      connectionState: Disconnected,
+      acpSession: NoAcpSession,
       sessionInitialized: false,
       usageInfo: None,
       openrouterKeySettings: {
@@ -830,7 +830,7 @@ describe("Client State Reducer - Task Management Actions", () => {
     let state: Reducer.state = {
       tasks,
       currentTask: Task.Selected("task-1"),
-      connectionState: Disconnected,
+      acpSession: NoAcpSession,
       sessionInitialized: false,
       usageInfo: None,
       openrouterKeySettings: {
@@ -942,7 +942,7 @@ describe("Client State Reducer - Session Loading Actions", () => {
     let state: Reducer.state = {
       tasks,
       currentTask: Task.Selected("session-1"),
-      connectionState: Disconnected,
+      acpSession: NoAcpSession,
       sessionInitialized: false,
       usageInfo: None,
       openrouterKeySettings: {
@@ -1028,7 +1028,7 @@ describe("Client State Reducer - Session Loading Actions", () => {
     let state: Reducer.state = {
       tasks,
       currentTask: Task.Selected("task-123"),
-      connectionState: Disconnected,
+      acpSession: NoAcpSession,
       sessionInitialized: false,
       usageInfo: None,
       openrouterKeySettings: {

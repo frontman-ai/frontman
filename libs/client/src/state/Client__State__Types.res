@@ -40,13 +40,13 @@ type loadTaskFn = (string, ~needsHistory: bool, ~onComplete: result<unit, string
 // onComplete: called when deletion finishes (success or error)
 type deleteSessionFn = (string, ~onComplete: result<unit, string> => unit) => unit
 
-// Connection state for the Frontman ACP session
+// ACP session state - stores callbacks for API operations when session is active
 // Note: sessionId is NOT stored here - it's managed by ConnectionReducer (ACP layer)
 // Tasks store their own ID which equals the ACP session ID
-// apiBaseUrl is co-located with Connected to make illegal state (Connected + no apiBaseUrl) unrepresentable
-type connectionState =
-  | Disconnected
-  | Connected({
+// apiBaseUrl is co-located with AcpSessionActive to make illegal state (active + no apiBaseUrl) unrepresentable
+type acpSession =
+  | NoAcpSession
+  | AcpSessionActive({
       sendPrompt: sendPromptFn,
       loadTask: loadTaskFn,
       deleteSession: deleteSessionFn,
@@ -133,7 +133,7 @@ type sessionsLoadState =
 type state = {
   tasks: Dict.t<Task.t>,
   currentTask: Task.currentTask,
-  connectionState: connectionState,
+  acpSession: acpSession,
   sessionInitialized: bool,
   usageInfo: option<usageInfo>,
   openrouterKeySettings: apiKeySettings,
