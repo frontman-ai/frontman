@@ -380,7 +380,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
       assert_push "acp:message", %{"id" => 1, "result" => %{}}
     end
 
-    test "streams agent message history with full lifecycle", %{
+    test "streams agent message history", %{
       socket: socket,
       scope: scope,
       task_id: task_id
@@ -390,15 +390,8 @@ defmodule FrontmanServerWeb.TasksChannelTest do
 
       push(socket, "acp:message", acp_request(1, "session/load", %{"sessionId" => task_id}))
 
-      # Response 1: start -> chunk -> end
-      assert_push "acp:message", %{
-        "method" => "session/update",
-        "params" => %{
-          "sessionId" => ^task_id,
-          "update" => %{"sessionUpdate" => "agent_message_start"}
-        }
-      }
-
+      # Per ACP spec: only agent_message_chunk exists (no start/end markers)
+      # Client's LoadComplete handler finalizes any streaming messages
       assert_push "acp:message", %{
         "method" => "session/update",
         "params" => %{
@@ -414,35 +407,10 @@ defmodule FrontmanServerWeb.TasksChannelTest do
         "method" => "session/update",
         "params" => %{
           "sessionId" => ^task_id,
-          "update" => %{"sessionUpdate" => "agent_message_end"}
-        }
-      }
-
-      # Response 2: start -> chunk -> end
-      assert_push "acp:message", %{
-        "method" => "session/update",
-        "params" => %{
-          "sessionId" => ^task_id,
-          "update" => %{"sessionUpdate" => "agent_message_start"}
-        }
-      }
-
-      assert_push "acp:message", %{
-        "method" => "session/update",
-        "params" => %{
-          "sessionId" => ^task_id,
           "update" => %{
             "sessionUpdate" => "agent_message_chunk",
             "content" => %{"text" => "Response 2"}
           }
-        }
-      }
-
-      assert_push "acp:message", %{
-        "method" => "session/update",
-        "params" => %{
-          "sessionId" => ^task_id,
-          "update" => %{"sessionUpdate" => "agent_message_end"}
         }
       }
 
@@ -471,11 +439,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
         }
       }
 
-      # Agent response with full lifecycle: start -> chunk -> end
-      assert_push "acp:message", %{
-        "params" => %{"update" => %{"sessionUpdate" => "agent_message_start"}}
-      }
-
+      # Per ACP spec: only agent_message_chunk exists (no start/end markers)
       assert_push "acp:message", %{
         "params" => %{
           "update" => %{
@@ -483,10 +447,6 @@ defmodule FrontmanServerWeb.TasksChannelTest do
             "content" => %{"text" => "Answer"}
           }
         }
-      }
-
-      assert_push "acp:message", %{
-        "params" => %{"update" => %{"sessionUpdate" => "agent_message_end"}}
       }
 
       assert_push "acp:message", %{"id" => 1, "result" => %{}}

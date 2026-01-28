@@ -916,6 +916,25 @@ module Scroll = {
   }
 }
 
+// Helper to safely get iframe contentWindow - returns None for cross-origin iframes
+// Cross-origin iframes throw SecurityError when accessing contentWindow properties
+let getIframeWindowSafe: WebAPI.DOMAPI.element => option<WebAPI.DOMAPI.window> = %raw(`
+  function(iframe) {
+    try {
+      var win = iframe.contentWindow;
+      // Verify we have access by reading location (throws if cross-origin)
+      if (win && win.location && win.location.href) {
+        return win;
+      }
+      return undefined;
+    } catch (e) {
+      // Expected for cross-origin iframes - log for debugging
+      console.debug('[useIFrameLocation] Cross-origin iframe access denied:', e.message);
+      return undefined;
+    }
+  }
+`)
+
 let useIFrameLocation = (~iframeRef: Nullable.t<WebAPI.DOMAPI.element>) => {
   let (location, setLocation) = React.useState(() => None)
 
@@ -923,15 +942,11 @@ let useIFrameLocation = (~iframeRef: Nullable.t<WebAPI.DOMAPI.element>) => {
     let iframeWindow =
       iframeRef
       ->Nullable.toOption
-      ->Option.flatMap(iframe =>
-        WebAPI.Element.unsafeAsHTMLIFrameElement(iframe)
-        ->WebAPI.HTMLIFrameElement.contentWindow
-        ->Null.toOption
-      )
+      ->Option.flatMap(iframe => getIframeWindowSafe(iframe))
 
     switch iframeWindow {
     | Some(iframeWindow) =>
-      // Get initial location
+      // Get initial location (safe since getIframeWindowSafe verified access)
       let initialLocation = Some(iframeWindow->WebAPI.Window.location->WebAPI.Location.href)
       setLocation(_ => initialLocation)
 

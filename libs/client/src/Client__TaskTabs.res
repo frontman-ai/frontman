@@ -55,19 +55,26 @@ let make = () => {
   // Tab rendering function - memoized to avoid recreating on every render
   let renderTab = React.useCallback2(
     (task: Client__State__StateReducer.Task.t, isEditing: bool) => {
+      // Tasks in the dict always have IDs (not New tasks)
+      let taskId =
+        Client__Task__Types.Task.getId(task)->Option.getOrThrow(
+          ~message="[TaskTabs] Task in dict has no ID",
+        )
+      let taskTitle = Client__Task__Types.Task.getTitle(task)->Option.getOr("Untitled")
+
       let handleDoubleClick = (_e: ReactEvent.Mouse.t) => {
-        setEditingTaskId(_ => Some(task.id))
+        setEditingTaskId(_ => Some(taskId))
       }
 
       <UI.TabsTrigger
-        key={task.id}
-        value={task.id}
+        key={taskId}
+        value={taskId}
         className="min-w-[80px] max-w-[120px] px-2 flex items-center gap-2 relative group cursor-pointer bg-transparent data-[state=active]:bg-transparent"
       >
         {isEditing
           ? <Input.Input
               autoFocus={true}
-              defaultValue={task.title}
+              defaultValue={taskTitle}
               className="max-w-[90px] text-xs"
               onKeyDown={e => {
                 let key = e->ReactEvent.Keyboard.key
@@ -75,7 +82,7 @@ let make = () => {
                   let target = ReactEvent.Keyboard.target(e)
                   let newTitle = target["value"]->String.trim
                   if String.length(newTitle) > 0 {
-                    Client__State.Actions.updateTaskTitle(~taskId=task.id, ~title=newTitle)
+                    Client__State.Actions.updateTaskTitle(~taskId, ~title=newTitle)
                   }
                   setEditingTaskId(_ => None)
                   ReactEvent.Keyboard.preventDefault(e)
@@ -88,7 +95,7 @@ let make = () => {
                 let target = ReactEvent.Focus.target(e)
                 let newTitle = target["value"]->String.trim
                 if String.length(newTitle) > 0 {
-                  Client__State.Actions.updateTaskTitle(~taskId=task.id, ~title=newTitle)
+                  Client__State.Actions.updateTaskTitle(~taskId, ~title=newTitle)
                 }
                 setEditingTaskId(_ => None)
               }}
@@ -98,11 +105,11 @@ let make = () => {
                 className="truncate max-w-[90px] text-xs cursor-pointer"
                 onDoubleClick={handleDoubleClick}
               >
-                {React.string(task.title)}
+                {React.string(taskTitle)}
               </span>
               <span
                 className="ml-auto p-0.5 rounded-sm opacity-0 group-hover:opacity-100 data-[state=active]:opacity-100 hover:bg-accent transition-opacity duration-150 cursor-pointer"
-                onClick={e => handleDeleteClick(e, task.id)}
+                onClick={e => handleDeleteClick(e, taskId)}
               >
                 <Icons.Cross2Icon style={{"width": "14px", "height": "14px"}} />
               </span>
@@ -121,7 +128,9 @@ let make = () => {
         className="h-full w-full rounded-none justify-start overflow-x-auto bg-transparent p-0"
       >
         {tasks
-        ->Array.map(task => renderTab(task, editingTaskId == Some(task.id)))
+        ->Array.map(task =>
+          renderTab(task, editingTaskId == Client__Task__Types.Task.getId(task))
+        )
         ->React.array}
         <Button.Button
           variant=#ghost size=#sm onClick={handleNewTask} className="cursor-pointer gap-1"

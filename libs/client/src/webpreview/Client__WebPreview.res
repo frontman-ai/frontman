@@ -93,6 +93,7 @@ let make = () => {
   let allTasks = Client__State.useSelector(Client__State.Selectors.tasks)
   let previewUrl = Client__State.useSelector(Client__State.Selectors.previewUrl)
   let previewFrame = Client__State.useSelector(Client__State.Selectors.previewFrame)
+  let isNewTask = Client__State.useSelector(Client__State.Selectors.isNewTask)
   let webPreviewIsSelecting = Client__State.useSelector(
     Client__State.Selectors.webPreviewIsSelecting,
   )
@@ -163,18 +164,18 @@ let make = () => {
         | _ => React.null
         }}
 
-        {React.useMemo2(
-          () =>
-            allTasks
-            ->Array.map(task => {
-              let isActive = currentTaskId->Option.mapOr(false, id => id == task.id)
-              <Client__WebPreview__Body
-                key={task.id} taskId={task.id} url={task.previewFrame.url} isActive={isActive}
-              />
-            })
-            ->React.array,
-          (allTasks, currentTaskId),
-        )}
+        {isNewTask
+          ? <Client__WebPreview__Body key="__new__" taskId="__new__" url={previewFrame.url} isActive={true} />
+          : React.null}
+        {allTasks
+          ->Array.map(task => {
+            let taskId = Client__Task__Types.Task.getId(task)->Option.getOrThrow
+            let taskPreviewFrame = Client__Task__Types.Task.getPreviewFrame(task, ~defaultUrl="http://localhost:3000")
+            <Client__WebPreview__Body
+              key={taskId} taskId={taskId} url={taskPreviewFrame.url} isActive={currentTaskId == Some(taskId)}
+            />
+          })
+          ->React.array}
       </div>
     </Nav.Container>
 

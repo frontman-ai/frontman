@@ -36,17 +36,12 @@ let execute = async (input: input): toolResult<output> => {
   let state = FrontmanReactStatestore.StateStore.getState(Client__State__Store.store)
 
   // Get the current task's preview frame
-  let previewFrame =
-    state.currentTaskId
-    ->Option.flatMap(taskId => Dict.get(state.tasks, taskId))
-    ->Option.map(task => task.previewFrame)
+  let previewFrame = Client__State__StateReducer.Selectors.previewFrame(state)
 
-  switch previewFrame {
+  switch previewFrame.contentWindow {
   | None =>
-    Ok({success: false, navigatedTo: None, error: Some("No active task with preview frame")})
-  | Some({contentWindow: None, _}) =>
     Ok({success: false, navigatedTo: None, error: Some("Preview frame window not available")})
-  | Some({contentWindow: Some(win), _}) =>
+  | Some(win) =>
     try {
       setLocationHref(win, input.url)
       Ok({success: true, navigatedTo: Some(input.url), error: None})

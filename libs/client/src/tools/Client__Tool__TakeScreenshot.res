@@ -27,16 +27,12 @@ let execute = async (input: input): toolResult<output> => {
   let state = FrontmanReactStatestore.StateStore.getState(Client__State__Store.store)
 
   // Get the current task's preview frame
-  let previewFrame =
-    state.currentTaskId
-    ->Option.flatMap(taskId => Dict.get(state.tasks, taskId))
-    ->Option.map(task => task.previewFrame)
+  let previewFrame = Client__State__StateReducer.Selectors.previewFrame(state)
 
-  switch previewFrame {
-  | None => Ok({screenshot: None, error: Some("No active task with preview frame")})
-  | Some({contentDocument: None, _}) =>
+  switch previewFrame.contentDocument {
+  | None =>
     Ok({screenshot: None, error: Some("Preview frame document not available")})
-  | Some({contentDocument: Some(doc), _}) =>
+  | Some(doc) =>
     // Get the element to screenshot
     let elementResult = switch input.selector {
     | Some(selector) =>

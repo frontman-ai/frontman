@@ -23,23 +23,15 @@ end
 
 defimpl ACPHistory, for: Interaction.AgentResponse do
   def to_history_items(%Interaction.AgentResponse{content: content}, session_id) do
-    # Emit full message lifecycle: start -> chunk -> end
-    # This ensures client state machine transitions properly from Streaming to Completed
+    # Per ACP spec: only agent_message_chunk exists (no start/end markers)
+    # Client's LoadComplete handler will finalize any streaming messages
     [
-      JsonRpc.notification("session/update", %{
-        "sessionId" => session_id,
-        "update" => %{"sessionUpdate" => "agent_message_start"}
-      }),
       JsonRpc.notification("session/update", %{
         "sessionId" => session_id,
         "update" => %{
           "sessionUpdate" => "agent_message_chunk",
           "content" => %{"type" => "text", "text" => content}
         }
-      }),
-      JsonRpc.notification("session/update", %{
-        "sessionId" => session_id,
-        "update" => %{"sessionUpdate" => "agent_message_end"}
       })
     ]
   end

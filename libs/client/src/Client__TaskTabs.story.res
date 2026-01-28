@@ -35,30 +35,29 @@ module Fixtures = {
       []
     }
 
-    {
+    // Use the Loaded variant constructor
+    StateReducer.Task.Loaded({
       id,
       title,
       createdAt,
       updatedAt,
+      messages,
       previewFrame: {
         url: "http://localhost:3000",
         contentDocument: None,
         contentWindow: None,
       },
-      loadState: StateReducer.Task.Loaded({
-        messages,
-        webPreviewIsSelecting: false,
-        selectedElement: None,
-        figmaNode: StateTypes.FigmaNode.NoSelection,
-        isAgentRunning: false,
-        planEntries: [],
-      }),
-    }
+      webPreviewIsSelecting: false,
+      selectedElement: None,
+      figmaNode: StateTypes.FigmaNode.NoSelection,
+      isAgentRunning: false,
+      planEntries: [],
+    })
   }
 
   let emptyState: StateTypes.state = {
     tasks: Dict.make(),
-    currentTaskId: None,
+    currentTask: StateTypes.Task.New(StateTypes.Task.makeNew(~previewUrl="http://localhost:3000")),
     connectionState: Disconnected,
     sessionInitialized: false,
     usageInfo: None,
@@ -74,11 +73,20 @@ module Fixtures = {
 
   let stateWithTasks = (~tasks: array<StateReducer.Task.t>, ~currentTaskId=?): StateTypes.state => {
     let tasksDict = Dict.make()
-    tasks->Array.forEach(task => tasksDict->Dict.set(task.id, task))
+    tasks->Array.forEach(task => {
+      let taskId = StateTypes.Task.getId(task)->Option.getOrThrow(
+        ~message="[Fixtures] Task must have ID",
+      )
+      tasksDict->Dict.set(taskId, task)
+    })
+    let currentTask = switch currentTaskId {
+    | Some(id) => StateTypes.Task.Selected(id)
+    | None => StateTypes.Task.New(StateTypes.Task.makeNew(~previewUrl="http://localhost:3000"))
+    }
     {
       ...emptyState,
       tasks: tasksDict,
-      currentTaskId,
+      currentTask,
     }
   }
 }

@@ -417,9 +417,18 @@ let convertMessage = (msg: Client__State__Types.Message.t): Message.t => {
   }
 }
 
-let convertTask = (task: Client__State__Types.Task.t): Task.t => {
+let convertTask = (task: Client__State__Types.Task.t, ~defaultUrl: string): Task.t => {
+  module Task = Client__State__Types.Task
+
+  // Only persisted tasks should be converted (not New tasks)
+  // Use getOrThrow since this is called from state.tasks dict which only has persisted tasks
+  let id = Task.getId(task)->Option.getOrThrow(~message="[convertTask] Cannot convert New task - no ID")
+  let title = Task.getTitle(task)->Option.getOrThrow(~message="[convertTask] Cannot convert New task - no title")
+  let createdAt = Task.getCreatedAt(task)->Option.getOrThrow(~message="[convertTask] Cannot convert New task - no createdAt")
+  let updatedAt = Task.getUpdatedAt(task)->Option.getOrThrow(~message="[convertTask] Cannot convert New task - no updatedAt")
+
   // Get loaded data if available
-  let loadedData = Client__State__Types.Task.getLoadedData(task)
+  let loadedData = Task.getLoadedData(task)
 
   // Messages are already maintained in sorted order
   let messages =
@@ -427,15 +436,15 @@ let convertTask = (task: Client__State__Types.Task.t): Task.t => {
     ->Option.mapOr([], data => data.messages->Array.map(convertMessage))
 
   {
-    id: task.id,
-    title: task.title,
+    id,
+    title,
     messages,
-    createdAt: task.createdAt,
-    updatedAt: task.updatedAt,
+    createdAt,
+    updatedAt,
     webPreviewIsSelecting: loadedData->Option.mapOr(false, d => d.webPreviewIsSelecting),
     selectedElement: loadedData->Option.flatMap(d => d.selectedElement)->Option.map(convertSelectedElement),
     figmaNode: convertFigmaNode(loadedData->Option.mapOr(Client__State__Types.FigmaNode.NoSelection, d => d.figmaNode)),
-    previewUrl: task.previewFrame.url,
+    previewUrl: Task.getPreviewFrame(task, ~defaultUrl).url,
   }
 }
 
@@ -445,11 +454,17 @@ let convertTask = (task: Client__State__Types.Task.t): Task.t => {
 
 /** Capture a snapshot from the live state */
 let captureFromState = (state: Client__State__Types.state): t => {
-  let tasks = state.tasks->Dict.valuesToArray->Array.map(convertTask)
+  let defaultUrl = Client__State__StateReducer.getInitialUrl()
+  let tasks = state.tasks->Dict.valuesToArray->Array.map(task => convertTask(task, ~defaultUrl))
+
+  let currentTaskId = switch state.currentTask {
+  | Client__State__Types.Task.New(_) => None
+  | Client__State__Types.Task.Selected(id) => Some(id)
+  }
 
   {
     tasks,
-    currentTaskId: state.currentTaskId,
+    currentTaskId,
     sessionInitialized: state.sessionInitialized,
     capturedAt: Date.now(),
   }

@@ -121,11 +121,11 @@ module Provider = {
       let taskId = sessionId
       switch update {
       | AgentMessageChunk({content}) =>
+        // Per ACP spec: first agent_message_chunk implicitly signals message start.
+        // Message end is signaled by session/prompt response with stopReason.
         content->Option.flatMap(c => c.text)->Option.forEach(text => {
           Client__State.Actions.textDeltaReceived(~taskId, ~text)
         })
-      | AgentMessageStart => Client__State.Actions.streamingStarted(~taskId)
-      | AgentMessageEnd => Client__State.Actions.messageCompleted(~taskId)
       | UserMessageChunk({content, timestamp}) =>
         content.text->Option.forEach(text => {
           let id = `user-hydrated-${WebAPI.Global.crypto->WebAPI.Crypto.randomUUID}`

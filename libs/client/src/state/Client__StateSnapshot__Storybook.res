@@ -112,25 +112,24 @@ let convertTask = (task: Snapshot.Task.t): StateTypes.Task.t => {
   // Convert messages array
   let messages = task.messages->Array.map(convertMessage)
 
-  {
+  // Create a Loaded task using the variant constructor
+  StateTypes.Task.Loaded({
     id: task.id,
     title: task.title,
     createdAt: task.createdAt,
     updatedAt: task.updatedAt,
+    messages,
     previewFrame: {
       url: task.previewUrl,
       contentDocument: None,
       contentWindow: None,
     },
-    loadState: StateTypes.Task.Loaded({
-      messages,
-      webPreviewIsSelecting: task.webPreviewIsSelecting,
-      selectedElement: None, // Cannot restore DOM element from snapshot
-      figmaNode: convertFigmaNode(task.figmaNode),
-      isAgentRunning: false, // Default to not running when restoring from snapshot
-      planEntries: [], // Plan entries not stored in snapshots yet
-    }),
-  }
+    webPreviewIsSelecting: task.webPreviewIsSelecting,
+    selectedElement: None, // Cannot restore DOM element from snapshot
+    figmaNode: convertFigmaNode(task.figmaNode),
+    isAgentRunning: false, // Default to not running when restoring from snapshot
+    planEntries: [], // Plan entries not stored in snapshots yet
+  })
 }
 
 /** Convert a snapshot to live state */
@@ -141,9 +140,17 @@ let snapshotToState = (snapshot: Snapshot.t): StateTypes.state => {
     tasksDict->Dict.set(task.id, liveTask)
   })
 
+  // Convert currentTaskId to currentTask type
+  let currentTask = switch snapshot.currentTaskId {
+  | Some(id) => StateTypes.Task.Selected(id)
+  | None =>
+    // No current task in snapshot - create a new ephemeral task
+    StateTypes.Task.New(StateTypes.Task.makeNew(~previewUrl="http://localhost:3000"))
+  }
+
   {
     tasks: tasksDict,
-    currentTaskId: snapshot.currentTaskId,
+    currentTask,
     connectionState: Disconnected, // Cannot restore connection from snapshot
     sessionInitialized: snapshot.sessionInitialized,
     usageInfo: None,
