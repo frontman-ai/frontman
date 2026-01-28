@@ -62,11 +62,11 @@ describe("Task - Single Streaming Message Invariant", () => {
     }
   })
 
-  test("MessageCompleted converts streaming to completed", t => {
+  test("TurnCompleted converts streaming to completed", t => {
     let task = TestHelpers.makeLoadedTask()
     let task1 = TaskReducer.next(task, StreamingStarted)
     let task2 = TaskReducer.next(task1, TextDeltaReceived({text: "Hello"}))
-    let task3 = TaskReducer.next(task2, MessageCompleted)
+    let task3 = TaskReducer.next(task2, TurnCompleted)
 
     let messages = TestHelpers.getMessages(task3)
     t->expect(Array.length(messages))->Expect.toBe(1)

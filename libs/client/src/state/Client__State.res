@@ -24,9 +24,6 @@ module Actions = {
       }),
     )
 
-  let messageCompleted = (~taskId) =>
-    Client__State__Store.dispatch(MessageCompleted({taskId: taskId}))
-
   let textDeltaReceived = (~taskId, ~text) =>
     Client__State__Store.dispatch(TextDeltaReceived({taskId, text}))
 

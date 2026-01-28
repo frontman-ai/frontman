@@ -105,7 +105,7 @@ describe("Client State Reducer", () => {
     }
   })
 
-  test("MessageCompleted transitions to Completed variant", t => {
+  test("TurnCompleted transitions to Completed variant", t => {
     let state = TestHelpers.makeStateWithTask(
       ~messages=[
         Reducer.Message.Assistant(Streaming({id: "assistant-1", textBuffer: "Hello world", createdAt: 0.0})),
@@ -113,7 +113,7 @@ describe("Client State Reducer", () => {
     )
 
     let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
-    let action = Reducer.MessageCompleted({taskId: taskId})
+    let action = Reducer.TurnCompleted({taskId: taskId})
     let (nextState, _effects) = Reducer.next(state, action)
 
     let message = TestHelpers.getMessage(nextState, 0)->Option.getOrThrow
@@ -147,7 +147,7 @@ describe("Client State Reducer", () => {
     let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
     let (state, _) = Reducer.next(state, StreamingStarted({taskId: taskId}))
     let (state, _) = Reducer.next(state, TextDeltaReceived({taskId, text: "Hello"}))
-    let (state, _) = Reducer.next(state, MessageCompleted({taskId: taskId}))
+    let (state, _) = Reducer.next(state, TurnCompleted({taskId: taskId}))
 
     let messages = TestHelpers.getMessages(state)
     t->expect(messages->Array.length)->Expect.toBe(2)
@@ -248,7 +248,7 @@ describe("Client State Reducer", () => {
   })
 })
 
-describe("Client State Reducer - MessageCompleted Content Conversion", () => {
+describe("Client State Reducer - TurnCompleted Content Conversion", () => {
   test("handles empty textBuffer correctly", t => {
     let state = TestHelpers.makeStateWithTask(
       ~messages=[
@@ -263,7 +263,7 @@ describe("Client State Reducer - MessageCompleted Content Conversion", () => {
     )
 
     let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
-    let (nextState, _) = Reducer.next(state, MessageCompleted({taskId: taskId}))
+    let (nextState, _) = Reducer.next(state, TurnCompleted({taskId: taskId}))
 
     let message = TestHelpers.getMessage(nextState, 0)->Option.getOrThrow
 
@@ -290,7 +290,7 @@ describe("Client State Reducer - MessageCompleted Content Conversion", () => {
     )
 
     let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
-    let (nextState, _) = Reducer.next(state, MessageCompleted({taskId: taskId}))
+    let (nextState, _) = Reducer.next(state, TurnCompleted({taskId: taskId}))
 
     let messages = TestHelpers.getMessages(nextState)
     switch messages->Array.get(0) {
@@ -321,7 +321,7 @@ describe("Client State Reducer - MessageCompleted Content Conversion", () => {
     )
 
     let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
-    let (nextState, _) = Reducer.next(state, MessageCompleted({taskId: taskId}))
+    let (nextState, _) = Reducer.next(state, TurnCompleted({taskId: taskId}))
 
     let message = TestHelpers.getMessage(nextState, 0)->Option.getOrThrow
 
@@ -365,7 +365,7 @@ describe("Client State Reducer - Streaming Flow", () => {
     let (state, _) = Reducer.next(state, TextDeltaReceived({taskId, text: " world"}))
 
     // 3. Complete message
-    let (state, _) = Reducer.next(state, MessageCompleted({taskId: taskId}))
+    let (state, _) = Reducer.next(state, TurnCompleted({taskId: taskId}))
 
     // Verify: Message ID stayed stable throughout (check second message, first is user)
     let messages = TestHelpers.getMessages(state)

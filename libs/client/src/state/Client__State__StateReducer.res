@@ -34,8 +34,6 @@ type action =
   | ToolInputReceived({taskId: string, id: string, input: JSON.t})
   | ToolResultReceived({taskId: string, id: string, result: JSON.t})
   | ToolErrorReceived({taskId: string, id: string, error: string})
-  // Completion action
-  | MessageCompleted({taskId: string})
   // Preview frame actions
   | SetPreviewUrl({url: string})
   | SetPreviewFrame({
@@ -255,7 +253,6 @@ let actionToString = action => {
   | ToolInputReceived({taskId, id, _}) => `ToolInputReceived(${taskId}, ${id})`
   | ToolResultReceived({taskId, id}) => `ToolResultReceived(${taskId}, ${id})`
   | ToolErrorReceived({taskId, id}) => `ToolErrorReceived(${taskId}, ${id})`
-  | MessageCompleted({taskId}) => `MessageCompleted(${taskId})`
   | SetPreviewUrl({url}) => `SetPreviewUrl(${url})`
   | SetPreviewFrame(_) => `SetPreviewFrame(contentDocument, contentWindow)`
   | ToggleWebPreviewSelection => `ToggleWebPreviewSelection`
@@ -389,14 +386,6 @@ module Selectors = {
       }
     })
 
-  let streamingMessages = (state: state) =>
-    messages(state)->Array.filterMap(msg => {
-      switch msg {
-      | Assistant(Streaming(_) as streaming) => Some(streaming)
-      | _ => None
-      }
-    })
-
   let lastMessage = (state: state) => {
     let msgs = messages(state)
     msgs->Array.get(Array.length(msgs) - 1)
@@ -494,12 +483,6 @@ let handleEffect = (effect, state: state, dispatch) => {
         state.tasks
         ->Dict.get(taskId)
         ->Option.mapOr([], Client__State__Types.taskToContentBlocks)
-
-      let streamingMessages = Selectors.streamingMessages(state)
-      switch streamingMessages[Array.length(streamingMessages) - 1] {
-      | Some(Message.Streaming(_)) => dispatch(MessageCompleted({taskId: taskId}))
-      | Some(Message.Completed(_)) | None => ()
-      }
 
       // Include runtime config metadata (e.g., openrouterKeyValue) with each prompt
       let runtimeConfig = Client__RuntimeConfig.read()
@@ -961,7 +944,6 @@ let next = (state: state, action) => {
   | ToolInputReceived({taskId, id, input}) => state->Lens.delegateToTask(Task.Selected(taskId), ToolInputReceived({id, input}))
   | ToolResultReceived({taskId, id, result}) => state->Lens.delegateToTask(Task.Selected(taskId), ToolResultReceived({id, result}))
   | ToolErrorReceived({taskId, id, error}) => state->Lens.delegateToTask(Task.Selected(taskId), ToolErrorReceived({id, error}))
-  | MessageCompleted({taskId}) => state->Lens.delegateToTask(Task.Selected(taskId), MessageCompleted)
 
   | SetPreviewUrl({url}) =>
     state->Lens.delegateToTask(state.currentTask, SetPreviewUrl({url: url}))

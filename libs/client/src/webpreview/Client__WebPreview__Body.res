@@ -1,6 +1,5 @@
 @react.component
 let make = (~taskId, ~url, ~isActive) => {
-  let currentTaskId = Client__State.useSelector(Client__State.Selectors.currentTaskId)
   let isSelecting = Client__State.useSelector(Client__State.Selectors.webPreviewIsSelecting)
   let iframeRef: React.ref<Nullable.t<Dom.element>> = React.useRef(Nullable.null)
   let lastLocationRef: React.ref<option<string>> = React.useRef(None)
@@ -34,10 +33,7 @@ let make = (~taskId, ~url, ~isActive) => {
   }, (location, isActive))
 
   let onLoad = (_e: JsxEvent.Image.t) => {
-    // Only update state if this iframe belongs to the current task
-    let shouldUpdate = currentTaskId->Option.mapOr(false, id => id == taskId)
-
-    if shouldUpdate {
+    if isActive {
       iframeRef.current
       ->Nullable.toOption
       ->Option.forEach(iframe => {

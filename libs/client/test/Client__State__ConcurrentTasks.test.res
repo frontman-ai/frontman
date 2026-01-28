@@ -187,7 +187,7 @@ describe("Concurrent Tasks Event Routing", () => {
     t->expect(getStreamingText(taskC))->Expect.toBe("C")
   })
 
-  test("MessageCompleted event routes to correct task", t => {
+  test("TurnCompleted event routes to correct task", t => {
     // Setup: Task A with streaming message, Task B is current
     let taskAId = "task-a"
     let taskBId = "task-b"
@@ -207,7 +207,7 @@ describe("Concurrent Tasks Event Routing", () => {
     )
 
     // Act: Complete the message in Task A
-    let (finalState, _) = StateReducer.next(stateWithText, MessageCompleted({taskId: taskAId}))
+    let (finalState, _) = StateReducer.next(stateWithText, TurnCompleted({taskId: taskAId}))
 
     // Assert: Message in Task A should be completed
     let taskA = finalState.tasks->Dict.get(taskAId)->Option.getOrThrow

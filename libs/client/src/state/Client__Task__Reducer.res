@@ -58,7 +58,13 @@ module Lens = {
       messages->Array.map(msg =>
         switch msg {
         | Message.Assistant(Streaming({id, textBuffer, createdAt})) =>
-          Message.Assistant(Completed({id, content: [AssistantContentPart.Text({text: textBuffer})], createdAt}))
+          // Empty buffer = empty content array (not a Text part with empty string)
+          let content = if String.length(textBuffer) > 0 {
+            [AssistantContentPart.Text({text: textBuffer})]
+          } else {
+            []
+          }
+          Message.Assistant(Completed({id, content, createdAt}))
         | other => other
         }
       )
@@ -267,7 +273,6 @@ type action =
   // Streaming actions
   | StreamingStarted
   | TextDeltaReceived({text: string})
-  | MessageCompleted
   // Tool call actions
   | ToolInputStartReceived({
       id: string,
@@ -311,7 +316,6 @@ let actionToString = (action: action): string =>
   | AddUserMessage(_) => "AddUserMessage"
   | StreamingStarted => "StreamingStarted"
   | TextDeltaReceived(_) => "TextDeltaReceived"
-  | MessageCompleted => "MessageCompleted"
   | ToolCallReceived(_) => "ToolCallReceived"
   | ToolInputStartReceived(_) => "ToolInputStartReceived"
   | ToolInputDeltaReceived(_) => "ToolInputDeltaReceived"
@@ -392,19 +396,6 @@ let next = (task: Task.t, action: action): Task.t => {
       let msgId = `msg_${getTaskIdForError(task)}_${Date.now()->Float.toString}`
       let newMessage = Message.Assistant(Streaming({id: msgId, textBuffer: text, createdAt: Date.now()}))
       Lens.insertMessage(task, newMessage)
-    }
-
-  | (Task.Loading(_) | Task.Loaded(_), MessageCompleted) =>
-    switch Lens.getStreamingMessage(task) {
-    | Some(Message.Streaming({id: msgId, textBuffer, createdAt})) =>
-      let content = if String.length(textBuffer) > 0 {
-        [AssistantContentPart.Text({text: textBuffer})]
-      } else {
-        []
-      }
-      Lens.updateMessage(task, msgId, _ => Message.Assistant(Completed({id: msgId, content, createdAt})))
-    | Some(Message.Completed(_)) => failwith(`[TaskReducer] MessageCompleted but message already Completed in task ${getTaskIdForError(task)}`)
-    | None => failwith(`[TaskReducer] MessageCompleted but no streaming message in task ${getTaskIdForError(task)}`)
     }
 
   | (Task.Loading(_) | Task.Loaded(_), ToolCallReceived({toolCall})) =>
