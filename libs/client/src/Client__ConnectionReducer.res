@@ -145,34 +145,6 @@ let initialState: state = {
 }
 
 module Selectors = {
-  let isACPConnected = (state: state): bool => {
-    switch state.acp {
-    | ACPConnected(_) => true
-    | _ => false
-    }
-  }
-
-  let getACPConnection = (state: state): option<ACP.connection> => {
-    switch state.acp {
-    | ACPConnected(conn) => Some(conn)
-    | _ => None
-    }
-  }
-
-  let isRelayConnected = (state: state): bool => {
-    switch state.relay {
-    | RelayConnected => true
-    | _ => false
-    }
-  }
-
-  let hasActiveSession = (state: state): bool => {
-    switch state.session {
-    | SessionActive(_) => true
-    | _ => false
-    }
-  }
-
   let getSession = (state: state): option<ACP.session> => {
     switch state.session {
     | SessionActive(s) => Some(s)
@@ -186,8 +158,6 @@ module Selectors = {
     | _ => false
     }
   }
-
-  let getMCPServer = (state: state): option<MCPServer.t> => state.mcpServer
 
   // Derive user-facing connection state
   type connectionStatus =

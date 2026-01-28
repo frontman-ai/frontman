@@ -492,8 +492,6 @@ let hasError = (tc: Message.toolCall): bool => {
  */
 let groupToolCalls = (
   toolCalls: array<Message.toolCall>,
-  ~groupReads: bool=true,
-  ~groupTodos: bool=true,
   ~groupSubagents: bool=true,
   ~minGroupSize: int=1,
 ): array<Types.displayItem> => {
@@ -571,24 +569,13 @@ let groupToolCalls = (
     if hasError(tc) {
       false
     } else {
-      let name = String.toLowerCase(tc.toolName)
-
       // Check if it breaks grouping first (mutations)
       if breaksGrouping(tc.toolName) {
         false
       }
       // Check if it's a groupable tool
       else if isGroupableTool(tc.toolName) {
-        // Check groupReads flag for read operations
-        if String.includes(name, "read") && !groupReads {
-          false
-        }
-        // Check groupTodos flag for todo tools
-        else if TodoUtils.isTodoTool(tc.toolName) && !groupTodos {
-          false
-        } else {
-          true
-        }
+        true
       } else {
         false
       }

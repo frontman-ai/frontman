@@ -408,18 +408,6 @@ module Selectors = {
     })
   }
 
-  let recentTasks = (state: state): array<Task.t> => {
-    let currentId = currentTaskId(state)
-    tasks(state)
-    ->Array.filter(task =>
-      switch currentId {
-      | Some(id) => Task.getId(task) != Some(id)
-      | None => true
-      }
-    )
-    ->Array.slice(~start=0, ~end=2)
-  }
-
   // Global state selectors
   let connectionState = (state: state): Client__State__Types.connectionState => {
     state.connectionState
@@ -454,18 +442,6 @@ module Selectors = {
   // Get selected model
   let selectedModel = (state: state): option<Client__State__Types.selectedModel> => {
     state.selectedModel
-  }
-
-  // Get display name for currently selected model
-  let selectedModelDisplayName = (state: state): option<string> => {
-    switch (state.selectedModel, state.modelsConfig) {
-    | (Some(selected), Some(config)) =>
-      config.providers
-      ->Array.flatMap(provider => provider.models)
-      ->Array.find(model => model.value == selected.value)
-      ->Option.map(model => model.displayName)
-    | _ => None
-    }
   }
 
   // Get Anthropic OAuth status
