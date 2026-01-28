@@ -1,55 +1,26 @@
-type elementInfo = {
-  rect: WebAPI.DOMAPI.domRect,
-  tagName: string,
-  id: option<string>,
-  className: option<string>,
-}
-
-let getElementInfo = (element: WebAPI.DOMAPI.element): elementInfo => {
-  let rect = WebAPI.Element.getBoundingClientRect(element)
-  let tagName = element.tagName->String.toLowerCase
-  let id = element.id->String.length > 0 ? Some(element.id) : None
-  let className = switch element.className {
-  | "" => None
-  | cn => Some(cn->String.split(" ")->Array.get(0)->Option.getOr(""))
-  }
-  {rect, tagName, id, className}
-}
-
-let formatLabel = (info: elementInfo): string => {
-  let base = info.tagName
-  let withId = switch info.id {
-  | Some(id) => `${base}#${id}`
-  | None => base
-  }
-  switch info.className {
-  | Some(cn) if cn->String.length > 0 => `${withId}.${cn}`
-  | _ => withId
-  }
-}
-
 @react.component
 let make = (~element: option<Null.t<WebAPI.EventAPI.eventTarget>>, ~scrollTimestamp: float) => {
   let ((info, _scrollTimestamp), setInfo) = React.useState(() => (None, scrollTimestamp))
 
   React.useEffect(() => {
-    element
-    ->Option.flatMap(Null.toOption)
-    ->Option.forEach(target => {
-      let element = WebAPI.EventTarget.asElement(target)
-      setInfo(_ => (Some(getElementInfo(element)), scrollTimestamp))
-    })
+    switch element->Option.flatMap(Null.toOption) {
+    | Some(target) => {
+        let element = WebAPI.EventTarget.asElement(target)
+        setInfo(_ => (Some(Client__WebPreview__Utils.getElementInfo(element)), scrollTimestamp))
+      }
+    | None => setInfo(_ => (None, scrollTimestamp))
+    }
     None
   }, (element, scrollTimestamp, setInfo))
 
   info
   ->Option.map(info => {
     let rect = info.rect
-    let label = formatLabel(info)
-    
+    let label = Client__WebPreview__Utils.formatLabel(info)
+
     // Calculate label position - prefer top-left outside, but adjust if near edges
     let labelTop = rect.top > 24.0 ? rect.top -. 24.0 : rect.top +. rect.height +. 4.0
-    
+
     // Highlight overlay with label
     <>
       <div
