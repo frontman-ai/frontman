@@ -10,9 +10,6 @@ module Constants = FrontmanClient__Transport__Constants
 module Sentry = FrontmanClient__Sentry
 
 type messageDirection = Protocol.messageDirection
-let send = Protocol.Send
-let receive = Protocol.Receive
-
 type config = {
   endpoint: string,
   tokenUrl: string,
@@ -371,18 +368,16 @@ module Decoders = FrontmanClient__Decoders
 // List user's sessions (non-ACP channel message)
 let listSessions = (conn: connection): promise<result<array<Types.sessionSummary>, string>> => {
   Promise.make((resolve, _) => {
-    let pushRef = conn.channel->Channel.push(~event=#list_sessions, ~payload=JSON.Encode.object(Dict.make()))
-    pushRef
-    .receive(~status="ok", ~callback=response => {
+    let pushRef =
+      conn.channel->Channel.push(~event=#list_sessions, ~payload=JSON.Encode.object(Dict.make()))
+    pushRef.receive(~status="ok", ~callback=response => {
       switch response->Decoders.parseSchema(Types.listSessionsResultSchema) {
       | Ok({sessions}) => resolve(Ok(sessions))
       | Error(e) => resolve(Error(e))
       }
-    })
-    .receive(~status="error", ~callback=err => {
+    }).receive(~status="error", ~callback=err => {
       resolve(Error(JSON.stringify(err)))
-    })
-    ->ignore
+    })->ignore
   })
 }
 
@@ -392,10 +387,10 @@ let deleteSession = (conn: connection, sessionId: string): promise<result<unit, 
     let params: Types.deleteSessionParams = {sessionId: sessionId}
     let payload = params->S.reverseConvertToJsonOrThrow(Types.deleteSessionParamsSchema)
     let pushRef = conn.channel->Channel.push(~event=#delete_session, ~payload)
-    pushRef
-    .receive(~status="ok", ~callback=_ => resolve(Ok()))
-    .receive(~status="error", ~callback=err => resolve(Error(JSON.stringify(err))))
-    ->ignore
+    pushRef.receive(~status="ok", ~callback=_ => resolve(Ok())).receive(
+      ~status="error",
+      ~callback=err => resolve(Error(JSON.stringify(err))),
+    )->ignore
   })
 }
 
@@ -410,7 +405,13 @@ let loadSession = async (
   ~onMcpMessage: option<(MCP.messageDirection, JSON.t) => unit>=?,
 ): result<session, string> => {
   // First join the session channel to receive history updates
-  let joinResult = await joinSession(conn, sessionId, ~onUpdate, ~mcpServerInterface?, ~onMcpMessage?)
+  let joinResult = await joinSession(
+    conn,
+    sessionId,
+    ~onUpdate,
+    ~mcpServerInterface?,
+    ~onMcpMessage?,
+  )
 
   switch joinResult {
   | Error(e) => Error(e)
