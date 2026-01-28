@@ -170,7 +170,7 @@ let make = () => {
         {allTasks
           ->Array.map(task => {
             let taskId = Client__Task__Types.Task.getId(task)->Option.getOrThrow
-            let taskPreviewFrame = Client__Task__Types.Task.getPreviewFrame(task, ~defaultUrl="http://localhost:3000")
+            let taskPreviewFrame = Client__Task__Types.Task.getPreviewFrame(task, ~defaultUrl=Client__State__StateReducer.getInitialUrl())
             <Client__WebPreview__Body
               key={taskId} taskId={taskId} url={taskPreviewFrame.url} isActive={currentTaskId == Some(taskId)}
             />
