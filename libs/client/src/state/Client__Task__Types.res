@@ -1,62 +1,10 @@
 // Task domain types - extracted from Client__State__Types for modularity
 S.enableJson()
 
-// Content part types for messages (simplified from Vercel AI SDK)
-module UserContentPart = {
-  type t =
-    | Text({text: string})
-    | Image({image: string, mediaType: option<string>})
-    | File({file: string})
-
-  let text = (text: string): t => Text({text: text})
-}
-
-module AssistantContentPart = {
-  type t =
-    | Text({text: string})
-    | ToolCall({toolCallId: string, toolName: string, input: JSON.t})
-
-  let text = (text: string): t => Text({text: text})
-}
-
-module Message = {
-  type toolCallState =
-    | InputStreaming
-    | InputAvailable
-    | OutputAvailable
-    | OutputError
-
-  type assistantMessage =
-    | Streaming({id: string, textBuffer: string, createdAt: float})
-    | Completed({id: string, content: array<AssistantContentPart.t>, createdAt: float})
-
-  type toolCall = {
-    id: string,
-    toolName: string,
-    state: toolCallState,
-    inputBuffer: string,
-    input: option<JSON.t>,
-    result: option<JSON.t>,
-    errorText: option<string>,
-    createdAt: float,
-    parentAgentId: option<string>, // If present, this is a sub-agent tool call
-    spawningToolName: option<string>, // Tool name that spawned the sub-agent (e.g., "breakdown_figma_design")
-  }
-
-  type t =
-    | User({id: string, content: array<UserContentPart.t>, createdAt: float})
-    | Assistant(assistantMessage)
-    | ToolCall(toolCall)
-
-  let getId = (msg: t): string => {
-    switch msg {
-    | User({id, _}) => id
-    | Assistant(Streaming({id, _})) => id
-    | Assistant(Completed({id, _})) => id
-    | ToolCall({id, _}) => id
-    }
-  }
-}
+// Re-export Message types for backward compatibility
+module UserContentPart = Client__Message.UserContentPart
+module AssistantContentPart = Client__Message.AssistantContentPart
+module Message = Client__Message
 
 module SelectedElement = {
   type t = {
@@ -186,7 +134,7 @@ module Task = {
         title: string,
         createdAt: float,
         updatedAt: float,
-        messages: array<Message.t>,
+        messages: Client__MessageStore.t,
         previewFrame: previewFrame,
         webPreviewIsSelecting: bool,
         selectedElement: option<SelectedElement.t>,
@@ -198,7 +146,7 @@ module Task = {
         title: string,
         createdAt: float,
         updatedAt: float,
-        messages: array<Message.t>,
+        messages: Client__MessageStore.t,
         previewFrame: previewFrame,
         webPreviewIsSelecting: bool,
         selectedElement: option<SelectedElement.t>,
@@ -255,7 +203,7 @@ module Task = {
   let getMessages = (task: t): array<Message.t> =>
     switch task {
     | New(_) | Unloaded(_) => []
-    | Loading({messages}) | Loaded({messages}) => messages
+    | Loading({messages}) | Loaded({messages}) => Client__MessageStore.toArray(messages)
     }
 
   let getPreviewFrame = (task: t, ~defaultUrl: string): previewFrame =>
@@ -361,7 +309,7 @@ module Task = {
         title,
         createdAt,
         updatedAt,
-        messages: [],
+        messages: Client__MessageStore.make(),
         previewFrame: {url: previewUrl, contentDocument: None, contentWindow: None},
         webPreviewIsSelecting: false,
         selectedElement: None,
@@ -386,7 +334,7 @@ module Task = {
         title: normalizeTitle(title),
         createdAt: timestamp,
         updatedAt: timestamp,
-        messages: [firstMessage],
+        messages: Client__MessageStore.fromArray([firstMessage]),
         previewFrame,
         webPreviewIsSelecting,
         selectedElement,
@@ -412,7 +360,7 @@ module Task = {
       title: normalizeTitle(title),
       createdAt,
       updatedAt: createdAt,
-      messages,
+      messages: Client__MessageStore.fromArray(messages),
       previewFrame: {url: previewUrl, contentDocument: None, contentWindow: None},
       webPreviewIsSelecting: false,
       selectedElement: None,
@@ -466,9 +414,9 @@ module Task = {
   let getLoadedData = (task: t): option<loadedData> => {
     switch task {
     | Loaded({messages, webPreviewIsSelecting, selectedElement, figmaNode, isAgentRunning, planEntries}) =>
-      Some({messages, webPreviewIsSelecting, selectedElement, figmaNode, isAgentRunning, planEntries})
+      Some({messages: Client__MessageStore.toArray(messages), webPreviewIsSelecting, selectedElement, figmaNode, isAgentRunning, planEntries})
     | Loading({messages, webPreviewIsSelecting, selectedElement, figmaNode}) =>
-      Some({messages, webPreviewIsSelecting, selectedElement, figmaNode, isAgentRunning: false, planEntries: []})
+      Some({messages: Client__MessageStore.toArray(messages), webPreviewIsSelecting, selectedElement, figmaNode, isAgentRunning: false, planEntries: []})
     | New({webPreviewIsSelecting, selectedElement, figmaNode}) =>
       Some({messages: [], webPreviewIsSelecting, selectedElement, figmaNode, isAgentRunning: false, planEntries: []})
     | Unloaded(_) => None
@@ -478,14 +426,14 @@ module Task = {
   let updateLoadedData = (task: t, fn: loadedData => loadedData): t => {
     switch task {
     | Loaded({id, title, createdAt, updatedAt, messages, previewFrame, webPreviewIsSelecting, selectedElement, figmaNode, isAgentRunning, planEntries}) => {
-        let data = {messages, webPreviewIsSelecting, selectedElement, figmaNode, isAgentRunning, planEntries}
+        let data = {messages: Client__MessageStore.toArray(messages), webPreviewIsSelecting, selectedElement, figmaNode, isAgentRunning, planEntries}
         let updated = fn(data)
         Loaded({
           id,
           title,
           createdAt,
           updatedAt,
-          messages: updated.messages,
+          messages: Client__MessageStore.fromArray(updated.messages),
           previewFrame,
           webPreviewIsSelecting: updated.webPreviewIsSelecting,
           selectedElement: updated.selectedElement,
@@ -495,14 +443,14 @@ module Task = {
         })
       }
     | Loading({id, title, createdAt, updatedAt, messages, previewFrame, webPreviewIsSelecting, selectedElement, figmaNode}) => {
-        let data = {messages, webPreviewIsSelecting, selectedElement, figmaNode, isAgentRunning: false, planEntries: []}
+        let data = {messages: Client__MessageStore.toArray(messages), webPreviewIsSelecting, selectedElement, figmaNode, isAgentRunning: false, planEntries: []}
         let updated = fn(data)
         Loading({
           id,
           title,
           createdAt,
           updatedAt,
-          messages: updated.messages,
+          messages: Client__MessageStore.fromArray(updated.messages),
           previewFrame,
           webPreviewIsSelecting: updated.webPreviewIsSelecting,
           selectedElement: updated.selectedElement,

@@ -41,7 +41,7 @@ module Fixtures = {
       title,
       createdAt,
       updatedAt,
-      messages,
+      messages: Client__MessageStore.fromArray(messages),
       previewFrame: {
         url: "http://localhost:3000",
         contentDocument: None,

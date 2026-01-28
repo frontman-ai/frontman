@@ -109,8 +109,9 @@ let convertMessage = (msg: Snapshot.Message.t): StateTypes.Message.t => {
 }
 
 let convertTask = (task: Snapshot.Task.t): StateTypes.Task.t => {
-  // Convert messages array
+  // Convert messages array and wrap in MessageStore
   let messages = task.messages->Array.map(convertMessage)
+  let messageStore = Client__MessageStore.fromArray(messages)
 
   // Create a Loaded task using the variant constructor
   StateTypes.Task.Loaded({
@@ -118,7 +119,7 @@ let convertTask = (task: Snapshot.Task.t): StateTypes.Task.t => {
     title: task.title,
     createdAt: task.createdAt,
     updatedAt: task.updatedAt,
-    messages,
+    messages: messageStore,
     previewFrame: {
       url: task.previewUrl,
       contentDocument: None,

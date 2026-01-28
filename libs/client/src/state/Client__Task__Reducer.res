@@ -14,9 +14,11 @@ module ACPTypes = Types.ACPTypes
 // Lens Module - Composable state update functions for Task
 // ============================================================================
 
+module MessageStore = Client__MessageStore
+
 module Lens = {
   // Update messages within a task (crashes if New or Unloaded - they have no messages)
-  let updateMessages = (task: Task.t, fn: array<Message.t> => array<Message.t>): Task.t => {
+  let updateMessages = (task: Task.t, fn: MessageStore.t => MessageStore.t): Task.t => {
     switch task {
     | Task.New(_) | Task.Unloaded(_) => failwith("[Lens.updateMessages] Cannot update messages on New/Unloaded task")
     | Task.Loading(data) => Task.Loading({...data, messages: fn(data.messages)})
@@ -24,16 +26,14 @@ module Lens = {
     }
   }
 
-  // Update a specific message by ID
+  // Update a specific message by ID - O(1) lookup via index
   let updateMessage = (task: Task.t, msgId: string, fn: Message.t => Message.t): Task.t => {
-    updateMessages(task, messages =>
-      messages->Array.map(msg => Message.getId(msg) == msgId ? fn(msg) : msg)
-    )
+    updateMessages(task, store => MessageStore.update(store, msgId, fn))
   }
 
   // Insert a message at the end
   let insertMessage = (task: Task.t, message: Message.t): Task.t => {
-    updateMessages(task, messages => messages->Array.concat([message]))
+    updateMessages(task, store => MessageStore.insert(store, message))
   }
 
   // Get the streaming message (at most one per task)
@@ -54,8 +54,8 @@ module Lens = {
   // Complete any streaming message (convert Streaming to Completed)
   // Per ACP spec: message boundaries are signaled by prompt response or next user message
   let completeStreamingMessage = (task: Task.t): Task.t => {
-    updateMessages(task, messages =>
-      messages->Array.map(msg =>
+    updateMessages(task, store =>
+      MessageStore.map(store, msg =>
         switch msg {
         | Message.Assistant(Streaming({id, textBuffer, createdAt})) =>
           // Empty buffer = empty content array (not a Text part with empty string)
@@ -172,7 +172,7 @@ module Selectors = {
     switch task {
     | Task.Unloaded(_) => None
     | Task.New(_) => Some([])
-    | Task.Loading({messages}) | Task.Loaded({messages}) => Some(messages)
+    | Task.Loading({messages}) | Task.Loaded({messages}) => Some(MessageStore.toArray(messages))
     }
   }
 
@@ -495,7 +495,7 @@ let next = (task: Task.t, action: action): Task.t => {
     let message = Message.User({id, content, createdAt: Date.now()})
     Task.Loaded({
       ...data,
-      messages: data.messages->Array.concat([message]),
+      messages: MessageStore.insert(data.messages, message),
       isAgentRunning: true,
     })
 
@@ -519,7 +519,7 @@ let next = (task: Task.t, action: action): Task.t => {
       title,
       createdAt,
       updatedAt,
-      messages: [],
+      messages: MessageStore.make(),
       previewFrame: {url: previewUrl, contentDocument: None, contentWindow: None},
       webPreviewIsSelecting: false,
       selectedElement: None,
@@ -531,7 +531,7 @@ let next = (task: Task.t, action: action): Task.t => {
     // Complete any remaining streaming message, then transition to Loaded
     switch task->Lens.completeStreamingMessage {
     | Task.Loading({id, title, createdAt, updatedAt, messages, previewFrame, webPreviewIsSelecting, selectedElement, figmaNode}) =>
-      let sortedMessages = messages->Array.toSorted((a, b) =>
+      let sortedMessages = MessageStore.toSorted(messages, (a, b) =>
         Selectors.getMessageCreatedAt(a) -. Selectors.getMessageCreatedAt(b)
       )
       Task.Loaded({
