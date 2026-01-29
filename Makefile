@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help install build clean dev test lint dev-client dev-nextjs pull-webapi infra-install infra-preview-marketing infra-up-marketing ssl-setup worktree-create worktree-create-from worktree-list worktree-remove worktree-clean worktree-status worktree-devpod tunnel worktree-urls worktree-hosts worktree-register worktree-registry
+.PHONY: help install build clean dev test lint dev-client dev-nextjs pull-webapi infra-install infra-preview-marketing infra-up-marketing ssl-setup worktree-create worktree-create-from worktree-list worktree-remove worktree-clean worktree-status worktree-devpod tunnel worktree-urls worktree-hosts worktree-register worktree-registry dev-all
 
 help: ## Display available commands
 	@awk 'BEGIN {FS = ":.*##"} /^[a-zA-Z_-]+:.*##/ { printf "  %-15s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
@@ -33,6 +33,9 @@ dev-nextjs: ## Start development server for Next.js test site
 
 dev-extension: ## Start development server for Chrome extension
 	cd apps/chrome-extension && $(MAKE) dev
+
+dev-all: ## Start all core services (client + server + nextjs)
+	mise exec -- process-compose up
 
 pull-webapi: ## Pull latest changes from experimental-rescript-webapi subtree
 	git subtree pull --prefix libs/experimental-rescript-webapi git@github.com:itayadler/experimental-rescript-webapi.git main --squash
