@@ -448,6 +448,20 @@ module Selectors = {
   let anthropicOAuthStatus = (state: state): Client__State__Types.anthropicOAuthStatus => {
     state.anthropicOAuthStatus
   }
+
+  // Whether the user has any API provider configured via state-tracked sources
+  // (DB-stored OpenRouter key or Anthropic OAuth).
+  // Env-injected keys (window.__frontmanRuntime) live outside state — check RuntimeConfig separately.
+  let hasAnyProviderConfigured = (state: state): bool => {
+    switch state.usageInfo {
+    | Some({hasUserKey: Some(true)}) => true
+    | _ =>
+      switch state.anthropicOAuthStatus {
+      | Connected(_) => true
+      | _ => false
+      }
+    }
+  }
 }
 
 let handleEffect = (effect, state: state, dispatch) => {
@@ -1037,6 +1051,7 @@ let next = (state: state, action) => {
       ~sideEffects=[
         FetchUsageInfo({apiBaseUrl: apiBaseUrl}),
         FetchModelsConfigEffect({apiBaseUrl: apiBaseUrl}),
+        FetchAnthropicOAuthStatusEffect({apiBaseUrl: apiBaseUrl}),
       ],
     )
 
