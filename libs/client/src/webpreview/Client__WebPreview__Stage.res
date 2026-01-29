@@ -61,6 +61,31 @@ let make = (~document) => {
     None
   }, (clickedElement, webPreviewIsSelecting))
 
+  // Set crosshair cursor on iframe body during selection mode
+  React.useEffect1(() => {
+    document
+    ->Option.flatMap(doc => WebAPI.Document.body(doc)->Null.toOption)
+    ->Option.forEach(body => {
+      let style = WebAPI.Element.asHTMLElement(body)->WebAPI.HTMLElement.style
+      if webPreviewIsSelecting {
+        WebAPI.CSSStyleDeclaration.setProperty(style, ~property="cursor", ~value="crosshair")
+      } else {
+        WebAPI.CSSStyleDeclaration.removeProperty(style, "cursor")->ignore
+      }
+    })
+
+    Some(
+      () => {
+        document
+        ->Option.flatMap(doc => WebAPI.Document.body(doc)->Null.toOption)
+        ->Option.forEach(body => {
+          let style = WebAPI.Element.asHTMLElement(body)->WebAPI.HTMLElement.style
+          WebAPI.CSSStyleDeclaration.removeProperty(style, "cursor")->ignore
+        })
+      },
+    )
+  }, [webPreviewIsSelecting])
+
   // Selection overlay container
   <div className="pointer-events-none flex-1 absolute top-0 left-0 w-full h-full">
     // Selection mode indicator - subtle border around the preview

@@ -1,4 +1,14 @@
 module Icons = Bindings__RadixUI__Icons
+module Tooltip = Bindings__UI__Tooltip
+
+// Minimal DOM bindings for overflow detection
+@get external scrollWidth: Dom.element => int = "scrollWidth"
+@get external clientWidth: Dom.element => int = "clientWidth"
+
+type resizeObserver
+@new external makeResizeObserver: (unit => unit) => resizeObserver = "ResizeObserver"
+@send external observeEl: (resizeObserver, Dom.element) => unit = "observe"
+@send external disconnectObs: resizeObserver => unit = "disconnect"
 
 @react.component
 let make = () => {
@@ -10,16 +20,30 @@ let make = () => {
   // Track if we're in the middle of a navigation operation
   let isNavigating = React.useRef(false)
 
-  // Clear history when selection changes from OUTSIDE (not from our navigation)
-  // React.useEffect1(() => {
-  //   if !isNavigating.current {
-  //     setHistory(_ => [])
-  //   } else {
-  //     // Reset the flag
-  //     isNavigating.current = false
-  //   }
-  //   None
-  // }, [selectedElement])
+  // Overflow detection for badges container
+  let badgesRef = React.useRef(Nullable.null)
+  let (isOverflowing, setIsOverflowing) = React.useState(() => false)
+
+  // Stable key to re-check overflow when element content changes
+  let elementKey = selectedElement->Option.mapOr("", ({element, _}) =>
+    element.tagName ++ element.id ++ element.className
+  )
+
+  React.useEffect1(() => {
+    switch badgesRef.current->Nullable.toOption {
+    | Some(el) => {
+        let check = () => setIsOverflowing(_ => scrollWidth(el) > clientWidth(el))
+        check()
+        let observer = makeResizeObserver(() => check())
+        observer->observeEl(el)
+        Some(() => disconnectObs(observer))
+      }
+    | None => {
+        setIsOverflowing(_ => false)
+        None
+      }
+    }
+  }, [elementKey])
 
   // Navigate to parent component
   let navigateUp = () => {
@@ -102,11 +126,35 @@ let make = () => {
   | Some({sourceLocation, element, _}) => {
       let hasParent = sourceLocation->Option.mapOr(false, loc => loc.parent->Option.isSome)
       let hasHistory = Array.length(history) > 0
-      
+
       // Get element info for display using shared utils
       let tagName = element.tagName->String.toLowerCase
       let elementId = Client__WebPreview__Utils.getElementId(element.id)
       let elementClass = Client__WebPreview__Utils.getFirstClassName(element.className)
+
+      // Badge rendering helper for reuse in both bar and tooltip
+      let renderBadges = () =>
+        <>
+          <span
+            className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-mono bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 shrink-0 whitespace-nowrap"
+          >
+            {React.string(`<${tagName}>`)}
+          </span>
+          {elementId->Option.mapOr(React.null, id =>
+            <span
+              className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-mono bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 shrink-0 whitespace-nowrap"
+            >
+              {React.string(`#${id}`)}
+            </span>
+          )}
+          {elementClass->Option.mapOr(React.null, cn =>
+            <span
+              className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-mono bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 shrink-0 whitespace-nowrap"
+            >
+              {React.string(`.${cn}`)}
+            </span>
+          )}
+        </>
 
       <div
         className="px-3 py-2.5 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 border-b border-blue-200/80 dark:border-blue-800/50"
@@ -116,8 +164,11 @@ let make = () => {
           <div className="flex-shrink-0 p-1.5 bg-blue-500 rounded-md shadow-sm">
             <Icons.CubeIcon className="size-4 text-white" />
           </div>
-          // Component info
-          <div className="flex-grow min-w-0 flex items-center gap-2">
+          // Component info — badges clipped from the right when space is tight
+          <div
+            ref={ReactDOM.Ref.domRef(badgesRef)}
+            className="flex-grow min-w-0 flex items-center gap-2 overflow-hidden"
+          >
             {sourceLocation->Option.mapOr(
               // No source location - just show element
               <span className="font-mono text-sm text-gray-700 dark:text-gray-300">
@@ -125,34 +176,34 @@ let make = () => {
               </span>,
               loc => {
                 let compName = loc.componentName->Option.getOr(tagName)
-                // Component name and badges
                 <>
-                  <span className="font-semibold text-sm text-blue-900 dark:text-blue-100">
+                  <span
+                    className="font-semibold text-sm text-blue-900 dark:text-blue-100 shrink-0 whitespace-nowrap"
+                  >
                     {React.string(compName)}
                   </span>
-                  <span
-                    className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-mono bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400"
-                  >
-                    {React.string(`<${tagName}>`)}
-                  </span>
-                  {elementId->Option.mapOr(React.null, id =>
-                    <span
-                      className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-mono bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400"
-                    >
-                      {React.string(`#${id}`)}
-                    </span>
-                  )}
-                  {elementClass->Option.mapOr(React.null, cn =>
-                    <span
-                      className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-mono bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400"
-                    >
-                      {React.string(`.${cn}`)}
-                    </span>
-                  )}
+                  {renderBadges()}
                 </>
               },
             )}
           </div>
+          // Overflow indicator — reveals full badge info in a tooltip
+          {isOverflowing
+            ? <Tooltip.Tooltip>
+                <Tooltip.TooltipTrigger asChild=true>
+                  <button
+                    className="flex-shrink-0 px-1.5 py-0.5 rounded text-xs font-mono bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors cursor-default"
+                  >
+                    {React.string(`\u2026`)}
+                  </button>
+                </Tooltip.TooltipTrigger>
+                <Tooltip.TooltipContent sideOffset=4 className="bg-gray-900 text-gray-200 border border-gray-700">
+                  <div className="flex items-center gap-1.5">
+                    {renderBadges()}
+                  </div>
+                </Tooltip.TooltipContent>
+              </Tooltip.Tooltip>
+            : React.null}
           // Navigation controls
           <div className="flex items-center gap-0.5 flex-shrink-0">
             <button
@@ -176,7 +227,7 @@ let make = () => {
             >
               <Icons.ChevronDownIcon className="size-4" />
             </button>
-            
+
             <div className="w-px h-4 bg-gray-200 dark:bg-gray-700 mx-1" />
 
             <button
