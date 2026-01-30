@@ -1,19 +1,50 @@
 {
-	"name": "@frontman/frontman-nextjs",
-	"version": "0.1.0",
+	"name": "@frontman-ai/nextjs",
+	"version": "0.1.4",
+	"description": "Next.js integration for Frontman - AI-powered development tools and observability",
 	"type": "module",
-	"main": "./src/FrontmanNextjs.res.mjs",
+	"main": "./dist/index.js",
 	"exports": {
-		".": "./src/FrontmanNextjs.res.mjs",
-		"./Instrumentation": "./src/FrontmanNextjs__Instrumentation.res.mjs"
+		".": "./dist/index.js",
+		"./Instrumentation": "./dist/instrumentation.js"
+	},
+	"bin": {
+		"frontman-nextjs": "./dist/cli.js",
+		"@frontman-ai/nextjs": "./dist/cli.js"
+	},
+	"keywords": [
+		"frontman",
+		"nextjs",
+		"next.js",
+		"ai",
+		"development",
+		"observability",
+		"opentelemetry",
+		"middleware"
+	],
+	"author": "Frontman",
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/frontman-ai/frontman.git",
+		"directory": "libs/frontman-nextjs"
+	},
+	"homepage": "https://frontman.sh",
+	"bugs": {
+		"url": "https://github.com/frontman-ai/frontman/issues"
+	},
+	"files": [
+		"dist",
+		"README.md"
+	],
+	"scripts": {
+		"build:rescript": "rescript build",
+		"build:bundle": "tsup",
+		"build": "yarn build:rescript && yarn build:bundle",
+		"prepublishOnly": "yarn build"
 	},
 	"dependencies": {
-		"@frontman/frontman-core": "*",
-		"@frontman/frontman-protocol": "*",
-		"@rescript/runtime": "12.0.0-beta.14",
-		"@sentry/nextjs": "^8.0.0",
-		"dom-element-to-component-source": "0.4.2",
-		"sury": "11.0.0-alpha.4"
+		"@sentry/nextjs": "^8.0.0"
 	},
 	"peerDependencies": {
 		"@opentelemetry/api": "^1.9.0",
@@ -32,11 +63,17 @@
 		}
 	},
 	"devDependencies": {
+		"@frontman/frontman-core": "*",
+		"@frontman/frontman-protocol": "*",
+		"@rescript/runtime": "12.0.0-beta.14",
 		"@rescript/webapi": "catalog:",
 		"@vitest/ui": "catalog:",
+		"dom-element-to-component-source": "0.4.2",
 		"rescript": "catalog:",
 		"rescript-vitest": "catalog:",
 		"sentry-testkit": "^5.0.9",
+		"sury": "11.0.0-alpha.4",
+		"tsup": "^8.0.0",
 		"vite": "catalog:",
 		"vitest": "catalog:"
 	}

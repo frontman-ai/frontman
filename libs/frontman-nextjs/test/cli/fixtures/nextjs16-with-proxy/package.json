@@ -1,0 +1,8 @@
+{
+  "name": "nextjs16-with-proxy",
+  "version": "1.0.0",
+  "dependencies": {
+    "next": "^16.0.0",
+    "react": "^19.0.0"
+  }
+}

@@ -1,25 +1,75 @@
-# @frontman/frontman-nextjs
+# @frontman-ai/nextjs
 
 Next.js integration for Frontman - provides development tools and observability for Next.js applications.
 
 ## Installation
 
+### Quick Install (Recommended)
+
+The fastest way to install Frontman is using our CLI installer:
+
 ```bash
-npm install @frontman/frontman-nextjs
+# Using curl (server host is auto-detected from the URL)
+curl https://api.frontman.sh/install/nextjs | bash
+
+# For local development
+curl http://frontman.local:4000/install/nextjs | bash
+
+# Or using npx directly
+npx @frontman-ai/nextjs install --server api.frontman.sh
 ```
+
+The installer will:
+- Detect your Next.js version (15 or 16+)
+- Create the appropriate middleware/proxy file
+- Set up OpenTelemetry instrumentation
+- Configure everything to connect to your Frontman server
+
+### CLI Options
+
+```bash
+npx @frontman-ai/nextjs install [options]
+
+Options:
+  --server <host>   Frontman server host (required)
+  --prefix <path>   Target directory (default: current directory)
+  --dry-run         Preview changes without writing files
+  --skip-deps       Skip dependency installation
+  --help            Show help message
+```
+
+### Manual Installation
+
+If you prefer to set things up manually or need to integrate with an existing configuration:
+
+```bash
+npm install @frontman-ai/nextjs
+```
+
+Then follow the [Manual Setup](#manual-setup) instructions below.
 
 ## Quick Start
 
-### 1. Add Middleware
+After running the installer, you're ready to go! Start your Next.js dev server:
 
-Create or update `middleware.ts` in your Next.js project root:
+```bash
+npm run dev
+```
+
+Then open your browser to `http://localhost:3000/__frontman` to access the Frontman UI.
+
+## Manual Setup
+
+### Next.js 15 (middleware.ts)
+
+Create `middleware.ts` in your project root:
 
 ```typescript
-import { createMiddleware } from '@frontman/frontman-nextjs';
+import { createMiddleware } from '@frontman-ai/nextjs';
 import { NextRequest, NextResponse } from 'next/server';
 
 const frontman = createMiddleware({
-  isDev: process.env.NODE_ENV === 'development',
+  host: 'api.frontman.sh', // or 'frontman.local:4000' for local development
 });
 
 export async function middleware(req: NextRequest) {
@@ -33,22 +83,35 @@ export const config = {
 };
 ```
 
-### 2. Enable OpenTelemetry (Recommended)
+### Next.js 16+ (proxy.ts)
 
-Install OpenTelemetry dependencies:
-
-```bash
-npm install @opentelemetry/sdk-node @opentelemetry/sdk-trace-base @opentelemetry/sdk-logs
-```
-
-Create `instrumentation.ts` in your project root:
+Create `proxy.ts` in your project root:
 
 ```typescript
-import { setup } from '@frontman/frontman-nextjs/Instrumentation';
-import { NodeSDK } from '@opentelemetry/sdk-node';
+import { createMiddleware } from '@frontman-ai/nextjs';
+import { NextRequest, NextResponse } from 'next/server';
 
+const frontman = createMiddleware({
+  host: 'api.frontman.sh', // or 'frontman.local:4000' for local development
+});
+
+export function proxy(req: NextRequest): NextResponse | Promise<NextResponse> {
+  if (req.nextUrl.pathname.startsWith('/__frontman')) {
+    return frontman(req) || NextResponse.next();
+  }
+  return NextResponse.next();
+}
+```
+
+### OpenTelemetry Setup (Recommended)
+
+Create `instrumentation.ts` in your project root (or `src/` if you use that directory):
+
+```typescript
 export async function register() {
   if (process.env.NEXT_RUNTIME === 'nodejs') {
+    const { NodeSDK } = await import('@opentelemetry/sdk-node');
+    const { setup } = await import('@frontman-ai/nextjs/Instrumentation');
     const [logProcessor, spanProcessor] = setup();
     new NodeSDK({
       logRecordProcessors: [logProcessor],
@@ -59,9 +122,99 @@ export async function register() {
 ```
 
 **That's it!** Frontman will now:
-- ✅ Capture console logs, build output, and errors
-- ✅ Track Next.js HTTP requests, API routes, and rendering
-- ✅ Make all logs available via the Frontman UI at `/__frontman`
+- Capture console logs, build output, and errors
+- Track Next.js HTTP requests, API routes, and rendering
+- Make all logs available via the Frontman UI at `/__frontman`
+
+## Adding to Existing Files
+
+If you already have `middleware.ts`, `proxy.ts`, or `instrumentation.ts` files, the installer will show you manual integration steps. Here's how to add Frontman to existing files:
+
+### Existing middleware.ts (Next.js 15)
+
+```typescript
+import { createMiddleware } from '@frontman-ai/nextjs';
+import { NextRequest, NextResponse } from 'next/server';
+// ... your other imports
+
+const frontman = createMiddleware({
+  host: 'api.frontman.sh', // or 'frontman.local:4000' for local development
+});
+
+export async function middleware(req: NextRequest) {
+  // Add Frontman handler first - it will handle /__frontman/* routes
+  const response = await frontman(req);
+  if (response) return response;
+
+  // ... your existing middleware logic below
+  return NextResponse.next();
+}
+
+export const config = {
+  // Add Frontman matcher alongside your existing matchers
+  matcher: ['/__frontman/:path*', '/your-other-routes/:path*'],
+};
+```
+
+### Existing proxy.ts (Next.js 16+)
+
+```typescript
+import { createMiddleware } from '@frontman-ai/nextjs';
+import { NextRequest, NextResponse } from 'next/server';
+// ... your other imports
+
+const frontman = createMiddleware({
+  host: 'api.frontman.sh', // or 'frontman.local:4000' for local development
+});
+
+export function proxy(req: NextRequest): NextResponse | Promise<NextResponse> {
+  // Add Frontman handler first - it will handle /__frontman/* routes
+  if (req.nextUrl.pathname.startsWith('/__frontman')) {
+    return frontman(req) || NextResponse.next();
+  }
+
+  // ... your existing proxy logic below
+  return NextResponse.next();
+}
+```
+
+### Existing instrumentation.ts
+
+If you **don't have OpenTelemetry** set up yet:
+
+```typescript
+export async function register() {
+  if (process.env.NEXT_RUNTIME === 'nodejs') {
+    const { NodeSDK } = await import('@opentelemetry/sdk-node');
+    const { setup } = await import('@frontman-ai/nextjs/Instrumentation');
+    const [logProcessor, spanProcessor] = setup();
+
+    new NodeSDK({
+      logRecordProcessors: [logProcessor],
+      spanProcessors: [spanProcessor],
+    }).start();
+  }
+
+  // ... your existing instrumentation logic
+}
+```
+
+If you **already have OpenTelemetry** set up, add the Frontman processors to your existing configuration:
+
+```typescript
+export async function register() {
+  if (process.env.NEXT_RUNTIME === 'nodejs') {
+    const { setup } = await import('@frontman-ai/nextjs/Instrumentation');
+    const [logProcessor, spanProcessor] = setup();
+
+    new NodeSDK({
+      // ... your existing OTEL config
+      logRecordProcessors: [logProcessor, ...yourExistingLogProcessors],
+      spanProcessors: [spanProcessor, ...yourExistingSpanProcessors],
+    }).start();
+  }
+}
+```
 
 ## What Gets Captured
 
@@ -96,7 +249,7 @@ The buffer persists for the lifetime of the Node.js process and is accessible th
 
 ```typescript
 createMiddleware({
-  isDev: boolean,              // Enable dev features (default: false)
+  host: string,                // Frontman server host (required) - the client UI connects here via WebSocket
   basePath: string,            // Base path for Frontman routes (default: "__frontman")
   serverName: string,          // Server name (default: "frontman-nextjs")
   serverVersion: string,       // Server version (default: package version)
@@ -108,10 +261,27 @@ createMiddleware({
 })
 ```
 
+### Understanding the `host` Option
+
+The `host` option specifies the Frontman server that the client UI will connect to for AI capabilities. When you visit `/__frontman` in your Next.js app:
+
+1. The middleware serves the Frontman UI HTML
+2. The UI loads the client JavaScript with `?host=<your-host>` 
+3. The client establishes a WebSocket connection to `wss://<host>/socket`
+4. AI interactions and tool calls flow through this connection
+
+The middleware itself doesn't connect to the Frontman server - it only passes the host to the client.
+
+**Examples:**
+- Production: `host: 'api.frontman.sh'` → client connects to `wss://api.frontman.sh/socket`
+- Local dev: `host: 'frontman.local:4000'` → client connects to `wss://frontman.local:4000/socket`
+
 ## Supported Next.js Versions
 
-- Next.js 15+ (instrumentation.ts stable)
-- Next.js 16+ (latest)
+| Version | Middleware File | Status |
+|---------|----------------|--------|
+| Next.js 15.x | `middleware.ts` | Fully supported |
+| Next.js 16.x | `proxy.ts` | Fully supported |
 
 Both versions have built-in OpenTelemetry support with no additional configuration required.
 
@@ -134,9 +304,9 @@ Next.js App (Turbopack/Webpack)
 ├─> instrumentation.ts (startup) - OPTIONAL
 │   └─> setup() returns OTEL processors that write to same buffer
 │
-├─> middleware.ts (per-request)
+├─> middleware.ts / proxy.ts (per-request)
 │   └─> Serves Frontman UI at /__frontman
-│       └─> get_logs tool queries the shared buffer
+│       └─> Connects to Frontman server for AI tools
 │
 └─> OpenTelemetry SDK (optional)
     ├─> LogRecordProcessor → globalThis.__FRONTMAN_INSTANCE__.buffer
@@ -164,7 +334,7 @@ Next.js App (Turbopack/Webpack)
 If you need more control over OpenTelemetry setup:
 
 ```typescript
-import { setup } from '@frontman/frontman-nextjs/Instrumentation';
+import { setup } from '@frontman-ai/nextjs/Instrumentation';
 import { NodeSDK } from '@opentelemetry/sdk-node';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
 
@@ -190,11 +360,11 @@ export async function register() {
 ### Without OpenTelemetry
 
 Frontman works without OpenTelemetry! If you only set up middleware (skip `instrumentation.ts`):
-- ✅ Console logs are still captured (auto-initialized at module import)
-- ✅ Build output is tracked
-- ✅ Errors are logged
-- ✅ Frontman UI available at `/__frontman`
-- ❌ HTTP spans are not captured (requires OTEL)
+- Console logs are still captured (auto-initialized at module import)
+- Build output is tracked
+- Errors are logged
+- Frontman UI available at `/__frontman`
+- HTTP spans are not captured (requires OTEL)
 
 LogCapture auto-initializes when the module is imported, so console patching happens automatically in Node.js environments - no explicit initialization needed.
 
@@ -203,7 +373,7 @@ LogCapture auto-initializes when the module is imported, so console patching hap
 You can customize the buffer size and stdout patterns:
 
 ```typescript
-import { initialize } from '@frontman/frontman-nextjs/LogCapture';
+import { initialize } from '@frontman-ai/nextjs/LogCapture';
 
 // Call this BEFORE any console.log() calls (e.g., in instrumentation.ts)
 initialize({
@@ -220,8 +390,8 @@ initialize({
 
 **Check 1: Verify module is imported**
 LogCapture only initializes when the module is imported in a Node.js context. Make sure either:
-- You have `instrumentation.ts` that imports from `@frontman/frontman-nextjs/Instrumentation`
-- OR you have `middleware.ts` that imports from `@frontman/frontman-nextjs`
+- You have `instrumentation.ts` that imports from `@frontman-ai/nextjs/Instrumentation`
+- OR you have `middleware.ts` that imports from `@frontman-ai/nextjs`
 
 **Check 2: Verify Node.js runtime**
 LogCapture doesn't run in browser or Edge runtime. Check your environment:
@@ -232,7 +402,7 @@ console.log('Runtime:', process.env.NEXT_RUNTIME); // Should be 'nodejs'
 **Check 3: Verify buffer contents**
 Query the buffer directly to see if logs are present:
 ```typescript
-import { getLogs } from '@frontman/frontman-nextjs/LogCapture';
+import { getLogs } from '@frontman-ai/nextjs/LogCapture';
 
 const allLogs = getLogs();
 console.log('Buffer contains', allLogs.length, 'logs');
@@ -259,17 +429,21 @@ By default, only these patterns are captured from `process.stdout`:
 
 To capture additional patterns, use custom configuration (see above).
 
+### Installer shows "manual modification required"
+
+This happens when you have existing middleware, proxy, or instrumentation files that don't already include Frontman. The installer won't overwrite your existing code. Follow the [Adding to Existing Files](#adding-to-existing-files) instructions to manually integrate Frontman.
+
 ## API
 
-### `createMiddleware(options?)`
+### `createMiddleware(options)`
 
-Creates a Next.js middleware handler that serves the Frontman UI and handles tool requests.
+Creates a Next.js middleware handler that serves the Frontman UI and connects to your Frontman server.
 
 ```typescript
-import { createMiddleware } from '@frontman/frontman-nextjs';
+import { createMiddleware } from '@frontman-ai/nextjs';
 
 const middleware = createMiddleware({
-  isDev: boolean,              // Enable dev features (default: false)
+  host: string,                // Frontman server host (required)
   basePath: string,            // Base path (default: "__frontman")
   serverName: string,          // Server name (default: "frontman-nextjs")
   serverVersion: string,       // Version (default: package version)
@@ -284,7 +458,7 @@ const middleware = createMiddleware({
 Initializes LogCapture (console patching, error handlers) and returns OTEL processors for use with OpenTelemetry SDK.
 
 ```typescript
-import { setup } from '@frontman/frontman-nextjs/Instrumentation';
+import { setup } from '@frontman-ai/nextjs/Instrumentation';
 
 const [logProcessor, spanProcessor] = setup();
 ```
@@ -296,7 +470,7 @@ const [logProcessor, spanProcessor] = setup();
 Manually initialize LogCapture with custom configuration. Usually not needed since auto-initialization happens at module import.
 
 ```typescript
-import { initialize } from '@frontman/frontman-nextjs/LogCapture';
+import { initialize } from '@frontman-ai/nextjs/LogCapture';
 
 initialize({
   bufferCapacity: number,           // Buffer size (default: 1024)
@@ -311,7 +485,7 @@ initialize({
 Query the log buffer with optional filters.
 
 ```typescript
-import { getLogs } from '@frontman/frontman-nextjs/LogCapture';
+import { getLogs } from '@frontman-ai/nextjs/LogCapture';
 
 const logs = getLogs({
   pattern: string,        // Regex pattern to match messages (case-insensitive)

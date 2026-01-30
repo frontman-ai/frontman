@@ -65,7 +65,7 @@ let make = (
     | None =>
       switch isDev {
       | true => `http://localhost:5173/src/Main.res.mjs?clientName=nextjs&host=${host}`
-      | false => `https://frontman.dev/frontman.es.js?clientName=nextjs&host=${host}`
+      | false => `https://frontman.sh/frontman.es.js?clientName=nextjs&host=${host}`
       }
     },
   )

@@ -1,0 +1,472 @@
+open Vitest
+
+module Bindings = FrontmanBindings
+module Fs = Bindings.Fs
+module Path = Bindings.Path
+module Process = Bindings.Process
+module Os = Bindings.Os
+module ChildProcess = Bindings.ChildProcess
+
+module Detect = FrontmanNextjs__Cli__Detect
+module Files = FrontmanNextjs__Cli__Files
+module Install = FrontmanNextjs__Cli__Install
+module Templates = FrontmanNextjs__Cli__Templates
+
+// Helper to get fixture path
+let fixturesPath = Path.join([Process.cwd(), "test", "cli", "fixtures"])
+let fixture = name => Path.join([fixturesPath, name])
+
+// Helper to create a temp copy of a fixture for testing
+let createTempFixture = async (fixtureName: string): string => {
+  let timestamp = Date.now()->Float.toString
+  let tempDir = Path.join([Os.tmpdir(), `frontman-test-${timestamp}`])
+
+  // Create temp directory
+  let _ = await Fs.Promises.mkdir(tempDir, {recursive: true})
+
+  // Copy fixture to temp
+  let fixtureDir = fixture(fixtureName)
+  let _ = await ChildProcess.exec(`cp -r ${fixtureDir}/* ${tempDir}/`)
+
+  tempDir
+}
+
+// Helper to clean up temp fixture
+let cleanupTempFixture = async (tempDir: string) => {
+  let _ = await ChildProcess.exec(`rm -rf ${tempDir}`)
+}
+
+// Helper to read file content from temp dir
+let readTempFile = async (tempDir: string, fileName: string): option<string> => {
+  let filePath = Path.join([tempDir, fileName])
+  try {
+    let content = await Fs.Promises.readFile(filePath)
+    Some(content)
+  } catch {
+  | _ => None
+  }
+}
+
+// Helper to check if file exists in temp dir
+let tempFileExists = async (tempDir: string, fileName: string): bool => {
+  let filePath = Path.join([tempDir, fileName])
+  try {
+    await Fs.Promises.access(filePath)
+    true
+  } catch {
+  | _ => false
+  }
+}
+
+describe("Project Detection", _t => {
+  describe("Next.js Version Detection", _t => {
+    testAsync("detects Next.js 15 project", async t => {
+      let dir = fixture("nextjs15-clean")
+      let result = await Detect.detect(dir)
+
+      switch result {
+      | Ok(info) =>
+        switch info.nextVersion {
+        | Some(version) =>
+          t->expect(version.major)->Expect.toBe(15)
+          t->expect(version.raw)->Expect.toBe("15.0.0")
+        | None => t->expect("version")->Expect.toBe("should exist")
+        }
+      | Error(msg) => t->expect(msg)->Expect.toBe("should not fail")
+      }
+    })
+
+    testAsync("detects Next.js 16 project", async t => {
+      let dir = fixture("nextjs16-clean")
+      let result = await Detect.detect(dir)
+
+      switch result {
+      | Ok(info) =>
+        switch info.nextVersion {
+        | Some(version) =>
+          t->expect(version.major)->Expect.toBe(16)
+          t->expect(version.raw)->Expect.toBe("16.0.0")
+        | None => t->expect("version")->Expect.toBe("should exist")
+        }
+      | Error(msg) => t->expect(msg)->Expect.toBe("should not fail")
+      }
+    })
+
+    testAsync("fails for non-Next.js project", async t => {
+      let dir = fixture("not-nextjs")
+      let result = await Detect.detect(dir)
+
+      switch result {
+      | Error(msg) => t->expect(msg->String.includes("Could not find Next.js"))->Expect.toBe(true)
+      | Ok(_) => t->expect("should")->Expect.toBe("fail for non-nextjs project")
+      }
+    })
+  })
+
+  describe("Existing File Detection", _t => {
+    testAsync("detects existing middleware.ts without Frontman", async t => {
+      let dir = fixture("nextjs15-with-middleware")
+      let result = await Detect.detect(dir)
+
+      switch result {
+      | Ok(info) =>
+        switch info.middleware {
+        | NeedsManualEdit => t->expect(true)->Expect.toBe(true)
+        | _ => t->expect("middleware")->Expect.toBe("NeedsManualEdit")
+        }
+      | Error(msg) => t->expect(msg)->Expect.toBe("should not fail")
+      }
+    })
+
+    testAsync("detects existing middleware.ts with Frontman and extracts host", async t => {
+      let dir = fixture("nextjs15-with-frontman")
+      let result = await Detect.detect(dir)
+
+      switch result {
+      | Ok(info) =>
+        switch info.middleware {
+        | HasFrontman({host}) => t->expect(host)->Expect.toBe("old-server.company.com")
+        | _ => t->expect("middleware")->Expect.toBe("HasFrontman")
+        }
+      | Error(msg) => t->expect(msg)->Expect.toBe("should not fail")
+      }
+    })
+
+    testAsync("detects existing proxy.ts without Frontman", async t => {
+      let dir = fixture("nextjs16-with-proxy")
+      let result = await Detect.detect(dir)
+
+      switch result {
+      | Ok(info) =>
+        switch info.proxy {
+        | NeedsManualEdit => t->expect(true)->Expect.toBe(true)
+        | _ => t->expect("proxy")->Expect.toBe("NeedsManualEdit")
+        }
+      | Error(msg) => t->expect(msg)->Expect.toBe("should not fail")
+      }
+    })
+
+    testAsync("detects existing proxy.ts with Frontman and extracts host", async t => {
+      let dir = fixture("nextjs16-with-frontman")
+      let result = await Detect.detect(dir)
+
+      switch result {
+      | Ok(info) =>
+        switch info.proxy {
+        | HasFrontman({host}) => t->expect(host)->Expect.toBe("old-server.company.com")
+        | _ => t->expect("proxy")->Expect.toBe("HasFrontman")
+        }
+      | Error(msg) => t->expect(msg)->Expect.toBe("should not fail")
+      }
+    })
+
+    testAsync("detects existing instrumentation.ts without Frontman", async t => {
+      let dir = fixture("nextjs15-with-instrumentation")
+      let result = await Detect.detect(dir)
+
+      switch result {
+      | Ok(info) =>
+        switch info.instrumentation {
+        | NeedsManualEdit => t->expect(true)->Expect.toBe(true)
+        | _ => t->expect("instrumentation")->Expect.toBe("NeedsManualEdit")
+        }
+      | Error(msg) => t->expect(msg)->Expect.toBe("should not fail")
+      }
+    })
+
+    testAsync("detects src/ directory", async t => {
+      let dir = fixture("nextjs15-with-src")
+      let result = await Detect.detect(dir)
+
+      switch result {
+      | Ok(info) => t->expect(info.hasSrcDir)->Expect.toBe(true)
+      | Error(msg) => t->expect(msg)->Expect.toBe("should not fail")
+      }
+    })
+  })
+
+  describe("Package Manager Detection", _t => {
+    // We use npm by default for fixtures without lock files
+    testAsync("defaults to npm when no lock file present", async t => {
+      let dir = fixture("nextjs15-clean")
+      let result = await Detect.detect(dir)
+
+      switch result {
+      | Ok(info) =>
+        switch info.packageManager {
+        | Npm => t->expect(true)->Expect.toBe(true)
+        | _ => t->expect("npm")->Expect.toBe("default package manager")
+        }
+      | Error(msg) => t->expect(msg)->Expect.toBe("should not fail")
+      }
+    })
+  })
+})
+
+describe("Next.js 15 Clean Install", _t => {
+  testAsync("creates middleware.ts with correct content", async t => {
+    let tempDir = await createTempFixture("nextjs15-clean")
+
+    let _ = await Install.run({
+      server: "test.frontman.dev",
+      prefix: Some(tempDir),
+      dryRun: false,
+      skipDeps: true,
+    })
+
+    let content = await readTempFile(tempDir, "middleware.ts")
+
+    switch content {
+    | Some(c) =>
+      t->expect(c->String.includes("@frontman-ai/nextjs"))->Expect.toBe(true)
+      t->expect(c->String.includes("host: 'test.frontman.dev'"))->Expect.toBe(true)
+      t->expect(c->String.includes("createMiddleware"))->Expect.toBe(true)
+    | None => t->expect("middleware.ts")->Expect.toBe("should exist")
+    }
+
+    await cleanupTempFixture(tempDir)
+  })
+
+  testAsync("creates instrumentation.ts", async t => {
+    let tempDir = await createTempFixture("nextjs15-clean")
+
+    let _ = await Install.run({
+      server: "test.frontman.dev",
+      prefix: Some(tempDir),
+      dryRun: false,
+      skipDeps: true,
+    })
+
+    let exists = await tempFileExists(tempDir, "instrumentation.ts")
+    t->expect(exists)->Expect.toBe(true)
+
+    let content = await readTempFile(tempDir, "instrumentation.ts")
+    switch content {
+    | Some(c) =>
+      t->expect(c->String.includes("@frontman-ai/nextjs/Instrumentation"))->Expect.toBe(true)
+      t->expect(c->String.includes("NodeSDK"))->Expect.toBe(true)
+    | None => t->expect("instrumentation.ts")->Expect.toBe("should have content")
+    }
+
+    await cleanupTempFixture(tempDir)
+  })
+})
+
+describe("Next.js 16 Clean Install", _t => {
+  testAsync("creates proxy.ts instead of middleware.ts", async t => {
+    let tempDir = await createTempFixture("nextjs16-clean")
+
+    let _ = await Install.run({
+      server: "test.frontman.dev",
+      prefix: Some(tempDir),
+      dryRun: false,
+      skipDeps: true,
+    })
+
+    // Should have proxy.ts
+    let proxyContent = await readTempFile(tempDir, "proxy.ts")
+    switch proxyContent {
+    | Some(c) =>
+      t->expect(c->String.includes("@frontman-ai/nextjs"))->Expect.toBe(true)
+      t->expect(c->String.includes("host: 'test.frontman.dev'"))->Expect.toBe(true)
+      t->expect(c->String.includes("export function proxy"))->Expect.toBe(true)
+    | None => t->expect("proxy.ts")->Expect.toBe("should exist")
+    }
+
+    // Should NOT have middleware.ts (only proxy for Next.js 16+)
+    let middlewareExists = await tempFileExists(tempDir, "middleware.ts")
+    t->expect(middlewareExists)->Expect.toBe(false)
+
+    await cleanupTempFixture(tempDir)
+  })
+})
+
+describe("Host Update (Frontman Already Installed)", _t => {
+  testAsync("updates host in middleware.ts", async t => {
+    let tempDir = await createTempFixture("nextjs15-with-frontman")
+
+    // Verify the old host exists
+    let beforeContent = await readTempFile(tempDir, "middleware.ts")
+    switch beforeContent {
+    | Some(c) => t->expect(c->String.includes("old-server.company.com"))->Expect.toBe(true)
+    | None => t->expect("middleware.ts")->Expect.toBe("should exist before")
+    }
+
+    let _ = await Install.run({
+      server: "new-server.frontman.dev",
+      prefix: Some(tempDir),
+      dryRun: false,
+      skipDeps: true,
+    })
+
+    let afterContent = await readTempFile(tempDir, "middleware.ts")
+    switch afterContent {
+    | Some(c) =>
+      t->expect(c->String.includes("new-server.frontman.dev"))->Expect.toBe(true)
+      // Old host should be replaced
+      t->expect(c->String.includes("old-server.company.com"))->Expect.toBe(false)
+    | None => t->expect("middleware.ts")->Expect.toBe("should exist after")
+    }
+
+    await cleanupTempFixture(tempDir)
+  })
+
+  testAsync("updates host in proxy.ts", async t => {
+    let tempDir = await createTempFixture("nextjs16-with-frontman")
+
+    let _ = await Install.run({
+      server: "new-server.frontman.dev",
+      prefix: Some(tempDir),
+      dryRun: false,
+      skipDeps: true,
+    })
+
+    let afterContent = await readTempFile(tempDir, "proxy.ts")
+    switch afterContent {
+    | Some(c) =>
+      t->expect(c->String.includes("new-server.frontman.dev"))->Expect.toBe(true)
+      t->expect(c->String.includes("old-server.company.com"))->Expect.toBe(false)
+    | None => t->expect("proxy.ts")->Expect.toBe("should exist after")
+    }
+
+    await cleanupTempFixture(tempDir)
+  })
+})
+
+describe("Existing Files Without Frontman", _t => {
+  testAsync("errors for middleware.ts without Frontman", async t => {
+    let tempDir = await createTempFixture("nextjs15-with-middleware")
+
+    let result = await Install.run({
+      server: "test.frontman.dev",
+      prefix: Some(tempDir),
+      dryRun: false,
+      skipDeps: true,
+    })
+
+    switch result {
+    | Install.PartialSuccess({manualStepsRequired}) =>
+      // Should have manual steps for middleware
+      let hasMiddlewareStep = manualStepsRequired->Array.some(s => s->String.includes("middleware.ts"))
+      t->expect(hasMiddlewareStep)->Expect.toBe(true)
+    | Install.Success => t->expect("should")->Expect.toBe("require manual steps")
+    | Install.Failure(_) => t->expect("should")->Expect.toBe("partial success, not failure")
+    }
+
+    await cleanupTempFixture(tempDir)
+  })
+
+  testAsync("error includes correct manual setup steps", async t => {
+    let tempDir = await createTempFixture("nextjs15-with-middleware")
+
+    let result = await Install.run({
+      server: "test.frontman.dev",
+      prefix: Some(tempDir),
+      dryRun: false,
+      skipDeps: true,
+    })
+
+    switch result {
+    | Install.PartialSuccess({manualStepsRequired}) =>
+      let middlewareStep = manualStepsRequired->Array.find(s => s->String.includes("middleware.ts"))
+      switch middlewareStep {
+      | Some(step) =>
+        t->expect(step->String.includes("createMiddleware"))->Expect.toBe(true)
+        t->expect(step->String.includes("@frontman-ai/nextjs"))->Expect.toBe(true)
+      | None => t->expect("middleware step")->Expect.toBe("should exist")
+      }
+    | _ => t->expect("should")->Expect.toBe("partial success")
+    }
+
+    await cleanupTempFixture(tempDir)
+  })
+
+  testAsync("errors for proxy.ts without Frontman", async t => {
+    let tempDir = await createTempFixture("nextjs16-with-proxy")
+
+    let result = await Install.run({
+      server: "test.frontman.dev",
+      prefix: Some(tempDir),
+      dryRun: false,
+      skipDeps: true,
+    })
+
+    switch result {
+    | Install.PartialSuccess({manualStepsRequired}) =>
+      let hasProxyStep = manualStepsRequired->Array.some(s => s->String.includes("proxy.ts"))
+      t->expect(hasProxyStep)->Expect.toBe(true)
+    | Install.Success => t->expect("should")->Expect.toBe("require manual steps")
+    | Install.Failure(_) => t->expect("should")->Expect.toBe("partial success, not failure")
+    }
+
+    await cleanupTempFixture(tempDir)
+  })
+
+  testAsync("errors for instrumentation.ts without Frontman", async t => {
+    let tempDir = await createTempFixture("nextjs15-with-instrumentation")
+
+    let result = await Install.run({
+      server: "test.frontman.dev",
+      prefix: Some(tempDir),
+      dryRun: false,
+      skipDeps: true,
+    })
+
+    switch result {
+    | Install.PartialSuccess({manualStepsRequired}) =>
+      let hasInstrumentationStep =
+        manualStepsRequired->Array.some(s => s->String.includes("instrumentation.ts"))
+      t->expect(hasInstrumentationStep)->Expect.toBe(true)
+    | Install.Success => t->expect("should")->Expect.toBe("require manual steps")
+    | Install.Failure(_) => t->expect("should")->Expect.toBe("partial success, not failure")
+    }
+
+    await cleanupTempFixture(tempDir)
+  })
+})
+
+describe("src/ Directory Support", _t => {
+  testAsync("places instrumentation.ts in src/ when present", async t => {
+    let tempDir = await createTempFixture("nextjs15-with-src")
+
+    let _ = await Install.run({
+      server: "test.frontman.dev",
+      prefix: Some(tempDir),
+      dryRun: false,
+      skipDeps: true,
+    })
+
+    // Should have instrumentation.ts in src/
+    let srcInstrumentationExists = await tempFileExists(tempDir, "src/instrumentation.ts")
+    t->expect(srcInstrumentationExists)->Expect.toBe(true)
+
+    // Should NOT have instrumentation.ts in root
+    let rootInstrumentationExists = await tempFileExists(tempDir, "instrumentation.ts")
+    t->expect(rootInstrumentationExists)->Expect.toBe(false)
+
+    await cleanupTempFixture(tempDir)
+  })
+})
+
+describe("Dry Run Mode", _t => {
+  testAsync("does not create files in dry run", async t => {
+    let tempDir = await createTempFixture("nextjs15-clean")
+
+    let _ = await Install.run({
+      server: "test.frontman.dev",
+      prefix: Some(tempDir),
+      dryRun: true,
+      skipDeps: true,
+    })
+
+    // Should NOT have created middleware.ts
+    let middlewareExists = await tempFileExists(tempDir, "middleware.ts")
+    t->expect(middlewareExists)->Expect.toBe(false)
+
+    // Should NOT have created instrumentation.ts
+    let instrumentationExists = await tempFileExists(tempDir, "instrumentation.ts")
+    t->expect(instrumentationExists)->Expect.toBe(false)
+
+    await cleanupTempFixture(tempDir)
+  })
+})

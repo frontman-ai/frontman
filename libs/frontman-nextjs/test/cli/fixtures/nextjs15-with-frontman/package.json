@@ -1,0 +1,9 @@
+{
+  "name": "nextjs15-with-frontman",
+  "version": "1.0.0",
+  "dependencies": {
+    "next": "^15.0.0",
+    "react": "^18.0.0",
+    "@frontman-ai/nextjs": "^0.1.0"
+  }
+}

@@ -7,7 +7,7 @@ export async function register() {
     // Only enable in development
     if (process.env.NODE_ENV === 'development') {
       const { NodeSDK } = await import('@opentelemetry/sdk-node');
-      const { setup } = await import('@frontman/frontman-nextjs/Instrumentation');
+      const { setup } = await import('@frontman-ai/nextjs/Instrumentation');
 
       // Setup Frontman OTEL processors (auto-initializes LogCapture)
       const [logProcessor, spanProcessor] = setup();
