@@ -275,3 +275,73 @@ let mixedTasks: Story.t<args> = {
     </ContextWrapper>
   },
 }
+
+/**
+ * Many tasks in a 600px container — exercises the overflow dropdown.
+ * Active task (task-8) is in the middle, so it must be swapped into
+ * visible slots to guarantee visibility.
+ */
+let manyTasksOverflow: Story.t<args> = {
+  name: "Many Tasks (Overflow)",
+  render: _ => {
+    let now = Date.now()
+    let tasks = Array.fromInitializer(~length=15, i => {
+      let idx = Int.toString(i + 1)
+      Fixtures.makeTask(
+        ~id=`task-${idx}`,
+        ~title=`Task ${idx}: ${switch mod(i, 4) {
+          | 0 => "Fix login page styling"
+          | 1 => "Add dark mode support"
+          | 2 => "Refactor API client"
+          | _ => "Update dependencies"
+          }}`,
+        ~createdAt=now -. Int.toFloat((15 - i) * 3600000),
+        ~updatedAt=now -. Int.toFloat(i * 600000),
+        ~withMessages=true,
+      )
+    })
+
+    React.useEffect0(() => {
+      _forceState(Fixtures.stateWithTasks(~tasks, ~currentTaskId="task-8"))
+      Some(() => Client__StateSnapshot__Storybook.resetState())
+    })
+
+    <ContextWrapper>
+      <div style={{width: "600px", backgroundColor: "#18181b"}}>
+        <Client__TaskTabs />
+      </div>
+    </ContextWrapper>
+  },
+}
+
+/**
+ * 8 tasks in a very narrow 300px container — extreme overflow.
+ * Almost all tasks should collapse into the dropdown.
+ */
+let narrowContainer: Story.t<args> = {
+  name: "Narrow Container",
+  render: _ => {
+    let now = Date.now()
+    let tasks = Array.fromInitializer(~length=8, i => {
+      let idx = Int.toString(i + 1)
+      Fixtures.makeTask(
+        ~id=`task-${idx}`,
+        ~title=`Task ${idx}: Some descriptive title`,
+        ~createdAt=now -. Int.toFloat((8 - i) * 3600000),
+        ~updatedAt=now -. Int.toFloat(i * 300000),
+        ~withMessages=mod(i, 2) == 0,
+      )
+    })
+
+    React.useEffect0(() => {
+      _forceState(Fixtures.stateWithTasks(~tasks, ~currentTaskId="task-5"))
+      Some(() => Client__StateSnapshot__Storybook.resetState())
+    })
+
+    <ContextWrapper>
+      <div style={{width: "300px", backgroundColor: "#18181b"}}>
+        <Client__TaskTabs />
+      </div>
+    </ContextWrapper>
+  },
+}
