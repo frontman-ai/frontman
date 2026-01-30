@@ -23,7 +23,6 @@ let make = (~taskId, ~url, ~isActive) => {
           if locationChanged {
             lastLocationRef.current = Some(location)
             Client__State.Actions.setPreviewUrl(~url=location)
-            Client__State.Actions.setSelectedElement(~selectedElement=None)
           }
         }
       | None => ()

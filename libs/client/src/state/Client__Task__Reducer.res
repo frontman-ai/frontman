@@ -348,6 +348,7 @@ let next = (task: Task.t, action: action): Task.t => {
   // ============================================================================
   // UI State Actions - work on New, Loading, or Loaded (via Lens)
   // ============================================================================
+  | (Task.Unloaded(_), SetPreviewUrl(_)) => task
   | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), SetPreviewUrl({url})) =>
     Lens.setPreviewUrl(task, url)
 

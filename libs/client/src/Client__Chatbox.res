@@ -127,6 +127,7 @@ let make = () => {
   let (thinkingState, thinkingMessageId) = UseThinkingState.useWithMessageId(
     ~messages,
     ~isStreaming,
+    ~isAgentRunning,
     ~hasActiveACPSession,
     ~sessionInitialized,
   )
@@ -140,10 +141,11 @@ let make = () => {
       }
       switch session {
       | Some(sess) => sendMessage(sess.sessionId)
-      | None => createSession(~onComplete=result => {
+      | None =>
+        createSession(~onComplete=result => {
           switch result {
           | Ok(sessionId) => sendMessage(sessionId)
-          | Error(_) => ()
+          | Error(err) => Console.error2("[Chatbox] Session creation failed:", err)
           }
         })
       }

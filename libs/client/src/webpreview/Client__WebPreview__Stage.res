@@ -103,13 +103,20 @@ let make = (~document) => {
           key="hover" element={hoveredElement} scrollTimestamp={scrollTimestamp}
         />
       : React.null}
-    {selectedElement->Option.mapOr(React.null, data =>
+    {selectedElement->Option.mapOr(React.null, data => {
+      // Re-query element from current document to handle stale DOM references
+      // (e.g., after iframe remount during New → Loaded task transition)
+      let element = switch (data.selector, document) {
+      | (Some(sel), Some(doc)) =>
+        WebAPI.Document.querySelector(doc, sel)->Null.toOption->Option.getOr(data.element)
+      | _ => data.element
+      }
       <Client__WebPreview__ClickedElement
         key="clicked"
-        element={data.element}
+        element={element}
         scrollTimestamp={scrollTimestamp}
         mutationTimestamp={mutationTimestamp}
       />
-    )}
+    })}
   </div>
 }

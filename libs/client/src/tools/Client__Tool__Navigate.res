@@ -20,36 +20,13 @@ Examples:
 - Go forward: {"action": "forward"}
 - Refresh: {"action": "refresh"}`
 
-// Action variant type
-type action =
-  | Goto({url: string})
-  | Back
-  | Forward
-  | Refresh
-
-// Manual schema for action using S.union pattern
-let actionSchema = S.union([
-  S.object(s => {
-    s.tag("action", "goto")
-    Goto({url: s.field("url", S.string)})
-  }),
-  S.object(s => {
-    s.tag("action", "back")
-    Back
-  }),
-  S.object(s => {
-    s.tag("action", "forward")
-    Forward
-  }),
-  S.object(s => {
-    s.tag("action", "refresh")
-    Refresh
-  }),
-])
-
-// Input is the action itself
-type input = action
-let inputSchema = actionSchema
+@schema
+type input = {
+  @s.describe("Navigation action: 'goto', 'back', 'forward', or 'refresh'")
+  action: [#goto | #back | #forward | #refresh],
+  @s.describe("URL to navigate to (required for 'goto' action)")
+  url: option<string>,
+}
 
 @schema
 type output = {
@@ -102,17 +79,22 @@ let execute = async (input: input): toolResult<output> => {
     Ok({success: false, navigatedTo: None, action: "unknown", error: Some("Preview frame window not available")})
   | Some(win) =>
     try {
-      switch input {
-      | Goto({url}) =>
-        setLocationHref(win, url)
-        Ok({success: true, navigatedTo: Some(url), action: "goto", error: None})
-      | Back =>
+      switch input.action {
+      | #goto =>
+        switch input.url {
+        | Some(url) =>
+          setLocationHref(win, url)
+          Ok({success: true, navigatedTo: Some(url), action: "goto", error: None})
+        | None =>
+          Ok({success: false, navigatedTo: None, action: "goto", error: Some("URL is required for goto action")})
+        }
+      | #back =>
         historyBack(win)
         Ok({success: true, navigatedTo: None, action: "back", error: None})
-      | Forward =>
+      | #forward =>
         historyForward(win)
         Ok({success: true, navigatedTo: None, action: "forward", error: None})
-      | Refresh =>
+      | #refresh =>
         locationReload(win)
         Ok({success: true, navigatedTo: None, action: "refresh", error: None})
       }

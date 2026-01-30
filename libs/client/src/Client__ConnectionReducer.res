@@ -292,25 +292,25 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
     )
 
   | ({session: SessionCreating}, SessionCreateSuccess(sess)) => (
-      {...state, session: SessionActive(sess)},
+      {...state, session: SessionActive(sess), isSendingPrompt: false},
       [LogInfo(`Session created: ${sess.sessionId}`)],
     )
 
   // Handle SessionCreateSuccess from NoSession - happens when LoadTaskEffect completes
   | ({session: NoSession}, SessionCreateSuccess(sess)) => (
-      {...state, session: SessionActive(sess)},
+      {...state, session: SessionActive(sess), isSendingPrompt: false},
       [LogInfo(`Session loaded: ${sess.sessionId}`)],
     )
 
   // Handle SessionCreateSuccess when switching tasks - old session already cleaned up in effect handler
   | ({session: SessionActive(_)}, SessionCreateSuccess(sess)) => (
-      {...state, session: SessionActive(sess)},
+      {...state, session: SessionActive(sess), isSendingPrompt: false},
       [LogInfo(`Session switched: ${sess.sessionId}`)],
     )
 
   // Handle SessionCreateSuccess after previous failure - recovery
   | ({session: SessionError(_)}, SessionCreateSuccess(sess)) => (
-      {...state, session: SessionActive(sess)},
+      {...state, session: SessionActive(sess), isSendingPrompt: false},
       [LogInfo(`Session recovered: ${sess.sessionId}`)],
     )
 
@@ -327,22 +327,26 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
       [CreateSessionEffect({connection: conn, mcpServer, onUpdate, onMcpMessage, onComplete})],
     )
 
-  | ({session: SessionActive(session), isSendingPrompt: false}, SendPrompt({text, additionalBlocks, onComplete, metadata})) => (
+  | ({session: SessionActive(session), isSendingPrompt: false}, SendPrompt({text, additionalBlocks, onComplete, metadata})) =>
+    (
       {...state, isSendingPrompt: true},
       [SendPromptEffect({session, text, additionalBlocks, onComplete, metadata})],
     )
 
-  | ({isSendingPrompt: true}, PromptSent) => (
+  | ({isSendingPrompt: true}, PromptSent) =>
+    (
       {...state, isSendingPrompt: false},
       [],
     )
 
-  | ({isSendingPrompt: true}, SendPrompt(_)) => (
+  | ({isSendingPrompt: true}, SendPrompt(_)) =>
+    (
       state,
       [LogError("Cannot send prompt: already sending")],
     )
 
-  | ({session: NoSession | SessionCreating | SessionError(_)}, SendPrompt(_)) => (
+  | ({session: NoSession | SessionCreating | SessionError(_)}, SendPrompt(_)) =>
+    (
       state,
       [LogError("Cannot send prompt: no active session")],
     )
@@ -521,20 +525,25 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
       switch result {
       | Ok(sess) =>
         dispatch(SessionCreateSuccess(sess))
-        Console.log2("[ConnectionReducer] Session created:", sess.sessionId)
         onComplete(Ok(sess.sessionId))
       | Error(err) =>
         dispatch(SessionCreateError(err))
-        Console.error2("[ConnectionReducer] Session creation failed:", err)
         onComplete(Error(err))
       }
     }
     create()->ignore
   | SendPromptEffect({session, text, additionalBlocks, onComplete, metadata}) =>
     let send = async () => {
-      let result = await ACP.sendPrompt(session, text, ~additionalBlocks, ~metadata)
-      dispatch(PromptSent)
-      onComplete(result)
+      try {
+        let result = await ACP.sendPrompt(session, text, ~additionalBlocks, ~metadata)
+        dispatch(PromptSent)
+        onComplete(result)
+      } catch {
+      | exn =>
+        dispatch(PromptSent)
+        onComplete(Error("sendPrompt exception"))
+        throw(exn)
+      }
     }
     send()->ignore
   | FetchSessionsEffect(conn) =>
