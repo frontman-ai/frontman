@@ -2,7 +2,7 @@ version: "0.5"
 
 processes:
   rescript:
-    command: make clean && make dev
+    command: make clean && make rescript-watch
     readiness_probe:
       exec:
         command: tail -1 lib/bs/.compiler.log 2>/dev/null | grep -q "^#Done"

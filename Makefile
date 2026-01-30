@@ -1,20 +1,105 @@
+# Frontman Monorepo Makefile
+#
+# Usage: make [target]
+# Run 'make' or 'make help' to see available commands
+
 .DEFAULT_GOAL := help
-.PHONY: help install build clean dev test lint dev-client dev-nextjs pull-webapi infra-install infra-preview-marketing infra-up-marketing ssl-setup worktree-create worktree-create-from worktree-list worktree-remove worktree-clean worktree-status worktree-devpod tunnel worktree-urls worktree-hosts worktree-register worktree-registry dev-all
+
+# Colors for output
+CYAN := \033[36m
+GREEN := \033[32m
+YELLOW := \033[33m
+RESET := \033[0m
+
+# Remote development config
+DEVPOD_HOST ?= 77.42.16.199
+DEVPOD_USER ?= root
+
+.PHONY: help dev dev-client dev-server dev-nextjs dev-extension dev-marketing dev-dogfooding \
+        install build rescript-watch clean test lint \
+        ssl-setup tunnel \
+        infra-install infra-preview-marketing infra-up-marketing \
+        worktree-create worktree-create-from worktree-list worktree-remove worktree-clean \
+        worktree-status worktree-devpod worktree-urls worktree-hosts worktree-register worktree-registry \
+        kill-all-processes open-dogfooding pull-webapi
 
 help: ## Display available commands
-	@awk 'BEGIN {FS = ":.*##"} /^[a-zA-Z_-]+:.*##/ { printf "  %-15s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
+	@printf "$(CYAN)Frontman Monorepo$(RESET)\n"
+	@echo ""
+	@printf "$(CYAN)Development:$(RESET)\n"
+	@awk 'BEGIN {FS = ":.*##"} /^## DEV_START$$/{found=1; next} /^## DEV_END$$/{found=0} found && /^[a-zA-Z_-]+:.*##/ { printf "  $(GREEN)%-25s$(RESET) %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
+	@echo ""
+	@printf "$(CYAN)Build & Quality:$(RESET)\n"
+	@awk 'BEGIN {FS = ":.*##"} /^## BUILD_START$$/{found=1; next} /^## BUILD_END$$/{found=0} found && /^[a-zA-Z_-]+:.*##/ { printf "  $(GREEN)%-25s$(RESET) %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
+	@echo ""
+	@printf "$(CYAN)SSL & Networking:$(RESET)\n"
+	@awk 'BEGIN {FS = ":.*##"} /^## SSL_START$$/{found=1; next} /^## SSL_END$$/{found=0} found && /^[a-zA-Z_-]+:.*##/ { printf "  $(GREEN)%-25s$(RESET) %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
+	@echo ""
+	@printf "$(CYAN)Infrastructure:$(RESET)\n"
+	@awk 'BEGIN {FS = ":.*##"} /^## INFRA_START$$/{found=1; next} /^## INFRA_END$$/{found=0} found && /^[a-zA-Z_-]+:.*##/ { printf "  $(GREEN)%-25s$(RESET) %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
+	@echo ""
+	@printf "$(CYAN)Worktree Management:$(RESET)\n"
+	@awk 'BEGIN {FS = ":.*##"} /^## WT_START$$/{found=1; next} /^## WT_END$$/{found=0} found && /^[a-zA-Z_-]+:.*##/ { printf "  $(GREEN)%-25s$(RESET) %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
+	@echo ""
+	@printf "$(CYAN)Utilities:$(RESET)\n"
+	@awk 'BEGIN {FS = ":.*##"} /^## UTIL_START$$/{found=1; next} /^## UTIL_END$$/{found=0} found && /^[a-zA-Z_-]+:.*##/ { printf "  $(GREEN)%-25s$(RESET) %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
+	@echo ""
+
+# ============================================================================
+# Development
+# ============================================================================
+## DEV_START
+
+dev: ## Start all core services (client + server + nextjs)
+	@printf "$(YELLOW)Starting all services via process-compose...$(RESET)\n"
+	mise exec -- process-compose up --shortcuts shortcuts.yaml
+
+dev-client: ## Start development server for client app
+	@printf "$(YELLOW)Starting client dev server...$(RESET)\n"
+	cd libs/client && $(MAKE) dev
+
+dev-server: ## Start development server for server app
+	@printf "$(YELLOW)Starting server dev server...$(RESET)\n"
+	cd apps/frontman_server && $(MAKE) dev
+
+dev-nextjs: ## Start development server for Next.js test site
+	@printf "$(YELLOW)Starting Next.js dev server...$(RESET)\n"
+	cd test/sites/blog-starter && $(MAKE) dev
+
+dev-extension: ## Start development server for Chrome extension
+	@printf "$(YELLOW)Starting Chrome extension dev server...$(RESET)\n"
+	cd apps/chrome-extension && $(MAKE) dev
+
+dev-marketing: ## Start development server for marketing site
+	@printf "$(YELLOW)Starting marketing dev server...$(RESET)\n"
+	cd apps/marketing && $(MAKE) dev
+
+dev-dogfooding: ## Start development server for dogfooding app
+	@printf "$(YELLOW)Starting dogfooding dev server...$(RESET)\n"
+	cd apps/dogfooding && npm install && $(MAKE) dev
+
+## DEV_END
+
+# ============================================================================
+# Build & Quality
+# ============================================================================
+## BUILD_START
 
 install: ## Install dependencies
+	@printf "$(YELLOW)Installing dependencies...$(RESET)\n"
 	yarn install
 
 build: ## Build ReScript project
+	@printf "$(YELLOW)Building ReScript project...$(RESET)\n"
 	yarn rescript
 
-clean: ## Clean build artifacts
-	yarn rescript clean
-
-dev: ## Watch and rebuild on changes
+rescript-watch: ## Watch and rebuild ReScript on changes
+	@printf "$(YELLOW)Starting ReScript watch mode...$(RESET)\n"
 	yarn rescript watch
+
+clean: ## Clean build artifacts
+	@printf "$(YELLOW)Cleaning build artifacts...$(RESET)\n"
+	yarn rescript clean
 
 test: ## Run tests
 	# Add test commands here
@@ -22,34 +107,15 @@ test: ## Run tests
 lint: ## Run linters
 	# Add lint commands here
 
-dev-client: ## Start development server for client app
-	cd libs/client && $(MAKE) dev
+## BUILD_END
 
-dev-server: ## Start development server for server app
-	cd apps/frontman_server && $(MAKE) dev
-
-dev-nextjs: ## Start development server for Next.js test site
-	cd test/sites/blog-starter && $(MAKE) dev
-
-dev-extension: ## Start development server for Chrome extension
-	cd apps/chrome-extension && $(MAKE) dev
-
-dev-all: ## Start all core services (client + server + nextjs)
-	mise exec -- process-compose up --shortcuts shortcuts.yaml
-
-pull-webapi: ## Pull latest changes from experimental-rescript-webapi subtree
-	git subtree pull --prefix libs/experimental-rescript-webapi git@github.com:itayadler/experimental-rescript-webapi.git main --squash
-
-kill-all-processes: ## Kill all processes
-	ps aux | grep "make dev" | awk -F ' ' '{print $$2}' | xargs kill
-
-dev-dogfooding: ## Start development server for dogfooding app
-	cd apps/dogfooding && npm install && $(MAKE) dev
-
-dev-marketing: ## Start development server for marketing site
-	cd apps/marketing && $(MAKE) dev
+# ============================================================================
+# SSL & Networking
+# ============================================================================
+## SSL_START
 
 ssl-setup: ## Setup local SSL certificates using mkcert
+	@printf "$(YELLOW)Setting up SSL certificates...$(RESET)\n"
 	@mkdir -p .certs
 	mkcert -install
 	cd .certs && mkcert frontman.local localhost 127.0.0.1 ::1
@@ -57,86 +123,108 @@ ssl-setup: ## Setup local SSL certificates using mkcert
 	mv .certs/frontman.local+3-key.pem .certs/frontman.local-key.pem
 	sudo sh -c 'grep -q frontman.local /etc/hosts || echo "127.0.0.1 frontman.local" >> /etc/hosts'
 
-open-dogfooding: ## Open dogfooding app in browser
-	open -n -a "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --args --user-data-dir="/tmp/chrome_dev_test" --disable-web-security http://localhost:6123
+tunnel: ## Start SSH tunnel to DevPod server (ports 8080/8443)
+	@printf "$(YELLOW)Starting SSH tunnel to $(DEVPOD_USER)@$(DEVPOD_HOST)$(RESET)\n"
+	@echo "  Local :8080 → Remote :80 (HTTP)"
+	@echo "  Local :8443 → Remote :443 (HTTPS)"
+	@echo ""
+	@echo "Press Ctrl+C to stop the tunnel"
+	ssh -L 8080:localhost:80 -L 8443:localhost:443 $(DEVPOD_USER)@$(DEVPOD_HOST) -N
+
+## SSL_END
+
+# ============================================================================
+# Infrastructure
+# ============================================================================
+## INFRA_START
 
 infra-install: ## Install infrastructure dependencies
+	@printf "$(YELLOW)Installing infrastructure dependencies...$(RESET)\n"
 	cd infra && $(MAKE) install
 
 infra-preview-marketing: ## Preview marketing infrastructure changes
+	@printf "$(YELLOW)Previewing marketing infrastructure...$(RESET)\n"
 	cd infra && $(MAKE) preview-marketing
 
 infra-up-marketing: ## Deploy marketing infrastructure
+	@printf "$(YELLOW)Deploying marketing infrastructure...$(RESET)\n"
 	cd infra && $(MAKE) up-marketing
 
-worktree-create: ## Create a new worktree (usage: make worktree-create BRANCH=feature-name)
+## INFRA_END
+
+# ============================================================================
+# Worktree Management
+# ============================================================================
+## WT_START
+
+worktree-create: ## Create a new worktree (BRANCH=feature-name)
 	@if [ -z "$(BRANCH)" ]; then \
-		echo "Error: BRANCH is required. Usage: make worktree-create BRANCH=feature-name"; \
+		printf "$(YELLOW)Error: BRANCH is required. Usage: make worktree-create BRANCH=feature-name$(RESET)\n"; \
 		exit 1; \
 	fi
 	@if git show-ref --verify --quiet refs/heads/$(BRANCH); then \
-		echo "Error: Branch '$(BRANCH)' already exists locally"; \
+		printf "$(YELLOW)Error: Branch '$(BRANCH)' already exists locally$(RESET)\n"; \
 		echo "Use 'make worktree-create-from BRANCH=$(BRANCH)' to create a worktree from it"; \
 		exit 1; \
 	fi
-	@echo "Creating worktree for new branch: $(BRANCH)"
+	@printf "$(YELLOW)Creating worktree for new branch: $(BRANCH)$(RESET)\n"
 	@mkdir -p .worktrees
 	@git worktree add .worktrees/$(BRANCH) -b $(BRANCH)
 	@mkdir -p .worktrees/$(BRANCH)/.claude/projects .worktrees/$(BRANCH)/.claude/plans .worktrees/$(BRANCH)/.claude/todos
 	@touch .worktrees/$(BRANCH)/.claude/history.jsonl
-	@echo "Worktree created at: .worktrees/$(BRANCH)"
+	@printf "$(GREEN)Worktree created at: .worktrees/$(BRANCH)$(RESET)\n"
 	@echo "Next steps:"
 	@echo "  1. cd .worktrees/$(BRANCH)"
 	@echo "  2. make install"
 
-worktree-create-from: ## Create worktree from existing branch (usage: make worktree-create-from BRANCH=feature-name)
+worktree-create-from: ## Create worktree from existing branch (BRANCH=name)
 	@if [ -z "$(BRANCH)" ]; then \
-		echo "Error: BRANCH is required"; \
+		printf "$(YELLOW)Error: BRANCH is required$(RESET)\n"; \
 		echo "Usage: make worktree-create-from BRANCH=origin/feature-name"; \
 		exit 1; \
 	fi
 	@WORKTREE_NAME=$$(echo "$(BRANCH)" | sed 's|^origin/||'); \
-	echo "Creating worktree from: $(BRANCH) as $$WORKTREE_NAME"; \
+	printf "$(YELLOW)Creating worktree from: $(BRANCH) as $$WORKTREE_NAME$(RESET)\n"; \
 	mkdir -p .worktrees; \
 	git worktree add .worktrees/$$WORKTREE_NAME $(BRANCH); \
 	mkdir -p .worktrees/$$WORKTREE_NAME/.claude/projects .worktrees/$$WORKTREE_NAME/.claude/plans .worktrees/$$WORKTREE_NAME/.claude/todos; \
 	touch .worktrees/$$WORKTREE_NAME/.claude/history.jsonl; \
-	echo "Worktree created at: .worktrees/$$WORKTREE_NAME"; \
+	printf "$(GREEN)Worktree created at: .worktrees/$$WORKTREE_NAME$(RESET)\n"; \
 	echo "Next steps:"; \
 	echo "  1. cd .worktrees/$$WORKTREE_NAME"; \
 	echo "  2. make install"
 
 worktree-list: ## List all worktrees
-	@echo "Active worktrees:"
+	@printf "$(CYAN)Active worktrees:$(RESET)\n"
 	@git worktree list
 
-worktree-remove: ## Remove a worktree (usage: make worktree-remove BRANCH=feature-name)
+worktree-remove: ## Remove a worktree (BRANCH=feature-name)
 	@if [ -z "$(BRANCH)" ]; then \
-		echo "Error: BRANCH is required. Usage: make worktree-remove BRANCH=feature-name"; \
+		printf "$(YELLOW)Error: BRANCH is required. Usage: make worktree-remove BRANCH=feature-name$(RESET)\n"; \
 		exit 1; \
 	fi
 	@if [ ! -d ".worktrees/$(BRANCH)" ]; then \
-		echo "Error: Worktree '.worktrees/$(BRANCH)' does not exist"; \
+		printf "$(YELLOW)Error: Worktree '.worktrees/$(BRANCH)' does not exist$(RESET)\n"; \
 		exit 1; \
 	fi
-	@echo "Removing worktree: $(BRANCH)"
+	@printf "$(YELLOW)Removing worktree: $(BRANCH)$(RESET)\n"
 	@if git -C .worktrees/$(BRANCH) diff --quiet && git -C .worktrees/$(BRANCH) diff --cached --quiet; then \
 		git worktree remove .worktrees/$(BRANCH); \
-		echo "Worktree removed"; \
+		printf "$(GREEN)Worktree removed$(RESET)\n"; \
 	else \
-		echo "Error: Worktree has uncommitted changes"; \
+		printf "$(YELLOW)Error: Worktree has uncommitted changes$(RESET)\n"; \
 		echo "Commit or stash changes first, or force remove with:"; \
 		echo "  git worktree remove --force .worktrees/$(BRANCH)"; \
 		exit 1; \
 	fi
 
 worktree-clean: ## Remove all stale worktrees
-	@echo "Cleaning stale worktrees..."
+	@printf "$(YELLOW)Cleaning stale worktrees...$(RESET)\n"
 	@git worktree prune
-	@echo "Done"
+	@printf "$(GREEN)Done$(RESET)\n"
 
 worktree-status: ## Show status of all worktrees
-	@echo "Worktree Status:"
+	@printf "$(CYAN)Worktree Status:$(RESET)\n"
 	@echo ""
 	@if [ ! -d ".worktrees" ] || [ -z "$$(ls -A .worktrees 2>/dev/null)" ]; then \
 		echo "No worktrees found in .worktrees/"; \
@@ -144,32 +232,32 @@ worktree-status: ## Show status of all worktrees
 		for wt in .worktrees/*; do \
 			if [ -d "$$wt" ]; then \
 				branch=$$(git -C "$$wt" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown"); \
-				echo "$$(basename $$wt) ($$branch):"; \
+				printf "$(GREEN)$$(basename $$wt)$(RESET) ($$branch):\n"; \
 				git -C "$$wt" status -s || true; \
 				echo ""; \
 			fi \
 		done; \
 	fi
 
-worktree-devpod: ## Create worktree + push branch + DevPod workspace (usage: make worktree-devpod BRANCH=feature-name)
+worktree-devpod: ## Create worktree + push + DevPod workspace (BRANCH=name)
 	@if [ -z "$(BRANCH)" ]; then \
-		echo "Error: BRANCH is required. Usage: make worktree-devpod BRANCH=feature-name"; \
+		printf "$(YELLOW)Error: BRANCH is required. Usage: make worktree-devpod BRANCH=feature-name$(RESET)\n"; \
 		exit 1; \
 	fi
 	@if ! command -v devpod >/dev/null 2>&1; then \
-		echo "Error: devpod is not installed. Install with: brew install devpod"; \
+		printf "$(YELLOW)Error: devpod is not installed. Install with: brew install devpod$(RESET)\n"; \
 		exit 1; \
 	fi
-	@echo "==> Creating worktree for: $(BRANCH)"
+	@printf "$(YELLOW)==> Creating worktree for: $(BRANCH)$(RESET)\n"
 	@$(MAKE) worktree-create BRANCH=$(BRANCH)
 	@echo ""
-	@echo "==> Pushing branch to origin..."
+	@printf "$(YELLOW)==> Pushing branch to origin...$(RESET)\n"
 	@cd .worktrees/$(BRANCH) && git push -u origin $(BRANCH)
 	@echo ""
-	@echo "==> Creating DevPod workspace on remote server..."
+	@printf "$(YELLOW)==> Creating DevPod workspace on remote server...$(RESET)\n"
 	@devpod up . --branch $(BRANCH) --id $(BRANCH)
 	@echo ""
-	@echo "==> Done!"
+	@printf "$(GREEN)==> Done!$(RESET)\n"
 	@echo ""
 	@echo "Connect with:"
 	@echo "  devpod ssh $(BRANCH)"
@@ -177,26 +265,14 @@ worktree-devpod: ## Create worktree + push branch + DevPod workspace (usage: mak
 	@echo "Or open in VS Code:"
 	@echo "  devpod up $(BRANCH) --ide vscode"
 
-# Remote development with Caddy proxy
-DEVPOD_HOST ?= 77.42.16.199
-DEVPOD_USER ?= root
-
-tunnel: ## Start SSH tunnel to DevPod server (ports 8080/8443)
-	@echo "Starting SSH tunnel to $(DEVPOD_USER)@$(DEVPOD_HOST)"
-	@echo "  Local :8080 → Remote :80 (HTTP)"
-	@echo "  Local :8443 → Remote :443 (HTTPS)"
-	@echo ""
-	@echo "Press Ctrl+C to stop the tunnel"
-	ssh -L 8080:localhost:80 -L 8443:localhost:443 $(DEVPOD_USER)@$(DEVPOD_HOST) -N
-
-worktree-urls: ## Show URLs for a worktree (usage: make worktree-urls BRANCH=feature-name)
+worktree-urls: ## Show URLs for a worktree (BRANCH=feature-name)
 	@if [ -z "$(BRANCH)" ]; then \
-		echo "Error: BRANCH is required. Usage: make worktree-urls BRANCH=feature-name"; \
+		printf "$(YELLOW)Error: BRANCH is required. Usage: make worktree-urls BRANCH=feature-name$(RESET)\n"; \
 		exit 1; \
 	fi
 	@HASH=$$(printf '%s' "$(BRANCH)" | md5 | cut -c1-4); \
 	echo ""; \
-	echo "Worktree: $(BRANCH) ($$HASH)"; \
+	printf "$(CYAN)Worktree: $(BRANCH) ($$HASH)$(RESET)\n"; \
 	echo ""; \
 	echo "URLs (via tunnel):"; \
 	echo "  Next.js:   https://$$HASH.nextjs.frontman.local:8443/__frontman"; \
@@ -221,9 +297,9 @@ worktree-hosts: ## Generate /etc/hosts entries for all worktrees
 		echo "# No worktrees found"; \
 	fi
 
-worktree-register: ## Register a worktree with Caddy on the server (usage: make worktree-register BRANCH=feature-name CONTAINER=container-name)
+worktree-register: ## Register worktree with Caddy (BRANCH= CONTAINER=)
 	@if [ -z "$(BRANCH)" ] || [ -z "$(CONTAINER)" ]; then \
-		echo "Error: BRANCH and CONTAINER are required."; \
+		printf "$(YELLOW)Error: BRANCH and CONTAINER are required.$(RESET)\n"; \
 		echo "Usage: make worktree-register BRANCH=feature-name CONTAINER=container-name"; \
 		exit 1; \
 	fi
@@ -231,3 +307,21 @@ worktree-register: ## Register a worktree with Caddy on the server (usage: make 
 
 worktree-registry: ## Show all registered worktrees on the server
 	@ssh $(DEVPOD_USER)@$(DEVPOD_HOST) "cat /etc/caddy/worktrees/registry.json 2>/dev/null | jq . || echo 'No worktrees registered'"
+
+## WT_END
+
+# ============================================================================
+# Utilities
+# ============================================================================
+## UTIL_START
+
+kill-all-processes: ## Kill all running make dev processes
+	ps aux | grep "make dev" | awk -F ' ' '{print $$2}' | xargs kill
+
+open-dogfooding: ## Open dogfooding app in browser
+	open -n -a "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --args --user-data-dir="/tmp/chrome_dev_test" --disable-web-security http://localhost:6123
+
+pull-webapi: ## Pull latest experimental-rescript-webapi subtree
+	git subtree pull --prefix libs/experimental-rescript-webapi git@github.com:itayadler/experimental-rescript-webapi.git main --squash
+
+## UTIL_END
