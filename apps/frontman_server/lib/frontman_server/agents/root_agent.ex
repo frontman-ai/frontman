@@ -23,6 +23,7 @@ defmodule FrontmanServer.Agents.RootAgent do
     field(:tools, [Swarm.Tool.t()], default: [])
     field(:has_figma_context, boolean(), default: false)
     field(:has_selected_component, boolean(), default: false)
+    field(:has_typescript_react, boolean(), default: false)
     field(:figma_node_id, String.t() | nil, default: nil)
     field(:framework, String.t() | nil, default: nil)
     # llm_opts must include :api_key (resolved at domain layer)
@@ -54,6 +55,7 @@ defmodule FrontmanServer.Agents.RootAgent do
       tools: Keyword.get(opts, :tools, []),
       has_figma_context: Keyword.get(opts, :has_figma_context, false),
       has_selected_component: Keyword.get(opts, :has_selected_component, false),
+      has_typescript_react: Keyword.get(opts, :has_typescript_react, false),
       figma_node_id: Keyword.get(opts, :figma_node_id),
       framework: Keyword.get(opts, :framework),
       llm_opts: Keyword.get(opts, :llm_opts, []),
@@ -72,6 +74,7 @@ defimpl Swarm.Agent, for: FrontmanServer.Agents.RootAgent do
     Prompts.build(
       has_figma_context: agent.has_figma_context,
       has_selected_component: agent.has_selected_component,
+      has_typescript_react: agent.has_typescript_react,
       figma_node_id: agent.figma_node_id,
       framework: agent.framework,
       project_rules: agent.project_rules

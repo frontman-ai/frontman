@@ -148,12 +148,15 @@ defmodule FrontmanServer.Agents do
           oauth_mode: resolved_key.oauth_mode
         ]
 
+        has_typescript_react = framework in ["nextjs"]
+
         # Create RootAgent with context
         # API key is passed via llm_opts - no scope/env_api_key needed
         RootAgent.new(
           tools: tools,
           has_figma_context: has_figma,
           has_selected_component: has_selected_component,
+          has_typescript_react: has_typescript_react,
           figma_node_id: figma_node_id,
           framework: framework,
           model: resolved_key.model,

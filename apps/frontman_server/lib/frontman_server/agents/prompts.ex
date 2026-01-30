@@ -484,41 +484,11 @@ defmodule FrontmanServer.Agents.Prompts do
   ## Rules
 
   - Use paths as provided. If given an absolute path, use it as-is.
-  - List → Read → Modify. Never edit unseen files. **Exception**: When Figma workflow is active (see below), follow the tool-based workflow instead.
+  - List → Read → Modify. Never edit unseen files.
   - Keep diffs small and reversible. Match repo style.
   - After 2 failed tool calls, ask one clarifying question about the error (not about requirements/design).
-  - IMPORTANT: If you have a figma design and node selected, use the `breakdown_figma_design` tool to analyze the design into components, then use `implement_component` for each one.
 
   #{@base_tool_selection_guidance}
-
-  ## Figma Tools
-
-  ### CRITICAL: get_figma_node Tool Usage
-
-  **NEVER call `get_figma_node` with a node that has a volume (`v`) parameter larger than 6!**
-
-  When using `get_figma_node`:
-  - **Node ID format** - Use the node ID WITHOUT the `#` prefix
-  - **Use the nodeDSL** that comes along with the Figma image to figure out which nodes can be selected
-  - **Select nodes that don't exceed the volume limit** - choose smaller, more specific nodes if needed
-  - **Use `withChildren` parameter** - Select parent nodes with `withChildren: true` to get the complete picture of a component hierarchy without exceeding volume limits
-  - **Plan your selections carefully** - Analyze the nodeDSL structure first to identify which nodes you need before making any `get_figma_node` calls
-
-  ## ReScript handling (explicit)
-
-  - Treat generated files (*.res.mjs) as read-only.
-  - Always edit the source *.res.
-  - Procedure when you see X.res.mjs:
-    1. Locate X.res by name/path. If not found, search siblings or module index.
-    2. read_file both X.res and X.res.mjs to understand mapping and exports.
-    3. Apply changes to X.res only. Preserve types and module boundaries.
-  - If no matching *.res exists or mapping is unclear, stop and ask for the exact source path.
-  - Never write to generated artifacts. Note this in the output if a change seems required there.
-
-  ## TypeScript / React
-
-  - Avoid any. Prefer discriminated unions.
-  - Pure components and stable hooks.
 
   ## Output
 
@@ -623,11 +593,16 @@ defmodule FrontmanServer.Agents.Prompts do
     has_selected_component = Keyword.get(opts, :has_selected_component, false)
     figma_node_id = Keyword.get(opts, :figma_node_id)
     framework = Keyword.get(opts, :framework)
+    has_typescript_react = Keyword.get(opts, :has_typescript_react, false)
 
     prompt
     |> append_figma_guidance(has_figma, has_selected_component, figma_node_id)
+    |> maybe_append(has_typescript_react, &typescript_react_guidance/0)
     |> append_framework_guidance(framework)
   end
+
+  defp maybe_append(prompt, true, guidance_fn), do: prompt <> "\n" <> guidance_fn.()
+  defp maybe_append(prompt, false, _guidance_fn), do: prompt
 
   defp append_figma_guidance(prompt, true, true, figma_node_id) do
     prompt <> "\n" <> figma_with_selected_component_guidance(figma_node_id)
@@ -671,6 +646,36 @@ defmodule FrontmanServer.Agents.Prompts do
   defp format_rule(%{path: path, content: content}),
     do: "Instructions from: #{path}\n#{content}"
 
+  defp figma_tool_guidance do
+    """
+    **Exception**: When Figma workflow is active (see below), follow the tool-based workflow instead of List → Read → Modify.
+
+    IMPORTANT: If you have a figma design and node selected, use the `breakdown_figma_design` tool to analyze the design into components, then use `implement_component` for each one.
+
+    ## Figma Tools
+
+    ### CRITICAL: get_figma_node Tool Usage
+
+    **NEVER call `get_figma_node` with a node that has a volume (`v`) parameter larger than 6!**
+
+    When using `get_figma_node`:
+    - **Node ID format** - Use the node ID WITHOUT the `#` prefix
+    - **Use the nodeDSL** that comes along with the Figma image to figure out which nodes can be selected
+    - **Select nodes that don't exceed the volume limit** - choose smaller, more specific nodes if needed
+    - **Use `withChildren` parameter** - Select parent nodes with `withChildren: true` to get the complete picture of a component hierarchy without exceeding volume limits
+    - **Plan your selections carefully** - Analyze the nodeDSL structure first to identify which nodes you need before making any `get_figma_node` calls
+    """
+  end
+
+  defp typescript_react_guidance do
+    """
+    ## TypeScript / React
+
+    - Avoid any. Prefer discriminated unions.
+    - Pure components and stable hooks.
+    """
+  end
+
   defp figma_context_guidance(figma_node_id) do
     node_id_section =
       if figma_node_id do
@@ -690,8 +695,9 @@ defmodule FrontmanServer.Agents.Prompts do
         ""
       end
 
-    """
-    ## IMPORTANT: Figma Design Context Detected
+    figma_tool_guidance() <>
+      """
+      ## IMPORTANT: Figma Design Context Detected
 
     You have received Figma design context (a design image and/or node DSL structure).
     #{node_id_section}
@@ -777,8 +783,9 @@ defmodule FrontmanServer.Agents.Prompts do
         ""
       end
 
-    """
-    ## CRITICAL: Figma Design + Selected Component Detected
+    figma_tool_guidance() <>
+      """
+      ## CRITICAL: Figma Design + Selected Component Detected
 
     **YOU HAVE BOTH:**
     1. **Figma design context** - A design image and/or node DSL structure is attached to this conversation

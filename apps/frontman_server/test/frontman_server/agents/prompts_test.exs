@@ -125,6 +125,44 @@ defmodule FrontmanServer.Agents.PromptsTest do
     end
   end
 
+  describe "build/1 conditional sections" do
+    test "base prompt (no flags) excludes Figma, ReScript, and TypeScript content" do
+      prompt = Prompts.build([])
+
+      refute prompt =~ "get_figma_node"
+      refute prompt =~ "ReScript"
+      refute prompt =~ "## TypeScript / React"
+    end
+
+    test "base prompt always includes Rules, Tool Selection Guidelines, and Output" do
+      prompt = Prompts.build([])
+
+      assert prompt =~ "## Rules"
+      assert prompt =~ "## Tool Selection Guidelines"
+      assert prompt =~ "## Output"
+    end
+
+    test "has_figma_context includes get_figma_node and volume guidance" do
+      prompt = Prompts.build(has_figma_context: true)
+
+      assert prompt =~ "get_figma_node"
+      assert prompt =~ "volume"
+    end
+
+    test "has_typescript_react includes TypeScript / React section" do
+      prompt = Prompts.build(has_typescript_react: true)
+
+      assert prompt =~ "## TypeScript / React"
+      assert prompt =~ "discriminated unions"
+    end
+
+    test "has_typescript_react false excludes TypeScript / React section" do
+      prompt = Prompts.build(has_typescript_react: false)
+
+      refute prompt =~ "## TypeScript / React"
+    end
+  end
+
   describe "build/1 project_rules option" do
     test "project rules are appended to prompt" do
       rules = [
