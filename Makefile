@@ -35,7 +35,7 @@ dev-extension: ## Start development server for Chrome extension
 	cd apps/chrome-extension && $(MAKE) dev
 
 dev-all: ## Start all core services (client + server + nextjs)
-	mise exec -- process-compose up
+	mise exec -- process-compose up --shortcuts shortcuts.yaml
 
 pull-webapi: ## Pull latest changes from experimental-rescript-webapi subtree
 	git subtree pull --prefix libs/experimental-rescript-webapi git@github.com:itayadler/experimental-rescript-webapi.git main --squash

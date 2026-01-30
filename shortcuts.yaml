@@ -1,0 +1,42 @@
+# process-compose TUI shortcuts
+# Remapped from F-keys to Ctrl combos that don't conflict with Zellij normal mode
+shortcuts:
+  log_follow:
+    shortcut: Ctrl-F
+    toggle_description:
+      false: Follow Off
+      true: Follow On
+
+  log_screen:
+    shortcut: Ctrl-L
+    toggle_description:
+      false: Half Screen
+      true: Full Screen
+
+  log_wrap:
+    shortcut: Ctrl-W
+    toggle_description:
+      false: Wrap Off
+      true: Wrap On
+
+  process_start:
+    shortcut: Ctrl-S
+    description: Start
+
+  process_screen:
+    shortcut: Ctrl-E
+    toggle_description:
+      false: Half Screen
+      true: Full Screen
+
+  process_stop:
+    shortcut: Ctrl-X
+    description: Stop
+
+  process_restart:
+    shortcut: Ctrl-R
+    description: Restart
+
+  quit:
+    shortcut: q
+    description: Quit
