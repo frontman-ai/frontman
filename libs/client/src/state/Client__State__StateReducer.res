@@ -469,9 +469,9 @@ let handleEffect = (effect, state: state, dispatch) => {
   | SendMessageToAPI({message, taskId}) =>
     switch state.acpSession {
     | AcpSessionActive({sendPrompt}) =>
+      let task = state.tasks->Dict.get(taskId)
       let additionalBlocks =
-        state.tasks
-        ->Dict.get(taskId)
+        task
         ->Option.mapOr([], Client__State__Types.taskToContentBlocks)
 
       // Include runtime config metadata (e.g., openrouterKeyValue) with each prompt
@@ -547,6 +547,9 @@ let handleEffect = (effect, state: state, dispatch) => {
           },
         )
         Promise.resolve(Some(selector))
+      })->Promise.catch(error => {
+        Console.error2("Failed to get selector:", error)
+        Promise.resolve(None)
       })
 
       // Fetch screenshot
@@ -561,15 +564,22 @@ let handleEffect = (effect, state: state, dispatch) => {
         })
 
       // Fetch source location (cascading: React fiber first, then Astro annotations)
-      let sourceLocationPromise = switch Selectors.previewFrame(state).contentWindow {
-      | Some(window) =>
-        Bindings__SourceDetection.getElementSourceLocation(~element, ~window)
-        ->Promise.then(sourceLocationOpt => Promise.resolve(sourceLocationOpt))
-        ->Promise.catch(error => {
-          Console.error2("Failed to get source location:", error)
-          Promise.resolve(None)
+      // Race against a timeout to prevent hanging when source map resolution stalls (e.g., CORS on RSC URLs)
+      let sourceLocationPromise = {
+        let detectionPromise = switch Selectors.previewFrame(state).contentWindow {
+        | Some(window) =>
+          Bindings__SourceDetection.getElementSourceLocation(~element, ~window)
+          ->Promise.then(sourceLocationOpt => Promise.resolve(sourceLocationOpt))
+          ->Promise.catch(error => {
+            Console.error2("Failed to get source location:", error)
+            Promise.resolve(None)
+          })
+        | None => Promise.resolve(None)
+        }
+        let timeoutPromise = Promise.make((resolve, _) => {
+          let _ = Js.Global.setTimeout(() => resolve(None), 5000)
         })
-      | None => Promise.resolve(None)
+        Promise.race([detectionPromise, timeoutPromise])
       }
 
       // Wait for all promises and update state once
@@ -621,6 +631,8 @@ let handleEffect = (effect, state: state, dispatch) => {
           )
           Promise.resolve()
         })
+      })->Promise.catch(_ => {
+        Promise.resolve()
       })
     }
   | StartInitializationTimeout({taskId, timeoutMs}) =>

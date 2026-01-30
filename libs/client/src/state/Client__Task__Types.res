@@ -513,37 +513,65 @@ let makeSelectedComponentMeta: (string, int, int) => JSON.t = %raw(`
 
 // Build a Resource ContentBlock from SelectedElement with _meta annotation
 // Contains the source location as structured data in _meta for safe extraction
+// Falls back to selector info when source location is unavailable (e.g., CORS failures with RSC)
 let selectedElementToContentBlock = (sel: SelectedElement.t): option<ACPTypes.contentBlock> => {
-  sel.sourceLocation->Option.map(loc => {
-    // Strip file:// prefix to get clean filesystem path for the agent
-    let cleanFilePath = stripFileUriPrefix(loc.file)
+  switch sel.sourceLocation {
+  | Some(loc) => {
+      // Strip file:// prefix to get clean filesystem path for the agent
+      let cleanFilePath = stripFileUriPrefix(loc.file)
 
-    // Build URI with the original file path (preserve for display purposes)
-    let uri = `file://${cleanFilePath}:${loc.line->Int.toString}:${loc.column->Int.toString}`
+      // Build URI with the original file path (preserve for display purposes)
+      let uri = `file://${cleanFilePath}:${loc.line->Int.toString}:${loc.column->Int.toString}`
 
-    let textResource: ACPTypes.textResourceContents = {
-      uri,
-      mimeType: Some("text/plain"),
-      text: `Selected component: ${loc.tagName} at ${cleanFilePath}:${loc.line->Int.toString}:${loc.column->Int.toString}`,
+      let textResource: ACPTypes.textResourceContents = {
+        uri,
+        mimeType: Some("text/plain"),
+        text: `Selected component: ${loc.tagName} at ${cleanFilePath}:${loc.line->Int.toString}:${loc.column->Int.toString}`,
+      }
+
+      // Create _meta with selected_component annotation containing the clean path
+      let _meta = makeSelectedComponentMeta(cleanFilePath, loc.line, loc.column)
+
+      let embeddedResource: ACPTypes.embeddedResource = {
+        _meta: Some(_meta),
+        annotations: None,
+        resource: ACPTypes.TextResourceContents(textResource),
+      }
+
+      Some({
+        ACPTypes.type_: "resource",
+        text: None,
+        uri: None,
+        resource: Some(embeddedResource),
+        content: None,
+      })
     }
+  | None =>
+    // Fallback: include selector when source location is unavailable
+    sel.selector->Option.map(selector => {
+      let textResource: ACPTypes.textResourceContents = {
+        uri: `selector://${selector}`,
+        mimeType: Some("text/plain"),
+        text: `Selected element: ${selector}`,
+      }
 
-    // Create _meta with selected_component annotation containing the clean path
-    let _meta = makeSelectedComponentMeta(cleanFilePath, loc.line, loc.column)
+      let _meta: JSON.t = %raw(`{"selected_component": true}`)
 
-    let embeddedResource: ACPTypes.embeddedResource = {
-      _meta: Some(_meta),
-      annotations: None,
-      resource: ACPTypes.TextResourceContents(textResource),
-    }
+      let embeddedResource: ACPTypes.embeddedResource = {
+        _meta: Some(_meta),
+        annotations: None,
+        resource: ACPTypes.TextResourceContents(textResource),
+      }
 
-    {
-      ACPTypes.type_: "resource",
-      text: None,
-      uri: None,
-      resource: Some(embeddedResource),
-      content: None,
-    }
-  })
+      {
+        ACPTypes.type_: "resource",
+        text: None,
+        uri: None,
+        resource: Some(embeddedResource),
+        content: None,
+      }
+    })
+  }
 }
 
 // Build an Image ContentBlock from SelectedElement screenshot

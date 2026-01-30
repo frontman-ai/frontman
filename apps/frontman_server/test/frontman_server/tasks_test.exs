@@ -326,6 +326,83 @@ defmodule FrontmanServer.TasksTest do
     end
   end
 
+  describe "selected_component round-trip through JSONB" do
+    test "selected_component location survives DB round-trip and appears in LLM messages", %{
+      scope: scope
+    } do
+      task_id = Ecto.UUID.generate()
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
+
+      # Content blocks matching the ACP format sent by the client:
+      # 1. Text message
+      # 2. Resource with selected_component _meta annotation
+      # 3. Resource with selected_component_screenshot blob
+      content_blocks = [
+        %{"type" => "text", "text" => "Fix the button"},
+        %{
+          "type" => "resource",
+          "resource" => %{
+            "_meta" => %{
+              "selected_component" => true,
+              "file" => "src/components/Button.tsx",
+              "line" => 42,
+              "column" => 5
+            },
+            "resource" => %{
+              "uri" => "file://src/components/Button.tsx:42:5",
+              "mimeType" => "text/plain",
+              "text" => "Selected component: button at src/components/Button.tsx:42:5"
+            }
+          }
+        },
+        %{
+          "type" => "resource",
+          "resource" => %{
+            "_meta" => %{"selected_component_screenshot" => true},
+            "resource" => %{
+              "uri" => "component://screenshot",
+              "mimeType" => "image/png",
+              "blob" => "iVBORw0KGgoAAAANSUhEUg=="
+            }
+          }
+        }
+      ]
+
+      {:ok, _interaction} = Tasks.add_user_message(scope, task_id, content_blocks, [])
+
+      # Retrieve via LLM conversion (exercises the full JSONB round-trip)
+      {:ok, messages} = Tasks.get_llm_messages(scope, task_id)
+
+      assert length(messages) == 1
+      [msg] = messages
+      assert msg.role == :user
+
+      # Extract text from content parts
+      content_text = extract_content_text(msg.content)
+
+      # The component location should have been appended by append_component_location/2
+      assert content_text =~ "[Selected Component Location]"
+      assert content_text =~ "src/components/Button.tsx"
+      assert content_text =~ "42"
+      assert content_text =~ "5"
+
+      # Screenshot should be present as an image content part
+      image_parts =
+        case msg.content do
+          parts when is_list(parts) ->
+            Enum.filter(parts, fn
+              %{type: :image} -> true
+              _ -> false
+            end)
+
+          _ ->
+            []
+        end
+
+      assert length(image_parts) >= 1
+    end
+  end
+
   defp extract_content_text(content) when is_binary(content), do: content
 
   defp extract_content_text(content) when is_list(content) do

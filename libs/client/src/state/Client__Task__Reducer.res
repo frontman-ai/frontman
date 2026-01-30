@@ -352,6 +352,7 @@ let next = (task: Task.t, action: action): Task.t => {
   | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), SetPreviewUrl({url})) =>
     Lens.setPreviewUrl(task, url)
 
+  | (Task.Unloaded(_), SetPreviewFrame(_)) => task
   | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), SetPreviewFrame({contentDocument, contentWindow})) =>
     Lens.setPreviewFrame(task, ~contentDocument, ~contentWindow)
 

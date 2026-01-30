@@ -37,10 +37,14 @@ let make = (~taskId, ~url, ~isActive) => {
       ->Nullable.toOption
       ->Option.forEach(iframe => {
         let iframeElement = iframe->Obj.magic
-        let contentDocument = WebAPI.HTMLIFrameElement.contentDocument(iframeElement)->Null.toOption
-        let contentWindow = WebAPI.HTMLIFrameElement.contentWindow(iframeElement)->Null.toOption
-
-        Client__State.Actions.setPreviewFrame(~contentDocument, ~contentWindow)
+        try {
+          let contentDocument = WebAPI.HTMLIFrameElement.contentDocument(iframeElement)->Null.toOption
+          let contentWindow = WebAPI.HTMLIFrameElement.contentWindow(iframeElement)->Null.toOption
+          Client__State.Actions.setPreviewFrame(~contentDocument, ~contentWindow)
+        } catch {
+        // Cross-origin iframes throw SecurityError when accessing contentDocument/contentWindow
+        | _ => ()
+        }
       })
     }
   }
@@ -52,12 +56,17 @@ let make = (~taskId, ~url, ~isActive) => {
       ->Nullable.toOption
       ->Option.forEach(iframe => {
         let iframeElement = iframe->Obj.magic
-        let contentDocument = WebAPI.HTMLIFrameElement.contentDocument(iframeElement)->Null.toOption
-        let contentWindow = WebAPI.HTMLIFrameElement.contentWindow(iframeElement)->Null.toOption
+        try {
+          let contentDocument = WebAPI.HTMLIFrameElement.contentDocument(iframeElement)->Null.toOption
+          let contentWindow = WebAPI.HTMLIFrameElement.contentWindow(iframeElement)->Null.toOption
 
-        // Only update if the iframe has content loaded
-        if contentDocument->Option.isSome {
-          Client__State.Actions.setPreviewFrame(~contentDocument, ~contentWindow)
+          // Only update if the iframe has content loaded
+          if contentDocument->Option.isSome {
+            Client__State.Actions.setPreviewFrame(~contentDocument, ~contentWindow)
+          }
+        } catch {
+        // Cross-origin iframes throw SecurityError when accessing contentDocument/contentWindow
+        | _ => ()
         }
       })
     }

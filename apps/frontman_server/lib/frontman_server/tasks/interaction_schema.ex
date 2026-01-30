@@ -81,7 +81,7 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
       id: data["id"],
       timestamp: parse_datetime(data["timestamp"]),
       messages: data["messages"] || [],
-      selected_component: data["selected_component"],
+      selected_component: parse_selected_component(data["selected_component"]),
       selected_component_screenshot: data["selected_component_screenshot"],
       selected_figma_node: parse_figma_node(data["selected_figma_node"])
     }
@@ -154,6 +154,19 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
       {:ok, dt, _} -> dt
       _ -> nil
     end
+  end
+
+  @spec parse_selected_component(map() | nil) :: map() | nil
+  defp parse_selected_component(nil), do: nil
+
+  defp parse_selected_component(data) when is_map(data) do
+    %{
+      file: data["file"],
+      line: data["line"],
+      column: data["column"],
+      source_snippet: data["source_snippet"],
+      source_type: data["source_type"]
+    }
   end
 
   @spec parse_figma_node(map() | nil) :: Interaction.FigmaNode.t() | nil
