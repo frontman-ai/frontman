@@ -10,16 +10,28 @@ let initialized = ref(false)
 
 let initialize = (~transport: option<Bindings.transport>=?) => {
   if !initialized.contents {
-    Bindings.init({
-      dsn,
-      environment: %raw(`process.env.NODE_ENV || "development"`),
-      release: %raw(`process.env.npm_package_version || "unknown"`),
-      sampleRate: 1.0,
-      ?transport,
-      initialScope: {
-        tags: Dict.fromArray([("frontman.library", "frontman-nextjs")]),
-      },
-    })
+    let scope = {
+      Bindings.tags: Dict.fromArray([("frontman.library", "frontman-nextjs")]),
+    }
+    switch transport {
+    | Some(t) =>
+      Bindings.initWithTransport({
+        dsn,
+        environment: %raw(`process.env.NODE_ENV || "development"`),
+        release: %raw(`process.env.npm_package_version || "unknown"`),
+        sampleRate: 1.0,
+        transport: t,
+        initialScope: scope,
+      })
+    | None =>
+      Bindings.init({
+        dsn,
+        environment: %raw(`process.env.NODE_ENV || "development"`),
+        release: %raw(`process.env.npm_package_version || "unknown"`),
+        sampleRate: 1.0,
+        initialScope: scope,
+      })
+    }
     initialized.contents = true
   }
 }

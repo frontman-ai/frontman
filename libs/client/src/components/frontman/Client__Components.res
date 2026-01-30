@@ -20,7 +20,6 @@ module ToolLabels = Client__ToolLabels
 module ToolStatus = Client__ToolStatus
 
 // TODO components
-module TodoItem = Client__TodoItem
 module TodoListBlock = Client__TodoListBlock
 module TodoUtils = Client__TodoUtils
 

@@ -108,6 +108,9 @@ defmodule FrontmanServer.Agents do
         # Register that an agent is running for this task
         Registry.register(FrontmanServer.AgentRegistry, registry_key, %{})
 
+        # Monitor this execution for crashes - broadcasts error if we crash unexpectedly
+        Tasks.ExecutionMonitor.watch(task_id, topic: Tasks.topic(task_id))
+
         try do
           # registry_key passed for explicit cleanup timing (must unregister before completion event)
           execute_agent(scope, agent, task_id, messages, registry_key, on_event, api_key_info)
@@ -198,9 +201,7 @@ defmodule FrontmanServer.Agents do
   @spec notify_user_message(Scope.t(), String.t(), list(FrontmanServer.Tools.MCP.t()), keyword()) ::
           :ok
   def notify_user_message(%Scope{} = scope, task_id, tools, opts \\ []) do
-    # Check if agent is already running
     if agent_running?(task_id) do
-      # Agent is running - it will pick up new messages on next iteration
       :ok
     else
       case start_agent(scope, task_id, Keyword.merge([tools: tools], opts)) do
@@ -208,7 +209,6 @@ defmodule FrontmanServer.Agents do
           :ok
 
         {:error, reason} ->
-          # Broadcast error to task channel
           broadcast(task_id, {:agent_error, error_message(reason)})
           :ok
       end
@@ -378,7 +378,7 @@ defmodule FrontmanServer.Agents do
 
     # Use Swarm's public API with streaming callbacks.
     # Pass task_id in metadata for telemetry correlation.
-    # Swarm generates loop_id internally and includes metadata in all telemetry events.
+    # Swarm returns loop_id for execution identification and crash reporting.
     result =
       Swarm.run_streaming(agent, messages,
         metadata: %{task_id: task_id},
@@ -407,13 +407,15 @@ defmodule FrontmanServer.Agents do
     Registry.unregister(FrontmanServer.AgentRegistry, registry_key)
 
     case result do
-      {:ok, _result} ->
+      {:ok, _result, loop_id} ->
         # Track usage only on successful agent run
         Providers.record_usage(scope, resolved_key)
         on_event.(:completed)
+        Logger.debug("Agent completed for task #{task_id}, loop_id: #{loop_id}")
 
-      {:error, reason} ->
+      {:error, reason, loop_id} ->
         on_event.({:error, reason})
+        Logger.warning("Agent failed for task #{task_id}, loop_id: #{loop_id}, reason: #{inspect(reason)}")
     end
 
     # Emit task stop telemetry - closes the root OTEL span

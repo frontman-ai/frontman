@@ -1,8 +1,9 @@
 open Vitest
 
 module Reducer = Client__State__StateReducer
-module UserContentPart = Reducer.UserContentPart
-module AssistantContentPart = Reducer.AssistantContentPart
+module Task = Client__State__Types.Task
+module UserContentPart = Client__State__Types.UserContentPart
+module AssistantContentPart = Client__State__Types.AssistantContentPart
 
 module TestHelpers = {
   let makeStateWithTask = (
@@ -11,37 +12,24 @@ module TestHelpers = {
     ~timestamp=1000.0,
     ~previewUrl="http://localhost:3000",
   ) => {
-    let task = Reducer.Task.make(~title="Test Task", ~previewUrl)
-
-    // Convert array of messages to Dict
-    let messagesDict = Dict.make()
-    messages->Array.forEach(msg => {
-      let id = Reducer.Message.getId(msg)
-      messagesDict->Dict.set(id, msg)
-    })
-
-    // Override generated id, timestamp, and messages in loadedData
-    let taskWithTestValues = {
-      ...task,
-      id: taskId,
-      createdAt: timestamp,
-      loadState: Reducer.Task.Loaded({
-        ...Reducer.Task.makeLoadedData(),
-        messages: messagesDict,
-      }),
-    }
+    let task = Task.makeLoaded(
+      ~id=taskId,
+      ~title="Test Task",
+      ~previewUrl,
+      ~createdAt=timestamp,
+      ~messages,
+    )
 
     let tasks = Dict.make()
-    tasks->Dict.set(taskId, taskWithTestValues)
+    tasks->Dict.set(taskId, task)
 
     (
       {
         tasks,
-        currentTaskId: Some(taskId),
-        connectionState: Disconnected,
+        currentTask: Task.Selected(taskId),
+        acpSession: NoAcpSession,
         sessionInitialized: false,
         usageInfo: None,
-        apiBaseUrl: None,
         openrouterKeySettings: {
           source: Client__State__Types.None,
           saveStatus: Client__State__Types.Idle,
@@ -58,6 +46,11 @@ module TestHelpers = {
   let getMessage = (state, index) => getMessages(state)->Array.get(index)
   let getTaskCount = (state: Client__State__Types.state) =>
     state.tasks->Dict.valuesToArray->Array.length
+
+  // Helper to get current task ID
+  let getCurrentTaskId = (state: Client__State__Types.state): option<string> => {
+    Reducer.Selectors.currentTaskId(state)
+  }
 }
 
 describe("Client State Reducer", () => {
@@ -73,7 +66,7 @@ describe("Client State Reducer", () => {
 
     // Should create a task
     t->expect(TestHelpers.getTaskCount(nextState))->Expect.toBe(1)
-    t->expect(nextState.currentTaskId->Option.isSome)->Expect.toBe(true)
+    t->expect(TestHelpers.getCurrentTaskId(nextState)->Option.isSome)->Expect.toBe(true)
 
     // Check task has the message
     let messages = Reducer.Selectors.messages(nextState)
@@ -99,7 +92,7 @@ describe("Client State Reducer", () => {
       ],
     )
 
-    let taskId = state.currentTaskId->Option.getOrThrow
+    let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
     let action = Reducer.TextDeltaReceived({taskId, text: " world"})
     let (nextState, _effects) = Reducer.next(state, action)
 
@@ -112,21 +105,21 @@ describe("Client State Reducer", () => {
     }
   })
 
-  test("MessageCompleted transitions to Completed variant", t => {
+  test("TurnCompleted transitions to Completed variant", t => {
     let state = TestHelpers.makeStateWithTask(
       ~messages=[
-        Assistant(Streaming({id: "assistant-1", textBuffer: "Hello world", createdAt: 0.0})),
+        Reducer.Message.Assistant(Streaming({id: "assistant-1", textBuffer: "Hello world", createdAt: 0.0})),
       ],
     )
 
-    let taskId = state.currentTaskId->Option.getOrThrow
-    let action = Reducer.MessageCompleted({taskId: taskId})
+    let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
+    let action = Reducer.TurnCompleted({taskId: taskId})
     let (nextState, _effects) = Reducer.next(state, action)
 
     let message = TestHelpers.getMessage(nextState, 0)->Option.getOrThrow
 
     switch message {
-    | Assistant(Completed({content, _})) => {
+    | Reducer.Message.Assistant(Completed({content, _})) => {
         t->expect(content->Array.length)->Expect.toBe(1)
         // Verify content was built from textBuffer
         let contentPart = content->Array.get(0)->Option.getOrThrow
@@ -151,10 +144,10 @@ describe("Client State Reducer", () => {
       }),
     )
 
-    let taskId = state.currentTaskId->Option.getOrThrow
+    let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
     let (state, _) = Reducer.next(state, StreamingStarted({taskId: taskId}))
     let (state, _) = Reducer.next(state, TextDeltaReceived({taskId, text: "Hello"}))
-    let (state, _) = Reducer.next(state, MessageCompleted({taskId: taskId}))
+    let (state, _) = Reducer.next(state, TurnCompleted({taskId: taskId}))
 
     let messages = TestHelpers.getMessages(state)
     t->expect(messages->Array.length)->Expect.toBe(2)
@@ -170,7 +163,7 @@ describe("Client State Reducer", () => {
   test("Selectors.isStreaming detects streaming messages", t => {
     let state = TestHelpers.makeStateWithTask(
       ~messages=[
-        Assistant(
+        Reducer.Message.Assistant(
           Streaming({
             id: "assistant-1",
             textBuffer: "",
@@ -186,7 +179,7 @@ describe("Client State Reducer", () => {
   test("Selectors.isStreaming false when no streaming", t => {
     let state = TestHelpers.makeStateWithTask(
       ~messages=[
-        Assistant(
+        Reducer.Message.Assistant(
           Completed({
             id: "assistant-1",
             content: [AssistantContentPart.text("Done")],
@@ -202,14 +195,14 @@ describe("Client State Reducer", () => {
   test("ToolCallReceived creates new ToolCall message", t => {
     let state = TestHelpers.makeStateWithTask(
       ~messages=[
-        Assistant(
+        Reducer.Message.Assistant(
           Streaming({
             id: "assistant-1",
             textBuffer: "Calling tool...",
             createdAt: 0.0,
           }),
         ),
-        ToolCall({
+        Reducer.Message.ToolCall({
           id: "call-123",
           toolName: "search",
           inputBuffer: "",
@@ -237,7 +230,7 @@ describe("Client State Reducer", () => {
       spawningToolName: None,
     }
 
-    let taskId = state.currentTaskId->Option.getOrThrow
+    let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
     let action = Reducer.ToolCallReceived({taskId, toolCall})
     let (nextState, _effects) = Reducer.next(state, action)
 
@@ -255,11 +248,11 @@ describe("Client State Reducer", () => {
   })
 })
 
-describe("Client State Reducer - MessageCompleted Content Conversion", () => {
+describe("Client State Reducer - TurnCompleted Content Conversion", () => {
   test("handles empty textBuffer correctly", t => {
     let state = TestHelpers.makeStateWithTask(
       ~messages=[
-        Assistant(
+        Reducer.Message.Assistant(
           Streaming({
             id: "msg-2",
             textBuffer: "",
@@ -269,13 +262,13 @@ describe("Client State Reducer - MessageCompleted Content Conversion", () => {
       ],
     )
 
-    let taskId = state.currentTaskId->Option.getOrThrow
-    let (nextState, _) = Reducer.next(state, MessageCompleted({taskId: taskId}))
+    let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
+    let (nextState, _) = Reducer.next(state, TurnCompleted({taskId: taskId}))
 
     let message = TestHelpers.getMessage(nextState, 0)->Option.getOrThrow
 
     switch message {
-    | Assistant(Completed({content, _})) => t->expect(content->Array.length)->Expect.toBe(0)
+    | Reducer.Message.Assistant(Completed({content, _})) => t->expect(content->Array.length)->Expect.toBe(0)
     | _ =>
       t
       ->expect("Expected Completed message with empty content")
@@ -286,7 +279,7 @@ describe("Client State Reducer - MessageCompleted Content Conversion", () => {
   test("converts toolCalls to ToolCall content parts", t => {
     let state = TestHelpers.makeStateWithTask(
       ~messages=[
-        Assistant(
+        Reducer.Message.Assistant(
           Streaming({
             id: "msg-3",
             textBuffer: "Listing files",
@@ -296,12 +289,12 @@ describe("Client State Reducer - MessageCompleted Content Conversion", () => {
       ],
     )
 
-    let taskId = state.currentTaskId->Option.getOrThrow
-    let (nextState, _) = Reducer.next(state, MessageCompleted({taskId: taskId}))
+    let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
+    let (nextState, _) = Reducer.next(state, TurnCompleted({taskId: taskId}))
 
     let messages = TestHelpers.getMessages(nextState)
     switch messages->Array.get(0) {
-    | Some(Assistant(Completed({content, _}))) => {
+    | Some(Reducer.Message.Assistant(Completed({content, _}))) => {
         t->expect(content->Array.length)->Expect.toBe(1)
 
         // Should be text content
@@ -317,7 +310,7 @@ describe("Client State Reducer - MessageCompleted Content Conversion", () => {
   test("preserves message ID during streaming to completed transition", t => {
     let state = TestHelpers.makeStateWithTask(
       ~messages=[
-        Assistant(
+        Reducer.Message.Assistant(
           Streaming({
             id: "stable-id-123",
             textBuffer: "Test",
@@ -327,14 +320,14 @@ describe("Client State Reducer - MessageCompleted Content Conversion", () => {
       ],
     )
 
-    let taskId = state.currentTaskId->Option.getOrThrow
-    let (nextState, _) = Reducer.next(state, MessageCompleted({taskId: taskId}))
+    let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
+    let (nextState, _) = Reducer.next(state, TurnCompleted({taskId: taskId}))
 
     let message = TestHelpers.getMessage(nextState, 0)->Option.getOrThrow
 
     switch message {
     // The message ID should be preserved from the streaming message
-    | Assistant(Completed({id, _})) => t->expect(id)->Expect.toBe("stable-id-123")
+    | Reducer.Message.Assistant(Completed({id, _})) => t->expect(id)->Expect.toBe("stable-id-123")
     | _ => JsExn.throw("Expected Assistant Completed message")
     }
   })
@@ -355,15 +348,14 @@ describe("Client State Reducer - Streaming Flow", () => {
     )
 
     // Get taskId after task creation
-    let taskId = state.currentTaskId->Option.getOrThrow
+    let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
 
     // 1. Start streaming (ID is now generated internally)
     let (state, _) = Reducer.next(state, StreamingStarted({taskId: taskId}))
 
     // Get the generated message ID
     let task = state.tasks->Dict.get(taskId)->Option.getOrThrow
-    let loadedData = Reducer.Task.getLoadedData(task)->Option.getOrThrow
-    let generatedId = switch Reducer.Lens.getStreamingMessage(loadedData) {
+    let generatedId = switch Client__Task__Reducer.Selectors.streamingMessage(task) {
     | Some(Reducer.Message.Streaming({id})) => id
     | _ => JsExn.throw("Expected streaming message")
     }
@@ -373,12 +365,12 @@ describe("Client State Reducer - Streaming Flow", () => {
     let (state, _) = Reducer.next(state, TextDeltaReceived({taskId, text: " world"}))
 
     // 3. Complete message
-    let (state, _) = Reducer.next(state, MessageCompleted({taskId: taskId}))
+    let (state, _) = Reducer.next(state, TurnCompleted({taskId: taskId}))
 
     // Verify: Message ID stayed stable throughout (check second message, first is user)
     let messages = TestHelpers.getMessages(state)
     switch messages->Array.get(1) {
-    | Some(Assistant(Completed({id, content, _}))) => {
+    | Some(Reducer.Message.Assistant(Completed({id, content, _}))) => {
         t->expect(id)->Expect.toBe(generatedId)
         switch content->Array.get(0) {
         | Some(AssistantContentPart.Text({text})) => t->expect(text)->Expect.toBe("Hello world")
@@ -439,7 +431,7 @@ describe("Client State Reducer - Tool Lifecycle", () => {
     // Create a task with an assistant message first (tools belong to tasks)
     let state = TestHelpers.makeStateWithTask(
       ~messages=[
-        Assistant(
+        Reducer.Message.Assistant(
           Streaming({
             id: "assistant-1",
             textBuffer: "",
@@ -449,7 +441,7 @@ describe("Client State Reducer - Tool Lifecycle", () => {
       ],
     )
 
-    let taskId = state.currentTaskId->Option.getOrThrow
+    let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
     let action = Reducer.ToolInputStartReceived({
       taskId,
       id: "call-1",
@@ -463,7 +455,7 @@ describe("Client State Reducer - Tool Lifecycle", () => {
     t->expect(messages->Array.length)->Expect.toBe(2)
 
     switch messages->Array.get(1) {
-    | Some(ToolCall({id, toolName, state, input, _})) => {
+    | Some(Reducer.Message.ToolCall({id, toolName, state, input, _})) => {
         t->expect(id)->Expect.toBe("call-1")
         t->expect(toolName)->Expect.toBe("read_file")
         t->expect(state)->Expect.toBe(Reducer.Message.InputStreaming)
@@ -491,7 +483,7 @@ describe("Client State Reducer - Tool Lifecycle", () => {
       ],
     )
 
-    let taskId = state.currentTaskId->Option.getOrThrow
+    let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
     let action = Reducer.ToolInputDeltaReceived({
       taskId,
       id: "call-1",
@@ -502,7 +494,7 @@ describe("Client State Reducer - Tool Lifecycle", () => {
     let message = TestHelpers.getMessage(nextState, 0)->Option.getOrThrow
 
     switch message {
-    | ToolCall({inputBuffer, _}) => t->expect(inputBuffer)->Expect.toBe("{\"path\": \"test.res\"}")
+    | Reducer.Message.ToolCall({inputBuffer, _}) => t->expect(inputBuffer)->Expect.toBe("{\"path\": \"test.res\"}")
     | _ => JsExn.throw("Expected ToolCall message")
     }
   })
@@ -510,7 +502,7 @@ describe("Client State Reducer - Tool Lifecycle", () => {
   test("ToolInputEndReceived parses input and transitions to InputAvailable", t => {
     let state = TestHelpers.makeStateWithTask(
       ~messages=[
-        ToolCall({
+        Reducer.Message.ToolCall({
           id: "call-1",
           toolName: "read_file",
           inputBuffer: "{\"path\": \"test.res\"}",
@@ -525,14 +517,14 @@ describe("Client State Reducer - Tool Lifecycle", () => {
       ],
     )
 
-    let taskId = state.currentTaskId->Option.getOrThrow
+    let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
     let action = Reducer.ToolInputEndReceived({taskId, id: "call-1"})
     let (nextState, _) = Reducer.next(state, action)
 
     let message = TestHelpers.getMessage(nextState, 0)->Option.getOrThrow
 
     switch message {
-    | ToolCall({state, input, _}) => {
+    | Reducer.Message.ToolCall({state, input, _}) => {
         t->expect(state)->Expect.toBe(Reducer.Message.InputAvailable)
         t->expect(input->Option.isSome)->Expect.toBe(true)
       }
@@ -543,7 +535,7 @@ describe("Client State Reducer - Tool Lifecycle", () => {
   test("ToolResultReceived sets result and OutputAvailable state", t => {
     let state = TestHelpers.makeStateWithTask(
       ~messages=[
-        ToolCall({
+        Reducer.Message.ToolCall({
           id: "call-1",
           toolName: "read_file",
           inputBuffer: "",
@@ -558,7 +550,7 @@ describe("Client State Reducer - Tool Lifecycle", () => {
       ],
     )
 
-    let taskId = state.currentTaskId->Option.getOrThrow
+    let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
     let result = JSON.parseOrThrow("{\"content\": \"file contents\"}")
     let action = Reducer.ToolResultReceived({taskId, id: "call-1", result})
     let (nextState, _) = Reducer.next(state, action)
@@ -566,7 +558,7 @@ describe("Client State Reducer - Tool Lifecycle", () => {
     let message = TestHelpers.getMessage(nextState, 0)->Option.getOrThrow
 
     switch message {
-    | ToolCall({state, result, _}) => {
+    | Reducer.Message.ToolCall({state, result, _}) => {
         t->expect(state)->Expect.toBe(Reducer.Message.OutputAvailable)
         t->expect(result->Option.isSome)->Expect.toBe(true)
       }
@@ -577,7 +569,7 @@ describe("Client State Reducer - Tool Lifecycle", () => {
   test("ToolErrorReceived sets error and OutputError state", t => {
     let state = TestHelpers.makeStateWithTask(
       ~messages=[
-        ToolCall({
+        Reducer.Message.ToolCall({
           id: "call-1",
           toolName: "read_file",
           inputBuffer: "",
@@ -592,7 +584,7 @@ describe("Client State Reducer - Tool Lifecycle", () => {
       ],
     )
 
-    let taskId = state.currentTaskId->Option.getOrThrow
+    let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
     let action = Reducer.ToolErrorReceived({
       taskId,
       id: "call-1",
@@ -603,7 +595,7 @@ describe("Client State Reducer - Tool Lifecycle", () => {
     let message = TestHelpers.getMessage(nextState, 0)->Option.getOrThrow
 
     switch message {
-    | ToolCall({state, errorText, _}) => {
+    | Reducer.Message.ToolCall({state, errorText, _}) => {
         t->expect(state)->Expect.toBe(Reducer.Message.OutputError)
         t->expect(errorText)->Expect.toBe(Some("File not found"))
       }
@@ -615,14 +607,14 @@ describe("Client State Reducer - Tool Lifecycle", () => {
     // Create a task with an assistant message first (tools belong to tasks)
     let state = TestHelpers.makeStateWithTask(
       ~messages=[
-        Assistant(
+        Reducer.Message.Assistant(
           Streaming({
             id: "assistant-1",
             textBuffer: "",
             createdAt: 0.0,
           }),
         ),
-        ToolCall({
+        Reducer.Message.ToolCall({
           id: "call-1",
           toolName: "read_file",
           inputBuffer: "",
@@ -649,7 +641,7 @@ describe("Client State Reducer - Tool Lifecycle", () => {
       parentAgentId: None,
       spawningToolName: None,
     }
-    let taskId = state.currentTaskId->Option.getOrThrow
+    let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
     let action = Reducer.ToolCallReceived({taskId, toolCall})
     let (nextState, _) = Reducer.next(state, action)
 
@@ -657,7 +649,7 @@ describe("Client State Reducer - Tool Lifecycle", () => {
     t->expect(messages->Array.length)->Expect.toBe(2)
 
     switch messages->Array.get(1) {
-    | Some(ToolCall({state, input, _})) => {
+    | Some(Reducer.Message.ToolCall({state, input, _})) => {
         t->expect(state)->Expect.toBe(Reducer.Message.InputAvailable)
         t->expect(input->Option.isSome)->Expect.toBe(true)
       }
@@ -679,7 +671,7 @@ describe("Client State Reducer - Task ID Continuity", () => {
       }),
     )
 
-    let taskId1 = state1.currentTaskId
+    let taskId1 = TestHelpers.getCurrentTaskId(state1)
 
     let (state2, _effects2) = Reducer.next(
       state1,
@@ -690,11 +682,11 @@ describe("Client State Reducer - Task ID Continuity", () => {
       }),
     )
 
-    let taskId2 = state2.currentTaskId
+    let taskId2 = TestHelpers.getCurrentTaskId(state2)
 
     t->expect(taskId1->Option.isSome)->Expect.toBe(true)
     t->expect(taskId2->Option.isSome)->Expect.toBe(true)
-    t->expect(taskId1)->Expect.toBe(taskId2)
+    t->expect(taskId1)->Expect.toEqual(taskId2)
   })
 
   test("effect contains same task ID as state", t => {
@@ -709,7 +701,7 @@ describe("Client State Reducer - Task ID Continuity", () => {
       }),
     )
 
-    let taskIdInState = state1.currentTaskId
+    let taskIdInState = TestHelpers.getCurrentTaskId(state1)
 
     switch (effects1->Array.get(0), taskIdInState) {
     | (Some(Reducer.SendMessageToAPI({taskId: effectTaskId, _})), Some(stateTaskId)) =>
@@ -721,57 +713,44 @@ describe("Client State Reducer - Task ID Continuity", () => {
 
 describe("Client State Reducer - Task Management Actions", () => {
   test("SwitchTask restores task messages", t => {
-    let task1 = Reducer.Task.make(~title="Task 1", ~previewUrl="http://localhost:3000")
-    let messagesDict1 = Dict.make()
-    messagesDict1->Dict.set(
-      "user-1",
-      Reducer.Message.User({
-        id: "user-1",
-        content: [UserContentPart.Text({text: "Hello from task 1"})],
-        createdAt: 1000.0,
-      }),
+    let task1 = Task.makeLoaded(
+      ~id="task-1",
+      ~title="Task 1",
+      ~previewUrl="http://localhost:3000",
+      ~createdAt=1000.0,
+      ~messages=[
+        Reducer.Message.User({
+          id: "user-1",
+          content: [UserContentPart.Text({text: "Hello from task 1"})],
+          createdAt: 1000.0,
+        }),
+      ],
     )
-    let task1WithMessages = {
-      ...task1,
-      id: "task-1",
-      createdAt: 1000.0,
-      loadState: Reducer.Task.Loaded({
-        ...Reducer.Task.makeLoadedData(),
-        messages: messagesDict1,
-      }),
-    }
 
-    let task2 = Reducer.Task.make(~title="Task 2", ~previewUrl="http://localhost:3000")
-    let messagesDict2 = Dict.make()
-    messagesDict2->Dict.set(
-      "user-2",
-      Reducer.Message.User({
-        id: "user-2",
-        content: [UserContentPart.Text({text: "Hello from task 2"})],
-        createdAt: 2000.0,
-      }),
+    let task2 = Task.makeLoaded(
+      ~id="task-2",
+      ~title="Task 2",
+      ~previewUrl="http://localhost:3000",
+      ~createdAt=2000.0,
+      ~messages=[
+        Reducer.Message.User({
+          id: "user-2",
+          content: [UserContentPart.Text({text: "Hello from task 2"})],
+          createdAt: 2000.0,
+        }),
+      ],
     )
-    let task2WithMessages = {
-      ...task2,
-      id: "task-2",
-      createdAt: 2000.0,
-      loadState: Reducer.Task.Loaded({
-        ...Reducer.Task.makeLoadedData(),
-        messages: messagesDict2,
-      }),
-    }
 
     let tasks = Dict.make()
-    tasks->Dict.set("task-1", task1WithMessages)
-    tasks->Dict.set("task-2", task2WithMessages)
+    tasks->Dict.set("task-1", task1)
+    tasks->Dict.set("task-2", task2)
 
     let state: Reducer.state = {
       tasks,
-      currentTaskId: Some("task-1"),
-      connectionState: Disconnected,
+      currentTask: Task.Selected("task-1"),
+      acpSession: NoAcpSession,
       sessionInitialized: false,
       usageInfo: None,
-      apiBaseUrl: None,
       openrouterKeySettings: {
         source: Client__State__Types.None,
         saveStatus: Client__State__Types.Idle,
@@ -801,65 +780,23 @@ describe("Client State Reducer - Task Management Actions", () => {
     }
   })
 
-  test("SwitchTask restores webPreview state", t => {
-    let task1 = Reducer.Task.make(~title="Task 1", ~previewUrl="http://localhost:3000")
-    let task1Modified = {
-      ...task1,
-      id: "task-1",
-      createdAt: 1000.0,
-      loadState: Reducer.Task.Loaded({
-        ...Reducer.Task.makeLoadedData(),
-        webPreviewIsSelecting: true,
-      }),
-    }
-
-    let task2 = Reducer.Task.make(~title="Task 2", ~previewUrl="http://localhost:4000")
-    let task2 = {...task2, id: "task-2", createdAt: 2000.0}
-
-    let tasks = Dict.make()
-    tasks->Dict.set("task-1", task1Modified)
-    tasks->Dict.set("task-2", task2)
-
-    let state: Reducer.state = {
-      tasks,
-      currentTaskId: Some("task-1"),
-      connectionState: Disconnected,
-      sessionInitialized: false,
-      usageInfo: None,
-      apiBaseUrl: None,
-      openrouterKeySettings: {
-        source: Client__State__Types.None,
-        saveStatus: Client__State__Types.Idle,
-      },
-      anthropicOAuthStatus: Client__State__Types.NotConnected,
-      modelsConfig: None,
-      selectedModel: None,
-      sessionsLoadState: Client__State__Types.SessionsNotLoaded,
-    }
-
-    t->expect(Reducer.Selectors.webPreviewIsSelecting(state))->Expect.toBe(true)
-    t->expect(Reducer.Selectors.previewUrl(state))->Expect.toBe("http://localhost:3000")
-
-    let (nextState, _) = Reducer.next(state, SwitchTask({taskId: "task-2"}))
-
-    t->expect(Reducer.Selectors.webPreviewIsSelecting(nextState))->Expect.toBe(false)
-    t->expect(Reducer.Selectors.previewUrl(nextState))->Expect.toBe("http://localhost:4000")
-  })
-
-  test("DeleteTask clears currentTaskId when deleting current task", t => {
-    let task1 = Reducer.Task.make(~title="Task 1", ~previewUrl="http://localhost:3000")
-    let task1 = {...task1, id: "task-1", createdAt: 1000.0}
+  test("DeleteTask switches to New when deleting only task", t => {
+    let task1 = Task.makeLoaded(
+      ~id="task-1",
+      ~title="Task 1",
+      ~previewUrl="http://localhost:3000",
+      ~createdAt=1000.0,
+    )
 
     let tasks = Dict.make()
     tasks->Dict.set("task-1", task1)
 
     let state: Reducer.state = {
       tasks,
-      currentTaskId: Some("task-1"),
-      connectionState: Disconnected,
+      currentTask: Task.Selected("task-1"),
+      acpSession: NoAcpSession,
       sessionInitialized: false,
       usageInfo: None,
-      apiBaseUrl: None,
       openrouterKeySettings: {
         source: Client__State__Types.None,
         saveStatus: Client__State__Types.Idle,
@@ -873,22 +810,29 @@ describe("Client State Reducer - Task Management Actions", () => {
     let (nextState, _) = Reducer.next(state, DeleteTask({taskId: "task-1"}))
 
     t->expect(TestHelpers.getTaskCount(nextState))->Expect.toBe(0)
-    t->expect(nextState.currentTaskId)->Expect.toBe(None)
+    // Should switch to New task
+    switch nextState.currentTask {
+    | Task.New(_) => t->expect(true)->Expect.toBe(true)
+    | Task.Selected(_) => t->expect(false)->Expect.toBe(true)
+    }
   })
 
   test("Tasks maintain independent state across switches", t => {
-    let task1 = Reducer.Task.make(~title="Task 1", ~previewUrl="http://localhost:3000")
-    let task1 = {...task1, id: "task-1", createdAt: 1000.0}
+    let task1 = Task.makeLoaded(
+      ~id="task-1",
+      ~title="Task 1",
+      ~previewUrl="http://localhost:3000",
+      ~createdAt=1000.0,
+    )
     let tasks = Dict.make()
     tasks->Dict.set("task-1", task1)
 
     let state: Reducer.state = {
       tasks,
-      currentTaskId: Some("task-1"),
-      connectionState: Disconnected,
+      currentTask: Task.Selected("task-1"),
+      acpSession: NoAcpSession,
       sessionInitialized: false,
       usageInfo: None,
-      apiBaseUrl: None,
       openrouterKeySettings: {
         source: Client__State__Types.None,
         saveStatus: Client__State__Types.Idle,
@@ -970,46 +914,37 @@ describe("Client State Reducer - Session Loading Actions", () => {
 
     // Verify task titles are set correctly
     let task1 = nextState.tasks->Dict.get("session-1")->Option.getOrThrow
-    t->expect(task1.title)->Expect.toBe("First Session")
+    t->expect(Task.getTitle(task1))->Expect.toEqual(Some("First Session"))
 
     let task2 = nextState.tasks->Dict.get("session-2")->Option.getOrThrow
-    t->expect(task2.title)->Expect.toBe("Second Session")
+    t->expect(Task.getTitle(task2))->Expect.toEqual(Some("Second Session"))
   })
 
   test("SessionsLoadSuccess does not overwrite existing tasks", t => {
     // Create state with an existing task
-    let existingTask = Reducer.Task.make(
+    let existingTask = Task.makeLoaded(
+      ~id="session-1",
       ~title="Existing Task",
       ~previewUrl="http://localhost:3000",
+      ~createdAt=1000.0,
+      ~messages=[
+        Reducer.Message.User({
+          id: "user-1",
+          content: [UserContentPart.Text({text: "Existing message"})],
+          createdAt: 1000.0,
+        }),
+      ],
     )
-    let messagesDict = Dict.make()
-    messagesDict->Dict.set(
-      "user-1",
-      Reducer.Message.User({
-        id: "user-1",
-        content: [UserContentPart.Text({text: "Existing message"})],
-        createdAt: 1000.0,
-      }),
-    )
-    let existingTaskWithMessage = {
-      ...existingTask,
-      id: "session-1",
-      loadState: Reducer.Task.Loaded({
-        ...Reducer.Task.makeLoadedData(),
-        messages: messagesDict,
-      }),
-    }
 
     let tasks = Dict.make()
-    tasks->Dict.set("session-1", existingTaskWithMessage)
+    tasks->Dict.set("session-1", existingTask)
 
     let state: Reducer.state = {
       tasks,
-      currentTaskId: Some("session-1"),
-      connectionState: Disconnected,
+      currentTask: Task.Selected("session-1"),
+      acpSession: NoAcpSession,
       sessionInitialized: false,
       usageInfo: None,
-      apiBaseUrl: None,
       openrouterKeySettings: {
         source: Client__State__Types.None,
         saveStatus: Client__State__Types.Idle,
@@ -1043,14 +978,13 @@ describe("Client State Reducer - Session Loading Actions", () => {
 
     // Existing task should retain its original title and messages
     let task1 = nextState.tasks->Dict.get("session-1")->Option.getOrThrow
-    t->expect(task1.title)->Expect.toBe("Existing Task")
-    let task1Messages =
-      Reducer.Task.getLoadedData(task1)->Option.mapOr(Dict.make(), d => d.messages)
-    t->expect(task1Messages->Dict.has("user-1"))->Expect.toBe(true)
+    t->expect(Task.getTitle(task1))->Expect.toEqual(Some("Existing Task"))
+    let task1Messages = Task.getMessages(task1)
+    t->expect(task1Messages->Array.some(msg => Reducer.Message.getId(msg) == "user-1"))->Expect.toBe(true)
 
     // New task should be added
     let task2 = nextState.tasks->Dict.get("session-2")->Option.getOrThrow
-    t->expect(task2.title)->Expect.toBe("New Session")
+    t->expect(Task.getTitle(task2))->Expect.toEqual(Some("New Session"))
   })
 
   test("SessionsLoadError transitions to error state with message", t => {
@@ -1079,20 +1013,24 @@ describe("Client State Reducer - Session Loading Actions", () => {
   })
 
   test("UserMessageReceived hydrates message into existing task", t => {
-    // Create a task (simulating one loaded from session)
-    let task = Reducer.Task.make(~title="Loaded Session", ~previewUrl="http://localhost:3000")
-    let task = {...task, id: "task-123"}
+    // Create a Loading task (simulating one that's being loaded from session)
+    let task = Task.makeUnloaded(
+      ~id="task-123",
+      ~title="Loaded Session",
+      ~createdAt=1000.0,
+      ~updatedAt=1000.0,
+    )
+    let loadingTask = Task.startLoading(task, ~previewUrl="http://localhost:3000")
 
     let tasks = Dict.make()
-    tasks->Dict.set("task-123", task)
+    tasks->Dict.set("task-123", loadingTask)
 
     let state: Reducer.state = {
       tasks,
-      currentTaskId: Some("task-123"),
-      connectionState: Disconnected,
+      currentTask: Task.Selected("task-123"),
+      acpSession: NoAcpSession,
       sessionInitialized: false,
       usageInfo: None,
-      apiBaseUrl: None,
       openrouterKeySettings: {
         source: Client__State__Types.None,
         saveStatus: Client__State__Types.Idle,
@@ -1115,11 +1053,10 @@ describe("Client State Reducer - Session Loading Actions", () => {
 
     // Verify message was added to task
     let updatedTask = nextState.tasks->Dict.get("task-123")->Option.getOrThrow
-    let messages =
-      Reducer.Task.getLoadedData(updatedTask)->Option.mapOr(Dict.make(), d => d.messages)
-    t->expect(messages->Dict.has("msg-1"))->Expect.toBe(true)
+    let messages = Task.getMessages(updatedTask)
+    t->expect(messages->Array.some(msg => Reducer.Message.getId(msg) == "msg-1"))->Expect.toBe(true)
 
-    let message = messages->Dict.get("msg-1")->Option.getOrThrow
+    let message = messages->Array.find(msg => Reducer.Message.getId(msg) == "msg-1")->Option.getOrThrow
     switch message {
     | User({id, content, _}) => {
         t->expect(id)->Expect.toBe("msg-1")

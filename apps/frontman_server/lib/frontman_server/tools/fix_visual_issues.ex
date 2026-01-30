@@ -120,7 +120,7 @@ defmodule FrontmanServer.Tools.FixVisualIssues do
       )
 
     case Swarm.run_blocking(agent, messages, tool_executor) do
-      {:ok, result} ->
+      {:ok, result, _loop_id} ->
         Logger.info("FixVisualIssues: Completed for #{component_name}")
 
         {:ok,
@@ -129,7 +129,7 @@ defmodule FrontmanServer.Tools.FixVisualIssues do
            "componentName" => component_name
          }}
 
-      {:error, reason} ->
+      {:error, reason, _loop_id} ->
         Logger.error("FixVisualIssues: Failed - #{inspect(reason)}")
         {:error, "Visual fixes failed: #{inspect(reason)}"}
     end
@@ -190,7 +190,7 @@ defmodule FrontmanServer.Tools.FixVisualIssues do
     1. Apply the fixes described in "How to Fix" above
     2. Navigate to `#{test_page_url}`
     3. Take ONE screenshot to verify improvements
-    4. Use `navigate_back` to leave the test page
+    4. Use `navigate({"action": "back"})` to leave the test page
     5. Return a JSON result with:
        - `changesApplied`: Array of changes made
        - `remainingIssues`: Array of issues that couldn't be fixed

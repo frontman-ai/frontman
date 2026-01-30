@@ -87,7 +87,7 @@ defmodule FrontmanServer.Tools.ReplaceComponent do
       )
 
     case Swarm.run_blocking(agent, [user_msg], tool_executor) do
-      {:ok, result} ->
+      {:ok, result, _loop_id} ->
         Logger.info("ReplaceComponent: Completed for #{component_name}")
 
         {:ok,
@@ -98,7 +98,7 @@ defmodule FrontmanServer.Tools.ReplaceComponent do
            "targetFilePath" => target_file_path
          }}
 
-      {:error, reason} ->
+      {:error, reason, _loop_id} ->
         Logger.error("ReplaceComponent: Failed - #{inspect(reason)}")
         {:error, "Replacement failed: #{inspect(reason)}"}
     end

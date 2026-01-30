@@ -32,8 +32,6 @@ module Actions = {
 
 // Selectors
 module Selectors = {
-  let extensionState = (state: state) => state
-
   let isInstalled = (state: state) => {
     switch state {
     | NotInstalled => false

@@ -100,7 +100,7 @@ Protocol-based streaming interface:
 
 **Chunk Types**: `:token`, `:thinking`, `:tool_call_end`, `:usage`, `:done`
 
-The production implementation (`frontman_server/agents/llm_client.ex`) supports OpenRouter, Anthropic, Google, and OpenAI providers via ReqLLM.
+Production implementations should implement this protocol to support their preferred LLM providers.
 
 ### 6. Message System (`message.ex`, `message/`)
 

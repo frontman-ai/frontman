@@ -40,6 +40,8 @@ defmodule FrontmanServer.Application do
       {Phoenix.PubSub, name: FrontmanServer.PubSub},
       # Registry for tracking agents and tool calls
       {Registry, keys: :unique, name: FrontmanServer.AgentRegistry},
+      # Monitors task executions and broadcasts errors on crash
+      FrontmanServer.Tasks.ExecutionMonitor,
       # TaskSupervisor for agent execution tasks
       {Task.Supervisor, name: FrontmanServer.TaskSupervisor},
       # Start to serve requests, typically the last entry

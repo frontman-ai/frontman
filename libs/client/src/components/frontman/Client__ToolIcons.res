@@ -411,21 +411,21 @@ let categorizeToolName = (toolName: string): toolCategory => {
 /**
  * Get the appropriate icon component for a tool name
  */
-let getToolIcon = (toolName: string, ~size: int=defaultSize, ~className: string=""): React.element => {
+let getToolIcon = (toolName: string, ~size: int=defaultSize): React.element => {
   let category = categorizeToolName(toolName)
-  
+
   switch category {
-  | Read => <EyeIcon size className />
-  | Edit => <PencilIcon size className />
-  | Search => <SearchIcon size className />
-  | Terminal => <TerminalIcon size className />
-  | Web => <GlobeIcon size className />
-  | List => <FolderIcon size className />
-  | Delete => <TrashIcon size className />
-  | Todo => <ChecklistIcon size className />
-  | Lint => <WrenchIcon size className />
-  | Mcp => <PlugIcon size className />
-  | Unknown => <CircleIcon size className />
+  | Read => <EyeIcon size />
+  | Edit => <PencilIcon size />
+  | Search => <SearchIcon size />
+  | Terminal => <TerminalIcon size />
+  | Web => <GlobeIcon size />
+  | List => <FolderIcon size />
+  | Delete => <TrashIcon size />
+  | Todo => <ChecklistIcon size />
+  | Lint => <WrenchIcon size />
+  | Mcp => <PlugIcon size />
+  | Unknown => <CircleIcon size />
   }
 }
 

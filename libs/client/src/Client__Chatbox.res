@@ -106,27 +106,29 @@ let make = () => {
   let messages = Client__State.useSelector(Client__State.Selectors.messages)
   let isStreaming = Client__State.useSelector(Client__State.Selectors.isStreaming)
   let isAgentRunning = Client__State.useSelector(Client__State.Selectors.isAgentRunning)
-  let isConnected = Client__State.useSelector(Client__State.Selectors.isConnected)
+  let hasActiveACPSession = Client__State.useSelector(Client__State.Selectors.hasActiveACPSession)
   let sessionInitialized = Client__State.useSelector(Client__State.Selectors.sessionInitialized)
   let planEntries = Client__State.useSelector(Client__State.Selectors.currentPlanEntries)
   let usageInfo = Client__State.useSelector(Client__State.Selectors.usageInfo)
   let modelsConfig = Client__State.useSelector(Client__State.Selectors.modelsConfig)
   let selectedModel = Client__State.useSelector(Client__State.Selectors.selectedModel)
-  let runtimeConfig = RuntimeConfig.read()
-  let hasEnvKey = RuntimeConfig.hasOpenrouterKey(runtimeConfig)
+  let hasProviderConfigured = Client__State.useSelector(Client__State.Selectors.hasAnyProviderConfigured)
+  let hasEnvKey = RuntimeConfig.hasOpenrouterKey(RuntimeConfig.read())
+  let hasAnyKey = hasProviderConfigured || hasEnvKey
 
   let providers = modelsConfig->Option.mapOr([], config => config.providers)
 
-  let isUsageExhausted = switch usageInfo {
-  | Some({remaining: Some(remaining), hasUserKey: Some(false), hasServerKey: Some(true)})
-    if remaining <= 0 && !hasEnvKey => true
+  let isUsageExhausted = switch (usageInfo, hasAnyKey) {
+  | (Some({remaining: Some(remaining), hasServerKey: Some(true)}), false)
+    if remaining <= 0 => true
   | _ => false
   }
 
   let (thinkingState, thinkingMessageId) = UseThinkingState.useWithMessageId(
     ~messages,
     ~isStreaming,
-    ~isConnected,
+    ~isAgentRunning,
+    ~hasActiveACPSession,
     ~sessionInitialized,
   )
 
@@ -139,10 +141,11 @@ let make = () => {
       }
       switch session {
       | Some(sess) => sendMessage(sess.sessionId)
-      | None => createSession(~onComplete=result => {
+      | None =>
+        createSession(~onComplete=result => {
           switch result {
           | Ok(sessionId) => sendMessage(sessionId)
-          | Error(_) => ()
+          | Error(err) => Console.error2("[Chatbox] Session creation failed:", err)
           }
         })
       }
@@ -317,13 +320,8 @@ let make = () => {
     <Client__PlanDisplay entries=planEntries />
     <Client__SelectedElementDisplay />
     <Client__FigmaNodeDisplay />
-    {switch usageInfo {
-    | Some({
-        limit: Some(limit),
-        remaining: Some(remaining),
-        hasUserKey: Some(false),
-        hasServerKey: Some(true),
-      }) if !hasEnvKey =>
+    {switch (usageInfo, hasAnyKey) {
+    | (Some({limit: Some(limit), remaining: Some(remaining), hasServerKey: Some(true)}), false) =>
       <div className="px-4 pb-1 text-xs text-zinc-400">
         {React.string(
           `Free requests remaining: ${remaining->Int.toString} / ${limit->Int.toString}. Add your API key in Settings to remove limits.`,
@@ -340,7 +338,7 @@ let make = () => {
       onModelChange={(~provider, ~value) =>
         Client__State.Actions.setSelectedModel(~provider, ~value)}
       isAgentRunning
-      isConnected
+      hasActiveACPSession
       disabled={isUsageExhausted}
       disabledPlaceholder="Free requests exhausted. Add your API key in Settings to continue."
     />

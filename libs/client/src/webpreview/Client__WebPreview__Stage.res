@@ -61,19 +61,62 @@ let make = (~document) => {
     None
   }, (clickedElement, webPreviewIsSelecting))
 
+  // Set crosshair cursor on iframe body during selection mode
+  React.useEffect1(() => {
+    document
+    ->Option.flatMap(doc => WebAPI.Document.body(doc)->Null.toOption)
+    ->Option.forEach(body => {
+      let style = WebAPI.Element.asHTMLElement(body)->WebAPI.HTMLElement.style
+      if webPreviewIsSelecting {
+        WebAPI.CSSStyleDeclaration.setProperty(style, ~property="cursor", ~value="crosshair")
+      } else {
+        WebAPI.CSSStyleDeclaration.removeProperty(style, "cursor")->ignore
+      }
+    })
+
+    Some(
+      () => {
+        document
+        ->Option.flatMap(doc => WebAPI.Document.body(doc)->Null.toOption)
+        ->Option.forEach(body => {
+          let style = WebAPI.Element.asHTMLElement(body)->WebAPI.HTMLElement.style
+          WebAPI.CSSStyleDeclaration.removeProperty(style, "cursor")->ignore
+        })
+      },
+    )
+  }, [webPreviewIsSelecting])
+
+  // Selection overlay container
   <div className="pointer-events-none flex-1 absolute top-0 left-0 w-full h-full">
+    // Selection mode indicator - subtle border around the preview
+    {webPreviewIsSelecting
+      ? <div
+          className="absolute inset-0 pointer-events-none"
+          style={
+            boxShadow: "inset 0 0 0 2px rgba(59, 130, 246, 0.5)",
+            borderRadius: "0",
+          }
+        />
+      : React.null}
     {webPreviewIsSelecting
       ? <Client__WebPreview__HoveredElement
           key="hover" element={hoveredElement} scrollTimestamp={scrollTimestamp}
         />
       : React.null}
-    {selectedElement->Option.mapOr(React.null, data =>
+    {selectedElement->Option.mapOr(React.null, data => {
+      // Re-query element from current document to handle stale DOM references
+      // (e.g., after iframe remount during New → Loaded task transition)
+      let element = switch (data.selector, document) {
+      | (Some(sel), Some(doc)) =>
+        WebAPI.Document.querySelector(doc, sel)->Null.toOption->Option.getOr(data.element)
+      | _ => data.element
+      }
       <Client__WebPreview__ClickedElement
         key="clicked"
-        element={data.element}
+        element={element}
         scrollTimestamp={scrollTimestamp}
         mutationTimestamp={mutationTimestamp}
       />
-    )}
+    })}
   </div>
 }

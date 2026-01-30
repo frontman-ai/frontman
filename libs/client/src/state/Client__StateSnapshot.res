@@ -259,23 +259,49 @@ module Task = {
     title: string,
     messages: array<Message.t>,
     createdAt: float,
-    lastMessageAt: option<float>,
+    updatedAt: float,
     webPreviewIsSelecting: bool,
     selectedElement: option<SelectedElement.t>,
     figmaNode: FigmaNode.t,
     previewUrl: string,
   }
 
+  // Parse with optional updatedAt, then transform to apply fallback to createdAt
   let schema = S.object(s => {
-    id: s.field("id", S.string),
-    title: s.field("title", S.string),
-    messages: s.field("messages", S.array(Message.schema)),
-    createdAt: s.field("createdAt", S.float),
-    lastMessageAt: s.field("lastMessageAt", S.option(S.float)),
-    webPreviewIsSelecting: s.field("webPreviewIsSelecting", S.bool),
-    selectedElement: s.field("selectedElement", nullableToOption(SelectedElement.schema)),
-    figmaNode: s.field("figmaNode", FigmaNode.schema),
-    previewUrl: s.field("previewUrl", S.string),
+    (
+      s.field("id", S.string),
+      s.field("title", S.string),
+      s.field("messages", S.array(Message.schema)),
+      s.field("createdAt", S.float),
+      s.field("updatedAt", S.option(S.float)),
+      s.field("webPreviewIsSelecting", S.bool),
+      s.field("selectedElement", nullableToOption(SelectedElement.schema)),
+      s.field("figmaNode", FigmaNode.schema),
+      s.field("previewUrl", S.string),
+    )
+  })->S.transform(_ => {
+    parser: ((id, title, messages, createdAt, maybeUpdatedAt, webPreviewIsSelecting, selectedElement, figmaNode, previewUrl)) => {
+      id,
+      title,
+      messages,
+      createdAt,
+      updatedAt: maybeUpdatedAt->Option.getOr(createdAt),
+      webPreviewIsSelecting,
+      selectedElement,
+      figmaNode,
+      previewUrl,
+    },
+    serializer: task => (
+      task.id,
+      task.title,
+      task.messages,
+      task.createdAt,
+      Some(task.updatedAt),
+      task.webPreviewIsSelecting,
+      task.selectedElement,
+      task.figmaNode,
+      task.previewUrl,
+    ),
   })
 }
 
@@ -391,39 +417,34 @@ let convertMessage = (msg: Client__State__Types.Message.t): Message.t => {
   }
 }
 
-let convertTask = (task: Client__State__Types.Task.t): Task.t => {
-  // Get loaded data if available
-  let loadedData = Client__State__Types.Task.getLoadedData(task)
+let convertTask = (task: Client__State__Types.Task.t, ~defaultUrl: string): Task.t => {
+  module Task = Client__State__Types.Task
 
-  // Sort messages by createdAt for consistent ordering
+  // Only persisted tasks should be converted (not New tasks)
+  // Use getOrThrow since this is called from state.tasks dict which only has persisted tasks
+  let id = Task.getId(task)->Option.getOrThrow(~message="[convertTask] Cannot convert New task - no ID")
+  let title = Task.getTitle(task)->Option.getOrThrow(~message="[convertTask] Cannot convert New task - no title")
+  let createdAt = Task.getCreatedAt(task)->Option.getOrThrow(~message="[convertTask] Cannot convert New task - no createdAt")
+  let updatedAt = Task.getUpdatedAt(task)->Option.getOrThrow(~message="[convertTask] Cannot convert New task - no updatedAt")
+
+  // Get loaded data if available
+  let loadedData = Task.getLoadedData(task)
+
+  // Messages are already maintained in sorted order
   let messages =
     loadedData
-    ->Option.mapOr([], data =>
-      data.messages
-      ->Dict.valuesToArray
-      ->Array.toSorted((a, b) => {
-        let getCreatedAt = (msg: Client__State__Types.Message.t) =>
-          switch msg {
-          | User({createdAt, _}) => createdAt
-          | Assistant(Streaming({createdAt, _})) => createdAt
-          | Assistant(Completed({createdAt, _})) => createdAt
-          | ToolCall({createdAt, _}) => createdAt
-          }
-        getCreatedAt(a) -. getCreatedAt(b)
-      })
-      ->Array.map(convertMessage)
-    )
+    ->Option.mapOr([], data => data.messages->Array.map(convertMessage))
 
   {
-    id: task.id,
-    title: task.title,
+    id,
+    title,
     messages,
-    createdAt: task.createdAt,
-    lastMessageAt: loadedData->Option.flatMap(d => d.lastMessageAt),
+    createdAt,
+    updatedAt,
     webPreviewIsSelecting: loadedData->Option.mapOr(false, d => d.webPreviewIsSelecting),
     selectedElement: loadedData->Option.flatMap(d => d.selectedElement)->Option.map(convertSelectedElement),
     figmaNode: convertFigmaNode(loadedData->Option.mapOr(Client__State__Types.FigmaNode.NoSelection, d => d.figmaNode)),
-    previewUrl: task.previewFrame.url,
+    previewUrl: Task.getPreviewFrame(task, ~defaultUrl).url,
   }
 }
 
@@ -433,11 +454,17 @@ let convertTask = (task: Client__State__Types.Task.t): Task.t => {
 
 /** Capture a snapshot from the live state */
 let captureFromState = (state: Client__State__Types.state): t => {
-  let tasks = state.tasks->Dict.valuesToArray->Array.map(convertTask)
+  let defaultUrl = Client__State__StateReducer.getInitialUrl()
+  let tasks = state.tasks->Dict.valuesToArray->Array.map(task => convertTask(task, ~defaultUrl))
+
+  let currentTaskId = switch state.currentTask {
+  | Client__State__Types.Task.New(_) => None
+  | Client__State__Types.Task.Selected(id) => Some(id)
+  }
 
   {
     tasks,
-    currentTaskId: state.currentTaskId,
+    currentTaskId,
     sessionInitialized: state.sessionInitialized,
     capturedAt: Date.now(),
   }
@@ -585,7 +612,7 @@ let taskToJson = (task: Task.t): JSON.t => {
     ("title", JSON.Encode.string(task.title)),
     ("messages", JSON.Encode.array(task.messages->Array.map(messageToJson))),
     ("createdAt", JSON.Encode.float(task.createdAt)),
-    ("lastMessageAt", task.lastMessageAt->Option.mapOr(JSON.Encode.null, JSON.Encode.float)),
+    ("updatedAt", JSON.Encode.float(task.updatedAt)),
     ("webPreviewIsSelecting", JSON.Encode.bool(task.webPreviewIsSelecting)),
     ("selectedElement", task.selectedElement->Option.mapOr(JSON.Encode.null, selectedElementToJson)),
     ("figmaNode", figmaNodeToJson(task.figmaNode)),

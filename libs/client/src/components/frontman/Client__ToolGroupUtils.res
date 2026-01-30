@@ -52,8 +52,8 @@ let isBrowserAction = (toolName: string): bool => {
   String.includes(name, "select") ||
   String.includes(name, "press_key") ||
   String.includes(name, "resize") ||
-  // Navigate is an action (except navigate_back which is exploratory)
-  (String.includes(name, "navigate") && !String.includes(name, "navigate_back"))
+  // Navigate is an action
+  String.includes(name, "navigate")
 }
 
 /**
@@ -65,8 +65,7 @@ let isBrowserExploration = (toolName: string): bool => {
   String.includes(name, "snapshot") ||
   String.includes(name, "screenshot") ||
   String.includes(name, "console") ||
-  String.includes(name, "network") ||
-  String.includes(name, "navigate_back")
+  String.includes(name, "network")
 }
 
 /**
@@ -492,8 +491,6 @@ let hasError = (tc: Message.toolCall): bool => {
  */
 let groupToolCalls = (
   toolCalls: array<Message.toolCall>,
-  ~groupReads: bool=true,
-  ~groupTodos: bool=true,
   ~groupSubagents: bool=true,
   ~minGroupSize: int=1,
 ): array<Types.displayItem> => {
@@ -571,24 +568,13 @@ let groupToolCalls = (
     if hasError(tc) {
       false
     } else {
-      let name = String.toLowerCase(tc.toolName)
-
       // Check if it breaks grouping first (mutations)
       if breaksGrouping(tc.toolName) {
         false
       }
       // Check if it's a groupable tool
       else if isGroupableTool(tc.toolName) {
-        // Check groupReads flag for read operations
-        if String.includes(name, "read") && !groupReads {
-          false
-        }
-        // Check groupTodos flag for todo tools
-        else if TodoUtils.isTodoTool(tc.toolName) && !groupTodos {
-          false
-        } else {
-          true
-        }
+        true
       } else {
         false
       }

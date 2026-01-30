@@ -89,7 +89,7 @@ defmodule FrontmanServer.Tools.VisualCompareComponentToFigma do
       )
 
     case Swarm.run_blocking(agent, [user_msg], tool_executor) do
-      {:ok, result} ->
+      {:ok, result, _loop_id} ->
         Logger.info("VisualCompare: Completed comparison for #{component_name}")
 
         {:ok,
@@ -99,7 +99,7 @@ defmodule FrontmanServer.Tools.VisualCompareComponentToFigma do
            "nodeId" => node_id
          }}
 
-      {:error, reason} ->
+      {:error, reason, _loop_id} ->
         Logger.error("VisualCompare: Failed - #{inspect(reason)}")
         {:error, "Comparison failed: #{inspect(reason)}"}
     end
@@ -137,7 +137,7 @@ defmodule FrontmanServer.Tools.VisualCompareComponentToFigma do
 
     4. Compare the Figma design image with the implementation screenshot
 
-    5. Use `navigate_back` to leave the test page
+    5. Use `navigate({"action": "back"})` to leave the test page
 
     6. Return a JSON result with:
        - `figmaDesignDescription`: Detailed description of the Figma design

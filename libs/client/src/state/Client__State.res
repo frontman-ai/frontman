@@ -6,8 +6,8 @@ let useSelector = selection =>
   FrontmanReactStatestore.StateStore.useSelector(Client__State__Store.store, selection)
 
 module Selectors = Client__State__StateReducer.Selectors
-module UserContentPart = Client__State__StateReducer.UserContentPart
-module AssistantContentPart = Client__State__StateReducer.AssistantContentPart
+module UserContentPart = Client__State__Types.UserContentPart
+module AssistantContentPart = Client__State__Types.AssistantContentPart
 
 // Action creators
 module Actions = {
@@ -15,17 +15,6 @@ module Actions = {
     let id = `user-${Date.now()->Float.toString}`
     Client__State__Store.dispatch(AddUserMessage({id, sessionId, content}))
   }
-  let addUserTextMessage = (~id, ~sessionId, ~text) =>
-    Client__State__Store.dispatch(
-      AddUserMessage({
-        id,
-        sessionId,
-        content: [UserContentPart.Text({text: text})],
-      }),
-    )
-
-  let messageCompleted = (~taskId) =>
-    Client__State__Store.dispatch(MessageCompleted({taskId: taskId}))
 
   let textDeltaReceived = (~taskId, ~text) =>
     Client__State__Store.dispatch(TextDeltaReceived({taskId, text}))
@@ -36,17 +25,6 @@ module Actions = {
   // TOOLS
   let toolCallReceived = (~taskId, ~toolCall) =>
     Client__State__Store.dispatch(ToolCallReceived({taskId, toolCall}))
-
-  let toolInputStartReceived = (~taskId, ~id, ~toolName, ~parentAgentId=?, ~spawningToolName=?) =>
-    Client__State__Store.dispatch(
-      ToolInputStartReceived({taskId, id, toolName, parentAgentId, spawningToolName}),
-    )
-
-  let toolInputDeltaReceived = (~taskId, ~id, ~delta) =>
-    Client__State__Store.dispatch(ToolInputDeltaReceived({taskId, id, delta}))
-
-  let toolInputEndReceived = (~taskId, ~id) =>
-    Client__State__Store.dispatch(ToolInputEndReceived({taskId, id}))
 
   let toolInputReceived = (~taskId, ~id, ~input) =>
     Client__State__Store.dispatch(ToolInputReceived({taskId, id, input}))
@@ -90,21 +68,15 @@ module Actions = {
 
   let clearFigmaNodeWaiting = () => Client__State__Store.dispatch(ClearFigmaNodeWaiting)
 
-  // Connection action creators
-  let connect = (~sendPrompt, ~loadTask, ~deleteSession, ~apiBaseUrl) =>
+  // ACP session action creators
+  let setAcpSession = (~sendPrompt, ~loadTask, ~deleteSession, ~apiBaseUrl) =>
     Client__State__Store.dispatch(
-      Connect({sendPrompt, loadTask, deleteSession, apiBaseUrl}),
+      SetAcpSession({sendPrompt, loadTask, deleteSession, apiBaseUrl}),
     )
 
-  let disconnect = () => Client__State__Store.dispatch(Disconnect)
+  let clearAcpSession = () => Client__State__Store.dispatch(ClearAcpSession)
 
   // Task loading action creators
-  let taskLoadStarted = (~taskId) =>
-    Client__State__Store.dispatch(TaskLoadStarted({taskId: taskId}))
-
-  let taskLoadComplete = (~taskId) =>
-    Client__State__Store.dispatch(TaskLoadComplete({taskId: taskId}))
-
   let taskLoadError = (~taskId, ~error) =>
     Client__State__Store.dispatch(TaskLoadError({taskId, error}))
 
@@ -129,8 +101,6 @@ module Actions = {
     Client__State__Store.dispatch(ResetOpenRouterKeySaveStatus)
 
   // Model selection action creators
-  let fetchModelsConfig = () => Client__State__Store.dispatch(FetchModelsConfig)
-
   let setSelectedModel = (~provider, ~value) =>
     Client__State__Store.dispatch(SetSelectedModel({model: {provider, value}}))
 

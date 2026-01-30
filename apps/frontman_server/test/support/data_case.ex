@@ -43,6 +43,22 @@ defmodule FrontmanServer.DataCase do
   end
 
   @doc """
+  Sets up sandbox in shared mode for tests that spawn processes needing DB access.
+
+  Use this in tests that spawn Tasks/GenServers which hit the database:
+
+      setup :setup_sandbox_for_async_tasks
+
+  Note: Tests using this cannot be `async: true` since shared mode requires
+  sequential execution to avoid cross-test contamination.
+  """
+  def setup_sandbox_for_async_tasks(_context) do
+    pid = Sandbox.start_owner!(FrontmanServer.Repo, shared: true)
+    on_exit(fn -> Sandbox.stop_owner(pid) end)
+    :ok
+  end
+
+  @doc """
   A helper that transforms changeset errors into a map of messages.
 
       assert {:error, changeset} = Accounts.create_user(%{password: "short"})

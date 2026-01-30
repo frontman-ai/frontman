@@ -109,33 +109,28 @@ let convertMessage = (msg: Snapshot.Message.t): StateTypes.Message.t => {
 }
 
 let convertTask = (task: Snapshot.Task.t): StateTypes.Task.t => {
-  // Convert messages array to Dict
-  let messagesDict = Dict.make()
-  task.messages->Array.forEach(msg => {
-    let liveMsg = convertMessage(msg)
-    messagesDict->Dict.set(Snapshot.Message.getId(msg), liveMsg)
-  })
+  // Convert messages array and wrap in MessageStore
+  let messages = task.messages->Array.map(convertMessage)
+  let messageStore = Client__MessageStore.fromArray(messages)
 
-  {
+  // Create a Loaded task using the variant constructor
+  StateTypes.Task.Loaded({
     id: task.id,
     title: task.title,
     createdAt: task.createdAt,
-    updatedAt: task.createdAt, // Snapshots don't have updatedAt, use createdAt
+    updatedAt: task.updatedAt,
+    messages: messageStore,
     previewFrame: {
       url: task.previewUrl,
       contentDocument: None,
       contentWindow: None,
     },
-    loadState: StateTypes.Task.Loaded({
-      messages: messagesDict,
-      lastMessageAt: task.lastMessageAt,
-      webPreviewIsSelecting: task.webPreviewIsSelecting,
-      selectedElement: None, // Cannot restore DOM element from snapshot
-      figmaNode: convertFigmaNode(task.figmaNode),
-      isAgentRunning: false, // Default to not running when restoring from snapshot
-      planEntries: [], // Plan entries not stored in snapshots yet
-    }),
-  }
+    webPreviewIsSelecting: task.webPreviewIsSelecting,
+    selectedElement: None, // Cannot restore DOM element from snapshot
+    figmaNode: convertFigmaNode(task.figmaNode),
+    isAgentRunning: false, // Default to not running when restoring from snapshot
+    planEntries: [], // Plan entries not stored in snapshots yet
+  })
 }
 
 /** Convert a snapshot to live state */
@@ -146,13 +141,20 @@ let snapshotToState = (snapshot: Snapshot.t): StateTypes.state => {
     tasksDict->Dict.set(task.id, liveTask)
   })
 
+  // Convert currentTaskId to currentTask type
+  let currentTask = switch snapshot.currentTaskId {
+  | Some(id) => StateTypes.Task.Selected(id)
+  | None =>
+    // No current task in snapshot - create a new ephemeral task
+    StateTypes.Task.New(StateTypes.Task.makeNew(~previewUrl="http://localhost:3000"))
+  }
+
   {
     tasks: tasksDict,
-    currentTaskId: snapshot.currentTaskId,
-    connectionState: Disconnected, // Cannot restore connection from snapshot
+    currentTask,
+    acpSession: NoAcpSession, // Cannot restore ACP session from snapshot
     sessionInitialized: snapshot.sessionInitialized,
     usageInfo: None,
-    apiBaseUrl: None,
     openrouterKeySettings: {
       source: Client__State__Types.None,
       saveStatus: Client__State__Types.Idle,

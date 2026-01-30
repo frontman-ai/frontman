@@ -1680,12 +1680,13 @@
 					"type": "tool_call",
 					"toolCall": {
 						"id": "tool_navigate_back_fDnLgMCRU9Z05gXtjXs5",
-						"toolName": "Calling navigate_back",
+						"toolName": "Calling navigate",
 						"state": "output_available",
 						"inputBuffer": "",
-						"input": {},
+						"input": {"action": "back"},
 						"result": {
-							"success": true
+							"success": true,
+							"action": "back"
 						},
 						"errorText": null,
 						"createdAt": 1766920394523,

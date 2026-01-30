@@ -87,7 +87,7 @@ defmodule FrontmanServer.Tools.FixFilesErrors do
       )
 
     case Swarm.run_blocking(agent, messages, tool_executor) do
-      {:ok, result} ->
+      {:ok, result, _loop_id} ->
         Logger.info("FixFilesErrors: Completed for #{component_name}")
 
         {:ok,
@@ -98,7 +98,7 @@ defmodule FrontmanServer.Tools.FixFilesErrors do
            "testPageUrl" => test_page_url
          }}
 
-      {:error, reason} ->
+      {:error, reason, _loop_id} ->
         Logger.error("FixFilesErrors: Failed - #{inspect(reason)}")
         {:error, "Error fixing failed: #{inspect(reason)}"}
     end
@@ -127,7 +127,7 @@ defmodule FrontmanServer.Tools.FixFilesErrors do
     2. Use `get_errors` to check for any errors
     3. Fix any errors found in the component files
     4. Repeat until no errors remain (max 5 iterations)
-    5. Use `navigate_back` to leave the test page
+    5. Use `navigate({"action": "back"})` to leave the test page
     6. Return the result as JSON
     """
 

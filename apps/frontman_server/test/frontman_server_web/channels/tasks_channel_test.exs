@@ -1,5 +1,7 @@
 defmodule FrontmanServerWeb.TasksChannelTest do
-  use FrontmanServerWeb.ChannelCase, async: true
+  # async: false required because "ACP session/load" describe block uses shared_sandbox: true
+  # Shared sandbox mode is incompatible with async tests as it can interfere with other tests' connections
+  use FrontmanServerWeb.ChannelCase, async: false
 
   alias AgentClientProtocol, as: ACP
   alias FrontmanServerWeb.UserSocket
@@ -307,6 +309,9 @@ defmodule FrontmanServerWeb.TasksChannelTest do
   end
 
   describe "ACP session/load" do
+    # Shared sandbox mode because add_user_message can spawn agent Tasks needing DB access
+    @describetag shared_sandbox: true
+
     setup %{scope: scope} do
       task_id = Ecto.UUID.generate()
       {:ok, ^task_id} = FrontmanServer.Tasks.create_task(scope, task_id, "test-framework")
@@ -375,7 +380,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
       assert_push "acp:message", %{"id" => 1, "result" => %{}}
     end
 
-    test "streams agent message history with full lifecycle", %{
+    test "streams agent message history", %{
       socket: socket,
       scope: scope,
       task_id: task_id
@@ -385,15 +390,8 @@ defmodule FrontmanServerWeb.TasksChannelTest do
 
       push(socket, "acp:message", acp_request(1, "session/load", %{"sessionId" => task_id}))
 
-      # Response 1: start -> chunk -> end
-      assert_push "acp:message", %{
-        "method" => "session/update",
-        "params" => %{
-          "sessionId" => ^task_id,
-          "update" => %{"sessionUpdate" => "agent_message_start"}
-        }
-      }
-
+      # Per ACP spec: only agent_message_chunk exists (no start/end markers)
+      # Client's LoadComplete handler finalizes any streaming messages
       assert_push "acp:message", %{
         "method" => "session/update",
         "params" => %{
@@ -409,35 +407,10 @@ defmodule FrontmanServerWeb.TasksChannelTest do
         "method" => "session/update",
         "params" => %{
           "sessionId" => ^task_id,
-          "update" => %{"sessionUpdate" => "agent_message_end"}
-        }
-      }
-
-      # Response 2: start -> chunk -> end
-      assert_push "acp:message", %{
-        "method" => "session/update",
-        "params" => %{
-          "sessionId" => ^task_id,
-          "update" => %{"sessionUpdate" => "agent_message_start"}
-        }
-      }
-
-      assert_push "acp:message", %{
-        "method" => "session/update",
-        "params" => %{
-          "sessionId" => ^task_id,
           "update" => %{
             "sessionUpdate" => "agent_message_chunk",
             "content" => %{"text" => "Response 2"}
           }
-        }
-      }
-
-      assert_push "acp:message", %{
-        "method" => "session/update",
-        "params" => %{
-          "sessionId" => ^task_id,
-          "update" => %{"sessionUpdate" => "agent_message_end"}
         }
       }
 
@@ -466,11 +439,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
         }
       }
 
-      # Agent response with full lifecycle: start -> chunk -> end
-      assert_push "acp:message", %{
-        "params" => %{"update" => %{"sessionUpdate" => "agent_message_start"}}
-      }
-
+      # Per ACP spec: only agent_message_chunk exists (no start/end markers)
       assert_push "acp:message", %{
         "params" => %{
           "update" => %{
@@ -478,10 +447,6 @@ defmodule FrontmanServerWeb.TasksChannelTest do
             "content" => %{"text" => "Answer"}
           }
         }
-      }
-
-      assert_push "acp:message", %{
-        "params" => %{"update" => %{"sessionUpdate" => "agent_message_end"}}
       }
 
       assert_push "acp:message", %{"id" => 1, "result" => %{}}
@@ -507,7 +472,9 @@ defmodule FrontmanServerWeb.TasksChannelTest do
       }
     end
 
-    test "returns error for unauthorized session", %{socket: socket} do
+    test "returns error for unauthorized session (appears as not found)", %{socket: socket} do
+      # Security: Implementation returns "not found" for unauthorized access
+      # to avoid revealing whether a resource exists
       {:ok, other_user} =
         FrontmanServer.Accounts.register_user(%{
           email: "other_load_#{System.unique_integer([:positive])}@test.local",
@@ -525,7 +492,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
 
       assert_push "acp:message", %{
         "id" => 1,
-        "error" => %{"code" => -32_602, "message" => "Unauthorized"}
+        "error" => %{"code" => -32_602, "message" => "Session not found"}
       }
     end
 

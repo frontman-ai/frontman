@@ -68,17 +68,20 @@ let isAwaitingResponse = (lastMessage: option<Message.t>): bool => {
 let use = (
   ~messages: array<Message.t>,
   ~isStreaming: bool,
-  ~isConnected: bool,
+  ~isAgentRunning: bool,
+  ~hasActiveACPSession: bool,
   ~sessionInitialized: bool,
 ): thinkingState => {
   // Get the last message
   let lastMessage = messages->Array.get(Array.length(messages) - 1)
-  
+
   // Calculate thinking state
-  let showThinking = 
-    // Must be connected and initialized
-    isConnected &&
+  let showThinking =
+    // Must have active ACP session and be initialized
+    hasActiveACPSession &&
     sessionInitialized &&
+    // Agent must be actively running
+    isAgentRunning &&
     // Not currently streaming (AI is responding)
     !isStreaming &&
     // Turn hasn't ended
@@ -103,10 +106,11 @@ let use = (
 let useWithMessageId = (
   ~messages: array<Message.t>,
   ~isStreaming: bool,
-  ~isConnected: bool,
+  ~isAgentRunning: bool,
+  ~hasActiveACPSession: bool,
   ~sessionInitialized: bool,
 ): (thinkingState, string) => {
-  let state = use(~messages, ~isStreaming, ~isConnected, ~sessionInitialized)
+  let state = use(~messages, ~isStreaming, ~isAgentRunning, ~hasActiveACPSession, ~sessionInitialized)
   
   // Generate a stable ID based on last message
   let messageId = switch messages->Array.get(Array.length(messages) - 1) {

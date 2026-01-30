@@ -29,26 +29,32 @@ This guide explains how to use DevPod to run Frontman development environments o
           ↓
 ┌─────────────────────────────────────────────────────────────────────────┐
 │  Your Local Machine                                                     │
-│  - /etc/hosts: wt-ea0c-nextjs.local → 127.0.0.1                         │
-│  - Browser: https://wt-ea0c-nextjs.local:8443                           │
+│  - /etc/hosts: ea0c.nextjs.frontman.local → 127.0.0.1                   │
+│  - Browser: https://ea0c.nextjs.frontman.local:8443/__frontman          │
 │  - All services accessible via subdomains                               │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
 ## URL Scheme
 
-Each worktree gets a unique 4-character hash ID based on its name:
+Each worktree gets a unique 4-character hash ID based on its name. URLs follow this format for WorkOS OAuth compatibility:
+
+```
+https://{hash}.{service}.frontman.local:8443
+```
 
 | Worktree | Hash | Next.js URL | Vite URL | Phoenix URL |
 |----------|------|-------------|----------|-------------|
-| issue-164 | wt-ea0c | https://wt-ea0c-nextjs.local:8443 | https://wt-ea0c-vite.local:8443 | https://wt-ea0c-api.local:8443 |
-| issue-189 | wt-b09b | https://wt-b09b-nextjs.local:8443 | https://wt-b09b-vite.local:8443 | https://wt-b09b-api.local:8443 |
+| issue-164 | ea0c | https://ea0c.nextjs.frontman.local:8443 | https://ea0c.vite.frontman.local:8443 | https://ea0c.api.frontman.local:8443 |
+| issue-189 | b09b | https://b09b.nextjs.frontman.local:8443 | https://b09b.vite.frontman.local:8443 | https://b09b.api.frontman.local:8443 |
 
 Services per worktree:
-- `wt-{hash}-nextjs.local` - Next.js dev server (port 3000)
-- `wt-{hash}-vite.local` - Vite client dev server (port 5173)
-- `wt-{hash}-api.local` - Phoenix server (port 4000)
-- `wt-{hash}-storybook.local` - Storybook (port 6006)
+- `{hash}.nextjs.frontman.local` - Next.js dev server (port 3000) - access at `/__frontman`
+- `{hash}.vite.frontman.local` - Vite client dev server (port 5173)
+- `{hash}.api.frontman.local` - Phoenix server (port 4000)
+- `{hash}.storybook.frontman.local` - Storybook (port 6006)
+
+**Important:** The URL format `{hash}.{service}.frontman.local` is required for WorkOS OAuth redirects to work correctly. WorkOS needs consistent redirect URIs, and this subdomain pattern allows multiple development environments while maintaining OAuth compatibility.
 
 ## Prerequisites
 
@@ -161,10 +167,10 @@ make tunnel
 
 Then access services via their subdomains (get URLs with `make worktree-urls BRANCH=your-branch`):
 
-- `https://wt-xxxx-nextjs.local:8443` - Next.js
-- `https://wt-xxxx-vite.local:8443` - Vite client
-- `https://wt-xxxx-api.local:8443` - Phoenix server
-- `https://wt-xxxx-storybook.local:8443` - Storybook
+- `https://xxxx.nextjs.frontman.local:8443/__frontman` - Next.js (Frontman UI)
+- `https://xxxx.vite.frontman.local:8443` - Vite client
+- `https://xxxx.api.frontman.local:8443` - Phoenix server
+- `https://xxxx.storybook.frontman.local:8443` - Storybook
 
 The services are routed through Caddy reverse proxy on the server, which handles SSL termination with locally-trusted certificates.
 
@@ -298,12 +304,12 @@ The post-create script generates `.env.devpod` with worktree-specific URLs:
 ```bash
 # Example for worktree "issue-164" (hash: ea0c)
 WORKTREE_NAME=issue-164
-WORKTREE_ID=wt-ea0c
-FRONTMAN_HOST=wt-ea0c-api.local:8443
-VITE_HMR_HOST=wt-ea0c-vite.local
+WORKTREE_ID=ea0c
+FRONTMAN_HOST=ea0c.api.frontman.local:8443
+VITE_HMR_HOST=ea0c.vite.frontman.local
 VITE_HMR_PORT=8443
 VITE_HMR_PROTOCOL=wss
-PHX_HOST=wt-ea0c-api.local
+PHX_HOST=ea0c.api.frontman.local
 DB_HOST=host.docker.internal
 ```
 

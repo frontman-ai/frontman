@@ -89,6 +89,7 @@ type action =
   | PromptSent
   | LoadTask({
       taskId: string,
+      needsHistory: bool,
       onUpdate: (string, FrontmanFrontmanClient.FrontmanClient__ACP__Types.sessionUpdate) => unit,
       onMcpMessage: (FrontmanFrontmanClient.FrontmanClient__MCP.messageDirection, JSON.t) => unit,
       onComplete: result<unit, string> => unit,
@@ -125,6 +126,7 @@ type effect =
       connection: ACP.connection,
       mcpServer: MCPServer.t,
       taskId: string,
+      needsHistory: bool,
       onUpdate: (string, FrontmanFrontmanClient.FrontmanClient__ACP__Types.sessionUpdate) => unit,
       onMcpMessage: (FrontmanFrontmanClient.FrontmanClient__MCP.messageDirection, JSON.t) => unit,
       onComplete: result<unit, string> => unit,
@@ -143,34 +145,6 @@ let initialState: state = {
 }
 
 module Selectors = {
-  let isACPConnected = (state: state): bool => {
-    switch state.acp {
-    | ACPConnected(_) => true
-    | _ => false
-    }
-  }
-
-  let getACPConnection = (state: state): option<ACP.connection> => {
-    switch state.acp {
-    | ACPConnected(conn) => Some(conn)
-    | _ => None
-    }
-  }
-
-  let isRelayConnected = (state: state): bool => {
-    switch state.relay {
-    | RelayConnected => true
-    | _ => false
-    }
-  }
-
-  let hasActiveSession = (state: state): bool => {
-    switch state.session {
-    | SessionActive(_) => true
-    | _ => false
-    }
-  }
-
   let getSession = (state: state): option<ACP.session> => {
     switch state.session {
     | SessionActive(s) => Some(s)
@@ -184,8 +158,6 @@ module Selectors = {
     | _ => false
     }
   }
-
-  let getMCPServer = (state: state): option<MCPServer.t> => state.mcpServer
 
   // Derive user-facing connection state
   type connectionStatus =
@@ -320,8 +292,26 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
     )
 
   | ({session: SessionCreating}, SessionCreateSuccess(sess)) => (
-      {...state, session: SessionActive(sess)},
+      {...state, session: SessionActive(sess), isSendingPrompt: false},
       [LogInfo(`Session created: ${sess.sessionId}`)],
+    )
+
+  // Handle SessionCreateSuccess from NoSession - happens when LoadTaskEffect completes
+  | ({session: NoSession}, SessionCreateSuccess(sess)) => (
+      {...state, session: SessionActive(sess), isSendingPrompt: false},
+      [LogInfo(`Session loaded: ${sess.sessionId}`)],
+    )
+
+  // Handle SessionCreateSuccess when switching tasks - old session already cleaned up in effect handler
+  | ({session: SessionActive(_)}, SessionCreateSuccess(sess)) => (
+      {...state, session: SessionActive(sess), isSendingPrompt: false},
+      [LogInfo(`Session switched: ${sess.sessionId}`)],
+    )
+
+  // Handle SessionCreateSuccess after previous failure - recovery
+  | ({session: SessionError(_)}, SessionCreateSuccess(sess)) => (
+      {...state, session: SessionActive(sess), isSendingPrompt: false},
+      [LogInfo(`Session recovered: ${sess.sessionId}`)],
     )
 
   | ({session: SessionCreating}, SessionCreateError(msg)) => (
@@ -337,30 +327,34 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
       [CreateSessionEffect({connection: conn, mcpServer, onUpdate, onMcpMessage, onComplete})],
     )
 
-  | ({session: SessionActive(session), isSendingPrompt: false}, SendPrompt({text, additionalBlocks, onComplete, metadata})) => (
+  | ({session: SessionActive(session), isSendingPrompt: false}, SendPrompt({text, additionalBlocks, onComplete, metadata})) =>
+    (
       {...state, isSendingPrompt: true},
       [SendPromptEffect({session, text, additionalBlocks, onComplete, metadata})],
     )
 
-  | ({isSendingPrompt: true}, PromptSent) => (
+  | ({isSendingPrompt: true}, PromptSent) =>
+    (
       {...state, isSendingPrompt: false},
       [],
     )
 
-  | ({isSendingPrompt: true}, SendPrompt(_)) => (
+  | ({isSendingPrompt: true}, SendPrompt(_)) =>
+    (
       state,
       [LogError("Cannot send prompt: already sending")],
     )
 
-  | ({session: NoSession | SessionCreating | SessionError(_)}, SendPrompt(_)) => (
+  | ({session: NoSession | SessionCreating | SessionError(_)}, SendPrompt(_)) =>
+    (
       state,
       [LogError("Cannot send prompt: no active session")],
     )
 
-  // Load a persisted task (calls ACP.loadSession)
-  | ({acp: ACPConnected(conn), mcpServer: Some(mcpServer)}, LoadTask({taskId, onUpdate, onMcpMessage, onComplete})) => (
+  // Load a persisted task (calls ACP.loadSession or joinSession based on needsHistory)
+  | ({acp: ACPConnected(conn), mcpServer: Some(mcpServer)}, LoadTask({taskId, needsHistory, onUpdate, onMcpMessage, onComplete})) => (
       state,
-      [LoadTaskEffect({connection: conn, mcpServer, taskId, onUpdate, onMcpMessage, onComplete})],
+      [LoadTaskEffect({connection: conn, mcpServer, taskId, needsHistory, onUpdate, onMcpMessage, onComplete})],
     )
 
   | (_, LoadTask(_)) => (
@@ -531,20 +525,25 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
       switch result {
       | Ok(sess) =>
         dispatch(SessionCreateSuccess(sess))
-        Console.log2("[ConnectionReducer] Session created:", sess.sessionId)
         onComplete(Ok(sess.sessionId))
       | Error(err) =>
         dispatch(SessionCreateError(err))
-        Console.error2("[ConnectionReducer] Session creation failed:", err)
         onComplete(Error(err))
       }
     }
     create()->ignore
   | SendPromptEffect({session, text, additionalBlocks, onComplete, metadata}) =>
     let send = async () => {
-      let result = await ACP.sendPrompt(session, text, ~additionalBlocks, ~metadata)
-      dispatch(PromptSent)
-      onComplete(result)
+      try {
+        let result = await ACP.sendPrompt(session, text, ~additionalBlocks, ~metadata)
+        dispatch(PromptSent)
+        onComplete(result)
+      } catch {
+      | exn =>
+        dispatch(PromptSent)
+        onComplete(Error("sendPrompt exception"))
+        throw(exn)
+      }
     }
     send()->ignore
   | FetchSessionsEffect(conn) =>
@@ -559,36 +558,32 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
     }
     fetch()->ignore
 
-  | LoadTaskEffect({connection, mcpServer, taskId, onUpdate, onMcpMessage, onComplete}) =>
-    let loadNewSession = () => {
-      let load = async () => {
-        let mcpServerInterface = MCPServer.toInterface(mcpServer)
-        let result = await ACP.loadSession(
-          connection,
-          taskId, // taskId maps to sessionId at protocol level
-          ~onUpdate,
-          ~mcpServerInterface,
-          ~onMcpMessage,
-        )
-        switch result {
-        | Ok(session) =>
-          dispatch(SessionCreateSuccess(session))
-          Console.log2("[ConnectionReducer] Task loaded:", taskId)
-          onComplete(Ok())
-        | Error(err) =>
-          Console.error2("[ConnectionReducer] Failed to load task:", err)
-          onComplete(Error(err))
-        }
+  | LoadTaskEffect({connection, mcpServer, taskId, needsHistory, onUpdate, onMcpMessage, onComplete}) =>
+    let activateSession = async () => {
+      let mcpServerInterface = MCPServer.toInterface(mcpServer)
+      let result = if needsHistory {
+        await ACP.loadSession(connection, taskId, ~onUpdate, ~mcpServerInterface, ~onMcpMessage)
+      } else {
+        await ACP.joinSession(connection, taskId, ~onUpdate, ~mcpServerInterface, ~onMcpMessage)
       }
-      load()->ignore
+      switch result {
+      | Ok(session) =>
+        dispatch(SessionCreateSuccess(session))
+        Console.log2("[ConnectionReducer] Session activated:", taskId)
+        onComplete(Ok())
+      | Error(err) =>
+        dispatch(SessionCreateError(err))
+        Console.error2("[ConnectionReducer] Failed to activate session:", err)
+        onComplete(Error(err))
+      }
     }
 
     switch state.session {
     | SessionActive({sessionId}) when sessionId == taskId => onComplete(Ok())
     | SessionActive(oldSession) =>
       cleanupSession(oldSession)
-      loadNewSession()
-    | NoSession | SessionCreating | SessionError(_) => loadNewSession()
+      activateSession()->ignore
+    | NoSession | SessionCreating | SessionError(_) => activateSession()->ignore
     }
 
   | DeleteSessionEffect({connection, taskId, onComplete}) =>

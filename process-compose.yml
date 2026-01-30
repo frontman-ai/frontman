@@ -1,0 +1,22 @@
+version: "0.5"
+
+processes:
+  rescript:
+    command: make clean && make rescript-watch
+    readiness_probe:
+      exec:
+        command: tail -1 lib/bs/.compiler.log 2>/dev/null | grep -q "^#Done"
+      initial_delay_seconds: 3
+      period_seconds: 1
+
+  client:
+    command: make dev-client
+
+  server:
+    command: make dev-server
+
+  nextjs:
+    command: make dev-nextjs
+    depends_on:
+      rescript:
+        condition: process_healthy

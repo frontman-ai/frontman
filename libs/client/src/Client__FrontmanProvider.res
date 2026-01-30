@@ -29,7 +29,7 @@ type contextValue = {
     ~onComplete: result<Types.promptResult, string> => unit,
     ~metadata: option<JSON.t>,
   ) => unit,
-  loadTask: (string, ~onComplete: result<unit, string> => unit) => unit,
+  loadTask: (string, ~needsHistory: bool, ~onComplete: result<unit, string> => unit) => unit,
   deleteSession: (string, ~onComplete: result<unit, string> => unit) => unit,
 }
 
@@ -43,7 +43,7 @@ let defaultContextValue: contextValue = {
   createSession: (~onComplete as _) => (),
   clearSession: () => (),
   sendPrompt: (_, ~additionalBlocks as _, ~onComplete as _, ~metadata as _) => (),
-  loadTask: (_, ~onComplete as _) => (),
+  loadTask: (_, ~needsHistory as _, ~onComplete as _) => (),
   deleteSession: (_, ~onComplete as _) => (),
 }
 
@@ -99,7 +99,6 @@ module Provider = {
         ->MCPServer.registerToolModule(module(Client__Tool__GetFigmaNode))
         ->MCPServer.registerToolModule(module(Client__Tool__TakeScreenshot))
         ->MCPServer.registerToolModule(module(Client__Tool__Navigate))
-        ->MCPServer.registerToolModule(module(Client__Tool__NavigateBack))
 
       let config: Reducer.initConfig = {
         endpoint,
@@ -121,11 +120,11 @@ module Provider = {
       let taskId = sessionId
       switch update {
       | AgentMessageChunk({content}) =>
+        // Per ACP spec: first agent_message_chunk implicitly signals message start.
+        // Message end is signaled by session/prompt response with stopReason.
         content->Option.flatMap(c => c.text)->Option.forEach(text => {
           Client__State.Actions.textDeltaReceived(~taskId, ~text)
         })
-      | AgentMessageStart => Client__State.Actions.streamingStarted(~taskId)
-      | AgentMessageEnd => Client__State.Actions.messageCompleted(~taskId)
       | UserMessageChunk({content, timestamp}) =>
         content.text->Option.forEach(text => {
           let id = `user-hydrated-${WebAPI.Global.crypto->WebAPI.Crypto.randomUUID}`
@@ -183,8 +182,8 @@ module Provider = {
     )
 
     let loadTask = React.useCallback1(
-      (taskId: string, ~onComplete) => {
-        dispatch(LoadTask({taskId, onUpdate: handleSessionUpdate, onMcpMessage: logMCPMessage, onComplete}))
+      (taskId: string, ~needsHistory, ~onComplete) => {
+        dispatch(LoadTask({taskId, needsHistory, onUpdate: handleSessionUpdate, onMcpMessage: logMCPMessage, onComplete}))
       },
       [dispatch],
     )

@@ -67,10 +67,19 @@ module SelectFigmaNode = {
 module SelectElement = {
   @react.component
   let make = (~onClick: unit => unit, ~isSelecting: bool) => {
-    <div className={isSelecting ? "rounded bg-blue-500/20" : ""}>
-      <Nav.NavButton onClick={onClick} tooltip="Select">
+    <div
+      className={isSelecting
+        ? "rounded-md bg-blue-500 shadow-sm shadow-blue-500/30"
+        : "rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"}
+    >
+      <Nav.NavButton
+        onClick={onClick}
+        tooltip={isSelecting ? "Exit selection mode" : "Select element"}
+      >
         <RadixUI__Icons.Crosshair1Icon
-          className={isSelecting ? "size-4 text-blue-500" : "size-4"}
+          className={isSelecting
+            ? "size-4 text-white"
+            : "size-4 text-gray-600 dark:text-gray-400"}
         />
       </Nav.NavButton>
     </div>
@@ -93,6 +102,7 @@ let make = () => {
   let allTasks = Client__State.useSelector(Client__State.Selectors.tasks)
   let previewUrl = Client__State.useSelector(Client__State.Selectors.previewUrl)
   let previewFrame = Client__State.useSelector(Client__State.Selectors.previewFrame)
+  let isNewTask = Client__State.useSelector(Client__State.Selectors.isNewTask)
   let webPreviewIsSelecting = Client__State.useSelector(
     Client__State.Selectors.webPreviewIsSelecting,
   )
@@ -163,18 +173,18 @@ let make = () => {
         | _ => React.null
         }}
 
-        {React.useMemo2(
-          () =>
-            allTasks
-            ->Array.map(task => {
-              let isActive = currentTaskId->Option.mapOr(false, id => id == task.id)
-              <Client__WebPreview__Body
-                key={task.id} taskId={task.id} url={task.previewFrame.url} isActive={isActive}
-              />
-            })
-            ->React.array,
-          (allTasks, currentTaskId),
-        )}
+        {isNewTask
+          ? <Client__WebPreview__Body key="__new__" taskId="__new__" url={previewFrame.url} isActive={true} />
+          : React.null}
+        {allTasks
+          ->Array.map(task => {
+            let taskId = Client__Task__Types.Task.getId(task)->Option.getOrThrow
+            let taskPreviewFrame = Client__Task__Types.Task.getPreviewFrame(task, ~defaultUrl=Client__State__StateReducer.getInitialUrl())
+            <Client__WebPreview__Body
+              key={taskId} taskId={taskId} url={taskPreviewFrame.url} isActive={currentTaskId == Some(taskId)}
+            />
+          })
+          ->React.array}
       </div>
     </Nav.Container>
 

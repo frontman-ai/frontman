@@ -5,7 +5,6 @@ let name = "Client::StateReducer"
 // ============================================================================
 
 module UserContentPart = Client__State__Types.UserContentPart
-module AssistantContentPart = Client__State__Types.AssistantContentPart
 module Message = Client__State__Types.Message
 module SelectedElement = Client__State__Types.SelectedElement
 module FigmaNode = Client__State__Types.FigmaNode
@@ -13,96 +12,8 @@ module Task = Client__State__Types.Task
 type state = Client__State__Types.state
 
 // ============================================================================
-// Lens Module - Composable state update functions
+// Actions and Effects
 // ============================================================================
-
-module Lens = {
-  let updateTask = (state: state, taskId: string, fn: Task.t => Task.t): state => {
-    let task = state.tasks->Dict.get(taskId)->Option.getOrThrow
-    let updated = fn(task)
-    let tasks = state.tasks->Dict.copy
-    tasks->Dict.set(taskId, updated)
-    {...state, tasks}
-  }
-
-  let updateCurrentTask = (state: state, fn: Task.t => Task.t): state => {
-    state.currentTaskId->Option.mapOr(state, taskId => updateTask(state, taskId, fn))
-  }
-
-  // Update loaded data within a task (throws if not loaded)
-  let updateTaskLoadedData = (
-    state: state,
-    taskId: string,
-    fn: Task.loadedData => Task.loadedData,
-  ): state => {
-    let task = state.tasks->Dict.get(taskId)->Option.getOrThrow
-    let _ = Task.getLoadedData(task)->Option.getOrThrow
-    updateTask(state, taskId, task => Task.updateLoadedData(task, fn))
-  }
-
-  // Update loaded data within current task (no-op if not loaded)
-  let updateCurrentTaskLoadedData = (
-    state: state,
-    fn: Task.loadedData => Task.loadedData,
-  ): state => {
-    updateCurrentTask(state, task => Task.updateLoadedData(task, fn))
-  }
-
-  let updateTaskMessage = (data: Task.loadedData, msgId: string, fn: Message.t => Message.t): Task.loadedData => {
-    let updatedMessages =
-      data.messages->Dict.mapValues(msg => Message.getId(msg) == msgId ? fn(msg) : msg)
-    {...data, messages: updatedMessages}
-  }
-
-  let insertTaskMessage = (data: Task.loadedData, message: Message.t): Task.loadedData => {
-    let messages = data.messages->Dict.copy
-    messages->Dict.set(Message.getId(message), message)
-    {...data, messages}
-  }
-
-  let updateCurrentTaskMessage = (
-    state: state,
-    msgId: string,
-    fn: Message.t => Message.t,
-  ): state => {
-    updateCurrentTaskLoadedData(state, data => updateTaskMessage(data, msgId, fn))
-  }
-
-  let insertCurrentTaskMessage = (state: state, message: Message.t): state => {
-    updateCurrentTaskLoadedData(state, data => insertTaskMessage(data, message))
-  }
-
-  // Generic helper to get task by ID
-  let getTaskById = (state: state, taskId: string): option<Task.t> => {
-    state.tasks->Dict.get(taskId)
-  }
-
-  // Get loaded data for a task
-  let getTaskLoadedData = (state: state, taskId: string): option<Task.loadedData> => {
-    state.tasks->Dict.get(taskId)->Option.flatMap(Task.getLoadedData)
-  }
-
-  // Get the streaming message in a task's loaded data (at most one per task).
-  let getStreamingMessage = (data: Task.loadedData): option<Message.assistantMessage> => {
-    let streaming =
-      data.messages
-      ->Dict.valuesToArray
-      ->Array.filterMap(msg => {
-        switch msg {
-        | Message.Assistant(Streaming(_) as streaming) => Some(streaming)
-        | _ => None
-        }
-      })
-
-    assert(Array.length(streaming) <= 1)
-    streaming->Array.get(0)
-  }
-
-  // Get the streaming message for a task by ID
-  let getTaskStreamingMessage = (state: state, taskId: string): option<Message.assistantMessage> => {
-    getTaskLoadedData(state, taskId)->Option.flatMap(getStreamingMessage)
-  }
-}
 
 type action =
   // User actions
@@ -123,8 +34,6 @@ type action =
   | ToolInputReceived({taskId: string, id: string, input: JSON.t})
   | ToolResultReceived({taskId: string, id: string, result: JSON.t})
   | ToolErrorReceived({taskId: string, id: string, error: string})
-  // Completion action
-  | MessageCompleted({taskId: string})
   // Preview frame actions
   | SetPreviewUrl({url: string})
   | SetPreviewFrame({
@@ -135,7 +44,7 @@ type action =
   | ToggleWebPreviewSelection
   | SetSelectedElement({selectedElement: option<SelectedElement.t>})
   // Task management actions
-  | CreateTask({title: string})
+  | CreateTask
   | SwitchTask({taskId: string})
   | DeleteTask({taskId: string})
   | ClearCurrentTask // Used when clicking "+" to start a new task - clears selection so next message creates new task
@@ -145,9 +54,14 @@ type action =
   | ClearFigmaNode
   | SetFigmaNodeWaiting
   | ClearFigmaNodeWaiting
-  // Connection actions
-  | Connect({sendPrompt: Client__State__Types.sendPromptFn, loadTask: Client__State__Types.loadTaskFn, deleteSession: Client__State__Types.deleteSessionFn, apiBaseUrl: string})
-  | Disconnect
+  // ACP session actions
+  | SetAcpSession({
+      sendPrompt: Client__State__Types.sendPromptFn,
+      loadTask: Client__State__Types.loadTaskFn,
+      deleteSession: Client__State__Types.deleteSessionFn,
+      apiBaseUrl: string,
+    })
+  | ClearAcpSession
   // Task loading actions (for persisted sessions)
   | TaskLoadStarted({taskId: string})
   | TaskLoadComplete({taskId: string})
@@ -186,10 +100,11 @@ type action =
   // Hydration actions (for session/load)
   | UserMessageReceived({taskId: string, id: string, text: string, timestamp: string})
   | SessionsLoadStarted
-  | SessionsLoadSuccess({sessions: array<FrontmanFrontmanClient.FrontmanClient__ACP__Types.sessionSummary>})
+  | SessionsLoadSuccess({
+      sessions: array<FrontmanFrontmanClient.FrontmanClient__ACP__Types.sessionSummary>,
+    })
   | SessionsLoadError({error: string})
 
-// Effects for side effects
 type effect =
   | SendMessageToAPI({message: string, taskId: string})
   | FetchElementDetails({element: WebAPI.DOMAPI.element, document: option<WebAPI.DOMAPI.document>})
@@ -205,6 +120,44 @@ type effect =
   | DisconnectAnthropicOAuthEffect({apiBaseUrl: string})
   // Task loading effect
   | LoadTaskEffect({taskId: string})
+
+// ============================================================================
+// Lens helpers for state updates
+// ============================================================================
+
+module TaskReducer = Client__Task__Reducer
+
+module Lens = {
+  let updateTask = (state: state, taskId: string, fn: Task.t => Task.t): state => {
+    let task = state.tasks->Dict.get(taskId)->Option.getOrThrow
+    let updated = fn(task)
+    let tasks = state.tasks->Dict.copy
+    tasks->Dict.set(taskId, updated)
+    {...state, tasks}
+  }
+
+  // Delegate an action to the TaskReducer
+  // - New(task): operate on task inline, write back to currentTask
+  // - Selected(id): look up in dict, operate, write back to dict
+  let delegateToTask = (
+    state: state,
+    target: Task.currentTask,
+    taskAction: TaskReducer.action,
+    ~sideEffects: array<effect>=[],
+  ) => {
+    switch target {
+    | Task.New(task) =>
+      let updated = TaskReducer.next(task, taskAction)
+      {...state, currentTask: Task.New(updated)}->FrontmanReactStatestore.StateReducer.update(
+        ~sideEffects,
+      )
+    | Task.Selected(id) =>
+      state
+      ->updateTask(id, task => TaskReducer.next(task, taskAction))
+      ->FrontmanReactStatestore.StateReducer.update(~sideEffects)
+    }
+  }
+}
 
 let getInitialUrl = () => {
   let entrypointUrl =
@@ -261,20 +214,22 @@ let loadSelectedModelFromStorage = (): option<Client__State__Types.selectedModel
 // Save selected model to localStorage
 let saveSelectedModelToStorage = (model: Client__State__Types.selectedModel): unit => {
   try {
-    let jsonString = S.reverseConvertToJsonStringOrThrow(model, Client__State__Types.selectedModelSchema)
+    let jsonString = S.reverseConvertToJsonStringOrThrow(
+      model,
+      Client__State__Types.selectedModelSchema,
+    )
     setStorageItem(selectedModelStorageKey, jsonString)
   } catch {
-  | _ => ()
+  | exn => Console.error2("[saveSelectedModelToStorage] Failed:", exn)
   }
 }
 
 let defaultState: state = {
   tasks: Dict.make(),
-  currentTaskId: None,
-  connectionState: Disconnected,
+  currentTask: Task.New(Task.makeNew(~previewUrl=getInitialUrl())),
+  acpSession: NoAcpSession,
   sessionInitialized: false,
   usageInfo: None,
-  apiBaseUrl: None,
   openrouterKeySettings: {
     source: Client__State__Types.None,
     saveStatus: Client__State__Types.Idle,
@@ -298,12 +253,11 @@ let actionToString = action => {
   | ToolInputReceived({taskId, id, _}) => `ToolInputReceived(${taskId}, ${id})`
   | ToolResultReceived({taskId, id}) => `ToolResultReceived(${taskId}, ${id})`
   | ToolErrorReceived({taskId, id}) => `ToolErrorReceived(${taskId}, ${id})`
-  | MessageCompleted({taskId}) => `MessageCompleted(${taskId})`
   | SetPreviewUrl({url}) => `SetPreviewUrl(${url})`
   | SetPreviewFrame(_) => `SetPreviewFrame(contentDocument, contentWindow)`
   | ToggleWebPreviewSelection => `ToggleWebPreviewSelection`
   | SetSelectedElement(_) => `SetSelectedElement`
-  | CreateTask({title}) => `CreateTask("${title}")`
+  | CreateTask => `CreateTask`
   | SwitchTask({taskId}) => `SwitchTask(${taskId})`
   | DeleteTask({taskId}) => `DeleteTask(${taskId})`
   | ClearCurrentTask => `ClearCurrentTask`
@@ -312,8 +266,8 @@ let actionToString = action => {
   | ClearFigmaNode => `ClearFigmaNode`
   | SetFigmaNodeWaiting => `SetFigmaNodeWaiting`
   | ClearFigmaNodeWaiting => `ClearFigmaNodeWaiting`
-  | Connect(_) => `Connect`
-  | Disconnect => `Disconnect`
+  | SetAcpSession(_) => `SetAcpSession`
+  | ClearAcpSession => `ClearAcpSession`
   | TaskLoadStarted({taskId}) => `TaskLoadStarted(${taskId})`
   | TaskLoadComplete({taskId}) => `TaskLoadComplete(${taskId})`
   | TaskLoadError({taskId, error}) => `TaskLoadError(${taskId}, ${error})`
@@ -359,36 +313,68 @@ let actionToString = action => {
 
 module Selectors = {
   let getMessageId = Message.getId
-  let currentTask = (state: state): option<Task.t> => {
-    state.currentTaskId->Option.flatMap(id => state.tasks->Dict.get(id))
-  }
 
-  // Get current task's loaded data (None if task not loaded or doesn't exist)
-  let currentTaskLoadedData = (state: state): option<Task.loadedData> => {
-    currentTask(state)->Option.flatMap(Task.getLoadedData)
-  }
-
-  let getMessageCreatedAt = (msg: Message.t): float => {
-    switch msg {
-    | User({createdAt, _}) => createdAt
-    | Assistant(Streaming({createdAt, _})) => createdAt
-    | Assistant(Completed({createdAt, _})) => createdAt
-    | ToolCall({createdAt, _}) => createdAt
+  // Get the current task - always returns a Task.t (never None)
+  let currentTask = (state: state): Task.t => {
+    switch state.currentTask {
+    | Task.New(task) => task
+    | Task.Selected(id) =>
+      state.tasks
+      ->Dict.get(id)
+      ->Option.getOrThrow(~message=`[Selectors.currentTask] Selected task ${id} not found in dict`)
     }
   }
 
-  let messages = (state: state) => {
-    currentTaskLoadedData(state)->Option.mapOr([], data =>
-      data.messages
-      ->Dict.valuesToArray
-      ->Array.toSorted((a, b) => {
-        let aTime = getMessageCreatedAt(a)
-        let bTime = getMessageCreatedAt(b)
-        aTime -. bTime
-      })
-    )
+  // Get current task ID (None for New tasks)
+  let currentTaskId = (state: state): option<string> => {
+    switch state.currentTask {
+    | Task.New(_) => None
+    | Task.Selected(id) => Some(id)
+    }
   }
 
+  // State predicates
+  let isNewTask = (state: state): bool => Task.isNew(currentTask(state))
+  let isCurrentTaskUnloaded = (state: state): bool => Task.isUnloaded(currentTask(state))
+  let isCurrentTaskLoading = (state: state): bool => Task.isLoading(currentTask(state))
+  let isCurrentTaskLoaded = (state: state): bool => Task.isLoaded(currentTask(state))
+
+  // Delegate to Task helpers
+  let getMessageCreatedAt = TaskReducer.Selectors.getMessageCreatedAt
+
+  let messages = (state: state): array<Message.t> => {
+    Task.getMessages(currentTask(state))
+  }
+
+  let isStreaming = (state: state): bool => {
+    TaskReducer.Selectors.isStreaming(currentTask(state))->Option.getOr(false)
+  }
+
+  let previewFrame = (state: state): Task.previewFrame => {
+    Task.getPreviewFrame(currentTask(state), ~defaultUrl=getInitialUrl())
+  }
+
+  let webPreviewIsSelecting = (state: state): bool => {
+    Task.getWebPreviewIsSelecting(currentTask(state))
+  }
+
+  let selectedElement = (state: state): option<SelectedElement.t> => {
+    Task.getSelectedElement(currentTask(state))
+  }
+
+  let figmaNode = (state: state): FigmaNode.t => {
+    Task.getFigmaNode(currentTask(state))
+  }
+
+  let isAgentRunning = (state: state): bool => {
+    TaskReducer.Selectors.isAgentRunning(currentTask(state))->Option.getOr(false)
+  }
+
+  let currentPlanEntries = (state: state): array<Client__State__Types.ACPTypes.planEntry> => {
+    TaskReducer.Selectors.planEntries(currentTask(state))->Option.getOr([])
+  }
+
+  // Derived selectors (use messages from above)
   let completedMessages = (state: state) =>
     messages(state)->Array.filter(msg => {
       switch msg {
@@ -400,122 +386,42 @@ module Selectors = {
       }
     })
 
-  let streamingMessages = (state: state) =>
-    messages(state)->Array.filterMap(msg => {
-      switch msg {
-      | Assistant(Streaming(_) as streaming) => Some(streaming)
-      | _ => None
-      }
-    })
-
-  let isStreaming = (state: state) =>
-    messages(state)->Array.some(msg => {
-      switch msg {
-      | Assistant(Streaming(_)) => true
-      | ToolCall({state: InputStreaming | InputAvailable, _}) => true
-      | _ => false
-      }
-    })
-
   let lastMessage = (state: state) => {
     let msgs = messages(state)
     msgs->Array.get(Array.length(msgs) - 1)
   }
 
-  let previewFrame = (state: state) => {
-    let previewFrame: Task.previewFrame = {
-      url: getInitialUrl(),
-      contentDocument: None,
-      contentWindow: None,
-    }
-    currentTask(state)->Option.mapOr(previewFrame, task => task.previewFrame)
+  let previewUrl = (state: state): string => {
+    Task.getPreviewFrame(currentTask(state), ~defaultUrl=getInitialUrl()).url
   }
 
-  let webPreviewIsSelecting = (state: state) => {
-    currentTaskLoadedData(state)->Option.mapOr(false, data => data.webPreviewIsSelecting)
-  }
+  // Task collection selectors
+  let getTaskSortTime = (task: Task.t): float => Task.getUpdatedAt(task)->Option.getOr(0.0)
 
-  // Get current task's selected element
-  let selectedElement = (state: state) => {
-    currentTaskLoadedData(state)->Option.flatMap(data => data.selectedElement)
-  }
-
-  // Get current task's preview URL
-  let previewUrl = (state: state) => {
-    currentTask(state)->Option.mapOr(getInitialUrl(), task => task.previewFrame.url)
-  }
-
-  let currentTaskId = (state: state) => state.currentTaskId
-
-  // Get current task's load state
-  let currentTaskLoadState = (state: state): option<Task.loadState> => {
-    currentTask(state)->Option.map(task => task.loadState)
-  }
-
-  // Helper to get lastMessageAt from a task (handles load state)
-  // Falls back to updatedAt for unloaded tasks
-  let getTaskLastMessageAt = (task: Task.t): float => {
-    switch task.loadState {
-    | Loaded(data) | Loading(data) => data.lastMessageAt->Option.getOrThrow
-    | NotLoaded => task.updatedAt
-    }
-  }
-
-  // Get all tasks sorted by lastMessageAt (most recent first), then by createdAt
   let tasks = (state: state): array<Task.t> => {
     state.tasks
     ->Dict.valuesToArray
     ->Array.toSorted((a, b) => {
-      let aTime = getTaskLastMessageAt(a)
-      let bTime = getTaskLastMessageAt(b)
+      let aTime = getTaskSortTime(a)
+      let bTime = getTaskSortTime(b)
       bTime -. aTime
     })
   }
 
-  // Get recent tasks (excluding current, max 2)
-  let recentTasks = (state: state): array<Task.t> => {
-    let currentId = state.currentTaskId
-    tasks(state)
-    ->Array.filter(task =>
-      switch currentId {
-      | Some(id) => task.id != id
-      | None => true
-      }
-    )
-    ->Array.slice(~start=0, ~end=2)
+  // Global state selectors
+  let acpSession = (state: state): Client__State__Types.acpSession => {
+    state.acpSession
   }
 
-  // Get current task's figma node state
-  let figmaNode = (state: state): FigmaNode.t => {
-    currentTaskLoadedData(state)->Option.mapOr(FigmaNode.NoSelection, data => data.figmaNode)
-  }
-
-  // Get connection state
-  let connectionState = (state: state): Client__State__Types.connectionState => {
-    state.connectionState
-  }
-
-  // Check if connected
-  let isConnected = (state: state): bool => {
-    switch state.connectionState {
-    | Connected(_) => true
-    | Disconnected => false
+  let hasActiveACPSession = (state: state): bool => {
+    switch state.acpSession {
+    | AcpSessionActive(_) => true
+    | NoAcpSession => false
     }
   }
 
-  // Get current task's plan entries (ACP compliant)
-  let currentPlanEntries = (state: state): array<Client__State__Types.ACPTypes.planEntry> => {
-    currentTaskLoadedData(state)->Option.mapOr([], data => data.planEntries)
-  }
-
-  // Check if session has been initialized (project rules loaded)
   let sessionInitialized = (state: state): bool => {
     state.sessionInitialized
-  }
-
-  // Check if the agent is currently running (waiting for response)
-  let isAgentRunning = (state: state): bool => {
-    currentTaskLoadedData(state)->Option.mapOr(false, data => data.isAgentRunning)
   }
 
   // Get usage info
@@ -538,39 +444,35 @@ module Selectors = {
     state.selectedModel
   }
 
-  // Get display name for currently selected model
-  let selectedModelDisplayName = (state: state): option<string> => {
-    switch (state.selectedModel, state.modelsConfig) {
-    | (Some(selected), Some(config)) =>
-      config.providers
-      ->Array.flatMap(provider => provider.models)
-      ->Array.find(model => model.value == selected.value)
-      ->Option.map(model => model.displayName)
-    | _ => None
-    }
-  }
-
   // Get Anthropic OAuth status
   let anthropicOAuthStatus = (state: state): Client__State__Types.anthropicOAuthStatus => {
     state.anthropicOAuthStatus
+  }
+
+  // Whether the user has any API provider configured via state-tracked sources
+  // (DB-stored OpenRouter key or Anthropic OAuth).
+  // Env-injected keys (window.__frontmanRuntime) live outside state — check RuntimeConfig separately.
+  let hasAnyProviderConfigured = (state: state): bool => {
+    switch state.usageInfo {
+    | Some({hasUserKey: Some(true)}) => true
+    | _ =>
+      switch state.anthropicOAuthStatus {
+      | Connected(_) => true
+      | _ => false
+      }
+    }
   }
 }
 
 let handleEffect = (effect, state: state, dispatch) => {
   switch effect {
   | SendMessageToAPI({message, taskId}) =>
-    switch state.connectionState {
-    | Connected({sendPrompt}) =>
+    switch state.acpSession {
+    | AcpSessionActive({sendPrompt}) =>
       let additionalBlocks =
         state.tasks
         ->Dict.get(taskId)
         ->Option.mapOr([], Client__State__Types.taskToContentBlocks)
-
-      let streamingMessages = Selectors.streamingMessages(state)
-      switch streamingMessages[Array.length(streamingMessages) - 1] {
-      | Some(Message.Streaming(_)) => dispatch(MessageCompleted({taskId: taskId}))
-      | Some(Message.Completed(_)) | None => ()
-      }
 
       // Include runtime config metadata (e.g., openrouterKeyValue) with each prompt
       let runtimeConfig = Client__RuntimeConfig.read()
@@ -605,14 +507,13 @@ let handleEffect = (effect, state: state, dispatch) => {
         ~onComplete=result => {
           switch result {
           | Ok(_) => dispatch(TurnCompleted({taskId: taskId}))
-          | Error(error) =>
-            Console.error2("[Effect] Failed to send message:", error)
+          | Error(_) =>
             dispatch(TurnCompleted({taskId: taskId}))
           }
         },
         ~metadata,
       )
-    | Disconnected => Console.error("[Effect] Cannot send message: not connected")
+    | NoAcpSession => Console.error("[Effect] Cannot send message: no active ACP session")
     }
   | FetchUsageInfo({apiBaseUrl}) =>
     let fetch = async () => {
@@ -626,7 +527,7 @@ let handleEffect = (effect, state: state, dispatch) => {
           dispatch(UsageInfoReceived({usageInfo: usageInfo}))
         }
       } catch {
-      | _ => ()
+      | exn => Console.error2("[FetchUsageInfo] Failed:", exn)
       }
     }
     fetch()->ignore
@@ -756,7 +657,7 @@ let handleEffect = (effect, state: state, dispatch) => {
           dispatch(ApiKeySettingsReceived({source: source}))
         }
       } catch {
-      | _ => ()
+      | exn => Console.error2("[FetchApiKeySettings] Failed:", exn)
       }
     }
     fetch()->ignore
@@ -811,7 +712,7 @@ let handleEffect = (effect, state: state, dispatch) => {
           dispatch(ModelsConfigReceived({config: config}))
         }
       } catch {
-      | _ => ()
+      | exn => Console.error2("[FetchModelsConfig] Failed:", exn)
       }
     }
     fetch()->ignore
@@ -824,12 +725,15 @@ let handleEffect = (effect, state: state, dispatch) => {
         let response = await WebAPI.Global.fetch(url, ~init={credentials: Include})
         if response.ok {
           let json = await response->WebAPI.Response.json
-          let connected = json->JSON.Decode.object->Option.flatMap(obj =>
-            obj->Dict.get("connected")->Option.flatMap(JSON.Decode.bool)
-          )->Option.getOr(false)
-          let expiresAt = json->JSON.Decode.object->Option.flatMap(obj =>
-            obj->Dict.get("expires_at")->Option.flatMap(JSON.Decode.string)
-          )
+          let connected =
+            json
+            ->JSON.Decode.object
+            ->Option.flatMap(obj => obj->Dict.get("connected")->Option.flatMap(JSON.Decode.bool))
+            ->Option.getOr(false)
+          let expiresAt =
+            json
+            ->JSON.Decode.object
+            ->Option.flatMap(obj => obj->Dict.get("expires_at")->Option.flatMap(JSON.Decode.string))
           dispatch(AnthropicOAuthStatusReceived({connected, expiresAt}))
         }
       } catch {
@@ -846,12 +750,16 @@ let handleEffect = (effect, state: state, dispatch) => {
         let response = await WebAPI.Global.fetch(url, ~init={credentials: Include})
         if response.ok {
           let json = await response->WebAPI.Response.json
-          let authorizeUrl = json->JSON.Decode.object->Option.flatMap(obj =>
-            obj->Dict.get("authorize_url")->Option.flatMap(JSON.Decode.string)
-          )
-          let verifier = json->JSON.Decode.object->Option.flatMap(obj =>
-            obj->Dict.get("verifier")->Option.flatMap(JSON.Decode.string)
-          )
+          let authorizeUrl =
+            json
+            ->JSON.Decode.object
+            ->Option.flatMap(obj =>
+              obj->Dict.get("authorize_url")->Option.flatMap(JSON.Decode.string)
+            )
+          let verifier =
+            json
+            ->JSON.Decode.object
+            ->Option.flatMap(obj => obj->Dict.get("verifier")->Option.flatMap(JSON.Decode.string))
           switch (authorizeUrl, verifier) {
           | (Some(authorizeUrl), Some(verifier)) =>
             dispatch(AnthropicOAuthUrlReceived({authorizeUrl, verifier}))
@@ -875,30 +783,36 @@ let handleEffect = (effect, state: state, dispatch) => {
           Dict.fromArray([
             ("code", JSON.Encode.string(code)),
             ("verifier", JSON.Encode.string(verifier)),
-          ])
+          ]),
         )
-        let response = await WebAPI.Global.fetch(url, ~init={
-          method: "POST",
-          credentials: Include,
-          headers: WebAPI.HeadersInit.fromDict(
-            Dict.fromArray([("Content-Type", "application/json")]),
-          ),
-          body: WebAPI.BodyInit.fromString(JSON.stringify(body)),
-        })
+        let response = await WebAPI.Global.fetch(
+          url,
+          ~init={
+            method: "POST",
+            credentials: Include,
+            headers: WebAPI.HeadersInit.fromDict(
+              Dict.fromArray([("Content-Type", "application/json")]),
+            ),
+            body: WebAPI.BodyInit.fromString(JSON.stringify(body)),
+          },
+        )
         if response.ok {
           let json = await response->WebAPI.Response.json
-          let expiresAt = json->JSON.Decode.object->Option.flatMap(obj =>
-            obj->Dict.get("expires_at")->Option.flatMap(JSON.Decode.string)
-          )
+          let expiresAt =
+            json
+            ->JSON.Decode.object
+            ->Option.flatMap(obj => obj->Dict.get("expires_at")->Option.flatMap(JSON.Decode.string))
           switch expiresAt {
           | Some(expiresAt) => dispatch(AnthropicOAuthConnected({expiresAt: expiresAt}))
           | None => dispatch(AnthropicOAuthError({error: "Invalid response from server"}))
           }
         } else {
           let json = await response->WebAPI.Response.json
-          let error = json->JSON.Decode.object->Option.flatMap(obj =>
-            obj->Dict.get("error")->Option.flatMap(JSON.Decode.string)
-          )->Option.getOr("Failed to exchange code")
+          let error =
+            json
+            ->JSON.Decode.object
+            ->Option.flatMap(obj => obj->Dict.get("error")->Option.flatMap(JSON.Decode.string))
+            ->Option.getOr("Failed to exchange code")
           dispatch(AnthropicOAuthError({error: error}))
         }
       } catch {
@@ -912,10 +826,13 @@ let handleEffect = (effect, state: state, dispatch) => {
       let url = `${apiBaseUrl}/api/oauth/anthropic/disconnect`
 
       try {
-        let response = await WebAPI.Global.fetch(url, ~init={
-          method: "DELETE",
-          credentials: Include,
-        })
+        let response = await WebAPI.Global.fetch(
+          url,
+          ~init={
+            method: "DELETE",
+            credentials: Include,
+          },
+        )
         if response.ok {
           dispatch(AnthropicOAuthDisconnected)
         } else {
@@ -928,16 +845,27 @@ let handleEffect = (effect, state: state, dispatch) => {
     disconnect()->ignore
 
   | LoadTaskEffect({taskId}) =>
-    switch state.connectionState {
-    | Connected({loadTask}) =>
+    switch state.acpSession {
+    | AcpSessionActive({loadTask}) =>
       let taskIdToLoad = taskId
-      loadTask(taskId, ~onComplete=result => {
+      // Check if task needs history loading or just channel activation
+      let needsHistory = switch state.tasks->Dict.get(taskId) {
+      | Some(task) => !Task.isLoaded(task)
+      | None => true
+      }
+      loadTask(taskId, ~needsHistory, ~onComplete=result => {
         switch result {
-        | Ok() => dispatch(TaskLoadComplete({taskId: taskIdToLoad}))
+        | Ok() =>
+          // Only dispatch LoadComplete if we actually loaded history
+          // (task was in Loading state). If task was already Loaded,
+          // we just re-activated the channel - no state transition needed.
+          if needsHistory {
+            dispatch(TaskLoadComplete({taskId: taskIdToLoad}))
+          }
         | Error(err) => dispatch(TaskLoadError({taskId: taskIdToLoad, error: err}))
         }
       })
-    | Disconnected => dispatch(TaskLoadError({taskId, error: "Not connected"}))
+    | NoAcpSession => dispatch(TaskLoadError({taskId, error: "No active ACP session"}))
     }
   }
 }
@@ -955,351 +883,109 @@ let extractTextFromUserContent = (content: array<UserContentPart.t>): string => 
   ->Array.join(" ")
 }
 
-let next = (state, action) => {
+let next = (state: state, action) => {
   switch action {
   | AddUserMessage({id, sessionId, content}) => {
-      let message = Message.User({
-        id,
-        content,
-        createdAt: Date.now(),
-      })
       let textContent = extractTextFromUserContent(content)
-      let timestamp = Date.now()
 
-      // Ensure we have a task, creating one if needed
-      // Use provided sessionId as task ID so streaming updates route correctly
-      let stateWithTask: state = switch Selectors.currentTask(state) {
-      | Some(_task) => state
-      | None => {
-          let previewUrl = getInitialUrl()
-          Console.log2("[StateReducer] Creating task with sessionId:", sessionId)
-          let task = Task.makeWithIdLoaded(~id=sessionId, ~title=textContent, ~previewUrl, ~createdAt=Date.now())
-          let updatedTasks = state.tasks->Dict.copy
-          updatedTasks->Dict.set(task.id, task)
-          {...state, tasks: updatedTasks, currentTaskId: Some(task.id)}
-        }
+      switch state.currentTask {
+      | Task.New(newTask) =>
+        // New → Loaded: promote to persisted task
+        let userMessage = Message.User({
+          id,
+          content,
+          createdAt: Date.now(),
+        })
+        let loadedTask = Task.newToLoaded(
+          newTask,
+          ~id=sessionId,
+          ~title=textContent,
+          ~firstMessage=userMessage,
+        )
+        // Add to dict and select it
+        let updatedTasks = state.tasks->Dict.copy
+        updatedTasks->Dict.set(sessionId, loadedTask)
+        {
+          ...state,
+          tasks: updatedTasks,
+          currentTask: Task.Selected(sessionId),
+        }->FrontmanReactStatestore.StateReducer.update(
+          ~sideEffects=[SendMessageToAPI({message: textContent, taskId: sessionId})],
+        )
+      | Task.Selected(taskId) =>
+        // Selected: delegate to existing task
+        state->Lens.delegateToTask(
+          Task.Selected(taskId),
+          AddUserMessage({id, content}),
+          ~sideEffects=[SendMessageToAPI({message: textContent, taskId})],
+        )
       }
-
-      // Get the task ID - we know it exists now
-      let taskId = stateWithTask.currentTaskId->Option.getOr("")
-
-      stateWithTask
-      ->Lens.updateCurrentTaskLoadedData(data => {
-        let updatedMessages = data.messages->Dict.copy
-        updatedMessages->Dict.set(Message.getId(message), message)
-        {...data, messages: updatedMessages, lastMessageAt: Some(timestamp), isAgentRunning: true}
-      })
-      ->FrontmanReactStatestore.StateReducer.update(
-        ~sideEffects=[SendMessageToAPI({message: textContent, taskId})],
-      )
     }
 
-  | StreamingStarted({taskId}) =>
-    state
-    ->Lens.updateTaskLoadedData(taskId, data => {
-      switch Lens.getStreamingMessage(data) {
-      | Some(_) => // Already have a streaming message, don't create another
-        data
-      | None =>
-        let id = `msg_${taskId}_${Date.now()->Float.toString}`
-        let newMessage = Message.Assistant(
-          Streaming({
-            id,
-            textBuffer: "",
-            createdAt: Date.now(),
-          }),
-        )
-        Lens.insertTaskMessage(data, newMessage)
-      }
-    })
-    ->FrontmanReactStatestore.StateReducer.update
-
-  | TextDeltaReceived({taskId, text}) =>
-    state
-    ->Lens.updateTaskLoadedData(taskId, data => {
-      switch Lens.getStreamingMessage(data) {
-      | Some(Message.Streaming({id, textBuffer, createdAt})) =>
-        let updatedMsg = Message.Assistant(
-          Streaming({id, textBuffer: textBuffer ++ text, createdAt}),
-        )
-        let updatedMessages = data.messages->Dict.copy
-        updatedMessages->Dict.set(id, updatedMsg)
-        {...data, messages: updatedMessages}
-      | Some(Message.Completed(_)) => data
-      | None =>
-        let id = `msg_${taskId}_${Date.now()->Float.toString}`
-        Lens.insertTaskMessage(
-          data,
-          Message.Assistant(Streaming({id, textBuffer: text, createdAt: Date.now()})),
-        )
-      }
-    })
-    ->FrontmanReactStatestore.StateReducer.update
-
-  | ToolCallReceived({taskId, toolCall}) =>
-    state
-    ->Lens.updateTaskLoadedData(taskId, data => {
-      let existingMessage = data.messages->Dict.get(toolCall.id)
-      switch existingMessage {
-      | Some(Message.ToolCall(existingToolCall)) =>
-        Lens.updateTaskMessage(data, toolCall.id, msg =>
-          switch msg {
-          | Message.ToolCall(_) =>
-            Message.ToolCall({
-              ...existingToolCall,
-              input: toolCall.input,
-              state: Message.InputAvailable,
-              parentAgentId: toolCall.parentAgentId,
-              spawningToolName: toolCall.spawningToolName,
-            })
-          | Assistant(_) => failwith("expected toolcall got assistant message")
-          | User(_) => failwith("expected toolcall got user message")
-          }
-        )
-      | _ =>
-        Lens.insertTaskMessage(
-          data,
-          Message.ToolCall({
-            id: toolCall.id,
-            toolName: toolCall.toolName,
-            state: toolCall.state,
-            inputBuffer: toolCall.inputBuffer,
-            input: toolCall.input,
-            result: toolCall.result,
-            errorText: toolCall.errorText,
-            createdAt: toolCall.createdAt,
-            parentAgentId: toolCall.parentAgentId,
-            spawningToolName: toolCall.spawningToolName,
-          }),
-        )
-      }
-    })
-    ->FrontmanReactStatestore.StateReducer.update
-
+  | StreamingStarted({taskId}) => state->Lens.delegateToTask(Task.Selected(taskId), StreamingStarted)
+  | TextDeltaReceived({taskId, text}) => state->Lens.delegateToTask(Task.Selected(taskId), TextDeltaReceived({text: text}))
+  | ToolCallReceived({taskId, toolCall}) => state->Lens.delegateToTask(Task.Selected(taskId), ToolCallReceived({toolCall: toolCall}))
   | ToolInputStartReceived({taskId, id, toolName, parentAgentId, spawningToolName}) =>
-    state
-    ->Lens.updateTaskLoadedData(taskId, data =>
-      Lens.insertTaskMessage(
-        data,
-        Message.ToolCall({
-          id,
-          toolName,
-          state: Message.InputStreaming,
-          inputBuffer: "",
-          input: None,
-          result: None,
-          errorText: None,
-          createdAt: Date.now(),
-          parentAgentId,
-          spawningToolName,
-        }),
-      )
-    )
-    ->FrontmanReactStatestore.StateReducer.update
-
-  | ToolInputDeltaReceived({taskId, id, delta}) =>
-    state
-    ->Lens.updateTaskLoadedData(taskId, data =>
-      Lens.updateTaskMessage(data, id, msg =>
-        switch msg {
-        | Message.ToolCall(tool) =>
-          Message.ToolCall({...tool, inputBuffer: tool.inputBuffer ++ delta})
-        | other => other
-        }
-      )
-    )
-    ->FrontmanReactStatestore.StateReducer.update
-
-  | ToolInputEndReceived({taskId, id}) =>
-    state
-    ->Lens.updateTaskLoadedData(taskId, data =>
-      Lens.updateTaskMessage(data, id, msg =>
-        switch msg {
-        | Message.ToolCall(tool) => {
-            let parsedInput = try {
-              Some(JSON.parseOrThrow(tool.inputBuffer))
-            } catch {
-            | exn => {
-                let errorMsg =
-                  exn
-                  ->JsExn.fromException
-                  ->Option.flatMap(JsExn.message)
-                  ->Option.getOr("unknown error")
-
-                let errorObj = {
-                  "error": `Failed to parse tool input: ${errorMsg}`,
-                  "originalInput": tool.inputBuffer,
-                }
-                JSON.stringifyAny(errorObj)->Option.flatMap(str => Some(JSON.parseOrThrow(str)))
-              }
-            }
-            Message.ToolCall({...tool, input: parsedInput, state: Message.InputAvailable})
-          }
-        | other => other
-        }
-      )
-    )
-    ->FrontmanReactStatestore.StateReducer.update
-
-  | ToolInputReceived({taskId, id, input}) =>
-    // Directly set the parsed input on the tool call
-    state
-    ->Lens.updateTaskLoadedData(taskId, data =>
-      Lens.updateTaskMessage(data, id, msg =>
-        switch msg {
-        | Message.ToolCall(tool) => Message.ToolCall({...tool, input: Some(input)})
-        | other => other
-        }
-      )
-    )
-    ->FrontmanReactStatestore.StateReducer.update
-
-  | ToolResultReceived({taskId, id, result}) =>
-    // Update the tool call message with its result
-    // Note: Todo tools don't send tool_call_update (they use plan updates instead)
-    state
-    ->Lens.updateTaskLoadedData(taskId, data =>
-      Lens.updateTaskMessage(data, id, msg =>
-        switch msg {
-        | Message.ToolCall(tool) =>
-          Message.ToolCall({...tool, result: Some(result), state: Message.OutputAvailable})
-        | other => other
-        }
-      )
-    )
-    ->FrontmanReactStatestore.StateReducer.update
-
-  | ToolErrorReceived({taskId, id, error}) =>
-    state
-    ->Lens.updateTaskLoadedData(taskId, data =>
-      Lens.updateTaskMessage(data, id, msg =>
-        switch msg {
-        | Message.ToolCall(tool) =>
-          Message.ToolCall({...tool, errorText: Some(error), state: Message.OutputError})
-        | other => other
-        }
-      )
-    )
-    ->FrontmanReactStatestore.StateReducer.update
-
-  | MessageCompleted({taskId}) =>
-    state
-    ->Lens.updateTaskLoadedData(taskId, data => {
-      switch Lens.getStreamingMessage(data) {
-      | Some(Message.Streaming({id, textBuffer, createdAt})) =>
-        let content = if String.length(textBuffer) > 0 {
-          [AssistantContentPart.Text({text: textBuffer})]
-        } else {
-          []
-        }
-        let completedMsg = Message.Assistant(Completed({id, content, createdAt}))
-        let updatedMessages = data.messages->Dict.copy
-        updatedMessages->Dict.set(id, completedMsg)
-        {...data, messages: updatedMessages}
-      | Some(Message.Completed(_)) | None => data
-      }
-    })
-    ->FrontmanReactStatestore.StateReducer.update
+    state->Lens.delegateToTask(Task.Selected(taskId), ToolInputStartReceived({id, toolName, parentAgentId, spawningToolName}))
+  | ToolInputDeltaReceived({taskId, id, delta}) => state->Lens.delegateToTask(Task.Selected(taskId), ToolInputDeltaReceived({id, delta}))
+  | ToolInputEndReceived({taskId, id}) => state->Lens.delegateToTask(Task.Selected(taskId), ToolInputEndReceived({id: id}))
+  | ToolInputReceived({taskId, id, input}) => state->Lens.delegateToTask(Task.Selected(taskId), ToolInputReceived({id, input}))
+  | ToolResultReceived({taskId, id, result}) => state->Lens.delegateToTask(Task.Selected(taskId), ToolResultReceived({id, result}))
+  | ToolErrorReceived({taskId, id, error}) => state->Lens.delegateToTask(Task.Selected(taskId), ToolErrorReceived({id, error}))
 
   | SetPreviewUrl({url}) =>
-    state
-    ->Lens.updateCurrentTask(task => {
-      {...task, previewFrame: {...task.previewFrame, url}}
-    })
-    ->FrontmanReactStatestore.StateReducer.update
+    let currentUrl = Selectors.previewUrl(state)
+    let urlChanged = normalizeUrl(currentUrl) != normalizeUrl(url)
+    let (stateWithUrl, effects) = state->Lens.delegateToTask(state.currentTask, SetPreviewUrl({url: url}))
+    // Clear selected element only on actual navigation, not initial iframe mount
+    if urlChanged {
+      stateWithUrl->Lens.delegateToTask(stateWithUrl.currentTask, SetSelectedElement({selectedElement: None}), ~sideEffects=effects)
+    } else {
+      (stateWithUrl, effects)
+    }
 
-  // Set preview frame (keep existing URL and errors, just update references)
   | SetPreviewFrame({contentDocument, contentWindow}) =>
-    state
-    ->Lens.updateCurrentTask(task => {
-      {...task, previewFrame: {...task.previewFrame, contentDocument, contentWindow}}
-    })
-    ->FrontmanReactStatestore.StateReducer.update
+    state->Lens.delegateToTask(state.currentTask, SetPreviewFrame({contentDocument, contentWindow}))
 
-  // Toggle WebPreview selection mode
-  | ToggleWebPreviewSelection => {
-      // Create task if none exists
-      let stateWithTask = switch state.currentTaskId {
-      | Some(_) => state
-      | None => {
-          let previewUrl = getInitialUrl()
-          let task = Task.make(~title="New Chat", ~previewUrl)
-          let updatedTasks = state.tasks->Dict.copy
-          updatedTasks->Dict.set(task.id, task)
-          {...state, tasks: updatedTasks, currentTaskId: Some(task.id)}
-        }
-      }
+  | ToggleWebPreviewSelection =>
+    state->Lens.delegateToTask(state.currentTask, ToggleWebPreviewSelection)
 
-      // Now toggle selection on the current task's loaded data
-      stateWithTask
-      ->Lens.updateCurrentTaskLoadedData(data => {
-        ...data,
-        webPreviewIsSelecting: !data.webPreviewIsSelecting,
-        selectedElement: if !data.webPreviewIsSelecting {
-          None
-        } else {
-          data.selectedElement
-        },
-      })
-      ->FrontmanReactStatestore.StateReducer.update
+  | SetSelectedElement({selectedElement}) =>
+    let currentTask = Selectors.currentTask(state)
+    // Parent decides if we need to fetch element details
+    let sideEffects = switch selectedElement {
+    | Some({element, selector: None, screenshot: None, sourceLocation: None}) =>
+      [FetchElementDetails({element, document: Task.getPreviewFrame(currentTask, ~defaultUrl=getInitialUrl()).contentDocument})]
+    | _ => []
     }
+    state->Lens.delegateToTask(state.currentTask, SetSelectedElement({selectedElement: selectedElement}), ~sideEffects)
 
-  // Set selected element and reset selection mode
-  | SetSelectedElement({selectedElement}) => {
-      let currentTask = state.currentTaskId->Option.flatMap(id => state.tasks->Dict.get(id))
-      let shouldFetchDetails = switch (selectedElement, currentTask) {
-      | (Some({element, selector: None, screenshot: None, sourceLocation: None}), Some(task)) =>
-        // New element with no details - trigger fetch
-        Some(
-          FetchElementDetails({
-            element,
-            document: task.previewFrame.contentDocument,
-          }),
-        )
-      | _ => None // Element with details or clearing selection - no fetch needed
-      }
-
-      state
-      ->Lens.updateCurrentTaskLoadedData(data => {...data, webPreviewIsSelecting: false, selectedElement})
-      ->FrontmanReactStatestore.StateReducer.update(
-        ~sideEffects=shouldFetchDetails->Option.mapOr([], effect => [effect]),
-      )
-    }
-
-  // Create new task
-  | CreateTask({title}) => {
-      let previewUrl = getInitialUrl()
-      let newTask = Task.make(~title, ~previewUrl)
-      let updatedTasks = state.tasks->Dict.copy
-      updatedTasks->Dict.set(newTask.id, newTask)
-
-      {
-        ...state,
-        tasks: updatedTasks,
-        currentTaskId: Some(newTask.id),
-      }->FrontmanReactStatestore.StateReducer.update
-    }
+  // Create new task (starts as New, becomes Loaded when first message is sent)
+  | CreateTask =>
+    {
+      ...state,
+      currentTask: Task.New(Task.makeNew(~previewUrl=getInitialUrl())),
+    }->FrontmanReactStatestore.StateReducer.update
 
   // Switch to different task - always re-activate session to ensure correct routing
   | SwitchTask({taskId}) => {
       let task = state.tasks->Dict.get(taskId)
       let needsLoad = switch task {
-      | Some({loadState: Task.NotLoaded}) => true
-      | _ => false
+      | Some(t) => Task.isUnloaded(t)
+      | None => true
       }
 
       // If task needs loading, transition to Loading state
       let updatedState = if needsLoad {
-        Lens.updateTask(state, taskId, t => {
-          {...t, loadState: Task.Loading(Task.makeLoadedData())}
-        })
+        Lens.updateTask(state, taskId, t => Task.startLoading(t, ~previewUrl=getInitialUrl()))
       } else {
         state
       }
 
       // Always emit LoadTaskEffect to re-activate the session
-      {...updatedState, currentTaskId: Some(taskId)}
-      ->FrontmanReactStatestore.StateReducer.update(~sideEffects=[LoadTaskEffect({taskId: taskId})])
+      {...updatedState, currentTask: Task.Selected(taskId)}->FrontmanReactStatestore.StateReducer.update(
+        ~sideEffects=[LoadTaskEffect({taskId: taskId})],
+      )
     }
 
   // Delete task
@@ -1307,78 +993,76 @@ let next = (state, action) => {
       let updatedTasks = state.tasks->Dict.copy
       updatedTasks->Dict.delete(taskId)
 
-      // If deleting current task, switch to most recent
-      let newCurrentTaskId = switch state.currentTaskId {
-      | Some(currentId) if currentId == taskId =>
-        updatedTasks
-        ->Dict.valuesToArray
-        ->Array.toSorted((a, b) => {
-          let aTime = Selectors.getTaskLastMessageAt(a)
-          let bTime = Selectors.getTaskLastMessageAt(b)
-          bTime -. aTime
-        })
-        ->Array.get(0)
-        ->Option.map(task => task.id)
+      // If deleting current task, switch to most recent or New
+      let newCurrentTask = switch state.currentTask {
+      | Task.Selected(currentId) if currentId == taskId =>
+        let mostRecent =
+          updatedTasks
+          ->Dict.valuesToArray
+          ->Array.toSorted((a, b) => {
+            let aTime = Selectors.getTaskSortTime(a)
+            let bTime = Selectors.getTaskSortTime(b)
+            bTime -. aTime
+          })
+          ->Array.get(0)
+        switch mostRecent {
+        | Some(task) => Task.Selected(Task.getId(task)->Option.getOrThrow)
+        | None => Task.New(Task.makeNew(~previewUrl=getInitialUrl()))
+        }
       | other => other
       }
 
       // Persist deletion to server (fire and forget - optimistic UI)
-      switch state.connectionState {
-      | Connected({deleteSession}) => deleteSession(taskId, ~onComplete=_ => ())
-      | Disconnected => ()
+      switch state.acpSession {
+      | AcpSessionActive({deleteSession}) => deleteSession(taskId, ~onComplete=_ => ())
+      | NoAcpSession => ()
       }
 
       {
         ...state,
         tasks: updatedTasks,
-        currentTaskId: newCurrentTaskId,
+        currentTask: newCurrentTask,
       }->FrontmanReactStatestore.StateReducer.update
     }
 
-  | ClearCurrentTask => {...state, currentTaskId: None}->FrontmanReactStatestore.StateReducer.update
+  | ClearCurrentTask =>
+    {...state, currentTask: Task.New(Task.makeNew(~previewUrl=getInitialUrl()))}->FrontmanReactStatestore.StateReducer.update
 
   | UpdateTaskTitle({taskId, title}) =>
     state
-    ->Lens.updateTask(taskId, task => {...task, title})
+    ->Lens.updateTask(taskId, task => Task.setTitle(task, title))
     ->FrontmanReactStatestore.StateReducer.update
 
   | SetFigmaNode({figmaNode}) =>
-    state
-    ->Lens.updateCurrentTaskLoadedData(data => {...data, figmaNode: FigmaNode.SelectedNode(figmaNode)})
-    ->FrontmanReactStatestore.StateReducer.update
+    state->Lens.delegateToTask(state.currentTask, SetFigmaNode({figmaNode: figmaNode}))
 
   | ClearFigmaNode =>
-    state
-    ->Lens.updateCurrentTaskLoadedData(data => {...data, figmaNode: FigmaNode.NoSelection})
-    ->FrontmanReactStatestore.StateReducer.update
+    state->Lens.delegateToTask(state.currentTask, ClearFigmaNode)
 
   | SetFigmaNodeWaiting =>
-    state
-    ->Lens.updateCurrentTaskLoadedData(data => {...data, figmaNode: FigmaNode.WaitingForSelection})
-    ->FrontmanReactStatestore.StateReducer.update
+    state->Lens.delegateToTask(state.currentTask, SetFigmaNodeWaiting)
 
   | ClearFigmaNodeWaiting =>
-    state
-    ->Lens.updateCurrentTaskLoadedData(data => {...data, figmaNode: FigmaNode.NoSelection})
-    ->FrontmanReactStatestore.StateReducer.update
+    state->Lens.delegateToTask(state.currentTask, ClearFigmaNodeWaiting)
 
-  | Connect({sendPrompt, loadTask, deleteSession, apiBaseUrl}) =>
-    // Just set up connection functions - task creation happens in AddUserMessage
+  | SetAcpSession({sendPrompt, loadTask, deleteSession, apiBaseUrl}) =>
+    // Just set up session callbacks - task creation happens in AddUserMessage
     // when user sends their first message (lazy session creation)
+    // apiBaseUrl is co-located in AcpSessionActive to make illegal state unrepresentable
     {
       ...state,
-      connectionState: Connected({sendPrompt, loadTask, deleteSession}),
-      apiBaseUrl: Some(apiBaseUrl),
+      acpSession: AcpSessionActive({sendPrompt, loadTask, deleteSession, apiBaseUrl}),
       sessionInitialized: true,
     }->FrontmanReactStatestore.StateReducer.update(
       ~sideEffects=[
         FetchUsageInfo({apiBaseUrl: apiBaseUrl}),
         FetchModelsConfigEffect({apiBaseUrl: apiBaseUrl}),
+        FetchAnthropicOAuthStatusEffect({apiBaseUrl: apiBaseUrl}),
       ],
     )
 
-  | Disconnect =>
-    {...state, connectionState: Disconnected}->FrontmanReactStatestore.StateReducer.update
+  | ClearAcpSession =>
+    {...state, acpSession: NoAcpSession}->FrontmanReactStatestore.StateReducer.update
 
   | ReceivedDiscoveredProjectRule({taskId: _}) =>
     // Mark initialization complete
@@ -1388,20 +1072,14 @@ let next = (state, action) => {
     }->FrontmanReactStatestore.StateReducer.update
 
   | TurnCompleted({taskId}) =>
-    // Mark agent turn as complete and fetch updated usage
-    let sideEffects = switch state.apiBaseUrl {
-    | Some(apiBaseUrl) => [FetchUsageInfo({apiBaseUrl: apiBaseUrl})]
-    | None => []
+    let sideEffects = switch state.acpSession {
+    | AcpSessionActive({apiBaseUrl}) => [FetchUsageInfo({apiBaseUrl: apiBaseUrl})]
+    | NoAcpSession => []
     }
-    state
-    ->Lens.updateTaskLoadedData(taskId, data => {...data, isAgentRunning: false})
-    ->FrontmanReactStatestore.StateReducer.update(~sideEffects)
+    state->Lens.delegateToTask(Task.Selected(taskId), TurnCompleted, ~sideEffects)
 
   | PlanReceived({taskId, entries}) =>
-    // Replace plan entries completely (per ACP spec)
-    state
-    ->Lens.updateTaskLoadedData(taskId, data => {...data, planEntries: entries})
-    ->FrontmanReactStatestore.StateReducer.update
+    state->Lens.delegateToTask(Task.Selected(taskId), PlanReceived({entries: entries}))
 
   | UsageInfoReceived({usageInfo}) =>
     // Update usage info in state
@@ -1409,12 +1087,12 @@ let next = (state, action) => {
 
   // API key settings actions
   | FetchApiKeySettings =>
-    switch state.apiBaseUrl {
-    | Some(apiBaseUrl) =>
+    switch state.acpSession {
+    | AcpSessionActive({apiBaseUrl}) =>
       state->FrontmanReactStatestore.StateReducer.update(
         ~sideEffects=[FetchApiKeySettingsEffect({apiBaseUrl: apiBaseUrl})],
       )
-    | None => state->FrontmanReactStatestore.StateReducer.update
+    | NoAcpSession => state->FrontmanReactStatestore.StateReducer.update
     }
 
   | ApiKeySettingsReceived({source}) =>
@@ -1427,17 +1105,17 @@ let next = (state, action) => {
     }->FrontmanReactStatestore.StateReducer.update
 
   | SaveOpenRouterKey({key}) =>
-    switch state.apiBaseUrl {
-    | Some(apiBaseUrl) =>
+    switch state.acpSession {
+    | AcpSessionActive({apiBaseUrl}) =>
       state->FrontmanReactStatestore.StateReducer.update(
         ~sideEffects=[SaveOpenRouterKeyEffect({apiBaseUrl, key})],
       )
-    | None =>
+    | NoAcpSession =>
       {
         ...state,
         openrouterKeySettings: {
           ...state.openrouterKeySettings,
-          saveStatus: SaveError("Not connected to server"),
+          saveStatus: SaveError("No active ACP session"),
         },
       }->FrontmanReactStatestore.StateReducer.update
     }
@@ -1453,9 +1131,9 @@ let next = (state, action) => {
 
   | OpenRouterKeySaved =>
     // After saving the API key, refresh usage info so the chatbox reflects the new state
-    let effects = switch state.apiBaseUrl {
-    | Some(apiBaseUrl) => [FetchUsageInfo({apiBaseUrl: apiBaseUrl})]
-    | None => []
+    let effects = switch state.acpSession {
+    | AcpSessionActive({apiBaseUrl}) => [FetchUsageInfo({apiBaseUrl: apiBaseUrl})]
+    | NoAcpSession => []
     }
     {
       ...state,
@@ -1485,12 +1163,12 @@ let next = (state, action) => {
 
   // Model selection actions
   | FetchModelsConfig =>
-    switch state.apiBaseUrl {
-    | Some(apiBaseUrl) =>
+    switch state.acpSession {
+    | AcpSessionActive({apiBaseUrl}) =>
       state->FrontmanReactStatestore.StateReducer.update(
         ~sideEffects=[FetchModelsConfigEffect({apiBaseUrl: apiBaseUrl})],
       )
-    | None => state->FrontmanReactStatestore.StateReducer.update
+    | NoAcpSession => state->FrontmanReactStatestore.StateReducer.update
     }
 
   | ModelsConfigReceived({config}) =>
@@ -1499,10 +1177,14 @@ let next = (state, action) => {
     | Some(model) => Some(model)
     | None =>
       // Use default model from config
-      Some({
-        provider: config.defaultModel.provider,
-        value: config.defaultModel.value,
-      }: Client__State__Types.selectedModel)
+      Some(
+        (
+          {
+            provider: config.defaultModel.provider,
+            value: config.defaultModel.value,
+          }: Client__State__Types.selectedModel
+        ),
+      )
     }
     {
       ...state,
@@ -1517,15 +1199,15 @@ let next = (state, action) => {
 
   // Anthropic OAuth actions
   | FetchAnthropicOAuthStatus =>
-    switch state.apiBaseUrl {
-    | Some(apiBaseUrl) =>
+    switch state.acpSession {
+    | AcpSessionActive({apiBaseUrl}) =>
       {
         ...state,
         anthropicOAuthStatus: Client__State__Types.FetchingStatus,
       }->FrontmanReactStatestore.StateReducer.update(
         ~sideEffects=[FetchAnthropicOAuthStatusEffect({apiBaseUrl: apiBaseUrl})],
       )
-    | None => state->FrontmanReactStatestore.StateReducer.update
+    | NoAcpSession => state->FrontmanReactStatestore.StateReducer.update
     }
 
   | AnthropicOAuthStatusReceived({connected, expiresAt}) =>
@@ -1543,12 +1225,12 @@ let next = (state, action) => {
     {...state, anthropicOAuthStatus: status}->FrontmanReactStatestore.StateReducer.update
 
   | InitiateAnthropicOAuth =>
-    switch state.apiBaseUrl {
-    | Some(apiBaseUrl) =>
+    switch state.acpSession {
+    | AcpSessionActive({apiBaseUrl}) =>
       state->FrontmanReactStatestore.StateReducer.update(
         ~sideEffects=[GetAnthropicOAuthUrlEffect({apiBaseUrl: apiBaseUrl})],
       )
-    | None => state->FrontmanReactStatestore.StateReducer.update
+    | NoAcpSession => state->FrontmanReactStatestore.StateReducer.update
     }
 
   | AnthropicOAuthUrlReceived({authorizeUrl, verifier}) =>
@@ -1558,15 +1240,15 @@ let next = (state, action) => {
     }->FrontmanReactStatestore.StateReducer.update
 
   | ExchangeAnthropicOAuthCode({code, verifier}) =>
-    switch state.apiBaseUrl {
-    | Some(apiBaseUrl) =>
+    switch state.acpSession {
+    | AcpSessionActive({apiBaseUrl}) =>
       {
         ...state,
         anthropicOAuthStatus: Client__State__Types.Exchanging,
       }->FrontmanReactStatestore.StateReducer.update(
         ~sideEffects=[ExchangeAnthropicOAuthCodeEffect({apiBaseUrl, code, verifier})],
       )
-    | None => state->FrontmanReactStatestore.StateReducer.update
+    | NoAcpSession => state->FrontmanReactStatestore.StateReducer.update
     }
 
   | AnthropicOAuthConnected({expiresAt}) =>
@@ -1583,12 +1265,12 @@ let next = (state, action) => {
     }->FrontmanReactStatestore.StateReducer.update
 
   | DisconnectAnthropicOAuth =>
-    switch state.apiBaseUrl {
-    | Some(apiBaseUrl) =>
+    switch state.acpSession {
+    | AcpSessionActive({apiBaseUrl}) =>
       state->FrontmanReactStatestore.StateReducer.update(
         ~sideEffects=[DisconnectAnthropicOAuthEffect({apiBaseUrl: apiBaseUrl})],
       )
-    | None => state->FrontmanReactStatestore.StateReducer.update
+    | NoAcpSession => state->FrontmanReactStatestore.StateReducer.update
     }
 
   | AnthropicOAuthDisconnected =>
@@ -1601,57 +1283,24 @@ let next = (state, action) => {
     // Reset error state back to NotConnected
     switch state.anthropicOAuthStatus {
     | Client__State__Types.Error(_) =>
-      {...state, anthropicOAuthStatus: Client__State__Types.NotConnected}->FrontmanReactStatestore.StateReducer.update
+      {
+        ...state,
+        anthropicOAuthStatus: Client__State__Types.NotConnected,
+      }->FrontmanReactStatestore.StateReducer.update
     | _ => state->FrontmanReactStatestore.StateReducer.update
     }
 
-  | TaskLoadStarted({taskId}) =>
-    // Transition task from NotLoaded to Loading with empty loadedData
-    state
-    ->Lens.updateTask(taskId, task => {
-      switch task.loadState {
-      | Task.NotLoaded => {...task, loadState: Loading(Task.makeLoadedData())}
-      | Loading(_) | Loaded(_) => task // Already loading or loaded
-      }
-    })
-    ->FrontmanReactStatestore.StateReducer.update
-
-  | TaskLoadComplete({taskId}) =>
-    // Transition task from Loading to Loaded
-    state
-    ->Lens.updateTask(taskId, task => {
-      switch task.loadState {
-      | Task.Loading(data) => {...task, loadState: Loaded(data)}
-      | NotLoaded | Loaded(_) => task // Shouldn't happen, but no-op
-      }
-    })
-    ->FrontmanReactStatestore.StateReducer.update
-
-  | TaskLoadError({taskId, error}) =>
-    // Transition task back to NotLoaded so user can retry
-    Console.error2("[StateReducer] Task load failed:", error)
-    state
-    ->Lens.updateTask(taskId, task => {
-      switch task.loadState {
-      | Task.Loading(_) => {...task, loadState: NotLoaded}
-      | NotLoaded | Loaded(_) => task // No-op
-      }
-    })
-    ->FrontmanReactStatestore.StateReducer.update
-
+  | TaskLoadStarted({taskId}) => state->Lens.delegateToTask(Task.Selected(taskId), LoadStarted({previewUrl: getInitialUrl()}))
+  | TaskLoadComplete({taskId}) => state->Lens.delegateToTask(Task.Selected(taskId), LoadComplete)
+  | TaskLoadError({taskId, error}) => state->Lens.delegateToTask(Task.Selected(taskId), LoadError({error: error}))
   | UserMessageReceived({taskId, id, text, timestamp}) =>
-    let createdAt = Date.fromString(timestamp)->Date.getTime
-    let userMessage = Message.User({
-      id,
-      content: [UserContentPart.Text({text: text})],
-      createdAt,
-    })
-    state
-    ->Lens.updateTaskLoadedData(taskId, data => Lens.insertTaskMessage(data, userMessage))
-    ->FrontmanReactStatestore.StateReducer.update
+    state->Lens.delegateToTask(Task.Selected(taskId), UserMessageReceived({id, text, timestamp}))
 
   | SessionsLoadStarted =>
-    {...state, sessionsLoadState: Client__State__Types.SessionsLoading}->FrontmanReactStatestore.StateReducer.update
+    {
+      ...state,
+      sessionsLoadState: Client__State__Types.SessionsLoading,
+    }->FrontmanReactStatestore.StateReducer.update
 
   | SessionsLoadSuccess({sessions}) =>
     // Add persisted sessions to tasks dict (only if not already present)
@@ -1683,6 +1332,9 @@ let next = (state, action) => {
     }->FrontmanReactStatestore.StateReducer.update
 
   | SessionsLoadError({error}) =>
-    {...state, sessionsLoadState: Client__State__Types.SessionsLoadError(error)}->FrontmanReactStatestore.StateReducer.update
+    {
+      ...state,
+      sessionsLoadState: Client__State__Types.SessionsLoadError(error),
+    }->FrontmanReactStatestore.StateReducer.update
   }
 }
