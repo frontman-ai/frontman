@@ -111,7 +111,7 @@ describe("Concurrent Tasks Event Routing", () => {
     t->expect(getTaskMessages(taskB)->Array.length)->Expect.toBe(0)
   })
 
-  test("ToolInputStartReceived event routes to correct task", t => {
+  test("ToolCallReceived event routes to correct task", t => {
     // Setup: Two tasks
     let taskAId = "task-a"
     let taskBId = "task-b"
@@ -121,16 +121,23 @@ describe("Concurrent Tasks Event Routing", () => {
     let (stateWithB, _) = StateReducer.next(state, SwitchTask({taskId: taskBId}))
 
     // Act: Receive tool call for Task A while Task B is current
+    let toolCall: StateReducer.Message.toolCall = {
+      id: "tool-1",
+      toolName: "ReadFile",
+      state: StateReducer.Message.InputAvailable,
+      inputBuffer: "",
+      input: Some(JSON.parseOrThrow(`{"path": "file.txt"}`)),
+      result: None,
+      errorText: None,
+      createdAt: Date.now(),
+      parentAgentId: None,
+      spawningToolName: None,
+    }
     let (finalState, _) = StateReducer.next(
       stateWithB,
       TaskAction({
         target: ForTask(taskAId),
-        action: ToolInputStartReceived({
-          id: "tool-1",
-          toolName: "ReadFile",
-          parentAgentId: None,
-          spawningToolName: None,
-        }),
+        action: ToolCallReceived({toolCall: toolCall}),
       }),
     )
 
@@ -248,32 +255,28 @@ describe("Concurrent Tasks Event Routing", () => {
     // Switch to task B
     let (stateWithB, _) = StateReducer.next(state, SwitchTask({taskId: taskBId}))
 
-    // Create tool call in Task A
+    // Create tool call in Task A via ToolCallReceived
+    let toolCall: StateReducer.Message.toolCall = {
+      id: "tool-1",
+      toolName: "ReadFile",
+      state: StateReducer.Message.InputAvailable,
+      inputBuffer: "",
+      input: Some(JSON.parseOrThrow(`{"path": "file.txt"}`)),
+      result: None,
+      errorText: None,
+      createdAt: Date.now(),
+      parentAgentId: None,
+      spawningToolName: None,
+    }
     let (stateWithTool, _) = StateReducer.next(
       stateWithB,
-      TaskAction({
-        target: ForTask(taskAId),
-        action: ToolInputStartReceived({
-          id: "tool-1",
-          toolName: "ReadFile",
-          parentAgentId: None,
-          spawningToolName: None,
-        }),
-      }),
-    )
-    let (stateWithInput, _) = StateReducer.next(
-      stateWithTool,
-      TaskAction({target: ForTask(taskAId), action: ToolInputDeltaReceived({id: "tool-1", delta: `{"path": "file.txt"}`})}),
-    )
-    let (stateWithInputEnd, _) = StateReducer.next(
-      stateWithInput,
-      TaskAction({target: ForTask(taskAId), action: ToolInputEndReceived({id: "tool-1"})}),
+      TaskAction({target: ForTask(taskAId), action: ToolCallReceived({toolCall: toolCall})}),
     )
 
     // Act: Send tool result to Task A
     let resultJson = JSON.parseOrThrow(`{"content": "file contents"}`)
     let (finalState, _) = StateReducer.next(
-      stateWithInputEnd,
+      stateWithTool,
       TaskAction({target: ForTask(taskAId), action: ToolResultReceived({id: "tool-1", result: resultJson})}),
     )
 

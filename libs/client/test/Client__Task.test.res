@@ -80,51 +80,42 @@ describe("Task - Single Streaming Message Invariant", () => {
 })
 
 describe("Task - Tool Call Lifecycle", () => {
-  test("tool call progresses: InputStreaming -> InputAvailable -> OutputAvailable", t => {
+  test("tool call progresses: ToolCallReceived -> ToolInputReceived -> ToolResultReceived", t => {
     let task = TestHelpers.makeLoadedTask()
     let toolId = "tool-1"
 
-    // Start tool
-    let (task1, _) = TaskReducer.next(
-      task,
-      ToolInputStartReceived({
-        id: toolId,
-        toolName: "test_tool",
-        parentAgentId: None,
-        spawningToolName: None,
-      }),
-    )
-
-    // Verify InputStreaming state
-    let messages1 = TestHelpers.getMessages(task1)
-    switch messages1->Array.get(0) {
-    | Some(Message.ToolCall({state: InputStreaming})) => t->expect(true)->Expect.toBe(true)
-    | _ => t->expect(false)->Expect.toBe(true)
+    // Create tool call via ToolCallReceived (the live application path)
+    let toolCall: Message.toolCall = {
+      id: toolId,
+      toolName: "test_tool",
+      state: Message.InputAvailable,
+      inputBuffer: "",
+      input: Some(JSON.parseOrThrow(`{"key": "value"}`)),
+      result: None,
+      errorText: None,
+      createdAt: Date.now(),
+      parentAgentId: None,
+      spawningToolName: None,
     }
-
-    // Add input delta
-    let (task2, _) = TaskReducer.next(task1, ToolInputDeltaReceived({id: toolId, delta: `{"key": "value"}`}))
-
-    // End input
-    let (task3, _) = TaskReducer.next(task2, ToolInputEndReceived({id: toolId}))
+    let (task1, _) = TaskReducer.next(task, ToolCallReceived({toolCall: toolCall}))
 
     // Verify InputAvailable state
-    let messages3 = TestHelpers.getMessages(task3)
-    switch messages3->Array.get(0) {
+    let messages1 = TestHelpers.getMessages(task1)
+    switch messages1->Array.get(0) {
     | Some(Message.ToolCall({state: InputAvailable, input: Some(_)})) =>
       t->expect(true)->Expect.toBe(true)
     | _ => t->expect(false)->Expect.toBe(true)
     }
 
     // Receive result
-    let (task4, _) = TaskReducer.next(
-      task3,
+    let (task2, _) = TaskReducer.next(
+      task1,
       ToolResultReceived({id: toolId, result: JSON.parseOrThrow(`{"result": "success"}`)}),
     )
 
     // Verify OutputAvailable state
-    let messages4 = TestHelpers.getMessages(task4)
-    switch messages4->Array.get(0) {
+    let messages2 = TestHelpers.getMessages(task2)
+    switch messages2->Array.get(0) {
     | Some(Message.ToolCall({state: OutputAvailable, result: Some(_)})) =>
       t->expect(true)->Expect.toBe(true)
     | _ => t->expect(false)->Expect.toBe(true)
@@ -135,17 +126,21 @@ describe("Task - Tool Call Lifecycle", () => {
     let task = TestHelpers.makeLoadedTask()
     let toolId = "tool-1"
 
-    let (task1, _) = TaskReducer.next(
-      task,
-      ToolInputStartReceived({
-        id: toolId,
-        toolName: "test_tool",
-        parentAgentId: None,
-        spawningToolName: None,
-      }),
-    )
-    let (task2, _) = TaskReducer.next(task1, ToolInputEndReceived({id: toolId}))
-    let (task3, _) = TaskReducer.next(task2, ToolErrorReceived({id: toolId, error: "Something went wrong"}))
+    // Create tool call via ToolCallReceived
+    let toolCall: Message.toolCall = {
+      id: toolId,
+      toolName: "test_tool",
+      state: Message.InputAvailable,
+      inputBuffer: "",
+      input: None,
+      result: None,
+      errorText: None,
+      createdAt: Date.now(),
+      parentAgentId: None,
+      spawningToolName: None,
+    }
+    let (task1, _) = TaskReducer.next(task, ToolCallReceived({toolCall: toolCall}))
+    let (task3, _) = TaskReducer.next(task1, ToolErrorReceived({id: toolId, error: "Something went wrong"}))
 
     let messages = TestHelpers.getMessages(task3)
     switch messages->Array.get(0) {

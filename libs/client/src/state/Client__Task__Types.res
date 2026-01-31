@@ -319,12 +319,12 @@ module Task = {
     | Loading(_) | Loaded(_) => task
     }
 
-  // Atomic transition: New → Loaded (when first message is sent)
+  // Atomic transition: New → Loaded (promotion when first message is sent)
+  // Message insertion is handled separately by the task reducer's AddUserMessage
   let newToLoaded = (
     task: t,
     ~id: string,
     ~title: string,
-    ~firstMessage: Message.t,
   ): t => {
     switch task {
     | New({previewFrame, webPreviewIsSelecting, selectedElement, figmaNode}) =>
@@ -334,12 +334,12 @@ module Task = {
         title: normalizeTitle(title),
         createdAt: timestamp,
         updatedAt: timestamp,
-        messages: Client__MessageStore.fromArray([firstMessage]),
+        messages: Client__MessageStore.make(),
         previewFrame,
         webPreviewIsSelecting,
         selectedElement,
         figmaNode,
-        isAgentRunning: true,
+        isAgentRunning: false,
         planEntries: [],
       })
     | Unloaded(_) | Loading(_) | Loaded(_) =>

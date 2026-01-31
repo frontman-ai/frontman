@@ -274,14 +274,6 @@ type action =
   | StreamingStarted
   | TextDeltaReceived({text: string})
   // Tool call actions
-  | ToolInputStartReceived({
-      id: string,
-      toolName: string,
-      parentAgentId: option<string>,
-      spawningToolName: option<string>,
-    })
-  | ToolInputDeltaReceived({id: string, delta: string})
-  | ToolInputEndReceived({id: string})
   | ToolInputReceived({id: string, input: JSON.t})
   | ToolResultReceived({id: string, result: JSON.t})
   | ToolErrorReceived({id: string, error: string})
@@ -321,7 +313,7 @@ type effect =
       contentWindow: option<WebAPI.DOMAPI.window>,
     })
   | SendMessage({text: string})
-  | TurnCompleted
+  | NotifyTurnCompleted
 
 // Delegated effects - things the task needs from its parent
 type delegated =
@@ -335,9 +327,6 @@ let actionToString = (action: action): string =>
   | StreamingStarted => "StreamingStarted"
   | TextDeltaReceived(_) => "TextDeltaReceived"
   | ToolCallReceived(_) => "ToolCallReceived"
-  | ToolInputStartReceived(_) => "ToolInputStartReceived"
-  | ToolInputDeltaReceived(_) => "ToolInputDeltaReceived"
-  | ToolInputEndReceived(_) => "ToolInputEndReceived"
   | ToolInputReceived(_) => "ToolInputReceived"
   | ToolResultReceived(_) => "ToolResultReceived"
   | ToolErrorReceived(_) => "ToolErrorReceived"
@@ -470,48 +459,6 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
     | None => (Lens.insertMessage(task, Message.ToolCall(toolCall)), [])
     }
 
-  | (Task.Loading(_) | Task.Loaded(_), ToolInputStartReceived({id, toolName, parentAgentId, spawningToolName})) =>
-    (Lens.insertMessage(
-      task,
-      Message.ToolCall({
-        id,
-        toolName,
-        state: Message.InputStreaming,
-        inputBuffer: "",
-        input: None,
-        result: None,
-        errorText: None,
-        createdAt: Date.now(),
-        parentAgentId,
-        spawningToolName,
-      }),
-    ), [])
-
-  | (Task.Loading(_) | Task.Loaded(_), ToolInputDeltaReceived({id, delta})) =>
-    (Lens.updateMessage(task, id, msg =>
-      switch msg {
-      | Message.ToolCall(tool) => Message.ToolCall({...tool, inputBuffer: tool.inputBuffer ++ delta})
-      | _ => failwith(`[TaskReducer] ToolInputDeltaReceived but message ${id} is not a ToolCall`)
-      }
-    ), [])
-
-  | (Task.Loading(_) | Task.Loaded(_), ToolInputEndReceived({id})) =>
-    (Lens.updateMessage(task, id, msg =>
-      switch msg {
-      | Message.ToolCall(tool) =>
-        let parsedInput = try {
-          Some(JSON.parseOrThrow(tool.inputBuffer))
-        } catch {
-        | exn =>
-          let errorMsg = exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("unknown error")
-          let errorObj = {"error": `Failed to parse tool input: ${errorMsg}`, "originalInput": tool.inputBuffer}
-          JSON.stringifyAny(errorObj)->Option.flatMap(str => Some(JSON.parseOrThrow(str)))
-        }
-        Message.ToolCall({...tool, input: parsedInput, state: Message.InputAvailable})
-      | _ => failwith(`[TaskReducer] ToolInputEndReceived but message ${id} is not a ToolCall`)
-      }
-    ), [])
-
   | (Task.Loading(_) | Task.Loaded(_), ToolInputReceived({id, input})) =>
     (Lens.updateMessage(task, id, msg =>
       switch msg {
@@ -562,7 +509,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
     // Per ACP spec: session/prompt response signals message end
     let completed = task->Lens.completeStreamingMessage
     let updatedTask = completed->Task.updateLoadedData(data => {...data, isAgentRunning: false})
-    (updatedTask, [TurnCompleted])
+    (updatedTask, [NotifyTurnCompleted])
 
   // ============================================================================
   // Load State Transitions
@@ -724,6 +671,6 @@ let handleEffect = (effect: effect, ~dispatch: action => unit, ~delegate: delega
       })
     }
   | SendMessage({text}) => delegate(NeedSendMessage({text: text}))
-  | TurnCompleted => delegate(NeedUsageRefresh)
+  | NotifyTurnCompleted => delegate(NeedUsageRefresh)
   }
 }

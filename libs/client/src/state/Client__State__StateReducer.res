@@ -465,8 +465,7 @@ let sendMessageToAPIImpl = (state: state, dispatch, ~message, ~taskId) => {
   }
 }
 
-let fetchUsageInfoImpl = (state: state, dispatch, ~apiBaseUrl) => {
-  ignore(state)
+let fetchUsageInfoImpl = (dispatch, ~apiBaseUrl) => {
   let fetch = async () => {
     let url = `${apiBaseUrl}/api/user/api-key-usage`
 
@@ -489,7 +488,7 @@ let handleEffect = (effect, state: state, dispatch) => {
   | SendMessageToAPI({message, taskId}) =>
     sendMessageToAPIImpl(state, dispatch, ~message, ~taskId)
   | FetchUsageInfo({apiBaseUrl}) =>
-    fetchUsageInfoImpl(state, dispatch, ~apiBaseUrl)
+    fetchUsageInfoImpl(dispatch, ~apiBaseUrl)
   | TaskEffect({target, effect: taskEffect}) => {
       // Resolve taskId for dispatching task actions back
       let taskDispatch = (taskAction: TaskReducer.action) => {
@@ -513,7 +512,7 @@ let handleEffect = (effect, state: state, dispatch) => {
         | NeedUsageRefresh =>
           switch state.acpSession {
           | AcpSessionActive({apiBaseUrl}) =>
-            fetchUsageInfoImpl(state, dispatch, ~apiBaseUrl)
+            fetchUsageInfoImpl(dispatch, ~apiBaseUrl)
           | NoAcpSession => ()
           }
         }
@@ -789,32 +788,25 @@ let next = (state: state, action) => {
 
       switch state.currentTask {
       | Task.New(newTask) =>
-        // New -> Loaded: promote to persisted task
-        let userMessage = Message.User({
-          id,
-          content,
-          createdAt: Date.now(),
-        })
+        // New -> Loaded: promote to persisted task, then delegate message creation
         let loadedTask = Task.newToLoaded(
           newTask,
           ~id=sessionId,
           ~title=textContent,
-          ~firstMessage=userMessage,
         )
-        // Add to dict and select it
         let updatedTasks = state.tasks->Dict.copy
         updatedTasks->Dict.set(sessionId, loadedTask)
-        {
+        let promotedState = {
           ...state,
           tasks: updatedTasks,
           currentTask: Task.Selected(sessionId),
-        }->FrontmanReactStatestore.StateReducer.update(
-          ~sideEffects=[SendMessageToAPI({message: textContent, taskId: sessionId})],
+        }
+        // Delegate AddUserMessage to the (now Loaded) task reducer
+        promotedState->Lens.delegateToTask(
+          Task.Selected(sessionId),
+          TaskReducer.AddUserMessage({id, content}),
         )
       | Task.Selected(taskId) =>
-        // Selected: delegate to existing task
-        // AddUserMessage in task reducer now returns SendMessage effect,
-        // but parent still needs SendMessageToAPI with taskId
         state->Lens.delegateToTask(
           Task.Selected(taskId),
           TaskReducer.AddUserMessage({id, content}),
@@ -841,16 +833,19 @@ let next = (state: state, action) => {
       | None => true
       }
 
-      // If task needs loading, transition to Loading state
-      let updatedState = if needsLoad {
-        Lens.updateTask(state, taskId, t => Task.startLoading(t, ~previewUrl=getInitialUrl()))
+      // If task needs loading, delegate LoadStarted to the task reducer
+      let (updatedState, taskEffects) = if needsLoad {
+        state->Lens.delegateToTask(
+          Task.Selected(taskId),
+          TaskReducer.LoadStarted({previewUrl: getInitialUrl()}),
+        )
       } else {
-        state
+        (state, [])
       }
 
       // Always emit LoadTaskEffect to re-activate the session
       {...updatedState, currentTask: Task.Selected(taskId)}->FrontmanReactStatestore.StateReducer.update(
-        ~sideEffects=[LoadTaskEffect({taskId: taskId})],
+        ~sideEffects=Array.concat([LoadTaskEffect({taskId: taskId})], taskEffects),
       )
     }
 

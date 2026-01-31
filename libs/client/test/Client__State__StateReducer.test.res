@@ -427,115 +427,6 @@ describe("Client State Reducer - Selectors", () => {
 })
 
 describe("Client State Reducer - Tool Lifecycle", () => {
-  test("ToolInputStartReceived creates tool with InputStreaming state", t => {
-    // Create a task with an assistant message first (tools belong to tasks)
-    let state = TestHelpers.makeStateWithTask(
-      ~messages=[
-        Reducer.Message.Assistant(
-          Streaming({
-            id: "assistant-1",
-            textBuffer: "",
-            createdAt: 0.0,
-          }),
-        ),
-      ],
-    )
-
-    let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
-    let action = Reducer.TaskAction({
-      target: ForTask(taskId),
-      action: ToolInputStartReceived({
-        id: "call-1",
-        toolName: "read_file",
-        parentAgentId: None,
-        spawningToolName: None,
-      }),
-    })
-    let (nextState, _) = Reducer.next(state, action)
-
-    let messages = TestHelpers.getMessages(nextState)
-    t->expect(messages->Array.length)->Expect.toBe(2)
-
-    switch messages->Array.get(1) {
-    | Some(Reducer.Message.ToolCall({id, toolName, state, input, _})) => {
-        t->expect(id)->Expect.toBe("call-1")
-        t->expect(toolName)->Expect.toBe("read_file")
-        t->expect(state)->Expect.toBe(Reducer.Message.InputStreaming)
-        t->expect(input)->Expect.toBe(None)
-      }
-    | _ => t->expect("Got ToolCall message")->Expect.toBe("Expected ToolCall message")
-    }
-  })
-
-  test("ToolInputDeltaReceived accumulates input buffer", t => {
-    let state = TestHelpers.makeStateWithTask(
-      ~messages=[
-        Reducer.Message.ToolCall({
-          id: "call-1",
-          toolName: "read_file",
-          inputBuffer: "{\"path",
-          input: None,
-          result: None,
-          errorText: None,
-          state: Reducer.Message.InputStreaming,
-          createdAt: 0.0,
-          parentAgentId: None,
-          spawningToolName: None,
-        }),
-      ],
-    )
-
-    let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
-    let action = Reducer.TaskAction({
-      target: ForTask(taskId),
-      action: ToolInputDeltaReceived({
-        id: "call-1",
-        delta: "\": \"test.res\"}",
-      }),
-    })
-    let (nextState, _) = Reducer.next(state, action)
-
-    let message = TestHelpers.getMessage(nextState, 0)->Option.getOrThrow
-
-    switch message {
-    | Reducer.Message.ToolCall({inputBuffer, _}) => t->expect(inputBuffer)->Expect.toBe("{\"path\": \"test.res\"}")
-    | _ => JsExn.throw("Expected ToolCall message")
-    }
-  })
-
-  test("ToolInputEndReceived parses input and transitions to InputAvailable", t => {
-    let state = TestHelpers.makeStateWithTask(
-      ~messages=[
-        Reducer.Message.ToolCall({
-          id: "call-1",
-          toolName: "read_file",
-          inputBuffer: "{\"path\": \"test.res\"}",
-          input: None,
-          result: None,
-          errorText: None,
-          state: Reducer.Message.InputStreaming,
-          createdAt: 0.0,
-          parentAgentId: None,
-          spawningToolName: None,
-        }),
-      ],
-    )
-
-    let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
-    let action = Reducer.TaskAction({target: ForTask(taskId), action: ToolInputEndReceived({id: "call-1"})})
-    let (nextState, _) = Reducer.next(state, action)
-
-    let message = TestHelpers.getMessage(nextState, 0)->Option.getOrThrow
-
-    switch message {
-    | Reducer.Message.ToolCall({state, input, _}) => {
-        t->expect(state)->Expect.toBe(Reducer.Message.InputAvailable)
-        t->expect(input->Option.isSome)->Expect.toBe(true)
-      }
-    | _ => JsExn.throw("Expected ToolCall message")
-    }
-  })
-
   test("ToolResultReceived sets result and OutputAvailable state", t => {
     let state = TestHelpers.makeStateWithTask(
       ~messages=[
@@ -710,7 +601,7 @@ describe("Client State Reducer - Task ID Continuity", () => {
     let taskIdInState = TestHelpers.getCurrentTaskId(state1)
 
     switch (effects1->Array.get(0), taskIdInState) {
-    | (Some(Reducer.SendMessageToAPI({taskId: effectTaskId, _})), Some(stateTaskId)) =>
+    | (Some(Reducer.TaskEffect({target: ForTask(effectTaskId), effect: SendMessage(_)})), Some(stateTaskId)) =>
       t->expect(effectTaskId)->Expect.toBe(stateTaskId)
     | _ => t->expect("Effect and state should both have task ID")->Expect.toBe("Missing task IDs")
     }
