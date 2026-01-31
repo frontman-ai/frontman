@@ -73,7 +73,6 @@ type action =
   | SessionsLoadError({error: string})
 
 type effect =
-  | SendMessageToAPI({message: string, taskId: string})
   | TaskEffect({target: taskTarget, effect: TaskReducer.effect})
   | StartInitializationTimeout({taskId: string, timeoutMs: int})
   | FetchUsageInfo({apiBaseUrl: string})
@@ -105,28 +104,23 @@ module Lens = {
   // - New(task): operate on task inline, write back to currentTask
   // - Selected(id): look up in dict, operate, write back to dict
   // Wraps task effects as TaskEffect with the appropriate target
-  let delegateToTask = (
-    state: state,
-    target: Task.currentTask,
-    taskAction: TaskReducer.action,
-    ~sideEffects: array<effect>=[],
-  ) => {
+  let delegateToTask = (state: state, target: Task.currentTask, taskAction: TaskReducer.action) => {
     switch target {
     | Task.New(task) =>
       let (updated, taskEffects) = TaskReducer.next(task, taskAction)
-      let wrappedEffects = taskEffects->Array.map(eff => TaskEffect({target: CurrentTask, effect: eff}))
+      let wrappedEffects =
+        taskEffects->Array.map(eff => TaskEffect({target: CurrentTask, effect: eff}))
       {...state, currentTask: Task.New(updated)}->FrontmanReactStatestore.StateReducer.update(
-        ~sideEffects=Array.concat(sideEffects, wrappedEffects),
+        ~sideEffects=wrappedEffects,
       )
     | Task.Selected(id) =>
       let task = state.tasks->Dict.get(id)->Option.getOrThrow
       let (updated, taskEffects) = TaskReducer.next(task, taskAction)
-      let wrappedEffects = taskEffects->Array.map(eff => TaskEffect({target: ForTask(id), effect: eff}))
+      let wrappedEffects =
+        taskEffects->Array.map(eff => TaskEffect({target: ForTask(id), effect: eff}))
       let tasks = state.tasks->Dict.copy
       tasks->Dict.set(id, updated)
-      {...state, tasks}->FrontmanReactStatestore.StateReducer.update(
-        ~sideEffects=Array.concat(sideEffects, wrappedEffects),
-      )
+      {...state, tasks}->FrontmanReactStatestore.StateReducer.update(~sideEffects=wrappedEffects)
     }
   }
 }
@@ -455,8 +449,7 @@ let sendMessageToAPIImpl = (state: state, dispatch, ~message, ~taskId) => {
       ~onComplete=result => {
         switch result {
         | Ok(_) => dispatch(TaskAction({target: ForTask(taskId), action: TurnCompleted}))
-        | Error(_) =>
-          dispatch(TaskAction({target: ForTask(taskId), action: TurnCompleted}))
+        | Error(_) => dispatch(TaskAction({target: ForTask(taskId), action: TurnCompleted}))
         }
       },
       ~metadata,
@@ -485,10 +478,7 @@ let fetchUsageInfoImpl = (dispatch, ~apiBaseUrl) => {
 
 let handleEffect = (effect, state: state, dispatch) => {
   switch effect {
-  | SendMessageToAPI({message, taskId}) =>
-    sendMessageToAPIImpl(state, dispatch, ~message, ~taskId)
-  | FetchUsageInfo({apiBaseUrl}) =>
-    fetchUsageInfoImpl(dispatch, ~apiBaseUrl)
+  | FetchUsageInfo({apiBaseUrl}) => fetchUsageInfoImpl(dispatch, ~apiBaseUrl)
   | TaskEffect({target, effect: taskEffect}) => {
       // Resolve taskId for dispatching task actions back
       let taskDispatch = (taskAction: TaskReducer.action) => {
@@ -505,14 +495,14 @@ let handleEffect = (effect, state: state, dispatch) => {
           | CurrentTask =>
             switch state.currentTask {
             | Task.Selected(id) => id
-            | Task.New(_) => failwith("[TaskEffect] NeedSendMessage from CurrentTask but currentTask is New")
+            | Task.New(_) =>
+              failwith("[TaskEffect] NeedSendMessage from CurrentTask but currentTask is New")
             }
           }
           sendMessageToAPIImpl(state, dispatch, ~message=text, ~taskId)
         | NeedUsageRefresh =>
           switch state.acpSession {
-          | AcpSessionActive({apiBaseUrl}) =>
-            fetchUsageInfoImpl(dispatch, ~apiBaseUrl)
+          | AcpSessionActive({apiBaseUrl}) => fetchUsageInfoImpl(dispatch, ~apiBaseUrl)
           | NoAcpSession => ()
           }
         }
@@ -759,10 +749,14 @@ let handleEffect = (effect, state: state, dispatch) => {
           if needsHistory {
             dispatch(TaskAction({target: ForTask(taskIdToLoad), action: LoadComplete}))
           }
-        | Error(err) => dispatch(TaskAction({target: ForTask(taskIdToLoad), action: LoadError({error: err})}))
+        | Error(err) =>
+          dispatch(TaskAction({target: ForTask(taskIdToLoad), action: LoadError({error: err})}))
         }
       })
-    | NoAcpSession => dispatch(TaskAction({target: ForTask(taskId), action: LoadError({error: "No active ACP session"})}))
+    | NoAcpSession =>
+      dispatch(
+        TaskAction({target: ForTask(taskId), action: LoadError({error: "No active ACP session"})}),
+      )
     }
   }
 }
@@ -774,10 +768,8 @@ let next = (state: state, action) => {
   // ============================================================================
   | TaskAction({target, action: taskAction}) =>
     switch target {
-    | CurrentTask =>
-      state->Lens.delegateToTask(state.currentTask, taskAction)
-    | ForTask(taskId) =>
-      state->Lens.delegateToTask(Task.Selected(taskId), taskAction)
+    | CurrentTask => state->Lens.delegateToTask(state.currentTask, taskAction)
+    | ForTask(taskId) => state->Lens.delegateToTask(Task.Selected(taskId), taskAction)
     }
 
   // ============================================================================
@@ -789,11 +781,7 @@ let next = (state: state, action) => {
       switch state.currentTask {
       | Task.New(newTask) =>
         // New -> Loaded: promote to persisted task, then delegate message creation
-        let loadedTask = Task.newToLoaded(
-          newTask,
-          ~id=sessionId,
-          ~title=textContent,
-        )
+        let loadedTask = Task.newToLoaded(newTask, ~id=sessionId, ~title=textContent)
         let updatedTasks = state.tasks->Dict.copy
         updatedTasks->Dict.set(sessionId, loadedTask)
         let promotedState = {
@@ -807,33 +795,24 @@ let next = (state: state, action) => {
           TaskReducer.AddUserMessage({id, content}),
         )
       | Task.Selected(taskId) =>
-        state->Lens.delegateToTask(
-          Task.Selected(taskId),
-          TaskReducer.AddUserMessage({id, content}),
-        )
+        state->Lens.delegateToTask(Task.Selected(taskId), TaskReducer.AddUserMessage({id, content}))
       }
     }
 
   // ============================================================================
   // Task management actions
   // ============================================================================
-
-  // Create new task (starts as New, becomes Loaded when first message is sent)
   | CreateTask =>
     {
       ...state,
       currentTask: Task.New(Task.makeNew(~previewUrl=getInitialUrl())),
     }->FrontmanReactStatestore.StateReducer.update
-
-  // Switch to different task - always re-activate session to ensure correct routing
   | SwitchTask({taskId}) => {
       let task = state.tasks->Dict.get(taskId)
       let needsLoad = switch task {
       | Some(t) => Task.isUnloaded(t)
       | None => true
       }
-
-      // If task needs loading, delegate LoadStarted to the task reducer
       let (updatedState, taskEffects) = if needsLoad {
         state->Lens.delegateToTask(
           Task.Selected(taskId),
@@ -842,9 +821,10 @@ let next = (state: state, action) => {
       } else {
         (state, [])
       }
-
-      // Always emit LoadTaskEffect to re-activate the session
-      {...updatedState, currentTask: Task.Selected(taskId)}->FrontmanReactStatestore.StateReducer.update(
+      {
+        ...updatedState,
+        currentTask: Task.Selected(taskId),
+      }->FrontmanReactStatestore.StateReducer.update(
         ~sideEffects=Array.concat([LoadTaskEffect({taskId: taskId})], taskEffects),
       )
     }
@@ -887,7 +867,10 @@ let next = (state: state, action) => {
     }
 
   | ClearCurrentTask =>
-    {...state, currentTask: Task.New(Task.makeNew(~previewUrl=getInitialUrl()))}->FrontmanReactStatestore.StateReducer.update
+    {
+      ...state,
+      currentTask: Task.New(Task.makeNew(~previewUrl=getInitialUrl())),
+    }->FrontmanReactStatestore.StateReducer.update
 
   | UpdateTaskTitle({taskId, title}) =>
     state
