@@ -16,34 +16,38 @@ module Actions = {
     Client__State__Store.dispatch(AddUserMessage({id, sessionId, content}))
   }
 
+  // ForTask(taskId) actions - streaming/tool events from ACP
   let textDeltaReceived = (~taskId, ~text) =>
-    Client__State__Store.dispatch(TextDeltaReceived({taskId, text}))
+    Client__State__Store.dispatch(TaskAction({target: ForTask(taskId), action: TextDeltaReceived({text: text})}))
 
   let streamingStarted = (~taskId) =>
-    Client__State__Store.dispatch(StreamingStarted({taskId: taskId}))
+    Client__State__Store.dispatch(TaskAction({target: ForTask(taskId), action: StreamingStarted}))
 
   // TOOLS
   let toolCallReceived = (~taskId, ~toolCall) =>
-    Client__State__Store.dispatch(ToolCallReceived({taskId, toolCall}))
+    Client__State__Store.dispatch(TaskAction({target: ForTask(taskId), action: ToolCallReceived({toolCall: toolCall})}))
 
   let toolInputReceived = (~taskId, ~id, ~input) =>
-    Client__State__Store.dispatch(ToolInputReceived({taskId, id, input}))
+    Client__State__Store.dispatch(TaskAction({target: ForTask(taskId), action: ToolInputReceived({id, input})}))
 
   let toolResultReceived = (~taskId, ~id, ~result) =>
-    Client__State__Store.dispatch(ToolResultReceived({taskId, id, result}))
+    Client__State__Store.dispatch(TaskAction({target: ForTask(taskId), action: ToolResultReceived({id, result})}))
 
   let toolErrorReceived = (~taskId, ~id, ~error) =>
-    Client__State__Store.dispatch(ToolErrorReceived({taskId, id, error}))
+    Client__State__Store.dispatch(TaskAction({target: ForTask(taskId), action: ToolErrorReceived({id, error})}))
 
-  let setPreviewUrl = (~url) => Client__State__Store.dispatch(SetPreviewUrl({url: url}))
+  // CurrentTask actions - UI interactions
+  let setPreviewUrl = (~url) =>
+    Client__State__Store.dispatch(TaskAction({target: CurrentTask, action: SetPreviewUrl({url: url})}))
 
   let setPreviewFrame = (~contentDocument, ~contentWindow) =>
-    Client__State__Store.dispatch(SetPreviewFrame({contentDocument, contentWindow}))
+    Client__State__Store.dispatch(TaskAction({target: CurrentTask, action: SetPreviewFrame({contentDocument, contentWindow})}))
 
-  let toggleWebPreviewSelection = () => Client__State__Store.dispatch(ToggleWebPreviewSelection)
+  let toggleWebPreviewSelection = () =>
+    Client__State__Store.dispatch(TaskAction({target: CurrentTask, action: ToggleWebPreviewSelection}))
 
   let setSelectedElement = (~selectedElement) =>
-    Client__State__Store.dispatch(SetSelectedElement({selectedElement: selectedElement}))
+    Client__State__Store.dispatch(TaskAction({target: CurrentTask, action: SetSelectedElement({selectedElement: selectedElement})}))
 
   // Task management action creators
   // Note: Tasks are created implicitly when user sends first message (lazy session creation)
@@ -58,15 +62,18 @@ module Actions = {
   let updateTaskTitle = (~taskId, ~title) =>
     Client__State__Store.dispatch(UpdateTaskTitle({taskId, title}))
 
-  // Figma node action creators
+  // Figma node action creators (CurrentTask)
   let setFigmaNode = (~figmaNode) =>
-    Client__State__Store.dispatch(SetFigmaNode({figmaNode: figmaNode}))
+    Client__State__Store.dispatch(TaskAction({target: CurrentTask, action: SetFigmaNode({figmaNode: figmaNode})}))
 
-  let clearFigmaNode = () => Client__State__Store.dispatch(ClearFigmaNode)
+  let clearFigmaNode = () =>
+    Client__State__Store.dispatch(TaskAction({target: CurrentTask, action: ClearFigmaNode}))
 
-  let setFigmaNodeWaiting = () => Client__State__Store.dispatch(SetFigmaNodeWaiting)
+  let setFigmaNodeWaiting = () =>
+    Client__State__Store.dispatch(TaskAction({target: CurrentTask, action: SetFigmaNodeWaiting}))
 
-  let clearFigmaNodeWaiting = () => Client__State__Store.dispatch(ClearFigmaNodeWaiting)
+  let clearFigmaNodeWaiting = () =>
+    Client__State__Store.dispatch(TaskAction({target: CurrentTask, action: ClearFigmaNodeWaiting}))
 
   // ACP session action creators
   let setAcpSession = (~sendPrompt, ~loadTask, ~deleteSession, ~apiBaseUrl) =>
@@ -76,21 +83,21 @@ module Actions = {
 
   let clearAcpSession = () => Client__State__Store.dispatch(ClearAcpSession)
 
-  // Task loading action creators
+  // Task loading action creators (ForTask)
   let taskLoadError = (~taskId, ~error) =>
-    Client__State__Store.dispatch(TaskLoadError({taskId, error}))
+    Client__State__Store.dispatch(TaskAction({target: ForTask(taskId), action: LoadError({error: error})}))
 
   // Initialization action creators
   let receivedDiscoveredProjectRule = (~taskId: string) =>
     Client__State__Store.dispatch(ReceivedDiscoveredProjectRule({taskId: taskId}))
 
-  // Turn completion action creators
+  // Turn completion action creators (ForTask)
   let turnCompleted = (~taskId: string) =>
-    Client__State__Store.dispatch(TurnCompleted({taskId: taskId}))
+    Client__State__Store.dispatch(TaskAction({target: ForTask(taskId), action: TurnCompleted}))
 
-  // Plan action creators (ACP compliant)
+  // Plan action creators (ForTask)
   let planReceived = (~taskId: string, ~entries) =>
-    Client__State__Store.dispatch(PlanReceived({taskId, entries}))
+    Client__State__Store.dispatch(TaskAction({target: ForTask(taskId), action: PlanReceived({entries: entries})}))
 
   // API key settings action creators
   let fetchApiKeySettings = () => Client__State__Store.dispatch(FetchApiKeySettings)
@@ -116,9 +123,9 @@ module Actions = {
 
   let resetAnthropicOAuthError = () => Client__State__Store.dispatch(ResetAnthropicOAuthError)
 
-  // Hydration action creators (for session/load)
+  // Hydration action creators (ForTask)
   let userMessageReceived = (~taskId: string, ~id: string, ~text: string, ~timestamp: string) =>
-    Client__State__Store.dispatch(UserMessageReceived({taskId, id, text, timestamp}))
+    Client__State__Store.dispatch(TaskAction({target: ForTask(taskId), action: UserMessageReceived({id, text, timestamp})}))
 
   let sessionsLoadStarted = () => Client__State__Store.dispatch(SessionsLoadStarted)
 

@@ -310,6 +310,24 @@ type action =
   // Hydration actions
   | UserMessageReceived({id: string, text: string, timestamp: string})
 
+// ============================================================================
+// Effects - side effects that the task reducer requests
+// ============================================================================
+
+type effect =
+  | FetchElementDetails({
+      element: WebAPI.DOMAPI.element,
+      document: option<WebAPI.DOMAPI.document>,
+      contentWindow: option<WebAPI.DOMAPI.window>,
+    })
+  | SendMessage({text: string})
+  | TurnCompleted
+
+// Delegated effects - things the task needs from its parent
+type delegated =
+  | NeedSendMessage({text: string})
+  | NeedUsageRefresh
+
 
 let actionToString = (action: action): string =>
   switch action {
@@ -339,40 +357,75 @@ let actionToString = (action: action): string =>
   | UserMessageReceived(_) => "UserMessageReceived"
   }
 
+// Normalize URL by removing trailing slash for comparison
+let normalizeUrl = (url: string): string => {
+  url->String.endsWith("/") && String.length(url) > 1
+    ? url->String.slice(~start=0, ~end=String.length(url) - 1)
+    : url
+}
+
+// Helper to extract text content from user message parts
+let extractTextFromUserContent = (content: array<UserContentPart.t>): string => {
+  content
+  ->Array.filterMap(part => {
+    switch part {
+    | Text({text}) => Some(text)
+    | Image(_) => None
+    | File(_) => None
+    }
+  })
+  ->Array.join(" ")
+}
+
 // Helper to get task ID for error messages
 let getTaskIdForError = (task: Task.t): string =>
   Task.getId(task)->Option.getOr("(no id)")
 
-let next = (task: Task.t, action: action): Task.t => {
+let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
   switch (task, action) {
   // ============================================================================
   // UI State Actions - work on New, Loading, or Loaded (via Lens)
   // ============================================================================
-  | (Task.Unloaded(_), SetPreviewUrl(_)) => task
+  | (Task.Unloaded(_), SetPreviewUrl(_)) => (task, [])
   | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), SetPreviewUrl({url})) =>
-    Lens.setPreviewUrl(task, url)
+    let currentUrl = Task.getPreviewFrame(task, ~defaultUrl="").url
+    let urlChanged = normalizeUrl(currentUrl) != normalizeUrl(url)
+    let updated = Lens.setPreviewUrl(task, url)
+    // Clear selected element only on actual navigation, not initial iframe mount
+    if urlChanged {
+      (Lens.setSelectedElement(updated, None), [])
+    } else {
+      (updated, [])
+    }
 
-  | (Task.Unloaded(_), SetPreviewFrame(_)) => task
+  | (Task.Unloaded(_), SetPreviewFrame(_)) => (task, [])
   | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), SetPreviewFrame({contentDocument, contentWindow})) =>
-    Lens.setPreviewFrame(task, ~contentDocument, ~contentWindow)
+    (Lens.setPreviewFrame(task, ~contentDocument, ~contentWindow), [])
 
   | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), ToggleWebPreviewSelection) =>
-    Lens.toggleWebPreviewSelection(task)
+    (Lens.toggleWebPreviewSelection(task), [])
 
   | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), SetSelectedElement({selectedElement})) =>
-    Lens.setSelectedElement(task, selectedElement)
+    // Decide if we need to fetch element details
+    let effects = switch selectedElement {
+    | Some({element, selector: None, screenshot: None, sourceLocation: None}) =>
+      let previewFrame = Task.getPreviewFrame(task, ~defaultUrl="")
+      [FetchElementDetails({element, document: previewFrame.contentDocument, contentWindow: previewFrame.contentWindow})]
+    | _ => []
+    }
+    (Lens.setSelectedElement(task, selectedElement), effects)
 
   | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), SetFigmaNode({figmaNode})) =>
-    Lens.setFigmaNode(task, figmaNode)
+    (Lens.setFigmaNode(task, figmaNode), [])
 
   | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), ClearFigmaNode) =>
-    Lens.clearFigmaNode(task)
+    (Lens.clearFigmaNode(task), [])
 
   | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), SetFigmaNodeWaiting) =>
-    Lens.setFigmaNodeWaiting(task)
+    (Lens.setFigmaNodeWaiting(task), [])
 
   | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), ClearFigmaNodeWaiting) =>
-    Lens.clearFigmaNode(task) // Same as ClearFigmaNode
+    (Lens.clearFigmaNode(task), []) // Same as ClearFigmaNode
 
   // ============================================================================
   // Message Actions - work on Loading or Loaded (via Lens)
@@ -383,28 +436,28 @@ let next = (task: Task.t, action: action): Task.t => {
     | None =>
       let msgId = `msg_${getTaskIdForError(task)}_${Date.now()->Float.toString}`
       let newMessage = Message.Assistant(Streaming({id: msgId, textBuffer: "", createdAt: Date.now()}))
-      Lens.insertMessage(task, newMessage)
+      (Lens.insertMessage(task, newMessage), [])
     }
 
   | (Task.Loading(_) | Task.Loaded(_), TextDeltaReceived({text})) =>
     switch Lens.getStreamingMessage(task) {
     | Some(Message.Streaming({id: msgId, textBuffer, createdAt})) =>
       let updatedMsg = Message.Assistant(Streaming({id: msgId, textBuffer: textBuffer ++ text, createdAt}))
-      Lens.updateMessage(task, msgId, _ => updatedMsg)
+      (Lens.updateMessage(task, msgId, _ => updatedMsg), [])
     | Some(Message.Completed(_)) => failwith(`[TaskReducer] TextDeltaReceived but message already Completed in task ${getTaskIdForError(task)}`)
     | None =>
       // Per ACP spec: first agent_message_chunk implicitly signals message start
       // Auto-create streaming message with the received text
       let msgId = `msg_${getTaskIdForError(task)}_${Date.now()->Float.toString}`
       let newMessage = Message.Assistant(Streaming({id: msgId, textBuffer: text, createdAt: Date.now()}))
-      Lens.insertMessage(task, newMessage)
+      (Lens.insertMessage(task, newMessage), [])
     }
 
   | (Task.Loading(_) | Task.Loaded(_), ToolCallReceived({toolCall})) =>
     let messages = Task.getMessages(task)
     switch messages->Array.find(msg => Message.getId(msg) == toolCall.id) {
     | Some(Message.ToolCall(existingToolCall)) =>
-      Lens.updateMessage(task, toolCall.id, _ =>
+      (Lens.updateMessage(task, toolCall.id, _ =>
         Message.ToolCall({
           ...existingToolCall,
           input: toolCall.input,
@@ -412,13 +465,13 @@ let next = (task: Task.t, action: action): Task.t => {
           parentAgentId: toolCall.parentAgentId,
           spawningToolName: toolCall.spawningToolName,
         })
-      )
+      ), [])
     | Some(msg) => failwith(`[TaskReducer] ToolCallReceived but message ${Message.getId(msg)} is not a ToolCall`)
-    | None => Lens.insertMessage(task, Message.ToolCall(toolCall))
+    | None => (Lens.insertMessage(task, Message.ToolCall(toolCall)), [])
     }
 
   | (Task.Loading(_) | Task.Loaded(_), ToolInputStartReceived({id, toolName, parentAgentId, spawningToolName})) =>
-    Lens.insertMessage(
+    (Lens.insertMessage(
       task,
       Message.ToolCall({
         id,
@@ -432,18 +485,18 @@ let next = (task: Task.t, action: action): Task.t => {
         parentAgentId,
         spawningToolName,
       }),
-    )
+    ), [])
 
   | (Task.Loading(_) | Task.Loaded(_), ToolInputDeltaReceived({id, delta})) =>
-    Lens.updateMessage(task, id, msg =>
+    (Lens.updateMessage(task, id, msg =>
       switch msg {
       | Message.ToolCall(tool) => Message.ToolCall({...tool, inputBuffer: tool.inputBuffer ++ delta})
       | _ => failwith(`[TaskReducer] ToolInputDeltaReceived but message ${id} is not a ToolCall`)
       }
-    )
+    ), [])
 
   | (Task.Loading(_) | Task.Loaded(_), ToolInputEndReceived({id})) =>
-    Lens.updateMessage(task, id, msg =>
+    (Lens.updateMessage(task, id, msg =>
       switch msg {
       | Message.ToolCall(tool) =>
         let parsedInput = try {
@@ -457,66 +510,65 @@ let next = (task: Task.t, action: action): Task.t => {
         Message.ToolCall({...tool, input: parsedInput, state: Message.InputAvailable})
       | _ => failwith(`[TaskReducer] ToolInputEndReceived but message ${id} is not a ToolCall`)
       }
-    )
+    ), [])
 
   | (Task.Loading(_) | Task.Loaded(_), ToolInputReceived({id, input})) =>
-    Lens.updateMessage(task, id, msg =>
+    (Lens.updateMessage(task, id, msg =>
       switch msg {
       | Message.ToolCall(tool) => Message.ToolCall({...tool, input: Some(input)})
       | _ => failwith(`[TaskReducer] ToolInputReceived but message ${id} is not a ToolCall`)
       }
-    )
+    ), [])
 
   | (Task.Loading(_) | Task.Loaded(_), ToolResultReceived({id, result})) =>
-    Lens.updateMessage(task, id, msg =>
+    (Lens.updateMessage(task, id, msg =>
       switch msg {
       | Message.ToolCall(tool) => Message.ToolCall({...tool, result: Some(result), state: Message.OutputAvailable})
       | _ => failwith(`[TaskReducer] ToolResultReceived but message ${id} is not a ToolCall`)
       }
-    )
+    ), [])
 
   | (Task.Loading(_) | Task.Loaded(_), ToolErrorReceived({id, error})) =>
-    Lens.updateMessage(task, id, msg =>
+    (Lens.updateMessage(task, id, msg =>
       switch msg {
       | Message.ToolCall(tool) => Message.ToolCall({...tool, errorText: Some(error), state: Message.OutputError})
       | _ => failwith(`[TaskReducer] ToolErrorReceived but message ${id} is not a ToolCall`)
       }
-    )
+    ), [])
 
   // Hydration: user messages replayed from history
   // Per ACP spec: a new user message signals the end of the previous agent message
   | (Task.Loading(_), UserMessageReceived({id, text, timestamp})) =>
     let createdAt = Date.fromString(timestamp)->Date.getTime
     let userMessage = Message.User({id, content: [UserContentPart.text(text)], createdAt})
-    task->Lens.completeStreamingMessage->Lens.insertMessage(userMessage)
+    (task->Lens.completeStreamingMessage->Lens.insertMessage(userMessage), [])
 
   // ============================================================================
   // Loaded-only Actions - require isAgentRunning or planEntries
   // ============================================================================
   | (Task.Loaded(data), AddUserMessage({id, content})) =>
+    let text = extractTextFromUserContent(content)
     let message = Message.User({id, content, createdAt: Date.now()})
-    Task.Loaded({
+    (Task.Loaded({
       ...data,
       messages: MessageStore.insert(data.messages, message),
       isAgentRunning: true,
-    })
+    }), [SendMessage({text: text})])
 
   | (Task.Loaded(data), PlanReceived({entries})) =>
-    Task.Loaded({...data, planEntries: entries})
+    (Task.Loaded({...data, planEntries: entries}), [])
 
   | (Task.Loaded(_), TurnCompleted) =>
     // Per ACP spec: session/prompt response signals message end
     let completed = task->Lens.completeStreamingMessage
-    switch completed {
-    | Task.Loaded(completedData) => Task.Loaded({...completedData, isAgentRunning: false})
-    | _ => completed // Should never happen for Loaded task
-    }
+    let updatedTask = completed->Task.updateLoadedData(data => {...data, isAgentRunning: false})
+    (updatedTask, [TurnCompleted])
 
   // ============================================================================
   // Load State Transitions
   // ============================================================================
   | (Task.Unloaded({id, title, createdAt, updatedAt}), LoadStarted({previewUrl})) =>
-    Task.Loading({
+    (Task.Loading({
       id,
       title,
       createdAt,
@@ -526,7 +578,7 @@ let next = (task: Task.t, action: action): Task.t => {
       webPreviewIsSelecting: false,
       selectedElement: None,
       figmaNode: FigmaNode.NoSelection,
-    })
+    }), [])
 
   | (Task.Loading(_), LoadComplete) =>
     // Per ACP spec: session/load response signals end of history replay
@@ -536,7 +588,7 @@ let next = (task: Task.t, action: action): Task.t => {
       let sortedMessages = MessageStore.toSorted(messages, (a, b) =>
         Selectors.getMessageCreatedAt(a) -. Selectors.getMessageCreatedAt(b)
       )
-      Task.Loaded({
+      (Task.Loaded({
         id,
         title,
         createdAt,
@@ -548,18 +600,130 @@ let next = (task: Task.t, action: action): Task.t => {
         figmaNode,
         isAgentRunning: false,
         planEntries: [],
-      })
+      }), [])
     | _ => failwith("[TaskReducer] LoadComplete: unexpected task state after completeStreamingMessage")
     }
 
   | (Task.Loading({id, title, createdAt, updatedAt}), LoadError({error})) =>
     Console.error2("[TaskReducer] Task load failed:", error)
-    Task.Unloaded({id, title, createdAt, updatedAt})
+    (Task.Unloaded({id, title, createdAt, updatedAt}), [])
 
   // ============================================================================
   // Catch-all - invalid state/action combinations
   // ============================================================================
   | (_, action) =>
     failwith(`[TaskReducer] ${actionToString(action)} on ${Task.stateToString(task)} task ${getTaskIdForError(task)}`)
+  }
+}
+
+// ============================================================================
+// Effect Handler - processes task effects, delegates to parent when needed
+// ============================================================================
+
+let handleEffect = (effect: effect, ~dispatch: action => unit, ~delegate: delegated => unit) => {
+  switch effect {
+  | FetchElementDetails({element, document, contentWindow}) => {
+      // Fetch selector
+      let selectorPromise = Promise.resolve()->Promise.then(_ => {
+        let selector = Bindings__Finder.finder(
+          ~element,
+          ~options={
+            root: document
+            ->Option.map(doc => doc.documentElement->Obj.magic)
+            ->Option.getOr(element),
+            idName: (~name as _) => true,
+            className: (~name as _) => true,
+            tagName: (~name as _) => true,
+            attr: (~name as _, ~value as _) => false,
+          },
+        )
+        Promise.resolve(Some(selector))
+      })->Promise.catch(error => {
+        Console.error2("Failed to get selector:", error)
+        Promise.resolve(None)
+      })
+
+      // Fetch screenshot
+      let screenshotPromise =
+        Bindings__Snapdom.snapdom(~element)
+        ->Promise.then(captureResult => {
+          Promise.resolve(Some(captureResult.url))
+        })
+        ->Promise.catch(error => {
+          Console.error2("Failed to capture screenshot:", error)
+          Promise.resolve(None)
+        })
+
+      // Fetch source location (cascading: React fiber first, then Astro annotations)
+      // Race against a timeout to prevent hanging when source map resolution stalls (e.g., CORS on RSC URLs)
+      let sourceLocationPromise = {
+        let detectionPromise = switch contentWindow {
+        | Some(window) =>
+          Bindings__SourceDetection.getElementSourceLocation(~element, ~window)
+          ->Promise.then(sourceLocationOpt => Promise.resolve(sourceLocationOpt))
+          ->Promise.catch(error => {
+            Console.error2("Failed to get source location:", error)
+            Promise.resolve(None)
+          })
+        | None => Promise.resolve(None)
+        }
+        let timeoutPromise = Promise.make((resolve, _) => {
+          let _ = Js.Global.setTimeout(() => resolve(None), 5000)
+        })
+        Promise.race([detectionPromise, timeoutPromise])
+      }
+
+      // Wait for all promises and update state once
+      let _ = Promise.all3((
+        selectorPromise,
+        screenshotPromise,
+        sourceLocationPromise,
+      ))->Promise.then(((selector, screenshot, sourceLocation)) => {
+        let tagName = element.tagName
+        let sourceLocationWithTagName = sourceLocation->Option.map(sourceLoc => {
+          {
+            ...sourceLoc,
+            file: sourceLoc.file
+            ->String.split("?")
+            ->Array.get(0)
+            ->Option.getOr(sourceLoc.file),
+            tagName,
+          }
+        })
+
+        // Resolve source location via server to get relative file paths
+        let resolvedSourceLocationPromise = switch sourceLocationWithTagName {
+        | Some(sourceLoc) =>
+          Client__SourceLocationResolver.resolve(sourceLoc)->Promise.then(result => {
+            switch result {
+            | Ok(resolved) => Promise.resolve(Some(resolved))
+            | Error(err) =>
+              Console.warn2("[Effect] Source location resolution failed, using original:", err)
+              Promise.resolve(sourceLocationWithTagName)
+            }
+          })
+        | None => Promise.resolve(None)
+        }
+
+        // Dispatch only after resolution completes (or fails with fallback)
+        resolvedSourceLocationPromise->Promise.then(finalSourceLocation => {
+          dispatch(
+            SetSelectedElement({
+              selectedElement: Some({
+                element,
+                selector,
+                screenshot,
+                sourceLocation: finalSourceLocation,
+              }),
+            }),
+          )
+          Promise.resolve()
+        })
+      })->Promise.catch(_ => {
+        Promise.resolve()
+      })
+    }
+  | SendMessage({text}) => delegate(NeedSendMessage({text: text}))
+  | TurnCompleted => delegate(NeedUsageRefresh)
   }
 }

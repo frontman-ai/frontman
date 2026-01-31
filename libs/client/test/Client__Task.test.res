@@ -29,7 +29,7 @@ module TestHelpers = {
 describe("Task - Single Streaming Message Invariant", () => {
   test("StreamingStarted creates a streaming message", t => {
     let task = TestHelpers.makeLoadedTask()
-    let updatedTask = TaskReducer.next(task, StreamingStarted)
+    let (updatedTask, _effects) = TaskReducer.next(task, StreamingStarted)
 
     let messages = TestHelpers.getMessages(updatedTask)
     t->expect(Array.length(messages))->Expect.toBe(1)
@@ -43,7 +43,7 @@ describe("Task - Single Streaming Message Invariant", () => {
 
   test("StreamingStarted fails fast if streaming message already exists", t => {
     let task = TestHelpers.makeLoadedTask()
-    let task1 = TaskReducer.next(task, StreamingStarted)
+    let (task1, _) = TaskReducer.next(task, StreamingStarted)
 
     // Invariant enforced: calling StreamingStarted again should crash
     Expect.toThrow(t->expect(() => TaskReducer.next(task1, StreamingStarted)))
@@ -51,9 +51,9 @@ describe("Task - Single Streaming Message Invariant", () => {
 
   test("TextDeltaReceived appends to streaming message", t => {
     let task = TestHelpers.makeLoadedTask()
-    let task1 = TaskReducer.next(task, StreamingStarted)
-    let task2 = TaskReducer.next(task1, TextDeltaReceived({text: "Hello"}))
-    let task3 = TaskReducer.next(task2, TextDeltaReceived({text: " world"}))
+    let (task1, _) = TaskReducer.next(task, StreamingStarted)
+    let (task2, _) = TaskReducer.next(task1, TextDeltaReceived({text: "Hello"}))
+    let (task3, _) = TaskReducer.next(task2, TextDeltaReceived({text: " world"}))
 
     switch TaskReducer.Selectors.streamingMessage(task3) {
     | Some(Message.Streaming({textBuffer})) =>
@@ -64,9 +64,9 @@ describe("Task - Single Streaming Message Invariant", () => {
 
   test("TurnCompleted converts streaming to completed", t => {
     let task = TestHelpers.makeLoadedTask()
-    let task1 = TaskReducer.next(task, StreamingStarted)
-    let task2 = TaskReducer.next(task1, TextDeltaReceived({text: "Hello"}))
-    let task3 = TaskReducer.next(task2, TurnCompleted)
+    let (task1, _) = TaskReducer.next(task, StreamingStarted)
+    let (task2, _) = TaskReducer.next(task1, TextDeltaReceived({text: "Hello"}))
+    let (task3, _) = TaskReducer.next(task2, TurnCompleted)
 
     let messages = TestHelpers.getMessages(task3)
     t->expect(Array.length(messages))->Expect.toBe(1)
@@ -85,7 +85,7 @@ describe("Task - Tool Call Lifecycle", () => {
     let toolId = "tool-1"
 
     // Start tool
-    let task1 = TaskReducer.next(
+    let (task1, _) = TaskReducer.next(
       task,
       ToolInputStartReceived({
         id: toolId,
@@ -103,10 +103,10 @@ describe("Task - Tool Call Lifecycle", () => {
     }
 
     // Add input delta
-    let task2 = TaskReducer.next(task1, ToolInputDeltaReceived({id: toolId, delta: `{"key": "value"}`}))
+    let (task2, _) = TaskReducer.next(task1, ToolInputDeltaReceived({id: toolId, delta: `{"key": "value"}`}))
 
     // End input
-    let task3 = TaskReducer.next(task2, ToolInputEndReceived({id: toolId}))
+    let (task3, _) = TaskReducer.next(task2, ToolInputEndReceived({id: toolId}))
 
     // Verify InputAvailable state
     let messages3 = TestHelpers.getMessages(task3)
@@ -117,7 +117,7 @@ describe("Task - Tool Call Lifecycle", () => {
     }
 
     // Receive result
-    let task4 = TaskReducer.next(
+    let (task4, _) = TaskReducer.next(
       task3,
       ToolResultReceived({id: toolId, result: JSON.parseOrThrow(`{"result": "success"}`)}),
     )
@@ -135,7 +135,7 @@ describe("Task - Tool Call Lifecycle", () => {
     let task = TestHelpers.makeLoadedTask()
     let toolId = "tool-1"
 
-    let task1 = TaskReducer.next(
+    let (task1, _) = TaskReducer.next(
       task,
       ToolInputStartReceived({
         id: toolId,
@@ -144,8 +144,8 @@ describe("Task - Tool Call Lifecycle", () => {
         spawningToolName: None,
       }),
     )
-    let task2 = TaskReducer.next(task1, ToolInputEndReceived({id: toolId}))
-    let task3 = TaskReducer.next(task2, ToolErrorReceived({id: toolId, error: "Something went wrong"}))
+    let (task2, _) = TaskReducer.next(task1, ToolInputEndReceived({id: toolId}))
+    let (task3, _) = TaskReducer.next(task2, ToolErrorReceived({id: toolId, error: "Something went wrong"}))
 
     let messages = TestHelpers.getMessages(task3)
     switch messages->Array.get(0) {
@@ -161,20 +161,20 @@ describe("Task - Load State Machine", () => {
     let task = TestHelpers.makeUnloadedTask()
     t->expect(Task.isUnloaded(task))->Expect.toBe(true)
 
-    let loadingTask = TaskReducer.next(task, LoadStarted({previewUrl: "http://localhost:3000"}))
+    let (loadingTask, _) = TaskReducer.next(task, LoadStarted({previewUrl: "http://localhost:3000"}))
     t->expect(Task.isLoading(loadingTask))->Expect.toBe(true)
   })
 
   test("Loading -> Loaded transition via LoadComplete", t => {
     let task = TestHelpers.makeLoadingTask()
-    let loadedTask = TaskReducer.next(task, LoadComplete)
+    let (loadedTask, _) = TaskReducer.next(task, LoadComplete)
 
     t->expect(Task.isLoaded(loadedTask))->Expect.toBe(true)
   })
 
   test("LoadError reverts Loading to Unloaded for retry", t => {
     let task = TestHelpers.makeLoadingTask()
-    let failedTask = TaskReducer.next(task, LoadError({error: "Network error"}))
+    let (failedTask, _) = TaskReducer.next(task, LoadError({error: "Network error"}))
 
     t->expect(Task.isUnloaded(failedTask))->Expect.toBe(true)
   })
@@ -185,7 +185,7 @@ describe("Task - Agent Running State", () => {
     let task = TestHelpers.makeLoadedTask()
     t->expect(TaskReducer.Selectors.isAgentRunning(task))->Expect.toEqual(Some(false))
 
-    let task2 = TaskReducer.next(
+    let (task2, _) = TaskReducer.next(
       task,
       AddUserMessage({
         id: "user-1",
@@ -198,7 +198,7 @@ describe("Task - Agent Running State", () => {
 
   test("isAgentRunning is false after TurnCompleted", t => {
     let task = TestHelpers.makeLoadedTask()
-    let task2 = TaskReducer.next(
+    let (task2, _) = TaskReducer.next(
       task,
       AddUserMessage({
         id: "user-1",
@@ -207,7 +207,7 @@ describe("Task - Agent Running State", () => {
     )
     t->expect(TaskReducer.Selectors.isAgentRunning(task2))->Expect.toEqual(Some(true))
 
-    let task3 = TaskReducer.next(task2, TurnCompleted)
+    let (task3, _) = TaskReducer.next(task2, TurnCompleted)
     t->expect(TaskReducer.Selectors.isAgentRunning(task3))->Expect.toEqual(Some(false))
   })
 })
@@ -219,7 +219,7 @@ describe("Task - Figma Node State", () => {
       Some(Client__Task__Types.FigmaNode.NoSelection),
     )
 
-    let task2 = TaskReducer.next(
+    let (task2, _) = TaskReducer.next(
       task,
       SetFigmaNode({
         figmaNode: {
@@ -240,13 +240,13 @@ describe("Task - Figma Node State", () => {
 
   test("ClearFigmaNode resets to NoSelection", t => {
     let task = TestHelpers.makeLoadedTask()
-    let task2 = TaskReducer.next(
+    let (task2, _) = TaskReducer.next(
       task,
       SetFigmaNode({
         figmaNode: {nodeId: "123", nodeData: "test", image: None, isDsl: true},
       }),
     )
-    let task3 = TaskReducer.next(task2, ClearFigmaNode)
+    let (task3, _) = TaskReducer.next(task2, ClearFigmaNode)
 
     t->expect(TaskReducer.Selectors.figmaNode(task3))->Expect.toEqual(
       Some(Client__Task__Types.FigmaNode.NoSelection),
@@ -255,7 +255,7 @@ describe("Task - Figma Node State", () => {
 
   test("SetFigmaNodeWaiting sets WaitingForSelection", t => {
     let task = TestHelpers.makeLoadedTask()
-    let task2 = TaskReducer.next(task, SetFigmaNodeWaiting)
+    let (task2, _) = TaskReducer.next(task, SetFigmaNodeWaiting)
 
     t->expect(TaskReducer.Selectors.figmaNode(task2))->Expect.toEqual(
       Some(Client__Task__Types.FigmaNode.WaitingForSelection),
@@ -268,10 +268,10 @@ describe("Task - Web Preview Selection", () => {
     let task = TestHelpers.makeLoadedTask()
     t->expect(TaskReducer.Selectors.webPreviewIsSelecting(task))->Expect.toEqual(Some(false))
 
-    let task2 = TaskReducer.next(task, ToggleWebPreviewSelection)
+    let (task2, _) = TaskReducer.next(task, ToggleWebPreviewSelection)
     t->expect(TaskReducer.Selectors.webPreviewIsSelecting(task2))->Expect.toEqual(Some(true))
 
-    let task3 = TaskReducer.next(task2, ToggleWebPreviewSelection)
+    let (task3, _) = TaskReducer.next(task2, ToggleWebPreviewSelection)
     t->expect(TaskReducer.Selectors.webPreviewIsSelecting(task3))->Expect.toEqual(Some(false))
   })
 
@@ -280,11 +280,11 @@ describe("Task - Web Preview Selection", () => {
     let task = TestHelpers.makeLoadedTask()
 
     // First toggle to enter selection mode (webPreviewIsSelecting becomes true)
-    let task2 = TaskReducer.next(task, ToggleWebPreviewSelection)
+    let (task2, _) = TaskReducer.next(task, ToggleWebPreviewSelection)
     t->expect(TaskReducer.Selectors.webPreviewIsSelecting(task2))->Expect.toEqual(Some(true))
 
     // Toggle again to exit selection mode (should clear selected element)
-    let task3 = TaskReducer.next(task2, ToggleWebPreviewSelection)
+    let (task3, _) = TaskReducer.next(task2, ToggleWebPreviewSelection)
     t->expect(TaskReducer.Selectors.webPreviewIsSelecting(task3))->Expect.toEqual(Some(false))
   })
 })
@@ -299,7 +299,7 @@ describe("Task - Plan Entries", () => {
       {content: "Step 2", priority: Medium, status: InProgress},
     ]
 
-    let task2 = TaskReducer.next(task, PlanReceived({entries: entries}))
+    let (task2, _) = TaskReducer.next(task, PlanReceived({entries: entries}))
     t->expect(TaskReducer.Selectors.planEntries(task2)->Option.getOr([])->Array.length)->Expect.toBe(2)
   })
 })
