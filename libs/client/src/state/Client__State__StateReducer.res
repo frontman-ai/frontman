@@ -808,11 +808,8 @@ let next = (state: state, action) => {
       currentTask: Task.New(Task.makeNew(~previewUrl=getInitialUrl())),
     }->FrontmanReactStatestore.StateReducer.update
   | SwitchTask({taskId}) => {
-      let task = state.tasks->Dict.get(taskId)
-      let needsLoad = switch task {
-      | Some(t) => Task.isUnloaded(t)
-      | None => true
-      }
+      let task = state.tasks->Dict.get(taskId)->Option.getOrThrow
+      let needsLoad = Task.isUnloaded(task)
       let (updatedState, taskEffects) = if needsLoad {
         state->Lens.delegateToTask(
           Task.Selected(taskId),
