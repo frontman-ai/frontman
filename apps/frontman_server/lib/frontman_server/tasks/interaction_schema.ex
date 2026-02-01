@@ -15,10 +15,10 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
   schema "interactions" do
-    field :type, :string
-    field :data, :map
+    field(:type, :string)
+    field(:data, :map)
 
-    belongs_to :task, TaskSchema
+    belongs_to(:task, TaskSchema)
 
     timestamps(type: :utc_datetime, updated_at: false)
   end
@@ -60,12 +60,12 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
 
   @spec for_task(Ecto.Queryable.t(), String.t()) :: Ecto.Query.t()
   def for_task(query \\ __MODULE__, task_id) do
-    from i in query, where: i.task_id == ^task_id
+    from(i in query, where: i.task_id == ^task_id)
   end
 
   @spec ordered_by_inserted(Ecto.Queryable.t()) :: Ecto.Query.t()
   def ordered_by_inserted(query \\ __MODULE__) do
-    from i in query, order_by: [asc: i.inserted_at]
+    from(i in query, order_by: [asc: i.inserted_at])
   end
 
   # --- JSONB to Domain Struct Conversion ---
@@ -165,9 +165,30 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
       line: data["line"],
       column: data["column"],
       source_snippet: data["source_snippet"],
-      source_type: data["source_type"]
+      source_type: data["source_type"],
+      component_name: data["component_name"],
+      component_props: data["component_props"],
+      parent: parse_parent_chain(data["parent"])
     }
   end
+
+  @spec parse_parent_chain(map() | nil) :: map() | nil
+  defp parse_parent_chain(nil), do: nil
+
+  defp parse_parent_chain(parent) when is_map(parent) do
+    %{
+      file: parent["file"],
+      line: parent["line"],
+      column: parent["column"],
+      source_snippet: nil,
+      source_type: nil,
+      component_name: parent["component_name"],
+      component_props: parent["component_props"],
+      parent: parse_parent_chain(parent["parent"])
+    }
+  end
+
+  defp parse_parent_chain(_), do: nil
 
   @spec parse_figma_node(map() | nil) :: Interaction.FigmaNode.t() | nil
   defp parse_figma_node(nil), do: nil

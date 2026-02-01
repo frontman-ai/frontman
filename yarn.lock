@@ -2045,7 +2045,7 @@ __metadata:
     "@rescript/webapi": "catalog:"
     "@sentry/nextjs": "npm:^8.0.0"
     "@vitest/ui": "catalog:"
-    dom-element-to-component-source: "npm:0.4.2"
+    dom-element-to-component-source: "npm:0.5.0"
     rescript: "catalog:"
     rescript-vitest: "catalog:"
     sentry-testkit: "npm:^5.0.9"
@@ -2075,7 +2075,7 @@ __metadata:
   resolution: "@frontman/bindings@workspace:libs/bindings"
   dependencies:
     "@rescript/runtime": "npm:12.0.0-beta.14"
-    dom-element-to-component-source: "npm:^0.4.2"
+    dom-element-to-component-source: "npm:^0.5.0"
     rescript: "catalog:"
     sentry-testkit: "npm:^5.0.9"
     sury: "npm:11.0.0-alpha.4"
@@ -2148,7 +2148,7 @@ __metadata:
     ai: "npm:^5.0.82"
     class-variance-authority: "npm:^0.7.1"
     clsx: "npm:^2.1.1"
-    dom-element-to-component-source: "npm:^0.4.2"
+    dom-element-to-component-source: "npm:^0.5.0"
     lucide-react: "npm:^0.548.0"
     motion: "npm:^12.23.24"
     nanoid: "npm:^5.1.6"
@@ -12150,14 +12150,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"dom-element-to-component-source@npm:0.4.2, dom-element-to-component-source@npm:^0.4.2":
-  version: 0.4.2
-  resolution: "dom-element-to-component-source@npm:0.4.2"
+"dom-element-to-component-source@npm:0.5.0, dom-element-to-component-source@npm:^0.5.0":
+  version: 0.5.0
+  resolution: "dom-element-to-component-source@npm:0.5.0"
   dependencies:
     error-stack-parser: "npm:^2.1.4"
     source-map: "npm:^0.7.6"
     stacktrace-gps: "npm:^3.1.2"
-  checksum: 10c0/8cce5a196224240284e2de95a63a8a2afa5b55d9232314458152054268c9e3d8e643e6766d273adb5bd7004d4bdf2e51ecd63dcfbfe36f087e155a7d474d3b72
+  checksum: 10c0/e2590c15b1149418023bd9b38d8dc5aff8dae85062b9d7870a40801a62cf0115bd35670f7354ed72d21d524f054011cc99b8e6a3fa9db9544120081f86b4c360
   languageName: node
   linkType: hard
 

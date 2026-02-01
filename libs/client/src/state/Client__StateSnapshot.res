@@ -40,6 +40,7 @@ module SourceLocation = {
     line: int,
     column: int,
     parent: option<t>,
+    componentProps: option<Dict.t<JSON.t>>,
   }
 
   let schema: S.t<t> = S.recursive("SourceLocation", schema =>
@@ -50,6 +51,7 @@ module SourceLocation = {
       line: s.field("line", S.int),
       column: s.field("column", S.int),
       parent: s.field("parent", nullableToOption(schema)),
+      componentProps: s.field("componentProps", nullableToOption(S.dict(S.json))),
     })
   )
 }
@@ -332,6 +334,7 @@ let convertSourceLocation = (loc: Client__Types.SourceLocation.t): SourceLocatio
     line: l.line,
     column: l.column,
     parent: l.parent->Option.map(convert),
+    componentProps: l.componentProps,
   }
   convert(loc)
 }

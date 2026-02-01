@@ -67,6 +67,7 @@ let resolve = async (sourceLocation: Client__Types.SourceLocation.t): result<
               line,
               column,
               parent: sourceLocation.parent, // Keep parent as-is for now
+              componentProps: sourceLocation.componentProps,
             }: Client__Types.SourceLocation.t
           ),
         )

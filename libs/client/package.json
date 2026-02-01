@@ -56,7 +56,7 @@
 		"ai": "^5.0.82",
 		"class-variance-authority": "^0.7.1",
 		"clsx": "^2.1.1",
-		"dom-element-to-component-source": "^0.4.2",
+		"dom-element-to-component-source": "^0.5.0",
 		"lucide-react": "^0.548.0",
 		"motion": "^12.23.24",
 		"nanoid": "^5.1.6",

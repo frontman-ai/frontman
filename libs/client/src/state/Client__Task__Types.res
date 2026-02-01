@@ -499,17 +499,67 @@ let stripFileUriPrefix = (path: string): string => {
   }
 }
 
-// Helper to create _meta JSON for selected component
-let makeSelectedComponentMeta: (string, int, int) => JSON.t = %raw(`
-  function(file, line, column) {
-    return {
-      "selected_component": true,
-      "file": file,
-      "line": line,
-      "column": column
-    };
+// Helper to serialize parent chain to JSON recursively
+let rec serializeParentToJson = (parent: option<Client__Types.SourceLocation.t>): option<JSON.t> => {
+  parent->Option.map(p => {
+    let cleanFilePath = stripFileUriPrefix(p.file)
+    let obj = Dict.make()
+    obj->Dict.set("file", JSON.Encode.string(cleanFilePath))
+    obj->Dict.set("line", JSON.Encode.int(p.line))
+    obj->Dict.set("column", JSON.Encode.int(p.column))
+
+    switch p.componentName {
+    | Some(name) => obj->Dict.set("component_name", JSON.Encode.string(name))
+    | None => ()
+    }
+
+    switch p.componentProps {
+    | Some(props) => obj->Dict.set("component_props", JSON.Encode.object(props))
+    | None => ()
+    }
+
+    // Recursively serialize parent's parent
+    switch serializeParentToJson(p.parent) {
+    | Some(parentJson) => obj->Dict.set("parent", parentJson)
+    | None => ()
+    }
+
+    JSON.Encode.object(obj)
+  })
+}
+
+// Helper to create _meta JSON for selected component with componentProps and parent chain
+let makeSelectedComponentMeta = (
+  ~file: string,
+  ~line: int,
+  ~column: int,
+  ~componentName: option<string>,
+  ~componentProps: option<Dict.t<JSON.t>>,
+  ~parent: option<Client__Types.SourceLocation.t>,
+): JSON.t => {
+  let obj = Dict.make()
+  obj->Dict.set("selected_component", JSON.Encode.bool(true))
+  obj->Dict.set("file", JSON.Encode.string(file))
+  obj->Dict.set("line", JSON.Encode.int(line))
+  obj->Dict.set("column", JSON.Encode.int(column))
+
+  switch componentName {
+  | Some(name) => obj->Dict.set("component_name", JSON.Encode.string(name))
+  | None => ()
   }
-`)
+
+  switch componentProps {
+  | Some(props) => obj->Dict.set("component_props", JSON.Encode.object(props))
+  | None => ()
+  }
+
+  switch serializeParentToJson(parent) {
+  | Some(parentJson) => obj->Dict.set("parent", parentJson)
+  | None => ()
+  }
+
+  JSON.Encode.object(obj)
+}
 
 // Build a Resource ContentBlock from SelectedElement with _meta annotation
 // Contains the source location as structured data in _meta for safe extraction
@@ -529,8 +579,15 @@ let selectedElementToContentBlock = (sel: SelectedElement.t): option<ACPTypes.co
         text: `Selected component: ${loc.tagName} at ${cleanFilePath}:${loc.line->Int.toString}:${loc.column->Int.toString}`,
       }
 
-      // Create _meta with selected_component annotation containing the clean path
-      let _meta = makeSelectedComponentMeta(cleanFilePath, loc.line, loc.column)
+      // Create _meta with selected_component annotation containing the clean path, componentProps, and parent chain
+      let _meta = makeSelectedComponentMeta(
+        ~file=cleanFilePath,
+        ~line=loc.line,
+        ~column=loc.column,
+        ~componentName=loc.componentName,
+        ~componentProps=loc.componentProps,
+        ~parent=loc.parent,
+      )
 
       let embeddedResource: ACPTypes.embeddedResource = {
         _meta: Some(_meta),

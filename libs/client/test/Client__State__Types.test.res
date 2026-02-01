@@ -21,6 +21,7 @@ describe("Client__State__Types", () => {
         line: 42,
         column: 5,
         parent: None,
+        componentProps: None,
       }
 
       let selectedElement: Types.SelectedElement.t = {
@@ -57,10 +58,11 @@ describe("Client__State__Types", () => {
       let sourceLocation: ClientTypes.SourceLocation.t = {
         componentName: Some("TestComponent"),
         tagName: "div",
-        file: "/home/user/project/src/Component.tsx",
+        file: "file:///home/user/project/src/Component.tsx",
         line: 42,
         column: 5,
         parent: None,
+        componentProps: None,
       }
 
       let selectedElement: Types.SelectedElement.t = {
@@ -95,6 +97,7 @@ describe("Client__State__Types", () => {
         line: 10,
         column: 1,
         parent: None,
+        componentProps: None,
       }
 
       let selectedElement: Types.SelectedElement.t = {
@@ -128,6 +131,7 @@ describe("Client__State__Types", () => {
         line: 42,
         column: 5,
         parent: None,
+        componentProps: None,
       }
 
       let selectedElement: Types.SelectedElement.t = {

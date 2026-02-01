@@ -33,7 +33,10 @@ defmodule FrontmanServer.Tasks.InteractionTest do
                line: 42,
                column: 10,
                source_snippet: nil,
-               source_type: nil
+               source_type: nil,
+               component_name: nil,
+               component_props: nil,
+               parent: nil
              }
 
       assert msg.selected_figma_node == nil
@@ -218,7 +221,10 @@ defmodule FrontmanServer.Tasks.InteractionTest do
                line: 10,
                column: 5,
                source_snippet: nil,
-               source_type: nil
+               source_type: nil,
+               component_name: nil,
+               component_props: nil,
+               parent: nil
              }
 
       assert msg.selected_figma_node != nil
@@ -255,7 +261,10 @@ defmodule FrontmanServer.Tasks.InteractionTest do
                line: 100,
                column: 50,
                source_snippet: nil,
-               source_type: nil
+               source_type: nil,
+               component_name: nil,
+               component_props: nil,
+               parent: nil
              }
     end
 
@@ -320,7 +329,10 @@ defmodule FrontmanServer.Tasks.InteractionTest do
                line: 15,
                column: 3,
                source_snippet: nil,
-               source_type: nil
+               source_type: nil,
+               component_name: nil,
+               component_props: nil,
+               parent: nil
              }
 
       assert msg.selected_component_screenshot == "base64screenshotdata"
@@ -639,7 +651,10 @@ defmodule FrontmanServer.Tasks.InteractionTest do
                "line" => 10,
                "column" => 5,
                "source_snippet" => nil,
-               "source_type" => nil
+               "source_type" => nil,
+               "component_name" => nil,
+               "component_props" => nil,
+               "parent" => nil
              }
 
       assert decoded["selected_figma_node"] == nil

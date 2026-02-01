@@ -69,7 +69,10 @@ defmodule FrontmanServer.Tasks.Interaction do
             line: integer(),
             column: integer(),
             source_snippet: String.t() | nil,
-            source_type: String.t() | nil
+            source_type: String.t() | nil,
+            component_name: String.t() | nil,
+            component_props: map() | nil,
+            parent: selected_component() | nil
           }
 
     typedstruct enforce: true do
@@ -125,7 +128,10 @@ defmodule FrontmanServer.Tasks.Interaction do
               line: line,
               column: column,
               source_snippet: Map.get(meta, "source_snippet"),
-              source_type: Map.get(meta, "source_type")
+              source_type: Map.get(meta, "source_type"),
+              component_name: Map.get(meta, "component_name"),
+              component_props: Map.get(meta, "component_props"),
+              parent: parse_parent_chain(Map.get(meta, "parent"))
             }
           else
             nil
@@ -135,6 +141,32 @@ defmodule FrontmanServer.Tasks.Interaction do
           nil
       end)
     end
+
+    # Recursively parse parent chain from _meta
+    defp parse_parent_chain(nil), do: nil
+
+    defp parse_parent_chain(parent) when is_map(parent) do
+      file = Map.get(parent, "file")
+      line = Map.get(parent, "line")
+      column = Map.get(parent, "column")
+
+      if is_binary(file) and is_integer(line) and is_integer(column) do
+        %{
+          file: file,
+          line: line,
+          column: column,
+          source_snippet: nil,
+          source_type: nil,
+          component_name: Map.get(parent, "component_name"),
+          component_props: Map.get(parent, "component_props"),
+          parent: parse_parent_chain(Map.get(parent, "parent"))
+        }
+      else
+        nil
+      end
+    end
+
+    defp parse_parent_chain(_), do: nil
 
     # Extract selected component screenshot from content blocks
     # Looks for _meta.selected_component_screenshot with blob data
@@ -648,13 +680,16 @@ defmodule FrontmanServer.Tasks.Interaction do
 
   defp append_component_location(text, %{file: file, line: line, column: column} = sc) do
     source_context = build_source_context(sc)
+    component_name_context = build_component_name_context(sc)
+    props_context = build_props_context(sc)
+    parent_context = build_parent_context(sc)
 
     location_info = """
 
     [Selected Component Location]
     File: #{file}
     Line: #{line}
-    Column: #{column}#{source_context}
+    Column: #{column}#{component_name_context}#{source_context}#{props_context}#{parent_context}
 
     IMPORTANT: The user has selected a specific component at this location.
     Start by reading this exact file and making changes at or near the specified line.
@@ -665,6 +700,66 @@ defmodule FrontmanServer.Tasks.Interaction do
   end
 
   defp append_component_location(text, _), do: text
+
+  defp build_component_name_context(%{component_name: name}) when is_binary(name) do
+    "\nComponent: #{name}"
+  end
+
+  defp build_component_name_context(_), do: ""
+
+  defp build_props_context(%{component_props: props})
+       when is_map(props) and map_size(props) > 0 do
+    props_json = Jason.encode!(props, pretty: true)
+
+    """
+
+    Component Props:
+    ```json
+    #{props_json}
+    ```
+    """
+  end
+
+  defp build_props_context(_), do: ""
+
+  defp build_parent_context(%{parent: parent}) when not is_nil(parent) do
+    parent_chain = format_parent_chain(parent, 1)
+
+    """
+
+    Parent Component Hierarchy:
+    #{parent_chain}
+    """
+  end
+
+  defp build_parent_context(_), do: ""
+
+  defp format_parent_chain(nil, _depth), do: ""
+
+  defp format_parent_chain(%{file: file, line: line, column: column} = parent, depth) do
+    component_name = Map.get(parent, :component_name)
+    props = Map.get(parent, :component_props)
+    nested_parent = Map.get(parent, :parent)
+
+    indent = String.duplicate("  ", depth - 1)
+    name_part = if component_name, do: " (#{component_name})", else: ""
+    location = "#{indent}#{depth}. #{file}:#{line}:#{column}#{name_part}"
+
+    props_part =
+      if is_map(props) and map_size(props) > 0 do
+        props_json = Jason.encode!(props, pretty: false)
+        "\n#{indent}   Props: #{props_json}"
+      else
+        ""
+      end
+
+    nested_part = format_parent_chain(nested_parent, depth + 1)
+    nested_separator = if nested_part != "", do: "\n", else: ""
+
+    location <> props_part <> nested_separator <> nested_part
+  end
+
+  defp format_parent_chain(_, _depth), do: ""
 
   defp build_source_context(sc) do
     case {Map.get(sc, :source_snippet), Map.get(sc, :source_type)} do

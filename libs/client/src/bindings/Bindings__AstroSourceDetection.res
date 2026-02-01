@@ -53,6 +53,7 @@ let getElementSourceLocation = (
       line,
       column,
       parent: None,
+      componentProps: None,
     })
   )
 }

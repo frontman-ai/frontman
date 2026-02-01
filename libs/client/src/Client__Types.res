@@ -8,5 +8,6 @@ module SourceLocation = {
     line: int,
     column: int,
     parent: option<t>,
+    componentProps: option<Dict.t<JSON.t>>,
   }
 }

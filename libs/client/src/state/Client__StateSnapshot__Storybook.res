@@ -30,6 +30,7 @@ let convertSourceLocation = (loc: Snapshot.SourceLocation.t): Client__Types.Sour
     line: l.line,
     column: l.column,
     parent: l.parent->Option.map(convert),
+    componentProps: l.componentProps,
   }
   convert(loc)
 }
