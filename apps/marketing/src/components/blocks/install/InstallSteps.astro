@@ -2,71 +2,60 @@
 // Install Steps Section
 // ------------
 // Description: A section displaying the 3-step installation process for FrontEnd
-// Note: This section doesn't use the Section wrapper component to allow
-// coast-to-coast decorative elements (floating blobs) while keeping content centered
 
 // Components
 // - Layout
+import Section from '../../ui/Section.astro'
 import Row from '../../ui/Row.astro'
 import Col from '../../ui/Col.astro'
 // - UI
 import StepCard from '../../ui/cards/StepCard.astro'
-// - Decorative
-import FloatingBlobs from '../../ui/decorative/FloatingBlobs.astro'
 ---
 
-<section id="install" class="install-section">
-	<!-- Floating decorative blobs (coast to coast) -->
-	<FloatingBlobs
-		blobs={[
-			{ color: '#9D7CFF', size: 450, startX: -12, startY: 50 },
-			{ color: '#60A5FA', size: 550, startX: 85, startY: -15 },
-			{ color: '#FCD34D', size: 500, startX: 82, startY: 90 }
-		]}
-		speed={20}
-	/>
+<Section id="install" mode="light" classes="install-section">
+	<Row>
+		<Col span="12" align="center" classes="mb-16">
+			<h2 class="install-title">
+				How to install FrontEnd
+			</h2>
+		</Col>
+	</Row>
+	<Row classes="install-cards-row">
+		<Col span="4">
+			<StepCard
+				stepNumber="Step 1"
+				title="Install locally"
+				description="Run one command in your project."
+				bgColor="#FFF4CC"
+			>
+				<div class="code-pill">
+					<code>frontman</code>
+				</div>
+			</StepCard>
+		</Col>
+		<Col span="4">
+			<StepCard
+				stepNumber="Step 2"
+				title="Open Frontman"
+				description="Visit localhost/frontman in your browser."
+				bgColor="#FFD6E8"
+			/>
+		</Col>
+		<Col span="4">
+			<StepCard
+				stepNumber="Step 3"
+				title="Edit visually"
+				description="Select elements, prompt changes, see them applied in code."
+				bgColor="#FFE4D6"
+			/>
+		</Col>
+	</Row>
 
-	<!-- Content container (centered with padding) -->
-	<div class="container">
-		<Row>
-			<Col span="12" align="center" classes="mb-16">
-				<h2 class="install-title">
-					How to install FrontEnd
-				</h2>
-			</Col>
-		</Row>
-		<Row classes="install-cards-row">
-			<Col span="4">
-				<StepCard
-					stepNumber="Step 1"
-					title="Install locally"
-					description="Run one command in your project."
-					bgColor="#FFF4CC"
-				>
-					<div class="code-pill">
-						<code>frontman</code>
-					</div>
-				</StepCard>
-			</Col>
-			<Col span="4">
-				<StepCard
-					stepNumber="Step 2"
-					title="Open Frontman"
-					description="Visit localhost/frontman in your browser."
-					bgColor="#FFD6E8"
-				/>
-			</Col>
-			<Col span="4">
-				<StepCard
-					stepNumber="Step 3"
-					title="Edit visually"
-					description="Select elements, prompt changes, see them applied in code."
-					bgColor="#FFE4D6"
-				/>
-			</Col>
-		</Row>
-	</div>
-</section>
+	<!-- Decorative blobs -->
+	<div class="blob blob--purple" aria-hidden="true"></div>
+	<div class="blob blob--blue" aria-hidden="true"></div>
+	<div class="blob blob--yellow" aria-hidden="true"></div>
+</Section>
 
 <style>
 	.install-section {
@@ -74,8 +63,9 @@ import FloatingBlobs from '../../ui/decorative/FloatingBlobs.astro'
 		background: #FAFAFA;
 	}
 
-	.container {
-		@apply relative z-[100] mx-auto px-6;
+	.install-section :global(.container) {
+		@apply relative;
+		z-index: 100;
 	}
 
 	.install-title {
@@ -94,4 +84,68 @@ import FloatingBlobs from '../../ui/decorative/FloatingBlobs.astro'
 		color: rgba(0, 0, 0, 0.8);
 		border-radius: 12px;
 	}
+
+	/* Decorative blobs - positioned behind cards */
+	.blob {
+		@apply pointer-events-none absolute rounded-full;
+		z-index: -1;
+	}
+
+	.blob--purple {
+		width: 450px;
+		height: 450px;
+		background: #9D7CFF;
+		left: -12%;
+		top: 50%;
+		transform: translateY(-50%);
+	}
+
+	.blob--blue {
+		width: 550px;
+		height: 550px;
+		background: #60A5FA;
+		right: -15%;
+		top: -30%;
+	}
+
+	.blob--yellow {
+		width: 500px;
+		height: 500px;
+		background: #FCD34D;
+		right: -18%;
+		bottom: -25%;
+	}
 </style>
+
+<script>
+	// Randomize blob positions on page load
+	document.addEventListener('DOMContentLoaded', () => {
+		const purple = document.querySelector('.blob--purple')
+		const blue = document.querySelector('.blob--blue')
+		const yellow = document.querySelector('.blob--yellow')
+
+		if (purple) {
+			// Purple blob - left side, varies vertically
+			const purpleLeft = -20 + Math.random() * 12 // -20% to -8%
+			const purpleTop = 35 + Math.random() * 30 // 35% to 65%
+			purple.style.left = `${purpleLeft}%`
+			purple.style.top = `${purpleTop}%`
+		}
+
+		if (blue) {
+			// Blue blob - top right
+			const blueRight = -20 + Math.random() * 10 // -20% to -10%
+			const blueTop = -40 + Math.random() * 20 // -40% to -20%
+			blue.style.right = `${blueRight}%`
+			blue.style.top = `${blueTop}%`
+		}
+
+		if (yellow) {
+			// Yellow blob - bottom right
+			const yellowRight = -25 + Math.random() * 12 // -25% to -13%
+			const yellowBottom = -35 + Math.random() * 15 // -35% to -20%
+			yellow.style.right = `${yellowRight}%`
+			yellow.style.bottom = `${yellowBottom}%`
+		}
+	})
+</script>
