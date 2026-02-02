@@ -21,6 +21,7 @@ envs/
 
 # Test/dev only
 test/
+!test/sites/blog-starter/package.json
 *.test.res.mjs
 
 # OS files
