@@ -42,7 +42,7 @@ COPY apps/chrome-extension/package.json apps/chrome-extension/
 COPY apps/marketing/package.json apps/marketing/
 COPY infra/marketing/package.json infra/marketing/
 
-RUN corepack enable && yarn install --immutable
+RUN npm install -g corepack && corepack enable && yarn install --immutable
 
 # ---------- ReScript build ----------
 COPY rescript.json rescript.json
