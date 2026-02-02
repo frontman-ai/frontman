@@ -621,6 +621,309 @@ defmodule FrontmanServer.Tasks.InteractionTest do
     end
   end
 
+  describe "to_llm_messages/1 with DB-loaded metadata (string keys)" do
+    # These tests cover the bug where metadata loaded from DB has string keys,
+    # but the code was trying to access with atom keys (e.g., :tool_calls vs "tool_calls").
+    # This caused tool_calls to be nil when reconstructing conversation history,
+    # leading to Anthropic rejecting subsequent requests with:
+    # "unexpected tool_use_id found in tool_result blocks"
+
+    test "converts agent responses with tool_calls stored as string keys (OpenAI wire format)" do
+      # This is exactly how tool_calls are stored in the DB after JSON serialization
+      tool_calls_from_db = [
+        %{
+          "function" => %{
+            "arguments" => ~s({"path": "src/app/page.tsx"}),
+            "name" => "read_file"
+          },
+          "id" => "toolu_012YbdZVHHNLf7EtGWY9m5Gy",
+          "type" => "function"
+        }
+      ]
+
+      interactions = [
+        %AgentResponse{
+          id: "1",
+          content: "I'll read the file",
+          timestamp: DateTime.utc_now(),
+          # Simulating DB-loaded metadata with string keys
+          metadata: %{"tool_calls" => tool_calls_from_db}
+        }
+      ]
+
+      messages = Interaction.to_llm_messages(interactions)
+      assert length(messages) == 1
+
+      msg = hd(messages)
+      assert msg.role == :assistant
+
+      # Verify tool_calls are present and converted to ReqLLM.ToolCall structs
+      assert msg.tool_calls != nil
+      assert length(msg.tool_calls) == 1
+
+      tc = hd(msg.tool_calls)
+      assert %ReqLLM.ToolCall{} = tc
+      assert tc.id == "toolu_012YbdZVHHNLf7EtGWY9m5Gy"
+      assert tc.function.name == "read_file"
+      assert tc.function.arguments == ~s({"path": "src/app/page.tsx"})
+    end
+
+    test "converts agent responses with multiple tool_calls from DB" do
+      tool_calls_from_db = [
+        %{
+          "function" => %{"arguments" => ~s({"path": "file1.txt"}), "name" => "read_file"},
+          "id" => "toolu_001",
+          "type" => "function"
+        },
+        %{
+          "function" => %{"arguments" => ~s({"pattern": "*.tsx"}), "name" => "glob"},
+          "id" => "toolu_002",
+          "type" => "function"
+        }
+      ]
+
+      interactions = [
+        %AgentResponse{
+          id: "1",
+          content: "Let me search for files",
+          timestamp: DateTime.utc_now(),
+          metadata: %{"tool_calls" => tool_calls_from_db}
+        }
+      ]
+
+      messages = Interaction.to_llm_messages(interactions)
+      msg = hd(messages)
+
+      assert length(msg.tool_calls) == 2
+      assert Enum.all?(msg.tool_calls, &match?(%ReqLLM.ToolCall{}, &1))
+      assert Enum.map(msg.tool_calls, & &1.id) == ["toolu_001", "toolu_002"]
+      assert Enum.map(msg.tool_calls, & &1.function.name) == ["read_file", "glob"]
+    end
+
+    test "handles empty tool_calls list from DB" do
+      interactions = [
+        %AgentResponse{
+          id: "1",
+          content: "Just a text response",
+          timestamp: DateTime.utc_now(),
+          metadata: %{"tool_calls" => []}
+        }
+      ]
+
+      messages = Interaction.to_llm_messages(interactions)
+      msg = hd(messages)
+
+      # Should be a simple assistant message without tool_calls
+      assert msg.role == :assistant
+      assert [%{type: :text, text: "Just a text response"}] = msg.content
+    end
+
+    test "handles nil tool_calls from DB" do
+      interactions = [
+        %AgentResponse{
+          id: "1",
+          content: "Just a text response",
+          timestamp: DateTime.utc_now(),
+          metadata: %{"tool_calls" => nil}
+        }
+      ]
+
+      messages = Interaction.to_llm_messages(interactions)
+      msg = hd(messages)
+
+      assert msg.role == :assistant
+      assert [%{type: :text, text: "Just a text response"}] = msg.content
+    end
+
+    test "handles response_id and reasoning_details with string keys from DB" do
+      interactions = [
+        %AgentResponse{
+          id: "1",
+          content: "Thinking...",
+          timestamp: DateTime.utc_now(),
+          metadata: %{
+            "tool_calls" => [
+              %{
+                "function" => %{"arguments" => "{}", "name" => "test_tool"},
+                "id" => "call_123",
+                "type" => "function"
+              }
+            ],
+            "response_id" => "resp_abc123",
+            "reasoning_details" => [
+              %{"type" => "reasoning.encrypted", "data" => "encrypted_data"}
+            ]
+          }
+        }
+      ]
+
+      messages = Interaction.to_llm_messages(interactions)
+      msg = hd(messages)
+
+      # response_id should be in metadata
+      assert msg.metadata == %{response_id: "resp_abc123"}
+
+      # reasoning_details should be preserved (only encrypted ones)
+      assert msg.reasoning_details == [
+               %{"type" => "reasoning.encrypted", "data" => "encrypted_data"}
+             ]
+    end
+
+    test "full conversation round-trip with tool calls from DB" do
+      # Simulates a complete conversation loaded from DB
+      now = DateTime.utc_now()
+
+      interactions = [
+        # User asks a question
+        %UserMessage{
+          id: "1",
+          messages: ["What's in the file?"],
+          timestamp: now,
+          selected_component: nil,
+          selected_component_screenshot: nil,
+          selected_figma_node: nil
+        },
+        # Agent responds with tool call (DB format with string keys)
+        %AgentResponse{
+          id: "2",
+          content: "I'll read the file for you.",
+          timestamp: now,
+          metadata: %{
+            "tool_calls" => [
+              %{
+                "function" => %{"arguments" => ~s({"path": "README.md"}), "name" => "read_file"},
+                "id" => "toolu_read_123",
+                "type" => "function"
+              }
+            ]
+          }
+        },
+        # Tool call record (skipped in LLM messages)
+        %ToolCall{
+          id: "3",
+          tool_call_id: "toolu_read_123",
+          tool_name: "read_file",
+          arguments: %{"path" => "README.md"},
+          timestamp: now
+        },
+        # Tool result
+        %ToolResult{
+          id: "4",
+          tool_call_id: "toolu_read_123",
+          tool_name: "read_file",
+          result: "# README\nThis is a readme file.",
+          is_error: false,
+          timestamp: now
+        },
+        # Agent's final response
+        %AgentResponse{
+          id: "5",
+          content: "The file contains a README header.",
+          timestamp: now,
+          metadata: %{}
+        }
+      ]
+
+      messages = Interaction.to_llm_messages(interactions)
+
+      # Should have: UserMessage, AgentResponse with tool, ToolResult, AgentResponse
+      # ToolCall is skipped
+      assert length(messages) == 4
+
+      # Verify message roles
+      [user_msg, assistant_with_tool, tool_result, final_assistant] = messages
+      assert user_msg.role == :user
+      assert assistant_with_tool.role == :assistant
+      assert tool_result.role == :tool
+      assert final_assistant.role == :assistant
+
+      # Verify the assistant message has proper tool_calls
+      assert length(assistant_with_tool.tool_calls) == 1
+      tc = hd(assistant_with_tool.tool_calls)
+      assert %ReqLLM.ToolCall{} = tc
+      assert tc.id == "toolu_read_123"
+      assert tc.function.name == "read_file"
+
+      # Verify the tool_result has matching tool_call_id
+      assert tool_result.tool_call_id == "toolu_read_123"
+    end
+
+    test "handles flat format tool_calls with string keys" do
+      # Some code paths might store tool_calls in flat format
+      tool_calls_flat = [
+        %{"id" => "call_flat_1", "name" => "get_weather", "arguments" => ~s({"city": "NYC"})}
+      ]
+
+      interactions = [
+        %AgentResponse{
+          id: "1",
+          content: "Checking weather",
+          timestamp: DateTime.utc_now(),
+          metadata: %{"tool_calls" => tool_calls_flat}
+        }
+      ]
+
+      messages = Interaction.to_llm_messages(interactions)
+      msg = hd(messages)
+
+      assert length(msg.tool_calls) == 1
+      tc = hd(msg.tool_calls)
+      assert %ReqLLM.ToolCall{} = tc
+      assert tc.id == "call_flat_1"
+      assert tc.function.name == "get_weather"
+    end
+
+    test "handles atom keys (fresh from response, not DB)" do
+      # When tool_calls come fresh from a response (not loaded from DB),
+      # they have atom keys. This should also work.
+      tool_calls_with_atoms = [
+        %{
+          function: %{arguments: ~s({"x": 1}), name: "calculator"},
+          id: "call_atom_1",
+          type: "function"
+        }
+      ]
+
+      interactions = [
+        %AgentResponse{
+          id: "1",
+          content: "Calculating",
+          timestamp: DateTime.utc_now(),
+          metadata: %{tool_calls: tool_calls_with_atoms}
+        }
+      ]
+
+      messages = Interaction.to_llm_messages(interactions)
+      msg = hd(messages)
+
+      assert length(msg.tool_calls) == 1
+      tc = hd(msg.tool_calls)
+      assert %ReqLLM.ToolCall{} = tc
+      assert tc.function.name == "calculator"
+    end
+
+    test "passes through ReqLLM.ToolCall structs unchanged" do
+      # If tool_calls are already ReqLLM.ToolCall structs, they should pass through
+      existing_struct = ReqLLM.ToolCall.new("call_struct_1", "my_tool", "{}")
+
+      interactions = [
+        %AgentResponse{
+          id: "1",
+          content: "Using tool",
+          timestamp: DateTime.utc_now(),
+          metadata: %{tool_calls: [existing_struct]}
+        }
+      ]
+
+      messages = Interaction.to_llm_messages(interactions)
+      msg = hd(messages)
+
+      assert length(msg.tool_calls) == 1
+      tc = hd(msg.tool_calls)
+      assert tc == existing_struct
+    end
+  end
+
   describe "JSON encoding" do
     test "encodes UserMessage to JSON with messages and selected_component" do
       msg =

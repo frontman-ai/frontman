@@ -654,7 +654,10 @@ defmodule FrontmanServer.Tasks.Interaction do
 
   defp to_llm_message(%AgentResponse{content: content, metadata: metadata}) do
     meta = metadata || %{}
-    tool_calls = Map.get(meta, :tool_calls)
+    # Handle both atom and string keys (DB stores string keys, but in-memory uses atoms)
+    raw_tool_calls = get_flexible(meta, :tool_calls)
+    # Convert stored tool_calls (maps with string keys) to ReqLLM.ToolCall structs
+    tool_calls = normalize_tool_calls(raw_tool_calls)
 
     build_assistant_message(content, tool_calls, meta)
   end
@@ -818,8 +821,9 @@ defmodule FrontmanServer.Tasks.Interaction do
   defp build_assistant_message(content, [], _meta), do: ReqLLM.Context.assistant(content)
 
   defp build_assistant_message(content, tool_calls, meta) do
-    response_id = Map.get(meta, :response_id)
-    encrypted_reasoning = filter_encrypted_reasoning(Map.get(meta, :reasoning_details))
+    # Handle both atom and string keys (DB stores string keys, but in-memory uses atoms)
+    response_id = get_flexible(meta, :response_id)
+    encrypted_reasoning = filter_encrypted_reasoning(get_flexible(meta, :reasoning_details))
 
     %ReqLLM.Message{
       role: :assistant,
@@ -896,13 +900,48 @@ defmodule FrontmanServer.Tasks.Interaction do
   defp encode_json(value) when is_binary(value), do: value
   defp encode_json(value), do: Jason.encode!(value)
 
-  # Get field from map, supporting both string and atom keys
+  # Get field from map, supporting both string and atom keys.
+  # This is needed because metadata from DB has string keys, but in-memory uses atoms.
   defp get_field(map, key) when is_atom(key) do
     Map.get(map, Atom.to_string(key)) || Map.get(map, key)
   end
 
   defp get_field(map, key) when is_binary(key) do
     Map.get(map, key) || Map.get(map, String.to_atom(key))
+  end
+
+  # Alias for get_field, used for metadata access to make intent clear
+  defp get_flexible(map, key), do: get_field(map, key)
+
+  # Convert stored tool_calls (maps with string keys in OpenAI wire format) to ReqLLM.ToolCall structs
+  defp normalize_tool_calls(nil), do: nil
+  defp normalize_tool_calls([]), do: []
+
+  defp normalize_tool_calls(tool_calls) when is_list(tool_calls) do
+    Enum.map(tool_calls, &normalize_tool_call/1)
+  end
+
+  # Already a struct, pass through
+  defp normalize_tool_call(%ReqLLM.ToolCall{} = tc), do: tc
+
+  # OpenAI wire format with string keys (from DB JSON)
+  defp normalize_tool_call(%{"id" => id, "function" => %{"name" => name, "arguments" => args}}) do
+    ReqLLM.ToolCall.new(id, name, args)
+  end
+
+  # OpenAI wire format with atom keys (fresh from response)
+  defp normalize_tool_call(%{id: id, function: %{name: name, arguments: args}}) do
+    ReqLLM.ToolCall.new(id, name, args)
+  end
+
+  # Flat format with string keys
+  defp normalize_tool_call(%{"id" => id, "name" => name, "arguments" => args}) do
+    ReqLLM.ToolCall.new(id, name, args)
+  end
+
+  # Flat format with atom keys
+  defp normalize_tool_call(%{id: id, name: name, arguments: args}) do
+    ReqLLM.ToolCall.new(id, name, args)
   end
 
   defp decode_data_url(data_url) do
