@@ -5,7 +5,8 @@
 FROM debian:bookworm AS builder
 
 RUN apt-get update -y && \
-    apt-get install -y --no-install-recommends build-essential git curl xz-utils ca-certificates && \
+    apt-get install -y --no-install-recommends build-essential git curl xz-utils ca-certificates \
+    libssl-dev libncurses-dev autoconf m4 && \
     apt-get clean && rm -f /var/lib/apt/lists/*_*
 
 # Install mise
@@ -14,7 +15,7 @@ ENV PATH="/root/.local/bin:${PATH}"
 
 # Copy mise.toml and install toolchains before anything else (layer cache)
 COPY mise.toml ./
-RUN mise trust mise.toml && mise install
+RUN mise trust mise.toml && mise install node erlang elixir
 
 # Activate mise-installed tools for all subsequent RUN steps
 ENV PATH="/root/.local/share/mise/shims:${PATH}"
