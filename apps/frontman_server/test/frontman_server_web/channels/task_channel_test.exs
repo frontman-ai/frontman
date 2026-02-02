@@ -52,7 +52,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
           "method" => "unknown/method"
         })
 
-      assert_reply ref, :ok, %{"acp:message" => response}
+      assert_reply(ref, :ok, %{"acp:message" => response})
       assert response["error"]["code"] == -32_601
       assert response["error"]["message"] =~ "Method not found"
     end
@@ -104,10 +104,10 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       )
 
       # If the channel is subscribed to PubSub, it should route this to MCP
-      assert_push "mcp:message", %{
+      assert_push("mcp:message", %{
         "method" => "tools/call",
         "params" => %{"name" => "testTool"}
-      }
+      })
     end
 
     test "channel does NOT receive broadcasts to different topics", %{
@@ -134,7 +134,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       )
 
       # Channel should NOT receive this since it's subscribed to task_id's topic
-      refute_push "mcp:message", %{"params" => %{"name" => "otherTool"}}
+      refute_push("mcp:message", %{"params" => %{"name" => "otherTool"}})
 
       # But it SHOULD still receive broadcasts to its own topic
       tool_call2 = %{
@@ -149,10 +149,10 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         {:interaction, tool_call2}
       )
 
-      assert_push "mcp:message", %{
+      assert_push("mcp:message", %{
         "method" => "tools/call",
         "params" => %{"name" => "ownTool"}
-      }
+      })
     end
 
     test "channel receives agent stream tokens via PubSub broadcast", %{
@@ -168,7 +168,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       # Channel should forward this as an ACP notification
       # Note: content is wrapped in a map with type: "text"
-      assert_push "acp:message", %{
+      assert_push("acp:message", %{
         "method" => "session/update",
         "params" => %{
           "update" => %{
@@ -176,7 +176,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
             "content" => %{"type" => "text", "text" => "Hello world"}
           }
         }
-      }
+      })
     end
 
     test "channel handles stream_thinking without crashing", %{
@@ -192,9 +192,9 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       )
 
       # Channel should NOT forward thinking tokens to client (client infers thinking state)
-      refute_push "acp:message", %{
+      refute_push("acp:message", %{
         "params" => %{"update" => %{"sessionUpdate" => "agent_thinking_chunk"}}
-      }
+      })
 
       # But the channel should still be alive and functional
       # Verify by sending a stream_token which SHOULD work
@@ -204,7 +204,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         {:stream_token, "after thinking"}
       )
 
-      assert_push "acp:message", %{
+      assert_push("acp:message", %{
         "method" => "session/update",
         "params" => %{
           "update" => %{
@@ -212,10 +212,160 @@ defmodule FrontmanServerWeb.TaskChannelTest do
             "content" => %{"type" => "text", "text" => "after thinking"}
           }
         }
-      }
+      })
 
       # Verify channel process is still alive
       assert Process.alive?(socket.channel_pid)
+    end
+  end
+
+  describe "agent_error handling" do
+    setup %{scope: scope} do
+      task_id = Ecto.UUID.generate()
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
+
+      {:ok, _reply, socket} =
+        UserSocket
+        |> socket("user_id", %{scope: scope})
+        |> subscribe_and_join("task:#{task_id}", %{})
+
+      complete_mcp_handshake(socket)
+
+      {:ok, socket: socket, task_id: task_id}
+    end
+
+    test "broadcasts error as session/update notification", %{
+      socket: _socket,
+      task_id: task_id
+    } do
+      # Simulate agent error via PubSub
+      Phoenix.PubSub.broadcast(
+        FrontmanServer.PubSub,
+        Tasks.topic(task_id),
+        {:agent_error, "Rate limit exceeded"}
+      )
+
+      # Assert session/update notification was pushed with error
+      assert_push("acp:message", %{
+        "jsonrpc" => "2.0",
+        "method" => "session/update",
+        "params" => %{
+          "sessionId" => ^task_id,
+          "update" => %{
+            "sessionUpdate" => "error",
+            "message" => "Rate limit exceeded"
+          }
+        }
+      })
+    end
+
+    test "sends JSON-RPC error response when prompt is pending", %{
+      socket: socket,
+      task_id: task_id
+    } do
+      # First, send a prompt to set pending_prompt_id
+      prompt_request = %{
+        "jsonrpc" => "2.0",
+        "id" => 42,
+        "method" => "session/prompt",
+        "params" => %{
+          "prompt" => %{
+            "messages" => [
+              %{
+                "role" => "user",
+                "content" => %{"type" => "text", "text" => "Hello"}
+              }
+            ]
+          }
+        }
+      }
+
+      push(socket, "acp:message", prompt_request)
+      # Wait for the prompt to be processed
+      :sys.get_state(socket.channel_pid)
+
+      # Simulate agent error
+      Phoenix.PubSub.broadcast(
+        FrontmanServer.PubSub,
+        Tasks.topic(task_id),
+        {:agent_error, "No API key available"}
+      )
+
+      # Assert session/update notification is pushed
+      assert_push("acp:message", %{
+        "method" => "session/update",
+        "params" => %{
+          "update" => %{
+            "sessionUpdate" => "error",
+            "message" => "No API key available"
+          }
+        }
+      })
+
+      # Assert JSON-RPC error response is also pushed
+      assert_push("acp:message", %{
+        "jsonrpc" => "2.0",
+        "id" => 42,
+        "error" => %{
+          "code" => -32000,
+          "message" => "No API key available"
+        }
+      })
+    end
+
+    test "handles error when no pending prompt (only sends session/update)", %{
+      socket: _socket,
+      task_id: task_id
+    } do
+      # No pending prompt - just broadcast error directly
+      Phoenix.PubSub.broadcast(
+        FrontmanServer.PubSub,
+        Tasks.topic(task_id),
+        {:agent_error, "Connection failed"}
+      )
+
+      # Should get session/update notification
+      assert_push("acp:message", %{
+        "method" => "session/update",
+        "params" => %{
+          "update" => %{
+            "sessionUpdate" => "error",
+            "message" => "Connection failed"
+          }
+        }
+      })
+
+      # Should NOT get a JSON-RPC error response (no pending prompt id)
+      refute_push("acp:message", %{"error" => %{"code" => -32000}})
+    end
+
+    test "handles different error messages correctly", %{
+      socket: _socket,
+      task_id: task_id
+    } do
+      error_messages = [
+        "Free requests exhausted. Add your API key in Settings to continue.",
+        "No API key available for this request.",
+        "Request failed: connection timeout"
+      ]
+
+      for message <- error_messages do
+        Phoenix.PubSub.broadcast(
+          FrontmanServer.PubSub,
+          Tasks.topic(task_id),
+          {:agent_error, message}
+        )
+
+        assert_push("acp:message", %{
+          "method" => "session/update",
+          "params" => %{
+            "update" => %{
+              "sessionUpdate" => "error",
+              "message" => ^message
+            }
+          }
+        })
+      end
     end
   end
 
@@ -245,11 +395,11 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       send(socket.channel_pid, {:interaction, tool_call})
 
-      assert_push "mcp:message", %{
+      assert_push("mcp:message", %{
         "method" => "tools/call",
         "id" => mcp_request_id,
         "params" => %{"name" => "consoleLog"}
-      }
+      })
 
       mcp_tool_result = %{
         "content" => [%{"type" => "text", "text" => "Logged: hello"}]
@@ -257,7 +407,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       push(socket, "mcp:message", JsonRpc.success_response(mcp_request_id, mcp_tool_result))
 
-      assert_push "acp:message", %{
+      assert_push("acp:message", %{
         "jsonrpc" => "2.0",
         "method" => "session/update",
         "params" => %{
@@ -269,7 +419,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
             "content" => [%{"content" => %{"text" => "Logged: hello"}}]
           }
         }
-      }
+      })
     end
   end
 
@@ -285,7 +435,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       expected_version = ModelContextProtocol.protocol_version()
 
-      assert_push "mcp:message", %{
+      assert_push("mcp:message", %{
         "jsonrpc" => "2.0",
         "id" => _id,
         "method" => "initialize",
@@ -293,7 +443,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
           "protocolVersion" => ^expected_version,
           "clientInfo" => %{"name" => "frontman-server"}
         }
-      }
+      })
     end
 
     test "completes handshake and sends initialized notification", %{scope: scope} do
@@ -305,7 +455,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         |> socket("user_id", %{scope: scope})
         |> subscribe_and_join("task:#{task_id}", %{})
 
-      assert_push "mcp:message", %{"id" => request_id}
+      assert_push("mcp:message", %{"id" => request_id})
 
       init_result = %{
         "protocolVersion" => ModelContextProtocol.protocol_version(),
@@ -315,10 +465,10 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       push(socket, "mcp:message", JsonRpc.success_response(request_id, init_result))
 
-      assert_push "mcp:message", %{
+      assert_push("mcp:message", %{
         "jsonrpc" => "2.0",
         "method" => "notifications/initialized"
-      }
+      })
     end
   end
 
@@ -344,14 +494,14 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         capture_log(fn ->
           push(socket, "mcp:message", %{"id" => 999, "result" => %{}})
 
-          assert_push "mcp:message", %{
+          assert_push("mcp:message", %{
             "jsonrpc" => "2.0",
             "method" => "error",
             "params" => %{
               "message" => "Invalid JSON-RPC response",
               "reason" => "invalid_message"
             }
-          }
+          })
         end)
 
       assert log =~ "Invalid MCP response"
@@ -362,10 +512,10 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         capture_log(fn ->
           push(socket, "mcp:message", %{"jsonrpc" => "1.0", "id" => 999, "result" => %{}})
 
-          assert_push "mcp:message", %{
+          assert_push("mcp:message", %{
             "method" => "error",
             "params" => %{"reason" => "invalid_version"}
-          }
+          })
         end)
 
       assert log =~ "Invalid MCP response"
@@ -376,7 +526,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         capture_log(fn ->
           push(socket, "mcp:message", %{"jsonrpc" => "2.0", "result" => %{}})
 
-          assert_push "mcp:message", %{"method" => "error"}
+          assert_push("mcp:message", %{"method" => "error"})
         end)
 
       assert log =~ "Invalid MCP response"
@@ -392,7 +542,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
             "error" => %{"code" => -32_601, "message" => "Error"}
           })
 
-          assert_push "mcp:message", %{"method" => "error"}
+          assert_push("mcp:message", %{"method" => "error"})
         end)
 
       assert log =~ "Invalid MCP response"
@@ -409,18 +559,18 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       send(socket.channel_pid, {:interaction, tool_call})
 
-      assert_push "mcp:message", %{"method" => "tools/call", "id" => mcp_request_id}
+      assert_push("mcp:message", %{"method" => "tools/call", "id" => mcp_request_id})
 
       mcp_result = %{"content" => [%{"type" => "text", "text" => "Success"}]}
       push(socket, "mcp:message", JsonRpc.success_response(mcp_request_id, mcp_result))
 
-      assert_push "acp:message", %{
+      assert_push("acp:message", %{
         "method" => "session/update",
         "params" => %{
           "sessionId" => ^task_id,
           "update" => %{"status" => "completed"}
         }
-      }
+      })
     end
   end
 
@@ -454,7 +604,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         |> subscribe_and_join("task:#{fresh_task_id}", %{})
 
       # Drain the initialize request without responding - initialization is incomplete
-      assert_push "mcp:message", %{"id" => _init_request_id, "method" => "initialize"}
+      assert_push("mcp:message", %{"id" => _init_request_id, "method" => "initialize"})
 
       tool_call_id = "call_delivery_#{:rand.uniform(1_000_000)}"
       test_pid = self()
@@ -474,11 +624,11 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       send(socket.channel_pid, {:interaction, tool_call})
 
-      assert_push "mcp:message", %{
+      assert_push("mcp:message", %{
         "method" => "tools/call",
         "id" => mcp_request_id,
         "params" => %{"name" => "list_dir"}
-      }
+      })
 
       tool_result = %{
         "content" => [%{"type" => "text", "text" => "file1.txt\nfile2.txt"}]
@@ -524,11 +674,11 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       send(socket.channel_pid, {:interaction, tool_call})
 
       # Wait for the tool call to be routed to MCP
-      assert_push "mcp:message", %{
+      assert_push("mcp:message", %{
         "method" => "tools/call",
         "id" => mcp_request_id,
         "params" => %{"name" => "get_logs"}
-      }
+      })
 
       # Respond with a JSON result that parse_tool_result will convert to a map
       json_result = %{
@@ -590,7 +740,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         |> subscribe_and_join("task:#{task_id}", %{})
 
       # MCP init has started - we receive the initialize request
-      assert_push "mcp:message", %{"id" => init_request_id, "method" => "initialize"}
+      assert_push("mcp:message", %{"id" => init_request_id, "method" => "initialize"})
 
       # Send prompt BEFORE completing MCP handshake
       prompt_request = %{
@@ -621,8 +771,8 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       push(socket, "mcp:message", JsonRpc.success_response(init_request_id, init_result))
 
-      assert_push "mcp:message", %{"method" => "notifications/initialized"}
-      assert_push "mcp:message", %{"id" => tools_request_id, "method" => "tools/list"}
+      assert_push("mcp:message", %{"method" => "notifications/initialized"})
+      assert_push("mcp:message", %{"id" => tools_request_id, "method" => "tools/list"})
 
       tools_result = %{
         "tools" => [
@@ -637,11 +787,11 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       push(socket, "mcp:message", JsonRpc.success_response(tools_request_id, tools_result))
 
       # Handle load_agent_instructions
-      assert_push "mcp:message", %{
+      assert_push("mcp:message", %{
         "id" => project_rules_request_id,
         "method" => "tools/call",
         "params" => %{"name" => "load_agent_instructions"}
-      }
+      })
 
       push(
         socket,
@@ -649,7 +799,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         JsonRpc.success_response(project_rules_request_id, %{"content" => []})
       )
 
-      assert_push "acp:message", %{"method" => "project_rules_initialized"}
+      assert_push("acp:message", %{"method" => "project_rules_initialized"})
 
       # Verify MCP tools are now stored in socket assigns
       channel_socket = :sys.get_state(socket.channel_pid)
@@ -664,7 +814,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
   # Completes the MCP handshake with tools registered
   defp complete_mcp_handshake_with_tools(socket) do
-    assert_push "mcp:message", %{"id" => init_request_id, "method" => "initialize"}
+    assert_push("mcp:message", %{"id" => init_request_id, "method" => "initialize"})
 
     init_result = %{
       "protocolVersion" => ModelContextProtocol.protocol_version(),
@@ -674,8 +824,8 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
     push(socket, "mcp:message", JsonRpc.success_response(init_request_id, init_result))
 
-    assert_push "mcp:message", %{"method" => "notifications/initialized"}
-    assert_push "mcp:message", %{"id" => tools_request_id, "method" => "tools/list"}
+    assert_push("mcp:message", %{"method" => "notifications/initialized"})
+    assert_push("mcp:message", %{"id" => tools_request_id, "method" => "tools/list"})
 
     # Register an MCP tool that returns JSON
     tools_result = %{
@@ -695,11 +845,11 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     push(socket, "mcp:message", JsonRpc.success_response(tools_request_id, tools_result))
 
     # Handle load_agent_instructions
-    assert_push "mcp:message", %{
+    assert_push("mcp:message", %{
       "id" => project_rules_request_id,
       "method" => "tools/call",
       "params" => %{"name" => "load_agent_instructions"}
-    }
+    })
 
     push(
       socket,
@@ -707,12 +857,12 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       JsonRpc.success_response(project_rules_request_id, %{"content" => []})
     )
 
-    assert_push "acp:message", %{"method" => "project_rules_initialized"}
+    assert_push("acp:message", %{"method" => "project_rules_initialized"})
   end
 
   # Completes the MCP handshake (initialize + tools/list + load_agent_instructions)
   defp complete_mcp_handshake(socket) do
-    assert_push "mcp:message", %{"id" => init_request_id, "method" => "initialize"}
+    assert_push("mcp:message", %{"id" => init_request_id, "method" => "initialize"})
 
     init_result = %{
       "protocolVersion" => ModelContextProtocol.protocol_version(),
@@ -722,17 +872,17 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
     push(socket, "mcp:message", JsonRpc.success_response(init_request_id, init_result))
 
-    assert_push "mcp:message", %{"method" => "notifications/initialized"}
-    assert_push "mcp:message", %{"id" => tools_request_id, "method" => "tools/list"}
+    assert_push("mcp:message", %{"method" => "notifications/initialized"})
+    assert_push("mcp:message", %{"id" => tools_request_id, "method" => "tools/list"})
 
     push(socket, "mcp:message", JsonRpc.success_response(tools_request_id, %{"tools" => []}))
 
     # Handle the load_agent_instructions call that happens after tools/list
-    assert_push "mcp:message", %{
+    assert_push("mcp:message", %{
       "id" => project_rules_request_id,
       "method" => "tools/call",
       "params" => %{"name" => "load_agent_instructions"}
-    }
+    })
 
     # Respond with empty project rules
     push(
@@ -743,8 +893,8 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
     # Wait for initialization to complete (this ensures mcp_status is :ready)
     # Without this, tool call responses get routed to MCPInitializer instead of being handled properly
-    assert_push "acp:message", %{
+    assert_push("acp:message", %{
       "method" => "project_rules_initialized"
-    }
+    })
   end
 end

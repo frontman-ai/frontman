@@ -95,6 +95,13 @@ module Actions = {
   let turnCompleted = (~taskId: string) =>
     Client__State__Store.dispatch(TaskAction({target: ForTask(taskId), action: TurnCompleted}))
 
+  // Error action creators (ForTask)
+  let agentErrorReceived = (~taskId: string, ~error: string) =>
+    Client__State__Store.dispatch(TaskAction({target: ForTask(taskId), action: AgentError({error: error})}))
+
+  let clearTurnError = (~taskId: string) =>
+    Client__State__Store.dispatch(TaskAction({target: ForTask(taskId), action: ClearTurnError}))
+
   // Plan action creators (ForTask)
   let planReceived = (~taskId: string, ~entries) =>
     Client__State__Store.dispatch(TaskAction({target: ForTask(taskId), action: PlanReceived({entries: entries})}))

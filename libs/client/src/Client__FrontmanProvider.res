@@ -161,6 +161,8 @@ module Provider = {
         }
       | Plan({entries}) =>
         entries->Option.forEach(e => Client__State.Actions.planReceived(~taskId, ~entries=e))
+      | Error({message}) =>
+        Client__State.Actions.agentErrorReceived(~taskId, ~error=message)
       | Unknown(_) => ()
       }
     })

@@ -249,6 +249,15 @@ module Selectors = {
     }
   }
 
+  // Get turn error
+  // None = Unloaded, New, or Loading (not applicable), or no error
+  let turnError = (task: Task.t): option<string> => {
+    switch task {
+    | Task.New(_) | Task.Unloaded(_) | Task.Loading(_) => None
+    | Task.Loaded({turnError}) => turnError
+    }
+  }
+
   // Get message created at timestamp
   let getMessageCreatedAt = (msg: Message.t): float => {
     switch msg {
@@ -295,6 +304,9 @@ type action =
   // Plan/Turn actions
   | PlanReceived({entries: array<ACPTypes.planEntry>})
   | TurnCompleted
+  // Error actions
+  | AgentError({error: string})
+  | ClearTurnError
   // Load state actions
   | LoadStarted({previewUrl: string})
   | LoadComplete
@@ -340,6 +352,8 @@ let actionToString = (action: action): string =>
   | ClearFigmaNodeWaiting => "ClearFigmaNodeWaiting"
   | PlanReceived(_) => "PlanReceived"
   | TurnCompleted => "TurnCompleted"
+  | AgentError(_) => "AgentError"
+  | ClearTurnError => "ClearTurnError"
   | LoadStarted(_) => "LoadStarted"
   | LoadComplete => "LoadComplete"
   | LoadError(_) => "LoadError"
@@ -500,6 +514,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       ...data,
       messages: MessageStore.insert(data.messages, message),
       isAgentRunning: true,
+      turnError: None, // Clear any previous error when sending a new message
     }), [SendMessage({text: text})])
 
   | (Task.Loaded(data), PlanReceived({entries})) =>
@@ -510,6 +525,18 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
     let completed = task->Lens.completeStreamingMessage
     let updatedTask = completed->Task.updateLoadedData(data => {...data, isAgentRunning: false})
     (updatedTask, [NotifyTurnCompleted])
+
+  | (Task.Loaded(data), AgentError({error})) =>
+    // Set turn error and stop agent running - user can still send messages
+    let completed = task->Lens.completeStreamingMessage
+    switch completed {
+    | Task.Loaded(completedData) =>
+      (Task.Loaded({...completedData, turnError: Some(error), isAgentRunning: false}), [NotifyTurnCompleted])
+    | _ => (Task.Loaded({...data, turnError: Some(error), isAgentRunning: false}), [NotifyTurnCompleted])
+    }
+
+  | (Task.Loaded(data), ClearTurnError) =>
+    (Task.Loaded({...data, turnError: None}), [])
 
   // ============================================================================
   // Load State Transitions
@@ -547,6 +574,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
         figmaNode,
         isAgentRunning: false,
         planEntries: [],
+        turnError: None,
       }), [])
     | _ => failwith("[TaskReducer] LoadComplete: unexpected task state after completeStreamingMessage")
     }

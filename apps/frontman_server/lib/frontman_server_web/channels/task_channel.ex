@@ -510,7 +510,21 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   def handle_info({:agent_error, message}, socket) do
     Logger.error("Agent error: #{message}")
+    task_id = socket.assigns.task_id
 
+    # Always send error as session/update notification so client can display it
+    error_notification =
+      JsonRpc.notification("session/update", %{
+        "sessionId" => task_id,
+        "update" => %{
+          "sessionUpdate" => "error",
+          "message" => message
+        }
+      })
+
+    push(socket, "acp:message", error_notification)
+
+    # Also send JSON-RPC error response if there's a pending prompt
     case socket.assigns[:pending_prompt_id] do
       nil ->
         {:noreply, socket}

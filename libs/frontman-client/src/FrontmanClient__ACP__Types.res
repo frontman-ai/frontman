@@ -285,6 +285,7 @@ type sessionUpdate =
       content: option<array<toolCallContentItem>>,
     })
   | Plan({entries: option<array<planEntry>>})
+  | Error({message: string})
   | Unknown({sessionUpdate: string})
 
 // Session update schema using S.union with s.tag for proper discrimination
@@ -325,6 +326,12 @@ let sessionUpdateSchema = S.union([
     s.tag("sessionUpdate", "plan")
     Plan({
       entries: s.field("entries", S.option(S.array(planEntrySchema))),
+    })
+  }),
+  S.object(s => {
+    s.tag("sessionUpdate", "error")
+    Error({
+      message: s.field("message", S.string),
     })
   }),
   // Fallback for unknown session update types

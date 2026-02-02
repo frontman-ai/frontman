@@ -153,6 +153,7 @@ module Task = {
         figmaNode: FigmaNode.t,
         isAgentRunning: bool,
         planEntries: array<ACPTypes.planEntry>,
+        turnError: option<string>,
       })
 
   // What user is currently viewing
@@ -341,6 +342,7 @@ module Task = {
         figmaNode,
         isAgentRunning: false,
         planEntries: [],
+        turnError: None,
       })
     | Unloaded(_) | Loading(_) | Loaded(_) =>
       failwith("[Task.newToLoaded] Can only transition from New state")
@@ -367,6 +369,7 @@ module Task = {
       figmaNode: FigmaNode.NoSelection,
       isAgentRunning: false,
       planEntries: [],
+      turnError: None,
     })
   }
 
@@ -381,6 +384,7 @@ module Task = {
     figmaNode: FigmaNode.t,
     isAgentRunning: bool,
     planEntries: array<ACPTypes.planEntry>,
+    turnError: option<string>,
   }
 
   type loadState =
@@ -395,6 +399,7 @@ module Task = {
     figmaNode: FigmaNode.NoSelection,
     isAgentRunning: false,
     planEntries: [],
+    turnError: None,
   }
 
   let make = (~title: string, ~previewUrl: string, ~messages=[]): t => {
@@ -413,20 +418,20 @@ module Task = {
 
   let getLoadedData = (task: t): option<loadedData> => {
     switch task {
-    | Loaded({messages, webPreviewIsSelecting, selectedElement, figmaNode, isAgentRunning, planEntries}) =>
-      Some({messages: Client__MessageStore.toArray(messages), webPreviewIsSelecting, selectedElement, figmaNode, isAgentRunning, planEntries})
+    | Loaded({messages, webPreviewIsSelecting, selectedElement, figmaNode, isAgentRunning, planEntries, turnError}) =>
+      Some({messages: Client__MessageStore.toArray(messages), webPreviewIsSelecting, selectedElement, figmaNode, isAgentRunning, planEntries, turnError})
     | Loading({messages, webPreviewIsSelecting, selectedElement, figmaNode}) =>
-      Some({messages: Client__MessageStore.toArray(messages), webPreviewIsSelecting, selectedElement, figmaNode, isAgentRunning: false, planEntries: []})
+      Some({messages: Client__MessageStore.toArray(messages), webPreviewIsSelecting, selectedElement, figmaNode, isAgentRunning: false, planEntries: [], turnError: None})
     | New({webPreviewIsSelecting, selectedElement, figmaNode}) =>
-      Some({messages: [], webPreviewIsSelecting, selectedElement, figmaNode, isAgentRunning: false, planEntries: []})
+      Some({messages: [], webPreviewIsSelecting, selectedElement, figmaNode, isAgentRunning: false, planEntries: [], turnError: None})
     | Unloaded(_) => None
     }
   }
 
   let updateLoadedData = (task: t, fn: loadedData => loadedData): t => {
     switch task {
-    | Loaded({id, title, createdAt, updatedAt, messages, previewFrame, webPreviewIsSelecting, selectedElement, figmaNode, isAgentRunning, planEntries}) => {
-        let data = {messages: Client__MessageStore.toArray(messages), webPreviewIsSelecting, selectedElement, figmaNode, isAgentRunning, planEntries}
+    | Loaded({id, title, createdAt, updatedAt, messages, previewFrame, webPreviewIsSelecting, selectedElement, figmaNode, isAgentRunning, planEntries, turnError}) => {
+        let data = {messages: Client__MessageStore.toArray(messages), webPreviewIsSelecting, selectedElement, figmaNode, isAgentRunning, planEntries, turnError}
         let updated = fn(data)
         Loaded({
           id,
@@ -440,10 +445,11 @@ module Task = {
           figmaNode: updated.figmaNode,
           isAgentRunning: updated.isAgentRunning,
           planEntries: updated.planEntries,
+          turnError: updated.turnError,
         })
       }
     | Loading({id, title, createdAt, updatedAt, messages, previewFrame, webPreviewIsSelecting, selectedElement, figmaNode}) => {
-        let data = {messages: Client__MessageStore.toArray(messages), webPreviewIsSelecting, selectedElement, figmaNode, isAgentRunning: false, planEntries: []}
+        let data = {messages: Client__MessageStore.toArray(messages), webPreviewIsSelecting, selectedElement, figmaNode, isAgentRunning: false, planEntries: [], turnError: None}
         let updated = fn(data)
         Loading({
           id,
@@ -458,7 +464,7 @@ module Task = {
         })
       }
     | New({previewFrame, webPreviewIsSelecting, selectedElement, figmaNode}) => {
-        let data = {messages: [], webPreviewIsSelecting, selectedElement, figmaNode, isAgentRunning: false, planEntries: []}
+        let data = {messages: [], webPreviewIsSelecting, selectedElement, figmaNode, isAgentRunning: false, planEntries: [], turnError: None}
         let updated = fn(data)
         New({
           previewFrame,

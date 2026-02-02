@@ -131,6 +131,7 @@ let convertTask = (task: Snapshot.Task.t): StateTypes.Task.t => {
     figmaNode: convertFigmaNode(task.figmaNode),
     isAgentRunning: false, // Default to not running when restoring from snapshot
     planEntries: [], // Plan entries not stored in snapshots yet
+    turnError: None, // No error when restoring from snapshot
   })
 }
 

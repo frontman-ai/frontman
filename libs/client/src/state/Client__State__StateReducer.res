@@ -314,6 +314,10 @@ module Selectors = {
     TaskReducer.Selectors.planEntries(currentTask(state))->Option.getOr([])
   }
 
+  let turnError = (state: state): option<string> => {
+    TaskReducer.Selectors.turnError(currentTask(state))
+  }
+
   // Derived selectors (use messages from above)
   let completedMessages = (state: state) =>
     messages(state)->Array.filter(msg => {

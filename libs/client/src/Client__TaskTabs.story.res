@@ -52,6 +52,7 @@ module Fixtures = {
       figmaNode: StateTypes.FigmaNode.NoSelection,
       isAgentRunning: false,
       planEntries: [],
+      turnError: None,
     })
   }
 

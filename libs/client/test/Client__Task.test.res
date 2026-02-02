@@ -298,3 +298,99 @@ describe("Task - Plan Entries", () => {
     t->expect(TaskReducer.Selectors.planEntries(task2)->Option.getOr([])->Array.length)->Expect.toBe(2)
   })
 })
+
+describe("Task - Error Handling", () => {
+  test("AgentError sets turnError on Loaded task", t => {
+    let task = TestHelpers.makeLoadedTask()
+    t->expect(TaskReducer.Selectors.turnError(task))->Expect.toEqual(None)
+
+    let (task2, _) = TaskReducer.next(task, AgentError({error: "Rate limit exceeded"}))
+    t->expect(TaskReducer.Selectors.turnError(task2))->Expect.toEqual(Some("Rate limit exceeded"))
+  })
+
+  test("AgentError sets isAgentRunning to false", t => {
+    let task = TestHelpers.makeLoadedTask()
+    // First start the agent running via AddUserMessage
+    let (task2, _) = TaskReducer.next(
+      task,
+      AddUserMessage({
+        id: "user-1",
+        content: [Client__Task__Types.UserContentPart.Text({text: "Hello"})],
+      }),
+    )
+    t->expect(TaskReducer.Selectors.isAgentRunning(task2))->Expect.toEqual(Some(true))
+
+    // Agent error should set isAgentRunning to false
+    let (task3, _) = TaskReducer.next(task2, AgentError({error: "Some error"}))
+    t->expect(TaskReducer.Selectors.isAgentRunning(task3))->Expect.toEqual(Some(false))
+  })
+
+  test("AgentError completes any streaming message", t => {
+    let task = TestHelpers.makeLoadedTask()
+    let (task1, _) = TaskReducer.next(task, StreamingStarted)
+    let (task2, _) = TaskReducer.next(task1, TextDeltaReceived({text: "Partial response"}))
+
+    // Verify we have a streaming message
+    switch TaskReducer.Selectors.streamingMessage(task2) {
+    | Some(Message.Streaming(_)) => t->expect(true)->Expect.toBe(true)
+    | _ => t->expect(false)->Expect.toBe(true)
+    }
+
+    // Agent error should complete the streaming message
+    let (task3, _) = TaskReducer.next(task2, AgentError({error: "Error occurred"}))
+    t->expect(TaskReducer.Selectors.streamingMessage(task3))->Expect.toEqual(None)
+
+    // Check the message is now completed
+    let messages = TestHelpers.getMessages(task3)
+    switch messages->Array.get(0) {
+    | Some(Message.Assistant(Completed({content}))) =>
+      t->expect(Array.length(content))->Expect.toBe(1)
+    | _ => t->expect(false)->Expect.toBe(true)
+    }
+  })
+
+  test("AgentError emits NotifyTurnCompleted effect", t => {
+    let task = TestHelpers.makeLoadedTask()
+    let (_, effects) = TaskReducer.next(task, AgentError({error: "Error"}))
+
+    t->expect(Array.length(effects))->Expect.toBe(1)
+    switch effects->Array.get(0) {
+    | Some(TaskReducer.NotifyTurnCompleted) => t->expect(true)->Expect.toBe(true)
+    | _ => t->expect(false)->Expect.toBe(true)
+    }
+  })
+
+  test("ClearTurnError clears the turnError", t => {
+    let task = TestHelpers.makeLoadedTask()
+    let (task2, _) = TaskReducer.next(task, AgentError({error: "Some error"}))
+    t->expect(TaskReducer.Selectors.turnError(task2))->Expect.toEqual(Some("Some error"))
+
+    let (task3, _) = TaskReducer.next(task2, ClearTurnError)
+    t->expect(TaskReducer.Selectors.turnError(task3))->Expect.toEqual(None)
+  })
+
+  test("ClearTurnError is idempotent", t => {
+    let task = TestHelpers.makeLoadedTask()
+    t->expect(TaskReducer.Selectors.turnError(task))->Expect.toEqual(None)
+
+    let (task2, _) = TaskReducer.next(task, ClearTurnError)
+    t->expect(TaskReducer.Selectors.turnError(task2))->Expect.toEqual(None)
+  })
+
+  test("AddUserMessage clears turnError", t => {
+    let task = TestHelpers.makeLoadedTask()
+    // Set an error first
+    let (task2, _) = TaskReducer.next(task, AgentError({error: "Previous error"}))
+    t->expect(TaskReducer.Selectors.turnError(task2))->Expect.toEqual(Some("Previous error"))
+
+    // Sending a new message should clear the error
+    let (task3, _) = TaskReducer.next(
+      task2,
+      AddUserMessage({
+        id: "user-1",
+        content: [Client__Task__Types.UserContentPart.Text({text: "New message"})],
+      }),
+    )
+    t->expect(TaskReducer.Selectors.turnError(task3))->Expect.toEqual(None)
+  })
+})

@@ -26,6 +26,7 @@ module TodoUtils = Client__TodoUtils
 module UseThinkingState = Client__UseThinkingState
 module ScrollContainer = Client__ScrollContainer
 module PromptInput = Client__PromptInput
+module ErrorBanner = Client__ErrorBanner
 
 // Display item for grouped rendering
 type displayItem =
@@ -109,6 +110,7 @@ let make = () => {
   let hasActiveACPSession = Client__State.useSelector(Client__State.Selectors.hasActiveACPSession)
   let sessionInitialized = Client__State.useSelector(Client__State.Selectors.sessionInitialized)
   let planEntries = Client__State.useSelector(Client__State.Selectors.currentPlanEntries)
+  let turnError = Client__State.useSelector(Client__State.Selectors.turnError)
   let usageInfo = Client__State.useSelector(Client__State.Selectors.usageInfo)
   let modelsConfig = Client__State.useSelector(Client__State.Selectors.modelsConfig)
   let selectedModel = Client__State.useSelector(Client__State.Selectors.selectedModel)
@@ -307,6 +309,12 @@ let make = () => {
         {displayItems
         ->Array.mapWithIndex((item, index) => renderDisplayItem(item, index))
         ->React.array}
+
+        // Error banner (shows when there's a turn error)
+        {switch turnError {
+        | Some(error) => <ErrorBanner error />
+        | None => React.null
+        }}
 
         // Thinking indicator (shows after last message when waiting for response)
         <ThinkingIndicator
