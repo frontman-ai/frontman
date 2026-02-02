@@ -9,7 +9,7 @@ services:
     name: frontman-server
     runtime: docker
     plan: starter
-    dockerfilePath: ./Dockerfile
+    dockerfilePath: ./apps/frontman_server/Dockerfile
     dockerContext: ./
     healthCheckPath: /health
     preDeployCommand: /app/bin/migrate
