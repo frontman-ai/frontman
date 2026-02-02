@@ -1,6 +1,6 @@
 databases:
   - name: frontman-db
-    plan: starter
+    plan: free
     databaseName: frontman
     postgresMajorVersion: "16"
 
