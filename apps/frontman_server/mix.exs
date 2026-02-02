@@ -17,6 +17,12 @@ defmodule FrontmanServer.MixProject do
         plt_add_apps: [:mix],
         plt_local_path: "priv/plts",
         ignore_warnings: ".dialyzer_ignore.exs"
+      ],
+      releases: [
+        frontman_server: [
+          include_executables_for: [:unix],
+          applications: [runtime_tools: :permanent]
+        ]
       ]
     ]
   end
