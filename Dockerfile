@@ -15,7 +15,7 @@ ENV PATH="/root/.local/bin:${PATH}"
 
 # Copy mise.toml and install toolchains before anything else (layer cache)
 COPY mise.toml ./
-RUN mise trust mise.toml && mise install node erlang elixir
+RUN mise trust mise.toml && mise install node erlang elixir yarn
 
 # Activate mise-installed tools for all subsequent RUN steps
 ENV PATH="/root/.local/share/mise/shims:${PATH}"
@@ -42,7 +42,7 @@ COPY apps/chrome-extension/package.json apps/chrome-extension/
 COPY apps/marketing/package.json apps/marketing/
 COPY infra/marketing/package.json infra/marketing/
 
-RUN npm install -g corepack && corepack enable && yarn install --immutable
+RUN yarn install --immutable
 
 # ---------- ReScript build ----------
 COPY rescript.json rescript.json
