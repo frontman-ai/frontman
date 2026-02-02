@@ -9,7 +9,7 @@ module UserContentPart = Client__State__Types.UserContentPart
 let make = (~content: array<UserContentPart.t>, ~messageId: string, ~isNew: bool=false) => {
   <div className="sticky top-0 z-10 bg-zinc-900">
     <MessageContainer isNew>
-      <div className="text-[13px] leading-relaxed text-zinc-200">
+      <div className="text-[13px] leading-relaxed text-zinc-200 font-semibold">
         {content->Array.mapWithIndex((part, i) => {
           let key = `${messageId}-${Int.toString(i)}`
           switch part {

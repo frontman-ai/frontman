@@ -450,17 +450,40 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
     | Some(Message.Completed(_)) => failwith(`[TaskReducer] TextDeltaReceived but message already Completed in task ${getTaskIdForError(task)}`)
     | None =>
       // Per ACP spec: first agent_message_chunk implicitly signals message start
-      // Auto-create streaming message with the received text
-      let msgId = `msg_${getTaskIdForError(task)}_${Date.now()->Float.toString}`
-      let newMessage = Message.Assistant(Streaming({id: msgId, textBuffer: text, createdAt: Date.now()}))
-      (Lens.insertMessage(task, newMessage), [])
+      // Check if last message is a Completed assistant message - if so, reopen it for streaming
+      let messages = Task.getMessages(task)
+      let lastMsg = messages->Array.get(Array.length(messages) - 1)
+      switch lastMsg {
+      | Some(Message.Assistant(Completed({id: msgId, content, createdAt}))) =>
+        // Extract existing text from all Text content parts
+        let existingText =
+          content
+          ->Array.filterMap(part =>
+            switch part {
+            | AssistantContentPart.Text({text: t}) => Some(t)
+            | AssistantContentPart.ToolCall(_) => None
+            }
+          )
+          ->Array.join("")
+        // Convert back to Streaming with appended text
+        let updatedMsg = Message.Assistant(Streaming({id: msgId, textBuffer: existingText ++ text, createdAt}))
+        (Lens.updateMessage(task, msgId, _ => updatedMsg), [])
+      | _ =>
+        // Last message is User/ToolCall/None - create new streaming message
+        let msgId = `msg_${getTaskIdForError(task)}_${Date.now()->Float.toString}`
+        let newMessage = Message.Assistant(Streaming({id: msgId, textBuffer: text, createdAt: Date.now()}))
+        (Lens.insertMessage(task, newMessage), [])
+      }
     }
 
   | (Task.Loading(_) | Task.Loaded(_), ToolCallReceived({toolCall})) =>
-    let messages = Task.getMessages(task)
+    // Complete any streaming message before inserting tool call
+    // This ensures text after tool calls creates a new message
+    let taskWithCompletedMsg = Lens.completeStreamingMessage(task)
+    let messages = Task.getMessages(taskWithCompletedMsg)
     switch messages->Array.find(msg => Message.getId(msg) == toolCall.id) {
     | Some(Message.ToolCall(existingToolCall)) =>
-      (Lens.updateMessage(task, toolCall.id, _ =>
+      (Lens.updateMessage(taskWithCompletedMsg, toolCall.id, _ =>
         Message.ToolCall({
           ...existingToolCall,
           input: toolCall.input,
@@ -470,7 +493,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
         })
       ), [])
     | Some(msg) => failwith(`[TaskReducer] ToolCallReceived but message ${Message.getId(msg)} is not a ToolCall`)
-    | None => (Lens.insertMessage(task, Message.ToolCall(toolCall)), [])
+    | None => (Lens.insertMessage(taskWithCompletedMsg, Message.ToolCall(toolCall)), [])
     }
 
   | (Task.Loading(_) | Task.Loaded(_), ToolInputReceived({id, input})) =>
