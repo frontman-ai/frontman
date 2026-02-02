@@ -14,7 +14,7 @@ ENV PATH="/root/.local/bin:${PATH}"
 
 # Copy mise.toml and install toolchains before anything else (layer cache)
 COPY mise.toml ./
-RUN mise install
+RUN mise trust mise.toml && mise install
 
 # Activate mise-installed tools for all subsequent RUN steps
 ENV PATH="/root/.local/share/mise/shims:${PATH}"
