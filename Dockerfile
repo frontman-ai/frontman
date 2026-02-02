@@ -41,6 +41,7 @@ COPY libs/vite-plugin/package.json libs/vite-plugin/
 COPY apps/chrome-extension/package.json apps/chrome-extension/
 COPY apps/marketing/package.json apps/marketing/
 COPY infra/marketing/package.json infra/marketing/
+COPY test/sites/blog-starter/package.json test/sites/blog-starter/
 
 RUN yarn install --immutable
 
