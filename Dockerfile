@@ -48,6 +48,7 @@ RUN yarn install --immutable
 # ---------- ReScript build ----------
 COPY rescript.json rescript.json
 COPY libs/ libs/
+COPY apps/chrome-extension/ apps/chrome-extension/
 
 RUN yarn rescript clean && yarn rescript build
 
@@ -68,7 +69,7 @@ RUN mkdir -p config
 COPY apps/frontman_server/config/config.exs apps/frontman_server/config/${MIX_ENV}.exs config/
 RUN mix deps.compile
 
-RUN mix assets.setup
+RUN mix tailwind.install --if-missing && mix esbuild.install --if-missing
 
 # ---------- Compile application ----------
 COPY apps/frontman_server/priv priv
@@ -76,7 +77,10 @@ COPY apps/frontman_server/lib lib
 RUN mix compile
 
 COPY apps/frontman_server/assets assets
-RUN mix assets.deploy
+RUN mix tailwind frontman_server --minify && \
+    mix esbuild frontman_server --minify && \
+    mix esbuild browser_test --minify && \
+    mix phx.digest
 
 # runtime.exs doesn't require recompiling the code
 COPY apps/frontman_server/config/runtime.exs config/
