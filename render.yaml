@@ -1,11 +1,18 @@
+databases:
+  - name: frontman-db
+    plan: starter
+    databaseName: frontman
+    postgresMajorVersion: "16"
+
 services:
   - type: web
     name: frontman-server
     runtime: docker
-    plan: free
+    plan: starter
     dockerfilePath: ./Dockerfile
     dockerContext: ./
     healthCheckPath: /health
+    preDeployCommand: /app/bin/migrate
     envVars:
       - key: PHX_HOST
         value: api.frontman.sh
@@ -18,7 +25,9 @@ services:
       - key: CLOAK_KEY
         sync: false
       - key: DATABASE_URL
-        sync: false
+        fromDatabase:
+          name: frontman-db
+          property: connectionString
       - key: SENTRY_DSN
         sync: false
       - key: ARIZE_API_KEY

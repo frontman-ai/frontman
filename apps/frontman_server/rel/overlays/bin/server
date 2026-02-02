@@ -2,9 +2,4 @@
 set -eu
 
 cd -P -- "$(dirname -- "$0")"
-
-echo "Running migrations..."
-./frontman_server eval FrontmanServer.Release.migrate
-
-echo "Starting server..."
 PHX_SERVER=true exec ./frontman_server start
