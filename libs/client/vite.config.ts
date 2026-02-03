@@ -1,9 +1,31 @@
 import path from "node:path";
+import { transformAsync } from "@babel/core";
 import tailwindcss from "@tailwindcss/vite";
 import * as vite from "vite";
 
+const ReactCompilerConfig = {};
+
+function reactCompilerPlugin(): vite.Plugin {
+	return {
+		name: "react-compiler",
+		enforce: "pre",
+		apply: "build",
+		async transform(code, id) {
+			if (!id.endsWith(".res.mjs")) return;
+			const result = await transformAsync(code, {
+				plugins: [["babel-plugin-react-compiler", ReactCompilerConfig]],
+				filename: id,
+				sourceType: "module",
+				sourceMaps: true,
+			});
+			if (!result?.code) return;
+			return { code: result.code, map: result.map };
+		},
+	};
+}
+
 export default vite.defineConfig({
-	plugins: [tailwindcss()],
+	plugins: [reactCompilerPlugin(), tailwindcss()],
 	resolve: {
 		alias: {
 			"@": path.resolve(__dirname, "./src"),
@@ -33,7 +55,13 @@ export default vite.defineConfig({
 			fileName: "index",
 		},
 		rollupOptions: {
-			external: ["react", "react-dom", "react/jsx-runtime", /^node:.*/],
+			external: [
+				"react",
+				"react-dom",
+				"react/jsx-runtime",
+				"react/compiler-runtime",
+				/^node:.*/,
+			],
 			output: {
 				inlineDynamicImports: true,
 			},

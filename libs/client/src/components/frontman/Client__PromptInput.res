@@ -104,7 +104,10 @@ module ModelSelector = {
     ~selectedValue: string,
     ~onModelChange: (~provider: string, ~value: string) => unit,
   ) => {
-    let selectedDisplay = getSelectedModelDisplay(providers, selectedValue)
+    let selectedDisplay = React.useMemo2(
+      () => getSelectedModelDisplay(providers, selectedValue),
+      (providers, selectedValue),
+    )
 
     <Select.Root
       value={selectedValue}
@@ -194,12 +197,81 @@ module SubmitButton = {
   }
 }
 
+// Isolated textarea - owns value state to prevent parent re-renders on keystrokes
+module TextInput = {
+  @react.component
+  let make = (
+    ~onSubmit: string => unit,
+    ~onHasContentChange: bool => unit,
+    ~submitRef: React.ref<option<unit => unit>>,
+    ~disabled: bool,
+    ~canSubmit: bool,
+    ~hasAttachments: bool,
+    ~placeholder: string,
+  ) => {
+    let (value, setValue) = React.useState(() => "")
+    let textareaRef = React.useRef(Nullable.null)
+
+    // Keep submitRef updated so the external submit button can trigger submit
+    let doSubmit = () => {
+      if canSubmit && (value != "" || hasAttachments) {
+        onSubmit(value)
+        setValue(_ => "")
+        onHasContentChange(false)
+      }
+    }
+    submitRef.current = Some(doSubmit)
+
+    let handleChange = (e: ReactEvent.Form.t) => {
+      let target = ReactEvent.Form.target(e)
+      let newValue: string = target["value"]
+      let wasEmpty = value == ""
+      let isEmpty = newValue == ""
+      setValue(_ => newValue)
+      // Only notify parent on empty↔non-empty transitions
+      if wasEmpty && !isEmpty {
+        onHasContentChange(true)
+      } else if !wasEmpty && isEmpty {
+        onHasContentChange(false)
+      }
+    }
+
+    let handleKeyDown = (e: ReactEvent.Keyboard.t) => {
+      let key = e->ReactEvent.Keyboard.key
+      let shiftKey = e->ReactEvent.Keyboard.shiftKey
+      if key == "Enter" && !shiftKey {
+        ReactEvent.Keyboard.preventDefault(e)
+        doSubmit()
+      }
+    }
+
+    <div className="p-2">
+      <textarea
+        ref={ReactDOM.Ref.domRef(textareaRef)}
+        value
+        disabled
+        onChange={handleChange}
+        onKeyDown={handleKeyDown}
+        placeholder
+        rows=1
+        className={[
+          "w-full min-h-[40px] max-h-[200px] px-3 py-2",
+          "bg-zinc-800 border border-zinc-700 rounded-lg",
+          "text-sm text-zinc-200 placeholder-zinc-500",
+          "resize-none overflow-y-auto",
+          "focus:outline-none focus:ring-1 focus:ring-blue-500/50 focus:border-blue-500/50",
+          "field-sizing-content",
+          if disabled { "opacity-60 cursor-not-allowed" } else { "" },
+        ]->Array.filter(c => c != "")->Array.join(" ")}
+      />
+    </div>
+  }
+}
+
 // Main component
 @react.component
 let make = (
-  ~value: string,
-  ~onChange: string => unit,
-  ~onSubmit: unit => unit,
+  ~onSubmit: string => unit,
   ~providers: array<StateTypes.providerConfig>,
   ~selectedModel: option<StateTypes.selectedModel>,
   ~onModelChange: (~provider: string, ~value: string) => unit,
@@ -209,10 +281,11 @@ let make = (
   ~disabled: bool=false,
   ~disabledPlaceholder: option<string>=?,
 ) => {
+  let (hasTextContent, setHasTextContent) = React.useState(() => false)
   let (attachments, setAttachments) = React.useState(() => [])
   let (isDragging, setIsDragging) = React.useState(() => false)
   let fileInputRef = React.useRef(Nullable.null)
-  let textareaRef = React.useRef(Nullable.null)
+  let submitRef: React.ref<option<unit => unit>> = React.useRef(None)
   
   // Raw JS helpers for URL object handling
   let createObjectURL: WebAPI.FileAPI.file => string = %raw(`
@@ -267,31 +340,18 @@ let make = (
     files->Option.forEach(f => addFiles(f))
   }
   
-  // Handle key down for submit
-  let handleKeyDown = (e: ReactEvent.Keyboard.t) => {
-    let key = e->ReactEvent.Keyboard.key
-    let shiftKey = e->ReactEvent.Keyboard.shiftKey
-    
-    if key == "Enter" && !shiftKey {
-      ReactEvent.Keyboard.preventDefault(e)
-      // Don't submit while agent is running or no active session
-      if !isAgentRunning && hasActiveACPSession && (value != "" || Array.length(attachments) > 0) {
-        onSubmit()
-        setAttachments(_ => [])
-      }
-    }
+  // Submit handler passed to TextInput - also clears attachments
+  let handleTextSubmit = (text: string) => {
+    onSubmit(text)
+    setAttachments(_ => [])
   }
 
-  // Handle form submit
-  let handleSubmit = () => {
-    // Don't submit while agent is running or no active session
-    if !isAgentRunning && hasActiveACPSession && (value != "" || Array.length(attachments) > 0) {
-      onSubmit()
-      setAttachments(_ => [])
-    }
+  // Button submit triggers TextInput's submit via ref
+  let handleButtonSubmit = () => {
+    submitRef.current->Option.forEach(fn => fn())
   }
 
-  let hasContent = value != "" || Array.length(attachments) > 0
+  let hasContent = hasTextContent || Array.length(attachments) > 0
   let isInputDisabled = !hasActiveACPSession || isAgentRunning || disabled
   let isSubmitDisabled = isInputDisabled || !hasContent
   
@@ -318,30 +378,16 @@ let make = (
         </div>
       : React.null}
     
-    // Input area
-    <div className="p-2">
-      <textarea
-        ref={ReactDOM.Ref.domRef(textareaRef)}
-        value
-        disabled={isInputDisabled}
-        onChange={e => {
-          let target = ReactEvent.Form.target(e)
-          onChange(target["value"])
-        }}
-        onKeyDown={handleKeyDown}
-        placeholder={currentPlaceholder}
-        rows=1
-        className={[
-          "w-full min-h-[40px] max-h-[200px] px-3 py-2",
-          "bg-zinc-800 border border-zinc-700 rounded-lg",
-          "text-sm text-zinc-200 placeholder-zinc-500",
-          "resize-none overflow-y-auto",
-          "focus:outline-none focus:ring-1 focus:ring-blue-500/50 focus:border-blue-500/50",
-          "field-sizing-content",
-          if isInputDisabled { "opacity-60 cursor-not-allowed" } else { "" },
-        ]->Array.filter(c => c != "")->Array.join(" ")}
-      />
-    </div>
+    // Input area - isolated component to prevent parent re-renders on keystrokes
+    <TextInput
+      onSubmit={handleTextSubmit}
+      onHasContentChange={v => setHasTextContent(_ => v)}
+      submitRef
+      disabled={isInputDisabled}
+      canSubmit={!isAgentRunning && hasActiveACPSession}
+      hasAttachments={Array.length(attachments) > 0}
+      placeholder={currentPlaceholder}
+    />
     
     // Footer with tools and submit
     <div className="flex items-center justify-between px-3 pb-2">
@@ -383,7 +429,7 @@ let make = (
           : React.null}
       </div>
       
-      <SubmitButton disabled={isSubmitDisabled} onClick={handleSubmit} />
+      <SubmitButton disabled={isSubmitDisabled} onClick={handleButtonSubmit} />
     </div>
   </div>
 }

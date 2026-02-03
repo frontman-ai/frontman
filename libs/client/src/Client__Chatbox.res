@@ -101,7 +101,6 @@ let groupMessages = (messages: array<Message.t>): array<displayItem> => {
 
 @react.component
 let make = (~onSettingsClick: unit => unit) => {
-  let (input, setInput) = React.useState(() => "")
   let {session, createSession} = Client__FrontmanProvider.useFrontman()
 
   let messages = Client__State.useSelector(Client__State.Selectors.messages)
@@ -134,12 +133,11 @@ let make = (~onSettingsClick: unit => unit) => {
     ~sessionInitialized,
   )
 
-  let handleSubmit = () => {
-    if input !== "" {
-      let content = [Client__State.UserContentPart.Text({text: input})]
+  let handleSubmit = (text: string) => {
+    if text !== "" {
+      let content = [Client__State.UserContentPart.Text({text: text})]
       let sendMessage = (sessionId: string) => {
         Client__State.Actions.addUserMessage(~sessionId, ~content)
-        setInput(_ => "")
       }
       switch session {
       | Some(sess) => sendMessage(sess.sessionId)
@@ -338,8 +336,6 @@ let make = (~onSettingsClick: unit => unit) => {
     | _ => React.null
     }}
     <PromptInput
-      value={input}
-      onChange={v => setInput(_ => v)}
       onSubmit={handleSubmit}
       providers
       selectedModel
