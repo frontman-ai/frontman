@@ -2,7 +2,7 @@
 	"name": "@frontman/vite-plugin",
 	"version": "0.1.13",
 	"description": "Vite plugin to install frontman agent on the vite server",
-	"license": "MIT",
+	"license": "Apache-2.0",
 	"author": "",
 	"type": "module",
 	"main": "./dist/index.js",

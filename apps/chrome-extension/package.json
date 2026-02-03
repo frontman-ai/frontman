@@ -1,6 +1,7 @@
 {
   "name": "@frontman/chrome-extension",
   "description": "Chrome extension for frontman",
+  "license": "Apache-2.0",
   "private": true,
   "version": "0.0.0",
   "type": "module",

@@ -2,6 +2,7 @@
   "name": "@frontman/figma-client-api",
   "version": "0.1.0",
   "description": "Figma Node to Tailwind JSON Converter - modular and testable",
+  "license": "Apache-2.0",
   "type": "module",
   "main": "./src/index.ts",
   "module": "./src/index.ts",

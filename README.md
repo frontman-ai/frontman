@@ -53,3 +53,12 @@ frontman/
 ## Documentation
 
 For detailed information, see the [`docs/`](./docs) directory.
+
+## License
+
+This project uses a split license model:
+
+- **Client libraries and framework integrations** (`libs/`) are licensed under the [Apache License 2.0](./LICENSE).
+- **The server** (`apps/frontman_server/`) is licensed under the [GNU Affero General Public License v3](./apps/frontman_server/LICENSE).
+
+See the respective `LICENSE` files for details.

@@ -1,5 +1,6 @@
 {
 	"name": "frontman",
+	"license": "Apache-2.0",
 	"packageManager": "yarn@4.10.3",
 	"enableGlobalCache": false,
 	"workspaces": [
