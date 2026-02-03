@@ -87,7 +87,7 @@ let make = (~document) => {
   }, [webPreviewIsSelecting])
 
   // Selection overlay container
-  <div className="pointer-events-none flex-1 absolute top-0 left-0 w-full h-full">
+  <div className="pointer-events-none flex-1 absolute top-0 left-0 w-full h-full isolate">
     // Selection mode indicator - subtle border around the preview
     {webPreviewIsSelecting
       ? <div
