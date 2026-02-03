@@ -123,7 +123,7 @@ let noTasks: Story.t<args> = {
 
     <ContextWrapper>
       <div style={{width: "400px", backgroundColor: "#18181b"}}>
-        <Client__TaskTabs />
+        <Client__TaskTabs onSettingsClick={() => ()} />
       </div>
     </ContextWrapper>
   },
@@ -151,7 +151,7 @@ let singleEmptyTask: Story.t<args> = {
 
     <ContextWrapper>
       <div style={{width: "400px", backgroundColor: "#18181b"}}>
-        <Client__TaskTabs />
+        <Client__TaskTabs onSettingsClick={() => ()} />
       </div>
     </ContextWrapper>
   },
@@ -177,7 +177,7 @@ let singleTaskWithMessages: Story.t<args> = {
 
     <ContextWrapper>
       <div style={{width: "400px", backgroundColor: "#18181b"}}>
-        <Client__TaskTabs />
+        <Client__TaskTabs onSettingsClick={() => ()} />
       </div>
     </ContextWrapper>
   },
@@ -221,7 +221,7 @@ let multipleTasks: Story.t<args> = {
 
     <ContextWrapper>
       <div style={{width: "500px", backgroundColor: "#18181b"}}>
-        <Client__TaskTabs />
+        <Client__TaskTabs onSettingsClick={() => ()} />
       </div>
     </ContextWrapper>
   },
@@ -271,7 +271,7 @@ let mixedTasks: Story.t<args> = {
 
     <ContextWrapper>
       <div style={{width: "600px", backgroundColor: "#18181b"}}>
-        <Client__TaskTabs />
+        <Client__TaskTabs onSettingsClick={() => ()} />
       </div>
     </ContextWrapper>
   },
@@ -309,7 +309,7 @@ let manyTasksOverflow: Story.t<args> = {
 
     <ContextWrapper>
       <div style={{width: "600px", backgroundColor: "#18181b"}}>
-        <Client__TaskTabs />
+        <Client__TaskTabs onSettingsClick={() => ()} />
       </div>
     </ContextWrapper>
   },
@@ -341,7 +341,7 @@ let narrowContainer: Story.t<args> = {
 
     <ContextWrapper>
       <div style={{width: "300px", backgroundColor: "#18181b"}}>
-        <Client__TaskTabs />
+        <Client__TaskTabs onSettingsClick={() => ()} />
       </div>
     </ContextWrapper>
   },

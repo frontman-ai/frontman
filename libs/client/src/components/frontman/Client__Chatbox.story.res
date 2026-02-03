@@ -32,7 +32,7 @@ let emptyState: Story.t<args> = {
     })
     
     <div style={{width: "400px", height: "600px"}}>
-      <Client__Chatbox />
+      <Client__Chatbox onSettingsClick={() => ()} />
     </div>
   },
 }
@@ -76,7 +76,7 @@ let complexSnapshot: Story.t<args> = {
       </div>
     } else {
       <div style={{width: "400px", height: "600px"}}>
-        <Client__Chatbox />
+        <Client__Chatbox onSettingsClick={() => ()} />
       </div>
     }
   },
@@ -111,7 +111,7 @@ let subagentSpawner: Story.t<args> = {
       </div>
     } else {
       <div style={{width: "400px", height: "600px"}}>
-        <Client__Chatbox />
+        <Client__Chatbox onSettingsClick={() => ()} />
       </div>
     }
   },

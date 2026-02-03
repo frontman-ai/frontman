@@ -18,9 +18,10 @@ type resizeObserver
 let tabWidth = 150
 let newButtonWidth = 80
 let overflowButtonWidth = 50
+let settingsButtonWidth = 44
 
 @react.component
-let make = () => {
+let make = (~onSettingsClick: unit => unit) => {
   // Local UI state
   let (editingTaskId, setEditingTaskId) = React.useState(() => None)
   let (deleteDialogOpen, setDeleteDialogOpen) = React.useState(() => false)
@@ -44,7 +45,7 @@ let make = () => {
     | Some(el) => {
         let recalc = () => {
           let containerW = clientWidth(el)
-          let available = containerW - newButtonWidth
+          let available = containerW - newButtonWidth - settingsButtonWidth
           let allFit = available >= tasksLen * tabWidth
           if allFit {
             setVisibleCount(_ => tasksLen)
@@ -264,6 +265,16 @@ let make = () => {
           <Icons.PlusIcon style={{"width": "14px", "height": "14px"}} />
           <span className="text-xs"> {React.string("New")} </span>
         </Button.Button>
+        <div className="ml-auto shrink-0">
+          <button
+            type_="button"
+            className="h-9 w-9 rounded-lg border border-zinc-800/70 bg-zinc-900/70 text-zinc-200 shadow-sm backdrop-blur transition-all duration-200 flex items-center justify-center hover:border-zinc-700 hover:bg-zinc-800/90 hover:shadow-md cursor-pointer"
+            onClick={_ => onSettingsClick()}
+            title="Settings"
+          >
+            <Icons.GearIcon style={{"width": "16px", "height": "16px"}} />
+          </button>
+        </div>
       </UI.TabsList>
     </UI.Tabs>
     <AlertDialog.AlertDialog
