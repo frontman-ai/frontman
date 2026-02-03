@@ -12,8 +12,8 @@ defmodule FrontmanServerWeb.TaskChannel do
   alias AgentClientProtocol, as: ACP
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tools
-  alias FrontmanServerWeb.TaskChannel.MCPInitializer
   alias FrontmanServerWeb.ACPHistory
+  alias FrontmanServerWeb.TaskChannel.MCPInitializer
   alias ModelContextProtocol, as: MCP
 
   @impl true
@@ -43,10 +43,6 @@ defmodule FrontmanServerWeb.TaskChannel do
       {:error, :not_found} ->
         Logger.warning("Client tried to join non-existent task: #{task_id}")
         {:error, %{reason: "task_not_found"}}
-
-      {:error, :unauthorized} ->
-        Logger.warning("Client unauthorized to join task: #{task_id}")
-        {:error, %{reason: "unauthorized"}}
     end
   end
 
@@ -312,15 +308,6 @@ defmodule FrontmanServerWeb.TaskChannel do
           socket,
           "acp:message",
           JsonRpc.error_response(id, JsonRpc.error_invalid_params(), "Session not found")
-        )
-
-        {:noreply, socket}
-
-      {:error, :unauthorized} ->
-        push(
-          socket,
-          "acp:message",
-          JsonRpc.error_response(id, JsonRpc.error_invalid_params(), "Unauthorized")
         )
 
         {:noreply, socket}

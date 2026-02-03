@@ -399,7 +399,7 @@ defmodule FrontmanServer.TasksTest do
             []
         end
 
-      assert length(image_parts) >= 1
+      assert [_ | _] = image_parts
     end
   end
 

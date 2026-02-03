@@ -418,7 +418,10 @@ defmodule FrontmanServer.Agents do
 
       {:error, reason, loop_id} ->
         on_event.({:error, reason})
-        Logger.warning("Agent failed for task #{task_id}, loop_id: #{loop_id}, reason: #{inspect(reason)}")
+
+        Logger.warning(
+          "Agent failed for task #{task_id}, loop_id: #{loop_id}, reason: #{inspect(reason)}"
+        )
     end
 
     # Emit task stop telemetry - closes the root OTEL span

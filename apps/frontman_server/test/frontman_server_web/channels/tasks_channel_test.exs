@@ -4,6 +4,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
   use FrontmanServerWeb.ChannelCase, async: false
 
   alias AgentClientProtocol, as: ACP
+  alias FrontmanServer.Accounts.Scope
   alias FrontmanServerWeb.UserSocket
 
   setup %{scope: scope} do
@@ -251,7 +252,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
           password: "testpassword123!"
         })
 
-      other_scope = FrontmanServer.Accounts.Scope.for_user(other_user)
+      other_scope = Scope.for_user(other_user)
       other_task_id = Ecto.UUID.generate()
 
       {:ok, ^other_task_id} =
@@ -292,7 +293,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
           password: "testpassword123!"
         })
 
-      other_scope = FrontmanServer.Accounts.Scope.for_user(other_user)
+      other_scope = Scope.for_user(other_user)
       other_task_id = Ecto.UUID.generate()
 
       {:ok, ^other_task_id} =
@@ -482,7 +483,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
           password: "testpassword123!"
         })
 
-      other_scope = FrontmanServer.Accounts.Scope.for_user(other_user)
+      other_scope = Scope.for_user(other_user)
       other_task_id = Ecto.UUID.generate()
 
       {:ok, ^other_task_id} =

@@ -697,71 +697,71 @@ defmodule FrontmanServer.Agents.Prompts do
 
     figma_tool_guidance() <>
       """
-      ## IMPORTANT: Figma Design Context Detected
+        ## IMPORTANT: Figma Design Context Detected
 
-    You have received Figma design context (a design image and/or node DSL structure).
-    #{node_id_section}
-    ### Figma Data Types
+      You have received Figma design context (a design image and/or node DSL structure).
+      #{node_id_section}
+      ### Figma Data Types
 
-    The Figma context attached to this conversation is a **DSL (Domain Specific Language) representation**.
-    This is a compact, token-efficient format used for:
-    - Understanding the overall design structure
-    - Breaking down the design into components via `breakdown_figma_design`
+      The Figma context attached to this conversation is a **DSL (Domain Specific Language) representation**.
+      This is a compact, token-efficient format used for:
+      - Understanding the overall design structure
+      - Breaking down the design into components via `breakdown_figma_design`
 
-    **Tool-specific data requirements:**
-    - **`breakdown_figma_design`**: Receives the DSL representation (already in context)
-    - **`implement_component`**: Fetches full node JSON via `get_figma_node`, returns structured result with files array
-    - **`fix_files_errors`**: Takes files from implement_component, navigates to test page, fixes any errors
-    - **`visual_compare_component_to_figma`**: Compares implementation against Figma, returns image descriptions, differences, and fix instructions
-    - **`fix_visual_issues`**: Takes comparison result with fix instructions, applies fixes, verifies once
-    - **`replace_component`**: Replaces old component with new implementation, updates imports
+      **Tool-specific data requirements:**
+      - **`breakdown_figma_design`**: Receives the DSL representation (already in context)
+      - **`implement_component`**: Fetches full node JSON via `get_figma_node`, returns structured result with files array
+      - **`fix_files_errors`**: Takes files from implement_component, navigates to test page, fixes any errors
+      - **`visual_compare_component_to_figma`**: Compares implementation against Figma, returns image descriptions, differences, and fix instructions
+      - **`fix_visual_issues`**: Takes comparison result with fix instructions, applies fixes, verifies once
+      - **`replace_component`**: Replaces old component with new implementation, updates imports
 
-    ### Standard Workflow (No Component Selected)
+      ### Standard Workflow (No Component Selected)
 
-    **Your FIRST action should be to use the `breakdown_figma_design` tool** to:
-    1. Analyze the Figma design structure
-    2. Create a component breakdown with a todo list
-    3. Identify which components need to be built
+      **Your FIRST action should be to use the `breakdown_figma_design` tool** to:
+      1. Analyze the Figma design structure
+      2. Create a component breakdown with a todo list
+      3. Identify which components need to be built
 
-    After the breakdown is complete, for each component:
-    1. **`implement_component`** - Implements the component, returns `filesCreated`, `testPageUrl`, `componentFilePath`, `dataTestId`
-    2. **`fix_files_errors`** - Pass the files and test page URL, fixes any runtime/compilation errors
-    3. **`visual_compare_component_to_figma`** - Pass node ID, test page URL, component path, data test ID. Returns:
-       - `figmaDesignDescription`: Detailed description of the Figma design image
-       - `implementationDescription`: Detailed description of the implementation screenshot
-       - `keyDifferences`: Array of visual differences between design and implementation
-       - `howToFix`: Comprehensive instructions on how to fix all issues
-    4. **`fix_visual_issues`** (if there are keyDifferences) - Pass:
-       - `nodeId`, `figmaDesignDescription`, `implementationDescription`, `keyDifferences`, `howToFix`, `componentFilePath`, `filesCreated`, `testPageUrl`, `dataTestId`
-       - Fixes visual issues following the howToFix instructions and verifies improvements once
+      After the breakdown is complete, for each component:
+      1. **`implement_component`** - Implements the component, returns `filesCreated`, `testPageUrl`, `componentFilePath`, `dataTestId`
+      2. **`fix_files_errors`** - Pass the files and test page URL, fixes any runtime/compilation errors
+      3. **`visual_compare_component_to_figma`** - Pass node ID, test page URL, component path, data test ID. Returns:
+         - `figmaDesignDescription`: Detailed description of the Figma design image
+         - `implementationDescription`: Detailed description of the implementation screenshot
+         - `keyDifferences`: Array of visual differences between design and implementation
+         - `howToFix`: Comprehensive instructions on how to fix all issues
+      4. **`fix_visual_issues`** (if there are keyDifferences) - Pass:
+         - `nodeId`, `figmaDesignDescription`, `implementationDescription`, `keyDifferences`, `howToFix`, `componentFilePath`, `filesCreated`, `testPageUrl`, `dataTestId`
+         - Fixes visual issues following the howToFix instructions and verifies improvements once
 
-    IMPORTANT: Unless the user told you otherwise (implement just one component, or specific components).
+      IMPORTANT: Unless the user told you otherwise (implement just one component, or specific components).
 
-    Do NOT start implementing code directly - always break down the design first!
+      Do NOT start implementing code directly - always break down the design first!
 
-    ### Component Replacement Workflow (Automatic)
+      ### Component Replacement Workflow (Automatic)
 
-    **When the user requests to replace, update, swap, change, or modify a component and provides a selected component location** (and you have Figma design context):
+      **When the user requests to replace, update, swap, change, or modify a component and provides a selected component location** (and you have Figma design context):
 
-    1. **Use the provided Figma node ID** (see above) for `breakdown_figma_design`
-    2. **Use `breakdown_figma_design` tool** to analyze the Figma design and identify which component from the breakdown best matches the selected component
-    3. **Use `implement_component` tool** to implement the new version of the component based on the matching Figma component
-       - The breakdown will provide inner node IDs for each component - use those for `implement_component`
-       - Save: `componentFilePath`, `testPageFilePath`, `testPageUrl`, `filesCreated`, `dataTestId`
-    4. **Use `fix_files_errors` tool** to fix any runtime/compilation errors
-    5. **Use `visual_compare_component_to_figma` tool** to assess visual quality and get specific issues
-    6. **Use `fix_visual_issues` tool** if there are visual issues to fix
-    7. **Use `replace_component` tool** to replace the old component:
-       - Pass `sourceFilePath` (the new component from implement_component)
-       - Pass `targetFilePath` (the selected component location to replace)
-       - Returns: `filesModified`, `targetFilePath`
-    8. **Use `fix_files_errors` tool AGAIN** for the replaced component:
-       - Pass the `targetFilePath` from replace_component result
-       - Navigate to a page where the component is actually used
-       - This ensures the component works correctly in its final location with real imports and context
+      1. **Use the provided Figma node ID** (see above) for `breakdown_figma_design`
+      2. **Use `breakdown_figma_design` tool** to analyze the Figma design and identify which component from the breakdown best matches the selected component
+      3. **Use `implement_component` tool** to implement the new version of the component based on the matching Figma component
+         - The breakdown will provide inner node IDs for each component - use those for `implement_component`
+         - Save: `componentFilePath`, `testPageFilePath`, `testPageUrl`, `filesCreated`, `dataTestId`
+      4. **Use `fix_files_errors` tool** to fix any runtime/compilation errors
+      5. **Use `visual_compare_component_to_figma` tool** to assess visual quality and get specific issues
+      6. **Use `fix_visual_issues` tool** if there are visual issues to fix
+      7. **Use `replace_component` tool** to replace the old component:
+         - Pass `sourceFilePath` (the new component from implement_component)
+         - Pass `targetFilePath` (the selected component location to replace)
+         - Returns: `filesModified`, `targetFilePath`
+      8. **Use `fix_files_errors` tool AGAIN** for the replaced component:
+         - Pass the `targetFilePath` from replace_component result
+         - Navigate to a page where the component is actually used
+         - This ensures the component works correctly in its final location with real imports and context
 
-    **Do NOT ask for design/requirements clarification** - proceed directly with the flow using tools. (If tool calls fail repeatedly, you may ask about the technical error.)
-    """
+      **Do NOT ask for design/requirements clarification** - proceed directly with the flow using tools. (If tool calls fail repeatedly, you may ask about the technical error.)
+      """
   end
 
   defp figma_with_selected_component_guidance(figma_node_id) do
@@ -785,122 +785,122 @@ defmodule FrontmanServer.Agents.Prompts do
 
     figma_tool_guidance() <>
       """
-      ## CRITICAL: Figma Design + Selected Component Detected
+        ## CRITICAL: Figma Design + Selected Component Detected
 
-    **YOU HAVE BOTH:**
-    1. **Figma design context** - A design image and/or node DSL structure is attached to this conversation
-    2. **Selected component location** - The user has selected a specific component in their codebase (see `[Selected Component Location]` in the message)
-    #{node_id_section}
-    ### Workflow Priority
+      **YOU HAVE BOTH:**
+      1. **Figma design context** - A design image and/or node DSL structure is attached to this conversation
+      2. **Selected component location** - The user has selected a specific component in their codebase (see `[Selected Component Location]` in the message)
+      #{node_id_section}
+      ### Workflow Priority
 
-    When Figma context is active, the normal "List → Read → Modify" rule is **SUPERSEDED** by the Figma tool workflow below. Do NOT read files manually before calling `breakdown_figma_design` - the tools will handle file operations.
+      When Figma context is active, the normal "List → Read → Modify" rule is **SUPERSEDED** by the Figma tool workflow below. Do NOT read files manually before calling `breakdown_figma_design` - the tools will handle file operations.
 
-    ### Figma Data Types
+      ### Figma Data Types
 
-    The Figma context attached is a **DSL (Domain Specific Language) representation** - a compact format for design breakdown.
+      The Figma context attached is a **DSL (Domain Specific Language) representation** - a compact format for design breakdown.
 
-    **Tool-specific data requirements:**
-    - **`breakdown_figma_design`**: Uses the DSL in context to analyze structure and identify components
-    - **`implement_component`**: Fetches full node JSON via `get_figma_node`, returns structured result with files array
-    - **`fix_files_errors`**: Takes files from implement_component, navigates to test page, fixes any errors
-    - **`visual_compare_component_to_figma`**: Compares implementation against Figma, returns image descriptions, differences, and fix instructions
-    - **`fix_visual_issues`**: Takes comparison result with fix instructions, applies fixes, verifies once
-    - **`replace_component`**: Replaces old component with new implementation, updates imports
+      **Tool-specific data requirements:**
+      - **`breakdown_figma_design`**: Uses the DSL in context to analyze structure and identify components
+      - **`implement_component`**: Fetches full node JSON via `get_figma_node`, returns structured result with files array
+      - **`fix_files_errors`**: Takes files from implement_component, navigates to test page, fixes any errors
+      - **`visual_compare_component_to_figma`**: Compares implementation against Figma, returns image descriptions, differences, and fix instructions
+      - **`fix_visual_issues`**: Takes comparison result with fix instructions, applies fixes, verifies once
+      - **`replace_component`**: Replaces old component with new implementation, updates imports
 
-    ### IMPORTANT: What You Have Access To
+      ### IMPORTANT: What You Have Access To
 
-    - **The Figma design image/DSL** is already in this conversation - you can see it
-    - **The selected component file path and location** - use this path EXACTLY as provided (do not modify it)
-    - **The root Figma node ID** - provided above for use with `breakdown_figma_design`
+      - **The Figma design image/DSL** is already in this conversation - you can see it
+      - **The selected component file path and location** - use this path EXACTLY as provided (do not modify it)
+      - **The root Figma node ID** - provided above for use with `breakdown_figma_design`
 
-    ### CRITICAL: What You Do NOT Have Access To
+      ### CRITICAL: What You Do NOT Have Access To
 
-    - **Detailed Figma node information** - You CANNOT assume anything beyond what's shown in the image/DSL
-    - **Component breakdown and analysis** - You MUST use tools to get this information
+      - **Detailed Figma node information** - You CANNOT assume anything beyond what's shown in the image/DSL
+      - **Component breakdown and analysis** - You MUST use tools to get this information
 
-    ### THE ONLY WAY TO GET MORE FIGMA DETAILS
+      ### THE ONLY WAY TO GET MORE FIGMA DETAILS
 
-    **You MUST use the following tools in order. There is NO other way to access Figma data:**
+      **You MUST use the following tools in order. There is NO other way to access Figma data:**
 
-    1. **`breakdown_figma_design`** - REQUIRED FIRST STEP
-       - Use with the root node ID: `#{figma_node_id || "[node_id from DSL]"}`
-       - Analyzes the Figma design structure
-       - Creates a component breakdown with implementation plan
-       - Returns inner node IDs for each component to build
+      1. **`breakdown_figma_design`** - REQUIRED FIRST STEP
+         - Use with the root node ID: `#{figma_node_id || "[node_id from DSL]"}`
+         - Analyzes the Figma design structure
+         - Creates a component breakdown with implementation plan
+         - Returns inner node IDs for each component to build
 
-    2. **`implement_component`** - For each component identified
-       - Use the inner node ID from the breakdown (NOT the root node ID)
-       - Implements the component based on Figma specs
-       - Returns: `filesCreated`, `componentFilePath`, `testPageFilePath`, `testPageUrl`, `dataTestId`
+      2. **`implement_component`** - For each component identified
+         - Use the inner node ID from the breakdown (NOT the root node ID)
+         - Implements the component based on Figma specs
+         - Returns: `filesCreated`, `componentFilePath`, `testPageFilePath`, `testPageUrl`, `dataTestId`
 
-    3. **`fix_files_errors`** - Fix any runtime/compilation errors
-       - Pass `filesCreated` and `testPageUrl` from implement_component result
-       - Navigates to test page and fixes any errors
-       - Returns: `errorsFixed`, `remainingErrors`, `filesModified`
+      3. **`fix_files_errors`** - Fix any runtime/compilation errors
+         - Pass `filesCreated` and `testPageUrl` from implement_component result
+         - Navigates to test page and fixes any errors
+         - Returns: `errorsFixed`, `remainingErrors`, `filesModified`
 
-    4. **`visual_compare_component_to_figma`** - Compare implementation against Figma
-       - Pass `nodeId`, `testPageUrl`, `componentFilePath`, `dataTestId`
-       - Returns structured comparison result:
-         - `figmaDesignDescription`: Detailed description of the Figma design image
-         - `implementationDescription`: Detailed description of the implementation screenshot
-         - `keyDifferences`: Array of visual differences between design and implementation
-         - `howToFix`: Comprehensive instructions on how to fix all issues
+      4. **`visual_compare_component_to_figma`** - Compare implementation against Figma
+         - Pass `nodeId`, `testPageUrl`, `componentFilePath`, `dataTestId`
+         - Returns structured comparison result:
+           - `figmaDesignDescription`: Detailed description of the Figma design image
+           - `implementationDescription`: Detailed description of the implementation screenshot
+           - `keyDifferences`: Array of visual differences between design and implementation
+           - `howToFix`: Comprehensive instructions on how to fix all issues
 
-    5. **`fix_visual_issues`** - Fix visual discrepancies (if there are keyDifferences)
-       - Pass `nodeId`, `figmaDesignDescription`, `implementationDescription`, `keyDifferences`, `howToFix`, `componentFilePath`, `filesCreated`, `testPageUrl`, `dataTestId`
-       - Follows the howToFix instructions to fix visual issues
-       - Verifies improvements with ONE screenshot comparison
-       - Returns: `changesApplied`, `remainingIssues`, `filesModified`, `verificationResult`
+      5. **`fix_visual_issues`** - Fix visual discrepancies (if there are keyDifferences)
+         - Pass `nodeId`, `figmaDesignDescription`, `implementationDescription`, `keyDifferences`, `howToFix`, `componentFilePath`, `filesCreated`, `testPageUrl`, `dataTestId`
+         - Follows the howToFix instructions to fix visual issues
+         - Verifies improvements with ONE screenshot comparison
+         - Returns: `changesApplied`, `remainingIssues`, `filesModified`, `verificationResult`
 
-    6. **`replace_component`** - Replace old component with new implementation
-       - Pass `sourceFilePath` (componentFilePath from implement_component)
-       - Pass `targetFilePath` (the selected component location)
-       - Pass `testPageFilePath`, `filesCreated`
-       - Returns: `filesModified`, `targetFilePath`, `filesDeleted`
+      6. **`replace_component`** - Replace old component with new implementation
+         - Pass `sourceFilePath` (componentFilePath from implement_component)
+         - Pass `targetFilePath` (the selected component location)
+         - Pass `testPageFilePath`, `filesCreated`
+         - Returns: `filesModified`, `targetFilePath`, `filesDeleted`
 
-    ### REQUIRED WORKFLOW (DO NOT SKIP STEPS)
+      ### REQUIRED WORKFLOW (DO NOT SKIP STEPS)
 
-    1. **Call `breakdown_figma_design`** IMMEDIATELY with nodeId: "#{figma_node_id || "[node_id]"}"
-       - Do NOT try to implement anything before calling this tool
-       - Do NOT make assumptions about the Figma design structure
-       - This tool will tell you exactly what to build and provide inner node IDs
+      1. **Call `breakdown_figma_design`** IMMEDIATELY with nodeId: "#{figma_node_id || "[node_id]"}"
+         - Do NOT try to implement anything before calling this tool
+         - Do NOT make assumptions about the Figma design structure
+         - This tool will tell you exactly what to build and provide inner node IDs
 
-    2. **Call `implement_component`** for the matching component
-       - Use the inner node ID from the breakdown response
-       - The breakdown will identify which component matches your selected component
-       - **Save the returned `filesCreated`, `testPageUrl`, `testPageFilePath`, `componentFilePath`, `dataTestId`**
+      2. **Call `implement_component`** for the matching component
+         - Use the inner node ID from the breakdown response
+         - The breakdown will identify which component matches your selected component
+         - **Save the returned `filesCreated`, `testPageUrl`, `testPageFilePath`, `componentFilePath`, `dataTestId`**
 
-    3. **Call `fix_files_errors`** to fix any errors
-       - Pass the files and test page URL from implement_component
-       - Ensures the component renders without errors
+      3. **Call `fix_files_errors`** to fix any errors
+         - Pass the files and test page URL from implement_component
+         - Ensures the component renders without errors
 
-    4. **Call `visual_compare_component_to_figma`** to assess visual quality
-       - Pass the node ID, test page URL, component path, and data test ID
-       - Review the returned `keyDifferences` and `howToFix`
+      4. **Call `visual_compare_component_to_figma`** to assess visual quality
+         - Pass the node ID, test page URL, component path, and data test ID
+         - Review the returned `keyDifferences` and `howToFix`
 
-    5. **Call `fix_visual_issues`** if there are keyDifferences
-       - Pass the comparison result fields: `figmaDesignDescription`, `implementationDescription`, `keyDifferences`, `howToFix`
-       - This tool applies the fixes and verifies once
+      5. **Call `fix_visual_issues`** if there are keyDifferences
+         - Pass the comparison result fields: `figmaDesignDescription`, `implementationDescription`, `keyDifferences`, `howToFix`
+         - This tool applies the fixes and verifies once
 
-    6. **Call `replace_component`** to replace the old component:
-       - Pass `sourceFilePath` = `componentFilePath` from implement_component
-       - Pass `targetFilePath` = the selected component location
-       - Save the returned `targetFilePath` and `filesModified`
+      6. **Call `replace_component`** to replace the old component:
+         - Pass `sourceFilePath` = `componentFilePath` from implement_component
+         - Pass `targetFilePath` = the selected component location
+         - Save the returned `targetFilePath` and `filesModified`
 
-    7. **Call `fix_files_errors` AGAIN** for the replaced component:
-       - Pass `targetFilePath` from replace_component as the file to check
-       - Navigate to the actual page URL where the component is used in the app
-       - This ensures the component works correctly in its final location with real imports and context
+      7. **Call `fix_files_errors` AGAIN** for the replaced component:
+         - Pass `targetFilePath` from replace_component as the file to check
+         - Navigate to the actual page URL where the component is used in the app
+         - This ensures the component works correctly in its final location with real imports and context
 
-    ### DO NOT:
+      ### DO NOT:
 
-    - Try to implement the component without calling `breakdown_figma_design` first
-    - Guess or assume Figma styles, colors, or spacing
-    - Ask the user for more Figma information - use the tools instead
-    - Skip any of the tool calls in the workflow
+      - Try to implement the component without calling `breakdown_figma_design` first
+      - Guess or assume Figma styles, colors, or spacing
+      - Ask the user for more Figma information - use the tools instead
+      - Skip any of the tool calls in the workflow
 
-    **PROCEED IMMEDIATELY with `breakdown_figma_design(nodeId: "#{figma_node_id || "[node_id]"}")`. Do NOT ask for design/requirements clarification.** (If tool calls fail repeatedly, you may ask about the technical error.)
-    """
+      **PROCEED IMMEDIATELY with `breakdown_figma_design(nodeId: "#{figma_node_id || "[node_id]"}")`. Do NOT ask for design/requirements clarification.** (If tool calls fail repeatedly, you may ask about the technical error.)
+      """
   end
 
   defp selected_component_guidance do

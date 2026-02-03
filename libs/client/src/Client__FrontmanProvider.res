@@ -5,7 +5,6 @@ module ACP = FrontmanFrontmanClient.FrontmanClient__ACP
 module Types = FrontmanFrontmanClient.FrontmanClient__ACP__Types
 module Relay = FrontmanFrontmanClient.FrontmanClient__Relay
 module MCPServer = FrontmanFrontmanClient.FrontmanClient__MCP__Server
-module ConsoleLogTool = FrontmanFrontmanClient.FrontmanClient__MCP__Tool__ConsoleLog
 module Reducer = Client__ConnectionReducer
 module StateReducer = FrontmanReactStatestore.StateReducer
 module RuntimeConfig = Client__RuntimeConfig
@@ -93,12 +92,9 @@ module Provider = {
       let metadata = RuntimeConfig.toMetadata(runtimeConfig)
 
       let relay = Relay.make(~baseUrl)
-      let mcpServer =
-        MCPServer.make(~relay, ~serverName=clientName, ~serverVersion=clientVersion)
-        ->MCPServer.registerToolModule(module(ConsoleLogTool))
-        ->MCPServer.registerToolModule(module(Client__Tool__GetFigmaNode))
-        ->MCPServer.registerToolModule(module(Client__Tool__TakeScreenshot))
-        ->MCPServer.registerToolModule(module(Client__Tool__Navigate))
+      let toolRegistry = Client__ToolRegistry.coreBrowserTools()
+      let mcpServer = MCPServer.make(~relay, ~serverName=clientName, ~serverVersion=clientVersion)
+      let mcpServer = Client__ToolRegistry.registerAll(toolRegistry, mcpServer)
 
       let config: Reducer.initConfig = {
         endpoint,

@@ -25,6 +25,10 @@ defmodule Swarm.ToolResult do
   end
 
   def make(id, raw_result, is_error) do
-    %__MODULE__{id: id, content: [ContentPart.text(Jason.encode!(raw_result))], is_error: is_error}
+    %__MODULE__{
+      id: id,
+      content: [ContentPart.text(Jason.encode!(raw_result))],
+      is_error: is_error
+    }
   end
 end

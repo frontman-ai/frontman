@@ -154,15 +154,7 @@ let make = (~apiBaseUrl: string) => {
       style={{width: `${Int.toString(chatboxWidth)}px`}}
       className="h-full border-r flex flex-col p-2 overflow-hidden relative shrink-0"
     >
-      <button
-        type_="button"
-        className="absolute top-3 right-3 z-50 h-9 w-9 rounded-lg border border-zinc-800/70 bg-zinc-900/70 text-zinc-200 shadow-sm backdrop-blur transition-all duration-200 flex items-center justify-center hover:border-zinc-700 hover:bg-zinc-800/90 hover:shadow-md"
-        onClick={_ => setSettingsOpen(_ => true)}
-        title="Settings"
-      >
-        <RadixUI__Icons.GearIcon className="size-4" />
-      </button>
-      <Client__Chatbox />
+      <Client__Chatbox onSettingsClick={() => setSettingsOpen(_ => true)} />
       // Resize handle on right edge
       <div
         className={[

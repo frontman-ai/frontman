@@ -100,7 +100,7 @@ let groupMessages = (messages: array<Message.t>): array<displayItem> => {
 }
 
 @react.component
-let make = () => {
+let make = (~onSettingsClick: unit => unit) => {
   let (input, setInput) = React.useState(() => "")
   let {session, createSession} = Client__FrontmanProvider.useFrontman()
 
@@ -291,7 +291,7 @@ let make = () => {
   }
 
   <div className="flex flex-col h-full bg-zinc-900 text-zinc-200">
-    <TaskTabs />
+    <TaskTabs onSettingsClick />
     <ScrollContainer className="flex-grow overflow-hidden">
       <ScrollContainer.ContentWrapper>
         {

@@ -714,6 +714,81 @@ describe("Client State Reducer - Task Management Actions", () => {
     }
   })
 
+  test("AddUserMessage after deleting last task creates new task", t => {
+    // Start with a single task
+    let task1 = Task.makeLoaded(
+      ~id="task-1",
+      ~title="Task 1",
+      ~previewUrl="http://localhost:3000",
+      ~createdAt=1000.0,
+      ~messages=[
+        Reducer.Message.User({
+          id: "user-1",
+          content: [UserContentPart.Text({text: "Old message"})],
+          createdAt: 1000.0,
+        }),
+      ],
+    )
+
+    let tasks = Dict.make()
+    tasks->Dict.set("task-1", task1)
+
+    let state: Reducer.state = {
+      tasks,
+      currentTask: Task.Selected("task-1"),
+      acpSession: NoAcpSession,
+      sessionInitialized: false,
+      usageInfo: None,
+      openrouterKeySettings: {
+        source: Client__State__Types.None,
+        saveStatus: Client__State__Types.Idle,
+      },
+      anthropicOAuthStatus: Client__State__Types.NotConnected,
+      modelsConfig: None,
+      selectedModel: None,
+      sessionsLoadState: Client__State__Types.SessionsNotLoaded,
+    }
+
+    // Delete the only task
+    let (stateAfterDelete, _) = Reducer.next(state, DeleteTask({taskId: "task-1"}))
+    t->expect(TestHelpers.getTaskCount(stateAfterDelete))->Expect.toBe(0)
+    switch stateAfterDelete.currentTask {
+    | Task.New(_) => ()
+    | _ => JsExn.throw("Expected New task after deleting last task")
+    }
+
+    // Now send a new user message — should create a fresh task without crashing
+    let (stateAfterMsg, effects) = Reducer.next(
+      stateAfterDelete,
+      AddUserMessage({
+        id: "user-2",
+        sessionId: "session-new",
+        content: [UserContentPart.text("Hello after delete")],
+      }),
+    )
+
+    // A new task should exist
+    t->expect(TestHelpers.getTaskCount(stateAfterMsg))->Expect.toBe(1)
+    let newTaskId = TestHelpers.getCurrentTaskId(stateAfterMsg)->Option.getOrThrow
+    // Must be a different task than the deleted one
+    t->expect(newTaskId)->Expect.not->Expect.toBe("task-1")
+
+    // The new task should contain the new message
+    let messages = Reducer.Selectors.messages(stateAfterMsg)
+    t->expect(messages->Array.length)->Expect.toBe(1)
+    switch messages->Array.get(0) {
+    | Some(User({id, _})) => t->expect(id)->Expect.toBe("user-2")
+    | _ => JsExn.throw("Expected User message in new task")
+    }
+
+    // Effect should target the new task
+    switch effects->Array.get(0) {
+    | Some(Reducer.TaskEffect({target: ForTask(effectTaskId), effect: SendMessage(_)})) =>
+      t->expect(effectTaskId)->Expect.toBe(newTaskId)
+    | _ => JsExn.throw("Expected SendMessage effect for new task")
+    }
+  })
+
   test("Tasks maintain independent state across switches", t => {
     let task1 = Task.makeLoaded(
       ~id="task-1",

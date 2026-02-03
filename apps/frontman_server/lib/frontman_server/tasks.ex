@@ -14,7 +14,6 @@ defmodule FrontmanServer.Tasks do
   alias FrontmanServer.Tasks.{Interaction, InteractionSchema, Task, TaskSchema}
   alias ReqLLM.ToolCall
 
-
   # --- Authorization Helpers ---
 
   @spec get_task_by_id(Scope.t(), String.t()) :: {:ok, TaskSchema.t()} | {:error, :not_found}

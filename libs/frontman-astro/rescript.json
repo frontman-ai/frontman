@@ -5,11 +5,6 @@
 		{
 			"dir": "src",
 			"subdirs": true
-		},
-		{
-			"dir": "test",
-			"subdirs": true,
-			"type": "dev"
 		}
 	],
 	"package-specs": [
@@ -20,7 +15,13 @@
 		}
 	],
 	"ppx-flags": ["sury-ppx/bin"],
-	"dependencies": ["@rescript/webapi", "sury", "@frontman/frontman-protocol", "@frontman/frontman-core", "@frontman/bindings"],
+	"dependencies": [
+		"@rescript/webapi",
+		"sury",
+		"@frontman/frontman-protocol",
+		"@frontman/frontman-core",
+		"@frontman/bindings"
+	],
 	"dev-dependencies": ["rescript-vitest"],
 	"jsx": {
 		"version": 4

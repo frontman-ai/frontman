@@ -62,7 +62,9 @@ defmodule FrontmanServer.Tasks.ExecutionMonitor do
     state = rebuild_monitors_from_registry()
 
     if map_size(state.monitors) > 0 do
-      Logger.info("ExecutionMonitor started, recovered #{map_size(state.monitors)} existing executions")
+      Logger.info(
+        "ExecutionMonitor started, recovered #{map_size(state.monitors)} existing executions"
+      )
     end
 
     {:ok, state}

@@ -307,7 +307,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         "jsonrpc" => "2.0",
         "id" => 42,
         "error" => %{
-          "code" => -32000,
+          "code" => -32_000,
           "message" => "No API key available"
         }
       })
@@ -336,7 +336,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       })
 
       # Should NOT get a JSON-RPC error response (no pending prompt id)
-      refute_push("acp:message", %{"error" => %{"code" => -32000}})
+      refute_push("acp:message", %{"error" => %{"code" => -32_000}})
     end
 
     test "handles different error messages correctly", %{

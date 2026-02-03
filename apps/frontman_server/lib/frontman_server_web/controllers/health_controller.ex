@@ -1,12 +1,14 @@
 defmodule FrontmanServerWeb.HealthController do
   use FrontmanServerWeb, :controller
 
+  alias Ecto.Adapters.SQL
+
   def index(conn, _params) do
     json(conn, %{status: "ok"})
   end
 
   def ready(conn, _params) do
-    case Ecto.Adapters.SQL.query(FrontmanServer.Repo, "SELECT 1") do
+    case SQL.query(FrontmanServer.Repo, "SELECT 1") do
       {:ok, _} ->
         json(conn, %{status: "ready", database: "connected"})
 
