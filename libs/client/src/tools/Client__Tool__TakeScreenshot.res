@@ -30,8 +30,7 @@ let execute = async (input: input): toolResult<output> => {
   let previewFrame = Client__State__StateReducer.Selectors.previewFrame(state)
 
   switch previewFrame.contentDocument {
-  | None =>
-    Ok({screenshot: None, error: Some("Preview frame document not available")})
+  | None => Ok({screenshot: None, error: Some("Preview frame document not available")})
   | Some(doc) =>
     // Get the element to screenshot
     let elementResult = switch input.selector {
@@ -51,8 +50,8 @@ let execute = async (input: input): toolResult<output> => {
     | Error(err) => Ok({screenshot: None, error: Some(err)})
     | Ok(element) =>
       try {
-        let captureResult = await Bindings__Snapdom.snapdom(~element)
-        let pngImage = await captureResult.toPng(~options={scale: 2.0})
+        let captureResult = await Bindings__Snapdom.snapdom(element)
+        let pngImage = await captureResult.toJpg({scale: 1.0})
         Ok({screenshot: Some(pngImage.src), error: None})
       } catch {
       | exn =>

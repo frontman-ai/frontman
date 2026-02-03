@@ -851,7 +851,10 @@ defmodule FrontmanServer.Tasks.Interaction do
   }
 
   defp extract_image_from_result(tool_name, result) when is_map(result) do
-    with {image_field, text_fields} <- Map.get(@image_tool_configs, tool_name),
+    canonical_name = String.replace_prefix(tool_name, "mcp_", "")
+    config = Map.get(@image_tool_configs, canonical_name)
+
+    with {image_field, text_fields} <- config,
          data_url when is_binary(data_url) <- get_field(result, image_field),
          {:ok, binary, mime} <- decode_data_url(data_url) do
       text_content = build_text_content(result, text_fields)
@@ -861,7 +864,7 @@ defmodule FrontmanServer.Tasks.Interaction do
     end
   end
 
-  defp extract_image_from_result(_, _), do: nil
+  defp extract_image_from_result(_tool_name, _result), do: nil
 
   defp build_tool_message_with_image(name, id, image_binary, mime_type, text_content) do
     content =
