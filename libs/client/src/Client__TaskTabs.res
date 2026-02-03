@@ -118,6 +118,11 @@ let make = () => {
   let handleDeleteConfirm = (_e: ReactEvent.Mouse.t) => {
     switch taskToDelete {
     | Some(taskId) => {
+        // If deleting the current task, tear down the session channel first
+        // to prevent stale server messages from dispatching into a deleted task
+        if currentTaskId == Some(taskId) {
+          clearSession()
+        }
         Client__State.Actions.deleteTask(~taskId)
         setDeleteDialogOpen(_ => false)
         setTaskToDelete(_ => None)
