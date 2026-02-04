@@ -87,14 +87,18 @@ defmodule FrontmanServerWeb.TasksChannelTest do
     test "creates task and returns sessionId", %{socket: socket, scope: scope} do
       version = ACP.protocol_version()
 
-      # Initialize first to set clientInfo with framework
+      # Initialize first to set clientInfo with framework in metadata
       push(socket, "acp:message", %{
         "jsonrpc" => "2.0",
         "id" => 1,
         "method" => "initialize",
         "params" => %{
           "protocolVersion" => version,
-          "clientInfo" => %{"name" => "test-client", "version" => "1.0.0"}
+          "clientInfo" => %{
+            "name" => "test-client",
+            "version" => "1.0.0",
+            "metadata" => %{"framework" => "test-framework"}
+          }
         }
       })
 
@@ -126,14 +130,18 @@ defmodule FrontmanServerWeb.TasksChannelTest do
       version = ACP.protocol_version()
       framework = "test-client-app"
 
-      # First initialize with clientInfo
+      # First initialize with clientInfo containing framework in metadata
       push(socket, "acp:message", %{
         "jsonrpc" => "2.0",
         "id" => 1,
         "method" => "initialize",
         "params" => %{
           "protocolVersion" => version,
-          "clientInfo" => %{"name" => framework, "version" => "1.0.0"}
+          "clientInfo" => %{
+            "name" => "frontman-client",
+            "version" => "1.0.0",
+            "metadata" => %{"framework" => framework}
+          }
         }
       })
 

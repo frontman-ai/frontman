@@ -420,7 +420,7 @@ let sendMessageToAPIImpl = (state: state, dispatch, ~message, ~taskId) => {
       ->Dict.get(taskId)
       ->Option.mapOr([], Client__State__Types.taskToContentBlocks)
 
-    // Include runtime config metadata (e.g., openrouterKeyValue) with each prompt
+    // Include runtime config metadata (e.g., framework, openrouterKeyValue) with each prompt
     let runtimeConfig = Client__RuntimeConfig.read()
     let baseMetadata = Client__RuntimeConfig.toMetadata(runtimeConfig)
 
@@ -430,21 +430,14 @@ let sendMessageToAPIImpl = (state: state, dispatch, ~message, ~taskId) => {
       let modelJson: JSON.t = %raw(`(function(provider, value) {
         return { provider: provider, value: value };
       })`)(model.provider, model.value)
-      switch baseMetadata {
-      | Some(meta) =>
-        switch meta->JSON.Decode.object {
-        | Some(dict) =>
-          let newDict = dict->Dict.copy
-          newDict->Dict.set("model", modelJson)
-          Some(newDict->Obj.magic)
-        | None => baseMetadata
-        }
-      | None =>
-        let dict = Dict.make()
-        dict->Dict.set("model", modelJson)
-        Some(dict->Obj.magic)
+      switch baseMetadata->JSON.Decode.object {
+      | Some(dict) =>
+        let newDict = dict->Dict.copy
+        newDict->Dict.set("model", modelJson)
+        Some(newDict->Obj.magic)
+      | None => Some(baseMetadata)
       }
-    | None => baseMetadata
+    | None => Some(baseMetadata)
     }
 
     sendPrompt(

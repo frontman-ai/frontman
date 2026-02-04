@@ -9,7 +9,7 @@ module RuntimeConfig = Client__RuntimeConfig
 @react.component
 let make = (~open_: bool, ~onOpenChange: bool => unit) => {
   let runtimeConfig = RuntimeConfig.read()
-  let framework = runtimeConfig.framework->Option.getOr("Unknown")
+  let framework = runtimeConfig.framework
   let (activeTab, setActiveTab) = React.useState(() => "general")
   let (openrouterKey, setOpenrouterKey) = React.useState(() => "")
   let (oauthCode, setOauthCode) = React.useState(() => "")

@@ -18,8 +18,8 @@ type initConfig = {
   clientVersion: string,
   baseUrl: string,
   onACPMessage: (ACP.messageDirection, JSON.t) => unit,
-  // Optional metadata to pass in ACP clientInfo (e.g., env key detection)
-  metadata: option<JSON.t>,
+  // Metadata to pass in ACP clientInfo (framework, env key detection, etc.)
+  metadata: JSON.t,
 }
 
 // Connection states
@@ -211,7 +211,7 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
       ~loginUrl=config.loginUrl,
       ~name=config.clientName,
       ~version=config.clientVersion,
-      ~metadata=?config.metadata,
+      ~metadata=config.metadata,
       ~onMessage=config.onACPMessage,
     )
     // Create AbortController to cancel connections on cleanup

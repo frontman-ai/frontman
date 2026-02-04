@@ -149,8 +149,9 @@ defmodule FrontmanServerWeb.TasksChannel do
     {:noreply, socket}
   end
 
-  defp extract_framework(nil), do: nil
-  defp extract_framework(client_info) when is_map(client_info), do: Map.get(client_info, "name")
+  defp extract_framework(%{"metadata" => %{"framework" => framework}}) when is_binary(framework),
+    do: framework
+
   defp extract_framework(_), do: nil
 
   # Extract env API key from clientInfo metadata (e.g., OPENROUTER_API_KEY from Next.js project)

@@ -25,7 +25,7 @@ let makeConfig = (
   ~loginUrl: string,
   ~name: string,
   ~version: string,
-  ~metadata: option<JSON.t>=?,
+  ~metadata: JSON.t,
   ~onMessage: option<(messageDirection, JSON.t) => unit>=?,
 ): config => {
   endpoint,
@@ -35,7 +35,7 @@ let makeConfig = (
     name,
     version,
     title: None,
-    metadata,
+    metadata: Some(metadata),
   },
   clientCapabilities: {
     fs: Some({readTextFile: Some(true), writeTextFile: Some(true)}),
