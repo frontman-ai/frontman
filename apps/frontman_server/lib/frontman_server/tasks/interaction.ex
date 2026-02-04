@@ -42,6 +42,7 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     typedstruct enforce: true do
       field(:id, String.t())
+      field(:sequence, integer())
       field(:timestamp, DateTime.t())
       # Text messages from the user (extracted from text content blocks)
       field(:messages, list(String.t()), default: [])
@@ -57,6 +58,7 @@ defmodule FrontmanServer.Tasks.Interaction do
 
       %__MODULE__{
         id: Interaction.new_id(),
+        sequence: Interaction.new_sequence(),
         timestamp: Interaction.now(),
         messages: extract_messages(content_blocks),
         selected_component: extract_selected_component(content_blocks),
@@ -181,6 +183,7 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     typedstruct enforce: true do
       field(:id, String.t())
+      field(:sequence, integer())
       field(:content, String.t())
       field(:timestamp, DateTime.t())
       field(:metadata, map(), enforce: false)
@@ -191,6 +194,7 @@ defmodule FrontmanServer.Tasks.Interaction do
 
       %__MODULE__{
         id: Interaction.new_id(),
+        sequence: Interaction.new_sequence(),
         content: content,
         timestamp: Interaction.now(),
         metadata: metadata
@@ -221,6 +225,7 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     typedstruct enforce: true do
       field(:id, String.t())
+      field(:sequence, integer())
       field(:config, map(), enforce: false)
       field(:timestamp, DateTime.t())
     end
@@ -230,6 +235,7 @@ defmodule FrontmanServer.Tasks.Interaction do
 
       %__MODULE__{
         id: Interaction.new_id(),
+        sequence: Interaction.new_sequence(),
         config: config,
         timestamp: Interaction.now()
       }
@@ -258,6 +264,7 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     typedstruct enforce: true do
       field(:id, String.t())
+      field(:sequence, integer())
       field(:timestamp, DateTime.t())
       field(:result, term(), enforce: false)
     end
@@ -267,6 +274,7 @@ defmodule FrontmanServer.Tasks.Interaction do
 
       %__MODULE__{
         id: Interaction.new_id(),
+        sequence: Interaction.new_sequence(),
         timestamp: Interaction.now(),
         result: result
       }
@@ -295,6 +303,7 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     typedstruct enforce: true do
       field(:id, String.t())
+      field(:sequence, integer())
       field(:tool_call_id, String.t())
       field(:tool_name, String.t())
       field(:arguments, map())
@@ -306,6 +315,7 @@ defmodule FrontmanServer.Tasks.Interaction do
 
       %__MODULE__{
         id: Interaction.new_id(),
+        sequence: Interaction.new_sequence(),
         tool_call_id: tc.id,
         tool_name: ReqLLM.ToolCall.name(tc),
         arguments: ReqLLM.ToolCall.args_map(tc) || %{},
@@ -338,6 +348,7 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     typedstruct enforce: true do
       field(:id, String.t())
+      field(:sequence, integer())
       field(:tool_call_id, String.t())
       field(:tool_name, String.t())
       field(:result, term())
@@ -350,6 +361,7 @@ defmodule FrontmanServer.Tasks.Interaction do
 
       %__MODULE__{
         id: Interaction.new_id(),
+        sequence: Interaction.new_sequence(),
         tool_call_id: tool_call_data.id,
         tool_name: tool_call_data.name,
         result: result,
@@ -387,6 +399,7 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     typedstruct enforce: true do
       field(:path, String.t())
+      field(:sequence, integer())
       field(:content, String.t())
       field(:timestamp, DateTime.t())
     end
@@ -396,6 +409,7 @@ defmodule FrontmanServer.Tasks.Interaction do
 
       %__MODULE__{
         path: path,
+        sequence: Interaction.new_sequence(),
         content: content,
         timestamp: Interaction.now()
       }
@@ -431,6 +445,18 @@ defmodule FrontmanServer.Tasks.Interaction do
   end
 
   @doc """
+  Generates a monotonic sequence number for deterministic ordering.
+
+  Uses System.unique_integer([:monotonic, :positive]) which is guaranteed to be
+  strictly increasing within a single VM instance. This ensures that
+  interactions created in sequence (e.g., AgentResponse followed by ToolResult)
+  will always be ordered correctly regardless of DB insert timing.
+  """
+  def new_sequence do
+    System.unique_integer([:monotonic, :positive])
+  end
+
+  @doc """
   Checks if an interaction is a user message.
   """
   @spec user_message?(t()) :: boolean()
@@ -444,6 +470,10 @@ defmodule FrontmanServer.Tasks.Interaction do
   to Agents domain (LLM messages). Conversation messages include
   UserMessage, AgentResponse, and ToolResult.
   ToolCall interactions are excluded as they're embedded in AgentResponse metadata.
+
+  Interactions are expected to be ordered by sequence number (set at creation time),
+  which guarantees correct conversation structure (assistant messages before their
+  tool results) regardless of database insertion timing.
   """
   @spec to_llm_messages(list(t())) :: list(map())
   def to_llm_messages(interactions) do

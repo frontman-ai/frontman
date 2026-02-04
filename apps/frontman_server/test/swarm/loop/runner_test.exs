@@ -311,7 +311,8 @@ defmodule Swarm.Loop.RunnerTest do
       [tool_call] = response.tool_calls
       assert tool_call.id == "call_789"
       assert tool_call.name == "get_time"
-      assert tool_call.arguments == "{}"
+      # Empty string (no fragments), not masked to "{}" - let error surface at execution
+      assert tool_call.arguments == ""
     end
 
     test "raises when argument fragments arrive before tool_call_start" do
@@ -324,6 +325,40 @@ defmodule Swarm.Loop.RunnerTest do
       assert_raise ArgumentError, ~r/no tool_call_start was received/, fn ->
         LLM.Response.from_stream(stream)
       end
+    end
+
+    test "truncated stream preserves invalid JSON for debugging (no masking)" do
+      stream = [
+        Chunk.tool_call_start("call_trunc", "read_file", 0),
+        Chunk.tool_call_args(0, ~s[{"path": "app/admin/products/page.tsx"]),
+        Chunk.done(:tool_calls)
+      ]
+
+      response = LLM.Response.from_stream(stream)
+
+      assert length(response.tool_calls) == 1
+      [tool_call] = response.tool_calls
+      assert tool_call.id == "call_trunc"
+      assert tool_call.name == "read_file"
+      # Preserve truncated JSON for debugging - don't mask with "{}"
+      assert tool_call.arguments == ~s[{"path": "app/admin/products/page.tsx"]
+    end
+
+    test "multi-fragment truncation: preserves partial JSON for debugging (no masking)" do
+      stream = [
+        Chunk.tool_call_start("call_frag", "write_file", 0),
+        Chunk.tool_call_args(0, ~s[{"path":]),
+        Chunk.tool_call_args(0, ~s[ "src/Button.tsx",]),
+        Chunk.tool_call_args(0, ~s[ "content": "export default function() {}"]),
+        Chunk.done(:tool_calls)
+      ]
+
+      response = LLM.Response.from_stream(stream)
+
+      [tool_call] = response.tool_calls
+      # Preserve partial JSON for debugging - don't mask with "{}"
+      assert tool_call.arguments ==
+               ~s[{"path": "src/Button.tsx", "content": "export default function() {}"]
     end
 
     test "mixes streaming and non-streaming tool calls" do

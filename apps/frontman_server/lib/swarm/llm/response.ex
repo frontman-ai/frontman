@@ -7,17 +7,19 @@ defmodule Swarm.LLM.Response do
   """
   use TypedStruct
 
+  require Logger
+
   alias Swarm.LLM.{Chunk, Usage}
 
   @type finish_reason :: :stop | :tool_calls | :length | :error | nil
 
   typedstruct do
-    field :content, String.t()
-    field :reasoning_details, [map()], default: []
-    field :finish_reason, finish_reason(), default: :stop
-    field :tool_calls, [Swarm.ToolCall.t()], default: []
-    field :usage, Usage.t()
-    field :raw, term()
+    field(:content, String.t())
+    field(:reasoning_details, [map()], default: [])
+    field(:finish_reason, finish_reason(), default: :stop)
+    field(:tool_calls, [Swarm.ToolCall.t()], default: [])
+    field(:usage, Usage.t())
+    field(:raw, term())
   end
 
   @spec has_tool_calls?(t()) :: boolean()
@@ -124,12 +126,31 @@ defmodule Swarm.LLM.Response do
   defp accumulate_chunk(_chunk, acc), do: acc
 
   # Finalize pending tool calls by joining accumulated argument fragments
+  # NOTE: We do NOT fall back to "{}" on JSON parse failure - this masks issues
+  # where the LLM generates malformed tool calls. Let the error surface at execution.
   defp finalize_pending_tool_calls(pending_map) do
+    require Logger
+
     Map.new(pending_map, fn {_index, %{id: id, name: name, args_fragments: fragments}} ->
       args_json = IO.iodata_to_binary(fragments)
-      # Default to empty object if no fragments were received
-      args_json = if args_json == "", do: "{}", else: args_json
 
+      # Log warning if arguments are empty or invalid JSON (helps debug LLM issues)
+      case {args_json, Jason.decode(args_json)} do
+        {"", _} ->
+          Logger.warning(
+            "Tool call #{name} (#{id}) has empty arguments - LLM may have failed to provide required parameters"
+          )
+
+        {_, {:error, _}} ->
+          Logger.warning(
+            "Tool call #{name} (#{id}) has invalid JSON arguments: #{inspect(args_json)}"
+          )
+
+        _ ->
+          :ok
+      end
+
+      # Keep original args_json (even if empty/invalid) - don't mask with "{}"
       {id, %Swarm.ToolCall{id: id, name: name, arguments: args_json}}
     end)
   end

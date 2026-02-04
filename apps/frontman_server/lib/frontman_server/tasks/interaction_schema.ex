@@ -17,6 +17,8 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
   schema "interactions" do
     field(:type, :string)
     field(:data, :map)
+    # Monotonic sequence for deterministic ordering (avoids DB insert race conditions)
+    field(:sequence, :integer)
 
     belongs_to(:task, TaskSchema)
 
@@ -38,6 +40,7 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
   @doc """
   Changeset for creating an interaction from a domain struct.
   Extracts type from struct module name and data from struct fields.
+  The sequence field is extracted from the interaction struct for deterministic ordering.
   """
   @spec create_changeset(String.t(), struct()) :: Ecto.Changeset.t()
   def create_changeset(task_id, interaction) do
@@ -46,12 +49,13 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
     attrs = %{
       task_id: task_id,
       type: type,
-      data: Map.from_struct(interaction)
+      data: Map.from_struct(interaction),
+      sequence: Map.get(interaction, :sequence)
     }
 
     %__MODULE__{}
-    |> cast(attrs, [:task_id, :type, :data])
-    |> validate_required([:task_id, :type, :data])
+    |> cast(attrs, [:task_id, :type, :data, :sequence])
+    |> validate_required([:task_id, :type, :data, :sequence])
     |> validate_inclusion(:type, @known_types)
     |> foreign_key_constraint(:task_id)
   end
@@ -63,9 +67,19 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
     from(i in query, where: i.task_id == ^task_id)
   end
 
+  @doc """
+  Orders interactions by sequence number for deterministic ordering.
+  Falls back to inserted_at for legacy rows without sequence (during migration period).
+  """
+  @spec ordered(Ecto.Queryable.t()) :: Ecto.Query.t()
+  def ordered(query \\ __MODULE__) do
+    from(i in query, order_by: [asc: coalesce(i.sequence, 0), asc: i.inserted_at])
+  end
+
+  # Deprecated: Use ordered/1 instead
   @spec ordered_by_inserted(Ecto.Queryable.t()) :: Ecto.Query.t()
   def ordered_by_inserted(query \\ __MODULE__) do
-    from(i in query, order_by: [asc: i.inserted_at])
+    ordered(query)
   end
 
   # --- JSONB to Domain Struct Conversion ---
@@ -76,9 +90,10 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
   Converts a persisted InteractionSchema to its domain struct.
   """
   @spec to_struct(t()) :: Interaction.t()
-  def to_struct(%__MODULE__{type: "user_message", data: data}) do
+  def to_struct(%__MODULE__{type: "user_message", data: data, sequence: sequence}) do
     %Interaction.UserMessage{
       id: data["id"],
+      sequence: sequence || data["sequence"] || 0,
       timestamp: parse_datetime(data["timestamp"]),
       messages: data["messages"] || [],
       selected_component: parse_selected_component(data["selected_component"]),
@@ -86,18 +101,20 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
     }
   end
 
-  def to_struct(%__MODULE__{type: "agent_response", data: data}) do
+  def to_struct(%__MODULE__{type: "agent_response", data: data, sequence: sequence}) do
     %Interaction.AgentResponse{
       id: data["id"],
+      sequence: sequence || data["sequence"] || 0,
       content: data["content"],
       timestamp: parse_datetime(data["timestamp"]),
       metadata: data["metadata"]
     }
   end
 
-  def to_struct(%__MODULE__{type: "tool_call", data: data}) do
+  def to_struct(%__MODULE__{type: "tool_call", data: data, sequence: sequence}) do
     %Interaction.ToolCall{
       id: data["id"],
+      sequence: sequence || data["sequence"] || 0,
       tool_call_id: data["tool_call_id"],
       tool_name: data["tool_name"],
       arguments: data["arguments"] || %{},
@@ -105,9 +122,10 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
     }
   end
 
-  def to_struct(%__MODULE__{type: "tool_result", data: data}) do
+  def to_struct(%__MODULE__{type: "tool_result", data: data, sequence: sequence}) do
     %Interaction.ToolResult{
       id: data["id"],
+      sequence: sequence || data["sequence"] || 0,
       tool_call_id: data["tool_call_id"],
       tool_name: data["tool_name"],
       result: data["result"],
@@ -116,25 +134,28 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
     }
   end
 
-  def to_struct(%__MODULE__{type: "discovered_project_rule", data: data}) do
+  def to_struct(%__MODULE__{type: "discovered_project_rule", data: data, sequence: sequence}) do
     %Interaction.DiscoveredProjectRule{
       path: data["path"],
+      sequence: sequence || data["sequence"] || 0,
       content: data["content"],
       timestamp: parse_datetime(data["timestamp"])
     }
   end
 
-  def to_struct(%__MODULE__{type: "agent_spawned", data: data}) do
+  def to_struct(%__MODULE__{type: "agent_spawned", data: data, sequence: sequence}) do
     %Interaction.AgentSpawned{
       id: data["id"],
+      sequence: sequence || data["sequence"] || 0,
       config: data["config"] || %{},
       timestamp: parse_datetime(data["timestamp"])
     }
   end
 
-  def to_struct(%__MODULE__{type: "agent_completed", data: data}) do
+  def to_struct(%__MODULE__{type: "agent_completed", data: data, sequence: sequence}) do
     %Interaction.AgentCompleted{
       id: data["id"],
+      sequence: sequence || data["sequence"] || 0,
       result: data["result"],
       timestamp: parse_datetime(data["timestamp"])
     }

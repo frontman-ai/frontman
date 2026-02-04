@@ -154,8 +154,9 @@ defimpl Swarm.LLM, for: FrontmanServer.Agents.LLMClient do
     name = if requires_mcp_prefix?, do: LLMClient.strip_mcp_prefix(name), else: name
 
     # Check if this is a complete tool call (non-streaming) or a streaming start
-    # Complete tool calls have non-empty argument maps with actual keys
-    if complete_tool_call_args?(args) do
+    is_complete = complete_tool_call_args?(args)
+
+    if is_complete do
       # Non-streaming: emit complete tool call directly
       args_json = if is_binary(args), do: args, else: Jason.encode!(args)
       tool_call = %ToolCall{id: id, name: name, arguments: args_json}
@@ -177,6 +178,7 @@ defimpl Swarm.LLM, for: FrontmanServer.Agents.LLMClient do
     Chunk.tool_call_args(index, fragment)
   end
 
+  # :meta with usage - token usage statistics
   defp to_swarm_chunk(%{type: :meta, metadata: %{usage: usage}}, _requires_mcp_prefix?)
        when is_map(usage) do
     Chunk.usage(%Usage{
@@ -187,11 +189,37 @@ defimpl Swarm.LLM, for: FrontmanServer.Agents.LLMClient do
     })
   end
 
+  # :meta with finish_reason - stream complete with reason
   defp to_swarm_chunk(%{type: :meta, metadata: %{finish_reason: reason}}, _requires_mcp_prefix?) do
     Chunk.done(reason)
   end
 
-  defp to_swarm_chunk(_, _requires_mcp_prefix?), do: nil
+  # :meta with terminal?: true only (no finish_reason) - message_stop signal
+  # This comes from Anthropic's message_stop event, signals end of message
+  defp to_swarm_chunk(%{type: :meta, metadata: %{terminal?: true}}, _requires_mcp_prefix?) do
+    # Emit done with :stop as default finish reason
+    Chunk.done(:stop)
+  end
+
+  # Catch-all for :meta chunks with unknown metadata keys
+  # These are informational signals we don't need to act on (e.g., provider-specific metadata)
+  # Silently ignore - we're resilient to new metadata fields
+  defp to_swarm_chunk(%{type: :meta, metadata: _meta}, _requires_mcp_prefix?) do
+    nil
+  end
+
+  # CRASH on truly unknown chunk TYPES (not :content, :thinking, :tool_call, or :meta)
+  # This catches bugs where ReqLLM adds new types we don't handle
+  defp to_swarm_chunk(%{type: unknown_type} = chunk, _requires_mcp_prefix?)
+       when unknown_type not in [:content, :thinking, :tool_call, :meta] do
+    raise "Unknown chunk TYPE from ReqLLM: #{inspect(unknown_type)}. " <>
+            "Full chunk: #{inspect(chunk, limit: :infinity)}"
+  end
+
+  # Catch-all for malformed chunks (missing type field or unexpected structure)
+  defp to_swarm_chunk(malformed_chunk, _requires_mcp_prefix?) do
+    raise "Malformed chunk from ReqLLM (missing or invalid type): #{inspect(malformed_chunk, limit: :infinity)}"
+  end
 
   # Check if tool call arguments are complete (non-streaming)
   defp complete_tool_call_args?(args) when is_map(args) and map_size(args) > 0, do: true
