@@ -23,19 +23,6 @@ module TodoUtils = Client__TodoUtils
 // Helper Functions
 // ============================================================================
 
-/**
- * Extract the base tool name by stripping common prefixes like "Calling "
- * This normalizes tool names for comparison with spawningToolName
- */
-let getBaseToolName = (toolName: string): string => {
-  let name = String.toLowerCase(toolName)
-  if String.startsWith(name, "calling ") {
-    String.slice(name, ~start=8, ~end=String.length(name)) // "calling " is 8 characters
-  } else {
-    name
-  }
-}
-
 // ============================================================================
 // Tool Classification (using substring matching like ToolLabels)
 // ============================================================================
@@ -126,21 +113,6 @@ let breaksGrouping = (toolName: string): bool => {
  */
 let isSubagentToolCall = (tc: Message.toolCall): bool => {
   Option.isSome(tc.parentAgentId)
-}
-
-/**
- * Check if this is a backend tool that spawns subagents
- * These tools don't need to be shown individually because their work
- * is represented by the subagent tool group
- * 
- */
-let isSubagentSpawnerTool = (toolName: string): bool => {
-  let name = String.toLowerCase(toolName)
-  // Component implementation tools (spawn subagent work)
-  String.includes(name, "implement_component") ||
-  String.includes(name, "finish_component") ||
-  String.includes(name, "pixel_perfect") ||
-  String.includes(name, "make_component")
 }
 
 /**
@@ -488,19 +460,6 @@ let groupToolCalls = (
   ~groupSubagents: bool=true,
   ~minGroupSize: int=1,
 ): array<Types.displayItem> => {
-  // First pass: build a set of spawner tool names that have matching subagent groups
-  // These spawners will be HIDDEN since the subagent group shows their name in the header
-  let spawnerNamesToHide = {
-    let set = Set.make()
-    toolCalls->Array.forEach(tc => {
-      switch tc.spawningToolName {
-      | Some(name) => set->Set.add(String.toLowerCase(name))
-      | None => ()
-      }
-    })
-    set
-  }
-  
   let result: array<Types.displayItem> = []
   let currentGroup: ref<array<Message.toolCall>> = ref([])
   let currentGroupType: ref<option<Types.groupType>> = ref(None)
@@ -606,18 +565,6 @@ let groupToolCalls = (
       currentGroupType := Some(Types.Subagent)
       currentParentAgentId := tc.parentAgentId
       currentGroup.contents->Array.push(tc)
-    } else if isSubagentSpawnerTool(tc.toolName) {
-      flushGroup()
-      // Check if this spawner has matching subagent tool calls
-      if spawnerNamesToHide->Set.has(getBaseToolName(tc.toolName)) {
-        // Spawner with matching subagent group - HIDE IT
-        // The subagent group header already shows "Processed {spawnerName}"
-        // Don't add to result - intentionally hidden
-        ()
-      } else {
-        // Spawner without matching subagent - render with indigo styling
-        result->Array.push(Types.SpawnerTool(tc))
-      }
     } else if shouldGroupToolCall(tc) {
       let toolGroupType = getGroupType(tc.toolName)
 

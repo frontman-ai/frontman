@@ -2,9 +2,9 @@ defmodule FrontmanServer.Agents.SubAgentMcpRoutingTest do
   @moduledoc """
   Tests for MCP tool routing from sub-agents spawned by backend tools.
 
-  These tests verify that when backend tools (like implement_component) spawn
-  sub-agents that call MCP tools, the MCP requests are properly routed through
-  the TaskChannel to the client.
+  These tests verify that when backend tools spawn sub-agents that call MCP
+  tools, the MCP requests are properly routed through the TaskChannel to the
+  client.
 
   ## Architecture
 

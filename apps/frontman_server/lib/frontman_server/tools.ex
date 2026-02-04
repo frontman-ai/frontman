@@ -10,11 +10,7 @@ defmodule FrontmanServer.Tools do
     FrontmanServer.Tools.TodoList,
     FrontmanServer.Tools.TodoAdd,
     FrontmanServer.Tools.TodoUpdate,
-    FrontmanServer.Tools.TodoRemove,
-    FrontmanServer.Tools.ImplementComponent,
-    FrontmanServer.Tools.FixFilesErrors,
-    FrontmanServer.Tools.FixVisualIssues,
-    FrontmanServer.Tools.ReplaceComponent
+    FrontmanServer.Tools.TodoRemove
   ]
 
   @todo_mutations ["todo_add", "todo_update", "todo_remove"]

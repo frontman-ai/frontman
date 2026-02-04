@@ -120,6 +120,7 @@ let convertTask = (task: Snapshot.Task.t): StateTypes.Task.t => {
     },
     webPreviewIsSelecting: task.webPreviewIsSelecting,
     selectedElement: None, // Cannot restore DOM element from snapshot
+    figmaNode: Client__Task__Types.FigmaNode.NoSelection,
     isAgentRunning: false, // Default to not running when restoring from snapshot
     planEntries: [], // Plan entries not stored in snapshots yet
     turnError: None, // No error when restoring from snapshot

@@ -49,7 +49,7 @@ module Fixtures = {
       },
       webPreviewIsSelecting: false,
       selectedElement: None,
-      figmaNode: StateTypes.FigmaNode.NoSelection,
+      figmaNode: Client__Task__Types.FigmaNode.NoSelection,
       isAgentRunning: false,
       planEntries: [],
       turnError: None,

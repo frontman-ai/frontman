@@ -79,7 +79,7 @@ defmodule FrontmanServer.ToolsTest do
 
     test "returns false for non-mutation tools" do
       refute Tools.todo_mutation?("todo_list")
-      refute Tools.todo_mutation?("implement_component")
+      refute Tools.todo_mutation?("some_other_tool")
       refute Tools.todo_mutation?("some_mcp_tool")
     end
   end
