@@ -107,8 +107,10 @@ defmodule FrontmanServer.Tasks.InteractionTest do
 
       msg = UserMessage.new(content_blocks)
 
-      assert msg.selected_component_screenshot ==
-               "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk"
+      assert msg.selected_component_screenshot == %{
+               blob: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk",
+               mime_type: "image/png"
+             }
     end
 
     test "extracts both selected_component and screenshot together" do
@@ -156,7 +158,10 @@ defmodule FrontmanServer.Tasks.InteractionTest do
                parent: nil
              }
 
-      assert msg.selected_component_screenshot == "base64screenshotdata"
+      assert msg.selected_component_screenshot == %{
+               blob: "base64screenshotdata",
+               mime_type: "image/png"
+             }
     end
   end
 
@@ -761,7 +766,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
     test "encodes ToolCall to JSON" do
       tool_call = %ToolCall{
         id: "1",
-          sequence: seq(),
+        sequence: seq(),
         tool_call_id: "call_123",
         tool_name: "calculator",
         arguments: %{"x" => 1},
@@ -779,7 +784,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
     test "encodes ToolResult to JSON" do
       tool_result = %ToolResult{
         id: "1",
-          sequence: seq(),
+        sequence: seq(),
         tool_call_id: "call_123",
         tool_name: "calculator",
         result: 42,

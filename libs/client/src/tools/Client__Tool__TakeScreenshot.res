@@ -7,7 +7,7 @@ type toolResult<'a> = Tool.toolResult<'a>
 
 let name = "take_screenshot"
 let visibleToAgent = true
-let description = "Take a screenshot of the current web preview page. Returns a base64-encoded PNG image data URL of the page body."
+let description = "Take a screenshot of the current web preview page. Returns a base64-encoded JPEG image data URL of the page body."
 
 @schema
 type input = {
@@ -17,7 +17,7 @@ type input = {
 
 @schema
 type output = {
-  @s.describe("Base64-encoded PNG image data URL (data:image/png;base64,...)")
+  @s.describe("Base64-encoded JPEG image data URL (data:image/jpeg;base64,...)")
   screenshot: option<string>,
   @s.describe("Error message if the screenshot could not be taken")
   error: option<string>,

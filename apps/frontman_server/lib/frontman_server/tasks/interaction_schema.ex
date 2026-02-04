@@ -97,7 +97,8 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
       timestamp: parse_datetime(data["timestamp"]),
       messages: data["messages"] || [],
       selected_component: parse_selected_component(data["selected_component"]),
-      selected_component_screenshot: data["selected_component_screenshot"]
+      selected_component_screenshot: parse_screenshot(data["selected_component_screenshot"]),
+      selected_figma_node: parse_figma_node(data["selected_figma_node"])
     }
   end
 
@@ -210,4 +211,36 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
 
   defp parse_parent_chain(_), do: nil
 
+  @spec parse_figma_node(map() | nil) :: Interaction.FigmaNode.t() | nil
+  defp parse_figma_node(nil), do: nil
+
+  defp parse_figma_node(data) when is_map(data) do
+    %Interaction.FigmaNode{
+      id: data["id"],
+      node: data["node"],
+      image: data["image"],
+      is_dsl: data["is_dsl"] || true
+    }
+  end
+
+  # Parse screenshot data - handles both new map format and legacy string format
+  defp parse_screenshot(nil), do: nil
+
+  defp parse_screenshot(%{"blob" => blob, "mime_type" => mime_type})
+       when is_binary(blob) and is_binary(mime_type) do
+    %{blob: blob, mime_type: mime_type}
+  end
+
+  # Handle atom keys (from in-memory structs)
+  defp parse_screenshot(%{blob: blob, mime_type: mime_type})
+       when is_binary(blob) and is_binary(mime_type) do
+    %{blob: blob, mime_type: mime_type}
+  end
+
+  # Legacy format: just base64 string, default to image/jpeg
+  defp parse_screenshot(blob) when is_binary(blob) do
+    %{blob: blob, mime_type: "image/jpeg"}
+  end
+
+  defp parse_screenshot(_), do: nil
 end
