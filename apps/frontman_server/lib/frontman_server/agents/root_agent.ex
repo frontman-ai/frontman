@@ -7,7 +7,6 @@ defmodule FrontmanServer.Agents.RootAgent do
   directly, owning its system prompt generation logic.
 
   The system prompt is dynamically built based on context:
-  - Figma design context
   - Selected component information
   - Framework-specific guidance
 
@@ -21,10 +20,8 @@ defmodule FrontmanServer.Agents.RootAgent do
 
   typedstruct do
     field(:tools, [Swarm.Tool.t()], default: [])
-    field(:has_figma_context, boolean(), default: false)
     field(:has_selected_component, boolean(), default: false)
     field(:has_typescript_react, boolean(), default: false)
-    field(:figma_node_id, String.t() | nil, default: nil)
     field(:framework, String.t() | nil, default: nil)
     # llm_opts must include :api_key (resolved at domain layer)
     # May also include :requires_mcp_prefix and :identity_override for OAuth
@@ -40,9 +37,7 @@ defmodule FrontmanServer.Agents.RootAgent do
   ## Options
 
   - `:tools` - List of Swarm.Tool structs available to the agent
-  - `:has_figma_context` - Whether Figma design context is present
   - `:has_selected_component` - Whether a component is selected in the codebase
-  - `:figma_node_id` - The Figma node ID for breakdown_figma_design
   - `:framework` - Framework name (e.g., "nextjs") for framework-specific guidance
   - `:llm_opts` - LLM options, must include `:api_key`. May include `:requires_mcp_prefix`
     and `:identity_override` for OAuth transformations (handled by LLMClient).
@@ -53,10 +48,8 @@ defmodule FrontmanServer.Agents.RootAgent do
   def new(opts \\ []) do
     %__MODULE__{
       tools: Keyword.get(opts, :tools, []),
-      has_figma_context: Keyword.get(opts, :has_figma_context, false),
       has_selected_component: Keyword.get(opts, :has_selected_component, false),
       has_typescript_react: Keyword.get(opts, :has_typescript_react, false),
-      figma_node_id: Keyword.get(opts, :figma_node_id),
       framework: Keyword.get(opts, :framework),
       llm_opts: Keyword.get(opts, :llm_opts, []),
       model: Keyword.get(opts, :model),
@@ -72,10 +65,8 @@ defimpl Swarm.Agent, for: FrontmanServer.Agents.RootAgent do
     # Build system prompt - always returns a string
     # OAuth transformations (identity prepend, content splitting) are handled by LLMClient
     Prompts.build(
-      has_figma_context: agent.has_figma_context,
       has_selected_component: agent.has_selected_component,
       has_typescript_react: agent.has_typescript_react,
-      figma_node_id: agent.figma_node_id,
       framework: agent.framework,
       project_rules: agent.project_rules
     )

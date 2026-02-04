@@ -6,14 +6,6 @@
 
 module Nav = Client__WebPreview__Nav
 module RadixUI__Icons = Bindings__RadixUI__Icons
-module FigmaNode = Client__State__Types.FigmaNode
-module AlertDialog = Bindings__UI__AlertDialog.AlertDialog
-module AlertDialogContent = Bindings__UI__AlertDialog.AlertDialogContent
-module AlertDialogHeader = Bindings__UI__AlertDialog.AlertDialogHeader
-module AlertDialogTitle = Bindings__UI__AlertDialog.AlertDialogTitle
-module AlertDialogDescription = Bindings__UI__AlertDialog.AlertDialogDescription
-module AlertDialogFooter = Bindings__UI__AlertDialog.AlertDialogFooter
-module AlertDialogAction = Bindings__UI__AlertDialog.AlertDialogAction
 
 module BackButton = {
   @react.component
@@ -39,28 +31,6 @@ module ReloadButton = {
     <Nav.NavButton onClick={onClick} tooltip="Reload">
       <RadixUI__Icons.ReloadIcon className="size-4" />
     </Nav.NavButton>
-  }
-}
-
-module SelectFigmaNode = {
-  @react.component
-  let make = (~onClick: unit => unit, ~figmaNode: FigmaNode.t) => {
-    <div
-      className={switch figmaNode {
-      | FigmaNode.WaitingForSelection => "rounded bg-purple-500/20"
-      | _ => ""
-      }}
-    >
-      <Nav.NavButton onClick={onClick} tooltip="Import from Figma">
-        <RadixUI__Icons.FigmaIcon
-          className={switch figmaNode {
-          | FigmaNode.WaitingForSelection => "size-4 text-purple-500"
-          | _ => "size-4"
-          }}
-          style={{"width": "16px", "height": "16px"}}
-        />
-      </Nav.NavButton>
-    </div>
   }
 }
 
@@ -97,7 +67,6 @@ module OpenInNewWindow = {
 
 @react.component
 let make = () => {
-  let (showExtensionAlert, setShowExtensionAlert) = React.useState(() => false)
   let currentTaskId = Client__State.useSelector(Client__State.Selectors.currentTaskId)
   let allTasks = Client__State.useSelector(Client__State.Selectors.tasks)
   let previewUrl = Client__State.useSelector(Client__State.Selectors.previewUrl)
@@ -105,10 +74,6 @@ let make = () => {
   let isNewTask = Client__State.useSelector(Client__State.Selectors.isNewTask)
   let webPreviewIsSelecting = Client__State.useSelector(
     Client__State.Selectors.webPreviewIsSelecting,
-  )
-  let figmaNode = Client__State.useSelector(Client__State.Selectors.figmaNode)
-  let isExtensionInstalled = Client__ExtensionState.useSelector(
-    Client__ExtensionState.Selectors.isInstalled,
   )
 
   let handleBack = () => {
@@ -132,20 +97,6 @@ let make = () => {
     Client__State.Actions.setSelectedElement(~selectedElement=None)
   }
   let handleSelect = () => Client__State.Actions.toggleWebPreviewSelection()
-  let handleFigma = () => {
-    if !isExtensionInstalled {
-      setShowExtensionAlert(_ => true)
-    } else {
-      Client__State.Actions.setFigmaNodeWaiting()
-      FrontmanBindings.Chrome.Runtime.sendMessageExternal(
-        "kfdpjbmabcelpgoipaccjijhehdmeghp",
-        {"type": "DevServerImportFigmaNodeRequest"},
-        response => {
-          Console.log2("DevServerImportFigmaNodeRequest response:", response)
-        },
-      )
-    }
-  }
   let handleOpenInNewTab = () => {
     WebAPI.Window.open_(
       WebAPI.Global.window,
@@ -155,14 +106,12 @@ let make = () => {
     )->ignore
   }
   
-  <>
     <Nav.Container>
       <Nav.Navigation>
         <BackButton onClick={handleBack} />
         <ForwardButton onClick={handleForward} />
         <ReloadButton onClick={handleReload} />
         <Nav.UrlInput value={previewUrl} />
-        <SelectFigmaNode onClick={handleFigma} figmaNode={figmaNode} />
         <SelectElement onClick={handleSelect} isSelecting={webPreviewIsSelecting} />
         <OpenInNewWindow onClick={handleOpenInNewTab} />
       </Nav.Navigation>
@@ -187,33 +136,4 @@ let make = () => {
           ->React.array}
       </div>
     </Nav.Container>
-
-    <AlertDialog
-      open_={showExtensionAlert} onOpenChange={isOpen => setShowExtensionAlert(_ => isOpen)}
-    >
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle> {React.string("Frontman Extension Required")} </AlertDialogTitle>
-          <AlertDialogDescription>
-            {React.string(`To use the Figma selection feature, you need to install the Frontman browser extension. The extension allows you to import designs directly from Figma into your project.`)}
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogAction
-            onClick={_ => {
-              WebAPI.Window.open_(
-                WebAPI.Global.window,
-                ~url="https://chrome.google.com/webstore",
-                ~target="_blank",
-                ~features="noopener,noreferrer",
-              )->ignore
-              setShowExtensionAlert(_ => false)
-            }}
-          >
-            {React.string("Install Extension")}
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
-  </>
 }

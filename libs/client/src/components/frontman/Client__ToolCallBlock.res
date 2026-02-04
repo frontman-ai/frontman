@@ -38,7 +38,6 @@ let make = (
   ~errorText: option<string>,
   ~defaultExpanded: bool=false,
   ~compact: bool=false,
-  ~isSpawner: bool=false, // True for subagent spawner tools - shows indigo styling
   ~messageId as _: string,
 ) => {
   let isLink = isFileTool(toolName)
@@ -76,23 +75,16 @@ let make = (
   }
 
   // Container classes with active state glow - borderless design
-  // Spawner tools (subagent spawners) use indigo styling
   let containerClasses = [
     "group rounded-md overflow-hidden",
     "animate-in fade-in duration-100",
     "transition-all duration-150",
-    // Background - spawners get indigo, others get zinc
-    if isSpawner {
-      compact ? "bg-indigo-950/50" : "bg-indigo-950/70"
-    } else {
-      compact ? "bg-zinc-800/50" : "bg-zinc-800/70"
-    },
+    compact ? "bg-zinc-800/50" : "bg-zinc-800/70",
     // Spacing
     compact ? "my-0.5" : "my-1.5",
     // Active state glow (no border, just shadow)
     isActive ? "shadow-[0_0_8px_rgba(59,130,246,0.2)] ring-1 ring-blue-500/30 frontman-tool-active" : "",
-    // Hover state - subtle bg change instead of border
-    isSpawner ? "hover:bg-indigo-900/50" : "hover:bg-zinc-700/50",
+    "hover:bg-zinc-700/50",
   ]->Array.filter(s => s != "")->Array.join(" ")
 
   // Header classes - borderless

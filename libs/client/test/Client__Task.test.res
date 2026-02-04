@@ -207,57 +207,6 @@ describe("Task - Agent Running State", () => {
   })
 })
 
-describe("Task - Figma Node State", () => {
-  test("SetFigmaNode updates figma node", t => {
-    let task = TestHelpers.makeLoadedTask()
-    t->expect(TaskReducer.Selectors.figmaNode(task))->Expect.toEqual(
-      Some(Client__Task__Types.FigmaNode.NoSelection),
-    )
-
-    let (task2, _) = TaskReducer.next(
-      task,
-      SetFigmaNode({
-        figmaNode: {
-          nodeId: "123",
-          nodeData: "test node data",
-          image: Some("data:image/png;base64,abc123"),
-          isDsl: true,
-        },
-      }),
-    )
-
-    switch TaskReducer.Selectors.figmaNode(task2) {
-    | Some(Client__Task__Types.FigmaNode.SelectedNode({nodeId})) =>
-      t->expect(nodeId)->Expect.toBe("123")
-    | _ => t->expect(false)->Expect.toBe(true)
-    }
-  })
-
-  test("ClearFigmaNode resets to NoSelection", t => {
-    let task = TestHelpers.makeLoadedTask()
-    let (task2, _) = TaskReducer.next(
-      task,
-      SetFigmaNode({
-        figmaNode: {nodeId: "123", nodeData: "test", image: None, isDsl: true},
-      }),
-    )
-    let (task3, _) = TaskReducer.next(task2, ClearFigmaNode)
-
-    t->expect(TaskReducer.Selectors.figmaNode(task3))->Expect.toEqual(
-      Some(Client__Task__Types.FigmaNode.NoSelection),
-    )
-  })
-
-  test("SetFigmaNodeWaiting sets WaitingForSelection", t => {
-    let task = TestHelpers.makeLoadedTask()
-    let (task2, _) = TaskReducer.next(task, SetFigmaNodeWaiting)
-
-    t->expect(TaskReducer.Selectors.figmaNode(task2))->Expect.toEqual(
-      Some(Client__Task__Types.FigmaNode.WaitingForSelection),
-    )
-  })
-})
-
 describe("Task - Web Preview Selection", () => {
   test("ToggleWebPreviewSelection toggles selection mode", t => {
     let task = TestHelpers.makeLoadedTask()

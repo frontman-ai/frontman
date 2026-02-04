@@ -322,20 +322,6 @@ let make = (~group: Types.toolGroup, ~defaultExpanded: bool=false, ~isLastToolGr
               compact=true
               messageId={key}
             />
-          | Types.SpawnerTool(tc) =>
-            <ToolCallBlock
-              key={tc.id}
-              toolName={tc.toolName}
-              state={tc.state}
-              input={tc.input}
-              inputBuffer={tc.inputBuffer}
-              result={tc.result}
-              errorText={tc.errorText}
-              defaultExpanded=false
-              compact=true
-              isSpawner=true
-              messageId={key}
-            />
           | Types.ToolGroup(nestedGroup) =>
             // Render nested group (e.g., "Explored 3 files" within subagent)
             // Pass isParentOpen so nested groups know if parent subagent is still active

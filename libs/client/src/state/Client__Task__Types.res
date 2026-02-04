@@ -29,21 +29,6 @@ module SelectedElement = {
   }
 }
 
-module FigmaNode = {
-  // Selected node with DSL representation or full node data, and image
-  type selectedNodeData = {
-    nodeId: string,
-    nodeData: string, // DSL representation OR full JSON node data
-    image: option<string>, // Base64 data URL (data:image/png;base64,...)
-    isDsl: bool, // true if nodeData is DSL text, false if full JSON data
-  }
-
-  type t =
-    | NoSelection
-    | WaitingForSelection
-    | SelectedNode(selectedNodeData)
-}
-
 // Todo - single source of truth for todo state (updated by reducer)
 module Todo = {
   type status =
@@ -119,7 +104,6 @@ module Task = {
         previewFrame: previewFrame,
         webPreviewIsSelecting: bool,
         selectedElement: option<SelectedElement.t>,
-        figmaNode: FigmaNode.t,
       })
     // Unloaded: persisted but only metadata loaded
     | Unloaded({
@@ -138,7 +122,6 @@ module Task = {
         previewFrame: previewFrame,
         webPreviewIsSelecting: bool,
         selectedElement: option<SelectedElement.t>,
-        figmaNode: FigmaNode.t,
       })
     // Loaded: fully interactive
     | Loaded({
@@ -150,7 +133,6 @@ module Task = {
         previewFrame: previewFrame,
         webPreviewIsSelecting: bool,
         selectedElement: option<SelectedElement.t>,
-        figmaNode: FigmaNode.t,
         isAgentRunning: bool,
         planEntries: array<ACPTypes.planEntry>,
         turnError: option<string>,
@@ -228,13 +210,6 @@ module Task = {
     | Loading({selectedElement}) | Loaded({selectedElement}) => selectedElement
     }
 
-  let getFigmaNode = (task: t): FigmaNode.t =>
-    switch task {
-    | New({figmaNode}) => figmaNode
-    | Unloaded(_) => FigmaNode.NoSelection
-    | Loading({figmaNode}) | Loaded({figmaNode}) => figmaNode
-    }
-
   // State predicates
   let isNew = (task: t): bool =>
     switch task {
@@ -287,7 +262,6 @@ module Task = {
       previewFrame: {url: previewUrl, contentDocument: None, contentWindow: None},
       webPreviewIsSelecting: false,
       selectedElement: None,
-      figmaNode: FigmaNode.NoSelection,
     })
   }
 
@@ -314,7 +288,6 @@ module Task = {
         previewFrame: {url: previewUrl, contentDocument: None, contentWindow: None},
         webPreviewIsSelecting: false,
         selectedElement: None,
-        figmaNode: FigmaNode.NoSelection,
       })
     | New(_) => failwith("[Task.startLoading] Cannot load a New task - it has no server session")
     | Loading(_) | Loaded(_) => task
@@ -328,7 +301,7 @@ module Task = {
     ~title: string,
   ): t => {
     switch task {
-    | New({previewFrame, webPreviewIsSelecting, selectedElement, figmaNode}) =>
+    | New({previewFrame, webPreviewIsSelecting, selectedElement}) =>
       let timestamp = Date.now()
       Loaded({
         id,
@@ -339,7 +312,6 @@ module Task = {
         previewFrame,
         webPreviewIsSelecting,
         selectedElement,
-        figmaNode,
         isAgentRunning: false,
         planEntries: [],
         turnError: None,
@@ -366,7 +338,6 @@ module Task = {
       previewFrame: {url: previewUrl, contentDocument: None, contentWindow: None},
       webPreviewIsSelecting: false,
       selectedElement: None,
-      figmaNode: FigmaNode.NoSelection,
       isAgentRunning: false,
       planEntries: [],
       turnError: None,
@@ -381,7 +352,6 @@ module Task = {
     messages: array<Message.t>,
     webPreviewIsSelecting: bool,
     selectedElement: option<SelectedElement.t>,
-    figmaNode: FigmaNode.t,
     isAgentRunning: bool,
     planEntries: array<ACPTypes.planEntry>,
     turnError: option<string>,
@@ -396,7 +366,6 @@ module Task = {
     messages,
     webPreviewIsSelecting: false,
     selectedElement: None,
-    figmaNode: FigmaNode.NoSelection,
     isAgentRunning: false,
     planEntries: [],
     turnError: None,
@@ -418,20 +387,20 @@ module Task = {
 
   let getLoadedData = (task: t): option<loadedData> => {
     switch task {
-    | Loaded({messages, webPreviewIsSelecting, selectedElement, figmaNode, isAgentRunning, planEntries, turnError}) =>
-      Some({messages: Client__MessageStore.toArray(messages), webPreviewIsSelecting, selectedElement, figmaNode, isAgentRunning, planEntries, turnError})
-    | Loading({messages, webPreviewIsSelecting, selectedElement, figmaNode}) =>
-      Some({messages: Client__MessageStore.toArray(messages), webPreviewIsSelecting, selectedElement, figmaNode, isAgentRunning: false, planEntries: [], turnError: None})
-    | New({webPreviewIsSelecting, selectedElement, figmaNode}) =>
-      Some({messages: [], webPreviewIsSelecting, selectedElement, figmaNode, isAgentRunning: false, planEntries: [], turnError: None})
+    | Loaded({messages, webPreviewIsSelecting, selectedElement, isAgentRunning, planEntries, turnError}) =>
+      Some({messages: Client__MessageStore.toArray(messages), webPreviewIsSelecting, selectedElement, isAgentRunning, planEntries, turnError})
+    | Loading({messages, webPreviewIsSelecting, selectedElement}) =>
+      Some({messages: Client__MessageStore.toArray(messages), webPreviewIsSelecting, selectedElement, isAgentRunning: false, planEntries: [], turnError: None})
+    | New({webPreviewIsSelecting, selectedElement}) =>
+      Some({messages: [], webPreviewIsSelecting, selectedElement, isAgentRunning: false, planEntries: [], turnError: None})
     | Unloaded(_) => None
     }
   }
 
   let updateLoadedData = (task: t, fn: loadedData => loadedData): t => {
     switch task {
-    | Loaded({id, title, createdAt, updatedAt, messages, previewFrame, webPreviewIsSelecting, selectedElement, figmaNode, isAgentRunning, planEntries, turnError}) => {
-        let data = {messages: Client__MessageStore.toArray(messages), webPreviewIsSelecting, selectedElement, figmaNode, isAgentRunning, planEntries, turnError}
+    | Loaded({id, title, createdAt, updatedAt, messages, previewFrame, webPreviewIsSelecting, selectedElement, isAgentRunning, planEntries, turnError}) => {
+        let data = {messages: Client__MessageStore.toArray(messages), webPreviewIsSelecting, selectedElement, isAgentRunning, planEntries, turnError}
         let updated = fn(data)
         Loaded({
           id,
@@ -442,14 +411,13 @@ module Task = {
           previewFrame,
           webPreviewIsSelecting: updated.webPreviewIsSelecting,
           selectedElement: updated.selectedElement,
-          figmaNode: updated.figmaNode,
           isAgentRunning: updated.isAgentRunning,
           planEntries: updated.planEntries,
           turnError: updated.turnError,
         })
       }
-    | Loading({id, title, createdAt, updatedAt, messages, previewFrame, webPreviewIsSelecting, selectedElement, figmaNode}) => {
-        let data = {messages: Client__MessageStore.toArray(messages), webPreviewIsSelecting, selectedElement, figmaNode, isAgentRunning: false, planEntries: [], turnError: None}
+    | Loading({id, title, createdAt, updatedAt, messages, previewFrame, webPreviewIsSelecting, selectedElement}) => {
+        let data = {messages: Client__MessageStore.toArray(messages), webPreviewIsSelecting, selectedElement, isAgentRunning: false, planEntries: [], turnError: None}
         let updated = fn(data)
         Loading({
           id,
@@ -460,17 +428,15 @@ module Task = {
           previewFrame,
           webPreviewIsSelecting: updated.webPreviewIsSelecting,
           selectedElement: updated.selectedElement,
-          figmaNode: updated.figmaNode,
         })
       }
-    | New({previewFrame, webPreviewIsSelecting, selectedElement, figmaNode}) => {
-        let data = {messages: [], webPreviewIsSelecting, selectedElement, figmaNode, isAgentRunning: false, planEntries: [], turnError: None}
+    | New({previewFrame, webPreviewIsSelecting, selectedElement}) => {
+        let data = {messages: [], webPreviewIsSelecting, selectedElement, isAgentRunning: false, planEntries: [], turnError: None}
         let updated = fn(data)
         New({
           previewFrame,
           webPreviewIsSelecting: updated.webPreviewIsSelecting,
           selectedElement: updated.selectedElement,
-          figmaNode: updated.figmaNode,
         })
       }
     | Unloaded(_) => task
@@ -672,94 +638,14 @@ let selectedElementScreenshotToContentBlock = (
   }
 }
 
-// Helper to create _meta JSON for figma node with nodeId and is_dsl flag
-let makeFigmaNodeMeta: (string, bool) => JSON.t = %raw(`
-  function(nodeId, isDsl) {
-    return {
-      "figma_node": true,
-      "node_id": nodeId,
-      "is_dsl": isDsl
-    };
-  }
-`)
-
-// Build a Resource ContentBlock from FigmaNode data
-// Contains the Figma node as DSL string (compact, token-efficient format) or full JSON data
-let figmaNodeToContentBlock = (
-  nodeId: string,
-  nodeData: string,
-  isDsl: bool,
-): ACPTypes.contentBlock => {
-  let textResource: ACPTypes.textResourceContents = {
-    uri: nodeId,
-    mimeType: Some("text/plain"),
-    text: nodeData,
-  }
-
-  // Create _meta with figma_node annotation, nodeId, and is_dsl flag
-  let _meta = makeFigmaNodeMeta(nodeId, isDsl)
-  let embeddedResource: ACPTypes.embeddedResource = {
-    _meta: Some(_meta),
-    annotations: None,
-    resource: ACPTypes.TextResourceContents(textResource),
-  }
-
-  {
-    ACPTypes.type_: "resource",
-    text: None,
-    uri: None,
-    resource: Some(embeddedResource),
-    content: None,
-  }
-}
-
-// Build an Image ContentBlock from FigmaNode image data
-// Uses resource type with image/png mimeType
-let figmaImageToContentBlock = (imageDataUrl: string): ACPTypes.contentBlock => {
-  // Extract base64 data from data URL (data:image/png;base64,<data>)
-  // Remove the "data:image/png;base64," prefix to get just the base64 data
-  let base64Data = switch imageDataUrl->String.split(";base64,") {
-  | [_, base64] => base64
-  | _ =>
-    // If no "base64," found, try to extract after "data:image/png,"
-    switch imageDataUrl->String.split("data:image/png,") {
-    | [_, base64] => base64
-    | _ => imageDataUrl // Fallback to full string if format unexpected
-    }
-  }
-
-  let blobResource: ACPTypes.blobResourceContents = {
-    uri: "figma://node/image",
-    mimeType: Some("image/png"),
-    blob: base64Data,
-  }
-
-  // Create _meta with figma_image annotation
-  let _meta: JSON.t = %raw(`{"figma_image": true}`)
-
-  let embeddedResource: ACPTypes.embeddedResource = {
-    _meta: Some(_meta),
-    annotations: None,
-    resource: ACPTypes.BlobResourceContents(blobResource),
-  }
-
-  {
-    ACPTypes.type_: "resource",
-    text: None,
-    uri: None,
-    resource: Some(embeddedResource),
-    content: None,
-  }
-}
-
 // Build ContentBlocks array from Task
 // Returns array of ContentBlocks to be added to the prompt
 let taskToContentBlocks = (task: Task.t): array<ACPTypes.contentBlock> => {
   switch task {
   | Task.Unloaded(_) => []
-  | Task.New({selectedElement, figmaNode})
-  | Task.Loading({selectedElement, figmaNode})
-  | Task.Loaded({selectedElement, figmaNode}) => {
+  | Task.New({selectedElement})
+  | Task.Loading({selectedElement})
+  | Task.Loaded({selectedElement}) => {
       let blocks = []
 
       // Add selectedElement as Resource if available (with source location)
@@ -772,19 +658,6 @@ let taskToContentBlocks = (task: Task.t): array<ACPTypes.contentBlock> => {
       let blocks = switch selectedElement->Option.flatMap(sel => sel.screenshot) {
       | Some(screenshot) => Array.concat(blocks, [selectedElementScreenshotToContentBlock(screenshot)])
       | None => blocks
-      }
-
-      // Add figmaNode as Resource and Image if available
-      let blocks = switch figmaNode {
-      | FigmaNode.SelectedNode({nodeId, nodeData, image, isDsl}) => {
-          let blocks = Array.concat(blocks, [figmaNodeToContentBlock(nodeId, nodeData, isDsl)])
-          // Add image as separate content block if available
-          switch image {
-          | Some(imageDataUrl) => Array.concat(blocks, [figmaImageToContentBlock(imageDataUrl)])
-          | None => blocks
-          }
-        }
-      | FigmaNode.NoSelection | FigmaNode.WaitingForSelection => blocks
       }
 
       blocks

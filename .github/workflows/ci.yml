@@ -378,40 +378,6 @@ jobs:
           skip_covered: false
           only_changed_files: false
 
-  test-figma-client-api:
-    name: Test figma-client-api
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: write
-      checks: write
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '24.4.1'
-
-      - name: Enable Corepack
-        run: corepack enable
-
-      - name: Install dependencies
-        run: yarn install --immutable
-
-      - name: Run tests with coverage
-        run: make -C libs/figma-client-api test-coverage
-
-      - name: Coverage report
-        uses: 5monkeys/cobertura-action@master
-        with:
-          path: libs/figma-client-api/coverage/cobertura-coverage.xml
-          minimum_coverage: 70
-          show_missing: true
-          skip_covered: false
-          only_changed_files: false
-
   lint-client:
     name: Lint libs/client
     runs-on: ubuntu-slim

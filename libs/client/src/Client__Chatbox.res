@@ -33,7 +33,6 @@ type displayItem =
   | UserMsg(Message.t, int) // Message, originalIndex
   | AssistantMsg(Message.t, int)
   | SingleToolCall(Message.toolCall, int)
-  | SpawnerToolCall(Message.toolCall, int) // Subagent spawner - indigo styling
   | ToolGroup(ToolGroupTypes.toolGroup, int) // First tool's original index
   | TodoToolCall(Message.toolCall, int)
 
@@ -70,9 +69,6 @@ let groupMessages = (messages: array<Message.t>): array<displayItem> => {
           } else {
             result->Array.push(SingleToolCall(tc, firstIndex))
           }
-        | ToolGroupTypes.SpawnerTool(tc) =>
-          // Subagent spawner tool - render with indigo styling
-          result->Array.push(SpawnerToolCall(tc, firstIndex))
         | ToolGroupTypes.ToolGroup(group) => result->Array.push(ToolGroup(group, firstIndex))
         }
       })
@@ -239,23 +235,6 @@ let make = (~onSettingsClick: unit => unit) => {
         />
       </React.Fragment>
 
-    | SpawnerToolCall(tc, _) =>
-      // Subagent spawner tool - render with indigo styling
-      let messageId = `spawner-${tc.id}`
-      <React.Fragment key={messageId}>
-        <ToolCallBlock
-          toolName={tc.toolName}
-          state={tc.state}
-          input={tc.input}
-          inputBuffer={tc.inputBuffer}
-          result={tc.result}
-          errorText={tc.errorText}
-          defaultExpanded=false
-          isSpawner=true
-          messageId
-        />
-      </React.Fragment>
-
     | ToolGroup(group, _) =>
       // group.id is now stable (based on first tool call's ID)
       // Pass both isLastToolGroup and isLastItem - group is "open" only if both are true
@@ -325,7 +304,6 @@ let make = (~onSettingsClick: unit => unit) => {
     </ScrollContainer>
     <Client__PlanDisplay entries=planEntries />
     <Client__SelectedElementDisplay />
-    <Client__FigmaNodeDisplay />
     {switch (usageInfo, hasAnyKey) {
     | (Some({limit: Some(limit), remaining: Some(remaining), hasServerKey: Some(true)}), false) =>
       <div className="px-4 pb-1 text-xs text-zinc-400">

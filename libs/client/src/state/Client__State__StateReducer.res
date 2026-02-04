@@ -7,7 +7,6 @@ let name = "Client::StateReducer"
 module UserContentPart = Client__State__Types.UserContentPart
 module Message = Client__State__Types.Message
 module SelectedElement = Client__State__Types.SelectedElement
-module FigmaNode = Client__State__Types.FigmaNode
 module Task = Client__State__Types.Task
 type state = Client__State__Types.state
 
@@ -300,10 +299,6 @@ module Selectors = {
 
   let selectedElement = (state: state): option<SelectedElement.t> => {
     Task.getSelectedElement(currentTask(state))
-  }
-
-  let figmaNode = (state: state): FigmaNode.t => {
-    Task.getFigmaNode(currentTask(state))
   }
 
   let isAgentRunning = (state: state): bool => {

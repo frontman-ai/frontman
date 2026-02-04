@@ -30,7 +30,6 @@ COPY libs/bindings/package.json libs/bindings/
 COPY libs/client/package.json libs/client/
 COPY libs/context-loader/package.json libs/context-loader/
 COPY libs/experimental-rescript-webapi/package.json libs/experimental-rescript-webapi/
-COPY libs/figma-client-api/package.json libs/figma-client-api/
 COPY libs/frontman-client/package.json libs/frontman-client/
 COPY libs/frontman-protocol/package.json libs/frontman-protocol/
 COPY libs/frontman-core/package.json libs/frontman-core/

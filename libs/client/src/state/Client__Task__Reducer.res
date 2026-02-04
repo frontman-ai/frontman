@@ -7,7 +7,6 @@ module Message = Types.Message
 module UserContentPart = Types.UserContentPart
 module AssistantContentPart = Types.AssistantContentPart
 module SelectedElement = Types.SelectedElement
-module FigmaNode = Types.FigmaNode
 module ACPTypes = Types.ACPTypes
 
 // ============================================================================
@@ -148,35 +147,6 @@ module Lens = {
     }
   }
 
-  // Set figma node
-  let setFigmaNode = (task: Task.t, figmaNode: FigmaNode.selectedNodeData): Task.t => {
-    switch task {
-    | Task.New(data) => Task.New({...data, figmaNode: FigmaNode.SelectedNode(figmaNode)})
-    | Task.Loading(data) => Task.Loading({...data, figmaNode: FigmaNode.SelectedNode(figmaNode)})
-    | Task.Loaded(data) => Task.Loaded({...data, figmaNode: FigmaNode.SelectedNode(figmaNode)})
-    | Task.Unloaded(_) => failwith("[Lens.setFigmaNode] Cannot set figma node on Unloaded task")
-    }
-  }
-
-  // Clear figma node
-  let clearFigmaNode = (task: Task.t): Task.t => {
-    switch task {
-    | Task.New(data) => Task.New({...data, figmaNode: FigmaNode.NoSelection})
-    | Task.Loading(data) => Task.Loading({...data, figmaNode: FigmaNode.NoSelection})
-    | Task.Loaded(data) => Task.Loaded({...data, figmaNode: FigmaNode.NoSelection})
-    | Task.Unloaded(_) => failwith("[Lens.clearFigmaNode] Cannot clear figma node on Unloaded task")
-    }
-  }
-
-  // Set figma node waiting
-  let setFigmaNodeWaiting = (task: Task.t): Task.t => {
-    switch task {
-    | Task.New(data) => Task.New({...data, figmaNode: FigmaNode.WaitingForSelection})
-    | Task.Loading(data) => Task.Loading({...data, figmaNode: FigmaNode.WaitingForSelection})
-    | Task.Loaded(data) => Task.Loaded({...data, figmaNode: FigmaNode.WaitingForSelection})
-    | Task.Unloaded(_) => failwith("[Lens.setFigmaNodeWaiting] Cannot set waiting on Unloaded task")
-    }
-  }
 }
 
 // ============================================================================
@@ -206,16 +176,6 @@ module Selectors = {
         }
       })
     )
-  }
-
-  // Get current figma node state
-  // None = Unloaded (we don't know)
-  let figmaNode = (task: Task.t): option<FigmaNode.t> => {
-    switch task {
-    | Task.Unloaded(_) => None
-    | Task.New({figmaNode}) | Task.Loading({figmaNode}) | Task.Loaded({figmaNode}) =>
-      Some(figmaNode)
-    }
   }
 
   // Get selected element
@@ -317,11 +277,6 @@ type action =
       contentDocument: option<WebAPI.DOMAPI.document>,
       contentWindow: option<WebAPI.DOMAPI.window>,
     })
-  // Figma actions
-  | SetFigmaNode({figmaNode: FigmaNode.selectedNodeData})
-  | ClearFigmaNode
-  | SetFigmaNodeWaiting
-  | ClearFigmaNodeWaiting
   // Plan/Turn actions
   | PlanReceived({entries: array<ACPTypes.planEntry>})
   | TurnCompleted
@@ -366,10 +321,6 @@ let actionToString = (action: action): string =>
   | ToggleWebPreviewSelection => "ToggleWebPreviewSelection"
   | SetPreviewUrl(_) => "SetPreviewUrl"
   | SetPreviewFrame(_) => "SetPreviewFrame"
-  | SetFigmaNode(_) => "SetFigmaNode"
-  | ClearFigmaNode => "ClearFigmaNode"
-  | SetFigmaNodeWaiting => "SetFigmaNodeWaiting"
-  | ClearFigmaNodeWaiting => "ClearFigmaNodeWaiting"
   | PlanReceived(_) => "PlanReceived"
   | TurnCompleted => "TurnCompleted"
   | AgentError(_) => "AgentError"
@@ -447,26 +398,6 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
     | _ => []
     }
     (Lens.setSelectedElement(task, selectedElement), effects)
-
-  | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), SetFigmaNode({figmaNode})) => (
-      Lens.setFigmaNode(task, figmaNode),
-      [],
-    )
-
-  | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), ClearFigmaNode) => (
-      Lens.clearFigmaNode(task),
-      [],
-    )
-
-  | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), SetFigmaNodeWaiting) => (
-      Lens.setFigmaNodeWaiting(task),
-      [],
-    )
-
-  | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), ClearFigmaNodeWaiting) => (
-      Lens.clearFigmaNode(task),
-      [],
-    ) // Same as ClearFigmaNode
 
   // ============================================================================
   // Message Actions - work on Loading or Loaded (via Lens)
@@ -648,7 +579,6 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
         previewFrame: {url: previewUrl, contentDocument: None, contentWindow: None},
         webPreviewIsSelecting: false,
         selectedElement: None,
-        figmaNode: FigmaNode.NoSelection,
       }),
       [],
     )
@@ -666,7 +596,6 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
         previewFrame,
         webPreviewIsSelecting,
         selectedElement,
-        figmaNode,
       }) =>
       let sortedMessages = MessageStore.toSorted(messages, (a, b) =>
         Selectors.getMessageCreatedAt(a) -. Selectors.getMessageCreatedAt(b)
@@ -681,7 +610,6 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
           previewFrame,
           webPreviewIsSelecting,
           selectedElement,
-          figmaNode,
           isAgentRunning: false,
           planEntries: [],
           turnError: None,
