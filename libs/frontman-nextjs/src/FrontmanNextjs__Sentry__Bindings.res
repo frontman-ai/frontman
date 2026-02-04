@@ -68,3 +68,6 @@ type scope
 @send external scopeSetTag: (scope, string, string) => unit = "setTag"
 @send external scopeSetExtra: (scope, string, JSON.t) => unit = "setExtra"
 @send external scopeSetContext: (scope, string, Dict.t<JSON.t>) => unit = "setContext"
+
+// Flush pending events
+@module("@sentry/nextjs") external flush: int => promise<bool> = "flush"

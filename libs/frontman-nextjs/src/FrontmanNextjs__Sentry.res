@@ -91,3 +91,5 @@ let addBreadcrumb = (~category: string, ~message: string, ~data: option<Dict.t<J
     })
   }
 }
+
+let flush = (~timeout: int=2000) => Bindings.flush(timeout)

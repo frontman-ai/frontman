@@ -53,9 +53,9 @@ describe("FrontmanNextjs Sentry", () => {
   })
 
   describe("captureError", () => {
-    test(
+    testAsync(
       "captures error and returns event id",
-      t => {
+      async t => {
         let eventId = try {
           JsError.throwWithMessage("Test error")
         } catch {
@@ -64,6 +64,8 @@ describe("FrontmanNextjs Sentry", () => {
 
         t->expect(eventId->Option.isSome)->Expect.toBe(true)
 
+        let _ = await Sentry.flush()
+
         switch testkit.contents {
         | Some(tk) => t->expect(tk.reports()->Array.length)->Expect.Int.toBeGreaterThanOrEqual(1)
         | None => t->expect(false)->Expect.toBe(true)
@@ -71,14 +73,16 @@ describe("FrontmanNextjs Sentry", () => {
       },
     )
 
-    test(
+    testAsync(
       "captures error with operation context",
-      t => {
+      async t => {
         try {
           JsError.throwWithMessage("Operation failed")
         } catch {
         | e => Sentry.captureError(e, ~operation="serverConnection")->ignore
         }
+
+        let _ = await Sentry.flush()
 
         switch testkit.contents {
         | Some(tk) => {
@@ -90,9 +94,9 @@ describe("FrontmanNextjs Sentry", () => {
       },
     )
 
-    test(
+    testAsync(
       "captures error with extra data",
-      t => {
+      async t => {
         let extra = Dict.fromArray([
           ("userId", JSON.Encode.string("123")),
           ("endpoint", JSON.Encode.string("/api/test")),
@@ -104,6 +108,8 @@ describe("FrontmanNextjs Sentry", () => {
         | e => Sentry.captureError(e, ~operation="apiCall", ~extra)->ignore
         }
 
+        let _ = await Sentry.flush()
+
         switch testkit.contents {
         | Some(tk) => t->expect(tk.reports()->Array.length)->Expect.Int.toBeGreaterThanOrEqual(1)
         | None => t->expect(false)->Expect.toBe(true)
@@ -111,14 +117,16 @@ describe("FrontmanNextjs Sentry", () => {
       },
     )
 
-    test(
+    testAsync(
       "captures error with operation tag",
-      t => {
+      async t => {
         try {
           JsError.throwWithMessage("Tagged error")
         } catch {
         | e => Sentry.captureError(e, ~operation="serverConnection")->ignore
         }
+
+        let _ = await Sentry.flush()
 
         switch testkit.contents {
         | Some(tk) => {
@@ -148,12 +156,14 @@ describe("FrontmanNextjs Sentry", () => {
   })
 
   describe("captureMessage", () => {
-    test(
+    testAsync(
       "captures message with default error level",
-      t => {
+      async t => {
         let eventId = Sentry.captureMessage("Something went wrong")
 
         t->expect(eventId->Option.isSome)->Expect.toBe(true)
+
+        let _ = await Sentry.flush()
 
         switch testkit.contents {
         | Some(tk) => {
@@ -170,10 +180,12 @@ describe("FrontmanNextjs Sentry", () => {
       },
     )
 
-    test(
+    testAsync(
       "captures message with custom level",
-      t => {
+      async t => {
         Sentry.captureMessage("Warning message", ~level=#warning)->ignore
+
+        let _ = await Sentry.flush()
 
         switch testkit.contents {
         | Some(tk) => {
@@ -190,10 +202,12 @@ describe("FrontmanNextjs Sentry", () => {
       },
     )
 
-    test(
+    testAsync(
       "captures message with operation tag",
-      t => {
+      async t => {
         Sentry.captureMessage("Instrumentation error", ~operation="spanProcessor")->ignore
+
+        let _ = await Sentry.flush()
 
         switch testkit.contents {
         | Some(tk) => {
@@ -223,12 +237,14 @@ describe("FrontmanNextjs Sentry", () => {
   })
 
   describe("addBreadcrumb", () => {
-    test(
+    testAsync(
       "adds breadcrumb that appears in subsequent errors",
-      t => {
+      async t => {
         Sentry.addBreadcrumb(~category="instrumentation", ~message="LogCapture initialized")
         Sentry.addBreadcrumb(~category="instrumentation", ~message="SpanProcessor started")
         Sentry.captureMessage("Error after breadcrumbs")->ignore
+
+        let _ = await Sentry.flush()
 
         switch testkit.contents {
         | Some(tk) => {
@@ -263,12 +279,14 @@ describe("FrontmanNextjs Sentry", () => {
   })
 
   describe("integration scenarios", () => {
-    test(
+    testAsync(
       "multiple errors are captured independently",
-      t => {
+      async t => {
         Sentry.captureMessage("Error 1")->ignore
         Sentry.captureMessage("Error 2", ~level=#warning)->ignore
         Sentry.captureMessage("Error 3", ~operation="test")->ignore
+
+        let _ = await Sentry.flush()
 
         switch testkit.contents {
         | Some(tk) => t->expect(tk.reports()->Array.length)->Expect.toBe(3)

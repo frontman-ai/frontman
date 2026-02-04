@@ -16,6 +16,52 @@ module Templates = FrontmanNextjs__Cli__Templates
 let fixturesPath = Path.join([Process.cwd(), "test", "cli", "fixtures"])
 let fixture = name => Path.join([fixturesPath, name])
 
+// Derive Next.js version from fixture name (e.g. "nextjs15-clean" -> "15.0.0")
+let nextVersionForFixture = (fixtureName: string): option<string> => {
+  if fixtureName->String.startsWith("nextjs15") {
+    Some("15.0.0")
+  } else if fixtureName->String.startsWith("nextjs16") {
+    Some("16.0.0")
+  } else {
+    None
+  }
+}
+
+// Create mock node_modules/next/package.json in a directory
+let setupMockNextVersion = async (dir: string, version: string) => {
+  let nextDir = Path.join([dir, "node_modules", "next"])
+  let _ = await Fs.Promises.mkdir(nextDir, {recursive: true})
+  let content = `{"name":"next","version":"${version}"}`
+  await Fs.Promises.writeFile(Path.join([nextDir, "package.json"]), content)
+}
+
+// Set up all fixture directories with mock node_modules
+let fixtureNames = [
+  "nextjs15-clean",
+  "nextjs15-with-frontman",
+  "nextjs15-with-middleware",
+  "nextjs15-with-instrumentation",
+  "nextjs15-with-src",
+  "nextjs16-clean",
+  "nextjs16-with-frontman",
+  "nextjs16-with-proxy",
+]
+
+let setupFixtures = async () => {
+  let _ = await fixtureNames->Array.map(async name => {
+    let dir = fixture(name)
+    switch nextVersionForFixture(name) {
+    | Some(version) => await setupMockNextVersion(dir, version)
+    | None => ()
+    }
+    // Create src/ directory for the with-src fixture
+    if name->String.includes("with-src") {
+      let srcDir = Path.join([dir, "src"])
+      let _ = await Fs.Promises.mkdir(srcDir, {recursive: true})
+    }
+  })->Promise.all
+}
+
 // Helper to create a temp copy of a fixture for testing
 let createTempFixture = async (fixtureName: string): string => {
   let timestamp = Date.now()->Float.toString
@@ -24,9 +70,20 @@ let createTempFixture = async (fixtureName: string): string => {
   // Create temp directory
   let _ = await Fs.Promises.mkdir(tempDir, {recursive: true})
 
-  // Copy fixture to temp
+  // Copy fixture to temp (including node_modules set up by setupFixtures)
   let fixtureDir = fixture(fixtureName)
   let _ = await ChildProcess.exec(`cp -r ${fixtureDir}/* ${tempDir}/`)
+
+  // Also copy node_modules which cp with glob might miss
+  let nodeModulesExists = try {
+    await Fs.Promises.access(Path.join([fixtureDir, "node_modules"]))
+    true
+  } catch {
+  | _ => false
+  }
+  if nodeModulesExists {
+    let _ = await ChildProcess.exec(`cp -r ${fixtureDir}/node_modules ${tempDir}/node_modules`)
+  }
 
   tempDir
 }
@@ -57,6 +114,11 @@ let tempFileExists = async (tempDir: string, fileName: string): bool => {
   | _ => false
   }
 }
+
+// Set up mock node_modules in all fixtures before tests run
+beforeAllAsync(async () => {
+  await setupFixtures()
+})
 
 describe("Project Detection", _t => {
   describe("Next.js Version Detection", _t => {
