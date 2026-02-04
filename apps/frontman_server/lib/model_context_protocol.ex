@@ -80,7 +80,7 @@ defmodule ModelContextProtocol do
 
   @doc """
   Parses tool result text as JSON if possible, falls back to string.
-  Preserves structured data like screenshots and figma nodes.
+  Preserves structured data like screenshots.
   """
   @spec parse_tool_result(String.t()) :: map() | String.t()
   def parse_tool_result(text_result) when is_binary(text_result) do

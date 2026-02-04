@@ -84,7 +84,7 @@ let complexSnapshot: Story.t<args> = {
 
 /** Subagent spawner snapshot - tests that spawner tools are hidden when subagent group exists */
 let subagentSpawner: Story.t<args> = {
-  name: "Subagent Spawner (should hide Calling implement_component)",
+  name: "Subagent Spawner (should hide Calling todo_add)",
   render: _ => {
     let (loaded, setLoaded) = React.useState(() => false)
     let (error, setError) = React.useState(() => None)

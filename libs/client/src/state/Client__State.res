@@ -62,19 +62,6 @@ module Actions = {
   let updateTaskTitle = (~taskId, ~title) =>
     Client__State__Store.dispatch(UpdateTaskTitle({taskId, title}))
 
-  // Figma node action creators (CurrentTask)
-  let setFigmaNode = (~figmaNode) =>
-    Client__State__Store.dispatch(TaskAction({target: CurrentTask, action: SetFigmaNode({figmaNode: figmaNode})}))
-
-  let clearFigmaNode = () =>
-    Client__State__Store.dispatch(TaskAction({target: CurrentTask, action: ClearFigmaNode}))
-
-  let setFigmaNodeWaiting = () =>
-    Client__State__Store.dispatch(TaskAction({target: CurrentTask, action: SetFigmaNodeWaiting}))
-
-  let clearFigmaNodeWaiting = () =>
-    Client__State__Store.dispatch(TaskAction({target: CurrentTask, action: ClearFigmaNodeWaiting}))
-
   // ACP session action creators
   let setAcpSession = (~sendPrompt, ~loadTask, ~deleteSession, ~apiBaseUrl) =>
     Client__State__Store.dispatch(

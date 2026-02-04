@@ -82,8 +82,7 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
       timestamp: parse_datetime(data["timestamp"]),
       messages: data["messages"] || [],
       selected_component: parse_selected_component(data["selected_component"]),
-      selected_component_screenshot: data["selected_component_screenshot"],
-      selected_figma_node: parse_figma_node(data["selected_figma_node"])
+      selected_component_screenshot: data["selected_component_screenshot"]
     }
   end
 
@@ -190,15 +189,4 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
 
   defp parse_parent_chain(_), do: nil
 
-  @spec parse_figma_node(map() | nil) :: Interaction.FigmaNode.t() | nil
-  defp parse_figma_node(nil), do: nil
-
-  defp parse_figma_node(data) when is_map(data) do
-    %Interaction.FigmaNode{
-      id: data["id"],
-      node: data["node"],
-      image: data["image"],
-      is_dsl: data["is_dsl"] || true
-    }
-  end
 end

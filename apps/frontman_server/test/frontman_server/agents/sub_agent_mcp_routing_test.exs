@@ -2,9 +2,9 @@ defmodule FrontmanServer.Agents.SubAgentMcpRoutingTest do
   @moduledoc """
   Tests for MCP tool routing from sub-agents spawned by backend tools.
 
-  These tests verify that when backend tools (like implement_component) spawn
-  sub-agents that call MCP tools, the MCP requests are properly routed through
-  the TaskChannel to the client.
+  These tests verify that when backend tools spawn sub-agents that call MCP
+  tools, the MCP requests are properly routed through the TaskChannel to the
+  client.
 
   ## Architecture
 
@@ -57,8 +57,8 @@ defmodule FrontmanServer.Agents.SubAgentMcpRoutingTest do
 
       tool_call = %ToolCall{
         id: "call_#{:rand.uniform(1_000_000)}",
-        name: "get_figma_node",
-        arguments: ~s({"nodeId": "0:1234"})
+        name: "take_screenshot",
+        arguments: ~s({"selector": "#main"})
       }
 
       executor_task =
@@ -71,13 +71,13 @@ defmodule FrontmanServer.Agents.SubAgentMcpRoutingTest do
         "mcp:message",
         %{
           "method" => "tools/call",
-          "params" => %{"name" => "get_figma_node"}
+          "params" => %{"name" => "take_screenshot"}
         },
         2_000
       )
 
       # Verify interaction was published via PubSub
-      assert_receive {:interaction, %Interaction.ToolCall{tool_name: "get_figma_node"}}, 500
+      assert_receive {:interaction, %Interaction.ToolCall{tool_name: "take_screenshot"}}, 500
 
       Task.shutdown(executor_task, :brutal_kill)
     end
@@ -89,9 +89,9 @@ defmodule FrontmanServer.Agents.SubAgentMcpRoutingTest do
     } do
       # Integration test using full Swarm execution with a test LLM that returns an MCP tool call
       mcp_tool_call = %ToolCall{
-        id: "call_figma_#{:rand.uniform(1_000_000)}",
-        name: "get_figma_node",
-        arguments: ~s({"nodeId": "0:1934", "includeImage": true})
+        id: "call_screenshot_#{:rand.uniform(1_000_000)}",
+        name: "take_screenshot",
+        arguments: ~s({"selector": "#content"})
       }
 
       llm = tool_then_complete_llm([mcp_tool_call], "Component implemented!")
@@ -112,7 +112,7 @@ defmodule FrontmanServer.Agents.SubAgentMcpRoutingTest do
         %{
           "method" => "tools/call",
           "id" => mcp_request_id,
-          "params" => %{"name" => "get_figma_node"}
+          "params" => %{"name" => "take_screenshot"}
         },
         5_000
       )
@@ -120,7 +120,7 @@ defmodule FrontmanServer.Agents.SubAgentMcpRoutingTest do
       # Respond to the MCP request so agent can continue
       mcp_response = %{
         "content" => [
-          %{"type" => "text", "text" => ~s({"node": {"id": "0:1934", "type": "FRAME"}})}
+          %{"type" => "text", "text" => ~s({"screenshot": "base64data"})}
         ]
       }
 

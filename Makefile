@@ -16,7 +16,7 @@ DEVPOD_HOST ?= 77.42.16.199
 DEVPOD_USER ?= root
 
 .PHONY: help dev dev-client dev-server dev-nextjs dev-extension dev-marketing dev-dogfooding \
-        install build rescript-watch clean test lint \
+        install build rescript-watch rescript-build clean test lint \
         ssl-setup tunnel \
         infra-install infra-preview-marketing infra-up-marketing \
         worktree-create worktree-create-from worktree-list worktree-remove worktree-clean \
@@ -96,7 +96,9 @@ build: ## Build ReScript project
 rescript-watch: ## Watch and rebuild ReScript on changes
 	@printf "$(YELLOW)Starting ReScript watch mode...$(RESET)\n"
 	yarn rescript watch
-
+rescript-build: ## Builds rescript
+	@printf "$(YELLOW)Starting ReScript build mode...$(RESET)\n"
+	yarn rescript build
 clean: ## Clean build artifacts
 	@printf "$(YELLOW)Cleaning build artifacts...$(RESET)\n"
 	yarn rescript clean

@@ -126,9 +126,7 @@ defmodule FrontmanServer.Agents do
     case Keyword.get(opts, :agent) do
       nil ->
         # Build context for dynamic system prompt
-        has_figma = Tasks.has_figma_context?(scope, task_id)
         has_selected_component = Tasks.has_selected_component?(scope, task_id)
-        figma_node_id = Tasks.get_figma_node_id(scope, task_id)
         framework = get_framework(scope, task_id)
 
         # Fetch discovered project rules (AGENTS.md, etc.)
@@ -154,10 +152,8 @@ defmodule FrontmanServer.Agents do
         # API key is passed via llm_opts - no scope/env_api_key needed
         RootAgent.new(
           tools: tools,
-          has_figma_context: has_figma,
           has_selected_component: has_selected_component,
           has_typescript_react: has_typescript_react,
-          figma_node_id: figma_node_id,
           framework: framework,
           model: resolved_key.model,
           llm_opts: llm_opts,

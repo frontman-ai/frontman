@@ -23,19 +23,6 @@ module TodoUtils = Client__TodoUtils
 // Helper Functions
 // ============================================================================
 
-/**
- * Extract the base tool name by stripping common prefixes like "Calling "
- * This normalizes tool names for comparison with spawningToolName
- */
-let getBaseToolName = (toolName: string): string => {
-  let name = String.toLowerCase(toolName)
-  if String.startsWith(name, "calling ") {
-    String.slice(name, ~start=8, ~end=String.length(name)) // "calling " is 8 characters
-  } else {
-    name
-  }
-}
-
 // ============================================================================
 // Tool Classification (using substring matching like ToolLabels)
 // ============================================================================
@@ -88,8 +75,6 @@ let isGroupableTool = (toolName: string): bool => {
   // Definition/symbol lookup
   String.includes(name, "definition") ||
   String.includes(name, "symbol") ||
-  // Figma data retrieval
-  String.includes(name, "figma") ||
   // Lint reading (not fixing)
   (String.includes(name, "lint") && String.includes(name, "read")) ||
   // Browser exploration (not actions)
@@ -128,25 +113,6 @@ let breaksGrouping = (toolName: string): bool => {
  */
 let isSubagentToolCall = (tc: Message.toolCall): bool => {
   Option.isSome(tc.parentAgentId)
-}
-
-/**
- * Check if this is a backend tool that spawns subagents
- * These tools don't need to be shown individually because their work
- * is represented by the subagent tool group
- * 
- * NOTE: Be careful not to match regular read tools like get_figma_node
- */
-let isSubagentSpawnerTool = (toolName: string): bool => {
-  let name = String.toLowerCase(toolName)
-  // Figma design breakdown (spawns subagent work)
-  String.includes(name, "breakdown_figma") ||
-  String.includes(name, "figma_design") ||
-  // Component implementation tools (spawn subagent work)
-  String.includes(name, "implement_component") ||
-  String.includes(name, "finish_component") ||
-  String.includes(name, "pixel_perfect") ||
-  String.includes(name, "make_component")
 }
 
 /**
@@ -479,13 +445,9 @@ let hasError = (tc: Message.toolCall): bool => {
  * 3. If not groupable OR has error → close current group, render individually
  * 4. At end, close any remaining group
  * 5. Single-item groups are expanded to individuals (no grouping overhead)
- * 6. Subagent tool calls are grouped separately with "Processed" prefix
- * 7. When starting a subagent group, check if the previous tool was the spawner
- *    and include it in the subagent group
- * 
+ * 6. Subagent tool calls (identified by parentAgentId) are grouped separately with "Processed" prefix
+ *
  * @param toolCalls Array of tool calls to group
- * @param groupReads Whether to include read operations in groups (default: true)
- * @param groupTodos Whether to include todo tools in groups (default: true)
  * @param groupSubagents Whether to group subagent tool calls (default: true)
  * @param minGroupSize Minimum tools needed to form a group (default: 2)
  */
@@ -494,19 +456,6 @@ let groupToolCalls = (
   ~groupSubagents: bool=true,
   ~minGroupSize: int=1,
 ): array<Types.displayItem> => {
-  // First pass: build a set of spawner tool names that have matching subagent groups
-  // These spawners will be HIDDEN since the subagent group shows their name in the header
-  let spawnerNamesToHide = {
-    let set = Set.make()
-    toolCalls->Array.forEach(tc => {
-      switch tc.spawningToolName {
-      | Some(name) => set->Set.add(String.toLowerCase(name))
-      | None => ()
-      }
-    })
-    set
-  }
-  
   let result: array<Types.displayItem> = []
   let currentGroup: ref<array<Message.toolCall>> = ref([])
   let currentGroupType: ref<option<Types.groupType>> = ref(None)
@@ -516,8 +465,7 @@ let groupToolCalls = (
   // Flush current group to results
   let flushGroup = () => {
     let group = currentGroup.contents
-    let isSubagentGroup = currentIsSubagent.contents
-    
+
     // Check if group is entirely todo tools - use minGroupSize=2 for those
     let isTodoOnlyGroup = Array.length(group) > 0 && 
       group->Array.every(tc => TodoUtils.isTodoTool(tc.toolName))
@@ -545,15 +493,8 @@ let groupToolCalls = (
       result->Array.push(Types.ToolGroup(toolGroup))
     } else {
       // Not enough to group - emit as singles
-      // Only apply SpawnerTool styling when groupSubagents is true
-      // When groupSubagents=false, we're doing nested grouping inside a subagent group
-      // and should treat all tools as normal SingleTools
       group->Array.forEach(tc => {
-        if groupSubagents && (isSubagentGroup || isSubagentToolCall(tc)) {
-          result->Array.push(Types.SpawnerTool(tc))
-        } else {
-          result->Array.push(Types.SingleTool(tc))
-        }
+        result->Array.push(Types.SingleTool(tc))
       })
     }
     currentGroup := []
@@ -612,18 +553,6 @@ let groupToolCalls = (
       currentGroupType := Some(Types.Subagent)
       currentParentAgentId := tc.parentAgentId
       currentGroup.contents->Array.push(tc)
-    } else if isSubagentSpawnerTool(tc.toolName) {
-      flushGroup()
-      // Check if this spawner has matching subagent tool calls
-      if spawnerNamesToHide->Set.has(getBaseToolName(tc.toolName)) {
-        // Spawner with matching subagent group - HIDE IT
-        // The subagent group header already shows "Processed {spawnerName}"
-        // Don't add to result - intentionally hidden
-        ()
-      } else {
-        // Spawner without matching subagent - render with indigo styling
-        result->Array.push(Types.SpawnerTool(tc))
-      }
     } else if shouldGroupToolCall(tc) {
       let toolGroupType = getGroupType(tc.toolName)
 
@@ -637,7 +566,7 @@ let groupToolCalls = (
       currentGroupType := Some(toolGroupType)
       currentGroup.contents->Array.push(tc)
     } else {
-      // Non-groupable tool or spawner without subagent - render individually
+      // Non-groupable tool - render individually
       flushGroup()
       result->Array.push(Types.SingleTool(tc))
     }

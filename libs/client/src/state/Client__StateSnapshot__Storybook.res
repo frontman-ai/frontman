@@ -35,14 +35,6 @@ let convertSourceLocation = (loc: Snapshot.SourceLocation.t): Client__Types.Sour
   convert(loc)
 }
 
-let convertFigmaNode = (node: Snapshot.FigmaNode.t): StateTypes.FigmaNode.t => {
-  switch node {
-  | NoSelection => NoSelection
-  | WaitingForSelection => WaitingForSelection
-  | SelectedNode({nodeId, nodeData, image, isDsl}) => SelectedNode({nodeId, nodeData, image, isDsl})
-  }
-}
-
 let convertUserContentPart = (part: Snapshot.UserContentPart.t): StateTypes.UserContentPart.t => {
   switch part {
   | Text({text}) => Text({text: text})
@@ -128,7 +120,6 @@ let convertTask = (task: Snapshot.Task.t): StateTypes.Task.t => {
     },
     webPreviewIsSelecting: task.webPreviewIsSelecting,
     selectedElement: None, // Cannot restore DOM element from snapshot
-    figmaNode: convertFigmaNode(task.figmaNode),
     isAgentRunning: false, // Default to not running when restoring from snapshot
     planEntries: [], // Plan entries not stored in snapshots yet
     turnError: None, // No error when restoring from snapshot

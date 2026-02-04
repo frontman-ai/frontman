@@ -49,7 +49,6 @@ module Fixtures = {
       },
       webPreviewIsSelecting: false,
       selectedElement: None,
-      figmaNode: StateTypes.FigmaNode.NoSelection,
       isAgentRunning: false,
       planEntries: [],
       turnError: None,

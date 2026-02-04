@@ -71,41 +71,6 @@ module SelectedElement = {
   })
 }
 
-module FigmaNode = {
-  type selectedNodeData = {
-    nodeId: string,
-    nodeData: string,
-    image: option<string>,
-    isDsl: bool,
-  }
-
-  let selectedNodeDataSchema = S.object(s => {
-    nodeId: s.field("nodeId", S.string),
-    nodeData: s.field("nodeData", S.string),
-    image: s.field("image", S.option(S.string)),
-    isDsl: s.field("isDsl", S.bool),
-  })
-
-  type t =
-    | @as("no_selection") NoSelection
-    | @as("waiting") WaitingForSelection
-    | SelectedNode(selectedNodeData)
-
-  let schema = S.union([
-    S.literal(NoSelection),
-    S.literal(WaitingForSelection),
-    S.object(s => {
-      s.tag("type", "selected")
-      SelectedNode({
-        nodeId: s.field("nodeId", S.string),
-        nodeData: s.field("nodeData", S.string),
-        image: s.field("image", S.option(S.string)),
-        isDsl: s.field("isDsl", S.bool),
-      })
-    }),
-  ])
-}
-
 module UserContentPart = {
   type t =
     | Text({text: string})
@@ -264,7 +229,6 @@ module Task = {
     updatedAt: float,
     webPreviewIsSelecting: bool,
     selectedElement: option<SelectedElement.t>,
-    figmaNode: FigmaNode.t,
     previewUrl: string,
   }
 
@@ -278,11 +242,10 @@ module Task = {
       s.field("updatedAt", S.option(S.float)),
       s.field("webPreviewIsSelecting", S.bool),
       s.field("selectedElement", nullableToOption(SelectedElement.schema)),
-      s.field("figmaNode", FigmaNode.schema),
       s.field("previewUrl", S.string),
     )
   })->S.transform(_ => {
-    parser: ((id, title, messages, createdAt, maybeUpdatedAt, webPreviewIsSelecting, selectedElement, figmaNode, previewUrl)) => {
+    parser: ((id, title, messages, createdAt, maybeUpdatedAt, webPreviewIsSelecting, selectedElement, previewUrl)) => {
       id,
       title,
       messages,
@@ -290,7 +253,6 @@ module Task = {
       updatedAt: maybeUpdatedAt->Option.getOr(createdAt),
       webPreviewIsSelecting,
       selectedElement,
-      figmaNode,
       previewUrl,
     },
     serializer: task => (
@@ -301,7 +263,6 @@ module Task = {
       Some(task.updatedAt),
       task.webPreviewIsSelecting,
       task.selectedElement,
-      task.figmaNode,
       task.previewUrl,
     ),
   })
@@ -343,15 +304,6 @@ let convertSelectedElement = (sel: Client__State__Types.SelectedElement.t): Sele
   selector: sel.selector,
   screenshot: sel.screenshot,
   sourceLocation: sel.sourceLocation->Option.map(convertSourceLocation),
-}
-
-let convertFigmaNode = (node: Client__State__Types.FigmaNode.t): FigmaNode.t => {
-  switch node {
-  | NoSelection => NoSelection
-  | WaitingForSelection => WaitingForSelection
-  | SelectedNode({nodeId, nodeData, image, isDsl}) =>
-    SelectedNode({nodeId, nodeData, image, isDsl})
-  }
 }
 
 let convertUserContentPart = (part: Client__State__Types.UserContentPart.t): UserContentPart.t => {
@@ -446,7 +398,6 @@ let convertTask = (task: Client__State__Types.Task.t, ~defaultUrl: string): Task
     updatedAt,
     webPreviewIsSelecting: loadedData->Option.mapOr(false, d => d.webPreviewIsSelecting),
     selectedElement: loadedData->Option.flatMap(d => d.selectedElement)->Option.map(convertSelectedElement),
-    figmaNode: convertFigmaNode(loadedData->Option.mapOr(Client__State__Types.FigmaNode.NoSelection, d => d.figmaNode)),
     previewUrl: Task.getPreviewFrame(task, ~defaultUrl).url,
   }
 }
@@ -594,21 +545,6 @@ let selectedElementToJson = (sel: SelectedElement.t): JSON.t => {
   ])
 }
 
-let figmaNodeToJson = (node: FigmaNode.t): JSON.t => {
-  switch node {
-  | NoSelection => JSON.Encode.string("no_selection")
-  | WaitingForSelection => JSON.Encode.string("waiting")
-  | SelectedNode({nodeId, nodeData, image, isDsl}) =>
-    obj([
-      ("type", JSON.Encode.string("selected")),
-      ("nodeId", JSON.Encode.string(nodeId)),
-      ("nodeData", JSON.Encode.string(nodeData)),
-      ("image", image->Option.mapOr(JSON.Encode.null, JSON.Encode.string)),
-      ("isDsl", JSON.Encode.bool(isDsl)),
-    ])
-  }
-}
-
 let taskToJson = (task: Task.t): JSON.t => {
   obj([
     ("id", JSON.Encode.string(task.id)),
@@ -618,7 +554,6 @@ let taskToJson = (task: Task.t): JSON.t => {
     ("updatedAt", JSON.Encode.float(task.updatedAt)),
     ("webPreviewIsSelecting", JSON.Encode.bool(task.webPreviewIsSelecting)),
     ("selectedElement", task.selectedElement->Option.mapOr(JSON.Encode.null, selectedElementToJson)),
-    ("figmaNode", figmaNodeToJson(task.figmaNode)),
     ("previewUrl", JSON.Encode.string(task.previewUrl)),
   ])
 }

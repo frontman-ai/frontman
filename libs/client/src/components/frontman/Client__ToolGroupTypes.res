@@ -68,10 +68,9 @@ type toolGroup = {
   spawningToolName: option<string>, // For subagent groups: the tool that spawned this agent
 }
 
-// Display item - either a single tool, a spawner tool, or a group
+// Display item - either a single tool or a group
 type displayItem =
   | SingleTool(Message.toolCall)
-  | SpawnerTool(Message.toolCall) // Subagent spawner tool - uses indigo styling
   | ToolGroup(toolGroup)
 
 // Get prefix for a group type

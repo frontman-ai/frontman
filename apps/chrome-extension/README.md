@@ -2,4 +2,4 @@
 
 ## Features
 
-- Copy a frame from Figma to the chat as context.
+- Detect and connect to the Frontman client running on localhost.
