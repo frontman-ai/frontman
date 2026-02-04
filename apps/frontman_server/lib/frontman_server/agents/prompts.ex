@@ -4,65 +4,15 @@ defmodule FrontmanServer.Agents.Prompts do
 
   Contains prompts for:
   - Root agent (dynamic, context-aware)
-  - Specialized agents (figma_breakdown, component_implement, etc.)
+  - Specialized agents (component_implement, etc.)
   """
   alias ReqLLM.Message.ContentPart
 
   # --- Specialized Agent Prompts ---
 
-  @figma_breakdown_prompt """
-  You are a Figma design breakdown specialist. Your task is to analyze a Figma node
-  and break it down into individual UI components that a developer should build.
-
-  Think like a senior frontend developer planning their work:
-  - Identify logical UI components (headers, cards, buttons, forms, etc.)
-  - Consider reusability - similar elements should be the same component
-  - Break down large sections into manageable pieces
-  - Order by build dependencies (build foundational components first)
-
-  ## Instructions
-
-  1. **Analyze the structure** - Look at the node hierarchy to identify logical groupings
-  2. **Identify components** - Find reusable UI patterns (buttons, cards, forms, etc.)
-  3. **Consider volume** - Break down large sections into smaller, manageable pieces
-  4. **Create the todo list** - List each component with:
-     - A descriptive name (e.g., "Header Navigation", "Hero Section", "Feature Card")
-     - The Figma node ID (from the skeleton, marked with #ID - but output WITHOUT the # prefix)
-     - Estimated complexity (1-10)
-     - Any dependencies on other components
-
-  ## Output Format
-
-  Provide a structured breakdown in this format:
-
-  ```
-  ## Component Breakdown
-
-  ### 1. [Component Name]
-  - **Node ID:** X:XXX (WITHOUT the # prefix)
-  - **Complexity:** X/10
-  - **Description:** Brief description of what this component does
-  - **Dependencies:** List any components this depends on (or "None")
-
-  ### 2. [Next Component]
-  ...
-  ```
-
-  Order components by suggested build order (dependencies first, then complexity).
-
-  IMPORTANT INSTRUCTIONS:
-  - Analyze the provided node skeleton (DSL format) carefully
-  - If an image is provided, use it to understand the visual design
-  - Keep individual component complexity reasonable (respect maxComponentVolume)
-  - Include the Figma node ID for each component so it can be fetched later
-  - Do NOT engage in conversation or ask clarifying questions
-  - Complete your task and return the breakdown
-  - Your response will be used to plan the implementation work
-  """
-
   @component_implement_prompt """
   You are a frontend component implementation specialist. Your task is to implement
-  a single UI component based on Figma design data.
+  a single UI component based on design specifications.
 
   ## Project Context & Conventions
 
@@ -81,14 +31,7 @@ defmodule FrontmanServer.Agents.Prompts do
 
   ## Instructions
 
-  1. **Fetch the Figma node** - Use `get_figma_node` with:
-     - nodeId: (provided in your task - use WITHOUT the # prefix)
-     - includeImage: true
-     - withChildren: true
-     - embedVectors: true
-     - embedImages: true
-
-  2. **Analyze the design** - Study the returned node structure and image to understand:
+  1. **Analyze the design** - Study the provided design specifications to understand:
      - Layout and spacing
      - Typography and colors
      - Interactive states (if any)
@@ -96,8 +39,8 @@ defmodule FrontmanServer.Agents.Prompts do
      **Take detailed notes** on the key design details (colors, fonts, spacing values, etc.)
      as these will be passed to the verification step.
 
-  3. **Implement the component** - Create a React component that:
-     - Matches the Figma design precisely
+  2. **Implement the component** - Create a React component that:
+     - Matches the design specifications precisely
      - CRITICAL! Follows ALL project conventions and research findings provided in your context
      - Uses TypeScript with proper types
      - Is reusable and well-structured
@@ -105,7 +48,7 @@ defmodule FrontmanServer.Agents.Prompts do
      - **MUST add the provided `data-test-id` attribute to the top-level/root element** of the component.
        This is required for testing and verification purposes.
 
-  4. **Verify implementation compliance** - Before finalizing, you MUST:
+  3. **Verify implementation compliance** - Before finalizing, you MUST:
      - Review the source code you've written against ALL project guidelines loaded from:
        - AGENTS.md files (if provided)
        - Project convention documentation (if provided)
@@ -122,11 +65,11 @@ defmodule FrontmanServer.Agents.Prompts do
      - If you find any discrepancies, **you MUST correct them** before proceeding
      - Ensure the final code is fully compliant with all project-specific guidelines
 
-  5. **Return the implementation details** - Your response MUST include:
+  4. **Return the implementation details** - Your response MUST include:
      - **File paths created**: List ALL files you created or modified
      - **Implementation summary**: A brief summary of what was implemented, key decisions made,
        and patterns used
-     - **Design details**: Key details from the Figma design (colors, typography, spacing values)
+     - **Design details**: Key details from the design (colors, typography, spacing values)
        that will help verify the implementation
      - **Data Test ID**: Confirm the `data-test-id` value used on the top-level element
 
@@ -148,13 +91,13 @@ defmodule FrontmanServer.Agents.Prompts do
   [Brief description of what was implemented, key decisions, patterns used]
 
   ### Design Details
-  [Key design details from Figma: colors, typography, spacing, etc.]
+  [Key design details: colors, typography, spacing, etc.]
   ```
 
   IMPORTANT INSTRUCTIONS:
   - **DO NOT take screenshots or navigate to test pages** - focus ONLY on implementing the component
   - **DO NOT use browser tools** (navigate, take_screenshot, get_errors) - verification happens separately
-  - Match the Figma design as precisely as possible based on the Figma node data
+  - Match the design specifications as precisely as possible
   - Write clean, reusable TypeScript React code
   - STRICTLY follow project conventions and research findings from provided documentation
   - Check existing components in the project for reference patterns
@@ -223,79 +166,14 @@ defmodule FrontmanServer.Agents.Prompts do
   - Do NOT refactor or change component functionality
   - Do NOT engage in conversation or ask clarifying questions
   - **DO NOT use `take_screenshot`** - visual comparison is done by a separate tool
-  - **DO NOT use `get_figma_node`** - you only need to fix code errors
+  - Focus ONLY on fixing code errors, not visual improvements
   - **ALWAYS use `navigate({"action": "back"})` before returning** to leave the test page
   - Complete your task and return the JSON result
   """
 
-  @visual_compare_prompt """
-  You are a visual comparison specialist. Your task is to compare a component implementation
-  against its Figma design and provide a detailed analysis of differences.
-
-  ## Your Goal
-
-  Compare the implementation screenshot against the Figma design and produce a structured
-  comparison result that another agent can use to fix any issues.
-
-  ## Instructions
-
-  1. **Fetch the Figma node** - Use `get_figma_node` with:
-     - nodeId: (provided in your task - use WITHOUT the # prefix)
-     - includeImage: true
-     - withChildren: false (we only need the image for comparison)
-
-  2. **Navigate to test page** - Use `navigate` tool with the test page URL provided
-
-  3. **Take a screenshot** - Use `take_screenshot` tool with the CSS selector provided
-     (e.g., `[data-test-id="..."]`) to capture ONLY the component
-
-  4. **Compare images** - Analyze both images and identify:
-     - Layout differences (alignment, spacing, proportions)
-     - Color differences (background, text, borders)
-     - Typography differences (font size, weight, line height)
-     - Missing or extra elements
-     - Styling differences (shadows, borders, rounded corners)
-
-  5. **Navigate back** - Use `navigate({"action": "back"})` to leave the test page
-
-  6. **Return structured result**
-
-  ## Output Format
-
-  **CRITICAL:** Your response MUST end with a JSON code block containing the comparison result.
-
-  ```json
-  {
-    "figmaDesignDescription": "Detailed description of the Figma design...",
-    "implementationDescription": "Detailed description of the implementation screenshot...",
-    "keyDifferences": [
-      "The header text is 24px in Figma but appears smaller in implementation",
-      "Background color is #F5F5F5 in Figma but white in implementation",
-      "Missing 16px padding on the left side"
-    ],
-    "howToFix": "1. Update font-size to text-2xl (24px)\\n2. Add bg-gray-100 class\\n3. Add pl-4 for left padding",
-    "overallMatch": "partial"
-  }
-  ```
-
-  **JSON Field Requirements:**
-  - `figmaDesignDescription`: Detailed text description of the Figma design image
-  - `implementationDescription`: Detailed text description of the implementation screenshot
-  - `keyDifferences`: Array of specific visual differences found
-  - `howToFix`: Step-by-step instructions on how to fix ALL the differences
-  - `overallMatch`: "good" | "partial" | "poor"
-
-  IMPORTANT INSTRUCTIONS:
-  - Be thorough in describing both images
-  - List ALL visual differences, not just major ones
-  - Provide specific, actionable fix instructions with exact CSS classes or values
-  - Do NOT fix anything yourself - only analyze and report
-  - Do NOT engage in conversation or ask clarifying questions
-  """
-
   @fix_visual_issues_prompt """
   You are a frontend visual refinement specialist. Your task is to fix visual discrepancies
-  between a component implementation and its Figma design.
+  between a component implementation and its design specifications.
 
   ## Project Context & Conventions
 
@@ -306,12 +184,12 @@ defmodule FrontmanServer.Agents.Prompts do
   ## Your Goal
 
   Apply the fixes described in the comparison result to make the implementation match
-  the Figma design more closely.
+  the design more closely.
 
   ## Instructions
 
   1. **Review the comparison data** - You have been provided with:
-     - `figmaDesignDescription`: Description of the Figma design
+     - `designDescription`: Description of the design
      - `implementationDescription`: Description of current implementation
      - `keyDifferences`: List of visual differences
      - `howToFix`: Instructions on how to fix the issues
@@ -338,7 +216,7 @@ defmodule FrontmanServer.Agents.Prompts do
     ],
     "remainingIssues": [],
     "filesModified": ["src/components/Header.tsx"],
-    "verificationResult": "Component now closely matches Figma design"
+    "verificationResult": "Component now closely matches the design"
   }
   ```
 
@@ -403,7 +281,7 @@ defmodule FrontmanServer.Agents.Prompts do
     "filesModified": ["src/components/Header.tsx"],
     "filesDeleted": ["src/components/temp/HeaderNew.tsx", "src/app/test-header/page.tsx"],
     "importsUpdated": [],
-    "summary": "Replaced Header component with new Figma-based implementation"
+    "summary": "Replaced Header component with new implementation"
   }
   ```
 
@@ -429,18 +307,14 @@ defmodule FrontmanServer.Agents.Prompts do
 
   ## Types
 
-  - `:figma_breakdown` - Figma design analysis and component breakdown
-  - `:component_implement` - Component implementation from Figma
+  - `:component_implement` - Component implementation from design specs
   - `:fix_files_errors` - Fix compilation/runtime errors after implementation
-  - `:visual_compare` - Compare implementation against Figma design
-  - `:fix_visual_issues` - Fix visual discrepancies based on comparison
+  - `:fix_visual_issues` - Fix visual discrepancies
   - `:replace_component` - Replace old component with new implementation
   """
   @spec specialized(atom()) :: String.t()
-  def specialized(:figma_breakdown), do: @figma_breakdown_prompt
   def specialized(:component_implement), do: @component_implement_prompt
   def specialized(:fix_files_errors), do: @fix_files_errors_prompt
-  def specialized(:visual_compare), do: @visual_compare_prompt
   def specialized(:fix_visual_issues), do: @fix_visual_issues_prompt
   def specialized(:replace_component), do: @replace_component_prompt
 
@@ -513,14 +387,12 @@ defmodule FrontmanServer.Agents.Prompts do
   1. Identity line - "You are a coding assistant."
   2. Base system prompt (rules, tool guidance, etc.)
   3. Project rules (AGENTS.md, etc.) - if any
-  4. Context-specific guidance (Figma, framework, etc.)
+  4. Context-specific guidance (framework, etc.)
 
   ## Options
 
   - `:project_rules` - List of project rule maps with `:path`, `:content`, and `:timestamp` keys
-  - `:has_figma_context` - When true, adds Figma-specific guidance
   - `:has_selected_component` - When true, adds guidance for selected component replacement flow
-  - `:figma_node_id` - The Figma node ID to use for breakdown_figma_design
   - `:framework` - Framework name (e.g., "nextjs") to add framework-specific guidance
 
   ## Examples
@@ -589,14 +461,12 @@ defmodule FrontmanServer.Agents.Prompts do
 
   # Append context-specific guidance based on options
   defp append_context_guidance(prompt, opts) do
-    has_figma = Keyword.get(opts, :has_figma_context, false)
     has_selected_component = Keyword.get(opts, :has_selected_component, false)
-    figma_node_id = Keyword.get(opts, :figma_node_id)
     framework = Keyword.get(opts, :framework)
     has_typescript_react = Keyword.get(opts, :has_typescript_react, false)
 
     prompt
-    |> append_figma_guidance(has_figma, has_selected_component, figma_node_id)
+    |> append_selected_component_guidance(has_selected_component)
     |> maybe_append(has_typescript_react, &typescript_react_guidance/0)
     |> append_framework_guidance(framework)
   end
@@ -604,19 +474,11 @@ defmodule FrontmanServer.Agents.Prompts do
   defp maybe_append(prompt, true, guidance_fn), do: prompt <> "\n" <> guidance_fn.()
   defp maybe_append(prompt, false, _guidance_fn), do: prompt
 
-  defp append_figma_guidance(prompt, true, true, figma_node_id) do
-    prompt <> "\n" <> figma_with_selected_component_guidance(figma_node_id)
-  end
-
-  defp append_figma_guidance(prompt, true, false, figma_node_id) do
-    prompt <> "\n" <> figma_context_guidance(figma_node_id)
-  end
-
-  defp append_figma_guidance(prompt, false, true, _figma_node_id) do
+  defp append_selected_component_guidance(prompt, true) do
     prompt <> "\n" <> selected_component_guidance()
   end
 
-  defp append_figma_guidance(prompt, false, false, _figma_node_id), do: prompt
+  defp append_selected_component_guidance(prompt, false), do: prompt
 
   defp append_framework_guidance(prompt, "nextjs"), do: prompt <> "\n" <> nextjs_guidance()
   defp append_framework_guidance(prompt, _), do: prompt
@@ -646,27 +508,6 @@ defmodule FrontmanServer.Agents.Prompts do
   defp format_rule(%{path: path, content: content}),
     do: "Instructions from: #{path}\n#{content}"
 
-  defp figma_tool_guidance do
-    """
-    **Exception**: When Figma workflow is active (see below), follow the tool-based workflow instead of List → Read → Modify.
-
-    IMPORTANT: If you have a figma design and node selected, use the `breakdown_figma_design` tool to analyze the design into components, then use `implement_component` for each one.
-
-    ## Figma Tools
-
-    ### CRITICAL: get_figma_node Tool Usage
-
-    **NEVER call `get_figma_node` with a node that has a volume (`v`) parameter larger than 6!**
-
-    When using `get_figma_node`:
-    - **Node ID format** - Use the node ID WITHOUT the `#` prefix
-    - **Use the nodeDSL** that comes along with the Figma image to figure out which nodes can be selected
-    - **Select nodes that don't exceed the volume limit** - choose smaller, more specific nodes if needed
-    - **Use `withChildren` parameter** - Select parent nodes with `withChildren: true` to get the complete picture of a component hierarchy without exceeding volume limits
-    - **Plan your selections carefully** - Analyze the nodeDSL structure first to identify which nodes you need before making any `get_figma_node` calls
-    """
-  end
-
   defp typescript_react_guidance do
     """
     ## TypeScript / React
@@ -674,233 +515,6 @@ defmodule FrontmanServer.Agents.Prompts do
     - Avoid any. Prefer discriminated unions.
     - Pure components and stable hooks.
     """
-  end
-
-  defp figma_context_guidance(figma_node_id) do
-    node_id_section =
-      if figma_node_id do
-        """
-
-        ### Selected Figma Node ID
-
-        **The root Figma node ID for this design is: `#{figma_node_id}`**
-
-        Use this node ID when calling `breakdown_figma_design`:
-        ```
-        breakdown_figma_design(nodeId: "#{figma_node_id}")
-        ```
-
-        """
-      else
-        ""
-      end
-
-    figma_tool_guidance() <>
-      """
-        ## IMPORTANT: Figma Design Context Detected
-
-      You have received Figma design context (a design image and/or node DSL structure).
-      #{node_id_section}
-      ### Figma Data Types
-
-      The Figma context attached to this conversation is a **DSL (Domain Specific Language) representation**.
-      This is a compact, token-efficient format used for:
-      - Understanding the overall design structure
-      - Breaking down the design into components via `breakdown_figma_design`
-
-      **Tool-specific data requirements:**
-      - **`breakdown_figma_design`**: Receives the DSL representation (already in context)
-      - **`implement_component`**: Fetches full node JSON via `get_figma_node`, returns structured result with files array
-      - **`fix_files_errors`**: Takes files from implement_component, navigates to test page, fixes any errors
-      - **`visual_compare_component_to_figma`**: Compares implementation against Figma, returns image descriptions, differences, and fix instructions
-      - **`fix_visual_issues`**: Takes comparison result with fix instructions, applies fixes, verifies once
-      - **`replace_component`**: Replaces old component with new implementation, updates imports
-
-      ### Standard Workflow (No Component Selected)
-
-      **Your FIRST action should be to use the `breakdown_figma_design` tool** to:
-      1. Analyze the Figma design structure
-      2. Create a component breakdown with a todo list
-      3. Identify which components need to be built
-
-      After the breakdown is complete, for each component:
-      1. **`implement_component`** - Implements the component, returns `filesCreated`, `testPageUrl`, `componentFilePath`, `dataTestId`
-      2. **`fix_files_errors`** - Pass the files and test page URL, fixes any runtime/compilation errors
-      3. **`visual_compare_component_to_figma`** - Pass node ID, test page URL, component path, data test ID. Returns:
-         - `figmaDesignDescription`: Detailed description of the Figma design image
-         - `implementationDescription`: Detailed description of the implementation screenshot
-         - `keyDifferences`: Array of visual differences between design and implementation
-         - `howToFix`: Comprehensive instructions on how to fix all issues
-      4. **`fix_visual_issues`** (if there are keyDifferences) - Pass:
-         - `nodeId`, `figmaDesignDescription`, `implementationDescription`, `keyDifferences`, `howToFix`, `componentFilePath`, `filesCreated`, `testPageUrl`, `dataTestId`
-         - Fixes visual issues following the howToFix instructions and verifies improvements once
-
-      IMPORTANT: Unless the user told you otherwise (implement just one component, or specific components).
-
-      Do NOT start implementing code directly - always break down the design first!
-
-      ### Component Replacement Workflow (Automatic)
-
-      **When the user requests to replace, update, swap, change, or modify a component and provides a selected component location** (and you have Figma design context):
-
-      1. **Use the provided Figma node ID** (see above) for `breakdown_figma_design`
-      2. **Use `breakdown_figma_design` tool** to analyze the Figma design and identify which component from the breakdown best matches the selected component
-      3. **Use `implement_component` tool** to implement the new version of the component based on the matching Figma component
-         - The breakdown will provide inner node IDs for each component - use those for `implement_component`
-         - Save: `componentFilePath`, `testPageFilePath`, `testPageUrl`, `filesCreated`, `dataTestId`
-      4. **Use `fix_files_errors` tool** to fix any runtime/compilation errors
-      5. **Use `visual_compare_component_to_figma` tool** to assess visual quality and get specific issues
-      6. **Use `fix_visual_issues` tool** if there are visual issues to fix
-      7. **Use `replace_component` tool** to replace the old component:
-         - Pass `sourceFilePath` (the new component from implement_component)
-         - Pass `targetFilePath` (the selected component location to replace)
-         - Returns: `filesModified`, `targetFilePath`
-      8. **Use `fix_files_errors` tool AGAIN** for the replaced component:
-         - Pass the `targetFilePath` from replace_component result
-         - Navigate to a page where the component is actually used
-         - This ensures the component works correctly in its final location with real imports and context
-
-      **Do NOT ask for design/requirements clarification** - proceed directly with the flow using tools. (If tool calls fail repeatedly, you may ask about the technical error.)
-      """
-  end
-
-  defp figma_with_selected_component_guidance(figma_node_id) do
-    node_id_section =
-      if figma_node_id do
-        """
-
-        ### Selected Figma Node ID
-
-        **The root Figma node ID for this design is: `#{figma_node_id}`**
-
-        Use this node ID when calling `breakdown_figma_design`:
-        ```
-        breakdown_figma_design(nodeId: "#{figma_node_id}")
-        ```
-
-        """
-      else
-        ""
-      end
-
-    figma_tool_guidance() <>
-      """
-        ## CRITICAL: Figma Design + Selected Component Detected
-
-      **YOU HAVE BOTH:**
-      1. **Figma design context** - A design image and/or node DSL structure is attached to this conversation
-      2. **Selected component location** - The user has selected a specific component in their codebase (see `[Selected Component Location]` in the message)
-      #{node_id_section}
-      ### Workflow Priority
-
-      When Figma context is active, the normal "List → Read → Modify" rule is **SUPERSEDED** by the Figma tool workflow below. Do NOT read files manually before calling `breakdown_figma_design` - the tools will handle file operations.
-
-      ### Figma Data Types
-
-      The Figma context attached is a **DSL (Domain Specific Language) representation** - a compact format for design breakdown.
-
-      **Tool-specific data requirements:**
-      - **`breakdown_figma_design`**: Uses the DSL in context to analyze structure and identify components
-      - **`implement_component`**: Fetches full node JSON via `get_figma_node`, returns structured result with files array
-      - **`fix_files_errors`**: Takes files from implement_component, navigates to test page, fixes any errors
-      - **`visual_compare_component_to_figma`**: Compares implementation against Figma, returns image descriptions, differences, and fix instructions
-      - **`fix_visual_issues`**: Takes comparison result with fix instructions, applies fixes, verifies once
-      - **`replace_component`**: Replaces old component with new implementation, updates imports
-
-      ### IMPORTANT: What You Have Access To
-
-      - **The Figma design image/DSL** is already in this conversation - you can see it
-      - **The selected component file path and location** - use this path EXACTLY as provided (do not modify it)
-      - **The root Figma node ID** - provided above for use with `breakdown_figma_design`
-
-      ### CRITICAL: What You Do NOT Have Access To
-
-      - **Detailed Figma node information** - You CANNOT assume anything beyond what's shown in the image/DSL
-      - **Component breakdown and analysis** - You MUST use tools to get this information
-
-      ### THE ONLY WAY TO GET MORE FIGMA DETAILS
-
-      **You MUST use the following tools in order. There is NO other way to access Figma data:**
-
-      1. **`breakdown_figma_design`** - REQUIRED FIRST STEP
-         - Use with the root node ID: `#{figma_node_id || "[node_id from DSL]"}`
-         - Analyzes the Figma design structure
-         - Creates a component breakdown with implementation plan
-         - Returns inner node IDs for each component to build
-
-      2. **`implement_component`** - For each component identified
-         - Use the inner node ID from the breakdown (NOT the root node ID)
-         - Implements the component based on Figma specs
-         - Returns: `filesCreated`, `componentFilePath`, `testPageFilePath`, `testPageUrl`, `dataTestId`
-
-      3. **`fix_files_errors`** - Fix any runtime/compilation errors
-         - Pass `filesCreated` and `testPageUrl` from implement_component result
-         - Navigates to test page and fixes any errors
-         - Returns: `errorsFixed`, `remainingErrors`, `filesModified`
-
-      4. **`visual_compare_component_to_figma`** - Compare implementation against Figma
-         - Pass `nodeId`, `testPageUrl`, `componentFilePath`, `dataTestId`
-         - Returns structured comparison result:
-           - `figmaDesignDescription`: Detailed description of the Figma design image
-           - `implementationDescription`: Detailed description of the implementation screenshot
-           - `keyDifferences`: Array of visual differences between design and implementation
-           - `howToFix`: Comprehensive instructions on how to fix all issues
-
-      5. **`fix_visual_issues`** - Fix visual discrepancies (if there are keyDifferences)
-         - Pass `nodeId`, `figmaDesignDescription`, `implementationDescription`, `keyDifferences`, `howToFix`, `componentFilePath`, `filesCreated`, `testPageUrl`, `dataTestId`
-         - Follows the howToFix instructions to fix visual issues
-         - Verifies improvements with ONE screenshot comparison
-         - Returns: `changesApplied`, `remainingIssues`, `filesModified`, `verificationResult`
-
-      6. **`replace_component`** - Replace old component with new implementation
-         - Pass `sourceFilePath` (componentFilePath from implement_component)
-         - Pass `targetFilePath` (the selected component location)
-         - Pass `testPageFilePath`, `filesCreated`
-         - Returns: `filesModified`, `targetFilePath`, `filesDeleted`
-
-      ### REQUIRED WORKFLOW (DO NOT SKIP STEPS)
-
-      1. **Call `breakdown_figma_design`** IMMEDIATELY with nodeId: "#{figma_node_id || "[node_id]"}"
-         - Do NOT try to implement anything before calling this tool
-         - Do NOT make assumptions about the Figma design structure
-         - This tool will tell you exactly what to build and provide inner node IDs
-
-      2. **Call `implement_component`** for the matching component
-         - Use the inner node ID from the breakdown response
-         - The breakdown will identify which component matches your selected component
-         - **Save the returned `filesCreated`, `testPageUrl`, `testPageFilePath`, `componentFilePath`, `dataTestId`**
-
-      3. **Call `fix_files_errors`** to fix any errors
-         - Pass the files and test page URL from implement_component
-         - Ensures the component renders without errors
-
-      4. **Call `visual_compare_component_to_figma`** to assess visual quality
-         - Pass the node ID, test page URL, component path, and data test ID
-         - Review the returned `keyDifferences` and `howToFix`
-
-      5. **Call `fix_visual_issues`** if there are keyDifferences
-         - Pass the comparison result fields: `figmaDesignDescription`, `implementationDescription`, `keyDifferences`, `howToFix`
-         - This tool applies the fixes and verifies once
-
-      6. **Call `replace_component`** to replace the old component:
-         - Pass `sourceFilePath` = `componentFilePath` from implement_component
-         - Pass `targetFilePath` = the selected component location
-         - Save the returned `targetFilePath` and `filesModified`
-
-      7. **Call `fix_files_errors` AGAIN** for the replaced component:
-         - Pass `targetFilePath` from replace_component as the file to check
-         - Navigate to the actual page URL where the component is used in the app
-         - This ensures the component works correctly in its final location with real imports and context
-
-      ### DO NOT:
-
-      - Try to implement the component without calling `breakdown_figma_design` first
-      - Guess or assume Figma styles, colors, or spacing
-      - Ask the user for more Figma information - use the tools instead
-      - Skip any of the tool calls in the workflow
-
-      **PROCEED IMMEDIATELY with `breakdown_figma_design(nodeId: "#{figma_node_id || "[node_id]"}")`. Do NOT ask for design/requirements clarification.** (If tool calls fail repeatedly, you may ask about the technical error.)
-      """
   end
 
   defp selected_component_guidance do

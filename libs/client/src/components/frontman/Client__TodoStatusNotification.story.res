@@ -53,7 +53,7 @@ let sequence: Story.t<args> = {
   render: _ => {
     <div style={{width: "400px", padding: "20px", backgroundColor: "#18181b"}}>
       <div style={{display: "flex", flexDirection: "column", gap: "4px"}}>
-        <Client__TodoStatusNotification content="Analyze Figma design structure" status=Todo.Completed />
+        <Client__TodoStatusNotification content="Analyze component structure" status=Todo.Completed />
         <Client__TodoStatusNotification content="Implement component from specs" status=Todo.InProgress />
         <Client__TodoStatusNotification content="Write tests" status=Todo.Pending />
       </div>

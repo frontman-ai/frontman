@@ -94,7 +94,7 @@ defmodule AgentClientProtocol do
 
   Options:
     - `:parent_agent_id` - If present, indicates this tool call is from a sub-agent
-    - `:spawning_tool_name` - Name of the tool that spawned this agent (e.g., "breakdown_figma_design")
+    - `:spawning_tool_name` - Name of the tool that spawned this agent
   """
   def tool_call_create(session_id, tool_call_id, title, kind, status \\ "pending", opts \\ []) do
     parent_agent_id = Keyword.get(opts, :parent_agent_id)

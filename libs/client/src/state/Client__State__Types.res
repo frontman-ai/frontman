@@ -6,7 +6,6 @@ module UserContentPart = Client__Task__Types.UserContentPart
 module AssistantContentPart = Client__Task__Types.AssistantContentPart
 module Message = Client__Task__Types.Message
 module SelectedElement = Client__Task__Types.SelectedElement
-module FigmaNode = Client__Task__Types.FigmaNode
 module Todo = Client__Task__Types.Todo
 module Task = Client__Task__Types.Task
 module ACPTypes = Client__Task__Types.ACPTypes
@@ -16,9 +15,6 @@ let stripFileUriPrefix = Client__Task__Types.stripFileUriPrefix
 let makeSelectedComponentMeta = Client__Task__Types.makeSelectedComponentMeta
 let selectedElementToContentBlock = Client__Task__Types.selectedElementToContentBlock
 let selectedElementScreenshotToContentBlock = Client__Task__Types.selectedElementScreenshotToContentBlock
-let makeFigmaNodeMeta = Client__Task__Types.makeFigmaNodeMeta
-let figmaNodeToContentBlock = Client__Task__Types.figmaNodeToContentBlock
-let figmaImageToContentBlock = Client__Task__Types.figmaImageToContentBlock
 let taskToContentBlocks = Client__Task__Types.taskToContentBlocks
 
 type sendPromptFn = (

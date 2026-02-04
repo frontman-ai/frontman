@@ -88,8 +88,6 @@ let isGroupableTool = (toolName: string): bool => {
   // Definition/symbol lookup
   String.includes(name, "definition") ||
   String.includes(name, "symbol") ||
-  // Figma data retrieval
-  String.includes(name, "figma") ||
   // Lint reading (not fixing)
   (String.includes(name, "lint") && String.includes(name, "read")) ||
   // Browser exploration (not actions)
@@ -135,13 +133,9 @@ let isSubagentToolCall = (tc: Message.toolCall): bool => {
  * These tools don't need to be shown individually because their work
  * is represented by the subagent tool group
  * 
- * NOTE: Be careful not to match regular read tools like get_figma_node
  */
 let isSubagentSpawnerTool = (toolName: string): bool => {
   let name = String.toLowerCase(toolName)
-  // Figma design breakdown (spawns subagent work)
-  String.includes(name, "breakdown_figma") ||
-  String.includes(name, "figma_design") ||
   // Component implementation tools (spawn subagent work)
   String.includes(name, "implement_component") ||
   String.includes(name, "finish_component") ||

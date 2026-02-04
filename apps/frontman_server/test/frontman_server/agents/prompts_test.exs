@@ -20,40 +20,6 @@ defmodule FrontmanServer.Agents.PromptsTest do
       assert prompt =~ "Never explore"
     end
 
-    test "figma_context alone adds figma guidance (no selected component guidance)" do
-      prompt = Prompts.build(has_figma_context: true)
-
-      # Should include Figma guidance
-      assert prompt =~ "Figma"
-      assert prompt =~ "breakdown_figma_design"
-    end
-
-    test "figma + selected_component uses combined guidance (not separate)" do
-      prompt = Prompts.build(has_figma_context: true, has_selected_component: true)
-
-      # Should use combined Figma+Component guidance
-      assert prompt =~ "Figma"
-      assert prompt =~ "Selected"
-      assert prompt =~ "breakdown_figma_design"
-
-      # Count occurrences - should only have ONE section header about selected component
-      # (the combined one, not both combined AND standalone)
-      selected_component_headers =
-        prompt
-        |> String.split("Selected Component")
-        |> length()
-
-      # More than 2 splits would mean the phrase appears multiple times in different sections
-      # We expect it in the combined guidance header only
-      assert selected_component_headers <= 3
-    end
-
-    test "figma_node_id is interpolated into figma guidance" do
-      prompt = Prompts.build(has_figma_context: true, figma_node_id: "123:456")
-
-      assert prompt =~ "123:456"
-    end
-
     test "framework nextjs adds framework-specific guidance" do
       prompt = Prompts.build(framework: "nextjs")
 

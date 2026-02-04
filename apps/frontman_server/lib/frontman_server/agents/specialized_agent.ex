@@ -2,10 +2,9 @@ defmodule FrontmanServer.Agents.SpecializedAgent do
   @moduledoc """
   A unified agent struct for all specialized sub-agents.
 
-  Instead of having separate modules for each agent type (FigmaBreakdownAgent,
-  ComponentImplementAgent, etc.), this module provides a single struct with a
-  `:type` field that determines the agent's behavior.
+  A unified agent struct for all specialized sub-agents.
 
+  Provides a single struct with a `:type` field that determines the agent's behavior.
   The system prompt is retrieved from `Prompts.specialized/1` based on the type.
 
   API key resolution happens at the domain layer (Agents context) before the
@@ -14,11 +13,9 @@ defmodule FrontmanServer.Agents.SpecializedAgent do
 
   ## Types
 
-  - `:figma_breakdown` - Analyzes Figma designs and breaks them into components
-  - `:component_implement` - Implements UI components from Figma designs
+  - `:component_implement` - Implements UI components
   - `:fix_files_errors` - Fixes compilation/runtime errors after implementation
-  - `:visual_compare` - Compares implementation against Figma design
-  - `:fix_visual_issues` - Fixes visual discrepancies based on comparison
+  - `:fix_visual_issues` - Fixes visual discrepancies
   - `:replace_component` - Replaces old component with new implementation
   """
 
@@ -27,10 +24,8 @@ defmodule FrontmanServer.Agents.SpecializedAgent do
   alias FrontmanServer.Agents.{LLMClient, Prompts}
 
   @type agent_type ::
-          :figma_breakdown
-          | :component_implement
+          :component_implement
           | :fix_files_errors
-          | :visual_compare
           | :fix_visual_issues
           | :replace_component
 

@@ -23,15 +23,15 @@
 						"state": "output_available",
 						"inputBuffer": "",
 						"input": {
-							"active_form": "Analyzing Figma design structure",
-							"content": "Analyze Figma design structure",
+							"active_form": "Analyzing design structure",
+							"content": "Analyze design structure",
 							"status": "pending"
 						},
 						"result": {
 							"id": "b2ebd932-3fed-4505-9666-f86ad17fee56",
 							"status": "pending",
 							"content": "",
-							"active_form": "Analyzing Figma design structure",
+							"active_form": "Analyzing design structure",
 							"created_at": "2025-12-28T11:12:02.224315Z",
 							"updated_at": "2025-12-28T11:12:02.224315Z"
 						},
@@ -49,15 +49,15 @@
 						"state": "output_available",
 						"inputBuffer": "",
 						"input": {
-							"active_form": "Implementing the component from Figma specs",
-							"content": "Implement component from Figma specs",
+							"active_form": "Implementing the component from design specs",
+							"content": "Implement component from design specs",
 							"status": "pending"
 						},
 						"result": {
 							"id": "ac3f06d5-82d0-4ce2-bd66-3e4da9dd4a2a",
 							"status": "pending",
 							"content": "",
-							"active_form": "Implementing the component from Figma specs",
+							"active_form": "Implementing the component from design specs",
 							"created_at": "2025-12-28T11:12:02.224210Z",
 							"updated_at": "2025-12-28T11:12:02.224210Z"
 						},
@@ -140,8 +140,8 @@
 				{
 					"type": "tool_call",
 					"toolCall": {
-						"id": "tool_breakdown_figma_design_avzbtP5tM9ZDQ7kT1DYJ",
-						"toolName": "Calling breakdown_figma_design",
+						"id": "tool_implement_component_avzbtP5tM9ZDQ7kT1DYJ",
+						"toolName": "Calling implement_component",
 						"state": "output_available",
 						"inputBuffer": "",
 						"input": {
@@ -168,8 +168,8 @@
 						"result": {
 							"todos": [
 								{
-									"active_form": "Implementing the component from Figma specs",
-									"content": "Implement component from Figma specs",
+									"active_form": "Implementing the component from design specs",
+									"content": "Implement component from design specs",
 									"created_at": "2025-12-28T11:12:02.224210Z",
 									"id": "ac3f06d5-82d0-4ce2-bd66-3e4da9dd4a2a",
 									"status": "pending",
@@ -192,8 +192,8 @@
 									"updated_at": "2025-12-28T11:12:02.224216Z"
 								},
 								{
-									"active_form": "Analyzing Figma design structure",
-									"content": "Analyze Figma design structure",
+									"active_form": "Analyzing design structure",
+									"content": "Analyze design structure",
 									"created_at": "2025-12-28T11:12:02.224315Z",
 									"id": "b2ebd932-3fed-4505-9666-f86ad17fee56",
 									"status": "pending",
@@ -222,7 +222,7 @@
 							"id": "b2ebd932-3fed-4505-9666-f86ad17fee56",
 							"status": "completed",
 							"content": "",
-							"active_form": "Analyzing Figma design structure",
+							"active_form": "Analyzing design structure",
 							"created_at": "2025-12-28T11:12:02.224315Z",
 							"updated_at": "2025-12-28T11:12:09.744845Z"
 						},
@@ -247,7 +247,7 @@
 							"id": "ac3f06d5-82d0-4ce2-bd66-3e4da9dd4a2a",
 							"status": "in_progress",
 							"content": "",
-							"active_form": "Implementing the component from Figma specs",
+							"active_form": "Implementing the component from design specs",
 							"created_at": "2025-12-28T11:12:02.224210Z",
 							"updated_at": "2025-12-28T11:12:09.744815Z"
 						},
@@ -285,8 +285,8 @@
 				{
 					"type": "tool_call",
 					"toolCall": {
-						"id": "tool_get_figma_node_KGwUOiT8TI1aSucRxTmm",
-						"toolName": "Calling get_figma_node",
+						"id": "tool_read_file_KGwUOiT8TI1aSucRxTmm",
+						"toolName": "Calling read_file",
 						"state": "output_available",
 						"inputBuffer": "",
 						"input": {
@@ -1248,7 +1248,7 @@
 							"id": "ac3f06d5-82d0-4ce2-bd66-3e4da9dd4a2a",
 							"status": "completed",
 							"content": "",
-							"active_form": "Implementing the component from Figma specs",
+							"active_form": "Implementing the component from design specs",
 							"created_at": "2025-12-28T11:12:02.224210Z",
 							"updated_at": "2025-12-28T11:12:41.040641Z"
 						},
@@ -1315,8 +1315,8 @@
 				{
 					"type": "tool_call",
 					"toolCall": {
-						"id": "tool_get_figma_node_DwlA6MZqTdLyIHViA9hD",
-						"toolName": "Calling get_figma_node",
+						"id": "tool_read_file_DwlA6MZqTdLyIHViA9hD",
+						"toolName": "Calling read_file",
 						"state": "output_available",
 						"inputBuffer": "",
 						"input": {
@@ -1915,8 +1915,8 @@
 						"result": {
 							"todos": [
 								{
-									"active_form": "Implementing the component from Figma specs",
-									"content": "Implement component from Figma specs",
+									"active_form": "Implementing the component from design specs",
+									"content": "Implement component from design specs",
 									"created_at": "2025-12-28T11:12:02.224210Z",
 									"id": "ac3f06d5-82d0-4ce2-bd66-3e4da9dd4a2a",
 									"status": "completed",
@@ -1939,8 +1939,8 @@
 									"updated_at": "2025-12-28T11:13:23.349397Z"
 								},
 								{
-									"active_form": "Analyzing Figma design structure",
-									"content": "Analyze Figma design structure",
+									"active_form": "Analyzing design structure",
+									"content": "Analyze design structure",
 									"created_at": "2025-12-28T11:12:02.224315Z",
 									"id": "b2ebd932-3fed-4505-9666-f86ad17fee56",
 									"status": "completed",
@@ -1969,7 +1969,7 @@
 			"webPreviewIsSelecting": false,
 			"planEntries": [
 				{
-					"content": "Implement component from Figma specs",
+					"content": "Implement component from design specs",
 					"priority": "medium",
 					"status": "completed"
 				},
@@ -1984,14 +1984,13 @@
 					"status": "completed"
 				},
 				{
-					"content": "Analyze Figma design structure",
+					"content": "Analyze design structure",
 					"priority": "medium",
 					"status": "completed"
 				}
 			],
 			"previewUrl": "http://localhost:3038/",
-			"selectedElement": null,
-			"figmaNode": "no_selection"
+			"selectedElement": null
 		}
 	],
 	"currentTaskId": "1ff75d3f-0879-4a68-8f4b-2084894ca599",

@@ -1,19 +1,13 @@
 defmodule FrontmanServer.Tools.ImplementComponent do
   @moduledoc """
-  Spawns a sub-agent to implement a single UI component from Figma design.
-
-  This tool is typically called after a breakdown_figma_design analysis, where
-  each component from the breakdown can be implemented by spawning an
-  implement_component sub-agent.
+  Spawns a sub-agent to implement a single UI component from design specifications.
 
   The sub-agent focuses on implementation and test page creation:
-  1. Fetch the full Figma node data via get_figma_node
-  2. Analyze the design and take notes on key details
-  3. Implement the component based on the Figma data
-  4. Create a test page to render the component
+  1. Analyze the design and take notes on key details
+  2. Implement the component based on the design data
+  3. Create a test page to render the component
 
-  After this tool completes, use `fix_files_errors` to fix any errors, then
-  `visual_compare_component_to_figma` to compare against the Figma design.
+  After this tool completes, use `fix_files_errors` to fix any errors.
   """
 
   @behaviour FrontmanServer.Tools.Backend
@@ -30,14 +24,13 @@ defmodule FrontmanServer.Tools.ImplementComponent do
   @impl true
   def description do
     """
-    Implement a single UI component based on Figma design data.
+    Implement a single UI component based on design data.
 
-    Use this after breaking down a Figma design to implement each component.
-    The tool will spawn a sub-agent that fetches the Figma node, analyzes the design,
+    The tool will spawn a sub-agent that analyzes the design,
     implements the component, and creates a test page to render it.
 
-    After this tool completes, use `fix_files_errors` then `visual_compare_component_to_figma`.
-    This tool returns the file paths created and implementation summary needed for verification.
+    After this tool completes, use `fix_files_errors` to fix any errors.
+    This tool returns the file paths created and implementation summary.
     """
   end
 
@@ -53,7 +46,7 @@ defmodule FrontmanServer.Tools.ImplementComponent do
         },
         "nodeId" => %{
           "type" => "string",
-          "description" => "The Figma node ID for this component"
+          "description" => "The node ID for this component"
         },
         "description" => %{
           "type" => "string",
@@ -160,17 +153,10 @@ defmodule FrontmanServer.Tools.ImplementComponent do
     - **Dependencies:** #{dependencies}#{target_path_str}
     - **Data Test ID:** `#{data_test_id}` (MUST be added to the top-level/root element as `data-test-id="#{data_test_id}"`)
 
-    ## First Step: Fetch the Figma Node
-
-    Use `get_figma_node` with:
-    - nodeId: "#{node_id}"
-    - includeImage: true
-    - withChildren: true
-    - embedVectors: true
-    - embedImages: true
+    ## Implementation
     #{additional_context_str}
 
-    After fetching, implement the component following your instructions.
+    Implement the component following your instructions.
     Remember: The top-level element MUST have `data-test-id="#{data_test_id}"`.
     """
 

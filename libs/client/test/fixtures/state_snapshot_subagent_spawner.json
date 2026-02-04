@@ -42,8 +42,8 @@
 				{
 					"type": "tool_call",
 					"toolCall": {
-						"id": "tool_get_figma_node_KGwUOiT8TI1aSucRxTmm",
-						"toolName": "Calling get_figma_node",
+						"id": "tool_read_file_KGwUOiT8TI1aSucRxTmm",
+						"toolName": "Calling read_file",
 						"state": "output_available",
 						"inputBuffer": "",
 						"input": {
@@ -132,8 +132,7 @@
 			"webPreviewIsSelecting": false,
 			"planEntries": [],
 			"previewUrl": "http://localhost:3038/",
-			"selectedElement": null,
-			"figmaNode": "no_selection"
+			"selectedElement": null
 		}
 	],
 	"currentTaskId": "1ff75d3f-0879-4a68-8f4b-2084894ca599",

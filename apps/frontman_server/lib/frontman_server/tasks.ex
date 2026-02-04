@@ -215,17 +215,6 @@ defmodule FrontmanServer.Tasks do
   end
 
   @doc """
-  Checks if any user messages in the task contain Figma context.
-  """
-  @spec has_figma_context?(Scope.t(), String.t()) :: boolean()
-  def has_figma_context?(%Scope{} = scope, task_id) do
-    case get_interactions(scope, task_id) do
-      {:ok, interactions} -> Interaction.has_figma_context?(interactions)
-      {:error, _} -> false
-    end
-  end
-
-  @doc """
   Checks if any user messages in the task contain a selected component.
   """
   @spec has_selected_component?(Scope.t(), String.t()) :: boolean()
@@ -233,24 +222,6 @@ defmodule FrontmanServer.Tasks do
     case get_interactions(scope, task_id) do
       {:ok, interactions} -> Interaction.has_selected_component?(interactions)
       {:error, _} -> false
-    end
-  end
-
-  @doc """
-  Gets the selected Figma node ID from the task interactions.
-  Returns nil if no Figma context is found.
-  """
-  @spec get_figma_node_id(Scope.t(), String.t()) :: String.t() | nil
-  def get_figma_node_id(%Scope{} = scope, task_id) do
-    case get_interactions(scope, task_id) do
-      {:ok, interactions} ->
-        case Interaction.get_selected_figma_node(interactions) do
-          %{id: id} -> id
-          nil -> nil
-        end
-
-      {:error, _} ->
-        nil
     end
   end
 

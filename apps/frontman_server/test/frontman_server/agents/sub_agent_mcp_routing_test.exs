@@ -57,7 +57,7 @@ defmodule FrontmanServer.Agents.SubAgentMcpRoutingTest do
 
       tool_call = %ToolCall{
         id: "call_#{:rand.uniform(1_000_000)}",
-        name: "get_figma_node",
+        name: "read_file",
         arguments: ~s({"nodeId": "0:1234"})
       }
 
@@ -71,13 +71,13 @@ defmodule FrontmanServer.Agents.SubAgentMcpRoutingTest do
         "mcp:message",
         %{
           "method" => "tools/call",
-          "params" => %{"name" => "get_figma_node"}
+          "params" => %{"name" => "read_file"}
         },
         2_000
       )
 
       # Verify interaction was published via PubSub
-      assert_receive {:interaction, %Interaction.ToolCall{tool_name: "get_figma_node"}}, 500
+      assert_receive {:interaction, %Interaction.ToolCall{tool_name: "read_file"}}, 500
 
       Task.shutdown(executor_task, :brutal_kill)
     end
@@ -89,8 +89,8 @@ defmodule FrontmanServer.Agents.SubAgentMcpRoutingTest do
     } do
       # Integration test using full Swarm execution with a test LLM that returns an MCP tool call
       mcp_tool_call = %ToolCall{
-        id: "call_figma_#{:rand.uniform(1_000_000)}",
-        name: "get_figma_node",
+        id: "call_mcp_#{:rand.uniform(1_000_000)}",
+        name: "read_file",
         arguments: ~s({"nodeId": "0:1934", "includeImage": true})
       }
 
@@ -112,7 +112,7 @@ defmodule FrontmanServer.Agents.SubAgentMcpRoutingTest do
         %{
           "method" => "tools/call",
           "id" => mcp_request_id,
-          "params" => %{"name" => "get_figma_node"}
+          "params" => %{"name" => "read_file"}
         },
         5_000
       )

@@ -777,8 +777,8 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       tools_result = %{
         "tools" => [
           %{
-            "name" => "get_figma_node",
-            "description" => "Fetches Figma node data",
+            "name" => "read_file",
+            "description" => "Reads a file from disk",
             "inputSchema" => %{"type" => "object", "properties" => %{}}
           }
         ]
@@ -804,7 +804,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       # Verify MCP tools are now stored in socket assigns
       channel_socket = :sys.get_state(socket.channel_pid)
       assert length(channel_socket.assigns.mcp_tools) == 1
-      assert hd(channel_socket.assigns.mcp_tools).name == "get_figma_node"
+      assert hd(channel_socket.assigns.mcp_tools).name == "read_file"
 
       # After MCP init completes, the queued prompt is processed (task_channel.ex:471-479)
       # This creates a UserMessage interaction broadcast via PubSub

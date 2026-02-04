@@ -1,9 +1,9 @@
 defmodule FrontmanServer.Tools.FixVisualIssues do
   @moduledoc """
-  Spawns a sub-agent to fix visual discrepancies between a component and its Figma design.
+  Spawns a sub-agent to fix visual discrepancies between a component and its design.
 
-  This tool takes the comparison result from visual_compare_component_to_figma and applies
-  the fixes described in the howToFix instructions.
+  This tool takes the comparison result and applies the fixes described in the
+  howToFix instructions.
 
   The sub-agent:
   1. Reviews the comparison data
@@ -26,9 +26,9 @@ defmodule FrontmanServer.Tools.FixVisualIssues do
   @impl true
   def description do
     """
-    Fix visual discrepancies between a component and its Figma design.
+    Fix visual discrepancies between a component and its design.
 
-    Use this after visual_compare_component_to_figma identifies differences.
+    Use this after visual comparison identifies differences.
     Pass the comparison result fields and this tool will apply the fixes
     and verify with one screenshot.
     """
@@ -45,11 +45,11 @@ defmodule FrontmanServer.Tools.FixVisualIssues do
         },
         "nodeId" => %{
           "type" => "string",
-          "description" => "(Optional) The Figma node ID"
+          "description" => "(Optional) The node ID"
         },
-        "figmaDesignDescription" => %{
+        "designDescription" => %{
           "type" => "string",
-          "description" => "(Optional) Description of the Figma design from the comparison"
+          "description" => "(Optional) Description of the design from the comparison"
         },
         "implementationDescription" => %{
           "type" => "string",
@@ -138,7 +138,7 @@ defmodule FrontmanServer.Tools.FixVisualIssues do
   defp build_user_message(args) do
     component_name = Map.get(args, "componentName")
     node_id = Map.get(args, "nodeId")
-    figma_desc = Map.get(args, "figmaDesignDescription", "Not provided")
+    design_desc = Map.get(args, "designDescription", "Not provided")
     impl_desc = Map.get(args, "implementationDescription", "Not provided")
     key_differences = Map.get(args, "keyDifferences", [])
     how_to_fix = Map.get(args, "howToFix", "")
@@ -165,9 +165,9 @@ defmodule FrontmanServer.Tools.FixVisualIssues do
     - **Test Page URL:** #{test_page_url}
     - **CSS Selector:** `#{selector_str}`
 
-    ## Figma Design Description
+    ## Design Description
 
-    #{figma_desc}
+    #{design_desc}
 
     ## Current Implementation Description
 

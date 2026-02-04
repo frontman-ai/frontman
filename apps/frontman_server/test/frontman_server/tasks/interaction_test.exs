@@ -38,138 +38,6 @@ defmodule FrontmanServer.Tasks.InteractionTest do
                component_props: nil,
                parent: nil
              }
-
-      assert msg.selected_figma_node == nil
-    end
-
-    test "extracts selected_figma_node with image only (no node ID from image-only resource)" do
-      # When only an image is present without node_id in _meta, no FigmaNode is created
-      content_blocks = [
-        %{"type" => "text", "text" => "Implement this design"},
-        %{
-          "type" => "resource",
-          "resource" => %{
-            "_meta" => %{"figma_image" => true},
-            "resource" => %{
-              "uri" => "screenshot",
-              "mimeType" => "image/png",
-              "blob" => "base64imagedata"
-            }
-          }
-        }
-      ]
-
-      msg = UserMessage.new(content_blocks)
-
-      # No node_id in _meta means no FigmaNode is created
-      assert msg.selected_figma_node == nil
-      assert msg.selected_component == nil
-    end
-
-    test "extracts selected_figma_node with node and image (DSL by default)" do
-      content_blocks = [
-        %{"type" => "text", "text" => "Implement this design"},
-        %{
-          "type" => "resource",
-          "resource" => %{
-            "_meta" => %{"figma_node" => true, "node_id" => "123:456"},
-            "resource" => %{
-              "uri" => "123:456",
-              "mimeType" => "text/plain",
-              "text" => "Frame(id=123:456)"
-            }
-          }
-        },
-        %{
-          "type" => "resource",
-          "resource" => %{
-            "_meta" => %{"figma_image" => true},
-            "resource" => %{
-              "uri" => "screenshot",
-              "mimeType" => "image/png",
-              "blob" => "base64imagedata"
-            }
-          }
-        }
-      ]
-
-      msg = UserMessage.new(content_blocks)
-
-      assert msg.selected_figma_node != nil
-      assert msg.selected_figma_node.id == "123:456"
-      assert msg.selected_figma_node.node == "Frame(id=123:456)"
-      assert msg.selected_figma_node.image == "base64imagedata"
-      # Default is_dsl is true for backwards compatibility
-      assert msg.selected_figma_node.is_dsl == true
-    end
-
-    test "extracts selected_figma_node with is_dsl explicitly set to true" do
-      content_blocks = [
-        %{"type" => "text", "text" => "Implement this design"},
-        %{
-          "type" => "resource",
-          "resource" => %{
-            "_meta" => %{"figma_node" => true, "node_id" => "123:456", "is_dsl" => true},
-            "resource" => %{
-              "uri" => "123:456",
-              "mimeType" => "text/plain",
-              "text" => "Frame(id=123:456, v=3)"
-            }
-          }
-        }
-      ]
-
-      msg = UserMessage.new(content_blocks)
-
-      assert msg.selected_figma_node != nil
-      assert msg.selected_figma_node.is_dsl == true
-    end
-
-    test "extracts selected_figma_node with is_dsl set to false (full JSON)" do
-      content_blocks = [
-        %{"type" => "text", "text" => "Implement this design"},
-        %{
-          "type" => "resource",
-          "resource" => %{
-            "_meta" => %{"figma_node" => true, "node_id" => "123:456", "is_dsl" => false},
-            "resource" => %{
-              "uri" => "123:456",
-              "mimeType" => "application/json",
-              "text" => ~s({"id":"123:456","name":"Frame","type":"FRAME"})
-            }
-          }
-        }
-      ]
-
-      msg = UserMessage.new(content_blocks)
-
-      assert msg.selected_figma_node != nil
-      assert msg.selected_figma_node.id == "123:456"
-      assert msg.selected_figma_node.is_dsl == false
-    end
-
-    test "extracts selected_figma_node with node only" do
-      content_blocks = [
-        %{"type" => "text", "text" => "Implement this design"},
-        %{
-          "type" => "resource",
-          "resource" => %{
-            "_meta" => %{"figma_node" => true, "node_id" => "123:456"},
-            "resource" => %{
-              "uri" => "123:456",
-              "mimeType" => "text/plain",
-              "text" => "Frame(id=123:456)"
-            }
-          }
-        }
-      ]
-
-      msg = UserMessage.new(content_blocks)
-
-      assert msg.selected_figma_node != nil
-      assert msg.selected_figma_node.id == "123:456"
-      assert msg.selected_figma_node.node == "Frame(id=123:456)"
-      assert msg.selected_figma_node.image == nil
     end
 
     test "returns nil for all context fields when no context" do
@@ -179,57 +47,6 @@ defmodule FrontmanServer.Tasks.InteractionTest do
 
       assert msg.selected_component == nil
       assert msg.selected_component_screenshot == nil
-      assert msg.selected_figma_node == nil
-    end
-
-    test "handles both selected_component and figma_context together" do
-      content_blocks = [
-        %{"type" => "text", "text" => "Implement this"},
-        %{
-          "type" => "resource",
-          "resource" => %{
-            "_meta" => %{
-              "selected_component" => true,
-              "file" => "/src/Button.tsx",
-              "line" => 10,
-              "column" => 5
-            },
-            "resource" => %{
-              "uri" => "file:///src/Button.tsx:10:5",
-              "mimeType" => "text/plain",
-              "text" => "Selected component"
-            }
-          }
-        },
-        %{
-          "type" => "resource",
-          "resource" => %{
-            "_meta" => %{"figma_node" => true, "node_id" => "0:1"},
-            "resource" => %{
-              "uri" => "0:1",
-              "mimeType" => "text/plain",
-              "text" => "Frame(id=0:1)"
-            }
-          }
-        }
-      ]
-
-      msg = UserMessage.new(content_blocks)
-
-      assert msg.selected_component == %{
-               file: "/src/Button.tsx",
-               line: 10,
-               column: 5,
-               source_snippet: nil,
-               source_type: nil,
-               component_name: nil,
-               component_props: nil,
-               parent: nil
-             }
-
-      assert msg.selected_figma_node != nil
-      assert msg.selected_figma_node.id == "0:1"
-      assert msg.selected_figma_node.node == "Frame(id=0:1)"
     end
 
     test "prefers _meta extraction over URI parsing" do
@@ -339,51 +156,6 @@ defmodule FrontmanServer.Tasks.InteractionTest do
     end
   end
 
-  describe "has_figma_context?/1" do
-    test "returns true when UserMessage has figma context with valid node ID" do
-      interactions = [
-        UserMessage.new([
-          %{"type" => "text", "text" => "Hello"},
-          %{
-            "type" => "resource",
-            "resource" => %{
-              "_meta" => %{"figma_node" => true, "node_id" => "123:456"},
-              "resource" => %{"uri" => "123:456", "text" => "Frame(id=123:456)"}
-            }
-          }
-        ])
-      ]
-
-      assert Interaction.has_figma_context?(interactions) == true
-    end
-
-    test "returns false when no figma context" do
-      interactions = [
-        UserMessage.new([%{"type" => "text", "text" => "Hello"}])
-      ]
-
-      assert Interaction.has_figma_context?(interactions) == false
-    end
-
-    test "returns false when only image with no valid node ID" do
-      # Image-only resources without node_id in _meta don't create a selected_figma_node
-      interactions = [
-        UserMessage.new([
-          %{"type" => "text", "text" => "Hello"},
-          %{
-            "type" => "resource",
-            "resource" => %{
-              "_meta" => %{"figma_image" => true},
-              "resource" => %{"uri" => "screenshot", "blob" => "data"}
-            }
-          }
-        ])
-      ]
-
-      assert Interaction.has_figma_context?(interactions) == false
-    end
-  end
-
   describe "has_selected_component?/1" do
     test "returns true when UserMessage has selected component" do
       interactions = [
@@ -424,8 +196,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
           messages: ["Hello"],
           timestamp: DateTime.utc_now(),
           selected_component: nil,
-          selected_component_screenshot: nil,
-          selected_figma_node: nil
+          selected_component_screenshot: nil
         }
       ]
 
@@ -517,8 +288,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
             line: 42,
             column: 5
           },
-          selected_component_screenshot: nil,
-          selected_figma_node: nil
+          selected_component_screenshot: nil
         }
       ]
 
@@ -553,8 +323,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
           messages: ["Just a regular message"],
           timestamp: DateTime.utc_now(),
           selected_component: nil,
-          selected_component_screenshot: nil,
-          selected_figma_node: nil
+          selected_component_screenshot: nil
         }
       ]
 
@@ -582,8 +351,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
           messages: ["Calculate 2+2"],
           timestamp: now,
           selected_component: nil,
-          selected_component_screenshot: nil,
-          selected_figma_node: nil
+          selected_component_screenshot: nil
         },
         %AgentResponse{
           id: "2",
@@ -780,8 +548,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
           messages: ["What's in the file?"],
           timestamp: now,
           selected_component: nil,
-          selected_component_screenshot: nil,
-          selected_figma_node: nil
+          selected_component_screenshot: nil
         },
         # Agent responds with tool call (DB format with string keys)
         %AgentResponse{
@@ -959,63 +726,6 @@ defmodule FrontmanServer.Tasks.InteractionTest do
                "component_props" => nil,
                "parent" => nil
              }
-
-      assert decoded["selected_figma_node"] == nil
-    end
-
-    test "encodes UserMessage with figma context to JSON" do
-      msg =
-        UserMessage.new([
-          %{"type" => "text", "text" => "Build this"},
-          %{
-            "type" => "resource",
-            "resource" => %{
-              "_meta" => %{"figma_image" => true},
-              "resource" => %{"uri" => "screenshot", "blob" => "imagedata"}
-            }
-          },
-          %{
-            "type" => "resource",
-            "resource" => %{
-              "_meta" => %{"figma_node" => true, "node_id" => "0:1"},
-              "resource" => %{"uri" => "0:1", "text" => "Frame(id=0:1)"}
-            }
-          }
-        ])
-
-      json = Jason.encode!(msg)
-      decoded = Jason.decode!(json)
-
-      assert decoded["type"] == "user_message"
-      assert decoded["messages"] == ["Build this"]
-      assert decoded["selected_figma_node"]["id"] == "0:1"
-      assert decoded["selected_figma_node"]["has_node"] == true
-      assert decoded["selected_figma_node"]["has_image"] == true
-      assert decoded["selected_figma_node"]["is_dsl"] == true
-      assert decoded["selected_component"] == nil
-    end
-
-    test "encodes UserMessage with non-DSL figma context to JSON" do
-      msg =
-        UserMessage.new([
-          %{"type" => "text", "text" => "Build this"},
-          %{
-            "type" => "resource",
-            "resource" => %{
-              "_meta" => %{"figma_node" => true, "node_id" => "0:1", "is_dsl" => false},
-              "resource" => %{
-                "uri" => "0:1",
-                "text" => ~s({"id":"0:1","name":"Frame"})
-              }
-            }
-          }
-        ])
-
-      json = Jason.encode!(msg)
-      decoded = Jason.decode!(json)
-
-      assert decoded["selected_figma_node"]["id"] == "0:1"
-      assert decoded["selected_figma_node"]["is_dsl"] == false
     end
 
     test "encodes ToolCall to JSON" do

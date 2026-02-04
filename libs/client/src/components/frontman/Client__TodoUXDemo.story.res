@@ -57,10 +57,10 @@ let fullWorkflow: Story.t<args> = {
             fontSize: "14px",
             marginBottom: "8px",
           }}>
-          {React.string("Convert the Figma design to a React component")}
+          {React.string("Convert the design to a React component")}
         </div>
         // Agent starts first todo
-        <Client__TodoStatusNotification content="Analyzing Figma design structure" status=Todo.InProgress />
+        <Client__TodoStatusNotification content="Analyzing component structure" status=Todo.InProgress />
         // Simulated tool calls would go here...
         <div
           style={{
@@ -75,10 +75,10 @@ let fullWorkflow: Story.t<args> = {
           {React.string("... exploration tool calls ...")}
         </div>
         // First todo completed
-        <Client__TodoStatusNotification content="Analyzing Figma design structure" status=Todo.Completed />
+        <Client__TodoStatusNotification content="Analyzing component structure" status=Todo.Completed />
         // Start second todo
         <Client__TodoStatusNotification
-          content="Implementing the component from Figma specs" status=Todo.InProgress
+          content="Implementing the component from design specs" status=Todo.InProgress
         />
       </div>
     </div>
