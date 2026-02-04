@@ -115,7 +115,9 @@ module Task = {
   // Task lifecycle states (unified - includes New)
   type t =
     // New: local-only, ephemeral (no server session yet)
+    // clientId is a stable identifier used for React keys to prevent iframe remounts
     | New({
+        clientId: string,
         previewFrame: previewFrame,
         webPreviewIsSelecting: bool,
         selectedElement: option<SelectedElement.t>,
@@ -139,8 +141,10 @@ module Task = {
         selectedElement: option<SelectedElement.t>,
       })
     // Loaded: fully interactive
+    // clientId is preserved from New state during promotion to maintain iframe identity
     | Loaded({
         id: string,
+        clientId: option<string>,
         title: string,
         createdAt: float,
         updatedAt: float,
@@ -178,6 +182,17 @@ module Task = {
     switch task {
     | New(_) => None
     | Unloaded({id}) | Loading({id}) | Loaded({id}) => Some(id)
+    }
+
+  // Get the stable client-side identifier for React keys (prevents iframe remounts)
+  // For New tasks: returns the clientId
+  // For Loaded tasks promoted from New: returns clientId if present, otherwise id
+  // For other tasks: returns the server id
+  let getClientId = (task: t): string =>
+    switch task {
+    | New({clientId}) => clientId
+    | Loaded({clientId: Some(clientId)}) => clientId
+    | Unloaded({id}) | Loading({id}) | Loaded({id}) => id
     }
 
   let getTitle = (task: t): option<string> =>
@@ -272,8 +287,10 @@ module Task = {
   // ============================================================================
 
   // Create a new ephemeral task (for "new chat" state)
+  // Generates a stable clientId for React keying to prevent iframe remounts during promotion
   let makeNew = (~previewUrl: string): t => {
     New({
+      clientId: WebAPI.Global.crypto->WebAPI.Crypto.randomUUID,
       previewFrame: {url: previewUrl, contentDocument: None, contentWindow: None},
       webPreviewIsSelecting: false,
       selectedElement: None,
@@ -310,16 +327,18 @@ module Task = {
 
   // Atomic transition: New → Loaded (promotion when first message is sent)
   // Message insertion is handled separately by the task reducer's AddUserMessage
+  // Preserves clientId for stable React keying (prevents iframe remount)
   let newToLoaded = (
     task: t,
     ~id: string,
     ~title: string,
   ): t => {
     switch task {
-    | New({previewFrame, webPreviewIsSelecting, selectedElement}) =>
+    | New({clientId, previewFrame, webPreviewIsSelecting, selectedElement}) =>
       let timestamp = Date.now()
       Loaded({
         id,
+        clientId: Some(clientId),
         title: normalizeTitle(title),
         createdAt: timestamp,
         updatedAt: timestamp,
@@ -346,6 +365,7 @@ module Task = {
   ): t => {
     Loaded({
       id,
+      clientId: None,
       title: normalizeTitle(title),
       createdAt,
       updatedAt: createdAt,
@@ -414,11 +434,12 @@ module Task = {
 
   let updateLoadedData = (task: t, fn: loadedData => loadedData): t => {
     switch task {
-    | Loaded({id, title, createdAt, updatedAt, messages, previewFrame, webPreviewIsSelecting, selectedElement, isAgentRunning, planEntries, turnError}) => {
+    | Loaded({id, clientId, title, createdAt, updatedAt, messages, previewFrame, webPreviewIsSelecting, selectedElement, isAgentRunning, planEntries, turnError}) => {
         let data = {messages: Client__MessageStore.toArray(messages), webPreviewIsSelecting, selectedElement, isAgentRunning, planEntries, turnError}
         let updated = fn(data)
         Loaded({
           id,
+          clientId,
           title,
           createdAt,
           updatedAt,
@@ -445,10 +466,11 @@ module Task = {
           selectedElement: updated.selectedElement,
         })
       }
-    | New({previewFrame, webPreviewIsSelecting, selectedElement}) => {
+    | New({clientId, previewFrame, webPreviewIsSelecting, selectedElement}) => {
         let data = {messages: [], webPreviewIsSelecting, selectedElement, isAgentRunning: false, planEntries: [], turnError: None}
         let updated = fn(data)
         New({
+          clientId,
           previewFrame,
           webPreviewIsSelecting: updated.webPreviewIsSelecting,
           selectedElement: updated.selectedElement,

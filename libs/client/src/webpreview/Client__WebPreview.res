@@ -67,11 +67,12 @@ module OpenInNewWindow = {
 
 @react.component
 let make = () => {
-  let currentTaskId = Client__State.useSelector(Client__State.Selectors.currentTaskId)
-  let allTasks = Client__State.useSelector(Client__State.Selectors.tasks)
+  // Use primitive selectors for efficient comparison (strings compare by value)
+  let currentTaskClientId = Client__State.useSelector(Client__State.Selectors.currentTaskClientId)
+  let isNewTask = Client__State.useSelector(Client__State.Selectors.isNewTask)
+  let persistedTasks = Client__State.useSelector(Client__State.Selectors.tasks)
   let previewUrl = Client__State.useSelector(Client__State.Selectors.previewUrl)
   let previewFrame = Client__State.useSelector(Client__State.Selectors.previewFrame)
-  let isNewTask = Client__State.useSelector(Client__State.Selectors.isNewTask)
   let webPreviewIsSelecting = Client__State.useSelector(
     Client__State.Selectors.webPreviewIsSelecting,
   )
@@ -122,18 +123,42 @@ let make = () => {
         | _ => React.null
         }}
 
-        {isNewTask
-          ? <Client__WebPreview__Body key="__new__" taskId="__new__" url={previewFrame.url} isActive={true} />
-          : React.null}
-        {allTasks
-          ->Array.map(task => {
-            let taskId = Client__Task__Types.Task.getId(task)->Option.getOrThrow
-            let taskPreviewFrame = Client__Task__Types.Task.getPreviewFrame(task, ~defaultUrl=Client__State__StateReducer.getInitialUrl())
+        // Unified array of all iframes - keeps React keys in the same sibling position
+        // so switching tasks just toggles isActive prop without unmounting/remounting
+        {
+          let defaultUrl = Client__State__StateReducer.getInitialUrl()
+          
+          // Build array of all tasks including New task if present
+          let allTasks = if isNewTask {
+            // Prepend New task iframe (uses previewFrame from selector)
+            Array.concat(
+              [(currentTaskClientId, previewFrame.url)],
+              persistedTasks->Array.map(task => {
+                let clientId = Client__Task__Types.Task.getClientId(task)
+                let taskPreviewFrame = Client__Task__Types.Task.getPreviewFrame(task, ~defaultUrl)
+                (clientId, taskPreviewFrame.url)
+              })
+            )
+          } else {
+            // All tasks are in persistedTasks array
+            persistedTasks->Array.map(task => {
+              let clientId = Client__Task__Types.Task.getClientId(task)
+              let taskPreviewFrame = Client__Task__Types.Task.getPreviewFrame(task, ~defaultUrl)
+              (clientId, taskPreviewFrame.url)
+            })
+          }
+          
+          allTasks
+          ->Array.map(((clientId, url)) => {
             <Client__WebPreview__Body
-              key={taskId} taskId={taskId} url={taskPreviewFrame.url} isActive={currentTaskId == Some(taskId)}
+              key={clientId}
+              taskId={clientId}
+              url={url}
+              isActive={clientId == currentTaskClientId}
             />
           })
-          ->React.array}
+          ->React.array
+        }
       </div>
     </Nav.Container>
 }
