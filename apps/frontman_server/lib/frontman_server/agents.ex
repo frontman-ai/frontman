@@ -139,13 +139,13 @@ defmodule FrontmanServer.Agents do
         # Build llm_opts with resolved key info
         # LLM transformation flags (requires_mcp_prefix, identity_override) come from ResolvedKey
         # oauth_mode tells ReqLLM to use Bearer token auth instead of x-api-key
-        # max_tokens: 16384 ensures tool calls with large content (e.g. file writes) don't get truncated
+        # max_tokens: 16_384 ensures tool calls with large content (e.g. file writes) don't get truncated
         llm_opts = [
           api_key: resolved_key.api_key,
           requires_mcp_prefix: resolved_key.requires_mcp_prefix,
           identity_override: resolved_key.identity_override,
           oauth_mode: resolved_key.oauth_mode,
-          max_tokens: 16384
+          max_tokens: 16_384
         ]
 
         has_typescript_react = framework in ["nextjs"]

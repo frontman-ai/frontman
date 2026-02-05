@@ -41,7 +41,6 @@ defmodule FrontmanServer.Tasks.InteractionTest do
                component_props: nil,
                parent: nil
              }
-
     end
 
     test "returns nil for all context fields when no context" do
@@ -760,7 +759,6 @@ defmodule FrontmanServer.Tasks.InteractionTest do
                "component_props" => nil,
                "parent" => nil
              }
-
     end
 
     test "encodes ToolCall to JSON" do
