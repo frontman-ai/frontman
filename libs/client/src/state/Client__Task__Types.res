@@ -29,6 +29,21 @@ module SelectedElement = {
   }
 }
 
+module FigmaNode = {
+  // Selected node with DSL representation or full node data, and image
+  type selectedNodeData = {
+    nodeId: string,
+    nodeData: string, // DSL representation OR full JSON node data
+    image: option<string>, // Base64 data URL (data:image/jpeg;base64,... or data:image/png;base64,...)
+    isDsl: bool, // true if nodeData is DSL text, false if full JSON data
+  }
+
+  type t =
+    | NoSelection
+    | WaitingForSelection
+    | SelectedNode(selectedNodeData)
+}
+
 // Todo - single source of truth for todo state (updated by reducer)
 module Todo = {
   type status =
@@ -603,25 +618,107 @@ let selectedElementToContentBlock = (sel: SelectedElement.t): option<ACPTypes.co
   }
 }
 
+// Helper to extract media type and base64 data from a data URL
+// Returns (mimeType, base64Data)
+let parseDataUrl = (dataUrl: string): (string, string) => {
+  // Format: data:<mediaType>;base64,<data>
+  switch dataUrl->String.split(";base64,") {
+  | [prefix, base64] =>
+    // Extract media type from "data:<mediaType>" prefix
+    let mimeType = switch prefix->String.split("data:") {
+    | [_, mediaType] => mediaType
+    | _ => "image/jpeg" // Default to jpeg if format unexpected
+    }
+    (mimeType, base64)
+  | _ => ("image/jpeg", dataUrl) // Fallback if format unexpected
+  }
+}
+
 // Build an Image ContentBlock from SelectedElement screenshot
-// Uses resource type with image/jpeg mimeType and selected_component_screenshot meta
+// Uses resource type with mimeType extracted from the data URL
 let selectedElementScreenshotToContentBlock = (
   screenshotDataUrl: string,
 ): ACPTypes.contentBlock => {
-  // Extract base64 data from data URL (data:image/jpeg;base64,<data>)
-  let base64Data = switch screenshotDataUrl->String.split(";base64,") {
-  | [_, base64] => base64
-  | _ => screenshotDataUrl // Fallback to full string if format unexpected
-  }
+  let (mimeType, base64Data) = parseDataUrl(screenshotDataUrl)
 
   let blobResource: ACPTypes.blobResourceContents = {
     uri: "component://screenshot",
-    mimeType: Some("image/jpeg"),
+    mimeType: Some(mimeType),
     blob: base64Data,
   }
 
   // Create _meta with selected_component_screenshot annotation
   let _meta: JSON.t = %raw(`{"selected_component_screenshot": true}`)
+
+  let embeddedResource: ACPTypes.embeddedResource = {
+    _meta: Some(_meta),
+    annotations: None,
+    resource: ACPTypes.BlobResourceContents(blobResource),
+  }
+
+  {
+    ACPTypes.type_: "resource",
+    text: None,
+    uri: None,
+    resource: Some(embeddedResource),
+    content: None,
+  }
+}
+
+// Helper to create _meta JSON for figma node with nodeId and is_dsl flag
+let makeFigmaNodeMeta: (string, bool) => JSON.t = %raw(`
+  function(nodeId, isDsl) {
+    return {
+      "figma_node": true,
+      "node_id": nodeId,
+      "is_dsl": isDsl
+    };
+  }
+`)
+
+// Build a Resource ContentBlock from FigmaNode data
+// Contains the Figma node as DSL string (compact, token-efficient format) or full JSON data
+let figmaNodeToContentBlock = (
+  nodeId: string,
+  nodeData: string,
+  isDsl: bool,
+): ACPTypes.contentBlock => {
+  let textResource: ACPTypes.textResourceContents = {
+    uri: nodeId,
+    mimeType: Some("text/plain"),
+    text: nodeData,
+  }
+
+  // Create _meta with figma_node annotation, nodeId, and is_dsl flag
+  let _meta = makeFigmaNodeMeta(nodeId, isDsl)
+  let embeddedResource: ACPTypes.embeddedResource = {
+    _meta: Some(_meta),
+    annotations: None,
+    resource: ACPTypes.TextResourceContents(textResource),
+  }
+
+  {
+    ACPTypes.type_: "resource",
+    text: None,
+    uri: None,
+    resource: Some(embeddedResource),
+    content: None,
+  }
+}
+
+// Build an Image ContentBlock from FigmaNode image data
+// Uses resource type with mimeType extracted from the data URL
+let figmaImageToContentBlock = (imageDataUrl: string): ACPTypes.contentBlock => {
+  let (mimeType, base64Data) = parseDataUrl(imageDataUrl)
+
+  let blobResource: ACPTypes.blobResourceContents = {
+    uri: "figma://node/image",
+    mimeType: Some(mimeType),
+    blob: base64Data,
+  }
+
+  // Create _meta with figma_image annotation
+  let _meta: JSON.t = %raw(`{"figma_image": true}`)
 
   let embeddedResource: ACPTypes.embeddedResource = {
     _meta: Some(_meta),

@@ -27,7 +27,13 @@ let getElementInfo = (element: WebAPI.DOMAPI.element): elementInfo => {
   let rect = WebAPI.Element.getBoundingClientRect(element)
   let tagName = element.tagName->String.toLowerCase
   let id = getElementId(element.id)
-  let className = getFirstClassName(element.className)
+  // Use getAttribute("class") instead of element.className because SVG elements
+  // return an SVGAnimatedString object for className, not a plain string
+  let className =
+    element
+    ->WebAPI.Element.getAttribute("class")
+    ->Null.toOption
+    ->Option.flatMap(getFirstClassName)
   {rect, tagName, id, className}
 }
 

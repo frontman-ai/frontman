@@ -18,6 +18,38 @@ defmodule FrontmanServer.Tasks.Interaction do
 
   alias ReqLLM.Message.ContentPart
 
+  defmodule FigmaNode do
+    @moduledoc """
+    Represents a selected Figma node with its associated data.
+
+    Contains:
+    - `id` - the Figma node ID extracted from the resource URI (e.g., "123:456")
+    - `node` - the DSL text representation OR full node JSON data
+    - `image` - base64 encoded screenshot of the Figma node
+    - `is_dsl` - true if `node` contains DSL text, false if it contains full node JSON data
+
+    When `is_dsl` is true:
+    - The `node` field contains a compact DSL text representation for design breakdown
+    - Used by `breakdown_figma_design` tool to analyze design structure
+
+    When `is_dsl` is false:
+    - The `node` field contains full JSON node data from get_figma_node
+    - Used by `implement_component`, `visual_compare_component_to_figma`, etc. for detailed implementation
+    """
+    use TypedStruct
+
+    typedstruct enforce: true do
+      # The Figma node ID extracted from the resource URI (e.g., "123:456")
+      field(:id, String.t())
+      # DSL text representation OR full JSON node data (depending on is_dsl)
+      field(:node, String.t() | nil, enforce: false)
+      # Base64 encoded PNG image of the node
+      field(:image, String.t() | nil, enforce: false)
+      # True if node contains DSL text, false if it contains full JSON data
+      field(:is_dsl, boolean(), default: true)
+    end
+  end
+
   defmodule UserMessage do
     @moduledoc """
     Represents a message sent by the user.
@@ -42,14 +74,21 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     typedstruct enforce: true do
       field(:id, String.t())
+      field(:sequence, integer())
       field(:timestamp, DateTime.t())
       # Text messages from the user (extracted from text content blocks)
       field(:messages, list(String.t()), default: [])
       # Extracted source location from resource with _meta.selected_component
       field(:selected_component, selected_component() | nil, enforce: false)
 
-      # Extracted screenshot (base64 PNG data) from resource with _meta.selected_component_screenshot
-      field(:selected_component_screenshot, String.t() | nil, enforce: false)
+      # Extracted screenshot from resource with _meta.selected_component_screenshot
+      # Contains %{blob: base64_data, mime_type: "image/jpeg" | "image/png"}
+      field(:selected_component_screenshot, %{blob: String.t(), mime_type: String.t()} | nil,
+        enforce: false
+      )
+
+      # Extracted Figma node with id, node data (DSL or full JSON), and image
+      field(:selected_figma_node, FigmaNode.t() | nil, enforce: false)
     end
 
     def new(content_blocks) do
@@ -57,10 +96,12 @@ defmodule FrontmanServer.Tasks.Interaction do
 
       %__MODULE__{
         id: Interaction.new_id(),
+        sequence: Interaction.new_sequence(),
         timestamp: Interaction.now(),
         messages: extract_messages(content_blocks),
         selected_component: extract_selected_component(content_blocks),
-        selected_component_screenshot: extract_selected_component_screenshot(content_blocks)
+        selected_component_screenshot: extract_selected_component_screenshot(content_blocks),
+        selected_figma_node: extract_selected_figma_node(content_blocks)
       }
     end
 
@@ -131,7 +172,7 @@ defmodule FrontmanServer.Tasks.Interaction do
     defp parse_parent_chain(_), do: nil
 
     # Extract selected component screenshot from content blocks
-    # Looks for _meta.selected_component_screenshot with blob data
+    # Looks for _meta.selected_component_screenshot with blob data and mimeType
     defp extract_selected_component_screenshot(content_blocks) do
       content_blocks
       |> Enum.find_value(fn
@@ -139,8 +180,58 @@ defmodule FrontmanServer.Tasks.Interaction do
           case resource do
             %{
               "_meta" => %{"selected_component_screenshot" => true},
+              "resource" => %{"blob" => blob, "mimeType" => mime_type}
+            }
+            when is_binary(blob) and is_binary(mime_type) ->
+              %{blob: blob, mime_type: mime_type}
+
+            # Fallback for legacy data without mimeType - default to image/jpeg
+            %{
+              "_meta" => %{"selected_component_screenshot" => true},
               "resource" => %{"blob" => blob}
             }
+            when is_binary(blob) ->
+              %{blob: blob, mime_type: "image/jpeg"}
+
+            _ ->
+              nil
+          end
+
+        _ ->
+          nil
+      end)
+    end
+
+    defp extract_selected_figma_node(content_blocks) do
+      Enum.find_value(content_blocks, fn
+        %{
+          "type" => "resource",
+          "resource" => %{
+            "_meta" => %{"figma_node" => true, "node_id" => node_id} = meta,
+            "resource" => %{"text" => text}
+          }
+        }
+        when is_binary(text) and is_binary(node_id) ->
+          is_dsl = Map.get(meta, "is_dsl", true)
+
+          %FigmaNode{
+            id: node_id,
+            node: text,
+            image: extract_figma_image_blob(content_blocks),
+            is_dsl: is_dsl
+          }
+
+        _ ->
+          nil
+      end)
+    end
+
+    # Extract Figma image blob from content blocks
+    defp extract_figma_image_blob(content_blocks) do
+      Enum.find_value(content_blocks, fn
+        %{"type" => "resource", "resource" => resource} ->
+          case resource do
+            %{"_meta" => %{"figma_image" => true}, "resource" => %{"blob" => blob}}
             when is_binary(blob) ->
               blob
 
@@ -152,11 +243,24 @@ defmodule FrontmanServer.Tasks.Interaction do
           nil
       end)
     end
-
   end
 
   defimpl Jason.Encoder, for: UserMessage do
     def encode(value, opts) do
+      selected_figma_node =
+        case value.selected_figma_node do
+          nil ->
+            nil
+
+          %{id: id, node: node, image: image, is_dsl: is_dsl} ->
+            %{
+              id: id,
+              has_node: node != nil,
+              has_image: image != nil,
+              is_dsl: is_dsl
+            }
+        end
+
       Jason.Encode.map(
         %{
           type: "user_message",
@@ -164,7 +268,8 @@ defmodule FrontmanServer.Tasks.Interaction do
           messages: value.messages,
           timestamp: DateTime.to_iso8601(value.timestamp),
           selected_component: value.selected_component,
-          selected_component_screenshot: value.selected_component_screenshot != nil
+          selected_component_screenshot: value.selected_component_screenshot != nil,
+          selected_figma_node: selected_figma_node
         },
         opts
       )
@@ -181,6 +286,7 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     typedstruct enforce: true do
       field(:id, String.t())
+      field(:sequence, integer())
       field(:content, String.t())
       field(:timestamp, DateTime.t())
       field(:metadata, map(), enforce: false)
@@ -191,6 +297,7 @@ defmodule FrontmanServer.Tasks.Interaction do
 
       %__MODULE__{
         id: Interaction.new_id(),
+        sequence: Interaction.new_sequence(),
         content: content,
         timestamp: Interaction.now(),
         metadata: metadata
@@ -221,6 +328,7 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     typedstruct enforce: true do
       field(:id, String.t())
+      field(:sequence, integer())
       field(:config, map(), enforce: false)
       field(:timestamp, DateTime.t())
     end
@@ -230,6 +338,7 @@ defmodule FrontmanServer.Tasks.Interaction do
 
       %__MODULE__{
         id: Interaction.new_id(),
+        sequence: Interaction.new_sequence(),
         config: config,
         timestamp: Interaction.now()
       }
@@ -258,6 +367,7 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     typedstruct enforce: true do
       field(:id, String.t())
+      field(:sequence, integer())
       field(:timestamp, DateTime.t())
       field(:result, term(), enforce: false)
     end
@@ -267,6 +377,7 @@ defmodule FrontmanServer.Tasks.Interaction do
 
       %__MODULE__{
         id: Interaction.new_id(),
+        sequence: Interaction.new_sequence(),
         timestamp: Interaction.now(),
         result: result
       }
@@ -295,6 +406,7 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     typedstruct enforce: true do
       field(:id, String.t())
+      field(:sequence, integer())
       field(:tool_call_id, String.t())
       field(:tool_name, String.t())
       field(:arguments, map())
@@ -306,6 +418,7 @@ defmodule FrontmanServer.Tasks.Interaction do
 
       %__MODULE__{
         id: Interaction.new_id(),
+        sequence: Interaction.new_sequence(),
         tool_call_id: tc.id,
         tool_name: ReqLLM.ToolCall.name(tc),
         arguments: ReqLLM.ToolCall.args_map(tc) || %{},
@@ -338,6 +451,7 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     typedstruct enforce: true do
       field(:id, String.t())
+      field(:sequence, integer())
       field(:tool_call_id, String.t())
       field(:tool_name, String.t())
       field(:result, term())
@@ -350,6 +464,7 @@ defmodule FrontmanServer.Tasks.Interaction do
 
       %__MODULE__{
         id: Interaction.new_id(),
+        sequence: Interaction.new_sequence(),
         tool_call_id: tool_call_data.id,
         tool_name: tool_call_data.name,
         result: result,
@@ -387,6 +502,7 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     typedstruct enforce: true do
       field(:path, String.t())
+      field(:sequence, integer())
       field(:content, String.t())
       field(:timestamp, DateTime.t())
     end
@@ -396,6 +512,7 @@ defmodule FrontmanServer.Tasks.Interaction do
 
       %__MODULE__{
         path: path,
+        sequence: Interaction.new_sequence(),
         content: content,
         timestamp: Interaction.now()
       }
@@ -431,6 +548,18 @@ defmodule FrontmanServer.Tasks.Interaction do
   end
 
   @doc """
+  Generates a monotonic sequence number for deterministic ordering.
+
+  Uses System.unique_integer([:monotonic, :positive]) which is guaranteed to be
+  strictly increasing within a single VM instance. This ensures that
+  interactions created in sequence (e.g., AgentResponse followed by ToolResult)
+  will always be ordered correctly regardless of DB insert timing.
+  """
+  def new_sequence do
+    System.unique_integer([:monotonic, :positive])
+  end
+
+  @doc """
   Checks if an interaction is a user message.
   """
   @spec user_message?(t()) :: boolean()
@@ -444,6 +573,10 @@ defmodule FrontmanServer.Tasks.Interaction do
   to Agents domain (LLM messages). Conversation messages include
   UserMessage, AgentResponse, and ToolResult.
   ToolCall interactions are excluded as they're embedded in AgentResponse metadata.
+
+  Interactions are expected to be ordered by sequence number (set at creation time),
+  which guarantees correct conversation structure (assistant messages before their
+  tool results) regardless of database insertion timing.
   """
   @spec to_llm_messages(list(t())) :: list(map())
   def to_llm_messages(interactions) do
@@ -707,7 +840,15 @@ defmodule FrontmanServer.Tasks.Interaction do
 
   defp append_screenshot(parts, nil), do: parts
 
-  defp append_screenshot(parts, base64_data) do
+  defp append_screenshot(parts, %{blob: base64_data, mime_type: mime_type}) do
+    case Base.decode64(base64_data) do
+      {:ok, decoded_data} -> parts ++ [ContentPart.image(decoded_data, mime_type)]
+      :error -> parts
+    end
+  end
+
+  # Fallback for legacy string format (before mime_type was tracked)
+  defp append_screenshot(parts, base64_data) when is_binary(base64_data) do
     case Base.decode64(base64_data) do
       {:ok, decoded_data} -> parts ++ [ContentPart.image(decoded_data, "image/jpeg")]
       :error -> parts

@@ -4,6 +4,9 @@ defmodule FrontmanServer.Tasks.InteractionTest do
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Tasks.Interaction.{AgentResponse, ToolCall, ToolResult, UserMessage}
 
+  # Test helper to generate sequence numbers
+  defp seq, do: System.unique_integer([:monotonic, :positive])
+
   describe "UserMessage.new/1" do
     test "extracts selected_component from resource with _meta annotation" do
       content_blocks = [
@@ -38,7 +41,6 @@ defmodule FrontmanServer.Tasks.InteractionTest do
                component_props: nil,
                parent: nil
              }
-
     end
 
     test "returns nil for all context fields when no context" do
@@ -104,8 +106,10 @@ defmodule FrontmanServer.Tasks.InteractionTest do
 
       msg = UserMessage.new(content_blocks)
 
-      assert msg.selected_component_screenshot ==
-               "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk"
+      assert msg.selected_component_screenshot == %{
+               blob: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk",
+               mime_type: "image/png"
+             }
     end
 
     test "extracts both selected_component and screenshot together" do
@@ -153,7 +157,10 @@ defmodule FrontmanServer.Tasks.InteractionTest do
                parent: nil
              }
 
-      assert msg.selected_component_screenshot == "base64screenshotdata"
+      assert msg.selected_component_screenshot == %{
+               blob: "base64screenshotdata",
+               mime_type: "image/png"
+             }
     end
   end
 
@@ -194,6 +201,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       interactions = [
         %UserMessage{
           id: "1",
+          sequence: seq(),
           messages: ["Hello"],
           timestamp: DateTime.utc_now(),
           selected_component: nil,
@@ -216,6 +224,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       interactions = [
         %AgentResponse{
           id: "1",
+          sequence: seq(),
           content: "Hi there",
           timestamp: DateTime.utc_now(),
           metadata: %{}
@@ -235,6 +244,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       interactions = [
         %AgentResponse{
           id: "1",
+          sequence: seq(),
           content: "Let me calculate",
           timestamp: DateTime.utc_now(),
           metadata: %{tool_calls: tool_calls}
@@ -251,6 +261,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       interactions = [
         %ToolResult{
           id: "1",
+          sequence: seq(),
           tool_call_id: "call_123",
           tool_name: "calculator",
           result: 42,
@@ -267,6 +278,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       interactions = [
         %ToolCall{
           id: "1",
+          sequence: seq(),
           tool_call_id: "call_123",
           tool_name: "calculator",
           arguments: %{},
@@ -282,6 +294,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       interactions = [
         %UserMessage{
           id: "1",
+          sequence: seq(),
           messages: ["Change the text"],
           timestamp: DateTime.utc_now(),
           selected_component: %{
@@ -321,6 +334,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       interactions = [
         %UserMessage{
           id: "1",
+          sequence: seq(),
           messages: ["Just a regular message"],
           timestamp: DateTime.utc_now(),
           selected_component: nil,
@@ -349,6 +363,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       interactions = [
         %UserMessage{
           id: "1",
+          sequence: seq(),
           messages: ["Calculate 2+2"],
           timestamp: now,
           selected_component: nil,
@@ -356,12 +371,14 @@ defmodule FrontmanServer.Tasks.InteractionTest do
         },
         %AgentResponse{
           id: "2",
+          sequence: seq(),
           content: "Let me calculate",
           timestamp: now,
           metadata: %{tool_calls: [%{id: "c1", name: "calc", arguments: %{}}]}
         },
         %ToolCall{
           id: "3",
+          sequence: seq(),
           tool_call_id: "c1",
           tool_name: "calc",
           arguments: %{},
@@ -369,6 +386,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
         },
         %ToolResult{
           id: "4",
+          sequence: seq(),
           tool_call_id: "c1",
           tool_name: "calc",
           result: 4,
@@ -377,6 +395,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
         },
         %AgentResponse{
           id: "5",
+          sequence: seq(),
           content: "The answer is 4",
           timestamp: now,
           metadata: %{}
@@ -413,6 +432,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       interactions = [
         %AgentResponse{
           id: "1",
+          sequence: seq(),
           content: "I'll read the file",
           timestamp: DateTime.utc_now(),
           # Simulating DB-loaded metadata with string keys
@@ -454,6 +474,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       interactions = [
         %AgentResponse{
           id: "1",
+          sequence: seq(),
           content: "Let me search for files",
           timestamp: DateTime.utc_now(),
           metadata: %{"tool_calls" => tool_calls_from_db}
@@ -473,6 +494,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       interactions = [
         %AgentResponse{
           id: "1",
+          sequence: seq(),
           content: "Just a text response",
           timestamp: DateTime.utc_now(),
           metadata: %{"tool_calls" => []}
@@ -491,6 +513,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       interactions = [
         %AgentResponse{
           id: "1",
+          sequence: seq(),
           content: "Just a text response",
           timestamp: DateTime.utc_now(),
           metadata: %{"tool_calls" => nil}
@@ -508,6 +531,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       interactions = [
         %AgentResponse{
           id: "1",
+          sequence: seq(),
           content: "Thinking...",
           timestamp: DateTime.utc_now(),
           metadata: %{
@@ -546,6 +570,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
         # User asks a question
         %UserMessage{
           id: "1",
+          sequence: seq(),
           messages: ["What's in the file?"],
           timestamp: now,
           selected_component: nil,
@@ -554,6 +579,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
         # Agent responds with tool call (DB format with string keys)
         %AgentResponse{
           id: "2",
+          sequence: seq(),
           content: "I'll read the file for you.",
           timestamp: now,
           metadata: %{
@@ -569,6 +595,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
         # Tool call record (skipped in LLM messages)
         %ToolCall{
           id: "3",
+          sequence: seq(),
           tool_call_id: "toolu_read_123",
           tool_name: "read_file",
           arguments: %{"path" => "README.md"},
@@ -577,6 +604,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
         # Tool result
         %ToolResult{
           id: "4",
+          sequence: seq(),
           tool_call_id: "toolu_read_123",
           tool_name: "read_file",
           result: "# README\nThis is a readme file.",
@@ -586,6 +614,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
         # Agent's final response
         %AgentResponse{
           id: "5",
+          sequence: seq(),
           content: "The file contains a README header.",
           timestamp: now,
           metadata: %{}
@@ -625,6 +654,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       interactions = [
         %AgentResponse{
           id: "1",
+          sequence: seq(),
           content: "Checking weather",
           timestamp: DateTime.utc_now(),
           metadata: %{"tool_calls" => tool_calls_flat}
@@ -655,6 +685,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       interactions = [
         %AgentResponse{
           id: "1",
+          sequence: seq(),
           content: "Calculating",
           timestamp: DateTime.utc_now(),
           metadata: %{tool_calls: tool_calls_with_atoms}
@@ -677,6 +708,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       interactions = [
         %AgentResponse{
           id: "1",
+          sequence: seq(),
           content: "Using tool",
           timestamp: DateTime.utc_now(),
           metadata: %{tool_calls: [existing_struct]}
@@ -727,12 +759,12 @@ defmodule FrontmanServer.Tasks.InteractionTest do
                "component_props" => nil,
                "parent" => nil
              }
-
     end
 
     test "encodes ToolCall to JSON" do
       tool_call = %ToolCall{
         id: "1",
+        sequence: seq(),
         tool_call_id: "call_123",
         tool_name: "calculator",
         arguments: %{"x" => 1},
@@ -750,6 +782,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
     test "encodes ToolResult to JSON" do
       tool_result = %ToolResult{
         id: "1",
+        sequence: seq(),
         tool_call_id: "call_123",
         tool_name: "calculator",
         result: 42,
