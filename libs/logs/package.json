@@ -1,21 +1,16 @@
 {
-	"name": "@frontman/frontman-client",
+	"name": "@frontman/logs",
 	"version": "0.1.0",
 	"license": "Apache-2.0",
 	"type": "module",
-	"main": "./src/FrontmanClient.res.mjs",
+	"private": true,
 	"dependencies": {
-		"@frontman/logs": "workspace:*",
-		"@sentry/browser": "^8.0.0",
-		"phoenix": "^1.7.0"
+		"@rescript/runtime": "12.0.0-beta.14"
 	},
 	"devDependencies": {
 		"@rescript/webapi": "catalog:",
-		"@vitest/ui": "catalog:",
 		"rescript": "catalog:",
 		"rescript-vitest": "catalog:",
-		"sentry-testkit": "^5.0.9",
-		"sury": "catalog:",
 		"vite": "catalog:",
 		"vitest": "catalog:"
 	}

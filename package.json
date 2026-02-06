@@ -18,6 +18,7 @@
 		"libs/frontman-astro",
 		"libs/frontman-nextjs",
 		"test/sites/blog-starter",
+		"libs/logs",
 		"libs/react-statestore",
 		"libs/vite-plugin"
 	],

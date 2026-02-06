@@ -1,0 +1,24 @@
+{
+	"name": "@frontman/logs",
+	"namespace": true,
+	"sources": [
+		{
+			"dir": "src",
+			"subdirs": false
+		},
+		{
+			"dir": "test",
+			"subdirs": false,
+			"type": "dev"
+		}
+	],
+	"package-specs": [
+		{
+			"module": "esmodule",
+			"in-source": true,
+			"suffix": ".res.mjs"
+		}
+	],
+	"dependencies": ["@rescript/webapi"],
+	"dev-dependencies": ["rescript-vitest"]
+}

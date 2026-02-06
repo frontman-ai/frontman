@@ -5,6 +5,9 @@ module Types = FrontmanClient__ACP__Types
 module JsonRpc = FrontmanClient__JsonRpc
 module Channel = FrontmanClient__Phoenix__Channel
 module Decoders = FrontmanClient__Decoders
+module Log = FrontmanLogs.Logs.Make({
+  let component = #ACP
+})
 
 type connectionState =
   | Disconnected
@@ -77,12 +80,12 @@ let handleResponse = (state: state, payload: JSON.t): state => {
       }
       state->reduce(ResponseReceived(id))
     | None =>
-      Console.warn(`Received response for unknown request: ${idStr}`)
+      Log.warning(`Received response for unknown request: ${idStr}`)
       state
     }
   } catch {
   | _ =>
-    Console.log2("Received non-response message:", payload)
+    Log.debug(~ctx={"payload": payload}, "Received non-response message")
     state
   }
 }
