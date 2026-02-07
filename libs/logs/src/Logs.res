@@ -11,8 +11,10 @@ let __log_level__ = ref(Logs_level.default)
 
 let __context__ = ref(empty)
 
-let addHandler = h => {
-  __handlers__->Array.push(h)
+let addHandler = (h: Handler.t) => {
+  if !(__handlers__->Array.some(existing => existing.id == h.id)) {
+    __handlers__->Array.push(h)
+  }
 }
 
 let setLogLevel = x => {
