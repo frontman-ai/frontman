@@ -121,7 +121,7 @@ let make = (
         </span>
       </div>
       <div className="flex items-center gap-0.5 shrink-0">
-        <ToolStatus state compact=true />
+        <ToolStatus state compact />
         {hasBody
           ? <button
               type_="button"
