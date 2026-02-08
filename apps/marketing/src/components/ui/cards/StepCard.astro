@@ -29,16 +29,13 @@ const { stepNumber, title, description, bgColor, classes } = Astro.props
 
 <style>
 	.bold-step-card {
-		@apply relative p-8 border-4 border-black transition-transform hover:translate-x-1 hover:translate-y-1;
-		border-radius: 20px;
+		@apply relative p-8 border-4 border-black;
 		box-shadow: 10px 10px 0 0 rgba(0, 0, 0, 1);
 		min-height: 280px;
+		width: 100%;
+		max-width: 470px;
 		z-index: 100;
 		background-clip: padding-box;
-	}
-
-	.bold-step-card:hover {
-		box-shadow: 5px 5px 0 0 rgba(0, 0, 0, 1);
 	}
 
 	.bold-step-card__number {

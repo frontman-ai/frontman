@@ -31,20 +31,29 @@ import FloatingBlobs from '../../ui/decorative/FloatingBlobs.astro'
 		<Row>
 			<Col span="12" align="center" classes="mb-16">
 				<h2 class="install-title">
-					How to install FrontEnd
+					How to install Frontman
 				</h2>
+				<p class="install-subtitle">
+					Installing Frontman takes less than 5 minutes, and you'll have Frontman ready to start making changes to your project visually
+				</p>
 			</Col>
 		</Row>
-		<Row classes="install-cards-row">
+		<Row classes="install-cards-row gap-5">
 			<Col span="4">
 				<StepCard
 					stepNumber="Step 1"
 					title="Install locally"
-					description="Run one command in your project."
+					description="Run one command in your project folder"
 					bgColor="#FFF4CC"
 				>
-					<div class="code-pill">
-						<code>frontman</code>
+					<div class="code-block">
+						<code>curl https://frontman.sh/install/nextjs | bash</code>
+						<button class="copy-button" aria-label="Copy to clipboard">
+							<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+								<rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+								<path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+							</svg>
+						</button>
 					</div>
 				</StepCard>
 			</Col>
@@ -54,15 +63,24 @@ import FloatingBlobs from '../../ui/decorative/FloatingBlobs.astro'
 					title="Open Frontman"
 					description="Visit localhost/frontman in your browser."
 					bgColor="#FFD6E8"
-				/>
+				>
+					<p class="example-text">
+						example:<br />
+						http://localhost:3000/frontman
+					</p>
+				</StepCard>
 			</Col>
 			<Col span="4">
 				<StepCard
 					stepNumber="Step 3"
-					title="Edit visually"
-					description="Select elements, prompt changes, see them applied in code."
+					title="Connect your AI"
+					description="Connect to your preferred AI model subscription"
 					bgColor="#FFE4D6"
-				/>
+				>
+					<p class="support-note">
+						(Frontman supports Claude, Chat GPT and Open Router)
+					</p>
+				</StepCard>
 			</Col>
 		</Row>
 	</div>
@@ -70,7 +88,7 @@ import FloatingBlobs from '../../ui/decorative/FloatingBlobs.astro'
 
 <style>
 	.install-section {
-		@apply relative overflow-hidden py-20;
+		@apply relative overflow-hidden py-32;
 		background: #FAFAFA;
 	}
 
@@ -83,15 +101,72 @@ import FloatingBlobs from '../../ui/decorative/FloatingBlobs.astro'
 		z-index: 100;
 	}
 
+	.install-subtitle {
+		@apply mt-6 text-xl text-neutral-700 max-w-3xl mx-auto relative;
+		z-index: 100;
+	}
+
 	.install-cards-row {
 		@apply relative;
 		z-index: 100;
 	}
 
-	.code-pill {
-		@apply mt-4 inline-block px-6 py-3 font-mono text-sm;
-		background-color: rgba(0, 0, 0, 0.15);
-		color: rgba(0, 0, 0, 0.8);
-		border-radius: 12px;
+	.code-block {
+		@apply mt-6 relative flex items-center gap-3 px-6 py-4 font-mono;
+		background-color: #000000;
+		border-radius: 16px;
+		font-size: 14px;
+		color: #C084FF;
+	}
+
+	.code-block code {
+		@apply flex-1;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	.copy-button {
+		@apply flex-shrink-0 p-2 transition-opacity hover:opacity-70 cursor-pointer;
+		background: none;
+		border: none;
+		color: #C084FF;
+	}
+
+	.example-text {
+		@apply mt-6 text-base text-neutral-800;
+	}
+
+	.support-note {
+		@apply mt-6 text-sm text-neutral-700;
 	}
 </style>
+
+<script>
+	document.addEventListener('DOMContentLoaded', () => {
+		const copyButton = document.querySelector('.copy-button')
+		if (copyButton) {
+			copyButton.addEventListener('click', async () => {
+				const codeBlock = copyButton.closest('.code-block')
+				const code = codeBlock?.querySelector('code')?.textContent
+				if (code) {
+					try {
+						await navigator.clipboard.writeText(code)
+						// Optional: Add visual feedback
+						const originalHTML = copyButton.innerHTML
+						copyButton.innerHTML = `
+							<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+								<polyline points="20 6 9 17 4 12"></polyline>
+							</svg>
+						`
+						setTimeout(() => {
+							copyButton.innerHTML = originalHTML
+						}, 2000)
+					} catch (err) {
+						console.error('Failed to copy:', err)
+					}
+				}
+			})
+		}
+	})
+</script>
