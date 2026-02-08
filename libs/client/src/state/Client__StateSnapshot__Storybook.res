@@ -109,6 +109,7 @@ let convertTask = (task: Snapshot.Task.t): StateTypes.Task.t => {
   // Create a Loaded task using the variant constructor
   StateTypes.Task.Loaded({
     id: task.id,
+    clientId: None,
     title: task.title,
     createdAt: task.createdAt,
     updatedAt: task.updatedAt,

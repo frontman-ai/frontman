@@ -603,6 +603,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       (
         Task.Loaded({
           id,
+          clientId: None,
           title,
           createdAt,
           updatedAt,

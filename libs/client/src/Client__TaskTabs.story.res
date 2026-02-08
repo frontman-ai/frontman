@@ -38,6 +38,7 @@ module Fixtures = {
     // Use the Loaded variant constructor
     StateReducer.Task.Loaded({
       id,
+      clientId: None,
       title,
       createdAt,
       updatedAt,
