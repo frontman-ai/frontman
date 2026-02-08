@@ -1,0 +1,103 @@
+---
+// Final CTA Section
+// ------------
+// Description: Final call-to-action section with logo and button
+
+// Components
+// - UI
+import Button from '../../ui/Button.astro'
+
+// Logo
+const logoImage = { src: '/logo.svg' }
+---
+
+<section id="final-cta" class="final-cta-section">
+	<div class="container">
+		<div class="cta-content">
+			<img src={logoImage.src} alt="Frontman" class="cta-logo" width="192" height="192" />
+			<h2 class="cta-title">Ready to start coding visually?</h2>
+			<p class="cta-description">
+				Join developers who are building faster and collaborating better with Frontman. Get started in minutes and transform how you work with frontend code.
+			</p>
+			<div class="cta-button">
+				<Button size="lg" style="primary" link="#install">Start Frontman</Button>
+			</div>
+		</div>
+	</div>
+</section>
+
+<style>
+	.final-cta-section {
+		@apply relative overflow-hidden py-20 lg:py-32;
+		background: white;
+	}
+
+	.container {
+		@apply relative mx-auto px-6 max-w-7xl;
+		display: flex;
+		justify-content: center;
+	}
+
+	.cta-content {
+		@apply flex flex-col items-start;
+		max-width: 640px;
+		text-align: left;
+	}
+
+	.cta-logo {
+		@apply mb-8;
+		filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.1));
+	}
+
+	.cta-title {
+		@apply font-headings text-4xl lg:text-5xl font-bold text-black mb-6 w-full;
+		line-height: 1.2;
+	}
+
+	.cta-description {
+		@apply text-base lg:text-lg text-neutral-700 mb-8 w-full;
+		line-height: 1.7;
+	}
+
+	.cta-button {
+		@apply w-full;
+	}
+
+	/* Responsive adjustments */
+	@media (max-width: 1024px) {
+		.cta-logo {
+			width: 154px;
+			height: 154px;
+			@apply mb-6;
+		}
+
+		.cta-title {
+			@apply text-3xl mb-5;
+		}
+
+		.cta-description {
+			@apply text-base mb-6;
+		}
+	}
+
+	@media (max-width: 640px) {
+		.final-cta-section {
+			padding-top: 2rem;
+			padding-bottom: 2rem;
+		}
+
+		.cta-logo {
+			width: 134px;
+			height: 134px;
+			@apply mb-5;
+		}
+
+		.cta-title {
+			@apply text-2xl mb-4;
+		}
+
+		.cta-description {
+			@apply text-sm mb-5;
+		}
+	}
+</style>
