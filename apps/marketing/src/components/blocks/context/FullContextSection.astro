@@ -1,0 +1,252 @@
+---
+// Full Context Section
+// ------------
+// Description: A section explaining how Frontman provides full context to the AI agent
+
+// Components
+// - Layout
+import Row from '../../ui/Row.astro'
+import Col from '../../ui/Col.astro'
+// - Images
+import devServerSvg from '../../../assets/context/dev-server.svg'
+import clientSvg from '../../../assets/context/client.svg'
+---
+
+<section id="full-context" class="full-context-section">
+	<div class="container">
+		<Row classes="gap-12">
+			<!-- Left side: Visual -->
+			<Col spanMobile="12" span="6">
+				<div class="context-visual">
+					<div class="server-client-diagram">
+						<!-- Dev Server -->
+						<div class="diagram-item">
+							<img src="/logo.svg" alt="Frontman" class="diagram-logo" width="64" height="64" />
+							<div class="illustration-wrapper">
+								<div class="scan-line"></div>
+								<img src={devServerSvg.src} alt="Dev Server" class="illustration-image" />
+							</div>
+							<p class="diagram-label">Dev Server</p>
+						</div>
+
+						<!-- Client -->
+						<div class="diagram-item">
+							<img src="/logo.svg" alt="Frontman" class="diagram-logo" width="64" height="64" />
+							<div class="illustration-wrapper">
+								<div class="scan-line"></div>
+								<img src={clientSvg.src} alt="Client" class="illustration-image" />
+							</div>
+							<p class="diagram-label">Client</p>
+						</div>
+					</div>
+				</div>
+			</Col>
+
+			<!-- Right side: Content -->
+			<Col spanMobile="12" span="6">
+				<div class="context-content">
+					<h2 class="context-title">
+						The AI That Actually Sees What You See
+					</h2>
+
+					<div class="context-text">
+						<p>
+							Most AI coding tools are fragmented — they run in your terminal or IDE, disconnected from what's actually rendering in your browser. Frontman is different. It lives inside both your dev server and your browser, with direct access to your DOM, styles, and components in real time.
+						</p>
+						<p>
+							Unlike Cursor, Claude Code, or Copilot, Frontman doesn't guess what your UI looks like — it sees it. That means faster iterations, fewer hallucinations, and code that actually matches your intent on the first try.
+						</p>
+					</div>
+				</div>
+			</Col>
+		</Row>
+	</div>
+</section>
+
+<style>
+	.full-context-section {
+		@apply relative overflow-hidden py-20 lg:py-32;
+		background-color: #1a1a1a;
+		background-image:
+			repeating-linear-gradient(
+				60deg,
+				transparent,
+				transparent 50px,
+				rgba(162, 89, 255, 0.15) 50px,
+				rgba(162, 89, 255, 0.15) 51px
+			),
+			repeating-linear-gradient(
+				-60deg,
+				transparent,
+				transparent 50px,
+				rgba(162, 89, 255, 0.15) 50px,
+				rgba(162, 89, 255, 0.15) 51px
+			);
+		background-size: 100px 100px;
+	}
+
+	.container {
+		@apply relative mx-auto px-6 max-w-7xl;
+	}
+
+	/* Visual Side */
+	.context-visual {
+		@apply relative flex items-center justify-center;
+		min-height: 400px;
+	}
+
+	.server-client-diagram {
+		@apply relative flex flex-col gap-8 items-center justify-center;
+		width: 100%;
+		max-width: 600px;
+	}
+
+	@media (min-width: 768px) {
+		.server-client-diagram {
+			flex-direction: row;
+			align-items: flex-end;
+		}
+	}
+
+	.diagram-item {
+		@apply relative flex flex-col items-center gap-3;
+	}
+
+	.diagram-logo {
+		@apply absolute;
+		width: 100px;
+		height: 100px;
+		top: 50%;
+		left: 50%;
+		transform: translate(-50%, -50%);
+		z-index: 40;
+		filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.25));
+	}
+
+	.illustration-wrapper {
+		@apply relative;
+		max-width: 220px;
+	}
+
+	.illustration-image {
+		@apply w-full h-auto;
+		display: block;
+	}
+
+	.scan-line {
+		@apply absolute left-0 right-0;
+		height: 2px;
+		background: linear-gradient(90deg, transparent, #A259FF, transparent);
+		animation: scan 2s ease-in-out infinite;
+		top: 0;
+		z-index: 30;
+	}
+
+	@keyframes scan {
+		0% {
+			top: 0;
+			opacity: 0;
+		}
+		50% {
+			opacity: 1;
+		}
+		100% {
+			top: 100%;
+			opacity: 0;
+		}
+	}
+
+	.diagram-label {
+		@apply font-headings text-xl font-bold text-white;
+	}
+
+	/* Content Side */
+	.context-content {
+		@apply flex flex-col justify-center h-full py-8 lg:py-0;
+	}
+
+	.context-title {
+		@apply font-headings text-4xl lg:text-5xl font-bold mb-8;
+		color: white;
+		line-height: 1.2;
+	}
+
+	.title-line {
+		@apply block;
+	}
+
+	.context-text {
+		@apply space-y-4;
+	}
+
+	.context-text p {
+		@apply text-base lg:text-lg leading-relaxed;
+		color: rgba(255, 255, 255, 0.9);
+	}
+
+	/* Responsive adjustments */
+	@media (max-width: 1024px) {
+		.context-visual {
+			min-height: 300px;
+		}
+
+		.server-client-diagram {
+			max-width: 450px;
+			gap: 1.5rem;
+		}
+
+		.diagram-logo {
+			width: 80px;
+			height: 80px;
+		}
+
+		.illustration-wrapper {
+			max-width: 180px;
+		}
+
+		.diagram-label {
+			@apply text-lg;
+		}
+
+		.context-title {
+			@apply text-3xl mb-6;
+		}
+
+		.context-text p {
+			@apply text-base;
+		}
+	}
+
+	@media (max-width: 640px) {
+		.full-context-section {
+			padding-top: 2rem;
+			padding-bottom: 2rem;
+		}
+
+		.server-client-diagram {
+			gap: 1.5rem;
+			max-width: 100%;
+		}
+
+		.diagram-item {
+			gap: 0.75rem;
+		}
+
+		.diagram-logo {
+			width: 64px;
+			height: 64px;
+		}
+
+		.illustration-wrapper {
+			max-width: 150px;
+		}
+
+		.diagram-label {
+			@apply text-base;
+		}
+
+		.context-title {
+			@apply text-2xl mb-5;
+		}
+	}
+</style>

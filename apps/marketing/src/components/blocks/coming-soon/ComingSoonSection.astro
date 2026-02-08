@@ -1,0 +1,117 @@
+---
+// Coming Soon Section
+// ------------
+// Description: A section showcasing upcoming features
+
+// Components
+// - Layout
+import Row from '../../ui/Row.astro'
+import Col from '../../ui/Col.astro'
+// - Image
+import figmaImage from '../../../assets/coming-soon/figma.svg'
+---
+
+<section id="coming-soon" class="coming-soon-section">
+	<div class="container">
+		<Row classes="gap-12">
+			<!-- Left side: Content -->
+			<Col spanMobile="12" span="6">
+				<div class="coming-soon-content">
+					<h2 class="coming-soon-title">
+						Figma integration - coming soon
+					</h2>
+					<p class="coming-soon-description">
+						Design in Figma, build with Frontman. Soon you'll be able to turn your Figma designs into production-ready code instantly. Select any frame or component in Figma, and Frontman will generate the exact HTML, CSS, and React components you need—keeping your design system intact and your code clean.
+					</p>
+				</div>
+			</Col>
+
+			<!-- Right side: Image -->
+			<Col spanMobile="12" span="6">
+				<div class="coming-soon-image-wrapper">
+					<img src={figmaImage.src} alt="Figma Integration" class="coming-soon-image" />
+				</div>
+			</Col>
+		</Row>
+	</div>
+</section>
+
+<style>
+	.coming-soon-section {
+		@apply relative overflow-hidden py-20 lg:py-32;
+		background: #FAFAFA;
+	}
+
+	.container {
+		@apply relative mx-auto px-6 max-w-7xl;
+	}
+
+	/* Content Side */
+	.coming-soon-content {
+		@apply flex flex-col justify-center h-full py-8 lg:py-0;
+	}
+
+	.coming-soon-title {
+		@apply font-headings text-4xl lg:text-5xl font-bold text-black mb-8;
+		line-height: 1.2;
+	}
+
+	.coming-soon-description {
+		@apply text-base lg:text-lg text-neutral-700;
+		line-height: 1.7;
+	}
+
+	/* Image Side */
+	.coming-soon-image-wrapper {
+		@apply relative flex items-center justify-center;
+		min-height: 400px;
+	}
+
+	.coming-soon-image {
+		@apply w-full h-auto rounded-lg;
+		border: 2px solid #e2e8f0;
+		max-width: 600px;
+	}
+
+	/* Responsive adjustments */
+	@media (max-width: 1024px) {
+		.coming-soon-image-wrapper {
+			min-height: 300px;
+		}
+
+		.coming-soon-title {
+			@apply text-3xl mb-6;
+		}
+
+		.coming-soon-description {
+			@apply text-base;
+		}
+
+		.coming-soon-image {
+			max-width: 450px;
+		}
+	}
+
+	@media (max-width: 640px) {
+		.coming-soon-section {
+			padding-top: 2rem;
+			padding-bottom: 2rem;
+		}
+
+		.coming-soon-image-wrapper {
+			min-height: auto;
+		}
+
+		.coming-soon-title {
+			@apply text-2xl mb-5;
+		}
+
+		.coming-soon-description {
+			@apply text-sm;
+		}
+
+		.coming-soon-image {
+			max-width: 100%;
+		}
+	}
+</style>

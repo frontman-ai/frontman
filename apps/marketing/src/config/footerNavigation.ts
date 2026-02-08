@@ -106,6 +106,6 @@ export const footerNavigationData: FooterData = {
 		}
 	],
 	subFooter: {
-		copywriteText: '© Frontman 2024.'
+		copywriteText: 'frontman 2026'
 	}
 }
