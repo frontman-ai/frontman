@@ -1,0 +1,12 @@
+procs:
+  rescript:
+    cmd: ["make", "rescript-watch"]
+
+  server:
+    cmd: ["make", "dev-server"]
+
+  client:
+    cmd: ["make", "dev-client"]
+
+  nextjs:
+    cmd: ["bash", "-c", "echo 'Waiting for ReScript compiler...' && while ! tail -1 lib/bs/.compiler.log 2>/dev/null | grep -q '^#Done'; do sleep 1; done && echo 'ReScript ready, starting Next.js...' && make dev-nextjs"]
