@@ -1,0 +1,164 @@
+---
+// Feature Highlights Section
+// ------------
+// Description: Feature highlight rows with text on left and image/video on right
+
+// Components
+// - Layout
+import Row from '../../ui/Row.astro'
+import Col from '../../ui/Col.astro'
+// - Image
+import { Image } from 'astro:assets'
+import agentsMdImage from '../../../assets/feature-highlights/agentsmdloaded.jpg'
+
+type FeatureHighlight = {
+	title: string
+	description: string
+	imageAlt: string
+	image?: any
+}
+
+const featureHighlights: FeatureHighlight[] = [
+	{
+		title: 'Select elements',
+		description: 'Click any element on your page, describe what you want in plain English, and watch your code update instantly — no IDE required.<br/><br/><span class="pro-tip">Pro tip: use the up and down arrows to move between components and divs</span>',
+		imageAlt: 'Select elements feature demo'
+	},
+	{
+		title: 'See changes in real time',
+		description: 'Stop switching between your editor and browser. With Frontman, prompt changes like you would in DevTools and see updates live as they happen. When you\'re ready, commit and push to Git — all without leaving your browser.',
+		imageAlt: 'Real-time changes feature demo'
+	},
+	{
+		title: 'automatically loads your agents.md / claude.md',
+		description: 'Frontman reads your project configuration automatically. It loads your agents.md, claude.md, or custom rule files at the start of each session — giving the AI full context of your stack, conventions, and coding standards before writing a single line.',
+		imageAlt: 'Automatic configuration loading demo',
+		image: agentsMdImage
+	}
+]
+---
+
+{
+	featureHighlights.map((feature, index) => (
+		<section
+			id={`feature-highlight-${index}`}
+			class={`feature-section ${index % 2 === 0 ? 'bg-white' : 'bg-neutral-50'}`}
+		>
+			<div class="container">
+				<Row classes="gap-8">
+					<!-- Left side: Text content -->
+					<Col spanMobile="12" span="5" classes={index === 1 ? 'lg:order-2' : ''}>
+						<div class="feature-content">
+							<h2 class="feature-title">{feature.title}</h2>
+							<p class="feature-description" set:html={feature.description} />
+						</div>
+					</Col>
+
+					<!-- Right side: Image/Video placeholder -->
+					<Col spanMobile="12" span="7" classes={`flex items-center ${index === 1 ? 'lg:order-1' : ''}`}>
+						<div class="media-placeholder" aria-label={feature.imageAlt}>
+							{feature.image ? (
+								<Image
+									src={feature.image}
+									alt={feature.imageAlt}
+									width={620}
+									format="webp"
+									class="media-image"
+								/>
+							) : (
+								<div class="placeholder-content">
+									{/* Image or video will go here */}
+								</div>
+							)}
+						</div>
+					</Col>
+				</Row>
+			</div>
+		</section>
+	))
+}
+
+<style>
+	.feature-section {
+		@apply relative overflow-hidden pt-20 pb-12 lg:pt-32 lg:pb-16;
+	}
+
+	.container {
+		@apply relative mx-auto px-6 max-w-7xl;
+	}
+
+	/* Content Side */
+	.feature-content {
+		@apply flex flex-col justify-center h-full pt-8 pb-0 lg:py-0;
+		max-width: 540px;
+	}
+
+	.feature-title {
+		@apply font-headings text-3xl lg:text-4xl font-bold text-black mb-5 relative;
+		z-index: 100;
+		line-height: 1.3;
+	}
+
+	.feature-description {
+		@apply text-base lg:text-lg text-neutral-700 relative;
+		z-index: 100;
+		line-height: 1.7;
+	}
+
+	.feature-description :global(.pro-tip) {
+		@apply text-sm text-neutral-600 italic;
+		display: block;
+		margin-top: 0.5rem;
+	}
+
+	/* Media Side */
+	.media-placeholder {
+		@apply bg-neutral-200 rounded-lg relative overflow-hidden;
+		z-index: 10;
+		width: 620px;
+		max-width: 100%;
+		aspect-ratio: 16 / 9;
+	}
+
+	.media-image {
+		@apply w-full h-full object-cover;
+	}
+
+	.placeholder-content {
+		@apply w-full h-full flex items-center justify-center;
+	}
+
+	/* Responsive adjustments */
+	@media (max-width: 1024px) {
+		.feature-content {
+			max-width: 100%;
+		}
+
+		.feature-title {
+			@apply text-2xl lg:text-3xl mb-4;
+		}
+
+		.feature-description {
+			@apply text-base;
+		}
+
+		.media-placeholder {
+			max-width: 480px;
+		}
+	}
+
+	@media (max-width: 640px) {
+		.feature-section {
+			padding-top: 2rem;
+			padding-bottom: 2rem;
+		}
+
+		.feature-title {
+			@apply text-xl mb-3;
+		}
+
+		.media-placeholder {
+			max-width: 100%;
+		}
+	}
+</style>
