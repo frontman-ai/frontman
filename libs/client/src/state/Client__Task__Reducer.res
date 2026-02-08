@@ -378,6 +378,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       SetPreviewFrame({contentDocument, contentWindow}),
     ) => (Lens.setPreviewFrame(task, ~contentDocument, ~contentWindow), [])
 
+  | (Task.Unloaded(_), ToggleWebPreviewSelection) => (task, [])
   | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), ToggleWebPreviewSelection) => (
       Lens.toggleWebPreviewSelection(task),
       [],

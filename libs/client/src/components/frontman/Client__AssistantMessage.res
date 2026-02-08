@@ -13,7 +13,7 @@ let make = (~variant: variant, ~content: string, ~messageId as _: string, ~isNew
   let isStreaming = variant == Streaming
   
   <MessageContainer isNew isStreaming className="group relative">
-    <div className="text-[13px] leading-relaxed text-zinc-200">
+    <div className="text-[13px] leading-relaxed text-zinc-300 font-ibm-plex-mono">
       <Markdown className="size-full [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
         {content}
       </Markdown>

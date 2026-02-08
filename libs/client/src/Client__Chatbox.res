@@ -110,6 +110,7 @@ let make = (~onSettingsClick: unit => unit) => {
   let modelsConfig = Client__State.useSelector(Client__State.Selectors.modelsConfig)
   let selectedModel = Client__State.useSelector(Client__State.Selectors.selectedModel)
   let hasProviderConfigured = Client__State.useSelector(Client__State.Selectors.hasAnyProviderConfigured)
+  let webPreviewIsSelecting = Client__State.useSelector(Client__State.Selectors.webPreviewIsSelecting)
   let hasEnvKey = RuntimeConfig.hasOpenrouterKey(RuntimeConfig.read())
   let hasAnyKey = hasProviderConfigured || hasEnvKey
 
@@ -267,7 +268,7 @@ let make = (~onSettingsClick: unit => unit) => {
     }
   }
 
-  <div className="flex flex-col h-full bg-zinc-900 text-zinc-200">
+  <div className="flex flex-col h-full bg-[#180C2D] text-zinc-200">
     <TaskTabs onSettingsClick />
     <ScrollContainer className="flex-grow overflow-hidden">
       <ScrollContainer.ContentWrapper>
@@ -323,6 +324,8 @@ let make = (~onSettingsClick: unit => unit) => {
       hasActiveACPSession
       disabled={isUsageExhausted}
       disabledPlaceholder="Free requests exhausted. Add your API key in Settings to continue."
+      onSelectElement={Client__State.Actions.toggleWebPreviewSelection}
+      isSelecting={webPreviewIsSelecting}
     />
   </div>
 }

@@ -52,7 +52,7 @@ defimpl ACPHistory, for: Interaction.ToolCall do
         "update" => %{
           "sessionUpdate" => "tool_call",
           "toolCallId" => tool_call_id,
-          "title" => "Calling #{tool_name}",
+          "title" => tool_name,
           "kind" => "other",
           "status" => "pending"
         }

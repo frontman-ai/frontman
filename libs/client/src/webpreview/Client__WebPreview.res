@@ -37,31 +37,33 @@ module ReloadButton = {
 module SelectElement = {
   @react.component
   let make = (~onClick: unit => unit, ~isSelecting: bool) => {
-    <div
-      className={isSelecting
-        ? "rounded-md bg-blue-500 shadow-sm shadow-blue-500/30"
-        : "rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"}
+    <button
+      type_="button"
+      onClick={_ => onClick()}
+      className={`flex items-center justify-center w-8 h-8 rounded-lg transition-colors
+                 ${isSelecting
+          ? "bg-violet-600 text-white hover:bg-violet-500"
+          : "bg-gray-200 text-gray-600 hover:bg-gray-300 hover:text-gray-700"}`}
+      title={isSelecting ? "Exit selection mode" : "Select element"}
     >
-      <Nav.NavButton
-        onClick={onClick}
-        tooltip={isSelecting ? "Exit selection mode" : "Select element"}
-      >
-        <RadixUI__Icons.Crosshair1Icon
-          className={isSelecting
-            ? "size-4 text-white"
-            : "size-4 text-gray-600 dark:text-gray-400"}
-        />
-      </Nav.NavButton>
-    </div>
+      <Client__ToolIcons.CursorClickIcon size=16 />
+    </button>
   }
 }
 
 module OpenInNewWindow = {
   @react.component
   let make = (~onClick: unit => unit) => {
-    <Nav.NavButton onClick={onClick} tooltip="Open in new tab">
+    <button
+      type_="button"
+      onClick={_ => onClick()}
+      className="flex items-center justify-center w-8 h-8 rounded-lg
+                 bg-gray-200 text-gray-600 hover:bg-gray-300 hover:text-gray-700
+                 transition-colors"
+      title="Open in new tab"
+    >
       <RadixUI__Icons.OpenInNewWindowIcon className="size-4" />
-    </Nav.NavButton>
+    </button>
   }
 }
 
@@ -109,6 +111,7 @@ let make = () => {
   
     <Nav.Container>
       <Nav.Navigation>
+        <Nav.TrafficLights />
         <BackButton onClick={handleBack} />
         <ForwardButton onClick={handleForward} />
         <ReloadButton onClick={handleReload} />

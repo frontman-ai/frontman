@@ -5,8 +5,9 @@ let make = (~document) => {
     Client__State.Selectors.webPreviewIsSelecting,
   )
   let selectedElement = Client__State.useSelector(Client__State.Selectors.selectedElement)
+  let isAgentRunning = Client__State.useSelector(Client__State.Selectors.isAgentRunning)
 
-  let lastProcessedClick = React.useRef(None)
+  let lastProcessedClickId = React.useRef(-1)
   let wasSelecting = React.useRef(false)
 
   let scrollTimestamp = Client__Hooks.Scroll.useIFrameDocument(~document, ~withCapture=true, ())
@@ -18,12 +19,13 @@ let make = (~document) => {
   // This prevents unnecessary effect runs when only clickedElement changes
   React.useEffect1(() => {
     if webPreviewIsSelecting && !wasSelecting.current {
-      // Entering selection mode
-      lastProcessedClick.current = clickedElement
+      // Entering selection mode — mark current click as already processed
+      // so we don't re-handle a stale click from before selection mode
+      let currentId = clickedElement->Option.mapOr(-1, click => click.clickId)
+      lastProcessedClickId.current = currentId
       wasSelecting.current = true
     } else if !webPreviewIsSelecting && wasSelecting.current {
       // Exiting selection mode
-      lastProcessedClick.current = None
       wasSelecting.current = false
     }
     None
@@ -32,15 +34,11 @@ let make = (~document) => {
   // Separate effect for handling clicks in selection mode
   React.useEffect2(() => {
     if webPreviewIsSelecting {
-      clickedElement->Option.forEach(target => {
-        let isNewClick = switch (lastProcessedClick.current, clickedElement) {
-        | (Some(lastClick), Some(currentClick)) => lastClick !== currentClick
-        | (None, Some(_)) => true
-        | _ => false
-        }
+      clickedElement->Option.forEach(({target, clickId}) => {
+        let isNewClick = clickId > lastProcessedClickId.current
 
         if isNewClick {
-          lastProcessedClick.current = clickedElement
+          lastProcessedClickId.current = clickId
           switch target {
           | Some(eventTarget) => {
               let element = WebAPI.EventTarget.asElement(eventTarget)
@@ -93,7 +91,7 @@ let make = (~document) => {
       ? <div
           className="absolute inset-0 pointer-events-none"
           style={
-            boxShadow: "inset 0 0 0 2px rgba(59, 130, 246, 0.5)",
+            boxShadow: "inset 0 0 0 2px rgba(152, 93, 247, 0.5)",
             borderRadius: "0",
           }
         />
@@ -116,6 +114,7 @@ let make = (~document) => {
         element={element}
         scrollTimestamp={scrollTimestamp}
         mutationTimestamp={mutationTimestamp}
+        isScanning={isAgentRunning}
       />
     })}
   </div>
