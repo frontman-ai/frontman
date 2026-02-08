@@ -126,6 +126,10 @@ module MouseMove = {
 }
 
 module MouseClick = {
+  // Each click returns a target and a unique clickId so consumers can always
+  // detect a new click even when the same DOM element is clicked twice.
+  type clickEvent = {target: option<WebAPI.EventAPI.eventTarget>, clickId: int}
+
   let useIFrameDocument = (
     ~document: option<WebAPI.DOMAPI.document>,
     ~withCapture=false,
@@ -136,6 +140,7 @@ module MouseClick = {
     (),
   ) => {
     let (state, setState) = React.useState(() => None)
+    let clickCounter = React.useRef(0)
 
     React.useEffect(() => {
       let onClick = (ev: WebAPI.EventAPI.event) => {
@@ -143,7 +148,9 @@ module MouseClick = {
         stopPropagation ? WebAPI.Event.stopPropagation(ev) : ()
         stopImmediatePropagation ? WebAPI.Event.stopImmediatePropagation(ev) : ()
         let target = ev.target->Null.toOption
-        setState(_ => Some(target))
+        clickCounter.current = clickCounter.current + 1
+        let id = clickCounter.current
+        setState(_ => Some({target, clickId: id}))
       }
       document->Option.map(document => {
         WebAPI.Document.addEventListener(

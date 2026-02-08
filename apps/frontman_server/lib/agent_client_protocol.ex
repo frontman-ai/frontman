@@ -238,7 +238,7 @@ defmodule AgentClientProtocol do
     tool_call_create(
       session_id,
       tool_call.tool_call_id,
-      "Calling #{tool_call.tool_name}",
+      tool_call.tool_name,
       "other",
       status,
       opts

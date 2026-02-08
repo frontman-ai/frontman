@@ -77,3 +77,8 @@ module ChevronDownIcon = {
   @module("@radix-ui/react-icons") @react.component
   external make: (~className: string=?, ~style: {..}=?) => React.element = "ChevronDownIcon"
 }
+
+module CursorArrowIcon = {
+  @module("@radix-ui/react-icons") @react.component
+  external make: (~className: string=?, ~style: {..}=?) => React.element = "CursorArrowIcon"
+}

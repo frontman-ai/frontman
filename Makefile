@@ -51,8 +51,8 @@ help: ## Display available commands
 ## DEV_START
 
 dev: ## Start all core services (client + server + nextjs)
-	@printf "$(YELLOW)Starting all services via process-compose...$(RESET)\n"
-	mise exec -- process-compose up --shortcuts shortcuts.yaml
+	@printf "$(YELLOW)Starting all services via mprocs...$(RESET)\n"
+	mprocs --config mprocs.yml
 
 dev-client: ## Start development server for client app
 	@printf "$(YELLOW)Starting client dev server...$(RESET)\n"

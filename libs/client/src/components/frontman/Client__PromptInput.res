@@ -176,7 +176,29 @@ module ModelSelector = {
   }
 }
 
-// Submit button
+module RadixUI__Icons = Bindings__RadixUI__Icons
+
+// Select element button
+module SelectElementButton = {
+  @react.component
+  let make = (~onClick: unit => unit, ~isSelecting: bool) => {
+    <button
+      type_="button"
+      onClick={_ => onClick()}
+      className={`flex items-center gap-1.5 h-9 px-4 rounded-full text-xs font-medium
+                 transition-colors
+                 ${isSelecting
+          ? "bg-violet-600 text-white hover:bg-violet-500"
+          : "bg-zinc-800/80 text-zinc-300 hover:bg-zinc-700 hover:text-zinc-100"}`}
+      title={isSelecting ? "Exit selection mode" : "Select element"}
+    >
+      <Icons.CursorClickIcon size=14 />
+      <span>{React.string("Select")}</span>
+    </button>
+  }
+}
+
+// Submit button - purple circle with white arrow
 module SubmitButton = {
   @react.component
   let make = (~disabled: bool, ~onClick: unit => unit) => {
@@ -187,12 +209,12 @@ module SubmitButton = {
         ReactEvent.Mouse.preventDefault(e)
         onClick()
       }}
-      className="flex items-center justify-center w-8 h-8 rounded-md
-                 text-white transition-colors
-                 bg-blue-600 hover:bg-blue-500 disabled:bg-zinc-700
-                 disabled:opacity-50 disabled:cursor-not-allowed"
+      className="flex items-center justify-center w-10 h-10 rounded-full
+                 transition-all text-white
+                 bg-[#985DF7] hover:bg-[#8247E5] hover:scale-105
+                 disabled:bg-zinc-700/50 disabled:text-zinc-500 disabled:cursor-not-allowed disabled:scale-100"
     >
-      <Icons.SendIcon size=16 />
+      <Icons.SendArrowIcon size=18 />
     </button>
   }
 }
@@ -245,7 +267,7 @@ module TextInput = {
       }
     }
 
-    <div className="p-2">
+    <div className="px-3 py-2">
       <textarea
         ref={ReactDOM.Ref.domRef(textareaRef)}
         value
@@ -255,12 +277,13 @@ module TextInput = {
         placeholder
         rows=1
         className={[
-          "w-full min-h-[40px] max-h-[200px] px-3 py-2",
-          "bg-zinc-800 border border-zinc-700 rounded-lg",
-          "text-sm text-zinc-200 placeholder-zinc-500",
+          "w-full min-h-[44px] max-h-[200px] px-4 py-3",
+          "bg-[#8051CD]/20 border-2 border-[#8051CD]/60 rounded-xl",
+          "text-sm text-zinc-100 placeholder-zinc-400",
           "resize-none overflow-y-auto",
-          "focus:outline-none focus:ring-1 focus:ring-blue-500/50 focus:border-blue-500/50",
+          "focus:outline-none focus:border-[#8051CD]/80",
           "field-sizing-content",
+          "caret-[#8051CD] [caret-shape:block] [caret-animation:manual]",
           if disabled { "opacity-60 cursor-not-allowed" } else { "" },
         ]->Array.filter(c => c != "")->Array.join(" ")}
       />
@@ -280,6 +303,8 @@ let make = (
   ~placeholder: string="What would you like to change?",
   ~disabled: bool=false,
   ~disabledPlaceholder: option<string>=?,
+  ~onSelectElement: option<unit => unit>=?,
+  ~isSelecting: bool=false,
 ) => {
   let (hasTextContent, setHasTextContent) = React.useState(() => false)
   let (attachments, setAttachments) = React.useState(() => [])
@@ -365,7 +390,7 @@ let make = (
   }
   
   <div 
-    className={`bg-zinc-900 border-t border-zinc-800 ${isDragging ? "ring-2 ring-blue-500/50" : ""}`}
+    className={`bg-[#180C2D] ${isDragging ? "ring-2 ring-violet-500/50" : ""}`}
     onDragOver={handleDragOver}
     onDragLeave={handleDragLeave}
   >
@@ -390,7 +415,7 @@ let make = (
     />
     
     // Footer with tools and submit
-    <div className="flex items-center justify-between px-3 pb-2">
+    <div className="flex items-center justify-between px-3 pb-3">
       <div className="flex items-center gap-1">
         // Add attachment button
         <button
@@ -403,8 +428,8 @@ let make = (
               clickElement(input->Obj.magic)
             })
           }}
-          className="flex items-center justify-center w-7 h-7 rounded
-                     text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700/50
+          className="flex items-center justify-center w-7 h-7 rounded-lg
+                     text-zinc-400 hover:text-zinc-200 hover:bg-violet-800/50
                      transition-colors"
         >
           <Icons.PlusIcon size=16 />
@@ -429,7 +454,18 @@ let make = (
           : React.null}
       </div>
       
-      <SubmitButton disabled={isSubmitDisabled} onClick={handleButtonSubmit} />
+      // Button group: Select Element (optional) + Submit
+      <div className="flex items-center gap-2">
+        {switch onSelectElement {
+        | Some(handler) =>
+          <SelectElementButton onClick={handler} isSelecting={isSelecting} />
+        | None => React.null
+        }}
+        <SubmitButton
+          disabled={isSubmitDisabled}
+          onClick={handleButtonSubmit}
+        />
+      </div>
     </div>
   </div>
 }

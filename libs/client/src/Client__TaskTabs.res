@@ -5,6 +5,7 @@ module AlertDialog = Bindings__UI__AlertDialog
 module Input = Bindings__UI__Input
 module Tooltip = Bindings__UI__Tooltip
 module DropdownMenu = Bindings__UI__DropdownMenu
+module FrontmanLogo = Client__FrontmanLogo
 
 // DOM bindings for overflow measurement
 @get external clientWidth: Dom.element => int = "clientWidth"
@@ -19,6 +20,7 @@ let tabWidth = 150
 let newButtonWidth = 80
 let overflowButtonWidth = 50
 let settingsButtonWidth = 44
+let logoWidth = 44
 
 @react.component
 let make = (~onSettingsClick: unit => unit) => {
@@ -45,7 +47,7 @@ let make = (~onSettingsClick: unit => unit) => {
     | Some(el) => {
         let recalc = () => {
           let containerW = clientWidth(el)
-          let available = containerW - newButtonWidth - settingsButtonWidth
+          let available = containerW - newButtonWidth - settingsButtonWidth - logoWidth
           let allFit = available >= tasksLen * tabWidth
           if allFit {
             setVisibleCount(_ => tasksLen)
@@ -219,6 +221,9 @@ let make = (~onSettingsClick: unit => unit) => {
       <UI.TabsList
         className="h-full w-full rounded-none justify-start overflow-hidden bg-transparent p-0"
       >
+        <div className="flex items-center justify-center w-11 h-full shrink-0 px-2">
+          <FrontmanLogo size=28 />
+        </div>
         {visibleTasks
         ->Array.map(task =>
           renderTab(task, editingTaskId == Client__Task__Types.Task.getId(task))

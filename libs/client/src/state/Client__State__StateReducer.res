@@ -272,6 +272,11 @@ module Selectors = {
     }
   }
 
+  // Get the stable client-side identifier for React keys (prevents iframe remounts)
+  let currentTaskClientId = (state: state): string => {
+    Task.getClientId(currentTask(state))
+  }
+
   // State predicates
   let isNewTask = (state: state): bool => Task.isNew(currentTask(state))
   let isCurrentTaskUnloaded = (state: state): bool => Task.isUnloaded(currentTask(state))

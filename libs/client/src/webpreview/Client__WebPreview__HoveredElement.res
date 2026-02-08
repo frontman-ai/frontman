@@ -27,7 +27,7 @@ let make = (~element: option<Null.t<WebAPI.EventAPI.eventTarget>>, ~scrollTimest
       // Note: position/size must remain inline styles since they're dynamic values
       <>
         <div
-          className="absolute bg-blue-500/[0.08] border-[1.5px] border-blue-500/70 rounded-sm pointer-events-none z-[9998] box-border transition-all duration-100 ease-out"
+          className="absolute bg-[#985DF7]/[0.08] border-[1.5px] border-[#985DF7]/70 rounded-sm pointer-events-none z-[9998] box-border transition-all duration-100 ease-out"
           style={
             left: `${Float.toString(rect.left)}px`,
             top: `${Float.toString(rect.top)}px`,
@@ -37,7 +37,7 @@ let make = (~element: option<Null.t<WebAPI.EventAPI.eventTarget>>, ~scrollTimest
           }
         />
         <div
-          className="absolute bg-blue-500 text-white text-[11px] font-mono font-medium px-1.5 py-0.5 rounded pointer-events-none z-[9999] whitespace-nowrap shadow transition-all duration-100 ease-out"
+          className="absolute bg-[#985DF7] text-white text-[11px] font-mono font-medium px-1.5 py-0.5 rounded pointer-events-none z-[9999] whitespace-nowrap shadow transition-all duration-100 ease-out"
           style={
             left: `${Float.toString(rect.left)}px`,
             top: `${Float.toString(labelTop)}px`,

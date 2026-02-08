@@ -1,20 +1,29 @@
 /**
  * ToolCallBlock - Main tool call display component
  * 
- * File tools (read_file, write_file, list_files) render as non-expandable links.
- * Other tools render with expand/collapse functionality.
+ * Displays tool calls with human-readable names in purple-themed style:
+ *   Get Routes
+ *   target_path (as purple link)
  * 
- * Supports compact mode for grouped display and active state animations.
+ * Supports compact mode for grouped display and expand/collapse for details.
  */
 
 module Message = Client__State__Types.Message
-module Icons = Client__ToolIcons
-module ToolStatus = Client__ToolStatus
 module ToolLabels = Client__ToolLabels
+
+// Strip "Calling " prefix from legacy server format and lowercase
+let cleanToolName = (toolName: string): string => {
+  let lower = String.toLowerCase(toolName)
+  if String.startsWith(lower, "calling ") {
+    String.slice(lower, ~start=8, ~end=String.length(lower))
+  } else {
+    lower
+  }
+}
 
 // File tools show as links, others are expandable
 let isFileTool = (toolName: string): bool => {
-  let name = String.toLowerCase(toolName)
+  let name = cleanToolName(toolName)
   name == "read_file" || name == "write_file" || name == "list_files" || name == "list_dir"
 }
 
@@ -53,10 +62,8 @@ let make = (
   }, [defaultExpanded])
 
   let target = getTarget(toolName, input)
-  // Show actual tool name instead of processed labels
-  let displayName = toolName
   let isInProgress = state == InputStreaming || state == InputAvailable
-  let isActive = state == InputAvailable
+  let hasError = Option.isSome(errorText)
 
   // Expandable tools show body when there's content
   let hasBody =
@@ -74,27 +81,17 @@ let make = (
     }
   }
 
-  // Container classes with active state glow - borderless design
+  // Container classes - purple themed with rounded corners
   let containerClasses = [
-    "group rounded-md overflow-hidden",
+    "group overflow-hidden",
     "animate-in fade-in duration-100",
     "transition-all duration-150",
-    compact ? "bg-zinc-800/50" : "bg-zinc-800/70",
-    // Spacing
-    compact ? "my-0.5" : "my-1.5",
-    // Active state glow (no border, just shadow)
-    isActive ? "shadow-[0_0_8px_rgba(59,130,246,0.2)] ring-1 ring-blue-500/30 frontman-tool-active" : "",
-    "hover:bg-zinc-700/50",
-  ]->Array.filter(s => s != "")->Array.join(" ")
-
-  // Header classes - borderless
-  let headerClasses = [
-    "flex items-center justify-between gap-2 px-2",
-    compact ? "h-6" : "h-7",
-    isLink ? "cursor-pointer hover:underline hover:underline-offset-2 hover:decoration-zinc-500" : "",
+    compact ? "rounded-lg" : "rounded-xl",
+    compact ? "bg-[#8051CD]/15" : "bg-[#8051CD]/20",
+    compact ? "border border-[#8051CD]/30" : "border border-[#8051CD]/40",
+    compact ? "my-1 mx-2" : "my-2 mx-3",
+    compact ? "px-3 py-2" : "px-4 py-3",
     hasBody ? "cursor-pointer" : "",
-    // No border, just subtle separator via bg
-    hasBody && isExpanded ? "bg-zinc-800/30" : "",
   ]->Array.filter(s => s != "")->Array.join(" ")
 
   // Body transition classes
@@ -104,44 +101,41 @@ let make = (
   ]->Array.join(" ")
 
   <div className={containerClasses}>
-    <div className={headerClasses} onClick={handleToggle}>
-      <div
-        className={`flex items-center gap-1.5 flex-1 min-w-0 ${compact ? "text-[11px]" : "text-xs"} text-zinc-400`}>
-        <span
-          className={`flex items-center justify-center shrink-0 ${compact ? "w-3.5 h-3.5" : "w-4 h-4"}`}>
-          {Icons.getToolIcon(toolName, ~size=compact ? 12 : 14)}
+    // Header - clickable to toggle expansion
+    <div onClick={handleToggle}>
+      // Human-readable tool name (e.g., "Get Routes", "Write File")
+      <div className={`font-mono ${compact ? "text-[12px]" : "text-[13px]"}`}>
+        <span className={isInProgress ? "shimmer-text text-zinc-200" : "text-zinc-200"}>
+          {React.string(ToolLabels.toTitleCase(toolName))}
         </span>
-        <span className="truncate">
-          <span className={`font-mono ${isInProgress ? "shimmer-text" : "text-zinc-200"}`}>
-            {React.string(displayName)}
+      </div>
+      
+      // Target path as purple link
+      {target->Option.mapOr(React.null, t =>
+        <div className={`mt-1 ${compact ? "text-[11px]" : "text-[12px]"}`}>
+          <span 
+            className={`font-mono ${hasError ? "text-red-400" : "text-[#8051CD] hover:text-[#9d7be0]"}`}
+          >
+            {React.string(t)}
           </span>
-          {target->Option.mapOr(React.null, t =>
-            <span className="text-zinc-500 font-sans"> {React.string(" " ++ t)} </span>
-          )}
-        </span>
-      </div>
-      <div className="flex items-center gap-0.5 shrink-0">
-        <ToolStatus state compact=true />
-        {hasBody
-          ? <button
-              type_="button"
-              className="flex items-center justify-center w-5 h-5 border-none bg-transparent rounded cursor-pointer 
-                         opacity-0 group-hover:opacity-50 hover:!opacity-80 transition-opacity text-zinc-200"
-              onClick={e => {
-                ReactEvent.Mouse.stopPropagation(e)
-                handleToggle(e)
-              }}>
-              <Icons.ChevronDownIcon
-                size=12 className={`transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`}
-              />
-            </button>
-          : React.null}
-      </div>
+        </div>
+      )}
+      
+      // Error message if present (inline)
+      {switch errorText {
+      | Some(err) =>
+        <div className="mt-2 text-[11px] text-red-400 font-mono">
+          {React.string(err)}
+        </div>
+      | None => React.null
+      }}
     </div>
+    
+    // Expandable body for non-file tools
     {hasBody
       ? <div className={bodyClasses}>
           <div
-            className={`p-2 bg-zinc-900 overflow-auto ${compact ? "max-h-[120px] text-[10px]" : "max-h-[150px] text-xs"}`}>
+            className={`mt-3 pt-3 border-t border-[#8051CD]/20 overflow-auto ${compact ? "max-h-[120px] text-[10px]" : "max-h-[150px] text-xs"}`}>
             {switch (state, input, inputBuffer) {
             | (InputStreaming, None, buf) if buf != "" =>
               <div className="mb-2">
@@ -169,13 +163,7 @@ let make = (
                   {React.string(JSON.stringify(json, ~space=2))}
                 </pre>
               </div>
-            | (None, Some(err)) =>
-              <div>
-                <div className="text-[11px] text-red-400 mb-1"> {React.string("Error:")} </div>
-                <pre className="font-mono text-[11px] whitespace-pre-wrap break-words text-red-400">
-                  {React.string(err)}
-                </pre>
-              </div>
+            | (None, Some(_)) => React.null // Error already shown inline in header
             | _ if state == InputAvailable =>
               <div className="text-sm text-zinc-400 italic py-1">
                 {React.string("Executing...")}

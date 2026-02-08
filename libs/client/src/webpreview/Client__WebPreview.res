@@ -37,41 +37,44 @@ module ReloadButton = {
 module SelectElement = {
   @react.component
   let make = (~onClick: unit => unit, ~isSelecting: bool) => {
-    <div
-      className={isSelecting
-        ? "rounded-md bg-blue-500 shadow-sm shadow-blue-500/30"
-        : "rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"}
+    <button
+      type_="button"
+      onClick={_ => onClick()}
+      className={`flex items-center justify-center w-8 h-8 rounded-lg transition-colors
+                 ${isSelecting
+          ? "bg-violet-600 text-white hover:bg-violet-500"
+          : "bg-gray-200 text-gray-600 hover:bg-gray-300 hover:text-gray-700"}`}
+      title={isSelecting ? "Exit selection mode" : "Select element"}
     >
-      <Nav.NavButton
-        onClick={onClick}
-        tooltip={isSelecting ? "Exit selection mode" : "Select element"}
-      >
-        <RadixUI__Icons.Crosshair1Icon
-          className={isSelecting
-            ? "size-4 text-white"
-            : "size-4 text-gray-600 dark:text-gray-400"}
-        />
-      </Nav.NavButton>
-    </div>
+      <Client__ToolIcons.CursorClickIcon size=16 />
+    </button>
   }
 }
 
 module OpenInNewWindow = {
   @react.component
   let make = (~onClick: unit => unit) => {
-    <Nav.NavButton onClick={onClick} tooltip="Open in new tab">
+    <button
+      type_="button"
+      onClick={_ => onClick()}
+      className="flex items-center justify-center w-8 h-8 rounded-lg
+                 bg-gray-200 text-gray-600 hover:bg-gray-300 hover:text-gray-700
+                 transition-colors"
+      title="Open in new tab"
+    >
       <RadixUI__Icons.OpenInNewWindowIcon className="size-4" />
-    </Nav.NavButton>
+    </button>
   }
 }
 
 @react.component
 let make = () => {
-  let currentTaskId = Client__State.useSelector(Client__State.Selectors.currentTaskId)
-  let allTasks = Client__State.useSelector(Client__State.Selectors.tasks)
+  // Use primitive selectors for efficient comparison (strings compare by value)
+  let currentTaskClientId = Client__State.useSelector(Client__State.Selectors.currentTaskClientId)
+  let isNewTask = Client__State.useSelector(Client__State.Selectors.isNewTask)
+  let persistedTasks = Client__State.useSelector(Client__State.Selectors.tasks)
   let previewUrl = Client__State.useSelector(Client__State.Selectors.previewUrl)
   let previewFrame = Client__State.useSelector(Client__State.Selectors.previewFrame)
-  let isNewTask = Client__State.useSelector(Client__State.Selectors.isNewTask)
   let webPreviewIsSelecting = Client__State.useSelector(
     Client__State.Selectors.webPreviewIsSelecting,
   )
@@ -108,6 +111,7 @@ let make = () => {
   
     <Nav.Container>
       <Nav.Navigation>
+        <Nav.TrafficLights />
         <BackButton onClick={handleBack} />
         <ForwardButton onClick={handleForward} />
         <ReloadButton onClick={handleReload} />
@@ -122,18 +126,42 @@ let make = () => {
         | _ => React.null
         }}
 
-        {isNewTask
-          ? <Client__WebPreview__Body key="__new__" taskId="__new__" url={previewFrame.url} isActive={true} />
-          : React.null}
-        {allTasks
-          ->Array.map(task => {
-            let taskId = Client__Task__Types.Task.getId(task)->Option.getOrThrow
-            let taskPreviewFrame = Client__Task__Types.Task.getPreviewFrame(task, ~defaultUrl=Client__State__StateReducer.getInitialUrl())
+        // Unified array of all iframes - keeps React keys in the same sibling position
+        // so switching tasks just toggles isActive prop without unmounting/remounting
+        {
+          let defaultUrl = Client__State__StateReducer.getInitialUrl()
+          
+          // Build array of all tasks including New task if present
+          let allTasks = if isNewTask {
+            // Prepend New task iframe (uses previewFrame from selector)
+            Array.concat(
+              [(currentTaskClientId, previewFrame.url)],
+              persistedTasks->Array.map(task => {
+                let clientId = Client__Task__Types.Task.getClientId(task)
+                let taskPreviewFrame = Client__Task__Types.Task.getPreviewFrame(task, ~defaultUrl)
+                (clientId, taskPreviewFrame.url)
+              })
+            )
+          } else {
+            // All tasks are in persistedTasks array
+            persistedTasks->Array.map(task => {
+              let clientId = Client__Task__Types.Task.getClientId(task)
+              let taskPreviewFrame = Client__Task__Types.Task.getPreviewFrame(task, ~defaultUrl)
+              (clientId, taskPreviewFrame.url)
+            })
+          }
+          
+          allTasks
+          ->Array.map(((clientId, url)) => {
             <Client__WebPreview__Body
-              key={taskId} taskId={taskId} url={taskPreviewFrame.url} isActive={currentTaskId == Some(taskId)}
+              key={clientId}
+              taskId={clientId}
+              url={url}
+              isActive={clientId == currentTaskClientId}
             />
           })
-          ->React.array}
+          ->React.array
+        }
       </div>
     </Nav.Container>
 }

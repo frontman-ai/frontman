@@ -73,12 +73,12 @@ module NestedToolGroup = {
     
     <div className="my-0.5">
       <div
-        className="group flex items-center gap-1 px-1.5 py-1 rounded cursor-pointer 
-                   bg-zinc-800/50 hover:bg-zinc-700/40 transition-colors duration-150"
+        className="group flex items-center gap-1 px-2 py-1.5 rounded-lg cursor-pointer 
+                   bg-[#8051CD]/10 hover:bg-[#8051CD]/15 transition-colors duration-150"
         onClick={handleToggle}>
         <button
           type_="button"
-          className="flex items-center justify-center w-3 h-3 shrink-0 text-zinc-500">
+          className="flex items-center justify-center w-3 h-3 shrink-0 text-zinc-400">
           <Icons.ChevronDownIcon size=8 className={isExpanded ? "rotate-180" : "-rotate-90"} />
         </button>
         <span className={`text-[10px] shrink-0 ${prefixColorClass}`}>
@@ -88,20 +88,20 @@ module NestedToolGroup = {
           {summaryLabels
           ->Array.mapWithIndex((label, i) => {
             <React.Fragment key={Int.toString(i)}>
-              {i > 0 ? <span className="text-zinc-600"> {React.string(" · ")} </span> : React.null}
+              {i > 0 ? <span className="text-zinc-500"> {React.string(" · ")} </span> : React.null}
               <span className="text-zinc-300 truncate"> {React.string(label)} </span>
             </React.Fragment>
           })
           ->React.array}
         </div>
-        <span className="text-[9px] text-zinc-500 bg-zinc-700/50 px-1 py-0.5 rounded shrink-0">
+        <span className="text-[9px] text-zinc-400 bg-[#8051CD]/20 px-1 py-0.5 rounded shrink-0">
           {React.string(Int.toString(toolCount))}
         </span>
       </div>
       <div
         className={`frontman-collapse-transition
                     ${isExpanded ? "opacity-100 mt-0.5" : "max-h-0 opacity-0 overflow-hidden"}`}>
-        <div className="pl-3 border-l border-zinc-600/30 space-y-0.5">
+        <div className="pl-3 border-l border-[#8051CD]/30 space-y-0.5">
           {group.toolCalls->Array.mapWithIndex((tc, i) => {
             <ToolCallBlock
               key={tc.id}
@@ -208,17 +208,17 @@ let make = (~group: Types.toolGroup, ~defaultExpanded: bool=false, ~isLastToolGr
     setIsExpanded(prev => !prev)
   }
 
-  // Style variants for subagent vs main agent groups - borderless design
+  // Style variants for subagent vs main agent groups - purple themed
   let headerBgClass = if isSubagent {
     "bg-indigo-950/50 hover:bg-indigo-900/50"
   } else {
-    "bg-zinc-800/70 hover:bg-zinc-700/50"
+    "bg-[#8051CD]/10 hover:bg-[#8051CD]/15"
   }
 
   let borderLineClass = if isSubagent {
     "border-indigo-600/40"
   } else {
-    "border-zinc-600/40"
+    "border-[#8051CD]/30"
   }
 
   // Show shimmer effect when group is loading OR open (last group with agent running)
@@ -229,17 +229,17 @@ let make = (~group: Types.toolGroup, ~defaultExpanded: bool=false, ~isLastToolGr
     if showShimmer { "shimmer-text" } else { "text-zinc-400" }
   }
 
-  <div className="my-1.5 animate-in fade-in duration-100">
-    // Collapsed Summary Header - borderless
+  <div className="my-1.5 mx-3 animate-in fade-in duration-100">
+    // Collapsed Summary Header - purple themed
     <div
-      className={`group flex items-center gap-1.5 px-2 py-1.5 rounded-md cursor-pointer 
+      className={`group flex items-center gap-1.5 px-3 py-2 rounded-lg cursor-pointer 
                   transition-colors duration-150 ${headerBgClass}`}
       onClick={handleToggle}>
       // Expand/Collapse Chevron (left side)
       <button
         type_="button"
         className="flex items-center justify-center w-4 h-4 shrink-0
-                   text-zinc-500 transition-transform duration-200">
+                   text-zinc-400 transition-transform duration-200">
         <Icons.ChevronDownIcon size=10 className={isExpanded ? "rotate-180" : "-rotate-90"} />
       </button>
       // Subagent icon (for subagent groups)
@@ -264,7 +264,7 @@ let make = (~group: Types.toolGroup, ~defaultExpanded: bool=false, ~isLastToolGr
       {switch group.spawningToolName {
       | Some(toolName) =>
         <span className="text-xs text-indigo-300 font-mono truncate max-w-[180px]">
-          {React.string(toolName)}
+          {React.string(Client__ToolLabels.toTitleCase(toolName))}
         </span>
       | None => React.null
       }}
@@ -283,7 +283,7 @@ let make = (~group: Types.toolGroup, ~defaultExpanded: bool=false, ~isLastToolGr
       </div>
       // Tool count badge
       <span
-        className="text-[10px] text-zinc-500 bg-zinc-700/50 px-1.5 py-0.5 rounded shrink-0">
+        className="text-[10px] text-zinc-400 bg-[#8051CD]/20 px-1.5 py-0.5 rounded shrink-0">
         {React.string(Int.toString(toolCount))}
       </span>
     </div>
