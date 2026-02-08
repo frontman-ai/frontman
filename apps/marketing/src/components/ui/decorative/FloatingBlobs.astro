@@ -3,7 +3,7 @@
 // ------------
 // Description: Animated decorative blobs that float slowly like a screensaver
 // The blobs drift in random directions with smooth ease-in-out transitions
-// They can move partially off-screen but always float back into view
+// They stay mostly on-screen with at least 60% visible at all times
 // Properties:
 // - blobs: array of blob configurations { color, size, startPosition }
 
@@ -99,8 +99,8 @@ const { blobs = defaultBlobs, speed = 15 } = Astro.props
 
 		getRandomPosition(blob) {
 			// Calculate boundaries - allow blob to go partially off-screen
-			// But at least 30% must remain visible
-			const visiblePercentage = 30
+			// But at least 60% must remain visible (max 40% can go off-screen)
+			const visiblePercentage = 60
 			const maxOffscreen = (100 - visiblePercentage)
 
 			// X boundaries: can go from -maxOffscreen% to (100 + maxOffscreen - 100)%
