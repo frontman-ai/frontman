@@ -13,6 +13,7 @@ jobs:
   deploy:
     name: Build and Deploy to Production
     runs-on: ubuntu-slim
+    environment: production
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
