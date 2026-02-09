@@ -62,6 +62,20 @@ defmodule FrontmanServerWeb.Router do
     post("/oauth/anthropic/exchange", AnthropicOAuthController, :exchange)
     delete("/oauth/anthropic/disconnect", AnthropicOAuthController, :disconnect)
     get("/oauth/anthropic/status", AnthropicOAuthController, :status)
+
+    # ChatGPT OAuth routes (authorize-url, disconnect, status use api_with_session)
+    get("/oauth/chatgpt/authorize-url", ChatGPTOAuthController, :authorize_url)
+    delete("/oauth/chatgpt/disconnect", ChatGPTOAuthController, :disconnect)
+    get("/oauth/chatgpt/status", ChatGPTOAuthController, :status)
+  end
+
+  # ChatGPT OAuth callback - browser redirect from OpenAI (needs session for user identification)
+  # This is separate from api_with_session because it's a browser redirect, not an API call.
+  # The user_id is stored in ETS keyed by the state param, so we don't need session auth here.
+  scope "/api/oauth/chatgpt", FrontmanServerWeb do
+    pipe_through(:api)
+
+    get("/callback", ChatGPTOAuthController, :callback)
   end
 
   # Organization-scoped routes

@@ -124,6 +124,14 @@ type anthropicOAuthStatus =
   | Connected({expiresAt: float})
   | Error(string)
 
+// ChatGPT OAuth connection status (simpler - server-side callback, no manual code paste)
+type chatgptOAuthStatus =
+  | ChatGPTNotConnected
+  | ChatGPTFetchingStatus
+  | ChatGPTWaitingForCallback // User redirected to OpenAI, polling for completion
+  | ChatGPTConnected({expiresAt: float})
+  | ChatGPTError(string)
+
 // Sessions load state for persisted sessions
 type sessionsLoadState =
   | SessionsNotLoaded
@@ -139,6 +147,7 @@ type state = {
   usageInfo: option<usageInfo>,
   openrouterKeySettings: apiKeySettings,
   anthropicOAuthStatus: anthropicOAuthStatus,
+  chatgptOAuthStatus: chatgptOAuthStatus,
   modelsConfig: option<modelsConfig>,
   selectedModel: option<selectedModel>,
   sessionsLoadState: sessionsLoadState,

@@ -67,6 +67,7 @@ module Fixtures = {
       saveStatus: StateTypes.Idle,
     },
     anthropicOAuthStatus: StateTypes.NotConnected,
+    chatgptOAuthStatus: StateTypes.ChatGPTNotConnected,
     modelsConfig: None,
     selectedModel: None,
     sessionsLoadState: StateTypes.SessionsNotLoaded,

@@ -19,7 +19,16 @@ defmodule FrontmanServer.Providers do
   alias FrontmanServer.Repo
 
   alias FrontmanServer.Accounts.{Scope, User}
-  alias FrontmanServer.Providers.{AnthropicOAuth, ApiKey, OAuthToken, ResolvedKey, UserKeyUsage}
+
+  alias FrontmanServer.Providers.{
+    AnthropicOAuth,
+    ApiKey,
+    ChatGPTOAuth,
+    OAuthHelpers,
+    OAuthToken,
+    ResolvedKey,
+    UserKeyUsage
+  }
 
   @default_model "openrouter:openai/gpt-5.1-codex"
 
@@ -282,8 +291,7 @@ defmodule FrontmanServer.Providers do
   # Claude Code identity for Anthropic OAuth
   @claude_code_identity "You are Claude Code, Anthropic's official CLI for Claude."
 
-  # Check for OAuth token (currently only Anthropic supports this)
-  # Returns OAuth-specific transformation options for Claude Code
+  # Check for OAuth token - returns provider-specific transformation options
   defp maybe_resolve_oauth_token(scope, "anthropic") do
     case get_valid_oauth_token(scope, "anthropic") do
       {:ok, access_token} ->
@@ -295,7 +303,35 @@ defmodule FrontmanServer.Providers do
     end
   end
 
+  # ChatGPT OAuth: when user selects an openai: model AND has chatgpt oauth connected
+  defp maybe_resolve_oauth_token(scope, "openai") do
+    case get_valid_oauth_token(scope, "chatgpt") do
+      {:ok, access_token} ->
+        # Get account_id from stored token metadata
+        account_id = get_chatgpt_account_id(scope)
+
+        {:oauth_token, access_token,
+         oauth_mode: true,
+         chatgpt_account_id: account_id,
+         codex_endpoint: "https://chatgpt.com/backend-api/codex/responses"}
+
+      {:error, _} ->
+        :no_oauth_token
+    end
+  end
+
   defp maybe_resolve_oauth_token(_scope, _provider), do: :no_oauth_token
+
+  # Retrieve the chatgpt_account_id from stored token metadata
+  defp get_chatgpt_account_id(scope) do
+    case get_oauth_token(scope, "chatgpt") do
+      %OAuthToken{metadata: %{"account_id" => account_id}} when is_binary(account_id) ->
+        account_id
+
+      _ ->
+        nil
+    end
+  end
 
   # Check env key first, then fall back to server env key
   defp resolve_env_or_server_key(provider, env_api_key) when is_map(env_api_key) do
@@ -352,6 +388,40 @@ defmodule FrontmanServer.Providers do
   end
 
   @doc """
+  Stores or updates an OAuth token for a provider, with additional metadata.
+
+  Metadata is a map that can store provider-specific data like `account_id`.
+  """
+  def upsert_oauth_token_with_metadata(
+        %Scope{user: %User{} = user},
+        provider,
+        access_token,
+        refresh_token,
+        expires_at,
+        metadata
+      )
+      when is_map(metadata) do
+    provider = String.downcase(provider)
+    oauth_token = %OAuthToken{user_id: user.id}
+
+    changeset =
+      OAuthToken.changeset(oauth_token, %{
+        provider: provider,
+        access_token: access_token,
+        refresh_token: refresh_token,
+        expires_at: expires_at,
+        metadata: metadata
+      })
+
+    Repo.insert(
+      changeset,
+      on_conflict:
+        {:replace, [:access_token, :refresh_token, :expires_at, :metadata, :updated_at]},
+      conflict_target: [:user_id, :provider]
+    )
+  end
+
+  @doc """
   Fetches an OAuth token for a provider (may be expired).
   """
   def get_oauth_token(%Scope{user: %User{} = user}, provider) do
@@ -393,8 +463,33 @@ defmodule FrontmanServer.Providers do
   @doc """
   Refreshes an OAuth token and updates the stored values.
 
+  Dispatches to the correct provider's refresh_token implementation.
   Returns `{:ok, new_access_token}` or `{:error, reason}`.
   """
+  def refresh_oauth_token(%Scope{} = scope, %OAuthToken{provider: "chatgpt"} = token) do
+    case ChatGPTOAuth.refresh_token(token.refresh_token) do
+      {:ok, new_tokens} ->
+        expires_in = new_tokens.expires_in || 3600
+        expires_at = OAuthHelpers.calculate_expires_at(expires_in)
+
+        # Preserve existing metadata (account_id) when refreshing
+        case upsert_oauth_token_with_metadata(
+               scope,
+               "chatgpt",
+               new_tokens.access_token,
+               new_tokens.refresh_token || token.refresh_token,
+               expires_at,
+               token.metadata || %{}
+             ) do
+          {:ok, _} -> {:ok, new_tokens.access_token}
+          {:error, reason} -> {:error, {:failed_to_store_refreshed_token, reason}}
+        end
+
+      {:error, reason} ->
+        {:error, {:refresh_failed, reason}}
+    end
+  end
+
   def refresh_oauth_token(%Scope{} = scope, %OAuthToken{} = token) do
     case AnthropicOAuth.refresh_token(token.refresh_token) do
       {:ok, new_tokens} ->

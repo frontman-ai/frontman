@@ -68,6 +68,16 @@ type action =
   | DisconnectAnthropicOAuth
   | AnthropicOAuthDisconnected
   | ResetAnthropicOAuthError
+  // ChatGPT OAuth actions
+  | FetchChatGPTOAuthStatus
+  | ChatGPTOAuthStatusReceived({connected: bool, expiresAt: option<string>})
+  | InitiateChatGPTOAuth
+  | ChatGPTOAuthUrlReceived({authorizeUrl: string})
+  | ChatGPTOAuthConnected({expiresAt: string})
+  | ChatGPTOAuthError({error: string})
+  | DisconnectChatGPTOAuth
+  | ChatGPTOAuthDisconnected
+  | ResetChatGPTOAuthError
   // Session loading actions
   | SessionsLoadStarted
   | SessionsLoadSuccess({
@@ -87,6 +97,11 @@ type effect =
   | GetAnthropicOAuthUrlEffect({apiBaseUrl: string})
   | ExchangeAnthropicOAuthCodeEffect({apiBaseUrl: string, code: string, verifier: string})
   | DisconnectAnthropicOAuthEffect({apiBaseUrl: string})
+  // ChatGPT OAuth effects
+  | FetchChatGPTOAuthStatusEffect({apiBaseUrl: string})
+  | GetChatGPTOAuthUrlEffect({apiBaseUrl: string})
+  | DisconnectChatGPTOAuthEffect({apiBaseUrl: string})
+  | PollChatGPTOAuthStatusEffect({apiBaseUrl: string})
   // Task loading effect
   | LoadTaskEffect({taskId: string})
 
@@ -197,6 +212,7 @@ let defaultState: state = {
     saveStatus: Client__State__Types.Idle,
   },
   anthropicOAuthStatus: Client__State__Types.NotConnected,
+  chatgptOAuthStatus: Client__State__Types.ChatGPTNotConnected,
   modelsConfig: None,
   selectedModel: loadSelectedModelFromStorage(), // Load from localStorage on init
   sessionsLoadState: Client__State__Types.SessionsNotLoaded,
@@ -249,6 +265,16 @@ let actionToString = action => {
   | DisconnectAnthropicOAuth => `DisconnectAnthropicOAuth`
   | AnthropicOAuthDisconnected => `AnthropicOAuthDisconnected`
   | ResetAnthropicOAuthError => `ResetAnthropicOAuthError`
+  | FetchChatGPTOAuthStatus => `FetchChatGPTOAuthStatus`
+  | ChatGPTOAuthStatusReceived({connected}) =>
+    `ChatGPTOAuthStatusReceived(connected=${connected->string_of_bool})`
+  | InitiateChatGPTOAuth => `InitiateChatGPTOAuth`
+  | ChatGPTOAuthUrlReceived(_) => `ChatGPTOAuthUrlReceived`
+  | ChatGPTOAuthConnected({expiresAt}) => `ChatGPTOAuthConnected(${expiresAt})`
+  | ChatGPTOAuthError({error}) => `ChatGPTOAuthError(${error})`
+  | DisconnectChatGPTOAuth => `DisconnectChatGPTOAuth`
+  | ChatGPTOAuthDisconnected => `ChatGPTOAuthDisconnected`
+  | ResetChatGPTOAuthError => `ResetChatGPTOAuthError`
   | SessionsLoadStarted => `SessionsLoadStarted`
   | SessionsLoadSuccess({sessions}) =>
     `SessionsLoadSuccess(${sessions->Array.length->Int.toString} sessions)`
@@ -399,6 +425,11 @@ module Selectors = {
     state.anthropicOAuthStatus
   }
 
+  // Get ChatGPT OAuth status
+  let chatgptOAuthStatus = (state: state): Client__State__Types.chatgptOAuthStatus => {
+    state.chatgptOAuthStatus
+  }
+
   // Whether the user has any API provider configured via state-tracked sources
   // (DB-stored OpenRouter key or Anthropic OAuth).
   // Env-injected keys (window.__frontmanRuntime) live outside state — check RuntimeConfig separately.
@@ -408,7 +439,11 @@ module Selectors = {
     | _ =>
       switch state.anthropicOAuthStatus {
       | Connected(_) => true
-      | _ => false
+      | _ =>
+        switch state.chatgptOAuthStatus {
+        | ChatGPTConnected(_) => true
+        | _ => false
+        }
       }
     }
   }
@@ -740,6 +775,133 @@ let handleEffect = (effect, state: state, dispatch) => {
     }
     disconnect()->ignore
 
+  | FetchChatGPTOAuthStatusEffect({apiBaseUrl}) =>
+    let fetch = async () => {
+      let url = `${apiBaseUrl}/api/oauth/chatgpt/status`
+
+      try {
+        let response = await WebAPI.Global.fetch(url, ~init={credentials: Include})
+        if response.ok {
+          let json = await response->WebAPI.Response.json
+          let connected =
+            json
+            ->JSON.Decode.object
+            ->Option.flatMap(obj => obj->Dict.get("connected")->Option.flatMap(JSON.Decode.bool))
+            ->Option.getOr(false)
+          let expiresAt =
+            json
+            ->JSON.Decode.object
+            ->Option.flatMap(obj => obj->Dict.get("expires_at")->Option.flatMap(JSON.Decode.string))
+          dispatch(ChatGPTOAuthStatusReceived({connected, expiresAt}))
+        }
+      } catch {
+      | _ => dispatch(ChatGPTOAuthError({error: "Failed to fetch ChatGPT OAuth status"}))
+      }
+    }
+    fetch()->ignore
+
+  | GetChatGPTOAuthUrlEffect({apiBaseUrl}) =>
+    let fetch = async () => {
+      let url = `${apiBaseUrl}/api/oauth/chatgpt/authorize-url`
+
+      try {
+        let response = await WebAPI.Global.fetch(url, ~init={credentials: Include})
+        if response.ok {
+          let json = await response->WebAPI.Response.json
+          let authorizeUrl =
+            json
+            ->JSON.Decode.object
+            ->Option.flatMap(obj =>
+              obj->Dict.get("authorize_url")->Option.flatMap(JSON.Decode.string)
+            )
+          switch authorizeUrl {
+          | Some(authorizeUrl) =>
+            dispatch(ChatGPTOAuthUrlReceived({authorizeUrl: authorizeUrl}))
+          | None => dispatch(ChatGPTOAuthError({error: "Invalid response from server"}))
+          }
+        } else {
+          dispatch(ChatGPTOAuthError({error: "Failed to get authorization URL"}))
+        }
+      } catch {
+      | _ => dispatch(ChatGPTOAuthError({error: "Failed to get authorization URL"}))
+      }
+    }
+    fetch()->ignore
+
+  | PollChatGPTOAuthStatusEffect({apiBaseUrl}) =>
+    // Poll every 2 seconds for up to 5 minutes (150 attempts)
+    let poll = async () => {
+      let maxAttempts = 150
+      let intervalMs = 2000
+      let rec pollLoop = async (attempt) => {
+        if attempt >= maxAttempts {
+          dispatch(ChatGPTOAuthError({error: "Authorization timed out. Please try again."}))
+        } else {
+          try {
+            let url = `${apiBaseUrl}/api/oauth/chatgpt/status`
+            let response = await WebAPI.Global.fetch(url, ~init={credentials: Include})
+            if response.ok {
+              let json = await response->WebAPI.Response.json
+              let connected =
+                json
+                ->JSON.Decode.object
+                ->Option.flatMap(obj => obj->Dict.get("connected")->Option.flatMap(JSON.Decode.bool))
+                ->Option.getOr(false)
+              if connected {
+                let expiresAt =
+                  json
+                  ->JSON.Decode.object
+                  ->Option.flatMap(obj => obj->Dict.get("expires_at")->Option.flatMap(JSON.Decode.string))
+                  ->Option.getOr("")
+                dispatch(ChatGPTOAuthConnected({expiresAt: expiresAt}))
+              } else {
+                await Promise.make((resolve, _) => {
+                  let _ = Js.Global.setTimeout(() => resolve(.), intervalMs)
+                })
+                await pollLoop(attempt + 1)
+              }
+            } else {
+              await Promise.make((resolve, _) => {
+                let _ = Js.Global.setTimeout(() => resolve(.), intervalMs)
+              })
+              await pollLoop(attempt + 1)
+            }
+          } catch {
+          | _ =>
+            await Promise.make((resolve, _) => {
+              let _ = Js.Global.setTimeout(() => resolve(.), intervalMs)
+            })
+            await pollLoop(attempt + 1)
+          }
+        }
+      }
+      await pollLoop(0)
+    }
+    poll()->ignore
+
+  | DisconnectChatGPTOAuthEffect({apiBaseUrl}) =>
+    let disconnect = async () => {
+      let url = `${apiBaseUrl}/api/oauth/chatgpt/disconnect`
+
+      try {
+        let response = await WebAPI.Global.fetch(
+          url,
+          ~init={
+            method: "DELETE",
+            credentials: Include,
+          },
+        )
+        if response.ok {
+          dispatch(ChatGPTOAuthDisconnected)
+        } else {
+          dispatch(ChatGPTOAuthError({error: "Failed to disconnect"}))
+        }
+      } catch {
+      | _ => dispatch(ChatGPTOAuthError({error: "Failed to disconnect"}))
+      }
+    }
+    disconnect()->ignore
+
   | LoadTaskEffect({taskId}) =>
     switch state.acpSession {
     | AcpSessionActive({loadTask}) =>
@@ -912,6 +1074,7 @@ let next = (state: state, action) => {
         FetchUsageInfo({apiBaseUrl: apiBaseUrl}),
         FetchModelsConfigEffect({apiBaseUrl: apiBaseUrl}),
         FetchAnthropicOAuthStatusEffect({apiBaseUrl: apiBaseUrl}),
+        FetchChatGPTOAuthStatusEffect({apiBaseUrl: apiBaseUrl}),
       ],
     )
 
@@ -1144,6 +1307,112 @@ let next = (state: state, action) => {
       {
         ...state,
         anthropicOAuthStatus: Client__State__Types.NotConnected,
+      }->FrontmanReactStatestore.StateReducer.update
+    | _ => state->FrontmanReactStatestore.StateReducer.update
+    }
+
+  // ChatGPT OAuth actions
+  | FetchChatGPTOAuthStatus =>
+    switch state.acpSession {
+    | AcpSessionActive({apiBaseUrl}) =>
+      {
+        ...state,
+        chatgptOAuthStatus: Client__State__Types.ChatGPTFetchingStatus,
+      }->FrontmanReactStatestore.StateReducer.update(
+        ~sideEffects=[FetchChatGPTOAuthStatusEffect({apiBaseUrl: apiBaseUrl})],
+      )
+    | NoAcpSession => state->FrontmanReactStatestore.StateReducer.update
+    }
+
+  | ChatGPTOAuthStatusReceived({connected, expiresAt}) =>
+    let status = if connected {
+      switch expiresAt {
+      | Some(expiresAtStr) =>
+        let expiresAtMs = Date.fromString(expiresAtStr)->Date.getTime
+        Client__State__Types.ChatGPTConnected({expiresAt: expiresAtMs})
+      | None => Client__State__Types.ChatGPTConnected({expiresAt: 0.0})
+      }
+    } else {
+      Client__State__Types.ChatGPTNotConnected
+    }
+    // Refresh models when ChatGPT status changes (may add/remove provider)
+    let effects = switch state.acpSession {
+    | AcpSessionActive({apiBaseUrl}) => [FetchModelsConfigEffect({apiBaseUrl: apiBaseUrl})]
+    | NoAcpSession => []
+    }
+    {...state, chatgptOAuthStatus: status}->FrontmanReactStatestore.StateReducer.update(~sideEffects=effects)
+
+  | InitiateChatGPTOAuth =>
+    switch state.acpSession {
+    | AcpSessionActive({apiBaseUrl}) =>
+      state->FrontmanReactStatestore.StateReducer.update(
+        ~sideEffects=[GetChatGPTOAuthUrlEffect({apiBaseUrl: apiBaseUrl})],
+      )
+    | NoAcpSession => state->FrontmanReactStatestore.StateReducer.update
+    }
+
+  | ChatGPTOAuthUrlReceived({authorizeUrl}) =>
+    // Open the authorization URL in a new tab and start polling
+    WebAPI.Window.open_(WebAPI.Global.window, ~url=authorizeUrl, ~target="_blank")->ignore
+    switch state.acpSession {
+    | AcpSessionActive({apiBaseUrl}) =>
+      {
+        ...state,
+        chatgptOAuthStatus: Client__State__Types.ChatGPTWaitingForCallback,
+      }->FrontmanReactStatestore.StateReducer.update(
+        ~sideEffects=[PollChatGPTOAuthStatusEffect({apiBaseUrl: apiBaseUrl})],
+      )
+    | NoAcpSession =>
+      {
+        ...state,
+        chatgptOAuthStatus: Client__State__Types.ChatGPTWaitingForCallback,
+      }->FrontmanReactStatestore.StateReducer.update
+    }
+
+  | ChatGPTOAuthConnected({expiresAt}) =>
+    let expiresAtMs = Date.fromString(expiresAt)->Date.getTime
+    // Refresh models when connected (adds ChatGPT provider)
+    let effects = switch state.acpSession {
+    | AcpSessionActive({apiBaseUrl}) => [FetchModelsConfigEffect({apiBaseUrl: apiBaseUrl})]
+    | NoAcpSession => []
+    }
+    {
+      ...state,
+      chatgptOAuthStatus: Client__State__Types.ChatGPTConnected({expiresAt: expiresAtMs}),
+    }->FrontmanReactStatestore.StateReducer.update(~sideEffects=effects)
+
+  | ChatGPTOAuthError({error}) =>
+    {
+      ...state,
+      chatgptOAuthStatus: Client__State__Types.ChatGPTError(error),
+    }->FrontmanReactStatestore.StateReducer.update
+
+  | DisconnectChatGPTOAuth =>
+    switch state.acpSession {
+    | AcpSessionActive({apiBaseUrl}) =>
+      state->FrontmanReactStatestore.StateReducer.update(
+        ~sideEffects=[DisconnectChatGPTOAuthEffect({apiBaseUrl: apiBaseUrl})],
+      )
+    | NoAcpSession => state->FrontmanReactStatestore.StateReducer.update
+    }
+
+  | ChatGPTOAuthDisconnected =>
+    // Refresh models when disconnected (removes ChatGPT provider)
+    let effects = switch state.acpSession {
+    | AcpSessionActive({apiBaseUrl}) => [FetchModelsConfigEffect({apiBaseUrl: apiBaseUrl})]
+    | NoAcpSession => []
+    }
+    {
+      ...state,
+      chatgptOAuthStatus: Client__State__Types.ChatGPTNotConnected,
+    }->FrontmanReactStatestore.StateReducer.update(~sideEffects=effects)
+
+  | ResetChatGPTOAuthError =>
+    switch state.chatgptOAuthStatus {
+    | Client__State__Types.ChatGPTError(_) =>
+      {
+        ...state,
+        chatgptOAuthStatus: Client__State__Types.ChatGPTNotConnected,
       }->FrontmanReactStatestore.StateReducer.update
     | _ => state->FrontmanReactStatestore.StateReducer.update
     }

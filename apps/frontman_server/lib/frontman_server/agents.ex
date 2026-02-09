@@ -161,13 +161,16 @@ defmodule FrontmanServer.Agents do
         # LLM transformation flags (requires_mcp_prefix, identity_override) come from ResolvedKey
         # oauth_mode tells ReqLLM to use Bearer token auth instead of x-api-key
         # max_tokens: 16_384 ensures tool calls with large content (e.g. file writes) don't get truncated
-        llm_opts = [
-          api_key: resolved_key.api_key,
-          requires_mcp_prefix: resolved_key.requires_mcp_prefix,
-          identity_override: resolved_key.identity_override,
-          oauth_mode: resolved_key.oauth_mode,
-          max_tokens: 16_384
-        ]
+        # ChatGPT-specific: base_url + extra_headers for Codex API
+        llm_opts =
+          [
+            api_key: resolved_key.api_key,
+            requires_mcp_prefix: resolved_key.requires_mcp_prefix,
+            identity_override: resolved_key.identity_override,
+            oauth_mode: resolved_key.oauth_mode,
+            max_tokens: 16_384
+          ]
+          |> maybe_add_codex_opts(resolved_key)
 
         has_typescript_react = framework in ["nextjs"]
 
@@ -245,6 +248,30 @@ defmodule FrontmanServer.Agents do
 
   defp error_message(reason),
     do: inspect(reason)
+
+  # Add ChatGPT Codex-specific opts (base_url, extra_headers) when using Codex API
+  defp maybe_add_codex_opts(llm_opts, %ResolvedKey{
+         codex_endpoint: endpoint,
+         chatgpt_account_id: account_id
+       })
+       when is_binary(endpoint) do
+    # codex_endpoint is "https://chatgpt.com/backend-api/codex/responses"
+    # ReqLLM appends "/responses" to base_url, so strip it
+    base_url = String.replace_suffix(endpoint, "/responses", "")
+
+    extra_headers =
+      if is_binary(account_id) and account_id != "" do
+        [{"ChatGPT-Account-Id", account_id}]
+      else
+        []
+      end
+
+    llm_opts
+    |> Keyword.put(:base_url, base_url)
+    |> Keyword.put(:extra_headers, extra_headers)
+  end
+
+  defp maybe_add_codex_opts(llm_opts, _resolved_key), do: llm_opts
 
   # Build model string from config map: "provider:model_value"
   # e.g., %{provider: "openrouter", value: "google/gemini-3-flash-preview"}

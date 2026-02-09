@@ -20,13 +20,18 @@ let make = (~open_: bool, ~onOpenChange: bool => unit) => {
   // Get Anthropic OAuth status from state
   let anthropicOAuthStatus = State.useSelector(State.Selectors.anthropicOAuthStatus)
 
+  // Get ChatGPT OAuth status from state
+  let chatgptOAuthStatus = State.useSelector(State.Selectors.chatgptOAuthStatus)
+
   // Fetch API key settings when modal opens
   React.useEffect(() => {
     if open_ {
       State.Actions.fetchApiKeySettings()
       State.Actions.fetchAnthropicOAuthStatus()
+      State.Actions.fetchChatGPTOAuthStatus()
       State.Actions.resetOpenRouterKeySaveStatus()
       State.Actions.resetAnthropicOAuthError()
+      State.Actions.resetChatGPTOAuthError()
       setOpenrouterKey(_ => "")
       setOauthCode(_ => "")
     }
@@ -246,6 +251,91 @@ let make = (~open_: bool, ~onOpenChange: bool => unit) => {
                           onClick={_ => {
                             State.Actions.resetAnthropicOAuthError()
                             State.Actions.initiateAnthropicOAuth()
+                          }}>
+                          {React.string("Try again")}
+                        </Button.Button>
+                      </div>
+                    }}
+                  </div>
+                </div>
+
+                // ChatGPT OAuth Section
+                <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-semibold text-zinc-100">
+                        {React.string("ChatGPT Pro/Plus")}
+                      </span>
+                      {switch chatgptOAuthStatus {
+                      | Types.ChatGPTConnected(_) =>
+                        <span
+                          className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[11px] font-semibold text-emerald-200">
+                          {React.string("Connected")}
+                        </span>
+                      | Types.ChatGPTFetchingStatus | Types.ChatGPTWaitingForCallback =>
+                        <span
+                          className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[11px] font-semibold text-amber-200">
+                          {React.string("Connecting...")}
+                        </span>
+                      | Types.ChatGPTError(_) =>
+                        <span
+                          className="rounded-full bg-red-500/20 px-2 py-0.5 text-[11px] font-semibold text-red-200">
+                          {React.string("Error")}
+                        </span>
+                      | Types.ChatGPTNotConnected =>
+                        <span
+                          className="rounded-full bg-zinc-700/50 px-2 py-0.5 text-[11px] font-semibold text-zinc-400">
+                          {React.string("Not connected")}
+                        </span>
+                      }}
+                    </div>
+                  </div>
+
+                  <div className="mt-2 text-xs text-zinc-500">
+                    {React.string("Use your ChatGPT Pro or Plus subscription to power Frontman with OpenAI Codex models.")}
+                  </div>
+
+                  <div className="mt-3">
+                    {switch chatgptOAuthStatus {
+                    | Types.ChatGPTNotConnected =>
+                      <Button.Button
+                        variant=#secondary
+                        onClick={_ => State.Actions.initiateChatGPTOAuth()}>
+                        {React.string("Connect with ChatGPT")}
+                      </Button.Button>
+                    | Types.ChatGPTFetchingStatus =>
+                      <Button.Button variant=#secondary disabled={true}>
+                        {React.string("Checking status...")}
+                      </Button.Button>
+                    | Types.ChatGPTWaitingForCallback =>
+                      <div className="flex items-center gap-2 text-sm text-zinc-400">
+                        <span
+                          className="inline-block size-4 animate-spin rounded-full border-2 border-zinc-600 border-t-zinc-300"
+                        />
+                        {React.string("Waiting for authorization... Complete sign-in in the new tab.")}
+                      </div>
+                    | Types.ChatGPTConnected({expiresAt}) => {
+                        let expiryDate = Date.fromTime(expiresAt)
+                        let expiryStr = Intl.DateTimeFormat.make()->Intl.DateTimeFormat.format(expiryDate)
+                        <div className="space-y-2">
+                          <div className="text-xs text-zinc-500">
+                            {React.string(`Token expires: ${expiryStr}`)}
+                          </div>
+                          <Button.Button
+                            variant=#secondary
+                            onClick={_ => State.Actions.disconnectChatGPTOAuth()}>
+                            {React.string("Disconnect")}
+                          </Button.Button>
+                        </div>
+                      }
+                    | Types.ChatGPTError(msg) =>
+                      <div className="space-y-2">
+                        <div className="text-xs text-red-400"> {React.string(msg)} </div>
+                        <Button.Button
+                          variant=#secondary
+                          onClick={_ => {
+                            State.Actions.resetChatGPTOAuthError()
+                            State.Actions.initiateChatGPTOAuth()
                           }}>
                           {React.string("Try again")}
                         </Button.Button>

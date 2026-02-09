@@ -32,6 +32,9 @@ defmodule FrontmanServer.Application do
       nil
     )
 
+    # Initialize ETS table for ChatGPT OAuth PKCE state storage
+    FrontmanServerWeb.ChatGPTOAuthController.ensure_ets_table()
+
     children = [
       FrontmanServerWeb.Telemetry,
       FrontmanServer.Repo,
