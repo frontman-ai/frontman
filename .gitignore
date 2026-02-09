@@ -46,3 +46,4 @@ Thumbs.db
 .certs/
 opencode.json
 scripts/certs/
+mprocs.log
