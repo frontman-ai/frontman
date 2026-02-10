@@ -181,6 +181,15 @@ Next steps:
   3. Your app is now connected to: ${host}
 
 For documentation, visit: https://frontman.sh/docs
+
+┌─────────────────────────────────────────────┐
+│                                             │
+│   💬  Questions? Comments? Need support?    │
+│                                             │
+│       Join us on Discord:                   │
+│       https://discord.gg/J77jBzMM           │
+│                                             │
+└─────────────────────────────────────────────┘
 `
 
   let dryRunHeader = `

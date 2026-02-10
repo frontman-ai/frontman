@@ -27,6 +27,8 @@ module TooltipContent = {
   @module("@/components/ui/tooltip") @react.component
   external make: (
     ~className: string=?,
+    ~side: string=?,
+    ~align: string=?,
     ~sideOffset: int=?,
     ~children: React.element=?,
   ) => React.element = "TooltipContent"

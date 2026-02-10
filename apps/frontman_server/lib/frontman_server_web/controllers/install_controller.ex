@@ -186,6 +186,15 @@ defmodule FrontmanServerWeb.InstallController do
 
     echo ""
     echo "${GREEN}✓ Frontman installed successfully${NC}"
+    echo ""
+    echo "┌─────────────────────────────────────────────┐"
+    echo "│                                             │"
+    echo "│   💬  Questions? Comments? Need support?    │"
+    echo "│                                             │"
+    echo "│       Join us on Discord:                   │"
+    echo "│       https://discord.gg/J77jBzMM           │"
+    echo "│                                             │"
+    echo "└─────────────────────────────────────────────┘"
     """
   end
 end

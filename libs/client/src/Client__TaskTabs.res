@@ -17,8 +17,9 @@ type resizeObserver
 
 // Width constants for overflow calculation
 let tabWidth = 150
-let newButtonWidth = 80
+let newButtonWidth = 44
 let overflowButtonWidth = 50
+let helpButtonWidth = 36
 let settingsButtonWidth = 44
 let logoWidth = 44
 
@@ -47,7 +48,7 @@ let make = (~onSettingsClick: unit => unit) => {
     | Some(el) => {
         let recalc = () => {
           let containerW = clientWidth(el)
-          let available = containerW - newButtonWidth - settingsButtonWidth - logoWidth
+          let available = containerW - newButtonWidth - helpButtonWidth - settingsButtonWidth - logoWidth
           let allFit = available >= tasksLen * tabWidth
           if allFit {
             setVisibleCount(_ => tasksLen)
@@ -214,9 +215,9 @@ let make = (~onSettingsClick: unit => unit) => {
   let overflowCount = Array.length(overflowTasks)
 
   // Main render
-  <div className="h-12 border-b" ref={ReactDOM.Ref.domRef(containerRef)}>
+  <div className="h-12 border-b flex" ref={ReactDOM.Ref.domRef(containerRef)}>
     <UI.Tabs
-      value={currentTaskId->Option.getOr("")} onValueChange={handleTabChange} className="h-full"
+      value={currentTaskId->Option.getOr("")} onValueChange={handleTabChange} className="h-full flex-1 min-w-0"
     >
       <UI.TabsList
         className="h-full w-full rounded-none justify-start overflow-hidden bg-transparent p-0"
@@ -269,24 +270,45 @@ let make = (~onSettingsClick: unit => unit) => {
               </DropdownMenu.DropdownMenuContent>
             </DropdownMenu.DropdownMenu>
           : React.null}
-        <Button.Button
-          variant=#ghost size=#sm onClick={handleNewTask} className="cursor-pointer gap-1 shrink-0"
-        >
-          <Icons.PlusIcon style={{"width": "14px", "height": "14px"}} />
-          <span className="text-xs"> {React.string("New")} </span>
-        </Button.Button>
-        <div className="ml-auto shrink-0">
-          <button
-            type_="button"
-            className="h-9 w-9 rounded-lg border border-zinc-800/70 bg-zinc-900/70 text-zinc-200 shadow-sm backdrop-blur transition-all duration-200 flex items-center justify-center hover:border-zinc-700 hover:bg-zinc-800/90 hover:shadow-md cursor-pointer"
-            onClick={_ => onSettingsClick()}
-            title="Settings"
-          >
-            <Icons.GearIcon style={{"width": "16px", "height": "16px"}} />
-          </button>
-        </div>
+        <Tooltip.Tooltip>
+          <Tooltip.TooltipTrigger asChild=true>
+            <Button.Button
+              variant=#ghost size=#sm onClick={handleNewTask} className="cursor-pointer shrink-0 px-2"
+            >
+              <Icons.PlusIcon style={{"width": "14px", "height": "14px"}} />
+            </Button.Button>
+          </Tooltip.TooltipTrigger>
+          <Tooltip.TooltipContent sideOffset=4>
+            {React.string("New task")}
+          </Tooltip.TooltipContent>
+        </Tooltip.Tooltip>
       </UI.TabsList>
     </UI.Tabs>
+    <div className="shrink-0 flex items-center gap-1 px-2">
+      <Tooltip.Tooltip>
+        <Tooltip.TooltipTrigger asChild=true>
+          <a
+            href="https://discord.gg/J77jBzMM"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="h-9 w-9 rounded-lg text-zinc-400 transition-all duration-200 flex items-center justify-center hover:text-[#5865F2] hover:bg-[#5865F2]/10 cursor-pointer"
+          >
+            <Icons.QuestionMarkCircledIcon style={{"width": "16px", "height": "16px"}} />
+          </a>
+        </Tooltip.TooltipTrigger>
+        <Tooltip.TooltipContent side="bottom" align="end" sideOffset=4>
+          {React.string("Need help? Join our Discord")}
+        </Tooltip.TooltipContent>
+      </Tooltip.Tooltip>
+      <button
+        type_="button"
+        className="h-9 w-9 rounded-lg border border-zinc-800/70 bg-zinc-900/70 text-zinc-200 shadow-sm backdrop-blur transition-all duration-200 flex items-center justify-center hover:border-zinc-700 hover:bg-zinc-800/90 hover:shadow-md cursor-pointer"
+        onClick={_ => onSettingsClick()}
+        title="Settings"
+      >
+        <Icons.GearIcon style={{"width": "16px", "height": "16px"}} />
+      </button>
+    </div>
     <AlertDialog.AlertDialog
       open_={deleteDialogOpen} onOpenChange={open_ => setDeleteDialogOpen(_ => open_)}
     >
