@@ -8,7 +8,7 @@ let resolve = async (sourceLocation: Client__Types.SourceLocation.t): result<
     let location = WebAPI.Global.location
     `${location.protocol}//${location.host}`
   }
-  let url = `${baseUrl}/__frontman/resolve-source-location`
+  let url = `${baseUrl}/frontman/resolve-source-location`
 
   let requestBody = {
     "componentName": sourceLocation.componentName->Option.getOr(""),

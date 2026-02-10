@@ -39,7 +39,7 @@ let makeFromObject = (config: jsConfigInput): t => {
     ->Option.getOr(".")
 
   let sourceRoot = config.sourceRoot->Option.getOr(projectRoot)
-  let basePath = config.basePath->Option.getOr("__frontman")
+  let basePath = config.basePath->Option.getOr("frontman")
   let serverName = config.serverName->Option.getOr("frontman-astro")
   let serverVersion = config.serverVersion->Option.getOr("1.0.0")
   let clientUrl = config.clientUrl->Option.getOr(defaultClientUrl)

@@ -79,7 +79,7 @@ Captures Next.js request/response spans from the OpenTelemetry instrumentation:
 - Duration, status, and other span attributes
 
 **Filtering:**
-- Automatically filters out `/__frontman` internal paths
+- Automatically filters out `/frontman` internal paths
 - Converts OTEL spans to log entries with level: `console`
 - Stores in the same circular buffer as console logs
 

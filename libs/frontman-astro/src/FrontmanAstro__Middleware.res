@@ -113,8 +113,8 @@ let createMiddleware = (config: Config.t) => {
 
     let basePath = `/${config.basePath}`
 
-    // Check if this is a frontman route
-    if !(pathname->String.startsWith(basePath)) {
+    // Check if this is a frontman route (exact match or subpath)
+    if !(pathname == basePath || pathname->String.startsWith(`${basePath}/`)) {
       // Not a frontman route - pass through but inject script into HTML
       let response = await next()
       await injectAnnotationScript(response)

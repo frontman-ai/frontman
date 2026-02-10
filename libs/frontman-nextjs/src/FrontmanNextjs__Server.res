@@ -44,7 +44,7 @@ let make = (
   }
 }
 
-// GET /__frontman/tools
+// GET /frontman/tools
 let handleGetTools = (server: t): WebAPI.FetchAPI.response => {
   let response = CoreServer.getToolsResponse(
     ~registry=server.registry,
@@ -57,7 +57,7 @@ let handleGetTools = (server: t): WebAPI.FetchAPI.response => {
   WebAPI.Response.jsonR(~data=json, ~init={headers: headers})
 }
 
-// POST /__frontman/tools/call - executes tool with SSE streaming
+// POST /frontman/tools/call - executes tool with SSE streaming
 let handleToolCall = async (server: t, req: WebAPI.FetchAPI.request): WebAPI.FetchAPI.response => {
   let body = await req->WebAPI.Request.json
 
@@ -111,7 +111,7 @@ let handleToolCall = async (server: t, req: WebAPI.FetchAPI.request): WebAPI.Fet
   }
 }
 
-// POST /__frontman/resolve-source-location - resolves source location
+// POST /frontman/resolve-source-location - resolves source location
 let handleResolveSourceLocation = async (
   server: t,
   req: WebAPI.FetchAPI.request,

@@ -16,7 +16,7 @@ const frontman = FRONTMAN_ENABLED
       makeConfig({
 	projectRoot: appRoot,
 	sourceRoot: monorepoRoot,
-	basePath: "__frontman",
+	basePath: "frontman",
 	serverName: "marketing",
 	serverVersion: "1.0.0",
       })
@@ -28,7 +28,7 @@ const frontman = FRONTMAN_ENABLED
 //       makeConfig(
 //         appRoot,
 //         monorepoRoot,  // sourceRoot for file path resolution
-//         "__frontman",
+//         "frontman",
 //         "marketing",
 //         "1.0.0"
 //       )

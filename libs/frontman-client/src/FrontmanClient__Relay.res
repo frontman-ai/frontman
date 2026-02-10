@@ -31,7 +31,7 @@ let getState = (relay: t): connectionState => relay.state
 
 // Connect to dev server and fetch tools
 let connect = async (relay: t): result<unit, string> => {
-  let url = `${relay.baseUrl}/__frontman/tools`
+  let url = `${relay.baseUrl}/frontman/tools`
   let response = await WebAPI.Global.fetch(url)
 
   if !response.ok {
@@ -93,7 +93,7 @@ let executeTool = async (
   if !(relay->isConnected) {
     Error("Relay not connected")
   } else {
-    let url = `${relay.baseUrl}/__frontman/tools/call`
+    let url = `${relay.baseUrl}/frontman/tools/call`
     let request: Types.toolCallRequest = {name, arguments}
     let body = request->S.reverseConvertToJsonOrThrow(Types.toolCallRequestSchema)
 

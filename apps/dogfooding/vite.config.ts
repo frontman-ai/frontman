@@ -34,7 +34,7 @@ export default vite.defineConfig({
 		frontmanPlugin({
 			isDev: process.env.NODE_ENV !== "production",
 			isLightTheme: true,
-			entrypointUrl: "http://localhost:3000/__frontman",
+			entrypointUrl: "http://localhost:3000/frontman",
 			//@ts-ignore
 			clientUrl: "http://localhost:6123/bootstrap.js",
 		}),
