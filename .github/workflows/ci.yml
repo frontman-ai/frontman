@@ -24,7 +24,7 @@ jobs:
           cache: 'yarn'
 
       - name: Install dependencies
-        run: yarn install
+        run: yarn install --immutable --immutable
 
       - name: Clean ReScript build cache
         run: yarn rescript clean
@@ -53,7 +53,7 @@ jobs:
           cache: 'yarn'
 
       - name: Install dependencies
-        run: yarn install
+        run: yarn install --immutable
 
       - name: Run tests with coverage
         run: make -C libs/frontman-client test-coverage
@@ -88,7 +88,7 @@ jobs:
           cache: 'yarn'
 
       - name: Install dependencies
-        run: yarn install
+        run: yarn install --immutable
 
       - name: Run tests with coverage
         run: make -C libs/frontman-core test-coverage
@@ -123,7 +123,7 @@ jobs:
           cache: 'yarn'
 
       - name: Install dependencies
-        run: yarn install
+        run: yarn install --immutable
 
       - name: Run tests with coverage
         run: make -C libs/frontman-nextjs test-coverage
@@ -289,7 +289,7 @@ jobs:
           cache: 'yarn'
 
       - name: Install dependencies
-        run: yarn install
+        run: yarn install --immutable
 
       - name: Run tests with coverage
         run: make -C libs/react-statestore test-coverage
@@ -324,7 +324,7 @@ jobs:
           cache: 'yarn'
 
       - name: Install dependencies
-        run: yarn install
+        run: yarn install --immutable
 
       - name: Run tests with coverage
         run: make -C libs/client test-coverage
@@ -359,7 +359,7 @@ jobs:
           cache: 'yarn'
 
       - name: Install dependencies
-        run: yarn install
+        run: yarn install --immutable
 
       - name: Run tests with coverage
         run: make -C libs/context-loader test-coverage
@@ -406,7 +406,7 @@ jobs:
 
       - name: Install dependencies
         if: steps.changes.outputs.client == 'true'
-        run: yarn install
+        run: yarn install --immutable
 
       - name: Run biome lint
         if: steps.changes.outputs.client == 'true'
