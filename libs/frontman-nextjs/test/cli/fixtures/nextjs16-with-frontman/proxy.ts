@@ -6,7 +6,7 @@ const frontman = createMiddleware({
 });
 
 export function proxy(req: NextRequest): NextResponse | Promise<NextResponse> {
-  if (req.nextUrl.pathname.startsWith('/frontman')) {
+  if (req.nextUrl.pathname === '/frontman' || req.nextUrl.pathname.startsWith('/frontman/')) {
     return frontman(req) || NextResponse.next();
   }
   return NextResponse.next();

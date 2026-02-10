@@ -79,7 +79,7 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/frontman/:path*'],
+  matcher: ['/frontman', '/frontman/:path*'],
 };
 ```
 
@@ -96,7 +96,7 @@ const frontman = createMiddleware({
 });
 
 export function proxy(req: NextRequest): NextResponse | Promise<NextResponse> {
-  if (req.nextUrl.pathname.startsWith('/frontman')) {
+  if (req.nextUrl.pathname === '/frontman' || req.nextUrl.pathname.startsWith('/frontman/')) {
     return frontman(req) || NextResponse.next();
   }
   return NextResponse.next();
@@ -152,7 +152,7 @@ export async function middleware(req: NextRequest) {
 
 export const config = {
   // Add Frontman matcher alongside your existing matchers
-  matcher: ['/frontman/:path*', '/your-other-routes/:path*'],
+  matcher: ['/frontman', '/frontman/:path*', '/your-other-routes/:path*'],
 };
 ```
 
@@ -169,7 +169,7 @@ const frontman = createMiddleware({
 
 export function proxy(req: NextRequest): NextResponse | Promise<NextResponse> {
   // Add Frontman handler first - it will handle /frontman/* routes
-  if (req.nextUrl.pathname.startsWith('/frontman')) {
+  if (req.nextUrl.pathname === '/frontman' || req.nextUrl.pathname.startsWith('/frontman/')) {
     return frontman(req) || NextResponse.next();
   }
 

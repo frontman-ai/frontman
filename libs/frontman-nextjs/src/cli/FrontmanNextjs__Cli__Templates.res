@@ -16,7 +16,7 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/frontman/:path*'],
+  matcher: ['/frontman', '/frontman/:path*'],
 };
 `
 
@@ -30,7 +30,7 @@ const frontman = createMiddleware({
 });
 
 export function proxy(req: NextRequest): NextResponse | Promise<NextResponse> {
-  if (req.nextUrl.pathname.startsWith('/frontman')) {
+  if (req.nextUrl.pathname === '/frontman' || req.nextUrl.pathname.startsWith('/frontman/')) {
     return frontman(req) || NextResponse.next();
   }
   return NextResponse.next();
@@ -83,7 +83,7 @@ Add the following to your ${fileName}:
   4. Update your matcher config to include Frontman routes:
 
       export const config = {
-        matcher: ['/frontman/:path*', ...yourExistingMatchers],
+        matcher: ['/frontman', '/frontman/:path*', ...yourExistingMatchers],
       };
 
 For full documentation, see: https://frontman.sh/docs/nextjs
@@ -109,7 +109,7 @@ Add the following to your ${fileName}:
 
       export function proxy(req: NextRequest): NextResponse | Promise<NextResponse> {
         // Add Frontman handler first
-        if (req.nextUrl.pathname.startsWith('/frontman')) {
+        if (req.nextUrl.pathname === '/frontman' || req.nextUrl.pathname.startsWith('/frontman/')) {
          return frontman(req) || NextResponse.next();
        }
 
