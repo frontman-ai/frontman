@@ -14,17 +14,23 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Enable Corepack
-        run: corepack enable
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '24.4.1'
-          cache: 'yarn'
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Cache Yarn
+        uses: actions/cache@v4
+        with:
+          path: ~/.yarn/berry/cache
+          key: yarn-${{ hashFiles('yarn.lock') }}
+          restore-keys: yarn-
 
       - name: Install dependencies
-        run: yarn install --immutable --immutable
+        run: yarn install --immutable
 
       - name: Clean ReScript build cache
         run: yarn rescript clean
@@ -43,14 +49,20 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Enable Corepack
-        run: corepack enable
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '24.4.1'
-          cache: 'yarn'
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Cache Yarn
+        uses: actions/cache@v4
+        with:
+          path: ~/.yarn/berry/cache
+          key: yarn-${{ hashFiles('yarn.lock') }}
+          restore-keys: yarn-
 
       - name: Install dependencies
         run: yarn install --immutable
@@ -78,14 +90,20 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Enable Corepack
-        run: corepack enable
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '24.4.1'
-          cache: 'yarn'
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Cache Yarn
+        uses: actions/cache@v4
+        with:
+          path: ~/.yarn/berry/cache
+          key: yarn-${{ hashFiles('yarn.lock') }}
+          restore-keys: yarn-
 
       - name: Install dependencies
         run: yarn install --immutable
@@ -113,14 +131,20 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Enable Corepack
-        run: corepack enable
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '24.4.1'
-          cache: 'yarn'
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Cache Yarn
+        uses: actions/cache@v4
+        with:
+          path: ~/.yarn/berry/cache
+          key: yarn-${{ hashFiles('yarn.lock') }}
+          restore-keys: yarn-
 
       - name: Install dependencies
         run: yarn install --immutable
@@ -143,6 +167,11 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Install OpenSSL dev libraries
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libssl-dev libncurses5-dev
 
       # Uses mise.toml as single source of truth for Erlang/Elixir versions
       - name: Setup Erlang/Elixir via mise
@@ -183,6 +212,11 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Install OpenSSL dev libraries
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libssl-dev libncurses5-dev
 
       # Uses mise.toml as single source of truth for Erlang/Elixir versions
       - name: Setup Erlang/Elixir via mise
@@ -232,6 +266,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Install OpenSSL dev libraries
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libssl-dev libncurses5-dev
+
       # Uses mise.toml as single source of truth for Erlang/Elixir versions
       - name: Setup Erlang/Elixir via mise
         uses: jdx/mise-action@v2
@@ -279,14 +318,20 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Enable Corepack
-        run: corepack enable
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '24.4.1'
-          cache: 'yarn'
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Cache Yarn
+        uses: actions/cache@v4
+        with:
+          path: ~/.yarn/berry/cache
+          key: yarn-${{ hashFiles('yarn.lock') }}
+          restore-keys: yarn-
 
       - name: Install dependencies
         run: yarn install --immutable
@@ -314,14 +359,20 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Enable Corepack
-        run: corepack enable
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '24.4.1'
-          cache: 'yarn'
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Cache Yarn
+        uses: actions/cache@v4
+        with:
+          path: ~/.yarn/berry/cache
+          key: yarn-${{ hashFiles('yarn.lock') }}
+          restore-keys: yarn-
 
       - name: Install dependencies
         run: yarn install --immutable
@@ -349,14 +400,20 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Enable Corepack
-        run: corepack enable
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '24.4.1'
-          cache: 'yarn'
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Cache Yarn
+        uses: actions/cache@v4
+        with:
+          path: ~/.yarn/berry/cache
+          key: yarn-${{ hashFiles('yarn.lock') }}
+          restore-keys: yarn-
 
       - name: Install dependencies
         run: yarn install --immutable
@@ -393,16 +450,23 @@ jobs:
             client:
               - 'libs/client/**'
 
-      - name: Enable Corepack
-        if: steps.changes.outputs.client == 'true'
-        run: corepack enable
-
       - name: Setup Node.js
         if: steps.changes.outputs.client == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: '24.4.1'
-          cache: 'yarn'
+
+      - name: Enable Corepack
+        if: steps.changes.outputs.client == 'true'
+        run: corepack enable
+
+      - name: Cache Yarn
+        if: steps.changes.outputs.client == 'true'
+        uses: actions/cache@v4
+        with:
+          path: ~/.yarn/berry/cache
+          key: yarn-${{ hashFiles('yarn.lock') }}
+          restore-keys: yarn-
 
       - name: Install dependencies
         if: steps.changes.outputs.client == 'true'
