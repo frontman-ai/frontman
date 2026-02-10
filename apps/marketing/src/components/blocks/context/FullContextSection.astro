@@ -96,17 +96,15 @@ import clientSvg from '../../../assets/context/client.svg'
 	}
 
 	.server-client-diagram {
-		@apply relative flex flex-col gap-8 items-center justify-center;
+		@apply relative flex flex-col items-center justify-center md:flex-row md:items-end;
 		width: 100%;
 		max-width: 600px;
-		flex-direction: row;
-
+		gap: 4rem;
 	}
 
 	@media (min-width: 768px) {
 		.server-client-diagram {
-			flex-direction: row;
-			align-items: flex-end;
+			gap: 2rem;
 		}
 	}
 
@@ -116,18 +114,32 @@ import clientSvg from '../../../assets/context/client.svg'
 
 	.diagram-logo {
 		@apply absolute;
-		width: 100px;
-		height: 100px;
-		top: -20px;
+		width: 64px;
+		height: 64px;
+		top: -16px;
 		left: 50%;
 		transform: translate(-50%, -50%);
 		z-index: 40;
 		filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.25));
 	}
 
+	@media (min-width: 768px) {
+		.diagram-logo {
+			width: 100px;
+			height: 100px;
+			top: -20px;
+		}
+	}
+
 	.illustration-wrapper {
 		@apply relative;
-		max-width: 220px;
+		max-width: 180px;
+	}
+
+	@media (min-width: 768px) {
+		.illustration-wrapper {
+			max-width: 220px;
+		}
 	}
 
 	.illustration-image {
@@ -189,21 +201,11 @@ import clientSvg from '../../../assets/context/client.svg'
 	/* Responsive adjustments */
 	@media (max-width: 1024px) {
 		.context-visual {
-			min-height: 300px;
+			min-height: auto;
 		}
 
 		.server-client-diagram {
 			max-width: 450px;
-			gap: 1.5rem;
-		}
-
-		.diagram-logo {
-			width: 80px;
-			height: 80px;
-		}
-
-		.illustration-wrapper {
-			max-width: 180px;
 		}
 
 		.diagram-label {
@@ -226,17 +228,11 @@ import clientSvg from '../../../assets/context/client.svg'
 		}
 
 		.server-client-diagram {
-			gap: 1.5rem;
 			max-width: 100%;
 		}
 
 		.diagram-item {
-			gap: 0.75rem;
-		}
-
-		.diagram-logo {
-			width: 64px;
-			height: 64px;
+			gap: 0.5rem;
 		}
 
 		.illustration-wrapper {

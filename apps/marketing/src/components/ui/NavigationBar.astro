@@ -124,14 +124,17 @@ const savedNavActions = navActions.map((action) => ({
 		@apply sticky top-0 z-[999] w-full border-b before:absolute after:absolute after:left-0 after:top-full after:z-10 after:block after:h-0 after:w-full lg:after:hidden;
 		border-color: rgba(0, 0, 0, 0.6);
 	}
+	:global(.dark) .header {
+		border-color: rgba(255, 255, 255, 0.15);
+	}
 	.header:before {
-		@apply block h-full w-full bg-white;
+		@apply block h-full w-full bg-white dark:bg-neutral-950;
 	}
 	.header__container {
 		@apply container relative mx-auto px-6;
 	}
 	.header__logo {
-		@apply flex flex-auto items-center gap-2 whitespace-nowrap py-3 tracking-wider text-black focus:outline-none;
+		@apply flex flex-auto items-center gap-2 whitespace-nowrap py-3 tracking-wider text-black dark:text-white focus:outline-none;
 		font-size: 18px;
 		line-height: 25px;
 		font-weight: 330;
@@ -141,7 +144,7 @@ const savedNavActions = navActions.map((action) => ({
 		font-family: "SF Pro Display", system-ui, helvetica, sans-serif;
 	}
 	.header__menu {
-		@apply invisible absolute left-0 top-0 z-[-1] ml-auto h-dvh w-full justify-center overflow-hidden overflow-y-auto overscroll-contain bg-white px-8 py-[6rem] font-medium opacity-0 transition-[opacity,visibility] duration-300 lg:visible lg:relative lg:top-0 lg:z-0 lg:flex lg:h-full lg:w-auto lg:items-stretch lg:overflow-visible lg:bg-white/0 lg:px-0 lg:py-0 lg:pt-0 lg:opacity-100;
+		@apply invisible absolute left-0 top-0 z-[-1] ml-auto h-dvh w-full justify-center overflow-hidden overflow-y-auto overscroll-contain bg-white dark:bg-neutral-950 px-8 py-[6rem] font-medium opacity-0 transition-[opacity,visibility] duration-300 lg:visible lg:relative lg:top-0 lg:z-0 lg:flex lg:h-full lg:w-auto lg:items-stretch lg:overflow-visible lg:bg-white/0 lg:dark:bg-transparent lg:px-0 lg:py-0 lg:pt-0 lg:opacity-100;
 	}
 	.header__menu--open {
 		@apply visible opacity-100 backdrop-blur-sm;
@@ -150,11 +153,10 @@ const savedNavActions = navActions.map((action) => ({
 		@apply relative flex cursor-pointer flex-col items-stretch lg:flex-row;
 	}
 	.header__menu-link {
-		@apply relative flex items-center gap-1 py-4 transition-colors duration-300 focus:outline-none focus-visible:outline-none lg:px-6;
+		@apply relative flex items-center gap-1 py-4 text-black dark:text-white transition-colors duration-300 focus:outline-none focus-visible:outline-none lg:px-6;
 		font-size: 18px;
 		line-height: 25px;
 		font-weight: 330;
-		color: rgb(0, 0, 0);
 	}
 	.header__menu-link:hover {
 		@apply text-primary-500;

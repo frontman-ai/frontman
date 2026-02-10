@@ -136,7 +136,7 @@ const frameworks = [
 
 <style>
 	.install-section {
-		@apply relative overflow-hidden py-32;
+		@apply relative overflow-hidden py-16 lg:py-32;
 		background: #FAFAFA;
 	}
 
@@ -146,21 +146,21 @@ const frameworks = [
 
 	/* Header */
 	.install-header {
-		@apply text-center mb-20;
+		@apply text-center mb-10 lg:mb-20;
 	}
 
 	.install-title {
-		@apply font-headings text-5xl lg:text-6xl font-bold text-black;
+		@apply font-headings text-3xl md:text-5xl lg:text-6xl font-bold text-black;
 	}
 
 	.install-subtitle {
-		@apply mt-6 text-xl max-w-2xl mx-auto leading-relaxed;
+		@apply mt-4 lg:mt-6 text-base lg:text-xl max-w-2xl mx-auto leading-relaxed;
 		color: #334155;
 	}
 
 	/* Framework tabs */
 	.framework-tabs {
-		@apply mt-8 flex items-center justify-center gap-3;
+		@apply mt-8 flex flex-wrap items-center justify-center gap-3;
 	}
 
 	.framework-tab {
@@ -193,7 +193,8 @@ const frameworks = [
 	}
 
 	.step {
-		@apply flex gap-8;
+		@apply flex gap-3 lg:gap-8;
+		min-width: 0;
 	}
 
 	/* Step indicator */
@@ -202,7 +203,7 @@ const frameworks = [
 	}
 
 	.step-number {
-		@apply flex items-center justify-center w-14 h-14 font-headings text-xl font-bold text-white border-2 border-black;
+		@apply flex items-center justify-center w-10 h-10 lg:w-14 lg:h-14 font-headings text-base lg:text-xl font-bold text-white border-2 border-black;
 		border-radius: 50%;
 		box-shadow: 3px 3px 0 0 rgba(0, 0, 0, 1);
 	}
@@ -226,8 +227,9 @@ const frameworks = [
 
 	/* Step cards */
 	.step-card {
-		@apply flex-1 rounded-2xl p-6 mb-6;
+		@apply flex-1 rounded-2xl p-4 lg:p-6 mb-6;
 		border-left: 4px solid transparent;
+		min-width: 0;
 	}
 
 	.step-card--yellow {
@@ -248,24 +250,25 @@ const frameworks = [
 	}
 
 	.step-title {
-		@apply font-headings text-2xl font-bold text-black;
+		@apply font-headings text-xl lg:text-2xl font-bold text-black;
 	}
 
 	.step-description {
-		@apply mt-2 text-base leading-relaxed;
+		@apply mt-2 text-sm lg:text-base leading-relaxed;
 		color: #334155;
 	}
 
 	/* Terminal code block */
 	.terminal {
-		@apply mt-5 overflow-hidden;
+		@apply mt-5;
 		background: #0f0f1a;
 		border-radius: 12px;
 		border: 2px solid #1e1e2e;
+		overflow: hidden;
 	}
 
 	.terminal-bar {
-		@apply flex items-center gap-1.5 px-4 py-2.5;
+		@apply flex items-center gap-1.5 px-3 lg:px-4 py-2.5;
 		background: #1a1a2e;
 		border-bottom: 1px solid #2a2a3e;
 	}
@@ -276,8 +279,15 @@ const frameworks = [
 	}
 
 	.terminal-body {
-		@apply flex items-center gap-3 px-4 py-3.5 font-mono;
-		font-size: 14px;
+		@apply flex items-center gap-2 lg:gap-3 px-3 lg:px-4 py-3.5 font-mono;
+		font-size: 13px;
+		overflow-x: auto;
+	}
+
+	@media (min-width: 1024px) {
+		.terminal-body {
+			font-size: 14px;
+		}
 	}
 
 	.terminal-prompt {

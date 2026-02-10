@@ -78,7 +78,7 @@ const logoImage = { src: '/logo.svg' }
 	.hero-section__container {
 		position: relative;
 		z-index: 1;
-		padding: 40px 0 40px 24px;
+		padding: 40px 24px;
 		width: 100%;
 	}
 	@media (min-width: 1024px) {
@@ -106,13 +106,17 @@ const logoImage = { src: '/logo.svg' }
 		flex: 0 0 auto;
 		width: 100%;
 		max-width: 600px;
-		padding-right: 24px;
 	}
 	@media (min-width: 1024px) {
 		.hero-section__text {
 			width: 45%;
 			max-width: none;
 			padding-right: 48px;
+		}
+	}
+	@media (max-width: 1023px) {
+		.hero-section__text {
+			max-width: 100%;
 		}
 	}
 	.hero-section__logo {
@@ -203,8 +207,7 @@ const logoImage = { src: '/logo.svg' }
 		justify-content: center;
 		align-items: center;
 		margin-right: 0;
-		padding-right: 24px;
-		padding-left: 0;
+		padding: 0;
 	}
 	@media (min-width: 1024px) {
 		.hero-section__image-wrapper {

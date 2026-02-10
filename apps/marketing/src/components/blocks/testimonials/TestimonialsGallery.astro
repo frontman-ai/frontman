@@ -165,8 +165,8 @@ const testimonials: Testimonial[] = [
 		@apply flex gap-8;
 	}
 
-	/* Mobile responsive */
-	@media (max-width: 640px) {
+	/* Tablet responsive - smaller cards for mid-range */
+	@media (max-width: 767px) {
 		.testimonials-track {
 			@apply gap-6 flex-col items-center;
 			animation: none;
@@ -182,13 +182,13 @@ const testimonials: Testimonial[] = [
 
 		.testimonial-card {
 			width: 100%;
-			max-width: 340px;
+			max-width: 480px;
 			min-height: 200px;
 			padding: 2rem;
 		}
 
 		.testimonial-quote {
-			@apply text-base mb-5;
+			@apply text-lg mb-5;
 		}
 
 		.author-name {
@@ -197,6 +197,17 @@ const testimonials: Testimonial[] = [
 
 		.author-role {
 			@apply text-sm;
+		}
+	}
+
+	/* Small mobile */
+	@media (max-width: 480px) {
+		.testimonial-card {
+			max-width: 340px;
+		}
+
+		.testimonial-quote {
+			@apply text-base;
 		}
 	}
 </style>
