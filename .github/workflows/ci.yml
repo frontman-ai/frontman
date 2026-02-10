@@ -214,15 +214,20 @@ jobs:
         with:
           path: apps/frontman_server/deps
           key: ${{ runner.os }}-mix-${{ hashFiles('apps/frontman_server/mix.lock') }}
+          restore-keys: ${{ runner.os }}-mix-
 
       - name: Cache _build
         uses: actions/cache@v4
         with:
           path: apps/frontman_server/_build
           key: ${{ runner.os }}-build-${{ hashFiles('apps/frontman_server/mix.lock') }}
+          restore-keys: ${{ runner.os }}-build-
 
       - name: Install dependencies
-        run: make -C apps/frontman_server install
+        working-directory: apps/frontman_server
+        run: |
+          mix deps.clean --unlock --unused
+          mix deps.get
 
       - name: Run lint
         run: make -C apps/frontman_server lint
@@ -257,15 +262,20 @@ jobs:
         with:
           path: apps/frontman_server/deps
           key: ${{ runner.os }}-mix-${{ hashFiles('apps/frontman_server/mix.lock') }}
+          restore-keys: ${{ runner.os }}-mix-
 
       - name: Cache _build
         uses: actions/cache@v4
         with:
           path: apps/frontman_server/_build
           key: ${{ runner.os }}-build-${{ hashFiles('apps/frontman_server/mix.lock') }}
+          restore-keys: ${{ runner.os }}-build-
 
       - name: Install dependencies
-        run: make -C apps/frontman_server install
+        working-directory: apps/frontman_server
+        run: |
+          mix deps.clean --unlock --unused
+          mix deps.get
 
       - name: Run tests with coverage
         run: make -C apps/frontman_server test-coverage
@@ -308,12 +318,14 @@ jobs:
         with:
           path: apps/frontman_server/deps
           key: ${{ runner.os }}-mix-${{ hashFiles('apps/frontman_server/mix.lock') }}
+          restore-keys: ${{ runner.os }}-mix-
 
       - name: Cache _build
         uses: actions/cache@v4
         with:
           path: apps/frontman_server/_build
           key: ${{ runner.os }}-build-${{ hashFiles('apps/frontman_server/mix.lock') }}
+          restore-keys: ${{ runner.os }}-build-
 
       # PLT cache includes mise.toml hash to invalidate when Erlang/Elixir versions change
       # v3: bust cache after migrating to self-hosted runners (different mise install path)
@@ -322,9 +334,13 @@ jobs:
         with:
           path: apps/frontman_server/priv/plts
           key: ${{ runner.os }}-plt-v3-${{ hashFiles('mise.toml', 'apps/frontman_server/mix.lock') }}
+          restore-keys: ${{ runner.os }}-plt-v3-
 
       - name: Install dependencies
-        run: make -C apps/frontman_server install
+        working-directory: apps/frontman_server
+        run: |
+          mix deps.clean --unlock --unused
+          mix deps.get
 
       - name: Run Dialyzer
         run: make -C apps/frontman_server dialyzer
