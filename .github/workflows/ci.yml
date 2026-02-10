@@ -7,9 +7,35 @@ on:
       - main
 
 jobs:
+  setup:
+    name: Setup & cache dependencies
+    runs-on: self-hosted
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.4.1'
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Cache Yarn
+        uses: actions/cache@v4
+        with:
+          path: ~/.yarn/berry/cache
+          key: yarn-${{ hashFiles('yarn.lock') }}
+          restore-keys: yarn-
+
+      - name: Install dependencies
+        run: yarn install --immutable
+
   build:
     name: Build
     runs-on: self-hosted
+    needs: [setup]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -40,6 +66,7 @@ jobs:
 
   test-frontman-client:
     name: Test frontman-client
+    needs: [setup]
     runs-on: self-hosted
     permissions:
       contents: read
@@ -81,6 +108,7 @@ jobs:
 
   test-frontman-core:
     name: Test frontman-core
+    needs: [setup]
     runs-on: self-hosted
     permissions:
       contents: read
@@ -122,6 +150,7 @@ jobs:
 
   test-frontman-nextjs:
     name: Test frontman-nextjs
+    needs: [setup]
     runs-on: self-hosted
     permissions:
       contents: read
@@ -309,6 +338,7 @@ jobs:
 
   test-react-statestore:
     name: Test react-statestore
+    needs: [setup]
     runs-on: self-hosted
     permissions:
       contents: read
@@ -350,6 +380,7 @@ jobs:
 
   test-client:
     name: Test client
+    needs: [setup]
     runs-on: self-hosted
     permissions:
       contents: read
@@ -391,6 +422,7 @@ jobs:
 
   test-context-loader:
     name: Test context-loader
+    needs: [setup]
     runs-on: self-hosted
     permissions:
       contents: read
@@ -432,6 +464,7 @@ jobs:
 
   lint-client:
     name: Lint libs/client
+    needs: [setup]
     runs-on: self-hosted
     permissions:
       contents: read
