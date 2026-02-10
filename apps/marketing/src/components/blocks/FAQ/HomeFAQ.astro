@@ -1,0 +1,159 @@
+---
+// Home FAQ Section
+// ------------
+// Description: An FAQ accordion section for the homepage with dark styling.
+
+// Data
+import faqData from '../../../data/json-files/faqData.json'
+const faqs = faqData
+---
+
+<section id="faq" class="faq-section">
+	<div class="faq-container">
+		<p class="faq-label">FAQ</p>
+		<h2 class="faq-title">Frequently asked questions</h2>
+		<p class="faq-subtitle">
+			Everything you need to know about Frontman — the AI agent that lives inside your app.
+		</p>
+
+		<div class="faq-list">
+			{
+				faqs.map((faq) => (
+					<details class="faq-item group">
+						<summary class="faq-question">
+							<span>{faq.question}</span>
+							<span class="faq-icon">+</span>
+						</summary>
+						<div class="faq-answer">
+							<p>{faq.reply}</p>
+						</div>
+					</details>
+				))
+			}
+		</div>
+	</div>
+</section>
+
+<style>
+	.faq-section {
+		background: #09090b;
+		color: #fafafa;
+		padding: 80px 24px;
+		display: flex;
+		justify-content: center;
+	}
+
+	.faq-container {
+		max-width: 720px;
+		width: 100%;
+	}
+
+	.faq-label {
+		@apply font-mono;
+		font-size: 13px;
+		letter-spacing: 0.12em;
+		text-transform: uppercase;
+		color: #71717a;
+		margin-bottom: 12px;
+	}
+
+	.faq-title {
+		font-size: 42px;
+		font-weight: 700;
+		line-height: 1.1;
+		margin-bottom: 12px;
+		letter-spacing: -0.02em;
+		color: #fafafa;
+	}
+
+	.faq-subtitle {
+		font-size: 17px;
+		color: #a1a1aa;
+		line-height: 1.6;
+		margin-bottom: 64px;
+		max-width: 520px;
+	}
+
+	.faq-list {
+		border-top: 1px solid #27272a;
+	}
+
+	.faq-item {
+		border-bottom: 1px solid #27272a;
+		cursor: pointer;
+	}
+
+	.faq-question {
+		width: 100%;
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		padding: 24px 0;
+		color: #fafafa;
+		font-size: 17px;
+		font-weight: 500;
+		line-height: 1.4;
+		letter-spacing: -0.01em;
+		list-style: none;
+		transition: color 0.2s;
+	}
+
+	.faq-question::-webkit-details-marker {
+		display: none;
+	}
+
+	.faq-question:hover {
+		color: #fff;
+	}
+
+	.faq-question span:first-child {
+		padding-right: 24px;
+	}
+
+	.faq-icon {
+		flex-shrink: 0;
+		width: 28px;
+		height: 28px;
+		border-radius: 50%;
+		border: 1px solid #3f3f46;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font-size: 18px;
+		font-weight: 300;
+		color: #71717a;
+		transition: all 0.3s ease;
+	}
+
+	.group[open] .faq-icon {
+		transform: rotate(45deg);
+		background: #27272a;
+	}
+
+	.faq-answer {
+		overflow: hidden;
+	}
+
+	.faq-answer p {
+		font-size: 15px;
+		line-height: 1.7;
+		color: #a1a1aa;
+		padding-bottom: 24px;
+		margin: 0;
+		max-width: 620px;
+	}
+
+	@media (max-width: 640px) {
+		.faq-section {
+			padding: 48px 20px;
+		}
+
+		.faq-title {
+			font-size: 32px;
+		}
+
+		.faq-subtitle {
+			margin-bottom: 40px;
+		}
+	}
+</style>

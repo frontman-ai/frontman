@@ -1,0 +1,29 @@
+---
+// Structured Data (JSON-LD)
+// ------------
+// Description: Injects Organization and SoftwareApplication schema markup for SEO.
+---
+
+<script type="application/ld+json" set:html={JSON.stringify({
+	"@context": "https://schema.org",
+	"@type": "Organization",
+	"name": "Frontman",
+	"url": "https://frontman.sh",
+	"logo": "https://frontman.sh/logo.svg",
+	"sameAs": ["https://github.com/nicholasgriffintn/frontman"]
+})} />
+
+<script type="application/ld+json" set:html={JSON.stringify({
+	"@context": "https://schema.org",
+	"@type": "SoftwareApplication",
+	"name": "Frontman",
+	"url": "https://frontman.sh",
+	"applicationCategory": "DeveloperApplication",
+	"operatingSystem": "Web",
+	"description": "AI Frontend Editing Directly in Your Browser",
+	"offers": {
+		"@type": "Offer",
+		"price": "0",
+		"priceCurrency": "USD"
+	}
+})} />

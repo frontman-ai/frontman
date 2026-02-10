@@ -2,53 +2,240 @@
 // Components
 // - Layout
 import Layout from '../layouts/Layout.astro'
-// - UI
-import Hero from '../components/blocks/hero/PageHeader.astro'
-import FAQ from '../components/blocks/FAQ/FaqSticky.astro'
-import TextImage from '../components/blocks/basic/TextImage.astro'
-import CTA from '../components/blocks/CTA/BasicDark.astro'
 
 // Data
 import faqData from '../data/json-files/faqData.json'
-// - FAQ Categories
-const faqPricing = faqData.filter((faq) => faq.category === 'pricing')
-const faqIntegrations = faqData.filter((faq) => faq.category === 'integrations')
+
+const categories = [
+	{
+		key: 'general',
+		label: 'About Frontman',
+		description: 'What Frontman is, who it\'s for, and how it compares to other AI coding tools.'
+	},
+	{
+		key: 'product',
+		label: 'Using Frontman',
+		description: 'What you can do with Frontman, what the experience looks like, and how changes stay safe.'
+	},
+	{
+		key: 'technical',
+		label: 'Technical Details',
+		description: 'How Frontman integrates with your framework and gets deep context about your running application.'
+	}
+]
 
 // Content
-import faqImage1 from '../assets/faq/faq-01.png'
 // - SEO
 const SEO = {
-	title: 'Frontman | Get Your Questions Answered with a Smile',
+	title: 'Frontman | Frequently Asked Questions',
 	description:
-		'Dive into the Frontman FAQ Funhouse to get answers to all your questions about pricing, integrations, features, and more. Discover how Frontman can make your work life more productive and enjoyable.'
+		'Get answers to common questions about Frontman — the AI agent that lives inside your app. Learn about features, frameworks, safety, and more.'
 }
-// - Page Header
-const header = {
-	title: 'Get Answers to Your <strong>Frontman</strong> Questions.',
-	text: 'Find answers to common questions about Frontman '
+
+// FAQPage JSON-LD
+const faqJsonLd = {
+	"@context": "https://schema.org",
+	"@type": "FAQPage",
+	"mainEntity": faqData.map((faq) => ({
+		"@type": "Question",
+		"name": faq.question,
+		"acceptedAnswer": {
+			"@type": "Answer",
+			"text": faq.reply
+		}
+	}))
 }
 ---
 
 <Layout title={SEO.title} description={SEO.description}>
-	<Hero title={header.title} text={header.text} />
-	<FAQ
-		title="Understanding Our Pricing Plans"
-		text="Get all the details on Frontman’s pricing plans. Learn about the costs, discounts, and subscription options to find the best plan that fits your needs and budget."
-		data={faqPricing}
-	/>
-	<TextImage
-		title="Why Frontman’s Pricing Plans Offer Great Value"
-		text="At Frontman, we believe in providing exceptional value at every price point. Our pricing plans are designed to cater to a variety of needs, from individuals and small teams to large enterprises. Each plan includes access to our powerful features, seamless integrations, and top-notch customer support. "
-		image={faqImage1}
-		mobileImage={faqImage1}
-		imagePosition="left"
-		offsetImage
-		classes="bg-neutral-50 dark:bg-neutral-900 lg:!py-64"
-	/>
-	<FAQ
-		title="Integrations Made Easy"
-		text="Discover how Frontman seamlessly integrates with your favorite tools and platforms. From Google Calendar to Slack, find out how to connect and enhance your productivity with powerful integrations."
-		data={faqIntegrations}
-	/>
-	<CTA />
+	<script type="application/ld+json" set:html={JSON.stringify(faqJsonLd)} />
+	<div class="faq-page">
+		<div class="faq-container">
+			<!-- Header -->
+			<p class="faq-label">FAQ</p>
+			<h1 class="faq-title">Frequently asked questions</h1>
+			<p class="faq-subtitle">
+				Everything you need to know about Frontman — the AI agent that lives inside your app.
+			</p>
+
+			<!-- Category groups -->
+			{categories.map((cat) => {
+				const items = faqData.filter((faq) => faq.category === cat.key)
+				return (
+					<div class="faq-category">
+						<h2 class="category-title">{cat.label}</h2>
+						<p class="category-description">{cat.description}</p>
+						<div class="faq-list">
+							{items.map((faq) => (
+								<details class="faq-item group">
+									<summary class="faq-question">
+										<span>{faq.question}</span>
+										<span class="faq-icon">+</span>
+									</summary>
+									<div class="faq-answer">
+										<p>{faq.reply}</p>
+									</div>
+								</details>
+							))}
+						</div>
+					</div>
+				)
+			})}
+		</div>
+	</div>
 </Layout>
+
+<style>
+	.faq-page {
+		background: #09090b;
+		color: #fafafa;
+		padding: 80px 24px 120px;
+		display: flex;
+		justify-content: center;
+		min-height: 100vh;
+	}
+
+	.faq-container {
+		max-width: 720px;
+		width: 100%;
+	}
+
+	/* Header */
+	.faq-label {
+		@apply font-mono;
+		font-size: 13px;
+		letter-spacing: 0.12em;
+		text-transform: uppercase;
+		color: #71717a;
+		margin-bottom: 12px;
+	}
+
+	.faq-title {
+		font-size: 42px;
+		font-weight: 700;
+		line-height: 1.1;
+		margin-bottom: 12px;
+		letter-spacing: -0.02em;
+		color: #fafafa;
+	}
+
+	.faq-subtitle {
+		font-size: 17px;
+		color: #a1a1aa;
+		line-height: 1.6;
+		margin-bottom: 80px;
+		max-width: 520px;
+	}
+
+	/* Category groups */
+	.faq-category {
+		margin-bottom: 64px;
+	}
+
+	.faq-category:last-child {
+		margin-bottom: 0;
+	}
+
+	.category-title {
+		font-size: 20px;
+		font-weight: 600;
+		color: #fafafa;
+		margin-bottom: 4px;
+		letter-spacing: -0.01em;
+	}
+
+	.category-description {
+		font-size: 15px;
+		color: #71717a;
+		line-height: 1.5;
+		margin-bottom: 24px;
+	}
+
+	/* Accordion list */
+	.faq-list {
+		border-top: 1px solid #27272a;
+	}
+
+	.faq-item {
+		border-bottom: 1px solid #27272a;
+		cursor: pointer;
+	}
+
+	.faq-question {
+		width: 100%;
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		padding: 24px 0;
+		color: #fafafa;
+		font-size: 17px;
+		font-weight: 500;
+		line-height: 1.4;
+		letter-spacing: -0.01em;
+		list-style: none;
+		transition: color 0.2s;
+	}
+
+	.faq-question::-webkit-details-marker {
+		display: none;
+	}
+
+	.faq-question:hover {
+		color: #fff;
+	}
+
+	.faq-question span:first-child {
+		padding-right: 24px;
+	}
+
+	.faq-icon {
+		flex-shrink: 0;
+		width: 28px;
+		height: 28px;
+		border-radius: 50%;
+		border: 1px solid #3f3f46;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font-size: 18px;
+		font-weight: 300;
+		color: #71717a;
+		transition: all 0.3s ease;
+	}
+
+	.group[open] .faq-icon {
+		transform: rotate(45deg);
+		background: #27272a;
+	}
+
+	.faq-answer {
+		overflow: hidden;
+	}
+
+	.faq-answer p {
+		font-size: 15px;
+		line-height: 1.7;
+		color: #a1a1aa;
+		padding-bottom: 24px;
+		margin: 0;
+		max-width: 620px;
+	}
+
+	@media (max-width: 640px) {
+		.faq-page {
+			padding: 48px 20px 80px;
+		}
+
+		.faq-title {
+			font-size: 32px;
+		}
+
+		.faq-subtitle {
+			margin-bottom: 48px;
+		}
+
+		.faq-category {
+			margin-bottom: 48px;
+		}
+	}
+</style>

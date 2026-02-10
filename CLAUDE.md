@@ -302,5 +302,16 @@ Story files should be co-located with components: `Client__MyComponent.story.res
    }
    ```
 
+## Changelog & Changesets
+
+**All notable changes must be tracked via changesets.**
+
+When making a change that should appear in the changelog, run `yarn changeset` and follow the prompts. This creates a markdown fragment in `.changeset/` describing the change.
+
+- A CI check (`changelog-check.yml`) blocks PRs that don't include a changeset or direct `CHANGELOG.md` update
+- Add the `skip-changelog` label to bypass for chore/docs-only PRs
+- At release time, `yarn changeset version` compiles pending changesets into `CHANGELOG.md` and bumps package versions
+- The marketing site reads `/CHANGELOG.md` at build time for the `/changelog` page — keep entries in [Keep a Changelog](https://keepachangelog.com/) format: `## [version] - YYYY-MM-DD`
+
 ## Reference Docs
 See `agent_docs/rescript-guide.md` for ReScript patterns when needed.

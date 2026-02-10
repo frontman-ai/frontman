@@ -1,0 +1,35 @@
+name: Changelog Check
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+jobs:
+  changelog:
+    name: Require changelog entry
+    runs-on: ubuntu-latest
+    if: ${{ !contains(github.event.pull_request.labels.*.name, 'skip-changelog') }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for changeset or CHANGELOG.md update
+        run: |
+          CHANGED=$(git diff --name-only origin/main...HEAD)
+
+          # Check for a new changeset file
+          if echo "$CHANGED" | grep -q '^\.changeset/.*\.md$'; then
+            echo "Found changeset file"
+            exit 0
+          fi
+
+          # Check for direct CHANGELOG.md edit
+          if echo "$CHANGED" | grep -q '^CHANGELOG.md$'; then
+            echo "Found CHANGELOG.md update"
+            exit 0
+          fi
+
+          echo "::error::No changeset found. Run 'yarn changeset' to add one, or add the 'skip-changelog' label to skip this check."
+          exit 1

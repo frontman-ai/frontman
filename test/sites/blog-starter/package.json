@@ -1,4 +1,5 @@
 {
+	"name": "@frontman/test-blog-starter",
 	"private": true,
 	"scripts": {
 		"dev": "next dev --turbopack",

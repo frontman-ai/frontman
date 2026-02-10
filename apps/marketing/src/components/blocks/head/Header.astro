@@ -6,6 +6,7 @@ import GoogleTagManagerHead from '../../scripts/googleTagManagerHead.astro'
 import GoogleSearchConsole from '../../scripts/googleSearchConsole.astro'
 // Partials
 import Seo from './partials/Seo.astro'
+import StructuredData from './partials/StructuredData.astro'
 // Data
 import { configData } from '../../../config/config'
 
@@ -36,6 +37,8 @@ const {
 	<GoogleSearchConsole />
 	<meta charset="UTF-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<link rel="preconnect" href="https://www.googletagmanager.com" />
+	<link rel="preconnect" href="https://www.google-analytics.com" />
 	<Seo
 		title={title}
 		description={description}
@@ -47,5 +50,6 @@ const {
 	<link rel="sitemap" href="/sitemap-index.xml" />
 	<meta name="generator" content={Astro.generator} />
 	<meta name="theme-color" content="#134e4a" />
+	<StructuredData />
 	<ClientRouter fallback="swap" />
 </head>

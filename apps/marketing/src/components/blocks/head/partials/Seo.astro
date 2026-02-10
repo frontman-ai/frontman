@@ -19,6 +19,8 @@ type Props = {
 }
 
 const { title, description, ogImage, canonical, noindex } = Astro.props
+
+const absoluteOgImage = ogImage ? new URL(ogImage, Astro.site).href : undefined
 ---
 
 <Fragment>
@@ -28,13 +30,13 @@ const { title, description, ogImage, canonical, noindex } = Astro.props
 	<meta property="og:url" content={Astro.url} />
 	<meta property="og:title" content={title} />
 	<meta property="og:description" content={description} />
-	<meta property="og:image" content={ogImage} />
+	<meta property="og:image" content={absoluteOgImage} />
 	<meta property="twitter:card" content="summary_large_image" />
 	<meta property="twitter:url" content={Astro.url} />
 	<meta property="twitter:title" content={title} />
 	<meta property="twitter:description" content={description} />
-	<meta property="twitter:image" content={ogImage} />
-	<link rel="canonical" href={Astro.url} />
-	{canonical && <link rel="canonical" href={Astro.url} item-prop="url" />}
+	<meta property="twitter:image" content={absoluteOgImage} />
+	<meta name="twitter:site" content="@frontman_agent" />
+	{canonical && <link rel="canonical" href={Astro.url} />}
 	{noindex && <meta name="robots" content="noindex,nofollow" />}
 </Fragment>
