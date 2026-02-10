@@ -1,0 +1,386 @@
+---
+// Comparison Table Section
+// ------------
+// Description: Feature comparison table showing Frontman vs competitors
+
+// Components
+// - Layout
+import Row from '../../ui/Row.astro'
+import Col from '../../ui/Col.astro'
+
+type Status = 'yes' | 'no' | 'partial'
+
+type Feature = {
+	name: string
+	frontman: Status
+	claudeDesktop: Status
+	cursor: Status
+	copilot: Status
+}
+
+const features: Feature[] = [
+	{
+		name: 'Sees live DOM & styles',
+		frontman: 'yes',
+		claudeDesktop: 'no',
+		cursor: 'no',
+		copilot: 'no'
+	},
+	{
+		name: 'Edits code in-place',
+		frontman: 'yes',
+		claudeDesktop: 'no',
+		cursor: 'yes',
+		copilot: 'partial'
+	},
+	{
+		name: 'Non-dev friendly UI',
+		frontman: 'yes',
+		claudeDesktop: 'partial',
+		cursor: 'no',
+		copilot: 'no'
+	},
+	{
+		name: 'Framework-aware',
+		frontman: 'yes',
+		claudeDesktop: 'no',
+		cursor: 'partial',
+		copilot: 'partial'
+	},
+	{
+		name: 'Open source',
+		frontman: 'yes',
+		claudeDesktop: 'no',
+		cursor: 'no',
+		copilot: 'no'
+	},
+	{
+		name: 'Works in the browser',
+		frontman: 'yes',
+		claudeDesktop: 'no',
+		cursor: 'partial',
+		copilot: 'no'
+	},
+	{
+		name: 'Visual component selection',
+		frontman: 'yes',
+		claudeDesktop: 'no',
+		cursor: 'partial',
+		copilot: 'no'
+	}
+]
+
+const tools = ['Frontman', 'Claude Desktop', 'Cursor', 'Copilot'] as const
+
+function statusLabel(status: Status): string {
+	switch (status) {
+		case 'yes':
+			return 'Yes'
+		case 'no':
+			return 'No'
+		case 'partial':
+			return 'Partial support'
+	}
+}
+
+function toolKey(tool: string): keyof Feature {
+	switch (tool) {
+		case 'Claude Desktop':
+			return 'claudeDesktop'
+		case 'Cursor':
+			return 'cursor'
+		case 'Copilot':
+			return 'copilot'
+		default:
+			return 'frontman'
+	}
+}
+---
+
+<section id="comparison" class="comparison-section">
+	<div class="container">
+		<Row>
+			<Col span="12" align="center" classes="mb-12 lg:mb-16">
+				<h2 class="comparison-title">How Frontman compares</h2>
+				<p class="comparison-subtitle">
+					See how Frontman stacks up against other AI coding tools
+				</p>
+			</Col>
+		</Row>
+
+		<!-- Desktop table (hidden on mobile) -->
+		<div class="table-wrapper" id="comparison-table">
+			<table class="comparison-table" role="grid">
+				<thead>
+					<tr>
+						<th class="feature-header">Feature</th>
+						{tools.map((tool) => (
+							<th class={tool === 'Frontman' ? 'tool-header tool-header--highlighted' : 'tool-header'}>
+								{tool}
+							</th>
+						))}
+					</tr>
+				</thead>
+				<tbody>
+					{features.map((feature) => (
+						<tr>
+							<td class="feature-cell">{feature.name}</td>
+							{tools.map((tool) => {
+								const key = toolKey(tool)
+								const status = feature[key] as Status
+								return (
+									<td
+										class={`status-cell ${tool === 'Frontman' ? 'status-cell--highlighted' : ''}`}
+										aria-label={statusLabel(status)}
+									>
+										{status === 'yes' && (
+											<svg class="status-icon status-icon--yes" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+												<polyline points="20 6 9 17 4 12"></polyline>
+											</svg>
+										)}
+										{status === 'no' && (
+											<svg class="status-icon status-icon--no" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+												<line x1="18" y1="6" x2="6" y2="18"></line>
+												<line x1="6" y1="6" x2="18" y2="18"></line>
+											</svg>
+										)}
+										{status === 'partial' && (
+											<svg class="status-icon status-icon--partial" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+												<line x1="5" y1="12" x2="19" y2="12"></line>
+											</svg>
+										)}
+									</td>
+								)
+							})}
+						</tr>
+					))}
+				</tbody>
+			</table>
+		</div>
+
+		<!-- Mobile cards (hidden on desktop) -->
+		<div class="mobile-cards" id="comparison-cards">
+			{features.map((feature) => (
+				<div class="mobile-card">
+					<h3 class="mobile-card-title">{feature.name}</h3>
+					<div class="mobile-card-grid">
+						{tools.map((tool) => {
+							const key = toolKey(tool)
+							const status = feature[key] as Status
+							return (
+								<div class={`mobile-card-item ${tool === 'Frontman' ? 'mobile-card-item--highlighted' : ''}`}>
+									<span class="mobile-card-tool">{tool}</span>
+									<span aria-label={statusLabel(status)}>
+										{status === 'yes' && (
+											<svg class="status-icon status-icon--yes" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+												<polyline points="20 6 9 17 4 12"></polyline>
+											</svg>
+										)}
+										{status === 'no' && (
+											<svg class="status-icon status-icon--no" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+												<line x1="18" y1="6" x2="6" y2="18"></line>
+												<line x1="6" y1="6" x2="18" y2="18"></line>
+											</svg>
+										)}
+										{status === 'partial' && (
+											<svg class="status-icon status-icon--partial" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+												<line x1="5" y1="12" x2="19" y2="12"></line>
+											</svg>
+										)}
+									</span>
+								</div>
+							)
+						})}
+					</div>
+				</div>
+			))}
+		</div>
+	</div>
+</section>
+
+<style>
+	.comparison-section {
+		@apply relative overflow-hidden py-20 lg:py-32;
+		background-color: #0d0d0d;
+	}
+
+	.container {
+		@apply relative mx-auto px-6 max-w-7xl;
+	}
+
+	.comparison-title {
+		@apply font-headings text-4xl lg:text-5xl font-bold mb-4;
+		color: white;
+	}
+
+	.comparison-subtitle {
+		@apply text-base lg:text-lg;
+		color: rgba(255, 255, 255, 0.6);
+	}
+
+	/* Desktop table */
+	.table-wrapper {
+		@apply hidden md:block;
+		opacity: 0;
+		transform: translateY(24px);
+		transition: opacity 0.6s ease, transform 0.6s ease;
+	}
+
+	.table-wrapper.visible {
+		opacity: 1;
+		transform: translateY(0);
+	}
+
+	.comparison-table {
+		@apply w-full;
+		border-collapse: separate;
+		border-spacing: 0;
+	}
+
+	.feature-header {
+		@apply text-left text-sm font-semibold uppercase tracking-wider py-4 px-6;
+		color: rgba(255, 255, 255, 0.4);
+		border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+	}
+
+	.tool-header {
+		@apply text-center text-base font-bold py-4 px-6;
+		color: rgba(255, 255, 255, 0.7);
+		border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+	}
+
+	.tool-header--highlighted {
+		color: #A259FF;
+		background: rgba(162, 89, 255, 0.08);
+		border-top: 3px solid #A259FF;
+		border-bottom: 1px solid rgba(162, 89, 255, 0.2);
+	}
+
+	.feature-cell {
+		@apply text-left text-base py-4 px-6;
+		color: rgba(255, 255, 255, 0.9);
+		border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+	}
+
+	.status-cell {
+		@apply text-center py-4 px-6;
+		border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+	}
+
+	.status-cell--highlighted {
+		background: rgba(162, 89, 255, 0.08);
+	}
+
+	tr:last-child .feature-cell,
+	tr:last-child .status-cell {
+		border-bottom: none;
+	}
+
+	.status-icon {
+		@apply inline-block;
+	}
+
+	.status-icon--yes {
+		color: #22c55e;
+	}
+
+	.status-icon--no {
+		color: #ef4444;
+	}
+
+	.status-icon--partial {
+		color: #f59e0b;
+	}
+
+	/* Mobile cards */
+	.mobile-cards {
+		@apply flex flex-col gap-4 md:hidden;
+		opacity: 0;
+		transform: translateY(24px);
+		transition: opacity 0.6s ease, transform 0.6s ease;
+	}
+
+	.mobile-cards.visible {
+		opacity: 1;
+		transform: translateY(0);
+	}
+
+	.mobile-card {
+		@apply p-5;
+		background: rgba(255, 255, 255, 0.04);
+		border: 1px solid rgba(255, 255, 255, 0.08);
+		border-radius: 12px;
+	}
+
+	.mobile-card-title {
+		@apply font-headings text-base font-bold mb-3;
+		color: white;
+	}
+
+	.mobile-card-grid {
+		@apply grid grid-cols-2 gap-3;
+	}
+
+	.mobile-card-item {
+		@apply flex items-center justify-between py-2 px-3;
+		border-radius: 8px;
+		background: rgba(255, 255, 255, 0.03);
+	}
+
+	.mobile-card-item--highlighted {
+		background: rgba(162, 89, 255, 0.12);
+		border: 1px solid rgba(162, 89, 255, 0.25);
+	}
+
+	.mobile-card-tool {
+		@apply text-sm;
+		color: rgba(255, 255, 255, 0.6);
+	}
+
+	.mobile-card-item--highlighted .mobile-card-tool {
+		color: #A259FF;
+		font-weight: 600;
+	}
+
+	/* Responsive */
+	@media (max-width: 640px) {
+		.comparison-section {
+			padding-top: 2rem;
+			padding-bottom: 2rem;
+		}
+
+		.comparison-title {
+			@apply text-2xl mb-3;
+		}
+
+		.comparison-subtitle {
+			@apply text-sm;
+		}
+	}
+</style>
+
+<script>
+	document.addEventListener('DOMContentLoaded', () => {
+		const table = document.getElementById('comparison-table')
+		const cards = document.getElementById('comparison-cards')
+		const targets = [table, cards].filter(Boolean) as HTMLElement[]
+
+		if (targets.length === 0) return
+
+		const observer = new IntersectionObserver(
+			(entries) => {
+				entries.forEach((entry) => {
+					if (entry.isIntersecting) {
+						entry.target.classList.add('visible')
+					}
+				})
+			},
+			{
+				threshold: 0.15,
+				rootMargin: '0px'
+			}
+		)
+
+		targets.forEach((el) => observer.observe(el))
+	})
+</script>
