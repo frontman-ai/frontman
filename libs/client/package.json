@@ -1,7 +1,25 @@
 {
 	"name": "@frontman/client",
 	"version": "0.1.6",
+	"description": "React UI component library for Frontman",
 	"license": "Apache-2.0",
+	"author": "Frontman AI",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/frontman-ai/frontman.git",
+		"directory": "libs/client"
+	},
+	"homepage": "https://frontman.sh",
+	"bugs": {
+		"url": "https://github.com/frontman-ai/frontman/issues"
+	},
+	"keywords": [
+		"frontman",
+		"client",
+		"react",
+		"ui",
+		"ai"
+	],
 	"type": "module",
 	"main": "./dist/index.js",
 	"module": "./dist/index.js",

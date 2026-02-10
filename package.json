@@ -1,6 +1,14 @@
 {
 	"name": "frontman",
 	"license": "Apache-2.0",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/frontman-ai/frontman.git"
+	},
+	"homepage": "https://frontman.sh",
+	"bugs": {
+		"url": "https://github.com/frontman-ai/frontman/issues"
+	},
 	"packageManager": "yarn@4.10.3",
 	"enableGlobalCache": false,
 	"workspaces": [

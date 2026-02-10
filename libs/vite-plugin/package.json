@@ -3,7 +3,16 @@
 	"version": "0.1.13",
 	"description": "Vite plugin to install frontman agent on the vite server",
 	"license": "Apache-2.0",
-	"author": "",
+	"author": "Frontman AI",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/frontman-ai/frontman.git",
+		"directory": "libs/vite-plugin"
+	},
+	"homepage": "https://frontman.sh",
+	"bugs": {
+		"url": "https://github.com/frontman-ai/frontman/issues"
+	},
 	"type": "module",
 	"main": "./dist/index.js",
 	"module": "./dist/index.js",

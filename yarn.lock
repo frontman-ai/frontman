@@ -2629,6 +2629,33 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@frontman/test-blog-starter@workspace:test/sites/blog-starter":
+  version: 0.0.0-use.local
+  resolution: "@frontman/test-blog-starter@workspace:test/sites/blog-starter"
+  dependencies:
+    "@frontman-ai/nextjs": "workspace:*"
+    "@opentelemetry/api": "npm:^1.9.0"
+    "@opentelemetry/sdk-logs": "npm:^0.52.0"
+    "@opentelemetry/sdk-node": "npm:^0.52.0"
+    "@opentelemetry/sdk-trace-base": "npm:^1.25.0"
+    "@types/node": "npm:^20.14.8"
+    "@types/react": "npm:types-react@19.0.0-rc.1"
+    "@types/react-dom": "npm:types-react-dom@19.0.0-rc.1"
+    autoprefixer: "npm:^10.4.19"
+    classnames: "npm:^2.5.1"
+    date-fns: "npm:^3.6.0"
+    gray-matter: "npm:^4.0.3"
+    next: "npm:~15.5.5"
+    postcss: "npm:^8.4.38"
+    react: "npm:19.0.0-rc-02c0e824-20241028"
+    react-dom: "npm:19.0.0-rc-02c0e824-20241028"
+    remark: "npm:^15.0.1"
+    remark-html: "npm:^16.0.1"
+    tailwindcss: "npm:^3.4.4"
+    typescript: "npm:5.9.3"
+  languageName: unknown
+  linkType: soft
+
 "@frontman/vite-plugin@workspace:libs/vite-plugin":
   version: 0.0.0-use.local
   resolution: "@frontman/vite-plugin@workspace:libs/vite-plugin"
@@ -10665,33 +10692,6 @@ __metadata:
   checksum: 10c0/3dab2491b4bb24124252a91e656803eac24292473e56554e35bbfe3cc1875332cfa77600c3bac7564049dc95075bf6fcc63a4609920ff2d64d0fe405fcf0d4ba
   languageName: node
   linkType: hard
-
-"blog-starter-a8d520@workspace:test/sites/blog-starter":
-  version: 0.0.0-use.local
-  resolution: "blog-starter-a8d520@workspace:test/sites/blog-starter"
-  dependencies:
-    "@frontman-ai/nextjs": "workspace:*"
-    "@opentelemetry/api": "npm:^1.9.0"
-    "@opentelemetry/sdk-logs": "npm:^0.52.0"
-    "@opentelemetry/sdk-node": "npm:^0.52.0"
-    "@opentelemetry/sdk-trace-base": "npm:^1.25.0"
-    "@types/node": "npm:^20.14.8"
-    "@types/react": "npm:types-react@19.0.0-rc.1"
-    "@types/react-dom": "npm:types-react-dom@19.0.0-rc.1"
-    autoprefixer: "npm:^10.4.19"
-    classnames: "npm:^2.5.1"
-    date-fns: "npm:^3.6.0"
-    gray-matter: "npm:^4.0.3"
-    next: "npm:~15.5.5"
-    postcss: "npm:^8.4.38"
-    react: "npm:19.0.0-rc-02c0e824-20241028"
-    react-dom: "npm:19.0.0-rc-02c0e824-20241028"
-    remark: "npm:^15.0.1"
-    remark-html: "npm:^16.0.1"
-    tailwindcss: "npm:^3.4.4"
-    typescript: "npm:5.9.3"
-  languageName: unknown
-  linkType: soft
 
 "bluebird@npm:~3.7":
   version: 3.7.2

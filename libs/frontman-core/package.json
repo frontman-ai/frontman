@@ -1,7 +1,24 @@
 {
 	"name": "@frontman/frontman-core",
 	"version": "0.1.0",
+	"description": "Core server-side tools for Frontman",
 	"license": "Apache-2.0",
+	"author": "Frontman AI",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/frontman-ai/frontman.git",
+		"directory": "libs/frontman-core"
+	},
+	"homepage": "https://frontman.sh",
+	"bugs": {
+		"url": "https://github.com/frontman-ai/frontman/issues"
+	},
+	"keywords": [
+		"frontman",
+		"core",
+		"ai",
+		"development"
+	],
 	"type": "module",
 	"main": "./src/FrontmanCore.res.mjs",
 	"exports": {
