@@ -35,6 +35,13 @@
 			"default": "./src/FrontmanAstro__ToolbarApp.res.mjs"
 		}
 	},
+	"files": [
+		"src"
+	],
+	"scripts": {
+		"build": "rescript build",
+		"prepublishOnly": "yarn build"
+	},
 	"peerDependencies": {
 		"astro": "^5.0.0"
 	},

@@ -25,6 +25,13 @@
 		".": "./src/FrontmanCore.res.mjs",
 		"./src/*": "./src/*"
 	},
+	"files": [
+		"src"
+	],
+	"scripts": {
+		"build": "rescript build",
+		"prepublishOnly": "yarn build"
+	},
 	"dependencies": {
 		"@frontman/bindings": "0.1.0",
 		"@frontman/frontman-protocol": "0.1.0",
