@@ -4,10 +4,11 @@ import { googleAnalyticsMeasurementID } from '../../../src/config/analytics.ts'
 ---
 
 <script
+	is:inline
 	type="text/partytown"
 	src={`https://www.googletagmanager.com/gtag/js?id=${googleAnalyticsMeasurementID}`}></script>
 
-<script type="text/partytown" data-ga-measurement-id={googleAnalyticsMeasurementID} id="ga-init">
+<script is:inline type="text/partytown" data-ga-measurement-id={googleAnalyticsMeasurementID} id="ga-init">
 	const measurementId = document.getElementById('ga-init').getAttribute('data-ga-measurement-id')
 	window.dataLayer = window.dataLayer || []
 	function gtag() {

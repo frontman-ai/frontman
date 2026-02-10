@@ -35,7 +35,7 @@ const frontman = FRONTMAN_ENABLED
 //     )
 //   : null;
 
-export const onRequest: MiddlewareHandler = async (context, next) => {
+export const onRequest: MiddlewareHandler = async (_context, next) => {
 	// if (frontman) {
 	//   return frontman(context, next);
 	// }

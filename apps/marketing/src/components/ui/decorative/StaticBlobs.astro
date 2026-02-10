@@ -44,7 +44,7 @@ const defaultBlobs: BlobConfig[] = [
 const { blobs = defaultBlobs } = Astro.props
 ---
 
-{blobs.map((blob, index) => (
+{blobs.map((blob) => (
 	<div
 		class="static-blob"
 		style={`

@@ -4,7 +4,7 @@
 // Description: Injects Organization and SoftwareApplication schema markup for SEO.
 ---
 
-<script type="application/ld+json" set:html={JSON.stringify({
+<script is:inline type="application/ld+json" set:html={JSON.stringify({
 	"@context": "https://schema.org",
 	"@type": "Organization",
 	"name": "Frontman",
@@ -13,7 +13,7 @@
 	"sameAs": ["https://github.com/nicholasgriffintn/frontman"]
 })} />
 
-<script type="application/ld+json" set:html={JSON.stringify({
+<script is:inline type="application/ld+json" set:html={JSON.stringify({
 	"@context": "https://schema.org",
 	"@type": "SoftwareApplication",
 	"name": "Frontman",

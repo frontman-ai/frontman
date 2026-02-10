@@ -97,7 +97,7 @@ const { blobs = defaultBlobs, speed = 15 } = Astro.props
 			this.animate()
 		}
 
-		getRandomPosition(blob) {
+		getRandomPosition(_blob) {
 			// Calculate boundaries - allow blob to go partially off-screen
 			// But at least 60% must remain visible (max 40% can go off-screen)
 			const visiblePercentage = 60
