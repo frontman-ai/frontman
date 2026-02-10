@@ -14,16 +14,17 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Enable Corepack
+        run: corepack enable
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '24.4.1'
-
-      - name: Enable Corepack
-        run: corepack enable
+          cache: 'yarn'
 
       - name: Install dependencies
-        run: yarn install --immutable
+        run: yarn install
 
       - name: Clean ReScript build cache
         run: yarn rescript clean
@@ -42,16 +43,17 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Enable Corepack
+        run: corepack enable
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '24.4.1'
-
-      - name: Enable Corepack
-        run: corepack enable
+          cache: 'yarn'
 
       - name: Install dependencies
-        run: yarn install --immutable
+        run: yarn install
 
       - name: Run tests with coverage
         run: make -C libs/frontman-client test-coverage
@@ -76,16 +78,17 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Enable Corepack
+        run: corepack enable
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '24.4.1'
-
-      - name: Enable Corepack
-        run: corepack enable
+          cache: 'yarn'
 
       - name: Install dependencies
-        run: yarn install --immutable
+        run: yarn install
 
       - name: Run tests with coverage
         run: make -C libs/frontman-core test-coverage
@@ -110,16 +113,17 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Enable Corepack
+        run: corepack enable
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '24.4.1'
-
-      - name: Enable Corepack
-        run: corepack enable
+          cache: 'yarn'
 
       - name: Install dependencies
-        run: yarn install --immutable
+        run: yarn install
 
       - name: Run tests with coverage
         run: make -C libs/frontman-nextjs test-coverage
@@ -250,13 +254,13 @@ jobs:
           restore-keys: ${{ runner.os }}-build-
 
       # PLT cache includes mise.toml hash to invalidate when Erlang/Elixir versions change
-      # v2: bust cache after removing accidentally committed PLT files
+      # v3: bust cache after migrating to self-hosted runners (different mise install path)
       - name: Cache PLT
         uses: actions/cache@v4
         with:
           path: apps/frontman_server/priv/plts
-          key: ${{ runner.os }}-plt-v2-${{ hashFiles('mise.toml', 'apps/frontman_server/mix.lock') }}
-          restore-keys: ${{ runner.os }}-plt-v2-
+          key: ${{ runner.os }}-plt-v3-${{ hashFiles('mise.toml', 'apps/frontman_server/mix.lock') }}
+          restore-keys: ${{ runner.os }}-plt-v3-
 
       - name: Install dependencies
         run: make -C apps/frontman_server install
@@ -275,16 +279,17 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Enable Corepack
+        run: corepack enable
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '24.4.1'
-
-      - name: Enable Corepack
-        run: corepack enable
+          cache: 'yarn'
 
       - name: Install dependencies
-        run: yarn install --immutable
+        run: yarn install
 
       - name: Run tests with coverage
         run: make -C libs/react-statestore test-coverage
@@ -309,16 +314,17 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Enable Corepack
+        run: corepack enable
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '24.4.1'
-
-      - name: Enable Corepack
-        run: corepack enable
+          cache: 'yarn'
 
       - name: Install dependencies
-        run: yarn install --immutable
+        run: yarn install
 
       - name: Run tests with coverage
         run: make -C libs/client test-coverage
@@ -343,16 +349,17 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Enable Corepack
+        run: corepack enable
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '24.4.1'
-
-      - name: Enable Corepack
-        run: corepack enable
+          cache: 'yarn'
 
       - name: Install dependencies
-        run: yarn install --immutable
+        run: yarn install
 
       - name: Run tests with coverage
         run: make -C libs/context-loader test-coverage
@@ -386,19 +393,20 @@ jobs:
             client:
               - 'libs/client/**'
 
+      - name: Enable Corepack
+        if: steps.changes.outputs.client == 'true'
+        run: corepack enable
+
       - name: Setup Node.js
         if: steps.changes.outputs.client == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: '24.4.1'
-
-      - name: Enable Corepack
-        if: steps.changes.outputs.client == 'true'
-        run: corepack enable
+          cache: 'yarn'
 
       - name: Install dependencies
         if: steps.changes.outputs.client == 'true'
-        run: yarn install --frozen-lockfile
+        run: yarn install
 
       - name: Run biome lint
         if: steps.changes.outputs.client == 'true'
