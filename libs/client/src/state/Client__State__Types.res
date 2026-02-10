@@ -129,7 +129,7 @@ type chatgptOAuthStatus =
   | ChatGPTNotConnected
   | ChatGPTFetchingStatus
   | ChatGPTWaitingForCode // Requesting device code from OpenAI
-  | ChatGPTShowingCode({userCode: string, verificationUrl: string}) // User needs to enter code
+  | ChatGPTShowingCode({deviceAuthId: string, userCode: string, verificationUrl: string}) // User needs to enter code
   | ChatGPTConnected({expiresAt: float})
   | ChatGPTError(string)
 

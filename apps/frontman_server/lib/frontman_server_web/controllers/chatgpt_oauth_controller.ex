@@ -4,14 +4,17 @@ defmodule FrontmanServerWeb.ChatGPTOAuthController do
 
   Flow:
   1. Client calls `POST /api/oauth/chatgpt/initiate`
-     → Server requests a device code from OpenAI, stores device_auth_id in ETS,
-       returns user_code + verification_url to the client
+     → Server requests a device code from OpenAI,
+       returns device_auth_id + user_code + verification_url to the client
   2. Client shows the user_code and opens the verification URL
   3. User enters the code at auth.openai.com/codex/device
-  4. Client polls `POST /api/oauth/chatgpt/poll`
+  4. Client polls `POST /api/oauth/chatgpt/poll` with device_auth_id + user_code
      → Server polls OpenAI on each request. When authorized, exchanges code for tokens,
        extracts chatgpt_account_id from JWT, stores tokens, returns success
   5. Client can also check `GET /api/oauth/chatgpt/status` for connection state
+
+  The flow is fully stateless on the server — the client holds the device_auth_id
+  and user_code and passes them back on each poll request.
 
   The device auth flow is required because the OpenAI public client_id
   (app_EMoamEEZ73f0CkXaXp7hrann) only allows http://localhost:* redirect URIs.
@@ -24,49 +27,20 @@ defmodule FrontmanServerWeb.ChatGPTOAuthController do
   alias FrontmanServer.Providers
   alias FrontmanServer.Providers.{ChatGPTOAuth, OAuthHelpers, OAuthToken}
 
-  # ETS table for device auth state storage
-  # Key: user_id → {device_auth_id, user_code, expires_at}
-  @ets_table :chatgpt_oauth_state
-  # 15 minute TTL for device auth sessions (matches OpenAI's device code expiry)
-  @state_ttl_seconds 900
-
-  @doc """
-  Ensures the ETS table for device auth state storage exists.
-  Called from Application startup.
-  """
-  def ensure_ets_table do
-    case :ets.whereis(@ets_table) do
-      :undefined ->
-        :ets.new(@ets_table, [:named_table, :public, :set])
-
-      _ref ->
-        @ets_table
-    end
-  end
-
   @doc """
   Initiates the device auth flow by requesting a device code from OpenAI.
 
-  Returns the user_code and verification_url for the client to display.
-  The device_auth_id is stored server-side in ETS keyed by user_id.
+  Returns the device_auth_id, user_code, and verification_url for the client
+  to store and display. The client must pass device_auth_id and user_code back
+  when polling.
 
   POST /api/oauth/chatgpt/initiate
   """
   def initiate(conn, _params) do
-    scope = conn.assigns.current_scope
-    user_id = scope.user.id
-
     case ChatGPTOAuth.request_device_code() do
       {:ok, %{device_auth_id: device_auth_id, user_code: user_code, interval: _interval}} ->
-        # Store device auth session in ETS keyed by user_id
-        expires_at = System.monotonic_time(:second) + @state_ttl_seconds
-        ensure_ets_table()
-        :ets.insert(@ets_table, {user_id, device_auth_id, user_code, expires_at})
-
-        # Clean up expired entries opportunistically
-        cleanup_expired_entries()
-
         json(conn, %{
+          device_auth_id: device_auth_id,
           user_code: user_code,
           verification_url: ChatGPTOAuth.verification_url()
         })
@@ -88,30 +62,37 @@ defmodule FrontmanServerWeb.ChatGPTOAuthController do
   @doc """
   Polls OpenAI to check if the user has completed authorization.
 
-  This is called by the client at regular intervals. On each call, the server
-  polls OpenAI's device token endpoint. If authorized, exchanges the code for
-  tokens and stores them.
+  The client passes the device_auth_id and user_code received from initiate.
+  On each call, the server polls OpenAI's device token endpoint.
+  If authorized, exchanges the code for tokens and stores them.
 
   POST /api/oauth/chatgpt/poll
+  Expects: {"device_auth_id": "...", "user_code": "..."}
   """
-  def poll(conn, _params) do
-    scope = conn.assigns.current_scope
-    user_id = scope.user.id
+  def poll(conn, %{"device_auth_id" => device_auth_id, "user_code" => user_code})
+      when is_binary(device_auth_id) and is_binary(user_code) do
+    case ChatGPTOAuth.poll_device_token(device_auth_id, user_code) do
+      {:ok, %{authorization_code: auth_code, code_verifier: code_verifier}} ->
+        handle_device_exchange(conn, auth_code, code_verifier)
 
-    ensure_ets_table()
+      {:pending} ->
+        json(conn, %{status: "pending"})
 
-    case :ets.lookup(@ets_table, user_id) do
-      [{^user_id, device_auth_id, user_code, expires_at}] ->
-        if System.monotonic_time(:second) > expires_at do
-          :ets.delete(@ets_table, user_id)
-          conn |> put_status(410) |> json(%{status: "expired"})
-        else
-          handle_poll(conn, user_id, device_auth_id, user_code)
-        end
+      {:error, :authorization_declined} ->
+        conn
+        |> put_status(403)
+        |> json(%{status: "declined", error: "Authorization was declined."})
 
-      [] ->
-        conn |> put_status(404) |> json(%{status: "no_session"})
+      {:error, reason} ->
+        Logger.error("ChatGPT device poll error: #{inspect(reason)}")
+        json(conn, %{status: "pending"})
     end
+  end
+
+  def poll(conn, _params) do
+    conn
+    |> put_status(400)
+    |> json(%{error: "Missing required parameters: device_auth_id, user_code"})
   end
 
   @doc """
@@ -155,31 +136,9 @@ defmodule FrontmanServerWeb.ChatGPTOAuthController do
 
   # Private helpers
 
-  defp handle_poll(conn, user_id, device_auth_id, user_code) do
-    case ChatGPTOAuth.poll_device_token(device_auth_id, user_code) do
-      {:ok, %{authorization_code: auth_code, code_verifier: code_verifier}} ->
-        # User authorized! Clean up ETS entry
-        :ets.delete(@ets_table, user_id)
-        # Exchange for tokens
-        handle_device_exchange(conn, auth_code, code_verifier, user_id)
+  defp handle_device_exchange(conn, authorization_code, code_verifier) do
+    scope = conn.assigns.current_scope
 
-      {:pending} ->
-        json(conn, %{status: "pending"})
-
-      {:error, :authorization_declined} ->
-        :ets.delete(@ets_table, user_id)
-
-        conn
-        |> put_status(403)
-        |> json(%{status: "declined", error: "Authorization was declined."})
-
-      {:error, reason} ->
-        Logger.error("ChatGPT device poll error: #{inspect(reason)}")
-        json(conn, %{status: "pending"})
-    end
-  end
-
-  defp handle_device_exchange(conn, authorization_code, code_verifier, user_id) do
     case ChatGPTOAuth.exchange_device_code(authorization_code, code_verifier) do
       {:ok, tokens} ->
         # Extract account_id from JWT tokens
@@ -189,12 +148,9 @@ defmodule FrontmanServerWeb.ChatGPTOAuthController do
         expires_in = tokens.expires_in || 3600
         expires_at = OAuthHelpers.calculate_expires_at(expires_in)
 
-        # Build scope from user_id for upsert
-        scope = build_scope_from_user_id(user_id)
-
         metadata = if account_id, do: %{"account_id" => account_id}, else: %{}
 
-        case Providers.upsert_oauth_token_with_metadata(
+        case Providers.upsert_oauth_token(
                scope,
                "chatgpt",
                tokens.access_token,
@@ -223,22 +179,5 @@ defmodule FrontmanServerWeb.ChatGPTOAuthController do
         |> put_status(500)
         |> json(%{status: "error", error: "Failed to exchange authorization code."})
     end
-  end
-
-  defp build_scope_from_user_id(user_id) do
-    user = FrontmanServer.Repo.get!(FrontmanServer.Accounts.User, user_id)
-    %FrontmanServer.Accounts.Scope{user: user}
-  end
-
-  defp cleanup_expired_entries do
-    now = System.monotonic_time(:second)
-
-    # Use match_spec to find and delete expired entries
-    # Pattern: {user_id, device_auth_id, user_code, expires_at} where expires_at < now
-    :ets.select_delete(@ets_table, [
-      {{:_, :_, :_, :"$1"}, [{:<, :"$1", now}], [true]}
-    ])
-  rescue
-    _ -> :ok
   end
 end

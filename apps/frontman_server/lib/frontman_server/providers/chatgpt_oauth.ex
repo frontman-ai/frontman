@@ -333,7 +333,7 @@ defmodule FrontmanServer.Providers.ChatGPTOAuth do
   end
 
   defp pad_base64url(str) do
-    case rem(String.length(str), 4) do
+    case rem(byte_size(str), 4) do
       2 -> str <> "=="
       3 -> str <> "="
       _ -> str

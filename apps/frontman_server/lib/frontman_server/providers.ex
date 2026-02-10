@@ -360,48 +360,19 @@ defmodule FrontmanServer.Providers do
 
   @doc """
   Stores or updates an OAuth token for a provider.
+
+  Accepts an optional `metadata` map for provider-specific data (e.g., `account_id`).
   """
   def upsert_oauth_token(
         %Scope{user: %User{} = user},
         provider,
         access_token,
         refresh_token,
-        expires_at
+        expires_at,
+        metadata \\ %{}
       ) do
     provider = String.downcase(provider)
     # Build struct with user_id set explicitly (not via changeset for security)
-    oauth_token = %OAuthToken{user_id: user.id}
-
-    changeset =
-      OAuthToken.changeset(oauth_token, %{
-        provider: provider,
-        access_token: access_token,
-        refresh_token: refresh_token,
-        expires_at: expires_at
-      })
-
-    Repo.insert(
-      changeset,
-      on_conflict: {:replace, [:access_token, :refresh_token, :expires_at, :updated_at]},
-      conflict_target: [:user_id, :provider]
-    )
-  end
-
-  @doc """
-  Stores or updates an OAuth token for a provider, with additional metadata.
-
-  Metadata is a map that can store provider-specific data like `account_id`.
-  """
-  def upsert_oauth_token_with_metadata(
-        %Scope{user: %User{} = user},
-        provider,
-        access_token,
-        refresh_token,
-        expires_at,
-        metadata
-      )
-      when is_map(metadata) do
-    provider = String.downcase(provider)
     oauth_token = %OAuthToken{user_id: user.id}
 
     changeset =
@@ -473,7 +444,7 @@ defmodule FrontmanServer.Providers do
         expires_at = OAuthHelpers.calculate_expires_at(expires_in)
 
         # Preserve existing metadata (account_id) when refreshing
-        case upsert_oauth_token_with_metadata(
+        case upsert_oauth_token(
                scope,
                "chatgpt",
                new_tokens.access_token,
