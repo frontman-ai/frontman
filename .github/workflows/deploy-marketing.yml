@@ -6,7 +6,6 @@ on:
       - main
     paths:
       - 'apps/marketing/**'
-      - 'infra/marketing/**'
       - 'CHANGELOG.md'
   workflow_dispatch:
 

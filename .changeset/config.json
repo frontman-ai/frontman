@@ -9,7 +9,6 @@
   "updateInternalDependencies": "patch",
   "ignore": [
     "marketing",
-    "infra-marketing",
     "@frontman/test-blog-starter"
   ]
 }

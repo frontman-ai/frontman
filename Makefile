@@ -18,7 +18,6 @@ DEVPOD_USER ?= root
 .PHONY: help dev dev-client dev-server dev-nextjs dev-extension dev-marketing dev-dogfooding \
         install build rescript-watch rescript-build clean test lint \
         ssl-setup tunnel \
-        infra-install infra-preview-marketing infra-up-marketing \
         worktree-create worktree-create-from worktree-list worktree-remove worktree-clean \
         worktree-status worktree-devpod worktree-urls worktree-hosts worktree-register worktree-registry \
         kill-all-processes open-dogfooding pull-webapi
@@ -34,9 +33,6 @@ help: ## Display available commands
 	@echo ""
 	@printf "$(CYAN)SSL & Networking:$(RESET)\n"
 	@awk 'BEGIN {FS = ":.*##"} /^## SSL_START$$/{found=1; next} /^## SSL_END$$/{found=0} found && /^[a-zA-Z_-]+:.*##/ { printf "  $(GREEN)%-25s$(RESET) %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
-	@echo ""
-	@printf "$(CYAN)Infrastructure:$(RESET)\n"
-	@awk 'BEGIN {FS = ":.*##"} /^## INFRA_START$$/{found=1; next} /^## INFRA_END$$/{found=0} found && /^[a-zA-Z_-]+:.*##/ { printf "  $(GREEN)%-25s$(RESET) %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
 	@echo ""
 	@printf "$(CYAN)Worktree Management:$(RESET)\n"
 	@awk 'BEGIN {FS = ":.*##"} /^## WT_START$$/{found=1; next} /^## WT_END$$/{found=0} found && /^[a-zA-Z_-]+:.*##/ { printf "  $(GREEN)%-25s$(RESET) %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
@@ -134,25 +130,6 @@ tunnel: ## Start SSH tunnel to DevPod server (ports 8080/8443)
 	ssh -L 8080:localhost:80 -L 8443:localhost:443 $(DEVPOD_USER)@$(DEVPOD_HOST) -N
 
 ## SSL_END
-
-# ============================================================================
-# Infrastructure
-# ============================================================================
-## INFRA_START
-
-infra-install: ## Install infrastructure dependencies
-	@printf "$(YELLOW)Installing infrastructure dependencies...$(RESET)\n"
-	cd infra && $(MAKE) install
-
-infra-preview-marketing: ## Preview marketing infrastructure changes
-	@printf "$(YELLOW)Previewing marketing infrastructure...$(RESET)\n"
-	cd infra && $(MAKE) preview-marketing
-
-infra-up-marketing: ## Deploy marketing infrastructure
-	@printf "$(YELLOW)Deploying marketing infrastructure...$(RESET)\n"
-	cd infra && $(MAKE) up-marketing
-
-## INFRA_END
 
 # ============================================================================
 # Worktree Management

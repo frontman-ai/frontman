@@ -1,6 +1,0 @@
-name: marketing
-runtime:
-  name: nodejs
-  options:
-    packagemanager: yarn
-description: Marketing site deployed to Cloudflare Pages
