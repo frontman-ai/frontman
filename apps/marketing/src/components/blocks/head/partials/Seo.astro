@@ -21,22 +21,37 @@ type Props = {
 const { title, description, ogImage, canonical, noindex } = Astro.props
 
 const absoluteOgImage = ogImage ? new URL(ogImage, Astro.site).href : undefined
+const absoluteTwitterImage = new URL('/og-twitter.png', Astro.site).href
+const imageAlt = 'Frontman — The AI agent that lives inside your framework'
 ---
 
 <Fragment>
 	<title>{title}</title>
 	<meta name="description" content={description} />
+
+	<!-- Open Graph (Facebook, WhatsApp, Discord, LinkedIn, Slack, Telegram, iMessage, Reddit) -->
 	<meta property="og:type" content="website" />
 	<meta property="og:url" content={Astro.url} />
 	<meta property="og:title" content={title} />
 	<meta property="og:description" content={description} />
+	<meta property="og:site_name" content="Frontman" />
+	<meta property="og:locale" content="en_US" />
 	<meta property="og:image" content={absoluteOgImage} />
-	<meta property="twitter:card" content="summary_large_image" />
-	<meta property="twitter:url" content={Astro.url} />
-	<meta property="twitter:title" content={title} />
-	<meta property="twitter:description" content={description} />
-	<meta property="twitter:image" content={absoluteOgImage} />
+	<meta property="og:image:secure_url" content={absoluteOgImage} />
+	<meta property="og:image:type" content="image/png" />
+	<meta property="og:image:width" content="1200" />
+	<meta property="og:image:height" content="630" />
+	<meta property="og:image:alt" content={imageAlt} />
+
+	<!-- Twitter / X -->
+	<meta name="twitter:card" content="summary_large_image" />
 	<meta name="twitter:site" content="@frontman_agent" />
+	<meta name="twitter:creator" content="@frontman_agent" />
+	<meta name="twitter:title" content={title} />
+	<meta name="twitter:description" content={description} />
+	<meta name="twitter:image" content={absoluteTwitterImage} />
+	<meta name="twitter:image:alt" content={imageAlt} />
+
 	{canonical && <link rel="canonical" href={Astro.url} />}
 	{noindex && <meta name="robots" content="noindex,nofollow" />}
 </Fragment>

@@ -11,6 +11,8 @@
 				link.addEventListener('click', function (event) {
 					event.preventDefault()
 					menuItem.classList.toggle('open')
+					const isOpen = menuItem.classList.contains('open')
+					link.setAttribute('aria-expanded', isOpen ? 'true' : 'false')
 				})
 			}
 		})
@@ -21,6 +23,8 @@
 				const submenu = menuItem.querySelector('.header__submenu')
 				if (submenu && !menuItem.contains(target)) {
 					menuItem.classList.remove('open')
+					const link = menuItem.querySelector('.header__menu-link')
+					if (link) link.setAttribute('aria-expanded', 'false')
 				}
 			})
 		})
@@ -28,6 +32,15 @@
 		// Menu toggle
 		const headerToggle = document.querySelector('.header__toggle')
 		const headerMenu = document.querySelector('.header__menu')
+
+		function closeMobileMenu() {
+			if (headerToggle && headerMenu) {
+				headerToggle.classList.remove('header__toggle--open')
+				headerToggle.setAttribute('aria-expanded', 'false')
+				headerMenu.classList.remove('header__menu--open')
+			}
+		}
+
 		if (headerToggle && headerMenu) {
 			headerToggle.addEventListener('click', () => {
 				headerToggle.classList.toggle('header__toggle--open')
@@ -35,6 +48,11 @@
 				const newExpandedValue = isExpanded ? 'false' : 'true'
 				headerToggle.setAttribute('aria-expanded', newExpandedValue)
 				headerMenu.classList.toggle('header__menu--open')
+			})
+
+			// Close mobile menu when a nav link is clicked
+			headerMenu.querySelectorAll('a').forEach((link) => {
+				link.addEventListener('click', () => closeMobileMenu())
 			})
 		}
 
@@ -70,6 +88,17 @@
 				closeModal(modal)
 			})
 		})
+	})
+
+	// Close mobile menu on page transitions
+	document.addEventListener('astro:before-swap', () => {
+		const toggle = document.querySelector('.header__toggle')
+		const menu = document.querySelector('.header__menu')
+		if (toggle && menu) {
+			toggle.classList.remove('header__toggle--open')
+			toggle.setAttribute('aria-expanded', 'false')
+			menu.classList.remove('header__menu--open')
+		}
 	})
 </script>
 

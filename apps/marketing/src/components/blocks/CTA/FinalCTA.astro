@@ -7,6 +7,12 @@
 // - UI
 import Button from '../../ui/Button.astro'
 
+// Props
+type Props = {
+	link?: string
+}
+const { link = '#install' } = Astro.props
+
 // Logo
 const logoImage = { src: '/logo.svg' }
 ---
@@ -20,7 +26,7 @@ const logoImage = { src: '/logo.svg' }
 				Join developers who are building faster and collaborating better with Frontman. Get started in minutes and transform how you work with frontend code.
 			</p>
 			<div class="cta-button">
-				<Button size="lg" style="primary" link="#install">Start Frontman</Button>
+				<Button size="lg" style="primary" link={link}>Start Frontman</Button>
 			</div>
 		</div>
 	</div>

@@ -56,7 +56,7 @@ const featureHighlights: FeatureHighlight[] = [
 
 					<!-- Right side: Image/Video placeholder -->
 					<Col spanMobile="12" span="7" classes={`flex items-center ${index === 1 ? 'lg:order-1' : ''}`}>
-						<div class="media-placeholder" aria-label={feature.imageAlt}>
+						<div class="media-placeholder" role="img" aria-label={feature.imageAlt}>
 							{feature.image ? (
 								<Image
 									src={feature.image}

@@ -24,7 +24,7 @@ export const configData: Config = {
 	siteTitle: 'Frontman | AI Frontend Editing Directly in Your Browser',
 	siteDescription:
 		'Frontman lets you skip the "refresh and check" cycle and brings non-coding teammates into the workflow.',
-	ogImage: '/og.jpg',
+	ogImage: '/og.png',
 	logo: {
 		src: '/logo.svg',
 		alt: 'Frontman logo'

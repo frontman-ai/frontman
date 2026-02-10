@@ -19,7 +19,7 @@ const { footerAbout, footerColumns, subFooter } = footerNavigationData
 	<div class="footer__container">
 		<!-- Top row: brand + nav columns -->
 		<div class="footer__top">
-			<a aria-label="Frontman home" class="footer__brand" href="/">
+			<a class="footer__brand" href="/">
 				<img src={footerAbout.logo.src} alt={footerAbout.logo.alt} width="24" height="24" />
 				{footerAbout.logo.text}
 			</a>
@@ -98,8 +98,8 @@ const { footerAbout, footerColumns, subFooter } = footerNavigationData
 
 	/* Bottom row */
 	.footer__bottom {
-		@apply mt-8 flex flex-col items-center justify-between gap-4 border-t border-neutral-200 pt-6 text-xs text-neutral-400
-			dark:border-neutral-800 dark:text-neutral-500
+		@apply mt-8 flex flex-col items-center justify-between gap-4 border-t border-neutral-200 pt-6 text-xs text-neutral-600
+			dark:border-neutral-800 dark:text-neutral-400
 			sm:flex-row;
 	}
 	.footer__bottom ul {

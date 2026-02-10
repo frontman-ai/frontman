@@ -29,7 +29,7 @@ function isActivePath(currentPath: string): boolean {
 const savedNavActions = navActions.map((action) => ({
 	...action,
 	size: action.size as 'base' | 'lg' | 'sm',
-	style: action.style as 'primary' | 'secondary' | 'neutral'
+	style: action.style as 'primary' | 'secondary' | 'neutral' | 'white'
 }))
 ---
 
@@ -70,13 +70,16 @@ const savedNavActions = navActions.map((action) => ({
 									{item.name}
 								</a>
 							) : (
-								<span
+								<button
+									type="button"
 									role="menuitem"
-									class={`header__menu-link ${isActivePath(item.link) ? 'active' : ''}`}
+									aria-haspopup="true"
+									aria-expanded="false"
+									class="header__menu-link"
 								>
 									{item.name}
 									<Icon name="chevron-down" class="header__menu-chevron" />
-								</span>
+								</button>
 							)}
 							{item.submenu && (
 								<ul class="header__submenu">
@@ -85,7 +88,7 @@ const savedNavActions = navActions.map((action) => ({
 											<a
 												href={subItem.link}
 												role="menuitem"
-												class={`header__menu-link ${isActivePath(item.link) ? 'active' : ''}`}
+												class={`header__submenu-link ${isActivePath(subItem.link) ? 'active' : ''}`}
 											>
 												{subItem.name}
 											</a>
@@ -106,7 +109,7 @@ const savedNavActions = navActions.map((action) => ({
 				</a>
 				{
 					savedNavActions.map((action) => (
-						<Button classes="flex-auto" size={action.size} style={action.style} modal="signup">
+						<Button classes="flex-auto" size={action.size} style={action.style} link={action.link} type="link">
 							{action.name}
 						</Button>
 					))
@@ -129,11 +132,9 @@ const savedNavActions = navActions.map((action) => ({
 	}
 	.header__logo {
 		@apply flex flex-auto items-center gap-2 whitespace-nowrap py-3 tracking-wider text-black focus:outline-none;
-		font-family: "SF Pro Display", system-ui, helvetica, sans-serif;
 		font-size: 18px;
 		line-height: 25px;
 		font-weight: 330;
-		color: rgb(0, 0, 0);
 	}
 	.header__nav {
 		@apply flex h-[5.5rem] items-stretch gap-6 lg:justify-between;
@@ -150,23 +151,42 @@ const savedNavActions = navActions.map((action) => ({
 	}
 	.header__menu-link {
 		@apply relative flex items-center gap-1 py-4 transition-colors duration-300 focus:outline-none focus-visible:outline-none lg:px-6;
-		font-family: "SF Pro Display", system-ui, helvetica, sans-serif;
 		font-size: 18px;
 		line-height: 25px;
 		font-weight: 330;
-		color: rgb(0, 0, 0) !important;
+		color: rgb(0, 0, 0);
+	}
+	.header__menu-link:hover {
+		@apply text-primary-500;
+	}
+	.header__menu-link.active {
+		@apply text-primary-600;
+	}
+	button.header__menu-link {
+		@apply cursor-pointer border-none bg-transparent p-0 py-4;
 	}
 	.header__menu-chevron {
 		@apply h-4 w-4 transition-transform [.header\_\_menu-item.open_&]:rotate-180;
 	}
 	.header__submenu {
-		@apply left-0 top-full hidden animate-dropdown rounded bg-neutral-300/10 px-4 lg:absolute lg:min-w-48 lg:rounded-t-none lg:bg-white/90 lg:p-0 lg:shadow-lg lg:shadow-neutral-700/5 lg:backdrop-blur-sm dark:bg-neutral-500/10 lg:dark:bg-neutral-900/90 lg:dark:shadow-neutral-950/50 [.header\_\_menu-item.open_&]:block;
+		@apply left-0 top-full hidden animate-dropdown px-4 lg:absolute lg:min-w-[200px] lg:bg-white lg:p-2 lg:rounded-lg lg:border lg:border-neutral-200/80 [.header\_\_menu-item.open_&]:block;
+		box-shadow: 0 12px 32px -4px rgba(0, 0, 0, 0.08), 0 4px 8px -2px rgba(0, 0, 0, 0.04);
+	}
+	.header__submenu::before {
+		@apply absolute -top-0.5 left-6 hidden h-1 w-8 rounded-full bg-primary-500 lg:block;
+		content: "";
 	}
 	.header__submenu-item {
 		@apply hidden [.header\_\_menu-item.open_&]:block;
 	}
 	.header__submenu-link {
-		@apply px-8 py-4 hover:text-primary-500 [.header\_\_menu-item.open_&]:flex;
+		@apply flex items-center rounded-md px-3 py-2 text-neutral-600 transition-all duration-200 hover:bg-primary-50 hover:text-primary-600;
+		font-size: 15px;
+		line-height: 22px;
+		font-weight: 400;
+	}
+	.header__submenu-link.active {
+		@apply bg-primary-50 text-primary-600;
 	}
 	.header__toggle {
 		@apply relative order-10 block h-10 w-10 self-center lg:hidden [&--open]:visible [&--open]:opacity-100;
@@ -190,7 +210,6 @@ const savedNavActions = navActions.map((action) => ({
 		@apply fixed bottom-0 left-0 hidden w-full items-center justify-between gap-4 border-t border-neutral-100 bg-white px-6 py-4 lg:relative lg:ml-auto lg:flex lg:w-auto lg:border-none lg:bg-transparent lg:px-0 lg:py-0 dark:border-neutral-800 dark:bg-neutral-950 lg:dark:bg-transparent [.header\_\_menu--open~&]:flex;
 	}
 	.header__actions .button {
-		font-family: "SF Pro Display", system-ui, helvetica, sans-serif;
 		font-weight: 480;
 		font-size: 16px;
 		line-height: 22px;
@@ -198,7 +217,6 @@ const savedNavActions = navActions.map((action) => ({
 	}
 	.header__github-link {
 		@apply hidden items-center gap-1.5 whitespace-nowrap text-neutral-700 transition-colors duration-200 hover:text-primary-500 lg:flex;
-		font-family: "SF Pro Display", system-ui, helvetica, sans-serif;
 		font-size: 14px;
 		font-weight: 480;
 	}
