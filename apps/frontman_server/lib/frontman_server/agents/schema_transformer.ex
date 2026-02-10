@@ -56,9 +56,13 @@ defmodule FrontmanServer.Agents.SchemaTransformer do
   Returns `:openai_strict` for OpenAI and Azure models (via OpenRouter or direct),
   `:flexible` for all others.
   """
-  @spec provider_for_model(String.t()) :: provider()
+  @spec provider_for_model(String.t() | %{provider: atom()}) :: provider()
   def provider_for_model(model) when is_binary(model) do
     if openai_model?(model), do: :openai_strict, else: :flexible
+  end
+
+  def provider_for_model(%{provider: provider}) when is_atom(provider) do
+    if provider in [:openai, :azure], do: :openai_strict, else: :flexible
   end
 
   defp openai_model?(model) do

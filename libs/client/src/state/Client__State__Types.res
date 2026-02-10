@@ -124,11 +124,12 @@ type anthropicOAuthStatus =
   | Connected({expiresAt: float})
   | Error(string)
 
-// ChatGPT OAuth connection status (simpler - server-side callback, no manual code paste)
+// ChatGPT OAuth connection status (device auth flow)
 type chatgptOAuthStatus =
   | ChatGPTNotConnected
   | ChatGPTFetchingStatus
-  | ChatGPTWaitingForCallback // User redirected to OpenAI, polling for completion
+  | ChatGPTWaitingForCode // Requesting device code from OpenAI
+  | ChatGPTShowingCode({userCode: string, verificationUrl: string}) // User needs to enter code
   | ChatGPTConnected({expiresAt: float})
   | ChatGPTError(string)
 

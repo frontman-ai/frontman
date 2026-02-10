@@ -68,11 +68,11 @@ type action =
   | DisconnectAnthropicOAuth
   | AnthropicOAuthDisconnected
   | ResetAnthropicOAuthError
-  // ChatGPT OAuth actions
+  // ChatGPT OAuth actions (device auth flow)
   | FetchChatGPTOAuthStatus
   | ChatGPTOAuthStatusReceived({connected: bool, expiresAt: option<string>})
   | InitiateChatGPTOAuth
-  | ChatGPTOAuthUrlReceived({authorizeUrl: string})
+  | ChatGPTDeviceCodeReceived({userCode: string, verificationUrl: string})
   | ChatGPTOAuthConnected({expiresAt: string})
   | ChatGPTOAuthError({error: string})
   | DisconnectChatGPTOAuth
@@ -97,11 +97,11 @@ type effect =
   | GetAnthropicOAuthUrlEffect({apiBaseUrl: string})
   | ExchangeAnthropicOAuthCodeEffect({apiBaseUrl: string, code: string, verifier: string})
   | DisconnectAnthropicOAuthEffect({apiBaseUrl: string})
-  // ChatGPT OAuth effects
+  // ChatGPT OAuth effects (device auth flow)
   | FetchChatGPTOAuthStatusEffect({apiBaseUrl: string})
-  | GetChatGPTOAuthUrlEffect({apiBaseUrl: string})
+  | InitiateChatGPTDeviceAuthEffect({apiBaseUrl: string})
   | DisconnectChatGPTOAuthEffect({apiBaseUrl: string})
-  | PollChatGPTOAuthStatusEffect({apiBaseUrl: string})
+  | PollChatGPTDeviceAuthEffect({apiBaseUrl: string})
   // Task loading effect
   | LoadTaskEffect({taskId: string})
 
@@ -269,7 +269,7 @@ let actionToString = action => {
   | ChatGPTOAuthStatusReceived({connected}) =>
     `ChatGPTOAuthStatusReceived(connected=${connected->string_of_bool})`
   | InitiateChatGPTOAuth => `InitiateChatGPTOAuth`
-  | ChatGPTOAuthUrlReceived(_) => `ChatGPTOAuthUrlReceived`
+  | ChatGPTDeviceCodeReceived({userCode}) => `ChatGPTDeviceCodeReceived(${userCode})`
   | ChatGPTOAuthConnected({expiresAt}) => `ChatGPTOAuthConnected(${expiresAt})`
   | ChatGPTOAuthError({error}) => `ChatGPTOAuthError(${error})`
   | DisconnectChatGPTOAuth => `DisconnectChatGPTOAuth`
@@ -800,66 +800,102 @@ let handleEffect = (effect, state: state, dispatch) => {
     }
     fetch()->ignore
 
-  | GetChatGPTOAuthUrlEffect({apiBaseUrl}) =>
+  | InitiateChatGPTDeviceAuthEffect({apiBaseUrl}) =>
     let fetch = async () => {
-      let url = `${apiBaseUrl}/api/oauth/chatgpt/authorize-url`
+      let url = `${apiBaseUrl}/api/oauth/chatgpt/initiate`
 
       try {
-        let response = await WebAPI.Global.fetch(url, ~init={credentials: Include})
+        let response = await WebAPI.Global.fetch(
+          url,
+          ~init={
+            method: "POST",
+            credentials: Include,
+            headers: WebAPI.HeadersInit.fromDict(
+              Dict.fromArray([("Content-Type", "application/json")]),
+            ),
+          },
+        )
         if response.ok {
           let json = await response->WebAPI.Response.json
-          let authorizeUrl =
+          let userCode =
             json
             ->JSON.Decode.object
             ->Option.flatMap(obj =>
-              obj->Dict.get("authorize_url")->Option.flatMap(JSON.Decode.string)
+              obj->Dict.get("user_code")->Option.flatMap(JSON.Decode.string)
             )
-          switch authorizeUrl {
-          | Some(authorizeUrl) =>
-            dispatch(ChatGPTOAuthUrlReceived({authorizeUrl: authorizeUrl}))
-          | None => dispatch(ChatGPTOAuthError({error: "Invalid response from server"}))
+          let verificationUrl =
+            json
+            ->JSON.Decode.object
+            ->Option.flatMap(obj =>
+              obj->Dict.get("verification_url")->Option.flatMap(JSON.Decode.string)
+            )
+          switch (userCode, verificationUrl) {
+          | (Some(userCode), Some(verificationUrl)) =>
+            dispatch(ChatGPTDeviceCodeReceived({userCode, verificationUrl}))
+          | _ => dispatch(ChatGPTOAuthError({error: "Invalid response from server"}))
           }
         } else {
-          dispatch(ChatGPTOAuthError({error: "Failed to get authorization URL"}))
+          dispatch(ChatGPTOAuthError({error: "Failed to initiate authentication"}))
         }
       } catch {
-      | _ => dispatch(ChatGPTOAuthError({error: "Failed to get authorization URL"}))
+      | _ => dispatch(ChatGPTOAuthError({error: "Failed to initiate authentication"}))
       }
     }
     fetch()->ignore
 
-  | PollChatGPTOAuthStatusEffect({apiBaseUrl}) =>
-    // Poll every 2 seconds for up to 5 minutes (150 attempts)
+  | PollChatGPTDeviceAuthEffect({apiBaseUrl}) =>
+    // Poll our server every 5 seconds for up to 15 minutes (180 attempts)
+    // Our server forwards each poll to OpenAI's device token endpoint
     let poll = async () => {
-      let maxAttempts = 150
-      let intervalMs = 2000
+      let maxAttempts = 180
+      let intervalMs = 5000
       let rec pollLoop = async (attempt) => {
         if attempt >= maxAttempts {
           dispatch(ChatGPTOAuthError({error: "Authorization timed out. Please try again."}))
         } else {
           try {
-            let url = `${apiBaseUrl}/api/oauth/chatgpt/status`
-            let response = await WebAPI.Global.fetch(url, ~init={credentials: Include})
+            let url = `${apiBaseUrl}/api/oauth/chatgpt/poll`
+            let response = await WebAPI.Global.fetch(
+              url,
+              ~init={
+                method: "POST",
+                credentials: Include,
+                headers: WebAPI.HeadersInit.fromDict(
+                  Dict.fromArray([("Content-Type", "application/json")]),
+                ),
+              },
+            )
             if response.ok {
               let json = await response->WebAPI.Response.json
-              let connected =
+              let status =
                 json
                 ->JSON.Decode.object
-                ->Option.flatMap(obj => obj->Dict.get("connected")->Option.flatMap(JSON.Decode.bool))
-                ->Option.getOr(false)
-              if connected {
+                ->Option.flatMap(obj => obj->Dict.get("status")->Option.flatMap(JSON.Decode.string))
+                ->Option.getOr("")
+              switch status {
+              | "connected" =>
                 let expiresAt =
                   json
                   ->JSON.Decode.object
                   ->Option.flatMap(obj => obj->Dict.get("expires_at")->Option.flatMap(JSON.Decode.string))
                   ->Option.getOr("")
                 dispatch(ChatGPTOAuthConnected({expiresAt: expiresAt}))
-              } else {
+              | _ =>
+                // "pending" — wait and try again
                 await Promise.make((resolve, _) => {
                   let _ = Js.Global.setTimeout(() => resolve(.), intervalMs)
                 })
                 await pollLoop(attempt + 1)
               }
+            } else if response.status == 410 {
+              // Device code expired
+              dispatch(ChatGPTOAuthError({error: "Device code expired. Please try again."}))
+            } else if response.status == 403 {
+              // Authorization declined
+              dispatch(ChatGPTOAuthError({error: "Authorization was declined."}))
+            } else if response.status == 404 {
+              // No active session
+              dispatch(ChatGPTOAuthError({error: "No active authorization session. Please try again."}))
             } else {
               await Promise.make((resolve, _) => {
                 let _ = Js.Global.setTimeout(() => resolve(.), intervalMs)
@@ -1345,27 +1381,29 @@ let next = (state: state, action) => {
   | InitiateChatGPTOAuth =>
     switch state.acpSession {
     | AcpSessionActive({apiBaseUrl}) =>
-      state->FrontmanReactStatestore.StateReducer.update(
-        ~sideEffects=[GetChatGPTOAuthUrlEffect({apiBaseUrl: apiBaseUrl})],
+      {
+        ...state,
+        chatgptOAuthStatus: Client__State__Types.ChatGPTWaitingForCode,
+      }->FrontmanReactStatestore.StateReducer.update(
+        ~sideEffects=[InitiateChatGPTDeviceAuthEffect({apiBaseUrl: apiBaseUrl})],
       )
     | NoAcpSession => state->FrontmanReactStatestore.StateReducer.update
     }
 
-  | ChatGPTOAuthUrlReceived({authorizeUrl}) =>
-    // Open the authorization URL in a new tab and start polling
-    WebAPI.Window.open_(WebAPI.Global.window, ~url=authorizeUrl, ~target="_blank")->ignore
+  | ChatGPTDeviceCodeReceived({userCode, verificationUrl}) =>
+    // Show the code to the user and start polling our server
     switch state.acpSession {
     | AcpSessionActive({apiBaseUrl}) =>
       {
         ...state,
-        chatgptOAuthStatus: Client__State__Types.ChatGPTWaitingForCallback,
+        chatgptOAuthStatus: Client__State__Types.ChatGPTShowingCode({userCode, verificationUrl}),
       }->FrontmanReactStatestore.StateReducer.update(
-        ~sideEffects=[PollChatGPTOAuthStatusEffect({apiBaseUrl: apiBaseUrl})],
+        ~sideEffects=[PollChatGPTDeviceAuthEffect({apiBaseUrl: apiBaseUrl})],
       )
     | NoAcpSession =>
       {
         ...state,
-        chatgptOAuthStatus: Client__State__Types.ChatGPTWaitingForCallback,
+        chatgptOAuthStatus: Client__State__Types.ChatGPTShowingCode({userCode, verificationUrl}),
       }->FrontmanReactStatestore.StateReducer.update
     }
 

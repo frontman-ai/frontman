@@ -2,15 +2,17 @@ defmodule FrontmanServer.Providers.ChatGPTOAuth do
   @moduledoc """
   Handles OAuth authentication for ChatGPT Pro/Plus subscriptions.
 
-  Implements the PKCE OAuth flow against OpenAI's auth server:
-  1. Generate PKCE challenge and build authorization URL
-  2. User authenticates at auth.openai.com
-  3. Exchange code for access/refresh/id tokens
-  4. Extract chatgpt_account_id from JWT claims
-  5. Refresh tokens when expired
+  Implements the Device Auth flow against OpenAI's auth server:
+  1. Request a device code (user_code) from OpenAI
+  2. User opens https://auth.openai.com/codex/device and enters the code
+  3. Server polls OpenAI until user authorizes → receives authorization_code + PKCE
+  4. Exchange authorization_code for access/refresh/id tokens
+  5. Extract chatgpt_account_id from JWT claims
+  6. Refresh tokens when expired
 
-  Uses the same public OAuth client_id as Codex CLI and OpenCode.
-  Differentiates via the `originator=frontman` parameter.
+  Uses the same public OAuth client_id as Codex CLI.
+  The device auth flow is required because this client_id only allows
+  http://localhost:* redirect URIs (it's a native/public client).
   """
 
   require Logger
@@ -19,10 +21,11 @@ defmodule FrontmanServer.Providers.ChatGPTOAuth do
 
   @client_id "app_EMoamEEZ73f0CkXaXp7hrann"
   @issuer "https://auth.openai.com"
-  @auth_url "#{@issuer}/oauth/authorize"
   @token_url "#{@issuer}/oauth/token"
-  @scopes "openid profile email offline_access"
-  @originator "frontman"
+  @device_code_url "#{@issuer}/api/accounts/deviceauth/usercode"
+  @device_token_url "#{@issuer}/api/accounts/deviceauth/token"
+  @verification_url "#{@issuer}/codex/device"
+  @device_redirect_uri "#{@issuer}/deviceauth/callback"
 
   @doc """
   Returns the OAuth client_id.
@@ -30,45 +33,122 @@ defmodule FrontmanServer.Providers.ChatGPTOAuth do
   def client_id, do: @client_id
 
   @doc """
-  Generates a PKCE verifier and challenge. Delegates to shared helper.
+  Returns the verification URL where the user enters their device code.
   """
-  @spec generate_pkce() :: {String.t(), String.t()}
-  defdelegate generate_pkce(), to: OAuthHelpers
+  def verification_url, do: @verification_url
 
   @doc """
-  Builds the authorization URL for the user to visit.
+  Step 1: Request a device code from OpenAI.
 
-  The `redirect_uri` should be the server-side callback URL
-  (e.g., "https://frontman.example.com/api/oauth/chatgpt/callback").
+  Returns `{:ok, %{device_auth_id: ..., user_code: ..., interval: ...}}`
+  or `{:error, reason}`.
+
+  The `interval` is the polling interval in seconds.
   """
-  @spec build_authorize_url(String.t(), String.t(), String.t()) :: String.t()
-  def build_authorize_url(challenge, state, redirect_uri) do
-    params =
-      URI.encode_query(%{
-        "response_type" => "code",
-        "client_id" => @client_id,
-        "redirect_uri" => redirect_uri,
-        "scope" => @scopes,
-        "code_challenge" => challenge,
-        "code_challenge_method" => "S256",
-        "id_token_add_organizations" => "true",
-        "codex_cli_simplified_flow" => "true",
-        "state" => state,
-        "originator" => @originator
-      })
+  @spec request_device_code() ::
+          {:ok, %{device_auth_id: String.t(), user_code: String.t(), interval: integer()}}
+          | {:error, term()}
+  def request_device_code do
+    body = Jason.encode!(%{"client_id" => @client_id})
 
-    "#{@auth_url}?#{params}"
+    headers = [
+      {"content-type", "application/json"},
+      {"accept", "application/json"}
+    ]
+
+    case Req.post(@device_code_url, body: body, headers: headers) do
+      {:ok, %Req.Response{status: status, body: response_body}} when status in 200..299 ->
+        device_auth_id = response_body["device_auth_id"]
+        user_code = response_body["user_code"] || response_body["usercode"]
+        interval = parse_interval(response_body["interval"])
+
+        if device_auth_id && user_code do
+          {:ok, %{device_auth_id: device_auth_id, user_code: user_code, interval: interval}}
+        else
+          Logger.error("ChatGPT device code response missing fields: #{inspect(response_body)}")
+          {:error, :invalid_response}
+        end
+
+      {:ok, %Req.Response{status: 404}} ->
+        {:error, :device_auth_not_enabled}
+
+      {:ok, %Req.Response{status: status, body: body}} ->
+        Logger.error(
+          "ChatGPT device code request failed: status=#{status}, body=#{inspect(body)}"
+        )
+
+        {:error, {:device_code_failed, status, body}}
+
+      {:error, reason} ->
+        Logger.error("ChatGPT device code request error: #{inspect(reason)}")
+        {:error, {:request_failed, reason}}
+    end
   end
 
   @doc """
-  Exchanges an authorization code for access, refresh, and id tokens.
+  Step 2: Poll OpenAI to check if the user has authorized.
 
-  Note: OpenAI uses `application/x-www-form-urlencoded` (not JSON).
+  Returns:
+  - `{:ok, %{authorization_code: ..., code_verifier: ...}}` when user has authorized
+  - `{:pending}` when user hasn't authorized yet
+  - `{:error, reason}` on failure
+
+  The `code_verifier` is server-generated by OpenAI (not standard PKCE).
+  """
+  @spec poll_device_token(String.t(), String.t()) ::
+          {:ok, %{authorization_code: String.t(), code_verifier: String.t()}}
+          | {:pending}
+          | {:error, term()}
+  def poll_device_token(device_auth_id, user_code) do
+    body = Jason.encode!(%{"device_auth_id" => device_auth_id, "user_code" => user_code})
+
+    headers = [
+      {"content-type", "application/json"},
+      {"accept", "application/json"}
+    ]
+
+    case Req.post(@device_token_url, body: body, headers: headers) do
+      {:ok, %Req.Response{status: 200, body: response_body}} ->
+        authorization_code = response_body["authorization_code"]
+        code_verifier = response_body["code_verifier"]
+
+        if authorization_code && code_verifier do
+          {:ok, %{authorization_code: authorization_code, code_verifier: code_verifier}}
+        else
+          Logger.error("ChatGPT device token response missing fields: #{inspect(response_body)}")
+
+          {:error, :invalid_response}
+        end
+
+      {:ok, %Req.Response{status: status}} when status in [403, 404] ->
+        # User hasn't authorized yet
+        {:pending}
+
+      {:ok, %Req.Response{status: 401, body: body}} ->
+        Logger.error("ChatGPT device auth declined: #{inspect(body)}")
+        {:error, :authorization_declined}
+
+      {:ok, %Req.Response{status: status, body: body}} ->
+        Logger.error("ChatGPT device token poll failed: status=#{status}, body=#{inspect(body)}")
+
+        {:error, {:poll_failed, status, body}}
+
+      {:error, reason} ->
+        Logger.error("ChatGPT device token poll request error: #{inspect(reason)}")
+        {:error, {:request_failed, reason}}
+    end
+  end
+
+  @doc """
+  Step 3: Exchange the authorization code (from device flow) for tokens.
+
+  Uses the server-generated `code_verifier` from the poll response and
+  OpenAI's device auth callback as the redirect_uri.
 
   Returns `{:ok, %{access_token: ..., refresh_token: ..., id_token: ..., expires_in: ...}}`
   or `{:error, reason}`.
   """
-  @spec exchange_code(String.t(), String.t(), String.t()) ::
+  @spec exchange_device_code(String.t(), String.t()) ::
           {:ok,
            %{
              access_token: String.t(),
@@ -77,14 +157,14 @@ defmodule FrontmanServer.Providers.ChatGPTOAuth do
              expires_in: integer() | nil
            }}
           | {:error, term()}
-  def exchange_code(code, verifier, redirect_uri) do
+  def exchange_device_code(authorization_code, code_verifier) do
     body =
       URI.encode_query(%{
         "grant_type" => "authorization_code",
-        "code" => code,
-        "redirect_uri" => redirect_uri,
+        "code" => authorization_code,
+        "redirect_uri" => @device_redirect_uri,
         "client_id" => @client_id,
-        "code_verifier" => verifier
+        "code_verifier" => code_verifier
       })
 
     headers = [
@@ -104,13 +184,13 @@ defmodule FrontmanServer.Providers.ChatGPTOAuth do
 
       {:ok, %Req.Response{status: status, body: body}} ->
         Logger.error(
-          "ChatGPT OAuth token exchange failed: status=#{status}, body=#{inspect(body)}"
+          "ChatGPT device code exchange failed: status=#{status}, body=#{inspect(body)}"
         )
 
         {:error, {:token_exchange_failed, status, body}}
 
       {:error, reason} ->
-        Logger.error("ChatGPT OAuth token exchange request failed: #{inspect(reason)}")
+        Logger.error("ChatGPT device code exchange request failed: #{inspect(reason)}")
         {:error, {:request_failed, reason}}
     end
   end
@@ -223,6 +303,18 @@ defmodule FrontmanServer.Providers.ChatGPTOAuth do
   end
 
   # Private helpers
+
+  defp parse_interval(nil), do: 5
+  defp parse_interval(val) when is_integer(val), do: val
+
+  defp parse_interval(val) when is_binary(val) do
+    case Integer.parse(val) do
+      {n, _} -> n
+      :error -> 5
+    end
+  end
+
+  defp parse_interval(_), do: 5
 
   defp decode_jwt_payload(jwt) do
     case String.split(jwt, ".") do

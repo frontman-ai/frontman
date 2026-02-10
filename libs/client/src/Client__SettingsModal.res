@@ -272,7 +272,7 @@ let make = (~open_: bool, ~onOpenChange: bool => unit) => {
                           className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[11px] font-semibold text-emerald-200">
                           {React.string("Connected")}
                         </span>
-                      | Types.ChatGPTFetchingStatus | Types.ChatGPTWaitingForCallback =>
+                      | Types.ChatGPTFetchingStatus | Types.ChatGPTWaitingForCode | Types.ChatGPTShowingCode(_) =>
                         <span
                           className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[11px] font-semibold text-amber-200">
                           {React.string("Connecting...")}
@@ -303,16 +303,34 @@ let make = (~open_: bool, ~onOpenChange: bool => unit) => {
                         onClick={_ => State.Actions.initiateChatGPTOAuth()}>
                         {React.string("Connect with ChatGPT")}
                       </Button.Button>
-                    | Types.ChatGPTFetchingStatus =>
+                    | Types.ChatGPTFetchingStatus | Types.ChatGPTWaitingForCode =>
                       <Button.Button variant=#secondary disabled={true}>
-                        {React.string("Checking status...")}
+                        {React.string("Checking...")}
                       </Button.Button>
-                    | Types.ChatGPTWaitingForCallback =>
-                      <div className="flex items-center gap-2 text-sm text-zinc-400">
-                        <span
-                          className="inline-block size-4 animate-spin rounded-full border-2 border-zinc-600 border-t-zinc-300"
-                        />
-                        {React.string("Waiting for authorization... Complete sign-in in the new tab.")}
+                    | Types.ChatGPTShowingCode({userCode, verificationUrl}) =>
+                      <div className="space-y-3">
+                        <div className="text-xs text-zinc-400">
+                          {React.string("Enter this code at OpenAI to connect your account:")}
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <code
+                            className="rounded-md bg-zinc-800 px-4 py-2 font-mono text-lg font-bold tracking-widest text-zinc-100">
+                            {React.string(userCode)}
+                          </code>
+                          <a
+                            href={verificationUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="rounded-md bg-zinc-700 px-3 py-2 text-xs font-medium text-zinc-200 transition-colors hover:bg-zinc-600">
+                            {React.string("Open OpenAI")}
+                          </a>
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-zinc-500">
+                          <span
+                            className="inline-block size-3 animate-spin rounded-full border-2 border-zinc-600 border-t-zinc-300"
+                          />
+                          {React.string("Waiting for authorization...")}
+                        </div>
                       </div>
                     | Types.ChatGPTConnected({expiresAt}) => {
                         let expiryDate = Date.fromTime(expiresAt)

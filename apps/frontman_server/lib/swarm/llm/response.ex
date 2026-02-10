@@ -19,6 +19,7 @@ defmodule Swarm.LLM.Response do
     field(:finish_reason, finish_reason(), default: :stop)
     field(:tool_calls, [Swarm.ToolCall.t()], default: [])
     field(:usage, Usage.t())
+    field(:metadata, map(), default: %{})
     field(:raw, term())
   end
 
@@ -48,7 +49,8 @@ defmodule Swarm.LLM.Response do
       # Key: index, Value: %{id: string, name: string, args_fragments: [string]}
       pending_tool_calls: %{},
       usage: nil,
-      finish_reason: :stop
+      finish_reason: :stop,
+      metadata: %{}
     }
 
     result = Enum.reduce(stream, acc, &accumulate_chunk/2)
@@ -64,7 +66,8 @@ defmodule Swarm.LLM.Response do
       reasoning_details: result.reasoning_details,
       tool_calls: Map.values(all_tool_calls),
       usage: result.usage,
-      finish_reason: result.finish_reason
+      finish_reason: result.finish_reason,
+      metadata: result.metadata
     }
   end
 
@@ -118,8 +121,8 @@ defmodule Swarm.LLM.Response do
     %{acc | usage: usage}
   end
 
-  defp accumulate_chunk(%Chunk{type: :done, finish_reason: reason}, acc) do
-    %{acc | finish_reason: reason}
+  defp accumulate_chunk(%Chunk{type: :done, finish_reason: reason, metadata: meta}, acc) do
+    %{acc | finish_reason: reason, metadata: Map.merge(acc.metadata, meta || %{})}
   end
 
   # Catch-all for unknown chunk types

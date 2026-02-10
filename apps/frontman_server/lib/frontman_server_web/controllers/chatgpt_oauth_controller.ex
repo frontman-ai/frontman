@@ -1,16 +1,20 @@
 defmodule FrontmanServerWeb.ChatGPTOAuthController do
   @moduledoc """
-  Handles the ChatGPT Pro/Plus OAuth flow with a server-side callback.
+  Handles the ChatGPT Pro/Plus OAuth flow using the Device Auth flow.
 
   Flow:
-  1. Client calls `GET /api/oauth/chatgpt/authorize-url`
-     → Server generates PKCE, stores `{state → {verifier, user_id}}` in ETS, returns URL
-  2. Client opens the authorization URL in a new browser tab
-  3. User authenticates at auth.openai.com
-  4. OpenAI redirects to `GET /api/oauth/chatgpt/callback?code=...&state=...`
-     → Server looks up verifier from ETS, exchanges code for tokens,
-       extracts `chatgpt_account_id` from JWT, stores tokens, renders success HTML
-  5. Original client tab polls `GET /api/oauth/chatgpt/status` to detect completion
+  1. Client calls `POST /api/oauth/chatgpt/initiate`
+     → Server requests a device code from OpenAI, stores device_auth_id in ETS,
+       returns user_code + verification_url to the client
+  2. Client shows the user_code and opens the verification URL
+  3. User enters the code at auth.openai.com/codex/device
+  4. Client polls `POST /api/oauth/chatgpt/poll`
+     → Server polls OpenAI on each request. When authorized, exchanges code for tokens,
+       extracts chatgpt_account_id from JWT, stores tokens, returns success
+  5. Client can also check `GET /api/oauth/chatgpt/status` for connection state
+
+  The device auth flow is required because the OpenAI public client_id
+  (app_EMoamEEZ73f0CkXaXp7hrann) only allows http://localhost:* redirect URIs.
   """
 
   use FrontmanServerWeb, :controller
@@ -20,13 +24,14 @@ defmodule FrontmanServerWeb.ChatGPTOAuthController do
   alias FrontmanServer.Providers
   alias FrontmanServer.Providers.{ChatGPTOAuth, OAuthHelpers, OAuthToken}
 
-  # ETS table for PKCE state storage (state → {verifier, user_id, expires_at})
+  # ETS table for device auth state storage
+  # Key: user_id → {device_auth_id, user_code, expires_at}
   @ets_table :chatgpt_oauth_state
-  # 10 minute TTL for PKCE state entries
-  @state_ttl_seconds 600
+  # 15 minute TTL for device auth sessions (matches OpenAI's device code expiry)
+  @state_ttl_seconds 900
 
   @doc """
-  Ensures the ETS table for PKCE state storage exists.
+  Ensures the ETS table for device auth state storage exists.
   Called from Application startup.
   """
   def ensure_ets_table do
@@ -40,69 +45,73 @@ defmodule FrontmanServerWeb.ChatGPTOAuthController do
   end
 
   @doc """
-  Generates a PKCE challenge and returns the authorization URL.
+  Initiates the device auth flow by requesting a device code from OpenAI.
 
-  The PKCE verifier is stored server-side in ETS (keyed by the state parameter).
-  The client should open the returned URL in a new browser tab.
-  OpenAI will redirect back to our callback endpoint with the code and state.
+  Returns the user_code and verification_url for the client to display.
+  The device_auth_id is stored server-side in ETS keyed by user_id.
 
-  GET /api/oauth/chatgpt/authorize-url
+  POST /api/oauth/chatgpt/initiate
   """
-  def authorize_url(conn, _params) do
+  def initiate(conn, _params) do
     scope = conn.assigns.current_scope
     user_id = scope.user.id
 
-    {verifier, challenge} = OAuthHelpers.generate_pkce()
-    state = OAuthHelpers.generate_state()
+    case ChatGPTOAuth.request_device_code() do
+      {:ok, %{device_auth_id: device_auth_id, user_code: user_code, interval: _interval}} ->
+        # Store device auth session in ETS keyed by user_id
+        expires_at = System.monotonic_time(:second) + @state_ttl_seconds
+        ensure_ets_table()
+        :ets.insert(@ets_table, {user_id, device_auth_id, user_code, expires_at})
 
-    # Build the callback URL for this server
-    redirect_uri = callback_url(conn)
-    authorize_url = ChatGPTOAuth.build_authorize_url(challenge, state, redirect_uri)
+        # Clean up expired entries opportunistically
+        cleanup_expired_entries()
 
-    # Store state → {verifier, user_id, expires_at} in ETS
-    expires_at = System.monotonic_time(:second) + @state_ttl_seconds
-    ensure_ets_table()
-    :ets.insert(@ets_table, {state, verifier, user_id, expires_at})
+        json(conn, %{
+          user_code: user_code,
+          verification_url: ChatGPTOAuth.verification_url()
+        })
 
-    # Clean up expired entries opportunistically
-    cleanup_expired_entries()
+      {:error, :device_auth_not_enabled} ->
+        conn
+        |> put_status(503)
+        |> json(%{error: "Device auth is not currently available. Please try again later."})
 
-    json(conn, %{
-      authorize_url: authorize_url
-    })
-  end
+      {:error, reason} ->
+        Logger.error("ChatGPT device code request failed: #{inspect(reason)}")
 
-  @doc """
-  Server-side OAuth callback from OpenAI.
-
-  OpenAI redirects the user's browser here after authorization.
-  We look up the PKCE verifier from ETS, exchange the code for tokens,
-  extract the account_id, store everything, and render a success page.
-
-  GET /api/oauth/chatgpt/callback?code=...&state=...
-  """
-  def callback(conn, %{"code" => code, "state" => state}) do
-    ensure_ets_table()
-
-    case :ets.lookup(@ets_table, state) do
-      [{^state, verifier, user_id, expires_at}] ->
-        # Delete the entry immediately (one-time use)
-        :ets.delete(@ets_table, state)
-
-        # Check expiry
-        if System.monotonic_time(:second) > expires_at do
-          render_callback_error(conn, "Authorization session expired. Please try again.")
-        else
-          handle_code_exchange(conn, code, verifier, user_id)
-        end
-
-      [] ->
-        render_callback_error(conn, "Invalid or expired authorization session. Please try again.")
+        conn
+        |> put_status(500)
+        |> json(%{error: "Failed to initiate authentication. Please try again."})
     end
   end
 
-  def callback(conn, _params) do
-    render_callback_error(conn, "Missing authorization code or state parameter.")
+  @doc """
+  Polls OpenAI to check if the user has completed authorization.
+
+  This is called by the client at regular intervals. On each call, the server
+  polls OpenAI's device token endpoint. If authorized, exchanges the code for
+  tokens and stores them.
+
+  POST /api/oauth/chatgpt/poll
+  """
+  def poll(conn, _params) do
+    scope = conn.assigns.current_scope
+    user_id = scope.user.id
+
+    ensure_ets_table()
+
+    case :ets.lookup(@ets_table, user_id) do
+      [{^user_id, device_auth_id, user_code, expires_at}] ->
+        if System.monotonic_time(:second) > expires_at do
+          :ets.delete(@ets_table, user_id)
+          conn |> put_status(410) |> json(%{status: "expired"})
+        else
+          handle_poll(conn, user_id, device_auth_id, user_code)
+        end
+
+      [] ->
+        conn |> put_status(404) |> json(%{status: "no_session"})
+    end
   end
 
   @doc """
@@ -146,10 +155,32 @@ defmodule FrontmanServerWeb.ChatGPTOAuthController do
 
   # Private helpers
 
-  defp handle_code_exchange(conn, code, verifier, user_id) do
-    redirect_uri = callback_url(conn)
+  defp handle_poll(conn, user_id, device_auth_id, user_code) do
+    case ChatGPTOAuth.poll_device_token(device_auth_id, user_code) do
+      {:ok, %{authorization_code: auth_code, code_verifier: code_verifier}} ->
+        # User authorized! Clean up ETS entry
+        :ets.delete(@ets_table, user_id)
+        # Exchange for tokens
+        handle_device_exchange(conn, auth_code, code_verifier, user_id)
 
-    case ChatGPTOAuth.exchange_code(code, verifier, redirect_uri) do
+      {:pending} ->
+        json(conn, %{status: "pending"})
+
+      {:error, :authorization_declined} ->
+        :ets.delete(@ets_table, user_id)
+
+        conn
+        |> put_status(403)
+        |> json(%{status: "declined", error: "Authorization was declined."})
+
+      {:error, reason} ->
+        Logger.error("ChatGPT device poll error: #{inspect(reason)}")
+        json(conn, %{status: "pending"})
+    end
+  end
+
+  defp handle_device_exchange(conn, authorization_code, code_verifier, user_id) do
+    case ChatGPTOAuth.exchange_device_code(authorization_code, code_verifier) do
       {:ok, tokens} ->
         # Extract account_id from JWT tokens
         account_id = ChatGPTOAuth.extract_account_id_from_tokens(tokens)
@@ -172,16 +203,25 @@ defmodule FrontmanServerWeb.ChatGPTOAuthController do
                metadata
              ) do
           {:ok, _token} ->
-            render_callback_success(conn)
+            json(conn, %{
+              status: "connected",
+              expires_at: DateTime.to_iso8601(expires_at)
+            })
 
           {:error, changeset} ->
             Logger.error("Failed to store ChatGPT OAuth token: #{inspect(changeset)}")
-            render_callback_error(conn, "Failed to save tokens. Please try again.")
+
+            conn
+            |> put_status(500)
+            |> json(%{status: "error", error: "Failed to save tokens. Please try again."})
         end
 
       {:error, reason} ->
-        Logger.error("ChatGPT OAuth code exchange failed: #{inspect(reason)}")
-        render_callback_error(conn, "Failed to exchange authorization code. Please try again.")
+        Logger.error("ChatGPT device code exchange failed: #{inspect(reason)}")
+
+        conn
+        |> put_status(500)
+        |> json(%{status: "error", error: "Failed to exchange authorization code."})
     end
   end
 
@@ -190,125 +230,15 @@ defmodule FrontmanServerWeb.ChatGPTOAuthController do
     %FrontmanServer.Accounts.Scope{user: user}
   end
 
-  defp callback_url(_conn) do
-    FrontmanServerWeb.Endpoint.url() <> "/api/oauth/chatgpt/callback"
-  end
-
   defp cleanup_expired_entries do
     now = System.monotonic_time(:second)
 
     # Use match_spec to find and delete expired entries
-    # Pattern: {state, verifier, user_id, expires_at} where expires_at < now
+    # Pattern: {user_id, device_auth_id, user_code, expires_at} where expires_at < now
     :ets.select_delete(@ets_table, [
       {{:_, :_, :_, :"$1"}, [{:<, :"$1", now}], [true]}
     ])
   rescue
     _ -> :ok
-  end
-
-  defp render_callback_success(conn) do
-    html = """
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <title>Connected - Frontman</title>
-      <style>
-        body {
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-          background: #0a0a0a;
-          color: #e4e4e7;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          min-height: 100vh;
-          margin: 0;
-        }
-        .container {
-          text-align: center;
-          padding: 2rem;
-        }
-        .check {
-          width: 64px;
-          height: 64px;
-          border-radius: 50%;
-          background: rgba(16, 185, 129, 0.2);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          margin: 0 auto 1.5rem;
-          font-size: 2rem;
-        }
-        h1 { font-size: 1.5rem; margin: 0 0 0.5rem; }
-        p { color: #71717a; font-size: 0.875rem; margin: 0; }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <div class="check">&#10003;</div>
-        <h1>ChatGPT Connected</h1>
-        <p>You can close this tab and return to Frontman.</p>
-      </div>
-      <script>
-        // Auto-close after 3 seconds
-        setTimeout(function() { window.close(); }, 3000);
-      </script>
-    </body>
-    </html>
-    """
-
-    conn
-    |> put_resp_content_type("text/html")
-    |> send_resp(200, html)
-  end
-
-  defp render_callback_error(conn, message) do
-    html = """
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <title>Error - Frontman</title>
-      <style>
-        body {
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-          background: #0a0a0a;
-          color: #e4e4e7;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          min-height: 100vh;
-          margin: 0;
-        }
-        .container {
-          text-align: center;
-          padding: 2rem;
-        }
-        .error-icon {
-          width: 64px;
-          height: 64px;
-          border-radius: 50%;
-          background: rgba(239, 68, 68, 0.2);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          margin: 0 auto 1.5rem;
-          font-size: 2rem;
-        }
-        h1 { font-size: 1.5rem; margin: 0 0 0.5rem; }
-        p { color: #71717a; font-size: 0.875rem; margin: 0; }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <div class="error-icon">&#10007;</div>
-        <h1>Connection Failed</h1>
-        <p>#{message}</p>
-      </div>
-    </body>
-    </html>
-    """
-
-    conn
-    |> put_resp_content_type("text/html")
-    |> send_resp(400, html)
   end
 end
