@@ -23,6 +23,11 @@ cd .worktrees/feature/my-feature
 - `make worktree-remove BRANCH=feature/my-feature` - Remove worktree
 - `make worktree-clean` - Clean stale worktrees
 
+**Secrets:**
+- `apps/frontman_server/envs/.dev.overrides.env` is gitignored (contains WORKOS keys, API keys)
+- Automatically copied from the main worktree into new worktrees by `make worktree-create` / `worktree-create-from`
+- If the server fails on startup with WORKOS errors, ensure this file exists in the worktree
+
 **Structure:**
 - `.worktrees/<branch-name>/` - Worktree directory
 - `.worktrees/<branch-name>/.claude/` - Isolated Claude context (history, plans, todos)

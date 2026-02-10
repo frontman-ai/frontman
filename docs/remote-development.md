@@ -6,12 +6,12 @@ This guide explains how to use DevPod to run Frontman development environments o
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│  Hetzner Cloud Server (77.42.16.199)                                    │
+│  Hetzner Cloud Server (see root .env → DEVPOD_SERVER)                    │
 │  CX43: 8 vCPU, 16GB RAM, 160GB NVMe                                     │
 │                                                                         │
 │  ┌─────────────────────────────────────────────────────────────────┐    │
 │  │  Caddy Reverse Proxy (ports 80/443)                             │    │
-│  │  Routes: wt-{hash}-{service}.local → container IP               │    │
+│  │  Routes: {hash}.{service}.frontman.local → container            │    │
 │  └──────────────────────────────┬──────────────────────────────────┘    │
 │                                 │                                       │
 │  ┌──────────────────────────────┼──────────────────────────────────┐    │
@@ -25,13 +25,14 @@ This guide explains how to use DevPod to run Frontman development environments o
 │  PostgreSQL 16 (shared across workspaces)                               │
 └─────────────────────────────────────────────────────────────────────────┘
           ↑
-          │ SSH Tunnel (ports 8080→80, 8443→443)
+          │ DNS via dnsmasq (*.{service}.frontman.local → DEVPOD_SERVER)
+          │ Direct HTTPS (port 443)
           ↓
 ┌─────────────────────────────────────────────────────────────────────────┐
 │  Your Local Machine                                                     │
-│  - /etc/hosts: ea0c.nextjs.frontman.local → 127.0.0.1                   │
-│  - Browser: https://ea0c.nextjs.frontman.local:8443/__frontman          │
-│  - All services accessible via subdomains                               │
+│  - dnsmasq: *.api.frontman.local → DEVPOD_SERVER (one-time setup)       │
+│  - Browser: https://ea0c.nextjs.frontman.local/frontman                │
+│  - All services accessible via subdomains, any new hash works instantly │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -40,38 +41,51 @@ This guide explains how to use DevPod to run Frontman development environments o
 Each worktree gets a unique 4-character hash ID based on its name. URLs follow this format for WorkOS OAuth compatibility:
 
 ```
-https://{hash}.{service}.frontman.local:8443
+https://{hash}.{service}.frontman.local
 ```
 
 | Worktree | Hash | Next.js URL | Vite URL | Phoenix URL |
 |----------|------|-------------|----------|-------------|
-| issue-164 | ea0c | https://ea0c.nextjs.frontman.local:8443 | https://ea0c.vite.frontman.local:8443 | https://ea0c.api.frontman.local:8443 |
-| issue-189 | b09b | https://b09b.nextjs.frontman.local:8443 | https://b09b.vite.frontman.local:8443 | https://b09b.api.frontman.local:8443 |
+| issue-164 | ea0c | https://ea0c.nextjs.frontman.local | https://ea0c.vite.frontman.local | https://ea0c.api.frontman.local |
+| issue-189 | b09b | https://b09b.nextjs.frontman.local | https://b09b.vite.frontman.local | https://b09b.api.frontman.local |
 
 Services per worktree:
-- `{hash}.nextjs.frontman.local` - Next.js dev server (port 3000) - access at `/__frontman`
+- `{hash}.nextjs.frontman.local` - Next.js dev server (port 3000) - access at `/frontman`
 - `{hash}.vite.frontman.local` - Vite client dev server (port 5173)
 - `{hash}.api.frontman.local` - Phoenix server (port 4000)
 - `{hash}.storybook.frontman.local` - Storybook (port 6006)
 
 **Important:** The URL format `{hash}.{service}.frontman.local` is required for WorkOS OAuth redirects to work correctly. WorkOS needs consistent redirect URIs, and this subdomain pattern allows multiple development environments while maintaining OAuth compatibility.
 
+## Server IP
+
+The Hetzner server IP is stored in 1Password and referenced via the root `.env` file:
+
+```bash
+# .env (gitignored)
+DEVPOD_SERVER=op://frontman/DEVPOD_SERVER
+```
+
+To resolve the actual IP, run:
+```bash
+op read "op://frontman/DEVPOD_SERVER"
+```
+
+All references to `DEVPOD_SERVER` in this document should be replaced with the resolved IP.
+
 ## Prerequisites
 
-- SSH key configured (already done if you can `ssh root@77.42.16.199`)
+- SSH key configured (already done if you can `ssh root@DEVPOD_SERVER`)
 - DevPod CLI installed locally
 - mkcert installed locally (`brew install mkcert`)
+- dnsmasq installed and configured (see [DNS Setup](#2-dns-setup-with-dnsmasq) below)
 
 ## Quick Start
 
 ```bash
-# 1. Add hosts entries (one-time)
-make worktree-hosts | sudo tee -a /etc/hosts
+# 1. Set up dnsmasq (one-time, see DNS Setup section below)
 
-# 2. Start SSH tunnel (keep running in a terminal)
-make tunnel
-
-# 3. Get URLs for your worktree
+# 2. Get URLs for your worktree
 make worktree-urls BRANCH=issue-164
 ```
 
@@ -92,21 +106,94 @@ sudo mv devpod /usr/local/bin/
 devpod version
 ```
 
-### 2. Add Hetzner Server as SSH Provider
+### 2. DNS Setup with dnsmasq
+
+Instead of manually adding `/etc/hosts` entries for each worktree, we use dnsmasq for wildcard DNS resolution. This is a **one-time setup** — any new worktree hash will resolve automatically.
+
+dnsmasq resolves `*.{service}.frontman.local` directly to the Hetzner server IP, so requests go straight to Caddy on the server (no SSH tunnel needed).
+
+#### Install dnsmasq
+
+```bash
+brew install dnsmasq
+```
+
+#### Configure dnsmasq
+
+Create the config file at `/opt/homebrew/etc/dnsmasq.d/frontman.conf`:
+
+```bash
+cat > /opt/homebrew/etc/dnsmasq.d/frontman.conf << 'EOF'
+# Frontman DevPod remote development
+# Resolves service subdomains to the Hetzner DevPod server
+# This enables URLs like:
+#   - ea0c.api.frontman.local -> DEVPOD_SERVER
+#   - ea0c.nextjs.frontman.local -> DEVPOD_SERVER
+#   - ea0c.vite.frontman.local -> DEVPOD_SERVER
+#   - ea0c.storybook.frontman.local -> DEVPOD_SERVER
+#   - ea0c.dogfood.frontman.local -> DEVPOD_SERVER
+
+# All *.api.frontman.local
+address=/api.frontman.local/DEVPOD_SERVER
+
+# All *.nextjs.frontman.local
+address=/nextjs.frontman.local/DEVPOD_SERVER
+
+# All *.vite.frontman.local
+address=/vite.frontman.local/DEVPOD_SERVER
+
+# All *.storybook.frontman.local
+address=/storybook.frontman.local/DEVPOD_SERVER
+
+# All *.dogfood.frontman.local
+address=/dogfood.frontman.local/DEVPOD_SERVER
+EOF
+```
+
+#### Create macOS resolver files
+
+macOS uses `/etc/resolver/` to delegate DNS queries for specific domains to custom nameservers. Create one file per service domain:
+
+```bash
+sudo mkdir -p /etc/resolver
+
+for service in api nextjs vite storybook dogfood; do
+  echo "nameserver 127.0.0.1" | sudo tee /etc/resolver/${service}.frontman.local > /dev/null
+done
+```
+
+#### Start dnsmasq
+
+```bash
+sudo brew services start dnsmasq
+```
+
+#### Verify it works
+
+```bash
+# Should resolve to DEVPOD_SERVER
+dig +short test.api.frontman.local @127.0.0.1
+dig +short abcd.nextjs.frontman.local @127.0.0.1
+
+# Verify macOS resolver picks it up (may take a few seconds)
+dscacheutil -q host -a name test.api.frontman.local
+```
+
+### 3. Add Hetzner Server as SSH Provider
 
 ```bash
 # Add the SSH provider with our Hetzner server
-devpod provider add ssh --option HOST=root@77.42.16.199
+devpod provider add ssh --option HOST=root@DEVPOD_SERVER
 ```
 
-### 3. Create Your First Workspace
+### 4. Create Your First Workspace
 
 ```bash
 # Create a workspace from the main branch
-devpod up github.com/YOUR_ORG/frontman --branch main --id main
+devpod up github.com/frontman-ai/frontman --id main --source git:https://github.com/frontman-ai/frontman
 
 # Or from a feature branch
-devpod up github.com/YOUR_ORG/frontman --branch feature/my-feature --id my-feature
+devpod up github.com/frontman-ai/frontman --id my-feature --source git:https://github.com/frontman-ai/frontman@my-feature
 ```
 
 This will:
@@ -114,9 +201,8 @@ This will:
 2. Build the devcontainer image
 3. Install all runtimes (Node.js, Elixir, etc.) via mise
 4. Run `make install` to get dependencies
-5. Set up SSH tunneling for all ports
 
-### 4. Connect Your IDE
+### 5. Connect Your IDE
 
 ```bash
 # Open in VS Code
@@ -158,21 +244,20 @@ make dev-nextjs
 
 ### Accessing Services via Browser
 
-**On your local machine**, ensure the SSH tunnel is running:
+With dnsmasq configured, services are accessible directly. Get your worktree URLs:
 
 ```bash
-# In a separate terminal, keep this running
-make tunnel
+make worktree-urls BRANCH=your-branch
 ```
 
-Then access services via their subdomains (get URLs with `make worktree-urls BRANCH=your-branch`):
+Then open in your browser:
 
-- `https://xxxx.nextjs.frontman.local:8443/__frontman` - Next.js (Frontman UI)
-- `https://xxxx.vite.frontman.local:8443` - Vite client
-- `https://xxxx.api.frontman.local:8443` - Phoenix server
-- `https://xxxx.storybook.frontman.local:8443` - Storybook
+- `https://xxxx.nextjs.frontman.local/frontman` - Next.js (Frontman UI)
+- `https://xxxx.vite.frontman.local` - Vite client
+- `https://xxxx.api.frontman.local` - Phoenix server
+- `https://xxxx.storybook.frontman.local` - Storybook
 
-The services are routed through Caddy reverse proxy on the server, which handles SSL termination with locally-trusted certificates.
+The services are routed through Caddy reverse proxy on the server, which handles SSL termination.
 
 ### Creating New Feature Workspaces
 
@@ -204,15 +289,15 @@ make worktree-create BRANCH=issue-164
 cd .worktrees/issue-164 && git push -u origin issue-164
 
 # 3. Create DevPod workspace
-devpod up . --branch issue-164 --id issue-164
+devpod up . --id issue-164 --source git:https://github.com/frontman-ai/frontman@issue-164
 ```
 
 #### Option C: Direct from GitHub (no local worktree)
 
 ```bash
-devpod up github.com/YOUR_ORG/frontman \
-  --branch feature/new-feature \
-  --id new-feature
+devpod up github.com/frontman-ai/frontman \
+  --id new-feature \
+  --source git:https://github.com/frontman-ai/frontman@feature/new-feature
 ```
 
 Each workspace is isolated with its own:
@@ -269,7 +354,7 @@ server: {
   hmr: process.env.VITE_HMR_HOST
     ? {
         host: process.env.VITE_HMR_HOST,
-        port: Number.parseInt(process.env.VITE_HMR_PORT || "8443"),
+        port: Number.parseInt(process.env.VITE_HMR_PORT || "443"),
         protocol: (process.env.VITE_HMR_PROTOCOL as "ws" | "wss") || "wss",
       }
     : true,
@@ -299,18 +384,33 @@ config :frontman_server, FrontmanServerWeb.Endpoint,
 
 ### Environment Variables (`.env.devpod`)
 
-The post-create script generates `.env.devpod` with worktree-specific URLs:
+The post-create script generates `.env.devpod` with worktree-specific URLs.
+All variables use `export` so they are visible to child processes (e.g. `mix phx.server`):
 
 ```bash
 # Example for worktree "issue-164" (hash: ea0c)
-WORKTREE_NAME=issue-164
-WORKTREE_ID=ea0c
-FRONTMAN_HOST=ea0c.api.frontman.local:8443
-VITE_HMR_HOST=ea0c.vite.frontman.local
-VITE_HMR_PORT=8443
-VITE_HMR_PROTOCOL=wss
-PHX_HOST=ea0c.api.frontman.local
-DB_HOST=host.docker.internal
+export WORKTREE_NAME=issue-164
+export WORKTREE_ID=ea0c
+export FRONTMAN_HOST=ea0c.api.frontman.local:8443
+export VITE_HMR_HOST=ea0c.vite.frontman.local
+export VITE_HMR_PORT=8443
+export VITE_HMR_PROTOCOL=wss
+export PHX_HOST=ea0c.api.frontman.local
+export PHX_URL_PORT=443
+export DB_HOST=host.docker.internal
+```
+
+### Secrets (`.dev.overrides.env`)
+
+The post-create script creates `apps/frontman_server/envs/.dev.overrides.env` with DevPod-specific config (DB_HOST, PHX_HOST, PHX_URL_PORT). However, **secret keys (WORKOS, API keys) must be added separately**:
+
+- **Via `make worktree-devpod`**: Automatically copies secrets from your local `.dev.overrides.env` to the devpod
+- **Manually**: SSH into the devpod and append keys to `apps/frontman_server/envs/.dev.overrides.env`
+
+Required keys for auth to work:
+```bash
+WORKOS_API_KEY=sk_test_...
+WORKOS_CLIENT_ID=client_...
 ```
 
 ## Database
@@ -331,7 +431,7 @@ If you need isolated databases per workspace:
 
 ```bash
 # SSH into the server
-ssh root@77.42.16.199
+ssh root@DEVPOD_SERVER
 
 # Create a new database
 sudo -u postgres createdb frontman_feature_xyz
@@ -342,14 +442,35 @@ export DATABASE_URL="postgres://postgres:postgres@host.docker.internal:5432/fron
 
 ## Troubleshooting
 
+### DNS Not Resolving
+
+If `*.frontman.local` domains don't resolve:
+
+```bash
+# Check dnsmasq is running
+sudo brew services list | grep dnsmasq
+
+# Restart dnsmasq after config changes
+sudo brew services restart dnsmasq
+
+# Test resolution directly against dnsmasq
+dig +short test.api.frontman.local @127.0.0.1
+
+# Verify resolver files exist
+ls /etc/resolver/*.frontman.local
+
+# Flush macOS DNS cache
+sudo dscacheutil -flushcache; sudo killall -HUP mDNSResponder
+```
+
 ### Connection Issues
 
 ```bash
 # Test SSH connection
-ssh root@77.42.16.199 'echo "Connected!"'
+ssh root@DEVPOD_SERVER 'echo "Connected!"'
 
 # Check Docker is running on server
-ssh root@77.42.16.199 'docker ps'
+ssh root@DEVPOD_SERVER 'docker ps'
 
 # Check DevPod provider configuration
 devpod provider list
@@ -363,18 +484,6 @@ devpod logs my-feature
 
 # Rebuild the workspace
 devpod up my-feature --recreate
-```
-
-### Port Forwarding Not Working
-
-DevPod handles port forwarding automatically. If ports aren't accessible:
-
-```bash
-# Check which ports are forwarded
-devpod status my-feature
-
-# Manually forward a port
-devpod ssh my-feature -- -L 4000:localhost:4000
 ```
 
 ### Services Return 502 Bad Gateway
@@ -402,10 +511,10 @@ If Phoenix shows `connection refused` to PostgreSQL:
 1. **Add host.docker.internal to container:**
    ```bash
    # Get host gateway IP
-   HOST_IP=$(ssh root@77.42.16.199 "ip route | grep default | awk '{print \$3}'")
-   
+   HOST_IP=$(ssh root@DEVPOD_SERVER "ip route | grep default | awk '{print \$3}'")
+
    # Add to container's /etc/hosts
-   ssh root@77.42.16.199 "docker exec -u root CONTAINER_NAME bash -c \"echo '\$HOST_IP host.docker.internal' >> /etc/hosts\""
+   ssh root@DEVPOD_SERVER "docker exec -u root CONTAINER_NAME bash -c \"echo '\$HOST_IP host.docker.internal' >> /etc/hosts\""
    ```
 
 2. **Set DB_HOST environment variable:**
@@ -420,9 +529,9 @@ If Phoenix fails to start with SSL keyfile errors:
 
 1. **Copy certs to container:**
    ```bash
-   scp -r .certs root@77.42.16.199:/tmp/frontman-certs
-   ssh root@77.42.16.199 "docker cp /tmp/frontman-certs CONTAINER_NAME:/workspaces/WORKTREE/.certs"
-   ssh root@77.42.16.199 "docker exec -u root CONTAINER_NAME chown -R vscode:vscode /workspaces/WORKTREE/.certs"
+   scp -r .certs root@DEVPOD_SERVER:/tmp/frontman-certs
+   ssh root@DEVPOD_SERVER "docker cp /tmp/frontman-certs CONTAINER_NAME:/workspaces/WORKTREE/.certs"
+   ssh root@DEVPOD_SERVER "docker exec -u root CONTAINER_NAME chown -R vscode:vscode /workspaces/WORKTREE/.certs"
    ```
 
 2. **Or generate new certs in container:**
@@ -448,10 +557,10 @@ rm -rf test/sites/blog-starter/.next
 
 ```bash
 # SSH into server and clean Docker
-ssh root@77.42.16.199 'docker system prune -a'
+ssh root@DEVPOD_SERVER 'docker system prune -a'
 
 # Check disk usage
-ssh root@77.42.16.199 'df -h'
+ssh root@DEVPOD_SERVER 'df -h'
 ```
 
 ## Server Maintenance
@@ -459,7 +568,7 @@ ssh root@77.42.16.199 'df -h'
 ### Checking Server Status
 
 ```bash
-ssh root@77.42.16.199 << 'EOF'
+ssh root@DEVPOD_SERVER << 'EOF'
 echo "=== Docker ==="
 docker ps
 
@@ -480,7 +589,7 @@ EOF
 ### Updating the Server
 
 ```bash
-ssh root@77.42.16.199 << 'EOF'
+ssh root@DEVPOD_SERVER << 'EOF'
 apt update && apt upgrade -y
 docker system prune -f
 EOF
@@ -502,5 +611,5 @@ Estimated usage per workspace:
 ## Security Notes
 
 1. **SSH Key Auth:** Password authentication should be disabled after initial setup
-2. **Firewall:** Only SSH (port 22) is exposed; all other ports are tunneled
+2. **Firewall:** Only SSH (port 22) and HTTPS (port 443) are exposed
 3. **Database:** PostgreSQL only accepts connections from Docker network and localhost

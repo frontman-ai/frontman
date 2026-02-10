@@ -174,6 +174,13 @@ worktree-create: ## Create a new worktree (BRANCH=feature-name)
 	@git worktree add .worktrees/$(BRANCH) -b $(BRANCH)
 	@mkdir -p .worktrees/$(BRANCH)/.claude/projects .worktrees/$(BRANCH)/.claude/plans .worktrees/$(BRANCH)/.claude/todos
 	@touch .worktrees/$(BRANCH)/.claude/history.jsonl
+	@# Copy gitignored secret env files into the new worktree
+	@if [ -f apps/frontman_server/envs/.dev.overrides.env ]; then \
+		cp apps/frontman_server/envs/.dev.overrides.env .worktrees/$(BRANCH)/apps/frontman_server/envs/.dev.overrides.env; \
+		printf "$(GREEN)  Copied .dev.overrides.env (secrets)$(RESET)\n"; \
+	else \
+		printf "$(YELLOW)  Warning: apps/frontman_server/envs/.dev.overrides.env not found — server may fail without WORKOS keys$(RESET)\n"; \
+	fi
 	@printf "$(GREEN)Worktree created at: .worktrees/$(BRANCH)$(RESET)\n"
 	@echo "Next steps:"
 	@echo "  1. cd .worktrees/$(BRANCH)"
@@ -191,6 +198,12 @@ worktree-create-from: ## Create worktree from existing branch (BRANCH=name)
 	git worktree add .worktrees/$$WORKTREE_NAME $(BRANCH); \
 	mkdir -p .worktrees/$$WORKTREE_NAME/.claude/projects .worktrees/$$WORKTREE_NAME/.claude/plans .worktrees/$$WORKTREE_NAME/.claude/todos; \
 	touch .worktrees/$$WORKTREE_NAME/.claude/history.jsonl; \
+	if [ -f apps/frontman_server/envs/.dev.overrides.env ]; then \
+		cp apps/frontman_server/envs/.dev.overrides.env .worktrees/$$WORKTREE_NAME/apps/frontman_server/envs/.dev.overrides.env; \
+		printf "$(GREEN)  Copied .dev.overrides.env (secrets)$(RESET)\n"; \
+	else \
+		printf "$(YELLOW)  Warning: apps/frontman_server/envs/.dev.overrides.env not found — server may fail without WORKOS keys$(RESET)\n"; \
+	fi; \
 	printf "$(GREEN)Worktree created at: .worktrees/$$WORKTREE_NAME$(RESET)\n"; \
 	echo "Next steps:"; \
 	echo "  1. cd .worktrees/$$WORKTREE_NAME"; \
@@ -259,6 +272,16 @@ worktree-devpod: ## Create worktree + push + DevPod workspace (BRANCH=name)
 	@printf "$(YELLOW)==> Creating DevPod workspace on remote server...$(RESET)\n"
 	@devpod up . --branch $(BRANCH) --id $(BRANCH)
 	@echo ""
+	@# Copy WORKOS keys and other secrets to the devpod's .dev.overrides.env
+	@if [ -f apps/frontman_server/envs/.dev.overrides.env ]; then \
+		printf "$(YELLOW)==> Copying WORKOS keys to devpod...$(RESET)\n"; \
+		grep -E '^(WORKOS_|BRAINTRUST_|OPENAI_|ANTHROPIC_|GOOGLE_|XAI_|OPENROUTER_)' apps/frontman_server/envs/.dev.overrides.env | \
+			ssh $(BRANCH).devpod "cat >> /workspaces/*/apps/frontman_server/envs/.dev.overrides.env"; \
+		printf "$(GREEN)  Copied secret keys to devpod$(RESET)\n"; \
+	else \
+		printf "$(YELLOW)  Warning: No local .dev.overrides.env found — add WORKOS keys to devpod manually$(RESET)\n"; \
+	fi
+	@echo ""
 	@printf "$(GREEN)==> Done!$(RESET)\n"
 	@echo ""
 	@echo "Connect with:"
@@ -277,7 +300,7 @@ worktree-urls: ## Show URLs for a worktree (BRANCH=feature-name)
 	printf "$(CYAN)Worktree: $(BRANCH) ($$HASH)$(RESET)\n"; \
 	echo ""; \
 	echo "URLs (via tunnel):"; \
-	echo "  Next.js:   https://$$HASH.nextjs.frontman.local:8443/__frontman"; \
+	echo "  Next.js:   https://$$HASH.nextjs.frontman.local:8443/frontman"; \
 	echo "  Vite:      https://$$HASH.vite.frontman.local:8443"; \
 	echo "  Phoenix:   https://$$HASH.api.frontman.local:8443"; \
 	echo "  Storybook: https://$$HASH.storybook.frontman.local:8443"; \

@@ -36,24 +36,28 @@ cat > "$WORKSPACE_DIR/.env.devpod" << EOF
 # Access via SSH tunnel: make tunnel
 
 # Worktree identification
-WORKTREE_NAME=$WORKTREE_NAME
-WORKTREE_ID=$WT_HASH
+export WORKTREE_NAME=$WORKTREE_NAME
+export WORKTREE_ID=$WT_HASH
 
 # External URLs (via Caddy reverse proxy)
 # Format: {hash}.{service}.frontman.local:8443
-FRONTMAN_HOST=$WT_HASH.api.frontman.local:8443
-VITE_DEV_URL=https://$WT_HASH.vite.frontman.local:8443
-VITE_HMR_HOST=$WT_HASH.vite.frontman.local
-VITE_HMR_PORT=8443
-VITE_HMR_PROTOCOL=wss
-NEXTJS_URL=https://$WT_HASH.nextjs.frontman.local:8443
+export FRONTMAN_HOST=$WT_HASH.api.frontman.local:8443
+export VITE_DEV_URL=https://$WT_HASH.vite.frontman.local:8443
+export VITE_HMR_HOST=$WT_HASH.vite.frontman.local
+export VITE_HMR_PORT=8443
+export VITE_HMR_PROTOCOL=wss
+export NEXTJS_URL=https://$WT_HASH.nextjs.frontman.local:8443
 
 # Phoenix configuration
-PHX_HOST=$WT_HASH.api.frontman.local
-PHX_PORT=4000
+export PHX_HOST=$WT_HASH.api.frontman.local
+export PHX_PORT=4000
+export PHX_URL_PORT=443
+
+# Database
+export DB_HOST=host.docker.internal
 
 # Client URL for Next.js middleware
-FRONTMAN_CLIENT_URL=https://$WT_HASH.vite.frontman.local:8443/src/Main.res.mjs
+export FRONTMAN_CLIENT_URL=https://$WT_HASH.vite.frontman.local:8443/src/Main.res.mjs
 EOF
 
 echo "==> Created .env.devpod with worktree-specific URLs"
@@ -82,12 +86,16 @@ echo "==> Setting up Phoenix database..."
 # Get Docker bridge gateway IP for PostgreSQL connection
 DOCKER_GATEWAY=$(ip route | grep default | awk '{print $3}' 2>/dev/null || echo "172.17.0.1")
 
-# Update Phoenix dev.env with database host
-cat >> "$WORKSPACE_DIR/apps/frontman_server/envs/.dev.env" << EOF
-
-# DevPod: Database connection to host PostgreSQL
-DB_HOST=$DOCKER_GATEWAY
+# Create .dev.overrides.env with DevPod-specific config
+# WORKOS keys and other secrets must be added separately (copied by make worktree-devpod or manually)
+cat > "$WORKSPACE_DIR/apps/frontman_server/envs/.dev.overrides.env" << EOF
+# DevPod overrides for $WORKTREE_NAME
+DB_HOST=host.docker.internal
+PHX_HOST=$WT_HASH.api.frontman.local
+PHX_URL_PORT=443
 EOF
+
+echo "==> Created .dev.overrides.env (add WORKOS keys manually or via make worktree-devpod)"
 
 # Update dev.exs to use the gateway IP (compile-time config)
 sed -i "s/hostname: \"localhost\"/hostname: \"$DOCKER_GATEWAY\"/" "$WORKSPACE_DIR/apps/frontman_server/config/dev.exs"
@@ -118,7 +126,7 @@ echo ""
 echo "Worktree: $WORKTREE_NAME ($WT_HASH)"
 echo ""
 echo "URLs (via tunnel):"
-echo "  Next.js:   https://$WT_HASH.nextjs.frontman.local:8443/__frontman"
+echo "  Next.js:   https://$WT_HASH.nextjs.frontman.local:8443/frontman"
 echo "  Vite:      https://$WT_HASH.vite.frontman.local:8443"
 echo "  Phoenix:   https://$WT_HASH.api.frontman.local:8443"
 echo "  Storybook: https://$WT_HASH.storybook.frontman.local:8443"
