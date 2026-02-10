@@ -7,13 +7,13 @@
 	},
 	{
 		"question": "How is this different from Cursor or Claude Code?",
-		"reply": "Cursor and Claude Code work at the file level — they read your code but don't understand your running application. Frontman is wired into your app's runtime. It sees your component tree, routes, server logs, query performance, and everything happening live. That deep context means better results, faster. In our tests, it resolves changes 50% faster than Claude Code on the same tasks.",
+		"reply": "Cursor and Claude Code work at the file level — they read your code but don't understand your running application. Frontman is wired into your app's runtime. It sees your component tree, routes, server logs, query performance, and everything happening live. That deep context means better results, faster.",
 		"category": "general",
 		"open": false
 	},
 	{
 		"question": "Who is Frontman built for?",
-		"reply": "Designers, product managers, and other semi-technical people on engineering teams who need to make changes — from tweaking copy and structure, to exploring entirely new feature ideas. Engineers also benefit from the richer context and faster iteration loop compared to terminal-based tools.",
+		"reply": "Frontend developers who want faster iteration with richer context than terminal-based AI tools. But also designers, product managers, and other semi-technical teammates who need to make changes — from tweaking copy and structure to exploring entirely new feature ideas — without opening an IDE.",
 		"category": "general",
 		"open": false
 	},
@@ -43,7 +43,7 @@
 	},
 	{
 		"question": "Which frameworks are supported?",
-		"reply": "We're starting with Next.js, with more frameworks coming soon. Frontman integrates at the framework level as middleware, turning your app into an MCP server that exposes both client-side and server-side context to the agent.",
+		"reply": "Frontman currently supports Next.js, Astro, and Vite. It integrates at the framework level as middleware, turning your app into an MCP server that exposes both client-side and server-side context to the agent.",
 		"category": "technical",
 		"open": true
 	},

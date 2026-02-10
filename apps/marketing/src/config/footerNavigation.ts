@@ -50,14 +50,6 @@ export const footerNavigationData: FooterData = {
 			category: 'Product',
 			subCategories: [
 				{
-					subCategory: 'Features',
-					subCategoryLink: '/features'
-				},
-				// {
-				// 	subCategory: 'Pricing',
-				// 	subCategoryLink: '/pricing'
-				// },
-				{
 					subCategory: 'Changelog',
 					subCategoryLink: '/changelog'
 				},
