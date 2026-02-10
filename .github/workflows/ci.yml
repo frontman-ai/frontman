@@ -9,7 +9,7 @@ on:
 jobs:
   build:
     name: Build
-    runs-on: ubuntu-slim
+    runs-on: self-hosted
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -33,7 +33,7 @@ jobs:
 
   test-frontman-client:
     name: Test frontman-client
-    runs-on: ubuntu-slim
+    runs-on: self-hosted
     permissions:
       contents: read
       pull-requests: write
@@ -67,7 +67,7 @@ jobs:
 
   test-frontman-core:
     name: Test frontman-core
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     permissions:
       contents: read
       pull-requests: write
@@ -101,7 +101,7 @@ jobs:
 
   test-frontman-nextjs:
     name: Test frontman-nextjs
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     permissions:
       contents: read
       pull-requests: write
@@ -135,7 +135,7 @@ jobs:
 
   lint-frontman-server:
     name: Lint frontman-server
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -169,25 +169,13 @@ jobs:
 
   test-frontman-server:
     name: Test frontman-server
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     permissions:
       contents: read
       pull-requests: write
       checks: write
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: frontman_server_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
+    env:
+      DB_HOST: host.docker.internal
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -235,7 +223,7 @@ jobs:
 
   dialyzer-frontman-server:
     name: Dialyzer frontman-server
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -278,7 +266,7 @@ jobs:
 
   test-react-statestore:
     name: Test react-statestore
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     permissions:
       contents: read
       pull-requests: write
@@ -312,7 +300,7 @@ jobs:
 
   test-client:
     name: Test client
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     permissions:
       contents: read
       pull-requests: write
@@ -346,7 +334,7 @@ jobs:
 
   test-context-loader:
     name: Test context-loader
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     permissions:
       contents: read
       pull-requests: write
@@ -380,7 +368,7 @@ jobs:
 
   lint-client:
     name: Lint libs/client
-    runs-on: ubuntu-slim
+    runs-on: self-hosted
     permissions:
       contents: read
       pull-requests: read
