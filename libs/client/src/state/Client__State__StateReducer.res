@@ -73,8 +73,8 @@ type action =
   | ChatGPTOAuthStatusReceived({connected: bool, expiresAt: option<string>})
   | InitiateChatGPTOAuth
   | ChatGPTDeviceCodeReceived({deviceAuthId: string, userCode: string, verificationUrl: string})
-  | ChatGPTOAuthConnected({expiresAt: string})
-  | ChatGPTOAuthError({error: string})
+  | ChatGPTOAuthConnected({deviceAuthId: string, expiresAt: string})
+  | ChatGPTOAuthError({deviceAuthId: option<string>, error: string})
   | DisconnectChatGPTOAuth
   | ChatGPTOAuthDisconnected
   | ResetChatGPTOAuthError
@@ -270,8 +270,8 @@ let actionToString = action => {
     `ChatGPTOAuthStatusReceived(connected=${connected->string_of_bool})`
   | InitiateChatGPTOAuth => `InitiateChatGPTOAuth`
   | ChatGPTDeviceCodeReceived({userCode}) => `ChatGPTDeviceCodeReceived(userCode=${userCode})`
-  | ChatGPTOAuthConnected({expiresAt}) => `ChatGPTOAuthConnected(${expiresAt})`
-  | ChatGPTOAuthError({error}) => `ChatGPTOAuthError(${error})`
+  | ChatGPTOAuthConnected({expiresAt}) => `ChatGPTOAuthConnected(expiresAt=${expiresAt})`
+  | ChatGPTOAuthError({error}) => `ChatGPTOAuthError(error=${error})`
   | DisconnectChatGPTOAuth => `DisconnectChatGPTOAuth`
   | ChatGPTOAuthDisconnected => `ChatGPTOAuthDisconnected`
   | ResetChatGPTOAuthError => `ResetChatGPTOAuthError`
@@ -795,7 +795,7 @@ let handleEffect = (effect, state: state, dispatch) => {
           dispatch(ChatGPTOAuthStatusReceived({connected, expiresAt}))
         }
       } catch {
-      | _ => dispatch(ChatGPTOAuthError({error: "Failed to fetch ChatGPT OAuth status"}))
+      | _ => dispatch(ChatGPTOAuthError({deviceAuthId: None, error: "Failed to fetch ChatGPT OAuth status"}))
       }
     }
     fetch()->ignore
@@ -833,13 +833,13 @@ let handleEffect = (effect, state: state, dispatch) => {
           switch (deviceAuthId, userCode, verificationUrl) {
           | (Some(deviceAuthId), Some(userCode), Some(verificationUrl)) =>
             dispatch(ChatGPTDeviceCodeReceived({deviceAuthId, userCode, verificationUrl}))
-          | _ => dispatch(ChatGPTOAuthError({error: "Invalid response from server"}))
+          | _ => dispatch(ChatGPTOAuthError({deviceAuthId: None, error: "Invalid response from server"}))
           }
         } else {
-          dispatch(ChatGPTOAuthError({error: "Failed to initiate authentication"}))
+          dispatch(ChatGPTOAuthError({deviceAuthId: None, error: "Failed to initiate authentication"}))
         }
       } catch {
-      | _ => dispatch(ChatGPTOAuthError({error: "Failed to initiate authentication"}))
+      | _ => dispatch(ChatGPTOAuthError({deviceAuthId: None, error: "Failed to initiate authentication"}))
       }
     }
     fetch()->ignore
@@ -847,6 +847,7 @@ let handleEffect = (effect, state: state, dispatch) => {
   | PollChatGPTDeviceAuthEffect({apiBaseUrl, deviceAuthId, userCode}) =>
     // Poll our server every 5 seconds for up to 15 minutes (180 attempts)
     // Server is stateless — we send device_auth_id + user_code on each poll
+    // Each dispatch carries deviceAuthId so the reducer can reject stale results
     let poll = async () => {
       let maxAttempts = 180
       let intervalMs = 5000
@@ -859,7 +860,7 @@ let handleEffect = (effect, state: state, dispatch) => {
         )->Option.getOr("{}")
       let rec pollLoop = async (attempt) => {
         if attempt >= maxAttempts {
-          dispatch(ChatGPTOAuthError({error: "Authorization timed out. Please try again."}))
+          dispatch(ChatGPTOAuthError({deviceAuthId: Some(deviceAuthId), error: "Authorization timed out. Please try again."}))
         } else {
           try {
             let url = `${apiBaseUrl}/api/oauth/chatgpt/poll`
@@ -888,7 +889,7 @@ let handleEffect = (effect, state: state, dispatch) => {
                   ->JSON.Decode.object
                   ->Option.flatMap(obj => obj->Dict.get("expires_at")->Option.flatMap(JSON.Decode.string))
                   ->Option.getOr("")
-                dispatch(ChatGPTOAuthConnected({expiresAt: expiresAt}))
+                dispatch(ChatGPTOAuthConnected({deviceAuthId, expiresAt}))
               | _ =>
                 // "pending" — wait and try again
                 await Promise.make((resolve, _) => {
@@ -897,8 +898,7 @@ let handleEffect = (effect, state: state, dispatch) => {
                 await pollLoop(attempt + 1)
               }
             } else if response.status == 403 {
-              // Authorization declined
-              dispatch(ChatGPTOAuthError({error: "Authorization was declined."}))
+              dispatch(ChatGPTOAuthError({deviceAuthId: Some(deviceAuthId), error: "Authorization was declined."}))
             } else {
               await Promise.make((resolve, _) => {
                 let _ = Js.Global.setTimeout(() => resolve(.), intervalMs)
@@ -933,10 +933,10 @@ let handleEffect = (effect, state: state, dispatch) => {
         if response.ok {
           dispatch(ChatGPTOAuthDisconnected)
         } else {
-          dispatch(ChatGPTOAuthError({error: "Failed to disconnect"}))
+          dispatch(ChatGPTOAuthError({deviceAuthId: None, error: "Failed to disconnect"}))
         }
       } catch {
-      | _ => dispatch(ChatGPTOAuthError({error: "Failed to disconnect"}))
+      | _ => dispatch(ChatGPTOAuthError({deviceAuthId: None, error: "Failed to disconnect"}))
       }
     }
     disconnect()->ignore
@@ -1410,23 +1410,44 @@ let next = (state: state, action) => {
       }->FrontmanReactStatestore.StateReducer.update
     }
 
-  | ChatGPTOAuthConnected({expiresAt}) =>
-    let expiresAtMs = Date.fromString(expiresAt)->Date.getTime
-    // Refresh models when connected (adds ChatGPT provider)
-    let effects = switch state.acpSession {
-    | AcpSessionActive({apiBaseUrl}) => [FetchModelsConfigEffect({apiBaseUrl: apiBaseUrl})]
-    | NoAcpSession => []
+  | ChatGPTOAuthConnected({deviceAuthId, expiresAt}) =>
+    // Only accept if the current state is showing the same deviceAuthId
+    // (ignores stale results from old polling loops after retry)
+    switch state.chatgptOAuthStatus {
+    | Client__State__Types.ChatGPTShowingCode({deviceAuthId: currentId}) if currentId == deviceAuthId =>
+      let expiresAtMs = Date.fromString(expiresAt)->Date.getTime
+      // Refresh models when connected (adds ChatGPT provider)
+      let effects = switch state.acpSession {
+      | AcpSessionActive({apiBaseUrl}) => [FetchModelsConfigEffect({apiBaseUrl: apiBaseUrl})]
+      | NoAcpSession => []
+      }
+      {
+        ...state,
+        chatgptOAuthStatus: Client__State__Types.ChatGPTConnected({expiresAt: expiresAtMs}),
+      }->FrontmanReactStatestore.StateReducer.update(~sideEffects=effects)
+    | _ => state->FrontmanReactStatestore.StateReducer.update
     }
-    {
-      ...state,
-      chatgptOAuthStatus: Client__State__Types.ChatGPTConnected({expiresAt: expiresAtMs}),
-    }->FrontmanReactStatestore.StateReducer.update(~sideEffects=effects)
 
-  | ChatGPTOAuthError({error}) =>
-    {
-      ...state,
-      chatgptOAuthStatus: Client__State__Types.ChatGPTError(error),
-    }->FrontmanReactStatestore.StateReducer.update
+  | ChatGPTOAuthError({deviceAuthId, error}) =>
+    // If deviceAuthId is provided (from poll loop), only accept if current
+    // state is showing the same deviceAuthId — rejects stale poll results.
+    // If no deviceAuthId (from status/initiate/disconnect), apply unconditionally.
+    let isStale = switch deviceAuthId {
+    | Some(id) =>
+      switch state.chatgptOAuthStatus {
+      | Client__State__Types.ChatGPTShowingCode({deviceAuthId: currentId}) => currentId != id
+      | _ => true // state already moved past ShowingCode
+      }
+    | None => false
+    }
+    if isStale {
+      state->FrontmanReactStatestore.StateReducer.update
+    } else {
+      {
+        ...state,
+        chatgptOAuthStatus: Client__State__Types.ChatGPTError(error),
+      }->FrontmanReactStatestore.StateReducer.update
+    }
 
   | DisconnectChatGPTOAuth =>
     switch state.acpSession {
