@@ -16,6 +16,7 @@ export interface FooterAbout {
 export interface SubCategory {
 	subCategory: string
 	subCategoryLink: string
+	external?: boolean
 }
 
 export interface FooterColumn {
@@ -35,13 +36,13 @@ export interface FooterData {
 
 export const footerNavigationData: FooterData = {
 	footerAbout: {
-		title: 'Frontman.',
+		title: 'Frontman',
 		aboutText:
-			'Expertly made, responsive, accessible components in React and HTML ready to be used on your website or app. Just copy and paste them on your Tailwind CSS project.',
+			"Frontman lets you skip the 'refresh and check' cycle and brings non-coding teammates into the workflow.",
 		logo: {
 			src: '/logo.svg',
-			alt: 'The tailwind astro theme',
-			text: 'Frontman.'
+			alt: 'Frontman logo',
+			text: 'Frontman'
 		}
 	},
 	footerColumns: [
@@ -53,10 +54,6 @@ export const footerNavigationData: FooterData = {
 					subCategoryLink: '/features'
 				},
 				{
-					subCategory: 'FAQ',
-					subCategoryLink: '/faq'
-				},
-				{
 					subCategory: 'Pricing',
 					subCategoryLink: '/pricing'
 				},
@@ -65,47 +62,52 @@ export const footerNavigationData: FooterData = {
 					subCategoryLink: '/changelog'
 				},
 				{
-					subCategory: 'Terms',
-					subCategoryLink: '/terms'
+					subCategory: 'FAQ',
+					subCategoryLink: '/faq'
 				}
 			]
 		},
 		{
-			category: 'About us',
+			category: 'Developers',
 			subCategories: [
 				{
-					subCategory: 'About us',
-					subCategoryLink: '/'
+					subCategory: 'GitHub',
+					subCategoryLink: 'https://github.com/frontman-ai/frontman',
+					external: true
 				},
 				{
-					subCategory: 'News',
-					subCategoryLink: '/blog'
+					subCategory: 'Contributing',
+					subCategoryLink: 'https://github.com/frontman-ai/frontman/blob/main/CONTRIBUTING.md',
+					external: true
 				},
 				{
-					subCategory: 'Careers',
-					subCategoryLink: '/blog'
+					subCategory: 'License (Apache 2.0)',
+					subCategoryLink: 'https://github.com/frontman-ai/frontman/blob/main/LICENSE',
+					external: true
 				}
 			]
 		},
 		{
-			category: 'Get in touch',
+			category: 'Community',
 			subCategories: [
 				{
-					subCategory: 'Contact',
-					subCategoryLink: '/contact'
+					subCategory: 'Discord',
+					subCategoryLink: 'https://discord.gg/J77jBzMM',
+					external: true
 				},
 				{
-					subCategory: 'Support',
-					subCategoryLink: '/contact'
+					subCategory: 'Twitter/X',
+					subCategoryLink: 'https://twitter.com/frontman_agent',
+					external: true
 				},
 				{
-					subCategory: 'Join us',
-					subCategoryLink: '/contact'
+					subCategory: 'Blog',
+					subCategoryLink: '/blog'
 				}
 			]
 		}
 	],
 	subFooter: {
-		copywriteText: 'Frontman 2026'
+		copywriteText: `© ${new Date().getFullYear()} Frontman. All rights reserved.`
 	}
 }

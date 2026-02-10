@@ -100,6 +100,10 @@ const savedNavActions = navActions.map((action) => ({
 
 			<!-- Navigation action buttons -->
 			<div class="header__actions">
+				<a href="https://github.com/frontman-ai/frontman" target="_blank" rel="noopener noreferrer" class="header__github-link">
+					<Icon name="github-icon" class="header__github-icon" />
+					<span>Star on GitHub</span>
+				</a>
 				{
 					savedNavActions.map((action) => (
 						<Button classes="flex-auto" size={action.size} style={action.style} modal="signup">
@@ -191,5 +195,14 @@ const savedNavActions = navActions.map((action) => ({
 		font-size: 16px;
 		line-height: 22px;
 		color: rgb(0, 0, 0);
+	}
+	.header__github-link {
+		@apply hidden items-center gap-1.5 whitespace-nowrap text-neutral-700 transition-colors duration-200 hover:text-primary-500 lg:flex;
+		font-family: "SF Pro Display", system-ui, helvetica, sans-serif;
+		font-size: 14px;
+		font-weight: 480;
+	}
+	.header__github-icon {
+		@apply h-5 w-5;
 	}
 </style>

@@ -19,7 +19,7 @@
 	},
 	{
 		"question": "Is it open source?",
-		"reply": "Yes. Frontman is fully open source and runs locally on your machine.",
+		"reply": "Yes. Frontman is fully open source under the Apache 2.0 license. The entire codebase is on GitHub at github.com/frontman-ai/frontman. Every prompt, every tool call, every piece of context the agent uses is visible in the source. It runs locally on your machine — your code never leaves your environment.",
 		"category": "general",
 		"open": false
 	},

@@ -10,17 +10,20 @@ type Props = {
 const { classes } = Astro.props
 ---
 
-<div class:list={['open-source-badge', { [`${classes}`]: classes }]}>
-	<span class="open-source-badge__text">Open Source <span class="open-source-badge__bullet">•</span> Free Beta</span>
-</div>
+<a href="https://github.com/frontman-ai/frontman" target="_blank" rel="noopener noreferrer" class:list={['open-source-badge', { [`${classes}`]: classes }]}>
+	<span class="open-source-badge__text">Open Source <span class="open-source-badge__bullet">•</span> Apache 2.0 <span class="open-source-badge__bullet">•</span> Free Beta</span>
+</a>
 
 <style>
 	.open-source-badge {
-		@apply inline-flex items-center gap-2;
+		@apply inline-flex items-center gap-2 no-underline;
 		font-size: 14px;
 		color: #FFD700;
 		font-family: "SF Pro Display", system-ui, helvetica, sans-serif;
 		font-weight: 500;
+	}
+	.open-source-badge:hover {
+		color: #ffe44d;
 	}
 	@media (min-width: 1024px) {
 		.open-source-badge {

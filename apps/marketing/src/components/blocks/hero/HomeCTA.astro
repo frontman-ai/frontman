@@ -31,6 +31,12 @@ const logoImage = { src: '/logo.svg' }
 				<p class="hero-section__subtitle">Frontman lets you skip the "refresh and check" cycle and brings non-coding teammates into the workflow</p>
 				<div class="hero-section__cta">
 					<Button size="lg" style="white" link="#install">Get Started For Free</Button>
+					<a href="https://github.com/frontman-ai/frontman" target="_blank" rel="noopener noreferrer" class="hero-section__github-link">
+						<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 48 48" height="20" width="20" aria-hidden="true">
+							<path fill="currentColor" fill-rule="evenodd" d="M24 1.5C11.574 1.5 1.5 11.574 1.5 24c0 9.934 6.441 18.362 15.382 21.34 1.125.207 1.536-.488 1.536-1.084 0-.534-.02-1.95-.03-3.828-6.258 1.36-7.578-3.016-7.578-3.016-1.023-2.598-2.497-3.29-2.497-3.29-2.04-1.395.155-1.367.155-1.367 2.256.158 3.443 2.316 3.443 2.316 2.004 3.434 5.26 2.442 6.54 1.867.204-1.452.784-2.443 1.426-3.004-4.997-.568-10.252-2.498-10.252-11.12 0-2.456.878-4.466 2.318-6.04-.232-.57-1.005-2.858.22-5.957 0 0 1.89-.605 6.192 2.307a21.598 21.598 0 0 1 5.646-.76c1.916.01 3.845.26 5.646.76 4.298-2.912 6.184-2.307 6.184-2.307 1.229 3.099.456 5.387.224 5.957 1.443 1.574 2.315 3.584 2.315 6.04 0 8.643-5.262 10.546-10.274 11.1.808.696 1.528 2.07 1.528 4.17 0 3.01-.028 5.44-.028 6.178 0 .6.406 1.3 1.548 1.08C40.066 42.356 46.5 33.93 46.5 24 46.5 11.574 36.426 1.5 24 1.5Z" clip-rule="evenodd"></path>
+						</svg>
+						Star on GitHub
+					</a>
 				</div>
 			</div>
 			<div class="hero-section__image-wrapper">
@@ -153,6 +159,9 @@ const logoImage = { src: '/logo.svg' }
 		}
 	}
 	.hero-section__cta {
+		display: flex;
+		flex-direction: column;
+		gap: 12px;
 		max-width: 100%;
 		width: 100%;
 	}
@@ -161,11 +170,30 @@ const logoImage = { src: '/logo.svg' }
 	}
 	@media (min-width: 1024px) {
 		.hero-section__cta {
-			max-width: 300px;
+			flex-direction: row;
+			align-items: center;
+			gap: 16px;
+			max-width: none;
 		}
 		.hero-section__cta .button {
 			width: auto;
 		}
+	}
+	.hero-section__github-link {
+		display: inline-flex;
+		align-items: center;
+		gap: 8px;
+		color: white;
+		font-family: 'SF Pro Display', system-ui, helvetica, sans-serif;
+		font-weight: 480;
+		font-size: 16px;
+		line-height: 22px;
+		text-decoration: none;
+		transition: opacity 0.2s;
+		white-space: nowrap;
+	}
+	.hero-section__github-link:hover {
+		opacity: 0.8;
 	}
 	.hero-section__image-wrapper {
 		flex: 1 1 auto;

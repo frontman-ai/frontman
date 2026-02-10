@@ -1,7 +1,7 @@
 ---
 // Social Proof Section
 // ------------
-// Description: A section with logos of social media platforms to enchance the trust of the users.
+// Description: A section showing open source community links instead of company logos.
 
 // Components
 // - Layout
@@ -9,42 +9,7 @@ import Section from '../../ui/Section.astro'
 import Row from '../../ui/Row.astro'
 import Col from '../../ui/Col.astro'
 // - UI
-import { Image } from 'astro:assets'
-
-// Content
-import airtable from '../../../assets/logos/airtable-logo.svg'
-import asana from '../../../assets/logos/asana-logo.svg'
-import basecamp from '../../../assets/logos/basecamp-logo.svg'
-import evernote from '../../../assets/logos/evernote-logo.svg'
-import notion from '../../../assets/logos/notion-logo.svg'
-import slack from '../../../assets/logos/slack-logo.svg'
-
-const images = [
-	{
-		image: airtable,
-		alt: 'Airtable logo'
-	},
-	{
-		image: asana,
-		alt: 'Asana logo'
-	},
-	{
-		image: basecamp,
-		alt: 'Basecamp logo'
-	},
-	{
-		image: evernote,
-		alt: 'Evernote logo'
-	},
-	{
-		image: notion,
-		alt: 'Notion logo'
-	},
-	{
-		image: slack,
-		alt: 'Slack logo'
-	}
-]
+import { Icon } from 'astro-icon/components'
 
 // Props
 type Props = {
@@ -57,17 +22,37 @@ const { classes } = Astro.props
 	<Row>
 		<Col span="12" align="center">
 			<h2 class="!mb-6 text-base font-normal text-neutral-400 dark:text-neutral-600">
-				Trusted by <strong class="highlight">50,000+</strong> businesses
-			</h2></Col
-		>
+				<strong class="highlight">Open Source</strong> · Apache 2.0 Licensed
+			</h2>
+		</Col>
 	</Row>
-	<Row flex classes="!flex-row">
-		{
-			images.map((item) => (
-				<Col>
-					<Image src={item.image} alt={item.alt} />
-				</Col>
-			))
-		}
+	<Row flex classes="!flex-row !justify-center !gap-8 md:!gap-12">
+		<Col classes="!flex-none !w-auto">
+			<a href="https://github.com/frontman-ai/frontman" target="_blank" rel="noopener noreferrer" class="social-proof-link">
+				<Icon name="github-icon" class="social-proof-link__icon" />
+				<span>Star on GitHub</span>
+			</a>
+		</Col>
+		<Col classes="!flex-none !w-auto">
+			<a href="https://discord.gg/J77jBzMM" target="_blank" rel="noopener noreferrer" class="social-proof-link">
+				<Icon name="discord-icon" class="social-proof-link__icon" />
+				<span>Join Discord</span>
+			</a>
+		</Col>
+		<Col classes="!flex-none !w-auto">
+			<a href="https://twitter.com/frontman_agent" target="_blank" rel="noopener noreferrer" class="social-proof-link">
+				<Icon name="twitter-icon" class="social-proof-link__icon" />
+				<span>Follow on X</span>
+			</a>
+		</Col>
 	</Row>
 </Section>
+
+<style>
+	.social-proof-link {
+		@apply inline-flex items-center gap-2 text-sm font-medium text-neutral-500 transition-colors duration-200 hover:text-primary-500 dark:text-neutral-400 dark:hover:text-primary-400;
+	}
+	.social-proof-link__icon {
+		@apply h-5 w-5;
+	}
+</style>
