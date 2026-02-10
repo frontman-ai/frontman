@@ -25,7 +25,7 @@ export default defineConfig({
     frontmanPlugin({
       isDev: true,
       isLightTheme: true,
-      entrypointUrl: 'http://localhost:5173/__frontman',
+      entrypointUrl: 'http://localhost:5173/frontman',
     }),
   ],
 });
@@ -50,7 +50,7 @@ Whether to use light theme for the UI. Set to `false` for dark theme.
 ### `entrypointUrl`
 
 - **Type:** `string`
-- **Default:** `"http://localhost:3000/__frontman"`
+- **Default:** `"http://localhost:3000/frontman"`
 
 The entrypoint URL for the Frontman API. This should match the URL where your Vite server is running.
 
@@ -65,9 +65,9 @@ The URL where the Frontman client script is served.
 
 The plugin automatically sets up the following API routes:
 
-- `GET /__frontman` - Serves the Frontman UI
-- `POST /__frontman/chat` - Handles chat messages
-- `GET /__frontman/chat-sse` - Server-Sent Events endpoint for streaming responses
+- `GET /frontman` - Serves the Frontman UI
+- `POST /frontman/chat` - Handles chat messages
+- `GET /frontman/chat-sse` - Server-Sent Events endpoint for streaming responses
 
 ## License
 

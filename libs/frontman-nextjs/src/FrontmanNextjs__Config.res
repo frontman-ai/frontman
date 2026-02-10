@@ -40,7 +40,7 @@ let make = (
     isDev->Option.getOr(
       Bindings.Process.env->Dict.get("NODE_ENV")->Option.getOr("production") == "development",
     )
-  let basePath = basePath->Option.getOr("__frontman")
+  let basePath = basePath->Option.getOr("frontman")
   let serverName = serverName->Option.getOr("frontman-nextjs")
   let serverVersion = serverVersion->Option.getOr("1.0.0")
   let isLightTheme = isLightTheme->Option.getOr(false)

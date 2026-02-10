@@ -11,7 +11,7 @@ module Config = FrontmanAstro__Config
 module WebStreams = FrontmanBindings.WebStreams
 module DOMElementToComponentSource = FrontmanBindings.DOMElementToComponentSource
 
-// GET /__frontman/tools
+// GET /frontman/tools
 let handleGetTools = (~registry: ToolRegistry.t, ~config: Config.t): WebAPI.FetchAPI.response => {
   let response = CoreServer.getToolsResponse(
     ~registry,
@@ -24,7 +24,7 @@ let handleGetTools = (~registry: ToolRegistry.t, ~config: Config.t): WebAPI.Fetc
   WebAPI.Response.jsonR(~data=json, ~init={headers: headers})
 }
 
-// POST /__frontman/tools/call - executes tool with SSE streaming
+// POST /frontman/tools/call - executes tool with SSE streaming
 let handleToolCall = async (
   ~registry: ToolRegistry.t,
   ~config: Config.t,
@@ -118,7 +118,7 @@ let handleCORS = (): WebAPI.FetchAPI.response => {
   WebAPI.Response.fromNull(~init={status: 204, headers: corsHeaders()})
 }
 
-// POST /__frontman/resolve-source-location - resolves source location via source maps
+// POST /frontman/resolve-source-location - resolves source location via source maps
 let handleResolveSourceLocation = async (
   ~config: Config.t,
   req: WebAPI.FetchAPI.request,

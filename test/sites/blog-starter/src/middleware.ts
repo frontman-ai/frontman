@@ -16,7 +16,7 @@ const frontmanMiddleware = FRONTMAN_ENABLED
 			return createMiddleware({
 				isDev: true,
 				projectRoot: process.cwd(),
-				basePath: "__frontman",
+				basePath: "frontman",
 				serverName: "blog-starter",
 				serverVersion: "1.0.0",
 			});

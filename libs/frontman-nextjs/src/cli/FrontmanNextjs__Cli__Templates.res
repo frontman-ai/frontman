@@ -16,7 +16,7 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/__frontman/:path*'],
+  matcher: ['/frontman/:path*'],
 };
 `
 
@@ -30,7 +30,7 @@ const frontman = createMiddleware({
 });
 
 export function proxy(req: NextRequest): NextResponse | Promise<NextResponse> {
-  if (req.nextUrl.pathname.startsWith('/__frontman')) {
+  if (req.nextUrl.pathname.startsWith('/frontman')) {
     return frontman(req) || NextResponse.next();
   }
   return NextResponse.next();
@@ -82,9 +82,9 @@ Add the following to your ${fileName}:
 
   4. Update your matcher config to include Frontman routes:
 
-     export const config = {
-       matcher: ['/__frontman/:path*', ...yourExistingMatchers],
-     };
+      export const config = {
+        matcher: ['/frontman/:path*', ...yourExistingMatchers],
+      };
 
 For full documentation, see: https://frontman.sh/docs/nextjs
 `
@@ -107,9 +107,9 @@ Add the following to your ${fileName}:
 
   3. In your proxy function, add at the beginning:
 
-     export function proxy(req: NextRequest): NextResponse | Promise<NextResponse> {
-       // Add Frontman handler first
-       if (req.nextUrl.pathname.startsWith('/__frontman')) {
+      export function proxy(req: NextRequest): NextResponse | Promise<NextResponse> {
+        // Add Frontman handler first
+        if (req.nextUrl.pathname.startsWith('/frontman')) {
          return frontman(req) || NextResponse.next();
        }
 
@@ -177,7 +177,7 @@ Frontman setup complete!
 
 Next steps:
   1. Start your Next.js dev server: npm run dev
-  2. Open your browser to: http://localhost:3000/__frontman
+  2. Open your browser to: http://localhost:3000/frontman
   3. Your app is now connected to: ${host}
 
 For documentation, visit: https://frontman.sh/docs

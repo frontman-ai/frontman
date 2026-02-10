@@ -68,7 +68,7 @@ export interface FrontmanPluginOptions {
 	isDev?: boolean;
 	/**
 	 * Base path for the middleware routes
-	 * @default "__frontman"
+	 * @default "frontman"
 	 */
 	basePath?: string;
 	/**
@@ -100,7 +100,7 @@ export const frontmanPlugin = (
 ): Plugin => {
 	const {
 		isDev = process.env.NODE_ENV !== "production",
-		basePath = "__frontman",
+		basePath = "frontman",
 		clientUrl,
 		clientCssUrl,
 		entrypointUrl,

@@ -12,7 +12,7 @@ export default defineConfig({
   },
   modules: ['@wxt-dev/module-react'],
   webExt: {
-    startUrls: ['http://localhost:3038/__frontman'],
+    startUrls: ['http://localhost:3038/frontman'],
     chromiumArgs: ['--user-data-dir=./.wxt/chrome-data'],
   },
   dev: {

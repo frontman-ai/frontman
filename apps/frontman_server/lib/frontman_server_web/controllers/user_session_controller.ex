@@ -8,7 +8,7 @@ defmodule FrontmanServerWeb.UserSessionController do
     email = get_in(conn.assigns, [:current_scope, Access.key(:user), Access.key(:email)])
     form = Phoenix.Component.to_form(%{"email" => email}, as: "user")
 
-    # Store return_to from query param (for cross-origin redirects like /__frontman)
+    # Store return_to from query param (for cross-origin redirects like /frontman)
     conn =
       case params["return_to"] do
         nil -> conn

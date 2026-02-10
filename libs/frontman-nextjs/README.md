@@ -56,7 +56,7 @@ After running the installer, you're ready to go! Start your Next.js dev server:
 npm run dev
 ```
 
-Then open your browser to `http://localhost:3000/__frontman` to access the Frontman UI.
+Then open your browser to `http://localhost:3000/frontman` to access the Frontman UI.
 
 ## Manual Setup
 
@@ -79,7 +79,7 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/__frontman/:path*'],
+  matcher: ['/frontman/:path*'],
 };
 ```
 
@@ -96,7 +96,7 @@ const frontman = createMiddleware({
 });
 
 export function proxy(req: NextRequest): NextResponse | Promise<NextResponse> {
-  if (req.nextUrl.pathname.startsWith('/__frontman')) {
+  if (req.nextUrl.pathname.startsWith('/frontman')) {
     return frontman(req) || NextResponse.next();
   }
   return NextResponse.next();
@@ -124,7 +124,7 @@ export async function register() {
 **That's it!** Frontman will now:
 - Capture console logs, build output, and errors
 - Track Next.js HTTP requests, API routes, and rendering
-- Make all logs available via the Frontman UI at `/__frontman`
+- Make all logs available via the Frontman UI at `/frontman`
 
 ## Adding to Existing Files
 
@@ -142,7 +142,7 @@ const frontman = createMiddleware({
 });
 
 export async function middleware(req: NextRequest) {
-  // Add Frontman handler first - it will handle /__frontman/* routes
+  // Add Frontman handler first - it will handle /frontman/* routes
   const response = await frontman(req);
   if (response) return response;
 
@@ -152,7 +152,7 @@ export async function middleware(req: NextRequest) {
 
 export const config = {
   // Add Frontman matcher alongside your existing matchers
-  matcher: ['/__frontman/:path*', '/your-other-routes/:path*'],
+  matcher: ['/frontman/:path*', '/your-other-routes/:path*'],
 };
 ```
 
@@ -168,8 +168,8 @@ const frontman = createMiddleware({
 });
 
 export function proxy(req: NextRequest): NextResponse | Promise<NextResponse> {
-  // Add Frontman handler first - it will handle /__frontman/* routes
-  if (req.nextUrl.pathname.startsWith('/__frontman')) {
+  // Add Frontman handler first - it will handle /frontman/* routes
+  if (req.nextUrl.pathname.startsWith('/frontman')) {
     return frontman(req) || NextResponse.next();
   }
 
@@ -250,7 +250,7 @@ The buffer persists for the lifetime of the Node.js process and is accessible th
 ```typescript
 createMiddleware({
   host: string,                // Frontman server host (required) - the client UI connects here via WebSocket
-  basePath: string,            // Base path for Frontman routes (default: "__frontman")
+  basePath: string,            // Base path for Frontman routes (default: "frontman")
   serverName: string,          // Server name (default: "frontman-nextjs")
   serverVersion: string,       // Server version (default: package version)
   clientUrl: string,           // Custom client bundle URL
@@ -263,7 +263,7 @@ createMiddleware({
 
 ### Understanding the `host` Option
 
-The `host` option specifies the Frontman server that the client UI will connect to for AI capabilities. When you visit `/__frontman` in your Next.js app:
+The `host` option specifies the Frontman server that the client UI will connect to for AI capabilities. When you visit `/frontman` in your Next.js app:
 
 1. The middleware serves the Frontman UI HTML
 2. The UI loads the client JavaScript with `?host=<your-host>` 
@@ -305,7 +305,7 @@ Next.js App (Turbopack/Webpack)
 │   └─> setup() returns OTEL processors that write to same buffer
 │
 ├─> middleware.ts / proxy.ts (per-request)
-│   └─> Serves Frontman UI at /__frontman
+│   └─> Serves Frontman UI at /frontman
 │       └─> Connects to Frontman server for AI tools
 │
 └─> OpenTelemetry SDK (optional)
@@ -363,7 +363,7 @@ Frontman works without OpenTelemetry! If you only set up middleware (skip `instr
 - Console logs are still captured (auto-initialized at module import)
 - Build output is tracked
 - Errors are logged
-- Frontman UI available at `/__frontman`
+- Frontman UI available at `/frontman`
 - HTTP spans are not captured (requires OTEL)
 
 LogCapture auto-initializes when the module is imported, so console patching happens automatically in Node.js environments - no explicit initialization needed.
@@ -444,7 +444,7 @@ import { createMiddleware } from '@frontman-ai/nextjs';
 
 const middleware = createMiddleware({
   host: string,                // Frontman server host (required)
-  basePath: string,            // Base path (default: "__frontman")
+  basePath: string,            // Base path (default: "frontman")
   serverName: string,          // Server name (default: "frontman-nextjs")
   serverVersion: string,       // Version (default: package version)
   projectRoot: string,         // Project root (default: process.cwd())
