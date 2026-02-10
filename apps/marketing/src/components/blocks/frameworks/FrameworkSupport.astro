@@ -1,0 +1,115 @@
+---
+// Framework Support Section
+// ------------
+// Description: A section showcasing supported frameworks with feature lists
+
+// Components
+// - Layout
+import Row from '../../ui/Row.astro'
+import Col from '../../ui/Col.astro'
+
+// Assets
+import nextjsLogo from '../../../assets/frameworks/nextjs.svg'
+import astroLogo from '../../../assets/frameworks/astro.svg'
+import viteLogo from '../../../assets/frameworks/vite.svg'
+
+const frameworks = [
+	{
+		name: 'Next.js',
+		logo: nextjsLogo,
+		features: ['App Router', 'Pages Router', 'Turbopack']
+	},
+	{
+		name: 'Astro',
+		logo: astroLogo,
+		features: ['SSR', 'SSG', 'Islands']
+	},
+	{
+		name: 'Vite',
+		logo: viteLogo,
+		features: ['React', 'Vue', 'Svelte', 'Solid']
+	}
+]
+---
+
+<section class="frameworks-section">
+	<div class="container">
+		<Row>
+			<Col span="12" align="center" classes="mb-12 lg:mb-16">
+				<h2 class="frameworks-title">Works with your stack</h2>
+			</Col>
+		</Row>
+		<Row classes="gap-6 lg:gap-8">
+			{frameworks.map((fw) => (
+				<Col spanMobile="12" span="4">
+					<div class="framework-card">
+						<div class="framework-logo">
+							<img src={fw.logo.src} alt={fw.name} width="48" height="48" />
+						</div>
+						<h3 class="framework-name">{fw.name}</h3>
+						<ul class="framework-features">
+							{fw.features.map((feature) => (
+								<li class="framework-feature">
+									<svg class="check-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+										<polyline points="20 6 9 17 4 12"></polyline>
+									</svg>
+									{feature}
+								</li>
+							))}
+						</ul>
+					</div>
+				</Col>
+			))}
+		</Row>
+	</div>
+</section>
+
+<style>
+	.frameworks-section {
+		@apply relative overflow-hidden py-20 lg:py-32;
+		background: #ffffff;
+	}
+
+	.container {
+		@apply relative mx-auto px-6 max-w-7xl;
+	}
+
+	.frameworks-title {
+		@apply font-headings text-4xl lg:text-5xl font-bold text-black;
+	}
+
+	.framework-card {
+		@apply relative p-8 border-4 border-black;
+		box-shadow: 10px 10px 0 0 rgba(0, 0, 0, 1);
+		background: #ffffff;
+	}
+
+	.framework-logo {
+		@apply mb-5;
+	}
+
+	.framework-logo img {
+		@apply w-12 h-12;
+		object-fit: contain;
+	}
+
+	.framework-name {
+		@apply text-2xl font-bold text-black mb-5;
+	}
+
+	.framework-features {
+		@apply flex flex-col gap-3;
+		list-style: none;
+		padding: 0;
+		margin: 0;
+	}
+
+	.framework-feature {
+		@apply flex items-center gap-2 text-base text-neutral-800;
+	}
+
+	.check-icon {
+		@apply flex-shrink-0;
+		color: #22c55e;
+	}
+</style>

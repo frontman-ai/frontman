@@ -1,22 +1,26 @@
 ---
 // Install Steps Section
 // ------------
-// Description: A section displaying the 3-step installation process for FrontEnd
-// Note: This section doesn't use the Section wrapper component to allow
-// coast-to-coast decorative elements (floating blobs) while keeping content centered
+// Description: A section displaying the 3-step installation process for Frontman
+// Uses a vertical timeline layout with horizontal step rows
 
 // Components
-// - Layout
-import Row from '../../ui/Row.astro'
-import Col from '../../ui/Col.astro'
-// - UI
-import StepCard from '../../ui/cards/StepCard.astro'
 // - Decorative
 import FloatingBlobs from '../../ui/decorative/FloatingBlobs.astro'
+
+// Assets
+import nextjsLogo from '../../../assets/frameworks/nextjs.svg'
+import astroLogo from '../../../assets/frameworks/astro.svg'
+import viteLogo from '../../../assets/frameworks/vite.svg'
+
+const frameworks = [
+	{ id: 'nextjs', name: 'Next.js', logo: nextjsLogo, installPath: '/install/nextjs', port: '3000' },
+	{ id: 'astro', name: 'Astro', logo: astroLogo, installPath: '/install/astro', port: '4321' },
+	{ id: 'vite', name: 'Vite', logo: viteLogo, installPath: '/install/vite', port: '5173' }
+]
 ---
 
 <section id="install" class="install-section">
-	<!-- Floating decorative blobs (coast to coast) -->
 	<FloatingBlobs
 		blobs={[
 			{ color: '#9D7CFF', size: 450, startX: -12, startY: 50 },
@@ -26,63 +30,107 @@ import FloatingBlobs from '../../ui/decorative/FloatingBlobs.astro'
 		speed={20}
 	/>
 
-	<!-- Content container (centered with padding) -->
 	<div class="container">
-		<Row>
-			<Col span="12" align="center" classes="mb-16">
-				<h2 class="install-title">
-					How to install Frontman
-				</h2>
-				<p class="install-subtitle">
-					Installing Frontman takes less than 5 minutes, and you'll have Frontman ready to start making changes to your project visually
-				</p>
-			</Col>
-		</Row>
-		<Row classes="install-cards-row gap-5">
-			<Col span="4">
-				<StepCard
-					stepNumber="Step 1"
-					title="Install locally"
-					description="Run one command in your project folder"
-					bgColor="#FFF4CC"
-				>
-					<div class="code-block">
-						<code>curl https://frontman.sh/install/nextjs | bash</code>
-						<button class="copy-button" aria-label="Copy to clipboard">
-							<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-								<rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-								<path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-							</svg>
-						</button>
+		<div class="install-header">
+			<h2 class="install-title">How to install Frontman</h2>
+			<p class="install-subtitle">
+				Installing Frontman takes less than 5 minutes, and you'll have Frontman ready to start making changes to your project visually
+			</p>
+
+			<div class="framework-tabs">
+				{frameworks.map((fw, i) => (
+					<button
+						class={`framework-tab ${i === 0 ? 'active' : ''}`}
+						data-framework={fw.id}
+						data-install-path={fw.installPath}
+						data-port={fw.port}
+					>
+						<img src={fw.logo.src} alt={fw.name} width="24" height="24" />
+						{fw.name}
+					</button>
+				))}
+			</div>
+		</div>
+
+		<div class="steps-timeline">
+			<!-- Step 1 -->
+			<div class="step">
+				<div class="step-indicator">
+					<div class="step-number step-number--yellow">1</div>
+					<div class="step-line"></div>
+				</div>
+				<div class="step-card step-card--yellow">
+					<h3 class="step-title">Install locally</h3>
+					<p class="step-description">Run one command in your project folder</p>
+					<div class="terminal">
+						<div class="terminal-bar">
+							<span class="terminal-dot"></span>
+							<span class="terminal-dot"></span>
+							<span class="terminal-dot"></span>
+						</div>
+						<div class="terminal-body">
+							<span class="terminal-prompt">$</span>
+							<code data-install-command>curl https://frontman.sh/install/nextjs | bash</code>
+							<button class="copy-button" data-copy="install" aria-label="Copy to clipboard">
+								<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+									<rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+									<path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+								</svg>
+							</button>
+						</div>
 					</div>
-				</StepCard>
-			</Col>
-			<Col span="4">
-				<StepCard
-					stepNumber="Step 2"
-					title="Open Frontman"
-					description="Visit localhost/frontman in your browser."
-					bgColor="#FFD6E8"
-				>
-					<p class="example-text">
-						example:<br />
-						http://localhost:3000/frontman
-					</p>
-				</StepCard>
-			</Col>
-			<Col span="4">
-				<StepCard
-					stepNumber="Step 3"
-					title="Connect your AI"
-					description="Connect to your preferred AI model subscription"
-					bgColor="#FFE4D6"
-				>
-					<p class="support-note">
-						(Frontman supports Claude, Chat GPT and Open Router)
-					</p>
-				</StepCard>
-			</Col>
-		</Row>
+				</div>
+			</div>
+
+			<!-- Step 2 -->
+			<div class="step">
+				<div class="step-indicator">
+					<div class="step-number step-number--pink">2</div>
+					<div class="step-line"></div>
+				</div>
+				<div class="step-card step-card--pink">
+					<h3 class="step-title">Open Frontman</h3>
+					<p class="step-description">Visit localhost/frontman in your browser</p>
+					<div class="terminal">
+						<div class="terminal-bar">
+							<span class="terminal-dot"></span>
+							<span class="terminal-dot"></span>
+							<span class="terminal-dot"></span>
+						</div>
+						<div class="terminal-body">
+							<svg class="url-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+								<circle cx="12" cy="12" r="10"></circle>
+								<line x1="2" y1="12" x2="22" y2="12"></line>
+								<path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+							</svg>
+							<code data-port-url>http://localhost:3000/frontman</code>
+							<button class="copy-button" data-copy="url" aria-label="Copy to clipboard">
+								<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+									<rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+									<path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+								</svg>
+							</button>
+						</div>
+					</div>
+				</div>
+			</div>
+
+			<!-- Step 3 -->
+			<div class="step step--last">
+				<div class="step-indicator">
+					<div class="step-number step-number--peach">3</div>
+				</div>
+				<div class="step-card step-card--peach">
+					<h3 class="step-title">Connect your AI</h3>
+					<p class="step-description">Connect to your preferred AI model subscription</p>
+					<div class="ai-badges">
+						<span class="ai-badge">Claude</span>
+						<span class="ai-badge">ChatGPT</span>
+						<span class="ai-badge">OpenRouter</span>
+					</div>
+				</div>
+			</div>
+		</div>
 	</div>
 </section>
 
@@ -93,80 +141,231 @@ import FloatingBlobs from '../../ui/decorative/FloatingBlobs.astro'
 	}
 
 	.container {
-		@apply relative z-[100] mx-auto px-6;
+		@apply relative z-[100] mx-auto max-w-3xl px-6;
+	}
+
+	/* Header */
+	.install-header {
+		@apply text-center mb-20;
 	}
 
 	.install-title {
-		@apply font-headings text-5xl lg:text-6xl font-bold text-black relative;
-		z-index: 100;
+		@apply font-headings text-5xl lg:text-6xl font-bold text-black;
 	}
 
 	.install-subtitle {
-		@apply mt-6 text-xl text-neutral-700 max-w-3xl mx-auto relative;
-		z-index: 100;
+		@apply mt-6 text-xl max-w-2xl mx-auto leading-relaxed;
+		color: #334155;
 	}
 
-	.install-cards-row {
-		@apply relative;
-		z-index: 100;
+	/* Framework tabs */
+	.framework-tabs {
+		@apply mt-8 flex items-center justify-center gap-3;
 	}
 
-	.code-block {
-		@apply mt-6 relative flex items-center gap-3 px-6 py-4 font-mono;
-		background-color: #000000;
-		border-radius: 16px;
+	.framework-tab {
+		@apply flex items-center gap-2 px-5 py-2.5 text-base font-medium cursor-pointer transition-all border-2;
+		background: #ffffff;
+		border-color: #e5e5e5;
+		border-radius: 9999px;
+		color: #525252;
+	}
+
+	.framework-tab:hover {
+		border-color: #a3a3a3;
+	}
+
+	.framework-tab.active {
+		border-color: #000000;
+		color: #000000;
+		background: #ffffff;
+		box-shadow: 3px 3px 0 0 rgba(0, 0, 0, 1);
+	}
+
+	.framework-tab img {
+		@apply w-5 h-5;
+		object-fit: contain;
+	}
+
+	/* Timeline */
+	.steps-timeline {
+		@apply flex flex-col;
+	}
+
+	.step {
+		@apply flex gap-8;
+	}
+
+	/* Step indicator */
+	.step-indicator {
+		@apply flex flex-col items-center flex-shrink-0;
+	}
+
+	.step-number {
+		@apply flex items-center justify-center w-14 h-14 font-headings text-xl font-bold text-white border-2 border-black;
+		border-radius: 50%;
+		box-shadow: 3px 3px 0 0 rgba(0, 0, 0, 1);
+	}
+
+	.step-number--yellow { background-color: #FCD34D; }
+	.step-number--pink { background-color: #F472B6; }
+	.step-number--peach { background-color: #FB923C; }
+
+	.step-line {
+		@apply flex-1 my-3;
+		width: 2px;
+		background: repeating-linear-gradient(
+			to bottom,
+			#d4d4d4 0px,
+			#d4d4d4 6px,
+			transparent 6px,
+			transparent 12px
+		);
+		min-height: 24px;
+	}
+
+	/* Step cards */
+	.step-card {
+		@apply flex-1 rounded-2xl p-6 mb-6;
+		border-left: 4px solid transparent;
+	}
+
+	.step-card--yellow {
+		background: #FFF8E1;
+		border-left-color: #F59E0B;
+	}
+	.step-card--pink {
+		background: #FFF0F6;
+		border-left-color: #EC4899;
+	}
+	.step-card--peach {
+		background: #FFF3EC;
+		border-left-color: #F97316;
+	}
+
+	.step--last .step-card {
+		@apply mb-0;
+	}
+
+	.step-title {
+		@apply font-headings text-2xl font-bold text-black;
+	}
+
+	.step-description {
+		@apply mt-2 text-base leading-relaxed;
+		color: #334155;
+	}
+
+	/* Terminal code block */
+	.terminal {
+		@apply mt-5 overflow-hidden;
+		background: #0f0f1a;
+		border-radius: 12px;
+		border: 2px solid #1e1e2e;
+	}
+
+	.terminal-bar {
+		@apply flex items-center gap-1.5 px-4 py-2.5;
+		background: #1a1a2e;
+		border-bottom: 1px solid #2a2a3e;
+	}
+
+	.terminal-dot {
+		@apply block w-2.5 h-2.5 rounded-full;
+		background: #3a3a4e;
+	}
+
+	.terminal-body {
+		@apply flex items-center gap-3 px-4 py-3.5 font-mono;
 		font-size: 14px;
-		color: #C084FF;
 	}
 
-	.code-block code {
+	.terminal-prompt {
+		@apply flex-shrink-0 font-bold;
+		color: #22c55e;
+	}
+
+	.terminal-body code {
 		@apply flex-1;
+		color: #C084FF;
 		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
+	}
+
+	.url-icon {
+		@apply flex-shrink-0;
+		color: #64748b;
 	}
 
 	.copy-button {
-		@apply flex-shrink-0 p-2 transition-opacity hover:opacity-70 cursor-pointer;
-		background: none;
-		border: none;
+		@apply flex-shrink-0 p-2 transition-all cursor-pointer rounded-lg;
+		background: rgba(255, 255, 255, 0.05);
+		border: 1px solid rgba(255, 255, 255, 0.08);
+		color: #64748b;
+	}
+
+	.copy-button:hover {
+		background: rgba(255, 255, 255, 0.12);
 		color: #C084FF;
 	}
 
-	.example-text {
-		@apply mt-6 text-base text-neutral-800;
+	/* AI badges */
+	.ai-badges {
+		@apply mt-5 flex flex-wrap gap-2;
 	}
 
-	.support-note {
-		@apply mt-6 text-sm text-neutral-700;
+	.ai-badge {
+		@apply px-4 py-2 text-sm font-medium rounded-full;
+		background: #ffffff;
+		border: 2px solid #d1d5db;
+		color: #1e293b;
 	}
 </style>
 
 <script>
 	document.addEventListener('DOMContentLoaded', () => {
-		const copyButton = document.querySelector('.copy-button')
-		if (copyButton) {
-			copyButton.addEventListener('click', async () => {
-				const codeBlock = copyButton.closest('.code-block')
-				const code = codeBlock?.querySelector('code')?.textContent
+		const tabs = document.querySelectorAll('.framework-tab')
+		const installCommand = document.querySelector('[data-install-command]')
+		const portUrl = document.querySelector('[data-port-url]')
+
+		// Framework tab switching
+		tabs.forEach((tab) => {
+			tab.addEventListener('click', () => {
+				tabs.forEach((t) => t.classList.remove('active'))
+				tab.classList.add('active')
+
+				const installPath = tab.getAttribute('data-install-path')
+				if (installCommand && installPath) {
+					installCommand.textContent = `curl https://frontman.sh${installPath} | bash`
+				}
+
+				const port = tab.getAttribute('data-port')
+				if (portUrl && port) {
+					portUrl.textContent = `http://localhost:${port}/frontman`
+				}
+			})
+		})
+
+		// Copy to clipboard (handles all copy buttons)
+		document.querySelectorAll('.copy-button').forEach((btn) => {
+			btn.addEventListener('click', async () => {
+				const code = btn.closest('.terminal-body')?.querySelector('code')?.textContent
 				if (code) {
 					try {
 						await navigator.clipboard.writeText(code)
-						// Optional: Add visual feedback
-						const originalHTML = copyButton.innerHTML
-						copyButton.innerHTML = `
-							<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+						const originalHTML = btn.innerHTML
+						btn.innerHTML = `
+							<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2">
 								<polyline points="20 6 9 17 4 12"></polyline>
 							</svg>
 						`
 						setTimeout(() => {
-							copyButton.innerHTML = originalHTML
+							btn.innerHTML = originalHTML
 						}, 2000)
 					} catch (err) {
 						console.error('Failed to copy:', err)
 					}
 				}
 			})
-		}
+		})
 	})
 </script>
