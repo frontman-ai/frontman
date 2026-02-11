@@ -25,19 +25,21 @@ defmodule FrontmanServerWeb.TaskChannel do
       {:ok, _task} ->
         Logger.info("Client joining: #{task_id}, socket_id: #{inspect(self())}")
 
-        # Start MCP initialization process.
-        # Note: We always reinitialize on join because:
+        # Start MCP initialization as a synchronous state machine.
+        # State is stored in socket assigns — no separate GenServer process.
+        # Each websocket connection needs its own MCP session because:
         # 1. MCPInitializer performs a stateful handshake with the browser-side MCP client
-        # 2. Each websocket connection needs its own MCP session
-        # 3. Project rules loading depends on client-specific context
+        # 2. Project rules loading depends on client-specific context
         # Tools are stored in socket assigns and passed through Backend.Context for agent access.
-        {:ok, initializer_pid} = MCPInitializer.start_link(self(), task_id, scope)
+        {init_state, actions} = MCPInitializer.start(task_id, scope)
 
         socket =
           socket
           |> assign(:task_id, task_id)
-          |> assign(:mcp_initializer_pid, initializer_pid)
+          |> assign(:mcp_init_state, init_state)
           |> assign(:mcp_status, :pending)
+
+        socket = execute_init_actions(actions, socket)
 
         {:ok, %{task_id: task_id}, socket}
 
@@ -128,7 +130,7 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   defp handle_mcp_response(id, result, socket) do
     pending_requests = socket.assigns[:pending_requests] || %{}
-    initializer_pid = socket.assigns[:mcp_initializer_pid]
+    init_state = socket.assigns[:mcp_init_state]
 
     Logger.debug(
       "MCP response received: id=#{id}, pending_keys=#{inspect(Map.keys(pending_requests))}"
@@ -148,29 +150,18 @@ defmodule FrontmanServerWeb.TaskChannel do
             {:noreply, socket}
         end
 
-      # Initialization response - MCPInitializer owns these IDs
-      initializer_pid && initializer_expects_response?(initializer_pid, id) ->
+      # Initialization response - MCPInitializer state owns these IDs
+      init_state && MCPInitializer.expects_response?(init_state, id) ->
         Logger.debug("MCP response #{id} matched MCPInitializer")
-        MCPInitializer.handle_mcp_response(initializer_pid, id, result)
-        {:noreply, socket}
+        {new_state, actions} = MCPInitializer.handle_response(init_state, id, result)
+        socket = assign(socket, :mcp_init_state, new_state)
+        socket = execute_init_actions(actions, socket)
+        maybe_process_queued_prompt(socket)
 
       true ->
         Logger.warning("Received MCP response for unknown request_id: #{id}")
         {:noreply, socket}
     end
-  end
-
-  # Safely check if MCPInitializer expects this response, with timeout protection
-  defp initializer_expects_response?(pid, id) do
-    MCPInitializer.expects_response?(pid, id)
-  catch
-    :exit, {:timeout, _} ->
-      Logger.warning("MCPInitializer.expects_response? timed out for id=#{id}")
-      false
-
-    :exit, reason ->
-      Logger.warning("MCPInitializer.expects_response? failed: #{inspect(reason)}")
-      false
   end
 
   defp handle_tool_call_response(_id, tool_call, result, socket, remaining_requests) do
@@ -207,7 +198,7 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   defp handle_mcp_error(id, error, socket) do
     pending_requests = socket.assigns[:pending_requests] || %{}
-    initializer_pid = socket.assigns[:mcp_initializer_pid]
+    init_state = socket.assigns[:mcp_init_state]
 
     Logger.debug(
       "MCP error received: id=#{id}, pending_keys=#{inspect(Map.keys(pending_requests))}"
@@ -225,10 +216,12 @@ defmodule FrontmanServerWeb.TaskChannel do
             {:noreply, socket}
         end
 
-      # Initialization error - MCPInitializer owns these IDs
-      initializer_pid && initializer_expects_response?(initializer_pid, id) ->
-        MCPInitializer.handle_mcp_error(initializer_pid, id, error)
-        {:noreply, socket}
+      # Initialization error - MCPInitializer state owns these IDs
+      init_state && MCPInitializer.expects_response?(init_state, id) ->
+        {new_state, actions} = MCPInitializer.handle_error(init_state, id, error)
+        socket = assign(socket, :mcp_init_state, new_state)
+        socket = execute_init_actions(actions, socket)
+        maybe_process_queued_prompt(socket)
 
       true ->
         Logger.warning("Received MCP error for unknown request_id: #{id}")
@@ -562,62 +555,57 @@ defmodule FrontmanServerWeb.TaskChannel do
     end
   end
 
-  def handle_info({:mcp_initializer_request, request}, socket) do
-    # Forward MCP requests from initializer to client
-    push(socket, "mcp:message", request)
-    {:noreply, socket}
+  def handle_info(msg, _socket) do
+    raise "Unhandled message in TaskChannel: #{inspect(msg)}"
   end
 
-  def handle_info({:mcp_initializer_notification, notification}, socket) do
-    # Forward MCP notifications from initializer to client
-    push(socket, "mcp:message", notification)
-    {:noreply, socket}
+  # Execute actions returned by the MCPInitializer state machine.
+  # Each action is processed synchronously within the current callback,
+  # eliminating async process hops that caused race conditions.
+  defp execute_init_actions(actions, socket) do
+    Enum.reduce(actions, socket, fn action, socket ->
+      case action do
+        {:push_mcp, msg} ->
+          push(socket, "mcp:message", msg)
+          socket
+
+        {:push_acp, msg} ->
+          push(socket, "acp:message", msg)
+          socket
+
+        {:initialization_complete, data} ->
+          task_id = socket.assigns.task_id
+          Logger.info("MCP initialization complete for task #{task_id}")
+
+          socket
+          |> assign(:mcp_status, :ready)
+          |> assign(:mcp_capabilities, data.mcp_capabilities)
+          |> assign(:mcp_server_info, data.mcp_server_info)
+          |> assign(:mcp_tools, data.tools)
+
+        {:initialization_failed, error} ->
+          Logger.error("MCP initialization failed: #{inspect(error)}")
+
+          socket
+          |> assign(:mcp_status, :failed)
+          |> assign(:mcp_error, error)
+      end
+    end)
   end
 
-  def handle_info({:mcp_initializer, {:initialization_complete, data}}, socket) do
-    task_id = socket.assigns.task_id
-    Logger.info("MCP initialization complete for task #{task_id}")
-
-    # Notify client that project rules are initialized
-    notification =
-      JsonRpc.notification("project_rules_initialized", %{
-        "count" => length(data.tools),
-        "taskId" => task_id
-      })
-
-    push(socket, "acp:message", notification)
-
-    socket =
-      socket
-      |> assign(:mcp_status, :ready)
-      |> assign(:mcp_capabilities, data.mcp_capabilities)
-      |> assign(:mcp_server_info, data.mcp_server_info)
-      |> assign(:mcp_tools, data.tools)
-
-    # Process any queued prompt that was waiting for MCP initialization
-    case socket.assigns[:queued_prompt] do
-      {id, params} ->
+  # Process any queued prompt after MCP initialization completes or fails.
+  # Called after execute_init_actions when handling MCP responses.
+  defp maybe_process_queued_prompt(socket) do
+    case {socket.assigns[:mcp_status], socket.assigns[:queued_prompt]} do
+      {:ready, {id, params}} ->
+        task_id = socket.assigns.task_id
         Logger.info("Processing queued prompt after MCP initialization for task #{task_id}")
         socket = assign(socket, :queued_prompt, nil)
         process_prompt(id, params, socket)
 
-      nil ->
-        {:noreply, socket}
-    end
-  end
+      {:failed, {id, params}} ->
+        task_id = socket.assigns.task_id
 
-  def handle_info({:mcp_initializer, {:initialization_failed, error}}, socket) do
-    Logger.error("MCP initialization failed: #{inspect(error)}")
-    task_id = socket.assigns.task_id
-
-    socket =
-      socket
-      |> assign(:mcp_status, :failed)
-      |> assign(:mcp_error, error)
-
-    # Process any queued prompt with empty tools (best effort)
-    case socket.assigns[:queued_prompt] do
-      {id, params} ->
         Logger.warning(
           "Processing queued prompt with failed MCP initialization for task #{task_id}"
         )
@@ -625,13 +613,9 @@ defmodule FrontmanServerWeb.TaskChannel do
         socket = assign(socket, :queued_prompt, nil)
         process_prompt(id, params, socket)
 
-      nil ->
+      _ ->
         {:noreply, socket}
     end
-  end
-
-  def handle_info(msg, _socket) do
-    raise "Unhandled message in TaskChannel: #{inspect(msg)}"
   end
 
   defp route_to_mcp(tool_call, socket) do

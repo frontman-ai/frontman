@@ -1051,8 +1051,9 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       JsonRpc.success_response(project_rules_request_id, %{"content" => []})
     )
 
-    # Wait for initialization to complete (this ensures mcp_status is :ready)
-    # Without this, tool call responses get routed to MCPInitializer instead of being handled properly
+    # Verify initialization completed (mcp_status is :ready).
+    # This is synchronous — the push happens within the same handle_in callback
+    # that processed the project rules response, so no race condition.
     assert_push("acp:message", %{
       "method" => "project_rules_initialized"
     })
