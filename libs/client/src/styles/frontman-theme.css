@@ -170,6 +170,26 @@
 }
 
 /* ============================================================================
+ * Logo Pulse Animation - Gentle heartbeat while agent is running
+ * ============================================================================ */
+
+@keyframes frontman-logo-pulse {
+	0%,
+	100% {
+		transform: scale(1);
+		opacity: 1;
+	}
+	50% {
+		transform: scale(1.12);
+		opacity: 0.85;
+	}
+}
+
+.frontman-logo-pulse {
+	animation: frontman-logo-pulse 1.5s ease-in-out infinite;
+}
+
+/* ============================================================================
  * Font Families
  * ============================================================================ */
 

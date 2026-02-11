@@ -10,6 +10,7 @@ defmodule FrontmanServerWeb.TaskChannel do
   require Logger
 
   alias AgentClientProtocol, as: ACP
+  alias FrontmanServer.Agents
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tools
   alias FrontmanServerWeb.ACPHistory
@@ -51,6 +52,9 @@ defmodule FrontmanServerWeb.TaskChannel do
     case JsonRpc.parse(payload) do
       {:ok, {:request, id, "session/prompt", params}} ->
         handle_prompt(id, params, socket)
+
+      {:ok, {:notification, "session/cancel", params}} ->
+        handle_cancel(params, socket)
 
       {:ok, {:request, id, "session/load", _params}} ->
         # Load session history - streamed via session/update notifications
@@ -287,6 +291,24 @@ defmodule FrontmanServerWeb.TaskChannel do
     end
   end
 
+  # ACP spec: session/cancel is a NOTIFICATION (no response expected).
+  # The pending session/prompt request will be resolved with stopReason: "cancelled"
+  # via the :agent_cancelled handler (triggered by ExecutionMonitor).
+  defp handle_cancel(_params, socket) do
+    task_id = socket.assigns.task_id
+    Logger.info("Cancel notification received for task #{task_id}")
+
+    case Agents.cancel_agent(task_id) do
+      :ok ->
+        Logger.info("Agent cancel signal sent for task #{task_id}")
+
+      {:error, :not_running} ->
+        Logger.info("Cancel notification for task #{task_id}: no agent running")
+    end
+
+    {:noreply, socket}
+  end
+
   # Handle session/load - stream history via session/update notifications
   # This is called after the client has joined the session channel, allowing
   # history notifications to be received through the onUpdate callback.
@@ -431,6 +453,22 @@ defmodule FrontmanServerWeb.TaskChannel do
 
         socket = assign(socket, :pending_prompt_id, nil)
 
+        {:noreply, socket}
+    end
+  end
+
+  def handle_info(:agent_cancelled, socket) do
+    Logger.info("Channel received agent_cancelled for task #{socket.assigns.task_id}")
+
+    # Resolve the pending prompt with stopReason: "cancelled"
+    case socket.assigns[:pending_prompt_id] do
+      nil ->
+        {:noreply, socket}
+
+      id ->
+        response = JsonRpc.success_response(id, ACP.build_prompt_result("cancelled"))
+        push(socket, "acp:message", response)
+        socket = assign(socket, :pending_prompt_id, nil)
         {:noreply, socket}
     end
   end

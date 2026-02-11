@@ -87,6 +87,7 @@ type action =
       metadata: option<JSON.t>,
     })
   | PromptSent
+  | CancelPrompt
   | LoadTask({
       taskId: string,
       needsHistory: bool,
@@ -121,6 +122,7 @@ type effect =
       onComplete: result<FrontmanFrontmanClient.FrontmanClient__ACP__Types.promptResult, string> => unit,
       metadata: option<JSON.t>,
     })
+  | CancelPromptEffect({session: ACP.session})
   | FetchSessionsEffect(ACP.connection)
   | LoadTaskEffect({
       connection: ACP.connection,
@@ -333,10 +335,25 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
       [SendPromptEffect({session, text, additionalBlocks, onComplete, metadata})],
     )
 
-  | ({isSendingPrompt: true}, PromptSent) =>
+   | (_, PromptSent) =>
     (
       {...state, isSendingPrompt: false},
       [],
+    )
+
+  // Cancel an in-flight prompt turn
+  // Reset isSendingPrompt immediately so a new prompt can be sent
+  // while the cancelled prompt's server response is still in-flight.
+  | ({isSendingPrompt: true, session: SessionActive(session)}, CancelPrompt) =>
+    (
+      {...state, isSendingPrompt: false},
+      [CancelPromptEffect({session: session})],
+    )
+
+  | ({isSendingPrompt: false}, CancelPrompt) =>
+    (
+      state,
+      [LogInfo("CancelPrompt ignored: not sending a prompt")],
     )
 
   | ({isSendingPrompt: true}, SendPrompt(_)) =>
@@ -546,6 +563,12 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
       }
     }
     send()->ignore
+  | CancelPromptEffect({session}) =>
+    // ACP spec: session/cancel is a notification (fire-and-forget).
+    // The pending session/prompt request will resolve with stopReason: "cancelled",
+    // which triggers PromptSent via the existing SendPromptEffect onComplete callback.
+    ACP.cancelPrompt(session)
+
   | FetchSessionsEffect(conn) =>
     Client__State.Actions.sessionsLoadStarted()
     let fetch = async () => {

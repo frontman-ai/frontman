@@ -11,6 +11,7 @@ module TestHelpers = {
     ~messages=[],
     ~timestamp=1000.0,
     ~previewUrl="http://localhost:3000",
+    ~isAgentRunning=false,
   ) => {
     let task = Task.makeLoaded(
       ~id=taskId,
@@ -18,6 +19,7 @@ module TestHelpers = {
       ~previewUrl,
       ~createdAt=timestamp,
       ~messages,
+      ~isAgentRunning,
     )
 
     let tasks = Dict.make()
@@ -85,6 +87,7 @@ describe("Client State Reducer", () => {
 
   test("TextDeltaReceived appends to textBuffer", t => {
     let state = TestHelpers.makeStateWithTask(
+      ~isAgentRunning=true,
       ~messages=[
         Reducer.Message.Assistant(
           Streaming({id: "assistant-1", textBuffer: "Hello", createdAt: 0.0}),
@@ -194,6 +197,7 @@ describe("Client State Reducer", () => {
 
   test("ToolCallReceived creates new ToolCall message", t => {
     let state = TestHelpers.makeStateWithTask(
+      ~isAgentRunning=true,
       ~messages=[
         Reducer.Message.Assistant(
           Streaming({
@@ -429,6 +433,7 @@ describe("Client State Reducer - Selectors", () => {
 describe("Client State Reducer - Tool Lifecycle", () => {
   test("ToolResultReceived sets result and OutputAvailable state", t => {
     let state = TestHelpers.makeStateWithTask(
+      ~isAgentRunning=true,
       ~messages=[
         Reducer.Message.ToolCall({
           id: "call-1",
@@ -463,6 +468,7 @@ describe("Client State Reducer - Tool Lifecycle", () => {
 
   test("ToolErrorReceived sets error and OutputError state", t => {
     let state = TestHelpers.makeStateWithTask(
+      ~isAgentRunning=true,
       ~messages=[
         Reducer.Message.ToolCall({
           id: "call-1",
@@ -503,6 +509,7 @@ describe("Client State Reducer - Tool Lifecycle", () => {
   test("ToolCallReceived with complete input creates tool with InputAvailable", t => {
     // Create a task with an assistant message first (tools belong to tasks)
     let state = TestHelpers.makeStateWithTask(
+      ~isAgentRunning=true,
       ~messages=[
         Reducer.Message.Assistant(
           Streaming({

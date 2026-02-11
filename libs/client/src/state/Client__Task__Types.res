@@ -362,6 +362,7 @@ module Task = {
     ~previewUrl: string,
     ~createdAt: float,
     ~messages: array<Message.t>=[],
+    ~isAgentRunning: bool=false,
   ): t => {
     Loaded({
       id,
@@ -373,7 +374,7 @@ module Task = {
       previewFrame: {url: previewUrl, contentDocument: None, contentWindow: None},
       webPreviewIsSelecting: false,
       selectedElement: None,
-      isAgentRunning: false,
+      isAgentRunning,
       planEntries: [],
       turnError: None,
     })

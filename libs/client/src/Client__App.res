@@ -73,7 +73,7 @@ let make = (~apiBaseUrl: string) => {
   useExtensionState()
 
   // Use Frontman context for ACP connection
-  let {connectionState, sendPrompt, loadTask, deleteSession, _} = Client__FrontmanProvider.useFrontman()
+  let {connectionState, sendPrompt, cancelPrompt, loadTask, deleteSession, _} = Client__FrontmanProvider.useFrontman()
 
   // Set up ACP session callbacks when ACP+Relay are ready
   // Session creation is deferred until user sends first message (lazy session creation)
@@ -81,12 +81,12 @@ let make = (~apiBaseUrl: string) => {
     switch connectionState {
     | Connected | SessionActive(_) =>
       Client__Debug.init()
-      Client__State.Actions.setAcpSession(~sendPrompt, ~loadTask, ~deleteSession, ~apiBaseUrl)
+      Client__State.Actions.setAcpSession(~sendPrompt, ~cancelPrompt, ~loadTask, ~deleteSession, ~apiBaseUrl)
     | Disconnected | Error(_) => Client__State.Actions.clearAcpSession()
     | _ => ()
     }
     None
-  }, (connectionState, sendPrompt, loadTask, deleteSession, apiBaseUrl))
+  }, (connectionState, sendPrompt, cancelPrompt, loadTask, deleteSession, apiBaseUrl))
 
   // Get resizable width for chatbox panel
   let (chatboxWidth, isResizing, handleResizeMouseDown) = Client__UseResizableWidth.use()

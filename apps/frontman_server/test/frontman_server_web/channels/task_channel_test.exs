@@ -866,6 +866,160 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     assert_push("acp:message", %{"method" => "project_rules_initialized"})
   end
 
+  describe "session/cancel" do
+    setup %{scope: scope} do
+      task_id = Ecto.UUID.generate()
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
+
+      {:ok, _reply, socket} =
+        UserSocket
+        |> socket("user_id", %{scope: scope})
+        |> subscribe_and_join("task:#{task_id}", %{})
+
+      complete_mcp_handshake(socket)
+
+      {:ok, socket: socket, task_id: task_id}
+    end
+
+    test "cancel notification is accepted (no response expected per ACP spec)", %{
+      socket: socket
+    } do
+      # ACP spec: session/cancel is a notification, not a request.
+      # No JSON-RPC response should be sent back.
+      cancel_notification = %{
+        "jsonrpc" => "2.0",
+        "method" => "session/cancel",
+        "params" => %{"sessionId" => "irrelevant"}
+      }
+
+      push(socket, "acp:message", cancel_notification)
+
+      # Allow time for processing
+      :sys.get_state(socket.channel_pid)
+
+      # No response should be pushed (notifications don't get responses)
+      refute_push("acp:message", %{"id" => _})
+    end
+
+    test "cancel resolves pending prompt with stopReason 'cancelled'", %{
+      socket: socket,
+      task_id: task_id
+    } do
+      # Send a prompt to set pending_prompt_id
+      prompt_request = %{
+        "jsonrpc" => "2.0",
+        "id" => 99,
+        "method" => "session/prompt",
+        "params" => %{
+          "prompt" => %{
+            "messages" => [
+              %{
+                "role" => "user",
+                "content" => %{"type" => "text", "text" => "Hello"}
+              }
+            ]
+          }
+        }
+      }
+
+      push(socket, "acp:message", prompt_request)
+      :sys.get_state(socket.channel_pid)
+
+      # Simulate the agent being cancelled via PubSub
+      # (In production, ExecutionMonitor broadcasts this after Process.exit)
+      Phoenix.PubSub.broadcast(
+        FrontmanServer.PubSub,
+        Tasks.topic(task_id),
+        :agent_cancelled
+      )
+
+      # The pending prompt should resolve with stopReason: "cancelled"
+      assert_push("acp:message", %{
+        "jsonrpc" => "2.0",
+        "id" => 99,
+        "result" => %{"stopReason" => "cancelled"}
+      })
+    end
+
+    test "cancel with no pending prompt is a no-op", %{
+      socket: socket,
+      task_id: task_id
+    } do
+      # No prompt was sent, so no pending_prompt_id exists
+      Phoenix.PubSub.broadcast(
+        FrontmanServer.PubSub,
+        Tasks.topic(task_id),
+        :agent_cancelled
+      )
+
+      :sys.get_state(socket.channel_pid)
+
+      # No prompt response should be pushed
+      refute_push("acp:message", %{"result" => %{"stopReason" => "cancelled"}})
+    end
+
+    test "cancel does not interfere with subsequent prompts", %{
+      socket: socket,
+      task_id: task_id
+    } do
+      # Send first prompt
+      push(socket, "acp:message", %{
+        "jsonrpc" => "2.0",
+        "id" => 1,
+        "method" => "session/prompt",
+        "params" => %{
+          "prompt" => %{
+            "messages" => [
+              %{"role" => "user", "content" => %{"type" => "text", "text" => "Hello"}}
+            ]
+          }
+        }
+      })
+
+      :sys.get_state(socket.channel_pid)
+
+      # Cancel it
+      Phoenix.PubSub.broadcast(
+        FrontmanServer.PubSub,
+        Tasks.topic(task_id),
+        :agent_cancelled
+      )
+
+      assert_push("acp:message", %{
+        "id" => 1,
+        "result" => %{"stopReason" => "cancelled"}
+      })
+
+      # Send a second prompt - this should work normally
+      push(socket, "acp:message", %{
+        "jsonrpc" => "2.0",
+        "id" => 2,
+        "method" => "session/prompt",
+        "params" => %{
+          "prompt" => %{
+            "messages" => [
+              %{"role" => "user", "content" => %{"type" => "text", "text" => "Follow up"}}
+            ]
+          }
+        }
+      })
+
+      :sys.get_state(socket.channel_pid)
+
+      # Complete the second prompt normally
+      Phoenix.PubSub.broadcast(
+        FrontmanServer.PubSub,
+        Tasks.topic(task_id),
+        :agent_completed
+      )
+
+      assert_push("acp:message", %{
+        "id" => 2,
+        "result" => %{"stopReason" => "end_turn"}
+      })
+    end
+  end
+
   # Completes the MCP handshake (initialize + tools/list + load_agent_instructions)
   defp complete_mcp_handshake(socket) do
     assert_push("mcp:message", %{"id" => init_request_id, "method" => "initialize"})

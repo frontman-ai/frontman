@@ -40,6 +40,27 @@ defmodule FrontmanServer.Agents do
   end
 
   @doc """
+  Cancels a running agent for the given task.
+
+  Looks up the agent process via AgentRegistry and kills it with `:cancelled` exit reason.
+  The ExecutionMonitor treats `:cancelled` as a non-error exit (no error broadcast).
+
+  Returns `:ok` if the agent was cancelled, `{:error, :not_running}` if no agent is running.
+  """
+  @spec cancel_agent(String.t()) :: :ok | {:error, :not_running}
+  def cancel_agent(task_id) do
+    case Registry.lookup(FrontmanServer.AgentRegistry, {:running_agent, task_id}) do
+      [{pid, _metadata}] ->
+        Logger.info("Cancelling agent for task #{task_id}, pid: #{inspect(pid)}")
+        Process.exit(pid, :cancelled)
+        :ok
+
+      [] ->
+        {:error, :not_running}
+    end
+  end
+
+  @doc """
   Starts a new agent for the given task and begins execution.
 
   Spawns a supervised task that runs the agent using Swarm's public API.

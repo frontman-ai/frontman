@@ -40,6 +40,7 @@ let make = (~onSettingsClick: unit => unit) => {
   // Global state selectors
   let tasks = Client__State.useSelector(Client__State.Selectors.tasks)
   let currentTaskId = Client__State.useSelector(Client__State.Selectors.currentTaskId)
+  let isAgentRunning = Client__State.useSelector(Client__State.Selectors.isAgentRunning)
   let tasksLen = Array.length(tasks)
 
   // ResizeObserver effect — recalculate how many tabs fit
@@ -223,7 +224,7 @@ let make = (~onSettingsClick: unit => unit) => {
         className="h-full w-full rounded-none justify-start overflow-hidden bg-transparent p-0"
       >
         <div className="flex items-center justify-center w-11 h-full shrink-0 px-2">
-          <FrontmanLogo size=28 />
+          <FrontmanLogo size=28 className={isAgentRunning ? "frontman-logo-pulse" : ""} />
         </div>
         {visibleTasks
         ->Array.map(task =>

@@ -82,15 +82,23 @@ defmodule FrontmanServer.Tasks.ExecutionMonitor do
 
     case execution_info do
       {task_id, topic} when not is_nil(task_id) ->
-        if abnormal_exit?(reason) do
-          Logger.warning("Task execution crashed",
-            task_id: task_id,
-            pid: inspect(pid),
-            reason: inspect(reason)
-          )
+        cond do
+          cancelled?(reason) ->
+            Logger.info("Task execution cancelled", task_id: task_id, pid: inspect(pid))
+            broadcast_cancelled(topic)
 
-          broadcast_error(topic, reason)
-          emit_telemetry(task_id, pid, reason)
+          abnormal_exit?(reason) ->
+            Logger.warning("Task execution crashed",
+              task_id: task_id,
+              pid: inspect(pid),
+              reason: inspect(reason)
+            )
+
+            broadcast_error(topic, reason)
+            emit_telemetry(task_id, pid, reason)
+
+          true ->
+            :ok
         end
 
       _ ->
@@ -124,10 +132,20 @@ defmodule FrontmanServer.Tasks.ExecutionMonitor do
     %{monitors: monitors}
   end
 
+  defp cancelled?(:cancelled), do: true
+  defp cancelled?(_), do: false
+
   defp abnormal_exit?(:normal), do: false
   defp abnormal_exit?(:shutdown), do: false
   defp abnormal_exit?({:shutdown, _}), do: false
+  defp abnormal_exit?(:cancelled), do: false
   defp abnormal_exit?(_), do: true
+
+  defp broadcast_cancelled(nil), do: :ok
+
+  defp broadcast_cancelled(topic) do
+    Phoenix.PubSub.broadcast(FrontmanServer.PubSub, topic, :agent_cancelled)
+  end
 
   defp broadcast_error(nil, _reason), do: :ok
 
