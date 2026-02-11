@@ -1,0 +1,21 @@
+{
+  "type": "object",
+  "properties": {
+    "jsonrpc": {
+      "type": "string"
+    },
+    "id": {
+      "type": "integer"
+    },
+    "method": {
+      "type": "string"
+    },
+    "params": {}
+  },
+  "additionalProperties": true,
+  "required": [
+    "jsonrpc",
+    "id",
+    "method"
+  ]
+}

@@ -1,10 +1,10 @@
 // ACP Protocol helpers
 // Centralizes JSON-RPC request/response pattern and message handling
 
-module Types = FrontmanClient__ACP__Types
+module Types = FrontmanFrontmanProtocol.FrontmanProtocol__ACP
 module Client = FrontmanClient__ACP__Client
 module Channel = FrontmanClient__Phoenix__Channel
-module JsonRpc = FrontmanClient__JsonRpc
+module JsonRpc = FrontmanFrontmanProtocol.FrontmanProtocol__JsonRpc
 module Constants = FrontmanClient__Transport__Constants
 
 type messageDirection = Send | Receive

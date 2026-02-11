@@ -1,0 +1,12 @@
+{
+  "type": "object",
+  "properties": {
+    "sessionId": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true,
+  "required": [
+    "sessionId"
+  ]
+}

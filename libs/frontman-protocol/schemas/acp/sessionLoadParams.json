@@ -1,0 +1,21 @@
+{
+  "type": "object",
+  "properties": {
+    "sessionId": {
+      "type": "string"
+    },
+    "cwd": {
+      "type": "string"
+    },
+    "mcpServers": {
+      "items": {},
+      "type": "array"
+    }
+  },
+  "additionalProperties": true,
+  "required": [
+    "sessionId",
+    "cwd",
+    "mcpServers"
+  ]
+}

@@ -1,0 +1,90 @@
+{
+  "type": "object",
+  "properties": {
+    "type": {
+      "type": "string"
+    },
+    "content": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "uri": {
+          "type": "string"
+        },
+        "resource": {
+          "type": "object",
+          "properties": {
+            "_meta": {},
+            "annotations": {
+              "type": "object",
+              "properties": {
+                "_meta": {}
+              },
+              "additionalProperties": true
+            },
+            "resource": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "uri": {
+                      "type": "string"
+                    },
+                    "mimeType": {
+                      "type": "string"
+                    },
+                    "text": {
+                      "type": "string"
+                    }
+                  },
+                  "additionalProperties": true,
+                  "required": [
+                    "uri",
+                    "text"
+                  ]
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "uri": {
+                      "type": "string"
+                    },
+                    "mimeType": {
+                      "type": "string"
+                    },
+                    "blob": {
+                      "type": "string"
+                    }
+                  },
+                  "additionalProperties": true,
+                  "required": [
+                    "uri",
+                    "blob"
+                  ]
+                }
+              ]
+            }
+          },
+          "additionalProperties": true,
+          "required": [
+            "resource"
+          ]
+        },
+        "content": {}
+      },
+      "additionalProperties": true,
+      "required": [
+        "type"
+      ]
+    }
+  },
+  "additionalProperties": true,
+  "required": [
+    "type"
+  ]
+}

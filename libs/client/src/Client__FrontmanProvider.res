@@ -2,7 +2,7 @@
 // Uses ConnectionReducer for centralized state management
 
 module ACP = FrontmanFrontmanClient.FrontmanClient__ACP
-module Types = FrontmanFrontmanClient.FrontmanClient__ACP__Types
+module Types = FrontmanFrontmanProtocol.FrontmanProtocol__ACP
 module Relay = FrontmanFrontmanClient.FrontmanClient__Relay
 module MCPServer = FrontmanFrontmanClient.FrontmanClient__MCP__Server
 module Reducer = Client__ConnectionReducer

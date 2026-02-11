@@ -1,0 +1,93 @@
+{
+  "type": "object",
+  "properties": {
+    "protocolVersion": {
+      "type": "integer"
+    },
+    "agentCapabilities": {
+      "type": "object",
+      "properties": {
+        "loadSession": {
+          "type": "boolean"
+        },
+        "mcpCapabilities": {
+          "type": "object",
+          "properties": {
+            "http": {
+              "type": "boolean"
+            },
+            "sse": {
+              "type": "boolean"
+            },
+            "websocket": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": true
+        },
+        "promptCapabilities": {
+          "type": "object",
+          "properties": {
+            "image": {
+              "type": "boolean"
+            },
+            "audio": {
+              "type": "boolean"
+            },
+            "embeddedContext": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "agentInfo": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "metadata": {}
+      },
+      "additionalProperties": true,
+      "required": [
+        "name",
+        "version"
+      ]
+    },
+    "authMethods": {
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": true,
+        "required": [
+          "id",
+          "name"
+        ]
+      },
+      "type": "array"
+    }
+  },
+  "additionalProperties": true,
+  "required": [
+    "protocolVersion"
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "type": "object",
+  "properties": {
+    "tools": {
+      "type": "object",
+      "additionalProperties": {}
+    },
+    "resources": {
+      "type": "object",
+      "additionalProperties": {}
+    },
+    "prompts": {
+      "type": "object",
+      "additionalProperties": {}
+    }
+  },
+  "additionalProperties": true
+}

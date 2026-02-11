@@ -94,4 +94,5 @@ let getToolsResponse = (
     name: serverName,
     version: serverVersion,
   },
+  protocolVersion: Relay.protocolVersion,
 }

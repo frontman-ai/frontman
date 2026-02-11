@@ -1,8 +1,8 @@
 // ACP Client - handles Agent Client Protocol communication
 // Uses pure state reducer pattern
 
-module Types = FrontmanClient__ACP__Types
-module JsonRpc = FrontmanClient__JsonRpc
+module Types = FrontmanFrontmanProtocol.FrontmanProtocol__ACP
+module JsonRpc = FrontmanFrontmanProtocol.FrontmanProtocol__JsonRpc
 module Channel = FrontmanClient__Phoenix__Channel
 module Decoders = FrontmanClient__Decoders
 module Log = FrontmanLogs.Logs.Make({

@@ -1,6 +1,6 @@
 open Vitest
 
-module Types = FrontmanClient__ACP__Types
+module Types = FrontmanFrontmanProtocol.FrontmanProtocol__ACP
 
 describe("ACP Types encoding/decoding", _t => {
   test("initializeParams should encode without throwing", _t => {

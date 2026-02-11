@@ -26,7 +26,8 @@
 		"./src/*": "./src/*"
 	},
 	"files": [
-		"src"
+		"src",
+		"schemas"
 	],
 	"scripts": {
 		"build": "rescript build",

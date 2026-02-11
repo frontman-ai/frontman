@@ -1,0 +1,12 @@
+{
+  "type": "object",
+  "properties": {
+    "stopReason": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true,
+  "required": [
+    "stopReason"
+  ]
+}

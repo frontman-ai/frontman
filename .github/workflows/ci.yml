@@ -537,3 +537,40 @@ jobs:
       - name: Run biome lint
         if: steps.changes.outputs.client == 'true'
         run: cd libs/client && npx biome lint .
+
+  protocol-check:
+    name: Protocol schema check
+    needs: [build]
+    runs-on: self-hosted
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.4.1'
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Cache Yarn
+        uses: actions/cache@v4
+        with:
+          path: ~/.yarn/berry/cache
+          key: yarn-${{ hashFiles('yarn.lock') }}
+          restore-keys: yarn-
+
+      - name: Install dependencies
+        run: yarn install --immutable
+
+      - name: Build project
+        run: make build
+
+      - name: Check schemas are up to date
+        run: make -C libs/frontman-protocol check-schemas
+
+      - name: Check for breaking changes
+        run: node libs/frontman-protocol/scripts/CheckBreakingChanges.res.mjs

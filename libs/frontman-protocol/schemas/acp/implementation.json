@@ -1,0 +1,20 @@
+{
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string"
+    },
+    "version": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "metadata": {}
+  },
+  "additionalProperties": true,
+  "required": [
+    "name",
+    "version"
+  ]
+}
