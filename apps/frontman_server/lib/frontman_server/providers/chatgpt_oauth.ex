@@ -286,8 +286,11 @@ defmodule FrontmanServer.Providers.ChatGPTOAuth do
   @doc """
   Extracts the account ID from token response, trying id_token first, then access_token.
   """
-  @spec extract_account_id_from_tokens(%{id_token: String.t() | nil, access_token: String.t()}) ::
-          String.t() | nil
+  @spec extract_account_id_from_tokens(%{
+          required(:id_token) => String.t() | nil,
+          required(:access_token) => String.t(),
+          optional(atom()) => any()
+        }) :: String.t() | nil
   def extract_account_id_from_tokens(%{id_token: id_token, access_token: access_token}) do
     case extract_account_id(id_token) do
       {:ok, id} ->
