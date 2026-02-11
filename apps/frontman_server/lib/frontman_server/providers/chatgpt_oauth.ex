@@ -17,7 +17,7 @@ defmodule FrontmanServer.Providers.ChatGPTOAuth do
 
   require Logger
 
-  alias FrontmanServer.Providers.OAuthHelpers
+  alias FrontmanServer.Providers.OAuthToken
 
   @client_id "app_EMoamEEZ73f0CkXaXp7hrann"
   @issuer "https://auth.openai.com"
@@ -248,10 +248,9 @@ defmodule FrontmanServer.Providers.ChatGPTOAuth do
 
   @doc """
   Calculates the expiration DateTime from expires_in seconds.
-  Delegates to shared helper.
   """
   @spec calculate_expires_at(integer()) :: DateTime.t()
-  defdelegate calculate_expires_at(expires_in), to: OAuthHelpers
+  defdelegate calculate_expires_at(expires_in), to: OAuthToken
 
   @doc """
   Extracts the chatgpt_account_id from a JWT token (id_token or access_token).

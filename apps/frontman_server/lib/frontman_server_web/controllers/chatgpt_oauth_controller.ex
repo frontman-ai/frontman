@@ -25,7 +25,7 @@ defmodule FrontmanServerWeb.ChatGPTOAuthController do
   require Logger
 
   alias FrontmanServer.Providers
-  alias FrontmanServer.Providers.{ChatGPTOAuth, OAuthHelpers, OAuthToken}
+  alias FrontmanServer.Providers.{ChatGPTOAuth, OAuthToken}
 
   @doc """
   Initiates the device auth flow by requesting a device code from OpenAI.
@@ -146,7 +146,7 @@ defmodule FrontmanServerWeb.ChatGPTOAuthController do
 
         # Calculate expiry (default to 1 hour if not provided)
         expires_in = tokens.expires_in || 3600
-        expires_at = OAuthHelpers.calculate_expires_at(expires_in)
+        expires_at = OAuthToken.calculate_expires_at(expires_in)
 
         metadata = if account_id, do: %{"account_id" => account_id}, else: %{}
 
