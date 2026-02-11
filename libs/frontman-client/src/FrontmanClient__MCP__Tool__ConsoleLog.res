@@ -1,5 +1,9 @@
 // console_log MCP tool - logs messages to browser console
 
+module Log = FrontmanLogs.Logs.Make({
+  let component = #MCP
+})
+
 let name = "console_log"
 let visibleToAgent = true
 let description = "Logs a message to the browser console"
@@ -11,6 +15,6 @@ type input = {message: string}
 type output = {logged: bool}
 
 let execute = async (input: input): FrontmanClient__MCP__Tool.toolResult<output> => {
-  Console.log(`[MCP Tool] ${input.message}`)
+  Log.info(input.message)
   Ok({logged: true})
 }
