@@ -589,6 +589,10 @@ jobs:
         if: steps.changes.outputs.protocol == 'true'
         run: make -C libs/frontman-protocol check-schemas
 
+      - name: Fetch main branch for diff
+        if: steps.changes.outputs.protocol == 'true'
+        run: git fetch origin main:main
+
       - name: Check for breaking changes
         if: steps.changes.outputs.protocol == 'true'
         run: node libs/frontman-protocol/scripts/CheckBreakingChanges.res.mjs
