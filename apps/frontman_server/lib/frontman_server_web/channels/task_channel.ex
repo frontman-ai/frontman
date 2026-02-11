@@ -650,11 +650,6 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   defp ensure_noreply({:noreply, socket}, _fallback_socket), do: {:noreply, socket}
 
-  defp ensure_noreply(other, fallback_socket) do
-    Logger.warning("Unexpected return from process_prompt: #{inspect(other)}")
-    {:noreply, fallback_socket}
-  end
-
   defp route_to_mcp(tool_call, socket) do
     task_id = socket.assigns.task_id
 
