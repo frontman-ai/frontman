@@ -139,12 +139,17 @@ defmodule Swarm.Loop.Runner do
 
   defp continue_after_tools(
          %Loop{agent: agent, steps: steps} = loop,
-         %Loop.Step{input_messages: input_msgs, tool_calls: tool_calls, content: content}
+         %Loop.Step{
+           input_messages: input_msgs,
+           tool_calls: tool_calls,
+           content: content,
+           response_metadata: response_metadata
+         }
        ) do
     llm = Agent.llm(agent)
     completed_step = loop.current_step
 
-    assistant_msg = Message.assistant(content, tool_calls)
+    assistant_msg = Message.assistant(content, tool_calls, response_metadata)
     tool_msgs = Enum.map(tool_calls, &format_tool_result/1)
     messages = input_msgs ++ [assistant_msg | tool_msgs]
 

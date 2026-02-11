@@ -62,6 +62,12 @@ defmodule FrontmanServerWeb.Router do
     post("/oauth/anthropic/exchange", AnthropicOAuthController, :exchange)
     delete("/oauth/anthropic/disconnect", AnthropicOAuthController, :disconnect)
     get("/oauth/anthropic/status", AnthropicOAuthController, :status)
+
+    # ChatGPT OAuth routes (device auth flow - all require session)
+    post("/oauth/chatgpt/initiate", ChatGPTOAuthController, :initiate)
+    post("/oauth/chatgpt/poll", ChatGPTOAuthController, :poll)
+    delete("/oauth/chatgpt/disconnect", ChatGPTOAuthController, :disconnect)
+    get("/oauth/chatgpt/status", ChatGPTOAuthController, :status)
   end
 
   # Organization-scoped routes

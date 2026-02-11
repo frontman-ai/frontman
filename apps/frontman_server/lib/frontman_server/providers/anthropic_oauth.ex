@@ -11,6 +11,8 @@ defmodule FrontmanServer.Providers.AnthropicOAuth do
 
   require Logger
 
+  alias FrontmanServer.Providers.OAuthHelpers
+
   @client_id "9d1c250a-e61b-44d9-88ed-5944d1962f5e"
   @auth_url "https://claude.ai/oauth/authorize"
   @token_url "https://console.anthropic.com/v1/oauth/token"
@@ -18,18 +20,10 @@ defmodule FrontmanServer.Providers.AnthropicOAuth do
   @scopes "org:create_api_key user:profile user:inference"
 
   @doc """
-  Generates a PKCE verifier and challenge.
-
-  Returns `{verifier, challenge}` where:
-  - verifier: Random 32-byte string, base64url encoded (no padding)
-  - challenge: SHA-256 hash of verifier, base64url encoded (no padding)
+  Generates a PKCE verifier and challenge. Delegates to shared helper.
   """
   @spec generate_pkce() :: {String.t(), String.t()}
-  def generate_pkce do
-    verifier = :crypto.strong_rand_bytes(32) |> Base.url_encode64(padding: false)
-    challenge = :crypto.hash(:sha256, verifier) |> Base.url_encode64(padding: false)
-    {verifier, challenge}
-  end
+  defdelegate generate_pkce(), to: OAuthHelpers
 
   @doc """
   Builds the authorization URL for the user to visit.
@@ -154,14 +148,10 @@ defmodule FrontmanServer.Providers.AnthropicOAuth do
   end
 
   @doc """
-  Calculates the expiration DateTime from expires_in seconds.
+  Calculates the expiration DateTime from expires_in seconds. Delegates to shared helper.
   """
   @spec calculate_expires_at(integer()) :: DateTime.t()
-  def calculate_expires_at(expires_in) when is_integer(expires_in) do
-    DateTime.utc_now()
-    |> DateTime.add(expires_in, :second)
-    |> DateTime.truncate(:second)
-  end
+  defdelegate calculate_expires_at(expires_in), to: OAuthHelpers
 
   # Private helpers
 

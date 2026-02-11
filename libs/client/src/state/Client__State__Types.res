@@ -124,6 +124,15 @@ type anthropicOAuthStatus =
   | Connected({expiresAt: float})
   | Error(string)
 
+// ChatGPT OAuth connection status (device auth flow)
+type chatgptOAuthStatus =
+  | ChatGPTNotConnected
+  | ChatGPTFetchingStatus
+  | ChatGPTWaitingForCode // Requesting device code from OpenAI
+  | ChatGPTShowingCode({deviceAuthId: string, userCode: string, verificationUrl: string}) // User needs to enter code
+  | ChatGPTConnected({expiresAt: float})
+  | ChatGPTError(string)
+
 // Sessions load state for persisted sessions
 type sessionsLoadState =
   | SessionsNotLoaded
@@ -139,6 +148,7 @@ type state = {
   usageInfo: option<usageInfo>,
   openrouterKeySettings: apiKeySettings,
   anthropicOAuthStatus: anthropicOAuthStatus,
+  chatgptOAuthStatus: chatgptOAuthStatus,
   modelsConfig: option<modelsConfig>,
   selectedModel: option<selectedModel>,
   sessionsLoadState: sessionsLoadState,

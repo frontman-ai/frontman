@@ -120,6 +120,15 @@ module Actions = {
 
   let resetAnthropicOAuthError = () => Client__State__Store.dispatch(ResetAnthropicOAuthError)
 
+  // ChatGPT OAuth action creators
+  let fetchChatGPTOAuthStatus = () => Client__State__Store.dispatch(FetchChatGPTOAuthStatus)
+
+  let initiateChatGPTOAuth = () => Client__State__Store.dispatch(InitiateChatGPTOAuth)
+
+  let disconnectChatGPTOAuth = () => Client__State__Store.dispatch(DisconnectChatGPTOAuth)
+
+  let resetChatGPTOAuthError = () => Client__State__Store.dispatch(ResetChatGPTOAuthError)
+
   // Hydration action creators (ForTask)
   let userMessageReceived = (~taskId: string, ~id: string, ~text: string, ~timestamp: string) =>
     Client__State__Store.dispatch(TaskAction({target: ForTask(taskId), action: UserMessageReceived({id, text, timestamp})}))

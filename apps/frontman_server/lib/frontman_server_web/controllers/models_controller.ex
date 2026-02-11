@@ -5,6 +5,7 @@ defmodule FrontmanServerWeb.ModelsController do
   Models are served dynamically based on the user's configured providers:
   - OpenRouter: Always available (server has API key)
   - Anthropic: Available when user has OAuth connected (Claude Pro/Max subscription)
+  - OpenAI (ChatGPT): Available when user has ChatGPT OAuth connected (Pro/Plus subscription)
   """
   use FrontmanServerWeb, :controller
 
@@ -48,9 +49,22 @@ defmodule FrontmanServerWeb.ModelsController do
     ]
   }
 
+  # OpenAI (ChatGPT Pro/Plus) provider - requires ChatGPT OAuth
+  @openai_provider %{
+    id: "openai",
+    name: "ChatGPT Pro/Plus",
+    models: [
+      %{displayName: "GPT-5.2 Codex", value: "gpt-5.2-codex"},
+      %{displayName: "GPT-5.2", value: "gpt-5.2"},
+      %{displayName: "GPT-5.1 Codex Max", value: "gpt-5.1-codex-max"},
+      %{displayName: "GPT-5.1 Codex Mini", value: "gpt-5.1-codex-mini"}
+    ]
+  }
+
   # Default models for each scenario
   @openrouter_default %{provider: "openrouter", value: "google/gemini-3-flash-preview"}
   @anthropic_default %{provider: "anthropic", value: "claude-sonnet-4-5"}
+  @openai_default %{provider: "openai", value: "gpt-5.1-codex-max"}
 
   @doc """
   Returns the available models configuration.
@@ -71,21 +85,23 @@ defmodule FrontmanServerWeb.ModelsController do
     scope = conn.assigns.current_scope
 
     has_anthropic_oauth = Providers.has_oauth_token?(scope, "anthropic")
+    has_chatgpt_oauth = Providers.has_oauth_token?(scope, "chatgpt")
 
-    # Build providers list: Anthropic first (if available), then OpenRouter
+    # Build providers list: OAuth providers first (if available), then OpenRouter
     providers =
-      if has_anthropic_oauth do
-        [@anthropic_provider, @openrouter_provider]
-      else
-        [@openrouter_provider]
-      end
+      []
+      |> then(fn list -> if has_chatgpt_oauth, do: list ++ [@openai_provider], else: list end)
+      |> then(fn list ->
+        if has_anthropic_oauth, do: list ++ [@anthropic_provider], else: list
+      end)
+      |> Kernel.++([@openrouter_provider])
 
-    # Default to Anthropic Sonnet 4.5 if OAuth connected, otherwise Gemini Flash
+    # Default model priority: ChatGPT > Anthropic > OpenRouter
     default_model =
-      if has_anthropic_oauth do
-        @anthropic_default
-      else
-        @openrouter_default
+      cond do
+        has_chatgpt_oauth -> @openai_default
+        has_anthropic_oauth -> @anthropic_default
+        true -> @openrouter_default
       end
 
     json(conn, %{providers: providers, defaultModel: default_model})

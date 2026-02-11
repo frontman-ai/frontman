@@ -17,6 +17,7 @@ defmodule FrontmanServer.Providers.OAuthToken do
     field(:access_token, FrontmanServer.Encrypted.Binary)
     field(:refresh_token, FrontmanServer.Encrypted.Binary)
     field(:expires_at, :utc_datetime)
+    field(:metadata, :map, default: %{})
 
     belongs_to(:user, User)
 
@@ -30,7 +31,7 @@ defmodule FrontmanServer.Providers.OAuthToken do
   """
   def changeset(oauth_token, attrs) do
     oauth_token
-    |> cast(attrs, [:provider, :access_token, :refresh_token, :expires_at])
+    |> cast(attrs, [:provider, :access_token, :refresh_token, :expires_at, :metadata])
     |> validate_required([:provider, :access_token, :refresh_token, :expires_at])
     |> validate_length(:provider, min: 1, max: 64)
     |> unique_constraint([:user_id, :provider], name: :oauth_tokens_user_id_provider_index)

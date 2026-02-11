@@ -501,7 +501,7 @@ defmodule Swarm.Telemetry do
 
   defp format_event([:swarm, :llm, :call, :start], _measurements, metadata) do
     "[swarm] llm:start  loop=#{short_id(metadata.loop_id)} step=#{metadata.step} " <>
-      "model=#{metadata.model || "unknown"}"
+      "model=#{format_model(metadata.model)}"
   end
 
   defp format_event([:swarm, :llm, :call, :stop], measurements, metadata) do
@@ -576,6 +576,12 @@ defmodule Swarm.Telemetry do
 
   defp short_id(id) when is_binary(id), do: String.slice(id, 0, 8)
   defp short_id(id), do: inspect(id)
+
+  # Format model for telemetry logging - handles both string models and LLMDB.Model structs
+  defp format_model(nil), do: "unknown"
+  defp format_model(model) when is_binary(model), do: model
+  defp format_model(%{id: id}) when is_binary(id), do: id
+  defp format_model(model), do: inspect(model)
 
   defp format_status(:ok), do: "✓"
   defp format_status(:completed), do: "✓"
