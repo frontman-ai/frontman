@@ -31,15 +31,20 @@ defmodule FrontmanServerWeb.TaskChannel do
         # 1. MCPInitializer performs a stateful handshake with the browser-side MCP client
         # 2. Project rules loading depends on client-specific context
         # Tools are stored in socket assigns and passed through Backend.Context for agent access.
-        {init_state, actions} = MCPInitializer.start(task_id, scope)
+        #
+        # Note: Phoenix channels prohibit push() during join/3, so we defer
+        # the initial MCP request push to handle_info(:start_mcp_init).
+        # All subsequent MCP responses are processed synchronously in handle_in.
+        {init_state, init_actions} = MCPInitializer.start(task_id, scope)
 
         socket =
           socket
           |> assign(:task_id, task_id)
           |> assign(:mcp_init_state, init_state)
           |> assign(:mcp_status, :pending)
+          |> assign(:mcp_init_actions, init_actions)
 
-        socket = execute_init_actions(actions, socket)
+        send(self(), :start_mcp_init)
 
         {:ok, %{task_id: task_id}, socket}
 
@@ -410,6 +415,16 @@ defmodule FrontmanServerWeb.TaskChannel do
   defp extract_model_from_params(_), do: nil
 
   @impl true
+  def handle_info(:start_mcp_init, socket) do
+    # Deferred from join/3 because Phoenix channels prohibit push() during join.
+    # The init state and actions were already created in join — we just need
+    # to execute the deferred push actions now that the socket is fully joined.
+    actions = socket.assigns.mcp_init_actions
+    socket = assign(socket, :mcp_init_actions, nil)
+    socket = execute_init_actions(actions, socket)
+    {:noreply, socket}
+  end
+
   def handle_info({:stream_token, text}, socket) do
     # Translate domain event to ACP notification
     # ACP compliant: agent_message_chunk implicitly signals message start
