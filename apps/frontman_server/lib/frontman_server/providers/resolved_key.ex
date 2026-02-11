@@ -31,6 +31,9 @@ defmodule FrontmanServer.Providers.ResolvedKey do
     field(:identity_override, String.t() | nil, default: nil)
     # Authentication mode (for OAuth tokens)
     field(:oauth_mode, boolean(), default: false)
+    # ChatGPT-specific fields (for Codex API)
+    field(:chatgpt_account_id, String.t() | nil, default: nil)
+    field(:codex_endpoint, String.t() | nil, default: nil)
   end
 
   @doc """
@@ -41,6 +44,8 @@ defmodule FrontmanServer.Providers.ResolvedKey do
   - `:requires_mcp_prefix` - Whether tool names need `mcp_` prefix (default: false)
   - `:identity_override` - Identity string to prepend to system messages (default: nil)
   - `:oauth_mode` - Whether to use OAuth authentication (default: false)
+  - `:chatgpt_account_id` - ChatGPT account ID for Codex API (default: nil)
+  - `:codex_endpoint` - Codex API endpoint URL (default: nil)
   """
   def new(provider, api_key, key_source, model, opts \\ []) do
     %__MODULE__{
@@ -50,7 +55,9 @@ defmodule FrontmanServer.Providers.ResolvedKey do
       model: model,
       requires_mcp_prefix: Keyword.get(opts, :requires_mcp_prefix, false),
       identity_override: Keyword.get(opts, :identity_override),
-      oauth_mode: Keyword.get(opts, :oauth_mode, false)
+      oauth_mode: Keyword.get(opts, :oauth_mode, false),
+      chatgpt_account_id: Keyword.get(opts, :chatgpt_account_id),
+      codex_endpoint: Keyword.get(opts, :codex_endpoint)
     }
   end
 end

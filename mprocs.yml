@@ -1,12 +1,19 @@
 procs:
+  postgres:
+    cmd: ["podman", "run", "--rm", "--name", "frontman-postgres", "-e", "POSTGRES_USER=postgres", "-e", "POSTGRES_PASSWORD=postgres", "-p", "5432:5432", "postgres:16"]
+    stop: { cmd: ["podman", "stop", "frontman-postgres"] }
+
   rescript:
     cmd: ["make", "rescript-watch"]
 
   server:
-    cmd: ["make", "dev-server"]
+    cmd: ["bash", "-c", "echo 'Waiting for Postgres...' && while ! podman exec frontman-postgres pg_isready -U postgres 2>/dev/null; do sleep 2; done && echo 'Postgres ready, starting server...' && make dev-server"]
 
   client:
     cmd: ["make", "dev-client"]
+
+  nextjs-bundle:
+    cmd: ["bash", "-c", "echo 'Waiting for ReScript compiler...' && while ! tail -1 lib/bs/.compiler.log 2>/dev/null | grep -q '^#Done'; do sleep 1; done && echo 'ReScript ready, starting tsup watch...' && cd libs/frontman-nextjs && yarn tsup --watch"]
 
   nextjs:
     cmd: ["bash", "-c", "echo 'Waiting for ReScript compiler...' && while ! tail -1 lib/bs/.compiler.log 2>/dev/null | grep -q '^#Done'; do sleep 1; done && echo 'ReScript ready, starting Next.js...' && make dev-nextjs"]

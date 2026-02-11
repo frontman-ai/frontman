@@ -8,6 +8,9 @@ module Channel = FrontmanClient__Phoenix__Channel
 module Socket = FrontmanClient__Phoenix__Socket
 module Constants = FrontmanClient__Transport__Constants
 module Sentry = FrontmanClient__Sentry
+module Log = FrontmanLogs.Logs.Make({
+  let component = #ACP
+})
 
 type messageDirection = Protocol.messageDirection
 type config = {
@@ -141,6 +144,11 @@ let connect = async (config: config, ~signal: option<WebAPI.EventAPI.abortSignal
   connection,
   connectError,
 > => {
+  // Initialize logging
+  let isDev: bool = %raw("import.meta.env?.DEV ?? true")
+  FrontmanLogs.Logs.setLogLevel(if isDev { Debug } else { Error })
+  FrontmanLogs.Logs.addHandler(FrontmanLogs.Logs.Console.handler)
+
   // Initialize Sentry on first connection
   Sentry.initialize()
   Sentry.addBreadcrumb(~category=#acp, ~message="Starting ACP connection")
@@ -260,7 +268,7 @@ let joinSession = async (
     ~state=conn.state,
     ~onUpdate=Some(onUpdate),
     ~onMessage=conn.onMessage,
-    ~onParseError=Some(err => Console.warn(`Session message parse error: ${err}`)),
+    ~onParseError=Some(err => Log.warning(`Session message parse error: ${err}`)),
   )
 
   // Attach MCP handler before joining - server sends mcp:message immediately on join
@@ -359,6 +367,17 @@ let sendPrompt = async (
     ~sessionId=session.sessionId,
     ~prompt=allBlocks,
     ~metadata,
+    ~onMessage=session.connection.onMessage,
+  )
+}
+
+// Cancel an in-flight prompt
+// ACP spec: session/cancel is a notification (fire-and-forget).
+// The pending session/prompt request will resolve with stopReason: "cancelled".
+let cancelPrompt = (session: session): unit => {
+  Protocol.sendCancel(
+    ~channel=session.channel,
+    ~sessionId=session.sessionId,
     ~onMessage=session.connection.onMessage,
   )
 }

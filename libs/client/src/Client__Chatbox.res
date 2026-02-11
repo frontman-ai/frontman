@@ -316,6 +316,7 @@ let make = (~onSettingsClick: unit => unit) => {
     }}
     <PromptInput
       onSubmit={handleSubmit}
+      onCancel={Client__State.Actions.cancelTurn}
       providers
       selectedModel
       onModelChange={(~provider, ~value) =>

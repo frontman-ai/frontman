@@ -190,8 +190,18 @@ defimpl Swarm.LLM, for: FrontmanServer.Agents.LLMClient do
   end
 
   # :meta with finish_reason - stream complete with reason
-  defp to_swarm_chunk(%{type: :meta, metadata: %{finish_reason: reason}}, _requires_mcp_prefix?) do
-    Chunk.done(reason)
+  # Carry through response_id for Responses API previous_response_id chaining
+  defp to_swarm_chunk(
+         %{type: :meta, metadata: %{finish_reason: reason} = meta},
+         _requires_mcp_prefix?
+       ) do
+    chunk_meta =
+      case meta do
+        %{response_id: id} when is_binary(id) -> %{response_id: id}
+        _ -> %{}
+      end
+
+    Chunk.done(reason, chunk_meta)
   end
 
   # :meta with terminal?: true only (no finish_reason) - message_stop signal
@@ -249,7 +259,8 @@ defimpl Swarm.LLM, for: FrontmanServer.Agents.LLMClient do
       content: Enum.map(msg.content, &to_reqllm_content_part/1),
       tool_calls: to_reqllm_tool_calls(msg.tool_calls, requires_mcp_prefix?),
       tool_call_id: msg.tool_call_id,
-      name: maybe_prefix_name(msg.name, requires_mcp_prefix?)
+      name: maybe_prefix_name(msg.name, requires_mcp_prefix?),
+      metadata: msg.metadata || %{}
     }
   end
 

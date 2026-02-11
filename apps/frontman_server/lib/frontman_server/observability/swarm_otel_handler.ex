@@ -231,17 +231,18 @@ defmodule FrontmanServer.Observability.SwarmOtelHandler do
 
   @doc false
   def handle_llm_start(_event, _measurements, metadata, _config) do
-    %{loop_id: loop_id, step: step, model: model} = metadata
+    %{loop_id: loop_id, step: step, model: raw_model} = metadata
     input_messages = Map.get(metadata, :messages, [])
 
+    model = format_model_name(raw_model)
     span_name = "chat #{model}"
 
     attributes =
       [
         {:"openinference.span.kind", "LLM"},
         {:"llm.model_name", model},
-        {:"llm.system", llm_system_from_model(model)},
-        {:"llm.provider", llm_provider_from_model(model)},
+        {:"llm.system", llm_system_from_model(raw_model)},
+        {:"llm.provider", llm_provider_from_model(raw_model)},
         {:"graph.node.id", "llm"},
         {:"graph.node.parent_id", "step_#{step}"}
       ] ++ flatten_input_messages(input_messages)
@@ -633,6 +634,13 @@ defmodule FrontmanServer.Observability.SwarmOtelHandler do
   # Model Detection
   # =============================================================================
 
+  # Format model to a string for span names and attributes.
+  # Handles LLMDB.Model structs (from Codex/resolved models) and plain strings.
+  defp format_model_name(model) when is_binary(model), do: model
+  defp format_model_name(%{id: id}) when is_binary(id), do: id
+  defp format_model_name(nil), do: "unknown"
+  defp format_model_name(model), do: inspect(model)
+
   defp llm_system_from_model(model) when is_binary(model) do
     cond do
       String.contains?(model, "claude") -> "anthropic"
@@ -643,6 +651,7 @@ defmodule FrontmanServer.Observability.SwarmOtelHandler do
     end
   end
 
+  defp llm_system_from_model(%{id: id}) when is_binary(id), do: llm_system_from_model(id)
   defp llm_system_from_model(_), do: "unknown"
 
   defp llm_provider_from_model(model) when is_binary(model) do
@@ -655,6 +664,7 @@ defmodule FrontmanServer.Observability.SwarmOtelHandler do
     end
   end
 
+  defp llm_provider_from_model(%{id: id}) when is_binary(id), do: llm_provider_from_model(id)
   defp llm_provider_from_model(_), do: "unknown"
 
   defp truncate(string, max_length) when is_binary(string) do

@@ -12,7 +12,14 @@ let make = (~document) => {
 
   let scrollTimestamp = Client__Hooks.Scroll.useIFrameDocument(~document, ~withCapture=true, ())
   let mutationTimestamp = Client__Hooks.DOMmutations.useIFrameDocument(~document, ())
-  let clickedElement = Client__Hooks.MouseClick.useIFrameDocument(~document, ~withCapture=false, ())
+  let clickedElement = Client__Hooks.MouseClick.useIFrameDocument(
+    ~document,
+    ~withCapture=webPreviewIsSelecting,
+    ~preventDefault=webPreviewIsSelecting,
+    ~stopPropagation=webPreviewIsSelecting,
+    ~stopImmediatePropagation=webPreviewIsSelecting,
+    (),
+  )
   let hoveredElement = Client__Hooks.MouseMove.useIFrameDocument(~document, ~withCapture=true, ())
 
   // Split effect: Handle mode transitions separately from click handling

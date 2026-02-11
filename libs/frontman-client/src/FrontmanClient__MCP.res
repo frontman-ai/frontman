@@ -6,6 +6,9 @@ module Types = FrontmanClient__MCP__Types
 module Channel = FrontmanClient__Phoenix__Channel
 module JsonRpc = FrontmanClient__JsonRpc
 module Decoders = FrontmanClient__Decoders
+module Log = FrontmanLogs.Logs.Make({
+  let component = #MCP
+})
 
 type messageDirection = Send | Receive
 
@@ -136,7 +139,7 @@ let handleMessage = async (handler: mcpHandler<'server>, payload: JSON.t): unit 
     ()
   | Ok(Notification(_)) => // Other notifications - ignore for now
     ()
-  | Error(msg) => Console.error(`Failed to parse MCP message: ${msg}`)
+  | Error(msg) => Log.error(`Failed to parse MCP message: ${msg}`)
   }
 }
 

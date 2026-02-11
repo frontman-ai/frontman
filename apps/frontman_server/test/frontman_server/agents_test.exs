@@ -13,6 +13,42 @@ defmodule FrontmanServer.AgentsTest do
     end
   end
 
+  describe "cancel_agent/1" do
+    test "returns error when no agent is running" do
+      assert {:error, :not_running} = Agents.cancel_agent("nonexistent_task")
+    end
+
+    test "kills a running agent and returns :ok" do
+      pid = Sandbox.start_owner!(FrontmanServer.Repo, shared: true)
+      on_exit(fn -> Sandbox.stop_owner(pid) end)
+
+      task_id = Ecto.UUID.generate()
+      test_pid = self()
+
+      # Simulate a running agent by spawning a process and registering it
+      agent_pid =
+        spawn(fn ->
+          Registry.register(FrontmanServer.AgentRegistry, {:running_agent, task_id}, %{})
+          # Signal that registration is complete
+          send(test_pid, :registered)
+          # Keep the process alive until killed
+          Process.sleep(:infinity)
+        end)
+
+      # Monitor before cancel so we don't miss the :DOWN message
+      ref = Process.monitor(agent_pid)
+
+      # Wait for registration to complete
+      assert_receive :registered, 1_000
+
+      assert Agents.agent_running?(task_id)
+      assert :ok = Agents.cancel_agent(task_id)
+
+      # The agent process should be dead with :cancelled reason
+      assert_receive {:DOWN, ^ref, :process, ^agent_pid, :cancelled}, 1_000
+    end
+  end
+
   describe "notify_tool_result/4" do
     test "returns :ok even when no agent is waiting (backend tool case)" do
       # Backend tools don't have a waiting agent - they execute synchronously

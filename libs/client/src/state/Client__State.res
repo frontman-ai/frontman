@@ -62,10 +62,13 @@ module Actions = {
   let updateTaskTitle = (~taskId, ~title) =>
     Client__State__Store.dispatch(UpdateTaskTitle({taskId, title}))
 
+  // Cancel the current turn (discard partial response, kill server agent)
+  let cancelTurn = () => Client__State__Store.dispatch(CancelTurn)
+
   // ACP session action creators
-  let setAcpSession = (~sendPrompt, ~loadTask, ~deleteSession, ~apiBaseUrl) =>
+  let setAcpSession = (~sendPrompt, ~cancelPrompt, ~loadTask, ~deleteSession, ~apiBaseUrl) =>
     Client__State__Store.dispatch(
-      SetAcpSession({sendPrompt, loadTask, deleteSession, apiBaseUrl}),
+      SetAcpSession({sendPrompt, cancelPrompt, loadTask, deleteSession, apiBaseUrl}),
     )
 
   let clearAcpSession = () => Client__State__Store.dispatch(ClearAcpSession)
@@ -116,6 +119,15 @@ module Actions = {
   let disconnectAnthropicOAuth = () => Client__State__Store.dispatch(DisconnectAnthropicOAuth)
 
   let resetAnthropicOAuthError = () => Client__State__Store.dispatch(ResetAnthropicOAuthError)
+
+  // ChatGPT OAuth action creators
+  let fetchChatGPTOAuthStatus = () => Client__State__Store.dispatch(FetchChatGPTOAuthStatus)
+
+  let initiateChatGPTOAuth = () => Client__State__Store.dispatch(InitiateChatGPTOAuth)
+
+  let disconnectChatGPTOAuth = () => Client__State__Store.dispatch(DisconnectChatGPTOAuth)
+
+  let resetChatGPTOAuthError = () => Client__State__Store.dispatch(ResetChatGPTOAuthError)
 
   // Hydration action creators (ForTask)
   let userMessageReceived = (~taskId: string, ~id: string, ~text: string, ~timestamp: string) =>

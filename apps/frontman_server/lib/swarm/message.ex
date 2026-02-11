@@ -21,6 +21,7 @@ defmodule Swarm.Message do
     field(:tool_calls, [Swarm.ToolCall.t()], default: [])
     field(:tool_call_id, String.t())
     field(:name, String.t())
+    field(:metadata, map(), default: %{})
   end
 
   @doc "Creates a system message from text or a list of content parts"
@@ -46,12 +47,13 @@ defmodule Swarm.Message do
   end
 
   @doc "Creates an assistant message"
-  @spec assistant(String.t() | nil, [Swarm.ToolCall.t()]) :: t()
-  def assistant(text, tool_calls \\ []) do
+  @spec assistant(String.t() | nil, [Swarm.ToolCall.t()], map()) :: t()
+  def assistant(text, tool_calls \\ [], metadata \\ %{}) do
     %__MODULE__{
       role: :assistant,
       content: [ContentPart.text(text || "")],
-      tool_calls: tool_calls
+      tool_calls: tool_calls,
+      metadata: metadata
     }
   end
 

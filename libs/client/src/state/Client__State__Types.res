@@ -36,6 +36,10 @@ type loadTaskFn = (string, ~needsHistory: bool, ~onComplete: result<unit, string
 // onComplete: called when deletion finishes (success or error)
 type deleteSessionFn = (string, ~onComplete: result<unit, string> => unit) => unit
 
+// Callback for cancelling the current prompt turn
+// Fire-and-forget: sends ACP session/cancel notification
+type cancelPromptFn = unit => unit
+
 // ACP session state - stores callbacks for API operations when session is active
 // Note: sessionId is NOT stored here - it's managed by ConnectionReducer (ACP layer)
 // Tasks store their own ID which equals the ACP session ID
@@ -44,6 +48,7 @@ type acpSession =
   | NoAcpSession
   | AcpSessionActive({
       sendPrompt: sendPromptFn,
+      cancelPrompt: cancelPromptFn,
       loadTask: loadTaskFn,
       deleteSession: deleteSessionFn,
       apiBaseUrl: string,
@@ -119,6 +124,15 @@ type anthropicOAuthStatus =
   | Connected({expiresAt: float})
   | Error(string)
 
+// ChatGPT OAuth connection status (device auth flow)
+type chatgptOAuthStatus =
+  | ChatGPTNotConnected
+  | ChatGPTFetchingStatus
+  | ChatGPTWaitingForCode // Requesting device code from OpenAI
+  | ChatGPTShowingCode({deviceAuthId: string, userCode: string, verificationUrl: string}) // User needs to enter code
+  | ChatGPTConnected({expiresAt: float})
+  | ChatGPTError(string)
+
 // Sessions load state for persisted sessions
 type sessionsLoadState =
   | SessionsNotLoaded
@@ -134,6 +148,7 @@ type state = {
   usageInfo: option<usageInfo>,
   openrouterKeySettings: apiKeySettings,
   anthropicOAuthStatus: anthropicOAuthStatus,
+  chatgptOAuthStatus: chatgptOAuthStatus,
   modelsConfig: option<modelsConfig>,
   selectedModel: option<selectedModel>,
   sessionsLoadState: sessionsLoadState,

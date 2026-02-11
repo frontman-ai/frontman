@@ -40,6 +40,27 @@ defmodule FrontmanServer.Agents do
   end
 
   @doc """
+  Cancels a running agent for the given task.
+
+  Looks up the agent process via AgentRegistry and kills it with `:cancelled` exit reason.
+  The ExecutionMonitor treats `:cancelled` as a non-error exit (no error broadcast).
+
+  Returns `:ok` if the agent was cancelled, `{:error, :not_running}` if no agent is running.
+  """
+  @spec cancel_agent(String.t()) :: :ok | {:error, :not_running}
+  def cancel_agent(task_id) do
+    case Registry.lookup(FrontmanServer.AgentRegistry, {:running_agent, task_id}) do
+      [{pid, _metadata}] ->
+        Logger.info("Cancelling agent for task #{task_id}, pid: #{inspect(pid)}")
+        Process.exit(pid, :cancelled)
+        :ok
+
+      [] ->
+        {:error, :not_running}
+    end
+  end
+
+  @doc """
   Starts a new agent for the given task and begins execution.
 
   Spawns a supervised task that runs the agent using Swarm's public API.
@@ -140,13 +161,16 @@ defmodule FrontmanServer.Agents do
         # LLM transformation flags (requires_mcp_prefix, identity_override) come from ResolvedKey
         # oauth_mode tells ReqLLM to use Bearer token auth instead of x-api-key
         # max_tokens: 16_384 ensures tool calls with large content (e.g. file writes) don't get truncated
-        llm_opts = [
+        # ChatGPT-specific: base_url + extra_headers for Codex API
+        base_llm_opts = [
           api_key: resolved_key.api_key,
           requires_mcp_prefix: resolved_key.requires_mcp_prefix,
           identity_override: resolved_key.identity_override,
           oauth_mode: resolved_key.oauth_mode,
           max_tokens: 16_384
         ]
+
+        {llm_opts, model_spec} = maybe_add_codex_opts(base_llm_opts, resolved_key)
 
         has_typescript_react = framework in ["nextjs"]
 
@@ -157,7 +181,7 @@ defmodule FrontmanServer.Agents do
           has_selected_component: has_selected_component,
           has_typescript_react: has_typescript_react,
           framework: framework,
-          model: resolved_key.model,
+          model: model_spec,
           llm_opts: llm_opts,
           project_rules: project_rules
         )
@@ -224,6 +248,54 @@ defmodule FrontmanServer.Agents do
 
   defp error_message(reason),
     do: inspect(reason)
+
+  # Add ChatGPT Codex-specific opts (base_url, extra_headers) when using Codex API.
+  # Returns {llm_opts, model_spec} where model_spec is either the original string
+  # or a pre-resolved LLMDB.Model struct with wire.protocol set to "openai_responses".
+  defp maybe_add_codex_opts(llm_opts, %ResolvedKey{
+         codex_endpoint: endpoint,
+         chatgpt_account_id: account_id,
+         model: model_string
+       })
+       when is_binary(endpoint) do
+    # codex_endpoint is "https://chatgpt.com/backend-api/codex/responses"
+    # ReqLLM ResponsesAPI appends "/responses" to base_url, so strip it
+    base_url = String.replace_suffix(endpoint, "/responses", "")
+
+    extra_headers =
+      if is_binary(account_id) and account_id != "" do
+        [{"ChatGPT-Account-Id", account_id}]
+      else
+        []
+      end
+
+    updated_opts =
+      llm_opts
+      |> Keyword.put(:base_url, base_url)
+      |> Keyword.put(:extra_headers, extra_headers)
+      |> Keyword.delete(:max_tokens)
+      |> Keyword.update(:provider_options, [store: false], &Keyword.put(&1, :store, false))
+
+    # Resolve the model and inject wire.protocol = "openai_responses" so ReqLLM
+    # routes to the Responses API (/responses) instead of Chat API (/chat/completions).
+    # The Codex API at chatgpt.com only supports the Responses API endpoint.
+    model_spec =
+      case ReqLLM.model(model_string) do
+        {:ok, model} ->
+          extra = model.extra || %{}
+          wire = Map.get(extra, :wire, %{})
+          patched_wire = Map.put(wire, :protocol, "openai_responses")
+          patched_extra = Map.put(extra, :wire, patched_wire)
+          %{model | extra: patched_extra}
+
+        {:error, _} ->
+          model_string
+      end
+
+    {updated_opts, model_spec}
+  end
+
+  defp maybe_add_codex_opts(llm_opts, %ResolvedKey{model: model}), do: {llm_opts, model}
 
   # Build model string from config map: "provider:model_value"
   # e.g., %{provider: "openrouter", value: "google/gemini-3-flash-preview"}

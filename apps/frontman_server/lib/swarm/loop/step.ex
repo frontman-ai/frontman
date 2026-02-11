@@ -23,15 +23,16 @@ defmodule Swarm.Loop.Step do
         }
 
   typedstruct do
-    field :number, pos_integer(), enforce: true
-    field :input_messages, [Swarm.Message.t()], default: []
-    field :content, String.t()
-    field :reasoning_details, [map()], default: []
-    field :usage, usage()
-    field :tool_calls, [Swarm.ToolCall.t()], default: []
-    field :started_at, DateTime.t(), enforce: true
-    field :completed_at, DateTime.t()
-    field :duration_ms, non_neg_integer()
+    field(:number, pos_integer(), enforce: true)
+    field(:input_messages, [Swarm.Message.t()], default: [])
+    field(:content, String.t())
+    field(:reasoning_details, [map()], default: [])
+    field(:usage, usage())
+    field(:tool_calls, [Swarm.ToolCall.t()], default: [])
+    field(:response_metadata, map(), default: %{})
+    field(:started_at, DateTime.t(), enforce: true)
+    field(:completed_at, DateTime.t())
+    field(:duration_ms, non_neg_integer())
   end
 
   @doc """
@@ -61,7 +62,8 @@ defmodule Swarm.Loop.Step do
       | content: response.content,
         reasoning_details: response.reasoning_details,
         usage: response.usage,
-        tool_calls: response.tool_calls
+        tool_calls: response.tool_calls,
+        response_metadata: response.metadata || %{}
     }
   end
 
