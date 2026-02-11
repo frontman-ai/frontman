@@ -38,6 +38,7 @@ type action =
     })
   | ClearAcpSession
   // Initialization actions
+  | InitializationTimeoutExpired({taskId: string})
   | ReceivedDiscoveredProjectRule({taskId: string})
   // Usage info actions
   | UsageInfoReceived({usageInfo: Client__State__Types.usageInfo})
@@ -214,6 +215,7 @@ let actionToString = action => {
   | UpdateTaskTitle({taskId, title}) => `UpdateTaskTitle(${taskId}, "${title}")`
   | SetAcpSession(_) => `SetAcpSession`
   | ClearAcpSession => `ClearAcpSession`
+  | InitializationTimeoutExpired({taskId}) => `InitializationTimeoutExpired(${taskId})`
   | ReceivedDiscoveredProjectRule({taskId}) => `ReceivedDiscoveredProjectRule(${taskId})`
   | UsageInfoReceived(_) => `UsageInfoReceived`
   | FetchApiKeySettings => `FetchApiKeySettings`
@@ -510,9 +512,7 @@ let handleEffect = (effect, state: state, dispatch) => {
   | StartInitializationTimeout({taskId, timeoutMs}) =>
     let taskId = taskId
     let _ = Js.Global.setTimeout(() => {
-      if !state.sessionInitialized {
-        dispatch(ReceivedDiscoveredProjectRule({taskId: taskId}))
-      }
+      dispatch(InitializationTimeoutExpired({taskId: taskId}))
     }, timeoutMs)
   | FetchApiKeySettingsEffect({apiBaseUrl}) =>
     let fetch = async () => {
@@ -893,6 +893,16 @@ let next = (state: state, action) => {
 
   | ClearAcpSession =>
     {...state, acpSession: NoAcpSession}->FrontmanReactStatestore.StateReducer.update
+
+  | InitializationTimeoutExpired({taskId: _}) =>
+    if !state.sessionInitialized {
+      {
+        ...state,
+        sessionInitialized: true,
+      }->FrontmanReactStatestore.StateReducer.update
+    } else {
+      state->FrontmanReactStatestore.StateReducer.update
+    }
 
   | ReceivedDiscoveredProjectRule({taskId: _}) =>
     // Mark initialization complete
