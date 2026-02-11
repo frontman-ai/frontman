@@ -13,6 +13,10 @@ import { configData } from '../../../config/config'
 import { googleAnalyticsMeasurementID } from '../../../config/analytics'
 import { googleTagManagerID } from '../../../config/analytics'
 
+// Font preloading
+import interLatinUrl from '@fontsource-variable/inter/files/inter-latin-wght-normal.woff2?url'
+import outfitLatinUrl from '@fontsource-variable/outfit/files/outfit-latin-wght-normal.woff2?url'
+
 // Props
 type Props = {
 	title?: string
@@ -33,6 +37,8 @@ const {
 
 <head>
 	<meta charset="UTF-8" />
+	<link rel="preload" href={interLatinUrl} as="font" type="font/woff2" crossorigin />
+	<link rel="preload" href={outfitLatinUrl} as="font" type="font/woff2" crossorigin />
 	{googleAnalyticsMeasurementID && <GoogleAnalytics />}
 	{googleTagManagerID && <GoogleTagManagerHead />}
 	<GoogleSearchConsole />

@@ -19,13 +19,16 @@ type Props = {
 	classes?: string
 }
 const { size = 'base', link = '#', radius, image, classes } = Astro.props
+
+const sizeMap = { lg: 48, base: 40, sm: 32, xs: 24 } as const
+const px = sizeMap[size]
 ---
 
 <a
 	href={link}
 	class:list={['avatar', { ['avatar--' + `${size}`]: size }, , { [`${classes}`]: classes }]}
 >
-	<img src={image.src} alt={image.alt} title={image.alt} class={radius} loading="lazy" />
+	<img src={image.src} alt={image.alt} title={image.alt} class={radius} width={px} height={px} loading="lazy" />
 </a>
 
 <style>

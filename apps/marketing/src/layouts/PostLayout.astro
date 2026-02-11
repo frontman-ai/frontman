@@ -14,9 +14,36 @@ const SEO = {
 	title: `${frontmatter.title} | Frontman`,
 	description: `${frontmatter.description}`
 }
+
+// BlogPosting JSON-LD
+const blogPostJsonLd = {
+	"@context": "https://schema.org",
+	"@type": "BlogPosting",
+	"headline": frontmatter.title,
+	"description": frontmatter.description,
+	"datePublished": frontmatter.pubDate instanceof Date ? frontmatter.pubDate.toISOString() : frontmatter.pubDate,
+	"author": {
+		"@type": "Person",
+		"name": frontmatter.author
+	},
+	...(frontmatter.image ? { "image": `https://frontman.sh${frontmatter.image}` } : {}),
+	"publisher": {
+		"@type": "Organization",
+		"name": "Frontman",
+		"logo": {
+			"@type": "ImageObject",
+			"url": "https://frontman.sh/logo.svg"
+		}
+	},
+	"mainEntityOfPage": {
+		"@type": "WebPage",
+		"@id": Astro.url.href
+	}
+}
 ---
 
-<Layout title={SEO.title} description={SEO.description}>
+<Layout title={SEO.title} description={SEO.description} ogImage={frontmatter.image}>
+	<script is:inline type="application/ld+json" set:html={JSON.stringify(blogPostJsonLd)} />
 	<BlogPostHero
 		tags={frontmatter.tags}
 		title={frontmatter.title}
