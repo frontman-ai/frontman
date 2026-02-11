@@ -53,10 +53,10 @@ const testimonials: Testimonial[] = [
 <section class="testimonials-gallery-section">
 	<div class="testimonials-header">
 		<h2 class="testimonials-title">
-			Loved by developers, designers, and product teams
+			Teams are shipping faster with Frontman
 		</h2>
 		<p class="testimonials-description">
-			See what teams are saying about how Frontman transformed their workflow.
+			Hear from developers, designers, and product managers who made the switch.
 		</p>
 	</div>
 	<div class="testimonials-container">
@@ -165,8 +165,8 @@ const testimonials: Testimonial[] = [
 		@apply flex gap-8;
 	}
 
-	/* Mobile responsive */
-	@media (max-width: 640px) {
+	/* Tablet responsive - smaller cards for mid-range */
+	@media (max-width: 767px) {
 		.testimonials-track {
 			@apply gap-6 flex-col items-center;
 			animation: none;
@@ -182,13 +182,13 @@ const testimonials: Testimonial[] = [
 
 		.testimonial-card {
 			width: 100%;
-			max-width: 340px;
+			max-width: 480px;
 			min-height: 200px;
 			padding: 2rem;
 		}
 
 		.testimonial-quote {
-			@apply text-base mb-5;
+			@apply text-lg mb-5;
 		}
 
 		.author-name {
@@ -197,6 +197,17 @@ const testimonials: Testimonial[] = [
 
 		.author-role {
 			@apply text-sm;
+		}
+	}
+
+	/* Small mobile */
+	@media (max-width: 480px) {
+		.testimonial-card {
+			max-width: 340px;
+		}
+
+		.testimonial-quote {
+			@apply text-base;
 		}
 	}
 </style>

@@ -539,6 +539,55 @@ const teamMembers: TeamMember[] = [
 		}
 	}
 
+	/* Very small screens (< 360px) */
+	@media (max-width: 359px) {
+		.teamwork-visual {
+			min-height: 380px;
+		}
+
+		.avatar-grid {
+			max-width: 280px;
+			height: 360px;
+		}
+
+		.dashed-curve {
+			max-width: 280px;
+			max-height: 360px;
+		}
+
+		.avatar-item:nth-child(1) .avatar-circle {
+			width: 80px;
+			height: 80px;
+		}
+
+		.avatar-item:nth-child(2) .avatar-circle {
+			width: 95px;
+			height: 95px;
+		}
+
+		.avatar-item:nth-child(3) .avatar-circle {
+			width: 70px;
+			height: 70px;
+		}
+
+		.logo-center {
+			width: 55px;
+			height: 55px;
+		}
+
+		.avatar-item:nth-child(1) .avatar-label {
+			max-width: 80px;
+		}
+
+		.avatar-item:nth-child(2) .avatar-label {
+			max-width: 95px;
+		}
+
+		.avatar-item:nth-child(3) .avatar-label {
+			max-width: 70px;
+		}
+	}
+
 	/* Avatar animation delays */
 	.avatar-item[data-avatar-index="0"].pop-in {
 		animation: popIn 0.8s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards;

@@ -25,6 +25,13 @@
 		".": "./src/FrontmanProtocol.res.mjs",
 		"./src/*": "./src/*"
 	},
+	"files": [
+		"src"
+	],
+	"scripts": {
+		"build": "rescript build",
+		"prepublishOnly": "yarn build"
+	},
 	"dependencies": {
 		"sury": "11.0.0-alpha.4"
 	},

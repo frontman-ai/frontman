@@ -39,7 +39,7 @@ h6 {
 }
 
 h1 {
-	@apply text-4xl lg:text-6xl;
+	@apply text-3xl md:text-4xl lg:text-6xl;
 }
 
 h2 {
