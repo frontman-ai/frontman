@@ -29,6 +29,7 @@
 		"prepublishOnly": "yarn build"
 	},
 	"dependencies": {
+		"@frontman/logs": "workspace:*",
 		"@sentry/browser": "^8.0.0",
 		"phoenix": "^1.7.0"
 	},

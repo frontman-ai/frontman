@@ -2552,6 +2552,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@frontman/frontman-client@workspace:libs/frontman-client"
   dependencies:
+    "@frontman/logs": "workspace:*"
     "@rescript/webapi": "catalog:"
     "@sentry/browser": "npm:^8.0.0"
     "@vitest/ui": "catalog:"
@@ -2602,6 +2603,19 @@ __metadata:
   resolution: "@frontman/frontman-server-assets@workspace:apps/frontman_server/assets"
   dependencies:
     "@frontman/frontman-client": "workspace:*"
+  languageName: unknown
+  linkType: soft
+
+"@frontman/logs@workspace:*, @frontman/logs@workspace:libs/logs":
+  version: 0.0.0-use.local
+  resolution: "@frontman/logs@workspace:libs/logs"
+  dependencies:
+    "@rescript/runtime": "npm:12.0.0-beta.14"
+    "@rescript/webapi": "catalog:"
+    rescript: "catalog:"
+    rescript-vitest: "catalog:"
+    vite: "catalog:"
+    vitest: "catalog:"
   languageName: unknown
   linkType: soft
 

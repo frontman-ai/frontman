@@ -4,6 +4,9 @@
 module Types = FrontmanClient__MCP__Types
 module Tool = FrontmanClient__MCP__Tool
 module Relay = FrontmanClient__Relay
+module Log = FrontmanLogs.Logs.Make({
+  let component = #MCPServer
+})
 
 type t = {
   tools: array<module(Tool.Tool)>,
@@ -70,13 +73,13 @@ let executeLocalTool = async (
   ~arguments: option<Dict.t<JSON.t>>,
 ): Types.callToolResult => {
   module T = unpack(toolModule)
-  Console.log2("[MCPServer] Executing local tool:", T.name)
+  Log.debug(~ctx={"tool": T.name}, "Executing local tool")
   let inputJson = arguments->Option.getOr(Dict.make())->JSON.Encode.object
   try {
     let input = inputJson->S.parseOrThrow(T.inputSchema)
-    Console.log2("[MCPServer] Calling execute for:", T.name)
+    Log.debug(~ctx={"tool": T.name}, "Calling execute")
     let result = await T.execute(input)
-    Console.log2("[MCPServer] Execute returned for:", T.name)
+    Log.debug(~ctx={"tool": T.name}, "Execute returned")
     switch result {
     | Ok(output) =>
       let outputJson = output->S.reverseConvertToJsonOrThrow(T.outputSchema)
@@ -91,7 +94,7 @@ let executeLocalTool = async (
     }
   } catch {
   | S.Error(e) =>
-    Console.error2("[MCPServer] Schema error for:", T.name)
+    Log.error(~ctx={"tool": T.name}, "Schema error")
     {
       content: [{type_: "text", text: `Invalid input: ${e.message}`}],
       isError: Some(true),
