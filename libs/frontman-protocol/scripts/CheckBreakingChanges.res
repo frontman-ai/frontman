@@ -53,23 +53,27 @@ let main = async () => {
     exit(0)
   }
 
-  // Parse git diff output: "A\tpath", "D\tpath", "M\tpath"
+  // Parse git diff output: "A\tpath", "D\tpath", "M\tpath", "R100\told\tnew"
   let changes =
     diffOutput
     ->String.trim
     ->String.split("\n")
-    ->Array.filterMap(line => {
+    ->Array.flatMap(line => {
       let parts = line->String.split("\t")
       switch parts {
+      | [status, oldFile, newFile]
+        if status->String.startsWith("R") || status->String.startsWith("C") =>
+        // Renames/copies are a removal of the old path + addition of the new path
+        [{file: oldFile, kind: Removed}, {file: newFile, kind: Added}]
       | [status, file] =>
         let kind = switch status {
-        | "A" => Some(Added)
-        | "D" => Some(Removed)
-        | "M" => Some(Modified)
-        | _ => Some(Modified) // R, C, etc. treated as modified
+        | "A" => Added
+        | "D" => Removed
+        | "M" => Modified
+        | _ => Modified
         }
-        kind->Option.map(kind => {file, kind})
-      | _ => None
+        [{file, kind}]
+      | _ => []
       }
     })
 
