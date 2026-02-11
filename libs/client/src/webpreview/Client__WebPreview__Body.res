@@ -1,14 +1,8 @@
 @react.component
 let make = (~taskId, ~url, ~isActive) => {
-  let isSelecting = Client__State.useSelector(Client__State.Selectors.webPreviewIsSelecting)
   let iframeRef: React.ref<Nullable.t<Dom.element>> = React.useRef(Nullable.null)
   let lastLocationRef: React.ref<option<string>> = React.useRef(None)
   let location = Client__Hooks.useIFrameLocation(~iframeRef=iframeRef.current->Obj.magic)
-  Client__Hooks.useDisableIFrameAnchorPointerEvents(
-    ~iframeRef=iframeRef.current->Obj.magic,
-    ~activate=isSelecting && isActive,
-  )
-
   React.useEffect(() => {
     if isActive {
       switch location {
