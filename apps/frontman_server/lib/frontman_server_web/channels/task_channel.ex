@@ -610,13 +610,17 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   # Process any queued prompt after MCP initialization completes or fails.
   # Called after execute_init_actions when handling MCP responses.
+  #
+  # Important: This is called from handle_in("mcp:message", ...), so we must
+  # NOT return {:reply, ...} — that would send the reply on the wrong channel
+  # event. Any replies from process_prompt are converted to push + {:noreply}.
   defp maybe_process_queued_prompt(socket) do
     case {socket.assigns[:mcp_status], socket.assigns[:queued_prompt]} do
       {:ready, {id, params}} ->
         task_id = socket.assigns.task_id
         Logger.info("Processing queued prompt after MCP initialization for task #{task_id}")
         socket = assign(socket, :queued_prompt, nil)
-        process_prompt(id, params, socket)
+        ensure_noreply(process_prompt(id, params, socket), socket)
 
       {:failed, {id, params}} ->
         task_id = socket.assigns.task_id
@@ -626,11 +630,29 @@ defmodule FrontmanServerWeb.TaskChannel do
         )
 
         socket = assign(socket, :queued_prompt, nil)
-        process_prompt(id, params, socket)
+        ensure_noreply(process_prompt(id, params, socket), socket)
 
       _ ->
         {:noreply, socket}
     end
+  end
+
+  # Convert {:reply, ...} tuples to push + {:noreply, ...}.
+  # Used when process_prompt is called from a non-ACP context (e.g. after
+  # MCP initialization) where {:reply} would send on the wrong channel event.
+  defp ensure_noreply({:reply, {:ok, reply_payload}, socket}, _fallback_socket) do
+    Enum.each(reply_payload, fn {event, message} ->
+      push(socket, event, message)
+    end)
+
+    {:noreply, socket}
+  end
+
+  defp ensure_noreply({:noreply, socket}, _fallback_socket), do: {:noreply, socket}
+
+  defp ensure_noreply(other, fallback_socket) do
+    Logger.warning("Unexpected return from process_prompt: #{inspect(other)}")
+    {:noreply, fallback_socket}
   end
 
   defp route_to_mcp(tool_call, socket) do
