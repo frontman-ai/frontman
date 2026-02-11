@@ -13,9 +13,6 @@ external fileURLToPath: string => string = "fileURLToPath"
 
 let schemasDir = Path.join([Path.dirname(fileURLToPath(importMetaUrl)), "..", "schemas"])
 
-// Get the repo root by going up from libs/frontman-protocol/scripts/
-let repoRoot = Path.join([Path.dirname(fileURLToPath(importMetaUrl)), "..", "..", "..", ".."])
-
 // Relative path from repo root to schemas dir
 let schemasRelative = "libs/frontman-protocol/schemas"
 

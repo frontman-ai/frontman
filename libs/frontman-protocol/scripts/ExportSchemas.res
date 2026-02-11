@@ -88,7 +88,7 @@ let main = async () => {
       )
       totalExported := totalExported.contents + 1
     } catch {
-    | _ =>
+    | S.Error({code: InvalidJsonSchema(_)}) =>
       Console.error(`Skipping ${entry.dir}/${entry.name}: schema not convertible to JSON Schema`)
       skipped := skipped.contents + 1
     }

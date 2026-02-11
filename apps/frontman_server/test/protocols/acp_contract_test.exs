@@ -25,16 +25,17 @@ defmodule FrontmanServer.Protocols.AcpContractTest do
   end
 
   describe "AgentClientProtocol.build_agent_message_chunk_notification/2" do
-    test "full notification validates against jsonrpc/notification schema" do
+    test "validates against jsonrpc/notification and acp/sessionUpdateNotification schemas" do
       payload =
         AgentClientProtocol.build_agent_message_chunk_notification("session-123", "Hello world")
 
       ProtocolSchema.validate!(payload, "jsonrpc/notification")
+      ProtocolSchema.validate!(payload, "acp/sessionUpdateNotification")
     end
   end
 
   describe "AgentClientProtocol.tool_call_create/6" do
-    test "full notification validates against jsonrpc/notification schema" do
+    test "validates against jsonrpc/notification and acp/sessionUpdateNotification schemas" do
       payload =
         AgentClientProtocol.tool_call_create(
           "session-123",
@@ -45,9 +46,10 @@ defmodule FrontmanServer.Protocols.AcpContractTest do
         )
 
       ProtocolSchema.validate!(payload, "jsonrpc/notification")
+      ProtocolSchema.validate!(payload, "acp/sessionUpdateNotification")
     end
 
-    test "with sub-agent fields validates against jsonrpc/notification schema" do
+    test "with sub-agent fields validates against acp/sessionUpdateNotification schema" do
       payload =
         AgentClientProtocol.tool_call_create(
           "session-123",
@@ -60,29 +62,32 @@ defmodule FrontmanServer.Protocols.AcpContractTest do
         )
 
       ProtocolSchema.validate!(payload, "jsonrpc/notification")
+      ProtocolSchema.validate!(payload, "acp/sessionUpdateNotification")
     end
   end
 
   describe "AgentClientProtocol.tool_call_update/4" do
-    test "without content validates against jsonrpc/notification schema" do
+    test "without content validates against acp/sessionUpdateNotification schema" do
       payload =
         AgentClientProtocol.tool_call_update("session-123", "tc-1", "completed")
 
       ProtocolSchema.validate!(payload, "jsonrpc/notification")
+      ProtocolSchema.validate!(payload, "acp/sessionUpdateNotification")
     end
 
-    test "with content validates against jsonrpc/notification schema" do
+    test "with content validates against acp/sessionUpdateNotification schema" do
       content = [%{"type" => "content", "content" => %{"type" => "text", "text" => "result"}}]
 
       payload =
         AgentClientProtocol.tool_call_update("session-123", "tc-1", "completed", content)
 
       ProtocolSchema.validate!(payload, "jsonrpc/notification")
+      ProtocolSchema.validate!(payload, "acp/sessionUpdateNotification")
     end
   end
 
   describe "AgentClientProtocol.plan_update/2" do
-    test "validates against jsonrpc/notification schema" do
+    test "validates against acp/sessionUpdateNotification schema" do
       entries = [
         %{
           "content" => "Analyze the codebase",
@@ -98,6 +103,7 @@ defmodule FrontmanServer.Protocols.AcpContractTest do
 
       payload = AgentClientProtocol.plan_update("session-123", entries)
       ProtocolSchema.validate!(payload, "jsonrpc/notification")
+      ProtocolSchema.validate!(payload, "acp/sessionUpdateNotification")
     end
   end
 
