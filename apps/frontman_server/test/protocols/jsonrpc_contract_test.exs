@@ -24,7 +24,7 @@ defmodule FrontmanServer.Protocols.JsonRpcContractTest do
 
   describe "JsonRpc.error_response/3" do
     test "validates against jsonrpc/response schema" do
-      payload = JsonRpc.error_response(1, -32601, "Method not found")
+      payload = JsonRpc.error_response(1, -32_601, "Method not found")
       ProtocolSchema.validate!(payload, "jsonrpc/response")
     end
   end

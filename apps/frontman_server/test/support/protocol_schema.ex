@@ -35,9 +35,7 @@ defmodule FrontmanServer.ProtocolSchema do
 
       {:error, errors} ->
         formatted =
-          errors
-          |> Enum.map(fn {message, path} -> "  #{path}: #{message}" end)
-          |> Enum.join("\n")
+          Enum.map_join(errors, "\n", fn {message, path} -> "  #{path}: #{message}" end)
 
         raise "Schema validation failed for #{schema_name}:\n#{formatted}\n\nData: #{inspect(data, pretty: true)}"
     end
