@@ -12,7 +12,7 @@ on:
 jobs:
   deploy:
     name: Build and Deploy to Production
-    runs-on: ubuntu-slim
+    runs-on: self-hosted
     environment: production
     steps:
       - name: Checkout code
@@ -25,6 +25,13 @@ jobs:
 
       - name: Enable Corepack
         run: corepack enable
+
+      - name: Cache Yarn
+        uses: actions/cache@v4
+        with:
+          path: ~/.yarn/berry/cache
+          key: yarn-${{ hashFiles('yarn.lock') }}
+          restore-keys: yarn-
 
       - name: Install dependencies
         run: yarn install --immutable
