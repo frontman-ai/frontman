@@ -33,6 +33,7 @@ describe("Load Session Then Stream", () => {
       ~title="Loaded Task",
       ~previewUrl="http://localhost:3000",
       ~createdAt=Date.now(),
+      ~isAgentRunning=true,
     )
     let tasks = Dict.make()
     tasks->Dict.set(taskId, loadedTask)

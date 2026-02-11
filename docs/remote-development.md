@@ -361,15 +361,33 @@ server: {
 }
 ```
 
-### Phoenix (`apps/frontman_server/config/dev.exs`)
+### Phoenix
+
+Database hostname defaults to `localhost` in `config/dev.exs` and `config/test.exs`. For container environments (DevPod, CI), the `DB_HOST` env var overrides this at runtime via `config/runtime.exs`:
 
 ```elixir
-# Database - supports container development via DB_HOST env var
+# config/dev.exs — static default
 config :frontman_server, FrontmanServer.Repo,
-  hostname: System.get_env("DB_HOST") || "localhost",
+  hostname: "localhost",
   # ... other config
 
-# Endpoint - binds to 0.0.0.0 and supports PHX_HOST override
+# config/runtime.exs — dynamic override for containers
+if config_env() in [:dev, :test] do
+  db_host = env!("DB_HOST", :string, "localhost")
+  if db_host != "localhost" do
+    config :frontman_server, FrontmanServer.Repo, hostname: db_host
+  end
+end
+```
+
+This means:
+- **Local dev**: `DB_HOST` unset → uses `localhost`
+- **DevPod containers**: `DB_HOST=host.docker.internal` (or Docker gateway IP) → overrides hostname
+- **CI**: `DB_HOST` resolved dynamically to the Docker gateway IP (see `.github/workflows/ci.yml`)
+
+The endpoint binds to `0.0.0.0` and supports `PHX_HOST` override in `config/dev.exs`:
+
+```elixir
 config :frontman_server, FrontmanServerWeb.Endpoint,
   url: [
     host: System.get_env("PHX_HOST") || "frontman.local",
@@ -415,15 +433,26 @@ WORKOS_CLIENT_ID=client_...
 
 ## Database
 
-PostgreSQL runs on the host server and is shared across all workspaces.
+PostgreSQL runs on the Docker host server and is shared across all workspaces.
 
-- **Host:** `host.docker.internal` (from inside containers)
 - **Port:** 5432
 - **Database:** `frontman_server_dev`
 - **User:** `postgres`
 - **Password:** `postgres`
 
-The `DB_HOST` environment variable must be set to `host.docker.internal` for Phoenix to connect from inside the container.
+Since PostgreSQL runs on the Docker host (not inside a container), containers must connect via the Docker gateway IP. The `DB_HOST` environment variable controls which hostname Phoenix uses to reach PostgreSQL:
+
+| Environment | `DB_HOST` value | How it's set |
+|---|---|---|
+| Local dev | _(unset)_ → `localhost` | Default in `config/dev.exs` |
+| DevPod container | `host.docker.internal` | Set in `.env.devpod` by post-create script |
+| CI (self-hosted runner) | Docker gateway IP (e.g. `172.17.0.1`) | Resolved dynamically in `.github/workflows/ci.yml` |
+
+If `host.docker.internal` doesn't resolve inside a container, use the Docker gateway IP instead:
+```bash
+# Find the gateway IP from inside a container
+awk '$2 == "00000000" { printf "%d.%d.%d.%d", "0x"substr($3,7,2), "0x"substr($3,5,2), "0x"substr($3,3,2), "0x"substr($3,1,2) }' /proc/net/route
+```
 
 ### Creating Additional Databases
 
@@ -506,21 +535,28 @@ server: {
 
 ### Phoenix Can't Connect to Database
 
-If Phoenix shows `connection refused` to PostgreSQL:
+If Phoenix shows `connection refused` or `nxdomain` for the database host:
 
-1. **Add host.docker.internal to container:**
+1. **Check if `host.docker.internal` resolves inside the container:**
    ```bash
-   # Get host gateway IP
-   HOST_IP=$(ssh root@DEVPOD_SERVER "ip route | grep default | awk '{print \$3}'")
-
-   # Add to container's /etc/hosts
-   ssh root@DEVPOD_SERVER "docker exec -u root CONTAINER_NAME bash -c \"echo '\$HOST_IP host.docker.internal' >> /etc/hosts\""
+   # From inside the container
+   getent hosts host.docker.internal
    ```
 
-2. **Set DB_HOST environment variable:**
-   Add to `apps/frontman_server/envs/.dev.env`:
+2. **If it doesn't resolve, find the Docker gateway IP:**
+   ```bash
+   # From inside the container — read gateway from /proc/net/route
+   awk '$2 == "00000000" { printf "%d.%d.%d.%d\n", "0x"substr($3,7,2), "0x"substr($3,5,2), "0x"substr($3,3,2), "0x"substr($3,1,2) }' /proc/net/route
    ```
-   DB_HOST=host.docker.internal
+
+3. **Set `DB_HOST` to the gateway IP:**
+   Add to `apps/frontman_server/envs/.dev.overrides.env`:
+   ```
+   DB_HOST=172.17.0.1
+   ```
+   Or add `host.docker.internal` to the container's `/etc/hosts`:
+   ```bash
+   ssh root@DEVPOD_SERVER "docker exec -u root CONTAINER_NAME bash -c \"echo '172.17.0.1 host.docker.internal' >> /etc/hosts\""
    ```
 
 ### Phoenix SSL Certificate Error

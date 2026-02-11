@@ -11,7 +11,7 @@ module Task = Client__State__Types.Task
 
 // Helper to create a state with multiple loaded tasks
 module TestSetup = {
-  let createStateWithLoadedTasks = (~taskIds: array<string>): StateReducer.state => {
+  let createStateWithLoadedTasks = (~taskIds: array<string>, ~isAgentRunning=false): StateReducer.state => {
     let tasks = Dict.make()
     taskIds->Array.forEach(id => {
       let task = Task.makeLoaded(
@@ -19,6 +19,7 @@ module TestSetup = {
         ~title=`Task ${id}`,
         ~previewUrl="http://localhost:3000",
         ~createdAt=Date.now(),
+        ~isAgentRunning,
       )
       tasks->Dict.set(id, task)
     })
@@ -51,10 +52,10 @@ let getCurrentTaskId = (state: StateReducer.state): option<string> => {
 
 describe("Concurrent Tasks Event Routing", () => {
   test("StreamingStarted event routes to correct task, not current task", t => {
-    // Setup: Create state with two loaded tasks
+    // Setup: Create state with two loaded tasks (isAgentRunning=true to accept streaming events)
     let taskAId = "task-a"
     let taskBId = "task-b"
-    let state = TestSetup.createStateWithLoadedTasks(~taskIds=[taskAId, taskBId])
+    let state = TestSetup.createStateWithLoadedTasks(~taskIds=[taskAId, taskBId], ~isAgentRunning=true)
 
     // Switch current task to B
     let (stateWithB, _) = StateReducer.next(state, SwitchTask({taskId: taskBId}))
@@ -78,7 +79,7 @@ describe("Concurrent Tasks Event Routing", () => {
     // Setup: Two tasks, A has a streaming message
     let taskAId = "task-a"
     let taskBId = "task-b"
-    let state = TestSetup.createStateWithLoadedTasks(~taskIds=[taskAId, taskBId])
+    let state = TestSetup.createStateWithLoadedTasks(~taskIds=[taskAId, taskBId], ~isAgentRunning=true)
 
     // Switch to task B
     let (stateWithB, _) = StateReducer.next(state, SwitchTask({taskId: taskBId}))
@@ -115,7 +116,7 @@ describe("Concurrent Tasks Event Routing", () => {
     // Setup: Two tasks
     let taskAId = "task-a"
     let taskBId = "task-b"
-    let state = TestSetup.createStateWithLoadedTasks(~taskIds=[taskAId, taskBId])
+    let state = TestSetup.createStateWithLoadedTasks(~taskIds=[taskAId, taskBId], ~isAgentRunning=true)
 
     // Switch to task B
     let (stateWithB, _) = StateReducer.next(state, SwitchTask({taskId: taskBId}))
@@ -163,7 +164,7 @@ describe("Concurrent Tasks Event Routing", () => {
     let taskAId = "task-a"
     let taskBId = "task-b"
     let taskCId = "task-c"
-    let state = TestSetup.createStateWithLoadedTasks(~taskIds=[taskAId, taskBId, taskCId])
+    let state = TestSetup.createStateWithLoadedTasks(~taskIds=[taskAId, taskBId, taskCId], ~isAgentRunning=true)
 
     // Act: Start streaming in all three tasks
     let (state1, _) = StateReducer.next(state, TaskAction({target: ForTask(taskAId), action: StreamingStarted}))
@@ -200,7 +201,7 @@ describe("Concurrent Tasks Event Routing", () => {
     // Setup: Task A with streaming message, Task B is current
     let taskAId = "task-a"
     let taskBId = "task-b"
-    let state = TestSetup.createStateWithLoadedTasks(~taskIds=[taskAId, taskBId])
+    let state = TestSetup.createStateWithLoadedTasks(~taskIds=[taskAId, taskBId], ~isAgentRunning=true)
 
     // Switch to task B
     let (stateWithB, _) = StateReducer.next(state, SwitchTask({taskId: taskBId}))
@@ -250,7 +251,7 @@ describe("Concurrent Tasks Event Routing", () => {
     // Setup: Task A with tool call, Task B is current
     let taskAId = "task-a"
     let taskBId = "task-b"
-    let state = TestSetup.createStateWithLoadedTasks(~taskIds=[taskAId, taskBId])
+    let state = TestSetup.createStateWithLoadedTasks(~taskIds=[taskAId, taskBId], ~isAgentRunning=true)
 
     // Switch to task B
     let (stateWithB, _) = StateReducer.next(state, SwitchTask({taskId: taskBId}))
@@ -298,7 +299,7 @@ describe("Concurrent Tasks Event Routing", () => {
     // Setup: Start with Task A
     let taskAId = "task-a"
     let taskBId = "task-b"
-    let state = TestSetup.createStateWithLoadedTasks(~taskIds=[taskAId, taskBId])
+    let state = TestSetup.createStateWithLoadedTasks(~taskIds=[taskAId, taskBId], ~isAgentRunning=true)
 
     // Start streaming in Task A
     let (stateWithStream, _) = StateReducer.next(state, TaskAction({target: ForTask(taskAId), action: StreamingStarted}))

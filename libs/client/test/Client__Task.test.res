@@ -27,14 +27,28 @@ module TestHelpers = {
 }
 
 describe("Task - Single Streaming Message Invariant", () => {
-  test("StreamingStarted creates a streaming message", t => {
+  // Helper: create a loaded task with isAgentRunning=true (as in real app flow)
+  let _startAgent = () => {
     let task = TestHelpers.makeLoadedTask()
+    let (task1, _) = TaskReducer.next(
+      task,
+      AddUserMessage({
+        id: "user-1",
+        content: [Client__Task__Types.UserContentPart.Text({text: "Hello"})],
+      }),
+    )
+    task1
+  }
+
+  test("StreamingStarted creates a streaming message", t => {
+    let task = _startAgent()
     let (updatedTask, _effects) = TaskReducer.next(task, StreamingStarted)
 
     let messages = TestHelpers.getMessages(updatedTask)
-    t->expect(Array.length(messages))->Expect.toBe(1)
+    // Messages: User + Streaming
+    t->expect(Array.length(messages))->Expect.toBe(2)
 
-    switch messages->Array.get(0) {
+    switch messages->Array.get(1) {
     | Some(Message.Assistant(Streaming({textBuffer}))) =>
       t->expect(textBuffer)->Expect.toBe("")
     | _ => t->expect(false)->Expect.toBe(true)
@@ -42,7 +56,7 @@ describe("Task - Single Streaming Message Invariant", () => {
   })
 
   test("StreamingStarted fails fast if streaming message already exists", t => {
-    let task = TestHelpers.makeLoadedTask()
+    let task = _startAgent()
     let (task1, _) = TaskReducer.next(task, StreamingStarted)
 
     // Invariant enforced: calling StreamingStarted again should crash
@@ -50,7 +64,7 @@ describe("Task - Single Streaming Message Invariant", () => {
   })
 
   test("TextDeltaReceived appends to streaming message", t => {
-    let task = TestHelpers.makeLoadedTask()
+    let task = _startAgent()
     let (task1, _) = TaskReducer.next(task, StreamingStarted)
     let (task2, _) = TaskReducer.next(task1, TextDeltaReceived({text: "Hello"}))
     let (task3, _) = TaskReducer.next(task2, TextDeltaReceived({text: " world"}))
@@ -63,15 +77,16 @@ describe("Task - Single Streaming Message Invariant", () => {
   })
 
   test("TurnCompleted converts streaming to completed", t => {
-    let task = TestHelpers.makeLoadedTask()
+    let task = _startAgent()
     let (task1, _) = TaskReducer.next(task, StreamingStarted)
     let (task2, _) = TaskReducer.next(task1, TextDeltaReceived({text: "Hello"}))
     let (task3, _) = TaskReducer.next(task2, TurnCompleted)
 
     let messages = TestHelpers.getMessages(task3)
-    t->expect(Array.length(messages))->Expect.toBe(1)
+    // Messages: User + Completed
+    t->expect(Array.length(messages))->Expect.toBe(2)
 
-    switch messages->Array.get(0) {
+    switch messages->Array.get(1) {
     | Some(Message.Assistant(Completed({content}))) =>
       t->expect(Array.length(content))->Expect.toBe(1)
     | _ => t->expect(false)->Expect.toBe(true)
@@ -80,8 +95,21 @@ describe("Task - Single Streaming Message Invariant", () => {
 })
 
 describe("Task - Tool Call Lifecycle", () => {
-  test("tool call progresses: ToolCallReceived -> ToolInputReceived -> ToolResultReceived", t => {
+  // Helper: create a loaded task with isAgentRunning=true (as in real app flow)
+  let _startAgent = () => {
     let task = TestHelpers.makeLoadedTask()
+    let (task1, _) = TaskReducer.next(
+      task,
+      AddUserMessage({
+        id: "user-1",
+        content: [Client__Task__Types.UserContentPart.Text({text: "Hello"})],
+      }),
+    )
+    task1
+  }
+
+  test("tool call progresses: ToolCallReceived -> ToolInputReceived -> ToolResultReceived", t => {
+    let task = _startAgent()
     let toolId = "tool-1"
 
     // Create tool call via ToolCallReceived (the live application path)
@@ -99,9 +127,9 @@ describe("Task - Tool Call Lifecycle", () => {
     }
     let (task1, _) = TaskReducer.next(task, ToolCallReceived({toolCall: toolCall}))
 
-    // Verify InputAvailable state
+    // Verify InputAvailable state (user msg at index 0, tool call at index 1)
     let messages1 = TestHelpers.getMessages(task1)
-    switch messages1->Array.get(0) {
+    switch messages1->Array.get(1) {
     | Some(Message.ToolCall({state: InputAvailable, input: Some(_)})) =>
       t->expect(true)->Expect.toBe(true)
     | _ => t->expect(false)->Expect.toBe(true)
@@ -115,7 +143,7 @@ describe("Task - Tool Call Lifecycle", () => {
 
     // Verify OutputAvailable state
     let messages2 = TestHelpers.getMessages(task2)
-    switch messages2->Array.get(0) {
+    switch messages2->Array.get(1) {
     | Some(Message.ToolCall({state: OutputAvailable, result: Some(_)})) =>
       t->expect(true)->Expect.toBe(true)
     | _ => t->expect(false)->Expect.toBe(true)
@@ -123,7 +151,7 @@ describe("Task - Tool Call Lifecycle", () => {
   })
 
   test("tool error sets OutputError state", t => {
-    let task = TestHelpers.makeLoadedTask()
+    let task = _startAgent()
     let toolId = "tool-1"
 
     // Create tool call via ToolCallReceived
@@ -143,7 +171,7 @@ describe("Task - Tool Call Lifecycle", () => {
     let (task3, _) = TaskReducer.next(task1, ToolErrorReceived({id: toolId, error: "Something went wrong"}))
 
     let messages = TestHelpers.getMessages(task3)
-    switch messages->Array.get(0) {
+    switch messages->Array.get(1) {
     | Some(Message.ToolCall({state: OutputError, errorText: Some(error)})) =>
       t->expect(error)->Expect.toBe("Something went wrong")
     | _ => t->expect(false)->Expect.toBe(true)
@@ -276,7 +304,15 @@ describe("Task - Error Handling", () => {
 
   test("AgentError completes any streaming message", t => {
     let task = TestHelpers.makeLoadedTask()
-    let (task1, _) = TaskReducer.next(task, StreamingStarted)
+    // First start agent via AddUserMessage so isAgentRunning=true
+    let (task0, _) = TaskReducer.next(
+      task,
+      AddUserMessage({
+        id: "user-1",
+        content: [Client__Task__Types.UserContentPart.Text({text: "Hello"})],
+      }),
+    )
+    let (task1, _) = TaskReducer.next(task0, StreamingStarted)
     let (task2, _) = TaskReducer.next(task1, TextDeltaReceived({text: "Partial response"}))
 
     // Verify we have a streaming message
@@ -289,9 +325,9 @@ describe("Task - Error Handling", () => {
     let (task3, _) = TaskReducer.next(task2, AgentError({error: "Error occurred"}))
     t->expect(TaskReducer.Selectors.streamingMessage(task3))->Expect.toEqual(None)
 
-    // Check the message is now completed
+    // Check the message is now completed (user at index 0, assistant at index 1)
     let messages = TestHelpers.getMessages(task3)
-    switch messages->Array.get(0) {
+    switch messages->Array.get(1) {
     | Some(Message.Assistant(Completed({content}))) =>
       t->expect(Array.length(content))->Expect.toBe(1)
     | _ => t->expect(false)->Expect.toBe(true)
@@ -341,5 +377,266 @@ describe("Task - Error Handling", () => {
       }),
     )
     t->expect(TaskReducer.Selectors.turnError(task3))->Expect.toEqual(None)
+  })
+})
+
+// ============================================================================
+// Cancel Turn
+// ============================================================================
+
+describe("Task - CancelTurn", () => {
+  // Helper: simulate an agent-running task with a streaming message
+  let _startAgentWithStreaming = () => {
+    let task = TestHelpers.makeLoadedTask()
+    let (task1, _) = TaskReducer.next(
+      task,
+      AddUserMessage({
+        id: "user-1",
+        content: [Client__Task__Types.UserContentPart.Text({text: "Hello"})],
+      }),
+    )
+    // Agent is now running
+    let (task2, _) = TaskReducer.next(task1, StreamingStarted)
+    let (task3, _) = TaskReducer.next(task2, TextDeltaReceived({text: "Partial resp"}))
+    task3
+  }
+
+  test("CancelTurn when agent running: sets isAgentRunning to false", t => {
+    let task = _startAgentWithStreaming()
+    t->expect(TaskReducer.Selectors.isAgentRunning(task))->Expect.toEqual(Some(true))
+
+    let (cancelled, _) = TaskReducer.next(task, CancelTurn)
+    t->expect(TaskReducer.Selectors.isAgentRunning(cancelled))->Expect.toEqual(Some(false))
+  })
+
+  test("CancelTurn preserves partial text as completed message", t => {
+    let task = _startAgentWithStreaming()
+    let (cancelled, _) = TaskReducer.next(task, CancelTurn)
+
+    // Streaming message should be completed, not removed
+    let messages = TestHelpers.getMessages(cancelled)
+    // Messages: User + Assistant(Completed)
+    t->expect(Array.length(messages))->Expect.toBe(2)
+
+    switch messages->Array.get(1) {
+    | Some(Message.Assistant(Completed({content}))) =>
+      switch content->Array.get(0) {
+      | Some(Client__Task__Types.AssistantContentPart.Text({text})) =>
+        t->expect(text)->Expect.toBe("Partial resp")
+      | _ => t->expect("Text content")->Expect.toBe("not found")
+      }
+    | _ => t->expect("Completed assistant")->Expect.toBe("not found")
+    }
+  })
+
+  test("CancelTurn emits CancelPrompt effect", t => {
+    let task = _startAgentWithStreaming()
+    let (_, effects) = TaskReducer.next(task, CancelTurn)
+
+    t->expect(Array.length(effects))->Expect.toBe(1)
+    switch effects->Array.get(0) {
+    | Some(TaskReducer.CancelPrompt) => t->expect(true)->Expect.toBe(true)
+    | _ => t->expect("CancelPrompt effect")->Expect.toBe("not found")
+    }
+  })
+
+  test("CancelTurn is no-op when agent is not running", t => {
+    let task = TestHelpers.makeLoadedTask()
+    t->expect(TaskReducer.Selectors.isAgentRunning(task))->Expect.toEqual(Some(false))
+
+    let (unchanged, effects) = TaskReducer.next(task, CancelTurn)
+    t->expect(effects)->Expect.toEqual([])
+    // State should be identical
+    t->expect(TaskReducer.Selectors.isAgentRunning(unchanged))->Expect.toEqual(Some(false))
+  })
+
+  test("CancelTurn marks in-progress tool calls as cancelled", t => {
+    let task = TestHelpers.makeLoadedTask()
+    let (task1, _) = TaskReducer.next(
+      task,
+      AddUserMessage({
+        id: "user-1",
+        content: [Client__Task__Types.UserContentPart.Text({text: "Hello"})],
+      }),
+    )
+
+    // Insert a tool call in InputAvailable state
+    let toolCall: Message.toolCall = {
+      id: "tool-1",
+      toolName: "edit_file",
+      state: Message.InputAvailable,
+      inputBuffer: "",
+      input: Some(JSON.parseOrThrow(`{"path": "test.ts"}`)),
+      result: None,
+      errorText: None,
+      createdAt: Date.now(),
+      parentAgentId: None,
+      spawningToolName: None,
+    }
+    let (task2, _) = TaskReducer.next(task1, ToolCallReceived({toolCall: toolCall}))
+
+    let (cancelled, _) = TaskReducer.next(task2, CancelTurn)
+
+    let messages = TestHelpers.getMessages(cancelled)
+    // Find the tool call message
+    let toolMsg = messages->Array.find(msg =>
+      switch msg {
+      | Message.ToolCall({id: "tool-1"}) => true
+      | _ => false
+      }
+    )
+    switch toolMsg {
+    | Some(Message.ToolCall({state: OutputError, errorText: Some(err)})) =>
+      t->expect(err)->Expect.toBe("Cancelled")
+    | _ => t->expect("Cancelled tool call")->Expect.toBe("not found")
+    }
+  })
+
+  test("CancelTurn clears turnError", t => {
+    let task = TestHelpers.makeLoadedTask()
+    // Set error, then start agent, then cancel
+    let (task1, _) = TaskReducer.next(task, AgentError({error: "Some error"}))
+    let (task2, _) = TaskReducer.next(
+      task1,
+      AddUserMessage({
+        id: "user-1",
+        content: [Client__Task__Types.UserContentPart.Text({text: "retry"})],
+      }),
+    )
+    let (cancelled, _) = TaskReducer.next(task2, CancelTurn)
+    t->expect(TaskReducer.Selectors.turnError(cancelled))->Expect.toEqual(None)
+  })
+
+  test("after CancelTurn, new AddUserMessage creates fresh assistant message", t => {
+    let task = _startAgentWithStreaming()
+    let (cancelled, _) = TaskReducer.next(task, CancelTurn)
+
+    // Send a new message after cancel
+    let (task2, _) = TaskReducer.next(
+      cancelled,
+      AddUserMessage({
+        id: "user-2",
+        content: [Client__Task__Types.UserContentPart.Text({text: "New question"})],
+      }),
+    )
+
+    // Start new streaming
+    let (task3, _) = TaskReducer.next(task2, StreamingStarted)
+    let (task4, _) = TaskReducer.next(task3, TextDeltaReceived({text: "New response"}))
+
+    let messages = TestHelpers.getMessages(task4)
+    // Messages: User1 + Completed(Partial resp) + User2 + Streaming(New response)
+    t->expect(Array.length(messages))->Expect.toBe(4)
+
+    // Last message should be a NEW streaming message with only new text
+    switch messages->Array.get(3) {
+    | Some(Message.Assistant(Streaming({textBuffer}))) =>
+      t->expect(textBuffer)->Expect.toBe("New response")
+    | _ => t->expect("New streaming message")->Expect.toBe("not found")
+    }
+  })
+})
+
+// ============================================================================
+// Stale Event Guard (post-cancel)
+// ============================================================================
+
+describe("Task - Stale Event Guard", () => {
+  // Helper: task where agent was cancelled (isAgentRunning == false, Loaded)
+  let _cancelledTask = () => {
+    let task = TestHelpers.makeLoadedTask()
+    let (task1, _) = TaskReducer.next(
+      task,
+      AddUserMessage({
+        id: "user-1",
+        content: [Client__Task__Types.UserContentPart.Text({text: "Hello"})],
+      }),
+    )
+    let (task2, _) = TaskReducer.next(task1, CancelTurn)
+    task2
+  }
+
+  test("StreamingStarted is silently dropped when agent not running", t => {
+    let task = _cancelledTask()
+    let (unchanged, effects) = TaskReducer.next(task, StreamingStarted)
+
+    t->expect(effects)->Expect.toEqual([])
+    // No new messages added
+    t->expect(TestHelpers.getMessages(unchanged)->Array.length)->Expect.toBe(1) // just the user msg
+  })
+
+  test("TextDeltaReceived is silently dropped when agent not running", t => {
+    let task = _cancelledTask()
+    let (unchanged, effects) = TaskReducer.next(task, TextDeltaReceived({text: "stale text"}))
+
+    t->expect(effects)->Expect.toEqual([])
+    t->expect(TestHelpers.getMessages(unchanged)->Array.length)->Expect.toBe(1)
+  })
+
+  test("ToolCallReceived is silently dropped when agent not running", t => {
+    let task = _cancelledTask()
+    let toolCall: Message.toolCall = {
+      id: "stale-tool",
+      toolName: "test_tool",
+      state: Message.InputAvailable,
+      inputBuffer: "",
+      input: None,
+      result: None,
+      errorText: None,
+      createdAt: Date.now(),
+      parentAgentId: None,
+      spawningToolName: None,
+    }
+    let (unchanged, effects) = TaskReducer.next(task, ToolCallReceived({toolCall: toolCall}))
+
+    t->expect(effects)->Expect.toEqual([])
+    t->expect(TestHelpers.getMessages(unchanged)->Array.length)->Expect.toBe(1)
+  })
+
+  test("ToolInputReceived is silently dropped when agent not running", t => {
+    let task = _cancelledTask()
+    let (unchanged, effects) = TaskReducer.next(
+      task,
+      ToolInputReceived({id: "stale-tool", input: JSON.parseOrThrow(`{}`)}),
+    )
+
+    t->expect(effects)->Expect.toEqual([])
+    t->expect(TestHelpers.getMessages(unchanged)->Array.length)->Expect.toBe(1)
+  })
+
+  test("ToolResultReceived is silently dropped when agent not running", t => {
+    let task = _cancelledTask()
+    let (unchanged, effects) = TaskReducer.next(
+      task,
+      ToolResultReceived({id: "stale-tool", result: JSON.parseOrThrow(`{}`)}),
+    )
+
+    t->expect(effects)->Expect.toEqual([])
+    t->expect(TestHelpers.getMessages(unchanged)->Array.length)->Expect.toBe(1)
+  })
+
+  test("ToolErrorReceived is silently dropped when agent not running", t => {
+    let task = _cancelledTask()
+    let (unchanged, effects) = TaskReducer.next(
+      task,
+      ToolErrorReceived({id: "stale-tool", error: "stale error"}),
+    )
+
+    t->expect(effects)->Expect.toEqual([])
+    t->expect(TestHelpers.getMessages(unchanged)->Array.length)->Expect.toBe(1)
+  })
+
+  test("stale events during Loading state still work (no guard)", t => {
+    // The guard only applies to Loaded({isAgentRunning: false})
+    // Loading state should still process streaming events normally
+    let task = TestHelpers.makeLoadingTask()
+    let (task1, _) = TaskReducer.next(task, StreamingStarted)
+    let (task2, _) = TaskReducer.next(task1, TextDeltaReceived({text: "loading text"}))
+
+    switch TaskReducer.Selectors.streamingMessage(task2) {
+    | Some(Message.Streaming({textBuffer})) =>
+      t->expect(textBuffer)->Expect.toBe("loading text")
+    | _ => t->expect("Streaming message")->Expect.toBe("not found during loading")
+    }
   })
 })

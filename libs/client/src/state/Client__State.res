@@ -62,10 +62,13 @@ module Actions = {
   let updateTaskTitle = (~taskId, ~title) =>
     Client__State__Store.dispatch(UpdateTaskTitle({taskId, title}))
 
+  // Cancel the current turn (discard partial response, kill server agent)
+  let cancelTurn = () => Client__State__Store.dispatch(CancelTurn)
+
   // ACP session action creators
-  let setAcpSession = (~sendPrompt, ~loadTask, ~deleteSession, ~apiBaseUrl) =>
+  let setAcpSession = (~sendPrompt, ~cancelPrompt, ~loadTask, ~deleteSession, ~apiBaseUrl) =>
     Client__State__Store.dispatch(
-      SetAcpSession({sendPrompt, loadTask, deleteSession, apiBaseUrl}),
+      SetAcpSession({sendPrompt, cancelPrompt, loadTask, deleteSession, apiBaseUrl}),
     )
 
   let clearAcpSession = () => Client__State__Store.dispatch(ClearAcpSession)

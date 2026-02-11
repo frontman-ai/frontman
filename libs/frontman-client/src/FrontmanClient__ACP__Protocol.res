@@ -102,6 +102,25 @@ let sendPrompt = (
   )
 }
 
+// ACP spec: session/cancel is a NOTIFICATION (no id, no response expected).
+// The pending session/prompt request will be resolved by the agent with stopReason: "cancelled".
+let sendCancel = (
+  ~channel: Channel.t,
+  ~sessionId: string,
+  ~onMessage: option<(messageDirection, JSON.t) => unit>,
+): unit => {
+  let cancelParams = JSON.Encode.object(
+    Dict.fromArray([("sessionId", JSON.Encode.string(sessionId))]),
+  )
+  let notification = JsonRpc.Notification.make(
+    ~method="session/cancel",
+    ~params=Some(cancelParams),
+  )
+  let payload = notification->JsonRpc.Notification.toJson
+  onMessage->Option.forEach(cb => cb(Send, payload))
+  channel->Channel.push(~event=Constants.acpMessageEvent, ~payload)->ignore
+}
+
 // Extract method from JSON-RPC message (notifications have method, responses have id)
 let getMethod = (payload: JSON.t): option<string> => {
   payload

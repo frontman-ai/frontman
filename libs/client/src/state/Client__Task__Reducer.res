@@ -280,6 +280,7 @@ type action =
   // Plan/Turn actions
   | PlanReceived({entries: array<ACPTypes.planEntry>})
   | TurnCompleted
+  | CancelTurn
   // Error actions
   | AgentError({error: string})
   | ClearTurnError
@@ -302,11 +303,13 @@ type effect =
     })
   | SendMessage({text: string})
   | NotifyTurnCompleted
+  | CancelPrompt
 
 // Delegated effects - things the task needs from its parent
 type delegated =
   | NeedSendMessage({text: string})
   | NeedUsageRefresh
+  | NeedCancelPrompt
 
 let actionToString = (action: action): string =>
   switch action {
@@ -323,6 +326,7 @@ let actionToString = (action: action): string =>
   | SetPreviewFrame(_) => "SetPreviewFrame"
   | PlanReceived(_) => "PlanReceived"
   | TurnCompleted => "TurnCompleted"
+  | CancelTurn => "CancelTurn"
   | AgentError(_) => "AgentError"
   | ClearTurnError => "ClearTurnError"
   | LoadStarted(_) => "LoadStarted"
@@ -403,6 +407,19 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
   // ============================================================================
   // Message Actions - work on Loading or Loaded (via Lens)
   // ============================================================================
+
+  // Guard: drop stale streaming events that arrive after cancel
+  // When a turn is cancelled, isAgentRunning is set to false. Any streaming
+  // events that arrive after that are late echoes from the killed agent process.
+  | (Task.Loaded({isAgentRunning: false}),
+    StreamingStarted
+    | TextDeltaReceived(_)
+    | ToolCallReceived(_)
+    | ToolInputReceived(_)
+    | ToolResultReceived(_)
+    | ToolErrorReceived(_)) =>
+    (task, [])
+
   | (Task.Loading(_) | Task.Loaded(_), StreamingStarted) =>
     switch Lens.getStreamingMessage(task) {
     | Some(_) =>
@@ -550,6 +567,28 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
     let completed = task->Lens.completeStreamingMessage
     let updatedTask = completed->Task.updateLoadedData(data => {...data, isAgentRunning: false})
     (updatedTask, [NotifyTurnCompleted])
+
+  // Cancel the current turn: complete any partial response, stop agent
+  | (Task.Loaded(data), CancelTurn) =>
+    if !data.isAgentRunning {
+      (task, [])
+    } else {
+      // Complete any streaming message (keeps partial text as a truncated response)
+      // and mark in-progress tool calls as cancelled
+      let completed = Lens.completeStreamingMessage(task)
+      // Cancel any in-progress tool calls (InputStreaming or InputAvailable)
+      let withCancelledTools = Lens.updateMessages(completed, store =>
+        MessageStore.map(store, msg =>
+          switch msg {
+          | Message.ToolCall(tool) if tool.state == Message.InputStreaming || tool.state == Message.InputAvailable =>
+            Message.ToolCall({...tool, state: Message.OutputError, errorText: Some("Cancelled")})
+          | other => other
+          }
+        )
+      )
+      let final = withCancelledTools->Task.updateLoadedData(d => {...d, isAgentRunning: false, turnError: None})
+      (final, [CancelPrompt])
+    }
 
   | (Task.Loaded(data), AgentError({error})) =>
     // Set turn error and stop agent running - user can still send messages
@@ -751,5 +790,6 @@ let handleEffect = (effect: effect, ~dispatch: action => unit, ~delegate: delega
     }
   | SendMessage({text}) => delegate(NeedSendMessage({text: text}))
   | NotifyTurnCompleted => delegate(NeedUsageRefresh)
+  | CancelPrompt => delegate(NeedCancelPrompt)
   }
 }

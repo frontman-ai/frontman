@@ -363,6 +363,17 @@ let sendPrompt = async (
   )
 }
 
+// Cancel an in-flight prompt
+// ACP spec: session/cancel is a notification (fire-and-forget).
+// The pending session/prompt request will resolve with stopReason: "cancelled".
+let cancelPrompt = (session: session): unit => {
+  Protocol.sendCancel(
+    ~channel=session.channel,
+    ~sessionId=session.sessionId,
+    ~onMessage=session.connection.onMessage,
+  )
+}
+
 module Decoders = FrontmanClient__Decoders
 
 // List user's sessions (non-ACP channel message)

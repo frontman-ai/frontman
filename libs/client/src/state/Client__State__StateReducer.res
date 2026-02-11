@@ -23,6 +23,8 @@ type action =
   | TaskAction({target: taskTarget, action: TaskReducer.action})
   // User actions
   | AddUserMessage({id: string, sessionId: string, content: array<UserContentPart.t>})
+  // Cancel current turn
+  | CancelTurn
   // Task management actions
   | CreateTask
   | SwitchTask({taskId: string})
@@ -32,6 +34,7 @@ type action =
   // ACP session actions
   | SetAcpSession({
       sendPrompt: Client__State__Types.sendPromptFn,
+      cancelPrompt: Client__State__Types.cancelPromptFn,
       loadTask: Client__State__Types.loadTaskFn,
       deleteSession: Client__State__Types.deleteSessionFn,
       apiBaseUrl: string,
@@ -207,6 +210,7 @@ let actionToString = action => {
     }
     `TaskAction(${targetStr}, ${TaskReducer.actionToString(action)})`
   | AddUserMessage({id, sessionId}) => `AddUserMessage(${id}, session=${sessionId})`
+  | CancelTurn => `CancelTurn`
   | CreateTask => `CreateTask`
   | SwitchTask({taskId}) => `SwitchTask(${taskId})`
   | DeleteTask({taskId}) => `DeleteTask(${taskId})`
@@ -445,6 +449,9 @@ let sendMessageToAPIImpl = (state: state, dispatch, ~message, ~taskId) => {
       ~additionalBlocks,
       ~onComplete=result => {
         switch result {
+        | Ok({stopReason}) if stopReason == "cancelled" =>
+          // CancelTurn already cleaned up state - don't dispatch TurnCompleted
+          ()
         | Ok(_) => dispatch(TaskAction({target: ForTask(taskId), action: TurnCompleted}))
         | Error(_) => dispatch(TaskAction({target: ForTask(taskId), action: TurnCompleted}))
         }
@@ -501,6 +508,11 @@ let handleEffect = (effect, state: state, dispatch) => {
           switch state.acpSession {
           | AcpSessionActive({apiBaseUrl}) => fetchUsageInfoImpl(dispatch, ~apiBaseUrl)
           | NoAcpSession => ()
+          }
+        | NeedCancelPrompt =>
+          switch state.acpSession {
+          | AcpSessionActive({cancelPrompt}) => cancelPrompt()
+          | NoAcpSession => Console.error("[Effect] Cannot cancel prompt: no active ACP session")
           }
         }
       }
@@ -797,6 +809,18 @@ let next = (state: state, action) => {
     }
 
   // ============================================================================
+  // Cancel current turn - delegates to task reducer and sends cancel notification
+  // ============================================================================
+  | CancelTurn =>
+    switch state.currentTask {
+    | Task.Selected(taskId) =>
+      state->Lens.delegateToTask(Task.Selected(taskId), TaskReducer.CancelTurn)
+    | Task.New(_) =>
+      // No task to cancel
+      state->FrontmanReactStatestore.StateReducer.update
+    }
+
+  // ============================================================================
   // Task management actions
   // ============================================================================
   | CreateTask =>
@@ -875,13 +899,13 @@ let next = (state: state, action) => {
   // ACP session actions
   // ============================================================================
 
-  | SetAcpSession({sendPrompt, loadTask, deleteSession, apiBaseUrl}) =>
+  | SetAcpSession({sendPrompt, cancelPrompt, loadTask, deleteSession, apiBaseUrl}) =>
     // Just set up session callbacks - task creation happens in AddUserMessage
     // when user sends their first message (lazy session creation)
     // apiBaseUrl is co-located in AcpSessionActive to make illegal state unrepresentable
     {
       ...state,
-      acpSession: AcpSessionActive({sendPrompt, loadTask, deleteSession, apiBaseUrl}),
+      acpSession: AcpSessionActive({sendPrompt, cancelPrompt, loadTask, deleteSession, apiBaseUrl}),
       sessionInitialized: true,
     }->FrontmanReactStatestore.StateReducer.update(
       ~sideEffects=[

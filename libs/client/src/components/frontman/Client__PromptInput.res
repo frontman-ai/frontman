@@ -198,24 +198,57 @@ module SelectElementButton = {
   }
 }
 
-// Submit button - purple circle with white arrow
+// Stop icon - square for cancel button
+module StopIcon = {
+  @react.component
+  let make = (~size: int=16) => {
+    <svg
+      width={Int.toString(size)}
+      height={Int.toString(size)}
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      xmlns="http://www.w3.org/2000/svg">
+      <rect x="6" y="6" width="12" height="12" rx="2" />
+    </svg>
+  }
+}
+
+// Submit/Stop button - purple circle, shows send arrow or stop icon
 module SubmitButton = {
   @react.component
-  let make = (~disabled: bool, ~onClick: unit => unit) => {
-    <button
-      type_="submit"
-      disabled
-      onClick={e => {
-        ReactEvent.Mouse.preventDefault(e)
-        onClick()
-      }}
-      className="flex items-center justify-center w-10 h-10 rounded-full
-                 transition-all text-white
-                 bg-[#985DF7] hover:bg-[#8247E5] hover:scale-105
-                 disabled:bg-zinc-700/50 disabled:text-zinc-500 disabled:cursor-not-allowed disabled:scale-100"
-    >
-      <Icons.SendArrowIcon size=18 />
-    </button>
+  let make = (~disabled: bool, ~isAgentRunning: bool, ~onClick: unit => unit, ~onCancel: unit => unit) => {
+    if isAgentRunning {
+      // Stop button - always enabled while agent is running
+      <button
+        type_="button"
+        onClick={e => {
+          ReactEvent.Mouse.preventDefault(e)
+          onCancel()
+        }}
+        className="flex items-center justify-center w-10 h-10 rounded-full
+                   transition-all text-white
+                    bg-[#985DF7] hover:bg-[#8247E5] hover:scale-105"
+        title="Stop generation"
+      >
+        <StopIcon size=18 />
+      </button>
+    } else {
+      // Send button
+      <button
+        type_="submit"
+        disabled
+        onClick={e => {
+          ReactEvent.Mouse.preventDefault(e)
+          onClick()
+        }}
+        className="flex items-center justify-center w-10 h-10 rounded-full
+                   transition-all text-white
+                   bg-[#985DF7] hover:bg-[#8247E5] hover:scale-105
+                   disabled:bg-zinc-700/50 disabled:text-zinc-500 disabled:cursor-not-allowed disabled:scale-100"
+      >
+        <Icons.SendArrowIcon size=18 />
+      </button>
+    }
   }
 }
 
@@ -295,6 +328,7 @@ module TextInput = {
 @react.component
 let make = (
   ~onSubmit: string => unit,
+  ~onCancel: unit => unit,
   ~providers: array<StateTypes.providerConfig>,
   ~selectedModel: option<StateTypes.selectedModel>,
   ~onModelChange: (~provider: string, ~value: string) => unit,
@@ -463,7 +497,9 @@ let make = (
         }}
         <SubmitButton
           disabled={isSubmitDisabled}
+          isAgentRunning
           onClick={handleButtonSubmit}
+          onCancel
         />
       </div>
     </div>
