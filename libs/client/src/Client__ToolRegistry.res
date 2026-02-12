@@ -16,7 +16,6 @@ let make = (): t => {
 
 let coreBrowserTools = (): t => {
   tools: [
-    module(FrontmanClient.FrontmanClient__MCP__Tool__ConsoleLog),
     module(Client__Tool__TakeScreenshot),
     module(Client__Tool__Navigate),
   ],
