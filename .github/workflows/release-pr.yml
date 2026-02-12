@@ -107,15 +107,25 @@ jobs:
             CHANGES=$'\n\n'"### Changed"$'\n'"- Package version bumps (see per-package changelogs for details)"
           fi
 
-          # Build new changelog: header + new entry + existing entries
-          HEADER=$(head -5 CHANGELOG.md)
-          BODY=$(tail -n +6 CHANGELOG.md)
+          # Build new changelog: preamble (everything before the first ## version heading) + new entry + existing entries
+          # Find the line number of the first ## version heading
+          FIRST_HEADING=$(grep -n '^## ' CHANGELOG.md | head -1 | cut -d: -f1)
+          if [ -z "$FIRST_HEADING" ]; then
+            # No existing version headings — entire file is the preamble
+            HEADER=$(cat CHANGELOG.md)
+            BODY=""
+          else
+            HEADER=$(head -n $((FIRST_HEADING - 1)) CHANGELOG.md)
+            BODY=$(tail -n +${FIRST_HEADING} CHANGELOG.md)
+          fi
 
           {
-            printf '%s\n\n' "$HEADER"
+            printf '%s\n' "$HEADER"
             printf '## [%s] - %s\n' "$VERSION" "$DATE"
             printf '%s\n' "$CHANGES"
-            printf '%s\n' "$BODY"
+            if [ -n "$BODY" ]; then
+              printf '\n%s\n' "$BODY"
+            fi
           } > CHANGELOG.md.tmp
           mv CHANGELOG.md.tmp CHANGELOG.md
 

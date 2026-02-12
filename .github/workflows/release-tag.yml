@@ -19,7 +19,19 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Verify this is a release commit
+        id: verify
+        run: |
+          COMMIT_MSG=$(git log -1 --format='%s')
+          if ! echo "$COMMIT_MSG" | grep -qE '^chore: release v[0-9]'; then
+            echo "Skipping — commit message does not match a release PR merge: $COMMIT_MSG"
+            echo "is_release=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_release=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Extract version and changelog
+        if: steps.verify.outputs.is_release == 'true'
         id: extract
         run: |
           # Match both "## [0.4.0]" (Keep a Changelog) and "## 0.4.0" (changesets) formats
@@ -36,6 +48,7 @@ jobs:
           echo "Extracted release notes for v${VERSION}"
 
       - name: Check if tag already exists
+        if: steps.verify.outputs.is_release == 'true'
         id: tag-check
         run: |
           TAG="${{ steps.extract.outputs.tag }}"
@@ -47,7 +60,7 @@ jobs:
           fi
 
       - name: Create tag and GitHub Release
-        if: steps.tag-check.outputs.exists == 'false'
+        if: steps.verify.outputs.is_release == 'true' && steps.tag-check.outputs.exists == 'false'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
