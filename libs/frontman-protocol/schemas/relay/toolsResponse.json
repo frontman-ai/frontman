@@ -1,0 +1,55 @@
+{
+  "type": "object",
+  "properties": {
+    "tools": {
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "inputSchema": {},
+          "visibleToAgent": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": true,
+        "required": [
+          "name",
+          "description",
+          "inputSchema",
+          "visibleToAgent"
+        ]
+      },
+      "type": "array"
+    },
+    "serverInfo": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "name",
+        "version"
+      ]
+    },
+    "protocolVersion": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true,
+  "required": [
+    "tools",
+    "serverInfo",
+    "protocolVersion"
+  ]
+}

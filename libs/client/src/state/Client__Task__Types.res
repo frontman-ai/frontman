@@ -99,7 +99,7 @@ module Todo = {
 }
 
 // Re-export ACP types for convenience
-module ACPTypes = FrontmanFrontmanClient.FrontmanClient__ACP__Types
+module ACPTypes = FrontmanFrontmanProtocol.FrontmanProtocol__ACP
 
 module Task = {
   // ============================================================================

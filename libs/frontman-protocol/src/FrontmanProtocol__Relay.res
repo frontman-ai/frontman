@@ -2,6 +2,9 @@
 
 module MCP = FrontmanProtocol__MCP
 
+// Relay protocol version for runtime version negotiation
+let protocolVersion = "1.0"
+
 // Tool definition from dev server (JSON format, matches MCP)
 @schema
 type remoteTool = {
@@ -16,6 +19,7 @@ type remoteTool = {
 type toolsResponse = {
   tools: array<remoteTool>,
   serverInfo: MCP.info,
+  protocolVersion: string,
 }
 
 // Tool call request to dev server

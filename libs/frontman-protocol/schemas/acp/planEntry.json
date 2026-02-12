@@ -1,0 +1,28 @@
+{
+  "type": "object",
+  "properties": {
+    "content": {
+      "type": "string"
+    },
+    "priority": {
+      "enum": [
+        "high",
+        "medium",
+        "low"
+      ]
+    },
+    "status": {
+      "enum": [
+        "pending",
+        "in_progress",
+        "completed"
+      ]
+    }
+  },
+  "additionalProperties": true,
+  "required": [
+    "content",
+    "priority",
+    "status"
+  ]
+}

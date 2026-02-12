@@ -1,0 +1,31 @@
+{
+  "type": "object",
+  "properties": {
+    "content": {
+      "items": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": true,
+        "required": [
+          "type",
+          "text"
+        ]
+      },
+      "type": "array"
+    },
+    "isError": {
+      "type": "boolean"
+    }
+  },
+  "additionalProperties": true,
+  "required": [
+    "content"
+  ]
+}

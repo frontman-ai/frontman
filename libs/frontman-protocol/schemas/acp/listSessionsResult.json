@@ -1,0 +1,36 @@
+{
+  "type": "object",
+  "properties": {
+    "sessions": {
+      "items": {
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": true,
+        "required": [
+          "sessionId",
+          "title",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "type": "array"
+    }
+  },
+  "additionalProperties": true,
+  "required": [
+    "sessions"
+  ]
+}

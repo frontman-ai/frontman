@@ -1,0 +1,20 @@
+{
+  "type": "object",
+  "properties": {
+    "callId": {
+      "type": "string"
+    },
+    "name": {
+      "type": "string"
+    },
+    "arguments": {
+      "type": "object",
+      "additionalProperties": {}
+    }
+  },
+  "additionalProperties": true,
+  "required": [
+    "callId",
+    "name"
+  ]
+}

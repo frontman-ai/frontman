@@ -76,14 +76,14 @@ type action =
   | SessionCreateSuccess(ACP.session)
   | SessionCreateError(string)
   | CreateSession({
-      onUpdate: (string, FrontmanFrontmanClient.FrontmanClient__ACP__Types.sessionUpdate) => unit,
+      onUpdate: (string, FrontmanFrontmanProtocol.FrontmanProtocol__ACP.sessionUpdate) => unit,
       onMcpMessage: (FrontmanFrontmanClient.FrontmanClient__MCP.messageDirection, JSON.t) => unit,
       onComplete: result<string, string> => unit,
     })
   | SendPrompt({
       text: string,
-      additionalBlocks: array<FrontmanFrontmanClient.FrontmanClient__ACP__Types.contentBlock>,
-      onComplete: result<FrontmanFrontmanClient.FrontmanClient__ACP__Types.promptResult, string> => unit,
+      additionalBlocks: array<FrontmanFrontmanProtocol.FrontmanProtocol__ACP.contentBlock>,
+      onComplete: result<FrontmanFrontmanProtocol.FrontmanProtocol__ACP.promptResult, string> => unit,
       metadata: option<JSON.t>,
     })
   | PromptSent
@@ -91,7 +91,7 @@ type action =
   | LoadTask({
       taskId: string,
       needsHistory: bool,
-      onUpdate: (string, FrontmanFrontmanClient.FrontmanClient__ACP__Types.sessionUpdate) => unit,
+      onUpdate: (string, FrontmanFrontmanProtocol.FrontmanProtocol__ACP.sessionUpdate) => unit,
       onMcpMessage: (FrontmanFrontmanClient.FrontmanClient__MCP.messageDirection, JSON.t) => unit,
       onComplete: result<unit, string> => unit,
     })
@@ -111,15 +111,15 @@ type effect =
   | CreateSessionEffect({
       connection: ACP.connection,
       mcpServer: MCPServer.t,
-      onUpdate: (string, FrontmanFrontmanClient.FrontmanClient__ACP__Types.sessionUpdate) => unit,
+      onUpdate: (string, FrontmanFrontmanProtocol.FrontmanProtocol__ACP.sessionUpdate) => unit,
       onMcpMessage: (FrontmanFrontmanClient.FrontmanClient__MCP.messageDirection, JSON.t) => unit,
       onComplete: result<string, string> => unit,
     })
   | SendPromptEffect({
       session: ACP.session,
       text: string,
-      additionalBlocks: array<FrontmanFrontmanClient.FrontmanClient__ACP__Types.contentBlock>,
-      onComplete: result<FrontmanFrontmanClient.FrontmanClient__ACP__Types.promptResult, string> => unit,
+      additionalBlocks: array<FrontmanFrontmanProtocol.FrontmanProtocol__ACP.contentBlock>,
+      onComplete: result<FrontmanFrontmanProtocol.FrontmanProtocol__ACP.promptResult, string> => unit,
       metadata: option<JSON.t>,
     })
   | CancelPromptEffect({session: ACP.session})
@@ -129,7 +129,7 @@ type effect =
       mcpServer: MCPServer.t,
       taskId: string,
       needsHistory: bool,
-      onUpdate: (string, FrontmanFrontmanClient.FrontmanClient__ACP__Types.sessionUpdate) => unit,
+      onUpdate: (string, FrontmanFrontmanProtocol.FrontmanProtocol__ACP.sessionUpdate) => unit,
       onMcpMessage: (FrontmanFrontmanClient.FrontmanClient__MCP.messageDirection, JSON.t) => unit,
       onComplete: result<unit, string> => unit,
     })

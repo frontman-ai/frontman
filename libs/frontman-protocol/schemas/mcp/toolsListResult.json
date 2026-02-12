@@ -1,0 +1,13 @@
+{
+  "type": "object",
+  "properties": {
+    "tools": {
+      "items": {},
+      "type": "array"
+    }
+  },
+  "additionalProperties": true,
+  "required": [
+    "tools"
+  ]
+}

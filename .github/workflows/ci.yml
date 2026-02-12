@@ -537,3 +537,62 @@ jobs:
       - name: Run biome lint
         if: steps.changes.outputs.client == 'true'
         run: cd libs/client && npx biome lint .
+
+  protocol-check:
+    name: Protocol schema check
+    needs: [setup]
+    runs-on: self-hosted
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for changes in libs/frontman-protocol
+        id: changes
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            protocol:
+              - 'libs/frontman-protocol/**'
+
+      - name: Setup Node.js
+        if: steps.changes.outputs.protocol == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.4.1'
+
+      - name: Enable Corepack
+        if: steps.changes.outputs.protocol == 'true'
+        run: corepack enable
+
+      - name: Cache Yarn
+        if: steps.changes.outputs.protocol == 'true'
+        uses: actions/cache@v4
+        with:
+          path: ~/.yarn/berry/cache
+          key: yarn-${{ hashFiles('yarn.lock') }}
+          restore-keys: yarn-
+
+      - name: Install dependencies
+        if: steps.changes.outputs.protocol == 'true'
+        run: yarn install --immutable
+
+      - name: Build project
+        if: steps.changes.outputs.protocol == 'true'
+        run: make build
+
+      - name: Check schemas are up to date
+        if: steps.changes.outputs.protocol == 'true'
+        run: make -C libs/frontman-protocol check-schemas
+
+      - name: Fetch main branch for diff
+        if: steps.changes.outputs.protocol == 'true'
+        run: git fetch origin main:main
+
+      - name: Check for breaking changes
+        if: steps.changes.outputs.protocol == 'true'
+        run: node libs/frontman-protocol/scripts/CheckBreakingChanges.res.mjs

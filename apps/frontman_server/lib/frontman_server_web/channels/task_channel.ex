@@ -26,19 +26,26 @@ defmodule FrontmanServerWeb.TaskChannel do
       {:ok, _task} ->
         Logger.info("Client joining: #{task_id}, socket_id: #{inspect(self())}")
 
-        # Start MCP initialization process.
-        # Note: We always reinitialize on join because:
+        # Start MCP initialization as a synchronous state machine.
+        # State is stored in socket assigns — no separate GenServer process.
+        # Each websocket connection needs its own MCP session because:
         # 1. MCPInitializer performs a stateful handshake with the browser-side MCP client
-        # 2. Each websocket connection needs its own MCP session
-        # 3. Project rules loading depends on client-specific context
+        # 2. Project rules loading depends on client-specific context
         # Tools are stored in socket assigns and passed through Backend.Context for agent access.
-        {:ok, initializer_pid} = MCPInitializer.start_link(self(), task_id, scope)
+        #
+        # Note: Phoenix channels prohibit push() during join/3, so we defer
+        # the initial MCP request push to handle_info(:start_mcp_init).
+        # All subsequent MCP responses are processed synchronously in handle_in.
+        {init_state, init_actions} = MCPInitializer.start(task_id, scope)
 
         socket =
           socket
           |> assign(:task_id, task_id)
-          |> assign(:mcp_initializer_pid, initializer_pid)
+          |> assign(:mcp_init_state, init_state)
           |> assign(:mcp_status, :pending)
+          |> assign(:mcp_init_actions, init_actions)
+
+        send(self(), :start_mcp_init)
 
         {:ok, %{task_id: task_id}, socket}
 
@@ -129,7 +136,7 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   defp handle_mcp_response(id, result, socket) do
     pending_requests = socket.assigns[:pending_requests] || %{}
-    initializer_pid = socket.assigns[:mcp_initializer_pid]
+    init_state = socket.assigns[:mcp_init_state]
 
     Logger.debug(
       "MCP response received: id=#{id}, pending_keys=#{inspect(Map.keys(pending_requests))}"
@@ -149,29 +156,18 @@ defmodule FrontmanServerWeb.TaskChannel do
             {:noreply, socket}
         end
 
-      # Initialization response - MCPInitializer owns these IDs
-      initializer_pid && initializer_expects_response?(initializer_pid, id) ->
+      # Initialization response - MCPInitializer state owns these IDs
+      init_state && MCPInitializer.expects_response?(init_state, id) ->
         Logger.debug("MCP response #{id} matched MCPInitializer")
-        MCPInitializer.handle_mcp_response(initializer_pid, id, result)
-        {:noreply, socket}
+        {new_state, actions} = MCPInitializer.handle_response(init_state, id, result)
+        socket = assign(socket, :mcp_init_state, new_state)
+        socket = execute_init_actions(actions, socket)
+        maybe_process_queued_prompt(socket)
 
       true ->
         Logger.warning("Received MCP response for unknown request_id: #{id}")
         {:noreply, socket}
     end
-  end
-
-  # Safely check if MCPInitializer expects this response, with timeout protection
-  defp initializer_expects_response?(pid, id) do
-    MCPInitializer.expects_response?(pid, id)
-  catch
-    :exit, {:timeout, _} ->
-      Logger.warning("MCPInitializer.expects_response? timed out for id=#{id}")
-      false
-
-    :exit, reason ->
-      Logger.warning("MCPInitializer.expects_response? failed: #{inspect(reason)}")
-      false
   end
 
   defp handle_tool_call_response(_id, tool_call, result, socket, remaining_requests) do
@@ -208,7 +204,7 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   defp handle_mcp_error(id, error, socket) do
     pending_requests = socket.assigns[:pending_requests] || %{}
-    initializer_pid = socket.assigns[:mcp_initializer_pid]
+    init_state = socket.assigns[:mcp_init_state]
 
     Logger.debug(
       "MCP error received: id=#{id}, pending_keys=#{inspect(Map.keys(pending_requests))}"
@@ -226,10 +222,12 @@ defmodule FrontmanServerWeb.TaskChannel do
             {:noreply, socket}
         end
 
-      # Initialization error - MCPInitializer owns these IDs
-      initializer_pid && initializer_expects_response?(initializer_pid, id) ->
-        MCPInitializer.handle_mcp_error(initializer_pid, id, error)
-        {:noreply, socket}
+      # Initialization error - MCPInitializer state owns these IDs
+      init_state && MCPInitializer.expects_response?(init_state, id) ->
+        {new_state, actions} = MCPInitializer.handle_error(init_state, id, error)
+        socket = assign(socket, :mcp_init_state, new_state)
+        socket = execute_init_actions(actions, socket)
+        maybe_process_queued_prompt(socket)
 
       true ->
         Logger.warning("Received MCP error for unknown request_id: #{id}")
@@ -418,6 +416,16 @@ defmodule FrontmanServerWeb.TaskChannel do
   defp extract_model_from_params(_), do: nil
 
   @impl true
+  def handle_info(:start_mcp_init, socket) do
+    # Deferred from join/3 because Phoenix channels prohibit push() during join.
+    # The init state and actions were already created in join — we just need
+    # to execute the deferred push actions now that the socket is fully joined.
+    actions = socket.assigns.mcp_init_actions
+    socket = assign(socket, :mcp_init_actions, nil)
+    socket = execute_init_actions(actions, socket)
+    {:noreply, socket}
+  end
+
   def handle_info({:stream_token, text}, socket) do
     # Translate domain event to ACP notification
     # ACP compliant: agent_message_chunk implicitly signals message start
@@ -563,77 +571,85 @@ defmodule FrontmanServerWeb.TaskChannel do
     end
   end
 
-  def handle_info({:mcp_initializer_request, request}, socket) do
-    # Forward MCP requests from initializer to client
-    push(socket, "mcp:message", request)
-    {:noreply, socket}
+  def handle_info(msg, _socket) do
+    raise "Unhandled message in TaskChannel: #{inspect(msg)}"
   end
 
-  def handle_info({:mcp_initializer_notification, notification}, socket) do
-    # Forward MCP notifications from initializer to client
-    push(socket, "mcp:message", notification)
-    {:noreply, socket}
+  # Execute actions returned by the MCPInitializer state machine.
+  # Each action is processed synchronously within the current callback,
+  # eliminating async process hops that caused race conditions.
+  defp execute_init_actions(actions, socket) do
+    Enum.reduce(actions, socket, fn action, socket ->
+      case action do
+        {:push_mcp, msg} ->
+          push(socket, "mcp:message", msg)
+          socket
+
+        {:push_acp, msg} ->
+          push(socket, "acp:message", msg)
+          socket
+
+        {:initialization_complete, data} ->
+          task_id = socket.assigns.task_id
+          Logger.info("MCP initialization complete for task #{task_id}")
+
+          socket
+          |> assign(:mcp_status, :ready)
+          |> assign(:mcp_capabilities, data.mcp_capabilities)
+          |> assign(:mcp_server_info, data.mcp_server_info)
+          |> assign(:mcp_tools, data.tools)
+
+        {:initialization_failed, error} ->
+          Logger.error("MCP initialization failed: #{inspect(error)}")
+
+          socket
+          |> assign(:mcp_status, :failed)
+          |> assign(:mcp_error, error)
+      end
+    end)
   end
 
-  def handle_info({:mcp_initializer, {:initialization_complete, data}}, socket) do
-    task_id = socket.assigns.task_id
-    Logger.info("MCP initialization complete for task #{task_id}")
-
-    # Notify client that project rules are initialized
-    notification =
-      JsonRpc.notification("project_rules_initialized", %{
-        "count" => length(data.tools),
-        "taskId" => task_id
-      })
-
-    push(socket, "acp:message", notification)
-
-    socket =
-      socket
-      |> assign(:mcp_status, :ready)
-      |> assign(:mcp_capabilities, data.mcp_capabilities)
-      |> assign(:mcp_server_info, data.mcp_server_info)
-      |> assign(:mcp_tools, data.tools)
-
-    # Process any queued prompt that was waiting for MCP initialization
-    case socket.assigns[:queued_prompt] do
-      {id, params} ->
+  # Process any queued prompt after MCP initialization completes or fails.
+  # Called after execute_init_actions when handling MCP responses.
+  #
+  # Important: This is called from handle_in("mcp:message", ...), so we must
+  # NOT return {:reply, ...} — that would send the reply on the wrong channel
+  # event. Any replies from process_prompt are converted to push + {:noreply}.
+  defp maybe_process_queued_prompt(socket) do
+    case {socket.assigns[:mcp_status], socket.assigns[:queued_prompt]} do
+      {:ready, {id, params}} ->
+        task_id = socket.assigns.task_id
         Logger.info("Processing queued prompt after MCP initialization for task #{task_id}")
         socket = assign(socket, :queued_prompt, nil)
-        process_prompt(id, params, socket)
+        ensure_noreply(process_prompt(id, params, socket), socket)
 
-      nil ->
-        {:noreply, socket}
-    end
-  end
+      {:failed, {id, params}} ->
+        task_id = socket.assigns.task_id
 
-  def handle_info({:mcp_initializer, {:initialization_failed, error}}, socket) do
-    Logger.error("MCP initialization failed: #{inspect(error)}")
-    task_id = socket.assigns.task_id
-
-    socket =
-      socket
-      |> assign(:mcp_status, :failed)
-      |> assign(:mcp_error, error)
-
-    # Process any queued prompt with empty tools (best effort)
-    case socket.assigns[:queued_prompt] do
-      {id, params} ->
         Logger.warning(
           "Processing queued prompt with failed MCP initialization for task #{task_id}"
         )
 
         socket = assign(socket, :queued_prompt, nil)
-        process_prompt(id, params, socket)
+        ensure_noreply(process_prompt(id, params, socket), socket)
 
-      nil ->
+      _ ->
         {:noreply, socket}
     end
   end
 
-  def handle_info(msg, _socket) do
-    raise "Unhandled message in TaskChannel: #{inspect(msg)}"
+  # Convert {:reply, ...} tuples to push + {:noreply, ...}.
+  # Used when process_prompt is called from a non-ACP context (e.g. after
+  # MCP initialization) where {:reply} would send on the wrong channel event.
+  defp ensure_noreply({:reply, {:ok, reply_payload}, socket}, _fallback_socket) do
+    Enum.each(reply_payload, fn {event, message} ->
+      push(socket, event, message)
+    end)
+
+    {:noreply, socket}
   end
+
+  defp ensure_noreply({:noreply, socket}, _fallback_socket), do: {:noreply, socket}
 
   defp route_to_mcp(tool_call, socket) do
     task_id = socket.assigns.task_id

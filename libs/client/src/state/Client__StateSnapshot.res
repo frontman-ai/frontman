@@ -9,7 +9,7 @@ S.enableJson()
  */
 
 // Re-export plan entry types from frontman-client (they already have Sury schemas)
-module ACPTypes = FrontmanFrontmanClient.FrontmanClient__ACP__Types
+module ACPTypes = FrontmanFrontmanProtocol.FrontmanProtocol__ACP
 
 // ============================================================================
 // Schema Helpers

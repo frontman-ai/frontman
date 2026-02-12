@@ -5,6 +5,10 @@
 		{
 			"dir": "src",
 			"subdirs": true
+		},
+		{
+			"dir": "scripts",
+			"type": "dev"
 		}
 	],
 	"package-specs": [
@@ -15,5 +19,6 @@
 		}
 	],
 	"ppx-flags": ["sury-ppx/bin"],
-	"dependencies": ["@rescript/webapi", "sury"]
+	"dependencies": ["@rescript/webapi", "sury"],
+	"dev-dependencies": ["@frontman/bindings"]
 }

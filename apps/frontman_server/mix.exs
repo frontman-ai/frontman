@@ -108,7 +108,8 @@ defmodule FrontmanServer.MixProject do
       {:lazy_html, ">= 0.1.0", only: :test},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:excoveralls, "~> 0.18", only: :test},
-      {:credo, "~> 1.7", only: [:dev, :test], runtime: false}
+      {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
+      {:ex_json_schema, "~> 0.10", only: :test}
     ]
   end
 end

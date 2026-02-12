@@ -1,16 +1,21 @@
 defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
   @moduledoc """
-  GenServer that manages the MCP initialization flow as a state machine.
+  Pure functional state machine for MCP initialization.
 
-  Handles the sequential initialization process:
+  Manages the sequential initialization process:
   1. Initialize MCP connection
   2. Load tools list
   3. Load project rules
-  4. Notify channel when complete
+  4. Signal completion
 
-  This removes the complex async coordination from the channel itself.
+  State is stored in socket assigns by TaskChannel. Functions return
+  `{new_state, actions}` tuples where actions are instructions for the
+  channel to execute synchronously (push messages, update assigns, etc).
+
+  This design eliminates async process hops — every MCP response is
+  processed within the channel's own `handle_in` callback, making the
+  initialization flow deterministic and race-free.
   """
-  use GenServer
   require Logger
 
   alias FrontmanServer.Accounts.Scope
@@ -20,16 +25,14 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
   alias ModelContextProtocol, as: MCP
 
   @type status ::
-          :pending
-          | :initializing_mcp
+          :initializing_mcp
           | :loading_tools
           | :loading_project_rules
           | :ready
           | :failed
 
-  @type state :: %{
+  @type t :: %{
           status: status(),
-          channel_pid: pid(),
           task_id: String.t(),
           scope: Scope.t(),
           mcp_init_request_id: integer() | nil,
@@ -37,87 +40,58 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
           project_rules_request_id: integer() | nil,
           mcp_capabilities: map() | nil,
           mcp_server_info: map() | nil,
-          tools: list() | nil,
-          error: any() | nil
+          tools: list() | nil
         }
 
-  # Client API
+  @type action ::
+          {:push_mcp, map()}
+          | {:push_acp, map()}
+          | {:initialization_complete, map()}
+          | {:initialization_failed, any()}
 
-  @spec start_link(pid(), String.t(), Scope.t()) :: GenServer.on_start()
-  def start_link(channel_pid, task_id, scope) do
-    GenServer.start_link(__MODULE__, {channel_pid, task_id, scope})
-  end
-
-  @spec handle_mcp_response(pid(), integer(), map()) :: :ok
-  def handle_mcp_response(pid, request_id, result) do
-    GenServer.cast(pid, {:mcp_response, request_id, result})
-  end
-
-  @spec handle_mcp_error(pid(), integer(), map()) :: :ok
-  def handle_mcp_error(pid, request_id, error) do
-    GenServer.cast(pid, {:mcp_error, request_id, error})
-  end
+  # Public API
 
   @doc """
-  Returns true if this initializer is expecting a response with the given request_id.
-  Used by TaskChannel to route MCP responses to the correct handler.
+  Creates the initial state and returns the MCP initialize request to send.
   """
-  @spec expects_response?(pid(), integer()) :: boolean()
-  def expects_response?(pid, request_id) do
-    GenServer.call(pid, {:expects_response?, request_id})
-  end
+  @spec start(String.t(), Scope.t()) :: {t(), [action()]}
+  def start(task_id, scope) do
+    request_id = System.unique_integer([:positive])
+    request = JsonRpc.request(request_id, "initialize", MCP.initialize_params())
 
-  # Server Callbacks
-
-  @impl true
-  def init({channel_pid, task_id, scope}) do
     state = %{
-      status: :pending,
-      channel_pid: channel_pid,
+      status: :initializing_mcp,
       task_id: task_id,
       scope: scope,
-      mcp_init_request_id: nil,
+      mcp_init_request_id: request_id,
       tools_request_id: nil,
       project_rules_request_id: nil,
       mcp_capabilities: nil,
       mcp_server_info: nil,
-      tools: nil,
-      error: nil
+      tools: nil
     }
 
-    # Start initialization flow
-    send(self(), :start_initialization)
+    Logger.info("MCPInitializer: Starting MCP initialization for task #{task_id}")
 
-    {:ok, state}
+    {state, [{:push_mcp, request}]}
   end
 
-  @impl true
-  def handle_call({:expects_response?, request_id}, _from, state) do
-    owns_id =
-      request_id == state.mcp_init_request_id or
-        request_id == state.tools_request_id or
-        request_id == state.project_rules_request_id
-
-    {:reply, owns_id, state}
+  @doc """
+  Returns true if this initializer state is expecting a response with the given request_id.
+  Used by TaskChannel to route MCP responses to the correct handler.
+  """
+  @spec expects_response?(t(), integer()) :: boolean()
+  def expects_response?(state, request_id) do
+    request_id == state.mcp_init_request_id or
+      request_id == state.tools_request_id or
+      request_id == state.project_rules_request_id
   end
 
-  @impl true
-  def handle_info(:start_initialization, state) do
-    request_id = System.unique_integer([:positive])
-    request = JsonRpc.request(request_id, "initialize", MCP.initialize_params())
-
-    # Send request to channel, which will push to client
-    send(state.channel_pid, {:mcp_initializer_request, request})
-
-    state = %{state | status: :initializing_mcp, mcp_init_request_id: request_id}
-
-    Logger.info("MCPInitializer: Starting MCP initialization for task #{state.task_id}")
-
-    {:noreply, state}
-  end
-
-  @impl true
-  def handle_cast({:mcp_response, request_id, result}, state) do
+  @doc """
+  Handle a successful MCP response. Returns updated state and actions.
+  """
+  @spec handle_response(t(), integer(), map()) :: {t(), [action()]}
+  def handle_response(state, request_id, result) do
     cond do
       request_id == state.mcp_init_request_id ->
         handle_init_response(result, state)
@@ -130,19 +104,20 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
 
       true ->
         Logger.warning("MCPInitializer: Received response for unknown request_id #{request_id}")
-
-        {:noreply, state}
+        {state, []}
     end
   end
 
-  @impl true
-  def handle_cast({:mcp_error, request_id, error}, state) do
+  @doc """
+  Handle an MCP error response. Returns updated state and actions.
+  """
+  @spec handle_error(t(), integer(), map()) :: {t(), [action()]}
+  def handle_error(state, request_id, error) do
     cond do
       request_id == state.mcp_init_request_id ->
         Logger.error("MCPInitializer: MCP initialization failed: #{inspect(error)}")
-        state = %{state | status: :failed, error: error["message"]}
-        notify_channel({:initialization_failed, error["message"]}, state)
-        {:noreply, state}
+        state = %{state | status: :failed}
+        {state, [{:initialization_failed, error["message"]}]}
 
       request_id == state.tools_request_id ->
         Logger.warning("MCPInitializer: Tools list failed: #{inspect(error)}")
@@ -155,7 +130,7 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
         complete_initialization(state)
 
       true ->
-        {:noreply, state}
+        {state, []}
     end
   end
 
@@ -171,19 +146,16 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
         mcp_init_request_id: nil
     }
 
-    # Send initialized notification to channel
+    # Send initialized notification
     notification = JsonRpc.notification("notifications/initialized", %{})
-    send(state.channel_pid, {:mcp_initializer_notification, notification})
 
     # Request tools list
     request_id = System.unique_integer([:positive])
     request = JsonRpc.request(request_id, "tools/list", %{})
 
-    send(state.channel_pid, {:mcp_initializer_request, request})
-
     state = %{state | status: :loading_tools, tools_request_id: request_id}
 
-    {:noreply, state}
+    {state, [{:push_mcp, notification}, {:push_mcp, request}]}
   end
 
   defp handle_tools_response(result, state) do
@@ -208,13 +180,11 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
         "arguments" => %{"startPath" => "."}
       })
 
-    send(state.channel_pid, {:mcp_initializer_request, request})
-
     state = %{state | status: :loading_project_rules, project_rules_request_id: request_id}
 
     Logger.info("MCPInitializer: Sending MCP request to load agent instructions")
 
-    {:noreply, state}
+    {state, [{:push_mcp, request}]}
   end
 
   defp handle_project_rules_response(result, state) do
@@ -251,12 +221,12 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
       tools: state.tools || []
     }
 
-    notify_channel({:initialization_complete, initialization_data}, state)
+    notification =
+      JsonRpc.notification("project_rules_initialized", %{
+        "count" => length(initialization_data.tools),
+        "taskId" => state.task_id
+      })
 
-    {:noreply, state}
-  end
-
-  defp notify_channel(message, state) do
-    send(state.channel_pid, {:mcp_initializer, message})
+    {state, [{:push_acp, notification}, {:initialization_complete, initialization_data}]}
   end
 end

@@ -1,0 +1,53 @@
+{
+  "type": "object",
+  "properties": {
+    "protocolVersion": {
+      "type": "integer"
+    },
+    "clientCapabilities": {
+      "type": "object",
+      "properties": {
+        "fs": {
+          "type": "object",
+          "properties": {
+            "readTextFile": {
+              "type": "boolean"
+            },
+            "writeTextFile": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": true
+        },
+        "terminal": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": true
+    },
+    "clientInfo": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "metadata": {}
+      },
+      "additionalProperties": true,
+      "required": [
+        "name",
+        "version"
+      ]
+    }
+  },
+  "additionalProperties": true,
+  "required": [
+    "protocolVersion"
+  ]
+}

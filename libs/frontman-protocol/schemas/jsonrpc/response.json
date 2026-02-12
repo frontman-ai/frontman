@@ -1,0 +1,40 @@
+{
+  "type": "object",
+  "properties": {
+    "jsonrpc": {
+      "type": "string"
+    },
+    "id": {
+      "type": "integer"
+    },
+    "result": {},
+    "error": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "enum": [
+            -32700,
+            -32600,
+            -32601,
+            -32602,
+            -32603
+          ]
+        },
+        "message": {
+          "type": "string"
+        },
+        "data": {}
+      },
+      "additionalProperties": true,
+      "required": [
+        "code",
+        "message"
+      ]
+    }
+  },
+  "additionalProperties": true,
+  "required": [
+    "jsonrpc",
+    "id"
+  ]
+}

@@ -1,0 +1,48 @@
+{
+  "type": "object",
+  "properties": {
+    "protocolVersion": {
+      "type": "string"
+    },
+    "capabilities": {
+      "type": "object",
+      "properties": {
+        "tools": {
+          "type": "object",
+          "additionalProperties": {}
+        },
+        "resources": {
+          "type": "object",
+          "additionalProperties": {}
+        },
+        "prompts": {
+          "type": "object",
+          "additionalProperties": {}
+        }
+      },
+      "additionalProperties": true
+    },
+    "serverInfo": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "name",
+        "version"
+      ]
+    }
+  },
+  "additionalProperties": true,
+  "required": [
+    "protocolVersion",
+    "capabilities",
+    "serverInfo"
+  ]
+}

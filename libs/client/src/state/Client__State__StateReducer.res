@@ -81,7 +81,7 @@ type action =
   // Session loading actions
   | SessionsLoadStarted
   | SessionsLoadSuccess({
-      sessions: array<FrontmanFrontmanClient.FrontmanClient__ACP__Types.sessionSummary>,
+      sessions: array<FrontmanFrontmanProtocol.FrontmanProtocol__ACP.sessionSummary>,
     })
   | SessionsLoadError({error: string})
 
