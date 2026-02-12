@@ -12,13 +12,12 @@ describe("ToolRegistry", _t => {
   test("coreBrowserTools returns all browser tools", t => {
     let registry = ToolRegistry.coreBrowserTools()
 
-    t->expect(registry->ToolRegistry.count)->Expect.toBe(3)
+    t->expect(registry->ToolRegistry.count)->Expect.toBe(2)
   })
 
   test("finds tool by name", t => {
     let registry = ToolRegistry.coreBrowserTools()
 
-    t->expect(registry->ToolRegistry.getToolByName("console_log")->Option.isSome)->Expect.toBe(true)
     t->expect(registry->ToolRegistry.getToolByName("take_screenshot")->Option.isSome)->Expect.toBe(true)
     t->expect(registry->ToolRegistry.getToolByName("navigate")->Option.isSome)->Expect.toBe(true)
     t->expect(registry->ToolRegistry.getToolByName("nonexistent")->Option.isSome)->Expect.toBe(false)

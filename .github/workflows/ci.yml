@@ -543,8 +543,8 @@ jobs:
     needs: [setup]
     runs-on: self-hosted
     permissions:
-      pull-requests: read
       contents: read
+      pull-requests: read
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -588,6 +588,10 @@ jobs:
       - name: Check schemas are up to date
         if: steps.changes.outputs.protocol == 'true'
         run: make -C libs/frontman-protocol check-schemas
+
+      - name: Fetch main branch for diff
+        if: steps.changes.outputs.protocol == 'true'
+        run: git fetch origin main:main
 
       - name: Check for breaking changes
         if: steps.changes.outputs.protocol == 'true'
