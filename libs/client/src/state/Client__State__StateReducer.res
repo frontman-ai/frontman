@@ -144,21 +144,27 @@ module Lens = {
 }
 
 let getInitialUrl = () => {
-  let entrypointUrl =
-    WebAPI.Global.document
-    ->WebAPI.Document.querySelector("#frontman-entrypoint-url")
-    ->Null.toOption
-    ->Option.map(element => {
-      element->WebAPI.Element.asNode->WebAPI.Node.textContent->Null.toOption->Option.getOr("")
-    })
-  let currentUrl =
-    WebAPI.Global.window->WebAPI.Window.location->WebAPI.Location.href->WebAPI.URL.make(~url=_)
+  // Guard against missing browser globals in test environments (Node.js/jsdom)
+  let hasBrowserGlobals: bool = %raw(`typeof document !== 'undefined' && typeof window !== 'undefined'`)
 
-  let originUrl = switch entrypointUrl {
-  | Some(entrypointUrl) => entrypointUrl
-  | None => `${currentUrl.protocol}//${currentUrl.host}`
+  if !hasBrowserGlobals {
+    "http://localhost:3000"
+  } else {
+    let entrypointUrl =
+      WebAPI.Global.document
+      ->WebAPI.Document.querySelector("#frontman-entrypoint-url")
+      ->Null.toOption
+      ->Option.map(element => {
+        element->WebAPI.Element.asNode->WebAPI.Node.textContent->Null.toOption->Option.getOr("")
+      })
+    let currentUrl =
+      WebAPI.Global.window->WebAPI.Window.location->WebAPI.Location.href->WebAPI.URL.make(~url=_)
+
+    switch entrypointUrl {
+    | Some(entrypointUrl) => entrypointUrl
+    | None => `${currentUrl.protocol}//${currentUrl.host}`
+    }
   }
-  originUrl
 }
 
 // localStorage key for persisting selected model
