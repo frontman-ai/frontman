@@ -25,7 +25,7 @@ let make = (
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" width="12" height="12">
           <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.5" fill="none"/>
         </svg>,
-        "text-zinc-500"
+        "text-fm-text-dimmed"
       )
     | #in_progress => (<Icons.LoaderIcon size=12 />, "text-blue-400")
     | #completed => (<Icons.CheckIcon size=12 />, "text-teal-400")
@@ -41,8 +41,8 @@ let make = (
     <div key={todo.id} className="flex items-center gap-1.5 min-w-0">
       <span className={`shrink-0 w-3 h-3 ${iconColor}`}>{icon}</span>
       <span className={isDone 
-        ? "text-xs text-zinc-500 line-through truncate" 
-        : "text-xs text-zinc-300 truncate"}>
+        ? "text-xs text-fm-text-dimmed line-through truncate" 
+        : "text-xs text-fm-text-secondary truncate"}>
         {React.string(todo.content)}
       </span>
     </div>
@@ -51,23 +51,23 @@ let make = (
   // For single todo or loading, show ultra-compact single line
   if isSingleTodo && !isLoading {
     let todo = todos->Array.getUnsafe(0)
-    <div className="flex items-center gap-2 px-2 py-1.5 bg-zinc-800 border border-zinc-700 rounded-md my-1 animate-in fade-in duration-100">
+    <div className="flex items-center gap-2 px-2 py-1.5 bg-fm-surface-elevated border border-fm-border rounded-md my-1 animate-in fade-in duration-100">
       {renderCompactTodo(todo)}
     </div>
   } else if Array.length(todos) > 0 {
     // Multiple todos - show compact list
-    <div className="bg-zinc-800 border border-zinc-700 rounded-md my-1 animate-in fade-in duration-100 overflow-hidden">
+    <div className="bg-fm-surface-elevated border border-fm-border rounded-md my-1 animate-in fade-in duration-100 overflow-hidden">
       <div className="flex flex-col gap-0.5 p-2">
         {todos->Array.map(todo => renderCompactTodo(todo))->React.array}
       </div>
     </div>
   } else if isLoading {
     let label = operationLabel->Option.getOr("Updating todos...")
-    <div className="flex items-center gap-2 px-2 py-1.5 bg-zinc-800 border border-zinc-700 rounded-md my-1 animate-in fade-in duration-100">
-      <span className="flex items-center justify-center w-3 h-3 shrink-0 text-zinc-400">
+    <div className="flex items-center gap-2 px-2 py-1.5 bg-fm-surface-elevated border border-fm-border rounded-md my-1 animate-in fade-in duration-100">
+      <span className="flex items-center justify-center w-3 h-3 shrink-0 text-fm-text-muted">
         <Icons.LoaderIcon size=12 />
       </span>
-      <span className="text-xs text-zinc-400 shimmer-text truncate">
+      <span className="text-xs text-fm-text-muted shimmer-text truncate">
         {React.string(label)}
       </span>
     </div>

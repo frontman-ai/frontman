@@ -34,8 +34,8 @@ let make = (~content: array<UserContentPart.t>, ~messageId: string, ~isNew: bool
   )
 
   // Sticky container with dark background for proper stacking
-  <div className={`sticky top-0 z-10 bg-[#180C2D] py-2 px-3 ${animationClass}`}>
-    <div className="inline-block max-w-[85%] bg-violet-600/80 rounded-2xl px-4 py-3">
+  <div className={`sticky top-0 z-10 bg-fm-surface py-2 px-3 ${animationClass}`}>
+    <div className="inline-block max-w-[85%] bg-fm-user-bubble rounded-2xl px-4 py-3">
       // Image thumbnails row (above text)
       {Array.length(imageParts) > 0
         ? <div className="flex flex-wrap gap-2 mb-2">
@@ -44,8 +44,8 @@ let make = (~content: array<UserContentPart.t>, ~messageId: string, ~isNew: bool
               let isImage = !(src->String.includes("application/pdf"))
               <div
                 key
-                className={`w-12 h-12 rounded-lg overflow-hidden border border-white/20
-                           transition-colors ${isImage ? "cursor-pointer hover:border-white/50" : ""}`}
+                className={`w-12 h-12 rounded-lg overflow-hidden border border-fm-user-bubble-text/20
+                           transition-colors ${isImage ? "cursor-pointer hover:border-fm-user-bubble-text/50" : ""}`}
                 onClick={_ => {
                   if isImage {
                     setPreviewSrc(_ => Some(src))
@@ -58,7 +58,7 @@ let make = (~content: array<UserContentPart.t>, ~messageId: string, ~isNew: bool
                       alt={`Attachment ${Int.toString(i + 1)}`}
                       className="w-full h-full object-cover"
                     />
-                  : <div className="w-full h-full flex items-center justify-center bg-violet-700/50 text-violet-200">
+                  : <div className="w-full h-full flex items-center justify-center bg-fm-accent-muted text-fm-accent-text">
                       <Client__ToolIcons.FileIcon size=20 />
                     </div>}
               </div>
@@ -74,7 +74,7 @@ let make = (~content: array<UserContentPart.t>, ~messageId: string, ~isNew: bool
               <div
                 key
                 className="flex items-center gap-1.5 px-2 py-1 rounded-md
-                           bg-violet-700/50 text-violet-100 text-xs"
+                           bg-fm-accent-muted text-fm-user-bubble-text text-xs"
               >
                 <Client__ToolIcons.FileIcon size=12 />
                 <span className="truncate max-w-[120px]">{React.string(file)}</span>
@@ -84,7 +84,7 @@ let make = (~content: array<UserContentPart.t>, ~messageId: string, ~isNew: bool
         : React.null}
 
       // Text content
-      <div className="text-[14px] leading-relaxed text-white font-semibold">
+      <div className="text-[14px] leading-relaxed text-fm-user-bubble-text font-semibold">
         {textParts->Array.mapWithIndex((text, i) => {
           let key = `${messageId}-text-${Int.toString(i)}`
           <div key className="whitespace-pre-wrap">{React.string(text)}</div>

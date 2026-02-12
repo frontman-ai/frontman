@@ -24,9 +24,9 @@ let make = (~content: string, ~status: Todo.status) => {
         height="12">
         <path d="M8 2a6 6 0 100 12A6 6 0 008 2zm.75 3a.75.75 0 00-1.5 0v3c0 .414.336.75.75.75h2a.75.75 0 000-1.5H8.75V5z" />
       </svg>,
-      "text-zinc-400",
+      "text-fm-text-muted",
       "Pending",
-      "text-zinc-300",
+      "text-fm-text-secondary",
     )
   | Todo.InProgress => (
       // Play/arrow icon for in progress
@@ -53,7 +53,7 @@ let make = (~content: string, ~status: Todo.status) => {
   }
 
   <div
-    className="flex items-center gap-2 px-3 py-1.5 my-1 rounded-md bg-zinc-800/50 border border-zinc-700/40 animate-in fade-in slide-in-from-left-2 duration-200">
+    className="flex items-center gap-2 px-3 py-1.5 my-1 rounded-md bg-fm-surface-elevated/50 border border-fm-border/40 animate-in fade-in slide-in-from-left-2 duration-200">
     // Status icon
     <span className={`shrink-0 w-3 h-3 flex items-center justify-center ${iconColor}`}>
       {icon}
@@ -63,7 +63,7 @@ let make = (~content: string, ~status: Todo.status) => {
       <span className={`font-medium shrink-0 ${textColor}`}>
         {React.string(labelText ++ ":")}
       </span>
-      <span className="text-zinc-300 truncate"> {React.string(content)} </span>
+      <span className="text-fm-text-secondary truncate"> {React.string(content)} </span>
     </div>
   </div>
 }

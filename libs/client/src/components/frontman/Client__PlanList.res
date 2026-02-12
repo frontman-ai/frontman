@@ -37,12 +37,12 @@ module PlanItem = {
     
     let indicatorClasses = [
       "flex items-center justify-center w-4 h-4 shrink-0 rounded-full",
-      isCompleted ? "text-teal-400" : "text-zinc-500",
+      isCompleted ? "text-teal-400" : "text-fm-text-dimmed",
     ]->Array.join(" ")
     
     let contentClasses = [
       "text-xs flex-1 min-w-0",
-      isCompleted ? "text-zinc-500 line-through" : "text-zinc-200",
+      isCompleted ? "text-fm-text-dimmed line-through" : "text-fm-text",
     ]->Array.join(" ")
     
     <div key={`plan-entry-${index->Int.toString}`} className={containerClasses}>
@@ -72,26 +72,26 @@ let make = (~entries: array<ACPTypes.planEntry>) => {
     let completedCount = entries->Array.filter(e => e.status == Completed)->Array.length
     let totalCount = Array.length(entries)
     
-    <div className="mb-4 bg-zinc-800/50 border border-zinc-700/50 rounded-lg overflow-hidden">
+    <div className="mb-4 bg-fm-surface-elevated/50 border border-fm-border/50 rounded-lg overflow-hidden">
       // Header
       <button
         type_="button"
         onClick={_ => setIsExpanded(prev => !prev)}
         className="w-full flex items-center justify-between gap-2 px-3 py-2 
-                   hover:bg-zinc-700/30 transition-colors cursor-pointer"
+                   hover:bg-fm-surface-hover/30 transition-colors cursor-pointer"
       >
         <div className="flex items-center gap-2">
           <Icons.ChevronDownIcon 
             size=14 
-            className={`text-zinc-400 transition-transform duration-200 ${isExpanded ? "" : "-rotate-90"}`}
+            className={`text-fm-text-muted transition-transform duration-200 ${isExpanded ? "" : "-rotate-90"}`}
           />
-          <span className="text-xs font-medium text-zinc-300">
+          <span className="text-xs font-medium text-fm-text-secondary">
             {React.string(`Plan (${completedCount->Int.toString}/${totalCount->Int.toString})`)}
           </span>
         </div>
         // Progress indicator
         <div className="flex items-center gap-2">
-          <div className="w-16 h-1.5 bg-zinc-700 rounded-full overflow-hidden">
+          <div className="w-16 h-1.5 bg-fm-progress-track rounded-full overflow-hidden">
             <div 
               className="h-full bg-teal-500 transition-all duration-300"
               style={{width: `${(Float.fromInt(completedCount) /. Float.fromInt(totalCount) *. 100.0)->Float.toString}%`}}

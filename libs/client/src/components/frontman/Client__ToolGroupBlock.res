@@ -69,16 +69,16 @@ module NestedToolGroup = {
     
     // Show shimmer when parent is open (not just when loading)
     let showShimmer = isLoading || isOpen
-    let prefixColorClass = if showShimmer { "shimmer-text" } else { "text-zinc-400" }
+    let prefixColorClass = if showShimmer { "shimmer-text" } else { "text-fm-text-muted" }
     
     <div className="my-0.5">
       <div
         className="group flex items-center gap-1 px-2 py-1.5 rounded-lg cursor-pointer 
-                   bg-[#8051CD]/10 hover:bg-[#8051CD]/15 transition-colors duration-150"
+                   bg-fm-accent-subtle hover:bg-fm-accent-muted transition-colors duration-150"
         onClick={handleToggle}>
         <button
           type_="button"
-          className="flex items-center justify-center w-3 h-3 shrink-0 text-zinc-400">
+          className="flex items-center justify-center w-3 h-3 shrink-0 text-fm-text-muted">
           <Icons.ChevronDownIcon size=8 className={isExpanded ? "rotate-180" : "-rotate-90"} />
         </button>
         <span className={`text-[10px] shrink-0 ${prefixColorClass}`}>
@@ -88,20 +88,20 @@ module NestedToolGroup = {
           {summaryLabels
           ->Array.mapWithIndex((label, i) => {
             <React.Fragment key={Int.toString(i)}>
-              {i > 0 ? <span className="text-zinc-500"> {React.string(" · ")} </span> : React.null}
-              <span className="text-zinc-300 truncate"> {React.string(label)} </span>
+              {i > 0 ? <span className="text-fm-text-dimmed"> {React.string(" · ")} </span> : React.null}
+              <span className="text-fm-text-secondary truncate"> {React.string(label)} </span>
             </React.Fragment>
           })
           ->React.array}
         </div>
-        <span className="text-[9px] text-zinc-400 bg-[#8051CD]/20 px-1 py-0.5 rounded shrink-0">
+        <span className="text-[9px] text-fm-text-muted bg-fm-accent-muted px-1 py-0.5 rounded shrink-0">
           {React.string(Int.toString(toolCount))}
         </span>
       </div>
       <div
         className={`frontman-collapse-transition
                     ${isExpanded ? "opacity-100 mt-0.5" : "max-h-0 opacity-0 overflow-hidden"}`}>
-        <div className="pl-3 border-l border-[#8051CD]/30 space-y-0.5">
+        <div className="pl-3 border-l border-fm-accent-border space-y-0.5">
           {group.toolCalls->Array.mapWithIndex((tc, i) => {
             <ToolCallBlock
               key={tc.id}
@@ -212,13 +212,13 @@ let make = (~group: Types.toolGroup, ~defaultExpanded: bool=false, ~isLastToolGr
   let headerBgClass = if isSubagent {
     "bg-indigo-950/50 hover:bg-indigo-900/50"
   } else {
-    "bg-[#8051CD]/10 hover:bg-[#8051CD]/15"
+    "bg-fm-accent-subtle hover:bg-fm-accent-muted"
   }
 
   let borderLineClass = if isSubagent {
     "border-indigo-600/40"
   } else {
-    "border-[#8051CD]/30"
+    "border-fm-accent-border"
   }
 
   // Show shimmer effect when group is loading OR open (last group with agent running)
@@ -226,7 +226,7 @@ let make = (~group: Types.toolGroup, ~defaultExpanded: bool=false, ~isLastToolGr
   let prefixColorClass = if isSubagent {
     if showShimmer { "shimmer-text" } else { "text-indigo-400" }
   } else {
-    if showShimmer { "shimmer-text" } else { "text-zinc-400" }
+    if showShimmer { "shimmer-text" } else { "text-fm-text-muted" }
   }
 
   <div className="my-1.5 mx-3 animate-in fade-in duration-100">
@@ -239,7 +239,7 @@ let make = (~group: Types.toolGroup, ~defaultExpanded: bool=false, ~isLastToolGr
       <button
         type_="button"
         className="flex items-center justify-center w-4 h-4 shrink-0
-                   text-zinc-400 transition-transform duration-200">
+                   text-fm-text-muted transition-transform duration-200">
         <Icons.ChevronDownIcon size=10 className={isExpanded ? "rotate-180" : "-rotate-90"} />
       </button>
       // Subagent icon (for subagent groups)
@@ -274,16 +274,16 @@ let make = (~group: Types.toolGroup, ~defaultExpanded: bool=false, ~isLastToolGr
         ->Array.mapWithIndex((label, i) => {
           <React.Fragment key={Int.toString(i)}>
             {i > 0 || Option.isSome(group.spawningToolName)
-              ? <span className="text-zinc-600 shrink-0"> {React.string(" · ")} </span>
+              ? <span className="text-fm-text-disabled shrink-0"> {React.string(" · ")} </span>
               : React.null}
-            <span className="text-zinc-200 truncate"> {React.string(label)} </span>
+            <span className="text-fm-text truncate"> {React.string(label)} </span>
           </React.Fragment>
         })
         ->React.array}
       </div>
       // Tool count badge
       <span
-        className="text-[10px] text-zinc-400 bg-[#8051CD]/20 px-1.5 py-0.5 rounded shrink-0">
+        className="text-[10px] text-fm-text-muted bg-fm-accent-muted px-1.5 py-0.5 rounded shrink-0">
         {React.string(Int.toString(toolCount))}
       </span>
     </div>

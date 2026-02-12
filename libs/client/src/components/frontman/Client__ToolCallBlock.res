@@ -87,8 +87,8 @@ let make = (
     "animate-in fade-in duration-100",
     "transition-all duration-150",
     compact ? "rounded-lg" : "rounded-xl",
-    compact ? "bg-[#8051CD]/15" : "bg-[#8051CD]/20",
-    compact ? "border border-[#8051CD]/30" : "border border-[#8051CD]/40",
+    compact ? "bg-fm-accent-subtle" : "bg-fm-accent-muted",
+    compact ? "border border-fm-accent-border" : "border border-fm-accent-border-hover",
     compact ? "my-1 mx-2" : "my-2 mx-3",
     compact ? "px-3 py-2" : "px-4 py-3",
     hasBody ? "cursor-pointer" : "",
@@ -105,7 +105,7 @@ let make = (
     <div onClick={handleToggle}>
       // Human-readable tool name (e.g., "Get Routes", "Write File")
       <div className={`font-mono ${compact ? "text-[12px]" : "text-[13px]"}`}>
-        <span className={isInProgress ? "shimmer-text text-zinc-200" : "text-zinc-200"}>
+        <span className={isInProgress ? "shimmer-text text-fm-text" : "text-fm-text"}>
           {React.string(ToolLabels.toTitleCase(toolName))}
         </span>
       </div>
@@ -114,7 +114,7 @@ let make = (
       {target->Option.mapOr(React.null, t =>
         <div className={`mt-1 ${compact ? "text-[11px]" : "text-[12px]"}`}>
           <span 
-            className={`font-mono ${hasError ? "text-red-400" : "text-[#8051CD] hover:text-[#9d7be0]"}`}
+            className={`font-mono ${hasError ? "text-fm-error" : "text-fm-accent-text hover:text-fm-accent-text-hover"}`}
           >
             {React.string(t)}
           </span>
@@ -135,21 +135,21 @@ let make = (
     {hasBody
       ? <div className={bodyClasses}>
           <div
-            className={`mt-3 pt-3 border-t border-[#8051CD]/20 overflow-auto ${compact ? "max-h-[120px] text-[10px]" : "max-h-[150px] text-xs"}`}>
+            className={`mt-3 pt-3 border-t border-fm-accent-muted overflow-auto ${compact ? "max-h-[120px] text-[10px]" : "max-h-[150px] text-xs"}`}>
             {switch (state, input, inputBuffer) {
             | (InputStreaming, None, buf) if buf != "" =>
               <div className="mb-2">
-                <div className="text-[11px] text-zinc-500 mb-1">
+                <div className="text-[11px] text-fm-text-dimmed mb-1">
                   {React.string("Input (streaming):")}
                 </div>
-                <pre className="font-mono text-[11px] whitespace-pre-wrap break-words text-zinc-400">
+                <pre className="font-mono text-[11px] whitespace-pre-wrap break-words text-fm-text-muted">
                   {React.string(buf)}
                 </pre>
               </div>
             | (_, Some(json), _) =>
               <div className="mb-2">
-                <div className="text-[11px] text-zinc-500 mb-1"> {React.string("Input:")} </div>
-                <pre className="font-mono text-[11px] whitespace-pre-wrap break-words text-zinc-400">
+                <div className="text-[11px] text-fm-text-dimmed mb-1"> {React.string("Input:")} </div>
+                <pre className="font-mono text-[11px] whitespace-pre-wrap break-words text-fm-text-muted">
                   {React.string(JSON.stringify(json, ~space=2))}
                 </pre>
               </div>
@@ -158,14 +158,14 @@ let make = (
             {switch (result, errorText) {
             | (Some(json), _) =>
               <div>
-                <div className="text-[11px] text-zinc-500 mb-1"> {React.string("Output:")} </div>
-                <pre className="font-mono text-[11px] whitespace-pre-wrap break-words text-zinc-400">
+                <div className="text-[11px] text-fm-text-dimmed mb-1"> {React.string("Output:")} </div>
+                <pre className="font-mono text-[11px] whitespace-pre-wrap break-words text-fm-text-muted">
                   {React.string(JSON.stringify(json, ~space=2))}
                 </pre>
               </div>
             | (None, Some(_)) => React.null // Error already shown inline in header
             | _ if state == InputAvailable =>
-              <div className="text-sm text-zinc-400 italic py-1">
+              <div className="text-sm text-fm-text-muted italic py-1">
                 {React.string("Executing...")}
               </div>
             | _ => React.null

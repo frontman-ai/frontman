@@ -22,11 +22,11 @@
 .shimmer-text {
 	background: linear-gradient(
 		90deg,
-		rgb(156 163 175) 0%,
-		rgb(209 213 219) 25%,
-		rgb(255 255 255 / 0.9) 50%,
-		rgb(209 213 219) 75%,
-		rgb(156 163 175) 100%
+		var(--fm-shimmer-1) 0%,
+		var(--fm-shimmer-2) 25%,
+		var(--fm-shimmer-3) 50%,
+		var(--fm-shimmer-2) 75%,
+		var(--fm-shimmer-1) 100%
 	);
 	background-size: 200% 100%;
 	-webkit-background-clip: text;
@@ -42,10 +42,10 @@
 @keyframes frontman-active-pulse {
 	0%,
 	100% {
-		box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.3);
+		box-shadow: 0 0 0 0 var(--fm-glow);
 	}
 	50% {
-		box-shadow: 0 0 12px 2px rgba(59, 130, 246, 0.15);
+		box-shadow: 0 0 12px 2px var(--fm-glow-muted);
 	}
 }
 
@@ -90,8 +90,8 @@
 .frontman-group-children {
 	background: linear-gradient(
 		to right,
-		rgba(63, 63, 70, 0.3) 0px,
-		rgba(63, 63, 70, 0.1) 4px,
+		var(--fm-group-border-start) 0px,
+		var(--fm-group-border-mid) 4px,
 		transparent 4px
 	);
 }
@@ -102,15 +102,15 @@
 
 /* Task header hover state */
 .frontman-task-header:hover {
-	background-color: rgba(63, 63, 70, 0.5);
+	background-color: var(--fm-task-hover);
 }
 
 /* Task preview area */
 .frontman-task-preview {
 	background: linear-gradient(
 		to bottom,
-		rgba(39, 39, 42, 0.8),
-		rgba(39, 39, 42, 1)
+		var(--fm-task-preview-start),
+		var(--fm-task-preview-end)
 	);
 }
 
@@ -118,18 +118,18 @@
  * Utility Classes
  * ============================================================================ */
 
-/* Background color not available in Tailwind by default */
+/* Custom intermediate surface colors */
 .bg-zinc-750 {
-	background-color: rgb(48, 48, 54);
+	background-color: var(--fm-surface-hover);
 }
 
 .bg-zinc-850 {
-	background-color: rgb(32, 32, 36);
+	background-color: var(--fm-surface-recessed);
 }
 
 /* Hover variant for bg-zinc-750 */
 .hover\:bg-zinc-750:hover {
-	background-color: rgb(48, 48, 54);
+	background-color: var(--fm-surface-hover);
 }
 
 /* ============================================================================
@@ -160,9 +160,9 @@
 	background: linear-gradient(
 		90deg,
 		transparent 0%,
-		rgba(152, 93, 247, 0.2) 40%,
-		rgba(152, 93, 247, 0.5) 50%,
-		rgba(152, 93, 247, 0.2) 60%,
+		var(--fm-scan-accent) 40%,
+		var(--fm-scan-accent-strong) 50%,
+		var(--fm-scan-accent) 60%,
 		transparent 100%
 	);
 	animation: frontman-scan 1.5s ease-in-out infinite;

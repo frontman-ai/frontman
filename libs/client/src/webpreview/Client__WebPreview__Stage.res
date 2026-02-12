@@ -98,7 +98,7 @@ let make = (~document) => {
       ? <div
           className="absolute inset-0 pointer-events-none"
           style={
-            boxShadow: "inset 0 0 0 2px rgba(152, 93, 247, 0.5)",
+            boxShadow: "inset 0 0 0 2px var(--fm-scan-accent-strong)",
             borderRadius: "0",
           }
         />

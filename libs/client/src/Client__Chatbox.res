@@ -287,14 +287,14 @@ let make = (~onSettingsClick: unit => unit) => {
     }
   }
 
-  <div className="flex flex-col h-full bg-[#180C2D] text-zinc-200">
+  <div className="flex flex-col h-full bg-fm-surface text-fm-text">
     <TaskTabs onSettingsClick />
     <ScrollContainer className="flex-grow overflow-hidden">
       <ScrollContainer.ContentWrapper>
         {
           // Show loading indicator while initializing
           if !sessionInitialized {
-            <div className="flex items-center gap-2 py-3 px-4 text-[13px] text-zinc-400">
+            <div className="flex items-center gap-2 py-3 px-4 text-[13px] text-fm-text-muted">
               <span className="shimmer-text"> {React.string("Loading project context...")} </span>
             </div>
           } else {
@@ -326,7 +326,7 @@ let make = (~onSettingsClick: unit => unit) => {
     <Client__SelectedElementDisplay />
     {switch (usageInfo, hasAnyKey) {
     | (Some({limit: Some(limit), remaining: Some(remaining), hasServerKey: Some(true)}), false) =>
-      <div className="px-4 pb-1 text-xs text-zinc-400">
+      <div className="px-4 pb-1 text-xs text-fm-text-muted">
         {React.string(
           `Free requests remaining: ${remaining->Int.toString} / ${limit->Int.toString}. Add your API key in Settings to remove limits.`,
         )}

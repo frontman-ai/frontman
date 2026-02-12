@@ -40,8 +40,8 @@ let make = (~open_: bool, ~onOpenChange: bool => unit) => {
 
   // Determine status label and style based on save status
   let (statusLabel, statusClass) = switch keySettings.saveStatus {
-  | Types.Idle => ("", "mt-2 text-xs text-zinc-400")
-  | Types.Saving => ("Saving...", "mt-2 text-xs text-zinc-400")
+  | Types.Idle => ("", "mt-2 text-xs text-fm-text-muted")
+  | Types.Saving => ("Saving...", "mt-2 text-xs text-fm-text-muted")
   | Types.Saved => ("Saved", "mt-2 text-xs text-emerald-300")
   | Types.SaveError(msg) => (msg, "mt-2 text-xs text-red-400")
   }
@@ -78,7 +78,7 @@ let make = (~open_: bool, ~onOpenChange: bool => unit) => {
     </span>
   | Types.None =>
     <span
-      className="rounded-full bg-zinc-700/50 px-2 py-0.5 text-[11px] font-semibold text-zinc-400">
+      className="rounded-full bg-fm-surface-hover/50 px-2 py-0.5 text-[11px] font-semibold text-fm-text-muted">
       {React.string("Not configured")}
     </span>
   }
@@ -87,9 +87,9 @@ let make = (~open_: bool, ~onOpenChange: bool => unit) => {
     <Dialog.DialogContent
       className="sm:max-w-none max-w-none h-[560px] w-[960px] p-0" showCloseButton={true}>
       <div className="flex h-full">
-        <div className="w-56 border-r border-zinc-800 bg-zinc-950/60 px-4 py-5">
-          <div className="text-lg font-semibold text-zinc-100"> {React.string("Settings")} </div>
-          <div className="mt-1 text-xs text-zinc-500">
+        <div className="w-56 border-r border-fm-border-subtle bg-fm-surface-recessed/60 px-4 py-5">
+          <div className="text-lg font-semibold text-fm-text"> {React.string("Settings")} </div>
+          <div className="mt-1 text-xs text-fm-text-dimmed">
             {React.string(
               "Settings are stored in your browser. API keys are saved to your account.",
             )}
@@ -98,8 +98,8 @@ let make = (~open_: bool, ~onOpenChange: bool => unit) => {
             <button
               type_="button"
               className={activeTab == "general"
-                ? "flex items-center gap-2 rounded-md bg-zinc-800 px-3 py-2 text-sm text-zinc-100"
-                : "flex items-center gap-2 rounded-md px-3 py-2 text-sm text-zinc-400 hover:bg-zinc-900"}
+                ? "flex items-center gap-2 rounded-md bg-fm-surface-elevated px-3 py-2 text-sm text-fm-text"
+                : "flex items-center gap-2 rounded-md px-3 py-2 text-sm text-fm-text-muted hover:bg-fm-surface-recessed"}
               onClick={_ => setActiveTab(_ => "general")}>
               <Icons.CubeIcon className="size-4" />
               {React.string("General")}
@@ -107,8 +107,8 @@ let make = (~open_: bool, ~onOpenChange: bool => unit) => {
             <button
               type_="button"
               className={activeTab == "providers"
-                ? "flex items-center gap-2 rounded-md bg-zinc-800 px-3 py-2 text-sm text-zinc-100"
-                : "flex items-center gap-2 rounded-md px-3 py-2 text-sm text-zinc-400 hover:bg-zinc-900"}
+                ? "flex items-center gap-2 rounded-md bg-fm-surface-elevated px-3 py-2 text-sm text-fm-text"
+                : "flex items-center gap-2 rounded-md px-3 py-2 text-sm text-fm-text-muted hover:bg-fm-surface-recessed"}
               onClick={_ => setActiveTab(_ => "providers")}>
               <Icons.GlobeIcon className="size-4" />
               {React.string("Providers")}
@@ -126,11 +126,11 @@ let make = (~open_: bool, ~onOpenChange: bool => unit) => {
               </div>
             : <div className="space-y-6">
                 // Anthropic OAuth Section
-                <div className="text-sm text-zinc-400"> {React.string("Connect your account")} </div>
-                <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-4">
+                <div className="text-sm text-fm-text-muted"> {React.string("Connect your account")} </div>
+                <div className="rounded-lg border border-fm-border-subtle bg-fm-surface-recessed/40 px-4 py-4">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-semibold text-zinc-100">
+                      <span className="text-sm font-semibold text-fm-text">
                         {React.string("Anthropic Claude Pro/Max")}
                       </span>
                       {switch anthropicOAuthStatus {
@@ -151,7 +151,7 @@ let make = (~open_: bool, ~onOpenChange: bool => unit) => {
                         </span>
                       | Types.NotConnected =>
                         <span
-                          className="rounded-full bg-zinc-700/50 px-2 py-0.5 text-[11px] font-semibold text-zinc-400">
+                          className="rounded-full bg-fm-surface-hover/50 px-2 py-0.5 text-[11px] font-semibold text-fm-text-muted">
                           {React.string("Not connected")}
                         </span>
                       }}
@@ -160,12 +160,12 @@ let make = (~open_: bool, ~onOpenChange: bool => unit) => {
                       href="https://console.anthropic.com/settings/oauth"
                       target="_blank"
                       rel="noreferrer"
-                      className="text-xs text-zinc-400 hover:text-zinc-200">
+                      className="text-xs text-fm-text-muted hover:text-fm-text">
                       {React.string("Manage connections")}
                     </a>
                   </div>
 
-                  <div className="mt-2 text-xs text-zinc-500">
+                  <div className="mt-2 text-xs text-fm-text-dimmed">
                     {React.string("Use your Claude Pro or Max subscription to power Frontman.")}
                   </div>
 
@@ -183,7 +183,7 @@ let make = (~open_: bool, ~onOpenChange: bool => unit) => {
                       </Button.Button>
                     | Types.Authorizing({authorizeUrl, verifier}) =>
                       <div className="space-y-3">
-                        <div className="text-xs text-zinc-400">
+                        <div className="text-xs text-fm-text-muted">
                           {React.string("1. Click the button below to authorize with Anthropic")}
                         </div>
                         <a
@@ -194,7 +194,7 @@ let make = (~open_: bool, ~onOpenChange: bool => unit) => {
                           {React.string("Open Anthropic Authorization")}
                           <Icons.OpenInNewWindowIcon className="size-4" />
                         </a>
-                        <div className="text-xs text-zinc-400">
+                        <div className="text-xs text-fm-text-muted">
                           {React.string("2. After authorizing, copy the code and paste it below")}
                         </div>
                         <div className="flex items-center gap-3">
@@ -223,9 +223,9 @@ let make = (~open_: bool, ~onOpenChange: bool => unit) => {
                         </div>
                       </div>
                     | Types.Exchanging =>
-                      <div className="flex items-center gap-2 text-sm text-zinc-400">
+                      <div className="flex items-center gap-2 text-sm text-fm-text-muted">
                         <span
-                          className="inline-block size-4 animate-spin rounded-full border-2 border-zinc-600 border-t-zinc-300"
+                          className="inline-block size-4 animate-spin rounded-full border-2 border-fm-spinner-track border-t-fm-spinner-head"
                         />
                         {React.string("Connecting...")}
                       </div>
@@ -233,7 +233,7 @@ let make = (~open_: bool, ~onOpenChange: bool => unit) => {
                         let expiryDate = Date.fromTime(expiresAt)
                         let expiryStr = Intl.DateTimeFormat.make()->Intl.DateTimeFormat.format(expiryDate)
                         <div className="space-y-2">
-                          <div className="text-xs text-zinc-500">
+                          <div className="text-xs text-fm-text-dimmed">
                             {React.string(`Token expires: ${expiryStr}`)}
                           </div>
                           <Button.Button
@@ -260,10 +260,10 @@ let make = (~open_: bool, ~onOpenChange: bool => unit) => {
                 </div>
 
                 // ChatGPT OAuth Section
-                <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-4">
+                <div className="rounded-lg border border-fm-border-subtle bg-fm-surface-recessed/40 px-4 py-4">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-semibold text-zinc-100">
+                      <span className="text-sm font-semibold text-fm-text">
                         {React.string("ChatGPT Pro/Plus")}
                       </span>
                       {switch chatgptOAuthStatus {
@@ -284,14 +284,14 @@ let make = (~open_: bool, ~onOpenChange: bool => unit) => {
                         </span>
                       | Types.ChatGPTNotConnected =>
                         <span
-                          className="rounded-full bg-zinc-700/50 px-2 py-0.5 text-[11px] font-semibold text-zinc-400">
+                          className="rounded-full bg-fm-surface-hover/50 px-2 py-0.5 text-[11px] font-semibold text-fm-text-muted">
                           {React.string("Not connected")}
                         </span>
                       }}
                     </div>
                   </div>
 
-                  <div className="mt-2 text-xs text-zinc-500">
+                  <div className="mt-2 text-xs text-fm-text-dimmed">
                     {React.string("Use your ChatGPT Pro or Plus subscription to power Frontman with OpenAI Codex models.")}
                   </div>
 
@@ -309,25 +309,25 @@ let make = (~open_: bool, ~onOpenChange: bool => unit) => {
                       </Button.Button>
                     | Types.ChatGPTShowingCode({userCode, verificationUrl}) =>
                       <div className="space-y-3">
-                        <div className="text-xs text-zinc-400">
+                        <div className="text-xs text-fm-text-muted">
                           {React.string("Enter this code at OpenAI to connect your account:")}
                         </div>
                         <div className="flex items-center gap-3">
                           <code
-                            className="rounded-md bg-zinc-800 px-4 py-2 font-mono text-lg font-bold tracking-widest text-zinc-100">
+                            className="rounded-md bg-fm-surface-elevated px-4 py-2 font-mono text-lg font-bold tracking-widest text-fm-text">
                             {React.string(userCode)}
                           </code>
                           <a
                             href={verificationUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="rounded-md bg-zinc-700 px-3 py-2 text-xs font-medium text-zinc-200 transition-colors hover:bg-zinc-600">
+                            className="rounded-md bg-fm-surface-hover px-3 py-2 text-xs font-medium text-fm-text transition-colors hover:bg-fm-border-prominent">
                             {React.string("Open OpenAI")}
                           </a>
                         </div>
-                        <div className="flex items-center gap-2 text-xs text-zinc-500">
+                        <div className="flex items-center gap-2 text-xs text-fm-text-dimmed">
                           <span
-                            className="inline-block size-3 animate-spin rounded-full border-2 border-zinc-600 border-t-zinc-300"
+                            className="inline-block size-3 animate-spin rounded-full border-2 border-fm-spinner-track border-t-fm-spinner-head"
                           />
                           {React.string("Waiting for authorization...")}
                         </div>
@@ -336,7 +336,7 @@ let make = (~open_: bool, ~onOpenChange: bool => unit) => {
                         let expiryDate = Date.fromTime(expiresAt)
                         let expiryStr = Intl.DateTimeFormat.make()->Intl.DateTimeFormat.format(expiryDate)
                         <div className="space-y-2">
-                          <div className="text-xs text-zinc-500">
+                          <div className="text-xs text-fm-text-dimmed">
                             {React.string(`Token expires: ${expiryStr}`)}
                           </div>
                           <Button.Button
@@ -363,11 +363,11 @@ let make = (~open_: bool, ~onOpenChange: bool => unit) => {
                 </div>
 
                 // OpenRouter API Key Section
-                <div className="text-sm text-zinc-400"> {React.string("Bring your own key")} </div>
-                <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-4">
+                <div className="text-sm text-fm-text-muted"> {React.string("Bring your own key")} </div>
+                <div className="rounded-lg border border-fm-border-subtle bg-fm-surface-recessed/40 px-4 py-4">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-semibold text-zinc-100">
+                      <span className="text-sm font-semibold text-fm-text">
                         {React.string("OpenRouter")}
                       </span>
                       {sourceBadge}
@@ -377,7 +377,7 @@ let make = (~open_: bool, ~onOpenChange: bool => unit) => {
                       href="https://openrouter.ai/keys"
                       target="_blank"
                       rel="noreferrer"
-                      className="text-xs text-zinc-400 hover:text-zinc-200">
+                      className="text-xs text-fm-text-muted hover:text-fm-text">
                       {React.string("Manage keys")}
                     </a>
                   </div>

@@ -40,6 +40,56 @@
 	--color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
 	--color-sidebar-border: var(--sidebar-border);
 	--color-sidebar-ring: var(--sidebar-ring);
+
+	/* Frontman semantic color tokens */
+	--color-fm-surface: var(--fm-surface);
+	--color-fm-surface-elevated: var(--fm-surface-elevated);
+	--color-fm-surface-recessed: var(--fm-surface-recessed);
+	--color-fm-surface-hover: var(--fm-surface-hover);
+	--color-fm-surface-active: var(--fm-surface-active);
+	--color-fm-text: var(--fm-text);
+	--color-fm-text-secondary: var(--fm-text-secondary);
+	--color-fm-text-muted: var(--fm-text-muted);
+	--color-fm-text-dimmed: var(--fm-text-dimmed);
+	--color-fm-text-disabled: var(--fm-text-disabled);
+	--color-fm-text-contrast: var(--fm-text-contrast);
+	--color-fm-border: var(--fm-border);
+	--color-fm-border-subtle: var(--fm-border-subtle);
+	--color-fm-border-prominent: var(--fm-border-prominent);
+	--color-fm-accent: var(--fm-accent);
+	--color-fm-accent-hover: var(--fm-accent-hover);
+	--color-fm-accent-muted: var(--fm-accent-muted);
+	--color-fm-accent-subtle: var(--fm-accent-subtle);
+	--color-fm-accent-border: var(--fm-accent-border);
+	--color-fm-accent-border-hover: var(--fm-accent-border-hover);
+	--color-fm-accent-text: var(--fm-accent-text);
+	--color-fm-accent-text-hover: var(--fm-accent-text-hover);
+	--color-fm-user-bubble: var(--fm-user-bubble);
+	--color-fm-user-bubble-text: var(--fm-user-bubble-text);
+	--color-fm-send-button: var(--fm-send-button);
+	--color-fm-send-button-hover: var(--fm-send-button-hover);
+	--color-fm-error: var(--fm-error);
+	--color-fm-error-surface: var(--fm-error-surface);
+	--color-fm-error-border: var(--fm-error-border);
+	--color-fm-error-text: var(--fm-error-text);
+	--color-fm-error-text-muted: var(--fm-error-text-muted);
+	--color-fm-resize-active: var(--fm-resize-active);
+	--color-fm-resize-hover: var(--fm-resize-hover);
+	--color-fm-shimmer-1: var(--fm-shimmer-1);
+	--color-fm-shimmer-2: var(--fm-shimmer-2);
+	--color-fm-shimmer-3: var(--fm-shimmer-3);
+	--color-fm-glow: var(--fm-glow);
+	--color-fm-glow-muted: var(--fm-glow-muted);
+	--color-fm-group-border-start: var(--fm-group-border-start);
+	--color-fm-group-border-mid: var(--fm-group-border-mid);
+	--color-fm-task-hover: var(--fm-task-hover);
+	--color-fm-task-preview-start: var(--fm-task-preview-start);
+	--color-fm-task-preview-end: var(--fm-task-preview-end);
+	--color-fm-scan-accent: var(--fm-scan-accent);
+	--color-fm-scan-accent-strong: var(--fm-scan-accent-strong);
+	--color-fm-spinner-track: var(--fm-spinner-track);
+	--color-fm-spinner-head: var(--fm-spinner-head);
+	--color-fm-progress-track: var(--fm-progress-track);
 }
 
 :root {
@@ -75,6 +125,56 @@
 	--sidebar-accent-foreground: oklch(0.205 0 0);
 	--sidebar-border: oklch(0.922 0 0);
 	--sidebar-ring: oklch(0.708 0 0);
+
+	/* Frontman semantic tokens - light theme */
+	--fm-surface: #f8f6fc;
+	--fm-surface-elevated: #f4f4f5;
+	--fm-surface-recessed: #fafafa;
+	--fm-surface-hover: #e4e4e7;
+	--fm-surface-active: #e9e5f5;
+	--fm-text: #27272a;
+	--fm-text-secondary: #3f3f46;
+	--fm-text-muted: #71717a;
+	--fm-text-dimmed: #a1a1aa;
+	--fm-text-disabled: #d4d4d8;
+	--fm-text-contrast: #09090b;
+	--fm-border: #d4d4d8;
+	--fm-border-subtle: #e4e4e7;
+	--fm-border-prominent: #a1a1aa;
+	--fm-accent: #7c3aed;
+	--fm-accent-hover: #6d28d9;
+	--fm-accent-muted: rgba(124, 58, 237, 0.1);
+	--fm-accent-subtle: rgba(124, 58, 237, 0.06);
+	--fm-accent-border: rgba(124, 58, 237, 0.25);
+	--fm-accent-border-hover: rgba(124, 58, 237, 0.4);
+	--fm-accent-text: #7c3aed;
+	--fm-accent-text-hover: #6d28d9;
+	--fm-user-bubble: #ede9fe;
+	--fm-user-bubble-text: #3b0764;
+	--fm-send-button: #7c3aed;
+	--fm-send-button-hover: #6d28d9;
+	--fm-error: #dc2626;
+	--fm-error-surface: rgba(239, 68, 68, 0.08);
+	--fm-error-border: rgba(239, 68, 68, 0.2);
+	--fm-error-text: #dc2626;
+	--fm-error-text-muted: rgba(220, 38, 38, 0.7);
+	--fm-resize-active: #a1a1aa;
+	--fm-resize-hover: #d4d4d8;
+	--fm-shimmer-1: #71717a;
+	--fm-shimmer-2: #3f3f46;
+	--fm-shimmer-3: rgba(0, 0, 0, 0.8);
+	--fm-glow: rgba(124, 58, 237, 0.2);
+	--fm-glow-muted: rgba(124, 58, 237, 0.1);
+	--fm-group-border-start: rgba(161, 161, 170, 0.3);
+	--fm-group-border-mid: rgba(161, 161, 170, 0.1);
+	--fm-task-hover: rgba(228, 228, 231, 0.5);
+	--fm-task-preview-start: rgba(244, 244, 245, 0.8);
+	--fm-task-preview-end: rgba(244, 244, 245, 1);
+	--fm-scan-accent: rgba(124, 58, 237, 0.15);
+	--fm-scan-accent-strong: rgba(124, 58, 237, 0.35);
+	--fm-spinner-track: #d4d4d8;
+	--fm-spinner-head: #52525b;
+	--fm-progress-track: #d4d4d8;
 }
 
 .dark {
@@ -109,6 +209,56 @@
 	--sidebar-accent-foreground: oklch(0.985 0 0);
 	--sidebar-border: oklch(1 0 0 / 10%);
 	--sidebar-ring: oklch(0.556 0 0);
+
+	/* Frontman semantic tokens - dark theme */
+	--fm-surface: #180c2d;
+	--fm-surface-elevated: #27272a;
+	--fm-surface-recessed: #18181b;
+	--fm-surface-hover: #3f3f46;
+	--fm-surface-active: #2d1f4e;
+	--fm-text: #e4e4e7;
+	--fm-text-secondary: #d4d4d8;
+	--fm-text-muted: #a1a1aa;
+	--fm-text-dimmed: #71717a;
+	--fm-text-disabled: #52525b;
+	--fm-text-contrast: #ffffff;
+	--fm-border: #3f3f46;
+	--fm-border-subtle: #27272a;
+	--fm-border-prominent: #52525b;
+	--fm-accent: #985df7;
+	--fm-accent-hover: #8247e5;
+	--fm-accent-muted: rgba(128, 81, 205, 0.2);
+	--fm-accent-subtle: rgba(128, 81, 205, 0.1);
+	--fm-accent-border: rgba(128, 81, 205, 0.3);
+	--fm-accent-border-hover: rgba(128, 81, 205, 0.4);
+	--fm-accent-text: #8051cd;
+	--fm-accent-text-hover: #9d7be0;
+	--fm-user-bubble: rgba(124, 58, 237, 0.8);
+	--fm-user-bubble-text: #ffffff;
+	--fm-send-button: #985df7;
+	--fm-send-button-hover: #8247e5;
+	--fm-error: #f87171;
+	--fm-error-surface: rgba(127, 29, 29, 0.5);
+	--fm-error-border: rgba(153, 27, 27, 0.5);
+	--fm-error-text: #fca5a5;
+	--fm-error-text-muted: rgba(248, 113, 113, 0.6);
+	--fm-resize-active: #71717a;
+	--fm-resize-hover: #52525b;
+	--fm-shimmer-1: #9ca3af;
+	--fm-shimmer-2: #d1d5db;
+	--fm-shimmer-3: rgba(255, 255, 255, 0.9);
+	--fm-glow: rgba(59, 130, 246, 0.3);
+	--fm-glow-muted: rgba(59, 130, 246, 0.15);
+	--fm-group-border-start: rgba(63, 63, 70, 0.3);
+	--fm-group-border-mid: rgba(63, 63, 70, 0.1);
+	--fm-task-hover: rgba(63, 63, 70, 0.5);
+	--fm-task-preview-start: rgba(39, 39, 42, 0.8);
+	--fm-task-preview-end: rgba(39, 39, 42, 1);
+	--fm-scan-accent: rgba(152, 93, 247, 0.2);
+	--fm-scan-accent-strong: rgba(152, 93, 247, 0.5);
+	--fm-spinner-track: #52525b;
+	--fm-spinner-head: #d4d4d8;
+	--fm-progress-track: #3f3f46;
 }
 
 @layer base {

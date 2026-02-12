@@ -18,6 +18,7 @@ type t = {
   serverVersion: string,
   host: string,
   clientUrl: string,
+  isLightTheme: bool,
 }
 
 // JS-friendly type for config input
@@ -29,6 +30,7 @@ type jsConfigInput = {
   serverVersion?: string,
   host?: string,
   clientUrl?: string,
+  isLightTheme?: bool,
 }
 
 // JS-friendly function that accepts a config object
@@ -68,6 +70,7 @@ let makeFromObject = (config: jsConfigInput): t => {
       `[frontman-astro] clientUrl must include a "host" query parameter. Got: ${clientUrl}`,
     )
   }
+  let isLightTheme = config.isLightTheme->Option.getOr(false)
 
   {
     projectRoot,
@@ -77,5 +80,6 @@ let makeFromObject = (config: jsConfigInput): t => {
     serverVersion,
     host,
     clientUrl,
+    isLightTheme,
   }
 }

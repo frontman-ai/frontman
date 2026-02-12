@@ -22,7 +22,7 @@ let make = (
     // Selection border only - no label (label is shown on hover instead)
     // Note: position/size must remain inline styles since they're dynamic values
     <div
-      className={`absolute border-2 border-[#985DF7] rounded-sm pointer-events-none z-[9999] box-border ring-1 ring-[#985DF7]/30 ${isScanning ? "frontman-scanning" : ""}`}
+      className={`absolute border-2 border-fm-accent rounded-sm pointer-events-none z-[9999] box-border ring-1 ring-fm-accent/30 ${isScanning ? "frontman-scanning" : ""}`}
       style={
         left: `${Float.toString(rect.left)}px`,
         top: `${Float.toString(rect.top)}px`,

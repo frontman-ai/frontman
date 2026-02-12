@@ -103,12 +103,12 @@ let make = () => {
         ->String.trim
 
       <div
-        className="mx-3 mb-2 rounded-xl border border-[#8051CD]/40 bg-[#180C2D]/80 overflow-hidden"
+        className="mx-3 mb-2 rounded-xl border border-fm-accent-border-hover bg-fm-surface/80 overflow-hidden"
       >
         // Header row: icon + "Selected Element" + nav buttons + clear
         <div className="flex items-center gap-2.5 px-3.5 py-2.5">
-          <Icons.CursorClickIcon size=18 className="text-[#985DF7] flex-shrink-0" />
-          <span className="font-mono text-sm font-semibold text-[#985DF7] flex-grow">
+          <Icons.CursorClickIcon size=18 className="text-fm-accent flex-shrink-0" />
+          <span className="font-mono text-sm font-semibold text-fm-accent flex-grow">
             {React.string("Selected Element")}
           </span>
           // Navigation: down, up
@@ -117,8 +117,8 @@ let make = () => {
               onClick={_ => navigateDown()}
               disabled={!hasHistory}
               className={`p-1 rounded transition-colors ${hasHistory
-                ? "text-zinc-300 hover:bg-[#8051CD]/30"
-                : "text-zinc-600 cursor-not-allowed"}`}
+                ? "text-fm-text-secondary hover:bg-fm-accent-muted"
+                : "text-fm-text-disabled cursor-not-allowed"}`}
               title={hasHistory ? "Go back to child" : "No navigation history"}
             >
               <RadixIcons.ChevronDownIcon className="size-4" />
@@ -127,8 +127,8 @@ let make = () => {
               onClick={_ => navigateUp()}
               disabled={!hasParent}
               className={`p-1 rounded transition-colors ${hasParent
-                ? "text-zinc-300 hover:bg-[#8051CD]/30"
-                : "text-zinc-600 cursor-not-allowed"}`}
+                ? "text-fm-text-secondary hover:bg-fm-accent-muted"
+                : "text-fm-text-disabled cursor-not-allowed"}`}
               title={hasParent ? "Select parent component" : "No parent component"}
             >
               <RadixIcons.ChevronUpIcon className="size-4" />
@@ -137,7 +137,7 @@ let make = () => {
           // Clear button
           <button
             onClick={_ => Client__State.Actions.setSelectedElement(~selectedElement=None)}
-            className="px-2.5 py-1 rounded-md text-xs font-medium text-zinc-300 bg-[#8051CD]/25 hover:bg-[#8051CD]/40 transition-colors flex-shrink-0"
+            className="px-2.5 py-1 rounded-md text-xs font-medium text-fm-text-secondary bg-fm-accent-muted hover:bg-fm-accent-border-hover transition-colors flex-shrink-0"
             title="Clear selection"
           >
             {React.string("Clear")}
@@ -148,13 +148,13 @@ let make = () => {
           // Component name row (only when source location exists)
           {sourceLocation->Option.mapOr(React.null, loc =>
             loc.componentName->Option.mapOr(React.null, compName =>
-              <div className="font-mono text-sm text-zinc-200 truncate">
+              <div className="font-mono text-sm text-fm-text truncate">
                 {React.string(`<${compName} />`)}
               </div>
             )
           )}
           // Element info row: <tag>: text content (CSS ellipsis)
-          <div className="font-mono text-sm text-zinc-300 truncate">
+          <div className="font-mono text-sm text-fm-text-secondary truncate">
             {React.string(
               if textContent->String.length > 0 {
                 `<${tagName}>: ${textContent}`

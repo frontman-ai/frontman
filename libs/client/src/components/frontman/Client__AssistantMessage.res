@@ -13,7 +13,7 @@ let make = (~variant: variant, ~content: string, ~messageId as _: string, ~isNew
   let isStreaming = variant == Streaming
   
   <MessageContainer isNew isStreaming className="group relative">
-    <div className="text-[13px] leading-relaxed text-zinc-300 font-ibm-plex-mono">
+    <div className="text-[13px] leading-relaxed text-fm-text-secondary font-ibm-plex-mono">
       <Markdown className="size-full [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
         {content}
       </Markdown>
@@ -23,7 +23,7 @@ let make = (~variant: variant, ~content: string, ~messageId as _: string, ~isNew
       <div className="absolute top-0 right-2 -translate-y-1/2 flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity z-10">
         <button
           type_="button"
-          className="flex items-center justify-center w-5 h-5 border-none bg-transparent rounded cursor-pointer opacity-50 hover:opacity-80 transition-opacity text-zinc-200"
+          className="flex items-center justify-center w-5 h-5 border-none bg-transparent rounded cursor-pointer opacity-50 hover:opacity-80 transition-opacity text-fm-text"
           title="Copy to clipboard"
           onClick={_ => { let _ = WebAPI.Global.navigator.clipboard->WebAPI.Clipboard.writeText(content) }}
         >

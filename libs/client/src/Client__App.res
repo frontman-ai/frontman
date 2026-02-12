@@ -108,7 +108,7 @@ let make = (~apiBaseUrl: string) => {
       <div
         className={[
           "absolute top-0 right-0 w-1 h-full cursor-col-resize transition-colors",
-          isResizing ? "bg-zinc-500" : "hover:bg-zinc-600",
+          isResizing ? "bg-fm-resize-active" : "hover:bg-fm-resize-hover",
         ]->Array.join(" ")}
         onMouseDown={handleResizeMouseDown}
       />

@@ -36,7 +36,7 @@ module Content = {
 }
 
 // Cached className for scroll button
-let scrollButtonBaseClassName = "absolute bottom-4 left-[50%] translate-x-[-50%] rounded-full w-8 h-8 flex items-center justify-center bg-zinc-800 border border-zinc-600 text-zinc-200 hover:bg-zinc-700 transition-colors"
+let scrollButtonBaseClassName = "absolute bottom-4 left-[50%] translate-x-[-50%] rounded-full w-8 h-8 flex items-center justify-center bg-fm-surface-elevated border border-fm-border-prominent text-fm-text hover:bg-fm-surface-hover transition-colors"
 
 // Scroll to bottom button
 module ScrollButton = {

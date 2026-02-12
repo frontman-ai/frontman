@@ -173,7 +173,7 @@ let make = (~onSettingsClick: unit => unit) => {
             href="https://discord.gg/J77jBzMM"
             target="_blank"
             rel="noopener noreferrer"
-            className="h-7 w-7 rounded-md text-zinc-400 transition-all duration-200 flex items-center justify-center hover:text-[#5865F2] hover:bg-[#5865F2]/10 cursor-pointer"
+            className="h-7 w-7 rounded-md text-fm-text-muted transition-all duration-200 flex items-center justify-center hover:text-[#5865F2] hover:bg-[#5865F2]/10 cursor-pointer"
           >
             <Icons.QuestionMarkCircledIcon style={iconSize} />
           </a>
@@ -185,7 +185,7 @@ let make = (~onSettingsClick: unit => unit) => {
       // Settings button
       <button
         type_="button"
-        className="h-7 w-7 rounded-md border border-zinc-800/70 bg-zinc-900/70 text-zinc-200 shadow-sm backdrop-blur transition-all duration-200 flex items-center justify-center hover:border-zinc-700 hover:bg-zinc-800/90 hover:shadow-md cursor-pointer"
+        className="h-7 w-7 rounded-md border border-fm-border-subtle/70 bg-fm-surface-recessed/70 text-fm-text shadow-sm backdrop-blur transition-all duration-200 flex items-center justify-center hover:border-fm-border hover:bg-fm-surface-elevated/90 hover:shadow-md cursor-pointer"
         onClick={_ => onSettingsClick()}
         title="Settings"
       >

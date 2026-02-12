@@ -6,11 +6,11 @@
 @react.component
 let make = (~error: string) => {
   <div
-    className="flex items-start gap-3 mx-4 my-3 p-4 bg-red-950/50 border border-red-800/50 rounded-lg animate-in fade-in slide-in-from-top-2 duration-200">
+    className="flex items-start gap-3 mx-4 my-3 p-4 bg-fm-error-surface border border-fm-error-border rounded-lg animate-in fade-in slide-in-from-top-2 duration-200">
     // Error icon
     <div className="flex-shrink-0 mt-0.5">
       <svg
-        className="w-5 h-5 text-red-400"
+        className="w-5 h-5 text-fm-error"
         fill="none"
         viewBox="0 0 24 24"
         strokeWidth="2"
@@ -24,9 +24,9 @@ let make = (~error: string) => {
     </div>
     // Error content
     <div className="flex-1 min-w-0">
-      <p className="text-sm font-medium text-red-300"> {React.string("Error")} </p>
-      <p className="text-sm text-red-400/90 mt-1"> {React.string(error)} </p>
-      <p className="text-xs text-red-400/60 mt-2">
+      <p className="text-sm font-medium text-fm-error-text"> {React.string("Error")} </p>
+      <p className="text-sm text-fm-error/90 mt-1"> {React.string(error)} </p>
+      <p className="text-xs text-fm-error-text-muted mt-2">
         {React.string("Send a new message to try again.")}
       </p>
     </div>

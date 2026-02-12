@@ -357,15 +357,15 @@ module ModelSelector = {
       }}>
       <Select.Trigger
         className="inline-flex items-center justify-between gap-1 h-7 pl-2 pr-1 text-xs
-                   bg-transparent text-zinc-400 
+                   bg-transparent text-fm-text-muted 
                    border-none rounded cursor-pointer
-                   hover:text-zinc-200 hover:bg-zinc-700/30
+                   hover:text-fm-text hover:bg-fm-surface-hover/30
                    focus:outline-none focus:ring-0
-                   data-[placeholder]:text-zinc-500">
+                   data-[placeholder]:text-fm-text-dimmed">
         <span className="truncate max-w-[140px]">
           {React.string(selectedDisplay->Option.getOr("Select model..."))}
         </span>
-        <Select.Icon className="text-zinc-400">
+        <Select.Icon className="text-fm-text-muted">
           <Icons.ChevronDownIcon size=12 />
         </Select.Icon>
       </Select.Trigger>
@@ -374,14 +374,14 @@ module ModelSelector = {
           position=#popper
           sideOffset=4
           className="z-50 min-w-[180px] max-h-[300px] overflow-hidden
-                     bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl
+                     bg-fm-surface-elevated border border-fm-border rounded-lg shadow-xl
                      animate-in fade-in-0 zoom-in-95">
           <Select.Viewport className="p-1">
             {providers
             ->Array.map(provider => {
               <Select.Group key={provider.id}>
                 <Select.Label
-                  className="px-2 py-1.5 text-xs font-medium text-zinc-400">
+                  className="px-2 py-1.5 text-xs font-medium text-fm-text-muted">
                   {React.string(provider.name)}
                 </Select.Label>
                 {provider.models
@@ -391,9 +391,9 @@ module ModelSelector = {
                   <Select.Item
                     key={combinedValue}
                     value={combinedValue}
-                    className="relative flex items-center px-2 py-1.5 text-xs text-zinc-200 rounded
+                    className="relative flex items-center px-2 py-1.5 text-xs text-fm-text rounded
                                cursor-pointer select-none outline-none
-                               data-[highlighted]:bg-zinc-700 data-[highlighted]:text-white
+                               data-[highlighted]:bg-fm-surface-hover data-[highlighted]:text-fm-text-contrast
                                data-[disabled]:opacity-50 data-[disabled]:pointer-events-none">
                     <Select.ItemText> {React.string(model.displayName)} </Select.ItemText>
                   </Select.Item>
@@ -421,8 +421,8 @@ module SelectElementButton = {
       className={`flex items-center gap-1.5 h-9 px-4 rounded-full text-xs font-medium
                  transition-colors
                  ${isSelecting
-          ? "bg-violet-600 text-white hover:bg-violet-500"
-          : "bg-zinc-800/80 text-zinc-300 hover:bg-zinc-700 hover:text-zinc-100"}`}
+          ? "bg-fm-accent text-fm-text-contrast hover:bg-fm-accent-hover"
+          : "bg-fm-surface-elevated/80 text-fm-text-secondary hover:bg-fm-surface-hover hover:text-fm-text"}`}
       title={isSelecting ? "Exit selection mode" : "Select element"}
     >
       <Icons.CursorClickIcon size=14 />
@@ -459,8 +459,8 @@ module SubmitButton = {
           onCancel()
         }}
         className="flex items-center justify-center w-10 h-10 rounded-full
-                   transition-all text-white
-                    bg-[#985DF7] hover:bg-[#8247E5] hover:scale-105"
+                   transition-all text-fm-text-contrast
+                    bg-fm-send-button hover:bg-fm-send-button-hover hover:scale-105"
         title="Stop generation"
       >
         <StopIcon size=18 />
@@ -475,9 +475,9 @@ module SubmitButton = {
           onClick()
         }}
         className="flex items-center justify-center w-10 h-10 rounded-full
-                   transition-all text-white
-                   bg-[#985DF7] hover:bg-[#8247E5] hover:scale-105
-                   disabled:bg-zinc-700/50 disabled:text-zinc-500 disabled:cursor-not-allowed disabled:scale-100"
+                   transition-all text-fm-text-contrast
+                   bg-fm-send-button hover:bg-fm-send-button-hover hover:scale-105
+                   disabled:bg-fm-surface-hover/50 disabled:text-fm-text-dimmed disabled:cursor-not-allowed disabled:scale-100"
       >
         <Icons.SendArrowIcon size=18 />
       </button>
@@ -799,7 +799,7 @@ let make = (
 
   <div
     ref={ReactDOM.Ref.domRef(formRef)}
-    className={`bg-[#180C2D] relative ${isDragging ? "ring-2 ring-violet-500/50 ring-inset" : ""}`}
+    className={`bg-fm-surface relative ${isDragging ? "ring-2 ring-fm-accent/50 ring-inset" : ""}`}
     onDragOver={handleDragOver}
     onDragLeave={handleDragLeave}
     onDrop={handleDrop}
@@ -808,15 +808,15 @@ let make = (
     {isDragging
       ? <div
           className="absolute inset-0 z-20 flex items-center justify-center
-                     bg-[#180C2D]/90 border-2 border-dashed border-violet-500/60 rounded-lg
+                     bg-fm-surface/90 border-2 border-dashed border-fm-accent-border rounded-lg
                      pointer-events-none"
         >
-          <div className="flex flex-col items-center gap-2 text-violet-300">
+          <div className="flex flex-col items-center gap-2 text-fm-accent-text">
             <Icons.UploadIcon size=32 />
             <span className="text-sm font-medium">
               {React.string("Drop files here")}
             </span>
-            <span className="text-xs text-violet-400">
+            <span className="text-xs text-fm-accent-text/70">
               {React.string("Images and PDFs up to 10MB")}
             </span>
           </div>
@@ -883,7 +883,7 @@ let make = (
             })
           }}
           className="flex items-center justify-center w-7 h-7 rounded-lg
-                     text-zinc-400 hover:text-zinc-200 hover:bg-violet-800/50
+                     text-fm-text-muted hover:text-fm-text hover:bg-fm-accent-muted
                      transition-colors"
           title="Attach files (images, PDFs)"
         >
