@@ -20,6 +20,7 @@ DEVPOD_USER ?= root
         ssl-setup tunnel \
         worktree-create worktree-create-from worktree-list worktree-remove worktree-clean \
         worktree-status worktree-devpod worktree-urls worktree-hosts worktree-register worktree-registry \
+        release \
         kill-all-processes open-dogfooding pull-webapi
 
 help: ## Display available commands
@@ -36,6 +37,9 @@ help: ## Display available commands
 	@echo ""
 	@printf "$(CYAN)Worktree Management:$(RESET)\n"
 	@awk 'BEGIN {FS = ":.*##"} /^## WT_START$$/{found=1; next} /^## WT_END$$/{found=0} found && /^[a-zA-Z_-]+:.*##/ { printf "  $(GREEN)%-25s$(RESET) %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
+	@echo ""
+	@printf "$(CYAN)Release:$(RESET)\n"
+	@awk 'BEGIN {FS = ":.*##"} /^## REL_START$$/{found=1; next} /^## REL_END$$/{found=0} found && /^[a-zA-Z_-]+:.*##/ { printf "  $(GREEN)%-25s$(RESET) %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
 	@echo ""
 	@printf "$(CYAN)Utilities:$(RESET)\n"
 	@awk 'BEGIN {FS = ":.*##"} /^## UTIL_START$$/{found=1; next} /^## UTIL_END$$/{found=0} found && /^[a-zA-Z_-]+:.*##/ { printf "  $(GREEN)%-25s$(RESET) %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
@@ -311,6 +315,35 @@ worktree-registry: ## Show all registered worktrees on the server
 	@ssh $(DEVPOD_USER)@$(DEVPOD_HOST) "cat /etc/caddy/worktrees/registry.json 2>/dev/null | jq . || echo 'No worktrees registered'"
 
 ## WT_END
+
+# ============================================================================
+# Release
+# ============================================================================
+## REL_START
+
+release: ## Create a release PR from pending changesets
+	@printf "$(CYAN)Checking release prerequisites...$(RESET)\n"
+	@git fetch origin main --quiet
+	@LOCAL=$$(git rev-parse HEAD); \
+	REMOTE=$$(git rev-parse origin/main); \
+	if [ "$$LOCAL" != "$$REMOTE" ]; then \
+		printf "$(YELLOW)Error: local HEAD is not up to date with origin/main$(RESET)\n"; \
+		echo "Run 'git pull origin main' first"; \
+		exit 1; \
+	fi
+	@CHANGESETS=$$(find .changeset -name '*.md' ! -name 'README.md' 2>/dev/null | wc -l); \
+	if [ "$$CHANGESETS" -eq 0 ]; then \
+		printf "$(YELLOW)Error: no pending changesets found$(RESET)\n"; \
+		echo "Add changesets with 'yarn changeset' before releasing"; \
+		exit 1; \
+	fi; \
+	printf "$(GREEN)Found $$CHANGESETS pending changeset(s)$(RESET)\n"
+	@printf "$(YELLOW)Triggering release workflow...$(RESET)\n"
+	@gh workflow run release-pr.yml --ref main
+	@printf "$(GREEN)Release workflow triggered.$(RESET)\n"
+	@echo "Watch for the PR at: https://github.com/frontman-ai/frontman/pulls"
+
+## REL_END
 
 # ============================================================================
 # Utilities

@@ -1,0 +1,166 @@
+name: Release PR
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: release-pr
+  cancel-in-progress: false
+
+jobs:
+  create-release-pr:
+    name: Create Release PR
+    runs-on: self-hosted
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.4.1'
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Cache Yarn
+        uses: actions/cache@v4
+        with:
+          path: ~/.yarn/berry/cache
+          key: yarn-${{ hashFiles('yarn.lock') }}
+          restore-keys: yarn-
+
+      - name: Install dependencies
+        run: yarn install --immutable
+
+      - name: Check for pending changesets
+        run: |
+          COUNT=$(find .changeset -name '*.md' ! -name 'README.md' | wc -l)
+          if [ "$COUNT" -eq 0 ]; then
+            echo "::error::No pending changesets found. Nothing to release."
+            exit 1
+          fi
+          echo "Found $COUNT pending changeset(s)"
+
+      - name: Determine bump level from changesets
+        id: bump
+        run: |
+          BUMP="patch"
+          for f in .changeset/*.md; do
+            [ "$(basename "$f")" = "README.md" ] && continue
+            # Only search the YAML frontmatter (between --- delimiters), not the description
+            FRONTMATTER=$(sed -n '/^---$/,/^---$/p' "$f")
+            if echo "$FRONTMATTER" | grep -qE ':\s*major(\s|$)'; then
+              BUMP="major"
+              break
+            elif echo "$FRONTMATTER" | grep -qE ':\s*minor(\s|$)'; then
+              BUMP="minor"
+            fi
+          done
+          echo "level=$BUMP" >> "$GITHUB_OUTPUT"
+          echo "Bump level: $BUMP"
+
+      - name: Run changeset version
+        run: yarn changeset version
+
+      - name: Update root CHANGELOG and compute version
+        id: version
+        shell: bash
+        run: |
+          # Get the current project version from root CHANGELOG.md
+          CURRENT=$(sed -n 's/^## \[\{0,1\}\([0-9][0-9.]*\).*/\1/p' CHANGELOG.md | head -1)
+          if [ -z "$CURRENT" ]; then
+            CURRENT="0.0.0"
+          fi
+
+          # Bump version based on changeset level
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
+          BUMP="${{ steps.bump.outputs.level }}"
+          case "$BUMP" in
+            major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
+            minor) MINOR=$((MINOR + 1)); PATCH=0 ;;
+            patch) PATCH=$((PATCH + 1)) ;;
+          esac
+          VERSION="${MAJOR}.${MINOR}.${PATCH}"
+          DATE=$(date +%Y-%m-%d)
+
+          # Collect summaries from per-package changelogs updated by changeset version
+          CHANGES=""
+          for changelog in libs/*/CHANGELOG.md apps/*/CHANGELOG.md; do
+            [ -f "$changelog" ] || continue
+            if git status --porcelain -- "$changelog" | grep -q .; then
+              PKG_DIR=$(dirname "$changelog")
+              PKG_NAME=$(node -e "console.log(require('./${PKG_DIR}/package.json').name)" 2>/dev/null || echo "$(basename "$PKG_DIR")")
+              SECTION=$(awk '/^## /{if(found) exit; found=1; next} found' "$changelog")
+              if [ -n "$SECTION" ]; then
+                CHANGES="${CHANGES}"$'\n\n'"#### ${PKG_NAME}"$'\n\n'"${SECTION}"
+              fi
+            fi
+          done
+
+          if [ -z "$CHANGES" ]; then
+            CHANGES=$'\n\n'"### Changed"$'\n'"- Package version bumps (see per-package changelogs for details)"
+          fi
+
+          # Build new changelog: preamble (everything before the first ## version heading) + new entry + existing entries
+          # Find the line number of the first ## version heading
+          FIRST_HEADING=$(grep -n '^## ' CHANGELOG.md | head -1 | cut -d: -f1)
+          if [ -z "$FIRST_HEADING" ]; then
+            # No existing version headings — entire file is the preamble
+            HEADER=$(cat CHANGELOG.md)
+            BODY=""
+          else
+            HEADER=$(head -n $((FIRST_HEADING - 1)) CHANGELOG.md)
+            BODY=$(tail -n +${FIRST_HEADING} CHANGELOG.md)
+          fi
+
+          {
+            printf '%s\n' "$HEADER"
+            printf '## [%s] - %s\n' "$VERSION" "$DATE"
+            printf '%s\n' "$CHANGES"
+            if [ -n "$BODY" ]; then
+              printf '\n%s\n' "$BODY"
+            fi
+          } > CHANGELOG.md.tmp
+          mv CHANGELOG.md.tmp CHANGELOG.md
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Released version: $VERSION"
+
+      - name: Create release branch and PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          BRANCH="release/v${VERSION}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git checkout -b "$BRANCH"
+          git add -A
+          git commit -m "chore: release v${VERSION}"
+          git push --force-with-lease -u origin "$BRANCH"
+
+          EXISTING_PR=$(gh pr list --head "$BRANCH" --json number --jq '.[0].number' 2>/dev/null || true)
+
+          if [ -n "$EXISTING_PR" ] && [ "$EXISTING_PR" != "null" ]; then
+            echo "PR #${EXISTING_PR} already exists for $BRANCH — updated with latest push"
+          else
+            gh pr create \
+              --title "chore: release v${VERSION}" \
+              --body "## Release v${VERSION}
+          This PR was created by \`make release\`. It contains:
+          - Version bumps for affected packages
+          - Updated CHANGELOG.md
+
+          **Review the changelog below, then merge when ready to release.**
+
+          Once merged, a git tag \`v${VERSION}\` and GitHub Release will be created automatically, and the marketing site will redeploy with the updated changelog." \
+              --label "skip-changelog"
+          fi
