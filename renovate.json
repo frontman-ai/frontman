@@ -1,0 +1,35 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "minimumReleaseAge": "30 days",
+  "prConcurrentLimit": 10,
+  "schedule": ["before 6am on Monday"],
+  "labels": ["dependencies"],
+  "ignorePaths": [
+    "libs/frontman-nextjs/test/cli/fixtures/**",
+    "libs/experimental-rescript-webapi/tools/**"
+  ],
+  "packageRules": [
+    {
+      "description": "Group all GitHub Actions updates together",
+      "matchManagers": ["github-actions"],
+      "groupName": "github-actions"
+    },
+    {
+      "description": "Group all Elixir/Hex updates together",
+      "matchManagers": ["mix"],
+      "groupName": "elixir-deps"
+    },
+    {
+      "description": "Group ReScript-related packages",
+      "matchPackageNames": [
+        "rescript",
+        "@rescript/{/,}**",
+        "sury",
+        "sury-ppx",
+        "rescript-vitest"
+      ],
+      "groupName": "rescript"
+    }
+  ]
+}
