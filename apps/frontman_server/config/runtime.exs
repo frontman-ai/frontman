@@ -75,19 +75,6 @@ else
   ]
 end
 
-# Sentry error tracking (optional - disabled when SENTRY_DSN is not set)
-sentry_dsn = env!("SENTRY_DSN", :string, nil)
-
-if sentry_dsn do
-  config :sentry,
-    dsn: sentry_dsn,
-    environment_name: config_env(),
-    release: "frontman_server@#{Application.spec(:frontman_server, :vsn) || "dev"}",
-    enable_source_code_context: true,
-    root_source_code_paths: [File.cwd!()],
-    tags: %{service: "frontman-server"}
-end
-
 # Dev/Test: Allow DB_HOST override for container development (e.g., DevPod)
 # The docker bridge gateway IP (172.17.0.1) is used to connect from container to host PostgreSQL
 if config_env() in [:dev, :test] do
@@ -99,6 +86,15 @@ if config_env() in [:dev, :test] do
 end
 
 if config_env() == :prod do
+  config :sentry,
+    dsn:
+      "https://442ae992e5a5ccfc42e6910220aeb2a9@o4510512511320064.ingest.de.sentry.io/4510512546185296",
+    environment_name: config_env(),
+    release: "frontman_server@#{Application.spec(:frontman_server, :vsn) || "no_vsn"}",
+    enable_source_code_context: true,
+    root_source_code_paths: [File.cwd!()],
+    tags: %{service: "frontman-server"}
+
   database_url =
     System.get_env("DATABASE_URL") ||
       raise """

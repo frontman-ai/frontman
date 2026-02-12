@@ -28,8 +28,6 @@ services:
         fromDatabase:
           name: frontman-db
           property: connectionString
-      - key: SENTRY_DSN
-        sync: false
       - key: ARIZE_API_KEY
         sync: false
       - key: ARIZE_SPACE_ID
