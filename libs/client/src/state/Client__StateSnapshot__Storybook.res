@@ -38,7 +38,7 @@ let convertSourceLocation = (loc: Snapshot.SourceLocation.t): Client__Types.Sour
 let convertUserContentPart = (part: Snapshot.UserContentPart.t): StateTypes.UserContentPart.t => {
   switch part {
   | Text({text}) => Text({text: text})
-  | Image({image, mediaType}) => Image({image, mediaType})
+  | Image({image, mediaType, name}) => Image({image, mediaType, name})
   | File({file}) => File({file: file})
   }
 }

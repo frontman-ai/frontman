@@ -89,6 +89,10 @@ defmodule FrontmanServer.Tasks.Interaction do
 
       # Extracted Figma node with id, node data (DSL or full JSON), and image
       field(:selected_figma_node, FigmaNode.t() | nil, enforce: false)
+
+      # User-uploaded image/PDF attachments
+      # Each entry: %{blob: base64_data, mime_type: "image/png", filename: "image.png"}
+      field(:images, list(map()), default: [])
     end
 
     def new(content_blocks) do
@@ -101,7 +105,8 @@ defmodule FrontmanServer.Tasks.Interaction do
         messages: extract_messages(content_blocks),
         selected_component: extract_selected_component(content_blocks),
         selected_component_screenshot: extract_selected_component_screenshot(content_blocks),
-        selected_figma_node: extract_selected_figma_node(content_blocks)
+        selected_figma_node: extract_selected_figma_node(content_blocks),
+        images: extract_user_images(content_blocks)
       }
     end
 
@@ -243,6 +248,26 @@ defmodule FrontmanServer.Tasks.Interaction do
           nil
       end)
     end
+
+    # Extract user-uploaded images from content blocks
+    # Looks for resource blocks with _meta.user_image: true
+    defp extract_user_images(content_blocks) do
+      content_blocks
+      |> Enum.filter(fn
+        %{"type" => "resource", "resource" => %{"_meta" => %{"user_image" => true}}} -> true
+        _ -> false
+      end)
+      |> Enum.map(fn %{"type" => "resource", "resource" => resource} ->
+        inner = Map.get(resource, "resource", %{})
+        meta = Map.get(resource, "_meta", %{})
+
+        %{
+          blob: Map.get(inner, "blob", ""),
+          mime_type: Map.get(inner, "mimeType", "image/png"),
+          filename: Map.get(meta, "filename", "attachment")
+        }
+      end)
+    end
   end
 
   defimpl Jason.Encoder, for: UserMessage do
@@ -269,7 +294,11 @@ defmodule FrontmanServer.Tasks.Interaction do
           timestamp: DateTime.to_iso8601(value.timestamp),
           selected_component: value.selected_component,
           selected_component_screenshot: value.selected_component_screenshot != nil,
-          selected_figma_node: selected_figma_node
+          selected_figma_node: selected_figma_node,
+          images:
+            Enum.map(value.images, fn img ->
+              %{mime_type: img.mime_type, filename: img.filename, has_blob: img.blob != ""}
+            end)
         },
         opts
       )
@@ -684,6 +713,7 @@ defmodule FrontmanServer.Tasks.Interaction do
       text_content
       |> build_text_parts()
       |> append_screenshot(msg.selected_component_screenshot)
+      |> append_user_images(msg.images)
 
     build_user_message(content_parts)
   end
@@ -853,6 +883,34 @@ defmodule FrontmanServer.Tasks.Interaction do
       {:ok, decoded_data} -> parts ++ [ContentPart.image(decoded_data, "image/jpeg")]
       :error -> parts
     end
+  end
+
+  # Append user-uploaded images to content parts
+  # PDFs are converted to text mentions since LLM APIs only support image/* content types
+  defp append_user_images(parts, []), do: parts
+
+  defp append_user_images(parts, images) when is_list(images) do
+    {image_attachments, pdf_attachments} =
+      Enum.split_with(images, fn %{mime_type: mime_type} ->
+        String.starts_with?(mime_type, "image/")
+      end)
+
+    image_parts =
+      image_attachments
+      |> Enum.map(fn %{blob: base64_data, mime_type: mime_type} ->
+        case Base.decode64(base64_data) do
+          {:ok, decoded_data} -> ContentPart.image(decoded_data, mime_type)
+          :error -> nil
+        end
+      end)
+      |> Enum.reject(&is_nil/1)
+
+    pdf_parts =
+      Enum.map(pdf_attachments, fn %{filename: filename} ->
+        ContentPart.text("[Attached PDF: #{filename}]")
+      end)
+
+    parts ++ image_parts ++ pdf_parts
   end
 
   defp build_user_message([]), do: ReqLLM.Context.user("")

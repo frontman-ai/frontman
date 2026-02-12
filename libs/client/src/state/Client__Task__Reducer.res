@@ -301,13 +301,19 @@ type effect =
       document: option<WebAPI.DOMAPI.document>,
       contentWindow: option<WebAPI.DOMAPI.window>,
     })
-  | SendMessage({text: string})
+  | SendMessage({
+      text: string,
+      attachments: array<Message.fileAttachmentData>,
+    })
   | NotifyTurnCompleted
   | CancelPrompt
 
 // Delegated effects - things the task needs from its parent
 type delegated =
-  | NeedSendMessage({text: string})
+  | NeedSendMessage({
+      text: string,
+      attachments: array<Message.fileAttachmentData>,
+    })
   | NeedUsageRefresh
   | NeedCancelPrompt
 
@@ -353,6 +359,29 @@ let extractTextFromUserContent = (content: array<UserContentPart.t>): string => 
     }
   })
   ->Array.join(" ")
+}
+
+// Helper to extract image/file attachments from user message parts
+let extractAttachmentsFromUserContent = (
+  content: array<UserContentPart.t>,
+): array<Message.fileAttachmentData> => {
+  content->Array.filterMap(part => {
+    switch part {
+    | Image({image, mediaType, name}) =>
+      Some({
+        Message.dataUrl: image,
+        mediaType: mediaType->Option.getOrThrow,
+        filename: name->Option.getOr("attachment"),
+      })
+    | File({file}) =>
+      Some({
+        Message.dataUrl: file,
+        mediaType: "application/octet-stream",
+        filename: "file",
+      })
+    | Text(_) => None
+    }
+  })
 }
 
 // Helper to get task ID for error messages
@@ -546,6 +575,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
   // ============================================================================
   | (Task.Loaded(data), AddUserMessage({id, content})) =>
     let text = extractTextFromUserContent(content)
+    let attachments = extractAttachmentsFromUserContent(content)
     let message = Message.User({id, content, createdAt: Date.now()})
     (
       Task.Loaded({
@@ -554,7 +584,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
         isAgentRunning: true,
         turnError: None, // Clear any previous error when sending a new message
       }),
-      [SendMessage({text: text})],
+      [SendMessage({text, attachments})],
     )
 
   | (Task.Loaded(data), PlanReceived({entries})) => (
@@ -788,7 +818,7 @@ let handleEffect = (effect: effect, ~dispatch: action => unit, ~delegate: delega
           Promise.resolve()
         })
     }
-  | SendMessage({text}) => delegate(NeedSendMessage({text: text}))
+  | SendMessage({text, attachments}) => delegate(NeedSendMessage({text, attachments}))
   | NotifyTurnCompleted => delegate(NeedUsageRefresh)
   | CancelPrompt => delegate(NeedCancelPrompt)
   }

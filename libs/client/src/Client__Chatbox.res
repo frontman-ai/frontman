@@ -130,9 +130,28 @@ let make = (~onSettingsClick: unit => unit) => {
     ~sessionInitialized,
   )
 
-  let handleSubmit = (text: string) => {
-    if text !== "" {
-      let content = [Client__State.UserContentPart.Text({text: text})]
+  let handleSubmit = (~text: string, ~inputItems: array<Client__PromptInput.inputItem>) => {
+    // text already has pasted-text chips expanded inline at their DOM position
+    // (handled by getExpandedTextFromEditable in PromptInput's doSubmit)
+
+    // Build file attachment content parts (images + PDFs)
+    let fileParts = inputItems->Array.filterMap(item =>
+      switch item {
+      | Client__PromptInput.FileAttachment({name, dataUrl, mediaType}) =>
+        Some(Client__State.UserContentPart.Image({image: dataUrl, mediaType: Some(mediaType), name: Some(name)}))
+      | Client__PromptInput.PastedText(_) => None
+      }
+    )
+
+    // Build content array: text first, then file parts
+    let textParts = if text != "" {
+      [Client__State.UserContentPart.Text({text: text})]
+    } else {
+      []
+    }
+    let content = Array.concat(textParts, fileParts)
+
+    if Array.length(content) > 0 {
       let sendMessage = (sessionId: string) => {
         Client__State.Actions.addUserMessage(~sessionId, ~content)
       }

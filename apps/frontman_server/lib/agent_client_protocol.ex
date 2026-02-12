@@ -26,7 +26,7 @@ defmodule AgentClientProtocol do
     %{
       "loadSession" => true,
       "mcpCapabilities" => %{"http" => false, "sse" => false, "websocket" => true},
-      "promptCapabilities" => %{"image" => false, "audio" => false, "embeddedContext" => true}
+      "promptCapabilities" => %{"image" => true, "audio" => false, "embeddedContext" => true}
     }
   end
 
