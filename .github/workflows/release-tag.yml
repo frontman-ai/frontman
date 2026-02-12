@@ -32,7 +32,7 @@ jobs:
           echo "tag=v${VERSION}" >> "$GITHUB_OUTPUT"
 
           # Extract changelog section between the first and second ## headings
-          awk '/^## [0-9\[]{1}/{if(found) exit; found=1; next} found' CHANGELOG.md > /tmp/release-notes.md
+          awk '/^## [0-9[]/{if(found) exit; found=1; next} found' CHANGELOG.md > /tmp/release-notes.md
           echo "Extracted release notes for v${VERSION}"
 
       - name: Check if tag already exists
