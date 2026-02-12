@@ -47,20 +47,78 @@ jobs:
           fi
           echo "Found $COUNT pending changeset(s)"
 
+      - name: Determine bump level from changesets
+        id: bump
+        run: |
+          BUMP="patch"
+          for f in .changeset/*.md; do
+            [ "$(basename "$f")" = "README.md" ] && continue
+            if grep -q 'major' "$f"; then
+              BUMP="major"
+              break
+            elif grep -q 'minor' "$f"; then
+              BUMP="minor"
+            fi
+          done
+          echo "level=$BUMP" >> "$GITHUB_OUTPUT"
+          echo "Bump level: $BUMP"
+
       - name: Run changeset version
         run: yarn changeset version
 
-      - name: Extract version from CHANGELOG
+      - name: Update root CHANGELOG and compute version
         id: version
+        shell: bash
         run: |
-          # Match both "## [0.4.0]" (Keep a Changelog) and "## 0.4.0" (changesets) formats
-          VERSION=$(sed -n 's/^## \[\{0,1\}\([0-9][0-9.]*\).*/\1/p' CHANGELOG.md | head -1)
-          if [ -z "$VERSION" ]; then
-            echo "::error::Could not extract version from CHANGELOG.md"
-            exit 1
+          # Get the current project version from root CHANGELOG.md
+          CURRENT=$(sed -n 's/^## \[\{0,1\}\([0-9][0-9.]*\).*/\1/p' CHANGELOG.md | head -1)
+          if [ -z "$CURRENT" ]; then
+            CURRENT="0.0.0"
           fi
+
+          # Bump version based on changeset level
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
+          BUMP="${{ steps.bump.outputs.level }}"
+          case "$BUMP" in
+            major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
+            minor) MINOR=$((MINOR + 1)); PATCH=0 ;;
+            patch) PATCH=$((PATCH + 1)) ;;
+          esac
+          VERSION="${MAJOR}.${MINOR}.${PATCH}"
+          DATE=$(date +%Y-%m-%d)
+
+          # Collect summaries from per-package changelogs updated by changeset version
+          CHANGES=""
+          for changelog in libs/*/CHANGELOG.md apps/*/CHANGELOG.md; do
+            [ -f "$changelog" ] || continue
+            if git diff --name-only -- "$changelog" | grep -q .; then
+              PKG_DIR=$(dirname "$changelog")
+              PKG_NAME=$(node -e "console.log(require('./${PKG_DIR}/package.json').name)" 2>/dev/null || echo "$(basename "$PKG_DIR")")
+              SECTION=$(awk '/^## /{if(found) exit; found=1; next} found' "$changelog")
+              if [ -n "$SECTION" ]; then
+                CHANGES="${CHANGES}"$'\n\n'"#### ${PKG_NAME}"$'\n\n'"${SECTION}"
+              fi
+            fi
+          done
+
+          if [ -z "$CHANGES" ]; then
+            CHANGES=$'\n\n'"### Changed"$'\n'"- Package version bumps (see per-package changelogs for details)"
+          fi
+
+          # Build new changelog: header + new entry + existing entries
+          HEADER=$(head -5 CHANGELOG.md)
+          BODY=$(tail -n +6 CHANGELOG.md)
+
+          {
+            printf '%s\n\n' "$HEADER"
+            printf '## [%s] - %s\n' "$VERSION" "$DATE"
+            printf '%s\n' "$CHANGES"
+            printf '%s\n' "$BODY"
+          } > CHANGELOG.md.tmp
+          mv CHANGELOG.md.tmp CHANGELOG.md
+
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "Detected version: $VERSION"
+          echo "Released version: $VERSION"
 
       - name: Create release branch and PR
         env:
@@ -85,7 +143,6 @@ jobs:
             gh pr create \
               --title "chore: release v${VERSION}" \
               --body "## Release v${VERSION}
-
           This PR was created by \`make release\`. It contains:
           - Version bumps for affected packages
           - Updated CHANGELOG.md
