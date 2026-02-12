@@ -7,25 +7,14 @@ defmodule FrontmanServer.SentryTest do
   end
 
   describe "Sentry configuration" do
-    test "sentry is configured with correct DSN" do
-      dsn = Application.get_env(:sentry, :dsn)
-      assert dsn != nil
-      assert is_binary(dsn)
-      assert String.starts_with?(dsn, "https://")
+    test "sentry is in test mode" do
+      assert Application.get_env(:sentry, :test_mode) == true
     end
 
-    test "sentry has correct environment name" do
-      env = Application.get_env(:sentry, :environment_name)
-      assert env == :test
-    end
-
-    test "sentry has service tag configured" do
-      tags = Application.get_env(:sentry, :tags)
-      assert tags == %{service: "frontman-server"}
-    end
-
-    test "sentry has source code context enabled" do
-      assert Application.get_env(:sentry, :enable_source_code_context) == true
+    test "sentry DSN is only configured in prod" do
+      # DSN is hardcoded in runtime.exs under `if config_env() == :prod`
+      # so it should not be set in the test environment
+      assert Application.get_env(:sentry, :dsn) == nil
     end
   end
 
@@ -136,12 +125,12 @@ defmodule FrontmanServer.SentryTest do
     end
   end
 
-  describe "integration with service tag" do
-    test "events include the frontman-server service tag" do
-      Sentry.capture_message("Service tag test")
+  describe "integration with tags" do
+    test "events include custom tags" do
+      Sentry.capture_message("Tag test", tags: %{custom: "value"})
 
       [event] = Sentry.Test.pop_sentry_reports()
-      assert event.tags[:service] == "frontman-server"
+      assert event.tags[:custom] == "value"
     end
   end
 end
