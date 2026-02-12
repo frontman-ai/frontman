@@ -1,0 +1,714 @@
+---
+// Components
+import Layout from '../layouts/Layout.astro'
+
+// Assets
+import nextjsLogo from '../assets/frameworks/nextjs.svg'
+import astroLogo from '../assets/frameworks/astro.svg'
+import viteLogo from '../assets/frameworks/vite.svg'
+
+const frameworks = [
+	{
+		id: 'nextjs',
+		name: 'Next.js',
+		logo: nextjsLogo,
+		installCmd: 'curl https://frontman.sh/install/nextjs | bash',
+		installCmdAlt: 'npx @frontman-ai/nextjs@latest install --server api.frontman.sh',
+		pkg: '@frontman-ai/nextjs',
+		port: '3000',
+		configFile: 'middleware.ts',
+		configFileAlt: 'proxy.ts',
+		manualSetup: `import { createMiddleware } from '@frontman-ai/nextjs';
+import { NextRequest, NextResponse } from 'next/server';
+
+const frontman = createMiddleware({
+  host: 'api.frontman.sh',
+});
+
+export async function middleware(req: NextRequest) {
+  const response = await frontman(req);
+  if (response) return response;
+  return NextResponse.next();
+}
+
+export const config = {
+  matcher: ['/frontman', '/frontman/:path*'],
+};`,
+		otelSetup: `// instrumentation.ts
+export async function register() {
+  if (process.env.NEXT_RUNTIME === 'nodejs') {
+    const { NodeSDK } = await import('@opentelemetry/sdk-node');
+    const { setup } = await import('@frontman-ai/nextjs/Instrumentation');
+    const [logProcessor, spanProcessor] = setup();
+    new NodeSDK({
+      logRecordProcessors: [logProcessor],
+      spanProcessors: [spanProcessor],
+    }).start();
+  }
+}`,
+		notes: [
+			'Supports Next.js 15 (middleware.ts) and Next.js 16+ (proxy.ts)',
+			'Console logs, build output, and errors are captured automatically',
+			'Optional OpenTelemetry integration for HTTP request/route tracking',
+			'Works with both Webpack and Turbopack'
+		]
+	},
+	{
+		id: 'astro',
+		name: 'Astro',
+		logo: astroLogo,
+		installCmd: 'curl https://frontman.sh/install/astro | bash',
+		installCmdAlt: 'npm install @frontman/frontman-astro',
+		pkg: '@frontman/frontman-astro',
+		port: '4321',
+		configFile: 'astro.config.mjs',
+		manualSetup: `import { defineConfig } from 'astro/config';
+import { frontmanIntegration } from '@frontman/frontman-astro/integration';
+
+export default defineConfig({
+  integrations: [
+    frontmanIntegration(),
+  ],
+});`,
+		notes: [
+			'Requires Astro 5.0+',
+			'Adds HTTP middleware and dev toolbar integration',
+			'Supports SSE streaming responses',
+			'Includes framework-specific tools like GetPages'
+		]
+	},
+	{
+		id: 'vite',
+		name: 'Vite',
+		logo: viteLogo,
+		installCmd: 'curl https://frontman.sh/install/vite | bash',
+		installCmdAlt: 'npm install @frontman/vite-plugin',
+		pkg: '@frontman/vite-plugin',
+		port: '5173',
+		configFile: 'vite.config.ts',
+		manualSetup: `import { defineConfig } from 'vite';
+import { frontmanPlugin } from '@frontman/vite-plugin';
+
+export default defineConfig({
+  plugins: [
+    frontmanPlugin({
+      isDev: true,
+      isLightTheme: true,
+      entrypointUrl: 'http://localhost:5173/frontman',
+    }),
+  ],
+});`,
+		notes: [
+			'Works with any Vite-based project (React, Vue, Svelte, etc.)',
+			'Adds middleware to the Vite dev server',
+			'Light and dark theme support',
+			'Sets up /frontman, /frontman/chat, and /frontman/chat-sse routes'
+		]
+	}
+]
+
+// SEO
+const SEO = {
+	title: 'Frontman | Getting Started',
+	description:
+		'Install Frontman in your project in under 5 minutes. Framework integrations for Next.js, Astro, and Vite.'
+}
+---
+
+<Layout title={SEO.title} description={SEO.description}>
+	<div class="docs-page">
+		<div class="docs-container">
+			<!-- Header -->
+			<p class="docs-label">Docs</p>
+			<h1 class="docs-title">Getting started</h1>
+			<p class="docs-subtitle">
+				Add Frontman to your project in under 5 minutes. Pick your framework and follow the steps below.
+			</p>
+
+			<!-- Framework tabs -->
+			<div class="framework-tabs" role="tablist">
+				{frameworks.map((fw, i) => (
+					<button
+						class={`framework-tab ${i === 0 ? 'active' : ''}`}
+						data-framework={fw.id}
+						role="tab"
+						aria-selected={i === 0 ? 'true' : 'false'}
+					>
+						<img src={fw.logo.src} alt={fw.name} width="20" height="20" />
+						{fw.name}
+					</button>
+				))}
+			</div>
+
+			<!-- Framework panels -->
+			{frameworks.map((fw, i) => (
+				<div
+					class={`framework-panel ${i === 0 ? 'active' : ''}`}
+					data-panel={fw.id}
+					role="tabpanel"
+				>
+					<!-- Quick install -->
+					<div class="section">
+						<h2 class="section-title">Quick install</h2>
+						<p class="section-description">
+							The fastest way to get started. Run this in your project directory:
+						</p>
+						<div class="code-block">
+							<div class="code-bar">
+								<span class="code-bar-label">Terminal</span>
+								<button class="copy-btn" data-copy-target={`quick-${fw.id}`} aria-label="Copy to clipboard">
+									<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+										<rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+										<path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+									</svg>
+								</button>
+							</div>
+							<pre><code id={`quick-${fw.id}`}><span class="token-prompt">$</span> {fw.installCmd}</code></pre>
+						</div>
+						<p class="alt-text">
+							Or install the package directly:
+						</p>
+						<div class="code-block">
+							<div class="code-bar">
+								<span class="code-bar-label">Terminal</span>
+								<button class="copy-btn" data-copy-target={`alt-${fw.id}`} aria-label="Copy to clipboard">
+									<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+										<rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+										<path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+									</svg>
+								</button>
+							</div>
+							<pre><code id={`alt-${fw.id}`}><span class="token-prompt">$</span> {fw.installCmdAlt}</code></pre>
+						</div>
+					</div>
+
+					<!-- Manual setup -->
+					<div class="section">
+						<h2 class="section-title">Manual setup</h2>
+						<p class="section-description">
+							Add this to your <code class="inline-code">{fw.configFile}</code>:
+						</p>
+						<div class="code-block">
+							<div class="code-bar">
+								<span class="code-bar-label">{fw.configFile}</span>
+								<button class="copy-btn" data-copy-target={`manual-${fw.id}`} aria-label="Copy to clipboard">
+									<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+										<rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+										<path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+									</svg>
+								</button>
+							</div>
+							<pre><code id={`manual-${fw.id}`}>{fw.manualSetup}</code></pre>
+						</div>
+					</div>
+
+					{/* OpenTelemetry setup for Next.js */}
+					{fw.otelSetup && (
+						<div class="section">
+							<h2 class="section-title">OpenTelemetry <span class="optional-badge">Optional</span></h2>
+							<p class="section-description">
+								Add observability to capture HTTP requests, route rendering, and API route execution:
+							</p>
+							<div class="code-block">
+								<div class="code-bar">
+									<span class="code-bar-label">instrumentation.ts</span>
+									<button class="copy-btn" data-copy-target={`otel-${fw.id}`} aria-label="Copy to clipboard">
+										<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+											<rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+											<path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+										</svg>
+									</button>
+								</div>
+								<pre><code id={`otel-${fw.id}`}>{fw.otelSetup}</code></pre>
+							</div>
+						</div>
+					)}
+
+					<!-- Open Frontman -->
+					<div class="section">
+						<h2 class="section-title">Open Frontman</h2>
+						<p class="section-description">
+							Start your dev server and visit:
+						</p>
+						<div class="url-card">
+							<svg class="url-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+								<circle cx="12" cy="12" r="10"></circle>
+								<line x1="2" y1="12" x2="22" y2="12"></line>
+								<path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+							</svg>
+							<code>http://localhost:{fw.port}/frontman</code>
+						</div>
+					</div>
+
+					<!-- Connect AI -->
+					<div class="section">
+						<h2 class="section-title">Connect your AI</h2>
+						<p class="section-description">
+							Connect to any supported model provider from the Frontman UI:
+						</p>
+						<div class="ai-badges">
+							<span class="ai-badge">Claude</span>
+							<span class="ai-badge">ChatGPT</span>
+							<span class="ai-badge">OpenRouter</span>
+						</div>
+					</div>
+
+					<!-- Notes -->
+					{fw.notes && fw.notes.length > 0 && (
+						<div class="section">
+							<h2 class="section-title">Good to know</h2>
+							<ul class="notes-list">
+								{fw.notes.map((note) => (
+									<li>{note}</li>
+								))}
+							</ul>
+						</div>
+					)}
+				</div>
+			))}
+
+			<!-- Chrome Extension -->
+			<div class="section chrome-section">
+				<h2 class="section-title">Chrome Extension</h2>
+				<p class="section-description">
+					Prefer a browser extension? The Frontman Chrome Extension works with any web app -- no framework integration needed.
+				</p>
+				<a
+					href="https://github.com/frontman-ai/frontman/tree/main/apps/chrome-extension"
+					target="_blank"
+					rel="noopener noreferrer"
+					class="chrome-link"
+				>
+					View on GitHub
+					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+						<path d="M7 17L17 7"></path>
+						<path d="M7 7h10v10"></path>
+					</svg>
+				</a>
+			</div>
+
+			<!-- Help -->
+			<div class="section help-section">
+				<h2 class="section-title">Need help?</h2>
+				<div class="help-links">
+					<a href="/faq" class="help-link">
+						<span class="help-link-label">FAQ</span>
+						<span class="help-link-description">Common questions and answers</span>
+					</a>
+					<a href="https://discord.gg/J77jBzMM" target="_blank" rel="noopener noreferrer" class="help-link">
+						<span class="help-link-label">Discord</span>
+						<span class="help-link-description">Chat with the community</span>
+					</a>
+					<a href="https://github.com/frontman-ai/frontman/issues" target="_blank" rel="noopener noreferrer" class="help-link">
+						<span class="help-link-label">GitHub Issues</span>
+						<span class="help-link-description">Report bugs or request features</span>
+					</a>
+				</div>
+			</div>
+		</div>
+	</div>
+</Layout>
+
+<style>
+	.docs-page {
+		background: #09090b;
+		color: #fafafa;
+		padding: 80px 24px 120px;
+		display: flex;
+		justify-content: center;
+		min-height: 100vh;
+	}
+
+	.docs-container {
+		max-width: 720px;
+		width: 100%;
+	}
+
+	/* Header */
+	.docs-label {
+		@apply font-mono;
+		font-size: 13px;
+		letter-spacing: 0.12em;
+		text-transform: uppercase;
+		color: #71717a;
+		margin-bottom: 12px;
+	}
+
+	.docs-title {
+		font-size: 42px;
+		font-weight: 700;
+		line-height: 1.1;
+		margin-bottom: 12px;
+		letter-spacing: -0.02em;
+		color: #fafafa;
+	}
+
+	.docs-subtitle {
+		font-size: 17px;
+		color: #a1a1aa;
+		line-height: 1.6;
+		margin-bottom: 48px;
+		max-width: 520px;
+	}
+
+	/* Framework tabs */
+	.framework-tabs {
+		display: flex;
+		gap: 8px;
+		margin-bottom: 48px;
+		flex-wrap: wrap;
+	}
+
+	.framework-tab {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		padding: 10px 20px;
+		font-size: 15px;
+		font-weight: 500;
+		cursor: pointer;
+		transition: all 0.2s;
+		background: transparent;
+		border: 1px solid #27272a;
+		border-radius: 8px;
+		color: #a1a1aa;
+	}
+
+	.framework-tab:hover {
+		border-color: #3f3f46;
+		color: #fafafa;
+	}
+
+	.framework-tab.active {
+		border-color: #fafafa;
+		color: #fafafa;
+		background: #18181b;
+	}
+
+	.framework-tab img {
+		width: 20px;
+		height: 20px;
+		object-fit: contain;
+		filter: grayscale(100%) brightness(1.5);
+	}
+
+	.framework-tab.active img {
+		filter: none;
+	}
+
+	/* Panels */
+	.framework-panel {
+		display: none;
+	}
+
+	.framework-panel.active {
+		display: block;
+	}
+
+	/* Sections */
+	.section {
+		margin-bottom: 48px;
+	}
+
+	.section-title {
+		font-size: 20px;
+		font-weight: 600;
+		color: #fafafa;
+		margin-bottom: 8px;
+		letter-spacing: -0.01em;
+	}
+
+	.section-description {
+		font-size: 15px;
+		color: #a1a1aa;
+		line-height: 1.6;
+		margin-bottom: 16px;
+	}
+
+	/* Code blocks */
+	.code-block {
+		background: #0f0f1a;
+		border-radius: 12px;
+		border: 1px solid #1e1e2e;
+		overflow: hidden;
+	}
+
+	.code-bar {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		padding: 10px 16px;
+		background: #1a1a2e;
+		border-bottom: 1px solid #2a2a3e;
+	}
+
+	.code-bar-label {
+		@apply font-mono;
+		font-size: 12px;
+		color: #71717a;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+	}
+
+	.copy-btn {
+		padding: 6px;
+		cursor: pointer;
+		border-radius: 6px;
+		background: rgba(255, 255, 255, 0.05);
+		border: 1px solid rgba(255, 255, 255, 0.08);
+		color: #64748b;
+		transition: all 0.2s;
+	}
+
+	.copy-btn:hover {
+		background: rgba(255, 255, 255, 0.12);
+		color: #C084FF;
+	}
+
+	.code-block pre {
+		@apply font-mono;
+		padding: 16px;
+		margin: 0;
+		overflow-x: auto;
+		font-size: 13px;
+		line-height: 1.7;
+		color: #e2e8f0;
+	}
+
+	.code-block code {
+		@apply font-mono;
+	}
+
+	.token-prompt {
+		color: #22c55e;
+		font-weight: 700;
+		margin-right: 8px;
+	}
+
+	.inline-code {
+		@apply font-mono;
+		font-size: 14px;
+		padding: 2px 8px;
+		background: #18181b;
+		border: 1px solid #27272a;
+		border-radius: 6px;
+		color: #C084FF;
+	}
+
+	.alt-text {
+		font-size: 14px;
+		color: #71717a;
+		margin-top: 16px;
+		margin-bottom: 12px;
+	}
+
+	/* Optional badge */
+	.optional-badge {
+		font-size: 12px;
+		font-weight: 500;
+		padding: 2px 10px;
+		background: #1e1e2e;
+		border: 1px solid #2a2a3e;
+		border-radius: 9999px;
+		color: #71717a;
+		vertical-align: middle;
+		margin-left: 8px;
+	}
+
+	/* URL card */
+	.url-card {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		padding: 16px 20px;
+		background: #18181b;
+		border: 1px solid #27272a;
+		border-radius: 12px;
+	}
+
+	.url-card .url-icon {
+		color: #71717a;
+		flex-shrink: 0;
+	}
+
+	.url-card code {
+		@apply font-mono;
+		font-size: 15px;
+		color: #C084FF;
+	}
+
+	/* AI badges */
+	.ai-badges {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 8px;
+	}
+
+	.ai-badge {
+		padding: 8px 16px;
+		font-size: 14px;
+		font-weight: 500;
+		border-radius: 9999px;
+		background: #18181b;
+		border: 1px solid #27272a;
+		color: #fafafa;
+	}
+
+	/* Notes list */
+	.notes-list {
+		list-style: none;
+		padding: 0;
+		margin: 0;
+	}
+
+	.notes-list li {
+		position: relative;
+		padding: 8px 0 8px 20px;
+		font-size: 15px;
+		color: #a1a1aa;
+		line-height: 1.5;
+	}
+
+	.notes-list li::before {
+		content: '';
+		position: absolute;
+		left: 0;
+		top: 16px;
+		width: 6px;
+		height: 6px;
+		border-radius: 50%;
+		background: #3f3f46;
+	}
+
+	/* Chrome extension section */
+	.chrome-section {
+		padding-top: 48px;
+		border-top: 1px solid #27272a;
+	}
+
+	.chrome-link {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		font-size: 15px;
+		font-weight: 500;
+		color: #C084FF;
+		text-decoration: none;
+		transition: opacity 0.2s;
+	}
+
+	.chrome-link:hover {
+		opacity: 0.8;
+	}
+
+	/* Help section */
+	.help-section {
+		padding-top: 48px;
+		border-top: 1px solid #27272a;
+	}
+
+	.help-links {
+		display: flex;
+		flex-direction: column;
+		gap: 12px;
+	}
+
+	.help-link {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+		padding: 16px 20px;
+		background: #18181b;
+		border: 1px solid #27272a;
+		border-radius: 12px;
+		text-decoration: none;
+		transition: border-color 0.2s;
+	}
+
+	.help-link:hover {
+		border-color: #3f3f46;
+	}
+
+	.help-link-label {
+		font-size: 15px;
+		font-weight: 500;
+		color: #fafafa;
+	}
+
+	.help-link-description {
+		font-size: 14px;
+		color: #71717a;
+	}
+
+	/* Responsive */
+	@media (max-width: 640px) {
+		.docs-page {
+			padding: 48px 20px 80px;
+		}
+
+		.docs-title {
+			font-size: 32px;
+		}
+
+		.docs-subtitle {
+			margin-bottom: 32px;
+		}
+
+		.framework-tabs {
+			margin-bottom: 32px;
+		}
+
+		.section {
+			margin-bottom: 36px;
+		}
+	}
+</style>
+
+<script>
+	document.addEventListener('DOMContentLoaded', () => {
+		const tabs = document.querySelectorAll('.framework-tab')
+		const panels = document.querySelectorAll('.framework-panel')
+
+		// Tab switching
+		tabs.forEach((tab) => {
+			tab.addEventListener('click', () => {
+				const fw = tab.getAttribute('data-framework')
+
+				tabs.forEach((t) => {
+					t.classList.remove('active')
+					t.setAttribute('aria-selected', 'false')
+				})
+				tab.classList.add('active')
+				tab.setAttribute('aria-selected', 'true')
+
+				panels.forEach((p) => {
+					p.classList.toggle('active', p.getAttribute('data-panel') === fw)
+				})
+			})
+		})
+
+		// Copy to clipboard
+		document.querySelectorAll('.copy-btn').forEach((btn) => {
+			btn.addEventListener('click', async () => {
+				const targetId = btn.getAttribute('data-copy-target')
+				const code = targetId && document.getElementById(targetId)?.textContent?.replace(/^\$\s*/, '')
+				if (code) {
+					try {
+						await navigator.clipboard.writeText(code.trim())
+						const originalHTML = btn.innerHTML
+						btn.innerHTML = `
+							<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2">
+								<polyline points="20 6 9 17 4 12"></polyline>
+							</svg>
+						`
+						setTimeout(() => {
+							btn.innerHTML = originalHTML
+						}, 2000)
+					} catch (err) {
+						console.error('Failed to copy:', err)
+					}
+				}
+			})
+		})
+	})
+</script>
