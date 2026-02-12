@@ -9,6 +9,8 @@ on:
       - 'libs/**'
       - 'rescript.json'
       - 'mise.toml'
+      - '.github/workflows/deploy.yml'
+      - '.github/workflows/ci.yml'
   workflow_dispatch:
 
 jobs:
