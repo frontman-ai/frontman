@@ -327,7 +327,7 @@
   </div>
 
   <script type="module">
-    import { ACP, MCP, MCPServer, Relay, ConsoleLogTool, Socket, Channel } from './browser-test.js';
+    import { ACP, MCP, MCPServer, Relay, Socket, Channel } from './browser-test.js';
 
     // DOM Elements
     const logEl = document.getElementById('log');
@@ -476,7 +476,6 @@
           }
 
           mcpServer = MCPServer.make(relay, 'browser-test-mcp', '1.0.0');
-          mcpServer = MCPServer.registerToolModule(mcpServer, ConsoleLogTool);
 
           disconnectRelayBtn.style.display = 'inline-block';
           advanceToStep(2);

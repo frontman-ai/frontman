@@ -4,6 +4,9 @@ module Types = FrontmanClient__Relay__Types
 module MCPTypes = FrontmanClient__MCP__Types
 module SSE = FrontmanClient__SSE
 module Decoders = FrontmanClient__Decoders
+module Log = FrontmanLogs.Logs.Make({
+  let component = #Relay
+})
 
 type connectionState =
   | Disconnected
@@ -36,16 +39,22 @@ let connect = async (relay: t): result<unit, string> => {
 
   if !response.ok {
     let msg = `HTTP ${response.status->Int.toString}: ${response.statusText}`
+    Log.error(~ctx={"url": url}, msg)
     relay.state = Error(msg)
     Error(msg)
   } else {
     let json = await response->WebAPI.Response.json
     switch json->Decoders.parseSchema(Types.toolsResponseSchema) {
     | Ok(data) =>
+      Log.info(
+        ~ctx={"toolCount": data.tools->Array.length, "serverInfo": data.serverInfo},
+        "Relay connected",
+      )
       relay.state = Connected({tools: data.tools, serverInfo: data.serverInfo})
       Ok()
     | Error(parseError) =>
       let msg = `Invalid tools response: ${parseError}`
+      Log.error(msg)
       relay.state = Error(msg)
       Error(msg)
     }
@@ -91,8 +100,10 @@ let executeTool = async (
   ~onProgress: option<string => unit>=?,
 ): result<MCPTypes.callToolResult, string> => {
   if !(relay->isConnected) {
+    Log.warning("Cannot execute tool: relay not connected")
     Error("Relay not connected")
   } else {
+    Log.debug(~ctx={"tool": name}, "Executing relay tool")
     let url = `${relay.baseUrl}/frontman/tools/call`
     let request: Types.toolCallRequest = {name, arguments}
     let body = request->S.reverseConvertToJsonOrThrow(Types.toolCallRequestSchema)
@@ -112,7 +123,9 @@ let executeTool = async (
     )
 
     if !response.ok {
-      Error(`HTTP ${response.status->Int.toString}: ${response.statusText}`)
+      let msg = `HTTP ${response.status->Int.toString}: ${response.statusText}`
+      Log.error(~ctx={"tool": name}, msg)
+      Error(msg)
     } else {
       // Read SSE stream and return result
       switch await SSE.readStream(response, ~onProgress?) {
