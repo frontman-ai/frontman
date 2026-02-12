@@ -21,7 +21,8 @@ defmodule FrontmanServer.MixProject do
       releases: [
         frontman_server: [
           include_executables_for: [:unix],
-          applications: [runtime_tools: :permanent]
+          applications: [runtime_tools: :permanent],
+          steps: [:assemble, :tar]
         ]
       ]
     ]
