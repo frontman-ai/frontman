@@ -231,18 +231,22 @@ defmodule FrontmanServer.Observability.SwarmOtelHandler do
 
   @doc false
   def handle_llm_start(_event, _measurements, metadata, _config) do
-    %{loop_id: loop_id, step: step, model: raw_model} = metadata
+    # model_ref: the original model value from metadata — either a string like "openai:gpt-4"
+    # or an LLMDB.Model struct (from Codex/resolved models). Needed by llm_system_from_model
+    # and llm_provider_from_model which pattern-match on both shapes.
+    # model_name: the display string extracted via format_model_name, used for span names/attributes.
+    %{loop_id: loop_id, step: step, model: model_ref} = metadata
     input_messages = Map.get(metadata, :messages, [])
 
-    model = format_model_name(raw_model)
-    span_name = "chat #{model}"
+    model_name = format_model_name(model_ref)
+    span_name = "chat #{model_name}"
 
     attributes =
       [
         {:"openinference.span.kind", "LLM"},
-        {:"llm.model_name", model},
-        {:"llm.system", llm_system_from_model(raw_model)},
-        {:"llm.provider", llm_provider_from_model(raw_model)},
+        {:"llm.model_name", model_name},
+        {:"llm.system", llm_system_from_model(model_ref)},
+        {:"llm.provider", llm_provider_from_model(model_ref)},
         {:"graph.node.id", "llm"},
         {:"graph.node.parent_id", "step_#{step}"}
       ] ++ flatten_input_messages(input_messages)

@@ -17,7 +17,7 @@ defmodule FrontmanServer.Providers.ChatGPTOAuth do
 
   require Logger
 
-  alias FrontmanServer.Providers.OAuthHelpers
+  alias FrontmanServer.Providers.OAuthToken
 
   @client_id "app_EMoamEEZ73f0CkXaXp7hrann"
   @issuer "https://auth.openai.com"
@@ -173,12 +173,21 @@ defmodule FrontmanServer.Providers.ChatGPTOAuth do
     ]
 
     case Req.post(@token_url, body: body, headers: headers) do
-      {:ok, %Req.Response{status: 200, body: response_body}} ->
+      {:ok,
+       %Req.Response{
+         status: 200,
+         body:
+           %{
+             "access_token" => access_token,
+             "id_token" => id_token,
+             "refresh_token" => refresh_token
+           } = response_body
+       }} ->
         {:ok,
          %{
-           access_token: response_body["access_token"],
-           refresh_token: response_body["refresh_token"],
-           id_token: response_body["id_token"],
+           access_token: access_token,
+           refresh_token: refresh_token,
+           id_token: id_token,
            expires_in: response_body["expires_in"]
          }}
 
@@ -248,10 +257,9 @@ defmodule FrontmanServer.Providers.ChatGPTOAuth do
 
   @doc """
   Calculates the expiration DateTime from expires_in seconds.
-  Delegates to shared helper.
   """
   @spec calculate_expires_at(integer()) :: DateTime.t()
-  defdelegate calculate_expires_at(expires_in), to: OAuthHelpers
+  defdelegate calculate_expires_at(expires_in), to: OAuthToken
 
   @doc """
   Extracts the chatgpt_account_id from a JWT token (id_token or access_token).
@@ -287,8 +295,11 @@ defmodule FrontmanServer.Providers.ChatGPTOAuth do
   @doc """
   Extracts the account ID from token response, trying id_token first, then access_token.
   """
-  @spec extract_account_id_from_tokens(%{id_token: String.t() | nil, access_token: String.t()}) ::
-          String.t() | nil
+  @spec extract_account_id_from_tokens(%{
+          required(:id_token) => String.t(),
+          required(:access_token) => String.t(),
+          optional(atom()) => any()
+        }) :: String.t() | nil
   def extract_account_id_from_tokens(%{id_token: id_token, access_token: access_token}) do
     case extract_account_id(id_token) do
       {:ok, id} ->
