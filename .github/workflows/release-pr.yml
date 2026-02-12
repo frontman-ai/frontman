@@ -55,10 +55,10 @@ jobs:
             [ "$(basename "$f")" = "README.md" ] && continue
             # Only search the YAML frontmatter (between --- delimiters), not the description
             FRONTMATTER=$(sed -n '/^---$/,/^---$/p' "$f")
-            if echo "$FRONTMATTER" | grep -q 'major'; then
+            if echo "$FRONTMATTER" | grep -qE ':\s*major(\s|$)'; then
               BUMP="major"
               break
-            elif echo "$FRONTMATTER" | grep -q 'minor'; then
+            elif echo "$FRONTMATTER" | grep -qE ':\s*minor(\s|$)'; then
               BUMP="minor"
             fi
           done

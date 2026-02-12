@@ -23,11 +23,15 @@ jobs:
         id: verify
         run: |
           COMMIT_MSG=$(git log -1 --format='%s')
-          if ! echo "$COMMIT_MSG" | grep -qE '^chore: release v[0-9]'; then
-            echo "Skipping — commit message does not match a release PR merge: $COMMIT_MSG"
-            echo "is_release=false" >> "$GITHUB_OUTPUT"
-          else
+          # Squash / rebase merge: "chore: release v0.4.0" or "chore: release v0.4.0 (#123)"
+          if echo "$COMMIT_MSG" | grep -qE '^chore: release v[0-9]'; then
             echo "is_release=true" >> "$GITHUB_OUTPUT"
+          # Merge commit: "Merge pull request #123 from <org>/release/v0.4.0"
+          elif echo "$COMMIT_MSG" | grep -qE '^Merge pull request.*release/v[0-9]'; then
+            echo "is_release=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Skipping — not a release commit: $COMMIT_MSG"
+            echo "is_release=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Extract version and changelog
