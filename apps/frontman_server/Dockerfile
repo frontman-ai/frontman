@@ -36,10 +36,10 @@ COPY libs/frontman-core/package.json libs/frontman-core/
 COPY libs/frontman-astro/package.json libs/frontman-astro/
 COPY libs/frontman-nextjs/package.json libs/frontman-nextjs/
 COPY libs/react-statestore/package.json libs/react-statestore/
+COPY libs/logs/package.json libs/logs/
 COPY libs/vite-plugin/package.json libs/vite-plugin/
 COPY apps/chrome-extension/package.json apps/chrome-extension/
 COPY apps/marketing/package.json apps/marketing/
-COPY infra/marketing/package.json infra/marketing/
 COPY test/sites/blog-starter/package.json test/sites/blog-starter/
 
 RUN yarn install --immutable
