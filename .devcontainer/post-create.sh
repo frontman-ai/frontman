@@ -32,21 +32,21 @@ echo "==> Worktree ID: $WT_HASH"
 cat > "$WORKSPACE_DIR/.env.devpod" << EOF
 # Auto-generated DevPod environment for worktree: $WORKTREE_NAME
 # Worktree Hash: $WT_HASH
-# URL Format: {hash}.{service}.frontman.local (required for WorkOS OAuth)
-# Access via SSH tunnel: make tunnel
+# URL Format: https://{hash}.{service}.frontman.local (required for WorkOS OAuth)
+# Caddy reverse proxy on port 443 (dnsmasq resolves directly to server)
 
 # Worktree identification
 export WORKTREE_NAME=$WORKTREE_NAME
 export WORKTREE_ID=$WT_HASH
 
-# External URLs (via Caddy reverse proxy)
-# Format: {hash}.{service}.frontman.local:8443
-export FRONTMAN_HOST=$WT_HASH.api.frontman.local:8443
-export VITE_DEV_URL=https://$WT_HASH.vite.frontman.local:8443
+# External URLs (via Caddy reverse proxy on port 443)
+# Format: https://{hash}.{service}.frontman.local
+export FRONTMAN_HOST=$WT_HASH.api.frontman.local
+export VITE_DEV_URL=https://$WT_HASH.vite.frontman.local
 export VITE_HMR_HOST=$WT_HASH.vite.frontman.local
-export VITE_HMR_PORT=8443
+export VITE_HMR_PORT=443
 export VITE_HMR_PROTOCOL=wss
-export NEXTJS_URL=https://$WT_HASH.nextjs.frontman.local:8443
+export NEXTJS_URL=https://$WT_HASH.nextjs.frontman.local
 
 # Phoenix configuration
 export PHX_HOST=$WT_HASH.api.frontman.local
@@ -57,7 +57,7 @@ export PHX_URL_PORT=443
 export DB_HOST=host.docker.internal
 
 # Client URL for Next.js middleware
-export FRONTMAN_CLIENT_URL=https://$WT_HASH.vite.frontman.local:8443/src/Main.res.mjs
+export FRONTMAN_CLIENT_URL=https://$WT_HASH.vite.frontman.local/src/Main.res.mjs
 EOF
 
 echo "==> Created .env.devpod with worktree-specific URLs"
@@ -125,11 +125,11 @@ echo "=========================================="
 echo ""
 echo "Worktree: $WORKTREE_NAME ($WT_HASH)"
 echo ""
-echo "URLs (via tunnel):"
-echo "  Next.js:   https://$WT_HASH.nextjs.frontman.local:8443/frontman"
-echo "  Vite:      https://$WT_HASH.vite.frontman.local:8443"
-echo "  Phoenix:   https://$WT_HASH.api.frontman.local:8443"
-echo "  Storybook: https://$WT_HASH.storybook.frontman.local:8443"
+echo "URLs:"
+echo "  Next.js:   https://$WT_HASH.nextjs.frontman.local/frontman"
+echo "  Vite:      https://$WT_HASH.vite.frontman.local"
+echo "  Phoenix:   https://$WT_HASH.api.frontman.local"
+echo "  Storybook: https://$WT_HASH.storybook.frontman.local"
 echo ""
 echo "Add to /etc/hosts on your Mac:"
 echo "127.0.0.1 $WT_HASH.nextjs.frontman.local $WT_HASH.vite.frontman.local $WT_HASH.api.frontman.local $WT_HASH.storybook.frontman.local $WT_HASH.dogfood.frontman.local"

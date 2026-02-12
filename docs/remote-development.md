@@ -409,9 +409,9 @@ All variables use `export` so they are visible to child processes (e.g. `mix phx
 # Example for worktree "issue-164" (hash: ea0c)
 export WORKTREE_NAME=issue-164
 export WORKTREE_ID=ea0c
-export FRONTMAN_HOST=ea0c.api.frontman.local:8443
+export FRONTMAN_HOST=ea0c.api.frontman.local
 export VITE_HMR_HOST=ea0c.vite.frontman.local
-export VITE_HMR_PORT=8443
+export VITE_HMR_PORT=443
 export VITE_HMR_PROTOCOL=wss
 export PHX_HOST=ea0c.api.frontman.local
 export PHX_URL_PORT=443

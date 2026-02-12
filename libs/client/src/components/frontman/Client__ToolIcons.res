@@ -207,6 +207,59 @@ module SparklesIcon = {
   }
 }
 
+// Image/photo icon for file attachments
+module ImageIcon = {
+  @react.component
+  let make = (~size: int=defaultSize, ~className: string="") => {
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 16 16"
+      fill="currentColor"
+      width={Int.toString(size)}
+      height={Int.toString(size)}
+      className={className}
+    >
+      <path d="M6.002 5.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0z"/>
+      <path d="M2.002 1a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V3a2 2 0 0 0-2-2h-12zm12 1a1 1 0 0 1 1 1v6.5l-3.777-1.947a.5.5 0 0 0-.577.093l-3.71 3.71-2.66-1.772a.5.5 0 0 0-.63.062L1.002 12V3a1 1 0 0 1 1-1h12z"/>
+    </svg>
+  }
+}
+
+// Clipboard/paste icon for pasted text
+module ClipboardPasteIcon = {
+  @react.component
+  let make = (~size: int=defaultSize, ~className: string="") => {
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 16 16"
+      fill="currentColor"
+      width={Int.toString(size)}
+      height={Int.toString(size)}
+      className={className}
+    >
+      <path d="M10 1.5a.5.5 0 0 0-.5-.5h-3a.5.5 0 0 0-.5.5v1a.5.5 0 0 0 .5.5h3a.5.5 0 0 0 .5-.5v-1Zm-5-.5A1.5 1.5 0 0 1 6.5 0h3A1.5 1.5 0 0 1 11 1.5v1A1.5 1.5 0 0 1 9.5 4h-3A1.5 1.5 0 0 1 5 2.5v-1Zm-2 0h1v1A2.5 2.5 0 0 0 6.5 5h3A2.5 2.5 0 0 0 12 2.5v-1h1a2 2 0 0 1 2 2V14a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2Z"/>
+    </svg>
+  }
+}
+
+// Upload/arrow-up icon for drag-drop overlay
+module UploadIcon = {
+  @react.component
+  let make = (~size: int=defaultSize, ~className: string="") => {
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 16 16"
+      fill="currentColor"
+      width={Int.toString(size)}
+      height={Int.toString(size)}
+      className={className}
+    >
+      <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/>
+      <path d="M7.646 1.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1-.708.708L8.5 2.707V11.5a.5.5 0 0 1-1 0V2.707L5.354 4.854a.5.5 0 1 1-.708-.708l3-3z"/>
+    </svg>
+  }
+}
+
 module DiscordIcon = {
   @react.component
   let make = (~size: int=defaultSize, ~className: string="") => {

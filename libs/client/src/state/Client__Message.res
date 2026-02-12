@@ -1,10 +1,17 @@
 // Message types - extracted to break circular dependency with MessageStore
 
+// Data for file/image attachments extracted from user content parts
+type fileAttachmentData = {
+  dataUrl: string,
+  mediaType: string,
+  filename: string,
+}
+
 // Content part types for messages (simplified from Vercel AI SDK)
 module UserContentPart = {
   type t =
     | Text({text: string})
-    | Image({image: string, mediaType: option<string>})
+    | Image({image: string, mediaType: option<string>, name: option<string>})
     | File({file: string})
 
   let text = (text: string): t => Text({text: text})
