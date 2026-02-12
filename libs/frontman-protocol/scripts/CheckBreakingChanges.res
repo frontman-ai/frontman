@@ -29,7 +29,7 @@ type change = {
 let main = async () => {
   // Get list of schema files changed vs main
   let diffResult = await ChildProcess.exec(
-    `git diff --name-status main -- ${schemasRelative}/`,
+    `git diff --name-status origin/main -- ${schemasRelative}/`,
   )
 
   let diffOutput = switch diffResult {
@@ -39,7 +39,7 @@ let main = async () => {
     if code == Some(1) && stderr == "" {
       ""
     } else {
-      Console.error(`Failed to diff against main: ${stderr}`)
+      Console.error(`Failed to diff against origin/main: ${stderr}`)
       exit(1)
       ""
     }
@@ -105,7 +105,7 @@ let main = async () => {
       let change = modified->Array.getUnsafe(i)
       Console.log(`--- ${change.file} ---`)
       let detailResult = await ChildProcess.exec(
-        `git diff main -- ${change.file}`,
+        `git diff origin/main -- ${change.file}`,
       )
       switch detailResult {
       | Ok({stdout}) => Console.log(stdout)
