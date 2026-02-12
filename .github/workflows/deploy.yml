@@ -1,0 +1,124 @@
+name: Deploy Production
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'apps/frontman_server/**'
+      - 'libs/**'
+      - 'rescript.json'
+      - 'mise.toml'
+  workflow_dispatch:
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  deploy:
+    name: Build and Deploy
+    needs: ci
+    runs-on: self-hosted
+    environment: production
+    env:
+      PROD_SERVER: ${{ secrets.PROD_SERVER }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # =====================================================================
+      # Build Server Release Tarball (via Docker)
+      # =====================================================================
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Set up QEMU (for ARM64 cross-compilation)
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
+      - name: Build server release tarball
+        run: |
+          # Build targeting ARM64 (Hetzner CAX series) using the builder stage
+          docker buildx build \
+            --platform linux/arm64 \
+            -f apps/frontman_server/Dockerfile \
+            --target builder \
+            --tag frontman-builder \
+            --load \
+            .
+
+          # Extract the release tarball from the builder image
+          docker create --name frontman-tar-extract frontman-builder true
+          docker cp "frontman-tar-extract:/app/apps/frontman_server/_build/prod/frontman_server-0.0.1.tar.gz" ./server-release.tar.gz
+          docker rm frontman-tar-extract 2>/dev/null || true
+
+          echo "Server release tarball built (arm64):"
+          ls -lh server-release.tar.gz
+
+      # =====================================================================
+      # Build Client Standalone Bundle
+      # =====================================================================
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.4.1'
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Cache Yarn
+        uses: actions/cache@v4
+        with:
+          path: ~/.yarn/berry/cache
+          key: yarn-${{ hashFiles('yarn.lock') }}
+          restore-keys: yarn-
+
+      - name: Install dependencies
+        run: yarn install --immutable
+
+      - name: Build ReScript
+        run: yarn rescript clean && yarn rescript build
+
+      - name: Build client standalone bundle
+        run: |
+          cd libs/client
+          yarn vite build --config vite.config.standalone.ts
+          echo "Client bundle built:"
+          ls -lh dist/
+
+      # =====================================================================
+      # Deploy Server to Hetzner
+      # =====================================================================
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$PROD_SERVER" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Deploy server release
+        run: |
+          # Upload tarball
+          scp -i ~/.ssh/deploy_key \
+            ./server-release.tar.gz \
+            "deploy@${PROD_SERVER}:/tmp/server-release.tar.gz"
+
+          # Run deploy script
+          ssh -i ~/.ssh/deploy_key \
+            "deploy@${PROD_SERVER}" \
+            '/opt/frontman/deploy.sh /tmp/server-release.tar.gz'
+
+      - name: Cleanup SSH
+        if: always()
+        run: rm -f ~/.ssh/deploy_key
+
+      # =====================================================================
+      # Deploy Client to Cloudflare Pages
+      # =====================================================================
+      - name: Deploy client to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy libs/client/dist --project-name=frontman-client --branch=main

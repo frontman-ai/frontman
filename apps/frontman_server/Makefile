@@ -72,7 +72,7 @@ lint: ## Run formatter and static analysis
 	mix credo --strict
 
 dev: ## Start development server (resolves 1Password secrets via op run)
-	op run --env-file=envs/.dev.env -- mix phx.server
+	op run --env-file=envs/.dev.secrets.env -- mix phx.server
 
 build: ## Build the project for production
 	MIX_ENV=prod mix sentry.package_source_code

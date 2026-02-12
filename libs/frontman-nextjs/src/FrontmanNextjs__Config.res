@@ -66,7 +66,7 @@ let make = (
       ->Option.getOr(
         switch isDev {
         | true => "http://localhost:5173/src/Main.res.mjs"
-        | false => "https://frontman.sh/frontman.es.js"
+        | false => "https://app.frontman.sh/frontman.es.js"
         },
       )
     // Use URL API to properly append params (handles base URLs that already have query strings)

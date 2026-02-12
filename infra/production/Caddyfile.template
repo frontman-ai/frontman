@@ -1,0 +1,13 @@
+# Frontman Production Caddyfile
+#
+# This template shows the Caddy configuration for the Frontman API server.
+# The deploy.sh script dynamically rewrites /etc/caddy/Caddyfile with the
+# correct port (4000 for blue, 4001 for green) on each deployment.
+#
+# Caddy handles TLS automatically via Let's Encrypt.
+# DNS A record for api.frontman.sh must point to this server.
+# Use Cloudflare DNS-only mode (grey cloud) so Caddy can handle ACME challenges.
+
+api.frontman.sh {
+    reverse_proxy localhost:{PORT}
+}

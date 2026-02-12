@@ -24,8 +24,8 @@ cd .worktrees/feature/my-feature
 - `make worktree-clean` - Clean stale worktrees
 
 **Secrets:**
-- Dev secrets (WORKOS keys, API keys) are stored as `op://` references in `apps/frontman_server/envs/.dev.env` and resolved at runtime via 1Password CLI (`op run`)
-- The server Makefile wraps `mix phx.server` with `op run --env-file=envs/.dev.env` so secrets are injected as env vars
+- Dev secrets (WORKOS keys, API keys) are stored as `op://` references in `apps/frontman_server/envs/.dev.secrets.env` and resolved at runtime via 1Password CLI (`op run`)
+- The server Makefile wraps `mix phx.server` with `op run --env-file=envs/.dev.secrets.env` so secrets are injected as env vars
 - Requires 1Password CLI (`op`) to be installed and authenticated
 - If the server fails on startup with WORKOS errors, ensure `op` is signed in (`op signin`)
 

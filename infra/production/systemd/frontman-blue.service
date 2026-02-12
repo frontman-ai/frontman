@@ -1,0 +1,29 @@
+[Unit]
+Description=Frontman Server (blue slot - port 4000)
+After=network.target postgresql.service
+Requires=postgresql.service
+
+[Service]
+Type=exec
+User=deploy
+Group=deploy
+WorkingDirectory=/opt/frontman/blue/current
+EnvironmentFile=/opt/frontman/blue/env
+ExecStart=/opt/frontman/blue/current/bin/server
+ExecStop=/opt/frontman/blue/current/bin/frontman_server stop
+Restart=on-failure
+RestartSec=5
+
+# BEAM handles SIGTERM gracefully - drains connections, stops supervision tree
+KillMode=process
+TimeoutStopSec=30
+
+# Security hardening
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/opt/frontman/blue
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

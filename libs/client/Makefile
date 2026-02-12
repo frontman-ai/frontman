@@ -39,6 +39,11 @@ build-lib: ## Build the project as a library
 	$(MAKE) clean
 	yarn vite build --mode library
 
+build-standalone: ## Build standalone bundle (React bundled) for Cloudflare Pages
+	$(MAKE) clean
+	yarn rescript build
+	yarn vite build --config vite.config.standalone.ts
+
 clean: ## Clean build artifacts and temporary files
 	rm -rf dist
 
