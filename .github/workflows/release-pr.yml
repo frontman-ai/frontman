@@ -53,10 +53,12 @@ jobs:
           BUMP="patch"
           for f in .changeset/*.md; do
             [ "$(basename "$f")" = "README.md" ] && continue
-            if grep -q 'major' "$f"; then
+            # Only search the YAML frontmatter (between --- delimiters), not the description
+            FRONTMATTER=$(sed -n '/^---$/,/^---$/p' "$f")
+            if echo "$FRONTMATTER" | grep -q 'major'; then
               BUMP="major"
               break
-            elif grep -q 'minor' "$f"; then
+            elif echo "$FRONTMATTER" | grep -q 'minor'; then
               BUMP="minor"
             fi
           done
