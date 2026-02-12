@@ -44,4 +44,5 @@ npm-debug.log
 
 !lib/
 
+# DevPod networking overrides (machine-specific, created by post-create.sh)
 /envs/.dev.overrides.env

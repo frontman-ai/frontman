@@ -86,16 +86,16 @@ echo "==> Setting up Phoenix database..."
 # Get Docker bridge gateway IP for PostgreSQL connection
 DOCKER_GATEWAY=$(ip route | grep default | awk '{print $3}' 2>/dev/null || echo "172.17.0.1")
 
-# Create .dev.overrides.env with DevPod-specific config
-# WORKOS keys and other secrets must be added separately (copied by make worktree-devpod or manually)
+# Create .dev.overrides.env with DevPod-specific networking config
+# Secrets (WORKOS keys etc.) are resolved via 1Password (op run) from .dev.env
 cat > "$WORKSPACE_DIR/apps/frontman_server/envs/.dev.overrides.env" << EOF
-# DevPod overrides for $WORKTREE_NAME
+# DevPod networking overrides for $WORKTREE_NAME
 DB_HOST=host.docker.internal
 PHX_HOST=$WT_HASH.api.frontman.local
 PHX_URL_PORT=443
 EOF
 
-echo "==> Created .dev.overrides.env (add WORKOS keys manually or via make worktree-devpod)"
+echo "==> Created .dev.overrides.env (DevPod networking config)"
 
 # Update dev.exs to use the gateway IP (compile-time config)
 sed -i "s/hostname: \"localhost\"/hostname: \"$DOCKER_GATEWAY\"/" "$WORKSPACE_DIR/apps/frontman_server/config/dev.exs"
