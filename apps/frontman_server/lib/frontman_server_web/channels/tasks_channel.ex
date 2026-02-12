@@ -12,6 +12,7 @@ defmodule FrontmanServerWeb.TasksChannel do
 
   alias AgentClientProtocol, as: ACP
   alias FrontmanServer.Tasks
+  alias FrontmanServer.Tasks.TitleGenerator
   alias FrontmanServerWeb.ACPHistory
 
   @acp_protocol_version ACP.protocol_version()
@@ -20,6 +21,13 @@ defmodule FrontmanServerWeb.TasksChannel do
   def join("tasks", _params, socket) do
     if Map.has_key?(socket.assigns, :scope) do
       Logger.info("Client joining tasks channel (authenticated)")
+
+      # Subscribe to title updates for this user
+      Phoenix.PubSub.subscribe(
+        FrontmanServer.PubSub,
+        TitleGenerator.pubsub_topic(socket.assigns.scope.user.id)
+      )
+
       socket = assign(socket, :acp_initialized, false)
       {:ok, %{status: "connected"}, socket}
     else
@@ -99,20 +107,34 @@ defmodule FrontmanServerWeb.TasksChannel do
     )
   end
 
-  # Create new session (server generates sessionId per ACP spec)
-  defp handle_message({:request, id, "session/new", _params}, socket) do
-    Logger.info("ACP session/new request received")
+  # Create new session (client provides sessionId)
+  defp handle_message({:request, id, "session/new", %{"sessionId" => session_id}}, socket)
+       when is_binary(session_id) and session_id != "" do
+    Logger.info("ACP session/new request received with sessionId: #{session_id}")
 
-    case extract_framework(socket.assigns[:acp_client_info]) do
+    with :ok <- validate_uuid_format(session_id),
+         framework when framework != nil <- extract_framework(socket.assigns[:acp_client_info]),
+         {:ok, ^session_id} <- Tasks.create_task(socket.assigns.scope, session_id, framework) do
+      push_response(socket, id, ACP.build_session_new_result(session_id))
+    else
+      :error ->
+        push_error(
+          socket,
+          id,
+          JsonRpc.error_invalid_params(),
+          "Invalid sessionId: must be a valid UUID"
+        )
+
       nil ->
         push_error(socket, id, JsonRpc.error_invalid_params(), "Missing framework in clientInfo")
 
-      framework ->
-        scope = socket.assigns.scope
-        task_id = ACP.generate_session_id()
-        {:ok, ^task_id} = Tasks.create_task(scope, task_id, framework)
-        push_response(socket, id, ACP.build_session_new_result(task_id))
+      {:error, _changeset} ->
+        push_error(socket, id, JsonRpc.error_invalid_params(), "Failed to create session")
     end
+  end
+
+  defp handle_message({:request, id, "session/new", _params}, socket) do
+    push_error(socket, id, JsonRpc.error_invalid_params(), "Missing required field: sessionId")
   end
 
   # ACP session/load - streams history via session/update notifications
@@ -147,6 +169,19 @@ defmodule FrontmanServerWeb.TasksChannel do
 
   defp handle_message({:notification, _method, _params}, socket) do
     {:noreply, socket}
+  end
+
+  # Handle title update broadcasts from TitleGenerator
+  @impl true
+  def handle_info({:title_updated, task_id, title}, socket) do
+    push(socket, "title_updated", %{"sessionId" => task_id, "title" => title})
+    {:noreply, socket}
+  end
+
+  # UUID v4 format: 8-4-4-4-12 hex digits with dashes
+  @uuid_regex ~r/\A[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\z/i
+  defp validate_uuid_format(string) do
+    if Regex.match?(@uuid_regex, string), do: :ok, else: :error
   end
 
   defp extract_framework(%{"metadata" => %{"framework" => framework}}) when is_binary(framework),

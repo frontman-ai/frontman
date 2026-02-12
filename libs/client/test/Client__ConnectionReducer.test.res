@@ -78,6 +78,7 @@ describe("Connection Reducer", () => {
         clientVersion: "1.0.0",
         baseUrl: "http://test",
         onACPMessage: (_, _) => (),
+        onTitleUpdated: None,
         metadata: JSON.Encode.object(Dict.fromArray([("framework", JSON.Encode.string("test"))])),
       }
       let (nextState, effects) = Reducer.reduce(
@@ -104,6 +105,7 @@ describe("Connection Reducer", () => {
         clientVersion: "1.0.0",
         baseUrl: "http://test",
         onACPMessage: (_, _) => (),
+        onTitleUpdated: None,
         metadata: JSON.Encode.object(Dict.fromArray([("framework", JSON.Encode.string("test"))])),
       }
       let state = {...Reducer.initialState, acp: ACPConnecting}

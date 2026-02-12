@@ -36,12 +36,15 @@ defmodule FrontmanServer.Tasks do
 
   Returns task schemas ordered by most recently updated.
   """
+  @max_tasks 20
+
   @spec list_tasks(Scope.t()) :: {:ok, [TaskSchema.t()]}
   def list_tasks(%Scope{user: %{id: user_id}}) do
     tasks =
       TaskSchema
       |> TaskSchema.for_user(user_id)
       |> TaskSchema.ordered_by_updated()
+      |> TaskSchema.limited(@max_tasks)
       |> Repo.all()
 
     {:ok, tasks}
@@ -81,6 +84,34 @@ defmodule FrontmanServer.Tasks do
     with {:ok, schema} <- get_task_by_id(scope, task_id),
          {:ok, _} <- Repo.delete(schema) do
       :ok
+    end
+  end
+
+  @doc """
+  Gets a task's short description (title) without loading interactions.
+
+  Lightweight query for cases where only the title is needed (e.g., title generation check).
+  """
+  @spec get_short_desc(Scope.t(), String.t()) :: {:ok, String.t()} | {:error, :not_found}
+  def get_short_desc(%Scope{} = scope, task_id) do
+    case get_task_by_id(scope, task_id) do
+      {:ok, schema} -> {:ok, schema.short_desc}
+      {:error, :not_found} -> {:error, :not_found}
+    end
+  end
+
+  @doc """
+  Updates a task's short description (title).
+
+  Requires authorization - scope.user.id must match task.user_id.
+  """
+  @spec update_short_desc(Scope.t(), String.t(), String.t()) ::
+          {:ok, TaskSchema.t()} | {:error, :not_found | Ecto.Changeset.t()}
+  def update_short_desc(%Scope{} = scope, task_id, title) do
+    with {:ok, schema} <- get_task_by_id(scope, task_id) do
+      schema
+      |> TaskSchema.update_changeset(%{short_desc: title})
+      |> Repo.update()
     end
   end
 

@@ -52,6 +52,42 @@ defmodule FrontmanServer.TasksTest do
     end
   end
 
+  describe "get_short_desc/2" do
+    test "returns title for existing task", %{scope: scope} do
+      task_id = Ecto.UUID.generate()
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
+
+      assert {:ok, "New Task"} = Tasks.get_short_desc(scope, task_id)
+    end
+
+    test "returns updated title after update_short_desc", %{scope: scope} do
+      task_id = Ecto.UUID.generate()
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
+
+      {:ok, _} = Tasks.update_short_desc(scope, task_id, "My Custom Title")
+      assert {:ok, "My Custom Title"} = Tasks.get_short_desc(scope, task_id)
+    end
+
+    test "returns not_found for non-existent task", %{scope: scope} do
+      assert {:error, :not_found} = Tasks.get_short_desc(scope, Ecto.UUID.generate())
+    end
+
+    test "returns not_found for task owned by different user", %{scope: scope} do
+      task_id = Ecto.UUID.generate()
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
+
+      {:ok, other_user} =
+        Accounts.register_user(%{
+          email: "other_#{System.unique_integer([:positive])}@test.local",
+          name: "Other User",
+          password: "testpassword123!"
+        })
+
+      other_scope = Scope.for_user(other_user)
+      assert {:error, :not_found} = Tasks.get_short_desc(other_scope, task_id)
+    end
+  end
+
   describe "task_exists?/2" do
     test "returns true for existing task owned by user", %{scope: scope} do
       task_id = Ecto.UUID.generate()

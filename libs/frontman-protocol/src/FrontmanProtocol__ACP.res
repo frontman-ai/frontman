@@ -117,6 +117,14 @@ type deleteSessionParams = {
   sessionId: string,
 }
 
+// Title update notification from server
+@schema
+type titleUpdated = {
+  @as("sessionId")
+  sessionId: string,
+  title: string,
+}
+
 // Annotations for embedded resources
 @schema
 type annotations = {
