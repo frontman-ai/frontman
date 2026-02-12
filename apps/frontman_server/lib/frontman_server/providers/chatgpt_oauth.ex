@@ -173,12 +173,21 @@ defmodule FrontmanServer.Providers.ChatGPTOAuth do
     ]
 
     case Req.post(@token_url, body: body, headers: headers) do
-      {:ok, %Req.Response{status: 200, body: response_body}} ->
+      {:ok,
+       %Req.Response{
+         status: 200,
+         body:
+           %{
+             "access_token" => access_token,
+             "id_token" => id_token,
+             "refresh_token" => refresh_token
+           } = response_body
+       }} ->
         {:ok,
          %{
-           access_token: response_body["access_token"],
-           refresh_token: response_body["refresh_token"],
-           id_token: response_body["id_token"],
+           access_token: access_token,
+           refresh_token: refresh_token,
+           id_token: id_token,
            expires_in: response_body["expires_in"]
          }}
 
@@ -287,7 +296,7 @@ defmodule FrontmanServer.Providers.ChatGPTOAuth do
   Extracts the account ID from token response, trying id_token first, then access_token.
   """
   @spec extract_account_id_from_tokens(%{
-          required(:id_token) => String.t() | nil,
+          required(:id_token) => String.t(),
           required(:access_token) => String.t(),
           optional(atom()) => any()
         }) :: String.t() | nil

@@ -12,6 +12,7 @@ defmodule FrontmanServerWeb.TaskChannel do
   alias AgentClientProtocol, as: ACP
   alias FrontmanServer.Agents
   alias FrontmanServer.Tasks
+  alias FrontmanServer.Tasks.Todos
   alias FrontmanServer.Tools
   alias FrontmanServerWeb.ACPHistory
   alias FrontmanServerWeb.TaskChannel.MCPInitializer
@@ -510,7 +511,7 @@ defmodule FrontmanServerWeb.TaskChannel do
     if Tools.todo_mutation?(tool_result.tool_name) do
       case Tasks.list_todos(scope, task_id) do
         {:ok, todos} ->
-          entries = todos_to_plan_entries(todos)
+          entries = Enum.map(todos, &to_plan_entry/1)
           plan_notification = ACP.plan_update(task_id, entries)
           push(socket, "acp:message", plan_notification)
 
@@ -674,14 +675,7 @@ defmodule FrontmanServerWeb.TaskChannel do
     {:noreply, socket}
   end
 
-  # Convert todos to ACP plan entries
-  defp todos_to_plan_entries(todos) when is_list(todos) do
-    todos
-    |> Enum.sort_by(& &1.created_at, DateTime)
-    |> Enum.map(&todo_to_plan_entry/1)
-  end
-
-  defp todo_to_plan_entry(todo) do
+  defp to_plan_entry(%Todos.Todo{} = todo) do
     %{
       "content" => todo.content,
       "priority" => "medium",
