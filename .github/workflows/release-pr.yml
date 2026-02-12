@@ -93,7 +93,7 @@ jobs:
           CHANGES=""
           for changelog in libs/*/CHANGELOG.md apps/*/CHANGELOG.md; do
             [ -f "$changelog" ] || continue
-            if git diff --name-only -- "$changelog" | grep -q .; then
+            if git status --porcelain -- "$changelog" | grep -q .; then
               PKG_DIR=$(dirname "$changelog")
               PKG_NAME=$(node -e "console.log(require('./${PKG_DIR}/package.json').name)" 2>/dev/null || echo "$(basename "$PKG_DIR")")
               SECTION=$(awk '/^## /{if(found) exit; found=1; next} found' "$changelog")
