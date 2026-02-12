@@ -22,12 +22,17 @@ jobs:
       - name: Extract version and changelog
         id: extract
         run: |
-          VERSION=$(grep -oP '(?<=## \[)[^\]]+' CHANGELOG.md | head -1)
+          # Match both "## [0.4.0]" (Keep a Changelog) and "## 0.4.0" (changesets) formats
+          VERSION=$(sed -n 's/^## \[\{0,1\}\([0-9][0-9.]*\).*/\1/p' CHANGELOG.md | head -1)
+          if [ -z "$VERSION" ]; then
+            echo "::error::Could not extract version from CHANGELOG.md"
+            exit 1
+          fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "tag=v${VERSION}" >> "$GITHUB_OUTPUT"
 
-          # Extract changelog section between the first and second ## [...] headings
-          awk '/^## \[/{if(found) exit; found=1; next} found' CHANGELOG.md > /tmp/release-notes.md
+          # Extract changelog section between the first and second ## headings
+          awk '/^## [0-9\[]{1}/{if(found) exit; found=1; next} found' CHANGELOG.md > /tmp/release-notes.md
           echo "Extracted release notes for v${VERSION}"
 
       - name: Check if tag already exists
