@@ -1,24 +1,21 @@
 # =============================================================================
-# Build stage
-# Versions read from mise.toml — single source of truth
+# Build stage — prebuilt Erlang+Elixir, no compilation from source
 # =============================================================================
-FROM debian:bookworm AS builder
+FROM hexpm/elixir:1.19.3-erlang-28.1-debian-bookworm-20260202-slim AS builder
 
 RUN apt-get update -y && \
     apt-get install -y --no-install-recommends build-essential git curl xz-utils ca-certificates \
-    libssl-dev libncurses-dev autoconf m4 && \
+    libssl-dev libncurses-dev && \
     apt-get clean && rm -f /var/lib/apt/lists/*_*
 
-# Install mise
-RUN curl https://mise.run | sh
-ENV PATH="/root/.local/bin:${PATH}"
+# Install Node.js (for ReScript/JS build steps)
+ARG NODE_VERSION=24.4.1
+RUN curl -fsSL https://deb.nodesource.com/setup_24.x | bash - && \
+    apt-get install -y --no-install-recommends nodejs && \
+    apt-get clean && rm -f /var/lib/apt/lists/*_*
 
-# Copy mise.toml and install toolchains before anything else (layer cache)
-COPY mise.toml ./
-RUN mise trust mise.toml && mise install node erlang elixir yarn
-
-# Activate mise-installed tools for all subsequent RUN steps
-ENV PATH="/root/.local/share/mise/shims:${PATH}"
+# Install Yarn via corepack
+RUN corepack enable
 
 WORKDIR /app
 

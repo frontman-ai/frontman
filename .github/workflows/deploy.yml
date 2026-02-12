@@ -32,6 +32,9 @@ jobs:
 
       - name: Build server release tarball
         run: |
+          # Clean up any stale container from a previous run
+          docker rm frontman-tar-extract 2>/dev/null || true
+
           # Build native x86_64 using the builder stage
           docker buildx build \
             -f apps/frontman_server/Dockerfile \
@@ -43,7 +46,7 @@ jobs:
           # Extract the release tarball from the builder image
           docker create --name frontman-tar-extract frontman-builder true
           docker cp "frontman-tar-extract:/app/apps/frontman_server/_build/prod/frontman_server-0.0.1.tar.gz" ./server-release.tar.gz
-          docker rm frontman-tar-extract 2>/dev/null || true
+          docker rm frontman-tar-extract
 
           echo "Server release tarball built:"
           ls -lh server-release.tar.gz
@@ -73,6 +76,8 @@ jobs:
         run: yarn rescript clean && yarn rescript build
 
       - name: Build client standalone bundle
+        env:
+          NODE_OPTIONS: '--max-old-space-size=4096'
         run: |
           cd libs/client
           yarn vite build --config vite.config.standalone.ts
