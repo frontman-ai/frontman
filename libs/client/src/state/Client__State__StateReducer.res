@@ -453,13 +453,58 @@ module Selectors = {
 // Effect handler helpers (extracted for reuse)
 // ============================================================================
 
-let sendMessageToAPIImpl = (state: state, dispatch, ~message, ~taskId) => {
+// Build ACP content blocks for image/file attachments
+// Strips the data:mime;base64, prefix and creates resource blocks with BlobResourceContents
+let buildAttachmentContentBlocks = (
+  attachments: array<Client__Message.fileAttachmentData>,
+): array<Client__State__Types.ACPTypes.contentBlock> => {
+  attachments->Array.map(att => {
+    // Strip "data:mime;base64," prefix to get raw base64
+    let base64Data = switch att.dataUrl->String.indexOf(";base64,") {
+    | -1 => att.dataUrl
+    | idx => att.dataUrl->String.slice(~start=idx + 8, ~end=String.length(att.dataUrl))
+    }
+
+    // Build _meta JSON
+    let meta: JSON.t = %raw(`(function(filename) {
+      return { "user_image": true, "filename": filename };
+    })`)(att.filename)
+
+    {
+      Client__State__Types.ACPTypes.type_: "resource",
+      text: None,
+      uri: None,
+      resource: Some({
+        _meta: Some(meta),
+        annotations: None,
+        resource: Client__State__Types.ACPTypes.BlobResourceContents({
+          uri: `attachment://${att.filename}`,
+          mimeType: Some(att.mediaType),
+          blob: base64Data,
+        }),
+      }),
+      content: None,
+    }
+  })
+}
+
+let sendMessageToAPIImpl = (
+  state: state,
+  dispatch,
+  ~message,
+  ~attachments: array<Client__Message.fileAttachmentData>=[],
+  ~taskId,
+) => {
   switch state.acpSession {
   | AcpSessionActive({sendPrompt}) =>
-    let additionalBlocks =
+    let contextBlocks =
       state.tasks
       ->Dict.get(taskId)
       ->Option.mapOr([], Client__State__Types.taskToContentBlocks)
+
+    // Build attachment content blocks
+    let attachmentBlocks = buildAttachmentContentBlocks(attachments)
+    let additionalBlocks = Array.concat(contextBlocks, attachmentBlocks)
 
     // Include runtime config metadata (e.g., framework, openrouterKeyValue) with each prompt
     let runtimeConfig = Client__RuntimeConfig.read()
@@ -529,7 +574,7 @@ let handleEffect = (effect, state: state, dispatch) => {
       // Handle delegation from task effects
       let delegate = (delegated: TaskReducer.delegated) => {
         switch delegated {
-        | NeedSendMessage({text}) =>
+        | NeedSendMessage({text, attachments}) =>
           // Resolve the taskId from target
           let taskId = switch target {
           | ForTask(id) => id
@@ -540,7 +585,7 @@ let handleEffect = (effect, state: state, dispatch) => {
               failwith("[TaskEffect] NeedSendMessage from CurrentTask but currentTask is New")
             }
           }
-          sendMessageToAPIImpl(state, dispatch, ~message=text, ~taskId)
+          sendMessageToAPIImpl(state, dispatch, ~message=text, ~attachments, ~taskId)
         | NeedUsageRefresh =>
           switch state.acpSession {
           | AcpSessionActive({apiBaseUrl}) => fetchUsageInfoImpl(dispatch, ~apiBaseUrl)
@@ -1092,9 +1137,15 @@ let next = (state: state, action) => {
     }->FrontmanReactStatestore.StateReducer.update
 
   | UpdateTaskTitle({taskId, title}) =>
-    state
-    ->Lens.updateTask(taskId, task => Task.setTitle(task, title))
-    ->FrontmanReactStatestore.StateReducer.update
+    switch state.tasks->Dict.get(taskId) {
+    | Some(_) =>
+      state
+      ->Lens.updateTask(taskId, task => Task.setTitle(task, title))
+      ->FrontmanReactStatestore.StateReducer.update
+    | None =>
+      // Task was deleted before the async title update arrived — ignore silently
+      state->FrontmanReactStatestore.StateReducer.update
+    }
 
   // ============================================================================
   // ACP session actions

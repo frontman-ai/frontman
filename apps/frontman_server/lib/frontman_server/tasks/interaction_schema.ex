@@ -98,7 +98,8 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
       messages: data["messages"] || [],
       selected_component: parse_selected_component(data["selected_component"]),
       selected_component_screenshot: parse_screenshot(data["selected_component_screenshot"]),
-      selected_figma_node: parse_figma_node(data["selected_figma_node"])
+      selected_figma_node: parse_figma_node(data["selected_figma_node"]),
+      images: parse_images(data["images"])
     }
   end
 
@@ -243,4 +244,19 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
   end
 
   defp parse_screenshot(_), do: nil
+
+  # Parse user-uploaded images from stored data
+  defp parse_images(nil), do: []
+
+  defp parse_images(images) when is_list(images) do
+    Enum.map(images, fn img when is_map(img) ->
+      %{
+        blob: img["blob"],
+        mime_type: img["mime_type"] || "image/png",
+        filename: img["filename"] || "attachment"
+      }
+    end)
+  end
+
+  defp parse_images(_), do: []
 end

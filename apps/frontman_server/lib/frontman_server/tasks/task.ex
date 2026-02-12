@@ -11,10 +11,10 @@ defmodule FrontmanServer.Tasks.Task do
   alias FrontmanServer.Tasks.Interaction
 
   typedstruct enforce: true do
-    field :task_id, String.t()
-    field :short_desc, String.t()
-    field :interactions, list(Interaction.t()), default: []
-    field :framework, String.t() | nil, default: nil
+    field(:task_id, String.t())
+    field(:short_desc, String.t())
+    field(:interactions, list(Interaction.t()), default: [])
+    field(:framework, String.t() | nil, default: nil)
   end
 
   @doc """
@@ -43,12 +43,13 @@ defmodule FrontmanServer.Tasks.Task do
   end
 
   @doc """
-  Generates a short description from a task_id.
+  Returns the default short description for a new task.
 
-  Takes the first 8 characters of the task_id.
+  Titles are later generated asynchronously via `TitleGenerator`
+  after the first user message.
   """
   @spec short_description(String.t()) :: String.t()
-  def short_description(task_id) do
-    "Task #{String.slice(task_id, 0..7)}"
+  def short_description(_task_id) do
+    "New Task"
   end
 end

@@ -1059,3 +1059,47 @@ describe("Client State Reducer - Session Loading Actions", () => {
     }
   })
 })
+
+describe("Client State Reducer - UpdateTaskTitle safety", () => {
+  test("UpdateTaskTitle updates title for existing task", t => {
+    let (state) = TestHelpers.makeStateWithTask(~taskId="task-1", ~messages=[])
+    let (nextState, _) = Reducer.next(state, UpdateTaskTitle({taskId: "task-1", title: "New Title"}))
+
+    let task = nextState.tasks->Dict.get("task-1")->Option.getOrThrow
+    t->expect(Task.getTitle(task))->Expect.toEqual(Some("New Title"))
+  })
+
+  test("UpdateTaskTitle on deleted task does not throw", t => {
+    // Start with a task
+    let (state) = TestHelpers.makeStateWithTask(~taskId="task-1", ~messages=[])
+
+    // Delete the task
+    let (stateAfterDelete, _) = Reducer.next(state, DeleteTask({taskId: "task-1"}))
+    t->expect(TestHelpers.getTaskCount(stateAfterDelete))->Expect.toBe(0)
+
+    // Now send an UpdateTaskTitle for the deleted task — should NOT throw
+    let (nextState, _) = Reducer.next(
+      stateAfterDelete,
+      UpdateTaskTitle({taskId: "task-1", title: "Ghost Title"}),
+    )
+
+    // State should be unchanged (no task added back)
+    t->expect(TestHelpers.getTaskCount(nextState))->Expect.toBe(0)
+    t->expect(nextState.tasks->Dict.get("task-1")->Option.isNone)->Expect.toBe(true)
+  })
+
+  test("UpdateTaskTitle on non-existent task is a no-op", t => {
+    let (state) = TestHelpers.makeStateWithTask(~taskId="task-1", ~messages=[])
+
+    // Update title for a task that doesn't exist
+    let (nextState, _) = Reducer.next(
+      state,
+      UpdateTaskTitle({taskId: "non-existent-task", title: "Should Not Crash"}),
+    )
+
+    // Original task should be unaffected
+    t->expect(TestHelpers.getTaskCount(nextState))->Expect.toBe(1)
+    let task = nextState.tasks->Dict.get("task-1")->Option.getOrThrow
+    t->expect(Task.getTitle(task))->Expect.toEqual(Some("Test Task"))
+  })
+})

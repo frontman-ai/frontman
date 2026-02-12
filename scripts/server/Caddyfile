@@ -5,7 +5,7 @@
 # Example: wt-8f3a-nextjs.local, wt-8f3a-vite.local, wt-8f3a-api.local
 
 {
-    # Listen on standard ports (tunneled from local 8080/8443)
+    # Listen on standard ports (443 for HTTPS via dnsmasq, or tunneled from local 8443)
     http_port 80
     https_port 443
     

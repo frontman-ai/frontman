@@ -74,7 +74,7 @@ module SelectedElement = {
 module UserContentPart = {
   type t =
     | Text({text: string})
-    | Image({image: string, mediaType: option<string>})
+    | Image({image: string, mediaType: option<string>, name: option<string>})
     | File({file: string})
 
   let schema = S.union([
@@ -87,6 +87,7 @@ module UserContentPart = {
       Image({
         image: s.field("image", S.string),
         mediaType: s.field("mediaType", S.option(S.string)),
+        name: s.field("name", S.option(S.string)),
       })
     }),
     S.object(s => {
@@ -309,7 +310,7 @@ let convertSelectedElement = (sel: Client__State__Types.SelectedElement.t): Sele
 let convertUserContentPart = (part: Client__State__Types.UserContentPart.t): UserContentPart.t => {
   switch part {
   | Text({text}) => Text({text: text})
-  | Image({image, mediaType}) => Image({image, mediaType})
+  | Image({image, mediaType, name}) => Image({image, mediaType, name})
   | File({file}) => File({file: file})
   }
 }
@@ -439,11 +440,12 @@ let userContentPartToJson = (part: UserContentPart.t): JSON.t => {
   switch part {
   | Text({text}) =>
     obj([("type", JSON.Encode.string("text")), ("text", JSON.Encode.string(text))])
-  | Image({image, mediaType}) =>
+  | Image({image, mediaType, name}) =>
     obj([
       ("type", JSON.Encode.string("image")),
       ("image", JSON.Encode.string(image)),
       ("mediaType", mediaType->Option.mapOr(JSON.Encode.null, JSON.Encode.string)),
+      ("name", name->Option.mapOr(JSON.Encode.null, JSON.Encode.string)),
     ])
   | File({file}) =>
     obj([("type", JSON.Encode.string("file")), ("file", JSON.Encode.string(file))])

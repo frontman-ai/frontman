@@ -20,6 +20,8 @@ type initConfig = {
   onACPMessage: (ACP.messageDirection, JSON.t) => unit,
   // Metadata to pass in ACP clientInfo (framework, env key detection, etc.)
   metadata: JSON.t,
+  // Called when the server pushes a title update for a task
+  onTitleUpdated: option<(string, string) => unit>,
 }
 
 // Connection states
@@ -215,6 +217,7 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
       ~version=config.clientVersion,
       ~metadata=config.metadata,
       ~onMessage=config.onACPMessage,
+      ~onTitleUpdated=?config.onTitleUpdated,
     )
     // Create AbortController to cancel connections on cleanup
     let abortController = WebAPI.AbortController.make()
@@ -533,8 +536,10 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
   | CreateSessionEffect({connection, mcpServer, onUpdate, onMcpMessage, onComplete}) =>
     let create = async () => {
       let mcpServerInterface = MCPServer.toInterface(mcpServer)
+      let sessionId = WebAPI.Global.crypto->WebAPI.Crypto.randomUUID
       let result = await ACP.createSession(
         connection,
+        ~sessionId,
         ~onUpdate,
         ~mcpServerInterface,
         ~onMcpMessage,

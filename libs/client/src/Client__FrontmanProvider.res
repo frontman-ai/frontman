@@ -107,6 +107,9 @@ module Provider = {
         baseUrl,
         onACPMessage: logACPMessage,
         metadata,
+        onTitleUpdated: Some((taskId, title) => {
+          Client__State.Actions.updateTaskTitle(~taskId, ~title)
+        }),
       }
 
       dispatch(Initialize({config, relay, mcpServer}))

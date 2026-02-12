@@ -1,0 +1,82 @@
+name: Release Tag
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'CHANGELOG.md'
+
+jobs:
+  create-release:
+    name: Tag & GitHub Release
+    runs-on: self-hosted
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify this is a release commit
+        id: verify
+        run: |
+          COMMIT_MSG=$(git log -1 --format='%s')
+          # Squash / rebase merge: "chore: release v0.4.0" or "chore: release v0.4.0 (#123)"
+          if echo "$COMMIT_MSG" | grep -qE '^chore: release v[0-9]'; then
+            echo "is_release=true" >> "$GITHUB_OUTPUT"
+          # Merge commit: "Merge pull request #123 from <org>/release/v0.4.0"
+          elif echo "$COMMIT_MSG" | grep -qE '^Merge pull request.*release/v[0-9]'; then
+            echo "is_release=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Skipping — not a release commit: $COMMIT_MSG"
+            echo "is_release=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Extract version and changelog
+        if: steps.verify.outputs.is_release == 'true'
+        id: extract
+        run: |
+          # Match both "## [0.4.0]" (Keep a Changelog) and "## 0.4.0" (changesets) formats
+          VERSION=$(sed -n 's/^## \[\{0,1\}\([0-9][0-9.]*\).*/\1/p' CHANGELOG.md | head -1)
+          if [ -z "$VERSION" ]; then
+            echo "::error::Could not extract version from CHANGELOG.md"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v${VERSION}" >> "$GITHUB_OUTPUT"
+
+          # Extract changelog section between the first and second ## headings
+          awk '/^## [0-9[]/{if(found) exit; found=1; next} found' CHANGELOG.md > /tmp/release-notes.md
+          echo "Extracted release notes for v${VERSION}"
+
+      - name: Check if tag already exists
+        if: steps.verify.outputs.is_release == 'true'
+        id: tag-check
+        run: |
+          TAG="${{ steps.extract.outputs.tag }}"
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Tag $TAG already exists — skipping"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create tag and GitHub Release
+        if: steps.verify.outputs.is_release == 'true' && steps.tag-check.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.extract.outputs.tag }}"
+          VERSION="${{ steps.extract.outputs.version }}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git tag -a "$TAG" -m "Release ${VERSION}"
+          git push origin "$TAG"
+
+          gh release create "$TAG" \
+            --title "v${VERSION}" \
+            --notes-file /tmp/release-notes.md

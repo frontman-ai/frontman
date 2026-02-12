@@ -34,13 +34,9 @@ config :workos, WorkOS.Client,
 
 # OpenTelemetry configuration
 # Arize export enabled if both ARIZE_API_KEY and ARIZE_SPACE_ID are set
-# Required in prod, optional in dev
+# Optional in all environments - when not set, tracing export is disabled
 {arize_api_key, arize_space_id} =
-  if config_env() == :prod do
-    {env!("ARIZE_API_KEY", :string!), env!("ARIZE_SPACE_ID", :string!)}
-  else
-    {env!("ARIZE_API_KEY", :string, nil), env!("ARIZE_SPACE_ID", :string, nil)}
-  end
+  {env!("ARIZE_API_KEY", :string, nil), env!("ARIZE_SPACE_ID", :string, nil)}
 
 if arize_api_key && arize_space_id do
   arize_endpoint =
@@ -79,14 +75,18 @@ else
   ]
 end
 
-# Sentry error tracking
-config :sentry,
-  dsn: env!("SENTRY_DSN", :string!),
-  environment_name: config_env(),
-  release: "frontman_server@#{Application.spec(:frontman_server, :vsn) || "dev"}",
-  enable_source_code_context: true,
-  root_source_code_paths: [File.cwd!()],
-  tags: %{service: "frontman-server"}
+# Sentry error tracking (optional - disabled when SENTRY_DSN is not set)
+sentry_dsn = env!("SENTRY_DSN", :string, nil)
+
+if sentry_dsn do
+  config :sentry,
+    dsn: sentry_dsn,
+    environment_name: config_env(),
+    release: "frontman_server@#{Application.spec(:frontman_server, :vsn) || "dev"}",
+    enable_source_code_context: true,
+    root_source_code_paths: [File.cwd!()],
+    tags: %{service: "frontman-server"}
+end
 
 # Dev/Test: Allow DB_HOST override for container development (e.g., DevPod)
 # The docker bridge gateway IP (172.17.0.1) is used to connect from container to host PostgreSQL

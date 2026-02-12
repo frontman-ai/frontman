@@ -12,14 +12,23 @@ YELLOW := \033[33m
 RESET := \033[0m
 
 # Remote development config
-DEVPOD_HOST ?= 77.42.16.199
+# DEVPOD_SERVER is resolved from .env via `op run` (1Password CLI)
+# Usage: op run --env-file=.env -- make <target>
 DEVPOD_USER ?= root
+
+define require_devpod_server
+	@if [ -z "$(DEVPOD_SERVER)" ]; then \
+		printf "$(YELLOW)Error: DEVPOD_SERVER is not set. Run via: op run --env-file=.env -- make $(1)$(RESET)\n"; \
+		exit 1; \
+	fi
+endef
 
 .PHONY: help dev dev-client dev-server dev-nextjs dev-extension dev-marketing dev-dogfooding \
         install build rescript-watch rescript-build clean test lint \
         ssl-setup tunnel \
         worktree-create worktree-create-from worktree-list worktree-remove worktree-clean \
         worktree-status worktree-devpod worktree-urls worktree-hosts worktree-register worktree-registry \
+        release \
         kill-all-processes open-dogfooding pull-webapi
 
 help: ## Display available commands
@@ -36,6 +45,9 @@ help: ## Display available commands
 	@echo ""
 	@printf "$(CYAN)Worktree Management:$(RESET)\n"
 	@awk 'BEGIN {FS = ":.*##"} /^## WT_START$$/{found=1; next} /^## WT_END$$/{found=0} found && /^[a-zA-Z_-]+:.*##/ { printf "  $(GREEN)%-25s$(RESET) %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
+	@echo ""
+	@printf "$(CYAN)Release:$(RESET)\n"
+	@awk 'BEGIN {FS = ":.*##"} /^## REL_START$$/{found=1; next} /^## REL_END$$/{found=0} found && /^[a-zA-Z_-]+:.*##/ { printf "  $(GREEN)%-25s$(RESET) %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
 	@echo ""
 	@printf "$(CYAN)Utilities:$(RESET)\n"
 	@awk 'BEGIN {FS = ":.*##"} /^## UTIL_START$$/{found=1; next} /^## UTIL_END$$/{found=0} found && /^[a-zA-Z_-]+:.*##/ { printf "  $(GREEN)%-25s$(RESET) %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
@@ -121,13 +133,15 @@ ssl-setup: ## Setup local SSL certificates using mkcert
 	mv .certs/frontman.local+3-key.pem .certs/frontman.local-key.pem
 	sudo sh -c 'grep -q frontman.local /etc/hosts || echo "127.0.0.1 frontman.local" >> /etc/hosts'
 
-tunnel: ## Start SSH tunnel to DevPod server (ports 8080/8443)
-	@printf "$(YELLOW)Starting SSH tunnel to $(DEVPOD_USER)@$(DEVPOD_HOST)$(RESET)\n"
+tunnel: ## Start SSH tunnel to DevPod server (fallback if dnsmasq not configured)
+	$(call require_devpod_server,tunnel)
+	@printf "$(YELLOW)Starting SSH tunnel to $(DEVPOD_USER)@$(DEVPOD_SERVER)$(RESET)\n"
 	@echo "  Local :8080 → Remote :80 (HTTP)"
 	@echo "  Local :8443 → Remote :443 (HTTPS)"
 	@echo ""
+	@echo "NOTE: With dnsmasq configured, you don't need this tunnel."
 	@echo "Press Ctrl+C to stop the tunnel"
-	ssh -L 8080:localhost:80 -L 8443:localhost:443 $(DEVPOD_USER)@$(DEVPOD_HOST) -N
+	ssh -L 8080:localhost:80 -L 8443:localhost:443 $(DEVPOD_USER)@$(DEVPOD_SERVER) -N
 
 ## SSL_END
 
@@ -256,11 +270,11 @@ worktree-urls: ## Show URLs for a worktree (BRANCH=feature-name)
 	echo ""; \
 	printf "$(CYAN)Worktree: $(BRANCH) ($$HASH)$(RESET)\n"; \
 	echo ""; \
-	echo "URLs (via tunnel):"; \
-	echo "  Next.js:   https://$$HASH.nextjs.frontman.local:8443/frontman"; \
-	echo "  Vite:      https://$$HASH.vite.frontman.local:8443"; \
-	echo "  Phoenix:   https://$$HASH.api.frontman.local:8443"; \
-	echo "  Storybook: https://$$HASH.storybook.frontman.local:8443"; \
+	echo "URLs:"; \
+	echo "  Next.js:   https://$$HASH.nextjs.frontman.local/frontman"; \
+	echo "  Vite:      https://$$HASH.vite.frontman.local"; \
+	echo "  Phoenix:   https://$$HASH.api.frontman.local"; \
+	echo "  Storybook: https://$$HASH.storybook.frontman.local"; \
 	echo ""; \
 	echo "Add to /etc/hosts:"; \
 	echo "127.0.0.1 $$HASH.nextjs.frontman.local $$HASH.vite.frontman.local $$HASH.api.frontman.local $$HASH.storybook.frontman.local $$HASH.dogfood.frontman.local"
@@ -280,17 +294,48 @@ worktree-hosts: ## Generate /etc/hosts entries for all worktrees
 	fi
 
 worktree-register: ## Register worktree with Caddy (BRANCH= CONTAINER=)
+	$(call require_devpod_server,worktree-register)
 	@if [ -z "$(BRANCH)" ] || [ -z "$(CONTAINER)" ]; then \
 		printf "$(YELLOW)Error: BRANCH and CONTAINER are required.$(RESET)\n"; \
 		echo "Usage: make worktree-register BRANCH=feature-name CONTAINER=container-name"; \
 		exit 1; \
 	fi
-	ssh $(DEVPOD_USER)@$(DEVPOD_HOST) "register-worktree $(BRANCH) $(CONTAINER)"
+	ssh $(DEVPOD_USER)@$(DEVPOD_SERVER) "register-worktree $(BRANCH) $(CONTAINER)"
 
 worktree-registry: ## Show all registered worktrees on the server
-	@ssh $(DEVPOD_USER)@$(DEVPOD_HOST) "cat /etc/caddy/worktrees/registry.json 2>/dev/null | jq . || echo 'No worktrees registered'"
+	$(call require_devpod_server,worktree-registry)
+	@ssh $(DEVPOD_USER)@$(DEVPOD_SERVER) "cat /etc/caddy/worktrees/registry.json 2>/dev/null | jq . || echo 'No worktrees registered'"
 
 ## WT_END
+
+# ============================================================================
+# Release
+# ============================================================================
+## REL_START
+
+release: ## Create a release PR from pending changesets
+	@printf "$(CYAN)Checking release prerequisites...$(RESET)\n"
+	@git fetch origin main --quiet
+	@LOCAL=$$(git rev-parse HEAD); \
+	REMOTE=$$(git rev-parse origin/main); \
+	if [ "$$LOCAL" != "$$REMOTE" ]; then \
+		printf "$(YELLOW)Error: local HEAD is not up to date with origin/main$(RESET)\n"; \
+		echo "Run 'git pull origin main' first"; \
+		exit 1; \
+	fi
+	@CHANGESETS=$$(find .changeset -name '*.md' ! -name 'README.md' 2>/dev/null | wc -l); \
+	if [ "$$CHANGESETS" -eq 0 ]; then \
+		printf "$(YELLOW)Error: no pending changesets found$(RESET)\n"; \
+		echo "Add changesets with 'yarn changeset' before releasing"; \
+		exit 1; \
+	fi; \
+	printf "$(GREEN)Found $$CHANGESETS pending changeset(s)$(RESET)\n"
+	@printf "$(YELLOW)Triggering release workflow...$(RESET)\n"
+	@gh workflow run release-pr.yml --ref main
+	@printf "$(GREEN)Release workflow triggered.$(RESET)\n"
+	@echo "Watch for the PR at: https://github.com/frontman-ai/frontman/pulls"
+
+## REL_END
 
 # ============================================================================
 # Utilities

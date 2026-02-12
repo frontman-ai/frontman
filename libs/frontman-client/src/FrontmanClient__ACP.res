@@ -8,6 +8,7 @@ module Channel = FrontmanClient__Phoenix__Channel
 module Socket = FrontmanClient__Phoenix__Socket
 module Constants = FrontmanClient__Transport__Constants
 module Sentry = FrontmanClient__Sentry
+module Decoders = FrontmanClient__Decoders
 module Log = FrontmanLogs.Logs.Make({
   let component = #ACP
 })
@@ -20,6 +21,7 @@ type config = {
   clientInfo: Types.implementation,
   clientCapabilities: Types.clientCapabilities,
   onMessage: option<(messageDirection, JSON.t) => unit>,
+  onTitleUpdated: option<(string, string) => unit>,
 }
 
 let makeConfig = (
@@ -30,6 +32,7 @@ let makeConfig = (
   ~version: string,
   ~metadata: JSON.t,
   ~onMessage: option<(messageDirection, JSON.t) => unit>=?,
+  ~onTitleUpdated: option<(string, string) => unit>=?,
 ): config => {
   endpoint,
   tokenUrl,
@@ -40,6 +43,7 @@ let makeConfig = (
     title: None,
     metadata: Some(metadata),
   },
+  onTitleUpdated,
   clientCapabilities: {
     fs: Some({readTextFile: Some(true), writeTextFile: Some(true)}),
     terminal: Some(false),
@@ -213,6 +217,18 @@ let connect = async (config: config, ~signal: option<WebAPI.EventAPI.abortSignal
     | (_, Error(_)) => Error(ConnectionFailed("Connection aborted"))
     | (Error(e), _) => Error(e)
     | (Ok(), Ok()) =>
+      // Listen for title updates on the tasks channel
+      switch config.onTitleUpdated {
+      | Some(callback) =>
+        channel->Channel.on(~event=#title_updated, ~callback=payload => {
+          switch payload->Decoders.parseSchema(Types.titleUpdatedSchema) {
+          | Ok({sessionId, title}) => callback(sessionId, title)
+          | Error(_) => ()
+          }
+        })
+      | None => ()
+      }
+
       Sentry.addBreadcrumb(~category=#acp, ~message="Channel joined, sending initialize")
       switch await Protocol.sendInitialize(
         ~channel,
@@ -310,19 +326,22 @@ let joinSession = async (
 }
 
 // Create a new ACP session and auto-join the session channel
+// Client generates sessionId (UUID) and sends it to the server
 // mcpServerInterface is attached before channel join to handle server's immediate MCP init
 // onUpdate receives (sessionId, update) per ACP session/update notification params
 let createSession = async (
   conn: connection,
+  ~sessionId: string,
   ~onUpdate: (string, Types.sessionUpdate) => unit,
   ~mcpServerInterface: option<MCPTypes.serverInterface<'server>>=?,
   ~onMcpMessage: option<(MCP.messageDirection, JSON.t) => unit>=?,
 ): result<session, string> => {
-  Sentry.addBreadcrumb(~category=#session, ~message="Creating new session")
+  Sentry.addBreadcrumb(~category=#session, ~message=`Creating new session with id: ${sessionId}`)
 
   let sessionNewResult = await Protocol.sendSessionNew(
     ~channel=conn.channel,
     ~state=conn.state,
+    ~sessionId,
     ~onMessage=conn.onMessage,
   )
 
@@ -381,8 +400,6 @@ let cancelPrompt = (session: session): unit => {
     ~onMessage=session.connection.onMessage,
   )
 }
-
-module Decoders = FrontmanClient__Decoders
 
 // List user's sessions (non-ACP channel message)
 let listSessions = (conn: connection): promise<result<array<Types.sessionSummary>, string>> => {
