@@ -1,38 +1,15 @@
-module UI = Bindings__UI__Tabs
 module Button = Bindings__UI__Button
 module Icons = Bindings__RadixUI__Icons
 module AlertDialog = Bindings__UI__AlertDialog
-module Input = Bindings__UI__Input
 module Tooltip = Bindings__UI__Tooltip
 module DropdownMenu = Bindings__UI__DropdownMenu
 module FrontmanLogo = Client__FrontmanLogo
 
-// DOM bindings for overflow measurement
-@get external clientWidth: Dom.element => int = "clientWidth"
-
-type resizeObserver
-@new external makeResizeObserver: (unit => unit) => resizeObserver = "ResizeObserver"
-@send external observeEl: (resizeObserver, Dom.element) => unit = "observe"
-@send external disconnectObs: resizeObserver => unit = "disconnect"
-
-// Width constants for overflow calculation
-let tabWidth = 150
-let newButtonWidth = 44
-let overflowButtonWidth = 50
-let helpButtonWidth = 36
-let settingsButtonWidth = 44
-let logoWidth = 44
-
 @react.component
 let make = (~onSettingsClick: unit => unit) => {
   // Local UI state
-  let (editingTaskId, setEditingTaskId) = React.useState(() => None)
   let (deleteDialogOpen, setDeleteDialogOpen) = React.useState(() => false)
   let (taskToDelete, setTaskToDelete) = React.useState(() => None)
-
-  // Overflow state
-  let containerRef = React.useRef(Nullable.null)
-  let (visibleCount, setVisibleCount) = React.useState(() => 1000)
 
   // Get clearSession from FrontmanProvider context
   let {clearSession} = Client__FrontmanProvider.useFrontman()
@@ -41,81 +18,36 @@ let make = (~onSettingsClick: unit => unit) => {
   let tasks = Client__State.useSelector(Client__State.Selectors.tasks)
   let currentTaskId = Client__State.useSelector(Client__State.Selectors.currentTaskId)
   let isAgentRunning = Client__State.useSelector(Client__State.Selectors.isAgentRunning)
-  let tasksLen = Array.length(tasks)
+  let isNewTask = Client__State.useSelector(Client__State.Selectors.isNewTask)
 
-  // ResizeObserver effect — recalculate how many tabs fit
-  React.useEffect2(() => {
-    switch containerRef.current->Nullable.toOption {
-    | Some(el) => {
-        let recalc = () => {
-          let containerW = clientWidth(el)
-          let available = containerW - newButtonWidth - helpButtonWidth - settingsButtonWidth - logoWidth
-          let allFit = available >= tasksLen * tabWidth
-          if allFit {
-            setVisibleCount(_ => tasksLen)
-          } else {
-            let withOverflow = available - overflowButtonWidth
-            let fits = Math.Int.max(1, withOverflow / tabWidth)
-            setVisibleCount(_ => fits)
-          }
-        }
-        recalc()
-        let observer = makeResizeObserver(() => recalc())
-        observer->observeEl(el)
-        Some(() => disconnectObs(observer))
-      }
-    | None => None
+  // Current task title
+  let currentTaskTitle = React.useMemo2(() => {
+    switch currentTaskId {
+    | Some(id) =>
+      tasks
+      ->Array.find(t => Client__Task__Types.Task.getId(t) == Some(id))
+      ->Option.flatMap(t => Client__Task__Types.Task.getTitle(t))
+      ->Option.getOr("New Task")
+    | None => "New Task"
     }
-  }, (tasksLen, currentTaskId))
-
-  // Compute visible / overflow split with active-task guarantee
-  let (visibleTasks, overflowTasks) = React.useMemo3(() => {
-    if visibleCount >= tasksLen {
-      (tasks, [])
-    } else {
-      let visible = tasks->Array.slice(~start=0, ~end=visibleCount)
-      let overflow = tasks->Array.slice(~start=visibleCount, ~end=tasksLen)
-
-      // If the active task ended up in overflow, swap it into the last visible slot
-      let activeInOverflow =
-        currentTaskId->Option.flatMap(activeId =>
-          overflow->Array.findIndex(t =>
-            Client__Task__Types.Task.getId(t) == Some(activeId)
-          )->Some
-        )->Option.flatMap(idx => idx >= 0 ? Some(idx) : None)
-
-      switch activeInOverflow {
-      | Some(overflowIdx) => {
-          let activeTask = overflow->Array.getUnsafe(overflowIdx)
-          let lastVisibleIdx = Array.length(visible) - 1
-          let displacedTask = visible->Array.getUnsafe(lastVisibleIdx)
-
-          let newVisible = visible->Array.mapWithIndex((t, i) =>
-            i == lastVisibleIdx ? activeTask : t
-          )
-          let newOverflow =
-            overflow
-            ->Array.filterWithIndex((_, i) => i != overflowIdx)
-            ->Array.concat([displacedTask])
-          (newVisible, newOverflow)
-        }
-      | None => (visible, overflow)
-      }
-    }
-  }, (tasks, visibleCount, currentTaskId))
+  }, (currentTaskId, tasks))
 
   // Event handlers
-  let handleTabChange = (taskId: string) => {
+  let handleTaskSwitch = (taskId: string) => {
     Client__State.Actions.switchTask(~taskId)
   }
 
   let handleNewTask = (_e: ReactEvent.Mouse.t) => {
-    clearSession()
-    Client__State.Actions.clearCurrentTask()
+    // Don't create a new chat if the current task is already empty (New state)
+    if !isNewTask {
+      clearSession()
+      Client__State.Actions.clearCurrentTask()
+    }
   }
 
   let handleDeleteClick = (e: ReactEvent.Mouse.t, taskId: string) => {
     ReactEvent.Mouse.stopPropagation(e)
+    ReactEvent.Mouse.preventDefault(e)
     setTaskToDelete(_ => Some(taskId))
     setDeleteDialogOpen(_ => true)
   }
@@ -124,7 +56,6 @@ let make = (~onSettingsClick: unit => unit) => {
     switch taskToDelete {
     | Some(taskId) => {
         // If deleting the current task, tear down the session channel first
-        // to prevent stale server messages from dispatching into a deleted task
         if currentTaskId == Some(taskId) {
           clearSession()
         }
@@ -141,175 +72,127 @@ let make = (~onSettingsClick: unit => unit) => {
     setTaskToDelete(_ => None)
   }
 
-  // Tab rendering function - memoized to avoid recreating on every render
-  let renderTab = React.useCallback2(
-    (task: Client__State__StateReducer.Task.t, isEditing: bool) => {
-      let taskId =
-        Client__Task__Types.Task.getId(task)->Option.getOrThrow(
-          ~message="[TaskTabs] Task in dict has no ID",
-        )
-      let taskTitle = Client__Task__Types.Task.getTitle(task)->Option.getOr("Untitled")
+  let iconSize = {"width": "14px", "height": "14px"}
 
-      let handleDoubleClick = (_e: ReactEvent.Mouse.t) => {
-        setEditingTaskId(_ => Some(taskId))
-      }
-
-      <Tooltip.Tooltip key={taskId}>
+  // Main render — compact bar layout
+  <div className="h-10 border-b flex items-center">
+    // Logo
+    <div className="flex items-center justify-center w-9 h-full shrink-0 pl-2">
+      <FrontmanLogo size=24 className={isAgentRunning ? "frontman-logo-pulse" : ""} />
+    </div>
+    // Current task title
+    <div className="flex-1 min-w-0 px-2">
+      <span className="text-xs font-medium text-zinc-200 truncate block">
+        {React.string(currentTaskTitle)}
+      </span>
+    </div>
+    // Action buttons
+    <div className="shrink-0 flex items-center gap-0.5 pr-2">
+      // New task button
+      <Tooltip.Tooltip>
         <Tooltip.TooltipTrigger asChild=true>
-          <UI.TabsTrigger
-            value={taskId}
-            className="w-[150px] shrink-0 px-2 flex items-center gap-2 relative group cursor-pointer bg-transparent data-[state=active]:bg-transparent"
+          <Button.Button
+            variant=#ghost
+            size=#sm
+            onClick={handleNewTask}
+            className="cursor-pointer h-7 w-7 p-0"
           >
-            {isEditing
-              ? <Input.Input
-                  autoFocus={true}
-                  defaultValue={taskTitle}
-                  className="w-full text-xs"
-                  onKeyDown={e => {
-                    let key = e->ReactEvent.Keyboard.key
-                    if key == "Enter" {
-                      let target = ReactEvent.Keyboard.target(e)
-                      let newTitle = target["value"]->String.trim
-                      if String.length(newTitle) > 0 {
-                        Client__State.Actions.updateTaskTitle(~taskId, ~title=newTitle)
-                      }
-                      setEditingTaskId(_ => None)
-                      ReactEvent.Keyboard.preventDefault(e)
-                    } else if key == "Escape" {
-                      setEditingTaskId(_ => None)
-                      ReactEvent.Keyboard.preventDefault(e)
-                    }
-                  }}
-                  onBlur={e => {
-                    let target = ReactEvent.Focus.target(e)
-                    let newTitle = target["value"]->String.trim
-                    if String.length(newTitle) > 0 {
-                      Client__State.Actions.updateTaskTitle(~taskId, ~title=newTitle)
-                    }
-                    setEditingTaskId(_ => None)
-                  }}
-                />
-              : <>
-                  <span
-                    className="truncate text-xs cursor-pointer"
-                    onDoubleClick={handleDoubleClick}
-                  >
-                    {React.string(taskTitle)}
-                  </span>
-                  <span
-                    className="ml-auto p-0.5 rounded-sm opacity-0 group-hover:opacity-100 data-[state=active]:opacity-100 hover:bg-accent transition-opacity duration-150 cursor-pointer"
-                    onClick={e => handleDeleteClick(e, taskId)}
-                  >
-                    <Icons.Cross2Icon style={{"width": "14px", "height": "14px"}} />
-                  </span>
-                </>}
-          </UI.TabsTrigger>
+            <Icons.PlusIcon style={iconSize} />
+          </Button.Button>
         </Tooltip.TooltipTrigger>
         <Tooltip.TooltipContent sideOffset=4>
-          {React.string(taskTitle)}
+          {React.string("New task")}
         </Tooltip.TooltipContent>
       </Tooltip.Tooltip>
-    },
-    (setEditingTaskId, handleDeleteClick),
-  )
-
-  let overflowCount = Array.length(overflowTasks)
-
-  // Main render
-  <div className="h-12 border-b flex" ref={ReactDOM.Ref.domRef(containerRef)}>
-    <UI.Tabs
-      value={currentTaskId->Option.getOr("")} onValueChange={handleTabChange} className="h-full flex-1 min-w-0"
-    >
-      <UI.TabsList
-        className="h-full w-full rounded-none justify-start overflow-hidden bg-transparent p-0"
-      >
-        <div className="flex items-center justify-center w-11 h-full shrink-0 px-2">
-          <FrontmanLogo size=28 className={isAgentRunning ? "frontman-logo-pulse" : ""} />
-        </div>
-        {visibleTasks
-        ->Array.map(task =>
-          renderTab(task, editingTaskId == Client__Task__Types.Task.getId(task))
-        )
-        ->React.array}
-        {overflowCount > 0
-          ? <DropdownMenu.DropdownMenu>
-              <DropdownMenu.DropdownMenuTrigger asChild=true>
-                <Button.Button
-                  variant=#ghost
-                  size=#sm
-                  className="cursor-pointer gap-1 shrink-0 px-2"
-                >
-                  <span className="text-xs font-medium">
-                    {React.string(`+${Int.toString(overflowCount)}`)}
-                  </span>
-                  <Icons.ChevronDownIcon style={{"width": "12px", "height": "12px"}} />
-                </Button.Button>
-              </DropdownMenu.DropdownMenuTrigger>
-              <DropdownMenu.DropdownMenuContent align="start" sideOffset=4>
-                <DropdownMenu.DropdownMenuLabel>
-                  {React.string("More tasks")}
-                </DropdownMenu.DropdownMenuLabel>
-                <DropdownMenu.DropdownMenuSeparator />
-                {overflowTasks
-                ->Array.map(task => {
-                  let taskId =
-                    Client__Task__Types.Task.getId(task)->Option.getOrThrow(
-                      ~message="[TaskTabs] Overflow task has no ID",
-                    )
-                  let taskTitle =
-                    Client__Task__Types.Task.getTitle(task)->Option.getOr("Untitled")
-                  let isActive = currentTaskId == Some(taskId)
-                  <DropdownMenu.DropdownMenuItem
-                    key={taskId}
-                    className={isActive ? "font-semibold" : ""}
-                    onSelect={_ => handleTabChange(taskId)}
-                  >
-                    {React.string(taskTitle)}
-                  </DropdownMenu.DropdownMenuItem>
-                })
-                ->React.array}
-              </DropdownMenu.DropdownMenuContent>
-            </DropdownMenu.DropdownMenu>
-          : React.null}
+      // History dropdown
+      <DropdownMenu.DropdownMenu>
         <Tooltip.Tooltip>
           <Tooltip.TooltipTrigger asChild=true>
-            <Button.Button
-              variant=#ghost size=#sm onClick={handleNewTask} className="cursor-pointer shrink-0 px-2"
-            >
-              <Icons.PlusIcon style={{"width": "14px", "height": "14px"}} />
-            </Button.Button>
+            <DropdownMenu.DropdownMenuTrigger asChild=true>
+              <Button.Button variant=#ghost size=#sm className="cursor-pointer h-7 w-7 p-0">
+                <Icons.CountdownTimerIcon style={iconSize} />
+              </Button.Button>
+            </DropdownMenu.DropdownMenuTrigger>
           </Tooltip.TooltipTrigger>
           <Tooltip.TooltipContent sideOffset=4>
-            {React.string("New task")}
+            {React.string("Task history")}
           </Tooltip.TooltipContent>
         </Tooltip.Tooltip>
-      </UI.TabsList>
-    </UI.Tabs>
-    <div className="shrink-0 flex items-center gap-1 px-2">
+        <DropdownMenu.DropdownMenuContent align="end" sideOffset=4 className="w-72 max-h-80 overflow-y-auto">
+          {Array.length(tasks) > 0
+            ? tasks
+              ->Array.map(task => {
+                let taskId =
+                  Client__Task__Types.Task.getId(task)->Option.getOrThrow(
+                    ~message="[TaskTabs] Task in dict has no ID",
+                  )
+                let taskTitle =
+                  Client__Task__Types.Task.getTitle(task)->Option.getOr("Untitled")
+                let isActive = currentTaskId == Some(taskId)
+
+                <DropdownMenu.DropdownMenuItem
+                  key={taskId}
+                  className="flex items-center gap-2 cursor-pointer group/item"
+                  onSelect={_ => handleTaskSwitch(taskId)}
+                >
+                  <Icons.ChatBubbleIcon
+                    style={{"width": "12px", "height": "12px"}}
+                    className="shrink-0 text-zinc-500"
+                  />
+                  <span className="flex-1 truncate text-xs">
+                    {React.string(taskTitle)}
+                  </span>
+                  {isActive
+                    ? <span
+                        className="text-[10px] text-zinc-400 bg-zinc-800 px-1.5 py-0.5 rounded shrink-0"
+                      >
+                        {React.string("Current")}
+                      </span>
+                    : React.null}
+                  <span
+                    className="p-0.5 rounded-sm opacity-0 group-hover/item:opacity-100 hover:bg-zinc-700 transition-opacity duration-150 cursor-pointer shrink-0"
+                    onClick={e => handleDeleteClick(e, taskId)}
+                  >
+                    <Icons.TrashIcon
+                      style={{"width": "12px", "height": "12px"}}
+                      className="text-zinc-400 hover:text-red-400"
+                    />
+                  </span>
+                </DropdownMenu.DropdownMenuItem>
+              })
+              ->React.array
+            : <DropdownMenu.DropdownMenuLabel className="text-xs text-zinc-500">
+                {React.string("No tasks yet")}
+              </DropdownMenu.DropdownMenuLabel>}
+        </DropdownMenu.DropdownMenuContent>
+      </DropdownMenu.DropdownMenu>
+      // Help button
       <Tooltip.Tooltip>
         <Tooltip.TooltipTrigger asChild=true>
           <a
             href="https://discord.gg/J77jBzMM"
             target="_blank"
             rel="noopener noreferrer"
-            className="h-9 w-9 rounded-lg text-zinc-400 transition-all duration-200 flex items-center justify-center hover:text-[#5865F2] hover:bg-[#5865F2]/10 cursor-pointer"
+            className="h-7 w-7 rounded-md text-zinc-400 transition-all duration-200 flex items-center justify-center hover:text-[#5865F2] hover:bg-[#5865F2]/10 cursor-pointer"
           >
-            <Icons.QuestionMarkCircledIcon style={{"width": "16px", "height": "16px"}} />
+            <Icons.QuestionMarkCircledIcon style={iconSize} />
           </a>
         </Tooltip.TooltipTrigger>
         <Tooltip.TooltipContent side="bottom" align="end" sideOffset=4>
           {React.string("Need help? Join our Discord")}
         </Tooltip.TooltipContent>
       </Tooltip.Tooltip>
+      // Settings button
       <button
         type_="button"
-        className="h-9 w-9 rounded-lg border border-zinc-800/70 bg-zinc-900/70 text-zinc-200 shadow-sm backdrop-blur transition-all duration-200 flex items-center justify-center hover:border-zinc-700 hover:bg-zinc-800/90 hover:shadow-md cursor-pointer"
+        className="h-7 w-7 rounded-md border border-zinc-800/70 bg-zinc-900/70 text-zinc-200 shadow-sm backdrop-blur transition-all duration-200 flex items-center justify-center hover:border-zinc-700 hover:bg-zinc-800/90 hover:shadow-md cursor-pointer"
         onClick={_ => onSettingsClick()}
         title="Settings"
       >
-        <Icons.GearIcon style={{"width": "16px", "height": "16px"}} />
+        <Icons.GearIcon style={iconSize} />
       </button>
     </div>
+    // Delete confirmation dialog
     <AlertDialog.AlertDialog
       open_={deleteDialogOpen} onOpenChange={open_ => setDeleteDialogOpen(_ => open_)}
     >

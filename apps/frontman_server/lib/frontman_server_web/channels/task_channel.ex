@@ -12,6 +12,7 @@ defmodule FrontmanServerWeb.TaskChannel do
   alias AgentClientProtocol, as: ACP
   alias FrontmanServer.Agents
   alias FrontmanServer.Tasks
+  alias FrontmanServer.Tasks.TitleGenerator
   alias FrontmanServer.Tasks.Todos
   alias FrontmanServer.Tools
   alias FrontmanServerWeb.ACPHistory
@@ -381,6 +382,11 @@ defmodule FrontmanServerWeb.TaskChannel do
     case Tasks.add_user_message(scope, task_id, prompt.content, all_tools, opts) do
       {:ok, _interaction} ->
         Logger.info("User message added, agent spawned for task #{task_id}")
+
+        # Generate title asynchronously on first user message
+        socket =
+          maybe_generate_title(socket, scope, task_id, prompt.text_summary, model, env_api_key)
+
         {:noreply, socket}
 
       {:error, reason} ->
@@ -414,6 +420,26 @@ defmodule FrontmanServerWeb.TaskChannel do
   end
 
   defp extract_model_from_params(_), do: nil
+
+  # Generate a title for a task from the first user message.
+  # Only triggers once per channel — tracked via :title_generation_started assign
+  # to avoid repeated attempts on every prompt (e.g., when LLM call fails and title stays "New Task").
+  # Uses lightweight get_short_desc to avoid loading all interactions.
+  defp maybe_generate_title(socket, scope, task_id, text_summary, model, env_api_key) do
+    if socket.assigns[:title_generation_started] || text_summary == "" do
+      socket
+    else
+      case Tasks.get_short_desc(scope, task_id) do
+        {:ok, "New Task"} ->
+          TitleGenerator.generate_async(scope, task_id, text_summary, model, env_api_key)
+          assign(socket, :title_generation_started, true)
+
+        _ ->
+          # Title already set — mark as started so we skip future checks
+          assign(socket, :title_generation_started, true)
+      end
+    end
+  end
 
   @impl true
   def handle_info(:start_mcp_init, socket) do

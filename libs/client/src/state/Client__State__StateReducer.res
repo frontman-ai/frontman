@@ -1092,9 +1092,15 @@ let next = (state: state, action) => {
     }->FrontmanReactStatestore.StateReducer.update
 
   | UpdateTaskTitle({taskId, title}) =>
-    state
-    ->Lens.updateTask(taskId, task => Task.setTitle(task, title))
-    ->FrontmanReactStatestore.StateReducer.update
+    switch state.tasks->Dict.get(taskId) {
+    | Some(_) =>
+      state
+      ->Lens.updateTask(taskId, task => Task.setTitle(task, title))
+      ->FrontmanReactStatestore.StateReducer.update
+    | None =>
+      // Task was deleted before the async title update arrived — ignore silently
+      state->FrontmanReactStatestore.StateReducer.update
+    }
 
   // ============================================================================
   // ACP session actions

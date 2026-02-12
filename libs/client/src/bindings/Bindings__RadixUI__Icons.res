@@ -87,3 +87,18 @@ module QuestionMarkCircledIcon = {
   @module("@radix-ui/react-icons") @react.component
   external make: (~className: string=?, ~style: {..}=?) => React.element = "QuestionMarkCircledIcon"
 }
+
+module CountdownTimerIcon = {
+  @module("@radix-ui/react-icons") @react.component
+  external make: (~className: string=?, ~style: {..}=?) => React.element = "CountdownTimerIcon"
+}
+
+module TrashIcon = {
+  @module("@radix-ui/react-icons") @react.component
+  external make: (~className: string=?, ~style: {..}=?) => React.element = "TrashIcon"
+}
+
+module ChatBubbleIcon = {
+  @module("@radix-ui/react-icons") @react.component
+  external make: (~className: string=?, ~style: {..}=?) => React.element = "ChatBubbleIcon"
+}

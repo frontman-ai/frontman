@@ -36,14 +36,14 @@ defmodule FrontmanServerWeb.TasksChannelTest do
         }
       })
 
-      assert_push "acp:message", %{
+      assert_push("acp:message", %{
         "jsonrpc" => "2.0",
         "id" => 1,
         "result" => %{
           "protocolVersion" => ^version,
           "agentInfo" => %{"name" => "frontman-server"}
         }
-      }
+      })
     end
 
     test "fails with wrong protocol version", %{socket: socket} do
@@ -54,14 +54,14 @@ defmodule FrontmanServerWeb.TasksChannelTest do
         "params" => %{"protocolVersion" => 999}
       })
 
-      assert_push "acp:message", %{
+      assert_push("acp:message", %{
         "jsonrpc" => "2.0",
         "id" => 1,
         "error" => %{
           "code" => -32_600,
           "message" => "Unsupported protocol version"
         }
-      }
+      })
     end
 
     test "fails without protocol version", %{socket: socket} do
@@ -72,14 +72,14 @@ defmodule FrontmanServerWeb.TasksChannelTest do
         "params" => %{}
       })
 
-      assert_push "acp:message", %{
+      assert_push("acp:message", %{
         "jsonrpc" => "2.0",
         "id" => 1,
         "error" => %{
           "code" => -32_602,
           "message" => "Missing required field: protocolVersion"
         }
-      }
+      })
     end
   end
 
@@ -102,28 +102,27 @@ defmodule FrontmanServerWeb.TasksChannelTest do
         }
       })
 
-      assert_push "acp:message", %{"id" => 1, "result" => %{}}
+      assert_push("acp:message", %{"id" => 1, "result" => %{}})
 
-      # Now create session
+      # Now create session with client-generated sessionId
+      client_session_id = Ecto.UUID.generate()
+
       push(socket, "acp:message", %{
         "jsonrpc" => "2.0",
         "id" => 2,
         "method" => "session/new",
-        "params" => %{}
+        "params" => %{"sessionId" => client_session_id}
       })
 
-      assert_push "acp:message", %{
+      assert_push("acp:message", %{
         "jsonrpc" => "2.0",
         "id" => 2,
-        "result" => %{"sessionId" => session_id}
-      }
+        "result" => %{"sessionId" => ^client_session_id}
+      })
 
-      # Session ID is a UUID
-      assert {:ok, _} = Ecto.UUID.cast(session_id)
-
-      # Verify task was created in domain
-      assert {:ok, task} = FrontmanServer.Tasks.get_task(scope, session_id)
-      assert task.task_id == session_id
+      # Verify task was created with the client-provided ID
+      assert {:ok, task} = FrontmanServer.Tasks.get_task(scope, client_session_id)
+      assert task.task_id == client_session_id
     end
 
     test "extracts and stores framework from clientInfo", %{socket: socket, scope: scope} do
@@ -145,16 +144,58 @@ defmodule FrontmanServerWeb.TasksChannelTest do
         }
       })
 
-      assert_push "acp:message", %{
+      assert_push("acp:message", %{
         "jsonrpc" => "2.0",
         "id" => 1,
         "result" => %{
           "protocolVersion" => ^version,
           "agentInfo" => %{"name" => "frontman-server"}
         }
-      }
+      })
 
-      # Then create a session
+      # Then create a session with client-generated sessionId
+      client_session_id = Ecto.UUID.generate()
+
+      push(socket, "acp:message", %{
+        "jsonrpc" => "2.0",
+        "id" => 2,
+        "method" => "session/new",
+        "params" => %{"sessionId" => client_session_id}
+      })
+
+      assert_push("acp:message", %{
+        "jsonrpc" => "2.0",
+        "id" => 2,
+        "result" => %{"sessionId" => ^client_session_id}
+      })
+
+      # Verify task was created with framework
+      assert {:ok, task} = FrontmanServer.Tasks.get_task(scope, client_session_id)
+      assert task.task_id == client_session_id
+      assert task.framework == framework
+    end
+
+    test "returns error when session/new called without sessionId", %{socket: socket} do
+      version = ACP.protocol_version()
+
+      # Initialize first
+      push(socket, "acp:message", %{
+        "jsonrpc" => "2.0",
+        "id" => 1,
+        "method" => "initialize",
+        "params" => %{
+          "protocolVersion" => version,
+          "clientInfo" => %{
+            "name" => "test-client",
+            "version" => "1.0.0",
+            "metadata" => %{"framework" => "test-framework"}
+          }
+        }
+      })
+
+      assert_push("acp:message", %{"id" => 1, "result" => %{}})
+
+      # Create session without sessionId - should fail
       push(socket, "acp:message", %{
         "jsonrpc" => "2.0",
         "id" => 2,
@@ -162,16 +203,97 @@ defmodule FrontmanServerWeb.TasksChannelTest do
         "params" => %{}
       })
 
-      assert_push "acp:message", %{
+      assert_push("acp:message", %{
         "jsonrpc" => "2.0",
         "id" => 2,
-        "result" => %{"sessionId" => session_id}
-      }
+        "error" => %{
+          "code" => -32_602,
+          "message" => "Missing required field: sessionId"
+        }
+      })
+    end
 
-      # Verify task was created with framework
-      assert {:ok, task} = FrontmanServer.Tasks.get_task(scope, session_id)
-      assert task.task_id == session_id
-      assert task.framework == framework
+    test "returns error when session/new called with invalid UUID", %{socket: socket} do
+      version = ACP.protocol_version()
+
+      # Initialize first
+      push(socket, "acp:message", %{
+        "jsonrpc" => "2.0",
+        "id" => 1,
+        "method" => "initialize",
+        "params" => %{
+          "protocolVersion" => version,
+          "clientInfo" => %{
+            "name" => "test-client",
+            "version" => "1.0.0",
+            "metadata" => %{"framework" => "test-framework"}
+          }
+        }
+      })
+
+      assert_push("acp:message", %{"id" => 1, "result" => %{}})
+
+      # Create session with non-UUID string - should fail gracefully
+      push(socket, "acp:message", %{
+        "jsonrpc" => "2.0",
+        "id" => 2,
+        "method" => "session/new",
+        "params" => %{"sessionId" => "not-a-valid-uuid"}
+      })
+
+      assert_push("acp:message", %{
+        "jsonrpc" => "2.0",
+        "id" => 2,
+        "error" => %{
+          "code" => -32_602,
+          "message" => "Invalid sessionId: must be a valid UUID"
+        }
+      })
+    end
+
+    test "returns error when session/new called with duplicate sessionId", %{
+      socket: socket,
+      scope: scope
+    } do
+      version = ACP.protocol_version()
+
+      # Initialize first
+      push(socket, "acp:message", %{
+        "jsonrpc" => "2.0",
+        "id" => 1,
+        "method" => "initialize",
+        "params" => %{
+          "protocolVersion" => version,
+          "clientInfo" => %{
+            "name" => "test-client",
+            "version" => "1.0.0",
+            "metadata" => %{"framework" => "test-framework"}
+          }
+        }
+      })
+
+      assert_push("acp:message", %{"id" => 1, "result" => %{}})
+
+      # Pre-create a task with a known ID
+      existing_id = Ecto.UUID.generate()
+      {:ok, ^existing_id} = FrontmanServer.Tasks.create_task(scope, existing_id, "test-framework")
+
+      # Try to create session with the same ID - should fail gracefully
+      push(socket, "acp:message", %{
+        "jsonrpc" => "2.0",
+        "id" => 2,
+        "method" => "session/new",
+        "params" => %{"sessionId" => existing_id}
+      })
+
+      assert_push("acp:message", %{
+        "jsonrpc" => "2.0",
+        "id" => 2,
+        "error" => %{
+          "code" => -32_602,
+          "message" => "Failed to create session"
+        }
+      })
     end
 
     test "returns error when session/new called without clientInfo", %{socket: socket} do
@@ -180,17 +302,17 @@ defmodule FrontmanServerWeb.TasksChannelTest do
         "jsonrpc" => "2.0",
         "id" => 1,
         "method" => "session/new",
-        "params" => %{}
+        "params" => %{"sessionId" => Ecto.UUID.generate()}
       })
 
-      assert_push "acp:message", %{
+      assert_push("acp:message", %{
         "jsonrpc" => "2.0",
         "id" => 1,
         "error" => %{
           "code" => -32_602,
           "message" => "Missing framework in clientInfo"
         }
-      }
+      })
     end
   end
 
@@ -203,21 +325,21 @@ defmodule FrontmanServerWeb.TasksChannelTest do
         "params" => %{}
       })
 
-      assert_push "acp:message", %{
+      assert_push("acp:message", %{
         "jsonrpc" => "2.0",
         "id" => 1,
         "error" => %{
           "code" => -32_601,
           "message" => "Method not found"
         }
-      }
+      })
     end
   end
 
   describe "list_sessions" do
     test "returns empty list when user has no tasks", %{socket: socket} do
       ref = push(socket, "list_sessions", %{})
-      assert_reply ref, :ok, %{"sessions" => []}
+      assert_reply(ref, :ok, %{"sessions" => []})
     end
 
     test "returns sessions with correct fields", %{socket: socket, scope: scope} do
@@ -225,10 +347,10 @@ defmodule FrontmanServerWeb.TasksChannelTest do
       {:ok, ^task_id} = FrontmanServer.Tasks.create_task(scope, task_id, "test-framework")
 
       ref = push(socket, "list_sessions", %{})
-      assert_reply ref, :ok, %{"sessions" => [session]}
+      assert_reply(ref, :ok, %{"sessions" => [session]})
 
       assert session["sessionId"] == task_id
-      assert session["title"] =~ "Task"
+      assert session["title"] == "New Task"
       assert {:ok, _, _} = DateTime.from_iso8601(session["createdAt"])
       assert {:ok, _, _} = DateTime.from_iso8601(session["updatedAt"])
     end
@@ -241,7 +363,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
       {:ok, ^task2_id} = FrontmanServer.Tasks.create_task(scope, task2_id, "test-framework")
 
       ref = push(socket, "list_sessions", %{})
-      assert_reply ref, :ok, %{"sessions" => sessions}
+      assert_reply(ref, :ok, %{"sessions" => sessions})
 
       assert length(sessions) == 2
       session_ids = Enum.map(sessions, & &1["sessionId"])
@@ -267,7 +389,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
         FrontmanServer.Tasks.create_task(other_scope, other_task_id, "other")
 
       ref = push(socket, "list_sessions", %{})
-      assert_reply ref, :ok, %{"sessions" => [session]}
+      assert_reply(ref, :ok, %{"sessions" => [session]})
       assert session["sessionId"] == my_task_id
     end
   end
@@ -282,7 +404,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
 
       # Delete session
       ref = push(socket, "delete_session", %{"sessionId" => task_id})
-      assert_reply ref, :ok, %{}
+      assert_reply(ref, :ok, %{})
 
       # Verify task is deleted
       assert {:error, :not_found} = FrontmanServer.Tasks.get_task(scope, task_id)
@@ -310,7 +432,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
       # Trying to delete other user's task should fail (crashes the handler)
       # The channel will crash and the test process will receive an error
       ref = push(socket, "delete_session", %{"sessionId" => other_task_id})
-      assert_reply ref, :error, _
+      assert_reply(ref, :error, _)
 
       # Other user's task should still exist
       assert {:ok, _task} = FrontmanServer.Tasks.get_task(other_scope, other_task_id)
@@ -330,11 +452,11 @@ defmodule FrontmanServerWeb.TasksChannelTest do
     test "returns success for valid session", %{socket: socket, task_id: task_id} do
       push(socket, "acp:message", acp_request(1, "session/load", %{"sessionId" => task_id}))
 
-      assert_push "acp:message", %{
+      assert_push("acp:message", %{
         "jsonrpc" => "2.0",
         "id" => 1,
         "result" => %{}
-      }
+      })
     end
 
     test "streams user message history with timestamps", %{
@@ -358,7 +480,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
 
       push(socket, "acp:message", acp_request(1, "session/load", %{"sessionId" => task_id}))
 
-      assert_push "acp:message", %{
+      assert_push("acp:message", %{
         "method" => "session/update",
         "params" => %{
           "sessionId" => ^task_id,
@@ -368,11 +490,11 @@ defmodule FrontmanServerWeb.TasksChannelTest do
             "timestamp" => timestamp1
           }
         }
-      }
+      })
 
       assert is_binary(timestamp1)
 
-      assert_push "acp:message", %{
+      assert_push("acp:message", %{
         "method" => "session/update",
         "params" => %{
           "sessionId" => ^task_id,
@@ -382,11 +504,11 @@ defmodule FrontmanServerWeb.TasksChannelTest do
             "timestamp" => timestamp2
           }
         }
-      }
+      })
 
       assert is_binary(timestamp2)
 
-      assert_push "acp:message", %{"id" => 1, "result" => %{}}
+      assert_push("acp:message", %{"id" => 1, "result" => %{}})
     end
 
     test "streams agent message history", %{
@@ -401,7 +523,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
 
       # Per ACP spec: only agent_message_chunk exists (no start/end markers)
       # Client's LoadComplete handler finalizes any streaming messages
-      assert_push "acp:message", %{
+      assert_push("acp:message", %{
         "method" => "session/update",
         "params" => %{
           "sessionId" => ^task_id,
@@ -410,9 +532,9 @@ defmodule FrontmanServerWeb.TasksChannelTest do
             "content" => %{"text" => "Response 1"}
           }
         }
-      }
+      })
 
-      assert_push "acp:message", %{
+      assert_push("acp:message", %{
         "method" => "session/update",
         "params" => %{
           "sessionId" => ^task_id,
@@ -421,9 +543,9 @@ defmodule FrontmanServerWeb.TasksChannelTest do
             "content" => %{"text" => "Response 2"}
           }
         }
-      }
+      })
 
-      assert_push "acp:message", %{"id" => 1, "result" => %{}}
+      assert_push("acp:message", %{"id" => 1, "result" => %{}})
     end
 
     test "streams mixed history in order", %{socket: socket, scope: scope, task_id: task_id} do
@@ -439,33 +561,33 @@ defmodule FrontmanServerWeb.TasksChannelTest do
       push(socket, "acp:message", acp_request(1, "session/load", %{"sessionId" => task_id}))
 
       # User message
-      assert_push "acp:message", %{
+      assert_push("acp:message", %{
         "params" => %{
           "update" => %{
             "sessionUpdate" => "user_message_chunk",
             "content" => %{"text" => "Question"}
           }
         }
-      }
+      })
 
       # Per ACP spec: only agent_message_chunk exists (no start/end markers)
-      assert_push "acp:message", %{
+      assert_push("acp:message", %{
         "params" => %{
           "update" => %{
             "sessionUpdate" => "agent_message_chunk",
             "content" => %{"text" => "Answer"}
           }
         }
-      }
+      })
 
-      assert_push "acp:message", %{"id" => 1, "result" => %{}}
+      assert_push("acp:message", %{"id" => 1, "result" => %{}})
     end
 
     test "returns empty history for task with no messages", %{socket: socket, task_id: task_id} do
       push(socket, "acp:message", acp_request(1, "session/load", %{"sessionId" => task_id}))
 
-      assert_push "acp:message", %{"id" => 1, "result" => %{}}
-      refute_push "acp:message", %{"method" => "session/update"}, 100
+      assert_push("acp:message", %{"id" => 1, "result" => %{}})
+      refute_push("acp:message", %{"method" => "session/update"}, 100)
     end
 
     test "returns error for non-existent session", %{socket: socket} do
@@ -475,10 +597,10 @@ defmodule FrontmanServerWeb.TasksChannelTest do
         acp_request(1, "session/load", %{"sessionId" => Ecto.UUID.generate()})
       )
 
-      assert_push "acp:message", %{
+      assert_push("acp:message", %{
         "id" => 1,
         "error" => %{"code" => -32_602, "message" => "Session not found"}
-      }
+      })
     end
 
     test "returns error for unauthorized session (appears as not found)", %{socket: socket} do
@@ -499,19 +621,19 @@ defmodule FrontmanServerWeb.TasksChannelTest do
 
       push(socket, "acp:message", acp_request(1, "session/load", %{"sessionId" => other_task_id}))
 
-      assert_push "acp:message", %{
+      assert_push("acp:message", %{
         "id" => 1,
         "error" => %{"code" => -32_602, "message" => "Session not found"}
-      }
+      })
     end
 
     test "returns error when sessionId missing", %{socket: socket} do
       push(socket, "acp:message", acp_request(1, "session/load", %{}))
 
-      assert_push "acp:message", %{
+      assert_push("acp:message", %{
         "id" => 1,
         "error" => %{"code" => -32_602, "message" => "Missing sessionId parameter"}
-      }
+      })
     end
   end
 

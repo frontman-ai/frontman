@@ -1,9 +1,8 @@
 /**
  * TaskTabs Stories
  *
- * Tests the task tabs component with various states.
- * This story would have caught the lastMessageAt bug - a freshly created
- * task with no messages should render without crashing.
+ * Tests the compact header bar with history dropdown.
+ * Verifies the component renders correctly with various task states.
  */
 
 open Bindings__Storybook
@@ -279,9 +278,7 @@ let mixedTasks: Story.t<args> = {
 }
 
 /**
- * Many tasks in a 600px container — exercises the overflow dropdown.
- * Active task (task-8) is in the middle, so it must be swapped into
- * visible slots to guarantee visibility.
+ * Many tasks — tests the history dropdown with many entries.
  */
 let manyTasksOverflow: Story.t<args> = {
   name: "Many Tasks (Overflow)",
@@ -317,8 +314,7 @@ let manyTasksOverflow: Story.t<args> = {
 }
 
 /**
- * 8 tasks in a very narrow 300px container — extreme overflow.
- * Almost all tasks should collapse into the dropdown.
+ * 8 tasks in a narrow 300px container — tests compact layout.
  */
 let narrowContainer: Story.t<args> = {
   name: "Narrow Container",

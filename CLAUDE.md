@@ -38,6 +38,7 @@ cd .worktrees/feature/my-feature
 - Task runner: Makefiles only - never yarn/npm scripts directly
 - Test files: `*.test.res.mjs`
 - Story files: `*.story.res` (co-located with components)
+- Prefer `switch` over `if/else` — use pattern matching for control flow, even for simple boolean/option checks
 
 ## Error Handling Philosophy
 

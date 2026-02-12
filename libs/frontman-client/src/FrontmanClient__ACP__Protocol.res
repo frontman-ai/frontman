@@ -62,13 +62,16 @@ let sendInitialize = (
 let sendSessionNew = (
   ~channel: Channel.t,
   ~state: ref<Client.state>,
+  ~sessionId: string,
   ~onMessage: option<(messageDirection, JSON.t) => unit>,
 ): promise<result<Types.sessionNewResult, string>> => {
+  let params = Dict.make()
+  params->Dict.set("sessionId", JSON.Encode.string(sessionId))
   sendRequest(
     ~channel,
     ~state,
     ~method="session/new",
-    ~params=Some(JSON.Encode.object(Dict.make())),
+    ~params=Some(JSON.Encode.object(params)),
     ~parseResult=Client.parseSessionNewResult,
     ~onMessage,
   )

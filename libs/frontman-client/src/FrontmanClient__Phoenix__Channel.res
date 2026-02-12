@@ -15,6 +15,7 @@ type channelEvent = [
   // Session management (non-ACP)
   | #list_sessions
   | #delete_session
+  | #title_updated
 ]
 
 type rec pushResponse = {receive: (~status: string, ~callback: JSON.t => unit) => pushResponse}
