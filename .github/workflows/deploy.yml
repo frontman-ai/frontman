@@ -14,12 +14,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  ci:
-    uses: ./.github/workflows/ci.yml
-
   deploy:
     name: Build and Deploy
-    needs: ci
     runs-on: self-hosted
     environment: production
     env:
