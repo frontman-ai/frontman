@@ -24,7 +24,6 @@ defmodule FrontmanServer.Providers do
     AnthropicOAuth,
     ApiKey,
     ChatGPTOAuth,
-    OAuthHelpers,
     OAuthToken,
     ResolvedKey,
     UserKeyUsage
@@ -441,16 +440,20 @@ defmodule FrontmanServer.Providers do
     case ChatGPTOAuth.refresh_token(token.refresh_token) do
       {:ok, new_tokens} ->
         expires_in = new_tokens.expires_in || 3600
-        expires_at = OAuthHelpers.calculate_expires_at(expires_in)
+        expires_at = OAuthToken.calculate_expires_at(expires_in)
 
-        # Preserve existing metadata (account_id) when refreshing
+        # Preserve existing metadata (account_id) when refreshing.
+        # Metadata should always be a map (schema default is %{}), but guard against
+        # nil from pre-migration rows that were never backfilled.
+        metadata = if is_map(token.metadata), do: token.metadata, else: %{}
+
         case upsert_oauth_token(
                scope,
                "chatgpt",
                new_tokens.access_token,
                new_tokens.refresh_token || token.refresh_token,
                expires_at,
-               token.metadata || %{}
+               metadata
              ) do
           {:ok, _} -> {:ok, new_tokens.access_token}
           {:error, reason} -> {:error, {:failed_to_store_refreshed_token, reason}}

@@ -190,7 +190,11 @@ defimpl Swarm.LLM, for: FrontmanServer.Agents.LLMClient do
   end
 
   # :meta with finish_reason - stream complete with reason
-  # Carry through response_id for Responses API previous_response_id chaining
+  # Carry through response_id for Responses API previous_response_id chaining.
+  # Only response_id is extracted — it's the only metadata Chunk.done consumers use
+  # (for previous_response_id chaining in subsequent Responses API calls).
+  # When absent (e.g. Anthropic, Chat Completions API), we pass an empty map
+  # since those providers don't support response chaining.
   defp to_swarm_chunk(
          %{type: :meta, metadata: %{finish_reason: reason} = meta},
          _requires_mcp_prefix?
