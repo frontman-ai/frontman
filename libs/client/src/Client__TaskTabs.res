@@ -86,9 +86,19 @@ let make = (~onSettingsClick: unit => unit) => {
 
       switch activeInOverflow {
       | Some(overflowIdx) => {
-          let activeTask = overflow->Array.getUnsafe(overflowIdx)
+          let activeTask =
+            overflow
+            ->Array.get(overflowIdx)
+            ->Option.getOrThrow(
+              ~message=`[TaskTabs] overflow[${Int.toString(overflowIdx)}] is undefined (len=${Int.toString(Array.length(overflow))})`,
+            )
           let lastVisibleIdx = Array.length(visible) - 1
-          let displacedTask = visible->Array.getUnsafe(lastVisibleIdx)
+          let displacedTask =
+            visible
+            ->Array.get(lastVisibleIdx)
+            ->Option.getOrThrow(
+              ~message=`[TaskTabs] visible[${Int.toString(lastVisibleIdx)}] is undefined (len=${Int.toString(Array.length(visible))})`,
+            )
 
           let newVisible = visible->Array.mapWithIndex((t, i) =>
             i == lastVisibleIdx ? activeTask : t

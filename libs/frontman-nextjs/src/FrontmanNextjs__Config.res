@@ -59,16 +59,30 @@ let make = (
   let sourceRoot = sourceRoot->Option.getOr(projectRoot)
 
   // Client URL can be overridden via FRONTMAN_CLIENT_URL env var for remote development
-  let clientUrl = clientUrl->Option.getOr(
-    switch Bindings.Process.env->Dict.get("FRONTMAN_CLIENT_URL") {
-    | Some(baseUrl) => `${baseUrl}?clientName=nextjs&host=${host}`
-    | None =>
-      switch isDev {
-      | true => `http://localhost:5173/src/Main.res.mjs?clientName=nextjs&host=${host}`
-      | false => `https://frontman.sh/frontman.es.js?clientName=nextjs&host=${host}`
-      }
-    },
-  )
+  let clientUrl = clientUrl->Option.getOr({
+    let baseUrl =
+      Bindings.Process.env
+      ->Dict.get("FRONTMAN_CLIENT_URL")
+      ->Option.getOr(
+        switch isDev {
+        | true => "http://localhost:5173/src/Main.res.mjs"
+        | false => "https://frontman.sh/frontman.es.js"
+        },
+      )
+    // Use URL API to properly append params (handles base URLs that already have query strings)
+    let url = WebAPI.URL.make(~url=baseUrl)
+    url.searchParams->WebAPI.URLSearchParams.set(~name="clientName", ~value="nextjs")
+    url.searchParams->WebAPI.URLSearchParams.set(~name="host", ~value=host)
+    url.href
+  })
+
+  // Assert clientUrl contains the required "host" query param that the client reads from import.meta.url
+  let parsedUrl = WebAPI.URL.make(~url=clientUrl)
+  if !(parsedUrl.searchParams->WebAPI.URLSearchParams.has(~name="host")) {
+    JsError.throwWithMessage(
+      `[frontman-nextjs] clientUrl must include a "host" query parameter. Got: ${clientUrl}`,
+    )
+  }
 
   {
     isDev,
