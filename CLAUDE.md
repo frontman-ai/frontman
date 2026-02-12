@@ -315,7 +315,9 @@ When making a change that should appear in the changelog, run `yarn changeset` a
 
 - A CI check (`changelog-check.yml`) blocks PRs that don't include a changeset or direct `CHANGELOG.md` update
 - Add the `skip-changelog` label to bypass for chore/docs-only PRs
-- At release time, `yarn changeset version` compiles pending changesets into `CHANGELOG.md` and bumps package versions
+- Changesets accumulate silently on `main` — no auto-PR is created on merge
+- To release: run `make release` which triggers a GitHub workflow that runs `yarn changeset version`, creates a `release/vX.Y.Z` branch, and opens a PR for review
+- When the release PR is merged, `release-tag.yml` automatically creates a git tag and GitHub Release
 - The marketing site reads `/CHANGELOG.md` at build time for the `/changelog` page — keep entries in [Keep a Changelog](https://keepachangelog.com/) format: `## [version] - YYYY-MM-DD`
 
 ## Reference Docs
