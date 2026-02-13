@@ -68,6 +68,7 @@
 	--color-fm-user-bubble-text: var(--fm-user-bubble-text);
 	--color-fm-send-button: var(--fm-send-button);
 	--color-fm-send-button-hover: var(--fm-send-button-hover);
+	--color-fm-send-button-text: var(--fm-send-button-text);
 	--color-fm-error: var(--fm-error);
 	--color-fm-error-surface: var(--fm-error-surface);
 	--color-fm-error-border: var(--fm-error-border);
@@ -153,6 +154,7 @@
 	--fm-user-bubble-text: #3b0764;
 	--fm-send-button: #7c3aed;
 	--fm-send-button-hover: #6d28d9;
+	--fm-send-button-text: #ffffff;
 	--fm-error: #dc2626;
 	--fm-error-surface: rgba(239, 68, 68, 0.08);
 	--fm-error-border: rgba(239, 68, 68, 0.2);
@@ -237,6 +239,7 @@
 	--fm-user-bubble-text: #ffffff;
 	--fm-send-button: #985df7;
 	--fm-send-button-hover: #8247e5;
+	--fm-send-button-text: #ffffff;
 	--fm-error: #f87171;
 	--fm-error-surface: rgba(127, 29, 29, 0.5);
 	--fm-error-border: rgba(153, 27, 27, 0.5);

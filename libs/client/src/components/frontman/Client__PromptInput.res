@@ -421,7 +421,7 @@ module SelectElementButton = {
       className={`flex items-center gap-1.5 h-9 px-4 rounded-full text-xs font-medium
                  transition-colors
                  ${isSelecting
-          ? "bg-fm-accent text-fm-text-contrast hover:bg-fm-accent-hover"
+          ? "bg-fm-accent text-fm-send-button-text hover:bg-fm-accent-hover"
           : "bg-fm-surface-elevated/80 text-fm-text-secondary hover:bg-fm-surface-hover hover:text-fm-text"}`}
       title={isSelecting ? "Exit selection mode" : "Select element"}
     >
@@ -459,7 +459,7 @@ module SubmitButton = {
           onCancel()
         }}
         className="flex items-center justify-center w-10 h-10 rounded-full
-                   transition-all text-fm-text-contrast
+                   transition-all text-fm-send-button-text
                     bg-fm-send-button hover:bg-fm-send-button-hover hover:scale-105"
         title="Stop generation"
       >
@@ -475,7 +475,7 @@ module SubmitButton = {
           onClick()
         }}
         className="flex items-center justify-center w-10 h-10 rounded-full
-                   transition-all text-fm-text-contrast
+                   transition-all text-fm-send-button-text
                    bg-fm-send-button hover:bg-fm-send-button-hover hover:scale-105
                    disabled:bg-fm-surface-hover/50 disabled:text-fm-text-dimmed disabled:cursor-not-allowed disabled:scale-100"
       >

@@ -37,7 +37,7 @@ let make = (~element: option<Null.t<WebAPI.EventAPI.eventTarget>>, ~scrollTimest
           }
         />
         <div
-          className="absolute bg-fm-accent text-fm-text-contrast text-[11px] font-mono font-medium px-1.5 py-0.5 rounded pointer-events-none z-[9999] whitespace-nowrap shadow transition-all duration-100 ease-out"
+          className="absolute bg-fm-accent text-fm-send-button-text text-[11px] font-mono font-medium px-1.5 py-0.5 rounded pointer-events-none z-[9999] whitespace-nowrap shadow transition-all duration-100 ease-out"
           style={
             left: `${Float.toString(rect.left)}px`,
             top: `${Float.toString(labelTop)}px`,
