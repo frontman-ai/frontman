@@ -65,7 +65,7 @@ export default vite.defineConfig({
 		},
 		// Enable minification for production
 		minify: "esbuild",
-		// Generate source maps for debugging
-		sourcemap: true,
+		// No source maps — the .map file exceeds Cloudflare Pages' 25 MiB limit
+		sourcemap: false,
 	},
 });
