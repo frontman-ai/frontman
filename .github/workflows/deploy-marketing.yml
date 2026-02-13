@@ -10,6 +10,9 @@ on:
       - 'CHANGELOG.md'
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   deploy:
     name: Build and Deploy to Production

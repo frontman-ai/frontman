@@ -13,6 +13,9 @@ on:
       - 'infra/**'
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   # ==========================================================================
   # Server: rsync source → build natively on prod server → blue-green deploy

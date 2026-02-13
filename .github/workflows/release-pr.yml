@@ -3,6 +3,8 @@ name: Release PR
 on:
   workflow_dispatch:
 
+permissions: {}
+
 concurrency:
   group: release-pr
   cancel-in-progress: false
