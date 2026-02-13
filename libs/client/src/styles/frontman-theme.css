@@ -198,4 +198,24 @@
 	font-family: 'IBM Plex Mono', monospace;
 }
 
+/* ============================================================================
+ * Streamdown Overrides
+ * ============================================================================ */
+
+/* Inline code: streamdown uses bg-muted (light bg) but parent text is zinc-300
+   (light gray for dark theme), resulting in gray-on-white. Force dark text. */
+.font-ibm-plex-mono [data-streamdown="inline-code"] {
+	color: rgb(39 39 42); /* zinc-800 */
+}
+
+/* Code block: streamdown uses overflow-hidden + rounded-xl on the container,
+   which clips the header text and bottom code lines at the rounded corners.
+   Reduce the border-radius so it doesn't eat into the content area. */
+.font-ibm-plex-mono [data-code-block-container] {
+	border-radius: 0.5rem; /* rounded-lg instead of rounded-xl */
+}
+
+.font-ibm-plex-mono [data-code-block-header] span {
+	margin-left: 0.375rem;
+}
 

@@ -20,7 +20,7 @@ let make = (~variant: variant, ~content: string, ~messageId as _: string, ~isNew
     </div>
     
     {!isStreaming && content != "" ?
-      <div className="absolute top-0 right-2 -translate-y-1/2 flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity z-10">
+      <div className="absolute bottom-1.5 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity z-10">
         <button
           type_="button"
           className="flex items-center justify-center w-5 h-5 border-none bg-transparent rounded cursor-pointer opacity-50 hover:opacity-80 transition-opacity text-zinc-200"
