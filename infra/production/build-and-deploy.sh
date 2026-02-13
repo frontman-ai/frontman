@@ -154,7 +154,7 @@ ${DOMAIN} {
     reverse_proxy localhost:${INACTIVE_PORT}
 }
 EOF
-mv /tmp/Caddyfile.new /etc/caddy/Caddyfile
+cp /tmp/Caddyfile.new /etc/caddy/Caddyfile && rm /tmp/Caddyfile.new
 sudo /bin/systemctl reload caddy
 echo "Caddy reloaded. Traffic now routed to ${INACTIVE_SLOT}."
 
