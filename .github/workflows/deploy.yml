@@ -28,7 +28,7 @@ jobs:
       PROD_SERVER: ${{ secrets.PROD_SERVER }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Setup SSH
         run: |
@@ -86,10 +86,10 @@ jobs:
     environment: production
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
         with:
           node-version: '24.4.1'
 
@@ -97,7 +97,7 @@ jobs:
         run: corepack enable
 
       - name: Cache Yarn
-        uses: actions/cache@v4
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: ~/.yarn/berry/cache
           key: yarn-v2-${{ hashFiles('yarn.lock') }}
@@ -119,7 +119,7 @@ jobs:
           ls -lh dist/
 
       - name: Deploy client to Cloudflare Pages
-        uses: cloudflare/wrangler-action@v3
+        uses: cloudflare/wrangler-action@da0e0dfe58b7a431659754fdf3f186c529afbe65 # v3.14.1
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

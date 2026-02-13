@@ -28,10 +28,10 @@ jobs:
     runs-on: self-hosted
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
         with:
           node-version: '24.4.1'
 
@@ -39,7 +39,7 @@ jobs:
         run: corepack enable
 
       - name: Cache Yarn
-        uses: actions/cache@v4
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: ~/.yarn/berry/cache
           key: yarn-${{ hashFiles('yarn.lock') }}
@@ -61,10 +61,10 @@ jobs:
     needs: [setup]
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
         with:
           node-version: '24.4.1'
 
@@ -72,7 +72,7 @@ jobs:
         run: corepack enable
 
       - name: Cache Yarn
-        uses: actions/cache@v4
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: ~/.yarn/berry/cache
           key: yarn-${{ hashFiles('yarn.lock') }}
@@ -103,10 +103,10 @@ jobs:
       checks: write
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
         with:
           node-version: '24.4.1'
 
@@ -114,7 +114,7 @@ jobs:
         run: corepack enable
 
       - name: Cache Yarn
-        uses: actions/cache@v4
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: ~/.yarn/berry/cache
           key: yarn-${{ hashFiles('yarn.lock') }}
@@ -127,7 +127,7 @@ jobs:
         run: make -C libs/frontman-client test-coverage
 
       - name: Coverage report
-        uses: 5monkeys/cobertura-action@master
+        uses: 5monkeys/cobertura-action@2f27e73e22dc84b22849040d2e1c8e5d8b6a4a0a # master 2025-02-13
         with:
           path: libs/frontman-client/coverage/cobertura-coverage.xml
           minimum_coverage: 70
@@ -151,10 +151,10 @@ jobs:
       checks: write
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
         with:
           node-version: '24.4.1'
 
@@ -162,7 +162,7 @@ jobs:
         run: corepack enable
 
       - name: Cache Yarn
-        uses: actions/cache@v4
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: ~/.yarn/berry/cache
           key: yarn-${{ hashFiles('yarn.lock') }}
@@ -175,7 +175,7 @@ jobs:
         run: make -C libs/frontman-core test-coverage
 
       - name: Coverage report
-        uses: 5monkeys/cobertura-action@master
+        uses: 5monkeys/cobertura-action@2f27e73e22dc84b22849040d2e1c8e5d8b6a4a0a # master 2025-02-13
         with:
           path: libs/frontman-core/coverage/cobertura-coverage.xml
           minimum_coverage: 70
@@ -199,10 +199,10 @@ jobs:
       checks: write
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
         with:
           node-version: '24.4.1'
 
@@ -210,7 +210,7 @@ jobs:
         run: corepack enable
 
       - name: Cache Yarn
-        uses: actions/cache@v4
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: ~/.yarn/berry/cache
           key: yarn-${{ hashFiles('yarn.lock') }}
@@ -223,7 +223,7 @@ jobs:
         run: make -C libs/frontman-nextjs test-coverage
 
       - name: Coverage report
-        uses: 5monkeys/cobertura-action@master
+        uses: 5monkeys/cobertura-action@2f27e73e22dc84b22849040d2e1c8e5d8b6a4a0a # master 2025-02-13
         with:
           path: libs/frontman-nextjs/coverage/cobertura-coverage.xml
           minimum_coverage: 70
@@ -243,7 +243,7 @@ jobs:
     runs-on: self-hosted
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Install OpenSSL dev libraries
         run: |
@@ -255,20 +255,20 @@ jobs:
 
       # Uses mise.toml as single source of truth for Erlang/Elixir versions
       - name: Setup Erlang/Elixir via mise
-        uses: jdx/mise-action@v2
+        uses: jdx/mise-action@6d1e696aa24c1aa1bcc1adea0212707c71ab78a8 # v3.6.1
         with:
           install: true
           cache: true
 
       - name: Cache deps
-        uses: actions/cache@v4
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: apps/frontman_server/deps
           key: ${{ runner.os }}-mix-${{ hashFiles('apps/frontman_server/mix.lock') }}
           restore-keys: ${{ runner.os }}-mix-
 
       - name: Cache _build
-        uses: actions/cache@v4
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: apps/frontman_server/_build
           key: ${{ runner.os }}-build-${{ hashFiles('apps/frontman_server/mix.lock') }}
@@ -319,7 +319,7 @@ jobs:
           echo "Resolved DB_HOST=${DB_HOST}"
 
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Install OpenSSL dev libraries
         run: |
@@ -331,20 +331,20 @@ jobs:
 
       # Uses mise.toml as single source of truth for Erlang/Elixir versions
       - name: Setup Erlang/Elixir via mise
-        uses: jdx/mise-action@v2
+        uses: jdx/mise-action@6d1e696aa24c1aa1bcc1adea0212707c71ab78a8 # v3.6.1
         with:
           install: true
           cache: true
 
       - name: Cache deps
-        uses: actions/cache@v4
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: apps/frontman_server/deps
           key: ${{ runner.os }}-mix-${{ hashFiles('apps/frontman_server/mix.lock') }}
           restore-keys: ${{ runner.os }}-mix-
 
       - name: Cache _build
-        uses: actions/cache@v4
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: apps/frontman_server/_build
           key: ${{ runner.os }}-build-${{ hashFiles('apps/frontman_server/mix.lock') }}
@@ -365,7 +365,7 @@ jobs:
         run: cd apps/frontman_server && MIX_ENV=test mix coveralls.detail
 
       - name: Coverage report
-        uses: 5monkeys/cobertura-action@master
+        uses: 5monkeys/cobertura-action@2f27e73e22dc84b22849040d2e1c8e5d8b6a4a0a # master 2025-02-13
         with:
           path: apps/frontman_server/cover/cobertura.xml
           minimum_coverage: 75
@@ -384,7 +384,7 @@ jobs:
     runs-on: self-hosted
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Install OpenSSL dev libraries
         run: |
@@ -396,20 +396,20 @@ jobs:
 
       # Uses mise.toml as single source of truth for Erlang/Elixir versions
       - name: Setup Erlang/Elixir via mise
-        uses: jdx/mise-action@v2
+        uses: jdx/mise-action@6d1e696aa24c1aa1bcc1adea0212707c71ab78a8 # v3.6.1
         with:
           install: true
           cache: true
 
       - name: Cache deps
-        uses: actions/cache@v4
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: apps/frontman_server/deps
           key: ${{ runner.os }}-mix-${{ hashFiles('apps/frontman_server/mix.lock') }}
           restore-keys: ${{ runner.os }}-mix-
 
       - name: Cache _build
-        uses: actions/cache@v4
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: apps/frontman_server/_build
           key: ${{ runner.os }}-build-${{ hashFiles('apps/frontman_server/mix.lock') }}
@@ -418,7 +418,7 @@ jobs:
       # PLT cache includes mise.toml hash to invalidate when Erlang/Elixir versions change
       # v3: bust cache after migrating to self-hosted runners (different mise install path)
       - name: Cache PLT
-        uses: actions/cache@v4
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: apps/frontman_server/priv/plts
           key: ${{ runner.os }}-plt-v3-${{ hashFiles('mise.toml', 'apps/frontman_server/mix.lock') }}
@@ -448,10 +448,10 @@ jobs:
       checks: write
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
         with:
           node-version: '24.4.1'
 
@@ -459,7 +459,7 @@ jobs:
         run: corepack enable
 
       - name: Cache Yarn
-        uses: actions/cache@v4
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: ~/.yarn/berry/cache
           key: yarn-${{ hashFiles('yarn.lock') }}
@@ -472,7 +472,7 @@ jobs:
         run: make -C libs/react-statestore test-coverage
 
       - name: Coverage report
-        uses: 5monkeys/cobertura-action@master
+        uses: 5monkeys/cobertura-action@2f27e73e22dc84b22849040d2e1c8e5d8b6a4a0a # master 2025-02-13
         with:
           path: libs/react-statestore/coverage/cobertura-coverage.xml
           minimum_coverage: 70
@@ -496,10 +496,10 @@ jobs:
       checks: write
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
         with:
           node-version: '24.4.1'
 
@@ -507,7 +507,7 @@ jobs:
         run: corepack enable
 
       - name: Cache Yarn
-        uses: actions/cache@v4
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: ~/.yarn/berry/cache
           key: yarn-${{ hashFiles('yarn.lock') }}
@@ -520,7 +520,7 @@ jobs:
         run: make -C libs/client test-coverage
 
       - name: Coverage report
-        uses: 5monkeys/cobertura-action@master
+        uses: 5monkeys/cobertura-action@2f27e73e22dc84b22849040d2e1c8e5d8b6a4a0a # master 2025-02-13
         with:
           path: libs/client/coverage/cobertura-coverage.xml
           minimum_coverage: 70
@@ -544,10 +544,10 @@ jobs:
       checks: write
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
         with:
           node-version: '24.4.1'
 
@@ -555,7 +555,7 @@ jobs:
         run: corepack enable
 
       - name: Cache Yarn
-        uses: actions/cache@v4
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: ~/.yarn/berry/cache
           key: yarn-${{ hashFiles('yarn.lock') }}
@@ -568,7 +568,7 @@ jobs:
         run: make -C libs/context-loader test-coverage
 
       - name: Coverage report
-        uses: 5monkeys/cobertura-action@master
+        uses: 5monkeys/cobertura-action@2f27e73e22dc84b22849040d2e1c8e5d8b6a4a0a # master 2025-02-13
         with:
           path: libs/context-loader/coverage/cobertura-coverage.xml
           minimum_coverage: 70
@@ -591,13 +591,13 @@ jobs:
       pull-requests: read
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
 
       - name: Check for changes in libs/client
         id: changes
-        uses: dorny/paths-filter@v3
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
         with:
           filters: |
             client:
@@ -605,7 +605,7 @@ jobs:
 
       - name: Setup Node.js
         if: steps.changes.outputs.client == 'true'
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
         with:
           node-version: '24.4.1'
 
@@ -615,7 +615,7 @@ jobs:
 
       - name: Cache Yarn
         if: steps.changes.outputs.client == 'true'
-        uses: actions/cache@v4
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: ~/.yarn/berry/cache
           key: yarn-${{ hashFiles('yarn.lock') }}
@@ -644,13 +644,13 @@ jobs:
       pull-requests: read
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
 
       - name: Check for changes in libs/frontman-protocol
         id: changes
-        uses: dorny/paths-filter@v3
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
         with:
           filters: |
             protocol:
@@ -658,7 +658,7 @@ jobs:
 
       - name: Setup Node.js
         if: steps.changes.outputs.protocol == 'true'
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
         with:
           node-version: '24.4.1'
 
@@ -668,7 +668,7 @@ jobs:
 
       - name: Cache Yarn
         if: steps.changes.outputs.protocol == 'true'
-        uses: actions/cache@v4
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: ~/.yarn/berry/cache
           key: yarn-${{ hashFiles('yarn.lock') }}
@@ -706,10 +706,10 @@ jobs:
     runs-on: self-hosted
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
         with:
           node-version: '24.4.1'
 
@@ -717,7 +717,7 @@ jobs:
         run: corepack enable
 
       - name: Cache Yarn
-        uses: actions/cache@v4
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: ~/.yarn/berry/cache
           key: yarn-${{ hashFiles('yarn.lock') }}
