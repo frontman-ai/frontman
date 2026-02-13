@@ -5,7 +5,7 @@ procs:
       send-keys: ["<C-c>"]
 
   rescript:
-    cmd: ["bash", "-c", "rm -f lib/bs/.compiler.log && make rescript-build && make rescript-watch"]
+    cmd: ["bash", "-c", "rm -f lib/bs/.compiler.log && make clean && make rescript-build && make rescript-watch"]
 
   server:
     cmd: ["bash", "-c", "echo 'Waiting for ReScript compiler...' && while [ ! -f lib/bs/.compiler.log ] || ! tail -1 lib/bs/.compiler.log 2>/dev/null | grep -q '^#Done'; do sleep 1; done && echo 'ReScript ready. Waiting for Postgres...' && while ! podman exec frontman-postgres pg_isready -U postgres 2>/dev/null; do sleep 2; done && echo 'Postgres ready, starting server...' && make dev-server"]
