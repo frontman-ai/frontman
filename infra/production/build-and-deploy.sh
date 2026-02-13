@@ -172,12 +172,13 @@ echo ">>> Cleaning old releases..."
 for SLOT in blue green; do
   RELEASES_DIR="${DEPLOY_ROOT}/${SLOT}/releases"
   if [ -d "${RELEASES_DIR}" ]; then
-    RELEASE_COUNT=$(ls -1d "${RELEASES_DIR}"/*/ 2>/dev/null | wc -l)
+    RELEASES=$(find "${RELEASES_DIR}" -mindepth 1 -maxdepth 1 -type d | sort)
+    RELEASE_COUNT=$(echo "${RELEASES}" | grep -c . || true)
     if [ "${RELEASE_COUNT}" -gt "${KEEP_RELEASES}" ]; then
       REMOVE_COUNT=$((RELEASE_COUNT - KEEP_RELEASES))
-      ls -1d "${RELEASES_DIR}"/*/ | head -n "${REMOVE_COUNT}" | while read -r OLD_RELEASE; do
-        CURRENT_TARGET=$(readlink -f "${DEPLOY_ROOT}/${SLOT}/current" 2>/dev/null || echo "")
-        if [ "${OLD_RELEASE%/}" != "${CURRENT_TARGET}" ]; then
+      CURRENT_TARGET=$(readlink -f "${DEPLOY_ROOT}/${SLOT}/current" 2>/dev/null || echo "")
+      echo "${RELEASES}" | head -n "${REMOVE_COUNT}" | while read -r OLD_RELEASE; do
+        if [ -n "${OLD_RELEASE}" ] && [ "${OLD_RELEASE}" != "${CURRENT_TARGET}" ]; then
           echo "  Removing old release: ${OLD_RELEASE}"
           rm -rf "${OLD_RELEASE}"
         fi
