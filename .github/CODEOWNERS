@@ -1,0 +1,6 @@
+# Require maintainer approval for CI/CD and security-sensitive files.
+# See: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+.github/workflows/ @BlueHotDog @itayadler
+.github/CODEOWNERS @BlueHotDog @itayadler
+infra/ @BlueHotDog @itayadler

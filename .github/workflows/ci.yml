@@ -7,6 +7,12 @@ on:
       - main
   workflow_call:
 
+# Restrict default GITHUB_TOKEN permissions to read-only.
+# Jobs that need more (e.g. pull-requests: write for coverage reports)
+# escalate per-job below.
+permissions:
+  contents: read
+
 jobs:
   setup:
     name: Setup & cache dependencies
