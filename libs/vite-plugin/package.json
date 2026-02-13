@@ -33,7 +33,7 @@
 		"prepublishOnly": "yarn build"
 	},
 	"dependencies": {
-		"next": "^16.0.3"
+		"next": "^16.1.5"
 	},
 	"devDependencies": {
 		"@types/node": "^24.10.0",

@@ -23,13 +23,13 @@ define require_devpod_server
 	fi
 endef
 
-.PHONY: help dev dev-client dev-server dev-nextjs dev-extension dev-marketing dev-dogfooding \
+.PHONY: help dev dev-client dev-server dev-nextjs dev-extension dev-marketing \
         install build rescript-watch rescript-build clean test lint \
         ssl-setup tunnel \
         worktree-create worktree-create-from worktree-list worktree-remove worktree-clean \
         worktree-status worktree-devpod worktree-urls worktree-hosts worktree-register worktree-registry \
         release \
-        kill-all-processes open-dogfooding pull-webapi
+        kill-all-processes pull-webapi
 
 help: ## Display available commands
 	@printf "$(CYAN)Frontman Monorepo$(RESET)\n"
@@ -81,10 +81,6 @@ dev-extension: ## Start development server for Chrome extension
 dev-marketing: ## Start development server for marketing site
 	@printf "$(YELLOW)Starting marketing dev server...$(RESET)\n"
 	cd apps/marketing && $(MAKE) dev
-
-dev-dogfooding: ## Start development server for dogfooding app
-	@printf "$(YELLOW)Starting dogfooding dev server...$(RESET)\n"
-	cd apps/dogfooding && npm install && $(MAKE) dev
 
 ## DEV_END
 
@@ -344,9 +340,6 @@ release: ## Create a release PR from pending changesets
 
 kill-all-processes: ## Kill all running make dev processes
 	ps aux | grep "make dev" | awk -F ' ' '{print $$2}' | xargs kill
-
-open-dogfooding: ## Open dogfooding app in browser
-	open -n -a "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --args --user-data-dir="/tmp/chrome_dev_test" --disable-web-security http://localhost:6123
 
 pull-webapi: ## Pull latest experimental-rescript-webapi subtree
 	git subtree pull --prefix libs/experimental-rescript-webapi git@github.com:itayadler/experimental-rescript-webapi.git main --squash
