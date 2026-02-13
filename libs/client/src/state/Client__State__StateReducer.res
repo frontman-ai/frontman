@@ -10,7 +10,6 @@ let name = "Client::StateReducer"
 
 module UserContentPart = Client__State__Types.UserContentPart
 module Message = Client__State__Types.Message
-module SelectedElement = Client__State__Types.SelectedElement
 module Task = Client__State__Types.Task
 type state = Client__State__Types.state
 
@@ -310,12 +309,20 @@ module Selectors = {
     Task.getPreviewFrame(currentTask(state), ~defaultUrl=getInitialUrl())
   }
 
-  let webPreviewIsSelecting = (state: state): bool => {
-    Task.getWebPreviewIsSelecting(currentTask(state))
+  let annotationMode = (state: state): Client__Annotation__Types.annotationMode => {
+    Task.getAnnotationMode(currentTask(state))
   }
 
-  let selectedElement = (state: state): option<SelectedElement.t> => {
-    Task.getSelectedElement(currentTask(state))
+  let annotations = (state: state): array<Client__Annotation__Types.t> => {
+    Task.getAnnotations(currentTask(state))
+  }
+
+  let pendingAnnotation = (state: state): option<Client__Annotation__Types.pending> => {
+    Task.getPendingAnnotation(currentTask(state))
+  }
+
+  let webPreviewIsSelecting = (state: state): bool => {
+    Task.getWebPreviewIsSelecting(currentTask(state))
   }
 
   let isAgentRunning = (state: state): bool => {

@@ -1,170 +1,116 @@
 module Icons = Client__ToolIcons
-module RadixIcons = Bindings__RadixUI__Icons
+module Annotation = Client__Annotation__Types
+module RadixUI__Icons = Bindings__RadixUI__Icons
 
-@react.component
-let make = () => {
-  let selectedElement = Client__State.useSelector(Client__State.Selectors.selectedElement)
-
-  // History to track previous selected elements when going up
-  let (history, setHistory) = React.useState(() => [])
-
-  // Track if we're in the middle of a navigation operation
-  let isNavigating = React.useRef(false)
-
-  // Navigate to parent component
-  let navigateUp = () => {
-    switch selectedElement {
-    | Some({sourceLocation: Some(currentLoc), element, selector, screenshot}) =>
-      switch currentLoc.parent {
-      | Some(parentLoc) => {
-          // Get parent DOM element
-          let parentElement =
-            element->WebAPI.Element.asNode->WebAPI.Node.parentElement->Null.toOption
-
-          switch parentElement {
-          | Some(parentEl) => {
-              // Save current COMPLETE state (element, selector, screenshot, sourceLocation) to history
-              let currentState: Client__State__StateReducer.SelectedElement.t = {
-                element,
-                selector,
-                screenshot,
-                sourceLocation: Some(currentLoc),
-              }
-              setHistory(prevHistory => Array.concat(prevHistory, [currentState]))
-
-              // Enrich parent location with tagName from parent element
-              let parentLocWithTagName = {...parentLoc, tagName: parentEl.tagName}
-
-              // Update selected element with parent location and parent element
-              // Trigger re-fetch of selector and screenshot for the parent element
-              let newSelectedElement: option<Client__State__StateReducer.SelectedElement.t> = Some({
-                element: parentEl,
-                selector: None, // Will be fetched
-                screenshot: None, // Will be fetched
-                sourceLocation: Some(parentLocWithTagName),
-              })
-
-              // Set flag to prevent history clearing
-              isNavigating.current = true
-              Client__State.Actions.setSelectedElement(~selectedElement=newSelectedElement)
-            }
-          | None => ()
-          }
-        }
-      | None => ()
-      }
-    | Some({sourceLocation: None, _}) => ()
-    | None => ()
-    }
-  }
-
-  // Navigate back down to previous component
-  let navigateDown = () => {
-    let historyLength = Array.length(history)
-
-    if historyLength > 0 {
-      switch selectedElement {
-      | Some(_) =>
-        // Get last item from history (complete state)
-        switch history->Array.get(historyLength - 1) {
-        | Some(previousState) => {
-            // Remove last item from history
-            setHistory(prevHistory => Array.slice(prevHistory, ~start=0, ~end=historyLength - 1))
-
-            // Restore the complete previous state
-            let newSelectedElement: option<Client__State__StateReducer.SelectedElement.t> = Some(
-              previousState,
-            )
-
-            // Set flag to prevent history clearing
-            isNavigating.current = true
-            Client__State.Actions.setSelectedElement(~selectedElement=newSelectedElement)
-          }
-        | None => ()
-        }
-      | None => ()
-      }
-    }
-  }
-
-  switch selectedElement {
-  | None => React.null
-  | Some({sourceLocation, element, _}) => {
-      let hasParent = sourceLocation->Option.mapOr(false, loc => loc.parent->Option.isSome)
-      let hasHistory = Array.length(history) > 0
-
-      let tagName = element.tagName->String.toLowerCase
-      let textContent =
-        element
+// Single annotation row
+module AnnotationRow = {
+  @react.component
+  let make = (~annotation: Annotation.t, ~index: int) => {
+    let tagName = annotation.tagName->String.toLowerCase
+    let textContent =
+      annotation.nearbyText
+      ->Option.getOr(
+        annotation.element
         ->WebAPI.Element.asNode
         ->WebAPI.Node.textContent
         ->Null.toOption
         ->Option.getOr("")
-        ->String.trim
+        ->String.trim,
+      )
 
-      <div
-        className="mx-3 mb-2 rounded-xl border border-[#8051CD]/40 bg-[#180C2D]/80 overflow-hidden"
-      >
-        // Header row: icon + "Selected Element" + nav buttons + clear
-        <div className="flex items-center gap-2.5 px-3.5 py-2.5">
-          <Icons.CursorClickIcon size=18 className="text-[#985DF7] flex-shrink-0" />
-          <span className="font-mono text-sm font-semibold text-[#985DF7] flex-grow">
-            {React.string("Selected Element")}
-          </span>
-          // Navigation: down, up
-          <div className="flex items-center gap-0.5 flex-shrink-0">
-            <button
-              onClick={_ => navigateDown()}
-              disabled={!hasHistory}
-              className={`p-1 rounded transition-colors ${hasHistory
-                ? "text-zinc-300 hover:bg-[#8051CD]/30"
-                : "text-zinc-600 cursor-not-allowed"}`}
-              title={hasHistory ? "Go back to child" : "No navigation history"}
-            >
-              <RadixIcons.ChevronDownIcon className="size-4" />
-            </button>
-            <button
-              onClick={_ => navigateUp()}
-              disabled={!hasParent}
-              className={`p-1 rounded transition-colors ${hasParent
-                ? "text-zinc-300 hover:bg-[#8051CD]/30"
-                : "text-zinc-600 cursor-not-allowed"}`}
-              title={hasParent ? "Select parent component" : "No parent component"}
-            >
-              <RadixIcons.ChevronUpIcon className="size-4" />
-            </button>
-          </div>
-          // Clear button
-          <button
-            onClick={_ => Client__State.Actions.setSelectedElement(~selectedElement=None)}
-            className="px-2.5 py-1 rounded-md text-xs font-medium text-zinc-300 bg-[#8051CD]/25 hover:bg-[#8051CD]/40 transition-colors flex-shrink-0"
-            title="Clear selection"
-          >
-            {React.string("Clear")}
-          </button>
-        </div>
-        // Content rows
-        <div className="px-3.5 pb-3 flex flex-col gap-1 min-w-0">
-          // Component name row (only when source location exists)
-          {sourceLocation->Option.mapOr(React.null, loc =>
-            loc.componentName->Option.mapOr(React.null, compName =>
-              <div className="font-mono text-sm text-zinc-200 truncate">
-                {React.string(`<${compName} />`)}
-              </div>
-            )
-          )}
-          // Element info row: <tag>: text content (CSS ellipsis)
-          <div className="font-mono text-sm text-zinc-300 truncate">
-            {React.string(
-              if textContent->String.length > 0 {
-                `<${tagName}>: ${textContent}`
-              } else {
-                `<${tagName}>`
-              },
-            )}
-          </div>
-        </div>
-      </div>
+    // Truncate text display
+    let displayText = if textContent->String.length > 60 {
+      textContent->String.slice(~start=0, ~end=60) ++ "..."
+    } else {
+      textContent
     }
+
+    <div className="flex items-start gap-2 group">
+      // Number badge
+      <div
+        className="flex-shrink-0 flex items-center justify-center w-5 h-5 rounded-full bg-violet-600/80 text-white text-[10px] font-bold mt-0.5"
+      >
+        {React.int(index + 1)}
+      </div>
+      // Content
+      <div className="flex-1 min-w-0">
+        // Component name (if available)
+        {annotation.sourceLocation->Option.mapOr(React.null, loc =>
+          loc.componentName->Option.mapOr(React.null, compName =>
+            <div className="font-mono text-xs text-zinc-200 truncate">
+              {React.string(`<${compName} />`)}
+            </div>
+          )
+        )}
+        // Element tag + text
+        <div className="font-mono text-xs text-zinc-400 truncate">
+          {React.string(
+            if displayText->String.length > 0 {
+              `<${tagName}>: ${displayText}`
+            } else {
+              `<${tagName}>`
+            },
+          )}
+        </div>
+        // Comment (if present)
+        {switch annotation.comment {
+        | Some(comment) =>
+          <div className="text-xs text-violet-300/80 mt-0.5 italic truncate">
+            {React.string(`"${comment}"`)}
+          </div>
+        | None => React.null
+        }}
+      </div>
+      // Remove button (visible on hover)
+      <button
+        type_="button"
+        onClick={_ => Client__State.Actions.removeAnnotation(~id=annotation.id)}
+        className="flex-shrink-0 opacity-0 group-hover:opacity-100 flex items-center justify-center w-5 h-5 rounded text-zinc-500 hover:text-red-400 hover:bg-red-400/10 transition-all"
+        title="Remove annotation"
+      >
+        <RadixUI__Icons.Cross2Icon className="size-3" />
+      </button>
+    </div>
+  }
+}
+
+@react.component
+let make = () => {
+  let annotations = Client__State.useSelector(Client__State.Selectors.annotations)
+
+  switch Array.length(annotations) > 0 {
+  | false => React.null
+  | true =>
+    <div
+      className="mx-3 mb-2 rounded-xl border border-[#8051CD]/40 bg-[#180C2D]/80 overflow-hidden"
+    >
+      // Header row
+      <div className="flex items-center gap-2.5 px-3.5 py-2.5">
+        <Icons.CursorClickIcon size=18 className="text-[#985DF7] flex-shrink-0" />
+        <span className="font-mono text-sm font-semibold text-[#985DF7] flex-grow">
+          {React.string(
+            Array.length(annotations) == 1
+              ? "Annotated Element"
+              : `Annotated Elements (${Int.toString(Array.length(annotations))})`,
+          )}
+        </span>
+        // Clear all button
+        <button
+          onClick={_ => Client__State.Actions.clearAnnotations()}
+          className="px-2.5 py-1 rounded-md text-xs font-medium text-zinc-300 bg-[#8051CD]/25 hover:bg-[#8051CD]/40 transition-colors flex-shrink-0"
+          title="Clear all annotations"
+        >
+          {React.string("Clear")}
+        </button>
+      </div>
+      // Annotation rows
+      <div className="px-3.5 pb-3 flex flex-col gap-2 min-w-0">
+        {annotations
+        ->Array.mapWithIndex((annotation, index) => {
+          <AnnotationRow key={annotation.id} annotation index />
+        })
+        ->React.array}
+      </div>
+    </div>
   }
 }

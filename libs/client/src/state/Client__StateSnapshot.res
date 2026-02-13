@@ -56,18 +56,77 @@ module SourceLocation = {
   )
 }
 
-module SelectedElement = {
-  // Snapshot version - no DOM element reference
+module AnnotationMode = {
+  type t =
+    | @as("off") Off
+    | @as("quick") Quick
+    | @as("batch") Batch
+
+  let schema = S.union([
+    S.literal(Off),
+    S.literal(Quick),
+    S.literal(Batch),
+  ])
+}
+
+module BoundingBox = {
   type t = {
-    selector: option<string>,
-    screenshot: option<string>,
-    sourceLocation: option<SourceLocation.t>,
+    x: float,
+    y: float,
+    width: float,
+    height: float,
   }
 
   let schema = S.object(s => {
+    x: s.field("x", S.float),
+    y: s.field("y", S.float),
+    width: s.field("width", S.float),
+    height: s.field("height", S.float),
+  })
+}
+
+module Position = {
+  type t = {
+    xPercent: float,
+    yAbsolute: float,
+  }
+
+  let schema = S.object(s => {
+    xPercent: s.field("xPercent", S.float),
+    yAbsolute: s.field("yAbsolute", S.float),
+  })
+}
+
+module Annotation = {
+  // Snapshot version - no DOM element reference
+  type t = {
+    id: string,
+    comment: option<string>,
+    selector: option<string>,
+    screenshot: option<string>,
+    sourceLocation: option<SourceLocation.t>,
+    tagName: string,
+    cssClasses: option<string>,
+    boundingBox: option<BoundingBox.t>,
+    nearbyText: option<string>,
+    position: Position.t,
+    timestamp: float,
+    selectedText: option<string>,
+  }
+
+  let schema = S.object(s => {
+    id: s.field("id", S.string),
+    comment: s.field("comment", S.option(S.string)),
     selector: s.field("selector", S.option(S.string)),
     screenshot: s.field("screenshot", S.option(S.string)),
     sourceLocation: s.field("sourceLocation", S.option(SourceLocation.schema)),
+    tagName: s.field("tagName", S.string),
+    cssClasses: s.field("cssClasses", S.option(S.string)),
+    boundingBox: s.field("boundingBox", S.option(BoundingBox.schema)),
+    nearbyText: s.field("nearbyText", S.option(S.string)),
+    position: s.field("position", Position.schema),
+    timestamp: s.field("timestamp", S.float),
+    selectedText: s.field("selectedText", S.option(S.string)),
   })
 }
 
@@ -228,8 +287,8 @@ module Task = {
     messages: array<Message.t>,
     createdAt: float,
     updatedAt: float,
-    webPreviewIsSelecting: bool,
-    selectedElement: option<SelectedElement.t>,
+    annotationMode: AnnotationMode.t,
+    annotations: array<Annotation.t>,
     previewUrl: string,
   }
 
@@ -241,19 +300,19 @@ module Task = {
       s.field("messages", S.array(Message.schema)),
       s.field("createdAt", S.float),
       s.field("updatedAt", S.option(S.float)),
-      s.field("webPreviewIsSelecting", S.bool),
-      s.field("selectedElement", nullableToOption(SelectedElement.schema)),
+      s.field("annotationMode", AnnotationMode.schema),
+      s.field("annotations", S.array(Annotation.schema)),
       s.field("previewUrl", S.string),
     )
   })->S.transform(_ => {
-    parser: ((id, title, messages, createdAt, maybeUpdatedAt, webPreviewIsSelecting, selectedElement, previewUrl)) => {
+    parser: ((id, title, messages, createdAt, maybeUpdatedAt, annotationMode, annotations, previewUrl)) => {
       id,
       title,
       messages,
       createdAt,
       updatedAt: maybeUpdatedAt->Option.getOr(createdAt),
-      webPreviewIsSelecting,
-      selectedElement,
+      annotationMode,
+      annotations,
       previewUrl,
     },
     serializer: task => (
@@ -262,8 +321,8 @@ module Task = {
       task.messages,
       task.createdAt,
       Some(task.updatedAt),
-      task.webPreviewIsSelecting,
-      task.selectedElement,
+      task.annotationMode,
+      task.annotations,
       task.previewUrl,
     ),
   })
@@ -301,10 +360,35 @@ let convertSourceLocation = (loc: Client__Types.SourceLocation.t): SourceLocatio
   convert(loc)
 }
 
-let convertSelectedElement = (sel: Client__State__Types.SelectedElement.t): SelectedElement.t => {
-  selector: sel.selector,
-  screenshot: sel.screenshot,
-  sourceLocation: sel.sourceLocation->Option.map(convertSourceLocation),
+let convertAnnotationMode = (mode: Client__Annotation__Types.annotationMode): AnnotationMode.t => {
+  switch mode {
+  | Off => Off
+  | Quick => Quick
+  | Batch => Batch
+  }
+}
+
+let convertAnnotation = (ann: Client__Annotation__Types.t): Annotation.t => {
+  id: ann.id,
+  comment: ann.comment,
+  selector: ann.selector,
+  screenshot: ann.screenshot,
+  sourceLocation: ann.sourceLocation->Option.map(convertSourceLocation),
+  tagName: ann.tagName,
+  cssClasses: ann.cssClasses,
+  boundingBox: ann.boundingBox->Option.map(bb => {
+    BoundingBox.x: bb.x,
+    y: bb.y,
+    width: bb.width,
+    height: bb.height,
+  }),
+  nearbyText: ann.nearbyText,
+  position: {
+    Position.xPercent: ann.position.xPercent,
+    yAbsolute: ann.position.yAbsolute,
+  },
+  timestamp: ann.timestamp,
+  selectedText: ann.selectedText,
 }
 
 let convertUserContentPart = (part: Client__State__Types.UserContentPart.t): UserContentPart.t => {
@@ -391,14 +475,20 @@ let convertTask = (task: Client__State__Types.Task.t, ~defaultUrl: string): Task
     loadedData
     ->Option.mapOr([], data => data.messages->Array.map(convertMessage))
 
+  let annotationMode = loadedData->Option.mapOr(
+    Client__Annotation__Types.Off,
+    d => d.annotationMode,
+  )
+  let annotations = loadedData->Option.mapOr([], d => d.annotations)
+
   {
     id,
     title,
     messages,
     createdAt,
     updatedAt,
-    webPreviewIsSelecting: loadedData->Option.mapOr(false, d => d.webPreviewIsSelecting),
-    selectedElement: loadedData->Option.flatMap(d => d.selectedElement)->Option.map(convertSelectedElement),
+    annotationMode: convertAnnotationMode(annotationMode),
+    annotations: annotations->Array.map(convertAnnotation),
     previewUrl: Task.getPreviewFrame(task, ~defaultUrl).url,
   }
 }
@@ -539,11 +629,44 @@ let rec sourceLocationToJson = (loc: SourceLocation.t): JSON.t => {
   ])
 }
 
-let selectedElementToJson = (sel: SelectedElement.t): JSON.t => {
+let annotationModeToJson = (mode: AnnotationMode.t): JSON.t => {
+  switch mode {
+  | Off => JSON.Encode.string("off")
+  | Quick => JSON.Encode.string("quick")
+  | Batch => JSON.Encode.string("batch")
+  }
+}
+
+let positionToJson = (pos: Position.t): JSON.t => {
   obj([
-    ("selector", sel.selector->Option.mapOr(JSON.Encode.null, JSON.Encode.string)),
-    ("screenshot", sel.screenshot->Option.mapOr(JSON.Encode.null, JSON.Encode.string)),
-    ("sourceLocation", sel.sourceLocation->Option.mapOr(JSON.Encode.null, sourceLocationToJson)),
+    ("xPercent", JSON.Encode.float(pos.xPercent)),
+    ("yAbsolute", JSON.Encode.float(pos.yAbsolute)),
+  ])
+}
+
+let boundingBoxToJson = (bb: BoundingBox.t): JSON.t => {
+  obj([
+    ("x", JSON.Encode.float(bb.x)),
+    ("y", JSON.Encode.float(bb.y)),
+    ("width", JSON.Encode.float(bb.width)),
+    ("height", JSON.Encode.float(bb.height)),
+  ])
+}
+
+let annotationToJson = (ann: Annotation.t): JSON.t => {
+  obj([
+    ("id", JSON.Encode.string(ann.id)),
+    ("comment", ann.comment->Option.mapOr(JSON.Encode.null, JSON.Encode.string)),
+    ("selector", ann.selector->Option.mapOr(JSON.Encode.null, JSON.Encode.string)),
+    ("screenshot", ann.screenshot->Option.mapOr(JSON.Encode.null, JSON.Encode.string)),
+    ("sourceLocation", ann.sourceLocation->Option.mapOr(JSON.Encode.null, sourceLocationToJson)),
+    ("tagName", JSON.Encode.string(ann.tagName)),
+    ("cssClasses", ann.cssClasses->Option.mapOr(JSON.Encode.null, JSON.Encode.string)),
+    ("boundingBox", ann.boundingBox->Option.mapOr(JSON.Encode.null, boundingBoxToJson)),
+    ("nearbyText", ann.nearbyText->Option.mapOr(JSON.Encode.null, JSON.Encode.string)),
+    ("position", positionToJson(ann.position)),
+    ("timestamp", JSON.Encode.float(ann.timestamp)),
+    ("selectedText", ann.selectedText->Option.mapOr(JSON.Encode.null, JSON.Encode.string)),
   ])
 }
 
@@ -554,8 +677,8 @@ let taskToJson = (task: Task.t): JSON.t => {
     ("messages", JSON.Encode.array(task.messages->Array.map(messageToJson))),
     ("createdAt", JSON.Encode.float(task.createdAt)),
     ("updatedAt", JSON.Encode.float(task.updatedAt)),
-    ("webPreviewIsSelecting", JSON.Encode.bool(task.webPreviewIsSelecting)),
-    ("selectedElement", task.selectedElement->Option.mapOr(JSON.Encode.null, selectedElementToJson)),
+    ("annotationMode", annotationModeToJson(task.annotationMode)),
+    ("annotations", JSON.Encode.array(task.annotations->Array.map(annotationToJson))),
     ("previewUrl", JSON.Encode.string(task.previewUrl)),
   ])
 }
@@ -614,4 +737,3 @@ let fromJsonString = (jsonString: string): result<t, string> => {
 
 // Enable JSON support for Sury
 let _ = S.enableJson()
-

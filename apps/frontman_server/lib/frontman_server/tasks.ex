@@ -289,12 +289,12 @@ defmodule FrontmanServer.Tasks do
   end
 
   @doc """
-  Checks if any user messages in the task contain a selected component.
+  Checks if any user messages in the task contain annotations.
   """
-  @spec has_selected_component?(Scope.t(), String.t()) :: boolean()
-  def has_selected_component?(%Scope{} = scope, task_id) do
+  @spec has_annotations?(Scope.t(), String.t()) :: boolean()
+  def has_annotations?(%Scope{} = scope, task_id) do
     case get_interactions(scope, task_id) do
-      {:ok, interactions} -> Interaction.has_selected_component?(interactions)
+      {:ok, interactions} -> Interaction.has_annotations?(interactions)
       {:error, _} -> false
     end
   end

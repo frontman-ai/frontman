@@ -85,8 +85,7 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
       sequence: sequence || data["sequence"] || 0,
       timestamp: parse_datetime(data["timestamp"]),
       messages: data["messages"] || [],
-      selected_component: parse_selected_component(data["selected_component"]),
-      selected_component_screenshot: parse_screenshot(data["selected_component_screenshot"]),
+      annotations: parse_annotations(data["annotations"]),
       selected_figma_node: parse_figma_node(data["selected_figma_node"]),
       images: parse_images(data["images"]),
       current_page: parse_current_page(data["current_page"])
@@ -180,36 +179,90 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
     end
   end
 
-  @spec parse_selected_component(map() | nil) :: map() | nil
-  defp parse_selected_component(nil), do: nil
+  # Parse annotations list from stored data
+  @spec parse_annotations(list() | nil) :: list(Interaction.Annotation.t())
+  defp parse_annotations(nil), do: []
 
-  defp parse_selected_component(data) when is_map(data) do
-    %{
-      file: data["file"],
-      line: data["line"],
-      column: data["column"],
-      source_snippet: data["source_snippet"],
-      source_type: data["source_type"],
-      component_name: data["component_name"],
-      component_props: data["component_props"],
-      parent: parse_parent_chain(data["parent"])
+  defp parse_annotations(annotations) when is_list(annotations) do
+    Enum.map(annotations, &parse_annotation/1)
+  end
+
+  defp parse_annotations(_), do: []
+
+  defp parse_annotation(data) when is_map(data) do
+    %Interaction.Annotation{
+      annotation_id: get_flex(data, "annotation_id"),
+      annotation_index: get_flex(data, "annotation_index"),
+      tag_name: get_flex(data, "tag_name") || "unknown",
+      comment: get_flex(data, "comment"),
+      file: get_flex(data, "file"),
+      line: get_flex(data, "line"),
+      column: get_flex(data, "column"),
+      component_name: get_flex(data, "component_name"),
+      component_props: get_flex(data, "component_props"),
+      parent: parse_parent_chain(get_flex(data, "parent")),
+      css_classes: get_flex(data, "css_classes"),
+      nearby_text: get_flex(data, "nearby_text"),
+      bounding_box: parse_bounding_box(get_flex(data, "bounding_box")),
+      screenshot: parse_annotation_screenshot(get_flex(data, "screenshot"))
     }
   end
+
+  # Get value from map supporting both string and atom keys
+  defp get_flex(map, key) when is_binary(key) do
+    Map.get(map, key) || Map.get(map, String.to_existing_atom(key))
+  rescue
+    ArgumentError -> Map.get(map, key)
+  end
+
+  defp parse_annotation_screenshot(nil), do: nil
+
+  defp parse_annotation_screenshot(%{"blob" => blob, "mime_type" => mime_type})
+       when is_binary(blob) and is_binary(mime_type) do
+    %{blob: blob, mime_type: mime_type}
+  end
+
+  defp parse_annotation_screenshot(%{blob: blob, mime_type: mime_type})
+       when is_binary(blob) and is_binary(mime_type) do
+    %{blob: blob, mime_type: mime_type}
+  end
+
+  defp parse_annotation_screenshot(_), do: nil
+
+  defp parse_bounding_box(nil), do: nil
+
+  defp parse_bounding_box(%{"x" => x, "y" => y, "width" => w, "height" => h})
+       when is_number(x) and is_number(y) and is_number(w) and is_number(h) do
+    %{x: x / 1, y: y / 1, width: w / 1, height: h / 1}
+  end
+
+  defp parse_bounding_box(%{x: x, y: y, width: w, height: h})
+       when is_number(x) and is_number(y) and is_number(w) and is_number(h) do
+    %{x: x / 1, y: y / 1, width: w / 1, height: h / 1}
+  end
+
+  defp parse_bounding_box(_), do: nil
 
   @spec parse_parent_chain(map() | nil) :: map() | nil
   defp parse_parent_chain(nil), do: nil
 
   defp parse_parent_chain(parent) when is_map(parent) do
-    %{
-      file: parent["file"],
-      line: parent["line"],
-      column: parent["column"],
-      source_snippet: nil,
-      source_type: nil,
-      component_name: parent["component_name"],
-      component_props: parent["component_props"],
-      parent: parse_parent_chain(parent["parent"])
-    }
+    file = get_flex(parent, "file")
+    line = get_flex(parent, "line")
+    column = get_flex(parent, "column")
+
+    if is_binary(file) and is_integer(line) and is_integer(column) do
+      %{
+        file: file,
+        line: line,
+        column: column,
+        component_name: get_flex(parent, "component_name"),
+        component_props: get_flex(parent, "component_props"),
+        parent: parse_parent_chain(get_flex(parent, "parent"))
+      }
+    else
+      nil
+    end
   end
 
   defp parse_parent_chain(_), do: nil
@@ -225,27 +278,6 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
       is_dsl: data["is_dsl"] || true
     }
   end
-
-  # Parse screenshot data - handles both new map format and legacy string format
-  defp parse_screenshot(nil), do: nil
-
-  defp parse_screenshot(%{"blob" => blob, "mime_type" => mime_type})
-       when is_binary(blob) and is_binary(mime_type) do
-    %{blob: blob, mime_type: mime_type}
-  end
-
-  # Handle atom keys (from in-memory structs)
-  defp parse_screenshot(%{blob: blob, mime_type: mime_type})
-       when is_binary(blob) and is_binary(mime_type) do
-    %{blob: blob, mime_type: mime_type}
-  end
-
-  # Legacy format: just base64 string, default to image/jpeg
-  defp parse_screenshot(blob) when is_binary(blob) do
-    %{blob: blob, mime_type: "image/jpeg"}
-  end
-
-  defp parse_screenshot(_), do: nil
 
   # Parse user-uploaded images from stored data
   defp parse_images(nil), do: []

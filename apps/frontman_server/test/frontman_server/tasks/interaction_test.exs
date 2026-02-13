@@ -2,20 +2,30 @@ defmodule FrontmanServer.Tasks.InteractionTest do
   use ExUnit.Case, async: true
 
   alias FrontmanServer.Tasks.Interaction
-  alias FrontmanServer.Tasks.Interaction.{AgentResponse, ToolCall, ToolResult, UserMessage}
+
+  alias FrontmanServer.Tasks.Interaction.{
+    AgentResponse,
+    Annotation,
+    ToolCall,
+    ToolResult,
+    UserMessage
+  }
 
   # Test helper to generate sequence numbers
   defp seq, do: System.unique_integer([:monotonic, :positive])
 
   describe "UserMessage.new/1" do
-    test "extracts selected_component from resource with _meta annotation" do
+    test "extracts annotation from resource with _meta annotation: true" do
       content_blocks = [
         %{"type" => "text", "text" => "Hello"},
         %{
           "type" => "resource",
           "resource" => %{
             "_meta" => %{
-              "selected_component" => true,
+              "annotation" => true,
+              "annotation_index" => 0,
+              "annotation_id" => "ann-1",
+              "tag_name" => "div",
               "file" => "/path/to/component.tsx",
               "line" => 42,
               "column" => 10
@@ -23,7 +33,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
             "resource" => %{
               "uri" => "file:///path/to/component.tsx:42:10",
               "mimeType" => "text/plain",
-              "text" => "Selected component: div at /path/to/component.tsx:42:10"
+              "text" => "Annotated element: <div> at /path/to/component.tsx:42:10"
             }
           }
         }
@@ -31,95 +41,35 @@ defmodule FrontmanServer.Tasks.InteractionTest do
 
       msg = UserMessage.new(content_blocks)
 
-      assert msg.selected_component == %{
-               file: "/path/to/component.tsx",
-               line: 42,
-               column: 10,
-               source_snippet: nil,
-               source_type: nil,
-               component_name: nil,
-               component_props: nil,
-               parent: nil
-             }
+      assert length(msg.annotations) == 1
+      ann = hd(msg.annotations)
+      assert ann.annotation_id == "ann-1"
+      assert ann.tag_name == "div"
+      assert ann.file == "/path/to/component.tsx"
+      assert ann.line == 42
+      assert ann.column == 10
+      assert ann.screenshot == nil
     end
 
-    test "returns nil for all context fields when no context" do
+    test "returns empty annotations when no annotation blocks" do
       content_blocks = [%{"type" => "text", "text" => "Hello"}]
 
       msg = UserMessage.new(content_blocks)
 
-      assert msg.selected_component == nil
-      assert msg.selected_component_screenshot == nil
+      assert msg.annotations == []
     end
 
-    test "prefers _meta extraction over URI parsing" do
-      # When both _meta and URI are present, _meta takes precedence
-      content_blocks = [
-        %{
-          "type" => "resource",
-          "resource" => %{
-            "_meta" => %{
-              "selected_component" => true,
-              "file" => "/correct/path.tsx",
-              "line" => 100,
-              "column" => 50
-            },
-            "resource" => %{
-              "uri" => "file:///wrong/path.tsx:1:1",
-              "mimeType" => "text/plain",
-              "text" => "Selected component"
-            }
-          }
-        }
-      ]
-
-      msg = UserMessage.new(content_blocks)
-
-      # Should use _meta values, not parsed URI
-      assert msg.selected_component == %{
-               file: "/correct/path.tsx",
-               line: 100,
-               column: 50,
-               source_snippet: nil,
-               source_type: nil,
-               component_name: nil,
-               component_props: nil,
-               parent: nil
-             }
-    end
-
-    test "extracts selected_component_screenshot from resource with _meta annotation" do
-      content_blocks = [
-        %{"type" => "text", "text" => "Hello"},
-        %{
-          "type" => "resource",
-          "resource" => %{
-            "_meta" => %{"selected_component_screenshot" => true},
-            "resource" => %{
-              "uri" => "component://screenshot",
-              "mimeType" => "image/png",
-              "blob" => "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk"
-            }
-          }
-        }
-      ]
-
-      msg = UserMessage.new(content_blocks)
-
-      assert msg.selected_component_screenshot == %{
-               blob: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk",
-               mime_type: "image/png"
-             }
-    end
-
-    test "extracts both selected_component and screenshot together" do
+    test "extracts annotation with screenshot paired by annotation_id" do
       content_blocks = [
         %{"type" => "text", "text" => "Fix this button"},
         %{
           "type" => "resource",
           "resource" => %{
             "_meta" => %{
-              "selected_component" => true,
+              "annotation" => true,
+              "annotation_index" => 0,
+              "annotation_id" => "ann-1",
+              "tag_name" => "button",
               "file" => "/src/Button.tsx",
               "line" => 15,
               "column" => 3
@@ -127,16 +77,20 @@ defmodule FrontmanServer.Tasks.InteractionTest do
             "resource" => %{
               "uri" => "file:///src/Button.tsx:15:3",
               "mimeType" => "text/plain",
-              "text" => "Selected component: button"
+              "text" => "Annotated element: <button>"
             }
           }
         },
         %{
           "type" => "resource",
           "resource" => %{
-            "_meta" => %{"selected_component_screenshot" => true},
+            "_meta" => %{
+              "annotation_screenshot" => true,
+              "annotation_index" => 0,
+              "annotation_id" => "ann-1"
+            },
             "resource" => %{
-              "uri" => "component://screenshot",
+              "uri" => "annotation://ann-1/screenshot",
               "mimeType" => "image/png",
               "blob" => "base64screenshotdata"
             }
@@ -146,26 +100,129 @@ defmodule FrontmanServer.Tasks.InteractionTest do
 
       msg = UserMessage.new(content_blocks)
 
-      assert msg.selected_component == %{
-               file: "/src/Button.tsx",
-               line: 15,
-               column: 3,
-               source_snippet: nil,
-               source_type: nil,
-               component_name: nil,
-               component_props: nil,
-               parent: nil
-             }
+      assert length(msg.annotations) == 1
+      ann = hd(msg.annotations)
+      assert ann.file == "/src/Button.tsx"
+      assert ann.line == 15
+      assert ann.screenshot == %{blob: "base64screenshotdata", mime_type: "image/png"}
+    end
 
-      assert msg.selected_component_screenshot == %{
-               blob: "base64screenshotdata",
-               mime_type: "image/png"
-             }
+    test "extracts multiple annotations with enrichment data" do
+      content_blocks = [
+        %{"type" => "text", "text" => "Fix these"},
+        %{
+          "type" => "resource",
+          "resource" => %{
+            "_meta" => %{
+              "annotation" => true,
+              "annotation_index" => 0,
+              "annotation_id" => "ann-1",
+              "tag_name" => "div",
+              "file" => "/src/A.tsx",
+              "line" => 10,
+              "column" => 1,
+              "component_name" => "Header",
+              "css_classes" => "header main",
+              "nearby_text" => "Welcome"
+            },
+            "resource" => %{"uri" => "file:///src/A.tsx:10:1", "text" => "Annotated element"}
+          }
+        },
+        %{
+          "type" => "resource",
+          "resource" => %{
+            "_meta" => %{
+              "annotation" => true,
+              "annotation_index" => 1,
+              "annotation_id" => "ann-2",
+              "tag_name" => "button",
+              "file" => "/src/B.tsx",
+              "line" => 20,
+              "column" => 5,
+              "comment" => "Make this red"
+            },
+            "resource" => %{"uri" => "file:///src/B.tsx:20:5", "text" => "Annotated element"}
+          }
+        }
+      ]
+
+      msg = UserMessage.new(content_blocks)
+
+      assert length(msg.annotations) == 2
+      [ann1, ann2] = msg.annotations
+      assert ann1.annotation_index == 0
+      assert ann1.component_name == "Header"
+      assert ann1.css_classes == "header main"
+      assert ann1.nearby_text == "Welcome"
+      assert ann2.annotation_index == 1
+      assert ann2.comment == "Make this red"
+    end
+
+    test "extracts annotation with bounding_box" do
+      content_blocks = [
+        %{
+          "type" => "resource",
+          "resource" => %{
+            "_meta" => %{
+              "annotation" => true,
+              "annotation_index" => 0,
+              "annotation_id" => "ann-bb",
+              "tag_name" => "div",
+              "file" => "/src/Component.tsx",
+              "line" => 5,
+              "column" => 1,
+              "bounding_box" => %{
+                "x" => 10.5,
+                "y" => 20.0,
+                "width" => 200.0,
+                "height" => 50.0
+              }
+            },
+            "resource" => %{
+              "uri" => "file:///src/Component.tsx:5:1",
+              "text" => "Annotated element"
+            }
+          }
+        }
+      ]
+
+      msg = UserMessage.new(content_blocks)
+
+      assert length(msg.annotations) == 1
+      ann = hd(msg.annotations)
+      assert ann.bounding_box == %{x: 10.5, y: 20.0, width: 200.0, height: 50.0}
+    end
+
+    test "annotation bounding_box is nil when not provided" do
+      content_blocks = [
+        %{
+          "type" => "resource",
+          "resource" => %{
+            "_meta" => %{
+              "annotation" => true,
+              "annotation_index" => 0,
+              "annotation_id" => "ann-no-bb",
+              "tag_name" => "span",
+              "file" => "/src/Text.tsx",
+              "line" => 1,
+              "column" => 1
+            },
+            "resource" => %{
+              "uri" => "file:///src/Text.tsx:1:1",
+              "text" => "Annotated element"
+            }
+          }
+        }
+      ]
+
+      msg = UserMessage.new(content_blocks)
+      ann = hd(msg.annotations)
+      assert ann.bounding_box == nil
     end
   end
 
-  describe "has_selected_component?/1" do
-    test "returns true when UserMessage has selected component" do
+  describe "has_annotations?/1" do
+    test "returns true when UserMessage has annotations" do
       interactions = [
         UserMessage.new([
           %{"type" => "text", "text" => "Hello"},
@@ -173,26 +230,29 @@ defmodule FrontmanServer.Tasks.InteractionTest do
             "type" => "resource",
             "resource" => %{
               "_meta" => %{
-                "selected_component" => true,
+                "annotation" => true,
+                "annotation_index" => 0,
+                "annotation_id" => "ann-1",
+                "tag_name" => "div",
                 "file" => "/path/to/file.tsx",
                 "line" => 1,
                 "column" => 1
               },
-              "resource" => %{"uri" => "file:///path/to/file.tsx:1:1", "text" => "Component"}
+              "resource" => %{"uri" => "file:///path/to/file.tsx:1:1", "text" => "Annotated"}
             }
           }
         ])
       ]
 
-      assert Interaction.has_selected_component?(interactions) == true
+      assert Interaction.has_annotations?(interactions) == true
     end
 
-    test "returns false when no selected component" do
+    test "returns false when no annotations" do
       interactions = [
         UserMessage.new([%{"type" => "text", "text" => "Hello"}])
       ]
 
-      assert Interaction.has_selected_component?(interactions) == false
+      assert Interaction.has_annotations?(interactions) == false
     end
   end
 
@@ -204,8 +264,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
           sequence: seq(),
           messages: ["Hello"],
           timestamp: DateTime.utc_now(),
-          selected_component: nil,
-          selected_component_screenshot: nil
+          annotations: []
         }
       ]
 
@@ -290,19 +349,23 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       assert messages == []
     end
 
-    test "includes selected_component location in user message content" do
+    test "includes annotation location in user message content" do
       interactions = [
         %UserMessage{
           id: "1",
           sequence: seq(),
           messages: ["Change the text"],
           timestamp: DateTime.utc_now(),
-          selected_component: %{
-            file: "file:///path/to/Component.tsx",
-            line: 42,
-            column: 5
-          },
-          selected_component_screenshot: nil
+          annotations: [
+            %Annotation{
+              annotation_id: "ann-1",
+              annotation_index: 0,
+              tag_name: "div",
+              file: "/path/to/Component.tsx",
+              line: 42,
+              column: 5
+            }
+          ]
         }
       ]
 
@@ -323,22 +386,30 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       # Should include the original message
       assert text =~ "Change the text"
 
-      # Should include selected component location info
-      assert text =~ "[Selected Component Location]"
-      assert text =~ "file:///path/to/Component.tsx"
+      # Should include annotation location info
+      assert text =~ "[Annotated Elements]"
+      assert text =~ "/path/to/Component.tsx"
       assert text =~ "Line: 42"
-      assert text =~ "Column: 5"
     end
 
-    test "does not add selected_component section when selected_component is nil" do
+    test "includes bounding_box in annotation LLM message" do
       interactions = [
         %UserMessage{
           id: "1",
           sequence: seq(),
-          messages: ["Just a regular message"],
+          messages: ["Fix layout"],
           timestamp: DateTime.utc_now(),
-          selected_component: nil,
-          selected_component_screenshot: nil
+          annotations: [
+            %Annotation{
+              annotation_id: "ann-bb",
+              annotation_index: 0,
+              tag_name: "div",
+              file: "/src/Layout.tsx",
+              line: 10,
+              column: 1,
+              bounding_box: %{x: 10.5, y: 20.0, width: 200.0, height: 50.0}
+            }
+          ]
         }
       ]
 
@@ -352,9 +423,34 @@ defmodule FrontmanServer.Tasks.InteractionTest do
           _ -> ""
         end
 
-      # Should have the message but NOT the selected component section
+      assert text =~ "Bounding Box:"
+      assert text =~ "200"
+    end
+
+    test "does not add annotation section when annotations is empty" do
+      interactions = [
+        %UserMessage{
+          id: "1",
+          sequence: seq(),
+          messages: ["Just a regular message"],
+          timestamp: DateTime.utc_now(),
+          annotations: []
+        }
+      ]
+
+      messages = Interaction.to_llm_messages(interactions)
+      msg = hd(messages)
+
+      text =
+        case msg.content do
+          content when is_binary(content) -> content
+          [%{text: t} | _] -> t
+          _ -> ""
+        end
+
+      # Should have the message but NOT the annotation section
       assert text =~ "Just a regular message"
-      refute text =~ "[Selected Component Location]"
+      refute text =~ "[Annotated Elements]"
     end
 
     test "handles mixed interactions in order" do
@@ -366,8 +462,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
           sequence: seq(),
           messages: ["Calculate 2+2"],
           timestamp: now,
-          selected_component: nil,
-          selected_component_screenshot: nil
+          annotations: []
         },
         %AgentResponse{
           id: "2",
@@ -573,8 +668,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
           sequence: seq(),
           messages: ["What's in the file?"],
           timestamp: now,
-          selected_component: nil,
-          selected_component_screenshot: nil
+          annotations: []
         },
         # Agent responds with tool call (DB format with string keys)
         %AgentResponse{
@@ -725,7 +819,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
   end
 
   describe "JSON encoding" do
-    test "encodes UserMessage to JSON with messages and selected_component" do
+    test "encodes UserMessage to JSON with messages and annotations" do
       msg =
         UserMessage.new([
           %{"type" => "text", "text" => "Hello"},
@@ -733,12 +827,15 @@ defmodule FrontmanServer.Tasks.InteractionTest do
             "type" => "resource",
             "resource" => %{
               "_meta" => %{
-                "selected_component" => true,
+                "annotation" => true,
+                "annotation_index" => 0,
+                "annotation_id" => "ann-1",
+                "tag_name" => "div",
                 "file" => "/path/to/file.tsx",
                 "line" => 10,
                 "column" => 5
               },
-              "resource" => %{"uri" => "file:///path/to/file.tsx:10:5", "text" => "Component"}
+              "resource" => %{"uri" => "file:///path/to/file.tsx:10:5", "text" => "Annotated"}
             }
           }
         ])
@@ -749,16 +846,90 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       assert decoded["type"] == "user_message"
       assert decoded["messages"] == ["Hello"]
 
-      assert decoded["selected_component"] == %{
-               "file" => "/path/to/file.tsx",
-               "line" => 10,
-               "column" => 5,
-               "source_snippet" => nil,
-               "source_type" => nil,
-               "component_name" => nil,
-               "component_props" => nil,
-               "parent" => nil
+      assert length(decoded["annotations"]) == 1
+      ann = hd(decoded["annotations"])
+      assert ann["annotation_id"] == "ann-1"
+      assert ann["tag_name"] == "div"
+      assert ann["file"] == "/path/to/file.tsx"
+      assert ann["line"] == 10
+      assert ann["column"] == 5
+      # Nil fields are stripped from JSON
+      refute Map.has_key?(ann, "css_classes")
+      refute Map.has_key?(ann, "screenshot")
+    end
+
+    test "encodes UserMessage with fully-populated annotation (screenshot, bounding_box, enrichment)" do
+      # This test catches the bug where @derive Jason.Encoder was missing on Annotation.
+      # The annotation includes all enrichment fields that would be present in a real flow.
+      msg =
+        UserMessage.new([
+          %{"type" => "text", "text" => "Fix this"},
+          %{
+            "type" => "resource",
+            "resource" => %{
+              "_meta" => %{
+                "annotation" => true,
+                "annotation_index" => 0,
+                "annotation_id" => "ann-full",
+                "tag_name" => "H1",
+                "file" => "/src/Hero.tsx",
+                "line" => 30,
+                "column" => 5,
+                "component_name" => "Hero",
+                "css_classes" => "hero-title text-xl",
+                "nearby_text" => "Welcome to our app",
+                "bounding_box" => %{
+                  "x" => 24.0,
+                  "y" => 176.0,
+                  "width" => 822.0,
+                  "height" => 42.0
+                }
+              },
+              "resource" => %{
+                "uri" => "file:///src/Hero.tsx:30:5",
+                "text" => "Annotated element"
+              }
+            }
+          },
+          %{
+            "type" => "resource",
+            "resource" => %{
+              "_meta" => %{
+                "annotation_screenshot" => true,
+                "annotation_index" => 0,
+                "annotation_id" => "ann-full"
+              },
+              "resource" => %{
+                "uri" => "annotation://ann-full/screenshot",
+                "mimeType" => "image/jpeg",
+                "blob" => "base64screenshotdata"
+              }
+            }
+          }
+        ])
+
+      # This must not raise — it would crash with Protocol.UndefinedError
+      # if @derive Jason.Encoder is missing on Annotation
+      json = Jason.encode!(msg)
+      decoded = Jason.decode!(json)
+
+      assert decoded["type"] == "user_message"
+      assert length(decoded["annotations"]) == 1
+
+      ann = hd(decoded["annotations"])
+      assert ann["annotation_id"] == "ann-full"
+      assert ann["tag_name"] == "H1"
+      assert ann["css_classes"] == "hero-title text-xl"
+      assert ann["nearby_text"] == "Welcome to our app"
+
+      assert ann["bounding_box"] == %{
+               "x" => 24.0,
+               "y" => 176.0,
+               "width" => 822.0,
+               "height" => 42.0
              }
+
+      assert ann["screenshot"] == %{"blob" => "base64screenshotdata", "mime_type" => "image/jpeg"}
     end
 
     test "encodes ToolCall to JSON" do

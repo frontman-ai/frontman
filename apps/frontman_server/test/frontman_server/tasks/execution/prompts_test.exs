@@ -10,11 +10,11 @@ defmodule FrontmanServer.Tasks.Execution.PromptsTest do
   alias FrontmanServer.Tasks.Execution.Prompts
 
   describe "build/1 context-based guidance selection" do
-    test "selected_component alone adds selected component guidance" do
-      prompt = Prompts.build(has_selected_component: true)
+    test "has_annotations adds annotation guidance" do
+      prompt = Prompts.build(has_annotations: true)
 
-      # Should include selected component specific section
-      assert prompt =~ "Selected Component"
+      # Should include annotation-specific section
+      assert prompt =~ "Annotated Elements"
       assert prompt =~ "Read the file"
       # Should include direct-action guidance (not exploration)
       assert prompt =~ "Never explore"
@@ -32,6 +32,45 @@ defmodule FrontmanServer.Tasks.Execution.PromptsTest do
 
       # Should be same length (no extra guidance added)
       assert String.length(base_prompt) == String.length(unknown_framework_prompt)
+    end
+  end
+
+  describe "build_system_message/2 produces valid message structure" do
+    test "returns list of two system messages (identity and content)" do
+      [identity_msg, content_msg] = Prompts.build_system_message(nil, [])
+
+      assert identity_msg.role == :system
+      assert content_msg.role == :system
+      assert is_list(identity_msg.content)
+      assert is_list(content_msg.content)
+    end
+
+    test "first message contains identity line" do
+      [identity_msg, _content_msg] = Prompts.build_system_message(nil, [])
+
+      identity_text = Enum.map_join(identity_msg.content, & &1.text)
+      assert identity_text =~ "coding assistant"
+    end
+
+    test "always uses default identity (OAuth transformations happen at LLM boundary)" do
+      [identity_msg, _content_msg] = Prompts.build_system_message(nil, [])
+
+      identity_text = Enum.map_join(identity_msg.content, & &1.text)
+      assert identity_text =~ "coding assistant"
+    end
+
+    test "has_annotations flag affects content" do
+      [_without_id, without_content] = Prompts.build_system_message(nil, [])
+
+      [_with_id, with_ann_content] =
+        Prompts.build_system_message(nil, has_annotations: true)
+
+      # With annotations should have more content
+      without_text = Enum.map_join(without_content.content, & &1.text)
+      with_ann_text = Enum.map_join(with_ann_content.content, & &1.text)
+
+      assert String.length(with_ann_text) > String.length(without_text)
+      assert with_ann_text =~ "Annotated Elements"
     end
   end
 

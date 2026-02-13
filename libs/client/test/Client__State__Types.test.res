@@ -2,6 +2,8 @@ open Vitest
 
 module Types = Client__State__Types
 module ClientTypes = Client__Types
+module Annotation = Client__Annotation__Types
+module ACPTypes = Client__Task__Types.ACPTypes
 
 // Helper to create a mock DOM element for testing
 // Using a raw JS object that satisfies the minimal interface
@@ -11,149 +13,349 @@ let makeMockElement: unit => WebAPI.DOMAPI.element = %raw(`
   }
 `)
 
+// Helper to create an annotation with source location for testing
+let makeTestAnnotation = (
+  ~file: string,
+  ~line: int,
+  ~column: int,
+  ~componentName: option<string>=?,
+  ~tagName: string="div",
+  ~selector: option<string>=?,
+  ~screenshot: option<string>=?,
+  ~cssClasses: option<string>=?,
+  ~nearbyText: option<string>=?,
+  ~boundingBox: option<Annotation.boundingBox>=?,
+): Annotation.t => {
+  id: "test-annotation-id",
+  element: makeMockElement(),
+  comment: None,
+  selector,
+  screenshot,
+  sourceLocation: Some({
+    componentName,
+    tagName,
+    file,
+    line,
+    column,
+    parent: None,
+    componentProps: None,
+  }),
+  tagName,
+  cssClasses,
+  boundingBox,
+  nearbyText,
+  position: {xPercent: 50.0, yAbsolute: 100.0},
+  timestamp: 0.0,
+  selectedText: None,
+}
+
+// Helper to extract _meta from a content block
+let getMeta = (block: ACPTypes.contentBlock): JSON.t => {
+  let resource: ACPTypes.embeddedResource = block.resource->Option.getOrThrow
+  resource._meta->Option.getOrThrow
+}
+
+// Helper to get a string field from _meta JSON
+let getMetaString = (meta: JSON.t, field: string): string =>
+  meta
+  ->JSON.Decode.object
+  ->Option.flatMap(obj => obj->Dict.get(field))
+  ->Option.flatMap(JSON.Decode.string)
+  ->Option.getOrThrow
+
+// Helper to get an int field from _meta JSON
+let getMetaFloat = (meta: JSON.t, field: string): float =>
+  meta
+  ->JSON.Decode.object
+  ->Option.flatMap(obj => obj->Dict.get(field))
+  ->Option.flatMap(JSON.Decode.float)
+  ->Option.getOrThrow
+
+// Helper to get a bool field from _meta JSON
+let getMetaBool = (meta: JSON.t, field: string): bool =>
+  meta
+  ->JSON.Decode.object
+  ->Option.flatMap(obj => obj->Dict.get(field))
+  ->Option.flatMap(JSON.Decode.bool)
+  ->Option.getOrThrow
+
+// Helper to get an object field from _meta JSON
+let getMetaObject = (meta: JSON.t, field: string): Dict.t<JSON.t> =>
+  meta
+  ->JSON.Decode.object
+  ->Option.flatMap(obj => obj->Dict.get(field))
+  ->Option.flatMap(JSON.Decode.object)
+  ->Option.getOrThrow
+
+// Helper to create a New task with custom annotations
+let makeNewTaskWithAnnotations = (annotations: array<Annotation.t>): Types.Task.t => {
+  switch Types.Task.makeNew(~previewUrl="http://localhost:3000") {
+  | Types.Task.New(data) => Types.Task.New({...data, annotations})
+  | other => other
+  }
+}
+
 describe("Client__State__Types", () => {
-  describe("selectedElementToContentBlock", () => {
-    test("strips file:// prefix from file path", t => {
-      let sourceLocation: ClientTypes.SourceLocation.t = {
-        componentName: Some("TestComponent"),
-        tagName: "div",
-        file: "file:///home/user/project/src/Component.tsx",
-        line: 42,
-        column: 5,
-        parent: None,
-        componentProps: None,
-      }
+  describe("annotationToContentBlocks", () => {
+    test("strips file:// prefix from file path in _meta", t => {
+      let annotation = makeTestAnnotation(
+        ~file="file:///home/user/project/src/Component.tsx",
+        ~line=42,
+        ~column=5,
+        ~componentName="TestComponent",
+        ~selector="div.test",
+      )
 
-      let selectedElement: Types.SelectedElement.t = {
-        element: makeMockElement(),
-        selector: Some("div.test"),
-        screenshot: None,
-        sourceLocation: Some(sourceLocation),
-      }
+      let blocks = Types.annotationToContentBlocks(annotation, ~index=0)
 
-      let result = Types.selectedElementToContentBlock(selectedElement)
+      // Should produce at least 1 block (resource with annotation metadata)
+      t->expect(blocks->Array.length >= 1)->Expect.toBe(true)
 
-      // Should have a result
-      t->expect(result->Option.isSome)->Expect.toBe(true)
-
-      let contentBlock = result->Option.getOrThrow
-
-      // Extract _meta from the embedded resource
-      let embeddedResource = contentBlock.resource->Option.getOrThrow
-      let meta = embeddedResource._meta->Option.getOrThrow
-
-      // Get the file from _meta - it should NOT have the file:// prefix
-      let fileValue =
-        meta
-        ->JSON.Decode.object
-        ->Option.flatMap(obj => obj->Dict.get("file"))
-        ->Option.flatMap(JSON.Decode.string)
-        ->Option.getOrThrow
+      let meta = getMeta(blocks->Array.getUnsafe(0))
 
       // The file should be an absolute path, not a file:// URI
-      t->expect(fileValue)->Expect.toBe("/home/user/project/src/Component.tsx")
+      t->expect(getMetaString(meta, "file"))->Expect.toBe("/home/user/project/src/Component.tsx")
     })
 
-    test("preserves absolute paths without file:// prefix", t => {
-      let sourceLocation: ClientTypes.SourceLocation.t = {
-        componentName: Some("TestComponent"),
-        tagName: "div",
-        file: "file:///home/user/project/src/Component.tsx",
-        line: 42,
-        column: 5,
-        parent: None,
-        componentProps: None,
-      }
+    test("annotation _meta contains all required fields", t => {
+      let annotation = makeTestAnnotation(
+        ~file="file:///home/user/project/src/Component.tsx",
+        ~line=42,
+        ~column=5,
+        ~componentName="TestComponent",
+        ~selector="div.test",
+      )
 
-      let selectedElement: Types.SelectedElement.t = {
-        element: makeMockElement(),
-        selector: Some("div.test"),
-        screenshot: None,
-        sourceLocation: Some(sourceLocation),
-      }
+      let blocks = Types.annotationToContentBlocks(annotation, ~index=0)
+      let meta = getMeta(blocks->Array.getUnsafe(0))
 
-      let result = Types.selectedElementToContentBlock(selectedElement)
-      let contentBlock = result->Option.getOrThrow
-      let embeddedResource = contentBlock.resource->Option.getOrThrow
-      let meta = embeddedResource._meta->Option.getOrThrow
-
-      let fileValue =
-        meta
-        ->JSON.Decode.object
-        ->Option.flatMap(obj => obj->Dict.get("file"))
-        ->Option.flatMap(JSON.Decode.string)
-        ->Option.getOrThrow
-
-      // Already an absolute path, should be preserved
-      t->expect(fileValue)->Expect.toBe("/home/user/project/src/Component.tsx")
+      t->expect(getMetaBool(meta, "annotation"))->Expect.toBe(true)
+      t->expect(getMetaFloat(meta, "annotation_index"))->Expect.toBe(0.0)
+      t->expect(getMetaString(meta, "annotation_id"))->Expect.toBe("test-annotation-id")
+      t->expect(getMetaString(meta, "tag_name"))->Expect.toBe("div")
+      t->expect(getMetaString(meta, "component_name"))->Expect.toBe("TestComponent")
+      t->expect(getMetaFloat(meta, "line"))->Expect.toBe(42.0)
+      t->expect(getMetaFloat(meta, "column"))->Expect.toBe(5.0)
     })
 
     test("handles Windows-style file:// URIs", t => {
-      // Windows file URIs have format file:///C:/path/to/file
-      let sourceLocation: ClientTypes.SourceLocation.t = {
-        componentName: Some("TestComponent"),
-        tagName: "div",
-        file: "file:///C:/Users/dev/project/src/Component.tsx",
-        line: 10,
-        column: 1,
-        parent: None,
-        componentProps: None,
-      }
+      let annotation = makeTestAnnotation(
+        ~file="file:///C:/Users/dev/project/src/Component.tsx",
+        ~line=10,
+        ~column=1,
+        ~componentName="TestComponent",
+        ~selector="div.test",
+      )
 
-      let selectedElement: Types.SelectedElement.t = {
-        element: makeMockElement(),
-        selector: Some("div.test"),
-        screenshot: None,
-        sourceLocation: Some(sourceLocation),
-      }
-
-      let result = Types.selectedElementToContentBlock(selectedElement)
-      let contentBlock = result->Option.getOrThrow
-      let embeddedResource = contentBlock.resource->Option.getOrThrow
-      let meta = embeddedResource._meta->Option.getOrThrow
-
-      let fileValue =
-        meta
-        ->JSON.Decode.object
-        ->Option.flatMap(obj => obj->Dict.get("file"))
-        ->Option.flatMap(JSON.Decode.string)
-        ->Option.getOrThrow
+      let blocks = Types.annotationToContentBlocks(annotation, ~index=0)
+      let meta = getMeta(blocks->Array.getUnsafe(0))
 
       // Windows paths should have the drive letter preserved
-      t->expect(fileValue)->Expect.toBe("C:/Users/dev/project/src/Component.tsx")
+      t->expect(getMetaString(meta, "file"))->Expect.toBe("C:/Users/dev/project/src/Component.tsx")
     })
 
-    test("uri in text resource also strips file:// prefix", t => {
-      let sourceLocation: ClientTypes.SourceLocation.t = {
-        componentName: Some("TestComponent"),
-        tagName: "div",
-        file: "file:///home/user/project/src/Component.tsx",
-        line: 42,
-        column: 5,
-        parent: None,
-        componentProps: None,
-      }
+    test("uri in text resource uses cleaned file path", t => {
+      let annotation = makeTestAnnotation(
+        ~file="file:///home/user/project/src/Component.tsx",
+        ~line=42,
+        ~column=5,
+        ~componentName="TestComponent",
+        ~selector="div.test",
+      )
 
-      let selectedElement: Types.SelectedElement.t = {
-        element: makeMockElement(),
-        selector: Some("div.test"),
-        screenshot: None,
-        sourceLocation: Some(sourceLocation),
-      }
+      let blocks = Types.annotationToContentBlocks(annotation, ~index=0)
+      let block = blocks->Array.getUnsafe(0)
+      let embeddedResource = block.resource->Option.getOrThrow
 
-      let result = Types.selectedElementToContentBlock(selectedElement)
-      let contentBlock = result->Option.getOrThrow
-      let embeddedResource = contentBlock.resource->Option.getOrThrow
-
-      // Extract the text resource to check the URI
       switch embeddedResource.resource {
       | TextResourceContents(textResource) =>
-        // The URI should use the cleaned file path
+        // The URI should use file:// with cleaned path and line:col
         t
         ->expect(textResource.uri)
         ->Expect.toBe("file:///home/user/project/src/Component.tsx:42:5")
       | _ => JsExn.throw("Expected TextResourceContents")
       }
+    })
+
+    test("includes screenshot blob when annotation has screenshot", t => {
+      let annotation = makeTestAnnotation(
+        ~file="file:///home/user/project/src/Component.tsx",
+        ~line=42,
+        ~column=5,
+        ~screenshot="data:image/jpeg;base64,/9j/4AAQ",
+      )
+
+      let blocks = Types.annotationToContentBlocks(annotation, ~index=0)
+
+      // Should produce 2 blocks: resource + screenshot
+      t->expect(blocks->Array.length)->Expect.toBe(2)
+
+      // Second block should be screenshot blob
+      let screenshotBlock = blocks->Array.getUnsafe(1)
+      let screenshotResource = screenshotBlock.resource->Option.getOrThrow
+      let screenshotMeta = screenshotResource._meta->Option.getOrThrow
+
+      t->expect(getMetaBool(screenshotMeta, "annotation_screenshot"))->Expect.toBe(true)
+      t->expect(getMetaString(screenshotMeta, "annotation_id"))->Expect.toBe("test-annotation-id")
+
+      switch screenshotResource.resource {
+      | BlobResourceContents(blobResource) =>
+        t->expect(blobResource.mimeType)->Expect.toEqual(Some("image/jpeg"))
+        t->expect(blobResource.blob)->Expect.toBe("/9j/4AAQ")
+      | _ => JsExn.throw("Expected BlobResourceContents")
+      }
+    })
+
+    test("produces 1 block when annotation has no screenshot", t => {
+      let annotation = makeTestAnnotation(
+        ~file="file:///home/user/project/src/Component.tsx",
+        ~line=42,
+        ~column=5,
+      )
+
+      let blocks = Types.annotationToContentBlocks(annotation, ~index=0)
+      t->expect(blocks->Array.length)->Expect.toBe(1)
+    })
+
+    test("fallback to selector when no source location", t => {
+      let annotation: Annotation.t = {
+        id: "test-no-source",
+        element: makeMockElement(),
+        comment: None,
+        selector: Some("div.my-class"),
+        screenshot: None,
+        sourceLocation: None,
+        tagName: "div",
+        cssClasses: None,
+        boundingBox: None,
+        nearbyText: None,
+        position: {xPercent: 50.0, yAbsolute: 100.0},
+        timestamp: 0.0,
+        selectedText: None,
+      }
+
+      let blocks = Types.annotationToContentBlocks(annotation, ~index=0)
+      let block = blocks->Array.getUnsafe(0)
+      let embeddedResource = block.resource->Option.getOrThrow
+
+      switch embeddedResource.resource {
+      | TextResourceContents(textResource) =>
+        t->expect(textResource.uri)->Expect.toBe("selector://div.my-class")
+      | _ => JsExn.throw("Expected TextResourceContents")
+      }
+    })
+
+    test("includes css_classes and nearby_text in _meta when present", t => {
+      let annotation = makeTestAnnotation(
+        ~file="file:///home/user/project/src/Component.tsx",
+        ~line=42,
+        ~column=5,
+        ~cssClasses="btn btn-primary",
+        ~nearbyText="Click me",
+      )
+
+      let blocks = Types.annotationToContentBlocks(annotation, ~index=0)
+      let meta = getMeta(blocks->Array.getUnsafe(0))
+
+      t->expect(getMetaString(meta, "css_classes"))->Expect.toBe("btn btn-primary")
+      t->expect(getMetaString(meta, "nearby_text"))->Expect.toBe("Click me")
+    })
+
+    test("includes bounding_box in _meta when present", t => {
+      let annotation = makeTestAnnotation(
+        ~file="file:///home/user/project/src/Component.tsx",
+        ~line=42,
+        ~column=5,
+        ~boundingBox={x: 10.5, y: 20.0, width: 200.0, height: 50.0},
+      )
+
+      let blocks = Types.annotationToContentBlocks(annotation, ~index=0)
+      let meta = getMeta(blocks->Array.getUnsafe(0))
+
+      let bb = getMetaObject(meta, "bounding_box")
+      t
+      ->expect(bb->Dict.get("x")->Option.flatMap(JSON.Decode.float)->Option.getOrThrow)
+      ->Expect.toBe(10.5)
+      t
+      ->expect(bb->Dict.get("y")->Option.flatMap(JSON.Decode.float)->Option.getOrThrow)
+      ->Expect.toBe(20.0)
+      t
+      ->expect(bb->Dict.get("width")->Option.flatMap(JSON.Decode.float)->Option.getOrThrow)
+      ->Expect.toBe(200.0)
+      t
+      ->expect(bb->Dict.get("height")->Option.flatMap(JSON.Decode.float)->Option.getOrThrow)
+      ->Expect.toBe(50.0)
+    })
+
+    test("omits bounding_box from _meta when not present", t => {
+      let annotation = makeTestAnnotation(
+        ~file="file:///home/user/project/src/Component.tsx",
+        ~line=42,
+        ~column=5,
+      )
+
+      let blocks = Types.annotationToContentBlocks(annotation, ~index=0)
+      let meta = getMeta(blocks->Array.getUnsafe(0))
+
+      let metaObj = meta->JSON.Decode.object->Option.getOrThrow
+      t->expect(metaObj->Dict.get("bounding_box")->Option.isNone)->Expect.toBe(true)
+    })
+  })
+
+  describe("taskToContentBlocks", () => {
+    test("returns empty array for Unloaded task", t => {
+      let task = Types.Task.Unloaded({
+        id: "test",
+        title: "test",
+        createdAt: 0.0,
+        updatedAt: 0.0,
+      })
+
+      let blocks = Types.taskToContentBlocks(task)
+      t->expect(blocks->Array.length)->Expect.toBe(0)
+    })
+
+    test("returns annotation blocks for New task with annotations", t => {
+      let annotation = makeTestAnnotation(
+        ~file="file:///home/user/project/src/Component.tsx",
+        ~line=42,
+        ~column=5,
+        ~screenshot="data:image/jpeg;base64,/9j/4AAQ",
+      )
+
+      let task = makeNewTaskWithAnnotations([annotation])
+
+      let blocks = Types.taskToContentBlocks(task)
+      // 1 annotation with screenshot = 2 blocks
+      t->expect(blocks->Array.length)->Expect.toBe(2)
+    })
+
+    test("returns blocks for multiple annotations", t => {
+      let ann1 = makeTestAnnotation(
+        ~file="file:///home/user/project/src/A.tsx",
+        ~line=1,
+        ~column=1,
+      )
+      let ann2 = makeTestAnnotation(
+        ~file="file:///home/user/project/src/B.tsx",
+        ~line=2,
+        ~column=2,
+        ~screenshot="data:image/png;base64,iVBORw0K",
+      )
+
+      let task = makeNewTaskWithAnnotations([ann1, ann2])
+
+      let blocks = Types.taskToContentBlocks(task)
+      // ann1: 1 block (no screenshot), ann2: 2 blocks (with screenshot) = 3 total
+      t->expect(blocks->Array.length)->Expect.toBe(3)
+
+      // Verify first annotation has index 0
+      let meta0 = getMeta(blocks->Array.getUnsafe(0))
+      t->expect(getMetaFloat(meta0, "annotation_index"))->Expect.toBe(0.0)
+
+      // Verify second annotation has index 1
+      let meta1 = getMeta(blocks->Array.getUnsafe(1))
+      t->expect(getMetaFloat(meta1, "annotation_index"))->Expect.toBe(1.0)
     })
   })
 })

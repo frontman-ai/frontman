@@ -37,22 +37,7 @@ module ReloadButton = {
   }
 }
 
-module SelectElement = {
-  @react.component
-  let make = (~onClick: unit => unit, ~isSelecting: bool) => {
-    <button
-      type_="button"
-      onClick={_ => onClick()}
-      className={`flex items-center justify-center w-8 h-8 rounded-lg transition-colors
-                 ${isSelecting
-          ? "bg-violet-600 text-white hover:bg-violet-500"
-          : "bg-gray-200 text-gray-600 hover:bg-gray-300 hover:text-gray-700"}`}
-      title={isSelecting ? "Exit selection mode" : "Select element"}
-    >
-      <Client__ToolIcons.CursorClickIcon size=16 />
-    </button>
-  }
-}
+// SelectElement replaced by AnnotationControls (D4)
 
 module DeviceModeToggle = {
   @react.component
@@ -136,9 +121,8 @@ let make = () => {
   let persistedTasks = Client__State.useSelector(Client__State.Selectors.tasks)
   let previewUrl = Client__State.useSelector(Client__State.Selectors.previewUrl)
   let previewFrame = Client__State.useSelector(Client__State.Selectors.previewFrame)
-  let webPreviewIsSelecting = Client__State.useSelector(
-    Client__State.Selectors.webPreviewIsSelecting,
-  )
+  let annotationMode = Client__State.useSelector(Client__State.Selectors.annotationMode)
+  let annotations = Client__State.useSelector(Client__State.Selectors.annotations)
   let deviceMode = Client__State.useSelector(Client__State.Selectors.deviceMode)
   let deviceOrientation = Client__State.useSelector(Client__State.Selectors.deviceOrientation)
 
@@ -176,7 +160,7 @@ let make = () => {
             contentWindow.location->locationAssign(resolvedUrl)
           })
           Client__State.Actions.setPreviewUrl(~url=resolvedUrl)
-          Client__State.Actions.setSelectedElement(~selectedElement=None)
+          Client__State.Actions.clearAnnotations()
           Client__BrowserUrl.syncBrowserUrl(~previewUrl=resolvedUrl)
         }
       }
@@ -202,23 +186,24 @@ let make = () => {
     previewFrame.contentWindow->Option.forEach(contentWindow => {
       WebAPI.History.back(contentWindow.history)
     })
-    Client__State.Actions.setSelectedElement(~selectedElement=None)
+    Client__State.Actions.clearAnnotations()
   }
 
   let handleForward = () => {
     previewFrame.contentWindow->Option.forEach(contentWindow => {
       WebAPI.History.forward(contentWindow.history)
     })
-    Client__State.Actions.setSelectedElement(~selectedElement=None)
+    Client__State.Actions.clearAnnotations()
   }
 
   let handleReload = () => {
     previewFrame.contentWindow->Option.forEach(contentWindow => {
       WebAPI.Location.reload(contentWindow.location)
     })
-    Client__State.Actions.setSelectedElement(~selectedElement=None)
+    Client__State.Actions.clearAnnotations()
   }
-  let handleSelect = () => Client__State.Actions.toggleWebPreviewSelection()
+  let handleSetAnnotationMode = mode => Client__State.Actions.setAnnotationMode(~mode)
+  let handleClearAnnotations = () => Client__State.Actions.clearAnnotations()
   let handleOpenInNewTab = () => {
     WebAPI.Window.open_(
       WebAPI.Global.window,
@@ -262,7 +247,13 @@ let make = () => {
           onBlur={handleUrlBlur}
         />
         <DeviceModeToggle isActive={deviceModeActive} onClick={handleToggleDeviceMode} />
-        <SelectElement onClick={handleSelect} isSelecting={webPreviewIsSelecting} />
+        <Client__WebPreview__AnnotationControls
+          mode={annotationMode}
+          annotationCount={Array.length(annotations)}
+          onSetMode={handleSetAnnotationMode}
+          onClear={handleClearAnnotations}
+          previewDocument=?{previewFrame.contentDocument}
+        />
         <OpenInNewWindow onClick={handleOpenInNewTab} />
       </Nav.Navigation>
 

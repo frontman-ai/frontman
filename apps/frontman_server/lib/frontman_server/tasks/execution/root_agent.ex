@@ -20,7 +20,7 @@ defmodule FrontmanServer.Tasks.Execution.RootAgent do
 
   typedstruct do
     field(:tools, [SwarmAi.Tool.t()], default: [])
-    field(:has_selected_component, boolean(), default: false)
+    field(:has_annotations, boolean(), default: false)
     field(:has_current_page, boolean(), default: false)
     field(:has_typescript_react, boolean(), default: false)
     field(:framework, String.t() | nil, default: nil)
@@ -40,7 +40,7 @@ defmodule FrontmanServer.Tasks.Execution.RootAgent do
   ## Options
 
   - `:tools` - List of SwarmAi.Tool structs available to the agent
-  - `:has_selected_component` - Whether a component is selected in the codebase
+  - `:has_annotations` - Whether the user has annotated elements in the UI
   - `:has_current_page` - Whether current page context is available
   - `:framework` - Framework name (e.g., "nextjs") for framework-specific guidance
   - `:llm_opts` - LLM options, must include `:api_key`. May include `:requires_mcp_prefix`
@@ -53,7 +53,7 @@ defmodule FrontmanServer.Tasks.Execution.RootAgent do
   def new(opts \\ []) do
     %__MODULE__{
       tools: Keyword.get(opts, :tools, []),
-      has_selected_component: Keyword.get(opts, :has_selected_component, false),
+      has_annotations: Keyword.get(opts, :has_annotations, false),
       has_current_page: Keyword.get(opts, :has_current_page, false),
       has_typescript_react: Keyword.get(opts, :has_typescript_react, false),
       framework: Keyword.get(opts, :framework),
@@ -72,7 +72,7 @@ defimpl SwarmAi.Agent, for: FrontmanServer.Tasks.Execution.RootAgent do
     # Build system prompt - always returns a string
     # OAuth transformations (identity prepend, content splitting) are handled by LLMClient
     Prompts.build(
-      has_selected_component: agent.has_selected_component,
+      has_annotations: agent.has_annotations,
       has_current_page: agent.has_current_page,
       has_typescript_react: agent.has_typescript_react,
       framework: agent.framework,

@@ -43,8 +43,8 @@ module Actions = {
   let setPreviewFrame = (~contentDocument, ~contentWindow) =>
     Client__State__Store.dispatch(TaskAction({target: CurrentTask, action: SetPreviewFrame({contentDocument, contentWindow})}))
 
-  let toggleWebPreviewSelection = () =>
-    Client__State__Store.dispatch(TaskAction({target: CurrentTask, action: ToggleWebPreviewSelection}))
+  let setAnnotationMode = (~mode) =>
+    Client__State__Store.dispatch(TaskAction({target: CurrentTask, action: SetAnnotationMode({mode: mode})}))
 
   // Device mode action creators
   let setDeviceMode = (~deviceMode) =>
@@ -56,8 +56,40 @@ module Actions = {
   let toggleDeviceMode = () =>
     Client__State__Store.dispatch(TaskAction({target: CurrentTask, action: ToggleDeviceMode}))
 
-  let setSelectedElement = (~selectedElement) =>
-    Client__State__Store.dispatch(TaskAction({target: CurrentTask, action: SetSelectedElement({selectedElement: selectedElement})}))
+  // Legacy: toggle between Off and Quick mode (used by existing UI)
+  let toggleWebPreviewSelection = () => {
+    // Read current state to determine toggle direction
+    let state = FrontmanReactStatestore.StateStore.getState(Client__State__Store.store)
+    let currentMode = Client__State__StateReducer.Selectors.currentTask(state)
+      ->Client__Task__Types.Task.getAnnotationMode
+    let newMode = switch currentMode {
+    | Client__Annotation__Types.Off => Client__Annotation__Types.Quick
+    | _ => Client__Annotation__Types.Off
+    }
+    Client__State__Store.dispatch(TaskAction({target: CurrentTask, action: SetAnnotationMode({mode: newMode})}))
+  }
+
+  let addAnnotation = (~element, ~position, ~tagName) =>
+    Client__State__Store.dispatch(TaskAction({target: CurrentTask, action: AddAnnotation({element, position, tagName})}))
+
+  let addAnnotations = (~elements) =>
+    Client__State__Store.dispatch(TaskAction({target: CurrentTask, action: AddAnnotations({elements: elements})}))
+
+  let removeAnnotation = (~id) =>
+    Client__State__Store.dispatch(TaskAction({target: CurrentTask, action: RemoveAnnotation({id: id})}))
+
+  let clearAnnotations = () =>
+    Client__State__Store.dispatch(TaskAction({target: CurrentTask, action: ClearAnnotations}))
+
+  let confirmPendingAnnotation = (~comment=?) =>
+    Client__State__Store.dispatch(TaskAction({target: CurrentTask, action: ConfirmPendingAnnotation({comment: comment})}))
+
+  let cancelPendingAnnotation = () =>
+    Client__State__Store.dispatch(TaskAction({target: CurrentTask, action: CancelPendingAnnotation}))
+
+  let updateAnnotationComment = (~id, ~comment) =>
+    Client__State__Store.dispatch(TaskAction({target: CurrentTask, action: UpdateAnnotationComment({id, comment})}))
+
 
   // Task management action creators
   // Note: Tasks are created implicitly when user sends first message (lazy session creation)

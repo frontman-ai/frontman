@@ -235,28 +235,27 @@ describe("Task - Agent Running State", () => {
   })
 })
 
-describe("Task - Web Preview Selection", () => {
-  test("ToggleWebPreviewSelection toggles selection mode", t => {
+describe("Task - Annotation Mode", () => {
+  test("SetAnnotationMode toggles selection mode", t => {
     let task = TestHelpers.makeLoadedTask()
     t->expect(TaskReducer.Selectors.webPreviewIsSelecting(task))->Expect.toEqual(Some(false))
 
-    let (task2, _) = TaskReducer.next(task, ToggleWebPreviewSelection)
+    let (task2, _) = TaskReducer.next(task, SetAnnotationMode({mode: Quick}))
     t->expect(TaskReducer.Selectors.webPreviewIsSelecting(task2))->Expect.toEqual(Some(true))
 
-    let (task3, _) = TaskReducer.next(task2, ToggleWebPreviewSelection)
+    let (task3, _) = TaskReducer.next(task2, SetAnnotationMode({mode: Off}))
     t->expect(TaskReducer.Selectors.webPreviewIsSelecting(task3))->Expect.toEqual(Some(false))
   })
 
-  test("ToggleWebPreviewSelection clears selected element when entering selection mode", t => {
-    // Start with a selected element
+  test("SetAnnotationMode Off clears annotations", t => {
     let task = TestHelpers.makeLoadedTask()
 
-    // First toggle to enter selection mode (webPreviewIsSelecting becomes true)
-    let (task2, _) = TaskReducer.next(task, ToggleWebPreviewSelection)
+    // Enter Quick mode
+    let (task2, _) = TaskReducer.next(task, SetAnnotationMode({mode: Quick}))
     t->expect(TaskReducer.Selectors.webPreviewIsSelecting(task2))->Expect.toEqual(Some(true))
 
-    // Toggle again to exit selection mode (should clear selected element)
-    let (task3, _) = TaskReducer.next(task2, ToggleWebPreviewSelection)
+    // Exit selection mode
+    let (task3, _) = TaskReducer.next(task2, SetAnnotationMode({mode: Off}))
     t->expect(TaskReducer.Selectors.webPreviewIsSelecting(task3))->Expect.toEqual(Some(false))
   })
 })

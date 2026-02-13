@@ -419,24 +419,27 @@ defmodule FrontmanServer.TasksTest do
     end
   end
 
-  describe "selected_component round-trip through JSONB" do
-    test "selected_component location survives DB round-trip and appears in LLM messages", %{
+  describe "annotation round-trip through JSONB" do
+    test "annotation survives DB round-trip and appears in LLM messages", %{
       scope: scope
     } do
       task_id = Ecto.UUID.generate()
       {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
 
-      # Content blocks matching the ACP format sent by the client:
+      # Content blocks matching the new annotation ACP format:
       # 1. Text message
-      # 2. Resource with selected_component _meta annotation
-      # 3. Resource with selected_component_screenshot blob
+      # 2. Resource with annotation _meta
+      # 3. Resource with annotation_screenshot blob
       content_blocks = [
         %{"type" => "text", "text" => "Fix the button"},
         %{
           "type" => "resource",
           "resource" => %{
             "_meta" => %{
-              "selected_component" => true,
+              "annotation" => true,
+              "annotation_index" => 0,
+              "annotation_id" => "ann-test-1",
+              "tag_name" => "button",
               "file" => "src/components/Button.tsx",
               "line" => 42,
               "column" => 5
@@ -444,16 +447,20 @@ defmodule FrontmanServer.TasksTest do
             "resource" => %{
               "uri" => "file://src/components/Button.tsx:42:5",
               "mimeType" => "text/plain",
-              "text" => "Selected component: button at src/components/Button.tsx:42:5"
+              "text" => "Annotated element: <button> at src/components/Button.tsx:42:5"
             }
           }
         },
         %{
           "type" => "resource",
           "resource" => %{
-            "_meta" => %{"selected_component_screenshot" => true},
+            "_meta" => %{
+              "annotation_screenshot" => true,
+              "annotation_index" => 0,
+              "annotation_id" => "ann-test-1"
+            },
             "resource" => %{
-              "uri" => "component://screenshot",
+              "uri" => "annotation://ann-test-1/screenshot",
               "mimeType" => "image/png",
               "blob" => "iVBORw0KGgoAAAANSUhEUg=="
             }
@@ -473,11 +480,10 @@ defmodule FrontmanServer.TasksTest do
       # Extract text from content parts
       content_text = extract_content_text(msg.content)
 
-      # The component location should have been appended by append_component_location/2
-      assert content_text =~ "[Selected Component Location]"
+      # The annotation location should have been appended by append_annotations/2
+      assert content_text =~ "[Annotated Elements]"
       assert content_text =~ "src/components/Button.tsx"
       assert content_text =~ "42"
-      assert content_text =~ "5"
 
       # Screenshot should be present as an image content part
       image_parts =

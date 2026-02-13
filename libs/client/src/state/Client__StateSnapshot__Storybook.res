@@ -105,12 +105,21 @@ let convertMessage = (msg: Snapshot.Message.t): StateTypes.Message.t => {
   }
 }
 
+let convertAnnotationMode = (mode: Snapshot.AnnotationMode.t): Client__Annotation__Types.annotationMode => {
+  switch mode {
+  | Off => Off
+  | Quick => Quick
+  | Batch => Batch
+  }
+}
+
 let convertTask = (task: Snapshot.Task.t): StateTypes.Task.t => {
   // Convert messages array and wrap in MessageStore
   let messages = task.messages->Array.map(convertMessage)
   let messageStore = Client__MessageStore.fromArray(messages)
 
   // Create a Loaded task using the variant constructor
+  // Note: annotations from snapshot don't have DOM element refs, so we use empty array
   StateTypes.Task.Loaded({
     id: task.id,
     clientId: None,
@@ -125,8 +134,9 @@ let convertTask = (task: Snapshot.Task.t): StateTypes.Task.t => {
       deviceMode: Client__DeviceMode.defaultDeviceMode,
       orientation: Client__DeviceMode.defaultOrientation,
     },
-    webPreviewIsSelecting: task.webPreviewIsSelecting,
-    selectedElement: None, // Cannot restore DOM element from snapshot
+    annotationMode: convertAnnotationMode(task.annotationMode),
+    annotations: [], // Cannot restore DOM element refs from snapshot
+    pendingAnnotation: None,
     isAgentRunning: false, // Default to not running when restoring from snapshot
     planEntries: [], // Plan entries not stored in snapshots yet
     turnError: None, // No error when restoring from snapshot

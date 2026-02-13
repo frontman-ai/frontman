@@ -116,7 +116,7 @@ defmodule FrontmanServer.Tasks.Execution.Prompts do
 
   - `:project_structure` - String summary of the project structure (directory layout, workspaces)
   - `:project_rules` - List of project rule maps with `:path`, `:content`, and `:timestamp` keys
-  - `:has_selected_component` - When true, adds guidance for selected component replacement flow
+  - `:has_annotations` - When true, adds guidance for annotated element workflow
   - `:has_current_page` - When true, adds guidance for using current page context
   - `:framework` - Framework name (e.g., "nextjs") to add framework-specific guidance
 
@@ -154,14 +154,14 @@ defmodule FrontmanServer.Tasks.Execution.Prompts do
 
   # Append context-specific guidance based on options
   defp append_context_guidance(prompt, opts) do
-    has_selected_component = Keyword.get(opts, :has_selected_component, false)
+    has_annotations = Keyword.get(opts, :has_annotations, false)
     has_current_page = Keyword.get(opts, :has_current_page, false)
     framework = Keyword.get(opts, :framework)
     has_typescript_react = Keyword.get(opts, :has_typescript_react, false)
 
     prompt
     |> maybe_append(has_current_page, &current_page_guidance/0)
-    |> maybe_append(has_selected_component, &selected_component_guidance/0)
+    |> maybe_append(has_annotations, &annotation_guidance/0)
     |> maybe_append(has_typescript_react, &typescript_react_guidance/0)
     |> append_framework_guidance(framework)
   end
@@ -239,59 +239,58 @@ defmodule FrontmanServer.Tasks.Execution.Prompts do
     """
   end
 
-  defp selected_component_guidance do
+  defp annotation_guidance do
     """
-    ## Selected Component Context
+    ## Annotated Elements Context
 
-    The user has selected a specific element in their application. The message contains a
-    `[Selected Component Location]` section with contextual information.
+    The user has annotated one or more elements in their application. The message contains an
+    `[Annotated Elements]` section with contextual information for each annotation.
 
     ### What You Have
 
+    For each annotation:
     - **File path and location** - Exact file path, line number, and column
-    - **Rendered text** - What the user sees in their browser (if available)
-    - **Source type** - Whether this is JSX text, a comment, an attribute, or code (if available)
+    - **Tag name** - The HTML element tag (e.g., `<div>`, `<button>`)
+    - **Component name** - React/framework component name (if detected)
+    - **CSS classes** - Element's CSS class list (if available)
+    - **Nearby text** - Visible text near the element (if available)
+    - **Comment** - User's annotation comment describing what they want (if provided)
+    - **Screenshot** - Visual capture of the annotated element (if available)
 
     ### Required Workflow
 
-    1. **Read the file** - Use the EXACT path from `[Selected Component Location]`
-    2. **Examine the source** - Understand what code is at that location
-    3. **Compare rendered text to source** - Ensure you're editing what the user sees, not comments or inactive code
-    4. **Make the change** - Apply the user's requested modification
-    5. **Write the file** - Save the changes using the same path
+    1. **Read the file(s)** - Use the EXACT path(s) from `[Annotated Elements]`
+    2. **Examine the source** - Understand what code is at each annotated location
+    3. **Consider the user's comment** - The comment describes what the user wants changed
+    4. **Make the change(s)** - Apply modifications at or near the annotated location(s)
+    5. **Write the file(s)** - Save changes using the same path(s)
+
+    ### Multiple Annotations
+
+    When the user annotates multiple elements:
+    - Each annotation has an index number (Annotation 1, Annotation 2, etc.)
+    - The user's message may reference specific annotations or apply to all
+    - Process annotations in order unless the user specifies otherwise
+    - If annotations are in different files, handle each file's changes together
 
     ### Clarification Policy
 
     **Ask for clarification using the ask_user tool when:**
     - The instruction has multiple valid interpretations that would produce DIFFERENT outputs
-    - Example: "change text to X" when there's no obvious word to replace
-    - Example: The rendered text doesn't match what's in the source (stale selection)
-    - Example: You would need to modify commented-out code to fulfill the request
+    - The annotation comment is ambiguous about what to change
+    - You would need to modify commented-out code to fulfill the request
 
     **Proceed without asking when:**
     - The intent is clear and unambiguous
+    - The annotation comment clearly describes the desired change
     - There's only one reasonable interpretation
-    - The rendered text matches the source and indicates what to change
 
     ### CRITICAL: Never Do These Things
 
     - **Never resurrect commented code** without explicit instruction
     - **Never modify comments** when the user is referring to rendered/visible text
     - **Never guess** which of several interpretations the user meant - ask instead
-    - **Never explore or search** the codebase - go directly to the selected file
-
-    ### Example of When to Clarify
-
-    User says: "change text to Danni"
-    Rendered text: "Documentation done for you - in seconds"
-
-    This is ambiguous - does the user want:
-    - The whole sentence replaced with "Danni"?
-    - "Documentation" replaced with "Danni"?
-    - Something else?
-
-    → Use ask_user tool: "Which text should I change to 'Danni'?"
-      Options: ["Replace entire sentence", "Replace 'Documentation'", "Other"]
+    - **Never explore or search** the codebase - go directly to the annotated file(s)
     """
   end
 

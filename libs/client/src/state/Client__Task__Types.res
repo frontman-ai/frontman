@@ -6,28 +6,7 @@ module UserContentPart = Client__Message.UserContentPart
 module AssistantContentPart = Client__Message.AssistantContentPart
 module Message = Client__Message
 
-module SelectedElement = {
-  type t = {
-    element: WebAPI.DOMAPI.element,
-    selector: option<string>,
-    screenshot: option<string>,
-    sourceLocation: option<Client__Types.SourceLocation.t>,
-  }
-
-  let make = (
-    ~element: WebAPI.DOMAPI.element,
-    ~selector: option<string>,
-    ~screenshot: option<string>,
-    ~sourceLocation: option<Client__Types.SourceLocation.t>,
-  ) => {
-    {
-      element,
-      selector,
-      screenshot,
-      sourceLocation,
-    }
-  }
-}
+module Annotation = Client__Annotation__Types
 
 module FigmaNode = {
   // Selected node with DSL representation or full node data, and image
@@ -121,8 +100,9 @@ module Task = {
     | New({
         clientId: string,
         previewFrame: previewFrame,
-        webPreviewIsSelecting: bool,
-        selectedElement: option<SelectedElement.t>,
+        annotationMode: Annotation.annotationMode,
+        annotations: array<Annotation.t>,
+        pendingAnnotation: option<Annotation.pending>,
       })
     // Unloaded: persisted but only metadata loaded
     | Unloaded({
@@ -139,8 +119,9 @@ module Task = {
         updatedAt: float,
         messages: Client__MessageStore.t,
         previewFrame: previewFrame,
-        webPreviewIsSelecting: bool,
-        selectedElement: option<SelectedElement.t>,
+        annotationMode: Annotation.annotationMode,
+        annotations: array<Annotation.t>,
+        pendingAnnotation: option<Annotation.pending>,
       })
     // Loaded: fully interactive
     // clientId is preserved from New state during promotion to maintain iframe identity
@@ -152,8 +133,9 @@ module Task = {
         updatedAt: float,
         messages: Client__MessageStore.t,
         previewFrame: previewFrame,
-        webPreviewIsSelecting: bool,
-        selectedElement: option<SelectedElement.t>,
+        annotationMode: Annotation.annotationMode,
+        annotations: array<Annotation.t>,
+        pendingAnnotation: option<Annotation.pending>,
         isAgentRunning: bool,
         planEntries: array<ACPTypes.planEntry>,
         turnError: option<string>,
@@ -231,18 +213,18 @@ module Task = {
     | Loading({previewFrame}) | Loaded({previewFrame}) => previewFrame
     }
 
-  let getWebPreviewIsSelecting = (task: t): bool =>
+  let getAnnotationMode = (task: t): Annotation.annotationMode =>
     switch task {
-    | New({webPreviewIsSelecting}) => webPreviewIsSelecting
-    | Unloaded(_) => false
-    | Loading({webPreviewIsSelecting}) | Loaded({webPreviewIsSelecting}) => webPreviewIsSelecting
+    | New({annotationMode}) => annotationMode
+    | Unloaded(_) => Annotation.Off
+    | Loading({annotationMode}) | Loaded({annotationMode}) => annotationMode
     }
 
-  let getSelectedElement = (task: t): option<SelectedElement.t> =>
+  let getAnnotations = (task: t): array<Annotation.t> =>
     switch task {
-    | New({selectedElement}) => selectedElement
-    | Unloaded(_) => None
-    | Loading({selectedElement}) | Loaded({selectedElement}) => selectedElement
+    | New({annotations}) => annotations
+    | Unloaded(_) => []
+    | Loading({annotations}) | Loaded({annotations}) => annotations
     }
 
   let getImageAttachments = (task: t): Dict.t<Client__Message.fileAttachmentData> =>
@@ -250,6 +232,17 @@ module Task = {
     | Loaded({imageAttachments}) => imageAttachments
     | New(_) | Unloaded(_) | Loading(_) => Dict.make()
     }
+
+  let getPendingAnnotation = (task: t): option<Annotation.pending> =>
+    switch task {
+    | New({pendingAnnotation}) => pendingAnnotation
+    | Unloaded(_) => None
+    | Loading({pendingAnnotation}) | Loaded({pendingAnnotation}) => pendingAnnotation
+    }
+
+  // Derived: is any selection mode active?
+  let getWebPreviewIsSelecting = (task: t): bool =>
+    getAnnotationMode(task) != Annotation.Off
 
   // State predicates
   let isNew = (task: t): bool =>
@@ -303,8 +296,9 @@ module Task = {
     New({
       clientId: WebAPI.Global.crypto->WebAPI.Crypto.randomUUID,
       previewFrame: {url: previewUrl, contentDocument: None, contentWindow: None, deviceMode: Client__DeviceMode.defaultDeviceMode, orientation: Client__DeviceMode.defaultOrientation},
-      webPreviewIsSelecting: false,
-      selectedElement: None,
+      annotationMode: Annotation.Off,
+      annotations: [],
+      pendingAnnotation: None,
     })
   }
 
@@ -329,8 +323,9 @@ module Task = {
         updatedAt,
         messages: Client__MessageStore.make(),
         previewFrame: {url: previewUrl, contentDocument: None, contentWindow: None, deviceMode: Client__DeviceMode.defaultDeviceMode, orientation: Client__DeviceMode.defaultOrientation},
-        webPreviewIsSelecting: false,
-        selectedElement: None,
+        annotationMode: Annotation.Off,
+        annotations: [],
+        pendingAnnotation: None,
       })
     | New(_) => failwith("[Task.startLoading] Cannot load a New task - it has no server session")
     | Loading(_) | Loaded(_) => task
@@ -345,7 +340,7 @@ module Task = {
     ~title: string,
   ): t => {
     switch task {
-    | New({clientId, previewFrame, webPreviewIsSelecting, selectedElement}) =>
+    | New({clientId, previewFrame, annotationMode, annotations, pendingAnnotation}) =>
       let timestamp = Date.now()
       Loaded({
         id,
@@ -355,8 +350,9 @@ module Task = {
         updatedAt: timestamp,
         messages: Client__MessageStore.make(),
         previewFrame,
-        webPreviewIsSelecting,
-        selectedElement,
+        annotationMode,
+        annotations,
+        pendingAnnotation,
         isAgentRunning: false,
         planEntries: [],
         turnError: None,
@@ -384,8 +380,9 @@ module Task = {
       updatedAt: createdAt,
       messages: Client__MessageStore.fromArray(messages),
       previewFrame: {url: previewUrl, contentDocument: None, contentWindow: None, deviceMode: Client__DeviceMode.defaultDeviceMode, orientation: Client__DeviceMode.defaultOrientation},
-      webPreviewIsSelecting: false,
-      selectedElement: None,
+      annotationMode: Annotation.Off,
+      annotations: [],
+      pendingAnnotation: None,
       isAgentRunning,
       planEntries: [],
       turnError: None,
@@ -394,13 +391,13 @@ module Task = {
   }
 
   // ============================================================================
-  // Backward Compatibility (to be removed after migration)
+  // Helper types and convenience constructors
   // ============================================================================
 
   type loadedData = {
     messages: array<Message.t>,
-    webPreviewIsSelecting: bool,
-    selectedElement: option<SelectedElement.t>,
+    annotationMode: Annotation.annotationMode,
+    annotations: array<Annotation.t>,
     isAgentRunning: bool,
     planEntries: array<ACPTypes.planEntry>,
     turnError: option<string>,
@@ -413,8 +410,8 @@ module Task = {
 
   let makeLoadedData = (~messages=[]): loadedData => {
     messages,
-    webPreviewIsSelecting: false,
-    selectedElement: None,
+    annotationMode: Annotation.Off,
+    annotations: [],
     isAgentRunning: false,
     planEntries: [],
     turnError: None,
@@ -436,20 +433,20 @@ module Task = {
 
   let getLoadedData = (task: t): option<loadedData> => {
     switch task {
-    | Loaded({messages, webPreviewIsSelecting, selectedElement, isAgentRunning, planEntries, turnError}) =>
-      Some({messages: Client__MessageStore.toArray(messages), webPreviewIsSelecting, selectedElement, isAgentRunning, planEntries, turnError})
-    | Loading({messages, webPreviewIsSelecting, selectedElement}) =>
-      Some({messages: Client__MessageStore.toArray(messages), webPreviewIsSelecting, selectedElement, isAgentRunning: false, planEntries: [], turnError: None})
-    | New({webPreviewIsSelecting, selectedElement}) =>
-      Some({messages: [], webPreviewIsSelecting, selectedElement, isAgentRunning: false, planEntries: [], turnError: None})
+    | Loaded({messages, annotationMode, annotations, isAgentRunning, planEntries, turnError}) =>
+      Some({messages: Client__MessageStore.toArray(messages), annotationMode, annotations, isAgentRunning, planEntries, turnError})
+    | Loading({messages, annotationMode, annotations}) =>
+      Some({messages: Client__MessageStore.toArray(messages), annotationMode, annotations, isAgentRunning: false, planEntries: [], turnError: None})
+    | New({annotationMode, annotations}) =>
+      Some({messages: [], annotationMode, annotations, isAgentRunning: false, planEntries: [], turnError: None})
     | Unloaded(_) => None
     }
   }
 
   let updateLoadedData = (task: t, fn: loadedData => loadedData): t => {
     switch task {
-    | Loaded({id, clientId, title, createdAt, updatedAt, messages, previewFrame, webPreviewIsSelecting, selectedElement, isAgentRunning, planEntries, turnError, imageAttachments}) => {
-        let data = {messages: Client__MessageStore.toArray(messages), webPreviewIsSelecting, selectedElement, isAgentRunning, planEntries, turnError}
+    | Loaded({id, clientId, title, createdAt, updatedAt, messages, previewFrame, annotationMode, annotations, pendingAnnotation, isAgentRunning, planEntries, turnError, imageAttachments}) => {
+        let data = {messages: Client__MessageStore.toArray(messages), annotationMode, annotations, isAgentRunning, planEntries, turnError}
         let updated = fn(data)
         Loaded({
           id,
@@ -459,16 +456,17 @@ module Task = {
           updatedAt,
           messages: Client__MessageStore.fromArray(updated.messages),
           previewFrame,
-          webPreviewIsSelecting: updated.webPreviewIsSelecting,
-          selectedElement: updated.selectedElement,
+          annotationMode: updated.annotationMode,
+          annotations: updated.annotations,
+          pendingAnnotation,
           isAgentRunning: updated.isAgentRunning,
           planEntries: updated.planEntries,
           turnError: updated.turnError,
           imageAttachments,
         })
       }
-    | Loading({id, title, createdAt, updatedAt, messages, previewFrame, webPreviewIsSelecting, selectedElement}) => {
-        let data = {messages: Client__MessageStore.toArray(messages), webPreviewIsSelecting, selectedElement, isAgentRunning: false, planEntries: [], turnError: None}
+    | Loading({id, title, createdAt, updatedAt, messages, previewFrame, annotationMode, annotations, pendingAnnotation}) => {
+        let data = {messages: Client__MessageStore.toArray(messages), annotationMode, annotations, isAgentRunning: false, planEntries: [], turnError: None}
         let updated = fn(data)
         Loading({
           id,
@@ -477,18 +475,20 @@ module Task = {
           updatedAt,
           messages: Client__MessageStore.fromArray(updated.messages),
           previewFrame,
-          webPreviewIsSelecting: updated.webPreviewIsSelecting,
-          selectedElement: updated.selectedElement,
+          annotationMode: updated.annotationMode,
+          annotations: updated.annotations,
+          pendingAnnotation,
         })
       }
-    | New({clientId, previewFrame, webPreviewIsSelecting, selectedElement}) => {
-        let data = {messages: [], webPreviewIsSelecting, selectedElement, isAgentRunning: false, planEntries: [], turnError: None}
+    | New({clientId, previewFrame, annotationMode, annotations, pendingAnnotation}) => {
+        let data = {messages: [], annotationMode, annotations, isAgentRunning: false, planEntries: [], turnError: None}
         let updated = fn(data)
         New({
           clientId,
           previewFrame,
-          webPreviewIsSelecting: updated.webPreviewIsSelecting,
-          selectedElement: updated.selectedElement,
+          annotationMode: updated.annotationMode,
+          annotations: updated.annotations,
+          pendingAnnotation,
         })
       }
     | Unloaded(_) => task
@@ -552,20 +552,47 @@ let rec serializeParentToJson = (parent: option<Client__Types.SourceLocation.t>)
   })
 }
 
-// Helper to create _meta JSON for selected component with componentProps and parent chain
-let makeSelectedComponentMeta = (
-  ~file: string,
-  ~line: int,
-  ~column: int,
+// Helper to create _meta JSON for an annotation with all structured data
+let makeAnnotationMeta = (
+  ~annotationIndex: int,
+  ~annotationId: string,
+  ~tagName: string,
+  ~comment: option<string>,
+  ~file: option<string>,
+  ~line: option<int>,
+  ~column: option<int>,
   ~componentName: option<string>,
   ~componentProps: option<Dict.t<JSON.t>>,
   ~parent: option<Client__Types.SourceLocation.t>,
+  ~cssClasses: option<string>,
+  ~nearbyText: option<string>,
+  ~boundingBox: option<Annotation.boundingBox>,
 ): JSON.t => {
   let obj = Dict.make()
-  obj->Dict.set("selected_component", JSON.Encode.bool(true))
-  obj->Dict.set("file", JSON.Encode.string(file))
-  obj->Dict.set("line", JSON.Encode.int(line))
-  obj->Dict.set("column", JSON.Encode.int(column))
+  obj->Dict.set("annotation", JSON.Encode.bool(true))
+  obj->Dict.set("annotation_index", JSON.Encode.int(annotationIndex))
+  obj->Dict.set("annotation_id", JSON.Encode.string(annotationId))
+  obj->Dict.set("tag_name", JSON.Encode.string(tagName))
+
+  switch comment {
+  | Some(c) => obj->Dict.set("comment", JSON.Encode.string(c))
+  | None => ()
+  }
+
+  switch file {
+  | Some(f) => obj->Dict.set("file", JSON.Encode.string(f))
+  | None => ()
+  }
+
+  switch line {
+  | Some(l) => obj->Dict.set("line", JSON.Encode.int(l))
+  | None => ()
+  }
+
+  switch column {
+  | Some(c) => obj->Dict.set("column", JSON.Encode.int(c))
+  | None => ()
+  }
 
   switch componentName {
   | Some(name) => obj->Dict.set("component_name", JSON.Encode.string(name))
@@ -582,77 +609,29 @@ let makeSelectedComponentMeta = (
   | None => ()
   }
 
-  JSON.Encode.object(obj)
-}
-
-// Build a Resource ContentBlock from SelectedElement with _meta annotation
-// Contains the source location as structured data in _meta for safe extraction
-// Falls back to selector info when source location is unavailable (e.g., CORS failures with RSC)
-let selectedElementToContentBlock = (sel: SelectedElement.t): option<ACPTypes.contentBlock> => {
-  switch sel.sourceLocation {
-  | Some(loc) => {
-      // Strip file:// prefix to get clean filesystem path for the agent
-      let cleanFilePath = stripFileUriPrefix(loc.file)
-
-      // Build URI with the original file path (preserve for display purposes)
-      let uri = `file://${cleanFilePath}:${loc.line->Int.toString}:${loc.column->Int.toString}`
-
-      let textResource: ACPTypes.textResourceContents = {
-        uri,
-        mimeType: Some("text/plain"),
-        text: `Selected component: ${loc.tagName} at ${cleanFilePath}:${loc.line->Int.toString}:${loc.column->Int.toString}`,
-      }
-
-      // Create _meta with selected_component annotation containing the clean path, componentProps, and parent chain
-      let _meta = makeSelectedComponentMeta(
-        ~file=cleanFilePath,
-        ~line=loc.line,
-        ~column=loc.column,
-        ~componentName=loc.componentName,
-        ~componentProps=loc.componentProps,
-        ~parent=loc.parent,
-      )
-
-      let embeddedResource: ACPTypes.embeddedResource = {
-        _meta: Some(_meta),
-        annotations: None,
-        resource: ACPTypes.TextResourceContents(textResource),
-      }
-
-      Some({
-        ACPTypes.type_: "resource",
-        text: None,
-        uri: None,
-        resource: Some(embeddedResource),
-        content: None,
-      })
-    }
-  | None =>
-    // Fallback: include selector when source location is unavailable
-    sel.selector->Option.map(selector => {
-      let textResource: ACPTypes.textResourceContents = {
-        uri: `selector://${selector}`,
-        mimeType: Some("text/plain"),
-        text: `Selected element: ${selector}`,
-      }
-
-      let _meta: JSON.t = %raw(`{"selected_component": true}`)
-
-      let embeddedResource: ACPTypes.embeddedResource = {
-        _meta: Some(_meta),
-        annotations: None,
-        resource: ACPTypes.TextResourceContents(textResource),
-      }
-
-      {
-        ACPTypes.type_: "resource",
-        text: None,
-        uri: None,
-        resource: Some(embeddedResource),
-        content: None,
-      }
-    })
+  switch cssClasses {
+  | Some(classes) => obj->Dict.set("css_classes", JSON.Encode.string(classes))
+  | None => ()
   }
+
+  switch nearbyText {
+  | Some(text) => obj->Dict.set("nearby_text", JSON.Encode.string(text))
+  | None => ()
+  }
+
+  switch boundingBox {
+  | Some(bb) => {
+      let bbObj = Dict.make()
+      bbObj->Dict.set("x", JSON.Encode.float(bb.x))
+      bbObj->Dict.set("y", JSON.Encode.float(bb.y))
+      bbObj->Dict.set("width", JSON.Encode.float(bb.width))
+      bbObj->Dict.set("height", JSON.Encode.float(bb.height))
+      obj->Dict.set("bounding_box", JSON.Encode.object(bbObj))
+    }
+  | None => ()
+  }
+
+  JSON.Encode.object(obj)
 }
 
 // Helper to extract media type and base64 data from a data URL
@@ -671,35 +650,108 @@ let parseDataUrl = (dataUrl: string): (string, string) => {
   }
 }
 
-// Build an Image ContentBlock from SelectedElement screenshot
-// Uses resource type with mimeType extracted from the data URL
-let selectedElementScreenshotToContentBlock = (
-  screenshotDataUrl: string,
-): ACPTypes.contentBlock => {
-  let (mimeType, base64Data) = parseDataUrl(screenshotDataUrl)
+// Build content blocks for a single annotation
+// Returns 1-2 blocks: resource block with annotation _meta, optional screenshot blob
+let annotationToContentBlocks = (annotation: Annotation.t, ~index: int): array<ACPTypes.contentBlock> => {
+  let blocks = []
 
-  let blobResource: ACPTypes.blobResourceContents = {
-    uri: "component://screenshot",
-    mimeType: Some(mimeType),
-    blob: base64Data,
+  // Extract source location fields if available
+  let (file, line, column, componentName, componentProps, parent) = switch annotation.sourceLocation {
+  | Some(loc) => {
+      let cleanFile = stripFileUriPrefix(loc.file)
+      (Some(cleanFile), Some(loc.line), Some(loc.column), loc.componentName, loc.componentProps, loc.parent)
+    }
+  | None => (None, None, None, None, None, None)
   }
 
-  // Create _meta with selected_component_screenshot annotation
-  let _meta: JSON.t = %raw(`{"selected_component_screenshot": true}`)
+  // Block 1: Resource with annotation metadata
+  let _meta = makeAnnotationMeta(
+    ~annotationIndex=index,
+    ~annotationId=annotation.id,
+    ~tagName=annotation.tagName,
+    ~comment=annotation.comment,
+    ~file,
+    ~line,
+    ~column,
+    ~componentName,
+    ~componentProps,
+    ~parent,
+    ~cssClasses=annotation.cssClasses,
+    ~nearbyText=annotation.nearbyText,
+    ~boundingBox=annotation.boundingBox,
+  )
 
-  let embeddedResource: ACPTypes.embeddedResource = {
-    _meta: Some(_meta),
-    annotations: None,
-    resource: ACPTypes.BlobResourceContents(blobResource),
+  // Build text description and URI
+  let (uri, text) = switch (file, line, column) {
+  | (Some(f), Some(l), Some(c)) => (
+      `file://${f}:${l->Int.toString}:${c->Int.toString}`,
+      `Annotated element: <${annotation.tagName}> at ${f}:${l->Int.toString}:${c->Int.toString}`,
+    )
+  | _ =>
+    // Fallback to selector when no source location
+    switch annotation.selector {
+    | Some(sel) => (`selector://${sel}`, `Annotated element: <${annotation.tagName}> matching ${sel}`)
+    | None => (`element://${annotation.tagName}`, `Annotated element: <${annotation.tagName}>`)
+    }
   }
 
-  {
-    ACPTypes.type_: "resource",
+  let textResource: ACPTypes.textResourceContents = {
+    uri,
+    mimeType: Some("text/plain"),
+    text,
+  }
+
+  let resourceBlock: ACPTypes.contentBlock = {
+    type_: "resource",
     text: None,
     uri: None,
-    resource: Some(embeddedResource),
+    resource: Some({
+      _meta: Some(_meta),
+      annotations: None,
+      resource: ACPTypes.TextResourceContents(textResource),
+    }),
     content: None,
   }
+
+  let blocks = Array.concat(blocks, [resourceBlock])
+
+  // Block 2: Screenshot blob (if available)
+  let blocks = switch annotation.screenshot {
+  | Some(screenshotDataUrl) => {
+      let (mimeType, base64Data) = parseDataUrl(screenshotDataUrl)
+
+      let screenshotMeta: JSON.t = {
+        let obj = Dict.make()
+        obj->Dict.set("annotation_screenshot", JSON.Encode.bool(true))
+        obj->Dict.set("annotation_index", JSON.Encode.int(index))
+        obj->Dict.set("annotation_id", JSON.Encode.string(annotation.id))
+        JSON.Encode.object(obj)
+      }
+
+      let blobResource: ACPTypes.blobResourceContents = {
+        uri: `annotation://${annotation.id}/screenshot`,
+        mimeType: Some(mimeType),
+        blob: base64Data,
+      }
+
+      let screenshotBlock: ACPTypes.contentBlock = {
+        type_: "resource",
+        text: None,
+        uri: None,
+        resource: Some({
+          _meta: Some(screenshotMeta),
+          annotations: None,
+          resource: ACPTypes.BlobResourceContents(blobResource),
+        }),
+        content: None,
+      }
+
+      Array.concat(blocks, [screenshotBlock])
+    }
+  | None => blocks
+  }
+
+  blocks
 }
 
 // Helper to create _meta JSON for figma node with nodeId and is_dsl flag
@@ -927,28 +979,23 @@ let currentPageToContentBlock = (previewFrame: Task.previewFrame): ACPTypes.cont
 
 // Build ContentBlocks array from Task
 // Returns array of ContentBlocks to be added to the prompt
+// Each annotation produces 1-2 blocks (resource + optional screenshot)
 let taskToContentBlocks = (task: Task.t): array<ACPTypes.contentBlock> => {
   switch task {
   | Task.Unloaded(_) => []
-  | Task.New({selectedElement, previewFrame})
-  | Task.Loading({selectedElement, previewFrame})
-  | Task.Loaded({selectedElement, previewFrame}) => {
+  | Task.New({annotations, previewFrame})
+  | Task.Loading({annotations, previewFrame})
+  | Task.Loaded({annotations, previewFrame}) => {
       let blocks = []
 
       // Add current page context (always included — implicit context)
       let blocks = Array.concat(blocks, [currentPageToContentBlock(previewFrame)])
 
-      // Add selectedElement as Resource if available (with source location)
-      let blocks = switch selectedElement->Option.flatMap(selectedElementToContentBlock) {
-      | Some(block) => Array.concat(blocks, [block])
-      | None => blocks
-      }
-
-      // Add selectedElement screenshot as Image if available
-      let blocks = switch selectedElement->Option.flatMap(sel => sel.screenshot) {
-      | Some(screenshot) => Array.concat(blocks, [selectedElementScreenshotToContentBlock(screenshot)])
-      | None => blocks
-      }
+      // Add annotation content blocks
+      let annotationBlocks = annotations->Array.flatMapWithIndex((annotation, index) =>
+        annotationToContentBlocks(annotation, ~index)
+      )
+      let blocks = Array.concat(blocks, annotationBlocks)
 
       blocks
     }
