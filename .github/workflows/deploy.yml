@@ -100,8 +100,8 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.yarn/berry/cache
-          key: yarn-${{ hashFiles('yarn.lock') }}
-          restore-keys: yarn-
+          key: yarn-v2-${{ hashFiles('yarn.lock') }}
+          restore-keys: yarn-v2-
 
       - name: Install dependencies
         run: yarn install --immutable
@@ -124,9 +124,3 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: pages deploy libs/client/dist --project-name=frontman-client --branch=main
-
-      - name: Cleanup workspace
-        if: always()
-        run: |
-          rm -rf node_modules .yarn/install-state.gz
-          rm -rf libs/*/node_modules apps/*/node_modules test/sites/*/node_modules

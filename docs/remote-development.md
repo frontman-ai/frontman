@@ -7,7 +7,7 @@ This guide explains how to use DevPod to run Frontman development environments o
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
 │  Hetzner Cloud Server (see root .env → DEVPOD_SERVER)                    │
-│  CX43: 8 vCPU, 16GB RAM, 160GB NVMe                                     │
+│  CX33: 8 vCPU, 8GB RAM, 80GB NVMe + 4GB swap                            │
 │                                                                         │
 │  ┌─────────────────────────────────────────────────────────────────┐    │
 │  │  Caddy Reverse Proxy (ports 80/443)                             │    │
@@ -652,16 +652,16 @@ EOF
 
 ## Resource Limits
 
-The CX43 server has:
+The CX33 server has:
 - 8 shared vCPUs
-- 16GB RAM
-- 160GB NVMe SSD
+- 8GB RAM + 4GB swap
+- 80GB NVMe SSD
 
 Estimated usage per workspace:
 - ~1.5-2GB RAM (with all dev servers running)
 - ~5-10GB disk (deps, node_modules, build artifacts)
 
-**Recommended:** Run 3-5 concurrent workspaces comfortably.
+**Recommended:** Run 1-2 concurrent workspaces comfortably (CI runners consume ~7.5GB when active).
 
 ## Security Notes
 

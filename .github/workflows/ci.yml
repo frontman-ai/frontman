@@ -13,6 +13,15 @@ on:
 permissions:
   contents: read
 
+# Cancel in-progress runs for the same PR/branch to free up runners
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+# Cap Node.js heap to avoid OOM on memory-constrained self-hosted runners (~2.5GB per runner)
+env:
+  NODE_OPTIONS: '--max-old-space-size=1536'
+
 jobs:
   setup:
     name: Setup & cache dependencies
@@ -230,6 +239,7 @@ jobs:
 
   lint-frontman-server:
     name: Lint frontman-server
+    needs: [test-frontman-server]
     runs-on: self-hosted
     steps:
       - name: Checkout code
@@ -370,6 +380,7 @@ jobs:
 
   dialyzer-frontman-server:
     name: Dialyzer frontman-server
+    needs: [test-frontman-server]
     runs-on: self-hosted
     steps:
       - name: Checkout code
