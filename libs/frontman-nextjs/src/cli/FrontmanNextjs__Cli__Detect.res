@@ -15,6 +15,7 @@ type packageManager =
   | Yarn
   | Pnpm
   | Bun
+  | Deno
 
 type existingFile =
   | NotFound
@@ -96,13 +97,17 @@ let detectNextVersion = async (projectDir: string): option<nextVersion> => {
 let detectPackageManager = async (projectDir: string): packageManager => {
   // Check a directory for lock files
   let checkDir = async (dir: string): option<packageManager> => {
-    let bunLock = Path.join([dir, "bun.lockb"])
+    let bunLockb = Path.join([dir, "bun.lockb"])
+    let bunLock = Path.join([dir, "bun.lock"])
+    let denoLock = Path.join([dir, "deno.lock"])
     let pnpmLock = Path.join([dir, "pnpm-lock.yaml"])
     let yarnLock = Path.join([dir, "yarn.lock"])
     let npmLock = Path.join([dir, "package-lock.json"])
 
-    if await fileExists(bunLock) {
+    if (await fileExists(bunLockb)) || (await fileExists(bunLock)) {
       Some(Bun)
+    } else if await fileExists(denoLock) {
+      Some(Deno)
     } else if await fileExists(pnpmLock) {
       Some(Pnpm)
     } else if await fileExists(yarnLock) {
@@ -246,7 +251,19 @@ let getPackageManagerCommand = (pm: packageManager): string => {
   | Npm => "npm"
   | Yarn => "npx yarn"
   | Pnpm => "npx pnpm"
-  | Bun => "npx bun"
+  | Bun => "bun"
+  | Deno => "deno"
+  }
+}
+
+// Get the dev server command for display in success messages
+let getDevCommand = (pm: packageManager): string => {
+  switch pm {
+  | Npm => "npm run dev"
+  | Yarn => "yarn dev"
+  | Pnpm => "pnpm dev"
+  | Bun => "bun dev"
+  | Deno => "deno task dev"
   }
 }
 
@@ -272,6 +289,12 @@ let getInstallArgs = (pm: packageManager, ~isDev: bool=false): array<string> => 
       ["add"]
     }
   | Bun =>
+    if isDev {
+      ["add", "--dev"]
+    } else {
+      ["add"]
+    }
+  | Deno =>
     if isDev {
       ["add", "--dev"]
     } else {

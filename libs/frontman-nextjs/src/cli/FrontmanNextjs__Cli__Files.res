@@ -5,20 +5,30 @@ module Path = Bindings.Path
 
 module Detect = FrontmanNextjs__Cli__Detect
 module Templates = FrontmanNextjs__Cli__Templates
+module AutoEdit = FrontmanNextjs__Cli__AutoEdit
+module Style = FrontmanNextjs__Cli__Style
 
 // Result type for file operations
 type fileResult =
   | Created(string)
   | Updated({fileName: string, oldHost: string, newHost: string})
   | Skipped(string)
-  | ManualEditRequired(string)
+  | ManualEditRequired({fileName: string, details: string})
+  | AutoEdited(string)
 
 // Pattern to match and replace host in existing file
 let hostPattern = %re("/host:\s*['\"]([^'\"]+)['\"]/")
 
+// Escape special replacement patterns ($1, $&, etc.) in a string used as
+// the replacement argument to String.replaceRegExp
+let escapeReplacement: string => string = %raw(`
+  function(str) { return str.replace(/\$/g, '$$$$'); }
+`)
+
 // Update host in existing file content
 let updateHostInContent = (content: string, newHost: string): string => {
-  content->String.replaceRegExp(hostPattern, `host: '${newHost}'`)
+  let safeHost = escapeReplacement(newHost)
+  content->String.replaceRegExp(hostPattern, `host: '${safeHost}'`)
 }
 
 // Read file content
@@ -41,21 +51,82 @@ let writeFile = async (path: string, content: string): result<unit, string> => {
 }
 }
 
+// Info about a file that needs auto-editing (collected before prompting)
+type pendingAutoEdit = {
+  filePath: string,
+  fileName: string,
+  fileType: AutoEdit.fileType,
+  manualDetails: string,
+}
+
+// Handle the NeedsManualEdit case — when autoEdit is true, perform the edit;
+// when false, return manual instructions
+let handleNeedsManualEdit = async (
+  ~filePath: string,
+  ~fileName: string,
+  ~host: string,
+  ~fileType: AutoEdit.fileType,
+  ~dryRun: bool,
+  ~autoEdit: bool,
+  ~manualDetails: string,
+): result<fileResult, string> => {
+  switch dryRun {
+  | true => Ok(ManualEditRequired({fileName, details: manualDetails}))
+  | false =>
+    switch autoEdit {
+    | false => Ok(ManualEditRequired({fileName, details: manualDetails}))
+    | true =>
+      switch await readFile(filePath) {
+      | None => Ok(ManualEditRequired({fileName, details: manualDetails}))
+      | Some(existingContent) =>
+        switch await AutoEdit.autoEditFile(
+          ~filePath,
+          ~fileName,
+          ~existingContent,
+          ~fileType,
+          ~host,
+        ) {
+        | AutoEdit.AutoEdited(name) => Ok(AutoEdited(name))
+        | AutoEdit.AutoEditFailed(err) =>
+          Console.log(Templates.SuccessMessages.autoEditFailed(fileName, err))
+          Console.log(`     Falling back to manual instructions.`)
+          Ok(ManualEditRequired({fileName, details: manualDetails}))
+        }
+      }
+    }
+  }
+}
+
+// Check if a file handler would need auto-editing (without prompting)
+let getPendingAutoEdit = (
+  ~existingFile: Detect.existingFile,
+  ~filePath: string,
+  ~fileName: string,
+  ~fileType: AutoEdit.fileType,
+  ~manualDetails: string,
+): option<pendingAutoEdit> => {
+  switch existingFile {
+  | NeedsManualEdit => Some({filePath, fileName, fileType, manualDetails})
+  | NotFound | HasFrontman(_) => None
+  }
+}
+
 // Handle middleware file (Next.js 15 and earlier)
 let handleMiddleware = async (
   ~projectDir: string,
   ~host: string,
   ~existingFile: Detect.existingFile,
   ~dryRun: bool,
+  ~autoEdit: bool=false,
 ): result<fileResult, string> => {
   let filePath = Path.join([projectDir, "middleware.ts"])
   let fileName = "middleware.ts"
 
   switch existingFile {
   | NotFound =>
-    if dryRun {
-      Ok(Created(fileName))
-    } else {
+    switch dryRun {
+    | true => Ok(Created(fileName))
+    | false =>
       let content = Templates.middlewareTemplate(host)
       switch await writeFile(filePath, content) {
       | Ok() => Ok(Created(fileName))
@@ -64,12 +135,12 @@ let handleMiddleware = async (
     }
 
   | HasFrontman({host: existingHost}) =>
-    if existingHost == host {
-      Ok(Skipped(fileName))
-    } else {
-      if dryRun {
-        Ok(Updated({fileName, oldHost: existingHost, newHost: host}))
-      } else {
+    switch existingHost == host {
+    | true => Ok(Skipped(fileName))
+    | false =>
+      switch dryRun {
+      | true => Ok(Updated({fileName, oldHost: existingHost, newHost: host}))
+      | false =>
         switch await readFile(filePath) {
         | None => Error(`Failed to read ${fileName}`)
         | Some(content) =>
@@ -83,7 +154,15 @@ let handleMiddleware = async (
     }
 
   | NeedsManualEdit =>
-    Ok(ManualEditRequired(Templates.ErrorMessages.middlewareManualSetup(fileName, host)))
+    await handleNeedsManualEdit(
+      ~filePath,
+      ~fileName,
+      ~host,
+      ~fileType=AutoEdit.Middleware,
+      ~dryRun,
+      ~autoEdit,
+      ~manualDetails=Templates.ManualInstructions.middleware(fileName, host),
+    )
   }
 }
 
@@ -93,15 +172,16 @@ let handleProxy = async (
   ~host: string,
   ~existingFile: Detect.existingFile,
   ~dryRun: bool,
+  ~autoEdit: bool=false,
 ): result<fileResult, string> => {
   let filePath = Path.join([projectDir, "proxy.ts"])
   let fileName = "proxy.ts"
 
   switch existingFile {
   | NotFound =>
-    if dryRun {
-      Ok(Created(fileName))
-    } else {
+    switch dryRun {
+    | true => Ok(Created(fileName))
+    | false =>
       let content = Templates.proxyTemplate(host)
       switch await writeFile(filePath, content) {
       | Ok() => Ok(Created(fileName))
@@ -110,12 +190,12 @@ let handleProxy = async (
     }
 
   | HasFrontman({host: existingHost}) =>
-    if existingHost == host {
-      Ok(Skipped(fileName))
-    } else {
-      if dryRun {
-        Ok(Updated({fileName, oldHost: existingHost, newHost: host}))
-      } else {
+    switch existingHost == host {
+    | true => Ok(Skipped(fileName))
+    | false =>
+      switch dryRun {
+      | true => Ok(Updated({fileName, oldHost: existingHost, newHost: host}))
+      | false =>
         switch await readFile(filePath) {
         | None => Error(`Failed to read ${fileName}`)
         | Some(content) =>
@@ -129,37 +209,47 @@ let handleProxy = async (
     }
 
   | NeedsManualEdit =>
-    Ok(ManualEditRequired(Templates.ErrorMessages.proxyManualSetup(fileName, host)))
+    await handleNeedsManualEdit(
+      ~filePath,
+      ~fileName,
+      ~host,
+      ~fileType=AutoEdit.Proxy,
+      ~dryRun,
+      ~autoEdit,
+      ~manualDetails=Templates.ManualInstructions.proxy(fileName, host),
+    )
   }
 }
 
 // Handle instrumentation file
 let handleInstrumentation = async (
   ~projectDir: string,
+  ~host: string,
   ~hasSrcDir: bool,
   ~existingFile: Detect.existingFile,
   ~dryRun: bool,
+  ~autoEdit: bool=false,
 ): result<fileResult, string> => {
-  let filePath = if hasSrcDir {
-    Path.join([projectDir, "src", "instrumentation.ts"])
-  } else {
-    Path.join([projectDir, "instrumentation.ts"])
+  let filePath = switch hasSrcDir {
+  | true => Path.join([projectDir, "src", "instrumentation.ts"])
+  | false => Path.join([projectDir, "instrumentation.ts"])
   }
-  let fileName = if hasSrcDir {
-    "src/instrumentation.ts"
-  } else {
-    "instrumentation.ts"
+  let fileName = switch hasSrcDir {
+  | true => "src/instrumentation.ts"
+  | false => "instrumentation.ts"
   }
 
   switch existingFile {
   | NotFound =>
-    if dryRun {
-      Ok(Created(fileName))
-    } else {
+    switch dryRun {
+    | true => Ok(Created(fileName))
+    | false =>
       // Ensure src/ directory exists if needed
-      if hasSrcDir {
+      switch hasSrcDir {
+      | true =>
         let srcDir = Path.join([projectDir, "src"])
         let _ = await Fs.Promises.mkdir(srcDir, {recursive: true})
+      | false => ()
       }
       let content = Templates.instrumentationTemplate()
       switch await writeFile(filePath, content) {
@@ -173,18 +263,27 @@ let handleInstrumentation = async (
     Ok(Skipped(fileName))
 
   | NeedsManualEdit =>
-    Ok(ManualEditRequired(Templates.ErrorMessages.instrumentationManualSetup(fileName)))
+    await handleNeedsManualEdit(
+      ~filePath,
+      ~fileName,
+      ~host,
+      ~fileType=AutoEdit.Instrumentation,
+      ~dryRun,
+      ~autoEdit,
+      ~manualDetails=Templates.ManualInstructions.instrumentation(fileName),
+    )
   }
 }
 
-// Format file result for display
+// Format file result for display (short one-liner)
 let formatResult = (result: fileResult): string => {
   switch result {
   | Created(fileName) => Templates.SuccessMessages.fileCreated(fileName)
   | Updated({fileName, oldHost, newHost}) =>
     Templates.SuccessMessages.hostUpdated(fileName, oldHost, newHost)
   | Skipped(fileName) => Templates.SuccessMessages.fileSkipped(fileName)
-  | ManualEditRequired(message) => message
+  | ManualEditRequired({fileName, _}) => Templates.SuccessMessages.manualEditRequired(fileName)
+  | AutoEdited(fileName) => Templates.SuccessMessages.fileAutoEdited(fileName)
   }
 }
 
@@ -192,6 +291,6 @@ let formatResult = (result: fileResult): string => {
 let isManualEditRequired = (result: fileResult): bool => {
   switch result {
   | ManualEditRequired(_) => true
-  | _ => false
+  | Created(_) | Updated(_) | Skipped(_) | AutoEdited(_) => false
   }
 }

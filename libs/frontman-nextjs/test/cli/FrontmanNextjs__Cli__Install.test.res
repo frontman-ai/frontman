@@ -7,6 +7,7 @@ module Process = Bindings.Process
 module Os = Bindings.Os
 module ChildProcess = Bindings.ChildProcess
 
+module AutoEdit = FrontmanNextjs__Cli__AutoEdit
 module Detect = FrontmanNextjs__Cli__Detect
 module Files = FrontmanNextjs__Cli__Files
 module Install = FrontmanNextjs__Cli__Install
@@ -507,6 +508,181 @@ describe("src/ Directory Support", _t => {
     t->expect(rootInstrumentationExists)->Expect.toBe(false)
 
     await cleanupTempFixture(tempDir)
+  })
+})
+
+describe("Host Replacement $ Injection Safety", _t => {
+  test("escapeReplacement escapes dollar signs", t => {
+    let result = Files.escapeReplacement("host-with-$1-injection")
+    t->expect(result)->Expect.toBe("host-with-$$1-injection")
+  })
+
+  test("updateHostInContent handles host with $1 pattern", t => {
+    let content = "const m = createMiddleware({ host: 'old.host.com' });"
+    let updated = Files.updateHostInContent(content, "new-$1-host.com")
+    t->expect(updated->String.includes("new-$1-host.com"))->Expect.toBe(true)
+    t->expect(updated->String.includes("old.host.com"))->Expect.toBe(false)
+  })
+
+  test("updateHostInContent handles host with $& pattern", t => {
+    let content = "const m = createMiddleware({ host: 'old.host.com' });"
+    let updated = Files.updateHostInContent(content, "new-$&-host.com")
+    t->expect(updated->String.includes("new-$&-host.com"))->Expect.toBe(true)
+  })
+
+  test("updateHostInContent handles host with $$ pattern", t => {
+    let content = "const m = createMiddleware({ host: 'old.host.com' });"
+    let updated = Files.updateHostInContent(content, "new-$$-host.com")
+    t->expect(updated->String.includes("new-$$-host.com"))->Expect.toBe(true)
+  })
+
+  test("updateHostInContent works with normal host", t => {
+    let content = "const m = createMiddleware({ host: 'old.host.com' });"
+    let updated = Files.updateHostInContent(content, "new.host.com")
+    t->expect(updated->String.includes("new.host.com"))->Expect.toBe(true)
+    t->expect(updated->String.includes("old.host.com"))->Expect.toBe(false)
+  })
+})
+
+describe("Batched Auto-Edit Collection", _t => {
+  test("getPendingAutoEdit returns Some for NeedsManualEdit", t => {
+    let result = Files.getPendingAutoEdit(
+      ~existingFile=Detect.NeedsManualEdit,
+      ~filePath="/tmp/middleware.ts",
+      ~fileName="middleware.ts",
+      ~fileType=AutoEdit.Middleware,
+      ~manualDetails="manual details",
+    )
+    switch result {
+    | Some(p) =>
+      t->expect(p.fileName)->Expect.toBe("middleware.ts")
+      t->expect(p.filePath)->Expect.toBe("/tmp/middleware.ts")
+    | None => t->expect("should")->Expect.toBe("return Some")
+    }
+  })
+
+  test("getPendingAutoEdit returns None for NotFound", t => {
+    let result = Files.getPendingAutoEdit(
+      ~existingFile=Detect.NotFound,
+      ~filePath="/tmp/middleware.ts",
+      ~fileName="middleware.ts",
+      ~fileType=AutoEdit.Middleware,
+      ~manualDetails="manual details",
+    )
+    switch result {
+    | None => t->expect(true)->Expect.toBe(true)
+    | Some(_) => t->expect("should")->Expect.toBe("return None for NotFound")
+    }
+  })
+
+  test("getPendingAutoEdit returns None for HasFrontman", t => {
+    let result = Files.getPendingAutoEdit(
+      ~existingFile=Detect.HasFrontman({host: "test.host"}),
+      ~filePath="/tmp/middleware.ts",
+      ~fileName="middleware.ts",
+      ~fileType=AutoEdit.Middleware,
+      ~manualDetails="manual details",
+    )
+    switch result {
+    | None => t->expect(true)->Expect.toBe(true)
+    | Some(_) => t->expect("should")->Expect.toBe("return None for HasFrontman")
+    }
+  })
+
+  test("collectPendingAutoEdits collects middleware needing edit", t => {
+    let info: Detect.projectInfo = {
+      nextVersion: Some({major: 15, minor: 0, raw: "15.0.0"}),
+      middleware: Detect.NeedsManualEdit,
+      proxy: Detect.NotFound,
+      instrumentation: Detect.NotFound,
+      hasSrcDir: false,
+      packageManager: Detect.Npm,
+    }
+    let pending = Install.collectPendingAutoEdits(
+      ~projectDir="/tmp",
+      ~host="test.host",
+      ~info,
+      ~isNext16Plus=false,
+    )
+    t->expect(pending->Array.length)->Expect.toBe(1)
+    t->expect((pending->Array.getUnsafe(0)).fileName)->Expect.toBe("middleware.ts")
+  })
+
+  test("collectPendingAutoEdits collects both middleware and instrumentation", t => {
+    let info: Detect.projectInfo = {
+      nextVersion: Some({major: 15, minor: 0, raw: "15.0.0"}),
+      middleware: Detect.NeedsManualEdit,
+      proxy: Detect.NotFound,
+      instrumentation: Detect.NeedsManualEdit,
+      hasSrcDir: false,
+      packageManager: Detect.Npm,
+    }
+    let pending = Install.collectPendingAutoEdits(
+      ~projectDir="/tmp",
+      ~host="test.host",
+      ~info,
+      ~isNext16Plus=false,
+    )
+    t->expect(pending->Array.length)->Expect.toBe(2)
+    let fileNames = pending->Array.map(p => p.fileName)
+    t->expect(fileNames->Array.includes("middleware.ts"))->Expect.toBe(true)
+    t->expect(fileNames->Array.includes("instrumentation.ts"))->Expect.toBe(true)
+  })
+
+  test("collectPendingAutoEdits uses proxy for Next.js 16+", t => {
+    let info: Detect.projectInfo = {
+      nextVersion: Some({major: 16, minor: 0, raw: "16.0.0"}),
+      middleware: Detect.NeedsManualEdit,
+      proxy: Detect.NeedsManualEdit,
+      instrumentation: Detect.NotFound,
+      hasSrcDir: false,
+      packageManager: Detect.Npm,
+    }
+    let pending = Install.collectPendingAutoEdits(
+      ~projectDir="/tmp",
+      ~host="test.host",
+      ~info,
+      ~isNext16Plus=true,
+    )
+    t->expect(pending->Array.length)->Expect.toBe(1)
+    t->expect((pending->Array.getUnsafe(0)).fileName)->Expect.toBe("proxy.ts")
+  })
+
+  test("collectPendingAutoEdits uses src/ path for instrumentation when hasSrcDir", t => {
+    let info: Detect.projectInfo = {
+      nextVersion: Some({major: 15, minor: 0, raw: "15.0.0"}),
+      middleware: Detect.NotFound,
+      proxy: Detect.NotFound,
+      instrumentation: Detect.NeedsManualEdit,
+      hasSrcDir: true,
+      packageManager: Detect.Npm,
+    }
+    let pending = Install.collectPendingAutoEdits(
+      ~projectDir="/tmp",
+      ~host="test.host",
+      ~info,
+      ~isNext16Plus=false,
+    )
+    t->expect(pending->Array.length)->Expect.toBe(1)
+    t->expect((pending->Array.getUnsafe(0)).fileName)->Expect.toBe("src/instrumentation.ts")
+  })
+
+  test("collectPendingAutoEdits returns empty when no files need editing", t => {
+    let info: Detect.projectInfo = {
+      nextVersion: Some({major: 15, minor: 0, raw: "15.0.0"}),
+      middleware: Detect.NotFound,
+      proxy: Detect.NotFound,
+      instrumentation: Detect.NotFound,
+      hasSrcDir: false,
+      packageManager: Detect.Npm,
+    }
+    let pending = Install.collectPendingAutoEdits(
+      ~projectDir="/tmp",
+      ~host="test.host",
+      ~info,
+      ~isNext16Plus=false,
+    )
+    t->expect(pending->Array.length)->Expect.toBe(0)
   })
 })
 

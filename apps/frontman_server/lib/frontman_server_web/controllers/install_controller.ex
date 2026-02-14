@@ -97,13 +97,14 @@ defmodule FrontmanServerWeb.InstallController do
     end
   end
 
-  # Builds the installation bash script with all robustness improvements
+  # Builds the installation bash script
+  # Pre-flight checks run here; all user-facing output is handled by the CLI
   defp build_install_script(host) do
     """
     #!/bin/bash
     set -euo pipefail
 
-    # Colors for output
+    # Colors for pre-flight output
     RED=$'\\e[0;31m'
     GREEN=$'\\e[0;32m'
     YELLOW=$'\\e[1;33m'
@@ -125,11 +126,6 @@ defmodule FrontmanServerWeb.InstallController do
         fi
     }
     trap cleanup EXIT
-
-    echo ""
-    echo "${GREEN}Frontman Installer${NC}"
-    echo "Server: $INSTALL_HOST"
-    echo ""
 
     # Check for Node.js
     if ! command -v node &> /dev/null; then
@@ -156,16 +152,12 @@ defmodule FrontmanServerWeb.InstallController do
         exit 1
     fi
 
-    echo "${GREEN}✓${NC} Node.js $NODE_VERSION_RAW"
-
     # Check for npx
     if ! command -v npx &> /dev/null; then
         error "npx is not available"
         echo "npx should come with npm. Please reinstall Node.js." >&2
         exit 1
     fi
-
-    echo "${GREEN}✓${NC} npx available"
 
     # Optional network connectivity check (only if curl is available)
     if command -v curl &> /dev/null; then
@@ -174,27 +166,17 @@ defmodule FrontmanServerWeb.InstallController do
         fi
     fi
 
-    # Run the installer
-    echo ""
-    echo "Installing..."
-    echo ""
+    # Reconnect stdin to the terminal so the CLI can prompt interactively
+    # (curl | bash pipes stdin, making process.stdin.isTTY falsy)
+    if [ -t 0 ] || [ -e /dev/tty ]; then
+        exec < /dev/tty 2>/dev/null || true
+    fi
 
+    # Run the CLI installer — it handles all user-facing output
     if ! npx --yes @frontman-ai/nextjs install --server "$INSTALL_HOST" "$@"; then
         error "npx command failed"
         exit 1
     fi
-
-    echo ""
-    echo "${GREEN}✓ Frontman installed successfully${NC}"
-    echo ""
-    echo "┌─────────────────────────────────────────────┐"
-    echo "│                                             │"
-    echo "│   💬  Questions? Comments? Need support?    │"
-    echo "│                                             │"
-    echo "│       Join us on Discord:                   │"
-    echo "│       https://discord.gg/J77jBzMM           │"
-    echo "│                                             │"
-    echo "└─────────────────────────────────────────────┘"
     """
   end
 end
