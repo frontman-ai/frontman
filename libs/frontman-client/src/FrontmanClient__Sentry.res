@@ -8,8 +8,13 @@ let dsn = "https://442ae992e5a5ccfc42e6910220aeb2a9@o4510512511320064.ingest.de.
 
 let initialized = ref(false)
 
+// Detect Frontman team internal development (set via mprocs.yml / .dev.env)
+let isInternalDev = () =>
+  %raw(`typeof process !== 'undefined' && process.env?.FRONTMAN_INTERNAL_DEV === 'true'`)
+
 let initialize = (~transport: option<Bindings.transport>=?) => {
-  if !initialized.contents {
+  // Skip Sentry in Frontman internal dev; custom transport (tests) always initializes
+  if !initialized.contents && (Option.isSome(transport) || !isInternalDev()) {
     Bindings.init({
       dsn,
       environment: %raw(`typeof window !== 'undefined' && window.location?.hostname === 'localhost' ? 'development' : 'production'`),
