@@ -58,6 +58,7 @@ defmodule FrontmanServer.Tasks.Interaction do
     - `messages` - array of text messages from the user
     - `selected_component` - source location of selected element
     - `selected_component_screenshot` - screenshot of selected element
+    - `current_page` - page context (URL, viewport, DPR, title, color scheme, scroll)
     """
     use TypedStruct
 
@@ -70,6 +71,16 @@ defmodule FrontmanServer.Tasks.Interaction do
             component_name: String.t() | nil,
             component_props: map() | nil,
             parent: selected_component() | nil
+          }
+
+    @type current_page :: %{
+            url: String.t(),
+            viewport_width: integer() | nil,
+            viewport_height: integer() | nil,
+            device_pixel_ratio: float() | nil,
+            title: String.t() | nil,
+            color_scheme: String.t() | nil,
+            scroll_y: integer() | nil
           }
 
     typedstruct enforce: true do
@@ -93,6 +104,9 @@ defmodule FrontmanServer.Tasks.Interaction do
       # User-uploaded image/PDF attachments
       # Each entry: %{blob: base64_data, mime_type: "image/png", filename: "image.png"}
       field(:images, list(map()), default: [])
+
+      # Extracted current page context from resource with _meta.current_page
+      field(:current_page, current_page() | nil, enforce: false)
     end
 
     def new(content_blocks) do
@@ -106,7 +120,8 @@ defmodule FrontmanServer.Tasks.Interaction do
         selected_component: extract_selected_component(content_blocks),
         selected_component_screenshot: extract_selected_component_screenshot(content_blocks),
         selected_figma_node: extract_selected_figma_node(content_blocks),
-        images: extract_user_images(content_blocks)
+        images: extract_user_images(content_blocks),
+        current_page: extract_current_page(content_blocks)
       }
     end
 
@@ -239,6 +254,37 @@ defmodule FrontmanServer.Tasks.Interaction do
             %{"_meta" => %{"figma_image" => true}, "resource" => %{"blob" => blob}}
             when is_binary(blob) ->
               blob
+
+            _ ->
+              nil
+          end
+
+        _ ->
+          nil
+      end)
+    end
+
+    # Extract current page context from content blocks
+    # Looks for _meta.current_page with page metadata
+    defp extract_current_page(content_blocks) do
+      Enum.find_value(content_blocks, fn
+        %{
+          "type" => "resource",
+          "resource" => %{"_meta" => %{"current_page" => true} = meta}
+        } ->
+          url = Map.get(meta, "url")
+
+          case url do
+            url when is_binary(url) ->
+              %{
+                url: url,
+                viewport_width: Map.get(meta, "viewport_width"),
+                viewport_height: Map.get(meta, "viewport_height"),
+                device_pixel_ratio: Map.get(meta, "device_pixel_ratio"),
+                title: Map.get(meta, "title"),
+                color_scheme: Map.get(meta, "color_scheme"),
+                scroll_y: Map.get(meta, "scroll_y")
+              }
 
             _ ->
               nil
@@ -707,6 +753,7 @@ defmodule FrontmanServer.Tasks.Interaction do
     text_content =
       msg.messages
       |> Enum.join("\n\n")
+      |> append_current_page_context(msg.current_page)
       |> append_component_location(msg.selected_component)
 
     content_parts =
@@ -769,6 +816,57 @@ defmodule FrontmanServer.Tasks.Interaction do
   end
 
   defp append_component_location(text, _), do: text
+
+  # Append current page context to user message text
+  defp append_current_page_context(text, %{url: url} = page) do
+    viewport_context = build_viewport_context(page)
+    dpr_context = build_dpr_context(page)
+    title_context = build_title_context(page)
+    color_scheme_context = build_color_scheme_context(page)
+    scroll_context = build_scroll_context(page)
+
+    page_info = """
+
+    [Current Page Context]
+    URL: #{url}#{viewport_context}#{dpr_context}#{title_context}#{color_scheme_context}#{scroll_context}
+    """
+
+    text <> page_info
+  end
+
+  defp append_current_page_context(text, _), do: text
+
+  defp build_viewport_context(%{viewport_width: w, viewport_height: h})
+       when is_integer(w) and is_integer(h) do
+    "\nViewport: #{w}x#{h}"
+  end
+
+  defp build_viewport_context(_), do: ""
+
+  defp build_dpr_context(%{device_pixel_ratio: dpr})
+       when is_number(dpr) do
+    "\nDevice Pixel Ratio: #{dpr}"
+  end
+
+  defp build_dpr_context(_), do: ""
+
+  defp build_title_context(%{title: title}) when is_binary(title) do
+    "\nPage Title: #{title}"
+  end
+
+  defp build_title_context(_), do: ""
+
+  defp build_color_scheme_context(%{color_scheme: scheme}) when is_binary(scheme) do
+    "\nColor Scheme: #{scheme}"
+  end
+
+  defp build_color_scheme_context(_), do: ""
+
+  defp build_scroll_context(%{scroll_y: scroll_y}) when is_integer(scroll_y) do
+    "\nScroll Position: #{scroll_y}px"
+  end
+
+  defp build_scroll_context(_), do: ""
 
   defp build_component_name_context(%{component_name: name}) when is_binary(name) do
     "\nComponent: #{name}"
@@ -1065,6 +1163,18 @@ defmodule FrontmanServer.Tasks.Interaction do
   def has_selected_component?(interactions) do
     Enum.any?(interactions, fn
       %UserMessage{selected_component: sc} when not is_nil(sc) -> true
+      _ -> false
+    end)
+  end
+
+  @doc """
+  Checks if any user messages in the interactions contain current page context.
+  Uses the pre-extracted `current_page` field on UserMessage for efficiency.
+  """
+  @spec has_current_page?(list(t())) :: boolean()
+  def has_current_page?(interactions) do
+    Enum.any?(interactions, fn
+      %UserMessage{current_page: cp} when not is_nil(cp) -> true
       _ -> false
     end)
   end

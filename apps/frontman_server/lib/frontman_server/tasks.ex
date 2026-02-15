@@ -256,6 +256,17 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
+  @doc """
+  Checks if any user messages in the task contain current page context.
+  """
+  @spec has_current_page?(Scope.t(), String.t()) :: boolean()
+  def has_current_page?(%Scope{} = scope, task_id) do
+    case get_interactions(scope, task_id) do
+      {:ok, interactions} -> Interaction.has_current_page?(interactions)
+      {:error, _} -> false
+    end
+  end
+
   @spec append_interaction(TaskSchema.t(), Interaction.t()) ::
           {:ok, Interaction.t()} | {:error, Ecto.Changeset.t()}
   defp append_interaction(%TaskSchema{id: task_id}, interaction) do

@@ -758,15 +758,144 @@ let figmaImageToContentBlock = (imageDataUrl: string): ACPTypes.contentBlock => 
   }
 }
 
+// Helper: read document.title from a document reference
+let getDocumentTitle: WebAPI.DOMAPI.document => string = %raw(`
+  function(doc) { return doc.title || ""; }
+`)
+
+// Helper: read color scheme preference from a window reference
+let getColorScheme: WebAPI.DOMAPI.window => string = %raw(`
+  function(win) {
+    try {
+      return win.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    } catch(e) {
+      return "unknown";
+    }
+  }
+`)
+
+// Build a Resource ContentBlock from current page context
+// Contains page URL, viewport dimensions, DPR, title, color scheme, and scroll position
+let currentPageToContentBlock = (previewFrame: Task.previewFrame): ACPTypes.contentBlock => {
+  let url = previewFrame.url
+
+  // Read viewport and display info from iframe's contentWindow
+  let (viewportWidth, viewportHeight, dpr, scrollY) = switch previewFrame.contentWindow {
+  | Some(win) => (
+      Some(win.innerWidth),
+      Some(win.innerHeight),
+      Some(win.devicePixelRatio),
+      Some(win.scrollY->Float.toInt),
+    )
+  | None => (None, None, None, None)
+  }
+
+  // Read page title from iframe's contentDocument
+  let title = switch previewFrame.contentDocument {
+  | Some(doc) =>
+    let t = getDocumentTitle(doc)
+    switch t {
+    | "" => None
+    | value => Some(value)
+    }
+  | None => None
+  }
+
+  // Read color scheme preference from iframe's contentWindow
+  let colorScheme = switch previewFrame.contentWindow {
+  | Some(win) =>
+    let scheme = getColorScheme(win)
+    switch scheme {
+    | "unknown" => None
+    | value => Some(value)
+    }
+  | None => None
+  }
+
+  // Build _meta JSON with current_page marker and all fields
+  let obj = Dict.make()
+  obj->Dict.set("current_page", JSON.Encode.bool(true))
+  obj->Dict.set("url", JSON.Encode.string(url))
+
+  switch viewportWidth {
+  | Some(w) => obj->Dict.set("viewport_width", JSON.Encode.int(w))
+  | None => ()
+  }
+  switch viewportHeight {
+  | Some(h) => obj->Dict.set("viewport_height", JSON.Encode.int(h))
+  | None => ()
+  }
+  switch dpr {
+  | Some(d) => obj->Dict.set("device_pixel_ratio", JSON.Encode.float(d))
+  | None => ()
+  }
+  switch title {
+  | Some(t) => obj->Dict.set("title", JSON.Encode.string(t))
+  | None => ()
+  }
+  switch colorScheme {
+  | Some(s) => obj->Dict.set("color_scheme", JSON.Encode.string(s))
+  | None => ()
+  }
+  switch scrollY {
+  | Some(y) => obj->Dict.set("scroll_y", JSON.Encode.int(y))
+  | None => ()
+  }
+
+  let _meta = JSON.Encode.object(obj)
+
+  // Build summary text for the resource
+  let summaryParts = [Some(`URL: ${url}`)]
+  let summaryParts = switch (viewportWidth, viewportHeight) {
+  | (Some(w), Some(h)) =>
+    Array.concat(summaryParts, [Some(`Viewport: ${w->Int.toString}x${h->Int.toString}`)])
+  | _ => summaryParts
+  }
+  let summaryParts = switch dpr {
+  | Some(d) => Array.concat(summaryParts, [Some(`DPR: ${d->Float.toString}`)])
+  | None => summaryParts
+  }
+  let summaryParts = switch title {
+  | Some(t) => Array.concat(summaryParts, [Some(`Title: ${t}`)])
+  | None => summaryParts
+  }
+
+  let summaryText =
+    summaryParts->Array.filterMap(x => x)->Array.join(", ")
+
+  let textResource: ACPTypes.textResourceContents = {
+    uri: `page://${url}`,
+    mimeType: Some("text/plain"),
+    text: `Current page: ${summaryText}`,
+  }
+
+  let embeddedResource: ACPTypes.embeddedResource = {
+    _meta: Some(_meta),
+    annotations: None,
+    resource: ACPTypes.TextResourceContents(textResource),
+  }
+
+  {
+    ACPTypes.type_: "resource",
+    text: None,
+    uri: None,
+    resource: Some(embeddedResource),
+    content: None,
+  }
+}
+
 // Build ContentBlocks array from Task
 // Returns array of ContentBlocks to be added to the prompt
 let taskToContentBlocks = (task: Task.t): array<ACPTypes.contentBlock> => {
   switch task {
   | Task.Unloaded(_) => []
-  | Task.New({selectedElement})
-  | Task.Loading({selectedElement})
-  | Task.Loaded({selectedElement}) => {
+  | Task.New({selectedElement, previewFrame})
+  | Task.Loading({selectedElement, previewFrame})
+  | Task.Loaded({selectedElement, previewFrame}) => {
       let blocks = []
+
+      // Add current page context (always included — implicit context)
+      let blocks = Array.concat(blocks, [currentPageToContentBlock(previewFrame)])
 
       // Add selectedElement as Resource if available (with source location)
       let blocks = switch selectedElement->Option.flatMap(selectedElementToContentBlock) {

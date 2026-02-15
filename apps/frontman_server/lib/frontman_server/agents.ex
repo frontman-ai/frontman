@@ -148,6 +148,7 @@ defmodule FrontmanServer.Agents do
       nil ->
         # Build context for dynamic system prompt
         has_selected_component = Tasks.has_selected_component?(scope, task_id)
+        has_current_page = Tasks.has_current_page?(scope, task_id)
         framework = get_framework(scope, task_id)
 
         # Fetch discovered project rules (AGENTS.md, etc.)
@@ -179,6 +180,7 @@ defmodule FrontmanServer.Agents do
         RootAgent.new(
           tools: tools,
           has_selected_component: has_selected_component,
+          has_current_page: has_current_page,
           has_typescript_react: has_typescript_react,
           framework: framework,
           model: model_spec,

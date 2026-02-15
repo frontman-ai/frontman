@@ -21,6 +21,7 @@ defmodule FrontmanServer.Agents.RootAgent do
   typedstruct do
     field(:tools, [Swarm.Tool.t()], default: [])
     field(:has_selected_component, boolean(), default: false)
+    field(:has_current_page, boolean(), default: false)
     field(:has_typescript_react, boolean(), default: false)
     field(:framework, String.t() | nil, default: nil)
     # llm_opts must include :api_key (resolved at domain layer)
@@ -38,6 +39,7 @@ defmodule FrontmanServer.Agents.RootAgent do
 
   - `:tools` - List of Swarm.Tool structs available to the agent
   - `:has_selected_component` - Whether a component is selected in the codebase
+  - `:has_current_page` - Whether current page context is available
   - `:framework` - Framework name (e.g., "nextjs") for framework-specific guidance
   - `:llm_opts` - LLM options, must include `:api_key`. May include `:requires_mcp_prefix`
     and `:identity_override` for OAuth transformations (handled by LLMClient).
@@ -49,6 +51,7 @@ defmodule FrontmanServer.Agents.RootAgent do
     %__MODULE__{
       tools: Keyword.get(opts, :tools, []),
       has_selected_component: Keyword.get(opts, :has_selected_component, false),
+      has_current_page: Keyword.get(opts, :has_current_page, false),
       has_typescript_react: Keyword.get(opts, :has_typescript_react, false),
       framework: Keyword.get(opts, :framework),
       llm_opts: Keyword.get(opts, :llm_opts, []),
@@ -66,6 +69,7 @@ defimpl Swarm.Agent, for: FrontmanServer.Agents.RootAgent do
     # OAuth transformations (identity prepend, content splitting) are handled by LLMClient
     Prompts.build(
       has_selected_component: agent.has_selected_component,
+      has_current_page: agent.has_current_page,
       has_typescript_react: agent.has_typescript_react,
       framework: agent.framework,
       project_rules: agent.project_rules

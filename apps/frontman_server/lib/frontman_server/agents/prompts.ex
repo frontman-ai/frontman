@@ -82,6 +82,7 @@ defmodule FrontmanServer.Agents.Prompts do
 
   - `:project_rules` - List of project rule maps with `:path`, `:content`, and `:timestamp` keys
   - `:has_selected_component` - When true, adds guidance for selected component replacement flow
+  - `:has_current_page` - When true, adds guidance for using current page context
   - `:framework` - Framework name (e.g., "nextjs") to add framework-specific guidance
 
   ## Examples
@@ -151,10 +152,12 @@ defmodule FrontmanServer.Agents.Prompts do
   # Append context-specific guidance based on options
   defp append_context_guidance(prompt, opts) do
     has_selected_component = Keyword.get(opts, :has_selected_component, false)
+    has_current_page = Keyword.get(opts, :has_current_page, false)
     framework = Keyword.get(opts, :framework)
     has_typescript_react = Keyword.get(opts, :has_typescript_react, false)
 
     prompt
+    |> maybe_append(has_current_page, &current_page_guidance/0)
     |> maybe_append(has_selected_component, &selected_component_guidance/0)
     |> maybe_append(has_typescript_react, &typescript_react_guidance/0)
     |> append_framework_guidance(framework)
@@ -197,6 +200,32 @@ defmodule FrontmanServer.Agents.Prompts do
 
     - Avoid any. Prefer discriminated unions.
     - Pure components and stable hooks.
+    """
+  end
+
+  defp current_page_guidance do
+    """
+    ## Current Page Context
+
+    The message contains a `[Current Page Context]` section with information about
+    the page the user is currently viewing in their browser.
+
+    ### What You Have
+
+    - **URL** - The current page URL (route) the user is on
+    - **Viewport dimensions** - Browser window size (width x height in pixels)
+    - **Device pixel ratio** - Display density (1 = standard, 2 = retina/HiDPI)
+    - **Page title** - The document title of the current page
+    - **Color scheme** - User's preferred color scheme (light/dark)
+    - **Scroll position** - How far down the page the user has scrolled (in pixels)
+
+    ### How to Use This
+
+    - Consider viewport dimensions when making responsive design decisions
+    - Use the URL to understand which route/page the user is referring to
+    - Factor in device pixel ratio for image/icon sizing recommendations
+    - Use color scheme context for theme-related suggestions
+    - The scroll position indicates what part of the page the user is viewing
     """
   end
 
