@@ -191,7 +191,9 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
     content = Map.get(result, "content", [])
 
     text_result =
-      Enum.map_join(content, "\n", fn block -> Map.get(block, "text", "") end)
+      content
+      |> Enum.map_join("\n", fn block -> Map.get(block, "text", "") end)
+      |> String.trim()
 
     store_project_rules(text_result, state)
   end
