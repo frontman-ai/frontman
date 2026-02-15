@@ -2,4 +2,4 @@
 "@frontman/client": patch
 ---
 
-Fix stale closure bug in initialization timeout that caused `sessionInitialized` to always read as `false` even after being set to `true`
+Remove dead initialization timeout code (`StartInitializationTimeout`, `InitializationTimeoutExpired`, `ReceivedDiscoveredProjectRule`) that was never wired up — `sessionInitialized` is set via `SetAcpSession` on connection

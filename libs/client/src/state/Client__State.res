@@ -77,10 +77,6 @@ module Actions = {
   let taskLoadError = (~taskId, ~error) =>
     Client__State__Store.dispatch(TaskAction({target: ForTask(taskId), action: LoadError({error: error})}))
 
-  // Initialization action creators
-  let receivedDiscoveredProjectRule = (~taskId: string) =>
-    Client__State__Store.dispatch(ReceivedDiscoveredProjectRule({taskId: taskId}))
-
   // Turn completion action creators (ForTask)
   let turnCompleted = (~taskId: string) =>
     Client__State__Store.dispatch(TaskAction({target: ForTask(taskId), action: TurnCompleted}))

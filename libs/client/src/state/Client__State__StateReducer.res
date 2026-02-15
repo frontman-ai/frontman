@@ -40,9 +40,6 @@ type action =
       apiBaseUrl: string,
     })
   | ClearAcpSession
-  // Initialization actions
-  | InitializationTimeoutExpired({taskId: string})
-  | ReceivedDiscoveredProjectRule({taskId: string})
   // Usage info actions
   | UsageInfoReceived({usageInfo: Client__State__Types.usageInfo})
   // API key settings actions
@@ -87,7 +84,6 @@ type action =
 
 type effect =
   | TaskEffect({target: taskTarget, effect: TaskReducer.effect})
-  | StartInitializationTimeout({taskId: string, timeoutMs: int})
   | FetchUsageInfo({apiBaseUrl: string})
   | FetchApiKeySettingsEffect({apiBaseUrl: string})
   | SaveOpenRouterKeyEffect({apiBaseUrl: string, key: string})
@@ -235,8 +231,6 @@ let actionToString = action => {
   | UpdateTaskTitle({taskId, title}) => `UpdateTaskTitle(${taskId}, "${title}")`
   | SetAcpSession(_) => `SetAcpSession`
   | ClearAcpSession => `ClearAcpSession`
-  | InitializationTimeoutExpired({taskId}) => `InitializationTimeoutExpired(${taskId})`
-  | ReceivedDiscoveredProjectRule({taskId}) => `ReceivedDiscoveredProjectRule(${taskId})`
   | UsageInfoReceived(_) => `UsageInfoReceived`
   | FetchApiKeySettings => `FetchApiKeySettings`
   | ApiKeySettingsReceived({source}) =>
@@ -601,11 +595,6 @@ let handleEffect = (effect, state: state, dispatch) => {
 
       TaskReducer.handleEffect(taskEffect, ~dispatch=taskDispatch, ~delegate)
     }
-  | StartInitializationTimeout({taskId, timeoutMs}) =>
-    let taskId = taskId
-    let _ = Js.Global.setTimeout(() => {
-      dispatch(InitializationTimeoutExpired({taskId: taskId}))
-    }, timeoutMs)
   | FetchApiKeySettingsEffect({apiBaseUrl}) =>
     let fetch = async () => {
       let url = `${apiBaseUrl}/api/user/api-key-usage`
@@ -1170,23 +1159,6 @@ let next = (state: state, action) => {
 
   | ClearAcpSession =>
     {...state, acpSession: NoAcpSession}->FrontmanReactStatestore.StateReducer.update
-
-  | InitializationTimeoutExpired({taskId: _}) =>
-    if !state.sessionInitialized {
-      {
-        ...state,
-        sessionInitialized: true,
-      }->FrontmanReactStatestore.StateReducer.update
-    } else {
-      state->FrontmanReactStatestore.StateReducer.update
-    }
-
-  | ReceivedDiscoveredProjectRule({taskId: _}) =>
-    // Mark initialization complete
-    {
-      ...state,
-      sessionInitialized: true,
-    }->FrontmanReactStatestore.StateReducer.update
 
   // ============================================================================
   // Global state actions
