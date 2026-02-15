@@ -1,0 +1,61 @@
+{
+	"name": "@frontman-ai/vite",
+	"version": "0.1.0",
+	"description": "Vite integration for Frontman - AI-powered development tools",
+	"license": "Apache-2.0",
+	"author": "Frontman AI",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/frontman-ai/frontman.git",
+		"directory": "libs/frontman-vite"
+	},
+	"homepage": "https://frontman.sh",
+	"bugs": {
+		"url": "https://github.com/frontman-ai/frontman/issues"
+	},
+	"keywords": [
+		"frontman",
+		"vite",
+		"vite-plugin",
+		"ai",
+		"development",
+		"middleware"
+	],
+	"type": "module",
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js",
+			"default": "./dist/index.js"
+		}
+	},
+	"files": [
+		"dist",
+		"README.md"
+	],
+	"scripts": {
+		"build:rescript": "rescript build",
+		"build:bundle": "tsup",
+		"build": "yarn build:rescript && yarn build:bundle",
+		"prepublishOnly": "yarn build"
+	},
+	"peerDependencies": {
+		"vite": ">=5.0.0"
+	},
+	"devDependencies": {
+		"@frontman/frontman-core": "*",
+		"@frontman/frontman-protocol": "*",
+		"@rescript/runtime": "12.0.0-beta.14",
+		"@rescript/webapi": "catalog:",
+		"@vitest/ui": "catalog:",
+		"dom-element-to-component-source": "0.5.0",
+		"rescript": "catalog:",
+		"rescript-vitest": "catalog:",
+		"sury": "11.0.0-alpha.4",
+		"tsup": "^8.0.0",
+		"vite": "catalog:",
+		"vitest": "catalog:"
+	}
+}

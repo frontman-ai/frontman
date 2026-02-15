@@ -21,7 +21,7 @@
 	],
 	"dependencies": {
 		"@frontman/client": "0.1.6",
-		"@frontman/vite-plugin": "0.1.13",
+		"@frontman-ai/vite": "workspace:*",
 		"react": "^19.2.0",
 		"react-dom": "^19.2.0"
 	},

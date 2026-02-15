@@ -1,0 +1,11 @@
+# Build output
+dist/
+
+# Dependencies
+node_modules/
+
+# OS
+.DS_Store
+
+# ReScript build cache
+lib/

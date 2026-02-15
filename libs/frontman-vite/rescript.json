@@ -1,0 +1,29 @@
+{
+	"name": "@frontman-ai/vite",
+	"namespace": true,
+	"sources": [
+		{
+			"dir": "src",
+			"subdirs": true
+		}
+	],
+	"package-specs": [
+		{
+			"module": "esmodule",
+			"in-source": true,
+			"suffix": ".res.mjs"
+		}
+	],
+	"ppx-flags": ["sury-ppx/bin"],
+	"dependencies": [
+		"@rescript/webapi",
+		"sury",
+		"@frontman/frontman-protocol",
+		"@frontman/frontman-core",
+		"@frontman/bindings"
+	],
+	"dev-dependencies": ["rescript-vitest"],
+	"jsx": {
+		"version": 4
+	}
+}

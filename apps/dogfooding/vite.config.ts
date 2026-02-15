@@ -1,5 +1,5 @@
 import * as vite from "vite";
-import { frontmanPlugin } from "@frontman/vite-plugin";
+import { frontmanPlugin } from "@frontman-ai/vite";
 
 // Plugin to ensure client library imports are handled correctly
 const fixReactImports = (): vite.Plugin => {

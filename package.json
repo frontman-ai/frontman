@@ -24,6 +24,7 @@
 		"libs/frontman-core",
 		"libs/frontman-astro",
 		"libs/frontman-nextjs",
+		"libs/frontman-vite",
 		"test/sites/blog-starter",
 		"libs/logs",
 		"libs/react-statestore",
