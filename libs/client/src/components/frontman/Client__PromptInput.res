@@ -602,7 +602,7 @@ let make = (
     }
   `)
 
-  let _findChipElement: ({..}, ReactEvent.Mouse.t) => option<{..}> = %raw(`
+  let _findChipElement: ({..}, ReactEvent.Mouse.t) => Nullable.t<{..}> = %raw(`
     function(target, e) {
       var el = target;
       while (el && el !== e.currentTarget) {
@@ -626,7 +626,7 @@ let make = (
       removeChip(id)
     | None =>
       // Check for image chip clicks (for lightbox preview)
-      let chipEl: option<{..}> = _findChipElement(target, e)
+      let chipEl: option<{..}> = _findChipElement(target, e)->Nullable.toOption
       chipEl->Option.forEach(chip => {
         let chipId: string = chip["getAttribute"]("data-chip-id")
         // Find the item in inputItems to get the dataUrl
