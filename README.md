@@ -14,6 +14,12 @@
 
 ---
 
+<p align="center">
+  <a href="https://www.youtube.com/watch?v=-4GD1GYwH8Y">
+    <img src="https://img.youtube.com/vi/-4GD1GYwH8Y/maxresdefault.jpg" alt="Frontman Demo" width="600" />
+  </a>
+</p>
+
 Open your running app in the browser, click on any element, and describe the change you want — Frontman edits the actual source code in your repo. No sandbox, no copy-paste. Real code changes your team can review and merge.
 
 > **For designers and PMs** who want to tweak UI without waiting on a developer. **For developers** who want fewer "can you move this 2px" tickets.
