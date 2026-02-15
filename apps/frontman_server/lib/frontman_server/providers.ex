@@ -229,20 +229,20 @@ defmodule FrontmanServer.Providers do
 
   @doc """
   Increments the user's server-key usage count.
+
+  Uses an upsert to atomically insert or increment, avoiding the race condition
+  in a check-then-act pattern where two concurrent requests could both find nil
+  and both attempt to insert.
   """
   def increment_usage(%Scope{user: %User{} = user}, provider) do
-    case get_usage(%Scope{user: user}, provider) do
-      nil ->
-        # Build struct with user_id set explicitly (not via changeset for security)
-        usage = %UserKeyUsage{user_id: user.id}
-        changeset = UserKeyUsage.changeset(usage, %{count: 1, provider: provider})
-        Repo.insert(changeset)
+    now = DateTime.utc_now(:second)
+    usage = %UserKeyUsage{user_id: user.id}
+    changeset = UserKeyUsage.changeset(usage, %{count: 1, provider: provider, last_used_at: now})
 
-      %UserKeyUsage{} = usage ->
-        usage
-        |> UserKeyUsage.increment_changeset()
-        |> Repo.update()
-    end
+    Repo.insert(changeset,
+      on_conflict: [inc: [count: 1], set: [last_used_at: now, updated_at: now]],
+      conflict_target: [:user_id, :provider]
+    )
   end
 
   ## API Key Resolution

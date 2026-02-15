@@ -31,6 +31,7 @@ defmodule FrontmanServer.Providers.UserKeyUsage do
     |> validate_required([:count])
     |> validate_number(:count, greater_than_or_equal_to: 0)
     |> unique_constraint([:user_id, :provider], name: :user_key_usages_user_id_provider_index)
+    |> foreign_key_constraint(:user_id, name: :user_key_usages_user_id_fkey)
   end
 
   @doc """

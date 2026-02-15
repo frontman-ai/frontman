@@ -193,9 +193,18 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
     text_result =
       Enum.map_join(content, "\n", fn block -> Map.get(block, "text", "") end)
 
-    case Jason.decode(text_result) do
+    store_project_rules(text_result, state)
+  end
+
+  defp store_project_rules("", state) do
+    # No content blocks or all blocks had empty text — this is normal (no project rules found)
+    Logger.info("MCPInitializer: Initialized 0 project rules")
+    complete_initialization(state)
+  end
+
+  defp store_project_rules(text, state) do
+    case Jason.decode(text) do
       {:ok, results} when is_list(results) ->
-        # Create DiscoveredProjectRule interactions
         Enum.each(results, fn file ->
           file_content = Map.get(file, "content", "")
           path = Map.get(file, "fullPath", "")
@@ -203,7 +212,6 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
         end)
 
         Logger.info("MCPInitializer: Initialized #{length(results)} project rules")
-
         complete_initialization(state)
 
       {:error, reason} ->

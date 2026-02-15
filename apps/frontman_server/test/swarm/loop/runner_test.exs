@@ -298,6 +298,7 @@ defmodule Swarm.Loop.RunnerTest do
       assert hd(response.tool_calls) == tool_call
     end
 
+    @tag :capture_log
     test "handles streaming tool call with no argument fragments" do
       stream = [
         Chunk.tool_call_start("call_789", "get_time", 0),
@@ -327,6 +328,7 @@ defmodule Swarm.Loop.RunnerTest do
       end
     end
 
+    @tag :capture_log
     test "truncated stream preserves invalid JSON for debugging (no masking)" do
       stream = [
         Chunk.tool_call_start("call_trunc", "read_file", 0),
@@ -344,6 +346,7 @@ defmodule Swarm.Loop.RunnerTest do
       assert tool_call.arguments == ~s[{"path": "app/admin/products/page.tsx"]
     end
 
+    @tag :capture_log
     test "multi-fragment truncation: preserves partial JSON for debugging (no masking)" do
       stream = [
         Chunk.tool_call_start("call_frag", "write_file", 0),

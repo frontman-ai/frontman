@@ -820,6 +820,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
   # Completes the MCP handshake with tools registered
   defp complete_mcp_handshake_with_tools(socket) do
+    :sys.get_state(socket.channel_pid)
     assert_push("mcp:message", %{"id" => init_request_id, "method" => "initialize"})
 
     init_result = %{
@@ -829,6 +830,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     }
 
     push(socket, "mcp:message", JsonRpc.success_response(init_request_id, init_result))
+    :sys.get_state(socket.channel_pid)
 
     assert_push("mcp:message", %{"method" => "notifications/initialized"})
     assert_push("mcp:message", %{"id" => tools_request_id, "method" => "tools/list"})
@@ -849,8 +851,8 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     }
 
     push(socket, "mcp:message", JsonRpc.success_response(tools_request_id, tools_result))
+    :sys.get_state(socket.channel_pid)
 
-    # Handle load_agent_instructions
     assert_push("mcp:message", %{
       "id" => project_rules_request_id,
       "method" => "tools/call",
@@ -862,6 +864,8 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       "mcp:message",
       JsonRpc.success_response(project_rules_request_id, %{"content" => []})
     )
+
+    :sys.get_state(socket.channel_pid)
 
     assert_push("acp:message", %{"method" => "project_rules_initialized"})
   end
@@ -1020,8 +1024,15 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     end
   end
 
-  # Completes the MCP handshake (initialize + tools/list + load_agent_instructions)
+  # Completes the MCP handshake (initialize + tools/list + load_agent_instructions).
+  #
+  # Uses :sys.get_state/1 as a synchronization barrier after each push to ensure
+  # the channel process has fully processed the message before we assert the
+  # response. Without these barriers, under CI load (especially coverage runs),
+  # the channel process may not be scheduled in time and assert_push times out.
   defp complete_mcp_handshake(socket) do
+    # Wait for channel to process the deferred :start_mcp_init message
+    :sys.get_state(socket.channel_pid)
     assert_push("mcp:message", %{"id" => init_request_id, "method" => "initialize"})
 
     init_result = %{
@@ -1031,29 +1042,28 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     }
 
     push(socket, "mcp:message", JsonRpc.success_response(init_request_id, init_result))
+    :sys.get_state(socket.channel_pid)
 
     assert_push("mcp:message", %{"method" => "notifications/initialized"})
     assert_push("mcp:message", %{"id" => tools_request_id, "method" => "tools/list"})
 
     push(socket, "mcp:message", JsonRpc.success_response(tools_request_id, %{"tools" => []}))
+    :sys.get_state(socket.channel_pid)
 
-    # Handle the load_agent_instructions call that happens after tools/list
     assert_push("mcp:message", %{
       "id" => project_rules_request_id,
       "method" => "tools/call",
       "params" => %{"name" => "load_agent_instructions"}
     })
 
-    # Respond with empty project rules
     push(
       socket,
       "mcp:message",
       JsonRpc.success_response(project_rules_request_id, %{"content" => []})
     )
 
-    # Verify initialization completed (mcp_status is :ready).
-    # This is synchronous — the push happens within the same handle_in callback
-    # that processed the project rules response, so no race condition.
+    :sys.get_state(socket.channel_pid)
+
     assert_push("acp:message", %{
       "method" => "project_rules_initialized"
     })
