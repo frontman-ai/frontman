@@ -99,7 +99,8 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
       selected_component: parse_selected_component(data["selected_component"]),
       selected_component_screenshot: parse_screenshot(data["selected_component_screenshot"]),
       selected_figma_node: parse_figma_node(data["selected_figma_node"]),
-      images: parse_images(data["images"])
+      images: parse_images(data["images"]),
+      current_page: parse_current_page(data["current_page"])
     }
   end
 
@@ -259,4 +260,30 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
   end
 
   defp parse_images(_), do: []
+
+  # Parse current page context from stored data
+  @spec parse_current_page(map() | nil) :: Interaction.UserMessage.current_page() | nil
+  defp parse_current_page(nil), do: nil
+
+  defp parse_current_page(data) when is_map(data) do
+    url = data["url"]
+
+    case url do
+      url when is_binary(url) ->
+        %{
+          url: url,
+          viewport_width: data["viewport_width"],
+          viewport_height: data["viewport_height"],
+          device_pixel_ratio: data["device_pixel_ratio"],
+          title: data["title"],
+          color_scheme: data["color_scheme"],
+          scroll_y: data["scroll_y"]
+        }
+
+      _ ->
+        nil
+    end
+  end
+
+  defp parse_current_page(_), do: nil
 end
