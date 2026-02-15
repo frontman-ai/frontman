@@ -42,6 +42,7 @@ let buildSystemPrompt = (~fileType: fileType, ~host: string): string => {
       `- Add the import for '@frontman-ai/nextjs' at the top of the file
 - Create the frontman middleware instance with host: '${host}'
 - Add the Frontman path check at the BEGINNING of the existing proxy function, before any existing logic
+- Include '/frontman' and '/frontman/:path*' in the matcher config alongside existing matchers
 - Preserve ALL existing functionality unchanged - do not remove or modify any existing code`,
     )
   | Instrumentation => (
@@ -186,7 +187,8 @@ let validateOutput = (~content: string, ~fileType: fileType): bool => {
     hasFrontmanImport &&
     content->String.includes("createMiddleware") &&
     content->String.includes("frontman") &&
-    content->String.includes("/frontman")
+    content->String.includes("/frontman") &&
+    content->String.includes("matcher")
   | Instrumentation =>
     hasFrontmanImport &&
     content->String.includes("@frontman-ai/nextjs/Instrumentation") &&

@@ -14,9 +14,9 @@ import astroLogo from '../../../assets/frameworks/astro.svg'
 import viteLogo from '../../../assets/frameworks/vite.svg'
 
 const frameworks = [
-	{ id: 'nextjs', name: 'Next.js', logo: nextjsLogo, installPath: '/install/nextjs', port: '3000' },
-	{ id: 'astro', name: 'Astro', logo: astroLogo, installPath: '/install/astro', port: '4321' },
-	{ id: 'vite', name: 'Vite', logo: viteLogo, installPath: '/install/vite', port: '5173' }
+	{ id: 'nextjs', name: 'Next.js', logo: nextjsLogo, command: 'npx @frontman-ai/nextjs install', port: '3000' },
+	{ id: 'astro', name: 'Astro', logo: astroLogo, command: 'npx @frontman-ai/astro install', port: '4321' },
+	{ id: 'vite', name: 'Vite', logo: viteLogo, command: 'npx @frontman-ai/vite install', port: '5173' }
 ]
 ---
 
@@ -39,12 +39,12 @@ const frameworks = [
 
 			<div class="framework-tabs">
 				{frameworks.map((fw, i) => (
-					<button
-						class={`framework-tab ${i === 0 ? 'active' : ''}`}
-						data-framework={fw.id}
-						data-install-path={fw.installPath}
-						data-port={fw.port}
-					>
+				<button
+					class={`framework-tab ${i === 0 ? 'active' : ''}`}
+					data-framework={fw.id}
+					data-command={fw.command}
+					data-port={fw.port}
+				>
 						<img src={fw.logo.src} alt={fw.name} width="24" height="24" loading="lazy" />
 						{fw.name}
 					</button>
@@ -70,7 +70,7 @@ const frameworks = [
 						</div>
 						<div class="terminal-body">
 							<span class="terminal-prompt">$</span>
-							<code data-install-command>curl https://frontman.sh/install/nextjs | bash</code>
+							<code data-install-command>npx @frontman-ai/nextjs install</code>
 							<button class="copy-button" data-copy="install" aria-label="Copy to clipboard">
 								<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 									<rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
@@ -343,9 +343,9 @@ const frameworks = [
 				tabs.forEach((t) => t.classList.remove('active'))
 				tab.classList.add('active')
 
-				const installPath = tab.getAttribute('data-install-path')
-				if (installCommand && installPath) {
-					installCommand.textContent = `curl https://frontman.sh${installPath} | bash`
+				const command = tab.getAttribute('data-command')
+				if (installCommand && command) {
+					installCommand.textContent = command
 				}
 
 				const port = tab.getAttribute('data-port')

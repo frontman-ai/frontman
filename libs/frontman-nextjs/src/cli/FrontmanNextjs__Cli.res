@@ -24,15 +24,16 @@ Commands:
   install    Install Frontman in a Next.js project
 
 Options:
-  --server <host>   Frontman server host (required for install)
+  --server <host>   Frontman server host (default: api.frontman.sh)
   --prefix <path>   Target directory (default: current directory)
   --dry-run         Preview changes without writing files
   --skip-deps       Skip dependency installation
   --help            Show this help message
 
 Examples:
+  npx @frontman-ai/nextjs install
   npx @frontman-ai/nextjs install --server frontman.company.com
-  npx @frontman-ai/nextjs install --server dev.frontman.io --dry-run
+  npx @frontman-ai/nextjs install --dry-run
 `
 
 // Simple argument parser
@@ -91,25 +92,21 @@ let main = async () => {
 
   switch args.command {
   | Some("install") =>
-    switch args.server {
-    | None =>
-      Console.error("Error: --server <host> is required for install command")
-      Console.log("")
-      Console.log("Usage: npx @frontman-ai/nextjs install --server <host>")
-      Process.exit(1)
-    | Some(server) =>
-      let result = await Install.run({
-        server,
-        prefix: args.prefix,
-        dryRun: args.dryRun,
-        skipDeps: args.skipDeps,
-      })
+    let server = switch args.server {
+    | Some(s) => s
+    | None => "api.frontman.sh"
+    }
+    let result = await Install.run({
+      server,
+      prefix: args.prefix,
+      dryRun: args.dryRun,
+      skipDeps: args.skipDeps,
+    })
 
-      switch result {
-      | Install.Success => Process.exit(0)
-      | Install.PartialSuccess(_) => Process.exit(0) // Still success, just with manual steps
-      | Install.Failure(_) => Process.exit(1)
-      }
+    switch result {
+    | Install.Success => Process.exit(0)
+    | Install.PartialSuccess(_) => Process.exit(0) // Still success, just with manual steps
+    | Install.Failure(_) => Process.exit(1)
     }
 
   | Some(cmd) =>

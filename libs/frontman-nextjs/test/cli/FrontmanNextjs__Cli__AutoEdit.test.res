@@ -188,6 +188,10 @@ export function proxy(req: NextRequest): NextResponse {
   }
   return NextResponse.next();
 }
+
+export const config = {
+  matcher: ['/api/external/:path*'],
+};
 `
 
   let instrumentationWithOTel = `import { NodeSDK } from '@opentelemetry/sdk-node';
@@ -317,7 +321,12 @@ describe("AutoEdit LLM Integration", _t => {
           )
           ->Expect.toBe(true)
 
-          // 6. Original rewrite logic preserved
+          // 6. Matcher includes both frontman routes AND existing routes
+          t
+          ->expect(hasMatcherWithFrontman(content, "/api/external"))
+          ->Expect.toBe(true)
+
+          // 7. Original rewrite logic preserved
           t->expect(content->String.includes("external-api.com"))->Expect.toBe(true)
           t->expect(content->String.includes("/api/external"))->Expect.toBe(true)
         | Error(err) => t->expect(err)->Expect.toBe("should succeed")
@@ -426,7 +435,8 @@ export function middleware(req) { const r = await frontman(req); }`
 const frontman = createMiddleware({ host: 'test.host' });
 export function proxy(req) {
   if (req.nextUrl.pathname.startsWith('/frontman')) { return frontman(req); }
-}`
+}
+export const config = { matcher: ['/frontman/:path*'] };`
       let isValid = AutoEdit.validateOutput(~content=validContent, ~fileType=AutoEdit.Proxy)
       t->expect(isValid)->Expect.toBe(true)
     })
@@ -434,7 +444,18 @@ export function proxy(req) {
     test("rejects proxy output without /frontman path check", t => {
       let invalidContent = `import { createMiddleware } from '@frontman-ai/nextjs';
 const frontman = createMiddleware({ host: 'test.host' });
-export function proxy(req) { return frontman(req); }`
+export function proxy(req) { return frontman(req); }
+export const config = { matcher: ['/dashboard/:path*'] };`
+      let isValid = AutoEdit.validateOutput(~content=invalidContent, ~fileType=AutoEdit.Proxy)
+      t->expect(isValid)->Expect.toBe(false)
+    })
+
+    test("rejects proxy output without matcher", t => {
+      let invalidContent = `import { createMiddleware } from '@frontman-ai/nextjs';
+const frontman = createMiddleware({ host: 'test.host' });
+export function proxy(req) {
+  if (req.nextUrl.pathname.startsWith('/frontman')) { return frontman(req); }
+}`
       let isValid = AutoEdit.validateOutput(~content=invalidContent, ~fileType=AutoEdit.Proxy)
       t->expect(isValid)->Expect.toBe(false)
     })

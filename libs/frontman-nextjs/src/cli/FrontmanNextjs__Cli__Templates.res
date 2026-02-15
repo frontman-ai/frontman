@@ -55,6 +55,10 @@ export function proxy(req: NextRequest): NextResponse | Promise<NextResponse> {
   }
   return NextResponse.next();
 }
+
+export const config = {
+  matcher: ['/frontman', '/frontman/:path*'],
+};
 `
 
 // instrumentation.ts template
@@ -128,6 +132,10 @@ module ManualInstructions = {
   ${bar}     ${d("if (req.nextUrl.pathname === '/frontman' || req.nextUrl.pathname.startsWith('/frontman/')) {")}
   ${bar}     ${d("  return frontman(req) || NextResponse.next();")}
   ${bar}     ${d("}")}
+  ${bar}
+  ${bar}  ${s("4.")} Update your matcher config to include Frontman routes:
+  ${bar}
+  ${bar}     ${d("matcher: ['/frontman', '/frontman/:path*', ...yourExistingMatchers]")}
   ${bar}
   ${bar}  ${b("Docs:")} ${d("https://frontman.sh/docs/nextjs")}
   ${bar}`
@@ -224,6 +232,12 @@ Add the following to your ${fileName}:
 
        // ... your existing proxy logic
      }
+
+  4. Update your matcher config to include Frontman routes:
+
+      export const config = {
+        matcher: ['/frontman', '/frontman/:path*', ...yourExistingMatchers],
+      };
 
 For full documentation, see: https://frontman.sh/docs/nextjs
 `

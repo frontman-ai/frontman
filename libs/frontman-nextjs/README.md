@@ -9,14 +9,10 @@ Next.js integration for Frontman - provides development tools and observability 
 The fastest way to install Frontman is using our CLI installer:
 
 ```bash
-# Using curl (server host is auto-detected from the URL)
-curl https://api.frontman.sh/install/nextjs | bash
+npx @frontman-ai/nextjs install
 
-# For local development
-curl http://frontman.local:4000/install/nextjs | bash
-
-# Or using npx directly
-npx @frontman-ai/nextjs install --server api.frontman.sh
+# Or with a custom server host
+npx @frontman-ai/nextjs install --server frontman.company.com
 ```
 
 The installer will:
@@ -31,7 +27,7 @@ The installer will:
 npx @frontman-ai/nextjs install [options]
 
 Options:
-  --server <host>   Frontman server host (required)
+  --server <host>   Frontman server host (default: api.frontman.sh)
   --prefix <path>   Target directory (default: current directory)
   --dry-run         Preview changes without writing files
   --skip-deps       Skip dependency installation
@@ -101,6 +97,10 @@ export function proxy(req: NextRequest): NextResponse | Promise<NextResponse> {
   }
   return NextResponse.next();
 }
+
+export const config = {
+  matcher: ['/frontman', '/frontman/:path*'],
+};
 ```
 
 ### OpenTelemetry Setup (Recommended)
@@ -176,6 +176,11 @@ export function proxy(req: NextRequest): NextResponse | Promise<NextResponse> {
   // ... your existing proxy logic below
   return NextResponse.next();
 }
+
+export const config = {
+  // Add Frontman matcher alongside your existing matchers
+  matcher: ['/frontman', '/frontman/:path*', '/your-other-routes/:path*'],
+};
 ```
 
 ### Existing instrumentation.ts

@@ -41,15 +41,6 @@ defmodule FrontmanServerWeb.Router do
     get("/ready", HealthController, :ready)
   end
 
-  # CLI installer routes - no authentication required
-  # Usage: curl https://frontman.example.com/install | bash
-  scope "/install", FrontmanServerWeb do
-    pipe_through(:api)
-
-    get("/", InstallController, :index)
-    get("/nextjs", InstallController, :nextjs)
-  end
-
   scope "/api", FrontmanServerWeb do
     pipe_through([:api_with_session])
 
