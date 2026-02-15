@@ -409,6 +409,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       }
 
       push(socket, "mcp:message", JsonRpc.success_response(mcp_request_id, mcp_tool_result))
+      :sys.get_state(socket.channel_pid)
 
       assert_push("acp:message", %{
         "jsonrpc" => "2.0",
@@ -467,6 +468,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       }
 
       push(socket, "mcp:message", JsonRpc.success_response(request_id, init_result))
+      :sys.get_state(socket.channel_pid)
 
       assert_push("mcp:message", %{
         "jsonrpc" => "2.0",
@@ -496,6 +498,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       log =
         capture_log(fn ->
           push(socket, "mcp:message", %{"id" => 999, "result" => %{}})
+          :sys.get_state(socket.channel_pid)
 
           assert_push("mcp:message", %{
             "jsonrpc" => "2.0",
@@ -514,6 +517,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       log =
         capture_log(fn ->
           push(socket, "mcp:message", %{"jsonrpc" => "1.0", "id" => 999, "result" => %{}})
+          :sys.get_state(socket.channel_pid)
 
           assert_push("mcp:message", %{
             "method" => "error",
@@ -528,6 +532,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       log =
         capture_log(fn ->
           push(socket, "mcp:message", %{"jsonrpc" => "2.0", "result" => %{}})
+          :sys.get_state(socket.channel_pid)
 
           assert_push("mcp:message", %{"method" => "error"})
         end)
@@ -544,6 +549,8 @@ defmodule FrontmanServerWeb.TaskChannelTest do
             "result" => %{},
             "error" => %{"code" => -32_601, "message" => "Error"}
           })
+
+          :sys.get_state(socket.channel_pid)
 
           assert_push("mcp:message", %{"method" => "error"})
         end)
@@ -567,6 +574,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       mcp_result = %{"content" => [%{"type" => "text", "text" => "Success"}]}
       push(socket, "mcp:message", JsonRpc.success_response(mcp_request_id, mcp_result))
+      :sys.get_state(socket.channel_pid)
 
       assert_push("acp:message", %{
         "method" => "session/update",
@@ -776,6 +784,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       }
 
       push(socket, "mcp:message", JsonRpc.success_response(init_request_id, init_result))
+      :sys.get_state(socket.channel_pid)
 
       assert_push("mcp:message", %{"method" => "notifications/initialized"})
       assert_push("mcp:message", %{"id" => tools_request_id, "method" => "tools/list"})
@@ -791,6 +800,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       }
 
       push(socket, "mcp:message", JsonRpc.success_response(tools_request_id, tools_result))
+      :sys.get_state(socket.channel_pid)
 
       # Handle load_agent_instructions
       assert_push("mcp:message", %{
@@ -804,6 +814,8 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         "mcp:message",
         JsonRpc.success_response(project_rules_request_id, %{"content" => []})
       )
+
+      :sys.get_state(socket.channel_pid)
 
       assert_push("acp:message", %{"method" => "project_rules_initialized"})
 
