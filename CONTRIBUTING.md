@@ -33,6 +33,39 @@ make dev
 3. **Run tests** — Run `make test` in the relevant `libs/` directory before submitting a PR.
 4. **Add a changeset** — If your change is user-facing, run `yarn changeset` from the repo root and follow the prompts. A CI check will block PRs that are missing a changeset.
 
+## Project Structure
+
+```
+frontman/
+├── apps/
+│   ├── chrome-extension/      # Browser extension
+│   ├── dogfooding/            # Internal testing app
+│   ├── frontman_server/       # Elixir/Phoenix backend
+│   └── marketing/             # Marketing website
+├── libs/
+│   ├── bindings/              # ReScript bindings for Node/browser APIs
+│   ├── client/                # React UI component library
+│   ├── context-loader/        # Config file discovery and loading
+│   ├── frontman-astro/        # Astro framework integration
+│   ├── frontman-client/       # Browser-side MCP client
+│   ├── frontman-core/         # Core server-side tools
+│   ├── frontman-nextjs/       # Next.js integration
+│   ├── frontman-protocol/     # Protocol definitions
+│   ├── react-statestore/      # React state management library
+│   └── vite-plugin/           # Vite plugin
+├── docs/                      # Protocol documentation
+└── infra/                     # Infrastructure configs
+```
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|------------|
+| Language | [ReScript](https://rescript-lang.org/) |
+| Backend | [Elixir](https://elixir-lang.org/) / [Phoenix](https://phoenixframework.org/) |
+| UI | [React](https://react.dev/) |
+| Runtime | [Node.js](https://nodejs.org/) |
+
 ## Code Conventions
 
 ### ReScript
