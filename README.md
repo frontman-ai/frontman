@@ -1,6 +1,6 @@
 <p align="center">
   <a href="https://frontman.sh">
-    <img src="./assets/og.png" alt="Frontman" width="600" />
+    <img src="https://frontman.sh/og.png" alt="Frontman" width="600" />
   </a>
 </p>
 
