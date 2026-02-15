@@ -16,7 +16,7 @@
 
 <p align="center">
   <a href="https://www.youtube.com/watch?v=-4GD1GYwH8Y">
-    <img src="https://img.youtube.com/vi/-4GD1GYwH8Y/maxresdefault.jpg" alt="Frontman Demo" width="600" />
+    <img src="./assets/demo.webp" alt="Frontman Demo" width="600" />
   </a>
 </p>
 
