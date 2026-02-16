@@ -81,51 +81,63 @@ let pipeStreamToResponse: (WebAPI.FileAPI.readableStream<'a>, serverResponse) =>
 
 // Adapt a Web API middleware to Vite's Node.js middleware
 // The middleware is: Request => Promise<Option<Response>>
+// basePath is used to short-circuit non-frontman requests before consuming the body
 let adaptMiddlewareToVite = (
+  ~basePath: string,
   middleware: WebAPI.FetchAPI.request => promise<option<WebAPI.FetchAPI.response>>,
 ): ((incomingMessage, serverResponse, unit => unit) => promise<unit>) => {
+  let prefix = "/" ++ basePath->String.toLowerCase
+
   async (req, res, next) => {
-    // Collect request body
-    let bodyBuffer = await collectBody(req)
-
-    // Build URL from host header + request URL
-    let host = req.headers->Dict.get("host")->Option.getOr("localhost")
+    // Short-circuit: only process requests under the frontman basePath.
+    // This avoids draining the IncomingMessage body stream for non-frontman
+    // routes, which would break downstream handlers that need to read it.
     let reqUrl = req.url->Null.toOption->Option.getOr("/")
-    let url = `http://${host}${reqUrl}`
-
-    // Create Web API Request from Node.js IncomingMessage
-    let method = req.method->Null.toOption->Option.getOr("GET")
-    let headers = WebAPI.HeadersInit.fromDict(req.headers)
-    let hasBody = bufferLength(bodyBuffer) > 0
-
-    let body = switch hasBody {
+    let pathname = reqUrl->String.toLowerCase
+    switch pathname->String.startsWith(prefix) {
+    | false => next()
     | true =>
-      Some(WebAPI.BodyInit.fromArrayBuffer((Obj.magic(bodyBuffer): ArrayBuffer.t)))
-    | false => None
-    }
+      // Collect request body (safe — this is a frontman route)
+      let bodyBuffer = await collectBody(req)
 
-    let webRequest = WebAPI.Request.fromURL(url, ~init={method, headers, ?body})
+      // Build URL from host header + request URL
+      let host = req.headers->Dict.get("host")->Option.getOr("localhost")
+      let url = `http://${host}${reqUrl}`
 
-    // Call middleware
-    let responseOption = await middleware(webRequest)
+      // Create Web API Request from Node.js IncomingMessage
+      let method = req.method->Null.toOption->Option.getOr("GET")
+      let headers = WebAPI.HeadersInit.fromDict(req.headers)
+      let hasBody = bufferLength(bodyBuffer) > 0
 
-    switch responseOption {
-    | None => next()
-    | Some(webResponse) =>
-      // Set status code
-      setStatusCode(res, webResponse.status)
-
-      // Copy headers from Web API Response to Node.js ServerResponse
-      let headerDict = headersToDict(webResponse.headers)
-      writeHead(res, webResponse.status, headerDict)
-
-      // Pipe the body stream if present
-      switch webResponse.body->Null.toOption {
-      | Some(stream) => await pipeStreamToResponse(stream, res)
-      | None => ()
+      let body = switch hasBody {
+      | true =>
+        Some(WebAPI.BodyInit.fromArrayBuffer((Obj.magic(bodyBuffer): ArrayBuffer.t)))
+      | false => None
       }
 
-      endResponse(res)
+      let webRequest = WebAPI.Request.fromURL(url, ~init={method, headers, ?body})
+
+      // Call middleware
+      let responseOption = await middleware(webRequest)
+
+      switch responseOption {
+      | None => next()
+      | Some(webResponse) =>
+        // Set status code
+        setStatusCode(res, webResponse.status)
+
+        // Copy headers from Web API Response to Node.js ServerResponse
+        let headerDict = headersToDict(webResponse.headers)
+        writeHead(res, webResponse.status, headerDict)
+
+        // Pipe the body stream if present
+        switch webResponse.body->Null.toOption {
+        | Some(stream) => await pipeStreamToResponse(stream, res)
+        | None => ()
+        }
+
+        endResponse(res)
+      }
     }
   }
 }
@@ -173,7 +185,7 @@ let frontmanPlugin = (~options: option<pluginOptions>=?): plugin => {
       }
       let config = Config.makeFromObject(configInput)
       let middleware = Middleware.createMiddleware(config)
-      let adaptedMiddleware = adaptMiddlewareToVite(middleware)
+      let adaptedMiddleware = adaptMiddlewareToVite(~basePath=config.basePath, middleware)
 
       server.middlewares->useMiddleware((req, res, next) => {
         let _ =

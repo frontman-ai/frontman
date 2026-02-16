@@ -35,8 +35,7 @@
 		}
 	},
 	"bin": {
-		"frontman-vite": "./dist/cli.js",
-		"vite": "./dist/cli.js"
+		"frontman-vite": "./dist/cli.js"
 	},
 	"files": [
 		"dist",

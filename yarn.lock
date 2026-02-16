@@ -2420,7 +2420,6 @@ __metadata:
     vite: ">=5.0.0"
   bin:
     frontman-vite: ./dist/cli.js
-    vite: ./dist/cli.js
   languageName: unknown
   linkType: soft
 
