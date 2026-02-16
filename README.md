@@ -54,17 +54,7 @@ See [Astro integration docs](https://frontman.sh/docs/astro) for configuration.
 npx @frontman-ai/vite install
 ```
 
-<<<<<<< HEAD
 See [Vite plugin docs](https://frontman.sh/docs/vite) for configuration.
-
-```js
-// vite.config.js
-import { frontmanPlugin } from "@frontman-ai/vite";
-
-export default defineConfig({
-  plugins: [frontmanPlugin()],
-});
-```
 
 - **Framework-aware** — Understands your components, routes, and build errors. Not just pixel screenshots.
 - **Real-time streaming** — See edits appear in your editor as they're written, with live preview in the browser.

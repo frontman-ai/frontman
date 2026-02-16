@@ -2416,6 +2416,9 @@ __metadata:
     vitest: "catalog:"
   peerDependencies:
     vite: ">=5.0.0"
+  bin:
+    frontman-vite: ./dist/cli.js
+    vite: ./dist/cli.js
   languageName: unknown
   linkType: soft
 
@@ -6128,7 +6131,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@rollup/pluginutils@npm:^5.0.1, @rollup/pluginutils@npm:^5.0.2, @rollup/pluginutils@npm:^5.1.4, @rollup/pluginutils@npm:^5.2.0, @rollup/pluginutils@npm:^5.3.0":
+"@rollup/pluginutils@npm:^5.0.1, @rollup/pluginutils@npm:^5.0.2, @rollup/pluginutils@npm:^5.2.0, @rollup/pluginutils@npm:^5.3.0":
   version: 5.3.0
   resolution: "@rollup/pluginutils@npm:5.3.0"
   dependencies:
@@ -8856,25 +8859,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-<<<<<<< HEAD
-"ajv-formats@npm:~3.0.1":
-  version: 3.0.1
-  resolution: "ajv-formats@npm:3.0.1"
-  dependencies:
-    ajv: "npm:^8.0.0"
-  peerDependencies:
-    ajv: ^8.0.0
-  peerDependenciesMeta:
-    ajv:
-      optional: true
-  checksum: 10c0/168d6bca1ea9f163b41c8147bae537e67bd963357a5488a1eaf3abe8baa8eec806d4e45f15b10767e6020679315c7e1e5e6803088dfb84efa2b4e9353b83dd0a
-  languageName: node
-  linkType: hard
-
 "ajv@npm:^6.12.6":
-=======
-"ajv@npm:^6.12.3, ajv@npm:^6.12.6":
->>>>>>> 59cf173de (fix: use @frontman-ai/vite scoped name with public access, remove libs/vite-plugin/)
   version: 6.12.6
   resolution: "ajv@npm:6.12.6"
   dependencies:

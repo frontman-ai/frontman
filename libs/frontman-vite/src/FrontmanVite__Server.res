@@ -66,16 +66,34 @@ let handleToolCall = async (
     let encoder = WebStreams.makeTextEncoder()
     let stream = WebStreams.makeReadableStream({
       start: controller => {
-        let _ = resultPromise->Promise.then(result => {
-          let mcpResult = CoreServer.resultToMCP(result)
-          let eventData = switch mcpResult.isError {
-          | Some(true) => CoreSSE.errorEvent(mcpResult)
-          | _ => CoreSSE.resultEvent(mcpResult)
-          }
-          controller->WebStreams.enqueue(encoder->WebStreams.encode(eventData))
-          controller->WebStreams.close
-          Promise.resolve()
-        })
+        let _ =
+          resultPromise
+          ->Promise.then(result => {
+            let mcpResult = CoreServer.resultToMCP(result)
+            let eventData = switch mcpResult.isError {
+            | Some(true) => CoreSSE.errorEvent(mcpResult)
+            | _ => CoreSSE.resultEvent(mcpResult)
+            }
+            controller->WebStreams.enqueue(encoder->WebStreams.encode(eventData))
+            controller->WebStreams.close
+            Promise.resolve()
+          })
+          ->Promise.catch(error => {
+            let msg =
+              error
+              ->JsExn.fromException
+              ->Option.flatMap(JsExn.message)
+              ->Option.getOr("Unknown error")
+            let errorResult: MCP.callToolResult = {
+              content: [{type_: "text", text: `Tool execution failed: ${msg}`}],
+              isError: Some(true),
+            }
+            controller->WebStreams.enqueue(
+              encoder->WebStreams.encode(CoreSSE.errorEvent(errorResult)),
+            )
+            controller->WebStreams.close
+            Promise.resolve()
+          })
       },
     })
 

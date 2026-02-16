@@ -65,29 +65,29 @@ let makeFromObject = (config: jsConfigInput): t => {
   let serverVersion = config.serverVersion->Option.getOr("1.0.0")
   let isLightTheme = config.isLightTheme->Option.getOr(false)
 
-  let clientUrl = config.clientUrl->Option.getOr({
+  let clientUrl = {
     let baseUrl =
-      Bindings.Process.env
-      ->Dict.get("FRONTMAN_CLIENT_URL")
-      ->Option.getOr(
-        switch isDev {
-        | true => "http://localhost:5173/src/Main.res.mjs"
-        | false => "https://app.frontman.sh/frontman.es.js"
-        },
+      config.clientUrl->Option.getOr(
+        Bindings.Process.env
+        ->Dict.get("FRONTMAN_CLIENT_URL")
+        ->Option.getOr(
+          switch isDev {
+          | true => "http://localhost:5173/src/Main.res.mjs"
+          | false => "https://app.frontman.sh/frontman.es.js"
+          },
+        ),
       )
-    // Use URL API to properly append params (handles base URLs that already have query strings)
+    // Ensure clientUrl always has the required query params the client reads from import.meta.url
     let url = WebAPI.URL.make(~url=baseUrl)
-    url.searchParams->WebAPI.URLSearchParams.set(~name="clientName", ~value="vite")
-    url.searchParams->WebAPI.URLSearchParams.set(~name="host", ~value=host)
+    switch url.searchParams->WebAPI.URLSearchParams.has(~name="clientName") {
+    | true => ()
+    | false => url.searchParams->WebAPI.URLSearchParams.set(~name="clientName", ~value="vite")
+    }
+    switch url.searchParams->WebAPI.URLSearchParams.has(~name="host") {
+    | true => ()
+    | false => url.searchParams->WebAPI.URLSearchParams.set(~name="host", ~value=host)
+    }
     url.href
-  })
-
-  // Assert clientUrl contains the required "host" query param that the client reads from import.meta.url
-  let parsedUrl = WebAPI.URL.make(~url=clientUrl)
-  if !(parsedUrl.searchParams->WebAPI.URLSearchParams.has(~name="host")) {
-    JsError.throwWithMessage(
-      `[frontman-vite] clientUrl must include a "host" query parameter. Got: ${clientUrl}`,
-    )
   }
 
   {
