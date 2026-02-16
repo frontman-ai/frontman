@@ -19,17 +19,22 @@ ${tagline}
 `
 }
 
-// The import + plugin line to inject into vite.config
+// The import line to inject into vite.config
 let importLine = `import { frontmanPlugin } from '@frontman-ai/vite';`
+
+// The plugin call with host option
+let pluginCall = (~server: string) =>
+  `frontmanPlugin({ host: '${server}' })`
 
 // Manual instructions shown when user has an existing config and skips auto-edit
 module ManualInstructions = {
-  let viteConfig = (fileName: string) => {
+  let viteConfig = (~server: string, fileName: string) => {
     let h = Style.yellowBold
     let s = Style.purple
     let d = Style.dim
     let b = Style.bold
     let bar = Style.yellow("|")
+    let call = pluginCall(~server)
 
     `  ${bar}
   ${bar}  ${h(fileName)} needs manual modification.
@@ -38,10 +43,10 @@ module ManualInstructions = {
   ${bar}
   ${bar}     ${d("import { frontmanPlugin } from '@frontman-ai/vite';")}
   ${bar}
-  ${bar}  ${s("2.")} Add ${b("frontmanPlugin()")} to your plugins array:
+  ${bar}  ${s("2.")} Add ${b(call)} to your plugins array:
   ${bar}
   ${bar}     ${d("plugins: [")}
-  ${bar}     ${d("  frontmanPlugin(),")}
+  ${bar}     ${d(`  ${call},`)}
   ${bar}     ${d("  // ...your other plugins")}
   ${bar}     ${d("],")}
   ${bar}

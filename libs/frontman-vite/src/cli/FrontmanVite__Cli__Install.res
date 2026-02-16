@@ -58,8 +58,8 @@ let installDependencies = async (
 }
 
 // Inject frontmanPlugin into an existing vite config file
-// Strategy: add import at the top, add frontmanPlugin() to plugins array
-let injectFrontmanPlugin = (content: string): result<string, string> => {
+// Strategy: add import at the top, add frontmanPlugin({ host }) to plugins array
+let injectFrontmanPlugin = (~server: string, content: string): result<string, string> => {
   // Check if plugins array exists
   let pluginsPattern = %re("/plugins\s*:\s*\[/")
 
@@ -95,11 +95,12 @@ let injectFrontmanPlugin = (content: string): result<string, string> => {
       importStatement ++ "\n" ++ content
     }
 
-    // Insert frontmanPlugin() as first item in plugins array
+    // Insert frontmanPlugin({ host }) as first item in plugins array
+    let call = Templates.pluginCall(~server)
     let result =
       contentWithImport->String.replaceRegExp(
         %re("/plugins\s*:\s*\[/"),
-        "plugins: [\n    frontmanPlugin(),",
+        `plugins: [\n    ${call},`,
       )
 
     Ok(result)
@@ -110,6 +111,7 @@ let injectFrontmanPlugin = (content: string): result<string, string> => {
 let handleViteConfig = async (
   ~projectDir: string,
   ~info: Detect.projectInfo,
+  ~server: string,
   ~dryRun: bool,
 ): result<unit, string> => {
   switch info.viteConfig {
@@ -121,12 +123,13 @@ let handleViteConfig = async (
     // No vite config at all — create one from scratch
     let fileName = "vite.config.ts"
     let filePath = Path.join([projectDir, fileName])
+    let call = Templates.pluginCall(~server)
     let content = `import { defineConfig } from 'vite';
 import { frontmanPlugin } from '@frontman-ai/vite';
 
 export default defineConfig({
   plugins: [
-    frontmanPlugin(),
+    ${call},
   ],
 });
 `
@@ -146,14 +149,14 @@ export default defineConfig({
       Console.log(`  ${Style.dim(`Would modify: ${info.viteConfigFileName}`)}`)
       Ok()
     | false =>
-      switch injectFrontmanPlugin(content) {
+      switch injectFrontmanPlugin(~server, content) {
       | Ok(newContent) =>
         await Fs.Promises.writeFile(filePath, newContent)
         Console.log(Templates.SuccessMessages.fileUpdated(info.viteConfigFileName))
         Ok()
       | Error(_) =>
         Console.log(Templates.SuccessMessages.manualEditRequired(info.viteConfigFileName))
-        Error(Templates.ManualInstructions.viteConfig(info.viteConfigFileName))
+        Error(Templates.ManualInstructions.viteConfig(~server, info.viteConfigFileName))
       }
     }
   }
@@ -203,7 +206,7 @@ let run = async (options: installOptions): installResult => {
     // Step 3: Handle vite config
     let manualSteps = []
 
-    switch await handleViteConfig(~projectDir, ~info, ~dryRun=options.dryRun) {
+    switch await handleViteConfig(~projectDir, ~info, ~server=options.server, ~dryRun=options.dryRun) {
     | Ok() => ()
     | Error(details) => manualSteps->Array.push(details)->ignore
     }
