@@ -103,8 +103,8 @@ let detectConfigFile = async (projectDir: string): option<string> => {
   await check(variants)
 }
 
-// Pattern to detect @frontman/frontman-astro import
-let frontmanImportPattern = %re("/@frontman\/frontman-astro|frontman-astro\/integration/")
+// Pattern to detect @frontman-ai/astro (or legacy @frontman/frontman-astro) import
+let frontmanImportPattern = %re("/@frontman-ai\/astro|@frontman\/frontman-astro|frontman-astro\/integration/")
 
 // Pattern to extract host from makeConfig or createMiddleware config
 let hostPattern = %re("/host:\s*['\"]([^'\"]+)['\"]/")
@@ -114,7 +114,7 @@ let analyzeFile = async (filePath: string): existingFile => {
   switch await readFile(filePath) {
   | None => NotFound
   | Some(content) =>
-    // Check if it imports @frontman/frontman-astro
+    // Check if it imports @frontman-ai/astro (or legacy @frontman/frontman-astro)
     switch frontmanImportPattern->RegExp.test(content) {
     | true =>
       // Try to extract the host

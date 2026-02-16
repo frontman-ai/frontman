@@ -4,7 +4,7 @@ import tailwind from "@astrojs/tailwind";
 import icon from "astro-icon";
 import sitemap from "@astrojs/sitemap";
 import node from "@astrojs/node";
-import { make as frontmanIntegration } from "@frontman/frontman-astro/integration";
+import { make as frontmanIntegration } from "@frontman-ai/astro/integration";
 
 const isProd = process.env.NODE_ENV === "production";
 

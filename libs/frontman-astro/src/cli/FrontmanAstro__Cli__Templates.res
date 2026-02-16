@@ -22,7 +22,7 @@ ${tagline}
 
 // src/middleware.ts template
 let middlewareTemplate = (host: string) =>
-  `import { createMiddleware, makeConfig } from '@frontman/frontman-astro';
+  `import { createMiddleware, makeConfig } from '@frontman-ai/astro';
 import { defineMiddleware } from 'astro:middleware';
 
 const config = makeConfig({ host: '${host}' });
@@ -40,7 +40,7 @@ let configTemplate = (host: string) => {
   ignore(host)
   `import { defineConfig } from 'astro/config';
 import node from '@astrojs/node';
-import { frontmanIntegration } from '@frontman/frontman-astro/integration';
+import { frontmanIntegration } from '@frontman-ai/astro/integration';
 
 const isProd = process.env.NODE_ENV === 'production';
 
@@ -67,7 +67,7 @@ module ManualInstructions = {
   ${bar}  ${s("1.")} Add imports at the top of the file:
   ${bar}
   ${bar}     ${d("import node from '@astrojs/node';")}
-  ${bar}     ${d("import { frontmanIntegration } from '@frontman/frontman-astro/integration';")}
+  ${bar}     ${d("import { frontmanIntegration } from '@frontman-ai/astro/integration';")}
   ${bar}
   ${bar}  ${s("2.")} Add SSR config for dev mode ${d("(needed for middleware routes)")}:
   ${bar}
@@ -98,7 +98,7 @@ module ManualInstructions = {
   ${bar}
   ${bar}  ${s("1.")} Add imports at the top of the file:
   ${bar}
-  ${bar}     ${d("import { createMiddleware, makeConfig } from '@frontman/frontman-astro';")}
+  ${bar}     ${d("import { createMiddleware, makeConfig } from '@frontman-ai/astro';")}
   ${bar}     ${d("import { defineMiddleware, sequence } from 'astro:middleware';")}
   ${bar}
   ${bar}  ${s("2.")} Create the Frontman middleware instance ${d("(after imports)")}:
@@ -130,7 +130,7 @@ Add the following to your ${fileName}:
   1. Add imports at the top of the file:
 
      import node from '@astrojs/node';
-     import { frontmanIntegration } from '@frontman/frontman-astro/integration';
+     import { frontmanIntegration } from '@frontman-ai/astro/integration';
 
   2. Add SSR config for dev mode (needed for middleware routes):
 
@@ -156,7 +156,7 @@ Add the following to your ${fileName}:
 
   1. Add imports at the top of the file:
 
-     import { createMiddleware, makeConfig } from '@frontman/frontman-astro';
+     import { createMiddleware, makeConfig } from '@frontman-ai/astro';
      import { defineMiddleware, sequence } from 'astro:middleware';
 
   2. Create the Frontman middleware instance (after imports):

@@ -5,7 +5,7 @@
 		"@frontman/chrome-extension",
 		"@frontman/bindings",
 		"@frontman/client",
-		"@frontman/frontman-astro",
+		"@frontman-ai/astro",
 		"@frontman/frontman-client",
 		"@frontman-ai/nextjs",
 		"@frontman/frontman-protocol",

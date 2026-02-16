@@ -1,8 +1,8 @@
 ---
-"@frontman/frontman-astro": minor
+"@frontman-ai/astro": minor
 ---
 
-Add CLI installer for `@frontman/frontman-astro` with `npx @frontman/frontman-astro install`.
+Add CLI installer for `@frontman-ai/astro` with `npx @frontman-ai/astro install`.
 
 - Detects Astro version, existing config/middleware files, and package manager
 - Creates `astro.config.mjs` and `src/middleware.ts` with Frontman integration

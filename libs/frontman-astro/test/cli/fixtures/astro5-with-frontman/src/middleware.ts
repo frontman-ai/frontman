@@ -1,4 +1,4 @@
-import { createMiddleware, makeConfig } from '@frontman/frontman-astro';
+import { createMiddleware, makeConfig } from '@frontman-ai/astro';
 import { defineMiddleware } from 'astro:middleware';
 
 const config = makeConfig({ host: 'old-server.company.com' });

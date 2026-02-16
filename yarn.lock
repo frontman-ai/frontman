@@ -2363,6 +2363,25 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@frontman-ai/astro@workspace:*, @frontman-ai/astro@workspace:libs/frontman-astro":
+  version: 0.0.0-use.local
+  resolution: "@frontman-ai/astro@workspace:libs/frontman-astro"
+  dependencies:
+    "@rescript/webapi": "catalog:"
+    "@vitest/ui": "catalog:"
+    rescript: "catalog:"
+    rescript-vitest: "catalog:"
+    sury: "catalog:"
+    tsup: "npm:^8.0.0"
+    vite: "catalog:"
+    vitest: "catalog:"
+  peerDependencies:
+    astro: ^5.0.0
+  bin:
+    frontman-ai-astro: ./dist/cli.js
+  languageName: unknown
+  linkType: soft
+
 "@frontman-ai/nextjs@workspace:*, @frontman-ai/nextjs@workspace:libs/frontman-nextjs":
   version: 0.0.0-use.local
   resolution: "@frontman-ai/nextjs@workspace:libs/frontman-nextjs"
@@ -2537,25 +2556,6 @@ __metadata:
     rescript-vitest: "catalog:"
     vite: "catalog:"
     vitest: "catalog:"
-  languageName: unknown
-  linkType: soft
-
-"@frontman/frontman-astro@workspace:*, @frontman/frontman-astro@workspace:libs/frontman-astro":
-  version: 0.0.0-use.local
-  resolution: "@frontman/frontman-astro@workspace:libs/frontman-astro"
-  dependencies:
-    "@rescript/webapi": "catalog:"
-    "@vitest/ui": "catalog:"
-    rescript: "catalog:"
-    rescript-vitest: "catalog:"
-    sury: "catalog:"
-    tsup: "npm:^8.0.0"
-    vite: "catalog:"
-    vitest: "catalog:"
-  peerDependencies:
-    astro: ^5.0.0
-  bin:
-    frontman-astro: ./dist/cli.js
   languageName: unknown
   linkType: soft
 
@@ -15121,7 +15121,7 @@ __metadata:
     "@astrojs/tailwind": "npm:^6.0.2"
     "@fontsource-variable/inter": "npm:^5.0.18"
     "@fontsource-variable/outfit": "npm:^5.0.13"
-    "@frontman/frontman-astro": "workspace:*"
+    "@frontman-ai/astro": "workspace:*"
     "@tailwindcss/typography": "npm:^0.5.13"
     astro: "npm:^5.16.0"
     astro-icon: "npm:^1.1.0"

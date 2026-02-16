@@ -28,7 +28,7 @@ let buildSystemPrompt = (~fileType: fileType, ~host: string): string => {
       Templates.ErrorMessages.configManualSetup("astro.config.mjs", host),
       Templates.configTemplate(host),
       `- Add the import for '@astrojs/node' at the top of the file
-- Add the import for '@frontman/frontman-astro/integration' at the top of the file
+- Add the import for '@frontman-ai/astro/integration' at the top of the file
 - Add frontmanIntegration() to the integrations array
 - Add SSR dev mode config: ...(isProd ? {} : { output: 'server', adapter: node({ mode: 'standalone' }) })
 - Add const isProd = process.env.NODE_ENV === 'production'; before defineConfig
@@ -39,7 +39,7 @@ let buildSystemPrompt = (~fileType: fileType, ~host: string): string => {
       "src/middleware.ts",
       Templates.ErrorMessages.middlewareManualSetup("src/middleware.ts", host),
       Templates.middlewareTemplate(host),
-      `- Add the import for '@frontman/frontman-astro' (createMiddleware, makeConfig) at the top of the file
+      `- Add the import for '@frontman-ai/astro' (createMiddleware, makeConfig) at the top of the file
 - Add the import for 'astro:middleware' (defineMiddleware, sequence) at the top of the file
 - Create a Frontman middleware instance with makeConfig({ host: '${host}' })
 - Create a defineMiddleware wrapper for the Frontman handler
@@ -169,10 +169,10 @@ let validateOutput = (~content: string, ~fileType: fileType): bool => {
   switch fileType {
   | Config =>
     content->String.includes("frontmanIntegration") &&
-    content->String.includes("@frontman/frontman-astro") &&
+    content->String.includes("@frontman-ai/astro") &&
     content->String.includes("defineConfig")
   | Middleware =>
-    content->String.includes("@frontman/frontman-astro") &&
+    content->String.includes("@frontman-ai/astro") &&
     content->String.includes("createMiddleware") &&
     content->String.includes("makeConfig") &&
     content->String.includes("onRequest")

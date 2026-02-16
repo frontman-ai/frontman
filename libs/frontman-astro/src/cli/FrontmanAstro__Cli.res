@@ -1,5 +1,5 @@
 // CLI entry point for frontman-astro
-// Usage: npx @frontman/frontman-astro install --server <host>
+// Usage: npx @frontman-ai/astro install --server <host>
 
 module Process = FrontmanBindings.Process
 module Install = FrontmanAstro__Cli__Install
@@ -18,7 +18,7 @@ let helpText = `
 Frontman Astro CLI
 
 Usage:
-  frontman-astro <command> [options]
+  frontman-ai-astro <command> [options]
 
 Commands:
   install    Install Frontman in an Astro project
@@ -31,9 +31,9 @@ Options:
   --help            Show this help message
 
 Examples:
-  npx @frontman/frontman-astro install
-  npx @frontman/frontman-astro install --server frontman.company.com
-  npx @frontman/frontman-astro install --dry-run
+  npx @frontman-ai/astro install
+  npx @frontman-ai/astro install --server frontman.company.com
+  npx @frontman-ai/astro install --dry-run
 `
 
 // Simple argument parser

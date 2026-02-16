@@ -1,6 +1,6 @@
 import { defineConfig } from 'astro/config';
 import node from '@astrojs/node';
-import { frontmanIntegration } from '@frontman/frontman-astro/integration';
+import { frontmanIntegration } from '@frontman-ai/astro/integration';
 
 const isProd = process.env.NODE_ENV === 'production';
 

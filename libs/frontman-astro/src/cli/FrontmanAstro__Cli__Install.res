@@ -30,7 +30,7 @@ let installDependencies = async (
 ): result<unit, string> => {
   let pm = Detect.getPackageManagerCommand(packageManager)
   let args = Detect.getInstallArgs(packageManager)
-  let packages = ["@frontman/frontman-astro", "@astrojs/node"]
+  let packages = ["@frontman-ai/astro", "@astrojs/node"]
   // Deno requires npm: prefix for npm packages (otherwise it looks them up on JSR)
   let packages = switch packageManager {
   | Deno => packages->Array.map(p => "npm:" ++ p)

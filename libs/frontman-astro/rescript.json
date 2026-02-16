@@ -1,5 +1,5 @@
 {
-	"name": "@frontman/frontman-astro",
+	"name": "@frontman-ai/astro",
 	"namespace": true,
 	"sources": [
 		{

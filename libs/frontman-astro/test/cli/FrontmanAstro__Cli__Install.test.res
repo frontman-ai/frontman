@@ -230,7 +230,7 @@ describe("Astro 5 Clean Install", _t => {
     switch content {
     | Some(c) =>
       t->expect(c->String.includes("frontmanIntegration"))->Expect.toBe(true)
-      t->expect(c->String.includes("@frontman/frontman-astro"))->Expect.toBe(true)
+      t->expect(c->String.includes("@frontman-ai/astro"))->Expect.toBe(true)
       t->expect(c->String.includes("defineConfig"))->Expect.toBe(true)
       t->expect(c->String.includes("@astrojs/node"))->Expect.toBe(true)
     | None => t->expect("astro.config.mjs")->Expect.toBe("should exist")
@@ -253,7 +253,7 @@ describe("Astro 5 Clean Install", _t => {
 
     switch content {
     | Some(c) =>
-      t->expect(c->String.includes("@frontman/frontman-astro"))->Expect.toBe(true)
+      t->expect(c->String.includes("@frontman-ai/astro"))->Expect.toBe(true)
       t->expect(c->String.includes("createMiddleware"))->Expect.toBe(true)
       t->expect(c->String.includes("makeConfig"))->Expect.toBe(true)
       t->expect(c->String.includes("host: 'test.frontman.dev'"))->Expect.toBe(true)
@@ -357,7 +357,7 @@ describe("Existing Files Without Frontman", _t => {
       switch middlewareStep {
       | Some(step) =>
         t->expect(step->String.includes("createMiddleware"))->Expect.toBe(true)
-        t->expect(step->String.includes("@frontman/frontman-astro"))->Expect.toBe(true)
+        t->expect(step->String.includes("@frontman-ai/astro"))->Expect.toBe(true)
       | None => t->expect("middleware step")->Expect.toBe("should exist")
       }
     | _ => t->expect("should")->Expect.toBe("partial success")

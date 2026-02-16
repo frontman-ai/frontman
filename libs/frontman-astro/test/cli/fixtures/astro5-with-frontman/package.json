@@ -3,6 +3,6 @@
   "version": "1.0.0",
   "dependencies": {
     "astro": "^5.0.0",
-    "@frontman/frontman-astro": "^0.1.0"
+    "@frontman-ai/astro": "^0.1.0"
   }
 }

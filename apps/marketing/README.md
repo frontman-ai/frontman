@@ -37,7 +37,7 @@ Run `make help` to see all available commands.
 
 ## Notes
 
-- **Monorepo dependency**: Uses `@frontman/frontman-astro` as a workspace package. Must be built within the monorepo.
+- **Monorepo dependency**: Uses `@frontman-ai/astro` as a workspace package. Must be built within the monorepo.
 - **Dogfooding**: Frontman's own Astro integration is enabled in dev mode via `src/middleware.ts`, so the marketing site uses Frontman to build itself.
 - **Changelog**: The `/changelog` page reads `/CHANGELOG.md` from the monorepo root at build time.
 - **Deploy secrets**: `make deploy` wraps commands with `op run` to inject Cloudflare credentials from 1Password.

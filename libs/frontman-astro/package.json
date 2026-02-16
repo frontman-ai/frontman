@@ -1,5 +1,5 @@
 {
-	"name": "@frontman/frontman-astro",
+	"name": "@frontman-ai/astro",
 	"version": "0.1.0",
 	"description": "Astro integration for Frontman",
 	"license": "Apache-2.0",
@@ -36,7 +36,7 @@
 		}
 	},
 	"bin": {
-		"frontman-astro": "./dist/cli.js"
+		"frontman-ai-astro": "./dist/cli.js"
 	},
 	"files": [
 		"src",
@@ -49,6 +49,9 @@
 	},
 	"peerDependencies": {
 		"astro": "^5.0.0"
+	},
+	"publishConfig": {
+		"access": "public"
 	},
 	"devDependencies": {
 		"@rescript/webapi": "catalog:",
