@@ -1,6 +1,5 @@
 ---
 // Imports
-import { ClientRouter } from 'astro:transitions'
 import GoogleAnalytics from '../../scripts/googleAnalytics.astro'
 import GoogleTagManagerHead from '../../scripts/googleTagManagerHead.astro'
 import GoogleSearchConsole from '../../scripts/googleSearchConsole.astro'
@@ -58,5 +57,4 @@ const {
 	<meta name="generator" content={Astro.generator} />
 	<meta name="theme-color" content="#134e4a" />
 	<StructuredData />
-	<ClientRouter fallback="swap" />
 </head>
