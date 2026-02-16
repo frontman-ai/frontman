@@ -69,6 +69,7 @@
 		"@tailwindcss/vite": "^4.1.16",
 		"@toon-format/toon": "2.0.1",
 		"@types/babel__core": "^7",
+		"@types/canvas-confetti": "^1",
 		"@types/react": "^19.2.2",
 		"@types/use-sync-external-store": "^1",
 		"@vitest/ui": "catalog:",
@@ -103,6 +104,7 @@
 	},
 	"dependencies": {
 		"@radix-ui/react-alert-dialog": "^1.1.15",
-		"@radix-ui/react-tabs": "^1.1.13"
+		"@radix-ui/react-tabs": "^1.1.13",
+		"canvas-confetti": "^1.9.4"
 	}
 }

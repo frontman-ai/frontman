@@ -20,6 +20,7 @@ type contextValue = {
   isSendingPrompt: bool,
   session: option<ACP.session>,
   relay: option<Relay.t>,
+  authRedirectUrl: option<string>,
   createSession: (~onComplete: result<string, string> => unit) => unit,
   clearSession: unit => unit,
   sendPrompt: (
@@ -40,6 +41,7 @@ let defaultContextValue: contextValue = {
   isSendingPrompt: false,
   session: None,
   relay: None,
+  authRedirectUrl: None,
   createSession: (~onComplete as _) => (),
   clearSession: () => (),
   sendPrompt: (_, ~additionalBlocks as _, ~onComplete as _, ~metadata as _) => (),
@@ -202,12 +204,23 @@ module Provider = {
       [dispatch],
     )
 
+    // Extract auth redirect URL from ACP error state (encoded as "auth_required:<url>")
+    let authRedirectUrl = switch state.acp {
+    | Reducer.ACPError(msg) =>
+      switch String.startsWith(msg, "auth_required:") {
+      | true => Some(String.slice(msg, ~start=14, ~end=String.length(msg)))
+      | false => None
+      }
+    | _ => None
+    }
+
     let contextValue: contextValue = {
       connectionState: Reducer.Selectors.getConnectionStatus(state),
       mcpState: Reducer.Selectors.getMCPStatus(state),
       isSendingPrompt: state.isSendingPrompt,
       session: Reducer.Selectors.getSession(state),
       relay: state.relayInstance,
+      authRedirectUrl,
       createSession,
       clearSession,
       sendPrompt,
