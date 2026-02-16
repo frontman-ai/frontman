@@ -48,7 +48,7 @@ let injectAnnotationScript = async (response: WebAPI.FetchAPI.response): WebAPI.
 }
 
 // HTML template for the Frontman UI
-let uiHtml = (~clientUrl: string) => {
+let uiHtml = (~clientUrl: string, ~isLightTheme: bool) => {
   // Get the raw env var and filter out empty strings
   let openrouterKey =
     FrontmanBindings.Process.env
@@ -60,8 +60,9 @@ let uiHtml = (~clientUrl: string) => {
     configObj->Dict.set("openrouterKeyValue", JSON.Encode.string(key))
   })
   let runtimeConfig = JSON.stringify(JSON.Encode.object(configObj))
+  let themeClass = isLightTheme ? "" : "dark"
   `<!DOCTYPE html>
-<html>
+<html lang="en" class="${themeClass}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -85,7 +86,7 @@ let uiHtml = (~clientUrl: string) => {
 
 // Serve UI HTML
 let serveUI = (config: Config.t): WebAPI.FetchAPI.response => {
-  let html = uiHtml(~clientUrl=config.clientUrl)
+  let html = uiHtml(~clientUrl=config.clientUrl, ~isLightTheme=config.isLightTheme)
   let headers = WebAPI.HeadersInit.fromDict(Dict.fromArray([("Content-Type", "text/html")]))
   WebAPI.Response.fromString(html, ~init={headers: headers})
 }

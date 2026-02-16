@@ -18,6 +18,7 @@ type t = {
   serverVersion: string,
   host: string,
   clientUrl: string,
+  isLightTheme: bool,
 }
 
 // JS-friendly type for config input
@@ -29,6 +30,7 @@ type jsConfigInput = {
   serverVersion?: string,
   host?: string,
   clientUrl?: string,
+  isLightTheme?: bool,
 }
 
 // JS-friendly function that accepts a config object
@@ -47,6 +49,7 @@ let makeFromObject = (config: jsConfigInput): t => {
   let basePath = config.basePath->Option.getOr("frontman")
   let serverName = config.serverName->Option.getOr("frontman-astro")
   let serverVersion = config.serverVersion->Option.getOr("1.0.0")
+  let isLightTheme = config.isLightTheme->Option.getOr(false)
   let host = config.host->Option.getOr(defaultHost)
 
   let clientUrl = config.clientUrl->Option.getOr({
@@ -77,5 +80,6 @@ let makeFromObject = (config: jsConfigInput): t => {
     serverVersion,
     host,
     clientUrl,
+    isLightTheme,
   }
 }
