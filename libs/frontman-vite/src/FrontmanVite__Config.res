@@ -99,7 +99,12 @@ let makeFromObject = (config: jsConfigInput): t => {
     serverVersion,
     host,
     clientUrl,
-    clientCssUrl: config.clientCssUrl,
+    clientCssUrl: config.clientCssUrl->Option.orElse(
+      switch isDev {
+      | true => None
+      | false => Some("https://app.frontman.sh/frontman.css")
+      },
+    ),
     entrypointUrl: config.entrypointUrl,
     isLightTheme,
   }
