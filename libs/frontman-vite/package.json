@@ -34,6 +34,10 @@
 			"default": "./dist/index.js"
 		}
 	},
+	"bin": {
+		"frontman-vite": "./dist/cli.js",
+		"@frontman-ai/vite": "./dist/cli.js"
+	},
 	"files": [
 		"dist",
 		"README.md"
