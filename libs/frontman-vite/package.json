@@ -1,12 +1,15 @@
 {
 	"name": "@frontman-ai/vite",
+	"publishConfig": {
+		"access": "public"
+	},
 	"version": "0.1.0",
 	"description": "Vite integration for Frontman - AI-powered development tools",
 	"license": "Apache-2.0",
 	"author": "Frontman AI",
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/frontman-ai/frontman.git",
+		"url": "git+https://github.com/frontman-ai/frontman.git",
 		"directory": "libs/frontman-vite"
 	},
 	"homepage": "https://frontman.sh",

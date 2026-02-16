@@ -37,13 +37,13 @@ Unlike screenshot-based AI tools, Frontman hooks into your framework's build pip
 ### Next.js
 
 ```bash
-npx @frontman-ai/nextjs@latest init
+npx @frontman-ai/nextjs install
 ```
 
 ### Astro
 
 ```bash
-npm install @frontman/frontman-astro
+npx @frontman-ai/astro install
 ```
 
 See [Astro integration docs](https://frontman.sh/docs/astro) for configuration.
@@ -51,12 +51,20 @@ See [Astro integration docs](https://frontman.sh/docs/astro) for configuration.
 ### Vite
 
 ```bash
-npm install @frontman/vite-plugin
+npx @frontman-ai/vite install
 ```
 
+<<<<<<< HEAD
 See [Vite plugin docs](https://frontman.sh/docs/vite) for configuration.
 
-## Key Capabilities
+```js
+// vite.config.js
+import { frontmanPlugin } from "@frontman-ai/vite";
+
+export default defineConfig({
+  plugins: [frontmanPlugin()],
+});
+```
 
 - **Framework-aware** — Understands your components, routes, and build errors. Not just pixel screenshots.
 - **Real-time streaming** — See edits appear in your editor as they're written, with live preview in the browser.

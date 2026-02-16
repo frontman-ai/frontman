@@ -27,8 +27,7 @@
 		"libs/frontman-vite",
 		"test/sites/blog-starter",
 		"libs/logs",
-		"libs/react-statestore",
-		"libs/vite-plugin"
+		"libs/react-statestore"
 	],
 	"dependencies": {
 		"rescript": "catalog:"
