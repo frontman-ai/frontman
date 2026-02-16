@@ -13,6 +13,12 @@ export default defineConfig({
   site: "https://frontman.sh",
   // SSR only needed in dev for /frontman/* routes
   ...(isProd ? {} : { output: "server", adapter: node({ mode: "standalone" }) }),
+  build: {
+    // Inline all stylesheets directly into the HTML to eliminate
+    // render-blocking <link> requests (~25 KiB total). Trades a small
+    // increase in HTML size for removing 4 blocking CSS round-trips (~430 ms).
+    inlineStylesheets: "always",
+  },
   integrations: [
     frontmanIntegration(),
     tailwind(),
