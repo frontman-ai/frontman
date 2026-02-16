@@ -6,16 +6,17 @@
 // Components
 // - UI
 import OpenSourceBadge from '../../ui/OpenSourceBadge.astro'
-import { Image } from 'astro:assets'
 import Button from '../../ui/Button.astro'
 
 // Content
-// - Hero Image
-import heroImage from '../../../assets/frontman-example.png'
 // - Background Pattern
 import gridNetBackground from '../../../assets/grid-net-background.svg'
 // - Logo (from public folder)
 const logoImage = { src: '/logo.svg' }
+
+// YouTube video
+const youtubeVideoId = '-4GD1GYwH8Y'
+const thumbnailUrl = `https://i.ytimg.com/vi/${youtubeVideoId}/maxresdefault.jpg`
 ---
 
 <section id="intro" class="hero-section bg-primary-500">
@@ -45,18 +46,29 @@ const logoImage = { src: '/logo.svg' }
 					</a>
 				</div>
 			</div>
-			<div class="hero-section__image-wrapper">
-				<Image
-					src={heroImage}
-					alt="Frontman - AI Frontend Editing"
-					class="hero-section__image"
-					format="webp"
-					fetchpriority="high"
-					loading="eager"
-					decoding="sync"
-					widths={[400, 640, 964]}
-					sizes="(max-width: 1023px) 100vw, 964px"
-				/>
+			<div class="hero-section__video-wrapper">
+				<button
+					class="hero-section__video-trigger"
+					data-video-id={youtubeVideoId}
+					aria-label="Play demo video"
+					type="button"
+				>
+					<img
+						src={thumbnailUrl}
+						alt="Frontman demo video"
+						class="hero-section__video-thumbnail"
+						loading="eager"
+						fetchpriority="high"
+						width="1280"
+						height="720"
+					/>
+					<div class="hero-section__play-button" aria-hidden="true">
+						<svg viewBox="0 0 68 48" width="68" height="48">
+							<path d="M66.52 7.74c-.78-2.93-2.49-5.41-5.42-6.19C55.79.13 34 0 34 0S12.21.13 6.9 1.55C3.97 2.33 2.27 4.81 1.48 7.74.06 13.05 0 24 0 24s.06 10.95 1.48 16.26c.78 2.93 2.49 5.41 5.42 6.19C12.21 47.87 34 48 34 48s21.79-.13 27.1-1.55c2.93-.78 4.64-3.26 5.42-6.19C67.94 34.95 68 24 68 24s-.06-10.95-1.48-16.26z" fill="#FF0000"/>
+							<path d="M45 24L27 14v20" fill="#fff"/>
+						</svg>
+					</div>
+				</button>
 			</div>
 		</div>
 	</div>
@@ -216,36 +228,94 @@ const logoImage = { src: '/logo.svg' }
 		background: rgba(255, 255, 255, 0.25);
 		border-color: rgba(255, 255, 255, 0.4);
 	}
-	.hero-section__image-wrapper {
+	.hero-section__video-wrapper {
 		flex: 1 1 auto;
 		width: 100%;
-		overflow: visible;
-		display: flex;
-		justify-content: center;
-		align-items: center;
-		margin-right: 0;
-		padding: 0;
+		max-width: 720px;
+		aspect-ratio: 16 / 9;
+		position: relative;
+		margin: 0 auto;
+		border-radius: 12px;
+		overflow: hidden;
 	}
 	@media (min-width: 1024px) {
-		.hero-section__image-wrapper {
+		.hero-section__video-wrapper {
 			width: 55%;
-			max-width: none;
-			justify-content: flex-end;
-			padding: 0;
-			margin-right: -30px;
+			margin: 0;
+			margin-left: auto;
 		}
 	}
-	.hero-section__image {
-		width: 964px;
-		height: auto;
+	.hero-section__video-trigger {
+		position: absolute;
+		inset: 0;
+		width: 100%;
+		height: 100%;
+		border: none;
+		padding: 0;
+		margin: 0;
+		cursor: pointer;
+		background: none;
+		z-index: 1;
+		transition: opacity 0.2s ease;
+	}
+	.hero-section__video-trigger:hover {
+		opacity: 0.92;
+	}
+	.hero-section__video-trigger:focus-visible {
+		outline: 3px solid white;
+		outline-offset: 3px;
+	}
+	/* Hide trigger once video is playing */
+	.hero-section__video-trigger[data-playing] {
+		display: none;
+	}
+	.hero-section__video-thumbnail {
+		width: 100%;
+		height: 100%;
 		object-fit: cover;
-		object-position: left center;
 		display: block;
 	}
-	@media (max-width: 1023px) {
-		.hero-section__image {
-			width: 100%;
-			max-width: 964px;
-		}
+	.hero-section__play-button {
+		position: absolute;
+		top: 50%;
+		left: 50%;
+		transform: translate(-50%, -50%);
+		transition: transform 0.2s ease;
+		filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.4));
 	}
+	.hero-section__video-trigger:hover .hero-section__play-button {
+		transform: translate(-50%, -50%) scale(1.1);
+	}
+	.hero-section__video-wrapper :global(iframe) {
+		position: absolute;
+		inset: 0;
+		width: 100%;
+		height: 100%;
+		border: none;
+	}
+
 </style>
+
+<script>
+	const trigger = document.querySelector('.hero-section__video-trigger') as HTMLButtonElement | null;
+	if (!trigger) throw new Error('Video trigger button not found in HomeCTA');
+
+	trigger.addEventListener('click', () => {
+		if (trigger.hasAttribute('data-playing')) return;
+		const videoId = trigger.dataset.videoId;
+		if (!videoId) return;
+
+		const iframe = document.createElement('iframe');
+		iframe.src = `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1&iv_load_policy=3`;
+		iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture';
+		iframe.allowFullscreen = true;
+		iframe.title = 'Frontman demo video';
+
+		const wrapper = trigger.parentElement;
+		if (wrapper) {
+			trigger.setAttribute('data-playing', '');
+			wrapper.appendChild(iframe);
+			iframe.focus();
+		}
+	});
+</script>
