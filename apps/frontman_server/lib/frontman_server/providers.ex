@@ -241,7 +241,8 @@ defmodule FrontmanServer.Providers do
 
     Repo.insert(changeset,
       on_conflict: [inc: [count: 1], set: [last_used_at: now, updated_at: now]],
-      conflict_target: [:user_id, :provider]
+      conflict_target: [:user_id, :provider],
+      returning: true
     )
   end
 
