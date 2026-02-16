@@ -118,6 +118,8 @@ let convertTask = (task: Snapshot.Task.t): StateTypes.Task.t => {
       url: task.previewUrl,
       contentDocument: None,
       contentWindow: None,
+      deviceMode: Client__DeviceMode.defaultDeviceMode,
+      orientation: Client__DeviceMode.defaultOrientation,
     },
     webPreviewIsSelecting: task.webPreviewIsSelecting,
     selectedElement: None, // Cannot restore DOM element from snapshot

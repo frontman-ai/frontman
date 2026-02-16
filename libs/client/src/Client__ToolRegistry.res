@@ -18,6 +18,7 @@ let coreBrowserTools = (): t => {
   tools: [
     module(Client__Tool__TakeScreenshot),
     module(Client__Tool__Navigate),
+    module(Client__Tool__SetDeviceMode),
   ],
 }
 

@@ -51,6 +51,23 @@ module SelectElement = {
   }
 }
 
+module DeviceModeToggle = {
+  @react.component
+  let make = (~isActive: bool, ~onClick: unit => unit) => {
+    <button
+      type_="button"
+      onClick={_ => onClick()}
+      className={`flex items-center justify-center w-8 h-8 rounded-lg transition-colors
+                 ${isActive
+          ? "bg-blue-600 text-white hover:bg-blue-500"
+          : "bg-gray-200 text-gray-600 hover:bg-gray-300 hover:text-gray-700"}`}
+      title={isActive ? "Exit device mode" : "Toggle device mode"}
+    >
+      <RadixUI__Icons.MobileIcon className="size-4" />
+    </button>
+  }
+}
+
 module OpenInNewWindow = {
   @react.component
   let make = (~onClick: unit => unit) => {
@@ -67,6 +84,48 @@ module OpenInNewWindow = {
   }
 }
 
+// Raw JS binding for ResizeObserver (avoids curried callback complexity in WebAPI binding)
+type resizeObserverEntry = {contentRect: WebAPI.DOMAPI.domRectReadOnly}
+
+@new external makeResizeObserver: (array<resizeObserverEntry> => unit) => {..} = "ResizeObserver"
+
+@send external observeElement: ({..}, Dom.element) => unit = "observe"
+
+@send external disconnectObserver: ({..}) => unit = "disconnect"
+
+// Hook to measure the available space in the viewport container
+let useContainerSize = (ref: React.ref<Nullable.t<Dom.element>>): (int, int) => {
+  let (size, setSize) = React.useState(() => (0, 0))
+
+  React.useEffect(() => {
+    switch ref.current->Nullable.toOption {
+    | None => None
+    | Some(element) =>
+      // Initial measurement
+      let rect = WebAPI.Element.getBoundingClientRect(element->Obj.magic)
+      setSize(_ => (
+        rect.width->Float.toInt,
+        rect.height->Float.toInt,
+      ))
+
+      // Observe resize
+      let observer = makeResizeObserver(entries => {
+        entries->Array.get(0)->Option.forEach(entry => {
+          let cr: WebAPI.DOMAPI.domRectReadOnly = entry.contentRect
+          setSize(_ => (
+            cr.width->Float.toInt,
+            cr.height->Float.toInt,
+          ))
+        })
+      })
+      observer->observeElement(element)
+      Some(() => observer->disconnectObserver)
+    }
+  }, [])
+
+  size
+}
+
 @react.component
 let make = () => {
   // Use primitive selectors for efficient comparison (strings compare by value)
@@ -78,6 +137,17 @@ let make = () => {
   let webPreviewIsSelecting = Client__State.useSelector(
     Client__State.Selectors.webPreviewIsSelecting,
   )
+  let deviceMode = Client__State.useSelector(Client__State.Selectors.deviceMode)
+  let deviceOrientation = Client__State.useSelector(Client__State.Selectors.deviceOrientation)
+
+  let containerRef: React.ref<Nullable.t<Dom.element>> = React.useRef(Nullable.null)
+  let (availableWidth, availableHeight) = useContainerSize(containerRef)
+
+  // Persist device mode changes to localStorage
+  React.useEffect(() => {
+    Client__DeviceMode.persist(deviceMode, deviceOrientation)
+    None
+  }, (deviceMode, deviceOrientation))
 
   let handleBack = () => {
     previewFrame.contentWindow->Option.forEach(contentWindow => {
@@ -108,6 +178,10 @@ let make = () => {
       ~features="noopener,noreferrer",
     )->ignore
   }
+  let handleToggleDeviceMode = () => Client__State.Actions.toggleDeviceMode()
+
+  let deviceModeActive = Client__DeviceMode.isActive(deviceMode)
+  let effectiveDims = Client__DeviceMode.getEffectiveDimensions(deviceMode, deviceOrientation)
   
     <Nav.Container>
       <Nav.Navigation>
@@ -116,11 +190,25 @@ let make = () => {
         <ForwardButton onClick={handleForward} />
         <ReloadButton onClick={handleReload} />
         <Nav.UrlInput value={previewUrl} />
+        <DeviceModeToggle isActive={deviceModeActive} onClick={handleToggleDeviceMode} />
         <SelectElement onClick={handleSelect} isSelecting={webPreviewIsSelecting} />
         <OpenInNewWindow onClick={handleOpenInNewTab} />
       </Nav.Navigation>
 
-      <div className="relative size-full overflow-y-hidden">
+      // Device bar (only when device mode is active)
+      <Client__WebPreview__DeviceBar deviceMode orientation=deviceOrientation />
+
+      <div
+        ref={ReactDOM.Ref.callbackDomRef(el => {
+          containerRef.current = el
+          None
+        })}
+        className={switch effectiveDims {
+        | None => "relative size-full overflow-y-hidden"
+        | Some(_) =>
+          "relative size-full overflow-hidden flex items-start justify-center bg-[repeating-conic-gradient(#f3f4f6_0%_25%,#ffffff_0%_50%)] bg-[length:16px_16px]"
+        }}
+      >
         {switch previewFrame.contentDocument {
         | Some(document) => <Client__WebPreview__Stage document={document} />
         | _ => React.null
@@ -150,6 +238,24 @@ let make = () => {
               (clientId, taskPreviewFrame.url)
             })
           }
+
+          // Compute scale and dimensions for device mode
+          let viewportStyle = switch effectiveDims {
+          | None => None
+          | Some((deviceWidth, deviceHeight)) =>
+            let scale = if availableWidth > 0 && availableHeight > 0 {
+              // Leave some padding around the viewport (8px on each side)
+              Client__DeviceMode.computeScaleFactor(
+                ~deviceWidth,
+                ~deviceHeight,
+                ~availableWidth=availableWidth - 16,
+                ~availableHeight=availableHeight - 16,
+              )
+            } else {
+              1.0
+            }
+            Some((deviceWidth, deviceHeight, scale))
+          }
           
           allTasks
           ->Array.map(((clientId, url)) => {
@@ -158,6 +264,7 @@ let make = () => {
               taskId={clientId}
               url={url}
               isActive={clientId == currentTaskClientId}
+              viewportStyle=?viewportStyle
             />
           })
           ->React.array

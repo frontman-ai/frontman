@@ -1,5 +1,17 @@
+// Helper to create the iframe ref callback (avoids duplication across branches)
+let makeRefCallback = (iframeRef: React.ref<Nullable.t<Dom.element>>) => {
+  ReactDOM.Ref.callbackDomRef(iframe => {
+    iframeRef.current = iframe
+    Some(
+      () => {
+        iframeRef.current = Nullable.null
+      },
+    )
+  })
+}
+
 @react.component
-let make = (~taskId, ~url, ~isActive) => {
+let make = (~taskId, ~url, ~isActive, ~viewportStyle: option<(int, int, float)>=?) => {
   let iframeRef: React.ref<Nullable.t<Dom.element>> = React.useRef(Nullable.null)
   let lastLocationRef: React.ref<option<string>> = React.useRef(None)
   let location = Client__Hooks.useIFrameLocation(~iframeRef=iframeRef.current->Obj.magic)
@@ -67,24 +79,42 @@ let make = (~taskId, ~url, ~isActive) => {
     None
   }, [isActive])
 
-  <div
-    className={isActive
-      ? "flex-1 size-full"
-      : "absolute -left-[9999px] -top-[9999px] invisible size-full"}
-  >
-    <iframe
-      className={"size-full"}
-      src={url}
-      title={`Preview - ${taskId}`}
-      onLoad={onLoad}
-      ref={ReactDOM.Ref.callbackDomRef(iframe => {
-        iframeRef.current = iframe
-        Some(
-          () => {
-            iframeRef.current = Nullable.null
-          },
-        )
-      })}
-    />
-  </div>
+  let refCallback = makeRefCallback(iframeRef)
+
+  // Render based on active state and device mode
+  switch (isActive, viewportStyle) {
+  | (false, _) =>
+    // Inactive: position offscreen to preserve iframe state
+    <div className="absolute -left-[9999px] -top-[9999px] invisible size-full">
+      <iframe className="size-full" src={url} title={`Preview - ${taskId}`} onLoad ref={refCallback} />
+    </div>
+  | (true, None) =>
+    // Active + Responsive mode: fill available space
+    <div className="flex-1 size-full">
+      <iframe className="size-full" src={url} title={`Preview - ${taskId}`} onLoad ref={refCallback} />
+    </div>
+  | (true, Some((deviceWidth, deviceHeight, scale))) =>
+    // Active + Device mode: constrained viewport with optional scaling
+    let widthPx = Int.toString(deviceWidth) ++ "px"
+    let heightPx = Int.toString(deviceHeight) ++ "px"
+    let transformStr = if scale < 1.0 {
+      `scale(${Float.toFixed(scale, ~digits=4)})`
+    } else {
+      "none"
+    }
+    <div
+      className="shrink-0 mt-2"
+      style={
+        width: widthPx,
+        height: heightPx,
+        transform: transformStr,
+        transformOrigin: "top center",
+        overflow: "hidden",
+        borderRadius: "4px",
+        boxShadow: "0 0 0 1px rgba(0,0,0,0.1), 0 2px 8px rgba(0,0,0,0.08)",
+      }
+    >
+      <iframe className="size-full" src={url} title={`Preview - ${taskId}`} onLoad ref={refCallback} />
+    </div>
+  }
 }

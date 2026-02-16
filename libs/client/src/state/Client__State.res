@@ -46,6 +46,16 @@ module Actions = {
   let toggleWebPreviewSelection = () =>
     Client__State__Store.dispatch(TaskAction({target: CurrentTask, action: ToggleWebPreviewSelection}))
 
+  // Device mode action creators
+  let setDeviceMode = (~deviceMode) =>
+    Client__State__Store.dispatch(TaskAction({target: CurrentTask, action: SetDeviceMode({deviceMode: deviceMode})}))
+
+  let setOrientation = (~orientation) =>
+    Client__State__Store.dispatch(TaskAction({target: CurrentTask, action: SetOrientation({orientation: orientation})}))
+
+  let toggleDeviceMode = () =>
+    Client__State__Store.dispatch(TaskAction({target: CurrentTask, action: ToggleDeviceMode}))
+
   let setSelectedElement = (~selectedElement) =>
     Client__State__Store.dispatch(TaskAction({target: CurrentTask, action: SetSelectedElement({selectedElement: selectedElement})}))
 

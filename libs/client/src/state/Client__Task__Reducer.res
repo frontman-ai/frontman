@@ -99,6 +99,34 @@ module Lens = {
     }
   }
 
+  // Update device mode
+  let setDeviceMode = (task: Task.t, deviceMode: Client__DeviceMode.deviceMode): Task.t => {
+    switch task {
+    | Task.New(data) =>
+      Task.New({...data, previewFrame: {...data.previewFrame, deviceMode}})
+    | Task.Loading(data) =>
+      Task.Loading({...data, previewFrame: {...data.previewFrame, deviceMode}})
+    | Task.Loaded(data) =>
+      Task.Loaded({...data, previewFrame: {...data.previewFrame, deviceMode}})
+    | Task.Unloaded(_) =>
+      failwith("[Lens.setDeviceMode] Cannot set device mode on Unloaded task")
+    }
+  }
+
+  // Update orientation
+  let setOrientation = (task: Task.t, orientation: Client__DeviceMode.orientation): Task.t => {
+    switch task {
+    | Task.New(data) =>
+      Task.New({...data, previewFrame: {...data.previewFrame, orientation}})
+    | Task.Loading(data) =>
+      Task.Loading({...data, previewFrame: {...data.previewFrame, orientation}})
+    | Task.Loaded(data) =>
+      Task.Loaded({...data, previewFrame: {...data.previewFrame, orientation}})
+    | Task.Unloaded(_) =>
+      failwith("[Lens.setOrientation] Cannot set orientation on Unloaded task")
+    }
+  }
+
   // Toggle web preview selection mode
   let toggleWebPreviewSelection = (task: Task.t): Task.t => {
     switch task {
@@ -230,6 +258,24 @@ module Selectors = {
     }
   }
 
+  // Get device mode
+  let deviceMode = (task: Task.t): Client__DeviceMode.deviceMode => {
+    switch task {
+    | Task.Unloaded(_) => Client__DeviceMode.defaultDeviceMode
+    | Task.New({previewFrame}) | Task.Loading({previewFrame}) | Task.Loaded({previewFrame}) =>
+      previewFrame.deviceMode
+    }
+  }
+
+  // Get orientation
+  let orientation = (task: Task.t): Client__DeviceMode.orientation => {
+    switch task {
+    | Task.Unloaded(_) => Client__DeviceMode.defaultOrientation
+    | Task.New({previewFrame}) | Task.Loading({previewFrame}) | Task.Loaded({previewFrame}) =>
+      previewFrame.orientation
+    }
+  }
+
   // Get turn error
   // None = Unloaded, New, or Loading (not applicable), or no error
   let turnError = (task: Task.t): option<string> => {
@@ -277,6 +323,10 @@ type action =
       contentDocument: option<WebAPI.DOMAPI.document>,
       contentWindow: option<WebAPI.DOMAPI.window>,
     })
+  // Device mode actions
+  | SetDeviceMode({deviceMode: Client__DeviceMode.deviceMode})
+  | SetOrientation({orientation: Client__DeviceMode.orientation})
+  | ToggleDeviceMode
   // Plan/Turn actions
   | PlanReceived({entries: array<ACPTypes.planEntry>})
   | TurnCompleted
@@ -330,6 +380,9 @@ let actionToString = (action: action): string =>
   | ToggleWebPreviewSelection => "ToggleWebPreviewSelection"
   | SetPreviewUrl(_) => "SetPreviewUrl"
   | SetPreviewFrame(_) => "SetPreviewFrame"
+  | SetDeviceMode(_) => "SetDeviceMode"
+  | SetOrientation(_) => "SetOrientation"
+  | ToggleDeviceMode => "ToggleDeviceMode"
   | PlanReceived(_) => "PlanReceived"
   | TurnCompleted => "TurnCompleted"
   | CancelTurn => "CancelTurn"
@@ -410,6 +463,26 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       Task.New(_) | Task.Loading(_) | Task.Loaded(_),
       SetPreviewFrame({contentDocument, contentWindow}),
     ) => (Lens.setPreviewFrame(task, ~contentDocument, ~contentWindow), [])
+
+  // Device mode actions
+  | (Task.Unloaded(_), SetDeviceMode(_) | SetOrientation(_) | ToggleDeviceMode) => (task, [])
+  | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), SetDeviceMode({deviceMode})) =>
+    let updated = Lens.setDeviceMode(task, deviceMode)
+    (updated, [])
+  | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), SetOrientation({orientation})) =>
+    let updated = Lens.setOrientation(task, orientation)
+    (updated, [])
+  | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), ToggleDeviceMode) =>
+    let currentDeviceMode = Selectors.deviceMode(task)
+    let newDeviceMode = switch currentDeviceMode {
+    | Client__DeviceMode.Responsive =>
+      // When toggling on, default to iPhone 15 Pro (index 1 in presets)
+      Client__DeviceMode.DevicePreset(
+        Client__DeviceMode.presets->Array.get(1)->Option.getOrThrow
+      )
+    | _ => Client__DeviceMode.Responsive
+    }
+    (Lens.setDeviceMode(task, newDeviceMode), [])
 
   | (Task.Unloaded(_), ToggleWebPreviewSelection) => (task, [])
   | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), ToggleWebPreviewSelection) => (
@@ -646,7 +719,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
         createdAt,
         updatedAt,
         messages: MessageStore.make(),
-        previewFrame: {url: previewUrl, contentDocument: None, contentWindow: None},
+        previewFrame: {url: previewUrl, contentDocument: None, contentWindow: None, deviceMode: Client__DeviceMode.defaultDeviceMode, orientation: Client__DeviceMode.defaultOrientation},
         webPreviewIsSelecting: false,
         selectedElement: None,
       }),

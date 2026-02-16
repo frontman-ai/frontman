@@ -365,6 +365,14 @@ module Selectors = {
     Task.getPreviewFrame(currentTask(state), ~defaultUrl=getInitialUrl()).url
   }
 
+  let deviceMode = (state: state): Client__DeviceMode.deviceMode => {
+    TaskReducer.Selectors.deviceMode(currentTask(state))
+  }
+
+  let deviceOrientation = (state: state): Client__DeviceMode.orientation => {
+    TaskReducer.Selectors.orientation(currentTask(state))
+  }
+
   // Task collection selectors
   let getTaskSortTime = (task: Task.t): float => Task.getUpdatedAt(task)->Option.getOr(0.0)
 

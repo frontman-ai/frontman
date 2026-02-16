@@ -46,6 +46,8 @@ module Fixtures = {
         url: "http://localhost:3000",
         contentDocument: None,
         contentWindow: None,
+        deviceMode: Client__DeviceMode.defaultDeviceMode,
+        orientation: Client__DeviceMode.defaultOrientation,
       },
       webPreviewIsSelecting: false,
       selectedElement: None,

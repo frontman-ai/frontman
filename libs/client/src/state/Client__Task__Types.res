@@ -110,6 +110,8 @@ module Task = {
     url: string,
     contentDocument: option<WebAPI.DOMAPI.document>,
     contentWindow: option<WebAPI.DOMAPI.window>,
+    deviceMode: Client__DeviceMode.deviceMode,
+    orientation: Client__DeviceMode.orientation,
   }
 
   // Task lifecycle states (unified - includes New)
@@ -222,7 +224,7 @@ module Task = {
   let getPreviewFrame = (task: t, ~defaultUrl: string): previewFrame =>
     switch task {
     | New({previewFrame}) => previewFrame
-    | Unloaded(_) => {url: defaultUrl, contentDocument: None, contentWindow: None}
+    | Unloaded(_) => {url: defaultUrl, contentDocument: None, contentWindow: None, deviceMode: Client__DeviceMode.defaultDeviceMode, orientation: Client__DeviceMode.defaultOrientation}
     | Loading({previewFrame}) | Loaded({previewFrame}) => previewFrame
     }
 
@@ -291,7 +293,7 @@ module Task = {
   let makeNew = (~previewUrl: string): t => {
     New({
       clientId: WebAPI.Global.crypto->WebAPI.Crypto.randomUUID,
-      previewFrame: {url: previewUrl, contentDocument: None, contentWindow: None},
+      previewFrame: {url: previewUrl, contentDocument: None, contentWindow: None, deviceMode: Client__DeviceMode.defaultDeviceMode, orientation: Client__DeviceMode.defaultOrientation},
       webPreviewIsSelecting: false,
       selectedElement: None,
     })
@@ -317,7 +319,7 @@ module Task = {
         createdAt,
         updatedAt,
         messages: Client__MessageStore.make(),
-        previewFrame: {url: previewUrl, contentDocument: None, contentWindow: None},
+        previewFrame: {url: previewUrl, contentDocument: None, contentWindow: None, deviceMode: Client__DeviceMode.defaultDeviceMode, orientation: Client__DeviceMode.defaultOrientation},
         webPreviewIsSelecting: false,
         selectedElement: None,
       })
@@ -371,7 +373,7 @@ module Task = {
       createdAt,
       updatedAt: createdAt,
       messages: Client__MessageStore.fromArray(messages),
-      previewFrame: {url: previewUrl, contentDocument: None, contentWindow: None},
+      previewFrame: {url: previewUrl, contentDocument: None, contentWindow: None, deviceMode: Client__DeviceMode.defaultDeviceMode, orientation: Client__DeviceMode.defaultOrientation},
       webPreviewIsSelecting: false,
       selectedElement: None,
       isAgentRunning,
@@ -842,6 +844,26 @@ let currentPageToContentBlock = (previewFrame: Task.previewFrame): ACPTypes.cont
   | None => ()
   }
 
+  // Add device emulation context if active
+  if Client__DeviceMode.isActive(previewFrame.deviceMode) {
+    let emulationObj = Dict.make()
+    emulationObj->Dict.set("active", JSON.Encode.bool(true))
+    let effectiveDims = Client__DeviceMode.getEffectiveDimensions(previewFrame.deviceMode, previewFrame.orientation)
+    switch effectiveDims {
+    | Some((w, h)) =>
+      emulationObj->Dict.set("width", JSON.Encode.int(w))
+      emulationObj->Dict.set("height", JSON.Encode.int(h))
+    | None => ()
+    }
+    emulationObj->Dict.set("name", JSON.Encode.string(Client__DeviceMode.getDeviceName(previewFrame.deviceMode)))
+    emulationObj->Dict.set("orientation", JSON.Encode.string(Client__DeviceMode.orientationToString(previewFrame.orientation)))
+    switch Client__DeviceMode.getDeviceDpr(previewFrame.deviceMode) {
+    | Some(dpr) => emulationObj->Dict.set("dpr", JSON.Encode.float(dpr))
+    | None => ()
+    }
+    obj->Dict.set("device_emulation", JSON.Encode.object(emulationObj))
+  }
+
   let _meta = JSON.Encode.object(obj)
 
   // Build summary text for the resource
@@ -858,6 +880,13 @@ let currentPageToContentBlock = (previewFrame: Task.previewFrame): ACPTypes.cont
   let summaryParts = switch title {
   | Some(t) => Array.concat(summaryParts, [Some(`Title: ${t}`)])
   | None => summaryParts
+  }
+  let summaryParts = if Client__DeviceMode.isActive(previewFrame.deviceMode) {
+    let deviceName = Client__DeviceMode.getDeviceName(previewFrame.deviceMode)
+    let orientationStr = Client__DeviceMode.orientationToString(previewFrame.orientation)
+    Array.concat(summaryParts, [Some(`Device: ${deviceName} (${orientationStr})`)])
+  } else {
+    summaryParts
   }
 
   let summaryText =
