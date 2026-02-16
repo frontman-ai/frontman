@@ -63,17 +63,9 @@ let get = (): t => {
 }
 
 let setWelcomeShown = () => {
-  try {
-    setItem(storageKey, "welcome_shown")
-  } catch {
-  | _ => ()
-  }
+  setItem(storageKey, "welcome_shown")
 }
 
 let setCompleted = () => {
-  try {
-    setItem(storageKey, "completed")
-  } catch {
-  | _ => ()
-  }
+  setItem(storageKey, "completed")
 }
