@@ -67,12 +67,7 @@ let makeFromObject = (config: jsConfigInput): t => {
     let baseUrl =
       Bindings.Process.env
       ->Dict.get("FRONTMAN_CLIENT_URL")
-      ->Option.getOr(
-        switch isDev {
-        | true => "http://localhost:5173/src/Main.res.mjs"
-        | false => "https://frontman.dev/frontman.es.js"
-        },
-      )
+      ->Option.getOr("https://app.frontman.sh/frontman.es.js")
     // Use URL API to properly append params (handles base URLs that already have query strings)
     let url = WebAPI.URL.make(~url=baseUrl)
     url.searchParams->WebAPI.URLSearchParams.set(~name="clientName", ~value="vite")
