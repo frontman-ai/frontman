@@ -49,7 +49,8 @@
 	"peerDependencies": {
 		"@opentelemetry/api": "^1.9.0",
 		"@opentelemetry/sdk-logs": "^0.52.0",
-		"@opentelemetry/sdk-trace-base": "^1.25.0"
+		"@opentelemetry/sdk-trace-base": "^1.25.0",
+		"next": "^13.2.0 || ^14.0 || ^15.0 || ^16.0"
 	},
 	"peerDependenciesMeta": {
 		"@opentelemetry/api": {
@@ -69,6 +70,7 @@
 		"@rescript/webapi": "catalog:",
 		"@vitest/ui": "catalog:",
 		"dom-element-to-component-source": "0.5.0",
+		"next": "^15.0.0",
 		"rescript": "catalog:",
 		"rescript-vitest": "catalog:",
 		"sentry-testkit": "^5.0.9",
