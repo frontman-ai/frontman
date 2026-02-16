@@ -2367,6 +2367,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@frontman-ai/astro@workspace:libs/frontman-astro"
   dependencies:
+    "@rescript/runtime": "npm:12.0.0-beta.14"
     "@rescript/webapi": "catalog:"
     "@vitest/ui": "catalog:"
     rescript: "catalog:"
