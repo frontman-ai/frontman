@@ -1,6 +1,6 @@
 {
 	"name": "@frontman-ai/astro",
-	"version": "0.1.2",
+	"version": "0.1.3",
 	"description": "Astro integration for Frontman",
 	"license": "Apache-2.0",
 	"author": "Frontman AI",
@@ -46,8 +46,13 @@
 		"access": "public"
 	},
 	"devDependencies": {
+		"@frontman/bindings": "*",
+		"@frontman/frontman-core": "*",
+		"@frontman/frontman-protocol": "*",
+		"@rescript/runtime": "12.0.0-beta.14",
 		"@rescript/webapi": "catalog:",
 		"@vitest/ui": "catalog:",
+		"dom-element-to-component-source": "0.5.0",
 		"rescript": "catalog:",
 		"rescript-vitest": "catalog:",
 		"sury": "catalog:",

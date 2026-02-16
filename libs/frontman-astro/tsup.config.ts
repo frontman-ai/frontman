@@ -6,6 +6,7 @@ const sharedNoExternal = [
   '@frontman/bindings',
   '@rescript/runtime',
   'sury',
+  'dom-element-to-component-source',
 ];
 
 const sharedExternal = [
@@ -22,6 +23,7 @@ const sharedExternal = [
   'crypto',
   'util',
   'stream',
+  'stream/web',
   'events',
   'buffer',
   'url',
