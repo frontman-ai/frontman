@@ -11,35 +11,31 @@ let make = (~onDismiss: unit => unit, ~onConnectProvider: unit => unit) => {
 
   // Fire confetti on mount
   React.useEffect0(() => {
-    let fireConfetti = async () => {
-      // Center burst
-      let _ = await Bindings__CanvasConfetti.fire({
-        particleCount: 80,
-        spread: 70,
-        origin: {x: 0.5, y: 0.4},
-        colors: ["#a78bfa", "#818cf8", "#6366f1", "#c084fc", "#e879f9"],
-        disableForReducedMotion: true,
-      })
-      // Left burst
-      let _ = await Bindings__CanvasConfetti.fire({
-        particleCount: 40,
-        angle: 60,
-        spread: 55,
-        origin: {x: 0.0, y: 0.6},
-        colors: ["#a78bfa", "#818cf8", "#6366f1"],
-        disableForReducedMotion: true,
-      })
-      // Right burst
-      let _ = await Bindings__CanvasConfetti.fire({
-        particleCount: 40,
-        angle: 120,
-        spread: 55,
-        origin: {x: 1.0, y: 0.6},
-        colors: ["#c084fc", "#e879f9", "#6366f1"],
-        disableForReducedMotion: true,
-      })
-    }
-    fireConfetti()->ignore
+    // Fire all bursts simultaneously — canvas-confetti promises resolve only after
+    // particles fully fade (~3-5s), so awaiting them sequentially would cause ~9-15s delays.
+    Bindings__CanvasConfetti.fire({
+      particleCount: 80,
+      spread: 70,
+      origin: {x: 0.5, y: 0.4},
+      colors: ["#a78bfa", "#818cf8", "#6366f1", "#c084fc", "#e879f9"],
+      disableForReducedMotion: true,
+    })->ignore
+    Bindings__CanvasConfetti.fire({
+      particleCount: 40,
+      angle: 60,
+      spread: 55,
+      origin: {x: 0.0, y: 0.6},
+      colors: ["#a78bfa", "#818cf8", "#6366f1"],
+      disableForReducedMotion: true,
+    })->ignore
+    Bindings__CanvasConfetti.fire({
+      particleCount: 40,
+      angle: 120,
+      spread: 55,
+      origin: {x: 1.0, y: 0.6},
+      colors: ["#c084fc", "#e879f9", "#6366f1"],
+      disableForReducedMotion: true,
+    })->ignore
     None
   })
 
