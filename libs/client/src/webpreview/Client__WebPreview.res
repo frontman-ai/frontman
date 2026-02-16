@@ -243,7 +243,7 @@ let make = () => {
           let viewportStyle = switch effectiveDims {
           | None => None
           | Some((deviceWidth, deviceHeight)) =>
-            let scale = if availableWidth > 0 && availableHeight > 0 {
+            let scale = if availableWidth > 16 && availableHeight > 16 {
               // Leave some padding around the viewport (8px on each side)
               Client__DeviceMode.computeScaleFactor(
                 ~deviceWidth,
