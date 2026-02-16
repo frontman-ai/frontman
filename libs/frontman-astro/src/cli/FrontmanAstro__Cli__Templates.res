@@ -40,7 +40,7 @@ let configTemplate = (host: string) => {
   ignore(host)
   `import { defineConfig } from 'astro/config';
 import node from '@astrojs/node';
-import { frontmanIntegration } from '@frontman-ai/astro/integration';
+import { frontmanIntegration } from '@frontman-ai/astro';
 
 const isProd = process.env.NODE_ENV === 'production';
 
@@ -67,7 +67,7 @@ module ManualInstructions = {
   ${bar}  ${s("1.")} Add imports at the top of the file:
   ${bar}
   ${bar}     ${d("import node from '@astrojs/node';")}
-  ${bar}     ${d("import { frontmanIntegration } from '@frontman-ai/astro/integration';")}
+  ${bar}     ${d("import { frontmanIntegration } from '@frontman-ai/astro';")}
   ${bar}
   ${bar}  ${s("2.")} Add SSR config for dev mode ${d("(needed for middleware routes)")}:
   ${bar}
@@ -130,7 +130,7 @@ Add the following to your ${fileName}:
   1. Add imports at the top of the file:
 
      import node from '@astrojs/node';
-     import { frontmanIntegration } from '@frontman-ai/astro/integration';
+     import { frontmanIntegration } from '@frontman-ai/astro';
 
   2. Add SSR config for dev mode (needed for middleware routes):
 

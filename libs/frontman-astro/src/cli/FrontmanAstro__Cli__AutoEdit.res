@@ -28,7 +28,7 @@ let buildSystemPrompt = (~fileType: fileType, ~host: string): string => {
       Templates.ErrorMessages.configManualSetup("astro.config.mjs", host),
       Templates.configTemplate(host),
       `- Add the import for '@astrojs/node' at the top of the file
-- Add the import for '@frontman-ai/astro/integration' at the top of the file
+- Add the import for '@frontman-ai/astro' (frontmanIntegration) at the top of the file
 - Add frontmanIntegration() to the integrations array
 - Add SSR dev mode config: ...(isProd ? {} : { output: 'server', adapter: node({ mode: 'standalone' }) })
 - Add const isProd = process.env.NODE_ENV === 'production'; before defineConfig
