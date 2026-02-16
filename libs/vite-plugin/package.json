@@ -33,18 +33,18 @@
 		"prepublishOnly": "yarn build"
 	},
 	"dependencies": {
-		"next": "^16.0.3"
+		"next": "^15.5.10"
 	},
 	"devDependencies": {
 		"@types/node": "^24.10.0",
 		"react": "^19.2.0",
 		"react-dom": "^19.2.0",
 		"typescript": "^5.9.3",
-		"vite": "^7.1.12",
+		"vite": "^7.3.1",
 		"vite-plugin-dts": "^4.5.4"
 	},
 	"peerDependencies": {
-		"vite": "^7.1.12"
+		"vite": "^7.3.1"
 	},
 	"keywords": [
 		"vite",
