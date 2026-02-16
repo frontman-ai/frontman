@@ -12,8 +12,8 @@ import Button from '../../ui/Button.astro'
 // Content
 // - Background Pattern
 import gridNetBackground from '../../../assets/grid-net-background.svg'
-// - Video Thumbnail (self-hosted for cache control — YouTube CDN only serves 5m TTL)
-import videoThumbnail from '../../../assets/youtube-demo-thumbnail.jpg'
+// - Video Placeholder (product screenshot used as video thumbnail)
+import videoPlaceholder from '../../../assets/video-placeholder.png'
 // - Logo (from public folder)
 const logoImage = { src: '/logo.svg' }
 
@@ -56,7 +56,7 @@ const youtubeVideoId = '-4GD1GYwH8Y'
 					type="button"
 				>
 					<Image
-						src={videoThumbnail}
+						src={videoPlaceholder}
 						alt="Frontman demo video"
 						class="hero-section__video-thumbnail"
 						loading="eager"
