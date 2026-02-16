@@ -48,12 +48,13 @@ const { blobs = defaultBlobs, speed = 15 } = Astro.props
 		<div
 			class="floating-blob"
 			data-blob-index={index}
+			data-start-x={blob.startX ?? 50}
+			data-start-y={blob.startY ?? 50}
+			data-size={blob.size}
 			style={`
 				background: ${blob.color};
 				width: ${blob.size}px;
 				height: ${blob.size}px;
-				left: ${blob.startX ?? 50}%;
-				top: ${blob.startY ?? 50}%;
 			`}
 			aria-hidden="true"
 		/>
@@ -62,6 +63,7 @@ const { blobs = defaultBlobs, speed = 15 } = Astro.props
 
 <script is:inline define:vars={{ speed }}>
 	// Floating Blobs Animation - Screensaver Effect
+	// Uses transform: translate() for GPU-composited animation (no layout thrashing)
 	class FloatingBlobsAnimation {
 		constructor(speed) {
 			this.speed = speed
@@ -72,32 +74,36 @@ const { blobs = defaultBlobs, speed = 15 } = Astro.props
 		init() {
 			const blobElements = document.querySelectorAll('.floating-blob')
 
+			// Phase 1: Batch all reads (no DOM writes here)
+			const blobData = []
 			blobElements.forEach((blobElement, index) => {
-				const blob = blobElement
-				const parent = blob.closest('.floating-blobs-container')
-				const parentRect = parent?.getBoundingClientRect() || { width: window.innerWidth, height: window.innerHeight }
+				blobData.push({
+					element: blobElement,
+					index,
+					startX: parseFloat(blobElement.dataset.startX) || 50,
+					startY: parseFloat(blobElement.dataset.startY) || 50,
+					size: parseFloat(blobElement.dataset.size) || 100,
+				})
+			})
+
+			// Phase 2: Batch all writes (no DOM reads here)
+			blobData.forEach((data) => {
+				data.element.style.transform = `translate(calc(${data.startX}cqw - 50%), calc(${data.startY}cqh - 50%))`
+				data.element.style.transition = `transform ${this.speed}s ease-in-out`
 
 				this.blobs.push({
-					element: blob,
-					index,
-					currentX: parseFloat(blob.style.left) || 50,
-					currentY: parseFloat(blob.style.top) || 50,
-					targetX: 0,
-					targetY: 0,
-					size: parseFloat(getComputedStyle(blob).width),
-					parentWidth: parentRect.width,
-					parentHeight: parentRect.height
+					element: data.element,
+					index: data.index,
+					currentX: data.startX,
+					currentY: data.startY,
 				})
-
-				// Set transition
-				blob.style.transition = `left ${this.speed}s ease-in-out, top ${this.speed}s ease-in-out`
 			})
 
 			// Start animation
 			this.animate()
 		}
 
-		getRandomPosition(_blob) {
+		getRandomPosition() {
 			// Calculate boundaries - allow blob to go partially off-screen
 			// But at least 60% must remain visible (max 40% can go off-screen)
 			const visiblePercentage = 60
@@ -119,13 +125,10 @@ const { blobs = defaultBlobs, speed = 15 } = Astro.props
 		}
 
 		moveBlob(blob) {
-			const newPos = this.getRandomPosition(blob)
+			const newPos = this.getRandomPosition()
 
-			blob.targetX = newPos.x
-			blob.targetY = newPos.y
-
-			blob.element.style.left = `${newPos.x}%`
-			blob.element.style.top = `${newPos.y}%`
+			// Use transform instead of left/top — GPU-composited, no layout triggered
+			blob.element.style.transform = `translate(calc(${newPos.x}cqw - 50%), calc(${newPos.y}cqh - 50%))`
 
 			blob.currentX = newPos.x
 			blob.currentY = newPos.y
@@ -158,13 +161,15 @@ const { blobs = defaultBlobs, speed = 15 } = Astro.props
 <style>
 	.floating-blobs-container {
 		@apply absolute inset-0 overflow-hidden pointer-events-none;
+		container-type: size;
 		z-index: 1;
 	}
 
 	.floating-blob {
 		@apply absolute rounded-full pointer-events-none;
-		transform: translate(-50%, -50%);
-		will-change: left, top;
+		left: 0;
+		top: 0;
+		will-change: transform;
 		z-index: 1;
 	}
 </style>
