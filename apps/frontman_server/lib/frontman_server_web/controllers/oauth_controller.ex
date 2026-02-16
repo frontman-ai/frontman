@@ -7,7 +7,7 @@ defmodule FrontmanServerWeb.OAuthController do
 
   import FrontmanServerWeb.UserAuth, only: [require_sudo_mode: 2]
 
-  plug :require_sudo_mode when action in [:link_request, :link_callback, :unlink]
+  plug(:require_sudo_mode when action in [:link_request, :link_callback, :unlink])
 
   def request(conn, %{"provider" => provider}) do
     redirect_uri = url(~p"/auth/callback")
@@ -51,6 +51,12 @@ defmodule FrontmanServerWeb.OAuthController do
   def callback(conn, %{"error" => "access_denied"}) do
     conn
     |> put_flash(:error, "Sign in was cancelled.")
+    |> redirect(to: ~p"/users/log-in")
+  end
+
+  def callback(conn, _params) do
+    conn
+    |> put_flash(:error, "Authentication failed. Please try again.")
     |> redirect(to: ~p"/users/log-in")
   end
 
