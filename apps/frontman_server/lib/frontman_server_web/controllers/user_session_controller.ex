@@ -8,7 +8,8 @@ defmodule FrontmanServerWeb.UserSessionController do
     email = get_in(conn.assigns, [:current_scope, Access.key(:user), Access.key(:email)])
     form = Phoenix.Component.to_form(%{"email" => email}, as: "user")
 
-    # Store return_to from query param (for cross-origin redirects like /frontman)
+    # Store return_to from query param (for cross-origin redirects like /frontman).
+    # Validated by redirect_to_return_path/2 in UserAuth before any redirect happens.
     conn =
       case params["return_to"] do
         nil -> conn
@@ -87,9 +88,19 @@ defmodule FrontmanServerWeb.UserSessionController do
     end
   end
 
-  def delete(conn, _params) do
+  @doc """
+  GET /users/log-out — renders a CSRF-protected confirmation page that auto-submits
+  a DELETE form. This prevents forced-logout via `<img src="/users/log-out">` since
+  the GET only returns HTML; the actual session destruction requires the DELETE with
+  a valid CSRF token.
+  """
+  def confirm_logout(conn, params) do
+    render(conn, :confirm_logout, return_to: params["return_to"])
+  end
+
+  def delete(conn, params) do
     conn
     |> put_flash(:info, "Logged out successfully.")
-    |> UserAuth.log_out_user()
+    |> UserAuth.log_out_user(params["return_to"])
   end
 end

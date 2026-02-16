@@ -1,41 +1,61 @@
 <Layouts.app flash={@flash} current_scope={@current_scope}>
-  <div class="mx-auto max-w-sm space-y-4">
-    <div class="text-center">
-      <.header>
-        <p>Verify your email</p>
-        <:subtitle>
-          <%= if @email do %>
-            We sent a verification code to <strong><%= @email %></strong>.
-          <% else %>
-            We sent a verification code to your email address.
-          <% end %>
-          <br /> Enter the code below to complete sign in.
-        </:subtitle>
-      </.header>
+  <div class="space-y-8">
+    <div class="text-center space-y-2">
+      <h1 class="text-2xl font-semibold text-white tracking-tight">Verify your email</h1>
+      <p class="text-sm text-white/50">
+        <%= if @email do %>
+          We sent a verification code to <span class="text-white/70 font-medium"><%= @email %></span>.
+        <% else %>
+          We sent a verification code to your email address.
+        <% end %>
+        <br /> Enter the code below to complete sign in.
+      </p>
     </div>
 
     <.form for={%{}} action={~p"/auth/verify-email"} method="post" class="space-y-4">
-      <.input
-        name="code"
-        type="text"
-        value=""
-        label="Verification code"
-        placeholder="Enter 6-digit code"
-        required
-        autofocus
-        autocomplete="one-time-code"
-        inputmode="numeric"
-        pattern="[0-9]*"
-        maxlength="6"
-      />
-      <.button class="w-full">
+      <div>
+        <label for="code" class="block text-sm font-medium text-white/70 mb-1.5">
+          Verification code
+        </label>
+        <input
+          id="code"
+          name="code"
+          type="text"
+          value=""
+          placeholder="Enter 6-digit code"
+          required
+          autofocus
+          autocomplete="one-time-code"
+          inputmode="numeric"
+          pattern="[0-9]*"
+          maxlength="6"
+          class={[
+            "w-full rounded-lg border border-white/[0.12] bg-white/[0.04]",
+            "px-4 py-3 text-sm text-white placeholder-white/30",
+            "outline-none transition-all duration-150",
+            "focus:border-white/[0.25] focus:ring-1 focus:ring-white/[0.15]"
+          ]}
+        />
+      </div>
+      <button
+        type="submit"
+        class={[
+          "w-full rounded-lg bg-white px-4 py-3",
+          "text-sm font-medium text-[#0a0a0a]",
+          "transition-all duration-150",
+          "hover:bg-white/90 active:scale-[0.98]"
+        ]}
+      >
         Verify and sign in
-      </.button>
+      </button>
     </.form>
 
-    <div class="text-center text-sm">
-      <.link href={~p"/users/log-in"} class="link link-hover">
-        Back to sign in
+    <div class="text-center">
+      <.link
+        href={~p"/users/log-in"}
+        class="text-sm text-white/40 hover:text-white/60 transition-colors"
+      >
+        &larr; Back to sign in
       </.link>
     </div>
   </div>

@@ -49,10 +49,30 @@ defmodule FrontmanServerWeb.UserAuth do
   end
 
   defp redirect_to_return_path(conn, url) when is_binary(url) do
-    if String.starts_with?(url, "http") do
-      redirect(conn, external: url)
-    else
+    if String.starts_with?(url, "/") and not String.starts_with?(url, "//") do
       redirect(conn, to: url)
+    else
+      case safe_return_url?(url) do
+        true -> redirect(conn, external: url)
+        false -> redirect(conn, to: signed_in_path(conn))
+      end
+    end
+  end
+
+  # Validates that an absolute URL belongs to an allowed domain to prevent open redirects.
+  # Allows: frontman.sh, *.frontman.sh, frontman.local (any port), localhost (any port).
+  defp safe_return_url?(url) do
+    case URI.parse(url) do
+      %URI{scheme: scheme, host: host} when scheme in ["http", "https"] and is_binary(host) ->
+        host == "frontman.sh" or
+          String.ends_with?(host, ".frontman.sh") or
+          host == "frontman.local" or
+          String.ends_with?(host, ".frontman.local") or
+          host == "localhost" or
+          host == "127.0.0.1"
+
+      _ ->
+        false
     end
   end
 
@@ -60,8 +80,11 @@ defmodule FrontmanServerWeb.UserAuth do
   Logs the user out.
 
   It clears all session data for safety. See renew_session.
+
+  Accepts an optional `return_to` URL that is forwarded to the login page
+  so the user is redirected back after re-authenticating.
   """
-  def log_out_user(conn) do
+  def log_out_user(conn, return_to \\ nil) do
     user_token = get_session(conn, :user_token)
     user_token && Accounts.delete_user_session_token(user_token)
 
@@ -69,10 +92,16 @@ defmodule FrontmanServerWeb.UserAuth do
       FrontmanServerWeb.Endpoint.broadcast(live_socket_id, "disconnect", %{})
     end
 
+    redirect_url =
+      case return_to do
+        nil -> ~p"/users/log-in"
+        url -> ~p"/users/log-in?#{%{"return_to" => url}}"
+      end
+
     conn
     |> renew_session(nil)
     |> delete_resp_cookie(@remember_me_cookie)
-    |> redirect(to: ~p"/")
+    |> redirect(to: redirect_url)
   end
 
   @doc """

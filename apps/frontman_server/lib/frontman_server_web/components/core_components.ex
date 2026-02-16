@@ -41,13 +41,13 @@ defmodule FrontmanServerWeb.CoreComponents do
       <.flash kind={:info} flash={@flash} />
       <.flash kind={:info} phx-mounted={show("#flash")}>Welcome Back!</.flash>
   """
-  attr :id, :string, doc: "the optional id of flash container"
-  attr :flash, :map, default: %{}, doc: "the map of flash messages to display"
-  attr :title, :string, default: nil
-  attr :kind, :atom, values: [:info, :error], doc: "used for styling and flash lookup"
-  attr :rest, :global, doc: "the arbitrary HTML attributes to add to the flash container"
+  attr(:id, :string, doc: "the optional id of flash container")
+  attr(:flash, :map, default: %{}, doc: "the map of flash messages to display")
+  attr(:title, :string, default: nil)
+  attr(:kind, :atom, values: [:info, :error], doc: "used for styling and flash lookup")
+  attr(:rest, :global, doc: "the arbitrary HTML attributes to add to the flash container")
 
-  slot :inner_block, doc: "the optional inner block that renders the flash message"
+  slot(:inner_block, doc: "the optional inner block that renders the flash message")
 
   def flash(assigns) do
     assigns = assign_new(assigns, :id, fn -> "flash-#{assigns.kind}" end)
@@ -90,10 +90,10 @@ defmodule FrontmanServerWeb.CoreComponents do
       <.button phx-click="go" variant="primary">Send!</.button>
       <.button navigate={~p"/"}>Home</.button>
   """
-  attr :rest, :global, include: ~w(href navigate patch method download name value disabled)
-  attr :class, :string
-  attr :variant, :string, values: ~w(primary)
-  slot :inner_block, required: true
+  attr(:rest, :global, include: ~w(href navigate patch method download name value disabled))
+  attr(:class, :string)
+  attr(:variant, :string, values: ~w(primary))
+  slot(:inner_block, required: true)
 
   def button(%{rest: rest} = assigns) do
     variants = %{"primary" => "btn-primary", nil => "btn-primary btn-soft"}
@@ -144,30 +144,33 @@ defmodule FrontmanServerWeb.CoreComponents do
       <.input field={@form[:email]} type="email" />
       <.input name="my-input" errors={["oh no!"]} />
   """
-  attr :id, :any, default: nil
-  attr :name, :any
-  attr :label, :string, default: nil
-  attr :value, :any
+  attr(:id, :any, default: nil)
+  attr(:name, :any)
+  attr(:label, :string, default: nil)
+  attr(:value, :any)
 
-  attr :type, :string,
+  attr(:type, :string,
     default: "text",
     values: ~w(checkbox color date datetime-local email file month number password
                search select tel text textarea time url week)
+  )
 
-  attr :field, Phoenix.HTML.FormField,
+  attr(:field, Phoenix.HTML.FormField,
     doc: "a form field struct retrieved from the form, for example: @form[:email]"
+  )
 
-  attr :errors, :list, default: []
-  attr :checked, :boolean, doc: "the checked flag for checkbox inputs"
-  attr :prompt, :string, default: nil, doc: "the prompt for select inputs"
-  attr :options, :list, doc: "the options to pass to Phoenix.HTML.Form.options_for_select/2"
-  attr :multiple, :boolean, default: false, doc: "the multiple flag for select inputs"
-  attr :class, :string, default: nil, doc: "the input class to use over defaults"
-  attr :error_class, :string, default: nil, doc: "the input error class to use over defaults"
+  attr(:errors, :list, default: [])
+  attr(:checked, :boolean, doc: "the checked flag for checkbox inputs")
+  attr(:prompt, :string, default: nil, doc: "the prompt for select inputs")
+  attr(:options, :list, doc: "the options to pass to Phoenix.HTML.Form.options_for_select/2")
+  attr(:multiple, :boolean, default: false, doc: "the multiple flag for select inputs")
+  attr(:class, :string, default: nil, doc: "the input class to use over defaults")
+  attr(:error_class, :string, default: nil, doc: "the input error class to use over defaults")
 
-  attr :rest, :global,
+  attr(:rest, :global,
     include: ~w(accept autocomplete capture cols disabled form list max maxlength min minlength
                 multiple pattern placeholder readonly required rows size step)
+  )
 
   def input(%{field: %Phoenix.HTML.FormField{} = field} = assigns) do
     errors = if Phoenix.Component.used_input?(field), do: field.errors, else: []
@@ -284,9 +287,9 @@ defmodule FrontmanServerWeb.CoreComponents do
   @doc """
   Renders a header with title.
   """
-  slot :inner_block, required: true
-  slot :subtitle
-  slot :actions
+  slot(:inner_block, required: true)
+  slot(:subtitle)
+  slot(:actions)
 
   def header(assigns) do
     ~H"""
@@ -314,20 +317,21 @@ defmodule FrontmanServerWeb.CoreComponents do
         <:col :let={user} label="username">{user.username}</:col>
       </.table>
   """
-  attr :id, :string, required: true
-  attr :rows, :list, required: true
-  attr :row_id, :any, default: nil, doc: "the function for generating the row id"
-  attr :row_click, :any, default: nil, doc: "the function for handling phx-click on each row"
+  attr(:id, :string, required: true)
+  attr(:rows, :list, required: true)
+  attr(:row_id, :any, default: nil, doc: "the function for generating the row id")
+  attr(:row_click, :any, default: nil, doc: "the function for handling phx-click on each row")
 
-  attr :row_item, :any,
+  attr(:row_item, :any,
     default: &Function.identity/1,
     doc: "the function for mapping each row before calling the :col and :action slots"
+  )
 
   slot :col, required: true do
-    attr :label, :string
+    attr(:label, :string)
   end
 
-  slot :action, doc: "the slot for showing user actions in the last table column"
+  slot(:action, doc: "the slot for showing user actions in the last table column")
 
   def table(assigns) do
     assigns =
@@ -378,7 +382,7 @@ defmodule FrontmanServerWeb.CoreComponents do
       </.list>
   """
   slot :item, required: true do
-    attr :title, :string, required: true
+    attr(:title, :string, required: true)
   end
 
   def list(assigns) do
@@ -412,8 +416,8 @@ defmodule FrontmanServerWeb.CoreComponents do
       <.icon name="hero-x-mark" />
       <.icon name="hero-arrow-path" class="ml-1 size-3 motion-safe:animate-spin" />
   """
-  attr :name, :string, required: true
-  attr :class, :string, default: "size-4"
+  attr(:name, :string, required: true)
+  attr(:class, :string, default: "size-4")
 
   def icon(%{name: "hero-" <> _} = assigns) do
     ~H"""
@@ -475,35 +479,49 @@ defmodule FrontmanServerWeb.CoreComponents do
   @doc """
   Renders a connected account row with connect/disconnect actions.
   """
-  attr :provider, :string, required: true
-  attr :label, :string, required: true
-  attr :identities, :list, required: true
+  attr(:provider, :string, required: true)
+  attr(:label, :string, required: true)
+  attr(:identities, :list, required: true)
 
-  slot :inner_block, required: true, doc: "the icon slot"
+  slot(:inner_block, required: true, doc: "the icon slot")
 
   def connected_account(assigns) do
     identity = Enum.find(assigns.identities, &(&1.provider == assigns.provider))
     assigns = assign(assigns, :identity, identity)
 
     ~H"""
-    <div class="flex items-center justify-between p-4 border border-base-300 rounded-lg">
+    <div class="flex items-center justify-between px-5 py-4 border border-white/[0.08] bg-white/[0.02] rounded-lg">
       <div class="flex items-center gap-3">
-        {render_slot(@inner_block)}
+        <span class="text-white/70">{render_slot(@inner_block)}</span>
         <div>
-          <p class="font-medium">{@label}</p>
-          <p :if={@identity} class="text-sm text-base-content/70">{@identity.provider_email}</p>
-          <p :if={!@identity} class="text-sm text-base-content/70">Not connected</p>
+          <p class="text-sm font-medium text-white/90">{@label}</p>
+          <p :if={@identity} class="text-xs text-white/50">{@identity.provider_email}</p>
+          <p :if={!@identity} class="text-xs text-white/40">Not connected</p>
         </div>
       </div>
       <.link
         :if={@identity}
         href={~p"/auth/#{@provider}/unlink"}
         method="delete"
-        class="btn btn-outline btn-sm"
+        class={[
+          "rounded-lg border border-white/[0.12] bg-white/[0.04]",
+          "px-3 py-1.5 text-xs font-medium text-white/70",
+          "transition-all duration-150",
+          "hover:bg-red-500/10 hover:border-red-500/30 hover:text-red-400"
+        ]}
       >
         Disconnect
       </.link>
-      <.link :if={!@identity} href={~p"/auth/#{@provider}/link"} class="btn btn-outline btn-sm">
+      <.link
+        :if={!@identity}
+        href={~p"/auth/#{@provider}/link"}
+        class={[
+          "rounded-lg border border-white/[0.12] bg-white/[0.04]",
+          "px-3 py-1.5 text-xs font-medium text-white/70",
+          "transition-all duration-150",
+          "hover:bg-white/[0.08] hover:border-white/[0.18] hover:text-white"
+        ]}
+      >
         Connect
       </.link>
     </div>

@@ -62,6 +62,37 @@ defmodule FrontmanServerWeb.UserAuthTest do
       assert redirected_to(conn) == "/hello"
     end
 
+    test "redirects to allowed external return_to URLs", %{conn: conn, user: user} do
+      allowed_urls = [
+        "http://localhost:3000/frontman",
+        "https://frontman.sh/dashboard",
+        "https://api.frontman.sh/settings",
+        "https://frontman.local:4000/test",
+        "http://127.0.0.1:3000/frontman"
+      ]
+
+      for url <- allowed_urls do
+        conn = conn |> put_session(:user_return_to, url) |> UserAuth.log_in_user(user)
+        assert redirected_to(conn) == url
+      end
+    end
+
+    test "blocks open redirect to untrusted domains", %{conn: conn, user: user} do
+      blocked_urls = [
+        "https://evil.com/steal-cookies",
+        "https://evil-frontman.sh/phishing",
+        "http://attacker.com",
+        "javascript:alert(1)",
+        "//evil.com"
+      ]
+
+      for url <- blocked_urls do
+        conn = conn |> put_session(:user_return_to, url) |> UserAuth.log_in_user(user)
+        # Should fall back to signed_in_path, NOT redirect to the malicious URL
+        assert redirected_to(conn) == ~p"/"
+      end
+    end
+
     test "writes a cookie if remember_me is configured", %{conn: conn, user: user} do
       conn = conn |> fetch_cookies() |> UserAuth.log_in_user(user, %{"remember_me" => "true"})
       assert get_session(conn, :user_token) == conn.cookies[@remember_me_cookie]
@@ -109,7 +140,7 @@ defmodule FrontmanServerWeb.UserAuthTest do
       refute get_session(conn, :user_token)
       refute conn.cookies[@remember_me_cookie]
       assert %{max_age: 0} = conn.resp_cookies[@remember_me_cookie]
-      assert redirected_to(conn) == ~p"/"
+      assert redirected_to(conn) == ~p"/users/log-in"
       refute Accounts.get_user_by_session_token(user_token)
     end
 
@@ -117,7 +148,7 @@ defmodule FrontmanServerWeb.UserAuthTest do
       conn = conn |> fetch_cookies() |> UserAuth.log_out_user()
       refute get_session(conn, :user_token)
       assert %{max_age: 0} = conn.resp_cookies[@remember_me_cookie]
-      assert redirected_to(conn) == ~p"/"
+      assert redirected_to(conn) == ~p"/users/log-in"
     end
   end
 

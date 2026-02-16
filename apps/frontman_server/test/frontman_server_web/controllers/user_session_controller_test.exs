@@ -12,8 +12,7 @@ defmodule FrontmanServerWeb.UserSessionControllerTest do
     test "renders login page with OAuth options", %{conn: conn} do
       conn = get(conn, ~p"/users/log-in")
       response = html_response(conn, 200)
-      assert response =~ "Log in"
-      assert response =~ ~p"/users/register"
+      assert response =~ "Sign in to Frontman"
       # OAuth-only login now - shows GitHub and Google options
       assert response =~ "Continue with GitHub"
       assert response =~ "Continue with Google"
@@ -51,7 +50,7 @@ defmodule FrontmanServerWeb.UserSessionControllerTest do
       conn = get(conn, ~p"/users/log-in/#{token}")
       html = html_response(conn, 200)
       refute html =~ "Confirm my account"
-      assert html =~ "Log in"
+      assert html =~ "Keep me logged in on this device"
     end
 
     test "raises error for invalid token", %{conn: conn} do
@@ -74,13 +73,6 @@ defmodule FrontmanServerWeb.UserSessionControllerTest do
 
       assert get_session(conn, :user_token)
       assert redirected_to(conn) == ~p"/"
-
-      # Now do a logged in request and assert on the menu
-      conn = get(conn, ~p"/")
-      response = html_response(conn, 200)
-      assert response =~ user.email
-      assert response =~ ~p"/users/settings"
-      assert response =~ ~p"/users/log-out"
     end
 
     test "logs the user in with remember me", %{conn: conn, user: user} do
@@ -123,7 +115,7 @@ defmodule FrontmanServerWeb.UserSessionControllerTest do
         })
 
       response = html_response(conn, 200)
-      assert response =~ "Log in"
+      assert response =~ "Sign in to Frontman"
       assert response =~ "Invalid email or password"
     end
   end
@@ -149,13 +141,6 @@ defmodule FrontmanServerWeb.UserSessionControllerTest do
 
       assert get_session(conn, :user_token)
       assert redirected_to(conn) == ~p"/"
-
-      # Now do a logged in request and assert on the menu
-      conn = get(conn, ~p"/")
-      response = html_response(conn, 200)
-      assert response =~ user.email
-      assert response =~ ~p"/users/settings"
-      assert response =~ ~p"/users/log-out"
     end
 
     test "confirms unconfirmed user", %{conn: conn, unconfirmed_user: user} do
@@ -173,13 +158,6 @@ defmodule FrontmanServerWeb.UserSessionControllerTest do
       assert Phoenix.Flash.get(conn.assigns.flash, :info) =~ "User confirmed successfully."
 
       assert Accounts.get_user!(user.id).confirmed_at
-
-      # Now do a logged in request and assert on the menu
-      conn = get(conn, ~p"/")
-      response = html_response(conn, 200)
-      assert response =~ user.email
-      assert response =~ ~p"/users/settings"
-      assert response =~ ~p"/users/log-out"
     end
 
     test "emits error message when magic link is invalid", %{conn: conn} do
@@ -195,16 +173,45 @@ defmodule FrontmanServerWeb.UserSessionControllerTest do
   describe "DELETE /users/log-out" do
     test "logs the user out", %{conn: conn, user: user} do
       conn = conn |> log_in_user(user) |> delete(~p"/users/log-out")
-      assert redirected_to(conn) == ~p"/"
+      assert redirected_to(conn) == ~p"/users/log-in"
       refute get_session(conn, :user_token)
       assert Phoenix.Flash.get(conn.assigns.flash, :info) =~ "Logged out successfully"
     end
 
     test "succeeds even if the user is not logged in", %{conn: conn} do
       conn = delete(conn, ~p"/users/log-out")
-      assert redirected_to(conn) == ~p"/"
+      assert redirected_to(conn) == ~p"/users/log-in"
       refute get_session(conn, :user_token)
       assert Phoenix.Flash.get(conn.assigns.flash, :info) =~ "Logged out successfully"
+    end
+
+    test "passes return_to through to login page", %{conn: conn, user: user} do
+      return_url = "http://localhost:3000/frontman"
+
+      conn =
+        conn |> log_in_user(user) |> delete(~p"/users/log-out?#{%{"return_to" => return_url}}")
+
+      assert redirected_to(conn) ==
+               "/users/log-in?return_to=http%3A%2F%2Flocalhost%3A3000%2Ffrontman"
+    end
+  end
+
+  describe "GET /users/log-out" do
+    test "renders a confirmation page instead of directly logging out", %{conn: conn, user: user} do
+      conn = conn |> log_in_user(user) |> get(~p"/users/log-out")
+      # GET should render the interstitial page, NOT destroy the session
+      assert html_response(conn, 200) =~ "Signing out"
+      # Session should still be intact — only DELETE destroys it
+      assert get_session(conn, :user_token)
+    end
+
+    test "includes return_to as hidden field when provided", %{conn: conn, user: user} do
+      conn =
+        conn
+        |> log_in_user(user)
+        |> get(~p"/users/log-out?#{%{"return_to" => "http://localhost:3000/frontman"}}")
+
+      assert html_response(conn, 200) =~ "http://localhost:3000/frontman"
     end
   end
 end

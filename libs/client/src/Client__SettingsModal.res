@@ -13,6 +13,10 @@ let make = (~open_: bool, ~onOpenChange: bool => unit) => {
   let (activeTab, setActiveTab) = React.useState(() => "general")
   let (openrouterKey, setOpenrouterKey) = React.useState(() => "")
   let (oauthCode, setOauthCode) = React.useState(() => "")
+  let (userEmail, setUserEmail) = React.useState(() => None)
+
+  // Get ACP session for apiBaseUrl
+  let acpSession = State.useSelector(State.Selectors.acpSession)
 
   // Get API key settings from state
   let keySettings = State.useSelector(State.Selectors.openrouterKeySettings)
@@ -23,8 +27,8 @@ let make = (~open_: bool, ~onOpenChange: bool => unit) => {
   // Get ChatGPT OAuth status from state
   let chatgptOAuthStatus = State.useSelector(State.Selectors.chatgptOAuthStatus)
 
-  // Fetch API key settings when modal opens
-  React.useEffect(() => {
+  // Fetch API key settings and user info when modal opens (or when ACP session becomes active)
+  React.useEffect2(() => {
     if open_ {
       State.Actions.fetchApiKeySettings()
       State.Actions.fetchAnthropicOAuthStatus()
@@ -34,9 +38,36 @@ let make = (~open_: bool, ~onOpenChange: bool => unit) => {
       State.Actions.resetChatGPTOAuthError()
       setOpenrouterKey(_ => "")
       setOauthCode(_ => "")
+
+      // Fetch user info for General tab
+      switch acpSession {
+      | Types.AcpSessionActive({apiBaseUrl}) =>
+        let fetchUser = async () => {
+          try {
+            let response = await WebAPI.Global.fetch(
+              `${apiBaseUrl}/api/user/me`,
+              ~init={credentials: Include},
+            )
+            if response.ok {
+              let json = await response->WebAPI.Response.json
+              switch json
+              ->JSON.Decode.object
+              ->Option.flatMap(obj => obj->Dict.get("email"))
+              ->Option.flatMap(JSON.Decode.string) {
+              | Some(email) => setUserEmail(_ => Some(email))
+              | None => ()
+              }
+            }
+          } catch {
+          | _ => ()
+          }
+        }
+        fetchUser()->ignore
+      | _ => ()
+      }
     }
     None
-  }, [open_])
+  }, (open_, acpSession))
 
   // Determine status label and style based on save status
   let (statusLabel, statusClass) = switch keySettings.saveStatus {
@@ -118,10 +149,73 @@ let make = (~open_: bool, ~onOpenChange: bool => unit) => {
 
         <div className="flex-1 px-6 py-6 pr-12 overflow-y-auto">
           {activeTab == "general"
-            ? <div className="space-y-4">
-                <div
-                  className="rounded-lg border border-emerald-900/60 bg-emerald-900/20 px-4 py-3 text-sm text-emerald-200">
-                  {React.string(`Framework detected: ${framework}`)}
+            ? <div className="space-y-6">
+                // Account section
+                <div>
+                  <div className="text-sm font-medium text-zinc-400">
+                    {React.string("Account")}
+                  </div>
+                  <div className="mt-2 rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div
+                          className="flex size-8 items-center justify-center rounded-full bg-zinc-700 text-xs font-medium text-zinc-200">
+                          {React.string(
+                            switch userEmail {
+                            | Some(email) =>
+                              email->String.charAt(0)->String.toUpperCase
+                            | None => "?"
+                            },
+                          )}
+                        </div>
+                        <div>
+                          {switch userEmail {
+                          | Some(email) =>
+                            <div className="text-sm text-zinc-100"> {React.string(email)} </div>
+                          | None =>
+                            <div className="text-sm text-zinc-500"> {React.string("Loading...")} </div>
+                          }}
+                          <div className="text-xs text-zinc-500">
+                            {React.string("Signed in via OAuth")}
+                          </div>
+                        </div>
+                      </div>
+                      {switch acpSession {
+                      | Types.AcpSessionActive({apiBaseUrl}) =>
+                        <Button.Button
+                          variant=#outline
+                          size=#sm
+                          onClick={_ => {
+                            // Navigate to server-side logout with return_to so user is redirected
+                            // back here after re-authenticating
+                            let encodeURIComponent: string => string = %raw(`encodeURIComponent`)
+                            let currentUrl =
+                              WebAPI.Global.window
+                              ->WebAPI.Window.location
+                              ->WebAPI.Location.href
+                            let returnTo = encodeURIComponent(currentUrl)
+                            WebAPI.Global.window
+                            ->WebAPI.Window.location
+                            ->WebAPI.Location.assign(
+                              `${apiBaseUrl}/users/log-out?return_to=${returnTo}`,
+                            )
+                          }}>
+                          {React.string("Sign out")}
+                        </Button.Button>
+                      | _ => React.null
+                      }}
+                    </div>
+                  </div>
+                </div>
+                // Framework detection
+                <div>
+                  <div className="text-sm font-medium text-zinc-400">
+                    {React.string("Environment")}
+                  </div>
+                  <div
+                    className="mt-2 rounded-lg border border-emerald-900/60 bg-emerald-900/20 px-4 py-3 text-sm text-emerald-200">
+                    {React.string(`Framework detected: ${framework}`)}
+                  </div>
                 </div>
               </div>
             : <div className="space-y-6">

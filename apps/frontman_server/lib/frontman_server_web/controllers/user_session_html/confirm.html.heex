@@ -1,7 +1,8 @@
 <Layouts.app flash={@flash} current_scope={@current_scope}>
-  <div class="mx-auto max-w-sm">
-    <div class="text-center">
-      <.header>Welcome {@user.email}</.header>
+  <div class="space-y-8">
+    <div class="text-center space-y-2">
+      <h1 class="text-2xl font-semibold text-white tracking-tight">Welcome back</h1>
+      <p class="text-sm text-white/50">{@user.email}</p>
     </div>
 
     <.form
@@ -10,19 +11,34 @@
       id="confirmation_form"
       action={~p"/users/log-in?_action=confirmed"}
       phx-mounted={JS.focus_first()}
+      class="space-y-3"
     >
       <input type="hidden" name={@form[:token].name} value={@form[:token].value} />
-      <.button
+      <button
+        type="submit"
         name={@form[:remember_me].name}
         value="true"
-        phx-disable-with="Confirming..."
-        class="btn btn-primary w-full"
+        class={[
+          "w-full rounded-lg bg-white px-4 py-3",
+          "text-sm font-medium text-[#0a0a0a]",
+          "transition-all duration-150",
+          "hover:bg-white/90 active:scale-[0.98]"
+        ]}
       >
         Confirm and stay logged in
-      </.button>
-      <.button phx-disable-with="Confirming..." class="btn btn-primary btn-soft w-full mt-2">
+      </button>
+      <button
+        type="submit"
+        class={[
+          "w-full rounded-lg border border-white/[0.12] bg-white/[0.04]",
+          "px-4 py-3 text-sm font-medium text-white/90",
+          "transition-all duration-150",
+          "hover:bg-white/[0.08] hover:border-white/[0.18] hover:text-white",
+          "active:scale-[0.98]"
+        ]}
+      >
         Confirm and log in only this time
-      </.button>
+      </button>
     </.form>
 
     <.form
@@ -31,28 +47,54 @@
       id="login_form"
       action={~p"/users/log-in"}
       phx-mounted={JS.focus_first()}
+      class="space-y-3"
     >
       <input type="hidden" name={@form[:token].name} value={@form[:token].value} />
       <%= if @current_scope do %>
-        <.button variant="primary" phx-disable-with="Logging in..." class="btn btn-primary w-full">
+        <button
+          type="submit"
+          class={[
+            "w-full rounded-lg bg-white px-4 py-3",
+            "text-sm font-medium text-[#0a0a0a]",
+            "transition-all duration-150",
+            "hover:bg-white/90 active:scale-[0.98]"
+          ]}
+        >
           Log in
-        </.button>
+        </button>
       <% else %>
-        <.button
+        <button
+          type="submit"
           name={@form[:remember_me].name}
           value="true"
-          phx-disable-with="Logging in..."
-          class="btn btn-primary w-full"
+          class={[
+            "w-full rounded-lg bg-white px-4 py-3",
+            "text-sm font-medium text-[#0a0a0a]",
+            "transition-all duration-150",
+            "hover:bg-white/90 active:scale-[0.98]"
+          ]}
         >
           Keep me logged in on this device
-        </.button>
-        <.button phx-disable-with="Logging in..." class="btn btn-primary btn-soft w-full mt-2">
+        </button>
+        <button
+          type="submit"
+          class={[
+            "w-full rounded-lg border border-white/[0.12] bg-white/[0.04]",
+            "px-4 py-3 text-sm font-medium text-white/90",
+            "transition-all duration-150",
+            "hover:bg-white/[0.08] hover:border-white/[0.18] hover:text-white",
+            "active:scale-[0.98]"
+          ]}
+        >
           Log me in only this time
-        </.button>
+        </button>
       <% end %>
     </.form>
 
-    <p :if={!@user.confirmed_at} class="alert alert-outline mt-8">
+    <p
+      :if={!@user.confirmed_at}
+      class="text-center text-xs text-white/30 leading-relaxed rounded-lg border border-white/[0.08] bg-white/[0.02] px-4 py-3"
+    >
       Tip: If you prefer passwords, you can enable them in the user settings.
     </p>
   </div>

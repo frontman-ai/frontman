@@ -202,6 +202,8 @@ This will:
 3. Install all runtimes (Node.js, Elixir, etc.) via mise
 4. Run `make install` to get dependencies
 
+> **Note:** This only sets up the container. Dev servers (Phoenix, Vite, Next.js) are **not** started automatically — you must start them after connecting (see [Inside the Workspace](#inside-the-workspace)).
+
 ### 5. Connect Your IDE
 
 ```bash
@@ -258,6 +260,76 @@ Then open in your browser:
 - `https://xxxx.storybook.frontman.local` - Storybook
 
 The services are routed through Caddy reverse proxy on the server, which handles SSL termination.
+
+> **Important:** `devpod up` only creates the container — it does **not** do the following, which must be done manually:
+>
+> 1. **Register with Caddy** — No `.caddy` config is created, so URLs return `HTTP 200, 0 bytes`
+> 2. **Generate SSL certs** — Phoenix needs `.certs/frontman.local-key.pem` to start
+> 3. **Copy secrets** — WorkOS keys and API keys aren't in the container
+> 4. **Fix DB_HOST** — `host.docker.internal` may not resolve; use the Docker gateway IP (`172.17.0.1`)
+> 5. **Build workspace packages** — `@frontman-ai/nextjs` needs to be built before Next.js works
+> 6. **Start dev servers** — No processes are launched in the container
+>
+> #### Post-creation checklist
+>
+> ```bash
+> # 1. Get your worktree hash
+> make worktree-urls BRANCH=your-branch
+> # Note the 4-char hash (e.g. 3ce7)
+>
+> # 2. Register with Caddy (from your local machine)
+> # Get the container name:
+> ssh root@DEVPOD_SERVER 'docker ps --format "{{.Names}} {{.Status}}"'
+> # Get container IP:
+> ssh root@DEVPOD_SERVER 'docker inspect CONTAINER_NAME --format "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}"'
+> # Create /etc/caddy/worktrees/{hash}.caddy (copy an existing file and replace hash + IP)
+> # Then: ssh root@DEVPOD_SERVER 'systemctl reload caddy'
+>
+> # 3. Copy secrets to the container (from your local machine)
+> # This copies WorkOS keys, API keys, etc. from your local .dev.overrides.env
+> grep -E "^(WORKOS_|BRAINTRUST_|OPENAI_|OPEN_AI_|ANTHROPIC_|GOOGLE_|XAI_|OPENROUTER_)" \
+>   apps/frontman_server/envs/.dev.overrides.env | \
+>   ssh root@DEVPOD_SERVER 'docker exec -i CONTAINER_NAME bash -c \
+>     "cat >> /workspaces/BRANCH/apps/frontman_server/envs/.dev.overrides.env"'
+>
+> # 4. Fix DB_HOST if host.docker.internal doesn't resolve
+> # The Docker gateway IP is typically 172.17.0.1 — verify with:
+> ssh root@DEVPOD_SERVER 'docker exec CONTAINER_NAME awk '"'"'$2 == "00000000" { printf "%d.%d.%d.%d", "0x"substr($3,7,2), "0x"substr($3,5,2), "0x"substr($3,3,2), "0x"substr($3,1,2) }'"'"' /proc/net/route'
+> # Update DB_HOST in both files:
+> ssh root@DEVPOD_SERVER 'docker exec CONTAINER_NAME sed -i "s/DB_HOST=host.docker.internal/DB_HOST=172.17.0.1/" /workspaces/BRANCH/.env.devpod /workspaces/BRANCH/apps/frontman_server/envs/.dev.overrides.env'
+>
+> # 5. SSH into the workspace
+> devpod ssh your-workspace
+>
+> # 6. Generate SSL certs (inside container)
+> cd /workspaces/your-branch
+> mkcert -install
+> mkdir -p .certs
+> mkcert -key-file .certs/frontman.local-key.pem -cert-file .certs/frontman.local.pem "*.frontman.local" frontman.local localhost
+>
+> # 7. Build workspace packages
+> cd /workspaces/your-branch/libs/frontman-nextjs && yarn build && cd -
+>
+> # 8. Start dev servers
+> # Phoenix needs env vars exported — op isn't available in the container,
+> # so export secrets from the overrides file directly:
+> cd /workspaces/your-branch/apps/frontman_server
+> source ../../.env.devpod
+> export $(grep -v "^#" envs/.dev.overrides.env | xargs)
+> mix phx.server
+>
+> # Other servers (each in a separate terminal):
+> cd /workspaces/your-branch && source .env.devpod
+> make dev          # ReScript compiler
+> make dev-client   # Vite (port 5173)
+> make dev-nextjs   # Next.js (port 3000)
+>
+> # 9. Verify from your local machine (size_download should be > 0)
+> curl -sSo /dev/null -w "HTTP %{http_code}, %{size_download} bytes\n" https://xxxx.nextjs.frontman.local/frontman
+> curl -sSo /dev/null -w "HTTP %{http_code}, %{size_download} bytes\n" https://xxxx.api.frontman.local
+> curl -sSo /dev/null -w "HTTP %{http_code}, %{size_download} bytes\n" https://xxxx.vite.frontman.local
+> ```
+> A healthy response has **size_download > 0**. If you see `HTTP 200, 0 bytes` Caddy isn't configured or the server isn't running.
 
 ### Creating New Feature Workspaces
 
@@ -514,6 +586,27 @@ devpod logs my-feature
 # Rebuild the workspace
 devpod up my-feature --recreate
 ```
+
+### Services Return 200 But Empty Body (0 bytes)
+
+Caddy returns HTTP 200 with `content-length: 0` when **no `.caddy` config exists** for the worktree hash. This is the most common issue after `devpod up` because Caddy registration is not automatic.
+
+**Diagnosis:** Check if a config file exists:
+```bash
+ssh root@DEVPOD_SERVER 'ls /etc/caddy/worktrees/{hash}.caddy'
+```
+
+**Fix:** Create the Caddy config. Get the container IP first:
+```bash
+ssh root@DEVPOD_SERVER 'docker inspect CONTAINER_NAME --format "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}"'
+```
+
+Then create `/etc/caddy/worktrees/{hash}.caddy` using an existing file as template (e.g. copy another `.caddy` file, replace the hash and IP), and reload:
+```bash
+ssh root@DEVPOD_SERVER 'systemctl reload caddy'
+```
+
+If Caddy IS configured but you still get 0 bytes, the dev servers aren't running. SSH in and start them (see [Post-creation checklist](#accessing-services-via-browser)).
 
 ### Services Return 502 Bad Gateway
 

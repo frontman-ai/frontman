@@ -44,6 +44,7 @@ defmodule FrontmanServerWeb.Router do
   scope "/api", FrontmanServerWeb do
     pipe_through([:api_with_session])
 
+    get("/user/me", UserMeController, :show)
     post("/user/api-keys", UserApiKeyController, :create)
     get("/user/api-key-usage", UserApiKeyController, :usage)
     get("/models", ModelsController, :index)
@@ -111,11 +112,12 @@ defmodule FrontmanServerWeb.Router do
     delete("/:provider/unlink", OAuthController, :unlink)
   end
 
+  # Registration is disabled — users sign in via OAuth (GitHub/Google) only.
+  # The route is kept so ~p"/users/register" sigils still compile, but it redirects to login.
   scope "/", FrontmanServerWeb do
     pipe_through([:browser, :redirect_if_user_is_authenticated])
 
-    get("/users/register", UserRegistrationController, :new)
-    post("/users/register", UserRegistrationController, :create)
+    get("/users/register", UserSessionController, :new)
   end
 
   scope "/", FrontmanServerWeb do
@@ -138,6 +140,9 @@ defmodule FrontmanServerWeb.Router do
     pipe_through([:browser])
 
     delete("/users/log-out", UserSessionController, :delete)
+    # GET logout renders a CSRF-protected confirmation page that auto-submits.
+    # This prevents forced-logout attacks via <img src="/users/log-out">.
+    get("/users/log-out", UserSessionController, :confirm_logout)
   end
 
   # API endpoint for socket token (uses browser pipeline for session cookie)
