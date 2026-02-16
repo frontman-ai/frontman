@@ -78,6 +78,7 @@ let handleUI = (config: config): WebAPI.FetchAPI.response => {
 <body>
     <div id="root"></div>
     ${runtimeConfigScript}
+    <script>if(typeof process==="undefined"){window.process={env:{NODE_ENV:"production"}}}</script>
     <script type="module" src="${config.clientUrl}"></script>
 </body>
 </html>`
