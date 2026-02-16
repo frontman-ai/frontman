@@ -94,7 +94,7 @@ let adaptMiddlewareToVite = (
     // routes, which would break downstream handlers that need to read it.
     let reqUrl = req.url->Null.toOption->Option.getOr("/")
     let pathname = reqUrl->String.toLowerCase
-    switch pathname->String.startsWith(prefix) {
+    switch pathname == prefix || pathname->String.startsWith(prefix ++ "/") {
     | false => next()
     | true =>
       // Collect request body (safe — this is a frontman route)
