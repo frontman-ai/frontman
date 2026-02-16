@@ -50,6 +50,7 @@ defmodule FrontmanServer.Agents.PromptsTest do
 
       identity_text = Enum.map_join(identity_msg.content, & &1.text)
       assert identity_text =~ "coding assistant"
+      assert identity_text =~ "build and modify"
     end
 
     test "always uses default identity (OAuth transformations happen at LLM boundary)" do
@@ -57,6 +58,7 @@ defmodule FrontmanServer.Agents.PromptsTest do
 
       identity_text = Enum.map_join(identity_msg.content, & &1.text)
       assert identity_text =~ "coding assistant"
+      assert identity_text =~ "reading, searching, and editing"
     end
 
     test "selected_component flag affects content" do
@@ -80,6 +82,7 @@ defmodule FrontmanServer.Agents.PromptsTest do
 
       assert is_binary(result)
       assert result =~ "You are a coding assistant"
+      assert result =~ "build and modify their applications"
     end
 
     test "always returns string (OAuth transformations happen at LLM boundary)" do
@@ -99,12 +102,16 @@ defmodule FrontmanServer.Agents.PromptsTest do
       refute prompt =~ "## TypeScript / React"
     end
 
-    test "base prompt always includes Rules, Tool Selection Guidelines, and Output" do
+    test "base prompt always includes core sections" do
       prompt = Prompts.build([])
 
+      assert prompt =~ "## Tone & Style"
+      assert prompt =~ "## Professional Objectivity"
+      assert prompt =~ "## Proactiveness"
       assert prompt =~ "## Rules"
       assert prompt =~ "## Tool Selection Guidelines"
-      assert prompt =~ "## Output"
+      assert prompt =~ "## Response Formatting"
+      assert prompt =~ "## Code Quality"
     end
 
     test "has_typescript_react includes TypeScript / React section" do
