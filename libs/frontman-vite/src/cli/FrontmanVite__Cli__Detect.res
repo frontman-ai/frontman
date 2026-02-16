@@ -51,13 +51,18 @@ let detectPackageManager = async (projectDir: string): packageManager => {
     let yarnLock = Path.join([dir, "yarn.lock"])
     let npmLock = Path.join([dir, "package-lock.json"])
 
-    switch true {
-    | _ if (await fileExists(bunLockb)) || (await fileExists(bunLock)) => Some(Bun)
-    | _ if await fileExists(denoLock) => Some(Deno)
-    | _ if await fileExists(pnpmLock) => Some(Pnpm)
-    | _ if await fileExists(yarnLock) => Some(Yarn)
-    | _ if await fileExists(npmLock) => Some(Npm)
-    | _ => None
+    if (await fileExists(bunLockb)) || (await fileExists(bunLock)) {
+      Some(Bun)
+    } else if await fileExists(denoLock) {
+      Some(Deno)
+    } else if await fileExists(pnpmLock) {
+      Some(Pnpm)
+    } else if await fileExists(yarnLock) {
+      Some(Yarn)
+    } else if await fileExists(npmLock) {
+      Some(Npm)
+    } else {
+      None
     }
   }
 
@@ -65,22 +70,22 @@ let detectPackageManager = async (projectDir: string): packageManager => {
   | Some(pm) => pm
   | None =>
     let parentDir = Path.dirname(projectDir)
-    switch parentDir != projectDir {
-    | true =>
+    if parentDir != projectDir {
       switch await checkDir(parentDir) {
       | Some(pm) => pm
       | None =>
         let grandparentDir = Path.dirname(parentDir)
-        switch grandparentDir != parentDir {
-        | true =>
+        if grandparentDir != parentDir {
           switch await checkDir(grandparentDir) {
           | Some(pm) => pm
           | None => Npm
           }
-        | false => Npm
+        } else {
+          Npm
         }
       }
-    | false => Npm
+    } else {
+      Npm
     }
   }
 }
@@ -119,9 +124,9 @@ let analyzeViteConfig = async (projectDir: string): (existingViteConfig, string)
   switch await findViteConfig(projectDir) {
   | None => (NotFound, "vite.config.ts")
   | Some((fileName, content)) =>
-    switch frontmanImportPattern->RegExp.test(content) {
-    | true => (HasFrontman, fileName)
-    | false =>
+    if frontmanImportPattern->RegExp.test(content) {
+      (HasFrontman, fileName)
+    } else {
       let filePath = Path.join([projectDir, fileName])
       (NeedsFrontman({filePath, content}), fileName)
     }
