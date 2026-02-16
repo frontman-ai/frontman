@@ -6,17 +6,19 @@
 // Components
 // - UI
 import OpenSourceBadge from '../../ui/OpenSourceBadge.astro'
+import { Image } from 'astro:assets'
 import Button from '../../ui/Button.astro'
 
 // Content
 // - Background Pattern
 import gridNetBackground from '../../../assets/grid-net-background.svg'
+// - Video Thumbnail (self-hosted for cache control — YouTube CDN only serves 5m TTL)
+import videoThumbnail from '../../../assets/youtube-demo-thumbnail.jpg'
 // - Logo (from public folder)
 const logoImage = { src: '/logo.svg' }
 
 // YouTube video
 const youtubeVideoId = '-4GD1GYwH8Y'
-const thumbnailUrl = `https://i.ytimg.com/vi/${youtubeVideoId}/maxresdefault.jpg`
 ---
 
 <section id="intro" class="hero-section bg-primary-500">
@@ -53,14 +55,15 @@ const thumbnailUrl = `https://i.ytimg.com/vi/${youtubeVideoId}/maxresdefault.jpg
 					aria-label="Play demo video"
 					type="button"
 				>
-					<img
-						src={thumbnailUrl}
+					<Image
+						src={videoThumbnail}
 						alt="Frontman demo video"
 						class="hero-section__video-thumbnail"
 						loading="eager"
 						fetchpriority="high"
-						width="1280"
-						height="720"
+						format="webp"
+						widths={[400, 720, 1280]}
+						sizes="(max-width: 1023px) 100vw, 720px"
 					/>
 					<div class="hero-section__play-button" aria-hidden="true">
 						<svg viewBox="0 0 68 48" width="68" height="48">
