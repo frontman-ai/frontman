@@ -2,6 +2,8 @@
 
 module Bindings = FrontmanBindings
 
+let productionHost = "api.frontman.sh"
+
 // Default host can be overridden via FRONTMAN_HOST env var for remote development
 let defaultHost = switch Bindings.Process.env->Dict.get("FRONTMAN_HOST") {
 | Some(host) => host
@@ -42,10 +44,11 @@ type jsConfigInput = {
 // JS-friendly function that accepts a config object
 // Use this from JavaScript/TypeScript: makeConfig({ isDev: true, ... })
 let makeFromObject = (config: jsConfigInput): t => {
-  let isDev =
-    config.isDev->Option.getOr(
-      Bindings.Process.env->Dict.get("NODE_ENV")->Option.mapOr(true, env => env == "development"),
-    )
+  let host = config.host->Option.getOr(defaultHost)
+
+  // isDev is inferred from the host: api.frontman.sh is the only production server,
+  // everything else (e.g. frontman.local:4000) is dev. Can be overridden explicitly.
+  let isDev = config.isDev->Option.getOr(host != productionHost)
 
   let projectRoot =
     config.projectRoot
@@ -60,14 +63,18 @@ let makeFromObject = (config: jsConfigInput): t => {
   let basePath = config.basePath->Option.getOr("frontman")
   let serverName = config.serverName->Option.getOr("frontman-vite")
   let serverVersion = config.serverVersion->Option.getOr("1.0.0")
-  let host = config.host->Option.getOr(defaultHost)
   let isLightTheme = config.isLightTheme->Option.getOr(false)
 
   let clientUrl = config.clientUrl->Option.getOr({
     let baseUrl =
       Bindings.Process.env
       ->Dict.get("FRONTMAN_CLIENT_URL")
-      ->Option.getOr("https://app.frontman.sh/frontman.es.js")
+      ->Option.getOr(
+        switch isDev {
+        | true => "http://localhost:5173/src/Main.res.mjs"
+        | false => "https://app.frontman.sh/frontman.es.js"
+        },
+      )
     // Use URL API to properly append params (handles base URLs that already have query strings)
     let url = WebAPI.URL.make(~url=baseUrl)
     url.searchParams->WebAPI.URLSearchParams.set(~name="clientName", ~value="vite")
