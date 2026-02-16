@@ -2549,10 +2549,13 @@ __metadata:
     rescript: "catalog:"
     rescript-vitest: "catalog:"
     sury: "catalog:"
+    tsup: "npm:^8.0.0"
     vite: "catalog:"
     vitest: "catalog:"
   peerDependencies:
     astro: ^5.0.0
+  bin:
+    frontman-astro: ./dist/cli.js
   languageName: unknown
   linkType: soft
 

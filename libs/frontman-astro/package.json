@@ -35,12 +35,17 @@
 			"default": "./src/FrontmanAstro__ToolbarApp.res.mjs"
 		}
 	},
+	"bin": {
+		"frontman-astro": "./dist/cli.js"
+	},
 	"files": [
-		"src"
+		"src",
+		"dist"
 	],
 	"scripts": {
 		"build": "rescript build",
-		"prepublishOnly": "yarn build"
+		"build:cli": "tsup",
+		"prepublishOnly": "yarn build && yarn build:cli"
 	},
 	"peerDependencies": {
 		"astro": "^5.0.0"
@@ -51,6 +56,7 @@
 		"rescript": "catalog:",
 		"rescript-vitest": "catalog:",
 		"sury": "catalog:",
+		"tsup": "^8.0.0",
 		"vite": "catalog:",
 		"vitest": "catalog:"
 	}
