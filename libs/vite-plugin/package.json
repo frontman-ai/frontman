@@ -1,7 +1,7 @@
 {
 	"name": "@frontman/vite-plugin",
-	"version": "0.1.13",
-	"description": "Vite plugin to install frontman agent on the vite server",
+	"version": "0.1.14",
+	"description": "Vite plugin to install frontman agent on the vite server. Deprecated: use @frontman-ai/vite instead.",
 	"license": "Apache-2.0",
 	"author": "Frontman AI",
 	"repository": {
@@ -33,18 +33,16 @@
 		"prepublishOnly": "yarn build"
 	},
 	"dependencies": {
-		"next": "^16.0.3"
+		"@frontman-ai/vite": "workspace:*"
 	},
 	"devDependencies": {
 		"@types/node": "^24.10.0",
-		"react": "^19.2.0",
-		"react-dom": "^19.2.0",
 		"typescript": "^5.9.3",
 		"vite": "^7.1.12",
 		"vite-plugin-dts": "^4.5.4"
 	},
 	"peerDependencies": {
-		"vite": "^7.1.12"
+		"vite": ">=5.0.0"
 	},
 	"keywords": [
 		"vite",
