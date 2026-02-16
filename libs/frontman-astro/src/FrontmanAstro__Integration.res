@@ -12,7 +12,7 @@ external importMetaUrl: string = "url"
 
 // Helper to create URL and get pathname
 let getToolbarAppPath = () => {
-  let url = WebAPI.URL.make(~url="./FrontmanAstro__ToolbarApp.res.mjs", ~base=importMetaUrl)
+  let url = WebAPI.URL.make(~url="./toolbar.js", ~base=importMetaUrl)
   url.pathname
 }
 
