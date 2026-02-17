@@ -36,6 +36,7 @@ let collectRequestBody: incomingMessage => promise<Buffer.t> = %raw(`
 type serverResponse
 
 @set external setStatusCode: (serverResponse, int) => unit = "statusCode"
+@get external headersSent: serverResponse => bool = "headersSent"
 @send external setHeader: (serverResponse, string, string) => unit = "setHeader"
 @send external writeString: (serverResponse, string) => bool = "write"
 @send external writeUint8Array: (serverResponse, Uint8Array.t) => bool = "write"

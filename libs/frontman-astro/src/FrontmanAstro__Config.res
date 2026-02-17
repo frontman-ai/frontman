@@ -33,9 +33,13 @@ type jsConfigInput = {
   isLightTheme?: bool,
 }
 
+// Ensure config is an object even when called with no args (frontman())
+let ensureConfig: jsConfigInput => jsConfigInput = %raw(`function(c) { return c || {}; }`)
+
 // JS-friendly function that accepts a config object
 // Use this from JavaScript/TypeScript: makeConfig({ projectRoot: "..." })
-let makeFromObject = (config: jsConfigInput): t => {
+let makeFromObject = (rawConfig: jsConfigInput): t => {
+  let config = ensureConfig(rawConfig)
   let projectRoot =
     config.projectRoot
     ->Option.orElse(

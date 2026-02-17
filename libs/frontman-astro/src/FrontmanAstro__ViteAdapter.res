@@ -37,10 +37,16 @@ let toWebRequest = async (req: NodeHttp.incomingMessage): WebAPI.FetchAPI.reques
   // Convert Node.js headers dict to Web API HeadersInit
   let headersDict = req->NodeHttp.headers
 
+  // Build request init — add duplex: 'half' for Node.js compatibility when body is present
+  // (required by Node 18+ fetch spec for requests with a body)
   let init: WebAPI.FetchAPI.requestInit = {
     method,
     headers: WebAPI.HeadersInit.fromDict(headersDict),
     body: ?body->Option.map(b => WebAPI.BodyInit.fromTypedArray(b)),
+  }
+  switch body {
+  | Some(_) => init->Obj.magic->Dict.set("duplex", "half")
+  | None => ()
   }
 
   WebAPI.Request.fromURL(url, ~init)
@@ -48,6 +54,9 @@ let toWebRequest = async (req: NodeHttp.incomingMessage): WebAPI.FetchAPI.reques
 
 // Write a Web API Response back to a Node.js ServerResponse
 // Handles both regular responses and streaming (SSE)
+// NOTE: Decodes all chunks as UTF-8 text. This is correct for Frontman's
+// JSON/HTML/SSE routes but would corrupt binary responses. If binary route
+// support is needed, use res.write(chunk) directly with the raw Uint8Array.
 let writeWebResponse = async (
   webResponse: WebAPI.FetchAPI.response,
   res: NodeHttp.serverResponse,
@@ -101,8 +110,14 @@ let adaptToConnect = (middleware: webMiddleware): NodeHttp.connectMiddleware => 
     handleRequest()
     ->Promise.catch(error => {
       Console.error2("[Frontman] Middleware error:", error)
-      res->NodeHttp.setStatusCode(500)
-      res->NodeHttp.endWithData("Internal Server Error")
+      // Only send error response if headers haven't been sent yet
+      // (writeWebResponse may have already started streaming)
+      if !(res->NodeHttp.headersSent) {
+        res->NodeHttp.setStatusCode(500)
+        res->NodeHttp.endWithData("Internal Server Error")
+      } else {
+        res->NodeHttp.end
+      }
       Promise.resolve()
     })
     ->ignore

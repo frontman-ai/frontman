@@ -51,10 +51,16 @@ let annotationCaptureScript = `(function() {
       has: function(el) { return annotations.has(el); },
       size: function() { return annotations.size; }
     };
-    console.log('[Frontman] Captured ' + annotations.size + ' elements');
   }
+  // Capture once on initial DOM parse
   document.addEventListener('DOMContentLoaded', captureAnnotations);
-  document.addEventListener('astro:page-load', captureAnnotations);
+  // Re-capture on View Transitions (SPA navigations) — skips the initial
+  // page-load event since DOMContentLoaded already captured
+  var initialLoad = true;
+  document.addEventListener('astro:page-load', function() {
+    if (initialLoad) { initialLoad = false; return; }
+    captureAnnotations();
+  });
 })();`
 
 // Create the Astro integration
