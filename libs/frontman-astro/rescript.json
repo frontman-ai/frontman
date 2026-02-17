@@ -5,11 +5,6 @@
 		{
 			"dir": "src",
 			"subdirs": true
-		},
-		{
-			"dir": "test",
-			"subdirs": true,
-			"type": "dev"
 		}
 	],
 	"package-specs": [
@@ -27,7 +22,6 @@
 		"@frontman/frontman-core",
 		"@frontman/bindings"
 	],
-	"dev-dependencies": ["rescript-vitest"],
 	"jsx": {
 		"version": 4
 	}

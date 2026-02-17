@@ -6,7 +6,7 @@
 	"author": "Frontman AI",
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/frontman-ai/frontman.git",
+		"url": "git+https://github.com/frontman-ai/frontman.git",
 		"directory": "libs/frontman-astro"
 	},
 	"homepage": "https://frontman.sh",
