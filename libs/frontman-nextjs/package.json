@@ -1,6 +1,6 @@
 {
 	"name": "@frontman-ai/nextjs",
-	"version": "0.2.4",
+	"version": "0.3.0",
 	"description": "Next.js integration for Frontman - AI-powered development tools and observability",
 	"type": "module",
 	"main": "./dist/index.js",

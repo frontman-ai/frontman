@@ -1,6 +1,6 @@
 {
 	"name": "@frontman/frontman-core",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"description": "Core server-side tools for Frontman",
 	"license": "Apache-2.0",
 	"author": "Frontman AI",
@@ -34,7 +34,7 @@
 	},
 	"dependencies": {
 		"@frontman/bindings": "0.1.0",
-		"@frontman/frontman-protocol": "0.1.0",
+		"@frontman/frontman-protocol": "0.2.0",
 		"@rescript/runtime": "12.0.0-beta.14",
 		"sury": "11.0.0-alpha.4"
 	},
