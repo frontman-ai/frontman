@@ -170,7 +170,7 @@ sudo -u postgres psql -c "DO \$\$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHER
 sudo -u postgres psql -c "GRANT pg_monitor TO postgres_exporter;" 2>/dev/null || true
 
 cat > "${MONITORING_DIR}/postgres-exporter.env" <<'ENV'
-DATA_SOURCE_NAME=user=postgres_exporter host=/var/run/postgresql/ sslmode=disable
+DATA_SOURCE_NAME=user=postgres_exporter host=/var/run/postgresql/ dbname=postgres sslmode=disable
 ENV
 chown postgres_exporter:postgres_exporter "${MONITORING_DIR}/postgres-exporter.env"
 chmod 600 "${MONITORING_DIR}/postgres-exporter.env"
