@@ -1,6 +1,6 @@
 // Frontman Dev Toolbar App
 
-module Bindings = FrontmanAstro__AstroBindings
+module Bindings = FrontmanBindings.Astro
 
 // Type for the annotations API exposed on window
 type annotation = {

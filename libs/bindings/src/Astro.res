@@ -34,7 +34,7 @@ type configSetupHookContext = {
 type connectMiddlewareStack
 
 @send
-external use: (connectMiddlewareStack, FrontmanBindings.NodeHttp.connectMiddleware) => unit = "use"
+external use: (connectMiddlewareStack, NodeHttp.connectMiddleware) => unit = "use"
 
 // Vite dev server (minimal bindings for astro:server:setup)
 type viteDevServer = {middlewares: connectMiddlewareStack}

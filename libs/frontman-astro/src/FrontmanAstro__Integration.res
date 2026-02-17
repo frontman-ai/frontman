@@ -8,7 +8,7 @@
 // Users only need one line in astro.config.mjs:
 //   integrations: [frontman({ projectRoot: import.meta.dirname })]
 
-module Bindings = FrontmanAstro__AstroBindings
+module Bindings = FrontmanBindings.Astro
 module Config = FrontmanAstro__Config
 module Middleware = FrontmanAstro__Middleware
 module ViteAdapter = FrontmanAstro__ViteAdapter
