@@ -12,12 +12,21 @@ type devToolbarAppConfig = {
 // Astro command type
 type astroCommand = [#dev | #build | #preview | #sync]
 
+// Astro devToolbar config
+type devToolbarConfig = {enabled: bool}
+
+// Astro config (subset we care about)
+type astroConfig = {
+  root: string,
+  devToolbar: devToolbarConfig,
+}
+
 // Hook context for astro:config:setup
 // injectScript stage is passed as a plain string: "head-inline", "before-hydration", "page", "page-ssr"
 type configSetupHookContext = {
   addDevToolbarApp: devToolbarAppConfig => unit,
   injectScript: (string, string) => unit,
-  config: {root: string},
+  config: astroConfig,
   command: astroCommand,
 }
 

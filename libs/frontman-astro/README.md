@@ -36,6 +36,8 @@ That's it. The integration automatically:
 - Serves the Frontman UI at `/<basePath>/` (default: `/frontman/`)
 - Exposes tool endpoints for AI interactions
 
+> **Note:** Element source detection (resolving which `.astro` file and line a selected element comes from) requires `devToolbar.enabled: true` (the default). Astro only emits source annotations when the dev toolbar is enabled. If you've disabled the dev toolbar, Frontman will fall back to CSS selector-based detection.
+
 ## Configuration
 
 All options are optional with sensible defaults:
