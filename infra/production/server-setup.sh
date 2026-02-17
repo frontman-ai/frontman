@@ -6,7 +6,7 @@
 # Usage: ssh root@<server-ip> 'bash -s' < server-setup.sh
 #
 # Prerequisites:
-#   - Fresh Hetzner CAX ARM server with Ubuntu 24.04
+#   - Fresh Hetzner server with Ubuntu 24.04 (x86_64 or ARM64)
 #   - DNS A record for api.frontman.sh pointing to server IP (Cloudflare DNS-only mode)
 #   - CI SSH public key ready to paste
 # =============================================================================
