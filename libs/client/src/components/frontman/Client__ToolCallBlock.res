@@ -21,19 +21,54 @@ let cleanToolName = (toolName: string): string => {
   }
 }
 
-// File tools show as links, others are expandable
-let isFileTool = (toolName: string): bool => {
+// Tools that show a target inline (path, URL, etc.) instead of expandable body
+let isInlineTool = (toolName: string): bool => {
   let name = cleanToolName(toolName)
-  name == "read_file" || name == "write_file" || name == "list_files" || name == "list_dir"
+  switch name {
+  | "read_file" | "write_file" | "list_files" | "list_dir" | "navigate" => true
+  | _ => false
+  }
 }
 
-// Extract target path, defaulting to "./" for list operations
-let getTarget = (toolName: string, input: option<JSON.t>): option<string> => {
-  switch ToolLabels.extractTargetFromInput(input) {
-  | Some(".") => Some("./")
-  | Some(t) => Some(t)
-  | None if isFileTool(toolName) => Some("./")
+let isFileTool = (toolName: string): bool => {
+  let name = cleanToolName(toolName)
+  switch name {
+  | "read_file" | "write_file" | "list_files" | "list_dir" => true
+  | _ => false
+  }
+}
+
+// Extract navigate-specific target: URL for goto, action name for back/forward/refresh
+let getNavigateTarget = (input: option<JSON.t>): option<string> => {
+  switch input {
   | None => None
+  | Some(json) =>
+    switch JSON.Decode.object(json) {
+    | None => None
+    | Some(dict) =>
+      let action = dict->Dict.get("action")->Option.flatMap(JSON.Decode.string)
+      let url = dict->Dict.get("url")->Option.flatMap(JSON.Decode.string)
+      switch (action, url) {
+      | (Some("goto"), Some(u)) => Some(u)
+      | (Some(a), _) => Some(a)
+      | _ => None
+      }
+    }
+  }
+}
+
+// Extract target path/URL, defaulting to "./" for list/file operations
+let getTarget = (toolName: string, input: option<JSON.t>): option<string> => {
+  let name = cleanToolName(toolName)
+  switch name {
+  | "navigate" => getNavigateTarget(input)
+  | _ =>
+    switch ToolLabels.extractTargetFromInput(input) {
+    | Some(".") => Some("./")
+    | Some(t) => Some(t)
+    | None if isFileTool(toolName) => Some("./")
+    | None => None
+    }
   }
 }
 
@@ -49,7 +84,7 @@ let make = (
   ~compact: bool=false,
   ~messageId as _: string,
 ) => {
-  let isLink = isFileTool(toolName)
+  let isLink = isInlineTool(toolName)
   let (isExpanded, setIsExpanded) = React.useState(() => defaultExpanded)
   let (wasManuallyToggled, setWasManuallyToggled) = React.useState(() => false)
 
@@ -110,16 +145,29 @@ let make = (
         </span>
       </div>
       
-      // Target path as purple link
-      {target->Option.mapOr(React.null, t =>
+      // Target path as purple link, or shimmer placeholder while streaming
+      {switch (target, state, input) {
+      | (_, InputStreaming, None) if isLink => {
+        let placeholder = switch cleanToolName(toolName) {
+        | "navigate" => "Waiting for URL..."
+        | _ => "Waiting for file path..."
+        }
         <div className={`mt-1 ${compact ? "text-[11px]" : "text-[12px]"}`}>
-          <span 
+          <span className="font-mono shimmer-text text-zinc-500">
+            {React.string(placeholder)}
+          </span>
+        </div>
+      }
+      | (Some(t), _, _) =>
+        <div className={`mt-1 ${compact ? "text-[11px]" : "text-[12px]"}`}>
+          <span
             className={`font-mono ${hasError ? "text-red-400" : "text-[#8051CD] hover:text-[#9d7be0]"}`}
           >
             {React.string(t)}
           </span>
         </div>
-      )}
+      | _ => React.null
+      }}
       
       // Error message if present (inline)
       {switch errorText {

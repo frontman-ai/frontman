@@ -7,10 +7,19 @@ module Types = Client__State__Types
 module RuntimeConfig = Client__RuntimeConfig
 
 @react.component
-let make = (~open_: bool, ~onOpenChange: bool => unit) => {
+let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<string>=?) => {
   let runtimeConfig = RuntimeConfig.read()
   let framework = runtimeConfig.framework
   let (activeTab, setActiveTab) = React.useState(() => "general")
+
+  // When the dialog opens with an initialTab, switch to it
+  React.useEffect2(() => {
+    switch (open_, initialTab) {
+    | (true, Some(tab)) => setActiveTab(_ => tab)
+    | _ => ()
+    }
+    None
+  }, (open_, initialTab))
   let (openrouterKey, setOpenrouterKey) = React.useState(() => "")
   let (oauthCode, setOauthCode) = React.useState(() => "")
   let (userEmail, setUserEmail) = React.useState(() => None)

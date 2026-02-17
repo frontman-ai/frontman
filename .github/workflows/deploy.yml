@@ -76,6 +76,32 @@ jobs:
             "deploy@${PROD_SERVER}" \
             '/opt/frontman/build-and-deploy.sh'
 
+      - name: Sync monitoring configs and reload
+        run: |
+          ssh -i ~/.ssh/deploy_key "deploy@${PROD_SERVER}" bash -s <<'EOF'
+          # Only sync if monitoring is installed (setup-monitoring.sh has been run)
+          if [ -f /usr/local/bin/prometheus ]; then
+            BUILD_MON="/opt/frontman/build/infra/production/monitoring"
+            if [ -d "${BUILD_MON}" ]; then
+              echo "Syncing monitoring configs..."
+              sudo cp "${BUILD_MON}/prometheus.yml" /etc/prometheus/prometheus.yml
+              sudo cp "${BUILD_MON}/alert-rules.yml" /etc/prometheus/alert-rules.yml
+              sudo cp "${BUILD_MON}/blackbox.yml" /etc/prometheus/blackbox.yml
+              sudo cp "${BUILD_MON}/alertmanager.yml" /etc/alertmanager/alertmanager.yml
+              sudo chown -R prometheus:prometheus /etc/prometheus
+              sudo chown -R alertmanager:alertmanager /etc/alertmanager
+
+              echo "Reloading Prometheus..."
+              curl -sf -X POST http://127.0.0.1:9090/-/reload || echo "  Warning: Prometheus reload failed"
+              echo "Reloading Alertmanager..."
+              curl -sf -X POST http://127.0.0.1:9093/-/reload || echo "  Warning: Alertmanager reload failed"
+              echo "Monitoring configs synced and reloaded."
+            fi
+          else
+            echo "Monitoring not installed — skipping config sync."
+          fi
+          EOF
+
       - name: Cleanup SSH
         if: always()
         run: rm -f ~/.ssh/deploy_key

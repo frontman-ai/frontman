@@ -24,6 +24,7 @@ defmodule FrontmanServer.Agents.ToolExecutor do
   require Logger
 
   alias FrontmanServer.Accounts.Scope
+  alias FrontmanServer.Agents.SchemaTransformer
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Tools
@@ -58,6 +59,11 @@ defmodule FrontmanServer.Agents.ToolExecutor do
     llm_opts = Keyword.fetch!(opts, :llm_opts)
 
     fn tool_call ->
+      # Strip null values from arguments. OpenAI strict mode makes optional fields
+      # nullable (anyOf: [type, null]), so the model sends null instead of omitting.
+      # Tools expect missing keys, not null values.
+      tool_call = strip_null_arguments(tool_call)
+
       is_mcp_tool = register_if_mcp_tool(tool_call)
 
       # For MCP tools, publish interaction so TaskChannel can route to client.
@@ -66,7 +72,11 @@ defmodule FrontmanServer.Agents.ToolExecutor do
         publish_mcp_tool_call(scope, task_id, tool_call)
       end
 
-      execute(scope, tool_call, task_id, mcp_tools: mcp_tools, llm_opts: llm_opts)
+      result = execute(scope, tool_call, task_id, mcp_tools: mcp_tools, llm_opts: llm_opts)
+
+      # Convert tool results containing image data (e.g. screenshots) to multimodal
+      # content parts so the LLM receives proper image content instead of base64 text.
+      maybe_enrich_with_images(tool_call.name, result)
     end
   end
 
@@ -187,6 +197,19 @@ defmodule FrontmanServer.Agents.ToolExecutor do
     end
   end
 
+  defp strip_null_arguments(%Swarm.ToolCall{arguments: arguments} = tool_call)
+       when is_binary(arguments) do
+    case Jason.decode(arguments) do
+      {:ok, args} when is_map(args) ->
+        %{tool_call | arguments: Jason.encode!(SchemaTransformer.strip_nulls(args))}
+
+      _ ->
+        tool_call
+    end
+  end
+
+  defp strip_null_arguments(tool_call), do: tool_call
+
   defp parse_arguments(arguments) when is_binary(arguments) do
     case Jason.decode(arguments) do
       {:ok, decoded} -> decoded
@@ -216,6 +239,55 @@ defmodule FrontmanServer.Agents.ToolExecutor do
       @tool_timeout_ms ->
         Registry.unregister(FrontmanServer.AgentRegistry, {:tool_call, tool_call_id})
         {:error, "Tool timeout: #{tool_call.name}"}
+    end
+  end
+
+  # --- Image Enrichment ---
+  #
+  # Tools that return images (e.g. take_screenshot) send base64 data URLs as JSON text.
+  # The LLM can't "see" images encoded as text in tool outputs — it needs proper image
+  # content parts. This mirrors the same extraction logic in Interaction.to_llm_message.
+
+  # {image_field, extra_text_fields} - same config as Interaction
+  @image_tool_configs %{
+    "take_screenshot" => {:screenshot, []}
+  }
+
+  defp maybe_enrich_with_images(tool_name, {:ok, content} = result) when is_binary(content) do
+    canonical_name = String.replace_prefix(tool_name, "mcp_", "")
+
+    case Map.get(@image_tool_configs, canonical_name) do
+      nil ->
+        result
+
+      {image_field, _text_fields} ->
+        case extract_image_content(content, image_field) do
+          {:ok, content_parts} -> {:ok, content_parts}
+          :no_image -> result
+        end
+    end
+  end
+
+  defp maybe_enrich_with_images(_tool_name, result), do: result
+
+  defp extract_image_content(json_string, image_field) do
+    field_name = Atom.to_string(image_field)
+
+    with {:ok, decoded} when is_map(decoded) <- Jason.decode(json_string),
+         data_url when is_binary(data_url) <- Map.get(decoded, field_name),
+         {:ok, binary, mime} <- decode_data_url(data_url) do
+      {:ok, [Swarm.Message.ContentPart.image(binary, mime)]}
+    else
+      _ -> :no_image
+    end
+  end
+
+  defp decode_data_url(data_url) do
+    with [_, mime_type, base64] <- Regex.run(~r/^data:([^;]+);base64,(.+)$/s, data_url),
+         {:ok, binary} <- Base.decode64(base64) do
+      {:ok, binary, mime_type}
+    else
+      _ -> :error
     end
   end
 end

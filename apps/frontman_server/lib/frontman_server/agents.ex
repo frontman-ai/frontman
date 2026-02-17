@@ -323,6 +323,9 @@ defmodule FrontmanServer.Agents do
       {:thinking, text} ->
         broadcast(task_id, {:stream_thinking, text})
 
+      {:tool_call_start, tool_call_id, tool_name} ->
+        broadcast(task_id, {:tool_call_start, tool_call_id, tool_name})
+
       {:response, text, metadata} ->
         Tasks.add_agent_response(scope, task_id, text, metadata)
 
@@ -458,18 +461,7 @@ defmodule FrontmanServer.Agents do
       Swarm.run_streaming(agent, messages,
         metadata: %{task_id: task_id},
         tool_executor: tool_executor,
-        on_chunk: fn chunk ->
-          case chunk do
-            %Chunk{type: :token, text: text} when is_binary(text) and text != "" ->
-              on_event.({:token, text})
-
-            %Chunk{type: :thinking, text: text} when is_binary(text) and text != "" ->
-              on_event.({:thinking, text})
-
-            _ ->
-              :ok
-          end
-        end,
+        on_chunk: &handle_stream_chunk(&1, on_event),
         on_response: fn response ->
           metadata = build_response_metadata(response)
           on_event.({:response, response.content || "", metadata})
@@ -500,6 +492,23 @@ defmodule FrontmanServer.Agents do
     TelemetryEvents.task_stop(task_id)
 
     result
+  end
+
+  defp handle_stream_chunk(chunk, on_event) do
+    case chunk do
+      %Chunk{type: :token, text: text} when is_binary(text) and text != "" ->
+        on_event.({:token, text})
+
+      %Chunk{type: :thinking, text: text} when is_binary(text) and text != "" ->
+        on_event.({:thinking, text})
+
+      %Chunk{type: :tool_call_start, tool_call_id: id, tool_call_name: name}
+      when is_binary(id) and is_binary(name) ->
+        on_event.({:tool_call_start, id, name})
+
+      _ ->
+        :ok
+    end
   end
 
   defp build_response_metadata(%Swarm.LLM.Response{} = response) do

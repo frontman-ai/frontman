@@ -1036,6 +1036,177 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     end
   end
 
+  describe "tool_call_start streaming" do
+    setup %{scope: scope} do
+      task_id = Ecto.UUID.generate()
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
+
+      {:ok, _reply, socket} =
+        UserSocket
+        |> socket("user_id", %{scope: scope})
+        |> subscribe_and_join("task:#{task_id}", %{})
+
+      complete_mcp_handshake(socket)
+
+      {:ok, socket: socket, task_id: task_id}
+    end
+
+    test "broadcasts early ACP tool_call notification on tool_call_start", %{
+      socket: _socket,
+      task_id: task_id
+    } do
+      tool_call_id = "call_early_#{:rand.uniform(1_000_000)}"
+
+      Phoenix.PubSub.broadcast(
+        FrontmanServer.PubSub,
+        Tasks.topic(task_id),
+        {:tool_call_start, tool_call_id, "write_file"}
+      )
+
+      assert_push("acp:message", %{
+        "method" => "session/update",
+        "params" => %{
+          "sessionId" => ^task_id,
+          "update" => %{
+            "sessionUpdate" => "tool_call",
+            "toolCallId" => ^tool_call_id,
+            "title" => "write_file",
+            "status" => "pending"
+          }
+        }
+      })
+    end
+
+    test "deduplicates tool_call_create when interaction arrives after tool_call_start", %{
+      socket: socket,
+      task_id: task_id
+    } do
+      tool_call_id = "call_dedup_#{:rand.uniform(1_000_000)}"
+
+      # Step 1: Send tool_call_start (early streaming notification)
+      send(socket.channel_pid, {:tool_call_start, tool_call_id, "write_file"})
+      :sys.get_state(socket.channel_pid)
+
+      assert_push("acp:message", %{
+        "params" => %{
+          "update" => %{
+            "sessionUpdate" => "tool_call",
+            "toolCallId" => ^tool_call_id
+          }
+        }
+      })
+
+      # Step 2: Send the full interaction (which normally would also send tool_call_create)
+      tool_call = %Interaction.ToolCall{
+        id: Interaction.new_id(),
+        sequence: Interaction.new_sequence(),
+        tool_call_id: tool_call_id,
+        tool_name: "write_file",
+        arguments: %{"target_file" => "test.txt", "content" => "hello"},
+        timestamp: Interaction.now()
+      }
+
+      send(socket.channel_pid, {:interaction, tool_call})
+      :sys.get_state(socket.channel_pid)
+
+      # Should get a tool_call_update with args, but NOT a duplicate tool_call create
+      assert_push("acp:message", %{
+        "params" => %{
+          "update" => %{
+            "sessionUpdate" => "tool_call_update",
+            "toolCallId" => ^tool_call_id,
+            "status" => "pending"
+          }
+        }
+      })
+
+      # Verify no duplicate tool_call create was sent
+      refute_push("acp:message", %{
+        "params" => %{
+          "update" => %{
+            "sessionUpdate" => "tool_call",
+            "toolCallId" => ^tool_call_id
+          }
+        }
+      })
+    end
+
+    test "sends tool_call_create for interactions without prior tool_call_start", %{
+      socket: socket,
+      task_id: task_id
+    } do
+      # Tool calls that arrive without a prior tool_call_start should still get
+      # the normal tool_call_create notification
+      tool_call_id = "call_no_start_#{:rand.uniform(1_000_000)}"
+
+      tool_call = %Interaction.ToolCall{
+        id: Interaction.new_id(),
+        sequence: Interaction.new_sequence(),
+        tool_call_id: tool_call_id,
+        tool_name: "take_screenshot",
+        arguments: %{},
+        timestamp: Interaction.now()
+      }
+
+      send(socket.channel_pid, {:interaction, tool_call})
+      :sys.get_state(socket.channel_pid)
+
+      # Should get the standard tool_call create notification
+      assert_push("acp:message", %{
+        "params" => %{
+          "sessionId" => ^task_id,
+          "update" => %{
+            "sessionUpdate" => "tool_call",
+            "toolCallId" => ^tool_call_id
+          }
+        }
+      })
+
+      # And the tool_call_update with arguments
+      assert_push("acp:message", %{
+        "params" => %{
+          "update" => %{
+            "sessionUpdate" => "tool_call_update",
+            "toolCallId" => ^tool_call_id
+          }
+        }
+      })
+    end
+
+    test "tracks multiple tool calls independently", %{
+      socket: socket
+    } do
+      call_id_1 = "call_multi_1_#{:rand.uniform(1_000_000)}"
+      call_id_2 = "call_multi_2_#{:rand.uniform(1_000_000)}"
+
+      # Announce first tool call via streaming
+      send(socket.channel_pid, {:tool_call_start, call_id_1, "write_file"})
+      :sys.get_state(socket.channel_pid)
+
+      assert_push("acp:message", %{
+        "params" => %{"update" => %{"toolCallId" => ^call_id_1, "sessionUpdate" => "tool_call"}}
+      })
+
+      # Second tool call arrives without prior tool_call_start
+      tool_call_2 = %Interaction.ToolCall{
+        id: Interaction.new_id(),
+        sequence: Interaction.new_sequence(),
+        tool_call_id: call_id_2,
+        tool_name: "read_file",
+        arguments: %{"target_file" => "other.txt"},
+        timestamp: Interaction.now()
+      }
+
+      send(socket.channel_pid, {:interaction, tool_call_2})
+      :sys.get_state(socket.channel_pid)
+
+      # Second tool call should still get its own tool_call create
+      assert_push("acp:message", %{
+        "params" => %{"update" => %{"toolCallId" => ^call_id_2, "sessionUpdate" => "tool_call"}}
+      })
+    end
+  end
+
   # Completes the MCP handshake (initialize + tools/list + load_agent_instructions).
   #
   # Uses :sys.get_state/1 as a synchronization barrier after each push to ensure

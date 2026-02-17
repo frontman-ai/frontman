@@ -508,16 +508,38 @@ defmodule FrontmanServerWeb.TaskChannel do
     end
   end
 
+  def handle_info({:tool_call_start, tool_call_id, tool_name}, socket) do
+    # Early notification: the LLM has started generating a tool call.
+    # This fires as soon as the tool_call_start chunk arrives from the LLM stream,
+    # BEFORE the full arguments are generated. For tools with large arguments
+    # (e.g., write_file with full file content), this provides immediate UI feedback
+    # instead of waiting for the entire response to be accumulated.
+    task_id = socket.assigns.task_id
+    notification = ACP.tool_call_create(task_id, tool_call_id, tool_name, "other", "pending")
+    push(socket, "acp:message", notification)
+
+    # Track that we already announced this tool call to avoid duplicate notifications
+    announced = socket.assigns[:announced_tool_calls] || MapSet.new()
+    socket = assign(socket, :announced_tool_calls, MapSet.put(announced, tool_call_id))
+
+    {:noreply, socket}
+  end
+
   def handle_info({:interaction, %Tasks.Interaction.ToolCall{} = tool_call}, socket) do
     task_id = socket.assigns.task_id
 
-    # Send ACP notification: pending with tool arguments in content
-    pending_notification =
-      ACP.build_tool_call_notification(task_id, tool_call, "pending", [])
+    # Only send tool_call_create if we haven't already announced this tool call
+    # via the streaming :tool_call_start event (which fires earlier during LLM streaming).
+    announced = socket.assigns[:announced_tool_calls] || MapSet.new()
 
-    push(socket, "acp:message", pending_notification)
+    unless MapSet.member?(announced, tool_call.tool_call_id) do
+      pending_notification =
+        ACP.build_tool_call_notification(task_id, tool_call, "pending", [])
 
-    # Send tool arguments immediately so the UI can display them
+      push(socket, "acp:message", pending_notification)
+    end
+
+    # Always send tool arguments so the UI can display them
     args_content = ACP.Content.from_tool_result(tool_call.arguments)
 
     args_notification =

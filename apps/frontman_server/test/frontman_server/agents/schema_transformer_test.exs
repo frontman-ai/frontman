@@ -36,6 +36,67 @@ defmodule FrontmanServer.Agents.SchemaTransformerTest do
       assert SchemaTransformer.provider_for_model("openrouter:mistralai/mistral-large") ==
                :flexible
     end
+
+    test "returns :openai_strict for LLMDB.Model struct with :openai provider" do
+      model = %{provider: :openai, model: "gpt-5.1-codex-max", id: "gpt-5.1-codex-max"}
+      assert SchemaTransformer.provider_for_model(model) == :openai_strict
+    end
+
+    test "returns :openai_strict for LLMDB.Model struct with :azure provider" do
+      model = %{provider: :azure, model: "gpt-4", id: "gpt-4"}
+      assert SchemaTransformer.provider_for_model(model) == :openai_strict
+    end
+
+    test "returns :flexible for LLMDB.Model struct with :anthropic provider" do
+      model = %{provider: :anthropic, model: "claude-3-opus", id: "claude-3-opus"}
+      assert SchemaTransformer.provider_for_model(model) == :flexible
+    end
+
+    test "returns :flexible for LLMDB.Model struct with :google provider" do
+      model = %{provider: :google, model: "gemini-pro", id: "gemini-pro"}
+      assert SchemaTransformer.provider_for_model(model) == :flexible
+    end
+  end
+
+  describe "strip_nulls/1" do
+    test "removes top-level null values" do
+      args = %{"selector" => nil, "timeout" => 5000}
+      assert SchemaTransformer.strip_nulls(args) == %{"timeout" => 5000}
+    end
+
+    test "removes multiple null values" do
+      args = %{"a" => nil, "b" => nil, "c" => "keep"}
+      assert SchemaTransformer.strip_nulls(args) == %{"c" => "keep"}
+    end
+
+    test "recursively strips nulls from nested objects" do
+      args = %{
+        "config" => %{"name" => "test", "optional" => nil},
+        "selector" => nil,
+        "timeout" => 5000
+      }
+
+      assert SchemaTransformer.strip_nulls(args) == %{
+               "config" => %{"name" => "test"},
+               "timeout" => 5000
+             }
+    end
+
+    test "returns empty map when all values are null" do
+      args = %{"a" => nil, "b" => nil}
+      assert SchemaTransformer.strip_nulls(args) == %{}
+    end
+
+    test "returns map unchanged when no nulls" do
+      args = %{"name" => "test", "count" => 42}
+      assert SchemaTransformer.strip_nulls(args) == args
+    end
+
+    test "passes through non-map values unchanged" do
+      assert SchemaTransformer.strip_nulls("string") == "string"
+      assert SchemaTransformer.strip_nulls(42) == 42
+      assert SchemaTransformer.strip_nulls(nil) == nil
+    end
   end
 
   describe "transform/2 with :flexible" do

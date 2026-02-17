@@ -121,8 +121,9 @@ sudo mv /tmp/Caddyfile.new /etc/caddy/Caddyfile
 sudo /usr/bin/systemctl reload caddy
 echo "Caddy reloaded. Traffic now routed to ${INACTIVE_SLOT}."
 
-# --- Update active slot marker ---
+# --- Update active slot marker + monitoring metric ---
 echo "${INACTIVE_SLOT}" > "${DEPLOY_ROOT}/active_slot"
+"${DEPLOY_ROOT}/monitoring/update-active-slot.sh" || true
 
 # --- Stop old slot (after brief drain period) ---
 echo ">>> Draining old slot (${ACTIVE_SLOT})..."

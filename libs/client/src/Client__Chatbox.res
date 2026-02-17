@@ -96,7 +96,12 @@ let groupMessages = (messages: array<Message.t>): array<displayItem> => {
 }
 
 @react.component
-let make = (~onSettingsClick: unit => unit) => {
+let make = (
+  ~onSettingsClick: unit => unit,
+  ~showProviderNudge: bool=false,
+  ~onProviderNudgeDismiss: unit => unit=() => (),
+  ~onProviderNudgeCta: unit => unit=() => (),
+) => {
   let {session, createSession} = Client__FrontmanProvider.useFrontman()
 
   let messages = Client__State.useSelector(Client__State.Selectors.messages)
@@ -288,7 +293,7 @@ let make = (~onSettingsClick: unit => unit) => {
   }
 
   <div className="flex flex-col h-full bg-[#180C2D] text-zinc-200">
-    <TaskTabs onSettingsClick />
+    <TaskTabs onSettingsClick showProviderNudge onProviderNudgeDismiss onProviderNudgeCta />
     <ScrollContainer className="flex-grow overflow-hidden">
       <ScrollContainer.ContentWrapper>
         {

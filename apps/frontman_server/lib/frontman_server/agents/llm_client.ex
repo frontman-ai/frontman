@@ -80,7 +80,7 @@ defmodule FrontmanServer.Agents.LLMClient do
 end
 
 defimpl Swarm.LLM, for: FrontmanServer.Agents.LLMClient do
-  alias FrontmanServer.Agents.LLMClient
+  alias FrontmanServer.Agents.{LLMClient, SchemaTransformer}
   alias Swarm.LLM.{Chunk, Usage}
   alias Swarm.Message
   alias Swarm.Message.ContentPart
@@ -293,9 +293,22 @@ defimpl Swarm.LLM, for: FrontmanServer.Agents.LLMClient do
   defp to_reqllm_tool_calls(tool_calls, requires_mcp_prefix?) do
     Enum.map(tool_calls, fn tc ->
       name = if requires_mcp_prefix?, do: "mcp_#{tc.name}", else: tc.name
-      ReqLLM.ToolCall.new(tc.id, name, tc.arguments)
+      arguments = strip_null_args(tc.arguments)
+      ReqLLM.ToolCall.new(tc.id, name, arguments)
     end)
   end
+
+  # Strip null values from tool call arguments in conversation history.
+  # OpenAI strict mode makes optional fields nullable, so the model sends null.
+  # Clean these before sending back in the next turn.
+  defp strip_null_args(arguments) when is_binary(arguments) do
+    case Jason.decode(arguments) do
+      {:ok, args} when is_map(args) -> Jason.encode!(SchemaTransformer.strip_nulls(args))
+      _ -> arguments
+    end
+  end
+
+  defp strip_null_args(arguments), do: arguments
 
   # Prefix tool name in tool result messages if mcp_ prefix is required
   defp maybe_prefix_name(nil, _requires_mcp_prefix?), do: nil

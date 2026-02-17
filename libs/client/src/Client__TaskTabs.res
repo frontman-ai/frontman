@@ -6,7 +6,12 @@ module DropdownMenu = Bindings__UI__DropdownMenu
 module FrontmanLogo = Client__FrontmanLogo
 
 @react.component
-let make = (~onSettingsClick: unit => unit) => {
+let make = (
+  ~onSettingsClick: unit => unit,
+  ~showProviderNudge: bool=false,
+  ~onProviderNudgeDismiss: unit => unit=() => (),
+  ~onProviderNudgeCta: unit => unit=() => (),
+) => {
   // Local UI state
   let (deleteDialogOpen, setDeleteDialogOpen) = React.useState(() => false)
   let (taskToDelete, setTaskToDelete) = React.useState(() => None)
@@ -193,22 +198,40 @@ let make = (~onSettingsClick: unit => unit) => {
           {React.string("Need help? Join our Discord")}
         </Tooltip.TooltipContent>
       </Tooltip.Tooltip>
-      // Settings button
-      <Tooltip.Tooltip>
-        <Tooltip.TooltipTrigger asChild=true>
-          <Button.Button
-            variant=#ghost
-            size=#sm
-            onClick={_ => onSettingsClick()}
-            className=headerIconBtn
-          >
-            <Icons.GearIcon style={iconSize} />
-          </Button.Button>
-        </Tooltip.TooltipTrigger>
-        <Tooltip.TooltipContent sideOffset=4>
-          {React.string("Settings")}
-        </Tooltip.TooltipContent>
-      </Tooltip.Tooltip>
+      // Settings button with optional provider nudge bubble
+      <div className="relative">
+        <Tooltip.Tooltip>
+          <Tooltip.TooltipTrigger asChild=true>
+            <Button.Button
+              variant=#ghost
+              size=#sm
+              onClick={_ => onSettingsClick()}
+              className=headerIconBtn
+            >
+              <Icons.GearIcon style={iconSize} />
+              // Notification dot when nudge is active
+              {switch showProviderNudge {
+              | true =>
+                <span
+                  className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-violet-500 ring-2 ring-zinc-900"
+                />
+              | false => React.null
+              }}
+            </Button.Button>
+          </Tooltip.TooltipTrigger>
+          <Tooltip.TooltipContent sideOffset=4>
+            {React.string("Settings")}
+          </Tooltip.TooltipContent>
+        </Tooltip.Tooltip>
+        // Provider nudge bubble
+        {switch showProviderNudge {
+        | true =>
+          <Client__ProviderNudgeBubble
+            onOpenSettings=onProviderNudgeCta onDismiss=onProviderNudgeDismiss
+          />
+        | false => React.null
+        }}
+      </div>
     </div>
     // Delete confirmation dialog
     <AlertDialog.AlertDialog

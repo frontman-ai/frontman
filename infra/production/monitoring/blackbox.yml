@@ -1,0 +1,21 @@
+# =============================================================================
+# Blackbox Exporter Configuration - Frontman Production
+# Deployed to /etc/prometheus/blackbox.yml
+#
+# Defines probe modules for HTTP health checks.
+# =============================================================================
+
+modules:
+  # HTTP probe - expects 2xx response
+  http_2xx:
+    prober: http
+    timeout: 10s
+    http:
+      valid_http_versions:
+        - HTTP/1.1
+        - HTTP/2.0
+      valid_status_codes: []  # defaults to 2xx
+      method: GET
+      follow_redirects: true
+      preferred_ip_protocol: ip4
+

@@ -43,6 +43,10 @@ jobs:
       - name: Build ReScript packages
         run: yarn rescript
 
+      - name: Bundle astro integration
+        run: yarn build:bundle
+        working-directory: libs/frontman-astro
+
       - name: Build marketing site
         run: cd apps/marketing && yarn build
 

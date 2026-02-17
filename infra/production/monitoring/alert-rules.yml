@@ -1,0 +1,140 @@
+# =============================================================================
+# Prometheus Alert Rules - Frontman Production
+# Deployed to /etc/prometheus/alert-rules.yml
+# =============================================================================
+
+groups:
+  # ===========================================================================
+  # Dead Man Switch - Always-firing heartbeat to confirm monitoring is alive.
+  # Alertmanager-discord posts this as a daily "all systems healthy" message.
+  # ===========================================================================
+  - name: heartbeat
+    rules:
+      - alert: DeadManSwitch
+        expr: vector(1)
+        labels:
+          severity: none
+        annotations:
+          summary: "Monitoring heartbeat"
+          description: "This alert fires continuously to confirm the monitoring pipeline (Prometheus -> Alertmanager -> Discord) is working."
+
+  # ===========================================================================
+  # Disk Space
+  # ===========================================================================
+  - name: disk
+    rules:
+      - alert: DiskSpaceWarning
+        expr: |
+          (
+            1 - node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{fstype!~"tmpfs|overlay"}
+          ) * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Disk space above 80%"
+          description: "Partition {{ $labels.mountpoint }} is {{ printf \"%.1f\" $value }}% full."
+
+      - alert: DiskSpaceCritical
+        expr: |
+          (
+            1 - node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{fstype!~"tmpfs|overlay"}
+          ) * 100 > 95
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Disk space above 95% - CRITICAL"
+          description: "Partition {{ $labels.mountpoint }} is {{ printf \"%.1f\" $value }}% full. Immediate action required."
+
+  # ===========================================================================
+  # Memory
+  # ===========================================================================
+  - name: memory
+    rules:
+      - alert: HighMemoryUsage
+        expr: |
+          (
+            1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes
+          ) * 100 > 90
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Memory usage above 90%"
+          description: "Server memory usage is {{ printf \"%.1f\" $value }}%."
+
+  # ===========================================================================
+  # CPU
+  # ===========================================================================
+  - name: cpu
+    rules:
+      - alert: HighCPUUsage
+        expr: |
+          100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 90
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "CPU usage above 90% for 5+ minutes"
+          description: "Average CPU usage is {{ printf \"%.1f\" $value }}%."
+
+  # ===========================================================================
+  # Frontman Service Health
+  # ===========================================================================
+  - name: service
+    rules:
+      - alert: FrontmanServiceDown
+        expr: |
+          node_systemd_unit_state{name=~"frontman-(blue|green).service", state="active"} == 0
+            and on (name)
+          node_textfile_frontman_active_slot == 1
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Frontman service is down"
+          description: "The active frontman slot ({{ $labels.name }}) is not running."
+
+  # ===========================================================================
+  # Health Endpoint
+  # ===========================================================================
+  - name: health-endpoint
+    rules:
+      - alert: HealthEndpointDown
+        expr: probe_success{job="blackbox-health"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Health endpoint is failing"
+          description: "{{ $labels.instance }} has been unreachable for over 2 minutes."
+
+  # ===========================================================================
+  # Database Backup Staleness
+  # ===========================================================================
+  - name: backup
+    rules:
+      - alert: BackupStale
+        expr: |
+          time() - node_textfile_backup_last_success_timestamp_seconds > 90000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Database backup is stale"
+          description: "No successful PostgreSQL backup in over 25 hours."
+
+  # ===========================================================================
+  # PostgreSQL Connections
+  # ===========================================================================
+  - name: postgres
+    rules:
+      - alert: HighDBConnections
+        expr: pg_stat_activity_count > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High number of database connections"
+          description: "PostgreSQL has {{ $value }} active connections (max_connections = 100)."

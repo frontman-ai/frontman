@@ -51,15 +51,41 @@ defmodule FrontmanServer.Agents.SchemaTransformer do
   def transform(schema, :openai_strict), do: transform_for_openai_strict(schema)
 
   @doc """
+  Strips null values from tool call arguments.
+
+  This is the inverse of the strict mode transformation: `transform/2` makes optional
+  fields nullable so the model can provide `null`, and `strip_nulls/1` removes those
+  nulls before passing arguments to tools that expect missing keys rather than null values.
+
+  Recursively strips null values from nested objects.
+  """
+  @spec strip_nulls(map()) :: map()
+  def strip_nulls(args) when is_map(args) do
+    args
+    |> Enum.reject(fn {_k, v} -> is_nil(v) end)
+    |> Map.new(fn {k, v} -> {k, strip_nulls(v)} end)
+  end
+
+  def strip_nulls(value), do: value
+
+  @doc """
   Determines the provider type from a model identifier string.
 
   Model strings follow the format `"provider:model_name"` or `"provider:org/model_name"`.
   Returns `:openai_strict` for OpenAI and Azure models (via OpenRouter or direct),
   `:flexible` for all others.
   """
-  @spec provider_for_model(String.t()) :: provider()
+  @spec provider_for_model(String.t() | %{provider: atom()}) :: provider()
   def provider_for_model(model) when is_binary(model) do
     if openai_model?(model), do: :openai_strict, else: :flexible
+  end
+
+  def provider_for_model(%{provider: provider}) when provider in [:openai, :azure] do
+    :openai_strict
+  end
+
+  def provider_for_model(%{provider: _}) do
+    :flexible
   end
 
   defp openai_model?(model) do
