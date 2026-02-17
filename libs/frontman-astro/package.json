@@ -15,7 +15,10 @@
 	},
 	"keywords": [
 		"frontman",
-		"astro",
+		"astro-integration",
+		"withastro",
+		"devtools",
+		"dev-toolbar",
 		"ai",
 		"development"
 	],

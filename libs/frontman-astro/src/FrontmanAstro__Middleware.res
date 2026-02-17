@@ -1,51 +1,12 @@
-// Astro middleware for Frontman
+// Middleware for Frontman Astro integration
+//
+// Handles /frontman/* routes: UI serving, tool endpoints, source location resolution.
+// Returns option<Response>: Some(response) for handled routes, None for pass-through.
+// This middleware is designed to be adapted to Vite's Connect middleware via ViteAdapter.
 
 module Config = FrontmanAstro__Config
 module Server = FrontmanAstro__Server
 module ToolRegistry = FrontmanAstro__ToolRegistry
-
-// Annotation capture script - injected before </body>
-// Stores paths exactly as Astro provides them (should be absolute paths)
-let annotationCaptureScript = `
-<script>
-(function() {
-  var annotations = new Map();
-  document.querySelectorAll('[data-astro-source-file]').forEach(function(el) {
-    annotations.set(el, {
-      file: el.getAttribute('data-astro-source-file'),
-      loc: el.getAttribute('data-astro-source-loc')
-    });
-  });
-  window.__frontman_annotations__ = {
-    _map: annotations,
-    get: function(el) { return annotations.get(el); },
-    has: function(el) { return annotations.has(el); },
-    size: function() { return annotations.size; }
-  };
-  console.log('[Frontman] Captured ' + annotations.size + ' elements');
-})();
-</script>
-`
-
-// Helper to inject script into HTML response
-let injectAnnotationScript = async (response: WebAPI.FetchAPI.response): WebAPI.FetchAPI.response => {
-  let contentType = response.headers->WebAPI.Headers.get("content-type")->Null.toOption
-
-  switch contentType {
-  | Some(ct) if ct->String.includes("text/html") =>
-    let html = await response->WebAPI.Response.text
-    let injectedHtml = html->String.replace("</body>", `${annotationCaptureScript}</body>`)
-
-    WebAPI.Response.fromString(
-      injectedHtml,
-      ~init={
-        status: response.status,
-        headers: WebAPI.HeadersInit.fromHeaders(response.headers),
-      },
-    )
-  | _ => response
-  }
-}
 
 // HTML template for the Frontman UI
 let uiHtml = (~clientUrl: string, ~isLightTheme: bool) => {
@@ -91,57 +52,44 @@ let serveUI = (config: Config.t): WebAPI.FetchAPI.response => {
   WebAPI.Response.fromString(html, ~init={headers: headers})
 }
 
-// Type for Astro URL object (subset we need)
-type astroUrl = {pathname: string}
-
-// Type for Astro middleware context (subset of APIContext we actually use)
-type astroContext = {
-  request: WebAPI.FetchAPI.request,
-  url: astroUrl,
-}
-
-// Type for Astro next function
-type astroNext = unit => promise<WebAPI.FetchAPI.response>
-
 // Create middleware handler
-// Returns a function that can be used directly as Astro middleware
+// Returns a function: Request => promise<option<Response>>
+//   Some(response) => this route was handled
+//   None => not a frontman route, pass through
 let createMiddleware = (config: Config.t) => {
   let registry = ToolRegistry.make()
 
-  async (context: astroContext, next: astroNext): WebAPI.FetchAPI.response => {
-    let pathname = context.url.pathname
-    let method = context.request.method
+  async (request: WebAPI.FetchAPI.request): option<WebAPI.FetchAPI.response> => {
+    let url = WebAPI.URL.make(~url=request.url)
+    let pathname = url.pathname
+    let method = request.method
 
     let basePath = `/${config.basePath}`
 
-    // Check if this is a frontman route (exact match or subpath)
+    // Only handle frontman routes
     if !(pathname == basePath || pathname->String.startsWith(`${basePath}/`)) {
-      // Not a frontman route - pass through but inject script into HTML
-      let response = await next()
-      await injectAnnotationScript(response)
+      None
     } else if method == "OPTIONS" {
-      // Handle CORS preflight
-      Server.handleCORS()
+      Some(Server.handleCORS())
     } else {
-      // Route handling
       switch pathname {
-      | p if p == basePath || p == `${basePath}/` =>
-        serveUI(config)
+      | p if p == basePath || p == `${basePath}/` => Some(serveUI(config))
 
       | p if p == `${basePath}/tools` && method == "GET" =>
-        Server.handleGetTools(~registry, ~config)
+        Some(Server.handleGetTools(~registry, ~config))
 
       | p if p == `${basePath}/tools/call` && method == "POST" =>
-        await Server.handleToolCall(~registry, ~config, context.request)
+        Some(await Server.handleToolCall(~registry, ~config, request))
 
       | p if p == `${basePath}/resolve-source-location` && method == "POST" =>
-        await Server.handleResolveSourceLocation(~config, context.request)
+        Some(await Server.handleResolveSourceLocation(~config, request))
 
       | _ =>
-        // Unknown frontman route
-        WebAPI.Response.jsonR(
-          ~data=JSON.Encode.object(Dict.fromArray([("error", JSON.Encode.string("Not found"))])),
-          ~init={status: 404},
+        Some(
+          WebAPI.Response.jsonR(
+            ~data=JSON.Encode.object(Dict.fromArray([("error", JSON.Encode.string("Not found"))])),
+            ~init={status: 404},
+          ),
         )
       }
     }

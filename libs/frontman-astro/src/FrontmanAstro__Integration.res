@@ -1,6 +1,17 @@
 // Frontman Astro Integration
+//
+// A proper Astro integration that handles everything automatically:
+// - Dev toolbar app registration (astro:config:setup)
+// - Annotation capture script injection via injectScript "head-inline" (astro:config:setup)
+// - Frontman API routes via Vite server middleware (astro:server:setup)
+//
+// Users only need one line in astro.config.mjs:
+//   integrations: [frontman({ projectRoot: import.meta.dirname })]
 
 module Bindings = FrontmanAstro__AstroBindings
+module Config = FrontmanAstro__Config
+module Middleware = FrontmanAstro__Middleware
+module ViteAdapter = FrontmanAstro__ViteAdapter
 
 // SVG icon for the toolbar
 let icon = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>`
@@ -10,26 +21,80 @@ let icon = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewB
 @val @scope(("import", "meta"))
 external importMetaUrl: string = "url"
 
-// Helper to create URL and get pathname
 let getToolbarAppPath = () => {
   let url = WebAPI.URL.make(~url="./toolbar.js", ~base=importMetaUrl)
   url.pathname
 }
 
+// Annotation capture script - injected via injectScript("head-inline")
+// Reads Astro's data-astro-source-file/loc attributes and stores them on window.
+//
+// Uses "head-inline" with DOMContentLoaded to match the timing of the old middleware
+// approach (which injected a <script> before </body>). This ensures:
+//   1. DOM elements exist (DOMContentLoaded fires after HTML parsing)
+//   2. Astro's toolbar hasn't stripped data-astro-source-* attributes yet
+//      (toolbar runs as deferred module scripts, which execute after DOMContentLoaded)
+//
+// Also re-captures on Astro View Transitions (SPA navigations) via astro:page-load.
+let annotationCaptureScript = `(function() {
+  function captureAnnotations() {
+    var annotations = new Map();
+    document.querySelectorAll('[data-astro-source-file]').forEach(function(el) {
+      annotations.set(el, {
+        file: el.getAttribute('data-astro-source-file'),
+        loc: el.getAttribute('data-astro-source-loc')
+      });
+    });
+    window.__frontman_annotations__ = {
+      _map: annotations,
+      get: function(el) { return annotations.get(el); },
+      has: function(el) { return annotations.has(el); },
+      size: function() { return annotations.size; }
+    };
+    console.log('[Frontman] Captured ' + annotations.size + ' elements');
+  }
+  document.addEventListener('DOMContentLoaded', captureAnnotations);
+  document.addEventListener('astro:page-load', captureAnnotations);
+})();`
+
 // Create the Astro integration
-let make = (): Bindings.astroIntegration => {
-  name: "frontman",
-  hooks: {
-    configSetup: ?Some(ctx => {
-      // Only add dev toolbar app in dev mode
-      if ctx.command == #dev {
-        ctx.addDevToolbarApp({
-          id: "frontman:toolbar",
-          name: "Frontman",
-          icon,
-          entrypoint: getToolbarAppPath(),
-        })
-      }
-    }),
-  },
+// Accepts the same config options as makeConfig (all optional)
+let make = (configInput: Config.jsConfigInput): Bindings.astroIntegration => {
+  // Build config once, reuse across hooks
+  let config = Config.makeFromObject(configInput)
+
+  {
+    name: "frontman",
+    hooks: {
+      configSetup: ?Some(
+        ctx => {
+          // Only activate in dev mode
+          if ctx.command == #dev {
+            // Register the dev toolbar app
+            ctx.addDevToolbarApp({
+              id: "frontman:toolbar",
+              name: "Frontman",
+              icon,
+              entrypoint: getToolbarAppPath(),
+            })
+
+            // Inject annotation capture script into every page's <head>
+            // Uses "head-inline" + DOMContentLoaded to run after DOM is parsed
+            // but before Astro's toolbar strips data-astro-source-* attributes
+            ctx.injectScript("head-inline", annotationCaptureScript)
+          }
+        },
+      ),
+      serverSetup: ?Some(
+        ({server}) => {
+          // Create our Web API middleware and adapt it to Vite's Connect middleware
+          let webMiddleware = Middleware.createMiddleware(config)
+          let connectMiddleware = ViteAdapter.adaptToConnect(webMiddleware)
+
+          // Register with Vite's dev server
+          server.middlewares->Bindings.use(connectMiddleware)
+        },
+      ),
+    },
+  }
 }

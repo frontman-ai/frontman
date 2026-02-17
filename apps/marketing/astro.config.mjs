@@ -3,16 +3,15 @@ import partytown from "@astrojs/partytown";
 import tailwind from "@astrojs/tailwind";
 import icon from "astro-icon";
 import sitemap from "@astrojs/sitemap";
-import node from "@astrojs/node";
-import { frontmanIntegration } from "@frontman-ai/astro";
+import frontman from "@frontman-ai/astro";
+import path from "node:path";
 
-const isProd = process.env.NODE_ENV === "production";
+const appRoot = path.resolve(import.meta.dirname);
+const monorepoRoot = path.resolve(appRoot, "../..");
 
 // https://astro.build/config
 export default defineConfig({
   site: "https://frontman.sh",
-  // SSR only needed in dev for /frontman/* routes
-  ...(isProd ? {} : { output: "server", adapter: node({ mode: "standalone" }) }),
   build: {
     // Inline all stylesheets directly into the HTML to eliminate
     // render-blocking <link> requests (~25 KiB total). Trades a small
@@ -20,7 +19,13 @@ export default defineConfig({
     inlineStylesheets: "always",
   },
   integrations: [
-    frontmanIntegration(),
+    frontman({
+      projectRoot: appRoot,
+      sourceRoot: monorepoRoot,
+      basePath: "frontman",
+      serverName: "marketing",
+      serverVersion: "1.0.0",
+    }),
     tailwind(),
     icon(),
     sitemap(),
