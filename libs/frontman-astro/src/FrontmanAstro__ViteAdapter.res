@@ -97,29 +97,41 @@ let writeWebResponse = async (
 // The web middleware returns option<Response>:
 //   - Some(response) => handle it (write to ServerResponse)
 //   - None => pass through (call next())
-let adaptToConnect = (middleware: webMiddleware): NodeHttp.connectMiddleware => {
+//
+// basePath is used for an early URL prefix check so we skip body consumption
+// for requests that aren't Frontman routes. Without this, POST/PUT/PATCH
+// requests to non-Frontman routes would have their body stream drained before
+// next() is called, causing downstream handlers to receive an empty body.
+let adaptToConnect = (middleware: webMiddleware, ~basePath: string): NodeHttp.connectMiddleware => {
+  let prefix = `/${basePath}`
   (req, res, next) => {
-    let handleRequest = async () => {
-      let webRequest = await toWebRequest(req)
-      let maybeResponse = await middleware(webRequest)
-      switch maybeResponse {
-      | Some(webResponse) => await writeWebResponse(webResponse, res)
-      | None => next()
+    // Fast path: skip non-Frontman routes without consuming the request body
+    let reqUrl = req->NodeHttp.url
+    if !(reqUrl == prefix || reqUrl->String.startsWith(`${prefix}/`)) {
+      next()
+    } else {
+      let handleRequest = async () => {
+        let webRequest = await toWebRequest(req)
+        let maybeResponse = await middleware(webRequest)
+        switch maybeResponse {
+        | Some(webResponse) => await writeWebResponse(webResponse, res)
+        | None => next()
+        }
       }
+      handleRequest()
+      ->Promise.catch(error => {
+        Console.error2("[Frontman] Middleware error:", error)
+        // Only send error response if headers haven't been sent yet
+        // (writeWebResponse may have already started streaming)
+        if !(res->NodeHttp.headersSent) {
+          res->NodeHttp.setStatusCode(500)
+          res->NodeHttp.endWithData("Internal Server Error")
+        } else {
+          res->NodeHttp.end
+        }
+        Promise.resolve()
+      })
+      ->ignore
     }
-    handleRequest()
-    ->Promise.catch(error => {
-      Console.error2("[Frontman] Middleware error:", error)
-      // Only send error response if headers haven't been sent yet
-      // (writeWebResponse may have already started streaming)
-      if !(res->NodeHttp.headersSent) {
-        res->NodeHttp.setStatusCode(500)
-        res->NodeHttp.endWithData("Internal Server Error")
-      } else {
-        res->NodeHttp.end
-      }
-      Promise.resolve()
-    })
-    ->ignore
   }
 }

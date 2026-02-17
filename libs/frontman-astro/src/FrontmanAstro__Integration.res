@@ -106,7 +106,7 @@ let make = (configInput: Config.jsConfigInput): Bindings.astroIntegration => {
         ({server}) => {
           // Create our Web API middleware and adapt it to Vite's Connect middleware
           let webMiddleware = Middleware.createMiddleware(config)
-          let connectMiddleware = ViteAdapter.adaptToConnect(webMiddleware)
+          let connectMiddleware = ViteAdapter.adaptToConnect(webMiddleware, ~basePath=config.basePath)
 
           // Register with Vite's dev server
           server.middlewares->Bindings.use(connectMiddleware)
