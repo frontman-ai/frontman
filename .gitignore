@@ -43,6 +43,6 @@ Thumbs.db
 .chunkhound
 # Local SSL certificates
 .certs/
-opencode.json
+opencode.json*
 scripts/certs/
 mprocs.log
