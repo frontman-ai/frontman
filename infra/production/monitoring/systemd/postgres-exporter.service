@@ -1,0 +1,22 @@
+[Unit]
+Description=Prometheus PostgreSQL Exporter
+Documentation=https://github.com/prometheus-community/postgres_exporter
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=postgres_exporter
+Group=postgres_exporter
+EnvironmentFile=/opt/frontman/monitoring/postgres-exporter.env
+ExecStart=/usr/local/bin/postgres_exporter \
+  --web.listen-address=127.0.0.1:9187
+Restart=on-failure
+RestartSec=5
+
+# Security hardening
+NoNewPrivileges=yes
+ProtectHome=yes
+
+[Install]
+WantedBy=multi-user.target

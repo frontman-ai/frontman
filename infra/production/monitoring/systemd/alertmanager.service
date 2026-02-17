@@ -1,0 +1,26 @@
+[Unit]
+Description=Prometheus Alertmanager
+Documentation=https://prometheus.io/docs/alerting/latest/alertmanager/
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=alertmanager
+Group=alertmanager
+ExecStart=/usr/local/bin/alertmanager \
+  --config.file=/etc/alertmanager/alertmanager.yml \
+  --storage.path=/var/lib/alertmanager/data \
+  --web.listen-address=127.0.0.1:9093
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+RestartSec=5
+
+# Security hardening
+NoNewPrivileges=yes
+ProtectHome=yes
+ProtectSystem=strict
+ReadWritePaths=/var/lib/alertmanager
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,54 @@
+# =============================================================================
+# Alertmanager Configuration - Frontman Production
+# Deployed to /etc/alertmanager/alertmanager.yml
+#
+# Routes all alerts to alertmanager-discord which forwards to the
+# #prod-alerts Discord channel via webhook.
+# =============================================================================
+
+global:
+  resolve_timeout: 5m
+
+# Route configuration
+route:
+  receiver: discord
+  group_by: [alertname]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+
+  routes:
+    # Dead man switch: send once daily, don't group with other alerts
+    - match:
+        alertname: DeadManSwitch
+      receiver: discord-heartbeat
+      group_wait: 0s
+      repeat_interval: 24h
+
+    # Critical alerts: shorter wait and repeat
+    - match:
+        severity: critical
+      receiver: discord
+      group_wait: 10s
+      group_interval: 1m
+      repeat_interval: 1h
+
+# Receivers
+receivers:
+  - name: discord
+    webhook_configs:
+      - url: http://127.0.0.1:9094
+        send_resolved: true
+
+  - name: discord-heartbeat
+    webhook_configs:
+      - url: http://127.0.0.1:9094
+        send_resolved: false
+
+# Inhibition rules: suppress warning if critical is already firing for same alert
+inhibit_rules:
+  - source_match:
+      severity: critical
+    target_match:
+      severity: warning
+    equal: [alertname, instance]

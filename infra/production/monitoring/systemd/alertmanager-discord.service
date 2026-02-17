@@ -1,0 +1,23 @@
+[Unit]
+Description=Alertmanager Discord Webhook Bridge
+Documentation=https://github.com/benjojo/alertmanager-discord
+After=network-online.target alertmanager.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=alertmanager
+Group=alertmanager
+EnvironmentFile=/opt/frontman/monitoring/alertmanager-discord.env
+ExecStart=/usr/local/bin/alertmanager-discord \
+  --listen.address=127.0.0.1:9094
+Restart=on-failure
+RestartSec=5
+
+# Security hardening
+NoNewPrivileges=yes
+ProtectHome=yes
+ProtectSystem=strict
+
+[Install]
+WantedBy=multi-user.target

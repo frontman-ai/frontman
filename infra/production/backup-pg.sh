@@ -36,6 +36,12 @@ find "${BACKUP_DIR}" -name "*.sql.gz" -type f -mtime +${RETENTION_DAYS} | while 
   DELETED=$((DELETED + 1))
 done
 
+# --- Write Prometheus metric for backup staleness monitoring ---
+TEXTFILE_DIR="/opt/frontman/monitoring/textfile"
+if [ -d "${TEXTFILE_DIR}" ]; then
+  echo "node_textfile_backup_last_success_timestamp_seconds $(date +%s)" > "${TEXTFILE_DIR}/backup.prom"
+fi
+
 # --- Summary ---
 TOTAL_BACKUPS=$(find "${BACKUP_DIR}" -name "*.sql.gz" -type f | wc -l)
 TOTAL_SIZE=$(du -sh "${BACKUP_DIR}" | cut -f1)
