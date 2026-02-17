@@ -2575,7 +2575,7 @@ __metadata:
   resolution: "@frontman/frontman-core@workspace:libs/frontman-core"
   dependencies:
     "@frontman/bindings": "npm:0.1.0"
-    "@frontman/frontman-protocol": "npm:0.1.0"
+    "@frontman/frontman-protocol": "npm:0.2.0"
     "@rescript/runtime": "npm:12.0.0-beta.14"
     "@rescript/webapi": "npm:*"
     "@vitest/ui": "catalog:"
@@ -2591,7 +2591,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@frontman/frontman-protocol@npm:*, @frontman/frontman-protocol@npm:0.1.0, @frontman/frontman-protocol@workspace:*, @frontman/frontman-protocol@workspace:libs/frontman-protocol":
+"@frontman/frontman-protocol@npm:*, @frontman/frontman-protocol@npm:0.2.0, @frontman/frontman-protocol@workspace:*, @frontman/frontman-protocol@workspace:libs/frontman-protocol":
   version: 0.0.0-use.local
   resolution: "@frontman/frontman-protocol@workspace:libs/frontman-protocol"
   dependencies:

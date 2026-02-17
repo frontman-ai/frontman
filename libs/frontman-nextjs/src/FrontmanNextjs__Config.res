@@ -1,4 +1,5 @@
 module Bindings = FrontmanBindings
+module Hosts = FrontmanFrontmanCore.FrontmanCore__Hosts
 
 // Default host can be overridden via FRONTMAN_HOST env var for remote development
 let defaultHost = switch Bindings.Process.env->Dict.get("FRONTMAN_HOST") {
@@ -65,8 +66,8 @@ let make = (
       ->Dict.get("FRONTMAN_CLIENT_URL")
       ->Option.getOr(
         switch isDev {
-        | true => "http://localhost:5173/src/Main.res.mjs"
-        | false => "https://app.frontman.sh/frontman.es.js"
+        | true => Hosts.devClientJs
+        | false => Hosts.clientJs
         },
       )
     // Use URL API to properly append params (handles base URLs that already have query strings)

@@ -2,6 +2,7 @@
 // Usage: npx @frontman-ai/vite install --server <host>
 
 module Process = FrontmanBindings.Process
+module Hosts = FrontmanFrontmanCore.FrontmanCore__Hosts
 module Install = FrontmanVite__Cli__Install
 
 // Parse command line arguments
@@ -93,7 +94,7 @@ let main = async () => {
 
   switch args.command {
   | Some("install") =>
-    let server = args.server->Option.getOr("api.frontman.sh")
+    let server = args.server->Option.getOr(Hosts.apiHost)
     let result = await Install.run({
       server,
       prefix: args.prefix,

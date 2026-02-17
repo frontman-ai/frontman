@@ -2,6 +2,7 @@
 // Usage: npx @frontman-ai/nextjs install --server <host>
 
 module Process = FrontmanBindings.Process
+module Hosts = FrontmanFrontmanCore.FrontmanCore__Hosts
 module Install = FrontmanNextjs__Cli__Install
 
 // Parse command line arguments (simple implementation without external deps)
@@ -92,10 +93,7 @@ let main = async () => {
 
   switch args.command {
   | Some("install") =>
-    let server = switch args.server {
-    | Some(s) => s
-    | None => "api.frontman.sh"
-    }
+    let server = args.server->Option.getOr(Hosts.apiHost)
     let result = await Install.run({
       server,
       prefix: args.prefix,
