@@ -222,10 +222,17 @@ defimpl Swarm.LLM, for: FrontmanServer.Agents.LLMClient do
     nil
   end
 
-  # CRASH on truly unknown chunk TYPES (not :content, :thinking, :tool_call, or :meta)
+  # Surface LLM API errors to the caller by raising.
+  # The raise propagates through Response.from_stream → Task crash →
+  # ExecutionMonitor → {:agent_error, message} → TaskChannel → client ErrorBanner.
+  defp to_swarm_chunk(%{type: :error, text: text}, _requires_mcp_prefix?) do
+    raise "LLM API error: #{text}"
+  end
+
+  # CRASH on truly unknown chunk TYPES (not :content, :thinking, :tool_call, :meta, or :error)
   # This catches bugs where ReqLLM adds new types we don't handle
   defp to_swarm_chunk(%{type: unknown_type} = chunk, _requires_mcp_prefix?)
-       when unknown_type not in [:content, :thinking, :tool_call, :meta] do
+       when unknown_type not in [:content, :thinking, :tool_call, :meta, :error] do
     raise "Unknown chunk TYPE from ReqLLM: #{inspect(unknown_type)}. " <>
             "Full chunk: #{inspect(chunk, limit: :infinity)}"
   end
