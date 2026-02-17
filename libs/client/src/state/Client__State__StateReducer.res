@@ -667,7 +667,11 @@ let handleEffect = (effect, state: state, dispatch) => {
     save()->ignore
   | FetchModelsConfigEffect({apiBaseUrl}) =>
     let fetch = async () => {
-      let url = `${apiBaseUrl}/api/models`
+      // Pass env key presence so server can return full or free-tier model list
+      let runtimeConfig = Client__RuntimeConfig.read()
+      let hasEnvKey = Client__RuntimeConfig.hasOpenrouterKey(runtimeConfig)
+      let envKeyParam = if hasEnvKey { "true" } else { "false" }
+      let url = `${apiBaseUrl}/api/models?hasEnvKey=${envKeyParam}`
 
       try {
         let response = await WebAPI.Global.fetch(url, ~init={credentials: Include})
@@ -1213,9 +1217,13 @@ let next = (state: state, action) => {
     }->FrontmanReactStatestore.StateReducer.update
 
   | OpenRouterKeySaved =>
-    // After saving the API key, refresh usage info so the chatbox reflects the new state
+    // After saving the API key, refresh usage info and models list
+    // so the chatbox reflects the new state and unlocked models appear
     let effects = switch state.acpSession {
-    | AcpSessionActive({apiBaseUrl}) => [FetchUsageInfo({apiBaseUrl: apiBaseUrl})]
+    | AcpSessionActive({apiBaseUrl}) => [
+        FetchUsageInfo({apiBaseUrl: apiBaseUrl}),
+        FetchModelsConfigEffect({apiBaseUrl: apiBaseUrl}),
+      ]
     | NoAcpSession => []
     }
     {
@@ -1336,10 +1344,15 @@ let next = (state: state, action) => {
 
   | AnthropicOAuthConnected({expiresAt}) =>
     let expiresAtMs = Date.fromString(expiresAt)->Date.getTime
+    // Refresh models when connected (adds Anthropic provider)
+    let effects = switch state.acpSession {
+    | AcpSessionActive({apiBaseUrl}) => [FetchModelsConfigEffect({apiBaseUrl: apiBaseUrl})]
+    | NoAcpSession => []
+    }
     {
       ...state,
       anthropicOAuthStatus: Client__State__Types.Connected({expiresAt: expiresAtMs}),
-    }->FrontmanReactStatestore.StateReducer.update
+    }->FrontmanReactStatestore.StateReducer.update(~sideEffects=effects)
 
   | AnthropicOAuthError({error}) =>
     {
@@ -1357,10 +1370,15 @@ let next = (state: state, action) => {
     }
 
   | AnthropicOAuthDisconnected =>
+    // Refresh models when disconnected (removes Anthropic provider)
+    let effects = switch state.acpSession {
+    | AcpSessionActive({apiBaseUrl}) => [FetchModelsConfigEffect({apiBaseUrl: apiBaseUrl})]
+    | NoAcpSession => []
+    }
     {
       ...state,
       anthropicOAuthStatus: Client__State__Types.NotConnected,
-    }->FrontmanReactStatestore.StateReducer.update
+    }->FrontmanReactStatestore.StateReducer.update(~sideEffects=effects)
 
   | ResetAnthropicOAuthError =>
     // Reset error state back to NotConnected

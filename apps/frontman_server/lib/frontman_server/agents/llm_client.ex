@@ -222,11 +222,26 @@ defimpl Swarm.LLM, for: FrontmanServer.Agents.LLMClient do
     nil
   end
 
-  # Surface LLM API errors to the caller by raising.
+  # Stream-level provider/API error chunk emitted by ReqLLM.
   # The raise propagates through Response.from_stream → Task crash →
   # ExecutionMonitor → {:agent_error, message} → TaskChannel → client ErrorBanner.
-  defp to_swarm_chunk(%{type: :error, text: text}, _requires_mcp_prefix?) do
-    raise "LLM API error: #{text}"
+  defp to_swarm_chunk(%{type: :error, error: error}, _requires_mcp_prefix?)
+       when is_binary(error) do
+    raise "LLM stream error: #{error}"
+  end
+
+  defp to_swarm_chunk(%{type: :error, text: text}, _requires_mcp_prefix?)
+       when is_binary(text) do
+    raise "LLM stream error: #{text}"
+  end
+
+  defp to_swarm_chunk(%{type: :error, error: %{message: message}}, _requires_mcp_prefix?)
+       when is_binary(message) do
+    raise "LLM stream error: #{message}"
+  end
+
+  defp to_swarm_chunk(%{type: :error} = chunk, _requires_mcp_prefix?) do
+    raise "LLM stream error: #{inspect(chunk, limit: :infinity)}"
   end
 
   # CRASH on truly unknown chunk TYPES (not :content, :thinking, :tool_call, :meta, or :error)

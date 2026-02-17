@@ -272,12 +272,21 @@ defmodule FrontmanServer.Tasks do
   defp append_interaction(%TaskSchema{id: task_id}, interaction) do
     case InteractionSchema.create_changeset(task_id, interaction) |> Repo.insert() do
       {:ok, _schema} ->
+        touch_task(task_id)
         broadcast_task(task_id, {:interaction, interaction})
         {:ok, interaction}
 
       {:error, changeset} ->
         {:error, changeset}
     end
+  end
+
+  # Bump the task's updated_at so it sorts to the top of the sessions list
+  defp touch_task(task_id) do
+    import Ecto.Query
+
+    from(t in TaskSchema, where: t.id == ^task_id)
+    |> Repo.update_all(set: [updated_at: DateTime.utc_now(:second)])
   end
 
   @spec broadcast_task(String.t(), term()) :: :ok

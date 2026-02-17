@@ -435,7 +435,6 @@ defmodule FrontmanServerWeb.TaskChannel do
           assign(socket, :title_generation_started, true)
 
         _ ->
-          # Title already set — mark as started so we skip future checks
           assign(socket, :title_generation_started, true)
       end
     end

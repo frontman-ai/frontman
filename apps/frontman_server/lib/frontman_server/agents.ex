@@ -260,6 +260,8 @@ defmodule FrontmanServer.Agents do
          model: model_string
        })
        when is_binary(endpoint) do
+    model_string = normalize_chatgpt_codex_model(model_string)
+
     # codex_endpoint is "https://chatgpt.com/backend-api/codex/responses"
     # ReqLLM ResponsesAPI appends "/responses" to base_url, so strip it
     base_url = String.replace_suffix(endpoint, "/responses", "")
@@ -283,21 +285,46 @@ defmodule FrontmanServer.Agents do
     # The Codex API at chatgpt.com only supports the Responses API endpoint.
     model_spec =
       case ReqLLM.model(model_string) do
-        {:ok, model} ->
-          extra = model.extra || %{}
-          wire = Map.get(extra, :wire, %{})
-          patched_wire = Map.put(wire, :protocol, "openai_responses")
-          patched_extra = Map.put(extra, :wire, patched_wire)
-          %{model | extra: patched_extra}
-
-        {:error, _} ->
-          model_string
+        {:ok, model} -> force_responses_protocol(model)
+        {:error, _} -> synthesize_codex_model(model_string)
       end
 
     {updated_opts, model_spec}
   end
 
   defp maybe_add_codex_opts(llm_opts, %ResolvedKey{model: model}), do: {llm_opts, model}
+
+  # Safety net: model list now uses gpt-5.3-codex, but guard against stale clients.
+  defp normalize_chatgpt_codex_model("openai:codex-5.3") do
+    Logger.debug("Normalizing openai:codex-5.3 → openai:gpt-5.3-codex for Codex endpoint")
+    "openai:gpt-5.3-codex"
+  end
+
+  defp normalize_chatgpt_codex_model(model), do: model
+
+  # Force wire.protocol to openai_responses so ReqLLM routes to the
+  # Responses API (/responses) instead of Chat API (/chat/completions).
+  defp force_responses_protocol(model) do
+    extra = model.extra || %{}
+    wire = Map.get(extra, :wire, %{})
+    patched_extra = Map.put(extra, :wire, Map.put(wire, :protocol, "openai_responses"))
+    %{model | extra: patched_extra}
+  end
+
+  # Build a temporary model spec for ChatGPT Codex endpoint models that may not
+  # exist in LLMDB yet (e.g. openai:gpt-5.3-codex).
+  # Clones gpt-5.2-codex and swaps the wire model id.
+  defp synthesize_codex_model("openai:gpt-5.3-codex") do
+    case ReqLLM.model("openai:gpt-5.2-codex") do
+      {:ok, base} ->
+        %{force_responses_protocol(base) | id: "gpt-5.3-codex", model: "gpt-5.3-codex"}
+
+      {:error, _} ->
+        "openai:gpt-5.3-codex"
+    end
+  end
+
+  defp synthesize_codex_model(model_string), do: model_string
 
   # Build model string from config map: "provider:model_value"
   # e.g., %{provider: "openrouter", value: "google/gemini-3-flash-preview"}

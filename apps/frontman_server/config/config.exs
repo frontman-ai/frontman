@@ -86,6 +86,89 @@ config :logger, :default_formatter,
 # Use Jason for JSON parsing in Phoenix
 config :phoenix, :json_library, Jason
 
+# Custom model definitions for models not yet in the packaged LLMDB catalog.
+# These get merged into the snapshot at startup — existing models are untouched.
+config :llm_db,
+  custom: %{
+    openrouter: [
+      models: %{
+        "anthropic/claude-opus-4.6" => %{
+          name: "Claude Opus 4.6",
+          capabilities: %{
+            chat: true,
+            reasoning: %{enabled: true},
+            streaming: %{tool_calls: true},
+            tools: %{enabled: true}
+          },
+          limits: %{context: 200_000, output: 32_000},
+          modalities: %{input: [:text, :image, :pdf], output: [:text]}
+        },
+        "openai/gpt-5.3-codex" => %{
+          name: "GPT-5.3 Codex",
+          capabilities: %{
+            chat: true,
+            reasoning: %{enabled: false},
+            streaming: %{text: true, tool_calls: false},
+            tools: %{enabled: false}
+          },
+          limits: %{context: 400_000, output: 128_000},
+          modalities: %{input: [:text, :image], output: [:text]}
+        },
+        "moonshotai/kimi-k2.5" => %{
+          name: "Kimi K2.5",
+          capabilities: %{
+            chat: true,
+            streaming: %{text: true, tool_calls: false},
+            tools: %{enabled: true}
+          },
+          limits: %{context: 131_072, output: 32_768},
+          modalities: %{input: [:text], output: [:text]}
+        },
+        "minimax/minimax-m2.5" => %{
+          name: "Minimax M2.5",
+          capabilities: %{
+            chat: true,
+            reasoning: %{enabled: true},
+            streaming: %{tool_calls: true},
+            tools: %{enabled: true}
+          },
+          limits: %{context: 1_000_192, output: 1_000_192},
+          modalities: %{input: [:text, :image], output: [:text]}
+        }
+      }
+    ],
+    anthropic: [
+      models: %{
+        "claude-opus-4-6" => %{
+          name: "Claude Opus 4.6",
+          capabilities: %{
+            chat: true,
+            reasoning: %{enabled: true},
+            streaming: %{tool_calls: true},
+            tools: %{enabled: true}
+          },
+          limits: %{context: 200_000, output: 64_000},
+          modalities: %{input: [:text, :image, :pdf], output: [:text]}
+        }
+      }
+    ],
+    openai: [
+      models: %{
+        "gpt-5.3-codex" => %{
+          name: "GPT-5.3 Codex",
+          capabilities: %{
+            chat: true,
+            reasoning: %{enabled: false},
+            streaming: %{text: true, tool_calls: false},
+            tools: %{enabled: false}
+          },
+          limits: %{context: 400_000, output: 128_000},
+          modalities: %{input: [:text, :image], output: [:text]}
+        }
+      }
+    ]
+  }
+
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.
 import_config "#{config_env()}.exs"
