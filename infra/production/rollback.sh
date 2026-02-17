@@ -78,8 +78,9 @@ EOF
 sudo mv /tmp/Caddyfile.new /etc/caddy/Caddyfile
 sudo /usr/bin/systemctl reload caddy
 
-# --- Update active slot ---
+# --- Update active slot + monitoring metric ---
 echo "${ROLLBACK_SLOT}" > "${DEPLOY_ROOT}/active_slot"
+"${DEPLOY_ROOT}/monitoring/update-active-slot.sh" || true
 
 # --- Stop the failed slot ---
 echo ">>> Stopping failed slot (${CURRENT_SLOT})..."
