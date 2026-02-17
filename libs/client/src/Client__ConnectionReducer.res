@@ -29,6 +29,7 @@ type acpState =
   | ACPDisconnected
   | ACPConnecting
   | ACPConnected(ACP.connection)
+  | ACPAuthRequired({loginUrl: string})
   | ACPError(string)
 
 type relayState =
@@ -184,8 +185,18 @@ module Selectors = {
     // Still connecting if either is in progress
     | (ACPConnecting, _, _) => Connecting
     | (ACPConnected(_), RelayConnecting | RelayDisconnected, _) => Connecting
+    // Auth required — surface as Disconnected so UI can check authRedirectUrl
+    | (ACPAuthRequired(_), _, _) => Disconnected
     // Disconnected
     | (ACPDisconnected, _, _) => Disconnected
+    }
+  }
+
+  // Returns the auth redirect URL when ACP connection requires authentication
+  let getAuthRedirectUrl = (state: state): option<string> => {
+    switch state.acp {
+    | ACPAuthRequired({loginUrl}) => Some(loginUrl)
+    | _ => None
     }
   }
 
@@ -427,12 +438,12 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
       [LogError("Invalid: already initialized")],
     )
 
-  | ({acp: ACPConnecting | ACPConnected(_) | ACPError(_)}, ACPConnectStart) => (
+  | ({acp: ACPConnecting | ACPConnected(_) | ACPAuthRequired(_) | ACPError(_)}, ACPConnectStart) => (
       state,
       [LogError("Invalid: ACP connect already in progress or completed")],
     )
 
-  | ({acp: ACPDisconnected | ACPConnected(_) | ACPError(_)}, ACPConnectSuccess(_)) => (
+  | ({acp: ACPDisconnected | ACPConnected(_) | ACPAuthRequired(_) | ACPError(_)}, ACPConnectSuccess(_)) => (
       state,
       [LogError("Invalid: unexpected ACP connect success")],
     )
@@ -442,7 +453,7 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
       [LogError("Invalid: Relay connect already in progress or completed")],
     )
 
-  | ({acp: ACPDisconnected | ACPConnecting | ACPError(_)}, SessionCreateStart) => (
+  | ({acp: ACPDisconnected | ACPConnecting | ACPAuthRequired(_) | ACPError(_)}, SessionCreateStart) => (
       state,
       [LogError("Cannot create session: ACP not connected")],
     )
@@ -499,13 +510,19 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
         } else {
           switch err {
           | ACP.AuthRequired({loginUrl}) =>
-            // Redirect to login with return_to param
+            let encodeURIComponent: string => string = %raw(`encodeURIComponent`)
             let currentUrl =
               WebAPI.Global.window->WebAPI.Window.location->WebAPI.Location.href
-            let encodeURIComponent: string => string = %raw(`encodeURIComponent`)
             let returnTo = encodeURIComponent(currentUrl)
             let fullUrl = `${loginUrl}?return_to=${returnTo}`
-            WebAPI.Global.window->WebAPI.Window.location->WebAPI.Location.assign(fullUrl)
+            // For first-time users, surface the auth URL so the UI can show a welcome modal.
+            // Returning users get redirected immediately.
+            switch Client__FtueState.get() {
+            | Client__FtueState.New =>
+              dispatch(ACPConnectError(`auth_required:${fullUrl}`))
+            | Client__FtueState.WelcomeShown | Client__FtueState.Completed =>
+              WebAPI.Global.window->WebAPI.Window.location->WebAPI.Location.assign(fullUrl)
+            }
           | ACP.ConnectionFailed(msg) => dispatch(ACPConnectError(msg))
           }
         }

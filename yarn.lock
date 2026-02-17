@@ -2518,6 +2518,7 @@ __metadata:
     "@tailwindcss/vite": "npm:^4.1.16"
     "@toon-format/toon": "npm:2.0.1"
     "@types/babel__core": "npm:^7"
+    "@types/canvas-confetti": "npm:^1"
     "@types/react": "npm:^19.2.2"
     "@types/use-sync-external-store": "npm:^1"
     "@vitest/ui": "catalog:"
@@ -2525,6 +2526,7 @@ __metadata:
     "@zumer/snapdom": "npm:^1.9.14"
     ai: "npm:^5.0.82"
     babel-plugin-react-compiler: "npm:^1.0.0"
+    canvas-confetti: "npm:^1.9.4"
     class-variance-authority: "npm:^0.7.1"
     clsx: "npm:^2.1.1"
     dom-element-to-component-source: "npm:^0.5.0"
@@ -7762,6 +7764,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@types/canvas-confetti@npm:^1":
+  version: 1.9.0
+  resolution: "@types/canvas-confetti@npm:1.9.0"
+  checksum: 10c0/ffe2c674d466b8e13472c81ab2a97056f3433fd40a3513dbc1bb76764e4e7c3ff0a2a58d37b16ea6a245c831077c553db321b069dda6572eab59f2be61137b2e
+  languageName: node
+  linkType: hard
+
 "@types/chai@npm:^5.2.2":
   version: 5.2.3
   resolution: "@types/chai@npm:5.2.3"
@@ -9846,6 +9855,13 @@ __metadata:
   version: 1.0.30001759
   resolution: "caniuse-lite@npm:1.0.30001759"
   checksum: 10c0/b0f415960ba34995cda18e0d25c4e602f6917b9179290a76bdd0311423505b78cc93e558a90c98a22a1cc6b1781ab720ef6beea24ec7e29a1c1164ca72eac3a2
+  languageName: node
+  linkType: hard
+
+"canvas-confetti@npm:^1.9.4":
+  version: 1.9.4
+  resolution: "canvas-confetti@npm:1.9.4"
+  checksum: 10c0/08f11b5fa20b365922108828d7488f9b3eac2afdf39bc478339268c1250b5215df82682d7074520a3f0f72f4728f9703bbc937dcfe793f196b44e6e8ac0b1f7b
   languageName: node
   linkType: hard
 
