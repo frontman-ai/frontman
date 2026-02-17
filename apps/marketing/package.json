@@ -29,7 +29,7 @@
   "devDependencies": {
     "@astrojs/node": "^9.0.0",
     "@astrojs/partytown": "^2.1.4",
-    "@frontman/frontman-astro": "workspace:*",
+    "@frontman-ai/astro": "workspace:*",
     "@tailwindcss/typography": "^0.5.13"
   }
 }

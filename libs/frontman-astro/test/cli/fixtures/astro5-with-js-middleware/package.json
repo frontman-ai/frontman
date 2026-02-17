@@ -1,0 +1,8 @@
+{
+  "name": "astro5-with-js-middleware",
+  "version": "0.0.1",
+  "dependencies": {
+    "astro": "^5.0.0",
+    "@frontman-ai/astro": "^0.1.0"
+  }
+}

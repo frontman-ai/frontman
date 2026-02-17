@@ -1,10 +1,15 @@
 {
-	"name": "@frontman/frontman-astro",
+	"name": "@frontman-ai/astro",
 	"namespace": true,
 	"sources": [
 		{
 			"dir": "src",
 			"subdirs": true
+		},
+		{
+			"dir": "test",
+			"subdirs": true,
+			"type": "dev"
 		}
 	],
 	"package-specs": [

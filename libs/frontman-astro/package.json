@@ -1,6 +1,6 @@
 {
-	"name": "@frontman/frontman-astro",
-	"version": "0.1.0",
+	"name": "@frontman-ai/astro",
+	"version": "0.1.4",
 	"description": "Astro integration for Frontman",
 	"license": "Apache-2.0",
 	"author": "Frontman AI",
@@ -20,37 +20,43 @@
 		"development"
 	],
 	"type": "module",
-	"main": "./src/FrontmanAstro.res.mjs",
+	"main": "./dist/index.js",
 	"exports": {
-		".": {
-			"import": "./src/FrontmanAstro.res.mjs",
-			"default": "./src/FrontmanAstro.res.mjs"
-		},
-		"./integration": {
-			"import": "./src/FrontmanAstro__Integration.res.mjs",
-			"default": "./src/FrontmanAstro__Integration.res.mjs"
-		},
-		"./toolbar": {
-			"import": "./src/FrontmanAstro__ToolbarApp.res.mjs",
-			"default": "./src/FrontmanAstro__ToolbarApp.res.mjs"
-		}
+		".": "./dist/index.js",
+		"./integration": "./dist/integration.js",
+		"./toolbar": "./dist/toolbar.js"
+	},
+	"bin": {
+		"frontman-ai-astro": "./dist/cli.js"
 	},
 	"files": [
-		"src"
+		"dist",
+		"README.md"
 	],
 	"scripts": {
-		"build": "rescript build",
+		"build:rescript": "rescript build",
+		"build:bundle": "tsup",
+		"build": "yarn build:rescript && yarn build:bundle",
 		"prepublishOnly": "yarn build"
 	},
 	"peerDependencies": {
 		"astro": "^5.0.0"
 	},
+	"publishConfig": {
+		"access": "public"
+	},
 	"devDependencies": {
+		"@frontman/bindings": "*",
+		"@frontman/frontman-core": "*",
+		"@frontman/frontman-protocol": "*",
+		"@rescript/runtime": "12.0.0-beta.14",
 		"@rescript/webapi": "catalog:",
 		"@vitest/ui": "catalog:",
+		"dom-element-to-component-source": "0.5.0",
 		"rescript": "catalog:",
 		"rescript-vitest": "catalog:",
 		"sury": "catalog:",
+		"tsup": "^8.0.0",
 		"vite": "catalog:",
 		"vitest": "catalog:"
 	}

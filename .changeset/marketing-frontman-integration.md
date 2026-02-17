@@ -1,5 +1,5 @@
 ---
-"@frontman/frontman-astro": patch
+"@frontman-ai/astro": patch
 "@frontman-ai/nextjs": patch
 ---
 

@@ -1,4 +1,4 @@
-# @frontman/frontman-astro
+# @frontman-ai/astro
 
 Astro framework integration for Frontman, exposing tools and services via HTTP middleware and dev toolbar.
 
@@ -19,7 +19,7 @@ Astro framework integration for Frontman, exposing tools and services via HTTP m
 ## Installation
 
 ```bash
-npm install @frontman/frontman-astro
+npm install @frontman-ai/astro
 ```
 
 ## Usage
@@ -28,7 +28,7 @@ Add the integration to your `astro.config.mjs`:
 
 ```javascript
 import { defineConfig } from 'astro/config';
-import { frontmanIntegration } from '@frontman/frontman-astro/integration';
+import { frontmanIntegration } from '@frontman-ai/astro/integration';
 
 export default defineConfig({
   integrations: [
