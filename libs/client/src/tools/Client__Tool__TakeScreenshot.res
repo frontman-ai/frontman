@@ -46,12 +46,17 @@ let _limitsForProvider = (provider: string): imageLimits =>
 
 // Compute a scale factor that keeps both width and height within maxDimension.
 // When maxDimension is 0 (no limit) or the element already fits, returns 1.0.
+//
+// getBoundingClientRect returns CSS pixels. On hi-DPI displays the rendered
+// canvas is DPR× larger, so we multiply by devicePixelRatio to get the
+// effective pixel dimensions that will be sent to the API.
 let _computeScale = (element: WebAPI.DOMAPI.element, maxDimension: int): float => {
   if maxDimension <= 0 {
     1.0
   } else {
+    let dpr = WebAPI.Global.devicePixelRatio
     let rect = element->WebAPI.Element.getBoundingClientRect
-    let maxSide = Math.max(rect.width, rect.height)
+    let maxSide = Math.max(rect.width *. dpr, rect.height *. dpr)
     if maxSide <= 0.0 || maxSide <= maxDimension->Int.toFloat {
       1.0
     } else {

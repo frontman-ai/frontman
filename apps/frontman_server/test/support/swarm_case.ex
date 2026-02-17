@@ -137,13 +137,44 @@ defmodule FrontmanServer.SwarmCase do
 
   defmodule ErrorLLM do
     @moduledoc """
-    LLM that always returns an error.
+    LLM that always returns an error from stream/3 (before producing any chunks).
     """
     defstruct error: :llm_error, model: "error"
   end
 
   defimpl Swarm.LLM, for: FrontmanServer.SwarmCase.ErrorLLM do
     def stream(%{error: error}, _messages, _opts), do: {:error, error}
+  end
+
+  defmodule StreamErrorLLM do
+    @moduledoc """
+    LLM that returns a stream which raises mid-consumption.
+
+    Simulates the real LLMClient behavior when ReqLLM emits an error chunk
+    inside the stream (e.g., HTTP 400 for oversized images). The raise
+    propagates through Task → ExecutionMonitor → PubSub.
+
+    Unlike ErrorLLM (which fails at the stream/3 return level), this mock
+    returns {:ok, stream} and the error only surfaces when the stream is consumed.
+    """
+    defstruct error_message: "LLM API error", model: "stream-error"
+  end
+
+  defimpl Swarm.LLM, for: FrontmanServer.SwarmCase.StreamErrorLLM do
+    alias Swarm.LLM.Chunk
+
+    def stream(%{error_message: message}, _messages, _opts) do
+      # Return a lazy stream that raises when consumed, matching
+      # the real LLMClient.to_swarm_chunk(%{type: :error, text: text}) behavior
+      error_stream =
+        Stream.resource(
+          fn -> :init end,
+          fn :init -> raise message end,
+          fn _ -> :ok end
+        )
+
+      {:ok, error_stream}
+    end
   end
 
   # --- Setup ---
@@ -154,6 +185,7 @@ defmodule FrontmanServer.SwarmCase do
       alias FrontmanServer.SwarmCase.EchoLLM
       alias FrontmanServer.SwarmCase.ErrorLLM
       alias FrontmanServer.SwarmCase.MockLLM
+      alias FrontmanServer.SwarmCase.StreamErrorLLM
       alias FrontmanServer.SwarmCase.TestAgent
       alias Swarm.Events
       alias Swarm.LLM

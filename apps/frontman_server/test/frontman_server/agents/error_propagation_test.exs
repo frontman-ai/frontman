@@ -44,18 +44,12 @@ defmodule FrontmanServer.Agents.ErrorPropagationTest do
       task_id: task_id,
       scope: scope
     } do
-      # Create an LLM that simulates the raise from to_swarm_chunk when
-      # it encounters a ReqLLM error chunk. In production, this raise happens
-      # inside Stream.map(&to_swarm_chunk/2) when processing the ReqLLM stream.
-      #
-      # MockLLM returns a stream, but the raise happens when Swarm's
-      # Response.from_stream consumes it. We simulate this with a function
-      # that raises, which is how the real LLMClient behaves when it sees
-      # a ReqLLM error chunk.
-      error_llm = %MockLLM{
-        response: fn ->
-          {:error, "LLM API error: image exceeds the maximum allowed size"}
-        end
+      # StreamErrorLLM returns {:ok, stream} where the stream raises when
+      # consumed — matching the real LLMClient behavior when ReqLLM emits an
+      # error chunk (e.g., HTTP 400 for oversized images). The raise propagates
+      # through Task → ExecutionMonitor → PubSub {:agent_error, message}.
+      error_llm = %StreamErrorLLM{
+        error_message: "LLM API error: image exceeds the maximum allowed size"
       }
 
       agent = test_agent(error_llm, "ErrorPropTestAgent")
@@ -64,8 +58,8 @@ defmodule FrontmanServer.Agents.ErrorPropagationTest do
       {:ok, _} = Tasks.add_user_message(scope, task_id, user_content, [], agent: agent)
 
       # The error should propagate through:
-      # 1. MockLLM returns {:error, ...}
-      # 2. Agents.handle_agent_event(:error, ...) or ExecutionMonitor crash detection
+      # 1. StreamErrorLLM returns {:ok, stream} that raises on consumption
+      # 2. Task crash caught by ExecutionMonitor
       # 3. PubSub broadcast of {:agent_error, message}
       assert_receive {:agent_error, error_message}, 5_000
 

@@ -3,44 +3,26 @@ defmodule FrontmanServer.Agents.LLMClientTest do
 
   alias FrontmanServer.Agents.LLMClient
 
-  describe "error chunk handling in stream pipeline" do
-    test "error chunks raise when consumed through the stream" do
-      # Simulate the stream pipeline that LLMClient.stream/3 builds:
-      # response.stream |> Stream.map(&to_swarm_chunk/2) |> Stream.reject(&is_nil/1)
-      #
-      # When a ReqLLM error chunk reaches to_swarm_chunk, it should raise,
-      # which propagates through the Task → ExecutionMonitor → ErrorBanner
-      error_chunk = ReqLLM.StreamChunk.error("image exceeds the maximum allowed size")
+  describe "ReqLLM error chunk contract" do
+    test "ReqLLM.StreamChunk.error/1 creates an :error type chunk" do
+      chunk = ReqLLM.StreamChunk.error("image exceeds the maximum allowed size")
 
-      # Build the same pipeline LLMClient uses
-      stream =
-        [error_chunk]
-        |> Stream.map(fn chunk ->
-          # Call the protocol implementation via Swarm.LLM
-          # Since to_swarm_chunk is private, we test the contract:
-          # error chunks must cause a raise
-          case chunk do
-            %{type: :error, text: text} ->
-              raise "LLM API error: #{text}"
-          end
-        end)
-
-      assert_raise RuntimeError, "LLM API error: image exceeds the maximum allowed size", fn ->
-        Enum.to_list(stream)
-      end
+      assert chunk.type == :error
+      assert chunk.text == "image exceeds the maximum allowed size"
+      assert chunk.metadata == %{}
     end
 
-    test "error chunk with metadata preserves error details" do
-      error_chunk =
+    test "ReqLLM.StreamChunk.error/2 preserves metadata" do
+      chunk =
         ReqLLM.StreamChunk.error("HTTP 400: Request too large", %{
           status: 400,
           provider: :anthropic
         })
 
-      assert error_chunk.type == :error
-      assert error_chunk.text == "HTTP 400: Request too large"
-      assert error_chunk.metadata.status == 400
-      assert error_chunk.metadata.provider == :anthropic
+      assert chunk.type == :error
+      assert chunk.text == "HTTP 400: Request too large"
+      assert chunk.metadata.status == 400
+      assert chunk.metadata.provider == :anthropic
     end
   end
 
