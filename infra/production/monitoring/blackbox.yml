@@ -2,7 +2,7 @@
 # Blackbox Exporter Configuration - Frontman Production
 # Deployed to /etc/prometheus/blackbox.yml
 #
-# Defines probe modules for HTTP health checks and TLS certificate monitoring.
+# Defines probe modules for HTTP health checks.
 # =============================================================================
 
 modules:
@@ -19,11 +19,3 @@ modules:
       follow_redirects: true
       preferred_ip_protocol: ip4
 
-  # TLS probe - checks certificate validity and expiry
-  tls_connect:
-    prober: tcp
-    timeout: 10s
-    tcp:
-      tls: true
-      tls_config:
-        insecure_skip_verify: false
