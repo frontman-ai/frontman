@@ -348,19 +348,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@astrojs/node@npm:^9.0.0":
-  version: 9.5.1
-  resolution: "@astrojs/node@npm:9.5.1"
-  dependencies:
-    "@astrojs/internal-helpers": "npm:0.7.5"
-    send: "npm:^1.2.0"
-    server-destroy: "npm:^1.0.1"
-  peerDependencies:
-    astro: ^5.14.3
-  checksum: 10c0/be25ff17867c86892f27399b803fe6538477b7539524fb07f845b88c55b8c50aa9de0f1a7d890b0047e7cdb163aca1f21b02371095de103c7e4feca9c4189837
-  languageName: node
-  linkType: hard
-
 "@astrojs/partytown@npm:^2.1.4":
   version: 2.1.4
   resolution: "@astrojs/partytown@npm:2.1.4"
@@ -2382,8 +2369,6 @@ __metadata:
     vitest: "catalog:"
   peerDependencies:
     astro: ^5.0.0
-  bin:
-    frontman-ai-astro: ./dist/cli.js
   languageName: unknown
   linkType: soft
 
@@ -15119,7 +15104,6 @@ __metadata:
   resolution: "marketing@workspace:apps/marketing"
   dependencies:
     "@astrojs/check": "npm:^0.9.5"
-    "@astrojs/node": "npm:^9.0.0"
     "@astrojs/partytown": "npm:^2.1.4"
     "@astrojs/preact": "npm:^4.1.3"
     "@astrojs/sitemap": "npm:^3.6.0"
@@ -19399,13 +19383,6 @@ __metadata:
     parseurl: "npm:~1.3.3"
     send: "npm:~0.19.1"
   checksum: 10c0/36320397a073c71bedf58af48a4a100fe6d93f07459af4d6f08b9a7217c04ce2a4939e0effd842dc7bece93ffcd59eb52f58c4fff2a8e002dc29ae6b219cd42b
-  languageName: node
-  linkType: hard
-
-"server-destroy@npm:^1.0.1":
-  version: 1.0.1
-  resolution: "server-destroy@npm:1.0.1"
-  checksum: 10c0/ab771f12b24cde1bc622cce0c14a1365f3ab0685937c641c762916fb43aa7a03d6c577cc4375ea5361d6bc1bb20ab689ec5723086e5798c6781edb61287e24b8
   languageName: node
   linkType: hard
 
