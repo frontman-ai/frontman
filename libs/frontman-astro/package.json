@@ -14,9 +14,10 @@
 		"url": "https://github.com/frontman-ai/frontman/issues"
 	},
 	"keywords": [
-		"frontman",
+		"astro",
 		"astro-integration",
 		"withastro",
+		"frontman",
 		"devtools",
 		"dev-toolbar",
 		"ai",
@@ -24,13 +25,18 @@
 	],
 	"type": "module",
 	"main": "./dist/index.js",
+	"types": "./index.d.ts",
 	"exports": {
-		".": "./dist/index.js",
+		".": {
+			"types": "./index.d.ts",
+			"import": "./dist/index.js"
+		},
 		"./integration": "./dist/integration.js",
 		"./toolbar": "./dist/toolbar.js"
 	},
 	"files": [
 		"dist",
+		"index.d.ts",
 		"README.md"
 	],
 	"scripts": {
@@ -38,6 +44,9 @@
 		"build:bundle": "tsup",
 		"build": "yarn build:rescript && yarn build:bundle",
 		"prepublishOnly": "yarn build"
+	},
+	"engines": {
+		"node": ">=18.0.0"
 	},
 	"peerDependencies": {
 		"astro": "^5.0.0"
