@@ -42,9 +42,15 @@ export interface FrontmanConfig {
   /**
    * URL to the Frontman client bundle. Override for custom client builds.
    * Must include a `host` query parameter.
-   * @default auto-generated from host
+   * @default "https://app.frontman.sh/frontman.es.js" in production, dev server URL in development
    */
   clientUrl?: string;
+
+  /**
+   * URL to the Frontman client CSS stylesheet.
+   * @default "https://app.frontman.sh/frontman.css" in production, omitted in development
+   */
+  clientCssUrl?: string;
 
   /**
    * Use a light theme for the Frontman UI.

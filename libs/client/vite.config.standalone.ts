@@ -37,6 +37,12 @@ function reactCompilerPlugin(): vite.Plugin {
 
 export default vite.defineConfig({
 	plugins: [reactCompilerPlugin(), tailwindcss()],
+	// Replace process.env.NODE_ENV at build time — Vite's lib mode does NOT do
+	// this automatically (unlike app mode). Without it, CJS-style React bundles
+	// crash with "process is not defined" when loaded in the browser.
+	define: {
+		"process.env.NODE_ENV": JSON.stringify("production"),
+	},
 	resolve: {
 		alias: {
 			"@": path.resolve(__dirname, "./src"),

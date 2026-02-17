@@ -313,8 +313,8 @@ worktree-registry: ## Show all registered worktrees on the server
 # ============================================================================
 ## REL_START
 
-publish-astro: ## Publish @frontman-ai/astro to npm
-	cd libs/frontman-astro && $(MAKE) publish
+publish-astro: ## Publish @frontman-ai/astro to npm (pass OTP=<code> for 2FA)
+	cd libs/frontman-astro && $(MAKE) publish OTP=$(OTP)
 
 release: ## Create a release PR from pending changesets
 	@printf "$(CYAN)Checking release prerequisites...$(RESET)\n"

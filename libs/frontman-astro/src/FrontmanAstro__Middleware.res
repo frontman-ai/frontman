@@ -9,7 +9,7 @@ module Server = FrontmanAstro__Server
 module ToolRegistry = FrontmanAstro__ToolRegistry
 
 // HTML template for the Frontman UI
-let uiHtml = (~clientUrl: string, ~isLightTheme: bool) => {
+let uiHtml = (~clientUrl: string, ~clientCssUrl: option<string>, ~isLightTheme: bool) => {
   // Get the raw env var and filter out empty strings
   let openrouterKey =
     FrontmanBindings.Process.env
@@ -22,12 +22,17 @@ let uiHtml = (~clientUrl: string, ~isLightTheme: bool) => {
   })
   let runtimeConfig = JSON.stringify(JSON.Encode.object(configObj))
   let themeClass = isLightTheme ? "" : "dark"
+  let cssLink = switch clientCssUrl {
+  | Some(url) => `<link rel="stylesheet" href="${url}">`
+  | None => ""
+  }
   `<!DOCTYPE html>
 <html lang="en" class="${themeClass}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Frontman</title>
+  ${cssLink}
   <style>
     html, body, #root {
       margin: 0;
@@ -47,7 +52,11 @@ let uiHtml = (~clientUrl: string, ~isLightTheme: bool) => {
 
 // Serve UI HTML
 let serveUI = (config: Config.t): WebAPI.FetchAPI.response => {
-  let html = uiHtml(~clientUrl=config.clientUrl, ~isLightTheme=config.isLightTheme)
+  let html = uiHtml(
+    ~clientUrl=config.clientUrl,
+    ~clientCssUrl=config.clientCssUrl,
+    ~isLightTheme=config.isLightTheme,
+  )
   let headers = WebAPI.HeadersInit.fromDict(Dict.fromArray([("Content-Type", "text/html")]))
   WebAPI.Response.fromString(html, ~init={headers: headers})
 }

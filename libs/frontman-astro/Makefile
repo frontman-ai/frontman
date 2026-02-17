@@ -7,8 +7,8 @@ help: ## Display this help message
 build: ## Build ReScript + bundle with tsup
 	yarn build
 
-publish: build ## Build and publish to npm
-	npm publish
+publish: build ## Build and publish to npm (pass OTP=<code> for 2FA)
+	npm publish $(if $(OTP),--otp=$(OTP))
 
 test: build ## Run tests
 	yarn vitest run

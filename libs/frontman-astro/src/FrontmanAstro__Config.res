@@ -2,13 +2,16 @@
 
 module Bindings = FrontmanBindings
 
+let productionHost = "api.frontman.sh"
+
 // Default host can be overridden via FRONTMAN_HOST env var for development
 let defaultHost = switch Bindings.Process.env->Dict.get("FRONTMAN_HOST") {
 | Some(host) => host
-| None => "api.frontman.sh"
+| None => productionHost
 }
 
 type t = {
+  isDev: bool,
   projectRoot: string,
   // sourceRoot: root for resolving file paths from Astro's data-astro-source-file attributes
   // In a monorepo, this is typically the monorepo root. Defaults to projectRoot.
@@ -18,6 +21,7 @@ type t = {
   serverVersion: string,
   host: string,
   clientUrl: string,
+  clientCssUrl: option<string>,
   isLightTheme: bool,
 }
 
@@ -30,6 +34,7 @@ type jsConfigInput = {
   serverVersion?: string,
   host?: string,
   clientUrl?: string,
+  clientCssUrl?: string,
   isLightTheme?: bool,
 }
 
@@ -40,6 +45,12 @@ let ensureConfig: jsConfigInput => jsConfigInput = %raw(`function(c) { return c 
 // Use this from JavaScript/TypeScript: makeConfig({ projectRoot: "..." })
 let makeFromObject = (rawConfig: jsConfigInput): t => {
   let config = ensureConfig(rawConfig)
+  let host = config.host->Option.getOr(defaultHost)
+
+  // isDev is inferred from the host: api.frontman.sh is the only production server,
+  // everything else (e.g. frontman.local:4000) is dev.
+  let isDev = host != productionHost
+
   let projectRoot =
     config.projectRoot
     ->Option.orElse(
@@ -54,29 +65,34 @@ let makeFromObject = (rawConfig: jsConfigInput): t => {
   let serverName = config.serverName->Option.getOr("frontman-astro")
   let serverVersion = config.serverVersion->Option.getOr("1.0.0")
   let isLightTheme = config.isLightTheme->Option.getOr(false)
-  let host = config.host->Option.getOr(defaultHost)
 
-  let clientUrl = config.clientUrl->Option.getOr({
+  let clientUrl = {
     let baseUrl =
-      Bindings.Process.env
-      ->Dict.get("FRONTMAN_CLIENT_URL")
-      ->Option.getOr("http://localhost:5173/src/Main.res.mjs")
-    // Use URL API to properly append params (handles base URLs that already have query strings)
+      config.clientUrl->Option.getOr(
+        Bindings.Process.env
+        ->Dict.get("FRONTMAN_CLIENT_URL")
+        ->Option.getOr(
+          switch isDev {
+          | true => "http://localhost:5173/src/Main.res.mjs"
+          | false => "https://app.frontman.sh/frontman.es.js"
+          },
+        ),
+      )
+    // Ensure clientUrl always has the required query params the client reads from import.meta.url
     let url = WebAPI.URL.make(~url=baseUrl)
-    url.searchParams->WebAPI.URLSearchParams.set(~name="clientName", ~value="astro")
-    url.searchParams->WebAPI.URLSearchParams.set(~name="host", ~value=host)
+    switch url.searchParams->WebAPI.URLSearchParams.has(~name="clientName") {
+    | true => ()
+    | false => url.searchParams->WebAPI.URLSearchParams.set(~name="clientName", ~value="astro")
+    }
+    switch url.searchParams->WebAPI.URLSearchParams.has(~name="host") {
+    | true => ()
+    | false => url.searchParams->WebAPI.URLSearchParams.set(~name="host", ~value=host)
+    }
     url.href
-  })
-
-  // Assert clientUrl contains the required "host" query param that the client reads from import.meta.url
-  let parsedUrl = WebAPI.URL.make(~url=clientUrl)
-  if !(parsedUrl.searchParams->WebAPI.URLSearchParams.has(~name="host")) {
-    JsError.throwWithMessage(
-      `[frontman-astro] clientUrl must include a "host" query parameter. Got: ${clientUrl}`,
-    )
   }
 
   {
+    isDev,
     projectRoot,
     sourceRoot,
     basePath,
@@ -84,6 +100,12 @@ let makeFromObject = (rawConfig: jsConfigInput): t => {
     serverVersion,
     host,
     clientUrl,
+    clientCssUrl: config.clientCssUrl->Option.orElse(
+      switch isDev {
+      | true => None
+      | false => Some("https://app.frontman.sh/frontman.css")
+      },
+    ),
     isLightTheme,
   }
 }
