@@ -29,11 +29,12 @@ let getToolbarAppPath = () => {
 // Annotation capture script - injected via injectScript("head-inline")
 // Reads Astro's data-astro-source-file/loc attributes and stores them on window.
 //
-// Uses "head-inline" with DOMContentLoaded to match the timing of the old middleware
-// approach (which injected a <script> before </body>). This ensures:
-//   1. DOM elements exist (DOMContentLoaded fires after HTML parsing)
-//   2. Astro's toolbar hasn't stripped data-astro-source-* attributes yet
-//      (toolbar runs as deferred module scripts, which execute after DOMContentLoaded)
+// Timing: Astro's dev toolbar strips data-astro-source-* attributes inside a
+// DOMContentLoaded handler registered by a <script type="module">. Our script is
+// an inline <script> in <head>, so it parses and registers its DOMContentLoaded
+// listener before the module script even starts loading. Since DOMContentLoaded
+// listeners fire in registration order, we capture annotations before the toolbar
+// strips them.
 //
 // Also re-captures on Astro View Transitions (SPA navigations) via astro:page-load.
 let annotationCaptureScript = `(function() {
