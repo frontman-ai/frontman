@@ -105,9 +105,16 @@ let writeWebResponse = async (
 let adaptToConnect = (middleware: webMiddleware, ~basePath: string): NodeHttp.connectMiddleware => {
   let prefix = `/${basePath}`
   (req, res, next) => {
-    // Fast path: skip non-Frontman routes without consuming the request body
-    let reqUrl = req->NodeHttp.url
-    if !(reqUrl == prefix || reqUrl->String.startsWith(`${prefix}/`)) {
+    // Fast path: skip non-Frontman routes without consuming the request body.
+    // Strip query string first — Node.js req.url includes it (e.g. "/frontman?x=1")
+    // but we only need the path portion for prefix matching.
+    let reqPath =
+      req
+      ->NodeHttp.url
+      ->String.split("?")
+      ->Array.get(0)
+      ->Option.getOr(req->NodeHttp.url)
+    if !(reqPath == prefix || reqPath->String.startsWith(`${prefix}/`)) {
       next()
     } else {
       let handleRequest = async () => {

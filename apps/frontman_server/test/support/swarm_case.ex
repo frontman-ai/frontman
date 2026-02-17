@@ -161,8 +161,6 @@ defmodule FrontmanServer.SwarmCase do
   end
 
   defimpl Swarm.LLM, for: FrontmanServer.SwarmCase.StreamErrorLLM do
-    alias Swarm.LLM.Chunk
-
     def stream(%{error_message: message}, _messages, _opts) do
       # Return a lazy stream that raises when consumed, matching
       # the real LLMClient.to_swarm_chunk(%{type: :error, text: text}) behavior
