@@ -28,7 +28,7 @@ endef
         ssl-setup tunnel \
         worktree-create worktree-create-from worktree-list worktree-remove worktree-clean \
         worktree-status worktree-devpod worktree-urls worktree-hosts worktree-register worktree-registry \
-        release \
+        publish-astro release \
         kill-all-processes open-dogfooding pull-webapi
 
 help: ## Display available commands
@@ -312,6 +312,9 @@ worktree-registry: ## Show all registered worktrees on the server
 # Release
 # ============================================================================
 ## REL_START
+
+publish-astro: ## Publish @frontman-ai/astro to npm
+	cd libs/frontman-astro && $(MAKE) publish
 
 release: ## Create a release PR from pending changesets
 	@printf "$(CYAN)Checking release prerequisites...$(RESET)\n"

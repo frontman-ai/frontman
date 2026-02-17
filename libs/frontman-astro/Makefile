@@ -1,11 +1,14 @@
 .DEFAULT_GOAL := help
-.PHONY: help build test test-watch lint format clean
+.PHONY: help build test test-watch lint format clean publish
 
 help: ## Display this help message
 	@awk 'BEGIN {FS = ":.*##"} /^[a-zA-Z_-]+:.*##/ { printf "  %-15s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
 
-build: ## Build ReScript
-	yarn rescript build
+build: ## Build ReScript + bundle with tsup
+	yarn build
+
+publish: build ## Build and publish to npm
+	npm publish
 
 test: build ## Run tests
 	yarn vitest run

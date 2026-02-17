@@ -63,6 +63,9 @@
 			"optional": true
 		}
 	},
+	"publishConfig": {
+		"access": "public"
+	},
 	"devDependencies": {
 		"@frontman/frontman-core": "*",
 		"@frontman/frontman-protocol": "*",
