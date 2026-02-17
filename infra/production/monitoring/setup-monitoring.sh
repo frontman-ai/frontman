@@ -164,13 +164,13 @@ chmod 440 /etc/sudoers.d/deploy-monitoring
 # =============================================================================
 echo ">>> Creating environment files..."
 
-# PostgreSQL exporter - connect via peer auth as postgres user
-# Create a dedicated postgres user for monitoring
-sudo -u postgres psql -c "DO \$\$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'monitoring') THEN CREATE ROLE monitoring LOGIN; END IF; END \$\$;" 2>/dev/null || true
-sudo -u postgres psql -c "GRANT pg_monitor TO monitoring;" 2>/dev/null || true
+# PostgreSQL exporter - connect via Unix socket with peer auth.
+# The PG role name must match the OS user (postgres_exporter) for peer auth.
+sudo -u postgres psql -c "DO \$\$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'postgres_exporter') THEN CREATE ROLE postgres_exporter LOGIN; END IF; END \$\$;" 2>/dev/null || true
+sudo -u postgres psql -c "GRANT pg_monitor TO postgres_exporter;" 2>/dev/null || true
 
 cat > "${MONITORING_DIR}/postgres-exporter.env" <<'ENV'
-DATA_SOURCE_NAME=user=monitoring host=/var/run/postgresql/ sslmode=disable
+DATA_SOURCE_NAME=user=postgres_exporter host=/var/run/postgresql/ sslmode=disable
 ENV
 chown postgres_exporter:postgres_exporter "${MONITORING_DIR}/postgres-exporter.env"
 chmod 600 "${MONITORING_DIR}/postgres-exporter.env"
