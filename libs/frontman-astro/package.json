@@ -29,9 +29,6 @@
 		"./integration": "./dist/integration.js",
 		"./toolbar": "./dist/toolbar.js"
 	},
-	"bin": {
-		"frontman-ai-astro": "./dist/cli.js"
-	},
 	"files": [
 		"dist",
 		"README.md"

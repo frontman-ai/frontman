@@ -1,7 +1,0 @@
-{
-  "name": "astro5-clean",
-  "version": "1.0.0",
-  "dependencies": {
-    "astro": "^5.0.0"
-  }
-}

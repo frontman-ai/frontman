@@ -43,13 +43,13 @@
 	},
 	{
 		"question": "Which frameworks are supported?",
-		"reply": "Frontman currently supports Next.js, Astro, and Vite. It integrates at the framework level as middleware, turning your local dev server into an MCP server that our agent connects to for both client-side and server-side context.",
+		"reply": "Frontman currently supports Next.js, Astro, and Vite. It integrates at the framework level as an integration, turning your local dev server into an MCP server that our agent connects to for both client-side and server-side context.",
 		"category": "technical",
 		"open": true
 	},
 	{
 		"question": "How does it get context about my app?",
-		"reply": "When you install Frontman, a lightweight middleware hooks into your framework and exposes tools via MCP — client-side tools (component tree, performance, logs, click targets) and server-side tools (routes, server logs, query timing, compiled modules). Our agent connects to your local dev server and queries this context in real time, so it always knows what's actually happening in your app.",
+		"reply": "When you install Frontman, a lightweight integration hooks into your framework and exposes tools via MCP — client-side tools (component tree, performance, logs, click targets) and server-side tools (routes, server logs, query timing, compiled modules). Our agent connects to your local dev server and queries this context in real time, so it always knows what's actually happening in your app.",
 		"category": "technical",
 		"open": false
 	}

@@ -43,7 +43,7 @@ npx @frontman-ai/nextjs install
 ### Astro
 
 ```bash
-npx @frontman-ai/astro install
+astro add @frontman-ai/astro
 ```
 
 See [Astro integration docs](https://frontman.sh/docs/astro) for configuration.
