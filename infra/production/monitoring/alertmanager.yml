@@ -45,10 +45,10 @@ receivers:
       - url: http://127.0.0.1:9094
         send_resolved: false
 
-# Inhibition rules: suppress warning if critical is already firing for same alert
+# Inhibition rules: suppress DiskSpaceWarning when DiskSpaceCritical fires for the same partition
 inhibit_rules:
   - source_match:
-      severity: critical
+      alertname: DiskSpaceCritical
     target_match:
-      severity: warning
-    equal: [instance]
+      alertname: DiskSpaceWarning
+    equal: [instance, mountpoint]
