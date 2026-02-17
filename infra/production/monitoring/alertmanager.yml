@@ -37,12 +37,12 @@ route:
 receivers:
   - name: discord
     webhook_configs:
-      - url: http://127.0.0.1:9094
+      - url: http://127.0.0.1:9095
         send_resolved: true
 
   - name: discord-heartbeat
     webhook_configs:
-      - url: http://127.0.0.1:9094
+      - url: http://127.0.0.1:9095
         send_resolved: false
 
 # Inhibition rules: suppress DiskSpaceWarning when DiskSpaceCritical fires for the same partition

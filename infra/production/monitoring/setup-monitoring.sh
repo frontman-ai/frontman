@@ -1,15 +1,16 @@
 #!/usr/bin/env bash
 # =============================================================================
 # Frontman Production Monitoring Setup
-# Installs Prometheus, exporters, Alertmanager, and alertmanager-discord.
+# Installs Prometheus, exporters, Alertmanager, and a Python Discord bridge.
 #
 # Run as root on the production server:
 #   ssh root@<server-ip> 'bash -s' < setup-monitoring.sh
 #
 # Prerequisites:
-#   - Ubuntu 24.04 ARM64 (Hetzner CAX)
+#   - Ubuntu 24.04 (x86_64 or ARM64)
 #   - server-setup.sh already ran (frontman services exist)
 #   - Discord webhook URL for #prod-alerts channel
+#   - Python 3 installed (ships with Ubuntu 24.04)
 # =============================================================================
 set -euo pipefail
 
@@ -18,18 +19,24 @@ DEPLOY_ROOT="/opt/frontman"
 MONITORING_DIR="${DEPLOY_ROOT}/monitoring"
 TEXTFILE_DIR="${MONITORING_DIR}/textfile"
 
-# Component versions (ARM64/aarch64)
+# Component versions
 PROMETHEUS_VERSION="3.2.1"
 NODE_EXPORTER_VERSION="1.9.0"
 POSTGRES_EXPORTER_VERSION="0.16.0"
 BLACKBOX_EXPORTER_VERSION="0.25.0"
 ALERTMANAGER_VERSION="0.28.1"
-ALERTMANAGER_DISCORD_VERSION="0.5.0"
 
-ARCH="arm64"
-PROMETHEUS_ARCH="arm64"
-
+# Auto-detect architecture
+case "$(uname -m)" in
+  x86_64)  ARCH="amd64" ;;
+  aarch64) ARCH="arm64" ;;
+  *)
+    echo "ERROR: Unsupported architecture: $(uname -m)"
+    exit 1
+    ;;
+esac
 echo "=== Frontman Monitoring Setup ==="
+echo "Detected architecture: ${ARCH}"
 echo ""
 
 # =============================================================================
@@ -82,41 +89,131 @@ chmod 755 "${TEXTFILE_DIR}"
 TMPDIR=$(mktemp -d)
 trap 'rm -rf "${TMPDIR}"' EXIT
 
-echo ">>> Downloading Prometheus ${PROMETHEUS_VERSION}..."
-curl -sL "https://github.com/prometheus/prometheus/releases/download/v${PROMETHEUS_VERSION}/prometheus-${PROMETHEUS_VERSION}.linux-${PROMETHEUS_ARCH}.tar.gz" \
+echo ">>> Downloading Prometheus ${PROMETHEUS_VERSION} (${ARCH})..."
+curl -sL "https://github.com/prometheus/prometheus/releases/download/v${PROMETHEUS_VERSION}/prometheus-${PROMETHEUS_VERSION}.linux-${ARCH}.tar.gz" \
   | tar xz -C "${TMPDIR}"
-cp "${TMPDIR}/prometheus-${PROMETHEUS_VERSION}.linux-${PROMETHEUS_ARCH}/prometheus" /usr/local/bin/
-cp "${TMPDIR}/prometheus-${PROMETHEUS_VERSION}.linux-${PROMETHEUS_ARCH}/promtool" /usr/local/bin/
+cp "${TMPDIR}/prometheus-${PROMETHEUS_VERSION}.linux-${ARCH}/prometheus" /usr/local/bin/
+cp "${TMPDIR}/prometheus-${PROMETHEUS_VERSION}.linux-${ARCH}/promtool" /usr/local/bin/
 chmod +x /usr/local/bin/prometheus /usr/local/bin/promtool
 
-echo ">>> Downloading Node Exporter ${NODE_EXPORTER_VERSION}..."
+echo ">>> Downloading Node Exporter ${NODE_EXPORTER_VERSION} (${ARCH})..."
 curl -sL "https://github.com/prometheus/node_exporter/releases/download/v${NODE_EXPORTER_VERSION}/node_exporter-${NODE_EXPORTER_VERSION}.linux-${ARCH}.tar.gz" \
   | tar xz -C "${TMPDIR}"
 cp "${TMPDIR}/node_exporter-${NODE_EXPORTER_VERSION}.linux-${ARCH}/node_exporter" /usr/local/bin/
 chmod +x /usr/local/bin/node_exporter
 
-echo ">>> Downloading PostgreSQL Exporter ${POSTGRES_EXPORTER_VERSION}..."
+echo ">>> Downloading PostgreSQL Exporter ${POSTGRES_EXPORTER_VERSION} (${ARCH})..."
 curl -sL "https://github.com/prometheus-community/postgres_exporter/releases/download/v${POSTGRES_EXPORTER_VERSION}/postgres_exporter-${POSTGRES_EXPORTER_VERSION}.linux-${ARCH}.tar.gz" \
   | tar xz -C "${TMPDIR}"
 cp "${TMPDIR}/postgres_exporter-${POSTGRES_EXPORTER_VERSION}.linux-${ARCH}/postgres_exporter" /usr/local/bin/
 chmod +x /usr/local/bin/postgres_exporter
 
-echo ">>> Downloading Blackbox Exporter ${BLACKBOX_EXPORTER_VERSION}..."
+echo ">>> Downloading Blackbox Exporter ${BLACKBOX_EXPORTER_VERSION} (${ARCH})..."
 curl -sL "https://github.com/prometheus/blackbox_exporter/releases/download/v${BLACKBOX_EXPORTER_VERSION}/blackbox_exporter-${BLACKBOX_EXPORTER_VERSION}.linux-${ARCH}.tar.gz" \
   | tar xz -C "${TMPDIR}"
 cp "${TMPDIR}/blackbox_exporter-${BLACKBOX_EXPORTER_VERSION}.linux-${ARCH}/blackbox_exporter" /usr/local/bin/
 chmod +x /usr/local/bin/blackbox_exporter
 
-echo ">>> Downloading Alertmanager ${ALERTMANAGER_VERSION}..."
+echo ">>> Downloading Alertmanager ${ALERTMANAGER_VERSION} (${ARCH})..."
 curl -sL "https://github.com/prometheus/alertmanager/releases/download/v${ALERTMANAGER_VERSION}/alertmanager-${ALERTMANAGER_VERSION}.linux-${ARCH}.tar.gz" \
   | tar xz -C "${TMPDIR}"
 cp "${TMPDIR}/alertmanager-${ALERTMANAGER_VERSION}.linux-${ARCH}/alertmanager" /usr/local/bin/
 cp "${TMPDIR}/alertmanager-${ALERTMANAGER_VERSION}.linux-${ARCH}/amtool" /usr/local/bin/
 chmod +x /usr/local/bin/alertmanager /usr/local/bin/amtool
 
-echo ">>> Downloading alertmanager-discord ${ALERTMANAGER_DISCORD_VERSION}..."
-curl -sL "https://github.com/benjojo/alertmanager-discord/releases/download/${ALERTMANAGER_DISCORD_VERSION}/alertmanager-discord-linux-${ARCH}" \
-  -o /usr/local/bin/alertmanager-discord
+echo ">>> Installing alertmanager-discord (Python bridge)..."
+cat > /usr/local/bin/alertmanager-discord <<'PYBRIDGE'
+#!/usr/bin/env python3
+"""Minimal Alertmanager -> Discord webhook bridge.
+
+Receives Alertmanager webhook POSTs on port 9095 and forwards them
+as Discord embeds with color-coded severity levels.
+"""
+import http.server
+import json
+import os
+import sys
+import urllib.request
+
+DISCORD_WEBHOOK = os.environ.get("DISCORD_WEBHOOK", "")
+LISTEN_ADDR = ("127.0.0.1", 9095)
+
+COLOR_MAP = {
+    "critical": 0xFF0000,   # red
+    "warning": 0xFFA500,    # orange
+    "none": 0x00FF00,       # green (heartbeat)
+}
+
+def format_alert(alert):
+    status = alert.get("status", "unknown")
+    labels = alert.get("labels", {})
+    annotations = alert.get("annotations", {})
+    severity = labels.get("severity", "warning")
+    alertname = labels.get("alertname", "Unknown")
+
+    if status == "resolved":
+        color = 0x00FF00
+        title = f"\u2705 RESOLVED: {alertname}"
+    else:
+        color = COLOR_MAP.get(severity, 0xFFA500)
+        emoji = "\U0001F6A8" if severity == "critical" else "\u26A0\uFE0F" if severity == "warning" else "\U0001F49A"
+        title = f"{emoji} {status.upper()}: {alertname}"
+
+    summary = annotations.get("summary", "")
+    description = annotations.get("description", "")
+
+    embed = {
+        "title": title,
+        "description": f"**{summary}**\n{description}" if description else f"**{summary}**",
+        "color": color,
+    }
+
+    # Add relevant labels as fields (skip alertname and severity, already shown)
+    fields = []
+    for k, v in labels.items():
+        if k not in ("alertname", "severity"):
+            fields.append({"name": k, "value": v, "inline": True})
+    if fields:
+        embed["fields"] = fields[:25]  # Discord embed limit
+
+    return embed
+
+class Handler(http.server.BaseHTTPRequestHandler):
+    def do_POST(self):
+        length = int(self.headers.get("Content-Length", 0))
+        body = self.rfile.read(length)
+        self.send_response(200)
+        self.end_headers()
+
+        try:
+            data = json.loads(body)
+            alerts = data.get("alerts", [])
+            embeds = [format_alert(a) for a in alerts[:10]]  # Discord max 10 embeds
+
+            payload = json.dumps({"embeds": embeds}).encode()
+            req = urllib.request.Request(
+                DISCORD_WEBHOOK,
+                data=payload,
+                headers={
+                    "Content-Type": "application/json",
+                    "User-Agent": "alertmanager-discord/1.0",
+                },
+            )
+            urllib.request.urlopen(req, timeout=10)
+        except Exception as e:
+            print(f"Error: {e}", file=sys.stderr, flush=True)
+
+    def log_message(self, format, *args):
+        print(f"[alertmanager-discord] {args[0]}", flush=True)
+
+if not DISCORD_WEBHOOK:
+    print("ERROR: DISCORD_WEBHOOK environment variable not set", file=sys.stderr)
+    sys.exit(1)
+
+print(f"Listening on {LISTEN_ADDR[0]}:{LISTEN_ADDR[1]}", flush=True)
+server = http.server.HTTPServer(LISTEN_ADDR, Handler)
+server.serve_forever()
+PYBRIDGE
 chmod +x /usr/local/bin/alertmanager-discord
 
 echo "All binaries installed."
@@ -244,18 +341,20 @@ systemctl daemon-reload
 # =============================================================================
 echo ">>> Enabling and starting services..."
 
+# Start alertmanager-discord first (port 9095), then alertmanager (port 9093)
 SERVICES=(
   node-exporter
   postgres-exporter
   blackbox-exporter
-  alertmanager
   alertmanager-discord
+  alertmanager
   prometheus
 )
 
 for SVC in "${SERVICES[@]}"; do
   systemctl enable "${SVC}"
-  systemctl start "${SVC}"
+  systemctl restart "${SVC}"
+  sleep 1
   if systemctl is-active --quiet "${SVC}"; then
     echo "  ${SVC}: running"
   else
@@ -321,7 +420,7 @@ echo "  - Node Exporter:       http://127.0.0.1:9100"
 echo "  - PostgreSQL Exporter: http://127.0.0.1:9187"
 echo "  - Blackbox Exporter:   http://127.0.0.1:9115"
 echo "  - Alertmanager:        http://127.0.0.1:9093"
-echo "  - alertmanager-discord: http://127.0.0.1:9094"
+echo "  - alertmanager-discord: http://127.0.0.1:9095"
 echo ""
 echo "All services bind to 127.0.0.1 only (not externally accessible)."
 echo ""
