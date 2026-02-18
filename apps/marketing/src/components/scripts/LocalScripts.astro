@@ -92,14 +92,7 @@
 		})
 	}
 
-	// Initialize on initial page load
-	if (document.readyState === 'loading') {
-		document.addEventListener('DOMContentLoaded', initNavigation)
-	} else {
-		initNavigation()
-	}
-
-	// Re-initialize on View Transitions navigation
+	// astro:page-load fires on both initial page load and View Transitions navigations
 	document.addEventListener('astro:page-load', initNavigation)
 
 	// Close mobile menu on page transitions
