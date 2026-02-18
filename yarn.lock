@@ -2452,8 +2452,8 @@ __metadata:
     "@opentelemetry/sdk-trace-base":
       optional: true
   bin:
-    frontman-nextjs: ./dist/cli.js
-    nextjs: ./dist/cli.js
+    frontman-nextjs: dist/cli.js
+    nextjs: dist/cli.js
   languageName: unknown
   linkType: soft
 

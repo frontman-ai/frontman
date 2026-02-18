@@ -197,4 +197,4 @@ Telemetry hierarchy:
 From `loop/config.ex`:
 - `max_steps`: 20
 - `timeout_ms`: 300,000 (5 minutes)
-- `step_timeout_ms`: 60,000 (1 minute)
+- `step_timeout_ms`: 120,000 (2 minutes)

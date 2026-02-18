@@ -6,7 +6,7 @@ defmodule Swarm.Loop.RunnerTest do
 
   setup do
     agent = test_agent(mock_llm("test"))
-    config = %Config{max_steps: 10, timeout_ms: 60_000, step_timeout_ms: 30_000}
+    config = %Config{max_steps: 10, timeout_ms: 60_000, step_timeout_ms: 120_000}
     loop = Loop.make(agent, config)
 
     %{agent: agent, loop: loop}
