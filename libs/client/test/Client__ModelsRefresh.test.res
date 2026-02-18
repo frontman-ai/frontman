@@ -25,6 +25,7 @@ let _makeState = (~anthropicOAuthStatus=Types.NotConnected, ~chatgptOAuthStatus=
     }),
     sessionInitialized: true,
     usageInfo: None,
+    userProfile: None,
     openrouterKeySettings,
     anthropicOAuthStatus,
     chatgptOAuthStatus,

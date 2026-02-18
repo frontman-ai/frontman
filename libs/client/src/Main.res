@@ -1,6 +1,8 @@
 %%raw("import '@radix-ui/themes/styles.css'")
 %%raw("import './index.css'")
 
+Client__Heap.init()
+
 @val external importMetaUrl: string = "import.meta.url"
 
 type clientConfig = {

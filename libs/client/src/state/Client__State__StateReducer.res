@@ -75,6 +75,8 @@ type action =
   | DisconnectChatGPTOAuth
   | ChatGPTOAuthDisconnected
   | ResetChatGPTOAuthError
+  // User profile actions
+  | UserProfileReceived({userProfile: Client__State__Types.userProfile})
   // Session loading actions
   | SessionsLoadStarted
   | SessionsLoadSuccess({
@@ -98,6 +100,8 @@ type effect =
   | InitiateChatGPTDeviceAuthEffect({apiBaseUrl: string})
   | DisconnectChatGPTOAuthEffect({apiBaseUrl: string})
   | PollChatGPTDeviceAuthEffect({apiBaseUrl: string, deviceAuthId: string, userCode: string})
+  // User profile effect
+  | FetchUserProfileEffect({apiBaseUrl: string})
   // Task loading effect
   | LoadTaskEffect({taskId: string})
 
@@ -203,6 +207,7 @@ let defaultState: state = {
   acpSession: NoAcpSession,
   sessionInitialized: false,
   usageInfo: None,
+  userProfile: None,
   openrouterKeySettings: {
     source: Client__State__Types.None,
     saveStatus: Client__State__Types.Idle,
@@ -269,6 +274,7 @@ let actionToString = action => {
   | DisconnectChatGPTOAuth => `DisconnectChatGPTOAuth`
   | ChatGPTOAuthDisconnected => `ChatGPTOAuthDisconnected`
   | ResetChatGPTOAuthError => `ResetChatGPTOAuthError`
+  | UserProfileReceived(_) => `UserProfileReceived`
   | SessionsLoadStarted => `SessionsLoadStarted`
   | SessionsLoadSuccess({sessions}) =>
     `SessionsLoadSuccess(${sessions->Array.length->Int.toString} sessions)`
@@ -405,6 +411,11 @@ module Selectors = {
   // Get usage info
   let usageInfo = (state: state): option<Client__State__Types.usageInfo> => {
     state.usageInfo
+  }
+
+  // Get user profile
+  let userProfile = (state: state): option<Client__State__Types.userProfile> => {
+    state.userProfile
   }
 
   // Get OpenRouter API key settings
@@ -564,9 +575,28 @@ let fetchUsageInfoImpl = (dispatch, ~apiBaseUrl) => {
   fetch()->ignore
 }
 
+let fetchUserProfileImpl = (dispatch, ~apiBaseUrl) => {
+  let fetch = async () => {
+    let url = `${apiBaseUrl}/api/user/me`
+
+    try {
+      let response = await WebAPI.Global.fetch(url, ~init={credentials: Include})
+      if response.ok {
+        let json = await response->WebAPI.Response.json
+        let userProfile = S.parseJsonOrThrow(json, Client__State__Types.userProfileSchema)
+        dispatch(UserProfileReceived({userProfile: userProfile}))
+      }
+    } catch {
+    | exn => Console.error2("[FetchUserProfile] Failed:", exn)
+    }
+  }
+  fetch()->ignore
+}
+
 let handleEffect = (effect, state: state, dispatch) => {
   switch effect {
   | FetchUsageInfo({apiBaseUrl}) => fetchUsageInfoImpl(dispatch, ~apiBaseUrl)
+  | FetchUserProfileEffect({apiBaseUrl}) => fetchUserProfileImpl(dispatch, ~apiBaseUrl)
   | TaskEffect({target, effect: taskEffect}) => {
       // Resolve taskId for dispatching task actions back
       let taskDispatch = (taskAction: TaskReducer.action) => {
@@ -1163,6 +1193,7 @@ let next = (state: state, action) => {
     }->FrontmanReactStatestore.StateReducer.update(
       ~sideEffects=[
         FetchUsageInfo({apiBaseUrl: apiBaseUrl}),
+        FetchUserProfileEffect({apiBaseUrl: apiBaseUrl}),
         FetchModelsConfigEffect({apiBaseUrl: apiBaseUrl}),
         FetchAnthropicOAuthStatusEffect({apiBaseUrl: apiBaseUrl}),
         FetchChatGPTOAuthStatusEffect({apiBaseUrl: apiBaseUrl}),
@@ -1179,6 +1210,15 @@ let next = (state: state, action) => {
   | UsageInfoReceived({usageInfo}) =>
     // Update usage info in state
     {...state, usageInfo: Some(usageInfo)}->FrontmanReactStatestore.StateReducer.update
+
+  | UserProfileReceived({userProfile}) =>
+    // Identify user in Heap Analytics
+    Client__Heap.identify(userProfile.id)
+    Client__Heap.addUserProperties({
+      "Email": userProfile.email,
+      "Name": userProfile.name->Option.getOr(""),
+    })
+    {...state, userProfile: Some(userProfile)}->FrontmanReactStatestore.StateReducer.update
 
   // API key settings actions
   | FetchApiKeySettings =>

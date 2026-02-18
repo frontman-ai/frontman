@@ -11,6 +11,7 @@ let _makeState = (~chatgptOAuthStatus: Types.chatgptOAuthStatus): Types.state =>
     acpSession: NoAcpSession,
     sessionInitialized: false,
     usageInfo: None,
+    userProfile: None,
     openrouterKeySettings: {
       source: Types.None,
       saveStatus: Types.Idle,

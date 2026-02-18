@@ -22,7 +22,8 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
   }, (open_, initialTab))
   let (openrouterKey, setOpenrouterKey) = React.useState(() => "")
   let (oauthCode, setOauthCode) = React.useState(() => "")
-  let (userEmail, setUserEmail) = React.useState(() => None)
+  let userProfile = State.useSelector(State.Selectors.userProfile)
+  let userEmail = userProfile->Option.map(p => p.email)
 
   // Get ACP session for apiBaseUrl
   let acpSession = State.useSelector(State.Selectors.acpSession)
@@ -47,33 +48,6 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
       State.Actions.resetChatGPTOAuthError()
       setOpenrouterKey(_ => "")
       setOauthCode(_ => "")
-
-      // Fetch user info for General tab
-      switch acpSession {
-      | Types.AcpSessionActive({apiBaseUrl}) =>
-        let fetchUser = async () => {
-          try {
-            let response = await WebAPI.Global.fetch(
-              `${apiBaseUrl}/api/user/me`,
-              ~init={credentials: Include},
-            )
-            if response.ok {
-              let json = await response->WebAPI.Response.json
-              switch json
-              ->JSON.Decode.object
-              ->Option.flatMap(obj => obj->Dict.get("email"))
-              ->Option.flatMap(JSON.Decode.string) {
-              | Some(email) => setUserEmail(_ => Some(email))
-              | None => ()
-              }
-            }
-          } catch {
-          | _ => ()
-          }
-        }
-        fetchUser()->ignore
-      | _ => ()
-      }
     }
     None
   }, (open_, acpSession))

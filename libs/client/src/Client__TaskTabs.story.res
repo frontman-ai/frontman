@@ -63,6 +63,7 @@ module Fixtures = {
     acpSession: NoAcpSession,
     sessionInitialized: false,
     usageInfo: None,
+    userProfile: None,
     openrouterKeySettings: {
       source: StateTypes.None,
       saveStatus: StateTypes.Idle,

@@ -32,6 +32,7 @@ module TestHelpers = {
         acpSession: NoAcpSession,
         sessionInitialized: false,
         usageInfo: None,
+        userProfile: None,
         openrouterKeySettings: {
           source: Client__State__Types.None,
           saveStatus: Client__State__Types.Idle,
@@ -656,6 +657,7 @@ describe("Client State Reducer - Task Management Actions", () => {
       acpSession: NoAcpSession,
       sessionInitialized: false,
       usageInfo: None,
+      userProfile: None,
       openrouterKeySettings: {
         source: Client__State__Types.None,
         saveStatus: Client__State__Types.Idle,
@@ -703,6 +705,7 @@ describe("Client State Reducer - Task Management Actions", () => {
       acpSession: NoAcpSession,
       sessionInitialized: false,
       usageInfo: None,
+      userProfile: None,
       openrouterKeySettings: {
         source: Client__State__Types.None,
         saveStatus: Client__State__Types.Idle,
@@ -749,6 +752,7 @@ describe("Client State Reducer - Task Management Actions", () => {
       acpSession: NoAcpSession,
       sessionInitialized: false,
       usageInfo: None,
+      userProfile: None,
       openrouterKeySettings: {
         source: Client__State__Types.None,
         saveStatus: Client__State__Types.Idle,
@@ -816,6 +820,7 @@ describe("Client State Reducer - Task Management Actions", () => {
       acpSession: NoAcpSession,
       sessionInitialized: false,
       usageInfo: None,
+      userProfile: None,
       openrouterKeySettings: {
         source: Client__State__Types.None,
         saveStatus: Client__State__Types.Idle,
@@ -931,6 +936,7 @@ describe("Client State Reducer - Session Loading Actions", () => {
       acpSession: NoAcpSession,
       sessionInitialized: false,
       usageInfo: None,
+      userProfile: None,
       openrouterKeySettings: {
         source: Client__State__Types.None,
         saveStatus: Client__State__Types.Idle,
@@ -1018,6 +1024,7 @@ describe("Client State Reducer - Session Loading Actions", () => {
       acpSession: NoAcpSession,
       sessionInitialized: false,
       usageInfo: None,
+      userProfile: None,
       openrouterKeySettings: {
         source: Client__State__Types.None,
         saveStatus: Client__State__Types.Idle,

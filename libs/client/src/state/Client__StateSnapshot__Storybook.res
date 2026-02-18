@@ -151,6 +151,7 @@ let snapshotToState = (snapshot: Snapshot.t): StateTypes.state => {
     acpSession: NoAcpSession, // Cannot restore ACP session from snapshot
     sessionInitialized: snapshot.sessionInitialized,
     usageInfo: None,
+    userProfile: None,
     openrouterKeySettings: {
       source: Client__State__Types.None,
       saveStatus: Client__State__Types.Idle,

@@ -140,12 +140,21 @@ type sessionsLoadState =
   | SessionsLoaded
   | SessionsLoadError(string)
 
+// User profile from /api/user/me
+@schema
+type userProfile = {
+  id: string,
+  email: string,
+  name: option<string>,
+}
+
 type state = {
   tasks: Dict.t<Task.t>,
   currentTask: Task.currentTask,
   acpSession: acpSession,
   sessionInitialized: bool,
   usageInfo: option<usageInfo>,
+  userProfile: option<userProfile>,
   openrouterKeySettings: apiKeySettings,
   anthropicOAuthStatus: anthropicOAuthStatus,
   chatgptOAuthStatus: chatgptOAuthStatus,
