@@ -94,137 +94,98 @@ let cleanupTestFixture = async (dir: string) => {
   await rmRecursive(dir)
 }
 
-describe("SearchFiles Tool - parseRipgrepOutput", _t => {
-  test("should parse simple file list", t => {
-    let output = `test.js
-config.json
-readme.md`
-    
-    let result = SearchFiles.parseRipgrepOutput(output, ~pattern="test", ~type_=None, ~maxResults=100)
-    
+describe("SearchFiles Tool - matchesPattern", _t => {
+  test("empty pattern matches everything", t => {
+    t->expect(SearchFiles.matchesPattern("anything.js", ~patternLower=""))->Expect.toBe(true)
+  })
+
+  test("simple substring match", t => {
+    t->expect(SearchFiles.matchesPattern("config.json", ~patternLower="config"))->Expect.toBe(true)
+    t->expect(SearchFiles.matchesPattern("readme.md", ~patternLower="config"))->Expect.toBe(false)
+  })
+
+  test("case insensitive matching", t => {
+    t->expect(SearchFiles.matchesPattern("Config.json", ~patternLower="config"))->Expect.toBe(true)
+    t->expect(SearchFiles.matchesPattern("CONFIG.ts", ~patternLower="config"))->Expect.toBe(true)
+  })
+
+  test("glob pattern with leading wildcard", t => {
+    t->expect(SearchFiles.matchesPattern("app.test.ts", ~patternLower="*.test.ts"))->Expect.toBe(true)
+    t->expect(SearchFiles.matchesPattern("test.js", ~patternLower="*.test.ts"))->Expect.toBe(false)
+  })
+
+  test("glob pattern with multiple wildcards", t => {
+    t->expect(SearchFiles.matchesPattern("app.config.ts", ~patternLower="*.config.*"))->Expect.toBe(true)
+    t->expect(SearchFiles.matchesPattern("test.config.js", ~patternLower="*.config.*"))->Expect.toBe(true)
+    t->expect(SearchFiles.matchesPattern("config.json", ~patternLower="*.config.*"))->Expect.toBe(false)
+  })
+})
+
+describe("SearchFiles Tool - filterAndPaginate", _t => {
+  test("should filter a simple file list by pattern", t => {
+    let lines = ["test.js", "config.json", "readme.md"]
+
+    let result = SearchFiles.filterAndPaginate(lines, ~pattern="test", ~maxResults=100)
+
     t->expect(result.totalResults)->Expect.toBe(1)
     t->expect(Array.length(result.files))->Expect.toBe(1)
     t->expect(result.truncated)->Expect.toBe(false)
     t->expect(result.files[0])->Expect.toEqual(Some("test.js"))
   })
-  
-  test("should handle empty output", t => {
-    let result = SearchFiles.parseRipgrepOutput("", ~pattern="test", ~type_=None, ~maxResults=100)
-    
+
+  test("should handle empty input", t => {
+    let result = SearchFiles.filterAndPaginate([], ~pattern="test", ~maxResults=100)
+
     t->expect(result.totalResults)->Expect.toBe(0)
     t->expect(Array.length(result.files))->Expect.toBe(0)
     t->expect(result.truncated)->Expect.toBe(false)
   })
-  
+
   test("should filter by pattern", t => {
-    let output = `test.js
-config.json
-test.config.ts
-readme.md`
-    
-    let result = SearchFiles.parseRipgrepOutput(output, ~pattern="config", ~type_=None, ~maxResults=100)
-    
+    let lines = ["test.js", "config.json", "test.config.ts", "readme.md"]
+
+    let result = SearchFiles.filterAndPaginate(lines, ~pattern="config", ~maxResults=100)
+
     t->expect(result.totalResults)->Expect.toBe(2)
     t->expect(Array.length(result.files))->Expect.toBe(2)
   })
-  
+
   test("should respect maxResults", t => {
-    let output = `test1.js
-test2.js
-test3.js
-test4.js`
-    
-    let result = SearchFiles.parseRipgrepOutput(output, ~pattern="test", ~type_=None, ~maxResults=2)
-    
+    let lines = ["test1.js", "test2.js", "test3.js", "test4.js"]
+
+    let result = SearchFiles.filterAndPaginate(lines, ~pattern="test", ~maxResults=2)
+
     t->expect(result.totalResults)->Expect.toBe(4)
     t->expect(Array.length(result.files))->Expect.toBe(2)
     t->expect(result.truncated)->Expect.toBe(true)
   })
-  
+
   test("should handle glob patterns with wildcards", t => {
-    let output = `test.ts
-test.js
-config.test.ts
-app.test.js
-readme.md`
-    
-    let result = SearchFiles.parseRipgrepOutput(output, ~pattern="*.test.ts", ~type_=None, ~maxResults=100)
-    
+    let lines = ["test.ts", "test.js", "config.test.ts", "app.test.js", "readme.md"]
+
+    let result = SearchFiles.filterAndPaginate(lines, ~pattern="*.test.ts", ~maxResults=100)
+
     t->expect(result.totalResults)->Expect.toBe(1)
-    t->expect(result.files[0]->Option.map(f => f->String.endsWith("config.test.ts")))->Expect.toEqual(Some(true))
+    t
+    ->expect(result.files[0]->Option.map(f => f->String.endsWith("config.test.ts")))
+    ->Expect.toEqual(Some(true))
   })
-  
+
   test("should handle multiple wildcards", t => {
-    let output = `app.config.ts
-app.test.ts
-config.json
-test.config.js`
-    
-    let result = SearchFiles.parseRipgrepOutput(output, ~pattern="*.config.*", ~type_=None, ~maxResults=100)
-    
+    let lines = ["app.config.ts", "app.test.ts", "config.json", "test.config.js"]
+
+    let result = SearchFiles.filterAndPaginate(lines, ~pattern="*.config.*", ~maxResults=100)
+
     // Should match app.config.ts and test.config.js
     t->expect(result.totalResults >= 2)->Expect.toBe(true)
   })
-  
-  test("should be case insensitive", t => {
-    let output = `Config.json
-CONFIG.ts
-config.js`
-    
-    let result = SearchFiles.parseRipgrepOutput(output, ~pattern="config", ~type_=None, ~maxResults=100)
-    
-    t->expect(result.totalResults)->Expect.toBe(3)
-  })
-  
-  test("should filter by type - files only", t => {
-    let output = `test.js
-config/
-readme.md
-src/`
-    
-    let result = SearchFiles.parseRipgrepOutput(output, ~pattern=".", ~type_=Some("file"), ~maxResults=100)
-    
-    // Should only match files (without trailing slash)
-    t->expect(result.totalResults)->Expect.toBe(2)
-  })
-  
-  test("should filter by type - directories only", t => {
-    let output = `test.js
-config/
-readme.md
-src/`
-    
-    let result = SearchFiles.parseRipgrepOutput(output, ~pattern="", ~type_=Some("directory"), ~maxResults=100)
-    
-    // Should match all directories (with trailing slash) - empty pattern matches all
-    t->expect(result.totalResults)->Expect.toBe(2)
-  })
-})
 
-describe("SearchFiles Tool - parseGitLsFilesOutput", _t => {
-  test("should parse git ls-files output", t => {
-    let output = `test.js
-config.json
-readme.md`
-    
-    let result = SearchFiles.parseGitLsFilesOutput(output, ~maxResults=100)
-    
+  test("should be case insensitive", t => {
+    let lines = ["Config.json", "CONFIG.ts", "config.js"]
+
+    let result = SearchFiles.filterAndPaginate(lines, ~pattern="config", ~maxResults=100)
+
     t->expect(result.totalResults)->Expect.toBe(3)
-    t->expect(Array.length(result.files))->Expect.toBe(3)
-    t->expect(result.truncated)->Expect.toBe(false)
-  })
-  
-  test("should respect maxResults", t => {
-    let output = `file1.js
-file2.js
-file3.js
-file4.js`
-    
-    let result = SearchFiles.parseGitLsFilesOutput(output, ~maxResults=2)
-    
-    t->expect(result.totalResults)->Expect.toBe(4)
-    t->expect(Array.length(result.files))->Expect.toBe(2)
-    t->expect(result.truncated)->Expect.toBe(true)
   })
 })
 

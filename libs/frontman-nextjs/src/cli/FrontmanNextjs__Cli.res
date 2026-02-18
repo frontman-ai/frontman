@@ -86,9 +86,11 @@ let parseArgs = (argv: array<string>): parsedArgs => {
 let main = async () => {
   let args = parseArgs(Process.argv)
 
-  if args.help {
+  switch args.help {
+  | true =>
     Console.log(helpText)
     Process.exit(0)
+  | false => ()
   }
 
   switch args.command {

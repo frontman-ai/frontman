@@ -114,14 +114,17 @@ other.js:5:line five`
   })
   
   test("should respect maxResults", t => {
-    let output = `test.js:1:one
-test.js:2:two
-test.js:3:three
-test.js:4:four`
+    // maxResults caps number of files, not individual matches
+    let output = `a.js:1:one
+b.js:2:two
+c.js:3:three
+d.js:4:four`
     
     let result = Grep.parseGrepOutput(output, ~maxResults=2)
     
+    // All 4 matches counted, but only 2 files returned
     t->expect(result.totalMatches)->Expect.toBe(4)
+    t->expect(Array.length(result.files))->Expect.toBe(2)
     t->expect(result.truncated)->Expect.toBe(true)
   })
   
@@ -220,12 +223,16 @@ describe("Grep Tool - buildGitGrepArgs", _t => {
       ~caseInsensitive=false,
       ~literal=false,
       ~maxResults=100,
+      ~glob=None,
+      ~type_=None,
     )
     
     t->expect(args->Array.includes("grep"))->Expect.toBe(true)
     t->expect(args->Array.includes("-n"))->Expect.toBe(true)
     t->expect(args->Array.includes("-H"))->Expect.toBe(true)
     t->expect(args->Array.includes("test"))->Expect.toBe(true)
+    // No pathspec separator when no glob/type
+    t->expect(args->Array.includes("--"))->Expect.toBe(false)
   })
   
   test("should add case insensitive flag", t => {
@@ -234,9 +241,76 @@ describe("Grep Tool - buildGitGrepArgs", _t => {
       ~caseInsensitive=true,
       ~literal=false,
       ~maxResults=100,
+      ~glob=None,
+      ~type_=None,
     )
     
     t->expect(args->Array.includes("-i"))->Expect.toBe(true)
+  })
+
+  test("should add glob pathspec after -- separator", t => {
+    let args = Grep.buildGitGrepArgs(
+      ~pattern="demo",
+      ~caseInsensitive=false,
+      ~literal=false,
+      ~maxResults=100,
+      ~glob=Some("*.astro"),
+      ~type_=None,
+    )
+
+    t->expect(args->Array.includes("--"))->Expect.toBe(true)
+    t->expect(args->Array.includes("*.astro"))->Expect.toBe(true)
+
+    // Verify order: pattern before --, glob after --
+    let patternIdx = args->Array.indexOf("demo")
+    let separatorIdx = args->Array.indexOf("--")
+    let globIdx = args->Array.indexOf("*.astro")
+    t->expect(patternIdx < separatorIdx)->Expect.toBe(true)
+    t->expect(separatorIdx < globIdx)->Expect.toBe(true)
+  })
+
+  test("should convert type_ to glob pathspec", t => {
+    let args = Grep.buildGitGrepArgs(
+      ~pattern="test",
+      ~caseInsensitive=false,
+      ~literal=false,
+      ~maxResults=100,
+      ~glob=None,
+      ~type_=Some("js"),
+    )
+
+    t->expect(args->Array.includes("--"))->Expect.toBe(true)
+    t->expect(args->Array.includes("*.js"))->Expect.toBe(true)
+  })
+
+  test("should prefer glob over type_ when both are provided", t => {
+    let args = Grep.buildGitGrepArgs(
+      ~pattern="test",
+      ~caseInsensitive=false,
+      ~literal=false,
+      ~maxResults=100,
+      ~glob=Some("*.tsx"),
+      ~type_=Some("js"),
+    )
+
+    // glob should be present, type-derived glob should not
+    t->expect(args->Array.includes("*.tsx"))->Expect.toBe(true)
+    t->expect(args->Array.includes("*.js"))->Expect.toBe(false)
+  })
+
+  test("should preserve multi-word patterns as a single arg element", t => {
+    let args = Grep.buildGitGrepArgs(
+      ~pattern="Frontman demo video",
+      ~caseInsensitive=false,
+      ~literal=false,
+      ~maxResults=100,
+      ~glob=None,
+      ~type_=None,
+    )
+
+    // The pattern should be a single element in the array, not split on spaces.
+    // This is what caused the original bug when args were joined into a shell string.
+    t->expect(args->Array.includes("Frontman demo video"))->Expect.toBe(true)
   })
 })
 

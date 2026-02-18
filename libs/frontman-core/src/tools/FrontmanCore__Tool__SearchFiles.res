@@ -1,4 +1,4 @@
-// SearchFiles tool - fast file/directory name search using ripgrep with git ls-files fallback
+// SearchFiles tool - fast file name search using ripgrep with git ls-files fallback
 
 module Path = FrontmanBindings.Path
 module ChildProcess = FrontmanBindings.ChildProcess
@@ -7,40 +7,39 @@ module PathContext = FrontmanCore__PathContext
 
 let name = "search_files"
 let visibleToAgent = true
-let description = `Fast file and directory name search tool that finds files/directories matching a pattern.
+let description = `Fast file name search tool that finds files matching a pattern.
 
 WHEN TO USE THIS TOOL:
-- Use when you need to find files or directories by name pattern
+- Use when you need to find files by name pattern
 - Great for locating specific files like "config.json" or "*.test.ts"
 - Useful for finding all files with a specific extension or naming convention
 - When you need to discover the file structure of a project
+- Note: this tool only searches file names, not directory names. Use list_files to browse directories.
 
 PARAMETERS:
 - pattern (required): The filename pattern to search for (supports glob-like patterns)
 - path (optional): Directory to search in (defaults to source root)
-- type (optional): Filter by type - "file" for files only, "directory" for directories only
 - max_results (optional): Maximum number of results to return (default: 20)
 
 EXAMPLES:
 - Find all config files: pattern="config"
 - Find TypeScript test files: pattern="*.test.ts"
-- Find directories named "components": pattern="components", type="directory"
 - Find files in specific directory: pattern="*.json", path="src/config"
 
 OUTPUT:
-Returns list of matching file/directory paths.
+Returns list of matching file paths.
 Results are sorted by modification time (newest first).
 
 LIMITATIONS:
 - Results limited to max_results (default 20)
 - Hidden files (starting with '.') are included
-- Respects .gitignore when using git ls-files fallback`
+- Respects .gitignore when using git ls-files fallback
+- Only finds files, not directories`
 
 @schema
 type input = {
   pattern: string,
   path?: string,
-  @as("type") type_?: string,
   @as("max_results") @s.default(20) maxResults?: int,
 }
 
@@ -80,55 +79,38 @@ let buildRipgrepArgs = (~searchPath: string): array<string> => {
   args
 }
 
-// Parse ripgrep file list output and filter by pattern and type
-let parseRipgrepOutput = (
-  output: string,
-  ~pattern: string,
-  ~type_: option<string>,
-  ~maxResults: int,
-): output => {
-  let lines = output->String.trim->String.split("\n")->Array.filter(line => line !== "")
+// Check if a filename matches a pattern (case-insensitive, glob-like)
+let matchesPattern = (fileName: string, ~patternLower: string): bool => {
+  let fileNameLower = fileName->String.toLowerCase
 
-  // Filter lines by pattern (case-insensitive glob-like matching)
-  let patternLower = pattern->String.toLowerCase
-  let matchedFiles = lines->Array.filter(filePath => {
-    let fileName = Path.basename(filePath)->String.toLowerCase
-    
-    // Simple glob pattern matching
-    let patternMatches = if patternLower === "" {
-      // Empty pattern matches all
-      true
-    } else if patternLower->String.includes("*") {
-      // Convert glob to regex-like matching
-      let parts = patternLower->String.split("*")
+  switch patternLower {
+  | "" => true
+  | p if p->String.includes("*") => {
+      let parts = p->String.split("*")
       let partsLength = Array.length(parts)
-      
-      parts->Array.reduceWithIndex(true, (matches, part, idx) => {
-        if !matches {
-          false
-        } else if part === "" {
-          true
-        } else if idx === 0 {
-          fileName->String.startsWith(part)
-        } else if idx === partsLength - 1 {
-          fileName->String.endsWith(part)
-        } else {
-          fileName->String.includes(part)
+
+      parts->Array.reduceWithIndex(true, (matches, part, idx) =>
+        switch (matches, part) {
+        | (false, _) => false
+        | (_, "") => true
+        | _ if idx === 0 => fileNameLower->String.startsWith(part)
+        | _ if idx === partsLength - 1 => fileNameLower->String.endsWith(part)
+        | _ => fileNameLower->String.includes(part)
         }
-      })
-    } else {
-      // Simple substring match
-      fileName->String.includes(patternLower)
+      )
     }
+  | p => fileNameLower->String.includes(p)
+  }
+}
 
-    // Type filter (note: ripgrep lists directories with trailing slashes on some systems)
-    let typeMatches = switch type_ {
-    | Some("file") => !(filePath->String.endsWith("/"))
-    | Some("directory") => filePath->String.endsWith("/")
-    | _ => true
-    }
+// Filter file paths by pattern and paginate results.
+// Shared by both the ripgrep and git ls-files code paths.
+let filterAndPaginate = (lines: array<string>, ~pattern: string, ~maxResults: int): output => {
+  let patternLower = pattern->String.toLowerCase
 
-    patternMatches && typeMatches
+  let matchedFiles = lines->Array.filter(filePath => {
+    let fileName = Path.basename(filePath)
+    matchesPattern(fileName, ~patternLower)
   })
 
   let truncated = Array.length(matchedFiles) > maxResults
@@ -141,86 +123,62 @@ let parseRipgrepOutput = (
   }
 }
 
-// Parse git ls-files output
-let parseGitLsFilesOutput = (output: string, ~maxResults: int): output => {
-  let lines = output->String.trim->String.split("\n")->Array.filter(line => line !== "")
-
-  let truncated = Array.length(lines) > maxResults
-  let files = lines->Array.slice(~start=0, ~end=maxResults)
-
-  {
-    files,
-    totalResults: Array.length(lines),
-    truncated,
-  }
-}
-
-// Execute ripgrep for file search
+// Execute ripgrep for file search using spawn (no shell)
 let executeRipgrep = async (
   ~rgPath: string,
   ~pattern: string,
   ~searchPath: string,
-  ~type_: option<string>,
   ~maxResults: int,
 ): result<output, string> => {
   let args = buildRipgrepArgs(~searchPath)
-  let command = `${rgPath} ${args->Array.join(" ")}`
 
-  try {
-    let result = await ChildProcess.exec(command)
+  let result = await ChildProcess.spawnResult(rgPath, args)
 
-    switch result {
-    | Ok({stdout}) => Ok(parseRipgrepOutput(stdout, ~pattern, ~type_, ~maxResults))
-    | Error({code: Some(1), _}) =>
-      // Exit code 1 means no matches found
-      Ok({files: [], totalResults: 0, truncated: false})
-    | Error({stderr}) => Error(`Ripgrep failed: ${stderr}`)
+  switch result {
+  | Ok({stdout}) => {
+      let lines = stdout->String.trim->String.split("\n")->Array.filter(line => line !== "")
+      Ok(filterAndPaginate(lines, ~pattern, ~maxResults))
     }
-  } catch {
-  | exn => {
-      let msg = exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
-      Error(`Ripgrep execution failed: ${msg}`)
-    }
+  | Error({code: Some(1), _}) =>
+    // Exit code 1 means no matches found
+    Ok({files: [], totalResults: 0, truncated: false})
+  | Error({stderr}) => Error(`Ripgrep failed: ${stderr}`)
   }
 }
 
-// Execute git ls-files with grep as fallback
+// Execute git ls-files using spawn (no shell) and filter results in-process.
+// The old approach piped through `grep -i` via a shell string, which broke on
+// patterns containing spaces or special characters.
 let executeGitLsFiles = async (
   ~pattern: string,
   ~searchPath: string,
   ~maxResults: int,
 ): result<output, string> => {
-  try {
-    let command = `git ls-files | grep -i "${pattern}"`
-    let result = await ChildProcess.execWithOptions(command, {cwd: searchPath})
+  let result = await ChildProcess.spawnResult("git", ["ls-files"], ~cwd=searchPath)
 
-    switch result {
-    | Ok({stdout}) => Ok(parseGitLsFilesOutput(stdout, ~maxResults))
-    | Error({code: Some(1), _}) =>
-      // Exit code 1 means no matches found
-      Ok({files: [], totalResults: 0, truncated: false})
-    | Error({stderr}) => Error(`Git ls-files failed: ${stderr}`)
+  switch result {
+  | Ok({stdout}) => {
+      let lines = stdout->String.trim->String.split("\n")->Array.filter(line => line !== "")
+      Ok(filterAndPaginate(lines, ~pattern, ~maxResults))
     }
-  } catch {
-  | exn => {
-      let msg = exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
-      Error(`Git ls-files execution failed: ${msg}`)
-    }
+  | Error({code: Some(1), _}) =>
+    // Exit code 1 means no matches found
+    Ok({files: [], totalResults: 0, truncated: false})
+  | Error({stderr}) => Error(`Git ls-files failed: ${stderr}`)
   }
 }
 
 let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.toolResult<output> => {
   let searchPath = PathContext.resolveSearchPath(~sourceRoot=ctx.sourceRoot, ~inputPath=input.path)
-  let maxResults = input.maxResults->Option.getOr(100)
+  let maxResults = input.maxResults->Option.getOr(20)
 
-  // Try ripgrep first
+  // Try ripgrep first, fall back to git ls-files
   switch getRipgrepPath() {
   | Some(rgPath) =>
     let result = await executeRipgrep(
       ~rgPath,
       ~pattern=input.pattern,
       ~searchPath,
-      ~type_=input.type_,
       ~maxResults,
     )
 

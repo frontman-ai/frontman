@@ -105,7 +105,9 @@ let make = (
 
   // Assert clientUrl contains the required "host" query param that the client reads from import.meta.url
   let parsedUrl = WebAPI.URL.make(~url=clientUrl)
-  if !(parsedUrl.searchParams->WebAPI.URLSearchParams.has(~name="host")) {
+  switch parsedUrl.searchParams->WebAPI.URLSearchParams.has(~name="host") {
+  | true => ()
+  | false =>
     JsError.throwWithMessage(
       `[frontman-nextjs] clientUrl must include a "host" query parameter. Got: ${clientUrl}`,
     )

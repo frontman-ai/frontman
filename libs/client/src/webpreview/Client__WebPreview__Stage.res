@@ -1,5 +1,5 @@
 @react.component
-let make = (~document) => {
+let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
   let document = Some(document)
   let webPreviewIsSelecting = Client__State.useSelector(
     Client__State.Selectors.webPreviewIsSelecting,
@@ -92,37 +92,74 @@ let make = (~document) => {
   }, [webPreviewIsSelecting])
 
   // Selection overlay container
-  <div className="pointer-events-none flex-1 absolute top-0 left-0 w-full h-full isolate">
-    // Selection mode indicator - subtle border around the preview
-    {webPreviewIsSelecting
-      ? <div
-          className="absolute inset-0 pointer-events-none"
-          style={
-            boxShadow: "inset 0 0 0 2px rgba(152, 93, 247, 0.5)",
-            borderRadius: "0",
-          }
-        />
-      : React.null}
-    {webPreviewIsSelecting
-      ? <Client__WebPreview__HoveredElement
-          key="hover" element={hoveredElement} scrollTimestamp={scrollTimestamp}
-        />
-      : React.null}
-    {selectedElement->Option.mapOr(React.null, data => {
-      // Re-query element from current document to handle stale DOM references
-      // (e.g., after iframe remount during New → Loaded task transition)
-      let element = switch (data.selector, document) {
-      | (Some(sel), Some(doc)) =>
-        WebAPI.Document.querySelector(doc, sel)->Null.toOption->Option.getOr(data.element)
-      | _ => data.element
-      }
-      <Client__WebPreview__ClickedElement
-        key="clicked"
-        element={element}
-        scrollTimestamp={scrollTimestamp}
-        mutationTimestamp={mutationTimestamp}
-        isScanning={isAgentRunning}
+  // In device mode, the overlay must match the iframe's position and transform
+  // so that getBoundingClientRect coordinates from inside the iframe align visually
+  let selectionModeIndicator = webPreviewIsSelecting
+    ? <div
+        className="absolute inset-0 pointer-events-none"
+        style={
+          boxShadow: "inset 0 0 0 2px rgba(152, 93, 247, 0.5)",
+          borderRadius: "0",
+        }
       />
-    })}
-  </div>
+    : React.null
+
+  let hoverOverlay = webPreviewIsSelecting
+    ? <Client__WebPreview__HoveredElement
+        key="hover" element={hoveredElement} scrollTimestamp={scrollTimestamp}
+      />
+    : React.null
+
+  let clickOverlay = selectedElement->Option.mapOr(React.null, data => {
+    // Re-query element from current document to handle stale DOM references
+    // (e.g., after iframe remount during New → Loaded task transition)
+    let element = switch (data.selector, document) {
+    | (Some(sel), Some(doc)) =>
+      WebAPI.Document.querySelector(doc, sel)->Null.toOption->Option.getOr(data.element)
+    | _ => data.element
+    }
+    <Client__WebPreview__ClickedElement
+      key="clicked"
+      element={element}
+      scrollTimestamp={scrollTimestamp}
+      mutationTimestamp={mutationTimestamp}
+      isScanning={isAgentRunning}
+    />
+  })
+
+  switch viewportStyle {
+  | None =>
+    <div className="pointer-events-none flex-1 absolute top-0 left-0 w-full h-full isolate">
+      selectionModeIndicator
+      hoverOverlay
+      clickOverlay
+    </div>
+  | Some((deviceWidth, deviceHeight, scale)) =>
+    let widthPx = Int.toString(deviceWidth) ++ "px"
+    let heightPx = Int.toString(deviceHeight) ++ "px"
+    let transformStr = if scale < 1.0 {
+      `scale(${Float.toFixed(scale, ~digits=4)})`
+    } else {
+      "none"
+    }
+    // Outer: fills the container, uses flex centering to match the iframe's position
+    <div
+      className="pointer-events-none absolute top-0 left-0 w-full h-full isolate flex items-start justify-center"
+    >
+      // Inner: matches the iframe wrapper's exact dimensions, transform, and offset
+      <div
+        className="shrink-0 mt-2 relative overflow-hidden"
+        style={
+          width: widthPx,
+          height: heightPx,
+          transform: transformStr,
+          transformOrigin: "top center",
+        }
+      >
+        selectionModeIndicator
+        hoverOverlay
+        clickOverlay
+      </div>
+    </div>
+  }
 }

@@ -224,6 +224,22 @@ let make = () => {
   let deviceModeActive = Client__DeviceMode.isActive(deviceMode)
   let effectiveDims = Client__DeviceMode.getEffectiveDimensions(deviceMode, deviceOrientation)
 
+  let viewportStyle = switch effectiveDims {
+  | None => None
+  | Some((deviceWidth, deviceHeight)) =>
+    let scale = if availableWidth > 16 && availableHeight > 16 {
+      Client__DeviceMode.computeScaleFactor(
+        ~deviceWidth,
+        ~deviceHeight,
+        ~availableWidth=availableWidth - 16,
+        ~availableHeight=availableHeight - 16,
+      )
+    } else {
+      1.0
+    }
+    Some((deviceWidth, deviceHeight, scale))
+  }
+
     <Nav.Container>
       <Nav.Navigation>
         <Nav.TrafficLights />
@@ -256,7 +272,7 @@ let make = () => {
         }}
       >
         {switch previewFrame.contentDocument {
-        | Some(document) => <Client__WebPreview__Stage document={document} />
+        | Some(document) => <Client__WebPreview__Stage document={document} viewportStyle=?viewportStyle />
         | _ => React.null
         }}
 
@@ -285,24 +301,6 @@ let make = () => {
             })
           }
 
-          // Compute scale and dimensions for device mode
-          let viewportStyle = switch effectiveDims {
-          | None => None
-          | Some((deviceWidth, deviceHeight)) =>
-            let scale = if availableWidth > 16 && availableHeight > 16 {
-              // Leave some padding around the viewport (8px on each side)
-              Client__DeviceMode.computeScaleFactor(
-                ~deviceWidth,
-                ~deviceHeight,
-                ~availableWidth=availableWidth - 16,
-                ~availableHeight=availableHeight - 16,
-              )
-            } else {
-              1.0
-            }
-            Some((deviceWidth, deviceHeight, scale))
-          }
-          
           allTasks
           ->Array.map(((clientId, url)) => {
             <Client__WebPreview__Body

@@ -57,6 +57,19 @@ let getNavigateTarget = (input: option<JSON.t>): option<string> => {
   }
 }
 
+// Screenshot tool detection and image extraction
+let isScreenshotTool = (toolName: string): bool => {
+  cleanToolName(toolName) == "take_screenshot"
+}
+
+let getScreenshotSrc = (result: option<JSON.t>): option<string> => {
+  result
+  ->Option.flatMap(JSON.Decode.object)
+  ->Option.flatMap(dict => dict->Dict.get("screenshot"))
+  ->Option.flatMap(JSON.Decode.string)
+  ->Option.flatMap(s => s != "" ? Some(s) : None)
+}
+
 // Extract target path/URL, defaulting to "./" for list/file operations
 let getTarget = (toolName: string, input: option<JSON.t>): option<string> => {
   let name = cleanToolName(toolName)
@@ -86,11 +99,12 @@ let make = (
 ) => {
   let isLink = isInlineTool(toolName)
   let (isExpanded, setIsExpanded) = React.useState(() => defaultExpanded)
-  let (wasManuallyToggled, setWasManuallyToggled) = React.useState(() => false)
+  let wasManuallyToggled = React.useRef(false)
+  let (previewSrc, setPreviewSrc) = React.useState((): option<string> => None)
 
   // Sync with defaultExpanded prop unless manually toggled
   React.useEffect(() => {
-    if !wasManuallyToggled {
+    if !wasManuallyToggled.current {
       setIsExpanded(_ => defaultExpanded)
     }
     None
@@ -112,7 +126,7 @@ let make = (
   let handleToggle = _ => {
     if hasBody {
       setIsExpanded(prev => !prev)
-      setWasManuallyToggled(_ => true)
+      wasManuallyToggled.current = true
     }
   }
 
@@ -203,6 +217,23 @@ let make = (
               </div>
             | _ => React.null
             }}
+            // Screenshot preview button when screenshot data is available
+            {switch (isScreenshotTool(toolName), getScreenshotSrc(result)) {
+            | (true, Some(src)) =>
+              <div className="mb-2">
+                <button
+                  type_="button"
+                  onClick={e => {
+                    ReactEvent.Mouse.stopPropagation(e)
+                    setPreviewSrc(_ => Some(src))
+                  }}
+                  className="text-[11px] font-mono text-[#8051CD] hover:text-[#9d7be0] underline cursor-pointer"
+                >
+                  {React.string("View Screenshot")}
+                </button>
+              </div>
+            | _ => React.null
+            }}
             {switch (result, errorText) {
             | (Some(json), _) =>
               <div>
@@ -221,5 +252,12 @@ let make = (
           </div>
         </div>
       : React.null}
+
+    // Screenshot lightbox preview
+    {switch previewSrc {
+    | Some(src) =>
+      <Client__ImagePreview src onClose={() => setPreviewSrc(_ => None)} />
+    | None => React.null
+    }}
   </div>
 }

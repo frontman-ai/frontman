@@ -5,6 +5,9 @@
 /** The production API server host (without protocol). */
 let apiHost = "api.frontman.sh"
 
+/** The local dev API server host (without protocol). */
+let devApiHost = "frontman.local:4000"
+
 /** The production client bundle URL. */
 let clientJs = "https://app.frontman.sh/frontman.es.js"
 

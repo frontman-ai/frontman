@@ -6,6 +6,7 @@ module Relay = Protocol.FrontmanProtocol__Relay
 module Core = FrontmanFrontmanCore
 module CoreServer = Core.FrontmanCore__Server
 module CoreSSE = Core.FrontmanCore__SSE
+module PathContext = Core.FrontmanCore__PathContext
 module ToolRegistry = FrontmanAstro__ToolRegistry
 module Config = FrontmanAstro__Config
 module WebStreams = FrontmanBindings.WebStreams
@@ -82,26 +83,6 @@ let handleToolCall = async (
   }
 }
 
-// Helper to convert absolute path to relative path (relative to sourceRoot)
-// If the path starts with sourceRoot, strip it; otherwise return as-is
-let toRelativePath = (absolutePath: string, sourceRoot: string): string => {
-  // Ensure sourceRoot ends with / for proper stripping
-  let normalizedRoot = if sourceRoot->String.endsWith("/") {
-    sourceRoot
-  } else {
-    sourceRoot ++ "/"
-  }
-
-  if absolutePath->String.startsWith(normalizedRoot) {
-    absolutePath->String.slice(~start=normalizedRoot->String.length, ~end=absolutePath->String.length)
-  } else if absolutePath->String.startsWith(sourceRoot) {
-    // Handle case where sourceRoot doesn't end with / but path matches exactly
-    absolutePath->String.slice(~start=sourceRoot->String.length, ~end=absolutePath->String.length)
-  } else {
-    absolutePath
-  }
-}
-
 // CORS headers for preflight requests
 let corsHeaders = () => {
   WebAPI.HeadersInit.fromDict(
@@ -155,7 +136,10 @@ let handleResolveSourceLocation = async (
 
         // Convert absolute path to relative path (relative to sourceRoot)
         // This ensures the agent can use the path directly with MCP tools
-        let relativeFile = toRelativePath(resolved.file, config.sourceRoot)
+        let relativeFile = PathContext.toRelativePath(
+          ~sourceRoot=config.sourceRoot,
+          ~absolutePath=resolved.file,
+        )
 
         let responseJson = JSON.Encode.object(
           Dict.fromArray([

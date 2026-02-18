@@ -1,36 +1,9 @@
 // Bindings for Node.js child_process module
-
-type childProcess
-
-type spawnOptions = {
-  stdio?: array<string>,
-  cwd?: string,
-  env?: Dict.t<string>,
-}
-
-// Spawn a child process
-@module("node:child_process")
-external spawn: (string, array<string>, spawnOptions) => childProcess = "spawn"
-
-// ChildProcess properties - now reference Bindings__NodeStreams
-@get external stdin: childProcess => option<NodeStreams.writable> = "stdin"
-@get external stdout: childProcess => option<NodeStreams.readable> = "stdout"
-@get external stderr: childProcess => option<NodeStreams.readable> = "stderr"
-
-// ChildProcess methods
-@send external kill: (childProcess, ~signal: string=?) => bool = "kill"
-
-// Event listeners for child process
-@send
-external on: (
-  childProcess,
-  @string
-  [
-    | #exit((option<int>, option<string>) => unit)
-    | #error(JsError.t => unit)
-    | #close((option<int>, option<string>) => unit)
-  ],
-) => unit = "on"
+//
+// Public API:
+//   exec(command)           — run a shell command, returns result<execResult, execError>
+//   execWithOptions(cmd, opts) — same, with cwd/env/maxBuffer options
+//   spawnResult(cmd, args)  — run with args array (no shell), returns result<execResult, execError>
 
 // Exec options and result types
 type execOptions = {
@@ -48,89 +21,216 @@ type execError = {
   code: option<int>,
   stdout: string,
   stderr: string,
+  message: string,
 }
 
-// Direct Promise-based exec implementation in raw JavaScript
-let execPromise: (string, execOptions) => Promise.t<execResult> = %raw(`
-  async function(command, options) {
-    const { exec } = await import('node:child_process');
-    const { promisify } = await import('node:util');
-    const execP = promisify(exec);
-    return await execP(command, options);
-  }
-`)
+// Default maxBuffer: 50MB
+let defaultMaxBuffer = 50 * 1024 * 1024
 
-// Helper to convert Buffer to string if needed
-let bufferToString: 'a => string = %raw(`
-  function(value) {
-    if (value == null) return "";
-    if (typeof value === "string") return value;
-    if (Buffer.isBuffer(value)) return value.toString("utf8");
-    return String(value);
-  }
-`)
+// --- Typed exec bindings (internal) ---
 
-// Helper to execute command and return result or error
-let exec = async (command: string): result<execResult, execError> => {
-  try {
-    // Increase maxBuffer to 50MB to handle large grep outputs
-    let result = await execPromise(command, {maxBuffer: 50 * 1024 * 1024})
-    Ok({
-      stdout: bufferToString(result.stdout),
-      stderr: bufferToString(result.stderr),
+// Node's ExecException — the error object passed to exec's callback on failure.
+// We only read the fields we need; everything else is ignored.
+type execException
+@get external execExceptionCode: execException => Nullable.t<int> = "code"
+@get external execExceptionMessage: execException => string = "message"
+
+// exec's internal options include encoding to force string output
+type execInternalOptions = {
+  cwd?: string,
+  env?: Dict.t<string>,
+  maxBuffer?: int,
+  encoding: string,
+}
+
+// Node's exec with callback: (error, stdout, stderr) => void
+// With encoding: "utf8", stdout/stderr are always strings.
+@module("node:child_process")
+external nodeExec: (
+  string,
+  execInternalOptions,
+  (Nullable.t<execException>, string, string) => unit,
+) => unit = "exec"
+
+// Wrap exec in a Promise that resolves with result — never rejects.
+let execPromise = (
+  command: string,
+  options: execOptions,
+): Promise.t<result<execResult, execError>> => {
+  Promise.make((resolve, _reject) => {
+    let cwd = options.cwd
+    let env = options.env
+    let maxBuffer = options.maxBuffer->Option.getOr(defaultMaxBuffer)
+    nodeExec(
+      command,
+      {?cwd, ?env, maxBuffer, encoding: "utf8"},
+      (err, stdout, stderr) => {
+        switch err->Nullable.toOption {
+        | None =>
+          resolve(Ok({stdout, stderr}))
+        | Some(execErr) =>
+          resolve(
+            Error({
+              code: execErr->execExceptionCode->Nullable.toOption,
+              stdout,
+              stderr,
+              message: execErr->execExceptionMessage,
+            }),
+          )
+        }
+      },
+    )
+  })
+}
+
+// --- Typed spawn bindings (internal) ---
+
+// Opaque child process handle returned by spawn
+type childProcess
+
+type spawnOptions = {
+  cwd?: string,
+  env?: Dict.t<string>,
+}
+
+@module("node:child_process")
+external spawn: (string, array<string>, spawnOptions) => childProcess = "spawn"
+
+// Process-level stdout/stderr are readable streams
+@get external processStdout: childProcess => NodeStreams.readable = "stdout"
+@get external processStderr: childProcess => NodeStreams.readable = "stderr"
+
+@send external kill: (childProcess, ~signal: string=?) => bool = "kill"
+
+// Process-level events: close(code), error(err)
+@send
+external onProcess: (
+  childProcess,
+  @string
+  [
+    | #close(Nullable.t<int> => unit)
+    | #error(JsError.t => unit)
+  ],
+) => unit = "on"
+
+// Stream data event — receives a Buffer chunk
+type buffer
+@send external bufferToStr: (buffer, @as("utf8") _) => string = "toString"
+
+@send
+external onData: (NodeStreams.readable, @as("data") _, buffer => unit) => unit = "on"
+
+// --- spawnPromise in pure ReScript ---
+
+// Promise-based spawn that captures stdout/stderr without a shell.
+// Unlike exec (which passes a command string through /bin/sh), spawn sends
+// the args array directly to the OS, so spaces in arguments are never
+// re-interpreted as token separators.
+//
+// Resolves with result<execResult, execError> — never rejects.
+let spawnPromise = (
+  command: string,
+  args: array<string>,
+  options: execOptions,
+): Promise.t<result<execResult, execError>> => {
+  let maxBuffer = options.maxBuffer->Option.getOr(defaultMaxBuffer)
+
+  Promise.make((resolve, _reject) => {
+    let cwd = options.cwd
+    let env = options.env
+    let proc = spawn(command, args, {?cwd, ?env})
+
+    let stdout = ref("")
+    let stderr = ref("")
+
+    proc->processStdout->onData(chunk => {
+      stdout := stdout.contents ++ bufferToStr(chunk)
+      if String.length(stdout.contents) > maxBuffer {
+        proc->kill(~signal="SIGTERM")->ignore
+        resolve(
+          Error({
+            code: None,
+            stdout: stdout.contents,
+            stderr: stderr.contents,
+            message: "stdout maxBuffer exceeded",
+          }),
+        )
+      }
     })
-  } catch {
-  | exn => {
-      // Parse the error to extract stdout/stderr if available
-      // ReScript wraps JS exceptions, so we need to extract the actual error from _1
-      let error = exn->Obj.magic
-      let actualError = error["_1"]->Nullable.toOption->Option.getOr(error)
-      Error({
-        code: actualError["code"]->Nullable.toOption,
-        stdout: actualError["stdout"]
-        ->Nullable.toOption
-        ->Option.map(bufferToString)
-        ->Option.getOr(""),
-        stderr: actualError["stderr"]
-        ->Nullable.toOption
-        ->Option.map(bufferToString)
-        ->Option.getOr(""),
-      })
-    }
-  }
+
+    proc->processStderr->onData(chunk => {
+      stderr := stderr.contents ++ bufferToStr(chunk)
+    })
+
+    proc->onProcess(#error(err => {
+      resolve(
+        Error({
+          code: None,
+          stdout: stdout.contents,
+          stderr: stderr.contents,
+          message: JsError.message(err),
+        }),
+      )
+    }))
+
+    proc->onProcess(#close(nullableCode => {
+      let code = nullableCode->Nullable.toOption
+      switch code {
+      | Some(0) =>
+        resolve(
+          Ok({
+            stdout: stdout.contents,
+            stderr: stderr.contents,
+          }),
+        )
+      | _ =>
+        let codeStr = switch code {
+        | Some(c) => Int.toString(c)
+        | None => "null"
+        }
+        resolve(
+          Error({
+            code,
+            stdout: stdout.contents,
+            stderr: stderr.contents,
+            message: `Process exited with code ${codeStr}`,
+          }),
+        )
+      }
+    }))
+  })
 }
 
+// --- Public API ---
+
+// Execute a shell command and return result or error
+let exec = async (command: string): result<execResult, execError> => {
+  await execPromise(command, {maxBuffer: defaultMaxBuffer})
+}
+
+// Execute a shell command with explicit options
 let execWithOptions = async (command: string, options: execOptions): result<
   execResult,
   execError,
 > => {
-  try {
-    // Merge options with a default maxBuffer of 50MB if not specified
-    let optionsWithDefaults = {
-      ...options,
-      maxBuffer: options.maxBuffer->Option.getOr(50 * 1024 * 1024),
-    }
-    let result = await execPromise(command, optionsWithDefaults)
-    Ok({
-      stdout: bufferToString(result.stdout),
-      stderr: bufferToString(result.stderr),
-    })
-  } catch {
-  | exn => {
-      // ReScript wraps JS exceptions, so we need to extract the actual error from _1
-      let error = exn->Obj.magic
-      let actualError = error["_1"]->Nullable.toOption->Option.getOr(error)
-      Error({
-        code: actualError["code"]->Nullable.toOption,
-        stdout: actualError["stdout"]
-        ->Nullable.toOption
-        ->Option.map(bufferToString)
-        ->Option.getOr(""),
-        stderr: actualError["stderr"]
-        ->Nullable.toOption
-        ->Option.map(bufferToString)
-        ->Option.getOr(""),
-      })
-    }
+  let optionsWithDefaults = {
+    ...options,
+    maxBuffer: options.maxBuffer->Option.getOr(defaultMaxBuffer),
   }
+  await execPromise(command, optionsWithDefaults)
+}
+
+// Spawn a process with an args array (no shell) and return result or error.
+// This is the preferred way to run subprocesses when you have structured arguments,
+// since it avoids shell parsing issues with spaces and special characters.
+let spawnResult = async (
+  command: string,
+  args: array<string>,
+  ~cwd: option<string>=?,
+): result<execResult, execError> => {
+  let options: execOptions = {
+    ?cwd,
+    maxBuffer: defaultMaxBuffer,
+  }
+  await spawnPromise(command, args, options)
 }

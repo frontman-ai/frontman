@@ -27,3 +27,6 @@ procs:
 
   marketing:
     cmd: ["make", "dev-marketing"]
+    env:
+      FRONTMAN_CLIENT_URL: "http://localhost:5173/src/Main.res.mjs"
+      FRONTMAN_HOST: "frontman.local:4000"

@@ -163,9 +163,10 @@ defmodule Swarm.Loop.Runner do
   defp format_tool_result(%Swarm.ToolCall{
          id: id,
          name: name,
-         result: %Swarm.ToolResult{content: content}
+         result: %Swarm.ToolResult{content: content, is_error: is_error}
        }) do
-    Message.tool_result(name, id, content)
+    metadata = if is_error, do: %{is_error: true}, else: %{}
+    Message.tool_result(name, id, content, metadata)
   end
 
   @doc """

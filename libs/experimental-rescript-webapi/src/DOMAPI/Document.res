@@ -182,6 +182,13 @@ external createElement2: (
 ) => element = "createElement"
 
 /**
+Creates a new `<canvas>` element.
+[Read more on MDN](https://developer.mozilla.org/docs/Web/API/Document/createElement)
+*/
+@send
+external createCanvasElement: (document, @as("canvas") _) => htmlCanvasElement = "createElement"
+
+/**
 Returns an element with namespace namespace. Its namespace prefix will be everything before ":" (U+003E) in qualifiedName or null. Its local name will be everything after ":" (U+003E) in qualifiedName or qualifiedName.
 
 If localName does not match the Name production an "InvalidCharacterError" DOMException will be thrown.

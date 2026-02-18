@@ -829,7 +829,6 @@ let handleEffect = (effect: effect, ~dispatch: action => unit, ~delegate: delega
         let detectionPromise = switch contentWindow {
         | Some(window) =>
           Bindings__SourceDetection.getElementSourceLocation(~element, ~window)
-          ->Promise.then(sourceLocationOpt => Promise.resolve(sourceLocationOpt))
           ->Promise.catch(error => {
             Console.error2("Failed to get source location:", error)
             Promise.resolve(None)
@@ -846,7 +845,6 @@ let handleEffect = (effect: effect, ~dispatch: action => unit, ~delegate: delega
       let _ =
         Promise.all3((selectorPromise, screenshotPromise, sourceLocationPromise))
         ->Promise.then(((selector, screenshot, sourceLocation)) => {
-          let tagName = element.tagName
           let sourceLocationWithTagName = sourceLocation->Option.map(sourceLoc => {
             {
               ...sourceLoc,
@@ -854,7 +852,6 @@ let handleEffect = (effect: effect, ~dispatch: action => unit, ~delegate: delega
               ->String.split("?")
               ->Array.get(0)
               ->Option.getOr(sourceLoc.file),
-              tagName,
             }
           })
 

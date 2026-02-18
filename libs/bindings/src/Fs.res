@@ -20,6 +20,9 @@ module Promises = {
   @module("fs") @scope("promises")
   external stat: string => promise<stats> = "stat"
 
+  @module("fs") @scope("promises")
+  external lstat: string => promise<stats> = "lstat"
+
   // Access with default mode (F_OK)
   @module("fs") @scope("promises")
   external access: string => promise<unit> = "access"
@@ -44,4 +47,5 @@ module Promises = {
 
 @send external isFile: stats => bool = "isFile"
 @send external isDirectory: stats => bool = "isDirectory"
+@send external isSymbolicLink: stats => bool = "isSymbolicLink"
 @get external size: stats => float = "size"

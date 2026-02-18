@@ -212,6 +212,7 @@
 .font-ibm-plex-mono [data-streamdown="inline-code"] {
 	background-color: rgba(255, 255, 255, 0.1);
 	color: rgb(228 228 231); /* zinc-200 */
+	overflow-wrap: anywhere;
 }
 
 /* Links — streamdown uses text-primary (near-black in light mode) */
