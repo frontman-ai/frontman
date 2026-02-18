@@ -68,10 +68,10 @@ type output = {
   truncated: bool,
 }
 
-// Get ripgrep path from vscode-ripgrep package
+// Get ripgrep path from @vscode/ripgrep package
 let getRipgrepPath = (): option<string> => {
   try {
-    let vsCodeRipgrep = %raw(`require('vscode-ripgrep')`)
+    let vsCodeRipgrep = %raw(`require('@vscode/ripgrep')`)
     Some(vsCodeRipgrep["rgPath"])
   } catch {
   | _ => None
