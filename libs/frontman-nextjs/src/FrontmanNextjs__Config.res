@@ -1,10 +1,35 @@
 module Bindings = FrontmanBindings
 module Hosts = FrontmanFrontmanCore.FrontmanCore__Hosts
 
-// Default host can be overridden via FRONTMAN_HOST env var for remote development
+// Default host can be overridden via FRONTMAN_HOST env var for development
 let defaultHost = switch Bindings.Process.env->Dict.get("FRONTMAN_HOST") {
 | Some(host) => host
-| None => "frontman.local:4000"
+| None => Hosts.apiHost
+}
+
+// Normalize host values so users can pass either bare hosts or full URLs.
+// Examples:
+// - api.frontman.sh -> api.frontman.sh
+// - https://api.frontman.sh -> api.frontman.sh
+// - https://api.frontman.sh:443 -> api.frontman.sh
+// - http://frontman.local:4000 -> frontman.local:4000
+let normalizeHost = (host: string): string => {
+  let trimmed = host->String.trim
+  let candidate = switch trimmed->String.includes("://") {
+  | true => trimmed
+  | false => "https://" ++ trimmed
+  }
+
+  try {
+    let parsed = WebAPI.URL.make(~url=candidate)
+    let normalized = switch parsed.port {
+    | "" | "443" => parsed.hostname
+    | port => `${parsed.hostname}:${port}`
+    }
+    normalized->String.toLowerCase
+  } catch {
+  | _ => trimmed->String.toLowerCase
+  }
 }
 
 type t = {
@@ -37,15 +62,16 @@ let make = (
   ~projectRoot=None,
   ~sourceRoot=None,
 ) => {
-  let isDev =
-    isDev->Option.getOr(
-      Bindings.Process.env->Dict.get("NODE_ENV")->Option.getOr("production") == "development",
-    )
+  let host = host->Option.getOr(defaultHost)->normalizeHost
+
+  // isDev is inferred from the host: api.frontman.sh is the only production server,
+  // everything else (e.g. frontman.local:4000) is dev. Can be overridden explicitly.
+  let isDev = isDev->Option.getOr(host != Hosts.apiHost->String.toLowerCase)
+
   let basePath = basePath->Option.getOr("frontman")
   let serverName = serverName->Option.getOr("frontman-nextjs")
   let serverVersion = serverVersion->Option.getOr("1.0.0")
   let isLightTheme = isLightTheme->Option.getOr(false)
-  let host = host->Option.getOr(defaultHost)
 
   let projectRoot =
     projectRoot
@@ -92,7 +118,12 @@ let make = (
     serverVersion,
     host,
     clientUrl,
-    clientCssUrl,
+    clientCssUrl: clientCssUrl->Option.orElse(
+      switch isDev {
+      | true => None
+      | false => Some(Hosts.clientCss)
+      },
+    ),
     entrypointUrl,
     isLightTheme,
     projectRoot,

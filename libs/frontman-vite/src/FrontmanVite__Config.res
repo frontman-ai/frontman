@@ -3,10 +3,35 @@
 module Bindings = FrontmanBindings
 module Hosts = FrontmanFrontmanCore.FrontmanCore__Hosts
 
-// Default host can be overridden via FRONTMAN_HOST env var for remote development
+// Default host can be overridden via FRONTMAN_HOST env var for development
 let defaultHost = switch Bindings.Process.env->Dict.get("FRONTMAN_HOST") {
 | Some(host) => host
-| None => "frontman.local:4000"
+| None => Hosts.apiHost
+}
+
+// Normalize host values so users can pass either bare hosts or full URLs.
+// Examples:
+// - api.frontman.sh -> api.frontman.sh
+// - https://api.frontman.sh -> api.frontman.sh
+// - https://api.frontman.sh:443 -> api.frontman.sh
+// - http://frontman.local:4000 -> frontman.local:4000
+let normalizeHost = (host: string): string => {
+  let trimmed = host->String.trim
+  let candidate = switch trimmed->String.includes("://") {
+  | true => trimmed
+  | false => "https://" ++ trimmed
+  }
+
+  try {
+    let parsed = WebAPI.URL.make(~url=candidate)
+    let normalized = switch parsed.port {
+    | "" | "443" => parsed.hostname
+    | port => `${parsed.hostname}:${port}`
+    }
+    normalized->String.toLowerCase
+  } catch {
+  | _ => trimmed->String.toLowerCase
+  }
 }
 
 type t = {
@@ -43,11 +68,11 @@ type jsConfigInput = {
 // JS-friendly function that accepts a config object
 // Use this from JavaScript/TypeScript: makeConfig({ isDev: true, ... })
 let makeFromObject = (config: jsConfigInput): t => {
-  let host = config.host->Option.getOr(defaultHost)
+  let host = config.host->Option.getOr(defaultHost)->normalizeHost
 
   // isDev is inferred from the host: api.frontman.sh is the only production server,
   // everything else (e.g. frontman.local:4000) is dev. Can be overridden explicitly.
-  let isDev = config.isDev->Option.getOr(host != Hosts.apiHost)
+  let isDev = config.isDev->Option.getOr(host != Hosts.apiHost->String.toLowerCase)
 
   let projectRoot =
     config.projectRoot

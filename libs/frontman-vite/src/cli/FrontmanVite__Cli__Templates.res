@@ -73,7 +73,6 @@ module SuccessMessages = {
     let p = Style.purple
     let pb = Style.purpleBold
     let d = Style.dim
-    let pd = Style.purpleDim
 
     `
   ${pb("Frontman setup complete!")}
@@ -83,12 +82,12 @@ module SuccessMessages = {
     ${p("2.")} Open your browser to    ${d(`http://localhost:${port}/frontman`)}
 
   ${p("┌───────────────────────────────────────────────┐")}
-  ${p("│")}                                               ${p("│")}
-  ${p("│")}   Questions? Comments? Need support?          ${p("│")}
-  ${p("│")}                                               ${p("│")}
-  ${p("│")}       Join us on Discord:                     ${p("│")}
-  ${p("│")}       ${pd("https://discord.gg/xk8uXJSvhC")}             ${p("│")}
-  ${p("│")}                                               ${p("│")}
+  ${p("│                                               │")}
+  ${p("│   Questions? Comments? Need support?          │")}
+  ${p("│                                               │")}
+  ${p("│       Join us on Discord:                     │")}
+  ${p("│       https://discord.gg/xk8uXJSvhC           │")}
+  ${p("│                                               │")}
   ${p("└───────────────────────────────────────────────┘")}
 `
   }

@@ -1,6 +1,6 @@
 {
 	"name": "@frontman-ai/nextjs",
-	"version": "0.3.0",
+	"version": "0.3.4",
 	"description": "Next.js integration for Frontman - AI-powered development tools and observability",
 	"type": "module",
 	"main": "./dist/index.js",
@@ -9,8 +9,8 @@
 		"./Instrumentation": "./dist/instrumentation.js"
 	},
 	"bin": {
-		"frontman-nextjs": "./dist/cli.js",
-		"nextjs": "./dist/cli.js"
+		"frontman-nextjs": "dist/cli.js",
+		"nextjs": "dist/cli.js"
 	},
 	"keywords": [
 		"frontman",
@@ -26,7 +26,7 @@
 	"license": "Apache-2.0",
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/frontman-ai/frontman.git",
+		"url": "git+https://github.com/frontman-ai/frontman.git",
 		"directory": "libs/frontman-nextjs"
 	},
 	"homepage": "https://frontman.sh",
