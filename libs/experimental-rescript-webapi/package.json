@@ -40,7 +40,7 @@
   },
   "devDependencies": {
     "@astrojs/starlight": "0.36.1",
-    "astro": "^5.10.1",
+    "astro": "^5.15.8",
     "micromark": "^4.0.1",
     "prettier": "^3.3.3",
     "prettier-plugin-astro": "^0.14.1",
