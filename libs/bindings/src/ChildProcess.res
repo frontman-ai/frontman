@@ -160,6 +160,17 @@ let spawnPromise = (
 
     proc->processStderr->onData(chunk => {
       stderr := stderr.contents ++ bufferToStr(chunk)
+      if String.length(stderr.contents) > maxBuffer {
+        proc->kill(~signal="SIGTERM")->ignore
+        resolve(
+          Error({
+            code: None,
+            stdout: stdout.contents,
+            stderr: stderr.contents,
+            message: "stderr maxBuffer exceeded",
+          }),
+        )
+      }
     })
 
     proc->onProcess(#error(err => {
