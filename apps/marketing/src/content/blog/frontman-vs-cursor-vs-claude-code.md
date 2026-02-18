@@ -1,7 +1,7 @@
 ---
-title: 'Frontman vs. Cursor vs. Claude Code: What Makes Browser-Based AI Different'
+title: 'Frontman vs. Cursor vs. Claude Code'
 pubDate: 2026-02-14T05:00:00Z
-description: 'A comparison of AI coding approaches: file-level agents like Cursor and Claude Code vs. browser-based editing with Frontman. Different tools for different problems.'
+description: 'File-level agents like Cursor and Claude Code vs. browser-based editing with Frontman. Different tools for different problems.'
 author: 'Frontman Team'
 image: '/blog/post-06-cover.png'
 tags: ['comparison', 'ai']
@@ -11,7 +11,7 @@ You are in Cursor. You ask the agent to fix a visual bug — a card component th
 
 This is not a knock on Cursor. Cursor is excellent at code problems. The issue is that you used a file-level agent for a *visual* problem, and file-level agents are blind to the rendered UI.
 
-![Comparing AI coding approaches.](/blog/post-06.png)
+![Table comparing file-level AI agents and browser-level AI agents across key capabilities: file access, terminal access, DOM access, computed styles, and visual verification.](/blog/post-06.png)
 
 ### File-Level Agents Are For Code Problems
 
@@ -42,7 +42,7 @@ Frontman does not guess which file to edit. It knows, because it can see the ele
 
 You want to fix a card that overflows on mobile. In Cursor:
 
-```
+```text
 You: "Fix the card overflow on mobile in CardGrid.tsx"
 Agent: *reads file, changes max-w-full to w-full on line 23*
 You: *Cmd+Tab to browser* "Still overflows. It's the inner container."
@@ -54,7 +54,7 @@ You: *Cmd+Tab* "Ok. That works."
 
 In Frontman:
 
-```
+```text
 You: *clicks the overflowing card in the browser* "Fix this overflow on mobile"
 Frontman: *reads computed width: 420px, container: 375px*
          *traces to CardGrid.tsx:31, edits className*
@@ -114,4 +114,4 @@ Use Cursor or Claude Code when the source code is the artifact. Use Frontman whe
 
 The question is not "which AI agent is best." The question is "which agent can *see* what I need it to see."
 
-[Try Frontman](https://frontman.sh) — open source, free during beta.
+[Try Frontman](https://frontman.sh) — open source, free during beta. [Install in one command](/blog/getting-started), or read about [how designers and PMs can use it alongside your team](/blog/team-collaboration).

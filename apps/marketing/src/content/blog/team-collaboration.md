@@ -1,7 +1,7 @@
 ---
 title: 'Breaking the Wall Between Design, Product, and Engineering'
 pubDate: 2026-02-16T05:00:00Z
-description: 'Frontend changes shouldn''t require a developer for every pixel adjustment. Frontman lets designers and PMs make UI changes directly, with code review keeping quality high.'
+description: 'Every pixel adjustment routes through a developer. Frontman lets designers and PMs make UI changes directly, with code review.'
 author: 'Frontman Team'
 image: '/blog/post-05-cover.png'
 tags: ['collaboration', 'workflow']
@@ -28,9 +28,9 @@ Three days. Six context switches. Two people blocked on each other across timezo
 
 One character. Three days. This is not a process failure. This is what happens when only one role in the organization can touch the code. Every visual change — no matter how trivial — must be serialized through a developer. The developer becomes a bottleneck not because they are slow, but because the system requires them for changes they do not need to think about.
 
-![Cross-functional collaboration with Frontman.](/blog/post-05.png)
+![Side-by-side comparison: a nine-step ticket workflow on the left vs. a three-step Frontman workflow on the right, showing the reduction from days to minutes for a CSS change.](/blog/post-05.png)
 
-### The Bottleneck Is Communication, Not Complexity
+### The Frontend Collaboration Bottleneck
 
 Look at that nine-step workflow again. The actual work — changing a class name — takes thirty seconds. The other two days and twenty-nine minutes are *communication*. Filing the ticket. Explaining the ticket. Clarifying the ticket. Reviewing the result. Requesting a tweak. Reviewing again.
 
@@ -81,4 +81,4 @@ That is not a productivity hack. That is removing an artificial bottleneck that 
 
 Here is what Monday morning looks like after the change: the designer ships three visual fixes before standup. The PM updates the landing page CTA without filing a ticket. The developer's PR queue has zero pixel-adjustment requests. Everyone is working on what they are actually good at. Nobody is blocked on anyone else for a one-character diff.
 
-[Try Frontman](https://frontman.sh) — one install command, works with your existing project.
+[Try Frontman](https://frontman.sh) — [one install command](/blog/getting-started), works with your existing project. Read about [how Frontman keeps every change safe and reviewable](/blog/security).

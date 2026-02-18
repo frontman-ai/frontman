@@ -1,5 +1,5 @@
 ---
-title: 'Introducing Frontman: AI That Sees Your Browser and Edits Your Frontend'
+title: 'Frontman: The AI Agent That Sees Your Browser'
 pubDate: 2026-02-18T05:00:00Z
 description: 'Frontman is the open-source AI agent that hooks into your framework, sees your live DOM, and edits your actual source code. No guessing, no blind edits.'
 author: 'Frontman Team'
@@ -11,9 +11,9 @@ You tell Cursor to fix the spacing on your hero section. It reads the file, pick
 
 Three iterations and six tab switches to change a padding value. Your agent had full access to the source code the entire time. It read every file. It just could not *see* the page.
 
-![Frontman sees your live UI.](/blog/post-01.png)
+![Browser with the Frontman overlay highlighting a button element, showing its component name, file path, and computed styles in a sidebar panel.](/blog/post-01.png)
 
-### The Problem Is Not the Model
+### Why AI Agents Cannot See Your Frontend
 
 Claude is not stupid. Cursor is not broken. The agent genuinely cannot see what your page looks like. It reads source files. It reads terminal output. It reads build errors. None of that tells it what `p-4 md:p-8` resolves to at your current viewport width, or which of three nested `div`s with padding classes is the one you are staring at in the browser.
 
@@ -60,4 +60,4 @@ A designer opens the app in their browser, clicks the hero section, types "reduc
 
 That is not a fantasy. That is Frontman running on localhost.
 
-**Frontman sees.** [Get started in under 5 minutes](https://frontman.sh). Open source, Apache 2.0, free during beta.
+**Frontman sees.** [Get started in under 5 minutes](/blog/getting-started). Open source, Apache 2.0, free during beta. Want to understand [how it compares to Cursor and Claude Code](/blog/frontman-vs-cursor-vs-claude-code)?

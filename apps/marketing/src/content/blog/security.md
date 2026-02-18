@@ -13,7 +13,7 @@ So when you hear "Frontman edits your source files," the question is not *whethe
 
 Here is every hard question you should ask, and our answers.
 
-![Security by design.](/blog/post-03.png)
+![Diagram showing Frontman's architecture: the agent runs locally in the dev environment, edits source files tracked by Git, and sends context directly to the AI provider without an intermediary server.](/blog/post-03.png)
 
 ### Where Does It Run?
 
@@ -44,7 +44,7 @@ That diff shows up in `git status`. It goes through your normal PR review. If it
 
 **The change *is* the code.** It cannot drift because it is not stored anywhere else.
 
-### What Does It Send to the AI?
+### What Does the AI Agent See?
 
 Your code context — the components, styles, and DOM information relevant to the current edit — is sent directly to the AI provider you choose. Frontman does not proxy this. It does not store it. It does not log it.
 
@@ -99,3 +99,5 @@ Frontman is a dev tool that produces diffs. It runs locally, sends context to yo
 The better world looks like this: a designer changes the hero padding, a developer reviews a one-line diff in the PR, and nobody spent a single second worrying about whether the AI touched something it should not have. Because the constraints are structural, not behavioral. The agent *cannot* deploy. It *cannot* push. It produces a diff. You review it. Same as everything else.
 
 Security model changes do not page anyone at 3am.
+
+[Get started with Frontman](/blog/getting-started) in under five minutes, or read about [why coding agents are blind to your UI](/blog/ai-coding-agents-blind-to-ui).

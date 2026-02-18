@@ -49,3 +49,87 @@ function calls and see the types." Keep it grounded and specific.
 - Filler transitions ("In today's fast-paced world...")
 - Praise of the reader
 - Any suggestion that the status quo is acceptable
+
+---
+
+# SEO Best Practices
+
+Every blog post must follow these structural and content rules for search performance.
+
+## Frontmatter
+
+- **title**: Include the primary keyword naturally. Keep it under 60 characters so it
+  does not get truncated in search results. Make it specific — "Why AI Coding Agents
+  Are Blind to Your UI" beats "AI and Frontend Development."
+- **description**: This becomes the meta description. Keep it between 120-155
+  characters. Include the primary keyword and a clear value proposition. Write it as a
+  sentence a human would want to click on, not a keyword dump.
+- **tags**: Use 2-3 relevant tags per post. Tags should be lowercase, hyphenated, and
+  consistent across posts (e.g., always `developer-tools`, never `dev-tools` in one
+  post and `developer-tools` in another).
+
+## Heading Structure
+
+- Use a single `#` (H1) only if the template does not already render the title as H1.
+  In most blog templates, the frontmatter `title` becomes the H1 — do not duplicate it.
+- Use `###` (H3) for major sections within the post. Keep a logical hierarchy — do not
+  skip from H2 to H4.
+- Include the primary keyword or a close variant in at least one subheading.
+- Headings should be scannable. A reader skimming only the headings should understand
+  the post's argument. Good: "The Agent Blindspot", "What Framework-Aware Means",
+  "Common Objections." Bad: "Background", "Discussion", "Conclusion."
+
+## Keyword Usage
+
+- Identify one primary keyword phrase per post (e.g., "AI coding agent", "browser-based
+  AI", "frontend AI tool"). Use it in the title, description, first paragraph, and at
+  least one subheading.
+- Use 2-3 secondary/related keywords naturally throughout the body (e.g., "live DOM",
+  "computed styles", "hot-reload", "visual feedback loop").
+- Do not keyword-stuff. If a sentence reads worse with the keyword forced in, leave it
+  out. Search engines penalize unnatural repetition. The tone of voice guidelines take
+  priority over keyword density.
+
+## Content Structure
+
+- **Length**: Aim for 800-1500 words. Long enough to rank, short enough to respect the
+  reader's time. Our voice is direct — we do not pad for word count.
+- **First paragraph**: State the core problem or argument within the first 100 words.
+  Search engines weight early content. Our narrative openings already do this — the pain
+  scenario *is* the keyword context.
+- **Internal links**: Link to other Frontman blog posts or docs pages where relevant.
+  Use descriptive anchor text, not "click here." At least one internal link per post.
+- **External links**: Link to external resources (GitHub, framework docs) where they add
+  credibility. Use `rel="nofollow"` only for paid/sponsored links — organic references
+  should pass link equity.
+- **Code blocks**: Search engines index code blocks. Use language hints (```bash,
+  ```diff, ```tsx) for proper rendering. Code examples improve time-on-page and reduce
+  bounce rate.
+- **Images**: Every image must have descriptive alt text via the `![alt text](url)`
+  syntax. Alt text should describe what the image shows, not repeat the post title.
+  Keep image file sizes reasonable — large images hurt Core Web Vitals.
+
+## URL and Slug
+
+- The markdown filename becomes the URL slug. Keep it short, lowercase, hyphenated, and
+  keyword-relevant. Good: `ai-coding-agents-blind-to-ui`. Bad: `post-02` or
+  `mobile-app`.
+- Do not change slugs after publishing — it breaks inbound links and search rankings.
+
+## Link and CTA
+
+- End every post with a clear CTA that links to frontman.sh or a specific docs page.
+- The CTA should feel like a natural conclusion, not a sales pitch. Our closing vision
+  paragraphs already set this up — the CTA is just the next step.
+
+## What Not To Do
+
+- Do not write meta descriptions that are just the first sentence of the post copied
+  verbatim. Write them separately and intentionally.
+- Do not use the same title structure for every post ("How Frontman Does X"). Vary the
+  format: questions, assertions, comparisons, "Why X" / "What Makes X Different."
+- Do not publish posts without alt text on images.
+- Do not create thin posts under 500 words just to have more pages. One strong post
+  outranks three weak ones.
+- Do not ignore existing posts. Update older posts with new internal links when new
+  content is published.

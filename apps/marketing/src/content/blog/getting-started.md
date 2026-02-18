@@ -11,9 +11,9 @@ You find a new dev tool. The README says "Quick Start." You click it. Step one: 
 
 One command. That is the entire Frontman setup. If your project runs `next dev`, `astro dev`, or `vite dev`, Frontman works. No config files. No environment variables. No step seven.
 
-![Get started with Frontman.](/blog/post-01.png)
+![Terminal window showing the Frontman install command completing successfully, with the dev server output showing the Frontman overlay is active.](/blog/post-01.png)
 
-### Next.js
+### [Next.js](https://nextjs.org/docs)
 
 Supports App Router, Pages Router, and Turbopack.
 
@@ -23,7 +23,7 @@ npx @frontman-ai/nextjs install
 
 That is the entire setup. The installer adds the Frontman middleware and development overlay to your project. Start your dev server as usual and open `localhost:3000/frontman`. No `next.config.js` changes. No wrapper components. No provider tree modifications.
 
-### Astro
+### [Astro](https://docs.astro.build)
 
 Works with SSR, SSG, and Islands architecture.
 
@@ -33,7 +33,7 @@ astro add @frontman-ai/astro
 
 The Astro integration hooks into the build pipeline automatically. It respects your existing integrations and does not conflict with them. If you are using content collections, MDX, or custom renderers, none of that changes.
 
-### Vite
+### [Vite](https://vite.dev/guide/)
 
 Supports React, Vue, and Svelte projects.
 
@@ -57,7 +57,7 @@ Enter your key in the settings panel. It is stored locally in your browser — F
 
 Click any element on the page. A selection overlay appears showing you the component name, file path, and line number. Then describe what you want in plain English:
 
-```
+```text
 "Make this button larger"
 "Change the background to blue"
 "Add a 4px border radius"
@@ -97,4 +97,4 @@ That is the honest setup. One command to install, one API key to paste, and you 
 
 No configuration guide. No "recommended settings." No second blog post explaining why the defaults are wrong. No step seven. It is a dev tool. It runs in dev. You install it in one command and it works.
 
-[Visit frontman.sh](https://frontman.sh) for full documentation.
+[Visit frontman.sh](https://frontman.sh) for full documentation. Learn [why coding agents are blind to your UI](/blog/ai-coding-agents-blind-to-ui), or read about [how Frontman keeps your code safe](/blog/security).

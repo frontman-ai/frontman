@@ -13,7 +13,7 @@ You switch back to your editor. "No, the *inner* padding. The content container,
 
 This is not a failure of intelligence. This is a failure of *sight*.
 
-![AI tools can't see your browser.](/blog/post-02.png)
+![Diagram showing a coding agent connected to source files and terminal output but disconnected from the browser, with the rendered UI behind a barrier.](/blog/post-02.png)
 
 ### The Agent Blindspot
 
@@ -42,7 +42,7 @@ When you click an element and say "make this bigger," Frontman reads the compute
 
 Here is what happens when you tell a coding agent to change the hero padding:
 
-```
+```text
 You: "Change the hero padding to 16px"
 Agent: *reads Hero.tsx, finds two divs with padding, picks one, edits*
 You: *switches to browser* "Wrong element."
@@ -56,7 +56,7 @@ Four context rounds. Six tab switches. The agent read the same file three times.
 
 Here is Frontman:
 
-```
+```text
 You: *clicks the hero content area in the browser* "Change padding to 16px"
 Frontman: *reads computed padding: 12px from live DOM*
          *traces element to Hero.tsx:18 via component tree*
@@ -85,4 +85,4 @@ When the agent can see the rendered UI, a designer does not need to know that th
 
 The wall between "people who can describe a change" and "people who can make a change" disappears. Not because we lowered the bar — because we gave the agent eyes.
 
-[Try Frontman](https://frontman.sh) — one install command, works with your existing project.
+[Try Frontman](https://frontman.sh) — [one install command](/blog/getting-started), works with your existing project. Read about [how Frontman keeps your code safe](/blog/security) or see [how it compares to Cursor and Claude Code](/blog/frontman-vs-cursor-vs-claude-code).
