@@ -33,6 +33,16 @@ let make = (~src: string, ~onClose: unit => unit) => {
     setTranslateY(_ => 0.0)
   }
 
+  let applyZoom = next => {
+    let clamped = Math.min(maxScale, Math.max(minScale, next))
+    let snapped = Math.abs(clamped -. 1.0) < 0.001 ? 1.0 : clamped
+    if snapped == 1.0 {
+      setTranslateX(_ => 0.0)
+      setTranslateY(_ => 0.0)
+    }
+    snapped
+  }
+
   // Close on Escape key
   React.useEffect0(() => {
     let handleKeyDown = (e: Dom.event) => {
@@ -53,9 +63,7 @@ let make = (~src: string, ~onClose: unit => unit) => {
     let delta = ReactEvent.Wheel.deltaY(e)
     setScale(prev => {
       let next = delta > 0.0 ? prev /. zoomStep : prev *. zoomStep
-      let clamped = Math.min(maxScale, Math.max(minScale, next))
-      // Snap to exactly 1.0 to avoid floating-point drift after zoom in/out cycles
-      Math.abs(clamped -. 1.0) < 0.001 ? 1.0 : clamped
+      applyZoom(next)
     })
   }
 
@@ -147,10 +155,7 @@ let make = (~src: string, ~onClose: unit => unit) => {
         type_="button"
         ariaLabel="Zoom out"
         onClick={_ =>
-          setScale(prev => {
-            let next = Math.max(minScale, prev /. zoomStep)
-            Math.abs(next -. 1.0) < 0.001 ? 1.0 : next
-          })}
+          setScale(prev => applyZoom(prev /. zoomStep))}
         className="w-8 h-8 rounded-full flex items-center justify-center
                    text-zinc-300 hover:text-white hover:bg-zinc-700 transition-colors"
       >
@@ -177,10 +182,7 @@ let make = (~src: string, ~onClose: unit => unit) => {
         type_="button"
         ariaLabel="Zoom in"
         onClick={_ =>
-          setScale(prev => {
-            let next = Math.min(maxScale, prev *. zoomStep)
-            Math.abs(next -. 1.0) < 0.001 ? 1.0 : next
-          })}
+          setScale(prev => applyZoom(prev *. zoomStep))}
         className="w-8 h-8 rounded-full flex items-center justify-center
                    text-zinc-300 hover:text-white hover:bg-zinc-700 transition-colors"
       >
