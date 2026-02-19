@@ -559,6 +559,8 @@ jobs:
 
       - name: Install dependencies
         working-directory: apps/frontman_server
+        env:
+          MIX_OS_DEPS_COMPILE_PARTITION_COUNT: 4
         run: |
           mix deps.clean --unlock --unused
           mix deps.get
