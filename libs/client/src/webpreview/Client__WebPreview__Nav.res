@@ -55,12 +55,16 @@ module UrlInput = {
     ~value: option<string>=?,
     ~onChange: option<ReactEvent.Form.t => unit>=?,
     ~onKeyDown: option<ReactEvent.Keyboard.t => unit>=?,
+    ~onFocus: option<ReactEvent.Focus.t => unit>=?,
+    ~onBlur: option<ReactEvent.Focus.t => unit>=?,
   ) => {
     <input
       type_="text"
       value={value->Option.getOr("")}
       onChange={onChange->Option.getOr(_ => ())}
       onKeyDown=?{onKeyDown}
+      onFocus=?{onFocus}
+      onBlur=?{onBlur}
       className="flex-1 h-8 px-3 text-xs bg-gray-100 border border-gray-200 rounded
                  text-gray-700 placeholder-gray-400
                  focus:outline-none focus:ring-1 focus:ring-blue-500/50 focus:border-blue-500/50"

@@ -1,32 +1,39 @@
-// Helper to create the iframe ref callback (avoids duplication across branches)
-let makeRefCallback = (iframeRef: React.ref<Nullable.t<Dom.element>>) => {
-  ReactDOM.Ref.callbackDomRef(iframe => {
-    iframeRef.current = iframe
-    Some(
-      () => {
-        iframeRef.current = Nullable.null
-      },
-    )
-  })
-}
-
 @react.component
 let make = (~taskId, ~url, ~isActive, ~viewportStyle: option<(int, int, float)>=?) => {
   let iframeRef: React.ref<Nullable.t<Dom.element>> = React.useRef(Nullable.null)
+  let (iframeElement, setIframeElement): (option<WebAPI.DOMAPI.element>, _) = React.useState(() => None)
+  let (attachmentKey, setAttachmentKey) = React.useState(() => 0)
+  let (iframeSrc, setIframeSrc) = React.useState(() => url)
+  let (hasLoaded, setHasLoaded) = React.useState(() => false)
   let lastLocationRef: React.ref<option<string>> = React.useRef(None)
-  let location = Client__Hooks.useIFrameLocation(~iframeRef=iframeRef.current->Obj.magic)
+  let trackedIframeElement = isActive ? iframeElement : None
+  let location = Client__Hooks.useIFrameLocation(~iframeElement=trackedIframeElement, ~attachmentKey)
+
   React.useEffect(() => {
-    if isActive {
+    switch hasLoaded {
+    | false => setIframeSrc(prev => prev == url ? prev : url)
+    | true => ()
+    }
+    None
+  }, (url, hasLoaded))
+
+  React.useEffect(() => {
+    switch isActive {
+    | false => ()
+    | true =>
       switch location {
       | Some(location) =>
-        if location->String.startsWith("http") {
-          // Only update if location actually changed
+        switch location->String.startsWith("http") {
+        | false => ()
+        | true =>
           let locationChanged = switch lastLocationRef.current {
           | None => true
           | Some(lastLocation) => lastLocation != location
           }
 
-          if locationChanged {
+          switch locationChanged {
+          | false => ()
+          | true =>
             lastLocationRef.current = Some(location)
             Client__State.Actions.setPreviewUrl(~url=location)
           }
@@ -38,7 +45,11 @@ let make = (~taskId, ~url, ~isActive, ~viewportStyle: option<(int, int, float)>=
   }, (location, isActive))
 
   let onLoad = (_e: JsxEvent.Image.t) => {
-    if isActive {
+    setHasLoaded(_ => true)
+    setAttachmentKey(prev => prev + 1)
+    switch isActive {
+    | false => ()
+    | true =>
       iframeRef.current
       ->Nullable.toOption
       ->Option.forEach(iframe => {
@@ -48,16 +59,16 @@ let make = (~taskId, ~url, ~isActive, ~viewportStyle: option<(int, int, float)>=
           let contentWindow = WebAPI.HTMLIFrameElement.contentWindow(iframeElement)->Null.toOption
           Client__State.Actions.setPreviewFrame(~contentDocument, ~contentWindow)
         } catch {
-        // Cross-origin iframes throw SecurityError when accessing contentDocument/contentWindow
         | _ => ()
         }
       })
     }
   }
 
-  // Update preview frame when this iframe becomes active and is already loaded
   React.useEffect(() => {
-    if isActive {
+    switch isActive {
+    | false => ()
+    | true =>
       iframeRef.current
       ->Nullable.toOption
       ->Option.forEach(iframe => {
@@ -66,12 +77,11 @@ let make = (~taskId, ~url, ~isActive, ~viewportStyle: option<(int, int, float)>=
           let contentDocument = WebAPI.HTMLIFrameElement.contentDocument(iframeElement)->Null.toOption
           let contentWindow = WebAPI.HTMLIFrameElement.contentWindow(iframeElement)->Null.toOption
 
-          // Only update if the iframe has content loaded
-          if contentDocument->Option.isSome {
-            Client__State.Actions.setPreviewFrame(~contentDocument, ~contentWindow)
+          switch contentDocument->Option.isSome {
+          | false => ()
+          | true => Client__State.Actions.setPreviewFrame(~contentDocument, ~contentWindow)
           }
         } catch {
-        // Cross-origin iframes throw SecurityError when accessing contentDocument/contentWindow
         | _ => ()
         }
       })
@@ -79,22 +89,29 @@ let make = (~taskId, ~url, ~isActive, ~viewportStyle: option<(int, int, float)>=
     None
   }, [isActive])
 
-  let refCallback = makeRefCallback(iframeRef)
+  let refCallback = ReactDOM.Ref.callbackDomRef(iframe => {
+    iframeRef.current = iframe
+    let nextIframeElement = iframe->Nullable.toOption->Option.map(el => el->Obj.magic)
+    setIframeElement(prevIframeElement =>
+      switch (prevIframeElement, nextIframeElement) {
+      | (Some(prev), Some(next)) if prev == next => prevIframeElement
+      | (None, None) => prevIframeElement
+      | _ => nextIframeElement
+      }
+    )
+    None
+  })
 
-  // Render based on active state and device mode
   switch (isActive, viewportStyle) {
   | (false, _) =>
-    // Inactive: position offscreen to preserve iframe state
     <div className="absolute -left-[9999px] -top-[9999px] invisible size-full">
-      <iframe className="size-full" src={url} title={`Preview - ${taskId}`} onLoad ref={refCallback} />
+      <iframe className="size-full" src={iframeSrc} title={`Preview - ${taskId}`} onLoad ref={refCallback} />
     </div>
   | (true, None) =>
-    // Active + Responsive mode: fill available space
     <div className="flex-1 size-full">
-      <iframe className="size-full" src={url} title={`Preview - ${taskId}`} onLoad ref={refCallback} />
+      <iframe className="size-full" src={iframeSrc} title={`Preview - ${taskId}`} onLoad ref={refCallback} />
     </div>
   | (true, Some((deviceWidth, deviceHeight, scale))) =>
-    // Active + Device mode: constrained viewport with optional scaling
     let widthPx = Int.toString(deviceWidth) ++ "px"
     let heightPx = Int.toString(deviceHeight) ++ "px"
     let transformStr = if scale < 1.0 {
@@ -114,7 +131,7 @@ let make = (~taskId, ~url, ~isActive, ~viewportStyle: option<(int, int, float)>=
         boxShadow: "0 0 0 1px rgba(0,0,0,0.1), 0 2px 8px rgba(0,0,0,0.08)",
       }
     >
-      <iframe className="size-full" src={url} title={`Preview - ${taskId}`} onLoad ref={refCallback} />
+      <iframe className="size-full" src={iframeSrc} title={`Preview - ${taskId}`} onLoad ref={refCallback} />
     </div>
   }
 }

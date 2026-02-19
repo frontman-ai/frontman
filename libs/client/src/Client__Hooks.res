@@ -295,75 +295,58 @@ let getIframeWindowSafe: WebAPI.DOMAPI.element => option<WebAPI.DOMAPI.window> =
   }
 `)
 
-let useIFrameLocation = (~iframeRef: Nullable.t<WebAPI.DOMAPI.element>) => {
+let addNavigateListener: (WebAPI.DOMAPI.window, string => unit) => unit => unit = %raw(`
+  function(iframeWindow, onUrl) {
+    if (!iframeWindow.navigation) {
+      return function() {};
+    }
+
+    var handler = function(event) {
+      var destinationUrl = event.destination.url;
+      var absoluteUrl = new URL(destinationUrl, iframeWindow.location.href).href;
+      onUrl(absoluteUrl);
+    };
+
+    iframeWindow.navigation.addEventListener("navigate", handler);
+
+    return function() {
+      iframeWindow.navigation.removeEventListener("navigate", handler);
+    };
+  }
+`)
+
+let useIFrameLocation = (~iframeElement: option<WebAPI.DOMAPI.element>, ~attachmentKey: int) => {
   let (location, setLocation) = React.useState(() => None)
 
   React.useEffect(() => {
-    let iframeWindow =
-      iframeRef
-      ->Nullable.toOption
-      ->Option.flatMap(iframe => getIframeWindowSafe(iframe))
+    switch iframeElement {
+    | None =>
+      setLocation(_ => None)
+      None
+    | Some(iframe) =>
+      switch getIframeWindowSafe(iframe) {
+      | None =>
+        setLocation(_ => None)
+        None
+      | Some(iframeWindow) =>
+        // Get initial location (safe since getIframeWindowSafe verified access)
+        let initialLocation = Some(iframeWindow->WebAPI.Window.location->WebAPI.Location.href)
+        setLocation(_ => initialLocation)
 
-    switch iframeWindow {
-    | Some(iframeWindow) =>
-      // Get initial location (safe since getIframeWindowSafe verified access)
-      let initialLocation = Some(iframeWindow->WebAPI.Window.location->WebAPI.Location.href)
-      setLocation(_ => initialLocation)
+        let onNavigateUrl = absoluteUrl => {
+          setLocation(_ => Some(absoluteUrl))
+        }
 
-      // Listen for navigation events
-      let onPopState = _ev => {
-        let currentLocation = Some(iframeWindow->WebAPI.Window.location->WebAPI.Location.href)
-        setLocation(_ => currentLocation)
-      }
-      let onNavigation = ev => {
-        let url = ev["destination"]["url"]
-        let currentLocation = Some(url)
-        setLocation(_ => currentLocation)
-      }
+        let removeNavigateListener = addNavigateListener(iframeWindow, onNavigateUrl)
 
-      // Check if Navigation API is supported (not available in Firefox/Safari)
-      let navigationSupported = %raw(`typeof iframeWindow.navigation !== 'undefined'`)
-
-      WebAPI.Window.addEventListener(
-        iframeWindow,
-        Custom("popstate"),
-        onPopState,
-        ~options={capture: false},
-      )
-
-      // Only use Navigation API if supported
-      if navigationSupported {
-        WebAPI.Navigation.addEventListener(
-          iframeWindow.navigation,
-          Custom("navigate"),
-          onNavigation,
-          ~options={capture: false},
+        Some(
+          () => {
+            removeNavigateListener()
+          },
         )
       }
-
-      Some(
-        () => {
-          WebAPI.Window.removeEventListener(
-            iframeWindow,
-            Custom("popstate"),
-            onPopState,
-            ~options={capture: false},
-          )
-
-          // Only remove Navigation API listener if it was added
-          if navigationSupported {
-            WebAPI.Navigation.removeEventListener(
-              iframeWindow.navigation,
-              Custom("navigate"),
-              onNavigation,
-              ~options={capture: false},
-            )
-          }
-        },
-      )
-    | None => None
     }
-  }, (iframeRef, setLocation))
+  }, (iframeElement, attachmentKey))
 
   location
 }

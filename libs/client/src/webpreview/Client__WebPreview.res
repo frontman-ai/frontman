@@ -7,6 +7,9 @@
 module Nav = Client__WebPreview__Nav
 module RadixUI__Icons = Bindings__RadixUI__Icons
 
+@send external locationAssign: ('a, string) => unit = "assign"
+@send external blur: (Dom.element) => unit = "blur"
+
 module BackButton = {
   @react.component
   let make = (~onClick: unit => unit) => {
@@ -128,7 +131,6 @@ let useContainerSize = (ref: React.ref<Nullable.t<Dom.element>>): (int, int) => 
 
 @react.component
 let make = () => {
-  // Use primitive selectors for efficient comparison (strings compare by value)
   let currentTaskClientId = Client__State.useSelector(Client__State.Selectors.currentTaskClientId)
   let isNewTask = Client__State.useSelector(Client__State.Selectors.isNewTask)
   let persistedTasks = Client__State.useSelector(Client__State.Selectors.tasks)
@@ -143,11 +145,50 @@ let make = () => {
   let containerRef: React.ref<Nullable.t<Dom.element>> = React.useRef(Nullable.null)
   let (availableWidth, availableHeight) = useContainerSize(containerRef)
 
-  // Persist device mode changes to localStorage
   React.useEffect(() => {
     Client__DeviceMode.persist(deviceMode, deviceOrientation)
     None
   }, (deviceMode, deviceOrientation))
+
+  let (editableUrl, setEditableUrl) = React.useState(() => previewUrl)
+  let (isEditingUrl, setIsEditingUrl) = React.useState(() => false)
+
+  let displayedUrl = switch isEditingUrl {
+  | true => editableUrl
+  | false => previewUrl
+  }
+
+  let handleUrlChange = (e: ReactEvent.Form.t) => {
+    let value = (e->ReactEvent.Form.target)["value"]
+    setEditableUrl(_ => value)
+  }
+
+  let handleUrlKeyDown = (e: ReactEvent.Keyboard.t) => {
+    switch ReactEvent.Keyboard.key(e) {
+    | "Enter" =>
+      let url = editableUrl
+      previewFrame.contentWindow->Option.forEach(contentWindow => {
+        contentWindow.location->locationAssign(url)
+      })
+      Client__State.Actions.setPreviewUrl(~url)
+      Client__State.Actions.setSelectedElement(~selectedElement=None)
+      let target: Dom.element = ReactEvent.Keyboard.target(e)->Obj.magic
+      target->blur
+    | "Escape" =>
+      let target: Dom.element = ReactEvent.Keyboard.target(e)->Obj.magic
+      target->blur
+    | _ => ()
+    }
+  }
+
+  let handleUrlFocus = (_e: ReactEvent.Focus.t) => {
+    setIsEditingUrl(_ => true)
+    setEditableUrl(_ => previewUrl)
+  }
+
+  let handleUrlBlur = (_e: ReactEvent.Focus.t) => {
+    setIsEditingUrl(_ => false)
+  }
 
   let handleBack = () => {
     previewFrame.contentWindow->Option.forEach(contentWindow => {
@@ -182,20 +223,25 @@ let make = () => {
 
   let deviceModeActive = Client__DeviceMode.isActive(deviceMode)
   let effectiveDims = Client__DeviceMode.getEffectiveDimensions(deviceMode, deviceOrientation)
-  
+
     <Nav.Container>
       <Nav.Navigation>
         <Nav.TrafficLights />
         <BackButton onClick={handleBack} />
         <ForwardButton onClick={handleForward} />
         <ReloadButton onClick={handleReload} />
-        <Nav.UrlInput value={previewUrl} />
+        <Nav.UrlInput
+          value={displayedUrl}
+          onChange={handleUrlChange}
+          onKeyDown={handleUrlKeyDown}
+          onFocus={handleUrlFocus}
+          onBlur={handleUrlBlur}
+        />
         <DeviceModeToggle isActive={deviceModeActive} onClick={handleToggleDeviceMode} />
         <SelectElement onClick={handleSelect} isSelecting={webPreviewIsSelecting} />
         <OpenInNewWindow onClick={handleOpenInNewTab} />
       </Nav.Navigation>
 
-      // Device bar (only when device mode is active)
       <Client__WebPreview__DeviceBar deviceMode orientation=deviceOrientation />
 
       <div
