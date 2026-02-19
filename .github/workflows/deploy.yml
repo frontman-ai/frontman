@@ -131,8 +131,8 @@ jobs:
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: ~/.yarn/berry/cache
-          key: yarn-v2-${{ hashFiles('yarn.lock') }}
-          restore-keys: yarn-v2-
+          key: yarn-${{ hashFiles('yarn.lock') }}
+          restore-keys: yarn-
 
       - name: Install dependencies
         run: yarn install --immutable

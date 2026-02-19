@@ -10,7 +10,7 @@ permissions:
 jobs:
   changelog:
     name: Require changelog entry
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     if: ${{ !contains(github.event.pull_request.labels.*.name, 'skip-changelog') }}
     steps:
       - name: Checkout code

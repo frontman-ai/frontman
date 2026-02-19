@@ -18,47 +18,16 @@ concurrency:
   group: ci-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
-# Cap Node.js heap to avoid OOM on memory-constrained self-hosted runners (~2.5GB per runner)
-env:
-  NODE_OPTIONS: '--max-old-space-size=1536'
-
 jobs:
-  setup:
-    name: Setup & cache dependencies
-    runs-on: self-hosted
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-
-      - name: Setup Node.js
-        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
-        with:
-          node-version: '24.4.1'
-
-      - name: Enable Corepack
-        run: corepack enable
-
-      - name: Cache Yarn
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
-        with:
-          path: ~/.yarn/berry/cache
-          key: yarn-${{ hashFiles('yarn.lock') }}
-          restore-keys: yarn-
-
-      - name: Install dependencies
-        run: yarn install --immutable
-
-      - name: Cleanup workspace
-        if: always()
-        run: |
-          rm -rf node_modules .yarn/install-state.gz
-          rm -rf libs/*/node_modules apps/*/node_modules test/sites/*/node_modules
-          rm -rf /tmp/runner/work/_temp
+  # ============================================================================
+  # Node.js jobs — run on GitHub-hosted runners (free for public repos)
+  # No setup job needed: each runner is ephemeral with clean state.
+  # All Node.js jobs run fully in parallel with no serial bottleneck.
+  # ============================================================================
 
   build:
     name: Build
-    runs-on: self-hosted
-    needs: [setup]
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -87,16 +56,9 @@ jobs:
       - name: Build project
         run: make build
 
-      - name: Cleanup workspace
-        if: always()
-        run: |
-          rm -rf node_modules .yarn/install-state.gz
-          rm -rf libs/*/node_modules apps/*/node_modules test/sites/*/node_modules
-
   test-frontman-client:
     name: Test frontman-client
-    needs: [setup]
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       pull-requests: write
@@ -135,16 +97,9 @@ jobs:
           skip_covered: false
           only_changed_files: false
 
-      - name: Cleanup workspace
-        if: always()
-        run: |
-          rm -rf node_modules .yarn/install-state.gz
-          rm -rf libs/*/node_modules apps/*/node_modules test/sites/*/node_modules
-
   test-frontman-core:
     name: Test frontman-core
-    needs: [setup]
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       pull-requests: write
@@ -183,16 +138,9 @@ jobs:
           skip_covered: false
           only_changed_files: false
 
-      - name: Cleanup workspace
-        if: always()
-        run: |
-          rm -rf node_modules .yarn/install-state.gz
-          rm -rf libs/*/node_modules apps/*/node_modules test/sites/*/node_modules
-
   test-frontman-nextjs:
     name: Test frontman-nextjs
-    needs: [setup]
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       pull-requests: write
@@ -231,62 +179,279 @@ jobs:
           skip_covered: false
           only_changed_files: false
 
-      - name: Cleanup workspace
-        if: always()
-        run: |
-          rm -rf node_modules .yarn/install-state.gz
-          rm -rf libs/*/node_modules apps/*/node_modules test/sites/*/node_modules
-
-  lint-frontman-server:
-    name: Lint frontman-server
-    needs: [test-frontman-server]
-    runs-on: self-hosted
+  test-react-statestore:
+    name: Test react-statestore
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      checks: write
     steps:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Install OpenSSL dev libraries
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq libssl-dev libncurses5-dev
-
-      - name: Fix mise binary permissions
-        run: chmod -R +x ~/.local/share/mise/bin/ 2>/dev/null || true
-
-      # Uses mise.toml as single source of truth for Erlang/Elixir versions
-      - name: Setup Erlang/Elixir via mise
-        uses: jdx/mise-action@6d1e696aa24c1aa1bcc1adea0212707c71ab78a8 # v3.6.1
+      - name: Setup Node.js
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
         with:
-          install: true
-          cache: true
+          node-version: '24.4.1'
 
-      - name: Cache deps
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Cache Yarn
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
-          path: apps/frontman_server/deps
-          key: ${{ runner.os }}-mix-${{ hashFiles('apps/frontman_server/mix.lock') }}
-          restore-keys: ${{ runner.os }}-mix-
-
-      - name: Cache _build
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
-        with:
-          path: apps/frontman_server/_build
-          key: ${{ runner.os }}-build-${{ hashFiles('apps/frontman_server/mix.lock') }}
-          restore-keys: ${{ runner.os }}-build-
+          path: ~/.yarn/berry/cache
+          key: yarn-${{ hashFiles('yarn.lock') }}
+          restore-keys: yarn-
 
       - name: Install dependencies
-        working-directory: apps/frontman_server
-        run: |
-          mix deps.clean --unlock --unused
-          mix deps.get
+        run: yarn install --immutable
 
-      - name: Run lint
-        run: make -C apps/frontman_server lint
+      - name: Run tests with coverage
+        run: make -C libs/react-statestore test-coverage
 
-      - name: Cleanup workspace
-        if: always()
+      - name: Coverage report
+        uses: 5monkeys/cobertura-action@2f27e73e22dc84b22849040d2e1c8e5d8b6a4a0a # master 2025-02-13
+        with:
+          path: libs/react-statestore/coverage/cobertura-coverage.xml
+          minimum_coverage: 70
+          show_missing: true
+          skip_covered: false
+          only_changed_files: false
+
+  test-client:
+    name: Test client
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      checks: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        with:
+          node-version: '24.4.1'
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Cache Yarn
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        with:
+          path: ~/.yarn/berry/cache
+          key: yarn-${{ hashFiles('yarn.lock') }}
+          restore-keys: yarn-
+
+      - name: Install dependencies
+        run: yarn install --immutable
+
+      - name: Run tests with coverage
+        run: make -C libs/client test-coverage
+
+      - name: Coverage report
+        uses: 5monkeys/cobertura-action@2f27e73e22dc84b22849040d2e1c8e5d8b6a4a0a # master 2025-02-13
+        with:
+          path: libs/client/coverage/cobertura-coverage.xml
+          minimum_coverage: 70
+          show_missing: true
+          skip_covered: false
+          only_changed_files: false
+
+  test-context-loader:
+    name: Test context-loader
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      checks: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        with:
+          node-version: '24.4.1'
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Cache Yarn
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        with:
+          path: ~/.yarn/berry/cache
+          key: yarn-${{ hashFiles('yarn.lock') }}
+          restore-keys: yarn-
+
+      - name: Install dependencies
+        run: yarn install --immutable
+
+      - name: Run tests with coverage
+        run: make -C libs/context-loader test-coverage
+
+      - name: Coverage report
+        uses: 5monkeys/cobertura-action@2f27e73e22dc84b22849040d2e1c8e5d8b6a4a0a # master 2025-02-13
+        with:
+          path: libs/context-loader/coverage/cobertura-coverage.xml
+          minimum_coverage: 70
+          show_missing: true
+          skip_covered: false
+          only_changed_files: false
+
+  lint-client:
+    name: Lint libs/client
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Check for changes in libs/client
+        id: changes
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        with:
+          filters: |
+            client:
+              - 'libs/client/**'
+
+      - name: Setup Node.js
+        if: steps.changes.outputs.client == 'true'
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        with:
+          node-version: '24.4.1'
+
+      - name: Enable Corepack
+        if: steps.changes.outputs.client == 'true'
+        run: corepack enable
+
+      - name: Cache Yarn
+        if: steps.changes.outputs.client == 'true'
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        with:
+          path: ~/.yarn/berry/cache
+          key: yarn-${{ hashFiles('yarn.lock') }}
+          restore-keys: yarn-
+
+      - name: Install dependencies
+        if: steps.changes.outputs.client == 'true'
+        run: yarn install --immutable
+
+      - name: Run biome lint
+        if: steps.changes.outputs.client == 'true'
+        run: cd libs/client && npx biome lint .
+
+  protocol-check:
+    name: Protocol schema check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Check for changes in libs/frontman-protocol
+        id: changes
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        with:
+          filters: |
+            protocol:
+              - 'libs/frontman-protocol/**'
+
+      - name: Setup Node.js
+        if: steps.changes.outputs.protocol == 'true'
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        with:
+          node-version: '24.4.1'
+
+      - name: Enable Corepack
+        if: steps.changes.outputs.protocol == 'true'
+        run: corepack enable
+
+      - name: Cache Yarn
+        if: steps.changes.outputs.protocol == 'true'
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        with:
+          path: ~/.yarn/berry/cache
+          key: yarn-${{ hashFiles('yarn.lock') }}
+          restore-keys: yarn-
+
+      - name: Install dependencies
+        if: steps.changes.outputs.protocol == 'true'
+        run: yarn install --immutable
+
+      - name: Build project
+        if: steps.changes.outputs.protocol == 'true'
+        run: make build
+
+      - name: Check schemas are up to date
+        if: steps.changes.outputs.protocol == 'true'
+        run: make -C libs/frontman-protocol check-schemas
+
+      - name: Fetch main branch for diff
+        if: steps.changes.outputs.protocol == 'true'
+        run: git fetch origin main:main
+
+      - name: Check for breaking changes
+        if: steps.changes.outputs.protocol == 'true'
+        run: node libs/frontman-protocol/scripts/CheckBreakingChanges.res.mjs
+
+  dead-code-client:
+    name: Dead code analysis (client)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        with:
+          node-version: '24.4.1'
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Cache Yarn
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        with:
+          path: ~/.yarn/berry/cache
+          key: yarn-${{ hashFiles('yarn.lock') }}
+          restore-keys: yarn-
+
+      - name: Install dependencies
+        run: yarn install --immutable
+
+      - name: Build ReScript
+        run: yarn rescript clean && yarn rescript
+
+      - name: Check for dead code
+        working-directory: libs/client
         run: |
-          rm -rf apps/frontman_server/_build apps/frontman_server/deps
+          output=$(npx rescript-tools reanalyze -config 2>&1)
+          echo "$output"
+          if ! echo "$output" | grep -q "Analysis reported 0 issues"; then
+            echo "::error::Dead code detected in libs/client. Please remove unused code."
+            exit 1
+          fi
+          echo "No dead code found."
+
+  # ============================================================================
+  # Elixir jobs — stay on self-hosted runners (need PostgreSQL on Docker host,
+  # cached mise/Erlang/Elixir toolchain)
+  #
+  # lint and dialyzer no longer depend on test-frontman-server — they run in
+  # parallel for faster feedback.
+  # ============================================================================
 
   test-frontman-server:
     name: Test frontman-server
@@ -378,9 +543,58 @@ jobs:
         run: |
           rm -rf apps/frontman_server/_build apps/frontman_server/deps
 
+  lint-frontman-server:
+    name: Lint frontman-server
+    runs-on: self-hosted
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install OpenSSL dev libraries
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libssl-dev libncurses5-dev
+
+      - name: Fix mise binary permissions
+        run: chmod -R +x ~/.local/share/mise/bin/ 2>/dev/null || true
+
+      # Uses mise.toml as single source of truth for Erlang/Elixir versions
+      - name: Setup Erlang/Elixir via mise
+        uses: jdx/mise-action@6d1e696aa24c1aa1bcc1adea0212707c71ab78a8 # v3.6.1
+        with:
+          install: true
+          cache: true
+
+      - name: Cache deps
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        with:
+          path: apps/frontman_server/deps
+          key: ${{ runner.os }}-mix-${{ hashFiles('apps/frontman_server/mix.lock') }}
+          restore-keys: ${{ runner.os }}-mix-
+
+      - name: Cache _build
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        with:
+          path: apps/frontman_server/_build
+          key: ${{ runner.os }}-build-${{ hashFiles('apps/frontman_server/mix.lock') }}
+          restore-keys: ${{ runner.os }}-build-
+
+      - name: Install dependencies
+        working-directory: apps/frontman_server
+        run: |
+          mix deps.clean --unlock --unused
+          mix deps.get
+
+      - name: Run lint
+        run: make -C apps/frontman_server lint
+
+      - name: Cleanup workspace
+        if: always()
+        run: |
+          rm -rf apps/frontman_server/_build apps/frontman_server/deps
+
   dialyzer-frontman-server:
     name: Dialyzer frontman-server
-    needs: [test-frontman-server]
     runs-on: self-hosted
     steps:
       - name: Checkout code
@@ -437,311 +651,3 @@ jobs:
         if: always()
         run: |
           rm -rf apps/frontman_server/_build apps/frontman_server/deps
-
-  test-react-statestore:
-    name: Test react-statestore
-    needs: [setup]
-    runs-on: self-hosted
-    permissions:
-      contents: read
-      pull-requests: write
-      checks: write
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-
-      - name: Setup Node.js
-        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
-        with:
-          node-version: '24.4.1'
-
-      - name: Enable Corepack
-        run: corepack enable
-
-      - name: Cache Yarn
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
-        with:
-          path: ~/.yarn/berry/cache
-          key: yarn-${{ hashFiles('yarn.lock') }}
-          restore-keys: yarn-
-
-      - name: Install dependencies
-        run: yarn install --immutable
-
-      - name: Run tests with coverage
-        run: make -C libs/react-statestore test-coverage
-
-      - name: Coverage report
-        uses: 5monkeys/cobertura-action@2f27e73e22dc84b22849040d2e1c8e5d8b6a4a0a # master 2025-02-13
-        with:
-          path: libs/react-statestore/coverage/cobertura-coverage.xml
-          minimum_coverage: 70
-          show_missing: true
-          skip_covered: false
-          only_changed_files: false
-
-      - name: Cleanup workspace
-        if: always()
-        run: |
-          rm -rf node_modules .yarn/install-state.gz
-          rm -rf libs/*/node_modules apps/*/node_modules test/sites/*/node_modules
-
-  test-client:
-    name: Test client
-    needs: [setup]
-    runs-on: self-hosted
-    permissions:
-      contents: read
-      pull-requests: write
-      checks: write
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-
-      - name: Setup Node.js
-        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
-        with:
-          node-version: '24.4.1'
-
-      - name: Enable Corepack
-        run: corepack enable
-
-      - name: Cache Yarn
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
-        with:
-          path: ~/.yarn/berry/cache
-          key: yarn-${{ hashFiles('yarn.lock') }}
-          restore-keys: yarn-
-
-      - name: Install dependencies
-        run: yarn install --immutable
-
-      - name: Run tests with coverage
-        run: make -C libs/client test-coverage
-
-      - name: Coverage report
-        uses: 5monkeys/cobertura-action@2f27e73e22dc84b22849040d2e1c8e5d8b6a4a0a # master 2025-02-13
-        with:
-          path: libs/client/coverage/cobertura-coverage.xml
-          minimum_coverage: 70
-          show_missing: true
-          skip_covered: false
-          only_changed_files: false
-
-      - name: Cleanup workspace
-        if: always()
-        run: |
-          rm -rf node_modules .yarn/install-state.gz
-          rm -rf libs/*/node_modules apps/*/node_modules test/sites/*/node_modules
-
-  test-context-loader:
-    name: Test context-loader
-    needs: [setup]
-    runs-on: self-hosted
-    permissions:
-      contents: read
-      pull-requests: write
-      checks: write
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-
-      - name: Setup Node.js
-        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
-        with:
-          node-version: '24.4.1'
-
-      - name: Enable Corepack
-        run: corepack enable
-
-      - name: Cache Yarn
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
-        with:
-          path: ~/.yarn/berry/cache
-          key: yarn-${{ hashFiles('yarn.lock') }}
-          restore-keys: yarn-
-
-      - name: Install dependencies
-        run: yarn install --immutable
-
-      - name: Run tests with coverage
-        run: make -C libs/context-loader test-coverage
-
-      - name: Coverage report
-        uses: 5monkeys/cobertura-action@2f27e73e22dc84b22849040d2e1c8e5d8b6a4a0a # master 2025-02-13
-        with:
-          path: libs/context-loader/coverage/cobertura-coverage.xml
-          minimum_coverage: 70
-          show_missing: true
-          skip_covered: false
-          only_changed_files: false
-
-      - name: Cleanup workspace
-        if: always()
-        run: |
-          rm -rf node_modules .yarn/install-state.gz
-          rm -rf libs/*/node_modules apps/*/node_modules test/sites/*/node_modules
-
-  lint-client:
-    name: Lint libs/client
-    needs: [setup]
-    runs-on: self-hosted
-    permissions:
-      contents: read
-      pull-requests: read
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          fetch-depth: 0
-
-      - name: Check for changes in libs/client
-        id: changes
-        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
-        with:
-          filters: |
-            client:
-              - 'libs/client/**'
-
-      - name: Setup Node.js
-        if: steps.changes.outputs.client == 'true'
-        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
-        with:
-          node-version: '24.4.1'
-
-      - name: Enable Corepack
-        if: steps.changes.outputs.client == 'true'
-        run: corepack enable
-
-      - name: Cache Yarn
-        if: steps.changes.outputs.client == 'true'
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
-        with:
-          path: ~/.yarn/berry/cache
-          key: yarn-${{ hashFiles('yarn.lock') }}
-          restore-keys: yarn-
-
-      - name: Install dependencies
-        if: steps.changes.outputs.client == 'true'
-        run: yarn install --immutable
-
-      - name: Run biome lint
-        if: steps.changes.outputs.client == 'true'
-        run: cd libs/client && npx biome lint .
-
-      - name: Cleanup workspace
-        if: always()
-        run: |
-          rm -rf node_modules .yarn/install-state.gz
-          rm -rf libs/*/node_modules apps/*/node_modules test/sites/*/node_modules
-
-  protocol-check:
-    name: Protocol schema check
-    needs: [setup]
-    runs-on: self-hosted
-    permissions:
-      contents: read
-      pull-requests: read
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          fetch-depth: 0
-
-      - name: Check for changes in libs/frontman-protocol
-        id: changes
-        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
-        with:
-          filters: |
-            protocol:
-              - 'libs/frontman-protocol/**'
-
-      - name: Setup Node.js
-        if: steps.changes.outputs.protocol == 'true'
-        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
-        with:
-          node-version: '24.4.1'
-
-      - name: Enable Corepack
-        if: steps.changes.outputs.protocol == 'true'
-        run: corepack enable
-
-      - name: Cache Yarn
-        if: steps.changes.outputs.protocol == 'true'
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
-        with:
-          path: ~/.yarn/berry/cache
-          key: yarn-${{ hashFiles('yarn.lock') }}
-          restore-keys: yarn-
-
-      - name: Install dependencies
-        if: steps.changes.outputs.protocol == 'true'
-        run: yarn install --immutable
-
-      - name: Build project
-        if: steps.changes.outputs.protocol == 'true'
-        run: make build
-
-      - name: Check schemas are up to date
-        if: steps.changes.outputs.protocol == 'true'
-        run: make -C libs/frontman-protocol check-schemas
-
-      - name: Fetch main branch for diff
-        if: steps.changes.outputs.protocol == 'true'
-        run: git fetch origin main:main
-
-      - name: Check for breaking changes
-        if: steps.changes.outputs.protocol == 'true'
-        run: node libs/frontman-protocol/scripts/CheckBreakingChanges.res.mjs
-
-      - name: Cleanup workspace
-        if: always()
-        run: |
-          rm -rf node_modules .yarn/install-state.gz
-          rm -rf libs/*/node_modules apps/*/node_modules test/sites/*/node_modules
-
-  dead-code-client:
-    name: Dead code analysis (client)
-    needs: [setup]
-    runs-on: self-hosted
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-
-      - name: Setup Node.js
-        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
-        with:
-          node-version: '24.4.1'
-
-      - name: Enable Corepack
-        run: corepack enable
-
-      - name: Cache Yarn
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
-        with:
-          path: ~/.yarn/berry/cache
-          key: yarn-${{ hashFiles('yarn.lock') }}
-          restore-keys: yarn-
-
-      - name: Install dependencies
-        run: yarn install --immutable
-
-      - name: Build ReScript
-        run: yarn rescript clean && yarn rescript
-
-      - name: Check for dead code
-        working-directory: libs/client
-        run: |
-          output=$(npx rescript-tools reanalyze -config 2>&1)
-          echo "$output"
-          if ! echo "$output" | grep -q "Analysis reported 0 issues"; then
-            echo "::error::Dead code detected in libs/client. Please remove unused code."
-            exit 1
-          fi
-          echo "No dead code found."
-
-      - name: Cleanup workspace
-        if: always()
-        run: |
-          rm -rf node_modules .yarn/install-state.gz
-          rm -rf libs/*/node_modules apps/*/node_modules test/sites/*/node_modules

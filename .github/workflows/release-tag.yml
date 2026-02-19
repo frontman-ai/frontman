@@ -12,7 +12,7 @@ permissions: {}
 jobs:
   create-release:
     name: Tag & GitHub Release
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
