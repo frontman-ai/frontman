@@ -116,6 +116,9 @@ external onProcess: (
 // Stream data event — receives a Buffer chunk
 type buffer
 @send external bufferToStr: (buffer, @as("utf8") _) => string = "toString"
+@get external bufferByteLength: buffer => int = "byteLength"
+@module("node:buffer") @scope("Buffer")
+external concatBuffers: array<buffer> => buffer = "concat"
 
 @send
 external onData: (NodeStreams.readable, @as("data") _, buffer => unit) => unit = "on"
@@ -140,45 +143,77 @@ let spawnPromise = (
     let env = options.env
     let proc = spawn(command, args, {?cwd, ?env})
 
-    let stdout = ref("")
-    let stderr = ref("")
+    // Accumulate raw Buffer chunks to avoid corrupting multi-byte UTF-8
+    // characters that span chunk boundaries. Decode to string only once
+    // via Buffer.concat in the close/resolve handlers.
+    let stdoutChunks: ref<array<buffer>> = ref([])
+    let stderrChunks: ref<array<buffer>> = ref([])
+    let stdoutLen = ref(0)
+    let stderrLen = ref(0)
+
+    // Guard against multiple resolve calls — after maxBuffer or error,
+    // data handlers may still fire before the process dies. Without this
+    // guard the refs keep growing past the limit.
+    let resolved = ref(false)
+
+    let decodeStdout = () => concatBuffers(stdoutChunks.contents)->bufferToStr
+    let decodeStderr = () => concatBuffers(stderrChunks.contents)->bufferToStr
+
+    let guardedResolve = value => {
+      switch resolved.contents {
+      | true => ()
+      | false =>
+        resolved := true
+        resolve(value)
+      }
+    }
 
     proc->processStdout->onData(chunk => {
-      stdout := stdout.contents ++ bufferToStr(chunk)
-      if String.length(stdout.contents) > maxBuffer {
-        proc->kill(~signal="SIGTERM")->ignore
-        resolve(
-          Error({
-            code: None,
-            stdout: stdout.contents,
-            stderr: stderr.contents,
-            message: "stdout maxBuffer exceeded",
-          }),
-        )
+      switch resolved.contents {
+      | true => ()
+      | false =>
+        stdoutChunks.contents->Array.push(chunk)
+        stdoutLen := stdoutLen.contents + bufferByteLength(chunk)
+        if stdoutLen.contents > maxBuffer {
+          proc->kill(~signal="SIGTERM")->ignore
+          guardedResolve(
+            Error({
+              code: None,
+              stdout: decodeStdout(),
+              stderr: decodeStderr(),
+              message: "stdout maxBuffer exceeded",
+            }),
+          )
+        }
       }
     })
 
     proc->processStderr->onData(chunk => {
-      stderr := stderr.contents ++ bufferToStr(chunk)
-      if String.length(stderr.contents) > maxBuffer {
-        proc->kill(~signal="SIGTERM")->ignore
-        resolve(
-          Error({
-            code: None,
-            stdout: stdout.contents,
-            stderr: stderr.contents,
-            message: "stderr maxBuffer exceeded",
-          }),
-        )
+      switch resolved.contents {
+      | true => ()
+      | false =>
+        stderrChunks.contents->Array.push(chunk)
+        stderrLen := stderrLen.contents + bufferByteLength(chunk)
+        if stderrLen.contents > maxBuffer {
+          proc->kill(~signal="SIGTERM")->ignore
+          guardedResolve(
+            Error({
+              code: None,
+              stdout: decodeStdout(),
+              stderr: decodeStderr(),
+              message: "stderr maxBuffer exceeded",
+            }),
+          )
+        }
       }
     })
 
     proc->onProcess(#error(err => {
-      resolve(
+      guardedResolve(
         Error({
           code: None,
-          stdout: stdout.contents,
-          stderr: stderr.contents,
+          stdout: decodeStdout(),
+          stderr: decodeStderr(),
           message: JsError.message(err),
         }),
       )
@@ -188,10 +223,10 @@ let spawnPromise = (
       let code = nullableCode->Nullable.toOption
       switch code {
       | Some(0) =>
-        resolve(
+        guardedResolve(
           Ok({
-            stdout: stdout.contents,
-            stderr: stderr.contents,
+            stdout: decodeStdout(),
+            stderr: decodeStderr(),
           }),
         )
       | _ =>
@@ -199,11 +234,11 @@ let spawnPromise = (
         | Some(c) => Int.toString(c)
         | None => "null"
         }
-        resolve(
+        guardedResolve(
           Error({
             code,
-            stdout: stdout.contents,
-            stderr: stderr.contents,
+            stdout: decodeStdout(),
+            stderr: decodeStderr(),
             message: `Process exited with code ${codeStr}`,
           }),
         )
