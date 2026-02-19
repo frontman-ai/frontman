@@ -41,6 +41,13 @@ cd .worktrees/feature/my-feature
 - Story files: `*.story.res` (co-located with components)
 - Prefer `switch` over `if/else` — use pattern matching for control flow, even for simple boolean/option checks
 
+## Raw JS vs ReScript
+
+- Prefer ReScript/WebAPI bindings and typed externals over `%raw` JavaScript.
+- Use `%raw` only when there is no practical typed binding or the browser API cannot be expressed cleanly in ReScript.
+- Keep `%raw` blocks minimal and isolated to small interop boundaries; keep business logic and event handling in ReScript.
+- For DOM/browser events, prefer typed ReScript handlers plus small externals for missing fields instead of full raw listener implementations.
+
 ## Error Handling Philosophy
 
 **Crash early and obviously. Never swallow exceptions.**

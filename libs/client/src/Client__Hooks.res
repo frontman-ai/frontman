@@ -276,44 +276,27 @@ module Scroll = {
   }
 }
 
-// Helper to safely get iframe contentWindow - returns None for cross-origin iframes
-// Cross-origin iframes throw SecurityError when accessing contentWindow properties
-let getIframeWindowSafe: WebAPI.DOMAPI.element => option<WebAPI.DOMAPI.window> = %raw(`
-  function(iframe) {
-    try {
-      var win = iframe.contentWindow;
-      // Verify we have access by reading location (throws if cross-origin)
-      if (win && win.location && win.location.href) {
-        return win;
-      }
-      return undefined;
-    } catch (e) {
-      // Expected for cross-origin iframes - log for debugging
-      console.debug('[useIFrameLocation] Cross-origin iframe access denied:', e.message);
-      return undefined;
+module NavigateEvent = {
+  type destination
+  type t
+
+  @get external destination: t => destination = "destination"
+  @get external url: destination => string = "url"
+}
+
+let getIframeWindowSafe = (iframe: WebAPI.DOMAPI.element): option<WebAPI.DOMAPI.window> => {
+  let iframeElement = iframe->Obj.magic
+  try {
+    switch WebAPI.HTMLIFrameElement.contentWindow(iframeElement)->Null.toOption {
+    | None => None
+    | Some(iframeWindow) =>
+      ignore(iframeWindow->WebAPI.Window.location->WebAPI.Location.href)
+      Some(iframeWindow)
     }
+  } catch {
+  | _ => None
   }
-`)
-
-let addNavigateListener: (WebAPI.DOMAPI.window, string => unit) => unit => unit = %raw(`
-  function(iframeWindow, onUrl) {
-    if (!iframeWindow.navigation) {
-      return function() {};
-    }
-
-    var handler = function(event) {
-      var destinationUrl = event.destination.url;
-      var absoluteUrl = new URL(destinationUrl, iframeWindow.location.href).href;
-      onUrl(absoluteUrl);
-    };
-
-    iframeWindow.navigation.addEventListener("navigate", handler);
-
-    return function() {
-      iframeWindow.navigation.removeEventListener("navigate", handler);
-    };
-  }
-`)
+}
 
 let useIFrameLocation = (~iframeElement: option<WebAPI.DOMAPI.element>, ~attachmentKey: int) => {
   let (location, setLocation) = React.useState(() => None)
@@ -329,19 +312,30 @@ let useIFrameLocation = (~iframeElement: option<WebAPI.DOMAPI.element>, ~attachm
         setLocation(_ => None)
         None
       | Some(iframeWindow) =>
-        // Get initial location (safe since getIframeWindowSafe verified access)
         let initialLocation = Some(iframeWindow->WebAPI.Window.location->WebAPI.Location.href)
         setLocation(_ => initialLocation)
 
-        let onNavigateUrl = absoluteUrl => {
-          setLocation(_ => Some(absoluteUrl))
+        let onNavigation = (ev: WebAPI.EventAPI.event) => {
+          let navigateEvent: NavigateEvent.t = ev->Obj.magic
+          let destinationUrl = navigateEvent->NavigateEvent.destination->NavigateEvent.url
+          setLocation(_ => Some(destinationUrl))
         }
 
-        let removeNavigateListener = addNavigateListener(iframeWindow, onNavigateUrl)
+        WebAPI.Navigation.addEventListener(
+          iframeWindow.navigation,
+          Custom("navigate"),
+          onNavigation,
+          ~options={capture: false},
+        )
 
         Some(
           () => {
-            removeNavigateListener()
+            WebAPI.Navigation.removeEventListener(
+              iframeWindow.navigation,
+              Custom("navigate"),
+              onNavigation,
+              ~options={capture: false},
+            )
           },
         )
       }
