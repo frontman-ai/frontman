@@ -23,12 +23,27 @@ let coreTools = (): t => {
     module(FrontmanCore__Tool__Grep),
     module(FrontmanCore__Tool__SearchFiles),
     module(FrontmanCore__Tool__Lighthouse),
+    module(FrontmanCore__Tool__EditFile),
   ],
 }
 
 // Add tools to registry
 let addTools = (registry: t, newTools: array<tool>): t => {
   tools: Array.concat(registry.tools, newTools),
+}
+
+// Replace a tool by name (used by framework registries to override core tools)
+let replaceByName = (registry: t, replacement: tool): t => {
+  module R = unpack(replacement)
+  {
+    tools: registry.tools->Array.map(m => {
+      module T = unpack(m)
+      switch T.name == R.name {
+      | true => replacement
+      | false => m
+      }
+    }),
+  }
 }
 
 // Merge two registries

@@ -1,4 +1,4 @@
-// Tool registry for Vite - composes core tools (no Vite-specific tools for now)
+// Tool registry for Vite - composes core tools with Vite-specific tools
 
 module Core = FrontmanFrontmanCore
 module CoreRegistry = Core.FrontmanCore__ToolRegistry
@@ -7,8 +7,13 @@ module CoreRegistry = Core.FrontmanCore__ToolRegistry
 type tool = CoreRegistry.tool
 type t = CoreRegistry.t
 
+// Vite specific tools
+let viteTools: array<tool> = [module(FrontmanVite__Tool__GetLogs)]
+
 let make = (): t => {
   CoreRegistry.coreTools()
+  ->CoreRegistry.addTools(viteTools)
+  ->CoreRegistry.replaceByName(module(FrontmanVite__Tool__EditFile))
 }
 
 // Re-export functions from core

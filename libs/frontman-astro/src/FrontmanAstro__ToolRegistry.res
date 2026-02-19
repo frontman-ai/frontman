@@ -8,10 +8,15 @@ type tool = CoreRegistry.tool
 type t = CoreRegistry.t
 
 // Astro specific tools
-let astroTools: array<tool> = [module(FrontmanAstro__Tool__GetPages)]
+let astroTools: array<tool> = [
+  module(FrontmanAstro__Tool__GetPages),
+  module(FrontmanAstro__Tool__GetLogs),
+]
 
 let make = (): t => {
-  CoreRegistry.coreTools()->CoreRegistry.addTools(astroTools)
+  CoreRegistry.coreTools()
+  ->CoreRegistry.addTools(astroTools)
+  ->CoreRegistry.replaceByName(module(FrontmanAstro__Tool__EditFile))
 }
 
 // Re-export functions from core

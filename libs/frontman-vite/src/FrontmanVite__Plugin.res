@@ -167,6 +167,10 @@ let frontmanPlugin = (~options: option<pluginOptions>=?): plugin => {
   {
     name: "frontman",
     configureServer: server => {
+      // Initialize core LogCapture to intercept console/stdout for the
+      // get_logs tool and post-edit error checking in edit_file
+      FrontmanFrontmanCore.FrontmanCore__LogCapture.initialize()
+
       // Create config from options - pass through optional fields directly
       let isDev = opts.isDev
       let basePath = opts.basePath

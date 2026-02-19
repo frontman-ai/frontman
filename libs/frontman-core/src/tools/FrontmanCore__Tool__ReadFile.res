@@ -55,6 +55,9 @@ let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.toolR
       let selectedContent = selectedLines->Array.join("\n")
       let hasMore = offset + limit < totalLines
 
+      // Track that this file was read (for edit_file safety)
+      FrontmanCore__FileTracker.recordRead(result.resolvedPath)
+
       Ok({
         content: selectedContent,
         totalLines,

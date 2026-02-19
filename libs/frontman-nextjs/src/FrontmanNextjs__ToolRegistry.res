@@ -14,7 +14,9 @@ let nextjsTools: array<tool> = [
 ]
 
 let make = (): t => {
-  CoreRegistry.coreTools()->CoreRegistry.addTools(nextjsTools)
+  CoreRegistry.coreTools()
+  ->CoreRegistry.addTools(nextjsTools)
+  ->CoreRegistry.replaceByName(module(FrontmanNextjs__Tool__EditFile))
 }
 
 // Re-export functions from core
