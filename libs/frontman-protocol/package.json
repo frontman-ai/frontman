@@ -1,6 +1,6 @@
 {
 	"name": "@frontman/frontman-protocol",
-	"version": "0.2.0",
+	"version": "0.3.0",
 	"description": "Protocol definitions for Frontman",
 	"license": "Apache-2.0",
 	"author": "Frontman AI",
