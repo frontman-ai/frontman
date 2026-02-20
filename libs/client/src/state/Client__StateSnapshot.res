@@ -310,7 +310,7 @@ let convertSelectedElement = (sel: Client__State__Types.SelectedElement.t): Sele
 let convertUserContentPart = (part: Client__State__Types.UserContentPart.t): UserContentPart.t => {
   switch part {
   | Text({text}) => Text({text: text})
-  | Image({image, mediaType, name}) => Image({image, mediaType, name})
+  | Image({image, mediaType, name, id: _}) => Image({image, mediaType, name})
   | File({file}) => File({file: file})
   }
 }

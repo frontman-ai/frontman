@@ -28,7 +28,22 @@ export default defineConfig({
     }),
     tailwind(),
     icon(),
-    sitemap(),
+    sitemap({
+      filter: (page) =>
+        // Exclude empty placeholder pages and internal-only pages
+        !page.includes('/features') &&
+        !page.includes('/pricing') &&
+        !page.includes('/design-system'),
+      serialize: (item) => {
+        // Set lastmod so Google knows when pages were last updated.
+        // Blog posts get their pubDate via the content collection, but the
+        // sitemap integration only sees URLs. Use a sensible default for
+        // all pages: the current build date. Blog-specific dates are
+        // already surfaced in BlogPosting JSON-LD on each post.
+        item.lastmod = new Date();
+        return item;
+      },
+    }),
     partytown({
       config: {
         forward: ["dataLayer.push"],

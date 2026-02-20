@@ -21,11 +21,19 @@ type astroConfig = {
   devToolbar: devToolbarConfig,
 }
 
+// Vite plugin type — opaque, we just pass plugin objects through
+type vitePlugin
+
+// Partial Astro config for updateConfig — only the fields we need
+type partialViteConfig = {plugins?: array<vitePlugin>}
+type partialAstroConfig = {vite?: partialViteConfig}
+
 // Hook context for astro:config:setup
 // injectScript stage is passed as a plain string: "head-inline", "before-hydration", "page", "page-ssr"
 type configSetupHookContext = {
   addDevToolbarApp: devToolbarAppConfig => unit,
   injectScript: (string, string) => unit,
+  updateConfig: partialAstroConfig => unit,
   config: astroConfig,
   command: astroCommand,
 }

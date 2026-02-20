@@ -38,7 +38,7 @@ let convertSourceLocation = (loc: Snapshot.SourceLocation.t): Client__Types.Sour
 let convertUserContentPart = (part: Snapshot.UserContentPart.t): StateTypes.UserContentPart.t => {
   switch part {
   | Text({text}) => Text({text: text})
-  | Image({image, mediaType, name}) => Image({image, mediaType, name})
+  | Image({image, mediaType, name}) => Image({id: None, image, mediaType, name})
   | File({file}) => File({file: file})
   }
 }
@@ -126,6 +126,7 @@ let convertTask = (task: Snapshot.Task.t): StateTypes.Task.t => {
     isAgentRunning: false, // Default to not running when restoring from snapshot
     planEntries: [], // Plan entries not stored in snapshots yet
     turnError: None, // No error when restoring from snapshot
+    imageAttachments: Dict.make(),
   })
 }
 

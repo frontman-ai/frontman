@@ -3,23 +3,43 @@
 
 module Types = FrontmanClient__MCP__Types
 module Tool = FrontmanClient__MCP__Tool
+module ToolNames = FrontmanFrontmanProtocol.FrontmanProtocol__Tool.ToolNames
 module Relay = FrontmanClient__Relay
 module Log = FrontmanLogs.Logs.Make({
   let component = #MCPServer
 })
 
+// Resolved image data for write_file image_ref interception
+type resolvedImage = {
+  base64: string,
+  mediaType: string,
+}
+
+type imageRefResolver = (string, ~taskId: string) => option<resolvedImage>
+
 type t = {
   tools: array<module(Tool.Tool)>,
   relay: Relay.t,
   serverInfo: Types.info,
+  // Resolver for image_ref URIs — set by the client layer which has access to the state store.
+  // Receives (uri, ~taskId) so it resolves from the correct task, not the currently viewed one.
+  resolveImageRef: ref<option<imageRefResolver>>,
 }
 
-let make = (~relay: Relay.t, ~serverName="frontman-browser", ~serverVersion="1.0.0"): t => {
-  {
-    tools: [],
-    relay,
-    serverInfo: {name: serverName, version: serverVersion},
-  }
+let make = (
+  ~relay: Relay.t,
+  ~serverName="frontman-browser",
+  ~serverVersion="1.0.0",
+  ~resolveImageRef: option<imageRefResolver>=?,
+): t => {
+  tools: [],
+  relay,
+  serverInfo: {name: serverName, version: serverVersion},
+  resolveImageRef: ref(resolveImageRef),
+}
+
+let setImageRefResolver = (server: t, resolver: imageRefResolver): unit => {
+  server.resolveImageRef := Some(resolver)
 }
 
 let registerToolModule = (server: t, toolModule: module(Tool.Tool)): t => {
@@ -102,31 +122,70 @@ let executeLocalTool = async (
   }
 }
 
+// Resolve image_ref in write_file arguments before forwarding to relay.
+// Replaces image_ref with content (base64) and encoding ("base64").
+let resolveWriteFileImageRef = (
+  server: t,
+  arguments: option<Dict.t<JSON.t>>,
+  ~taskId: string,
+): result<option<Dict.t<JSON.t>>, string> => {
+  switch arguments {
+  | None => Ok(None)
+  | Some(args) =>
+    switch (args->Dict.get("image_ref"), server.resolveImageRef.contents) {
+    | (None, _) => Ok(Some(args))
+    | (Some(String("")), _) => Error("image_ref must be a non-empty string")
+    | (Some(_), None) => Error("Cannot resolve image_ref: no resolver configured")
+    | (Some(String(imageRef)), Some(resolve)) =>
+      switch resolve(imageRef, ~taskId) {
+      | None =>
+        Error(`Image not found for URI: ${imageRef}. Available images may have expired or the URI is incorrect.`)
+      | Some({base64}) =>
+        let newArgs = args->Dict.copy
+        newArgs->Dict.delete("image_ref")
+        newArgs->Dict.set("content", JSON.Encode.string(base64))
+        newArgs->Dict.set("encoding", JSON.Encode.string("base64"))
+        Ok(Some(newArgs))
+      }
+    | (Some(_), _) => Error("image_ref must be a string")
+    }
+  }
+}
+
+let toolError = (msg: string): Types.callToolResult => {
+  content: [{type_: "text", text: msg}],
+  isError: Some(true),
+}
+
 // Execute tool - tries local first, then relay
 let executeTool = async (
   server: t,
   ~name: string,
   ~arguments: option<Dict.t<JSON.t>>=?,
+  ~taskId: string,
   ~onProgress: option<string => unit>=?,
 ): Types.callToolResult => {
   // Try local tools first
   switch getToolByName(server, name) {
   | Some(toolModule) => await executeLocalTool(toolModule, ~arguments)
   | None =>
-    // Try relay if it has this tool
-    if server.relay->Relay.hasTool(name) {
-      let result = await server.relay->Relay.executeTool(~name, ~arguments?, ~onProgress?)
-      switch result {
-      | Ok(toolResult) => toolResult
-      | Error(msg) => {
-          content: [{type_: "text", text: msg}],
-          isError: Some(true),
-        }
+    switch server.relay->Relay.hasTool(name) {
+    | false => toolError(`Tool not found: ${name}`)
+    | true =>
+      // Intercept write_file with image_ref to resolve from the correct task
+      let resolvedArgs = switch name == ToolNames.writeFile {
+      | true => resolveWriteFileImageRef(server, arguments, ~taskId)
+      | false => Ok(arguments)
       }
-    } else {
-      {
-        content: [{type_: "text", text: `Tool not found: ${name}`}],
-        isError: Some(true),
+
+      switch resolvedArgs {
+      | Error(msg) => toolError(msg)
+      | Ok(finalArgs) =>
+        let result = await server.relay->Relay.executeTool(~name, ~arguments=?finalArgs, ~onProgress?)
+        switch result {
+        | Ok(toolResult) => toolResult
+        | Error(msg) => toolError(msg)
+        }
       }
     }
   }
@@ -155,6 +214,6 @@ let toInterface = (server: t): Types.serverInterface<t> => {
   server,
   buildInitializeResult,
   buildToolsListResult,
-  executeTool: (server, ~name, ~arguments, ~onProgress) =>
-    executeTool(server, ~name, ~arguments?, ~onProgress?),
+  executeTool: (server, ~name, ~arguments, ~taskId, ~onProgress) =>
+    executeTool(server, ~name, ~arguments?, ~taskId, ~onProgress?),
 }

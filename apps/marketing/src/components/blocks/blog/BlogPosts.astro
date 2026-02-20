@@ -7,7 +7,6 @@
 
 // Components
 // - Layout
-import Section from '../../../components/ui/Section.astro'
 import Row from '../../../components/ui/Row.astro'
 import Col from '../../../components/ui/Col.astro'
 // - UI
@@ -26,25 +25,60 @@ const sortedPosts = allPosts.sort((a: any, b: any) => {
 })
 ---
 
-<Section>
-	<Row>
-		<Col span="12">
-			<TagNavigation />
-		</Col>
-		{
-			sortedPosts.map((post: any) => (
-				<Col span="4">
-					<Post
-						link={`/blog/${post.id}`}
-						title={post.data.title}
-						subtitle={`By ${post.data.author} on ${new Date(post.data.pubDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`}
-						image={post.data.image}
-						tags={post.data.tags}
-					>
-						{post.data.description}
-					</Post>
-				</Col>
-			))
-		}
-	</Row>
-</Section>
+<section class="blog-posts-section">
+	<div class="container">
+		<Row>
+			<Col span="12">
+				<TagNavigation />
+			</Col>
+			{
+				sortedPosts.map((post: any) => (
+					<Col span="4">
+						<Post
+							link={`/blog/${post.id}`}
+							title={post.data.title}
+							subtitle={`By ${post.data.author} on ${new Date(post.data.pubDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`}
+							image={post.data.image}
+							tags={post.data.tags}
+						>
+							{post.data.description}
+						</Post>
+					</Col>
+				))
+			}
+		</Row>
+	</div>
+</section>
+
+<style>
+	.blog-posts-section {
+		@apply relative overflow-hidden py-12 lg:py-24;
+		background: linear-gradient(180deg, #0a0a0a 0%, #171717 100%);
+	}
+
+	.container {
+		@apply relative z-[1] mx-auto px-6;
+		max-width: 1280px;
+	}
+
+	/* Dark card styling with better contrast */
+	.blog-posts-section :global(.card) {
+		@apply border-neutral-800 bg-neutral-900/80 shadow-2xl backdrop-blur-sm;
+	}
+	
+	.blog-posts-section :global(.post-title a) {
+		@apply text-white hover:text-pink-400 transition-colors;
+	}
+	
+	.blog-posts-section :global(.post-subtitle) {
+		@apply text-pink-400/80;
+	}
+	
+	.blog-posts-section :global(.card-body) {
+		@apply text-neutral-400;
+	}
+	
+	.blog-posts-section :global(.post-tags) {
+		@apply border-neutral-800;
+	}
+</style>

@@ -157,6 +157,9 @@ module Task = {
         isAgentRunning: bool,
         planEntries: array<ACPTypes.planEntry>,
         turnError: option<string>,
+        // User-attached images keyed by URI (e.g., "attachment://att_abc123/image.png")
+        // Accumulated across messages so the agent can save them to disk via write_file
+        imageAttachments: Dict.t<Client__Message.fileAttachmentData>,
       })
 
   // What user is currently viewing
@@ -240,6 +243,12 @@ module Task = {
     | New({selectedElement}) => selectedElement
     | Unloaded(_) => None
     | Loading({selectedElement}) | Loaded({selectedElement}) => selectedElement
+    }
+
+  let getImageAttachments = (task: t): Dict.t<Client__Message.fileAttachmentData> =>
+    switch task {
+    | Loaded({imageAttachments}) => imageAttachments
+    | New(_) | Unloaded(_) | Loading(_) => Dict.make()
     }
 
   // State predicates
@@ -351,6 +360,7 @@ module Task = {
         isAgentRunning: false,
         planEntries: [],
         turnError: None,
+        imageAttachments: Dict.make(),
       })
     | Unloaded(_) | Loading(_) | Loaded(_) =>
       failwith("[Task.newToLoaded] Can only transition from New state")
@@ -379,6 +389,7 @@ module Task = {
       isAgentRunning,
       planEntries: [],
       turnError: None,
+      imageAttachments: Dict.make(),
     })
   }
 
@@ -437,7 +448,7 @@ module Task = {
 
   let updateLoadedData = (task: t, fn: loadedData => loadedData): t => {
     switch task {
-    | Loaded({id, clientId, title, createdAt, updatedAt, messages, previewFrame, webPreviewIsSelecting, selectedElement, isAgentRunning, planEntries, turnError}) => {
+    | Loaded({id, clientId, title, createdAt, updatedAt, messages, previewFrame, webPreviewIsSelecting, selectedElement, isAgentRunning, planEntries, turnError, imageAttachments}) => {
         let data = {messages: Client__MessageStore.toArray(messages), webPreviewIsSelecting, selectedElement, isAgentRunning, planEntries, turnError}
         let updated = fn(data)
         Loaded({
@@ -453,6 +464,7 @@ module Task = {
           isAgentRunning: updated.isAgentRunning,
           planEntries: updated.planEntries,
           turnError: updated.turnError,
+          imageAttachments,
         })
       }
     | Loading({id, title, createdAt, updatedAt, messages, previewFrame, webPreviewIsSelecting, selectedElement}) => {

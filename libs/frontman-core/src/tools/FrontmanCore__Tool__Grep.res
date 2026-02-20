@@ -5,7 +5,7 @@ module ChildProcess = FrontmanBindings.ChildProcess
 module Tool = FrontmanFrontmanProtocol.FrontmanProtocol__Tool
 module PathContext = FrontmanCore__PathContext
 
-let name = "grep"
+let name = Tool.ToolNames.grep
 let visibleToAgent = true
 let description = `Fast content search tool that finds files containing specific text or patterns, returning matching lines sorted by file modification time.
 

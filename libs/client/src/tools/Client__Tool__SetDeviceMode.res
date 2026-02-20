@@ -5,7 +5,7 @@ S.enableJson()
 module Tool = FrontmanFrontmanClient.FrontmanClient__MCP__Tool
 type toolResult<'a> = Tool.toolResult<'a>
 
-let name = "set_device_mode"
+let name = Tool.ToolNames.setDeviceMode
 let visibleToAgent = true
 let description = `Set the device emulation mode in the web preview for responsive design testing.
 

@@ -254,7 +254,8 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
       %{
         blob: img["blob"],
         mime_type: img["mime_type"] || "image/png",
-        filename: img["filename"] || "attachment"
+        filename: img["filename"] || "attachment",
+        uri: img["uri"]
       }
     end)
   end

@@ -85,6 +85,7 @@ type serverInterface<'server> = {
     'server,
     ~name: string,
     ~arguments: option<Dict.t<JSON.t>>,
+    ~taskId: string,
     ~onProgress: option<string => unit>,
   ) => promise<callToolResult>,
 }
@@ -98,6 +99,7 @@ module type Server = {
     t,
     ~name: string,
     ~arguments: option<Dict.t<JSON.t>>=?,
+    ~taskId: string,
     ~onProgress: option<string => unit>=?,
   ) => promise<callToolResult>
 }

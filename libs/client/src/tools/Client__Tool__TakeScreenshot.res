@@ -5,7 +5,7 @@ S.enableJson()
 module Tool = FrontmanFrontmanClient.FrontmanClient__MCP__Tool
 type toolResult<'a> = Tool.toolResult<'a>
 
-let name = "take_screenshot"
+let name = Tool.ToolNames.takeScreenshot
 let visibleToAgent = true
 let description = "Take a screenshot of the current web preview page. By default captures only the visible viewport. Set fullPage to true to capture the entire scrollable page. Returns a base64-encoded JPEG image data URL."
 

@@ -2,9 +2,13 @@
 // Reads from window.__frontman_annotations__ API injected by the Frontman Astro integration
 
 // Type matching the annotation data from Astro's data-astro-source-* attributes
+// componentProps and displayName are injected by the Frontman props injection
+// Vite plugin (via __frontman_props__ HTML comments captured by the annotation script)
 type annotation = {
   file: string,
-  loc: string, // "line:col" format
+  loc: Nullable.t<string>, // "line:col" format — null when data-astro-source-loc is absent
+  componentProps?: Dict.t<JSON.t>,
+  displayName?: string,
 }
 
 // Type matching window.__frontman_annotations__ API
@@ -22,13 +26,17 @@ let getAnnotationsApi = (window: WebAPI.DOMAPI.window): option<annotationsApi> =
 }
 
 // Parse "line:col" format into (line, column) tuple
-let parseLoc = (loc: string): option<(int, int)> => {
-  switch loc->String.split(":") {
-  | [lineStr, colStr] =>
-    Int.fromString(lineStr)->Option.flatMap(line =>
-      Int.fromString(colStr)->Option.map(col => (line, col))
-    )
-  | _ => None
+let parseLoc = (loc: Nullable.t<string>): option<(int, int)> => {
+  switch loc->Nullable.toOption {
+  | None => None
+  | Some(locStr) =>
+    switch locStr->String.split(":") {
+    | [lineStr, colStr] =>
+      Int.fromString(lineStr)->Option.flatMap(line =>
+        Int.fromString(colStr)->Option.map(col => (line, col))
+      )
+    | _ => None
+    }
   }
 }
 

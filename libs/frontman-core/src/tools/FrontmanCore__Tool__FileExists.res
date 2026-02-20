@@ -4,7 +4,7 @@ module Fs = FrontmanBindings.Fs
 module Tool = FrontmanFrontmanProtocol.FrontmanProtocol__Tool
 module SafePath = FrontmanCore__SafePath
 
-let name = "file_exists"
+let name = Tool.ToolNames.fileExists
 let visibleToAgent = true
 let description = `Checks if a file or directory exists.
 

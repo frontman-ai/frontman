@@ -13,9 +13,11 @@ module Log = FrontmanLogs.Logs.Make({
 type messageDirection = Send | Receive
 
 // Generic handler type - parameterized over server type
+// sessionId identifies the task this handler is bound to
 type mcpHandler<'server> = {
   serverInterface: Types.serverInterface<'server>,
   channel: Channel.t,
+  sessionId: string,
   onMessage: option<(messageDirection, JSON.t) => unit>,
 }
 
@@ -109,6 +111,7 @@ let handleToolsCall = async (
         serverInterface.server,
         ~name,
         ~arguments,
+        ~taskId=handler.sessionId,
         ~onProgress=None,
       )
       let resultJson = result->S.reverseConvertToJsonOrThrow(Types.callToolResultSchema)
@@ -146,10 +149,11 @@ let handleMessage = async (handler: mcpHandler<'server>, payload: JSON.t): unit 
 // Attach MCP handler to a session channel with a server interface
 let attach = (
   ~channel: Channel.t,
+  ~sessionId: string,
   ~serverInterface: Types.serverInterface<'server>,
   ~onMessage: option<(messageDirection, JSON.t) => unit>=?,
 ): mcpHandler<'server> => {
-  let handler = {serverInterface, channel, onMessage}
+  let handler = {serverInterface, channel, sessionId, onMessage}
 
   channel->Channel.on(~event=#"mcp:message", ~callback=payload => {
     handleMessage(handler, payload)->ignore

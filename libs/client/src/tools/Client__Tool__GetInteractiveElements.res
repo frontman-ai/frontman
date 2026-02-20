@@ -6,7 +6,7 @@ S.enableJson()
 module Tool = FrontmanFrontmanClient.FrontmanClient__MCP__Tool
 type toolResult<'a> = Tool.toolResult<'a>
 
-let name = "get_interactive_elements"
+let name = Tool.ToolNames.getInteractiveElements
 let visibleToAgent = true
 let description = `Discover interactive elements on the current web preview page. Returns a list of clickable/interactive elements with their ARIA roles, accessible names, CSS selectors, and visible text.
 

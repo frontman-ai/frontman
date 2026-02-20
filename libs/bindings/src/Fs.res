@@ -14,6 +14,10 @@ module Promises = {
   @module("fs") @scope("promises")
   external writeFile: (string, string, @as("utf8") _) => promise<unit> = "writeFile"
 
+  // Write binary data (e.g. decoded base64 images) to a file
+  @module("fs") @scope("promises")
+  external writeFileBuffer: (string, NodeBuffer.t) => promise<unit> = "writeFile"
+
   @module("fs") @scope("promises")
   external readdir: string => promise<array<string>> = "readdir"
 

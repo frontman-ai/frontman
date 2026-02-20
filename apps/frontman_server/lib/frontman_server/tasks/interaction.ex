@@ -310,7 +310,8 @@ defmodule FrontmanServer.Tasks.Interaction do
         %{
           blob: Map.get(inner, "blob", ""),
           mime_type: Map.get(inner, "mimeType", "image/png"),
-          filename: Map.get(meta, "filename", "attachment")
+          filename: Map.get(meta, "filename", "attachment"),
+          uri: Map.get(inner, "uri")
         }
       end)
     end
@@ -755,6 +756,7 @@ defmodule FrontmanServer.Tasks.Interaction do
       |> Enum.join("\n\n")
       |> append_current_page_context(msg.current_page)
       |> append_component_location(msg.selected_component)
+      |> append_image_attachment_context(msg.images)
 
     content_parts =
       text_content
@@ -835,6 +837,32 @@ defmodule FrontmanServer.Tasks.Interaction do
   end
 
   defp append_current_page_context(text, _), do: text
+
+  # Append image attachment URIs so the LLM knows it can save them via write_file's image_ref
+  defp append_image_attachment_context(text, images) when is_list(images) and images != [] do
+    uris =
+      images
+      |> Enum.filter(fn img -> is_binary(Map.get(img, :uri)) end)
+      |> Enum.map(fn img -> "- #{img.uri} (#{img.filename}, #{img.mime_type})" end)
+
+    case uris do
+      [] ->
+        text
+
+      _ ->
+        uri_list = Enum.join(uris, "\n")
+
+        text <>
+          """
+
+          [Available Image Attachments]
+          The following images were attached by the user and can be saved to disk using the write_file tool with the image_ref parameter:
+          #{uri_list}
+          """
+    end
+  end
+
+  defp append_image_attachment_context(text, _), do: text
 
   defp build_viewport_context(%{viewport_width: w, viewport_height: h})
        when is_integer(w) and is_integer(h) do

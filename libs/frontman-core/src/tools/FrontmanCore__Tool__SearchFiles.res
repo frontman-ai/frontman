@@ -5,7 +5,7 @@ module ChildProcess = FrontmanBindings.ChildProcess
 module Tool = FrontmanFrontmanProtocol.FrontmanProtocol__Tool
 module PathContext = FrontmanCore__PathContext
 
-let name = "search_files"
+let name = Tool.ToolNames.searchFiles
 let visibleToAgent = true
 let description = `Fast file name search tool that finds files matching a pattern.
 

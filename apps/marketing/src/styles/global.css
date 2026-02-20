@@ -78,6 +78,26 @@ main a {
 	@apply text-lg leading-relaxed [&_blockquote]:text-xl [&_blockquote]:leading-loose;
 }
 
+/* Table styling for basic-text content */
+.basic-text table {
+	@apply mb-6 w-full border-collapse overflow-hidden rounded-lg border border-neutral-200 text-base dark:border-neutral-700;
+}
+.basic-text thead {
+	@apply bg-neutral-100 dark:bg-neutral-800;
+}
+.basic-text th {
+	@apply px-4 py-3 text-left font-semibold text-neutral-700 dark:text-neutral-100;
+}
+.basic-text td {
+	@apply border-t border-neutral-200 px-4 py-3 dark:border-neutral-700;
+}
+.basic-text tbody tr {
+	@apply transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50;
+}
+.basic-text tbody tr:nth-child(even) {
+	@apply bg-neutral-50/50 dark:bg-neutral-800/30;
+}
+
 /* Scroll animations */
 /* To disable scroll animations remove the class "sroll-animation" from root html in the layout file */
 .scroll-animation .col {

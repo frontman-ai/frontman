@@ -351,6 +351,16 @@ module Selectors = {
     TaskReducer.Selectors.turnError(currentTask(state))
   }
 
+  // Resolve an image attachment URI from a specific task's accumulated attachments.
+  // Used by the MCP server to resolve write_file image_ref before forwarding to relay.
+  // Takes taskId (not currentTask) because the agent's task may differ from the viewed tab.
+  let resolveImageRef = (state: state, ~taskId: string, ~uri: string): option<Message.resolvedImageData> => {
+    state.tasks
+    ->Dict.get(taskId)
+    ->Option.flatMap(task => Task.getImageAttachments(task)->Dict.get(uri))
+    ->Option.map(Message.resolveAttachmentImage)
+  }
+
   // Derived selectors (use messages from above)
   let completedMessages = (state: state) =>
     messages(state)->Array.filter(msg => {
@@ -492,7 +502,7 @@ let buildAttachmentContentBlocks = (
         _meta: Some(meta),
         annotations: None,
         resource: Client__State__Types.ACPTypes.BlobResourceContents({
-          uri: `attachment://${att.filename}`,
+          uri: `attachment://${att.id}/${att.filename}`,
           mimeType: Some(att.mediaType),
           blob: base64Data,
         }),

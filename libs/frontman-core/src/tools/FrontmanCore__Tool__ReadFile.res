@@ -4,7 +4,7 @@ module Fs = FrontmanBindings.Fs
 module Tool = FrontmanFrontmanProtocol.FrontmanProtocol__Tool
 module PathContext = FrontmanCore__PathContext
 
-let name = "read_file"
+let name = Tool.ToolNames.readFile
 let visibleToAgent = true
 let description = `Reads a file from the filesystem.
 

@@ -11,6 +11,26 @@ type serverExecutionContext = {
   sourceRoot: string,
 }
 
+// Well-known tool names — used by both server (frontman-core) and client (frontman-client)
+// to avoid fragile string comparisons across packages.
+module ToolNames = {
+  // Server tools (frontman-core)
+  let writeFile = "write_file"
+  let readFile = "read_file"
+  let listFiles = "list_files"
+  let searchFiles = "search_files"
+  let grep = "grep"
+  let fileExists = "file_exists"
+  let loadAgentInstructions = "load_agent_instructions"
+
+  // Browser tools (client)
+  let navigate = "navigate"
+  let takeScreenshot = "take_screenshot"
+  let setDeviceMode = "set_device_mode"
+  let interactWithElement = "interact_with_element"
+  let getInteractiveElements = "get_interactive_elements"
+}
+
 // Browser tool - executes in browser, no context needed
 module type BrowserTool = {
   let name: string

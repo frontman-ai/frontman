@@ -292,6 +292,7 @@ let joinSession = async (
     let handler: MCP.mcpHandler<'server> = {
       serverInterface,
       channel: sessionChannel,
+      sessionId,
       onMessage: onMcpMessage,
     }
     sessionChannel->Channel.on(~event=#"mcp:message", ~callback=payload => {

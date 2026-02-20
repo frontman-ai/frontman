@@ -6,7 +6,7 @@ S.enableJson()
 module Tool = FrontmanFrontmanClient.FrontmanClient__MCP__Tool
 type toolResult<'a> = Tool.toolResult<'a>
 
-let name = "interact_with_element"
+let name = Tool.ToolNames.interactWithElement
 let visibleToAgent = true
 let description = `Interact with an element in the web preview. Supports click, hover, and focus actions.
 

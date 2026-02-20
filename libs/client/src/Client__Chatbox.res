@@ -143,8 +143,8 @@ let make = (
     // Build file attachment content parts (images + PDFs)
     let fileParts = inputItems->Array.filterMap(item =>
       switch item {
-      | Client__PromptInput.FileAttachment({name, dataUrl, mediaType}) =>
-        Some(Client__State.UserContentPart.Image({image: dataUrl, mediaType: Some(mediaType), name: Some(name)}))
+      | Client__PromptInput.FileAttachment({id, name, dataUrl, mediaType}) =>
+        Some(Client__State.UserContentPart.Image({id: Some(id), image: dataUrl, mediaType: Some(mediaType), name: Some(name)}))
       | Client__PromptInput.PastedText(_) => None
       }
     )

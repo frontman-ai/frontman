@@ -26,13 +26,21 @@ let makeSourceLocation = (
   ~parent: option<Client__Types.SourceLocation.t>,
 ): option<Client__Types.SourceLocation.t> => {
   Annotations.parseLoc(annotation.loc)->Option.map(((line, column)) => {
-    Client__Types.SourceLocation.componentName: Some(Annotations.extractFilename(annotation.file)),
-    tagName: element.tagName->String.toLowerCase,
-    file: annotation.file,
-    line,
-    column,
-    parent,
-    componentProps: None,
+    // Use displayName from props injection if available, otherwise extract from file path
+    let name = switch annotation.displayName {
+    | Some(n) => Some(n)
+    | None => Some(Annotations.extractFilename(annotation.file))
+    }
+
+    {
+      Client__Types.SourceLocation.componentName: name,
+      tagName: element.tagName->String.toLowerCase,
+      file: annotation.file,
+      line,
+      column,
+      parent,
+      componentProps: annotation.componentProps,
+    }
   })
 }
 

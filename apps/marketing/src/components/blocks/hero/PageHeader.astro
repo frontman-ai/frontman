@@ -1,13 +1,17 @@
 ---
 // Page Header Section
 // ------------
-// Description: The basic page header.
+// Description: The basic page header styled to match the homepage hero.
 
 // Components
 // - Layout
 import Section from '../../ui/Section.astro'
 import Row from '../../ui/Row.astro'
 import Col from '../../ui/Col.astro'
+
+// Content
+// - Background Pattern
+import gridNetBackground from '../../../assets/grid-net-background.svg'
 
 // Props
 type Props = {
@@ -19,22 +23,37 @@ type Props = {
 const { id = 'intro', title, text, classes } = Astro.props
 ---
 
-<Section id={id} classes=`bg-neutral-50 dark:bg-neutral-900 ${classes}`>
+<Section id={id} classes=`page-header-section ${classes}`>
+	<div class="page-header__bg">
+		<img src={gridNetBackground.src} alt="" class="page-header__bg-image" width="1440" height="900" />
+	</div>
 	<Row>
 		<Col span="12" align="center">
 			<header class="page-header">
 				<h1 class="page-header__title" set:html={title} />
-				<p class="page-header__text" set:html={text} />
+				{text && <p class="page-header__text" set:html={text} />}
 			</header>
 		</Col>
 	</Row>
 </Section>
 
 <style>
+	.page-header-section {
+		@apply relative overflow-hidden bg-primary-500;
+	}
+	.page-header__bg {
+		@apply absolute inset-0 z-0 opacity-30;
+	}
+	.page-header__bg-image {
+		@apply w-full h-full object-cover object-center;
+	}
 	.page-header {
-		@apply mx-auto max-w-3xl;
+		@apply relative z-[1] mx-auto max-w-3xl;
+	}
+	.page-header__title {
+		@apply text-white;
 	}
 	.page-header__text {
-		@apply text-lg leading-relaxed;
+		@apply text-lg leading-relaxed text-white/80;
 	}
 </style>

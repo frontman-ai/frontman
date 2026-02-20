@@ -1,0 +1,776 @@
+---
+// /vs/cursor — Frontman vs Cursor Comparison Page
+// The highest-intent SEO page for "cursor alternative open source"
+
+// Components
+import Layout from '../../layouts/Layout.astro'
+import Button from '../../components/ui/Button.astro'
+
+// SEO
+const SEO = {
+	title: 'Frontman vs Cursor: Open-Source Browser-Based AI Coding',
+	description:
+		'Honest comparison of Frontman and Cursor for frontend development. Frontman sees your browser DOM; Cursor works from files. Feature table, pricing, and real differences.'
+}
+
+// Comparison data
+type Status = 'yes' | 'no' | 'partial'
+
+type Feature = {
+	name: string
+	frontman: Status
+	cursor: Status
+	frontmanNote?: string
+	cursorNote?: string
+}
+
+const features: Feature[] = [
+	{ name: 'Sees live DOM & styles', frontman: 'yes', cursor: 'no', frontmanNote: 'Direct access via framework middleware', cursorNote: 'File-only context' },
+	{ name: 'Sees computed CSS', frontman: 'yes', cursor: 'no', frontmanNote: 'Runtime values, not class names', cursorNote: 'Reads class names from source' },
+	{ name: 'Click-to-select elements', frontman: 'yes', cursor: 'no', frontmanNote: 'Visual component selection', cursorNote: 'Must describe or find in file tree' },
+	{ name: 'Hot reload feedback loop', frontman: 'yes', cursor: 'partial', frontmanNote: 'Instant in browser', cursorNote: 'Manual refresh required' },
+	{ name: 'File-based editing', frontman: 'yes', cursor: 'yes', frontmanNote: 'Edits source files', cursorNote: 'Full file system access' },
+	{ name: 'Autocomplete', frontman: 'no', cursor: 'yes', cursorNote: 'Tab completion, inline suggestions' },
+	{ name: 'Multi-file refactoring', frontman: 'partial', cursor: 'yes', frontmanNote: 'Single component focus', cursorNote: 'Cross-file edits, Composer' },
+	{ name: 'Terminal integration', frontman: 'no', cursor: 'yes', cursorNote: 'Built-in terminal + shell agent' },
+	{ name: 'Backend coding', frontman: 'no', cursor: 'yes', cursorNote: 'Any language, any framework' },
+	{ name: 'Framework-aware', frontman: 'yes', cursor: 'partial', frontmanNote: 'Deep middleware integration', cursorNote: 'Reads config, infers structure' },
+	{ name: 'Designer/PM friendly', frontman: 'yes', cursor: 'no', frontmanNote: 'No IDE needed', cursorNote: 'Requires IDE proficiency' },
+	{ name: 'Open source', frontman: 'yes', cursor: 'no', frontmanNote: 'Apache 2.0 / AGPL-3.0', cursorNote: 'Proprietary' },
+	{ name: 'BYOK (bring your own key)', frontman: 'yes', cursor: 'partial', frontmanNote: 'Any LLM provider', cursorNote: 'API key mode available' },
+	{ name: 'Self-hostable', frontman: 'yes', cursor: 'no' },
+	{ name: 'Works in the browser', frontman: 'yes', cursor: 'no', frontmanNote: 'No IDE required', cursorNote: 'VS Code fork' },
+]
+
+function statusLabel(status: Status): string {
+	switch (status) {
+		case 'yes': return 'Yes'
+		case 'no': return 'No'
+		case 'partial': return 'Partial'
+	}
+}
+
+// FAQ data for JSON-LD
+const faqs = [
+	{
+		question: 'Is Frontman an open-source alternative to Cursor?',
+		answer: 'Yes, but they work differently. Cursor is an AI-powered IDE that reads your source files. Frontman is a browser-based AI agent that sees your live DOM, computed CSS, and component tree. For frontend visual editing, Frontman is a free open-source alternative. For general-purpose coding, backend work, or multi-file refactoring, Cursor is the more complete tool.'
+	},
+	{
+		question: 'Can Frontman replace Cursor?',
+		answer: 'For frontend visual editing — clicking elements, adjusting layout, fixing CSS — yes. For backend development, autocomplete, terminal integration, or large codebase refactoring, no. Many developers use both: Cursor for backend and broad refactoring, Frontman for visual frontend changes where browser context matters.'
+	},
+	{
+		question: 'Does Frontman work with Cursor?',
+		answer: 'Yes. You can use Cursor as your IDE for backend and general coding, and Frontman in the browser for visual frontend editing. They edit the same source files. Changes from either tool are reflected in the other through normal file watching and hot reload.'
+	},
+	{
+		question: 'What does Frontman see that Cursor cannot?',
+		answer: 'Frontman hooks into your dev server as framework middleware and gains access to the live DOM tree, computed CSS styles (not just class names), the rendered component hierarchy, viewport layout and spacing, server routes, and server logs. Cursor reads your source files but cannot see what they render in the browser.'
+	},
+	{
+		question: 'Is Frontman really free?',
+		answer: 'Yes. The client libraries are Apache 2.0 and the server is AGPL-3.0. There are no prompt limits, no subscription fees, and no usage caps. You bring your own API keys to Claude, ChatGPT, or OpenRouter and pay those providers directly for LLM usage. Frontman itself is free.'
+	}
+]
+
+// FAQPage JSON-LD
+const faqJsonLd = {
+	"@context": "https://schema.org",
+	"@type": "FAQPage",
+	"mainEntity": faqs.map((faq) => ({
+		"@type": "Question",
+		"name": faq.question,
+		"acceptedAnswer": {
+			"@type": "Answer",
+			"text": faq.answer
+		}
+	}))
+}
+---
+
+<Layout title={SEO.title} description={SEO.description}>
+	<script is:inline type="application/ld+json" set:html={JSON.stringify(faqJsonLd)} />
+	<link slot="head" rel="canonical" href="https://frontman.sh/vs/cursor" />
+
+	<!-- Hero / AI-Citable Summary -->
+	<section class="hero-section">
+		<div class="hero-container">
+			<p class="hero-label">Comparison</p>
+			<h1 class="hero-title">Frontman vs Cursor</h1>
+			<p class="hero-subtitle">Browser-Based vs IDE-Based AI Coding</p>
+
+			<div class="hero-summary">
+				<p>
+					<a href="https://frontman.sh" class="text-link">Frontman</a> is an open-source AI coding agent that lives in your browser. It hooks into your dev server as middleware and sees the live DOM, component tree, CSS styles, routes, and server logs. You click elements in your running app, describe changes in plain English, and get real source code edits with hot reload.
+				</p>
+				<p>
+					<a href="https://cursor.com" class="text-link" rel="nofollow">Cursor</a> is a commercial AI-powered IDE based on VS Code. It reads your source files and uses AI to suggest edits, refactor code, and generate new code. It works entirely from file context — it cannot see what your app actually renders in the browser.
+				</p>
+				<p class="summary-emphasis">
+					The core difference: Cursor is an IDE that edits files. Frontman is a browser tool that edits files based on what it sees rendered. They solve the same problem from opposite directions.
+				</p>
+			</div>
+		</div>
+	</section>
+
+	<!-- Comparison Table -->
+	<section class="comparison-section">
+		<div class="comparison-container">
+			<h2 class="section-title">Feature Comparison</h2>
+
+			<!-- Desktop table -->
+			<div class="table-wrapper">
+				<table class="comparison-table" role="grid">
+					<thead>
+						<tr>
+							<th class="feature-header">Feature</th>
+							<th class="tool-header tool-header--highlighted">Frontman</th>
+							<th class="tool-header">Cursor</th>
+						</tr>
+					</thead>
+					<tbody>
+						{features.map((feature) => (
+							<tr>
+								<td class="feature-cell">{feature.name}</td>
+								<td class={`status-cell status-cell--highlighted`} aria-label={statusLabel(feature.frontman)}>
+									<div class="status-content">
+										{feature.frontman === 'yes' && (
+											<svg class="status-icon status-icon--yes" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+										)}
+										{feature.frontman === 'no' && (
+											<svg class="status-icon status-icon--no" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+										)}
+										{feature.frontman === 'partial' && (
+											<svg class="status-icon status-icon--partial" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+										)}
+										{feature.frontmanNote && <span class="status-note">{feature.frontmanNote}</span>}
+									</div>
+								</td>
+								<td class="status-cell" aria-label={statusLabel(feature.cursor)}>
+									<div class="status-content">
+										{feature.cursor === 'yes' && (
+											<svg class="status-icon status-icon--yes" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+										)}
+										{feature.cursor === 'no' && (
+											<svg class="status-icon status-icon--no" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+										)}
+										{feature.cursor === 'partial' && (
+											<svg class="status-icon status-icon--partial" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+										)}
+										{feature.cursorNote && <span class="status-note">{feature.cursorNote}</span>}
+									</div>
+								</td>
+							</tr>
+						))}
+					</tbody>
+				</table>
+			</div>
+
+			<!-- Mobile cards -->
+			<div class="mobile-cards">
+				{features.map((feature) => (
+					<div class="mobile-card">
+						<h3 class="mobile-card-title">{feature.name}</h3>
+						<div class="mobile-card-grid">
+							<div class="mobile-card-item mobile-card-item--highlighted">
+								<span class="mobile-card-tool">Frontman</span>
+								<span>
+									{feature.frontman === 'yes' && <svg class="status-icon status-icon--yes" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>}
+									{feature.frontman === 'no' && <svg class="status-icon status-icon--no" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>}
+									{feature.frontman === 'partial' && <svg class="status-icon status-icon--partial" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line></svg>}
+								</span>
+							</div>
+							<div class="mobile-card-item">
+								<span class="mobile-card-tool">Cursor</span>
+								<span>
+									{feature.cursor === 'yes' && <svg class="status-icon status-icon--yes" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>}
+									{feature.cursor === 'no' && <svg class="status-icon status-icon--no" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>}
+									{feature.cursor === 'partial' && <svg class="status-icon status-icon--partial" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line></svg>}
+								</span>
+							</div>
+						</div>
+					</div>
+				))}
+			</div>
+		</div>
+	</section>
+
+	<!-- What Cursor Does Well -->
+	<section class="content-section content-section--light">
+		<div class="content-container">
+			<h2 class="section-title section-title--dark">What Cursor Does Well</h2>
+			<div class="prose-content prose-content--dark">
+				<p>Cursor is a genuine productivity multiplier for developers who live in an IDE. It deserves its popularity.</p>
+				<p><strong>Autocomplete is best-in-class.</strong> Tab completion understands your codebase, predicts multi-line edits, and learns from your patterns. For raw typing speed, nothing in this comparison comes close.</p>
+				<p><strong>Multi-file refactoring works.</strong> Cursor's Composer can rename a prop across 15 files, update imports, and fix type errors in one pass. Frontman operates on individual components — it does not do broad codebase surgery.</p>
+				<p><strong>Backend and general-purpose coding.</strong> Cursor handles Python, Go, Rust, SQL, infrastructure-as-code — any language, any project. Frontman is frontend-only. If you write backend code, Cursor is the right tool for that job.</p>
+				<p><strong>Terminal integration.</strong> Cursor's terminal agent can run commands, read output, and fix errors. Frontman has no terminal.</p>
+				<p><strong>Large community and ecosystem.</strong> Cursor has hundreds of thousands of active users, extensive documentation, and a mature extension ecosystem inherited from VS Code.</p>
+			</div>
+		</div>
+	</section>
+
+	<!-- Where Frontman Is Different -->
+	<section class="content-section">
+		<div class="content-container">
+			<h2 class="section-title">Where Frontman Is Different</h2>
+			<div class="prose-content">
+				<p>Frontman exists because of a specific problem: <strong>AI coding tools cannot see the browser.</strong> Cursor reads your JSX files, but it has never seen what they render. It does not know that your hero section overflows at 768px, that the computed font size is 18px not 16px, or that a sibling component's margin is pushing your layout.</p>
+
+				<p><strong>Browser context vs file context.</strong> Frontman hooks into your dev server as framework middleware — Next.js, Astro, or Vite. It gains access to the live DOM tree, computed CSS styles, the rendered component hierarchy, viewport layout, server routes, and server-side logs. When you click a button in your running app, Frontman knows exactly which source file, which component, and which line rendered it.</p>
+
+				<p><strong>Click-to-edit workflow.</strong> Instead of describing which file to open, you click the element you want to change. The AI already knows the component, its props, its styles, and its context in the rendered page. "Make this card's shadow more subtle" works because Frontman can see the card.</p>
+
+				<p><strong>Hot reload closes the feedback loop.</strong> Edit → see result → edit again happens in the browser without switching windows. No alt-tab, no manual refresh, no guessing whether the change worked.</p>
+
+				<p><strong>Open source and BYOK.</strong> Frontman's client libraries are Apache 2.0. The server is AGPL-3.0. There are no prompt limits, no subscription fees, and no usage-based pricing. You bring your own API keys to Claude, ChatGPT, or OpenRouter.</p>
+
+				<p><strong>Accessible to non-developers.</strong> Designers and PMs can click elements and describe changes in plain English. Changes produce standard code diffs for developer review. The browser is a familiar environment — no IDE required.</p>
+			</div>
+		</div>
+	</section>
+
+	<!-- Who Should Use Cursor -->
+	<section class="content-section content-section--light">
+		<div class="content-container">
+			<h2 class="section-title section-title--dark">Who Should Use Cursor</h2>
+			<div class="prose-content prose-content--dark">
+				<p>Cursor is the better choice when you need a full-featured IDE with AI capabilities. Specifically:</p>
+				<ul>
+					<li><strong>Backend developers</strong> working in Python, Go, Rust, or any non-frontend language</li>
+					<li><strong>Large codebase refactoring</strong> — renaming across dozens of files, updating APIs, migrating patterns</li>
+					<li><strong>Autocomplete-dependent workflows</strong> — if inline suggestions are core to how you code</li>
+					<li><strong>Full-stack work</strong> where you move between frontend and backend in the same session</li>
+					<li><strong>Teams standardized on VS Code</strong> — Cursor inherits the entire VS Code extension ecosystem</li>
+				</ul>
+			</div>
+		</div>
+	</section>
+
+	<!-- Who Should Use Frontman -->
+	<section class="content-section">
+		<div class="content-container">
+			<h2 class="section-title">Who Should Use Frontman</h2>
+			<div class="prose-content">
+				<p>Frontman is the better choice when browser context matters more than IDE features. Specifically:</p>
+				<ul>
+					<li><strong>Frontend developers frustrated by AI breaking CSS and layout</strong> — Frontman sees computed styles and rendered output, not just class names</li>
+					<li><strong>Teams where designers or PMs need to make UI changes</strong> — click elements, describe changes, review diffs</li>
+					<li><strong>Projects using Next.js, Astro, or Vite</strong> where deep framework integration provides better context</li>
+					<li><strong>Developers who want open-source with no vendor lock-in</strong> — Apache 2.0 client libs, BYOK, self-hostable</li>
+					<li><strong>Visual editing workflows</strong> where seeing the live result matters more than typing speed</li>
+				</ul>
+				<p>Many developers use both. Cursor for backend, refactoring, and general-purpose coding. Frontman for visual frontend changes where the AI needs to see the browser.</p>
+				<p>For a deeper technical comparison including Claude Code, read our <a href="/blog/frontman-vs-cursor-vs-claude-code" class="text-link">full comparison of Frontman, Cursor, and Claude Code</a>.</p>
+			</div>
+		</div>
+	</section>
+
+	<!-- Pricing -->
+	<section class="content-section content-section--light">
+		<div class="content-container">
+			<h2 class="section-title section-title--dark">Pricing Comparison</h2>
+			<div class="pricing-grid">
+				<div class="pricing-card pricing-card--highlighted">
+					<h3 class="pricing-name">Frontman</h3>
+					<div class="pricing-cost">Free</div>
+					<p class="pricing-model">Open source, BYOK</p>
+					<ul class="pricing-features">
+						<li>No prompt limits</li>
+						<li>No subscription fees</li>
+						<li>Bring your own API keys</li>
+						<li>Apache 2.0 (client) / AGPL-3.0 (server)</li>
+						<li>You pay your LLM provider directly</li>
+					</ul>
+				</div>
+				<div class="pricing-card">
+					<h3 class="pricing-name">Cursor</h3>
+					<div class="pricing-cost">$0–$40/mo</div>
+					<p class="pricing-model">Freemium, proprietary</p>
+					<ul class="pricing-features">
+						<li>Free tier: 2,000 completions/month</li>
+						<li>Pro: $20/month — 500 fast requests</li>
+						<li>Business: $40/user/month</li>
+						<li>API key mode available (BYOK)</li>
+						<li>Proprietary license</li>
+					</ul>
+				</div>
+			</div>
+		</div>
+	</section>
+
+	<!-- FAQ -->
+	<section class="content-section">
+		<div class="content-container">
+			<h2 class="section-title">Frequently Asked Questions</h2>
+			<div class="faq-list">
+				{faqs.map((faq) => (
+					<details class="faq-item group">
+						<summary class="faq-question">
+							<span>{faq.question}</span>
+							<span class="faq-icon">+</span>
+						</summary>
+						<div class="faq-answer">
+							<p>{faq.answer}</p>
+						</div>
+					</details>
+				))}
+			</div>
+		</div>
+	</section>
+
+	<!-- CTA -->
+	<section class="cta-section">
+		<div class="cta-container">
+			<h2 class="cta-title">Try Frontman</h2>
+			<p class="cta-description">One command. No account. No credit card.</p>
+			<div class="install-commands">
+				<div class="install-command">
+					<code><span class="command-prefix">$</span> npx @frontman-ai/nextjs install</code>
+					<span class="command-label">Next.js</span>
+				</div>
+				<div class="install-command">
+					<code><span class="command-prefix">$</span> npx @frontman-ai/vite install</code>
+					<span class="command-label">Vite (React, Vue, Svelte)</span>
+				</div>
+				<div class="install-command">
+					<code><span class="command-prefix">$</span> astro add @frontman-ai/astro</code>
+					<span class="command-label">Astro</span>
+				</div>
+			</div>
+			<div class="cta-links">
+				<Button size="lg" style="primary" link="https://github.com/frontman-ai/frontman">Star on GitHub</Button>
+				<a href="https://discord.gg/xk8uXJSvhC" target="_blank" rel="noopener noreferrer" class="cta-discord">Join Discord</a>
+			</div>
+		</div>
+	</section>
+</Layout>
+
+<style>
+	/* Hero */
+	.hero-section {
+		background: #09090b;
+		color: #fafafa;
+		padding: 80px 24px 64px;
+		display: flex;
+		justify-content: center;
+	}
+	.hero-container {
+		max-width: 720px;
+		width: 100%;
+	}
+	.hero-label {
+		@apply font-mono;
+		font-size: 13px;
+		letter-spacing: 0.12em;
+		text-transform: uppercase;
+		color: #A259FF;
+		margin-bottom: 12px;
+	}
+	.hero-title {
+		font-size: 48px;
+		font-weight: 700;
+		line-height: 1.1;
+		letter-spacing: -0.02em;
+		color: #fafafa;
+		margin-bottom: 8px;
+	}
+	.hero-subtitle {
+		font-size: 20px;
+		color: #71717a;
+		margin-bottom: 40px;
+	}
+	.hero-summary p {
+		font-size: 17px;
+		line-height: 1.7;
+		color: #a1a1aa;
+		margin-bottom: 16px;
+	}
+	.summary-emphasis {
+		color: #fafafa !important;
+		font-weight: 500;
+		border-left: 3px solid #A259FF;
+		padding-left: 16px;
+		margin-top: 24px !important;
+	}
+	.text-link {
+		color: #A259FF;
+		text-decoration: underline;
+		text-underline-offset: 2px;
+	}
+	.text-link:hover {
+		color: #c084fc;
+	}
+
+	/* Comparison section */
+	.comparison-section {
+		background: #09090b;
+		padding: 64px 24px;
+		display: flex;
+		justify-content: center;
+	}
+	.comparison-container {
+		max-width: 900px;
+		width: 100%;
+	}
+
+	/* Section titles */
+	.section-title {
+		font-size: 32px;
+		font-weight: 700;
+		color: #fafafa;
+		margin-bottom: 32px;
+		letter-spacing: -0.02em;
+	}
+	.section-title--dark {
+		color: #09090b;
+	}
+
+	/* Table */
+	.table-wrapper {
+		@apply hidden md:block;
+	}
+	.comparison-table {
+		@apply w-full;
+		border-collapse: separate;
+		border-spacing: 0;
+	}
+	.feature-header {
+		@apply text-left text-sm font-semibold uppercase tracking-wider py-4 px-6;
+		color: rgba(255, 255, 255, 0.4);
+		border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+	}
+	.tool-header {
+		@apply text-center text-base font-bold py-4 px-6;
+		color: rgba(255, 255, 255, 0.7);
+		border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+		width: 240px;
+	}
+	.tool-header--highlighted {
+		color: #A259FF;
+		background: rgba(162, 89, 255, 0.08);
+		border-top: 3px solid #A259FF;
+		border-bottom: 1px solid rgba(162, 89, 255, 0.2);
+	}
+	.feature-cell {
+		@apply text-left text-base py-4 px-6;
+		color: rgba(255, 255, 255, 0.9);
+		border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+	}
+	.status-cell {
+		@apply py-4 px-6;
+		border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+	}
+	.status-cell--highlighted {
+		background: rgba(162, 89, 255, 0.08);
+	}
+	.status-content {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		justify-content: center;
+	}
+	.status-note {
+		font-size: 13px;
+		color: rgba(255, 255, 255, 0.5);
+	}
+	tr:last-child .feature-cell,
+	tr:last-child .status-cell {
+		border-bottom: none;
+	}
+	.status-icon { @apply inline-block; }
+	.status-icon--yes { color: #22c55e; }
+	.status-icon--no { color: #ef4444; }
+	.status-icon--partial { color: #f59e0b; }
+
+	/* Mobile cards */
+	.mobile-cards {
+		@apply flex flex-col gap-3 md:hidden;
+	}
+	.mobile-card {
+		@apply p-4;
+		background: rgba(255, 255, 255, 0.04);
+		border: 1px solid rgba(255, 255, 255, 0.08);
+		border-radius: 12px;
+	}
+	.mobile-card-title {
+		@apply font-headings text-sm font-bold mb-3;
+		color: white;
+	}
+	.mobile-card-grid {
+		@apply grid grid-cols-2 gap-3;
+	}
+	.mobile-card-item {
+		@apply flex items-center justify-between py-2 px-3;
+		border-radius: 8px;
+		background: rgba(255, 255, 255, 0.03);
+	}
+	.mobile-card-item--highlighted {
+		background: rgba(162, 89, 255, 0.12);
+		border: 1px solid rgba(162, 89, 255, 0.25);
+	}
+	.mobile-card-tool {
+		@apply text-sm;
+		color: rgba(255, 255, 255, 0.6);
+	}
+	.mobile-card-item--highlighted .mobile-card-tool {
+		color: #A259FF;
+		font-weight: 600;
+	}
+
+	/* Content sections */
+	.content-section {
+		background: #09090b;
+		color: #fafafa;
+		padding: 64px 24px;
+		display: flex;
+		justify-content: center;
+	}
+	.content-section--light {
+		background: #fafafa;
+		color: #09090b;
+	}
+	.content-container {
+		max-width: 720px;
+		width: 100%;
+	}
+	.prose-content p {
+		font-size: 17px;
+		line-height: 1.7;
+		color: #a1a1aa;
+		margin-bottom: 16px;
+	}
+	.prose-content--dark p {
+		color: #52525b;
+	}
+	.prose-content strong {
+		color: #fafafa;
+		font-weight: 600;
+	}
+	.prose-content--dark strong {
+		color: #09090b;
+	}
+	.prose-content ul {
+		list-style: none;
+		padding: 0;
+		margin: 16px 0;
+	}
+	.prose-content li {
+		font-size: 17px;
+		line-height: 1.7;
+		color: #a1a1aa;
+		padding: 8px 0;
+		padding-left: 24px;
+		position: relative;
+	}
+	.prose-content--dark li {
+		color: #52525b;
+	}
+	.prose-content li::before {
+		content: '';
+		position: absolute;
+		left: 0;
+		top: 18px;
+		width: 8px;
+		height: 8px;
+		border-radius: 50%;
+		background: #A259FF;
+	}
+	.prose-content li strong {
+		color: #fafafa;
+	}
+	.prose-content--dark li strong {
+		color: #09090b;
+	}
+
+	/* Pricing */
+	.pricing-grid {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 24px;
+	}
+	.pricing-card {
+		padding: 32px;
+		border-radius: 16px;
+		border: 1px solid #e4e4e7;
+		background: white;
+	}
+	.pricing-card--highlighted {
+		border-color: #A259FF;
+		background: linear-gradient(135deg, rgba(162, 89, 255, 0.05), rgba(162, 89, 255, 0.02));
+		box-shadow: 0 0 0 1px rgba(162, 89, 255, 0.2);
+	}
+	.pricing-name {
+		font-size: 20px;
+		font-weight: 700;
+		color: #09090b;
+		margin-bottom: 8px;
+	}
+	.pricing-cost {
+		font-size: 36px;
+		font-weight: 800;
+		color: #09090b;
+		margin-bottom: 4px;
+		letter-spacing: -0.02em;
+	}
+	.pricing-card--highlighted .pricing-cost {
+		color: #A259FF;
+	}
+	.pricing-model {
+		font-size: 14px;
+		color: #71717a;
+		margin-bottom: 24px;
+	}
+	.pricing-features {
+		list-style: none;
+		padding: 0;
+		margin: 0;
+	}
+	.pricing-features li {
+		font-size: 15px;
+		color: #52525b;
+		padding: 6px 0;
+		padding-left: 20px;
+		position: relative;
+	}
+	.pricing-features li::before {
+		content: '→';
+		position: absolute;
+		left: 0;
+		color: #a1a1aa;
+	}
+
+	/* FAQ */
+	.faq-list {
+		border-top: 1px solid #27272a;
+	}
+	.faq-item {
+		border-bottom: 1px solid #27272a;
+		cursor: pointer;
+	}
+	.faq-question {
+		width: 100%;
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		padding: 24px 0;
+		color: #fafafa;
+		font-size: 17px;
+		font-weight: 500;
+		line-height: 1.4;
+		list-style: none;
+		transition: color 0.2s;
+	}
+	.faq-question::-webkit-details-marker { display: none; }
+	.faq-question:hover { color: #fff; }
+	.faq-question span:first-child { padding-right: 24px; }
+	.faq-icon {
+		flex-shrink: 0;
+		width: 28px;
+		height: 28px;
+		border-radius: 50%;
+		border: 1px solid #3f3f46;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font-size: 18px;
+		font-weight: 300;
+		color: #71717a;
+		transition: all 0.3s ease;
+	}
+	.group[open] .faq-icon {
+		transform: rotate(45deg);
+		background: #27272a;
+	}
+	.faq-answer p {
+		font-size: 15px;
+		line-height: 1.7;
+		color: #a1a1aa;
+		padding-bottom: 24px;
+		margin: 0;
+		max-width: 620px;
+	}
+
+	/* CTA */
+	.cta-section {
+		background: #09090b;
+		border-top: 1px solid #27272a;
+		padding: 80px 24px;
+		display: flex;
+		justify-content: center;
+	}
+	.cta-container {
+		max-width: 720px;
+		width: 100%;
+	}
+	.cta-title {
+		font-size: 36px;
+		font-weight: 700;
+		color: #fafafa;
+		margin-bottom: 8px;
+		letter-spacing: -0.02em;
+	}
+	.cta-description {
+		font-size: 17px;
+		color: #71717a;
+		margin-bottom: 32px;
+	}
+	.install-commands {
+		display: flex;
+		flex-direction: column;
+		gap: 12px;
+		margin-bottom: 32px;
+	}
+	.install-command {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		padding: 12px 16px;
+		border-radius: 8px;
+		background: rgba(255, 255, 255, 0.04);
+		border: 1px solid rgba(255, 255, 255, 0.08);
+	}
+	.install-command code {
+		font-family: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, 'DejaVu Sans Mono', monospace;
+		font-size: 14px;
+		color: #fafafa;
+	}
+	.command-prefix {
+		color: #A259FF;
+		margin-right: 8px;
+	}
+	.command-label {
+		font-size: 13px;
+		color: #71717a;
+	}
+	.cta-links {
+		display: flex;
+		align-items: center;
+		gap: 24px;
+	}
+	.cta-discord {
+		color: #71717a;
+		font-size: 15px;
+		text-decoration: none;
+		transition: color 0.2s;
+	}
+	.cta-discord:hover {
+		color: #fafafa;
+	}
+
+	/* Responsive */
+	@media (max-width: 768px) {
+		.hero-section { padding: 48px 20px 40px; }
+		.hero-title { font-size: 32px; }
+		.hero-subtitle { font-size: 17px; margin-bottom: 24px; }
+		.section-title { font-size: 24px; }
+		.content-section { padding: 40px 20px; }
+		.comparison-section { padding: 40px 20px; }
+		.pricing-grid { grid-template-columns: 1fr; }
+		.cta-section { padding: 48px 20px; }
+		.cta-title { font-size: 28px; }
+		.cta-links { flex-direction: column; align-items: flex-start; gap: 12px; }
+		.install-command { flex-direction: column; align-items: flex-start; gap: 4px; }
+	}
+</style>

@@ -2,16 +2,32 @@
 
 // Data for file/image attachments extracted from user content parts
 type fileAttachmentData = {
+  id: string,
   dataUrl: string,
   mediaType: string,
   filename: string,
+}
+
+// Raw base64 + mediaType extracted from a fileAttachmentData's data URL
+type resolvedImageData = {
+  base64: string,
+  mediaType: string,
+}
+
+// Strip the "data:mime;base64," prefix from a data URL to get raw base64
+let resolveAttachmentImage = (att: fileAttachmentData): resolvedImageData => {
+  let base64 = switch att.dataUrl->String.indexOf(";base64,") {
+  | -1 => att.dataUrl
+  | idx => att.dataUrl->String.slice(~start=idx + 8, ~end=String.length(att.dataUrl))
+  }
+  {base64, mediaType: att.mediaType}
 }
 
 // Content part types for messages (simplified from Vercel AI SDK)
 module UserContentPart = {
   type t =
     | Text({text: string})
-    | Image({image: string, mediaType: option<string>, name: option<string>})
+    | Image({id: option<string>, image: string, mediaType: option<string>, name: option<string>})
     | File({file: string})
 
   let text = (text: string): t => Text({text: text})

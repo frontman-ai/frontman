@@ -16,7 +16,7 @@ let make = (~content: array<UserContentPart.t>, ~messageId: string, ~isNew: bool
   // Separate image parts from text parts for layout
   let imageParts = content->Array.filterMap(part =>
     switch part {
-    | UserContentPart.Image({image, mediaType, name: _}) => Some((image, mediaType))
+    | UserContentPart.Image({image, mediaType, name: _, id: _}) => Some((image, mediaType))
     | _ => None
     }
   )

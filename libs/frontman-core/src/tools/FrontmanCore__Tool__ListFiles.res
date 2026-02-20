@@ -6,7 +6,7 @@ module ChildProcess = FrontmanBindings.ChildProcess
 module Tool = FrontmanFrontmanProtocol.FrontmanProtocol__Tool
 module PathContext = FrontmanCore__PathContext
 
-let name = "list_files"
+let name = Tool.ToolNames.listFiles
 let visibleToAgent = true
 let description = `Lists files and directories in a given path.
 

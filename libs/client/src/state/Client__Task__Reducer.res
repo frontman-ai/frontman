@@ -420,15 +420,17 @@ let extractAttachmentsFromUserContent = (
 ): array<Message.fileAttachmentData> => {
   content->Array.filterMap(part => {
     switch part {
-    | Image({image, mediaType, name}) =>
+    | Image({id, image, mediaType, name}) =>
       Some({
-        Message.dataUrl: image,
+        Message.id: id->Option.getOrThrow,
+        dataUrl: image,
         mediaType: mediaType->Option.getOrThrow,
-        filename: name->Option.getOr("attachment"),
+        filename: name->Option.getOrThrow,
       })
     | File({file}) =>
       Some({
-        Message.dataUrl: file,
+        Message.id: WebAPI.Global.crypto->WebAPI.Crypto.randomUUID,
+        dataUrl: file,
         mediaType: "application/octet-stream",
         filename: "file",
       })
@@ -650,12 +652,21 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
     let text = extractTextFromUserContent(content)
     let attachments = extractAttachmentsFromUserContent(content)
     let message = Message.User({id, content, createdAt: Date.now()})
+
+    // Accumulate image attachments keyed by URI for write_file image_ref resolution
+    let updatedImageAttachments = data.imageAttachments->Dict.copy
+    attachments->Array.forEach(att => {
+      let uri = `attachment://${att.id}/${att.filename}`
+      updatedImageAttachments->Dict.set(uri, att)
+    })
+
     (
       Task.Loaded({
         ...data,
         messages: MessageStore.insert(data.messages, message),
         isAgentRunning: true,
         turnError: None, // Clear any previous error when sending a new message
+        imageAttachments: updatedImageAttachments,
       }),
       [SendMessage({text, attachments})],
     )
@@ -757,6 +768,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
           isAgentRunning: false,
           planEntries: [],
           turnError: None,
+          imageAttachments: Dict.make(),
         }),
         [],
       )

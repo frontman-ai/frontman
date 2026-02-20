@@ -100,6 +100,13 @@ module Provider = {
       let mcpServer = MCPServer.make(~relay, ~serverName=clientName, ~serverVersion=clientVersion)
       let mcpServer = Client__ToolRegistry.registerAll(toolRegistry, mcpServer)
 
+      // Wire up image ref resolver so write_file can save user-attached images.
+      MCPServer.setImageRefResolver(mcpServer, (uri, ~taskId) => {
+        let state = FrontmanReactStatestore.StateStore.getState(Client__State__Store.store)
+        Client__State.Selectors.resolveImageRef(state, ~taskId, ~uri)
+        ->Option.map(({base64, mediaType}) => {MCPServer.base64, mediaType})
+      })
+
       let config: Reducer.initConfig = {
         endpoint,
         tokenUrl,

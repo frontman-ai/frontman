@@ -5,7 +5,7 @@ S.enableJson()
 module Tool = FrontmanFrontmanClient.FrontmanClient__MCP__Tool
 type toolResult<'a> = Tool.toolResult<'a>
 
-let name = "navigate"
+let name = Tool.ToolNames.navigate
 let visibleToAgent = true
 let description = `Navigate in the web preview. Supports multiple navigation actions:
 
