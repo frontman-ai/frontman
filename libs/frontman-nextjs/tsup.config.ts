@@ -76,6 +76,9 @@ export default defineConfig([
       'next/server',
       'react',
       'react-dom',
+      // Lighthouse has dynamic imports that break Turbopack
+      'lighthouse',
+      'chrome-launcher',
       'fs',
       'path',
       'os',
@@ -124,6 +127,9 @@ export default defineConfig([
       'next/server',
       'react',
       'react-dom',
+      // Lighthouse has dynamic imports that break Turbopack
+      'lighthouse',
+      'chrome-launcher',
       'fs',
       'path',
       'os',
