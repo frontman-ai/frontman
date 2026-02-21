@@ -10,7 +10,7 @@ defmodule FrontmanServer.Observability.ConsoleHandler do
 
   require Logger
 
-  alias Swarm.Telemetry.Events, as: SwarmEvents
+  alias SwarmAi.Telemetry.Events, as: SwarmEvents
 
   @table :frontman_console_timing
 

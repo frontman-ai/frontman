@@ -99,7 +99,13 @@ jobs:
             [ -f "$changelog" ] || continue
             if git status --porcelain -- "$changelog" | grep -q .; then
               PKG_DIR=$(dirname "$changelog")
-              PKG_NAME=$(node -e "console.log(require('./${PKG_DIR}/package.json').name)" 2>/dev/null || echo "$(basename "$PKG_DIR")")
+              if [ -f "${PKG_DIR}/package.json" ]; then
+                PKG_NAME=$(node -e "console.log(require('./${PKG_DIR}/package.json').name)")
+              elif [ -f "${PKG_DIR}/mix.exs" ]; then
+                PKG_NAME=$(sed -n 's/.*app: :\([a-z_]*\).*/\1/p' "${PKG_DIR}/mix.exs" | head -1)
+              else
+                PKG_NAME=$(basename "$PKG_DIR")
+              fi
               SECTION=$(awk '/^## /{if(found) exit; found=1; next} found' "$changelog")
               if [ -n "$SECTION" ]; then
                 CHANGES="${CHANGES}"$'\n\n'"#### ${PKG_NAME}"$'\n\n'"${SECTION}"

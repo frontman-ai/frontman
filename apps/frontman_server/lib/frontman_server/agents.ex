@@ -25,8 +25,8 @@ defmodule FrontmanServer.Agents do
   alias FrontmanServer.Providers
   alias FrontmanServer.Providers.ResolvedKey
   alias FrontmanServer.Tasks
-  alias Swarm.LLM.Chunk
-  alias Swarm.Message
+  alias SwarmAi.LLM.Chunk
+  alias SwarmAi.Message
 
   @doc """
   Checks if an agent is currently running for the given task.
@@ -74,7 +74,7 @@ defmodule FrontmanServer.Agents do
   - `:tools` - List of tool definitions for LLM (default: [])
   - `:model` - LLM model spec (defaults to provider default)
   - `:env_api_key` - Map of provider => api_key from client's environment
-  - `:agent` - Custom agent struct implementing Swarm.Agent (for testing)
+  - `:agent` - Custom agent struct implementing SwarmAi.Agent (for testing)
 
   ## Returns
   - `{:ok, pid}` - Agent started successfully
@@ -116,7 +116,7 @@ defmodule FrontmanServer.Agents do
   # Dialyzer warning suppressed: the anonymous function calls execute_agent which
   # has the same protocol dispatch issue. See execute_agent comment for details.
   @dialyzer {:nowarn_function, run_agent: 5}
-  @spec run_agent(Scope.t(), Swarm.Agent.t(), String.t(), [Message.t()], keyword()) ::
+  @spec run_agent(Scope.t(), SwarmAi.Agent.t(), String.t(), [Message.t()], keyword()) ::
           {:ok, pid()} | {:error, term()}
   defp run_agent(scope, agent, task_id, messages, opts) do
     on_event = Keyword.fetch!(opts, :on_event)
@@ -204,7 +204,7 @@ defmodule FrontmanServer.Agents do
     case Registry.lookup(FrontmanServer.AgentRegistry, {:tool_call, tool_call_id}) do
       [{_pid, %{caller_pid: caller}}] ->
         # MCP tool - send result to waiting executor
-        # Encode non-string results since Swarm.Message.ContentPart.text/1 requires strings
+        # Encode non-string results since SwarmAi.Message.ContentPart.text/1 requires strings
         encoded = encode_result_for_swarm(result)
         send(caller, {:tool_result, tool_call_id, encoded, is_error})
         :ok
@@ -223,7 +223,7 @@ defmodule FrontmanServer.Agents do
 
   ## Options
   - `:tools` - List of tool definitions for LLM (default: [])
-  - `:agent` - Custom agent struct implementing Swarm.Agent (for testing)
+  - `:agent` - Custom agent struct implementing SwarmAi.Agent (for testing)
   """
   @spec notify_user_message(Scope.t(), String.t(), list(FrontmanServer.Tools.MCP.t()), keyword()) ::
           :ok
@@ -423,7 +423,7 @@ defmodule FrontmanServer.Agents do
 
   defp to_swarm_tool_calls(tool_calls) do
     Enum.map(tool_calls, fn tc ->
-      %Swarm.ToolCall{
+      %SwarmAi.ToolCall{
         id: tc.id,
         name: ReqLLM.ToolCall.name(tc),
         arguments: ReqLLM.ToolCall.args_json(tc)
@@ -442,7 +442,7 @@ defmodule FrontmanServer.Agents do
     Phoenix.PubSub.broadcast(FrontmanServer.PubSub, Tasks.topic(task_id), message)
   end
 
-  # Encode non-string results to JSON for Swarm.Message.ContentPart.text/1
+  # Encode non-string results to JSON for SwarmAi.Message.ContentPart.text/1
   defp encode_result_for_swarm(value) when is_binary(value), do: value
   defp encode_result_for_swarm(value), do: Jason.encode!(value)
 
@@ -476,7 +476,7 @@ defmodule FrontmanServer.Agents do
     tool_executor =
       ToolExecutor.make_executor(scope, task_id, mcp_tools: mcp_tools, llm_opts: llm_opts)
 
-    Logger.info("Starting agent execution for task #{task_id} via Swarm.run_streaming")
+    Logger.info("Starting agent execution for task #{task_id} via SwarmAi.run_streaming")
 
     # Emit task start telemetry - creates the root OTEL span for this task
     TelemetryEvents.task_start(task_id)
@@ -485,7 +485,7 @@ defmodule FrontmanServer.Agents do
     # Pass task_id in metadata for telemetry correlation.
     # Swarm returns loop_id for execution identification and crash reporting.
     result =
-      Swarm.run_streaming(agent, messages,
+      SwarmAi.run_streaming(agent, messages,
         metadata: %{task_id: task_id},
         tool_executor: tool_executor,
         on_chunk: &handle_stream_chunk(&1, on_event),
@@ -538,7 +538,7 @@ defmodule FrontmanServer.Agents do
     end
   end
 
-  defp build_response_metadata(%Swarm.LLM.Response{} = response) do
+  defp build_response_metadata(%SwarmAi.LLM.Response{} = response) do
     metadata = %{}
 
     metadata =
@@ -558,7 +558,7 @@ defmodule FrontmanServer.Agents do
     metadata
   end
 
-  defp to_reqllm_tool_call(%Swarm.ToolCall{} = tc) do
+  defp to_reqllm_tool_call(%SwarmAi.ToolCall{} = tc) do
     ReqLLM.ToolCall.new(tc.id, tc.name, tc.arguments)
   end
 end

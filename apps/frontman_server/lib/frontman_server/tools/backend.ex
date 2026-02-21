@@ -22,14 +22,14 @@ defmodule FrontmanServer.Tools.Backend do
     alias FrontmanServer.Accounts.Scope
     alias FrontmanServer.Tasks.Task
 
-    @type executor :: (Swarm.ToolCall.t() -> {:ok, String.t()} | {:error, String.t()})
+    @type executor :: (SwarmAi.ToolCall.t() -> {:ok, String.t()} | {:error, String.t()})
 
     typedstruct do
       field(:scope, Scope.t(), enforce: true)
       field(:task, Task.t(), enforce: true)
       field(:tool_executor, executor(), enforce: true)
-      field(:mcp_tools, [Swarm.Tool.t()], default: [])
-      field(:context_messages, [Swarm.Message.t()], default: [])
+      field(:mcp_tools, [SwarmAi.Tool.t()], default: [])
+      field(:context_messages, [SwarmAi.Message.t()], default: [])
       # Flat keyword list: [api_key: "...", model: "openrouter:anthropic/..."]
       field(:llm_opts, keyword(), enforce: true)
     end
@@ -42,9 +42,9 @@ defmodule FrontmanServer.Tools.Backend do
   @callback parameter_schema() :: map()
   @callback execute(args :: map(), context :: Context.t()) :: result()
 
-  @spec to_swarm_tool(module()) :: Swarm.Tool.t()
+  @spec to_swarm_tool(module()) :: SwarmAi.Tool.t()
   def to_swarm_tool(module) do
-    Swarm.Tool.new(
+    SwarmAi.Tool.new(
       module.name(),
       module.description(),
       module.parameter_schema()

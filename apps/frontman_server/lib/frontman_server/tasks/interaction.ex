@@ -728,7 +728,7 @@ defmodule FrontmanServer.Tasks.Interaction do
         content = get_field(result, :text) || get_field(result, :content)
 
         if content && is_binary(content) do
-          [Swarm.Message.user(content)]
+          [SwarmAi.Message.user(content)]
         else
           []
         end
@@ -742,7 +742,7 @@ defmodule FrontmanServer.Tasks.Interaction do
 
           _ ->
             # Plain text content - use as is
-            [Swarm.Message.user(result)]
+            [SwarmAi.Message.user(result)]
         end
 
       _ ->

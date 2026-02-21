@@ -15,7 +15,7 @@ defmodule FrontmanServer.Tools do
 
   @todo_mutations ["todo_add", "todo_update", "todo_remove"]
 
-  @spec backend_tools() :: [Swarm.Tool.t()]
+  @spec backend_tools() :: [SwarmAi.Tool.t()]
   def backend_tools do
     Enum.map(@backend_tools, &Backend.to_swarm_tool/1)
   end
@@ -54,7 +54,7 @@ defmodule FrontmanServer.Tools do
   ## Example
       mcp_tools |> Tools.prepare_for_task(task_id)
   """
-  @spec prepare_for_task([FrontmanServer.Tools.MCP.t()], String.t()) :: [Swarm.Tool.t()]
+  @spec prepare_for_task([FrontmanServer.Tools.MCP.t()], String.t()) :: [SwarmAi.Tool.t()]
   def prepare_for_task(mcp_tools, _task_id) do
     mcp_formatted = MCP.to_swarm_tools(mcp_tools)
     backend = backend_tools()

@@ -665,7 +665,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       # 3. The result should be encoded to string before sending to executor
       #
       # Without the fix, the executor receives a map which later causes
-      # FunctionClauseError in Swarm.Message.ContentPart.text/1
+      # FunctionClauseError in SwarmAi.Message.ContentPart.text/1
 
       tool_call_id = "call_json_result_#{:rand.uniform(1_000_000)}"
       test_pid = self()
@@ -722,7 +722,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       # The result should be a STRING (encoded JSON), not a map
       assert_receive {:tool_result, ^tool_call_id, content, false}, 5_000
 
-      # This is the key assertion - content must be a string for Swarm.Message.ContentPart.text/1
+      # This is the key assertion - content must be a string for SwarmAi.Message.ContentPart.text/1
       assert is_binary(content),
              "Tool result should be encoded to string, got: #{inspect(content)}"
 

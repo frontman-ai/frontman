@@ -17,7 +17,7 @@ defmodule FrontmanServer.Agents.SubAgentMcpRoutingTest do
   without requiring callers to handle interaction publishing.
   """
 
-  use FrontmanServer.SwarmCase, async: false
+  use SwarmAi.Testing, async: false
   use FrontmanServerWeb.ChannelCase
 
   alias FrontmanServer.Agents.ToolExecutor
@@ -25,7 +25,7 @@ defmodule FrontmanServer.Agents.SubAgentMcpRoutingTest do
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServerWeb.UserSocket
   alias JsonRpc
-  alias Swarm.ToolCall
+  alias SwarmAi.ToolCall
 
   describe "ToolExecutor MCP tool routing" do
     setup %{scope: scope} do
@@ -103,7 +103,7 @@ defmodule FrontmanServer.Agents.SubAgentMcpRoutingTest do
 
       executor_task =
         Task.async(fn ->
-          Swarm.run_blocking(agent, [Swarm.Message.user("Implement the component")], executor)
+          SwarmAi.run_blocking(agent, [SwarmAi.Message.user("Implement the component")], executor)
         end)
 
       # Verify MCP request is pushed to channel

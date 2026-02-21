@@ -28,7 +28,7 @@ endef
         ssl-setup tunnel \
         worktree-create worktree-create-from worktree-list worktree-remove worktree-clean \
         worktree-status worktree-devpod worktree-urls worktree-hosts worktree-register worktree-registry \
-        publish publish-astro publish-vite publish-nextjs release \
+        publish publish-astro publish-vite publish-nextjs publish-swarm-ai release \
         kill-all-processes open-dogfooding pull-webapi
 
 help: ## Display available commands
@@ -323,6 +323,9 @@ publish-vite: ## Publish @frontman-ai/vite to npm (pass OTP=<code> for 2FA)
 
 publish-nextjs: ## Publish @frontman-ai/nextjs to npm (pass OTP=<code> for 2FA)
 	cd libs/frontman-nextjs && $(MAKE) publish OTP=$(OTP)
+
+publish-swarm-ai: ## Publish swarm_ai to Hex (dry run by default, HEX_PUBLISH=1 for real)
+	cd apps/swarm_ai && $(MAKE) hex-publish HEX_PUBLISH=$(HEX_PUBLISH)
 
 release: ## Create a release PR from pending changesets
 	@printf "$(CYAN)Checking release prerequisites...$(RESET)\n"
