@@ -179,7 +179,7 @@ let processLhr = (lhr: Lighthouse.lhr): output => {
     ->Array.filterMap(id => lhr.categories->Dict.get(id))
     ->Array.map(category => {
       let score = switch category.score->Nullable.toOption {
-      | Some(s) => Float.toInt(s *. 100.0)
+      | Some(s) => Float.toInt(Math.round(s *. 100.0))
       | None => 0
       }
       let topIssues = getTopIssues(~category, ~audits=lhr.audits, ~maxIssues=3)
