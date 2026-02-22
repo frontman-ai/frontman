@@ -268,37 +268,13 @@ let getDevCommand = (pm: packageManager): string => {
 }
 
 // Get install command args for each package manager
-let getInstallArgs = (pm: packageManager, ~isDev: bool=false): array<string> => {
+// Always installs as devDependencies — framework wrappers are build-time deps
+let getInstallArgs = (pm: packageManager): array<string> => {
   switch pm {
-  | Npm =>
-    if isDev {
-      ["install", "-D"]
-    } else {
-      ["install"]
-    }
-  | Yarn =>
-    if isDev {
-      ["add", "-D"]
-    } else {
-      ["add"]
-    }
-  | Pnpm =>
-    if isDev {
-      ["add", "--save-dev"]
-    } else {
-      ["add"]
-    }
-  | Bun =>
-    if isDev {
-      ["add", "--dev"]
-    } else {
-      ["add"]
-    }
-  | Deno =>
-    if isDev {
-      ["add", "--dev"]
-    } else {
-      ["add"]
-    }
+  | Npm => ["install", "-D"]
+  | Yarn => ["add", "-D"]
+  | Pnpm => ["add", "--save-dev"]
+  | Bun => ["add", "--dev"]
+  | Deno => ["add", "--dev"]
   }
 }
