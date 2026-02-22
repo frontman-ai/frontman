@@ -268,7 +268,10 @@ let getDevCommand = (pm: packageManager): string => {
 }
 
 // Get install command args for each package manager
-// Always installs as devDependencies — framework wrappers are build-time deps
+// Installs as devDependencies: Next.js bundles all imports at build time (both
+// middleware on Edge and instrumentation on Node.js), so these packages only need
+// to exist during `next build`, not at runtime. Every deployment platform runs
+// `npm install` (all deps) before `next build`, then prunes devDeps afterward.
 let getInstallArgs = (pm: packageManager): array<string> => {
   switch pm {
   | Npm => ["install", "-D"]
