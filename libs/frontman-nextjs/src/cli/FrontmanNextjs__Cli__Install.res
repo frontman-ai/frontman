@@ -29,7 +29,7 @@ let installDependencies = async (
   ~dryRun: bool,
 ): result<unit, string> => {
   let pm = Detect.getPackageManagerCommand(packageManager)
-  let args = Detect.getInstallArgs(packageManager, ~isDev=true)
+  let args = Detect.getInstallArgs(packageManager)
   let packages = ["@frontman-ai/nextjs", "@opentelemetry/sdk-node"]
   // Deno requires npm: prefix for npm packages (otherwise it looks them up on JSR)
   let packages = switch packageManager {
