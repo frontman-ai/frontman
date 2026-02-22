@@ -6,13 +6,13 @@ defmodule FrontmanServer.Agents.ExecutionTest do
   from SwarmCase, catching issues like duplicate tool call broadcasts.
   """
 
-  use FrontmanServer.SwarmCase, async: false
+  use SwarmAi.Testing, async: false
 
   alias Ecto.Adapters.SQL.Sandbox
   alias FrontmanServer.Accounts
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Tasks
-  alias Swarm.ToolCall
+  alias SwarmAi.ToolCall
 
   describe "MCP tool call broadcast" do
     setup do

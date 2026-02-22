@@ -35,8 +35,8 @@ jobs:
             exit 0
           fi
 
-          # Check for direct CHANGELOG.md edit
-          if echo "$CHANGED" | grep -q '^CHANGELOG.md$'; then
+          # Check for direct CHANGELOG.md edit (root or per-package)
+          if echo "$CHANGED" | grep -q 'CHANGELOG.md$'; then
             echo "Found CHANGELOG.md update"
             exit 0
           fi

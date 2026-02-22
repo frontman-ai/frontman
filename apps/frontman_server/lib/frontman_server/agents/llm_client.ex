@@ -1,6 +1,6 @@
 defmodule FrontmanServer.Agents.LLMClient do
   @moduledoc """
-  Swarm.LLM implementation using ReqLLM.
+  SwarmAi.LLM implementation using ReqLLM.
 
   Stream-first design: returns a lazy stream of chunks that can be
   consumed with callbacks or collected into a Response.
@@ -17,7 +17,7 @@ defmodule FrontmanServer.Agents.LLMClient do
 
   typedstruct do
     field(:model, String.t(), default: @default_model)
-    field(:tools, [Swarm.Tool.t()], default: [])
+    field(:tools, [SwarmAi.Tool.t()], default: [])
     # llm_opts must include :api_key (resolved at domain layer)
     field(:llm_opts, keyword(), default: [])
   end
@@ -33,7 +33,7 @@ defmodule FrontmanServer.Agents.LLMClient do
   ## Options
 
   - `:model` - Model spec string (default: "openrouter:openai/gpt-5.1-codex")
-  - `:tools` - List of Swarm.Tool structs
+  - `:tools` - List of SwarmAi.Tool structs
   - `:llm_opts` - Options for ReqLLM, must include `:api_key`
   """
   def new(opts \\ []) do
@@ -41,13 +41,13 @@ defmodule FrontmanServer.Agents.LLMClient do
   end
 
   @doc """
-  Converts Swarm.Tool to ReqLLM.Tool format.
+  Converts SwarmAi.Tool to ReqLLM.Tool format.
   Normalizes schemas for OpenAI-compatible providers that require strict mode.
 
   When `requires_mcp_prefix: true` is passed in opts, tool names are prefixed with `mcp_`.
   """
-  @spec to_reqllm_tool(Swarm.Tool.t(), String.t(), keyword()) :: ReqLLM.Tool.t()
-  def to_reqllm_tool(%Swarm.Tool{} = tool, model, opts \\ []) do
+  @spec to_reqllm_tool(SwarmAi.Tool.t(), String.t(), keyword()) :: ReqLLM.Tool.t()
+  def to_reqllm_tool(%SwarmAi.Tool{} = tool, model, opts \\ []) do
     provider = SchemaTransformer.provider_for_model(model)
     schema = SchemaTransformer.transform(tool.parameter_schema, provider)
     strict? = provider == :openai_strict
@@ -79,12 +79,12 @@ defmodule FrontmanServer.Agents.LLMClient do
   def strip_mcp_prefix(name), do: name
 end
 
-defimpl Swarm.LLM, for: FrontmanServer.Agents.LLMClient do
+defimpl SwarmAi.LLM, for: FrontmanServer.Agents.LLMClient do
   alias FrontmanServer.Agents.{LLMClient, SchemaTransformer}
-  alias Swarm.LLM.{Chunk, Usage}
-  alias Swarm.Message
-  alias Swarm.Message.ContentPart
-  alias Swarm.ToolCall
+  alias SwarmAi.LLM.{Chunk, Usage}
+  alias SwarmAi.Message
+  alias SwarmAi.Message.ContentPart
+  alias SwarmAi.ToolCall
 
   require Logger
 
@@ -277,7 +277,7 @@ defimpl Swarm.LLM, for: FrontmanServer.Agents.LLMClient do
     end)
   end
 
-  # --- Swarm.Message -> ReqLLM.Message conversion ---
+  # --- SwarmAi.Message -> ReqLLM.Message conversion ---
 
   defp to_reqllm_message(%Message{} = msg, requires_mcp_prefix?) do
     %ReqLLM.Message{

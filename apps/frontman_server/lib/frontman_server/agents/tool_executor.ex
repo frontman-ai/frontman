@@ -29,7 +29,7 @@ defmodule FrontmanServer.Agents.ToolExecutor do
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Tools
   alias FrontmanServer.Tools.Backend
-  alias Swarm.Message.ContentPart
+  alias SwarmAi.Message.ContentPart
 
   @tool_timeout_ms 60_000
 
@@ -45,16 +45,16 @@ defmodule FrontmanServer.Agents.ToolExecutor do
 
   ## Options
 
-  - `:mcp_tools` - List of Swarm.Tool.t() for sub-agents to use (default: [])
+  - `:mcp_tools` - List of SwarmAi.Tool.t() for sub-agents to use (default: [])
   - `:llm_opts` - Keyword list with :api_key and :model for sub-agents
 
   ## Examples
 
       executor = ToolExecutor.make_executor(scope, task_id, mcp_tools: mcp_tools, llm_opts: llm_opts)
-      Swarm.run_blocking(agent, messages, executor)
+      SwarmAi.run_blocking(agent, messages, executor)
   """
   @spec make_executor(Scope.t(), String.t(), keyword()) ::
-          (Swarm.ToolCall.t() -> {:ok, String.t()} | {:error, String.t()})
+          (SwarmAi.ToolCall.t() -> {:ok, String.t()} | {:error, String.t()})
   def make_executor(%Scope{} = scope, task_id, opts \\ []) do
     mcp_tools = Keyword.get(opts, :mcp_tools, [])
     llm_opts = Keyword.fetch!(opts, :llm_opts)
@@ -112,7 +112,7 @@ defmodule FrontmanServer.Agents.ToolExecutor do
     end
   end
 
-  defp to_reqllm_tool_call(%Swarm.ToolCall{} = tc) do
+  defp to_reqllm_tool_call(%SwarmAi.ToolCall{} = tc) do
     ReqLLM.ToolCall.new(tc.id, tc.name, tc.arguments)
   end
 
@@ -120,10 +120,10 @@ defmodule FrontmanServer.Agents.ToolExecutor do
   Execute a single tool, trying backend first then MCP.
 
   ## Options
-    - `:mcp_tools` - List of Swarm.Tool.t() for sub-agents to use (default: [])
+    - `:mcp_tools` - List of SwarmAi.Tool.t() for sub-agents to use (default: [])
     - `:llm_opts` - Keyword list with :api_key and :model for sub-agents
   """
-  @spec execute(Scope.t(), Swarm.ToolCall.t(), String.t(), keyword()) ::
+  @spec execute(Scope.t(), SwarmAi.ToolCall.t(), String.t(), keyword()) ::
           {:ok, String.t()} | {:error, String.t()}
   def execute(scope, tool_call, task_id, opts \\ []) do
     mcp_tools = Keyword.get(opts, :mcp_tools, [])
@@ -198,7 +198,7 @@ defmodule FrontmanServer.Agents.ToolExecutor do
     end
   end
 
-  defp strip_null_arguments(%Swarm.ToolCall{arguments: arguments} = tool_call)
+  defp strip_null_arguments(%SwarmAi.ToolCall{arguments: arguments} = tool_call)
        when is_binary(arguments) do
     case Jason.decode(arguments) do
       {:ok, args} when is_map(args) ->

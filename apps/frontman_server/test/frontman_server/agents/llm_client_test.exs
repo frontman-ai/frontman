@@ -28,7 +28,7 @@ defmodule FrontmanServer.Agents.LLMClientTest do
 
   describe "to_reqllm_tool/3" do
     setup do
-      tool = %Swarm.Tool{
+      tool = %SwarmAi.Tool{
         name: "read_file",
         description: "Reads a file",
         parameter_schema: %{

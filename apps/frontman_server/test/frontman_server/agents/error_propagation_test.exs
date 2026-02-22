@@ -11,7 +11,7 @@ defmodule FrontmanServer.Agents.ErrorPropagationTest do
   as a "successful" empty response.
   """
 
-  use FrontmanServer.SwarmCase, async: false
+  use SwarmAi.Testing, async: false
 
   alias Ecto.Adapters.SQL.Sandbox
   alias FrontmanServer.Accounts

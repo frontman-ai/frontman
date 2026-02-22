@@ -18,13 +18,6 @@ route:
   repeat_interval: 4h
 
   routes:
-    # Dead man switch: send once daily, don't group with other alerts
-    - match:
-        alertname: DeadManSwitch
-      receiver: discord-heartbeat
-      group_wait: 0s
-      repeat_interval: 24h
-
     # Critical alerts: shorter wait and repeat
     - match:
         severity: critical
@@ -39,11 +32,6 @@ receivers:
     webhook_configs:
       - url: http://127.0.0.1:9095
         send_resolved: true
-
-  - name: discord-heartbeat
-    webhook_configs:
-      - url: http://127.0.0.1:9095
-        send_resolved: false
 
 # Inhibition rules: suppress DiskSpaceWarning when DiskSpaceCritical fires for the same partition
 inhibit_rules:

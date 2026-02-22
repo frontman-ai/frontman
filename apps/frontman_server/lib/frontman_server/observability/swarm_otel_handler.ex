@@ -61,25 +61,25 @@ defmodule FrontmanServer.Observability.SwarmOtelHandler do
   defp attach_handlers do
     handlers = [
       # Run (loop) events
-      {[:swarm, :run, :start], &__MODULE__.handle_run_start/4},
-      {[:swarm, :run, :stop], &__MODULE__.handle_run_stop/4},
-      {[:swarm, :run, :exception], &__MODULE__.handle_run_exception/4},
+      {[:swarm_ai, :run, :start], &__MODULE__.handle_run_start/4},
+      {[:swarm_ai, :run, :stop], &__MODULE__.handle_run_stop/4},
+      {[:swarm_ai, :run, :exception], &__MODULE__.handle_run_exception/4},
       # Step events
-      {[:swarm, :step, :start], &__MODULE__.handle_step_start/4},
-      {[:swarm, :step, :stop], &__MODULE__.handle_step_stop/4},
-      {[:swarm, :step, :exception], &__MODULE__.handle_step_exception/4},
+      {[:swarm_ai, :step, :start], &__MODULE__.handle_step_start/4},
+      {[:swarm_ai, :step, :stop], &__MODULE__.handle_step_stop/4},
+      {[:swarm_ai, :step, :exception], &__MODULE__.handle_step_exception/4},
       # LLM events
-      {[:swarm, :llm, :call, :start], &__MODULE__.handle_llm_start/4},
-      {[:swarm, :llm, :call, :stop], &__MODULE__.handle_llm_stop/4},
-      {[:swarm, :llm, :call, :exception], &__MODULE__.handle_llm_exception/4},
+      {[:swarm_ai, :llm, :call, :start], &__MODULE__.handle_llm_start/4},
+      {[:swarm_ai, :llm, :call, :stop], &__MODULE__.handle_llm_stop/4},
+      {[:swarm_ai, :llm, :call, :exception], &__MODULE__.handle_llm_exception/4},
       # Tool events
-      {[:swarm, :tool, :execute, :start], &__MODULE__.handle_tool_start/4},
-      {[:swarm, :tool, :execute, :stop], &__MODULE__.handle_tool_stop/4},
-      {[:swarm, :tool, :execute, :exception], &__MODULE__.handle_tool_exception/4},
+      {[:swarm_ai, :tool, :execute, :start], &__MODULE__.handle_tool_start/4},
+      {[:swarm_ai, :tool, :execute, :stop], &__MODULE__.handle_tool_stop/4},
+      {[:swarm_ai, :tool, :execute, :exception], &__MODULE__.handle_tool_exception/4},
       # Child spawn events
-      {[:swarm, :child, :spawn, :start], &__MODULE__.handle_child_start/4},
-      {[:swarm, :child, :spawn, :stop], &__MODULE__.handle_child_stop/4},
-      {[:swarm, :child, :spawn, :exception], &__MODULE__.handle_child_exception/4}
+      {[:swarm_ai, :child, :spawn, :start], &__MODULE__.handle_child_start/4},
+      {[:swarm_ai, :child, :spawn, :stop], &__MODULE__.handle_child_stop/4},
+      {[:swarm_ai, :child, :spawn, :exception], &__MODULE__.handle_child_exception/4}
     ]
 
     Enum.each(handlers, fn {event, handler} ->
@@ -602,14 +602,14 @@ defmodule FrontmanServer.Observability.SwarmOtelHandler do
   defp flatten_reasoning_details(_), do: []
 
   defp tool_call_name(%ReqLLM.ToolCall{} = tc), do: ReqLLM.ToolCall.name(tc)
-  defp tool_call_name(%Swarm.ToolCall{name: name}), do: name
+  defp tool_call_name(%SwarmAi.ToolCall{name: name}), do: name
   defp tool_call_name(%{tool_name: name}), do: name
   defp tool_call_name(%{name: name}), do: name
   defp tool_call_name(%{"function" => %{"name" => name}}), do: name
   defp tool_call_name(_), do: "unknown"
 
   defp tool_call_args(%ReqLLM.ToolCall{} = tc), do: ReqLLM.ToolCall.args_json(tc)
-  defp tool_call_args(%Swarm.ToolCall{arguments: args}), do: args
+  defp tool_call_args(%SwarmAi.ToolCall{arguments: args}), do: args
   defp tool_call_args(%{arguments: args}) when is_binary(args), do: args
   defp tool_call_args(%{arguments: args}), do: Jason.encode!(args)
   defp tool_call_args(%{"function" => %{"arguments" => args}}), do: args

@@ -63,6 +63,7 @@ defmodule FrontmanServer.MixProject do
   # Type `mix help deps` for examples and options.
   defp deps do
     [
+      {:swarm_ai, path: "../swarm_ai"},
       {:bcrypt_elixir, "~> 3.0"},
       {:cloak_ecto, "~> 1.3"},
       {:phoenix, "~> 1.8.1"},

@@ -5,20 +5,6 @@
 
 groups:
   # ===========================================================================
-  # Dead Man Switch - Always-firing heartbeat to confirm monitoring is alive.
-  # Alertmanager-discord posts this as a daily "all systems healthy" message.
-  # ===========================================================================
-  - name: heartbeat
-    rules:
-      - alert: DeadManSwitch
-        expr: vector(1)
-        labels:
-          severity: none
-        annotations:
-          summary: "Monitoring heartbeat"
-          description: "This alert fires continuously to confirm the monitoring pipeline (Prometheus -> Alertmanager -> Discord) is working."
-
-  # ===========================================================================
   # Disk Space
   # ===========================================================================
   - name: disk

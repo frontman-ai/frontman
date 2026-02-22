@@ -453,6 +453,48 @@ jobs:
   # parallel for faster feedback.
   # ============================================================================
 
+  test-swarm-ai:
+    name: Test swarm_ai
+    runs-on: self-hosted
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install OpenSSL dev libraries
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libssl-dev libncurses5-dev
+
+      - name: Fix mise binary permissions
+        run: chmod -R +x ~/.local/share/mise/bin/ 2>/dev/null || true
+
+      # Uses mise.toml as single source of truth for Erlang/Elixir versions
+      - name: Setup Erlang/Elixir via mise
+        uses: jdx/mise-action@6d1e696aa24c1aa1bcc1adea0212707c71ab78a8 # v3.6.1
+        with:
+          install: true
+          cache: true
+
+      - name: Install dependencies
+        working-directory: apps/swarm_ai
+        run: |
+          rm -rf _build deps
+          mix deps.get
+
+      - name: Run tests
+        working-directory: apps/swarm_ai
+        run: mix test
+
+      - name: Validate Hex package
+        working-directory: apps/swarm_ai
+        run: mix hex.build --unpack
+
+      - name: Cleanup workspace
+        if: always()
+        run: |
+          rm -rf apps/swarm_ai/_build apps/swarm_ai/deps
+
+
   test-frontman-server:
     name: Test frontman-server
     runs-on: self-hosted
@@ -512,7 +554,7 @@ jobs:
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: apps/frontman_server/_build
-          key: ${{ runner.os }}-build-${{ hashFiles('apps/frontman_server/mix.lock') }}
+          key: ${{ runner.os }}-build-${{ hashFiles('apps/frontman_server/mix.lock', 'apps/swarm_ai/lib/**') }}
           restore-keys: ${{ runner.os }}-build-
 
       - name: Install dependencies
@@ -576,7 +618,7 @@ jobs:
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: apps/frontman_server/_build
-          key: ${{ runner.os }}-build-${{ hashFiles('apps/frontman_server/mix.lock') }}
+          key: ${{ runner.os }}-build-${{ hashFiles('apps/frontman_server/mix.lock', 'apps/swarm_ai/lib/**') }}
           restore-keys: ${{ runner.os }}-build-
 
       - name: Install dependencies
@@ -626,7 +668,7 @@ jobs:
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: apps/frontman_server/_build
-          key: ${{ runner.os }}-build-${{ hashFiles('apps/frontman_server/mix.lock') }}
+          key: ${{ runner.os }}-build-${{ hashFiles('apps/frontman_server/mix.lock', 'apps/swarm_ai/lib/**') }}
           restore-keys: ${{ runner.os }}-build-
 
       # PLT cache includes mise.toml hash to invalidate when Erlang/Elixir versions change

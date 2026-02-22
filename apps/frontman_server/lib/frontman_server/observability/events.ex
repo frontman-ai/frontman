@@ -6,7 +6,7 @@ defmodule FrontmanServer.Observability.Events do
   and OtelHandler (consumer).
 
   Note: Agent execution events (loop, step, llm, tool, child) are defined
-  in Swarm.Telemetry.Events and handled by SwarmOtelHandler.
+  in SwarmAi.Telemetry.Events and handled by SwarmOtelHandler.
   """
 
   @prefix [:frontman]

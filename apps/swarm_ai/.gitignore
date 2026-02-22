@@ -1,0 +1,11 @@
+/_build/
+/deps/
+/doc/
+/cover/
+*.ez
+*.beam
+erl_crash.dump
+/priv/plts/
+
+# Override root .gitignore which ignores lib/ for ReScript build output
+!lib/

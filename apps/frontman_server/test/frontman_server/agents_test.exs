@@ -1,5 +1,5 @@
 defmodule FrontmanServer.AgentsTest do
-  use FrontmanServer.SwarmCase, async: false
+  use SwarmAi.Testing, async: false
 
   alias Ecto.Adapters.SQL.Sandbox
   alias FrontmanServer.Accounts
@@ -164,7 +164,7 @@ defmodule FrontmanServer.AgentsTest do
       # A conversation where the agent uses tools should preserve full history,
       # allowing follow-up messages to reference prior tool usage.
 
-      tool_call = %Swarm.ToolCall{
+      tool_call = %SwarmAi.ToolCall{
         id: "tc_#{System.unique_integer([:positive])}",
         name: "todo_list",
         arguments: "{}"

@@ -3,7 +3,7 @@ defmodule FrontmanServer.Agents.RootAgent do
   The main coordinating agent that handles user requests.
 
   This agent receives user messages, can use tools (including spawning sub-agents),
-  and coordinates the overall task execution. It implements the Swarm.Agent protocol
+  and coordinates the overall task execution. It implements the SwarmAi.Agent protocol
   directly, owning its system prompt generation logic.
 
   The system prompt is dynamically built based on context:
@@ -19,7 +19,7 @@ defmodule FrontmanServer.Agents.RootAgent do
   alias FrontmanServer.Agents.{LLMClient, Prompts}
 
   typedstruct do
-    field(:tools, [Swarm.Tool.t()], default: [])
+    field(:tools, [SwarmAi.Tool.t()], default: [])
     field(:has_selected_component, boolean(), default: false)
     field(:has_current_page, boolean(), default: false)
     field(:has_typescript_react, boolean(), default: false)
@@ -37,7 +37,7 @@ defmodule FrontmanServer.Agents.RootAgent do
 
   ## Options
 
-  - `:tools` - List of Swarm.Tool structs available to the agent
+  - `:tools` - List of SwarmAi.Tool structs available to the agent
   - `:has_selected_component` - Whether a component is selected in the codebase
   - `:has_current_page` - Whether current page context is available
   - `:framework` - Framework name (e.g., "nextjs") for framework-specific guidance
@@ -61,7 +61,7 @@ defmodule FrontmanServer.Agents.RootAgent do
   end
 end
 
-defimpl Swarm.Agent, for: FrontmanServer.Agents.RootAgent do
+defimpl SwarmAi.Agent, for: FrontmanServer.Agents.RootAgent do
   alias FrontmanServer.Agents.{LLMClient, Prompts, RootAgent}
 
   def system_prompt(%RootAgent{} = agent) do
