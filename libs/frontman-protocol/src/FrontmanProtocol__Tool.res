@@ -22,6 +22,7 @@ module ToolNames = {
   let grep = "grep"
   let fileExists = "file_exists"
   let loadAgentInstructions = "load_agent_instructions"
+  let lighthouse = "lighthouse"
 
   // Browser tools (client)
   let navigate = "navigate"

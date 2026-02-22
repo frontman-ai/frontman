@@ -1,5 +1,5 @@
 // Bindings for chrome-launcher package
-// https://github.com/nickclaw/chrome-launcher
+// https://github.com/GoogleChrome/chrome-launcher
 
 // Opaque type for the launched Chrome instance
 type launchedChrome
@@ -40,3 +40,15 @@ let launch: launchOptions => promise<launchedChrome> = %raw(`
 
 // Kill the Chrome process
 @send external kill: launchedChrome => promise<unit> = "kill"
+
+// Kill Chrome, logging errors but not throwing (e.g. already exited)
+let killSafely = async (chrome: launchedChrome): unit => {
+  try {
+    await kill(chrome)
+  } catch {
+  | exn =>
+    let msg =
+      exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
+    Console.error(`[chrome-launcher] Failed to kill Chrome (pid ${getPid(chrome)->Int.toString}): ${msg}`)
+  }
+}

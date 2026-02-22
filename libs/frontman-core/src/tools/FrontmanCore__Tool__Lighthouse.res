@@ -5,57 +5,7 @@ module ChromeLauncher = FrontmanBindings.ChromeLauncher
 module Lighthouse = FrontmanBindings.Lighthouse
 module Tool = FrontmanFrontmanProtocol.FrontmanProtocol__Tool
 
-@val external stringFromAny: 'a => string = "String"
-@get external jsErrorStack: JsExn.t => option<string> = "stack"
-
-let rewriteUrlForRuntime: string => string = %raw(`
-  url => {
-    const override = process.env.FRONTMAN_LIGHTHOUSE_DEVPOD_LOCALHOST
-    const worktreeId = process.env.WORKTREE_ID
-    const overrideLower = typeof override === "string" ? override.toLowerCase() : ""
-    const devpodMode =
-      overrideLower === "1" ||
-      overrideLower === "true" ||
-      overrideLower === "yes" ||
-      overrideLower === "on" ||
-      typeof worktreeId === "string"
-
-    if (!devpodMode) {
-      return url
-    }
-
-    let parsed
-    try {
-      parsed = new URL(url)
-    } catch {
-      return url
-    }
-
-    const host = parsed.hostname
-    const mapToLocalhost = (port, protocol) => {
-      parsed.protocol = protocol
-      parsed.hostname = "127.0.0.1"
-      parsed.port = String(port)
-      return parsed.toString()
-    }
-
-    if (host.endsWith(".nextjs.frontman.local")) {
-      return mapToLocalhost(3000, "http:")
-    }
-
-    if (host.endsWith(".vite.frontman.local")) {
-      return mapToLocalhost(5173, "http:")
-    }
-
-    if (host.endsWith(".api.frontman.local")) {
-      return mapToLocalhost(4000, "https:")
-    }
-
-    return url
-  }
-`)
-
-let name = "lighthouse"
+let name = Tool.ToolNames.lighthouse
 let visibleToAgent = true
 let description = `Runs a Lighthouse audit on a URL to analyze performance, accessibility, best practices, and SEO.
 
@@ -120,49 +70,29 @@ type output = {
 // Categories to audit
 let categoryIds = ["performance", "accessibility", "best-practices", "seo"]
 
-let getErrorMessage = (exn: exn): string => {
-  switch exn->JsExn.fromException {
-  | Some(jsError) => {
-      let message = jsError->JsExn.message->Option.getOr("Unknown error")
-      switch jsError->jsErrorStack {
-      | Some(stack) => `${message}\n${stack}`
-      | None => message
-      }
-    }
-  | None => exn->stringFromAny
-  }
-}
-
 // Extract top N failing audits from a category
 let getTopIssues = (
   ~category: Lighthouse.category,
   ~audits: Dict.t<Lighthouse.auditResult>,
   ~maxIssues: int,
 ): array<auditIssue> => {
-  // Get all audit refs for this category
   category.auditRefs
-  // Map to audit results
   ->Array.filterMap(ref => audits->Dict.get(ref.id))
-  // Filter to failing audits (score < 1) with valid scores
   ->Array.filter(audit => {
     switch audit.score->Nullable.toOption {
     | Some(score) =>
-      // Only include binary/numeric audits with failing scores
       (audit.scoreDisplayMode === "binary" ||
         audit.scoreDisplayMode === "numeric" ||
         audit.scoreDisplayMode === "metricSavings") && score < 1.0
     | None => false
     }
   })
-  // Sort by score ascending (worst first)
   ->Array.toSorted((a, b) => {
     let scoreA = a.score->Nullable.toOption->Option.getOr(0.0)
     let scoreB = b.score->Nullable.toOption->Option.getOr(0.0)
     scoreA -. scoreB
   })
-  // Take top N
   ->Array.slice(~start=0, ~end=maxIssues)
-  // Map to our output type
   ->Array.map(audit => {
     id: audit.id,
     title: audit.title,
@@ -191,7 +121,6 @@ let processLhr = (lhr: Lighthouse.lhr): output => {
       }
     })
 
-  // Calculate overall score as average of all categories
   let totalScore = categories->Array.reduce(0, (acc, cat) => acc + cat.score)
   let overallScore = switch categories->Array.length {
   | 0 => 0
@@ -204,15 +133,6 @@ let processLhr = (lhr: Lighthouse.lhr): output => {
     categories,
     overallScore,
     warnings: lhr.runWarnings,
-  }
-}
-
-// Helper to safely kill Chrome
-let killChrome = async (chrome: ChromeLauncher.launchedChrome): unit => {
-  try {
-    await chrome->ChromeLauncher.kill
-  } catch {
-  | _ => ()
   }
 }
 
@@ -237,8 +157,7 @@ let runLighthouse = async (
   try {
     let runnerResult = await Lighthouse.run(url, flags)
 
-    // Kill Chrome before processing results
-    await killChrome(chrome)
+    await ChromeLauncher.killSafely(chrome)
 
     switch runnerResult->Nullable.toOption {
     | Some(r) => Ok(processLhr(r.lhr))
@@ -246,22 +165,19 @@ let runLighthouse = async (
     }
   } catch {
   | exn =>
-    // Make sure to kill Chrome on error
-    await killChrome(chrome)
+    await ChromeLauncher.killSafely(chrome)
 
-    let msg = getErrorMessage(exn)
+    let msg =
+      exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
     Error(`Lighthouse audit failed: ${msg}`)
   }
 }
 
 let execute = async (_ctx: Tool.serverExecutionContext, input: input): Tool.toolResult<output> => {
   let preset = input.preset->Option.getOr("desktop")
-  let auditUrl = rewriteUrlForRuntime(input.url)
 
-  // Validate preset
   switch preset {
   | "desktop" | "mobile" =>
-    // Launch headless Chrome
     try {
       let chrome = await ChromeLauncher.launch({
         chromeFlags: [
@@ -272,20 +188,11 @@ let execute = async (_ctx: Tool.serverExecutionContext, input: input): Tool.tool
         ],
       })
 
-      let result = await runLighthouse(~chrome, ~url=auditUrl, ~preset)
-      switch result {
-      | Ok(out) =>
-        switch auditUrl === input.url {
-        | true => Ok(out)
-        | false =>
-          let warning = `DevPod mode: audited local URL ${auditUrl} instead of ${input.url}.`
-          Ok({...out, url: input.url, warnings: [warning, ...out.warnings]})
-        }
-      | Error(_) => result
-      }
+      await runLighthouse(~chrome, ~url=input.url, ~preset)
     } catch {
     | exn =>
-      let msg = getErrorMessage(exn)
+      let msg =
+        exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
       Error(`Failed to launch Chrome: ${msg}. Make sure Chrome is installed on the system.`)
     }
 
