@@ -1,16 +1,9 @@
-// Request handlers for Frontman endpoints
+// Request handlers for Frontman Next.js endpoints
+// Thin wrapper around shared core request handlers
 
-module Protocol = FrontmanFrontmanProtocol
-module MCP = Protocol.FrontmanProtocol__MCP
-module Relay = Protocol.FrontmanProtocol__Relay
-module Tool = Protocol.FrontmanProtocol__Tool
 module Core = FrontmanFrontmanCore
-module CoreServer = Core.FrontmanCore__Server
-module CoreSSE = Core.FrontmanCore__SSE
-module PathContext = Core.FrontmanCore__PathContext
+module CoreRequestHandlers = Core.FrontmanCore__RequestHandlers
 module ToolRegistry = FrontmanNextjs__ToolRegistry
-module WebStreams = FrontmanBindings.WebStreams
-module DOMElementToComponentSource = FrontmanBindings.DOMElementToComponentSource
 
 type config = {
   projectRoot: string,
@@ -44,160 +37,38 @@ let make = (
   }
 }
 
+// Convert to core handler config
+let toHandlerConfig = (config: config): CoreRequestHandlers.handlerConfig => {
+  projectRoot: config.projectRoot,
+  sourceRoot: config.sourceRoot,
+  serverName: config.serverName,
+  serverVersion: config.serverVersion,
+}
+
 // GET /frontman/tools
 let handleGetTools = (server: t): WebAPI.FetchAPI.response => {
-  let response = CoreServer.getToolsResponse(
+  CoreRequestHandlers.handleGetTools(
     ~registry=server.registry,
-    ~serverName=server.config.serverName,
-    ~serverVersion=server.config.serverVersion,
+    ~config=toHandlerConfig(server.config),
   )
-
-  let json = response->S.reverseConvertToJsonOrThrow(Relay.toolsResponseSchema)
-  let headers = WebAPI.HeadersInit.fromDict(Dict.fromArray([("Content-Type", "application/json")]))
-  WebAPI.Response.jsonR(~data=json, ~init={headers: headers})
 }
 
 // POST /frontman/tools/call - executes tool with SSE streaming
 let handleToolCall = async (server: t, req: WebAPI.FetchAPI.request): WebAPI.FetchAPI.response => {
-  let body = await req->WebAPI.Request.json
-
-  let request = try {
-    Ok(body->S.parseOrThrow(Relay.toolCallRequestSchema))
-  } catch {
-  | S.Error(e) => Error(e.message)
-  }
-
-  switch request {
-  | Error(msg) =>
-    let errorResult: MCP.callToolResult = {
-      content: [{type_: "text", text: `Invalid request: ${msg}`}],
-      isError: Some(true),
-    }
-    let json = errorResult->S.reverseConvertToJsonOrThrow(MCP.callToolResultSchema)
-    WebAPI.Response.jsonR(~data=json, ~init={status: 400})
-
-  | Ok(request) =>
-    // Execute tool using core
-    let ctx: CoreServer.executionContext = {
-      projectRoot: server.config.projectRoot,
-      sourceRoot: server.config.sourceRoot,
-      onProgress: None,
-    }
-
-    let resultPromise = CoreServer.executeTool(
-      ~registry=server.registry,
-      ~ctx,
-      ~name=request.name,
-      ~arguments=request.arguments,
-    )
-
-    let encoder = WebStreams.makeTextEncoder()
-    let stream = WebStreams.makeReadableStream({
-      start: controller => {
-        let _ = resultPromise->Promise.then(result => {
-          let mcpResult = CoreServer.resultToMCP(result)
-          let eventData = switch mcpResult.isError {
-          | Some(true) => CoreSSE.errorEvent(mcpResult)
-          | _ => CoreSSE.resultEvent(mcpResult)
-          }
-          controller->WebStreams.enqueue(encoder->WebStreams.encode(eventData))
-          controller->WebStreams.close
-          Promise.resolve()
-        })
-      },
-    })
-
-    WebAPI.Response.fromReadableStream(stream, ~init={headers: CoreSSE.headers()})
-  }
+  await CoreRequestHandlers.handleToolCall(
+    ~registry=server.registry,
+    ~config=toHandlerConfig(server.config),
+    req,
+  )
 }
 
-// POST /frontman/resolve-source-location - resolves source location
+// POST /frontman/resolve-source-location
 let handleResolveSourceLocation = async (
   server: t,
   req: WebAPI.FetchAPI.request,
 ): WebAPI.FetchAPI.response => {
-  let body = await req->WebAPI.Request.json
-
-  // Parse request body
-  let requestObj = body->JSON.Decode.object
-
-  switch requestObj {
-  | None =>
-    WebAPI.Response.jsonR(
-      ~data=JSON.Encode.object(
-        Dict.fromArray([("error", JSON.Encode.string("Invalid request body"))]),
-      ),
-      ~init={status: 400},
-    )
-  | Some(obj) =>
-    let componentName = obj->Dict.get("componentName")->Option.flatMap(JSON.Decode.string)
-    let file = obj->Dict.get("file")->Option.flatMap(JSON.Decode.string)
-    let line = obj->Dict.get("line")->Option.flatMap(JSON.Decode.float)
-    let column = obj->Dict.get("column")->Option.flatMap(JSON.Decode.float)
-
-    // Validate required fields
-    switch (componentName, file, line, column) {
-    | (Some(componentName), Some(file), Some(line), Some(column)) =>
-      try {
-        let sourceLocation: DOMElementToComponentSource.sourceLocation = {
-          componentName,
-          file,
-          line: line->Float.toInt,
-          column: column->Float.toInt,
-          componentProps: None,
-          parent: None,
-        }
-
-        let resolved = await DOMElementToComponentSource.resolveSourceLocationInServer(
-          sourceLocation,
-        )
-
-        // Convert absolute path to relative path (relative to sourceRoot)
-        // This ensures the agent can use the path directly with MCP tools
-        let relativeFile = PathContext.toRelativePath(
-          ~sourceRoot=server.config.sourceRoot,
-          ~absolutePath=resolved.file,
-        )
-
-        let responseJson = JSON.Encode.object(
-          Dict.fromArray([
-            ("componentName", JSON.Encode.string(resolved.componentName)),
-            ("file", JSON.Encode.string(relativeFile)),
-            ("line", JSON.Encode.float(resolved.line->Int.toFloat)),
-            ("column", JSON.Encode.float(resolved.column->Int.toFloat)),
-          ]),
-        )
-
-        let headers = WebAPI.HeadersInit.fromDict(
-          Dict.fromArray([("Content-Type", "application/json")]),
-        )
-        WebAPI.Response.jsonR(~data=responseJson, ~init={headers: headers})
-      } catch {
-      | exn =>
-        let msg =
-          exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
-        WebAPI.Response.jsonR(
-          ~data=JSON.Encode.object(
-            Dict.fromArray([
-              ("error", JSON.Encode.string("Failed to resolve source location")),
-              ("details", JSON.Encode.string(msg)),
-            ]),
-          ),
-          ~init={status: 500},
-        )
-      }
-    | _ =>
-      WebAPI.Response.jsonR(
-        ~data=JSON.Encode.object(
-          Dict.fromArray([
-            (
-              "error",
-              JSON.Encode.string("Missing required fields: componentName, file, line, column"),
-            ),
-          ]),
-        ),
-        ~init={status: 400},
-      )
-    }
-  }
+  await CoreRequestHandlers.handleResolveSourceLocation(
+    ~sourceRoot=server.config.sourceRoot,
+    req,
+  )
 }

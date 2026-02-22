@@ -5,6 +5,14 @@ module ToolRegistry = FrontmanCore__ToolRegistry
 module SSE = FrontmanCore__SSE
 module Server = FrontmanCore__Server
 module SafePath = FrontmanCore__SafePath
+module PathContext = FrontmanCore__PathContext
+
+// Shared middleware layer
+module CORS = FrontmanCore__CORS
+module MiddlewareConfig = FrontmanCore__MiddlewareConfig
+module RequestHandlers = FrontmanCore__RequestHandlers
+module UIShell = FrontmanCore__UIShell
+module Middleware = FrontmanCore__Middleware
 
 // Re-export tools for direct access
 module Tool = {
