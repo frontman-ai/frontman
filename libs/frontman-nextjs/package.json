@@ -44,7 +44,9 @@
 		"prepublishOnly": "yarn build"
 	},
 	"dependencies": {
-		"@sentry/nextjs": "^8.0.0"
+		"@sentry/nextjs": "^8.0.0",
+		"chrome-launcher": "^1.1.2",
+		"lighthouse": "^12.5.1"
 	},
 	"peerDependencies": {
 		"@opentelemetry/api": "^1.9.0",

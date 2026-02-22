@@ -27,6 +27,8 @@ export default defineConfig([
       'next/server',
       'react',
       'react-dom',
+      'lighthouse',
+      'chrome-launcher',
       // Node.js built-ins
       'fs',
       'path',

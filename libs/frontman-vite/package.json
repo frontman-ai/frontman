@@ -47,6 +47,10 @@
 		"build": "yarn build:rescript && yarn build:bundle",
 		"prepublishOnly": "yarn build"
 	},
+	"dependencies": {
+		"chrome-launcher": "^1.1.2",
+		"lighthouse": "^12.5.1"
+	},
 	"peerDependencies": {
 		"vite": ">=5.0.0"
 	},
