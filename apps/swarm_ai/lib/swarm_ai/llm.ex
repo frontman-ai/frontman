@@ -1,4 +1,14 @@
 defprotocol SwarmAi.LLM do
+  @moduledoc """
+  Protocol for LLM integration.
+
+  Implement this protocol for your LLM client struct to provide streaming
+  responses to the SwarmAi execution loop. The only required function is
+  `stream/3`, which returns a lazy enumerable of `SwarmAi.LLM.Chunk.t()`.
+
+  Batch-style responses can be built from the stream via `SwarmAi.LLM.Response.from_stream/1`.
+  """
+
   @doc """
   Stream LLM response as chunks.
 

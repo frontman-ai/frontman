@@ -7,7 +7,7 @@ defmodule SwarmAi.Message do
   images, and other modalities.
 
   This module is designed to be compatible with external LLM libraries while
-  remaining self-contained within the Swarm framework.
+  remaining self-contained within the SwarmAi framework.
   """
 
   use TypedStruct
@@ -25,7 +25,7 @@ defmodule SwarmAi.Message do
   end
 
   @doc "Creates a system message from text or a list of content parts"
-  @spec system(String.t() | [String.t()]) :: t()
+  @spec system(String.t() | [String.t() | ContentPart.t()]) :: t()
   def system(text) when is_binary(text) do
     %__MODULE__{role: :system, content: [ContentPart.text(text)]}
   end

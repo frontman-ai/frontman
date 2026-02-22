@@ -36,11 +36,13 @@ defmodule SwarmAi.LLM.Chunk do
     field(:metadata, map(), default: %{})
   end
 
+  @doc "Creates a text token chunk from LLM output."
   @spec token(String.t(), map()) :: t()
   def token(text, metadata \\ %{}) when is_binary(text) do
     %__MODULE__{type: :token, text: text, metadata: metadata}
   end
 
+  @doc "Creates a thinking/reasoning chunk (e.g., from chain-of-thought models)."
   @spec thinking(String.t(), map()) :: t()
   def thinking(text, metadata \\ %{}) when is_binary(text) do
     %__MODULE__{type: :thinking, text: text, metadata: metadata}
@@ -92,11 +94,13 @@ defmodule SwarmAi.LLM.Chunk do
     %__MODULE__{type: :tool_call_end, tool_call: tool_call, metadata: metadata}
   end
 
+  @doc "Creates a token usage chunk with input/output token counts."
   @spec usage(Usage.t(), map()) :: t()
   def usage(%Usage{} = usage, metadata \\ %{}) do
     %__MODULE__{type: :usage, usage: usage, metadata: metadata}
   end
 
+  @doc "Creates a done chunk signaling the end of the stream."
   @spec done(atom(), map()) :: t()
   def done(finish_reason, metadata \\ %{}) when is_atom(finish_reason) do
     %__MODULE__{type: :done, finish_reason: finish_reason, metadata: metadata}

@@ -23,6 +23,7 @@ defmodule SwarmAi.LLM.Response do
     field(:raw, term())
   end
 
+  @doc "Returns `true` if the response contains any tool calls."
   @spec has_tool_calls?(t()) :: boolean()
   def has_tool_calls?(%__MODULE__{tool_calls: []}), do: false
   def has_tool_calls?(%__MODULE__{tool_calls: _}), do: true

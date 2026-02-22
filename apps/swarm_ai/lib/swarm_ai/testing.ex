@@ -10,8 +10,8 @@ defmodule SwarmAi.Testing do
 
       @tag echo_agent: true
       test "executes agent", %{echo_agent: agent} do
-        result = SwarmAi.run(agent, "Hello", %{tool_handler: fn _ -> {:ok, ""} end})
-        assert {:ok, "Echo: Hello"} = result
+        {:ok, result, _loop_id} = SwarmAi.run_blocking(agent, "Hello", fn _ -> {:ok, ""} end)
+        assert "Echo: Hello" = result
       end
 
   ## Available fixtures

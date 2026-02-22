@@ -14,6 +14,14 @@ defmodule SwarmAi.SpawnChildAgent do
     field(:max_steps, pos_integer())
   end
 
+  @doc """
+  Creates a new child agent spawn request.
+
+  ## Options
+
+  - `:max_steps` - maximum steps for the child loop (default: 20)
+  - `:timeout_ms` - timeout in milliseconds for the child loop (default: 300,000)
+  """
   @spec new(SwarmAi.Agent.t(), String.t(), keyword()) :: t()
   def new(agent, task, opts \\ []) do
     %__MODULE__{

@@ -4,6 +4,7 @@
 /cover/
 *.ez
 *.beam
+*.tar
 erl_crash.dump
 /priv/plts/
 

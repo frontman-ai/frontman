@@ -1,6 +1,6 @@
 defmodule SwarmAi do
   @moduledoc """
-  Swarm is a pure functional agent execution framework.
+  SwarmAi is a pure functional agent execution framework.
 
   ## Usage
 
@@ -94,12 +94,14 @@ defmodule SwarmAi do
   - `:on_chunk` - Called for each LLM streaming chunk
   - `:on_response` - Called when LLM response is complete
   - `:on_tool_call` - Called before each tool is executed
+  - `:metadata` - Arbitrary map attached to the loop for telemetry correlation
   """
   @type streaming_opts :: [
           {:tool_executor, tool_executor()}
           | {:on_chunk, (Chunk.t() -> any())}
           | {:on_response, (Response.t() -> any())}
           | {:on_tool_call, (SwarmAi.ToolCall.t() -> any())}
+          | {:metadata, map()}
         ]
 
   # =============================================================================

@@ -1,11 +1,11 @@
 defmodule SwarmAi.Events do
   @moduledoc """
-  Domain events emitted during Swarm execution.
+  Domain events emitted during SwarmAi execution.
   """
   use TypedStruct
 
   defmodule Started do
-    @moduledoc false
+    @moduledoc "Emitted when an agent execution starts."
     use TypedStruct
 
     typedstruct do
@@ -15,7 +15,7 @@ defmodule SwarmAi.Events do
   end
 
   defmodule Completed do
-    @moduledoc false
+    @moduledoc "Emitted when an agent execution completes successfully."
     use TypedStruct
 
     typedstruct do
@@ -25,7 +25,7 @@ defmodule SwarmAi.Events do
   end
 
   defmodule Failed do
-    @moduledoc false
+    @moduledoc "Emitted when an agent execution fails."
     use TypedStruct
 
     typedstruct do
@@ -35,7 +35,7 @@ defmodule SwarmAi.Events do
   end
 
   defmodule ToolCallRequested do
-    @moduledoc false
+    @moduledoc "Emitted when a tool call is requested during execution."
     use TypedStruct
 
     typedstruct do

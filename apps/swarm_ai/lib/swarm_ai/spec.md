@@ -1,14 +1,10 @@
 # Swarm Architecture Specification
 
-**Date**: 2026-01-14
-**Git Commit**: 172d380c46578f5d36efccbb641e2869562b3439
-**Branch**: main
-
 ---
 
 ## Summary
 
-The `swarm/` directory implements a **functional core, imperative shell** architecture for executing AI agent loops. It orchestrates LLM interactions, tool execution, and parent-child agent spawning through a pure functional state machine that produces **effects** (instructions for side effects) which are interpreted by an impure execution layer.
+The `swarm_ai` package implements a **functional core, imperative shell** architecture for executing AI agent loops. It orchestrates LLM interactions, tool execution, and parent-child agent spawning through a pure functional state machine that produces **effects** (instructions for side effects) which are interpreted by an impure execution layer.
 
 ---
 
@@ -36,7 +32,7 @@ The `swarm/` directory implements a **functional core, imperative shell** archit
 
 ## Core Components
 
-### 1. Agent Protocol (`agent.ex:1-61`)
+### 1. Agent Protocol (`agent.ex`)
 
 Defines the contract for all agents via the `SwarmAi.Agent` protocol:
 
@@ -98,7 +94,7 @@ Protocol-based streaming interface:
 @spec stream(t, [Message.t()], keyword()) :: {:ok, Enumerable.t(Chunk.t())} | {:error, term()}
 ```
 
-**Chunk Types**: `:token`, `:thinking`, `:tool_call_end`, `:usage`, `:done`
+**Chunk Types**: `:token`, `:thinking`, `:tool_call_start`, `:tool_call_args`, `:tool_call_end`, `:usage`, `:done`
 
 Production implementations should implement this protocol to support their preferred LLM providers.
 
@@ -111,7 +107,7 @@ Messages have roles (`:system`, `:user`, `:assistant`, `:tool`) and multi-modal 
 Message.user("Hello")
 
 # Tool result
-Message.tool_result("search", "call_123", "Results here")
+Message.tool_result("search", "call_123", [ContentPart.text("Results here")])
 ```
 
 Content parts support `:text`, `:image` (binary data), and `:image_url`.

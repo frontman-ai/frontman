@@ -1,6 +1,6 @@
 defprotocol SwarmAi.Agent do
   @moduledoc """
-  Protocol for defining agents in the Swarm framework.
+  Protocol for defining agents in SwarmAi.
 
   Implement this protocol for your agent struct to define:
   - System prompt for the LLM
