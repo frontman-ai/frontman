@@ -51,7 +51,7 @@ defmodule FrontmanServer.Application do
         {Postgrex.Notifications, [name: FrontmanServer.PGNotifications] ++ pg_notify_opts()},
         {FrontmanServer.Notifications.Discord,
          webhook_url: Application.get_env(:frontman_server, :discord_new_users_webhook_url),
-         channel: "new_user",
+         channel: Application.get_env(:frontman_server, :discord_pg_channel),
          notifications_pid: FrontmanServer.PGNotifications}
       ]
 
