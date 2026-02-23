@@ -485,4 +485,20 @@ describe("applyEdit", _t => {
     | _ => failwith("Expected Applied result")
     }
   })
+
+  test("replaceAll preserves dollar signs in newText literally", t => {
+    let content = "const x = $$props; const y = $$props;"
+    let result = Matcher.applyEdit(
+      ~content,
+      ~oldText="$$props",
+      ~newText="$$restProps",
+      ~replaceAll=true,
+    )
+    switch result {
+    | Applied(newContent) =>
+      // $$ must remain as $$ — not be collapsed to $ by JS replacement patterns
+      t->expect(newContent)->Expect.toBe("const x = $$restProps; const y = $$restProps;")
+    | _ => failwith("Expected Applied result")
+    }
+  })
 })

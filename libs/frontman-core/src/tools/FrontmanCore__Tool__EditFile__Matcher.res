@@ -651,7 +651,9 @@ let applyEdit = (
           | false => ()
           | true =>
             notFound := false
-            result := Some(Applied(content->String.replaceAll(candidate, newText)))
+            // Use split/join instead of String.replaceAll to avoid JS $-pattern
+            // interpretation in the replacement string ($$ -> $, $& -> match, etc.)
+            result := Some(Applied(content->String.split(candidate)->Array.join(newText)))
           }
         }
       })
