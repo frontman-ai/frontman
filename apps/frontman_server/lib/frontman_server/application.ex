@@ -90,6 +90,8 @@ defmodule FrontmanServer.Application do
       url when is_binary(url) ->
         uri = URI.parse(url)
 
+        # Intentionally crashes if userinfo is present but missing a password —
+        # DATABASE_URL must always include user:password credentials.
         {username, password} =
           case uri.userinfo do
             nil -> {nil, nil}
