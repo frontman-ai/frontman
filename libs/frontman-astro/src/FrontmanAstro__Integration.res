@@ -77,21 +77,33 @@ let make = (configInput: Config.jsConfigInput): Bindings.astroIntegration => {
               entrypoint: getToolbarAppPath(),
             })
 
-            // Inject annotation capture script into every page's <head>
+            // Inject a meta tag so the toolbar app can discover the basePath
+            // and annotation capture script into every page's <head>.
             // Uses "head-inline" + DOMContentLoaded to run after DOM is parsed
             // but before Astro's toolbar strips data-astro-source-* attributes
-            ctx.injectScript("head-inline", annotationCaptureScript)
+            let basePathMeta = `{
+              const meta = document.createElement('meta');
+              meta.name = 'frontman-base-path';
+              meta.content = '${config.basePath}';
+              document.head.appendChild(meta);
+            }`
+            ctx.injectScript("head-inline", basePathMeta ++ "\n" ++ annotationCaptureScript)
           }
         },
       ),
       serverSetup: ?Some(
-        ({server}) => {
+        ({server, toolbar}) => {
           // Create our Web API middleware and adapt it to Vite's Connect middleware
           let webMiddleware = Middleware.createMiddleware(config)
           let connectMiddleware = ViteAdapter.adaptToConnect(webMiddleware, ~basePath=config.basePath)
 
           // Register with Vite's dev server
           server.middlewares->Bindings.use(connectMiddleware)
+
+          // Log when the toolbar app is initialized
+          toolbar->Bindings.toolbarOnAppInitialized("frontman:toolbar", () => {
+            Console.log("[Frontman] Dev toolbar app initialized")
+          })
         },
       ),
     },

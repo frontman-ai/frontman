@@ -1,48 +1,37 @@
 // Frontman Dev Toolbar App
+//
+// Clicking the Frontman icon in the Astro dev toolbar navigates to /<basePath>/
+// where the full Frontman UI is served by the middleware.
 
 module Bindings = FrontmanBindings.Astro
 
-// Type for the annotations API exposed on window
-type annotation = {
-  file: string,
-  loc: string,
-}
-
-type annotationsApi = {
-  get: WebAPI.DOMAPI.element => option<annotation>,
-  has: WebAPI.DOMAPI.element => bool,
-  size: unit => int,
-}
-
-// External binding to window.__frontman_annotations__
-@val @scope("window")
-external annotations: option<annotationsApi> = "__frontman_annotations__"
-
 // The toolbar app definition
 let app: Bindings.toolbarAppConfig = {
-  init: (_canvas, _app, _server) => {
-    switch annotations {
-    | Some(api) if api.size() > 0 =>
-      Console.log(`[Frontman] SUCCESS - Captured ${api.size()->Int.toString} elements`)
-
-      // Test retrieval on first h1 or body child
-      let testEl =
-        WebAPI.Global.document->WebAPI.Document.querySelector("h1")->Null.toOption
-      switch testEl {
-      | Some(el) =>
-        switch api.get(el) {
-        | Some(data) =>
-          Console.log(`[Frontman] Test element: H1 -> ${data.file}:${data.loc}`)
-        | None =>
-          Console.log("[Frontman] Test element H1 has no annotation (might be in layout)")
+  init: (_canvas, app, _server) => {
+    app->Bindings.onToggled(({state}) => {
+      switch state {
+      | true =>
+        // Read basePath from the meta tag injected by the integration
+        let basePath = {
+          let meta =
+            WebAPI.Global.document
+            ->WebAPI.Document.querySelector(`meta[name="frontman-base-path"]`)
+            ->Null.toOption
+          switch meta {
+          | Some(el) =>
+            el->WebAPI.Element.getAttribute("content")->Null.toOption->Option.getOr("frontman")
+          | None => "frontman"
+          }
         }
-      | None => ()
+
+        // Navigate to the Frontman UI
+        WebAPI.Global.window->WebAPI.Window.location->WebAPI.Location.assign(`/${basePath}/`)
+
+        // Immediately toggle off so the icon doesn't stay "active"
+        app->Bindings.toggleState({state: false})
+      | false => ()
       }
-    | Some(_) =>
-      Console.log("[Frontman] WARNING - Annotations API exists but captured 0 elements")
-    | None =>
-      Console.log("[Frontman] FAILED - window.__frontman_annotations__ not found")
-    }
+    })
   },
 }
 

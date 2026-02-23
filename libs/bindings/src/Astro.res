@@ -47,8 +47,33 @@ external use: (connectMiddlewareStack, NodeHttp.connectMiddleware) => unit = "us
 // Vite dev server (minimal bindings for astro:server:setup)
 type viteDevServer = {middlewares: connectMiddlewareStack}
 
+// --- Server-side toolbar object (available in astro:server:setup hook) ---
+// Must be defined before serverSetupHookContext which references it.
+
+type toolbarServerSide
+
+// Toggle state — shared between client-side and server-side toolbar APIs
+type toggleState = {state: bool}
+
+@send
+external toolbarSend: (toolbarServerSide, string, 'a) => unit = "send"
+
+@send
+external toolbarOn: (toolbarServerSide, string, 'a => unit) => unit = "on"
+
+@send
+external toolbarOnAppInitialized: (toolbarServerSide, string, unit => unit) => unit =
+  "onAppInitialized"
+
+@send
+external toolbarOnAppToggled: (toolbarServerSide, string, toggleState => unit) => unit =
+  "onAppToggled"
+
 // Hook context for astro:server:setup
-type serverSetupHookContext = {server: viteDevServer}
+type serverSetupHookContext = {
+  server: viteDevServer,
+  toolbar: toolbarServerSide,
+}
 
 // Astro integration hooks
 type astroHooks = {
@@ -64,14 +89,53 @@ type astroIntegration = {
   hooks: astroHooks,
 }
 
-// Toolbar app types
-type toolbarCanvas // opaque
-type toolbarApp // opaque
-type toolbarServer // opaque
+// --- Client-side toolbar app types ---
+
+// canvas is a ShadowRoot — apps render their UI into it
+type toolbarCanvas = WebAPI.DOMAPI.shadowRoot
+
+// app is an EventTarget with helper methods for toggle/notification events
+type toolbarApp
+
+// Notification options for toggleNotification
+type notificationOptions = {
+  state?: bool,
+  level?: [#error | #warning | #info],
+}
+
+// Toolbar placement options
+type placementOptions = {
+  placement: [#"bottom-left" | #"bottom-center" | #"bottom-right"],
+}
+
+// Client-side app event helpers
+@send
+external onToggled: (toolbarApp, toggleState => unit) => unit = "onToggled"
+
+@send
+external onToolbarPlacementUpdated: (toolbarApp, placementOptions => unit) => unit =
+  "onToolbarPlacementUpdated"
+
+@send
+external toggleState: (toolbarApp, toggleState) => unit = "toggleState"
+
+@send
+external toggleNotification: (toolbarApp, notificationOptions) => unit = "toggleNotification"
+
+// Toolbar server helpers for client-server communication (client-side)
+type toolbarServer
+
+@send
+external serverSend: (toolbarServer, string, 'a) => unit = "send"
+
+@send
+external serverOn: (toolbarServer, string, 'a => unit) => unit = "on"
+
 type toolbarAppDefinition // opaque - returned by defineToolbarApp
 
 type toolbarAppConfig = {
   init: (toolbarCanvas, toolbarApp, toolbarServer) => unit,
+  beforeTogglingOff?: toolbarCanvas => bool,
 }
 
 // defineToolbarApp binding - returns an object that should be export default'd
