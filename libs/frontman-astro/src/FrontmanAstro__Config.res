@@ -60,7 +60,12 @@ let makeFromObject = (rawConfig: jsConfigInput): t => {
     ->Option.getOr(".")
 
   let sourceRoot = config.sourceRoot->Option.getOr(projectRoot)
-  let basePath = config.basePath->Option.getOr("frontman")
+  // Normalize basePath: strip leading/trailing slashes so URL construction
+  // (e.g. `/${basePath}/`) never produces protocol-relative URLs like //frontman/
+  let basePath =
+    config.basePath
+    ->Option.getOr("frontman")
+    ->String.replaceRegExp(%re("/^\/+|\/+$/g"), "")
   let serverName = config.serverName->Option.getOr("frontman-astro")
   let serverVersion = config.serverVersion->Option.getOr("1.0.0")
   let isLightTheme = config.isLightTheme->Option.getOr(false)

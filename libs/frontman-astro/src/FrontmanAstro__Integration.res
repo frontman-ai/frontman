@@ -81,10 +81,11 @@ let make = (configInput: Config.jsConfigInput): Bindings.astroIntegration => {
             // and annotation capture script into every page's <head>.
             // Uses "head-inline" + DOMContentLoaded to run after DOM is parsed
             // but before Astro's toolbar strips data-astro-source-* attributes
+            let safeBasePath = JSON.stringifyAny(config.basePath)->Option.getOr(`"frontman"`)
             let basePathMeta = `{
               const meta = document.createElement('meta');
               meta.name = 'frontman-base-path';
-              meta.content = '${config.basePath}';
+              meta.content = ${safeBasePath};
               document.head.appendChild(meta);
             }`
             ctx.injectScript("head-inline", basePathMeta ++ "\n" ++ annotationCaptureScript)
