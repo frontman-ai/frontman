@@ -3,7 +3,7 @@ title: 'Lighthouse Audits Without Leaving the Browser'
 pubDate: 2026-02-21T05:00:00Z
 description: 'Frontman now runs Google Lighthouse audits as a built-in tool. Your agent sees the scores, reads the issues, and fixes them — all inside the browser you are already working in.'
 author: 'Frontman Team'
-image: '/blog/post-lighthouse-cover.png'
+image: '/blog/lighthouse-audits-cover.png'
 tags: ['performance', 'ai', 'developer-tools']
 ---
 
@@ -108,4 +108,4 @@ When the agent can run Lighthouse itself, that translation layer disappears. The
 
 Your performance scores stop being a report you read and start being a problem the agent solves.
 
-[Try Frontman](https://frontman.sh) — [one install command](/blog/getting-started), works with your existing project. Read about [why coding agents are blind to your UI](/blog/ai-coding-agents-blind-to-ui) or see [how Frontman compares to Cursor and Claude Code](/blog/frontman-vs-cursor-vs-claude-code).
+[Try Frontman](https://frontman.sh) — [one install command](/blog/getting-started), works with your existing project. Read about [why coding agents are blind to your UI](/blog/ai-coding-agents-blind-to-ui), see [how Frontman compares to Cursor and Claude Code](/blog/frontman-vs-cursor-vs-claude-code), or read the full [Frontman vs Cursor](/vs/cursor) comparison.

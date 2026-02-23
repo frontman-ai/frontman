@@ -3,15 +3,13 @@ title: 'Getting Started with Frontman: Next.js, Astro, and Vite'
 pubDate: 2026-02-15T05:00:00Z
 description: 'A quick guide to installing Frontman in your Next.js, Astro, or Vite project. One command, under 5 minutes, no configuration needed.'
 author: 'Frontman Team'
-image: '/blog/post-04-cover.png'
+image: '/blog/getting-started-cover.png'
 tags: ['tutorial', 'getting-started']
 ---
 
 You find a new dev tool. The README says "Quick Start." You click it. Step one: install a global CLI. Step two: create a config file. Step three: add a plugin to your bundler. Step four: wrap your app in a provider component. Step five: set three environment variables. Step six: restart your dev server. Step seven: it does not work because you are using Turbopack and the plugin assumes Webpack. You open an issue. Someone replies "works on my machine." You close the tab.
 
 One command. That is the entire Frontman setup. If your project runs `next dev`, `astro dev`, or `vite dev`, Frontman works. No config files. No environment variables. No step seven.
-
-![Terminal window showing the Frontman install command completing successfully, with the dev server output showing the Frontman overlay is active.](/blog/post-01.png)
 
 ### [Next.js](https://nextjs.org/docs)
 

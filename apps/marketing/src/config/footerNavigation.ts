@@ -60,6 +60,27 @@ export const footerNavigationData: FooterData = {
 			]
 		},
 		{
+			category: 'Compare',
+			subCategories: [
+				{
+					subCategory: 'Frontman vs Cursor',
+					subCategoryLink: '/vs/cursor'
+				},
+			{
+				subCategory: 'Frontman vs Copilot',
+				subCategoryLink: '/vs/copilot'
+			},
+			{
+				subCategory: 'Frontman vs Stagewise',
+				subCategoryLink: '/vs/stagewise'
+			},
+			{
+				subCategory: 'Frontman vs v0',
+				subCategoryLink: '/vs/v0'
+			}
+		]
+	},
+		{
 			category: 'Developers',
 			subCategories: [
 				{

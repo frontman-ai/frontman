@@ -3,7 +3,7 @@ title: 'Breaking the Wall Between Design, Product, and Engineering'
 pubDate: 2026-02-16T05:00:00Z
 description: 'Every pixel adjustment routes through a developer. Frontman lets designers and PMs make UI changes directly, with code review.'
 author: 'Frontman Team'
-image: '/blog/post-05-cover.png'
+image: '/blog/team-collaboration-cover.png'
 tags: ['collaboration', 'workflow']
 ---
 
@@ -27,8 +27,6 @@ Three days. Six context switches. Two people blocked on each other across timezo
 ```
 
 One character. Three days. This is not a process failure. This is what happens when only one role in the organization can touch the code. Every visual change — no matter how trivial — must be serialized through a developer. The developer becomes a bottleneck not because they are slow, but because the system requires them for changes they do not need to think about.
-
-![Side-by-side comparison: a nine-step ticket workflow on the left vs. a three-step Frontman workflow on the right, showing the reduction from days to minutes for a CSS change.](/blog/post-05.png)
 
 ### The Frontend Collaboration Bottleneck
 

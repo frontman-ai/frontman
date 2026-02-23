@@ -1,0 +1,176 @@
+---
+// /vs/ — Comparison Hub Page
+// Lists all Frontman comparison pages for internal linking and SEO
+
+import Layout from '../../layouts/Layout.astro'
+
+const SEO = {
+	title: 'Frontman Comparisons: How Frontman Stacks Up Against Other AI Coding Tools',
+	description:
+		'Honest, detailed comparisons of Frontman with Cursor, GitHub Copilot, and Stagewise. Feature tables, pricing, and real differences for each tool.'
+}
+
+const comparisons = [
+	{
+		title: 'Frontman vs Cursor',
+		href: '/vs/cursor',
+		description: 'AI-powered IDE vs browser-based AI agent. Cursor offers autocomplete, agent mode, and terminal integration. Frontman sees the live DOM, computed CSS, and rendered output. Different tools for different problems.',
+		tags: ['IDE', 'Agent Mode', 'Autocomplete']
+	},
+	{
+		title: 'Frontman vs GitHub Copilot',
+		href: '/vs/copilot',
+		description: 'GitHub\'s AI coding assistant vs Frontman\'s browser-based approach. Copilot lives in your IDE with inline suggestions and Copilot Workspace. Frontman lives in your browser with visual editing and framework integration.',
+		tags: ['IDE', 'Autocomplete', 'GitHub Integration']
+	},
+	{
+		title: 'Frontman vs Stagewise',
+		href: '/vs/stagewise',
+		description: 'Two browser-based AI tools with different architectures. Stagewise is a zero-install CLI overlay that bridges to IDE agents. Frontman installs as framework middleware with its own self-contained agent and no prompt limits.',
+		tags: ['Browser-Based', 'Zero Install', 'IDE Bridge']
+	},
+	{
+		title: 'Frontman vs v0',
+		href: '/vs/v0',
+		description: 'v0 generates new UI in a sandbox from text prompts and Figma imports. Frontman edits your real running app in the browser with full DOM, CSS, and component-tree context. Different tools for different stages of the workflow.',
+		tags: ['Generative UI', 'Sandbox', 'Figma Import']
+	}
+]
+---
+
+<Layout title={SEO.title} description={SEO.description}>
+	<section class="hero-section">
+		<div class="hero-container">
+			<p class="hero-label">Comparisons</p>
+			<h1 class="hero-title">How Frontman Compares</h1>
+			<p class="hero-subtitle">
+				Honest, detailed comparisons with other AI coding tools. We show what each tool does well, where Frontman is different, and who should use what.
+			</p>
+		</div>
+	</section>
+
+	<section class="cards-section">
+		<div class="cards-container">
+			{comparisons.map((comp) => (
+				<a href={comp.href} class="comparison-card">
+					<h2 class="card-title">{comp.title}</h2>
+					<p class="card-description">{comp.description}</p>
+					<div class="card-tags">
+						{comp.tags.map((tag) => (
+							<span class="card-tag">{tag}</span>
+						))}
+					</div>
+					<span class="card-cta">Read comparison &rarr;</span>
+				</a>
+			))}
+		</div>
+	</section>
+</Layout>
+
+<style>
+	.hero-section {
+		background: #09090b;
+		color: #fafafa;
+		padding: 80px 24px 48px;
+		display: flex;
+		justify-content: center;
+	}
+	.hero-container {
+		max-width: 720px;
+		width: 100%;
+	}
+	.hero-label {
+		@apply font-mono;
+		font-size: 13px;
+		letter-spacing: 0.12em;
+		text-transform: uppercase;
+		color: #A259FF;
+		margin-bottom: 12px;
+	}
+	.hero-title {
+		font-size: 48px;
+		font-weight: 700;
+		line-height: 1.1;
+		letter-spacing: -0.02em;
+		color: #fafafa;
+		margin-bottom: 16px;
+	}
+	.hero-subtitle {
+		font-size: 18px;
+		line-height: 1.6;
+		color: #a1a1aa;
+	}
+
+	.cards-section {
+		background: #09090b;
+		padding: 24px 24px 80px;
+		display: flex;
+		justify-content: center;
+	}
+	.cards-container {
+		max-width: 720px;
+		width: 100%;
+		display: flex;
+		flex-direction: column;
+		gap: 20px;
+	}
+
+	.comparison-card {
+		display: block;
+		padding: 32px;
+		border-radius: 16px;
+		border: 1px solid rgba(255, 255, 255, 0.08);
+		background: rgba(255, 255, 255, 0.03);
+		text-decoration: none;
+		transition: border-color 0.2s, background 0.2s;
+	}
+	.comparison-card:hover {
+		border-color: rgba(162, 89, 255, 0.4);
+		background: rgba(162, 89, 255, 0.06);
+	}
+
+	.card-title {
+		font-size: 24px;
+		font-weight: 700;
+		color: #fafafa;
+		margin-bottom: 12px;
+		letter-spacing: -0.01em;
+	}
+	.card-description {
+		font-size: 16px;
+		line-height: 1.6;
+		color: #a1a1aa;
+		margin-bottom: 16px;
+	}
+	.card-tags {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 8px;
+		margin-bottom: 16px;
+	}
+	.card-tag {
+		font-size: 12px;
+		padding: 4px 10px;
+		border-radius: 6px;
+		background: rgba(255, 255, 255, 0.06);
+		color: #71717a;
+		letter-spacing: 0.02em;
+	}
+	.card-cta {
+		font-size: 15px;
+		font-weight: 500;
+		color: #A259FF;
+	}
+	.comparison-card:hover .card-cta {
+		text-decoration: underline;
+		text-underline-offset: 3px;
+	}
+
+	@media (max-width: 768px) {
+		.hero-section { padding: 48px 20px 32px; }
+		.hero-title { font-size: 32px; }
+		.cards-section { padding: 16px 20px 48px; }
+		.comparison-card { padding: 24px; }
+		.card-title { font-size: 20px; }
+	}
+</style>

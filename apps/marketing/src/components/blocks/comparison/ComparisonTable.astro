@@ -195,6 +195,18 @@ function toolKey(tool: string): keyof Feature {
 				</div>
 			))}
 		</div>
+
+		<!-- Detailed comparison links -->
+		<Row>
+			<Col span="12" align="center" classes="mt-10 lg:mt-14">
+				<div class="comparison-links">
+					<a href="/vs/cursor" class="comparison-link">Frontman vs Cursor &rarr;</a>
+					<a href="/vs/copilot" class="comparison-link">Frontman vs Copilot &rarr;</a>
+					<a href="/vs/stagewise" class="comparison-link">Frontman vs Stagewise &rarr;</a>
+					<a href="/vs/v0" class="comparison-link">Frontman vs v0 &rarr;</a>
+				</div>
+			</Col>
+		</Row>
 	</div>
 </section>
 
@@ -340,6 +352,24 @@ function toolKey(tool: string): keyof Feature {
 	.mobile-card-item--highlighted .mobile-card-tool {
 		color: #A259FF;
 		font-weight: 600;
+	}
+
+	/* Comparison links */
+	.comparison-links {
+		@apply flex flex-wrap items-center justify-center gap-6;
+	}
+
+	.comparison-link {
+		@apply text-base font-medium;
+		color: #A259FF;
+		text-decoration: none;
+		transition: color 0.2s;
+	}
+
+	.comparison-link:hover {
+		color: #c084fc;
+		text-decoration: underline;
+		text-underline-offset: 3px;
 	}
 
 	/* Responsive */
