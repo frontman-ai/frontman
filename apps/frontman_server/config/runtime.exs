@@ -27,12 +27,9 @@ if config_env() in [:dev, :test] do
     openai_api_key: env!("OPENAI_API_KEY", :string, nil)
 end
 
-# Discord webhook for #new-users signup alerts (optional — omit to disable)
-discord_webhook = env!("DISCORD_NEW_USERS_WEBHOOK_URL", :string, nil)
-
-if discord_webhook do
-  config :frontman_server, discord_new_users_webhook_url: discord_webhook
-end
+# Discord webhook for #new-users signup alerts
+config :frontman_server,
+  discord_new_users_webhook_url: env!("DISCORD_NEW_USERS_WEBHOOK_URL", :string!)
 
 # WorkOS configuration for OAuth (GitHub, Google)
 config :workos, WorkOS.Client,

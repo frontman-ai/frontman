@@ -10,8 +10,6 @@ defmodule FrontmanServer.Notifications.Discord do
 
   require Logger
 
-  @channel "new_user"
-
   # ------------------------------------------------------------------
   # Public API
   # ------------------------------------------------------------------
@@ -28,16 +26,17 @@ defmodule FrontmanServer.Notifications.Discord do
   def init(opts) do
     webhook_url = Keyword.fetch!(opts, :webhook_url)
     notifications_pid = Keyword.fetch!(opts, :notifications_pid)
+    channel = Keyword.fetch!(opts, :channel)
 
-    {:ok, listen_ref} = Postgrex.Notifications.listen(notifications_pid, @channel)
+    {:ok, listen_ref} = Postgrex.Notifications.listen(notifications_pid, channel)
 
-    Logger.info("[Discord] Listening for new user notifications on PG channel '#{@channel}'")
+    Logger.info("[Discord] Listening for new user notifications on PG channel '#{channel}'")
 
     {:ok, %{webhook_url: webhook_url, listen_ref: listen_ref}}
   end
 
   @impl true
-  def handle_info({:notification, _pid, _ref, @channel, payload}, state) do
+  def handle_info({:notification, _pid, _ref, _channel, payload}, state) do
     case Jason.decode(payload) do
       {:ok, user} ->
         post_to_discord(state.webhook_url, user)

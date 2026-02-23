@@ -46,8 +46,14 @@ defmodule FrontmanServer.Application do
         # TaskSupervisor for agent execution tasks
         {Task.Supervisor, name: FrontmanServer.TaskSupervisor},
         # Start to serve requests, typically the last entry
-        FrontmanServerWeb.Endpoint
-      ] ++ discord_notification_children()
+        FrontmanServerWeb.Endpoint,
+        # Discord new-user signup alerts (PG LISTEN/NOTIFY → webhook)
+        {Postgrex.Notifications, [name: FrontmanServer.PGNotifications] ++ pg_notify_opts()},
+        {FrontmanServer.Notifications.Discord,
+         webhook_url: Application.get_env(:frontman_server, :discord_new_users_webhook_url),
+         channel: "new_user",
+         notifications_pid: FrontmanServer.PGNotifications}
+      ]
 
     # See https://hexdocs.pm/elixir/Supervisor.html
     # for other strategies and supported options
@@ -63,24 +69,6 @@ defmodule FrontmanServer.Application do
     :ok
   end
 
-  # Builds the child specs for Discord new-user notifications.
-  # Returns [] when DISCORD_NEW_USERS_WEBHOOK_URL is not set.
-  defp discord_notification_children do
-    case Application.get_env(:frontman_server, :discord_new_users_webhook_url) do
-      nil ->
-        []
-
-      webhook_url ->
-        pg_opts = pg_notify_opts()
-
-        [
-          {Postgrex.Notifications, [name: FrontmanServer.PGNotifications] ++ pg_opts},
-          {FrontmanServer.Notifications.Discord,
-           webhook_url: webhook_url, notifications_pid: FrontmanServer.PGNotifications}
-        ]
-    end
-  end
-
   # Extracts Postgrex connection options from the Repo config.
   # Handles both DATABASE_URL (prod) and individual keys (dev).
   defp pg_notify_opts do
@@ -94,8 +82,12 @@ defmodule FrontmanServer.Application do
         # DATABASE_URL must always include user:password credentials.
         {username, password} =
           case uri.userinfo do
-            nil -> {nil, nil}
-            info -> List.to_tuple(String.split(info, ":", parts: 2))
+            nil ->
+              {nil, nil}
+
+            info ->
+              [user, pass] = String.split(info, ":", parts: 2)
+              {URI.decode(user), URI.decode(pass)}
           end
 
         [
