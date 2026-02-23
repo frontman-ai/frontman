@@ -64,10 +64,14 @@ const colors = {
 // Deterministic seeded RNG from the title — same title = same image
 // ---------------------------------------------------------------------------
 function seededRng(seed) {
-  const hash = createHash("sha256").update(seed).digest();
+  let hash = createHash("sha256").update(seed).digest();
   let offset = 0;
   return () => {
-    const val = hash.readUInt32BE(offset % (hash.length - 4)) / 0xffffffff;
+    if (offset + 4 > hash.length) {
+      hash = createHash("sha256").update(hash).digest();
+      offset = 0;
+    }
+    const val = hash.readUInt32BE(offset) / 0xffffffff;
     offset += 4;
     return val;
   };
