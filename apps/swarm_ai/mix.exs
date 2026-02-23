@@ -1,7 +1,7 @@
 defmodule SwarmAi.MixProject do
   use Mix.Project
 
-  @version "0.1.0"
+  @version "0.1.1"
   @source_url "https://github.com/frontman-ai/frontman/tree/main/apps/swarm_ai"
 
   def project do
@@ -17,7 +17,7 @@ defmodule SwarmAi.MixProject do
       docs: docs(),
       name: "SwarmAi",
       description:
-        "A functional AI agent execution framework with protocol-based LLM and tool integration.",
+        "A simple agentic loop for Elixir. Bring your own LLM and tools, get streaming, tool execution, child agents, and telemetry out of the box.",
       source_url: @source_url,
       dialyzer: [
         plt_add_apps: [:mix],
@@ -52,13 +52,14 @@ defmodule SwarmAi.MixProject do
     [
       licenses: ["Apache-2.0"],
       links: %{"GitHub" => @source_url},
-      files: ~w(lib .formatter.exs mix.exs LICENSE CHANGELOG.md)
+      files: ~w(lib .formatter.exs mix.exs README.md LICENSE CHANGELOG.md)
     ]
   end
 
   defp docs do
     [
-      main: "SwarmAi",
+      main: "readme",
+      extras: ["README.md"],
       source_ref: "v#{@version}",
       source_url: @source_url
     ]

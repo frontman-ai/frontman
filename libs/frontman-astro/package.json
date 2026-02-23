@@ -1,6 +1,6 @@
 {
 	"name": "@frontman-ai/astro",
-	"version": "0.2.0",
+	"version": "0.2.3",
 	"description": "Astro integration for Frontman",
 	"license": "Apache-2.0",
 	"author": "Frontman AI",
@@ -47,6 +47,10 @@
 	},
 	"engines": {
 		"node": ">=18.0.0"
+	},
+	"dependencies": {
+		"chrome-launcher": "^1.1.2",
+		"lighthouse": "^12.5.1"
 	},
 	"peerDependencies": {
 		"astro": "^5.0.0"

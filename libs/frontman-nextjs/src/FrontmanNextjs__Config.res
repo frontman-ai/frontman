@@ -1,11 +1,15 @@
 module Bindings = FrontmanBindings
 module Hosts = FrontmanFrontmanCore.FrontmanCore__Hosts
 
-// Default host can be overridden via FRONTMAN_HOST env var for development
-let defaultHost = switch Bindings.Process.env->Dict.get("FRONTMAN_HOST") {
-| Some(host) => host
-| None => Hosts.apiHost
-}
+// Default host can be overridden via env vars for development.
+// Priority:
+// 1) FRONTMAN_HOST (explicit Frontman server host)
+// 2) api.frontman.sh (production default)
+let defaultHost =
+  switch Bindings.Process.env->Dict.get("FRONTMAN_HOST") {
+  | Some(host) if host != "" => host
+  | _ => Hosts.apiHost
+  }
 
 // Normalize host values so users can pass either bare hosts or full URLs.
 // Examples:

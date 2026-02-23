@@ -3,10 +3,9 @@ defmodule SwarmAi.Loop do
   Represents an agentic execution loop as an explicit, inspectable data structure.
 
   The loop continues until a termination condition is met:
-  - No more tool calls (default)
+  - No more tool calls (LLM responds without requesting tools)
   - Max steps reached
-  - Custom condition from the agent
-  - Explicit stop signal from a tool
+  - LLM returns an error
   """
 
   alias SwarmAi.Loop.Config
@@ -30,6 +29,13 @@ defmodule SwarmAi.Loop do
     field(:metadata, map(), default: %{})
   end
 
+  @doc """
+  Creates a new loop for the given agent and configuration.
+
+  ## Options
+
+  - `:metadata` - arbitrary map of metadata to attach to the loop (default: `%{}`)
+  """
   @spec make(SwarmAi.Agent.t(), Config.t(), keyword()) :: t()
   def make(agent, %Config{} = config, opts \\ []) do
     metadata = Keyword.get(opts, :metadata, %{})
@@ -156,7 +162,7 @@ defmodule SwarmAi.Loop do
   end
 
   @doc """
-  Returns the current step.
+  Returns the most recent `Step.t()` struct from the loop, or `nil` if no steps exist.
   """
   @spec current_step(__MODULE__.t()) :: Step.t() | nil
   def current_step(%__MODULE__{steps: []}), do: nil

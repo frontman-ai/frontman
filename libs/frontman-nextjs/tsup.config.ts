@@ -27,6 +27,8 @@ export default defineConfig([
       'next/server',
       'react',
       'react-dom',
+      'lighthouse',
+      'chrome-launcher',
       // Node.js built-ins
       'fs',
       'path',
@@ -76,6 +78,9 @@ export default defineConfig([
       'next/server',
       'react',
       'react-dom',
+      // Lighthouse has dynamic imports that break Turbopack
+      'lighthouse',
+      'chrome-launcher',
       'fs',
       'path',
       'os',
@@ -124,6 +129,9 @@ export default defineConfig([
       'next/server',
       'react',
       'react-dom',
+      // Lighthouse has dynamic imports that break Turbopack
+      'lighthouse',
+      'chrome-launcher',
       'fs',
       'path',
       'os',

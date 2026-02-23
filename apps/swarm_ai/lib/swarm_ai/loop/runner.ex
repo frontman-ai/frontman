@@ -3,19 +3,18 @@ defmodule SwarmAi.Loop.Runner do
   Pure functional loop runner. No side effects.
 
   Takes loop state in, returns updated loop + effects to execute.
-  The ExecutionProcess interprets effects.
+  The `SwarmAi` module interprets effects.
 
   ## Flow
 
-      start/3
+      start/2
         → {:call_llm, messages}
 
       handle_llm_response/2
         → if no tool calls: {:complete, result}
         → if tool calls: [{:execute_tool, call}, ...]
 
-      handle_tool_result/3
-        → if spawn: {:spawn_child, id, spawn_req}
+      handle_tool_result/2
         → if all complete: {:call_llm, messages}
         → if pending: [] (wait for more)
   """

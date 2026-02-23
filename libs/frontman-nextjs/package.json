@@ -1,6 +1,6 @@
 {
 	"name": "@frontman-ai/nextjs",
-	"version": "0.3.4",
+	"version": "0.3.5",
 	"description": "Next.js integration for Frontman - AI-powered development tools and observability",
 	"type": "module",
 	"main": "./dist/index.js",
@@ -44,7 +44,9 @@
 		"prepublishOnly": "yarn build"
 	},
 	"dependencies": {
-		"@sentry/nextjs": "^8.0.0"
+		"@sentry/nextjs": "^8.0.0",
+		"chrome-launcher": "^1.1.2",
+		"lighthouse": "^12.5.1"
 	},
 	"peerDependencies": {
 		"@opentelemetry/api": "^1.9.0",

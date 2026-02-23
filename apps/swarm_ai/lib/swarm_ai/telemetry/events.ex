@@ -1,6 +1,6 @@
 defmodule SwarmAi.Telemetry.Events do
   @moduledoc """
-  Telemetry event name definitions for Swarm.
+  Telemetry event name definitions for SwarmAi.
 
   Single source of truth for event names used by `SwarmAi.Telemetry` (emitter)
   and any handlers that consume these events.
@@ -18,29 +18,39 @@ defmodule SwarmAi.Telemetry.Events do
 
   @prefix [:swarm_ai]
 
-  # Run lifecycle
+  @doc "Event: agent run started."
   def run_start, do: @prefix ++ [:run, :start]
+  @doc "Event: agent run stopped."
   def run_stop, do: @prefix ++ [:run, :stop]
+  @doc "Event: agent run raised an exception."
   def run_exception, do: @prefix ++ [:run, :exception]
 
-  # Step lifecycle
+  @doc "Event: execution step started."
   def step_start, do: @prefix ++ [:step, :start]
+  @doc "Event: execution step stopped."
   def step_stop, do: @prefix ++ [:step, :stop]
+  @doc "Event: execution step raised an exception."
   def step_exception, do: @prefix ++ [:step, :exception]
 
-  # LLM call
+  @doc "Event: LLM call started."
   def llm_call_start, do: @prefix ++ [:llm, :call, :start]
+  @doc "Event: LLM call stopped."
   def llm_call_stop, do: @prefix ++ [:llm, :call, :stop]
+  @doc "Event: LLM call raised an exception."
   def llm_call_exception, do: @prefix ++ [:llm, :call, :exception]
 
-  # Tool execution
+  @doc "Event: tool execution started."
   def tool_execute_start, do: @prefix ++ [:tool, :execute, :start]
+  @doc "Event: tool execution stopped."
   def tool_execute_stop, do: @prefix ++ [:tool, :execute, :stop]
+  @doc "Event: tool execution raised an exception."
   def tool_execute_exception, do: @prefix ++ [:tool, :execute, :exception]
 
-  # Child spawn lifecycle
+  @doc "Event: child agent spawn started."
   def child_spawn_start, do: @prefix ++ [:child, :spawn, :start]
+  @doc "Event: child agent spawn stopped."
   def child_spawn_stop, do: @prefix ++ [:child, :spawn, :stop]
+  @doc "Event: child agent spawn raised an exception."
   def child_spawn_exception, do: @prefix ++ [:child, :spawn, :exception]
 
   @doc """

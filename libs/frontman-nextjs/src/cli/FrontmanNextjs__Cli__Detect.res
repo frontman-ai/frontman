@@ -268,37 +268,16 @@ let getDevCommand = (pm: packageManager): string => {
 }
 
 // Get install command args for each package manager
-let getInstallArgs = (pm: packageManager, ~isDev: bool=false): array<string> => {
+// Installs as devDependencies: Next.js bundles all imports at build time (both
+// middleware on Edge and instrumentation on Node.js), so these packages only need
+// to exist during `next build`, not at runtime. Every deployment platform runs
+// `npm install` (all deps) before `next build`, then prunes devDeps afterward.
+let getInstallArgs = (pm: packageManager): array<string> => {
   switch pm {
-  | Npm =>
-    if isDev {
-      ["install", "-D"]
-    } else {
-      ["install"]
-    }
-  | Yarn =>
-    if isDev {
-      ["add", "-D"]
-    } else {
-      ["add"]
-    }
-  | Pnpm =>
-    if isDev {
-      ["add", "--save-dev"]
-    } else {
-      ["add"]
-    }
-  | Bun =>
-    if isDev {
-      ["add", "--dev"]
-    } else {
-      ["add"]
-    }
-  | Deno =>
-    if isDev {
-      ["add", "--dev"]
-    } else {
-      ["add"]
-    }
+  | Npm => ["install", "-D"]
+  | Yarn => ["add", "-D"]
+  | Pnpm => ["add", "--save-dev"]
+  | Bun => ["add", "--dev"]
+  | Deno => ["add", "--dev"]
   }
 }

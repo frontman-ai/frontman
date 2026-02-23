@@ -13,6 +13,8 @@ const sharedExternal = [
   'astro',
   'astro/toolbar',
   'astro/config',
+  'lighthouse',
+  'chrome-launcher',
   // Node.js built-ins
   'fs',
   'path',
