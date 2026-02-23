@@ -3,7 +3,7 @@ title: 'Why AI Coding Agents Are Blind to Your UI'
 pubDate: 2026-02-18T05:00:00Z
 description: 'Cursor, Claude Code, and Copilot read your files but never see the rendered result. Here is why that matters and how framework-aware AI changes everything.'
 author: 'Frontman Team'
-image: '/blog/post-02-cover.png'
+image: '/blog/ai-coding-agents-blind-to-ui-cover.png'
 tags: ['ai', 'developer-tools']
 ---
 
@@ -12,8 +12,6 @@ You ask your agent to fix the padding on the hero section. It opens `Hero.tsx`, 
 You switch back to your editor. "No, the *inner* padding. The content container, not the wrapper." The agent reads the file again, burns more context, edits a different line. You switch to the browser. Better, but now the mobile layout broke because the agent did not know that `p-6` collides with a responsive `md:p-8` two lines down. It could not know. It never saw the page.
 
 This is not a failure of intelligence. This is a failure of *sight*.
-
-![Diagram showing a coding agent connected to source files and terminal output but disconnected from the browser, with the rendered UI behind a barrier.](/blog/post-02.png)
 
 ### The Agent Blindspot
 
@@ -85,4 +83,4 @@ When the agent can see the rendered UI, a designer does not need to know that th
 
 The wall between "people who can describe a change" and "people who can make a change" disappears. Not because we lowered the bar — because we gave the agent eyes.
 
-[Try Frontman](https://frontman.sh) — [one install command](/blog/getting-started), works with your existing project. Read about [how Frontman keeps your code safe](/blog/security) or see [how it compares to Cursor and Claude Code](/blog/frontman-vs-cursor-vs-claude-code).
+[Try Frontman](https://frontman.sh) — [one install command](/blog/getting-started), works with your existing project. Read about [how Frontman keeps your code safe](/blog/security), see [how it compares to Cursor and Claude Code](/blog/frontman-vs-cursor-vs-claude-code), or read the detailed [Frontman vs Cursor](/vs/cursor) breakdown.

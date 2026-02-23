@@ -3,7 +3,7 @@ title: 'How Frontman Keeps Your Code Safe'
 pubDate: 2026-02-17T05:00:00Z
 description: 'Frontman runs only in development, never touches production, and every change produces a reviewable code diff. Here is our security model.'
 author: 'Frontman Team'
-image: '/blog/post-03-cover.png'
+image: '/blog/security-cover.png'
 tags: ['security', 'open-source']
 ---
 
@@ -12,8 +12,6 @@ You already let AI agents edit your codebase. Cursor writes directly to your fil
 So when you hear "Frontman edits your source files," the question is not *whether* you trust an agent to touch your code. You already made that call. The question is what constraints are in place when it does.
 
 Here is every hard question you should ask, and our answers.
-
-![Diagram showing Frontman's architecture: the agent runs locally in the dev environment, edits source files tracked by Git, and sends context directly to the AI provider without an intermediary server.](/blog/post-03.png)
 
 ### Where Does It Run?
 

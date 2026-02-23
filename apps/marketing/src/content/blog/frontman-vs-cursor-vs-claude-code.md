@@ -3,7 +3,7 @@ title: 'Frontman vs. Cursor vs. Claude Code'
 pubDate: 2026-02-14T05:00:00Z
 description: 'File-level agents like Cursor and Claude Code vs. browser-based editing with Frontman. Different tools for different problems.'
 author: 'Frontman Team'
-image: '/blog/post-06-cover.png'
+image: '/blog/frontman-vs-cursor-vs-claude-code-cover.png'
 tags: ['comparison', 'ai']
 ---
 
@@ -114,4 +114,4 @@ Use Cursor or Claude Code when the source code is the artifact. Use Frontman whe
 
 The question is not "which AI agent is best." The question is "which agent can *see* what I need it to see."
 
-[Try Frontman](https://frontman.sh) — open source, free during beta. [Install in one command](/blog/getting-started), or read about [how designers and PMs can use it alongside your team](/blog/team-collaboration).
+[Try Frontman](https://frontman.sh) — open source, free during beta. [Install in one command](/blog/getting-started), or read about [how designers and PMs can use it alongside your team](/blog/team-collaboration). For a detailed feature-by-feature breakdown, see [Frontman vs Cursor](/vs/cursor).
