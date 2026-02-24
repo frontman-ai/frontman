@@ -36,6 +36,7 @@ let make = (~taskId, ~url, ~isActive, ~viewportStyle: option<(int, int, float)>=
           | true =>
             lastLocationRef.current = Some(location)
             Client__State.Actions.setPreviewUrl(~url=location)
+            Client__BrowserUrl.syncBrowserUrl(~previewUrl=location)
           }
         }
       | None => ()

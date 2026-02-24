@@ -32,7 +32,10 @@ let generateHTML = (config: MiddlewareConfig.t): string => {
         }
       )
     // Build JSON payload using proper JSON encoding to handle special characters
-    let configObj = Dict.fromArray([("framework", JSON.Encode.string(config.frameworkLabel))])
+    let configObj = Dict.fromArray([
+      ("framework", JSON.Encode.string(config.frameworkLabel)),
+      ("basePath", JSON.Encode.string(config.basePath)),
+    ])
     // Add key value if present and non-empty
     openrouterKey->Option.forEach(key => {
       configObj->Dict.set("openrouterKeyValue", JSON.Encode.string(key))
@@ -72,4 +75,16 @@ let serve = (config: MiddlewareConfig.t): WebAPI.FetchAPI.response => {
   let html = generateHTML(config)
   let headers = WebAPI.HeadersInit.fromDict(Dict.fromArray([("Content-Type", "text/html")]))
   WebAPI.Response.fromString(html, ~init={headers: headers})
+}
+
+// Serve with a dynamic entrypoint URL override for suffix-based routing.
+let serveWithEntrypoint = (
+  ~config: MiddlewareConfig.t,
+  ~entrypointUrl: option<string>,
+): WebAPI.FetchAPI.response => {
+  let effectiveConfig = switch entrypointUrl {
+  | Some(_) => {...config, entrypointUrl}
+  | None => config
+  }
+  serve(effectiveConfig)
 }

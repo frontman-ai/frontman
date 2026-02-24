@@ -21,6 +21,7 @@ type t = {
   host: string,
   clientUrl: string,
   clientCssUrl: option<string>,
+  entrypointUrl: option<string>,
   isLightTheme: bool,
 }
 
@@ -34,6 +35,7 @@ type jsConfigInput = {
   host?: string,
   clientUrl?: string,
   clientCssUrl?: string,
+  entrypointUrl?: string,
   isLightTheme?: bool,
 }
 
@@ -116,6 +118,7 @@ let makeFromObject = (rawConfig: jsConfigInput): t => {
       | false => Some(Hosts.clientCss)
       },
     ),
+    entrypointUrl: config.entrypointUrl,
     isLightTheme,
   }
 }

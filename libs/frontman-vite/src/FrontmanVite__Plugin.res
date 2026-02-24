@@ -3,6 +3,7 @@
 
 module Config = FrontmanVite__Config
 module Middleware = FrontmanVite__Middleware
+module Core = FrontmanFrontmanCore
 
 // Minimal Node.js http bindings for Vite's dev server
 
@@ -86,8 +87,6 @@ let adaptMiddlewareToVite = (
   ~basePath: string,
   middleware: WebAPI.FetchAPI.request => promise<option<WebAPI.FetchAPI.response>>,
 ): ((incomingMessage, serverResponse, unit => unit) => promise<unit>) => {
-  let prefix = "/" ++ basePath->String.toLowerCase
-
   async (req, res, next) => {
     // Short-circuit: only process requests under the frontman basePath.
     // This avoids draining the IncomingMessage body stream for non-frontman
@@ -99,7 +98,12 @@ let adaptMiddlewareToVite = (
     | -1 => pathname
     | idx => pathname->String.slice(~start=0, ~end=idx)
     }
-    switch pathOnly == prefix || pathOnly->String.startsWith(prefix ++ "/") {
+    let isFrontmanRoute = Core.FrontmanCore__Middleware.isFrontmanRoute(
+      ~pathname=pathOnly,
+      ~basePath,
+      ~method=req.method->Null.toOption->Option.getOr("GET"),
+    )
+    switch isFrontmanRoute {
     | false => next()
     | true =>
       // Collect request body (safe — this is a frontman route)

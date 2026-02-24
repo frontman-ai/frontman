@@ -409,7 +409,7 @@ let convertTask = (task: Client__State__Types.Task.t, ~defaultUrl: string): Task
 
 /** Capture a snapshot from the live state */
 let captureFromState = (state: Client__State__Types.state): t => {
-  let defaultUrl = Client__State__StateReducer.getInitialUrl()
+  let defaultUrl = Client__BrowserUrl.getInitialUrl()
   let tasks = state.tasks->Dict.valuesToArray->Array.map(task => convertTask(task, ~defaultUrl))
 
   let currentTaskId = switch state.currentTask {

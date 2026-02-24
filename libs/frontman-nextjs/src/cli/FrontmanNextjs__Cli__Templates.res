@@ -36,7 +36,7 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/frontman', '/frontman/:path*'],
+  matcher: ['/frontman', '/frontman/:path*', '/:path*/frontman'],
 };
 `
 
@@ -50,14 +50,14 @@ const frontman = createMiddleware({
 });
 
 export function proxy(req: NextRequest): NextResponse | Promise<NextResponse> {
-  if (req.nextUrl.pathname === '/frontman' || req.nextUrl.pathname.startsWith('/frontman/')) {
+  if (req.nextUrl.pathname === '/frontman' || req.nextUrl.pathname.startsWith('/frontman/') || req.nextUrl.pathname.endsWith('/frontman')) {
     return frontman(req) || NextResponse.next();
   }
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: ['/frontman', '/frontman/:path*'],
+  matcher: ['/frontman', '/frontman/:path*', '/:path*/frontman'],
 };
 `
 
@@ -103,7 +103,7 @@ module ManualInstructions = {
   ${bar}
   ${bar}  ${s("4.")} Update your matcher config to include Frontman routes:
   ${bar}
-  ${bar}     ${d("matcher: ['/frontman', '/frontman/:path*', ...yourExistingMatchers]")}
+   ${bar}     ${d("matcher: ['/frontman', '/frontman/:path*', '/:path*/frontman', ...yourExistingMatchers]")}
   ${bar}
   ${bar}  ${b("Docs:")} ${d("https://frontman.sh/docs/nextjs")}
   ${bar}`
@@ -129,13 +129,13 @@ module ManualInstructions = {
   ${bar}
   ${bar}  ${s("3.")} In your proxy function, add Frontman handler at the beginning:
   ${bar}
-  ${bar}     ${d("if (req.nextUrl.pathname === '/frontman' || req.nextUrl.pathname.startsWith('/frontman/')) {")}
+     ${bar}     ${d("if (req.nextUrl.pathname === '/frontman' || req.nextUrl.pathname.startsWith('/frontman/') || req.nextUrl.pathname.endsWith('/frontman')) {")}
   ${bar}     ${d("  return frontman(req) || NextResponse.next();")}
   ${bar}     ${d("}")}
   ${bar}
   ${bar}  ${s("4.")} Update your matcher config to include Frontman routes:
   ${bar}
-  ${bar}     ${d("matcher: ['/frontman', '/frontman/:path*', ...yourExistingMatchers]")}
+  ${bar}     ${d("matcher: ['/frontman', '/frontman/:path*', '/:path*/frontman', ...yourExistingMatchers]")}
   ${bar}
   ${bar}  ${b("Docs:")} ${d("https://frontman.sh/docs/nextjs")}
   ${bar}`
@@ -200,7 +200,7 @@ Add the following to your ${fileName}:
   4. Update your matcher config to include Frontman routes:
 
       export const config = {
-        matcher: ['/frontman', '/frontman/:path*', ...yourExistingMatchers],
+        matcher: ['/frontman', '/frontman/:path*', '/:path*/frontman', ...yourExistingMatchers],
       };
 
 For full documentation, see: https://frontman.sh/docs/nextjs
@@ -226,7 +226,7 @@ Add the following to your ${fileName}:
 
       export function proxy(req: NextRequest): NextResponse | Promise<NextResponse> {
         // Add Frontman handler first
-        if (req.nextUrl.pathname === '/frontman' || req.nextUrl.pathname.startsWith('/frontman/')) {
+        if (req.nextUrl.pathname === '/frontman' || req.nextUrl.pathname.startsWith('/frontman/') || req.nextUrl.pathname.endsWith('/frontman')) {
          return frontman(req) || NextResponse.next();
        }
 
@@ -236,7 +236,7 @@ Add the following to your ${fileName}:
   4. Update your matcher config to include Frontman routes:
 
       export const config = {
-        matcher: ['/frontman', '/frontman/:path*', ...yourExistingMatchers],
+        matcher: ['/frontman', '/frontman/:path*', '/:path*/frontman', ...yourExistingMatchers],
       };
 
 For full documentation, see: https://frontman.sh/docs/nextjs

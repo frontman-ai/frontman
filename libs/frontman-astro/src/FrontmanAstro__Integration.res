@@ -59,13 +59,30 @@ let make = (configInput: Config.jsConfigInput): Bindings.astroIntegration => {
               )
             }
 
+            // Create our Web API middleware and adapt it to Vite's Connect middleware.
+            // Registered as a Vite plugin via configureServer so it runs BEFORE Astro's
+            // own page routing. If registered via astro:server:setup instead, Astro's
+            // catch-all dynamic routes (e.g. blog/[...id]) would match suffix URLs
+            // like /blog/frontman and return 404 before our middleware gets the request.
+            let webMiddleware = Middleware.createMiddleware(config)
+            let connectMiddleware =
+              ViteAdapter.adaptToConnect(webMiddleware, ~basePath=config.basePath)
+            let middlewarePlugin = Bindings.makeVitePlugin({
+              name: "frontman-middleware",
+              configureServer: ?Some(
+                server => {
+                  server.middlewares->Bindings.use(connectMiddleware)
+                },
+              ),
+            })
+
             // Register Vite plugin that monkey-patches renderComponent to inject
             // component props as HTML comments into the SSR output.
             // This lets the client-side annotation capture script associate
             // props with each component instance for AI agent context.
             ctx.updateConfig({
               vite: ?Some({
-                plugins: ?Some([frontmanPropsInjectionPlugin()]),
+                plugins: ?Some([middlewarePlugin, frontmanPropsInjectionPlugin()]),
               }),
             })
 
@@ -93,17 +110,10 @@ let make = (configInput: Config.jsConfigInput): Bindings.astroIntegration => {
         },
       ),
       serverSetup: ?Some(
-        ({server, toolbar}) => {
+        ({toolbar}) => {
           // Initialize core LogCapture to intercept console/stdout for the
           // get_logs tool and post-edit error checking in edit_file
           FrontmanFrontmanCore.FrontmanCore__LogCapture.initialize()
-
-          // Create our Web API middleware and adapt it to Vite's Connect middleware
-          let webMiddleware = Middleware.createMiddleware(config)
-          let connectMiddleware = ViteAdapter.adaptToConnect(webMiddleware, ~basePath=config.basePath)
-
-          // Register with Vite's dev server
-          server.middlewares->Bindings.use(connectMiddleware)
 
           // Log when the toolbar app is initialized
           toolbar->Bindings.toolbarOnAppInitialized("frontman:toolbar", () => {

@@ -6,6 +6,7 @@
 
 module NodeHttp = FrontmanBindings.NodeHttp
 module WebStreams = FrontmanBindings.WebStreams
+module CoreMiddleware = FrontmanFrontmanCore.FrontmanCore__Middleware
 
 // Copy headers from a Web API Headers object to a Node.js ServerResponse
 let copyHeaders: (WebAPI.FetchAPI.headers, NodeHttp.serverResponse) => unit = %raw(`
@@ -103,7 +104,6 @@ let writeWebResponse = async (
 // requests to non-Frontman routes would have their body stream drained before
 // next() is called, causing downstream handlers to receive an empty body.
 let adaptToConnect = (middleware: webMiddleware, ~basePath: string): NodeHttp.connectMiddleware => {
-  let prefix = `/${basePath}`
   (req, res, next) => {
     // Fast path: skip non-Frontman routes without consuming the request body.
     // Strip query string first — Node.js req.url includes it (e.g. "/frontman?x=1")
@@ -114,7 +114,12 @@ let adaptToConnect = (middleware: webMiddleware, ~basePath: string): NodeHttp.co
       ->String.split("?")
       ->Array.get(0)
       ->Option.getOr(req->NodeHttp.url)
-    if !(reqPath == prefix || reqPath->String.startsWith(`${prefix}/`)) {
+    let isFrontmanRoute = CoreMiddleware.isFrontmanRoute(
+      ~pathname=reqPath,
+      ~basePath,
+      ~method=req->NodeHttp.method,
+    )
+    if !isFrontmanRoute {
       next()
     } else {
       let handleRequest = async () => {

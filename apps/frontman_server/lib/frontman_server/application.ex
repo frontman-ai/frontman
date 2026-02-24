@@ -32,6 +32,20 @@ defmodule FrontmanServer.Application do
       nil
     )
 
+    # Discord new-user signup alerts (PG LISTEN/NOTIFY → webhook) – prod only
+    discord_children =
+      if Application.get_env(:frontman_server, :discord_new_users_webhook_url) do
+        [
+          {Postgrex.Notifications, [name: FrontmanServer.PGNotifications] ++ pg_notify_opts()},
+          {FrontmanServer.Notifications.Discord,
+           webhook_url: Application.get_env(:frontman_server, :discord_new_users_webhook_url),
+           channel: Application.get_env(:frontman_server, :discord_pg_channel),
+           notifications_pid: FrontmanServer.PGNotifications}
+        ]
+      else
+        []
+      end
+
     children =
       [
         FrontmanServerWeb.Telemetry,
@@ -46,14 +60,8 @@ defmodule FrontmanServer.Application do
         # TaskSupervisor for agent execution tasks
         {Task.Supervisor, name: FrontmanServer.TaskSupervisor},
         # Start to serve requests, typically the last entry
-        FrontmanServerWeb.Endpoint,
-        # Discord new-user signup alerts (PG LISTEN/NOTIFY → webhook)
-        {Postgrex.Notifications, [name: FrontmanServer.PGNotifications] ++ pg_notify_opts()},
-        {FrontmanServer.Notifications.Discord,
-         webhook_url: Application.get_env(:frontman_server, :discord_new_users_webhook_url),
-         channel: Application.get_env(:frontman_server, :discord_pg_channel),
-         notifications_pid: FrontmanServer.PGNotifications}
-      ]
+        FrontmanServerWeb.Endpoint
+      ] ++ discord_children
 
     # See https://hexdocs.pm/elixir/Supervisor.html
     # for other strategies and supported options

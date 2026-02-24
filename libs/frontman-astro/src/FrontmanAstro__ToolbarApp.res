@@ -1,39 +1,56 @@
 // Frontman Dev Toolbar App
 //
-// Clicking the Frontman icon in the Astro dev toolbar navigates to /<basePath>/
-// where the full Frontman UI is served by the middleware.
+// Clicking the Frontman icon in the Astro dev toolbar navigates to
+// {currentPage}/<basePath> using suffix-based routing, so the preview
+// loads the page the user was already on.
+//
+// NOTE: The URL construction logic here (trailing-slash strip, suffix
+// append, already-at-path check) is intentionally duplicated from
+// Client__BrowserUrl.syncBrowserUrl in libs/client. The two files
+// cannot share code because frontman-core is server-only and the client
+// bundle cannot depend on it. Keep the two implementations aligned —
+// if you change one, update the other.
 
-module Bindings = FrontmanBindings.Astro
+open FrontmanBindings.Astro
 
-// The toolbar app definition
-let app: Bindings.toolbarAppConfig = {
+let defaultBasePath = "frontman"
+
+// Read basePath from the <meta name="frontman-base-path"> tag injected
+// by FrontmanAstro__Integration. Falls back to defaultBasePath.
+let _getBasePath = () => {
+  WebAPI.Global.document
+  ->WebAPI.Document.querySelector(`meta[name="frontman-base-path"]`)
+  ->Null.flatMap(el => el->WebAPI.Element.getAttribute("content"))
+  ->Null.toOption
+  ->Option.getOr(defaultBasePath)
+}
+
+let app: toolbarAppConfig = {
   init: (_canvas, app, _server) => {
-    app->Bindings.onToggled(({state}) => {
+    app->onToggled(({state}) => {
       switch state {
       | true =>
-        // Read basePath from the meta tag injected by the integration
-        let basePath = {
-          let meta =
-            WebAPI.Global.document
-            ->WebAPI.Document.querySelector(`meta[name="frontman-base-path"]`)
-            ->Null.toOption
-          switch meta {
-          | Some(el) =>
-            el->WebAPI.Element.getAttribute("content")->Null.toOption->Option.getOr("frontman")
-          | None => "frontman"
+        let basePath = _getBasePath()
+        // Strip trailing slash to normalize, matching BrowserUrl.syncBrowserUrl.
+        let pathname =
+          WebAPI.Global.location.pathname->String.replaceRegExp(%re("/\/$/"), "")
+        // If already inside /<basePath>, stay put. Otherwise append it.
+        let alreadyInFrontman =
+          pathname == `/${basePath}` || pathname->String.endsWith(`/${basePath}`)
+        let url = switch alreadyInFrontman {
+        | true => pathname
+        | false =>
+          switch pathname {
+          | "" => `/${basePath}`
+          | p => `${p}/${basePath}`
           }
         }
-
-        // Navigate to the Frontman UI
-        WebAPI.Global.window->WebAPI.Window.location->WebAPI.Location.assign(`/${basePath}/`)
-
-        // Immediately toggle off so the icon doesn't stay "active"
-        app->Bindings.toggleState({state: false})
+        WebAPI.Global.window->WebAPI.Window.location->WebAPI.Location.assign(url)
+        app->toggleState({state: false})
       | false => ()
       }
     })
   },
 }
 
-// Export as default for Astro to pick up
-let default = Bindings.defineToolbarApp(app)
+let default = defineToolbarApp(app)

@@ -143,38 +143,13 @@ module Lens = {
   }
 }
 
-let getInitialUrl = () => {
-  let entrypointUrl =
-    WebAPI.Global.document
-    ->WebAPI.Document.querySelector("#frontman-entrypoint-url")
-    ->Null.toOption
-    ->Option.map(element => {
-      element->WebAPI.Element.asNode->WebAPI.Node.textContent->Null.toOption->Option.getOr("")
-    })
-  let currentUrl =
-    WebAPI.Global.window->WebAPI.Window.location->WebAPI.Location.href->WebAPI.URL.make(~url=_)
-
-  let originUrl = switch entrypointUrl {
-  | Some(entrypointUrl) => entrypointUrl
-  | None => `${currentUrl.protocol}//${currentUrl.host}`
-  }
-  originUrl
-}
-
-// localStorage key for persisting selected model
+let getInitialUrl = Client__BrowserUrl.getInitialUrl
 let selectedModelStorageKey = "frontman:selectedModel"
-
-// localStorage bindings
-@val @scope("localStorage")
-external getStorageItem: string => Nullable.t<string> = "getItem"
-
-@val @scope("localStorage")
-external setStorageItem: (string, string) => unit = "setItem"
 
 // Load selected model from localStorage
 let loadSelectedModelFromStorage = (): option<Client__State__Types.selectedModel> => {
   try {
-    getStorageItem(selectedModelStorageKey)
+    FrontmanBindings.LocalStorage.getItem(selectedModelStorageKey)
     ->Nullable.toOption
     ->Option.flatMap(jsonString => {
       try {
@@ -195,7 +170,7 @@ let saveSelectedModelToStorage = (model: Client__State__Types.selectedModel): un
       model,
       Client__State__Types.selectedModelSchema,
     )
-    setStorageItem(selectedModelStorageKey, jsonString)
+    FrontmanBindings.LocalStorage.setItem(selectedModelStorageKey, jsonString)
   } catch {
   | exn => Console.error2("[saveSelectedModelToStorage] Failed:", exn)
   }
@@ -354,7 +329,9 @@ module Selectors = {
   // Resolve an image attachment URI from a specific task's accumulated attachments.
   // Used by the MCP server to resolve write_file image_ref before forwarding to relay.
   // Takes taskId (not currentTask) because the agent's task may differ from the viewed tab.
-  let resolveImageRef = (state: state, ~taskId: string, ~uri: string): option<Message.resolvedImageData> => {
+  let resolveImageRef = (state: state, ~taskId: string, ~uri: string): option<
+    Message.resolvedImageData,
+  > => {
     state.tasks
     ->Dict.get(taskId)
     ->Option.flatMap(task => Task.getImageAttachments(task)->Dict.get(uri))
@@ -479,9 +456,9 @@ module Selectors = {
 
 // Build ACP content blocks for image/file attachments
 // Strips the data:mime;base64, prefix and creates resource blocks with BlobResourceContents
-let buildAttachmentContentBlocks = (
-  attachments: array<Client__Message.fileAttachmentData>,
-): array<Client__State__Types.ACPTypes.contentBlock> => {
+let buildAttachmentContentBlocks = (attachments: array<Client__Message.fileAttachmentData>): array<
+  Client__State__Types.ACPTypes.contentBlock,
+> => {
   attachments->Array.map(att => {
     // Strip "data:mime;base64," prefix to get raw base64
     let base64Data = switch att.dataUrl->String.indexOf(";base64,") {
@@ -555,8 +532,8 @@ let sendMessageToAPIImpl = (
       ~additionalBlocks,
       ~onComplete=result => {
         switch result {
-        | Ok({stopReason}) if stopReason == "cancelled" =>
-          // CancelTurn already cleaned up state - don't dispatch TurnCompleted
+        | Ok({stopReason})
+          if stopReason == "cancelled" => // CancelTurn already cleaned up state - don't dispatch TurnCompleted
           ()
         | Ok(_) => dispatch(TaskAction({target: ForTask(taskId), action: TurnCompleted}))
         | Error(_) => dispatch(TaskAction({target: ForTask(taskId), action: TurnCompleted}))
@@ -719,7 +696,11 @@ let handleEffect = (effect, state: state, dispatch) => {
       // Pass env key presence so server can return full or free-tier model list
       let runtimeConfig = Client__RuntimeConfig.read()
       let hasEnvKey = Client__RuntimeConfig.hasOpenrouterKey(runtimeConfig)
-      let envKeyParam = if hasEnvKey { "true" } else { "false" }
+      let envKeyParam = if hasEnvKey {
+        "true"
+      } else {
+        "false"
+      }
       let url = `${apiBaseUrl}/api/models?hasEnvKey=${envKeyParam}`
 
       try {
@@ -882,7 +863,10 @@ let handleEffect = (effect, state: state, dispatch) => {
           dispatch(ChatGPTOAuthStatusReceived({connected, expiresAt}))
         }
       } catch {
-      | _ => dispatch(ChatGPTOAuthError({deviceAuthId: None, error: "Failed to fetch ChatGPT OAuth status"}))
+      | _ =>
+        dispatch(
+          ChatGPTOAuthError({deviceAuthId: None, error: "Failed to fetch ChatGPT OAuth status"}),
+        )
       }
     }
     fetch()->ignore
@@ -910,9 +894,7 @@ let handleEffect = (effect, state: state, dispatch) => {
               o->Dict.get("device_auth_id")->Option.flatMap(JSON.Decode.string)
             )
           let userCode =
-            obj->Option.flatMap(o =>
-              o->Dict.get("user_code")->Option.flatMap(JSON.Decode.string)
-            )
+            obj->Option.flatMap(o => o->Dict.get("user_code")->Option.flatMap(JSON.Decode.string))
           let verificationUrl =
             obj->Option.flatMap(o =>
               o->Dict.get("verification_url")->Option.flatMap(JSON.Decode.string)
@@ -920,13 +902,19 @@ let handleEffect = (effect, state: state, dispatch) => {
           switch (deviceAuthId, userCode, verificationUrl) {
           | (Some(deviceAuthId), Some(userCode), Some(verificationUrl)) =>
             dispatch(ChatGPTDeviceCodeReceived({deviceAuthId, userCode, verificationUrl}))
-          | _ => dispatch(ChatGPTOAuthError({deviceAuthId: None, error: "Invalid response from server"}))
+          | _ =>
+            dispatch(ChatGPTOAuthError({deviceAuthId: None, error: "Invalid response from server"}))
           }
         } else {
-          dispatch(ChatGPTOAuthError({deviceAuthId: None, error: "Failed to initiate authentication"}))
+          dispatch(
+            ChatGPTOAuthError({deviceAuthId: None, error: "Failed to initiate authentication"}),
+          )
         }
       } catch {
-      | _ => dispatch(ChatGPTOAuthError({deviceAuthId: None, error: "Failed to initiate authentication"}))
+      | _ =>
+        dispatch(
+          ChatGPTOAuthError({deviceAuthId: None, error: "Failed to initiate authentication"}),
+        )
       }
     }
     fetch()->ignore
@@ -938,16 +926,20 @@ let handleEffect = (effect, state: state, dispatch) => {
     let poll = async () => {
       let maxAttempts = 180
       let intervalMs = 5000
-      let body =
-        JSON.stringifyAny(
-          dict{
-            "device_auth_id": deviceAuthId,
-            "user_code": userCode,
-          },
-        )->Option.getOr("{}")
-      let rec pollLoop = async (attempt) => {
+      let body = JSON.stringifyAny(
+        dict{
+          "device_auth_id": deviceAuthId,
+          "user_code": userCode,
+        },
+      )->Option.getOr("{}")
+      let rec pollLoop = async attempt => {
         if attempt >= maxAttempts {
-          dispatch(ChatGPTOAuthError({deviceAuthId: Some(deviceAuthId), error: "Authorization timed out. Please try again."}))
+          dispatch(
+            ChatGPTOAuthError({
+              deviceAuthId: Some(deviceAuthId),
+              error: "Authorization timed out. Please try again.",
+            }),
+          )
         } else {
           try {
             let url = `${apiBaseUrl}/api/oauth/chatgpt/poll`
@@ -974,28 +966,35 @@ let handleEffect = (effect, state: state, dispatch) => {
                 let expiresAt =
                   json
                   ->JSON.Decode.object
-                  ->Option.flatMap(obj => obj->Dict.get("expires_at")->Option.flatMap(JSON.Decode.string))
+                  ->Option.flatMap(obj =>
+                    obj->Dict.get("expires_at")->Option.flatMap(JSON.Decode.string)
+                  )
                   ->Option.getOr("")
                 dispatch(ChatGPTOAuthConnected({deviceAuthId, expiresAt}))
               | _ =>
                 // "pending" — wait and try again
                 await Promise.make((resolve, _) => {
-                  let _ = Js.Global.setTimeout(() => resolve(.), intervalMs)
+                  let _ = Js.Global.setTimeout(() => resolve(), intervalMs)
                 })
                 await pollLoop(attempt + 1)
               }
             } else if response.status == 403 {
-              dispatch(ChatGPTOAuthError({deviceAuthId: Some(deviceAuthId), error: "Authorization was declined."}))
+              dispatch(
+                ChatGPTOAuthError({
+                  deviceAuthId: Some(deviceAuthId),
+                  error: "Authorization was declined.",
+                }),
+              )
             } else {
               await Promise.make((resolve, _) => {
-                let _ = Js.Global.setTimeout(() => resolve(.), intervalMs)
+                let _ = Js.Global.setTimeout(() => resolve(), intervalMs)
               })
               await pollLoop(attempt + 1)
             }
           } catch {
           | _ =>
             await Promise.make((resolve, _) => {
-              let _ = Js.Global.setTimeout(() => resolve(.), intervalMs)
+              let _ = Js.Global.setTimeout(() => resolve(), intervalMs)
             })
             await pollLoop(attempt + 1)
           }
@@ -1343,8 +1342,7 @@ let next = (state: state, action) => {
     | None =>
       switch state.selectedModel {
       | Some(model) => (Some(model), false)
-      | None =>
-        // Use default model from config
+      | None => // Use default model from config
         (
           Some(
             (
@@ -1508,7 +1506,9 @@ let next = (state: state, action) => {
     | AcpSessionActive({apiBaseUrl}) => [FetchModelsConfigEffect({apiBaseUrl: apiBaseUrl})]
     | NoAcpSession => []
     }
-    {...state, chatgptOAuthStatus: status}->FrontmanReactStatestore.StateReducer.update(~sideEffects=effects)
+    {...state, chatgptOAuthStatus: status}->FrontmanReactStatestore.StateReducer.update(
+      ~sideEffects=effects,
+    )
 
   | InitiateChatGPTOAuth =>
     switch state.acpSession {
@@ -1528,14 +1528,22 @@ let next = (state: state, action) => {
     | AcpSessionActive({apiBaseUrl}) =>
       {
         ...state,
-        chatgptOAuthStatus: Client__State__Types.ChatGPTShowingCode({deviceAuthId, userCode, verificationUrl}),
+        chatgptOAuthStatus: Client__State__Types.ChatGPTShowingCode({
+          deviceAuthId,
+          userCode,
+          verificationUrl,
+        }),
       }->FrontmanReactStatestore.StateReducer.update(
         ~sideEffects=[PollChatGPTDeviceAuthEffect({apiBaseUrl, deviceAuthId, userCode})],
       )
     | NoAcpSession =>
       {
         ...state,
-        chatgptOAuthStatus: Client__State__Types.ChatGPTShowingCode({deviceAuthId, userCode, verificationUrl}),
+        chatgptOAuthStatus: Client__State__Types.ChatGPTShowingCode({
+          deviceAuthId,
+          userCode,
+          verificationUrl,
+        }),
       }->FrontmanReactStatestore.StateReducer.update
     }
 
@@ -1543,7 +1551,8 @@ let next = (state: state, action) => {
     // Only accept if the current state is showing the same deviceAuthId
     // (ignores stale results from old polling loops after retry)
     switch state.chatgptOAuthStatus {
-    | Client__State__Types.ChatGPTShowingCode({deviceAuthId: currentId}) if currentId == deviceAuthId =>
+    | Client__State__Types.ChatGPTShowingCode({deviceAuthId: currentId})
+      if currentId == deviceAuthId =>
       let expiresAtMs = Date.fromString(expiresAt)->Date.getTime
       // Refresh models when connected (adds ChatGPT provider)
       let effects = switch state.acpSession {

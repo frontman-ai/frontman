@@ -13,13 +13,6 @@ let minWidth = 280
 let maxWidth = 600
 let storageKey = "frontman:chatbox-width"
 
-// localStorage bindings
-@val @scope("localStorage")
-external getItem: string => Nullable.t<string> = "getItem"
-
-@val @scope("localStorage")
-external setItem: (string, string) => unit = "setItem"
-
 // Clamp value between min and max
 let clamp = (~min, ~max, value) => {
   if value < min {
@@ -33,7 +26,7 @@ let clamp = (~min, ~max, value) => {
 
 // Load saved width from localStorage
 let loadSavedWidth = (): int => {
-  switch getItem(storageKey)->Nullable.toOption {
+  switch FrontmanBindings.LocalStorage.getItem(storageKey)->Nullable.toOption {
   | Some(value) =>
     switch Int.fromString(value) {
     | Some(width) => clamp(~min=minWidth, ~max=maxWidth, width)
@@ -45,7 +38,7 @@ let loadSavedWidth = (): int => {
 
 // Save width to localStorage
 let saveWidth = (width: int): unit => {
-  setItem(storageKey, Int.toString(width))
+  FrontmanBindings.LocalStorage.setItem(storageKey, Int.toString(width))
 }
 
 type state = {

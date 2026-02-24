@@ -24,6 +24,24 @@ type astroConfig = {
 // Vite plugin type — opaque, we just pass plugin objects through
 type vitePlugin
 
+// Vite dev server connect middleware stack
+type connectMiddlewareStack
+
+@send
+external use: (connectMiddlewareStack, NodeHttp.connectMiddleware) => unit = "use"
+
+// Vite dev server (minimal bindings for astro:server:setup)
+type viteDevServer = {middlewares: connectMiddlewareStack}
+
+// Config for constructing a Vite plugin with typed fields we use.
+// Keeps vitePlugin opaque while avoiding Obj.magic at call sites.
+type vitePluginConfig = {
+  name: string,
+  configureServer?: viteDevServer => unit,
+}
+
+external makeVitePlugin: vitePluginConfig => vitePlugin = "%identity"
+
 // Partial Astro config for updateConfig — only the fields we need
 type partialViteConfig = {plugins?: array<vitePlugin>}
 type partialAstroConfig = {vite?: partialViteConfig}
@@ -37,15 +55,6 @@ type configSetupHookContext = {
   config: astroConfig,
   command: astroCommand,
 }
-
-// Vite dev server connect middleware stack
-type connectMiddlewareStack
-
-@send
-external use: (connectMiddlewareStack, NodeHttp.connectMiddleware) => unit = "use"
-
-// Vite dev server (minimal bindings for astro:server:setup)
-type viteDevServer = {middlewares: connectMiddlewareStack}
 
 // --- Server-side toolbar object (available in astro:server:setup hook) ---
 // Must be defined before serverSetupHookContext which references it.

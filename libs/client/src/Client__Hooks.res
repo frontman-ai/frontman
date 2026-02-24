@@ -16,13 +16,15 @@ module EventHelpers = {
         //note(itay): This will return null (None) in case the IFrame is cross-origin to the
         //running script, and not an error like `contentWindow.document`
         let iframeDoc = element->WebAPI.HTMLIFrameElement.contentDocument->Null.toOption
-        let _: option<unit> = iframeExecuteEventListener(eventListener, handler, iframeDoc)
-        let _: option<WebAPI.DOMAPI.document> = iframeDoc->Option.map(
+        iframeExecuteEventListener(eventListener, handler, iframeDoc)->Option.ignore
+        iframeDoc
+        ->Option.map(
           doc => {
             eventListener(doc, handler)
             doc
           },
         )
+        ->Option.ignore
       })
     )
   let getIframeDoc = (iframeRef: Nullable.t<WebAPI.DOMAPI.element>) =>
@@ -33,6 +35,61 @@ module EventHelpers = {
       ->WebAPI.HTMLIFrameElement.contentDocument
       ->Null.toOption
     )
+
+  // Shared hook: subscribes a handler to a DOM event on a document and all its
+  // same-origin iframes, and tears everything down on cleanup.
+  //
+  // Uses ref-based handler pattern to avoid re-subscribing listeners on every
+  // render. The actual DOM listener delegates to the ref, which is always
+  // up-to-date. Effect only re-runs when document/event/withCapture change.
+  let useDocumentEvent = (
+    ~document: option<WebAPI.DOMAPI.document>,
+    ~event: string,
+    ~withCapture: bool,
+    ~handler: WebAPI.EventAPI.event => unit,
+    ~onCleanup: option<unit => unit>=?,
+    (),
+  ) => {
+    let handlerRef = React.useRef(handler)
+    let onCleanupRef = React.useRef(onCleanup)
+
+    // Keep refs current on every render (no effect needed, refs are synchronous)
+    handlerRef.current = handler
+    onCleanupRef.current = onCleanup
+
+    React.useEffect(() => {
+      document->Option.map(doc => {
+        let eventType = WebAPI.EventAPI.Custom(event)
+
+        // Stable wrapper: delegates to the ref so the DOM listener never changes
+        let stableHandler = (ev: WebAPI.EventAPI.event) => handlerRef.current(ev)
+
+        WebAPI.Document.addEventListener(doc, eventType, stableHandler, ~options={capture: withCapture})
+        iframeExecuteEventListener(
+          (d, h) =>
+            WebAPI.Document.addEventListener(d, eventType, h, ~options={capture: withCapture}),
+          stableHandler,
+          Some(doc),
+        )->Option.ignore
+
+        () => {
+          onCleanupRef.current->Option.forEach(fn => fn())
+          WebAPI.Document.removeEventListener(
+            doc,
+            eventType,
+            stableHandler,
+            ~options={capture: withCapture},
+          )
+          iframeExecuteEventListener(
+            (d, h) =>
+              WebAPI.Document.removeEventListener(d, eventType, h, ~options={capture: withCapture}),
+            stableHandler,
+            Some(doc),
+          )->Option.ignore
+        }
+      })
+    }, (document, event, withCapture))
+  }
 }
 
 module MouseMove = {
@@ -47,79 +104,39 @@ module MouseMove = {
       None
     }, [state])
 
-    React.useEffect(() => {
-      // Throttle mousemove events using requestAnimationFrame for better performance
-      let onMouseMove = ev => {
-        let target = WebAPI.MouseEvent.asMouseEvent(ev).target
+    // Throttle mousemove events using requestAnimationFrame for better performance
+    let onMouseMove = (ev: WebAPI.EventAPI.event) => {
+      let target = WebAPI.MouseEvent.asMouseEvent(ev->Obj.magic).target
 
-        if (
-          WebAPI.Element.nodeType(target->Obj.magic) == 1 &&
-            switch stateRef.current {
-            | None => true
-            | Some(el) => el != target
-            }
-        ) {
-          // Store the pending target
-          pendingTargetRef.current = Some(target)
+      if (
+        WebAPI.Element.nodeType(target->Obj.magic) == 1 &&
+          switch stateRef.current {
+          | None => true
+          | Some(el) => el != target
+          }
+      ) {
+        pendingTargetRef.current = Some(target)
+        rafIdRef.current->Option.forEach(id => WebAPI.Global.cancelAnimationFrame(id))
 
-          // Cancel any existing pending update
-          rafIdRef.current->Option.forEach(id => WebAPI.Global.cancelAnimationFrame(id))
-
-          // Schedule update using RAF
-          let rafId = WebAPI.Global.requestAnimationFrame(_timestamp => {
-            pendingTargetRef.current->Option.forEach(pendingTarget => {
-              setState(_ => Some(pendingTarget))
-              pendingTargetRef.current = None
-            })
+        let rafId = WebAPI.Global.requestAnimationFrame(_timestamp => {
+          pendingTargetRef.current->Option.forEach(pendingTarget => {
+            setState(_ => Some(pendingTarget))
+            pendingTargetRef.current = None
           })
-          rafIdRef.current = Some(rafId)
-        }
+        })
+        rafIdRef.current = Some(rafId)
       }
+    }
 
-      document->Option.map(document => {
-        WebAPI.Document.addEventListener(
-          document,
-          Custom("mousemove"),
-          onMouseMove,
-          ~options={capture: withCapture},
-        )
-
-        EventHelpers.iframeExecuteEventListener(
-          (doc, handler) =>
-            WebAPI.Document.addEventListener(
-              doc,
-              Custom("mousemove"),
-              handler,
-              ~options={capture: withCapture},
-            ),
-          onMouseMove,
-          Some(document),
-        )->Option.ignore
-        () => {
-          // Cancel any pending animation frame
-          rafIdRef.current->Option.forEach(id => WebAPI.Global.cancelAnimationFrame(id))
-
-          WebAPI.Document.removeEventListener(
-            document,
-            Custom("mousemove"),
-            onMouseMove,
-            ~options={capture: withCapture},
-          )
-
-          EventHelpers.iframeExecuteEventListener(
-            (doc, handler) =>
-              WebAPI.Document.removeEventListener(
-                doc,
-                Custom("mousemove"),
-                handler,
-                ~options={capture: withCapture},
-              ),
-            onMouseMove,
-            Some(document),
-          )->Option.ignore
-        }
-      })
-    }, (document, withCapture, setState))
+    EventHelpers.useDocumentEvent(
+      ~document,
+      ~event="mousemove",
+      ~withCapture,
+      ~handler=onMouseMove,
+      ~onCleanup=() =>
+        rafIdRef.current->Option.forEach(id => WebAPI.Global.cancelAnimationFrame(id)),
+      (),
+    )
 
     state
   }
@@ -142,63 +159,32 @@ module MouseClick = {
     let (state, setState) = React.useState(() => None)
     let clickCounter = React.useRef(0)
 
-    React.useEffect(() => {
-      let onClick = (ev: WebAPI.EventAPI.event) => {
-        preventDefault ? WebAPI.Event.preventDefault(ev) : ()
-        stopPropagation ? WebAPI.Event.stopPropagation(ev) : ()
-        stopImmediatePropagation ? WebAPI.Event.stopImmediatePropagation(ev) : ()
-        let target = ev.target->Null.toOption
-        clickCounter.current = clickCounter.current + 1
-        let id = clickCounter.current
-        setState(_ => Some({target, clickId: id}))
+    let onClick = (ev: WebAPI.EventAPI.event) => {
+      switch preventDefault {
+      | true => WebAPI.Event.preventDefault(ev)
+      | false => ()
       }
-      document->Option.map(document => {
-        WebAPI.Document.addEventListener(
-          document,
-          Custom(isRightClick ? "contextmenu" : "click"),
-          onClick,
-          ~options={capture: withCapture},
-        )
-        let _: option<unit> = EventHelpers.iframeExecuteEventListener(
-          (doc, handler) =>
-            WebAPI.Document.addEventListener(
-              doc,
-              Custom(isRightClick ? "contextmenu" : "click"),
-              handler,
-              ~options={capture: withCapture},
-            ),
-          onClick,
-          Some(document),
-        )
-        () => {
-          WebAPI.Document.removeEventListener(
-            document,
-            Custom(isRightClick ? "contextmenu" : "click"),
-            onClick,
-            ~options={capture: withCapture},
-          )
-          let _: option<unit> = EventHelpers.iframeExecuteEventListener(
-            (doc, handler) =>
-              WebAPI.Document.removeEventListener(
-                doc,
-                Custom(isRightClick ? "contextmenu" : "click"),
-                handler,
-                ~options={capture: withCapture},
-              ),
-            onClick,
-            Some(document),
-          )
-        }
-      })
-    }, (
-      setState,
-      withCapture,
-      document,
-      preventDefault,
-      stopImmediatePropagation,
-      stopPropagation,
-      isRightClick,
-    ))
+      switch stopPropagation {
+      | true => WebAPI.Event.stopPropagation(ev)
+      | false => ()
+      }
+      switch stopImmediatePropagation {
+      | true => WebAPI.Event.stopImmediatePropagation(ev)
+      | false => ()
+      }
+      let target = ev.target->Null.toOption
+      clickCounter.current = clickCounter.current + 1
+      let id = clickCounter.current
+      setState(_ => Some({target, clickId: id}))
+    }
+
+    let event = switch isRightClick {
+    | true => "contextmenu"
+    | false => "click"
+    }
+
+    EventHelpers.useDocumentEvent(~document, ~event, ~withCapture, ~handler=onClick, ())
+
     state
   }
 }
@@ -209,105 +195,31 @@ module Scroll = {
     let rafIdRef = React.useRef(None)
     let isScheduledRef = React.useRef(false)
 
-    React.useEffect(() => {
-      // Throttle scroll events using requestAnimationFrame for better performance
-      let onScroll = _ev => {
-        if !isScheduledRef.current {
-          isScheduledRef.current = true
-          let rafId = WebAPI.Global.requestAnimationFrame(_timestamp => {
-            setScrollTimestamp(_ => Js.Date.now())
-            isScheduledRef.current = false
-          })
-          rafIdRef.current = Some(rafId)
-        }
+    // Throttle scroll events using requestAnimationFrame for better performance
+    let onScroll = _ev => {
+      switch isScheduledRef.current {
+      | true => ()
+      | false =>
+        isScheduledRef.current = true
+        let rafId = WebAPI.Global.requestAnimationFrame(_timestamp => {
+          setScrollTimestamp(_ => Js.Date.now())
+          isScheduledRef.current = false
+        })
+        rafIdRef.current = Some(rafId)
       }
+    }
 
-      document
-      ->Option.map(document => {
-        WebAPI.Document.addEventListener(
-          document,
-          Custom("scroll"),
-          onScroll,
-          ~options={capture: withCapture},
-        )
-
-        EventHelpers.iframeExecuteEventListener(
-          (doc, handler) =>
-            WebAPI.Document.addEventListener(
-              doc,
-              Custom("scroll"),
-              handler,
-              ~options={capture: withCapture},
-            ),
-          onScroll,
-          Some(document),
-        )->Option.ignore
-
-        () => {
-          // Cancel any pending animation frame
-          rafIdRef.current->Option.forEach(id => WebAPI.Global.cancelAnimationFrame(id))
-
-          WebAPI.Document.removeEventListener(
-            document,
-            Custom("scroll"),
-            onScroll,
-            ~options={capture: withCapture},
-          )
-
-          EventHelpers.iframeExecuteEventListener(
-            (doc, handler) =>
-              WebAPI.Document.removeEventListener(
-                doc,
-                Custom("scroll"),
-                handler,
-                ~options={capture: withCapture},
-              ),
-            onScroll,
-            Some(document),
-          )->Option.ignore
-        }
-      })
-      ->ignore
-
-      None
-    }, (document, withCapture, setScrollTimestamp))
+    EventHelpers.useDocumentEvent(
+      ~document,
+      ~event="scroll",
+      ~withCapture,
+      ~handler=onScroll,
+      ~onCleanup=() =>
+        rafIdRef.current->Option.forEach(id => WebAPI.Global.cancelAnimationFrame(id)),
+      (),
+    )
 
     scrollTimestamp
-  }
-}
-
-module NavigateEvent = {
-  type destination
-  type t
-
-  @get external destination: t => destination = "destination"
-  @get external url: destination => string = "url"
-}
-
-module UrlParsing = {
-  type t
-
-  @new external make: (string, string) => t = "URL"
-  @get external href: t => string = "href"
-  @get external protocol: t => string = "protocol"
-  @get external host: t => string = "host"
-}
-
-let resolveUrlWithBase = (~url: string, ~base: string): option<string> => {
-  try {
-    Some(UrlParsing.make(url, base)->UrlParsing.href)
-  } catch {
-  | _ => None
-  }
-}
-
-let isSameOriginWithBase = (~baseUrl: string, ~targetUrl: string): bool => {
-  try {
-    let base = UrlParsing.make(baseUrl, baseUrl)
-    let target = UrlParsing.make(targetUrl, baseUrl)
-    base->UrlParsing.protocol == target->UrlParsing.protocol && base->UrlParsing.host == target->UrlParsing.host
-  } catch {
-  | _ => false
   }
 }
 
@@ -343,15 +255,32 @@ let useIFrameLocation = (~iframeElement: option<WebAPI.DOMAPI.element>, ~attachm
         setLocation(_ => initialLocation)
 
         let onNavigation = (ev: WebAPI.EventAPI.event) => {
-          let navigateEvent: NavigateEvent.t = ev->Obj.magic
-          let destinationUrl = navigateEvent->NavigateEvent.destination->NavigateEvent.url
+          let navigateEvent: FrontmanBindings.NavigateEvent.t = ev->Obj.magic
+          let destinationUrl =
+            navigateEvent
+            ->FrontmanBindings.NavigateEvent.destination
+            ->FrontmanBindings.NavigateEvent.url
           let currentUrl = iframeWindow->WebAPI.Window.location->WebAPI.Location.href
-          switch resolveUrlWithBase(~url=destinationUrl, ~base=currentUrl) {
+          switch Client__BrowserUrl.resolveUrlWithBase(~url=destinationUrl, ~base=currentUrl) {
           | None => ()
           | Some(resolvedDestinationUrl) =>
-            switch isSameOriginWithBase(~baseUrl=currentUrl, ~targetUrl=resolvedDestinationUrl) {
-            | true => setLocation(_ => Some(resolvedDestinationUrl))
+            switch Client__BrowserUrl.isSameOriginWithBase(
+              ~baseUrl=currentUrl,
+              ~targetUrl=resolvedDestinationUrl,
+            ) {
             | false => WebAPI.Event.preventDefault(ev)
+            | true =>
+              // If the iframe is trying to navigate to a /frontman URL, intercept
+              // and redirect to the stripped version so we never load frontman-in-frontman.
+              let parsed = WebAPI.URL.make(~url=resolvedDestinationUrl)
+              let cleanPath = Client__BrowserUrl.stripSuffix(parsed.pathname)
+              switch cleanPath != parsed.pathname {
+              | false => setLocation(_ => Some(resolvedDestinationUrl))
+              | true =>
+                WebAPI.Event.preventDefault(ev)
+                let cleanUrl = `${parsed.origin}${cleanPath}`
+                iframeWindow->WebAPI.Window.location->WebAPI.Location.assign(cleanUrl)
+              }
             }
           }
         }
@@ -421,38 +350,6 @@ let useDisableIFrameAnchorPointerEvents = (
   }, (iframeRef, activate))
 }
 
-module MutationObserverBindings = {
-  type mutationObserver
-  type mutationRecord = {
-    @as("type") type_: string,
-    target: WebAPI.DOMAPI.node,
-    addedNodes: array<WebAPI.DOMAPI.node>,
-    removedNodes: array<WebAPI.DOMAPI.node>,
-    attributeName: Null.t<string>,
-    oldValue: Null.t<string>,
-  }
-
-  @new
-  external make: (array<mutationRecord> => unit) => mutationObserver = "MutationObserver"
-
-  @send
-  external observe: (
-    mutationObserver,
-    WebAPI.DOMAPI.node,
-    {
-      "childList": bool,
-      "attributes": bool,
-      "characterData": bool,
-      "subtree": bool,
-      "attributeOldValue": bool,
-      "characterDataOldValue": bool,
-    },
-  ) => unit = "observe"
-
-  @send
-  external disconnect: mutationObserver => unit = "disconnect"
-}
-
 module DOMmutations = {
   let useIFrameDocument = (~document: option<WebAPI.DOMAPI.document>, ()) => {
     let (mutationTimestamp, setMutationTimestamp) = React.useState(() => Js.Date.now())
@@ -460,12 +357,12 @@ module DOMmutations = {
     React.useEffect(() => {
       document
       ->Option.map(doc => {
-        let onMutation = (_mutations: array<MutationObserverBindings.mutationRecord>) => {
+        let onMutation = (_mutations: array<FrontmanBindings.MutationObserver.mutationRecord>) => {
           setMutationTimestamp(_ => Js.Date.now())
         }
 
-        let observer = MutationObserverBindings.make(onMutation)
-        MutationObserverBindings.observe(
+        let observer = FrontmanBindings.MutationObserver.make(onMutation)
+        FrontmanBindings.MutationObserver.observe(
           observer,
           doc->Obj.magic,
           {
@@ -479,7 +376,7 @@ module DOMmutations = {
         )
 
         () => {
-          MutationObserverBindings.disconnect(observer)
+          FrontmanBindings.MutationObserver.disconnect(observer)
         }
       })
       ->Option.getOr(() => ())

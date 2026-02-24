@@ -166,10 +166,10 @@ let make = () => {
   let handleUrlKeyDown = (e: ReactEvent.Keyboard.t) => {
     switch ReactEvent.Keyboard.key(e) {
     | "Enter" =>
-      switch Client__Hooks.resolveUrlWithBase(~url=editableUrl, ~base=previewUrl) {
+      switch Client__BrowserUrl.resolveUrlWithBase(~url=editableUrl, ~base=previewUrl) {
       | None => ()
       | Some(resolvedUrl) =>
-        switch Client__Hooks.isSameOriginWithBase(~baseUrl=previewUrl, ~targetUrl=resolvedUrl) {
+        switch Client__BrowserUrl.isSameOriginWithBase(~baseUrl=previewUrl, ~targetUrl=resolvedUrl) {
         | false => ()
         | true =>
           previewFrame.contentWindow->Option.forEach(contentWindow => {
@@ -177,6 +177,7 @@ let make = () => {
           })
           Client__State.Actions.setPreviewUrl(~url=resolvedUrl)
           Client__State.Actions.setSelectedElement(~selectedElement=None)
+          Client__BrowserUrl.syncBrowserUrl(~previewUrl=resolvedUrl)
         }
       }
       let target: Dom.element = ReactEvent.Keyboard.target(e)->Obj.magic
@@ -286,7 +287,7 @@ let make = () => {
         // Unified array of all iframes - keeps React keys in the same sibling position
         // so switching tasks just toggles isActive prop without unmounting/remounting
         {
-          let defaultUrl = Client__State__StateReducer.getInitialUrl()
+          let defaultUrl = Client__BrowserUrl.getInitialUrl()
           
           // Build array of all tasks including New task if present
           let allTasks = if isNewTask {
