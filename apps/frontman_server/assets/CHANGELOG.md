@@ -1,5 +1,11 @@
 # @frontman/frontman-server-assets
 
+## 0.1.3
+
+### Patch Changes
+
+- [#421](https://github.com/frontman-ai/frontman/pull/421) [`9e1ac77`](https://github.com/frontman-ai/frontman/commit/9e1ac77ec0f95a80dc1c831c3e811961564b97b4) Thanks [@itayadler](https://github.com/itayadler)! - Add Discord alerts for new user signups. A PostgreSQL AFTER INSERT trigger on the users table fires pg_notify, which a new Elixir GenServer listens to via Postgrex.Notifications and posts a rich embed to a Discord webhook. Enabled via DISCORD_NEW_USERS_WEBHOOK_URL env var.
+
 ## 0.1.2
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@frontman/context-loader",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "Config file discovery and loading for Frontman",
   "license": "Apache-2.0",
   "author": "Frontman AI",
