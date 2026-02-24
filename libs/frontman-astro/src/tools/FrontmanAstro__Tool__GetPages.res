@@ -56,9 +56,15 @@ let isDynamicSegment = (segment: string): bool => {
   analyzeDynamicSegment(segment) != Static
 }
 
+// Normalize path separators to forward slashes for cross-platform route conversion
+// Route paths are URL paths and always use forward slashes
+let toForwardSlashes = (path: string): string => path->String.replaceAll("\\", "/")
+
 // Convert file path to route path
+// Normalizes separators first since Path.join uses \ on Windows but routes need /
 let fileToRoute = (filePath: string): string => {
   filePath
+  ->toForwardSlashes
   ->String.replaceRegExp(%re("/\.(astro|md|mdx|html)$/"), "")
   ->String.replaceRegExp(%re("/\/index$/"), "")
   ->(p => p == "" ? "/" : p)
@@ -119,7 +125,8 @@ let rec findPages = async (
           let filePath = Path.join([currentPath, entry])
           let routePath = fileToRoute(filePath)
           let filePathNoExt = filePath->String.replaceRegExp(%re("/\.(astro|md|mdx|html)$/"), "")
-          let segments = filePathNoExt->String.split("/")
+          // Normalize separators for cross-platform segment splitting
+          let segments = filePathNoExt->toForwardSlashes->String.split("/")
           let hasDynamic = segments->Array.some(isDynamicSegment)
           let dynType = getMostSignificantDynamicType(segments)
           // Make path relative to sourceRoot so the agent can pass it

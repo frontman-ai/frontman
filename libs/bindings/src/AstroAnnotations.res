@@ -42,6 +42,11 @@ let parseLoc = (loc: Nullable.t<string>): option<(int, int)> => {
 
 // Extract filename from file path for componentName
 // e.g., "/src/components/Hero.astro" -> "Hero.astro"
+// Handles both / and \ separators for cross-platform compatibility
 let extractFilename = (filePath: string): string => {
-  filePath->String.split("/")->Array.at(-1)->Option.getOr(filePath)
+  filePath
+  ->String.replaceAll("\\", "/")
+  ->String.split("/")
+  ->Array.at(-1)
+  ->Option.getOr(filePath)
 }

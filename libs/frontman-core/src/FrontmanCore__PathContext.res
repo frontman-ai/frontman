@@ -40,18 +40,24 @@ type responseContext = {
 // Path Conversion Utilities
 // ============================================
 
+// Check if a string ends with a path separator (handles both / and \)
+let endsWithSep = (path: string): bool => {
+  path->String.endsWith("/") || path->String.endsWith("\\")
+}
+
 // Convert absolute path to relative (relative to sourceRoot)
 let toRelativePath = (~sourceRoot: string, ~absolutePath: string): string => {
-  let normalizedRoot = if sourceRoot->String.endsWith("/") {
+  // Use Path.sep for cross-platform compatibility (/ on Unix, \ on Windows)
+  let normalizedRoot = if endsWithSep(sourceRoot) {
     sourceRoot
   } else {
-    sourceRoot ++ "/"
+    sourceRoot ++ Path.sep
   }
 
   if absolutePath->String.startsWith(normalizedRoot) {
     absolutePath->String.slice(~start=normalizedRoot->String.length, ~end=absolutePath->String.length)
   } else if absolutePath->String.startsWith(sourceRoot) {
-    // Handle case where path matches exactly without trailing /
+    // Handle case where path matches exactly without trailing separator
     absolutePath->String.slice(~start=sourceRoot->String.length, ~end=absolutePath->String.length)
   } else {
     absolutePath
@@ -86,11 +92,16 @@ let resolveSearchPath = (~sourceRoot: string, ~inputPath: option<string>): strin
 // Path Confusion Detection
 // ============================================
 
+// Normalize path separators to forward slashes for cross-platform string operations
+let toForwardSlashes = (path: string): string => path->String.replaceAll("\\", "/")
+
 // Detect if agent might be confused about paths
 // e.g., asking for "web" when sourceRoot=/repo/web
 let detectPathConfusion = (~sourceRoot: string, ~requestedPath: string): option<string> => {
+  // Normalize separators for consistent splitting on both Unix and Windows
   // Strip leading ./ or /
   let normalizedPath = requestedPath
+    ->toForwardSlashes
     ->String.replaceRegExp(%re("/^\.\//"), "")
     ->String.replaceRegExp(%re("/^\//"), "")
 
@@ -98,7 +109,7 @@ let detectPathConfusion = (~sourceRoot: string, ~requestedPath: string): option<
   let firstSegment = normalizedPath->String.split("/")->Array.get(0)->Option.getOr("")
 
   // Check if first segment appears in sourceRoot path segments
-  let sourceSegments = sourceRoot->String.split("/")
+  let sourceSegments = sourceRoot->toForwardSlashes->String.split("/")
 
   if firstSegment != "" && sourceSegments->Array.includes(firstSegment) {
     Some(`Path '${requestedPath}' not found. The sourceRoot is '${sourceRoot}' which already includes '${firstSegment}/'. Try using '.' or a path relative to sourceRoot instead.`)

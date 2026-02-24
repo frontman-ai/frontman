@@ -25,14 +25,20 @@ type route = {
 @schema
 type output = array<route>
 
+// Normalize path separators to forward slashes for cross-platform route conversion
+// Route paths are URL paths and always use forward slashes
+let toForwardSlashes = (path: string): string => path->String.replaceAll("\\", "/")
+
 // Check if a segment is dynamic (contains [ ])
 let isDynamicSegment = (segment: string): bool => {
   segment->String.startsWith("[") && segment->String.endsWith("]")
 }
 
 // Convert file path to route path
+// Normalizes separators first since Path.join uses \ on Windows but routes need /
 let fileToRoute = (filePath: string): string => {
   filePath
+  ->toForwardSlashes
   ->String.replaceRegExp(/\.(tsx?|jsx?|mdx?)$/, "")
   ->String.replaceRegExp(/\/page$/, "")
   ->String.replaceRegExp(/\/route$/, "")
@@ -70,7 +76,7 @@ let rec findRoutes = async (baseDir: string, currentPath: string, ~projectRoot: 
         entry == "route.ts"
       ) {
         let routePath = fileToRoute(currentPath)
-        let hasDynamic = currentPath->String.split("/")->Array.some(isDynamicSegment)
+        let hasDynamic = currentPath->toForwardSlashes->String.split("/")->Array.some(isDynamicSegment)
         [
           {
             path: routePath,
