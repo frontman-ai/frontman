@@ -113,15 +113,19 @@ let findAtDirectory = async (dir: string): array<instructionFile> => {
 }
 
 // Recursively walk up directories until root
+// Uses Path.dirname(current) == current to detect root — works cross-platform:
+// - Unix: path.dirname("/") === "/"
+// - Windows: path.dirname("C:\\") === "C:\\"
 let rec walkUpDirectories = async (current: string, acc: array<instructionFile>): array<
   instructionFile,
 > => {
-  if current == "/" {
+  let parent = Path.dirname(current)
+  if parent == current {
     acc
   } else {
     let filesAtLevel = await findAtDirectory(current)
     let newAcc = Array.concat(acc, filesAtLevel)
-    await walkUpDirectories(Path.dirname(current), newAcc)
+    await walkUpDirectories(parent, newAcc)
   }
 }
 

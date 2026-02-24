@@ -466,6 +466,59 @@ describe("LoadAgentInstructions", () => {
   })
 
   // ===========================================
+  // Root Detection / Termination (Issue #432)
+  // ===========================================
+  describe("root detection and termination", () => {
+    testAsync(
+      "walkUpDirectories terminates at filesystem root",
+      async t => {
+        // walkUpDirectories should terminate when Path.dirname(current) == current
+        // On Unix: path.dirname("/") === "/" → stops
+        // On Windows: path.dirname("C:\\") === "C:\\" → stops
+        let results = await Tool.walkUpDirectories("/", [])
+        t->expect(Array.length(results))->Expect.toBe(0)
+      },
+    )
+
+    testAsync(
+      "walkUpDirectories terminates from a shallow path near root",
+      async t => {
+        // Starting from /tmp (2 levels from root) should not hang
+        let results = await Tool.walkUpDirectories("/tmp", [])
+        // Just verify it terminates and returns an array — we don't care about specific files
+        t->expect(Array.length(results))->Expect.Int.toBeGreaterThanOrEqual(0)
+      },
+    )
+
+    testAsync(
+      "execute terminates from deep nested fixture path",
+      async t => {
+        // This exercises the full walk-up from a deep path to root
+        let deepPath = Bindings.Path.join([
+          fixture("deeply-nested"),
+          "a",
+          "b",
+          "c",
+          "d",
+          "e",
+          "f",
+          "g",
+          "h",
+          "i",
+          "j",
+        ])
+        let ctx = makeCtx(deepPath)
+        let result = await Tool.execute(ctx, {})
+        // Verify it terminates and returns Ok
+        switch result {
+        | Ok(_) => t->expect(true)->Expect.toBe(true)
+        | Error(msg) => t->expect(msg)->Expect.toBe("should not fail")
+        }
+      },
+    )
+  })
+
+  // ===========================================
   // Path Handling
   // ===========================================
   describe("path handling", () => {

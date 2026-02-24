@@ -22,3 +22,6 @@ external normalize: string => string = "normalize"
 
 @module("node:path") @variadic
 external resolveMany: array<string> => string = "resolve"
+
+@module("node:path")
+external sep: string = "sep"

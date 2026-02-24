@@ -16,16 +16,22 @@ module Path = FrontmanBindings.Path
 // Should only be constructed via resolve() - not exported for direct construction
 type t = {path: string}
 
+// Check if a path string ends with a path separator (handles both / and \)
+let endsWithSep = (path: string): bool => {
+  path->String.endsWith("/") || path->String.endsWith("\\")
+}
+
 // Resolve and validate a path against sourceRoot
 // Accepts both absolute paths (must be under sourceRoot) and relative paths
 // Prevents directory traversal attacks like "../../etc/passwd"
 let resolve = (~sourceRoot: string, ~inputPath: string): result<t, string> => {
   let normalizedRoot = Path.normalize(sourceRoot)
   // Ensure normalizedRoot ends with separator for proper prefix matching
-  let rootWithSep = if normalizedRoot->String.endsWith("/") {
+  // Uses Path.sep for cross-platform compatibility (/ on Unix, \ on Windows)
+  let rootWithSep = if endsWithSep(normalizedRoot) {
     normalizedRoot
   } else {
-    normalizedRoot ++ "/"
+    normalizedRoot ++ Path.sep
   }
 
   if Path.isAbsolute(inputPath) {
