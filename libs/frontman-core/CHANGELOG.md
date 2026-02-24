@@ -1,5 +1,11 @@
 # @frontman/frontman-core
 
+## 0.4.0
+
+### Minor Changes
+
+- [#426](https://github.com/frontman-ai/frontman/pull/426) [`1b6ecec`](https://github.com/frontman-ai/frontman/commit/1b6ecec8256a2630a71ef3b8d7b3d60c34c16f9a) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - URL-addressable preview: persist iframe URL in browser address bar using suffix-based routing. Navigation within the preview iframe is now reflected in the browser URL, enabling shareable deep links and browser back/forward support.
+
 ## 0.3.0
 
 ### Minor Changes
@@ -12,7 +18,7 @@
 
 ### Patch Changes
 
-- [#350](https://github.com/frontman-ai/frontman/pull/350) [`0cb1e38`](https://github.com/frontman-ai/frontman/commit/0cb1e38204629a679fe73c60fe783927ff90d7c8) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Extract Swarm agent execution framework from frontman_server into standalone swarm_ai Hex package. Rename all Swarm._ modules to SwarmAi._ and update telemetry atoms accordingly. frontman_server now depends on swarm_ai via path dep for monorepo development.
+- [#350](https://github.com/frontman-ai/frontman/pull/350) [`0cb1e38`](https://github.com/frontman-ai/frontman/commit/0cb1e38204629a679fe73c60fe783927ff90d7c8) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Extract Swarm agent execution framework from frontman*server into standalone swarm_ai Hex package. Rename all Swarm.* modules to SwarmAi.\_ and update telemetry atoms accordingly. frontman_server now depends on swarm_ai via path dep for monorepo development.
 
 - [#416](https://github.com/frontman-ai/frontman/pull/416) [`893684e`](https://github.com/frontman-ai/frontman/commit/893684e451be815f9cc0fadf29e4dca1449ffa25) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Fix swarm_ai documentation: correct broken examples, add missing @doc/@moduledoc annotations, fix inaccurate descriptions, and add README.md for Hex publishing. Bump swarm_ai to 0.1.1.
 
