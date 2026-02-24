@@ -72,6 +72,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: yarn changeset version
 
+      - name: Update lockfile after version bumps
+        run: yarn install --no-immutable
+
       - name: Update root CHANGELOG and compute version
         id: version
         shell: bash
