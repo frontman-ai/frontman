@@ -530,8 +530,10 @@ jobs:
 
       - name: Install OpenSSL dev libraries
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq libssl-dev libncurses5-dev
+          dpkg -s libssl-dev libncurses5-dev >/dev/null 2>&1 || {
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq libssl-dev libncurses5-dev
+          }
 
       - name: Fix mise binary permissions
         run: chmod -R +x ~/.local/share/mise/bin/ 2>/dev/null || true
@@ -561,17 +563,31 @@ jobs:
         working-directory: apps/frontman_server
         env:
           MIX_OS_DEPS_COMPILE_PARTITION_COUNT: 4
+          ERL_COMPILER_OPTIONS: deterministic
         run: |
           mix deps.clean --unlock --unused
           mix deps.get
 
-      - name: Run tests with coverage
-        run: make -C apps/frontman_server test-coverage
+      - name: Compile (test)
+        working-directory: apps/frontman_server
+        run: MIX_ENV=test mix compile
+        env:
+          CLOAK_KEY: "dGVzdC1rZXktZm9yLWNpLXRoaXMtaXMtMzJieXRlc3M="
+          ERL_COMPILER_OPTIONS: deterministic
+
+      - name: Setup test database
+        working-directory: apps/frontman_server
+        run: |
+          MIX_ENV=test mix ecto.create --quiet
+          MIX_ENV=test mix ecto.migrate --quiet
         env:
           CLOAK_KEY: "dGVzdC1rZXktZm9yLWNpLXRoaXMtaXMtMzJieXRlc3M="
 
-      - name: Coverage details
-        run: cd apps/frontman_server && MIX_ENV=test mix coveralls.detail
+      - name: Run tests with coverage
+        working-directory: apps/frontman_server
+        run: MIX_ENV=test mix coveralls.cobertura
+        env:
+          CLOAK_KEY: "dGVzdC1rZXktZm9yLWNpLXRoaXMtaXMtMzJieXRlc3M="
 
       - name: Coverage report
         uses: 5monkeys/cobertura-action@2f27e73e22dc84b22849040d2e1c8e5d8b6a4a0a # master 2025-02-13
@@ -596,8 +612,10 @@ jobs:
 
       - name: Install OpenSSL dev libraries
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq libssl-dev libncurses5-dev
+          dpkg -s libssl-dev libncurses5-dev >/dev/null 2>&1 || {
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq libssl-dev libncurses5-dev
+          }
 
       - name: Fix mise binary permissions
         run: chmod -R +x ~/.local/share/mise/bin/ 2>/dev/null || true
@@ -625,6 +643,9 @@ jobs:
 
       - name: Install dependencies
         working-directory: apps/frontman_server
+        env:
+          MIX_OS_DEPS_COMPILE_PARTITION_COUNT: 4
+          ERL_COMPILER_OPTIONS: deterministic
         run: |
           mix deps.clean --unlock --unused
           mix deps.get
@@ -646,8 +667,10 @@ jobs:
 
       - name: Install OpenSSL dev libraries
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq libssl-dev libncurses5-dev
+          dpkg -s libssl-dev libncurses5-dev >/dev/null 2>&1 || {
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq libssl-dev libncurses5-dev
+          }
 
       - name: Fix mise binary permissions
         run: chmod -R +x ~/.local/share/mise/bin/ 2>/dev/null || true
@@ -684,6 +707,9 @@ jobs:
 
       - name: Install dependencies
         working-directory: apps/frontman_server
+        env:
+          MIX_OS_DEPS_COMPILE_PARTITION_COUNT: 4
+          ERL_COMPILER_OPTIONS: deterministic
         run: |
           mix deps.clean --unlock --unused
           mix deps.get

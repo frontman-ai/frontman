@@ -272,8 +272,6 @@ let make = (
     | TodoToolCall(tc, _) =>
       // Use stable tool call ID for key
       let messageId = `todo-${tc.id}`
-      // Extract TODOs from input first (for todo_write), then result
-      let todos = TodoUtils.extractTodos(~input=tc.input, ~result=tc.result)
       let isLoading = switch tc.state {
       | InputStreaming | InputAvailable => true
       | OutputAvailable | OutputError => false
@@ -281,10 +279,10 @@ let make = (
 
       <React.Fragment key={messageId}>
         <TodoListBlock
-          todos
+          input={tc.input}
+          result={tc.result}
           isLoading
           messageId
-
         />
       </React.Fragment>
 

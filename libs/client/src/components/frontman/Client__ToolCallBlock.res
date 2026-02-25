@@ -134,7 +134,8 @@ let make = (
   let containerClasses = [
     "group overflow-hidden",
     "animate-in fade-in duration-100",
-    "transition-all duration-150",
+    // Note: transition-all was removed to prevent unnecessary CSS transition calculations
+    // on every re-render. The collapse animation is handled by frontman-collapse-transition.
     compact ? "rounded-lg" : "rounded-xl",
     compact ? "bg-[#8051CD]/15" : "bg-[#8051CD]/20",
     compact ? "border border-[#8051CD]/30" : "border border-[#8051CD]/40",
@@ -261,3 +262,4 @@ let make = (
     }}
   </div>
 }
+let make = React.memo(make)

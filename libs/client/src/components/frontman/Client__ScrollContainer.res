@@ -90,10 +90,13 @@ let make = (~className: option<string>=?, ~children: React.element) => {
     }
   }, [className])
   
+  // resize="instant" avoids a spring animation loop that causes forced reflows:
+  // the smooth spring does read(scrollHeight) -> write(scrollTop) -> read -> write
+  // on every rAF while content is growing during streaming.
   <StickToBottom
     className={containerClassName}
     initial="smooth"
-    resize="smooth"
+    resize="instant"
     role="log"
   >
     {children}

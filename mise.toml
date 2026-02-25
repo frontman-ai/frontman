@@ -14,4 +14,4 @@ mkcert="latest"
 "npm:@biomejs/biome"="latest"
 
 [env]
-MIX_OS_DEPS_COMPILE_PARTITION_COUNT = "1"
+MIX_OS_DEPS_COMPILE_PARTITION_COUNT = "4"

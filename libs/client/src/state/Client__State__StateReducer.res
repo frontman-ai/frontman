@@ -531,6 +531,10 @@ let sendMessageToAPIImpl = (
       message,
       ~additionalBlocks,
       ~onComplete=result => {
+        // Flush any buffered text deltas before completing the turn.
+        // Without this, a rAF-buffered delta could fire after TurnCompleted,
+        // reopening a Completed message as Streaming permanently.
+        Client__TextDeltaBuffer.flush()
         switch result {
         | Ok({stopReason})
           if stopReason == "cancelled" => // CancelTurn already cleaned up state - don't dispatch TurnCompleted
