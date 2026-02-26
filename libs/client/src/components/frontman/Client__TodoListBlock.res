@@ -3,9 +3,6 @@
  * 
  * Shows todos in a compact inline format with status icons and content.
  * Completed/cancelled items have strikethrough text.
- * 
- * Accepts stable input/result props from state (instead of pre-extracted todos)
- * so React.memo can prevent unnecessary re-renders during streaming.
  */
 
 module Icons = Client__ToolIcons
@@ -13,14 +10,10 @@ module TodoUtils = Client__TodoUtils
 
 @react.component
 let make = (
-  ~input: option<JSON.t>,
-  ~result: option<JSON.t>,
+  ~todos: array<TodoUtils.todoItem>,
   ~isLoading: bool=false,
   ~messageId as _: string,
 ) => {
-  // Extract todos internally from stable props
-  let todos = React.useMemo2(() => TodoUtils.extractTodos(~input, ~result), (input, result))
-
   // For single todo, show ultra-compact inline format
   let isSingleTodo = Array.length(todos) == 1
 
@@ -71,4 +64,3 @@ let make = (
     React.null
   }
 }
-let make = React.memo(make)

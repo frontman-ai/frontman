@@ -9,13 +9,12 @@ module Reducer = Client__ConnectionReducer
 module StateReducer = FrontmanReactStatestore.StateReducer
 module RuntimeConfig = Client__RuntimeConfig
 
-module TextDeltaBuffer = Client__TextDeltaBuffer
-
-// Initialize the text delta buffer's flush callback.
-// This breaks the circular dep: TextDeltaBuffer doesn't import Client__State.
-let () = TextDeltaBuffer.init(~onTextDelta=(~taskId, ~text) => {
+// Create the text delta buffer instance and register it as active.
+// The onFlush callback breaks the circular dep: TextDeltaBuffer doesn't import Client__State.
+let textDeltaBuffer = Client__TextDeltaBuffer.make(~onFlush=(~taskId, ~text) => {
   Client__State.Actions.textDeltaReceived(~taskId, ~text)
 })
+let () = Client__TextDeltaBuffer.active := Some(textDeltaBuffer)
 
 // Re-export status types for consumers
 type connectionState = Reducer.Selectors.connectionStatus
@@ -132,7 +131,7 @@ module Provider = {
       dispatch(Initialize({config, relay, mcpServer}))
 
       Some(() => {
-        TextDeltaBuffer.reset()
+        textDeltaBuffer.reset()
         dispatch(Cleanup)
       })
     })
@@ -146,7 +145,7 @@ module Provider = {
         // Buffer text deltas and flush once per animation frame to avoid
         // dozens of full state rebuilds per second during fast streaming.
         content->Option.flatMap(c => c.text)->Option.forEach(text => {
-          TextDeltaBuffer.add(~taskId, ~text)
+          textDeltaBuffer.add(~taskId, ~text)
         })
       | UserMessageChunk({content, timestamp}) =>
         content.text->Option.forEach(text => {

@@ -38,4 +38,3 @@ let make = (~show: bool, ~context: option<string>=?, ~content as _: option<strin
     </div>
   }
 }
-let make = React.memo(make)

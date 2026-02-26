@@ -100,4 +100,3 @@ let make = (~content: array<UserContentPart.t>, ~messageId: string, ~isNew: bool
     }}
   </div>
 }
-let make = React.memo(make)

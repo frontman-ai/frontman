@@ -13,4 +13,3 @@ let make = (~isNew: bool=false, ~isStreaming: bool=false, ~className: string="",
 
   <div className=classes>{children}</div>
 }
-let make = React.memo(make)
