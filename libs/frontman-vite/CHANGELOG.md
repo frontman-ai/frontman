@@ -1,5 +1,11 @@
 # @frontman-ai/vite
 
+## 0.4.2
+
+### Patch Changes
+
+- Fix Windows path handling and refactor CLI detect module to use shared FsUtils.pathExists from frontman-core instead of local fileExists helper.
+
 ## 0.4.0
 
 ### Minor Changes

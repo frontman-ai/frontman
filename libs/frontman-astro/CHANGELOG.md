@@ -1,5 +1,11 @@
 # @frontman-ai/astro
 
+## 0.4.2
+
+### Patch Changes
+
+- Fix Windows path handling in GetPages tool by normalizing backslash separators to forward slashes for route conversion and segment splitting.
+
 ## 0.4.0
 
 ### Minor Changes

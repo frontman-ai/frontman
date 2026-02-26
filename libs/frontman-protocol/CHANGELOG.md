@@ -1,5 +1,11 @@
 # @frontman/frontman-protocol
 
+## 0.4.0
+
+### Minor Changes
+
+- Add list_tree, get_dom, and search_text to protocol tool name registry.
+
 ## 0.3.0
 
 ### Minor Changes
