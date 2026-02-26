@@ -25,7 +25,7 @@ jobs:
 
       - name: Check changesets cover all changed packages
         run: |
-          set -euo pipefail
+          set -eo pipefail
 
           CHANGED=$(git diff --name-only origin/main...HEAD)
 
