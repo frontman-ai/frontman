@@ -21,13 +21,13 @@ Runtime-aware tools try to close this gap. Here's how each one does it.
 
 **Website:** [frontman.sh](https://frontman.sh) | **License:** Apache 2.0 / AGPL-3.0 | **Stars:** ~131
 
-Framework middleware for Next.js, Astro, and Vite. Installs *inside* the framework's dev server, so it has native access to both client-side context (DOM, component tree, computed styles) and server-side context (routes, compiled module graph, server logs). Both exposed via MCP.
+Framework middleware for Next.js, Astro, and Vite. Installs _inside_ the framework's dev server, so it has native access to both client-side context (DOM, component tree, computed styles) and server-side context (routes, compiled module graph, server logs). Both exposed via MCP.
 
 **Strengths:** Deepest framework integration. Fully free, no prompt limits, no account. BYOK — connect Claude, OpenAI, or OpenRouter directly. Open source with permissive client library licensing.
 
 **Weaknesses:** Early stage. Rough edges, incomplete documentation, small community. Limited to supported frameworks. Source mapping breaks on deeply abstracted component libraries.
 
-*Disclosure: We built this.*
+_Disclosure: We built this._
 
 ### Stagewise
 
@@ -65,19 +65,19 @@ Google's experimental MCP server exposing DevTools state to AI agents. Your agen
 
 ### Comparison Table
 
-| Feature | Frontman | Stagewise | Tidewave | Chrome MCP |
-|---------|----------|-----------|----------|------------|
-| Architecture | Framework middleware | Browser proxy | MCP server | MCP server |
-| Client runtime | Yes | Yes | Yes | Yes |
-| Server runtime | Yes | Limited | Yes (deep) | No |
-| Standalone agent | Yes | Yes | No | No |
-| Free (no limits) | Yes | No (10/day) | No ($10/mo) | Yes |
-| BYOK | Yes | No | Yes | Yes |
-| Next.js | Yes | Yes | Thin | Yes |
-| Astro | Yes | No | No | Yes |
-| Svelte | Yes | No | No | Yes |
-| Vue | Yes | Yes | No | Yes |
-| Account required | No | Yes | Yes | No |
+| Feature          | Frontman             | Stagewise     | Tidewave    | Chrome MCP |
+| ---------------- | -------------------- | ------------- | ----------- | ---------- |
+| Architecture     | Framework middleware | Browser proxy | MCP server  | MCP server |
+| Client runtime   | Yes                  | Yes           | Yes         | Yes        |
+| Server runtime   | Yes                  | Limited       | Yes (deep)  | No         |
+| Standalone agent | Yes                  | Yes           | No          | No         |
+| Free (no limits) | Yes                  | No (10/day)   | No ($10/mo) | Yes        |
+| BYOK             | Yes                  | No            | Yes         | Yes        |
+| Next.js          | Yes                  | Yes           | Thin        | Yes        |
+| Astro            | Yes                  | No            | No          | Yes        |
+| Svelte           | Yes                  | No            | No          | Yes        |
+| Vue              | Yes                  | Yes           | No          | Yes        |
+| Account required | No                   | Yes           | Yes         | No         |
 
 ### Which One Should You Use?
 
@@ -91,4 +91,4 @@ Google's experimental MCP server exposing DevTools state to AI agents. Your agen
 
 **Designer who wants a visual editor:** Onlook. Different category entirely.
 
-The category is real. Six months ago this wasn't a thing. Now there are five projects with different architectures attacking the same problem. Some will be dead in a year. Some will be table stakes. Try them on a real project and decide for yourself. [Get started with Frontman](/blog/getting-started), [see how it compares to Cursor and Claude Code](/blog/frontman-vs-cursor-vs-claude-code), or read the detailed [Frontman vs Cursor](/vs/cursor) and [Frontman vs Stagewise](/vs/stagewise) comparisons.
+The category is real. Six months ago this wasn't a thing. Now there are five projects with different architectures attacking the same problem. Some will be dead in a year. Some will be table stakes. Try them on a real project and decide for yourself. [Get started with Frontman](/blog/getting-started/), [see how it compares to Cursor and Claude Code](/blog/frontman-vs-cursor-vs-claude-code/), or read the detailed [Frontman vs Cursor](/vs/cursor/) and [Frontman vs Stagewise](/vs/stagewise/) comparisons.

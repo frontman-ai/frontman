@@ -9,7 +9,7 @@ tags: ['security', 'open-source']
 
 You already let AI agents edit your codebase. Cursor writes directly to your files. Claude Code runs shell commands. Copilot suggests code inline and you tab-accept it without reading every line. That is the reality of how developers work now.
 
-So when you hear "Frontman edits your source files," the question is not *whether* you trust an agent to touch your code. You already made that call. The question is what constraints are in place when it does.
+So when you hear "Frontman edits your source files," the question is not _whether_ you trust an agent to touch your code. You already made that call. The question is what constraints are in place when it does.
 
 Here is every hard question you should ask, and our answers.
 
@@ -19,7 +19,7 @@ Frontman runs exclusively in your local development environment. It is a dev dep
 
 The framework integrations — Next.js, Astro, Vite — activate only when `NODE_ENV=development`. In a production build, Frontman's code is not included. Not disabled. Not present. The tree-shaker removes it because nothing imports it outside of dev mode.
 
-This is not a toggle. It is a compile-time guarantee. Frontman *cannot* run in production because the code does not exist in the production bundle.
+This is not a toggle. It is a compile-time guarantee. Frontman _cannot_ run in production because the code does not exist in the production bundle.
 
 ### What Can It Change?
 
@@ -40,7 +40,7 @@ index 3a1f2c8..7b4e9d1 100644
 
 That diff shows up in `git status`. It goes through your normal PR review. If it is wrong, `git checkout -- src/components/Hero.tsx` undoes it. No hidden state, no shadow copies, no parallel universe where the agent's version of your code diverges from yours.
 
-**The change *is* the code.** It cannot drift because it is not stored anywhere else.
+**The change _is_ the code.** It cannot drift because it is not stored anywhere else.
 
 ### What Does the AI Agent See?
 
@@ -94,8 +94,8 @@ Yes. Frontman edits source files in your project directory. It does not touch `n
 
 Frontman is a dev tool that produces diffs. It runs locally, sends context to your chosen AI provider, edits your source files, and gets out of the way. Everything else — review, testing, deployment — is your existing workflow, unchanged.
 
-The better world looks like this: a designer changes the hero padding, a developer reviews a one-line diff in the PR, and nobody spent a single second worrying about whether the AI touched something it should not have. Because the constraints are structural, not behavioral. The agent *cannot* deploy. It *cannot* push. It produces a diff. You review it. Same as everything else.
+The better world looks like this: a designer changes the hero padding, a developer reviews a one-line diff in the PR, and nobody spent a single second worrying about whether the AI touched something it should not have. Because the constraints are structural, not behavioral. The agent _cannot_ deploy. It _cannot_ push. It produces a diff. You review it. Same as everything else.
 
 Security model changes do not page anyone at 3am.
 
-[Get started with Frontman](/blog/getting-started) in under five minutes, or read about [why coding agents are blind to your UI](/blog/ai-coding-agents-blind-to-ui).
+[Get started with Frontman](/blog/getting-started/) in under five minutes, or read about [why coding agents are blind to your UI](/blog/ai-coding-agents-blind-to-ui/).
