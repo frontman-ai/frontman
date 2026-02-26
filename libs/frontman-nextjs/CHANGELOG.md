@@ -1,5 +1,11 @@
 # @frontman-ai/nextjs
 
+## 0.5.2
+
+### Patch Changes
+
+- [#452](https://github.com/frontman-ai/frontman/pull/452) [`2d87685`](https://github.com/frontman-ai/frontman/commit/2d87685c436281dda18f5416782d9f6b9d85bc1c) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Fix 8 Dependabot security alerts by upgrading Sentry SDK from v8 to v9, sentry-testkit to v6, and adding yarn resolutions for vulnerable transitive dependencies (rollup, basic-ftp, minimatch, devalue, hono).
+
 ## 0.5.0
 
 ### Minor Changes

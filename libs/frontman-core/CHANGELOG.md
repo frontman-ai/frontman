@@ -1,5 +1,11 @@
 # @frontman/frontman-core
 
+## 0.5.0
+
+### Minor Changes
+
+- [#434](https://github.com/frontman-ai/frontman/pull/434) [`40c3932`](https://github.com/frontman-ai/frontman/commit/40c393263902d91be7af7db80fbfa875528b2361) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add `list_tree` tool for project structure discovery during MCP initialization. The tool provides a compact, monorepo-aware directory tree view that is injected into the system prompt and available as an on-demand callable tool. Supports workspace detection (package.json workspaces, pnpm, turbo, nx), smart noise filtering, and git-aware file listing.
+
 ## 0.4.0
 
 ### Minor Changes

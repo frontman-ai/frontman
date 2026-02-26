@@ -1,6 +1,6 @@
 {
 	"name": "@frontman/frontman-client",
-	"version": "0.3.0",
+	"version": "0.3.1",
 	"description": "Browser-side client for Frontman",
 	"license": "Apache-2.0",
 	"author": "Frontman AI",
