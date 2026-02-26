@@ -2,6 +2,7 @@
 module Bindings = FrontmanBindings
 module Fs = Bindings.Fs
 module Path = Bindings.Path
+module FsUtils = FrontmanFrontmanCore.FrontmanCore__FsUtils
 
 type packageManager =
   | Npm
@@ -19,16 +20,6 @@ type projectInfo = {
   viteConfig: existingViteConfig,
   packageManager: packageManager,
   viteConfigFileName: string,
-}
-
-// Check if a file exists
-let fileExists = async (path: string): bool => {
-  try {
-    await Fs.Promises.access(path)
-    true
-  } catch {
-  | _ => false
-  }
 }
 
 // Read file content safely
@@ -51,15 +42,15 @@ let detectPackageManager = async (projectDir: string): packageManager => {
     let yarnLock = Path.join([dir, "yarn.lock"])
     let npmLock = Path.join([dir, "package-lock.json"])
 
-    if (await fileExists(bunLockb)) || (await fileExists(bunLock)) {
+    if (await FsUtils.pathExists(bunLockb)) || (await FsUtils.pathExists(bunLock)) {
       Some(Bun)
-    } else if await fileExists(denoLock) {
+    } else if await FsUtils.pathExists(denoLock) {
       Some(Deno)
-    } else if await fileExists(pnpmLock) {
+    } else if await FsUtils.pathExists(pnpmLock) {
       Some(Pnpm)
-    } else if await fileExists(yarnLock) {
+    } else if await FsUtils.pathExists(yarnLock) {
       Some(Yarn)
-    } else if await fileExists(npmLock) {
+    } else if await FsUtils.pathExists(npmLock) {
       Some(Npm)
     } else {
       None
@@ -135,7 +126,7 @@ let analyzeViteConfig = async (projectDir: string): (existingViteConfig, string)
 
 // Check if package.json exists
 let hasPackageJson = async (projectDir: string): bool => {
-  await fileExists(Path.join([projectDir, "package.json"]))
+  await FsUtils.pathExists(Path.join([projectDir, "package.json"]))
 }
 
 // Check if this is a Vite project

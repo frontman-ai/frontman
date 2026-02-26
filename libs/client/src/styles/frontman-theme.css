@@ -115,6 +115,29 @@
 }
 
 /* ============================================================================
+ * Layout Containment - Prevents layout cascading from input to message list
+ * ============================================================================ */
+
+/* Strict containment for scroll containers: prevents layout recalculations
+   inside the container when siblings (e.g. chat input) change size.
+   Requires the element to have an explicit size (flex-1 provides this). */
+.frontman-contain-strict {
+	contain: strict;
+}
+
+/* ============================================================================
+ * Content Visibility - Skip layout/paint for off-screen messages
+ * ============================================================================ */
+
+/* Applied to message wrappers so the browser can skip layout and paint
+   for messages scrolled out of the visible area. The intrinsic-size hint
+   gives the browser an estimated height to use for sizing calculations. */
+.frontman-content-auto {
+	content-visibility: auto;
+	contain-intrinsic-size: auto 80px;
+}
+
+/* ============================================================================
  * Utility Classes
  * ============================================================================ */
 

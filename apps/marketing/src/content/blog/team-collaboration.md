@@ -30,7 +30,7 @@ One character. Three days. This is not a process failure. This is what happens w
 
 ### The Frontend Collaboration Bottleneck
 
-Look at that nine-step workflow again. The actual work — changing a class name — takes thirty seconds. The other two days and twenty-nine minutes are *communication*. Filing the ticket. Explaining the ticket. Clarifying the ticket. Reviewing the result. Requesting a tweak. Reviewing again.
+Look at that nine-step workflow again. The actual work — changing a class name — takes thirty seconds. The other two days and twenty-nine minutes are _communication_. Filing the ticket. Explaining the ticket. Clarifying the ticket. Reviewing the result. Requesting a tweak. Reviewing again.
 
 The complexity of the change is near zero. The overhead of routing it through the right person is enormous. This is not a problem you solve with better ticketing software. You solve it by letting the person who sees the problem fix the problem.
 
@@ -45,7 +45,7 @@ With Frontman, the same scenario plays out differently:
 5. Designer sees the result, adjusts if needed, commits
 6. Developer reviews a clean one-line diff in the PR
 
-Five minutes. One person. Zero tickets. The developer still reviews the code — quality does not drop. But the developer reviews a *finished change* instead of playing telephone across Slack and Jira for three days.
+Five minutes. One person. Zero tickets. The developer still reviews the code — quality does not drop. But the developer reviews a _finished change_ instead of playing telephone across Slack and Jira for three days.
 
 ### Who Does What
 
@@ -79,4 +79,4 @@ That is not a productivity hack. That is removing an artificial bottleneck that 
 
 Here is what Monday morning looks like after the change: the designer ships three visual fixes before standup. The PM updates the landing page CTA without filing a ticket. The developer's PR queue has zero pixel-adjustment requests. Everyone is working on what they are actually good at. Nobody is blocked on anyone else for a one-character diff.
 
-[Try Frontman](https://frontman.sh) — [one install command](/blog/getting-started), works with your existing project. Read about [how Frontman keeps every change safe and reviewable](/blog/security).
+[Try Frontman](https://frontman.sh) — [one install command](/blog/getting-started/), works with your existing project. Read about [how Frontman keeps every change safe and reviewable](/blog/security/).

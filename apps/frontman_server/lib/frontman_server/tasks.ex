@@ -246,6 +246,50 @@ defmodule FrontmanServer.Tasks do
   end
 
   @doc """
+  Stores the discovered project structure summary for a task.
+  Called during MCP initialization after `list_tree` returns.
+  """
+  @spec add_discovered_project_structure(Scope.t(), String.t(), String.t()) ::
+          {:ok, Interaction.DiscoveredProjectStructure.t()}
+          | {:ok, :already_loaded}
+          | {:error, :not_found}
+  def add_discovered_project_structure(%Scope{} = scope, task_id, summary) do
+    with {:ok, schema} <- get_task_by_id(scope, task_id) do
+      case get_discovered_project_structure(scope, task_id) do
+        {:ok, nil} ->
+          interaction = Interaction.DiscoveredProjectStructure.new(summary)
+          append_interaction(schema, interaction)
+
+        {:ok, _existing} ->
+          {:ok, :already_loaded}
+
+        {:error, _} ->
+          interaction = Interaction.DiscoveredProjectStructure.new(summary)
+          append_interaction(schema, interaction)
+      end
+    end
+  end
+
+  @doc """
+  Gets the discovered project structure summary for a task, if any.
+  """
+  @spec get_discovered_project_structure(Scope.t(), String.t()) ::
+          {:ok, String.t() | nil} | {:error, :not_found}
+  def get_discovered_project_structure(%Scope{} = scope, task_id) do
+    with {:ok, interactions} <- get_interactions(scope, task_id) do
+      summary =
+        interactions
+        |> Enum.find(&match?(%Interaction.DiscoveredProjectStructure{}, &1))
+        |> case do
+          nil -> nil
+          struct -> struct.summary
+        end
+
+      {:ok, summary}
+    end
+  end
+
+  @doc """
   Checks if any user messages in the task contain a selected component.
   """
   @spec has_selected_component?(Scope.t(), String.t()) :: boolean()

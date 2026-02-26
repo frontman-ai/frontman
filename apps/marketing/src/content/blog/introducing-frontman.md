@@ -9,17 +9,17 @@ tags: ['announcement', 'open-source']
 
 You tell Cursor to fix the spacing on your hero section. It reads the file, picks a Tailwind class that looks right, and saves. You switch to the browser. Wrong element. You switch back, add more context — the exact file path, the line number, maybe a hint about the component tree. The agent tries again. You switch to the browser again. Closer. One more round.
 
-Three iterations and six tab switches to change a padding value. Your agent had full access to the source code the entire time. It read every file. It just could not *see* the page.
+Three iterations and six tab switches to change a padding value. Your agent had full access to the source code the entire time. It read every file. It just could not _see_ the page.
 
 ### Why AI Agents Cannot See Your Frontend
 
 Claude is not stupid. Cursor is not broken. The agent genuinely cannot see what your page looks like. It reads source files. It reads terminal output. It reads build errors. None of that tells it what `p-4 md:p-8` resolves to at your current viewport width, or which of three nested `div`s with padding classes is the one you are staring at in the browser.
 
-Every coding agent on the market today is *blind to the rendered UI*. They edit files and hope the visual result matches your intent. For backend code, this is fine. For frontend work, hope is not a methodology.
+Every coding agent on the market today is _blind to the rendered UI_. They edit files and hope the visual result matches your intent. For backend code, this is fine. For frontend work, hope is not a methodology.
 
 **Other agents guess. Frontman sees.**
 
-Frontman connects to both your dev server *and* your browser. It has direct access to the live DOM, computed styles, your component tree, your routes, and your compilation errors. When you click an element and describe a change, Frontman knows exactly which file and which line to edit — because it can verify the result immediately.
+Frontman connects to both your dev server _and_ your browser. It has direct access to the live DOM, computed styles, your component tree, your routes, and your compilation errors. When you click an element and describe a change, Frontman knows exactly which file and which line to edit — because it can verify the result immediately.
 
 ### What That Looks Like
 
@@ -44,10 +44,10 @@ If you have ever burned fifteen minutes of agent context trying to describe whic
 ### Common Objections
 
 **"My agent can read files and edit them directly. That's basically the same thing."**
-It is not. Your agent reads the *source*. Frontman reads the *rendered output*. The source says `className="p-4 md:p-8 lg:p-12"`. The rendered output says "this element has 32px of padding at the current viewport." The source has three nested divs with padding. The rendered output shows you which one the user is actually pointing at. Your agent is working from a blueprint. Frontman is standing in the room.
+It is not. Your agent reads the _source_. Frontman reads the _rendered output_. The source says `className="p-4 md:p-8 lg:p-12"`. The rendered output says "this element has 32px of padding at the current viewport." The source has three nested divs with padding. The rendered output shows you which one the user is actually pointing at. Your agent is working from a blueprint. Frontman is standing in the room.
 
 **"What about v0 or Bolt? They generate full UIs."**
-They do. From scratch. In a sandbox. Frontman works with *your existing codebase*, your component library, your design tokens, your file conventions. It reads your `agents.md`. It follows your patterns. Generated UIs are demos. Frontman edits production code.
+They do. From scratch. In a sandbox. Frontman works with _your existing codebase_, your component library, your design tokens, your file conventions. It reads your `agents.md`. It follows your patterns. Generated UIs are demos. Frontman edits production code.
 
 **"AI-generated code changes are risky."**
 Every change Frontman makes is a file edit in your working directory. It shows up in `git diff`. It goes through your normal PR review. If it is wrong, `git checkout` fixes it. This is not riskier than accepting a diff from Cursor or Claude Code — it is the same workflow you already trust.
@@ -58,4 +58,4 @@ A designer opens the app in their browser, clicks the hero section, types "reduc
 
 That is not a fantasy. That is Frontman running on localhost.
 
-**Frontman sees.** [Get started in under 5 minutes](/blog/getting-started). Open source, Apache 2.0, free during beta. Want to understand [how it compares to Cursor and Claude Code](/blog/frontman-vs-cursor-vs-claude-code)? See the full [Frontman vs Cursor](/vs/cursor) comparison.
+**Frontman sees.** [Get started in under 5 minutes](/blog/getting-started/). Open source, Apache 2.0, free during beta. Want to understand [how it compares to Cursor and Claude Code](/blog/frontman-vs-cursor-vs-claude-code/)? See the full [Frontman vs Cursor](/vs/cursor/) comparison.

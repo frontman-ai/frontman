@@ -33,12 +33,12 @@ defmodule FrontmanServer.Tasks.Todos do
     @schema Zoi.extend(@new_schema, @extra_schema)
 
     typedstruct do
-      field :id, String.t(), enforce: true
-      field :content, String.t(), enforce: true
-      field :active_form, String.t(), enforce: true
-      field :status, atom(), enforce: true
-      field :created_at, DateTime.t(), enforce: true
-      field :updated_at, DateTime.t(), enforce: true
+      field(:id, String.t(), enforce: true)
+      field(:content, String.t(), enforce: true)
+      field(:active_form, String.t(), enforce: true)
+      field(:status, atom(), enforce: true)
+      field(:created_at, DateTime.t(), enforce: true)
+      field(:updated_at, DateTime.t(), enforce: true)
     end
 
     def schema do
@@ -84,7 +84,7 @@ defmodule FrontmanServer.Tasks.Todos do
     |> Enum.reduce(%{}, &apply_result/2)
   end
 
-  defp todo_tool_result?(%Interaction.ToolResult{tool_name: name}) do
+  defp todo_tool_result?(%Interaction.ToolResult{tool_name: name, is_error: false}) do
     name in ["todo_add", "todo_update", "todo_remove"]
   end
 

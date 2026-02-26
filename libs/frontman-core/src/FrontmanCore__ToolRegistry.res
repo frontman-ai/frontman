@@ -24,6 +24,7 @@ let coreTools = (): t => {
     module(FrontmanCore__Tool__SearchFiles),
     module(FrontmanCore__Tool__Lighthouse),
     module(FrontmanCore__Tool__EditFile),
+    module(FrontmanCore__Tool__ListTree),
   ],
 }
 

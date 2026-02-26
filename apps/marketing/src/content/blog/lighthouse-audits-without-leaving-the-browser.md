@@ -57,7 +57,7 @@ No tab switching. No copy-pasting issue descriptions. No translating Lighthouse 
 
 ### Why This Matters More Than You Think
 
-Running Lighthouse from the terminal is possible. Running it from a CI pipeline is common. But neither of those gives the agent what it needs: the audit results *and* the ability to fix them in the same session.
+Running Lighthouse from the terminal is possible. Running it from a CI pipeline is common. But neither of those gives the agent what it needs: the audit results _and_ the ability to fix them in the same session.
 
 Here is the standard coding-agent workflow for performance optimization:
 
@@ -104,8 +104,8 @@ The agent audits what you are seeing. Not a default it picked.
 
 Performance optimization has always been a feedback loop: measure, identify the issue, fix it, measure again. The problem was never the fixing — it was the measuring, and the translation layer between measurement and action.
 
-When the agent can run Lighthouse itself, that translation layer disappears. The measurement *is* the context. The agent reads the failing audit, traces it to the source, makes the change, and verifies the improvement — all in one continuous action.
+When the agent can run Lighthouse itself, that translation layer disappears. The measurement _is_ the context. The agent reads the failing audit, traces it to the source, makes the change, and verifies the improvement — all in one continuous action.
 
 Your performance scores stop being a report you read and start being a problem the agent solves.
 
-[Try Frontman](https://frontman.sh) — [one install command](/blog/getting-started), works with your existing project. Read about [why coding agents are blind to your UI](/blog/ai-coding-agents-blind-to-ui), see [how Frontman compares to Cursor and Claude Code](/blog/frontman-vs-cursor-vs-claude-code), or read the full [Frontman vs Cursor](/vs/cursor) comparison.
+[Try Frontman](https://frontman.sh) — [one install command](/blog/getting-started/), works with your existing project. Read about [why coding agents are blind to your UI](/blog/ai-coding-agents-blind-to-ui/), see [how Frontman compares to Cursor and Claude Code](/blog/frontman-vs-cursor-vs-claude-code/), or read the full [Frontman vs Cursor](/vs/cursor/) comparison.

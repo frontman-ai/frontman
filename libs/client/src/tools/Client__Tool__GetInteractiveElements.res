@@ -64,61 +64,62 @@ type output = {
 }
 
 let execute = async (input: input): toolResult<output> => {
-  let state = FrontmanReactStatestore.StateStore.getState(Client__State__Store.store)
-  let previewFrame = Client__State__StateReducer.Selectors.previewFrame(state)
-
-  switch (previewFrame.contentDocument, previewFrame.contentWindow) {
-  | (None, _) | (_, None) =>
-    Ok({
-      success: false,
-      elements: None,
-      totalCount: None,
-      truncated: None,
-      error: Some("Preview frame not available"),
-    })
-  | (Some(doc), Some(win)) =>
-    try {
-      let resolved = Client__Tool__ElementResolver.collectInteractiveElements(
-        ~document=doc,
-        ~contentWindow=win,
-        ~roleFilter=?input.role,
-        ~nameFilter=?input.name,
-        ~maxElements,
-      )
-
-      let elements = resolved->Array.mapWithIndex((el, idx) => {
-        let selector = Client__Tool__ElementResolver.generateSelector(
-          ~element=el.element,
-          ~document=Some(doc),
+  Client__Tool__ElementResolver.withPreviewDoc(
+    ~onUnavailable=() =>
+      Ok({
+        success: false,
+        elements: None,
+        totalCount: None,
+        truncated: None,
+        error: Some("Preview frame not available"),
+      }),
+    ({doc, win}) => {
+      try {
+        let resolved = Client__Tool__ElementResolver.collectInteractiveElements(
+          ~document=doc,
+          ~contentWindow=win,
+          ~roleFilter=?input.role,
+          ~nameFilter=?input.name,
+          ~maxElements,
         )
 
-        {
-          index: idx,
-          role: el.role,
-          name: el.name,
-          tag: el.tag,
-          selector,
-          detectionMethod: Client__Tool__ElementResolver.detectionMethodToString(el.detectionMethod),
-          visibleText: el.visibleText,
-        }
-      })
+        let elements = resolved->Array.mapWithIndex((el, idx) => {
+          let selector = Client__Tool__ElementResolver.generateSelector(
+            ~element=el.element,
+            ~document=Some(doc),
+          )
 
-      let count = elements->Array.length
-      Ok({
-        success: true,
-        elements: Some(elements),
-        totalCount: Some(count),
-        truncated: Some(count >= maxElements),
-        error: None,
-      })
-    } catch {
-    | exn =>
-      let errorMsg =
-        exn
-        ->JsExn.fromException
-        ->Option.flatMap(JsExn.message)
-        ->Option.getOr("Unknown error discovering interactive elements")
-      Ok({success: false, elements: None, totalCount: None, truncated: None, error: Some(errorMsg)})
-    }
-  }
+          {
+            index: idx,
+            role: el.role,
+            name: el.name,
+            tag: el.tag,
+            selector,
+            detectionMethod: Client__Tool__ElementResolver.detectionMethodToString(
+              el.detectionMethod,
+            ),
+            visibleText: el.visibleText,
+          }
+        })
+
+        let count = elements->Array.length
+        Ok({
+          success: true,
+          elements: Some(elements),
+          totalCount: Some(count),
+          truncated: Some(count >= maxElements),
+          error: None,
+        })
+      } catch {
+      | exn =>
+        Ok({
+          success: false,
+          elements: None,
+          totalCount: None,
+          truncated: None,
+          error: Some(Client__Tool__ElementResolver.exnMessage(exn)),
+        })
+      }
+    },
+  )
 }

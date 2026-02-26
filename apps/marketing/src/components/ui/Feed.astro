@@ -19,23 +19,23 @@ type Props = {
 const { data, classes } = Astro.props
 ---
 
-<ul aria-label="Changelog feed" role="feed" class:list={['feed', { [`${classes}`]: classes }]}>
+<ul aria-label="Changelog feed" class:list={['feed', { [`${classes}`]: classes }]}>
 	{
 		data.map((item) => (
-			<li role="article" class="feed__item">
+			<li class="feed__item">
 				<span class="feed__item-date"> {item.date}</span>
-				<div class="feed__item-container">
-					<h4 class="feed__item-header">
+				<article class="feed__item-container">
+					<h2 class="feed__item-header">
 						{item.title}
 						<span> - {item.date}</span>
-					</h4>
+					</h2>
 					{item.image && (
 						<div class="feed__item-image">
 							<img src={item.image} alt={item.title} width="1000" height="500" loading="lazy" />
 						</div>
 					)}
 					<div class="feed__item-text basic-text" set:html={item.text} />
-				</div>
+				</article>
 			</li>
 		))
 	}
@@ -59,6 +59,16 @@ const { data, classes } = Astro.props
 	}
 	.feed__item-text {
 		@apply max-w-5xl;
+	}
+	.feed__item-text a {
+		@apply underline decoration-primary-500 hover:decoration-primary-600;
+	}
+</style>
+
+<style is:global>
+	.feed__item-text a {
+		text-decoration: underline !important;
+		text-decoration-color: #a259ff !important;
 	}
 	.feed__item-image {
 		@apply mb-6 overflow-hidden rounded border border-neutral-100 bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900;

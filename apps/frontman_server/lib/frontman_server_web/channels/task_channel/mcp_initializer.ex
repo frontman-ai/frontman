@@ -6,7 +6,8 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
   1. Initialize MCP connection
   2. Load tools list
   3. Load project rules
-  4. Signal completion
+  4. Discover project structure
+  5. Signal completion
 
   State is stored in socket assigns by TaskChannel. Functions return
   `{new_state, actions}` tuples where actions are instructions for the
@@ -28,6 +29,7 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
           :initializing_mcp
           | :loading_tools
           | :loading_project_rules
+          | :loading_project_structure
           | :ready
           | :failed
 
@@ -38,6 +40,7 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
           mcp_init_request_id: integer() | nil,
           tools_request_id: integer() | nil,
           project_rules_request_id: integer() | nil,
+          project_structure_request_id: integer() | nil,
           mcp_capabilities: map() | nil,
           mcp_server_info: map() | nil,
           tools: list() | nil
@@ -66,6 +69,7 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
       mcp_init_request_id: request_id,
       tools_request_id: nil,
       project_rules_request_id: nil,
+      project_structure_request_id: nil,
       mcp_capabilities: nil,
       mcp_server_info: nil,
       tools: nil
@@ -84,7 +88,8 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
   def expects_response?(state, request_id) do
     request_id == state.mcp_init_request_id or
       request_id == state.tools_request_id or
-      request_id == state.project_rules_request_id
+      request_id == state.project_rules_request_id or
+      request_id == state.project_structure_request_id
   end
 
   @doc """
@@ -101,6 +106,9 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
 
       request_id == state.project_rules_request_id ->
         handle_project_rules_response(result, state)
+
+      request_id == state.project_structure_request_id ->
+        handle_project_structure_response(result, state)
 
       true ->
         Logger.warning("MCPInitializer: Received response for unknown request_id #{request_id}")
@@ -126,7 +134,12 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
 
       request_id == state.project_rules_request_id ->
         Logger.warning("MCPInitializer: Project rules failed: #{inspect(error)}")
-        # Complete initialization without project rules
+        # Continue without project rules, try project structure
+        request_project_structure(state)
+
+      request_id == state.project_structure_request_id ->
+        Logger.warning("MCPInitializer: Project structure failed: #{inspect(error)}")
+        # Complete initialization without project structure
         complete_initialization(state)
 
       true ->
@@ -201,7 +214,7 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
   defp store_project_rules("", state) do
     # No content blocks or all blocks had empty text — this is normal (no project rules found)
     Logger.info("MCPInitializer: Initialized 0 project rules")
-    complete_initialization(state)
+    request_project_structure(state)
   end
 
   defp store_project_rules(text, state) do
@@ -214,25 +227,121 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
         end)
 
         Logger.info("MCPInitializer: Initialized #{length(results)} project rules")
-        complete_initialization(state)
+        request_project_structure(state)
 
       {:error, reason} ->
         Logger.warning("MCPInitializer: Failed to parse project rules: #{inspect(reason)}")
+        request_project_structure(state)
+    end
+  end
+
+  # Step 4: Discover project structure via list_tree
+
+  defp request_project_structure(state) do
+    request_id = System.unique_integer([:positive])
+    call_id = "project_structure_init_#{request_id}"
+
+    request =
+      JsonRpc.request(request_id, "tools/call", %{
+        "callId" => call_id,
+        "name" => "list_tree",
+        "arguments" => %{}
+      })
+
+    state = %{
+      state
+      | status: :loading_project_structure,
+        project_rules_request_id: nil,
+        project_structure_request_id: request_id
+    }
+
+    Logger.info("MCPInitializer: Sending MCP request to discover project structure")
+
+    {state, [{:push_mcp, request}]}
+  end
+
+  defp handle_project_structure_response(result, state) do
+    content = Map.get(result, "content", [])
+
+    text_result =
+      content
+      |> Enum.map_join("\n", fn block -> Map.get(block, "text", "") end)
+      |> String.trim()
+
+    store_project_structure(text_result, state)
+  end
+
+  defp store_project_structure("", state) do
+    Logger.info("MCPInitializer: No project structure discovered")
+    complete_initialization(state)
+  end
+
+  defp store_project_structure(text, state) do
+    case Jason.decode(text) do
+      {:ok, %{"tree" => tree} = decoded} when is_binary(tree) ->
+        # Build a human-readable summary from the structured output
+        summary = build_structure_summary(tree, decoded)
+        Tasks.add_discovered_project_structure(state.scope, state.task_id, summary)
+        Logger.info("MCPInitializer: Discovered project structure")
+        complete_initialization(state)
+
+      {:ok, _other} ->
+        Logger.warning("MCPInitializer: Unexpected project structure format")
+        complete_initialization(state)
+
+      {:error, reason} ->
+        Logger.warning("MCPInitializer: Failed to parse project structure: #{inspect(reason)}")
         complete_initialization(state)
     end
   end
 
+  defp build_structure_summary(tree, decoded) do
+    monorepo_type = Map.get(decoded, "monorepoType")
+    workspaces = Map.get(decoded, "workspaces", [])
+
+    type_line =
+      case monorepo_type do
+        type when is_binary(type) -> "Project type: monorepo (#{type})"
+        _ -> "Project type: single project"
+      end
+
+    workspace_section =
+      case workspaces do
+        ws when is_list(ws) and ws != [] ->
+          ws_lines =
+            Enum.map(ws, fn w ->
+              name = Map.get(w, "name", "unknown")
+              path = Map.get(w, "path", "")
+              "  #{name} → #{path}"
+            end)
+
+          "\n\nWorkspaces:\n" <> Enum.join(ws_lines, "\n")
+
+        _ ->
+          ""
+      end
+
+    type_line <> workspace_section <> "\n\nDirectory layout:\n" <> tree
+  end
+
   defp complete_initialization(state) do
-    state = %{state | status: :ready, project_rules_request_id: nil}
+    state = %{
+      state
+      | status: :ready,
+        project_rules_request_id: nil,
+        project_structure_request_id: nil
+    }
+
+    tools = if is_list(state.tools), do: state.tools, else: []
 
     initialization_data = %{
       mcp_capabilities: state.mcp_capabilities,
       mcp_server_info: state.mcp_server_info,
-      tools: state.tools || []
+      tools: tools
     }
 
     notification =
-      JsonRpc.notification("project_rules_initialized", %{
+      JsonRpc.notification("mcp_initialization_complete", %{
         "count" => length(initialization_data.tools),
         "taskId" => state.task_id
       })

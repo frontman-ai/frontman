@@ -25,6 +25,7 @@ defmodule FrontmanServer.Agents.ToolExecutor do
 
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Agents.SchemaTransformer
+  alias FrontmanServer.Image
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Tools
@@ -249,15 +250,8 @@ defmodule FrontmanServer.Agents.ToolExecutor do
   # The LLM can't "see" images encoded as text in tool outputs — it needs proper image
   # content parts. This mirrors the same extraction logic in Interaction.to_llm_message.
 
-  # {image_field, extra_text_fields} - same config as Interaction
-  @image_tool_configs %{
-    "take_screenshot" => {:screenshot, []}
-  }
-
   defp maybe_enrich_with_images(tool_name, {:ok, content} = result) when is_binary(content) do
-    canonical_name = String.replace_prefix(tool_name, "mcp_", "")
-
-    case Map.get(@image_tool_configs, canonical_name) do
+    case Image.image_tool_config(tool_name) do
       nil ->
         result
 
@@ -276,19 +270,10 @@ defmodule FrontmanServer.Agents.ToolExecutor do
 
     with {:ok, decoded} when is_map(decoded) <- Jason.decode(json_string),
          data_url when is_binary(data_url) <- Map.get(decoded, field_name),
-         {:ok, binary, mime} <- decode_data_url(data_url) do
+         {:ok, binary, mime} <- Image.decode_data_url(data_url) do
       {:ok, [ContentPart.image(binary, mime)]}
     else
       _ -> :no_image
-    end
-  end
-
-  defp decode_data_url(data_url) do
-    with [_, mime_type, base64] <- Regex.run(~r/^data:([^;]+);base64,(.+)$/s, data_url),
-         {:ok, binary} <- Base.decode64(base64) do
-      {:ok, binary, mime_type}
-    else
-      _ -> :error
     end
   end
 end

@@ -295,6 +295,63 @@ defmodule FrontmanServer.TasksTest do
     end
   end
 
+  describe "add_discovered_project_structure/3" do
+    test "adds structure to task", %{scope: scope} do
+      task_id = Ecto.UUID.generate()
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
+
+      summary = "Project type: single project\n\nDirectory layout:\n."
+
+      {:ok, structure} =
+        Tasks.add_discovered_project_structure(scope, task_id, summary)
+
+      assert structure.summary == summary
+    end
+
+    test "returns error for non-existent task", %{scope: scope} do
+      nonexistent_id = Ecto.UUID.generate()
+
+      assert {:error, :not_found} =
+               Tasks.add_discovered_project_structure(scope, nonexistent_id, "summary")
+    end
+  end
+
+  describe "get_discovered_project_structure/2" do
+    test "returns nil for task with no structure", %{scope: scope} do
+      task_id = Ecto.UUID.generate()
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
+
+      assert {:ok, nil} = Tasks.get_discovered_project_structure(scope, task_id)
+    end
+
+    test "returns summary for task with structure", %{scope: scope} do
+      task_id = Ecto.UUID.generate()
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
+
+      summary = "Project type: monorepo (turborepo)\n\nWorkspaces:\n  @app/web -> apps/web"
+
+      Tasks.add_discovered_project_structure(scope, task_id, summary)
+
+      {:ok, result} = Tasks.get_discovered_project_structure(scope, task_id)
+      assert result == summary
+    end
+
+    test "structure is excluded from LLM messages", %{scope: scope} do
+      task_id = Ecto.UUID.generate()
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
+
+      Tasks.add_discovered_project_structure(scope, task_id, "Project layout...")
+      Tasks.add_user_message(scope, task_id, [%{"type" => "text", "text" => "Hello"}], [])
+
+      {:ok, messages} = Tasks.get_llm_messages(scope, task_id)
+
+      # Only the user message should be present — structure goes in system prompt
+      assert length(messages) == 1
+      [msg] = messages
+      assert msg.role == :user
+    end
+  end
+
   describe "get_llm_messages/2 with discovered rules" do
     # Note: Project rules are NOT prepended to messages by get_llm_messages.
     # They are retrieved separately via get_discovered_project_rules and

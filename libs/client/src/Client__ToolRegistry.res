@@ -21,6 +21,8 @@ let coreBrowserTools = (): t => {
     module(Client__Tool__SetDeviceMode),
     module(Client__Tool__GetInteractiveElements),
     module(Client__Tool__InteractWithElement),
+    module(Client__Tool__GetDom),
+    module(Client__Tool__SearchText),
   ],
 }
 

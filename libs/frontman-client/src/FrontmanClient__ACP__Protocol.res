@@ -152,7 +152,7 @@ let handleIncomingMessage = (
       onUpdate->Option.forEach(cb => cb(notification.params.sessionId, notification.params.update))
     | Error(parseError) => onParseError->Option.forEach(cb => cb(parseError))
     }
-  | Some(_) => // Other notification types (e.g., project_rules_initialized) - no action needed
+  | Some(_) => // Other notification types (e.g., mcp_initialization_complete) - no action needed
     ()
   | None =>
     // No method field - must be a response

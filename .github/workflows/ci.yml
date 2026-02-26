@@ -261,47 +261,6 @@ jobs:
           skip_covered: false
           only_changed_files: false
 
-  test-context-loader:
-    name: Test context-loader
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: write
-      checks: write
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-
-      - name: Setup Node.js
-        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
-        with:
-          node-version: '24.4.1'
-
-      - name: Enable Corepack
-        run: corepack enable
-
-      - name: Cache Yarn
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
-        with:
-          path: ~/.yarn/berry/cache
-          key: yarn-${{ hashFiles('yarn.lock') }}
-          restore-keys: yarn-
-
-      - name: Install dependencies
-        run: yarn install --immutable
-
-      - name: Run tests with coverage
-        run: make -C libs/context-loader test-coverage
-
-      - name: Coverage report
-        uses: 5monkeys/cobertura-action@2f27e73e22dc84b22849040d2e1c8e5d8b6a4a0a # master 2025-02-13
-        with:
-          path: libs/context-loader/coverage/cobertura-coverage.xml
-          minimum_coverage: 70
-          show_missing: true
-          skip_covered: false
-          only_changed_files: false
-
   lint-client:
     name: Lint libs/client
     runs-on: ubuntu-latest

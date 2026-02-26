@@ -78,7 +78,9 @@ module ScrollButton = {
 }
 
 // Cached base className for main container
-let containerBaseClassName = "relative flex-1 overflow-y-auto"
+// frontman-contain-strict: creates a layout boundary so flex recalculations
+// from the input area don't cascade into the 2000+ message DOM nodes
+let containerBaseClassName = "relative flex-1 overflow-y-auto frontman-contain-strict"
 
 // Main component wrapper for convenient usage
 @react.component

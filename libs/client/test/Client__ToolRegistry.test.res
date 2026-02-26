@@ -12,7 +12,7 @@ describe("ToolRegistry", _t => {
   test("coreBrowserTools returns all browser tools", t => {
     let registry = ToolRegistry.coreBrowserTools()
 
-    t->expect(registry->ToolRegistry.count)->Expect.toBe(5)
+    t->expect(registry->ToolRegistry.count)->Expect.toBe(7)
   })
 
   test("finds tool by name", t => {
@@ -23,6 +23,8 @@ describe("ToolRegistry", _t => {
     t->expect(registry->ToolRegistry.getToolByName("set_device_mode")->Option.isSome)->Expect.toBe(true)
     t->expect(registry->ToolRegistry.getToolByName("get_interactive_elements")->Option.isSome)->Expect.toBe(true)
     t->expect(registry->ToolRegistry.getToolByName("interact_with_element")->Option.isSome)->Expect.toBe(true)
+    t->expect(registry->ToolRegistry.getToolByName("get_dom")->Option.isSome)->Expect.toBe(true)
+    t->expect(registry->ToolRegistry.getToolByName("search_text")->Option.isSome)->Expect.toBe(true)
     t->expect(registry->ToolRegistry.getToolByName("nonexistent")->Option.isSome)->Expect.toBe(false)
   })
 

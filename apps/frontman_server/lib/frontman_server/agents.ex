@@ -21,6 +21,7 @@ defmodule FrontmanServer.Agents do
 
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Agents.{RootAgent, ToolExecutor}
+  alias FrontmanServer.Image
   alias FrontmanServer.Observability.TelemetryEvents
   alias FrontmanServer.Providers
   alias FrontmanServer.Providers.ResolvedKey
@@ -98,7 +99,10 @@ defmodule FrontmanServer.Agents do
       {:ok, api_key_info} ->
         on_event = build_event_handler(scope, task_id)
         agent = build_agent(scope, task_id, tools, opts, api_key_info)
-        messages = build_messages(scope, task_id)
+
+        messages =
+          build_messages(scope, task_id)
+          |> maybe_constrain_images(api_key_info.provider)
 
         run_agent(scope, agent, task_id, messages,
           on_event: on_event,
@@ -158,6 +162,13 @@ defmodule FrontmanServer.Agents do
             {:error, _} -> []
           end
 
+        # Fetch discovered project structure (from list_tree during MCP init)
+        project_structure =
+          case Tasks.get_discovered_project_structure(scope, task_id) do
+            {:ok, summary} -> summary
+            {:error, _} -> nil
+          end
+
         # Build llm_opts with resolved key info
         # LLM transformation flags (requires_mcp_prefix, identity_override) come from ResolvedKey
         # oauth_mode tells ReqLLM to use Bearer token auth instead of x-api-key
@@ -185,7 +196,8 @@ defmodule FrontmanServer.Agents do
           framework: framework,
           model: model_spec,
           llm_opts: llm_opts,
-          project_rules: project_rules
+          project_rules: project_rules,
+          project_structure: project_structure
         )
 
       custom_agent ->
@@ -371,6 +383,39 @@ defmodule FrontmanServer.Agents do
       {:error, _} -> []
     end
   end
+
+  # Anthropic hard-rejects images > 8000px per side. Other providers (OpenAI,
+  # OpenRouter, Google) auto-resize, so the constraint only applies to Anthropic.
+  defp maybe_constrain_images(messages, "anthropic") do
+    Enum.map(messages, fn msg ->
+      %{msg | content: Enum.map(msg.content, &constrain_image_part/1)}
+    end)
+  end
+
+  defp maybe_constrain_images(messages, _provider), do: messages
+
+  defp constrain_image_part(%Message.ContentPart{type: :image, data: data} = part) do
+    case Image.check_dimensions(data) do
+      :ok ->
+        part
+
+      {:too_large, width, height} ->
+        max = Image.max_dimension()
+
+        Sentry.capture_message("Image exceeded provider dimension limit",
+          level: :warning,
+          extra: %{width: width, height: height, max_dimension: max}
+        )
+
+        Logger.warning("Stripping oversized image (#{width}x#{height}px, max #{max}px)")
+
+        Message.ContentPart.text(
+          "[Image removed: dimensions #{width}x#{height}px exceed the #{max}px provider limit]"
+        )
+    end
+  end
+
+  defp constrain_image_part(part), do: part
 
   defp to_swarm_message(%ReqLLM.Message{} = msg) do
     content = convert_content(msg.content)

@@ -39,9 +39,9 @@ export const navigationBarData: NavData = {
 	},
 	navItems: [
 		{ name: 'Home', link: '/' },
-		{ name: 'Blog', link: '/blog' },
-		{ name: 'Changelog', link: '/changelog' },
-		{ name: 'FAQ', link: '/faq' }
+		{ name: 'Blog', link: '/blog/' },
+		{ name: 'Changelog', link: '/changelog/' },
+		{ name: 'FAQ', link: '/faq/' }
 	],
 	navActions: [{ name: 'Try it now', link: '/#install', style: 'white', size: 'lg' }]
 }

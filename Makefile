@@ -29,7 +29,7 @@ endef
         worktree-create worktree-create-from worktree-list worktree-remove worktree-clean \
         worktree-status worktree-devpod worktree-urls worktree-hosts worktree-register worktree-registry \
         publish publish-astro publish-vite publish-nextjs publish-swarm-ai release \
-        kill-all-processes open-dogfooding pull-webapi
+        kill-all-processes open-dogfooding pull-webapi debug-task
 
 help: ## Display available commands
 	@printf "$(CYAN)Frontman Monorepo$(RESET)\n"
@@ -364,5 +364,8 @@ open-dogfooding: ## Open dogfooding app in browser
 
 pull-webapi: ## Pull latest experimental-rescript-webapi subtree
 	git subtree pull --prefix libs/experimental-rescript-webapi git@github.com:itayadler/experimental-rescript-webapi.git main --squash
+
+debug-task: ## Debug task interactions (ARGS="list" or ARGS="show ...")
+	cd apps/frontman_server && $(MAKE) debug-task ARGS="$(ARGS)"
 
 ## UTIL_END

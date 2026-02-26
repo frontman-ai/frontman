@@ -42,7 +42,7 @@ const {
 	{link && <a href={link} class="card-link" aria-label={title}></a>}
 	{image && <Image src={image} alt={title} width={600} height={400} class="blog-card-image" />}
 	<CardBody classes="flex-grow">
-		<h3 class="post-title">{title}</h3>
+		<h2 class="post-title">{title}</h2>
 		<h4 class="post-subtitle">{subtitle}</h4>
 		<slot />
 	</CardBody>

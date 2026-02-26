@@ -38,21 +38,21 @@ Here's a card grid component with a subtle problem:
 ```tsx
 // src/components/CardGrid.tsx
 export function CardGrid({ items }: { items: Item[] }) {
-  return (
-    <div className="grid grid-cols-3 gap-6 p-8">
-      {items.map((item) => (
-        <div key={item.id} className="rounded-lg bg-white p-6 shadow-sm">
-          <h3 className="text-lg font-semibold">{item.title}</h3>
-          {item.featured && (
-            <span className="mt-2 inline-block rounded-full bg-blue-100 px-3 py-1 text-sm text-blue-800">
-              Featured
-            </span>
-          )}
-          <p className="mt-4 text-gray-600">{item.description}</p>
-        </div>
-      ))}
-    </div>
-  );
+	return (
+		<div className="grid grid-cols-3 gap-6 p-8">
+			{items.map((item) => (
+				<div key={item.id} className="rounded-lg bg-white p-6 shadow-sm">
+					<h3 className="text-lg font-semibold">{item.title}</h3>
+					{item.featured && (
+						<span className="mt-2 inline-block rounded-full bg-blue-100 px-3 py-1 text-sm text-blue-800">
+							Featured
+						</span>
+					)}
+					<p className="mt-4 text-gray-600">{item.description}</p>
+				</div>
+			))}
+		</div>
+	)
 }
 ```
 
@@ -74,7 +74,7 @@ Now describe the fix:
 
 > "Make all cards the same height and align the description text at the bottom, regardless of whether the Featured badge is present."
 
-Frontman sends the AI your description, the source code, the computed layout showing actual height differences, and the component tree context. The AI generates a targeted edit — adding `flex flex-col` to the card wrapper and `mt-auto` to the description paragraph. It knows this is the right fix because it can see the *actual* height difference.
+Frontman sends the AI your description, the source code, the computed layout showing actual height differences, and the component tree context. The AI generates a targeted edit — adding `flex flex-col` to the card wrapper and `mt-auto` to the description paragraph. It knows this is the right fix because it can see the _actual_ height difference.
 
 The edit is applied to your source file. Hot reload shows the result immediately. Cards align.
 
@@ -98,7 +98,7 @@ The edit is applied to your source file. Hot reload shows the result immediately
 9. The browser updated — you see the fix immediately
 ```
 
-The AI didn't guess what the layout looks like. It *knew* — because Frontman gave it the computed layout data from the browser.
+The AI didn't guess what the layout looks like. It _knew_ — because Frontman gave it the computed layout data from the browser.
 
 ### Beyond CSS
 
@@ -120,4 +120,4 @@ Runtime-aware AI coding is not a silver bullet:
 
 The runtime context gap is real, and closing it saves time on a specific class of problems. It doesn't replace engineering judgment. It just means the AI guesses less.
 
-[Get started with Frontman](https://frontman.sh) — works with Next.js, Astro, and Vite. Or [see how it compares to Cursor and Claude Code](/blog/frontman-vs-cursor-vs-claude-code). For a detailed feature-by-feature breakdown, see [Frontman vs Cursor](/vs/cursor).
+[Get started with Frontman](https://frontman.sh) — works with Next.js, Astro, and Vite. Or [see how it compares to Cursor and Claude Code](/blog/frontman-vs-cursor-vs-claude-code/). For a detailed feature-by-feature breakdown, see [Frontman vs Cursor](/vs/cursor/).

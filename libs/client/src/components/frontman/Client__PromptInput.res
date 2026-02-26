@@ -531,6 +531,30 @@ let make = (
     })
   }
 
+  // Debounced version for the hot input path — avoids triggering a React
+  // re-render on every single keystroke just to toggle placeholder/submit state.
+  let syncHasContentTimerRef = React.useRef(None)
+  let syncHasContentDebounced = () => {
+    switch syncHasContentTimerRef.current {
+    | Some(id) => clearTimeout(id)
+    | None => ()
+    }
+    syncHasContentTimerRef.current = Some(setTimeout(() => {
+      syncHasContentTimerRef.current = None
+      syncHasContent()
+    }, 100))
+  }
+
+  // Cleanup debounce timer on unmount
+  React.useEffect0(() => {
+    Some(() => {
+      switch syncHasContentTimerRef.current {
+      | Some(id) => clearTimeout(id)
+      | None => ()
+      }
+    })
+  })
+
   // Clear file size error after 3 seconds
   React.useEffect1(() => {
     switch fileSizeError {
@@ -734,7 +758,7 @@ let make = (
 
   // Handle input events (contenteditable fires 'input' on text changes)
   let handleInput = (_e: ReactEvent.Form.t) => {
-    syncHasContent()
+    syncHasContentDebounced()
     // Sync inputItems with DOM - remove items whose chips no longer exist
     editableRef.current
     ->Nullable.toOption
@@ -800,7 +824,7 @@ let make = (
 
   <div
     ref={ReactDOM.Ref.domRef(formRef)}
-    className={`bg-[#180C2D] relative ${isDragging ? "ring-2 ring-violet-500/50 ring-inset" : ""}`}
+    className={`bg-[#180C2D] relative shrink-0 ${isDragging ? "ring-2 ring-violet-500/50 ring-inset" : ""}`}
     onDragOver={handleDragOver}
     onDragLeave={handleDragLeave}
     onDrop={handleDrop}

@@ -8,12 +8,21 @@ module PathContext = FrontmanCore__PathContext
 
 let name = Tool.ToolNames.listFiles
 let visibleToAgent = true
-let description = `Lists files and directories in a given path.
+let description = `Lists files and directories in a single directory.
 
-Parameters:
+WHEN TO USE THIS TOOL:
+- Browsing one directory's immediate contents in detail (names, types)
+- Checking what files exist in a specific directory before reading or editing
+- Verifying file organization after making changes
+- Use list_tree instead when you need a multi-level project overview or monorepo layout
+- Use search_files instead when you need to find files by name pattern across the project
+
+PARAMETERS:
 - path (optional): Path to directory - either relative to source root or absolute (must be under source root). Defaults to "." (root directory).
 
-Returns array of entries with name, path, and type information.`
+OUTPUT:
+Returns array of entries with name, path, and type (file or directory) information.
+Respects .gitignore — ignored files are excluded from results.`
 
 @schema
 type input = {path?: string}

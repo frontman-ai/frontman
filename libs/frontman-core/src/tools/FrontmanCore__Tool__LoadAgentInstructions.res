@@ -36,16 +36,6 @@ type output = array<instructionFile>
 let agentsVariants = ["Agents.md", ".claude/Agents.md", "Agents.local.md"]
 let claudeVariants = ["CLAUDE.md", ".claude/CLAUDE.md", "CLAUDE.local.md"]
 
-// Check if a file exists
-let fileExists = async (path: string): bool => {
-  try {
-    await Fs.Promises.access(path)
-    true
-  } catch {
-  | _ => false
-  }
-}
-
 // Find a file case-insensitively in a directory (directory path is case-sensitive, only filename is case-insensitive)
 let findFileCaseInsensitive = async (dir: string, targetFileName: string): option<string> => {
   try {

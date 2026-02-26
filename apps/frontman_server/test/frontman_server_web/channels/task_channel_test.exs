@@ -817,7 +817,22 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       :sys.get_state(socket.channel_pid)
 
-      assert_push("acp:message", %{"method" => "project_rules_initialized"})
+      # Handle list_tree for project structure
+      assert_push("mcp:message", %{
+        "id" => project_structure_request_id,
+        "method" => "tools/call",
+        "params" => %{"name" => "list_tree"}
+      })
+
+      push(
+        socket,
+        "mcp:message",
+        JsonRpc.success_response(project_structure_request_id, %{"content" => []})
+      )
+
+      :sys.get_state(socket.channel_pid)
+
+      assert_push("acp:message", %{"method" => "mcp_initialization_complete"})
 
       # Verify MCP tools are now stored in socket assigns
       channel_socket = :sys.get_state(socket.channel_pid)
@@ -879,7 +894,22 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
     :sys.get_state(socket.channel_pid)
 
-    assert_push("acp:message", %{"method" => "project_rules_initialized"})
+    # Step 4: list_tree for project structure discovery
+    assert_push("mcp:message", %{
+      "id" => project_structure_request_id,
+      "method" => "tools/call",
+      "params" => %{"name" => "list_tree"}
+    })
+
+    push(
+      socket,
+      "mcp:message",
+      JsonRpc.success_response(project_structure_request_id, %{"content" => []})
+    )
+
+    :sys.get_state(socket.channel_pid)
+
+    assert_push("acp:message", %{"method" => "mcp_initialization_complete"})
   end
 
   describe "session/cancel" do
@@ -1207,7 +1237,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     end
   end
 
-  # Completes the MCP handshake (initialize + tools/list + load_agent_instructions).
+  # Completes the MCP handshake (initialize + tools/list + load_agent_instructions + list_tree).
   #
   # Uses :sys.get_state/1 as a synchronization barrier after each push to ensure
   # the channel process has fully processed the message before we assert the
@@ -1247,8 +1277,23 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
     :sys.get_state(socket.channel_pid)
 
+    # Step 4: list_tree for project structure discovery
+    assert_push("mcp:message", %{
+      "id" => project_structure_request_id,
+      "method" => "tools/call",
+      "params" => %{"name" => "list_tree"}
+    })
+
+    push(
+      socket,
+      "mcp:message",
+      JsonRpc.success_response(project_structure_request_id, %{"content" => []})
+    )
+
+    :sys.get_state(socket.channel_pid)
+
     assert_push("acp:message", %{
-      "method" => "project_rules_initialized"
+      "method" => "mcp_initialization_complete"
     })
   end
 end

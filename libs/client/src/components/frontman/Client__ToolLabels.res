@@ -45,7 +45,7 @@ let extractTargetFromInput = (input: option<JSON.t>): option<string> => {
     | None => None
     | Some(dict) =>
       // Check common field names in order of priority
-      let fields = ["target_file", "file_path", "path", "target_directory", "file", "query", "command", "pattern", "url", "target"]
+      let fields = ["target_file", "file_path", "path", "target_directory", "file", "query", "command", "pattern", "url", "target", "selector"]
 
       fields->Array.reduce(None, (acc, field) => {
         switch acc {

@@ -13,18 +13,20 @@ It falls apart when the source code isn't the whole story. And for any applicati
 
 This isn't just a frontend problem. The browser has computed styles and a rendered DOM that don't exist in your source files. But the server side has its own runtime context that source code alone can't capture: which routes are registered, what the compiled module graph looks like, what's in the server logs, what middleware is active and in what order.
 
-The question is whether connecting AI tools to this runtime state — both client and server — is a meaningful improvement or just a debugger hook with extra steps. Having worked on this problem, the honest answer is: it's a debugger hook with extra steps, *and* it's a meaningful improvement. Those aren't contradictory.
+The question is whether connecting AI tools to this runtime state — both client and server — is a meaningful improvement or just a debugger hook with extra steps. Having worked on this problem, the honest answer is: it's a debugger hook with extra steps, _and_ it's a meaningful improvement. Those aren't contradictory.
 
 ### The Gap Is Real (But Let's Be Precise)
 
 When an AI coding tool edits your project, it's working from source text. Here's what it doesn't have:
 
 **Client-side runtime (the browser):**
+
 - **Computed styles.** The final CSS applied to an element is the product of specificity, cascade order, media queries, CSS variables, container queries, and inheritance. The AI sees class names. The browser computes actual values.
 - **The rendered DOM.** Your JSX is not your DOM. Conditional rendering, portals, fragments, and framework transformations mean the actual tree looks different from what the source suggests.
 - **Layout geometry.** Is there 16px or 24px between the sidebar and content area? The AI can read `gap-4` in a Tailwind class but can't see that a parent's padding also contributes to the visual spacing.
 
 **Server-side runtime (the dev server):**
+
 - **Compiled module graph.** Frameworks like Next.js, Vite, and Astro transform your source before serving it. The AI sees source files; the dev server sees the compiled, bundled, tree-shaken output.
 - **Registered routes and middleware.** File-based routing means the route table is a runtime artifact. Middleware ordering, redirect chains, and rewrite rules exist in the server's state, not in any single source file.
 - **Server logs and errors.** A component that renders fine might be throwing warnings server-side. The AI editing your code doesn't see `stdout`.
@@ -38,7 +40,7 @@ This doesn't invalidate the tooling argument. Even well-structured codebases hav
 
 ### What "Runtime-Aware" Actually Means
 
-Strip away the marketing and the architecture is straightforward: you give an AI agent access to runtime information from both the browser *and* the dev server, then let it correlate that information back to source files.
+Strip away the marketing and the architecture is straightforward: you give an AI agent access to runtime information from both the browser _and_ the dev server, then let it correlate that information back to source files.
 
 Modern web frameworks already bridge client and server — Next.js, Astro, and Vite all have dev servers that know about your component tree, module graph, and build output. A tool that hooks into the framework middleware gets both sides for free.
 
@@ -65,7 +67,7 @@ The critical piece is the **source mapping** — connecting "this DOM element at
 
 ### The Tools Building This
 
-A few projects are working on this, each with different tradeoffs. [Frontman](https://frontman.sh) hooks into the framework as middleware for the deepest integration. [Stagewise](https://stagewise.io) uses a browser proxy approach with more polish. [Tidewave](https://tidewave.ai) goes deep on backend runtime for Phoenix/Rails/Django. Chrome DevTools MCP exposes browser state to any agent. For a detailed comparison, see our [roundup of browser-aware AI tools](/blog/browser-aware-ai-tools-2026).
+A few projects are working on this, each with different tradeoffs. [Frontman](https://frontman.sh) hooks into the framework as middleware for the deepest integration. [Stagewise](https://stagewise.io) uses a browser proxy approach with more polish. [Tidewave](https://tidewave.ai) goes deep on backend runtime for Phoenix/Rails/Django. Chrome DevTools MCP exposes browser state to any agent. For a detailed comparison, see our [roundup of browser-aware AI tools](/blog/browser-aware-ai-tools-2026/).
 
 ### The Maintenance Trap
 

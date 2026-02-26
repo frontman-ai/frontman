@@ -57,11 +57,11 @@ export const footerNavigationData: FooterData = {
 			subCategories: [
 				{
 					subCategory: 'Changelog',
-					subCategoryLink: '/changelog'
+					subCategoryLink: '/changelog/'
 				},
 				{
 					subCategory: 'FAQ',
-					subCategoryLink: '/faq'
+					subCategoryLink: '/faq/'
 				}
 			]
 		},
@@ -70,22 +70,22 @@ export const footerNavigationData: FooterData = {
 			subCategories: [
 				{
 					subCategory: 'Frontman vs Cursor',
-					subCategoryLink: '/vs/cursor'
+					subCategoryLink: '/vs/cursor/'
 				},
-			{
-				subCategory: 'Frontman vs Copilot',
-				subCategoryLink: '/vs/copilot'
-			},
-			{
-				subCategory: 'Frontman vs Stagewise',
-				subCategoryLink: '/vs/stagewise'
-			},
-			{
-				subCategory: 'Frontman vs v0',
-				subCategoryLink: '/vs/v0'
-			}
-		]
-	},
+				{
+					subCategory: 'Frontman vs Copilot',
+					subCategoryLink: '/vs/copilot/'
+				},
+				{
+					subCategory: 'Frontman vs Stagewise',
+					subCategoryLink: '/vs/stagewise/'
+				},
+				{
+					subCategory: 'Frontman vs v0',
+					subCategoryLink: '/vs/v0/'
+				}
+			]
+		},
 		{
 			category: 'Developers',
 			subCategories: [
@@ -121,7 +121,7 @@ export const footerNavigationData: FooterData = {
 				},
 				{
 					subCategory: 'Blog',
-					subCategoryLink: '/blog'
+					subCategoryLink: '/blog/'
 				}
 			]
 		}
@@ -129,8 +129,8 @@ export const footerNavigationData: FooterData = {
 	subFooter: {
 		copywriteText: `© ${new Date().getFullYear()} Frontman. All rights reserved.`,
 		links: [
-			{ label: 'Terms of Service', href: '/terms' },
-			{ label: 'Privacy Policy', href: '/privacy' }
+			{ label: 'Terms of Service', href: '/terms/' },
+			{ label: 'Privacy Policy', href: '/privacy/' }
 		]
 	}
 }

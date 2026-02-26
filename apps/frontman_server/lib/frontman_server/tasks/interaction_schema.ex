@@ -10,6 +10,7 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
   import Ecto.Changeset
   import Ecto.Query
 
+  alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Tasks.TaskSchema
 
   @primary_key {:id, :binary_id, autogenerate: true}
@@ -24,16 +25,6 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
 
     timestamps(type: :utc_datetime, updated_at: false)
   end
-
-  @known_types ~w(
-    user_message
-    agent_response
-    tool_call
-    tool_result
-    discovered_project_rule
-    agent_spawned
-    agent_completed
-  )
 
   @type t :: %__MODULE__{}
 
@@ -56,7 +47,7 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
     %__MODULE__{}
     |> cast(attrs, [:task_id, :type, :data, :sequence])
     |> validate_required([:task_id, :type, :data, :sequence])
-    |> validate_inclusion(:type, @known_types)
+    |> validate_inclusion(:type, Interaction.known_type_strings())
     |> foreign_key_constraint(:task_id)
   end
 
@@ -83,8 +74,6 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
   end
 
   # --- JSONB to Domain Struct Conversion ---
-
-  alias FrontmanServer.Tasks.Interaction
 
   @doc """
   Converts a persisted InteractionSchema to its domain struct.
@@ -142,6 +131,18 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
       path: data["path"],
       sequence: sequence || data["sequence"] || 0,
       content: data["content"],
+      timestamp: parse_datetime(data["timestamp"])
+    }
+  end
+
+  def to_struct(%__MODULE__{
+        type: "discovered_project_structure",
+        data: data,
+        sequence: sequence
+      }) do
+    %Interaction.DiscoveredProjectStructure{
+      summary: data["summary"],
+      sequence: sequence || data["sequence"] || 0,
       timestamp: parse_datetime(data["timestamp"])
     }
   end

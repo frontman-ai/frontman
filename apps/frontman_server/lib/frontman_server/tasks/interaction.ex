@@ -15,7 +15,38 @@ defmodule FrontmanServer.Tasks.Interaction do
           | __MODULE__.ToolCall.t()
           | __MODULE__.ToolResult.t()
           | __MODULE__.DiscoveredProjectRule.t()
+          | __MODULE__.DiscoveredProjectStructure.t()
 
+  @interaction_modules [
+    __MODULE__.UserMessage,
+    __MODULE__.AgentResponse,
+    __MODULE__.AgentSpawned,
+    __MODULE__.AgentCompleted,
+    __MODULE__.ToolCall,
+    __MODULE__.ToolResult,
+    __MODULE__.DiscoveredProjectRule,
+    __MODULE__.DiscoveredProjectStructure
+  ]
+
+  @doc """
+  Returns the list of all interaction type modules.
+  """
+  def interaction_modules, do: @interaction_modules
+
+  @doc """
+  Returns the list of known type strings (e.g. `["user_message", "agent_response", ...]`).
+
+  Derived from `interaction_modules/0` using the same convention as
+  `InteractionSchema.create_changeset/2` — the last segment of the module name,
+  underscored.
+  """
+  def known_type_strings do
+    Enum.map(@interaction_modules, fn mod ->
+      mod |> Module.split() |> List.last() |> Macro.underscore()
+    end)
+  end
+
+  alias FrontmanServer.Image
   alias ReqLLM.Message.ContentPart
 
   defmodule FigmaNode do
@@ -609,6 +640,45 @@ defmodule FrontmanServer.Tasks.Interaction do
     end
   end
 
+  defmodule DiscoveredProjectStructure do
+    @moduledoc """
+    Represents a discovered project structure summary (from list_tree during MCP init).
+
+    Stored once per task during initialization. Injected into the system prompt
+    so the agent always has structural awareness of the project.
+    """
+    use TypedStruct
+
+    typedstruct enforce: true do
+      field(:summary, String.t())
+      field(:sequence, integer())
+      field(:timestamp, DateTime.t())
+    end
+
+    def new(summary) do
+      alias FrontmanServer.Tasks.Interaction
+
+      %__MODULE__{
+        summary: summary,
+        sequence: Interaction.new_sequence(),
+        timestamp: Interaction.now()
+      }
+    end
+  end
+
+  defimpl Jason.Encoder, for: DiscoveredProjectStructure do
+    def encode(value, opts) do
+      Jason.Encode.map(
+        %{
+          type: "discovered_project_structure",
+          summary: value.summary,
+          timestamp: DateTime.to_iso8601(value.timestamp)
+        },
+        opts
+      )
+    end
+  end
+
   @doc """
   Generates a new interaction ID (UUID v4).
   """
@@ -665,8 +735,14 @@ defmodule FrontmanServer.Tasks.Interaction do
   defp conversation_message?(%UserMessage{}), do: true
   defp conversation_message?(%AgentResponse{}), do: true
   defp conversation_message?(%ToolResult{}), do: true
+  # Explicit false for every non-conversation type — no catch-all, so adding
+  # a new Interaction type without a clause here will crash immediately and
+  # surface the omission instead of silently falling through.
+  defp conversation_message?(%ToolCall{}), do: false
+  defp conversation_message?(%AgentSpawned{}), do: false
+  defp conversation_message?(%AgentCompleted{}), do: false
   defp conversation_message?(%DiscoveredProjectRule{}), do: false
-  defp conversation_message?(_), do: false
+  defp conversation_message?(%DiscoveredProjectStructure{}), do: false
 
   @doc """
   Extracts markdown file contents from read_file ToolResult interactions
@@ -1072,18 +1148,10 @@ defmodule FrontmanServer.Tasks.Interaction do
     end
   end
 
-  # Tools that return images: {image_field, extra_text_fields}
-  @image_tool_configs %{
-    "take_screenshot" => {:screenshot, []}
-  }
-
   defp extract_image_from_result(tool_name, result) when is_map(result) do
-    canonical_name = String.replace_prefix(tool_name, "mcp_", "")
-    config = Map.get(@image_tool_configs, canonical_name)
-
-    with {image_field, text_fields} <- config,
+    with {image_field, text_fields} <- Image.image_tool_config(tool_name),
          data_url when is_binary(data_url) <- get_field(result, image_field),
-         {:ok, binary, mime} <- decode_data_url(data_url) do
+         {:ok, binary, mime} <- Image.decode_data_url(data_url) do
       text_content = build_text_content(result, text_fields)
       {binary, mime, text_content}
     else
@@ -1172,15 +1240,6 @@ defmodule FrontmanServer.Tasks.Interaction do
   # Flat format with atom keys
   defp normalize_tool_call(%{id: id, name: name, arguments: args}) do
     ReqLLM.ToolCall.new(id, name, args)
-  end
-
-  defp decode_data_url(data_url) do
-    with [_, mime_type, base64] <- Regex.run(~r/^data:([^;]+);base64,(.+)$/s, data_url),
-         {:ok, binary} <- Base.decode64(base64) do
-      {:ok, binary, mime_type}
-    else
-      _ -> :error
-    end
   end
 
   @doc """

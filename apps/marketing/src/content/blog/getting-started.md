@@ -74,7 +74,7 @@ One description, one edit, one diff. No tab-switching to verify. No "which file 
 
 ### It Reads Your Conventions
 
-This is the part most people miss. Frontman is not a generic code generator. It reads your `agents.md` or `claude.md` file to understand your project's coding conventions — naming patterns, component structure, preferred utilities. When it edits code, it follows *your* patterns, not some default template.
+This is the part most people miss. Frontman is not a generic code generator. It reads your `agents.md` or `claude.md` file to understand your project's coding conventions — naming patterns, component structure, preferred utilities. When it edits code, it follows _your_ patterns, not some default template.
 
 If your team uses a specific Tailwind preset, Frontman uses those classes. If you have a design token system, Frontman references those tokens. The output looks like code your team wrote, because it was informed by the same rules your team follows.
 
@@ -95,4 +95,4 @@ That is the honest setup. One command to install, connect your AI provider, and 
 
 No configuration guide. No "recommended settings." No second blog post explaining why the defaults are wrong. No step seven. It is a dev tool. It runs in dev. You install it in one command and it works.
 
-[Visit frontman.sh](https://frontman.sh) for full documentation. Learn [why coding agents are blind to your UI](/blog/ai-coding-agents-blind-to-ui), or read about [how Frontman keeps your code safe](/blog/security).
+[Visit frontman.sh](https://frontman.sh) for full documentation. Learn [why coding agents are blind to your UI](/blog/ai-coding-agents-blind-to-ui/), or read about [how Frontman keeps your code safe](/blog/security/).

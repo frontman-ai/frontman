@@ -1,51 +1,31 @@
 ---
-// Components
-// - Layout
-// import Layout from '../layouts/Layout.astro'
-// // - UI
-// import Hero from '../components/blocks/hero/PageHeader.astro'
-// import Price from '../components/blocks/pricing/PricingColumns.astro'
-// import SocialProof from '../components/blocks/socialproof/Basic.astro'
-// import FAQ from '../components/blocks/FAQ/Basic.astro'
-// import Testimonial from '../components/blocks/testimonials/BasicDark.astro'
-// import Feature from '../components/blocks/features/FeatureList.astro'
-// import CTA from '../components/blocks/CTA/BasicDark.astro'
+import Layout from '../layouts/Layout.astro'
 
-// // Content
-// // - SEO
-// const SEO = {
-// 	title: 'Frontman | Pricing made simple',
-// 	description:
-// 		'Discover the perfect SaaS pricing plan for your business. From startups to enterprises, our scalable solutions offer unparalleled features and 24/7 support.'
-// }
-// // - Page Header
-// const header = {
-// 	title: 'Choose the plan that works for <strong>your</strong> needs',
-// 	text: 'All plans come with a 30-day money-back guarantee.'
-// }
-// // - Testimonial data
-// import testimonialBackground from '../assets/testimonial-bg-02.webp'
-// const testimonialData = {
-// 	blockquote:
-// 		"Frontman isn't just an app—it's like having a mischievous yet brilliant sidekick for your business. It streamlines tasks and also cracks jokes to keep spirits high",
-// 	figcaption: 'Max Widgetson',
-// 	cite: ' CEO, Widgetify Ltd'
-// }
+const SEO = {
+	title: 'Frontman | Pricing',
+	description:
+		'Frontman pricing plans. Currently free and open source during early access.'
+}
 ---
 
-<!-- Pricing page commented out - no pricing yet -->
-<!-- <Layout title={SEO.title} description={SEO.description}>
-	<Hero title={header.title} text={header.text} />
-	<Price />
-	<SocialProof />
-	<Feature />
-	<Testimonial
-		bg={testimonialBackground}
-		bgPosition="left"
-		blockquote={testimonialData.blockquote}
-		figcaption={testimonialData.figcaption}
-		cite={testimonialData.cite}
-	/>
-	<FAQ classes="bg-slate-50 dark:bg-neutral-900/40" />
-	<CTA />
-</Layout> -->
+<Layout title={SEO.title} description={SEO.description} noindex={true}>
+	<section class="py-24 sm:py-32">
+		<div class="mx-auto max-w-2xl text-center">
+			<h1 class="text-3xl font-bold tracking-tight text-neutral-900 dark:text-white sm:text-4xl">
+				Pricing coming soon
+			</h1>
+			<p class="mt-6 text-lg leading-8 text-neutral-600 dark:text-neutral-400">
+				Frontman is free and open source during early access. We're working on pricing plans
+				and will share them here when they're ready.
+			</p>
+			<div class="mt-10">
+				<a
+					href="/"
+					class="rounded-md bg-teal-600 px-6 py-3 text-sm font-semibold text-white shadow-sm hover:bg-teal-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-600"
+				>
+					Back to home
+				</a>
+			</div>
+		</div>
+	</section>
+</Layout>

@@ -9,7 +9,7 @@ tags: ['comparison', 'ai']
 
 You are in Cursor. You ask the agent to fix a visual bug — a card component that overflows its container on mobile. The agent reads the file, finds the component, changes a width class. You `Cmd+Tab` to the browser. Still overflowing. You switch back, give more context: "It's the inner wrapper, not the outer one. And the issue is on viewports below 640px." The agent tries again. You switch to the browser. Fixed on mobile, but now the desktop layout has a weird gap. Three rounds. Six tab switches. The agent read the file each time. It just never saw the page.
 
-This is not a knock on Cursor. Cursor is excellent at code problems. The issue is that you used a file-level agent for a *visual* problem, and file-level agents are blind to the rendered UI.
+This is not a knock on Cursor. Cursor is excellent at code problems. The issue is that you used a file-level agent for a _visual_ problem, and file-level agents are blind to the rendered UI.
 
 ![Table comparing file-level AI agents and browser-level AI agents across key capabilities: file access, terminal access, DOM access, computed styles, and visual verification.](/blog/post-06.png)
 
@@ -31,12 +31,13 @@ For backend code, this is fine. A database query does not have a visual output. 
 Frontman hooks into your framework's build pipeline and connects to your running browser. It operates on the rendered output, not the source files. This is not a convenience — it is a fundamentally different feedback loop.
 
 When you click an element in Frontman:
+
 - It reads the **live DOM**, not the source file
 - It resolves **computed styles**, not class name strings
 - It traces the element back through the **component tree** to the source file and line number
 - It verifies the change via **hot-reload** in the same action — no tab switch
 
-Frontman does not guess which file to edit. It knows, because it can see the element you selected and trace it to its origin. The visual context *is* the context. You do not need to describe it in a prompt.
+Frontman does not guess which file to edit. It knows, because it can see the element you selected and trace it to its origin. The visual context _is_ the context. You do not need to describe it in a prompt.
 
 ### The Same Change, Two Ways
 
@@ -71,16 +72,16 @@ Three rounds vs. one. The difference is not intelligence — it is whether the a
 
 ### The Honest Comparison
 
-| Task | Right tool | Why |
-|---|---|---|
-| Write a new API endpoint | Cursor, Claude Code | Pure code, no visual output |
-| Fix padding on the hero section | **Frontman** | Visual problem, needs DOM access |
-| Refactor a database query | Cursor, Claude Code | Structural code change |
-| Change button colors across the app | **Frontman** | Visual, needs computed style awareness |
-| Implement auth logic | Claude Code, Cursor | Complex multi-file code |
-| Let a designer tweak the landing page | **Frontman** | Non-developer, visual task |
-| Debug a state management bug | Cursor, Claude Code | Deep code reasoning |
-| Update copy and CTAs | **Frontman** | Content change, visual verification |
+| Task                                  | Right tool          | Why                                    |
+| ------------------------------------- | ------------------- | -------------------------------------- |
+| Write a new API endpoint              | Cursor, Claude Code | Pure code, no visual output            |
+| Fix padding on the hero section       | **Frontman**        | Visual problem, needs DOM access       |
+| Refactor a database query             | Cursor, Claude Code | Structural code change                 |
+| Change button colors across the app   | **Frontman**        | Visual, needs computed style awareness |
+| Implement auth logic                  | Claude Code, Cursor | Complex multi-file code                |
+| Let a designer tweak the landing page | **Frontman**        | Non-developer, visual task             |
+| Debug a state management bug          | Cursor, Claude Code | Deep code reasoning                    |
+| Update copy and CTAs                  | **Frontman**        | Content change, visual verification    |
 
 The pattern is clear. If the definition of "correct" is "it looks right in the browser," you need an agent that can see the browser. If the definition of "correct" is "the tests pass" or "the types check," you need an agent that reasons about code.
 
@@ -88,9 +89,9 @@ The pattern is clear. If the definition of "correct" is "it looks right in the b
 
 Frontman does not write your API routes. It does not refactor your state management. It does not debug race conditions in your data fetching layer. It should not. Trying to build one agent that handles both code reasoning and visual perception is how you end up with an agent that is mediocre at both.
 
-Frontman handles the visual layer. Spacing, typography, colors, layout, responsive behavior, copy. The changes where the acceptance criterion is *how it looks*, and the only way to verify is a browser. That is a large category of work — easily 30-40% of frontend time — and it requires a fundamentally different kind of context than code reasoning does. It requires eyes.
+Frontman handles the visual layer. Spacing, typography, colors, layout, responsive behavior, copy. The changes where the acceptance criterion is _how it looks_, and the only way to verify is a browser. That is a large category of work — easily 30-40% of frontend time — and it requires a fundamentally different kind of context than code reasoning does. It requires eyes.
 
-Trying to use Cursor for visual work is like debugging CSS by reading the stylesheet without opening the page. You *can* do it. Experienced developers do it all the time. But it is slower, less reliable, and completely inaccessible to anyone who does not already know the codebase.
+Trying to use Cursor for visual work is like debugging CSS by reading the stylesheet without opening the page. You _can_ do it. Experienced developers do it all the time. But it is slower, less reliable, and completely inaccessible to anyone who does not already know the codebase.
 
 ### Common Objections
 
@@ -112,6 +113,6 @@ Stop using file-level agents for visual problems. Stop asking your coding agent 
 
 Use Cursor or Claude Code when the source code is the artifact. Use Frontman when the rendered page is the artifact. Let your developers use their preferred agent for complex work. Let your designers and PMs use Frontman for the visual layer. Everyone reviews PRs through the same process.
 
-The question is not "which AI agent is best." The question is "which agent can *see* what I need it to see."
+The question is not "which AI agent is best." The question is "which agent can _see_ what I need it to see."
 
-[Try Frontman](https://frontman.sh) — open source, free during beta. [Install in one command](/blog/getting-started), or read about [how designers and PMs can use it alongside your team](/blog/team-collaboration). For a detailed feature-by-feature breakdown, see [Frontman vs Cursor](/vs/cursor).
+[Try Frontman](https://frontman.sh) — open source, free during beta. [Install in one command](/blog/getting-started/), or read about [how designers and PMs can use it alongside your team](/blog/team-collaboration/). For a detailed feature-by-feature breakdown, see [Frontman vs Cursor](/vs/cursor/).

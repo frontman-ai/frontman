@@ -3,15 +3,30 @@
 
 // --- Result Types ---
 
+// Score display modes used by Lighthouse audits.
+// See: https://github.com/GoogleChrome/lighthouse/blob/main/types/lhr/audit-result.d.ts
+type scoreDisplayMode =
+  | @as("numeric") Numeric
+  | @as("binary") Binary
+  | @as("informative") Informative
+  | @as("notApplicable") NotApplicable
+  | @as("manual") Manual
+  | @as("error") Error
+  | @as("metricSavings") MetricSavings
+
 // Audit result from Lighthouse
 type auditResult = {
   id: string,
   title: string,
   description: string,
   score: Nullable.t<float>,
-  scoreDisplayMode: string,
+  scoreDisplayMode: scoreDisplayMode,
   displayValue: option<string>,
   numericValue: option<float>,
+  // details is a polymorphic union (table, opportunity, node, etc.)
+  // kept as JSON.t because the full type is impractical to model in ReScript.
+  // Consumers should extract actionable fields (selectors, snippets, source locations) manually.
+  details: option<JSON.t>,
 }
 
 // Category with score and audit references

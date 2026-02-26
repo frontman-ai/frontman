@@ -108,7 +108,7 @@ type resolution =
   | Resolved({element: option<WebAPI.DOMAPI.element>, matchCount: int})
 
 // Resolve the target element using the first applicable strategy:
-// 1. CSS selector  2. role + name  3. text content
+// 1. CSS selector / XPath  2. role + name  3. text content
 let resolveTarget = (
   ~doc: WebAPI.DOMAPI.document,
   ~input: input,
@@ -116,9 +116,12 @@ let resolveTarget = (
 ): resolution =>
   switch input.selector {
   | Some(selector) =>
-    let elements =
-      doc->WebAPI.Document.querySelectorAll(selector)->Client__Tool__ElementResolver.nodeListToElements
-    Resolved({element: elements->Array.get(index), matchCount: elements->Array.length})
+    let (element, matchCount) = Client__Tool__ElementResolver.resolveBySelector(
+      ~doc,
+      ~selector,
+      ~index,
+    )
+    Resolved({element, matchCount})
   | None =>
     switch (input.role, input.name) {
     | (Some(role), Some(name)) =>
@@ -158,42 +161,36 @@ let errorResult = (error: string, ~matchCount: option<int>=?): result<output, _>
   })
 
 let execute = async (input: input): toolResult<output> => {
-  let state = FrontmanReactStatestore.StateStore.getState(Client__State__Store.store)
-  let previewFrame = Client__State__StateReducer.Selectors.previewFrame(state)
   let action = input.action->Option.getOr(#click)
   let index = Math.Int.max(0, input.index->Option.getOr(0))
 
-  switch previewFrame.contentDocument {
-  | None => errorResult("Preview frame document not available")
-  | Some(doc) =>
-    try {
-      switch resolveTarget(~doc, ~input, ~index) {
-      | Error(msg) => errorResult(msg)
-      | Resolved({element: None, matchCount: 0}) =>
-        errorResult("No element found matching the given criteria", ~matchCount=0)
-      | Resolved({element: None, matchCount}) =>
-        errorResult(
-          `Index ${Int.toString(index)} out of range. Found ${Int.toString(matchCount)} element(s) matching the given criteria`,
-          ~matchCount,
-        )
-      | Resolved({element: Some(el), matchCount}) =>
-        performAction(el, action)
-        Ok({
-          success: true,
-          interactedElement: Some(Client__Tool__ElementResolver.describeElement(el)),
-          action: Some(actionToString(action)),
-          matchCount: Some(matchCount),
-          error: None,
-        })
+  Client__Tool__ElementResolver.withPreviewDoc(
+    ~onUnavailable=() => errorResult("Preview frame document not available"),
+    ({doc, win: _}) => {
+      try {
+        switch resolveTarget(~doc, ~input, ~index) {
+        | Error(msg) => errorResult(msg)
+        | Resolved({element: None, matchCount: 0}) =>
+          errorResult("No element found matching the given criteria", ~matchCount=0)
+        | Resolved({element: None, matchCount}) =>
+          errorResult(
+            `Index ${Int.toString(index)} out of range. Found ${Int.toString(matchCount)} element(s) matching the given criteria`,
+            ~matchCount,
+          )
+        | Resolved({element: Some(el), matchCount}) =>
+          performAction(el, action)
+          Ok({
+            success: true,
+            interactedElement: Some(Client__Tool__ElementResolver.describeElement(el)),
+            action: Some(actionToString(action)),
+            matchCount: Some(matchCount),
+            error: None,
+          })
+        }
+      } catch {
+      | exn =>
+        errorResult(Client__Tool__ElementResolver.exnMessage(exn))
       }
-    } catch {
-    | exn =>
-      errorResult(
-        exn
-        ->JsExn.fromException
-        ->Option.flatMap(JsExn.message)
-        ->Option.getOr("Unknown error during element interaction"),
-      )
-    }
-  }
+    },
+  )
 }

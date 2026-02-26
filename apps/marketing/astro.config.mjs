@@ -12,6 +12,7 @@ const monorepoRoot = path.resolve(appRoot, "../..");
 // https://astro.build/config
 export default defineConfig({
   site: "https://frontman.sh",
+  trailingSlash: "always",
   build: {
     // Inline all stylesheets directly into the HTML to eliminate
     // render-blocking <link> requests (~25 KiB total). Trades a small
@@ -31,9 +32,9 @@ export default defineConfig({
     sitemap({
       filter: (page) =>
         // Exclude empty placeholder pages and internal-only pages
-        !page.includes('/features') &&
-        !page.includes('/pricing') &&
-        !page.includes('/design-system'),
+        !page.includes("/features") &&
+        !page.includes("/pricing") &&
+        !page.includes("/design-system"),
       serialize: (item) => {
         // Set lastmod so Google knows when pages were last updated.
         // Blog posts get their pubDate via the content collection, but the
