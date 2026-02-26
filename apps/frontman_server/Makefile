@@ -4,7 +4,7 @@
 # Run 'make help' to see available commands
 
 .DEFAULT_GOAL := help
-.PHONY: help install test test-record test-coverage lint dev build clean check setup db-setup db-reset db-migrate db-seed assets-setup assets-build assets-deploy precommit dialyzer credo
+.PHONY: help install test test-record test-coverage lint dev build clean check setup db-setup db-reset db-migrate db-seed assets-setup assets-build assets-deploy precommit dialyzer credo debug-task
 
 SHELL := /bin/bash
 
@@ -95,3 +95,6 @@ credo: ## Run Credo static analysis
 	mix credo --strict
 
 check: lint dialyzer test ## Run all checks (lint + test)
+
+debug-task: ## Debug task interactions (use ARGS="list" or ARGS="show ...")
+	op run --env-file=envs/.dev.secrets.env -- mix debug_task $(ARGS)

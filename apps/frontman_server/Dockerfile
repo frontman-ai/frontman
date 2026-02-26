@@ -25,7 +25,6 @@ COPY package.json yarn.lock .yarnrc.yml ./
 COPY apps/frontman_server/assets/package.json apps/frontman_server/assets/package.json
 COPY libs/bindings/package.json libs/bindings/
 COPY libs/client/package.json libs/client/
-COPY libs/context-loader/package.json libs/context-loader/
 COPY libs/experimental-rescript-webapi/package.json libs/experimental-rescript-webapi/
 COPY libs/frontman-client/package.json libs/frontman-client/
 COPY libs/frontman-protocol/package.json libs/frontman-protocol/

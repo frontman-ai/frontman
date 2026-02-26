@@ -45,7 +45,6 @@ frontman/
 ├── libs/
 │   ├── bindings/              # ReScript bindings for Node/browser APIs
 │   ├── client/                # React UI component library
-│   ├── context-loader/        # Config file discovery and loading
 │   ├── frontman-astro/        # Astro framework integration
 │   ├── frontman-client/       # Browser-side MCP client
 │   ├── frontman-core/         # Core server-side tools

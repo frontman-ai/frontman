@@ -3,6 +3,7 @@ module Bindings = FrontmanBindings
 module Fs = Bindings.Fs
 module Path = Bindings.Path
 module Process = Bindings.Process
+module FsUtils = FrontmanFrontmanCore.FrontmanCore__FsUtils
 
 type nextVersion = {
   major: int,
@@ -29,27 +30,6 @@ type projectInfo = {
   instrumentation: existingFile,
   hasSrcDir: bool,
   packageManager: packageManager,
-}
-
-// Check if a file exists
-let fileExists = async (path: string): bool => {
-  try {
-    await Fs.Promises.access(path)
-    true
-  } catch {
-  | _ => false
-  }
-}
-
-// Check if a directory exists
-let dirExists = async (path: string): bool => {
-  try {
-    await Fs.Promises.access(path)
-    let stats = await Fs.Promises.stat(path)
-    Fs.isDirectory(stats)
-  } catch {
-  | _ => false
-  }
 }
 
 // Read file content safely
@@ -104,15 +84,15 @@ let detectPackageManager = async (projectDir: string): packageManager => {
     let yarnLock = Path.join([dir, "yarn.lock"])
     let npmLock = Path.join([dir, "package-lock.json"])
 
-    if (await fileExists(bunLockb)) || (await fileExists(bunLock)) {
+    if (await FsUtils.pathExists(bunLockb)) || (await FsUtils.pathExists(bunLock)) {
       Some(Bun)
-    } else if await fileExists(denoLock) {
+    } else if await FsUtils.pathExists(denoLock) {
       Some(Deno)
-    } else if await fileExists(pnpmLock) {
+    } else if await FsUtils.pathExists(pnpmLock) {
       Some(Pnpm)
-    } else if await fileExists(yarnLock) {
+    } else if await FsUtils.pathExists(yarnLock) {
       Some(Yarn)
-    } else if await fileExists(npmLock) {
+    } else if await FsUtils.pathExists(npmLock) {
       Some(Npm)
     } else {
       None
@@ -182,12 +162,12 @@ let analyzeFile = async (filePath: string): existingFile => {
 
 // Detect if src/ directory exists
 let detectSrcDir = async (projectDir: string): bool => {
-  await dirExists(Path.join([projectDir, "src"]))
+  await FsUtils.dirExists(Path.join([projectDir, "src"]))
 }
 
 // Check if package.json exists (validates this is a project root)
 let hasPackageJson = async (projectDir: string): bool => {
-  await fileExists(Path.join([projectDir, "package.json"]))
+  await FsUtils.pathExists(Path.join([projectDir, "package.json"]))
 }
 
 // Main detection function

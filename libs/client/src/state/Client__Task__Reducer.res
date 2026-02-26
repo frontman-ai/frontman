@@ -822,11 +822,16 @@ let handleEffect = (effect: effect, ~dispatch: action => unit, ~delegate: delega
           Promise.resolve(None)
         })
 
-      // Fetch screenshot
-      let screenshotPromise =
+      // Fetch screenshot (with conservative dimension limits to stay within all provider caps).
+      // Uses conservative limits (7680px) — safe for every provider. The server-side gate
+      // in agents.ex strips anything that still exceeds the limit.
+      let screenshotPromise = {
+        let limits = Client__ImageLimits.conservative
+        let scale = Client__ImageLimits.computeScale(element, limits.maxDimension)
+
         Bindings__Snapdom.snapdom(element)
         ->Promise.then(captureResult => {
-          captureResult.toJpg({fast: true, quality: 0.7})->Promise.then(img => {
+          captureResult.toJpg({scale, quality: limits.quality})->Promise.then(img => {
             Promise.resolve(Some(img))
           })
         })
@@ -834,6 +839,7 @@ let handleEffect = (effect: effect, ~dispatch: action => unit, ~delegate: delega
           Console.error2("Failed to capture screenshot:", error)
           Promise.resolve(None)
         })
+      }
 
       // Fetch source location (cascading: React fiber first, then Astro annotations)
       // Race against a timeout to prevent hanging when source map resolution stalls (e.g., CORS on RSC URLs)

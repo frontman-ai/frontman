@@ -110,3 +110,7 @@ end
 defimpl ACPHistory, for: Interaction.DiscoveredProjectRule do
   def to_history_items(%Interaction.DiscoveredProjectRule{}, _session_id), do: []
 end
+
+defimpl ACPHistory, for: Interaction.DiscoveredProjectStructure do
+  def to_history_items(%Interaction.DiscoveredProjectStructure{}, _session_id), do: []
+end

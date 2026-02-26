@@ -137,40 +137,71 @@ let make = (
   )
 
   let handleSubmit = (~text: string, ~inputItems: array<Client__PromptInput.inputItem>) => {
-    // text already has pasted-text chips expanded inline at their DOM position
-    // (handled by getExpandedTextFromEditable in PromptInput's doSubmit)
+    let sendWithContent = (content) => {
+      switch Array.length(content) > 0 {
+      | false => ()
+      | true =>
+        let sendMessage = (sessionId: string) => {
+          Client__State.Actions.addUserMessage(~sessionId, ~content)
+        }
+        switch session {
+        | Some(sess) => sendMessage(sess.sessionId)
+        | None =>
+          createSession(~onComplete=result => {
+            switch result {
+            | Ok(sessionId) => sendMessage(sessionId)
+            | Error(err) => Console.error2("[Chatbox] Session creation failed:", err)
+            }
+          })
+        }
+      }
+    }
 
-    // Build file attachment content parts (images + PDFs)
-    let fileParts = inputItems->Array.filterMap(item =>
+    let textParts = switch text != "" {
+    | true => [Client__State.UserContentPart.Text({text: text})]
+    | false => []
+    }
+
+    let fileData = inputItems->Array.filterMap(item =>
       switch item {
-      | Client__PromptInput.FileAttachment({id, name, dataUrl, mediaType}) =>
-        Some(Client__State.UserContentPart.Image({id: Some(id), image: dataUrl, mediaType: Some(mediaType), name: Some(name)}))
+      | Client__PromptInput.FileAttachment({id, name, mediaType, dataUrl}) =>
+        Some((id, name, mediaType, dataUrl))
       | Client__PromptInput.PastedText(_) => None
       }
     )
 
-    // Build content array: text first, then file parts
-    let textParts = if text != "" {
-      [Client__State.UserContentPart.Text({text: text})]
-    } else {
-      []
-    }
-    let content = Array.concat(textParts, fileParts)
-
-    if Array.length(content) > 0 {
-      let sendMessage = (sessionId: string) => {
-        Client__State.Actions.addUserMessage(~sessionId, ~content)
-      }
-      switch session {
-      | Some(sess) => sendMessage(sess.sessionId)
-      | None =>
-        createSession(~onComplete=result => {
-          switch result {
-          | Ok(sessionId) => sendMessage(sessionId)
-          | Error(err) => Console.error2("[Chatbox] Session creation failed:", err)
-          }
+    switch Array.length(fileData) > 0 {
+    | false => sendWithContent(textParts)
+    | true =>
+      let _ =
+        fileData
+        ->Array.map(((id, name, mediaType, dataUrl)) => {
+          Client__ImageLimits.constrainDataUrl(dataUrl, Client__ImageLimits.conservative)
+          ->Promise.then(constrained => {
+            let actualMediaType = switch constrained->String.startsWith("data:image/jpeg") {
+            | true => "image/jpeg"
+            | false => mediaType
+            }
+            Promise.resolve(
+              Client__State.UserContentPart.Image({
+                id: Some(id),
+                image: constrained,
+                mediaType: Some(actualMediaType),
+                name: Some(name),
+              }),
+            )
+          })
         })
-      }
+        ->Promise.all
+        ->Promise.then(fileParts => {
+          sendWithContent(Array.concat(textParts, fileParts))
+          Promise.resolve()
+        })
+        ->Promise.catch(err => {
+          Console.error2("[Chatbox] Image resize failed:", err)
+          sendWithContent(textParts)
+          Promise.resolve()
+        })
     }
   }
 
@@ -195,24 +226,25 @@ let make = (
     switch item {
     | UserMsg(Message.User({id, content, _}), _) =>
       // Use stable message ID for key
+      // frontman-content-auto: browser skips layout/paint for off-screen messages
       let messageId = `user-${id}`
-      <React.Fragment key={messageId}>
+      <div key={messageId} className="frontman-content-auto">
         <UserMessage content messageId isNew={isLastItem} />
-      </React.Fragment>
+      </div>
 
     | AssistantMsg(Message.Assistant(Streaming({id, textBuffer, _})), _) =>
       // Use stable message ID for key
       let messageId = `assistant-${id}`
-      <React.Fragment key={messageId}>
+      <div key={messageId} className="frontman-content-auto">
         <AssistantMessage
           variant=AssistantMessage.Streaming content={textBuffer} messageId isNew={isLastItem}
         />
-      </React.Fragment>
+      </div>
 
     | AssistantMsg(Message.Assistant(Completed({id, content, _})), _) =>
       // Use stable message ID for key
       let messageId = `assistant-${id}`
-      <React.Fragment key={messageId}>
+      <div key={messageId} className="frontman-content-auto">
         {content
         ->Array.mapWithIndex((part, i) => {
           let partKey = `${messageId}-${Int.toString(i)}`
@@ -243,12 +275,12 @@ let make = (
           }
         })
         ->React.array}
-      </React.Fragment>
+      </div>
 
     | SingleToolCall(tc, _) =>
       // Use stable tool call ID for key
       let messageId = `tool-${tc.id}`
-      <React.Fragment key={messageId}>
+      <div key={messageId} className="frontman-content-auto">
         <ToolCallBlock
           toolName={tc.toolName}
           state={tc.state}
@@ -259,15 +291,15 @@ let make = (
           defaultExpanded=false
           messageId
         />
-      </React.Fragment>
+      </div>
 
     | ToolGroup(group, _) =>
       // group.id is now stable (based on first tool call's ID)
       // Pass both isLastToolGroup and isLastItem - group is "open" only if both are true
       // This ensures groups close when items (like assistant messages) appear after them
-      <React.Fragment key={group.id}>
+      <div key={group.id} className="frontman-content-auto">
         <ToolGroupBlock group messageId={group.id} isLastToolGroup isLastItem isAgentRunning />
-      </React.Fragment>
+      </div>
 
     | TodoToolCall(tc, _) =>
       // Use stable tool call ID for key
@@ -279,14 +311,14 @@ let make = (
       | OutputAvailable | OutputError => false
       }
 
-      <React.Fragment key={messageId}>
+      <div key={messageId} className="frontman-content-auto">
         <TodoListBlock
           todos
           isLoading
           messageId
 
         />
-      </React.Fragment>
+      </div>
 
     // Handle any unexpected message types
     | UserMsg(_, _) | AssistantMsg(_, _) => React.null
@@ -332,7 +364,7 @@ let make = (
     <Client__SelectedElementDisplay />
     {switch (usageInfo, hasAnyKey) {
     | (Some({limit: Some(limit), remaining: Some(remaining), hasServerKey: Some(true)}), false) =>
-      <div className="px-4 pb-1 text-xs text-zinc-400">
+      <div className="px-4 pb-1 text-xs text-zinc-400 shrink-0">
         {React.string(
           `Free requests remaining: ${remaining->Int.toString} / ${limit->Int.toString}. Add your API key in Settings to remove limits.`,
         )}

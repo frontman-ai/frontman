@@ -2655,18 +2655,6 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@frontman/context-loader@workspace:libs/context-loader":
-  version: 0.0.0-use.local
-  resolution: "@frontman/context-loader@workspace:libs/context-loader"
-  dependencies:
-    "@frontman/bindings": "workspace:*"
-    rescript: "catalog:"
-    rescript-vitest: "catalog:"
-    vite: "catalog:"
-    vitest: "catalog:"
-  languageName: unknown
-  linkType: soft
-
 "@frontman/frontman-client@workspace:*, @frontman/frontman-client@workspace:libs/frontman-client":
   version: 0.0.0-use.local
   resolution: "@frontman/frontman-client@workspace:libs/frontman-client"

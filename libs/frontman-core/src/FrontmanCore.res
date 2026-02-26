@@ -1,6 +1,7 @@
 // Frontman Core - shared functionality for framework adapters
 
 // Re-export core modules
+module FsUtils = FrontmanCore__FsUtils
 module ToolRegistry = FrontmanCore__ToolRegistry
 module SSE = FrontmanCore__SSE
 module Server = FrontmanCore__Server

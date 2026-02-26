@@ -100,12 +100,7 @@ let execute = async (input: input): toolResult<output> => {
       }
     } catch {
     | exn =>
-      let errorMsg =
-        exn
-        ->JsExn.fromException
-        ->Option.flatMap(JsExn.message)
-        ->Option.getOr("Unknown error during navigation")
-      Ok({success: false, navigatedTo: None, action: "unknown", error: Some(errorMsg)})
+      Ok({success: false, navigatedTo: None, action: "unknown", error: Some(Client__Tool__ElementResolver.exnMessage(exn))})
     }
   }
 }

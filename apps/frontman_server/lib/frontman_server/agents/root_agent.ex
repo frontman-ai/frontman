@@ -30,6 +30,8 @@ defmodule FrontmanServer.Agents.RootAgent do
     field(:model, String.t() | nil, default: nil)
     # Discovered project rules (AGENTS.md, etc.) to append to system prompt
     field(:project_rules, list(), default: [])
+    # Discovered project structure summary (from list_tree during MCP init)
+    field(:project_structure, String.t() | nil, default: nil)
   end
 
   @doc """
@@ -45,6 +47,7 @@ defmodule FrontmanServer.Agents.RootAgent do
     and `:identity_override` for OAuth transformations (handled by LLMClient).
   - `:model` - LLM model spec (defaults to LLMClient default)
   - `:project_rules` - List of discovered project rules (AGENTS.md, etc.)
+  - `:project_structure` - Discovered project structure summary (from list_tree)
   """
   @spec new(keyword()) :: t()
   def new(opts \\ []) do
@@ -56,7 +59,8 @@ defmodule FrontmanServer.Agents.RootAgent do
       framework: Keyword.get(opts, :framework),
       llm_opts: Keyword.get(opts, :llm_opts, []),
       model: Keyword.get(opts, :model),
-      project_rules: Keyword.get(opts, :project_rules, [])
+      project_rules: Keyword.get(opts, :project_rules, []),
+      project_structure: Keyword.get(opts, :project_structure)
     }
   end
 end
@@ -72,7 +76,8 @@ defimpl SwarmAi.Agent, for: FrontmanServer.Agents.RootAgent do
       has_current_page: agent.has_current_page,
       has_typescript_react: agent.has_typescript_react,
       framework: agent.framework,
-      project_rules: agent.project_rules
+      project_rules: agent.project_rules,
+      project_structure: agent.project_structure
     )
   end
 

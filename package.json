@@ -17,7 +17,6 @@
 		"apps/marketing",
 		"libs/bindings",
 		"libs/client",
-		"libs/context-loader",
 		"libs/experimental-rescript-webapi",
 		"libs/frontman-client",
 		"libs/frontman-protocol",

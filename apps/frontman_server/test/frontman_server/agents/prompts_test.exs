@@ -35,47 +35,6 @@ defmodule FrontmanServer.Agents.PromptsTest do
     end
   end
 
-  describe "build_system_message/2 produces valid message structure" do
-    test "returns list of two system messages (identity and content)" do
-      [identity_msg, content_msg] = Prompts.build_system_message(nil, [])
-
-      assert identity_msg.role == :system
-      assert content_msg.role == :system
-      assert is_list(identity_msg.content)
-      assert is_list(content_msg.content)
-    end
-
-    test "first message contains identity line" do
-      [identity_msg, _content_msg] = Prompts.build_system_message(nil, [])
-
-      identity_text = Enum.map_join(identity_msg.content, & &1.text)
-      assert identity_text =~ "coding assistant"
-      assert identity_text =~ "build and modify"
-    end
-
-    test "always uses default identity (OAuth transformations happen at LLM boundary)" do
-      [identity_msg, _content_msg] = Prompts.build_system_message(nil, [])
-
-      identity_text = Enum.map_join(identity_msg.content, & &1.text)
-      assert identity_text =~ "coding assistant"
-      assert identity_text =~ "reading, searching, and editing"
-    end
-
-    test "selected_component flag affects content" do
-      [_without_id, without_content] = Prompts.build_system_message(nil, [])
-
-      [_with_id, with_sc_content] =
-        Prompts.build_system_message(nil, has_selected_component: true)
-
-      # With selected component should have more content
-      without_text = Enum.map_join(without_content.content, & &1.text)
-      with_sc_text = Enum.map_join(with_sc_content.content, & &1.text)
-
-      assert String.length(with_sc_text) > String.length(without_text)
-      assert with_sc_text =~ "Selected Component"
-    end
-  end
-
   describe "build/1" do
     test "returns single string with default identity" do
       result = Prompts.build([])
@@ -125,6 +84,46 @@ defmodule FrontmanServer.Agents.PromptsTest do
       prompt = Prompts.build(has_typescript_react: false)
 
       refute prompt =~ "## TypeScript / React"
+    end
+  end
+
+  describe "build/1 project_structure option" do
+    test "project structure is appended to prompt" do
+      summary = "Project type: monorepo (yarn)\n\nDirectory layout:\nsrc/\n  app/"
+
+      result = Prompts.build(project_structure: summary)
+
+      assert result =~ "## Project Structure"
+      assert result =~ "monorepo (yarn)"
+      assert result =~ "Directory layout:"
+    end
+
+    test "nil project structure is omitted" do
+      result = Prompts.build(project_structure: nil)
+
+      refute result =~ "## Project Structure"
+    end
+
+    test "empty string project structure is omitted" do
+      result = Prompts.build(project_structure: "")
+
+      refute result =~ "## Project Structure"
+    end
+
+    test "project structure appears before project rules" do
+      rules = [
+        %{path: "AGENTS.md", content: "Rule content", timestamp: ~U[2024-01-01 00:00:00Z]}
+      ]
+
+      result =
+        Prompts.build(
+          project_structure: "Project type: single project",
+          project_rules: rules
+        )
+
+      structure_pos = :binary.match(result, "## Project Structure") |> elem(0)
+      rules_pos = :binary.match(result, "Instructions from:") |> elem(0)
+      assert structure_pos < rules_pos
     end
   end
 

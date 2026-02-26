@@ -112,6 +112,26 @@ defmodule FrontmanServer.Tasks.TodosTest do
       assert Map.get(todos, todo.id).status == :completed
     end
 
+    test "ignores error tool results during projection", %{task_id: task_id, scope: scope} do
+      {:ok, todo} = Todos.create_todo("Fix bug", "Fixing bug")
+      Tasks.add_tool_result(scope, task_id, %{id: "c1", name: "todo_add"}, todo, false)
+
+      # Simulate a failed todo_update (e.g. "Todo not found" error string stored as result)
+      Tasks.add_tool_result(
+        scope,
+        task_id,
+        %{id: "c2", name: "todo_update"},
+        "Todo not found",
+        true
+      )
+
+      {:ok, task} = Tasks.get_task(scope, task_id)
+      todos = Todos.list_todos(task.interactions)
+      # Should have 1 todo, the error result should be skipped
+      assert map_size(todos) == 1
+      assert Map.get(todos, todo.id).status == :pending
+    end
+
     test "applies removal correctly", %{task_id: task_id, scope: scope} do
       {:ok, todo1} = Todos.create_todo("Fix bug", "Fixing bug")
       {:ok, todo2} = Todos.create_todo("Write tests", "Writing tests")

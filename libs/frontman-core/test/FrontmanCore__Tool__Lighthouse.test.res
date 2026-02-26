@@ -42,8 +42,9 @@ module Mock = {
     ~id: string,
     ~title: string,
     ~score: float,
-    ~scoreDisplayMode: string="numeric",
+    ~scoreDisplayMode: LighthouseBindings.scoreDisplayMode=Numeric,
     ~displayValue: option<string>=None,
+    ~details: option<JSON.t>=None,
   ): LighthouseBindings.auditResult => {
     id,
     title,
@@ -52,25 +53,14 @@ module Mock = {
     scoreDisplayMode,
     displayValue,
     numericValue: None,
+    details,
   }
 }
 
 // --- Tests ---
 
-describe("Lighthouse Tool - input validation", _t => {
-  testAsync("should reject invalid preset", async t => {
-    let result = await Lighthouse.execute(mockCtx, {url: "http://example.com", preset: "invalid"})
-
-    switch result {
-    | Ok(_) => failwith("Expected error for invalid preset")
-    | Error(msg) => {
-        t->expect(msg->String.includes("Invalid preset"))->Expect.toBe(true)
-        t->expect(msg->String.includes("desktop"))->Expect.toBe(true)
-        t->expect(msg->String.includes("mobile"))->Expect.toBe(true)
-      }
-    }
-  })
-})
+// Preset validation is now enforced at the type level (variant type),
+// so invalid presets are caught at compile time rather than runtime.
 
 describe("Lighthouse Tool - processLhr", _t => {
   test("should extract category scores correctly", t => {
@@ -121,9 +111,9 @@ describe("Lighthouse Tool - getTopIssues", _t => {
 
     let audits = Dict.fromArray([
       ("audit-1", Mock.makeAudit(~id="audit-1", ~title="Audit 1", ~score=0.9)),
-      ("audit-2", Mock.makeAudit(~id="audit-2", ~title="Audit 2", ~score=0.3, ~scoreDisplayMode="binary", ~displayValue=Some("Bad"))),
+      ("audit-2", Mock.makeAudit(~id="audit-2", ~title="Audit 2", ~score=0.3, ~scoreDisplayMode=Binary, ~displayValue=Some("Bad"))),
       ("audit-3", Mock.makeAudit(~id="audit-3", ~title="Audit 3", ~score=0.6)),
-      ("audit-4", Mock.makeAudit(~id="audit-4", ~title="Audit 4", ~score=1.0, ~scoreDisplayMode="binary")),
+      ("audit-4", Mock.makeAudit(~id="audit-4", ~title="Audit 4", ~score=1.0, ~scoreDisplayMode=Binary)),
     ])
 
     let topIssues = Lighthouse.getTopIssues(~category, ~audits, ~maxIssues=3)
@@ -162,14 +152,235 @@ describe("Lighthouse Tool - getTopIssues", _t => {
         title: "Info Audit",
         description: "Just informational",
         score: Nullable.null,
-        scoreDisplayMode: "informative",
+        scoreDisplayMode: Informative,
         displayValue: None,
         numericValue: None,
+        details: None,
       }: LighthouseBindings.auditResult),
     ])
 
     let topIssues = Lighthouse.getTopIssues(~category, ~audits, ~maxIssues=3)
 
     t->expect(topIssues->Array.length)->Expect.toBe(0)
+  })
+
+  test("should include empty elements array when audit has no details", t => {
+    let refs = [({id: "audit-1", weight: 1.0}: LighthouseBindings.auditRef)]
+    let category = Mock.makeCategory(
+      ~id="performance",
+      ~title="Performance",
+      ~score=0.75,
+      ~auditRefs=refs,
+    )
+
+    let audits = Dict.fromArray([
+      ("audit-1", Mock.makeAudit(~id="audit-1", ~title="Audit 1", ~score=0.5)),
+    ])
+
+    let topIssues = Lighthouse.getTopIssues(~category, ~audits, ~maxIssues=3)
+
+    switch topIssues->Array.get(0) {
+    | Some(issue) => t->expect(issue.elements->Array.length)->Expect.toBe(0)
+    | None => failwith("Expected issue")
+    }
+  })
+
+  test("should extract node details from accessibility-style audit", t => {
+    let refs = [({id: "image-alt", weight: 1.0}: LighthouseBindings.auditRef)]
+    let category = Mock.makeCategory(
+      ~id="accessibility",
+      ~title="Accessibility",
+      ~score=0.75,
+      ~auditRefs=refs,
+    )
+
+    let nodeDetails = JSON.Encode.object(
+      Dict.fromArray([
+        ("type", JSON.Encode.string("table")),
+        (
+          "items",
+          JSON.Encode.array([
+            JSON.Encode.object(
+              Dict.fromArray([
+                (
+                  "node",
+                  JSON.Encode.object(
+                    Dict.fromArray([
+                      ("type", JSON.Encode.string("node")),
+                      ("selector", JSON.Encode.string("body > main > img.hero")),
+                      (
+                        "snippet",
+                        JSON.Encode.string(`<img src="/hero.jpg" class="hero">`),
+                      ),
+                      ("nodeLabel", JSON.Encode.string("hero")),
+                      (
+                        "explanation",
+                        JSON.Encode.string("Element does not have an alt attribute"),
+                      ),
+                    ]),
+                  ),
+                ),
+              ]),
+            ),
+          ]),
+        ),
+      ]),
+    )
+
+    let audits = Dict.fromArray([
+      (
+        "image-alt",
+        Mock.makeAudit(
+          ~id="image-alt",
+          ~title="Image alt",
+          ~score=0.0,
+          ~scoreDisplayMode=Binary,
+          ~details=Some(nodeDetails),
+        ),
+      ),
+    ])
+
+    let topIssues = Lighthouse.getTopIssues(~category, ~audits, ~maxIssues=3)
+
+    switch topIssues->Array.get(0) {
+    | Some(issue) => {
+        t->expect(issue.elements->Array.length)->Expect.toBe(1)
+        switch issue.elements->Array.get(0) {
+        | Some(el) => {
+            t->expect(el.selector)->Expect.toEqual(Some("body > main > img.hero"))
+            t->expect(el.snippet)->Expect.toEqual(Some(`<img src="/hero.jpg" class="hero">`))
+            t->expect(el.nodeLabel)->Expect.toEqual(Some("hero"))
+            t->expect(el.explanation)->Expect.toEqual(Some("Element does not have an alt attribute"))
+            t->expect(el.url)->Expect.toEqual(None)
+          }
+        | None => failwith("Expected element detail")
+        }
+      }
+    | None => failwith("Expected issue")
+    }
+  })
+
+  test("should extract resource URL from opportunity-style audit", t => {
+    let refs = [({id: "render-blocking", weight: 1.0}: LighthouseBindings.auditRef)]
+    let category = Mock.makeCategory(
+      ~id="performance",
+      ~title="Performance",
+      ~score=0.60,
+      ~auditRefs=refs,
+    )
+
+    let opportunityDetails = JSON.Encode.object(
+      Dict.fromArray([
+        ("type", JSON.Encode.string("opportunity")),
+        (
+          "items",
+          JSON.Encode.array([
+            JSON.Encode.object(
+              Dict.fromArray([
+                ("url", JSON.Encode.string("https://example.com/style.css")),
+              ]),
+            ),
+            JSON.Encode.object(
+              Dict.fromArray([
+                ("url", JSON.Encode.string("https://example.com/app.js")),
+              ]),
+            ),
+          ]),
+        ),
+      ]),
+    )
+
+    let audits = Dict.fromArray([
+      (
+        "render-blocking",
+        Mock.makeAudit(
+          ~id="render-blocking",
+          ~title="Render Blocking Resources",
+          ~score=0.2,
+          ~scoreDisplayMode=MetricSavings,
+          ~details=Some(opportunityDetails),
+        ),
+      ),
+    ])
+
+    let topIssues = Lighthouse.getTopIssues(~category, ~audits, ~maxIssues=3)
+
+    switch topIssues->Array.get(0) {
+    | Some(issue) => {
+        t->expect(issue.elements->Array.length)->Expect.toBe(2)
+        switch issue.elements->Array.get(0) {
+        | Some(el) => {
+            t->expect(el.url)->Expect.toEqual(Some("https://example.com/style.css"))
+            t->expect(el.selector)->Expect.toEqual(None)
+          }
+        | None => failwith("Expected first element")
+        }
+      }
+    | None => failwith("Expected issue")
+    }
+  })
+
+  test("should limit elements to maxElementsPerIssue (3)", t => {
+    let refs = [({id: "many-items", weight: 1.0}: LighthouseBindings.auditRef)]
+    let category = Mock.makeCategory(
+      ~id="accessibility",
+      ~title="Accessibility",
+      ~score=0.50,
+      ~auditRefs=refs,
+    )
+
+    let makeNodeItem = (sel: string) =>
+      JSON.Encode.object(
+        Dict.fromArray([
+          (
+            "node",
+            JSON.Encode.object(
+              Dict.fromArray([
+                ("type", JSON.Encode.string("node")),
+                ("selector", JSON.Encode.string(sel)),
+                ("snippet", JSON.Encode.string(`<div class="${sel}">`)),
+              ]),
+            ),
+          ),
+        ]),
+      )
+
+    let details = JSON.Encode.object(
+      Dict.fromArray([
+        ("type", JSON.Encode.string("table")),
+        (
+          "items",
+          JSON.Encode.array([
+            makeNodeItem("sel-1"),
+            makeNodeItem("sel-2"),
+            makeNodeItem("sel-3"),
+            makeNodeItem("sel-4"),
+            makeNodeItem("sel-5"),
+          ]),
+        ),
+      ]),
+    )
+
+    let audits = Dict.fromArray([
+      (
+        "many-items",
+        Mock.makeAudit(
+          ~id="many-items",
+          ~title="Many Items",
+          ~score=0.0,
+          ~scoreDisplayMode=Binary,
+          ~details=Some(details),
+        ),
+      ),
+    ])
+
+    let topIssues = Lighthouse.getTopIssues(~category, ~audits, ~maxIssues=3)
+
+    switch topIssues->Array.get(0) {
+    | Some(issue) =>
+      // Should be capped at 3 despite 5 items
+      t->expect(issue.elements->Array.length)->Expect.toBe(3)
+    | None => failwith("Expected issue")
+    }
   })
 })

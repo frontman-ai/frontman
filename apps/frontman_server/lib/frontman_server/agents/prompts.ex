@@ -5,7 +5,6 @@ defmodule FrontmanServer.Agents.Prompts do
   Contains prompts for:
   - Root agent (dynamic, context-aware)
   """
-  alias ReqLLM.Message.ContentPart
 
   # --- Root Agent Prompts ---
 
@@ -109,11 +108,13 @@ defmodule FrontmanServer.Agents.Prompts do
 
   1. Identity line - "You are a coding assistant."
   2. Base system prompt (rules, tool guidance, etc.)
-  3. Project rules (AGENTS.md, etc.) - if any
-  4. Context-specific guidance (framework, etc.)
+  3. Project structure summary (directory layout, workspaces) - if discovered
+  4. Project rules (AGENTS.md, etc.) - if any
+  5. Context-specific guidance (framework, etc.)
 
   ## Options
 
+  - `:project_structure` - String summary of the project structure (directory layout, workspaces)
   - `:project_rules` - List of project rule maps with `:path`, `:content`, and `:timestamp` keys
   - `:has_selected_component` - When true, adds guidance for selected component replacement flow
   - `:has_current_page` - When true, adds guidance for using current page context
@@ -130,47 +131,15 @@ defmodule FrontmanServer.Agents.Prompts do
   @spec build(keyword()) :: String.t()
   def build(opts \\ []) do
     project_rules = Keyword.get(opts, :project_rules, [])
+    project_structure = Keyword.get(opts, :project_structure)
 
     # Build the main prompt content with identity prepended
     (@default_identity <>
        "\n\n" <>
        @base_system_prompt)
+    |> append_project_structure(project_structure)
     |> append_project_rules(project_rules)
     |> append_context_guidance(opts)
-  end
-
-  @doc """
-  Builds a complete system message with ContentPart structures for the LLM.
-
-  Returns a list of ReqLLM system messages with separate content blocks for
-  identity and main content (enables better caching behavior).
-
-  ## Options
-
-  Same as `build/1`.
-
-  ## Returns
-
-  A list with two system messages:
-  1. System message with identity text
-  2. System message with main prompt content
-  """
-  @spec build_system_message(atom() | nil, keyword()) :: [map()]
-  def build_system_message(_role \\ nil, opts \\ []) do
-    project_rules = Keyword.get(opts, :project_rules, [])
-
-    # Build main content parts
-    main_content =
-      @base_system_prompt
-      |> append_project_rules(project_rules)
-      |> append_context_guidance(opts)
-
-    content_parts = [ContentPart.text(main_content)]
-
-    [
-      ReqLLM.Context.system([ContentPart.text(@default_identity)]),
-      ReqLLM.Context.system(content_parts)
-    ]
   end
 
   @doc """
@@ -202,6 +171,13 @@ defmodule FrontmanServer.Agents.Prompts do
 
   defp append_framework_guidance(prompt, "nextjs"), do: prompt <> "\n" <> nextjs_guidance()
   defp append_framework_guidance(prompt, _), do: prompt
+
+  defp append_project_structure(prompt, nil), do: prompt
+  defp append_project_structure(prompt, ""), do: prompt
+
+  defp append_project_structure(prompt, summary) when is_binary(summary) do
+    prompt <> "\n\n## Project Structure\n\n" <> summary
+  end
 
   # Append project rules (AGENTS.md, etc.) to the system prompt
   defp append_project_rules(prompt, []), do: prompt

@@ -1,8 +1,8 @@
 // File exists tool - checks if a file or directory exists
 
-module Fs = FrontmanBindings.Fs
 module Tool = FrontmanFrontmanProtocol.FrontmanProtocol__Tool
 module SafePath = FrontmanCore__SafePath
+module FsUtils = FrontmanCore__FsUtils
 
 let name = Tool.ToolNames.fileExists
 let visibleToAgent = true
@@ -23,11 +23,7 @@ let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.toolR
   switch SafePath.resolve(~sourceRoot=ctx.sourceRoot, ~inputPath=input.path) {
   | Error(msg) => Error(msg)
   | Ok(safePath) =>
-    try {
-      await Fs.Promises.access(SafePath.toString(safePath))
-      Ok(true)
-    } catch {
-    | _ => Ok(false)
-    }
+    let exists = await FsUtils.pathExists(SafePath.toString(safePath))
+    Ok(exists)
   }
 }

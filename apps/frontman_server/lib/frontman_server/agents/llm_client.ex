@@ -225,19 +225,21 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Agents.LLMClient do
   # Stream-level provider/API error chunk emitted by ReqLLM.
   # The raise propagates through Response.from_stream → Task crash →
   # ExecutionMonitor → {:agent_error, message} → TaskChannel → client ErrorBanner.
-  defp to_swarm_chunk(%{type: :error, error: error}, _requires_mcp_prefix?)
-       when is_binary(error) do
-    raise "LLM stream error: #{error}"
+  #
+  # ReqLLM StreamChunk error shape: %{type: :error, text: message, metadata: %{error: original}}
+  # where `original` is typically a ReqLLM.Error.API.Request with :status and :reason fields.
+  # We classify by HTTP status to produce user-friendly messages.
+  defp to_swarm_chunk(
+         %{type: :error, text: text, metadata: %{error: original}},
+         _requires_mcp_prefix?
+       )
+       when is_binary(text) do
+    raise classify_llm_error(original, text)
   end
 
   defp to_swarm_chunk(%{type: :error, text: text}, _requires_mcp_prefix?)
        when is_binary(text) do
-    raise "LLM stream error: #{text}"
-  end
-
-  defp to_swarm_chunk(%{type: :error, error: %{message: message}}, _requires_mcp_prefix?)
-       when is_binary(message) do
-    raise "LLM stream error: #{message}"
+    raise classify_llm_error(nil, text)
   end
 
   defp to_swarm_chunk(%{type: :error} = chunk, _requires_mcp_prefix?) do
@@ -261,6 +263,45 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Agents.LLMClient do
   defp complete_tool_call_args?(args) when is_map(args) and map_size(args) > 0, do: true
   defp complete_tool_call_args?(args) when is_binary(args) and args not in ["", "{}"], do: true
   defp complete_tool_call_args?(_), do: false
+
+  # Classify LLM API errors by HTTP status into user-friendly messages.
+  # The original error is a ReqLLM.Error.API.Request with :status and :reason.
+  defp classify_llm_error(%{status: status}, _text) when status in [401, 403] do
+    "Authentication failed — your API key may be invalid or expired (HTTP #{status})"
+  end
+
+  defp classify_llm_error(%{status: 400, reason: reason}, _text) when is_binary(reason) do
+    "Bad request — the provider rejected the request: #{reason}"
+  end
+
+  defp classify_llm_error(%{status: 400}, text) do
+    "Bad request — the provider rejected the request: #{text}"
+  end
+
+  defp classify_llm_error(%{status: 402}, _text) do
+    "Payment required — your account balance is insufficient or billing is not configured (HTTP 402)"
+  end
+
+  defp classify_llm_error(%{status: 413}, _text) do
+    "Payload too large — the request exceeded the provider's size limit. Try reducing image size or message length (HTTP 413)"
+  end
+
+  defp classify_llm_error(%{status: 429}, _text) do
+    "Rate limited — the provider is throttling requests. Please try again shortly."
+  end
+
+  defp classify_llm_error(%{status: status}, _text) when status >= 500 do
+    "Provider error — the LLM service returned an internal error (HTTP #{status}). Please try again."
+  end
+
+  defp classify_llm_error(%{status: status, reason: reason}, _text)
+       when is_integer(status) and is_binary(reason) do
+    "LLM error (HTTP #{status}): #{reason}"
+  end
+
+  defp classify_llm_error(_, text) do
+    "LLM stream error: #{text}"
+  end
 
   # Prepend identity override as the first content block of system messages
   # This is used for Claude Code OAuth to inject "You are Claude Code..." identity
