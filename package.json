@@ -25,6 +25,10 @@
 		"libs/frontman-nextjs",
 		"libs/frontman-vite",
 		"test/sites/blog-starter",
+		"test/e2e",
+		"test/e2e/fixtures/nextjs",
+		"test/e2e/fixtures/astro",
+		"test/e2e/fixtures/vite",
 		"libs/logs",
 		"libs/react-statestore"
 	],

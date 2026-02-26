@@ -25,6 +25,7 @@ endef
 
 .PHONY: help dev dev-client dev-server dev-nextjs dev-extension dev-marketing dev-dogfooding \
         install build rescript-watch rescript-build clean test lint \
+        e2e e2e-nextjs e2e-astro e2e-vite \
         ssl-setup tunnel \
         worktree-create worktree-create-from worktree-list worktree-remove worktree-clean \
         worktree-status worktree-devpod worktree-urls worktree-hosts worktree-register worktree-registry \
@@ -48,6 +49,9 @@ help: ## Display available commands
 	@echo ""
 	@printf "$(CYAN)Release:$(RESET)\n"
 	@awk 'BEGIN {FS = ":.*##"} /^## REL_START$$/{found=1; next} /^## REL_END$$/{found=0} found && /^[a-zA-Z_-]+:.*##/ { printf "  $(GREEN)%-25s$(RESET) %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
+	@echo ""
+	@printf "$(CYAN)E2E Tests:$(RESET)\n"
+	@awk 'BEGIN {FS = ":.*##"} /^## E2E_START$$/{found=1; next} /^## E2E_END$$/{found=0} found && /^[a-zA-Z_-]+:.*##/ { printf "  $(GREEN)%-25s$(RESET) %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
 	@echo ""
 	@printf "$(CYAN)Utilities:$(RESET)\n"
 	@awk 'BEGIN {FS = ":.*##"} /^## UTIL_START$$/{found=1; next} /^## UTIL_END$$/{found=0} found && /^[a-zA-Z_-]+:.*##/ { printf "  $(GREEN)%-25s$(RESET) %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
@@ -118,6 +122,33 @@ lint: ## Run linters
 	# Add lint commands here
 
 ## BUILD_END
+
+# ============================================================================
+# E2E Tests
+# ============================================================================
+## E2E_START
+
+e2e: ## Run all e2e tests (loads secrets from test/e2e/.env)
+	@printf "$(YELLOW)Running all e2e tests...$(RESET)\n"
+	@test -f test/e2e/.env || { printf "$(YELLOW)Error: test/e2e/.env not found. Copy test/e2e/.env.example and fill in values.$(RESET)\n"; exit 1; }
+	set -a && . test/e2e/.env && set +a && cd test/e2e && npx vitest run
+
+e2e-nextjs: ## Run Next.js e2e test
+	@printf "$(YELLOW)Running Next.js e2e test...$(RESET)\n"
+	@test -f test/e2e/.env || { printf "$(YELLOW)Error: test/e2e/.env not found. Copy test/e2e/.env.example and fill in values.$(RESET)\n"; exit 1; }
+	set -a && . test/e2e/.env && set +a && cd test/e2e && npx vitest run tests/nextjs.test.ts
+
+e2e-astro: ## Run Astro e2e test
+	@printf "$(YELLOW)Running Astro e2e test...$(RESET)\n"
+	@test -f test/e2e/.env || { printf "$(YELLOW)Error: test/e2e/.env not found. Copy test/e2e/.env.example and fill in values.$(RESET)\n"; exit 1; }
+	set -a && . test/e2e/.env && set +a && cd test/e2e && npx vitest run tests/astro.test.ts
+
+e2e-vite: ## Run Vite e2e test
+	@printf "$(YELLOW)Running Vite e2e test...$(RESET)\n"
+	@test -f test/e2e/.env || { printf "$(YELLOW)Error: test/e2e/.env not found. Copy test/e2e/.env.example and fill in values.$(RESET)\n"; exit 1; }
+	set -a && . test/e2e/.env && set +a && cd test/e2e && npx vitest run tests/vite.test.ts
+
+## E2E_END
 
 # ============================================================================
 # SSL & Networking

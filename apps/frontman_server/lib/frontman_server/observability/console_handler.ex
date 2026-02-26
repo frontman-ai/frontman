@@ -90,7 +90,7 @@ defmodule FrontmanServer.Observability.ConsoleHandler do
     :ets.insert(@table, {{:swarm_llm, loop_id, step}, start_time, model})
 
     Logger.info(
-      "[swarm] llm:start  loop=#{short_id(loop_id)} step=#{step} model=#{model || "unknown"}"
+      "[swarm] llm:start  loop=#{short_id(loop_id)} step=#{step} model=#{format_model(model)}"
     )
   end
 
@@ -109,7 +109,7 @@ defmodule FrontmanServer.Observability.ConsoleHandler do
         :ets.delete(@table, {:swarm_llm, loop_id, step})
 
         Logger.info(
-          "[swarm] llm:stop   loop=#{short_id(loop_id)} step=#{step} model=#{model || "unknown"} " <>
+          "[swarm] llm:stop   loop=#{short_id(loop_id)} step=#{step} model=#{format_model(model)} " <>
             "(#{duration}ms) [#{input} in / #{output} out] tools=#{tools}"
         )
 
@@ -228,6 +228,12 @@ defmodule FrontmanServer.Observability.ConsoleHandler do
 
   defp short_id(id) when is_binary(id), do: String.slice(id, 0, 8)
   defp short_id(id), do: inspect(id)
+
+  # Format model for logging — handles both string models and LLMDB.Model structs
+  defp format_model(nil), do: "unknown"
+  defp format_model(model) when is_binary(model), do: model
+  defp format_model(%{id: id}) when is_binary(id), do: id
+  defp format_model(model), do: inspect(model)
 
   defp format_status(:ok), do: "✓"
   defp format_status(:completed), do: "✓"

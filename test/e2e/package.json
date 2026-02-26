@@ -1,0 +1,15 @@
+{
+	"name": "@frontman/e2e",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"test": "vitest run",
+		"test:nextjs": "vitest run tests/nextjs.test.ts",
+		"test:astro": "vitest run tests/astro.test.ts",
+		"test:vite": "vitest run tests/vite.test.ts"
+	},
+	"devDependencies": {
+		"playwright": "^1.52.0",
+		"vitest": "catalog:"
+	}
+}

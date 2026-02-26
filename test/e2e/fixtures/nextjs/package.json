@@ -1,0 +1,14 @@
+{
+	"name": "@frontman/e2e-nextjs",
+	"private": true,
+	"scripts": {
+		"dev": "next dev --turbopack"
+	},
+	"dependencies": {
+		"@frontman-ai/nextjs": "workspace:*",
+		"@opentelemetry/sdk-node": "^0.52.0",
+		"next": "~15.5.10",
+		"react": "^19.0.0",
+		"react-dom": "^19.0.0"
+	}
+}

@@ -1,0 +1,15 @@
+{
+	"name": "@frontman/e2e-vite",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"dev": "vite"
+	},
+	"dependencies": {
+		"@frontman-ai/vite": "workspace:*",
+		"@vitejs/plugin-react": "^4.3.0",
+		"react": "^19.0.0",
+		"react-dom": "^19.0.0",
+		"vite": "^6.2.0"
+	}
+}

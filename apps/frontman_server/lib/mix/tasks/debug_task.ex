@@ -370,30 +370,6 @@ defmodule Mix.Tasks.DebugTask do
     end
   end
 
-  defp summarize_tool_result_map(result) do
-    content = result["content"]
-
-    cond do
-      is_list(content) && content != [] ->
-        summarize_content_item(hd(content), result)
-
-      is_map(content) ->
-        "{#{map_keys_summary(content)}}"
-
-      true ->
-        "{#{map_keys_summary(result)}}"
-    end
-  end
-
-  defp summarize_content_item(%{"type" => "text"} = item, _result),
-    do: truncate(item["text"] || "", 80)
-
-  defp summarize_content_item(%{"type" => "image"}, _result),
-    do: "{screenshot}"
-
-  defp summarize_content_item(_item, result),
-    do: "{#{map_keys_summary(result)}}"
-
   defp interaction_summary(%{type: "agent_response", data: data}) do
     truncate(data["content"] || "", 80)
   end
@@ -432,6 +408,30 @@ defmodule Mix.Tasks.DebugTask do
   defp interaction_summary(%{data: data}) do
     truncate(inspect(data), 60)
   end
+
+  defp summarize_tool_result_map(result) do
+    content = result["content"]
+
+    cond do
+      is_list(content) && content != [] ->
+        summarize_content_item(hd(content), result)
+
+      is_map(content) ->
+        "{#{map_keys_summary(content)}}"
+
+      true ->
+        "{#{map_keys_summary(result)}}"
+    end
+  end
+
+  defp summarize_content_item(%{"type" => "text"} = item, _result),
+    do: truncate(item["text"] || "", 80)
+
+  defp summarize_content_item(%{"type" => "image"}, _result),
+    do: "{screenshot}"
+
+  defp summarize_content_item(_item, result),
+    do: "{#{map_keys_summary(result)}}"
 
   defp map_keys_summary(map) when is_map(map) do
     map |> Map.keys() |> Enum.sort() |> Enum.join(", ")

@@ -17,5 +17,8 @@
     "module": "esmodule",
     "in-source": true
   },
-  "suffix": ".js"
+  "suffix": ".js",
+  "warnings": {
+    "number": "-44"
+  }
 }

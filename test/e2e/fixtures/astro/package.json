@@ -1,0 +1,12 @@
+{
+	"name": "@frontman/e2e-astro",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"dev": "astro dev"
+	},
+	"dependencies": {
+		"@frontman-ai/astro": "workspace:*",
+		"astro": "^5.8.0"
+	}
+}

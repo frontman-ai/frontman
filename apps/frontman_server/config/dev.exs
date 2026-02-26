@@ -21,41 +21,71 @@ config :frontman_server, FrontmanServer.Repo,
 # The watchers configuration can be used to run external
 # watchers to your application. For example, we can use it
 # to bundle .js and .css sources.
-config :frontman_server, FrontmanServerWeb.Endpoint,
-  # Binding to 0.0.0.0 allows access from containers/proxies
-  # URL host can be overridden via PHX_HOST env var for remote development
-  url: [
-    host: System.get_env("PHX_HOST") || "frontman.local",
-    port: String.to_integer(System.get_env("PHX_URL_PORT") || "4000"),
-    scheme: "https"
-  ],
-  https: [
-    ip: {0, 0, 0, 0},
-    port: String.to_integer(System.get_env("PORT") || "4000"),
-    cipher_suite: :strong,
-    keyfile: Path.expand("../../../.certs/frontman.local-key.pem", __DIR__),
-    certfile: Path.expand("../../../.certs/frontman.local.pem", __DIR__)
-  ],
-  check_origin: false,
-  code_reloader: true,
-  debug_errors: true,
-  secret_key_base: "NBTbU2SqLo+ghhs3jQiZAjRrQKhim/x/HXSbx49mBnt4pSvEkjTYYrj+prSCInNO",
-  watchers: [
-    esbuild: {Esbuild, :install_and_run, [:frontman_server, ~w(--sourcemap=inline --watch)]},
-    esbuild: {Esbuild, :install_and_run, [:browser_test, ~w(--sourcemap=inline --watch)]},
-    tailwind: {Tailwind, :install_and_run, [:frontman_server, ~w(--watch)]}
-  ]
+# E2E mode: HTTPS on port 4002, separate database, no watchers.
+# Uses the same mkcert certificates as normal dev (covers localhost).
+# Activated by setting E2E=true in the environment.
+if System.get_env("E2E") do
+  config :frontman_server, FrontmanServer.Repo,
+    database: System.get_env("DB_NAME") || "frontman_server_e2e"
 
-# Watch static and templates for browser reloading.
-config :frontman_server, FrontmanServerWeb.Endpoint,
-  live_reload: [
-    web_console_logger: true,
-    patterns: [
-      ~r"priv/static/(?!uploads/).*(js|css|png|jpeg|jpg|gif|svg)$",
-      ~r"priv/gettext/.*(po)$",
-      ~r"lib/frontman_server_web/(?:controllers|live|components|router)/?.*\.(ex|heex)$"
+  config :frontman_server, FrontmanServerWeb.Endpoint,
+    url: [host: "localhost", port: 4002, scheme: "https"],
+    https: [
+      ip: {127, 0, 0, 1},
+      port: 4002,
+      cipher_suite: :strong,
+      keyfile: Path.expand("../../../.certs/frontman.local-key.pem", __DIR__),
+      certfile: Path.expand("../../../.certs/frontman.local.pem", __DIR__)
+    ],
+    check_origin: false,
+    code_reloader: false,
+    debug_errors: true,
+    secret_key_base: "NBTbU2SqLo+ghhs3jQiZAjRrQKhim/x/HXSbx49mBnt4pSvEkjTYYrj+prSCInNO",
+    server: true,
+    watchers: [],
+    live_reload: false
+
+  # Suppress debug-level noise in E2E (SQL queries, route errors, etc.)
+  config :logger, level: :info
+else
+  config :frontman_server, FrontmanServerWeb.Endpoint,
+    # Binding to 0.0.0.0 allows access from containers/proxies
+    # URL host can be overridden via PHX_HOST env var for remote development
+    url: [
+      host: System.get_env("PHX_HOST") || "frontman.local",
+      port: String.to_integer(System.get_env("PHX_URL_PORT") || "4000"),
+      scheme: "https"
+    ],
+    https: [
+      ip: {0, 0, 0, 0},
+      port: String.to_integer(System.get_env("PORT") || "4000"),
+      cipher_suite: :strong,
+      keyfile: Path.expand("../../../.certs/frontman.local-key.pem", __DIR__),
+      certfile: Path.expand("../../../.certs/frontman.local.pem", __DIR__)
+    ],
+    check_origin: false,
+    code_reloader: true,
+    debug_errors: true,
+    secret_key_base: "NBTbU2SqLo+ghhs3jQiZAjRrQKhim/x/HXSbx49mBnt4pSvEkjTYYrj+prSCInNO",
+    watchers: [
+      esbuild: {Esbuild, :install_and_run, [:frontman_server, ~w(--sourcemap=inline --watch)]},
+      esbuild: {Esbuild, :install_and_run, [:browser_test, ~w(--sourcemap=inline --watch)]},
+      tailwind: {Tailwind, :install_and_run, [:frontman_server, ~w(--watch)]}
     ]
-  ]
+end
+
+# Watch static and templates for browser reloading (not needed in E2E mode).
+unless System.get_env("E2E") do
+  config :frontman_server, FrontmanServerWeb.Endpoint,
+    live_reload: [
+      web_console_logger: true,
+      patterns: [
+        ~r"priv/static/(?!uploads/).*(js|css|png|jpeg|jpg|gif|svg)$",
+        ~r"priv/gettext/.*(po)$",
+        ~r"lib/frontman_server_web/(?:controllers|live|components|router)/?.*\.(ex|heex)$"
+      ]
+    ]
+end
 
 # Enable dev routes for dashboard and mailbox
 config :frontman_server, dev_routes: true

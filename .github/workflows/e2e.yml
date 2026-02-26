@@ -1,0 +1,207 @@
+name: E2E Tests
+
+on:
+  pull_request:
+    paths:
+      - "test/e2e/**"
+      - "libs/client/src/**"
+      - "libs/frontman-client/src/**"
+      - "adapters/**"
+      - "apps/frontman_server/lib/**"
+      - "apps/frontman_server/config/**"
+      - ".github/workflows/e2e.yml"
+  workflow_dispatch:
+    inputs:
+      test_suite:
+        description: "Which test suite to run"
+        required: true
+        default: "all"
+        type: choice
+        options:
+          - all
+          - nextjs
+          - astro
+          - vite
+
+# Restrict permissions to minimum needed
+permissions:
+  contents: read
+
+# Only one E2E run at a time (they're expensive and share API quotas)
+concurrency:
+  group: e2e
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    name: E2E (${{ github.event.inputs.test_suite || 'all' }})
+    runs-on: self-hosted
+    timeout-minutes: 20
+
+    env:
+      # E2E mode: HTTPS on port 4002, separate DB, no watchers
+      E2E: "true"
+      MIX_ENV: dev
+      PHX_SERVER: "true"
+      # Cloak encryption key (same test key used in dev)
+      CLOAK_KEY: "HE9hCRnQXEREL1X+1+cU4wPdVGqJMhwR05edbBBq1RY="
+      # Disable Yarn hardened mode — adds ~20s to resolution for public-PR detection.
+      # --immutable already prevents lockfile changes, so hardened mode is redundant.
+      YARN_ENABLE_HARDENED_MODE: "0"
+      # ChatGPT OAuth tokens for the E2E test user
+      E2E_CHATGPT_ACCESS_TOKEN: ${{ secrets.E2E_CHATGPT_ACCESS_TOKEN }}
+      E2E_CHATGPT_REFRESH_TOKEN: ${{ secrets.E2E_CHATGPT_REFRESH_TOKEN }}
+      E2E_CHATGPT_ACCOUNT_ID: ${{ secrets.E2E_CHATGPT_ACCOUNT_ID }}
+
+    steps:
+      - name: Resolve Docker host gateway IP for PostgreSQL
+        run: |
+          if command -v ip &>/dev/null; then
+            DB_HOST=$(ip route | awk '/default/ { print $3 }')
+          fi
+          if [ -z "$DB_HOST" ] && [ -f /proc/net/route ]; then
+            HEX=$(awk '$2 == "00000000" { print $3; exit }' /proc/net/route)
+            if [ -n "$HEX" ]; then
+              DB_HOST=$(printf '%d.%d.%d.%d' 0x${HEX:6:2} 0x${HEX:4:2} 0x${HEX:2:2} 0x${HEX:0:2})
+            fi
+          fi
+          if [ -z "$DB_HOST" ]; then
+            DB_HOST="172.17.0.1"
+          fi
+          echo "DB_HOST=${DB_HOST}" >> "$GITHUB_ENV"
+          echo "Resolved DB_HOST=${DB_HOST}"
+
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          # Preserve node_modules/_build between runs on this self-hosted runner.
+          # Yarn's link step (extracting zips → node_modules) takes ~50s from scratch;
+          # with a warm node_modules it's near-instant.
+          clean: false
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -qq > /dev/null
+          sudo apt-get install -y -qq libssl-dev libncurses5-dev libnss3-tools > /dev/null
+
+      - name: Fix mise binary permissions
+        run: chmod -R +x ~/.local/share/mise/bin/ 2>/dev/null || true
+
+      # ── Elixir/Erlang via mise ──────────────────────────────────────────
+      - name: Setup Erlang/Elixir via mise
+        uses: jdx/mise-action@6d1e696aa24c1aa1bcc1adea0212707c71ab78a8 # v3.6.1
+        with:
+          install: true
+          cache: true
+
+      # ── Node.js ─────────────────────────────────────────────────────────
+      - name: Setup Node.js
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        with:
+          node-version: "24.4.1"
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      # ── Caches ──────────────────────────────────────────────────────────
+      - name: Cache Yarn
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        with:
+          path: ~/.yarn/berry/cache
+          key: yarn-${{ hashFiles('yarn.lock') }}
+          restore-keys: yarn-
+
+      - name: Cache Mix deps
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        with:
+          path: apps/frontman_server/deps
+          key: ${{ runner.os }}-mix-${{ hashFiles('apps/frontman_server/mix.lock') }}
+          restore-keys: ${{ runner.os }}-mix-
+
+      - name: Cache Mix _build
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        with:
+          path: apps/frontman_server/_build
+          key: ${{ runner.os }}-build-e2e-${{ hashFiles('apps/frontman_server/mix.lock', 'apps/swarm_ai/lib/**') }}
+          restore-keys: ${{ runner.os }}-build-e2e-
+
+      # ── Install dependencies ────────────────────────────────────────────
+      - name: Install Node.js dependencies
+        run: yarn install --immutable
+
+      - name: Install Elixir dependencies
+        working-directory: apps/frontman_server
+        run: |
+          mix deps.clean --unlock --unused
+          mix deps.get
+
+      # ── Build ───────────────────────────────────────────────────────────
+      - name: Build ReScript
+        run: yarn rescript
+
+      - name: Build adapter dist packages
+        run: |
+          yarn workspace @frontman-ai/nextjs build &
+          yarn workspace @frontman-ai/vite build &
+          yarn workspace @frontman-ai/astro build &
+          wait
+
+      # ── mkcert for HTTPS ────────────────────────────────────────────────
+      - name: Generate mkcert certificates
+        run: |
+          # Install mkcert CA into system trust store
+          mkcert -install 2>/dev/null || true
+          # Generate certs for localhost (same names as dev)
+          mkdir -p .certs
+          mkcert -key-file .certs/frontman.local-key.pem \
+                 -cert-file .certs/frontman.local.pem \
+                 frontman.local localhost 127.0.0.1 ::1
+
+      # ── Install Playwright browser ──────────────────────────────────────
+      - name: Cache Playwright browsers
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('test/e2e/package.json') }}
+
+      - name: Install Playwright Chromium
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install chromium --with-deps 2>&1 | tail -5
+        working-directory: test/e2e
+
+      - name: Install Playwright system dependencies
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium 2>&1 | tail -5
+        working-directory: test/e2e
+
+      # ── Run E2E tests ───────────────────────────────────────────────────
+      - name: Determine test command
+        id: test-cmd
+        run: |
+          SUITE="${{ github.event.inputs.test_suite }}"
+          if [ "$SUITE" = "all" ] || [ -z "$SUITE" ]; then
+            echo "cmd=npx vitest run" >> "$GITHUB_OUTPUT"
+          else
+            echo "cmd=npx vitest run tests/${SUITE}.test.ts" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run E2E tests
+        working-directory: test/e2e
+        env:
+          # Accept self-signed mkcert certificates (scoped to test step only)
+          NODE_TLS_REJECT_UNAUTHORIZED: "0"
+        run: ${{ steps.test-cmd.outputs.cmd }}
+
+      # ── Cleanup ─────────────────────────────────────────────────────────
+      - name: Cleanup workspace
+        if: always()
+        run: |
+          # Kill any leaked dev server processes
+          lsof -ti:4002 2>/dev/null | xargs kill -9 2>/dev/null || true
+          lsof -ti:5173 2>/dev/null | xargs kill -9 2>/dev/null || true
+          lsof -ti:3010 2>/dev/null | xargs kill -9 2>/dev/null || true
+          lsof -ti:3011 2>/dev/null | xargs kill -9 2>/dev/null || true
+          lsof -ti:3012 2>/dev/null | xargs kill -9 2>/dev/null || true
+          # Restore any fixture files modified by AI during tests
+          git checkout -- test/e2e/fixtures/ 2>/dev/null || true
