@@ -40,12 +40,14 @@ jobs:
       - name: Enable Corepack
         run: corepack enable
 
-      - name: Cache Yarn
+      - name: Cache dependencies
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
-          path: ~/.yarn/berry/cache
-          key: yarn-${{ hashFiles('yarn.lock') }}
-          restore-keys: yarn-
+          path: |
+            ~/.yarn/berry/cache
+            node_modules
+          key: deps-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
+          restore-keys: deps-${{ runner.os }}-
 
       - name: Install dependencies
         run: yarn install --immutable
@@ -75,12 +77,14 @@ jobs:
       - name: Enable Corepack
         run: corepack enable
 
-      - name: Cache Yarn
+      - name: Cache dependencies
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
-          path: ~/.yarn/berry/cache
-          key: yarn-${{ hashFiles('yarn.lock') }}
-          restore-keys: yarn-
+          path: |
+            ~/.yarn/berry/cache
+            node_modules
+          key: deps-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
+          restore-keys: deps-${{ runner.os }}-
 
       - name: Install dependencies
         run: yarn install --immutable
@@ -116,12 +120,14 @@ jobs:
       - name: Enable Corepack
         run: corepack enable
 
-      - name: Cache Yarn
+      - name: Cache dependencies
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
-          path: ~/.yarn/berry/cache
-          key: yarn-${{ hashFiles('yarn.lock') }}
-          restore-keys: yarn-
+          path: |
+            ~/.yarn/berry/cache
+            node_modules
+          key: deps-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
+          restore-keys: deps-${{ runner.os }}-
 
       - name: Install dependencies
         run: yarn install --immutable
@@ -157,12 +163,14 @@ jobs:
       - name: Enable Corepack
         run: corepack enable
 
-      - name: Cache Yarn
+      - name: Cache dependencies
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
-          path: ~/.yarn/berry/cache
-          key: yarn-${{ hashFiles('yarn.lock') }}
-          restore-keys: yarn-
+          path: |
+            ~/.yarn/berry/cache
+            node_modules
+          key: deps-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
+          restore-keys: deps-${{ runner.os }}-
 
       - name: Install dependencies
         run: yarn install --immutable
@@ -198,12 +206,14 @@ jobs:
       - name: Enable Corepack
         run: corepack enable
 
-      - name: Cache Yarn
+      - name: Cache dependencies
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
-          path: ~/.yarn/berry/cache
-          key: yarn-${{ hashFiles('yarn.lock') }}
-          restore-keys: yarn-
+          path: |
+            ~/.yarn/berry/cache
+            node_modules
+          key: deps-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
+          restore-keys: deps-${{ runner.os }}-
 
       - name: Install dependencies
         run: yarn install --immutable
@@ -239,12 +249,14 @@ jobs:
       - name: Enable Corepack
         run: corepack enable
 
-      - name: Cache Yarn
+      - name: Cache dependencies
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
-          path: ~/.yarn/berry/cache
-          key: yarn-${{ hashFiles('yarn.lock') }}
-          restore-keys: yarn-
+          path: |
+            ~/.yarn/berry/cache
+            node_modules
+          key: deps-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
+          restore-keys: deps-${{ runner.os }}-
 
       - name: Install dependencies
         run: yarn install --immutable
@@ -291,13 +303,15 @@ jobs:
         if: steps.changes.outputs.client == 'true'
         run: corepack enable
 
-      - name: Cache Yarn
+      - name: Cache dependencies
         if: steps.changes.outputs.client == 'true'
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
-          path: ~/.yarn/berry/cache
-          key: yarn-${{ hashFiles('yarn.lock') }}
-          restore-keys: yarn-
+          path: |
+            ~/.yarn/berry/cache
+            node_modules
+          key: deps-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
+          restore-keys: deps-${{ runner.os }}-
 
       - name: Install dependencies
         if: steps.changes.outputs.client == 'true'
@@ -337,13 +351,15 @@ jobs:
         if: steps.changes.outputs.protocol == 'true'
         run: corepack enable
 
-      - name: Cache Yarn
+      - name: Cache dependencies
         if: steps.changes.outputs.protocol == 'true'
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
-          path: ~/.yarn/berry/cache
-          key: yarn-${{ hashFiles('yarn.lock') }}
-          restore-keys: yarn-
+          path: |
+            ~/.yarn/berry/cache
+            node_modules
+          key: deps-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
+          restore-keys: deps-${{ runner.os }}-
 
       - name: Install dependencies
         if: steps.changes.outputs.protocol == 'true'
@@ -380,12 +396,14 @@ jobs:
       - name: Enable Corepack
         run: corepack enable
 
-      - name: Cache Yarn
+      - name: Cache dependencies
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
-          path: ~/.yarn/berry/cache
-          key: yarn-${{ hashFiles('yarn.lock') }}
-          restore-keys: yarn-
+          path: |
+            ~/.yarn/berry/cache
+            node_modules
+          key: deps-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
+          restore-keys: deps-${{ runner.os }}-
 
       - name: Install dependencies
         run: yarn install --immutable
@@ -396,7 +414,7 @@ jobs:
       - name: Check for dead code
         working-directory: libs/client
         run: |
-          output=$(npx rescript-tools reanalyze -config 2>&1)
+          output=$(npx @rescript/tools@0.6.6 reanalyze -config 2>&1)
           echo "$output"
           if ! echo "$output" | grep -q "Analysis reported 0 issues"; then
             echo "::error::Dead code detected in libs/client. Please remove unused code."

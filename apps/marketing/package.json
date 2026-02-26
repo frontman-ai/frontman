@@ -24,7 +24,7 @@
     "prettier-plugin-astro": "^0.14.0",
     "prettier-plugin-tailwindcss": "^0.6.4",
     "satori": "^0.19.2",
-    "sharp": "^0.33.4",
+    "sharp": "^0.34.0",
     "tailwindcss": "^3.4.4",
     "typescript": "^5.4.5"
   },

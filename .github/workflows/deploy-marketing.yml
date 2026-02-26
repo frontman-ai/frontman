@@ -30,12 +30,14 @@ jobs:
       - name: Enable Corepack
         run: corepack enable
 
-      - name: Cache Yarn
+      - name: Cache dependencies
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
-          path: ~/.yarn/berry/cache
-          key: yarn-${{ hashFiles('yarn.lock') }}
-          restore-keys: yarn-
+          path: |
+            ~/.yarn/berry/cache
+            node_modules
+          key: deps-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
+          restore-keys: deps-${{ runner.os }}-
 
       - name: Install dependencies
         run: yarn install --immutable
