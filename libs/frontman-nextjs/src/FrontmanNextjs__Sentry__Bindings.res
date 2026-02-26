@@ -1,27 +1,16 @@
 // Sentry SDK bindings for ReScript
 // Using @sentry/nextjs for Next.js integration
+// Types are shared via FrontmanBindings.Bindings__Sentry__Types
 
-type severity = [#fatal | #error | #warning | #log | #info | #debug]
+module Types = FrontmanBindings.Bindings__Sentry__Types
 
-type breadcrumb = {
-  category?: string,
-  message?: string,
-  level?: severity,
-  data?: Dict.t<JSON.t>,
-}
-
-type eventHint = {originalException?: exn}
-
-type sentryEvent
-
-type scopeContext = {
-  tags?: Dict.t<string>,
-  extra?: Dict.t<JSON.t>,
-  user?: {id?: string, email?: string, username?: string},
-}
-
-// Transport type for custom transports (e.g., sentry-testkit)
-type transport = FrontmanBindings.Bindings__Sentry__Transport.t
+// Re-export shared types for convenience
+type severity = Types.severity
+type breadcrumb = Types.breadcrumb
+type eventHint = Types.eventHint
+type sentryEvent = Types.sentryEvent
+type scopeContext = Types.scopeContext
+type transport = Types.transport
 
 // Standard Sentry init options
 type initOptions = {
@@ -33,6 +22,7 @@ type initOptions = {
   debug?: bool,
   enabled?: bool,
   initialScope?: scopeContext,
+  beforeSend?: (sentryEvent, eventHint) => Nullable.t<sentryEvent>,
 }
 
 type initOptionsWithTransport = {
@@ -45,6 +35,7 @@ type initOptionsWithTransport = {
   enabled?: bool,
   initialScope?: scopeContext,
   transport: transport,
+  beforeSend?: (sentryEvent, eventHint) => Nullable.t<sentryEvent>,
 }
 
 // Main Sentry functions from @sentry/nextjs

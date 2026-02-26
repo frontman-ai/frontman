@@ -1,25 +1,16 @@
 // Sentry SDK bindings for ReScript
 // Using @sentry/browser for browser client
+// Types are shared via FrontmanBindings.Bindings__Sentry__Types
 
-type severity = [#fatal | #error | #warning | #log | #info | #debug]
+module Types = FrontmanBindings.Bindings__Sentry__Types
 
-type breadcrumb = {
-  category?: string,
-  message?: string,
-  level?: severity,
-  data?: Dict.t<JSON.t>,
-}
-
-type eventHint = {originalException?: exn}
-
-type scopeContext = {
-  tags?: Dict.t<string>,
-  extra?: Dict.t<JSON.t>,
-  user?: {id?: string, email?: string, username?: string},
-}
-
-// Transport type for custom transports (e.g., sentry-testkit)
-type transport = FrontmanBindings.Bindings__Sentry__Transport.t
+// Re-export shared types for convenience
+type severity = Types.severity
+type breadcrumb = Types.breadcrumb
+type eventHint = Types.eventHint
+type sentryEvent = Types.sentryEvent
+type scopeContext = Types.scopeContext
+type transport = Types.transport
 
 type initOptions = {
   dsn: string,
@@ -30,6 +21,7 @@ type initOptions = {
   enabled?: bool,
   initialScope?: scopeContext,
   transport?: transport,
+  beforeSend?: (sentryEvent, eventHint) => Nullable.t<sentryEvent>,
 }
 
 // Main Sentry functions from @sentry/browser
