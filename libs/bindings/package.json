@@ -15,6 +15,6 @@
 	},
 	"devDependencies": {
 		"rescript": "catalog:",
-		"sentry-testkit": "^5.0.9"
+		"sentry-testkit": "^6.0.0"
 	}
 }
