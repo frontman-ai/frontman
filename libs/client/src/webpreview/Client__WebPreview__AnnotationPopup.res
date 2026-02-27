@@ -57,15 +57,15 @@ let make = (
 
   switch rect {
   | Some(rect) => {
-      // Position popup below the element, clamped to viewport
+      // Position popup below the element, clamped to viewport via CSS clamp()/min()
       let top = rect.top +. rect.height +. 8.0
       let left = rect.left
 
       <div
         className="absolute z-[10000] pointer-events-auto"
         style={
-          top: `${Float.toString(top)}px`,
-          left: `${Float.toString(left)}px`,
+          top: `min(${Float.toString(top)}px, calc(100vh - 80px))`,
+          left: `clamp(8px, ${Float.toString(left)}px, calc(100vw - 328px))`,
         }
       >
         // Highlight the pending element with a dashed border

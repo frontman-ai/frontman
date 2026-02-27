@@ -545,7 +545,8 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
         let pending: Annotation.pending = {element, position, tagName}
         (Lens.setPendingAnnotation(task, Some(pending)), [])
       }
-    | Annotation.Quick | Annotation.Off => {
+    | Annotation.Off => (task, [])
+    | Annotation.Quick => {
         // In Quick mode: replace all annotations (max 1), fetch details immediately
         let annotation = Annotation.make(~element, ~position, ~tagName)
         let previewFrame = Task.getPreviewFrame(task, ~defaultUrl="")
@@ -1079,7 +1080,8 @@ let handleEffect = (effect: effect, ~dispatch: action => unit, ~delegate: delega
             Promise.resolve()
           })
         })
-        ->Promise.catch(_ => {
+        ->Promise.catch(err => {
+          Console.error2("FetchAnnotationDetails failed:", err)
           Promise.resolve()
         })
     }

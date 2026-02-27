@@ -643,10 +643,10 @@ let parseDataUrl = (dataUrl: string): (string, string) => {
     // Extract media type from "data:<mediaType>" prefix
     let mimeType = switch prefix->String.split("data:") {
     | [_, mediaType] => mediaType
-    | _ => "image/jpeg" // Default to jpeg if format unexpected
+    | _ => panic(`parseDataUrl: unexpected data URL prefix format: ${prefix}`)
     }
     (mimeType, base64)
-  | _ => ("image/jpeg", dataUrl) // Fallback if format unexpected
+  | _ => panic(`parseDataUrl: expected data:<mime>;base64,<data> format, got: ${dataUrl->String.slice(~start=0, ~end=50)}`)
   }
 }
 
