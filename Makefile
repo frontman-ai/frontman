@@ -28,53 +28,49 @@ define require_devpod_server
 	fi
 endef
 
-.PHONY: help dev dev-client dev-server dev-nextjs dev-extension dev-marketing dev-dogfooding \
-        install build rescript-watch rescript-build clean test lint \
-        e2e e2e-nextjs e2e-astro e2e-vite \
-        ssl-setup tunnel \
-        worktree-create worktree-create-from worktree-list worktree-remove worktree-clean \
-        worktree-status worktree-devpod worktree-urls worktree-hosts worktree-register worktree-registry \
-        infra-up infra-down infra-build infra-status \
-        worktree-pod-create worktree-pod-dev worktree-pod-attach worktree-pod-stop \
-        worktree-pod-start worktree-pod-remove worktree-pod-list worktree-pod-logs \
-        publish publish-astro publish-vite publish-nextjs publish-swarm-ai release \
-        kill-all-processes open-dogfooding pull-webapi debug-task
+# Guard: require BRANCH variable
+# Usage: $(call require_branch,target-name)
+define require_branch
+	@if [ -z "$(BRANCH)" ]; then \
+		printf "$(YELLOW)Error: BRANCH is required. Usage: make $(1) BRANCH=feature-name$(RESET)\n"; \
+		exit 1; \
+	fi
+endef
+
+# Run an e2e test file (or all tests if no file given)
+# Usage: $(call run_e2e,test-file-or-empty)
+define run_e2e
+	@test -f test/e2e/.env || { printf "$(YELLOW)Error: test/e2e/.env not found. Copy test/e2e/.env.example and fill in values.$(RESET)\n"; exit 1; }
+	set -a && . test/e2e/.env && set +a && cd test/e2e && npx vitest run $(1)
+endef
+
+.PHONY: help
+
+# Print help section: $(1)=section label, $(2)=marker prefix (e.g. DEV → DEV_START/DEV_END)
+define print_section
+	@echo ""
+	@printf "$(CYAN)$(1):$(RESET)\n"
+	@awk 'BEGIN {FS = ":.*##"} /^## $(2)_START$$/{found=1; next} /^## $(2)_END$$/{found=0} found && /^[a-zA-Z0-9_-]+:.*##/ { printf "  $(GREEN)%-25s$(RESET) %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
+endef
 
 help: ## Display available commands
 	@printf "$(CYAN)Frontman Monorepo$(RESET)\n"
-	@echo ""
-	@printf "$(CYAN)Development:$(RESET)\n"
-	@awk 'BEGIN {FS = ":.*##"} /^## DEV_START$$/{found=1; next} /^## DEV_END$$/{found=0} found && /^[a-zA-Z_-]+:.*##/ { printf "  $(GREEN)%-25s$(RESET) %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
-	@echo ""
-	@printf "$(CYAN)Build & Quality:$(RESET)\n"
-	@awk 'BEGIN {FS = ":.*##"} /^## BUILD_START$$/{found=1; next} /^## BUILD_END$$/{found=0} found && /^[a-zA-Z_-]+:.*##/ { printf "  $(GREEN)%-25s$(RESET) %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
-	@echo ""
-	@printf "$(CYAN)SSL & Networking:$(RESET)\n"
-	@awk 'BEGIN {FS = ":.*##"} /^## SSL_START$$/{found=1; next} /^## SSL_END$$/{found=0} found && /^[a-zA-Z_-]+:.*##/ { printf "  $(GREEN)%-25s$(RESET) %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
-	@echo ""
-	@printf "$(CYAN)Worktree Management:$(RESET)\n"
-	@awk 'BEGIN {FS = ":.*##"} /^## WT_START$$/{found=1; next} /^## WT_END$$/{found=0} found && /^[a-zA-Z_-]+:.*##/ { printf "  $(GREEN)%-25s$(RESET) %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
-	@echo ""
-	@printf "$(CYAN)Infrastructure (Containerized Worktrees):$(RESET)\n"
-	@awk 'BEGIN {FS = ":.*##"} /^## INFRA_START$$/{found=1; next} /^## INFRA_END$$/{found=0} found && /^[a-zA-Z_-]+:.*##/ { printf "  $(GREEN)%-25s$(RESET) %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
-	@echo ""
-	@printf "$(CYAN)Containerized Worktree Pods:$(RESET)\n"
-	@awk 'BEGIN {FS = ":.*##"} /^## POD_START$$/{found=1; next} /^## POD_END$$/{found=0} found && /^[a-zA-Z_-]+:.*##/ { printf "  $(GREEN)%-25s$(RESET) %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
-	@echo ""
-	@printf "$(CYAN)Release:$(RESET)\n"
-	@awk 'BEGIN {FS = ":.*##"} /^## REL_START$$/{found=1; next} /^## REL_END$$/{found=0} found && /^[a-zA-Z_-]+:.*##/ { printf "  $(GREEN)%-25s$(RESET) %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
-	@echo ""
-	@printf "$(CYAN)E2E Tests:$(RESET)\n"
-	@awk 'BEGIN {FS = ":.*##"} /^## E2E_START$$/{found=1; next} /^## E2E_END$$/{found=0} found && /^[a-zA-Z_-]+:.*##/ { printf "  $(GREEN)%-25s$(RESET) %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
-	@echo ""
-	@printf "$(CYAN)Utilities:$(RESET)\n"
-	@awk 'BEGIN {FS = ":.*##"} /^## UTIL_START$$/{found=1; next} /^## UTIL_END$$/{found=0} found && /^[a-zA-Z_-]+:.*##/ { printf "  $(GREEN)%-25s$(RESET) %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
+	$(call print_section,Development,DEV)
+	$(call print_section,Build & Quality,BUILD)
+	$(call print_section,SSL & Networking,SSL)
+	$(call print_section,Worktree Management,WT)
+	$(call print_section,Infrastructure (Containerized Worktrees),INFRA)
+	$(call print_section,Containerized Worktree Pods,POD)
+	$(call print_section,Release,REL)
+	$(call print_section,E2E Tests,E2E)
+	$(call print_section,Utilities,UTIL)
 	@echo ""
 
 # ============================================================================
 # Development
 # ============================================================================
 ## DEV_START
+.PHONY: dev dev-client dev-server dev-nextjs dev-extension dev-marketing dev-dogfooding
 
 dev: ## Start all core services (client + server + nextjs)
 	@printf "$(YELLOW)Starting all services via mprocs...$(RESET)\n"
@@ -110,6 +106,7 @@ dev-dogfooding: ## Start development server for dogfooding app
 # Build & Quality
 # ============================================================================
 ## BUILD_START
+.PHONY: install build rescript-watch rescript-build clean
 
 install: ## Install dependencies
 	@printf "$(YELLOW)Installing dependencies...$(RESET)\n"
@@ -122,18 +119,14 @@ build: ## Build ReScript project
 rescript-watch: ## Watch and rebuild ReScript on changes
 	@printf "$(YELLOW)Starting ReScript watch mode...$(RESET)\n"
 	yarn rescript watch
-rescript-build: ## Builds rescript
-	@printf "$(YELLOW)Starting ReScript build mode...$(RESET)\n"
+
+rescript-build: ## Build ReScript project (one-shot)
+	@printf "$(YELLOW)Starting ReScript build...$(RESET)\n"
 	yarn rescript build
-clean: ## Clean build artifacts
+
+clean: ## Clean ReScript build artifacts
 	@printf "$(YELLOW)Cleaning build artifacts...$(RESET)\n"
 	yarn rescript clean
-
-test: ## Run tests
-	# Add test commands here
-
-lint: ## Run linters
-	# Add lint commands here
 
 ## BUILD_END
 
@@ -141,26 +134,23 @@ lint: ## Run linters
 # E2E Tests
 # ============================================================================
 ## E2E_START
+.PHONY: e2e e2e-nextjs e2e-astro e2e-vite
 
 e2e: ## Run all e2e tests (loads secrets from test/e2e/.env)
 	@printf "$(YELLOW)Running all e2e tests...$(RESET)\n"
-	@test -f test/e2e/.env || { printf "$(YELLOW)Error: test/e2e/.env not found. Copy test/e2e/.env.example and fill in values.$(RESET)\n"; exit 1; }
-	set -a && . test/e2e/.env && set +a && cd test/e2e && npx vitest run
+	$(call run_e2e)
 
 e2e-nextjs: ## Run Next.js e2e test
 	@printf "$(YELLOW)Running Next.js e2e test...$(RESET)\n"
-	@test -f test/e2e/.env || { printf "$(YELLOW)Error: test/e2e/.env not found. Copy test/e2e/.env.example and fill in values.$(RESET)\n"; exit 1; }
-	set -a && . test/e2e/.env && set +a && cd test/e2e && npx vitest run tests/nextjs.test.ts
+	$(call run_e2e,tests/nextjs.test.ts)
 
 e2e-astro: ## Run Astro e2e test
 	@printf "$(YELLOW)Running Astro e2e test...$(RESET)\n"
-	@test -f test/e2e/.env || { printf "$(YELLOW)Error: test/e2e/.env not found. Copy test/e2e/.env.example and fill in values.$(RESET)\n"; exit 1; }
-	set -a && . test/e2e/.env && set +a && cd test/e2e && npx vitest run tests/astro.test.ts
+	$(call run_e2e,tests/astro.test.ts)
 
 e2e-vite: ## Run Vite e2e test
 	@printf "$(YELLOW)Running Vite e2e test...$(RESET)\n"
-	@test -f test/e2e/.env || { printf "$(YELLOW)Error: test/e2e/.env not found. Copy test/e2e/.env.example and fill in values.$(RESET)\n"; exit 1; }
-	set -a && . test/e2e/.env && set +a && cd test/e2e && npx vitest run tests/vite.test.ts
+	$(call run_e2e,tests/vite.test.ts)
 
 ## E2E_END
 
@@ -168,6 +158,7 @@ e2e-vite: ## Run Vite e2e test
 # SSL & Networking
 # ============================================================================
 ## SSL_START
+.PHONY: ssl-setup tunnel
 
 ssl-setup: ## Setup local SSL certificates using mkcert
 	@printf "$(YELLOW)Setting up SSL certificates...$(RESET)\n"
@@ -194,12 +185,11 @@ tunnel: ## Start SSH tunnel to DevPod server (fallback if dnsmasq not configured
 # Worktree Management
 # ============================================================================
 ## WT_START
+.PHONY: worktree-create worktree-create-from worktree-list worktree-remove worktree-clean \
+        worktree-status worktree-devpod worktree-urls worktree-hosts worktree-register worktree-registry
 
 worktree-create: ## Create a new worktree (BRANCH=feature-name)
-	@if [ -z "$(BRANCH)" ]; then \
-		printf "$(YELLOW)Error: BRANCH is required. Usage: make worktree-create BRANCH=feature-name$(RESET)\n"; \
-		exit 1; \
-	fi
+	$(call require_branch,worktree-create)
 	@if git show-ref --verify --quiet refs/heads/$(BRANCH); then \
 		printf "$(YELLOW)Error: Branch '$(BRANCH)' already exists locally$(RESET)\n"; \
 		echo "Use 'make worktree-create-from BRANCH=$(BRANCH)' to create a worktree from it"; \
@@ -216,11 +206,7 @@ worktree-create: ## Create a new worktree (BRANCH=feature-name)
 	@echo "  2. make install"
 
 worktree-create-from: ## Create worktree from existing branch (BRANCH=name)
-	@if [ -z "$(BRANCH)" ]; then \
-		printf "$(YELLOW)Error: BRANCH is required$(RESET)\n"; \
-		echo "Usage: make worktree-create-from BRANCH=origin/feature-name"; \
-		exit 1; \
-	fi
+	$(call require_branch,worktree-create-from)
 	@WORKTREE_NAME=$$(echo "$(BRANCH)" | sed 's|^origin/||'); \
 	printf "$(YELLOW)Creating worktree from: $(BRANCH) as $$WORKTREE_NAME$(RESET)\n"; \
 	mkdir -p .worktrees; \
@@ -237,10 +223,7 @@ worktree-list: ## List all worktrees
 	@git worktree list
 
 worktree-remove: ## Remove a worktree (BRANCH=feature-name)
-	@if [ -z "$(BRANCH)" ]; then \
-		printf "$(YELLOW)Error: BRANCH is required. Usage: make worktree-remove BRANCH=feature-name$(RESET)\n"; \
-		exit 1; \
-	fi
+	$(call require_branch,worktree-remove)
 	@if [ ! -d ".worktrees/$(BRANCH)" ]; then \
 		printf "$(YELLOW)Error: Worktree '.worktrees/$(BRANCH)' does not exist$(RESET)\n"; \
 		exit 1; \
@@ -278,10 +261,7 @@ worktree-status: ## Show status of all worktrees
 	fi
 
 worktree-devpod: ## Create worktree + push + DevPod workspace (BRANCH=name)
-	@if [ -z "$(BRANCH)" ]; then \
-		printf "$(YELLOW)Error: BRANCH is required. Usage: make worktree-devpod BRANCH=feature-name$(RESET)\n"; \
-		exit 1; \
-	fi
+	$(call require_branch,worktree-devpod)
 	@if ! command -v devpod >/dev/null 2>&1; then \
 		printf "$(YELLOW)Error: devpod is not installed. Install with: brew install devpod$(RESET)\n"; \
 		exit 1; \
@@ -307,10 +287,7 @@ worktree-devpod: ## Create worktree + push + DevPod workspace (BRANCH=name)
 	@echo "  devpod up $(BRANCH) --ide vscode"
 
 worktree-urls: ## Show URLs for a worktree (BRANCH=feature-name)
-	@if [ -z "$(BRANCH)" ]; then \
-		printf "$(YELLOW)Error: BRANCH is required. Usage: make worktree-urls BRANCH=feature-name$(RESET)\n"; \
-		exit 1; \
-	fi
+	$(call require_branch,worktree-urls)
 	@HASH=$$(printf '%s' "$(BRANCH)" | $(MD5_SHORT)); \
 	echo ""; \
 	printf "$(CYAN)Worktree: $(BRANCH) ($$HASH)$(RESET)\n"; \
@@ -357,6 +334,7 @@ worktree-registry: ## Show all registered worktrees on the server
 # Infrastructure (Containerized Worktrees)
 # ============================================================================
 ## INFRA_START
+.PHONY: infra-up infra-down infra-build infra-status
 
 # Shared variables for containerized worktrees
 FRONTMAN_NET := frontman-net
@@ -501,12 +479,11 @@ infra-status: ## Show infrastructure status
 # Containerized Worktree Pods
 # ============================================================================
 ## POD_START
+.PHONY: worktree-pod-create worktree-pod-dev worktree-pod-attach worktree-pod-stop \
+        worktree-pod-start worktree-pod-remove worktree-pod-list worktree-pod-logs
 
 worktree-pod-create: ## Create containerized worktree (BRANCH=feature/x)
-	@if [ -z "$(BRANCH)" ]; then \
-		printf "$(YELLOW)Error: BRANCH is required. Usage: make worktree-pod-create BRANCH=feature-name$(RESET)\n"; \
-		exit 1; \
-	fi
+	$(call require_branch,worktree-pod-create)
 	@# Verify infra is up
 	@if ! podman network inspect $(FRONTMAN_NET) &>/dev/null; then \
 		printf "$(YELLOW)Error: Infrastructure not set up. Run 'make infra-up' first.$(RESET)\n"; \
@@ -617,10 +594,7 @@ worktree-pod-create: ## Create containerized worktree (BRANCH=feature/x)
 	echo "  Storybook: https://$${HASH}.storybook.frontman.local"
 
 worktree-pod-dev: ## Start mprocs TUI inside container (BRANCH=feature/x)
-	@if [ -z "$(BRANCH)" ]; then \
-		printf "$(YELLOW)Error: BRANCH is required. Usage: make worktree-pod-dev BRANCH=feature-name$(RESET)\n"; \
-		exit 1; \
-	fi
+	$(call require_branch,worktree-pod-dev)
 	@HASH=$$(echo -n "$(BRANCH)" | $(MD5_SHORT)); \
 	CONTAINER="worktree-$${HASH}-dev"; \
 	if ! podman container inspect "$${CONTAINER}" &>/dev/null; then \
@@ -649,10 +623,7 @@ worktree-pod-dev: ## Start mprocs TUI inside container (BRANCH=feature/x)
 		bash -l -c 'eval "$$(mise activate bash)" && exec mprocs --config mprocs.container.yml'
 
 worktree-pod-attach: ## Interactive shell into dev container (BRANCH=feature/x)
-	@if [ -z "$(BRANCH)" ]; then \
-		printf "$(YELLOW)Error: BRANCH is required. Usage: make worktree-pod-attach BRANCH=feature-name$(RESET)\n"; \
-		exit 1; \
-	fi
+	$(call require_branch,worktree-pod-attach)
 	@HASH=$$(echo -n "$(BRANCH)" | $(MD5_SHORT)); \
 	CONTAINER="worktree-$${HASH}-dev"; \
 	if ! podman container inspect "$${CONTAINER}" &>/dev/null; then \
@@ -662,10 +633,7 @@ worktree-pod-attach: ## Interactive shell into dev container (BRANCH=feature/x)
 	podman exec -it -w /workspaces/frontman "$${CONTAINER}" bash
 
 worktree-pod-stop: ## Stop pod, preserve volumes (BRANCH=feature/x)
-	@if [ -z "$(BRANCH)" ]; then \
-		printf "$(YELLOW)Error: BRANCH is required. Usage: make worktree-pod-stop BRANCH=feature-name$(RESET)\n"; \
-		exit 1; \
-	fi
+	$(call require_branch,worktree-pod-stop)
 	@HASH=$$(echo -n "$(BRANCH)" | $(MD5_SHORT)); \
 	POD_NAME="worktree-$${HASH}"; \
 	if ! podman pod inspect "$${POD_NAME}" &>/dev/null; then \
@@ -678,10 +646,7 @@ worktree-pod-stop: ## Stop pod, preserve volumes (BRANCH=feature/x)
 	printf "$(GREEN)Pod stopped. Volumes preserved. Resume with: make worktree-pod-start BRANCH=$(BRANCH)$(RESET)\n"
 
 worktree-pod-start: ## Restart a stopped pod (BRANCH=feature/x)
-	@if [ -z "$(BRANCH)" ]; then \
-		printf "$(YELLOW)Error: BRANCH is required. Usage: make worktree-pod-start BRANCH=feature-name$(RESET)\n"; \
-		exit 1; \
-	fi
+	$(call require_branch,worktree-pod-start)
 	@HASH=$$(echo -n "$(BRANCH)" | $(MD5_SHORT)); \
 	POD_NAME="worktree-$${HASH}"; \
 	if ! podman pod inspect "$${POD_NAME}" &>/dev/null; then \
@@ -695,10 +660,7 @@ worktree-pod-start: ## Restart a stopped pod (BRANCH=feature/x)
 	printf "$(GREEN)Pod started. Run: make worktree-pod-dev BRANCH=$(BRANCH)$(RESET)\n"
 
 worktree-pod-remove: ## Full cleanup: pod, volumes, worktree (BRANCH=feature/x)
-	@if [ -z "$(BRANCH)" ]; then \
-		printf "$(YELLOW)Error: BRANCH is required. Usage: make worktree-pod-remove BRANCH=feature-name$(RESET)\n"; \
-		exit 1; \
-	fi
+	$(call require_branch,worktree-pod-remove)
 	@HASH=$$(echo -n "$(BRANCH)" | $(MD5_SHORT)); \
 	POD_NAME="worktree-$${HASH}"; \
 	WT_DIR="$$(pwd)/.worktrees/$(BRANCH)"; \
@@ -785,10 +747,7 @@ worktree-pod-list: ## List all worktree pods with status and URLs
 	fi
 
 worktree-pod-logs: ## Show dev container logs (BRANCH=feature/x)
-	@if [ -z "$(BRANCH)" ]; then \
-		printf "$(YELLOW)Error: BRANCH is required. Usage: make worktree-pod-logs BRANCH=feature-name$(RESET)\n"; \
-		exit 1; \
-	fi
+	$(call require_branch,worktree-pod-logs)
 	@HASH=$$(echo -n "$(BRANCH)" | $(MD5_SHORT)); \
 	CONTAINER="worktree-$${HASH}-dev"; \
 	if ! podman container inspect "$${CONTAINER}" &>/dev/null; then \
@@ -803,6 +762,7 @@ worktree-pod-logs: ## Show dev container logs (BRANCH=feature/x)
 # Release
 # ============================================================================
 ## REL_START
+.PHONY: publish publish-astro publish-vite publish-nextjs publish-swarm-ai release
 
 publish: publish-astro publish-vite publish-nextjs ## Publish all npm packages (pass OTP=<code> for 2FA)
 
@@ -846,12 +806,28 @@ release: ## Create a release PR from pending changesets
 # Utilities
 # ============================================================================
 ## UTIL_START
+.PHONY: kill-all-processes open-dogfooding pull-webapi debug-task
 
 kill-all-processes: ## Kill all running make dev processes
-	ps aux | grep "make dev" | awk -F ' ' '{print $$2}' | xargs kill
+	@ps aux | grep "[m]ake dev" | awk '{print $$2}' | xargs -r kill 2>/dev/null || true
 
-open-dogfooding: ## Open dogfooding app in browser
-	open -n -a "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --args --user-data-dir="/tmp/chrome_dev_test" --disable-web-security http://localhost:6123
+open-dogfooding: ## Open dogfooding app in browser (isolated Chrome profile)
+	@if [ "$$(uname)" = "Darwin" ]; then \
+		open -n -a "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+			--args --user-data-dir="/tmp/chrome_dev_test" --disable-web-security http://localhost:6123; \
+	elif command -v google-chrome >/dev/null 2>&1; then \
+		google-chrome --user-data-dir="/tmp/chrome_dev_test" --disable-web-security http://localhost:6123; \
+	elif command -v google-chrome-stable >/dev/null 2>&1; then \
+		google-chrome-stable --user-data-dir="/tmp/chrome_dev_test" --disable-web-security http://localhost:6123; \
+	elif command -v chromium-browser >/dev/null 2>&1; then \
+		chromium-browser --user-data-dir="/tmp/chrome_dev_test" --disable-web-security http://localhost:6123; \
+	elif command -v xdg-open >/dev/null 2>&1; then \
+		printf "$(YELLOW)No Chrome found — opening with default browser (--disable-web-security not applied)$(RESET)\n"; \
+		xdg-open http://localhost:6123; \
+	else \
+		printf "$(YELLOW)Error: No supported browser found. Open http://localhost:6123 manually.$(RESET)\n"; \
+		exit 1; \
+	fi
 
 pull-webapi: ## Pull latest experimental-rescript-webapi subtree
 	git subtree pull --prefix libs/experimental-rescript-webapi git@github.com:itayadler/experimental-rescript-webapi.git main --squash
