@@ -203,5 +203,7 @@ jobs:
           lsof -ti:3010 2>/dev/null | xargs kill -9 2>/dev/null || true
           lsof -ti:3011 2>/dev/null | xargs kill -9 2>/dev/null || true
           lsof -ti:3012 2>/dev/null | xargs kill -9 2>/dev/null || true
-          # Restore any fixture files modified by AI during tests
+          # Restore fixture files modified by AI + installer during tests
           git checkout -- test/e2e/fixtures/ 2>/dev/null || true
+          # Remove untracked files created by installer (middleware.ts, instrumentation.ts)
+          git clean -fd -- test/e2e/fixtures/ 2>/dev/null || true

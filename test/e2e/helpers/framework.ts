@@ -216,7 +216,7 @@ export async function stopFramework(
 
   server.proc.kill("SIGTERM");
 
-  // Restore any modified fixture files (the AI may have edited source)
+  // Restore modified tracked files (AI edits + installer-modified configs)
   try {
     execSync(`git checkout -- "${server.fixtureDir}"`, {
       cwd: ROOT,
@@ -224,6 +224,16 @@ export async function stopFramework(
     });
   } catch {
     // Ignore errors if no files were modified
+  }
+
+  // Remove untracked files created by the installer (middleware.ts, instrumentation.ts)
+  try {
+    execSync(`git clean -fd -- "${server.fixtureDir}"`, {
+      cwd: ROOT,
+      stdio: "pipe",
+    });
+  } catch {
+    // Ignore errors
   }
 }
 

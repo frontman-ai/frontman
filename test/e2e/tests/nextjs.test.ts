@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
 import { startNextjs, stopFramework, headingFileContains, type FrameworkServer } from "../helpers/framework.js";
 import { openFrontmanUI, sendPrompt } from "../helpers/frontman-ui.js";
+import { installNextjs } from "../helpers/installer.js";
 
 const PORT = 3010;
 
@@ -12,6 +13,9 @@ describe("Next.js E2E", () => {
   let server: FrameworkServer;
 
   beforeAll(async () => {
+    // Run the Frontman installer to generate middleware.ts + instrumentation.ts
+    installNextjs();
+
     browser = await chromium.launch({ headless: true });
     // Accept self-signed mkcert certificates
     context = await browser.newContext({ ignoreHTTPSErrors: true });

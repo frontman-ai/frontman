@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
 import { startVite, stopFramework, headingFileContains, type FrameworkServer } from "../helpers/framework.js";
 import { openFrontmanUI, sendPrompt } from "../helpers/frontman-ui.js";
+import { installVite } from "../helpers/installer.js";
 
 const PORT = 3012;
 
@@ -12,6 +13,9 @@ describe("Vite E2E", () => {
   let server: FrameworkServer;
 
   beforeAll(async () => {
+    // Run the Frontman installer to inject frontmanPlugin into vite.config.ts
+    installVite();
+
     browser = await chromium.launch({ headless: true });
     context = await browser.newContext({ ignoreHTTPSErrors: true });
     server = await startVite(PORT);

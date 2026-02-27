@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
 import { startAstro, stopFramework, headingFileContains, type FrameworkServer } from "../helpers/framework.js";
 import { openFrontmanUI, sendPrompt } from "../helpers/frontman-ui.js";
+import { installAstro } from "../helpers/installer.js";
 
 const PORT = 3011;
 
@@ -12,6 +13,9 @@ describe("Astro E2E", () => {
   let server: FrameworkServer;
 
   beforeAll(async () => {
+    // Configure Frontman integration in astro.config.mjs
+    installAstro();
+
     browser = await chromium.launch({ headless: true });
     context = await browser.newContext({ ignoreHTTPSErrors: true });
     server = await startAstro(PORT);

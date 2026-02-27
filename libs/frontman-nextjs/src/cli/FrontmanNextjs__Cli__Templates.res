@@ -36,6 +36,7 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
+  runtime: 'nodejs',
   matcher: ['/frontman', '/frontman/:path*', '/:path*/frontman'],
 };
 `
@@ -57,6 +58,7 @@ export function proxy(req: NextRequest): NextResponse | Promise<NextResponse> {
 }
 
 export const config = {
+  runtime: 'nodejs',
   matcher: ['/frontman', '/frontman/:path*', '/:path*/frontman'],
 };
 `
@@ -96,14 +98,19 @@ module ManualInstructions = {
   ${bar}
   ${bar}     ${d(`const frontman = createMiddleware({ host: '${host}' });`)}
   ${bar}
-  ${bar}  ${s("3.")} In your middleware function, add at the beginning:
+  ${bar}  ${s("3.")} In your middleware function, add as the ${b("very first lines")}:
   ${bar}
   ${bar}     ${d("const response = await frontman(req);")}
   ${bar}     ${d("if (response) return response;")}
   ${bar}
-  ${bar}  ${s("4.")} Update your matcher config to include Frontman routes:
+  ${bar}     ${d("// Must run before auth, redirects, or other middleware")}
   ${bar}
-   ${bar}     ${d("matcher: ['/frontman', '/frontman/:path*', '/:path*/frontman', ...yourExistingMatchers]")}
+  ${bar}  ${s("4.")} Update your config to use Node.js runtime and include Frontman routes:
+  ${bar}
+  ${bar}     ${d("export const config = {")}
+  ${bar}     ${d("  runtime: 'nodejs',")}
+  ${bar}     ${d("  matcher: ['/frontman', '/frontman/:path*', '/:path*/frontman', ...yourExistingMatchers],")}
+  ${bar}     ${d("};")}
   ${bar}
   ${bar}  ${b("Docs:")} ${d("https://frontman.sh/docs/nextjs")}
   ${bar}`
@@ -127,15 +134,18 @@ module ManualInstructions = {
   ${bar}
   ${bar}     ${d(`const frontman = createMiddleware({ host: '${host}' });`)}
   ${bar}
-  ${bar}  ${s("3.")} In your proxy function, add Frontman handler at the beginning:
+  ${bar}  ${s("3.")} In your proxy function, add Frontman handler as the ${b("very first lines")}:
   ${bar}
      ${bar}     ${d("if (req.nextUrl.pathname === '/frontman' || req.nextUrl.pathname.startsWith('/frontman/') || req.nextUrl.pathname.endsWith('/frontman')) {")}
   ${bar}     ${d("  return frontman(req) || NextResponse.next();")}
   ${bar}     ${d("}")}
   ${bar}
-  ${bar}  ${s("4.")} Update your matcher config to include Frontman routes:
+  ${bar}  ${s("4.")} Update your config to use Node.js runtime and include Frontman routes:
   ${bar}
-  ${bar}     ${d("matcher: ['/frontman', '/frontman/:path*', '/:path*/frontman', ...yourExistingMatchers]")}
+  ${bar}     ${d("export const config = {")}
+  ${bar}     ${d("  runtime: 'nodejs',")}
+  ${bar}     ${d("  matcher: ['/frontman', '/frontman/:path*', '/:path*/frontman', ...yourExistingMatchers],")}
+  ${bar}     ${d("};")}
   ${bar}
   ${bar}  ${b("Docs:")} ${d("https://frontman.sh/docs/nextjs")}
   ${bar}`
@@ -187,19 +197,24 @@ Add the following to your ${fileName}:
        host: '${host}',
      });
 
-  3. In your middleware function, add at the beginning:
+  3. In your middleware function, add as the VERY FIRST lines (before any other logic):
 
-     export async function middleware(req: NextRequest) {
-       // Add Frontman handler first
-       const response = await frontman(req);
-       if (response) return response;
+      export async function middleware(req: NextRequest) {
+        // Frontman MUST run first — before auth, redirects, or any other middleware
+        const response = await frontman(req);
+        if (response) return response;
 
-       // ... your existing middleware logic
-     }
+        // ... your existing middleware logic
+      }
+
+     IMPORTANT: The Frontman handler must execute before any other middleware
+     logic (auth checks, redirects, rewrites, etc.) so it can intercept its
+     own routes. Do not wrap it in conditions or move it after other code.
 
   4. Update your matcher config to include Frontman routes:
 
       export const config = {
+        runtime: 'nodejs',
         matcher: ['/frontman', '/frontman/:path*', '/:path*/frontman', ...yourExistingMatchers],
       };
 
@@ -222,20 +237,25 @@ Add the following to your ${fileName}:
        host: '${host}',
      });
 
-  3. In your proxy function, add at the beginning:
+  3. In your proxy function, add as the VERY FIRST lines (before any other logic):
 
-      export function proxy(req: NextRequest): NextResponse | Promise<NextResponse> {
-        // Add Frontman handler first
-        if (req.nextUrl.pathname === '/frontman' || req.nextUrl.pathname.startsWith('/frontman/') || req.nextUrl.pathname.endsWith('/frontman')) {
-         return frontman(req) || NextResponse.next();
-       }
+       export function proxy(req: NextRequest): NextResponse | Promise<NextResponse> {
+         // Frontman MUST run first — before auth, redirects, or any other proxy logic
+         if (req.nextUrl.pathname === '/frontman' || req.nextUrl.pathname.startsWith('/frontman/') || req.nextUrl.pathname.endsWith('/frontman')) {
+          return frontman(req) || NextResponse.next();
+        }
 
-       // ... your existing proxy logic
-     }
+        // ... your existing proxy logic
+      }
+
+     IMPORTANT: The Frontman handler must execute before any other proxy
+     logic (auth checks, redirects, rewrites, etc.) so it can intercept its
+     own routes. Do not move it after other code.
 
   4. Update your matcher config to include Frontman routes:
 
       export const config = {
+        runtime: 'nodejs',
         matcher: ['/frontman', '/frontman/:path*', '/:path*/frontman', ...yourExistingMatchers],
       };
 
