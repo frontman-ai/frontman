@@ -86,9 +86,9 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
       timestamp: parse_datetime(data["timestamp"]),
       messages: data["messages"] || [],
       annotations: parse_annotations(data["annotations"]),
-      selected_figma_node: parse_figma_node(data["selected_figma_node"]),
+      selected_figma_node: Interaction.FigmaNode.from_map(data["selected_figma_node"]),
       images: parse_images(data["images"]),
-      current_page: parse_current_page(data["current_page"])
+      current_page: Interaction.CurrentPage.from_map(data["current_page"])
     }
   end
 
@@ -179,145 +179,19 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
     end
   end
 
-  # Parse annotations list from stored data
-  @spec parse_annotations(list() | nil) :: list(Interaction.Annotation.t())
+  # Parse annotations list from stored data — delegates to domain Annotation.from_map/1
   defp parse_annotations(nil), do: []
 
-  defp parse_annotations(annotations) when is_list(annotations) do
-    Enum.map(annotations, &parse_annotation/1)
-  end
+  defp parse_annotations(annotations) when is_list(annotations),
+    do: Enum.map(annotations, &Interaction.Annotation.from_map/1)
 
   defp parse_annotations(_), do: []
 
-  defp parse_annotation(data) when is_map(data) do
-    %Interaction.Annotation{
-      annotation_id: get_flex(data, "annotation_id"),
-      annotation_index: get_flex(data, "annotation_index"),
-      tag_name: get_flex(data, "tag_name") || "unknown",
-      comment: get_flex(data, "comment"),
-      file: get_flex(data, "file"),
-      line: get_flex(data, "line"),
-      column: get_flex(data, "column"),
-      component_name: get_flex(data, "component_name"),
-      component_props: get_flex(data, "component_props"),
-      parent: parse_parent_chain(get_flex(data, "parent")),
-      css_classes: get_flex(data, "css_classes"),
-      nearby_text: get_flex(data, "nearby_text"),
-      bounding_box: parse_bounding_box(get_flex(data, "bounding_box")),
-      screenshot: parse_annotation_screenshot(get_flex(data, "screenshot"))
-    }
-  end
-
-  # Get value from map supporting both string and atom keys
-  defp get_flex(map, key) when is_binary(key) do
-    Map.get(map, key) || Map.get(map, String.to_existing_atom(key))
-  rescue
-    ArgumentError -> Map.get(map, key)
-  end
-
-  defp parse_annotation_screenshot(nil), do: nil
-
-  defp parse_annotation_screenshot(%{"blob" => blob, "mime_type" => mime_type})
-       when is_binary(blob) and is_binary(mime_type) do
-    %{blob: blob, mime_type: mime_type}
-  end
-
-  defp parse_annotation_screenshot(%{blob: blob, mime_type: mime_type})
-       when is_binary(blob) and is_binary(mime_type) do
-    %{blob: blob, mime_type: mime_type}
-  end
-
-  defp parse_annotation_screenshot(_), do: nil
-
-  defp parse_bounding_box(nil), do: nil
-
-  defp parse_bounding_box(%{"x" => x, "y" => y, "width" => w, "height" => h})
-       when is_number(x) and is_number(y) and is_number(w) and is_number(h) do
-    %{x: x / 1, y: y / 1, width: w / 1, height: h / 1}
-  end
-
-  defp parse_bounding_box(%{x: x, y: y, width: w, height: h})
-       when is_number(x) and is_number(y) and is_number(w) and is_number(h) do
-    %{x: x / 1, y: y / 1, width: w / 1, height: h / 1}
-  end
-
-  defp parse_bounding_box(_), do: nil
-
-  @spec parse_parent_chain(map() | nil) :: map() | nil
-  defp parse_parent_chain(nil), do: nil
-
-  defp parse_parent_chain(parent) when is_map(parent) do
-    file = get_flex(parent, "file")
-    line = get_flex(parent, "line")
-    column = get_flex(parent, "column")
-
-    if is_binary(file) and is_integer(line) and is_integer(column) do
-      %{
-        file: file,
-        line: line,
-        column: column,
-        component_name: get_flex(parent, "component_name"),
-        component_props: get_flex(parent, "component_props"),
-        parent: parse_parent_chain(get_flex(parent, "parent"))
-      }
-    else
-      nil
-    end
-  end
-
-  defp parse_parent_chain(_), do: nil
-
-  @spec parse_figma_node(map() | nil) :: Interaction.FigmaNode.t() | nil
-  defp parse_figma_node(nil), do: nil
-
-  defp parse_figma_node(data) when is_map(data) do
-    %Interaction.FigmaNode{
-      id: data["id"],
-      node: data["node"],
-      image: data["image"],
-      is_dsl: data["is_dsl"] || true
-    }
-  end
-
-  # Parse user-uploaded images from stored data
+  # Parse user-uploaded images from stored data — delegates to domain UserImage.from_map/1
   defp parse_images(nil), do: []
 
-  defp parse_images(images) when is_list(images) do
-    Enum.map(images, fn img when is_map(img) ->
-      %{
-        blob: img["blob"],
-        mime_type: img["mime_type"] || "image/png",
-        filename: img["filename"] || "attachment",
-        uri: img["uri"]
-      }
-    end)
-  end
+  defp parse_images(images) when is_list(images),
+    do: Enum.map(images, &Interaction.UserImage.from_map/1)
 
   defp parse_images(_), do: []
-
-  # Parse current page context from stored data
-  @spec parse_current_page(map() | nil) :: Interaction.UserMessage.current_page() | nil
-  defp parse_current_page(nil), do: nil
-
-  defp parse_current_page(data) when is_map(data) do
-    url = data["url"]
-
-    case url do
-      url when is_binary(url) ->
-        %{
-          url: url,
-          viewport_width: data["viewport_width"],
-          viewport_height: data["viewport_height"],
-          device_pixel_ratio: data["device_pixel_ratio"],
-          title: data["title"],
-          color_scheme: data["color_scheme"],
-          scroll_y: data["scroll_y"]
-        }
-
-      _ ->
-        nil
-    end
-  end
-
-  defp parse_current_page(_), do: nil
 end

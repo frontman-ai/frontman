@@ -104,7 +104,11 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       ann = hd(msg.annotations)
       assert ann.file == "/src/Button.tsx"
       assert ann.line == 15
-      assert ann.screenshot == %{blob: "base64screenshotdata", mime_type: "image/png"}
+
+      assert ann.screenshot == %Interaction.Screenshot{
+               blob: "base64screenshotdata",
+               mime_type: "image/png"
+             }
     end
 
     test "extracts multiple annotations with enrichment data" do
@@ -190,7 +194,13 @@ defmodule FrontmanServer.Tasks.InteractionTest do
 
       assert length(msg.annotations) == 1
       ann = hd(msg.annotations)
-      assert ann.bounding_box == %{x: 10.5, y: 20.0, width: 200.0, height: 50.0}
+
+      assert ann.bounding_box == %Interaction.BoundingBox{
+               x: 10.5,
+               y: 20.0,
+               width: 200.0,
+               height: 50.0
+             }
     end
 
     test "annotation bounding_box is nil when not provided" do
@@ -407,7 +417,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
               file: "/src/Layout.tsx",
               line: 10,
               column: 1,
-              bounding_box: %{x: 10.5, y: 20.0, width: 200.0, height: 50.0}
+              bounding_box: %Interaction.BoundingBox{x: 10.5, y: 20.0, width: 200.0, height: 50.0}
             }
           ]
         }

@@ -79,6 +79,185 @@ defmodule FrontmanServer.Tasks.Interaction do
       # True if node contains DSL text, false if it contains full JSON data
       field(:is_dsl, boolean(), default: true)
     end
+
+    @spec from_map(map() | nil) :: t() | nil
+    def from_map(nil), do: nil
+
+    def from_map(data) when is_map(data) do
+      %__MODULE__{
+        id: data["id"],
+        node: data["node"],
+        image: data["image"],
+        is_dsl: data["is_dsl"] || true
+      }
+    end
+  end
+
+  defmodule Screenshot do
+    @moduledoc """
+    Base64-encoded screenshot with MIME type.
+    """
+    use TypedStruct
+
+    @derive Jason.Encoder
+    typedstruct enforce: true do
+      field(:blob, String.t())
+      field(:mime_type, String.t())
+    end
+
+    @spec from_map(map() | nil) :: t() | nil
+    def from_map(nil), do: nil
+
+    def from_map(%{blob: blob, mime_type: mime_type})
+        when is_binary(blob) and is_binary(mime_type),
+        do: %__MODULE__{blob: blob, mime_type: mime_type}
+
+    def from_map(%{"blob" => blob, "mime_type" => mime_type})
+        when is_binary(blob) and is_binary(mime_type),
+        do: %__MODULE__{blob: blob, mime_type: mime_type}
+
+    def from_map(_), do: nil
+  end
+
+  defmodule BoundingBox do
+    @moduledoc """
+    Bounding box of an element in viewport coordinates.
+    """
+    use TypedStruct
+
+    @derive Jason.Encoder
+    typedstruct enforce: true do
+      field(:x, float())
+      field(:y, float())
+      field(:width, float())
+      field(:height, float())
+    end
+
+    @spec from_map(map() | nil) :: t() | nil
+    def from_map(nil), do: nil
+
+    def from_map(%{x: x, y: y, width: w, height: h})
+        when is_number(x) and is_number(y) and is_number(w) and is_number(h),
+        do: %__MODULE__{x: x / 1, y: y / 1, width: w / 1, height: h / 1}
+
+    def from_map(%{"x" => x, "y" => y, "width" => w, "height" => h})
+        when is_number(x) and is_number(y) and is_number(w) and is_number(h),
+        do: %__MODULE__{x: x / 1, y: y / 1, width: w / 1, height: h / 1}
+
+    def from_map(_), do: nil
+  end
+
+  defmodule ParentLocation do
+    @moduledoc """
+    Source location of a parent component in the React tree.
+
+    Forms a recursive chain via the `parent` field.
+    """
+    use TypedStruct
+
+    @derive Jason.Encoder
+    typedstruct enforce: true do
+      field(:file, String.t())
+      field(:line, integer())
+      field(:column, integer())
+      field(:component_name, String.t() | nil, enforce: false)
+      field(:component_props, map() | nil, enforce: false)
+      field(:parent, t() | nil, enforce: false)
+    end
+
+    alias FrontmanServer.Tasks.Interaction
+
+    @spec from_map(map() | nil) :: t() | nil
+    def from_map(nil), do: nil
+
+    def from_map(data) when is_map(data) do
+      file = Interaction.get_flex(data, "file")
+      line = Interaction.get_flex(data, "line")
+      column = Interaction.get_flex(data, "column")
+
+      if is_binary(file) and is_integer(line) and is_integer(column) do
+        %__MODULE__{
+          file: file,
+          line: line,
+          column: column,
+          component_name: Interaction.get_flex(data, "component_name"),
+          component_props: Interaction.get_flex(data, "component_props"),
+          parent: from_map(Interaction.get_flex(data, "parent"))
+        }
+      else
+        nil
+      end
+    end
+
+    def from_map(_), do: nil
+  end
+
+  defmodule UserImage do
+    @moduledoc """
+    A user-uploaded image or PDF attachment.
+    """
+    use TypedStruct
+
+    @derive Jason.Encoder
+    typedstruct enforce: true do
+      field(:blob, String.t())
+      field(:mime_type, String.t())
+      field(:filename, String.t())
+      field(:uri, String.t() | nil, enforce: false)
+    end
+
+    @spec from_map(map()) :: t()
+    def from_map(data) when is_map(data) do
+      %__MODULE__{
+        blob: data["blob"],
+        mime_type: data["mime_type"] || "image/png",
+        filename: data["filename"] || "attachment",
+        uri: data["uri"]
+      }
+    end
+  end
+
+  defmodule CurrentPage do
+    @moduledoc """
+    Page context from the client: URL, viewport, DPR, title, color scheme, scroll position.
+    """
+    use TypedStruct
+
+    @derive Jason.Encoder
+    typedstruct enforce: true do
+      field(:url, String.t())
+      field(:viewport_width, integer() | nil, enforce: false)
+      field(:viewport_height, integer() | nil, enforce: false)
+      field(:device_pixel_ratio, float() | nil, enforce: false)
+      field(:title, String.t() | nil, enforce: false)
+      field(:color_scheme, String.t() | nil, enforce: false)
+      field(:scroll_y, integer() | nil, enforce: false)
+    end
+
+    @spec from_map(map() | nil) :: t() | nil
+    def from_map(nil), do: nil
+
+    def from_map(data) when is_map(data) do
+      url = data["url"]
+
+      case url do
+        url when is_binary(url) ->
+          %__MODULE__{
+            url: url,
+            viewport_width: data["viewport_width"],
+            viewport_height: data["viewport_height"],
+            device_pixel_ratio: data["device_pixel_ratio"],
+            title: data["title"],
+            color_scheme: data["color_scheme"],
+            scroll_y: data["scroll_y"]
+          }
+
+        _ ->
+          nil
+      end
+    end
+
+    def from_map(_), do: nil
   end
 
   defmodule Annotation do
@@ -100,13 +279,53 @@ defmodule FrontmanServer.Tasks.Interaction do
       field(:column, integer() | nil)
       field(:component_name, String.t() | nil)
       field(:component_props, map() | nil)
-      field(:parent, map() | nil)
+      field(:parent, ParentLocation.t() | nil)
       field(:css_classes, String.t() | nil)
       field(:nearby_text, String.t() | nil)
-      # Bounding box of the annotated element {x, y, width, height}
-      field(:bounding_box, %{x: float(), y: float(), width: float(), height: float()} | nil)
-      # Screenshot blob + mime_type (if present)
-      field(:screenshot, %{blob: String.t(), mime_type: String.t()} | nil)
+      field(:bounding_box, BoundingBox.t() | nil)
+      field(:screenshot, Screenshot.t() | nil)
+    end
+
+    alias FrontmanServer.Tasks.Interaction
+
+    @doc """
+    Builds an Annotation from a map with string or atom keys.
+
+    Used by both DB deserialization (InteractionSchema.to_struct) and
+    ACP content block parsing (via from_meta/2).
+    """
+    @spec from_map(map()) :: t()
+    def from_map(data) when is_map(data) do
+      %__MODULE__{
+        annotation_id: Interaction.get_flex(data, "annotation_id"),
+        annotation_index: Interaction.get_flex(data, "annotation_index"),
+        tag_name: Interaction.get_flex(data, "tag_name") || "unknown",
+        comment: Interaction.get_flex(data, "comment"),
+        file: Interaction.get_flex(data, "file"),
+        line: Interaction.get_flex(data, "line"),
+        column: Interaction.get_flex(data, "column"),
+        component_name: Interaction.get_flex(data, "component_name"),
+        component_props: Interaction.get_flex(data, "component_props"),
+        parent: ParentLocation.from_map(Interaction.get_flex(data, "parent")),
+        css_classes: Interaction.get_flex(data, "css_classes"),
+        nearby_text: Interaction.get_flex(data, "nearby_text"),
+        bounding_box: BoundingBox.from_map(Interaction.get_flex(data, "bounding_box")),
+        screenshot: Screenshot.from_map(Interaction.get_flex(data, "screenshot"))
+      }
+    end
+
+    @doc """
+    Builds an Annotation from an ACP `_meta` block, pairing with a separate
+    screenshot map keyed by annotation_id.
+
+    The _meta block contains all annotation fields inline. Screenshots are
+    sent as separate content blocks and collected into `screenshot_map` by
+    the caller.
+    """
+    @spec from_meta(map(), %{optional(String.t()) => Screenshot.t()}) :: t()
+    def from_meta(meta, screenshot_map \\ %{}) when is_map(meta) do
+      ann = from_map(meta)
+      %{ann | screenshot: Map.get(screenshot_map, ann.annotation_id)}
     end
   end
 
@@ -120,16 +339,6 @@ defmodule FrontmanServer.Tasks.Interaction do
     - `current_page` - page context (URL, viewport, DPR, title, color scheme, scroll)
     """
     use TypedStruct
-
-    @type current_page :: %{
-            url: String.t(),
-            viewport_width: integer() | nil,
-            viewport_height: integer() | nil,
-            device_pixel_ratio: float() | nil,
-            title: String.t() | nil,
-            color_scheme: String.t() | nil,
-            scroll_y: integer() | nil
-          }
 
     typedstruct enforce: true do
       field(:id, String.t())
@@ -146,11 +355,10 @@ defmodule FrontmanServer.Tasks.Interaction do
       field(:selected_figma_node, FigmaNode.t() | nil, enforce: false)
 
       # User-uploaded image/PDF attachments
-      # Each entry: %{blob: base64_data, mime_type: "image/png", filename: "image.png"}
-      field(:images, list(map()), default: [])
+      field(:images, list(UserImage.t()), default: [])
 
       # Extracted current page context from resource with _meta.current_page
-      field(:current_page, current_page() | nil, enforce: false)
+      field(:current_page, CurrentPage.t() | nil, enforce: false)
     end
 
     def new(content_blocks) do
@@ -176,113 +384,54 @@ defmodule FrontmanServer.Tasks.Interaction do
       |> Enum.reject(&(&1 == ""))
     end
 
-    # Extract annotations from content blocks
-    # Annotations are resource blocks with _meta.annotation: true
-    # Screenshots are paired by annotation_id via _meta.annotation_screenshot: true
+    # Extract annotations from content blocks.
+    # Annotations are resource blocks with _meta.annotation: true.
+    # Screenshots are paired by annotation_id via _meta.annotation_screenshot: true.
     defp extract_annotations(content_blocks) do
-      # Collect annotation metadata blocks grouped by annotation_id
-      annotation_metas =
-        content_blocks
-        |> Enum.filter(fn
-          %{"type" => "resource", "resource" => %{"_meta" => %{"annotation" => true}}} -> true
-          _ -> false
-        end)
-        |> Enum.map(fn %{"type" => "resource", "resource" => %{"_meta" => meta}} ->
-          %Annotation{
-            annotation_id: Map.get(meta, "annotation_id"),
-            annotation_index: Map.get(meta, "annotation_index"),
-            tag_name: Map.get(meta, "tag_name", "unknown"),
-            comment: Map.get(meta, "comment"),
-            file: Map.get(meta, "file"),
-            line: Map.get(meta, "line"),
-            column: Map.get(meta, "column"),
-            component_name: Map.get(meta, "component_name"),
-            component_props: Map.get(meta, "component_props"),
-            parent: parse_parent_chain(Map.get(meta, "parent")),
-            css_classes: Map.get(meta, "css_classes"),
-            nearby_text: Map.get(meta, "nearby_text"),
-            bounding_box: parse_bounding_box(Map.get(meta, "bounding_box")),
-            screenshot: nil
-          }
-        end)
+      screenshot_map = extract_screenshot_map(content_blocks)
 
-      # Collect screenshot blobs indexed by annotation_id
-      screenshot_map =
-        content_blocks
-        |> Enum.filter(fn
-          %{
-            "type" => "resource",
-            "resource" => %{"_meta" => %{"annotation_screenshot" => true}}
-          } ->
-            true
-
-          _ ->
-            false
-        end)
-        |> Enum.reduce(%{}, fn %{"type" => "resource", "resource" => resource}, acc ->
-          meta = Map.get(resource, "_meta", %{})
-          annotation_id = Map.get(meta, "annotation_id")
-          inner = Map.get(resource, "resource", %{})
-          blob = Map.get(inner, "blob")
-          mime_type = Map.get(inner, "mimeType", "image/jpeg")
-
-          if is_binary(annotation_id) and is_binary(blob) do
-            Map.put(acc, annotation_id, %{blob: blob, mime_type: mime_type})
-          else
-            acc
-          end
-        end)
-
-      # Merge screenshots into annotations
-      annotation_metas
-      |> Enum.map(fn ann ->
-        screenshot = Map.get(screenshot_map, ann.annotation_id)
-        %{ann | screenshot: screenshot}
+      content_blocks
+      |> Enum.filter(&annotation_block?/1)
+      |> Enum.map(fn %{"type" => "resource", "resource" => %{"_meta" => meta}} ->
+        Annotation.from_meta(meta, screenshot_map)
       end)
       |> Enum.sort_by(& &1.annotation_index)
     end
 
-    # Recursively parse parent chain from _meta
-    defp parse_parent_chain(nil), do: nil
+    defp annotation_block?(%{
+           "type" => "resource",
+           "resource" => %{"_meta" => %{"annotation" => true}}
+         }), do: true
 
-    defp parse_parent_chain(parent) when is_map(parent) do
-      file = Map.get(parent, "file")
-      line = Map.get(parent, "line")
-      column = Map.get(parent, "column")
+    defp annotation_block?(_), do: false
 
-      if is_binary(file) and is_integer(line) and is_integer(column) do
-        %{
-          file: file,
-          line: line,
-          column: column,
-          component_name: Map.get(parent, "component_name"),
-          component_props: Map.get(parent, "component_props"),
-          parent: parse_parent_chain(Map.get(parent, "parent"))
-        }
-      else
-        nil
-      end
+    # Collect screenshot blobs indexed by annotation_id
+    defp extract_screenshot_map(content_blocks) do
+      content_blocks
+      |> Enum.filter(&annotation_screenshot_block?/1)
+      |> Enum.reduce(%{}, fn %{"type" => "resource", "resource" => resource}, acc ->
+        annotation_id = get_in(resource, ["_meta", "annotation_id"])
+        inner = Map.get(resource, "resource", %{})
+
+        case Screenshot.from_map(%{
+               "blob" => inner["blob"],
+               "mime_type" => inner["mimeType"] || "image/jpeg"
+             }) do
+          %Screenshot{} = screenshot when is_binary(annotation_id) ->
+            Map.put(acc, annotation_id, screenshot)
+
+          _ ->
+            acc
+        end
+      end)
     end
 
-    defp parse_parent_chain(_), do: nil
+    defp annotation_screenshot_block?(%{
+           "type" => "resource",
+           "resource" => %{"_meta" => %{"annotation_screenshot" => true}}
+         }), do: true
 
-    # Parse bounding box from _meta
-    defp parse_bounding_box(nil), do: nil
-
-    defp parse_bounding_box(bb) when is_map(bb) do
-      x = Map.get(bb, "x")
-      y = Map.get(bb, "y")
-      width = Map.get(bb, "width")
-      height = Map.get(bb, "height")
-
-      if is_number(x) and is_number(y) and is_number(width) and is_number(height) do
-        %{x: x / 1, y: y / 1, width: width / 1, height: height / 1}
-      else
-        nil
-      end
-    end
-
-    defp parse_bounding_box(_), do: nil
+    defp annotation_screenshot_block?(_), do: false
 
     defp extract_selected_figma_node(content_blocks) do
       Enum.find_value(content_blocks, fn
@@ -326,57 +475,44 @@ defmodule FrontmanServer.Tasks.Interaction do
       end)
     end
 
-    # Extract current page context from content blocks
-    # Looks for _meta.current_page with page metadata
+    # Extract current page context from content blocks.
+    # Delegates construction to CurrentPage.from_map/1.
     defp extract_current_page(content_blocks) do
       Enum.find_value(content_blocks, fn
-        %{
-          "type" => "resource",
-          "resource" => %{"_meta" => %{"current_page" => true} = meta}
-        } ->
-          url = Map.get(meta, "url")
-
-          case url do
-            url when is_binary(url) ->
-              %{
-                url: url,
-                viewport_width: Map.get(meta, "viewport_width"),
-                viewport_height: Map.get(meta, "viewport_height"),
-                device_pixel_ratio: Map.get(meta, "device_pixel_ratio"),
-                title: Map.get(meta, "title"),
-                color_scheme: Map.get(meta, "color_scheme"),
-                scroll_y: Map.get(meta, "scroll_y")
-              }
-
-            _ ->
-              nil
-          end
+        %{"type" => "resource", "resource" => %{"_meta" => %{"current_page" => true} = meta}} ->
+          CurrentPage.from_map(meta)
 
         _ ->
           nil
       end)
     end
 
-    # Extract user-uploaded images from content blocks
-    # Looks for resource blocks with _meta.user_image: true
+    # Extract user-uploaded images from content blocks.
+    # Merges _meta and inner resource fields, then delegates to UserImage.from_map/1.
     defp extract_user_images(content_blocks) do
       content_blocks
-      |> Enum.filter(fn
-        %{"type" => "resource", "resource" => %{"_meta" => %{"user_image" => true}}} -> true
-        _ -> false
-      end)
+      |> Enum.filter(&user_image_block?/1)
       |> Enum.map(fn %{"type" => "resource", "resource" => resource} ->
         inner = Map.get(resource, "resource", %{})
         meta = Map.get(resource, "_meta", %{})
 
-        %{
-          blob: Map.get(inner, "blob", ""),
-          mime_type: Map.get(inner, "mimeType", "image/png"),
-          filename: Map.get(meta, "filename", "attachment"),
-          uri: Map.get(inner, "uri")
-        }
+        # UserImage fields come from both _meta (filename) and inner resource (blob, mimeType, uri).
+        # Merge into a flat map with the keys UserImage.from_map expects.
+        UserImage.from_map(%{
+          "blob" => inner["blob"] || "",
+          "mime_type" => inner["mimeType"] || "image/png",
+          "filename" => meta["filename"] || "attachment",
+          "uri" => inner["uri"]
+        })
       end)
     end
+
+    defp user_image_block?(%{
+           "type" => "resource",
+           "resource" => %{"_meta" => %{"user_image" => true}}
+         }), do: true
+
+    defp user_image_block?(_), do: false
   end
 
   defimpl Jason.Encoder, for: UserMessage do
@@ -732,6 +868,19 @@ defmodule FrontmanServer.Tasks.Interaction do
         opts
       )
     end
+  end
+
+  @doc """
+  Retrieves a value from a map supporting both string and atom keys.
+
+  Useful at persistence boundaries where DB JSON comes with string keys
+  but in-memory structs use atoms.
+  """
+  @spec get_flex(map(), String.t()) :: term()
+  def get_flex(map, key) when is_binary(key) do
+    Map.get(map, key) || Map.get(map, String.to_existing_atom(key))
+  rescue
+    ArgumentError -> Map.get(map, key)
   end
 
   @doc """
