@@ -5,18 +5,6 @@
  */
 module RadixUI__Icons = Bindings__RadixUI__Icons
 
-// Decorative traffic lights (macOS-style window controls)
-module TrafficLights = {
-  @react.component
-  let make = () => {
-    <div className="flex items-center gap-2 px-3">
-      <div className="w-3 h-3 rounded-full bg-red-500" />
-      <div className="w-3 h-3 rounded-full bg-yellow-500" />
-      <div className="w-3 h-3 rounded-full bg-green-500" />
-    </div>
-  }
-}
-
 // Navigation button with tooltip
 module NavButton = {
   @react.component

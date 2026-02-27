@@ -3,12 +3,11 @@
  * 
  * Uses pure ReScript navigation components instead of AIElements.
  */
-
 module Nav = Client__WebPreview__Nav
 module RadixUI__Icons = Bindings__RadixUI__Icons
 
 @send external locationAssign: ('a, string) => unit = "assign"
-@send external blur: (Dom.element) => unit = "blur"
+@send external blur: Dom.element => unit = "blur"
 
 module BackButton = {
   @react.component
@@ -79,7 +78,7 @@ type resizeObserverEntry = {contentRect: WebAPI.DOMAPI.domRectReadOnly}
 
 @send external observeElement: ({..}, Dom.element) => unit = "observe"
 
-@send external disconnectObserver: ({..}) => unit = "disconnect"
+@send external disconnectObserver: {..} => unit = "disconnect"
 
 // Hook to measure the available space in the viewport container
 let useContainerSize = (ref: React.ref<Nullable.t<Dom.element>>): (int, int) => {
@@ -91,20 +90,18 @@ let useContainerSize = (ref: React.ref<Nullable.t<Dom.element>>): (int, int) => 
     | Some(element) =>
       // Initial measurement
       let rect = WebAPI.Element.getBoundingClientRect(element->Obj.magic)
-      setSize(_ => (
-        rect.width->Float.toInt,
-        rect.height->Float.toInt,
-      ))
+      setSize(_ => (rect.width->Float.toInt, rect.height->Float.toInt))
 
       // Observe resize
       let observer = makeResizeObserver(entries => {
-        entries->Array.get(0)->Option.forEach(entry => {
-          let cr: WebAPI.DOMAPI.domRectReadOnly = entry.contentRect
-          setSize(_ => (
-            cr.width->Float.toInt,
-            cr.height->Float.toInt,
-          ))
-        })
+        entries
+        ->Array.get(0)
+        ->Option.forEach(
+          entry => {
+            let cr: WebAPI.DOMAPI.domRectReadOnly = entry.contentRect
+            setSize(_ => (cr.width->Float.toInt, cr.height->Float.toInt))
+          },
+        )
       })
       observer->observeElement(element)
       Some(() => observer->disconnectObserver)
@@ -153,7 +150,10 @@ let make = () => {
       switch Client__BrowserUrl.resolveUrlWithBase(~url=editableUrl, ~base=previewUrl) {
       | None => ()
       | Some(resolvedUrl) =>
-        switch Client__BrowserUrl.isSameOriginWithBase(~baseUrl=previewUrl, ~targetUrl=resolvedUrl) {
+        switch Client__BrowserUrl.isSameOriginWithBase(
+          ~baseUrl=previewUrl,
+          ~targetUrl=resolvedUrl,
+        ) {
         | false => ()
         | true =>
           previewFrame.contentWindow->Option.forEach(contentWindow => {
@@ -233,85 +233,86 @@ let make = () => {
     Some((deviceWidth, deviceHeight, scale))
   }
 
-    <Nav.Container>
-      <Nav.Navigation>
-        <Nav.TrafficLights />
-        <BackButton onClick={handleBack} />
-        <ForwardButton onClick={handleForward} />
-        <ReloadButton onClick={handleReload} />
-        <Nav.UrlInput
-          value={displayedUrl}
-          onChange={handleUrlChange}
-          onKeyDown={handleUrlKeyDown}
-          onFocus={handleUrlFocus}
-          onBlur={handleUrlBlur}
-        />
-        <DeviceModeToggle isActive={deviceModeActive} onClick={handleToggleDeviceMode} />
-        <Client__WebPreview__AnnotationControls
-          mode={annotationMode}
-          annotationCount={Array.length(annotations)}
-          onSetMode={handleSetAnnotationMode}
-          onClear={handleClearAnnotations}
-          previewDocument=?{previewFrame.contentDocument}
-        />
-        <OpenInNewWindow onClick={handleOpenInNewTab} />
-      </Nav.Navigation>
+  <Nav.Container>
+    <Nav.Navigation>
+      <BackButton onClick={handleBack} />
+      <ForwardButton onClick={handleForward} />
+      <ReloadButton onClick={handleReload} />
+      <Nav.UrlInput
+        value={displayedUrl}
+        onChange={handleUrlChange}
+        onKeyDown={handleUrlKeyDown}
+        onFocus={handleUrlFocus}
+        onBlur={handleUrlBlur}
+      />
+      <DeviceModeToggle isActive={deviceModeActive} onClick={handleToggleDeviceMode} />
+      <Client__WebPreview__AnnotationControls
+        mode={annotationMode}
+        annotationCount={Array.length(annotations)}
+        onSetMode={handleSetAnnotationMode}
+        onClear={handleClearAnnotations}
+        previewDocument=?{previewFrame.contentDocument}
+      />
+      <OpenInNewWindow onClick={handleOpenInNewTab} />
+    </Nav.Navigation>
 
-      <Client__WebPreview__DeviceBar deviceMode orientation=deviceOrientation />
+    <Client__WebPreview__DeviceBar deviceMode orientation=deviceOrientation />
 
-      <div
-        ref={ReactDOM.Ref.callbackDomRef(el => {
-          containerRef.current = el
-          None
-        })}
-        className={switch effectiveDims {
-        | None => "relative size-full overflow-y-hidden"
-        | Some(_) =>
-          "relative size-full overflow-hidden flex items-start justify-center bg-[repeating-conic-gradient(#f3f4f6_0%_25%,#ffffff_0%_50%)] bg-[length:16px_16px]"
-        }}
-      >
-        {switch previewFrame.contentDocument {
-        | Some(document) => <Client__WebPreview__Stage document={document} viewportStyle=?viewportStyle />
-        | _ => React.null
-        }}
+    <div
+      ref={ReactDOM.Ref.callbackDomRef(el => {
+        containerRef.current = el
+        None
+      })}
+      className={switch effectiveDims {
+      | None => "relative size-full overflow-y-hidden"
+      | Some(
+          _,
+        ) => "relative size-full overflow-hidden flex items-start justify-center bg-[repeating-conic-gradient(#f3f4f6_0%_25%,#ffffff_0%_50%)] bg-[length:16px_16px]"
+      }}
+    >
+      {switch previewFrame.contentDocument {
+      | Some(document) =>
+        <Client__WebPreview__Stage document={document} viewportStyle=?viewportStyle />
+      | _ => React.null
+      }}
 
-        // Unified array of all iframes - keeps React keys in the same sibling position
-        // so switching tasks just toggles isActive prop without unmounting/remounting
-        {
-          let defaultUrl = Client__BrowserUrl.getInitialUrl()
-          
-          // Build array of all tasks including New task if present
-          let allTasks = if isNewTask {
-            // Prepend New task iframe (uses previewFrame from selector)
-            Array.concat(
-              [(currentTaskClientId, previewFrame.url)],
-              persistedTasks->Array.map(task => {
-                let clientId = Client__Task__Types.Task.getClientId(task)
-                let taskPreviewFrame = Client__Task__Types.Task.getPreviewFrame(task, ~defaultUrl)
-                (clientId, taskPreviewFrame.url)
-              })
-            )
-          } else {
-            // All tasks are in persistedTasks array
+      // Unified array of all iframes - keeps React keys in the same sibling position
+      // so switching tasks just toggles isActive prop without unmounting/remounting
+      {
+        let defaultUrl = Client__BrowserUrl.getInitialUrl()
+
+        // Build array of all tasks including New task if present
+        let allTasks = if isNewTask {
+          // Prepend New task iframe (uses previewFrame from selector)
+          Array.concat(
+            [(currentTaskClientId, previewFrame.url)],
             persistedTasks->Array.map(task => {
               let clientId = Client__Task__Types.Task.getClientId(task)
               let taskPreviewFrame = Client__Task__Types.Task.getPreviewFrame(task, ~defaultUrl)
               (clientId, taskPreviewFrame.url)
-            })
-          }
-
-          allTasks
-          ->Array.map(((clientId, url)) => {
-            <Client__WebPreview__Body
-              key={clientId}
-              taskId={clientId}
-              url={url}
-              isActive={clientId == currentTaskClientId}
-              viewportStyle=?viewportStyle
-            />
+            }),
+          )
+        } else {
+          // All tasks are in persistedTasks array
+          persistedTasks->Array.map(task => {
+            let clientId = Client__Task__Types.Task.getClientId(task)
+            let taskPreviewFrame = Client__Task__Types.Task.getPreviewFrame(task, ~defaultUrl)
+            (clientId, taskPreviewFrame.url)
           })
-          ->React.array
         }
-      </div>
-    </Nav.Container>
+
+        allTasks
+        ->Array.map(((clientId, url)) => {
+          <Client__WebPreview__Body
+            key={clientId}
+            taskId={clientId}
+            url={url}
+            isActive={clientId == currentTaskClientId}
+            viewportStyle=?viewportStyle
+          />
+        })
+        ->React.array
+      }
+    </div>
+  </Nav.Container>
 }

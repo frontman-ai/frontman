@@ -54,8 +54,7 @@ let make = (configInput: Config.jsConfigInput): Bindings.astroIntegration => {
             // and cannot resolve the source component file/line for selected elements.
             if !ctx.config.devToolbar.enabled {
               Console.warn(
-                "[Frontman] Astro devToolbar is disabled — element source detection will be limited. " ++
-                "Set `devToolbar: { enabled: true }` in your astro.config to enable full component source resolution.",
+                "[Frontman] Astro devToolbar is disabled — element source detection will be limited. " ++ "Set `devToolbar: { enabled: true }` in your astro.config to enable full component source resolution.",
               )
             }
 
@@ -65,8 +64,10 @@ let make = (configInput: Config.jsConfigInput): Bindings.astroIntegration => {
             // catch-all dynamic routes (e.g. blog/[...id]) would match suffix URLs
             // like /blog/frontman and return 404 before our middleware gets the request.
             let webMiddleware = Middleware.createMiddleware(config)
-            let connectMiddleware =
-              ViteAdapter.adaptToConnect(webMiddleware, ~basePath=config.basePath)
+            let connectMiddleware = ViteAdapter.adaptToConnect(
+              webMiddleware,
+              ~basePath=config.basePath,
+            )
             let middlewarePlugin = Bindings.makeVitePlugin({
               name: "frontman-middleware",
               configureServer: ?Some(
