@@ -527,12 +527,15 @@ jobs:
           key: ${{ runner.os }}-mix-${{ hashFiles('apps/frontman_server/mix.lock') }}
           restore-keys: ${{ runner.os }}-mix-
 
+      # test job compiles with MIX_ENV=test (code_reloader: false) — use
+      # separate cache key so dev-env jobs (lint, dialyzer) don't restore
+      # stale _build/dev artifacts with the wrong compile-time config.
       - name: Cache _build
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: apps/frontman_server/_build
-          key: ${{ runner.os }}-build-${{ hashFiles('apps/frontman_server/mix.lock', 'apps/swarm_ai/lib/**') }}
-          restore-keys: ${{ runner.os }}-build-
+          key: ${{ runner.os }}-build-test-${{ hashFiles('apps/frontman_server/mix.lock', 'apps/swarm_ai/lib/**') }}
+          restore-keys: ${{ runner.os }}-build-test-
 
       - name: Install dependencies
         working-directory: apps/frontman_server
@@ -597,8 +600,8 @@ jobs:
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: apps/frontman_server/_build
-          key: ${{ runner.os }}-build-${{ hashFiles('apps/frontman_server/mix.lock', 'apps/swarm_ai/lib/**') }}
-          restore-keys: ${{ runner.os }}-build-
+          key: ${{ runner.os }}-build-dev-${{ hashFiles('apps/frontman_server/mix.lock', 'apps/swarm_ai/lib/**') }}
+          restore-keys: ${{ runner.os }}-build-dev-
 
       - name: Install dependencies
         working-directory: apps/frontman_server
@@ -647,8 +650,8 @@ jobs:
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: apps/frontman_server/_build
-          key: ${{ runner.os }}-build-${{ hashFiles('apps/frontman_server/mix.lock', 'apps/swarm_ai/lib/**') }}
-          restore-keys: ${{ runner.os }}-build-
+          key: ${{ runner.os }}-build-dev-${{ hashFiles('apps/frontman_server/mix.lock', 'apps/swarm_ai/lib/**') }}
+          restore-keys: ${{ runner.os }}-build-dev-
 
       # PLT cache includes mise.toml hash to invalidate when Erlang/Elixir versions change
       # v3: bust cache after migrating to self-hosted runners (different mise install path)
