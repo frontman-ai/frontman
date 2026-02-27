@@ -4,7 +4,7 @@
 # Run 'make help' to see available commands
 
 .DEFAULT_GOAL := help
-.PHONY: help install test test-record test-coverage lint dev build clean check setup db-setup db-reset db-migrate db-seed assets-setup assets-build assets-deploy precommit dialyzer credo debug-task
+.PHONY: help install test test-record test-coverage lint dev dev-container build clean check setup db-setup db-reset db-migrate db-seed assets-setup assets-build assets-deploy precommit dialyzer credo debug-task
 
 SHELL := /bin/bash
 
@@ -73,6 +73,9 @@ lint: ## Run formatter and static analysis
 
 dev: ## Start development server (resolves 1Password secrets via op run)
 	op run --env-file=envs/.dev.secrets.env -- mix phx.server
+
+dev-container: ## Start dev server inside container (secrets via env vars)
+	mix phx.server
 
 build: ## Build the project for production
 	MIX_ENV=prod mix sentry.package_source_code

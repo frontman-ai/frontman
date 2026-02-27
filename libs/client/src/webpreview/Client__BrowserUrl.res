@@ -67,6 +67,23 @@ let getInitialUrl = () => {
     element->WebAPI.Element.asNode->WebAPI.Node.textContent
   })
   ->Null.toOption
+  ->Option.map(entrypointUrl => {
+    // Normalize the scheme to match the browser's protocol.
+    // When behind a TLS-terminating reverse proxy (e.g. Caddy), the server
+    // sees http:// internally but the browser loaded the page over https://.
+    // Without this, the iframe would load http:// → Mixed Content error.
+    let browserProtocol = currentUrl.protocol
+    try {
+      let parsed = WebAPI.URL.make(~url=entrypointUrl)
+      switch parsed.protocol == browserProtocol {
+      | true => entrypointUrl
+      | false =>
+        `${browserProtocol}//${parsed.host}${parsed.pathname}${parsed.search}${parsed.hash}`
+      }
+    } catch {
+    | _ => entrypointUrl
+    }
+  })
   ->Option.getOr(default)
 }
 

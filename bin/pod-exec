@@ -1,0 +1,50 @@
+#!/bin/bash
+# pod-exec — Execute commands inside the containerized worktree dev container.
+#
+# Detects the current git branch, resolves the matching pod hash, and execs
+# the command inside the correct container.
+#
+# Usage:
+#   ./bin/pod-exec mix test
+#   ./bin/pod-exec yarn vitest run
+#   ./bin/pod-exec mix format --check-formatted
+#   ./bin/pod-exec make rescript-build
+
+set -euo pipefail
+
+if [ $# -eq 0 ]; then
+    echo "Usage: ./bin/pod-exec <command> [args...]"
+    echo ""
+    echo "Examples:"
+    echo "  ./bin/pod-exec mix test"
+    echo "  ./bin/pod-exec yarn vitest run"
+    echo "  ./bin/pod-exec mix format --check-formatted"
+    exit 1
+fi
+
+BRANCH=$(git branch --show-current 2>/dev/null)
+if [ -z "$BRANCH" ]; then
+    echo "Error: Could not determine current git branch"
+    echo "Are you in a git repository?"
+    exit 1
+fi
+
+if command -v md5sum >/dev/null 2>&1; then
+    HASH=$(echo -n "$BRANCH" | md5sum | cut -c1-4)
+else
+    HASH=$(echo -n "$BRANCH" | md5 | cut -c1-4)
+fi
+CONTAINER="worktree-${HASH}-dev"
+
+if ! podman container inspect "$CONTAINER" &>/dev/null; then
+    echo "Error: No running container for branch '$BRANCH' (expected: $CONTAINER)"
+    echo ""
+    echo "Start it with:"
+    echo "  make worktree-pod-start BRANCH=$BRANCH"
+    echo ""
+    echo "Or create a new containerized worktree with:"
+    echo "  make worktree-pod-create BRANCH=$BRANCH"
+    exit 1
+fi
+
+exec podman exec -it -w /workspaces/frontman "$CONTAINER" "$@"

@@ -13,6 +13,11 @@ const monorepoRoot = path.resolve(appRoot, "../..");
 export default defineConfig({
   site: "https://frontman.sh",
   trailingSlash: "always",
+  vite: {
+    server: {
+      allowedHosts: [".frontman.local"],
+    },
+  },
   build: {
     // Inline all stylesheets directly into the HTML to eliminate
     // render-blocking <link> requests (~25 KiB total). Trades a small

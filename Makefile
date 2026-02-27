@@ -11,6 +11,11 @@ GREEN := \033[32m
 YELLOW := \033[33m
 RESET := \033[0m
 
+# Portable MD5 hash — works on both macOS (md5) and Linux (md5sum)
+# Usage in shell: $$(echo -n "value" | $(MD5_SHORT))
+# Produces a 4-character hex prefix
+MD5_SHORT = $(shell if command -v md5sum >/dev/null 2>&1; then echo 'md5sum | cut -c1-4'; else echo 'md5 | cut -c1-4'; fi)
+
 # Remote development config
 # DEVPOD_SERVER is resolved from .env via `op run` (1Password CLI)
 # Usage: op run --env-file=.env -- make <target>
@@ -29,6 +34,9 @@ endef
         ssl-setup tunnel \
         worktree-create worktree-create-from worktree-list worktree-remove worktree-clean \
         worktree-status worktree-devpod worktree-urls worktree-hosts worktree-register worktree-registry \
+        infra-up infra-down infra-build infra-status \
+        worktree-pod-create worktree-pod-dev worktree-pod-attach worktree-pod-stop \
+        worktree-pod-start worktree-pod-remove worktree-pod-list worktree-pod-logs \
         publish publish-astro publish-vite publish-nextjs publish-swarm-ai release \
         kill-all-processes open-dogfooding pull-webapi debug-task
 
@@ -46,6 +54,12 @@ help: ## Display available commands
 	@echo ""
 	@printf "$(CYAN)Worktree Management:$(RESET)\n"
 	@awk 'BEGIN {FS = ":.*##"} /^## WT_START$$/{found=1; next} /^## WT_END$$/{found=0} found && /^[a-zA-Z_-]+:.*##/ { printf "  $(GREEN)%-25s$(RESET) %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
+	@echo ""
+	@printf "$(CYAN)Infrastructure (Containerized Worktrees):$(RESET)\n"
+	@awk 'BEGIN {FS = ":.*##"} /^## INFRA_START$$/{found=1; next} /^## INFRA_END$$/{found=0} found && /^[a-zA-Z_-]+:.*##/ { printf "  $(GREEN)%-25s$(RESET) %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
+	@echo ""
+	@printf "$(CYAN)Containerized Worktree Pods:$(RESET)\n"
+	@awk 'BEGIN {FS = ":.*##"} /^## POD_START$$/{found=1; next} /^## POD_END$$/{found=0} found && /^[a-zA-Z_-]+:.*##/ { printf "  $(GREEN)%-25s$(RESET) %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
 	@echo ""
 	@printf "$(CYAN)Release:$(RESET)\n"
 	@awk 'BEGIN {FS = ":.*##"} /^## REL_START$$/{found=1; next} /^## REL_END$$/{found=0} found && /^[a-zA-Z_-]+:.*##/ { printf "  $(GREEN)%-25s$(RESET) %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
@@ -297,7 +311,7 @@ worktree-urls: ## Show URLs for a worktree (BRANCH=feature-name)
 		printf "$(YELLOW)Error: BRANCH is required. Usage: make worktree-urls BRANCH=feature-name$(RESET)\n"; \
 		exit 1; \
 	fi
-	@HASH=$$(printf '%s' "$(BRANCH)" | md5 | cut -c1-4); \
+	@HASH=$$(printf '%s' "$(BRANCH)" | $(MD5_SHORT)); \
 	echo ""; \
 	printf "$(CYAN)Worktree: $(BRANCH) ($$HASH)$(RESET)\n"; \
 	echo ""; \
@@ -316,7 +330,7 @@ worktree-hosts: ## Generate /etc/hosts entries for all worktrees
 		for wt in .worktrees/*; do \
 			if [ -d "$$wt" ]; then \
 				name=$$(basename "$$wt"); \
-				hash=$$(printf '%s' "$$name" | md5 | cut -c1-4); \
+				hash=$$(printf '%s' "$$name" | $(MD5_SHORT)); \
 				echo "127.0.0.1 $$hash.nextjs.frontman.local $$hash.vite.frontman.local $$hash.api.frontman.local $$hash.storybook.frontman.local $$hash.dogfood.frontman.local # $$name"; \
 			fi \
 		done; \
@@ -338,6 +352,452 @@ worktree-registry: ## Show all registered worktrees on the server
 	@ssh $(DEVPOD_USER)@$(DEVPOD_SERVER) "cat /etc/caddy/worktrees/registry.json 2>/dev/null | jq . || echo 'No worktrees registered'"
 
 ## WT_END
+
+# ============================================================================
+# Infrastructure (Containerized Worktrees)
+# ============================================================================
+## INFRA_START
+
+# Shared variables for containerized worktrees
+FRONTMAN_NET := frontman-net
+CADDY_CONTAINER := frontman-caddy
+DEV_IMAGE := frontman-dev:latest
+
+infra-up: ## One-time setup: network, dev image, Caddy, dnsmasq
+	@printf "$(CYAN)Setting up containerized worktree infrastructure...$(RESET)\n"
+	@echo ""
+	@# Create podman network (ignore if exists)
+	@if ! podman network inspect $(FRONTMAN_NET) &>/dev/null; then \
+		printf "$(YELLOW)Creating podman network: $(FRONTMAN_NET)$(RESET)\n"; \
+		podman network create $(FRONTMAN_NET); \
+	else \
+		printf "$(GREEN)Network $(FRONTMAN_NET) already exists$(RESET)\n"; \
+	fi
+	@echo ""
+	@# Build dev image
+	@printf "$(YELLOW)Building dev image: $(DEV_IMAGE)$(RESET)\n"
+	@podman build -t $(DEV_IMAGE) -f .devcontainer/Dockerfile .devcontainer/
+	@echo ""
+	@# Start Caddy reverse proxy
+	@if ! podman container inspect $(CADDY_CONTAINER) &>/dev/null; then \
+		printf "$(YELLOW)Starting Caddy reverse proxy...$(RESET)\n"; \
+		mkdir -p infra/local; \
+		touch infra/local/Caddyfile; \
+		echo ':80 { respond "No worktree pods running" 503 }' > infra/local/Caddyfile; \
+		podman run -d \
+			--name $(CADDY_CONTAINER) \
+			--network $(FRONTMAN_NET) \
+			-p 80:80 -p 443:443 \
+			-v "$$(pwd)/infra/local/Caddyfile:/etc/caddy/Caddyfile:ro" \
+			-v frontman-caddy-data:/data \
+			-v frontman-caddy-config:/config \
+			docker.io/library/caddy:2-alpine; \
+	else \
+		printf "$(GREEN)Caddy container already exists$(RESET)\n"; \
+		podman start $(CADDY_CONTAINER) 2>/dev/null || true; \
+	fi
+	@echo ""
+	@# Check dnsmasq
+	@if command -v dnsmasq &>/dev/null && [ -f /etc/dnsmasq.d/frontman.conf ]; then \
+		printf "$(GREEN)dnsmasq: configured$(RESET)\n"; \
+	else \
+		printf "$(YELLOW)dnsmasq: not configured$(RESET)\n"; \
+		echo "  Run: sudo ./infra/local/dnsmasq-setup.sh"; \
+	fi
+	@echo ""
+	@printf "$(GREEN)Infrastructure ready!$(RESET)\n"
+
+infra-down: ## Tear down: stop all pods, remove volumes, stop Caddy
+	@printf "$(YELLOW)Tearing down containerized worktree infrastructure...$(RESET)\n"
+	@echo ""
+	@# Warn about running pods
+	@PODS=$$(podman pod ls --format '{{.Name}}' 2>/dev/null | grep '^worktree-' || true); \
+	if [ -n "$$PODS" ]; then \
+		printf "$(YELLOW)Stopping worktree pods:$(RESET)\n"; \
+		for POD in $$PODS; do \
+			printf "  Removing $$POD...\n"; \
+			podman pod rm -f "$$POD" 2>/dev/null || true; \
+		done; \
+	fi
+	@# Remove worktree volumes
+	@VOLS=$$(podman volume ls --format '{{.Name}}' 2>/dev/null | grep '^worktree-' || true); \
+	if [ -n "$$VOLS" ]; then \
+		printf "$(YELLOW)Removing worktree volumes...$(RESET)\n"; \
+		echo "$$VOLS" | xargs podman volume rm -f 2>/dev/null || true; \
+	fi
+	@# Stop Caddy
+	@if podman container inspect $(CADDY_CONTAINER) &>/dev/null; then \
+		printf "$(YELLOW)Stopping Caddy...$(RESET)\n"; \
+		podman rm -f $(CADDY_CONTAINER) 2>/dev/null || true; \
+	fi
+	@# Remove Caddy volumes
+	@podman volume rm -f frontman-caddy-data frontman-caddy-config 2>/dev/null || true
+	@# Remove network
+	@if podman network inspect $(FRONTMAN_NET) &>/dev/null; then \
+		printf "$(YELLOW)Removing network: $(FRONTMAN_NET)$(RESET)\n"; \
+		podman network rm $(FRONTMAN_NET) 2>/dev/null || true; \
+	fi
+	@echo ""
+	@printf "$(GREEN)Infrastructure torn down$(RESET)\n"
+	@echo "Note: git worktrees and dnsmasq config are preserved"
+
+infra-build: ## Rebuild the frontman-dev container image
+	@printf "$(YELLOW)Rebuilding dev image: $(DEV_IMAGE)$(RESET)\n"
+	@podman build -t $(DEV_IMAGE) -f .devcontainer/Dockerfile .devcontainer/
+
+infra-status: ## Show infrastructure status
+	@printf "$(CYAN)Infrastructure Status$(RESET)\n"
+	@echo ""
+	@# Network
+	@if podman network inspect $(FRONTMAN_NET) &>/dev/null; then \
+		printf "  Network:  $(GREEN)$(FRONTMAN_NET) exists$(RESET)\n"; \
+	else \
+		printf "  Network:  $(YELLOW)$(FRONTMAN_NET) not found$(RESET)\n"; \
+	fi
+	@# Caddy
+	@if podman container inspect $(CADDY_CONTAINER) &>/dev/null; then \
+		STATE=$$(podman container inspect $(CADDY_CONTAINER) --format '{{.State.Status}}' 2>/dev/null); \
+		printf "  Caddy:    $(GREEN)$$STATE$(RESET)\n"; \
+	else \
+		printf "  Caddy:    $(YELLOW)not created$(RESET)\n"; \
+	fi
+	@# dnsmasq
+	@if [ -f /etc/dnsmasq.d/frontman.conf ]; then \
+		printf "  dnsmasq:  $(GREEN)configured$(RESET)\n"; \
+	else \
+		printf "  dnsmasq:  $(YELLOW)not configured$(RESET)\n"; \
+	fi
+	@# Dev image
+	@if podman image inspect $(DEV_IMAGE) &>/dev/null; then \
+		printf "  Image:    $(GREEN)$(DEV_IMAGE) built$(RESET)\n"; \
+	else \
+		printf "  Image:    $(YELLOW)$(DEV_IMAGE) not built$(RESET)\n"; \
+	fi
+	@echo ""
+	@# Pods
+	@printf "$(CYAN)Active Worktree Pods$(RESET)\n"
+	@PODS=$$(podman pod ls --format '{{.Name}} {{.Status}}' 2>/dev/null | grep '^worktree-' || true); \
+	if [ -n "$$PODS" ]; then \
+		echo "$$PODS" | while read -r POD_LINE; do \
+			POD_NAME=$$(echo "$$POD_LINE" | awk '{print $$1}'); \
+			POD_STATUS=$$(echo "$$POD_LINE" | cut -d' ' -f2-); \
+			HASH=$${POD_NAME#worktree-}; \
+			printf "  $(GREEN)$$POD_NAME$(RESET) ($$POD_STATUS)\n"; \
+			printf "    Phoenix:   https://$$HASH.api.frontman.local\n"; \
+			printf "    Vite:      https://$$HASH.vite.frontman.local\n"; \
+			printf "    Next.js:   https://$$HASH.nextjs.frontman.local/frontman\n"; \
+			printf "    Storybook: https://$$HASH.storybook.frontman.local\n"; \
+			printf "    Marketing: https://$$HASH.marketing.frontman.local\n"; \
+			echo ""; \
+		done; \
+	else \
+		echo "  No worktree pods running"; \
+	fi
+	@echo ""
+
+## INFRA_END
+
+# ============================================================================
+# Containerized Worktree Pods
+# ============================================================================
+## POD_START
+
+worktree-pod-create: ## Create containerized worktree (BRANCH=feature/x)
+	@if [ -z "$(BRANCH)" ]; then \
+		printf "$(YELLOW)Error: BRANCH is required. Usage: make worktree-pod-create BRANCH=feature-name$(RESET)\n"; \
+		exit 1; \
+	fi
+	@# Verify infra is up
+	@if ! podman network inspect $(FRONTMAN_NET) &>/dev/null; then \
+		printf "$(YELLOW)Error: Infrastructure not set up. Run 'make infra-up' first.$(RESET)\n"; \
+		exit 1; \
+	fi
+	@if ! podman image inspect $(DEV_IMAGE) &>/dev/null; then \
+		printf "$(YELLOW)Error: Dev image not built. Run 'make infra-up' first.$(RESET)\n"; \
+		exit 1; \
+	fi
+	@HASH=$$(echo -n "$(BRANCH)" | $(MD5_SHORT)); \
+	POD_NAME="worktree-$${HASH}"; \
+	WT_DIR="$$(pwd)/.worktrees/$(BRANCH)"; \
+	printf "$(CYAN)Creating containerized worktree$(RESET)\n"; \
+	printf "  Branch: $(BRANCH)\n"; \
+	printf "  Hash:   $${HASH}\n"; \
+	printf "  Pod:    $${POD_NAME}\n"; \
+	echo ""; \
+	\
+	if podman pod inspect "$${POD_NAME}" &>/dev/null; then \
+		printf "$(YELLOW)Pod $${POD_NAME} already exists. Use worktree-pod-start to resume.$(RESET)\n"; \
+		exit 1; \
+	fi; \
+	\
+	printf "$(YELLOW)==> Creating git worktree...$(RESET)\n"; \
+	mkdir -p .worktrees; \
+	if [ -d "$${WT_DIR}" ]; then \
+		printf "$(GREEN)Worktree already exists at $${WT_DIR}$(RESET)\n"; \
+	elif git show-ref --verify --quiet "refs/heads/$(BRANCH)"; then \
+		git worktree add "$${WT_DIR}" "$(BRANCH)"; \
+	else \
+		git worktree add "$${WT_DIR}" -b "$(BRANCH)"; \
+	fi; \
+	mkdir -p "$${WT_DIR}/.claude/projects" "$${WT_DIR}/.claude/plans" "$${WT_DIR}/.claude/todos"; \
+	touch "$${WT_DIR}/.claude/history.jsonl"; \
+	echo ""; \
+	\
+	printf "$(YELLOW)==> Resolving secrets...$(RESET)\n"; \
+	op run --no-masking --env-file=apps/frontman_server/envs/.dev.secrets.env -- env | \
+		grep -v '^_=' | grep -v '^SHLVL=' | grep -v '^PWD=' | grep -v '^OLDPWD=' | \
+		grep -E '^(WORKOS_|OPENROUTER_|SENTRY_|SECRET_|DATABASE_|PHX_|FRONTMAN_)' \
+		> "$${WT_DIR}/.env.secrets.resolved" || true; \
+	echo ""; \
+	\
+	printf "$(YELLOW)==> Creating Podman pod: $${POD_NAME}$(RESET)\n"; \
+	podman pod create \
+		--name "$${POD_NAME}" \
+		--network $(FRONTMAN_NET); \
+	echo ""; \
+	\
+	printf "$(YELLOW)==> Starting PostgreSQL...$(RESET)\n"; \
+	podman run -d \
+		--pod "$${POD_NAME}" \
+		--name "$${POD_NAME}-pg" \
+		-e POSTGRES_USER=postgres \
+		-e POSTGRES_PASSWORD=postgres \
+		-v "worktree-$${HASH}-pgdata:/var/lib/postgresql/data" \
+		docker.io/library/postgres:16; \
+	echo ""; \
+	\
+	printf "$(YELLOW)==> Starting dev container...$(RESET)\n"; \
+	podman run -d \
+		--pod "$${POD_NAME}" \
+		--name "$${POD_NAME}-dev" \
+		--user root \
+		-e "HOME=/home/vscode" \
+		--env-file "$${WT_DIR}/.env.secrets.resolved" \
+		-e "WORKTREE_HASH=$${HASH}" \
+		-e "WORKTREE_BRANCH=$(BRANCH)" \
+		-v "$${WT_DIR}:/workspaces/frontman" \
+		-v "worktree-$${HASH}-node-modules:/workspaces/frontman/node_modules" \
+		-v "worktree-$${HASH}-mix-build:/workspaces/frontman/apps/frontman_server/_build" \
+		-v "worktree-$${HASH}-mix-deps:/workspaces/frontman/apps/frontman_server/deps" \
+		$(DEV_IMAGE) \
+		sleep infinity; \
+	echo ""; \
+	\
+	printf "$(YELLOW)==> Waiting for PostgreSQL to be ready...$(RESET)\n"; \
+	for i in $$(seq 1 30); do \
+		if podman exec "$${POD_NAME}-dev" bash -c 'pg_isready -h localhost -U postgres' &>/dev/null; then \
+			break; \
+		fi; \
+		sleep 1; \
+	done; \
+	echo ""; \
+	\
+	printf "$(YELLOW)==> Running setup inside container...$(RESET)\n"; \
+	podman exec \
+		-e "WORKTREE_HASH=$${HASH}" \
+		-e "WORKTREE_BRANCH=$(BRANCH)" \
+		-w /workspaces/frontman \
+		"$${POD_NAME}-dev" \
+		bash ./infra/local/worktree-setup.sh; \
+	echo ""; \
+	\
+	printf "$(YELLOW)==> Updating Caddy routes...$(RESET)\n"; \
+	bash ./infra/local/caddy-regen.sh; \
+	echo ""; \
+	\
+	printf "$(GREEN)==> Containerized worktree ready!$(RESET)\n"; \
+	echo ""; \
+	echo "Start development:"; \
+	echo "  make worktree-pod-dev BRANCH=$(BRANCH)"; \
+	echo ""; \
+	echo "URLs:"; \
+	echo "  Phoenix:   https://$${HASH}.api.frontman.local"; \
+	echo "  Vite:      https://$${HASH}.vite.frontman.local"; \
+	echo "  Next.js:   https://$${HASH}.nextjs.frontman.local/frontman"; \
+	echo "  Storybook: https://$${HASH}.storybook.frontman.local"
+
+worktree-pod-dev: ## Start mprocs TUI inside container (BRANCH=feature/x)
+	@if [ -z "$(BRANCH)" ]; then \
+		printf "$(YELLOW)Error: BRANCH is required. Usage: make worktree-pod-dev BRANCH=feature-name$(RESET)\n"; \
+		exit 1; \
+	fi
+	@HASH=$$(echo -n "$(BRANCH)" | $(MD5_SHORT)); \
+	CONTAINER="worktree-$${HASH}-dev"; \
+	if ! podman container inspect "$${CONTAINER}" &>/dev/null; then \
+		printf "$(YELLOW)Error: Container $${CONTAINER} not found. Create it first:$(RESET)\n"; \
+		echo "  make worktree-pod-create BRANCH=$(BRANCH)"; \
+		exit 1; \
+	fi; \
+	printf "$(CYAN)Checking dependencies in $${CONTAINER}...$(RESET)\n"; \
+	NODE_COUNT=$$(podman exec -w /workspaces/frontman "$${CONTAINER}" \
+		bash -c 'ls node_modules/ 2>/dev/null | wc -l'); \
+	MIX_DEPS=$$(podman exec -w /workspaces/frontman/apps/frontman_server "$${CONTAINER}" \
+		bash -c 'ls deps/ 2>/dev/null | wc -l'); \
+	if [ "$${NODE_COUNT}" -lt 10 ] || [ "$${MIX_DEPS}" -lt 5 ]; then \
+		printf "$(YELLOW)Dependencies missing (node_modules: $${NODE_COUNT}, mix deps: $${MIX_DEPS}). Running setup...$(RESET)\n"; \
+		podman exec \
+			-e "WORKTREE_HASH=$${HASH}" \
+			-e "WORKTREE_BRANCH=$(BRANCH)" \
+			-w /workspaces/frontman \
+			"$${CONTAINER}" \
+			bash ./infra/local/worktree-setup.sh; \
+	else \
+		printf "$(GREEN)Dependencies OK (node_modules: $${NODE_COUNT}, mix deps: $${MIX_DEPS})$(RESET)\n"; \
+	fi; \
+	printf "$(CYAN)Starting mprocs in $${CONTAINER}...$(RESET)\n"; \
+	podman exec -it -w /workspaces/frontman "$${CONTAINER}" \
+		bash -l -c 'eval "$$(mise activate bash)" && exec mprocs --config mprocs.container.yml'
+
+worktree-pod-attach: ## Interactive shell into dev container (BRANCH=feature/x)
+	@if [ -z "$(BRANCH)" ]; then \
+		printf "$(YELLOW)Error: BRANCH is required. Usage: make worktree-pod-attach BRANCH=feature-name$(RESET)\n"; \
+		exit 1; \
+	fi
+	@HASH=$$(echo -n "$(BRANCH)" | $(MD5_SHORT)); \
+	CONTAINER="worktree-$${HASH}-dev"; \
+	if ! podman container inspect "$${CONTAINER}" &>/dev/null; then \
+		printf "$(YELLOW)Error: Container $${CONTAINER} not found$(RESET)\n"; \
+		exit 1; \
+	fi; \
+	podman exec -it -w /workspaces/frontman "$${CONTAINER}" bash
+
+worktree-pod-stop: ## Stop pod, preserve volumes (BRANCH=feature/x)
+	@if [ -z "$(BRANCH)" ]; then \
+		printf "$(YELLOW)Error: BRANCH is required. Usage: make worktree-pod-stop BRANCH=feature-name$(RESET)\n"; \
+		exit 1; \
+	fi
+	@HASH=$$(echo -n "$(BRANCH)" | $(MD5_SHORT)); \
+	POD_NAME="worktree-$${HASH}"; \
+	if ! podman pod inspect "$${POD_NAME}" &>/dev/null; then \
+		printf "$(YELLOW)Error: Pod $${POD_NAME} not found$(RESET)\n"; \
+		exit 1; \
+	fi; \
+	printf "$(YELLOW)Stopping pod: $${POD_NAME}$(RESET)\n"; \
+	podman pod stop "$${POD_NAME}"; \
+	bash ./infra/local/caddy-regen.sh; \
+	printf "$(GREEN)Pod stopped. Volumes preserved. Resume with: make worktree-pod-start BRANCH=$(BRANCH)$(RESET)\n"
+
+worktree-pod-start: ## Restart a stopped pod (BRANCH=feature/x)
+	@if [ -z "$(BRANCH)" ]; then \
+		printf "$(YELLOW)Error: BRANCH is required. Usage: make worktree-pod-start BRANCH=feature-name$(RESET)\n"; \
+		exit 1; \
+	fi
+	@HASH=$$(echo -n "$(BRANCH)" | $(MD5_SHORT)); \
+	POD_NAME="worktree-$${HASH}"; \
+	if ! podman pod inspect "$${POD_NAME}" &>/dev/null; then \
+		printf "$(YELLOW)Error: Pod $${POD_NAME} not found. Create it first:$(RESET)\n"; \
+		echo "  make worktree-pod-create BRANCH=$(BRANCH)"; \
+		exit 1; \
+	fi; \
+	printf "$(YELLOW)Starting pod: $${POD_NAME}$(RESET)\n"; \
+	podman pod start "$${POD_NAME}"; \
+	bash ./infra/local/caddy-regen.sh; \
+	printf "$(GREEN)Pod started. Run: make worktree-pod-dev BRANCH=$(BRANCH)$(RESET)\n"
+
+worktree-pod-remove: ## Full cleanup: pod, volumes, worktree (BRANCH=feature/x)
+	@if [ -z "$(BRANCH)" ]; then \
+		printf "$(YELLOW)Error: BRANCH is required. Usage: make worktree-pod-remove BRANCH=feature-name$(RESET)\n"; \
+		exit 1; \
+	fi
+	@HASH=$$(echo -n "$(BRANCH)" | $(MD5_SHORT)); \
+	POD_NAME="worktree-$${HASH}"; \
+	WT_DIR="$$(pwd)/.worktrees/$(BRANCH)"; \
+	printf "$(YELLOW)Removing containerized worktree: $(BRANCH) ($${HASH})$(RESET)\n"; \
+	echo ""; \
+	\
+	if podman pod inspect "$${POD_NAME}" &>/dev/null; then \
+		printf "  Removing pod: $${POD_NAME}...\n"; \
+		podman pod rm -f "$${POD_NAME}" 2>/dev/null || true; \
+	fi; \
+	\
+	printf "  Removing volumes...\n"; \
+	podman volume rm -f \
+		"worktree-$${HASH}-pgdata" \
+		"worktree-$${HASH}-node-modules" \
+		"worktree-$${HASH}-mix-build" \
+		"worktree-$${HASH}-mix-deps" \
+		2>/dev/null || true; \
+	\
+	if [ -f "$${WT_DIR}/.env.secrets.resolved" ]; then \
+		rm -f "$${WT_DIR}/.env.secrets.resolved"; \
+	fi; \
+	\
+	if [ -d "$${WT_DIR}" ]; then \
+		printf "  Removing git worktree...\n"; \
+		if git -C "$${WT_DIR}" diff --quiet 2>/dev/null && \
+		   git -C "$${WT_DIR}" diff --cached --quiet 2>/dev/null; then \
+			git worktree remove "$${WT_DIR}" 2>/dev/null || \
+				printf "$(YELLOW)  Warning: Could not remove worktree (may need --force)$(RESET)\n"; \
+		else \
+			printf "$(YELLOW)  Worktree has uncommitted changes — skipping removal$(RESET)\n"; \
+			echo "  Force remove with: git worktree remove --force $${WT_DIR}"; \
+		fi; \
+	fi; \
+	\
+	bash ./infra/local/caddy-regen.sh; \
+	echo ""; \
+	printf "$(GREEN)Cleanup complete$(RESET)\n"
+
+worktree-pod-list: ## List all worktree pods with status and URLs
+	@printf "$(CYAN)Containerized Worktree Pods$(RESET)\n"
+	@echo ""
+	@PODS=$$(podman pod ls --format '{{.Name}} {{.Status}}' 2>/dev/null | grep '^worktree-' || true); \
+	if [ -z "$$PODS" ]; then \
+		echo "No worktree pods found"; \
+		echo "Create one with: make worktree-pod-create BRANCH=feature-name"; \
+	else \
+		echo "$$PODS" | while read -r name status; do \
+			HASH="$${name#worktree-}"; \
+			BRANCH=""; \
+			for wt in .worktrees/*; do \
+				if [ -d "$$wt" ]; then \
+					WT_BRANCH=$$(basename "$$wt"); \
+					WT_HASH=$$(echo -n "$$WT_BRANCH" | $(MD5_SHORT)); \
+					if [ "$$WT_HASH" = "$$HASH" ]; then \
+						BRANCH="$$WT_BRANCH"; \
+						break; \
+					fi; \
+				fi; \
+			done; \
+			for wt in .worktrees/*/*; do \
+				if [ -d "$$wt" ]; then \
+					WT_BRANCH=$$(echo "$$wt" | sed 's|^\.worktrees/||'); \
+					WT_HASH=$$(echo -n "$$WT_BRANCH" | $(MD5_SHORT)); \
+					if [ "$$WT_HASH" = "$$HASH" ]; then \
+						BRANCH="$$WT_BRANCH"; \
+						break; \
+					fi; \
+				fi; \
+			done; \
+			printf "  $(GREEN)$$name$(RESET) ($$status)\n"; \
+			if [ -n "$$BRANCH" ]; then \
+				printf "    Branch:    $$BRANCH\n"; \
+			else \
+				printf "    Branch:    $(YELLOW)unknown$(RESET)\n"; \
+			fi; \
+			printf "    Phoenix:   https://$$HASH.api.frontman.local\n"; \
+			printf "    Vite:      https://$$HASH.vite.frontman.local\n"; \
+			printf "    Next.js:   https://$$HASH.nextjs.frontman.local/frontman\n"; \
+			printf "    Storybook: https://$$HASH.storybook.frontman.local\n"; \
+			printf "    Marketing: https://$$HASH.marketing.frontman.local\n"; \
+			echo ""; \
+		done; \
+	fi
+
+worktree-pod-logs: ## Show dev container logs (BRANCH=feature/x)
+	@if [ -z "$(BRANCH)" ]; then \
+		printf "$(YELLOW)Error: BRANCH is required. Usage: make worktree-pod-logs BRANCH=feature-name$(RESET)\n"; \
+		exit 1; \
+	fi
+	@HASH=$$(echo -n "$(BRANCH)" | $(MD5_SHORT)); \
+	CONTAINER="worktree-$${HASH}-dev"; \
+	if ! podman container inspect "$${CONTAINER}" &>/dev/null; then \
+		printf "$(YELLOW)Error: Container $${CONTAINER} not found$(RESET)\n"; \
+		exit 1; \
+	fi; \
+	podman logs -f "$${CONTAINER}"
+
+## POD_END
 
 # ============================================================================
 # Release

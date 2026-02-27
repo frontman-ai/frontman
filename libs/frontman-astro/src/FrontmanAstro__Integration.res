@@ -110,10 +110,52 @@ let make = (configInput: Config.jsConfigInput): Bindings.astroIntegration => {
         },
       ),
       serverSetup: ?Some(
-        ({toolbar}) => {
+        ({server, toolbar}) => {
           // Initialize core LogCapture to intercept console/stdout for the
           // get_logs tool and post-edit error checking in edit_file
           FrontmanFrontmanCore.FrontmanCore__LogCapture.initialize()
+
+          // Rewrite Frontman routes so Astro's trailingSlash: "always" doesn't
+          // 404 them. Astro's trailing-slash check runs inside its Connect
+          // handler, before any middleware registered via configureServer.
+          // The only way to intercept first is to prepend a raw HTTP "request"
+          // listener that appends a trailing slash before Connect sees it.
+          //
+          // We rewrite:
+          //   /{basePath}         → /{basePath}/         (UI entry)
+          //   /{basePath}/tools   → /{basePath}/tools/   (API route)
+          //   /foo/{basePath}     → /foo/{basePath}/     (suffix UI route)
+          // Basically any path ending with /{basePath} or starting with
+          // /{basePath}/ that lacks a trailing slash.
+          let prependTrailingSlashRewrite: (Bindings.viteDevServer, string) => unit = %raw(`
+            function(server, basePath) {
+              var hs = server.httpServer;
+              if (!hs) return;
+              var prefix = "/" + basePath.toLowerCase();
+              var prefixSlash = prefix + "/";
+              var listeners = hs.listeners("request").slice();
+              hs.removeAllListeners("request");
+              hs.on("request", function(req) {
+                var raw = req.url || "";
+                var qIdx = raw.indexOf("?");
+                var path = (qIdx !== -1 ? raw.slice(0, qIdx) : raw).toLowerCase();
+                var needsSlash = false;
+                // Exact match: /frontman
+                if (path === prefix) needsSlash = true;
+                // Prefix API/UI routes: /frontman/tools, /frontman/tools/call, etc.
+                // Only when the path doesn't already end with /
+                else if (path.lastIndexOf("/") < path.length - 1 && (path.startsWith(prefixSlash) || path.endsWith(prefix))) needsSlash = true;
+                if (needsSlash) {
+                  var qs = qIdx !== -1 ? raw.slice(qIdx) : "";
+                  // Preserve original case: insert / before query string
+                  var pathPart = qIdx !== -1 ? raw.slice(0, qIdx) : raw;
+                  req.url = pathPart + "/" + qs;
+                }
+              });
+              for (var i = 0; i < listeners.length; i++) hs.on("request", listeners[i]);
+            }
+          `)
+          prependTrailingSlashRewrite(server, config.basePath)
 
           // Log when the toolbar app is initialized
           toolbar->Bindings.toolbarOnAppInitialized("frontman:toolbar", () => {
