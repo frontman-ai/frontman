@@ -111,7 +111,6 @@ module Annotation = {
     nearbyText: option<string>,
     position: Position.t,
     timestamp: float,
-    selectedText: option<string>,
   }
 
   let schema = S.object(s => {
@@ -126,7 +125,6 @@ module Annotation = {
     nearbyText: s.field("nearbyText", S.option(S.string)),
     position: s.field("position", Position.schema),
     timestamp: s.field("timestamp", S.float),
-    selectedText: s.field("selectedText", S.option(S.string)),
   })
 }
 
@@ -388,7 +386,6 @@ let convertAnnotation = (ann: Client__Annotation__Types.t): Annotation.t => {
     yAbsolute: ann.position.yAbsolute,
   },
   timestamp: ann.timestamp,
-  selectedText: ann.selectedText,
 }
 
 let convertUserContentPart = (part: Client__State__Types.UserContentPart.t): UserContentPart.t => {
@@ -666,7 +663,6 @@ let annotationToJson = (ann: Annotation.t): JSON.t => {
     ("nearbyText", ann.nearbyText->Option.mapOr(JSON.Encode.null, JSON.Encode.string)),
     ("position", positionToJson(ann.position)),
     ("timestamp", JSON.Encode.float(ann.timestamp)),
-    ("selectedText", ann.selectedText->Option.mapOr(JSON.Encode.null, JSON.Encode.string)),
   ])
 }
 

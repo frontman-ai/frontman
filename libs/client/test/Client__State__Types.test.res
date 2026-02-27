@@ -46,7 +46,6 @@ let makeTestAnnotation = (
   nearbyText,
   position: {xPercent: 50.0, yAbsolute: 100.0},
   timestamp: 0.0,
-  selectedText: None,
 }
 
 // Helper to extract _meta from a content block
@@ -231,7 +230,6 @@ describe("Client__State__Types", () => {
         nearbyText: None,
         position: {xPercent: 50.0, yAbsolute: 100.0},
         timestamp: 0.0,
-        selectedText: None,
       }
 
       let blocks = Types.annotationToContentBlocks(annotation, ~index=0)

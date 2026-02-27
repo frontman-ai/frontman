@@ -16,7 +16,6 @@ module Marker = {
     ~index: int,
     ~scrollTimestamp: float,
     ~mutationTimestamp: float,
-    ~isScanning: bool=false,
   ) => {
     let (rect, setRect) = React.useState(() => None)
 
@@ -29,7 +28,7 @@ module Marker = {
     switch rect {
     | Some(rect) =>
       <div
-        className={`absolute pointer-events-none z-[9999] ${isScanning ? "frontman-scanning" : ""}`}
+        className="absolute pointer-events-none z-[9999]"
         style={
           left: `${Float.toString(rect.left)}px`,
           top: `${Float.toString(rect.top)}px`,

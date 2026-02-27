@@ -24,7 +24,7 @@ type boundingBox = {
 type t = {
   id: string,
   element: WebAPI.DOMAPI.element, // live DOM ref (not serialized)
-  comment: option<string>, // optional in Quick mode, required in Batch
+  comment: option<string>, // optional user comment for the annotation
   selector: option<string>, // CSS selector via @medv/finder
   screenshot: option<string>, // base64 JPEG via @zumer/snapdom
   sourceLocation: option<SourceLocation.t>,
@@ -34,7 +34,6 @@ type t = {
   nearbyText: option<string>,
   position: position,
   timestamp: float,
-  selectedText: option<string>,
 }
 
 // Pending annotation: element clicked, awaiting enrichment or comment
@@ -62,7 +61,6 @@ let make = (
   nearbyText: None,
   position,
   timestamp: Date.now(),
-  selectedText: None,
 }
 
 // Get the first annotation from an array (for Quick mode compatibility)
