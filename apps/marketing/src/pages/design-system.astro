@@ -19,8 +19,7 @@ const SEO = {
 }
 ---
 
-<Layout title={SEO.title} description={SEO.description}>
-	<meta name="robots" content="noindex, nofollow" slot="head-extra" />
+<Layout title={SEO.title} description={SEO.description} noindex={true}>
 
 	<!-- Overview -->
 	<Section padding="both">

@@ -34,7 +34,8 @@ export default defineConfig({
         // Exclude empty placeholder pages and internal-only pages
         !page.includes("/features") &&
         !page.includes("/pricing") &&
-        !page.includes("/design-system"),
+        !page.includes("/design-system") &&
+        !page.includes("/contact"),
       serialize: (item) => {
         // Set lastmod so Google knows when pages were last updated.
         // Blog posts get their pubDate via the content collection, but the

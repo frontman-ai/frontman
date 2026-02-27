@@ -23,6 +23,10 @@ type Props = {
 	ogImage?: string
 	canonical?: boolean
 	noindex?: boolean
+	article?: {
+		publishedTime?: string
+		tags?: string[]
+	}
 }
 // Page Metadata
 const {
@@ -30,7 +34,8 @@ const {
 	description = configData.siteDescription,
 	ogImage = configData.ogImage,
 	canonical = configData.canonical,
-	noindex = configData.noindex
+	noindex = configData.noindex,
+	article
 } = Astro.props
 ---
 
@@ -51,9 +56,11 @@ const {
 		ogImage={ogImage}
 		canonical={canonical}
 		noindex={noindex}
+		article={article}
 	/>
 	<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
 	<link rel="icon" href="/favicon.ico" sizes="48x48" />
+	<link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 	<link rel="sitemap" href="/sitemap-index.xml" />
 	<link rel="alternate" type="application/rss+xml" title="Frontman Blog" href="/rss.xml" />
 	<meta name="generator" content={Astro.generator} />

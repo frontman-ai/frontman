@@ -42,7 +42,15 @@ const blogPostJsonLd = {
 }
 ---
 
-<Layout title={SEO.title} description={SEO.description} ogImage={frontmatter.image}>
+<Layout
+	title={SEO.title}
+	description={SEO.description}
+	ogImage={frontmatter.image}
+	article={{
+		publishedTime: frontmatter.pubDate instanceof Date ? frontmatter.pubDate.toISOString() : frontmatter.pubDate,
+		tags: frontmatter.tags
+	}}
+>
 	<script is:inline type="application/ld+json" set:html={JSON.stringify(blogPostJsonLd)} />
 	<BlogPostHero
 		tags={frontmatter.tags}

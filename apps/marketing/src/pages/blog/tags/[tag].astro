@@ -30,15 +30,14 @@ const { posts } = Astro.props
 // Content
 // - SEO
 const SEO = {
-	title: `Frontman | posts tagges as ` + tag,
-	description:
-		"Explore Frontman's latest news designed to enhance productivity, ensure top-notch security, and integrate seamlessly with your favorite tools. Join thousands of satisfied users and transform your workflow with Frontman today!"
+	title: `Frontman | Posts tagged as ${tag}`,
+	description: `Browse all Frontman blog posts tagged as "${tag}". Read articles about ${tag} covering AI coding tools, browser-based development, and frontend workflows.`
 }
 
 // - Page Header
 const header = {
 	title: `Frontman posts about <br><strong>` + tag + `</strong>`,
-	text: `Stay informed, stay productive with all the latest fromFrontman.`
+	text: `Stay informed, stay productive with all the latest from Frontman.`
 }
 ---
 

@@ -1,7 +1,31 @@
 ---
 // Structured Data (JSON-LD)
 // ------------
-// Description: Injects Organization and SoftwareApplication schema markup for SEO.
+// Description: Injects Organization, SoftwareApplication, and BreadcrumbList schema markup for SEO.
+
+// Generate breadcrumb structured data from the current URL
+const url = new URL(Astro.request.url)
+const pathname = url.pathname
+const segments = pathname.split('/').filter(Boolean)
+
+const breadcrumbItems = [
+	{ name: 'Home', url: 'https://frontman.sh/' },
+	...segments.map((segment, index) => ({
+		name: segment.replace(/-/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()),
+		url: `https://frontman.sh/${segments.slice(0, index + 1).join('/')}/`
+	}))
+]
+
+const breadcrumbJsonLd = {
+	"@context": "https://schema.org",
+	"@type": "BreadcrumbList",
+	"itemListElement": breadcrumbItems.map((item, index) => ({
+		"@type": "ListItem",
+		"position": index + 1,
+		"name": item.name,
+		"item": item.url
+	}))
+}
 ---
 
 <script is:inline type="application/ld+json" set:html={JSON.stringify({
@@ -31,3 +55,8 @@
 		"priceCurrency": "USD"
 	}
 })} />
+
+{/* BreadcrumbList - helps Google show breadcrumb trails in search results */}
+{segments.length > 0 && (
+	<script is:inline type="application/ld+json" set:html={JSON.stringify(breadcrumbJsonLd)} />
+)}
