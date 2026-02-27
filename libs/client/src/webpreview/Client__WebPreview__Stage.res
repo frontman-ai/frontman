@@ -66,26 +66,37 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
     None
   }, (clickedElement, webPreviewIsSelecting))
 
-  // Set crosshair cursor on iframe body during selection mode
+  // Set crosshair cursor on all iframe elements during selection mode.
+  // Uses an injected <style> tag with `* { cursor: crosshair !important; }` so that
+  // interactive elements (buttons, links, inputs) can't override the crosshair cursor.
   React.useEffect1(() => {
-    document
-    ->Option.flatMap(doc => WebAPI.Document.body(doc)->Null.toOption)
-    ->Option.forEach(body => {
-      let style = WebAPI.Element.asHTMLElement(body)->WebAPI.HTMLElement.style
-      if webPreviewIsSelecting {
-        WebAPI.CSSStyleDeclaration.setProperty(style, ~property="cursor", ~value="crosshair")
-      } else {
-        WebAPI.CSSStyleDeclaration.removeProperty(style, "cursor")->ignore
-      }
-    })
+    if webPreviewIsSelecting {
+      document->Option.forEach(doc => {
+        let styleEl = WebAPI.Document.createElement(doc, "style")
+        WebAPI.Element.setAttribute(styleEl, ~qualifiedName="data-frontman-cursor", ~value="true")
+        styleEl.textContent = Value("* { cursor: crosshair !important; }")
+        doc.head->WebAPI.HTMLHeadElement.appendChild(styleEl)->ignore
+      })
+    } else {
+      document->Option.forEach(doc => {
+        doc
+        ->WebAPI.Document.querySelector("[data-frontman-cursor]")
+        ->Null.toOption
+        ->Option.forEach(el => {
+          el->WebAPI.Element.remove
+        })
+      })
+    }
 
     Some(
       () => {
-        document
-        ->Option.flatMap(doc => WebAPI.Document.body(doc)->Null.toOption)
-        ->Option.forEach(body => {
-          let style = WebAPI.Element.asHTMLElement(body)->WebAPI.HTMLElement.style
-          WebAPI.CSSStyleDeclaration.removeProperty(style, "cursor")->ignore
+        document->Option.forEach(doc => {
+          doc
+          ->WebAPI.Document.querySelector("[data-frontman-cursor]")
+          ->Null.toOption
+          ->Option.forEach(el => {
+            el->WebAPI.Element.remove
+          })
         })
       },
     )
