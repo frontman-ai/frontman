@@ -37,6 +37,21 @@ define require_branch
 	fi
 endef
 
+# Resolve BRANCH: use provided value or auto-detect from current git branch.
+# Sets BRANCH via $(eval) so downstream shell blocks see the correct value.
+# Usage: $(call resolve_branch,target-name)
+define resolve_branch
+	$(eval _BRANCH_WAS := $(BRANCH))
+	$(eval BRANCH := $(if $(BRANCH),$(BRANCH),$(shell git branch --show-current)))
+	@if [ -z "$(BRANCH)" ]; then \
+		printf "$(YELLOW)Error: Could not detect branch. Pass it explicitly: make $(1) BRANCH=feature-name$(RESET)\n"; \
+		exit 1; \
+	fi
+	@if [ -z "$(_BRANCH_WAS)" ]; then \
+		printf "$(CYAN)Auto-detected branch: $(BRANCH)$(RESET)\n"; \
+	fi
+endef
+
 # Run an e2e test file (or all tests if no file given)
 # Usage: $(call run_e2e,test-file-or-empty)
 define run_e2e
@@ -286,20 +301,19 @@ worktree-devpod: ## Create worktree + push + DevPod workspace (BRANCH=name)
 	@echo "Or open in VS Code:"
 	@echo "  devpod up $(BRANCH) --ide vscode"
 
-worktree-urls: ## Show URLs for a worktree (BRANCH=feature-name)
-	$(call require_branch,worktree-urls)
+worktree-urls: ## Show service URLs for current worktree (auto-detects branch)
+	$(call resolve_branch,worktree-urls)
 	@HASH=$$(printf '%s' "$(BRANCH)" | $(MD5_SHORT)); \
 	echo ""; \
-	printf "$(CYAN)Worktree: $(BRANCH) ($$HASH)$(RESET)\n"; \
+	printf "$(CYAN)$(BRANCH) ($$HASH)$(RESET)\n"; \
 	echo ""; \
-	echo "URLs:"; \
-	echo "  Next.js:   https://$$HASH.nextjs.frontman.local/frontman"; \
-	echo "  Vite:      https://$$HASH.vite.frontman.local"; \
-	echo "  Phoenix:   https://$$HASH.api.frontman.local"; \
-	echo "  Storybook: https://$$HASH.storybook.frontman.local"; \
-	echo ""; \
-	echo "Add to /etc/hosts:"; \
-	echo "127.0.0.1 $$HASH.nextjs.frontman.local $$HASH.vite.frontman.local $$HASH.api.frontman.local $$HASH.storybook.frontman.local $$HASH.dogfood.frontman.local"
+	printf "  $(GREEN)Phoenix$(RESET)     https://$$HASH.api.frontman.local\n"; \
+	printf "  $(GREEN)Vite$(RESET)        https://$$HASH.vite.frontman.local\n"; \
+	printf "  $(GREEN)Next.js$(RESET)     https://$$HASH.nextjs.frontman.local/frontman\n"; \
+	printf "  $(GREEN)Storybook$(RESET)   https://$$HASH.storybook.frontman.local\n"; \
+	printf "  $(GREEN)Dogfood$(RESET)     https://$$HASH.dogfood.frontman.local\n"; \
+	printf "  $(GREEN)Marketing$(RESET)   https://$$HASH.marketing.frontman.local\n"; \
+	echo ""
 
 worktree-hosts: ## Generate /etc/hosts entries for all worktrees
 	@echo "# Frontman DevPod worktrees"
@@ -482,8 +496,8 @@ infra-status: ## Show infrastructure status
 .PHONY: worktree-pod-create worktree-pod-dev worktree-pod-attach worktree-pod-stop \
         worktree-pod-start worktree-pod-remove worktree-pod-list worktree-pod-logs
 
-worktree-pod-create: ## Create containerized worktree (BRANCH=feature/x)
-	$(call require_branch,worktree-pod-create)
+worktree-pod-create: ## Create containerized worktree (BRANCH=feature/x, auto-detects)
+	$(call resolve_branch,worktree-pod-create)
 	@# Verify infra is up
 	@if ! podman network inspect $(FRONTMAN_NET) &>/dev/null; then \
 		printf "$(YELLOW)Error: Infrastructure not set up. Run 'make infra-up' first.$(RESET)\n"; \
@@ -593,15 +607,31 @@ worktree-pod-create: ## Create containerized worktree (BRANCH=feature/x)
 	echo "  Next.js:   https://$${HASH}.nextjs.frontman.local/frontman"; \
 	echo "  Storybook: https://$${HASH}.storybook.frontman.local"
 
-worktree-pod-dev: ## Start mprocs TUI inside container (BRANCH=feature/x)
-	$(call require_branch,worktree-pod-dev)
+worktree-pod-dev: ## Start mprocs TUI inside container (BRANCH=feature/x, auto-detects)
+	$(call resolve_branch,worktree-pod-dev)
 	@HASH=$$(echo -n "$(BRANCH)" | $(MD5_SHORT)); \
+	POD_NAME="worktree-$${HASH}"; \
 	CONTAINER="worktree-$${HASH}-dev"; \
 	if ! podman container inspect "$${CONTAINER}" &>/dev/null; then \
 		printf "$(YELLOW)Error: Container $${CONTAINER} not found. Create it first:$(RESET)\n"; \
 		echo "  make worktree-pod-create BRANCH=$(BRANCH)"; \
 		exit 1; \
 	fi; \
+	CADDY_STATE=$$(podman container inspect $(CADDY_CONTAINER) --format '{{.State.Status}}' 2>/dev/null || echo "missing"); \
+	if [ "$${CADDY_STATE}" = "missing" ]; then \
+		printf "$(YELLOW)Error: Caddy container not found. Run 'make infra-up' first.$(RESET)\n"; \
+		exit 1; \
+	elif [ "$${CADDY_STATE}" != "running" ]; then \
+		printf "$(YELLOW)Caddy is $${CADDY_STATE}. Starting it...$(RESET)\n"; \
+		podman start $(CADDY_CONTAINER); \
+	fi; \
+	STATE=$$(podman container inspect "$${CONTAINER}" --format '{{.State.Status}}' 2>/dev/null); \
+	if [ "$${STATE}" != "running" ]; then \
+		printf "$(YELLOW)Pod $${POD_NAME} is $${STATE}. Starting it...$(RESET)\n"; \
+		podman pod start "$${POD_NAME}"; \
+		printf "$(GREEN)Pod started$(RESET)\n"; \
+	fi; \
+	bash ./infra/local/caddy-regen.sh; \
 	printf "$(CYAN)Checking dependencies in $${CONTAINER}...$(RESET)\n"; \
 	NODE_COUNT=$$(podman exec -w /workspaces/frontman "$${CONTAINER}" \
 		bash -c 'ls node_modules/ 2>/dev/null | wc -l'); \
@@ -622,8 +652,8 @@ worktree-pod-dev: ## Start mprocs TUI inside container (BRANCH=feature/x)
 	podman exec -it -w /workspaces/frontman "$${CONTAINER}" \
 		bash -l -c 'eval "$$(mise activate bash)" && exec mprocs --config mprocs.container.yml'
 
-worktree-pod-attach: ## Interactive shell into dev container (BRANCH=feature/x)
-	$(call require_branch,worktree-pod-attach)
+worktree-pod-attach: ## Interactive shell into dev container (BRANCH=feature/x, auto-detects)
+	$(call resolve_branch,worktree-pod-attach)
 	@HASH=$$(echo -n "$(BRANCH)" | $(MD5_SHORT)); \
 	CONTAINER="worktree-$${HASH}-dev"; \
 	if ! podman container inspect "$${CONTAINER}" &>/dev/null; then \
@@ -632,8 +662,8 @@ worktree-pod-attach: ## Interactive shell into dev container (BRANCH=feature/x)
 	fi; \
 	podman exec -it -w /workspaces/frontman "$${CONTAINER}" bash
 
-worktree-pod-stop: ## Stop pod, preserve volumes (BRANCH=feature/x)
-	$(call require_branch,worktree-pod-stop)
+worktree-pod-stop: ## Stop pod, preserve volumes (BRANCH=feature/x, auto-detects)
+	$(call resolve_branch,worktree-pod-stop)
 	@HASH=$$(echo -n "$(BRANCH)" | $(MD5_SHORT)); \
 	POD_NAME="worktree-$${HASH}"; \
 	if ! podman pod inspect "$${POD_NAME}" &>/dev/null; then \
@@ -645,8 +675,8 @@ worktree-pod-stop: ## Stop pod, preserve volumes (BRANCH=feature/x)
 	bash ./infra/local/caddy-regen.sh; \
 	printf "$(GREEN)Pod stopped. Volumes preserved. Resume with: make worktree-pod-start BRANCH=$(BRANCH)$(RESET)\n"
 
-worktree-pod-start: ## Restart a stopped pod (BRANCH=feature/x)
-	$(call require_branch,worktree-pod-start)
+worktree-pod-start: ## Restart a stopped pod (BRANCH=feature/x, auto-detects)
+	$(call resolve_branch,worktree-pod-start)
 	@HASH=$$(echo -n "$(BRANCH)" | $(MD5_SHORT)); \
 	POD_NAME="worktree-$${HASH}"; \
 	if ! podman pod inspect "$${POD_NAME}" &>/dev/null; then \
@@ -659,8 +689,8 @@ worktree-pod-start: ## Restart a stopped pod (BRANCH=feature/x)
 	bash ./infra/local/caddy-regen.sh; \
 	printf "$(GREEN)Pod started. Run: make worktree-pod-dev BRANCH=$(BRANCH)$(RESET)\n"
 
-worktree-pod-remove: ## Full cleanup: pod, volumes, worktree (BRANCH=feature/x)
-	$(call require_branch,worktree-pod-remove)
+worktree-pod-remove: ## Full cleanup: pod, volumes, worktree (BRANCH=feature/x, auto-detects)
+	$(call resolve_branch,worktree-pod-remove)
 	@HASH=$$(echo -n "$(BRANCH)" | $(MD5_SHORT)); \
 	POD_NAME="worktree-$${HASH}"; \
 	WT_DIR="$$(pwd)/.worktrees/$(BRANCH)"; \
@@ -746,8 +776,8 @@ worktree-pod-list: ## List all worktree pods with status and URLs
 		done; \
 	fi
 
-worktree-pod-logs: ## Show dev container logs (BRANCH=feature/x)
-	$(call require_branch,worktree-pod-logs)
+worktree-pod-logs: ## Show dev container logs (BRANCH=feature/x, auto-detects)
+	$(call resolve_branch,worktree-pod-logs)
 	@HASH=$$(echo -n "$(BRANCH)" | $(MD5_SHORT)); \
 	CONTAINER="worktree-$${HASH}-dev"; \
 	if ! podman container inspect "$${CONTAINER}" &>/dev/null; then \
