@@ -51,7 +51,6 @@ module Fixtures = {
       },
       annotationMode: Client__Annotation__Types.Off,
       annotations: [],
-      pendingAnnotation: None,
       isAgentRunning: false,
       planEntries: [],
       turnError: None,

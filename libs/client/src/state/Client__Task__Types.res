@@ -102,7 +102,6 @@ module Task = {
         previewFrame: previewFrame,
         annotationMode: Annotation.annotationMode,
         annotations: array<Annotation.t>,
-        pendingAnnotation: option<Annotation.pending>,
       })
     // Unloaded: persisted but only metadata loaded
     | Unloaded({
@@ -121,7 +120,6 @@ module Task = {
         previewFrame: previewFrame,
         annotationMode: Annotation.annotationMode,
         annotations: array<Annotation.t>,
-        pendingAnnotation: option<Annotation.pending>,
       })
     // Loaded: fully interactive
     // clientId is preserved from New state during promotion to maintain iframe identity
@@ -135,7 +133,6 @@ module Task = {
         previewFrame: previewFrame,
         annotationMode: Annotation.annotationMode,
         annotations: array<Annotation.t>,
-        pendingAnnotation: option<Annotation.pending>,
         isAgentRunning: bool,
         planEntries: array<ACPTypes.planEntry>,
         turnError: option<string>,
@@ -233,13 +230,6 @@ module Task = {
     | New(_) | Unloaded(_) | Loading(_) => Dict.make()
     }
 
-  let getPendingAnnotation = (task: t): option<Annotation.pending> =>
-    switch task {
-    | New({pendingAnnotation}) => pendingAnnotation
-    | Unloaded(_) => None
-    | Loading({pendingAnnotation}) | Loaded({pendingAnnotation}) => pendingAnnotation
-    }
-
   // Derived: is any selection mode active?
   let getWebPreviewIsSelecting = (task: t): bool =>
     getAnnotationMode(task) != Annotation.Off
@@ -298,7 +288,6 @@ module Task = {
       previewFrame: {url: previewUrl, contentDocument: None, contentWindow: None, deviceMode: Client__DeviceMode.defaultDeviceMode, orientation: Client__DeviceMode.defaultOrientation},
       annotationMode: Annotation.Off,
       annotations: [],
-      pendingAnnotation: None,
     })
   }
 
@@ -325,7 +314,6 @@ module Task = {
         previewFrame: {url: previewUrl, contentDocument: None, contentWindow: None, deviceMode: Client__DeviceMode.defaultDeviceMode, orientation: Client__DeviceMode.defaultOrientation},
         annotationMode: Annotation.Off,
         annotations: [],
-        pendingAnnotation: None,
       })
     | New(_) => failwith("[Task.startLoading] Cannot load a New task - it has no server session")
     | Loading(_) | Loaded(_) => task
@@ -340,7 +328,7 @@ module Task = {
     ~title: string,
   ): t => {
     switch task {
-    | New({clientId, previewFrame, annotationMode, annotations, pendingAnnotation}) =>
+    | New({clientId, previewFrame, annotationMode, annotations}) =>
       let timestamp = Date.now()
       Loaded({
         id,
@@ -352,7 +340,6 @@ module Task = {
         previewFrame,
         annotationMode,
         annotations,
-        pendingAnnotation,
         isAgentRunning: false,
         planEntries: [],
         turnError: None,
@@ -382,7 +369,6 @@ module Task = {
       previewFrame: {url: previewUrl, contentDocument: None, contentWindow: None, deviceMode: Client__DeviceMode.defaultDeviceMode, orientation: Client__DeviceMode.defaultOrientation},
       annotationMode: Annotation.Off,
       annotations: [],
-      pendingAnnotation: None,
       isAgentRunning,
       planEntries: [],
       turnError: None,
@@ -445,7 +431,7 @@ module Task = {
 
   let updateLoadedData = (task: t, fn: loadedData => loadedData): t => {
     switch task {
-    | Loaded({id, clientId, title, createdAt, updatedAt, messages, previewFrame, annotationMode, annotations, pendingAnnotation, isAgentRunning, planEntries, turnError, imageAttachments}) => {
+    | Loaded({id, clientId, title, createdAt, updatedAt, messages, previewFrame, annotationMode, annotations, isAgentRunning, planEntries, turnError, imageAttachments}) => {
         let data = {messages: Client__MessageStore.toArray(messages), annotationMode, annotations, isAgentRunning, planEntries, turnError}
         let updated = fn(data)
         Loaded({
@@ -458,14 +444,13 @@ module Task = {
           previewFrame,
           annotationMode: updated.annotationMode,
           annotations: updated.annotations,
-          pendingAnnotation,
           isAgentRunning: updated.isAgentRunning,
           planEntries: updated.planEntries,
           turnError: updated.turnError,
           imageAttachments,
         })
       }
-    | Loading({id, title, createdAt, updatedAt, messages, previewFrame, annotationMode, annotations, pendingAnnotation}) => {
+    | Loading({id, title, createdAt, updatedAt, messages, previewFrame, annotationMode, annotations}) => {
         let data = {messages: Client__MessageStore.toArray(messages), annotationMode, annotations, isAgentRunning: false, planEntries: [], turnError: None}
         let updated = fn(data)
         Loading({
@@ -477,10 +462,9 @@ module Task = {
           previewFrame,
           annotationMode: updated.annotationMode,
           annotations: updated.annotations,
-          pendingAnnotation,
         })
       }
-    | New({clientId, previewFrame, annotationMode, annotations, pendingAnnotation}) => {
+    | New({clientId, previewFrame, annotationMode, annotations}) => {
         let data = {messages: [], annotationMode, annotations, isAgentRunning: false, planEntries: [], turnError: None}
         let updated = fn(data)
         New({
@@ -488,7 +472,6 @@ module Task = {
           previewFrame,
           annotationMode: updated.annotationMode,
           annotations: updated.annotations,
-          pendingAnnotation,
         })
       }
     | Unloaded(_) => task

@@ -240,18 +240,29 @@ describe("Task - Annotation Mode", () => {
     let task = TestHelpers.makeLoadedTask()
     t->expect(TaskReducer.Selectors.webPreviewIsSelecting(task))->Expect.toEqual(Some(false))
 
-    let (task2, _) = TaskReducer.next(task, SetAnnotationMode({mode: Quick}))
+    let (task2, _) = TaskReducer.next(task, SetAnnotationMode({mode: Selecting}))
     t->expect(TaskReducer.Selectors.webPreviewIsSelecting(task2))->Expect.toEqual(Some(true))
 
     let (task3, _) = TaskReducer.next(task2, SetAnnotationMode({mode: Off}))
     t->expect(TaskReducer.Selectors.webPreviewIsSelecting(task3))->Expect.toEqual(Some(false))
   })
 
-  test("SetAnnotationMode Off clears annotations", t => {
+  test("ToggleAnnotationMode toggles Off to Selecting and back", t => {
+    let task = TestHelpers.makeLoadedTask()
+    t->expect(TaskReducer.Selectors.webPreviewIsSelecting(task))->Expect.toEqual(Some(false))
+
+    let (task2, _) = TaskReducer.next(task, ToggleAnnotationMode)
+    t->expect(TaskReducer.Selectors.webPreviewIsSelecting(task2))->Expect.toEqual(Some(true))
+
+    let (task3, _) = TaskReducer.next(task2, ToggleAnnotationMode)
+    t->expect(TaskReducer.Selectors.webPreviewIsSelecting(task3))->Expect.toEqual(Some(false))
+  })
+
+  test("SetAnnotationMode Off leaves annotations intact", t => {
     let task = TestHelpers.makeLoadedTask()
 
-    // Enter Quick mode
-    let (task2, _) = TaskReducer.next(task, SetAnnotationMode({mode: Quick}))
+    // Enter Selecting mode
+    let (task2, _) = TaskReducer.next(task, SetAnnotationMode({mode: Selecting}))
     t->expect(TaskReducer.Selectors.webPreviewIsSelecting(task2))->Expect.toEqual(Some(true))
 
     // Exit selection mode

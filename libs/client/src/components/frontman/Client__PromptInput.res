@@ -503,6 +503,7 @@ let make = (
   ~disabledPlaceholder: option<string>=?,
   ~onSelectElement: option<unit => unit>=?,
   ~isSelecting: bool=false,
+  ~hasAnnotatedComments: bool=false,
 ) => {
   let (hasContent, setHasContent) = React.useState(() => false)
   let (inputItems, setInputItems) = React.useState((): array<inputItem> => [])
@@ -791,7 +792,7 @@ let make = (
       )
       // Walk the DOM in order, expanding pasted-text chips inline at their position
       let text = getExpandedTextFromEditable(el, pastedTextMap)
-      if String.trim(text) != "" || Array.length(items) > 0 {
+      if String.trim(text) != "" || Array.length(items) > 0 || hasAnnotatedComments {
         onSubmit(~text=String.trim(text), ~inputItems=items)
         clearEditable(el)
         setInputItems(_ => [])
@@ -811,7 +812,7 @@ let make = (
   }
 
   let isInputDisabled = !hasActiveACPSession || isAgentRunning || disabled
-  let isSubmitDisabled = isInputDisabled || !hasContent
+  let isSubmitDisabled = isInputDisabled || (!hasContent && !hasAnnotatedComments)
 
   // Determine placeholder text based on state
   let currentPlaceholder = if disabled {

@@ -159,16 +159,6 @@ module Lens = {
     setAnnotations(task, updated)
   }
 
-  // Set pending annotation
-  let setPendingAnnotation = (task: Task.t, pending: option<Annotation.pending>): Task.t => {
-    switch task {
-    | Task.New(data) => Task.New({...data, pendingAnnotation: pending})
-    | Task.Loading(data) => Task.Loading({...data, pendingAnnotation: pending})
-    | Task.Loaded(data) => Task.Loaded({...data, pendingAnnotation: pending})
-    | Task.Unloaded(_) => failwith("[Lens.setPendingAnnotation] Cannot set on Unloaded task")
-    }
-  }
-
 }
 
 // ============================================================================
@@ -224,19 +214,7 @@ module Selectors = {
     }
   }
 
-  // Get pending annotation
-  // None = Unloaded (we don't know) or no pending annotation
-  let pendingAnnotation = (task: Task.t): option<Annotation.pending> => {
-    switch task {
-    | Task.Unloaded(_) => None
-    | Task.New({pendingAnnotation})
-    | Task.Loading({pendingAnnotation})
-    | Task.Loaded({pendingAnnotation}) =>
-      pendingAnnotation
-    }
-  }
-
-  // Legacy: derive webPreviewIsSelecting from annotationMode
+  // Derive webPreviewIsSelecting from annotationMode
   let webPreviewIsSelecting = (task: Task.t): option<bool> => {
     switch task {
     | Task.Unloaded(_) => None
@@ -319,6 +297,13 @@ module Selectors = {
 // Task Actions - operate on a single Task (no taskId needed)
 // ============================================================================
 
+// Element data for batch annotation (drag selection)
+type annotationElement = {
+  element: WebAPI.DOMAPI.element,
+  position: Annotation.position,
+  tagName: string,
+}
+
 type action =
   // Streaming actions
   | StreamingStarted
@@ -330,9 +315,10 @@ type action =
   | ToolCallReceived({toolCall: Message.toolCall})
   // Content actions
   | AddUserMessage({id: string, content: array<UserContentPart.t>})
-  // Annotation actions (replaces SetSelectedElement/ToggleWebPreviewSelection)
+  // Annotation actions — unified selection mode
   | SetAnnotationMode({mode: Annotation.annotationMode})
-  | AddAnnotation({element: WebAPI.DOMAPI.element, position: Annotation.position, tagName: string})
+  | ToggleAnnotationMode
+  | ToggleAnnotation({element: WebAPI.DOMAPI.element, position: Annotation.position, tagName: string})
   | AnnotationDetailsResolved({
       id: string,
       selector: option<string>,
@@ -342,11 +328,9 @@ type action =
       nearbyText: option<string>,
       boundingBox: option<Annotation.boundingBox>,
     })
-  | AddAnnotations({elements: array<Annotation.pending>})
+  | AddAnnotations({elements: array<annotationElement>})
   | RemoveAnnotation({id: string})
   | ClearAnnotations
-  | ConfirmPendingAnnotation({comment: option<string>})
-  | CancelPendingAnnotation
   | UpdateAnnotationComment({id: string, comment: string})
   | SetPreviewUrl({url: string})
   | SetPreviewFrame({
@@ -408,13 +392,12 @@ let actionToString = (action: action): string =>
   | ToolResultReceived(_) => "ToolResultReceived"
   | ToolErrorReceived(_) => "ToolErrorReceived"
   | SetAnnotationMode(_) => "SetAnnotationMode"
-  | AddAnnotation(_) => "AddAnnotation"
+  | ToggleAnnotationMode => "ToggleAnnotationMode"
+  | ToggleAnnotation(_) => "ToggleAnnotation"
   | AnnotationDetailsResolved(_) => "AnnotationDetailsResolved"
   | AddAnnotations(_) => "AddAnnotations"
   | RemoveAnnotation(_) => "RemoveAnnotation"
   | ClearAnnotations => "ClearAnnotations"
-  | ConfirmPendingAnnotation(_) => "ConfirmPendingAnnotation"
-  | CancelPendingAnnotation => "CancelPendingAnnotation"
   | UpdateAnnotationComment(_) => "UpdateAnnotationComment"
   | SetPreviewUrl(_) => "SetPreviewUrl"
   | SetPreviewFrame(_) => "SetPreviewFrame"
@@ -491,9 +474,9 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
     let urlChanged = normalizeUrl(currentUrl) != normalizeUrl(url)
     let updated = Lens.setPreviewUrl(task, url)
 
-    // Clear annotations and pending annotation on actual navigation, not initial iframe mount
+    // Clear annotations on actual navigation, not initial iframe mount
     if urlChanged {
-      (Lens.setAnnotations(Lens.setPendingAnnotation(updated, None), []), [])
+      (Lens.setAnnotations(updated, []), [])
     } else {
       (updated, [])
     }
@@ -524,42 +507,41 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
     }
     (Lens.setDeviceMode(task, newDeviceMode), [])
 
-  // Annotation actions
-  | (Task.Unloaded(_), SetAnnotationMode(_)) => (task, [])
-  | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), SetAnnotationMode({mode})) => {
-      let updated = Lens.setAnnotationMode(task, mode)
-      // Clear pending annotation when leaving Batch mode to avoid stale popup
-      let updated = switch mode {
-      | Annotation.Batch => updated
-      | Annotation.Quick | Annotation.Off => Lens.setPendingAnnotation(updated, None)
-      }
-      (updated, [])
+  // Annotation actions — unified selection mode
+  | (Task.Unloaded(_), SetAnnotationMode(_) | ToggleAnnotationMode) => (task, [])
+  | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), SetAnnotationMode({mode})) =>
+    (Lens.setAnnotationMode(task, mode), [])
+  | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), ToggleAnnotationMode) => {
+    let newMode = switch Task.getAnnotationMode(task) {
+    | Annotation.Off => Annotation.Selecting
+    | _ => Annotation.Off
     }
+    (Lens.setAnnotationMode(task, newMode), [])
+  }
 
-  | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), AddAnnotation({element, position, tagName})) => {
-    let mode = Task.getAnnotationMode(task)
-
-    switch mode {
-    | Annotation.Batch => {
-        // In Batch mode: set as pending annotation, await user comment/confirm
-        let pending: Annotation.pending = {element, position, tagName}
-        (Lens.setPendingAnnotation(task, Some(pending)), [])
-      }
-    | Annotation.Off => (task, [])
-    | Annotation.Quick => {
-        // In Quick mode: replace all annotations (max 1), fetch details immediately
-        let annotation = Annotation.make(~element, ~position, ~tagName)
-        let previewFrame = Task.getPreviewFrame(task, ~defaultUrl="")
-        let effects = [
-          FetchAnnotationDetails({
-            id: annotation.id,
-            element,
-            document: previewFrame.contentDocument,
-            contentWindow: previewFrame.contentWindow,
-          }),
-        ]
-        (Lens.setAnnotations(task, [annotation]), effects)
-      }
+  // Toggle annotation: click already-annotated element removes it, click new element adds it
+  | (Task.Unloaded(_), ToggleAnnotation(_)) => (task, [])
+  | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), ToggleAnnotation({element, position, tagName})) => {
+    let existing = Annotation.findByElement(Task.getAnnotations(task), element)
+    switch existing {
+    | Some(ann) =>
+      // Element already annotated — deselect it
+      let annotations = Task.getAnnotations(task)->Array.filter(a => a.id != ann.id)
+      (Lens.setAnnotations(task, annotations), [])
+    | None =>
+      // New element — add annotation immediately, fetch details
+      let annotation = Annotation.make(~element, ~position, ~tagName)
+      let previewFrame = Task.getPreviewFrame(task, ~defaultUrl="")
+      let effects = [
+        FetchAnnotationDetails({
+          id: annotation.id,
+          element,
+          document: previewFrame.contentDocument,
+          contentWindow: previewFrame.contentWindow,
+        }),
+      ]
+      let allAnnotations = Array.concat(Task.getAnnotations(task), [annotation])
+      (Lens.setAnnotations(task, allAnnotations), effects)
     }
   }
 
@@ -579,11 +561,11 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
     [],
   )
 
-  // Add multiple annotations at once (for drag selection — bypass pending state)
+  // Add multiple annotations at once (for drag selection)
   | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), AddAnnotations({elements})) => {
     let previewFrame = Task.getPreviewFrame(task, ~defaultUrl="")
-    let newAnnotations = elements->Array.map(p =>
-      Annotation.make(~element=p.element, ~position=p.position, ~tagName=p.tagName)
+    let newAnnotations = elements->Array.map(el =>
+      Annotation.make(~element=el.element, ~position=el.position, ~tagName=el.tagName)
     )
     let effects = newAnnotations->Array.map(annotation =>
       FetchAnnotationDetails({
@@ -605,49 +587,20 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
 
   | (Task.Unloaded(_), ClearAnnotations) => (task, [])
   | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), ClearAnnotations) => (
-    Lens.setAnnotations(Lens.setPendingAnnotation(task, None), []),
-    [],
-  )
-
-  // Confirm pending annotation: promote to real annotation with optional comment
-  | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), ConfirmPendingAnnotation({comment})) => {
-    switch Task.getPendingAnnotation(task) {
-    | Some(pending) => {
-        let annotation = Annotation.make(
-          ~element=pending.element,
-          ~position=pending.position,
-          ~tagName=pending.tagName,
-          ~comment?,
-        )
-        let newAnnotations = Array.concat(Task.getAnnotations(task), [annotation])
-        let previewFrame = Task.getPreviewFrame(task, ~defaultUrl="")
-        let effects = [
-          FetchAnnotationDetails({
-            id: annotation.id,
-            element: pending.element,
-            document: previewFrame.contentDocument,
-            contentWindow: previewFrame.contentWindow,
-          }),
-        ]
-        (Lens.setAnnotations(Lens.setPendingAnnotation(task, None), newAnnotations), effects)
-      }
-    | None => (task, [])
-    }
-  }
-
-  // Cancel pending annotation: discard without adding
-  | (Task.Unloaded(_), CancelPendingAnnotation) => (task, [])
-  | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), CancelPendingAnnotation) => (
-    Lens.setPendingAnnotation(task, None),
+    Lens.setAnnotations(task, []),
     [],
   )
 
   // Update comment on an existing annotation
   | (Task.Unloaded(_), UpdateAnnotationComment(_)) => (task, [])
-  | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), UpdateAnnotationComment({id, comment})) => (
-    Lens.updateAnnotation(task, id, a => {...a, comment: Some(comment)}),
-    [],
-  )
+  | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), UpdateAnnotationComment({id, comment})) => {
+    let trimmed = comment->String.trim
+    let commentValue = trimmed->String.length > 0 ? Some(trimmed) : None
+    (
+      Lens.updateAnnotation(task, id, a => {...a, comment: commentValue}),
+      [],
+    )
+  }
 
   // ============================================================================
   // Message Actions - work on Loading or Loaded (via Lens)
@@ -874,7 +827,6 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
         previewFrame: {url: previewUrl, contentDocument: None, contentWindow: None, deviceMode: Client__DeviceMode.defaultDeviceMode, orientation: Client__DeviceMode.defaultOrientation},
         annotationMode: Annotation.Off,
         annotations: [],
-        pendingAnnotation: None,
       }),
       [],
     )
@@ -892,7 +844,6 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
         previewFrame,
         annotationMode,
         annotations,
-        pendingAnnotation,
       }) =>
       let sortedMessages = MessageStore.toSorted(messages, (a, b) =>
         Selectors.getMessageCreatedAt(a) -. Selectors.getMessageCreatedAt(b)
@@ -908,7 +859,6 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
           previewFrame,
           annotationMode,
           annotations,
-          pendingAnnotation,
           isAgentRunning: false,
           planEntries: [],
           turnError: None,

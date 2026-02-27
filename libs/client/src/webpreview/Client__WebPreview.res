@@ -119,7 +119,6 @@ let make = () => {
   let previewUrl = Client__State.useSelector(Client__State.Selectors.previewUrl)
   let previewFrame = Client__State.useSelector(Client__State.Selectors.previewFrame)
   let annotationMode = Client__State.useSelector(Client__State.Selectors.annotationMode)
-  let annotations = Client__State.useSelector(Client__State.Selectors.annotations)
   let deviceMode = Client__State.useSelector(Client__State.Selectors.deviceMode)
   let deviceOrientation = Client__State.useSelector(Client__State.Selectors.deviceOrientation)
 
@@ -202,8 +201,7 @@ let make = () => {
     })
     Client__State.Actions.clearAnnotations()
   }
-  let handleSetAnnotationMode = mode => Client__State.Actions.setAnnotationMode(~mode)
-  let handleClearAnnotations = () => Client__State.Actions.clearAnnotations()
+  let handleToggleSelection = () => Client__State.Actions.toggleWebPreviewSelection()
   let handleOpenInNewTab = () => {
     WebAPI.Window.open_(
       WebAPI.Global.window,
@@ -248,9 +246,7 @@ let make = () => {
       <DeviceModeToggle isActive={deviceModeActive} onClick={handleToggleDeviceMode} />
       <Client__WebPreview__AnnotationControls
         mode={annotationMode}
-        annotationCount={Array.length(annotations)}
-        onSetMode={handleSetAnnotationMode}
-        onClear={handleClearAnnotations}
+        onToggle={handleToggleSelection}
         previewDocument=?{previewFrame.contentDocument}
       />
       <OpenInNewWindow onClick={handleOpenInNewTab} />

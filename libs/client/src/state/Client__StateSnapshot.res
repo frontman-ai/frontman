@@ -59,13 +59,11 @@ module SourceLocation = {
 module AnnotationMode = {
   type t =
     | @as("off") Off
-    | @as("quick") Quick
-    | @as("batch") Batch
+    | @as("selecting") Selecting
 
   let schema = S.union([
     S.literal(Off),
-    S.literal(Quick),
-    S.literal(Batch),
+    S.literal(Selecting),
   ])
 }
 
@@ -361,8 +359,7 @@ let convertSourceLocation = (loc: Client__Types.SourceLocation.t): SourceLocatio
 let convertAnnotationMode = (mode: Client__Annotation__Types.annotationMode): AnnotationMode.t => {
   switch mode {
   | Off => Off
-  | Quick => Quick
-  | Batch => Batch
+  | Selecting => Selecting
   }
 }
 
@@ -629,8 +626,7 @@ let rec sourceLocationToJson = (loc: SourceLocation.t): JSON.t => {
 let annotationModeToJson = (mode: AnnotationMode.t): JSON.t => {
   switch mode {
   | Off => JSON.Encode.string("off")
-  | Quick => JSON.Encode.string("quick")
-  | Batch => JSON.Encode.string("batch")
+  | Selecting => JSON.Encode.string("selecting")
   }
 }
 

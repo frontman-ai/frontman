@@ -317,10 +317,6 @@ module Selectors = {
     Task.getAnnotations(currentTask(state))
   }
 
-  let pendingAnnotation = (state: state): option<Client__Annotation__Types.pending> => {
-    Task.getPendingAnnotation(currentTask(state))
-  }
-
   let webPreviewIsSelecting = (state: state): bool => {
     Task.getWebPreviewIsSelecting(currentTask(state))
   }

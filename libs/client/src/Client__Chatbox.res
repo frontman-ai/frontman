@@ -120,6 +120,7 @@ let make = (
   let selectedModel = Client__State.useSelector(Client__State.Selectors.selectedModel)
   let hasProviderConfigured = Client__State.useSelector(Client__State.Selectors.hasAnyProviderConfigured)
   let webPreviewIsSelecting = Client__State.useSelector(Client__State.Selectors.webPreviewIsSelecting)
+  let annotations = Client__State.useSelector(Client__State.Selectors.annotations)
   let hasEnvKey = RuntimeConfig.hasOpenrouterKey(RuntimeConfig.read())
   let hasAnyKey = hasProviderConfigured || hasEnvKey
 
@@ -140,9 +141,13 @@ let make = (
     ~sessionInitialized,
   )
 
+  let hasAnnotatedComments = annotations->Array.some(a => a.comment->Option.isSome)
+
   let handleSubmit = (~text: string, ~inputItems: array<Client__PromptInput.inputItem>) => {
     let sendWithContent = (content) => {
-      switch Array.length(content) > 0 {
+      // Allow send if there's content OR annotations with comments (annotations are
+      // attached by the reducer as additional content blocks during addUserMessage)
+      switch Array.length(content) > 0 || hasAnnotatedComments {
       | false => ()
       | true =>
         let sendMessage = (sessionId: string) => {
@@ -416,6 +421,7 @@ let make = (
       disabledPlaceholder="Free requests exhausted. Add your API key in Settings to continue."
       onSelectElement={Client__State.Actions.toggleWebPreviewSelection}
       isSelecting={webPreviewIsSelecting}
+      hasAnnotatedComments
     />
   </div>
 }

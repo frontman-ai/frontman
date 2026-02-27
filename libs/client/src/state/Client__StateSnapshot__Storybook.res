@@ -108,8 +108,7 @@ let convertMessage = (msg: Snapshot.Message.t): StateTypes.Message.t => {
 let convertAnnotationMode = (mode: Snapshot.AnnotationMode.t): Client__Annotation__Types.annotationMode => {
   switch mode {
   | Off => Off
-  | Quick => Quick
-  | Batch => Batch
+  | Selecting => Selecting
   }
 }
 
@@ -136,7 +135,6 @@ let convertTask = (task: Snapshot.Task.t): StateTypes.Task.t => {
     },
     annotationMode: convertAnnotationMode(task.annotationMode),
     annotations: [], // Cannot restore DOM element refs from snapshot
-    pendingAnnotation: None,
     isAgentRunning: false, // Default to not running when restoring from snapshot
     planEntries: [], // Plan entries not stored in snapshots yet
     turnError: None, // No error when restoring from snapshot

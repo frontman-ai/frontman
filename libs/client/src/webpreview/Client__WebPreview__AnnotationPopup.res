@@ -1,9 +1,12 @@
 /**
- * Client__WebPreview__AnnotationPopup - Comment input popup for batch annotation mode
+ * Client__WebPreview__AnnotationPopup - Non-blocking comment input for annotations
  *
- * Appears near the pending element when the user clicks in Batch mode.
- * Provides a text input for the annotation comment, confirm, and cancel.
- * Supports Enter to confirm and Escape to cancel.
+ * Appears near a newly-annotated element. The annotation already exists in state;
+ * this popup is purely an optional comment-entry convenience.
+ * - Typing updates the annotation's comment via UpdateAnnotationComment
+ * - Enter closes the popup (comment is already saved)
+ * - Escape closes the popup (annotation remains, no comment)
+ * - Clicking another element auto-closes this popup (handled by parent)
  */
 
 module Annotation = Client__Annotation__Types
@@ -11,53 +14,55 @@ module RadixUI__Icons = Bindings__RadixUI__Icons
 
 @react.component
 let make = (
-  ~pending: Annotation.pending,
+  ~annotation: Annotation.t,
+  ~index: int,
   ~scrollTimestamp: float,
   ~mutationTimestamp: float,
-  ~onConfirm: option<string> => unit,
-  ~onCancel: unit => unit,
+  ~onCommentChange: string => unit,
+  ~onClose: unit => unit,
 ) => {
-  let (comment, setComment) = React.useState(() => "")
+  let (comment, setComment) = React.useState(() =>
+    annotation.comment->Option.getOr("")
+  )
   let inputRef = React.useRef(Nullable.null)
   let (rect, setRect) = React.useState(() => None)
 
-  // Position popup relative to the pending element
+  // Position popup relative to the annotated element
   React.useEffect(() => {
-    let boundingRect = WebAPI.Element.getBoundingClientRect(pending.element)
+    let boundingRect = WebAPI.Element.getBoundingClientRect(annotation.element)
     setRect(_ => Some(boundingRect))
     None
-  }, (pending.element, scrollTimestamp, mutationTimestamp))
+  }, (annotation.element, scrollTimestamp, mutationTimestamp))
 
-  // Auto-focus the input when mounted
-  React.useEffect0(() => {
-    switch inputRef.current->Nullable.toOption {
-    | Some(input) => (input->Obj.magic)["focus"](.)
-    | None => ()
+  // Auto-focus the input once it renders (rect must be Some for the input to exist)
+  React.useEffect1(() => {
+    switch (rect, inputRef.current->Nullable.toOption) {
+    | (Some(_), Some(input)) => (input->Obj.magic)["focus"](.)
+    | _ => ()
     }
     None
-  })
-
-  let handleConfirm = () => {
-    let trimmed = comment->String.trim
-    let commentOpt = trimmed->String.length > 0 ? Some(trimmed) : None
-    onConfirm(commentOpt)
-  }
+  }, [rect->Option.isSome])
 
   let handleKeyDown = (e: ReactEvent.Keyboard.t) => {
     switch ReactEvent.Keyboard.key(e) {
     | "Enter" =>
       ReactEvent.Keyboard.preventDefault(e)
-      handleConfirm()
+      onClose()
     | "Escape" =>
       ReactEvent.Keyboard.preventDefault(e)
-      onCancel()
+      onClose()
     | _ => ()
     }
   }
 
+  let handleChange = (e: ReactEvent.Form.t) => {
+    let value: string = ReactEvent.Form.target(e)["value"]
+    setComment(_ => value)
+    onCommentChange(value)
+  }
+
   switch rect {
   | Some(rect) => {
-      // Position popup below the element, clamped to viewport via CSS clamp()/min()
       let top = rect.top +. rect.height +. 8.0
       let left = rect.left
 
@@ -68,29 +73,27 @@ let make = (
           left: `clamp(8px, ${Float.toString(left)}px, calc(100vw - 328px))`,
         }
       >
-        // Highlight the pending element with a dashed border
-        <div
-          className="absolute border-2 border-dashed border-violet-400 rounded-sm pointer-events-none z-[9999] box-border"
-          style={
-            top: `${Float.toString(rect.top -. top)}px`,
-            left: "0px",
-            width: `${Float.toString(rect.width)}px`,
-            height: `${Float.toString(rect.height)}px`,
-          }
-        />
         // Popup card
         <div
           className="bg-white rounded-lg shadow-lg border border-gray-200 p-2 min-w-[240px] max-w-[320px]"
         >
-          <div className="text-[11px] text-gray-500 mb-1 font-medium">
-            {React.string(`Annotate <${pending.tagName}>`)}
+          <div className="flex items-center gap-1.5 mb-1">
+            // Number badge
+            <div
+              className="flex items-center justify-center w-4 h-4 rounded-full bg-violet-600 text-white text-[9px] font-bold"
+            >
+              {React.int(index + 1)}
+            </div>
+            <span className="text-[11px] text-gray-500 font-medium">
+              {React.string(`<${annotation.tagName}>`)}
+            </span>
           </div>
           <div className="flex items-center gap-1">
             <input
               ref={ReactDOM.Ref.domRef(inputRef)}
               type_="text"
               value={comment}
-              onChange={e => setComment(_ => ReactEvent.Form.target(e)["value"])}
+              onChange={handleChange}
               onKeyDown={handleKeyDown}
               placeholder="Add a comment (optional)..."
               className="flex-1 h-7 px-2 text-xs bg-gray-50 border border-gray-200 rounded
@@ -99,19 +102,10 @@ let make = (
             />
             <button
               type_="button"
-              onClick={_ => handleConfirm()}
-              className="flex items-center justify-center h-7 px-2 text-xs font-medium rounded
-                         bg-violet-600 text-white hover:bg-violet-500 transition-colors"
-              title="Confirm annotation (Enter)"
-            >
-              {React.string("Add")}
-            </button>
-            <button
-              type_="button"
-              onClick={_ => onCancel()}
+              onClick={_ => onClose()}
               className="flex items-center justify-center w-7 h-7 rounded
                          text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
-              title="Cancel (Escape)"
+              title="Close (Enter or Escape)"
             >
               <RadixUI__Icons.Cross2Icon className="size-3" />
             </button>

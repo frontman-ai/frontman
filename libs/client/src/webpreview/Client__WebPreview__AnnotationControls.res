@@ -2,14 +2,13 @@
  * Client__WebPreview__AnnotationControls - Annotation mode toolbar
  *
  * Rendered inline in the Nav.Navigation bar. Provides:
- * - Mode toggle: Off / Quick / Batch
- * - Annotation count badge (when > 0)
- * - Clear all button (when > 0)
+ * - Single toggle: Off / Selecting
  * - Animation freeze toggle (when in selection mode)
  */
 
 module Annotation = Client__Annotation__Types
 module RadixUI__Icons = Bindings__RadixUI__Icons
+module Icons = Client__ToolIcons
 
 // Inject/remove animation freeze CSS into an iframe document
 let _freezeStyleId = "frontman-animation-freeze"
@@ -35,35 +34,10 @@ let _removeFreezeCSS: WebAPI.DOMAPI.document => unit = %raw(`
   }
 `)
 
-// Mode button within the segmented control
-module ModeButton = {
-  @react.component
-  let make = (
-    ~label: string,
-    ~isActive: bool,
-    ~onClick: unit => unit,
-    ~tooltip: string,
-  ) => {
-    <button
-      type_="button"
-      onClick={_ => onClick()}
-      className={`px-2 py-1 text-[10px] font-medium rounded transition-colors
-                 ${isActive
-          ? "bg-violet-600 text-white"
-          : "text-gray-500 hover:text-gray-700 hover:bg-gray-200"}`}
-      title={tooltip}
-    >
-      {React.string(label)}
-    </button>
-  }
-}
-
 @react.component
 let make = (
   ~mode: Annotation.annotationMode,
-  ~annotationCount: int,
-  ~onSetMode: Annotation.annotationMode => unit,
-  ~onClear: unit => unit,
+  ~onToggle: unit => unit,
   ~previewDocument: option<WebAPI.DOMAPI.document>=?,
 ) => {
   let (isFrozen, setIsFrozen) = React.useState(() => false)
@@ -95,62 +69,34 @@ let make = (
   }, [isSelecting])
 
   <div className="flex items-center gap-1">
-    // Segmented mode toggle
-    <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
-      <ModeButton
-        label="Off"
-        isActive={mode == Off}
-        onClick={() => onSetMode(Off)}
-        tooltip="Disable element selection"
-      />
-      <ModeButton
-        label="Quick"
-        isActive={mode == Quick}
-        onClick={() => onSetMode(Quick)}
-        tooltip="Quick mode: click to select one element"
-      />
-      <ModeButton
-        label="Batch"
-        isActive={mode == Batch}
-        onClick={() => onSetMode(Batch)}
-        tooltip="Batch mode: click to annotate multiple elements with comments"
-      />
-    </div>
+    // Select toggle button — uses CursorClickIcon, matches other nav icon buttons
+    <button
+      type_="button"
+      onClick={_ => onToggle()}
+      className={`flex items-center justify-center w-8 h-8 rounded-lg transition-colors
+                 ${isSelecting
+          ? "bg-violet-600 text-white hover:bg-violet-500"
+          : "bg-gray-200 text-gray-600 hover:bg-gray-300 hover:text-gray-700"}`}
+      title={isSelecting ? "Stop selecting elements" : "Click elements to annotate them"}
+    >
+      <Icons.CursorClickIcon size=16 />
+    </button>
     // Freeze toggle (only when in selection mode)
     {switch isSelecting {
     | true =>
       <button
         type_="button"
         onClick={_ => setIsFrozen(prev => !prev)}
-        className={`flex items-center justify-center w-6 h-6 rounded transition-colors
+        className={`flex items-center justify-center w-8 h-8 rounded-lg transition-colors
                    ${isFrozen
-            ? "bg-blue-500 text-white"
-            : "text-gray-400 hover:text-gray-600 hover:bg-gray-200"}`}
+            ? "bg-blue-600 text-white hover:bg-blue-500"
+            : "bg-gray-200 text-gray-600 hover:bg-gray-300 hover:text-gray-700"}`}
         title={isFrozen ? "Resume animations" : "Freeze animations"}
       >
-        <RadixUI__Icons.CountdownTimerIcon className="size-3" />
+        <RadixUI__Icons.CountdownTimerIcon className="size-4" />
       </button>
     | false => React.null
     }}
-    // Count badge + clear button
-    {switch annotationCount > 0 {
-    | true =>
-      <div className="flex items-center gap-0.5">
-        <span
-          className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-semibold rounded-full bg-violet-100 text-violet-700"
-        >
-          {React.int(annotationCount)}
-        </span>
-        <button
-          type_="button"
-          onClick={_ => onClear()}
-          className="flex items-center justify-center w-5 h-5 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
-          title="Clear all annotations"
-        >
-          <RadixUI__Icons.Cross2Icon className="size-3" />
-        </button>
-      </div>
-    | false => React.null
-    }}
+
   </div>
 }

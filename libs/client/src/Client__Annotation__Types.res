@@ -1,13 +1,12 @@
 // Annotation types for the element annotation system
-// Replaces SelectedElement with a richer annotation model that supports
-// both quick single-click and batch multi-annotation workflows
+// Unified multi-select: click elements to annotate, click again to deselect.
+// Comments are optional and non-blocking.
 
 module SourceLocation = Client__Types.SourceLocation
 
 type annotationMode =
   | Off
-  | Quick
-  | Batch
+  | Selecting
 
 type position = {
   xPercent: float,
@@ -36,13 +35,6 @@ type t = {
   timestamp: float,
 }
 
-// Pending annotation: element clicked, awaiting enrichment or comment
-type pending = {
-  element: WebAPI.DOMAPI.element,
-  position: position,
-  tagName: string,
-}
-
 let make = (
   ~element: WebAPI.DOMAPI.element,
   ~position: position,
@@ -63,6 +55,6 @@ let make = (
   timestamp: Date.now(),
 }
 
-// Get the first annotation from an array (for Quick mode compatibility)
-let first = (annotations: array<t>): option<t> =>
-  annotations->Array.get(0)
+// Check if an element is already annotated (by DOM reference equality)
+let findByElement = (annotations: array<t>, element: WebAPI.DOMAPI.element): option<t> =>
+  annotations->Array.find(a => a.element === element)

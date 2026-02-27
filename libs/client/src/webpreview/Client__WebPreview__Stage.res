@@ -63,9 +63,7 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
   let webPreviewIsSelecting = Client__State.useSelector(
     Client__State.Selectors.webPreviewIsSelecting,
   )
-  let annotationMode = Client__State.useSelector(Client__State.Selectors.annotationMode)
   let annotations = Client__State.useSelector(Client__State.Selectors.annotations)
-  let pendingAnnotation = Client__State.useSelector(Client__State.Selectors.pendingAnnotation)
 
   let lastProcessedClickId = React.useRef(-1)
   let wasSelecting = React.useRef(false)
@@ -73,7 +71,10 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
   // Track whether a drag gesture occurred so the click handler can skip it
   let wasDragging = React.useRef(false)
   // Stash elements to dispatch after setDragState updater completes (React purity)
-  let pendingDragDispatch: React.ref<option<array<Client__Annotation__Types.pending>>> = React.useRef(None)
+  let pendingDragDispatch: React.ref<option<array<Client__Task__Reducer.annotationElement>>> = React.useRef(None)
+
+  // Local UI state: which annotation's comment popup is open (ephemeral, not in reducer)
+  let (activePopupAnnotationId, setActivePopupAnnotationId) = React.useState((): option<string> => None)
 
   let scrollTimestamp = Client__Hooks.Scroll.useIFrameDocument(~document, ~withCapture=true, ())
   let mutationTimestamp = Client__Hooks.DOMmutations.useIFrameDocument(~document, ())
@@ -87,11 +88,42 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
   )
   let hoveredElement = Client__Hooks.MouseMove.useIFrameDocument(~document, ~withCapture=true, ())
 
-  // Drag selection event listeners (Batch mode + modifier key)
-  React.useEffect(() => {
-    let isBatchMode = annotationMode == Client__Annotation__Types.Batch
+  // Close popup when selection mode is turned off
+  React.useEffect1(() => {
+    if !webPreviewIsSelecting {
+      setActivePopupAnnotationId(_ => None)
+    }
+    None
+  }, [webPreviewIsSelecting])
 
-    switch (document, isBatchMode) {
+  // Escape key exits selection mode (listen on both iframe doc and parent window)
+  React.useEffect(() => {
+    switch (document, webPreviewIsSelecting) {
+    | (Some(doc), true) => {
+        let handleKeyDown = ev => {
+          let key: string = (ev->Obj.magic)["key"]
+          if key == "Escape" {
+            Client__State.Actions.toggleWebPreviewSelection()
+          }
+        }
+        let iframeTarget = doc->WebAPI.Document.asEventTarget
+        let windowTarget = WebAPI.Global.window->WebAPI.Window.asEventTarget
+        iframeTarget->WebAPI.EventTarget.addEventListener(Keydown, handleKeyDown)
+        windowTarget->WebAPI.EventTarget.addEventListener(Keydown, handleKeyDown)
+        Some(
+          () => {
+            iframeTarget->WebAPI.EventTarget.removeEventListener(Keydown, handleKeyDown)
+            windowTarget->WebAPI.EventTarget.removeEventListener(Keydown, handleKeyDown)
+          },
+        )
+      }
+    | _ => None
+    }
+  }, (document, webPreviewIsSelecting))
+
+  // Drag selection event listeners (available in Selecting mode with modifier key)
+  React.useEffect(() => {
+    switch (document, webPreviewIsSelecting) {
     | (Some(doc), true) => {
         let onMouseDown = ev => {
           let mouseEv: WebAPI.UIEventsAPI.mouseEvent = ev->Obj.magic
@@ -141,41 +173,41 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
                   let foundElements = _findElementsInRect(doc, x, y, w, h)
 
                   if Array.length(foundElements) > 0 {
-                    let elements: array<Client__Annotation__Types.pending> = foundElements->Array.map(element => {
-                      let rect = WebAPI.Element.getBoundingClientRect(element)
+                    let elements: array<Client__Task__Reducer.annotationElement> = foundElements->Array.map(el => {
+                      let rect = WebAPI.Element.getBoundingClientRect(el)
                       let centerX = rect.left +. rect.width /. 2.0
                       let position: Client__Annotation__Types.position = {
                         xPercent: centerX /. viewportWidth *. 100.0,
                         yAbsolute: rect.top +. rect.height /. 2.0,
                       }
                       {
-                        Client__Annotation__Types.element: element,
+                        Client__Task__Reducer.element: el,
                         position,
-                        tagName: element.tagName,
+                        tagName: el.tagName,
                       }
                     })
                     // Stash for dispatch after updater returns (React purity)
                     pendingDragDispatch.current = Some(elements)
                   }
                 } else {
-                  // Cmd+Shift+Click (no drag): add single element directly, bypass popup
+                  // Cmd+Shift+Click (no drag): add single element directly
                   wasDragging.current = true
                   let elementFromPoint: (WebAPI.DOMAPI.document, float, float) => Nullable.t<WebAPI.DOMAPI.element> = %raw(`(doc, x, y) => doc.elementFromPoint(x, y)`)
                   let elementAtPoint = elementFromPoint(doc, startX, startY)
-                  elementAtPoint->Nullable.toOption->Option.forEach(element => {
-                    let rect = WebAPI.Element.getBoundingClientRect(element)
+                  elementAtPoint->Nullable.toOption->Option.forEach(el => {
+                    let rect = WebAPI.Element.getBoundingClientRect(el)
                     let centerX = rect.left +. rect.width /. 2.0
                     let position: Client__Annotation__Types.position = {
                       xPercent: centerX /. viewportWidth *. 100.0,
                       yAbsolute: rect.top +. rect.height /. 2.0,
                     }
-                    let pending: Client__Annotation__Types.pending = {
-                      element,
+                    let entry: Client__Task__Reducer.annotationElement = {
+                      element: el,
                       position,
-                      tagName: element.tagName,
+                      tagName: el.tagName,
                     }
                     // Stash for dispatch after updater returns (React purity)
-                    pendingDragDispatch.current = Some([pending])
+                    pendingDragDispatch.current = Some([entry])
                   })
                 }
                 Idle
@@ -205,7 +237,7 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
       }
     | _ => None
     }
-  }, (document, annotationMode))
+  }, (document, webPreviewIsSelecting))
 
   // Split effect: Handle mode transitions separately from click handling
   // This prevents unnecessary effect runs when only clickedElement changes
@@ -252,11 +284,32 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
                   xPercent: centerX /. viewportWidth *. 100.0,
                   yAbsolute: rect.top +. rect.height /. 2.0,
                 }
-                Client__State.Actions.addAnnotation(
+
+                // Check if this element is already annotated (for toggle behavior)
+                let existing = Client__Annotation__Types.findByElement(annotations, element)
+                switch existing {
+                | Some(_) =>
+                  // Deselecting — close popup if it was for this element
+                  setActivePopupAnnotationId(_ => None)
+                | None => ()
+                }
+
+                // Dispatch toggle (adds if new, removes if existing)
+                Client__State.Actions.toggleAnnotation(
                   ~element,
                   ~position,
                   ~tagName=element.tagName,
                 )
+
+                // If adding a new element, we need to show the popup
+                // We can't know the annotation ID yet (it's created in the reducer),
+                // so we use a special marker that the render logic resolves
+                switch existing {
+                | Some(_) => () // Was a deselect, popup already closed above
+                | None =>
+                  // Set to a sentinel — the render phase will find the newest annotation
+                  setActivePopupAnnotationId(_ => Some("__latest__"))
+                }
               }
             | None => Log.error("Element clicked: unknown")
             }
@@ -304,8 +357,6 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
   }, [webPreviewIsSelecting])
 
   // Selection overlay container
-  // In device mode, the overlay must match the iframe's position and transform
-  // so that getBoundingClientRect coordinates from inside the iframe align visually
   let selectionModeIndicator = webPreviewIsSelecting
     ? <div
         className="absolute inset-0 pointer-events-none"
@@ -351,19 +402,54 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
       annotations={annotations}
       scrollTimestamp={scrollTimestamp}
       mutationTimestamp={mutationTimestamp}
+      onRemove={id => {
+        // Close popup if it's for the removed annotation
+        setActivePopupAnnotationId(prev =>
+          switch prev {
+          | Some(activeId) if activeId == id => None
+          | _ => prev
+          }
+        )
+        Client__State.Actions.removeAnnotation(~id)
+      }}
     />
 
-  // Annotation popup for pending annotation (only in Batch mode)
-  let annotationPopupOverlay = switch (pendingAnnotation, annotationMode) {
-  | (Some(pending), Client__Annotation__Types.Batch) =>
-    <Client__WebPreview__AnnotationPopup
-      pending={pending}
-      scrollTimestamp={scrollTimestamp}
-      mutationTimestamp={mutationTimestamp}
-      onConfirm={comment => Client__State.Actions.confirmPendingAnnotation(~comment?)}
-      onCancel={() => Client__State.Actions.cancelPendingAnnotation()}
-    />
-  | _ => React.null
+  // Non-blocking comment popup for the active annotation
+  let annotationPopupOverlay = {
+    // Resolve the active annotation — handle "__latest__" sentinel
+    let activeAnnotation = switch activePopupAnnotationId {
+    | Some("__latest__") =>
+      // Find the most recently added annotation (highest timestamp)
+      annotations
+      ->Array.toSorted((a, b) => b.timestamp -. a.timestamp)
+      ->Array.get(0)
+    | Some(id) => annotations->Array.find(a => a.id == id)
+    | None => None
+    }
+
+    // Resolve the sentinel to the actual ID for future renders
+    switch (activePopupAnnotationId, activeAnnotation) {
+    | (Some("__latest__"), Some(ann)) =>
+      // Side-effect in render is fine here — this is a one-time resolution
+      setActivePopupAnnotationId(_ => Some(ann.id))
+    | _ => ()
+    }
+
+    switch activeAnnotation {
+    | Some(annotation) =>
+      let index = annotations->Array.findIndex(a => a.id == annotation.id)
+      <Client__WebPreview__AnnotationPopup
+        annotation={annotation}
+        index={index}
+        scrollTimestamp={scrollTimestamp}
+        mutationTimestamp={mutationTimestamp}
+        onCommentChange={comment =>
+          Client__State.Actions.updateAnnotationComment(~id=annotation.id, ~comment)
+        }
+        onClose={() => setActivePopupAnnotationId(_ => None)}
+      />
+    | None => React.null
+    }
   }
 
   switch viewportStyle {
