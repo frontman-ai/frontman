@@ -87,6 +87,8 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
   let (dragState, setDragState) = React.useState(() => Idle)
   // Track whether a drag gesture occurred so the click handler can skip it
   let wasDragging = React.useRef(false)
+  // Stash elements to dispatch after setDragState updater completes (React purity)
+  let pendingDragDispatch: React.ref<option<array<Client__Annotation__Types.pending>>> = React.useRef(None)
 
   let scrollTimestamp = Client__Hooks.Scroll.useIFrameDocument(~document, ~withCapture=true, ())
   let mutationTimestamp = Client__Hooks.DOMmutations.useIFrameDocument(~document, ())
@@ -167,7 +169,8 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
                         tagName: element.tagName,
                       }
                     })
-                    Client__State.Actions.addAnnotations(~elements)
+                    // Stash for dispatch after updater returns (React purity)
+                    pendingDragDispatch.current = Some(elements)
                   }
                 } else {
                   // Cmd+Shift+Click (no drag): add single element directly, bypass popup
@@ -186,7 +189,8 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
                       position,
                       tagName: element.tagName,
                     }
-                    Client__State.Actions.addAnnotations(~elements=[pending])
+                    // Stash for dispatch after updater returns (React purity)
+                    pendingDragDispatch.current = Some([pending])
                   })
                 }
                 Idle
@@ -194,6 +198,14 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
             | Idle => Idle
             }
           })
+
+          // Dispatch outside the setState updater to respect React purity
+          switch pendingDragDispatch.current {
+          | Some(elements) =>
+            pendingDragDispatch.current = None
+            Client__State.Actions.addAnnotations(~elements)
+          | None => ()
+          }
         }
 
         WebAPI.Document.addEventListener(doc, Custom("mousedown"), onMouseDown, ~options={capture: true})

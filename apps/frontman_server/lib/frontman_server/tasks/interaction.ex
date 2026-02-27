@@ -934,8 +934,7 @@ defmodule FrontmanServer.Tasks.Interaction do
     annotation_sections =
       annotations
       |> Enum.with_index()
-      |> Enum.map(fn {ann, idx} -> format_annotation(ann, idx) end)
-      |> Enum.join("\n")
+      |> Enum.map_join("\n", fn {ann, idx} -> format_annotation(ann, idx) end)
 
     text <>
       """
@@ -949,52 +948,51 @@ defmodule FrontmanServer.Tasks.Interaction do
   end
 
   defp format_annotation(ann, idx) do
-    # Build location line
-    location =
-      if is_binary(ann.file) and is_integer(ann.line) do
-        "File: #{ann.file}\n  Line: #{ann.line}\n  Column: #{ann.column || 0}"
-      else
-        "Element: <#{ann.tag_name}>"
-      end
-
-    component_part =
-      if is_binary(ann.component_name), do: "\n  Component: #{ann.component_name}", else: ""
-
-    comment_part = if is_binary(ann.comment), do: "\n  Comment: #{ann.comment}", else: ""
-
-    css_part = if is_binary(ann.css_classes), do: "\n  CSS Classes: #{ann.css_classes}", else: ""
-
-    nearby_part =
-      if is_binary(ann.nearby_text), do: "\n  Nearby Text: #{ann.nearby_text}", else: ""
-
-    bbox_part =
-      if is_map(ann.bounding_box) do
-        bb = ann.bounding_box
-        "\n  Bounding Box: {x: #{bb.x}, y: #{bb.y}, width: #{bb.width}, height: #{bb.height}}"
-      else
-        ""
-      end
-
-    props_part =
-      if is_map(ann.component_props) and map_size(ann.component_props) > 0 do
-        "\n  Props: #{Jason.encode!(ann.component_props, pretty: false)}"
-      else
-        ""
-      end
-
-    parent_part =
-      if ann.parent do
-        "\n  Parent: #{format_parent_chain(ann.parent, 1)}"
-      else
-        ""
-      end
+    location = format_annotation_location(ann)
+    optional_parts = format_annotation_optional_parts(ann)
 
     """
     Annotation #{idx + 1}:
       Tag: <#{ann.tag_name}>
-      #{location}#{component_part}#{comment_part}#{css_part}#{nearby_part}#{bbox_part}#{props_part}#{parent_part}
+      #{location}#{optional_parts}
     """
   end
+
+  defp format_annotation_location(%{file: file, line: line, column: column})
+       when is_binary(file) and is_integer(line) do
+    "File: #{file}\n  Line: #{line}\n  Column: #{column || 0}"
+  end
+
+  defp format_annotation_location(%{tag_name: tag_name}), do: "Element: <#{tag_name}>"
+
+  defp format_annotation_optional_parts(ann) do
+    [
+      annotation_string_field(ann.component_name, "Component"),
+      annotation_string_field(ann.comment, "Comment"),
+      annotation_string_field(ann.css_classes, "CSS Classes"),
+      annotation_string_field(ann.nearby_text, "Nearby Text"),
+      annotation_bbox_field(ann.bounding_box),
+      annotation_props_field(ann.component_props),
+      annotation_parent_field(ann.parent)
+    ]
+    |> Enum.join()
+  end
+
+  defp annotation_string_field(value, label) when is_binary(value), do: "\n  #{label}: #{value}"
+  defp annotation_string_field(_, _), do: ""
+
+  defp annotation_bbox_field(%{x: x, y: y, width: w, height: h}),
+    do: "\n  Bounding Box: {x: #{x}, y: #{y}, width: #{w}, height: #{h}}"
+
+  defp annotation_bbox_field(_), do: ""
+
+  defp annotation_props_field(props) when is_map(props) and map_size(props) > 0,
+    do: "\n  Props: #{Jason.encode!(props, pretty: false)}"
+
+  defp annotation_props_field(_), do: ""
+
+  defp annotation_parent_field(nil), do: ""
+  defp annotation_parent_field(parent), do: "\n  Parent: #{format_parent_chain(parent, 1)}"
 
   defp format_parent_chain(nil, _depth), do: ""
 

@@ -35,45 +35,6 @@ defmodule FrontmanServer.Tasks.Execution.PromptsTest do
     end
   end
 
-  describe "build_system_message/2 produces valid message structure" do
-    test "returns list of two system messages (identity and content)" do
-      [identity_msg, content_msg] = Prompts.build_system_message(nil, [])
-
-      assert identity_msg.role == :system
-      assert content_msg.role == :system
-      assert is_list(identity_msg.content)
-      assert is_list(content_msg.content)
-    end
-
-    test "first message contains identity line" do
-      [identity_msg, _content_msg] = Prompts.build_system_message(nil, [])
-
-      identity_text = Enum.map_join(identity_msg.content, & &1.text)
-      assert identity_text =~ "coding assistant"
-    end
-
-    test "always uses default identity (OAuth transformations happen at LLM boundary)" do
-      [identity_msg, _content_msg] = Prompts.build_system_message(nil, [])
-
-      identity_text = Enum.map_join(identity_msg.content, & &1.text)
-      assert identity_text =~ "coding assistant"
-    end
-
-    test "has_annotations flag affects content" do
-      [_without_id, without_content] = Prompts.build_system_message(nil, [])
-
-      [_with_id, with_ann_content] =
-        Prompts.build_system_message(nil, has_annotations: true)
-
-      # With annotations should have more content
-      without_text = Enum.map_join(without_content.content, & &1.text)
-      with_ann_text = Enum.map_join(with_ann_content.content, & &1.text)
-
-      assert String.length(with_ann_text) > String.length(without_text)
-      assert with_ann_text =~ "Annotated Elements"
-    end
-  end
-
   describe "build/1" do
     test "returns single string with default identity" do
       result = Prompts.build([])

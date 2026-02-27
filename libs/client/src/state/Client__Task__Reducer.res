@@ -491,9 +491,9 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
     let urlChanged = normalizeUrl(currentUrl) != normalizeUrl(url)
     let updated = Lens.setPreviewUrl(task, url)
 
-    // Clear annotations on actual navigation, not initial iframe mount
+    // Clear annotations and pending annotation on actual navigation, not initial iframe mount
     if urlChanged {
-      (Lens.setAnnotations(updated, []), [])
+      (Lens.setAnnotations(Lens.setPendingAnnotation(updated, None), []), [])
     } else {
       (updated, [])
     }
@@ -561,6 +561,9 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       }
     }
   }
+
+  // Async annotation fetch completed after task transitioned to Unloaded — discard silently
+  | (Task.Unloaded(_), AnnotationDetailsResolved(_)) => (task, [])
 
   | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), AnnotationDetailsResolved({id, selector, screenshot, sourceLocation, cssClasses, nearbyText, boundingBox})) => (
     Lens.updateAnnotation(task, id, a => {
