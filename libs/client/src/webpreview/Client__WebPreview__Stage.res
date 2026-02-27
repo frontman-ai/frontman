@@ -2,21 +2,6 @@ module Log = FrontmanLogs.Logs.Make({
   let component = #WebPreviewStage
 })
 
-// Meaningful HTML tags for drag-select element filtering
-let _meaningfulTags: array<string> = [
-  "A", "ABBR", "ADDRESS", "ARTICLE", "ASIDE", "AUDIO", "B", "BLOCKQUOTE",
-  "BUTTON", "CANVAS", "CAPTION", "CITE", "CODE", "COL", "COLGROUP",
-  "DATA", "DD", "DEL", "DETAILS", "DFN", "DIALOG", "DL", "DT", "EM",
-  "FIELDSET", "FIGCAPTION", "FIGURE", "FOOTER", "FORM", "H1", "H2",
-  "H3", "H4", "H5", "H6", "HEADER", "HR", "I", "IFRAME", "IMG",
-  "INPUT", "INS", "KBD", "LABEL", "LEGEND", "LI", "MAIN", "MARK",
-  "MENU", "METER", "NAV", "OL", "OPTGROUP", "OPTION", "OUTPUT", "P",
-  "PICTURE", "PRE", "PROGRESS", "Q", "S", "SAMP", "SECTION", "SELECT",
-  "SMALL", "SPAN", "STRONG", "SUB", "SUMMARY", "SUP", "SVG", "TABLE",
-  "TBODY", "TD", "TEMPLATE", "TEXTAREA", "TFOOT", "TH", "THEAD",
-  "TIME", "TR", "U", "UL", "VAR", "VIDEO",
-]
-
 // Find meaningful elements within a drag rectangle
 // Returns elements whose bounding rect overlaps the selection rect
 let _findElementsInRect: (
