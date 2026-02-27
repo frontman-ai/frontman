@@ -321,6 +321,14 @@ module Selectors = {
     Task.getWebPreviewIsSelecting(currentTask(state))
   }
 
+  let activePopupAnnotationId = (state: state): option<string> => {
+    Task.getActivePopupAnnotationId(currentTask(state))
+  }
+
+  let isAnimationFrozen = (state: state): bool => {
+    Task.getIsAnimationFrozen(currentTask(state))
+  }
+
   let isAgentRunning = (state: state): bool => {
     TaskReducer.Selectors.isAgentRunning(currentTask(state))->Option.getOr(false)
   }

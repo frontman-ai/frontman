@@ -4,6 +4,10 @@
  * Rendered inline in the Nav.Navigation bar. Provides:
  * - Single toggle: Off / Selecting
  * - Animation freeze toggle (when in selection mode)
+ *
+ * All state is owned by the reducer — this component is a pure view.
+ * DOM side effects (inject/remove freeze CSS) are applied via useEffect
+ * driven by the selector value, matching the crosshair cursor pattern in Stage.
  */
 
 module Annotation = Client__Annotation__Types
@@ -11,8 +15,6 @@ module RadixUI__Icons = Bindings__RadixUI__Icons
 module Icons = Client__ToolIcons
 
 // Inject/remove animation freeze CSS into an iframe document
-let _freezeStyleId = "frontman-animation-freeze"
-
 let _injectFreezeCSS: WebAPI.DOMAPI.document => unit = %raw(`
   function(doc) {
     if (doc.getElementById("frontman-animation-freeze")) return;
@@ -40,17 +42,16 @@ let make = (
   ~onToggle: unit => unit,
   ~previewDocument: option<WebAPI.DOMAPI.document>=?,
 ) => {
-  let (isFrozen, setIsFrozen) = React.useState(() => false)
+  let isFrozen = Client__State.useSelector(Client__State.Selectors.isAnimationFrozen)
   let isSelecting = mode != Off
 
-  // Apply/remove freeze CSS when toggle changes
-  React.useEffect2(() => {
+  // Apply/remove freeze CSS when state changes
+  React.useEffect(() => {
     switch previewDocument {
     | Some(doc) =>
-      if isFrozen {
-        _injectFreezeCSS(doc)
-      } else {
-        _removeFreezeCSS(doc)
+      switch isFrozen {
+      | true => _injectFreezeCSS(doc)
+      | false => _removeFreezeCSS(doc)
       }
     | None => ()
     }
@@ -60,24 +61,20 @@ let make = (
     })
   }, (isFrozen, previewDocument))
 
-  // Auto-unfreeze when leaving selection mode
-  React.useEffect1(() => {
-    if !isSelecting && isFrozen {
-      setIsFrozen(_ => false)
-    }
-    None
-  }, [isSelecting])
-
   <div className="flex items-center gap-1">
     // Select toggle button — uses CursorClickIcon, matches other nav icon buttons
     <button
       type_="button"
       onClick={_ => onToggle()}
       className={`flex items-center justify-center w-8 h-8 rounded-lg transition-colors
-                 ${isSelecting
-          ? "bg-violet-600 text-white hover:bg-violet-500"
-          : "bg-gray-200 text-gray-600 hover:bg-gray-300 hover:text-gray-700"}`}
-      title={isSelecting ? "Stop selecting elements" : "Click elements to annotate them"}
+                 ${switch isSelecting {
+        | true => "bg-violet-600 text-white hover:bg-violet-500"
+        | false => "bg-gray-200 text-gray-600 hover:bg-gray-300 hover:text-gray-700"
+        }}`}
+      title={switch isSelecting {
+      | true => "Stop selecting elements"
+      | false => "Click elements to annotate them"
+      }}
     >
       <Icons.CursorClickIcon size=16 />
     </button>
@@ -86,12 +83,16 @@ let make = (
     | true =>
       <button
         type_="button"
-        onClick={_ => setIsFrozen(prev => !prev)}
+        onClick={_ => Client__State.Actions.toggleAnimationFrozen()}
         className={`flex items-center justify-center w-8 h-8 rounded-lg transition-colors
-                   ${isFrozen
-            ? "bg-blue-600 text-white hover:bg-blue-500"
-            : "bg-gray-200 text-gray-600 hover:bg-gray-300 hover:text-gray-700"}`}
-        title={isFrozen ? "Resume animations" : "Freeze animations"}
+                   ${switch isFrozen {
+          | true => "bg-blue-600 text-white hover:bg-blue-500"
+          | false => "bg-gray-200 text-gray-600 hover:bg-gray-300 hover:text-gray-700"
+          }}`}
+        title={switch isFrozen {
+        | true => "Resume animations"
+        | false => "Freeze animations"
+        }}
       >
         <RadixUI__Icons.CountdownTimerIcon className="size-4" />
       </button>

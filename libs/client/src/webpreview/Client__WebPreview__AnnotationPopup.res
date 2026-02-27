@@ -35,7 +35,7 @@ let make = (
   }, (annotation.element, scrollTimestamp, mutationTimestamp))
 
   // Auto-focus the input once it renders (rect must be Some for the input to exist)
-  React.useEffect1(() => {
+  React.useEffect(() => {
     switch (rect, inputRef.current->Nullable.toOption) {
     | (Some(_), Some(input)) => (input->Obj.magic)["focus"](.)
     | _ => ()

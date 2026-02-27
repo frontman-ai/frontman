@@ -25,19 +25,22 @@ module AnnotationRow = {
       )
 
     // Truncate text display
-    let displayText = if textContent->String.length > 60 {
-      textContent->String.slice(~start=0, ~end=60) ++ "..."
-    } else {
-      textContent
+    let displayText = switch textContent->String.length > 60 {
+    | true => textContent->String.slice(~start=0, ~end=60) ++ "..."
+    | false => textContent
     }
 
-    // Auto-focus input when editing starts
-    React.useEffect1(() => {
-      if isEditingComment {
+    // Re-sync draft and auto-focus when entering edit mode
+    React.useEffect(() => {
+      switch isEditingComment {
+      | true =>
+        // Re-init from current reducer state to avoid stale draft
+        setCommentDraft(_ => annotation.comment->Option.getOr(""))
         switch inputRef.current->Nullable.toOption {
         | Some(input) => (input->Obj.magic)["focus"](.)
         | None => ()
         }
+      | false => ()
       }
       None
     }, [isEditingComment])

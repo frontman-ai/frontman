@@ -51,6 +51,8 @@ module Fixtures = {
       },
       annotationMode: Client__Annotation__Types.Off,
       annotations: [],
+      activePopupAnnotationId: None,
+      isAnimationFrozen: false,
       isAgentRunning: false,
       planEntries: [],
       turnError: None,

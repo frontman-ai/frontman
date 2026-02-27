@@ -75,6 +75,15 @@ module Actions = {
   let updateAnnotationComment = (~id, ~comment) =>
     Client__State__Store.dispatch(TaskAction({target: CurrentTask, action: UpdateAnnotationComment({id, comment})}))
 
+  let setActivePopupAnnotationId = (~id) =>
+    Client__State__Store.dispatch(TaskAction({target: CurrentTask, action: SetActivePopupAnnotationId({id: id})}))
+
+  let closeAnnotationPopup = () =>
+    Client__State__Store.dispatch(TaskAction({target: CurrentTask, action: SetActivePopupAnnotationId({id: None})}))
+
+  let toggleAnimationFrozen = () =>
+    Client__State__Store.dispatch(TaskAction({target: CurrentTask, action: ToggleAnimationFrozen}))
+
 
   // Task management action creators
   // Note: Tasks are created implicitly when user sends first message (lazy session creation)

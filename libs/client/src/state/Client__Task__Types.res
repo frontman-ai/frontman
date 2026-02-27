@@ -102,6 +102,8 @@ module Task = {
         previewFrame: previewFrame,
         annotationMode: Annotation.annotationMode,
         annotations: array<Annotation.t>,
+        activePopupAnnotationId: option<string>,
+        isAnimationFrozen: bool,
       })
     // Unloaded: persisted but only metadata loaded
     | Unloaded({
@@ -120,6 +122,8 @@ module Task = {
         previewFrame: previewFrame,
         annotationMode: Annotation.annotationMode,
         annotations: array<Annotation.t>,
+        activePopupAnnotationId: option<string>,
+        isAnimationFrozen: bool,
       })
     // Loaded: fully interactive
     // clientId is preserved from New state during promotion to maintain iframe identity
@@ -133,6 +137,8 @@ module Task = {
         previewFrame: previewFrame,
         annotationMode: Annotation.annotationMode,
         annotations: array<Annotation.t>,
+        activePopupAnnotationId: option<string>,
+        isAnimationFrozen: bool,
         isAgentRunning: bool,
         planEntries: array<ACPTypes.planEntry>,
         turnError: option<string>,
@@ -224,6 +230,20 @@ module Task = {
     | Loading({annotations}) | Loaded({annotations}) => annotations
     }
 
+  let getActivePopupAnnotationId = (task: t): option<string> =>
+    switch task {
+    | New({activePopupAnnotationId}) => activePopupAnnotationId
+    | Unloaded(_) => None
+    | Loading({activePopupAnnotationId}) | Loaded({activePopupAnnotationId}) => activePopupAnnotationId
+    }
+
+  let getIsAnimationFrozen = (task: t): bool =>
+    switch task {
+    | New({isAnimationFrozen}) => isAnimationFrozen
+    | Unloaded(_) => false
+    | Loading({isAnimationFrozen}) | Loaded({isAnimationFrozen}) => isAnimationFrozen
+    }
+
   let getImageAttachments = (task: t): Dict.t<Client__Message.fileAttachmentData> =>
     switch task {
     | Loaded({imageAttachments}) => imageAttachments
@@ -288,6 +308,8 @@ module Task = {
       previewFrame: {url: previewUrl, contentDocument: None, contentWindow: None, deviceMode: Client__DeviceMode.defaultDeviceMode, orientation: Client__DeviceMode.defaultOrientation},
       annotationMode: Annotation.Off,
       annotations: [],
+      activePopupAnnotationId: None,
+      isAnimationFrozen: false,
     })
   }
 
@@ -314,6 +336,8 @@ module Task = {
         previewFrame: {url: previewUrl, contentDocument: None, contentWindow: None, deviceMode: Client__DeviceMode.defaultDeviceMode, orientation: Client__DeviceMode.defaultOrientation},
         annotationMode: Annotation.Off,
         annotations: [],
+        activePopupAnnotationId: None,
+        isAnimationFrozen: false,
       })
     | New(_) => failwith("[Task.startLoading] Cannot load a New task - it has no server session")
     | Loading(_) | Loaded(_) => task
@@ -328,7 +352,7 @@ module Task = {
     ~title: string,
   ): t => {
     switch task {
-    | New({clientId, previewFrame, annotationMode, annotations}) =>
+    | New({clientId, previewFrame, annotationMode, annotations, activePopupAnnotationId, isAnimationFrozen}) =>
       let timestamp = Date.now()
       Loaded({
         id,
@@ -340,6 +364,8 @@ module Task = {
         previewFrame,
         annotationMode,
         annotations,
+        activePopupAnnotationId,
+        isAnimationFrozen,
         isAgentRunning: false,
         planEntries: [],
         turnError: None,
@@ -369,6 +395,8 @@ module Task = {
       previewFrame: {url: previewUrl, contentDocument: None, contentWindow: None, deviceMode: Client__DeviceMode.defaultDeviceMode, orientation: Client__DeviceMode.defaultOrientation},
       annotationMode: Annotation.Off,
       annotations: [],
+      activePopupAnnotationId: None,
+      isAnimationFrozen: false,
       isAgentRunning,
       planEntries: [],
       turnError: None,
@@ -384,6 +412,8 @@ module Task = {
     messages: array<Message.t>,
     annotationMode: Annotation.annotationMode,
     annotations: array<Annotation.t>,
+    activePopupAnnotationId: option<string>,
+    isAnimationFrozen: bool,
     isAgentRunning: bool,
     planEntries: array<ACPTypes.planEntry>,
     turnError: option<string>,
@@ -398,6 +428,8 @@ module Task = {
     messages,
     annotationMode: Annotation.Off,
     annotations: [],
+    activePopupAnnotationId: None,
+    isAnimationFrozen: false,
     isAgentRunning: false,
     planEntries: [],
     turnError: None,
@@ -419,20 +451,20 @@ module Task = {
 
   let getLoadedData = (task: t): option<loadedData> => {
     switch task {
-    | Loaded({messages, annotationMode, annotations, isAgentRunning, planEntries, turnError}) =>
-      Some({messages: Client__MessageStore.toArray(messages), annotationMode, annotations, isAgentRunning, planEntries, turnError})
-    | Loading({messages, annotationMode, annotations}) =>
-      Some({messages: Client__MessageStore.toArray(messages), annotationMode, annotations, isAgentRunning: false, planEntries: [], turnError: None})
-    | New({annotationMode, annotations}) =>
-      Some({messages: [], annotationMode, annotations, isAgentRunning: false, planEntries: [], turnError: None})
+    | Loaded({messages, annotationMode, annotations, activePopupAnnotationId, isAnimationFrozen, isAgentRunning, planEntries, turnError}) =>
+      Some({messages: Client__MessageStore.toArray(messages), annotationMode, annotations, activePopupAnnotationId, isAnimationFrozen, isAgentRunning, planEntries, turnError})
+    | Loading({messages, annotationMode, annotations, activePopupAnnotationId, isAnimationFrozen}) =>
+      Some({messages: Client__MessageStore.toArray(messages), annotationMode, annotations, activePopupAnnotationId, isAnimationFrozen, isAgentRunning: false, planEntries: [], turnError: None})
+    | New({annotationMode, annotations, activePopupAnnotationId, isAnimationFrozen}) =>
+      Some({messages: [], annotationMode, annotations, activePopupAnnotationId, isAnimationFrozen, isAgentRunning: false, planEntries: [], turnError: None})
     | Unloaded(_) => None
     }
   }
 
   let updateLoadedData = (task: t, fn: loadedData => loadedData): t => {
     switch task {
-    | Loaded({id, clientId, title, createdAt, updatedAt, messages, previewFrame, annotationMode, annotations, isAgentRunning, planEntries, turnError, imageAttachments}) => {
-        let data = {messages: Client__MessageStore.toArray(messages), annotationMode, annotations, isAgentRunning, planEntries, turnError}
+    | Loaded({id, clientId, title, createdAt, updatedAt, messages, previewFrame, annotationMode, annotations, activePopupAnnotationId, isAnimationFrozen, isAgentRunning, planEntries, turnError, imageAttachments}) => {
+        let data = {messages: Client__MessageStore.toArray(messages), annotationMode, annotations, activePopupAnnotationId, isAnimationFrozen, isAgentRunning, planEntries, turnError}
         let updated = fn(data)
         Loaded({
           id,
@@ -444,14 +476,16 @@ module Task = {
           previewFrame,
           annotationMode: updated.annotationMode,
           annotations: updated.annotations,
+          activePopupAnnotationId: updated.activePopupAnnotationId,
+          isAnimationFrozen: updated.isAnimationFrozen,
           isAgentRunning: updated.isAgentRunning,
           planEntries: updated.planEntries,
           turnError: updated.turnError,
           imageAttachments,
         })
       }
-    | Loading({id, title, createdAt, updatedAt, messages, previewFrame, annotationMode, annotations}) => {
-        let data = {messages: Client__MessageStore.toArray(messages), annotationMode, annotations, isAgentRunning: false, planEntries: [], turnError: None}
+    | Loading({id, title, createdAt, updatedAt, messages, previewFrame, annotationMode, annotations, activePopupAnnotationId, isAnimationFrozen}) => {
+        let data = {messages: Client__MessageStore.toArray(messages), annotationMode, annotations, activePopupAnnotationId, isAnimationFrozen, isAgentRunning: false, planEntries: [], turnError: None}
         let updated = fn(data)
         Loading({
           id,
@@ -462,16 +496,20 @@ module Task = {
           previewFrame,
           annotationMode: updated.annotationMode,
           annotations: updated.annotations,
+          activePopupAnnotationId: updated.activePopupAnnotationId,
+          isAnimationFrozen: updated.isAnimationFrozen,
         })
       }
-    | New({clientId, previewFrame, annotationMode, annotations}) => {
-        let data = {messages: [], annotationMode, annotations, isAgentRunning: false, planEntries: [], turnError: None}
+    | New({clientId, previewFrame, annotationMode, annotations, activePopupAnnotationId, isAnimationFrozen}) => {
+        let data = {messages: [], annotationMode, annotations, activePopupAnnotationId, isAnimationFrozen, isAgentRunning: false, planEntries: [], turnError: None}
         let updated = fn(data)
         New({
           clientId,
           previewFrame,
           annotationMode: updated.annotationMode,
           annotations: updated.annotations,
+          activePopupAnnotationId: updated.activePopupAnnotationId,
+          isAnimationFrozen: updated.isAnimationFrozen,
         })
       }
     | Unloaded(_) => task
@@ -535,84 +573,48 @@ let rec serializeParentToJson = (parent: option<Client__Types.SourceLocation.t>)
   })
 }
 
-// Helper to create _meta JSON for an annotation with all structured data
-let makeAnnotationMeta = (
-  ~annotationIndex: int,
-  ~annotationId: string,
-  ~tagName: string,
-  ~comment: option<string>,
-  ~file: option<string>,
-  ~line: option<int>,
-  ~column: option<int>,
-  ~componentName: option<string>,
-  ~componentProps: option<Dict.t<JSON.t>>,
-  ~parent: option<Client__Types.SourceLocation.t>,
-  ~cssClasses: option<string>,
-  ~nearbyText: option<string>,
-  ~boundingBox: option<Annotation.boundingBox>,
-): JSON.t => {
+// Set an optional field on a JSON dict — no-op when None
+let setOpt = (obj: Dict.t<JSON.t>, key: string, encode: 'a => JSON.t, value: option<'a>) =>
+  switch value {
+  | Some(v) => obj->Dict.set(key, encode(v))
+  | None => ()
+  }
+
+let boundingBoxToJson = (bb: Annotation.boundingBox): JSON.t => {
+  let obj = Dict.make()
+  obj->Dict.set("x", JSON.Encode.float(bb.x))
+  obj->Dict.set("y", JSON.Encode.float(bb.y))
+  obj->Dict.set("width", JSON.Encode.float(bb.width))
+  obj->Dict.set("height", JSON.Encode.float(bb.height))
+  JSON.Encode.object(obj)
+}
+
+// Build _meta JSON for an annotation from its data + source location fields
+let makeAnnotationMeta = (annotation: Annotation.t, ~index: int, ~sourceLocation: option<Client__Types.SourceLocation.t>): JSON.t => {
   let obj = Dict.make()
   obj->Dict.set("annotation", JSON.Encode.bool(true))
-  obj->Dict.set("annotation_index", JSON.Encode.int(annotationIndex))
-  obj->Dict.set("annotation_id", JSON.Encode.string(annotationId))
-  obj->Dict.set("tag_name", JSON.Encode.string(tagName))
+  obj->Dict.set("annotation_index", JSON.Encode.int(index))
+  obj->Dict.set("annotation_id", JSON.Encode.string(annotation.id))
+  obj->Dict.set("tag_name", JSON.Encode.string(annotation.tagName))
 
-  switch comment {
-  | Some(c) => obj->Dict.set("comment", JSON.Encode.string(c))
-  | None => ()
-  }
-
-  switch file {
-  | Some(f) => obj->Dict.set("file", JSON.Encode.string(f))
-  | None => ()
-  }
-
-  switch line {
-  | Some(l) => obj->Dict.set("line", JSON.Encode.int(l))
-  | None => ()
-  }
-
-  switch column {
-  | Some(c) => obj->Dict.set("column", JSON.Encode.int(c))
-  | None => ()
-  }
-
-  switch componentName {
-  | Some(name) => obj->Dict.set("component_name", JSON.Encode.string(name))
-  | None => ()
-  }
-
-  switch componentProps {
-  | Some(props) => obj->Dict.set("component_props", JSON.Encode.object(props))
-  | None => ()
-  }
-
-  switch serializeParentToJson(parent) {
-  | Some(parentJson) => obj->Dict.set("parent", parentJson)
-  | None => ()
-  }
-
-  switch cssClasses {
-  | Some(classes) => obj->Dict.set("css_classes", JSON.Encode.string(classes))
-  | None => ()
-  }
-
-  switch nearbyText {
-  | Some(text) => obj->Dict.set("nearby_text", JSON.Encode.string(text))
-  | None => ()
-  }
-
-  switch boundingBox {
-  | Some(bb) => {
-      let bbObj = Dict.make()
-      bbObj->Dict.set("x", JSON.Encode.float(bb.x))
-      bbObj->Dict.set("y", JSON.Encode.float(bb.y))
-      bbObj->Dict.set("width", JSON.Encode.float(bb.width))
-      bbObj->Dict.set("height", JSON.Encode.float(bb.height))
-      obj->Dict.set("bounding_box", JSON.Encode.object(bbObj))
+  let (file, line, column, componentName, componentProps, parent) = switch sourceLocation {
+  | Some(loc) => {
+      let cleanFile = stripFileUriPrefix(loc.file)
+      (Some(cleanFile), Some(loc.line), Some(loc.column), loc.componentName, loc.componentProps, loc.parent)
     }
-  | None => ()
+  | None => (None, None, None, None, None, None)
   }
+
+  obj->setOpt("comment", JSON.Encode.string, annotation.comment)
+  obj->setOpt("file", JSON.Encode.string, file)
+  obj->setOpt("line", JSON.Encode.int, line)
+  obj->setOpt("column", JSON.Encode.int, column)
+  obj->setOpt("component_name", JSON.Encode.string, componentName)
+  obj->setOpt("component_props", JSON.Encode.object, componentProps)
+  obj->setOpt("parent", x => x, serializeParentToJson(parent))
+  obj->setOpt("css_classes", JSON.Encode.string, annotation.cssClasses)
+  obj->setOpt("nearby_text", JSON.Encode.string, annotation.nearbyText)
+  obj->setOpt("bounding_box", boundingBoxToJson, annotation.boundingBox)
 
   JSON.Encode.object(obj)
 }
@@ -636,52 +638,21 @@ let parseDataUrl = (dataUrl: string): (string, string) => {
 // Build content blocks for a single annotation
 // Returns 1-2 blocks: resource block with annotation _meta, optional screenshot blob
 let annotationToContentBlocks = (annotation: Annotation.t, ~index: int): array<ACPTypes.contentBlock> => {
-  let blocks = []
+  let _meta = makeAnnotationMeta(annotation, ~index, ~sourceLocation=annotation.sourceLocation)
 
-  // Extract source location fields if available
-  let (file, line, column, componentName, componentProps, parent) = switch annotation.sourceLocation {
+  // Build text description and URI from source location, falling back to selector
+  let (uri, text) = switch annotation.sourceLocation {
   | Some(loc) => {
-      let cleanFile = stripFileUriPrefix(loc.file)
-      (Some(cleanFile), Some(loc.line), Some(loc.column), loc.componentName, loc.componentProps, loc.parent)
+      let f = stripFileUriPrefix(loc.file)
+      let l = loc.line->Int.toString
+      let c = loc.column->Int.toString
+      (`file://${f}:${l}:${c}`, `Annotated element: <${annotation.tagName}> at ${f}:${l}:${c}`)
     }
-  | None => (None, None, None, None, None, None)
-  }
-
-  // Block 1: Resource with annotation metadata
-  let _meta = makeAnnotationMeta(
-    ~annotationIndex=index,
-    ~annotationId=annotation.id,
-    ~tagName=annotation.tagName,
-    ~comment=annotation.comment,
-    ~file,
-    ~line,
-    ~column,
-    ~componentName,
-    ~componentProps,
-    ~parent,
-    ~cssClasses=annotation.cssClasses,
-    ~nearbyText=annotation.nearbyText,
-    ~boundingBox=annotation.boundingBox,
-  )
-
-  // Build text description and URI
-  let (uri, text) = switch (file, line, column) {
-  | (Some(f), Some(l), Some(c)) => (
-      `file://${f}:${l->Int.toString}:${c->Int.toString}`,
-      `Annotated element: <${annotation.tagName}> at ${f}:${l->Int.toString}:${c->Int.toString}`,
-    )
-  | _ =>
-    // Fallback to selector when no source location
+  | None =>
     switch annotation.selector {
     | Some(sel) => (`selector://${sel}`, `Annotated element: <${annotation.tagName}> matching ${sel}`)
     | None => (`element://${annotation.tagName}`, `Annotated element: <${annotation.tagName}>`)
     }
-  }
-
-  let textResource: ACPTypes.textResourceContents = {
-    uri,
-    mimeType: Some("text/plain"),
-    text,
   }
 
   let resourceBlock: ACPTypes.contentBlock = {
@@ -691,50 +662,41 @@ let annotationToContentBlocks = (annotation: Annotation.t, ~index: int): array<A
     resource: Some({
       _meta: Some(_meta),
       annotations: None,
-      resource: ACPTypes.TextResourceContents(textResource),
+      resource: ACPTypes.TextResourceContents({uri, mimeType: Some("text/plain"), text}),
     }),
     content: None,
   }
 
-  let blocks = Array.concat(blocks, [resourceBlock])
+  let screenshotBlock = annotation.screenshot->Option.map(screenshotDataUrl => {
+    let (mimeType, base64Data) = parseDataUrl(screenshotDataUrl)
 
-  // Block 2: Screenshot blob (if available)
-  let blocks = switch annotation.screenshot {
-  | Some(screenshotDataUrl) => {
-      let (mimeType, base64Data) = parseDataUrl(screenshotDataUrl)
-
-      let screenshotMeta: JSON.t = {
-        let obj = Dict.make()
-        obj->Dict.set("annotation_screenshot", JSON.Encode.bool(true))
-        obj->Dict.set("annotation_index", JSON.Encode.int(index))
-        obj->Dict.set("annotation_id", JSON.Encode.string(annotation.id))
-        JSON.Encode.object(obj)
-      }
-
-      let blobResource: ACPTypes.blobResourceContents = {
-        uri: `annotation://${annotation.id}/screenshot`,
-        mimeType: Some(mimeType),
-        blob: base64Data,
-      }
-
-      let screenshotBlock: ACPTypes.contentBlock = {
-        type_: "resource",
-        text: None,
-        uri: None,
-        resource: Some({
-          _meta: Some(screenshotMeta),
-          annotations: None,
-          resource: ACPTypes.BlobResourceContents(blobResource),
-        }),
-        content: None,
-      }
-
-      Array.concat(blocks, [screenshotBlock])
+    let screenshotMeta: JSON.t = {
+      let obj = Dict.make()
+      obj->Dict.set("annotation_screenshot", JSON.Encode.bool(true))
+      obj->Dict.set("annotation_index", JSON.Encode.int(index))
+      obj->Dict.set("annotation_id", JSON.Encode.string(annotation.id))
+      JSON.Encode.object(obj)
     }
-  | None => blocks
-  }
 
-  blocks
+    let block: ACPTypes.contentBlock = {
+      type_: "resource",
+      text: None,
+      uri: None,
+      resource: Some({
+        _meta: Some(screenshotMeta),
+        annotations: None,
+        resource: ACPTypes.BlobResourceContents({
+          uri: `annotation://${annotation.id}/screenshot`,
+          mimeType: Some(mimeType),
+          blob: base64Data,
+        }),
+      }),
+      content: None,
+    }
+    block
+  })
+
+  [Some(resourceBlock), screenshotBlock]->Array.filterMap(x => x)
 }
 
 // Helper to create _meta JSON for figma node with nodeId and is_dsl flag

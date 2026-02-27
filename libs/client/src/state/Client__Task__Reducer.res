@@ -159,6 +159,26 @@ module Lens = {
     setAnnotations(task, updated)
   }
 
+  // Set animation frozen state
+  let setAnimationFrozen = (task: Task.t, frozen: bool): Task.t => {
+    switch task {
+    | Task.New(data) => Task.New({...data, isAnimationFrozen: frozen})
+    | Task.Loading(data) => Task.Loading({...data, isAnimationFrozen: frozen})
+    | Task.Loaded(data) => Task.Loaded({...data, isAnimationFrozen: frozen})
+    | Task.Unloaded(_) => failwith("[Lens.setAnimationFrozen] Cannot set on Unloaded task")
+    }
+  }
+
+  // Set active popup annotation ID
+  let setActivePopupAnnotationId = (task: Task.t, id: option<string>): Task.t => {
+    switch task {
+    | Task.New(data) => Task.New({...data, activePopupAnnotationId: id})
+    | Task.Loading(data) => Task.Loading({...data, activePopupAnnotationId: id})
+    | Task.Loaded(data) => Task.Loaded({...data, activePopupAnnotationId: id})
+    | Task.Unloaded(_) => failwith("[Lens.setActivePopupAnnotationId] Cannot set on Unloaded task")
+    }
+  }
+
 }
 
 // ============================================================================
@@ -219,6 +239,22 @@ module Selectors = {
     switch task {
     | Task.Unloaded(_) => None
     | _ => Some(Task.getWebPreviewIsSelecting(task))
+    }
+  }
+
+  // Get animation frozen state
+  let isAnimationFrozen = (task: Task.t): option<bool> => {
+    switch task {
+    | Task.Unloaded(_) => None
+    | _ => Some(Task.getIsAnimationFrozen(task))
+    }
+  }
+
+  // Get active popup annotation ID
+  let activePopupAnnotationId = (task: Task.t): option<option<string>> => {
+    switch task {
+    | Task.Unloaded(_) => None
+    | _ => Some(Task.getActivePopupAnnotationId(task))
     }
   }
 
@@ -332,6 +368,8 @@ type action =
   | RemoveAnnotation({id: string})
   | ClearAnnotations
   | UpdateAnnotationComment({id: string, comment: string})
+  | SetActivePopupAnnotationId({id: option<string>})
+  | ToggleAnimationFrozen
   | SetPreviewUrl({url: string})
   | SetPreviewFrame({
       contentDocument: option<WebAPI.DOMAPI.document>,
@@ -399,6 +437,8 @@ let actionToString = (action: action): string =>
   | RemoveAnnotation(_) => "RemoveAnnotation"
   | ClearAnnotations => "ClearAnnotations"
   | UpdateAnnotationComment(_) => "UpdateAnnotationComment"
+  | SetActivePopupAnnotationId(_) => "SetActivePopupAnnotationId"
+  | ToggleAnimationFrozen => "ToggleAnimationFrozen"
   | SetPreviewUrl(_) => "SetPreviewUrl"
   | SetPreviewFrame(_) => "SetPreviewFrame"
   | SetDeviceMode(_) => "SetDeviceMode"
@@ -474,11 +514,13 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
     let urlChanged = normalizeUrl(currentUrl) != normalizeUrl(url)
     let updated = Lens.setPreviewUrl(task, url)
 
-    // Clear annotations on actual navigation, not initial iframe mount
-    if urlChanged {
-      (Lens.setAnnotations(updated, []), [])
-    } else {
+    // Clear annotations and popup on actual navigation, not initial iframe mount
+    switch urlChanged {
+    | true =>
+      let updated = Lens.setAnnotations(updated, [])
+      let updated = Lens.setActivePopupAnnotationId(updated, None)
       (updated, [])
+    | false => (updated, [])
     }
 
   | (Task.Unloaded(_), SetPreviewFrame(_)) => (task, [])
@@ -509,14 +551,33 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
 
   // Annotation actions — unified selection mode
   | (Task.Unloaded(_), SetAnnotationMode(_) | ToggleAnnotationMode) => (task, [])
-  | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), SetAnnotationMode({mode})) =>
-    (Lens.setAnnotationMode(task, mode), [])
+  | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), SetAnnotationMode({mode})) => {
+    let updated = Lens.setAnnotationMode(task, mode)
+    // Close popup and unfreeze when switching to Off
+    let updated = switch mode {
+    | Annotation.Off =>
+      updated
+      ->Lens.setActivePopupAnnotationId(None)
+      ->Lens.setAnimationFrozen(false)
+    | _ => updated
+    }
+    (updated, [])
+  }
   | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), ToggleAnnotationMode) => {
     let newMode = switch Task.getAnnotationMode(task) {
     | Annotation.Off => Annotation.Selecting
     | _ => Annotation.Off
     }
-    (Lens.setAnnotationMode(task, newMode), [])
+    let updated = Lens.setAnnotationMode(task, newMode)
+    // Close popup and unfreeze when toggling off
+    let updated = switch newMode {
+    | Annotation.Off =>
+      updated
+      ->Lens.setActivePopupAnnotationId(None)
+      ->Lens.setAnimationFrozen(false)
+    | _ => updated
+    }
+    (updated, [])
   }
 
   // Toggle annotation: click already-annotated element removes it, click new element adds it
@@ -525,11 +586,13 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
     let existing = Annotation.findByElement(Task.getAnnotations(task), element)
     switch existing {
     | Some(ann) =>
-      // Element already annotated — deselect it
+      // Element already annotated — deselect it and close popup
       let annotations = Task.getAnnotations(task)->Array.filter(a => a.id != ann.id)
-      (Lens.setAnnotations(task, annotations), [])
+      let updated = Lens.setAnnotations(task, annotations)
+      let updated = Lens.setActivePopupAnnotationId(updated, None)
+      (updated, [])
     | None =>
-      // New element — add annotation immediately, fetch details
+      // New element — add annotation immediately, open popup, fetch details
       let annotation = Annotation.make(~element, ~position, ~tagName)
       let previewFrame = Task.getPreviewFrame(task, ~defaultUrl="")
       let effects = [
@@ -541,7 +604,9 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
         }),
       ]
       let allAnnotations = Array.concat(Task.getAnnotations(task), [annotation])
-      (Lens.setAnnotations(task, allAnnotations), effects)
+      let updated = Lens.setAnnotations(task, allAnnotations)
+      let updated = Lens.setActivePopupAnnotationId(updated, Some(annotation.id))
+      (updated, effects)
     }
   }
 
@@ -582,14 +647,31 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
   | (Task.Unloaded(_), RemoveAnnotation(_)) => (task, [])
   | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), RemoveAnnotation({id})) => {
     let annotations = Task.getAnnotations(task)->Array.filter(a => a.id != id)
-    (Lens.setAnnotations(task, annotations), [])
+    let updated = Lens.setAnnotations(task, annotations)
+    // Close popup if it was for the removed annotation
+    let updated = switch Task.getActivePopupAnnotationId(task) {
+    | Some(activeId) if activeId == id => Lens.setActivePopupAnnotationId(updated, None)
+    | _ => updated
+    }
+    (updated, [])
   }
 
   | (Task.Unloaded(_), ClearAnnotations) => (task, [])
-  | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), ClearAnnotations) => (
-    Lens.setAnnotations(task, []),
-    [],
-  )
+  | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), ClearAnnotations) => {
+    let updated = Lens.setAnnotations(task, [])
+    let updated = Lens.setActivePopupAnnotationId(updated, None)
+    (updated, [])
+  }
+
+  // Toggle animation freeze (only when in selection mode)
+  | (Task.Unloaded(_), ToggleAnimationFrozen) => (task, [])
+  | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), ToggleAnimationFrozen) =>
+    (Lens.setAnimationFrozen(task, !Task.getIsAnimationFrozen(task)), [])
+
+  // Set active popup annotation ID (for opening/closing the comment popup)
+  | (Task.Unloaded(_), SetActivePopupAnnotationId(_)) => (task, [])
+  | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), SetActivePopupAnnotationId({id})) =>
+    (Lens.setActivePopupAnnotationId(task, id), [])
 
   // Update comment on an existing annotation
   | (Task.Unloaded(_), UpdateAnnotationComment(_)) => (task, [])
@@ -827,6 +909,8 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
         previewFrame: {url: previewUrl, contentDocument: None, contentWindow: None, deviceMode: Client__DeviceMode.defaultDeviceMode, orientation: Client__DeviceMode.defaultOrientation},
         annotationMode: Annotation.Off,
         annotations: [],
+        activePopupAnnotationId: None,
+        isAnimationFrozen: false,
       }),
       [],
     )
@@ -844,6 +928,8 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
         previewFrame,
         annotationMode,
         annotations,
+        activePopupAnnotationId,
+        isAnimationFrozen,
       }) =>
       let sortedMessages = MessageStore.toSorted(messages, (a, b) =>
         Selectors.getMessageCreatedAt(a) -. Selectors.getMessageCreatedAt(b)
@@ -859,6 +945,8 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
           previewFrame,
           annotationMode,
           annotations,
+          activePopupAnnotationId,
+          isAnimationFrozen,
           isAgentRunning: false,
           planEntries: [],
           turnError: None,

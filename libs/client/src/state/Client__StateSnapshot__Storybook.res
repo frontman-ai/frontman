@@ -135,6 +135,8 @@ let convertTask = (task: Snapshot.Task.t): StateTypes.Task.t => {
     },
     annotationMode: convertAnnotationMode(task.annotationMode),
     annotations: [], // Cannot restore DOM element refs from snapshot
+    activePopupAnnotationId: None,
+    isAnimationFrozen: false,
     isAgentRunning: false, // Default to not running when restoring from snapshot
     planEntries: [], // Plan entries not stored in snapshots yet
     turnError: None, // No error when restoring from snapshot
