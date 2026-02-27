@@ -1,6 +1,8 @@
 open Vitest
 
 module Sentry = FrontmanClient__Sentry
+module SentryTypes = FrontmanBindings.Bindings__Sentry__Types
+module SentryFilter = FrontmanBindings.Bindings__Sentry__Filter
 module SentryTestkit = FrontmanBindings.Bindings__Test__SentryTestkit
 
 describe("FrontmanClient Sentry", () => {
@@ -283,6 +285,97 @@ describe("FrontmanClient Sentry", () => {
           }
         | None => t->expect(false)->Expect.toBe(true)
         }
+      },
+    )
+  })
+
+  describe("beforeSend filtering", () => {
+    test(
+      "keeps events with Frontman frames",
+      t => {
+        let event: SentryTypes.sentryEvent = {
+          exception_: Some({
+            values: Some([
+              {
+                stacktrace: Some({
+                  frames: Some([
+                    {
+                      filename: Some(
+                        "/node_modules/@frontman-ai/nextjs/dist/instrumentation.js",
+                      ),
+                    },
+                  ]),
+                }),
+              },
+            ]),
+          }),
+        }
+        let hint: SentryTypes.eventHint = {}
+        let result = SentryFilter.beforeSend(event, hint)
+        t->expect(result->Nullable.toOption->Option.isSome)->Expect.toBe(true)
+      },
+    )
+
+    test(
+      "drops events with only third-party frames",
+      t => {
+        let event: SentryTypes.sentryEvent = {
+          exception_: Some({
+            values: Some([
+              {
+                stacktrace: Some({
+                  frames: Some([
+                    {filename: Some("/next/dist/server/chunks/ssr/dedupeFetch.js")},
+                    {filename: Some("node:internal/deps/undici/undici")},
+                  ]),
+                }),
+              },
+            ]),
+          }),
+        }
+        let hint: SentryTypes.eventHint = {}
+        let result = SentryFilter.beforeSend(event, hint)
+        t->expect(result->Nullable.toOption->Option.isSome)->Expect.toBe(false)
+      },
+    )
+
+    test(
+      "keeps captureMessage events (no exception)",
+      t => {
+        let event: SentryTypes.sentryEvent = {exception_: None}
+        let hint: SentryTypes.eventHint = {}
+        let result = SentryFilter.beforeSend(event, hint)
+        t->expect(result->Nullable.toOption->Option.isSome)->Expect.toBe(true)
+      },
+    )
+
+    test(
+      "keeps events with empty values array",
+      t => {
+        let event: SentryTypes.sentryEvent = {
+          exception_: Some({values: Some([])}),
+        }
+        let hint: SentryTypes.eventHint = {}
+        let result = SentryFilter.beforeSend(event, hint)
+        t->expect(result->Nullable.toOption->Option.isSome)->Expect.toBe(true)
+      },
+    )
+
+    test(
+      "keeps events with empty frames array",
+      t => {
+        let event: SentryTypes.sentryEvent = {
+          exception_: Some({
+            values: Some([
+              {
+                stacktrace: Some({frames: Some([])}),
+              },
+            ]),
+          }),
+        }
+        let hint: SentryTypes.eventHint = {}
+        let result = SentryFilter.beforeSend(event, hint)
+        t->expect(result->Nullable.toOption->Option.isSome)->Expect.toBe(true)
       },
     )
   })

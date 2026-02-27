@@ -2,27 +2,23 @@
 // Reports errors to Frontman's own Sentry project
 
 module Bindings = FrontmanClient__Sentry__Bindings
-
-// Frontman's Sentry DSN - public (client-side DSNs are always public)
-let dsn = "https://442ae992e5a5ccfc42e6910220aeb2a9@o4510512511320064.ingest.de.sentry.io/4510512546185296"
+module SentryConfig = FrontmanBindings.Bindings__Sentry__Config
+module SentryFilter = FrontmanBindings.Bindings__Sentry__Filter
 
 let initialized = ref(false)
 
-// Detect Frontman team internal development (set via mprocs.yml / .dev.env)
-let isInternalDev = () =>
-  %raw(`typeof process !== 'undefined' && process.env?.FRONTMAN_INTERNAL_DEV === 'true'`)
-
 let initialize = (~transport: option<Bindings.transport>=?) => {
   // Skip Sentry in Frontman internal dev; custom transport (tests) always initializes
-  if !initialized.contents && (Option.isSome(transport) || !isInternalDev()) {
+  if !initialized.contents && (Option.isSome(transport) || !SentryConfig.isInternalDev()) {
     Bindings.init({
-      dsn,
+      dsn: SentryConfig.dsn,
       environment: %raw(`typeof window !== 'undefined' && window.location?.hostname === 'localhost' ? 'development' : 'production'`),
       sampleRate: 1.0,
       ?transport,
       initialScope: {
         tags: Dict.fromArray([("frontman.library", "frontman-client")]),
       },
+      beforeSend: SentryFilter.beforeSend,
     })
     initialized.contents = true
   }

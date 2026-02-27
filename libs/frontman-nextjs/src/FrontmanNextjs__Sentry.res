@@ -2,39 +2,36 @@
 // Reports errors to Frontman's own Sentry project
 
 module Bindings = FrontmanNextjs__Sentry__Bindings
-
-// Frontman's Sentry DSN - public (client-side DSNs are always public)
-let dsn = "https://442ae992e5a5ccfc42e6910220aeb2a9@o4510512511320064.ingest.de.sentry.io/4510512546185296"
+module SentryConfig = FrontmanBindings.Bindings__Sentry__Config
+module SentryFilter = FrontmanBindings.Bindings__Sentry__Filter
 
 let initialized = ref(false)
 
-// Detect Frontman team internal development (set via mprocs.yml / .dev.env)
-let isInternalDev = () =>
-  %raw(`typeof process !== 'undefined' && process.env?.FRONTMAN_INTERNAL_DEV === 'true'`)
-
 let initialize = (~transport: option<Bindings.transport>=?) => {
   // Skip Sentry in Frontman internal dev; custom transport (tests) always initializes
-  if !initialized.contents && (Option.isSome(transport) || !isInternalDev()) {
-    let scope = {
-      Bindings.tags: Dict.fromArray([("frontman.library", "frontman-nextjs")]),
+  if !initialized.contents && (Option.isSome(transport) || !SentryConfig.isInternalDev()) {
+    let scope: Bindings.scopeContext = {
+      tags: Dict.fromArray([("frontman.library", "frontman-nextjs")]),
     }
     switch transport {
     | Some(t) =>
       Bindings.initWithTransport({
-        dsn,
+        dsn: SentryConfig.dsn,
         environment: %raw(`process.env.NODE_ENV || "development"`),
         release: %raw(`process.env.npm_package_version || "unknown"`),
         sampleRate: 1.0,
         transport: t,
         initialScope: scope,
+        beforeSend: SentryFilter.beforeSend,
       })
     | None =>
       Bindings.init({
-        dsn,
+        dsn: SentryConfig.dsn,
         environment: %raw(`process.env.NODE_ENV || "development"`),
         release: %raw(`process.env.npm_package_version || "unknown"`),
         sampleRate: 1.0,
         initialScope: scope,
+        beforeSend: SentryFilter.beforeSend,
       })
     }
     initialized.contents = true
