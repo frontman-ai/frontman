@@ -526,10 +526,15 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
 
   // Annotation actions
   | (Task.Unloaded(_), SetAnnotationMode(_)) => (task, [])
-  | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), SetAnnotationMode({mode})) => (
-      Lens.setAnnotationMode(task, mode),
-      [],
-    )
+  | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), SetAnnotationMode({mode})) => {
+      let updated = Lens.setAnnotationMode(task, mode)
+      // Clear pending annotation when leaving Batch mode to avoid stale popup
+      let updated = switch mode {
+      | Annotation.Batch => updated
+      | Annotation.Quick | Annotation.Off => Lens.setPendingAnnotation(updated, None)
+      }
+      (updated, [])
+    }
 
   | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), AddAnnotation({element, position, tagName})) => {
     let mode = Task.getAnnotationMode(task)

@@ -326,8 +326,8 @@ describe("Client__State__Types", () => {
       let task = makeNewTaskWithAnnotations([annotation])
 
       let blocks = Types.taskToContentBlocks(task)
-      // 1 annotation with screenshot = 2 blocks
-      t->expect(blocks->Array.length)->Expect.toBe(2)
+      // 1 current_page block + 1 annotation with screenshot (2 blocks) = 3 blocks
+      t->expect(blocks->Array.length)->Expect.toBe(3)
     })
 
     test("returns blocks for multiple annotations", t => {
@@ -346,15 +346,16 @@ describe("Client__State__Types", () => {
       let task = makeNewTaskWithAnnotations([ann1, ann2])
 
       let blocks = Types.taskToContentBlocks(task)
-      // ann1: 1 block (no screenshot), ann2: 2 blocks (with screenshot) = 3 total
-      t->expect(blocks->Array.length)->Expect.toBe(3)
+      // 1 current_page block + ann1: 1 block (no screenshot) + ann2: 2 blocks (with screenshot) = 4 total
+      t->expect(blocks->Array.length)->Expect.toBe(4)
 
+      // blocks[0] is current_page; annotation blocks start at index 1
       // Verify first annotation has index 0
-      let meta0 = getMeta(blocks->Array.getUnsafe(0))
+      let meta0 = getMeta(blocks->Array.getUnsafe(1))
       t->expect(getMetaFloat(meta0, "annotation_index"))->Expect.toBe(0.0)
 
       // Verify second annotation has index 1
-      let meta1 = getMeta(blocks->Array.getUnsafe(1))
+      let meta1 = getMeta(blocks->Array.getUnsafe(2))
       t->expect(getMetaFloat(meta1, "annotation_index"))->Expect.toBe(1.0)
     })
   })

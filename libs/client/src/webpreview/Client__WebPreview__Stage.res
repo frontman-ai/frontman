@@ -356,9 +356,9 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
       mutationTimestamp={mutationTimestamp}
     />
 
-  // Annotation popup for pending annotation (Batch mode)
-  let annotationPopupOverlay = switch pendingAnnotation {
-  | Some(pending) =>
+  // Annotation popup for pending annotation (only in Batch mode)
+  let annotationPopupOverlay = switch (pendingAnnotation, annotationMode) {
+  | (Some(pending), Client__Annotation__Types.Batch) =>
     <Client__WebPreview__AnnotationPopup
       pending={pending}
       scrollTimestamp={scrollTimestamp}
@@ -366,7 +366,7 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
       onConfirm={comment => Client__State.Actions.confirmPendingAnnotation(~comment?)}
       onCancel={() => Client__State.Actions.cancelPendingAnnotation()}
     />
-  | None => React.null
+  | _ => React.null
   }
 
   switch viewportStyle {
