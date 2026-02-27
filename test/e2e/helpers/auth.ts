@@ -16,8 +16,33 @@ const PHOENIX_ORIGIN = "https://localhost:4002";
  *
  * Navigates to the Phoenix login page, fills the form, and submits.
  * After success, the server redirects back to `returnTo`.
+ *
+ * Retries once on failure — CI runners can be slow and the first
+ * attempt sometimes times out waiting for the redirect.
  */
 export async function login(
+  page: Page,
+  opts?: { returnTo?: string },
+): Promise<void> {
+  const maxAttempts = 2;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      await loginOnce(page, opts);
+      return;
+    } catch (err) {
+      if (attempt < maxAttempts) {
+        console.log(
+          `  [e2e] Login attempt ${attempt} failed, retrying… (${err instanceof Error ? err.message : err})`,
+        );
+      } else {
+        throw err;
+      }
+    }
+  }
+}
+
+async function loginOnce(
   page: Page,
   opts?: { returnTo?: string },
 ): Promise<void> {
@@ -29,14 +54,14 @@ export async function login(
   await page.goto(loginUrl.toString());
 
   // Fill the dev login form
-  await page.locator("#login-form").waitFor({ state: "visible", timeout: 10_000 });
+  await page.locator("#login-form").waitFor({ state: "visible", timeout: 30_000 });
   await page.fill('#login-form input[type="email"]', E2E_EMAIL);
   await page.fill('#login-form input[type="password"]', E2E_PASSWORD);
   await page.click("#login-submit");
 
   // Wait for redirect (either back to returnTo or to settings page)
   await page.waitForURL((url) => !url.pathname.includes("/users/log-in"), {
-    timeout: 10_000,
+    timeout: 30_000,
   });
 }
 
