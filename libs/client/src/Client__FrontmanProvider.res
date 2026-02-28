@@ -1,6 +1,10 @@
 // FrontmanProvider - React context provider for FrontmanClient ACP connection
 // Uses ConnectionReducer for centralized state management
 
+module Log = FrontmanLogs.Logs.Make({
+  let component = #FrontmanProvider
+})
+
 module ACP = FrontmanFrontmanClient.FrontmanClient__ACP
 module Types = FrontmanFrontmanProtocol.FrontmanProtocol__ACP
 module Relay = FrontmanFrontmanClient.FrontmanClient__Relay
@@ -82,12 +86,12 @@ module Provider = {
     // Log message handlers
     let logACPMessage = React.useCallback0((direction: ACP.messageDirection, payload: JSON.t) => {
       let arrow = direction == Send ? `→` : `←`
-      Console.log2(`[ACP] ${arrow}`, payload)
+      Log.debug(~ctx={"payload": payload}, `ACP ${arrow}`)
     })
 
     let logMCPMessage = React.useCallback0((direction, payload) => {
       let arrow = direction == FrontmanFrontmanClient.FrontmanClient__MCP.Send ? `→` : `←`
-      Console.log2(`[MCP] ${arrow}`, payload)
+      Log.debug(~ctx={"payload": payload}, `MCP ${arrow}`)
     })
 
     // Use StateReducer - effects are executed in useEffect, not during dispatch

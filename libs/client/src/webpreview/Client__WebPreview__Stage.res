@@ -1,3 +1,7 @@
+module Log = FrontmanLogs.Logs.Make({
+  let component = #WebPreviewStage
+})
+
 @react.component
 let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
   let document = Some(document)
@@ -58,7 +62,7 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
                 }),
               )
             }
-          | None => Console.error("Element clicked: unknown")
+          | None => Log.error("Element clicked: unknown")
           }
         }
       })

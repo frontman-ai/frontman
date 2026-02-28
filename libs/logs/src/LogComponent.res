@@ -6,6 +6,13 @@ type t = [
   | #Relay
   | #Session
   | #Phoenix
+  | #ConnectionReducer
+  | #StateReducer
+  | #TaskReducer
+  | #Chatbox
+  | #FrontmanProvider
+  | #WebPreviewStage
+  | #StateStore
 ]
 
 // Accepts any poly variant (open) — tags are strings at runtime

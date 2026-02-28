@@ -2583,6 +2583,7 @@ __metadata:
     "@frontman/bindings": "workspace:*"
     "@frontman/frontman-client": "workspace:*"
     "@frontman/frontman-protocol": "workspace:*"
+    "@frontman/logs": "workspace:*"
     "@frontman/react-statestore": "workspace:*"
     "@medv/finder": "npm:^4.0.2"
     "@radix-ui/react-alert-dialog": "npm:^1.1.15"
@@ -2765,6 +2766,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@frontman/react-statestore@workspace:libs/react-statestore"
   dependencies:
+    "@frontman/logs": "workspace:*"
     "@rescript/react": "npm:^0.14.0"
     "@rescript/webapi": "npm:*"
     "@testing-library/dom": "npm:^10.4.1"

@@ -7,6 +7,10 @@
  * - TODO list integration
  * - Thinking indicators
  */
+module Log = FrontmanLogs.Logs.Make({
+  let component = #Chatbox
+})
+
 module Icons = Bindings__RadixUI__Icons
 module TaskTabs = Client__TaskTabs
 module Message = Client__State__Types.Message
@@ -150,7 +154,7 @@ let make = (
           createSession(~onComplete=result => {
             switch result {
             | Ok(sessionId) => sendMessage(sessionId)
-            | Error(err) => Console.error2("[Chatbox] Session creation failed:", err)
+            | Error(err) => Log.error(~ctx={"error": err}, "Session creation failed")
             }
           })
         }
@@ -198,7 +202,7 @@ let make = (
           Promise.resolve()
         })
         ->Promise.catch(err => {
-          Console.error2("[Chatbox] Image resize failed:", err)
+          Log.error(~ctx={"error": err}, "Image resize failed")
           sendWithContent(textParts)
           Promise.resolve()
         })

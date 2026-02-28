@@ -1,3 +1,7 @@
+module Log = FrontmanLogs.Logs.Make({
+  let component = #StateReducer
+})
+
 let name = "Client::StateReducer"
 
 // ============================================================================
@@ -172,7 +176,7 @@ let saveSelectedModelToStorage = (model: Client__State__Types.selectedModel): un
     )
     FrontmanBindings.LocalStorage.setItem(selectedModelStorageKey, jsonString)
   } catch {
-  | exn => Console.error2("[saveSelectedModelToStorage] Failed:", exn)
+  | exn => Log.error(~ctx={"error": exn}, "saveSelectedModelToStorage failed")
   }
 }
 
@@ -545,7 +549,7 @@ let sendMessageToAPIImpl = (
       },
       ~metadata,
     )
-  | NoAcpSession => Console.error("[Effect] Cannot send message: no active ACP session")
+  | NoAcpSession => Log.error("Cannot send message: no active ACP session")
   }
 }
 
@@ -561,7 +565,7 @@ let fetchUsageInfoImpl = (dispatch, ~apiBaseUrl) => {
         dispatch(UsageInfoReceived({usageInfo: usageInfo}))
       }
     } catch {
-    | exn => Console.error2("[FetchUsageInfo] Failed:", exn)
+    | exn => Log.error(~ctx={"error": exn}, "FetchUsageInfo failed")
     }
   }
   fetch()->ignore
@@ -579,7 +583,7 @@ let fetchUserProfileImpl = (dispatch, ~apiBaseUrl) => {
         dispatch(UserProfileReceived({userProfile: userProfile}))
       }
     } catch {
-    | exn => Console.error2("[FetchUserProfile] Failed:", exn)
+    | exn => Log.error(~ctx={"error": exn}, "FetchUserProfile failed")
     }
   }
   fetch()->ignore
@@ -618,7 +622,7 @@ let handleEffect = (effect, state: state, dispatch) => {
         | NeedCancelPrompt =>
           switch state.acpSession {
           | AcpSessionActive({cancelPrompt}) => cancelPrompt()
-          | NoAcpSession => Console.error("[Effect] Cannot cancel prompt: no active ACP session")
+          | NoAcpSession => Log.error("Cannot cancel prompt: no active ACP session")
           }
         }
       }
@@ -652,7 +656,7 @@ let handleEffect = (effect, state: state, dispatch) => {
           dispatch(ApiKeySettingsReceived({source: source}))
         }
       } catch {
-      | exn => Console.error2("[FetchApiKeySettings] Failed:", exn)
+      | exn => Log.error(~ctx={"error": exn}, "FetchApiKeySettings failed")
       }
     }
     fetch()->ignore
@@ -715,7 +719,7 @@ let handleEffect = (effect, state: state, dispatch) => {
           dispatch(ModelsConfigReceived({config: config}))
         }
       } catch {
-      | exn => Console.error2("[FetchModelsConfig] Failed:", exn)
+      | exn => Log.error(~ctx={"error": exn}, "FetchModelsConfig failed")
       }
     }
     fetch()->ignore

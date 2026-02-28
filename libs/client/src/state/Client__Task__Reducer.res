@@ -1,6 +1,10 @@
 // Task reducer - self-contained domain logic for Task aggregate
 // All actions operate on a single Task (no taskId needed)
 
+module Log = FrontmanLogs.Logs.Make({
+  let component = #TaskReducer
+})
+
 module Types = Client__Task__Types
 module Task = Types.Task
 module Message = Types.Message
@@ -777,7 +781,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
     }
 
   | (Task.Loading({id, title, createdAt, updatedAt}), LoadError({error})) =>
-    Console.error2("[TaskReducer] Task load failed:", error)
+    Log.error(~ctx={"error": error}, "Task load failed")
     (Task.Unloaded({id, title, createdAt, updatedAt}), [])
 
   // ============================================================================
@@ -818,7 +822,7 @@ let handleEffect = (effect: effect, ~dispatch: action => unit, ~delegate: delega
           Promise.resolve(Some(selector))
         })
         ->Promise.catch(error => {
-          Console.error2("Failed to get selector:", error)
+          Log.error(~ctx={"error": error}, "Failed to get selector")
           Promise.resolve(None)
         })
 
@@ -836,7 +840,7 @@ let handleEffect = (effect: effect, ~dispatch: action => unit, ~delegate: delega
           })
         })
         ->Promise.catch(error => {
-          Console.error2("Failed to capture screenshot:", error)
+          Log.error(~ctx={"error": error}, "Failed to capture screenshot")
           Promise.resolve(None)
         })
       }
@@ -848,7 +852,7 @@ let handleEffect = (effect: effect, ~dispatch: action => unit, ~delegate: delega
         | Some(window) =>
           Bindings__SourceDetection.getElementSourceLocation(~element, ~window)
           ->Promise.catch(error => {
-            Console.error2("Failed to get source location:", error)
+            Log.error(~ctx={"error": error}, "Failed to get source location")
             Promise.resolve(None)
           })
         | None => Promise.resolve(None)
@@ -880,7 +884,7 @@ let handleEffect = (effect: effect, ~dispatch: action => unit, ~delegate: delega
               switch result {
               | Ok(resolved) => Promise.resolve(Some(resolved))
               | Error(err) =>
-                Console.warn2("[Effect] Source location resolution failed, using original:", err)
+                Log.warning(~ctx={"error": err}, "Source location resolution failed, using original")
                 Promise.resolve(sourceLocationWithTagName)
               }
             })

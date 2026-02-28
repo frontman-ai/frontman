@@ -1,3 +1,7 @@
+// Console.* used intentionally throughout this file — Storybook stories never
+// call ACP.connect(), which is the only place the log handler is registered.
+// Using Logs.* here would silently drop all output.
+
 S.enableJson()
 /**
  * Client__StateSnapshot__Storybook - Helpers for using state snapshots in Storybook

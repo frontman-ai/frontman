@@ -4,6 +4,10 @@
 // Key insight: MCP handler attachment happens DURING session creation (before channel join),
 // not as a separate post-hoc step. The reducer tracks whether prerequisites are met.
 
+module Log = FrontmanLogs.Logs.Make({
+  let component = #ConnectionReducer
+})
+
 module ACP = FrontmanFrontmanClient.FrontmanClient__ACP
 module Relay = FrontmanFrontmanClient.FrontmanClient__Relay
 module MCPServer = FrontmanFrontmanClient.FrontmanClient__MCP__Server
@@ -484,19 +488,19 @@ let cleanupSession = (session: ACP.session): unit => {
   session.channel->Channel.off(~event=#"acp:message")
   session.channel->Channel.off(~event=#"mcp:message")
   Channel.leave(session.channel)->ignore
-  Console.log2("[ConnectionReducer] Cleaned up session channel:", session.sessionId)
+  Log.debug(~ctx={"sessionId": session.sessionId}, "Cleaned up session channel")
 }
 
 // Effect handler - executed in useEffect, not during dispatch
 // This receives current state and dispatch, so async callbacks can safely dispatch
 let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
   switch effect {
-  | LogError(msg) => Console.error(`[FrontmanProvider] ${msg}`)
-  | LogInfo(msg) => Console.log(`[FrontmanProvider] ${msg}`)
+  | LogError(msg) => Log.error(msg)
+  | LogInfo(msg) => Log.info(msg)
   | DisconnectRelay(relay) => Relay.disconnect(relay)
   | DisconnectACP(_) => ()
   | AbortConnections(controller) =>
-    Console.log("[FrontmanProvider] Aborting in-flight connections")
+    Log.info("Aborting in-flight connections")
     WebAPI.AbortController.abort(controller)
   | ConnectACP({config, signal}) =>
     let connect = async () => {
@@ -506,7 +510,7 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
       | Error(err) =>
         // Don't dispatch error for aborted connections - component is unmounting
         if signal.aborted {
-          Console.log("[FrontmanProvider] ACP connection aborted (cleanup)")
+          Log.info("ACP connection aborted (cleanup)")
         } else {
           switch err {
           | ACP.AuthRequired({loginUrl}) =>
@@ -537,12 +541,11 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
         dispatch(RelayConnectSuccess)
         switch Relay.getState(relay) {
         | Connected({tools, serverInfo}) =>
-          Console.log3(
-            `[FrontmanProvider] ${serverInfo.name} v${serverInfo.version} - ${tools
+          Log.info(
+            ~ctx={"tools": tools->Array.map(t => t.name)},
+            `${serverInfo.name} v${serverInfo.version} - ${tools
               ->Array.length
               ->Int.toString} relay tools available`,
-            tools->Array.map(t => t.name),
-            (),
           )
         | _ => ()
         }
@@ -597,7 +600,7 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
       switch await ACP.listSessions(conn) {
       | Ok(sessions) => Client__State.Actions.sessionsLoadSuccess(~sessions)
       | Error(err) =>
-        Console.error2("[ConnectionReducer] Failed to fetch sessions:", err)
+        Log.error(~ctx={"error": err}, "Failed to fetch sessions")
         Client__State.Actions.sessionsLoadError(~error=err)
       }
     }
@@ -614,11 +617,11 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
       switch result {
       | Ok(session) =>
         dispatch(SessionCreateSuccess(session))
-        Console.log2("[ConnectionReducer] Session activated:", taskId)
+        Log.info(~ctx={"taskId": taskId}, "Session activated")
         onComplete(Ok())
       | Error(err) =>
         dispatch(SessionCreateError(err))
-        Console.error2("[ConnectionReducer] Failed to activate session:", err)
+        Log.error(~ctx={"error": err}, "Failed to activate session")
         onComplete(Error(err))
       }
     }
@@ -635,8 +638,8 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
     let delete = async () => {
       let result = await ACP.deleteSession(connection, taskId)
       switch result {
-      | Ok() => Console.log2("[ConnectionReducer] Session deleted:", taskId)
-      | Error(err) => Console.error2("[ConnectionReducer] Failed to delete session:", err)
+      | Ok() => Log.info(~ctx={"taskId": taskId}, "Session deleted")
+      | Error(err) => Log.error(~ctx={"taskId": taskId, "error": err}, "Failed to delete session")
       }
       onComplete(result)
     }

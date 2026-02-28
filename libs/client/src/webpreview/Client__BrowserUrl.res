@@ -25,7 +25,9 @@ let _getBasePath: unit => string = {
         Client__RuntimeConfig.read().basePath
       } catch {
       | _ =>
-        Console.warn("BrowserUrl: RuntimeConfig.basePath unavailable, falling back to \"frontman\"")
+        // Console.warn used intentionally — this runs before ACP.connect() registers
+        // the log handler, so Logs.* calls would be silently dropped.
+        Console.warn("RuntimeConfig.basePath unavailable, falling back to \"frontman\"")
         "frontman"
       }
       cached := Some(bp)

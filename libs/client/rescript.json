@@ -34,6 +34,7 @@
 		"@frontman-ai/nextjs",
 		"@frontman/frontman-protocol",
 		"@frontman/react-statestore",
+		"@frontman/logs",
 		"sury"
 	],
 	"dev-dependencies": ["rescript-vitest"],

@@ -19,7 +19,7 @@
 			"suffix": ".res.mjs"
 		}
 	],
-	"dependencies": ["@rescript/react", "@rescript/webapi"],
+	"dependencies": ["@rescript/react", "@rescript/webapi", "@frontman/logs"],
 	"dev-dependencies": ["rescript-vitest"],
 	"compiler-flags": [],
 	"jsx": {

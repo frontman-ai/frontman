@@ -5,6 +5,7 @@
 	"version": "0.0.1",
 	"type": "module",
 	"dependencies": {
+		"@frontman/logs": "workspace:*",
 		"@rescript/react": "^0.14.0",
 		"use-sync-external-store": "^1.6.0"
 	},

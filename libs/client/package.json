@@ -45,6 +45,7 @@
 		"@frontman/bindings": "workspace:*",
 		"@frontman/frontman-client": "workspace:*",
 		"@frontman/frontman-protocol": "workspace:*",
+		"@frontman/logs": "workspace:*",
 		"@frontman/react-statestore": "workspace:*",
 		"@medv/finder": "^4.0.2",
 		"@radix-ui/react-collapsible": "^1.1.12",

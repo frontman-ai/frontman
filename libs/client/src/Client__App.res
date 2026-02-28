@@ -48,7 +48,10 @@ let useExtensionState = () => {
           Client__ExtensionState.Actions.setExtensionInstalled(~port)
         } catch {
         | exn => {
-            Console.error2("[Extension] Failed to connect:", exn)
+            // Console.error used intentionally — useExtensionState runs in a useEffect
+            // that can fire before ACP.connect() registers the log handler, so Logs.*
+            // calls would be silently dropped.
+            Console.error2("Extension failed to connect", exn)
             Client__ExtensionState.Actions.setExtensionNotInstalled()
           }
         }
