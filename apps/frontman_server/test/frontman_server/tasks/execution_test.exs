@@ -1,21 +1,21 @@
-defmodule FrontmanServer.AgentsTest do
+defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
+  @moduledoc """
+  Integration tests for task execution flow.
+
+  Tests the full lifecycle: cancel, tool result routing, consecutive messages.
+  These exercise the Tasks facade which delegates to Tasks.Execution.
+  """
   use SwarmAi.Testing, async: false
 
   alias Ecto.Adapters.SQL.Sandbox
   alias FrontmanServer.Accounts
   alias FrontmanServer.Accounts.Scope
-  alias FrontmanServer.{Agents, Tasks}
-  alias FrontmanServer.Tasks.Interaction
+  alias FrontmanServer.Tasks
+  alias FrontmanServer.Tasks.{Execution, Interaction}
 
-  describe "agent_running?/1" do
-    test "returns false when no agent exists" do
-      refute Agents.agent_running?("nonexistent_task")
-    end
-  end
-
-  describe "cancel_agent/1" do
+  describe "cancel_execution/2" do
     test "returns error when no agent is running" do
-      assert {:error, :not_running} = Agents.cancel_agent("nonexistent_task")
+      assert {:error, :not_running} = Tasks.cancel_execution(%Scope{}, "nonexistent_task")
     end
 
     test "kills a running agent and returns :ok" do
@@ -26,9 +26,12 @@ defmodule FrontmanServer.AgentsTest do
       test_pid = self()
 
       # Simulate a running agent by spawning a process and registering it
+      # Uses the Runtime's internal registry and key pattern
+      runtime_registry = SwarmAi.Runtime.registry_name(FrontmanServer.AgentRuntime)
+
       agent_pid =
         spawn(fn ->
-          Registry.register(FrontmanServer.AgentRegistry, {:running_agent, task_id}, %{})
+          Registry.register(runtime_registry, {:running, task_id}, %{})
           # Signal that registration is complete
           send(test_pid, :registered)
           # Keep the process alive until killed
@@ -41,28 +44,65 @@ defmodule FrontmanServer.AgentsTest do
       # Wait for registration to complete
       assert_receive :registered, 1_000
 
-      assert Agents.agent_running?(task_id)
-      assert :ok = Agents.cancel_agent(task_id)
+      assert SwarmAi.Runtime.running?(FrontmanServer.AgentRuntime, task_id)
+      assert :ok = Tasks.cancel_execution(%Scope{}, task_id)
 
       # The agent process should be dead with :cancelled reason
       assert_receive {:DOWN, ^ref, :process, ^agent_pid, :cancelled}, 1_000
     end
   end
 
-  describe "notify_tool_result/4" do
+  describe "notify_tool_result" do
     test "returns :ok even when no agent is waiting (backend tool case)" do
       # Backend tools don't have a waiting agent - they execute synchronously
-      result = Agents.notify_tool_result("nonexistent", "call_123", "result", false)
+      result = Execution.notify_tool_result(%Scope{}, "call_123", "result", false)
       assert result == :ok
     end
   end
 
-  describe "notify_user_message/4" do
-    test "returns ok even when no agent exists (spawns new agent)" do
-      # Note: This would actually try to spawn an agent, which would fail
-      # without a proper task. In a real test we'd set up the task first.
-      # For now we just verify the function exists and has correct arity.
-      assert is_function(&Agents.notify_user_message/4)
+  describe "cancel_execution/2 end-to-end" do
+    setup do
+      pid = Sandbox.start_owner!(FrontmanServer.Repo, shared: true)
+      on_exit(fn -> Sandbox.stop_owner(pid) end)
+
+      {:ok, user} =
+        Accounts.register_user(%{
+          email: "cancel_e2e_#{System.unique_integer([:positive])}@test.local",
+          name: "Test User",
+          password: "testpassword123!"
+        })
+
+      scope = Scope.for_user(user)
+      task_id = Ecto.UUID.generate()
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
+
+      Phoenix.PubSub.subscribe(FrontmanServer.PubSub, Tasks.topic(task_id))
+
+      {:ok, task_id: task_id, scope: scope}
+    end
+
+    test "cancel broadcasts :agent_cancelled via PubSub", %{
+      task_id: task_id,
+      scope: scope
+    } do
+      # Start a slow agent so we have time to cancel it
+      slow_llm = %MockLLM{response: "slow", delay_ms: 5000}
+      agent = test_agent(slow_llm, "SlowAgent")
+
+      user_content = [%{"type" => "text", "text" => "Hello"}]
+      {:ok, _} = Tasks.add_user_message(scope, task_id, user_content, [], agent: agent)
+
+      # Wait for the agent to start running
+      Process.sleep(100)
+      assert SwarmAi.Runtime.running?(FrontmanServer.AgentRuntime, task_id)
+
+      # Cancel it
+      assert :ok = Tasks.cancel_execution(scope, task_id)
+
+      assert_receive :agent_cancelled, 5_000
+
+      # Agent should no longer be running
+      refute SwarmAi.Runtime.running?(FrontmanServer.AgentRuntime, task_id)
     end
   end
 
@@ -106,7 +146,7 @@ defmodule FrontmanServer.AgentsTest do
       assert_receive {:interaction, %Interaction.AgentCompleted{}}, 5_000
 
       # Verify agent is no longer running
-      refute Agents.agent_running?(task_id),
+      refute SwarmAi.Runtime.running?(FrontmanServer.AgentRuntime, task_id),
              "Agent should not be running after completion"
 
       # Add second user message with different agent
@@ -131,13 +171,6 @@ defmodule FrontmanServer.AgentsTest do
       task_id: task_id,
       scope: scope
     } do
-      # This test specifically catches the race condition where:
-      # 1. First agent completes
-      # 2. Second message arrives before Registry.unregister runs
-      # 3. agent_running?() returns true (still registered)
-      # 4. No new agent is spawned
-      # 5. Second message is never processed
-
       agent1 = test_agent(mock_llm("First response"), "TestAgent1")
       agent2 = test_agent(mock_llm("Second response"), "TestAgent2")
 
@@ -151,7 +184,7 @@ defmodule FrontmanServer.AgentsTest do
       user_content2 = [%{"type" => "text", "text" => "Second message"}]
       {:ok, _} = Tasks.add_user_message(scope, task_id, user_content2, [], agent: agent2)
 
-      # The second message MUST be processed - if this times out, we have the race condition bug
+      # The second message MUST be processed
       assert_receive {:interaction, %Interaction.AgentCompleted{}},
                      5_000,
                      "Second message was not processed - likely race condition in agent registration"
@@ -161,9 +194,6 @@ defmodule FrontmanServer.AgentsTest do
       task_id: task_id,
       scope: scope
     } do
-      # A conversation where the agent uses tools should preserve full history,
-      # allowing follow-up messages to reference prior tool usage.
-
       tool_call = %SwarmAi.ToolCall{
         id: "tc_#{System.unique_integer([:positive])}",
         name: "todo_list",

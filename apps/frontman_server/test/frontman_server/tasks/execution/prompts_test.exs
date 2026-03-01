@@ -1,4 +1,4 @@
-defmodule FrontmanServer.Agents.PromptsTest do
+defmodule FrontmanServer.Tasks.Execution.PromptsTest do
   @moduledoc """
   Tests for prompt construction behavior.
 
@@ -7,7 +7,7 @@ defmodule FrontmanServer.Agents.PromptsTest do
   """
   use ExUnit.Case, async: true
 
-  alias FrontmanServer.Agents.Prompts
+  alias FrontmanServer.Tasks.Execution.Prompts
 
   describe "build/1 context-based guidance selection" do
     test "selected_component alone adds selected component guidance" do

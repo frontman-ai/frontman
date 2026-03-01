@@ -1,7 +1,7 @@
-defmodule FrontmanServer.Agents.SchemaTransformerTest do
+defmodule SwarmAi.SchemaTransformerTest do
   use ExUnit.Case, async: true
 
-  alias FrontmanServer.Agents.SchemaTransformer
+  alias SwarmAi.SchemaTransformer
 
   describe "provider_for_model/1" do
     test "returns :openai_strict for OpenAI direct" do
@@ -37,22 +37,22 @@ defmodule FrontmanServer.Agents.SchemaTransformerTest do
                :flexible
     end
 
-    test "returns :openai_strict for LLMDB.Model struct with :openai provider" do
+    test "returns :openai_strict for model struct with :openai provider" do
       model = %{provider: :openai, model: "gpt-5.1-codex-max", id: "gpt-5.1-codex-max"}
       assert SchemaTransformer.provider_for_model(model) == :openai_strict
     end
 
-    test "returns :openai_strict for LLMDB.Model struct with :azure provider" do
+    test "returns :openai_strict for model struct with :azure provider" do
       model = %{provider: :azure, model: "gpt-4", id: "gpt-4"}
       assert SchemaTransformer.provider_for_model(model) == :openai_strict
     end
 
-    test "returns :flexible for LLMDB.Model struct with :anthropic provider" do
+    test "returns :flexible for model struct with :anthropic provider" do
       model = %{provider: :anthropic, model: "claude-3-opus", id: "claude-3-opus"}
       assert SchemaTransformer.provider_for_model(model) == :flexible
     end
 
-    test "returns :flexible for LLMDB.Model struct with :google provider" do
+    test "returns :flexible for model struct with :google provider" do
       model = %{provider: :google, model: "gemini-pro", id: "gemini-pro"}
       assert SchemaTransformer.provider_for_model(model) == :flexible
     end
@@ -342,6 +342,42 @@ defmodule FrontmanServer.Agents.SchemaTransformerTest do
 
       # additionalProperties should be false
       assert result["additionalProperties"] == false
+    end
+  end
+
+  describe "ToolCall.strip_null_arguments/1" do
+    alias SwarmAi.ToolCall
+
+    test "strips null values from tool call arguments" do
+      tc = %ToolCall{
+        id: "1",
+        name: "click",
+        arguments: ~s({"selector":"#btn","timeout":null})
+      }
+
+      result = ToolCall.strip_null_arguments(tc)
+      assert {:ok, %{"selector" => "#btn"}} = Jason.decode(result.arguments)
+    end
+
+    test "preserves non-null arguments" do
+      tc = %ToolCall{
+        id: "1",
+        name: "click",
+        arguments: ~s({"selector":"#btn","timeout":5000})
+      }
+
+      result = ToolCall.strip_null_arguments(tc)
+      assert {:ok, %{"selector" => "#btn", "timeout" => 5000}} = Jason.decode(result.arguments)
+    end
+
+    test "handles non-map JSON gracefully" do
+      tc = %ToolCall{id: "1", name: "test", arguments: ~s("just a string")}
+      assert ToolCall.strip_null_arguments(tc) == tc
+    end
+
+    test "handles invalid JSON gracefully" do
+      tc = %ToolCall{id: "1", name: "test", arguments: "not json"}
+      assert ToolCall.strip_null_arguments(tc) == tc
     end
   end
 end

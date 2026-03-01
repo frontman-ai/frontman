@@ -303,4 +303,43 @@ defmodule SwarmAi.Testing do
       {:complete, final_response}
     ])
   end
+
+  @doc """
+  Creates a ToolCall fixture with the given name and arguments.
+
+  ## Examples
+
+      tool_call("get_weather", %{"city" => "NYC"})
+      tool_call("list_files", %{}, id: "call_123")
+  """
+  def tool_call(name, args \\ %{}, opts \\ []) do
+    id = Keyword.get(opts, :id, "tc_#{:erlang.unique_integer([:positive])}")
+
+    %SwarmAi.ToolCall{
+      id: id,
+      name: name,
+      arguments: Jason.encode!(args)
+    }
+  end
+
+  @doc """
+  Creates a ToolResult fixture.
+
+  Accepts either a ToolCall struct or a tool call ID string.
+
+  ## Examples
+
+      tc = tool_call("get_weather")
+      tool_result(tc, "Sunny, 22°C")
+      tool_result("call_123", "Error: not found", true)
+  """
+  def tool_result(id_or_tool_call, content, is_error \\ false)
+
+  def tool_result(%SwarmAi.ToolCall{id: id}, content, is_error) do
+    SwarmAi.ToolResult.make(id, content, is_error)
+  end
+
+  def tool_result(id, content, is_error) when is_binary(id) do
+    SwarmAi.ToolResult.make(id, content, is_error)
+  end
 end

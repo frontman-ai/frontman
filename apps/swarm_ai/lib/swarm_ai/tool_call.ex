@@ -39,4 +39,30 @@ defmodule SwarmAi.ToolCall do
   def parse_arguments(%__MODULE__{arguments: json}) do
     Jason.decode(json)
   end
+
+  @doc """
+  Strips null values from arguments JSON.
+
+  OpenAI strict mode makes optional fields nullable (`anyOf: [type, null]`),
+  so the model sends `null` instead of omitting. Tools expect missing keys,
+  not null values.
+
+  ## Example
+
+      iex> tc = %SwarmAi.ToolCall{id: "1", name: "click", arguments: ~s({"selector":"#btn","timeout":null})}
+      iex> SwarmAi.ToolCall.strip_null_arguments(tc).arguments
+      ~s({"selector":"#btn"})
+  """
+  @spec strip_null_arguments(t()) :: t()
+  def strip_null_arguments(%__MODULE__{arguments: arguments} = tc) when is_binary(arguments) do
+    case Jason.decode(arguments) do
+      {:ok, args} when is_map(args) ->
+        %{tc | arguments: Jason.encode!(SwarmAi.SchemaTransformer.strip_nulls(args))}
+
+      _ ->
+        tc
+    end
+  end
+
+  def strip_null_arguments(tc), do: tc
 end

@@ -1,7 +1,7 @@
-defmodule FrontmanServer.Agents.LLMClientTest do
+defmodule FrontmanServer.Tasks.Execution.LLMClientTest do
   use ExUnit.Case, async: true
 
-  alias FrontmanServer.Agents.LLMClient
+  alias FrontmanServer.Tasks.Execution.LLMClient
 
   describe "ReqLLM error chunk contract" do
     test "ReqLLM.StreamChunk.error/1 creates an :error type chunk" do

@@ -622,7 +622,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       test_pid = self()
 
       # Executor registers and waits for tool result
-      Registry.register(FrontmanServer.AgentRegistry, {:tool_call, tool_call_id}, %{
+      Registry.register(FrontmanServer.ToolCallRegistry, {:tool_call, tool_call_id}, %{
         caller_pid: test_pid
       })
 
@@ -655,7 +655,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       assert is_binary(content)
       assert content =~ "file1.txt"
 
-      Registry.unregister(FrontmanServer.AgentRegistry, {:tool_call, tool_call_id})
+      Registry.unregister(FrontmanServer.ToolCallRegistry, {:tool_call, tool_call_id})
     end
 
     test "encodes JSON tool result to string for waiting executor", %{socket: socket} do
@@ -671,7 +671,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       test_pid = self()
 
       # Simulate what ToolExecutor.execute_mcp_tool does - register and wait
-      Registry.register(FrontmanServer.AgentRegistry, {:tool_call, tool_call_id}, %{
+      Registry.register(FrontmanServer.ToolCallRegistry, {:tool_call, tool_call_id}, %{
         caller_pid: test_pid
       })
 
@@ -732,7 +732,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       assert Map.has_key?(decoded, "logs")
 
       # Cleanup
-      Registry.unregister(FrontmanServer.AgentRegistry, {:tool_call, tool_call_id})
+      Registry.unregister(FrontmanServer.ToolCallRegistry, {:tool_call, tool_call_id})
     end
   end
 

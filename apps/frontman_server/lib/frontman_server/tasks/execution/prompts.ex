@@ -1,6 +1,6 @@
-defmodule FrontmanServer.Agents.Prompts do
+defmodule FrontmanServer.Tasks.Execution.Prompts do
   @moduledoc """
-  Manages system prompts for agents.
+  Manages system prompts for agent execution.
 
   Contains prompts for:
   - Root agent (dynamic, context-aware)

@@ -1,4 +1,4 @@
-defmodule FrontmanServer.Agents.ToolExecutor do
+defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
   @moduledoc """
   Unified tool execution for both backend and MCP tools.
 
@@ -8,8 +8,8 @@ defmodule FrontmanServer.Agents.ToolExecutor do
   ## MCP Tool Routing
 
   For MCP tools, the executor handles the complete routing flow:
-  1. Registers in AgentRegistry (for receiving response)
-  2. Publishes interaction via Tasks.add_tool_call (for TaskChannel routing)
+  1. Registers in ToolCallRegistry (for receiving response)
+  2. Publishes interaction via Tasks (for TaskChannel routing)
   3. Waits for client response via receive
 
   This ensures MCP tools work correctly for both main agents and sub-agents
@@ -24,7 +24,6 @@ defmodule FrontmanServer.Agents.ToolExecutor do
   require Logger
 
   alias FrontmanServer.Accounts.Scope
-  alias FrontmanServer.Agents.SchemaTransformer
   alias FrontmanServer.Image
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Interaction
@@ -74,7 +73,11 @@ defmodule FrontmanServer.Agents.ToolExecutor do
         publish_mcp_tool_call(scope, task_id, tool_call)
       end
 
-      result = execute(scope, tool_call, task_id, mcp_tools: mcp_tools, llm_opts: llm_opts)
+      result =
+        execute(scope, tool_call, task_id,
+          mcp_tools: mcp_tools,
+          llm_opts: llm_opts
+        )
 
       # Convert tool results containing image data (e.g. screenshots) to multimodal
       # content parts so the LLM receives proper image content instead of base64 text.
@@ -89,7 +92,7 @@ defmodule FrontmanServer.Agents.ToolExecutor do
         false
 
       :mcp ->
-        Registry.register(FrontmanServer.AgentRegistry, {:tool_call, tool_call.id}, %{
+        Registry.register(FrontmanServer.ToolCallRegistry, {:tool_call, tool_call.id}, %{
           caller_pid: self()
         })
 
@@ -97,7 +100,7 @@ defmodule FrontmanServer.Agents.ToolExecutor do
     end
   end
 
-  defp publish_mcp_tool_call(scope, task_id, tool_call) do
+  defp publish_mcp_tool_call(%Scope{} = scope, task_id, tool_call) do
     reqllm_tc = to_reqllm_tool_call(tool_call)
 
     case Tasks.add_tool_call(scope, task_id, reqllm_tc) do
@@ -132,7 +135,14 @@ defmodule FrontmanServer.Agents.ToolExecutor do
 
     case Tools.find_tool(tool_call.name) do
       {:ok, module} ->
-        execute_backend_tool(scope, module, tool_call, task_id, mcp_tools, llm_opts)
+        execute_backend_tool(
+          scope,
+          module,
+          tool_call,
+          task_id,
+          mcp_tools,
+          llm_opts
+        )
 
       :not_found ->
         execute_mcp_tool(tool_call, task_id)
@@ -144,73 +154,64 @@ defmodule FrontmanServer.Agents.ToolExecutor do
   defp execute_backend_tool(scope, module, tool_call, task_id, mcp_tools, llm_opts) do
     Logger.info("ToolExecutor: Executing backend tool #{tool_call.name}")
 
-    case Tasks.get_task(scope, task_id) do
-      {:ok, task} ->
-        # Pass the executor itself so backend tools can spawn sub-agents
-        executor = make_executor(scope, task_id, mcp_tools: mcp_tools, llm_opts: llm_opts)
+    # Re-fetch task from DB to get latest interactions. The task captured at
+    # execution start becomes stale as earlier tool calls in the same run add
+    # new interactions. Without a fresh fetch, sub-agents spawned by later
+    # backend tools would miss context from earlier tool results.
+    {:ok, task} = Tasks.get_task(scope, task_id)
 
-        # Pre-compute context messages from read_file results for sub-agents
-        context_messages =
-          Interaction.extract_markdown_messages(task.interactions)
+    # Pass the executor itself so backend tools can spawn sub-agents
+    executor = make_executor(scope, task_id, mcp_tools: mcp_tools, llm_opts: llm_opts)
 
-        context = %Backend.Context{
-          scope: scope,
-          task: task,
-          tool_executor: executor,
-          mcp_tools: mcp_tools,
-          context_messages: context_messages,
-          llm_opts: llm_opts
-        }
+    # Pre-compute context messages from read_file results for sub-agents
+    context_messages =
+      Interaction.extract_markdown_messages(task.interactions)
 
-        args = parse_arguments(tool_call.arguments)
+    context = %Backend.Context{
+      scope: scope,
+      task: task,
+      tool_executor: executor,
+      mcp_tools: mcp_tools,
+      context_messages: context_messages,
+      llm_opts: llm_opts
+    }
 
-        result = module.execute(args, context)
+    args = parse_arguments(tool_call.arguments)
 
-        case result do
-          {:ok, value} ->
-            encoded = encode_result(value)
+    result = module.execute(args, context)
 
-            # Store tool result for interaction history and UI notification
-            Tasks.add_tool_result(
-              scope,
-              task_id,
-              %{id: tool_call.id, name: tool_call.name},
-              value,
-              false
-            )
+    case result do
+      {:ok, value} ->
+        encoded = encode_result(value)
 
-            {:ok, encoded}
+        # Store tool result for interaction history and UI notification
+        Tasks.add_tool_result(
+          scope,
+          task_id,
+          %{id: tool_call.id, name: tool_call.name},
+          value,
+          false
+        )
 
-          {:error, reason} ->
-            # Store error result for interaction history and UI notification
-            Tasks.add_tool_result(
-              scope,
-              task_id,
-              %{id: tool_call.id, name: tool_call.name},
-              reason,
-              true
-            )
+        {:ok, encoded}
 
-            {:error, reason}
-        end
+      {:error, reason} ->
+        # Store error result for interaction history and UI notification
+        Tasks.add_tool_result(
+          scope,
+          task_id,
+          %{id: tool_call.id, name: tool_call.name},
+          reason,
+          true
+        )
 
-      {:error, _} ->
-        {:error, "Task not found or unauthorized"}
+        {:error, reason}
     end
   end
 
-  defp strip_null_arguments(%SwarmAi.ToolCall{arguments: arguments} = tool_call)
-       when is_binary(arguments) do
-    case Jason.decode(arguments) do
-      {:ok, args} when is_map(args) ->
-        %{tool_call | arguments: Jason.encode!(SchemaTransformer.strip_nulls(args))}
-
-      _ ->
-        tool_call
-    end
+  defp strip_null_arguments(tool_call) do
+    SwarmAi.ToolCall.strip_null_arguments(tool_call)
   end
-
-  defp strip_null_arguments(tool_call), do: tool_call
 
   defp parse_arguments(arguments) when is_binary(arguments) do
     case Jason.decode(arguments) do
@@ -235,11 +236,11 @@ defmodule FrontmanServer.Agents.ToolExecutor do
 
     receive do
       {:tool_result, ^tool_call_id, content, is_error} ->
-        Registry.unregister(FrontmanServer.AgentRegistry, {:tool_call, tool_call_id})
+        Registry.unregister(FrontmanServer.ToolCallRegistry, {:tool_call, tool_call_id})
         if is_error, do: {:error, content}, else: {:ok, content}
     after
       @tool_timeout_ms ->
-        Registry.unregister(FrontmanServer.AgentRegistry, {:tool_call, tool_call_id})
+        Registry.unregister(FrontmanServer.ToolCallRegistry, {:tool_call, tool_call_id})
         {:error, "Tool timeout: #{tool_call.name}"}
     end
   end

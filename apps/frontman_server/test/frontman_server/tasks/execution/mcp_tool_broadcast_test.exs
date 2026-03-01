@@ -1,4 +1,4 @@
-defmodule FrontmanServer.Agents.ExecutionTest do
+defmodule FrontmanServer.Tasks.Execution.MCPToolBroadcastTest do
   @moduledoc """
   Tests for agent execution flow.
 
@@ -130,7 +130,7 @@ defmodule FrontmanServer.Agents.ExecutionTest do
 
       # At this point, agent should be registered for the tool call
       registered =
-        case Registry.lookup(FrontmanServer.AgentRegistry, {:tool_call, tool_call_id}) do
+        case Registry.lookup(FrontmanServer.ToolCallRegistry, {:tool_call, tool_call_id}) do
           [{_pid, _}] -> true
           [] -> false
         end

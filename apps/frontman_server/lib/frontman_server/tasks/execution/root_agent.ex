@@ -1,4 +1,4 @@
-defmodule FrontmanServer.Agents.RootAgent do
+defmodule FrontmanServer.Tasks.Execution.RootAgent do
   @moduledoc """
   The main coordinating agent that handles user requests.
 
@@ -10,13 +10,13 @@ defmodule FrontmanServer.Agents.RootAgent do
   - Selected component information
   - Framework-specific guidance
 
-  API key resolution happens at the domain layer (Agents context) before this agent
+  API key resolution happens at the domain layer (Tasks context) before this agent
   is created. The resolved key is passed via `llm_opts[:api_key]`.
   """
 
   use TypedStruct
 
-  alias FrontmanServer.Agents.{LLMClient, Prompts}
+  alias FrontmanServer.Tasks.Execution.{LLMClient, Prompts}
 
   typedstruct do
     field(:tools, [SwarmAi.Tool.t()], default: [])
@@ -65,8 +65,8 @@ defmodule FrontmanServer.Agents.RootAgent do
   end
 end
 
-defimpl SwarmAi.Agent, for: FrontmanServer.Agents.RootAgent do
-  alias FrontmanServer.Agents.{LLMClient, Prompts, RootAgent}
+defimpl SwarmAi.Agent, for: FrontmanServer.Tasks.Execution.RootAgent do
+  alias FrontmanServer.Tasks.Execution.{LLMClient, Prompts, RootAgent}
 
   def system_prompt(%RootAgent{} = agent) do
     # Build system prompt - always returns a string

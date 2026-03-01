@@ -1,4 +1,4 @@
-defmodule FrontmanServer.Agents.SubAgentMcpRoutingTest do
+defmodule FrontmanServer.Tasks.Execution.SubAgentMcpRoutingTest do
   @moduledoc """
   Tests for MCP tool routing from sub-agents spawned by backend tools.
 
@@ -9,8 +9,8 @@ defmodule FrontmanServer.Agents.SubAgentMcpRoutingTest do
   ## Architecture
 
   ToolExecutor owns interaction publishing for MCP tools internally:
-  1. Registers in AgentRegistry (for receiving response)
-  2. Publishes interaction via Tasks.add_tool_call (for TaskChannel routing)
+  1. Registers in ToolCallRegistry (for receiving response)
+  2. Publishes interaction via Tasks (for TaskChannel routing)
   3. Waits for client response via receive
 
   This ensures MCP tools work correctly for both main agents and sub-agents
@@ -20,8 +20,8 @@ defmodule FrontmanServer.Agents.SubAgentMcpRoutingTest do
   use SwarmAi.Testing, async: false
   use FrontmanServerWeb.ChannelCase
 
-  alias FrontmanServer.Agents.ToolExecutor
   alias FrontmanServer.Tasks
+  alias FrontmanServer.Tasks.Execution.ToolExecutor
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServerWeb.UserSocket
   alias JsonRpc
@@ -51,7 +51,7 @@ defmodule FrontmanServer.Agents.SubAgentMcpRoutingTest do
       task_id: task_id,
       scope: scope
     } do
-      # ToolExecutor now owns interaction publishing - MCP tools are automatically routed
+      # Build executor that calls Tasks directly for persistence
       llm_opts = [api_key: "test-key", model: "openrouter:anthropic/claude-sonnet-4-20250514"]
       executor = ToolExecutor.make_executor(scope, task_id, llm_opts: llm_opts)
 
@@ -97,7 +97,7 @@ defmodule FrontmanServer.Agents.SubAgentMcpRoutingTest do
       llm = tool_then_complete_llm([mcp_tool_call], "Component implemented!")
       agent = test_agent(llm, "ComponentImplementAgent")
 
-      # Simple executor - ToolExecutor handles MCP routing internally
+      # Build executor that calls Tasks directly
       llm_opts = [api_key: "test-key", model: "openrouter:anthropic/claude-sonnet-4-20250514"]
       executor = ToolExecutor.make_executor(scope, task_id, llm_opts: llm_opts)
 

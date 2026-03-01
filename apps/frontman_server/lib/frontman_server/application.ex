@@ -53,11 +53,11 @@ defmodule FrontmanServer.Application do
         FrontmanServer.Vault,
         {DNSCluster, query: Application.get_env(:frontman_server, :dns_cluster_query) || :ignore},
         {Phoenix.PubSub, name: FrontmanServer.PubSub},
-        # Registry for tracking agents and tool calls
-        {Registry, keys: :unique, name: FrontmanServer.AgentRegistry},
-        # Monitors task executions and broadcasts errors on crash
-        FrontmanServer.Tasks.ExecutionMonitor,
-        # TaskSupervisor for agent execution tasks
+        # Supervised agent execution (Registry + TaskSupervisor + ExecutionMonitor)
+        {SwarmAi.Runtime, name: FrontmanServer.AgentRuntime},
+        # Registry for MCP tool call result routing (separate from agent execution tracking)
+        {Registry, keys: :unique, name: FrontmanServer.ToolCallRegistry},
+        # General-purpose TaskSupervisor for non-agent background tasks (title generation, etc.)
         {Task.Supervisor, name: FrontmanServer.TaskSupervisor},
         # Start to serve requests, typically the last entry
         FrontmanServerWeb.Endpoint

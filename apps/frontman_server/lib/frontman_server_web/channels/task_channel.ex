@@ -10,7 +10,6 @@ defmodule FrontmanServerWeb.TaskChannel do
   require Logger
 
   alias AgentClientProtocol, as: ACP
-  alias FrontmanServer.Agents
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.TitleGenerator
   alias FrontmanServer.Tasks.Todos
@@ -298,7 +297,7 @@ defmodule FrontmanServerWeb.TaskChannel do
     task_id = socket.assigns.task_id
     Logger.info("Cancel notification received for task #{task_id}")
 
-    case Agents.cancel_agent(task_id) do
+    case Tasks.cancel_execution(socket.assigns.scope, task_id) do
       :ok ->
         Logger.info("Agent cancel signal sent for task #{task_id}")
 

@@ -9,9 +9,8 @@ defmodule FrontmanServer.Tasks do
   delegating to the domain layer and infrastructure as appropriate.
   """
   alias FrontmanServer.Accounts.Scope
-  alias FrontmanServer.Agents
   alias FrontmanServer.Repo
-  alias FrontmanServer.Tasks.{Interaction, InteractionSchema, Task, TaskSchema}
+  alias FrontmanServer.Tasks.{Execution, Interaction, InteractionSchema, Task, TaskSchema}
   alias ReqLLM.ToolCall
 
   # --- Authorization Helpers ---
@@ -341,7 +340,8 @@ defmodule FrontmanServer.Tasks do
   @doc """
   Creates and appends a UserMessage interaction.
 
-  Notifies Agents which decides whether to spawn or wake an agent.
+  If no execution is already running for this task, fetches the task
+  and starts a new agent run.
   """
   @spec add_user_message(Scope.t(), String.t(), list(), list(), keyword()) ::
           {:ok, Interaction.UserMessage.t()} | {:error, :not_found}
@@ -349,7 +349,7 @@ defmodule FrontmanServer.Tasks do
     with {:ok, schema} <- get_task_by_id(scope, task_id),
          interaction = Interaction.UserMessage.new(content_blocks),
          {:ok, interaction} <- append_interaction(schema, interaction) do
-      Agents.notify_user_message(scope, task_id, tools, opts)
+      maybe_start_execution(scope, task_id, tools, opts)
       {:ok, interaction}
     end
   end
@@ -405,7 +405,7 @@ defmodule FrontmanServer.Tasks do
   @doc """
   Creates and appends a ToolResult interaction.
 
-  Notifies Agents directly so the agent can continue its iteration.
+  Routes the result to the waiting executor so the agent can continue.
   """
   @spec add_tool_result(Scope.t(), String.t(), map(), term(), boolean()) ::
           {:ok, Interaction.ToolResult.t()} | {:error, :not_found}
@@ -419,8 +419,45 @@ defmodule FrontmanServer.Tasks do
     with {:ok, schema} <- get_task_by_id(scope, task_id),
          interaction = Interaction.ToolResult.new(tool_call_data, result, is_error),
          {:ok, interaction} <- append_interaction(schema, interaction) do
-      Agents.notify_tool_result(task_id, tool_call_id, result, is_error)
+      Execution.notify_tool_result(scope, tool_call_id, result, is_error)
       {:ok, interaction}
+    end
+  end
+
+  # --- Execution Management ---
+
+  @doc """
+  Cancels a running execution for the given task.
+
+  Verifies the task exists and belongs to the user before cancelling.
+  """
+  @spec cancel_execution(Scope.t(), String.t()) :: :ok | {:error, :not_running}
+  def cancel_execution(%Scope{} = scope, task_id) do
+    Execution.cancel(scope, task_id)
+  end
+
+  # Starts an execution if none is already running for this task.
+  # Fetches the task and delegates to Execution.run.
+  @spec maybe_start_execution(Scope.t(), String.t(), list(), keyword()) :: :ok
+  defp maybe_start_execution(scope, task_id, tools, opts) do
+    if Execution.running?(scope, task_id) do
+      :ok
+    else
+      {:ok, task} = get_task(scope, task_id)
+
+      case Execution.run(scope, task, Keyword.merge([tools: tools], opts)) do
+        {:ok, _pid_or_already_running} ->
+          :ok
+
+        {:error, reason} ->
+          Phoenix.PubSub.broadcast(
+            FrontmanServer.PubSub,
+            topic(task_id),
+            {:agent_error, Execution.error_message(scope, reason)}
+          )
+
+          :ok
+      end
     end
   end
 

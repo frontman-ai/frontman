@@ -655,12 +655,13 @@ jobs:
 
       # PLT cache includes mise.toml hash to invalidate when Erlang/Elixir versions change
       # v3: bust cache after migrating to self-hosted runners (different mise install path)
+      # v4: include swarm_ai source hash — path dep changes don't bump mix.lock
       - name: Cache PLT
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: apps/frontman_server/priv/plts
-          key: ${{ runner.os }}-plt-v3-${{ hashFiles('mise.toml', 'apps/frontman_server/mix.lock') }}
-          restore-keys: ${{ runner.os }}-plt-v3-
+          key: ${{ runner.os }}-plt-v4-${{ hashFiles('mise.toml', 'apps/frontman_server/mix.lock', 'apps/swarm_ai/lib/**') }}
+          restore-keys: ${{ runner.os }}-plt-v4-
 
       - name: Install dependencies
         working-directory: apps/frontman_server

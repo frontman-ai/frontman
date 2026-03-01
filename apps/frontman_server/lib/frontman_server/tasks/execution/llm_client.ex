@@ -1,11 +1,11 @@
-defmodule FrontmanServer.Agents.LLMClient do
+defmodule FrontmanServer.Tasks.Execution.LLMClient do
   @moduledoc """
   SwarmAi.LLM implementation using ReqLLM.
 
   Stream-first design: returns a lazy stream of chunks that can be
   consumed with callbacks or collected into a Response.
 
-  API key resolution happens at the domain layer (Agents context) before
+  API key resolution happens at the domain layer (Tasks context) before
   this client is created. The resolved key is passed via `llm_opts[:api_key]`.
   """
 
@@ -13,7 +13,7 @@ defmodule FrontmanServer.Agents.LLMClient do
 
   use TypedStruct
 
-  alias FrontmanServer.Agents.SchemaTransformer
+  alias SwarmAi.SchemaTransformer
 
   typedstruct do
     field(:model, String.t(), default: @default_model)
@@ -51,6 +51,7 @@ defmodule FrontmanServer.Agents.LLMClient do
     provider = SchemaTransformer.provider_for_model(model)
     schema = SchemaTransformer.transform(tool.parameter_schema, provider)
     strict? = provider == :openai_strict
+
     requires_mcp_prefix? = Keyword.get(opts, :requires_mcp_prefix, false)
 
     # Prefix tool name with mcp_ when required (e.g., Claude Code OAuth)
@@ -79,11 +80,12 @@ defmodule FrontmanServer.Agents.LLMClient do
   def strip_mcp_prefix(name), do: name
 end
 
-defimpl SwarmAi.LLM, for: FrontmanServer.Agents.LLMClient do
-  alias FrontmanServer.Agents.{LLMClient, SchemaTransformer}
+defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
+  alias FrontmanServer.Tasks.Execution.LLMClient
   alias SwarmAi.LLM.{Chunk, Usage}
   alias SwarmAi.Message
   alias SwarmAi.Message.ContentPart
+  alias SwarmAi.SchemaTransformer
   alias SwarmAi.ToolCall
 
   require Logger
@@ -359,8 +361,11 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Agents.LLMClient do
   # Clean these before sending back in the next turn.
   defp strip_null_args(arguments) when is_binary(arguments) do
     case Jason.decode(arguments) do
-      {:ok, args} when is_map(args) -> Jason.encode!(SchemaTransformer.strip_nulls(args))
-      _ -> arguments
+      {:ok, args} when is_map(args) ->
+        Jason.encode!(SwarmAi.SchemaTransformer.strip_nulls(args))
+
+      _ ->
+        arguments
     end
   end
 

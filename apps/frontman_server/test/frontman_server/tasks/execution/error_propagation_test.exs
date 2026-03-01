@@ -1,4 +1,4 @@
-defmodule FrontmanServer.Agents.ErrorPropagationTest do
+defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
   @moduledoc """
   Integration test for the error propagation chain.
 

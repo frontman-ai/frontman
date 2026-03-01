@@ -1,4 +1,4 @@
-defmodule FrontmanServer.Agents.SchemaTransformer do
+defmodule SwarmAi.SchemaTransformer do
   @moduledoc """
   Transforms tool parameter schemas for different LLM providers.
 
@@ -26,7 +26,7 @@ defmodule FrontmanServer.Agents.SchemaTransformer do
       ...>   },
       ...>   "required" => ["name"]
       ...> }
-      iex> SchemaTransformer.transform(schema, :openai_strict)
+      iex> SwarmAi.SchemaTransformer.transform(schema, :openai_strict)
       %{
         "type" => "object",
         "properties" => %{
