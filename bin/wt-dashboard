@@ -1,0 +1,291 @@
+#!/usr/bin/env bash
+# Unified worktree dashboard — shows all worktrees, pod status, and URLs at a glance.
+# Called by: make wt
+
+set -euo pipefail
+
+# ── Colors ──────────────────────────────────────────────
+CYAN='\033[36m'
+GREEN='\033[32m'
+YELLOW='\033[33m'
+RED='\033[31m'
+DIM='\033[2m'
+BOLD='\033[1m'
+RESET='\033[0m'
+
+# Symbols (plain ASCII fallback when TERM is dumb)
+if [[ "${TERM:-dumb}" != "dumb" ]]; then
+  SYM_OK="✓"
+  SYM_WARN="✗"
+  SYM_RUNNING="●"
+  SYM_STOPPED="○"
+  SYM_PLAIN="·"
+  LINE="──────────────────────────────────────────────────────────────"
+else
+  SYM_OK="ok"
+  SYM_WARN="x"
+  SYM_RUNNING="*"
+  SYM_STOPPED="o"
+  SYM_PLAIN="-"
+  LINE="--------------------------------------------------------------"
+fi
+
+# ── Portable MD5 (same logic as Makefile) ───────────────
+md5_short() {
+  if command -v md5sum >/dev/null 2>&1; then
+    echo -n "$1" | md5sum | cut -c1-4
+  else
+    echo -n "$1" | md5 | cut -c1-4
+  fi
+}
+
+# ── Infrastructure status (one line) ───────────────────
+infra_line() {
+  local parts=()
+
+  # Network
+  if podman network inspect frontman-net &>/dev/null; then
+    parts+=("Network ${GREEN}${SYM_OK}${RESET}")
+  else
+    parts+=("Network ${RED}${SYM_WARN}${RESET}")
+  fi
+
+  # Caddy
+  local caddy_state
+  caddy_state=$(podman container inspect frontman-caddy --format '{{.State.Status}}' 2>/dev/null || echo "missing")
+  if [[ "$caddy_state" == "running" ]]; then
+    parts+=("Caddy ${GREEN}${SYM_OK}${RESET}")
+  elif [[ "$caddy_state" == "missing" ]]; then
+    parts+=("Caddy ${RED}${SYM_WARN}${RESET}")
+  else
+    parts+=("Caddy ${YELLOW}${caddy_state}${RESET}")
+  fi
+
+  # dnsmasq
+  if [[ -f /etc/dnsmasq.d/frontman.conf ]]; then
+    parts+=("dnsmasq ${GREEN}${SYM_OK}${RESET}")
+  else
+    parts+=("dnsmasq ${YELLOW}${SYM_WARN}${RESET}")
+  fi
+
+  local joined=""
+  for i in "${!parts[@]}"; do
+    [[ $i -gt 0 ]] && joined+="  "
+    joined+="${parts[$i]}"
+  done
+  printf "  Infrastructure:  %b\n" "$joined"
+}
+
+# ── Collect pod info into associative arrays ────────────
+declare -A POD_STATUS     # hash -> "Running" | "Degraded" | "Exited" | ...
+declare -A POD_CONTAINERS # hash -> "3/3" (running/total)
+
+collect_pods() {
+  local line name status hash
+  while IFS= read -r line; do
+    [[ -z "$line" ]] && continue
+    name=$(echo "$line" | awk '{print $1}')
+    status=$(echo "$line" | cut -d' ' -f2-)
+    hash="${name#worktree-}"
+    POD_STATUS["$hash"]="$status"
+
+    # Count running containers in the pod
+    local total running
+    total=$(podman pod inspect "$name" --format '{{len .Containers}}' 2>/dev/null || echo "?")
+    running=$(podman pod inspect "$name" --format '{{range .Containers}}{{.State}} {{end}}' 2>/dev/null \
+      | tr ' ' '\n' | grep -c 'running' || true)
+    POD_CONTAINERS["$hash"]="${running}/${total}"
+  done < <(podman pod ls --format '{{.Name}} {{.Status}}' 2>/dev/null | grep '^worktree-' || true)
+}
+
+# ── Collect all worktree branches ───────────────────────
+collect_worktrees() {
+  local -n _branches=$1  # nameref to caller's array
+  if [[ ! -d ".worktrees" ]]; then
+    return
+  fi
+
+  # Single-level: .worktrees/my-branch
+  for wt in .worktrees/*; do
+    [[ -d "$wt" ]] || continue
+    local name
+    name=$(basename "$wt")
+    # Skip if it's a nested dir (has subdirectories that are worktrees)
+    if [[ -f "$wt/.git" ]] || [[ -d "$wt/.git" ]]; then
+      _branches+=("$name")
+    fi
+  done
+
+  # Nested: .worktrees/feature/my-branch
+  for wt in .worktrees/*/*; do
+    [[ -d "$wt" ]] || continue
+    if [[ -f "$wt/.git" ]] || [[ -d "$wt/.git" ]]; then
+      local name
+      name=$(echo "$wt" | sed 's|^\.worktrees/||')
+      _branches+=("$name")
+    fi
+  done
+}
+
+# ── Print a single worktree entry ──────────────────────
+print_worktree() {
+  local branch="$1"
+  local hash
+  hash=$(md5_short "$branch")
+
+  local pod_status="${POD_STATUS[$hash]:-}"
+  local pod_containers="${POD_CONTAINERS[$hash]:-}"
+
+  # Determine lifecycle state
+  local state_label state_color
+  if [[ -n "$pod_status" ]]; then
+    case "$pod_status" in
+      Running*)
+        state_label="${SYM_RUNNING} Running"
+        state_color="$GREEN"
+        ;;
+      Degraded*|Error*)
+        state_label="${SYM_RUNNING} Degraded"
+        state_color="$RED"
+        ;;
+      *)
+        state_label="${SYM_STOPPED} Stopped"
+        state_color="$YELLOW"
+        ;;
+    esac
+  else
+    state_label="${SYM_PLAIN} No pod"
+    state_color="$DIM"
+  fi
+
+  # Header: branch name + status (right-aligned)
+  local branch_display="${BOLD}${branch}${RESET}"
+  local status_display="${state_color}${state_label}${RESET}"
+  printf "\n  %b %b\n" "$branch_display" "$status_display"
+
+  if [[ -n "$pod_status" ]]; then
+    # Has a pod
+    printf "  ${DIM}%-12s${RESET} worktree-%-6s  ${DIM}hash${RESET} %s\n" "Pod:" "$hash" "$hash"
+
+    if [[ "$pod_status" == Running* ]]; then
+      printf "  ${DIM}%-12s${RESET} %s containers running\n" "Containers:" "$pod_containers"
+      printf "  ${DIM}URLs:${RESET}\n"
+      printf "       ${GREEN}Phoenix${RESET}     https://%s.api.frontman.local\n" "$hash"
+      printf "       ${GREEN}Vite${RESET}        https://%s.vite.frontman.local\n" "$hash"
+      printf "       ${GREEN}Next.js${RESET}     https://%s.nextjs.frontman.local/frontman\n" "$hash"
+      printf "       ${GREEN}Storybook${RESET}   https://%s.storybook.frontman.local\n" "$hash"
+      printf "       ${GREEN}Marketing${RESET}   https://%s.marketing.frontman.local\n" "$hash"
+      echo ""
+      printf "  ${DIM}Actions:${RESET}     make wt-dev BRANCH=%s\n" "$branch"
+      printf "               make wt-stop BRANCH=%s\n" "$branch"
+      printf "               make wt-sh BRANCH=%s\n" "$branch"
+    else
+      printf "  ${DIM}%-12s${RESET} Pod stopped (volumes preserved)\n" "Status:"
+      printf "  ${DIM}Resume:${RESET}      make wt-start BRANCH=%s\n" "$branch"
+      printf "               make wt-rm BRANCH=%s\n" "$branch"
+    fi
+  else
+    # Plain worktree, no pod
+    printf "  ${DIM}%-12s${RESET} .worktrees/%s\n" "Path:" "$branch"
+    printf "  ${DIM}%-12s${RESET} Plain worktree (no container)\n" "Status:"
+
+    # Show git status summary
+    local wt_dir=".worktrees/$branch"
+    local git_status
+    git_status=$(git -C "$wt_dir" status -s 2>/dev/null | wc -l | tr -d ' ')
+    local current_branch
+    current_branch=$(git -C "$wt_dir" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
+    if [[ "$git_status" -gt 0 ]]; then
+      printf "  ${DIM}%-12s${RESET} on %s, ${YELLOW}%s uncommitted change(s)${RESET}\n" "Git:" "$current_branch" "$git_status"
+    else
+      printf "  ${DIM}%-12s${RESET} on %s, clean\n" "Git:" "$current_branch"
+    fi
+
+    printf "  ${DIM}Containerize:${RESET} make wt-new BRANCH=%s\n" "$branch"
+  fi
+}
+
+# ── Check for orphan pods (pod exists but worktree is gone) ──
+print_orphan_pods() {
+  local found_orphan=false
+  for hash in "${!POD_STATUS[@]}"; do
+    # Check if any worktree maps to this hash
+    local matched=false
+    if [[ -d ".worktrees" ]]; then
+      for wt in .worktrees/* .worktrees/*/*; do
+        [[ -d "$wt" ]] || continue
+        local name
+        name=$(echo "$wt" | sed 's|^\.worktrees/||')
+        local wt_hash
+        wt_hash=$(md5_short "$name")
+        if [[ "$wt_hash" == "$hash" ]]; then
+          matched=true
+          break
+        fi
+      done
+    fi
+
+    if ! $matched; then
+      if ! $found_orphan; then
+        echo ""
+        printf "  ${RED}Orphan pods (worktree missing):${RESET}\n"
+        found_orphan=true
+      fi
+      printf "    worktree-%-6s  ${DIM}status: %s${RESET}\n" "$hash" "${POD_STATUS[$hash]}"
+    fi
+  done
+}
+
+# ── Quick reference footer ─────────────────────────────
+print_footer() {
+  echo ""
+  printf "  %b\n" "$LINE"
+  printf "  ${DIM}Quick reference:${RESET}\n"
+  printf "    make wt-new   BRANCH=...   Create containerized worktree\n"
+  printf "    make wt-dev   BRANCH=...   Start dev servers (mprocs)\n"
+  printf "    make wt-stop  BRANCH=...   Pause (preserves data)\n"
+  printf "    make wt-start BRANCH=...   Resume paused worktree\n"
+  printf "    make wt-sh    BRANCH=...   Shell into container\n"
+  printf "    make wt-rm    BRANCH=...   Full cleanup\n"
+  printf "    make wt-urls  BRANCH=...   Show URLs only\n"
+  printf "    make wt-logs  BRANCH=...   Tail container logs\n"
+  echo ""
+}
+
+# ── Main ────────────────────────────────────────────────
+main() {
+  echo ""
+  printf "  ${BOLD}Frontman Worktrees${RESET}\n"
+  printf "  %b\n" "$LINE"
+  echo ""
+  infra_line
+  echo ""
+  printf "  %b\n" "$LINE"
+
+  # Collect data
+  collect_pods
+
+  local branches=()
+  collect_worktrees branches
+
+  if [[ ${#branches[@]} -eq 0 ]] && [[ ${#POD_STATUS[@]} -eq 0 ]]; then
+    echo ""
+    printf "  ${DIM}No worktrees found.${RESET}\n"
+    echo ""
+    printf "  Create one with: make wt-new BRANCH=feature/my-feature\n"
+    print_footer
+    return
+  fi
+
+  # Print each worktree
+  for branch in "${branches[@]}"; do
+    print_worktree "$branch"
+  done
+
+  # Check for orphan pods
+  print_orphan_pods
+
+  print_footer
+}
+
+main "$@"

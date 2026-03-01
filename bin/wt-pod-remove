@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+# Full cleanup: remove pod, volumes, secrets, and git worktree.
+# Called by: make wt-rm / make worktree-pod-remove
+#
+# Required env: BRANCH, MD5CMD
+
+set -euo pipefail
+
+GREEN='\033[32m'; YELLOW='\033[33m'; RESET='\033[0m'
+
+BRANCH="${BRANCH:?BRANCH is required}"
+
+HASH=$(echo -n "$BRANCH" | eval "$MD5CMD")
+POD_NAME="worktree-${HASH}"
+WT_DIR="$(pwd)/.worktrees/${BRANCH}"
+
+printf "${YELLOW}Removing containerized worktree: %s (%s)${RESET}\n" "$BRANCH" "$HASH"
+echo ""
+
+# ── Pod ─────────────────────────────────────────────────
+if podman pod inspect "$POD_NAME" &>/dev/null; then
+  printf "  Removing pod: %s...\n" "$POD_NAME"
+  podman pod rm -f "$POD_NAME" 2>/dev/null || true
+fi
+
+# ── Volumes ─────────────────────────────────────────────
+printf "  Removing volumes...\n"
+podman volume rm -f \
+  "worktree-${HASH}-pgdata" \
+  "worktree-${HASH}-node-modules" \
+  "worktree-${HASH}-mix-build" \
+  "worktree-${HASH}-mix-deps" \
+  2>/dev/null || true
+
+# ── Secrets ─────────────────────────────────────────────
+if [ -f "$WT_DIR/.env.secrets.resolved" ]; then
+  rm -f "$WT_DIR/.env.secrets.resolved"
+fi
+
+# ── Git worktree ────────────────────────────────────────
+if [ -d "$WT_DIR" ]; then
+  printf "  Removing git worktree...\n"
+  if git -C "$WT_DIR" diff --quiet 2>/dev/null &&
+     git -C "$WT_DIR" diff --cached --quiet 2>/dev/null; then
+    git worktree remove "$WT_DIR" 2>/dev/null ||
+      printf "${YELLOW}  Warning: Could not remove worktree (may need --force)${RESET}\n"
+  else
+    printf "${YELLOW}  Worktree has uncommitted changes — skipping removal${RESET}\n"
+    echo "  Force remove with: git worktree remove --force $WT_DIR"
+  fi
+fi
+
+# ── Caddy ───────────────────────────────────────────────
+bash ./infra/local/caddy-regen.sh
+echo ""
+printf "${GREEN}Cleanup complete${RESET}\n"

@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+# Start mprocs TUI inside a worktree's dev container.
+# Auto-starts pod + Caddy if stopped, checks deps, then launches mprocs.
+# Called by: make wt-dev / make worktree-pod-dev
+#
+# Required env: BRANCH, CADDY_CONTAINER, MD5CMD
+
+set -euo pipefail
+
+CYAN='\033[36m'; GREEN='\033[32m'; YELLOW='\033[33m'; RESET='\033[0m'
+
+BRANCH="${BRANCH:?BRANCH is required}"
+CADDY_CONTAINER="${CADDY_CONTAINER:?CADDY_CONTAINER is required}"
+
+HASH=$(echo -n "$BRANCH" | eval "$MD5CMD")
+POD_NAME="worktree-${HASH}"
+CONTAINER="worktree-${HASH}-dev"
+
+# ── Preflight ───────────────────────────────────────────
+if ! podman container inspect "$CONTAINER" &>/dev/null; then
+  printf "${YELLOW}Error: Container %s not found. Create it first:${RESET}\n" "$CONTAINER"
+  echo "  make wt-new BRANCH=${BRANCH}"
+  exit 1
+fi
+
+CADDY_STATE=$(podman container inspect "$CADDY_CONTAINER" --format '{{.State.Status}}' 2>/dev/null || echo "missing")
+if [[ "$CADDY_STATE" == "missing" ]]; then
+  printf "${YELLOW}Error: Caddy container not found. Run 'make infra-up' first.${RESET}\n"
+  exit 1
+elif [[ "$CADDY_STATE" != "running" ]]; then
+  printf "${YELLOW}Caddy is %s. Starting it...${RESET}\n" "$CADDY_STATE"
+  podman start "$CADDY_CONTAINER"
+fi
+
+STATE=$(podman container inspect "$CONTAINER" --format '{{.State.Status}}' 2>/dev/null)
+if [[ "$STATE" != "running" ]]; then
+  printf "${YELLOW}Pod %s is %s. Starting it...${RESET}\n" "$POD_NAME" "$STATE"
+  podman pod start "$POD_NAME"
+  printf "${GREEN}Pod started${RESET}\n"
+fi
+
+bash ./infra/local/caddy-regen.sh
+
+# ── Check dependencies ──────────────────────────────────
+printf "${CYAN}Checking dependencies in %s...${RESET}\n" "$CONTAINER"
+NODE_COUNT=$(podman exec -w /workspaces/frontman "$CONTAINER" \
+  bash -c 'ls node_modules/ 2>/dev/null | wc -l')
+MIX_DEPS=$(podman exec -w /workspaces/frontman/apps/frontman_server "$CONTAINER" \
+  bash -c 'ls deps/ 2>/dev/null | wc -l')
+
+if [[ "$NODE_COUNT" -lt 10 ]] || [[ "$MIX_DEPS" -lt 5 ]]; then
+  printf "${YELLOW}Dependencies missing (node_modules: %s, mix deps: %s). Running setup...${RESET}\n" "$NODE_COUNT" "$MIX_DEPS"
+  podman exec \
+    -e "WORKTREE_HASH=${HASH}" \
+    -e "WORKTREE_BRANCH=${BRANCH}" \
+    -w /workspaces/frontman \
+    "$CONTAINER" \
+    bash ./infra/local/worktree-setup.sh
+else
+  printf "${GREEN}Dependencies OK (node_modules: %s, mix deps: %s)${RESET}\n" "$NODE_COUNT" "$MIX_DEPS"
+fi
+
+# ── Launch mprocs ───────────────────────────────────────
+printf "${CYAN}Starting mprocs in %s...${RESET}\n" "$CONTAINER"
+podman exec -it -w /workspaces/frontman "$CONTAINER" \
+  bash -l -c 'eval "$(mise activate bash)" && exec mprocs --config mprocs.container.yml'

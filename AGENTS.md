@@ -17,7 +17,18 @@ cd .worktrees/feature/my-feature
 - Parallel dev servers on different ports
 - Self-contained dependencies per worktree
 
-**Management:**
+**Management (short aliases):**
+- `make wt` - **Dashboard** — shows all worktrees, pod status, URLs, and actions at a glance
+- `make wt-new BRANCH=...` - Create containerized worktree
+- `make wt-dev BRANCH=...` - Start dev servers (mprocs TUI)
+- `make wt-stop BRANCH=...` - Pause (preserves data)
+- `make wt-start BRANCH=...` - Resume paused worktree
+- `make wt-sh BRANCH=...` - Shell into container
+- `make wt-rm BRANCH=...` - Full cleanup (pod + volumes + worktree)
+- `make wt-urls BRANCH=...` - Show service URLs
+- `make wt-logs BRANCH=...` - Tail container logs
+
+**Management (long form):**
 - `make worktree-list` - List all worktrees
 - `make worktree-status` - Show git status of all worktrees
 - `make worktree-remove BRANCH=feature/my-feature` - Remove worktree

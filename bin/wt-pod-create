@@ -1,0 +1,129 @@
+#!/usr/bin/env bash
+# Create a containerized worktree: git worktree + Podman pod + postgres + dev container.
+# Called by: make wt-new / make worktree-pod-create
+#
+# Required env: BRANCH, FRONTMAN_NET, DEV_IMAGE, MD5CMD
+# MD5CMD is the platform-specific md5 pipeline (e.g. "md5sum | cut -c1-4")
+
+set -euo pipefail
+
+CYAN='\033[36m'; GREEN='\033[32m'; YELLOW='\033[33m'; RESET='\033[0m'
+
+BRANCH="${BRANCH:?BRANCH is required}"
+FRONTMAN_NET="${FRONTMAN_NET:?FRONTMAN_NET is required}"
+DEV_IMAGE="${DEV_IMAGE:?DEV_IMAGE is required}"
+
+HASH=$(echo -n "$BRANCH" | eval "$MD5CMD")
+POD_NAME="worktree-${HASH}"
+WT_DIR="$(pwd)/.worktrees/${BRANCH}"
+
+printf "${CYAN}Creating containerized worktree${RESET}\n"
+printf "  Branch: %s\n" "$BRANCH"
+printf "  Hash:   %s\n" "$HASH"
+printf "  Pod:    %s\n" "$POD_NAME"
+echo ""
+
+# ── Preflight ───────────────────────────────────────────
+if ! podman network inspect "$FRONTMAN_NET" &>/dev/null; then
+  printf "${YELLOW}Error: Infrastructure not set up. Run 'make infra-up' first.${RESET}\n"
+  exit 1
+fi
+if ! podman image inspect "$DEV_IMAGE" &>/dev/null; then
+  printf "${YELLOW}Error: Dev image not built. Run 'make infra-up' first.${RESET}\n"
+  exit 1
+fi
+if podman pod inspect "$POD_NAME" &>/dev/null; then
+  printf "${YELLOW}Pod %s already exists. Use 'make wt-start' to resume.${RESET}\n" "$POD_NAME"
+  exit 1
+fi
+
+# ── Git worktree ────────────────────────────────────────
+printf "${YELLOW}==> Creating git worktree...${RESET}\n"
+mkdir -p .worktrees
+if [ -d "$WT_DIR" ]; then
+  printf "${GREEN}Worktree already exists at %s${RESET}\n" "$WT_DIR"
+elif git show-ref --verify --quiet "refs/heads/${BRANCH}"; then
+  git worktree add "$WT_DIR" "$BRANCH"
+else
+  git worktree add "$WT_DIR" -b "$BRANCH"
+fi
+mkdir -p "$WT_DIR/.claude/projects" "$WT_DIR/.claude/plans" "$WT_DIR/.claude/todos"
+touch "$WT_DIR/.claude/history.jsonl"
+echo ""
+
+# ── Secrets ─────────────────────────────────────────────
+printf "${YELLOW}==> Resolving secrets...${RESET}\n"
+op run --no-masking --env-file=apps/frontman_server/envs/.dev.secrets.env -- env \
+  | grep -v '^_=' | grep -v '^SHLVL=' | grep -v '^PWD=' | grep -v '^OLDPWD=' \
+  | grep -E '^(WORKOS_|OPENROUTER_|SENTRY_|SECRET_|DATABASE_|PHX_|FRONTMAN_)' \
+  > "$WT_DIR/.env.secrets.resolved" || true
+echo ""
+
+# ── Pod + containers ────────────────────────────────────
+printf "${YELLOW}==> Creating Podman pod: %s${RESET}\n" "$POD_NAME"
+podman pod create --name "$POD_NAME" --network "$FRONTMAN_NET"
+echo ""
+
+printf "${YELLOW}==> Starting PostgreSQL...${RESET}\n"
+podman run -d \
+  --pod "$POD_NAME" \
+  --name "${POD_NAME}-pg" \
+  -e POSTGRES_USER=postgres \
+  -e POSTGRES_PASSWORD=postgres \
+  -v "worktree-${HASH}-pgdata:/var/lib/postgresql/data" \
+  docker.io/library/postgres:16
+echo ""
+
+printf "${YELLOW}==> Starting dev container...${RESET}\n"
+podman run -d \
+  --pod "$POD_NAME" \
+  --name "${POD_NAME}-dev" \
+  --user root \
+  -e "HOME=/home/vscode" \
+  --env-file "$WT_DIR/.env.secrets.resolved" \
+  -e "WORKTREE_HASH=${HASH}" \
+  -e "WORKTREE_BRANCH=${BRANCH}" \
+  -v "${WT_DIR}:/workspaces/frontman" \
+  -v "worktree-${HASH}-node-modules:/workspaces/frontman/node_modules" \
+  -v "worktree-${HASH}-mix-build:/workspaces/frontman/apps/frontman_server/_build" \
+  -v "worktree-${HASH}-mix-deps:/workspaces/frontman/apps/frontman_server/deps" \
+  "$DEV_IMAGE" \
+  sleep infinity
+echo ""
+
+# ── Wait for postgres ───────────────────────────────────
+printf "${YELLOW}==> Waiting for PostgreSQL to be ready...${RESET}\n"
+for _ in $(seq 1 30); do
+  if podman exec "${POD_NAME}-dev" bash -c 'pg_isready -h localhost -U postgres' &>/dev/null; then
+    break
+  fi
+  sleep 1
+done
+echo ""
+
+# ── Setup ───────────────────────────────────────────────
+printf "${YELLOW}==> Running setup inside container...${RESET}\n"
+podman exec \
+  -e "WORKTREE_HASH=${HASH}" \
+  -e "WORKTREE_BRANCH=${BRANCH}" \
+  -w /workspaces/frontman \
+  "${POD_NAME}-dev" \
+  bash ./infra/local/worktree-setup.sh
+echo ""
+
+# ── Caddy ───────────────────────────────────────────────
+printf "${YELLOW}==> Updating Caddy routes...${RESET}\n"
+bash ./infra/local/caddy-regen.sh
+echo ""
+
+# ── Done ────────────────────────────────────────────────
+printf "${GREEN}==> Containerized worktree ready!${RESET}\n"
+echo ""
+echo "Start development:"
+echo "  make wt-dev BRANCH=${BRANCH}"
+echo ""
+echo "URLs:"
+echo "  Phoenix:   https://${HASH}.api.frontman.local"
+echo "  Vite:      https://${HASH}.vite.frontman.local"
+echo "  Next.js:   https://${HASH}.nextjs.frontman.local/frontman"
+echo "  Storybook: https://${HASH}.storybook.frontman.local"
