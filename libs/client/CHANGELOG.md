@@ -1,4 +1,4 @@
-# @frontman/client
+# @frontman-ai/client
 
 ## 0.5.1
 

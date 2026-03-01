@@ -5,7 +5,7 @@
 // Requires the file to have been read first via read_file.
 
 module Fs = FrontmanBindings.Fs
-module Tool = FrontmanFrontmanProtocol.FrontmanProtocol__Tool
+module Tool = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool
 module PathContext = FrontmanCore__PathContext
 module FileTracker = FrontmanCore__FileTracker
 module Matcher = FrontmanCore__Tool__EditFile__Matcher

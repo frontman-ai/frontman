@@ -5,8 +5,8 @@
 // LogCapture (which captures webpack/turbopack output) rather than the
 // core version.
 
-module Tool = FrontmanFrontmanProtocol.FrontmanProtocol__Tool
-module Core = FrontmanFrontmanCore
+module Tool = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool
+module Core = FrontmanAiFrontmanCore
 module CoreEditFile = Core.FrontmanCore__Tool__EditFile
 module LogCapture = FrontmanNextjs__LogCapture
 

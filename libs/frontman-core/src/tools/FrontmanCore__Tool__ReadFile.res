@@ -1,7 +1,7 @@
 // Read file tool - reads file content with optional offset/limit
 
 module Fs = FrontmanBindings.Fs
-module Tool = FrontmanFrontmanProtocol.FrontmanProtocol__Tool
+module Tool = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool
 module PathContext = FrontmanCore__PathContext
 
 let name = Tool.ToolNames.readFile

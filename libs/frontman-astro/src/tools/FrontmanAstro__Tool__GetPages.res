@@ -3,8 +3,8 @@
 
 module Path = FrontmanBindings.Path
 module Fs = FrontmanBindings.Fs
-module Tool = FrontmanFrontmanProtocol.FrontmanProtocol__Tool
-module PathContext = FrontmanFrontmanCore.FrontmanCore__PathContext
+module Tool = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool
+module PathContext = FrontmanAiFrontmanCore.FrontmanCore__PathContext
 
 let name = "get_client_pages"
 let visibleToAgent = true

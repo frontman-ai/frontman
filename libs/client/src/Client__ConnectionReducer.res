@@ -8,10 +8,10 @@ module Log = FrontmanLogs.Logs.Make({
   let component = #ConnectionReducer
 })
 
-module ACP = FrontmanFrontmanClient.FrontmanClient__ACP
-module Relay = FrontmanFrontmanClient.FrontmanClient__Relay
-module MCPServer = FrontmanFrontmanClient.FrontmanClient__MCP__Server
-module Channel = FrontmanFrontmanClient.FrontmanClient__Phoenix__Channel
+module ACP = FrontmanAiFrontmanClient.FrontmanClient__ACP
+module Relay = FrontmanAiFrontmanClient.FrontmanClient__Relay
+module MCPServer = FrontmanAiFrontmanClient.FrontmanClient__MCP__Server
+module Channel = FrontmanAiFrontmanClient.FrontmanClient__Phoenix__Channel
 
 // Configuration for initialization
 type initConfig = {
@@ -83,14 +83,14 @@ type action =
   | SessionCreateSuccess(ACP.session)
   | SessionCreateError(string)
   | CreateSession({
-      onUpdate: (string, FrontmanFrontmanProtocol.FrontmanProtocol__ACP.sessionUpdate) => unit,
-      onMcpMessage: (FrontmanFrontmanClient.FrontmanClient__MCP.messageDirection, JSON.t) => unit,
+      onUpdate: (string, FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.sessionUpdate) => unit,
+      onMcpMessage: (FrontmanAiFrontmanClient.FrontmanClient__MCP.messageDirection, JSON.t) => unit,
       onComplete: result<string, string> => unit,
     })
   | SendPrompt({
       text: string,
-      additionalBlocks: array<FrontmanFrontmanProtocol.FrontmanProtocol__ACP.contentBlock>,
-      onComplete: result<FrontmanFrontmanProtocol.FrontmanProtocol__ACP.promptResult, string> => unit,
+      additionalBlocks: array<FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.contentBlock>,
+      onComplete: result<FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.promptResult, string> => unit,
       metadata: option<JSON.t>,
     })
   | PromptSent
@@ -98,8 +98,8 @@ type action =
   | LoadTask({
       taskId: string,
       needsHistory: bool,
-      onUpdate: (string, FrontmanFrontmanProtocol.FrontmanProtocol__ACP.sessionUpdate) => unit,
-      onMcpMessage: (FrontmanFrontmanClient.FrontmanClient__MCP.messageDirection, JSON.t) => unit,
+      onUpdate: (string, FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.sessionUpdate) => unit,
+      onMcpMessage: (FrontmanAiFrontmanClient.FrontmanClient__MCP.messageDirection, JSON.t) => unit,
       onComplete: result<unit, string> => unit,
     })
   | DeleteSession({taskId: string, onComplete: result<unit, string> => unit})
@@ -118,15 +118,15 @@ type effect =
   | CreateSessionEffect({
       connection: ACP.connection,
       mcpServer: MCPServer.t,
-      onUpdate: (string, FrontmanFrontmanProtocol.FrontmanProtocol__ACP.sessionUpdate) => unit,
-      onMcpMessage: (FrontmanFrontmanClient.FrontmanClient__MCP.messageDirection, JSON.t) => unit,
+      onUpdate: (string, FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.sessionUpdate) => unit,
+      onMcpMessage: (FrontmanAiFrontmanClient.FrontmanClient__MCP.messageDirection, JSON.t) => unit,
       onComplete: result<string, string> => unit,
     })
   | SendPromptEffect({
       session: ACP.session,
       text: string,
-      additionalBlocks: array<FrontmanFrontmanProtocol.FrontmanProtocol__ACP.contentBlock>,
-      onComplete: result<FrontmanFrontmanProtocol.FrontmanProtocol__ACP.promptResult, string> => unit,
+      additionalBlocks: array<FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.contentBlock>,
+      onComplete: result<FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.promptResult, string> => unit,
       metadata: option<JSON.t>,
     })
   | CancelPromptEffect({session: ACP.session})
@@ -136,8 +136,8 @@ type effect =
       mcpServer: MCPServer.t,
       taskId: string,
       needsHistory: bool,
-      onUpdate: (string, FrontmanFrontmanProtocol.FrontmanProtocol__ACP.sessionUpdate) => unit,
-      onMcpMessage: (FrontmanFrontmanClient.FrontmanClient__MCP.messageDirection, JSON.t) => unit,
+      onUpdate: (string, FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.sessionUpdate) => unit,
+      onMcpMessage: (FrontmanAiFrontmanClient.FrontmanClient__MCP.messageDirection, JSON.t) => unit,
       onComplete: result<unit, string> => unit,
     })
   | DeleteSessionEffect({connection: ACP.connection, taskId: string, onComplete: result<unit, string> => unit})

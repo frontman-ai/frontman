@@ -2,7 +2,7 @@
 // Allows the agent to simulate mobile/tablet/desktop viewports
 
 S.enableJson()
-module Tool = FrontmanFrontmanClient.FrontmanClient__MCP__Tool
+module Tool = FrontmanAiFrontmanClient.FrontmanClient__MCP__Tool
 type toolResult<'a> = Tool.toolResult<'a>
 
 let name = Tool.ToolNames.setDeviceMode

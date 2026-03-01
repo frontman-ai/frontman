@@ -1,6 +1,6 @@
 // Composable Tool Registry - holds and manages tools
 
-module Protocol = FrontmanFrontmanProtocol
+module Protocol = FrontmanAiFrontmanProtocol
 module Tool = Protocol.FrontmanProtocol__Tool
 module Relay = Protocol.FrontmanProtocol__Relay
 

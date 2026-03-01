@@ -881,7 +881,7 @@ describe("Client State Reducer - Session Loading Actions", () => {
   test("SessionsLoadSuccess adds sessions to tasks dict", t => {
     let state = Reducer.defaultState
 
-    let sessions: array<FrontmanFrontmanProtocol.FrontmanProtocol__ACP.sessionSummary> = [
+    let sessions: array<FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.sessionSummary> = [
       {
         sessionId: "session-1",
         title: "First Session",
@@ -955,7 +955,7 @@ describe("Client State Reducer - Session Loading Actions", () => {
     }
 
     // Load sessions including one with the same ID as existing task
-    let sessions: array<FrontmanFrontmanProtocol.FrontmanProtocol__ACP.sessionSummary> = [
+    let sessions: array<FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.sessionSummary> = [
       {
         sessionId: "session-1",
         title: "Should Not Overwrite",

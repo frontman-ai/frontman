@@ -5,7 +5,7 @@
 // - POST /tools/call - execute a tool with SSE streaming
 // - POST /resolve-source-location - resolve source maps
 
-module Protocol = FrontmanFrontmanProtocol
+module Protocol = FrontmanAiFrontmanProtocol
 module MCP = Protocol.FrontmanProtocol__MCP
 module Relay = Protocol.FrontmanProtocol__Relay
 module CoreServer = FrontmanCore__Server

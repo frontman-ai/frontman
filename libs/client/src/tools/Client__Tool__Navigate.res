@@ -2,7 +2,7 @@
 // Supports: goto URL, back, forward, refresh
 
 S.enableJson()
-module Tool = FrontmanFrontmanClient.FrontmanClient__MCP__Tool
+module Tool = FrontmanAiFrontmanClient.FrontmanClient__MCP__Tool
 type toolResult<'a> = Tool.toolResult<'a>
 
 let name = Tool.ToolNames.navigate

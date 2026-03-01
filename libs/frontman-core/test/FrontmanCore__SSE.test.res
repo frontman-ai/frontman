@@ -1,7 +1,7 @@
 open Vitest
 
 module SSE = FrontmanCore__SSE
-module MCP = FrontmanFrontmanProtocol.FrontmanProtocol__MCP
+module MCP = FrontmanAiFrontmanProtocol.FrontmanProtocol__MCP
 
 describe("SSE", _t => {
   test("formats progress event correctly", t => {

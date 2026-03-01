@@ -1,5 +1,8 @@
 {
-	"name": "@frontman/frontman-protocol",
+	"name": "@frontman-ai/frontman-protocol",
+	"publishConfig": {
+		"access": "public"
+	},
 	"version": "0.4.0",
 	"description": "Protocol definitions for Frontman",
 	"license": "Apache-2.0",

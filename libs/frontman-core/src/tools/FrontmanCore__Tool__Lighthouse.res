@@ -5,7 +5,7 @@ module ChromeLauncher = FrontmanCore__ChromeLauncher
 module ExnUtils = FrontmanCore__ExnUtils
 module Lighthouse = FrontmanBindings.Lighthouse
 module LighthouseRunner = FrontmanCore__Lighthouse
-module Tool = FrontmanFrontmanProtocol.FrontmanProtocol__Tool
+module Tool = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool
 
 let name = Tool.ToolNames.lighthouse
 let visibleToAgent = true

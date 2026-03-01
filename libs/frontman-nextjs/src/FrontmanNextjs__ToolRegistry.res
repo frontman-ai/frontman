@@ -1,6 +1,6 @@
 // Tool registry for Next.js - composes core tools with Next.js specific tools
 
-module Core = FrontmanFrontmanCore
+module Core = FrontmanAiFrontmanCore
 module CoreRegistry = Core.FrontmanCore__ToolRegistry
 
 // Re-export types from core

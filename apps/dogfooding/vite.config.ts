@@ -8,7 +8,7 @@ const fixReactImports = (): vite.Plugin => {
 		enforce: "pre",
 		transform(code, id) {
 			// Only transform the client library files
-			if (id.includes("@frontman/client") || id.includes("node_modules/@frontman/client")) {
+			if (id.includes("@frontman-ai/client") || id.includes("node_modules/@frontman-ai/client")) {
 				// React 19 should export jsxs and Fragment from jsx-runtime, but if there are issues,
 				// we can log them for debugging
 				return code;
@@ -24,7 +24,7 @@ export default vite.defineConfig({
 	},
 	optimizeDeps: {
 		include: ["react", "react-dom", "react/jsx-runtime"],
-		exclude: ["@frontman/client"],
+		exclude: ["@frontman-ai/client"],
 	},
 	resolve: {
 		dedupe: ["react", "react-dom"],

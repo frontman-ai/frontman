@@ -1,4 +1,4 @@
-# @frontman/frontman-client
+# @frontman-ai/frontman-client
 
 Browser-based client library implementing MCP (Model Context Protocol) server for AI agent tool execution, with support for multiple transport mechanisms.
 
@@ -63,7 +63,7 @@ let channel = Phoenix__Channel.create(socket, "agent:lobby")
 ## Dependencies
 
 - `phoenix` ^1.7.0 - WebSocket transport
-- `@frontman/frontman-protocol` - Type definitions
+- `@frontman-ai/frontman-protocol` - Type definitions
 
 ## Commands
 

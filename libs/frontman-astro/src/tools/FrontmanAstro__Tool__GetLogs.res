@@ -1,7 +1,7 @@
 // Astro GetLogs tool - retrieves dev server logs from the core LogCapture buffer
 
-module Tool = FrontmanFrontmanProtocol.FrontmanProtocol__Tool
-module Core = FrontmanFrontmanCore
+module Tool = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool
+module Core = FrontmanAiFrontmanCore
 module LogCapture = Core.FrontmanCore__LogCapture
 module CircularBuffer = Core.FrontmanCore__CircularBuffer
 

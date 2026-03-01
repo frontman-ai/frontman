@@ -9,8 +9,8 @@ export default defineConfig([
     clean: true,
     // Bundle internal workspace dependencies
     noExternal: [
-      '@frontman/frontman-core',
-      '@frontman/frontman-protocol',
+      '@frontman-ai/frontman-core',
+      '@frontman-ai/frontman-protocol',
       '@frontman/bindings',
       '@rescript/runtime',
       'sury',
@@ -61,8 +61,8 @@ export default defineConfig([
     outDir: 'dist',
     clean: false, // Don't clean, we already did in first build
     noExternal: [
-      '@frontman/frontman-core',
-      '@frontman/frontman-protocol',
+      '@frontman-ai/frontman-core',
+      '@frontman-ai/frontman-protocol',
       '@frontman/bindings',
       '@rescript/runtime',
       'sury',
@@ -112,8 +112,8 @@ export default defineConfig([
     outDir: 'dist',
     clean: false,
     noExternal: [
-      '@frontman/frontman-core',
-      '@frontman/frontman-protocol',
+      '@frontman-ai/frontman-core',
+      '@frontman-ai/frontman-protocol',
       '@frontman/bindings',
       '@rescript/runtime',
       'sury',

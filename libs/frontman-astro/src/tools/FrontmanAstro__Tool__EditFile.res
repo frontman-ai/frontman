@@ -4,8 +4,8 @@
 // errors 800ms after the edit. This gives Astro/Vite's HMR time to process
 // the change and report any issues.
 
-module Tool = FrontmanFrontmanProtocol.FrontmanProtocol__Tool
-module Core = FrontmanFrontmanCore
+module Tool = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool
+module Core = FrontmanAiFrontmanCore
 module CoreEditFile = Core.FrontmanCore__Tool__EditFile
 module LogCapture = Core.FrontmanCore__LogCapture
 

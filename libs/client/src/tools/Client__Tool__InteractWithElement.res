@@ -3,7 +3,7 @@
 // Elements can be targeted by CSS selector, role+name, or text content.
 
 S.enableJson()
-module Tool = FrontmanFrontmanClient.FrontmanClient__MCP__Tool
+module Tool = FrontmanAiFrontmanClient.FrontmanClient__MCP__Tool
 type toolResult<'a> = Tool.toolResult<'a>
 
 let name = Tool.ToolNames.interactWithElement

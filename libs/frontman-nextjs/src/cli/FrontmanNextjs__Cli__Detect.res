@@ -3,7 +3,7 @@ module Bindings = FrontmanBindings
 module Fs = Bindings.Fs
 module Path = Bindings.Path
 module Process = Bindings.Process
-module FsUtils = FrontmanFrontmanCore.FrontmanCore__FsUtils
+module FsUtils = FrontmanAiFrontmanCore.FrontmanCore__FsUtils
 
 type nextVersion = {
   major: int,

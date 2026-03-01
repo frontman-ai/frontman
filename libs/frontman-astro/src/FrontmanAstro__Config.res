@@ -1,7 +1,7 @@
 // Astro configuration for Frontman
 
 module Bindings = FrontmanBindings
-module Hosts = FrontmanFrontmanCore.FrontmanCore__Hosts
+module Hosts = FrontmanAiFrontmanCore.FrontmanCore__Hosts
 
 // Default host can be overridden via FRONTMAN_HOST env var for remote development
 let defaultHost = switch Bindings.Process.env->Dict.get("FRONTMAN_HOST") {

@@ -1,4 +1,4 @@
-# @frontman/frontman-core
+# @frontman-ai/frontman-core
 
 ## 0.5.1
 

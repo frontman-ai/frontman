@@ -1,7 +1,7 @@
 // Request handlers for Frontman Astro endpoints
 // Thin wrapper around shared core request handlers
 
-module Core = FrontmanFrontmanCore
+module Core = FrontmanAiFrontmanCore
 module CoreRequestHandlers = Core.FrontmanCore__RequestHandlers
 module CoreCORS = Core.FrontmanCore__CORS
 module ToolRegistry = FrontmanAstro__ToolRegistry

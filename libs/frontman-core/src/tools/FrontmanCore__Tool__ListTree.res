@@ -6,7 +6,7 @@
 module Path = FrontmanBindings.Path
 module Fs = FrontmanBindings.Fs
 module ChildProcess = FrontmanCore__ChildProcess
-module Tool = FrontmanFrontmanProtocol.FrontmanProtocol__Tool
+module Tool = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool
 module PathContext = FrontmanCore__PathContext
 module FsUtils = FrontmanCore__FsUtils
 

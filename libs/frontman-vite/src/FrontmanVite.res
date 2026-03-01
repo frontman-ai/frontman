@@ -8,7 +8,7 @@ module ToolRegistry = FrontmanVite__ToolRegistry
 module Plugin = FrontmanVite__Plugin
 
 // Re-export core SSE for convenience
-module SSE = FrontmanFrontmanCore.FrontmanCore__SSE
+module SSE = FrontmanAiFrontmanCore.FrontmanCore__SSE
 
 // Re-export for convenience
 let createMiddleware = Middleware.createMiddleware

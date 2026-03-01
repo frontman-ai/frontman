@@ -1,7 +1,7 @@
 // Middleware factory for Next.js
 // Thin wrapper around shared core middleware
 
-module Core = FrontmanFrontmanCore
+module Core = FrontmanAiFrontmanCore
 module CoreMiddleware = Core.FrontmanCore__Middleware
 module CoreMiddlewareConfig = Core.FrontmanCore__MiddlewareConfig
 module Server = FrontmanNextjs__Server

@@ -4,6 +4,6 @@
 	"license": "AGPL-3.0-only",
 	"private": true,
 	"dependencies": {
-		"@frontman/frontman-client": "workspace:*"
+		"@frontman-ai/frontman-client": "workspace:*"
 	}
 }

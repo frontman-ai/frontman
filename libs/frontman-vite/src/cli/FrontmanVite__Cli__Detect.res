@@ -2,7 +2,7 @@
 module Bindings = FrontmanBindings
 module Fs = Bindings.Fs
 module Path = Bindings.Path
-module FsUtils = FrontmanFrontmanCore.FrontmanCore__FsUtils
+module FsUtils = FrontmanAiFrontmanCore.FrontmanCore__FsUtils
 
 type packageManager =
   | Npm

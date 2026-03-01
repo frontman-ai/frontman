@@ -1,8 +1,8 @@
 open Vitest
 
 module Client = FrontmanClient__ACP__Client
-module Types = FrontmanFrontmanProtocol.FrontmanProtocol__ACP
-module JsonRpc = FrontmanFrontmanProtocol.FrontmanProtocol__JsonRpc
+module Types = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
+module JsonRpc = FrontmanAiFrontmanProtocol.FrontmanProtocol__JsonRpc
 
 describe("ACP Client State Reducer", _t => {
   test("initialState has correct defaults", t => {

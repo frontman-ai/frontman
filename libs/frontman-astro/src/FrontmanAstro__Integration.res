@@ -114,7 +114,7 @@ let make = (configInput: Config.jsConfigInput): Bindings.astroIntegration => {
         ({server, toolbar}) => {
           // Initialize core LogCapture to intercept console/stdout for the
           // get_logs tool and post-edit error checking in edit_file
-          FrontmanFrontmanCore.FrontmanCore__LogCapture.initialize()
+          FrontmanAiFrontmanCore.FrontmanCore__LogCapture.initialize()
 
           // Rewrite Frontman routes so Astro's trailingSlash: "always" doesn't
           // 404 them. Astro's trailing-slash check runs inside its Connect

@@ -2,7 +2,7 @@
 // Usage: npx @frontman-ai/nextjs install --server <host>
 
 module Process = FrontmanBindings.Process
-module Hosts = FrontmanFrontmanCore.FrontmanCore__Hosts
+module Hosts = FrontmanAiFrontmanCore.FrontmanCore__Hosts
 module Install = FrontmanNextjs__Cli__Install
 
 // Parse command line arguments (simple implementation without external deps)

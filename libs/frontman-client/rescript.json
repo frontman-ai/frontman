@@ -1,5 +1,5 @@
 {
-	"name": "@frontman/frontman-client",
+	"name": "@frontman-ai/frontman-client",
 	"namespace": true,
 	"sources": [
 		{
@@ -20,7 +20,7 @@
 		}
 	],
 	"ppx-flags": ["sury-ppx/bin"],
-	"dependencies": ["@rescript/webapi", "sury", "@frontman/bindings", "@frontman/frontman-protocol", "@frontman/logs"],
+	"dependencies": ["@rescript/webapi", "sury", "@frontman/bindings", "@frontman-ai/frontman-protocol", "@frontman/logs"],
 	"dev-dependencies": ["rescript-vitest"],
 	"jsx": {
 		"version": 4

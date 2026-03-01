@@ -6,7 +6,7 @@
 
 module NodeHttp = FrontmanBindings.NodeHttp
 module WebStreams = FrontmanBindings.WebStreams
-module CoreMiddleware = FrontmanFrontmanCore.FrontmanCore__Middleware
+module CoreMiddleware = FrontmanAiFrontmanCore.FrontmanCore__Middleware
 
 // Collect the full request body by async-iterating over the IncomingMessage stream
 let collectRequestBody: NodeHttp.incomingMessage => promise<NodeHttp.Buffer.t> = %raw(`

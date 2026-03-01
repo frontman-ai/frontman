@@ -6,7 +6,7 @@
  */
 
 module Icons = Client__ToolIcons
-module ACPTypes = FrontmanFrontmanProtocol.FrontmanProtocol__ACP
+module ACPTypes = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
 
 // Status helpers
 let statusToCompleted = (status: ACPTypes.planEntryStatus): bool => {

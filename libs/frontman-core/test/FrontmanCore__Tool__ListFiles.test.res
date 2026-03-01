@@ -3,7 +3,7 @@
 open Vitest
 
 module ListFiles = FrontmanCore__Tool__ListFiles
-module Tool = FrontmanFrontmanProtocol.FrontmanProtocol__Tool
+module Tool = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool
 module Path = FrontmanBindings.Path
 module ChildProcess = FrontmanCore__ChildProcess
 module Process = FrontmanBindings.Process

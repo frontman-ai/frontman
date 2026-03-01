@@ -5,7 +5,7 @@
  */
 
 module PlanList = Client__PlanList
-module ACPTypes = FrontmanFrontmanProtocol.FrontmanProtocol__ACP
+module ACPTypes = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
 
 @react.component
 let make = (~entries: array<ACPTypes.planEntry>) => {

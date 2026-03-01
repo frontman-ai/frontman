@@ -4,11 +4,11 @@
 	"dependencies": [
 		"@frontman/chrome-extension",
 		"@frontman/bindings",
-		"@frontman/client",
+		"@frontman-ai/client",
 		"@frontman-ai/astro",
-		"@frontman/frontman-client",
+		"@frontman-ai/frontman-client",
 		"@frontman-ai/nextjs",
-		"@frontman/frontman-protocol",
+		"@frontman-ai/frontman-protocol",
 		"@frontman/react-statestore",
 		"@rescript/webapi"
 	],

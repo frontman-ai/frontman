@@ -1,4 +1,4 @@
-# @frontman/frontman-protocol
+# @frontman-ai/frontman-protocol
 
 Shared protocol definitions and type schemas for communication between clients and servers, defining the contract for tool-based systems.
 

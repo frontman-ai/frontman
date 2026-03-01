@@ -3,7 +3,7 @@
 
 module Types = FrontmanClient__MCP__Types
 module Tool = FrontmanClient__MCP__Tool
-module ToolNames = FrontmanFrontmanProtocol.FrontmanProtocol__Tool.ToolNames
+module ToolNames = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.ToolNames
 module Relay = FrontmanClient__Relay
 module Log = FrontmanLogs.Logs.Make({
   let component = #MCPServer

@@ -1,7 +1,7 @@
 // Request handlers for Frontman Vite endpoints
 // Thin wrapper around shared core request handlers
 
-module Core = FrontmanFrontmanCore
+module Core = FrontmanAiFrontmanCore
 module CoreRequestHandlers = Core.FrontmanCore__RequestHandlers
 module ToolRegistry = FrontmanVite__ToolRegistry
 module Config = FrontmanVite__Config

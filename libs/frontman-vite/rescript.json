@@ -18,8 +18,8 @@
 	"dependencies": [
 		"@rescript/webapi",
 		"sury",
-		"@frontman/frontman-protocol",
-		"@frontman/frontman-core",
+		"@frontman-ai/frontman-protocol",
+		"@frontman-ai/frontman-core",
 		"@frontman/bindings"
 	],
 	"dev-dependencies": ["rescript-vitest"],

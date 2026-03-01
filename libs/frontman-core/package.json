@@ -1,5 +1,8 @@
 {
-	"name": "@frontman/frontman-core",
+	"name": "@frontman-ai/frontman-core",
+	"publishConfig": {
+		"access": "public"
+	},
 	"version": "0.5.1",
 	"description": "Core server-side tools for Frontman",
 	"license": "Apache-2.0",
@@ -33,8 +36,8 @@
 		"prepublishOnly": "yarn build"
 	},
 	"dependencies": {
+		"@frontman-ai/frontman-protocol": "0.4.0",
 		"@frontman/bindings": "0.3.0",
-		"@frontman/frontman-protocol": "0.4.0",
 		"@rescript/runtime": "12.0.0-beta.14",
 		"chrome-launcher": "^1.1.2",
 		"lighthouse": "^12.5.1",

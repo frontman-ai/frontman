@@ -2,7 +2,7 @@
 // Usage: npx @frontman-ai/vite install --server <host>
 
 module Process = FrontmanBindings.Process
-module Hosts = FrontmanFrontmanCore.FrontmanCore__Hosts
+module Hosts = FrontmanAiFrontmanCore.FrontmanCore__Hosts
 module Install = FrontmanVite__Cli__Install
 
 // Parse command line arguments

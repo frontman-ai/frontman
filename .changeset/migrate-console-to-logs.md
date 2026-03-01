@@ -1,5 +1,5 @@
 ---
-"@frontman/client": patch
+"@frontman-ai/client": patch
 "@frontman/react-statestore": patch
 "@frontman/logs": patch
 ---

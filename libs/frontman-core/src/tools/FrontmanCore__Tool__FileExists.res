@@ -1,6 +1,6 @@
 // File exists tool - checks if a file or directory exists
 
-module Tool = FrontmanFrontmanProtocol.FrontmanProtocol__Tool
+module Tool = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool
 module SafePath = FrontmanCore__SafePath
 module FsUtils = FrontmanCore__FsUtils
 

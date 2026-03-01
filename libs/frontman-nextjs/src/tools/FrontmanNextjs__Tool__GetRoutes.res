@@ -2,7 +2,7 @@
 
 module Path = FrontmanBindings.Path
 module Fs = FrontmanBindings.Fs
-module Tool = FrontmanFrontmanProtocol.FrontmanProtocol__Tool
+module Tool = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool
 
 let name = "get_routes"
 let visibleToAgent = true

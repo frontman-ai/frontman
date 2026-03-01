@@ -1,6 +1,6 @@
 open Vitest
 
-module JsonRpc = FrontmanFrontmanProtocol.FrontmanProtocol__JsonRpc
+module JsonRpc = FrontmanAiFrontmanProtocol.FrontmanProtocol__JsonRpc
 
 describe("JsonRpc Request", _t => {
   test("make creates request with correct fields", t => {

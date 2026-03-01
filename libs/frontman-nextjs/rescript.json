@@ -20,7 +20,7 @@
 		}
 	],
 	"ppx-flags": ["sury-ppx/bin"],
-	"dependencies": ["@rescript/webapi", "sury", "@frontman/frontman-protocol", "@frontman/frontman-core", "@frontman/bindings"],
+	"dependencies": ["@rescript/webapi", "sury", "@frontman-ai/frontman-protocol", "@frontman-ai/frontman-core", "@frontman/bindings"],
 	"dev-dependencies": ["rescript-vitest"],
 	"jsx": {
 		"version": 4

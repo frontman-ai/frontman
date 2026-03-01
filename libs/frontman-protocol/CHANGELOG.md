@@ -1,4 +1,4 @@
-# @frontman/frontman-protocol
+# @frontman-ai/frontman-protocol
 
 ## 0.4.0
 

@@ -1,9 +1,9 @@
 open Vitest
 
 module Reducer = Client__ConnectionReducer
-module ACP = FrontmanFrontmanClient.FrontmanClient__ACP
-module Relay = FrontmanFrontmanClient.FrontmanClient__Relay
-module MCPServer = FrontmanFrontmanClient.FrontmanClient__MCP__Server
+module ACP = FrontmanAiFrontmanClient.FrontmanClient__ACP
+module Relay = FrontmanAiFrontmanClient.FrontmanClient__Relay
+module MCPServer = FrontmanAiFrontmanClient.FrontmanClient__MCP__Server
 
 // Helper to check if effect list contains a specific effect type
 let hasEffect = (effects, predicate) => effects->Array.some(predicate)

@@ -62,8 +62,8 @@
 		"vite": ">=5.0.0"
 	},
 	"devDependencies": {
-		"@frontman/frontman-core": "*",
-		"@frontman/frontman-protocol": "*",
+		"@frontman-ai/frontman-core": "*",
+		"@frontman-ai/frontman-protocol": "*",
 		"@rescript/runtime": "12.0.0-beta.14",
 		"@rescript/webapi": "*",
 		"@vitest/ui": "catalog:",

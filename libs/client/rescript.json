@@ -1,5 +1,5 @@
 {
-	"name": "@frontman/client",
+	"name": "@frontman-ai/client",
 	"namespace": true,
 	"sources": [
 		{
@@ -31,9 +31,9 @@
 		"@frontman/logs",
 		"@rescript/react",
 		"@rescript/webapi",
-		"@frontman/frontman-client",
+		"@frontman-ai/frontman-client",
 		"@frontman-ai/nextjs",
-		"@frontman/frontman-protocol",
+		"@frontman-ai/frontman-protocol",
 		"@frontman/react-statestore",
 		"sury"
 	],

@@ -1,7 +1,7 @@
 // Main ACP Client entry point
 // Thin orchestrator - delegates to Protocol for messaging, uses Constants for topics
 
-module Types = FrontmanFrontmanProtocol.FrontmanProtocol__ACP
+module Types = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
 module Client = FrontmanClient__ACP__Client
 module Protocol = FrontmanClient__ACP__Protocol
 module Channel = FrontmanClient__Phoenix__Channel

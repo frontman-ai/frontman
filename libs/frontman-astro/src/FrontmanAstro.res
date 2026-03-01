@@ -14,7 +14,7 @@ module Integration = FrontmanAstro__Integration
 module ViteAdapter = FrontmanAstro__ViteAdapter
 
 // Re-export core SSE for convenience
-module SSE = FrontmanFrontmanCore.FrontmanCore__SSE
+module SSE = FrontmanAiFrontmanCore.FrontmanCore__SSE
 
 // The main integration factory - accepts optional config
 // This is also exported as default for `astro add` compatibility

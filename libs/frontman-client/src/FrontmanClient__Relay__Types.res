@@ -1,2 +1,2 @@
 // Re-export from protocol package
-include FrontmanFrontmanProtocol.FrontmanProtocol__Relay
+include FrontmanAiFrontmanProtocol.FrontmanProtocol__Relay

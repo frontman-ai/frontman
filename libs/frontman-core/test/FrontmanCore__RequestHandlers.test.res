@@ -2,7 +2,7 @@ open Vitest
 
 module RequestHandlers = FrontmanCore__RequestHandlers
 module ToolRegistry = FrontmanCore__ToolRegistry
-module Relay = FrontmanFrontmanProtocol.FrontmanProtocol__Relay
+module Relay = FrontmanAiFrontmanProtocol.FrontmanProtocol__Relay
 
 module Helpers = {
   let handlerConfig: RequestHandlers.handlerConfig = {

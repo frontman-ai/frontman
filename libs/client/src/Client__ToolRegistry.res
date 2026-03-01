@@ -1,7 +1,7 @@
 // Client-side Tool Registry - composable browser tool collection
 // Mirrors the server-side FrontmanCore__ToolRegistry pattern
 
-module FrontmanClient = FrontmanFrontmanClient
+module FrontmanClient = FrontmanAiFrontmanClient
 module MCPServer = FrontmanClient.FrontmanClient__MCP__Server
 module Tool = FrontmanClient.FrontmanClient__MCP__Tool
 

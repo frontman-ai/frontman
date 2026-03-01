@@ -1,2 +1,2 @@
 // Re-export from protocol package
-include FrontmanFrontmanProtocol.FrontmanProtocol__MCP
+include FrontmanAiFrontmanProtocol.FrontmanProtocol__MCP

@@ -1,6 +1,6 @@
 // Tool registry for Vite - composes core tools with Vite-specific tools
 
-module Core = FrontmanFrontmanCore
+module Core = FrontmanAiFrontmanCore
 module CoreRegistry = Core.FrontmanCore__ToolRegistry
 
 // Re-export types from core

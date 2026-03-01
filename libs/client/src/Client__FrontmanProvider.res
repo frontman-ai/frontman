@@ -5,10 +5,10 @@ module Log = FrontmanLogs.Logs.Make({
   let component = #FrontmanProvider
 })
 
-module ACP = FrontmanFrontmanClient.FrontmanClient__ACP
-module Types = FrontmanFrontmanProtocol.FrontmanProtocol__ACP
-module Relay = FrontmanFrontmanClient.FrontmanClient__Relay
-module MCPServer = FrontmanFrontmanClient.FrontmanClient__MCP__Server
+module ACP = FrontmanAiFrontmanClient.FrontmanClient__ACP
+module Types = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
+module Relay = FrontmanAiFrontmanClient.FrontmanClient__Relay
+module MCPServer = FrontmanAiFrontmanClient.FrontmanClient__MCP__Server
 module Reducer = Client__ConnectionReducer
 module StateReducer = FrontmanReactStatestore.StateReducer
 module RuntimeConfig = Client__RuntimeConfig
@@ -90,7 +90,7 @@ module Provider = {
     })
 
     let logMCPMessage = React.useCallback0((direction, payload) => {
-      let arrow = direction == FrontmanFrontmanClient.FrontmanClient__MCP.Send ? `→` : `←`
+      let arrow = direction == FrontmanAiFrontmanClient.FrontmanClient__MCP.Send ? `→` : `←`
       Log.debug(~ctx={"payload": payload}, `MCP ${arrow}`)
     })
 

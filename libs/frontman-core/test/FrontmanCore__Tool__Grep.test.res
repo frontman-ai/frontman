@@ -3,7 +3,7 @@
 open Vitest
 
 module Grep = FrontmanCore__Tool__Grep
-module Tool = FrontmanFrontmanProtocol.FrontmanProtocol__Tool
+module Tool = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool
 module Path = FrontmanBindings.Path
 module Fs = FrontmanBindings.Fs
 module Os = FrontmanBindings.Os

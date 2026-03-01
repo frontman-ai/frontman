@@ -4,7 +4,7 @@ open Vitest
 
 module Lighthouse = FrontmanCore__Tool__Lighthouse
 module LighthouseBindings = FrontmanBindings.Lighthouse
-module Tool = FrontmanFrontmanProtocol.FrontmanProtocol__Tool
+module Tool = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool
 
 // Create a mock execution context
 let mockCtx: Tool.serverExecutionContext = {

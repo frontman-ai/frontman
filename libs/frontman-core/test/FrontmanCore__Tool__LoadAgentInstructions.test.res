@@ -2,7 +2,7 @@ open Vitest
 
 module Tool = FrontmanCore__Tool__LoadAgentInstructions
 module Bindings = FrontmanBindings
-module Protocol = FrontmanFrontmanProtocol.FrontmanProtocol__Tool
+module Protocol = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool
 
 let fixturesPath = Bindings.Path.join([
   Bindings.Process.cwd(),

@@ -1,8 +1,8 @@
 import { defineConfig } from 'tsup';
 
 const sharedNoExternal = [
-  '@frontman/frontman-core',
-  '@frontman/frontman-protocol',
+  '@frontman-ai/frontman-core',
+  '@frontman-ai/frontman-protocol',
   '@frontman/bindings',
   '@rescript/runtime',
   'sury',

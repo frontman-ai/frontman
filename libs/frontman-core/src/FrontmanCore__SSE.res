@@ -1,6 +1,6 @@
 // SSE (Server-Sent Events) response helpers
 
-module Protocol = FrontmanFrontmanProtocol
+module Protocol = FrontmanAiFrontmanProtocol
 module MCP = Protocol.FrontmanProtocol__MCP
 
 // Format SSE event

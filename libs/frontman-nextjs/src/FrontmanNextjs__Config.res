@@ -1,5 +1,5 @@
 module Bindings = FrontmanBindings
-module Hosts = FrontmanFrontmanCore.FrontmanCore__Hosts
+module Hosts = FrontmanAiFrontmanCore.FrontmanCore__Hosts
 
 // Default host can be overridden via env vars for development.
 // Priority:

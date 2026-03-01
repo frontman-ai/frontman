@@ -1,7 +1,7 @@
 // Request handlers for Frontman Next.js endpoints
 // Thin wrapper around shared core request handlers
 
-module Core = FrontmanFrontmanCore
+module Core = FrontmanAiFrontmanCore
 module CoreRequestHandlers = Core.FrontmanCore__RequestHandlers
 module ToolRegistry = FrontmanNextjs__ToolRegistry
 

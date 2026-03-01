@@ -148,7 +148,7 @@ jobs:
       # write .res.mjs output to src/, not lib/.  Restoring stale lib/
       # metadata without the corresponding src/*.res.mjs files causes
       # ReScript to skip recompilation, leaving tsup unable to resolve
-      # imports like @frontman/frontman-core/src/FrontmanCore__Hosts.res.mjs.
+      # imports like @frontman-ai/frontman-core/src/FrontmanCore__Hosts.res.mjs.
       - name: Cache JS build artifacts
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         id: js-build-cache

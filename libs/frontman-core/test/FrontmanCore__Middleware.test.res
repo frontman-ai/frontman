@@ -3,7 +3,7 @@ open Vitest
 module Middleware = FrontmanCore__Middleware
 module MiddlewareConfig = FrontmanCore__MiddlewareConfig
 module ToolRegistry = FrontmanCore__ToolRegistry
-module Relay = FrontmanFrontmanProtocol.FrontmanProtocol__Relay
+module Relay = FrontmanAiFrontmanProtocol.FrontmanProtocol__Relay
 
 module Helpers = {
   let config: MiddlewareConfig.t = {

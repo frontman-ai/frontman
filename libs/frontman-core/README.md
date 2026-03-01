@@ -1,4 +1,4 @@
-# @frontman/frontman-core
+# @frontman-ai/frontman-core
 
 Core server functionality shared across framework adapters, providing a composable tool registry and HTTP server implementation with built-in file system and code search tools.
 
@@ -60,7 +60,7 @@ let result = await Server.executeTool(registry, "ReadFile", {
 ## Dependencies
 
 - `@frontman/bindings` - File I/O and process execution
-- `@frontman/frontman-protocol` - Tool type definitions
+- `@frontman-ai/frontman-protocol` - Tool type definitions
 - `vscode-ripgrep` - Fast content search
 
 ## Commands

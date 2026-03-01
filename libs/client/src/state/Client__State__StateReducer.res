@@ -83,7 +83,7 @@ type action =
   // Session loading actions
   | SessionsLoadStarted
   | SessionsLoadSuccess({
-      sessions: array<FrontmanFrontmanProtocol.FrontmanProtocol__ACP.sessionSummary>,
+      sessions: array<FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.sessionSummary>,
     })
   | SessionsLoadError({error: string})
 

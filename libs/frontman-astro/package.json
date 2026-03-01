@@ -63,9 +63,9 @@
 		"access": "public"
 	},
 	"devDependencies": {
+		"@frontman-ai/frontman-core": "*",
+		"@frontman-ai/frontman-protocol": "*",
 		"@frontman/bindings": "*",
-		"@frontman/frontman-core": "*",
-		"@frontman/frontman-protocol": "*",
 		"@rescript/runtime": "12.0.0-beta.14",
 		"@rescript/webapi": "*",
 		"@vitest/ui": "catalog:",

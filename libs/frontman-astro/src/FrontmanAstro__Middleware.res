@@ -7,7 +7,7 @@
 
 module Config = FrontmanAstro__Config
 module ToolRegistry = FrontmanAstro__ToolRegistry
-module Core = FrontmanFrontmanCore
+module Core = FrontmanAiFrontmanCore
 module CoreMiddleware = Core.FrontmanCore__Middleware
 module CoreMiddlewareConfig = Core.FrontmanCore__MiddlewareConfig
 

@@ -4,7 +4,7 @@
 
 module Types = FrontmanClient__MCP__Types
 module Channel = FrontmanClient__Phoenix__Channel
-module JsonRpc = FrontmanFrontmanProtocol.FrontmanProtocol__JsonRpc
+module JsonRpc = FrontmanAiFrontmanProtocol.FrontmanProtocol__JsonRpc
 module Decoders = FrontmanClient__Decoders
 module Log = FrontmanLogs.Logs.Make({
   let component = #MCP
