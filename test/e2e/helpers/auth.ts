@@ -53,6 +53,14 @@ async function loginOnce(
 
   await page.goto(loginUrl.toString());
 
+  // If the session cookie is already valid (e.g. vitest retry reusing
+  // the same browser context), Phoenix redirects away from /users/log-in
+  // immediately.  In that case the login form never appears — skip it.
+  if (!page.url().includes("/users/log-in")) {
+    console.log(`  [e2e] Already authenticated — skipped login form (URL: ${page.url()})`);
+    return;
+  }
+
   // Fill the dev login form
   await page.locator("#login-form").waitFor({ state: "visible", timeout: 30_000 });
   await page.fill('#login-form input[type="email"]', E2E_EMAIL);

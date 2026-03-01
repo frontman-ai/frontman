@@ -850,7 +850,7 @@ let handleEffect = (effect: effect, ~dispatch: action => unit, ~delegate: delega
       let sourceLocationPromise = {
         let detectionPromise = switch contentWindow {
         | Some(window) =>
-          Bindings__SourceDetection.getElementSourceLocation(~element, ~window)
+          Client__SourceDetection.getElementSourceLocation(~element, ~window)
           ->Promise.catch(error => {
             Log.error(~ctx={"error": error}, "Failed to get source location")
             Promise.resolve(None)

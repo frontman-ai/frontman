@@ -82,6 +82,16 @@ and a dev container sharing localhost. A single Caddy reverse proxy routes
 - Use `%raw` only when there is no practical typed binding or the browser API cannot be expressed cleanly in ReScript.
 - Keep `%raw` blocks minimal and isolated to small interop boundaries; keep business logic and event handling in ReScript.
 - For DOM/browser events, prefer typed ReScript handlers plus small externals for missing fields instead of full raw listener implementations.
+- Use `Js.typeof(value)` for runtime type checks — it compiles directly to JS `typeof` and returns a `string` (`"string"`, `"number"`, `"boolean"`, `"object"`, `"function"`, `"undefined"`). No `%raw` needed.
+- For JS built-ins not in the standard library, prefer typed externals over `%raw` wrappers:
+  ```rescript
+  // GOOD — typed external, compiles to Array.isArray(x)
+  @scope("Array") @val
+  external isArray: 'a => bool = "isArray"
+
+  // BAD — unnecessary %raw for something that has a clean binding
+  let isArray: 'a => bool = %raw(`function(v) { return Array.isArray(v) }`)
+  ```
 
 ## Error Handling Philosophy
 

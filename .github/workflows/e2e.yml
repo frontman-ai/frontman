@@ -22,6 +22,7 @@ on:
           - nextjs
           - astro
           - vite
+          - vue-vite
 
 # Restrict permissions to minimum needed
 permissions:
@@ -118,6 +119,11 @@ jobs:
           key: ${{ runner.os }}-mix-${{ hashFiles('apps/frontman_server/mix.lock') }}
           restore-keys: ${{ runner.os }}-mix-
 
+      # E2E compiles with E2E=true which sets code_reloader: false at compile
+      # time (config/dev.exs).  CI's lint/dialyzer jobs compile WITHOUT E2E,
+      # so code_reloader: true.  Sharing the same "build-dev-" cache between
+      # the two causes a compile_env mismatch that crashes Dialyzer.
+      # Use a separate "build-e2e-" prefix to isolate the two environments.
       - name: Cache Mix _build
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
@@ -136,15 +142,34 @@ jobs:
           mix deps.get
 
       # ── Build ───────────────────────────────────────────────────────────
-      - name: Build ReScript
-        run: yarn rescript
+      # Cache tsup dist/ output only.  On exact hit the build steps below
+      # are skipped entirely.  We deliberately do NOT cache libs/*/lib
+      # (ReScript metadata) because packages using in-source compilation
+      # write .res.mjs output to src/, not lib/.  Restoring stale lib/
+      # metadata without the corresponding src/*.res.mjs files causes
+      # ReScript to skip recompilation, leaving tsup unable to resolve
+      # imports like @frontman/frontman-core/src/FrontmanCore__Hosts.res.mjs.
+      - name: Cache JS build artifacts
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        id: js-build-cache
+        with:
+          path: libs/*/dist
+          key: js-build-v2-${{ runner.os }}-${{ hashFiles('libs/*/src/**', 'libs/*/rescript.json', 'libs/*/tsup.config.ts') }}
+          restore-keys: js-build-v2-${{ runner.os }}-
 
+      - name: Build ReScript
+        if: steps.js-build-cache.outputs.cache-hit != 'true'
+        run: yarn rescript clean && yarn rescript
+
+      # Build adapters sequentially — each `build` script runs `rescript
+      # build` then `tsup`.  Sequential avoids concurrent rescript processes
+      # racing on shared dependency dirs (e.g. frontman-core).
       - name: Build adapter dist packages
+        if: steps.js-build-cache.outputs.cache-hit != 'true'
         run: |
-          yarn workspace @frontman-ai/nextjs build &
-          yarn workspace @frontman-ai/vite build &
-          yarn workspace @frontman-ai/astro build &
-          wait
+          yarn workspace @frontman-ai/nextjs build
+          yarn workspace @frontman-ai/vite build
+          yarn workspace @frontman-ai/astro build
 
       # ── mkcert for HTTPS ────────────────────────────────────────────────
       - name: Generate mkcert certificates
@@ -164,6 +189,9 @@ jobs:
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('test/e2e/package.json') }}
+          # Partial restore: browser files survive package.json script changes.
+          # `playwright install` is idempotent — skips download if present.
+          restore-keys: playwright-${{ runner.os }}-
 
       - name: Install Playwright Chromium
         if: steps.playwright-cache.outputs.cache-hit != 'true'
@@ -203,6 +231,7 @@ jobs:
           lsof -ti:3010 2>/dev/null | xargs kill -9 2>/dev/null || true
           lsof -ti:3011 2>/dev/null | xargs kill -9 2>/dev/null || true
           lsof -ti:3012 2>/dev/null | xargs kill -9 2>/dev/null || true
+          lsof -ti:3013 2>/dev/null | xargs kill -9 2>/dev/null || true
           # Restore fixture files modified by AI + installer during tests
           git checkout -- test/e2e/fixtures/ 2>/dev/null || true
           # Remove untracked files created by installer (middleware.ts, instrumentation.ts)

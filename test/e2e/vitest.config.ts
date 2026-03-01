@@ -11,8 +11,11 @@ export default defineConfig({
     // transient failure shouldn't block the whole pipeline.
     retry: 1,
 
-    // Run test files sequentially — they share a single Phoenix server and
-    // ChatGPT credentials, so parallel execution causes conflicts.
+    // Run test files sequentially — they share a single Phoenix server
+    // whose Finch connection pool cannot handle concurrent LLM streaming
+    // calls without exhaustion.  Parallel execution causes the last test
+    // (usually Astro) to crash with "Finch was unable to provide a
+    // connection within the timeout".
     pool: "forks",
     poolOptions: {
       forks: { singleFork: true },

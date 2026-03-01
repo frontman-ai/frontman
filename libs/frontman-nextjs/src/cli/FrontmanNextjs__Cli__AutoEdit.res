@@ -4,7 +4,7 @@
 module Bindings = FrontmanBindings
 module Fs = Bindings.Fs
 module Path = Bindings.Path
-module Readline = Bindings.Readline
+module Readline = FrontmanNextjs__Cli__Readline
 
 module Templates = FrontmanNextjs__Cli__Templates
 module Style = FrontmanNextjs__Cli__Style

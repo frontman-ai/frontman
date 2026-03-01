@@ -1,8 +1,8 @@
 open Vitest
 
 module Sentry = FrontmanNextjs__Sentry
-module SentryTypes = FrontmanBindings.Bindings__Sentry__Types
-module SentryFilter = FrontmanBindings.Bindings__Sentry__Filter
+module SentryTypes = FrontmanBindings.Sentry__Types
+module SentryFilter = FrontmanBindings.Sentry__Filter
 module SentryTestkit = FrontmanBindings.Bindings__Test__SentryTestkit
 
 describe("FrontmanNextjs Sentry", () => {

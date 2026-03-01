@@ -17,5 +17,6 @@ let makeConfig = Config.makeFromObject
 type config = Config.t
 type configInput = Config.jsConfigInput
 
-// Plugin export - main entry point for Vite users
+// Plugin export - main entry point for Vite users.
+// Returns an array of Vite plugins (Vite flattens nested arrays in plugins config).
 let frontmanPlugin = Plugin.frontmanPlugin

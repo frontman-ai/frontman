@@ -1,8 +1,8 @@
 // Sentry SDK bindings for ReScript
 // Using @sentry/browser for browser client
-// Types are shared via FrontmanBindings.Bindings__Sentry__Types
+// Types are shared via FrontmanBindings.Sentry__Types
 
-module Types = FrontmanBindings.Bindings__Sentry__Types
+module Types = FrontmanBindings.Sentry__Types
 
 // Re-export shared types for convenience
 type severity = Types.severity

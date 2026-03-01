@@ -1,9 +1,10 @@
 // Lighthouse tool - runs Google Lighthouse audits on URLs
 // Returns scores and top issues for performance, accessibility, best-practices, and SEO
 
-module ChromeLauncher = FrontmanBindings.ChromeLauncher
+module ChromeLauncher = FrontmanCore__ChromeLauncher
 module ExnUtils = FrontmanCore__ExnUtils
 module Lighthouse = FrontmanBindings.Lighthouse
+module LighthouseRunner = FrontmanCore__Lighthouse
 module Tool = FrontmanFrontmanProtocol.FrontmanProtocol__Tool
 
 let name = Tool.ToolNames.lighthouse
@@ -309,7 +310,7 @@ let runLighthouse = async (
   }
 
   let result = try {
-    let runnerResult = await Lighthouse.run(url, flags)
+    let runnerResult = await LighthouseRunner.run(url, flags)
 
     switch runnerResult->Nullable.toOption {
     | Some(r) => Ok(processLhr(r.lhr))

@@ -13,7 +13,7 @@ let isFrontmanFrame = (filename: string): bool =>
 
 // Check if an event has at least one Frontman frame in any exception stacktrace.
 // Events without exception data (e.g. captureMessage) are always kept.
-let hasFrontmanFrames = (event: Bindings__Sentry__Types.sentryEvent): bool =>
+let hasFrontmanFrames = (event: Sentry__Types.sentryEvent): bool =>
   switch event.exception_ {
   | None => true
   | Some({values: None}) | Some({values: Some([])}) => true
@@ -37,9 +37,9 @@ let hasFrontmanFrames = (event: Bindings__Sentry__Types.sentryEvent): bool =>
 // This prevents third-party errors caught by Sentry's global handlers from
 // polluting our project.
 let beforeSend = (
-  event: Bindings__Sentry__Types.sentryEvent,
-  _hint: Bindings__Sentry__Types.eventHint,
-): Nullable.t<Bindings__Sentry__Types.sentryEvent> =>
+  event: Sentry__Types.sentryEvent,
+  _hint: Sentry__Types.eventHint,
+): Nullable.t<Sentry__Types.sentryEvent> =>
   if hasFrontmanFrames(event) {
     Nullable.make(event)
   } else {

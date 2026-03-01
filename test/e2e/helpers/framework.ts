@@ -206,6 +206,36 @@ export async function startVite(port: number): Promise<FrameworkServer> {
   };
 }
 
+// ── Vue + Vite ──────────────────────────────────────────────────────────────
+
+export async function startVueVite(port: number): Promise<FrameworkServer> {
+  const fixtureDir = resolve(ROOT, "test/e2e/fixtures/vue-vite");
+  killPort(port);
+
+  const viteBin = resolveBin(fixtureDir, "vite");
+  const proc = spawn(
+    process.execPath,
+    [viteBin, "--host", "127.0.0.1", "--port", String(port), "--strictPort"],
+    {
+      cwd: fixtureDir,
+      env: { ...process.env } as NodeJS.ProcessEnv,
+      stdio: "pipe",
+    },
+  );
+
+  logOutput(proc, "vue-vite");
+  // Use 127.0.0.1 explicitly — Vite only binds to IPv4 and Node.js fetch
+  // may resolve "localhost" to ::1 (IPv6) on Linux CI, causing connection failure.
+  await waitForReady(proc, `http://127.0.0.1:${port}`, "Vue + Vite");
+
+  return {
+    proc,
+    port,
+    fixtureDir,
+    headingFile: resolve(fixtureDir, "src/App.vue"),
+  };
+}
+
 // ── Utilities ────────────────────────────────────────────────────────────────
 
 /** Kill the dev server and restore any modified fixture files. */
@@ -242,6 +272,17 @@ export function headingFileContains(
   server: FrameworkServer,
   text: string,
 ): boolean {
+  if (!existsSync(server.headingFile)) {
+    console.log(`  [e2e] headingFileContains: file NOT FOUND at ${server.headingFile}`);
+    return false;
+  }
   const content = readFileSync(server.headingFile, "utf-8");
-  return content.includes(text);
+  const found = content.includes(text);
+  if (!found) {
+    console.log(`  [e2e] headingFileContains: "${text}" NOT found in ${server.headingFile}`);
+    console.log(`  [e2e] File contents (first 500 chars):\n${content.substring(0, 500)}`);
+  } else {
+    console.log(`  [e2e] headingFileContains: "${text}" found ✓`);
+  }
+  return found;
 }

@@ -28,4 +28,4 @@ type scopeContext = {
 }
 
 // Re-export transport type for convenience
-type transport = Bindings__Sentry__Transport.t
+type transport = Sentry__Transport.t

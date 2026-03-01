@@ -1,7 +1,7 @@
 // Grep tool - fast content search using ripgrep with git grep fallback
 
 module Path = FrontmanBindings.Path
-module ChildProcess = FrontmanBindings.ChildProcess
+module ChildProcess = FrontmanCore__ChildProcess
 module Tool = FrontmanFrontmanProtocol.FrontmanProtocol__Tool
 module PathContext = FrontmanCore__PathContext
 

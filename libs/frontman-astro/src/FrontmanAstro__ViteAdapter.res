@@ -8,6 +8,18 @@ module NodeHttp = FrontmanBindings.NodeHttp
 module WebStreams = FrontmanBindings.WebStreams
 module CoreMiddleware = FrontmanFrontmanCore.FrontmanCore__Middleware
 
+// Collect the full request body by async-iterating over the IncomingMessage stream
+let collectRequestBody: NodeHttp.incomingMessage => promise<NodeHttp.Buffer.t> = %raw(`
+  async function(req) {
+    const chunks = [];
+    for await (const chunk of req) {
+      chunks.push(chunk);
+    }
+    const { Buffer } = await import("node:buffer");
+    return Buffer.concat(chunks);
+  }
+`)
+
 // Copy headers from a Web API Headers object to a Node.js ServerResponse
 let copyHeaders: (WebAPI.FetchAPI.headers, NodeHttp.serverResponse) => unit = %raw(`
   function(headers, res) {
@@ -30,7 +42,7 @@ let toWebRequest = async (req: NodeHttp.incomingMessage): WebAPI.FetchAPI.reques
   // Collect request body for methods that have one
   let body = switch method->String.toUpperCase {
   | "POST" | "PUT" | "PATCH" =>
-    let buffer = await NodeHttp.collectRequestBody(req)
+    let buffer = await collectRequestBody(req)
     Some(buffer->NodeHttp.Buffer.toUint8Array)
   | _ => None
   }

@@ -87,6 +87,29 @@ export function installVite(): void {
 }
 
 /**
+ * Run the Frontman Vite installer on the Vue fixture project.
+ * Same as installVite() but targets the vue-vite fixture directory.
+ *
+ * The Vite CLI installer is framework-agnostic — it detects `vite` in
+ * package.json and injects `frontmanPlugin()` into vite.config.ts.
+ */
+export function installVueVite(): void {
+  const fixtureDir = resolve(ROOT, "test/e2e/fixtures/vue-vite");
+  const cli = resolve(ROOT, "libs/frontman-vite/dist/cli.js");
+  if (!existsSync(cli)) {
+    throw new Error(
+      `[e2e] Vite CLI not built. Run 'make build' in libs/frontman-vite first.\n  Missing: ${cli}`,
+    );
+  }
+
+  console.log("  [e2e] Running Frontman Vite installer (Vue fixture)...");
+  execSync(
+    `${process.execPath} ${cli} install --skip-deps --server ${FRONTMAN_SERVER}`,
+    { cwd: fixtureDir, stdio: "inherit" },
+  );
+}
+
+/**
  * Configure Frontman Astro integration in the fixture project.
  *
  * Astro has no dedicated Frontman CLI — users run `npx astro add @frontman-ai/astro`.

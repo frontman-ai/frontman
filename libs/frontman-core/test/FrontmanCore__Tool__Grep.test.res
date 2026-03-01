@@ -7,7 +7,7 @@ module Tool = FrontmanFrontmanProtocol.FrontmanProtocol__Tool
 module Path = FrontmanBindings.Path
 module Fs = FrontmanBindings.Fs
 module Os = FrontmanBindings.Os
-module ChildProcess = FrontmanBindings.ChildProcess
+module ChildProcess = FrontmanCore__ChildProcess
 
 // Helper to create directory recursively
 let mkdirRecursive = async (dir: string) => {

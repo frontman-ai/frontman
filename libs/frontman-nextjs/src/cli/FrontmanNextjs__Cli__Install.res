@@ -1,6 +1,6 @@
 // Install command implementation
 module Bindings = FrontmanBindings
-module ChildProcess = Bindings.ChildProcess
+module ChildProcess = FrontmanFrontmanCore.FrontmanCore__ChildProcess
 module Path = Bindings.Path
 module Process = Bindings.Process
 

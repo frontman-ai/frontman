@@ -530,12 +530,13 @@ jobs:
       # test job compiles with MIX_ENV=test (code_reloader: false) — use
       # separate cache key so dev-env jobs (lint, dialyzer) don't restore
       # stale _build/dev artifacts with the wrong compile-time config.
+      # v2: bust stale caches after E2E cache key split (build-e2e- vs build-dev-)
       - name: Cache _build
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: apps/frontman_server/_build
-          key: ${{ runner.os }}-build-test-${{ hashFiles('apps/frontman_server/mix.lock', 'apps/swarm_ai/lib/**') }}
-          restore-keys: ${{ runner.os }}-build-test-
+          key: ${{ runner.os }}-build-test-v2-${{ hashFiles('apps/frontman_server/mix.lock', 'apps/swarm_ai/lib/**') }}
+          restore-keys: ${{ runner.os }}-build-test-v2-
 
       - name: Install dependencies
         working-directory: apps/frontman_server
@@ -596,12 +597,13 @@ jobs:
           key: ${{ runner.os }}-mix-${{ hashFiles('apps/frontman_server/mix.lock') }}
           restore-keys: ${{ runner.os }}-mix-
 
+      # v2: bust stale caches after E2E cache key split (build-e2e- vs build-dev-)
       - name: Cache _build
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: apps/frontman_server/_build
-          key: ${{ runner.os }}-build-dev-${{ hashFiles('apps/frontman_server/mix.lock', 'apps/swarm_ai/lib/**') }}
-          restore-keys: ${{ runner.os }}-build-dev-
+          key: ${{ runner.os }}-build-dev-v2-${{ hashFiles('apps/frontman_server/mix.lock', 'apps/swarm_ai/lib/**') }}
+          restore-keys: ${{ runner.os }}-build-dev-v2-
 
       - name: Install dependencies
         working-directory: apps/frontman_server
@@ -646,12 +648,13 @@ jobs:
           key: ${{ runner.os }}-mix-${{ hashFiles('apps/frontman_server/mix.lock') }}
           restore-keys: ${{ runner.os }}-mix-
 
+      # v2: bust stale caches after E2E cache key split (build-e2e- vs build-dev-)
       - name: Cache _build
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: apps/frontman_server/_build
-          key: ${{ runner.os }}-build-dev-${{ hashFiles('apps/frontman_server/mix.lock', 'apps/swarm_ai/lib/**') }}
-          restore-keys: ${{ runner.os }}-build-dev-
+          key: ${{ runner.os }}-build-dev-v2-${{ hashFiles('apps/frontman_server/mix.lock', 'apps/swarm_ai/lib/**') }}
+          restore-keys: ${{ runner.os }}-build-dev-v2-
 
       # PLT cache includes mise.toml hash to invalidate when Erlang/Elixir versions change
       # v3: bust cache after migrating to self-hosted runners (different mise install path)

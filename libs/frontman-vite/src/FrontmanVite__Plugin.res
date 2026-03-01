@@ -4,24 +4,7 @@
 module Config = FrontmanVite__Config
 module Middleware = FrontmanVite__Middleware
 module Core = FrontmanFrontmanCore
-
-// Minimal Node.js http bindings for Vite's dev server
-
-// IncomingMessage (readable stream of request data)
-type incomingMessage = {
-  method: Null.t<string>,
-  url: Null.t<string>,
-  headers: Dict.t<string>,
-}
-
-// ServerResponse (writable stream for response)
-type serverResponse
-
-@send external writeHead: (serverResponse, int, Dict.t<string>) => unit = "writeHead"
-@send external write: (serverResponse, Uint8Array.t) => bool = "write"
-@send external endResponse: serverResponse => unit = "end"
-@send external endResponseWithData: (serverResponse, string) => unit = "end"
-@set external setStatusCode: (serverResponse, int) => unit = "statusCode"
+open FrontmanVite__Bindings
 
 // Helper: convert WebAPI Headers to a Dict<string>
 let headersToDict: WebAPI.FetchAPI.headers => Dict.t<string> = %raw(`
@@ -33,24 +16,6 @@ let headersToDict: WebAPI.FetchAPI.headers => Dict.t<string> = %raw(`
     return dict;
   }
 `)
-
-// Buffer (opaque type for Node.js Buffer which extends Uint8Array)
-type nodeBuffer
-@scope("Buffer") @val external bufferConcat: array<nodeBuffer> => nodeBuffer = "concat"
-@get external bufferLength: nodeBuffer => int = "length"
-
-// Vite server types (minimal subset)
-type connectMiddleware = (incomingMessage, serverResponse, unit => unit) => unit
-type connectServer = {use: connectMiddleware => unit}
-@send external useMiddleware: (connectServer, connectMiddleware) => unit = "use"
-
-type viteDevServer = {middlewares: connectServer}
-
-// Vite Plugin type (minimal subset)
-type plugin = {
-  name: string,
-  configureServer: viteDevServer => unit,
-}
 
 // Helper: collect body chunks from IncomingMessage using for-await
 // Since we can't use for-await in ReScript, we manually iterate
@@ -164,11 +129,16 @@ type pluginOptions = {
   host?: string,
 }
 
-// Create the Vite plugin
-let frontmanPlugin = (~options: option<pluginOptions>=?): plugin => {
+// Create the Vite plugin(s).
+// Returns an array of Vite plugins — Vite flattens nested arrays in the
+// plugins config, so `plugins: [frontmanPlugin()]` works seamlessly.
+// The array includes:
+//   1. The main Frontman middleware plugin
+//   2. The Vue SFC source annotation plugin (dev-only, no-ops for non-Vue projects)
+let frontmanPlugin = (~options: option<pluginOptions>=?): array<plugin> => {
   let opts = options->Option.getOr({})
 
-  {
+  let middlewarePlugin = {
     name: "frontman",
     configureServer: server => {
       // Initialize core LogCapture to intercept console/stdout for the
@@ -216,4 +186,6 @@ let frontmanPlugin = (~options: option<pluginOptions>=?): plugin => {
       })
     },
   }
+
+  [middlewarePlugin, frontmanVueSourcePlugin()]
 }

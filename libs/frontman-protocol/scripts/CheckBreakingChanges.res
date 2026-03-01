@@ -1,9 +1,36 @@
 // Compare protocol schemas against the main branch to detect breaking changes.
 // Run: node scripts/CheckBreakingChanges.res.mjs
 
-module ChildProcess = FrontmanBindings.ChildProcess
 module Path = FrontmanBindings.Path
 module Fs = FrontmanBindings.Fs
+module CP = FrontmanBindings.ChildProcess
+
+// Minimal exec wrapper for this dev script — wraps nodeExec in a Promise.
+// Inlined here to avoid circular dependency: frontman-core depends on
+// frontman-protocol, so we can't import FrontmanCore__ChildProcess.
+let exec = async (command: string): result<CP.execResult, CP.execError> => {
+  await Promise.make((resolve, _reject) => {
+    CP.nodeExec(
+      command,
+      {encoding: "utf8", maxBuffer: 50 * 1024 * 1024},
+      (err, stdout, stderr) => {
+        switch err->Nullable.toOption {
+        | None =>
+          resolve(Ok({CP.stdout, stderr}))
+        | Some(execErr) =>
+          resolve(
+            Error({
+              CP.code: execErr->CP.execExceptionCode->Nullable.toOption,
+              stdout,
+              stderr,
+              message: execErr->CP.execExceptionMessage,
+            }),
+          )
+        }
+      },
+    )
+  })
+}
 
 @val @scope(("import", "meta"))
 external importMetaUrl: string = "url"
@@ -28,7 +55,7 @@ type change = {
 
 let main = async () => {
   // Get list of schema files changed vs main
-  let diffResult = await ChildProcess.exec(
+  let diffResult = await exec(
     `git diff --name-status main -- ${schemasRelative}/`,
   )
 
@@ -104,7 +131,7 @@ let main = async () => {
     for i in 0 to modified->Array.length - 1 {
       let change = modified->Array.getUnsafe(i)
       Console.log(`--- ${change.file} ---`)
-      let detailResult = await ChildProcess.exec(
+      let detailResult = await exec(
         `git diff main -- ${change.file}`,
       )
       switch detailResult {

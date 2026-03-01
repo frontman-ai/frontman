@@ -14,22 +14,17 @@
 
 module Annotations = FrontmanBindings.AstroAnnotations
 
-// Check if a file path is from node_modules (third-party component)
-let isNodeModulesPath = (filePath: string): bool => {
-  filePath->String.includes("node_modules")
-}
-
 // Make a SourceLocation from an annotation + element
 let makeSourceLocation = (
   annotation: Annotations.annotation,
   element: WebAPI.DOMAPI.element,
   ~parent: option<Client__Types.SourceLocation.t>,
 ): option<Client__Types.SourceLocation.t> => {
-  Annotations.parseLoc(annotation.loc)->Option.map(((line, column)) => {
+  Client__SourcePath.parseLoc(annotation.loc)->Option.map(((line, column)) => {
     // Use displayName from props injection if available, otherwise extract from file path
     let name = switch annotation.displayName {
     | Some(n) => Some(n)
-    | None => Some(Annotations.extractFilename(annotation.file))
+    | None => Some(Client__SourcePath.extractFilename(annotation.file))
     }
 
     {
@@ -89,7 +84,7 @@ let getElementSourceLocation = (
       // Phase 2: Find the first non-node_modules annotation.
       // This is the "selected component" - the one the user actually cares about.
       let firstSourceIdx = ancestors->Array.findIndex(((ann, _)) =>
-        !isNodeModulesPath(ann.file)
+        !Client__SourcePath.isNodeModulesPath(ann.file)
       )
 
       // If everything is node_modules (unlikely), fall back to the first annotation
@@ -108,7 +103,7 @@ let getElementSourceLocation = (
             ancestors
             ->Array.slice(~start=selectedIdx + 1, ~end=Array.length(ancestors))
             ->Array.reduce((None, selectedAnn.file), ((parentChain, lastFile), (ann, el)) => {
-              if ann.file != lastFile && !isNodeModulesPath(ann.file) {
+              if ann.file != lastFile && !Client__SourcePath.isNodeModulesPath(ann.file) {
                 (makeSourceLocation(ann, el, ~parent=parentChain), ann.file)
               } else {
                 (parentChain, lastFile)

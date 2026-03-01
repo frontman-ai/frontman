@@ -29,6 +29,7 @@
 		"test/e2e/fixtures/nextjs",
 		"test/e2e/fixtures/astro",
 		"test/e2e/fixtures/vite",
+		"test/e2e/fixtures/vue-vite",
 		"libs/logs",
 		"libs/react-statestore"
 	],

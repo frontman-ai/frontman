@@ -1,7 +1,7 @@
 // SearchFiles tool - fast file name search using ripgrep with git ls-files fallback
 
 module Path = FrontmanBindings.Path
-module ChildProcess = FrontmanBindings.ChildProcess
+module ChildProcess = FrontmanCore__ChildProcess
 module Tool = FrontmanFrontmanProtocol.FrontmanProtocol__Tool
 module PathContext = FrontmanCore__PathContext
 

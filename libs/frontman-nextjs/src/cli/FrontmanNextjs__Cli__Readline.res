@@ -1,4 +1,4 @@
-// Minimal binding for Node.js readline module (CLI prompts)
+// Minimal Node.js readline utilities for CLI prompts
 
 // Raw JS implementation using node:readline.
 // Returns null on EOF (Ctrl+D) so callers can distinguish it from empty input (Enter).

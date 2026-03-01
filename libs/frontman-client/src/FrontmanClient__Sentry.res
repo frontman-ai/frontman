@@ -2,8 +2,8 @@
 // Reports errors to Frontman's own Sentry project
 
 module Bindings = FrontmanClient__Sentry__Bindings
-module SentryConfig = FrontmanBindings.Bindings__Sentry__Config
-module SentryFilter = FrontmanBindings.Bindings__Sentry__Filter
+module SentryConfig = FrontmanBindings.Sentry__Config
+module SentryFilter = FrontmanBindings.Sentry__Filter
 
 let initialized = ref(false)
 

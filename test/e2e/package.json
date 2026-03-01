@@ -6,7 +6,8 @@
 		"test": "vitest run",
 		"test:nextjs": "vitest run tests/nextjs.test.ts",
 		"test:astro": "vitest run tests/astro.test.ts",
-		"test:vite": "vitest run tests/vite.test.ts"
+		"test:vite": "vitest run tests/vite.test.ts",
+		"test:vue-vite": "vitest run tests/vue-vite.test.ts"
 	},
 	"devDependencies": {
 		"playwright": "^1.52.0",

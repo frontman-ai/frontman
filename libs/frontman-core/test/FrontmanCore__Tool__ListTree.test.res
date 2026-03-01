@@ -6,7 +6,7 @@ module ListTree = FrontmanCore__Tool__ListTree
 module Tool = FrontmanFrontmanProtocol.FrontmanProtocol__Tool
 module Path = FrontmanBindings.Path
 module Fs = FrontmanBindings.Fs
-module ChildProcess = FrontmanBindings.ChildProcess
+module ChildProcess = FrontmanCore__ChildProcess
 
 // Helper to create temp test directories
 let tmpPrefix = "/tmp/listtree-test-"

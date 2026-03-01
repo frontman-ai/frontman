@@ -20,18 +20,6 @@ type incomingMessage
 @get external url: incomingMessage => string = "url"
 @get external headers: incomingMessage => Dict.t<string> = "headers"
 
-// Collect the full request body by async-iterating over the IncomingMessage stream
-let collectRequestBody: incomingMessage => promise<Buffer.t> = %raw(`
-  async function(req) {
-    const chunks = [];
-    for await (const chunk of req) {
-      chunks.push(chunk);
-    }
-    const { Buffer } = await import("node:buffer");
-    return Buffer.concat(chunks);
-  }
-`)
-
 // ServerResponse (extends Writable stream)
 type serverResponse
 

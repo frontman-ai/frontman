@@ -15,7 +15,7 @@ module Fs = Bindings.Fs
 module Path = Bindings.Path
 module Process = Bindings.Process
 module Os = Bindings.Os
-module ChildProcess = Bindings.ChildProcess
+module ChildProcess = FrontmanFrontmanCore.FrontmanCore__ChildProcess
 
 module AutoEdit = FrontmanNextjs__Cli__AutoEdit
 

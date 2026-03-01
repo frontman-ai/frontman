@@ -28,13 +28,13 @@
 	"ppx-flags": ["sury-ppx/bin"],
 	"dependencies": [
 		"@frontman/bindings",
+		"@frontman/logs",
 		"@rescript/react",
 		"@rescript/webapi",
 		"@frontman/frontman-client",
 		"@frontman-ai/nextjs",
 		"@frontman/frontman-protocol",
 		"@frontman/react-statestore",
-		"@frontman/logs",
 		"sury"
 	],
 	"dev-dependencies": ["rescript-vitest"],
