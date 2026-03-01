@@ -214,7 +214,7 @@ defmodule FrontmanServer.Tasks.Execution do
 
         RootAgent.new(
           tools: tools,
-          has_selected_component: Interaction.has_selected_component?(task.interactions),
+          has_annotations: Interaction.has_annotations?(task.interactions),
           has_current_page: Interaction.has_current_page?(task.interactions),
           has_typescript_react: has_typescript_react,
           framework: task.framework,
