@@ -65,7 +65,7 @@ const { footerAbout, footerColumns, subFooter } = footerNavigationData
 						socialLinks.map((social) => (
 							<li>
 								<a href={social.link} aria-label={`Frontman on ${social.name}`} rel="noopener noreferrer" target="_blank">
-									<Icon name={social.icon} />
+									<Icon name={social.icon} aria-hidden="true" />
 								</a>
 							</li>
 						))
