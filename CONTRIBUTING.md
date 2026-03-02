@@ -38,7 +38,6 @@ make dev
 ```
 frontman/
 ├── apps/
-│   ├── chrome-extension/      # Browser extension
 │   ├── dogfooding/            # Internal testing app
 │   ├── frontman_server/       # Elixir/Phoenix backend
 │   └── marketing/             # Marketing website

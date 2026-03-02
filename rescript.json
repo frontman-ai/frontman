@@ -2,7 +2,6 @@
 	"name": "frontman",
 	"namespace": true,
 	"dependencies": [
-		"@frontman/chrome-extension",
 		"@frontman/bindings",
 		"@frontman-ai/client",
 		"@frontman-ai/astro",

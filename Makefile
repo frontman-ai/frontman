@@ -84,7 +84,7 @@ help: ## Display available commands
 # Development
 # ============================================================================
 ## DEV_START
-.PHONY: dev dev-client dev-server dev-nextjs dev-extension dev-marketing dev-dogfooding
+.PHONY: dev dev-client dev-server dev-nextjs dev-marketing dev-dogfooding
 
 dev: ## Start all core services (client + server + nextjs)
 	@printf "$(YELLOW)Starting all services via mprocs...$(RESET)\n"
@@ -101,10 +101,6 @@ dev-server: ## Start development server for server app
 dev-nextjs: ## Start development server for Next.js test site
 	@printf "$(YELLOW)Starting Next.js dev server...$(RESET)\n"
 	cd test/sites/blog-starter && $(MAKE) dev
-
-dev-extension: ## Start development server for Chrome extension
-	@printf "$(YELLOW)Starting Chrome extension dev server...$(RESET)\n"
-	cd apps/chrome-extension && $(MAKE) dev
 
 dev-marketing: ## Start development server for marketing site
 	@printf "$(YELLOW)Starting marketing dev server...$(RESET)\n"

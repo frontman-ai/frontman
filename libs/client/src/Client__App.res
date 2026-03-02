@@ -1,78 +1,7 @@
-module Chrome = FrontmanBindings.Chrome
 module SettingsModal = Client__SettingsModal
-
-let useExtensionState = () => {
-  React.useEffect(() => {
-    let checkAttempts = ref(0)
-    let maxAttempts = 3
-    let checkInterval = 1666.0 // ~5 seconds total / 3 attempts
-    let timeoutId = ref(None)
-
-    let chromeRuntimeExists: unit => bool = %raw(`
-      function() {
-        return typeof chrome !== 'undefined' && chrome.runtime;
-      }
-    `)
-
-    let hasExtensionClass = () => {
-      WebAPI.Global.document
-      ->WebAPI.Document.body
-      ->Null.toOption
-      ->Option.mapOr(false, body => {
-        body
-        ->WebAPI.Element.classList
-        ->WebAPI.DOMTokenList.contains("frontman-extension-active")
-      })
-    }
-
-    let rec checkExtension = () => {
-      checkAttempts.contents = checkAttempts.contents + 1
-
-      if !chromeRuntimeExists() || !hasExtensionClass() {
-        if checkAttempts.contents < maxAttempts {
-          let id = WebAPI.Global.setTimeout(~handler=() => {
-            checkExtension()
-          }, ~timeout=checkInterval->Float.toInt)
-          timeoutId.contents = Some(id)
-        } else {
-          Client__ExtensionState.Actions.setExtensionNotInstalled()
-        }
-      } else {
-        // Extension is installed, connect to it
-        try {
-          let port = Chrome.Runtime.Connect.connectExternal(
-            "kfdpjbmabcelpgoipaccjijhehdmeghp",
-            Some({name: "FrontmanClient"}),
-          )
-
-          Client__ExtensionState.Actions.setExtensionInstalled(~port)
-        } catch {
-        | exn => {
-            // Console.error used intentionally — useExtensionState runs in a useEffect
-            // that can fire before ACP.connect() registers the log handler, so Logs.*
-            // calls would be silently dropped.
-            Console.error2("Extension failed to connect", exn)
-            Client__ExtensionState.Actions.setExtensionNotInstalled()
-          }
-        }
-      }
-    }
-
-    checkExtension()
-
-    Some(
-      () => {
-        timeoutId.contents->Option.forEach(id => {
-          WebAPI.Global.clearTimeout(id)
-        })
-      },
-    )
-  }, [])
-}
 
 @react.component
 let make = (~apiBaseUrl: string) => {
-  useExtensionState()
 
   // Use Frontman context for ACP connection
   let {connectionState, sendPrompt, cancelPrompt, loadTask, deleteSession, authRedirectUrl, _} = Client__FrontmanProvider.useFrontman()

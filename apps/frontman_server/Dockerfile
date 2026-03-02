@@ -34,7 +34,6 @@ COPY libs/frontman-nextjs/package.json libs/frontman-nextjs/
 COPY libs/react-statestore/package.json libs/react-statestore/
 COPY libs/logs/package.json libs/logs/
 COPY libs/vite-plugin/package.json libs/vite-plugin/
-COPY apps/chrome-extension/package.json apps/chrome-extension/
 COPY apps/marketing/package.json apps/marketing/
 COPY test/sites/blog-starter/package.json test/sites/blog-starter/
 
@@ -43,7 +42,6 @@ RUN yarn install --immutable
 # ---------- ReScript build ----------
 COPY rescript.json rescript.json
 COPY libs/ libs/
-COPY apps/chrome-extension/ apps/chrome-extension/
 
 RUN yarn rescript clean && yarn rescript build
 
