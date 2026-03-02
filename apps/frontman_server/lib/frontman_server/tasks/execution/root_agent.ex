@@ -22,7 +22,6 @@ defmodule FrontmanServer.Tasks.Execution.RootAgent do
   typedstruct do
     field(:tools, [SwarmAi.Tool.t()], default: [])
     field(:has_annotations, boolean(), default: false)
-    field(:has_current_page, boolean(), default: false)
     field(:has_typescript_react, boolean(), default: false)
     field(:framework, Framework.t() | nil, default: nil)
     # llm_opts must include :api_key (resolved at domain layer)
@@ -42,7 +41,6 @@ defmodule FrontmanServer.Tasks.Execution.RootAgent do
 
   - `:tools` - List of SwarmAi.Tool structs available to the agent
   - `:has_annotations` - Whether the user has annotated elements in the UI
-  - `:has_current_page` - Whether current page context is available
   - `:framework` - `Framework.t()` struct for framework-specific guidance
   - `:llm_opts` - LLM options, must include `:api_key`. May include `:requires_mcp_prefix`
     and `:identity_override` for OAuth transformations (handled by LLMClient).
@@ -55,7 +53,6 @@ defmodule FrontmanServer.Tasks.Execution.RootAgent do
     %__MODULE__{
       tools: Keyword.get(opts, :tools, []),
       has_annotations: Keyword.get(opts, :has_annotations, false),
-      has_current_page: Keyword.get(opts, :has_current_page, false),
       has_typescript_react: Keyword.get(opts, :has_typescript_react, false),
       framework: Keyword.get(opts, :framework),
       llm_opts: Keyword.get(opts, :llm_opts, []),
@@ -74,7 +71,6 @@ defimpl SwarmAi.Agent, for: FrontmanServer.Tasks.Execution.RootAgent do
     # OAuth transformations (identity prepend, content splitting) are handled by LLMClient
     Prompts.build(
       has_annotations: agent.has_annotations,
-      has_current_page: agent.has_current_page,
       has_typescript_react: agent.has_typescript_react,
       framework: agent.framework,
       project_rules: agent.project_rules,

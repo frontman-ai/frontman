@@ -87,7 +87,6 @@ defmodule FrontmanServer.Tasks.Execution.Prompts do
   - `:project_structure` - String summary of the project structure (directory layout, workspaces)
   - `:project_rules` - List of project rule maps with `:path`, `:content`, and `:timestamp` keys
   - `:has_annotations` - When true, adds guidance for annotated element workflow
-  - `:has_current_page` - When true, adds guidance for using current page context
   - `:framework` - Framework name (e.g., "nextjs") to add framework-specific guidance
 
   ## Examples
@@ -119,12 +118,11 @@ defmodule FrontmanServer.Tasks.Execution.Prompts do
   # Append context-specific guidance based on options
   defp append_context_guidance(prompt, opts) do
     has_annotations = Keyword.get(opts, :has_annotations, false)
-    has_current_page = Keyword.get(opts, :has_current_page, false)
     framework = Keyword.get(opts, :framework)
     has_typescript_react = Keyword.get(opts, :has_typescript_react, false)
 
     prompt
-    |> maybe_append(has_current_page, &current_page_guidance/0)
+    |> append_current_page_guidance()
     |> maybe_append(has_annotations, &annotation_guidance/0)
     |> maybe_append(has_typescript_react, &typescript_react_guidance/0)
     |> append_framework_guidance(framework)
@@ -132,6 +130,8 @@ defmodule FrontmanServer.Tasks.Execution.Prompts do
 
   defp maybe_append(prompt, true, guidance_fn), do: prompt <> "\n" <> guidance_fn.()
   defp maybe_append(prompt, false, _guidance_fn), do: prompt
+
+  defp append_current_page_guidance(prompt), do: prompt <> "\n" <> current_page_guidance()
 
   defp append_framework_guidance(prompt, %Framework{id: :nextjs}),
     do: prompt <> "\n" <> nextjs_guidance()

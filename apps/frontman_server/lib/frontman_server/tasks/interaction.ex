@@ -1439,18 +1439,6 @@ defmodule FrontmanServer.Tasks.Interaction do
   end
 
   @doc """
-  Checks if any user messages in the interactions contain current page context.
-  Uses the pre-extracted `current_page` field on UserMessage for efficiency.
-  """
-  @spec has_current_page?(list(t())) :: boolean()
-  def has_current_page?(interactions) do
-    Enum.any?(interactions, fn
-      %UserMessage{current_page: cp} when not is_nil(cp) -> true
-      _ -> false
-    end)
-  end
-
-  @doc """
   Prepends discovered project rules to the first user message in LLM messages.
 
   Project rules are formatted as a system reminder and injected into the first
