@@ -240,6 +240,17 @@ defmodule FrontmanServerWeb.TaskChannel do
     error_message = error["message"] || "Unknown MCP error"
     Logger.error("MCP tool #{tool_call.tool_name} failed: #{error_message}")
 
+    Sentry.capture_message("MCP tool execution failed",
+      level: :error,
+      tags: %{error_type: "mcp_tool_error"},
+      extra: %{
+        tool_name: tool_call.tool_name,
+        tool_call_id: tool_call.tool_call_id,
+        task_id: task_id,
+        error_message: error_message
+      }
+    )
+
     # Send ACP notification: failed
     failed_notification =
       ACP.build_tool_call_update_notification(
@@ -574,7 +585,7 @@ defmodule FrontmanServerWeb.TaskChannel do
       end
     else
       # Regular tools: send tool_call_update
-      status = if tool_result.is_error, do: "error", else: "completed"
+      status = if tool_result.is_error, do: "failed", else: "completed"
       content = ACP.Content.from_tool_result(tool_result.result)
       notification = ACP.tool_call_update(task_id, tool_result.tool_call_id, status, content)
       push(socket, "acp:message", notification)

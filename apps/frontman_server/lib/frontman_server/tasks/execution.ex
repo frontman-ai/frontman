@@ -150,15 +150,43 @@ defmodule FrontmanServer.Tasks.Execution do
         TelemetryEvents.task_stop(task_id)
       end,
       on_error: fn {:error, reason, loop_id} ->
-        broadcast(topic, {:agent_error, inspect(reason)})
-
-        Logger.warning(
+        Logger.error(
           "Execution failed for task #{task_id}, loop_id: #{loop_id}, reason: #{inspect(reason)}"
         )
 
+        Sentry.capture_message("Agent execution failed",
+          level: :error,
+          tags: %{error_type: "agent_execution_error"},
+          extra: %{
+            task_id: task_id,
+            loop_id: loop_id,
+            reason: inspect(reason)
+          }
+        )
+
+        broadcast(topic, {:agent_error, inspect(reason)})
         TelemetryEvents.task_stop(task_id)
       end,
-      on_crash: fn {reason, _stacktrace} ->
+      on_crash: fn {reason, stacktrace} ->
+        Logger.error("Execution crashed for task #{task_id}, reason: #{inspect(reason)}")
+
+        if is_exception(reason) do
+          Sentry.capture_exception(reason,
+            stacktrace: stacktrace,
+            tags: %{error_type: "agent_crash"},
+            extra: %{task_id: task_id}
+          )
+        else
+          Sentry.capture_message("Agent execution crashed",
+            level: :error,
+            tags: %{error_type: "agent_crash"},
+            extra: %{
+              task_id: task_id,
+              reason: inspect(reason)
+            }
+          )
+        end
+
         broadcast(topic, {:agent_error, format_crash_reason(reason)})
         TelemetryEvents.task_stop(task_id)
       end,

@@ -51,6 +51,7 @@ config :opentelemetry,
   span_processor: :simple,
   traces_exporter: :none
 
-# Sentry - enable test mode
+# Sentry - enable test mode, disable dedup to avoid test interference
 config :sentry,
-  test_mode: true
+  test_mode: true,
+  dedup_events: false

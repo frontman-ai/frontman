@@ -183,7 +183,10 @@ module Provider = {
           Client__State.Actions.toolResultReceived(~taskId, ~id=toolCallId, ~result)
         | Some("failed") =>
           Client__State.Actions.toolErrorReceived(~taskId, ~id=toolCallId, ~error=text->Option.getOr("Unknown error"))
-        | _ => ()
+        | Some("in_progress") => () // Normal transitional status for MCP tools
+        | Some(status) =>
+          Log.warning(~ctx={"status": status, "toolCallId": toolCallId}, "Unhandled tool call status received")
+        | None => ()
         }
       | Plan({entries}) =>
         entries->Option.forEach(e => Client__State.Actions.planReceived(~taskId, ~entries=e))

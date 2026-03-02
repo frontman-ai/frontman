@@ -196,6 +196,19 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
         {:ok, encoded}
 
       {:error, reason} ->
+        Logger.error("ToolExecutor: Backend tool #{tool_call.name} failed: #{inspect(reason)}")
+
+        Sentry.capture_message("Tool execution failed",
+          level: :error,
+          tags: %{error_type: "tool_soft_error"},
+          extra: %{
+            tool_name: tool_call.name,
+            tool_call_id: tool_call.id,
+            task_id: task_id,
+            reason: inspect(reason)
+          }
+        )
+
         # Store error result for interaction history and UI notification
         Tasks.add_tool_result(
           scope,
@@ -215,8 +228,24 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
 
   defp parse_arguments(arguments) when is_binary(arguments) do
     case Jason.decode(arguments) do
-      {:ok, decoded} -> decoded
-      {:error, _} -> %{}
+      {:ok, decoded} ->
+        decoded
+
+      {:error, decode_error} ->
+        Logger.error(
+          "ToolExecutor: Failed to parse tool arguments: #{inspect(decode_error)}, raw: #{String.slice(arguments, 0, 500)}"
+        )
+
+        Sentry.capture_message("Tool argument parse failure",
+          level: :error,
+          tags: %{error_type: "tool_parse_error"},
+          extra: %{
+            raw_arguments: String.slice(arguments, 0, 500),
+            decode_error: inspect(decode_error)
+          }
+        )
+
+        %{}
     end
   end
 
@@ -228,7 +257,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
 
   # --- MCP Tool Execution ---
 
-  defp execute_mcp_tool(tool_call, _task_id) do
+  defp execute_mcp_tool(tool_call, task_id) do
     Logger.info("ToolExecutor: Routing to MCP tool #{tool_call.name}")
 
     # Registration already happened in register_if_mcp_tool before broadcast
@@ -241,6 +270,22 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
     after
       @tool_timeout_ms ->
         Registry.unregister(FrontmanServer.ToolCallRegistry, {:tool_call, tool_call_id})
+
+        Logger.error(
+          "ToolExecutor: MCP tool #{tool_call.name} timed out after #{@tool_timeout_ms}ms"
+        )
+
+        Sentry.capture_message("MCP tool timeout",
+          level: :error,
+          tags: %{error_type: "tool_timeout"},
+          extra: %{
+            tool_name: tool_call.name,
+            tool_call_id: tool_call_id,
+            task_id: task_id,
+            timeout_ms: @tool_timeout_ms
+          }
+        )
+
         {:error, "Tool timeout: #{tool_call.name}"}
     end
   end
