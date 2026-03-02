@@ -65,6 +65,7 @@ describe("Client State Reducer", () => {
       id: "user-1",
       sessionId: "session-1",
       content: [UserContentPart.text("Hello")],
+      annotations: [],
     })
 
     let (nextState, _effects) = Reducer.next(state, action)
@@ -147,6 +148,7 @@ describe("Client State Reducer", () => {
         id: "user-1",
         sessionId: "session-1",
         content: [UserContentPart.text("Hi")],
+        annotations: [],
       }),
     )
 
@@ -351,6 +353,7 @@ describe("Client State Reducer - Streaming Flow", () => {
         id: "user-1",
         sessionId: "session-id",
         content: [UserContentPart.text("Hello")],
+        annotations: [],
       }),
     )
 
@@ -394,6 +397,7 @@ describe("Client State Reducer - Selectors", () => {
     let userMsg = Reducer.Message.User({
       id: "user-1",
       content: [],
+      annotations: [],
       createdAt: 0.0,
     })
 
@@ -575,6 +579,7 @@ describe("Client State Reducer - Task ID Continuity", () => {
         id: "user-1",
         sessionId: "sessionId",
         content: [UserContentPart.text("First message")],
+        annotations: [],
       }),
     )
 
@@ -586,6 +591,7 @@ describe("Client State Reducer - Task ID Continuity", () => {
         id: "user-2",
         sessionId: "sessionId",
         content: [UserContentPart.text("Second message")],
+        annotations: [],
       }),
     )
 
@@ -605,6 +611,7 @@ describe("Client State Reducer - Task ID Continuity", () => {
         id: "user-1",
         sessionId: "sessionId",
         content: [UserContentPart.text("First message")],
+        annotations: [],
       }),
     )
 
@@ -629,6 +636,7 @@ describe("Client State Reducer - Task Management Actions", () => {
         Reducer.Message.User({
           id: "user-1",
           content: [UserContentPart.Text({text: "Hello from task 1"})],
+          annotations: [],
           createdAt: 1000.0,
         }),
       ],
@@ -643,6 +651,7 @@ describe("Client State Reducer - Task Management Actions", () => {
         Reducer.Message.User({
           id: "user-2",
           content: [UserContentPart.Text({text: "Hello from task 2"})],
+          annotations: [],
           createdAt: 2000.0,
         }),
       ],
@@ -741,6 +750,7 @@ describe("Client State Reducer - Task Management Actions", () => {
         Reducer.Message.User({
           id: "user-1",
           content: [UserContentPart.Text({text: "Old message"})],
+          annotations: [],
           createdAt: 1000.0,
         }),
       ],
@@ -783,6 +793,7 @@ describe("Client State Reducer - Task Management Actions", () => {
         id: "user-2",
         sessionId: "session-new",
         content: [UserContentPart.text("Hello after delete")],
+        annotations: [],
       }),
     )
 
@@ -844,6 +855,7 @@ describe("Client State Reducer - Task Management Actions", () => {
         id: "user-1",
         sessionId: "session",
         content: [UserContentPart.Text({text: "Message in task 1"})],
+        annotations: [],
       }),
     )
 
@@ -853,6 +865,7 @@ describe("Client State Reducer - Task Management Actions", () => {
         id: "user-2",
         sessionId: "session",
         content: [UserContentPart.Text({text: "Second message"})],
+        annotations: [],
       }),
     )
 
@@ -927,6 +940,7 @@ describe("Client State Reducer - Session Loading Actions", () => {
         Reducer.Message.User({
           id: "user-1",
           content: [UserContentPart.Text({text: "Existing message"})],
+          annotations: [],
           createdAt: 1000.0,
         }),
       ],
@@ -1115,5 +1129,131 @@ describe("Client State Reducer - UpdateTaskTitle safety", () => {
     t->expect(TestHelpers.getTaskCount(nextState))->Expect.toBe(1)
     let task = nextState.tasks->Dict.get("task-1")->Option.getOrThrow
     t->expect(Task.getTitle(task))->Expect.toEqual(Some("Test Task"))
+  })
+})
+
+// ============================================================================
+// Annotation-to-Message Tests (Issue #466)
+// ============================================================================
+
+module MessageAnnotation = Client__Message.MessageAnnotation
+
+describe("Client State Reducer - Annotations on Messages", () => {
+  let _sampleAnnotations: array<MessageAnnotation.t> = [
+    {
+      id: "ann-1",
+      selector: Some(".btn-submit"),
+      tagName: "button",
+      cssClasses: Some("btn-submit primary"),
+      comment: Some("This button is broken"),
+      screenshot: None,
+      sourceLocation: None,
+      boundingBox: None,
+      nearbyText: Some("Submit"),
+    },
+    {
+      id: "ann-2",
+      selector: Some("div.header"),
+      tagName: "div",
+      cssClasses: Some("header"),
+      comment: None,
+      screenshot: None,
+      sourceLocation: None,
+      boundingBox: None,
+      nearbyText: Some("Welcome"),
+    },
+  ]
+
+  test("AddUserMessage with annotations stores them on the message", t => {
+    let state = Reducer.defaultState
+    let action = Reducer.AddUserMessage({
+      id: "user-1",
+      sessionId: "session-1",
+      content: [UserContentPart.text("Fix this")],
+      annotations: _sampleAnnotations,
+    })
+
+    let (nextState, _effects) = Reducer.next(state, action)
+
+    let messages = Reducer.Selectors.messages(nextState)
+    t->expect(messages->Array.length)->Expect.toBe(1)
+
+    switch messages->Array.get(0)->Option.getOrThrow {
+    | Reducer.Message.User({annotations, _}) =>
+      t->expect(annotations->Array.length)->Expect.toBe(2)
+      t->expect((annotations->Array.getUnsafe(0)).id)->Expect.toBe("ann-1")
+      t->expect((annotations->Array.getUnsafe(0)).tagName)->Expect.toBe("button")
+      t->expect((annotations->Array.getUnsafe(0)).comment)->Expect.toEqual(Some("This button is broken"))
+      t->expect((annotations->Array.getUnsafe(1)).id)->Expect.toBe("ann-2")
+    | _ => JsExn.throw("Expected User message")
+    }
+  })
+
+  test("AddUserMessage with only annotations (no text) creates valid message", t => {
+    let state = Reducer.defaultState
+    let action = Reducer.AddUserMessage({
+      id: "user-1",
+      sessionId: "session-1",
+      content: [],
+      annotations: _sampleAnnotations,
+    })
+
+    let (nextState, _effects) = Reducer.next(state, action)
+
+    let messages = Reducer.Selectors.messages(nextState)
+    t->expect(messages->Array.length)->Expect.toBe(1)
+
+    switch messages->Array.get(0)->Option.getOrThrow {
+    | Reducer.Message.User({content, annotations, _}) =>
+      t->expect(content->Array.length)->Expect.toBe(0)
+      t->expect(annotations->Array.length)->Expect.toBe(2)
+    | _ => JsExn.throw("Expected User message")
+    }
+  })
+
+  test("AddUserMessage without annotations stores empty array", t => {
+    let state = Reducer.defaultState
+    let action = Reducer.AddUserMessage({
+      id: "user-1",
+      sessionId: "session-1",
+      content: [UserContentPart.text("Hello")],
+      annotations: [],
+    })
+
+    let (nextState, _effects) = Reducer.next(state, action)
+
+    let messages = Reducer.Selectors.messages(nextState)
+    switch messages->Array.get(0)->Option.getOrThrow {
+    | Reducer.Message.User({annotations, _}) =>
+      t->expect(annotations->Array.length)->Expect.toBe(0)
+    | _ => JsExn.throw("Expected User message")
+    }
+  })
+
+  test("SendMessage effect carries annotations from AddUserMessage", t => {
+    let state = Reducer.defaultState
+    let action = Reducer.AddUserMessage({
+      id: "user-1",
+      sessionId: "session-1",
+      content: [UserContentPart.text("Fix this")],
+      annotations: _sampleAnnotations,
+    })
+
+    let (_nextState, effects) = Reducer.next(state, action)
+
+    // Find the TaskEffect wrapping SendMessage
+    let sendEffect = effects->Array.find(eff =>
+      switch eff {
+      | Reducer.TaskEffect({effect: SendMessage(_)}) => true
+      | _ => false
+      }
+    )
+
+    switch sendEffect {
+    | Some(Reducer.TaskEffect({effect: SendMessage({annotations})})) =>
+      t->expect(annotations->Array.length)->Expect.toBe(2)
+      t->expect((annotations->Array.getUnsafe(0)).id)->Expect.toBe("ann-1")
+    | _ => JsExn.throw("Expected TaskEffect(SendMessage) with annotations")
+    }
   })
 })

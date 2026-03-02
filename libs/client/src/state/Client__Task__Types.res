@@ -946,3 +946,154 @@ let taskToContentBlocks = (task: Task.t): array<ACPTypes.contentBlock> => {
     }
   }
 }
+
+// ============================================================================
+// Page-context-only content blocks (annotations now live on messages)
+// ============================================================================
+
+// Build page context blocks from Task (no annotations — those come from the message)
+let taskToPageContextBlocks = (task: Task.t): array<ACPTypes.contentBlock> => {
+  switch task {
+  | Task.Unloaded(_) => []
+  | Task.New({previewFrame})
+  | Task.Loading({previewFrame})
+  | Task.Loaded({previewFrame}) =>
+    [currentPageToContentBlock(previewFrame)]
+  }
+}
+
+// ============================================================================
+// MessageAnnotation -> ContentBlock conversion
+// ============================================================================
+
+// Convert a MessageAnnotation.sourceLocation back to Client__Types.SourceLocation.t
+// for reuse with makeAnnotationMeta
+let rec messageAnnotationSourceLocationToClientTypes = (
+  loc: Message.MessageAnnotation.sourceLocation,
+): Client__Types.SourceLocation.t => {
+  componentName: loc.componentName,
+  tagName: loc.tagName,
+  file: loc.file,
+  line: loc.line,
+  column: loc.column,
+  parent: loc.parent->Option.map(messageAnnotationSourceLocationToClientTypes),
+  componentProps: loc.componentProps,
+}
+
+// Build _meta JSON for a MessageAnnotation (reuses makeAnnotationMeta logic)
+let makeMessageAnnotationMeta = (
+  annotation: Message.MessageAnnotation.t,
+  ~index: int,
+): JSON.t => {
+  let sourceLocation = annotation.sourceLocation->Option.map(
+    messageAnnotationSourceLocationToClientTypes,
+  )
+  // Build a minimal Annotation.t-compatible record for makeAnnotationMeta
+  let obj = Dict.make()
+  obj->Dict.set("annotation", JSON.Encode.bool(true))
+  obj->Dict.set("annotation_index", JSON.Encode.int(index))
+  obj->Dict.set("annotation_id", JSON.Encode.string(annotation.id))
+  obj->Dict.set("tag_name", JSON.Encode.string(annotation.tagName))
+
+  let (file, line, column, componentName, componentProps, parent) = switch sourceLocation {
+  | Some(loc) => {
+      let cleanFile = stripFileUriPrefix(loc.file)
+      (Some(cleanFile), Some(loc.line), Some(loc.column), loc.componentName, loc.componentProps, loc.parent)
+    }
+  | None => (None, None, None, None, None, None)
+  }
+
+  obj->setOpt("comment", JSON.Encode.string, annotation.comment)
+  obj->setOpt("file", JSON.Encode.string, file)
+  obj->setOpt("line", JSON.Encode.int, line)
+  obj->setOpt("column", JSON.Encode.int, column)
+  obj->setOpt("component_name", JSON.Encode.string, componentName)
+  obj->setOpt("component_props", JSON.Encode.object, componentProps)
+  obj->setOpt("parent", x => x, serializeParentToJson(parent))
+  obj->setOpt("css_classes", JSON.Encode.string, annotation.cssClasses)
+  obj->setOpt("nearby_text", JSON.Encode.string, annotation.nearbyText)
+  obj->setOpt("bounding_box", boundingBoxToJson, annotation.boundingBox->Option.map(bb => {
+    Annotation.x: bb.x,
+    y: bb.y,
+    width: bb.width,
+    height: bb.height,
+  }))
+
+  JSON.Encode.object(obj)
+}
+
+// Build content blocks for a single MessageAnnotation
+// Returns 1-2 blocks: resource block with annotation _meta, optional screenshot blob
+let messageAnnotationToContentBlocks = (
+  annotation: Message.MessageAnnotation.t,
+  ~index: int,
+): array<ACPTypes.contentBlock> => {
+  let _meta = makeMessageAnnotationMeta(annotation, ~index)
+
+  // Build text description and URI from source location, falling back to selector
+  let (uri, text) = switch annotation.sourceLocation {
+  | Some(loc) => {
+      let f = stripFileUriPrefix(loc.file)
+      let l = loc.line->Int.toString
+      let c = loc.column->Int.toString
+      (`file://${f}:${l}:${c}`, `Annotated element: <${annotation.tagName}> at ${f}:${l}:${c}`)
+    }
+  | None =>
+    switch annotation.selector {
+    | Some(sel) => (`selector://${sel}`, `Annotated element: <${annotation.tagName}> matching ${sel}`)
+    | None => (`element://${annotation.tagName}`, `Annotated element: <${annotation.tagName}>`)
+    }
+  }
+
+  let resourceBlock: ACPTypes.contentBlock = {
+    type_: "resource",
+    text: None,
+    uri: None,
+    resource: Some({
+      _meta: Some(_meta),
+      annotations: None,
+      resource: ACPTypes.TextResourceContents({uri, mimeType: Some("text/plain"), text}),
+    }),
+    content: None,
+  }
+
+  let screenshotBlock = annotation.screenshot->Option.map(screenshotDataUrl => {
+    let (mimeType, base64Data) = parseDataUrl(screenshotDataUrl)
+
+    let screenshotMeta: JSON.t = {
+      let obj = Dict.make()
+      obj->Dict.set("annotation_screenshot", JSON.Encode.bool(true))
+      obj->Dict.set("annotation_index", JSON.Encode.int(index))
+      obj->Dict.set("annotation_id", JSON.Encode.string(annotation.id))
+      JSON.Encode.object(obj)
+    }
+
+    let block: ACPTypes.contentBlock = {
+      type_: "resource",
+      text: None,
+      uri: None,
+      resource: Some({
+        _meta: Some(screenshotMeta),
+        annotations: None,
+        resource: ACPTypes.BlobResourceContents({
+          uri: `annotation://${annotation.id}/screenshot`,
+          mimeType: Some(mimeType),
+          blob: base64Data,
+        }),
+      }),
+      content: None,
+    }
+    block
+  })
+
+  [Some(resourceBlock), screenshotBlock]->Array.filterMap(x => x)
+}
+
+// Build content blocks from an array of MessageAnnotations
+let messageAnnotationsToContentBlocks = (
+  annotations: array<Message.MessageAnnotation.t>,
+): array<ACPTypes.contentBlock> => {
+  annotations->Array.flatMapWithIndex((annotation, index) =>
+    messageAnnotationToContentBlocks(annotation, ~index)
+  )
+}

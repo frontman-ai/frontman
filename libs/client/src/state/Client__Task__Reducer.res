@@ -350,7 +350,7 @@ type action =
   | ToolErrorReceived({id: string, error: string})
   | ToolCallReceived({toolCall: Message.toolCall})
   // Content actions
-  | AddUserMessage({id: string, content: array<UserContentPart.t>})
+  | AddUserMessage({id: string, content: array<UserContentPart.t>, annotations: array<Message.MessageAnnotation.t>})
   // Annotation actions — unified selection mode
   | SetAnnotationMode({mode: Annotation.annotationMode})
   | ToggleAnnotationMode
@@ -407,6 +407,7 @@ type effect =
   | SendMessage({
       text: string,
       attachments: array<Message.fileAttachmentData>,
+      annotations: array<Message.MessageAnnotation.t>,
     })
   | NotifyTurnCompleted
   | CancelPrompt
@@ -416,6 +417,7 @@ type delegated =
   | NeedSendMessage({
       text: string,
       attachments: array<Message.fileAttachmentData>,
+      annotations: array<Message.MessageAnnotation.t>,
     })
   | NeedUsageRefresh
   | NeedCancelPrompt
@@ -818,16 +820,16 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
   // Per ACP spec: a new user message signals the end of the previous agent message
   | (Task.Loading(_), UserMessageReceived({id, text, timestamp})) =>
     let createdAt = Date.fromString(timestamp)->Date.getTime
-    let userMessage = Message.User({id, content: [UserContentPart.text(text)], createdAt})
+    let userMessage = Message.User({id, content: [UserContentPart.text(text)], annotations: [], createdAt})
     (task->Lens.completeStreamingMessage->Lens.insertMessage(userMessage), [])
 
   // ============================================================================
   // Loaded-only Actions - require isAgentRunning or planEntries
   // ============================================================================
-  | (Task.Loaded(data), AddUserMessage({id, content})) =>
+  | (Task.Loaded(data), AddUserMessage({id, content, annotations})) =>
     let text = extractTextFromUserContent(content)
     let attachments = extractAttachmentsFromUserContent(content)
-    let message = Message.User({id, content, createdAt: Date.now()})
+    let message = Message.User({id, content, annotations, createdAt: Date.now()})
 
     // Accumulate image attachments keyed by URI for write_file image_ref resolution
     let updatedImageAttachments = data.imageAttachments->Dict.copy
@@ -843,8 +845,12 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
         isAgentRunning: true,
         turnError: None, // Clear any previous error when sending a new message
         imageAttachments: updatedImageAttachments,
+        // Clear annotations from task state — they now live on the message
+        annotations: [],
+        annotationMode: Annotation.Off,
+        activePopupAnnotationId: None,
       }),
-      [SendMessage({text, attachments})],
+      [SendMessage({text, attachments, annotations})],
     )
 
   | (Task.Loaded(data), PlanReceived({entries})) => (
@@ -1123,7 +1129,7 @@ let handleEffect = (effect: effect, ~dispatch: action => unit, ~delegate: delega
           Promise.resolve()
         })
     }
-  | SendMessage({text, attachments}) => delegate(NeedSendMessage({text, attachments}))
+  | SendMessage({text, attachments, annotations}) => delegate(NeedSendMessage({text, attachments, annotations}))
   | NotifyTurnCompleted => delegate(NeedUsageRefresh)
   | CancelPrompt => delegate(NeedCancelPrompt)
   }

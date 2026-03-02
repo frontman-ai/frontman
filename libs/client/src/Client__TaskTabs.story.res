@@ -27,6 +27,7 @@ module Fixtures = {
       let msg = StateReducer.Message.User({
         id: `msg-${id}`,
         content: [StateReducer.UserContentPart.Text({text: "Hello"})],
+        annotations: [],
         createdAt,
       })
       [msg]

@@ -25,7 +25,7 @@ type action =
   // Task-scoped actions (routed to task sub-reducer)
   | TaskAction({target: taskTarget, action: TaskReducer.action})
   // User actions
-  | AddUserMessage({id: string, sessionId: string, content: array<UserContentPart.t>})
+  | AddUserMessage({id: string, sessionId: string, content: array<UserContentPart.t>, annotations: array<Message.MessageAnnotation.t>})
   // Cancel current turn
   | CancelTurn
   // Task management actions
@@ -509,18 +509,23 @@ let sendMessageToAPIImpl = (
   dispatch,
   ~message,
   ~attachments: array<Client__Message.fileAttachmentData>=[],
+  ~annotations: array<Client__Message.MessageAnnotation.t>=[],
   ~taskId,
 ) => {
   switch state.acpSession {
   | AcpSessionActive({sendPrompt}) =>
-    let contextBlocks =
+    // Page context from task (always included)
+    let pageContextBlocks =
       state.tasks
       ->Dict.get(taskId)
-      ->Option.mapOr([], Client__State__Types.taskToContentBlocks)
+      ->Option.mapOr([], Client__State__Types.taskToPageContextBlocks)
+
+    // Annotation content blocks from the message (not task state)
+    let annotationBlocks = Client__State__Types.messageAnnotationsToContentBlocks(annotations)
 
     // Build attachment content blocks
     let attachmentBlocks = buildAttachmentContentBlocks(attachments)
-    let additionalBlocks = Array.concat(contextBlocks, attachmentBlocks)
+    let additionalBlocks = Array.concat(pageContextBlocks, annotationBlocks)->Array.concat(attachmentBlocks)
 
     // Include runtime config metadata (e.g., framework, openrouterKeyValue) with each prompt
     let runtimeConfig = Client__RuntimeConfig.read()
@@ -613,7 +618,7 @@ let handleEffect = (effect, state: state, dispatch) => {
       // Handle delegation from task effects
       let delegate = (delegated: TaskReducer.delegated) => {
         switch delegated {
-        | NeedSendMessage({text, attachments}) =>
+        | NeedSendMessage({text, attachments, annotations}) =>
           // Resolve the taskId from target
           let taskId = switch target {
           | ForTask(id) => id
@@ -624,7 +629,7 @@ let handleEffect = (effect, state: state, dispatch) => {
               failwith("[TaskEffect] NeedSendMessage from CurrentTask but currentTask is New")
             }
           }
-          sendMessageToAPIImpl(state, dispatch, ~message=text, ~attachments, ~taskId)
+          sendMessageToAPIImpl(state, dispatch, ~message=text, ~attachments, ~annotations, ~taskId)
         | NeedUsageRefresh =>
           switch state.acpSession {
           | AcpSessionActive({apiBaseUrl}) => fetchUsageInfoImpl(dispatch, ~apiBaseUrl)
@@ -1090,7 +1095,7 @@ let next = (state: state, action) => {
   // ============================================================================
   // AddUserMessage - cross-cutting (creates tasks, manages dict)
   // ============================================================================
-  | AddUserMessage({id, sessionId, content}) => {
+  | AddUserMessage({id, sessionId, content, annotations}) => {
       let textContent = TaskReducer.extractTextFromUserContent(content)
 
       switch state.currentTask {
@@ -1107,10 +1112,10 @@ let next = (state: state, action) => {
         // Delegate AddUserMessage to the (now Loaded) task reducer
         promotedState->Lens.delegateToTask(
           Task.Selected(sessionId),
-          TaskReducer.AddUserMessage({id, content}),
+          TaskReducer.AddUserMessage({id, content, annotations}),
         )
       | Task.Selected(taskId) =>
-        state->Lens.delegateToTask(Task.Selected(taskId), TaskReducer.AddUserMessage({id, content}))
+        state->Lens.delegateToTask(Task.Selected(taskId), TaskReducer.AddUserMessage({id, content, annotations}))
       }
     }
 

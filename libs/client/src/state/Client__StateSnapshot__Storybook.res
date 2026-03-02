@@ -92,12 +92,27 @@ let convertAssistantMessage = (
   }
 }
 
+let convertSnapshotAnnotation = (
+  ann: Snapshot.SnapshotAnnotation.t,
+): Client__Message.MessageAnnotation.t => {
+  id: ann.id,
+  selector: ann.selector,
+  tagName: ann.tagName,
+  cssClasses: ann.cssClasses,
+  comment: ann.comment,
+  screenshot: None, // Screenshots not stored in snapshots
+  sourceLocation: None, // Source locations not stored in snapshot annotations
+  boundingBox: None, // Bounding boxes not stored in snapshot annotations
+  nearbyText: ann.nearbyText,
+}
+
 let convertMessage = (msg: Snapshot.Message.t): StateTypes.Message.t => {
   switch msg {
-  | User({id, content, createdAt}) =>
+  | User({id, content, annotations, createdAt}) =>
     User({
       id,
       content: content->Array.map(convertUserContentPart),
+      annotations: annotations->Array.map(convertSnapshotAnnotation),
       createdAt,
     })
   | Assistant(assistantMsg) => Assistant(convertAssistantMessage(assistantMsg))

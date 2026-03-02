@@ -358,3 +358,170 @@ describe("Client__State__Types", () => {
     })
   })
 })
+
+// ============================================================================
+// MessageAnnotation Tests (Issue #466)
+// ============================================================================
+
+module MessageAnnotation = Client__Message.MessageAnnotation
+
+describe("MessageAnnotation.fromAnnotation", () => {
+  test("snapshots all annotation fields", t => {
+    let annotation = makeTestAnnotation(
+      ~file="file:///home/user/src/Button.tsx",
+      ~line=42,
+      ~column=5,
+      ~componentName="Button",
+      ~tagName="button",
+      ~selector=".btn-submit",
+      ~cssClasses="btn-submit primary",
+      ~nearbyText="Submit",
+      ~boundingBox={x: 10.0, y: 20.0, width: 100.0, height: 50.0},
+    )
+    // Add a comment and screenshot to the annotation
+    let annotation = {...annotation, comment: Some("This is broken"), screenshot: Some("data:image/jpeg;base64,abc123")}
+
+    let snapshot = MessageAnnotation.fromAnnotation(annotation)
+
+    t->expect(snapshot.id)->Expect.toBe("test-annotation-id")
+    t->expect(snapshot.selector)->Expect.toEqual(Some(".btn-submit"))
+    t->expect(snapshot.tagName)->Expect.toBe("button")
+    t->expect(snapshot.cssClasses)->Expect.toEqual(Some("btn-submit primary"))
+    t->expect(snapshot.comment)->Expect.toEqual(Some("This is broken"))
+    t->expect(snapshot.screenshot)->Expect.toEqual(Some("data:image/jpeg;base64,abc123"))
+    t->expect(snapshot.nearbyText)->Expect.toEqual(Some("Submit"))
+  })
+
+  test("converts source location correctly", t => {
+    let annotation = makeTestAnnotation(
+      ~file="file:///home/user/src/Header.tsx",
+      ~line=10,
+      ~column=3,
+      ~componentName="Header",
+      ~tagName="div",
+    )
+
+    let snapshot = MessageAnnotation.fromAnnotation(annotation)
+
+    switch snapshot.sourceLocation {
+    | Some(loc) =>
+      t->expect(loc.file)->Expect.toBe("file:///home/user/src/Header.tsx")
+      t->expect(loc.line)->Expect.toBe(10)
+      t->expect(loc.column)->Expect.toBe(3)
+      t->expect(loc.componentName)->Expect.toEqual(Some("Header"))
+    | None => t->expect("sourceLocation")->Expect.toBe("should be Some")
+    }
+  })
+
+  test("converts bounding box correctly", t => {
+    let annotation = makeTestAnnotation(
+      ~file="src/App.tsx",
+      ~line=1,
+      ~column=1,
+      ~boundingBox={x: 5.5, y: 10.5, width: 200.0, height: 100.0},
+    )
+
+    let snapshot = MessageAnnotation.fromAnnotation(annotation)
+
+    switch snapshot.boundingBox {
+    | Some(bb) =>
+      t->expect(bb.x)->Expect.toBe(5.5)
+      t->expect(bb.y)->Expect.toBe(10.5)
+      t->expect(bb.width)->Expect.toBe(200.0)
+      t->expect(bb.height)->Expect.toBe(100.0)
+    | None => t->expect("boundingBox")->Expect.toBe("should be Some")
+    }
+  })
+
+  test("handles None fields gracefully", t => {
+    let annotation: Annotation.t = {
+      id: "test-minimal",
+      element: makeMockElement(),
+      comment: None,
+      selector: None,
+      screenshot: None,
+      sourceLocation: None,
+      tagName: "span",
+      cssClasses: None,
+      boundingBox: None,
+      nearbyText: None,
+      position: {xPercent: 0.0, yAbsolute: 0.0},
+      timestamp: 0.0,
+    }
+
+    let snapshot = MessageAnnotation.fromAnnotation(annotation)
+
+    t->expect(snapshot.id)->Expect.toBe("test-minimal")
+    t->expect(snapshot.tagName)->Expect.toBe("span")
+    t->expect(snapshot.selector)->Expect.toEqual(None)
+    t->expect(snapshot.comment)->Expect.toEqual(None)
+    t->expect(snapshot.screenshot)->Expect.toEqual(None)
+    t->expect(snapshot.sourceLocation)->Expect.toEqual(None)
+    t->expect(snapshot.boundingBox)->Expect.toEqual(None)
+    t->expect(snapshot.nearbyText)->Expect.toEqual(None)
+  })
+})
+
+describe("messageAnnotationsToContentBlocks", () => {
+  test("produces resource blocks from MessageAnnotation array", t => {
+    let annotations: array<MessageAnnotation.t> = [
+      {
+        id: "ann-1",
+        selector: Some(".submit"),
+        tagName: "button",
+        cssClasses: Some("submit"),
+        comment: Some("Fix this"),
+        screenshot: None,
+        sourceLocation: Some({
+          componentName: Some("Form"),
+          tagName: "button",
+          file: "/src/Form.tsx",
+          line: 42,
+          column: 5,
+          parent: None,
+          componentProps: None,
+        }),
+        boundingBox: None,
+        nearbyText: Some("Submit"),
+      },
+    ]
+
+    let blocks = Types.messageAnnotationsToContentBlocks(annotations)
+
+    // 1 annotation without screenshot = 1 block
+    t->expect(blocks->Array.length)->Expect.toBe(1)
+
+    let meta = getMeta(blocks->Array.getUnsafe(0))
+    t->expect(getMetaBool(meta, "annotation"))->Expect.toBe(true)
+    t->expect(getMetaFloat(meta, "annotation_index"))->Expect.toBe(0.0)
+    t->expect(getMetaString(meta, "annotation_id"))->Expect.toBe("ann-1")
+    t->expect(getMetaString(meta, "tag_name"))->Expect.toBe("button")
+    t->expect(getMetaString(meta, "comment"))->Expect.toBe("Fix this")
+  })
+
+  test("produces screenshot blocks when screenshot is present", t => {
+    let annotations: array<MessageAnnotation.t> = [
+      {
+        id: "ann-1",
+        selector: None,
+        tagName: "div",
+        cssClasses: None,
+        comment: None,
+        screenshot: Some("data:image/jpeg;base64,abc123"),
+        sourceLocation: None,
+        boundingBox: None,
+        nearbyText: None,
+      },
+    ]
+
+    let blocks = Types.messageAnnotationsToContentBlocks(annotations)
+
+    // 1 annotation with screenshot = 2 blocks
+    t->expect(blocks->Array.length)->Expect.toBe(2)
+  })
+
+  test("empty annotations array produces no blocks", t => {
+    let blocks = Types.messageAnnotationsToContentBlocks([])
+    t->expect(blocks->Array.length)->Expect.toBe(0)
+  })
+})

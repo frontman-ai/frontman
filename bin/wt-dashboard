@@ -30,6 +30,10 @@ else
   LINE="--------------------------------------------------------------"
 fi
 
+# ── Resolve main repo root (works from any worktree) ────
+MAIN_REPO=$(git worktree list --porcelain | head -1 | sed 's/^worktree //')
+WORKTREES_DIR="${MAIN_REPO}/.worktrees"
+
 # ── Portable MD5 (same logic as Makefile) ───────────────
 md5_short() {
   if command -v md5sum >/dev/null 2>&1; then
@@ -101,12 +105,12 @@ collect_pods() {
 # ── Collect all worktree branches ───────────────────────
 collect_worktrees() {
   local -n _branches=$1  # nameref to caller's array
-  if [[ ! -d ".worktrees" ]]; then
+  if [[ ! -d "$WORKTREES_DIR" ]]; then
     return
   fi
 
   # Single-level: .worktrees/my-branch
-  for wt in .worktrees/*; do
+  for wt in "$WORKTREES_DIR"/*; do
     [[ -d "$wt" ]] || continue
     local name
     name=$(basename "$wt")
@@ -117,11 +121,11 @@ collect_worktrees() {
   done
 
   # Nested: .worktrees/feature/my-branch
-  for wt in .worktrees/*/*; do
+  for wt in "$WORKTREES_DIR"/*/*; do
     [[ -d "$wt" ]] || continue
     if [[ -f "$wt/.git" ]] || [[ -d "$wt/.git" ]]; then
       local name
-      name=$(echo "$wt" | sed 's|^\.worktrees/||')
+      name=$(echo "$wt" | sed "s|^${WORKTREES_DIR}/||")
       _branches+=("$name")
     fi
   done
@@ -190,7 +194,7 @@ print_worktree() {
     printf "  ${DIM}%-12s${RESET} Plain worktree (no container)\n" "Status:"
 
     # Show git status summary
-    local wt_dir=".worktrees/$branch"
+    local wt_dir="${WORKTREES_DIR}/$branch"
     local git_status
     git_status=$(git -C "$wt_dir" status -s 2>/dev/null | wc -l | tr -d ' ')
     local current_branch
@@ -211,11 +215,11 @@ print_orphan_pods() {
   for hash in "${!POD_STATUS[@]}"; do
     # Check if any worktree maps to this hash
     local matched=false
-    if [[ -d ".worktrees" ]]; then
-      for wt in .worktrees/* .worktrees/*/*; do
+    if [[ -d "$WORKTREES_DIR" ]]; then
+      for wt in "$WORKTREES_DIR"/* "$WORKTREES_DIR"/*/*; do
         [[ -d "$wt" ]] || continue
         local name
-        name=$(echo "$wt" | sed 's|^\.worktrees/||')
+        name=$(echo "$wt" | sed "s|^${WORKTREES_DIR}/||")
         local wt_hash
         wt_hash=$(md5_short "$name")
         if [[ "$wt_hash" == "$hash" ]]; then

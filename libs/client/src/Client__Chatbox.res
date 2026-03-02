@@ -141,17 +141,19 @@ let make = (
     ~sessionInitialized,
   )
 
-  let hasAnnotatedComments = annotations->Array.some(a => a.comment->Option.isSome)
+  let hasAnnotations = Array.length(annotations) > 0
 
   let handleSubmit = (~text: string, ~inputItems: array<Client__PromptInput.inputItem>) => {
+    // Snapshot live annotations into serializable MessageAnnotation records
+    let messageAnnotations = annotations->Array.map(Client__Message.MessageAnnotation.fromAnnotation)
+
     let sendWithContent = (content) => {
-      // Allow send if there's content OR annotations with comments (annotations are
-      // attached by the reducer as additional content blocks during addUserMessage)
-      switch Array.length(content) > 0 || hasAnnotatedComments {
+      // Allow send if there's content OR annotations (annotations are first-class message content)
+      switch Array.length(content) > 0 || Array.length(messageAnnotations) > 0 {
       | false => ()
       | true =>
         let sendMessage = (sessionId: string) => {
-          Client__State.Actions.addUserMessage(~sessionId, ~content)
+          Client__State.Actions.addUserMessage(~sessionId, ~content, ~annotations=messageAnnotations)
         }
         switch session {
         | Some(sess) => sendMessage(sess.sessionId)
@@ -262,12 +264,12 @@ let make = (
     let isLastToolGroup = itemIndex == lastToolGroupIndex
 
     switch item {
-    | UserMsg(Message.User({id, content, _}), _) =>
+    | UserMsg(Message.User({id, content, annotations, _}), _) =>
       // Use stable message ID for key
       // frontman-content-auto: browser skips layout/paint for off-screen messages
       let messageId = `user-${id}`
       <div key={messageId} className="frontman-content-auto">
-        <UserMessage content messageId isNew={isLastItem} />
+        <UserMessage content annotations messageId isNew={isLastItem} />
       </div>
 
     | AssistantMsg(Message.Assistant(Streaming({id, textBuffer, _})), _) =>
@@ -421,7 +423,7 @@ let make = (
       disabledPlaceholder="Free requests exhausted. Add your API key in Settings to continue."
       onSelectElement={Client__State.Actions.toggleWebPreviewSelection}
       isSelecting={webPreviewIsSelecting}
-      hasAnnotatedComments
+      hasAnnotations
     />
   </div>
 }

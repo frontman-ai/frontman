@@ -35,6 +35,7 @@ describe("Task - Single Streaming Message Invariant", () => {
       AddUserMessage({
         id: "user-1",
         content: [Client__Task__Types.UserContentPart.Text({text: "Hello"})],
+        annotations: [],
       }),
     )
     task1
@@ -103,6 +104,7 @@ describe("Task - Tool Call Lifecycle", () => {
       AddUserMessage({
         id: "user-1",
         content: [Client__Task__Types.UserContentPart.Text({text: "Hello"})],
+        annotations: [],
       }),
     )
     task1
@@ -213,6 +215,7 @@ describe("Task - Agent Running State", () => {
       AddUserMessage({
         id: "user-1",
         content: [Client__Task__Types.UserContentPart.Text({text: "Hello"})],
+        annotations: [],
       }),
     )
 
@@ -226,6 +229,7 @@ describe("Task - Agent Running State", () => {
       AddUserMessage({
         id: "user-1",
         content: [Client__Task__Types.UserContentPart.Text({text: "Hello"})],
+        annotations: [],
       }),
     )
     t->expect(TaskReducer.Selectors.isAgentRunning(task2))->Expect.toEqual(Some(true))
@@ -303,6 +307,7 @@ describe("Task - Error Handling", () => {
       AddUserMessage({
         id: "user-1",
         content: [Client__Task__Types.UserContentPart.Text({text: "Hello"})],
+        annotations: [],
       }),
     )
     t->expect(TaskReducer.Selectors.isAgentRunning(task2))->Expect.toEqual(Some(true))
@@ -320,6 +325,7 @@ describe("Task - Error Handling", () => {
       AddUserMessage({
         id: "user-1",
         content: [Client__Task__Types.UserContentPart.Text({text: "Hello"})],
+        annotations: [],
       }),
     )
     let (task1, _) = TaskReducer.next(task0, StreamingStarted)
@@ -384,6 +390,7 @@ describe("Task - Error Handling", () => {
       AddUserMessage({
         id: "user-1",
         content: [Client__Task__Types.UserContentPart.Text({text: "New message"})],
+        annotations: [],
       }),
     )
     t->expect(TaskReducer.Selectors.turnError(task3))->Expect.toEqual(None)
@@ -403,6 +410,7 @@ describe("Task - CancelTurn", () => {
       AddUserMessage({
         id: "user-1",
         content: [Client__Task__Types.UserContentPart.Text({text: "Hello"})],
+        annotations: [],
       }),
     )
     // Agent is now running
@@ -467,6 +475,7 @@ describe("Task - CancelTurn", () => {
       AddUserMessage({
         id: "user-1",
         content: [Client__Task__Types.UserContentPart.Text({text: "Hello"})],
+        annotations: [],
       }),
     )
 
@@ -511,6 +520,7 @@ describe("Task - CancelTurn", () => {
       AddUserMessage({
         id: "user-1",
         content: [Client__Task__Types.UserContentPart.Text({text: "retry"})],
+        annotations: [],
       }),
     )
     let (cancelled, _) = TaskReducer.next(task2, CancelTurn)
@@ -527,6 +537,7 @@ describe("Task - CancelTurn", () => {
       AddUserMessage({
         id: "user-2",
         content: [Client__Task__Types.UserContentPart.Text({text: "New question"})],
+        annotations: [],
       }),
     )
 
@@ -560,6 +571,7 @@ describe("Task - Stale Event Guard", () => {
       AddUserMessage({
         id: "user-1",
         content: [Client__Task__Types.UserContentPart.Text({text: "Hello"})],
+        annotations: [],
       }),
     )
     let (task2, _) = TaskReducer.next(task1, CancelTurn)
@@ -647,6 +659,169 @@ describe("Task - Stale Event Guard", () => {
     | Some(Message.Streaming({textBuffer})) =>
       t->expect(textBuffer)->Expect.toBe("loading text")
     | _ => t->expect("Streaming message")->Expect.toBe("not found during loading")
+    }
+  })
+})
+
+// ============================================================================
+// Annotation-to-Message Tests (Issue #466)
+// ============================================================================
+
+module Annotation = Client__Annotation__Types
+module MessageAnnotation = Client__Message.MessageAnnotation
+
+// Helper to create a mock DOM element for testing
+let _makeMockElement: unit => WebAPI.DOMAPI.element = %raw(`
+  function() { return { tagName: "DIV" }; }
+`)
+
+let _sampleMessageAnnotations: array<MessageAnnotation.t> = [
+  {
+    id: "ann-1",
+    selector: Some(".btn-submit"),
+    tagName: "button",
+    cssClasses: Some("btn-submit primary"),
+    comment: Some("This button is broken"),
+    screenshot: None,
+    sourceLocation: None,
+    boundingBox: None,
+    nearbyText: Some("Submit"),
+  },
+  {
+    id: "ann-2",
+    selector: Some("div.header"),
+    tagName: "div",
+    cssClasses: Some("header"),
+    comment: None,
+    screenshot: None,
+    sourceLocation: None,
+    boundingBox: None,
+    nearbyText: Some("Welcome"),
+  },
+]
+
+describe("Task - Annotations Cleared on Send (Issue #466)", () => {
+  // Helper: create a loaded task with annotations in task state
+  let _taskWithAnnotations = () => {
+    let task = TestHelpers.makeLoadedTask()
+    // Enter selecting mode and add annotations
+    let (task1, _) = TaskReducer.next(task, SetAnnotationMode({mode: Selecting}))
+    // Manually set annotations via ToggleAnnotation
+    let el1 = _makeMockElement()
+    let el2 = _makeMockElement()
+    let (task2, _) = TaskReducer.next(
+      task1,
+      ToggleAnnotation({element: el1, position: {xPercent: 50.0, yAbsolute: 100.0}, tagName: "button"}),
+    )
+    let (task3, _) = TaskReducer.next(
+      task2,
+      ToggleAnnotation({element: el2, position: {xPercent: 30.0, yAbsolute: 200.0}, tagName: "div"}),
+    )
+    task3
+  }
+
+  test("AddUserMessage with annotations clears task-level annotations", t => {
+    let task = _taskWithAnnotations()
+
+    // Verify annotations exist on task before send
+    t->expect(TaskReducer.Selectors.annotations(task)->Option.getOr([])->Array.length)->Expect.toBe(2)
+
+    // Send message with annotations
+    let (task2, _) = TaskReducer.next(
+      task,
+      AddUserMessage({
+        id: "user-1",
+        content: [Client__Task__Types.UserContentPart.Text({text: "Fix this"})],
+        annotations: _sampleMessageAnnotations,
+      }),
+    )
+
+    // Task-level annotations should be cleared
+    t->expect(TaskReducer.Selectors.annotations(task2)->Option.getOr([])->Array.length)->Expect.toBe(0)
+  })
+
+  test("AddUserMessage resets annotationMode to Off", t => {
+    let task = _taskWithAnnotations()
+
+    // Verify we're in Selecting mode before send
+    t->expect(TaskReducer.Selectors.webPreviewIsSelecting(task))->Expect.toEqual(Some(true))
+
+    // Send message
+    let (task2, _) = TaskReducer.next(
+      task,
+      AddUserMessage({
+        id: "user-1",
+        content: [Client__Task__Types.UserContentPart.Text({text: "Fix this"})],
+        annotations: _sampleMessageAnnotations,
+      }),
+    )
+
+    // Annotation mode should be Off
+    t->expect(TaskReducer.Selectors.webPreviewIsSelecting(task2))->Expect.toEqual(Some(false))
+  })
+
+  test("AddUserMessage clears activePopupAnnotationId", t => {
+    let task = _taskWithAnnotations()
+
+    // Verify popup is open (from ToggleAnnotation which opens popup for last added)
+    t->expect(TaskReducer.Selectors.activePopupAnnotationId(task)->Option.getOr(None)->Option.isSome)->Expect.toBe(true)
+
+    // Send message
+    let (task2, _) = TaskReducer.next(
+      task,
+      AddUserMessage({
+        id: "user-1",
+        content: [],
+        annotations: _sampleMessageAnnotations,
+      }),
+    )
+
+    // Active popup should be cleared
+    t->expect(TaskReducer.Selectors.activePopupAnnotationId(task2)->Option.getOr(None)->Option.isNone)->Expect.toBe(true)
+  })
+
+  test("Annotations are stored on the message itself", t => {
+    let task = TestHelpers.makeLoadedTask()
+
+    let (task2, _) = TaskReducer.next(
+      task,
+      AddUserMessage({
+        id: "user-1",
+        content: [Client__Task__Types.UserContentPart.Text({text: "Check these"})],
+        annotations: _sampleMessageAnnotations,
+      }),
+    )
+
+    let messages = TestHelpers.getMessages(task2)
+    t->expect(messages->Array.length)->Expect.toBe(1)
+
+    switch messages->Array.get(0) {
+    | Some(Message.User({annotations, _})) =>
+      t->expect(annotations->Array.length)->Expect.toBe(2)
+      t->expect((annotations->Array.getUnsafe(0)).id)->Expect.toBe("ann-1")
+      t->expect((annotations->Array.getUnsafe(0)).comment)->Expect.toEqual(Some("This button is broken"))
+      t->expect((annotations->Array.getUnsafe(1)).id)->Expect.toBe("ann-2")
+      t->expect((annotations->Array.getUnsafe(1)).comment)->Expect.toEqual(None)
+    | _ => t->expect("User message")->Expect.toBe("not found")
+    }
+  })
+
+  test("SendMessage effect carries annotations", t => {
+    let task = TestHelpers.makeLoadedTask()
+
+    let (_task2, effects) = TaskReducer.next(
+      task,
+      AddUserMessage({
+        id: "user-1",
+        content: [Client__Task__Types.UserContentPart.Text({text: "Fix"})],
+        annotations: _sampleMessageAnnotations,
+      }),
+    )
+
+    switch effects->Array.get(0) {
+    | Some(SendMessage({annotations})) =>
+      t->expect(annotations->Array.length)->Expect.toBe(2)
+    | _ => t->expect("SendMessage effect")->Expect.toBe("not found")
     }
   })
 })

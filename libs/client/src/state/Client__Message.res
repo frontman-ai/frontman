@@ -23,6 +23,69 @@ let resolveAttachmentImage = (att: fileAttachmentData): resolvedImageData => {
   {base64, mediaType: att.mediaType}
 }
 
+// Serializable annotation snapshot — stored on user messages.
+// Captures all annotation metadata at send time, dropping the live DOM element ref.
+module MessageAnnotation = {
+  type boundingBox = {
+    x: float,
+    y: float,
+    width: float,
+    height: float,
+  }
+
+  type rec sourceLocation = {
+    componentName: option<string>,
+    tagName: string,
+    file: string,
+    line: int,
+    column: int,
+    parent: option<sourceLocation>,
+    componentProps: option<Dict.t<JSON.t>>,
+  }
+
+  type t = {
+    id: string,
+    selector: option<string>,
+    tagName: string,
+    cssClasses: option<string>,
+    comment: option<string>,
+    screenshot: option<string>,
+    sourceLocation: option<sourceLocation>,
+    boundingBox: option<boundingBox>,
+    nearbyText: option<string>,
+  }
+
+  // Convert a SourceLocation.t to the local sourceLocation type (same shape, just decoupled)
+  let rec sourceLocationFromClientTypes = (loc: Client__Types.SourceLocation.t): sourceLocation => {
+    componentName: loc.componentName,
+    tagName: loc.tagName,
+    file: loc.file,
+    line: loc.line,
+    column: loc.column,
+    parent: loc.parent->Option.map(sourceLocationFromClientTypes),
+    componentProps: loc.componentProps,
+  }
+
+  // Snapshot a live Annotation.t into a serializable MessageAnnotation.t
+  // Drops the live DOM element reference.
+  let fromAnnotation = (annotation: Client__Annotation__Types.t): t => {
+    id: annotation.id,
+    selector: annotation.selector,
+    tagName: annotation.tagName,
+    cssClasses: annotation.cssClasses,
+    comment: annotation.comment,
+    screenshot: annotation.screenshot,
+    sourceLocation: annotation.sourceLocation->Option.map(sourceLocationFromClientTypes),
+    boundingBox: annotation.boundingBox->Option.map(bb => {
+      x: bb.x,
+      y: bb.y,
+      width: bb.width,
+      height: bb.height,
+    }),
+    nearbyText: annotation.nearbyText,
+  }
+}
+
 // Content part types for messages (simplified from Vercel AI SDK)
 module UserContentPart = {
   type t =
@@ -65,7 +128,7 @@ type toolCall = {
 }
 
 type t =
-  | User({id: string, content: array<UserContentPart.t>, createdAt: float})
+  | User({id: string, content: array<UserContentPart.t>, annotations: array<MessageAnnotation.t>, createdAt: float})
   | Assistant(assistantMessage)
   | ToolCall(toolCall)
 

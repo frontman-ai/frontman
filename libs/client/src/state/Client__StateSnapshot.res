@@ -241,9 +241,37 @@ module AssistantMessage = {
   ])
 }
 
+// Serializable annotation snapshot for state snapshots
+module SnapshotAnnotation = {
+  type boundingBox = {
+    x: float,
+    y: float,
+    width: float,
+    height: float,
+  }
+
+  type t = {
+    id: string,
+    selector: option<string>,
+    tagName: string,
+    cssClasses: option<string>,
+    comment: option<string>,
+    nearbyText: option<string>,
+  }
+
+  let schema = S.object(s => {
+    id: s.field("id", S.string),
+    selector: s.field("selector", nullableToOption(S.string)),
+    tagName: s.field("tagName", S.string),
+    cssClasses: s.field("cssClasses", nullableToOption(S.string)),
+    comment: s.field("comment", nullableToOption(S.string)),
+    nearbyText: s.field("nearbyText", nullableToOption(S.string)),
+  })
+}
+
 module Message = {
   type t =
-    | User({id: string, content: array<UserContentPart.t>, createdAt: float})
+    | User({id: string, content: array<UserContentPart.t>, annotations: array<SnapshotAnnotation.t>, createdAt: float})
     | Assistant(AssistantMessage.t)
     | ToolCall(ToolCall.t)
 
@@ -253,6 +281,7 @@ module Message = {
       User({
         id: s.field("id", S.string),
         content: s.field("content", S.array(UserContentPart.schema)),
+        annotations: s.fieldOr("annotations", S.array(SnapshotAnnotation.schema), []),
         createdAt: s.field("createdAt", S.float),
       })
     }),
@@ -438,12 +467,22 @@ let convertAssistantMessage = (
   }
 }
 
+let convertMessageAnnotation = (ann: Client__Message.MessageAnnotation.t): SnapshotAnnotation.t => {
+  id: ann.id,
+  selector: ann.selector,
+  tagName: ann.tagName,
+  cssClasses: ann.cssClasses,
+  comment: ann.comment,
+  nearbyText: ann.nearbyText,
+}
+
 let convertMessage = (msg: Client__State__Types.Message.t): Message.t => {
   switch msg {
-  | User({id, content, createdAt}) =>
+  | User({id, content, annotations, createdAt}) =>
     User({
       id,
       content: content->Array.map(convertUserContentPart),
+      annotations: annotations->Array.map(convertMessageAnnotation),
       createdAt,
     })
   | Assistant(assistantMsg) => Assistant(convertAssistantMessage(assistantMsg))
@@ -593,13 +632,25 @@ let assistantMessageToJson = (msg: AssistantMessage.t): JSON.t => {
   }
 }
 
+let snapshotAnnotationToJson = (ann: SnapshotAnnotation.t): JSON.t => {
+  obj([
+    ("id", JSON.Encode.string(ann.id)),
+    ("selector", ann.selector->Option.mapOr(JSON.Encode.null, JSON.Encode.string)),
+    ("tagName", JSON.Encode.string(ann.tagName)),
+    ("cssClasses", ann.cssClasses->Option.mapOr(JSON.Encode.null, JSON.Encode.string)),
+    ("comment", ann.comment->Option.mapOr(JSON.Encode.null, JSON.Encode.string)),
+    ("nearbyText", ann.nearbyText->Option.mapOr(JSON.Encode.null, JSON.Encode.string)),
+  ])
+}
+
 let messageToJson = (msg: Message.t): JSON.t => {
   switch msg {
-  | User({id, content, createdAt}) =>
+  | User({id, content, annotations, createdAt}) =>
     obj([
       ("type", JSON.Encode.string("user")),
       ("id", JSON.Encode.string(id)),
       ("content", JSON.Encode.array(content->Array.map(userContentPartToJson))),
+      ("annotations", JSON.Encode.array(annotations->Array.map(snapshotAnnotationToJson))),
       ("createdAt", JSON.Encode.float(createdAt)),
     ])
   | Assistant(assistantMsg) =>

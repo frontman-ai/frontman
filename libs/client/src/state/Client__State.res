@@ -11,9 +11,9 @@ module AssistantContentPart = Client__State__Types.AssistantContentPart
 
 // Action creators
 module Actions = {
-  let addUserMessage = (~sessionId, ~content) => {
+  let addUserMessage = (~sessionId, ~content, ~annotations=[]) => {
     let id = `user-${Date.now()->Float.toString}`
-    Client__State__Store.dispatch(AddUserMessage({id, sessionId, content}))
+    Client__State__Store.dispatch(AddUserMessage({id, sessionId, content, annotations}))
   }
 
   // ForTask(taskId) actions - streaming/tool events from ACP
