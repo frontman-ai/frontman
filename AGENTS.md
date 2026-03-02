@@ -386,5 +386,20 @@ When making a change that should appear in the changelog, run `yarn changeset` a
 - When the release PR is merged, `release-tag.yml` automatically creates a git tag and GitHub Release
 - The marketing site reads `/CHANGELOG.md` at build time for the `/changelog` page — keep entries in [Keep a Changelog](https://keepachangelog.com/) format: `## [version] - YYYY-MM-DD`
 
+## Pull Requests & AGD Summary
+
+After creating or updating a PR, **always run `make pr-summary`** to post an AGD usage summary as a comment on the PR. This surfaces cost, token usage, model info, cache hit rates, and tool timing data automatically.
+
+```bash
+# After creating a PR
+gh pr create --title "..." --body "..."
+make pr-summary
+
+# Or use the combined push target (git push + auto-post summary)
+make push
+```
+
+The `make push` target is the preferred workflow — it pushes and posts the summary in one shot.
+
 ## Reference Docs
 See `agent_docs/rescript-guide.md` for ReScript patterns when needed.
