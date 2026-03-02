@@ -16,6 +16,7 @@ defmodule FrontmanServer.Tasks.TitleGenerator do
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Providers
   alias FrontmanServer.Tasks
+  alias FrontmanServer.Tasks.StreamCleanup
   alias ReqLLM.Message.ContentPart
 
   @fallback_model "openrouter:google/gemini-2.0-flash-001"
@@ -159,6 +160,7 @@ defmodule FrontmanServer.Tasks.TitleGenerator do
           response.stream
           |> Stream.filter(fn chunk -> chunk.type == :content end)
           |> Stream.map(fn chunk -> chunk.text || "" end)
+          |> StreamCleanup.wrap_stream(response.cancel)
           |> Enum.join("")
 
         {:ok, title}

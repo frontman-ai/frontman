@@ -82,6 +82,7 @@ end
 
 defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
   alias FrontmanServer.Tasks.Execution.LLMClient
+  alias FrontmanServer.Tasks.StreamCleanup
   alias SwarmAi.LLM.{Chunk, Usage}
   alias SwarmAi.Message
   alias SwarmAi.Message.ContentPart
@@ -117,6 +118,7 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
           response.stream
           |> Stream.map(&to_swarm_chunk(&1, requires_mcp_prefix?))
           |> Stream.reject(&is_nil/1)
+          |> StreamCleanup.wrap_stream(response.cancel)
 
         {:ok, swarm_stream}
 

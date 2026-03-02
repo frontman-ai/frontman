@@ -401,7 +401,8 @@ defmodule FrontmanServer.Tasks.Interaction do
     defp annotation_block?(%{
            "type" => "resource",
            "resource" => %{"_meta" => %{"annotation" => true}}
-         }), do: true
+         }),
+         do: true
 
     defp annotation_block?(_), do: false
 
@@ -429,7 +430,8 @@ defmodule FrontmanServer.Tasks.Interaction do
     defp annotation_screenshot_block?(%{
            "type" => "resource",
            "resource" => %{"_meta" => %{"annotation_screenshot" => true}}
-         }), do: true
+         }),
+         do: true
 
     defp annotation_screenshot_block?(_), do: false
 
@@ -510,7 +512,8 @@ defmodule FrontmanServer.Tasks.Interaction do
     defp user_image_block?(%{
            "type" => "resource",
            "resource" => %{"_meta" => %{"user_image" => true}}
-         }), do: true
+         }),
+         do: true
 
     defp user_image_block?(_), do: false
   end

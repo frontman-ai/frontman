@@ -20,7 +20,23 @@ config :frontman_server, :scopes,
     test_setup_helper: :register_and_log_in_user
   ]
 
-config :req_llm, receive_timeout: 150_000
+config :req_llm,
+  receive_timeout: 150_000,
+  # Override default Finch pool (8 connections) to handle concurrent LLM streams.
+  # See https://github.com/frontman-ai/frontman/issues/428
+  finch: [
+    name: ReqLLM.Finch,
+    pools: %{
+      :default => [
+        protocols: [:http1],
+        # 1 connection per pool × 32 pools = 32 concurrent connections.
+        # Increased from default count: 8 to prevent pool exhaustion under
+        # concurrent agent executions + title generation.
+        size: 1,
+        count: 32
+      ]
+    }
+  ]
 
 config :frontman_server,
   ecto_repos: [FrontmanServer.Repo],
