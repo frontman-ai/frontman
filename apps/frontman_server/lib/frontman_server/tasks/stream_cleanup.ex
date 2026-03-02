@@ -109,9 +109,9 @@ defmodule FrontmanServer.Tasks.StreamCleanup do
     cancel_fn.()
   rescue
     e ->
-      Logger.debug("StreamCleanup: cancel raised #{Exception.message(e)}")
+      Logger.warning("StreamCleanup: cancel raised #{Exception.message(e)}")
   catch
     kind, reason ->
-      Logger.debug("StreamCleanup: cancel failed #{inspect({kind, reason})}")
+      Logger.warning("StreamCleanup: cancel failed #{inspect({kind, reason})}")
   end
 end
