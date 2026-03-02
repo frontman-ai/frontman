@@ -1,4 +1,4 @@
-defmodule FrontmanServer.Framework do
+defmodule FrontmanServer.Tasks.Execution.Framework do
   @moduledoc """
   Single source of truth for framework identity.
 

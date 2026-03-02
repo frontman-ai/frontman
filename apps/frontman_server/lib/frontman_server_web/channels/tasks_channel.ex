@@ -11,7 +11,8 @@ defmodule FrontmanServerWeb.TasksChannel do
   require Logger
 
   alias AgentClientProtocol, as: ACP
-  alias FrontmanServer.{Framework, Tasks}
+  alias FrontmanServer.Tasks
+  alias FrontmanServer.Tasks.Execution.Framework
   alias FrontmanServer.Tasks.TitleGenerator
   alias FrontmanServerWeb.ACPHistory
 

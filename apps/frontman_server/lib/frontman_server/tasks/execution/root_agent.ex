@@ -16,7 +16,7 @@ defmodule FrontmanServer.Tasks.Execution.RootAgent do
 
   use TypedStruct
 
-  alias FrontmanServer.Framework
+  alias FrontmanServer.Tasks.Execution.Framework
   alias FrontmanServer.Tasks.Execution.{LLMClient, Prompts}
 
   typedstruct do

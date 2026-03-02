@@ -17,13 +17,12 @@ defmodule FrontmanServer.Tasks.Execution do
   require Logger
 
   alias FrontmanServer.Accounts.Scope
-  alias FrontmanServer.Framework
   alias FrontmanServer.Image
   alias FrontmanServer.Observability.TelemetryEvents
   alias FrontmanServer.Providers
   alias FrontmanServer.Providers.ResolvedKey
   alias FrontmanServer.Tasks
-  alias FrontmanServer.Tasks.Execution.{RootAgent, ToolExecutor}
+  alias FrontmanServer.Tasks.Execution.{Framework, RootAgent, ToolExecutor}
   alias FrontmanServer.Tasks.{Interaction, Task}
   alias SwarmAi.LLM.Chunk
   alias SwarmAi.Message

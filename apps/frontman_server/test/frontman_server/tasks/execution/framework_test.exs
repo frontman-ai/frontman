@@ -1,4 +1,4 @@
-defmodule FrontmanServer.FrameworkTest do
+defmodule FrontmanServer.Tasks.Execution.FrameworkTest do
   @moduledoc """
   Tests for the Framework module — the single source of truth for framework identity.
 
@@ -7,7 +7,7 @@ defmodule FrontmanServer.FrameworkTest do
   """
   use ExUnit.Case, async: true
 
-  alias FrontmanServer.Framework
+  alias FrontmanServer.Tasks.Execution.Framework
 
   describe "from_client_label/1" do
     test "normalizes display labels from legacy middleware adapters" do

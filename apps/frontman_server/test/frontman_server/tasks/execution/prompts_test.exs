@@ -7,7 +7,7 @@ defmodule FrontmanServer.Tasks.Execution.PromptsTest do
   """
   use ExUnit.Case, async: true
 
-  alias FrontmanServer.Framework
+  alias FrontmanServer.Tasks.Execution.Framework
   alias FrontmanServer.Tasks.Execution.Prompts
 
   describe "build/1 context-based guidance selection" do
