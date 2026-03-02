@@ -544,79 +544,152 @@ let stripFileUriPrefix = (path: string): string => {
   }
 }
 
-// Helper to serialize parent chain to JSON recursively
-let rec serializeParentToJson = (parent: option<Client__Types.SourceLocation.t>): option<JSON.t> => {
-  parent->Option.map(p => {
-    let cleanFilePath = stripFileUriPrefix(p.file)
-    let obj = Dict.make()
-    obj->Dict.set("file", JSON.Encode.string(cleanFilePath))
-    obj->Dict.set("line", JSON.Encode.int(p.line))
-    obj->Dict.set("column", JSON.Encode.int(p.column))
+// ============================================================================
+// Sury schema types for annotation _meta JSON serialization
+// ============================================================================
 
-    switch p.componentName {
-    | Some(name) => obj->Dict.set("component_name", JSON.Encode.string(name))
-    | None => ()
-    }
-
-    switch p.componentProps {
-    | Some(props) => obj->Dict.set("component_props", JSON.Encode.object(props))
-    | None => ()
-    }
-
-    // Recursively serialize parent's parent
-    switch serializeParentToJson(p.parent) {
-    | Some(parentJson) => obj->Dict.set("parent", parentJson)
-    | None => ()
-    }
-
-    JSON.Encode.object(obj)
-  })
+type boundingBoxMeta = {
+  x: float,
+  y: float,
+  width: float,
+  height: float,
 }
 
-// Set an optional field on a JSON dict — no-op when None
-let setOpt = (obj: Dict.t<JSON.t>, key: string, encode: 'a => JSON.t, value: option<'a>) =>
-  switch value {
-  | Some(v) => obj->Dict.set(key, encode(v))
+let boundingBoxMetaSchema: S.t<boundingBoxMeta> = S.object(s => {
+  x: s.field("x", S.float),
+  y: s.field("y", S.float),
+  width: s.field("width", S.float),
+  height: s.field("height", S.float),
+})
+
+// Recursive parent location chain — serialized manually to JSON because
+// Sury S.recursive has a bug with S.dict(S.json) in reverseConvertToJson.
+// The type is used for construction; parentLocationToJson handles serialization.
+type rec parentLocationMeta = {
+  file: string,
+  line: int,
+  column: int,
+  componentName: option<string>,
+  componentProps: option<Dict.t<JSON.t>>,
+  parent: option<parentLocationMeta>,
+}
+
+let rec parentLocationToJson = (loc: parentLocationMeta): JSON.t => {
+  let obj = Dict.make()
+  obj->Dict.set("file", JSON.Encode.string(loc.file))
+  obj->Dict.set("line", JSON.Encode.int(loc.line))
+  obj->Dict.set("column", JSON.Encode.int(loc.column))
+  switch loc.componentName {
+  | Some(name) => obj->Dict.set("component_name", JSON.Encode.string(name))
   | None => ()
   }
-
-let boundingBoxToJson = (bb: Annotation.boundingBox): JSON.t => {
-  let obj = Dict.make()
-  obj->Dict.set("x", JSON.Encode.float(bb.x))
-  obj->Dict.set("y", JSON.Encode.float(bb.y))
-  obj->Dict.set("width", JSON.Encode.float(bb.width))
-  obj->Dict.set("height", JSON.Encode.float(bb.height))
+  switch loc.componentProps {
+  | Some(props) => obj->Dict.set("component_props", JSON.Encode.object(props))
+  | None => ()
+  }
+  switch loc.parent {
+  | Some(p) => obj->Dict.set("parent", parentLocationToJson(p))
+  | None => ()
+  }
   JSON.Encode.object(obj)
+}
+
+// The main annotation _meta type. The `parent` field is pre-serialized to JSON.t
+// because the recursive parentLocationMeta cannot use S.recursive with S.dict(S.json).
+type annotationMeta = {
+  annotation: bool,
+  annotationIndex: int,
+  annotationId: string,
+  tagName: string,
+  comment: option<string>,
+  file: option<string>,
+  line: option<int>,
+  column: option<int>,
+  componentName: option<string>,
+  componentProps: option<Dict.t<JSON.t>>,
+  parent: option<JSON.t>,
+  cssClasses: option<string>,
+  nearbyText: option<string>,
+  boundingBox: option<boundingBoxMeta>,
+}
+
+let annotationMetaSchema: S.t<annotationMeta> = S.object(s => {
+  annotation: s.field("annotation", S.bool),
+  annotationIndex: s.field("annotation_index", S.int),
+  annotationId: s.field("annotation_id", S.string),
+  tagName: s.field("tag_name", S.string),
+  comment: s.field("comment", S.option(S.string)),
+  file: s.field("file", S.option(S.string)),
+  line: s.field("line", S.option(S.int)),
+  column: s.field("column", S.option(S.int)),
+  componentName: s.field("component_name", S.option(S.string)),
+  componentProps: s.field("component_props", S.option(S.dict(S.json))),
+  parent: s.field("parent", S.option(S.json)),
+  cssClasses: s.field("css_classes", S.option(S.string)),
+  nearbyText: s.field("nearby_text", S.option(S.string)),
+  boundingBox: s.field("bounding_box", S.option(boundingBoxMetaSchema)),
+})
+
+type screenshotMeta = {
+  annotationScreenshot: bool,
+  annotationIndex: int,
+  annotationId: string,
+}
+
+let screenshotMetaSchema: S.t<screenshotMeta> = S.object(s => {
+  annotationScreenshot: s.field("annotation_screenshot", S.bool),
+  annotationIndex: s.field("annotation_index", S.int),
+  annotationId: s.field("annotation_id", S.string),
+})
+
+// Convert a SourceLocation parent chain to a parentLocationMeta chain
+let rec parentLocationFromSourceLocation = (loc: Client__Types.SourceLocation.t): parentLocationMeta => {
+  file: stripFileUriPrefix(loc.file),
+  line: loc.line,
+  column: loc.column,
+  componentName: loc.componentName,
+  componentProps: loc.componentProps,
+  parent: loc.parent->Option.map(parentLocationFromSourceLocation),
 }
 
 // Build _meta JSON for an annotation from its data + source location fields
 let makeAnnotationMeta = (annotation: Annotation.t, ~index: int, ~sourceLocation: option<Client__Types.SourceLocation.t>): JSON.t => {
-  let obj = Dict.make()
-  obj->Dict.set("annotation", JSON.Encode.bool(true))
-  obj->Dict.set("annotation_index", JSON.Encode.int(index))
-  obj->Dict.set("annotation_id", JSON.Encode.string(annotation.id))
-  obj->Dict.set("tag_name", JSON.Encode.string(annotation.tagName))
-
   let (file, line, column, componentName, componentProps, parent) = switch sourceLocation {
-  | Some(loc) => {
-      let cleanFile = stripFileUriPrefix(loc.file)
-      (Some(cleanFile), Some(loc.line), Some(loc.column), loc.componentName, loc.componentProps, loc.parent)
-    }
+  | Some(loc) => (
+      Some(stripFileUriPrefix(loc.file)),
+      Some(loc.line),
+      Some(loc.column),
+      loc.componentName,
+      loc.componentProps,
+      loc.parent->Option.map(p => parentLocationFromSourceLocation(p)->parentLocationToJson),
+    )
   | None => (None, None, None, None, None, None)
   }
 
-  obj->setOpt("comment", JSON.Encode.string, annotation.comment)
-  obj->setOpt("file", JSON.Encode.string, file)
-  obj->setOpt("line", JSON.Encode.int, line)
-  obj->setOpt("column", JSON.Encode.int, column)
-  obj->setOpt("component_name", JSON.Encode.string, componentName)
-  obj->setOpt("component_props", JSON.Encode.object, componentProps)
-  obj->setOpt("parent", x => x, serializeParentToJson(parent))
-  obj->setOpt("css_classes", JSON.Encode.string, annotation.cssClasses)
-  obj->setOpt("nearby_text", JSON.Encode.string, annotation.nearbyText)
-  obj->setOpt("bounding_box", boundingBoxToJson, annotation.boundingBox)
-
-  JSON.Encode.object(obj)
+  S.reverseConvertToJsonOrThrow(
+    {
+      annotation: true,
+      annotationIndex: index,
+      annotationId: annotation.id,
+      tagName: annotation.tagName,
+      comment: annotation.comment,
+      file,
+      line,
+      column,
+      componentName,
+      componentProps,
+      parent,
+      cssClasses: annotation.cssClasses,
+      nearbyText: annotation.nearbyText,
+      boundingBox: annotation.boundingBox->Option.map(bb => {
+        x: bb.x,
+        y: bb.y,
+        width: bb.width,
+        height: bb.height,
+      }),
+    },
+    annotationMetaSchema,
+  )
 }
 
 // Helper to extract media type and base64 data from a data URL
@@ -670,13 +743,14 @@ let annotationToContentBlocks = (annotation: Annotation.t, ~index: int): array<A
   let screenshotBlock = annotation.screenshot->Option.map(screenshotDataUrl => {
     let (mimeType, base64Data) = parseDataUrl(screenshotDataUrl)
 
-    let screenshotMeta: JSON.t = {
-      let obj = Dict.make()
-      obj->Dict.set("annotation_screenshot", JSON.Encode.bool(true))
-      obj->Dict.set("annotation_index", JSON.Encode.int(index))
-      obj->Dict.set("annotation_id", JSON.Encode.string(annotation.id))
-      JSON.Encode.object(obj)
-    }
+    let screenshotMeta: JSON.t = S.reverseConvertToJsonOrThrow(
+      {
+        annotationScreenshot: true,
+        annotationIndex: index,
+        annotationId: annotation.id,
+      },
+      screenshotMetaSchema,
+    )
 
     let block: ACPTypes.contentBlock = {
       type_: "resource",
@@ -966,60 +1040,62 @@ let taskToPageContextBlocks = (task: Task.t): array<ACPTypes.contentBlock> => {
 // MessageAnnotation -> ContentBlock conversion
 // ============================================================================
 
-// Convert a MessageAnnotation.sourceLocation back to Client__Types.SourceLocation.t
-// for reuse with makeAnnotationMeta
-let rec messageAnnotationSourceLocationToClientTypes = (
+// Convert a MessageAnnotation.sourceLocation to parentLocationMeta for the parent chain
+let rec parentLocationFromMessageAnnotation = (
   loc: Message.MessageAnnotation.sourceLocation,
-): Client__Types.SourceLocation.t => {
-  componentName: loc.componentName,
-  tagName: loc.tagName,
-  file: loc.file,
+): parentLocationMeta => {
+  file: stripFileUriPrefix(loc.file),
   line: loc.line,
   column: loc.column,
-  parent: loc.parent->Option.map(messageAnnotationSourceLocationToClientTypes),
+  componentName: loc.componentName,
   componentProps: loc.componentProps,
+  parent: loc.parent->Option.map(parentLocationFromMessageAnnotation),
 }
 
-// Build _meta JSON for a MessageAnnotation (reuses makeAnnotationMeta logic)
+// Build _meta JSON for a MessageAnnotation — uses same annotationMeta schema
 let makeMessageAnnotationMeta = (
   annotation: Message.MessageAnnotation.t,
   ~index: int,
 ): JSON.t => {
-  let sourceLocation = annotation.sourceLocation->Option.map(
-    messageAnnotationSourceLocationToClientTypes,
-  )
-  // Build a minimal Annotation.t-compatible record for makeAnnotationMeta
-  let obj = Dict.make()
-  obj->Dict.set("annotation", JSON.Encode.bool(true))
-  obj->Dict.set("annotation_index", JSON.Encode.int(index))
-  obj->Dict.set("annotation_id", JSON.Encode.string(annotation.id))
-  obj->Dict.set("tag_name", JSON.Encode.string(annotation.tagName))
-
-  let (file, line, column, componentName, componentProps, parent) = switch sourceLocation {
-  | Some(loc) => {
-      let cleanFile = stripFileUriPrefix(loc.file)
-      (Some(cleanFile), Some(loc.line), Some(loc.column), loc.componentName, loc.componentProps, loc.parent)
+  let (file, line, column, componentName, componentProps, parent) =
+    switch annotation.sourceLocation {
+    | Some(loc) => (
+        Some(stripFileUriPrefix(loc.file)),
+        Some(loc.line),
+        Some(loc.column),
+        loc.componentName,
+        loc.componentProps,
+        loc.parent->Option.map(p =>
+          parentLocationFromMessageAnnotation(p)->parentLocationToJson
+        ),
+      )
+    | None => (None, None, None, None, None, None)
     }
-  | None => (None, None, None, None, None, None)
-  }
 
-  obj->setOpt("comment", JSON.Encode.string, annotation.comment)
-  obj->setOpt("file", JSON.Encode.string, file)
-  obj->setOpt("line", JSON.Encode.int, line)
-  obj->setOpt("column", JSON.Encode.int, column)
-  obj->setOpt("component_name", JSON.Encode.string, componentName)
-  obj->setOpt("component_props", JSON.Encode.object, componentProps)
-  obj->setOpt("parent", x => x, serializeParentToJson(parent))
-  obj->setOpt("css_classes", JSON.Encode.string, annotation.cssClasses)
-  obj->setOpt("nearby_text", JSON.Encode.string, annotation.nearbyText)
-  obj->setOpt("bounding_box", boundingBoxToJson, annotation.boundingBox->Option.map(bb => {
-    Annotation.x: bb.x,
-    y: bb.y,
-    width: bb.width,
-    height: bb.height,
-  }))
-
-  JSON.Encode.object(obj)
+  S.reverseConvertToJsonOrThrow(
+    {
+      annotation: true,
+      annotationIndex: index,
+      annotationId: annotation.id,
+      tagName: annotation.tagName,
+      comment: annotation.comment,
+      file,
+      line,
+      column,
+      componentName,
+      componentProps,
+      parent,
+      cssClasses: annotation.cssClasses,
+      nearbyText: annotation.nearbyText,
+      boundingBox: annotation.boundingBox->Option.map(bb => {
+        x: bb.x,
+        y: bb.y,
+        width: bb.width,
+        height: bb.height,
+      }),
+    },
+    annotationMetaSchema,
+  )
 }
 
 // Build content blocks for a single MessageAnnotation
@@ -1060,13 +1136,14 @@ let messageAnnotationToContentBlocks = (
   let screenshotBlock = annotation.screenshot->Option.map(screenshotDataUrl => {
     let (mimeType, base64Data) = parseDataUrl(screenshotDataUrl)
 
-    let screenshotMeta: JSON.t = {
-      let obj = Dict.make()
-      obj->Dict.set("annotation_screenshot", JSON.Encode.bool(true))
-      obj->Dict.set("annotation_index", JSON.Encode.int(index))
-      obj->Dict.set("annotation_id", JSON.Encode.string(annotation.id))
-      JSON.Encode.object(obj)
-    }
+    let screenshotMeta: JSON.t = S.reverseConvertToJsonOrThrow(
+      {
+        annotationScreenshot: true,
+        annotationIndex: index,
+        annotationId: annotation.id,
+      },
+      screenshotMetaSchema,
+    )
 
     let block: ACPTypes.contentBlock = {
       type_: "resource",
