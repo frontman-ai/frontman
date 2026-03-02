@@ -82,7 +82,7 @@ describe("FrontmanNextjs Middleware (adapter)", _t => {
         ->Expect.toEqual(Null.Value("text/html"))
         let body = await response->WebAPI.Response.text
         t->expect(body->String.includes("<!DOCTYPE html>"))->Expect.toBe(true)
-        t->expect(body->String.includes("\"Next.js\""))->Expect.toBe(true)
+        t->expect(body->String.includes("\"nextjs\""))->Expect.toBe(true)
       | None => failwith("Expected Some(response) for GET /frontman")
       }
     })

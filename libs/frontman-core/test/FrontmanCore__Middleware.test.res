@@ -16,7 +16,7 @@ module Helpers = {
     clientCssUrl: None,
     entrypointUrl: None,
     isLightTheme: false,
-    frameworkLabel: "Test",
+    frameworkId: MiddlewareConfig.Nextjs,
   }
 
   let registry = ToolRegistry.coreTools()

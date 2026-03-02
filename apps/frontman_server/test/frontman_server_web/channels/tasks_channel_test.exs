@@ -97,7 +97,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
           "clientInfo" => %{
             "name" => "test-client",
             "version" => "1.0.0",
-            "metadata" => %{"framework" => "test-framework"}
+            "metadata" => %{"framework" => "nextjs"}
           }
         }
       })
@@ -123,13 +123,13 @@ defmodule FrontmanServerWeb.TasksChannelTest do
       # Verify task was created with the client-provided ID
       assert {:ok, task} = FrontmanServer.Tasks.get_task(scope, client_session_id)
       assert task.task_id == client_session_id
+      assert task.framework == "nextjs"
     end
 
-    test "extracts and stores framework from clientInfo", %{socket: socket, scope: scope} do
+    test "normalizes and stores framework from clientInfo", %{socket: socket, scope: scope} do
       version = ACP.protocol_version()
-      framework = "test-client-app"
 
-      # First initialize with clientInfo containing framework in metadata
+      # Client sends display label "Next.js" (as real middleware adapters do)
       push(socket, "acp:message", %{
         "jsonrpc" => "2.0",
         "id" => 1,
@@ -139,7 +139,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
           "clientInfo" => %{
             "name" => "frontman-client",
             "version" => "1.0.0",
-            "metadata" => %{"framework" => framework}
+            "metadata" => %{"framework" => "Next.js"}
           }
         }
       })
@@ -169,10 +169,44 @@ defmodule FrontmanServerWeb.TasksChannelTest do
         "result" => %{"sessionId" => ^client_session_id}
       })
 
-      # Verify task was created with framework
+      # Verify framework was normalized from "Next.js" to "nextjs"
       assert {:ok, task} = FrontmanServer.Tasks.get_task(scope, client_session_id)
       assert task.task_id == client_session_id
-      assert task.framework == framework
+      assert task.framework == "nextjs"
+    end
+
+    test "normalizes vite framework from display label", %{socket: socket, scope: scope} do
+      version = ACP.protocol_version()
+
+      push(socket, "acp:message", %{
+        "jsonrpc" => "2.0",
+        "id" => 1,
+        "method" => "initialize",
+        "params" => %{
+          "protocolVersion" => version,
+          "clientInfo" => %{
+            "name" => "frontman-client",
+            "version" => "1.0.0",
+            "metadata" => %{"framework" => "Vite"}
+          }
+        }
+      })
+
+      assert_push("acp:message", %{"id" => 1, "result" => %{}})
+
+      client_session_id = Ecto.UUID.generate()
+
+      push(socket, "acp:message", %{
+        "jsonrpc" => "2.0",
+        "id" => 2,
+        "method" => "session/new",
+        "params" => %{"sessionId" => client_session_id}
+      })
+
+      assert_push("acp:message", %{"id" => 2, "result" => %{}})
+
+      assert {:ok, task} = FrontmanServer.Tasks.get_task(scope, client_session_id)
+      assert task.framework == "vite"
     end
 
     test "returns error when session/new called without sessionId", %{socket: socket} do
@@ -188,7 +222,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
           "clientInfo" => %{
             "name" => "test-client",
             "version" => "1.0.0",
-            "metadata" => %{"framework" => "test-framework"}
+            "metadata" => %{"framework" => "nextjs"}
           }
         }
       })
@@ -226,7 +260,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
           "clientInfo" => %{
             "name" => "test-client",
             "version" => "1.0.0",
-            "metadata" => %{"framework" => "test-framework"}
+            "metadata" => %{"framework" => "nextjs"}
           }
         }
       })
@@ -267,7 +301,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
           "clientInfo" => %{
             "name" => "test-client",
             "version" => "1.0.0",
-            "metadata" => %{"framework" => "test-framework"}
+            "metadata" => %{"framework" => "nextjs"}
           }
         }
       })
@@ -276,7 +310,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
 
       # Pre-create a task with a known ID
       existing_id = Ecto.UUID.generate()
-      {:ok, ^existing_id} = FrontmanServer.Tasks.create_task(scope, existing_id, "test-framework")
+      {:ok, ^existing_id} = FrontmanServer.Tasks.create_task(scope, existing_id, "nextjs")
 
       # Try to create session with the same ID - should fail gracefully
       push(socket, "acp:message", %{
@@ -344,7 +378,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
 
     test "returns sessions with correct fields", %{socket: socket, scope: scope} do
       task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = FrontmanServer.Tasks.create_task(scope, task_id, "test-framework")
+      {:ok, ^task_id} = FrontmanServer.Tasks.create_task(scope, task_id, "nextjs")
 
       ref = push(socket, "list_sessions", %{})
       assert_reply(ref, :ok, %{"sessions" => [session]})
@@ -357,10 +391,10 @@ defmodule FrontmanServerWeb.TasksChannelTest do
 
     test "returns multiple sessions", %{socket: socket, scope: scope} do
       task1_id = Ecto.UUID.generate()
-      {:ok, ^task1_id} = FrontmanServer.Tasks.create_task(scope, task1_id, "test-framework")
+      {:ok, ^task1_id} = FrontmanServer.Tasks.create_task(scope, task1_id, "nextjs")
 
       task2_id = Ecto.UUID.generate()
-      {:ok, ^task2_id} = FrontmanServer.Tasks.create_task(scope, task2_id, "test-framework")
+      {:ok, ^task2_id} = FrontmanServer.Tasks.create_task(scope, task2_id, "nextjs")
 
       ref = push(socket, "list_sessions", %{})
       assert_reply(ref, :ok, %{"sessions" => sessions})
@@ -373,7 +407,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
 
     test "only returns tasks for authenticated user", %{socket: socket, scope: scope} do
       my_task_id = Ecto.UUID.generate()
-      {:ok, ^my_task_id} = FrontmanServer.Tasks.create_task(scope, my_task_id, "test-framework")
+      {:ok, ^my_task_id} = FrontmanServer.Tasks.create_task(scope, my_task_id, "nextjs")
 
       {:ok, other_user} =
         FrontmanServer.Accounts.register_user(%{
@@ -386,7 +420,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
       other_task_id = Ecto.UUID.generate()
 
       {:ok, ^other_task_id} =
-        FrontmanServer.Tasks.create_task(other_scope, other_task_id, "other")
+        FrontmanServer.Tasks.create_task(other_scope, other_task_id, "vite")
 
       ref = push(socket, "list_sessions", %{})
       assert_reply(ref, :ok, %{"sessions" => [session]})
@@ -397,7 +431,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
   describe "delete_session" do
     test "deletes session and returns empty result", %{socket: socket, scope: scope} do
       task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = FrontmanServer.Tasks.create_task(scope, task_id, "test-framework")
+      {:ok, ^task_id} = FrontmanServer.Tasks.create_task(scope, task_id, "nextjs")
 
       # Verify task exists
       assert {:ok, _task} = FrontmanServer.Tasks.get_task(scope, task_id)
@@ -413,7 +447,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
     test "only deletes own sessions", %{socket: socket, scope: scope} do
       # Create task for current user
       my_task_id = Ecto.UUID.generate()
-      {:ok, ^my_task_id} = FrontmanServer.Tasks.create_task(scope, my_task_id, "test-framework")
+      {:ok, ^my_task_id} = FrontmanServer.Tasks.create_task(scope, my_task_id, "nextjs")
 
       # Create another user and their task
       {:ok, other_user} =
@@ -427,7 +461,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
       other_task_id = Ecto.UUID.generate()
 
       {:ok, ^other_task_id} =
-        FrontmanServer.Tasks.create_task(other_scope, other_task_id, "other")
+        FrontmanServer.Tasks.create_task(other_scope, other_task_id, "vite")
 
       # Trying to delete other user's task should fail (crashes the handler)
       # The channel will crash and the test process will receive an error
@@ -445,7 +479,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
 
     setup %{scope: scope} do
       task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = FrontmanServer.Tasks.create_task(scope, task_id, "test-framework")
+      {:ok, ^task_id} = FrontmanServer.Tasks.create_task(scope, task_id, "nextjs")
       {:ok, task_id: task_id}
     end
 
@@ -617,7 +651,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
       other_task_id = Ecto.UUID.generate()
 
       {:ok, ^other_task_id} =
-        FrontmanServer.Tasks.create_task(other_scope, other_task_id, "other")
+        FrontmanServer.Tasks.create_task(other_scope, other_task_id, "vite")
 
       push(socket, "acp:message", acp_request(1, "session/load", %{"sessionId" => other_task_id}))
 

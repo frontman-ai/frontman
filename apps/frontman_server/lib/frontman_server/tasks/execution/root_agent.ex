@@ -16,6 +16,7 @@ defmodule FrontmanServer.Tasks.Execution.RootAgent do
 
   use TypedStruct
 
+  alias FrontmanServer.Framework
   alias FrontmanServer.Tasks.Execution.{LLMClient, Prompts}
 
   typedstruct do
@@ -23,7 +24,7 @@ defmodule FrontmanServer.Tasks.Execution.RootAgent do
     field(:has_annotations, boolean(), default: false)
     field(:has_current_page, boolean(), default: false)
     field(:has_typescript_react, boolean(), default: false)
-    field(:framework, String.t() | nil, default: nil)
+    field(:framework, Framework.t() | nil, default: nil)
     # llm_opts must include :api_key (resolved at domain layer)
     # May also include :requires_mcp_prefix and :identity_override for OAuth
     field(:llm_opts, keyword(), default: [])
@@ -42,7 +43,7 @@ defmodule FrontmanServer.Tasks.Execution.RootAgent do
   - `:tools` - List of SwarmAi.Tool structs available to the agent
   - `:has_annotations` - Whether the user has annotated elements in the UI
   - `:has_current_page` - Whether current page context is available
-  - `:framework` - Framework name (e.g., "nextjs") for framework-specific guidance
+  - `:framework` - `Framework.t()` struct for framework-specific guidance
   - `:llm_opts` - LLM options, must include `:api_key`. May include `:requires_mcp_prefix`
     and `:identity_override` for OAuth transformations (handled by LLMClient).
   - `:model` - LLM model spec (defaults to LLMClient default)

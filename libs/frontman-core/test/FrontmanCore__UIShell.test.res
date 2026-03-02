@@ -9,7 +9,7 @@ module Helpers = {
     ~clientCssUrl=None,
     ~entrypointUrl=None,
     ~isLightTheme=false,
-    ~frameworkLabel="TestFramework",
+    ~frameworkId=MiddlewareConfig.Nextjs,
   ): MiddlewareConfig.t => {
     projectRoot: "/test/project",
     sourceRoot: "/test/project",
@@ -20,7 +20,7 @@ module Helpers = {
     clientCssUrl,
     entrypointUrl,
     isLightTheme,
-    frameworkLabel,
+    frameworkId,
   }
 }
 
@@ -103,13 +103,13 @@ describe("UIShell", _t => {
       t->expect(html->String.includes("class=\"\""))->Expect.toBe(true)
     })
 
-    test("includes framework label in runtime config", t => {
+    test("includes framework id in runtime config", t => {
       let html = UIShell.generateHTML(
-        Helpers.makeConfig(~frameworkLabel="Vite"),
+        Helpers.makeConfig(~frameworkId=MiddlewareConfig.Vite),
       )
 
       t->expect(html->String.includes("__frontmanRuntime"))->Expect.toBe(true)
-      t->expect(html->String.includes("\"Vite\""))->Expect.toBe(true)
+      t->expect(html->String.includes("\"vite\""))->Expect.toBe(true)
     })
 
     test("includes root div for React mounting", t => {
@@ -143,12 +143,12 @@ describe("UIShell", _t => {
     })
 
     testAsync("response body contains the generated HTML", async t => {
-      let config = Helpers.makeConfig(~frameworkLabel="Astro")
+      let config = Helpers.makeConfig(~frameworkId=MiddlewareConfig.Astro)
       let response = UIShell.serve(config)
       let body = await response->WebAPI.Response.text
 
       t->expect(body->String.includes("<!DOCTYPE html>"))->Expect.toBe(true)
-      t->expect(body->String.includes("\"Astro\""))->Expect.toBe(true)
+      t->expect(body->String.includes("\"astro\""))->Expect.toBe(true)
     })
   })
 })

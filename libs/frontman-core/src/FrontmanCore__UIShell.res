@@ -33,7 +33,7 @@ let generateHTML = (config: MiddlewareConfig.t): string => {
       )
     // Build JSON payload using proper JSON encoding to handle special characters
     let configObj = Dict.fromArray([
-      ("framework", JSON.Encode.string(config.frameworkLabel)),
+      ("framework", JSON.Encode.string(MiddlewareConfig.frameworkIdToString(config.frameworkId))),
       ("basePath", JSON.Encode.string(config.basePath)),
     ])
     // Add key value if present and non-empty

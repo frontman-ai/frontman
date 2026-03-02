@@ -11,7 +11,7 @@ defmodule FrontmanServerWeb.TasksChannel do
   require Logger
 
   alias AgentClientProtocol, as: ACP
-  alias FrontmanServer.Tasks
+  alias FrontmanServer.{Framework, Tasks}
   alias FrontmanServer.Tasks.TitleGenerator
   alias FrontmanServerWeb.ACPHistory
 
@@ -113,8 +113,15 @@ defmodule FrontmanServerWeb.TasksChannel do
     Logger.info("ACP session/new request received with sessionId: #{session_id}")
 
     with :ok <- validate_uuid_format(session_id),
-         framework when framework != nil <- extract_framework(socket.assigns[:acp_client_info]),
-         {:ok, ^session_id} <- Tasks.create_task(socket.assigns.scope, session_id, framework) do
+         raw_framework when is_binary(raw_framework) <-
+           extract_framework(socket.assigns[:acp_client_info]),
+         fw = Framework.from_client_label(raw_framework),
+         {:ok, ^session_id} <-
+           Tasks.create_task(
+             socket.assigns.scope,
+             session_id,
+             Framework.to_string(fw)
+           ) do
       push_response(socket, id, ACP.build_session_new_result(session_id))
     else
       :error ->

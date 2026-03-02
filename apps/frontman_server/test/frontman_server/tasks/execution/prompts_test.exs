@@ -7,6 +7,7 @@ defmodule FrontmanServer.Tasks.Execution.PromptsTest do
   """
   use ExUnit.Case, async: true
 
+  alias FrontmanServer.Framework
   alias FrontmanServer.Tasks.Execution.Prompts
 
   describe "build/1 context-based guidance selection" do
@@ -20,18 +21,25 @@ defmodule FrontmanServer.Tasks.Execution.PromptsTest do
       assert prompt =~ "Never explore"
     end
 
-    test "framework nextjs adds framework-specific guidance" do
-      prompt = Prompts.build(framework: "nextjs")
+    test "nextjs framework adds framework-specific guidance" do
+      fw = Framework.from_string("nextjs")
+      prompt = Prompts.build(framework: fw)
 
       assert prompt =~ "Next.js"
     end
 
-    test "unknown framework adds no framework guidance" do
+    test "non-nextjs framework adds no framework guidance" do
       base_prompt = Prompts.build([])
-      unknown_framework_prompt = Prompts.build(framework: "rails")
+      vite_prompt = Prompts.build(framework: Framework.from_string("vite"))
 
-      # Should be same length (no extra guidance added)
-      assert String.length(base_prompt) == String.length(unknown_framework_prompt)
+      assert String.length(base_prompt) == String.length(vite_prompt)
+    end
+
+    test "nil framework adds no framework guidance" do
+      base_prompt = Prompts.build([])
+      nil_prompt = Prompts.build(framework: nil)
+
+      assert String.length(base_prompt) == String.length(nil_prompt)
     end
   end
 

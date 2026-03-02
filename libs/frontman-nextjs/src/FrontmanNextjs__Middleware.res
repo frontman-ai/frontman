@@ -21,7 +21,7 @@ let toMiddlewareConfig = (config: Config.t): CoreMiddlewareConfig.t => {
   clientCssUrl: config.clientCssUrl,
   entrypointUrl: config.entrypointUrl,
   isLightTheme: config.isLightTheme,
-  frameworkLabel: "Next.js",
+  frameworkId: CoreMiddlewareConfig.Nextjs,
 }
 
 // Create middleware from a config input object (applies defaults)

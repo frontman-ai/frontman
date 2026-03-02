@@ -1,6 +1,33 @@
 // Runtime config injected by the framework middleware (e.g., Next.js)
 // Reads from window.__frontmanRuntime
 
+type frameworkId = Nextjs | Vite | Astro
+
+let frameworkIdFromString = (s: string): frameworkId =>
+  switch s {
+  | "nextjs" => Nextjs
+  | "vite" => Vite
+  | "astro" => Astro
+  | _ => JsError.throwWithMessage(`Unknown framework ID: "${s}"`)
+  }
+
+let frameworkIdToString = (id: frameworkId): string =>
+  switch id {
+  | Nextjs => "nextjs"
+  | Vite => "vite"
+  | Astro => "astro"
+  }
+
+// Map a framework ID to a human-readable display name.
+// The wire format uses normalized IDs ("nextjs", "vite", "astro") but the
+// UI should display user-friendly names ("Next.js", "Vite", "Astro").
+let frameworkDisplayName = (id: frameworkId): string =>
+  switch id {
+  | Nextjs => "Next.js"
+  | Vite => "Vite"
+  | Astro => "Astro"
+  }
+
 @schema
 type parsed = {
   framework: string,
@@ -9,9 +36,8 @@ type parsed = {
   openrouterKeyValue: option<string>,
 }
 
-@schema
 type t = {
-  framework: string,
+  framework: frameworkId,
   basePath: string,
   openrouterKeyValue: option<string>,
 }
@@ -26,7 +52,7 @@ let read = (): t => {
   let json = getRuntime()->Nullable.toOption->Option.getOrThrow
   let config = S.parseOrThrow(json, parsedSchema)
   {
-    framework: config.framework,
+    framework: frameworkIdFromString(config.framework),
     basePath: switch config.basePath {
     | Some("") | None => "frontman"
     | Some(bp) => bp
@@ -44,5 +70,12 @@ let hasOpenrouterKey = (config: t): bool => {
 // Includes framework and openrouterKeyValue so the server knows
 // which framework the client is running in and can use the project's env key
 let toMetadata = (config: t): JSON.t => {
-  S.reverseConvertToJsonOrThrow(config, schema)
+  let configObj = Dict.fromArray([
+    ("framework", JSON.Encode.string(frameworkIdToString(config.framework))),
+    ("basePath", JSON.Encode.string(config.basePath)),
+  ])
+  config.openrouterKeyValue->Option.forEach(key => {
+    configObj->Dict.set("openrouterKeyValue", JSON.Encode.string(key))
+  })
+  JSON.Encode.object(configObj)
 }

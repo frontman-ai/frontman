@@ -43,7 +43,7 @@ defmodule FrontmanServer.TasksTest do
   describe "create_task/3" do
     test "creates task with framework", %{scope: scope} do
       task_id = Ecto.UUID.generate()
-      framework = "test-client"
+      framework = "nextjs"
       {:ok, ^task_id} = Tasks.create_task(scope, task_id, framework)
 
       {:ok, task} = Tasks.get_task(scope, task_id)
@@ -55,14 +55,14 @@ defmodule FrontmanServer.TasksTest do
   describe "get_short_desc/2" do
     test "returns title for existing task", %{scope: scope} do
       task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
 
       assert {:ok, "New Task"} = Tasks.get_short_desc(scope, task_id)
     end
 
     test "returns updated title after update_short_desc", %{scope: scope} do
       task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
 
       {:ok, _} = Tasks.update_short_desc(scope, task_id, "My Custom Title")
       assert {:ok, "My Custom Title"} = Tasks.get_short_desc(scope, task_id)
@@ -74,7 +74,7 @@ defmodule FrontmanServer.TasksTest do
 
     test "returns not_found for task owned by different user", %{scope: scope} do
       task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
 
       {:ok, other_user} =
         Accounts.register_user(%{
@@ -91,7 +91,7 @@ defmodule FrontmanServer.TasksTest do
   describe "task_exists?/2" do
     test "returns true for existing task owned by user", %{scope: scope} do
       task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
 
       assert Tasks.task_exists?(scope, task_id) == true
     end
@@ -102,7 +102,7 @@ defmodule FrontmanServer.TasksTest do
 
     test "returns false for task owned by different user", %{scope: scope} do
       task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
 
       # Create a different user/scope
       {:ok, other_user} =
@@ -121,7 +121,7 @@ defmodule FrontmanServer.TasksTest do
   describe "get_task/2 authorization" do
     test "returns not_found when accessing task owned by different user", %{scope: scope} do
       task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
 
       # Create a different user/scope
       {:ok, other_user} =
@@ -146,7 +146,7 @@ defmodule FrontmanServer.TasksTest do
 
     test "returns interactions for existing task", %{scope: scope} do
       task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
 
       assert {:ok, []} = Tasks.get_interactions(scope, task_id)
     end
@@ -155,7 +155,7 @@ defmodule FrontmanServer.TasksTest do
   describe "get_llm_messages/2" do
     test "returns all messages for task", %{scope: scope} do
       task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
 
       # Add a user message
       Tasks.add_user_message(scope, task_id, [%{"type" => "text", "text" => "Hello"}], [])
@@ -178,7 +178,7 @@ defmodule FrontmanServer.TasksTest do
   describe "add_tool_call/3" do
     test "creates tool call interaction", %{scope: scope} do
       task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
 
       tool_call = ReqLLM.ToolCall.new("call_123", "calculator", ~s({"expression": "1 + 1"}))
 
@@ -201,7 +201,7 @@ defmodule FrontmanServer.TasksTest do
   describe "add_tool_result/5" do
     test "creates tool result interaction", %{scope: scope} do
       task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
 
       tool_call_data = %{id: "call_123", name: "calculator"}
 
@@ -214,7 +214,7 @@ defmodule FrontmanServer.TasksTest do
 
     test "creates error tool result", %{scope: scope} do
       task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
 
       tool_call_data = %{id: "call_456", name: "failing_tool"}
 
@@ -227,7 +227,7 @@ defmodule FrontmanServer.TasksTest do
 
     test "stores tool result in interactions", %{scope: scope} do
       task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
 
       tool_call_data = %{id: "call_notify", name: "some_tool"}
 
@@ -243,7 +243,7 @@ defmodule FrontmanServer.TasksTest do
   describe "add_discovered_project_rule/4" do
     test "adds rule to task", %{scope: scope} do
       task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
 
       {:ok, rule} =
         Tasks.add_discovered_project_rule(scope, task_id, "/project/AGENTS.md", "# Rules")
@@ -254,7 +254,7 @@ defmodule FrontmanServer.TasksTest do
 
     test "deduplicates by path", %{scope: scope} do
       task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
 
       {:ok, _rule} =
         Tasks.add_discovered_project_rule(scope, task_id, "/project/AGENTS.md", "# Rules v1")
@@ -278,14 +278,14 @@ defmodule FrontmanServer.TasksTest do
   describe "get_discovered_project_rules/2" do
     test "returns empty list for task with no rules", %{scope: scope} do
       task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
 
       assert {:ok, []} = Tasks.get_discovered_project_rules(scope, task_id)
     end
 
     test "returns all rules for task", %{scope: scope} do
       task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
 
       Tasks.add_discovered_project_rule(scope, task_id, "/a/AGENTS.md", "A rules")
       Tasks.add_discovered_project_rule(scope, task_id, "/b/AGENTS.md", "B rules")
@@ -298,7 +298,7 @@ defmodule FrontmanServer.TasksTest do
   describe "add_discovered_project_structure/3" do
     test "adds structure to task", %{scope: scope} do
       task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
 
       summary = "Project type: single project\n\nDirectory layout:\n."
 
@@ -319,14 +319,14 @@ defmodule FrontmanServer.TasksTest do
   describe "get_discovered_project_structure/2" do
     test "returns nil for task with no structure", %{scope: scope} do
       task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
 
       assert {:ok, nil} = Tasks.get_discovered_project_structure(scope, task_id)
     end
 
     test "returns summary for task with structure", %{scope: scope} do
       task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
 
       summary = "Project type: monorepo (turborepo)\n\nWorkspaces:\n  @app/web -> apps/web"
 
@@ -338,7 +338,7 @@ defmodule FrontmanServer.TasksTest do
 
     test "structure is excluded from LLM messages", %{scope: scope} do
       task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
 
       Tasks.add_discovered_project_structure(scope, task_id, "Project layout...")
       Tasks.add_user_message(scope, task_id, [%{"type" => "text", "text" => "Hello"}], [])
@@ -359,7 +359,7 @@ defmodule FrontmanServer.TasksTest do
 
     test "returns messages without modification (rules stored separately)", %{scope: scope} do
       task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
 
       Tasks.add_discovered_project_rule(scope, task_id, "/project/AGENTS.md", "# Project Rules")
       Tasks.add_user_message(scope, task_id, [%{"type" => "text", "text" => "Hello"}], [])
@@ -380,7 +380,7 @@ defmodule FrontmanServer.TasksTest do
 
     test "returns messages unchanged when no rules", %{scope: scope} do
       task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
 
       Tasks.add_user_message(scope, task_id, [%{"type" => "text", "text" => "Hello"}], [])
 
@@ -396,7 +396,7 @@ defmodule FrontmanServer.TasksTest do
 
     test "rules are retrievable separately via get_discovered_project_rules", %{scope: scope} do
       task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
 
       Tasks.add_discovered_project_rule(scope, task_id, "/a/AGENTS.md", "Rule A")
       Tasks.add_discovered_project_rule(scope, task_id, "/b/AGENTS.md", "Rule B")
@@ -424,7 +424,7 @@ defmodule FrontmanServer.TasksTest do
       scope: scope
     } do
       task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
 
       # Content blocks matching the new annotation ACP format:
       # 1. Text message
@@ -514,7 +514,7 @@ defmodule FrontmanServer.TasksTest do
   describe "list_todos/2" do
     test "returns empty list for task with no todos", %{scope: scope} do
       task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
 
       assert {:ok, []} = Tasks.list_todos(scope, task_id)
     end
@@ -526,7 +526,7 @@ defmodule FrontmanServer.TasksTest do
 
     test "returns todos from task", %{scope: scope} do
       task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
 
       {:ok, todo1} = Tasks.create_todo("First", "First", "pending")
       Tasks.add_tool_result(scope, task_id, %{id: "c1", name: "todo_add"}, todo1, false)
@@ -545,8 +545,8 @@ defmodule FrontmanServer.TasksTest do
     test "todos are isolated per task", %{scope: scope} do
       task_a = Ecto.UUID.generate()
       task_b = Ecto.UUID.generate()
-      {:ok, ^task_a} = Tasks.create_task(scope, task_a, "test-framework")
-      {:ok, ^task_b} = Tasks.create_task(scope, task_b, "test-framework")
+      {:ok, ^task_a} = Tasks.create_task(scope, task_a, "nextjs")
+      {:ok, ^task_b} = Tasks.create_task(scope, task_b, "nextjs")
 
       {:ok, todo} = Tasks.create_todo("Task A todo", "Working", "pending")
       Tasks.add_tool_result(scope, task_a, %{id: "c1", name: "todo_add"}, todo, false)

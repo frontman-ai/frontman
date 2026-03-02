@@ -74,7 +74,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
       scope = Scope.for_user(user)
       task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
 
       Phoenix.PubSub.subscribe(FrontmanServer.PubSub, Tasks.topic(task_id))
 
@@ -122,7 +122,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
       scope = Scope.for_user(user)
       task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
 
       # Subscribe to task topic to receive events
       Phoenix.PubSub.subscribe(FrontmanServer.PubSub, Tasks.topic(task_id))

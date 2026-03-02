@@ -9,7 +9,7 @@ module RuntimeConfig = Client__RuntimeConfig
 @react.component
 let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<string>=?) => {
   let runtimeConfig = RuntimeConfig.read()
-  let framework = runtimeConfig.framework
+  let frameworkDisplayName = RuntimeConfig.frameworkDisplayName(runtimeConfig.framework)
   let (activeTab, setActiveTab) = React.useState(() => "general")
 
   // When the dialog opens with an initialTab, switch to it
@@ -197,7 +197,7 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
                   </div>
                   <div
                     className="mt-2 rounded-lg border border-emerald-900/60 bg-emerald-900/20 px-4 py-3 text-sm text-emerald-200">
-                    {React.string(`Framework detected: ${framework}`)}
+                    {React.string(`Framework detected: ${frameworkDisplayName}`)}
                   </div>
                 </div>
               </div>

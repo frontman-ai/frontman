@@ -22,7 +22,7 @@ let toMiddlewareConfig = (config: Config.t): CoreMiddlewareConfig.t => {
   clientCssUrl: config.clientCssUrl,
   entrypointUrl: config.entrypointUrl,
   isLightTheme: config.isLightTheme,
-  frameworkLabel: "Astro",
+  frameworkId: CoreMiddlewareConfig.Astro,
 }
 
 // Create middleware handler

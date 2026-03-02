@@ -8,7 +8,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
   describe "join task:<id>" do
     test "succeeds when task exists", %{scope: scope} do
       task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
 
       {:ok, reply, socket} =
         UserSocket
@@ -34,7 +34,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
   describe "session/prompt" do
     setup %{scope: scope} do
       task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
 
       {:ok, _reply, socket} =
         UserSocket
@@ -69,7 +69,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
     setup %{scope: scope} do
       task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
 
       {:ok, _reply, socket} =
         UserSocket
@@ -224,7 +224,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
   describe "agent_error handling" do
     setup %{scope: scope} do
       task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
 
       {:ok, _reply, socket} =
         UserSocket
@@ -374,7 +374,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
   describe "MCP tool call result extraction" do
     setup %{scope: scope} do
       task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
 
       {:ok, _reply, socket} =
         UserSocket
@@ -430,7 +430,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
   describe "MCP initialization" do
     test "sends MCP initialize request on join", %{scope: scope} do
       task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
 
       {:ok, _reply, _socket} =
         UserSocket
@@ -452,7 +452,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
     test "completes handshake and sends initialized notification", %{scope: scope} do
       task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
 
       {:ok, _reply, socket} =
         UserSocket
@@ -482,7 +482,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
     setup %{scope: scope} do
       task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
 
       {:ok, _reply, socket} =
         UserSocket
@@ -591,7 +591,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
     setup %{scope: scope} do
       task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
 
       {:ok, _reply, socket} =
         UserSocket
@@ -608,7 +608,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       # This ensures agents can function even if tool calls happen early in the session.
 
       fresh_task_id = Ecto.UUID.generate()
-      {:ok, ^fresh_task_id} = Tasks.create_task(scope, fresh_task_id, "test-framework")
+      {:ok, ^fresh_task_id} = Tasks.create_task(scope, fresh_task_id, "nextjs")
 
       {:ok, _reply, socket} =
         UserSocket
@@ -746,7 +746,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       # 3. Queued prompt is processed with the loaded MCP tools
 
       task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
 
       {:ok, _reply, socket} =
         UserSocket
@@ -915,7 +915,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
   describe "session/cancel" do
     setup %{scope: scope} do
       task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
 
       {:ok, _reply, socket} =
         UserSocket
@@ -1069,7 +1069,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
   describe "tool_call_start streaming" do
     setup %{scope: scope} do
       task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
 
       {:ok, _reply, socket} =
         UserSocket
