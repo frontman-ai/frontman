@@ -7,34 +7,27 @@ module PathContext = FrontmanCore__PathContext
 
 let name = Tool.ToolNames.searchFiles
 let visibleToAgent = true
-let description = `Fast file name search tool that finds files matching a pattern.
+let description = `Searches **file names** across the project. Returns file paths whose name matches a pattern.
 
-WHEN TO USE THIS TOOL:
-- Use when you need to find files by name pattern
-- Great for locating specific files like "config.json" or "*.test.ts"
-- Useful for finding all files with a specific extension or naming convention
-- When you need to discover the file structure of a project
-- Note: this tool only searches file names, not directory names. Use list_files to browse directories.
+Use search_files to locate files by name — "find the Button component", "where are the test files". This does NOT search file contents; use grep for that. Use list_tree for a structural overview of the project.
 
 PARAMETERS:
-- pattern (required): The filename pattern to search for (supports glob-like patterns)
-- path (optional): Directory to search in (defaults to source root)
+- pattern (required): Filename pattern to match (supports glob-like: "*.test.ts", "config", "Button*")
+- path (optional): Directory to search in (defaults to source root). If a file path is given, searches in its parent directory.
 - max_results (optional): Maximum number of results to return (default: 20)
 
 EXAMPLES:
-- Find all config files: pattern="config"
-- Find TypeScript test files: pattern="*.test.ts"
-- Find files in specific directory: pattern="*.json", path="src/config"
+- Locate a component: pattern="Button"
+- Find test files: pattern="*.test.ts"
+- Find configs in a subdirectory: pattern="*.json", path="src/config"
 
 OUTPUT:
-Returns list of matching file paths.
-Results are sorted by modification time (newest first).
+List of matching file paths, sorted by modification time (newest first).
 
 LIMITATIONS:
-- Results limited to max_results (default 20)
-- Hidden files (starting with '.') are included
-- Respects .gitignore when using git ls-files fallback
-- Only finds files, not directories`
+- Results capped at max_results (default 20)
+- Matches file names only, not directory names
+- Hidden files (dotfiles) are included`
 
 @schema
 type input = {
@@ -169,7 +162,9 @@ let executeGitLsFiles = async (
 }
 
 let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.toolResult<output> => {
-  let searchPath = PathContext.resolveSearchPath(~sourceRoot=ctx.sourceRoot, ~inputPath=input.path)
+  // resolveSearchDir ensures we always get a directory, even if the agent
+  // passes a file path (e.g. "src/Button.tsx" → "src/").
+  let searchPath = await PathContext.resolveSearchDir(~sourceRoot=ctx.sourceRoot, ~inputPath=input.path)
   let maxResults = input.maxResults->Option.getOr(20)
 
   // Try ripgrep first, fall back to git ls-files

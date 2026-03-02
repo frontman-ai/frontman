@@ -8,21 +8,15 @@ module PathContext = FrontmanCore__PathContext
 
 let name = Tool.ToolNames.listFiles
 let visibleToAgent = true
-let description = `Lists files and directories in a single directory.
+let description = `Lists the **immediate contents** of a single directory — names, paths, and whether each entry is a file or directory.
 
-WHEN TO USE THIS TOOL:
-- Browsing one directory's immediate contents in detail (names, types)
-- Checking what files exist in a specific directory before reading or editing
-- Verifying file organization after making changes
-- Use list_tree instead when you need a multi-level project overview or monorepo layout
-- Use search_files instead when you need to find files by name pattern across the project
+Use list_files to inspect one directory before reading or editing files. For a recursive multi-level tree, use list_tree instead. To find files by name across the project, use search_files.
 
 PARAMETERS:
-- path (optional): Path to directory - either relative to source root or absolute (must be under source root). Defaults to "." (root directory).
+- path (optional): Directory to list (relative to source root or absolute). Defaults to "." (project root). If a file path is given, lists its parent directory.
 
 OUTPUT:
-Returns array of entries with name, path, and type (file or directory) information.
-Respects .gitignore — ignored files are excluded from results.`
+Array of entries, each with name, path, isFile, and isDirectory. Respects .gitignore — ignored entries are excluded.`
 
 @schema
 type input = {path?: string}
@@ -73,7 +67,16 @@ let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.toolR
   | Error(err) => Error(PathContext.formatError(err))
   | Ok(result) =>
     try {
-      let fullPath = result.resolvedPath
+      // If the agent passed a file path, use its parent directory instead.
+      let (fullPath, relativePath) = try {
+        let stats = await Fs.Promises.stat(result.resolvedPath)
+        switch Fs.isFile(stats) {
+        | true => (Path.dirname(result.resolvedPath), Path.dirname(path))
+        | false => (result.resolvedPath, path)
+        }
+      } catch {
+      | _ => (result.resolvedPath, path)
+      }
       let entries = await Fs.Promises.readdir(fullPath)
 
       let filteredEntriesResult =
@@ -91,7 +94,7 @@ let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.toolR
 
           {
             name,
-            path: Path.join([path, name]),
+            path: Path.join([relativePath, name]),
             isFile: Fs.isFile(stats),
             isDirectory: Fs.isDirectory(stats),
           }

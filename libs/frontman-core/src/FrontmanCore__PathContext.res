@@ -88,6 +88,27 @@ let resolveSearchPath = (~sourceRoot: string, ~inputPath: option<string>): strin
   }
 }
 
+module Fs = FrontmanBindings.Fs
+
+// Like resolveSearchPath, but guarantees the result is a directory.
+// If the resolved path points to a file, returns its parent directory instead.
+// Useful for tools that require a directory (e.g. search_files, list_tree)
+// where the agent may pass a file path meaning "search near this file".
+let resolveSearchDir = async (~sourceRoot: string, ~inputPath: option<string>): string => {
+  let resolved = resolveSearchPath(~sourceRoot, ~inputPath)
+  try {
+    let stats = await Fs.Promises.stat(resolved)
+    switch Fs.isFile(stats) {
+    | true => Path.dirname(resolved)
+    | false => resolved
+    }
+  } catch {
+  // stat failure (path doesn't exist, etc.) — return as-is and let the
+  // caller report the actual error.
+  | _ => resolved
+  }
+}
+
 // ============================================
 // Path Confusion Detection
 // ============================================

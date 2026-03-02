@@ -76,7 +76,6 @@ defmodule FrontmanServer.Tasks.Execution.PromptsTest do
       assert prompt =~ "## Professional Objectivity"
       assert prompt =~ "## Proactiveness"
       assert prompt =~ "## Rules"
-      assert prompt =~ "## Tool Selection Guidelines"
       assert prompt =~ "## Response Formatting"
       assert prompt =~ "## Code Quality"
     end
@@ -92,6 +91,15 @@ defmodule FrontmanServer.Tasks.Execution.PromptsTest do
       prompt = Prompts.build(has_typescript_react: false)
 
       refute prompt =~ "## TypeScript / React"
+    end
+  end
+
+  describe "build/1 tool failure recovery rule" do
+    test "includes alternative approach guidance before asking" do
+      prompt = Prompts.build([])
+
+      assert prompt =~ "try an alternative approach"
+      assert prompt =~ "3 total failures"
     end
   end
 

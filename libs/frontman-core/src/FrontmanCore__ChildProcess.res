@@ -65,109 +65,124 @@ let spawnPromise = (
   Promise.make((resolve, _reject) => {
     let cwd = options.cwd
     let env = options.env
-    let proc = B.spawn(command, args, {?cwd, ?env})
 
-    // Accumulate raw Buffer chunks to avoid corrupting multi-byte UTF-8
-    // characters that span chunk boundaries. Decode to string only once
-    // via Buffer.concat in the close/resolve handlers.
-    let stdoutChunks: ref<array<B.buffer>> = ref([])
-    let stderrChunks: ref<array<B.buffer>> = ref([])
-    let stdoutLen = ref(0)
-    let stderrLen = ref(0)
+    // Node's spawn() throws synchronously when cwd is invalid (ENOTDIR,
+    // ENOENT).  Wrapping the entire body in try/catch ensures the error
+    // flows through the result type instead of escaping as an unhandled
+    // promise rejection that bypasses fallback chains.
+    try {
+      let proc = B.spawn(command, args, {?cwd, ?env})
 
-    // Guard against multiple resolve calls — after maxBuffer or error,
-    // data handlers may still fire before the process dies. Without this
-    // guard the refs keep growing past the limit.
-    let resolved = ref(false)
+      // Accumulate raw Buffer chunks to avoid corrupting multi-byte UTF-8
+      // characters that span chunk boundaries. Decode to string only once
+      // via Buffer.concat in the close/resolve handlers.
+      let stdoutChunks: ref<array<B.buffer>> = ref([])
+      let stderrChunks: ref<array<B.buffer>> = ref([])
+      let stdoutLen = ref(0)
+      let stderrLen = ref(0)
 
-    let decodeStdout = () => B.concatBuffers(stdoutChunks.contents)->B.bufferToStr
-    let decodeStderr = () => B.concatBuffers(stderrChunks.contents)->B.bufferToStr
+      // Guard against multiple resolve calls — after maxBuffer or error,
+      // data handlers may still fire before the process dies. Without this
+      // guard the refs keep growing past the limit.
+      let resolved = ref(false)
 
-    let guardedResolve = value => {
-      switch resolved.contents {
-      | true => ()
-      | false =>
-        resolved := true
-        resolve(value)
-      }
-    }
+      let decodeStdout = () => B.concatBuffers(stdoutChunks.contents)->B.bufferToStr
+      let decodeStderr = () => B.concatBuffers(stderrChunks.contents)->B.bufferToStr
 
-    proc->B.processStdout->B.onData(chunk => {
-      switch resolved.contents {
-      | true => ()
-      | false =>
-        stdoutChunks.contents->Array.push(chunk)
-        stdoutLen := stdoutLen.contents + B.bufferByteLength(chunk)
-        if stdoutLen.contents > maxBuffer {
-          proc->B.kill(~signal="SIGTERM")->ignore
-          guardedResolve(
-            Error({
-              code: None,
-              stdout: decodeStdout(),
-              stderr: decodeStderr(),
-              message: "stdout maxBuffer exceeded",
-            }),
-          )
+      let guardedResolve = value => {
+        switch resolved.contents {
+        | true => ()
+        | false =>
+          resolved := true
+          resolve(value)
         }
       }
-    })
 
-    proc->B.processStderr->B.onData(chunk => {
-      switch resolved.contents {
-      | true => ()
-      | false =>
-        stderrChunks.contents->Array.push(chunk)
-        stderrLen := stderrLen.contents + B.bufferByteLength(chunk)
-        if stderrLen.contents > maxBuffer {
-          proc->B.kill(~signal="SIGTERM")->ignore
-          guardedResolve(
-            Error({
-              code: None,
-              stdout: decodeStdout(),
-              stderr: decodeStderr(),
-              message: "stderr maxBuffer exceeded",
-            }),
-          )
+      proc->B.processStdout->B.onData(chunk => {
+        switch resolved.contents {
+        | true => ()
+        | false =>
+          stdoutChunks.contents->Array.push(chunk)
+          stdoutLen := stdoutLen.contents + B.bufferByteLength(chunk)
+          if stdoutLen.contents > maxBuffer {
+            proc->B.kill(~signal="SIGTERM")->ignore
+            guardedResolve(
+              Error({
+                code: None,
+                stdout: decodeStdout(),
+                stderr: decodeStderr(),
+                message: "stdout maxBuffer exceeded",
+              }),
+            )
+          }
         }
-      }
-    })
+      })
 
-    proc->B.onProcess(#error(err => {
-      guardedResolve(
-        Error({
-          code: None,
-          stdout: decodeStdout(),
-          stderr: decodeStderr(),
-          message: JsError.message(err),
-        }),
-      )
-    }))
-
-    proc->B.onProcess(#close(nullableCode => {
-      let code = nullableCode->Nullable.toOption
-      switch code {
-      | Some(0) =>
-        guardedResolve(
-          Ok({
-            stdout: decodeStdout(),
-            stderr: decodeStderr(),
-          }),
-        )
-      | _ =>
-        let codeStr = switch code {
-        | Some(c) => Int.toString(c)
-        | None => "null"
+      proc->B.processStderr->B.onData(chunk => {
+        switch resolved.contents {
+        | true => ()
+        | false =>
+          stderrChunks.contents->Array.push(chunk)
+          stderrLen := stderrLen.contents + B.bufferByteLength(chunk)
+          if stderrLen.contents > maxBuffer {
+            proc->B.kill(~signal="SIGTERM")->ignore
+            guardedResolve(
+              Error({
+                code: None,
+                stdout: decodeStdout(),
+                stderr: decodeStderr(),
+                message: "stderr maxBuffer exceeded",
+              }),
+            )
+          }
         }
+      })
+
+      proc->B.onProcess(#error(err => {
         guardedResolve(
           Error({
-            code,
+            code: None,
             stdout: decodeStdout(),
             stderr: decodeStderr(),
-            message: `Process exited with code ${codeStr}`,
+            message: JsError.message(err),
           }),
         )
-      }
-    }))
+      }))
+
+      proc->B.onProcess(#close(nullableCode => {
+        let code = nullableCode->Nullable.toOption
+        switch code {
+        | Some(0) =>
+          guardedResolve(
+            Ok({
+              stdout: decodeStdout(),
+              stderr: decodeStderr(),
+            }),
+          )
+        | _ =>
+          let codeStr = switch code {
+          | Some(c) => Int.toString(c)
+          | None => "null"
+          }
+          guardedResolve(
+            Error({
+              code,
+              stdout: decodeStdout(),
+              stderr: decodeStderr(),
+              message: `Process exited with code ${codeStr}`,
+            }),
+          )
+        }
+      }))
+    } catch {
+    | exn =>
+      let msg =
+        exn
+        ->JsExn.fromException
+        ->Option.flatMap(JsExn.message)
+        ->Option.getOr("spawn failed")
+      resolve(Error({code: None, stdout: "", stderr: "", message: msg}))
+    }
   })
 }
 

@@ -10,37 +10,6 @@ defmodule FrontmanServer.Tasks.Execution.Prompts do
 
   # --- Root Agent Prompts ---
 
-  @base_tool_selection_guidance """
-  ## Tool Selection Guidelines
-
-  ### When to use search_files:
-  - Finding files/directories by name or pattern (e.g., "config.json", "*.test.ts", "components")
-  - Discovering project structure and file organization
-  - Locating specific file types across the codebase (e.g., all test files, all config files)
-  - Finding where a component or module file might be located by name
-  - **Examples**:
-    - "Find all TypeScript test files" → search_files(pattern: "*.test.ts")
-    - "Locate the Button component file" → search_files(pattern: "Button")
-    - "Find all config directories" → search_files(pattern: "config", type: "directory")
-
-  ### When to use grep:
-  - Searching for specific code patterns, function names, or text within files
-  - Finding where a function/class/variable is used or defined
-  - Locating error messages or log statements
-  - Searching for imports or dependencies
-  - **Examples**:
-    - "Find where useState is used" → grep(pattern: "useState")
-    - "Find all API endpoints" → grep(pattern: "app\\.(get|post|put|delete)")
-    - "Locate error handling code" → grep(pattern: "try.*catch")
-
-  ### When to use list_files:
-  - Browsing directory contents to understand structure
-  - Checking what files exist in a specific directory
-  - Verifying file organization before making changes
-
-  **Best Practice**: Start with search_files to locate relevant files by name, then use grep to search content within those areas, then list/read specific files before editing.
-  """
-
   # Default identity line for the assistant
   @default_identity "You are a coding assistant that helps developers build and modify their applications. You work directly with the codebase — reading, searching, and editing files to accomplish tasks."
 
@@ -73,9 +42,8 @@ defmodule FrontmanServer.Tasks.Execution.Prompts do
   - Use paths as provided. If given an absolute path, use it as-is.
   - List → Read → Modify. Never edit unseen files.
   - Keep diffs small and reversible. Match repo style.
-  - After 2 failed tool calls, ask one clarifying question about the error (not about requirements/design).
-
-  #{@base_tool_selection_guidance}
+  - After 2 failed tool calls on the same tool, try an alternative approach (different tool or different arguments). After 3 total failures, ask one clarifying question about the error (not about requirements/design).
+  - Each tool's description explains when to use it and when to prefer alternatives. Read tool descriptions before choosing.
 
   ## Response Formatting
 
@@ -143,12 +111,6 @@ defmodule FrontmanServer.Tasks.Execution.Prompts do
     |> append_project_rules(project_rules)
     |> append_context_guidance(opts)
   end
-
-  @doc """
-  Returns the tool selection guidance text.
-  """
-  @spec tool_selection_guidance() :: String.t()
-  def tool_selection_guidance, do: @base_tool_selection_guidance
 
   # ===========================================================================
   # Private Helpers

@@ -348,6 +348,41 @@ describe("SearchFiles Tool - execute (integration)", _t => {
     await cleanupTestFixture(tempDir)
   })
   
+  testAsync("should handle file path as search path (falls back to parent directory)", async t => {
+    let tempDir = await createTestFixture()
+
+    try {
+      let ctx: Tool.serverExecutionContext = {
+        projectRoot: tempDir,
+        sourceRoot: tempDir,
+      }
+
+      // Pass a file path instead of a directory — the tool should search the
+      // parent directory without crashing with ENOTDIR.
+      let input: SearchFiles.input = {
+        pattern: "config",
+        path: "config.json",
+      }
+
+      let result = await SearchFiles.execute(ctx, input)
+
+      switch result {
+      | Ok(output) => {
+          // Should find config files in the root (parent dir of config.json)
+          t->expect(output.totalResults > 0)->Expect.toBe(true)
+        }
+      | Error(msg) => failwith(`SearchFiles should not fail on file paths: ${msg}`)
+      }
+    } catch {
+    | exn => {
+        let msg = exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
+        failwith(`Test failed with exception: ${msg}`)
+      }
+    }
+
+    await cleanupTestFixture(tempDir)
+  })
+
   testAsync("should respect maxResults limit", async t => {
     let tempDir = await createTestFixture()
     

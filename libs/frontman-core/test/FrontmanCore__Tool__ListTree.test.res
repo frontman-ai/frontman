@@ -213,6 +213,29 @@ describe("ListTree Tool - execute (integration)", _t => {
     await cleanup(dir)
   })
 
+  testAsync("should handle file path as input (falls back to parent directory)", async t => {
+    let dir = await makeTmpDir()
+    await writeFile(dir, "src/index.ts", "")
+    await writeFile(dir, "src/utils/helpers.ts", "")
+    await writeFile(dir, "package.json", "{}")
+    await initGitRepo(dir)
+
+    // Pass a file path — ListTree should use its parent directory
+    let result = await ListTree.execute(makeCtx(dir), {path: ?Some("src/index.ts")})
+
+    switch result {
+    | Ok(output) => {
+        // Should show the tree of "src/" (parent of index.ts), not crash with ENOTDIR.
+        // The tree includes files tracked by git in the src/ subtree.
+        t->expect(output.tree->String.length > 0)->Expect.toBe(true)
+        t->expect(output.tree->String.includes("index.ts"))->Expect.toBe(true)
+      }
+    | Error(msg) => failwith(`ListTree should not fail on file paths: ${msg}`)
+    }
+
+    await cleanup(dir)
+  })
+
   testAsync("should sort directories before files", async t => {
     let dir = await makeTmpDir()
     await writeFile(dir, "zebra.ts", "")

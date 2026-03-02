@@ -12,22 +12,16 @@ module FsUtils = FrontmanCore__FsUtils
 
 let name = Tool.ToolNames.listTree
 let visibleToAgent = true
-let description = `Returns a text tree view of the project directory structure with monorepo workspace detection.
+let description = `Returns a **recursive directory tree** of the project structure, with monorepo workspace detection.
 
-WHEN TO USE THIS TOOL:
-- Getting oriented in an unfamiliar codebase
-- Understanding monorepo workspace layout and boundaries
-- Exploring a specific subdirectory's structure in depth
-- Prefer this over chaining multiple list_files calls for structure discovery
+Use list_tree to get oriented in a codebase, understand the layout, or explore a subtree. Prefer this over chaining multiple list_files calls. For a flat listing of one directory, use list_files instead.
 
 PARAMETERS:
-- path (optional): Subdirectory to root the tree at. Defaults to "." (project root).
+- path (optional): Subdirectory to root the tree at. Defaults to "." (project root). If a file path is given, shows the tree from its parent directory.
 - depth (optional): Maximum directory depth to display. Defaults to 3.
 
 OUTPUT:
-Returns a text tree with directories and files. Directories end with /.
-Workspace roots are annotated with [workspace: name].
-Respects .gitignore. Skips node_modules, .git, dist, build, etc.`
+Text tree with directories (ending in /) and files. Workspace roots are annotated with [workspace: name]. Respects .gitignore. Skips node_modules, .git, dist, build, etc.`
 
 @schema
 type input = {
@@ -417,7 +411,17 @@ let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.toolR
   | Error(err) => Error(PathContext.formatError(err))
   | Ok(result) =>
     try {
-      let fullPath = result.resolvedPath
+      // If the agent passed a file path, use its parent directory instead.
+      // ListTree is directory-centric — a file path means "show the tree near this file".
+      let fullPath = try {
+        let stats = await Fs.Promises.stat(result.resolvedPath)
+        switch Fs.isFile(stats) {
+        | true => Path.dirname(result.resolvedPath)
+        | false => result.resolvedPath
+        }
+      } catch {
+      | _ => result.resolvedPath
+      }
 
       // Get tracked files
       let filesResult = await getTrackedFiles(~cwd=fullPath)

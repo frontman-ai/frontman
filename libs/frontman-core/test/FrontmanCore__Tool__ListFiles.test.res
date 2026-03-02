@@ -148,6 +148,28 @@ describe("ListFiles Tool - execute (integration)", _t => {
     }
   })
 
+  testAsync("should handle file path as input (falls back to parent directory)", async t => {
+    let ctx: Tool.serverExecutionContext = {
+      projectRoot: fixtureDir,
+      sourceRoot: fixtureDir,
+    }
+
+    // Pass a file path instead of a directory — should list the parent directory
+    let result = await ListFiles.execute(ctx, {path: "index.ts"})
+
+    switch result {
+    | Ok(entries) => {
+        // Should list the root directory (parent of index.ts)
+        t->expect(Array.length(entries) > 0)->Expect.toBe(true)
+
+        // Should find files that are in the root directory
+        let hasConfig = entries->Array.some(e => e.name === "config.json")
+        t->expect(hasConfig)->Expect.toBe(true)
+      }
+    | Error(msg) => failwith(`ListFiles should not fail on file paths: ${msg}`)
+    }
+  })
+
   testAsync("should handle non-existent directory", async t => {
     let ctx: Tool.serverExecutionContext = {
       projectRoot: fixtureDir,

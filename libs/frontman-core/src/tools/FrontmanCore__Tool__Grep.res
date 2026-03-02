@@ -7,36 +7,31 @@ module PathContext = FrontmanCore__PathContext
 
 let name = Tool.ToolNames.grep
 let visibleToAgent = true
-let description = `Fast content search tool that finds files containing specific text or patterns, returning matching lines sorted by file modification time.
+let description = `Searches **file contents** for text or regex patterns. Returns matching lines with file paths and line numbers.
 
-WHEN TO USE THIS TOOL:
-- Use when you need to find files containing specific text or patterns
-- Great for searching code bases for function names, variable declarations, or error messages
-- Useful for finding all files that use a particular API or pattern
+Use grep to find where code is *used* — function calls, variable references, imports, error messages, string literals. If you need to find a file by *name* instead, use search_files.
 
 PARAMETERS:
-- pattern (required): The text or regex pattern to search for
-- path (optional): Directory to search in (defaults to source root)
-- type (optional): File type filter (e.g., "js", "ts", "py", "go")
-- glob (optional): Glob pattern to filter files (e.g., "*.js", "*.{ts,tsx}")
+- pattern (required): Text or regex to search for inside files
+- path (optional): Directory or file to search in (defaults to source root). When a file path is given, only that file is searched.
+- type (optional): File type filter (e.g., "js", "ts", "py")
+- glob (optional): Glob pattern to filter files (e.g., "*.tsx", "*.{ts,tsx}")
 - case_insensitive (optional): Case insensitive search (default: false)
 - literal (optional): Treat pattern as literal text, not regex (default: false)
 - max_results (optional): Maximum number of results to return (default: 20)
 
 EXAMPLES:
-- Find "function" in JavaScript files: pattern="function", type="js"
-- Find imports: pattern="import.*from", glob="*.ts"
-- Case-insensitive search: pattern="error", case_insensitive=true
-- Literal search: pattern="log.error()", literal=true
+- Find where useState is called: pattern="useState"
+- Find API routes: pattern="app\\.(get|post|put)", glob="*.ts"
+- Search within one file: pattern="className", path="src/components/Button.tsx"
+- Literal dot search: pattern="console.log(", literal=true
 
 OUTPUT:
-Returns matching lines grouped by file, with line numbers and content.
-Results are sorted by file modification time (newest first).
+Matching lines grouped by file, with line numbers. Sorted by file modification time (newest first).
 
 LIMITATIONS:
-- Results limited to max_results (default 20)
-- Binary files are automatically skipped
-- Hidden files (starting with '.') are skipped by default`
+- Results capped at max_results (default 20) files
+- Binary files and hidden files (dotfiles) are skipped`
 
 @schema
 type input = {
@@ -276,7 +271,9 @@ let executeRipgrep = async (
   }
 }
 
-// Execute git grep as fallback using spawn (no shell) to avoid argument splitting issues
+// Execute git grep as fallback using spawn (no shell) to avoid argument splitting issues.
+// `searchPath` may be a file — in that case we use its dirname as cwd and append the
+// basename as a pathspec so git grep searches only that file.
 let executeGitGrep = async (
   ~pattern: string,
   ~searchPath: string,
@@ -288,7 +285,36 @@ let executeGitGrep = async (
 ): result<output, string> => {
   let args = buildGitGrepArgs(~pattern, ~caseInsensitive, ~literal, ~maxResults, ~glob, ~type_)
 
-  let result = await ChildProcess.spawnResult("git", args, ~cwd=searchPath)
+  // Detect whether searchPath is a file. If so, use its parent directory as
+  // cwd and append the file as a pathspec to restrict the search.
+  let (cwd, filePathspec) = try {
+    let stats = await FrontmanBindings.Fs.Promises.stat(searchPath)
+    switch FrontmanBindings.Fs.isFile(stats) {
+    | true => (Path.dirname(searchPath), Some(Path.basename(searchPath)))
+    | false => (searchPath, None)
+    }
+  } catch {
+  // stat failure (e.g. path doesn't exist) — fall through and let git grep
+  // report the error.
+  | _ => (searchPath, None)
+  }
+
+  // If we have a file pathspec, append it after `--` so git grep only
+  // searches that file. Only add the separator if one isn't already present
+  // (buildGitGrepArgs adds `--` when glob/type_ are provided).
+  switch filePathspec {
+  | Some(file) =>
+    switch args->Array.includes("--") {
+    | true => args->Array.push(file)
+    | false => {
+        args->Array.push("--")
+        args->Array.push(file)
+      }
+    }
+  | None => ()
+  }
+
+  let result = await ChildProcess.spawnResult("git", args, ~cwd)
 
   switch result {
   | Ok({stdout}) => Ok(parseGrepOutput(stdout, ~maxResults))

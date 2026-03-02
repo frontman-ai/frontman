@@ -314,6 +314,25 @@ describe("Grep Tool - buildGitGrepArgs", _t => {
   })
 })
 
+describe("Grep Tool - buildPlainGrepArgs", _t => {
+  test("should build basic args", t => {
+    let args = Grep.buildPlainGrepArgs(
+      ~pattern="test",
+      ~searchPath="/tmp",
+      ~caseInsensitive=false,
+      ~literal=false,
+      ~maxResults=100,
+      ~glob=None,
+      ~type_=None,
+    )
+
+    t->expect(args->Array.includes("-rn"))->Expect.toBe(true)
+    t->expect(args->Array.includes("test"))->Expect.toBe(true)
+    t->expect(args->Array.includes("/tmp"))->Expect.toBe(true)
+    t->expect(args->Array.includes("--exclude-dir=node_modules"))->Expect.toBe(true)
+  })
+})
+
 describe("Grep Tool - execute (integration)", _t => {
   testAsync("should search files with ripgrep", async t => {
     let tempDir = await createTestFixture()
@@ -438,6 +457,43 @@ describe("Grep Tool - execute (integration)", _t => {
     await cleanupTestFixture(tempDir)
   })
   
+  testAsync("should handle file path as search path (not just directories)", async t => {
+    let tempDir = await createTestFixture()
+
+    try {
+      let ctx: Tool.serverExecutionContext = {
+        projectRoot: tempDir,
+        sourceRoot: tempDir,
+      }
+
+      // Pass a specific file path (not a directory) — this is what the LLM
+      // does when it wants to search within a single file.
+      let input: Grep.input = {
+        pattern: "pricing",
+        path: "test1.js",
+        caseInsensitive: true,
+      }
+
+      let result = await Grep.execute(ctx, input)
+
+      switch result {
+      | Ok(output) => {
+          // Should find "pricing" in test1.js without ENOTDIR
+          t->expect(output.totalMatches > 0)->Expect.toBe(true)
+          t->expect(Array.length(output.files) > 0)->Expect.toBe(true)
+        }
+      | Error(msg) => failwith(`Grep should not fail on file paths: ${msg}`)
+      }
+    } catch {
+    | exn => {
+        let msg = exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
+        failwith(`Test failed with exception: ${msg}`)
+      }
+    }
+
+    await cleanupTestFixture(tempDir)
+  })
+
   testAsync("should handle no matches gracefully", async t => {
     let tempDir = await createTestFixture()
     
