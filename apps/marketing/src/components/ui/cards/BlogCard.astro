@@ -51,7 +51,7 @@ const {
 		tags && (
 			<div class="post-tags mt-auto">
 				{tags.map((tag: string) => (
-					<Badge name={tag} link={`/blog/tags/` + tag} classes="capitalize" />
+					<Badge name={tag} link={`/blog/tags/${tag}/`} classes="capitalize" />
 				))}
 			</div>
 		)

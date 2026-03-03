@@ -13,6 +13,9 @@ import InstallSteps from '../components/blocks/install/InstallSteps.astro'
 import HomeFAQ from '../components/blocks/FAQ/HomeFAQ.astro'
 import FinalCTA from '../components/blocks/CTA/FinalCTA.astro'
 
+// Data
+import faqData from '../data/json-files/faqData.json'
+
 // Content
 // - SEO
 const SEO = {
@@ -20,9 +23,24 @@ const SEO = {
 	description:
 		'Frontman lives in your browser, sees your live DOM, and turns plain English into real code changes — no more refresh-and-check cycles.'
 }
+
+// FAQPage JSON-LD
+const faqJsonLd = {
+	"@context": "https://schema.org",
+	"@type": "FAQPage",
+	"mainEntity": faqData.map((faq) => ({
+		"@type": "Question",
+		"name": faq.question,
+		"acceptedAnswer": {
+			"@type": "Answer",
+			"text": faq.reply
+		}
+	}))
+}
 ---
 
 <Layout title={SEO.title} description={SEO.description}>
+	<script is:inline type="application/ld+json" set:html={JSON.stringify(faqJsonLd)} />
 	<!-- Act 1: The Insight — hook them, then show why we're different -->
 	<Hero />
 	<FullContextSection />

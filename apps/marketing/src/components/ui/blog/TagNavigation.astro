@@ -20,7 +20,7 @@ const currentTag = pathSegments[pathSegments.length - 1] || ''
 		tags.map((tag) => (
 			<>
 				<Badge
-					link={`/blog/tags/${tag}`}
+					link={`/blog/tags/${tag}/`}
 					name={tag}
 					type={`${currentTag === tag ? 'primary' : 'neutral'}`}
 				/>

@@ -27,7 +27,7 @@ const jsonLd = {
 	'@type': 'DefinedTermSet',
 	name: 'Frontend Development Glossary',
 	description: SEO.description,
-	url: 'https://frontman.sh/glossary',
+	url: 'https://frontman.sh/glossary/',
 	numberOfItems: entries.length
 }
 ---
@@ -73,7 +73,7 @@ const jsonLd = {
 							<ul class="glossary-group__list">
 								{grouped.get(letter)!.map((entry) => (
 									<li>
-										<a href={`/glossary/${entry.id}`} class="glossary-term">
+										<a href={`/glossary/${entry.id}/`} class="glossary-term">
 											<span class="glossary-term__title">{entry.data.title}</span>
 											<span class="glossary-term__description">
 												{entry.data.description}

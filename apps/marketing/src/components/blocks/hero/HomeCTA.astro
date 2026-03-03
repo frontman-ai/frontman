@@ -32,6 +32,7 @@ const youtubeVideoId = '-4GD1GYwH8Y'
 				<OpenSourceBadge classes="mb-6" />
 				<h1 class="hero-section__title">Edit your app like you designed it.</h1>
 				<p class="hero-section__subtitle">Your project. Your codebase. Frontman lives in your browser and lets you refine the UI directly. Point at any element, describe the change, and see it happen.</p>
+				<p class="hero-section__geo-lead">Frontman is an open-source AI coding agent that hooks into your dev server as middleware. It sees the live DOM, component tree, CSS styles, routes, and server logs. It supports Next.js, Astro, and Vite (React, Vue, Svelte). Free with BYOK — Apache 2.0 / AGPL-3.0.</p>
 				<div class="hero-section__cta">
 					<Button size="lg" style="white" link="#install">Get Started For Free</Button>
 					<a href="https://discord.gg/xk8uXJSvhC" target="_blank" rel="noopener noreferrer" class="hero-section__community-link">
@@ -199,7 +200,21 @@ const youtubeVideoId = '-4GD1GYwH8Y'
 		width: 100%;
 	}
 	@media (min-width: 1024px) {
-		.hero-section__cta {
+	.hero-section__geo-lead {
+		font-size: 13px;
+		line-height: 18px;
+		color: rgba(255, 255, 255, 0.6);
+		margin-bottom: 24px;
+		max-width: 100%;
+	}
+	@media (min-width: 1024px) {
+		.hero-section__geo-lead {
+			font-size: 14px;
+			line-height: 20px;
+			max-width: 700px;
+		}
+	}
+	.hero-section__cta {
 			flex-direction: row;
 			align-items: center;
 			gap: 16px;

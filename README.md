@@ -15,23 +15,47 @@
 
 ---
 
+[Frontman](https://frontman.sh) is an open-source AI coding agent that lives in your browser. It hooks into your dev server as middleware and sees the live DOM, component tree, CSS styles, routes, and server logs. Click any element in your running app, describe what you want changed in plain English, and Frontman edits the actual source files with instant hot reload. It supports Next.js, Astro, and Vite (React, Vue, Svelte). Free and open-source — Apache 2.0 (client libraries) / AGPL-3.0 (server). Bring your own API keys (Claude, ChatGPT, or OpenRouter).
+
 <p align="center">
   <a href="https://www.youtube.com/watch?v=-4GD1GYwH8Y">
     <img src="./assets/demo.webp" alt="Frontman Demo" width="600" />
   </a>
 </p>
 
-Open your running app in the browser, click on any element, and describe the change you want — Frontman edits the actual source code in your repo. No sandbox, no copy-paste. Real code changes your team can review and merge.
+## Who Is This For?
 
-> **For designers and PMs** who want to tweak UI without waiting on a developer. **For developers** who want fewer "can you move this 2px" tickets.
+**Frontend developers** who want richer context than terminal-based AI tools provide. Frontman reads the rendered page, not just the source files, so it knows what your CSS actually computes to and which component renders which DOM node.
+
+**Designers and product managers** who want to change copy, adjust spacing, fix colors, or explore layout ideas without opening an IDE. They click the element they want to change, describe the edit, and the source code updates. The diff goes through your team's normal review process.
+
+**Teams** where the back-and-forth between design and engineering costs more time than the actual change. Frontman lets anyone on the team iterate on the frontend directly.
+
+## How Frontman Compares to Other AI Coding Tools
+
+Most AI coding tools work from source files and never see the running application. Frontman takes the opposite approach — it starts from the browser and works backward to the source.
+
+| | Frontman | Cursor | GitHub Copilot | v0 |
+|---|---|---|---|---|
+| **Context** | Live DOM, computed CSS, component tree, server logs | Source files in IDE | Source files in IDE | Sandboxed preview |
+| **Editing interface** | Browser overlay | IDE (VS Code fork) | IDE extension | Web app |
+| **What it edits** | Your existing codebase | Your existing codebase | Your existing codebase | Generates new code |
+| **Sees rendered output** | Yes (framework middleware) | No | No | Own sandbox only |
+| **Open source** | Yes (Apache 2.0 / AGPL-3.0) | No | No | No |
+| **Pricing** | Free (BYOK) | $20/mo Pro | $10/mo Pro | $20/mo Premium |
+| **Best for** | Visual frontend editing, designer/PM collaboration | Full-stack IDE replacement | Autocomplete, code review | Generating new UI from scratch |
+
+Frontman and these tools are complementary. Many developers use Cursor or Copilot for backend work and general refactoring, then switch to Frontman when they need to see what they're editing in the browser.
 
 ## How It Works
 
 1. **A developer adds Frontman to the project** — one command, works with Next.js, Astro, and Vite.
-2. **Anyone on the team opens the app in their browser** — an overlay lets you click any element and describe the change you want in plain language.
-3. **Frontman edits the source code and hot-reloads** — the change appears live in the browser, and the code diff is ready for the team to review.
+2. **Anyone on the team opens the app in their browser** — navigate to `localhost/frontman` to get a chat interface alongside a live view of your app.
+3. **Click any element and describe the change** — Frontman sees the element's position in the component tree, its computed styles, and the server-side context. It edits the right source file and hot-reloads.
 
-Unlike screenshot-based AI tools, Frontman hooks into your framework's build pipeline — it understands your components, routes, and compilation errors, so it edits the right file every time.
+The framework integration turns your local dev server into an [MCP server](https://modelcontextprotocol.io/) that the AI agent queries for both client-side context (DOM tree, computed CSS, screenshots, element selection) and server-side context (routes, server logs, query timing, compiled modules).
+
+Frontman only runs in development mode. Production builds strip it out. Your deployment bundle is identical whether Frontman is installed or not.
 
 ## Quickstart
 
@@ -39,27 +63,84 @@ Unlike screenshot-based AI tools, Frontman hooks into your framework's build pip
 
 ```bash
 npx @frontman-ai/nextjs install
+npm run dev
+# Open http://localhost:3000/frontman
 ```
+
+Works with App Router and Pages Router. Compatible with Turbopack.
+
+See the [Next.js integration guide](https://frontman.sh/integrations/nextjs/) for details.
 
 ### Astro
 
 ```bash
 astro add @frontman-ai/astro
+astro dev
+# Open http://localhost:4321/frontman
 ```
 
-See [Astro integration docs](https://frontman.sh/docs/astro) for configuration.
+Listed on the [Astro integration registry](https://astro.build/integrations/?search=frontman). Understands Islands architecture, content collections, and SSR/hybrid modes.
 
-### Vite
+See the [Astro integration guide](https://frontman.sh/integrations/astro/) for details.
+
+### Vite (React, Vue, Svelte)
 
 ```bash
 npx @frontman-ai/vite install
+npm run dev
+# Open http://localhost:5173/frontman
 ```
 
-See [Vite plugin docs](https://frontman.sh/docs/vite) for configuration.
+Auto-detects your framework from `vite.config`. Works with React, Vue, and Svelte — including SvelteKit.
 
-- **Framework-aware** — Understands your components, routes, and build errors. Not just pixel screenshots.
-- **Real-time streaming** — See edits appear in your editor as they're written, with live preview in the browser.
-- **Open protocol** — Client, server, and framework adapters are decoupled and extensible. [Read the docs](./docs/).
+See the [Vite integration guide](https://frontman.sh/integrations/vite/) for details.
+
+## AI Model Support
+
+Frontman uses BYOK (bring your own key). Connect any LLM provider:
+
+- **Anthropic** (Claude) — direct API key or OAuth with your Claude subscription
+- **OpenAI** (ChatGPT) — direct API key or OAuth with your ChatGPT subscription
+- **OpenRouter** — access to Claude, GPT, Llama, Mistral, and hundreds of other models
+
+You pay your LLM provider directly at their standard rates. There are no prompt limits, usage caps, or subscription fees from Frontman.
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────┐
+│ Browser                                         │
+│ ┌─────────────────┐  ┌────────────────────────┐ │
+│ │ Your Running App│  │ Frontman Overlay        │ │
+│ │                 │  │ (chat + live preview)   │ │
+│ └────────┬────────┘  └───────────┬────────────┘ │
+│          │                       │              │
+│  ┌───────▼───────────────────────▼──────────┐   │
+│  │ Browser-side MCP Server                  │   │
+│  │ DOM tree, computed CSS, screenshots,     │   │
+│  │ element selection, console logs          │   │
+│  └──────────────────┬───────────────────────┘   │
+└─────────────────────┼───────────────────────────┘
+                      │
+┌─────────────────────┼───────────────────────────┐
+│ Dev Server          │                           │
+│  ┌──────────────────▼───────────────────────┐   │
+│  │ Framework Middleware                     │   │
+│  │ (Next.js / Astro / Vite plugin)         │   │
+│  │ Routes, server logs, compiled modules,  │   │
+│  │ source maps, build errors               │   │
+│  └──────────────────┬───────────────────────┘   │
+└─────────────────────┼───────────────────────────┘
+                      │
+┌─────────────────────┼───────────────────────────┐
+│ Frontman Server     │  (Elixir/Phoenix)         │
+│  ┌──────────────────▼───────────────────────┐   │
+│  │ AI Agent Orchestrator                    │   │
+│  │ Queries MCP tools, generates edits,      │   │
+│  │ writes source files, triggers hot reload │   │
+│  └──────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────┘
+```
 
 ## Contributing
 
@@ -77,5 +158,9 @@ See the respective `LICENSE` files for details.
 ## Links
 
 - [Website](https://frontman.sh)
+- [Documentation](https://frontman.sh/docs/)
+- [Integrations](https://frontman.sh/integrations/)
+- [Comparisons](https://frontman.sh/vs/) — Frontman vs [Cursor](https://frontman.sh/vs/cursor/), [Copilot](https://frontman.sh/vs/copilot/), [v0](https://frontman.sh/vs/v0/), [Stagewise](https://frontman.sh/vs/stagewise/)
 - [Changelog](./CHANGELOG.md)
 - [Issues](https://github.com/frontman-ai/frontman/issues)
+- [Discord](https://discord.gg/xk8uXJSvhC)

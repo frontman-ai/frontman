@@ -35,7 +35,7 @@ const sortedPosts = allPosts.sort((a: any, b: any) => {
 				sortedPosts.map((post: any) => (
 					<Col span="4">
 						<Post
-							link={`/blog/${post.id}`}
+							link={`/blog/${post.id}/`}
 							title={post.data.title}
 							subtitle={`By ${post.data.author} on ${new Date(post.data.pubDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`}
 							image={post.data.image}
