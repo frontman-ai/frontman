@@ -40,6 +40,16 @@ export const navigationBarData: NavData = {
 	navItems: [
 		{ name: 'Home', link: '/' },
 		{ name: 'Blog', link: '/blog/' },
+		{
+			name: 'Compare',
+			link: '/vs/',
+			submenu: [
+				{ name: 'vs Cursor', link: '/vs/cursor/' },
+				{ name: 'vs Copilot', link: '/vs/copilot/' },
+				{ name: 'vs Stagewise', link: '/vs/stagewise/' },
+				{ name: 'vs v0', link: '/vs/v0/' }
+			]
+		},
 		{ name: 'Changelog', link: '/changelog/' },
 		{ name: 'FAQ', link: '/faq/' }
 	],

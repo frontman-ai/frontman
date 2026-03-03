@@ -1,0 +1,62 @@
+# Frontman
+
+> Frontman is an open-source AI coding agent that lives inside your browser, not your editor. It hooks into your framework (Next.js, Astro, Vite), sees the live DOM, component tree, computed styles, routes, and server-side state, and turns plain-English instructions into real source code changes — verified instantly via hot-reload.
+
+## What problem does Frontman solve?
+
+Every AI coding agent today — Cursor, Claude Code, Copilot — operates on source files. They read your code but never see the rendered page. For frontend work, this means every visual change is a guess: the agent picks a CSS class, you switch to the browser, it's wrong, you switch back and describe the problem in text. Repeat.
+
+Frontman closes that loop. It connects to your running application and your dev server simultaneously. When you click an element, Frontman reads its computed styles from the live DOM, traces it through the component tree back to the exact source file and line number, and edits that line. Hot-reload fires. The change is verified in the same action that produced it. No guessing, no tab switching.
+
+## Who is Frontman for?
+
+- **Frontend developers** who want faster iteration with richer context than terminal-based AI tools provide. Click an element, describe the change, see it happen — instead of writing prompts that specify file paths and line numbers.
+- **Designers** who want to make spacing, typography, color, and layout changes directly in the running app without opening an IDE or filing a ticket. Every change produces a reviewable code diff.
+- **Product managers** who need to update copy, tweak structure, or explore feature ideas without waiting for an engineering sprint. Frontman gives non-technical teammates a chat interface alongside a live view of the app.
+- **Teams** that want to collapse the gap between "people who can describe a change" and "people who can make a change" — while keeping the entire engineering review process intact.
+
+## How it works
+
+Frontman integrates at the framework level as middleware. When installed, it turns your local dev server into an MCP server that exposes both client-side tools (component tree, performance data, click targets, console logs) and server-side tools (routes, server logs, query timing, compiled modules). The agent connects to this context in real time and always knows what is actually happening in your app.
+
+It runs exclusively in development (`NODE_ENV=development`). In production builds, the code is removed entirely by tree-shaking — not disabled, not present. Every change produces a standard git diff that goes through your team's normal PR review process.
+
+## Key capabilities
+
+- **Browser-aware editing** — sees the live DOM, computed styles, and component tree; traces elements to source files
+- **Multi-select** — Shift-click multiple elements, add instructions to each, fix them all in one pass
+- **Framework integrations** — Next.js, Astro, and Vite (React, Vue, Svelte) with deep runtime context
+- **Bring your own AI** — works with Claude (Anthropic), ChatGPT (OpenAI), or any model via OpenRouter
+- **Built-in Lighthouse audits** — run performance and accessibility audits without leaving the browser
+- **Open source** — Apache 2.0 license, fully auditable on GitHub
+
+## Docs
+
+- [Homepage](https://frontman.sh/): Product overview, feature highlights, and installation instructions
+- [FAQ](https://frontman.sh/faq/): Answers to common questions about features, frameworks, safety, and technical details
+- [Changelog](https://frontman.sh/changelog/): Release notes and version history
+- [GitHub](https://github.com/frontman-ai/frontman): Source code, contributing guide, and issue tracker
+
+## Blog
+
+- [Introducing Frontman](https://frontman.sh/blog/introducing-frontman/): Origin story and core vision — why we built a browser-based AI agent
+- [Getting Started](https://frontman.sh/blog/getting-started/): Install in one command and make your first edit in under five minutes
+- [Why AI Coding Agents Are Blind to Your UI](https://frontman.sh/blog/ai-coding-agents-blind-to-ui/): The perception gap in file-level agents and how runtime context fixes it
+- [Frontman vs Cursor vs Claude Code](https://frontman.sh/blog/frontman-vs-cursor-vs-claude-code/): When to use file-level agents vs. browser-level agents
+- [Multi-Select Editing](https://frontman.sh/blog/multi-select/): Batch multiple UI fixes into a single operation
+- [The Runtime Context Gap](https://frontman.sh/blog/runtime-context-gap/): How live DOM, computed styles, and component tree improve AI code generation
+- [Lighthouse Audits Without Leaving the Browser](https://frontman.sh/blog/lighthouse-audits-without-leaving-the-browser/): Built-in performance and accessibility auditing
+- [Security Model](https://frontman.sh/blog/security/): Dev-only execution, encrypted API keys, reviewable diffs, and what Frontman cannot do
+- [Team Collaboration](https://frontman.sh/blog/team-collaboration/): How designers and PMs use Frontman alongside developers
+
+## Comparisons
+
+- [Frontman vs Cursor](https://frontman.sh/vs/cursor/): Browser-based visual editing vs. IDE-based file-level AI
+- [Frontman vs GitHub Copilot](https://frontman.sh/vs/copilot/): Runtime-aware agent vs. inline code completion
+- [Frontman vs Stagewise](https://frontman.sh/vs/stagewise/): Feature-by-feature comparison of browser-based AI tools
+- [Frontman vs v0](https://frontman.sh/vs/v0/): Editing existing production apps vs. generating new UIs from scratch
+
+## Optional
+
+- [Browser-Aware AI Tools in 2026](https://frontman.sh/blog/browser-aware-ai-tools-2026/): Industry landscape and where browser-based AI coding is headed
+- [Add Runtime Context to Your AI Workflow (Next.js)](https://frontman.sh/blog/tutorial-nextjs-runtime-context/): Tutorial on enriching AI agents with live application context

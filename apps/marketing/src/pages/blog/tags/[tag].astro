@@ -9,6 +9,9 @@ import Layout from '../../../layouts/Layout.astro'
 // - UI
 import Hero from '../../../components/blocks/hero/PageHeader.astro'
 import BlogPosts from '../../../components/blocks/blog/BlogPosts.astro'
+import Section from '../../../components/ui/Section.astro'
+import Row from '../../../components/ui/Row.astro'
+import Col from '../../../components/ui/Col.astro'
 
 // Data
 import { getCollection } from 'astro:content'
@@ -27,6 +30,23 @@ export async function getStaticPaths() {
 const { tag } = Astro.params
 const { posts } = Astro.props
 
+const tagDescriptions: Record<string, string> = {
+	announcement: 'Product launches, feature releases, and important updates from the Frontman team. Stay up to date with what we are shipping and where the project is headed.',
+	collaboration: 'How Frontman enables designers, PMs, and developers to work together on frontend code — directly inside the running application, without context switching.',
+	security: 'How Frontman keeps your code and data safe. Learn about our security model, local-first architecture, and the principles behind our approach to trust and access control.',
+	tutorial: 'Step-by-step guides and walkthroughs for getting the most out of Frontman. From first setup to advanced workflows, these posts help you hit the ground running.',
+	comparison: 'Side-by-side comparisons of Frontman with other AI coding tools like Cursor, Copilot, v0, and Stagewise. Understand the tradeoffs and find the right tool for your workflow.',
+	ai: 'How artificial intelligence powers Frontman and the broader landscape of AI-assisted frontend development. From prompt-driven editing to runtime-aware code generation, explore the AI techniques behind modern developer tooling.',
+	'developer-tools': 'Posts about the developer tools ecosystem and how Frontman fits alongside your existing workflow. Browser DevTools, build systems, and the tools that make frontend development faster.',
+	'getting-started': 'Everything you need to get up and running with Frontman. Installation guides, first steps, and tips for making the most of Frontman from day one.',
+	workflow: 'Practical advice on integrating Frontman into your daily development workflow. Learn how browser-based AI editing can streamline code reviews, design handoffs, and rapid prototyping.',
+	'open-source': 'Frontman is open source under the Apache 2.0 license. Read about our commitment to transparency, community contributions, and building in the open.',
+	performance: 'How Frontman helps you build faster websites. From built-in Lighthouse audits to runtime performance insights, learn how to catch and fix performance issues without leaving your browser.',
+}
+
+const tagDescription = tagDescriptions[tag ?? ''] ??
+	`Articles and insights about ${tag} in the context of AI-powered frontend development. Explore how Frontman and browser-based tooling are changing the way teams build and iterate on user interfaces.`
+
 // Content
 // - SEO
 const SEO = {
@@ -43,5 +63,28 @@ const header = {
 
 <Layout title={SEO.title} description={SEO.description}>
 	<Hero title={header.title} text={header.text} />
+	<Section id="tag-intro">
+		<Row>
+			<Col span="8" align="center">
+				<p class="tag-intro__text">{tagDescription}</p>
+				<p class="tag-intro__count">
+					{posts.length === 1
+						? `There is currently 1 article tagged "${tag}".`
+						: `There are currently ${posts.length} articles tagged "${tag}".`
+					}
+					Check back regularly — we publish new content every week.
+				</p>
+			</Col>
+		</Row>
+	</Section>
 	<BlogPosts data={posts} />
 </Layout>
+
+<style>
+	.tag-intro__text {
+		@apply text-lg leading-relaxed text-neutral-600 dark:text-neutral-300 mb-4;
+	}
+	.tag-intro__count {
+		@apply text-base text-neutral-500 dark:text-neutral-400;
+	}
+</style>

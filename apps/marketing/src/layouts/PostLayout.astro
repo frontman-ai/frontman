@@ -40,6 +40,22 @@ const blogPostJsonLd = {
 		"@id": Astro.url.href
 	}
 }
+
+// FAQPage JSON-LD (optional, driven by frontmatter.faq)
+const faqJsonLd = frontmatter.faq?.length
+	? {
+			"@context": "https://schema.org",
+			"@type": "FAQPage",
+			"mainEntity": frontmatter.faq.map((item: { question: string; answer: string }) => ({
+				"@type": "Question",
+				"name": item.question,
+				"acceptedAnswer": {
+					"@type": "Answer",
+					"text": item.answer
+				}
+			}))
+		}
+	: null
 ---
 
 <Layout
@@ -52,6 +68,7 @@ const blogPostJsonLd = {
 	}}
 >
 	<script is:inline type="application/ld+json" set:html={JSON.stringify(blogPostJsonLd)} />
+	{faqJsonLd && <script is:inline type="application/ld+json" set:html={JSON.stringify(faqJsonLd)} />}
 	<BlogPostHero
 		tags={frontmatter.tags}
 		title={frontmatter.title}

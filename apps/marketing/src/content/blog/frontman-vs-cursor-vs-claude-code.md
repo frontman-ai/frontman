@@ -5,15 +5,26 @@ description: 'File-level agents like Cursor and Claude Code vs. browser-based ed
 author: 'Frontman Team'
 image: '/blog/frontman-vs-cursor-vs-claude-code-cover.png'
 tags: ['comparison', 'ai']
+faq:
+  - question: 'What is the difference between Frontman, Cursor, and Claude Code?'
+    answer: 'Cursor and Claude Code are file-level agents that read source code, run terminal commands, and reason about multi-file changes. They excel at backend work, refactoring, and complex logic. Frontman is a browser-level agent that hooks into your running app, sees the live DOM and computed styles, and edits visual frontend code by tracing clicked elements back to source files. They solve different problems — use file-level agents for code reasoning, and Frontman for visual work.'
+  - question: 'Can I use Frontman and Cursor at the same time?'
+    answer: 'Yes. That is the intended workflow. Use Cursor or Claude Code for backend, architecture, and multi-file refactoring. Use Frontman for the visual layer — spacing, typography, colors, layout, and responsive behavior. They operate on different contexts (files vs. browser) and complement each other.'
+  - question: 'Is Frontman only for trivial CSS changes?'
+    answer: 'No. Spacing, typography, responsive layout, color systems, and component styling account for 30-40% of frontend development time. Each individual change may be small, but the category is large. Multi-select lets you batch many visual fixes in one pass, and non-developers (designers, PMs) can handle these changes directly.'
+  - question: 'Can Claude Code take screenshots to see the UI?'
+    answer: 'It can, through MCP servers and browser automation. But a screenshot is a raster image — it strips the component tree, class names, CSS cascade, responsive breakpoints, and state. The agent has to reverse-engineer structure from pixels. Frontman reads the DOM directly and knows which component renders which element because it is hooked into the framework.'
 ---
 
 You are in Cursor. You ask the agent to fix a visual bug — a card component that overflows its container on mobile. The agent reads the file, finds the component, changes a width class. You `Cmd+Tab` to the browser. Still overflowing. You switch back, give more context: "It's the inner wrapper, not the outer one. And the issue is on viewports below 640px." The agent tries again. You switch to the browser. Fixed on mobile, but now the desktop layout has a weird gap. Three rounds. Six tab switches. The agent read the file each time. It just never saw the page.
 
 This is not a knock on Cursor. Cursor is excellent at code problems. The issue is that you used a file-level agent for a _visual_ problem, and file-level agents are blind to the rendered UI.
 
+> **TL;DR:** Cursor and Claude Code are file-level agents — great for backend work, refactoring, and multi-file reasoning. Frontman is a browser-level agent — it sees the live DOM, traces elements to source files, and verifies changes via hot-reload. Use each for what it's good at: file-level agents for code problems, Frontman for visual problems.
+
 !Table comparing file-level AI agents and browser-level AI agents across key capabilities: file access, terminal access, DOM access, computed styles, and visual verification.
 
-### File-Level Agents Are For Code Problems
+## What Are File-Level AI Agents Good At?
 
 Cursor, Claude Code, Windsurf, and Copilot work on files and terminal output. They read source code, understand dependency graphs, and edit across multiple files in a single pass. They are very good at this:
 
@@ -26,7 +37,7 @@ These agents have one blind spot: they cannot see the rendered result. They do n
 
 For backend code, this is fine. A database query does not have a visual output. For frontend work, "edit, switch tabs, eyeball it, switch back, describe what you see" is a workaround masquerading as a workflow.
 
-### Browser-Level Agents Are For Visual Problems
+## What Are Browser-Level AI Agents Good At?
 
 Frontman hooks into your framework's build pipeline and connects to your running browser. It operates on the rendered output, not the source files. This is not a convenience — it is a fundamentally different feedback loop.
 
@@ -39,7 +50,7 @@ When you click an element in Frontman:
 
 Frontman does not guess which file to edit. It knows, because it can see the element you selected and trace it to its origin. The visual context _is_ the context. You do not need to describe it in a prompt.
 
-### The Same Change, Two Ways
+## The Same Change, Two Ways
 
 You want to fix a card that overflows on mobile. In Cursor:
 
@@ -70,7 +81,7 @@ Frontman: *reads computed width: 420px, container: 375px*
 
 Three rounds vs. one. The difference is not intelligence — it is whether the agent can see what overflowed and by how much.
 
-### The Honest Comparison
+## The Honest Comparison
 
 | Task                                  | Right tool          | Why                                    |
 | ------------------------------------- | ------------------- | -------------------------------------- |
@@ -85,7 +96,7 @@ Three rounds vs. one. The difference is not intelligence — it is whether the a
 
 The pattern is clear. If the definition of "correct" is "it looks right in the browser," you need an agent that can see the browser. If the definition of "correct" is "the tests pass" or "the types check," you need an agent that reasons about code.
 
-### What Frontman Is Not
+## What Frontman Is Not
 
 Frontman does not write your API routes. It does not refactor your state management. It does not debug race conditions in your data fetching layer. It should not. Trying to build one agent that handles both code reasoning and visual perception is how you end up with an agent that is mediocre at both.
 
@@ -93,7 +104,7 @@ Frontman handles the visual layer. Spacing, typography, colors, layout, responsi
 
 Trying to use Cursor for visual work is like debugging CSS by reading the stylesheet without opening the page. You _can_ do it. Experienced developers do it all the time. But it is slower, less reliable, and completely inaccessible to anyone who does not already know the codebase.
 
-### Common Objections
+## Common Objections
 
 **"Cursor can run my dev server and check build output. Isn't that enough?"**
 Build output tells you about compilation errors and test results. It tells you nothing about what the page looks like. You still have to switch to the browser, visually verify, switch back, and describe what you see in text. Terminal access solves the compilation feedback loop. It does not solve the visual feedback loop. Those are different problems.
@@ -107,7 +118,7 @@ Yes. That is the point. Use Cursor or Claude Code for backend and architecture. 
 **"Frontman is just for trivial changes."**
 Spacing, typography, responsive layout, color systems, component styling — this is 30-40% of frontend development time. The fact that individual changes are small does not mean the category is unimportant. It means each change is fast to make and fast to review. That is a feature, not a limitation. And it means non-developers — designers, PMs — can handle these changes directly, freeing up engineers for the structural work that actually requires engineering judgment.
 
-### The Takeaway
+## The Takeaway
 
 Stop using file-level agents for visual problems. Stop asking your coding agent to guess what the page looks like based on class names. It is 2026. The agents are good. Give them the right context for the right problem.
 

@@ -39,7 +39,7 @@ const {
 ---
 
 <Card classes={`${classes} blog-card h-full`}>
-	{link && <a href={link} class="card-link" aria-label={title}></a>}
+	{link && <a href={link} class="card-link" aria-label={title}><span class="sr-only">{title}</span></a>}
 	{image && <Image src={image} alt={title} width={600} height={400} class="blog-card-image" />}
 	<CardBody classes="flex-grow">
 		<h2 class="post-title">{title}</h2>
