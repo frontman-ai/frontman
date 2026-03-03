@@ -6,14 +6,30 @@ author: 'Frontman Team'
 image: '/blog/ai-coding-agents-blind-to-ui-cover.png'
 tags: ['ai', 'developer-tools']
 faq:
-  - question: 'Why can't AI coding agents see the UI?'
-    answer: 'AI coding agents like Cursor, Claude Code, and Copilot operate on source files and terminal output. They read your code but never open a browser to see the rendered result. The runtime information needed for visual work — the live DOM, computed styles, the component tree — exists only in the browser and cannot be inferred from files alone.'
-  - question: 'What is a framework-aware AI coding agent?'
-    answer: 'A framework-aware AI agent hooks into your build pipeline (Next.js, Astro, Vite) and connects to your running browser. It accesses the live DOM, computed styles, the component tree mapped to source files, and hot-reload verification. Instead of guessing which file to edit, it traces clicked elements back to their source code.'
-  - question: 'Do I need to write precise prompts for visual changes with Frontman?'
-    answer: 'No. Because Frontman can see the rendered page, you click the element you want to change and describe what you want. The visual context is the prompt — you do not need to specify file names, line numbers, or class names.'
-  - question: 'How does Frontman compare to Cursor for frontend work?'
-    answer: 'Cursor excels at code-level tasks like refactoring, multi-file edits, and backend work. Frontman excels at visual frontend tasks because it can see the rendered UI, trace elements to source files, and verify changes via hot-reload. They solve different problems and work well together.'
+  - question: "Why can't AI coding agents see the UI?"
+    answer: >-
+      AI coding agents like Cursor, Claude Code, and Copilot operate on source files
+      and terminal output. They read your code but never open a browser to see the
+      rendered result. The runtime information needed for visual work — the live DOM,
+      computed styles, the component tree — exists only in the browser and cannot be
+      inferred from files alone.
+  - question: "What is a framework-aware AI coding agent?"
+    answer: >-
+      A framework-aware AI agent hooks into your build pipeline (Next.js, Astro, Vite)
+      and connects to your running browser. It accesses the live DOM, computed styles,
+      the component tree mapped to source files, and hot-reload verification. Instead of
+      guessing which file to edit, it traces clicked elements back to their source code.
+  - question: "Do I need to write precise prompts for visual changes with Frontman?"
+    answer: >-
+      No. Because Frontman can see the rendered page, you click the element you want to
+      change and describe what you want. The visual context is the prompt — you do not
+      need to specify file names, line numbers, or class names.
+  - question: "How does Frontman compare to Cursor for frontend work?"
+    answer: >-
+      Cursor excels at code-level tasks like refactoring, multi-file edits, and backend
+      work. Frontman excels at visual frontend tasks because it can see the rendered UI,
+      trace elements to source files, and verify changes via hot-reload. They solve
+      different problems and work well together.
 ---
 
 You ask your agent to fix the padding on the hero section. It opens `Hero.tsx`, reads the JSX, finds a className with padding utilities, and changes `p-4` to `p-6`. The file saves. You switch to the browser. The padding changed on the outer wrapper, not the inner content area. The hero now has 24px of dead space around a card that has its own 16px, and the whole thing looks like it is floating in a swimming pool.
