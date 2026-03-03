@@ -125,9 +125,9 @@ config :llm_db,
           name: "GPT-5.3 Codex",
           capabilities: %{
             chat: true,
-            reasoning: %{enabled: false},
-            streaming: %{text: true, tool_calls: false},
-            tools: %{enabled: false}
+            reasoning: %{enabled: true},
+            streaming: %{text: true, tool_calls: true},
+            tools: %{enabled: true}
           },
           limits: %{context: 400_000, output: 128_000},
           modalities: %{input: [:text, :image], output: [:text]}
@@ -176,9 +176,9 @@ config :llm_db,
           name: "GPT-5.3 Codex",
           capabilities: %{
             chat: true,
-            reasoning: %{enabled: false},
-            streaming: %{text: true, tool_calls: false},
-            tools: %{enabled: false}
+            reasoning: %{enabled: true},
+            streaming: %{text: true, tool_calls: true},
+            tools: %{enabled: true}
           },
           limits: %{context: 400_000, output: 128_000},
           modalities: %{input: [:text, :image], output: [:text]}
