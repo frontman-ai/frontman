@@ -53,3 +53,4 @@ module Promises = {
 @send external isDirectory: stats => bool = "isDirectory"
 @send external isSymbolicLink: stats => bool = "isSymbolicLink"
 @get external size: stats => float = "size"
+@get external mtimeMs: stats => float = "mtimeMs"

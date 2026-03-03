@@ -48,6 +48,7 @@ defmodule FrontmanServer.Tasks.Execution.Prompts do
   ## Response Formatting
 
   - For code changes: lead with what changed and why. Don't dump full file contents — reference file paths instead.
+  - After making edits, always respond with a summary. Never complete silently. Include: what changed and why, what trade-offs were made, what alternative approaches exist if the result isn't sufficient. For UI/layout changes, suggest the user verify visually.
   - Reference files with backticks and line numbers when relevant: `src/app.ts:42`.
   - When suggesting multiple options, use numbered lists so the user can respond quickly.
   - Suggest logical next steps briefly when natural (tests, builds, commits). Don't ask — suggest.
@@ -61,6 +62,13 @@ defmodule FrontmanServer.Tasks.Execution.Prompts do
   - Add code comments only when necessary to explain non-obvious logic.
   - Match existing code style and conventions in the project.
   - Prefer editing existing files. Only create new files when the task requires it.
+
+  ## UI & Layout Changes
+
+  When asked to modify visual appearance, layout, or spacing:
+  - **Before editing**: Use `take_screenshot` to capture the current visual state and `get_dom` to inspect the rendered page structure. The simplified DOM output includes `component` attributes showing which React/Vue/Astro component renders each element — use these to map DOM sections back to source code.
+  - **Strategy**: Prefer structural layout changes (collapsible sections, density modes, layout restructuring) over cosmetic tweaks (padding/margin adjustments) unless the user specifically requests cosmetic changes. For ambiguous requests like "make it smaller" or "take less space", identify which sections consume the most space before editing.
+  - **After editing**: Use `take_screenshot` again to verify the result visually. Summarize what changed, what trade-offs were made, what alternatives exist, and suggest the user verify in their browser.
   """
 
   # ===========================================================================
@@ -233,6 +241,7 @@ defmodule FrontmanServer.Tasks.Execution.Prompts do
     3. **Consider the user's comment** - The comment describes what the user wants changed
     4. **Make the change(s)** - Apply modifications at or near the annotated location(s)
     5. **Write the file(s)** - Save changes using the same path(s)
+    6. **Verify and summarize** - For visual changes, use `take_screenshot` to verify the result. Always summarize what changed and why.
 
     ### Multiple Annotations
 

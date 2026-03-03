@@ -4,6 +4,8 @@ module Fs = FrontmanBindings.Fs
 module NodeBuffer = FrontmanBindings.NodeBuffer
 module Tool = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool
 module PathContext = FrontmanCore__PathContext
+module FileTracker = FrontmanCore__FileTracker
+module ExnUtils = FrontmanCore__ExnUtils
 
 let name = Tool.ToolNames.writeFile
 let visibleToAgent = true
@@ -17,7 +19,8 @@ Parameters:
 
 Provide either content OR image_ref, not both.
 Creates parent directories if they don't exist. Overwrites existing files.
-The _context field provides path resolution details for debugging.`
+
+IMPORTANT: If the file already exists, you MUST read it with read_file first. The tool will reject writes to existing files that haven't been read.`
 
 @schema
 type input = {
@@ -59,21 +62,36 @@ let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.toolR
   | (Some(content), None) =>
     switch PathContext.resolve(~sourceRoot=ctx.sourceRoot, ~inputPath=input.path) {
     | Error(err) => Error(PathContext.formatError(err))
-    | Ok(result) =>
-      try {
-        let _ = await Fs.Promises.mkdir(PathContext.dirname(result), {recursive: true})
-        await writeContent(result.resolvedPath, content, input.encoding)
-        Ok({
-          _context: {
-            sourceRoot: result.sourceRoot,
-            resolvedPath: result.resolvedPath,
-            relativePath: result.relativePath,
-          },
-        })
-      } catch {
-      | exn =>
-        let msg = exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
-        Error(`Failed to write file ${input.path}: ${msg}`)
+    | Ok(resolved) =>
+      // Guard: existing files must have been read first and not be stale
+      let fileExists =
+        try {
+          let _ = await Fs.Promises.stat(resolved.resolvedPath)
+          true
+        } catch {
+        | _ => false
+        }
+      let guardResult = switch fileExists {
+      | false => Ok()
+      | true => await FileTracker.assertEditSafe(resolved.resolvedPath)
+      }
+      switch guardResult {
+      | Error(msg) => Error(msg)
+      | Ok() =>
+        try {
+          let _ = await Fs.Promises.mkdir(PathContext.dirname(resolved), {recursive: true})
+          await writeContent(resolved.resolvedPath, content, input.encoding)
+          FileTracker.recordWrite(resolved.resolvedPath)
+          Ok({
+            _context: {
+              sourceRoot: resolved.sourceRoot,
+              resolvedPath: resolved.resolvedPath,
+              relativePath: resolved.relativePath,
+            },
+          })
+        } catch {
+        | exn => Error(`Failed to write file ${input.path}: ${ExnUtils.message(exn)}`)
+        }
       }
     }
   }

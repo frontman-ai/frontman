@@ -30,6 +30,7 @@
 		"test/e2e/fixtures/astro",
 		"test/e2e/fixtures/vite",
 		"test/e2e/fixtures/vue-vite",
+		"test/manual/vite-dashboard",
 		"libs/logs",
 		"libs/react-statestore"
 	],

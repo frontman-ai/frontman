@@ -19,7 +19,7 @@ Workflow:
 3. Use full mode only when you need exact markup for a small, specific component
 
 Modes:
-- **simplified** (default): Pruned indented representation showing tag names, key attributes (id, class, role, aria-*, href, src, etc.), and short text snippets. Script/style/SVG stripped. Capped at 200 nodes.
+- **simplified** (default): Pruned indented representation showing tag names, key attributes (id, class, role, aria-*, href, src, etc.), React/Vue/Astro component names (as \`component="..."\` attributes), and short text snippets. Script/style/SVG stripped. Capped at 200 nodes.
 - **full**: Raw outerHTML. Capped at 15KB. Use only when you need exact markup for a specific component.
 
 If the subtree is too large, the tool will **reject the request** and return a list of the element's direct children so you can pick a narrower target. This is by design — it prevents wasting your context window on huge DOM dumps.
@@ -180,6 +180,7 @@ type walkState = {
   mutable nodeCount: int,
   mutable stopped: bool,
   maxNodes: int,
+  window: option<WebAPI.DOMAPI.window>,
 }
 
 // Build the attribute string for an element in simplified mode.
@@ -252,6 +253,11 @@ let rec walkSimplified = (
       state.output = state.output ++ pad ++ `<!-- ${tag} -->\n`
     | None =>
       let attrs = buildSimplifiedAttrs(el)
+      // Annotate with React/Vue/Astro component name when available (sync, cheap)
+      let attrs = switch Client__ComponentName.getForElement(el, ~window=?state.window) {
+      | Some(name) => attrs ++ ` component="${name}"`
+      | None => attrs
+      }
       let children = Client__Tool__ElementResolver.getChildElements(el, ~pierceShadowDom)
       let childCount = children->Array.length
       let directText = getDirectText(el)
@@ -346,7 +352,7 @@ let execute = async (input: input): toolResult<output> => {
   Client__Tool__ElementResolver.withPreviewDoc(
     ~onUnavailable=() =>
       errorResult(~error="Preview frame not available"),
-    ({doc, win: _}) => {
+    ({doc, win}) => {
       try {
         let (element, _matchCount) = Client__Tool__ElementResolver.resolveBySelector(
           ~doc,
@@ -407,6 +413,7 @@ let execute = async (input: input): toolResult<output> => {
                 nodeCount: 0,
                 stopped: false,
                 maxNodes,
+                window: Some(win),
               }
 
               walkSimplified(~el, ~depth=0, ~maxDepth, ~pierceShadowDom, ~state)

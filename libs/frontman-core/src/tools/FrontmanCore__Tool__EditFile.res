@@ -1,13 +1,18 @@
 // Edit file tool - find-and-replace with fuzzy matching
 //
-// Uses a multi-strategy matcher that gracefully handles common LLM mistakes
-// (wrong indentation, extra whitespace, escaped characters, etc.)
-// Requires the file to have been read first via read_file.
+// Two distinct operations:
+// - Create: oldText is empty → write newText to a new file
+// - Edit: oldText is non-empty → find-and-replace in an existing file
+//
+// The edit path uses a multi-strategy matcher that gracefully handles common
+// LLM mistakes (wrong indentation, extra whitespace, escaped characters, etc.)
+// and requires the file to have been read first via read_file.
 
 module Fs = FrontmanBindings.Fs
 module Tool = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool
 module PathContext = FrontmanCore__PathContext
 module FileTracker = FrontmanCore__FileTracker
+module ExnUtils = FrontmanCore__ExnUtils
 module Matcher = FrontmanCore__Tool__EditFile__Matcher
 
 let name = "edit_file"
@@ -50,80 +55,90 @@ type output = {
   _context?: pathContext,
 }
 
-let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.toolResult<output> => {
-  let replaceAll = input.replaceAll->Option.getOr(false)
+// ── Domain helpers ─────────────────────────────────────────────────────
 
-  // oldText and newText must differ
+let toPathCtx = (r: PathContext.resolveResult): pathContext => {
+  sourceRoot: r.sourceRoot,
+  resolvedPath: r.resolvedPath,
+  relativePath: r.relativePath,
+}
+
+// Create a new file (oldText is empty).
+let createFile = async (
+  ~resolved: PathContext.resolveResult,
+  ~content: string,
+  ~displayPath: string,
+): Tool.toolResult<output> => {
+  try {
+    let _ = await Fs.Promises.mkdir(PathContext.dirname(resolved), {recursive: true})
+    await Fs.Promises.writeFile(resolved.resolvedPath, content)
+    FileTracker.recordWrite(resolved.resolvedPath)
+    Ok({message: "File created successfully.", _context: toPathCtx(resolved)})
+  } catch {
+  | exn => Error(`Failed to create file ${displayPath}: ${ExnUtils.message(exn)}`)
+  }
+}
+
+// Find oldText in the file, replace it, and write back.
+// Includes a coverage warning when the edit target is outside previously-read ranges.
+let findAndReplace = async (
+  ~resolved: PathContext.resolveResult,
+  ~oldText: string,
+  ~newText: string,
+  ~replaceAll: bool,
+  ~displayPath: string,
+): Tool.toolResult<output> => {
+  try {
+    let content = await Fs.Promises.readFile(resolved.resolvedPath)
+    let coverageWarning = FileTracker.checkCoverage(resolved.resolvedPath, ~content, ~oldText)
+
+    switch Matcher.applyEdit(~content, ~oldText, ~newText, ~replaceAll) {
+    | Applied(newContent) =>
+      await Fs.Promises.writeFile(resolved.resolvedPath, newContent)
+      FileTracker.recordWrite(resolved.resolvedPath)
+      let message = switch coverageWarning {
+      | Some(warning) => `Edit applied successfully.\n\n${warning}`
+      | None => "Edit applied successfully."
+      }
+      Ok({message, _context: toPathCtx(resolved)})
+    | NotFound =>
+      Error(
+        `oldText not found in file ${displayPath}. Make sure the text matches exactly, or read the file again to see its current content.`,
+      )
+    | Ambiguous =>
+      Error(
+        `Found multiple matches for oldText in ${displayPath}. Provide more surrounding context to identify the correct match, or use replaceAll to replace all occurrences.`,
+      )
+    }
+  } catch {
+  | exn => Error(`Failed to edit file ${displayPath}: ${ExnUtils.message(exn)}`)
+  }
+}
+
+// ── Execute ────────────────────────────────────────────────────────────
+
+let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.toolResult<output> => {
   switch input.oldText == input.newText {
   | true => Error("oldText and newText must be different")
   | false =>
     switch PathContext.resolve(~sourceRoot=ctx.sourceRoot, ~inputPath=input.path) {
     | Error(err) => Error(PathContext.formatError(err))
-    | Ok(result) =>
-      let pathCtx = {
-        sourceRoot: result.sourceRoot,
-        resolvedPath: result.resolvedPath,
-        relativePath: result.relativePath,
-      }
-
-      // Empty oldText = create new file
-      switch input.oldText == "" {
-      | true =>
-        try {
-          let dirPath = PathContext.dirname(result)
-          let _ = await Fs.Promises.mkdir(dirPath, {recursive: true})
-          await Fs.Promises.writeFile(result.resolvedPath, input.newText)
-          Ok({
-            message: "File created successfully.",
-            _context: pathCtx,
-          })
-        } catch {
-        | exn =>
-          let msg =
-            exn
-            ->JsExn.fromException
-            ->Option.flatMap(JsExn.message)
-            ->Option.getOr("Unknown error")
-          Error(`Failed to create file ${input.path}: ${msg}`)
-        }
-      | false =>
-        // Read-before-edit safety check
-        switch FileTracker.assertReadBefore(result.resolvedPath) {
+    | Ok(resolved) =>
+      switch input.oldText {
+      // Explicit create: empty oldText means "write a new file"
+      | "" => await createFile(~resolved, ~content=input.newText, ~displayPath=input.path)
+      // Edit: find-and-replace in an existing, previously-read file
+      | oldText =>
+        switch await FileTracker.assertEditSafe(resolved.resolvedPath) {
         | Error(msg) => Error(msg)
         | Ok() =>
-          try {
-            let content = await Fs.Promises.readFile(result.resolvedPath)
-
-            switch Matcher.applyEdit(
-              ~content,
-              ~oldText=input.oldText,
-              ~newText=input.newText,
-              ~replaceAll,
-            ) {
-            | Applied(newContent) =>
-              await Fs.Promises.writeFile(result.resolvedPath, newContent)
-              Ok({
-                message: "Edit applied successfully.",
-                _context: pathCtx,
-              })
-            | NotFound =>
-              Error(
-                `oldText not found in file ${input.path}. Make sure the text matches exactly, or read the file again to see its current content.`,
-              )
-            | Ambiguous =>
-              Error(
-                `Found multiple matches for oldText in ${input.path}. Provide more surrounding context to identify the correct match, or use replaceAll to replace all occurrences.`,
-              )
-            }
-          } catch {
-          | exn =>
-            let msg =
-              exn
-              ->JsExn.fromException
-              ->Option.flatMap(JsExn.message)
-              ->Option.getOr("Unknown error")
-            Error(`Failed to edit file ${input.path}: ${msg}`)
-          }
+          await findAndReplace(
+            ~resolved,
+            ~oldText,
+            ~newText=input.newText,
+            ~replaceAll=input.replaceAll->Option.getOr(false),
+            ~displayPath=input.path,
+          )
         }
       }
     }

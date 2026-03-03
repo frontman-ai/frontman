@@ -78,6 +78,7 @@ defmodule FrontmanServer.Tasks.Execution.PromptsTest do
       assert prompt =~ "## Rules"
       assert prompt =~ "## Response Formatting"
       assert prompt =~ "## Code Quality"
+      assert prompt =~ "## UI & Layout Changes"
     end
 
     test "has_typescript_react includes TypeScript / React section" do
@@ -91,6 +92,53 @@ defmodule FrontmanServer.Tasks.Execution.PromptsTest do
       prompt = Prompts.build(has_typescript_react: false)
 
       refute prompt =~ "## TypeScript / React"
+    end
+  end
+
+  describe "build/1 UI and layout guidance" do
+    test "base prompt includes UI & Layout Changes section with before/after workflow" do
+      prompt = Prompts.build([])
+
+      assert prompt =~ "## UI & Layout Changes"
+      assert prompt =~ "get_dom"
+      assert prompt =~ "take_screenshot"
+      # Before editing
+      assert prompt =~ "Before editing"
+      # After editing
+      assert prompt =~ "After editing"
+      assert prompt =~ "verify the result visually"
+    end
+
+    test "base prompt includes structural over cosmetic preference" do
+      prompt = Prompts.build([])
+
+      assert prompt =~ "structural layout changes"
+      assert prompt =~ "cosmetic tweaks"
+    end
+
+    test "base prompt includes edit summary guidance with alternatives and trade-offs" do
+      prompt = Prompts.build([])
+
+      assert prompt =~ "Never complete silently"
+      assert prompt =~ "trade-offs"
+      assert prompt =~ "alternative approaches"
+    end
+
+    test "large-file guidance is handled by tool guards, not prompt" do
+      prompt = Prompts.build([])
+
+      # Large-file strategy is now enforced by FileTracker (staleness check,
+      # coverage warning) and the read_file tool description, not the system prompt
+      refute prompt =~ "200+ lines"
+    end
+  end
+
+  describe "build/1 annotation workflow validation" do
+    test "annotation guidance includes verification step" do
+      prompt = Prompts.build(has_annotations: true)
+
+      assert prompt =~ "Verify and summarize"
+      assert prompt =~ "take_screenshot"
     end
   end
 

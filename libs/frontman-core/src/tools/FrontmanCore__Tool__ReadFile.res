@@ -14,7 +14,12 @@ Parameters:
 - limit (optional): Maximum lines to read (default: 500). Pass null or 500 for default.
 
 Returns file content with metadata about total lines and whether more content exists.
-The _context field provides path resolution details for debugging.`
+The _context field provides path resolution details for debugging.
+
+When hasMore is true, the file has content beyond what was returned. For large files:
+- Use grep first to find the line numbers of relevant sections, then read_file with a targeted offset.
+- Don't read sequentially from the top — jump to the section you need.
+- For React/Vue/Astro components, locate the render/return block before editing.`
 
 @schema
 type input = {
@@ -56,7 +61,12 @@ let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.toolR
       let hasMore = offset + limit < totalLines
 
       // Track that this file was read (for edit_file safety)
-      FrontmanCore__FileTracker.recordRead(result.resolvedPath)
+      FrontmanCore__FileTracker.recordRead(
+        result.resolvedPath,
+        ~offset,
+        ~limit,
+        ~totalLines,
+      )
 
       Ok({
         content: selectedContent,
