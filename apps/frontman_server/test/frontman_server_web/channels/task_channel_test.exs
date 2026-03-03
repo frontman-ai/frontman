@@ -1109,7 +1109,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
     test "deduplicates tool_call_create when interaction arrives after tool_call_start", %{
       socket: socket,
-      task_id: task_id
+      task_id: _task_id
     } do
       tool_call_id = "call_dedup_#{:rand.uniform(1_000_000)}"
 
