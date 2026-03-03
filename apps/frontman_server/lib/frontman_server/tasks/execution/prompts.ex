@@ -138,6 +138,7 @@ defmodule FrontmanServer.Tasks.Execution.Prompts do
 
   defp append_framework_guidance(prompt, %Framework{id: :vite}), do: prompt
   defp append_framework_guidance(prompt, %Framework{id: :astro}), do: prompt
+  defp append_framework_guidance(prompt, %Framework{id: :wordpress}), do: prompt
   defp append_framework_guidance(prompt, nil), do: prompt
 
   defp append_project_structure(prompt, nil), do: prompt

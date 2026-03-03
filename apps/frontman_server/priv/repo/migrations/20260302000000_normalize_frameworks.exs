@@ -11,9 +11,10 @@ defmodule FrontmanServer.Repo.Migrations.NormalizeFrameworks do
 
   def up do
     # Normalize known display labels to IDs
-    execute("UPDATE tasks SET framework = 'nextjs'  WHERE framework = 'Next.js'")
-    execute("UPDATE tasks SET framework = 'vite'    WHERE framework = 'Vite'")
-    execute("UPDATE tasks SET framework = 'astro'   WHERE framework = 'Astro'")
+    execute("UPDATE tasks SET framework = 'nextjs'    WHERE framework = 'Next.js'")
+    execute("UPDATE tasks SET framework = 'vite'      WHERE framework = 'Vite'")
+    execute("UPDATE tasks SET framework = 'astro'     WHERE framework = 'Astro'")
+    execute("UPDATE tasks SET framework = 'wordpress' WHERE framework = 'wordpress'")
 
     # Verify no unknown frameworks remain — crash the migration if so.
     # If this fails, investigate what unexpected values exist before proceeding.
@@ -22,11 +23,11 @@ defmodule FrontmanServer.Repo.Migrations.NormalizeFrameworks do
     BEGIN
       IF EXISTS (
         SELECT 1 FROM tasks
-        WHERE framework NOT IN ('nextjs', 'vite', 'astro')
+        WHERE framework NOT IN ('nextjs', 'vite', 'astro', 'wordpress')
            OR framework IS NULL
       ) THEN
         RAISE EXCEPTION 'Found tasks with unrecognized framework values. '
-          'Run: SELECT DISTINCT framework FROM tasks WHERE framework NOT IN (''nextjs'', ''vite'', ''astro'') '
+          'Run: SELECT DISTINCT framework FROM tasks WHERE framework NOT IN (''nextjs'', ''vite'', ''astro'', ''wordpress'') '
           'to investigate before migrating.';
       END IF;
     END $$;

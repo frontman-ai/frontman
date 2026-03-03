@@ -25,7 +25,7 @@ defmodule FrontmanServer.Tasks.Execution.Framework do
 
   use TypedStruct
 
-  @type id :: :nextjs | :vite | :astro
+  @type id :: :nextjs | :vite | :astro | :wordpress
 
   typedstruct enforce: true do
     @typedoc "Framework identity with display metadata"
@@ -38,6 +38,7 @@ defmodule FrontmanServer.Tasks.Execution.Framework do
   defp build(:nextjs), do: %__MODULE__{id: :nextjs, display_name: "Next.js"}
   defp build(:vite), do: %__MODULE__{id: :vite, display_name: "Vite"}
   defp build(:astro), do: %__MODULE__{id: :astro, display_name: "Astro"}
+  defp build(:wordpress), do: %__MODULE__{id: :wordpress, display_name: "WordPress"}
 
   # ── Public API ────────────────────────────────────────────────────────
 
@@ -45,7 +46,7 @@ defmodule FrontmanServer.Tasks.Execution.Framework do
   All known framework ids.
   """
   @spec known_ids() :: [id()]
-  def known_ids, do: [:nextjs, :vite, :astro]
+  def known_ids, do: [:nextjs, :vite, :astro, :wordpress]
 
   @doc """
   Normalize a raw client string into a framework struct.
@@ -87,6 +88,7 @@ defmodule FrontmanServer.Tasks.Execution.Framework do
   def from_string("nextjs"), do: build(:nextjs)
   def from_string("vite"), do: build(:vite)
   def from_string("astro"), do: build(:astro)
+  def from_string("wordpress"), do: build(:wordpress)
 
   @doc """
   Serialize a framework struct to the string stored in the database.
@@ -99,6 +101,7 @@ defmodule FrontmanServer.Tasks.Execution.Framework do
   def to_string(%__MODULE__{id: :nextjs}), do: "nextjs"
   def to_string(%__MODULE__{id: :vite}), do: "vite"
   def to_string(%__MODULE__{id: :astro}), do: "astro"
+  def to_string(%__MODULE__{id: :wordpress}), do: "wordpress"
 
   # ── Feature flags ─────────────────────────────────────────────────────
 
@@ -125,6 +128,7 @@ defmodule FrontmanServer.Tasks.Execution.Framework do
   defp display_label_to_id("Next.js"), do: :nextjs
   defp display_label_to_id("Vite"), do: :vite
   defp display_label_to_id("Astro"), do: :astro
+  defp display_label_to_id("WordPress"), do: :wordpress
   defp display_label_to_id(_), do: nil
 
   # Defensive normalization: lowercase, strip non-alpha, then match.
@@ -138,4 +142,5 @@ defmodule FrontmanServer.Tasks.Execution.Framework do
   defp slug_to_id("nextjs"), do: :nextjs
   defp slug_to_id("vite"), do: :vite
   defp slug_to_id("astro"), do: :astro
+  defp slug_to_id("wordpress"), do: :wordpress
 end
