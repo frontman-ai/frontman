@@ -179,12 +179,17 @@ defmodule SwarmAi.TelemetryTest do
   defp capture_telemetry(fun) do
     events = :ets.new(:telemetry_events, [:bag, :public])
     handler_id = "test-handler-#{:erlang.unique_integer()}"
+    test_pid = self()
 
     :telemetry.attach_many(
       handler_id,
       TelemetryEvents.all(),
       fn event, measurements, metadata, _config ->
-        :ets.insert(events, {event, measurements, metadata})
+        # Only capture events emitted by the test process to avoid
+        # interference from concurrent async tests running SwarmAi.run/2
+        if self() == test_pid do
+          :ets.insert(events, {event, measurements, metadata})
+        end
       end,
       nil
     )
