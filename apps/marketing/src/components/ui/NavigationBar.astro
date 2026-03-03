@@ -134,7 +134,7 @@ const savedNavActions = navActions.map((action) => ({
 		@apply container relative mx-auto px-6;
 	}
 	.header__logo {
-		@apply flex flex-auto items-center gap-2 whitespace-nowrap py-3 tracking-wider text-black dark:text-white focus:outline-none;
+		@apply flex flex-none items-center gap-2 whitespace-nowrap py-3 pr-4 tracking-wider text-black dark:text-white focus:outline-none;
 		font-size: 18px;
 		line-height: 25px;
 		font-weight: 330;
@@ -151,6 +151,9 @@ const savedNavActions = navActions.map((action) => ({
 	}
 	.header__menu-item {
 		@apply relative flex cursor-pointer flex-col items-stretch lg:flex-row;
+	}
+	.header__menu-item + .header__menu-item {
+		@apply lg:ml-4;
 	}
 	.header__menu-link {
 		@apply relative flex items-center gap-1 py-4 text-black dark:text-white transition-colors duration-300 focus:outline-none focus-visible:outline-none lg:px-6;
