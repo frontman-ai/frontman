@@ -1,0 +1,133 @@
+---
+// IntegrationContentSection
+// -------------------------
+// Shared content section wrapper used for prose content on integration pages.
+// Props:
+// - title: Section heading
+// - variant: "dark" (dark bg, light text) or "light" (light bg, dark text). Default: "dark"
+// Slot: Prose HTML content (paragraphs, lists, links)
+
+type Props = {
+	title: string
+	variant?: 'dark' | 'light'
+}
+
+const { title, variant = 'dark' } = Astro.props
+const isLight = variant === 'light'
+---
+
+<section class:list={['content-section', { 'content-section--light': isLight }]}>
+	<div class="content-container">
+		<h2 class:list={['section-title', { 'section-title--dark': isLight }]}>{title}</h2>
+		<div class:list={['prose-content', { 'prose-content--dark': isLight }]}>
+			<slot />
+		</div>
+	</div>
+</section>
+
+<style>
+	.content-section {
+		background: #09090b;
+		color: #fafafa;
+		padding: 64px 24px;
+		display: flex;
+		justify-content: center;
+	}
+	.content-section--light {
+		background: #fafafa;
+		color: #09090b;
+	}
+	.content-container {
+		max-width: 720px;
+		width: 100%;
+	}
+	.section-title {
+		font-size: 32px;
+		font-weight: 700;
+		color: #fafafa;
+		margin-bottom: 24px;
+		letter-spacing: -0.02em;
+	}
+	.section-title--dark {
+		color: #09090b;
+	}
+
+	/* Prose content — uses :global because content is slotted */
+	.prose-content :global(p) {
+		font-size: 17px;
+		line-height: 1.7;
+		color: #a1a1aa;
+		margin-bottom: 16px;
+	}
+	.prose-content--dark :global(p) {
+		color: #52525b;
+	}
+	.prose-content :global(strong) {
+		color: #fafafa;
+		font-weight: 600;
+	}
+	.prose-content--dark :global(strong) {
+		color: #09090b;
+	}
+	.prose-content :global(code) {
+		font-family: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, 'DejaVu Sans Mono', monospace;
+		font-size: 14px;
+		background: rgba(255, 255, 255, 0.08);
+		padding: 2px 6px;
+		border-radius: 4px;
+	}
+	.prose-content--dark :global(code) {
+		background: rgba(0, 0, 0, 0.06);
+	}
+	.prose-content :global(ul) {
+		list-style: none;
+		padding: 0;
+		margin: 16px 0;
+	}
+	.prose-content :global(li) {
+		font-size: 17px;
+		line-height: 1.7;
+		color: #a1a1aa;
+		padding: 8px 0;
+		padding-left: 24px;
+		position: relative;
+	}
+	.prose-content--dark :global(li) {
+		color: #52525b;
+	}
+	.prose-content :global(li::before) {
+		content: '';
+		position: absolute;
+		left: 0;
+		top: 18px;
+		width: 8px;
+		height: 8px;
+		border-radius: 50%;
+		background: #A259FF;
+	}
+	.prose-content :global(li strong) {
+		color: #fafafa;
+	}
+	.prose-content--dark :global(li strong) {
+		color: #09090b;
+	}
+	.prose-content :global(.text-link) {
+		color: #A259FF;
+		text-decoration: underline;
+		text-underline-offset: 2px;
+	}
+	.prose-content :global(.text-link:hover) {
+		color: #c084fc;
+	}
+	.prose-content--dark :global(.text-link) {
+		color: #7c3aed;
+	}
+	.prose-content--dark :global(.text-link:hover) {
+		color: #6d28d9;
+	}
+
+	@media (max-width: 768px) {
+		.content-section { padding: 40px 20px; }
+		.section-title { font-size: 24px; }
+	}
+</style>

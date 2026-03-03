@@ -1,0 +1,205 @@
+---
+// IntegrationInstallSteps
+// -----------------------
+// Shared 3-step install section for integration landing pages.
+// Props:
+// - installCommand: The CLI command to install (e.g. "npx @frontman-ai/nextjs install")
+// - devUrl: The localhost URL to open Frontman (e.g. "http://localhost:3000/frontman")
+// - installNote: Optional note below the install terminal (e.g. "Uses Astro's built-in integration installer.")
+
+type Props = {
+	installCommand: string
+	devUrl: string
+	installNote?: string
+}
+
+const { installCommand, devUrl, installNote } = Astro.props
+---
+
+<section class="install-section">
+	<div class="install-container">
+		<h2 class="section-title section-title--dark">Get Started in 60 Seconds</h2>
+
+		<div class="steps">
+			<div class="step">
+				<div class="step-number">1</div>
+				<div class="step-content">
+					<h3 class="step-title">Install</h3>
+					<div class="terminal">
+						<div class="terminal-bar">
+							<span class="terminal-dot"></span>
+							<span class="terminal-dot"></span>
+							<span class="terminal-dot"></span>
+						</div>
+						<div class="terminal-body">
+							<span class="terminal-prompt">$</span>
+							<code>{installCommand}</code>
+						</div>
+					</div>
+					{installNote && <p class="step-note">{installNote}</p>}
+				</div>
+			</div>
+
+			<div class="step">
+				<div class="step-number">2</div>
+				<div class="step-content">
+					<h3 class="step-title">Open Frontman</h3>
+					<div class="terminal">
+						<div class="terminal-bar">
+							<span class="terminal-dot"></span>
+							<span class="terminal-dot"></span>
+							<span class="terminal-dot"></span>
+						</div>
+						<div class="terminal-body">
+							<svg class="url-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+								<circle cx="12" cy="12" r="10"></circle>
+								<line x1="2" y1="12" x2="22" y2="12"></line>
+								<path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+							</svg>
+							<code>{devUrl}</code>
+						</div>
+					</div>
+				</div>
+			</div>
+
+			<div class="step">
+				<div class="step-number">3</div>
+				<div class="step-content">
+					<h3 class="step-title">Connect your AI</h3>
+					<p class="step-description">Enter your API key for any supported provider. That's it.</p>
+					<div class="ai-badges">
+						<span class="ai-badge">Claude</span>
+						<span class="ai-badge">ChatGPT</span>
+						<span class="ai-badge">OpenRouter</span>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+</section>
+
+<style>
+	.install-section {
+		background: #fafafa;
+		padding: 64px 24px;
+		display: flex;
+		justify-content: center;
+	}
+	.install-container {
+		max-width: 720px;
+		width: 100%;
+	}
+	.section-title {
+		font-size: 32px;
+		font-weight: 700;
+		margin-bottom: 24px;
+		letter-spacing: -0.02em;
+	}
+	.section-title--dark {
+		color: #09090b;
+	}
+	.steps {
+		display: flex;
+		flex-direction: column;
+		gap: 24px;
+	}
+	.step {
+		display: flex;
+		align-items: flex-start;
+		gap: 20px;
+	}
+	.step-number {
+		flex-shrink: 0;
+		width: 40px;
+		height: 40px;
+		border-radius: 50%;
+		background: #A259FF;
+		color: white;
+		font-weight: 700;
+		font-size: 18px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+	.step-content {
+		flex: 1;
+		min-width: 0;
+	}
+	.step-title {
+		font-size: 20px;
+		font-weight: 700;
+		color: #09090b;
+		margin-bottom: 12px;
+	}
+	.step-description {
+		font-size: 16px;
+		color: #52525b;
+		margin-bottom: 12px;
+	}
+	.step-note {
+		font-size: 14px;
+		color: #71717a;
+		margin-top: 8px;
+	}
+	.terminal {
+		background: #0f0f1a;
+		border-radius: 12px;
+		border: 2px solid #1e1e2e;
+		overflow: hidden;
+	}
+	.terminal-bar {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		padding: 10px 16px;
+		background: #1a1a2e;
+		border-bottom: 1px solid #2a2a3e;
+	}
+	.terminal-dot {
+		display: block;
+		width: 10px;
+		height: 10px;
+		border-radius: 50%;
+		background: #3a3a4e;
+	}
+	.terminal-body {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		padding: 14px 16px;
+		font-family: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, 'DejaVu Sans Mono', monospace;
+		font-size: 14px;
+	}
+	.terminal-prompt {
+		color: #22c55e;
+		font-weight: 700;
+		flex-shrink: 0;
+	}
+	.terminal-body code {
+		color: #C084FF;
+	}
+	.url-icon {
+		color: #64748b;
+		flex-shrink: 0;
+	}
+	.ai-badges {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 8px;
+	}
+	.ai-badge {
+		padding: 8px 16px;
+		font-size: 14px;
+		font-weight: 500;
+		border-radius: 9999px;
+		background: white;
+		border: 2px solid #d1d5db;
+		color: #1e293b;
+	}
+
+	@media (max-width: 768px) {
+		.install-section { padding: 40px 20px; }
+		.section-title { font-size: 24px; }
+		.step { flex-direction: column; gap: 12px; }
+	}
+</style>

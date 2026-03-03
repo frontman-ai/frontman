@@ -1,0 +1,182 @@
+---
+// /integrations/astro — Frontman + Astro Integration Page
+// Targets: "frontman astro", "AI coding tool astro", "visual editing astro",
+// "astro AI agent", "astro integration AI"
+// KEY ANGLE: Only browser-based AI coding tool with native Astro support.
+// Stagewise and Tidewave do NOT support Astro. Uncontested territory.
+
+import Layout from '../../layouts/Layout.astro'
+import IntegrationHero from '../../components/blocks/integrations/IntegrationHero.astro'
+import IntegrationInstallSteps from '../../components/blocks/integrations/IntegrationInstallSteps.astro'
+import IntegrationContextGrid from '../../components/blocks/integrations/IntegrationContextGrid.astro'
+import IntegrationContentSection from '../../components/blocks/integrations/IntegrationContentSection.astro'
+import IntegrationFAQ from '../../components/blocks/integrations/IntegrationFAQ.astro'
+import IntegrationCTA from '../../components/blocks/integrations/IntegrationCTA.astro'
+
+const SEO = {
+	title: 'Frontman for Astro: The Only Browser-Based AI Coding Agent with Native Astro Support',
+	description:
+		'Add Frontman to your Astro project with one command. Click any element, describe changes in plain English, get real source code edits. Supports Islands architecture, SSR, SSG, and content collections.'
+}
+
+// Weekly downloads — pulled from npm on 2026-02-01. Update periodically or replace
+// with a build-time fetch from the npm registry API when the number changes frequently.
+const ASTRO_WEEKLY_DOWNLOADS = '594+'
+
+// What Frontman sees in Astro
+const contextItems = [
+	{ category: 'Astro Runtime', items: ['Islands architecture boundaries', 'Client directive mapping (client:load, client:visible, etc.)', 'Component framework detection (React, Vue, Svelte, Solid)', 'Content collection data and schemas'] },
+	{ category: 'Rendering Modes', items: ['Static (SSG) page context', 'Server (SSR) request/response data', 'Hybrid mode per-route configuration', 'Prerendered vs on-demand routing'] },
+	{ category: 'Styles & Layout', items: ['Scoped Astro styles resolution', 'Tailwind utility class mapping', 'Global stylesheet cascade', 'Responsive layout context'] },
+	{ category: 'Dev Server', items: ['Vite HMR pipeline', 'Integration hooks and middleware', 'Build warnings and errors', 'Hot reload feedback loop'] }
+]
+
+// FAQ data
+const faqs = [
+	{
+		question: 'How do I install Frontman in an Astro project?',
+		answer: 'Run astro add @frontman-ai/astro in your project directory. This uses Astro\'s built-in integration installer. Then start your dev server normally (astro dev) and visit localhost:4321/frontman. The entire setup takes about 60 seconds.'
+	},
+	{
+		question: 'Is Frontman listed on the Astro integration registry?',
+		answer: `@frontman-ai/astro is published on the official Astro integration registry at astro.build/integrations. It currently has ${ASTRO_WEEKLY_DOWNLOADS} weekly downloads and is listed as a verified integration.`
+	},
+	{
+		question: 'Does Frontman understand Islands architecture?',
+		answer: 'It detects island boundaries and knows which parts of the page are static Astro HTML vs interactive islands with client directives. When you click an element inside a React island, Frontman identifies it as a React component with client:load (or whichever directive applies), not a static Astro element.'
+	},
+	{
+		question: 'Does it work with SSR and hybrid mode?',
+		answer: 'All Astro rendering modes are supported: static (SSG), server (SSR), and hybrid. In SSR mode, Frontman can read server-side request data, response headers, and middleware execution alongside the client-side rendering.'
+	},
+	{
+		question: 'Can I use Frontman with React/Vue/Svelte islands in Astro?',
+		answer: 'Frontman detects which framework renders each island and provides framework-specific context. A React island exposes fiber nodes and props; a Vue island exposes the reactivity graph; a Svelte island exposes the component tree. Multi-framework pages work without any extra configuration.'
+	},
+	{
+		question: 'Do other AI coding tools support Astro?',
+		answer: 'As of early 2026, Frontman is the only browser-based AI coding tool with native Astro integration. Stagewise is framework-agnostic (it injects a toolbar into any app) but has no Astro-specific middleware or context. Cursor and Copilot work from source files and have no framework-specific integrations.'
+	},
+	{
+		question: 'Does Frontman work with Astro content collections?',
+		answer: 'It reads content collection data at runtime: which collection a page renders, the collection schema, and the current entry\'s frontmatter. This means the AI can suggest edits to both the template and the content itself.'
+	},
+	{
+		question: 'What AI models can I use?',
+		answer: 'Any LLM provider via BYOK (bring your own key). Connect Claude, ChatGPT, or any OpenAI-compatible API through OpenRouter. There are no prompt limits or subscription fees on the Frontman side.'
+	}
+]
+
+// HowTo JSON-LD
+const howToJsonLd = {
+	"@context": "https://schema.org",
+	"@type": "HowTo",
+	"name": "How to Add Frontman to an Astro Project",
+	"description": "Install Frontman as an integration in your Astro project for AI-powered visual editing in the browser.",
+	"step": [
+		{
+			"@type": "HowToStep",
+			"name": "Install the integration",
+			"text": "Run astro add @frontman-ai/astro in your Astro project directory."
+		},
+		{
+			"@type": "HowToStep",
+			"name": "Start your dev server",
+			"text": "Run astro dev to start your Astro dev server. Frontman activates automatically in development mode."
+		},
+		{
+			"@type": "HowToStep",
+			"name": "Open Frontman in your browser",
+			"text": "Visit http://localhost:4321/frontman in your browser to access the Frontman interface."
+		},
+		{
+			"@type": "HowToStep",
+			"name": "Connect your AI",
+			"text": "Enter your API key for Claude, ChatGPT, or OpenRouter. You're ready to click elements and describe changes."
+		}
+	],
+	"totalTime": "PT1M"
+}
+
+// FAQPage JSON-LD
+const faqJsonLd = {
+	"@context": "https://schema.org",
+	"@type": "FAQPage",
+	"mainEntity": faqs.map((faq) => ({
+		"@type": "Question",
+		"name": faq.question,
+		"acceptedAnswer": {
+			"@type": "Answer",
+			"text": faq.answer
+		}
+	}))
+}
+---
+
+<Layout title={SEO.title} description={SEO.description}>
+	<script is:inline type="application/ld+json" set:html={JSON.stringify(howToJsonLd)} />
+	<script is:inline type="application/ld+json" set:html={JSON.stringify(faqJsonLd)} />
+
+	<IntegrationHero title="Frontman for Astro" subtitle="The Only Browser-Based AI Coding Agent with Native Astro Support">
+		<p>
+			<a href="https://frontman.sh" class="text-link">Frontman</a> is an open-source AI coding agent that lives in your browser. The <strong>Astro integration</strong> installs through Astro's built-in integration system, giving the AI direct access to Islands architecture, rendering modes, content collections, and scoped styles.
+		</p>
+		<p>
+			Click any element in your running Astro site. Describe what you want to change in plain English. Frontman generates real source code edits with instant hot reload. It knows the difference between a static Astro element and a hydrated React/Vue/Svelte island.
+		</p>
+		<p class="summary-emphasis">
+			Frontman is the only browser-based AI coding tool with native Astro integration. Listed on the official Astro integration registry with {ASTRO_WEEKLY_DOWNLOADS} weekly downloads.
+		</p>
+	</IntegrationHero>
+
+	<IntegrationInstallSteps
+		installCommand="astro add @frontman-ai/astro"
+		devUrl="http://localhost:4321/frontman"
+		installNote="Uses Astro's built-in integration installer. Automatically configures astro.config.mjs."
+	/>
+
+	<IntegrationContextGrid
+		title="What Frontman Sees in Your Astro Site"
+		intro="Frontman runs as an Astro integration inside your dev server. This gives it access to runtime information that browser extensions and CLI overlays cannot reach."
+		items={contextItems}
+	/>
+
+	<IntegrationContentSection title="Built for Islands Architecture" variant="light">
+		<p>Astro's Islands architecture means your page is a mix of static HTML and interactive components from different frameworks. Great for performance, but it creates a real problem for AI coding tools.</p>
+
+		<p>A CLI overlay sees one flat DOM. It cannot tell the difference between a static Astro heading and a React island with <code>client:load</code>. It has no idea which framework rendered which element, or what client directive controls hydration.</p>
+
+		<p>Frontman sees the island boundaries. Because it runs as Astro middleware, it can distinguish:</p>
+		<ul>
+			<li>Static Astro HTML vs interactive islands</li>
+			<li>The framework behind each island (React, Vue, Svelte, or Solid)</li>
+			<li>The client directive controlling hydration: <code>client:load</code>, <code>client:visible</code>, <code>client:idle</code>, etc.</li>
+			<li>Framework-specific internals inside each island, like React props or Vue reactive state</li>
+		</ul>
+
+		<p>Click a button inside a React island and say "make it larger" — Frontman edits the React component file. Click a static heading and say "change the text" — it edits the <code>.astro</code> file. The correct source file is targeted automatically.</p>
+	</IntegrationContentSection>
+
+	<IntegrationContentSection title="No Other Browser AI Tool Supports Astro Natively">
+		<p>As of early 2026, Astro developers have limited options for browser-based AI coding tools:</p>
+		<p><strong>Frontman</strong> has a native Astro integration via the official registry. It sees Islands, SSR/SSG context, and content collections.</p>
+		<p><strong>Stagewise</strong> is a CLI overlay that works at the DOM level. It can inject into any app but has no Astro-specific context and cannot distinguish static elements from islands.</p>
+		<p><strong>Cursor and Copilot</strong> are IDE tools that work from source files. They have no browser awareness and no framework-specific features.</p>
+		<p><strong>v0</strong> generates new UI in a sandbox and cannot edit an existing Astro project.</p>
+		<p>If you want browser-based AI editing that understands Islands architecture, Frontman is currently the only option with native Astro integration.</p>
+	</IntegrationContentSection>
+
+	<IntegrationContentSection title="Content Collections Aware" variant="light">
+		<p>Frontman understands Astro's content collections. When a page renders data from a collection, the AI has access to the collection name and schema (field names and types), the current entry's frontmatter, and the template that renders it.</p>
+
+		<p>In practice: click a blog post title and say "move the date below the title." The AI edits the collection template, not the content file. Say "add a reading time estimate" and it can suggest both the frontmatter schema change and the template update.</p>
+	</IntegrationContentSection>
+
+	<IntegrationFAQ faqs={faqs} />
+
+	<IntegrationCTA
+		title="Add Frontman to Your Astro Project"
+		description="One command. 60 seconds. No account required."
+		installCommand="astro add @frontman-ai/astro"
+	/>
+</Layout>

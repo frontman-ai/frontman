@@ -66,6 +66,23 @@ export const footerNavigationData: FooterData = {
 			]
 		},
 		{
+			category: 'Integrations',
+			subCategories: [
+				{
+					subCategory: 'Next.js',
+					subCategoryLink: '/integrations/nextjs/'
+				},
+				{
+					subCategory: 'Astro',
+					subCategoryLink: '/integrations/astro/'
+				},
+				{
+					subCategory: 'Vite (React, Vue, Svelte)',
+					subCategoryLink: '/integrations/vite/'
+				}
+			]
+		},
+		{
 			category: 'Compare',
 			subCategories: [
 				{

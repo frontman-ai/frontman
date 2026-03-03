@@ -17,17 +17,20 @@ const frameworks = [
 	{
 		name: 'Next.js',
 		logo: nextjsLogo,
-		features: ['App Router', 'Pages Router', 'Turbopack']
+		features: ['App Router', 'Pages Router', 'Turbopack'],
+		href: '/integrations/nextjs/'
 	},
 	{
 		name: 'Astro',
 		logo: astroLogo,
-		features: ['SSR', 'SSG', 'Islands']
+		features: ['SSR', 'SSG', 'Islands'],
+		href: '/integrations/astro/'
 	},
 	{
 		name: 'Vite',
 		logo: viteLogo,
-		features: ['React', 'Vue', 'Svelte']
+		features: ['React', 'Vue', 'Svelte'],
+		href: '/integrations/vite/'
 	}
 ]
 ---
@@ -42,22 +45,25 @@ const frameworks = [
 		<Row classes="gap-6 lg:gap-8">
 			{frameworks.map((fw) => (
 				<Col spanMobile="12" span="4">
-					<div class="framework-card">
-						<div class="framework-logo">
-							<img src={fw.logo.src} alt={fw.name} width="48" height="48" loading="lazy" />
+					<a href={fw.href} class="framework-card-link">
+						<div class="framework-card">
+							<div class="framework-logo">
+								<img src={fw.logo.src} alt={fw.name} width="48" height="48" loading="lazy" />
+							</div>
+							<h3 class="framework-name">{fw.name}</h3>
+							<ul class="framework-features">
+								{fw.features.map((feature) => (
+									<li class="framework-feature">
+									<svg class="check-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+										<polyline points="20 6 9 17 4 12"></polyline>
+									</svg>
+										{feature}
+									</li>
+								))}
+							</ul>
+							<span class="framework-cta">Learn more &rarr;</span>
 						</div>
-						<h3 class="framework-name">{fw.name}</h3>
-						<ul class="framework-features">
-							{fw.features.map((feature) => (
-								<li class="framework-feature">
-								<svg class="check-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-									<polyline points="20 6 9 17 4 12"></polyline>
-								</svg>
-									{feature}
-								</li>
-							))}
-						</ul>
-					</div>
+					</a>
 				</Col>
 			))}
 		</Row>
@@ -82,6 +88,7 @@ const frameworks = [
 		@apply relative p-8 border-4 border-black;
 		box-shadow: 10px 10px 0 0 rgba(0, 0, 0, 1);
 		background: #ffffff;
+		transition: box-shadow 0.2s ease, transform 0.2s ease;
 	}
 
 	.framework-logo {
@@ -111,5 +118,25 @@ const frameworks = [
 	.check-icon {
 		@apply flex-shrink-0;
 		color: #22c55e;
+	}
+
+	.framework-card-link {
+		@apply block no-underline;
+		color: inherit;
+	}
+
+	.framework-card-link:hover .framework-card {
+		box-shadow: 12px 12px 0 0 rgba(0, 0, 0, 1);
+		transform: translate(-2px, -2px);
+	}
+
+	.framework-cta {
+		@apply block mt-5 text-sm font-semibold;
+		color: #A259FF;
+	}
+
+	.framework-card-link:hover .framework-cta {
+		text-decoration: underline;
+		text-underline-offset: 3px;
 	}
 </style>

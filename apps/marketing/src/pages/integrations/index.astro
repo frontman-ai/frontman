@@ -1,0 +1,277 @@
+---
+// /integrations/ — Framework Integrations Hub Page
+// Lists all supported framework integrations for internal linking and SEO
+
+import Layout from '../../layouts/Layout.astro'
+
+const SEO = {
+	title: 'Frontman Framework Integrations: Next.js, Astro, and Vite',
+	description:
+		'Frontman integrates with Next.js, Astro, and Vite (React, Vue, Svelte). One command to install, deep framework context, and AI-powered visual editing in your browser.'
+}
+
+const integrations = [
+	{
+		title: 'Next.js',
+		href: '/integrations/nextjs/',
+		description: 'App Router and Pages Router. Frontman sees the React component tree, server components, API routes, and middleware. One command to install.',
+		command: 'npx @frontman-ai/nextjs install',
+		tags: ['App Router', 'Pages Router', 'Turbopack', 'Server Components']
+	},
+	{
+		title: 'Astro',
+		href: '/integrations/astro/',
+		description: 'Islands architecture, SSR, and SSG. Frontman is the only browser-based AI coding tool with native Astro support. Listed on the official Astro integration registry.',
+		command: 'astro add @frontman-ai/astro',
+		tags: ['Islands', 'SSR', 'SSG', 'Content Collections']
+	},
+	{
+		title: 'Vite',
+		href: '/integrations/vite/',
+		description: 'One integration for React, Vue, and Svelte. Frontman hooks into Vite\'s dev server and HMR pipeline for instant feedback on every edit.',
+		command: 'npx @frontman-ai/vite install',
+		tags: ['React', 'Vue', 'Svelte', 'HMR']
+	}
+]
+---
+
+<Layout title={SEO.title} description={SEO.description}>
+	<section class="hero-section">
+		<div class="hero-container">
+			<p class="hero-label">Integrations</p>
+			<h1 class="hero-title">Framework Integrations</h1>
+			<p class="hero-subtitle">
+				Frontman installs as framework middleware inside your dev server. Each integration gives the AI direct access to the component tree, computed styles, and server-side context for your specific framework.
+			</p>
+		</div>
+	</section>
+
+	<section class="cards-section">
+		<div class="cards-container">
+			{integrations.map((integration) => (
+				<a href={integration.href} class="integration-card">
+					<div class="card-header">
+						<h2 class="card-title">{integration.title}</h2>
+						<div class="card-command">
+							<code><span class="command-prefix">$</span> {integration.command}</code>
+						</div>
+					</div>
+					<p class="card-description">{integration.description}</p>
+					<div class="card-tags">
+						{integration.tags.map((tag) => (
+							<span class="card-tag">{tag}</span>
+						))}
+					</div>
+					<span class="card-cta">View integration &rarr;</span>
+				</a>
+			))}
+		</div>
+	</section>
+
+	<section class="content-section">
+		<div class="content-container">
+			<h2 class="section-title">Why Framework Middleware?</h2>
+			<div class="prose-content">
+				<p>Most AI coding tools are "code-first." They read your source files but never see the running application. Browser-based tools like CLI overlays inject a toolbar on top of your app and only see the DOM surface.</p>
+				<p>Frontman takes a different approach. It installs as <strong>framework middleware</strong> and runs inside your dev server, which gives the AI access to information that's invisible from the outside:</p>
+				<ul>
+					<li>The <strong>component tree</strong>: React fiber nodes, Vue reactivity graph, Svelte component hierarchy. The actual components that rendered each element, not just the DOM output.</li>
+					<li>The <strong>props and state</strong> each component received, how state flows through the tree, and what data drives the current render.</li>
+					<li><strong>Server-side context</strong> including routes, server logs, query timing, and middleware chains. The AI sees both the client and the server.</li>
+					<li><strong>Computed styles</strong> with the full cascade resolved, including specificity and inherited values.</li>
+				</ul>
+				<p>When you click an element and describe a change, the AI has the full picture. It targets the right component file, adjusts the right props, and understands how the edit affects the rest of the UI.</p>
+			</div>
+		</div>
+	</section>
+</Layout>
+
+<style>
+	.hero-section {
+		background: #09090b;
+		color: #fafafa;
+		padding: 80px 24px 48px;
+		display: flex;
+		justify-content: center;
+	}
+	.hero-container {
+		max-width: 720px;
+		width: 100%;
+	}
+	.hero-label {
+		@apply font-mono;
+		font-size: 13px;
+		letter-spacing: 0.12em;
+		text-transform: uppercase;
+		color: #A259FF;
+		margin-bottom: 12px;
+	}
+	.hero-title {
+		font-size: 48px;
+		font-weight: 700;
+		line-height: 1.1;
+		letter-spacing: -0.02em;
+		color: #fafafa;
+		margin-bottom: 16px;
+	}
+	.hero-subtitle {
+		font-size: 18px;
+		line-height: 1.6;
+		color: #a1a1aa;
+	}
+
+	.cards-section {
+		background: #09090b;
+		padding: 24px 24px 64px;
+		display: flex;
+		justify-content: center;
+	}
+	.cards-container {
+		max-width: 720px;
+		width: 100%;
+		display: flex;
+		flex-direction: column;
+		gap: 20px;
+	}
+
+	.integration-card {
+		display: block;
+		padding: 32px;
+		border-radius: 16px;
+		border: 1px solid rgba(255, 255, 255, 0.08);
+		background: rgba(255, 255, 255, 0.03);
+		text-decoration: none;
+		transition: border-color 0.2s, background 0.2s;
+	}
+	.integration-card:hover {
+		border-color: rgba(162, 89, 255, 0.4);
+		background: rgba(162, 89, 255, 0.06);
+	}
+
+	.card-header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		margin-bottom: 12px;
+		flex-wrap: wrap;
+		gap: 12px;
+	}
+	.card-title {
+		font-size: 24px;
+		font-weight: 700;
+		color: #fafafa;
+		letter-spacing: -0.01em;
+	}
+	.card-command {
+		padding: 6px 12px;
+		border-radius: 8px;
+		background: rgba(255, 255, 255, 0.06);
+		border: 1px solid rgba(255, 255, 255, 0.08);
+	}
+	.card-command code {
+		font-family: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, 'DejaVu Sans Mono', monospace;
+		font-size: 13px;
+		color: #a1a1aa;
+	}
+	.command-prefix {
+		color: #A259FF;
+		margin-right: 6px;
+	}
+	.card-description {
+		font-size: 16px;
+		line-height: 1.6;
+		color: #a1a1aa;
+		margin-bottom: 16px;
+	}
+	.card-tags {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 8px;
+		margin-bottom: 16px;
+	}
+	.card-tag {
+		font-size: 12px;
+		padding: 4px 10px;
+		border-radius: 6px;
+		background: rgba(255, 255, 255, 0.06);
+		color: #71717a;
+		letter-spacing: 0.02em;
+	}
+	.card-cta {
+		font-size: 15px;
+		font-weight: 500;
+		color: #A259FF;
+	}
+	.integration-card:hover .card-cta {
+		text-decoration: underline;
+		text-underline-offset: 3px;
+	}
+
+	/* Content section */
+	.content-section {
+		background: #09090b;
+		color: #fafafa;
+		padding: 64px 24px 80px;
+		display: flex;
+		justify-content: center;
+		border-top: 1px solid rgba(255, 255, 255, 0.06);
+	}
+	.content-container {
+		max-width: 720px;
+		width: 100%;
+	}
+	.section-title {
+		font-size: 32px;
+		font-weight: 700;
+		color: #fafafa;
+		margin-bottom: 24px;
+		letter-spacing: -0.02em;
+	}
+	.prose-content p {
+		font-size: 17px;
+		line-height: 1.7;
+		color: #a1a1aa;
+		margin-bottom: 16px;
+	}
+	.prose-content strong {
+		color: #fafafa;
+		font-weight: 600;
+	}
+	.prose-content ul {
+		list-style: none;
+		padding: 0;
+		margin: 16px 0;
+	}
+	.prose-content li {
+		font-size: 17px;
+		line-height: 1.7;
+		color: #a1a1aa;
+		padding: 8px 0;
+		padding-left: 24px;
+		position: relative;
+	}
+	.prose-content li::before {
+		content: '';
+		position: absolute;
+		left: 0;
+		top: 18px;
+		width: 8px;
+		height: 8px;
+		border-radius: 50%;
+		background: #A259FF;
+	}
+	.prose-content li strong {
+		color: #fafafa;
+	}
+
+	@media (max-width: 768px) {
+		.hero-section { padding: 48px 20px 32px; }
+		.hero-title { font-size: 32px; }
+		.cards-section { padding: 16px 20px 48px; }
+		.integration-card { padding: 24px; }
+		.card-title { font-size: 20px; }
+		.card-command { display: none; }
+		.content-section { padding: 40px 20px 48px; }
+		.section-title { font-size: 24px; }
+	}
+</style>

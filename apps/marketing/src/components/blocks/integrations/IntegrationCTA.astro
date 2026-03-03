@@ -1,0 +1,102 @@
+---
+// IntegrationCTA
+// --------------
+// Shared bottom CTA section for integration landing pages.
+// Props:
+// - title: CTA heading (e.g. "Add Frontman to Your Next.js Project")
+// - description: CTA subheading
+// - installCommand: The CLI command to display
+
+import Button from '../../ui/Button.astro'
+
+type Props = {
+	title: string
+	description: string
+	installCommand: string
+}
+
+const { title, description, installCommand } = Astro.props
+---
+
+<section class="cta-section">
+	<div class="cta-container">
+		<h2 class="cta-title">{title}</h2>
+		<p class="cta-description">{description}</p>
+		<div class="install-commands">
+			<div class="install-command">
+				<code><span class="cmd-prefix">$</span> {installCommand}</code>
+			</div>
+		</div>
+		<div class="cta-links">
+			<Button size="lg" style="primary" link="https://github.com/frontman-ai/frontman">Star on GitHub</Button>
+			<a href="/integrations/" class="cta-secondary">All integrations</a>
+			<a href="https://discord.gg/xk8uXJSvhC" target="_blank" rel="noopener noreferrer" class="cta-secondary">Join Discord</a>
+		</div>
+	</div>
+</section>
+
+<style>
+	.cta-section {
+		background: #09090b;
+		border-top: 1px solid #27272a;
+		padding: 80px 24px;
+		display: flex;
+		justify-content: center;
+	}
+	.cta-container {
+		max-width: 720px;
+		width: 100%;
+	}
+	.cta-title {
+		font-size: 36px;
+		font-weight: 700;
+		color: #fafafa;
+		margin-bottom: 8px;
+		letter-spacing: -0.02em;
+	}
+	.cta-description {
+		font-size: 17px;
+		color: #71717a;
+		margin-bottom: 32px;
+	}
+	.install-commands {
+		margin-bottom: 32px;
+	}
+	.install-command {
+		display: flex;
+		align-items: center;
+		padding: 14px 20px;
+		border-radius: 8px;
+		background: rgba(255, 255, 255, 0.04);
+		border: 1px solid rgba(255, 255, 255, 0.08);
+	}
+	.install-command code {
+		font-family: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, 'DejaVu Sans Mono', monospace;
+		font-size: 15px;
+		color: #fafafa;
+	}
+	.cmd-prefix {
+		color: #A259FF;
+		margin-right: 8px;
+	}
+	.cta-links {
+		display: flex;
+		align-items: center;
+		gap: 24px;
+	}
+	.cta-secondary {
+		color: #71717a;
+		font-size: 15px;
+		text-decoration: none;
+		transition: color 0.2s;
+	}
+	.cta-secondary:hover {
+		color: #fafafa;
+	}
+
+	@media (max-width: 768px) {
+		.cta-section { padding: 48px 20px; }
+		.cta-title { font-size: 28px; }
+		.cta-links { flex-direction: column; align-items: flex-start; gap: 12px; }
+	}
+</style>

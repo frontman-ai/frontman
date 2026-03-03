@@ -1,0 +1,174 @@
+---
+// /integrations/nextjs — Frontman + Next.js Integration Page
+// Targets: "frontman nextjs", "AI coding tool nextjs", "visual editing nextjs",
+// "AI that sees React components", "browser AI agent nextjs"
+
+import Layout from '../../layouts/Layout.astro'
+import IntegrationHero from '../../components/blocks/integrations/IntegrationHero.astro'
+import IntegrationInstallSteps from '../../components/blocks/integrations/IntegrationInstallSteps.astro'
+import IntegrationContextGrid from '../../components/blocks/integrations/IntegrationContextGrid.astro'
+import IntegrationContentSection from '../../components/blocks/integrations/IntegrationContentSection.astro'
+import IntegrationFAQ from '../../components/blocks/integrations/IntegrationFAQ.astro'
+import IntegrationCTA from '../../components/blocks/integrations/IntegrationCTA.astro'
+
+const SEO = {
+	title: 'Frontman for Next.js: AI Coding Agent with Full React and Server Context',
+	description:
+		'Add Frontman to your Next.js project in 60 seconds. Click any element in your running app, describe changes in plain English, get real source code edits. Sees React fiber tree, server components, and API routes.'
+}
+
+// What Frontman sees in Next.js
+const contextItems = [
+	{ category: 'React Runtime', items: ['Component tree (fiber nodes)', 'Props and state for every component', 'Context providers and consumers', 'Client vs server component boundaries'] },
+	{ category: 'Next.js Server', items: ['App Router and Pages Router routes', 'Server components and their data', 'API route handlers', 'Middleware chain execution'] },
+	{ category: 'Styles & Layout', items: ['Computed CSS with full cascade', 'CSS Modules, Tailwind, styled-jsx resolution', 'Layout shift detection', 'Responsive breakpoint context'] },
+	{ category: 'Dev Server', items: ['Turbopack / Webpack HMR pipeline', 'Server-side logs and errors', 'Build warnings and type errors', 'Hot reload feedback loop'] }
+]
+
+// FAQ data
+const faqs = [
+	{
+		question: 'How do I install Frontman in a Next.js project?',
+		answer: 'Run npx @frontman-ai/nextjs install in your project directory. This adds the Frontman middleware to your Next.js dev server. Then start your dev server normally (npm run dev) and visit localhost:3000/frontman in your browser. The entire setup takes about 60 seconds.'
+	},
+	{
+		question: 'Does Frontman work with the App Router?',
+		answer: 'Both App Router and Pages Router are supported. Frontman sees server components, client components, and the boundary between them. When you click an element rendered by a server component, it recognizes the boundary and generates server-side edits accordingly.'
+	},
+	{
+		question: 'Does Frontman work with Turbopack?',
+		answer: 'It works with both Turbopack and Webpack. Frontman hooks into the dev server at the middleware level, so the bundler choice is irrelevant. Edits are reflected instantly through HMR either way.'
+	},
+	{
+		question: 'What AI models can I use with Frontman?',
+		answer: 'Any LLM provider via BYOK (bring your own key). Connect Claude, ChatGPT, or any OpenAI-compatible API through OpenRouter. You pay your LLM provider directly at their standard rates. There are no prompt limits or usage caps on the Frontman side.'
+	},
+	{
+		question: 'Does Frontman modify my production build?',
+		answer: 'The middleware only runs in development mode. Production builds strip it out automatically. Your deployment bundle is identical whether Frontman is installed or not.'
+	},
+	{
+		question: 'Can non-technical team members use Frontman?',
+		answer: 'Designers and PMs can open the running app in a browser, click any element, and describe changes in plain English. They do not need an IDE or terminal access. The AI generates source code edits that developers review in their normal PR workflow.'
+	},
+	{
+		question: 'How is this different from Cursor or Copilot for Next.js development?',
+		answer: 'Cursor and Copilot work from source code and never see the running application. Frontman works from the browser, where it can read the rendered DOM, computed styles, React component tree, and server-side context. They are complementary: use Cursor/Copilot for backend logic, Frontman for visual frontend work. See our comparison pages for details.'
+	}
+]
+
+// HowTo JSON-LD
+const howToJsonLd = {
+	"@context": "https://schema.org",
+	"@type": "HowTo",
+	"name": "How to Add Frontman to a Next.js Project",
+	"description": "Install Frontman as middleware in your Next.js project for AI-powered visual editing in the browser.",
+	"step": [
+		{
+			"@type": "HowToStep",
+			"name": "Install the integration",
+			"text": "Run npx @frontman-ai/nextjs install in your Next.js project directory."
+		},
+		{
+			"@type": "HowToStep",
+			"name": "Start your dev server",
+			"text": "Run npm run dev (or your normal Next.js start command). Frontman middleware activates automatically in development mode."
+		},
+		{
+			"@type": "HowToStep",
+			"name": "Open Frontman in your browser",
+			"text": "Visit http://localhost:3000/frontman in your browser to access the Frontman interface."
+		},
+		{
+			"@type": "HowToStep",
+			"name": "Connect your AI",
+			"text": "Enter your API key for Claude, ChatGPT, or OpenRouter. You're ready to click elements and describe changes."
+		}
+	],
+	"totalTime": "PT1M"
+}
+
+// FAQPage JSON-LD
+const faqJsonLd = {
+	"@context": "https://schema.org",
+	"@type": "FAQPage",
+	"mainEntity": faqs.map((faq) => ({
+		"@type": "Question",
+		"name": faq.question,
+		"acceptedAnswer": {
+			"@type": "Answer",
+			"text": faq.answer
+		}
+	}))
+}
+---
+
+<Layout title={SEO.title} description={SEO.description}>
+	<script is:inline type="application/ld+json" set:html={JSON.stringify(howToJsonLd)} />
+	<script is:inline type="application/ld+json" set:html={JSON.stringify(faqJsonLd)} />
+
+	<IntegrationHero title="Frontman for Next.js" subtitle="Visual Editing with Full React and Server Context">
+		<p>
+			<a href="https://frontman.sh" class="text-link">Frontman</a> is an open-source AI coding agent that lives in your browser. The <strong>Next.js integration</strong> installs as middleware in your dev server, giving the AI access to the React component tree, server components, API routes, and computed styles.
+		</p>
+		<p>
+			Click any element in your running Next.js app. Describe what you want to change in plain English. Frontman generates real source code edits with instant hot reload. Designers and PMs can make visual changes directly in the browser without opening an IDE.
+		</p>
+		<p class="summary-emphasis">
+			60-second install. App Router and Pages Router. Turbopack compatible. Free and unlimited with BYOK.
+		</p>
+	</IntegrationHero>
+
+	<IntegrationInstallSteps
+		installCommand="npx @frontman-ai/nextjs install"
+		devUrl="http://localhost:3000/frontman"
+	/>
+
+	<IntegrationContextGrid
+		title="What Frontman Sees in Your Next.js App"
+		intro="Frontman runs as middleware inside your dev server, which gives it access to runtime information that browser extensions and CLI overlays can't reach."
+		items={contextItems}
+	/>
+
+	<IntegrationContentSection title="How It Works with Next.js" variant="light">
+		<p>The <code>@frontman-ai/nextjs</code> package installs a Next.js plugin that hooks into the dev server as middleware. It doesn't proxy your traffic or modify your build output. In production, the middleware is stripped out and your deployment bundle is untouched.</p>
+
+		<p>Frontman understands the App Router's conventions: layouts, pages, loading states, error boundaries, and the server/client component boundary. When you click an element rendered by a server component, it recognizes the boundary and generates appropriate server-side edits.</p>
+
+		<p>Instead of parsing the DOM and guessing which component rendered an element, Frontman walks the React fiber tree directly. It identifies the exact component, its props, its state, and its position in the hierarchy. Edits land in the right file on the right component, not a sibling or parent.</p>
+
+		<p>The server side is visible too. Routes, middleware execution, server logs, and query timing are all available. If a component is slow because of a database query in a server component, the AI can see that. If an API route returns unexpected data, the server-side error shows up alongside the visual result.</p>
+
+		<p>Every edit is written to your source files and reflected through Next.js's hot module replacement. You see the change in the browser immediately, without a page reload or state loss. Works with both Turbopack and Webpack.</p>
+	</IntegrationContentSection>
+
+	<IntegrationContentSection title="Who Uses Frontman with Next.js">
+		<p>Frontend developers use it to skip the Figma-to-code round trip. Click a misaligned button, say "fix the padding and match the design system", get a source code edit in the right component file.</p>
+
+		<p>Full-stack developers get edits that span the stack. The AI sees both the server-side data flow and the client-side rendering, so you can say "show the user's avatar in the nav, pulling from the session" and get edits across server and client components.</p>
+
+		<p>Designers and PMs open the staging site in a browser, click elements, and describe changes in plain English. No IDE or terminal needed. The AI generates a code change that developers review in their normal PR workflow.</p>
+
+		<p>Teams already using <strong>Cursor or Copilot</strong> can run Frontman alongside those tools. Use Cursor for backend logic and refactoring, Frontman for visual frontend editing where seeing the rendered output matters. They all edit the same source files.</p>
+	</IntegrationContentSection>
+
+	<IntegrationContentSection title="How This Compares" variant="light">
+		<p>Other tools take different approaches to AI-powered frontend editing.</p>
+
+		<p><a href="/vs/cursor/" class="text-link">Cursor</a> is an AI-powered IDE with autocomplete and agent mode. Strong for backend code, but it works entirely from source files and never sees the running browser.</p>
+
+		<p><a href="/vs/stagewise/" class="text-link">Stagewise</a> is a CLI overlay that injects a toolbar into your browser. Zero install friction, but the context is shallower (DOM-level only, no React component tree) and free usage is capped at 10 prompts/day.</p>
+
+		<p><a href="/vs/v0/" class="text-link">v0</a> generates new UI in a sandbox from text prompts. It's a different use case: v0 creates new components, Frontman edits your existing running application.</p>
+
+		<p>See our <a href="/vs/" class="text-link">comparison pages</a> for feature tables and pricing breakdowns.</p>
+	</IntegrationContentSection>
+
+	<IntegrationFAQ faqs={faqs} />
+
+	<IntegrationCTA
+		title="Add Frontman to Your Next.js Project"
+		description="One command. 60 seconds. No account required."
+		installCommand="npx @frontman-ai/nextjs install"
+	/>
+</Layout>

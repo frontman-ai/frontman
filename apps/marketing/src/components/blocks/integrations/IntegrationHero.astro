@@ -1,0 +1,100 @@
+---
+// IntegrationHero
+// ---------------
+// Shared hero section for integration landing pages.
+// Props:
+// - title: Main heading (e.g. "Frontman for Next.js")
+// - subtitle: Subheading below the title
+// Slot: Hero summary paragraphs (allows each page to have custom content + links)
+
+type Props = {
+	title: string
+	subtitle: string
+}
+
+const { title, subtitle } = Astro.props
+---
+
+<section class="hero-section">
+	<div class="hero-container">
+		<p class="hero-label">Integration</p>
+		<h1 class="hero-title">{title}</h1>
+		<p class="hero-subtitle">{subtitle}</p>
+
+		<div class="hero-summary">
+			<slot />
+		</div>
+	</div>
+</section>
+
+<style>
+	.hero-section {
+		background: #09090b;
+		color: #fafafa;
+		padding: 80px 24px 64px;
+		display: flex;
+		justify-content: center;
+	}
+	.hero-container {
+		max-width: 720px;
+		width: 100%;
+	}
+	.hero-label {
+		@apply font-mono;
+		font-size: 13px;
+		letter-spacing: 0.12em;
+		text-transform: uppercase;
+		color: #A259FF;
+		margin-bottom: 12px;
+	}
+	.hero-title {
+		font-size: 48px;
+		font-weight: 700;
+		line-height: 1.1;
+		letter-spacing: -0.02em;
+		color: #fafafa;
+		margin-bottom: 8px;
+	}
+	.hero-subtitle {
+		font-size: 20px;
+		color: #71717a;
+		margin-bottom: 40px;
+	}
+	.hero-summary :global(p) {
+		font-size: 17px;
+		line-height: 1.7;
+		color: #a1a1aa;
+		margin-bottom: 16px;
+	}
+	.hero-summary :global(strong) {
+		color: #fafafa;
+	}
+	.hero-summary :global(code) {
+		font-family: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, 'DejaVu Sans Mono', monospace;
+		font-size: 14px;
+		background: rgba(255, 255, 255, 0.08);
+		padding: 2px 6px;
+		border-radius: 4px;
+	}
+	.hero-summary :global(.summary-emphasis) {
+		color: #fafafa !important;
+		font-weight: 500;
+		border-left: 3px solid #A259FF;
+		padding-left: 16px;
+		margin-top: 24px !important;
+	}
+	.hero-summary :global(.text-link) {
+		color: #A259FF;
+		text-decoration: underline;
+		text-underline-offset: 2px;
+	}
+	.hero-summary :global(.text-link:hover) {
+		color: #c084fc;
+	}
+
+	@media (max-width: 768px) {
+		.hero-section { padding: 48px 20px 40px; }
+		.hero-title { font-size: 32px; }
+		.hero-subtitle { font-size: 17px; margin-bottom: 24px; }
+	}
+</style>

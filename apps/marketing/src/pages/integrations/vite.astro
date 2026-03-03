@@ -1,0 +1,213 @@
+---
+// /integrations/vite — Frontman + Vite Integration Page
+// Targets: "frontman vite", "AI coding tool react vite", "AI coding vue",
+// "AI coding svelte", "visual editing vite", "browser AI agent react"
+// KEY ANGLE: One integration for React, Vue, AND Svelte. Stagewise doesn't support Svelte.
+
+import Layout from '../../layouts/Layout.astro'
+import IntegrationHero from '../../components/blocks/integrations/IntegrationHero.astro'
+import IntegrationInstallSteps from '../../components/blocks/integrations/IntegrationInstallSteps.astro'
+import IntegrationContextGrid from '../../components/blocks/integrations/IntegrationContextGrid.astro'
+import IntegrationContentSection from '../../components/blocks/integrations/IntegrationContentSection.astro'
+import IntegrationFAQ from '../../components/blocks/integrations/IntegrationFAQ.astro'
+import IntegrationCTA from '../../components/blocks/integrations/IntegrationCTA.astro'
+
+const SEO = {
+	title: 'Frontman for Vite: AI Coding Agent for React, Vue, and Svelte',
+	description:
+		'One Vite plugin for React, Vue, and Svelte. Click any element in your running app, describe changes in plain English, get real source code edits with hot reload. Free and unlimited with BYOK.'
+}
+
+// Framework-specific context
+const frameworks = [
+	{
+		name: 'React',
+		context: [
+			'Component tree via React fiber nodes',
+			'Props, state, and context for every component',
+			'Hooks inspection (useState, useEffect, useContext)',
+			'Client-side routing (React Router, TanStack Router)'
+		]
+	},
+	{
+		name: 'Vue',
+		context: [
+			'Reactivity graph and component hierarchy',
+			'Props, emits, and slot content',
+			'Composition API refs and reactive state',
+			'Vue Router navigation and route params'
+		]
+	},
+	{
+		name: 'Svelte',
+		context: [
+			'Component tree and slot structure',
+			'Reactive declarations and stores',
+			'Props and event dispatchers',
+			'SvelteKit routing (when used with SvelteKit + Vite)'
+		]
+	}
+]
+
+// Shared Vite context (displayed in the standard context grid)
+const viteContext = [
+	{ category: 'Vite Dev Server', items: ['HMR pipeline for instant feedback', 'Module graph and dependency tracking', 'Plugin hooks and middleware chain', 'Build warnings and errors'] },
+	{ category: 'Styles & Layout', items: ['CSS Modules, Tailwind, PostCSS resolution', 'Computed styles with full cascade', 'Scoped styles per framework', 'Responsive breakpoint context'] }
+]
+
+// FAQ data
+const faqs = [
+	{
+		question: 'How do I install Frontman in a Vite project?',
+		answer: 'Run npx @frontman-ai/vite install in your Vite project directory. This adds the Frontman plugin to your vite.config file. Then start your dev server normally (npm run dev) and visit localhost:5173/frontman. Works with React, Vue, and Svelte projects.'
+	},
+	{
+		question: 'Does Frontman auto-detect which framework I\'m using?',
+		answer: 'It reads your Vite config and package.json. If you have @vitejs/plugin-react, it activates React-specific context (fiber tree, hooks). For Vue, it detects @vitejs/plugin-vue. For Svelte, @sveltejs/vite-plugin-svelte. No manual configuration required.'
+	},
+	{
+		question: 'Does Frontman work with SvelteKit?',
+		answer: 'SvelteKit uses Vite under the hood, so the @frontman-ai/vite integration works with SvelteKit projects. Frontman sees SvelteKit routing, load functions, and form actions alongside the Svelte component tree.'
+	},
+	{
+		question: 'Does it work with Nuxt?',
+		answer: 'Nuxt uses Vite internally but has its own module system. The @frontman-ai/vite plugin should work when added to the Nuxt Vite config, though this is not officially tested yet. For the best Vue experience with a meta-framework, standalone Vite + Vue projects are recommended.'
+	},
+	{
+		question: 'Can non-developers use Frontman with Vite projects?',
+		answer: 'Designers and PMs can open the running app in a browser, click any element, and describe changes in plain English. They do not need an IDE or terminal. The AI generates source code edits that developers review in their normal workflow. This works the same way whether the project uses React, Vue, or Svelte.'
+	},
+	{
+		question: 'What AI models can I use?',
+		answer: 'Any LLM provider via BYOK (bring your own key). Claude, ChatGPT, or any OpenAI-compatible API through OpenRouter. There are no prompt limits or usage caps on the Frontman side. You pay your LLM provider directly.'
+	},
+	{
+		question: 'Does Frontman for Vite support Svelte? What about Stagewise?',
+		answer: 'Frontman fully supports Svelte via the @frontman-ai/vite integration. It detects the Svelte compiler, walks the component tree, and understands reactive declarations and stores. Stagewise is a CLI overlay that works at the DOM level. It can inject into any app but has no framework-specific context for Svelte (no component tree, no reactive state, no store access).'
+	}
+]
+
+// HowTo JSON-LD
+const howToJsonLd = {
+	"@context": "https://schema.org",
+	"@type": "HowTo",
+	"name": "How to Add Frontman to a Vite Project",
+	"description": "Install Frontman as a Vite plugin for AI-powered visual editing in React, Vue, or Svelte projects.",
+	"step": [
+		{
+			"@type": "HowToStep",
+			"name": "Install the plugin",
+			"text": "Run npx @frontman-ai/vite install in your Vite project directory."
+		},
+		{
+			"@type": "HowToStep",
+			"name": "Start your dev server",
+			"text": "Run npm run dev to start your Vite dev server. Frontman activates automatically in development mode."
+		},
+		{
+			"@type": "HowToStep",
+			"name": "Open Frontman in your browser",
+			"text": "Visit http://localhost:5173/frontman in your browser to access the Frontman interface."
+		},
+		{
+			"@type": "HowToStep",
+			"name": "Connect your AI",
+			"text": "Enter your API key for Claude, ChatGPT, or OpenRouter. Click any element and describe changes."
+		}
+	],
+	"totalTime": "PT1M"
+}
+
+// FAQPage JSON-LD
+const faqJsonLd = {
+	"@context": "https://schema.org",
+	"@type": "FAQPage",
+	"mainEntity": faqs.map((faq) => ({
+		"@type": "Question",
+		"name": faq.question,
+		"acceptedAnswer": {
+			"@type": "Answer",
+			"text": faq.answer
+		}
+	}))
+}
+---
+
+<Layout title={SEO.title} description={SEO.description}>
+	<script is:inline type="application/ld+json" set:html={JSON.stringify(howToJsonLd)} />
+	<script is:inline type="application/ld+json" set:html={JSON.stringify(faqJsonLd)} />
+
+	<IntegrationHero title="Frontman for Vite" subtitle="One Plugin for React, Vue, and Svelte">
+		<p>
+			<a href="https://frontman.sh" class="text-link">Frontman</a> is an open-source AI coding agent that lives in your browser. The <strong>Vite integration</strong> installs as a Vite plugin and auto-detects your framework — React, Vue, or Svelte — providing framework-specific context to the AI.
+		</p>
+		<p>
+			Click any element in your running Vite app. Describe what you want to change in plain English. Frontman generates real source code edits with instant hot reload via Vite's HMR. It knows whether you clicked a React component, a Vue template element, or a Svelte block — and edits the right file.
+		</p>
+		<p class="summary-emphasis">
+			60-second install. Auto-detects React, Vue, or Svelte. Full framework-level context. Free and unlimited with BYOK.
+		</p>
+	</IntegrationHero>
+
+	<IntegrationInstallSteps
+		installCommand="npx @frontman-ai/vite install"
+		devUrl="http://localhost:5173/frontman"
+		installNote="Auto-detects React, Vue, or Svelte from your project configuration."
+	/>
+
+	<!-- Framework-Specific Context — uses context grid slot for the extra framework cards -->
+	<IntegrationContextGrid
+		title="Framework-Specific Context"
+		intro="One Vite plugin, three frameworks. Frontman auto-detects your framework from vite.config and provides framework-level context to the AI."
+		items={viteContext}
+	>
+		<!-- Framework cards above the shared Vite context grid -->
+		<div class="framework-grid">
+			{frameworks.map((fw) => (
+				<div class="framework-card">
+					<h3 class="framework-card-title">{fw.name}</h3>
+					<ul class="context-list">
+						{fw.context.map((item) => (
+							<li class="context-item">
+								<svg class="check-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>
+								{item}
+							</li>
+						))}
+					</ul>
+				</div>
+			))}
+		</div>
+	</IntegrationContextGrid>
+
+	<IntegrationContentSection title="How It Works" variant="light">
+		<p>The <code>@frontman-ai/vite</code> package adds a Vite plugin that hooks into the dev server. It does not proxy traffic, modify your build, or inject anything into production code. In production builds, the plugin is a no-op.</p>
+
+		<p>Frontman reads your Vite config and package.json to determine your framework. It detects <code>@vitejs/plugin-react</code> for React, <code>@vitejs/plugin-vue</code> for Vue, and <code>@sveltejs/vite-plugin-svelte</code> for Svelte. No manual framework configuration is needed.</p>
+
+		<p>When you click an element, Frontman walks the framework's internal tree: React fiber nodes, Vue's reactivity graph, or Svelte's component hierarchy. It identifies which component rendered that element, what props it received, and what state it holds.</p>
+
+		<p>Edits are written to your source files and reflected instantly through Vite's hot module replacement. No full page reload and no state loss.</p>
+	</IntegrationContentSection>
+
+	<IntegrationContentSection title="For Vue Developers">
+		<p>Most AI coding tools optimize for React-first workflows. Frontman has full Vue support.</p>
+		<p>The Composition API is understood natively. Frontman reads <code>ref()</code>, <code>reactive()</code>, <code>computed()</code>, and <code>watch()</code> calls, giving it the reactivity graph rather than just the template output.</p>
+		<p>Single File Component structure is preserved: the AI knows whether to edit the <code>&lt;template&gt;</code>, <code>&lt;script setup&gt;</code>, or <code>&lt;style scoped&gt;</code> section. It also reads the component's props interface and emitted events, so edits respect the component contract.</p>
+		<p>Vue Router is visible too. Route params, navigation guards, and nested routes show up in the server context.</p>
+	</IntegrationContentSection>
+
+	<IntegrationContentSection title="For Svelte Developers" variant="light">
+		<p>Most browser-based AI coding tools either skip Svelte entirely or offer only surface-level DOM access. Frontman has native Svelte support.</p>
+		<p>Frontman understands <code>$:</code> reactive statements and Svelte stores. It works with the reactive model rather than just inspecting the compiled output. The AI walks the Svelte component hierarchy, reading slot content, event dispatchers, and prop bindings.</p>
+		<p>SvelteKit projects work through the Vite plugin. Frontman sees SvelteKit routing, load functions, and form actions alongside the component tree.</p>
+		<p>For comparison: Stagewise can inject a toolbar into any app at the DOM level, but it has no Svelte-specific context (no component tree, no reactive state, no store access). Frontman is currently the only browser-based AI tool with native Svelte integration.</p>
+	</IntegrationContentSection>
+
+	<IntegrationFAQ faqs={faqs} />
+
+	<IntegrationCTA
+		title="Add Frontman to Your Vite Project"
+		description="One command. 60 seconds. Works with React, Vue, and Svelte."
+		installCommand="npx @frontman-ai/vite install"
+	/>
+</Layout>

@@ -1,0 +1,112 @@
+---
+// IntegrationFAQ
+// --------------
+// Shared FAQ accordion section for integration landing pages.
+// Props:
+// - faqs: Array of { question, answer }
+
+type FAQ = {
+	question: string
+	answer: string
+}
+
+type Props = {
+	faqs: FAQ[]
+}
+
+const { faqs } = Astro.props
+---
+
+<section class="content-section">
+	<div class="content-container">
+		<h2 class="section-title">Frequently Asked Questions</h2>
+		<div class="faq-list">
+			{faqs.map((faq) => (
+				<details class="faq-item group">
+					<summary class="faq-question">
+						<span>{faq.question}</span>
+						<span class="faq-icon">+</span>
+					</summary>
+					<div class="faq-answer">
+						<p>{faq.answer}</p>
+					</div>
+				</details>
+			))}
+		</div>
+	</div>
+</section>
+
+<style>
+	.content-section {
+		background: #09090b;
+		color: #fafafa;
+		padding: 64px 24px;
+		display: flex;
+		justify-content: center;
+	}
+	.content-container {
+		max-width: 720px;
+		width: 100%;
+	}
+	.section-title {
+		font-size: 32px;
+		font-weight: 700;
+		color: #fafafa;
+		margin-bottom: 24px;
+		letter-spacing: -0.02em;
+	}
+	.faq-list {
+		border-top: 1px solid #27272a;
+	}
+	.faq-item {
+		border-bottom: 1px solid #27272a;
+		cursor: pointer;
+	}
+	.faq-question {
+		width: 100%;
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		padding: 24px 0;
+		color: #fafafa;
+		font-size: 17px;
+		font-weight: 500;
+		line-height: 1.4;
+		list-style: none;
+		transition: color 0.2s;
+	}
+	.faq-question::-webkit-details-marker { display: none; }
+	.faq-question:hover { color: #fff; }
+	.faq-question span:first-child { padding-right: 24px; }
+	.faq-icon {
+		flex-shrink: 0;
+		width: 28px;
+		height: 28px;
+		border-radius: 50%;
+		border: 1px solid #3f3f46;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font-size: 18px;
+		font-weight: 300;
+		color: #71717a;
+		transition: all 0.3s ease;
+	}
+	.group[open] .faq-icon {
+		transform: rotate(45deg);
+		background: #27272a;
+	}
+	.faq-answer p {
+		font-size: 15px;
+		line-height: 1.7;
+		color: #a1a1aa;
+		padding-bottom: 24px;
+		margin: 0;
+		max-width: 620px;
+	}
+
+	@media (max-width: 768px) {
+		.content-section { padding: 40px 20px; }
+		.section-title { font-size: 24px; }
+	}
+</style>
