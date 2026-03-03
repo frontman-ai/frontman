@@ -1,4 +1,7 @@
 import { defineConfig } from 'tsup';
+import { readFileSync } from 'fs';
+
+const pkg = JSON.parse(readFileSync('./package.json', 'utf-8'));
 
 export default defineConfig([
   // Main entry point
@@ -7,6 +10,7 @@ export default defineConfig([
     format: ['esm'],
     outDir: 'dist',
     clean: true,
+    define: { '__PACKAGE_VERSION__': JSON.stringify(pkg.version) },
     // Bundle internal workspace dependencies
     noExternal: [
       '@frontman-ai/frontman-core',
@@ -60,6 +64,7 @@ export default defineConfig([
     format: ['esm'],
     outDir: 'dist',
     clean: false, // Don't clean, we already did in first build
+    define: { '__PACKAGE_VERSION__': JSON.stringify(pkg.version) },
     noExternal: [
       '@frontman-ai/frontman-core',
       '@frontman-ai/frontman-protocol',
@@ -111,6 +116,7 @@ export default defineConfig([
     format: ['esm'],
     outDir: 'dist',
     clean: false,
+    define: { '__PACKAGE_VERSION__': JSON.stringify(pkg.version) },
     noExternal: [
       '@frontman-ai/frontman-core',
       '@frontman-ai/frontman-protocol',

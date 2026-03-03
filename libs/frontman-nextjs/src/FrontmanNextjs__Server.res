@@ -1,6 +1,14 @@
 // Request handlers for Frontman Next.js endpoints
 // Thin wrapper around shared core request handlers
 
+// Injected at build time by tsup define — crash if missing so we catch broken builds immediately.
+// Must use %raw with typeof guard: @val external won't work because __PACKAGE_VERSION__ is a
+// build-time constant replaced by tsup, not a runtime global.
+let packageVersion: string = %raw(`typeof __PACKAGE_VERSION__ !== "undefined" ? __PACKAGE_VERSION__ : undefined`)
+let () = if Js.typeof(packageVersion) == "undefined" {
+  JsError.throwWithMessage("__PACKAGE_VERSION__ is not defined — tsup build is misconfigured")
+}
+
 module Core = FrontmanAiFrontmanCore
 module CoreRequestHandlers = Core.FrontmanCore__RequestHandlers
 module ToolRegistry = FrontmanNextjs__ToolRegistry
@@ -22,7 +30,7 @@ let make = (
   ~projectRoot: string,
   ~sourceRoot: option<string>=?,
   ~serverName="frontman-nextjs",
-  ~serverVersion="1.0.0",
+  ~serverVersion=packageVersion,
 ): t => {
   let resolvedSourceRoot = sourceRoot->Option.getOr(projectRoot)
 

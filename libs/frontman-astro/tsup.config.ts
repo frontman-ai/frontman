@@ -1,4 +1,7 @@
 import { defineConfig } from 'tsup';
+import { readFileSync } from 'fs';
+
+const pkg = JSON.parse(readFileSync('./package.json', 'utf-8'));
 
 const sharedNoExternal = [
   '@frontman-ai/frontman-core',
@@ -45,6 +48,7 @@ export default defineConfig([
     format: ['esm'],
     outDir: 'dist',
     clean: true,
+    define: { '__PACKAGE_VERSION__': JSON.stringify(pkg.version) },
     noExternal: sharedNoExternal,
     external: sharedExternal,
     platform: 'node',
@@ -57,6 +61,7 @@ export default defineConfig([
     format: ['esm'],
     outDir: 'dist',
     clean: false,
+    define: { '__PACKAGE_VERSION__': JSON.stringify(pkg.version) },
     noExternal: sharedNoExternal,
     external: sharedExternal,
     platform: 'node',
@@ -69,6 +74,7 @@ export default defineConfig([
     format: ['esm'],
     outDir: 'dist',
     clean: false,
+    define: { '__PACKAGE_VERSION__': JSON.stringify(pkg.version) },
     noExternal: sharedNoExternal,
     external: sharedExternal,
     platform: 'browser',

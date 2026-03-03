@@ -365,6 +365,7 @@ let make = (
 
   <div className="flex flex-col h-full bg-[#180C2D] text-zinc-200">
     <TaskTabs onSettingsClick showProviderNudge onProviderNudgeDismiss onProviderNudgeCta />
+    <Client__UpdateBanner />
     <ScrollContainer className="flex-grow overflow-hidden">
       <ScrollContainer.ContentWrapper>
         {

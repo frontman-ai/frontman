@@ -251,57 +251,72 @@ let useIFrameLocation = (~iframeElement: option<WebAPI.DOMAPI.element>, ~attachm
         setLocation(_ => None)
         None
       | Some(iframeWindow) =>
-        let initialLocation = Some(iframeWindow->WebAPI.Window.location->WebAPI.Location.href)
-        setLocation(_ => initialLocation)
+        try {
+          let initialLocation = Some(iframeWindow->WebAPI.Window.location->WebAPI.Location.href)
+          setLocation(_ => initialLocation)
 
-        let onNavigation = (ev: WebAPI.EventAPI.event) => {
-          let navigateEvent: FrontmanBindings.NavigateEvent.t = ev->Obj.magic
-          let destinationUrl =
-            navigateEvent
-            ->FrontmanBindings.NavigateEvent.destination
-            ->FrontmanBindings.NavigateEvent.url
-          let currentUrl = iframeWindow->WebAPI.Window.location->WebAPI.Location.href
-          switch Client__BrowserUrl.resolveUrlWithBase(~url=destinationUrl, ~base=currentUrl) {
-          | None => ()
-          | Some(resolvedDestinationUrl) =>
-            switch Client__BrowserUrl.isSameOriginWithBase(
-              ~baseUrl=currentUrl,
-              ~targetUrl=resolvedDestinationUrl,
-            ) {
-            | false => WebAPI.Event.preventDefault(ev)
-            | true =>
-              // If the iframe is trying to navigate to a /frontman URL, intercept
-              // and redirect to the stripped version so we never load frontman-in-frontman.
-              let parsed = WebAPI.URL.make(~url=resolvedDestinationUrl)
-              let cleanPath = Client__BrowserUrl.stripSuffix(parsed.pathname)
-              switch cleanPath != parsed.pathname {
-              | false => setLocation(_ => Some(resolvedDestinationUrl))
-              | true =>
-                WebAPI.Event.preventDefault(ev)
-                let cleanUrl = `${parsed.origin}${cleanPath}`
-                iframeWindow->WebAPI.Window.location->WebAPI.Location.assign(cleanUrl)
+          let onNavigation = (ev: WebAPI.EventAPI.event) => {
+            try {
+              let navigateEvent: FrontmanBindings.NavigateEvent.t = ev->Obj.magic
+              let destinationUrl =
+                navigateEvent
+                ->FrontmanBindings.NavigateEvent.destination
+                ->FrontmanBindings.NavigateEvent.url
+              let currentUrl = iframeWindow->WebAPI.Window.location->WebAPI.Location.href
+              switch Client__BrowserUrl.resolveUrlWithBase(~url=destinationUrl, ~base=currentUrl) {
+              | None => ()
+              | Some(resolvedDestinationUrl) =>
+                switch Client__BrowserUrl.isSameOriginWithBase(
+                  ~baseUrl=currentUrl,
+                  ~targetUrl=resolvedDestinationUrl,
+                ) {
+                | false => WebAPI.Event.preventDefault(ev)
+                | true =>
+                  // If the iframe is trying to navigate to a /frontman URL, intercept
+                  // and redirect to the stripped version so we never load frontman-in-frontman.
+                  let parsed = WebAPI.URL.make(~url=resolvedDestinationUrl)
+                  let cleanPath = Client__BrowserUrl.stripSuffix(parsed.pathname)
+                  switch cleanPath != parsed.pathname {
+                  | false => setLocation(_ => Some(resolvedDestinationUrl))
+                  | true =>
+                    WebAPI.Event.preventDefault(ev)
+                    let cleanUrl = `${parsed.origin}${cleanPath}`
+                    iframeWindow->WebAPI.Window.location->WebAPI.Location.assign(cleanUrl)
+                  }
+                }
               }
+            } catch {
+            | _ => () // Cross-origin frame became inaccessible
             }
           }
+
+          WebAPI.Navigation.addEventListener(
+            iframeWindow.navigation,
+            Custom("navigate"),
+            onNavigation,
+            ~options={capture: false},
+          )
+
+          Some(
+            () => {
+              try {
+                WebAPI.Navigation.removeEventListener(
+                  iframeWindow.navigation,
+                  Custom("navigate"),
+                  onNavigation,
+                  ~options={capture: false},
+                )
+              } catch {
+              | _ => () // Cross-origin frame — listener already inaccessible
+              }
+            },
+          )
+        } catch {
+        | _ =>
+          // Cross-origin iframe — treat like getIframeWindowSafe returning None
+          setLocation(_ => None)
+          None
         }
-
-        WebAPI.Navigation.addEventListener(
-          iframeWindow.navigation,
-          Custom("navigate"),
-          onNavigation,
-          ~options={capture: false},
-        )
-
-        Some(
-          () => {
-            WebAPI.Navigation.removeEventListener(
-              iframeWindow.navigation,
-              Custom("navigate"),
-              onNavigation,
-              ~options={capture: false},
-            )
-          },
-        )
       }
     }
   }, (iframeElement, attachmentKey))

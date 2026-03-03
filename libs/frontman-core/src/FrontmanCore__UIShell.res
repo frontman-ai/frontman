@@ -35,6 +35,8 @@ let generateHTML = (config: MiddlewareConfig.t): string => {
     let configObj = Dict.fromArray([
       ("framework", JSON.Encode.string(MiddlewareConfig.frameworkIdToString(config.frameworkId))),
       ("basePath", JSON.Encode.string(config.basePath)),
+      ("projectRoot", JSON.Encode.string(config.projectRoot)),
+      ("sourceRoot", JSON.Encode.string(config.sourceRoot)),
     ])
     // Add key value if present and non-empty
     openrouterKey->Option.forEach(key => {

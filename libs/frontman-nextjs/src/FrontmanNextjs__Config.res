@@ -1,3 +1,11 @@
+// Injected at build time by tsup define — crash if missing so we catch broken builds immediately.
+// Must use %raw with typeof guard: @val external won't work because __PACKAGE_VERSION__ is a
+// build-time constant replaced by tsup, not a runtime global.
+let packageVersion: string = %raw(`typeof __PACKAGE_VERSION__ !== "undefined" ? __PACKAGE_VERSION__ : undefined`)
+let () = if Js.typeof(packageVersion) == "undefined" {
+  JsError.throwWithMessage("__PACKAGE_VERSION__ is not defined — tsup build is misconfigured")
+}
+
 module Bindings = FrontmanBindings
 module Hosts = FrontmanAiFrontmanCore.FrontmanCore__Hosts
 
@@ -74,7 +82,7 @@ let make = (
 
   let basePath = basePath->Option.getOr("frontman")
   let serverName = serverName->Option.getOr("frontman-nextjs")
-  let serverVersion = serverVersion->Option.getOr("1.0.0")
+  let serverVersion = serverVersion->Option.getOr(packageVersion)
   let isLightTheme = isLightTheme->Option.getOr(false)
 
   let projectRoot =

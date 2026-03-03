@@ -69,10 +69,12 @@ defmodule FrontmanServerWeb.Router do
     # Add organization-scoped routes here
   end
 
-  # Other scopes may use custom stacks.
-  # scope "/api", FrontmanServerWeb do
-  #   pipe_through :api
-  # end
+  # Public API routes (no auth required)
+  scope "/api", FrontmanServerWeb do
+    pipe_through(:api)
+
+    get("/integrations/latest-versions", IntegrationsController, :latest_versions)
+  end
 
   # Enable LiveDashboard and Swoosh mailbox preview in development
   if Application.compile_env(:frontman_server, :dev_routes) do

@@ -143,7 +143,7 @@ let make = (
       <div className="text-[14px] leading-relaxed text-white font-semibold">
         {textParts->Array.mapWithIndex((text, i) => {
           let key = `${messageId}-text-${Int.toString(i)}`
-          <div key className="whitespace-pre-wrap">{React.string(text)}</div>
+          <div key className="whitespace-pre-wrap break-words">{React.string(text)}</div>
         })->React.array}
       </div>
     </div>

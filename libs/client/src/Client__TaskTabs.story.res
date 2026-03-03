@@ -78,6 +78,9 @@ module Fixtures = {
     selectedModel: None,
     pendingProviderAutoSelect: None,
     sessionsLoadState: StateTypes.SessionsNotLoaded,
+    updateInfo: None,
+    updateCheckStatus: StateTypes.UpdateNotChecked,
+    updateBannerDismissed: false,
   }
 
   let stateWithTasks = (~tasks: array<StateReducer.Task.t>, ~currentTaskId=?): StateTypes.state => {

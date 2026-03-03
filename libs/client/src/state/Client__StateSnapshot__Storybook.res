@@ -192,6 +192,9 @@ let snapshotToState = (snapshot: Snapshot.t): StateTypes.state => {
     selectedModel: None,
     pendingProviderAutoSelect: None,
     sessionsLoadState: Client__State__Types.SessionsNotLoaded, // Cannot restore load state from snapshot
+    updateInfo: None,
+    updateCheckStatus: Client__State__Types.UpdateNotChecked,
+    updateBannerDismissed: false,
   }
 }
 

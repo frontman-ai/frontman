@@ -172,4 +172,10 @@ module Actions = {
 
   let sessionsLoadError = (~error: string) =>
     Client__State__Store.dispatch(SessionsLoadError({error: error}))
+
+  // Update banner action creators
+  let checkForUpdate = (~installedVersion, ~npmPackage) =>
+    Client__State__Store.dispatch(CheckForUpdate({installedVersion, npmPackage}))
+
+  let dismissUpdateBanner = () => Client__State__Store.dispatch(DismissUpdateBanner)
 }

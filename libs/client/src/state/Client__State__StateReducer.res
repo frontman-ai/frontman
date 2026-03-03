@@ -86,6 +86,10 @@ type action =
       sessions: array<FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.sessionSummary>,
     })
   | SessionsLoadError({error: string})
+  // Update banner actions
+  | CheckForUpdate({installedVersion: string, npmPackage: string})
+  | UpdateInfoReceived({updateInfo: Client__State__Types.updateInfo})
+  | DismissUpdateBanner
 
 type effect =
   | TaskEffect({target: taskTarget, effect: TaskReducer.effect})
@@ -107,6 +111,8 @@ type effect =
   | FetchUserProfileEffect({apiBaseUrl: string})
   // Task loading effect
   | LoadTaskEffect({taskId: string})
+  // Update check effect
+  | CheckForUpdateEffect({apiBaseUrl: string, installedVersion: string, npmPackage: string})
 
 // ============================================================================
 // Lens helpers for state updates
@@ -196,6 +202,9 @@ let defaultState: state = {
   selectedModel: loadSelectedModelFromStorage(), // Load from localStorage on init
   pendingProviderAutoSelect: None,
   sessionsLoadState: Client__State__Types.SessionsNotLoaded,
+  updateInfo: None,
+  updateCheckStatus: UpdateNotChecked,
+  updateBannerDismissed: false,
 }
 
 let actionToString = action => {
@@ -258,6 +267,10 @@ let actionToString = action => {
   | SessionsLoadSuccess({sessions}) =>
     `SessionsLoadSuccess(${sessions->Array.length->Int.toString} sessions)`
   | SessionsLoadError({error}) => `SessionsLoadError(${error})`
+  | CheckForUpdate({npmPackage}) => `CheckForUpdate(${npmPackage})`
+  | UpdateInfoReceived({updateInfo}) =>
+    `UpdateInfoReceived(${updateInfo.npmPackage} ${updateInfo.installedVersion} -> ${updateInfo.latestVersion})`
+  | DismissUpdateBanner => `DismissUpdateBanner`
   }
 }
 
@@ -444,6 +457,19 @@ module Selectors = {
   // Get ChatGPT OAuth status
   let chatgptOAuthStatus = (state: state): Client__State__Types.chatgptOAuthStatus => {
     state.chatgptOAuthStatus
+  }
+
+  // Get update info for the banner
+  let updateInfo = (state: state): option<Client__State__Types.updateInfo> => {
+    state.updateInfo
+  }
+
+  let updateCheckStatus = (state: state): Client__State__Types.updateCheckStatus => {
+    state.updateCheckStatus
+  }
+
+  let updateBannerDismissed = (state: state): bool => {
+    state.updateBannerDismissed
   }
 
   // Whether the user has any API provider configured via state-tracked sources
@@ -1078,6 +1104,37 @@ let handleEffect = (effect, state: state, dispatch) => {
         TaskAction({target: ForTask(taskId), action: LoadError({error: "No active ACP session"})}),
       )
     }
+  | CheckForUpdateEffect({apiBaseUrl, installedVersion, npmPackage}) =>
+    let fetch = async () => {
+      try {
+        let url = `${apiBaseUrl}/api/integrations/latest-versions`
+        let response = await WebAPI.Global.fetch(url, ~init={credentials: Include})
+        if response.ok {
+          let json = await response->WebAPI.Response.json
+          // Parse { versions: { "@frontman-ai/vite": "0.5.0", ... } }
+          let latestVersion =
+            json
+            ->JSON.Decode.object
+            ->Option.flatMap(obj => obj->Dict.get("versions"))
+            ->Option.flatMap(v => v->JSON.Decode.object)
+            ->Option.flatMap(versions => versions->Dict.get(npmPackage))
+            ->Option.flatMap(v => v->JSON.Decode.string)
+
+          switch latestVersion {
+          | Some(latest) if latest !== installedVersion =>
+            dispatch(
+              UpdateInfoReceived({
+                updateInfo: {npmPackage, installedVersion, latestVersion: latest},
+              }),
+            )
+          | _ => () // Same version, unknown package, or null from registry — no banner
+          }
+        }
+      } catch {
+      | exn => Log.error(~ctx={"error": exn}, "CheckForUpdate failed")
+      }
+    }
+    fetch()->ignore
   }
 }
 
@@ -1686,5 +1743,27 @@ let next = (state: state, action) => {
       ...state,
       sessionsLoadState: Client__State__Types.SessionsLoadError(error),
     }->FrontmanReactStatestore.StateReducer.update
+
+  // ============================================================================
+  // Update banner actions
+  // ============================================================================
+
+  | CheckForUpdate({installedVersion, npmPackage}) =>
+    switch (state.updateCheckStatus, state.acpSession) {
+    | (UpdateNotChecked, AcpSessionActive({apiBaseUrl})) =>
+      {
+        ...state,
+        updateCheckStatus: Client__State__Types.UpdateChecked,
+      }->FrontmanReactStatestore.StateReducer.update(
+        ~sideEffects=[CheckForUpdateEffect({apiBaseUrl, installedVersion, npmPackage})],
+      )
+    | _ => state->FrontmanReactStatestore.StateReducer.update
+    }
+
+  | UpdateInfoReceived({updateInfo}) =>
+    {...state, updateInfo: Some(updateInfo)}->FrontmanReactStatestore.StateReducer.update
+
+  | DismissUpdateBanner =>
+    {...state, updateBannerDismissed: true}->FrontmanReactStatestore.StateReducer.update
   }
 }

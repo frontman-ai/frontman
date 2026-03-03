@@ -34,12 +34,16 @@ type parsed = {
   // UIShell always sets this, but tests and non-standard embeddings may omit it.
   basePath: option<string>,
   openrouterKeyValue: option<string>,
+  projectRoot: option<string>,
+  sourceRoot: option<string>,
 }
 
 type t = {
   framework: frameworkId,
   basePath: string,
   openrouterKeyValue: option<string>,
+  projectRoot: option<string>,
+  sourceRoot: option<string>,
 }
 
 let read = (): t => {
@@ -58,6 +62,8 @@ let read = (): t => {
     | Some(bp) => bp
     },
     openrouterKeyValue: config.openrouterKeyValue,
+    projectRoot: config.projectRoot,
+    sourceRoot: config.sourceRoot,
   }
 }
 
@@ -65,6 +71,14 @@ let read = (): t => {
 let hasOpenrouterKey = (config: t): bool => {
   config.openrouterKeyValue->Option.isSome
 }
+
+// Map framework ID to the npm package name for update checks
+let frameworkToNpmPackage = (id: frameworkId): string =>
+  switch id {
+  | Nextjs => "@frontman-ai/nextjs"
+  | Vite => "@frontman-ai/vite"
+  | Astro => "@frontman-ai/astro"
+  }
 
 // Convert runtime config to metadata JSON for ACP prompt requests
 // Includes framework and openrouterKeyValue so the server knows

@@ -33,6 +33,9 @@ let _makeState = (~anthropicOAuthStatus=Types.NotConnected, ~chatgptOAuthStatus=
     selectedModel,
     pendingProviderAutoSelect,
     sessionsLoadState: Types.SessionsNotLoaded,
+    updateInfo: None,
+    updateCheckStatus: UpdateNotChecked,
+    updateBannerDismissed: false,
   }
 }
 

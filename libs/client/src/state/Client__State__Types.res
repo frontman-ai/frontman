@@ -148,6 +148,18 @@ type userProfile = {
   name: option<string>,
 }
 
+// Integration package update info
+type updateInfo = {
+  npmPackage: string,
+  installedVersion: string,
+  latestVersion: string,
+}
+
+// Update check lifecycle — prevents duplicate fetches
+type updateCheckStatus =
+  | UpdateNotChecked
+  | UpdateChecked
+
 type state = {
   tasks: Dict.t<Task.t>,
   currentTask: Task.currentTask,
@@ -164,4 +176,8 @@ type state = {
   // so the next ModelsConfigReceived auto-selects a default model from it.
   pendingProviderAutoSelect: option<string>,
   sessionsLoadState: sessionsLoadState,
+  // Update banner: set when a newer integration package version is available
+  updateInfo: option<updateInfo>,
+  updateCheckStatus: updateCheckStatus,
+  updateBannerDismissed: bool,
 }

@@ -43,6 +43,9 @@ module TestHelpers = {
         selectedModel: None,
         pendingProviderAutoSelect: None,
         sessionsLoadState: Client__State__Types.SessionsNotLoaded,
+        updateInfo: None,
+        updateCheckStatus: UpdateNotChecked,
+        updateBannerDismissed: false,
       }: Client__State__Types.state
     )
   }
@@ -678,6 +681,9 @@ describe("Client State Reducer - Task Management Actions", () => {
       selectedModel: None,
       pendingProviderAutoSelect: None,
       sessionsLoadState: Client__State__Types.SessionsNotLoaded,
+      updateInfo: None,
+      updateCheckStatus: UpdateNotChecked,
+      updateBannerDismissed: false,
     }
 
     let (nextState, _) = Reducer.next(state, SwitchTask({taskId: "task-2"}))
@@ -727,6 +733,9 @@ describe("Client State Reducer - Task Management Actions", () => {
       selectedModel: None,
       pendingProviderAutoSelect: None,
       sessionsLoadState: Client__State__Types.SessionsNotLoaded,
+      updateInfo: None,
+      updateCheckStatus: UpdateNotChecked,
+      updateBannerDismissed: false,
     }
 
     let (nextState, _) = Reducer.next(state, DeleteTask({taskId: "task-1"}))
@@ -776,6 +785,9 @@ describe("Client State Reducer - Task Management Actions", () => {
       selectedModel: None,
       pendingProviderAutoSelect: None,
       sessionsLoadState: Client__State__Types.SessionsNotLoaded,
+      updateInfo: None,
+      updateCheckStatus: UpdateNotChecked,
+      updateBannerDismissed: false,
     }
 
     // Delete the only task
@@ -846,6 +858,9 @@ describe("Client State Reducer - Task Management Actions", () => {
       selectedModel: None,
       pendingProviderAutoSelect: None,
       sessionsLoadState: Client__State__Types.SessionsNotLoaded,
+      updateInfo: None,
+      updateCheckStatus: UpdateNotChecked,
+      updateBannerDismissed: false,
     }
 
     // Add message to task 1
@@ -966,6 +981,9 @@ describe("Client State Reducer - Session Loading Actions", () => {
       selectedModel: None,
       pendingProviderAutoSelect: None,
       sessionsLoadState: Client__State__Types.SessionsLoading,
+      updateInfo: None,
+      updateCheckStatus: UpdateNotChecked,
+      updateBannerDismissed: false,
     }
 
     // Load sessions including one with the same ID as existing task
@@ -1055,6 +1073,9 @@ describe("Client State Reducer - Session Loading Actions", () => {
       selectedModel: None,
       pendingProviderAutoSelect: None,
       sessionsLoadState: Client__State__Types.SessionsLoaded,
+      updateInfo: None,
+      updateCheckStatus: UpdateNotChecked,
+      updateBannerDismissed: false,
     }
 
     let (nextState, _effects) = Reducer.next(

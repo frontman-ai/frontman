@@ -865,23 +865,34 @@ let currentPageToContentBlock = (previewFrame: Task.previewFrame): ACPTypes.cont
   let url = previewFrame.url
 
   // Read viewport and display info from iframe's contentWindow
+  // Wrapped in try/catch because the iframe may be cross-origin in
+  // containerized worktrees (different subdomains), causing SecurityError.
   let (viewportWidth, viewportHeight, dpr, scrollY) = switch previewFrame.contentWindow {
-  | Some(win) => (
-      Some(win.innerWidth),
-      Some(win.innerHeight),
-      Some(win.devicePixelRatio),
-      Some(win.scrollY->Float.toInt),
-    )
+  | Some(win) =>
+    try {
+      (
+        Some(win.innerWidth),
+        Some(win.innerHeight),
+        Some(win.devicePixelRatio),
+        Some(win.scrollY->Float.toInt),
+      )
+    } catch {
+    | _ => (None, None, None, None)
+    }
   | None => (None, None, None, None)
   }
 
   // Read page title from iframe's contentDocument
   let title = switch previewFrame.contentDocument {
   | Some(doc) =>
-    let t = getDocumentTitle(doc)
-    switch t {
-    | "" => None
-    | value => Some(value)
+    try {
+      let t = getDocumentTitle(doc)
+      switch t {
+      | "" => None
+      | value => Some(value)
+      }
+    } catch {
+    | _ => None
     }
   | None => None
   }
