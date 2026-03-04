@@ -155,6 +155,12 @@ type updateInfo = {
   latestVersion: string,
 }
 
+// API response from /api/integrations/latest-versions
+@schema
+type latestVersionsResponse = {
+  versions: Dict.t<option<string>>,
+}
+
 // Update check lifecycle — prevents duplicate fetches
 type updateCheckStatus =
   | UpdateNotChecked

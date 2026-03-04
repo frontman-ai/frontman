@@ -1111,16 +1111,11 @@ let handleEffect = (effect, state: state, dispatch) => {
         let response = await WebAPI.Global.fetch(url, ~init={credentials: Include})
         if response.ok {
           let json = await response->WebAPI.Response.json
-          // Parse { versions: { "@frontman-ai/vite": "0.5.0", ... } }
-          let latestVersion =
-            json
-            ->JSON.Decode.object
-            ->Option.flatMap(obj => obj->Dict.get("versions"))
-            ->Option.flatMap(v => v->JSON.Decode.object)
-            ->Option.flatMap(versions => versions->Dict.get(npmPackage))
-            ->Option.flatMap(v => v->JSON.Decode.string)
-
-          switch latestVersion {
+          let {versions} = S.parseJsonOrThrow(
+            json,
+            Client__State__Types.latestVersionsResponseSchema,
+          )
+          switch versions->Dict.get(npmPackage)->Option.flatMap(v => v) {
           | Some(latest) if latest !== installedVersion =>
             dispatch(
               UpdateInfoReceived({
