@@ -1,5 +1,16 @@
 # @frontman-ai/frontman-client
 
+## 0.3.2
+
+### Patch Changes
+
+- [#455](https://github.com/frontman-ai/frontman/pull/455) [`ed92762`](https://github.com/frontman-ai/frontman/commit/ed92762d46a3d26957eba8e68077398628e74f30) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Filter third-party errors from Frontman's internal Sentry reporting. Extracts shared Sentry types, config (DSN, internal-dev detection), and a `beforeSend` filter into `@frontman/bindings` so all framework integrations share a single source of truth. The filter inspects stacktrace frames and drops events that don't originate from Frontman code, preventing noise from framework internals (e.g. Next.js/Turbopack source-map WASM fetch failures). Both `@frontman-ai/nextjs` and `@frontman-ai/frontman-client` now use this shared filter.
+
+- [#461](https://github.com/frontman-ai/frontman/pull/461) [`746666e`](https://github.com/frontman-ai/frontman/commit/746666eec12531c56835a7e0e4da25efa136d927) Thanks [@itayadler](https://github.com/itayadler)! - Enforce pure bindings architecture: extract all business logic from `@frontman/bindings` to domain packages, delete dead code, rename Sentry modules, and fix circular dependency in frontman-protocol.
+
+- Updated dependencies [[`0e02a6a`](https://github.com/frontman-ai/frontman/commit/0e02a6ab637979e8f1276390e8608d998ec6edc1)]:
+  - @frontman/logs@0.1.1
+
 ## 0.3.1
 
 ### Patch Changes

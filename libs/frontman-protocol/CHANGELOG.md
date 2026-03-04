@@ -1,5 +1,11 @@
 # @frontman-ai/frontman-protocol
 
+## 0.4.1
+
+### Patch Changes
+
+- [#461](https://github.com/frontman-ai/frontman/pull/461) [`746666e`](https://github.com/frontman-ai/frontman/commit/746666eec12531c56835a7e0e4da25efa136d927) Thanks [@itayadler](https://github.com/itayadler)! - Enforce pure bindings architecture: extract all business logic from `@frontman/bindings` to domain packages, delete dead code, rename Sentry modules, and fix circular dependency in frontman-protocol.
+
 ## 0.4.0
 
 ### Minor Changes

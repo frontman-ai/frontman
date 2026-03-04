@@ -1,5 +1,20 @@
 # @frontman/frontman-server-assets
 
+## 0.1.5
+
+### Patch Changes
+
+- [#486](https://github.com/frontman-ai/frontman/pull/486) [`2f979b4`](https://github.com/frontman-ai/frontman/commit/2f979b4ba0f1058284f5780ab8ff2fdbf9fde760) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Fix framework-specific prompt guidance never being applied in production. The middleware sent display labels like "Next.js" but the server matched on "nextjs", so 120+ lines of Next.js expert guidance were silently skipped. Introduces a `Framework` module as single source of truth for framework identity, normalizes at the server boundary, and updates client adapters to send normalized IDs.
+
+- [#497](https://github.com/frontman-ai/frontman/pull/497) [`32f87db`](https://github.com/frontman-ai/frontman/commit/32f87db122b4e60df36ebebeee918012734ad6b1) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Fix gpt-5.3-codex custom LLMDB capabilities for OpenRouter and OpenAI providers. Tools, streaming tool_calls, and reasoning were incorrectly disabled, causing silent failures when the agent framework attempted tool calling with this model.
+
+- [#471](https://github.com/frontman-ai/frontman/pull/471) [`732740c`](https://github.com/frontman-ai/frontman/commit/732740c3e8088c4b5ced77a00a4b2630d0876f62) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Refactor Agents module into Tasks.Execution with proper parent-child dependency injection via Context and Callbacks structs, eliminating bidirectional coupling between Tasks and Agents.
+
+- [#482](https://github.com/frontman-ai/frontman/pull/482) [`604fe62`](https://github.com/frontman-ai/frontman/commit/604fe6291bbb696ae71aab0fd661a0e8fd7858fc) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Track all tool execution failures in Sentry. Adds error reporting for backend tool soft errors, MCP tool errors/timeouts, agent execution failures/crashes, and JSON argument parse failures. Normalizes backend tool result status from "error" to "failed" to fix client-side silent drop, and replaces silent catch-all in the client with a warning log for unexpected statuses.
+
+- Updated dependencies [[`ed92762`](https://github.com/frontman-ai/frontman/commit/ed92762d46a3d26957eba8e68077398628e74f30), [`746666e`](https://github.com/frontman-ai/frontman/commit/746666eec12531c56835a7e0e4da25efa136d927)]:
+  - @frontman-ai/frontman-client@0.3.2
+
 ## 0.1.4
 
 ### Patch Changes

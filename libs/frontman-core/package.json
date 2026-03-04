@@ -3,7 +3,7 @@
 	"publishConfig": {
 		"access": "public"
 	},
-	"version": "0.5.1",
+	"version": "0.5.2",
 	"description": "Core server-side tools for Frontman",
 	"license": "Apache-2.0",
 	"author": "Frontman AI",
@@ -36,8 +36,8 @@
 		"prepublishOnly": "yarn build"
 	},
 	"dependencies": {
-		"@frontman-ai/frontman-protocol": "0.4.0",
-		"@frontman/bindings": "0.3.0",
+		"@frontman-ai/frontman-protocol": "0.4.1",
+		"@frontman/bindings": "0.3.1",
 		"@rescript/runtime": "12.0.0-beta.14",
 		"chrome-launcher": "^1.1.2",
 		"lighthouse": "^12.5.1",
