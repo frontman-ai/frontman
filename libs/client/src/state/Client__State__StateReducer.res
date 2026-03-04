@@ -1,6 +1,7 @@
 module Log = FrontmanLogs.Logs.Make({
   let component = #StateReducer
 })
+module Sentry = FrontmanAiFrontmanClient.FrontmanClient__Sentry
 
 let name = "Client::StateReducer"
 
@@ -1109,24 +1110,36 @@ let handleEffect = (effect, state: state, dispatch) => {
       try {
         let url = `${apiBaseUrl}/api/integrations/latest-versions`
         let response = await WebAPI.Global.fetch(url, ~init={credentials: Include})
-        if response.ok {
+        switch response.ok {
+        | false =>
+          Sentry.captureConnectionError(
+            `CheckForUpdate: HTTP ${response.status->Int.toString} ${response.statusText}`,
+            ~endpoint=url,
+          )
+        | true =>
           let json = await response->WebAPI.Response.json
           let {versions} = S.parseJsonOrThrow(
             json,
             Client__State__Types.latestVersionsResponseSchema,
           )
           switch versions->Dict.get(npmPackage)->Option.flatMap(v => v) {
-          | Some(latest) if latest !== installedVersion =>
+          | Some(latest) if latest === installedVersion => () // Same version — no banner
+          | Some(latest) =>
             dispatch(
               UpdateInfoReceived({
                 updateInfo: {npmPackage, installedVersion, latestVersion: latest},
               }),
             )
-          | _ => () // Same version, unknown package, or null from registry — no banner
+          | None =>
+            Sentry.captureConnectionError(
+              `CheckForUpdate: package "${npmPackage}" not found or null in registry response`,
+              ~endpoint=url,
+            )
           }
         }
       } catch {
-      | exn => Log.error(~ctx={"error": exn}, "CheckForUpdate failed")
+      | exn =>
+        Sentry.captureException(exn, ~operation="CheckForUpdate")
       }
     }
     fetch()->ignore
