@@ -9,7 +9,7 @@ export default defineConfig({
     testTimeout: 10000,
 
     // Pattern for compiled ReScript test files
-    include: ["test/**/*.test.res.mjs"],
+    include: ["test/**/*_test.res.mjs"],
 
     // Allow console output from tests
     silent: false,

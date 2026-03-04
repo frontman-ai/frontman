@@ -69,7 +69,7 @@ let locationReload: WebAPI.DOMAPI.window => unit = %raw(`
 `)
 
 let execute = async (input: input): toolResult<output> => {
-  let state = FrontmanReactStatestore.StateStore.getState(Client__State__Store.store)
+  let state = StateStore.getState(Client__State__Store.store)
 
   // Get the current task's preview frame
   let previewFrame = Client__State__StateReducer.Selectors.previewFrame(state)

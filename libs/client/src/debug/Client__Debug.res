@@ -19,7 +19,7 @@ type debugObject = {
 
 // Get the current state from the store
 let getCurrentState = (): Client__State__Types.state => {
-  FrontmanReactStatestore.StateStore.getState(Client__State__Store.store)
+  StateStore.getState(Client__State__Store.store)
 }
 
 // Capture the current state as a snapshot

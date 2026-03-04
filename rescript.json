@@ -8,7 +8,7 @@
 		"@frontman-ai/frontman-client",
 		"@frontman-ai/nextjs",
 		"@frontman-ai/frontman-protocol",
-		"@frontman/react-statestore",
+		"@frontman-ai/react-statestore",
 		"@rescript/webapi"
 	],
 	"package-specs": {

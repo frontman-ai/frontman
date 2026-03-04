@@ -126,7 +126,7 @@ let execute = async (input: input): toolResult<output> => {
           })
         } else {
           try {
-            let state = FrontmanReactStatestore.StateStore.getState(Client__State__Store.store)
+            let state = StateStore.getState(Client__State__Store.store)
             let provider = state.selectedModel->Option.map(m => m.provider)
             let limits = Client__ImageLimits.forProvider(provider)
             let scale = Client__ImageLimits.computeScale(element, limits.maxDimension)

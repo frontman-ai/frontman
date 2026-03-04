@@ -487,9 +487,9 @@ worktree-pod-logs:
 # Release
 # ============================================================================
 ## REL_START
-.PHONY: publish publish-astro publish-vite publish-nextjs publish-swarm-ai release
+.PHONY: publish publish-astro publish-vite publish-nextjs publish-react-statestore publish-swarm-ai release
 
-publish: publish-astro publish-vite publish-nextjs ## Publish all npm packages (pass OTP=<code> for 2FA)
+publish: publish-astro publish-vite publish-nextjs publish-react-statestore ## Publish all npm packages (pass OTP=<code> for 2FA)
 
 publish-astro: ## Publish @frontman-ai/astro to npm (pass OTP=<code> for 2FA)
 	cd libs/frontman-astro && $(MAKE) publish OTP=$(OTP)
@@ -499,6 +499,9 @@ publish-vite: ## Publish @frontman-ai/vite to npm (pass OTP=<code> for 2FA)
 
 publish-nextjs: ## Publish @frontman-ai/nextjs to npm (pass OTP=<code> for 2FA)
 	cd libs/frontman-nextjs && $(MAKE) publish OTP=$(OTP)
+
+publish-react-statestore: ## Publish @frontman-ai/react-statestore to npm (pass OTP=<code> for 2FA)
+	cd libs/react-statestore && $(MAKE) publish OTP=$(OTP)
 
 publish-swarm-ai: ## Publish swarm_ai to Hex (dry run by default, HEX_PUBLISH=1 for real)
 	cd apps/swarm_ai && $(MAKE) hex-publish HEX_PUBLISH=$(HEX_PUBLISH)

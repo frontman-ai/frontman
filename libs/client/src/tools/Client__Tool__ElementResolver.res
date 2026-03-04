@@ -26,7 +26,7 @@ let withPreviewDoc = (
   ~onUnavailable: unit => 'a,
   fn: previewContext => 'a,
 ): 'a => {
-  let state = FrontmanReactStatestore.StateStore.getState(Client__State__Store.store)
+  let state = StateStore.getState(Client__State__Store.store)
   let previewFrame = Client__State__StateReducer.Selectors.previewFrame(state)
   switch (previewFrame.contentDocument, previewFrame.contentWindow) {
   | (Some(doc), Some(win)) => fn({doc, win})

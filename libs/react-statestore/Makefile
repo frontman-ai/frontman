@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help install test test-watch test-coverage lint dev build clean check
+.PHONY: help install test test-watch test-coverage lint dev build clean check publish
 
 SHELL := /bin/bash
 PATH := ./node_modules/.bin:$(PATH)
@@ -32,3 +32,6 @@ clean: ## Clean build artifacts and temporary files
 	yarn rescript clean
 
 check: lint test ## Run all checks (lint + test)
+
+publish: build ## Build and publish to npm (pass OTP=<code> for 2FA)
+	npm publish $(if $(OTP),--otp=$(OTP))

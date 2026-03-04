@@ -12,7 +12,6 @@ type args = unit
 module StateReducer = Client__State__StateReducer
 module StateTypes = Client__State__Types
 module Store = Client__State__Store
-module StateStore = FrontmanReactStatestore.StateStore
 
 // Helper to force state for testing
 let _forceState = (state: StateTypes.state) => {

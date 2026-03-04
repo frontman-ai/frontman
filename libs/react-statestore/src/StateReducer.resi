@@ -7,30 +7,9 @@ module type Interface = {
   let handleEffect: (effect, state, action => unit) => unit
 }
 
-module type InterfaceWithLogging = {
-  include Interface
-  let actionToString: action => string
-}
-
 let update: (~sideEffect: 'a=?, ~sideEffects: array<'a>=?, 'b) => ('b, array<'a>)
 
 let useReducer: (
   module(Interface with type action = 'action and type effect = 'effect and type state = 'state),
   'state,
 ) => ('state, 'action => unit)
-
-let useLoggingReducer: (
-  module(InterfaceWithLogging with
-    type action = 'action
-    and type effect = 'effect
-    and type state = 'state
-  ),
-  'state,
-) => ('state, 'action => unit)
-
-type reducer<'state, 'action, 'effect> = ('state, 'action) => ('state, array<'effect>)
-
-let loggingReducer: (
-  reducer<'state, 'action, 'effect>,
-  'action => string,
-) => reducer<'state, 'action, 'effect>

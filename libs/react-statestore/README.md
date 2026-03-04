@@ -1,33 +1,59 @@
-# React StateStore
+# @frontman-ai/react-statestore
 
-ReScript state management for React with pure reducers and side effects.
+ReScript state management for React with pure reducers and managed side effects.
 
-Two tools that work well together (but you can use just one):
+Two tools that work well together (or standalone):
 
-- **StateStore**: Global state across your app (like Redux)
-- **StateReducer**: Local state for a single component (like useReducer)
+- **StateReducer** -- Local component state (like `useReducer` with side effects)
+- **StateStore** -- Global state with concurrent-safe selectors (like Redux, but tiny)
 
-Pick what you need - global, local, or both.
+## Installation
 
-## Example: Global State with StateStore
+```bash
+npm install @frontman-ai/react-statestore
+```
+
+Add to your `rescript.json`:
+
+```json
+{
+  "dependencies": ["@frontman-ai/react-statestore"]
+}
+```
+
+### Requirements
+
+- ReScript 12+
+- React 19+
+- `@rescript/react` ^0.14.0
+
+## Quick Start
+
+### 1. Define your types
 
 ```rescript
-// 1. Define types (Counter__Types.res)
+// Counter__Types.res
 type state = {count: int}
 type action = Increment | Decrement | Reset
 type effect = LogCount(int)
+```
 
-// 2. Implement reducer (Counter__Reducer.res)
+### 2. Implement the reducer
+
+```rescript
+// Counter__Reducer.res
+type state = Counter__Types.state
+type action = Counter__Types.action
+type effect = Counter__Types.effect
+
 let name = "Counter"
-type state = state
-type action = action
-type effect = effect
 
 let next = (state, action) => {
   switch action {
-  | Increment => StateReducer.update(
+  | Increment =>
+    StateReducer.update(
       {count: state.count + 1},
-      ~sideEffect=LogCount(state.count + 1)
+      ~sideEffect=LogCount(state.count + 1),
     )
   | Decrement => StateReducer.update({count: state.count - 1})
   | Reset => StateReducer.update({count: 0})
@@ -39,17 +65,24 @@ let handleEffect = (effect, _state, _dispatch) => {
   | LogCount(n) => Console.log(`Count is now: ${n->Int.toString}`)
   }
 }
+```
 
-// 3. Create store (Counter__Store.res)
+### 3. Create a global store (optional)
+
+```rescript
+// Counter__Store.res
 let store = StateStore.make(module(Counter__Reducer), {count: 0})
-
 let dispatch = action => store->StateStore.dispatch(action)
 
 module Selectors = {
-  let count = (state: state) => state.count
+  let count = (state: Counter__Types.state) => state.count
 }
+```
 
-// 4. Use in component (App.res)
+### 4. Use in components
+
+```rescript
+// With global store
 @react.component
 let make = () => {
   let count = StateStore.useSelector(Counter__Store.store, Counter__Store.Selectors.count)
@@ -59,31 +92,125 @@ let make = () => {
     <button onClick={_ => Counter__Store.dispatch(Increment)}>
       {React.string("+")}
     </button>
-    <button onClick={_ => Counter__Store.dispatch(Decrement)}>
-      {React.string("-")}
-    </button>
-    <button onClick={_ => Counter__Store.dispatch(Reset)}>
-      {React.string("Reset")}
+  </div>
+}
+```
+
+```rescript
+// With local state
+@react.component
+let make = () => {
+  let (state, dispatch) = StateReducer.useReducer(module(Counter__Reducer), {count: 0})
+
+  <div>
+    <p>{React.string(`Count: ${state.count->Int.toString}`)}</p>
+    <button onClick={_ => dispatch(Increment)}>
+      {React.string("+")}
     </button>
   </div>
 }
 ```
 
-## What you get
+## API Reference
 
-- **Pure reducers**: `next` function computes new state without side effects
-- **Separate effects**: `handleEffect` runs side effects after state updates
-- **Efficient selectors**: Components only re-render when their selected data changes
-- **Type safety**: ReScript ensures type correctness across your state management
+### StateReducer
 
-## Key concepts
+#### `module type Interface`
 
-**StateReducer**: For local component state
+The interface your reducer module must satisfy:
+
+```rescript
+module type Interface = {
+  type state
+  type action
+  type effect
+  let name: string
+  let next: (state, action) => (state, array<effect>)
+  let handleEffect: (effect, state, action => unit) => unit
+}
+```
+
+#### `StateReducer.update(state, ~sideEffect=?, ~sideEffects=?)`
+
+Helper to build the `(state, array<effect>)` return value from `next`:
+
+```rescript
+// No effects
+StateReducer.update(newState)
+
+// Single effect
+StateReducer.update(newState, ~sideEffect=MyEffect)
+
+// Multiple effects
+StateReducer.update(newState, ~sideEffects=[Effect1, Effect2])
+```
+
+#### `StateReducer.useReducer(module(Reducer), initialState)`
+
+React hook for local component state with managed side effects.
+
 ```rescript
 let (state, dispatch) = StateReducer.useReducer(module(MyReducer), initialState)
 ```
 
-**StateStore**: For global state with selectors
+### StateStore
+
+#### `StateStore.make(module(Reducer), initialState)`
+
+Create a global store instance:
+
 ```rescript
-let value = StateStore.useSelector(store, state => state.someField)
+let store = StateStore.make(module(MyReducer), {count: 0})
 ```
+
+#### `StateStore.dispatch(store, action)`
+
+Dispatch an action to update state and run effects:
+
+```rescript
+store->StateStore.dispatch(Increment)
+```
+
+#### `StateStore.getState(store)`
+
+Read current state outside of React:
+
+```rescript
+let currentState = StateStore.getState(store)
+```
+
+#### `StateStore.subscribe(store, callback)`
+
+Subscribe to state changes. Returns an unsubscribe function:
+
+```rescript
+let unsubscribe = StateStore.subscribe(store, () => Console.log("state changed"))
+```
+
+#### `StateStore.useSelector(store, selector, ~compare=?)`
+
+React hook that subscribes to a slice of state. Uses `useSyncExternalStoreWithSelector` for concurrent-mode safety. Components only re-render when the selected value changes.
+
+```rescript
+let count = StateStore.useSelector(store, state => state.count)
+```
+
+Custom equality:
+
+```rescript
+let items = StateStore.useSelector(
+  ~compare=Some((a, b) => a.id == b.id),
+  store,
+  state => state.selectedItem,
+)
+```
+
+## Design Principles
+
+The `next` function is pure -- it computes new state and declares effects as data, with no side effects. Side effects are values returned from the reducer rather than callbacks; they run after the state update, so reducers stay testable without mocking.
+
+The global store uses React's `useSyncExternalStoreWithSelector` to prevent tearing in concurrent mode. Selectors use custom structural equality that skips deep object comparison (assumes immutable state) while still handling array comparison.
+
+## License
+
+[Apache-2.0](./LICENSE)

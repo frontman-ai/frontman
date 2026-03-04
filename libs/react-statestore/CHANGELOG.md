@@ -1,10 +1,10 @@
-# @frontman/react-statestore
+# @frontman-ai/react-statestore
 
-## 0.0.2
+## 0.1.0
 
-### Patch Changes
+### Initial Release
 
-- [#472](https://github.com/frontman-ai/frontman/pull/472) [`0e02a6a`](https://github.com/frontman-ai/frontman/commit/0e02a6ab637979e8f1276390e8608d998ec6edc1) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Migrate direct Console.\* calls to structured @frontman/logs logging in client-side packages. Replaces ~40 Console.log/error/warn calls across 11 files with component-tagged, level-filtered Log.info/error/warning/debug calls. Extends LogComponent.t with 10 new component variants for the migrated modules.
-
-- Updated dependencies [[`0e02a6a`](https://github.com/frontman-ai/frontman/commit/0e02a6ab637979e8f1276390e8608d998ec6edc1)]:
-  - @frontman/logs@0.1.1
+- **StateReducer**: Local component state with pure reducers and managed side effects
+- **StateStore**: Global state store with concurrent-safe selectors via `useSyncExternalStoreWithSelector`
+- Efficient custom equality comparison for selectors
+- First-class ReScript support with module functor interface

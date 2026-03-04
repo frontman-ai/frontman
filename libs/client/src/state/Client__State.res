@@ -3,7 +3,7 @@ type state = Client__State__Types.state
 
 // Hook for selecting state
 let useSelector = selection =>
-  FrontmanReactStatestore.StateStore.useSelector(Client__State__Store.store, selection)
+  StateStore.useSelector(Client__State__Store.store, selection)
 
 module Selectors = Client__State__StateReducer.Selectors
 module UserContentPart = Client__State__Types.UserContentPart

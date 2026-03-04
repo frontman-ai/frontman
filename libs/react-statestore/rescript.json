@@ -1,6 +1,6 @@
 {
-	"name": "@frontman/react-statestore",
-	"namespace": true,
+	"name": "@frontman-ai/react-statestore",
+	"namespace": false,
 	"sources": [
 		{
 			"dir": "src",
@@ -19,8 +19,8 @@
 			"suffix": ".res.mjs"
 		}
 	],
-	"dependencies": ["@rescript/react", "@rescript/webapi", "@frontman/logs"],
-	"dev-dependencies": ["rescript-vitest"],
+	"dependencies": ["@rescript/react"],
+	"dev-dependencies": ["rescript-vitest", "@rescript/webapi"],
 	"compiler-flags": [],
 	"jsx": {
 		"version": 4

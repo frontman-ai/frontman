@@ -10,7 +10,6 @@ module Types = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
 module Relay = FrontmanAiFrontmanClient.FrontmanClient__Relay
 module MCPServer = FrontmanAiFrontmanClient.FrontmanClient__MCP__Server
 module Reducer = Client__ConnectionReducer
-module StateReducer = FrontmanReactStatestore.StateReducer
 module RuntimeConfig = Client__RuntimeConfig
 
 // Create the text delta buffer instance and register it as active.
@@ -113,7 +112,7 @@ module Provider = {
 
       // Wire up image ref resolver so write_file can save user-attached images.
       MCPServer.setImageRefResolver(mcpServer, (uri, ~taskId) => {
-        let state = FrontmanReactStatestore.StateStore.getState(Client__State__Store.store)
+        let state = StateStore.getState(Client__State__Store.store)
         Client__State.Selectors.resolveImageRef(state, ~taskId, ~uri)
         ->Option.map(({base64, mediaType}) => {MCPServer.base64, mediaType})
       })

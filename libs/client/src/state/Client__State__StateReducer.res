@@ -138,7 +138,7 @@ module Lens = {
       let (updated, taskEffects) = TaskReducer.next(task, taskAction)
       let wrappedEffects =
         taskEffects->Array.map(eff => TaskEffect({target: CurrentTask, effect: eff}))
-      {...state, currentTask: Task.New(updated)}->FrontmanReactStatestore.StateReducer.update(
+      {...state, currentTask: Task.New(updated)}->StateReducer.update(
         ~sideEffects=wrappedEffects,
       )
     | Task.Selected(id) =>
@@ -148,7 +148,7 @@ module Lens = {
         taskEffects->Array.map(eff => TaskEffect({target: ForTask(id), effect: eff}))
       let tasks = state.tasks->Dict.copy
       tasks->Dict.set(id, updated)
-      {...state, tasks}->FrontmanReactStatestore.StateReducer.update(~sideEffects=wrappedEffects)
+      {...state, tasks}->StateReducer.update(~sideEffects=wrappedEffects)
     }
   }
 }
@@ -1193,7 +1193,7 @@ let next = (state: state, action) => {
       state->Lens.delegateToTask(Task.Selected(taskId), TaskReducer.CancelTurn)
     | Task.New(_) =>
       // No task to cancel
-      state->FrontmanReactStatestore.StateReducer.update
+      state->StateReducer.update
     }
 
   // ============================================================================
@@ -1203,7 +1203,7 @@ let next = (state: state, action) => {
     {
       ...state,
       currentTask: Task.New(Task.makeNew(~previewUrl=getInitialUrl())),
-    }->FrontmanReactStatestore.StateReducer.update
+    }->StateReducer.update
   | SwitchTask({taskId}) => {
       let task = state.tasks->Dict.get(taskId)->Option.getOrThrow
       let needsLoad = Task.isUnloaded(task)
@@ -1218,7 +1218,7 @@ let next = (state: state, action) => {
       {
         ...updatedState,
         currentTask: Task.Selected(taskId),
-      }->FrontmanReactStatestore.StateReducer.update(
+      }->StateReducer.update(
         ~sideEffects=Array.concat([LoadTaskEffect({taskId: taskId})], taskEffects),
       )
     }
@@ -1257,24 +1257,24 @@ let next = (state: state, action) => {
         ...state,
         tasks: updatedTasks,
         currentTask: newCurrentTask,
-      }->FrontmanReactStatestore.StateReducer.update
+      }->StateReducer.update
     }
 
   | ClearCurrentTask =>
     {
       ...state,
       currentTask: Task.New(Task.makeNew(~previewUrl=getInitialUrl())),
-    }->FrontmanReactStatestore.StateReducer.update
+    }->StateReducer.update
 
   | UpdateTaskTitle({taskId, title}) =>
     switch state.tasks->Dict.get(taskId) {
     | Some(_) =>
       state
       ->Lens.updateTask(taskId, task => Task.setTitle(task, title))
-      ->FrontmanReactStatestore.StateReducer.update
+      ->StateReducer.update
     | None =>
       // Task was deleted before the async title update arrived — ignore silently
-      state->FrontmanReactStatestore.StateReducer.update
+      state->StateReducer.update
     }
 
   // ============================================================================
@@ -1289,7 +1289,7 @@ let next = (state: state, action) => {
       ...state,
       acpSession: AcpSessionActive({sendPrompt, cancelPrompt, loadTask, deleteSession, apiBaseUrl}),
       sessionInitialized: true,
-    }->FrontmanReactStatestore.StateReducer.update(
+    }->StateReducer.update(
       ~sideEffects=[
         FetchUsageInfo({apiBaseUrl: apiBaseUrl}),
         FetchUserProfileEffect({apiBaseUrl: apiBaseUrl}),
@@ -1300,7 +1300,7 @@ let next = (state: state, action) => {
     )
 
   | ClearAcpSession =>
-    {...state, acpSession: NoAcpSession}->FrontmanReactStatestore.StateReducer.update
+    {...state, acpSession: NoAcpSession}->StateReducer.update
 
   // ============================================================================
   // Global state actions
@@ -1308,7 +1308,7 @@ let next = (state: state, action) => {
 
   | UsageInfoReceived({usageInfo}) =>
     // Update usage info in state
-    {...state, usageInfo: Some(usageInfo)}->FrontmanReactStatestore.StateReducer.update
+    {...state, usageInfo: Some(usageInfo)}->StateReducer.update
 
   | UserProfileReceived({userProfile}) =>
     // Identify user in Heap Analytics
@@ -1317,16 +1317,16 @@ let next = (state: state, action) => {
       "Email": userProfile.email,
       "Name": userProfile.name->Option.getOr(""),
     })
-    {...state, userProfile: Some(userProfile)}->FrontmanReactStatestore.StateReducer.update
+    {...state, userProfile: Some(userProfile)}->StateReducer.update
 
   // API key settings actions
   | FetchApiKeySettings =>
     switch state.acpSession {
     | AcpSessionActive({apiBaseUrl}) =>
-      state->FrontmanReactStatestore.StateReducer.update(
+      state->StateReducer.update(
         ~sideEffects=[FetchApiKeySettingsEffect({apiBaseUrl: apiBaseUrl})],
       )
-    | NoAcpSession => state->FrontmanReactStatestore.StateReducer.update
+    | NoAcpSession => state->StateReducer.update
     }
 
   | ApiKeySettingsReceived({source}) =>
@@ -1336,12 +1336,12 @@ let next = (state: state, action) => {
         ...state.openrouterKeySettings,
         source,
       },
-    }->FrontmanReactStatestore.StateReducer.update
+    }->StateReducer.update
 
   | SaveOpenRouterKey({key}) =>
     switch state.acpSession {
     | AcpSessionActive({apiBaseUrl}) =>
-      state->FrontmanReactStatestore.StateReducer.update(
+      state->StateReducer.update(
         ~sideEffects=[SaveOpenRouterKeyEffect({apiBaseUrl, key})],
       )
     | NoAcpSession =>
@@ -1351,7 +1351,7 @@ let next = (state: state, action) => {
           ...state.openrouterKeySettings,
           saveStatus: SaveError("No active ACP session"),
         },
-      }->FrontmanReactStatestore.StateReducer.update
+      }->StateReducer.update
     }
 
   | OpenRouterKeySaveStarted =>
@@ -1361,7 +1361,7 @@ let next = (state: state, action) => {
         ...state.openrouterKeySettings,
         saveStatus: Saving,
       },
-    }->FrontmanReactStatestore.StateReducer.update
+    }->StateReducer.update
 
   | OpenRouterKeySaved =>
     // After saving the API key, refresh usage info and models list
@@ -1380,7 +1380,7 @@ let next = (state: state, action) => {
         saveStatus: Saved,
       },
       pendingProviderAutoSelect: Some("openrouter"),
-    }->FrontmanReactStatestore.StateReducer.update(~sideEffects=effects)
+    }->StateReducer.update(~sideEffects=effects)
 
   | OpenRouterKeySaveError({error}) =>
     {
@@ -1389,7 +1389,7 @@ let next = (state: state, action) => {
         ...state.openrouterKeySettings,
         saveStatus: SaveError(error),
       },
-    }->FrontmanReactStatestore.StateReducer.update
+    }->StateReducer.update
 
   | ResetOpenRouterKeySaveStatus =>
     {
@@ -1398,16 +1398,16 @@ let next = (state: state, action) => {
         ...state.openrouterKeySettings,
         saveStatus: Idle,
       },
-    }->FrontmanReactStatestore.StateReducer.update
+    }->StateReducer.update
 
   // Model selection actions
   | FetchModelsConfig =>
     switch state.acpSession {
     | AcpSessionActive({apiBaseUrl}) =>
-      state->FrontmanReactStatestore.StateReducer.update(
+      state->StateReducer.update(
         ~sideEffects=[FetchModelsConfigEffect({apiBaseUrl: apiBaseUrl})],
       )
-    | NoAcpSession => state->FrontmanReactStatestore.StateReducer.update
+    | NoAcpSession => state->StateReducer.update
     }
 
   | ModelsConfigReceived({config}) =>
@@ -1455,12 +1455,12 @@ let next = (state: state, action) => {
       modelsConfig: Some(config),
       selectedModel,
       pendingProviderAutoSelect: None,
-    }->FrontmanReactStatestore.StateReducer.update
+    }->StateReducer.update
 
   | SetSelectedModel({model}) =>
     // Save to localStorage for persistence
     saveSelectedModelToStorage(model)
-    {...state, selectedModel: Some(model)}->FrontmanReactStatestore.StateReducer.update
+    {...state, selectedModel: Some(model)}->StateReducer.update
 
   // Anthropic OAuth actions
   | FetchAnthropicOAuthStatus =>
@@ -1469,10 +1469,10 @@ let next = (state: state, action) => {
       {
         ...state,
         anthropicOAuthStatus: Client__State__Types.FetchingStatus,
-      }->FrontmanReactStatestore.StateReducer.update(
+      }->StateReducer.update(
         ~sideEffects=[FetchAnthropicOAuthStatusEffect({apiBaseUrl: apiBaseUrl})],
       )
-    | NoAcpSession => state->FrontmanReactStatestore.StateReducer.update
+    | NoAcpSession => state->StateReducer.update
     }
 
   | AnthropicOAuthStatusReceived({connected, expiresAt}) =>
@@ -1487,22 +1487,22 @@ let next = (state: state, action) => {
     } else {
       Client__State__Types.NotConnected
     }
-    {...state, anthropicOAuthStatus: status}->FrontmanReactStatestore.StateReducer.update
+    {...state, anthropicOAuthStatus: status}->StateReducer.update
 
   | InitiateAnthropicOAuth =>
     switch state.acpSession {
     | AcpSessionActive({apiBaseUrl}) =>
-      state->FrontmanReactStatestore.StateReducer.update(
+      state->StateReducer.update(
         ~sideEffects=[GetAnthropicOAuthUrlEffect({apiBaseUrl: apiBaseUrl})],
       )
-    | NoAcpSession => state->FrontmanReactStatestore.StateReducer.update
+    | NoAcpSession => state->StateReducer.update
     }
 
   | AnthropicOAuthUrlReceived({authorizeUrl, verifier}) =>
     {
       ...state,
       anthropicOAuthStatus: Client__State__Types.Authorizing({authorizeUrl, verifier}),
-    }->FrontmanReactStatestore.StateReducer.update
+    }->StateReducer.update
 
   | ExchangeAnthropicOAuthCode({code, verifier}) =>
     switch state.acpSession {
@@ -1510,10 +1510,10 @@ let next = (state: state, action) => {
       {
         ...state,
         anthropicOAuthStatus: Client__State__Types.Exchanging,
-      }->FrontmanReactStatestore.StateReducer.update(
+      }->StateReducer.update(
         ~sideEffects=[ExchangeAnthropicOAuthCodeEffect({apiBaseUrl, code, verifier})],
       )
-    | NoAcpSession => state->FrontmanReactStatestore.StateReducer.update
+    | NoAcpSession => state->StateReducer.update
     }
 
   | AnthropicOAuthConnected({expiresAt}) =>
@@ -1527,21 +1527,21 @@ let next = (state: state, action) => {
       ...state,
       anthropicOAuthStatus: Client__State__Types.Connected({expiresAt: expiresAtMs}),
       pendingProviderAutoSelect: Some("anthropic"),
-    }->FrontmanReactStatestore.StateReducer.update(~sideEffects=effects)
+    }->StateReducer.update(~sideEffects=effects)
 
   | AnthropicOAuthError({error}) =>
     {
       ...state,
       anthropicOAuthStatus: Client__State__Types.Error(error),
-    }->FrontmanReactStatestore.StateReducer.update
+    }->StateReducer.update
 
   | DisconnectAnthropicOAuth =>
     switch state.acpSession {
     | AcpSessionActive({apiBaseUrl}) =>
-      state->FrontmanReactStatestore.StateReducer.update(
+      state->StateReducer.update(
         ~sideEffects=[DisconnectAnthropicOAuthEffect({apiBaseUrl: apiBaseUrl})],
       )
-    | NoAcpSession => state->FrontmanReactStatestore.StateReducer.update
+    | NoAcpSession => state->StateReducer.update
     }
 
   | AnthropicOAuthDisconnected =>
@@ -1553,7 +1553,7 @@ let next = (state: state, action) => {
     {
       ...state,
       anthropicOAuthStatus: Client__State__Types.NotConnected,
-    }->FrontmanReactStatestore.StateReducer.update(~sideEffects=effects)
+    }->StateReducer.update(~sideEffects=effects)
 
   | ResetAnthropicOAuthError =>
     // Reset error state back to NotConnected
@@ -1562,8 +1562,8 @@ let next = (state: state, action) => {
       {
         ...state,
         anthropicOAuthStatus: Client__State__Types.NotConnected,
-      }->FrontmanReactStatestore.StateReducer.update
-    | _ => state->FrontmanReactStatestore.StateReducer.update
+      }->StateReducer.update
+    | _ => state->StateReducer.update
     }
 
   // ChatGPT OAuth actions
@@ -1573,10 +1573,10 @@ let next = (state: state, action) => {
       {
         ...state,
         chatgptOAuthStatus: Client__State__Types.ChatGPTFetchingStatus,
-      }->FrontmanReactStatestore.StateReducer.update(
+      }->StateReducer.update(
         ~sideEffects=[FetchChatGPTOAuthStatusEffect({apiBaseUrl: apiBaseUrl})],
       )
-    | NoAcpSession => state->FrontmanReactStatestore.StateReducer.update
+    | NoAcpSession => state->StateReducer.update
     }
 
   | ChatGPTOAuthStatusReceived({connected, expiresAt}) =>
@@ -1595,7 +1595,7 @@ let next = (state: state, action) => {
     | AcpSessionActive({apiBaseUrl}) => [FetchModelsConfigEffect({apiBaseUrl: apiBaseUrl})]
     | NoAcpSession => []
     }
-    {...state, chatgptOAuthStatus: status}->FrontmanReactStatestore.StateReducer.update(
+    {...state, chatgptOAuthStatus: status}->StateReducer.update(
       ~sideEffects=effects,
     )
 
@@ -1605,10 +1605,10 @@ let next = (state: state, action) => {
       {
         ...state,
         chatgptOAuthStatus: Client__State__Types.ChatGPTWaitingForCode,
-      }->FrontmanReactStatestore.StateReducer.update(
+      }->StateReducer.update(
         ~sideEffects=[InitiateChatGPTDeviceAuthEffect({apiBaseUrl: apiBaseUrl})],
       )
-    | NoAcpSession => state->FrontmanReactStatestore.StateReducer.update
+    | NoAcpSession => state->StateReducer.update
     }
 
   | ChatGPTDeviceCodeReceived({deviceAuthId, userCode, verificationUrl}) =>
@@ -1622,7 +1622,7 @@ let next = (state: state, action) => {
           userCode,
           verificationUrl,
         }),
-      }->FrontmanReactStatestore.StateReducer.update(
+      }->StateReducer.update(
         ~sideEffects=[PollChatGPTDeviceAuthEffect({apiBaseUrl, deviceAuthId, userCode})],
       )
     | NoAcpSession =>
@@ -1633,7 +1633,7 @@ let next = (state: state, action) => {
           userCode,
           verificationUrl,
         }),
-      }->FrontmanReactStatestore.StateReducer.update
+      }->StateReducer.update
     }
 
   | ChatGPTOAuthConnected({deviceAuthId, expiresAt}) =>
@@ -1652,8 +1652,8 @@ let next = (state: state, action) => {
         ...state,
         chatgptOAuthStatus: Client__State__Types.ChatGPTConnected({expiresAt: expiresAtMs}),
         pendingProviderAutoSelect: Some("openai"),
-      }->FrontmanReactStatestore.StateReducer.update(~sideEffects=effects)
-    | _ => state->FrontmanReactStatestore.StateReducer.update
+      }->StateReducer.update(~sideEffects=effects)
+    | _ => state->StateReducer.update
     }
 
   | ChatGPTOAuthError({deviceAuthId, error}) =>
@@ -1669,21 +1669,21 @@ let next = (state: state, action) => {
     | None => false
     }
     if isStale {
-      state->FrontmanReactStatestore.StateReducer.update
+      state->StateReducer.update
     } else {
       {
         ...state,
         chatgptOAuthStatus: Client__State__Types.ChatGPTError(error),
-      }->FrontmanReactStatestore.StateReducer.update
+      }->StateReducer.update
     }
 
   | DisconnectChatGPTOAuth =>
     switch state.acpSession {
     | AcpSessionActive({apiBaseUrl}) =>
-      state->FrontmanReactStatestore.StateReducer.update(
+      state->StateReducer.update(
         ~sideEffects=[DisconnectChatGPTOAuthEffect({apiBaseUrl: apiBaseUrl})],
       )
-    | NoAcpSession => state->FrontmanReactStatestore.StateReducer.update
+    | NoAcpSession => state->StateReducer.update
     }
 
   | ChatGPTOAuthDisconnected =>
@@ -1695,7 +1695,7 @@ let next = (state: state, action) => {
     {
       ...state,
       chatgptOAuthStatus: Client__State__Types.ChatGPTNotConnected,
-    }->FrontmanReactStatestore.StateReducer.update(~sideEffects=effects)
+    }->StateReducer.update(~sideEffects=effects)
 
   | ResetChatGPTOAuthError =>
     switch state.chatgptOAuthStatus {
@@ -1703,8 +1703,8 @@ let next = (state: state, action) => {
       {
         ...state,
         chatgptOAuthStatus: Client__State__Types.ChatGPTNotConnected,
-      }->FrontmanReactStatestore.StateReducer.update
-    | _ => state->FrontmanReactStatestore.StateReducer.update
+      }->StateReducer.update
+    | _ => state->StateReducer.update
     }
 
   // ============================================================================
@@ -1715,7 +1715,7 @@ let next = (state: state, action) => {
     {
       ...state,
       sessionsLoadState: Client__State__Types.SessionsLoading,
-    }->FrontmanReactStatestore.StateReducer.update
+    }->StateReducer.update
 
   | SessionsLoadSuccess({sessions}) =>
     // Add persisted sessions to tasks dict (only if not already present)
@@ -1744,13 +1744,13 @@ let next = (state: state, action) => {
       ...state,
       tasks: updatedTasks,
       sessionsLoadState: Client__State__Types.SessionsLoaded,
-    }->FrontmanReactStatestore.StateReducer.update
+    }->StateReducer.update
 
   | SessionsLoadError({error}) =>
     {
       ...state,
       sessionsLoadState: Client__State__Types.SessionsLoadError(error),
-    }->FrontmanReactStatestore.StateReducer.update
+    }->StateReducer.update
 
   // ============================================================================
   // Update banner actions
@@ -1762,16 +1762,16 @@ let next = (state: state, action) => {
       {
         ...state,
         updateCheckStatus: Client__State__Types.UpdateChecked,
-      }->FrontmanReactStatestore.StateReducer.update(
+      }->StateReducer.update(
         ~sideEffects=[CheckForUpdateEffect({apiBaseUrl, installedVersion, npmPackage})],
       )
-    | _ => state->FrontmanReactStatestore.StateReducer.update
+    | _ => state->StateReducer.update
     }
 
   | UpdateInfoReceived({updateInfo}) =>
-    {...state, updateInfo: Some(updateInfo)}->FrontmanReactStatestore.StateReducer.update
+    {...state, updateInfo: Some(updateInfo)}->StateReducer.update
 
   | DismissUpdateBanner =>
-    {...state, updateBannerDismissed: true}->FrontmanReactStatestore.StateReducer.update
+    {...state, updateBannerDismissed: true}->StateReducer.update
   }
 }

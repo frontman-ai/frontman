@@ -207,7 +207,7 @@ let loadSnapshot = (jsonString: string): result<unit, string> => {
   switch Snapshot.fromJsonString(jsonString) {
   | Ok(snapshot) => {
       let state = snapshotToState(snapshot)
-      FrontmanReactStatestore.StateStore.forceSetStateOnlyUseForTestingDoNotUseOtherwiseAtAll(
+      StateStore.forceSetStateOnlyUseForTestingDoNotUseOtherwiseAtAll(
         Client__State__Store.store,
         state,
       )
@@ -220,7 +220,7 @@ let loadSnapshot = (jsonString: string): result<unit, string> => {
 /** Load a snapshot object and apply it to the store */
 let loadSnapshotFromObject = (snapshot: Snapshot.t): unit => {
   let state = snapshotToState(snapshot)
-  FrontmanReactStatestore.StateStore.forceSetStateOnlyUseForTestingDoNotUseOtherwiseAtAll(
+  StateStore.forceSetStateOnlyUseForTestingDoNotUseOtherwiseAtAll(
     Client__State__Store.store,
     state,
   )
@@ -228,7 +228,7 @@ let loadSnapshotFromObject = (snapshot: Snapshot.t): unit => {
 
 /** Reset the store to default state */
 let resetState = (): unit => {
-  FrontmanReactStatestore.StateStore.forceSetStateOnlyUseForTestingDoNotUseOtherwiseAtAll(
+  StateStore.forceSetStateOnlyUseForTestingDoNotUseOtherwiseAtAll(
     Client__State__Store.store,
     Client__State__StateReducer.defaultState,
   )
