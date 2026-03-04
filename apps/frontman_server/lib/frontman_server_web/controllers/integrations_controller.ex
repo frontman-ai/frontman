@@ -56,7 +56,15 @@ defmodule FrontmanServerWeb.IntegrationsController do
         {:exit, _reason}, acc -> acc
       end)
 
-    :persistent_term.put({__MODULE__, :cache}, {versions, System.monotonic_time(:millisecond)})
+    # Only cache when at least one package resolved successfully.
+    # On total failure (all nil / empty map), skip caching so the next
+    # request retries immediately instead of serving stale nils for 30 min.
+    has_valid_version = Enum.any?(versions, fn {_pkg, v} -> v != nil end)
+
+    if has_valid_version do
+      :persistent_term.put({__MODULE__, :cache}, {versions, System.monotonic_time(:millisecond)})
+    end
+
     versions
   end
 

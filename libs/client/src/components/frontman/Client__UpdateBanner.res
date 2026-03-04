@@ -61,16 +61,19 @@ let make = () => {
         Client__State.Actions.addUserMessage(~sessionId, ~content)
       }
       switch session {
-      | Some(sess) => sendMessage(sess.sessionId)
+      | Some(sess) =>
+        sendMessage(sess.sessionId)
+        Client__State.Actions.dismissUpdateBanner()
       | None =>
         createSession(~onComplete=result => {
           switch result {
-          | Ok(sessionId) => sendMessage(sessionId)
+          | Ok(sessionId) =>
+            sendMessage(sessionId)
+            Client__State.Actions.dismissUpdateBanner()
           | Error(_) => ()
           }
         })
       }
-      Client__State.Actions.dismissUpdateBanner()
     | None => ()
     }
   }

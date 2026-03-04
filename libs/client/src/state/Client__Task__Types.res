@@ -1,6 +1,10 @@
 // Task domain types - extracted from Client__State__Types for modularity
 S.enableJson()
 
+module Log = FrontmanLogs.Logs.Make({
+  let component = #TaskReducer
+})
+
 // Re-export Message types for backward compatibility
 module UserContentPart = Client__Message.UserContentPart
 module AssistantContentPart = Client__Message.AssistantContentPart
@@ -877,7 +881,12 @@ let currentPageToContentBlock = (previewFrame: Task.previewFrame): ACPTypes.cont
         Some(win.scrollY->Float.toInt),
       )
     } catch {
-    | _ => (None, None, None, None)
+    | exn =>
+      Log.warning(
+        ~ctx={"error": exn, "url": previewFrame.url},
+        "Cross-origin SecurityError reading iframe viewport/display info",
+      )
+      (None, None, None, None)
     }
   | None => (None, None, None, None)
   }
@@ -892,7 +901,12 @@ let currentPageToContentBlock = (previewFrame: Task.previewFrame): ACPTypes.cont
       | value => Some(value)
       }
     } catch {
-    | _ => None
+    | exn =>
+      Log.warning(
+        ~ctx={"error": exn, "url": previewFrame.url},
+        "Cross-origin SecurityError reading iframe document title",
+      )
+      None
     }
   | None => None
   }

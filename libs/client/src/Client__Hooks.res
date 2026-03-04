@@ -1,3 +1,5 @@
+module Sentry = FrontmanAiFrontmanClient.FrontmanClient__Sentry
+
 module EventHelpers = {
   //note(itay): This function will recursively iterate all the iframes in a provided iframeDoc,
   //and invoke the given event listener with the provided handler. Its safe to execute even
@@ -286,7 +288,9 @@ let useIFrameLocation = (~iframeElement: option<WebAPI.DOMAPI.element>, ~attachm
                 }
               }
             } catch {
-            | _ => () // Cross-origin frame became inaccessible
+            | exn =>
+              // Cross-origin frame became inaccessible
+              Sentry.captureException(exn, ~operation="useIFrameLocation.onNavigation")
             }
           }
 
@@ -307,13 +311,16 @@ let useIFrameLocation = (~iframeElement: option<WebAPI.DOMAPI.element>, ~attachm
                   ~options={capture: false},
                 )
               } catch {
-              | _ => () // Cross-origin frame — listener already inaccessible
+              | exn =>
+                // Cross-origin frame — listener already inaccessible
+                Sentry.captureException(exn, ~operation="useIFrameLocation.cleanup")
               }
             },
           )
         } catch {
-        | _ =>
+        | exn =>
           // Cross-origin iframe — treat like getIframeWindowSafe returning None
+          Sentry.captureException(exn, ~operation="useIFrameLocation.setup")
           setLocation(_ => None)
           None
         }
