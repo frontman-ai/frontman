@@ -1,7 +1,7 @@
 ---
-// /vs/stagewise — Frontman vs Stagewise Comparison Page
-// Fixes Perplexity hallucination: AI currently describes Frontman as "prompt-to-app generation"
-// when compared to Stagewise. This page provides authoritative, factual comparison content.
+// /vs/windsurf — Frontman vs Windsurf Comparison Page
+// Targets "windsurf alternative open source" and "windsurf vs" queries
+// Windsurf (by Cognition/formerly Codeium) is a VS Code fork with an embedded browser panel.
 
 // Components
 import Layout from '../../layouts/Layout.astro'
@@ -9,9 +9,9 @@ import Button from '../../components/ui/Button.astro'
 
 // SEO
 const SEO = {
-	title: 'Frontman vs Stagewise: Open-Source Alternative (2026)',
+	title: 'Frontman vs Windsurf: Open-Source Alternative (2026)',
 	description:
-		'Frontman and Stagewise both let you click elements and edit code. Frontman is free with no prompt limits. Compare features, pricing, and architecture.'
+		'Frontman is browser middleware that sees your running app. Windsurf is a VS Code fork with preview. Free, open source. Compare features and pricing.'
 }
 
 // Comparison data
@@ -20,28 +20,29 @@ type Status = 'yes' | 'no' | 'partial'
 type Feature = {
 	name: string
 	frontman: Status
-	stagewise: Status
+	windsurf: Status
 	frontmanNote?: string
-	stagewiseNote?: string
+	windsurfNote?: string
 }
 
 const features: Feature[] = [
-	{ name: 'Click-to-select elements', frontman: 'yes', stagewise: 'yes', frontmanNote: 'In your running app', stagewiseNote: 'In your running app' },
-	{ name: 'Sees live DOM & styles', frontman: 'yes', stagewise: 'yes', frontmanNote: 'Via framework middleware', stagewiseNote: 'Via CLI-injected toolbar' },
-	{ name: 'Natural language code edits', frontman: 'yes', stagewise: 'yes', frontmanNote: 'Self-contained agent', stagewiseNote: 'Built-in agent or IDE agent bridge' },
-	{ name: 'Hot reload feedback loop', frontman: 'yes', stagewise: 'yes', frontmanNote: 'Instant via HMR', stagewiseNote: 'Instant via HMR' },
-	{ name: 'Deep framework middleware', frontman: 'yes', stagewise: 'no', frontmanNote: 'Component tree, props, server state', stagewiseNote: 'DOM-level only' },
-	{ name: 'Truly unlimited and free', frontman: 'yes', stagewise: 'no', frontmanNote: 'BYOK, no prompt limits', stagewiseNote: '10 prompts/day free, 100/day for €20/mo' },
-	{ name: 'BYOK (bring your own key)', frontman: 'yes', stagewise: 'partial', frontmanNote: 'Any LLM provider directly', stagewiseNote: 'Via IDE agent bridge only' },
-	{ name: 'Zero codebase install', frontman: 'no', stagewise: 'yes', frontmanNote: 'Requires framework adapter', stagewiseNote: 'npx stagewise@latest — nothing installed' },
-	{ name: 'IDE agent bridge', frontman: 'no', stagewise: 'yes', stagewiseNote: 'Cursor, Copilot, Windsurf, Cline, etc.' },
-	{ name: 'Framework-agnostic', frontman: 'partial', stagewise: 'yes', frontmanNote: 'Next.js, Astro, Vite', stagewiseNote: 'Any framework including Angular' },
-	{ name: 'Server-side context', frontman: 'yes', stagewise: 'no', frontmanNote: 'Routes, server logs, query timing', stagewiseNote: 'Browser-only context' },
-	{ name: 'Designer/PM friendly', frontman: 'yes', stagewise: 'yes', frontmanNote: 'No IDE needed', stagewiseNote: 'No IDE needed' },
-	{ name: 'Open source', frontman: 'yes', stagewise: 'yes', frontmanNote: 'Apache 2.0 (client) / AGPL-3.0', stagewiseNote: 'AGPL-3.0' },
-	{ name: 'Self-hostable (fully local)', frontman: 'yes', stagewise: 'partial', frontmanNote: 'Everything runs locally', stagewiseNote: 'Built-in agent has SaaS dependency' },
-	{ name: 'Plugin system', frontman: 'no', stagewise: 'yes', stagewiseNote: 'Extensible via plugins' },
-	{ name: 'VS Code extension', frontman: 'no', stagewise: 'yes', stagewiseNote: 'Stagewise VSCode extension' },
+	{ name: 'Sees live DOM & styles', frontman: 'yes', windsurf: 'partial', frontmanNote: 'Browser-side MCP server inspects the live page', windsurfNote: 'Embedded preview panel — DOM only, no component tree' },
+	{ name: 'Sees computed CSS', frontman: 'yes', windsurf: 'partial', frontmanNote: 'Runtime values, not class names', windsurfNote: 'Preview panel shows rendered output; agent reads source files' },
+	{ name: 'Click-to-select elements', frontman: 'yes', windsurf: 'yes', frontmanNote: 'Visual component selection in your browser', windsurfNote: 'Click elements in embedded preview panel' },
+	{ name: 'Hot reload feedback loop', frontman: 'yes', windsurf: 'partial', frontmanNote: 'Instant in browser via HMR', windsurfNote: 'Edits files; preview refreshes on rebuild' },
+	{ name: 'Inline autocomplete', frontman: 'no', windsurf: 'yes', windsurfNote: 'Tab, Supercomplete, Tab-to-Jump, Tab-to-Import' },
+	{ name: 'Agent mode', frontman: 'yes', windsurf: 'yes', frontmanNote: 'Browser-context agent', windsurfNote: 'Cascade — Code and Chat modes with flow awareness' },
+	{ name: 'Multi-file refactoring', frontman: 'partial', windsurf: 'yes', frontmanNote: 'Can edit multiple files, not primary workflow', windsurfNote: 'Vibe and Replace — mass refactoring across hundreds of files' },
+	{ name: 'Terminal integration', frontman: 'no', windsurf: 'yes', windsurfNote: 'Built-in terminal, Turbo Mode auto-executes commands' },
+	{ name: 'Framework-aware', frontman: 'yes', windsurf: 'no', frontmanNote: 'Deep plugin for Next.js, Astro, Vite — sees component tree', windsurfNote: 'IDE-level file context, no framework runtime integration' },
+	{ name: 'Designer/PM friendly', frontman: 'yes', windsurf: 'no', frontmanNote: 'No IDE needed — works in the browser', windsurfNote: 'Requires IDE proficiency' },
+	{ name: 'Open source', frontman: 'yes', windsurf: 'no', frontmanNote: 'Apache 2.0 (client) / AGPL-3.0 (server)', windsurfNote: 'Proprietary (VS Code fork, closed-source AI features)' },
+	{ name: 'BYOK (bring your own key)', frontman: 'yes', windsurf: 'no', frontmanNote: 'Any LLM provider directly', windsurfNote: 'Uses Windsurf\'s model pool (GPT, Claude, Gemini, SWE-1.5)' },
+	{ name: 'Self-hostable', frontman: 'yes', windsurf: 'no', frontmanNote: 'Everything runs locally', windsurfNote: 'Cloud service; enterprise on-prem available' },
+	{ name: 'Works in the browser', frontman: 'yes', windsurf: 'no', frontmanNote: 'No IDE required', windsurfNote: 'Standalone VS Code fork' },
+	{ name: 'Backend coding', frontman: 'partial', windsurf: 'yes', frontmanNote: 'Can read/write any file, but frontend-focused', windsurfNote: 'Any language, any framework' },
+	{ name: 'MCP support', frontman: 'yes', windsurf: 'yes', frontmanNote: 'Browser-side MCP server', windsurfNote: 'Plugin Store with curated MCP servers' },
+	{ name: 'Proprietary models', frontman: 'no', windsurf: 'yes', windsurfNote: 'SWE-1.5 (claimed 13x faster than Sonnet 4.5)' },
 ]
 
 function statusLabel(status: Status): string {
@@ -55,28 +56,24 @@ function statusLabel(status: Status): string {
 // FAQ data for JSON-LD
 const faqs = [
 	{
-		question: 'What is the difference between Frontman and Stagewise?',
-		answer: 'Both tools let you click elements in your running app and describe changes in natural language. The key difference is architecture: Stagewise is a CLI overlay that injects a toolbar into your browser and can bridge to IDE agents like Cursor. Frontman installs as framework middleware (Next.js, Astro, Vite) and runs its own self-contained agent with deep access to the component tree, props, server state, and computed styles. Stagewise is faster to try (zero install), but Frontman gives deeper context and is fully free with no prompt limits.'
+		question: 'Is Frontman an alternative to Windsurf?',
+		answer: 'They solve different problems. Windsurf is a VS Code fork with an AI agent (Cascade), autocomplete, and an embedded browser preview panel. It\'s a full IDE replacement. Frontman is browser middleware that integrates with your dev server (Next.js, Astro, Vite) and lets you click elements in your actual browser to edit code. For visual frontend editing where runtime context matters, Frontman is the open-source option. For general-purpose AI-assisted coding with a dedicated IDE, Windsurf is the more complete tool.'
 	},
 	{
-		question: 'Is Frontman a free alternative to Stagewise?',
-		answer: 'Yes. Stagewise\'s free tier is limited to 10 prompts per day. Their Pro plan costs €20/month for 100 prompts/day. Frontman is completely free — you bring your own API keys (Claude, ChatGPT, or OpenRouter) and pay your LLM provider directly. There are no prompt limits, no subscription fees, and no usage caps. The client libraries are Apache 2.0 and the server is AGPL-3.0.'
+		question: 'How does Windsurf\'s browser preview compare to Frontman?',
+		answer: 'Windsurf has an embedded browser panel inside the IDE where you can click elements and send them to the Cascade agent. Frontman runs in your actual browser as framework middleware. The practical difference: Windsurf\'s preview shows the rendered DOM but doesn\'t know your React/Vue/Svelte component tree, props, state, or server-side context. Frontman\'s middleware integration sees the full component hierarchy, computed CSS, routes, and logs because it hooks into the framework itself.'
 	},
 	{
-		question: 'Can I use Stagewise and Frontman together?',
-		answer: 'In theory, yes — they operate differently. Stagewise injects a toolbar via CLI, while Frontman runs as framework middleware. However, using both simultaneously on the same dev server may cause conflicts. Most developers choose one based on their workflow: Stagewise if they want to bridge to an existing IDE agent, Frontman if they want a self-contained agent with deeper framework context.'
+		question: 'Can I use Frontman and Windsurf together?',
+		answer: 'Yes. Use Windsurf as your IDE for general coding, refactoring, and backend work. Use Frontman in the browser for visual frontend editing where you want to click UI elements and make changes with full runtime context. They edit the same source files and don\'t conflict.'
 	},
 	{
-		question: 'Does Frontman work with Cursor like Stagewise does?',
-		answer: 'Differently. Stagewise acts as a bridge — it sends browser context to Cursor\'s agent for code edits. Frontman is a self-contained agent that doesn\'t need Cursor or any IDE. It has its own AI agent that reads the browser context and generates code edits directly. You can still use Cursor for backend coding alongside Frontman for visual frontend editing — they edit the same source files.'
+		question: 'Is Frontman free compared to Windsurf?',
+		answer: 'Yes. Windsurf Free gives you 25 Cascade credits per month. Pro is $15/month for 500 credits. Frontman is free to self-host with no limits. You bring your own API keys to Claude, ChatGPT, or OpenRouter and pay those providers directly. No credit system, no monthly subscription from Frontman itself.'
 	},
 	{
-		question: 'Which tool has deeper browser context?',
-		answer: 'Frontman. Because it installs as framework middleware (not a CLI overlay), Frontman has access to the component tree at the framework level — React fiber nodes, Vue reactivity graph, or Svelte component tree. It also sees server-side context like routes, server logs, and query timing. Stagewise sees the DOM and computed styles but operates at a shallower level since it doesn\'t integrate into the framework\'s runtime.'
-	},
-	{
-		question: 'Which tool is easier to set up?',
-		answer: 'Stagewise. You run npx stagewise@latest in a second terminal and it works with any framework immediately — no changes to your codebase. Frontman requires installing a framework adapter (e.g., npx @frontman-ai/nextjs install for Next.js) which adds a small amount of middleware to your dev server. Frontman\'s setup takes about 60 seconds more but provides deeper integration in return.'
+		question: 'What happened to Codeium / who owns Windsurf now?',
+		answer: 'Windsurf was originally built by Codeium. In mid-2025, Google acquihired the founders and key research staff. Cognition (the company behind Devin, the AI coding agent) then acquired the Windsurf product, IP, and remaining team. As of 2026, Windsurf is owned and operated by Cognition, Inc.'
 	}
 ]
 
@@ -98,25 +95,22 @@ const faqJsonLd = {
 <Layout title={SEO.title} description={SEO.description}>
 	<script is:inline type="application/ld+json" set:html={JSON.stringify(faqJsonLd)} />
 
-	<!-- Hero / AI-Citable Summary (GEO Lead) -->
+	<!-- Hero / AI-Citable Summary -->
 	<section class="hero-section">
 		<div class="hero-container">
 			<p class="hero-label">Comparison</p>
-			<h1 class="hero-title">Frontman vs Stagewise</h1>
-			<p class="hero-subtitle">Two Browser-Based AI Coding Tools, Different Architecture</p>
+			<h1 class="hero-title">Frontman vs Windsurf</h1>
+			<p class="hero-subtitle">Browser Middleware vs AI IDE</p>
 
 			<div class="hero-summary">
 				<p>
-					<a href="https://frontman.sh" class="text-link">Frontman</a> and <a href="https://stagewise.io" class="text-link" rel="nofollow">Stagewise</a> both let you click elements in your running app, describe changes in natural language, and get real source code edits. They solve the same problem — AI coding tools that can't see the browser — but with fundamentally different architectures.
+					<a href="https://frontman.sh" class="text-link">Frontman</a> is an open-source AI coding agent that lives in your browser. It integrates with your framework (Next.js, Astro, or Vite) as a plugin that serves an overlay UI at <code>/frontman</code>. A browser-side MCP server handles DOM inspection, screenshots, computed CSS, and element selection. You click elements in your running app, describe changes in plain English, and Frontman edits the actual source files with hot reload.
 				</p>
 				<p>
-					<strong>Frontman</strong> is an open-source AI coding agent that hooks into your dev server as framework middleware (Next.js, Astro, Vite). It runs its own self-contained agent with deep access to the component tree, computed styles, server routes, and server logs. Free and unlimited — you bring your own API keys.
-				</p>
-				<p>
-					<strong>Stagewise</strong> is a YC-backed CLI tool that injects a toolbar into your browser. It captures DOM context and routes it to its own built-in agent or bridges to IDE agents like Cursor, Copilot, and Windsurf. Framework-agnostic with zero codebase changes, but limited to 10 free prompts/day (€20/month for 100/day).
+					<a href="https://windsurf.com" class="text-link" rel="nofollow">Windsurf</a> is a proprietary AI-powered IDE, a VS Code fork with a built-in agent called Cascade. It includes autocomplete (Tab), an embedded browser preview panel, MCP server support, and terminal integration. Originally built by Codeium, now owned by Cognition (the company behind Devin). Windsurf works across any language and framework through file-level context.
 				</p>
 				<p class="summary-emphasis">
-					The core tradeoff: Stagewise is faster to try and bridges to your existing IDE. Frontman goes deeper into the framework runtime and is fully free with no prompt limits.
+					The key distinction: Windsurf brings a preview browser into the IDE. Frontman puts the AI agent into your real browser. One adds browser context to an IDE workflow; the other works entirely from the browser.
 				</p>
 			</div>
 		</div>
@@ -134,7 +128,7 @@ const faqJsonLd = {
 						<tr>
 							<th class="feature-header">Feature</th>
 							<th class="tool-header tool-header--highlighted">Frontman</th>
-							<th class="tool-header">Stagewise</th>
+							<th class="tool-header">Windsurf</th>
 						</tr>
 					</thead>
 					<tbody>
@@ -155,18 +149,18 @@ const faqJsonLd = {
 										{feature.frontmanNote && <span class="status-note">{feature.frontmanNote}</span>}
 									</div>
 								</td>
-								<td class="status-cell" aria-label={statusLabel(feature.stagewise)}>
+								<td class="status-cell" aria-label={statusLabel(feature.windsurf)}>
 									<div class="status-content">
-										{feature.stagewise === 'yes' && (
+										{feature.windsurf === 'yes' && (
 											<svg class="status-icon status-icon--yes" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>
 										)}
-										{feature.stagewise === 'no' && (
+										{feature.windsurf === 'no' && (
 											<svg class="status-icon status-icon--no" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
 										)}
-										{feature.stagewise === 'partial' && (
+										{feature.windsurf === 'partial' && (
 											<svg class="status-icon status-icon--partial" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
 										)}
-										{feature.stagewiseNote && <span class="status-note">{feature.stagewiseNote}</span>}
+										{feature.windsurfNote && <span class="status-note">{feature.windsurfNote}</span>}
 									</div>
 								</td>
 							</tr>
@@ -190,11 +184,11 @@ const faqJsonLd = {
 								</span>
 							</div>
 							<div class="mobile-card-item">
-								<span class="mobile-card-tool">Stagewise</span>
+								<span class="mobile-card-tool">Windsurf</span>
 								<span>
-									{feature.stagewise === 'yes' && <svg class="status-icon status-icon--yes" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>}
-									{feature.stagewise === 'no' && <svg class="status-icon status-icon--no" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>}
-									{feature.stagewise === 'partial' && <svg class="status-icon status-icon--partial" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"></line></svg>}
+									{feature.windsurf === 'yes' && <svg class="status-icon status-icon--yes" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>}
+									{feature.windsurf === 'no' && <svg class="status-icon status-icon--no" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>}
+									{feature.windsurf === 'partial' && <svg class="status-icon status-icon--partial" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"></line></svg>}
 								</span>
 							</div>
 						</div>
@@ -204,16 +198,18 @@ const faqJsonLd = {
 		</div>
 	</section>
 
-	<!-- What Stagewise Does Well -->
+	<!-- What Windsurf Does Well -->
 	<section class="content-section content-section--light">
 		<div class="content-container">
-			<h2 class="section-title section-title--dark">What Stagewise Does Well</h2>
+			<h2 class="section-title section-title--dark">What Windsurf Does Well</h2>
 			<div class="prose-content prose-content--dark">
-				<p>Stagewise is a well-executed product with real traction — 6,500+ GitHub stars and YC backing. It deserves credit for popularizing the "click elements in the browser, describe changes" workflow.</p>
-				<p><strong>Zero installation friction.</strong> Run <code>npx stagewise@latest</code> in a terminal next to your dev server. No framework adapters, no config files, no changes to your codebase. You're editing visually in 30 seconds. This is the lowest barrier to entry of any browser-based AI coding tool.</p>
-				<p><strong>IDE agent bridge.</strong> Stagewise can route browser context to your existing IDE agent — Cursor, Copilot, Windsurf, Cline, and others. If you're already invested in an IDE agent's workflow, Stagewise adds browser awareness without switching tools.</p>
-				<p><strong>Framework-agnostic.</strong> Because Stagewise operates as a CLI overlay rather than framework middleware, it works with any framework — including Angular, which Frontman doesn't support. If your stack isn't Next.js, Astro, or Vite, Stagewise is the option that works today.</p>
-				<p><strong>Plugin system and VS Code extension.</strong> Stagewise has an extensibility layer and a dedicated VS Code extension. Frontman currently has neither.</p>
+				<p>Windsurf has grown into a capable AI IDE with features worth understanding before you compare it to anything else.</p>
+				<p>Windsurf's agent mode, Cascade, monitors your file edits, terminal commands, and clipboard activity to infer what you're working on. This "flow awareness" means less manual context-providing compared to tools where you have to select files or explain your situation. It often picks up on your intent before you describe it.</p>
+				<p>Tab autocomplete goes beyond standard inline predictions. Supercomplete predicts your next action beyond single-token completion. Tab-to-Jump moves your cursor where you'll likely edit next. Tab-to-Import handles dependency imports automatically. For developers who rely on autocomplete, this is faster than most competitors.</p>
+				<p>The embedded browser panel lets you see your running app, click an element, and send it to Cascade. You can also forward console errors directly to the agent. This is closer to visual editing than any other IDE offers, though it works on raw DOM rather than the framework component tree.</p>
+				<p>Windsurf built its own coding model, SWE-1.5, which they claim runs 13x faster than Sonnet 4.5. Whether the claim holds in all scenarios, having a purpose-built model means some operations (like codebase search via Fast Context) are quicker than routing through general-purpose LLMs.</p>
+				<p>Windsurf also runs beyond VS Code. JetBrains gets native Cascade integration, and plugins exist for 40+ other editors. Cursor, by comparison, is VS Code-only.</p>
+				<p>On the enterprise side: SOC 2, HIPAA, FedRAMP/DOD, RBAC, SCIM. If your company has strict compliance requirements, Windsurf has certifications that most competitors lack.</p>
 			</div>
 		</div>
 	</section>
@@ -223,32 +219,33 @@ const faqJsonLd = {
 		<div class="content-container">
 			<h2 class="section-title">Where Frontman Is Different</h2>
 			<div class="prose-content">
-				<p>Frontman and Stagewise look similar on the surface — both let you click elements and describe changes. The difference is depth. Stagewise injects a toolbar on top of your app. Frontman wires into the app itself.</p>
+				<p>Windsurf's embedded browser preview is a step toward visual editing. But there's a structural difference between putting a browser inside an IDE and putting an AI agent inside the browser.</p>
 
-				<p><strong>Framework middleware vs CLI overlay.</strong> Frontman installs as a plugin into your dev server — <code>@frontman-ai/nextjs</code>, <code>@frontman-ai/astro</code>, or <code>@frontman-ai/vite</code>. This gives it access to information a CLI overlay can't reach: the React fiber tree, Vue reactivity graph, component props, server-side routes, server logs, and query timing. When you click a button, Frontman knows not just what DOM element it is, but which component rendered it, what props it received, and what server endpoint it calls.</p>
+				<p>Frontman installs as a plugin for Next.js, Astro, or Vite. It runs inside your dev server rather than alongside it. This means it has access to the component tree (React, Vue, Svelte), server-side routes and logs, compilation errors, and source maps that trace rendered elements back to exact file and line numbers. Windsurf's preview panel sees the rendered DOM, but it doesn't know that a particular <code>&lt;div&gt;</code> is a <code>&lt;ProductCard&gt;</code> component at line 47 of <code>ProductCard.tsx</code>.</p>
 
-				<p><strong>Fully free, no prompt limits.</strong> Stagewise's free tier caps you at 10 prompts per day. Their Pro plan is €20/month for 100 prompts/day. Frontman has no prompt limits, no subscription, and no usage-based pricing. You bring your own API keys (Claude, ChatGPT, or OpenRouter) and pay your LLM provider directly at their standard rates. For a team of 3 developers using AI coding tools daily, the cost difference is significant: €0/month vs €60/month for Stagewise Pro.</p>
+				<p>Frontman also runs in your real browser, not an IDE panel. It serves at <code>/frontman</code> in Chrome, Firefox, or whatever you test with. You see the same page your users will see, at the same viewport width, with the same extensions and dev tools you always use. Windsurf's preview panel is a controlled embedded browser inside the IDE.</p>
 
-				<p><strong>Self-contained agent.</strong> Frontman runs its own AI agent — it doesn't need Cursor, Copilot, or any IDE running alongside it. The agent has full access to the framework runtime context and generates code edits directly. This means faster iteration (no roundtrip through an IDE agent) and simpler architecture (one tool instead of two).</p>
+				<p>When you click an element in Frontman, the MCP server reads actual computed style values: real pixel dimensions, resolved colors, cascaded font sizes. It doesn't guess from class names. Windsurf's Cascade agent reads your source files and the preview's rendered output, but doesn't have direct access to the CSS cascade or computed values at the level Frontman's browser-side MCP server does.</p>
 
-				<p><strong>Server-side context.</strong> Because Frontman is framework middleware, it sees both sides: the client-side DOM and the server-side context. It knows your routes, sees server logs, and can access server-side state. Stagewise operates purely on the client side.</p>
+				<p>On licensing: Frontman's client libraries are Apache 2.0, the server is AGPL-3.0, and you bring your own API keys to Claude, ChatGPT, OpenRouter, or any OpenAI-compatible provider. Windsurf is proprietary, uses its own model pool, and charges per-credit. You can't use your own LLM provider or self-host the AI features.</p>
 
-				<p><strong>True BYOK.</strong> Frontman connects directly to any LLM provider — Claude, ChatGPT, OpenRouter, or any OpenAI-compatible API. Stagewise's "bring your own model" works through IDE agent bridges, not direct API key input.</p>
+				<p>Frontman also doesn't require an IDE. Designers and product managers can open the app in a browser, click elements, and describe changes in plain English. The output is real source code edits for developer review. With Windsurf, you need the IDE installed and you need to know how to use it.</p>
 			</div>
 		</div>
 	</section>
 
-	<!-- Who Should Use Stagewise -->
+	<!-- Who Should Use Windsurf -->
 	<section class="content-section content-section--light">
 		<div class="content-container">
-			<h2 class="section-title section-title--dark">Who Should Use Stagewise</h2>
+			<h2 class="section-title section-title--dark">Who Should Use Windsurf</h2>
 			<div class="prose-content prose-content--dark">
-				<p>Stagewise is the better choice when you want browser-based AI coding with minimal commitment:</p>
+				<p>Windsurf is the better choice when you want a full AI IDE that handles everything in one place:</p>
 				<ul>
-					<li><strong>Quick evaluation</strong> — want to try browser-aware AI editing in 30 seconds without installing anything into your project</li>
-					<li><strong>IDE agent users</strong> — already using Cursor, Copilot, or Windsurf and want to add browser context to your existing agent</li>
-					<li><strong>Angular or non-supported framework</strong> — your stack isn't Next.js, Astro, or Vite and you need something framework-agnostic</li>
-					<li><strong>Occasional use</strong> — 10 prompts/day is enough for your workflow and you don't want to manage API keys</li>
+					<li><strong>Developers who want autocomplete, agent mode, and terminal in one tool.</strong> Cascade + Tab + terminal is a complete coding environment.</li>
+					<li><strong>Full-stack and backend developers.</strong> Any language, any framework, with purpose-built code search and refactoring.</li>
+					<li><strong>Teams on JetBrains IDEs.</strong> Windsurf has native JetBrains integration where Cursor does not.</li>
+					<li><strong>Enterprises with compliance requirements.</strong> SOC 2, HIPAA, FedRAMP certifications.</li>
+					<li><strong>Developers who want visual context without leaving the IDE.</strong> The embedded browser preview is a pragmatic middle ground.</li>
 				</ul>
 			</div>
 		</div>
@@ -259,16 +256,16 @@ const faqJsonLd = {
 		<div class="content-container">
 			<h2 class="section-title">Who Should Use Frontman</h2>
 			<div class="prose-content">
-				<p>Frontman is the better choice when you need deeper integration and freedom from prompt limits:</p>
+				<p>Frontman is the better choice when you need deep browser context and visual editing:</p>
 				<ul>
-					<li><strong>Daily frontend development</strong> — 10 prompts/day isn't enough and you don't want to pay €20/month for a cap of 100</li>
-					<li><strong>Next.js, Astro, or Vite projects</strong> — Frontman's middleware gives you deeper context than any CLI overlay</li>
-					<li><strong>Teams with designers or PMs</strong> — non-technical team members can make visual changes without an IDE or a Cursor subscription</li>
-					<li><strong>Open-source and vendor-independent</strong> — you want full control with no SaaS dependency, no prompt caps, and no monthly fees</li>
-					<li><strong>Server-side context matters</strong> — you need the AI to understand routes, server logs, and server-side state alongside the visual UI</li>
+					<li><strong>Frontend developers who want the AI to see the actual rendered page.</strong> Computed styles, component tree, responsive behavior, and server logs in addition to source files.</li>
+					<li><strong>Teams where designers or PMs make UI changes.</strong> Click elements in the browser, describe changes, review code diffs. No IDE required.</li>
+					<li><strong>Next.js, Astro, or Vite projects</strong> where framework middleware gives the AI agent more context than file reading alone.</li>
+					<li><strong>Open-source and BYOK.</strong> Apache 2.0 client libs, AGPL-3.0 server, any LLM provider, self-hostable, no credit system.</li>
+					<li><strong>Developers who don't want to switch IDEs.</strong> Frontman works with whatever editor you already use. It only needs the browser.</li>
 				</ul>
-				<p>Many developers who start with Stagewise's zero-install experience migrate to Frontman when they hit prompt limits or need deeper framework context.</p>
-				<p>Also see: <a href="/vs/cursor/" class="text-link">Frontman vs Cursor</a> for a comparison with a full AI-powered IDE.</p>
+				<p>Many developers will use both. Windsurf (or Cursor, or your preferred IDE) for general coding, and Frontman in the browser for visual frontend work where the AI needs to see what's rendered.</p>
+				<p>See also: <a href="/vs/cursor/" class="text-link">Frontman vs Cursor</a>, <a href="/vs/copilot/" class="text-link">Frontman vs GitHub Copilot</a>, <a href="/vs/stagewise/" class="text-link">Frontman vs Stagewise</a>.</p>
 			</div>
 		</div>
 	</section>
@@ -283,23 +280,23 @@ const faqJsonLd = {
 					<div class="pricing-cost">Free</div>
 					<p class="pricing-model">Open source, BYOK</p>
 					<ul class="pricing-features">
-						<li>Unlimited prompts, no daily caps</li>
-						<li>Bring your own API keys</li>
+						<li>Unlimited usage, no caps</li>
+						<li>Bring your own API keys (Claude, ChatGPT, OpenRouter)</li>
+						<li>Or sign in with Claude/ChatGPT subscription via OAuth</li>
 						<li>Apache 2.0 (client) / AGPL-3.0 (server)</li>
 						<li>You pay your LLM provider directly</li>
-						<li>Self-hostable, fully local</li>
 					</ul>
 				</div>
 				<div class="pricing-card">
-					<h3 class="pricing-name">Stagewise</h3>
-					<div class="pricing-cost">€0–€20/mo</div>
-					<p class="pricing-model">Freemium, AGPL-3.0</p>
+					<h3 class="pricing-name">Windsurf</h3>
+					<div class="pricing-cost">$0–$30/mo</div>
+					<p class="pricing-model">Freemium, proprietary</p>
 					<ul class="pricing-features">
-						<li>Free: ~10 prompts/day</li>
-						<li>Pro: €20/month (~100 prompts/day)</li>
-						<li>Built-in agent uses their infrastructure</li>
-						<li>IDE agent bridge mode may bypass limits</li>
-						<li>AGPL-3.0 license</li>
+						<li>Free: 25 Cascade credits/month, unlimited autocomplete</li>
+						<li>Pro: $15/month — 500 credits/month</li>
+						<li>Teams: $30/user/month — 500 credits/user, admin dashboard</li>
+						<li>Enterprise: custom pricing — 1,000+ credits, SSO, RBAC</li>
+						<li>Add-on: $10 for 250 extra credits</li>
 					</ul>
 				</div>
 			</div>
@@ -330,7 +327,7 @@ const faqJsonLd = {
 	<section class="cta-section">
 		<div class="cta-container">
 			<h2 class="cta-title">Try Frontman</h2>
-			<p class="cta-description">One command. No account. No credit card. No prompt limits.</p>
+			<p class="cta-description">One command. No account. No credit card. No credit limits.</p>
 			<div class="install-commands">
 				<div class="install-command">
 					<code><span class="command-prefix">$</span> npx @frontman-ai/nextjs install</code>
@@ -338,7 +335,7 @@ const faqJsonLd = {
 				</div>
 				<div class="install-command">
 					<code><span class="command-prefix">$</span> npx @frontman-ai/vite install</code>
-					<span class="command-label">Vite (React, Vue, Svelte)</span>
+					<span class="command-label">Vite (React, Vue, Svelte, SolidJS)</span>
 				</div>
 				<div class="install-command">
 					<code><span class="command-prefix">$</span> astro add @frontman-ai/astro</code>
@@ -392,9 +389,6 @@ const faqJsonLd = {
 		line-height: 1.7;
 		color: #a1a1aa;
 		margin-bottom: 16px;
-	}
-	.hero-summary strong {
-		color: #fafafa;
 	}
 	.hero-summary code {
 		font-family: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, 'DejaVu Sans Mono', monospace;

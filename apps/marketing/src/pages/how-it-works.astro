@@ -1,0 +1,697 @@
+---
+// /how-it-works — Architecture Deep-Dive Pillar Page
+// Targets "how does frontman work", "browser-based AI coding architecture"
+// This is a topical authority page, not a comparison page.
+
+import Layout from '../layouts/Layout.astro'
+import Button from '../components/ui/Button.astro'
+
+const SEO = {
+	title: 'How Frontman Works: Browser AI Coding Architecture',
+	description:
+		'Three-part architecture: framework plugin, browser MCP server, and AI agent. How click-to-edit, source maps, and hot reload work together.'
+}
+
+const faqs = [
+	{
+		question: 'Does Frontman modify my production build?',
+		answer: 'No. The framework plugin only activates when NODE_ENV=development. In a production build, the middleware is stripped out by tree-shaking. Your deployment bundle is identical whether Frontman is installed or not.'
+	},
+	{
+		question: 'Which frameworks does Frontman support?',
+		answer: 'Next.js (App Router and Pages Router, Webpack and Turbopack), Astro (SSR, SSG, hybrid, Islands architecture), and Vite (React, Vue, Svelte, SolidJS). Each has a dedicated integration package: @frontman-ai/nextjs, @frontman-ai/astro, and @frontman-ai/vite.'
+	},
+	{
+		question: 'What LLM providers does Frontman support?',
+		answer: 'You bring your own API keys. Supported providers include Anthropic (Claude), OpenAI (ChatGPT), OpenRouter, and any OpenAI-compatible API. You can also sign in with your Claude or ChatGPT subscription via OAuth. The AI agent server handles the routing — your keys are stored encrypted and never exposed to the browser.'
+	},
+	{
+		question: 'Can Frontman edit backend code?',
+		answer: 'Yes. The AI agent can read, write, search, and grep any file in your project directory. It can also capture console logs, build errors, and run Lighthouse audits. It is optimized for visual frontend editing, but it is not limited to it.'
+	},
+	{
+		question: 'How does Frontman handle security?',
+		answer: 'Frontman runs locally. It only modifies files in your project directory. It cannot run arbitrary shell commands, deploy code, or push to git. API keys are encrypted on the server and never exposed to the browser. Every change produces a git diff for your normal code review process. Read the full security model at /blog/how-frontman-keeps-your-code-safe.'
+	}
+]
+
+const faqJsonLd = {
+	"@context": "https://schema.org",
+	"@type": "FAQPage",
+	"mainEntity": faqs.map((faq) => ({
+		"@type": "Question",
+		"name": faq.question,
+		"acceptedAnswer": {
+			"@type": "Answer",
+			"text": faq.answer
+		}
+	}))
+}
+---
+
+<Layout title={SEO.title} description={SEO.description}>
+	<script is:inline type="application/ld+json" set:html={JSON.stringify(faqJsonLd)} />
+
+	<!-- Hero -->
+	<section class="hero-section">
+		<div class="hero-container">
+			<p class="hero-label">Architecture</p>
+			<h1 class="hero-title">How Frontman Works</h1>
+			<p class="hero-subtitle">
+				Three parts: a framework plugin in your dev server, an MCP server in your browser, and an AI agent on a separate backend. Here's how they connect.
+			</p>
+		</div>
+	</section>
+
+	<!-- The Problem -->
+	<section class="content-section">
+		<div class="content-container">
+			<h2 class="section-title">The Problem</h2>
+			<div class="prose-content">
+				<p>AI coding tools read your source files. They see your component code and class names. What they don't see is the rendered page.</p>
+				<p>When you ask an AI agent to "fix the hero section overflow on mobile," it reads your component file and guesses which element you mean, which CSS property to change, and what the result will look like. It never opens a browser. It doesn't know that <code>p-4 md:p-8</code> resolves to 32px at your current viewport width, or that a sibling div's margin is collapsing into the element you're trying to fix.</p>
+				<p>The information needed to make accurate visual edits exists in the browser's runtime: the DOM tree, computed CSS values, the component hierarchy, viewport dimensions. Source files alone are not enough.</p>
+				<p>Frontman solves this by putting the AI agent where the information is: inside the browser, connected to the framework's dev server.</p>
+			</div>
+		</div>
+	</section>
+
+	<!-- Three-Part Architecture -->
+	<section class="content-section content-section--light">
+		<div class="content-container">
+			<h2 class="section-title section-title--dark">Three-Part Architecture</h2>
+			<div class="prose-content prose-content--dark">
+				<p>Frontman has three components that work together. Each handles a different part of the workflow.</p>
+			</div>
+
+			<div class="architecture-grid">
+				<div class="arch-card">
+					<div class="arch-number">1</div>
+					<h3 class="arch-title">Framework Plugin</h3>
+					<p class="arch-where">Runs inside your dev server</p>
+					<div class="arch-desc">
+						<p>You install a framework-specific package: <code>@frontman-ai/nextjs</code>, <code>@frontman-ai/astro</code>, or <code>@frontman-ai/vite</code>. This installs as middleware in your dev server. It is not a proxy or a separate process.</p>
+						<p>The plugin does three things:</p>
+						<ul>
+							<li>Serves the Frontman overlay UI at <code>/frontman</code></li>
+							<li>Relays file operations (read, write, search, grep) to the dev server's file system</li>
+							<li>Captures framework-specific context: the component tree, server-side routes, compilation errors, build warnings, and server logs</li>
+						</ul>
+						<p>Because it runs inside the framework, it has access to information that external tools can't reach. For Next.js, that means React Server Components and API routes. For Astro, it means Islands architecture boundaries and client directives. For Vite, it means the module graph and HMR pipeline.</p>
+					</div>
+				</div>
+
+				<div class="arch-card">
+					<div class="arch-number">2</div>
+					<h3 class="arch-title">Browser-Side MCP Server</h3>
+					<p class="arch-where">Runs in your browser</p>
+					<div class="arch-desc">
+						<p>When you open <code>/frontman</code> in your browser, a JavaScript module loads that acts as an MCP (Model Context Protocol) server. This server exposes the browser's runtime to the AI agent through a set of tools:</p>
+						<ul>
+							<li>Read the full DOM tree, element attributes, and text content</li>
+							<li>Read computed CSS: actual pixel values, resolved colors, cascaded font sizes, box model dimensions</li>
+							<li>Click any element and resolve it to its source file and line number via source maps</li>
+							<li>Capture screenshots of the current viewport or specific elements</li>
+							<li>Switch viewport dimensions and test responsive behavior</li>
+							<li>Read console.log output, runtime errors, and build warnings</li>
+						</ul>
+						<p>The AI agent calls these tools through the MCP protocol. When it needs to know the computed width of an element or take a screenshot after an edit, it makes a tool call and gets a structured response.</p>
+					</div>
+				</div>
+
+				<div class="arch-card">
+					<div class="arch-number">3</div>
+					<h3 class="arch-title">AI Agent Server</h3>
+					<p class="arch-where">Separate Elixir/Phoenix backend</p>
+					<div class="arch-desc">
+						<p>The AI agent runs on a separate server built with Elixir and Phoenix. It orchestrates the full workflow:</p>
+						<ul>
+							<li>Receives your natural-language instruction ("make this card's shadow more subtle")</li>
+							<li>Calls the browser-side MCP server to inspect the element, read its styles, and take a screenshot</li>
+							<li>Calls the LLM (Claude, GPT, or your configured provider) with the full context: source code, computed styles, component tree, screenshot</li>
+							<li>Receives the LLM's proposed edit and writes it to the source file via the framework plugin</li>
+							<li>The framework's HMR picks up the file change and hot-reloads the browser automatically</li>
+							<li>Takes a follow-up screenshot to verify the result</li>
+						</ul>
+						<p>Your API keys are stored encrypted on this server and never exposed to the browser. The server communicates with the browser via WebSocket and with the framework plugin via HTTP.</p>
+					</div>
+				</div>
+			</div>
+		</div>
+	</section>
+
+	<!-- Click-to-Edit Workflow -->
+	<section class="content-section">
+		<div class="content-container">
+			<h2 class="section-title">What Happens When You Click an Element</h2>
+			<div class="prose-content">
+				<p>This is the core workflow. Here's the exact sequence.</p>
+			</div>
+			<div class="steps-list">
+				<div class="step">
+					<span class="step-number">1</span>
+					<div class="step-content">
+						<h3 class="step-title">You click an element in the browser</h3>
+						<p class="step-desc">The browser-side MCP server intercepts the click and identifies the DOM element. It reads the element's tag, classes, attributes, text content, and computed CSS.</p>
+					</div>
+				</div>
+				<div class="step">
+					<span class="step-number">2</span>
+					<div class="step-content">
+						<h3 class="step-title">Source map resolution</h3>
+						<p class="step-desc">The framework plugin uses source maps to trace the element back to its source location: the exact file path, component name, and line number that rendered it. This is why framework integration matters — a generic DOM inspector can't do this reliably.</p>
+					</div>
+				</div>
+				<div class="step">
+					<span class="step-number">3</span>
+					<div class="step-content">
+						<h3 class="step-title">You describe the change</h3>
+						<p class="step-desc">Type something like "make the shadow more subtle" or "increase padding on mobile." The AI already has the element's context, so you don't need to specify which file or which component.</p>
+					</div>
+				</div>
+				<div class="step">
+					<span class="step-number">4</span>
+					<div class="step-content">
+						<h3 class="step-title">The agent reads and edits</h3>
+						<p class="step-desc">The agent reads the source file via the framework plugin, consults the computed styles from the MCP server, sends everything to the LLM, and writes the proposed change back to the file.</p>
+					</div>
+				</div>
+				<div class="step">
+					<span class="step-number">5</span>
+					<div class="step-content">
+						<h3 class="step-title">Hot reload shows the result</h3>
+						<p class="step-desc">The framework's built-in HMR detects the file change and reloads the component in the browser. You see the result immediately without refreshing the page or switching windows.</p>
+					</div>
+				</div>
+				<div class="step">
+					<span class="step-number">6</span>
+					<div class="step-content">
+						<h3 class="step-title">Iterate or accept</h3>
+						<p class="step-desc">If the result is wrong, describe what's off and the agent tries again — with the new screenshot as additional context. If it's right, move on. The change is a normal file edit in your project, visible in <code>git status</code>.</p>
+					</div>
+				</div>
+			</div>
+		</div>
+	</section>
+
+	<!-- What the AI Sees -->
+	<section class="content-section content-section--light">
+		<div class="content-container">
+			<h2 class="section-title section-title--dark">What the AI Agent Sees</h2>
+			<div class="prose-content prose-content--dark">
+				<p>Here's a concrete example. When you click a card component in a Next.js app, the AI agent receives:</p>
+			</div>
+			<div class="context-grid">
+				<div class="context-card">
+					<h3 class="context-title">Source location</h3>
+					<p class="context-value"><code>src/components/ProductCard.tsx:23</code></p>
+				</div>
+				<div class="context-card">
+					<h3 class="context-title">Component name</h3>
+					<p class="context-value"><code>&lt;ProductCard&gt;</code> (React)</p>
+				</div>
+				<div class="context-card">
+					<h3 class="context-title">Computed styles</h3>
+					<p class="context-value">width: 320px, padding: 16px, box-shadow: 0 1px 3px rgba(0,0,0,0.12), font-size: 14px, color: #374151</p>
+				</div>
+				<div class="context-card">
+					<h3 class="context-title">DOM context</h3>
+					<p class="context-value">Parent: <code>&lt;div class="grid grid-cols-3"&gt;</code>, siblings: 2 other ProductCard elements</p>
+				</div>
+				<div class="context-card">
+					<h3 class="context-title">Source code</h3>
+					<p class="context-value">Full file contents of ProductCard.tsx, including props interface and Tailwind classes</p>
+				</div>
+				<div class="context-card">
+					<h3 class="context-title">Screenshot</h3>
+					<p class="context-value">Current viewport capture showing the element in context</p>
+				</div>
+			</div>
+			<div class="prose-content prose-content--dark" style="margin-top: 32px;">
+				<p>This is the information gap. An IDE-based agent would have the source code. A browser extension would have the DOM. Frontman provides both, linked together through source maps and framework middleware.</p>
+			</div>
+		</div>
+	</section>
+
+	<!-- Why Middleware, Not a Browser Extension -->
+	<section class="content-section">
+		<div class="content-container">
+			<h2 class="section-title">Why Middleware, Not a Browser Extension</h2>
+			<div class="prose-content">
+				<p>Browser extensions can inspect the DOM. They can read computed styles. They can take screenshots. So why build this as framework middleware?</p>
+
+				<p>Start with source maps. When you click a <code>&lt;div&gt;</code>, a browser extension knows it's a div with certain classes. It doesn't know that this div was rendered by <code>ProductCard.tsx</code> at line 23. Source map resolution requires access to the build pipeline, which only the dev server has. The framework plugin provides this.</p>
+
+				<p>Then there's the component tree. The browser DOM is flat. It has no concept of React components, Vue reactivity, or Svelte reactive declarations. The framework plugin walks the framework's internal tree (React fiber nodes, Vue component instances, etc.) and maps DOM elements to their component boundaries, props, and state.</p>
+
+				<p>Middleware also gives you server-side context. An extension runs in the browser only. Frontman's middleware runs on both sides: it captures server routes, server logs, middleware execution, and database query timing. If a page is slow because of a server component, the AI knows that.</p>
+
+				<p>And finally, file operations. A browser extension can't write to your file system (security sandbox). Frontman's framework plugin handles file reads, writes, search, and grep on the dev server, which has file system access by design.</p>
+
+				<p>The trade-off is setup time. A browser extension is zero-install. Frontman requires running an installer command (<code>npx @frontman-ai/nextjs install</code>) that adds middleware to your project. This takes about 60 seconds and modifies your dev configuration. Whether that trade-off makes sense depends on how much runtime context your workflow needs.</p>
+			</div>
+		</div>
+	</section>
+
+	<!-- Multi-Select -->
+	<section class="content-section content-section--light">
+		<div class="content-container">
+			<h2 class="section-title section-title--dark">Multi-Select: Batch Edits</h2>
+			<div class="prose-content prose-content--dark">
+				<p>Frontman supports multi-select. Hold Shift, click multiple elements, add separate instructions to each, and the agent generates edits for all of them in one pass.</p>
+				<p>If multiple selections map to the same source file, the file is read once and edited once with all changes combined. This avoids the overhead of sequential round-trips for what are often related visual fixes. Three spacing adjustments, two color changes, and a font size update can be a single operation.</p>
+			</div>
+		</div>
+	</section>
+
+	<!-- What Frontman Cannot Do -->
+	<section class="content-section">
+		<div class="content-container">
+			<h2 class="section-title">What Frontman Cannot Do</h2>
+			<div class="prose-content">
+				<p>Frontman is specialized. It is good at visual frontend editing with runtime context. It is not a general-purpose AI coding tool.</p>
+				<ul>
+					<li>Frontman doesn't provide inline code suggestions. If you want tab completion, use Cursor, Windsurf, or Copilot alongside Frontman.</li>
+					<li>Frontman cannot run shell commands, execute tests, or do git operations. For that, use Claude Code or any IDE agent.</li>
+					<li>Framework support is limited to Next.js, Astro, and Vite (which covers React, Vue, Svelte, and SolidJS via Vite plugins). Angular, Remix, and standalone SvelteKit are not supported yet.</li>
+					<li>Frontman edits existing running apps. It doesn't generate new projects from scratch. For that, use v0, Bolt, or Lovable.</li>
+					<li>You need a local dev server running. Frontman doesn't work in StackBlitz, CodeSandbox, or other cloud environments.</li>
+				</ul>
+				<p>For general-purpose AI coding, use Frontman alongside your existing tools. Frontman in the browser for visual frontend work. Your IDE agent for everything else.</p>
+			</div>
+		</div>
+	</section>
+
+	<!-- FAQ -->
+	<section class="content-section content-section--light">
+		<div class="content-container">
+			<h2 class="section-title section-title--dark">Frequently Asked Questions</h2>
+			<div class="faq-list faq-list--light">
+				{faqs.map((faq) => (
+					<details class="faq-item faq-item--light group">
+						<summary class="faq-question faq-question--light">
+							<span>{faq.question}</span>
+							<span class="faq-icon faq-icon--light">+</span>
+						</summary>
+						<div class="faq-answer faq-answer--light">
+							<p>{faq.answer}</p>
+						</div>
+					</details>
+				))}
+			</div>
+		</div>
+	</section>
+
+	<!-- CTA -->
+	<section class="cta-section">
+		<div class="cta-container">
+			<h2 class="cta-title">Try It Yourself</h2>
+			<p class="cta-description">One command. No account. No credit card.</p>
+			<div class="install-commands">
+				<div class="install-command">
+					<code><span class="command-prefix">$</span> npx @frontman-ai/nextjs install</code>
+					<span class="command-label">Next.js</span>
+				</div>
+				<div class="install-command">
+					<code><span class="command-prefix">$</span> npx @frontman-ai/vite install</code>
+					<span class="command-label">Vite (React, Vue, Svelte, SolidJS)</span>
+				</div>
+				<div class="install-command">
+					<code><span class="command-prefix">$</span> astro add @frontman-ai/astro</code>
+					<span class="command-label">Astro</span>
+				</div>
+			</div>
+			<div class="cta-links">
+				<Button size="lg" style="primary" link="https://github.com/frontman-ai/frontman">Star on GitHub</Button>
+				<a href="/compare/" class="cta-secondary">Compare with other tools</a>
+				<a href="https://discord.gg/xk8uXJSvhC" target="_blank" rel="noopener noreferrer" class="cta-discord">Join Discord</a>
+			</div>
+		</div>
+	</section>
+</Layout>
+
+<style>
+	/* Hero */
+	.hero-section {
+		background: #09090b;
+		color: #fafafa;
+		padding: 80px 24px 48px;
+		display: flex;
+		justify-content: center;
+	}
+	.hero-container { max-width: 720px; width: 100%; }
+	.hero-label {
+		@apply font-mono;
+		font-size: 13px;
+		letter-spacing: 0.12em;
+		text-transform: uppercase;
+		color: #A259FF;
+		margin-bottom: 12px;
+	}
+	.hero-title {
+		font-size: 48px;
+		font-weight: 700;
+		line-height: 1.1;
+		letter-spacing: -0.02em;
+		color: #fafafa;
+		margin-bottom: 16px;
+	}
+	.hero-subtitle {
+		font-size: 20px;
+		line-height: 1.5;
+		color: #a1a1aa;
+	}
+
+	/* Content sections */
+	.content-section {
+		background: #09090b;
+		color: #fafafa;
+		padding: 64px 24px;
+		display: flex;
+		justify-content: center;
+	}
+	.content-section--light { background: #fafafa; color: #09090b; }
+	.content-container { max-width: 720px; width: 100%; }
+	.section-title {
+		font-size: 32px;
+		font-weight: 700;
+		color: #fafafa;
+		margin-bottom: 24px;
+		letter-spacing: -0.02em;
+	}
+	.section-title--dark { color: #09090b; }
+	.prose-content p {
+		font-size: 17px;
+		line-height: 1.7;
+		color: #a1a1aa;
+		margin-bottom: 16px;
+	}
+	.prose-content--dark p { color: #52525b; }
+	.prose-content strong { color: #fafafa; font-weight: 600; }
+	.prose-content--dark strong { color: #09090b; }
+	.prose-content code {
+		font-family: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, 'DejaVu Sans Mono', monospace;
+		font-size: 14px;
+		background: rgba(255, 255, 255, 0.08);
+		padding: 2px 6px;
+		border-radius: 4px;
+	}
+	.prose-content--dark code { background: rgba(0, 0, 0, 0.06); }
+	.prose-content ul { list-style: none; padding: 0; margin: 16px 0; }
+	.prose-content li {
+		font-size: 17px;
+		line-height: 1.7;
+		color: #a1a1aa;
+		padding: 8px 0;
+		padding-left: 24px;
+		position: relative;
+	}
+	.prose-content--dark li { color: #52525b; }
+	.prose-content li::before {
+		content: '';
+		position: absolute;
+		left: 0;
+		top: 18px;
+		width: 8px;
+		height: 8px;
+		border-radius: 50%;
+		background: #A259FF;
+	}
+	.prose-content li strong { color: #fafafa; }
+	.prose-content--dark li strong { color: #09090b; }
+	.text-link { color: #A259FF; text-decoration: underline; text-underline-offset: 2px; }
+	.text-link:hover { color: #c084fc; }
+
+	/* Architecture cards */
+	.architecture-grid {
+		display: flex;
+		flex-direction: column;
+		gap: 24px;
+		margin-top: 32px;
+	}
+	.arch-card {
+		padding: 32px;
+		border-radius: 16px;
+		border: 1px solid #e4e4e7;
+		background: white;
+		position: relative;
+	}
+	.arch-number {
+		position: absolute;
+		top: -16px;
+		left: 24px;
+		width: 32px;
+		height: 32px;
+		border-radius: 50%;
+		background: #A259FF;
+		color: white;
+		font-size: 16px;
+		font-weight: 700;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+	.arch-title {
+		font-size: 22px;
+		font-weight: 700;
+		color: #09090b;
+		margin-bottom: 4px;
+	}
+	.arch-where {
+		font-size: 14px;
+		color: #A259FF;
+		font-weight: 500;
+		margin-bottom: 16px;
+	}
+	.arch-desc p {
+		font-size: 16px;
+		line-height: 1.7;
+		color: #52525b;
+		margin-bottom: 12px;
+	}
+	.arch-desc ul {
+		list-style: none;
+		padding: 0;
+		margin: 12px 0;
+	}
+	.arch-desc li {
+		font-size: 15px;
+		line-height: 1.6;
+		color: #52525b;
+		padding: 4px 0;
+		padding-left: 20px;
+		position: relative;
+	}
+	.arch-desc li::before {
+		content: '\2192';
+		position: absolute;
+		left: 0;
+		color: #A259FF;
+	}
+	.arch-desc li strong { color: #09090b; }
+	.arch-desc code {
+		font-family: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, 'DejaVu Sans Mono', monospace;
+		font-size: 14px;
+		background: rgba(0, 0, 0, 0.06);
+		padding: 2px 6px;
+		border-radius: 4px;
+	}
+
+	/* Steps */
+	.steps-list {
+		display: flex;
+		flex-direction: column;
+		gap: 0;
+		margin-top: 24px;
+	}
+	.step {
+		display: flex;
+		gap: 20px;
+		padding: 24px 0;
+		border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+	}
+	.step:last-child { border-bottom: none; }
+	.step-number {
+		flex-shrink: 0;
+		width: 36px;
+		height: 36px;
+		border-radius: 50%;
+		border: 2px solid #A259FF;
+		color: #A259FF;
+		font-size: 16px;
+		font-weight: 700;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+	.step-content { flex: 1; }
+	.step-title {
+		font-size: 18px;
+		font-weight: 600;
+		color: #fafafa;
+		margin-bottom: 6px;
+	}
+	.step-desc {
+		font-size: 16px;
+		line-height: 1.7;
+		color: #a1a1aa;
+	}
+	.step-desc code {
+		font-family: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, 'DejaVu Sans Mono', monospace;
+		font-size: 14px;
+		background: rgba(255, 255, 255, 0.08);
+		padding: 2px 6px;
+		border-radius: 4px;
+	}
+
+	/* Context grid */
+	.context-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+		gap: 16px;
+		margin-top: 24px;
+	}
+	.context-card {
+		padding: 20px;
+		border-radius: 12px;
+		border: 1px solid #e4e4e7;
+		background: white;
+	}
+	.context-title {
+		font-size: 13px;
+		font-weight: 600;
+		color: #A259FF;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+		margin-bottom: 8px;
+	}
+	.context-value {
+		font-size: 15px;
+		line-height: 1.5;
+		color: #52525b;
+	}
+	.context-value code {
+		font-family: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, 'DejaVu Sans Mono', monospace;
+		font-size: 14px;
+		background: rgba(0, 0, 0, 0.06);
+		padding: 2px 6px;
+		border-radius: 4px;
+	}
+
+	/* FAQ */
+	.faq-list { border-top: 1px solid #27272a; }
+	.faq-list--light { border-top: 1px solid #e4e4e7; }
+	.faq-item { border-bottom: 1px solid #27272a; cursor: pointer; }
+	.faq-item--light { border-bottom: 1px solid #e4e4e7; }
+	.faq-question {
+		width: 100%;
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		padding: 24px 0;
+		color: #fafafa;
+		font-size: 17px;
+		font-weight: 500;
+		line-height: 1.4;
+		list-style: none;
+		transition: color 0.2s;
+	}
+	.faq-question--light { color: #09090b; }
+	.faq-question::-webkit-details-marker { display: none; }
+	.faq-question:hover { color: #fff; }
+	.faq-question--light:hover { color: #000; }
+	.faq-question span:first-child { padding-right: 24px; }
+	.faq-icon {
+		flex-shrink: 0;
+		width: 28px;
+		height: 28px;
+		border-radius: 50%;
+		border: 1px solid #3f3f46;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font-size: 18px;
+		font-weight: 300;
+		color: #71717a;
+		transition: all 0.3s ease;
+	}
+	.faq-icon--light { border-color: #d4d4d8; }
+	.group[open] .faq-icon { transform: rotate(45deg); background: #27272a; }
+	.group[open] .faq-icon--light { background: #f4f4f5; }
+	.faq-answer p {
+		font-size: 15px;
+		line-height: 1.7;
+		color: #a1a1aa;
+		padding-bottom: 24px;
+		margin: 0;
+		max-width: 620px;
+	}
+	.faq-answer--light p { color: #52525b; }
+
+	/* CTA */
+	.cta-section {
+		background: #09090b;
+		border-top: 1px solid #27272a;
+		padding: 80px 24px;
+		display: flex;
+		justify-content: center;
+	}
+	.cta-container { max-width: 720px; width: 100%; }
+	.cta-title {
+		font-size: 36px;
+		font-weight: 700;
+		color: #fafafa;
+		margin-bottom: 8px;
+		letter-spacing: -0.02em;
+	}
+	.cta-description { font-size: 17px; color: #71717a; margin-bottom: 32px; }
+	.install-commands { display: flex; flex-direction: column; gap: 12px; margin-bottom: 32px; }
+	.install-command {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		padding: 12px 16px;
+		border-radius: 8px;
+		background: rgba(255, 255, 255, 0.04);
+		border: 1px solid rgba(255, 255, 255, 0.08);
+	}
+	.install-command code {
+		font-family: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, 'DejaVu Sans Mono', monospace;
+		font-size: 14px;
+		color: #fafafa;
+	}
+	.command-prefix { color: #A259FF; margin-right: 8px; }
+	.command-label { font-size: 13px; color: #71717a; }
+	.cta-links { display: flex; align-items: center; gap: 24px; }
+	.cta-secondary {
+		color: #a1a1aa;
+		font-size: 15px;
+		text-decoration: underline;
+		text-underline-offset: 3px;
+		transition: color 0.2s;
+	}
+	.cta-secondary:hover { color: #fafafa; }
+	.cta-discord {
+		color: #71717a;
+		font-size: 15px;
+		text-decoration: none;
+		transition: color 0.2s;
+	}
+	.cta-discord:hover { color: #fafafa; }
+
+	/* Responsive */
+	@media (max-width: 768px) {
+		.hero-section { padding: 48px 20px 32px; }
+		.hero-title { font-size: 32px; }
+		.content-section { padding: 40px 20px; }
+		.section-title { font-size: 24px; }
+		.architecture-grid { gap: 32px; }
+		.arch-card { padding: 24px; }
+		.context-grid { grid-template-columns: 1fr; }
+		.step { flex-direction: column; gap: 12px; }
+		.cta-section { padding: 48px 20px; }
+		.cta-title { font-size: 28px; }
+		.cta-links { flex-direction: column; align-items: flex-start; gap: 12px; }
+		.install-command { flex-direction: column; align-items: flex-start; gap: 4px; }
+	}
+</style>

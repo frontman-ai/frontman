@@ -1,7 +1,7 @@
 ---
-// /vs/stagewise — Frontman vs Stagewise Comparison Page
-// Fixes Perplexity hallucination: AI currently describes Frontman as "prompt-to-app generation"
-// when compared to Stagewise. This page provides authoritative, factual comparison content.
+// /vs/claude-code — Frontman vs Claude Code Comparison Page
+// Targets "claude code vs" and "claude code alternative" queries
+// Claude Code is Anthropic's agentic coding tool — terminal-native, multi-surface.
 
 // Components
 import Layout from '../../layouts/Layout.astro'
@@ -9,9 +9,9 @@ import Button from '../../components/ui/Button.astro'
 
 // SEO
 const SEO = {
-	title: 'Frontman vs Stagewise: Open-Source Alternative (2026)',
+	title: 'Frontman vs Claude Code: Browser vs Terminal (2026)',
 	description:
-		'Frontman and Stagewise both let you click elements and edit code. Frontman is free with no prompt limits. Compare features, pricing, and architecture.'
+		'Frontman sees your browser DOM and running app. Claude Code works in the terminal. Compare features, architecture, and pricing side by side.'
 }
 
 // Comparison data
@@ -20,28 +20,30 @@ type Status = 'yes' | 'no' | 'partial'
 type Feature = {
 	name: string
 	frontman: Status
-	stagewise: Status
+	claudeCode: Status
 	frontmanNote?: string
-	stagewiseNote?: string
+	claudeCodeNote?: string
 }
 
 const features: Feature[] = [
-	{ name: 'Click-to-select elements', frontman: 'yes', stagewise: 'yes', frontmanNote: 'In your running app', stagewiseNote: 'In your running app' },
-	{ name: 'Sees live DOM & styles', frontman: 'yes', stagewise: 'yes', frontmanNote: 'Via framework middleware', stagewiseNote: 'Via CLI-injected toolbar' },
-	{ name: 'Natural language code edits', frontman: 'yes', stagewise: 'yes', frontmanNote: 'Self-contained agent', stagewiseNote: 'Built-in agent or IDE agent bridge' },
-	{ name: 'Hot reload feedback loop', frontman: 'yes', stagewise: 'yes', frontmanNote: 'Instant via HMR', stagewiseNote: 'Instant via HMR' },
-	{ name: 'Deep framework middleware', frontman: 'yes', stagewise: 'no', frontmanNote: 'Component tree, props, server state', stagewiseNote: 'DOM-level only' },
-	{ name: 'Truly unlimited and free', frontman: 'yes', stagewise: 'no', frontmanNote: 'BYOK, no prompt limits', stagewiseNote: '10 prompts/day free, 100/day for €20/mo' },
-	{ name: 'BYOK (bring your own key)', frontman: 'yes', stagewise: 'partial', frontmanNote: 'Any LLM provider directly', stagewiseNote: 'Via IDE agent bridge only' },
-	{ name: 'Zero codebase install', frontman: 'no', stagewise: 'yes', frontmanNote: 'Requires framework adapter', stagewiseNote: 'npx stagewise@latest — nothing installed' },
-	{ name: 'IDE agent bridge', frontman: 'no', stagewise: 'yes', stagewiseNote: 'Cursor, Copilot, Windsurf, Cline, etc.' },
-	{ name: 'Framework-agnostic', frontman: 'partial', stagewise: 'yes', frontmanNote: 'Next.js, Astro, Vite', stagewiseNote: 'Any framework including Angular' },
-	{ name: 'Server-side context', frontman: 'yes', stagewise: 'no', frontmanNote: 'Routes, server logs, query timing', stagewiseNote: 'Browser-only context' },
-	{ name: 'Designer/PM friendly', frontman: 'yes', stagewise: 'yes', frontmanNote: 'No IDE needed', stagewiseNote: 'No IDE needed' },
-	{ name: 'Open source', frontman: 'yes', stagewise: 'yes', frontmanNote: 'Apache 2.0 (client) / AGPL-3.0', stagewiseNote: 'AGPL-3.0' },
-	{ name: 'Self-hostable (fully local)', frontman: 'yes', stagewise: 'partial', frontmanNote: 'Everything runs locally', stagewiseNote: 'Built-in agent has SaaS dependency' },
-	{ name: 'Plugin system', frontman: 'no', stagewise: 'yes', stagewiseNote: 'Extensible via plugins' },
-	{ name: 'VS Code extension', frontman: 'no', stagewise: 'yes', stagewiseNote: 'Stagewise VSCode extension' },
+	{ name: 'Sees live DOM & styles', frontman: 'yes', claudeCode: 'partial', frontmanNote: 'Browser-side MCP server inspects the live page', claudeCodeNote: 'Chrome extension (beta) — screenshots and DOM, not component tree' },
+	{ name: 'Sees computed CSS', frontman: 'yes', claudeCode: 'no', frontmanNote: 'Runtime values, not class names', claudeCodeNote: 'Reads source files; Chrome extension sees DOM but not computed styles' },
+	{ name: 'Click-to-select elements', frontman: 'yes', claudeCode: 'no', frontmanNote: 'Visual component selection', claudeCodeNote: 'Chrome extension is AI-driven, not developer-directed' },
+	{ name: 'Hot reload feedback loop', frontman: 'yes', claudeCode: 'no', frontmanNote: 'Instant in browser via HMR', claudeCodeNote: 'Edits files; can refresh via Chrome extension but no HMR integration' },
+	{ name: 'File editing', frontman: 'yes', claudeCode: 'yes', frontmanNote: 'Edits source files', claudeCodeNote: 'Full file system access with diff review' },
+	{ name: 'Terminal commands', frontman: 'no', claudeCode: 'yes', claudeCodeNote: 'Runs shell commands, builds, tests, git operations' },
+	{ name: 'Agent mode', frontman: 'yes', claudeCode: 'yes', frontmanNote: 'Browser-context agent', claudeCodeNote: 'Agentic search, multi-step plans, sub-agents' },
+	{ name: 'Multi-file refactoring', frontman: 'partial', claudeCode: 'yes', frontmanNote: 'Can edit multiple files, not primary workflow', claudeCodeNote: 'Full codebase reasoning, cross-file edits' },
+	{ name: 'Framework-aware', frontman: 'yes', claudeCode: 'no', frontmanNote: 'Deep plugin for Next.js, Astro, Vite', claudeCodeNote: 'Framework-agnostic; reads files, not runtime' },
+	{ name: 'Designer/PM friendly', frontman: 'yes', claudeCode: 'no', frontmanNote: 'No IDE or terminal needed', claudeCodeNote: 'Requires terminal or IDE proficiency' },
+	{ name: 'Open source', frontman: 'yes', claudeCode: 'no', frontmanNote: 'Apache 2.0 (client) / AGPL-3.0 (server)', claudeCodeNote: 'Proprietary ("All rights reserved")' },
+	{ name: 'BYOK (bring your own key)', frontman: 'yes', claudeCode: 'partial', frontmanNote: 'Any LLM provider directly', claudeCodeNote: 'Claude models only (via subscription or API key)' },
+	{ name: 'Self-hostable', frontman: 'yes', claudeCode: 'no', frontmanNote: 'Everything runs locally', claudeCodeNote: 'Runs locally but requires Anthropic API' },
+	{ name: 'Works in the browser', frontman: 'yes', claudeCode: 'partial', frontmanNote: 'Primary interface is the browser', claudeCodeNote: 'claude.ai/code web interface exists; Chrome extension is beta' },
+	{ name: 'Git & PR workflows', frontman: 'no', claudeCode: 'yes', claudeCodeNote: 'Commits, branches, PRs, GitHub Actions integration' },
+	{ name: 'MCP support', frontman: 'yes', claudeCode: 'yes', frontmanNote: 'Browser-side MCP server', claudeCodeNote: 'First-class MCP with hundreds of integrations' },
+	{ name: 'IDE integration', frontman: 'no', claudeCode: 'yes', claudeCodeNote: 'VS Code, JetBrains, Cursor, Windsurf' },
+	{ name: 'Backend coding', frontman: 'partial', claudeCode: 'yes', frontmanNote: 'Can read/write any file, but frontend-focused', claudeCodeNote: 'Any language, any framework, any stack' },
 ]
 
 function statusLabel(status: Status): string {
@@ -55,28 +57,24 @@ function statusLabel(status: Status): string {
 // FAQ data for JSON-LD
 const faqs = [
 	{
-		question: 'What is the difference between Frontman and Stagewise?',
-		answer: 'Both tools let you click elements in your running app and describe changes in natural language. The key difference is architecture: Stagewise is a CLI overlay that injects a toolbar into your browser and can bridge to IDE agents like Cursor. Frontman installs as framework middleware (Next.js, Astro, Vite) and runs its own self-contained agent with deep access to the component tree, props, server state, and computed styles. Stagewise is faster to try (zero install), but Frontman gives deeper context and is fully free with no prompt limits.'
+		question: 'Is Frontman an alternative to Claude Code?',
+		answer: 'They solve different problems. Claude Code is a terminal-native agentic coding tool that reads your codebase, edits files, runs commands, and handles git workflows. It works with any language and any project. Frontman is browser middleware for frontend development — it hooks into your framework (Next.js, Astro, Vite), sees the live DOM, and lets you click elements to edit their source code. For visual frontend editing with runtime context, Frontman is the tool. For general-purpose agentic coding across your full stack, Claude Code is the tool.'
 	},
 	{
-		question: 'Is Frontman a free alternative to Stagewise?',
-		answer: 'Yes. Stagewise\'s free tier is limited to 10 prompts per day. Their Pro plan costs €20/month for 100 prompts/day. Frontman is completely free — you bring your own API keys (Claude, ChatGPT, or OpenRouter) and pay your LLM provider directly. There are no prompt limits, no subscription fees, and no usage caps. The client libraries are Apache 2.0 and the server is AGPL-3.0.'
+		question: 'Can Claude Code see what my app looks like in the browser?',
+		answer: 'Partially. Claude Code has a Chrome extension (beta) that can open tabs, take screenshots, read console errors, and click elements. But this is AI-driven automation — Claude decides what to look at and interact with. It is not a developer-directed "click this element, change it" workflow. The Chrome extension also doesn\'t access the framework component tree, computed CSS values, or server-side context. Frontman provides all of this by default because it runs inside your dev server as middleware.'
 	},
 	{
-		question: 'Can I use Stagewise and Frontman together?',
-		answer: 'In theory, yes — they operate differently. Stagewise injects a toolbar via CLI, while Frontman runs as framework middleware. However, using both simultaneously on the same dev server may cause conflicts. Most developers choose one based on their workflow: Stagewise if they want to bridge to an existing IDE agent, Frontman if they want a self-contained agent with deeper framework context.'
+		question: 'Can I use Frontman and Claude Code together?',
+		answer: 'Yes. Claude Code runs in your terminal or IDE. Frontman runs in the browser. They edit the same source files. Use Claude Code for backend work, refactoring, test writing, git operations, and complex multi-file changes. Use Frontman for visual frontend edits where you want to click a UI element, see computed styles, and get immediate hot-reload feedback.'
 	},
 	{
-		question: 'Does Frontman work with Cursor like Stagewise does?',
-		answer: 'Differently. Stagewise acts as a bridge — it sends browser context to Cursor\'s agent for code edits. Frontman is a self-contained agent that doesn\'t need Cursor or any IDE. It has its own AI agent that reads the browser context and generates code edits directly. You can still use Cursor for backend coding alongside Frontman for visual frontend editing — they edit the same source files.'
+		question: 'Is Frontman free compared to Claude Code?',
+		answer: 'Yes. Claude Code requires a paid Claude subscription: Pro ($20/month), Max ($100-200/month), or API access (pay-per-token). There is no free tier for Claude Code. Frontman is free to self-host with no limits — you bring your own API keys and pay your LLM provider directly. The Frontman client libraries are Apache 2.0 and the server is AGPL-3.0.'
 	},
 	{
-		question: 'Which tool has deeper browser context?',
-		answer: 'Frontman. Because it installs as framework middleware (not a CLI overlay), Frontman has access to the component tree at the framework level — React fiber nodes, Vue reactivity graph, or Svelte component tree. It also sees server-side context like routes, server logs, and query timing. Stagewise sees the DOM and computed styles but operates at a shallower level since it doesn\'t integrate into the framework\'s runtime.'
-	},
-	{
-		question: 'Which tool is easier to set up?',
-		answer: 'Stagewise. You run npx stagewise@latest in a second terminal and it works with any framework immediately — no changes to your codebase. Frontman requires installing a framework adapter (e.g., npx @frontman-ai/nextjs install for Next.js) which adds a small amount of middleware to your dev server. Frontman\'s setup takes about 60 seconds more but provides deeper integration in return.'
+		question: 'What does Frontman see that Claude Code cannot?',
+		answer: 'Frontman hooks into your framework as middleware. It sees the React/Vue/Svelte component tree with props and state, computed CSS (actual pixel values, not class names), server-side routes and logs, the full DOM as rendered at the current viewport, and uses source maps to trace any clicked element back to its exact file and line. Claude Code reads source files and can take screenshots via the Chrome extension, but it does not have access to the framework runtime, component hierarchy, or computed styles.'
 	}
 ]
 
@@ -98,25 +96,22 @@ const faqJsonLd = {
 <Layout title={SEO.title} description={SEO.description}>
 	<script is:inline type="application/ld+json" set:html={JSON.stringify(faqJsonLd)} />
 
-	<!-- Hero / AI-Citable Summary (GEO Lead) -->
+	<!-- Hero / AI-Citable Summary -->
 	<section class="hero-section">
 		<div class="hero-container">
 			<p class="hero-label">Comparison</p>
-			<h1 class="hero-title">Frontman vs Stagewise</h1>
-			<p class="hero-subtitle">Two Browser-Based AI Coding Tools, Different Architecture</p>
+			<h1 class="hero-title">Frontman vs Claude Code</h1>
+			<p class="hero-subtitle">Browser Middleware vs Terminal Agent</p>
 
 			<div class="hero-summary">
 				<p>
-					<a href="https://frontman.sh" class="text-link">Frontman</a> and <a href="https://stagewise.io" class="text-link" rel="nofollow">Stagewise</a> both let you click elements in your running app, describe changes in natural language, and get real source code edits. They solve the same problem — AI coding tools that can't see the browser — but with fundamentally different architectures.
+					<a href="https://frontman.sh" class="text-link">Frontman</a> is open-source browser middleware for AI-assisted frontend editing. It hooks into Next.js, Astro, or Vite as a framework plugin, runs a browser-side MCP server that inspects the live DOM and computed CSS, and lets you click any element to edit its source code with hot reload. Apache 2.0 client libraries, AGPL-3.0 server, BYOK.
 				</p>
 				<p>
-					<strong>Frontman</strong> is an open-source AI coding agent that hooks into your dev server as framework middleware (Next.js, Astro, Vite). It runs its own self-contained agent with deep access to the component tree, computed styles, server routes, and server logs. Free and unlimited — you bring your own API keys.
-				</p>
-				<p>
-					<strong>Stagewise</strong> is a YC-backed CLI tool that injects a toolbar into your browser. It captures DOM context and routes it to its own built-in agent or bridges to IDE agents like Cursor, Copilot, and Windsurf. Framework-agnostic with zero codebase changes, but limited to 10 free prompts/day (€20/month for 100/day).
+					<a href="https://claude.ai/code" class="text-link" rel="nofollow">Claude Code</a> is Anthropic's agentic coding tool. It runs in your terminal, VS Code, JetBrains, a desktop app, or on the web at claude.ai/code. Claude Code reads your entire codebase, edits files, runs shell commands, handles git operations, and can spawn sub-agents for parallel work. It works with any language and any project type. A Chrome extension (beta) provides limited browser interaction.
 				</p>
 				<p class="summary-emphasis">
-					The core tradeoff: Stagewise is faster to try and bridges to your existing IDE. Frontman goes deeper into the framework runtime and is fully free with no prompt limits.
+					These tools start from opposite ends. Claude Code starts at the terminal and works outward. Frontman starts at the browser and works inward. Both edit source files, but they see different things when doing it.
 				</p>
 			</div>
 		</div>
@@ -134,7 +129,7 @@ const faqJsonLd = {
 						<tr>
 							<th class="feature-header">Feature</th>
 							<th class="tool-header tool-header--highlighted">Frontman</th>
-							<th class="tool-header">Stagewise</th>
+							<th class="tool-header">Claude Code</th>
 						</tr>
 					</thead>
 					<tbody>
@@ -155,18 +150,18 @@ const faqJsonLd = {
 										{feature.frontmanNote && <span class="status-note">{feature.frontmanNote}</span>}
 									</div>
 								</td>
-								<td class="status-cell" aria-label={statusLabel(feature.stagewise)}>
+								<td class="status-cell" aria-label={statusLabel(feature.claudeCode)}>
 									<div class="status-content">
-										{feature.stagewise === 'yes' && (
+										{feature.claudeCode === 'yes' && (
 											<svg class="status-icon status-icon--yes" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>
 										)}
-										{feature.stagewise === 'no' && (
+										{feature.claudeCode === 'no' && (
 											<svg class="status-icon status-icon--no" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
 										)}
-										{feature.stagewise === 'partial' && (
+										{feature.claudeCode === 'partial' && (
 											<svg class="status-icon status-icon--partial" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
 										)}
-										{feature.stagewiseNote && <span class="status-note">{feature.stagewiseNote}</span>}
+										{feature.claudeCodeNote && <span class="status-note">{feature.claudeCodeNote}</span>}
 									</div>
 								</td>
 							</tr>
@@ -190,11 +185,11 @@ const faqJsonLd = {
 								</span>
 							</div>
 							<div class="mobile-card-item">
-								<span class="mobile-card-tool">Stagewise</span>
+								<span class="mobile-card-tool">Claude Code</span>
 								<span>
-									{feature.stagewise === 'yes' && <svg class="status-icon status-icon--yes" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>}
-									{feature.stagewise === 'no' && <svg class="status-icon status-icon--no" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>}
-									{feature.stagewise === 'partial' && <svg class="status-icon status-icon--partial" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"></line></svg>}
+									{feature.claudeCode === 'yes' && <svg class="status-icon status-icon--yes" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>}
+									{feature.claudeCode === 'no' && <svg class="status-icon status-icon--no" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>}
+									{feature.claudeCode === 'partial' && <svg class="status-icon status-icon--partial" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"></line></svg>}
 								</span>
 							</div>
 						</div>
@@ -204,16 +199,18 @@ const faqJsonLd = {
 		</div>
 	</section>
 
-	<!-- What Stagewise Does Well -->
+	<!-- What Claude Code Does Well -->
 	<section class="content-section content-section--light">
 		<div class="content-container">
-			<h2 class="section-title section-title--dark">What Stagewise Does Well</h2>
+			<h2 class="section-title section-title--dark">What Claude Code Does Well</h2>
 			<div class="prose-content prose-content--dark">
-				<p>Stagewise is a well-executed product with real traction — 6,500+ GitHub stars and YC backing. It deserves credit for popularizing the "click elements in the browser, describe changes" workflow.</p>
-				<p><strong>Zero installation friction.</strong> Run <code>npx stagewise@latest</code> in a terminal next to your dev server. No framework adapters, no config files, no changes to your codebase. You're editing visually in 30 seconds. This is the lowest barrier to entry of any browser-based AI coding tool.</p>
-				<p><strong>IDE agent bridge.</strong> Stagewise can route browser context to your existing IDE agent — Cursor, Copilot, Windsurf, Cline, and others. If you're already invested in an IDE agent's workflow, Stagewise adds browser awareness without switching tools.</p>
-				<p><strong>Framework-agnostic.</strong> Because Stagewise operates as a CLI overlay rather than framework middleware, it works with any framework — including Angular, which Frontman doesn't support. If your stack isn't Next.js, Astro, or Vite, Stagewise is the option that works today.</p>
-				<p><strong>Plugin system and VS Code extension.</strong> Stagewise has an extensibility layer and a dedicated VS Code extension. Frontman currently has neither.</p>
+				<p>Claude Code is among the most capable agentic coding tools available. Here's what it does well and why.</p>
+				<p>Claude Code runs wherever you have a terminal: Bash, zsh, PowerShell. It also runs in VS Code, JetBrains, a standalone desktop app, the web, and Slack. You pick the surface that fits your workflow. Most competing AI coding tools force you into a specific IDE.</p>
+				<p>Codebase understanding is where Claude Code pulls ahead. It uses agentic search to map your project without manual file selection. It reads, navigates, and reasons about multi-file dependencies. For large codebases where context gathering is the bottleneck, this matters more than in tools that require you to @-mention specific files.</p>
+				<p>Shell access makes it autonomous in practice. Claude Code can run builds, execute tests, check lint, do git operations, and react to command output. It doesn't just edit files and hope they compile. When a build fails, it reads the error and tries again. This feedback loop between code edits and terminal results is how it handles complex multi-step tasks.</p>
+				<p>Git and PR workflows are built in. Claude Code commits changes, creates branches, opens pull requests, and integrates with GitHub Actions for automated code review and issue triage. You can @claude in a Slack channel and it will produce a PR. For teams where the bottleneck is going from "code works locally" to "PR is merged," that's a direct time save.</p>
+				<p>MCP integration covers hundreds of servers: Jira, Sentry, Notion, Slack, GitHub, PostgreSQL, and more. Claude Code can also serve as an MCP server itself and supports the agent SDK for building custom agents.</p>
+				<p>Claude Code can also spawn multiple sub-agents working on different parts of a task simultaneously. For large refactoring jobs where different modules can be updated independently, parallel sub-agents reduce wall-clock time.</p>
 			</div>
 		</div>
 	</section>
@@ -223,32 +220,34 @@ const faqJsonLd = {
 		<div class="content-container">
 			<h2 class="section-title">Where Frontman Is Different</h2>
 			<div class="prose-content">
-				<p>Frontman and Stagewise look similar on the surface — both let you click elements and describe changes. The difference is depth. Stagewise injects a toolbar on top of your app. Frontman wires into the app itself.</p>
+				<p>Claude Code is a general-purpose coding agent. It edits files across your codebase through terminal commands and file operations. What it doesn't do is see what your frontend actually looks like when it renders. That's where Frontman comes in.</p>
 
-				<p><strong>Framework middleware vs CLI overlay.</strong> Frontman installs as a plugin into your dev server — <code>@frontman-ai/nextjs</code>, <code>@frontman-ai/astro</code>, or <code>@frontman-ai/vite</code>. This gives it access to information a CLI overlay can't reach: the React fiber tree, Vue reactivity graph, component props, server-side routes, server logs, and query timing. When you click a button, Frontman knows not just what DOM element it is, but which component rendered it, what props it received, and what server endpoint it calls.</p>
+				<p>The biggest difference is architectural. Frontman installs as a plugin for Next.js, Astro, or Vite and runs inside your dev server. When you click a button in the browser, Frontman knows which React/Vue/Svelte component rendered it, the exact file and line number (via source maps), the component's props and state, and every computed CSS property. Claude Code reads your source files and can take screenshots through the Chrome extension, but it doesn't have access to the framework's runtime state or component hierarchy.</p>
 
-				<p><strong>Fully free, no prompt limits.</strong> Stagewise's free tier caps you at 10 prompts per day. Their Pro plan is €20/month for 100 prompts/day. Frontman has no prompt limits, no subscription, and no usage-based pricing. You bring your own API keys (Claude, ChatGPT, or OpenRouter) and pay your LLM provider directly at their standard rates. For a team of 3 developers using AI coding tools daily, the cost difference is significant: €0/month vs €60/month for Stagewise Pro.</p>
+				<p>The editing model is different too. With Frontman, you click the element you want to change. The AI already has the context: the component, its styles, its position on the page. With Claude Code, you describe the change in text. The Chrome extension lets Claude interact with browsers, but that interaction is AI-driven (Claude decides what to look at), not developer-directed (you point at the thing you want changed).</p>
 
-				<p><strong>Self-contained agent.</strong> Frontman runs its own AI agent — it doesn't need Cursor, Copilot, or any IDE running alongside it. The agent has full access to the framework runtime context and generates code edits directly. This means faster iteration (no roundtrip through an IDE agent) and simpler architecture (one tool instead of two).</p>
+				<p>Frontman also keeps hot reload in the loop. It edits source files, and the framework's HMR immediately shows the result in the browser. Edit, see, edit again. Claude Code edits files too, but there's no built-in visual verification step. You have to switch to the browser yourself or explicitly ask Claude to take a screenshot via the Chrome extension.</p>
 
-				<p><strong>Server-side context.</strong> Because Frontman is framework middleware, it sees both sides: the client-side DOM and the server-side context. It knows your routes, sees server logs, and can access server-side state. Stagewise operates purely on the client side.</p>
+				<p>On licensing and pricing: Frontman's client libraries are Apache 2.0. The server is AGPL-3.0. You bring your own API keys to Claude, ChatGPT, OpenRouter, or any OpenAI-compatible provider. Claude Code is proprietary, requires a paid Anthropic subscription (minimum $20/month), and only works with Claude models.</p>
 
-				<p><strong>True BYOK.</strong> Frontman connects directly to any LLM provider — Claude, ChatGPT, OpenRouter, or any OpenAI-compatible API. Stagewise's "bring your own model" works through IDE agent bridges, not direct API key input.</p>
+				<p>Finally, Frontman requires no terminal. Designers and PMs can open the app in a browser, click elements, and describe changes. Changes produce real code diffs for developer review. Claude Code requires terminal literacy at minimum, or IDE proficiency for the extension.</p>
 			</div>
 		</div>
 	</section>
 
-	<!-- Who Should Use Stagewise -->
+	<!-- Who Should Use Claude Code -->
 	<section class="content-section content-section--light">
 		<div class="content-container">
-			<h2 class="section-title section-title--dark">Who Should Use Stagewise</h2>
+			<h2 class="section-title section-title--dark">Who Should Use Claude Code</h2>
 			<div class="prose-content prose-content--dark">
-				<p>Stagewise is the better choice when you want browser-based AI coding with minimal commitment:</p>
+				<p>Claude Code is the better choice when you need an autonomous coding agent across the full development cycle:</p>
 				<ul>
-					<li><strong>Quick evaluation</strong> — want to try browser-aware AI editing in 30 seconds without installing anything into your project</li>
-					<li><strong>IDE agent users</strong> — already using Cursor, Copilot, or Windsurf and want to add browser context to your existing agent</li>
-					<li><strong>Angular or non-supported framework</strong> — your stack isn't Next.js, Astro, or Vite and you need something framework-agnostic</li>
-					<li><strong>Occasional use</strong> — 10 prompts/day is enough for your workflow and you don't want to manage API keys</li>
+					<li><strong>Full-stack developers.</strong> Any language, any framework, with terminal access and git integration.</li>
+					<li><strong>Complex refactoring and migration.</strong> Multi-file changes across a large codebase with automated test verification.</li>
+					<li><strong>CI/CD and automation.</strong> GitHub Actions integration, Slack-triggered PRs, automated code review.</li>
+					<li><strong>Terminal-native workflows.</strong> If you live in the terminal and want an AI that does too.</li>
+					<li><strong>Teams already paying for Claude.</strong> If you have a Claude Pro/Max subscription, Claude Code is included.</li>
+					<li><strong>Backend-heavy projects.</strong> Python, Go, Rust, Elixir, infrastructure, deployment scripts.</li>
 				</ul>
 			</div>
 		</div>
@@ -259,16 +258,16 @@ const faqJsonLd = {
 		<div class="content-container">
 			<h2 class="section-title">Who Should Use Frontman</h2>
 			<div class="prose-content">
-				<p>Frontman is the better choice when you need deeper integration and freedom from prompt limits:</p>
+				<p>Frontman is the better choice when you need the AI to see what your frontend renders:</p>
 				<ul>
-					<li><strong>Daily frontend development</strong> — 10 prompts/day isn't enough and you don't want to pay €20/month for a cap of 100</li>
-					<li><strong>Next.js, Astro, or Vite projects</strong> — Frontman's middleware gives you deeper context than any CLI overlay</li>
-					<li><strong>Teams with designers or PMs</strong> — non-technical team members can make visual changes without an IDE or a Cursor subscription</li>
-					<li><strong>Open-source and vendor-independent</strong> — you want full control with no SaaS dependency, no prompt caps, and no monthly fees</li>
-					<li><strong>Server-side context matters</strong> — you need the AI to understand routes, server logs, and server-side state alongside the visual UI</li>
+					<li><strong>Frontend developers frustrated by AI breaking CSS and layout.</strong> Frontman sees computed styles, the rendered page, and responsive behavior at the current viewport.</li>
+					<li><strong>Teams where designers or PMs need to make UI changes.</strong> Click elements in the browser, describe changes, review real code diffs. No terminal or IDE required.</li>
+					<li><strong>Next.js, Astro, or Vite projects</strong> where framework middleware provides runtime context that file reading alone cannot.</li>
+					<li><strong>Open-source and BYOK.</strong> Apache 2.0 client libs, AGPL-3.0 server, any LLM provider, self-hostable, no subscription fee.</li>
+					<li><strong>Visual editing workflows</strong> where the feedback loop matters: click, describe, see the result via hot reload, iterate.</li>
 				</ul>
-				<p>Many developers who start with Stagewise's zero-install experience migrate to Frontman when they hit prompt limits or need deeper framework context.</p>
-				<p>Also see: <a href="/vs/cursor/" class="text-link">Frontman vs Cursor</a> for a comparison with a full AI-powered IDE.</p>
+				<p>Many developers use both. Claude Code for backend, refactoring, tests, and deployment automation. Frontman for visual frontend changes where the AI needs to see the rendered page.</p>
+				<p>For a detailed technical comparison including Cursor, read our <a href="/blog/frontman-vs-cursor-vs-claude-code/" class="text-link">full comparison of Frontman, Cursor, and Claude Code</a>. Also see: <a href="/vs/cursor/" class="text-link">Frontman vs Cursor</a>, <a href="/vs/windsurf/" class="text-link">Frontman vs Windsurf</a>.</p>
 			</div>
 		</div>
 	</section>
@@ -283,23 +282,24 @@ const faqJsonLd = {
 					<div class="pricing-cost">Free</div>
 					<p class="pricing-model">Open source, BYOK</p>
 					<ul class="pricing-features">
-						<li>Unlimited prompts, no daily caps</li>
-						<li>Bring your own API keys</li>
+						<li>Unlimited usage, no caps</li>
+						<li>Bring your own API keys (Claude, ChatGPT, OpenRouter)</li>
+						<li>Or sign in with Claude/ChatGPT subscription via OAuth</li>
 						<li>Apache 2.0 (client) / AGPL-3.0 (server)</li>
 						<li>You pay your LLM provider directly</li>
-						<li>Self-hostable, fully local</li>
 					</ul>
 				</div>
 				<div class="pricing-card">
-					<h3 class="pricing-name">Stagewise</h3>
-					<div class="pricing-cost">€0–€20/mo</div>
-					<p class="pricing-model">Freemium, AGPL-3.0</p>
+					<h3 class="pricing-name">Claude Code</h3>
+					<div class="pricing-cost">$20–$200/mo</div>
+					<p class="pricing-model">Subscription, proprietary</p>
 					<ul class="pricing-features">
-						<li>Free: ~10 prompts/day</li>
-						<li>Pro: €20/month (~100 prompts/day)</li>
-						<li>Built-in agent uses their infrastructure</li>
-						<li>IDE agent bridge mode may bypass limits</li>
-						<li>AGPL-3.0 license</li>
+						<li>No free tier for Claude Code</li>
+						<li>Pro: $20/month — included, usage limits apply</li>
+						<li>Max 5x: $100/month — 5x Pro usage</li>
+						<li>Max 20x: $200/month — 20x Pro usage</li>
+						<li>API: pay-per-token (Sonnet $3/$15, Opus $5/$25 per MTok)</li>
+						<li>Team: $20-100/seat/month</li>
 					</ul>
 				</div>
 			</div>
@@ -330,7 +330,7 @@ const faqJsonLd = {
 	<section class="cta-section">
 		<div class="cta-container">
 			<h2 class="cta-title">Try Frontman</h2>
-			<p class="cta-description">One command. No account. No credit card. No prompt limits.</p>
+			<p class="cta-description">One command. No account. No credit card. No usage limits.</p>
 			<div class="install-commands">
 				<div class="install-command">
 					<code><span class="command-prefix">$</span> npx @frontman-ai/nextjs install</code>
@@ -338,7 +338,7 @@ const faqJsonLd = {
 				</div>
 				<div class="install-command">
 					<code><span class="command-prefix">$</span> npx @frontman-ai/vite install</code>
-					<span class="command-label">Vite (React, Vue, Svelte)</span>
+					<span class="command-label">Vite (React, Vue, Svelte, SolidJS)</span>
 				</div>
 				<div class="install-command">
 					<code><span class="command-prefix">$</span> astro add @frontman-ai/astro</code>
@@ -392,9 +392,6 @@ const faqJsonLd = {
 		line-height: 1.7;
 		color: #a1a1aa;
 		margin-bottom: 16px;
-	}
-	.hero-summary strong {
-		color: #fafafa;
 	}
 	.hero-summary code {
 		font-family: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, 'DejaVu Sans Mono', monospace;

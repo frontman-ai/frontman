@@ -1,0 +1,798 @@
+---
+// /compare — Master Comparison Hub
+// Pillar page for "AI coding tools comparison" queries
+// Links to all individual /vs/ pages, provides the full matrix view
+
+import Layout from '../layouts/Layout.astro'
+import Button from '../components/ui/Button.astro'
+
+const SEO = {
+	title: 'AI Coding Tools Compared: Full Feature Matrix (2026)',
+	description:
+		'Compare Frontman with Cursor, Claude Code, Copilot, Windsurf, and Stagewise. Side-by-side feature matrix, pricing, and architecture.'
+}
+
+// Master comparison matrix data
+type ToolStatus = 'yes' | 'no' | 'partial' | 'n/a'
+
+type Tool = {
+	name: string
+	slug: string
+	category: string
+	description: string
+}
+
+const tools: Tool[] = [
+	{ name: 'Frontman', slug: '', category: 'Browser Middleware', description: 'Open-source AI agent in your browser' },
+	{ name: 'Cursor', slug: 'cursor', category: 'AI IDE', description: 'VS Code fork with AI agent' },
+	{ name: 'Claude Code', slug: 'claude-code', category: 'Terminal Agent', description: 'Anthropic\'s agentic coding tool' },
+	{ name: 'GitHub Copilot', slug: 'copilot', category: 'IDE Assistant', description: 'GitHub\'s AI coding assistant' },
+	{ name: 'Windsurf', slug: 'windsurf', category: 'AI IDE', description: 'VS Code fork by Cognition' },
+	{ name: 'Stagewise', slug: 'stagewise', category: 'Browser Overlay', description: 'CLI overlay that bridges to IDE agents' },
+]
+
+type MatrixFeature = {
+	name: string
+	values: Record<string, ToolStatus>
+}
+
+const matrixFeatures: MatrixFeature[] = [
+	{
+		name: 'Sees live DOM',
+		values: { 'Frontman': 'yes', 'Cursor': 'no', 'Claude Code': 'partial', 'GitHub Copilot': 'no', 'Windsurf': 'partial', 'Stagewise': 'yes' }
+	},
+	{
+		name: 'Sees computed CSS',
+		values: { 'Frontman': 'yes', 'Cursor': 'no', 'Claude Code': 'no', 'GitHub Copilot': 'no', 'Windsurf': 'partial', 'Stagewise': 'partial' }
+	},
+	{
+		name: 'Click-to-select elements',
+		values: { 'Frontman': 'yes', 'Cursor': 'no', 'Claude Code': 'no', 'GitHub Copilot': 'no', 'Windsurf': 'yes', 'Stagewise': 'yes' }
+	},
+	{
+		name: 'Framework-aware (component tree)',
+		values: { 'Frontman': 'yes', 'Cursor': 'partial', 'Claude Code': 'no', 'GitHub Copilot': 'no', 'Windsurf': 'no', 'Stagewise': 'no' }
+	},
+	{
+		name: 'Hot reload feedback loop',
+		values: { 'Frontman': 'yes', 'Cursor': 'partial', 'Claude Code': 'no', 'GitHub Copilot': 'partial', 'Windsurf': 'partial', 'Stagewise': 'partial' }
+	},
+	{
+		name: 'Autocomplete',
+		values: { 'Frontman': 'no', 'Cursor': 'yes', 'Claude Code': 'no', 'GitHub Copilot': 'yes', 'Windsurf': 'yes', 'Stagewise': 'no' }
+	},
+	{
+		name: 'Agent mode',
+		values: { 'Frontman': 'yes', 'Cursor': 'yes', 'Claude Code': 'yes', 'GitHub Copilot': 'yes', 'Windsurf': 'yes', 'Stagewise': 'partial' }
+	},
+	{
+		name: 'Terminal integration',
+		values: { 'Frontman': 'no', 'Cursor': 'yes', 'Claude Code': 'yes', 'GitHub Copilot': 'yes', 'Windsurf': 'yes', 'Stagewise': 'no' }
+	},
+	{
+		name: 'Multi-file refactoring',
+		values: { 'Frontman': 'partial', 'Cursor': 'yes', 'Claude Code': 'yes', 'GitHub Copilot': 'yes', 'Windsurf': 'yes', 'Stagewise': 'no' }
+	},
+	{
+		name: 'Backend coding',
+		values: { 'Frontman': 'partial', 'Cursor': 'yes', 'Claude Code': 'yes', 'GitHub Copilot': 'yes', 'Windsurf': 'yes', 'Stagewise': 'no' }
+	},
+	{
+		name: 'Open source',
+		values: { 'Frontman': 'yes', 'Cursor': 'no', 'Claude Code': 'no', 'GitHub Copilot': 'no', 'Windsurf': 'no', 'Stagewise': 'yes' }
+	},
+	{
+		name: 'BYOK (bring your own key)',
+		values: { 'Frontman': 'yes', 'Cursor': 'yes', 'Claude Code': 'partial', 'GitHub Copilot': 'no', 'Windsurf': 'no', 'Stagewise': 'partial' }
+	},
+	{
+		name: 'Self-hostable',
+		values: { 'Frontman': 'yes', 'Cursor': 'no', 'Claude Code': 'no', 'GitHub Copilot': 'no', 'Windsurf': 'no', 'Stagewise': 'no' }
+	},
+	{
+		name: 'Works in the browser',
+		values: { 'Frontman': 'yes', 'Cursor': 'no', 'Claude Code': 'partial', 'GitHub Copilot': 'no', 'Windsurf': 'no', 'Stagewise': 'yes' }
+	},
+	{
+		name: 'No IDE required',
+		values: { 'Frontman': 'yes', 'Cursor': 'no', 'Claude Code': 'yes', 'GitHub Copilot': 'no', 'Windsurf': 'no', 'Stagewise': 'yes' }
+	},
+	{
+		name: 'MCP support',
+		values: { 'Frontman': 'yes', 'Cursor': 'yes', 'Claude Code': 'yes', 'GitHub Copilot': 'partial', 'Windsurf': 'yes', 'Stagewise': 'no' }
+	},
+]
+
+// Pricing data
+const pricing = [
+	{ name: 'Frontman', price: 'Free', model: 'Open source, BYOK', detail: 'You pay your LLM provider only' },
+	{ name: 'Cursor', price: '$0–$200/mo', model: 'Freemium', detail: 'Free tier limited; Pro $20/mo' },
+	{ name: 'Claude Code', price: '$20–$200/mo', model: 'Subscription', detail: 'No free tier for Claude Code' },
+	{ name: 'GitHub Copilot', price: '$0–$39/mo', model: 'Freemium', detail: 'Free: 50 chats, 2k completions/mo' },
+	{ name: 'Windsurf', price: '$0–$30/mo', model: 'Freemium', detail: 'Free: 25 credits/mo' },
+	{ name: 'Stagewise', price: 'Free–$20/mo', model: 'Freemium', detail: 'Free: 10 prompts/day' },
+]
+
+// FAQ data
+const faqs = [
+	{
+		question: 'What makes Frontman different from all these tools?',
+		answer: 'Frontman is the only tool on this list that runs as framework middleware inside your dev server. It hooks into Next.js, Astro, or Vite as a plugin, which gives the AI agent access to the live DOM, computed CSS, the framework component tree (React, Vue, Svelte), server-side routes, and compilation errors. Other tools either read source files from an IDE (Cursor, Copilot, Windsurf), work from a terminal (Claude Code), or see a shallow DOM snapshot (Stagewise). Frontman sees the full runtime context.'
+	},
+	{
+		question: 'Can I use Frontman alongside these other tools?',
+		answer: 'Yes. Frontman runs in your browser and edits source files. You can use any IDE (Cursor, VS Code, Windsurf, JetBrains) and any terminal tool (Claude Code) alongside it. They all edit the same files, and hot reload keeps everything in sync. The typical workflow is: IDE-based tool for backend and refactoring, Frontman for visual frontend work.'
+	},
+	{
+		question: 'Which tool should I use if I only pick one?',
+		answer: 'If you primarily do frontend work on Next.js, Astro, or Vite projects and want the AI to see what the page looks like: Frontman. If you need a full IDE with autocomplete for any language: Cursor or Windsurf. If you want a terminal-native agent for complex multi-file tasks: Claude Code. If you want inline autocomplete integrated into GitHub: Copilot. These tools are better together than alone.'
+	},
+	{
+		question: 'Is Frontman really free?',
+		answer: 'Yes. The client libraries are Apache 2.0 and the server is AGPL-3.0. You self-host and bring your own API keys to Claude, ChatGPT, OpenRouter, or any OpenAI-compatible provider. You pay those providers directly at their standard rates. There are no prompt caps, no credit system, no monthly subscription from Frontman. Paid hosted tiers are planned but the open-source core will stay free.'
+	}
+]
+
+const faqJsonLd = {
+	"@context": "https://schema.org",
+	"@type": "FAQPage",
+	"mainEntity": faqs.map((faq) => ({
+		"@type": "Question",
+		"name": faq.question,
+		"acceptedAnswer": {
+			"@type": "Answer",
+			"text": faq.answer
+		}
+	}))
+}
+---
+
+<Layout title={SEO.title} description={SEO.description}>
+	<script is:inline type="application/ld+json" set:html={JSON.stringify(faqJsonLd)} />
+
+	<!-- Hero -->
+	<section class="hero-section">
+		<div class="hero-container">
+			<p class="hero-label">Comparison</p>
+			<h1 class="hero-title">AI Coding Tools Compared</h1>
+			<p class="hero-subtitle">
+				How Frontman stacks up against Cursor, Claude Code, GitHub Copilot, Windsurf, and Stagewise. Feature matrix, pricing, and architecture differences.
+			</p>
+			<p class="hero-summary-text">
+				<a href="https://frontman.sh" class="text-link">Frontman</a> is an open-source AI coding agent that runs as framework middleware in your browser. It hooks into Next.js, Astro, or Vite, sees the live DOM and computed CSS via a browser-side MCP server, and lets you click elements to edit their source code with hot reload. The tools below approach AI-assisted coding from different directions. This page shows where they overlap and where they don't.
+			</p>
+		</div>
+	</section>
+
+	<!-- Quick Category Overview -->
+	<section class="categories-section">
+		<div class="categories-container">
+			<h2 class="section-title">Tool Categories</h2>
+			<p class="section-description">These tools are not all the same kind of thing. Understanding the category helps you pick the right one.</p>
+			<div class="categories-grid">
+				<div class="category-card category-card--highlighted">
+					<h3 class="category-name">Browser Middleware</h3>
+					<p class="category-tool">Frontman</p>
+					<p class="category-desc">Installs as a framework plugin. Runs inside your dev server. Sees the rendered page from the inside: component tree, computed styles, routes, logs.</p>
+				</div>
+				<div class="category-card">
+					<h3 class="category-name">AI IDEs</h3>
+					<p class="category-tool">Cursor, Windsurf</p>
+					<p class="category-desc">VS Code forks with built-in AI agents, autocomplete, and terminal integration. Work from file context. Windsurf adds an embedded browser preview panel.</p>
+				</div>
+				<div class="category-card">
+					<h3 class="category-name">Terminal Agent</h3>
+					<p class="category-tool">Claude Code</p>
+					<p class="category-desc">Runs in your terminal or IDE. Reads the full codebase, edits files, runs commands, handles git. Language-agnostic. Chrome extension (beta) for limited browser access.</p>
+				</div>
+				<div class="category-card">
+					<h3 class="category-name">IDE Assistant</h3>
+					<p class="category-tool">GitHub Copilot</p>
+					<p class="category-desc">IDE extension with inline autocomplete, agent mode, and code review. Works across any language. Integrated into the GitHub platform for PRs and issues.</p>
+				</div>
+				<div class="category-card">
+					<h3 class="category-name">Browser Overlay</h3>
+					<p class="category-tool">Stagewise</p>
+					<p class="category-desc">Zero-install CLI overlay injected into the browser. Bridges to IDE agents (Cursor, Copilot, etc.) or uses a built-in agent with prompt limits.</p>
+				</div>
+			</div>
+		</div>
+	</section>
+
+	<!-- Full Feature Matrix -->
+	<section class="matrix-section">
+		<div class="matrix-container">
+			<h2 class="section-title">Full Feature Matrix</h2>
+			<p class="section-description">How each tool handles 16 capabilities that matter for AI-assisted development.</p>
+
+			<div class="matrix-wrapper">
+				<table class="matrix-table" role="grid">
+					<thead>
+						<tr>
+							<th class="matrix-feature-header">Feature</th>
+							{tools.map((tool) => (
+								<th class={`matrix-tool-header ${tool.slug === '' ? 'matrix-tool-header--highlighted' : ''}`}>
+									{tool.slug ? (
+										<a href={`/vs/${tool.slug}/`} class="matrix-tool-link">{tool.name}</a>
+									) : (
+										<span>{tool.name}</span>
+									)}
+								</th>
+							))}
+						</tr>
+					</thead>
+					<tbody>
+						{matrixFeatures.map((feature) => (
+							<tr>
+								<td class="matrix-feature-cell">{feature.name}</td>
+								{tools.map((tool) => {
+									const status = feature.values[tool.name] || 'n/a'
+									return (
+										<td class={`matrix-status-cell ${tool.slug === '' ? 'matrix-status-cell--highlighted' : ''}`}>
+											{status === 'yes' && (
+												<svg class="status-icon status-icon--yes" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" aria-label="Yes"><polyline points="20 6 9 17 4 12"></polyline></svg>
+											)}
+											{status === 'no' && (
+												<svg class="status-icon status-icon--no" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" aria-label="No"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+											)}
+											{status === 'partial' && (
+												<svg class="status-icon status-icon--partial" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" aria-label="Partial"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+											)}
+											{status === 'n/a' && (
+												<span class="status-na" aria-label="Not applicable">&mdash;</span>
+											)}
+										</td>
+									)
+								})}
+							</tr>
+						))}
+					</tbody>
+				</table>
+			</div>
+
+			<div class="matrix-legend">
+				<span class="legend-item"><svg class="status-icon status-icon--yes" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> Yes</span>
+				<span class="legend-item"><svg class="status-icon status-icon--partial" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line></svg> Partial</span>
+				<span class="legend-item"><svg class="status-icon status-icon--no" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg> No</span>
+			</div>
+		</div>
+	</section>
+
+	<!-- Pricing Comparison -->
+	<section class="content-section content-section--light">
+		<div class="content-container-wide">
+			<h2 class="section-title section-title--dark">Pricing at a Glance</h2>
+			<div class="pricing-table-wrapper">
+				<table class="pricing-table">
+					<thead>
+						<tr>
+							<th>Tool</th>
+							<th>Price</th>
+							<th>Model</th>
+							<th>Note</th>
+						</tr>
+					</thead>
+					<tbody>
+						{pricing.map((p) => (
+							<tr class={p.name === 'Frontman' ? 'pricing-row--highlighted' : ''}>
+								<td class="pricing-tool-name">{p.name}</td>
+								<td class="pricing-price">{p.price}</td>
+								<td>{p.model}</td>
+								<td class="pricing-detail">{p.detail}</td>
+							</tr>
+						))}
+					</tbody>
+				</table>
+			</div>
+		</div>
+	</section>
+
+	<!-- Individual Comparison Links -->
+	<section class="content-section">
+		<div class="content-container">
+			<h2 class="section-title">Detailed Comparisons</h2>
+			<p class="section-intro">Each page below has a full feature table, prose analysis, pricing breakdown, and FAQ with structured data for search engines.</p>
+			<div class="links-grid">
+				{tools.filter(t => t.slug !== '').map((tool) => (
+					<a href={`/vs/${tool.slug}/`} class="link-card">
+						<span class="link-card-category">{tool.category}</span>
+						<h3 class="link-card-title">Frontman vs {tool.name}</h3>
+						<p class="link-card-desc">{tool.description}</p>
+						<span class="link-card-cta">Read full comparison &rarr;</span>
+					</a>
+				))}
+			</div>
+		</div>
+	</section>
+
+	<!-- FAQ -->
+	<section class="content-section content-section--light">
+		<div class="content-container">
+			<h2 class="section-title section-title--dark">Frequently Asked Questions</h2>
+			<div class="faq-list faq-list--light">
+				{faqs.map((faq) => (
+					<details class="faq-item faq-item--light group">
+						<summary class="faq-question faq-question--light">
+							<span>{faq.question}</span>
+							<span class="faq-icon faq-icon--light">+</span>
+						</summary>
+						<div class="faq-answer faq-answer--light">
+							<p>{faq.answer}</p>
+						</div>
+					</details>
+				))}
+			</div>
+		</div>
+	</section>
+
+	<!-- CTA -->
+	<section class="cta-section">
+		<div class="cta-container">
+			<h2 class="cta-title">Try Frontman</h2>
+			<p class="cta-description">One command. No account. No credit card.</p>
+			<div class="install-commands">
+				<div class="install-command">
+					<code><span class="command-prefix">$</span> npx @frontman-ai/nextjs install</code>
+					<span class="command-label">Next.js</span>
+				</div>
+				<div class="install-command">
+					<code><span class="command-prefix">$</span> npx @frontman-ai/vite install</code>
+					<span class="command-label">Vite (React, Vue, Svelte, SolidJS)</span>
+				</div>
+				<div class="install-command">
+					<code><span class="command-prefix">$</span> astro add @frontman-ai/astro</code>
+					<span class="command-label">Astro</span>
+				</div>
+			</div>
+			<div class="cta-links">
+				<Button size="lg" style="primary" link="https://github.com/frontman-ai/frontman">Star on GitHub</Button>
+				<a href="https://discord.gg/xk8uXJSvhC" target="_blank" rel="noopener noreferrer" class="cta-discord">Join Discord</a>
+			</div>
+		</div>
+	</section>
+</Layout>
+
+<style>
+	/* Hero */
+	.hero-section {
+		background: #09090b;
+		color: #fafafa;
+		padding: 80px 24px 48px;
+		display: flex;
+		justify-content: center;
+	}
+	.hero-container {
+		max-width: 800px;
+		width: 100%;
+	}
+	.hero-label {
+		@apply font-mono;
+		font-size: 13px;
+		letter-spacing: 0.12em;
+		text-transform: uppercase;
+		color: #A259FF;
+		margin-bottom: 12px;
+	}
+	.hero-title {
+		font-size: 48px;
+		font-weight: 700;
+		line-height: 1.1;
+		letter-spacing: -0.02em;
+		color: #fafafa;
+		margin-bottom: 16px;
+	}
+	.hero-subtitle {
+		font-size: 20px;
+		line-height: 1.5;
+		color: #a1a1aa;
+		margin-bottom: 24px;
+	}
+	.hero-summary-text {
+		font-size: 17px;
+		line-height: 1.7;
+		color: #71717a;
+	}
+	.text-link {
+		color: #A259FF;
+		text-decoration: underline;
+		text-underline-offset: 2px;
+	}
+	.text-link:hover { color: #c084fc; }
+
+	/* Categories */
+	.categories-section {
+		background: #09090b;
+		padding: 48px 24px 64px;
+		display: flex;
+		justify-content: center;
+	}
+	.categories-container {
+		max-width: 1000px;
+		width: 100%;
+	}
+	.section-title {
+		font-size: 32px;
+		font-weight: 700;
+		color: #fafafa;
+		margin-bottom: 12px;
+		letter-spacing: -0.02em;
+	}
+	.section-title--dark { color: #09090b; }
+	.section-description {
+		font-size: 17px;
+		color: #71717a;
+		margin-bottom: 32px;
+	}
+	.section-intro {
+		font-size: 17px;
+		color: #a1a1aa;
+		margin-bottom: 32px;
+		line-height: 1.6;
+	}
+	.categories-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+		gap: 16px;
+	}
+	.category-card {
+		padding: 24px;
+		border-radius: 12px;
+		border: 1px solid rgba(255, 255, 255, 0.08);
+		background: rgba(255, 255, 255, 0.03);
+	}
+	.category-card--highlighted {
+		border-color: rgba(162, 89, 255, 0.4);
+		background: rgba(162, 89, 255, 0.06);
+	}
+	.category-name {
+		font-size: 14px;
+		font-weight: 600;
+		color: #71717a;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+		margin-bottom: 4px;
+	}
+	.category-card--highlighted .category-name { color: #A259FF; }
+	.category-tool {
+		font-size: 18px;
+		font-weight: 700;
+		color: #fafafa;
+		margin-bottom: 8px;
+	}
+	.category-desc {
+		font-size: 15px;
+		line-height: 1.6;
+		color: #a1a1aa;
+	}
+
+	/* Matrix */
+	.matrix-section {
+		background: #09090b;
+		padding: 64px 24px;
+		display: flex;
+		justify-content: center;
+	}
+	.matrix-container {
+		max-width: 1100px;
+		width: 100%;
+	}
+	.matrix-wrapper {
+		overflow-x: auto;
+		-webkit-overflow-scrolling: touch;
+	}
+	.matrix-table {
+		width: 100%;
+		min-width: 800px;
+		border-collapse: separate;
+		border-spacing: 0;
+	}
+	.matrix-feature-header {
+		@apply text-left text-sm font-semibold uppercase tracking-wider py-3 px-4;
+		color: rgba(255, 255, 255, 0.4);
+		border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+		position: sticky;
+		left: 0;
+		background: #09090b;
+		z-index: 1;
+	}
+	.matrix-tool-header {
+		@apply text-center text-sm font-bold py-3 px-3;
+		color: rgba(255, 255, 255, 0.7);
+		border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+		min-width: 120px;
+	}
+	.matrix-tool-header--highlighted {
+		color: #A259FF;
+		background: rgba(162, 89, 255, 0.08);
+		border-top: 3px solid #A259FF;
+	}
+	.matrix-tool-link {
+		color: inherit;
+		text-decoration: none;
+	}
+	.matrix-tool-link:hover {
+		text-decoration: underline;
+		text-underline-offset: 2px;
+	}
+	.matrix-feature-cell {
+		@apply text-left text-sm py-3 px-4;
+		color: rgba(255, 255, 255, 0.85);
+		border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+		position: sticky;
+		left: 0;
+		background: #09090b;
+		z-index: 1;
+	}
+	.matrix-status-cell {
+		@apply text-center py-3 px-3;
+		border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+	}
+	.matrix-status-cell--highlighted {
+		background: rgba(162, 89, 255, 0.06);
+	}
+	tr:last-child .matrix-feature-cell,
+	tr:last-child .matrix-status-cell {
+		border-bottom: none;
+	}
+	.status-icon { @apply inline-block; }
+	.status-icon--yes { color: #22c55e; }
+	.status-icon--no { color: #ef4444; }
+	.status-icon--partial { color: #f59e0b; }
+	.status-na { color: #52525b; font-size: 14px; }
+
+	.matrix-legend {
+		display: flex;
+		gap: 24px;
+		margin-top: 16px;
+		padding-top: 16px;
+		border-top: 1px solid rgba(255, 255, 255, 0.06);
+	}
+	.legend-item {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		font-size: 13px;
+		color: #71717a;
+	}
+
+	/* Content sections */
+	.content-section {
+		background: #09090b;
+		color: #fafafa;
+		padding: 64px 24px;
+		display: flex;
+		justify-content: center;
+	}
+	.content-section--light {
+		background: #fafafa;
+		color: #09090b;
+	}
+	.content-container {
+		max-width: 800px;
+		width: 100%;
+	}
+	.content-container-wide {
+		max-width: 1000px;
+		width: 100%;
+	}
+
+	/* Pricing table */
+	.pricing-table-wrapper {
+		overflow-x: auto;
+	}
+	.pricing-table {
+		width: 100%;
+		border-collapse: collapse;
+	}
+	.pricing-table th {
+		text-align: left;
+		font-size: 13px;
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+		color: #71717a;
+		padding: 12px 16px;
+		border-bottom: 2px solid #e4e4e7;
+	}
+	.pricing-table td {
+		font-size: 15px;
+		color: #52525b;
+		padding: 14px 16px;
+		border-bottom: 1px solid #f4f4f5;
+	}
+	.pricing-row--highlighted td {
+		background: rgba(162, 89, 255, 0.04);
+	}
+	.pricing-tool-name {
+		font-weight: 600;
+		color: #09090b;
+	}
+	.pricing-row--highlighted .pricing-tool-name {
+		color: #A259FF;
+	}
+	.pricing-price {
+		font-weight: 700;
+		color: #09090b;
+	}
+	.pricing-detail {
+		font-size: 14px;
+		color: #a1a1aa;
+	}
+
+	/* Links grid */
+	.links-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+		gap: 16px;
+	}
+	.link-card {
+		display: block;
+		padding: 24px;
+		border-radius: 12px;
+		border: 1px solid rgba(255, 255, 255, 0.08);
+		background: rgba(255, 255, 255, 0.03);
+		text-decoration: none;
+		transition: border-color 0.2s, background 0.2s;
+	}
+	.link-card:hover {
+		border-color: rgba(162, 89, 255, 0.4);
+		background: rgba(162, 89, 255, 0.06);
+	}
+	.link-card-category {
+		font-size: 12px;
+		color: #71717a;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+	}
+	.link-card-title {
+		font-size: 20px;
+		font-weight: 700;
+		color: #fafafa;
+		margin: 4px 0 8px;
+	}
+	.link-card-desc {
+		font-size: 15px;
+		line-height: 1.5;
+		color: #a1a1aa;
+		margin-bottom: 12px;
+	}
+	.link-card-cta {
+		font-size: 14px;
+		font-weight: 500;
+		color: #A259FF;
+	}
+	.link-card:hover .link-card-cta {
+		text-decoration: underline;
+		text-underline-offset: 3px;
+	}
+
+	/* FAQ */
+	.faq-list { border-top: 1px solid #27272a; }
+	.faq-list--light { border-top: 1px solid #e4e4e7; }
+	.faq-item { border-bottom: 1px solid #27272a; cursor: pointer; }
+	.faq-item--light { border-bottom: 1px solid #e4e4e7; }
+	.faq-question {
+		width: 100%;
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		padding: 24px 0;
+		color: #fafafa;
+		font-size: 17px;
+		font-weight: 500;
+		line-height: 1.4;
+		list-style: none;
+		transition: color 0.2s;
+	}
+	.faq-question--light { color: #09090b; }
+	.faq-question::-webkit-details-marker { display: none; }
+	.faq-question:hover { color: #fff; }
+	.faq-question--light:hover { color: #000; }
+	.faq-question span:first-child { padding-right: 24px; }
+	.faq-icon {
+		flex-shrink: 0;
+		width: 28px;
+		height: 28px;
+		border-radius: 50%;
+		border: 1px solid #3f3f46;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font-size: 18px;
+		font-weight: 300;
+		color: #71717a;
+		transition: all 0.3s ease;
+	}
+	.faq-icon--light { border-color: #d4d4d8; }
+	.group[open] .faq-icon {
+		transform: rotate(45deg);
+		background: #27272a;
+	}
+	.group[open] .faq-icon--light {
+		background: #f4f4f5;
+	}
+	.faq-answer p {
+		font-size: 15px;
+		line-height: 1.7;
+		color: #a1a1aa;
+		padding-bottom: 24px;
+		margin: 0;
+		max-width: 620px;
+	}
+	.faq-answer--light p { color: #52525b; }
+
+	/* CTA */
+	.cta-section {
+		background: #09090b;
+		border-top: 1px solid #27272a;
+		padding: 80px 24px;
+		display: flex;
+		justify-content: center;
+	}
+	.cta-container {
+		max-width: 720px;
+		width: 100%;
+	}
+	.cta-title {
+		font-size: 36px;
+		font-weight: 700;
+		color: #fafafa;
+		margin-bottom: 8px;
+		letter-spacing: -0.02em;
+	}
+	.cta-description {
+		font-size: 17px;
+		color: #71717a;
+		margin-bottom: 32px;
+	}
+	.install-commands {
+		display: flex;
+		flex-direction: column;
+		gap: 12px;
+		margin-bottom: 32px;
+	}
+	.install-command {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		padding: 12px 16px;
+		border-radius: 8px;
+		background: rgba(255, 255, 255, 0.04);
+		border: 1px solid rgba(255, 255, 255, 0.08);
+	}
+	.install-command code {
+		font-family: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, 'DejaVu Sans Mono', monospace;
+		font-size: 14px;
+		color: #fafafa;
+	}
+	.command-prefix { color: #A259FF; margin-right: 8px; }
+	.command-label { font-size: 13px; color: #71717a; }
+	.cta-links {
+		display: flex;
+		align-items: center;
+		gap: 24px;
+	}
+	.cta-discord {
+		color: #71717a;
+		font-size: 15px;
+		text-decoration: none;
+		transition: color 0.2s;
+	}
+	.cta-discord:hover { color: #fafafa; }
+
+	/* Responsive */
+	@media (max-width: 768px) {
+		.hero-section { padding: 48px 20px 32px; }
+		.hero-title { font-size: 32px; }
+		.categories-section { padding: 32px 20px 48px; }
+		.categories-grid { grid-template-columns: 1fr; }
+		.section-title { font-size: 24px; }
+		.matrix-section { padding: 40px 20px; }
+		.content-section { padding: 40px 20px; }
+		.links-grid { grid-template-columns: 1fr; }
+		.cta-section { padding: 48px 20px; }
+		.cta-title { font-size: 28px; }
+		.cta-links { flex-direction: column; align-items: flex-start; gap: 12px; }
+		.install-command { flex-direction: column; align-items: flex-start; gap: 4px; }
+	}
+</style>

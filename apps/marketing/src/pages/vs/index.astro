@@ -5,9 +5,9 @@
 import Layout from '../../layouts/Layout.astro'
 
 const SEO = {
-	title: 'Frontman Comparisons: How Frontman Stacks Up Against Other AI Coding Tools',
+	title: 'Frontman vs Other AI Coding Tools (2026)',
 	description:
-		'Honest, detailed comparisons of Frontman with Cursor, GitHub Copilot, and Stagewise. Feature tables, pricing, and real differences for each tool.'
+		'Compare Frontman with Cursor, Claude Code, Copilot, Windsurf, Stagewise, and v0. Feature tables, pricing, and architecture differences.'
 }
 
 const comparisons = [
@@ -18,10 +18,22 @@ const comparisons = [
 		tags: ['IDE', 'Agent Mode', 'Autocomplete']
 	},
 	{
+		title: 'Frontman vs Claude Code',
+		href: '/vs/claude-code',
+		description: 'Anthropic\'s terminal-native agentic coding tool vs Frontman\'s browser-based approach. Claude Code runs shell commands, handles git workflows, and spawns sub-agents. Frontman sees the rendered page and lets you click elements to edit code.',
+		tags: ['Terminal', 'Agentic', 'Anthropic']
+	},
+	{
 		title: 'Frontman vs GitHub Copilot',
 		href: '/vs/copilot',
-		description: 'GitHub\'s AI coding assistant vs Frontman\'s browser-based approach. Copilot lives in your IDE with inline suggestions and Copilot Workspace. Frontman lives in your browser with visual editing and framework integration.',
+		description: 'GitHub\'s AI coding assistant vs Frontman\'s browser-based approach. Copilot lives in your IDE with inline suggestions and agent mode. Frontman lives in your browser with visual editing and framework integration.',
 		tags: ['IDE', 'Autocomplete', 'GitHub Integration']
+	},
+	{
+		title: 'Frontman vs Windsurf',
+		href: '/vs/windsurf',
+		description: 'A VS Code fork with an embedded browser preview panel vs browser middleware. Windsurf brings a preview browser into the IDE. Frontman puts the AI agent into your real browser with framework-level runtime context.',
+		tags: ['IDE', 'Browser Preview', 'Cognition']
 	},
 	{
 		title: 'Frontman vs Stagewise',
