@@ -1123,13 +1123,18 @@ let handleEffect = (effect, state: state, dispatch) => {
             Client__State__Types.latestVersionsResponseSchema,
           )
           switch versions->Dict.get(npmPackage)->Option.flatMap(v => v) {
-          | Some(latest) if latest === installedVersion => () // Same version — no banner
           | Some(latest) =>
-            dispatch(
-              UpdateInfoReceived({
-                updateInfo: {npmPackage, installedVersion, latestVersion: latest},
-              }),
-            )
+            // Only show banner when installed is strictly behind latest
+            // (pre-release < release per semver). Unparseable → no banner.
+            switch (Client__Semver.parse(installedVersion), Client__Semver.parse(latest)) {
+            | (Some(installed), Some(latestV)) if Client__Semver.isBehind(installed, latestV) =>
+              dispatch(
+                UpdateInfoReceived({
+                  updateInfo: {npmPackage, installedVersion, latestVersion: latest},
+                }),
+              )
+            | _ => ()
+            }
           | None =>
             Sentry.captureConnectionError(
               `CheckForUpdate: package "${npmPackage}" not found or null in registry response`,

@@ -44,7 +44,6 @@ export default defineConfig({
       sourceRoot: monorepoRoot,
       basePath: "frontman",
       serverName: "marketing",
-      serverVersion: "1.0.0",
     }),
     tailwind(),
     icon(),
