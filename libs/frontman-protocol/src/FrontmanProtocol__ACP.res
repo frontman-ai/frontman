@@ -292,7 +292,7 @@ type sessionUpdate =
       status: option<string>,
       content: option<array<toolCallContentItem>>,
     })
-  | Plan({entries: option<array<planEntry>>})
+  | Plan({entries: array<planEntry>})
   | Error({message: string})
   | Unknown({sessionUpdate: string})
 
@@ -333,7 +333,7 @@ let sessionUpdateSchema = S.union([
   S.object(s => {
     s.tag("sessionUpdate", "plan")
     Plan({
-      entries: s.field("entries", S.option(S.array(planEntrySchema))),
+      entries: s.field("entries", S.array(planEntrySchema)),
     })
   }),
   S.object(s => {
