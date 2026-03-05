@@ -205,13 +205,13 @@ const faqJsonLd = {
 		<div class="content-container">
 			<h2 class="section-title section-title--dark">What GitHub Copilot Does Well</h2>
 			<div class="prose-content prose-content--dark">
-				<p>GitHub Copilot is the most widely adopted AI coding tool in the world. It has earned that position for real reasons.</p>
-				<p><strong>Autocomplete is the killer feature.</strong> Copilot's inline suggestions predict what you're about to type — often multiple lines ahead. For raw coding speed, especially in well-established patterns, nothing else comes close. Frontman doesn't have autocomplete at all.</p>
-				<p><strong>Agent mode is genuinely capable.</strong> Copilot's agent can plan multi-step changes across files, run terminal commands, interpret errors, and iterate — all within VS Code, JetBrains, or Xcode. The coding agent can even create pull requests autonomously from GitHub issues. This is a level of agentic capability Frontman doesn't attempt.</p>
+				<p>GitHub Copilot is the most widely adopted AI coding tool in the world, and for real reasons.</p>
+				<p><strong>Autocomplete is the main draw.</strong> Copilot's inline suggestions predict what you're about to type — often multiple lines ahead. For raw coding speed in familiar patterns, it's hard to beat. Frontman doesn't have autocomplete at all.</p>
+				<p>Copilot's agent can plan multi-step changes across files, run terminal commands, interpret errors, and iterate — all within VS Code, JetBrains, or Xcode. The coding agent can even create pull requests autonomously from GitHub issues. This is a level of agentic capability Frontman doesn't attempt.</p>
 				<p><strong>Code review built into GitHub.</strong> Copilot reviews pull requests directly on GitHub.com and in your IDE, providing inline suggestions on diffs. This integrates AI into the review workflow where it matters most. Frontman has no code review feature.</p>
-				<p><strong>Works across every language and framework.</strong> Python, Go, Rust, TypeScript, Java, SQL — Copilot handles them all. Frontman is focused on frontend frameworks (Next.js, Astro, Vite). If you work across the full stack, Copilot covers everything.</p>
+				<p>Python, Go, Rust, TypeScript, Java, SQL: Copilot works with all of them. Frontman is focused on frontend frameworks (Next.js, Astro, Vite). If you work across the full stack, Copilot covers everything.</p>
 				<p><strong>Multi-model access.</strong> Copilot offers models from Anthropic (Claude), Google (Gemini), OpenAI (GPT-5), and xAI (Grok) — all through one subscription. You choose models per-task without managing API keys. The free tier includes 50 agent/chat requests and 2,000 completions per month.</p>
-				<p><strong>Massive ecosystem.</strong> Available in VS Code, Visual Studio, JetBrains, Xcode, Neovim, Eclipse, Zed, and more. MCP server integration, custom instructions, and the GitHub platform integration make it the default AI coding tool for millions of developers.</p>
+				<p>Available in VS Code, Visual Studio, JetBrains, Xcode, Neovim, Eclipse, Zed, and more. MCP server integration, custom instructions, and the GitHub platform integration make it the default AI coding tool for millions of developers.</p>
 			</div>
 		</div>
 	</section>
@@ -221,9 +221,9 @@ const faqJsonLd = {
 		<div class="content-container">
 			<h2 class="section-title">Where Frontman Is Different</h2>
 			<div class="prose-content">
-				<p>Frontman exists because of a gap in every IDE-based AI tool, Copilot included: <strong>they don't see the browser.</strong> Copilot reads your JSX, your CSS files, your Tailwind classes — but it has never seen what they actually render. It doesn't know that your hero section overflows at 768px, that computed font size is 18px not 16px, or that a sibling component's margin is collapsing your layout.</p>
+				<p>There's a gap in every IDE-based AI tool, Copilot included: <strong>they don't see the browser.</strong> Copilot reads JSX, CSS files, and Tailwind classes, but it has never seen what they actually render. It doesn't know that your hero section overflows at 768px, that computed font size is 18px not 16px, or that a sibling component's margin is collapsing your layout.</p>
 
-				<p><strong>Browser-side MCP server.</strong> Frontman integrates with your framework (Next.js, Astro, or Vite) as a plugin and runs a browser-side MCP server. This server inspects the live DOM tree, computed CSS styles, viewport dimensions, the component tree with props and state, and takes screenshots. When you click a button, Frontman resolves the source location via source maps and knows the exact file, component, and line that rendered it.</p>
+				<p>Frontman integrates with your framework (Next.js, Astro, or Vite) as a plugin and runs a browser-side MCP server. This server inspects the live DOM tree, computed CSS styles, viewport dimensions, the component tree with props and state, and takes screenshots. When you click a button, Frontman resolves the source location via source maps and knows the exact file, component, and line that rendered it.</p>
 
 				<p><strong>Click-to-edit workflow.</strong> Instead of describing which file to open, you click the element you want to change. The AI already knows the component, its source location, its computed styles, and its context in the rendered page. "Make this card's shadow more subtle" works because Frontman can see the card, measure its current shadow, and edit the right line of code.</p>
 
@@ -267,7 +267,7 @@ const faqJsonLd = {
 					<li><strong>Open-source and vendor-independent</strong> — Apache 2.0 client libs, AGPL-3.0 server, BYOK to any LLM provider, self-hostable, no subscription</li>
 					<li><strong>Visual editing workflows</strong> where seeing the live result matters more than typing speed</li>
 				</ul>
-				<p>Many developers use both. Copilot in the IDE for autocomplete, agent mode, and backend coding. Frontman in the browser for visual frontend changes where the AI needs to see what's actually rendered.</p>
+				<p>You can use both. Copilot in the IDE for autocomplete, agent mode, and backend coding. Frontman in the browser for visual frontend changes where the AI needs to see what's actually rendered.</p>
 			</div>
 		</div>
 	</section>

@@ -1,0 +1,182 @@
+---
+// /vs/onlook — Frontman vs Onlook Comparison Page
+// Key angle: Onlook is a design tool that outputs code (for designers).
+// Frontman is a dev tool that uses the browser (for developers).
+// Different audiences, different architectures.
+
+// Components
+import Layout from '../../layouts/Layout.astro'
+import ComparisonHero from '../../components/blocks/comparison/ComparisonHero.astro'
+import ComparisonFeatureTable from '../../components/blocks/comparison/ComparisonFeatureTable.astro'
+import ComparisonPricing from '../../components/blocks/comparison/ComparisonPricing.astro'
+import ComparisonCTA from '../../components/blocks/comparison/ComparisonCTA.astro'
+import IntegrationContentSection from '../../components/blocks/integrations/IntegrationContentSection.astro'
+import IntegrationFAQ from '../../components/blocks/integrations/IntegrationFAQ.astro'
+
+import type { ComparisonFeature } from '../../components/blocks/comparison/ComparisonFeatureTable.astro'
+
+// SEO
+const SEO = {
+	title: 'Frontman vs Onlook: Dev Tool vs Design Tool for AI Code Editing',
+	description:
+		'Honest comparison of Frontman and Onlook. Onlook is a Figma-like editor that outputs React code in a sandbox. Frontman edits your existing running app via browser middleware. Feature table, architecture differences, and real trade-offs.'
+}
+
+// Comparison data
+const features: ComparisonFeature[] = [
+	{ name: 'Edits your real codebase', frontman: 'yes', competitor: 'partial', frontmanNote: 'Edits actual source files on your machine', competitorNote: 'Edits code in sandbox, export to GitHub' },
+	{ name: 'Sees live DOM & styles', frontman: 'yes', competitor: 'yes', frontmanNote: 'From your real running app', competitorNote: 'From sandbox preview' },
+	{ name: 'Visual element selection', frontman: 'yes', competitor: 'yes', frontmanNote: 'Click to select in browser', competitorNote: 'Figma-like canvas with layers' },
+	{ name: 'Drag & resize elements', frontman: 'no', competitor: 'yes', competitorNote: 'Figma-like drag/resize on canvas' },
+	{ name: 'Figma-like canvas', frontman: 'no', competitor: 'yes', competitorNote: 'Infinite canvas with design tools' },
+	{ name: 'Figma import', frontman: 'no', competitor: 'yes' },
+	{ name: 'Real-time collaboration', frontman: 'no', competitor: 'yes', competitorNote: 'Multi-user editing, spatial comments' },
+	{ name: 'Framework-aware middleware', frontman: 'yes', competitor: 'no', frontmanNote: 'Hooks into Next.js/Astro/Vite runtime', competitorNote: 'Sandbox environment' },
+	{ name: 'Server-side context', frontman: 'yes', competitor: 'no', frontmanNote: 'Routes, logs, real backend data', competitorNote: 'Sandbox only' },
+	{ name: 'Component tree access', frontman: 'yes', competitor: 'partial', frontmanNote: 'React fiber, Vue, Svelte', competitorNote: 'React components in sandbox' },
+	{ name: 'Multi-framework support', frontman: 'yes', competitor: 'no', frontmanNote: 'Next.js, Astro, Vite — React/Vue/Svelte', competitorNote: 'Next.js + TailwindCSS primarily' },
+	{ name: 'BYOK (bring your own key)', frontman: 'yes', competitor: 'no', frontmanNote: 'Any LLM', competitorNote: 'Uses their models' },
+	{ name: 'Works on existing projects', frontman: 'yes', competitor: 'partial', frontmanNote: 'Designed for this', competitorNote: 'Can import from GitHub but runs in sandbox' },
+	{ name: 'Designer/PM friendly', frontman: 'yes', competitor: 'yes', frontmanNote: 'Click and describe', competitorNote: 'Figma-like interface' },
+	{ name: 'Open source', frontman: 'yes', competitor: 'yes', frontmanNote: 'Apache 2.0 / AGPL-3.0', competitorNote: 'Apache 2.0' },
+	{ name: 'Deploy built-in', frontman: 'no', competitor: 'yes', competitorNote: 'Freestyle hosting' },
+]
+
+// FAQ data
+const faqs = [
+	{
+		question: 'Is Frontman an alternative to Onlook?',
+		answer: 'They target different audiences. Onlook is a design tool for creating and editing UI visually with a Figma-like interface. Frontman is a dev tool for editing existing apps by clicking elements in your browser. Onlook targets designers who want to output real code. Frontman targets developers who want browser-aware AI coding on their existing projects.'
+	},
+	{
+		question: 'Both are open source — what\'s the difference?',
+		answer: 'Architecture. Onlook runs your app in a sandboxed web container (CodeSandbox SDK). Frontman hooks into your actual dev server as middleware. Onlook sees a sandbox preview. Frontman sees your real running application with real data and real backend state. Both are open source — Onlook is Apache 2.0, Frontman is Apache 2.0 (client) / AGPL-3.0 (server).'
+	},
+	{
+		question: 'Can designers use Frontman?',
+		answer: 'Yes, but differently. Frontman lets anyone click elements and describe changes in plain English — no IDE needed. But Onlook provides a more familiar design-tool interface with a canvas, layers panel, drag/resize, and spatial comments that designers may prefer for purely visual work.'
+	},
+	{
+		question: 'Which supports more frameworks?',
+		answer: 'Frontman. It works with Next.js, Astro, and Vite (covering React, Vue, and Svelte). Onlook primarily supports Next.js with TailwindCSS. Vue is mentioned on Onlook\'s roadmap but is not practically available yet.'
+	},
+	{
+		question: 'Which is better for existing projects?',
+		answer: 'Frontman. It\'s designed specifically for existing codebases — it hooks into your dev server and edits your actual source files. Onlook can import repositories from GitHub but runs the code in a sandbox, which means you lose your real backend, real APIs, and runtime context.'
+	},
+	{
+		question: 'Why does Onlook have 24,000+ stars and Frontman has ~130?',
+		answer: 'Onlook is backed by Y Combinator, has been around longer, and targets a larger audience that includes both designers and developers. Frontman is newer and targets a more specific niche: developers who want browser-aware AI coding on their existing projects with full runtime context.'
+	}
+]
+
+// FAQPage JSON-LD
+const faqJsonLd = {
+	"@context": "https://schema.org",
+	"@type": "FAQPage",
+	"mainEntity": faqs.map((faq) => ({
+		"@type": "Question",
+		"name": faq.question,
+		"acceptedAnswer": {
+			"@type": "Answer",
+			"text": faq.answer
+		}
+	}))
+}
+---
+
+<Layout title={SEO.title} description={SEO.description}>
+	<script is:inline type="application/ld+json" set:html={JSON.stringify(faqJsonLd)} />
+
+	<!-- Hero / AI-Citable Summary (GEO Lead) -->
+	<ComparisonHero
+		title="Frontman vs Onlook"
+		subtitle="Dev Tool vs Design Tool for AI Code Editing"
+	>
+		<p>
+			<a href="https://frontman.sh" class="text-link">Frontman</a> and <a href="https://onlook.dev" class="text-link" rel="nofollow">Onlook</a> both use AI to help edit frontend code visually, but they're built for different people. Onlook is a Figma-like design tool that outputs real React code. Frontman is a developer tool that hooks into your running app in the browser.
+		</p>
+		<p>
+			<strong>Frontman</strong> is an open-source AI coding agent that installs as middleware in your dev server (Next.js, Astro, Vite). It sees the live DOM, component tree, computed CSS, and server-side context of your real running application. You click elements in your browser, describe changes in plain English, and Frontman edits the actual source files with hot reload. Free and unlimited — bring your own API keys.
+		</p>
+		<p>
+			<strong>Onlook</strong> is an open-source, YC-backed visual editor described as "Cursor for Designers." It provides a Figma-like canvas with layers, drag/resize, brand tokens, and spatial comments. Apps run in a CodeSandbox SDK web container — not your real dev server. It supports AI chat with project context, Figma import, GitHub integration, real-time collaboration, and deploy to Freestyle hosting. Primarily supports Next.js + TailwindCSS. Still under active development.
+		</p>
+		<p class="summary-emphasis">
+			The core difference: Onlook is a design tool that generates code in a sandbox. Frontman is a dev tool that edits your real running app. Different audiences, different architectures.
+		</p>
+	</ComparisonHero>
+
+	<!-- Feature Table -->
+	<ComparisonFeatureTable competitorName="Onlook" features={features} />
+
+	<!-- What Onlook Does Well -->
+	<IntegrationContentSection title="What Onlook Does Well" variant="light">
+		<p>Onlook has 24,800+ GitHub stars and YC backing. Its target audience is designers who want to edit real code without learning an IDE.</p>
+		<p><strong>Figma-like editing experience.</strong> Onlook provides a canvas, layers panel, drag/resize, and visual property editors that feel familiar to designers. You can select elements, move them around, adjust spacing and typography — all without touching code. This is a different interaction model from text-based AI coding.</p>
+		<p><strong>Real-time collaboration.</strong> Multiple users can edit simultaneously with spatial comments, similar to Figma's multiplayer. This makes it viable for design reviews and pair design sessions. Frontman has no collaboration features.</p>
+		<p><strong>Figma import.</strong> Onlook can import designs from Figma, bridging the designer-to-developer handoff. Frontman has no Figma integration.</p>
+		<p><strong>GitHub integration and deploy.</strong> Onlook can import repositories from GitHub, create pull requests, and deploy to Freestyle hosting. It's trying to be a complete workflow from design to production.</p>
+		<p><strong>AI chat with project context.</strong> Onlook includes AI chat that understands your project structure and can make changes across files. It also supports MCP for extending AI capabilities.</p>
+	</IntegrationContentSection>
+
+	<!-- Where Frontman Is Different -->
+	<IntegrationContentSection title="Where Frontman Is Different">
+		<p>Both tools involve clicking UI elements and getting code changes. The difference is where your code runs. <strong>Onlook runs your app in a sandbox. Frontman runs inside your real app.</strong></p>
+
+		<p><strong>Your real dev server, not a sandbox.</strong> Onlook runs your code in a CodeSandbox SDK web container. This means no real backend, no real API calls, no real database queries, no server-side rendering with real data. Frontman installs as middleware in your actual Next.js, Astro, or Vite dev server. It sees everything your app sees because it <em>is</em> your app.</p>
+
+		<p><strong>Framework middleware integration.</strong> Frontman hooks into the framework runtime — <code>@frontman-ai/nextjs</code>, <code>@frontman-ai/astro</code>, or <code>@frontman-ai/vite</code>. This gives it access to the React fiber tree, Vue reactivity graph, component props and state, server-side routes, and server logs. When you click a button, Frontman knows which component rendered it, what props it received, and what API endpoint it calls.</p>
+
+		<p><strong>Edits your actual source files.</strong> Frontman writes changes directly to your source files on disk. Hot module replacement shows the result instantly in your browser. Onlook edits code inside its sandbox, and you export changes back to your repository via GitHub integration. The roundtrip adds friction when iterating quickly.</p>
+
+		<p><strong>Multi-framework support.</strong> Frontman works with Next.js, Astro, and Vite (which covers React, Vue, and Svelte). Onlook primarily supports Next.js with TailwindCSS. If your project uses Astro, Vue, or Svelte, Frontman is the option that works today.</p>
+
+		<p><strong>BYOK and truly free.</strong> Frontman lets you bring your own API keys — Claude, ChatGPT, OpenRouter, or any OpenAI-compatible API. No usage limits, no credits, no subscription from Frontman. Onlook uses its own AI models with no BYOK option.</p>
+	</IntegrationContentSection>
+
+	<!-- Who Should Use Onlook -->
+	<IntegrationContentSection title="Who Should Use Onlook" variant="light">
+		<p>Onlook is the better choice when visual design tools matter more than runtime context:</p>
+		<ul>
+			<li><strong>Designers editing code</strong> — the Figma-like canvas, layers panel, and drag/resize feel natural for design workflows</li>
+			<li><strong>New Next.js + Tailwind projects</strong> — Onlook's sandbox works well for projects that don't need a real backend</li>
+			<li><strong>Team design reviews</strong> — real-time collaboration and spatial comments make it useful for reviewing UI changes with stakeholders</li>
+			<li><strong>Figma-to-code workflows</strong> — import Figma designs and iterate on them visually</li>
+			<li><strong>Prototyping and greenfield work</strong> — when you don't have an existing backend or runtime to connect to</li>
+		</ul>
+	</IntegrationContentSection>
+
+	<!-- Who Should Use Frontman -->
+	<IntegrationContentSection title="Who Should Use Frontman">
+		<p>Frontman is the better choice when you need to edit an existing, running application:</p>
+		<ul>
+			<li><strong>Existing codebases</strong> — your app is already built, has a real backend, real API integrations, and you need to edit the frontend with full context</li>
+			<li><strong>Developers, not designers</strong> — you think in components and props, not layers and frames, and want AI that understands your framework runtime</li>
+			<li><strong>Server-side context matters</strong> — you need the AI to understand routes, server logs, API responses, and real database state alongside the visual UI</li>
+			<li><strong>Non-Next.js frameworks</strong> — Astro, Vite with Vue, Svelte, or React projects that Onlook doesn't support</li>
+			<li><strong>BYOK and vendor-independent</strong> — you want to use your own LLM provider with no usage limits or cloud dependency</li>
+			<li><strong>Quick iteration on live apps</strong> — click an element in your browser, describe the change, see it instantly via hot reload on your real dev server</li>
+		</ul>
+		<p>Also see: <a href="/vs/stagewise/" class="text-link">Frontman vs Stagewise</a> for a comparison with another browser-based AI coding tool, or <a href="/vs/cursor/" class="text-link">Frontman vs Cursor</a> for a comparison with an AI-powered IDE.</p>
+	</IntegrationContentSection>
+
+	<!-- Pricing -->
+	<ComparisonPricing
+		competitorName="Onlook"
+		competitorCost="Free / Contact"
+		competitorModel="Open source self-hosted, cloud pricing undisclosed"
+		competitorFeatures={[
+			'Free to self-host (Apache 2.0)',
+			'Cloud version available (book a demo)',
+			'Enterprise options with Docker/cloud deploy',
+			'Deploy to Freestyle hosting included',
+		]}
+	/>
+
+	<!-- FAQ -->
+	<IntegrationFAQ faqs={faqs} />
+
+	<!-- CTA -->
+	<ComparisonCTA />
+</Layout>

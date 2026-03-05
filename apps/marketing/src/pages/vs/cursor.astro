@@ -200,14 +200,14 @@ const faqJsonLd = {
 		<div class="content-container">
 			<h2 class="section-title section-title--dark">What Cursor Does Well</h2>
 			<div class="prose-content prose-content--dark">
-				<p>Cursor is a genuine productivity multiplier for developers who live in an IDE. It deserves its popularity.</p>
+				<p>Cursor makes developers faster if you already live in an IDE. It's popular for good reason.</p>
 				<p><strong>Autocomplete is best-in-class.</strong> Tab completion understands your codebase, predicts multi-line edits, and learns from your patterns. For raw typing speed, nothing in this comparison comes close.</p>
 				<p><strong>Agent mode is powerful.</strong> Cursor's agent can plan multi-step changes, run terminal commands, interpret output, and iterate on errors — all within the IDE. Cloud agents and background agents let work continue asynchronously. Frontman's AI agent is focused on browser-visible changes, not general-purpose coding workflows.</p>
 				<p><strong>Multi-file refactoring works.</strong> Cursor's Composer and agent mode can rename a prop across 15 files, update imports, and fix type errors in one pass. Frontman can edit multiple files, but it's not its primary workflow.</p>
 				<p><strong>Backend and general-purpose coding.</strong> Cursor handles Python, Go, Rust, SQL, infrastructure-as-code — any language, any project. Frontman is frontend-focused. It can read and write any project file, but its strengths are in visual editing where browser context matters.</p>
 				<p><strong>Terminal integration.</strong> Cursor's terminal agent can run commands, read output, and fix errors automatically. Frontman has no terminal — it captures console logs and build errors from the dev server, but cannot run arbitrary commands.</p>
-				<p><strong>Extensibility via MCP.</strong> Cursor supports MCP servers, allowing it to connect to external tools, databases, APIs, and even browser automation. Combined with .cursorrules for project-specific context, this makes Cursor highly customizable.</p>
-				<p><strong>Large community and ecosystem.</strong> Cursor has millions of users, extensive documentation, and a mature extension ecosystem inherited from VS Code.</p>
+				<p>Cursor supports MCP servers, allowing it to connect to external tools, databases, APIs, and even browser automation. Combined with .cursorrules for project-specific context, this makes Cursor highly customizable.</p>
+				<p>Cursor has millions of users, extensive documentation, and a mature extension ecosystem inherited from VS Code.</p>
 			</div>
 		</div>
 	</section>
@@ -217,15 +217,15 @@ const faqJsonLd = {
 		<div class="content-container">
 			<h2 class="section-title">Where Frontman Is Different</h2>
 			<div class="prose-content">
-				<p>Frontman exists because of a specific problem: <strong>AI coding tools don't natively see the browser.</strong> Cursor reads your JSX files, but by default it has never seen what they render. It doesn't know that your hero section overflows at 768px, that the computed font size is 18px not 16px, or that a sibling component's margin is pushing your layout. Cursor can connect to browser tools via MCP servers, but that requires setup and isn't the default workflow.</p>
+				<p>AI coding tools don't natively see the browser. Cursor reads your JSX files, but by default it has never seen what they render. It doesn't know that your hero section overflows at 768px, that the computed font size is 18px not 16px, or that a sibling component's margin is pushing your layout. Cursor can connect to browser tools via MCP servers, but that requires setup and isn't the default workflow.</p>
 
-				<p><strong>Three-part architecture.</strong> Frontman integrates with your framework (Next.js, Astro, or Vite) as a plugin that serves an overlay UI at <code>/frontman</code> and relays file operations to the dev server. A browser-side MCP server handles DOM inspection, screenshots, computed CSS, element selection, and device emulation. The AI agent runs on a separate Elixir/Phoenix server, orchestrating tool calls and LLM interactions. When you click a button in your running app, Frontman resolves the source location via source maps and knows exactly which file, component, and line rendered it.</p>
+				<p>Frontman integrates with your framework (Next.js, Astro, or Vite) as a plugin that serves an overlay UI at <code>/frontman</code> and relays file operations to the dev server. A browser-side MCP server handles DOM inspection, screenshots, computed CSS, element selection, and device emulation. The AI agent runs on a separate Elixir/Phoenix server, orchestrating tool calls and LLM interactions. When you click a button in your running app, Frontman resolves the source location via source maps and knows exactly which file, component, and line rendered it.</p>
 
 				<p><strong>Click-to-edit workflow.</strong> Instead of describing which file to open, you click the element you want to change. The AI already knows the component, its source location, its styles, and its context in the rendered page. "Make this card's shadow more subtle" works because Frontman can see the card.</p>
 
 				<p><strong>Hot reload closes the feedback loop.</strong> Frontman edits actual source files, and the framework's built-in HMR handles live reloading automatically. Edit → see result → edit again happens in the browser without switching windows. No alt-tab, no manual refresh, no guessing whether the change worked.</p>
 
-				<p><strong>More than just frontend.</strong> While Frontman is optimized for visual frontend editing, it can read, write, search, and grep any file in your project. It captures console logs, build errors, and can run Lighthouse audits. It's frontend-focused, not frontend-only.</p>
+				<p>While Frontman is optimized for visual frontend editing, it can read, write, search, and grep any file in your project. It captures console logs, build errors, and can run Lighthouse audits. It's frontend-focused, not frontend-only.</p>
 
 				<p><strong>Open source and BYOK.</strong> Frontman's client libraries are Apache 2.0. The server is AGPL-3.0. There are no prompt limits, no subscription fees, and no usage-based pricing. You bring your own API keys to Anthropic, OpenAI, or OpenRouter — or sign in with your Claude or ChatGPT subscription via OAuth.</p>
 

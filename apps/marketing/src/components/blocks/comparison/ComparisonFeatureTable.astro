@@ -1,0 +1,231 @@
+---
+// ComparisonFeatureTable
+// ----------------------
+// Shared feature comparison table for /vs/ pages.
+// Props:
+// - competitorName: Name of the competitor (e.g. "Bolt", "Lovable")
+// - features: Array of feature comparison rows
+
+type Status = 'yes' | 'no' | 'partial'
+
+export type ComparisonFeature = {
+	name: string
+	frontman: Status
+	competitor: Status
+	frontmanNote?: string
+	competitorNote?: string
+}
+
+type Props = {
+	competitorName: string
+	features: ComparisonFeature[]
+}
+
+const { competitorName, features } = Astro.props
+
+function statusLabel(status: Status): string {
+	switch (status) {
+		case 'yes': return 'Yes'
+		case 'no': return 'No'
+		case 'partial': return 'Partial'
+	}
+}
+---
+
+<section class="comparison-section">
+	<div class="comparison-container">
+		<h2 class="section-title">Feature Comparison</h2>
+
+		<!-- Desktop table -->
+		<div class="table-wrapper">
+			<table class="comparison-table" role="grid">
+				<thead>
+					<tr>
+						<th class="feature-header">Feature</th>
+						<th class="tool-header tool-header--highlighted">Frontman</th>
+						<th class="tool-header">{competitorName}</th>
+					</tr>
+				</thead>
+				<tbody>
+					{features.map((feature) => (
+						<tr>
+							<td class="feature-cell">{feature.name}</td>
+							<td class="status-cell status-cell--highlighted" aria-label={statusLabel(feature.frontman)}>
+								<div class="status-content">
+									{feature.frontman === 'yes' && (
+										<svg class="status-icon status-icon--yes" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>
+									)}
+									{feature.frontman === 'no' && (
+										<svg class="status-icon status-icon--no" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+									)}
+									{feature.frontman === 'partial' && (
+										<svg class="status-icon status-icon--partial" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+									)}
+									{feature.frontmanNote && <span class="status-note">{feature.frontmanNote}</span>}
+								</div>
+							</td>
+							<td class="status-cell" aria-label={statusLabel(feature.competitor)}>
+								<div class="status-content">
+									{feature.competitor === 'yes' && (
+										<svg class="status-icon status-icon--yes" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>
+									)}
+									{feature.competitor === 'no' && (
+										<svg class="status-icon status-icon--no" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+									)}
+									{feature.competitor === 'partial' && (
+										<svg class="status-icon status-icon--partial" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+									)}
+									{feature.competitorNote && <span class="status-note">{feature.competitorNote}</span>}
+								</div>
+							</td>
+						</tr>
+					))}
+				</tbody>
+			</table>
+		</div>
+
+		<!-- Mobile cards -->
+		<div class="mobile-cards">
+			{features.map((feature) => (
+				<div class="mobile-card">
+					<h3 class="mobile-card-title">{feature.name}</h3>
+					<div class="mobile-card-grid">
+						<div class="mobile-card-item mobile-card-item--highlighted">
+							<span class="mobile-card-tool">Frontman</span>
+							<span>
+								{feature.frontman === 'yes' && <svg class="status-icon status-icon--yes" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>}
+								{feature.frontman === 'no' && <svg class="status-icon status-icon--no" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>}
+								{feature.frontman === 'partial' && <svg class="status-icon status-icon--partial" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"></line></svg>}
+							</span>
+						</div>
+						<div class="mobile-card-item">
+							<span class="mobile-card-tool">{competitorName}</span>
+							<span>
+								{feature.competitor === 'yes' && <svg class="status-icon status-icon--yes" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>}
+								{feature.competitor === 'no' && <svg class="status-icon status-icon--no" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>}
+								{feature.competitor === 'partial' && <svg class="status-icon status-icon--partial" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"></line></svg>}
+							</span>
+						</div>
+					</div>
+				</div>
+			))}
+		</div>
+	</div>
+</section>
+
+<style>
+	.comparison-section {
+		background: #09090b;
+		padding: 64px 24px;
+		display: flex;
+		justify-content: center;
+	}
+	.comparison-container {
+		max-width: 900px;
+		width: 100%;
+	}
+	.section-title {
+		font-size: 32px;
+		font-weight: 700;
+		color: #fafafa;
+		margin-bottom: 32px;
+		letter-spacing: -0.02em;
+	}
+
+	/* Table */
+	.table-wrapper {
+		@apply hidden md:block;
+	}
+	.comparison-table {
+		@apply w-full;
+		border-collapse: separate;
+		border-spacing: 0;
+	}
+	.feature-header {
+		@apply text-left text-sm font-semibold uppercase tracking-wider py-4 px-6;
+		color: rgba(255, 255, 255, 0.4);
+		border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+	}
+	.tool-header {
+		@apply text-center text-base font-bold py-4 px-6;
+		color: rgba(255, 255, 255, 0.7);
+		border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+		width: 240px;
+	}
+	.tool-header--highlighted {
+		color: #A259FF;
+		background: rgba(162, 89, 255, 0.08);
+		border-top: 3px solid #A259FF;
+		border-bottom: 1px solid rgba(162, 89, 255, 0.2);
+	}
+	.feature-cell {
+		@apply text-left text-base py-4 px-6;
+		color: rgba(255, 255, 255, 0.9);
+		border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+	}
+	.status-cell {
+		@apply py-4 px-6;
+		border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+	}
+	.status-cell--highlighted {
+		background: rgba(162, 89, 255, 0.08);
+	}
+	.status-content {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		justify-content: flex-start;
+	}
+	.status-note {
+		font-size: 13px;
+		color: rgba(255, 255, 255, 0.5);
+	}
+	tr:last-child .feature-cell,
+	tr:last-child .status-cell {
+		border-bottom: none;
+	}
+	.status-icon { @apply inline-block; }
+	.status-icon--yes { color: #22c55e; }
+	.status-icon--no { color: #ef4444; }
+	.status-icon--partial { color: #f59e0b; }
+
+	/* Mobile cards */
+	.mobile-cards {
+		@apply flex flex-col gap-3 md:hidden;
+	}
+	.mobile-card {
+		@apply p-4;
+		background: rgba(255, 255, 255, 0.04);
+		border: 1px solid rgba(255, 255, 255, 0.08);
+		border-radius: 12px;
+	}
+	.mobile-card-title {
+		@apply font-headings text-sm font-bold mb-3;
+		color: white;
+	}
+	.mobile-card-grid {
+		@apply grid grid-cols-2 gap-3;
+	}
+	.mobile-card-item {
+		@apply flex items-center justify-between py-2 px-3;
+		border-radius: 8px;
+		background: rgba(255, 255, 255, 0.03);
+	}
+	.mobile-card-item--highlighted {
+		background: rgba(162, 89, 255, 0.12);
+		border: 1px solid rgba(162, 89, 255, 0.25);
+	}
+	.mobile-card-tool {
+		@apply text-sm;
+		color: rgba(255, 255, 255, 0.6);
+	}
+	.mobile-card-item--highlighted .mobile-card-tool {
+		color: #A259FF;
+		font-weight: 600;
+	}
+
+	@media (max-width: 768px) {
+		.comparison-section { padding: 40px 20px; }
+		.section-title { font-size: 24px; }
+	}
+</style>

@@ -1,0 +1,183 @@
+---
+// /vs/lovable — Frontman vs Lovable Comparison Page
+// Key angle: Lovable generates new apps for non-coders. Frontman edits existing apps for developers.
+// These are not competing products — different tools for different workflows.
+
+// Layout
+import Layout from '../../layouts/Layout.astro'
+
+// Reusable comparison components
+import ComparisonHero from '../../components/blocks/comparison/ComparisonHero.astro'
+import ComparisonFeatureTable from '../../components/blocks/comparison/ComparisonFeatureTable.astro'
+import ComparisonPricing from '../../components/blocks/comparison/ComparisonPricing.astro'
+import ComparisonCTA from '../../components/blocks/comparison/ComparisonCTA.astro'
+import IntegrationContentSection from '../../components/blocks/integrations/IntegrationContentSection.astro'
+import IntegrationFAQ from '../../components/blocks/integrations/IntegrationFAQ.astro'
+
+// Types
+import type { ComparisonFeature } from '../../components/blocks/comparison/ComparisonFeatureTable.astro'
+
+// SEO
+const SEO = {
+	title: 'Frontman vs Lovable: Edit Existing Apps vs Generate New Ones',
+	description:
+		'Honest comparison of Frontman and Lovable. Lovable generates full-stack apps from prompts for non-coders. Frontman edits your existing codebase by seeing your real running app. Feature table, pricing, and real differences.',
+}
+
+// Feature comparison data
+const features: ComparisonFeature[] = [
+	{ name: 'Edits your real codebase', frontman: 'yes', competitor: 'no', competitorNote: 'Generates code in hosted sandbox' },
+	{ name: 'Works with existing projects', frontman: 'yes', competitor: 'no', competitorNote: 'Cannot import existing code' },
+	{ name: 'Sees live DOM & styles', frontman: 'yes', competitor: 'no', competitorNote: 'Sandbox only' },
+	{ name: 'Click-to-select elements', frontman: 'yes', competitor: 'no', competitorNote: 'Chat interface only' },
+	{ name: 'Generate apps from scratch', frontman: 'no', competitor: 'yes', competitorNote: 'Core workflow' },
+	{ name: 'Built-in hosting & databases', frontman: 'no', competitor: 'yes', competitorNote: 'Lovable Cloud with Supabase-based infra' },
+	{ name: 'Authentication out of the box', frontman: 'no', competitor: 'yes', competitorNote: 'Email, phone, Google OAuth' },
+	{ name: 'Hot reload feedback loop', frontman: 'yes', competitor: 'yes', frontmanNote: 'Framework HMR', competitorNote: 'In sandbox preview' },
+	{ name: 'Framework-aware middleware', frontman: 'yes', competitor: 'no', frontmanNote: 'Next.js, Astro, Vite', competitorNote: 'React + Tailwind only' },
+	{ name: 'Server-side context', frontman: 'yes', competitor: 'no', frontmanNote: 'Routes, logs, timing' },
+	{ name: 'Component tree access', frontman: 'yes', competitor: 'no' },
+	{ name: 'Multi-framework support', frontman: 'yes', competitor: 'no', frontmanNote: 'React, Vue, Svelte, Next.js, Astro', competitorNote: 'React + Tailwind only' },
+	{ name: 'Designer/PM friendly', frontman: 'yes', competitor: 'yes', frontmanNote: 'No IDE needed', competitorNote: 'No code needed at all' },
+	{ name: 'Open source', frontman: 'yes', competitor: 'no', frontmanNote: 'Apache 2.0 / AGPL-3.0', competitorNote: 'Proprietary' },
+	{ name: 'BYOK (bring your own key)', frontman: 'yes', competitor: 'no', competitorNote: 'Uses their models' },
+	{ name: 'Self-hostable', frontman: 'yes', competitor: 'no' },
+	{ name: 'Enterprise compliance', frontman: 'no', competitor: 'yes', competitorNote: 'SOC 2 Type II, ISO 27001, GDPR' },
+]
+
+// FAQ data
+const faqs = [
+	{
+		question: 'Is Frontman an alternative to Lovable?',
+		answer: 'No, they are different tools for different workflows. Lovable generates new full-stack apps from text prompts — it targets non-technical users who want to build something from scratch. Frontman edits existing codebases by hooking into your dev server and letting you click elements in your running app. If you don\'t have a codebase yet, Lovable is the right starting point. If you already have a project, Frontman is the right tool.',
+	},
+	{
+		question: 'Can I use Lovable and Frontman together?',
+		answer: 'Yes, and this is a natural workflow. Generate your initial app with Lovable, export the code to GitHub, clone it locally, then add Frontman middleware to iterate visually with full runtime context. Lovable gets you from zero to something. Frontman helps you refine what you have.',
+	},
+	{
+		question: 'Does Frontman generate full apps like Lovable?',
+		answer: 'No. Frontman requires an existing codebase with a running dev server. It does not generate apps from scratch. If you need to go from idea to working app, use Lovable, Bolt, or v0 to generate the starting point, then bring Frontman in for iterative editing with browser context.',
+	},
+	{
+		question: 'Why would a developer choose Frontman over Lovable?',
+		answer: 'If you already have a codebase, Lovable can\'t help — it cannot import existing code. Everything in Lovable is generated from scratch in a hosted sandbox. Frontman works with your existing project, sees your real DOM and component tree, and edits your actual source files. Developers with established apps use Frontman. People starting from zero use Lovable.',
+	},
+	{
+		question: 'Is Frontman free compared to Lovable?',
+		answer: 'Yes. Lovable\'s free tier gives you 5 credits per day (30 per month). Heavy use costs $25 to $2,250 per month depending on the plan. Frontman is completely free — you bring your own API keys and pay your LLM provider directly. No credits, no message limits, no monthly subscription from Frontman itself.',
+	},
+	{
+		question: 'Which supports more frameworks?',
+		answer: 'Frontman. Lovable generates React + Tailwind + Vite only — no Vue, Svelte, Astro, or Next.js server components. Frontman works with Next.js, Astro, and Vite (supporting React, Vue, and Svelte). If your project isn\'t React + Tailwind, Lovable isn\'t an option.',
+	},
+]
+
+// FAQPage JSON-LD
+const faqJsonLd = {
+	'@context': 'https://schema.org',
+	'@type': 'FAQPage',
+	mainEntity: faqs.map((faq) => ({
+		'@type': 'Question',
+		name: faq.question,
+		acceptedAnswer: {
+			'@type': 'Answer',
+			text: faq.answer,
+		},
+	})),
+}
+---
+
+<Layout title={SEO.title} description={SEO.description}>
+	<script is:inline type="application/ld+json" set:html={JSON.stringify(faqJsonLd)} />
+
+	<!-- Hero / AI-Citable Summary (GEO Lead) -->
+	<ComparisonHero
+		title="Frontman vs Lovable"
+		subtitle="Edit Your Existing App vs Generate a New One"
+	>
+		<p>
+			<a href="https://frontman.sh" class="text-link">Frontman</a> and <a href="https://lovable.dev" class="text-link" rel="nofollow">Lovable</a> are both AI-powered development tools, but they solve different problems. Lovable generates complete full-stack apps from text prompts in a hosted sandbox. Frontman edits your existing codebase by hooking into your running app in the browser.
+		</p>
+		<p>
+			<strong>Frontman</strong> is an open-source AI coding agent that installs as framework middleware (Next.js, Astro, Vite). It sees the live DOM, component tree, computed CSS, and server-side context. You click elements in your running app, describe changes in plain English, and Frontman edits the actual source files with hot reload. Free and unlimited with BYOK.
+		</p>
+		<p>
+			<strong>Lovable</strong> (formerly GPT-Engineer) is an AI-powered app generation platform. Describe what you want and Lovable builds a complete React + Tailwind + Vite app with hosting, databases, authentication, and deployment — all in a hosted sandbox. Credit-based pricing starting at $25/month for serious use. Proprietary SaaS with SOC 2 Type II and ISO 27001 compliance.
+		</p>
+		<p class="summary-emphasis">
+			The core difference: Lovable creates new apps for people who don't code. Frontman edits existing apps for developers who do. They are complementary tools, not competitors.
+		</p>
+	</ComparisonHero>
+
+	<!-- Feature Comparison Table -->
+	<ComparisonFeatureTable competitorName="Lovable" features={features} />
+
+	<!-- What Lovable Does Well -->
+	<IntegrationContentSection title="What Lovable Does Well" variant="light">
+		<p>Lovable turns non-technical people into app builders.</p>
+		<p><strong>Full-stack app generation from prompts.</strong> Describe what you want ("a project management tool with kanban boards, user authentication, and a dashboard") and Lovable generates a complete working app. React frontend, Supabase backend, authentication, database schema, and deployment. For non-developers building MVPs, this saves months of work.</p>
+		<p><strong>Lovable Cloud is a real platform.</strong> Hosted databases, authentication (email, phone, Google OAuth), file storage, edge functions, and custom domains — all managed through the Lovable interface. You don't need to know what Supabase is or how to configure it. The platform handles infrastructure so users can focus on the product.</p>
+		<p><strong>MCP and third-party integrations.</strong> Lovable supports MCP (Model Context Protocol) and has built-in integrations with Stripe, Shopify, and Slack. For building apps that connect to external services, Lovable provides a guided path that doesn't require manual API integration.</p>
+		<p>SOC 2 Type II and ISO 27001 certification, GDPR compliance, and EU data residency. For organizations that require these certifications, Lovable has them and open-source tools typically don't.</p>
+		<p><strong>Designed for non-developers.</strong> The entire UX is built around people who have never written code. You never touch a terminal or an IDE. This is what Lovable is built for — it makes app development accessible to people without engineering backgrounds.</p>
+	</IntegrationContentSection>
+
+	<!-- Where Frontman Is Different -->
+	<IntegrationContentSection title="Where Frontman Is Different">
+		<p>Lovable starts from nothing. Frontman starts from something. If you have no codebase, Lovable is the right tool. If you do, Frontman is.</p>
+		<p><strong>Your real codebase, not a sandbox.</strong> Frontman edits the actual source files in your project. When you click an element and describe a change, the AI modifies your real code and hot module replacement shows the result instantly. With Lovable, everything lives in a hosted sandbox — and once you enable Lovable Cloud, you cannot disconnect from their infrastructure.</p>
+		<p>Lovable cannot import your existing code. If you already have a Next.js app, a Vue dashboard, or a Svelte site, Lovable has no way to work with it. Frontman is designed specifically for existing codebases. Install the framework adapter, start your dev server, and you're editing visually.</p>
+		<p><strong>Framework middleware integration.</strong> Frontman installs as a plugin into your dev server — <code>@frontman-ai/nextjs</code>, <code>@frontman-ai/astro</code>, or <code>@frontman-ai/vite</code>. This gives it access to the component tree at the framework level (React fiber, Vue reactivity, Svelte components), computed CSS from your actual stylesheets, server-side routes and logs, and source map resolution to find the exact file and line for any rendered element.</p>
+		<p><strong>Multi-framework support.</strong> Lovable generates React + Tailwind only. No Vue, no Svelte, no Astro, no Next.js server components. Frontman works with Next.js, Astro, and Vite — covering React, Vue, and Svelte. If your stack isn't React + Tailwind, Lovable isn't an option.</p>
+		<p><strong>Open source and BYOK.</strong> Lovable is proprietary SaaS with credit-based pricing. Frontman's client libraries are Apache 2.0 and the server is AGPL-3.0. You bring your own API keys — Claude, ChatGPT, OpenRouter, or any OpenAI-compatible API. No credits, no message limits, no vendor lock-in.</p>
+	</IntegrationContentSection>
+
+	<!-- Who Should Use Lovable -->
+	<IntegrationContentSection title="Who Should Use Lovable" variant="light">
+		<p>Lovable is the better choice when you're building something new and don't want to write code:</p>
+		<ul>
+			<li><strong>Non-technical founders</strong> — you have an app idea and no engineering team to build it</li>
+			<li><strong>MVP generation</strong> — you need a working prototype fast to validate an idea with users</li>
+			<li><strong>Internal tools</strong> — building admin dashboards, CRUD apps, or workflow tools without hiring developers</li>
+			<li><strong>Full-stack from zero</strong> — you need auth, database, hosting, and deployment handled for you</li>
+			<li><strong>Enterprise requirements</strong> — SOC 2 Type II and ISO 27001 compliance are non-negotiable for your organization</li>
+			<li><strong>No existing codebase</strong> — you're starting completely from scratch and want AI to generate everything</li>
+		</ul>
+	</IntegrationContentSection>
+
+	<!-- Who Should Use Frontman -->
+	<IntegrationContentSection title="Who Should Use Frontman">
+		<p>Frontman is the better choice when you already have a codebase and want to edit it visually:</p>
+		<ul>
+			<li><strong>Existing projects</strong> — you have a Next.js, Astro, or Vite app and need AI-assisted visual editing</li>
+			<li><strong>Frontend developers</strong> — you write code daily and want AI that understands your component tree, styles, and server context</li>
+			<li><strong>Teams with designers or PMs</strong> — non-technical team members can click elements and describe visual changes without opening an IDE</li>
+			<li><strong>Multi-framework teams</strong> — your stack includes Vue, Svelte, or Astro, which Lovable doesn't support</li>
+			<li><strong>Cost-conscious teams</strong> — Lovable's credit system gets expensive at scale ($25–$2,250/mo). Frontman is free with BYOK</li>
+			<li><strong>No vendor lock-in</strong> — open source, self-hostable, no dependency on any cloud platform</li>
+		</ul>
+		<p>A natural workflow: generate your starting point with Lovable, export to GitHub, then use Frontman to iterate and refine with full browser context.</p>
+		<p>Also see: <a href="/vs/v0/" class="text-link">Frontman vs v0</a> and <a href="/vs/stagewise/" class="text-link">Frontman vs Stagewise</a> for comparisons with other tools in this space.</p>
+	</IntegrationContentSection>
+
+	<!-- Pricing Comparison -->
+	<ComparisonPricing
+		competitorName="Lovable"
+		competitorCost="$0–$2,250/mo"
+		competitorModel="Credit-based, proprietary SaaS"
+		competitorFeatures={[
+			'Free: 5 credits/day, 30/month',
+			'Pro: $25–$2,250/month (scaling credit packs)',
+			'Business: $50–$4,300/month (team features)',
+			'Enterprise: Custom pricing',
+			'Every interaction costs credits (0.5–2+ per action)',
+		]}
+	/>
+
+	<!-- FAQ -->
+	<IntegrationFAQ faqs={faqs} />
+
+	<!-- CTA -->
+	<ComparisonCTA />
+</Layout>

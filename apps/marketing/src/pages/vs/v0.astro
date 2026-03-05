@@ -107,7 +107,7 @@ const faqJsonLd = {
 
 			<div class="hero-summary">
 				<p>
-					<a href="https://frontman.sh" class="text-link">Frontman</a> and <a href="https://v0.dev" class="text-link" rel="nofollow">v0</a> both use AI to help with frontend development, but they do fundamentally different things. v0 generates new UI from text prompts in a sandboxed environment. Frontman edits your existing codebase by interacting with your running app in the browser.
+					<a href="https://frontman.sh" class="text-link">Frontman</a> and <a href="https://v0.dev" class="text-link" rel="nofollow">v0</a> both use AI to help with frontend development, but they do opposite things. v0 generates new UI from text prompts in a sandboxed environment. Frontman edits your existing codebase by interacting with your running app in the browser.
 				</p>
 				<p>
 					<strong>Frontman</strong> is an open-source AI coding agent that hooks into your dev server as framework middleware (Next.js, Astro, Vite). It sees the live DOM, component tree, computed CSS, and server-side context. You click elements in your running app, describe changes in plain English, and Frontman edits the actual source files with hot reload. Free and unlimited — you bring your own API keys.
@@ -209,12 +209,12 @@ const faqJsonLd = {
 		<div class="content-container">
 			<h2 class="section-title section-title--dark">What v0 Does Well</h2>
 			<div class="prose-content prose-content--dark">
-				<p>v0 is the fastest way to go from an idea to a working frontend. It has earned its place as the leading generative UI tool.</p>
-				<p><strong>Prompt-to-UI is magical.</strong> Describe what you want in plain English — "a dashboard with a sidebar, dark mode, and a chart showing monthly revenue" — and v0 generates a complete, working React app. For prototyping and starting new projects, nothing is faster.</p>
+				<p>v0 is the most popular generative UI tool right now, and the fastest way to go from an idea to a working frontend.</p>
+				<p><strong>Prompt-to-UI is fast.</strong> Describe what you want in plain English ("a dashboard with a sidebar, dark mode, and a chart showing monthly revenue") and v0 generates a complete, working React app. For prototyping and starting new projects, nothing is faster.</p>
 				<p><strong>Design Mode adds visual editing.</strong> v0's Design Mode lets you click elements in the generated preview and make visual changes. This is genuine click-to-edit functionality within the v0 sandbox. Frontman offers similar click-to-edit but for your actual running app, not a sandbox.</p>
-				<p><strong>Figma-to-code.</strong> Import Figma designs and v0 generates working code that matches them. This bridges the designer-developer gap for new projects. Frontman doesn't have Figma import.</p>
+				<p>Import Figma designs and v0 generates working code that matches them. This helps designers hand off to developers on new projects. Frontman doesn't have Figma import.</p>
 				<p><strong>One-click deploy.</strong> Generated apps deploy to Vercel instantly. From idea to production URL in minutes. Frontman is a development tool, not a deployment platform.</p>
-				<p><strong>GitHub sync.</strong> v0 can sync with your GitHub repository, allowing generated code to flow into your existing project. This partially addresses the "sandbox vs real codebase" gap.</p>
+				<p>v0 can sync with your GitHub repository, allowing generated code to flow into your existing project. This partially addresses the "sandbox vs real codebase" gap.</p>
 				<p><strong>Custom models.</strong> v0 runs its own model variants (v0 Mini, Pro, Max) optimized for UI generation. These are purpose-built for frontend code and outperform general-purpose models at that specific task.</p>
 			</div>
 		</div>
@@ -225,13 +225,13 @@ const faqJsonLd = {
 		<div class="content-container">
 			<h2 class="section-title">Where Frontman Is Different</h2>
 			<div class="prose-content">
-				<p>Frontman and v0 look superficially similar — both involve AI and clicking things in a browser. But they solve opposite problems. <strong>v0 generates new UI. Frontman edits existing UI.</strong></p>
+				<p>v0 generates new UI from prompts. Frontman edits UI that already exists in your codebase. <strong>One creates. The other modifies.</strong></p>
 
-				<p><strong>Your real codebase, not a sandbox.</strong> When you use Frontman, you're editing the actual source files in your project. The AI sees your real component tree, your real CSS, your real routing, your real server state. Changes show up via hot module replacement in your actual dev server. With v0, you're working in a sandboxed environment that generates fresh code — which then needs to be integrated into your real project.</p>
+				<p><strong>Your real codebase, not a sandbox.</strong> When you use Frontman, you're editing the actual source files in your project. The AI sees the component tree, the CSS as the browser computed it, routing, and server state. Changes show up via hot module replacement in your actual dev server. With v0, you're working in a sandboxed environment that generates fresh code — which then needs to be integrated into your real project.</p>
 
 				<p><strong>Framework middleware integration.</strong> Frontman installs as a plugin into your dev server — <code>@frontman-ai/nextjs</code>, <code>@frontman-ai/astro</code>, or <code>@frontman-ai/vite</code>. This gives it access to your component tree at the framework level (React fiber nodes, Vue reactivity, Svelte components), computed CSS from your actual stylesheets, server-side routes and logs, and source map resolution to find the exact file and line for any rendered element.</p>
 
-				<p><strong>Context that a sandbox can't have.</strong> v0's sandbox doesn't know about your design system, your existing component library, your server endpoints, or your real responsive behavior at different viewports. Frontman sees all of this because it's running inside your actual app. When you ask "make this card match the other cards on the page," Frontman can inspect the other cards' actual styles.</p>
+				<p>v0's sandbox doesn't know about your design system, your existing component library, your server endpoints, or your real responsive behavior at different viewports. Frontman sees all of this because it's running inside your actual app. When you ask "make this card match the other cards on the page," Frontman can inspect the other cards' actual styles.</p>
 
 				<p><strong>Open source and BYOK.</strong> v0 is a proprietary SaaS with credit-based pricing. Frontman's client libraries are Apache 2.0 and the server is AGPL-3.0. You bring your own API keys — Claude, ChatGPT, OpenRouter, or any OpenAI-compatible API including local models. No credits, no message limits, no monthly fees from Frontman.</p>
 
