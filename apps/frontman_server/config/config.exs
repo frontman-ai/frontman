@@ -64,6 +64,11 @@ config :frontman_server, FrontmanServerWeb.Endpoint,
 # at the `config/runtime.exs`.
 config :frontman_server, FrontmanServer.Mailer, adapter: Swoosh.Adapters.Local
 
+# Oban background job processing (Postgres-backed)
+config :frontman_server, Oban,
+  repo: FrontmanServer.Repo,
+  queues: [default: 10, mailers: 5]
+
 # Configure esbuild (the version is required)
 config :esbuild,
   version: "0.25.4",

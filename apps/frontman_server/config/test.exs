@@ -26,6 +26,9 @@ config :frontman_server, FrontmanServerWeb.Endpoint,
 # In test we don't send emails
 config :frontman_server, FrontmanServer.Mailer, adapter: Swoosh.Adapters.Test
 
+# Oban: inline execution for tests (no async workers)
+config :frontman_server, Oban, testing: :manual
+
 # Disable swoosh api client as it is only required for production adapters
 config :swoosh, :api_client, false
 

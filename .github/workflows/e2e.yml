@@ -157,9 +157,12 @@ jobs:
           key: js-build-v2-${{ runner.os }}-${{ hashFiles('libs/*/src/**', 'libs/*/rescript.json', 'libs/*/tsup.config.ts') }}
           restore-keys: js-build-v2-${{ runner.os }}-
 
+      # Always run ReScript — the cache stores libs/*/dist (tsup output)
+      # but NOT src/*.res.mjs (in-source compiled files).  On a cache hit
+      # the .res.mjs files may be missing, causing the client Vite dev
+      # server to 404 on module requests.  Incremental builds are fast.
       - name: Build ReScript
-        if: steps.js-build-cache.outputs.cache-hit != 'true'
-        run: yarn rescript clean && yarn rescript
+        run: yarn rescript
 
       # Build adapters sequentially — each `build` script runs `rescript
       # build` then `tsup`.  Sequential avoids concurrent rescript processes

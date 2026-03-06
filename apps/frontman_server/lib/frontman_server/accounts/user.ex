@@ -14,6 +14,7 @@ defmodule FrontmanServer.Accounts.User do
     field(:password, :string, virtual: true, redact: true)
     field(:hashed_password, :string, redact: true)
     field(:confirmed_at, :utc_datetime)
+    field(:last_signed_in_at, :utc_datetime)
     field(:authenticated_at, :utc_datetime, virtual: true)
 
     has_many(:api_keys, FrontmanServer.Providers.ApiKey)
@@ -48,6 +49,8 @@ defmodule FrontmanServer.Accounts.User do
   since the provider has already verified the email.
   """
   def oauth_registration_changeset(user, attrs) do
+    now = DateTime.utc_now(:second)
+
     user
     |> cast(attrs, [:email, :name])
     |> validate_required([:email, :name])
@@ -58,7 +61,8 @@ defmodule FrontmanServer.Accounts.User do
     |> validate_length(:name, min: 1, max: 255)
     |> unsafe_validate_unique(:email, FrontmanServer.Repo)
     |> unique_constraint(:email)
-    |> put_change(:confirmed_at, DateTime.utc_now(:second))
+    |> put_change(:confirmed_at, now)
+    |> put_change(:last_signed_in_at, now)
   end
 
   defp validate_registration_email(changeset, opts) do

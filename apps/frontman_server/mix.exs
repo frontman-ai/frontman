@@ -82,6 +82,7 @@ defmodule FrontmanServer.MixProject do
        compile: false,
        depth: 1},
       {:swoosh, "~> 1.16"},
+      {:oban, "~> 2.20"},
       {:req, "~> 0.5"},
       {:uuidv7, "~> 1.0"},
       {:telemetry_metrics, "~> 1.0"},

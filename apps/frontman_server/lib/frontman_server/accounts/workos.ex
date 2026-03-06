@@ -9,11 +9,14 @@ defmodule FrontmanServer.Accounts.WorkOS do
   - Handle email verification for providers that don't auto-verify
   """
 
+  alias Ecto.Multi
   alias FrontmanServer.Accounts.User
   alias FrontmanServer.Accounts.UserIdentity
   alias FrontmanServer.Accounts.WorkOS.AuthError
   alias FrontmanServer.Repo
+  alias FrontmanServer.Workers.SendWelcomeEmail
 
+  import Ecto.Changeset
   import Ecto.Query
 
   @supported_providers ~w(github google)
@@ -190,29 +193,68 @@ defmodule FrontmanServer.Accounts.WorkOS do
     identity = get_identity_by_provider_id(profile.provider, profile.provider_id)
     existing_user = get_user_by_email(profile.provider_email)
 
-    Repo.transaction(fn ->
-      resolve_oauth_user(identity, existing_user, profile)
+    multi = build_oauth_multi(identity, existing_user, profile)
+
+    case Repo.transaction(multi) do
+      {:ok, %{user: user}} -> {:ok, user}
+      {:error, _step, changeset, _changes} -> {:error, changeset}
+    end
+  end
+
+  # Suppress Dialyzer false positive: Ecto.Multi.new/0 returns a struct with
+  # opaque MapSet internals that Dialyzer flags as call_without_opaque.
+  @dialyzer {:nowarn_function, build_oauth_multi: 3}
+
+  # Returning user with existing identity — touch timestamps, no welcome email.
+  defp build_oauth_multi(%UserIdentity{} = identity, _existing_user, _profile) do
+    now = DateTime.utc_now(:second)
+
+    Multi.new()
+    |> Multi.update(:identity, UserIdentity.touch_changeset(identity))
+    |> Multi.update(
+      :user,
+      User |> Repo.get!(identity.user_id) |> change(last_signed_in_at: now)
+    )
+  end
+
+  # Existing user by email but no identity for this provider — link identity.
+  defp build_oauth_multi(nil, %User{} = user, profile) do
+    now = DateTime.utc_now(:second)
+
+    Multi.new()
+    |> Multi.insert(:identity, build_identity_changeset(user, profile))
+    |> Multi.update(:user, change(user, last_signed_in_at: now))
+  end
+
+  # Brand-new user — create user + identity + enqueue welcome email.
+  defp build_oauth_multi(nil, nil, profile) do
+    Multi.new()
+    |> Multi.insert(
+      :user,
+      User.oauth_registration_changeset(%User{}, %{
+        email: profile.provider_email,
+        name: profile.provider_name
+      })
+    )
+    |> Multi.insert(:identity, fn %{user: user} ->
+      build_identity_changeset(user, profile)
+    end)
+    |> Oban.insert(:welcome_email, fn %{user: user} ->
+      SendWelcomeEmail.new(%{user_id: user.id})
     end)
   end
 
-  defp resolve_oauth_user(%UserIdentity{} = identity, _existing_user, _profile) do
-    {:ok, _} =
-      identity
-      |> UserIdentity.touch_changeset()
-      |> Repo.update()
-
-    Repo.get!(User, identity.user_id)
-  end
-
-  defp resolve_oauth_user(nil, %User{} = user, profile) do
-    {:ok, _} = create_identity(user, profile)
-    user
-  end
-
-  defp resolve_oauth_user(nil, nil, profile) do
-    {:ok, user} = create_oauth_user(profile)
-    {:ok, _} = create_identity(user, profile)
-    user
+  defp build_identity_changeset(user, profile) do
+    %UserIdentity{}
+    |> UserIdentity.changeset(%{
+      user_id: user.id,
+      provider: profile.provider,
+      provider_id: profile.provider_id,
+      provider_email: profile.provider_email,
+      provider_name: profile.provider_name,
+      provider_avatar_url: profile.provider_avatar_url
+    })
+    |> put_change(:last_signed_in_at, DateTime.utc_now(:second))
   end
 
   defp get_identity_by_provider_id(provider, provider_id) do
@@ -229,26 +271,8 @@ defmodule FrontmanServer.Accounts.WorkOS do
     |> Repo.one()
   end
 
-  defp create_oauth_user(profile) do
-    %User{}
-    |> User.oauth_registration_changeset(%{
-      email: profile.provider_email,
-      name: profile.provider_name
-    })
-    |> Repo.insert()
-  end
-
   defp create_identity(user, profile) do
-    %UserIdentity{}
-    |> UserIdentity.changeset(%{
-      user_id: user.id,
-      provider: profile.provider,
-      provider_id: profile.provider_id,
-      provider_email: profile.provider_email,
-      provider_name: profile.provider_name,
-      provider_avatar_url: profile.provider_avatar_url
-    })
-    |> Ecto.Changeset.put_change(:last_signed_in_at, DateTime.utc_now(:second))
+    build_identity_changeset(user, profile)
     |> Repo.insert()
   end
 
