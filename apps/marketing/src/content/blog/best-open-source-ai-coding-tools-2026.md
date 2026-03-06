@@ -1,7 +1,7 @@
 ---
 title: 'Best Open-Source AI Coding Tools in 2026'
 pubDate: 2026-03-03T10:00:00Z
-description: 'Comprehensive comparison of every major open-source AI coding tool in 2026. Stars, licenses, architectures, and honest assessments for Aider, Cline, OpenHands, Tabby, Goose, Continue, Roo Code, Void, Frontman, Stagewise, bolt.diy, and Kilo Code.'
+description: 'Every major open-source AI coding tool compared: Aider, Cline, OpenHands, Tabby, Goose, Continue, Roo Code, Frontman, Stagewise, and more.'
 author: 'Frontman Team'
 image: '/blog/best-open-source-ai-coding-tools-2026-cover.png'
 tags: ['comparison', 'ai', 'developer-tools', 'open-source']

@@ -1,8 +1,7 @@
 ---
-// /vs/copilot — Frontman vs GitHub Copilot Comparison Page
-// Targets "copilot alternative open source" and "github copilot vs" queries
-// GitHub Copilot is the most recognized AI coding brand — this page creates
-// authoritative comparison content for AI answer engines.
+// /vs/claude-code — Frontman vs Claude Code Comparison Page
+// Targets "claude code vs" and "claude code alternative" queries
+// Claude Code is Anthropic's agentic coding tool — terminal-native, multi-surface.
 
 // Components
 import Layout from '../../layouts/Layout.astro'
@@ -10,9 +9,9 @@ import Button from '../../components/ui/Button.astro'
 
 // SEO
 const SEO = {
-	title: 'Frontman vs GitHub Copilot: Browser Alternative',
+	title: 'Frontman vs Claude Code: Browser vs Terminal (2026)',
 	description:
-		'Frontman sees your browser DOM and edits code visually. Copilot autocompletes in the IDE. Free, open source, no prompt limits. Compare features and pricing.'
+		'Frontman sees your browser DOM and running app. Claude Code works in the terminal. Compare features, architecture, and pricing side by side.'
 }
 
 // Comparison data
@@ -21,30 +20,30 @@ type Status = 'yes' | 'no' | 'partial'
 type Feature = {
 	name: string
 	frontman: Status
-	copilot: Status
+	claudeCode: Status
 	frontmanNote?: string
-	copilotNote?: string
+	claudeCodeNote?: string
 }
 
 const features: Feature[] = [
-	{ name: 'Sees live DOM & styles', frontman: 'yes', copilot: 'no', frontmanNote: 'Browser-side MCP server inspects the live page', copilotNote: 'File-only context; no browser awareness' },
-	{ name: 'Sees computed CSS', frontman: 'yes', copilot: 'no', frontmanNote: 'Runtime values, not class names', copilotNote: 'Reads source files only' },
-	{ name: 'Click-to-select elements', frontman: 'yes', copilot: 'no', frontmanNote: 'Visual component selection', copilotNote: 'Must describe or find in file tree' },
-	{ name: 'Hot reload feedback loop', frontman: 'yes', copilot: 'partial', frontmanNote: 'Instant in browser', copilotNote: 'Agent mode can trigger builds but doesn\'t see the browser' },
-	{ name: 'Inline autocomplete', frontman: 'no', copilot: 'yes', copilotNote: 'Tab completion, multi-line predictions' },
-	{ name: 'Agent mode', frontman: 'yes', copilot: 'yes', frontmanNote: 'Browser-context agent', copilotNote: 'IDE agent with terminal, MCP, multi-file editing' },
-	{ name: 'Coding agent (async)', frontman: 'no', copilot: 'yes', copilotNote: 'Assigns issues, creates PRs autonomously' },
-	{ name: 'Multi-file refactoring', frontman: 'partial', copilot: 'yes', frontmanNote: 'Can edit multiple files, but not primary workflow', copilotNote: 'Full cross-file edits via agent mode' },
-	{ name: 'Terminal integration', frontman: 'no', copilot: 'yes', copilotNote: 'Built-in terminal with Copilot CLI' },
-	{ name: 'Code review', frontman: 'no', copilot: 'yes', copilotNote: 'PR reviews on GitHub, diff reviews in IDE' },
-	{ name: 'Framework-aware', frontman: 'yes', copilot: 'partial', frontmanNote: 'Deep plugin for Next.js, Astro, Vite', copilotNote: 'Language-level context, not framework runtime' },
-	{ name: 'Designer/PM friendly', frontman: 'yes', copilot: 'no', frontmanNote: 'No IDE needed — works in the browser', copilotNote: 'Requires IDE proficiency' },
-	{ name: 'Open source', frontman: 'yes', copilot: 'no', frontmanNote: 'Apache 2.0 (client) / AGPL-3.0 (server)', copilotNote: 'Proprietary (extension and service)' },
-	{ name: 'BYOK (bring your own key)', frontman: 'yes', copilot: 'no', frontmanNote: 'Any LLM provider directly', copilotNote: 'Uses GitHub\'s model pool; no custom API keys' },
-	{ name: 'Self-hostable', frontman: 'yes', copilot: 'no', frontmanNote: 'Everything runs locally', copilotNote: 'Cloud service, GitHub-hosted' },
-	{ name: 'Works in the browser', frontman: 'yes', copilot: 'no', frontmanNote: 'No IDE required', copilotNote: 'IDE extension (VS Code, JetBrains, etc.)' },
-	{ name: 'Backend coding', frontman: 'partial', copilot: 'yes', frontmanNote: 'Can read/write any file, but frontend-focused', copilotNote: 'Any language, any framework' },
-	{ name: 'Multi-model choice', frontman: 'yes', copilot: 'yes', frontmanNote: 'BYOK: Claude, GPT, OpenRouter, any provider', copilotNote: 'Claude, GPT, Gemini, Grok — GitHub-hosted' },
+	{ name: 'Sees live DOM & styles', frontman: 'yes', claudeCode: 'partial', frontmanNote: 'Browser-side MCP server inspects the live page', claudeCodeNote: 'Chrome extension (beta) — screenshots and DOM, not component tree' },
+	{ name: 'Sees computed CSS', frontman: 'yes', claudeCode: 'no', frontmanNote: 'Runtime values, not class names', claudeCodeNote: 'Reads source files; Chrome extension sees DOM but not computed styles' },
+	{ name: 'Click-to-select elements', frontman: 'yes', claudeCode: 'no', frontmanNote: 'Visual component selection', claudeCodeNote: 'Chrome extension is AI-driven, not developer-directed' },
+	{ name: 'Hot reload feedback loop', frontman: 'yes', claudeCode: 'no', frontmanNote: 'Instant in browser via HMR', claudeCodeNote: 'Edits files; can refresh via Chrome extension but no HMR integration' },
+	{ name: 'File editing', frontman: 'yes', claudeCode: 'yes', frontmanNote: 'Edits source files', claudeCodeNote: 'Full file system access with diff review' },
+	{ name: 'Terminal commands', frontman: 'no', claudeCode: 'yes', claudeCodeNote: 'Runs shell commands, builds, tests, git operations' },
+	{ name: 'Agent mode', frontman: 'yes', claudeCode: 'yes', frontmanNote: 'Browser-context agent', claudeCodeNote: 'Agentic search, multi-step plans, sub-agents' },
+	{ name: 'Multi-file refactoring', frontman: 'partial', claudeCode: 'yes', frontmanNote: 'Can edit multiple files, not primary workflow', claudeCodeNote: 'Full codebase reasoning, cross-file edits' },
+	{ name: 'Framework-aware', frontman: 'yes', claudeCode: 'no', frontmanNote: 'Deep plugin for Next.js, Astro, Vite', claudeCodeNote: 'Framework-agnostic; reads files, not runtime' },
+	{ name: 'Designer/PM friendly', frontman: 'yes', claudeCode: 'no', frontmanNote: 'No IDE or terminal needed', claudeCodeNote: 'Requires terminal or IDE proficiency' },
+	{ name: 'Open source', frontman: 'yes', claudeCode: 'no', frontmanNote: 'Apache 2.0 (client) / AGPL-3.0 (server)', claudeCodeNote: 'Proprietary ("All rights reserved")' },
+	{ name: 'BYOK (bring your own key)', frontman: 'yes', claudeCode: 'partial', frontmanNote: 'Any LLM provider directly', claudeCodeNote: 'Claude models only (via subscription or API key)' },
+	{ name: 'Self-hostable', frontman: 'yes', claudeCode: 'no', frontmanNote: 'Everything runs locally', claudeCodeNote: 'Runs locally but requires Anthropic API' },
+	{ name: 'Works in the browser', frontman: 'yes', claudeCode: 'partial', frontmanNote: 'Primary interface is the browser', claudeCodeNote: 'claude.ai/code web interface exists; Chrome extension is beta' },
+	{ name: 'Git & PR workflows', frontman: 'no', claudeCode: 'yes', claudeCodeNote: 'Commits, branches, PRs, GitHub Actions integration' },
+	{ name: 'MCP support', frontman: 'yes', claudeCode: 'yes', frontmanNote: 'Browser-side MCP server', claudeCodeNote: 'First-class MCP with hundreds of integrations' },
+	{ name: 'IDE integration', frontman: 'no', claudeCode: 'yes', claudeCodeNote: 'VS Code, JetBrains, Cursor, Windsurf' },
+	{ name: 'Backend coding', frontman: 'partial', claudeCode: 'yes', frontmanNote: 'Can read/write any file, but frontend-focused', claudeCodeNote: 'Any language, any framework, any stack' },
 ]
 
 function statusLabel(status: Status): string {
@@ -58,24 +57,24 @@ function statusLabel(status: Status): string {
 // FAQ data for JSON-LD
 const faqs = [
 	{
-		question: 'Is Frontman an open-source alternative to GitHub Copilot?',
-		answer: 'They solve different problems. GitHub Copilot is an AI coding assistant that lives in your IDE — autocomplete, agent mode, code review, and terminal integration across any language. Frontman is a browser-based AI coding agent for frontend development — you click elements in your running app, describe changes, and get source code edits with hot reload. Frontman is open-source (Apache 2.0 client, AGPL-3.0 server) and free with BYOK. For visual frontend editing where browser context matters, Frontman is the open-source option. For general-purpose AI coding, Copilot is the more complete tool.'
+		question: 'Is Frontman an alternative to Claude Code?',
+		answer: 'They solve different problems. Claude Code is a terminal-native agentic coding tool that reads your codebase, edits files, runs commands, and handles git workflows. It works with any language and any project. Frontman is browser middleware for frontend development — it hooks into your framework (Next.js, Astro, Vite), sees the live DOM, and lets you click elements to edit their source code. For visual frontend editing with runtime context, Frontman is the tool. For general-purpose agentic coding across your full stack, Claude Code is the tool.'
 	},
 	{
-		question: 'Can Frontman replace GitHub Copilot?',
-		answer: 'Not for most workflows. Copilot excels at autocomplete, multi-file refactoring, code review, terminal integration, and backend coding — none of which are Frontman\'s focus. But for frontend visual editing — clicking elements, fixing CSS, adjusting layout — Frontman provides something Copilot cannot: live browser context. The AI sees computed styles, the rendered DOM, and viewport behavior. Many developers use both: Copilot in the IDE for general coding, Frontman in the browser for visual frontend changes.'
+		question: 'Can Claude Code see what my app looks like in the browser?',
+		answer: 'Partially. Claude Code has a Chrome extension (beta) that can open tabs, take screenshots, read console errors, and click elements. But this is AI-driven automation — Claude decides what to look at and interact with. It is not a developer-directed "click this element, change it" workflow. The Chrome extension also doesn\'t access the framework component tree, computed CSS values, or server-side context. Frontman provides all of this by default because it runs inside your dev server as middleware.'
 	},
 	{
-		question: 'Does Frontman work alongside GitHub Copilot?',
-		answer: 'Yes. Frontman runs in the browser as framework middleware (Next.js, Astro, Vite). Copilot runs in your IDE. They edit the same source files. Changes from either tool are reflected via hot reload and normal file watching. There is no conflict — they operate in completely separate environments.'
+		question: 'Can I use Frontman and Claude Code together?',
+		answer: 'Yes. Claude Code runs in your terminal or IDE. Frontman runs in the browser. They edit the same source files. Use Claude Code for backend work, refactoring, test writing, git operations, and complex multi-file changes. Use Frontman for visual frontend edits where you want to click a UI element, see computed styles, and get immediate hot-reload feedback.'
 	},
 	{
-		question: 'What does Frontman see that GitHub Copilot cannot?',
-		answer: 'Frontman integrates with your framework as a plugin and runs a browser-side MCP server. It sees the live DOM tree, computed CSS styles (actual pixel values, not just class names), the component tree with props and state, viewport layout and responsive behavior, and server-side routes and logs. Copilot reads your source files in the IDE. It knows what your code says but not what it renders. When you ask Copilot to "make the hero section wider," it guesses from JSX. When you ask Frontman, it can see the hero section\'s actual rendered width, margins, and overflow behavior.'
+		question: 'Is Frontman free compared to Claude Code?',
+		answer: 'Yes. Claude Code requires a paid Claude subscription: Pro ($20/month), Max ($100-200/month), or API access (pay-per-token). There is no free tier for Claude Code. Frontman is free to self-host with no limits — you bring your own API keys and pay your LLM provider directly. The Frontman client libraries are Apache 2.0 and the server is AGPL-3.0.'
 	},
 	{
-		question: 'Is Frontman really free compared to Copilot?',
-		answer: 'Yes. Copilot Free gives you 50 chat requests and 2,000 completions per month. Copilot Pro is $10/month, Pro+ is $39/month. Frontman is free to self-host with no limits — you bring your own API keys to Claude, ChatGPT, or OpenRouter and pay those providers directly at their standard rates. There are no prompt caps, no monthly subscription, and no usage-based pricing from Frontman itself.'
+		question: 'What does Frontman see that Claude Code cannot?',
+		answer: 'Frontman hooks into your framework as middleware. It sees the React/Vue/Svelte component tree with props and state, computed CSS (actual pixel values, not class names), server-side routes and logs, the full DOM as rendered at the current viewport, and uses source maps to trace any clicked element back to its exact file and line. Claude Code reads source files and can take screenshots via the Chrome extension, but it does not have access to the framework runtime, component hierarchy, or computed styles.'
 	}
 ]
 
@@ -97,22 +96,22 @@ const faqJsonLd = {
 <Layout title={SEO.title} description={SEO.description}>
 	<script is:inline type="application/ld+json" set:html={JSON.stringify(faqJsonLd)} />
 
-	<!-- Hero / AI-Citable Summary (GEO Lead) -->
+	<!-- Hero / AI-Citable Summary -->
 	<section class="hero-section">
 		<div class="hero-container">
 			<p class="hero-label">Comparison</p>
-			<h1 class="hero-title">Frontman vs GitHub Copilot</h1>
-			<p class="hero-subtitle">Browser Context vs IDE Autocomplete</p>
+			<h1 class="hero-title">Frontman vs Claude Code</h1>
+			<p class="hero-subtitle">Browser Middleware vs Terminal Agent</p>
 
 			<div class="hero-summary">
 				<p>
-					<a href="https://frontman.sh" class="text-link">Frontman</a> is an open-source AI coding agent that lives in your browser. It integrates with your framework (Next.js, Astro, or Vite) as a plugin that serves an overlay UI at <code>/frontman</code>. A browser-side MCP server handles DOM inspection, screenshots, computed CSS, and element selection. You click elements in your running app, describe changes in plain English, and Frontman edits the actual source files with hot reload showing results instantly.
+					<a href="https://frontman.sh" class="text-link">Frontman</a> is open-source browser middleware for AI-assisted frontend editing. It hooks into Next.js, Astro, or Vite as a framework plugin, runs a browser-side MCP server that inspects the live DOM and computed CSS, and lets you click any element to edit its source code with hot reload. Apache 2.0 client libraries, AGPL-3.0 server, BYOK.
 				</p>
 				<p>
-					<a href="https://github.com/features/copilot" class="text-link" rel="nofollow">GitHub Copilot</a> is an AI coding assistant built into your IDE. It provides inline autocomplete, agent mode with multi-file editing, a coding agent that creates pull requests, code review, and terminal integration. Copilot works across any language and any framework — it reads your source files and generates suggestions from file context. It does not natively see what your app renders in the browser.
+					<a href="https://claude.ai/code" class="text-link" rel="nofollow">Claude Code</a> is Anthropic's agentic coding tool. It runs in your terminal, VS Code, JetBrains, a desktop app, or on the web at claude.ai/code. Claude Code reads your entire codebase, edits files, runs shell commands, handles git operations, and can spawn sub-agents for parallel work. It works with any language and any project type. A Chrome extension (beta) provides limited browser interaction.
 				</p>
 				<p class="summary-emphasis">
-					The core difference: Copilot makes you faster at writing code in an IDE. Frontman lets you edit code by interacting with what it renders in the browser. They're complementary tools for different parts of the development workflow.
+					These tools start from opposite ends. Claude Code starts at the terminal and works outward. Frontman starts at the browser and works inward. Both edit source files, but they see different things when doing it.
 				</p>
 			</div>
 		</div>
@@ -130,7 +129,7 @@ const faqJsonLd = {
 						<tr>
 							<th class="feature-header">Feature</th>
 							<th class="tool-header tool-header--highlighted">Frontman</th>
-							<th class="tool-header">GitHub Copilot</th>
+							<th class="tool-header">Claude Code</th>
 						</tr>
 					</thead>
 					<tbody>
@@ -151,18 +150,18 @@ const faqJsonLd = {
 										{feature.frontmanNote && <span class="status-note">{feature.frontmanNote}</span>}
 									</div>
 								</td>
-								<td class="status-cell" aria-label={statusLabel(feature.copilot)}>
+								<td class="status-cell" aria-label={statusLabel(feature.claudeCode)}>
 									<div class="status-content">
-										{feature.copilot === 'yes' && (
+										{feature.claudeCode === 'yes' && (
 											<svg class="status-icon status-icon--yes" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>
 										)}
-										{feature.copilot === 'no' && (
+										{feature.claudeCode === 'no' && (
 											<svg class="status-icon status-icon--no" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
 										)}
-										{feature.copilot === 'partial' && (
+										{feature.claudeCode === 'partial' && (
 											<svg class="status-icon status-icon--partial" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
 										)}
-										{feature.copilotNote && <span class="status-note">{feature.copilotNote}</span>}
+										{feature.claudeCodeNote && <span class="status-note">{feature.claudeCodeNote}</span>}
 									</div>
 								</td>
 							</tr>
@@ -186,11 +185,11 @@ const faqJsonLd = {
 								</span>
 							</div>
 							<div class="mobile-card-item">
-								<span class="mobile-card-tool">Copilot</span>
+								<span class="mobile-card-tool">Claude Code</span>
 								<span>
-									{feature.copilot === 'yes' && <svg class="status-icon status-icon--yes" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>}
-									{feature.copilot === 'no' && <svg class="status-icon status-icon--no" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>}
-									{feature.copilot === 'partial' && <svg class="status-icon status-icon--partial" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"></line></svg>}
+									{feature.claudeCode === 'yes' && <svg class="status-icon status-icon--yes" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>}
+									{feature.claudeCode === 'no' && <svg class="status-icon status-icon--no" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>}
+									{feature.claudeCode === 'partial' && <svg class="status-icon status-icon--partial" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"></line></svg>}
 								</span>
 							</div>
 						</div>
@@ -200,18 +199,18 @@ const faqJsonLd = {
 		</div>
 	</section>
 
-	<!-- What GitHub Copilot Does Well -->
+	<!-- What Claude Code Does Well -->
 	<section class="content-section content-section--light">
 		<div class="content-container">
-			<h2 class="section-title section-title--dark">What GitHub Copilot Does Well</h2>
+			<h2 class="section-title section-title--dark">What Claude Code Does Well</h2>
 			<div class="prose-content prose-content--dark">
-				<p>GitHub Copilot is the most widely adopted AI coding tool in the world, and for real reasons.</p>
-				<p><strong>Autocomplete is the main draw.</strong> Copilot's inline suggestions predict what you're about to type — often multiple lines ahead. For raw coding speed in familiar patterns, it's hard to beat. Frontman doesn't have autocomplete at all.</p>
-				<p>Copilot's agent can plan multi-step changes across files, run terminal commands, interpret errors, and iterate — all within VS Code, JetBrains, or Xcode. The coding agent can even create pull requests autonomously from GitHub issues. This is a level of agentic capability Frontman doesn't attempt.</p>
-				<p><strong>Code review built into GitHub.</strong> Copilot reviews pull requests directly on GitHub.com and in your IDE, providing inline suggestions on diffs. This integrates AI into the review workflow where it matters most. Frontman has no code review feature.</p>
-				<p>Python, Go, Rust, TypeScript, Java, SQL: Copilot works with all of them. Frontman is focused on frontend frameworks (Next.js, Astro, Vite). If you work across the full stack, Copilot covers everything.</p>
-				<p><strong>Multi-model access.</strong> Copilot offers models from Anthropic (Claude), Google (Gemini), OpenAI (GPT-5), and xAI (Grok) — all through one subscription. You choose models per-task without managing API keys. The free tier includes 50 agent/chat requests and 2,000 completions per month.</p>
-				<p>Available in VS Code, Visual Studio, JetBrains, Xcode, Neovim, Eclipse, Zed, and more. MCP server integration, custom instructions, and the GitHub platform integration make it the default AI coding tool for millions of developers.</p>
+				<p>Claude Code is among the most capable agentic coding tools available. Here's what it does well and why.</p>
+				<p>Claude Code runs wherever you have a terminal: Bash, zsh, PowerShell. It also runs in VS Code, JetBrains, a standalone desktop app, the web, and Slack. You pick the surface that fits your workflow. Most competing AI coding tools force you into a specific IDE.</p>
+				<p>Codebase understanding is where Claude Code pulls ahead. It uses agentic search to map your project without manual file selection. It reads, navigates, and reasons about multi-file dependencies. For large codebases where context gathering is the bottleneck, this matters more than in tools that require you to @-mention specific files.</p>
+				<p>Shell access makes it autonomous in practice. Claude Code can run builds, execute tests, check lint, do git operations, and react to command output. It doesn't just edit files and hope they compile. When a build fails, it reads the error and tries again. This feedback loop between code edits and terminal results is how it handles complex multi-step tasks.</p>
+				<p>Git and PR workflows are built in. Claude Code commits changes, creates branches, opens pull requests, and integrates with GitHub Actions for automated code review and issue triage. You can @claude in a Slack channel and it will produce a PR. For teams where the bottleneck is going from "code works locally" to "PR is merged," that's a direct time save.</p>
+				<p>MCP integration covers hundreds of servers: Jira, Sentry, Notion, Slack, GitHub, PostgreSQL, and more. Claude Code can also serve as an MCP server itself and supports the agent SDK for building custom agents.</p>
+				<p>Claude Code can also spawn multiple sub-agents working on different parts of a task simultaneously. For large refactoring jobs where different modules can be updated independently, parallel sub-agents reduce wall-clock time.</p>
 			</div>
 		</div>
 	</section>
@@ -221,34 +220,34 @@ const faqJsonLd = {
 		<div class="content-container">
 			<h2 class="section-title">Where Frontman Is Different</h2>
 			<div class="prose-content">
-				<p>There's a gap in every IDE-based AI tool, Copilot included: <strong>they don't see the browser.</strong> Copilot reads JSX, CSS files, and Tailwind classes, but it has never seen what they actually render. It doesn't know that your hero section overflows at 768px, that computed font size is 18px not 16px, or that a sibling component's margin is collapsing your layout.</p>
+				<p>Claude Code is a general-purpose coding agent. It edits files across your codebase through terminal commands and file operations. What it doesn't do is see what your frontend actually looks like when it renders. That's where Frontman comes in.</p>
 
-				<p>Frontman integrates with your framework (Next.js, Astro, or Vite) as a plugin and runs a browser-side MCP server. This server inspects the live DOM tree, computed CSS styles, viewport dimensions, the component tree with props and state, and takes screenshots. When you click a button, Frontman resolves the source location via source maps and knows the exact file, component, and line that rendered it.</p>
+				<p>The biggest difference is architectural. Frontman installs as a plugin for Next.js, Astro, or Vite and runs inside your dev server. When you click a button in the browser, Frontman knows which React/Vue/Svelte component rendered it, the exact file and line number (via source maps), the component's props and state, and every computed CSS property. Claude Code reads your source files and can take screenshots through the Chrome extension, but it doesn't have access to the framework's runtime state or component hierarchy.</p>
 
-				<p><strong>Click-to-edit workflow.</strong> Instead of describing which file to open, you click the element you want to change. The AI already knows the component, its source location, its computed styles, and its context in the rendered page. "Make this card's shadow more subtle" works because Frontman can see the card, measure its current shadow, and edit the right line of code.</p>
+				<p>The editing model is different too. With Frontman, you click the element you want to change. The AI already has the context: the component, its styles, its position on the page. With Claude Code, you describe the change in text. The Chrome extension lets Claude interact with browsers, but that interaction is AI-driven (Claude decides what to look at), not developer-directed (you point at the thing you want changed).</p>
 
-				<p><strong>Hot reload closes the loop.</strong> Frontman edits actual source files, and HMR handles live reloading. Edit, see result, edit again — all in the browser, no alt-tab, no manual refresh. Copilot's agent mode can trigger builds, but it doesn't see the browser result.</p>
+				<p>Frontman also keeps hot reload in the loop. It edits source files, and the framework's HMR immediately shows the result in the browser. Edit, see, edit again. Claude Code edits files too, but there's no built-in visual verification step. You have to switch to the browser yourself or explicitly ask Claude to take a screenshot via the Chrome extension.</p>
 
-				<p><strong>Open source and truly BYOK.</strong> Frontman's client libraries are Apache 2.0. The server is AGPL-3.0. You connect your own API keys to Claude, ChatGPT, OpenRouter, or any OpenAI-compatible API. Copilot uses GitHub's model pool — you can't bring your own provider or use a local model.</p>
+				<p>On licensing and pricing: Frontman's client libraries are Apache 2.0. The server is AGPL-3.0. You bring your own API keys to Claude, ChatGPT, OpenRouter, or any OpenAI-compatible provider. Claude Code is proprietary, requires a paid Anthropic subscription (minimum $20/month), and only works with Claude models.</p>
 
-				<p><strong>Accessible to non-developers.</strong> Designers and product managers can click elements in the browser and describe changes in plain English. No IDE required. Changes produce real source code edits for developer review. With Copilot, you need IDE proficiency to use any of its features.</p>
+				<p>Finally, Frontman requires no terminal. Designers and PMs can open the app in a browser, click elements, and describe changes. Changes produce real code diffs for developer review. Claude Code requires terminal literacy at minimum, or IDE proficiency for the extension.</p>
 			</div>
 		</div>
 	</section>
 
-	<!-- Who Should Use GitHub Copilot -->
+	<!-- Who Should Use Claude Code -->
 	<section class="content-section content-section--light">
 		<div class="content-container">
-			<h2 class="section-title section-title--dark">Who Should Use GitHub Copilot</h2>
+			<h2 class="section-title section-title--dark">Who Should Use Claude Code</h2>
 			<div class="prose-content prose-content--dark">
-				<p>GitHub Copilot is the better choice for most general-purpose AI-assisted coding. Specifically:</p>
+				<p>Claude Code is the better choice when you need an autonomous coding agent across the full development cycle:</p>
 				<ul>
-					<li><strong>Developers who want autocomplete</strong> — if inline suggestions and tab completion are core to your workflow, Copilot is the clear choice</li>
-					<li><strong>Full-stack and backend developers</strong> — Python, Go, Rust, Java, SQL, infrastructure — Copilot handles any language</li>
-					<li><strong>Agentic coding workflows</strong> — multi-step changes, terminal integration, autonomous PR creation from issues</li>
-					<li><strong>Code review</strong> — AI-powered PR reviews on GitHub and diff reviews in the IDE</li>
-					<li><strong>Teams on GitHub</strong> — the platform integration (issues, PRs, code review, coding agent) is unmatched</li>
-					<li><strong>Large codebase refactoring</strong> — renaming across dozens of files, updating APIs, migrating patterns</li>
+					<li><strong>Full-stack developers.</strong> Any language, any framework, with terminal access and git integration.</li>
+					<li><strong>Complex refactoring and migration.</strong> Multi-file changes across a large codebase with automated test verification.</li>
+					<li><strong>CI/CD and automation.</strong> GitHub Actions integration, Slack-triggered PRs, automated code review.</li>
+					<li><strong>Terminal-native workflows.</strong> If you live in the terminal and want an AI that does too.</li>
+					<li><strong>Teams already paying for Claude.</strong> If you have a Claude Pro/Max subscription, Claude Code is included.</li>
+					<li><strong>Backend-heavy projects.</strong> Python, Go, Rust, Elixir, infrastructure, deployment scripts.</li>
 				</ul>
 			</div>
 		</div>
@@ -259,15 +258,16 @@ const faqJsonLd = {
 		<div class="content-container">
 			<h2 class="section-title">Who Should Use Frontman</h2>
 			<div class="prose-content">
-				<p>Frontman is the better choice when browser context matters more than IDE features. Specifically:</p>
+				<p>Frontman is the better choice when you need the AI to see what your frontend renders:</p>
 				<ul>
-					<li><strong>Frontend developers frustrated by AI breaking CSS and layout</strong> — Frontman sees computed styles, rendered output, and viewport behavior, not just class names in source files</li>
-					<li><strong>Teams where designers or PMs need to make UI changes</strong> — click elements in the browser, describe changes in plain English, review real code diffs. No IDE required.</li>
-					<li><strong>Next.js, Astro, or Vite projects</strong> where deep framework plugin integration provides better context than generic file reading</li>
-					<li><strong>Open-source and vendor-independent</strong> — Apache 2.0 client libs, AGPL-3.0 server, BYOK to any LLM provider, self-hostable, no subscription</li>
-					<li><strong>Visual editing workflows</strong> where seeing the live result matters more than typing speed</li>
+					<li><strong>Frontend developers frustrated by AI breaking CSS and layout.</strong> Frontman sees computed styles, the rendered page, and responsive behavior at the current viewport.</li>
+					<li><strong>Teams where designers or PMs need to make UI changes.</strong> Click elements in the browser, describe changes, review real code diffs. No terminal or IDE required.</li>
+					<li><strong>Next.js, Astro, or Vite projects</strong> where framework middleware provides runtime context that file reading alone cannot.</li>
+					<li><strong>Open-source and BYOK.</strong> Apache 2.0 client libs, AGPL-3.0 server, any LLM provider, self-hostable, no subscription fee.</li>
+					<li><strong>Visual editing workflows</strong> where the feedback loop matters: click, describe, see the result via hot reload, iterate.</li>
 				</ul>
-				<p>You can use both. Copilot in the IDE for autocomplete, agent mode, and backend coding. Frontman in the browser for visual frontend changes where the AI needs to see what's actually rendered.</p>
+				<p>Many developers use both. Claude Code for backend, refactoring, tests, and deployment automation. Frontman for visual frontend changes where the AI needs to see the rendered page.</p>
+				<p>For a detailed technical comparison including Cursor, read our <a href="/blog/frontman-vs-cursor-vs-claude-code/" class="text-link">full comparison of Frontman, Cursor, and Claude Code</a>. Also see: <a href="/vs/cursor/" class="text-link">Frontman vs Cursor</a>, <a href="/vs/windsurf/" class="text-link">Frontman vs Windsurf</a>.</p>
 			</div>
 		</div>
 	</section>
@@ -290,15 +290,16 @@ const faqJsonLd = {
 					</ul>
 				</div>
 				<div class="pricing-card">
-					<h3 class="pricing-name">GitHub Copilot</h3>
-					<div class="pricing-cost">$0–$39/mo</div>
-					<p class="pricing-model">Freemium, proprietary</p>
+					<h3 class="pricing-name">Claude Code</h3>
+					<div class="pricing-cost">$20–$200/mo</div>
+					<p class="pricing-model">Subscription, proprietary</p>
 					<ul class="pricing-features">
-						<li>Free: 50 chats/month, 2,000 completions/month</li>
-						<li>Pro: $10/month — unlimited completions, 300 premium requests</li>
-						<li>Pro+: $39/month — 1,500 premium requests, all models</li>
-						<li>Business: $19/user/month — policy management, SSO</li>
-						<li>Enterprise: $39/user/month — custom models, IP indemnity</li>
+						<li>No free tier for Claude Code</li>
+						<li>Pro: $20/month — included, usage limits apply</li>
+						<li>Max 5x: $100/month — 5x Pro usage</li>
+						<li>Max 20x: $200/month — 20x Pro usage</li>
+						<li>API: pay-per-token (Sonnet $3/$15, Opus $5/$25 per MTok)</li>
+						<li>Team: $20-100/seat/month</li>
 					</ul>
 				</div>
 			</div>
@@ -329,7 +330,7 @@ const faqJsonLd = {
 	<section class="cta-section">
 		<div class="cta-container">
 			<h2 class="cta-title">Try Frontman</h2>
-			<p class="cta-description">One command. No account. No credit card. No prompt limits.</p>
+			<p class="cta-description">One command. No account. No credit card. No usage limits.</p>
 			<div class="install-commands">
 				<div class="install-command">
 					<code><span class="command-prefix">$</span> npx @frontman-ai/nextjs install</code>
@@ -391,9 +392,6 @@ const faqJsonLd = {
 		line-height: 1.7;
 		color: #a1a1aa;
 		margin-bottom: 16px;
-	}
-	.hero-summary strong {
-		color: #fafafa;
 	}
 	.hero-summary code {
 		font-family: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, 'DejaVu Sans Mono', monospace;

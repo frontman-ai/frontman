@@ -1,8 +1,7 @@
 ---
-// /vs/copilot — Frontman vs GitHub Copilot Comparison Page
-// Targets "copilot alternative open source" and "github copilot vs" queries
-// GitHub Copilot is the most recognized AI coding brand — this page creates
-// authoritative comparison content for AI answer engines.
+// /vs/windsurf — Frontman vs Windsurf Comparison Page
+// Targets "windsurf alternative open source" and "windsurf vs" queries
+// Windsurf (by Cognition/formerly Codeium) is a VS Code fork with an embedded browser panel.
 
 // Components
 import Layout from '../../layouts/Layout.astro'
@@ -10,9 +9,9 @@ import Button from '../../components/ui/Button.astro'
 
 // SEO
 const SEO = {
-	title: 'Frontman vs GitHub Copilot: Browser Alternative',
+	title: 'Frontman vs Windsurf: Open-Source Alternative (2026)',
 	description:
-		'Frontman sees your browser DOM and edits code visually. Copilot autocompletes in the IDE. Free, open source, no prompt limits. Compare features and pricing.'
+		'Frontman is browser middleware that sees your running app. Windsurf is a VS Code fork with preview. Free, open source. Compare features and pricing.'
 }
 
 // Comparison data
@@ -21,30 +20,29 @@ type Status = 'yes' | 'no' | 'partial'
 type Feature = {
 	name: string
 	frontman: Status
-	copilot: Status
+	windsurf: Status
 	frontmanNote?: string
-	copilotNote?: string
+	windsurfNote?: string
 }
 
 const features: Feature[] = [
-	{ name: 'Sees live DOM & styles', frontman: 'yes', copilot: 'no', frontmanNote: 'Browser-side MCP server inspects the live page', copilotNote: 'File-only context; no browser awareness' },
-	{ name: 'Sees computed CSS', frontman: 'yes', copilot: 'no', frontmanNote: 'Runtime values, not class names', copilotNote: 'Reads source files only' },
-	{ name: 'Click-to-select elements', frontman: 'yes', copilot: 'no', frontmanNote: 'Visual component selection', copilotNote: 'Must describe or find in file tree' },
-	{ name: 'Hot reload feedback loop', frontman: 'yes', copilot: 'partial', frontmanNote: 'Instant in browser', copilotNote: 'Agent mode can trigger builds but doesn\'t see the browser' },
-	{ name: 'Inline autocomplete', frontman: 'no', copilot: 'yes', copilotNote: 'Tab completion, multi-line predictions' },
-	{ name: 'Agent mode', frontman: 'yes', copilot: 'yes', frontmanNote: 'Browser-context agent', copilotNote: 'IDE agent with terminal, MCP, multi-file editing' },
-	{ name: 'Coding agent (async)', frontman: 'no', copilot: 'yes', copilotNote: 'Assigns issues, creates PRs autonomously' },
-	{ name: 'Multi-file refactoring', frontman: 'partial', copilot: 'yes', frontmanNote: 'Can edit multiple files, but not primary workflow', copilotNote: 'Full cross-file edits via agent mode' },
-	{ name: 'Terminal integration', frontman: 'no', copilot: 'yes', copilotNote: 'Built-in terminal with Copilot CLI' },
-	{ name: 'Code review', frontman: 'no', copilot: 'yes', copilotNote: 'PR reviews on GitHub, diff reviews in IDE' },
-	{ name: 'Framework-aware', frontman: 'yes', copilot: 'partial', frontmanNote: 'Deep plugin for Next.js, Astro, Vite', copilotNote: 'Language-level context, not framework runtime' },
-	{ name: 'Designer/PM friendly', frontman: 'yes', copilot: 'no', frontmanNote: 'No IDE needed — works in the browser', copilotNote: 'Requires IDE proficiency' },
-	{ name: 'Open source', frontman: 'yes', copilot: 'no', frontmanNote: 'Apache 2.0 (client) / AGPL-3.0 (server)', copilotNote: 'Proprietary (extension and service)' },
-	{ name: 'BYOK (bring your own key)', frontman: 'yes', copilot: 'no', frontmanNote: 'Any LLM provider directly', copilotNote: 'Uses GitHub\'s model pool; no custom API keys' },
-	{ name: 'Self-hostable', frontman: 'yes', copilot: 'no', frontmanNote: 'Everything runs locally', copilotNote: 'Cloud service, GitHub-hosted' },
-	{ name: 'Works in the browser', frontman: 'yes', copilot: 'no', frontmanNote: 'No IDE required', copilotNote: 'IDE extension (VS Code, JetBrains, etc.)' },
-	{ name: 'Backend coding', frontman: 'partial', copilot: 'yes', frontmanNote: 'Can read/write any file, but frontend-focused', copilotNote: 'Any language, any framework' },
-	{ name: 'Multi-model choice', frontman: 'yes', copilot: 'yes', frontmanNote: 'BYOK: Claude, GPT, OpenRouter, any provider', copilotNote: 'Claude, GPT, Gemini, Grok — GitHub-hosted' },
+	{ name: 'Sees live DOM & styles', frontman: 'yes', windsurf: 'partial', frontmanNote: 'Browser-side MCP server inspects the live page', windsurfNote: 'Embedded preview panel — DOM only, no component tree' },
+	{ name: 'Sees computed CSS', frontman: 'yes', windsurf: 'partial', frontmanNote: 'Runtime values, not class names', windsurfNote: 'Preview panel shows rendered output; agent reads source files' },
+	{ name: 'Click-to-select elements', frontman: 'yes', windsurf: 'yes', frontmanNote: 'Visual component selection in your browser', windsurfNote: 'Click elements in embedded preview panel' },
+	{ name: 'Hot reload feedback loop', frontman: 'yes', windsurf: 'partial', frontmanNote: 'Instant in browser via HMR', windsurfNote: 'Edits files; preview refreshes on rebuild' },
+	{ name: 'Inline autocomplete', frontman: 'no', windsurf: 'yes', windsurfNote: 'Tab, Supercomplete, Tab-to-Jump, Tab-to-Import' },
+	{ name: 'Agent mode', frontman: 'yes', windsurf: 'yes', frontmanNote: 'Browser-context agent', windsurfNote: 'Cascade — Code and Chat modes with flow awareness' },
+	{ name: 'Multi-file refactoring', frontman: 'partial', windsurf: 'yes', frontmanNote: 'Can edit multiple files, not primary workflow', windsurfNote: 'Vibe and Replace — mass refactoring across hundreds of files' },
+	{ name: 'Terminal integration', frontman: 'no', windsurf: 'yes', windsurfNote: 'Built-in terminal, Turbo Mode auto-executes commands' },
+	{ name: 'Framework-aware', frontman: 'yes', windsurf: 'no', frontmanNote: 'Deep plugin for Next.js, Astro, Vite — sees component tree', windsurfNote: 'IDE-level file context, no framework runtime integration' },
+	{ name: 'Designer/PM friendly', frontman: 'yes', windsurf: 'no', frontmanNote: 'No IDE needed — works in the browser', windsurfNote: 'Requires IDE proficiency' },
+	{ name: 'Open source', frontman: 'yes', windsurf: 'no', frontmanNote: 'Apache 2.0 (client) / AGPL-3.0 (server)', windsurfNote: 'Proprietary (VS Code fork, closed-source AI features)' },
+	{ name: 'BYOK (bring your own key)', frontman: 'yes', windsurf: 'no', frontmanNote: 'Any LLM provider directly', windsurfNote: 'Uses Windsurf\'s model pool (GPT, Claude, Gemini, SWE-1.5)' },
+	{ name: 'Self-hostable', frontman: 'yes', windsurf: 'no', frontmanNote: 'Everything runs locally', windsurfNote: 'Cloud service; enterprise on-prem available' },
+	{ name: 'Works in the browser', frontman: 'yes', windsurf: 'no', frontmanNote: 'No IDE required', windsurfNote: 'Standalone VS Code fork' },
+	{ name: 'Backend coding', frontman: 'partial', windsurf: 'yes', frontmanNote: 'Can read/write any file, but frontend-focused', windsurfNote: 'Any language, any framework' },
+	{ name: 'MCP support', frontman: 'yes', windsurf: 'yes', frontmanNote: 'Browser-side MCP server', windsurfNote: 'Plugin Store with curated MCP servers' },
+	{ name: 'Proprietary models', frontman: 'no', windsurf: 'yes', windsurfNote: 'SWE-1.5 (claimed 13x faster than Sonnet 4.5)' },
 ]
 
 function statusLabel(status: Status): string {
@@ -58,24 +56,24 @@ function statusLabel(status: Status): string {
 // FAQ data for JSON-LD
 const faqs = [
 	{
-		question: 'Is Frontman an open-source alternative to GitHub Copilot?',
-		answer: 'They solve different problems. GitHub Copilot is an AI coding assistant that lives in your IDE — autocomplete, agent mode, code review, and terminal integration across any language. Frontman is a browser-based AI coding agent for frontend development — you click elements in your running app, describe changes, and get source code edits with hot reload. Frontman is open-source (Apache 2.0 client, AGPL-3.0 server) and free with BYOK. For visual frontend editing where browser context matters, Frontman is the open-source option. For general-purpose AI coding, Copilot is the more complete tool.'
+		question: 'Is Frontman an alternative to Windsurf?',
+		answer: 'They solve different problems. Windsurf is a VS Code fork with an AI agent (Cascade), autocomplete, and an embedded browser preview panel. It\'s a full IDE replacement. Frontman is browser middleware that integrates with your dev server (Next.js, Astro, Vite) and lets you click elements in your actual browser to edit code. For visual frontend editing where runtime context matters, Frontman is the open-source option. For general-purpose AI-assisted coding with a dedicated IDE, Windsurf is the more complete tool.'
 	},
 	{
-		question: 'Can Frontman replace GitHub Copilot?',
-		answer: 'Not for most workflows. Copilot excels at autocomplete, multi-file refactoring, code review, terminal integration, and backend coding — none of which are Frontman\'s focus. But for frontend visual editing — clicking elements, fixing CSS, adjusting layout — Frontman provides something Copilot cannot: live browser context. The AI sees computed styles, the rendered DOM, and viewport behavior. Many developers use both: Copilot in the IDE for general coding, Frontman in the browser for visual frontend changes.'
+		question: 'How does Windsurf\'s browser preview compare to Frontman?',
+		answer: 'Windsurf has an embedded browser panel inside the IDE where you can click elements and send them to the Cascade agent. Frontman runs in your actual browser as framework middleware. The practical difference: Windsurf\'s preview shows the rendered DOM but doesn\'t know your React/Vue/Svelte component tree, props, state, or server-side context. Frontman\'s middleware integration sees the full component hierarchy, computed CSS, routes, and logs because it hooks into the framework itself.'
 	},
 	{
-		question: 'Does Frontman work alongside GitHub Copilot?',
-		answer: 'Yes. Frontman runs in the browser as framework middleware (Next.js, Astro, Vite). Copilot runs in your IDE. They edit the same source files. Changes from either tool are reflected via hot reload and normal file watching. There is no conflict — they operate in completely separate environments.'
+		question: 'Can I use Frontman and Windsurf together?',
+		answer: 'Yes. Use Windsurf as your IDE for general coding, refactoring, and backend work. Use Frontman in the browser for visual frontend editing where you want to click UI elements and make changes with full runtime context. They edit the same source files and don\'t conflict.'
 	},
 	{
-		question: 'What does Frontman see that GitHub Copilot cannot?',
-		answer: 'Frontman integrates with your framework as a plugin and runs a browser-side MCP server. It sees the live DOM tree, computed CSS styles (actual pixel values, not just class names), the component tree with props and state, viewport layout and responsive behavior, and server-side routes and logs. Copilot reads your source files in the IDE. It knows what your code says but not what it renders. When you ask Copilot to "make the hero section wider," it guesses from JSX. When you ask Frontman, it can see the hero section\'s actual rendered width, margins, and overflow behavior.'
+		question: 'Is Frontman free compared to Windsurf?',
+		answer: 'Yes. Windsurf Free gives you 25 Cascade credits per month. Pro is $15/month for 500 credits. Frontman is free to self-host with no limits. You bring your own API keys to Claude, ChatGPT, or OpenRouter and pay those providers directly. No credit system, no monthly subscription from Frontman itself.'
 	},
 	{
-		question: 'Is Frontman really free compared to Copilot?',
-		answer: 'Yes. Copilot Free gives you 50 chat requests and 2,000 completions per month. Copilot Pro is $10/month, Pro+ is $39/month. Frontman is free to self-host with no limits — you bring your own API keys to Claude, ChatGPT, or OpenRouter and pay those providers directly at their standard rates. There are no prompt caps, no monthly subscription, and no usage-based pricing from Frontman itself.'
+		question: 'What happened to Codeium / who owns Windsurf now?',
+		answer: 'Windsurf was originally built by Codeium. In mid-2025, Google acquihired the founders and key research staff. Cognition (the company behind Devin, the AI coding agent) then acquired the Windsurf product, IP, and remaining team. As of 2026, Windsurf is owned and operated by Cognition, Inc.'
 	}
 ]
 
@@ -97,22 +95,22 @@ const faqJsonLd = {
 <Layout title={SEO.title} description={SEO.description}>
 	<script is:inline type="application/ld+json" set:html={JSON.stringify(faqJsonLd)} />
 
-	<!-- Hero / AI-Citable Summary (GEO Lead) -->
+	<!-- Hero / AI-Citable Summary -->
 	<section class="hero-section">
 		<div class="hero-container">
 			<p class="hero-label">Comparison</p>
-			<h1 class="hero-title">Frontman vs GitHub Copilot</h1>
-			<p class="hero-subtitle">Browser Context vs IDE Autocomplete</p>
+			<h1 class="hero-title">Frontman vs Windsurf</h1>
+			<p class="hero-subtitle">Browser Middleware vs AI IDE</p>
 
 			<div class="hero-summary">
 				<p>
-					<a href="https://frontman.sh" class="text-link">Frontman</a> is an open-source AI coding agent that lives in your browser. It integrates with your framework (Next.js, Astro, or Vite) as a plugin that serves an overlay UI at <code>/frontman</code>. A browser-side MCP server handles DOM inspection, screenshots, computed CSS, and element selection. You click elements in your running app, describe changes in plain English, and Frontman edits the actual source files with hot reload showing results instantly.
+					<a href="https://frontman.sh" class="text-link">Frontman</a> is an open-source AI coding agent that lives in your browser. It integrates with your framework (Next.js, Astro, or Vite) as a plugin that serves an overlay UI at <code>/frontman</code>. A browser-side MCP server handles DOM inspection, screenshots, computed CSS, and element selection. You click elements in your running app, describe changes in plain English, and Frontman edits the actual source files with hot reload.
 				</p>
 				<p>
-					<a href="https://github.com/features/copilot" class="text-link" rel="nofollow">GitHub Copilot</a> is an AI coding assistant built into your IDE. It provides inline autocomplete, agent mode with multi-file editing, a coding agent that creates pull requests, code review, and terminal integration. Copilot works across any language and any framework — it reads your source files and generates suggestions from file context. It does not natively see what your app renders in the browser.
+					<a href="https://windsurf.com" class="text-link" rel="nofollow">Windsurf</a> is a proprietary AI-powered IDE, a VS Code fork with a built-in agent called Cascade. It includes autocomplete (Tab), an embedded browser preview panel, MCP server support, and terminal integration. Originally built by Codeium, now owned by Cognition (the company behind Devin). Windsurf works across any language and framework through file-level context.
 				</p>
 				<p class="summary-emphasis">
-					The core difference: Copilot makes you faster at writing code in an IDE. Frontman lets you edit code by interacting with what it renders in the browser. They're complementary tools for different parts of the development workflow.
+					The key distinction: Windsurf brings a preview browser into the IDE. Frontman puts the AI agent into your real browser. One adds browser context to an IDE workflow; the other works entirely from the browser.
 				</p>
 			</div>
 		</div>
@@ -130,7 +128,7 @@ const faqJsonLd = {
 						<tr>
 							<th class="feature-header">Feature</th>
 							<th class="tool-header tool-header--highlighted">Frontman</th>
-							<th class="tool-header">GitHub Copilot</th>
+							<th class="tool-header">Windsurf</th>
 						</tr>
 					</thead>
 					<tbody>
@@ -151,18 +149,18 @@ const faqJsonLd = {
 										{feature.frontmanNote && <span class="status-note">{feature.frontmanNote}</span>}
 									</div>
 								</td>
-								<td class="status-cell" aria-label={statusLabel(feature.copilot)}>
+								<td class="status-cell" aria-label={statusLabel(feature.windsurf)}>
 									<div class="status-content">
-										{feature.copilot === 'yes' && (
+										{feature.windsurf === 'yes' && (
 											<svg class="status-icon status-icon--yes" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>
 										)}
-										{feature.copilot === 'no' && (
+										{feature.windsurf === 'no' && (
 											<svg class="status-icon status-icon--no" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
 										)}
-										{feature.copilot === 'partial' && (
+										{feature.windsurf === 'partial' && (
 											<svg class="status-icon status-icon--partial" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
 										)}
-										{feature.copilotNote && <span class="status-note">{feature.copilotNote}</span>}
+										{feature.windsurfNote && <span class="status-note">{feature.windsurfNote}</span>}
 									</div>
 								</td>
 							</tr>
@@ -186,11 +184,11 @@ const faqJsonLd = {
 								</span>
 							</div>
 							<div class="mobile-card-item">
-								<span class="mobile-card-tool">Copilot</span>
+								<span class="mobile-card-tool">Windsurf</span>
 								<span>
-									{feature.copilot === 'yes' && <svg class="status-icon status-icon--yes" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>}
-									{feature.copilot === 'no' && <svg class="status-icon status-icon--no" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>}
-									{feature.copilot === 'partial' && <svg class="status-icon status-icon--partial" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"></line></svg>}
+									{feature.windsurf === 'yes' && <svg class="status-icon status-icon--yes" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>}
+									{feature.windsurf === 'no' && <svg class="status-icon status-icon--no" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>}
+									{feature.windsurf === 'partial' && <svg class="status-icon status-icon--partial" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"></line></svg>}
 								</span>
 							</div>
 						</div>
@@ -200,18 +198,18 @@ const faqJsonLd = {
 		</div>
 	</section>
 
-	<!-- What GitHub Copilot Does Well -->
+	<!-- What Windsurf Does Well -->
 	<section class="content-section content-section--light">
 		<div class="content-container">
-			<h2 class="section-title section-title--dark">What GitHub Copilot Does Well</h2>
+			<h2 class="section-title section-title--dark">What Windsurf Does Well</h2>
 			<div class="prose-content prose-content--dark">
-				<p>GitHub Copilot is the most widely adopted AI coding tool in the world, and for real reasons.</p>
-				<p><strong>Autocomplete is the main draw.</strong> Copilot's inline suggestions predict what you're about to type — often multiple lines ahead. For raw coding speed in familiar patterns, it's hard to beat. Frontman doesn't have autocomplete at all.</p>
-				<p>Copilot's agent can plan multi-step changes across files, run terminal commands, interpret errors, and iterate — all within VS Code, JetBrains, or Xcode. The coding agent can even create pull requests autonomously from GitHub issues. This is a level of agentic capability Frontman doesn't attempt.</p>
-				<p><strong>Code review built into GitHub.</strong> Copilot reviews pull requests directly on GitHub.com and in your IDE, providing inline suggestions on diffs. This integrates AI into the review workflow where it matters most. Frontman has no code review feature.</p>
-				<p>Python, Go, Rust, TypeScript, Java, SQL: Copilot works with all of them. Frontman is focused on frontend frameworks (Next.js, Astro, Vite). If you work across the full stack, Copilot covers everything.</p>
-				<p><strong>Multi-model access.</strong> Copilot offers models from Anthropic (Claude), Google (Gemini), OpenAI (GPT-5), and xAI (Grok) — all through one subscription. You choose models per-task without managing API keys. The free tier includes 50 agent/chat requests and 2,000 completions per month.</p>
-				<p>Available in VS Code, Visual Studio, JetBrains, Xcode, Neovim, Eclipse, Zed, and more. MCP server integration, custom instructions, and the GitHub platform integration make it the default AI coding tool for millions of developers.</p>
+				<p>Windsurf has grown into a capable AI IDE with features worth understanding before you compare it to anything else.</p>
+				<p>Windsurf's agent mode, Cascade, monitors your file edits, terminal commands, and clipboard activity to infer what you're working on. This "flow awareness" means less manual context-providing compared to tools where you have to select files or explain your situation. It often picks up on your intent before you describe it.</p>
+				<p>Tab autocomplete goes beyond standard inline predictions. Supercomplete predicts your next action beyond single-token completion. Tab-to-Jump moves your cursor where you'll likely edit next. Tab-to-Import handles dependency imports automatically. For developers who rely on autocomplete, this is faster than most competitors.</p>
+				<p>The embedded browser panel lets you see your running app, click an element, and send it to Cascade. You can also forward console errors directly to the agent. This is closer to visual editing than any other IDE offers, though it works on raw DOM rather than the framework component tree.</p>
+				<p>Windsurf built its own coding model, SWE-1.5, which they claim runs 13x faster than Sonnet 4.5. Whether the claim holds in all scenarios, having a purpose-built model means some operations (like codebase search via Fast Context) are quicker than routing through general-purpose LLMs.</p>
+				<p>Windsurf also runs beyond VS Code. JetBrains gets native Cascade integration, and plugins exist for 40+ other editors. Cursor, by comparison, is VS Code-only.</p>
+				<p>On the enterprise side: SOC 2, HIPAA, FedRAMP/DOD, RBAC, SCIM. If your company has strict compliance requirements, Windsurf has certifications that most competitors lack.</p>
 			</div>
 		</div>
 	</section>
@@ -221,34 +219,33 @@ const faqJsonLd = {
 		<div class="content-container">
 			<h2 class="section-title">Where Frontman Is Different</h2>
 			<div class="prose-content">
-				<p>There's a gap in every IDE-based AI tool, Copilot included: <strong>they don't see the browser.</strong> Copilot reads JSX, CSS files, and Tailwind classes, but it has never seen what they actually render. It doesn't know that your hero section overflows at 768px, that computed font size is 18px not 16px, or that a sibling component's margin is collapsing your layout.</p>
+				<p>Windsurf's embedded browser preview is a step toward visual editing. But there's a structural difference between putting a browser inside an IDE and putting an AI agent inside the browser.</p>
 
-				<p>Frontman integrates with your framework (Next.js, Astro, or Vite) as a plugin and runs a browser-side MCP server. This server inspects the live DOM tree, computed CSS styles, viewport dimensions, the component tree with props and state, and takes screenshots. When you click a button, Frontman resolves the source location via source maps and knows the exact file, component, and line that rendered it.</p>
+				<p>Frontman installs as a plugin for Next.js, Astro, or Vite. It runs inside your dev server rather than alongside it. This means it has access to the component tree (React, Vue, Svelte), server-side routes and logs, compilation errors, and source maps that trace rendered elements back to exact file and line numbers. Windsurf's preview panel sees the rendered DOM, but it doesn't know that a particular <code>&lt;div&gt;</code> is a <code>&lt;ProductCard&gt;</code> component at line 47 of <code>ProductCard.tsx</code>.</p>
 
-				<p><strong>Click-to-edit workflow.</strong> Instead of describing which file to open, you click the element you want to change. The AI already knows the component, its source location, its computed styles, and its context in the rendered page. "Make this card's shadow more subtle" works because Frontman can see the card, measure its current shadow, and edit the right line of code.</p>
+				<p>Frontman also runs in your real browser, not an IDE panel. It serves at <code>/frontman</code> in Chrome, Firefox, or whatever you test with. You see the same page your users will see, at the same viewport width, with the same extensions and dev tools you always use. Windsurf's preview panel is a controlled embedded browser inside the IDE.</p>
 
-				<p><strong>Hot reload closes the loop.</strong> Frontman edits actual source files, and HMR handles live reloading. Edit, see result, edit again — all in the browser, no alt-tab, no manual refresh. Copilot's agent mode can trigger builds, but it doesn't see the browser result.</p>
+				<p>When you click an element in Frontman, the MCP server reads actual computed style values: real pixel dimensions, resolved colors, cascaded font sizes. It doesn't guess from class names. Windsurf's Cascade agent reads your source files and the preview's rendered output, but doesn't have direct access to the CSS cascade or computed values at the level Frontman's browser-side MCP server does.</p>
 
-				<p><strong>Open source and truly BYOK.</strong> Frontman's client libraries are Apache 2.0. The server is AGPL-3.0. You connect your own API keys to Claude, ChatGPT, OpenRouter, or any OpenAI-compatible API. Copilot uses GitHub's model pool — you can't bring your own provider or use a local model.</p>
+				<p>On licensing: Frontman's client libraries are Apache 2.0, the server is AGPL-3.0, and you bring your own API keys to Claude, ChatGPT, OpenRouter, or any OpenAI-compatible provider. Windsurf is proprietary, uses its own model pool, and charges per-credit. You can't use your own LLM provider or self-host the AI features.</p>
 
-				<p><strong>Accessible to non-developers.</strong> Designers and product managers can click elements in the browser and describe changes in plain English. No IDE required. Changes produce real source code edits for developer review. With Copilot, you need IDE proficiency to use any of its features.</p>
+				<p>Frontman also doesn't require an IDE. Designers and product managers can open the app in a browser, click elements, and describe changes in plain English. The output is real source code edits for developer review. With Windsurf, you need the IDE installed and you need to know how to use it.</p>
 			</div>
 		</div>
 	</section>
 
-	<!-- Who Should Use GitHub Copilot -->
+	<!-- Who Should Use Windsurf -->
 	<section class="content-section content-section--light">
 		<div class="content-container">
-			<h2 class="section-title section-title--dark">Who Should Use GitHub Copilot</h2>
+			<h2 class="section-title section-title--dark">Who Should Use Windsurf</h2>
 			<div class="prose-content prose-content--dark">
-				<p>GitHub Copilot is the better choice for most general-purpose AI-assisted coding. Specifically:</p>
+				<p>Windsurf is the better choice when you want a full AI IDE that handles everything in one place:</p>
 				<ul>
-					<li><strong>Developers who want autocomplete</strong> — if inline suggestions and tab completion are core to your workflow, Copilot is the clear choice</li>
-					<li><strong>Full-stack and backend developers</strong> — Python, Go, Rust, Java, SQL, infrastructure — Copilot handles any language</li>
-					<li><strong>Agentic coding workflows</strong> — multi-step changes, terminal integration, autonomous PR creation from issues</li>
-					<li><strong>Code review</strong> — AI-powered PR reviews on GitHub and diff reviews in the IDE</li>
-					<li><strong>Teams on GitHub</strong> — the platform integration (issues, PRs, code review, coding agent) is unmatched</li>
-					<li><strong>Large codebase refactoring</strong> — renaming across dozens of files, updating APIs, migrating patterns</li>
+					<li><strong>Developers who want autocomplete, agent mode, and terminal in one tool.</strong> Cascade + Tab + terminal is a complete coding environment.</li>
+					<li><strong>Full-stack and backend developers.</strong> Any language, any framework, with purpose-built code search and refactoring.</li>
+					<li><strong>Teams on JetBrains IDEs.</strong> Windsurf has native JetBrains integration where Cursor does not.</li>
+					<li><strong>Enterprises with compliance requirements.</strong> SOC 2, HIPAA, FedRAMP certifications.</li>
+					<li><strong>Developers who want visual context without leaving the IDE.</strong> The embedded browser preview is a pragmatic middle ground.</li>
 				</ul>
 			</div>
 		</div>
@@ -259,15 +256,16 @@ const faqJsonLd = {
 		<div class="content-container">
 			<h2 class="section-title">Who Should Use Frontman</h2>
 			<div class="prose-content">
-				<p>Frontman is the better choice when browser context matters more than IDE features. Specifically:</p>
+				<p>Frontman is the better choice when you need deep browser context and visual editing:</p>
 				<ul>
-					<li><strong>Frontend developers frustrated by AI breaking CSS and layout</strong> — Frontman sees computed styles, rendered output, and viewport behavior, not just class names in source files</li>
-					<li><strong>Teams where designers or PMs need to make UI changes</strong> — click elements in the browser, describe changes in plain English, review real code diffs. No IDE required.</li>
-					<li><strong>Next.js, Astro, or Vite projects</strong> where deep framework plugin integration provides better context than generic file reading</li>
-					<li><strong>Open-source and vendor-independent</strong> — Apache 2.0 client libs, AGPL-3.0 server, BYOK to any LLM provider, self-hostable, no subscription</li>
-					<li><strong>Visual editing workflows</strong> where seeing the live result matters more than typing speed</li>
+					<li><strong>Frontend developers who want the AI to see the actual rendered page.</strong> Computed styles, component tree, responsive behavior, and server logs in addition to source files.</li>
+					<li><strong>Teams where designers or PMs make UI changes.</strong> Click elements in the browser, describe changes, review code diffs. No IDE required.</li>
+					<li><strong>Next.js, Astro, or Vite projects</strong> where framework middleware gives the AI agent more context than file reading alone.</li>
+					<li><strong>Open-source and BYOK.</strong> Apache 2.0 client libs, AGPL-3.0 server, any LLM provider, self-hostable, no credit system.</li>
+					<li><strong>Developers who don't want to switch IDEs.</strong> Frontman works with whatever editor you already use. It only needs the browser.</li>
 				</ul>
-				<p>You can use both. Copilot in the IDE for autocomplete, agent mode, and backend coding. Frontman in the browser for visual frontend changes where the AI needs to see what's actually rendered.</p>
+				<p>Many developers will use both. Windsurf (or Cursor, or your preferred IDE) for general coding, and Frontman in the browser for visual frontend work where the AI needs to see what's rendered.</p>
+				<p>See also: <a href="/vs/cursor/" class="text-link">Frontman vs Cursor</a>, <a href="/vs/copilot/" class="text-link">Frontman vs GitHub Copilot</a>, <a href="/vs/stagewise/" class="text-link">Frontman vs Stagewise</a>.</p>
 			</div>
 		</div>
 	</section>
@@ -290,15 +288,15 @@ const faqJsonLd = {
 					</ul>
 				</div>
 				<div class="pricing-card">
-					<h3 class="pricing-name">GitHub Copilot</h3>
-					<div class="pricing-cost">$0–$39/mo</div>
+					<h3 class="pricing-name">Windsurf</h3>
+					<div class="pricing-cost">$0–$30/mo</div>
 					<p class="pricing-model">Freemium, proprietary</p>
 					<ul class="pricing-features">
-						<li>Free: 50 chats/month, 2,000 completions/month</li>
-						<li>Pro: $10/month — unlimited completions, 300 premium requests</li>
-						<li>Pro+: $39/month — 1,500 premium requests, all models</li>
-						<li>Business: $19/user/month — policy management, SSO</li>
-						<li>Enterprise: $39/user/month — custom models, IP indemnity</li>
+						<li>Free: 25 Cascade credits/month, unlimited autocomplete</li>
+						<li>Pro: $15/month — 500 credits/month</li>
+						<li>Teams: $30/user/month — 500 credits/user, admin dashboard</li>
+						<li>Enterprise: custom pricing — 1,000+ credits, SSO, RBAC</li>
+						<li>Add-on: $10 for 250 extra credits</li>
 					</ul>
 				</div>
 			</div>
@@ -329,7 +327,7 @@ const faqJsonLd = {
 	<section class="cta-section">
 		<div class="cta-container">
 			<h2 class="cta-title">Try Frontman</h2>
-			<p class="cta-description">One command. No account. No credit card. No prompt limits.</p>
+			<p class="cta-description">One command. No account. No credit card. No credit limits.</p>
 			<div class="install-commands">
 				<div class="install-command">
 					<code><span class="command-prefix">$</span> npx @frontman-ai/nextjs install</code>
@@ -391,9 +389,6 @@ const faqJsonLd = {
 		line-height: 1.7;
 		color: #a1a1aa;
 		margin-bottom: 16px;
-	}
-	.hero-summary strong {
-		color: #fafafa;
 	}
 	.hero-summary code {
 		font-family: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, 'DejaVu Sans Mono', monospace;

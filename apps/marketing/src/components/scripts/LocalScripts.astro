@@ -141,6 +141,40 @@
 	})
 </script>
 
+<!-- GitHub click tracking (GA4 via dataLayer) -->
+<script is:inline>
+	(function () {
+		function getGitHubClickPlacement(link) {
+			if (link.closest('.hero-section, .hero')) return 'hero'
+			if (link.closest('.header, nav')) return 'navbar'
+			if (link.closest('.social-proof')) return 'social_proof'
+			if (link.closest('.footer, footer')) return 'footer'
+			if (link.closest('.integration-cta')) return 'integration_cta'
+			if (link.classList.contains('open-source-badge') || link.closest('.open-source-badge'))
+				return 'open_source_badge'
+			if (link.classList.contains('button') || link.classList.contains('button--primary'))
+				return 'cta_button'
+			return 'other'
+		}
+
+		document.addEventListener('click', function (event) {
+			var link = event.target.closest('a[href*="github.com/frontman-ai/frontman"]')
+			if (!link) return
+
+			var placement = getGitHubClickPlacement(link)
+
+			window.dataLayer = window.dataLayer || []
+			window.dataLayer.push({
+				event: 'github_click',
+				link_url: link.href,
+				link_text: (link.textContent || '').trim().substring(0, 100),
+				link_placement: placement,
+				page_path: window.location.pathname,
+			})
+		})
+	})()
+</script>
+
 <!-- Light/Dark mode  -->
 <script>
 	if (document.documentElement.classList.contains('mode-auto')) {

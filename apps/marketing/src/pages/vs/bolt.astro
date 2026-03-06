@@ -1,0 +1,266 @@
+---
+// /vs/bolt — Frontman vs Bolt.new Comparison Page
+// Targets "bolt.new alternative" and "bolt.new vs" queries
+// Key angle: Bolt generates new apps from scratch in a WebContainer sandbox.
+//            Frontman edits existing apps via browser interaction with your real running app.
+
+import Layout from '../../layouts/Layout.astro'
+import ComparisonHero from '../../components/blocks/comparison/ComparisonHero.astro'
+import ComparisonFeatureTable from '../../components/blocks/comparison/ComparisonFeatureTable.astro'
+import type { ComparisonFeature } from '../../components/blocks/comparison/ComparisonFeatureTable.astro'
+import ComparisonPricing from '../../components/blocks/comparison/ComparisonPricing.astro'
+import ComparisonCTA from '../../components/blocks/comparison/ComparisonCTA.astro'
+import IntegrationContentSection from '../../components/blocks/integrations/IntegrationContentSection.astro'
+import IntegrationFAQ from '../../components/blocks/integrations/IntegrationFAQ.astro'
+
+// SEO
+const SEO = {
+	title: 'Frontman vs Bolt.new: Edit Your Real App vs Generate New Apps',
+	description:
+		'Honest comparison of Frontman and Bolt.new. Bolt generates full-stack apps from prompts in a WebContainer sandbox. Frontman edits your existing codebase by seeing your real running app. Feature table, pricing, and real differences.',
+}
+
+// Feature comparison data
+const features: ComparisonFeature[] = [
+	{
+		name: 'Edits your real codebase',
+		frontman: 'yes',
+		competitor: 'no',
+		frontmanNote: 'Edits actual source files',
+		competitorNote: 'Generates code in WebContainer sandbox',
+	},
+	{
+		name: 'Works with existing projects',
+		frontman: 'yes',
+		competitor: 'partial',
+		frontmanNote: 'Designed for existing codebases',
+		competitorNote: 'Prompt-to-app is the primary flow',
+	},
+	{
+		name: 'Sees live DOM & styles',
+		frontman: 'yes',
+		competitor: 'no',
+		frontmanNote: 'Browser-side MCP inspects your running app',
+		competitorNote: 'Sandbox preview only',
+	},
+	{
+		name: 'Click-to-select elements',
+		frontman: 'yes',
+		competitor: 'no',
+		frontmanNote: 'In your running app',
+		competitorNote: 'Chat-only interface',
+	},
+	{
+		name: 'Generate apps from scratch',
+		frontman: 'no',
+		competitor: 'yes',
+		competitorNote: 'Core workflow: prompt to full-stack app',
+	},
+	{
+		name: 'Built-in hosting & databases',
+		frontman: 'no',
+		competitor: 'yes',
+		competitorNote: 'Bolt Cloud with unlimited databases',
+	},
+	{
+		name: 'Figma import',
+		frontman: 'no',
+		competitor: 'yes',
+		competitorNote: 'Import Figma designs into generated code',
+	},
+	{
+		name: 'Mobile app support',
+		frontman: 'no',
+		competitor: 'yes',
+		competitorNote: 'Expo for React Native',
+	},
+	{
+		name: 'Framework-aware middleware',
+		frontman: 'yes',
+		competitor: 'no',
+		frontmanNote: 'Hooks into Next.js/Astro/Vite runtime',
+		competitorNote: 'WebContainer runs any JS framework but no runtime integration',
+	},
+	{
+		name: 'Server-side context',
+		frontman: 'yes',
+		competitor: 'no',
+		frontmanNote: 'Routes, server logs, query timing',
+		competitorNote: 'Browser sandbox only',
+	},
+	{
+		name: 'Component tree access',
+		frontman: 'yes',
+		competitor: 'no',
+		frontmanNote: 'React fiber, Vue reactivity, Svelte tree',
+	},
+	{
+		name: 'Hot reload feedback loop',
+		frontman: 'yes',
+		competitor: 'yes',
+		frontmanNote: 'Instant via framework HMR',
+		competitorNote: 'Instant in sandbox preview',
+	},
+	{
+		name: 'Designer/PM friendly',
+		frontman: 'yes',
+		competitor: 'yes',
+		frontmanNote: 'No IDE needed',
+		competitorNote: 'No IDE needed',
+	},
+	{
+		name: 'Open source',
+		frontman: 'yes',
+		competitor: 'partial',
+		frontmanNote: 'Apache 2.0 client / AGPL-3.0 server',
+		competitorNote: 'bolt.diy is MIT but WebContainers needs commercial license',
+	},
+	{
+		name: 'BYOK (bring your own key)',
+		frontman: 'yes',
+		competitor: 'partial',
+		frontmanNote: 'Any LLM provider',
+		competitorNote: 'Commercial Bolt locked to Anthropic; bolt.diy supports 19+ providers',
+	},
+	{
+		name: 'Self-hostable',
+		frontman: 'yes',
+		competitor: 'partial',
+		frontmanNote: 'Everything runs locally',
+		competitorNote: 'bolt.diy can be self-hosted',
+	},
+]
+
+// FAQ data
+const faqs = [
+	{
+		question: 'Is Frontman an alternative to Bolt.new?',
+		answer: 'They are different tools for different stages of development. Bolt.new generates new full-stack apps from chat prompts in a WebContainer sandbox. Frontman edits existing apps by interacting with your real running app in the browser. They are complementary, not competing.',
+	},
+	{
+		question: 'Can I use Bolt.new and Frontman together?',
+		answer: 'Yes, and it is a natural workflow. Use Bolt to generate your initial app from a prompt, clone the result locally, add Frontman middleware to your dev server, and then iterate visually — clicking elements, describing changes, and getting source code edits with full browser context.',
+	},
+	{
+		question: 'Does Frontman generate full apps like Bolt?',
+		answer: 'No. Frontman is designed for editing existing codebases, not generating new projects from scratch. If you need greenfield app generation, use Bolt, v0, or Lovable first, then switch to Frontman for iterating on the result.',
+	},
+	{
+		question: 'Is Frontman really free compared to Bolt\'s token system?',
+		answer: 'Yes. Frontman is completely free with BYOK — you bring your own API keys and pay your LLM provider directly. No token limits, no monthly subscription from Frontman. Bolt\'s free tier caps you at 300K tokens per day (1M per month). Heavy Bolt usage costs $25 to $2,250 per month depending on your plan.',
+	},
+	{
+		question: 'What about bolt.diy (the open-source fork)?',
+		answer: 'bolt.diy is the MIT-licensed community fork of Bolt with BYOK support for 19+ LLM providers, which is philosophically closer to Frontman. But bolt.diy is still a prompt-to-app generator that runs in a WebContainer sandbox. Frontman is a dev tool for editing your real running app with AI that sees the live DOM, component tree, and server-side context.',
+	},
+	{
+		question: 'Which tool should a frontend developer choose?',
+		answer: 'Both. Use Bolt for bootstrapping new projects fast — go from idea to working app in minutes. Use Frontman for iterating on existing projects with AI that sees your running app. Bolt creates; Frontman refines.',
+	},
+]
+
+// FAQPage JSON-LD
+const faqJsonLd = {
+	"@context": "https://schema.org",
+	"@type": "FAQPage",
+	"mainEntity": faqs.map((faq) => ({
+		"@type": "Question",
+		"name": faq.question,
+		"acceptedAnswer": {
+			"@type": "Answer",
+			"text": faq.answer,
+		},
+	})),
+}
+---
+
+<Layout title={SEO.title} description={SEO.description}>
+	<script is:inline type="application/ld+json" set:html={JSON.stringify(faqJsonLd)} />
+
+	<!-- Hero / AI-Citable Summary (GEO Lead) -->
+	<ComparisonHero title="Frontman vs Bolt.new" subtitle="Edit Your Real App vs Generate New Apps">
+		<p>
+			<a href="https://frontman.sh" class="text-link">Frontman</a> and <a href="https://bolt.new" class="text-link" rel="nofollow">Bolt.new</a> both use AI for frontend development, but they solve different problems. Bolt generates entire full-stack apps from chat prompts in a WebContainer browser sandbox. Frontman edits your existing codebase by interacting with your real running app in the browser.
+		</p>
+		<p>
+			<strong>Frontman</strong> is an open-source AI coding agent that hooks into your dev server as framework middleware (Next.js, Astro, Vite). It sees the live DOM, component tree, computed CSS, and server-side context. You click elements in your running app, describe changes in plain English, and Frontman edits the actual source files with hot reload. Free and unlimited — you bring your own API keys.
+		</p>
+		<p>
+			<strong>Bolt.new</strong> is StackBlitz's AI-powered app generation platform. You describe what you want in a chat prompt — or import a Figma design — and Bolt generates a complete full-stack app running in a WebContainer sandbox. It includes built-in hosting via Bolt Cloud, databases, and Expo support for mobile apps. Token-based pricing starting at free (300K tokens/day).
+		</p>
+		<p class="summary-emphasis">
+			The core difference: Bolt generates new apps from scratch. Frontman edits existing apps with AI that sees your real running app. Different tools for different stages of development.
+		</p>
+	</ComparisonHero>
+
+	<!-- Feature Comparison Table -->
+	<ComparisonFeatureTable competitorName="Bolt.new" features={features} />
+
+	<!-- What Bolt.new Does Well -->
+	<IntegrationContentSection title="What Bolt.new Does Well" variant="light">
+		<p>Bolt.new is the fastest way to go from a chat prompt to a working full-stack app.</p>
+		<p><strong>Prompt-to-app is the core loop.</strong> Describe what you want ("a project management app with Kanban boards, user auth, and a PostgreSQL database") and Bolt generates a complete, working app in its WebContainer sandbox. For greenfield projects, it's hard to beat.</p>
+		<p>Bolt generates backend code, database schemas, and API routes — not just UI components. The WebContainer sandbox runs a full Node.js environment in the browser, so you get server-side logic, not just static pages.</p>
+		<p><strong>Bolt Cloud removes deployment friction.</strong> Generated apps can be deployed to Bolt Cloud with built-in hosting, unlimited databases, and custom domains. From idea to production URL without touching infrastructure.</p>
+		<p>Import Figma designs and Bolt converts them into working code. This connects Figma output to working code for new projects.</p>
+		<p><strong>Mobile via Expo.</strong> Bolt can also generate React Native apps via Expo — Frontman is web-only.</p>
+		<p><strong>bolt.diy is fully open.</strong> The community fork (bolt.diy, 19.1K stars) is MIT-licensed and supports 19+ LLM providers via BYOK. If you want the Bolt experience without vendor lock-in, bolt.diy is a real option — though the WebContainers API itself requires a commercial license for production use.</p>
+	</IntegrationContentSection>
+
+	<!-- Where Frontman Is Different -->
+	<IntegrationContentSection title="Where Frontman Is Different">
+		<p>Bolt builds apps from scratch. Frontman modifies apps that already exist. The overlap is "AI + frontend," but the workflows don't intersect.</p>
+		<p><strong>Your real codebase, not a sandbox.</strong> When you use Frontman, you're editing the actual source files in your project. The AI sees your real component tree, CSS, routing, and server state. Changes show up via hot module replacement in your actual dev server. With Bolt, you're working in a WebContainer sandbox that generates fresh code — which then needs to be cloned and integrated into your real workflow.</p>
+		<p>Frontman installs as a plugin into your dev server — <code>@frontman-ai/nextjs</code>, <code>@frontman-ai/astro</code>, or <code>@frontman-ai/vite</code>. This gives it access to your component tree at the framework level (React fiber nodes, Vue reactivity, Svelte components), computed CSS from your actual stylesheets, server-side routes and logs, and source map resolution to find the exact file and line for any rendered element.</p>
+		<p><strong>Context that a sandbox can't have.</strong> Bolt's WebContainer sandbox doesn't know about your design system, component library conventions, server endpoints, or actual responsive behavior at different viewports. Frontman sees all of this because it's running inside your actual app.</p>
+		<p><strong>Click-to-edit instead of chat-to-generate.</strong> Bolt's interface is chat-first — you describe what you want in text and the AI generates entire files. Frontman's interface is visual-first — you click an element in your running app, describe what you want changed about that specific element, and the AI edits the source with full context. Different interaction models for different tasks.</p>
+		<p><strong>Open source and BYOK.</strong> Bolt.new is a proprietary SaaS with token-based pricing. Frontman's client libraries are Apache 2.0 and the server is AGPL-3.0. You bring your own API keys — Claude, ChatGPT, OpenRouter, or any OpenAI-compatible API including local models. No tokens, no message limits, no monthly fees from Frontman.</p>
+	</IntegrationContentSection>
+
+	<!-- Who Should Use Bolt.new -->
+	<IntegrationContentSection title="Who Should Use Bolt.new" variant="light">
+		<p>Bolt.new is the better choice when you're creating something new from scratch:</p>
+		<ul>
+			<li><strong>Greenfield app generation</strong> — turning a chat prompt into a complete full-stack app as fast as possible</li>
+			<li><strong>Prototyping and MVPs</strong> — need a working app to test an idea or show stakeholders</li>
+			<li><strong>Non-developers building apps</strong> — founders, designers, and PMs who need working code without writing it</li>
+			<li><strong>Figma-to-code workflows</strong> — converting designs into working apps</li>
+			<li><strong>Mobile apps via Expo</strong> — generating React Native apps from prompts</li>
+			<li><strong>Quick deployment</strong> — Bolt Cloud handles hosting, databases, and custom domains</li>
+		</ul>
+	</IntegrationContentSection>
+
+	<!-- Who Should Use Frontman -->
+	<IntegrationContentSection title="Who Should Use Frontman">
+		<p>Frontman is the better choice when you're working on an existing codebase:</p>
+		<ul>
+			<li><strong>Iterating on existing UI</strong> — adjusting styles, fixing responsive issues, refining layout on a real app</li>
+			<li><strong>Frontend developers on established projects</strong> — your app already exists and you need to edit it with AI that understands the full context</li>
+			<li><strong>Teams where designers make UI changes</strong> — click elements in the running app, describe changes, review code diffs — no IDE needed</li>
+			<li><strong>Any component library or CSS approach</strong> — MUI, Chakra, Tailwind, CSS Modules, styled-components — Frontman sees what renders, not what you typed</li>
+			<li><strong>Open source and vendor-independent</strong> — no cloud dependency, no token system, BYOK, self-hostable</li>
+			<li><strong>Server-side context matters</strong> — routes, server logs, and server-side state alongside visual editing</li>
+		</ul>
+		<p>A natural workflow: use Bolt to generate your initial app, clone it locally, add Frontman middleware, and iterate visually with full browser context.</p>
+	</IntegrationContentSection>
+
+	<!-- Pricing Comparison -->
+	<ComparisonPricing
+		competitorName="Bolt.new"
+		competitorCost="$0–$2,250/mo"
+		competitorModel="Token-based, proprietary"
+		competitorFeatures={[
+			'Free: 300K tokens/day, 1M/month',
+			'Pro: $25/month (10M tokens/month)',
+			'Teams: $30/user/month (shared pool)',
+			'Enterprise: custom pricing',
+			'Every interaction costs tokens — heavy usage adds up fast',
+		]}
+	/>
+
+	<!-- FAQ -->
+	<IntegrationFAQ faqs={faqs} />
+
+	<!-- CTA -->
+	<ComparisonCTA />
+</Layout>
