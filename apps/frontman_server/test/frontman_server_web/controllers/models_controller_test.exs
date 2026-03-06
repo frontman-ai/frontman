@@ -127,7 +127,7 @@ defmodule FrontmanServerWeb.ModelsControllerTest do
 
       # Default should be ChatGPT when OAuth is connected
       assert response["defaultModel"]["provider"] == "openai"
-      assert response["defaultModel"]["value"] == "gpt-5.1-codex-max"
+      assert response["defaultModel"]["value"] == "gpt-5.4"
     end
 
     test "ChatGPT takes default priority over Anthropic", %{conn: conn, user: user} do

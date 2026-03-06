@@ -17,6 +17,8 @@ defmodule FrontmanServerWeb.ModelsController do
     name: "OpenRouter",
     models: [
       # OpenAI models
+      %{displayName: "GPT-5.4 Pro", value: "openai/gpt-5.4-pro"},
+      %{displayName: "GPT-5.4", value: "openai/gpt-5.4"},
       %{displayName: "GPT-5.3 Codex", value: "openai/gpt-5.3-codex"},
       %{displayName: "GPT-5.2", value: "openai/gpt-5.2"},
       %{displayName: "GPT-5.1", value: "openai/gpt-5.1"},
@@ -69,6 +71,8 @@ defmodule FrontmanServerWeb.ModelsController do
     id: "openai",
     name: "ChatGPT Pro/Plus",
     models: [
+      %{displayName: "GPT-5.4 Pro", value: "gpt-5.4-pro"},
+      %{displayName: "GPT-5.4", value: "gpt-5.4"},
       %{displayName: "GPT-5.3 Codex", value: "gpt-5.3-codex"},
       %{displayName: "GPT-5.2 Codex", value: "gpt-5.2-codex"},
       %{displayName: "GPT-5.2", value: "gpt-5.2"},
@@ -80,7 +84,7 @@ defmodule FrontmanServerWeb.ModelsController do
   # Default models for each scenario
   @openrouter_default %{provider: "openrouter", value: "google/gemini-3-flash-preview"}
   @anthropic_default %{provider: "anthropic", value: "claude-sonnet-4-5"}
-  @openai_default %{provider: "openai", value: "gpt-5.1-codex-max"}
+  @openai_default %{provider: "openai", value: "gpt-5.4"}
 
   @doc """
   Returns the available models configuration.
