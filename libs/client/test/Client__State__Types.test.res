@@ -48,10 +48,22 @@ let makeTestAnnotation = (
   timestamp: 0.0,
 }
 
-// Helper to extract _meta from a content block
+// Helper to extract _meta from an EmbeddedResource content block
 let getMeta = (block: ACPTypes.contentBlock): JSON.t => {
-  let resource: ACPTypes.embeddedResource = block.resource->Option.getOrThrow
-  resource._meta->Option.getOrThrow
+  switch block {
+  | EmbeddedResource({resource}) => resource._meta->Option.getOrThrow
+  | TextContent(_) | ImageContent(_) | AudioContent(_) | ResourceLink(_) =>
+    failwith("getMeta: expected EmbeddedResource content block")
+  }
+}
+
+// Helper to extract the embeddedResource from an EmbeddedResource content block
+let getEmbeddedResource = (block: ACPTypes.contentBlock): ACPTypes.embeddedResource => {
+  switch block {
+  | EmbeddedResource({resource}) => resource
+  | TextContent(_) | ImageContent(_) | AudioContent(_) | ResourceLink(_) =>
+    failwith("getEmbeddedResource: expected EmbeddedResource content block")
+  }
 }
 
 // Helper to get a string field from _meta JSON
@@ -164,7 +176,7 @@ describe("Client__State__Types", () => {
 
       let blocks = Types.annotationToContentBlocks(annotation, ~index=0)
       let block = blocks->Array.getUnsafe(0)
-      let embeddedResource = block.resource->Option.getOrThrow
+      let embeddedResource = getEmbeddedResource(block)
 
       switch embeddedResource.resource {
       | TextResourceContents(textResource) =>
@@ -191,7 +203,7 @@ describe("Client__State__Types", () => {
 
       // Second block should be screenshot blob
       let screenshotBlock = blocks->Array.getUnsafe(1)
-      let screenshotResource = screenshotBlock.resource->Option.getOrThrow
+      let screenshotResource = getEmbeddedResource(screenshotBlock)
       let screenshotMeta = screenshotResource._meta->Option.getOrThrow
 
       t->expect(getMetaBool(screenshotMeta, "annotation_screenshot"))->Expect.toBe(true)
@@ -234,7 +246,7 @@ describe("Client__State__Types", () => {
 
       let blocks = Types.annotationToContentBlocks(annotation, ~index=0)
       let block = blocks->Array.getUnsafe(0)
-      let embeddedResource = block.resource->Option.getOrThrow
+      let embeddedResource = getEmbeddedResource(block)
 
       switch embeddedResource.resource {
       | TextResourceContents(textResource) =>

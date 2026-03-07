@@ -513,11 +513,8 @@ let buildAttachmentContentBlocks = (attachments: array<Client__Message.fileAttac
       return { "user_image": true, "filename": filename };
     })`)(att.filename)
 
-    {
-      Client__State__Types.ACPTypes.type_: "resource",
-      text: None,
-      uri: None,
-      resource: Some({
+    Client__State__Types.ACPTypes.EmbeddedResource({
+      resource: {
         _meta: Some(meta),
         annotations: None,
         resource: Client__State__Types.ACPTypes.BlobResourceContents({
@@ -525,9 +522,10 @@ let buildAttachmentContentBlocks = (attachments: array<Client__Message.fileAttac
           mimeType: Some(att.mediaType),
           blob: base64Data,
         }),
-      }),
-      content: None,
-    }
+      },
+      _meta: None,
+      annotations: None,
+    })
   })
 }
 

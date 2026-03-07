@@ -367,19 +367,10 @@ let sendPrompt = async (
   ~metadata: option<JSON.t>=None,
 ): result<Types.promptResult, string> => {
   // Build prompt array starting with the text block
-  let textBlock = JSON.Encode.object(
-    Dict.fromArray([("type", JSON.Encode.string("text")), ("text", JSON.Encode.string(text))]),
+  let textBlock: Types.contentBlock = TextContent({text, _meta: None, annotations: None})
+  let allBlocks = Array.concat([textBlock], additionalBlocks)->Array.map(block =>
+    block->S.reverseConvertToJsonOrThrow(Types.contentBlockSchema)
   )
-
-  let allBlocks = if Array.length(additionalBlocks) > 0 {
-    let additionalBlocksJson =
-      additionalBlocks->Array.map(block =>
-        block->S.reverseConvertToJsonOrThrow(Types.contentBlockSchema)
-      )
-    Array.concat([textBlock], additionalBlocksJson)
-  } else {
-    [textBlock]
-  }
 
   await Protocol.sendPrompt(
     ~channel=session.channel,

@@ -182,27 +182,83 @@ type embeddedResource = {
 }
 
 // Content block for prompts and responses
-// Supports text, resource_link, resource types per ACP spec, and structured JSON content
-type contentBlock = {
-  @as("type")
-  type_: string,
-  // For type="text"
-  text: option<string>,
-  // For type="resource_link"
-  uri: option<string>,
-  // For type="resource" - contains EmbeddedResource wrapper
-  resource: option<embeddedResource>,
-  // For structured JSON content from backend tools
-  content: option<JSON.t>,
-}
+// Discriminated union on "type" field per ACP spec:
+// - TextContent (type="text"): text string
+// - ImageContent (type="image"): base64 data + mimeType
+// - AudioContent (type="audio"): base64 data + mimeType
+// - ResourceLink (type="resource_link"): name + uri
+// - EmbeddedResource (type="resource"): embedded resource wrapper
+type contentBlock =
+  | TextContent({text: string, _meta: option<JSON.t>, annotations: option<annotations>})
+  | ImageContent({
+      data: string,
+      mimeType: string,
+      _meta: option<JSON.t>,
+      annotations: option<annotations>,
+    })
+  | AudioContent({
+      data: string,
+      mimeType: string,
+      _meta: option<JSON.t>,
+      annotations: option<annotations>,
+    })
+  | ResourceLink({
+      name: string,
+      uri: string,
+      _meta: option<JSON.t>,
+      annotations: option<annotations>,
+    })
+  | EmbeddedResource({
+      resource: embeddedResource,
+      _meta: option<JSON.t>,
+      annotations: option<annotations>,
+    })
 
-let contentBlockSchema = S.object(s => {
-  type_: s.field("type", S.string),
-  text: s.field("text", S.option(S.string)),
-  uri: s.field("uri", S.option(S.string)),
-  resource: s.field("resource", S.option(embeddedResourceSchema)),
-  content: s.field("content", S.option(S.json)),
-})
+let contentBlockSchema = S.union([
+  S.object(s => {
+    s.tag("type", "text")
+    TextContent({
+      text: s.field("text", S.string),
+      _meta: s.field("_meta", S.option(S.json)),
+      annotations: s.field("annotations", S.option(annotationsSchema)),
+    })
+  }),
+  S.object(s => {
+    s.tag("type", "image")
+    ImageContent({
+      data: s.field("data", S.string),
+      mimeType: s.field("mimeType", S.string),
+      _meta: s.field("_meta", S.option(S.json)),
+      annotations: s.field("annotations", S.option(annotationsSchema)),
+    })
+  }),
+  S.object(s => {
+    s.tag("type", "audio")
+    AudioContent({
+      data: s.field("data", S.string),
+      mimeType: s.field("mimeType", S.string),
+      _meta: s.field("_meta", S.option(S.json)),
+      annotations: s.field("annotations", S.option(annotationsSchema)),
+    })
+  }),
+  S.object(s => {
+    s.tag("type", "resource_link")
+    ResourceLink({
+      name: s.field("name", S.string),
+      uri: s.field("uri", S.string),
+      _meta: s.field("_meta", S.option(S.json)),
+      annotations: s.field("annotations", S.option(annotationsSchema)),
+    })
+  }),
+  S.object(s => {
+    s.tag("type", "resource")
+    EmbeddedResource({
+      resource: s.field("resource", embeddedResourceSchema),
+      _meta: s.field("_meta", S.option(S.json)),
+      annotations: s.field("annotations", S.option(annotationsSchema)),
+    })
+  }),
+])
 
 let embeddedResourceSchema = S.object(s => {
   _meta: s.field("_meta", S.option(S.json)),

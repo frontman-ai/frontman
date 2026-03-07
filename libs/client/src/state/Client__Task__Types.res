@@ -732,17 +732,15 @@ let annotationToContentBlocks = (annotation: Annotation.t, ~index: int): array<A
     }
   }
 
-  let resourceBlock: ACPTypes.contentBlock = {
-    type_: "resource",
-    text: None,
-    uri: None,
-    resource: Some({
+  let resourceBlock: ACPTypes.contentBlock = ACPTypes.EmbeddedResource({
+    resource: {
       _meta: Some(_meta),
       annotations: None,
       resource: ACPTypes.TextResourceContents({uri, mimeType: Some("text/plain"), text}),
-    }),
-    content: None,
-  }
+    },
+    _meta: None,
+    annotations: None,
+  })
 
   let screenshotBlock = annotation.screenshot->Option.map(screenshotDataUrl => {
     let (mimeType, base64Data) = parseDataUrl(screenshotDataUrl)
@@ -756,11 +754,8 @@ let annotationToContentBlocks = (annotation: Annotation.t, ~index: int): array<A
       screenshotMetaSchema,
     )
 
-    let block: ACPTypes.contentBlock = {
-      type_: "resource",
-      text: None,
-      uri: None,
-      resource: Some({
+    let block: ACPTypes.contentBlock = ACPTypes.EmbeddedResource({
+      resource: {
         _meta: Some(screenshotMeta),
         annotations: None,
         resource: ACPTypes.BlobResourceContents({
@@ -768,9 +763,10 @@ let annotationToContentBlocks = (annotation: Annotation.t, ~index: int): array<A
           mimeType: Some(mimeType),
           blob: base64Data,
         }),
-      }),
-      content: None,
-    }
+      },
+      _meta: None,
+      annotations: None,
+    })
     block
   })
 
@@ -809,13 +805,11 @@ let figmaNodeToContentBlock = (
     resource: ACPTypes.TextResourceContents(textResource),
   }
 
-  {
-    ACPTypes.type_: "resource",
-    text: None,
-    uri: None,
-    resource: Some(embeddedResource),
-    content: None,
-  }
+  ACPTypes.EmbeddedResource({
+    resource: embeddedResource,
+    _meta: None,
+    annotations: None,
+  })
 }
 
 // Build an Image ContentBlock from FigmaNode image data
@@ -838,13 +832,11 @@ let figmaImageToContentBlock = (imageDataUrl: string): ACPTypes.contentBlock => 
     resource: ACPTypes.BlobResourceContents(blobResource),
   }
 
-  {
-    ACPTypes.type_: "resource",
-    text: None,
-    uri: None,
-    resource: Some(embeddedResource),
-    content: None,
-  }
+  ACPTypes.EmbeddedResource({
+    resource: embeddedResource,
+    _meta: None,
+    annotations: None,
+  })
 }
 
 // Helper: read document.title from a document reference
@@ -1012,13 +1004,11 @@ let currentPageToContentBlock = (previewFrame: Task.previewFrame): ACPTypes.cont
     resource: ACPTypes.TextResourceContents(textResource),
   }
 
-  {
-    ACPTypes.type_: "resource",
-    text: None,
-    uri: None,
-    resource: Some(embeddedResource),
-    content: None,
-  }
+  ACPTypes.EmbeddedResource({
+    resource: embeddedResource,
+    _meta: None,
+    annotations: None,
+  })
 }
 
 // Build ContentBlocks array from Task
@@ -1146,17 +1136,15 @@ let messageAnnotationToContentBlocks = (
     }
   }
 
-  let resourceBlock: ACPTypes.contentBlock = {
-    type_: "resource",
-    text: None,
-    uri: None,
-    resource: Some({
+  let resourceBlock: ACPTypes.contentBlock = ACPTypes.EmbeddedResource({
+    resource: {
       _meta: Some(_meta),
       annotations: None,
       resource: ACPTypes.TextResourceContents({uri, mimeType: Some("text/plain"), text}),
-    }),
-    content: None,
-  }
+    },
+    _meta: None,
+    annotations: None,
+  })
 
   let screenshotBlock = annotation.screenshot->Option.map(screenshotDataUrl => {
     let (mimeType, base64Data) = parseDataUrl(screenshotDataUrl)
@@ -1170,11 +1158,8 @@ let messageAnnotationToContentBlocks = (
       screenshotMetaSchema,
     )
 
-    let block: ACPTypes.contentBlock = {
-      type_: "resource",
-      text: None,
-      uri: None,
-      resource: Some({
+    let block: ACPTypes.contentBlock = ACPTypes.EmbeddedResource({
+      resource: {
         _meta: Some(screenshotMeta),
         annotations: None,
         resource: ACPTypes.BlobResourceContents({
@@ -1182,9 +1167,10 @@ let messageAnnotationToContentBlocks = (
           mimeType: Some(mimeType),
           blob: base64Data,
         }),
-      }),
-      content: None,
-    }
+      },
+      _meta: None,
+      annotations: None,
+    })
     block
   })
 

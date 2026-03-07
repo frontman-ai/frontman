@@ -19,6 +19,13 @@ let textDeltaBuffer = Client__TextDeltaBuffer.make(~onFlush=(~taskId, ~text) => 
 })
 let () = Client__TextDeltaBuffer.active := Some(textDeltaBuffer)
 
+// Extract text from a contentBlock (returns Some for TextContent, None for other variants)
+let getContentBlockText = (block: Types.contentBlock): option<string> =>
+  switch block {
+  | TextContent({text}) => Some(text)
+  | ImageContent(_) | AudioContent(_) | ResourceLink(_) | EmbeddedResource(_) => None
+  }
+
 // Re-export status types for consumers
 type connectionState = Reducer.Selectors.connectionStatus
 type mcpState = Reducer.Selectors.mcpStatus
@@ -147,11 +154,11 @@ module Provider = {
         // Message end is signaled by session/prompt response with stopReason.
         // Buffer text deltas and flush once per animation frame to avoid
         // dozens of full state rebuilds per second during fast streaming.
-        content->Option.flatMap(c => c.text)->Option.forEach(text => {
+        content->Option.flatMap(getContentBlockText)->Option.forEach(text => {
           textDeltaBuffer.add(~taskId, ~text)
         })
       | UserMessageChunk({content, timestamp}) =>
-        content.text->Option.forEach(text => {
+        getContentBlockText(content)->Option.forEach(text => {
           let id = `user-hydrated-${WebAPI.Global.crypto->WebAPI.Crypto.randomUUID}`
           Client__State.Actions.userMessageReceived(~taskId, ~id, ~text, ~timestamp)
         })
@@ -169,7 +176,7 @@ module Provider = {
           spawningToolName,
         })
       | ToolCallUpdate({toolCallId, status, content}) =>
-        let text = content->Option.flatMap(c => c->Array.get(0))->Option.flatMap(i => i.content)->Option.flatMap(c => c.text)
+        let text = content->Option.flatMap(c => c->Array.get(0))->Option.flatMap(i => i.content)->Option.flatMap(getContentBlockText)
         switch status {
         | Some("pending") =>
           text->Option.flatMap(t => try { Some(JSON.parseOrThrow(t)) } catch { | _ => None })->Option.forEach(input => {

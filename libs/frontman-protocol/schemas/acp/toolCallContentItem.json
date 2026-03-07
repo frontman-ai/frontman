@@ -5,20 +5,17 @@
       "type": "string"
     },
     "content": {
-      "type": "object",
-      "properties": {
-        "type": {
-          "type": "string"
-        },
-        "text": {
-          "type": "string"
-        },
-        "uri": {
-          "type": "string"
-        },
-        "resource": {
+      "anyOf": [
+        {
           "type": "object",
           "properties": {
+            "type": {
+              "type": "string",
+              "const": "text"
+            },
+            "text": {
+              "type": "string"
+            },
             "_meta": {},
             "annotations": {
               "type": "object",
@@ -26,60 +23,182 @@
                 "_meta": {}
               },
               "additionalProperties": true
-            },
-            "resource": {
-              "anyOf": [
-                {
-                  "type": "object",
-                  "properties": {
-                    "uri": {
-                      "type": "string"
-                    },
-                    "mimeType": {
-                      "type": "string"
-                    },
-                    "text": {
-                      "type": "string"
-                    }
-                  },
-                  "additionalProperties": true,
-                  "required": [
-                    "uri",
-                    "text"
-                  ]
-                },
-                {
-                  "type": "object",
-                  "properties": {
-                    "uri": {
-                      "type": "string"
-                    },
-                    "mimeType": {
-                      "type": "string"
-                    },
-                    "blob": {
-                      "type": "string"
-                    }
-                  },
-                  "additionalProperties": true,
-                  "required": [
-                    "uri",
-                    "blob"
-                  ]
-                }
-              ]
             }
           },
           "additionalProperties": true,
           "required": [
-            "resource"
+            "type",
+            "text"
           ]
         },
-        "content": {}
-      },
-      "additionalProperties": true,
-      "required": [
-        "type"
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "image"
+            },
+            "data": {
+              "type": "string"
+            },
+            "mimeType": {
+              "type": "string"
+            },
+            "_meta": {},
+            "annotations": {
+              "type": "object",
+              "properties": {
+                "_meta": {}
+              },
+              "additionalProperties": true
+            }
+          },
+          "additionalProperties": true,
+          "required": [
+            "type",
+            "data",
+            "mimeType"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "audio"
+            },
+            "data": {
+              "type": "string"
+            },
+            "mimeType": {
+              "type": "string"
+            },
+            "_meta": {},
+            "annotations": {
+              "type": "object",
+              "properties": {
+                "_meta": {}
+              },
+              "additionalProperties": true
+            }
+          },
+          "additionalProperties": true,
+          "required": [
+            "type",
+            "data",
+            "mimeType"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "resource_link"
+            },
+            "name": {
+              "type": "string"
+            },
+            "uri": {
+              "type": "string"
+            },
+            "_meta": {},
+            "annotations": {
+              "type": "object",
+              "properties": {
+                "_meta": {}
+              },
+              "additionalProperties": true
+            }
+          },
+          "additionalProperties": true,
+          "required": [
+            "type",
+            "name",
+            "uri"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "resource"
+            },
+            "resource": {
+              "type": "object",
+              "properties": {
+                "_meta": {},
+                "annotations": {
+                  "type": "object",
+                  "properties": {
+                    "_meta": {}
+                  },
+                  "additionalProperties": true
+                },
+                "resource": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "uri": {
+                          "type": "string"
+                        },
+                        "mimeType": {
+                          "type": "string"
+                        },
+                        "text": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": true,
+                      "required": [
+                        "uri",
+                        "text"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "uri": {
+                          "type": "string"
+                        },
+                        "mimeType": {
+                          "type": "string"
+                        },
+                        "blob": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": true,
+                      "required": [
+                        "uri",
+                        "blob"
+                      ]
+                    }
+                  ]
+                }
+              },
+              "additionalProperties": true,
+              "required": [
+                "resource"
+              ]
+            },
+            "_meta": {},
+            "annotations": {
+              "type": "object",
+              "properties": {
+                "_meta": {}
+              },
+              "additionalProperties": true
+            }
+          },
+          "additionalProperties": true,
+          "required": [
+            "type",
+            "resource"
+          ]
+        }
       ]
     }
   },
