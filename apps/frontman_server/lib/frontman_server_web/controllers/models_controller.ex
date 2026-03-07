@@ -67,11 +67,11 @@ defmodule FrontmanServerWeb.ModelsController do
   }
 
   # OpenAI (ChatGPT Pro/Plus) provider - requires ChatGPT OAuth
+  # Note: gpt-5.4-pro is NOT supported via ChatGPT OAuth (only via OpenRouter)
   @openai_provider %{
     id: "openai",
     name: "ChatGPT Pro/Plus",
     models: [
-      %{displayName: "GPT-5.4 Pro", value: "gpt-5.4-pro"},
       %{displayName: "GPT-5.4", value: "gpt-5.4"},
       %{displayName: "GPT-5.3 Codex", value: "gpt-5.3-codex"},
       %{displayName: "GPT-5.2 Codex", value: "gpt-5.2-codex"},
