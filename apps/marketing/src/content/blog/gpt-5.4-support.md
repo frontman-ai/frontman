@@ -1,5 +1,5 @@
 ---
-title: 'Frontman Now Supports GPT-5.4 and GPT-5.4 Pro'
+title: 'Frontman Now Supports GPT-5.4'
 pubDate: 2026-03-06T12:00:00Z
 description: 'Use OpenAI GPT-5.4 with 1M context, native computer-use, and frontier coding capabilities directly in Frontman.'
 author: 'Frontman Team'
@@ -23,15 +23,11 @@ GPT-5.4 is OpenAI's most capable model for professional work. It combines the co
 
 **Frontier coding.** GPT-5.4 incorporates the coding capabilities of GPT-5.3-Codex while matching or exceeding it on SWE-Bench Pro. It excels at complex frontend tasks with more aesthetic and functional results than previous models.
 
-### GPT-5.4 Pro
-
-For maximum performance on the hardest problems, we also support GPT-5.4 Pro. It scores 89.3% on BrowseComp (web research), 83.3% on ARC-AGI-2 (abstract reasoning), and 58.7% on Humanity's Last Exam with tools. If you need the model to push through ambiguity and deliver on complex, multi-step tasks, Pro is the option.
-
 ### How to Use It
 
-GPT-5.4 is now the default model for ChatGPT OAuth users in Frontman. If you have connected your ChatGPT Pro or Plus account, you will see GPT-5.4 and GPT-5.4 Pro in the model picker immediately.
+GPT-5.4 is now the default model for ChatGPT OAuth users in Frontman. If you have connected your ChatGPT Pro or Plus account, you will see GPT-5.4 in the model picker immediately.
 
-For OpenRouter users, GPT-5.4 is available as `openai/gpt-5.4` and `openai/gpt-5.4-pro` — select either from the model dropdown.
+For OpenRouter users, both GPT-5.4 and GPT-5.4 Pro are available — select either from the model dropdown. GPT-5.4 Pro scores 89.3% on BrowseComp (web research), 83.3% on ARC-AGI-2 (abstract reasoning), and 58.7% on Humanity's Last Exam with tools. If you need maximum performance on the hardest problems, Pro is the option.
 
 No configuration changes required. Open Frontman, pick the model, and start working.
 
