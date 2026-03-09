@@ -178,20 +178,18 @@ module Provider = {
       | ToolCallUpdate({toolCallId, status, content}) =>
         let text = content->Option.flatMap(c => c->Array.get(0))->Option.flatMap(i => i.content)->Option.flatMap(getContentBlockText)
         switch status {
-        | Some("pending") =>
+        | Some(Pending) =>
           text->Option.flatMap(t => try { Some(JSON.parseOrThrow(t)) } catch { | _ => None })->Option.forEach(input => {
             Client__State.Actions.toolInputReceived(~taskId, ~id=toolCallId, ~input)
           })
-        | Some("completed") =>
+        | Some(Completed) =>
           let result = text->Option.mapOr(JSON.Encode.null, t =>
             try { JSON.parseOrThrow(t) } catch { | _ => JSON.Encode.string(t) }
           )
           Client__State.Actions.toolResultReceived(~taskId, ~id=toolCallId, ~result)
-        | Some("failed") =>
+        | Some(Failed) =>
           Client__State.Actions.toolErrorReceived(~taskId, ~id=toolCallId, ~error=text->Option.getOr("Unknown error"))
-        | Some("in_progress") => () // Normal transitional status for MCP tools
-        | Some(status) =>
-          Log.warning(~ctx={"status": status, "toolCallId": toolCallId}, "Unhandled tool call status received")
+        | Some(InProgress) => () // Normal transitional status for MCP tools
         | None => ()
         }
       | Plan({entries}) =>

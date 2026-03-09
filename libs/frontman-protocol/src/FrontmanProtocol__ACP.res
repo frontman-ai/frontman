@@ -289,6 +289,13 @@ type toolCallStatus =
   | @as("completed") Completed
   | @as("failed") Failed
 
+let toolCallStatusSchema = S.union([
+  S.literal(Pending),
+  S.literal(InProgress),
+  S.literal(Completed),
+  S.literal(Failed),
+])
+
 // session/prompt result
 @schema
 type promptResult = {
@@ -339,13 +346,13 @@ type sessionUpdate =
       toolCallId: string,
       title: option<string>,
       kind: option<string>,
-      status: option<string>,
+      status: option<toolCallStatus>,
       parentAgentId: option<string>, // If present, this is a sub-agent tool call
       spawningToolName: option<string>,
     }) // Tool name that spawned the sub-agent
   | ToolCallUpdate({
       toolCallId: string,
-      status: option<string>,
+      status: option<toolCallStatus>,
       content: option<array<toolCallContentItem>>,
     })
   | Plan({entries: array<planEntry>})
@@ -373,7 +380,7 @@ let sessionUpdateSchema = S.union([
       toolCallId: s.field("toolCallId", S.string),
       title: s.field("title", S.option(S.string)),
       kind: s.field("kind", S.option(S.string)),
-      status: s.field("status", S.option(S.string)),
+      status: s.field("status", S.option(toolCallStatusSchema)),
       parentAgentId: s.field("parentAgentId", S.option(S.string)),
       spawningToolName: s.field("spawningToolName", S.option(S.string)),
     })
@@ -382,7 +389,7 @@ let sessionUpdateSchema = S.union([
     s.tag("sessionUpdate", "tool_call_update")
     ToolCallUpdate({
       toolCallId: s.field("toolCallId", S.string),
-      status: s.field("status", S.option(S.string)),
+      status: s.field("status", S.option(toolCallStatusSchema)),
       content: s.field("content", S.option(S.array(toolCallContentItemSchema))),
     })
   }),

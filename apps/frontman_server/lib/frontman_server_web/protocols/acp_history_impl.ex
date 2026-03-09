@@ -1,3 +1,4 @@
+alias AgentClientProtocol, as: ACP
 alias FrontmanServer.Tasks.Interaction
 alias FrontmanServerWeb.ACPHistory
 
@@ -22,7 +23,10 @@ defimpl ACPHistory, for: Interaction.UserMessage do
 end
 
 defimpl ACPHistory, for: Interaction.AgentResponse do
-  def to_history_items(%Interaction.AgentResponse{content: content}, session_id) do
+  def to_history_items(
+        %Interaction.AgentResponse{content: content, timestamp: timestamp},
+        session_id
+      ) do
     # Per ACP spec: only agent_message_chunk exists (no start/end markers)
     # Client's LoadComplete handler will finalize any streaming messages
     [
@@ -30,7 +34,8 @@ defimpl ACPHistory, for: Interaction.AgentResponse do
         "sessionId" => session_id,
         "update" => %{
           "sessionUpdate" => "agent_message_chunk",
-          "content" => %{"type" => "text", "text" => content}
+          "content" => %{"type" => "text", "text" => content},
+          "timestamp" => DateTime.to_iso8601(timestamp)
         }
       })
     ]
@@ -42,10 +47,13 @@ defimpl ACPHistory, for: Interaction.ToolCall do
         %Interaction.ToolCall{
           tool_call_id: tool_call_id,
           tool_name: tool_name,
-          arguments: arguments
+          arguments: arguments,
+          timestamp: timestamp
         },
         session_id
       ) do
+    timestamp_iso = DateTime.to_iso8601(timestamp)
+
     [
       JsonRpc.notification("session/update", %{
         "sessionId" => session_id,
@@ -54,7 +62,8 @@ defimpl ACPHistory, for: Interaction.ToolCall do
           "toolCallId" => tool_call_id,
           "title" => tool_name,
           "kind" => "other",
-          "status" => "pending"
+          "status" => ACP.tool_call_status_pending(),
+          "timestamp" => timestamp_iso
         }
       }),
       JsonRpc.notification("session/update", %{
@@ -62,7 +71,7 @@ defimpl ACPHistory, for: Interaction.ToolCall do
         "update" => %{
           "sessionUpdate" => "tool_call_update",
           "toolCallId" => tool_call_id,
-          "status" => "pending",
+          "status" => ACP.tool_call_status_pending(),
           "content" => [
             %{
               "type" => "content",
@@ -80,7 +89,9 @@ defimpl ACPHistory, for: Interaction.ToolResult do
         %Interaction.ToolResult{tool_call_id: tool_call_id, result: result, is_error: is_error},
         session_id
       ) do
-    status = if is_error, do: "failed", else: "completed"
+    status =
+      if is_error, do: ACP.tool_call_status_failed(), else: ACP.tool_call_status_completed()
+
     result_text = if is_binary(result), do: result, else: Jason.encode!(result)
 
     [

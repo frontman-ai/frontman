@@ -72,7 +72,7 @@ let sendResponse = (handler: mcpHandler<'server>, id: int, result: JSON.t): unit
 
 // Send a JSON-RPC error response
 let sendError = (handler: mcpHandler<'server>, id: int, _code: int, message: string): unit => {
-  let error = JsonRpc.RpcError.make(~code=MethodNotFound, ~message, ~data=None)
+  let error = JsonRpc.RpcError.make(~code=JsonRpc.ErrorCode.methodNotFound, ~message, ~data=None)
   let response = JsonRpc.Response.makeError(~id, ~error)
   let payload = response->S.reverseConvertToJsonOrThrow(JsonRpc.Response.schema)
   handler.onMessage->Option.forEach(cb => cb(Send, payload))

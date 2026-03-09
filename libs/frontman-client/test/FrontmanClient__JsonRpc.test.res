@@ -47,7 +47,7 @@ describe("JsonRpc Response", _t => {
 
   test("makeError creates error response", t => {
     let error = JsonRpc.RpcError.make(
-      ~code=JsonRpc.MethodNotFound,
+      ~code=JsonRpc.ErrorCode.methodNotFound,
       ~message="Method not found",
       ~data=None,
     )
@@ -92,7 +92,7 @@ describe("JsonRpc Response", _t => {
 
 describe("JsonRpc RpcError", _t => {
   test("error codes have correct integer values", t => {
-    let error = JsonRpc.RpcError.make(~code=JsonRpc.ParseError, ~message="test", ~data=None)
+    let error = JsonRpc.RpcError.make(~code=JsonRpc.ErrorCode.parseError, ~message="test", ~data=None)
     let json = error->S.reverseConvertToJsonOrThrow(JsonRpc.RpcError.schema)
     let obj = json->JSON.Decode.object->Option.getOrThrow
 
@@ -101,11 +101,12 @@ describe("JsonRpc RpcError", _t => {
 
   test("all standard error codes", t => {
     let codes = [
-      (JsonRpc.ParseError, -32700),
-      (JsonRpc.InvalidRequest, -32600),
-      (JsonRpc.MethodNotFound, -32601),
-      (JsonRpc.InvalidParams, -32602),
-      (JsonRpc.InternalError, -32603),
+      (JsonRpc.ErrorCode.parseError, -32700),
+      (JsonRpc.ErrorCode.invalidRequest, -32600),
+      (JsonRpc.ErrorCode.methodNotFound, -32601),
+      (JsonRpc.ErrorCode.invalidParams, -32602),
+      (JsonRpc.ErrorCode.internalError, -32603),
+      (JsonRpc.ErrorCode.serverError, -32000),
     ]
 
     codes->Array.forEach(

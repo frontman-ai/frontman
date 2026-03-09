@@ -12,6 +12,38 @@ defmodule AgentClientProtocol do
 
   @protocol_version 1
 
+  # Tool call status constants — the single source of truth for ACP wire values.
+  @tool_call_status_pending "pending"
+  @tool_call_status_in_progress "in_progress"
+  @tool_call_status_completed "completed"
+  @tool_call_status_failed "failed"
+
+  @tool_call_statuses [
+    @tool_call_status_pending,
+    @tool_call_status_in_progress,
+    @tool_call_status_completed,
+    @tool_call_status_failed
+  ]
+
+  # Plan entry priority constants
+  @plan_priority_high "high"
+  @plan_priority_medium "medium"
+  @plan_priority_low "low"
+
+  @plan_priorities [@plan_priority_high, @plan_priority_medium, @plan_priority_low]
+
+  # Plan entry status constants
+  @plan_status_pending "pending"
+  @plan_status_in_progress "in_progress"
+  @plan_status_completed "completed"
+
+  @plan_statuses [@plan_status_pending, @plan_status_in_progress, @plan_status_completed]
+
+  def tool_call_status_pending, do: @tool_call_status_pending
+  def tool_call_status_in_progress, do: @tool_call_status_in_progress
+  def tool_call_status_completed, do: @tool_call_status_completed
+  def tool_call_status_failed, do: @tool_call_status_failed
+
   def protocol_version, do: @protocol_version
 
   def agent_info do
@@ -96,7 +128,15 @@ defmodule AgentClientProtocol do
     - `:parent_agent_id` - If present, indicates this tool call is from a sub-agent
     - `:spawning_tool_name` - Name of the tool that spawned this agent
   """
-  def tool_call_create(session_id, tool_call_id, title, kind, status \\ "pending", opts \\ []) do
+  def tool_call_create(
+        session_id,
+        tool_call_id,
+        title,
+        kind,
+        status \\ @tool_call_status_pending,
+        opts \\ []
+      )
+      when status in @tool_call_statuses do
     parent_agent_id = Keyword.get(opts, :parent_agent_id)
     spawning_tool_name = Keyword.get(opts, :spawning_tool_name)
 
@@ -138,7 +178,8 @@ defmodule AgentClientProtocol do
   Content should be an array of ACP content blocks if provided.
   Per ACP spec: "All fields except toolCallId are optional in updates"
   """
-  def tool_call_update(session_id, tool_call_id, status, content \\ nil) do
+  def tool_call_update(session_id, tool_call_id, status, content \\ nil)
+      when status in @tool_call_statuses do
     update = %{
       "sessionUpdate" => "tool_call_update",
       "toolCallId" => tool_call_id,
@@ -215,22 +256,22 @@ defmodule AgentClientProtocol do
     end
   end
 
-  defp validate_priority!(priority) when priority in ["high", "medium", "low"], do: :ok
+  defp validate_priority!(priority) when priority in @plan_priorities, do: :ok
 
   defp validate_priority!(priority),
     do:
       raise(
         ArgumentError,
-        "priority must be one of: high, medium, low, got: #{inspect(priority)}"
+        "priority must be one of: #{Enum.join(@plan_priorities, ", ")}, got: #{inspect(priority)}"
       )
 
-  defp validate_status!(status) when status in ["pending", "in_progress", "completed"], do: :ok
+  defp validate_status!(status) when status in @plan_statuses, do: :ok
 
   defp validate_status!(status),
     do:
       raise(
         ArgumentError,
-        "status must be one of: pending, in_progress, completed, got: #{inspect(status)}"
+        "status must be one of: #{Enum.join(@plan_statuses, ", ")}, got: #{inspect(status)}"
       )
 
   # Deprecated - use tool_call_create/6 instead

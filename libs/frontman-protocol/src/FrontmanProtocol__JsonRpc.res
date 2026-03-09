@@ -4,33 +4,40 @@ S.enableJson()
 
 let version = "2.0"
 
-// Standard error codes
-@schema
-type errorCode =
-  | @as(-32700) ParseError
-  | @as(-32600) InvalidRequest
-  | @as(-32601) MethodNotFound
-  | @as(-32602) InvalidParams
-  | @as(-32603) InternalError
+// Standard error codes (named constants for convenience)
+module ErrorCode = {
+  let parseError = -32700
+  let invalidRequest = -32600
+  let methodNotFound = -32601
+  let invalidParams = -32602
+  let internalError = -32603
+  // -32000 to -32099: reserved for server errors (used by task_channel for agent errors)
+  let serverError = -32000
+  // ACP elicitation: URL mode elicitation is required before the request can proceed
+  let urlElicitationRequired = -32042
+}
 
 // JSON-RPC Error
+// Uses int for code to accept any valid JSON-RPC error code (including server-defined ones
+// in the -32000..-32099 range). A restrictive enum previously caused parse failures when
+// the server sent -32000, silently dropping error responses and leaving prompts unresolved.
 module RpcError: {
   type t
 
-  let make: (~code: errorCode, ~message: string, ~data: option<JSON.t>) => t
-  let code: t => errorCode
+  let make: (~code: int, ~message: string, ~data: option<JSON.t>) => t
+  let code: t => int
   let message: t => string
   let data: t => option<JSON.t>
   let schema: S.t<t>
 } = {
   @schema
   type t = {
-    code: errorCode,
+    code: int,
     message: string,
     data: option<JSON.t>,
   }
 
-  let make = (~code: errorCode, ~message: string, ~data: option<JSON.t>) => {
+  let make = (~code: int, ~message: string, ~data: option<JSON.t>) => {
     code,
     message,
     data,

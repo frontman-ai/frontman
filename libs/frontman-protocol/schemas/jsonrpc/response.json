@@ -12,13 +12,7 @@
       "type": "object",
       "properties": {
         "code": {
-          "enum": [
-            -32700,
-            -32600,
-            -32601,
-            -32602,
-            -32603
-          ]
+          "type": "integer"
         },
         "message": {
           "type": "string"
