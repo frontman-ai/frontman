@@ -29,7 +29,7 @@ const { classes } = Astro.props
 		{
 			breadcrumbs.map((segment, index) => (
 				<li class="breadcrumbs__list-item">
-					<a href={`/${segments.slice(0, index).join('/')}`} class="breadcrumbs__item-link">
+					<a href={index === 0 ? '/' : `/${segments.slice(0, index).join('/')}/`} class="breadcrumbs__item-link">
 						{index === 0 ? segment : segment.replace(/-/g, ' ')}
 					</a>
 					{index < breadcrumbs.length - 1 && (

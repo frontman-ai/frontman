@@ -56,7 +56,7 @@ Consider a typical scenario: you're reviewing a dashboard page and notice five i
 - A table header is misaligned
 - The empty state message has a typo
 
-Without multi-select, this is five separate interactions. Five context switches. Five times the AI reads the same page context. With multi-select, you Shift-click all five elements, type a short instruction for each, and submit once. Frontman maps each clicked element back to its source file and line through the live DOM-to-source mapping that comes from running as [framework middleware](/blog/runtime-context-gap), then generates all five edits in a single pass.
+Without multi-select, this is five separate interactions. Five context switches. Five times the AI reads the same page context. With multi-select, you Shift-click all five elements, type a short instruction for each, and submit once. Frontman maps each clicked element back to its source file and line through the live DOM-to-source mapping that comes from running as [framework middleware](/blog/runtime-context-gap/), then generates all five edits in a single pass.
 
 The result lands with hot reload. You see all five fixes simultaneously. If one of them isn't right, you fix that one — but the other four are done.
 
@@ -70,7 +70,7 @@ It also changes the review workflow. Instead of filing five separate comments on
 
 ## How It Works Under the Hood
 
-Frontman runs as middleware inside your dev server. When you click an element, it uses the framework's source map to resolve the click target to a specific file and line number. This is the same [runtime context](/blog/runtime-context-gap) that makes single-element editing possible — the live DOM, computed styles, component tree, and server-side state are all available because Frontman is inside the framework, not observing it from outside.
+Frontman runs as middleware inside your dev server. When you click an element, it uses the framework's source map to resolve the click target to a specific file and line number. This is the same [runtime context](/blog/runtime-context-gap/) that makes single-element editing possible — the live DOM, computed styles, component tree, and server-side state are all available because Frontman is inside the framework, not observing it from outside.
 
 Multi-select extends this by collecting multiple resolved targets and batching them into a single prompt. Each selection carries its own instruction and its own source mapping. The AI sees all of them together, which means it can reason about interactions between the edits — for example, if two selections target the same component, it can apply both changes without conflicts.
 
