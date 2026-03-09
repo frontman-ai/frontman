@@ -6,6 +6,17 @@ defmodule FrontmanServerWeb.TaskChannelTest do
   alias FrontmanServer.Tasks
   alias FrontmanServerWeb.UserSocket
 
+  # MCP tool definition used in tests that need a registered tool
+  @mcp_get_logs_tool %{
+    "name" => "get_logs",
+    "description" => "Retrieves server logs",
+    "inputSchema" => %{
+      "type" => "object",
+      "properties" => %{"tail" => %{"type" => "integer"}}
+    },
+    "visibleToAgent" => true
+  }
+
   describe "join task:<id>" do
     test "succeeds when task exists", %{scope: scope} do
       task_id = Ecto.UUID.generate()
@@ -574,7 +585,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         |> socket("user_id", %{scope: scope})
         |> subscribe_and_join("task:#{task_id}", %{})
 
-      complete_mcp_handshake_with_tools(socket)
+      complete_mcp_handshake(socket, tools: [@mcp_get_logs_tool])
 
       {:ok, socket: socket, task_id: task_id, scope: scope}
     end
@@ -805,73 +816,6 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       # This creates a UserMessage interaction broadcast via PubSub
       assert_receive {:interaction, %Tasks.Interaction.UserMessage{}}
     end
-  end
-
-  # Completes the MCP handshake with tools registered
-  defp complete_mcp_handshake_with_tools(socket) do
-    :sys.get_state(socket.channel_pid)
-    assert_push("mcp:message", %{"id" => init_request_id, "method" => "initialize"})
-
-    init_result = %{
-      "protocolVersion" => ModelContextProtocol.protocol_version(),
-      "capabilities" => %{"tools" => %{}},
-      "serverInfo" => %{"name" => "test-mcp", "version" => "1.0.0"}
-    }
-
-    push(socket, "mcp:message", JsonRpc.success_response(init_request_id, init_result))
-    :sys.get_state(socket.channel_pid)
-
-    assert_push("mcp:message", %{"method" => "notifications/initialized"})
-    assert_push("mcp:message", %{"id" => tools_request_id, "method" => "tools/list"})
-
-    # Register an MCP tool that returns JSON
-    tools_result = %{
-      "tools" => [
-        %{
-          "name" => "get_logs",
-          "description" => "Retrieves server logs",
-          "inputSchema" => %{
-            "type" => "object",
-            "properties" => %{"tail" => %{"type" => "integer"}}
-          },
-          "visibleToAgent" => true
-        }
-      ]
-    }
-
-    push(socket, "mcp:message", JsonRpc.success_response(tools_request_id, tools_result))
-    :sys.get_state(socket.channel_pid)
-
-    assert_push("mcp:message", %{
-      "id" => project_rules_request_id,
-      "method" => "tools/call",
-      "params" => %{"name" => "load_agent_instructions"}
-    })
-
-    push(
-      socket,
-      "mcp:message",
-      JsonRpc.success_response(project_rules_request_id, %{"content" => []})
-    )
-
-    :sys.get_state(socket.channel_pid)
-
-    # Step 4: list_tree for project structure discovery
-    assert_push("mcp:message", %{
-      "id" => project_structure_request_id,
-      "method" => "tools/call",
-      "params" => %{"name" => "list_tree"}
-    })
-
-    push(
-      socket,
-      "mcp:message",
-      JsonRpc.success_response(project_structure_request_id, %{"content" => []})
-    )
-
-    :sys.get_state(socket.channel_pid)
-
-    assert_push("acp:message", %{"method" => "mcp_initialization_complete"})
   end
 
   describe "session/cancel" do
@@ -1177,65 +1121,5 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         "params" => %{"update" => %{"toolCallId" => ^call_id_2, "sessionUpdate" => "tool_call"}}
       })
     end
-  end
-
-  # Completes the MCP handshake (initialize + tools/list + load_agent_instructions + list_tree).
-  #
-  # Uses :sys.get_state/1 as a synchronization barrier after each push to ensure
-  # the channel process has fully processed the message before we assert the
-  # response. Without these barriers, under CI load (especially coverage runs),
-  # the channel process may not be scheduled in time and assert_push times out.
-  defp complete_mcp_handshake(socket) do
-    # Wait for channel to process the deferred :start_mcp_init message
-    :sys.get_state(socket.channel_pid)
-    assert_push("mcp:message", %{"id" => init_request_id, "method" => "initialize"})
-
-    init_result = %{
-      "protocolVersion" => ModelContextProtocol.protocol_version(),
-      "capabilities" => %{"tools" => %{}},
-      "serverInfo" => %{"name" => "test-mcp", "version" => "1.0.0"}
-    }
-
-    push(socket, "mcp:message", JsonRpc.success_response(init_request_id, init_result))
-    :sys.get_state(socket.channel_pid)
-
-    assert_push("mcp:message", %{"method" => "notifications/initialized"})
-    assert_push("mcp:message", %{"id" => tools_request_id, "method" => "tools/list"})
-
-    push(socket, "mcp:message", JsonRpc.success_response(tools_request_id, %{"tools" => []}))
-    :sys.get_state(socket.channel_pid)
-
-    assert_push("mcp:message", %{
-      "id" => project_rules_request_id,
-      "method" => "tools/call",
-      "params" => %{"name" => "load_agent_instructions"}
-    })
-
-    push(
-      socket,
-      "mcp:message",
-      JsonRpc.success_response(project_rules_request_id, %{"content" => []})
-    )
-
-    :sys.get_state(socket.channel_pid)
-
-    # Step 4: list_tree for project structure discovery
-    assert_push("mcp:message", %{
-      "id" => project_structure_request_id,
-      "method" => "tools/call",
-      "params" => %{"name" => "list_tree"}
-    })
-
-    push(
-      socket,
-      "mcp:message",
-      JsonRpc.success_response(project_structure_request_id, %{"content" => []})
-    )
-
-    :sys.get_state(socket.channel_pid)
-
-    assert_push("acp:message", %{
-      "method" => "mcp_initialization_complete"
-    })
   end
 end

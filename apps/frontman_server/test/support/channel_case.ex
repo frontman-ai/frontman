@@ -32,6 +32,86 @@ defmodule FrontmanServerWeb.ChannelCase do
     end
   end
 
+  @doc """
+  Completes the MCP handshake (initialize → tools/list → load_agent_instructions → list_tree).
+
+  Uses `:sys.get_state/1` as a synchronization barrier after each push to ensure
+  the channel process has fully processed the message before we assert the
+  response. Without these barriers, under CI load (especially coverage runs),
+  the channel process may not be scheduled in time and assert_push times out.
+
+  ## Options
+
+    * `:tools` - list of MCP tool definitions to return from `tools/list`
+      (default: `[]`, which returns an empty tool set)
+
+  ## Examples
+
+      complete_mcp_handshake(socket)
+      complete_mcp_handshake(socket, tools: [%{"name" => "get_logs", ...}])
+  """
+  defmacro complete_mcp_handshake(socket, opts \\ []) do
+    quote do
+      socket = unquote(socket)
+      tools = unquote(opts) |> Keyword.get(:tools, [])
+
+      :sys.get_state(socket.channel_pid)
+      assert_push("mcp:message", %{"id" => init_request_id, "method" => "initialize"})
+
+      init_result = %{
+        "protocolVersion" => ModelContextProtocol.protocol_version(),
+        "capabilities" => %{"tools" => %{}},
+        "serverInfo" => %{"name" => "test-mcp", "version" => "1.0.0"}
+      }
+
+      push(socket, "mcp:message", JsonRpc.success_response(init_request_id, init_result))
+      :sys.get_state(socket.channel_pid)
+
+      assert_push("mcp:message", %{"method" => "notifications/initialized"})
+      assert_push("mcp:message", %{"id" => tools_request_id, "method" => "tools/list"})
+
+      push(
+        socket,
+        "mcp:message",
+        JsonRpc.success_response(tools_request_id, %{"tools" => tools})
+      )
+
+      :sys.get_state(socket.channel_pid)
+
+      assert_push("mcp:message", %{
+        "id" => project_rules_request_id,
+        "method" => "tools/call",
+        "params" => %{"name" => "load_agent_instructions"}
+      })
+
+      push(
+        socket,
+        "mcp:message",
+        JsonRpc.success_response(project_rules_request_id, %{"content" => []})
+      )
+
+      :sys.get_state(socket.channel_pid)
+
+      assert_push("mcp:message", %{
+        "id" => project_structure_request_id,
+        "method" => "tools/call",
+        "params" => %{"name" => "list_tree"}
+      })
+
+      push(
+        socket,
+        "mcp:message",
+        JsonRpc.success_response(project_structure_request_id, %{"content" => []})
+      )
+
+      :sys.get_state(socket.channel_pid)
+
+      assert_push("acp:message", %{
+        "method" => "mcp_initialization_complete"
+      })
+    end
+  end
+
   setup tags do
     if tags[:shared_sandbox] && tags[:async] do
       raise "Cannot combine shared_sandbox: true with async: true - shared sandbox requires synchronous execution"
