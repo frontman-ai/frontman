@@ -11,15 +11,24 @@ const blog = defineCollection({
 			image: z.string(),
 			author: z.string(),
 			tags: z.array(z.string()),
-			faq: z
-				.array(
-					z.object({
-						question: z.string(),
-						answer: z.string()
-					})
-				)
-				.optional()
-		})
+		faq: z
+			.array(
+				z.object({
+					question: z.string(),
+					answer: z.string()
+				})
+			)
+			.optional(),
+		video: z
+			.object({
+				name: z.string(),
+				description: z.string(),
+				youtubeId: z.string(),
+				thumbnailUrl: z.string().optional(),
+				uploadDate: z.string().optional()
+			})
+			.optional()
+	})
 })
 
 const glossary = defineCollection({

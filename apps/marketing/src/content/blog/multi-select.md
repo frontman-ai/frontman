@@ -5,6 +5,11 @@ description: 'Select multiple elements in your running app, give each one instru
 author: 'Frontman Team'
 image: '/blog/multi-select-cover.png'
 tags: ['announcement', 'developer-tools', 'ai']
+video:
+  name: 'Frontman Multi-Select Demo'
+  description: 'See how Frontman multi-select lets you Shift-click multiple UI elements in your running app, add instructions to each, and fix them all in one shot with real source code edits and hot reload.'
+  youtubeId: 'J3_OQzzEJPY'
+  thumbnailUrl: '/blog/multi-select-cover.png'
 faq:
   - question: 'What is multi-select in Frontman?'
     answer: 'Multi-select lets you hold Shift and click multiple UI elements in your running app, add separate instructions to each one, and have Frontman generate real source code edits for all of them in a single pass with hot-reload. Instead of fixing elements one at a time with separate round trips, you batch all your visual fixes into one operation.'

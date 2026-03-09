@@ -56,6 +56,23 @@ const faqJsonLd = frontmatter.faq?.length
 			}))
 		}
 	: null
+
+// VideoObject JSON-LD (optional, driven by frontmatter.video)
+const videoJsonLd = frontmatter.video
+	? {
+			"@context": "https://schema.org",
+			"@type": "VideoObject",
+			"name": frontmatter.video.name,
+			"description": frontmatter.video.description,
+			"thumbnailUrl": frontmatter.video.thumbnailUrl
+				? `https://frontman.sh${frontmatter.video.thumbnailUrl}`
+				: `https://img.youtube.com/vi/${frontmatter.video.youtubeId}/maxresdefault.jpg`,
+			"uploadDate": frontmatter.video.uploadDate
+				?? (frontmatter.pubDate instanceof Date ? frontmatter.pubDate.toISOString() : frontmatter.pubDate),
+			"contentUrl": `https://www.youtube.com/watch?v=${frontmatter.video.youtubeId}`,
+			"embedUrl": `https://www.youtube-nocookie.com/embed/${frontmatter.video.youtubeId}`
+		}
+	: null
 ---
 
 <Layout
@@ -69,6 +86,7 @@ const faqJsonLd = frontmatter.faq?.length
 >
 	<script is:inline type="application/ld+json" set:html={JSON.stringify(blogPostJsonLd)} />
 	{faqJsonLd && <script is:inline type="application/ld+json" set:html={JSON.stringify(faqJsonLd)} />}
+	{videoJsonLd && <script is:inline type="application/ld+json" set:html={JSON.stringify(videoJsonLd)} />}
 	<BlogPostHero
 		tags={frontmatter.tags}
 		title={frontmatter.title}
