@@ -415,6 +415,108 @@ defmodule SwarmTest do
     end
   end
 
+  describe "suspended tool results and suspension" do
+    test "run_streaming suspends when tool executor returns :suspended" do
+      llm =
+        tool_then_complete_llm(
+          [%SwarmAi.ToolCall{id: "tc_1", name: "question", arguments: ~s({"prompt":"yes?"})}],
+          "Done"
+        )
+
+      agent = test_agent(llm)
+
+      result =
+        SwarmAi.run_streaming(agent, "Ask user", tool_executor: fn _tc -> :suspended end)
+
+      assert {:suspended, loop_id} = result
+      assert is_binary(loop_id)
+    end
+
+    test "non-suspended tools execute normally alongside suspended ones" do
+      # When a batch has both suspended and non-suspended tools,
+      # the non-suspended ones should execute and the loop suspends
+      # because not all tools are complete.
+      table = :ets.new(:tool_tracker, [:set, :public])
+
+      llm =
+        tool_then_complete_llm(
+          [
+            %SwarmAi.ToolCall{id: "tc_sync", name: "search", arguments: ~s({"q":"test"})},
+            %SwarmAi.ToolCall{id: "tc_suspend", name: "question", arguments: ~s({"prompt":"?"})}
+          ],
+          "Done"
+        )
+
+      agent = test_agent(llm)
+
+      result =
+        SwarmAi.run_streaming(agent, "Search and ask",
+          tool_executor: fn tc ->
+            case tc.name do
+              "search" ->
+                :ets.insert(table, {:search_executed, true})
+                {:ok, "search results"}
+
+              "question" ->
+                :suspended
+            end
+          end
+        )
+
+      assert {:suspended, _loop_id} = result
+      # The sync tool was actually executed
+      assert [{:search_executed, true}] = :ets.lookup(table, :search_executed)
+      :ets.delete(table)
+    end
+
+    test "run_blocking suspends when tool executor returns :suspended" do
+      llm =
+        tool_then_complete_llm(
+          [%SwarmAi.ToolCall{id: "tc_1", name: "question", arguments: ~s({"prompt":"yes?"})}],
+          "Done"
+        )
+
+      agent = test_agent(llm)
+
+      result = SwarmAi.run_blocking(agent, "Ask user", fn _tc -> :suspended end)
+      assert {:suspended, _loop_id} = result
+    end
+
+    test "ToolCall.suspended? returns true for suspended result" do
+      tc = %SwarmAi.ToolCall{
+        id: "tc_1",
+        name: "question",
+        arguments: "{}",
+        result: ToolResult.suspended("tc_1")
+      }
+
+      assert SwarmAi.ToolCall.suspended?(tc)
+    end
+
+    test "ToolCall.suspended? returns false for completed result" do
+      tc = %SwarmAi.ToolCall{
+        id: "tc_1",
+        name: "test",
+        arguments: "{}",
+        result: ToolResult.make("tc_1", "done", false)
+      }
+
+      refute SwarmAi.ToolCall.suspended?(tc)
+    end
+
+    test "ToolCall.suspended? returns false for nil result" do
+      tc = %SwarmAi.ToolCall{id: "tc_1", name: "test", arguments: "{}"}
+      refute SwarmAi.ToolCall.suspended?(tc)
+    end
+
+    test "ToolResult.suspended creates a suspended result" do
+      result = ToolResult.suspended("tc_1")
+      assert result.id == "tc_1"
+      assert result.suspended == true
+      assert result.is_error == false
+    end
+  end
+
   describe "tool call utilities" do
     test "tool call arguments can be parsed as JSON" do
       llm =

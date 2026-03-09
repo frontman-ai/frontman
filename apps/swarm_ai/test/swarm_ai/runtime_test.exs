@@ -259,6 +259,62 @@ defmodule SwarmAi.RuntimeTest do
     end
   end
 
+  describe "on_suspended callback" do
+    test "on_suspended fires when tool returns :suspended" do
+      runtime = start_runtime!()
+      test_pid = self()
+
+      llm =
+        tool_then_complete_llm(
+          [%SwarmAi.ToolCall{id: "tc_1", name: "question", arguments: ~s({"prompt":"yes?"})}],
+          "Done"
+        )
+
+      agent = test_agent(llm)
+
+      {:ok, pid} =
+        SwarmAi.Runtime.run(runtime, "task-suspend", agent, "Ask user",
+          tool_executor: fn _tc -> :suspended end,
+          on_suspended: fn result ->
+            send(test_pid, {:suspended, result})
+          end
+        )
+
+      ref = Process.monitor(pid)
+      assert_receive {:DOWN, ^ref, :process, ^pid, :normal}, 1000
+      assert_receive {:suspended, {:suspended, _loop_id}}, 1000
+    end
+
+    test "on_suspended does not fire when tool completes normally" do
+      runtime = start_runtime!()
+      test_pid = self()
+
+      llm =
+        tool_then_complete_llm(
+          [%SwarmAi.ToolCall{id: "tc_1", name: "search", arguments: ~s({"q":"test"})}],
+          "Done"
+        )
+
+      agent = test_agent(llm)
+
+      {:ok, pid} =
+        SwarmAi.Runtime.run(runtime, "task-no-suspend", agent, "Search",
+          tool_executor: fn _tc -> {:ok, "results"} end,
+          on_suspended: fn result ->
+            send(test_pid, {:suspended, result})
+          end,
+          on_complete: fn result ->
+            send(test_pid, {:completed, result})
+          end
+        )
+
+      ref = Process.monitor(pid)
+      assert_receive {:DOWN, ^ref, :process, ^pid, :normal}, 1000
+      assert_receive {:completed, {:ok, "Done", _loop_id}}, 1000
+      refute_receive {:suspended, _}, 200
+    end
+  end
+
   describe "cancel vs crash distinction" do
     test "cancel invokes on_cancelled, not on_crash" do
       runtime = start_runtime!()

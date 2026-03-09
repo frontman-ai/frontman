@@ -82,10 +82,14 @@ defmodule SwarmAi do
   - `{:ok, content}` - Tool executed successfully
   - `{:error, reason}` - Tool failed
   - `{:spawn, request}` - Delegate to a child agent
+  - `:suspended` - Tool is waiting for external input (e.g., user interaction)
   """
   @type tool_executor ::
           (SwarmAi.ToolCall.t() ->
-             {:ok, String.t()} | {:error, String.t()} | {:spawn, SwarmAi.SpawnChildAgent.t()})
+             {:ok, String.t()}
+             | {:error, String.t()}
+             | {:spawn, SwarmAi.SpawnChildAgent.t()}
+             | :suspended)
 
   @typedoc """
   Callback options for run_streaming/3.
@@ -144,7 +148,9 @@ defmodule SwarmAi do
       {:ok, result, _loop_id} = SwarmAi.run_streaming(agent, "Hello", tool_executor: fn _ -> {:ok, "done"} end)
   """
   @spec run_streaming(SwarmAi.Agent.t(), message_input(), streaming_opts()) ::
-          {:ok, String.t(), SwarmAi.Id.t()} | {:error, term(), SwarmAi.Id.t()}
+          {:ok, String.t(), SwarmAi.Id.t()}
+          | {:error, term(), SwarmAi.Id.t()}
+          | {:suspended, SwarmAi.Id.t()}
   def run_streaming(agent, message, opts) when is_list(opts) do
     tool_executor = Keyword.fetch!(opts, :tool_executor)
     callbacks = build_callbacks(opts)
@@ -167,9 +173,23 @@ defmodule SwarmAi do
 
         result =
           case final_loop.status do
-            :completed -> {:ok, final_loop.result, loop.id}
-            :failed -> {:error, final_loop.error, loop.id}
-            other -> {:error, {:unexpected_status, other}, loop.id}
+            :completed ->
+              {:ok, final_loop.result, loop.id}
+
+            :failed ->
+              {:error, final_loop.error, loop.id}
+
+            :waiting_for_tools ->
+              step = Loop.current_step(final_loop)
+
+              if step && SwarmAi.Loop.Step.has_suspended_tools?(step) do
+                {:suspended, loop.id}
+              else
+                {:error, {:unexpected_status, :waiting_for_tools}, loop.id}
+              end
+
+            other ->
+              {:error, {:unexpected_status, other}, loop.id}
           end
 
         # Include loop_id, metadata, and output in stop metadata
@@ -200,7 +220,9 @@ defmodule SwarmAi do
       end)
   """
   @spec run_blocking(SwarmAi.Agent.t(), message_input(), tool_executor()) ::
-          {:ok, String.t(), SwarmAi.Id.t()} | {:error, term(), SwarmAi.Id.t()}
+          {:ok, String.t(), SwarmAi.Id.t()}
+          | {:error, term(), SwarmAi.Id.t()}
+          | {:suspended, SwarmAi.Id.t()}
   def run_blocking(agent, message, tool_executor) when is_function(tool_executor, 1) do
     run_streaming(agent, message, tool_executor: tool_executor)
   end
@@ -534,6 +556,9 @@ defmodule SwarmAi do
               child_result = run_child(loop, tc.id, request, tool_executor)
               content = child_result.result || "Child failed: #{inspect(child_result.error)}"
               ToolResult.make(tc.id, content, child_result.status == :failed)
+
+            :suspended ->
+              ToolResult.suspended(tc.id)
           end
 
         stop_meta = %{

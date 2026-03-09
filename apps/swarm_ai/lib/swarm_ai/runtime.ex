@@ -32,6 +32,7 @@ defmodule SwarmAi.Runtime do
 
   - `on_complete` - Called with `{:ok, result, loop_id}` after successful execution
   - `on_error` - Called with `{:error, reason, loop_id}` after failed execution
+  - `on_suspended` - Called with `{:suspended, loop_id}` when a tool returns `:suspended`
   - `on_crash` - Called with `{reason, stacktrace}` if the execution process crashes
   - `on_cancelled` - Called with no args if the execution is cancelled
 
@@ -76,6 +77,7 @@ defmodule SwarmAi.Runtime do
   All options from `SwarmAi.run_streaming/3`, plus:
   - `:on_complete` - Called with `{:ok, result, loop_id}` after successful execution
   - `:on_error` - Called with `{:error, reason, loop_id}` after failed execution
+  - `:on_suspended` - Called with `{:suspended, loop_id}` when a tool returns `:suspended`
   - `:on_crash` - Called with `{reason, stacktrace}` if the execution process crashes
   - `:on_cancelled` - Called with no args if the execution is cancelled
   - `:metadata` - Map of metadata passed to `SwarmAi.run_streaming/3`
@@ -170,10 +172,11 @@ defmodule SwarmAi.Runtime do
        ) do
     on_complete = Keyword.get(opts, :on_complete, fn _ -> :ok end)
     on_error = Keyword.get(opts, :on_error, fn _ -> :ok end)
+    on_suspended = Keyword.get(opts, :on_suspended, fn _ -> :ok end)
 
     streaming_opts =
       opts
-      |> Keyword.drop([:on_complete, :on_error, :on_crash, :on_cancelled])
+      |> Keyword.drop([:on_complete, :on_error, :on_suspended, :on_crash, :on_cancelled])
 
     caller = self()
     ack_ref = make_ref()
@@ -203,7 +206,8 @@ defmodule SwarmAi.Runtime do
                registry,
                registry_key,
                on_complete,
-               on_error
+               on_error,
+               on_suspended
              )
            after
              # Safety net — idempotent if already unregistered in execute
@@ -244,7 +248,7 @@ defmodule SwarmAi.Runtime do
     end
   end
 
-  defp execute(agent, messages, opts, registry, registry_key, on_complete, on_error) do
+  defp execute(agent, messages, opts, registry, registry_key, on_complete, on_error, on_suspended) do
     result = SwarmAi.run_streaming(agent, messages, opts)
 
     # Unregister BEFORE callback so running?/2 returns false before
@@ -257,6 +261,9 @@ defmodule SwarmAi.Runtime do
 
       {:error, _reason, _loop_id} = err ->
         on_error.(err)
+
+      {:suspended, _loop_id} = suspended ->
+        on_suspended.(suspended)
     end
 
     result

@@ -16,9 +16,16 @@ defmodule SwarmAi.ToolCall do
     field(:result, ToolResult.t())
   end
 
-  @doc "Returns true if the tool call has a result."
+  @doc "Returns true if the tool call has a non-suspended result."
   @spec completed?(t()) :: boolean()
-  def completed?(%__MODULE__{result: result}), do: result != nil
+  def completed?(%__MODULE__{result: nil}), do: false
+  def completed?(%__MODULE__{result: %ToolResult{suspended: true}}), do: false
+  def completed?(%__MODULE__{result: %ToolResult{}}), do: true
+
+  @doc "Returns true if the tool call has a suspended result."
+  @spec suspended?(t()) :: boolean()
+  def suspended?(%__MODULE__{result: %ToolResult{suspended: true}}), do: true
+  def suspended?(%__MODULE__{result: _}), do: false
 
   @doc "Adds a result to the tool call."
   @spec with_result(t(), ToolResult.t()) :: t()
