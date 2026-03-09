@@ -38,7 +38,6 @@ defmodule FrontmanServerWeb.TaskChannelSentryTest do
       # the raw message to the test process and blocks assert_push)
       tool_result = %Interaction.ToolResult{
         id: Interaction.new_id(),
-        sequence: Interaction.new_sequence(),
         tool_call_id: "call_status_#{:rand.uniform(1_000_000)}",
         tool_name: "search_codebase",
         result: "Search failed",
@@ -68,7 +67,6 @@ defmodule FrontmanServerWeb.TaskChannelSentryTest do
     } do
       tool_result = %Interaction.ToolResult{
         id: Interaction.new_id(),
-        sequence: Interaction.new_sequence(),
         tool_call_id: "call_success_#{:rand.uniform(1_000_000)}",
         tool_name: "todo_list",
         result: "[]",
@@ -98,7 +96,6 @@ defmodule FrontmanServerWeb.TaskChannelSentryTest do
       # Send a tool call interaction that will be routed to MCP
       tool_call = %Interaction.ToolCall{
         id: Interaction.new_id(),
-        sequence: Interaction.new_sequence(),
         tool_call_id: "call_mcp_err_#{:rand.uniform(1_000_000)}",
         tool_name: "testMcpTool",
         arguments: %{"key" => "value"},
@@ -158,7 +155,6 @@ defmodule FrontmanServerWeb.TaskChannelSentryTest do
     } do
       tool_call = %Interaction.ToolCall{
         id: Interaction.new_id(),
-        sequence: Interaction.new_sequence(),
         tool_call_id: "call_mcp_no_msg_#{:rand.uniform(1_000_000)}",
         tool_name: "anotherMcpTool",
         arguments: %{},

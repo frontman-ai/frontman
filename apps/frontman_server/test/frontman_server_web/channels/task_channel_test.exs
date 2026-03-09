@@ -90,7 +90,6 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       tool_call = %Interaction.ToolCall{
         id: Interaction.new_id(),
-        sequence: Interaction.new_sequence(),
         tool_call_id: "call_pubsub_#{:rand.uniform(1_000_000)}",
         tool_name: "testTool",
         arguments: %{"key" => "value"},
@@ -121,7 +120,6 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       tool_call = %Interaction.ToolCall{
         id: Interaction.new_id(),
-        sequence: Interaction.new_sequence(),
         tool_call_id: "call_different_#{:rand.uniform(1_000_000)}",
         tool_name: "otherTool",
         arguments: %{},
@@ -389,7 +387,6 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     test "extracts text content from MCP tool result", %{socket: socket, task_id: task_id} do
       tool_call = %Interaction.ToolCall{
         id: Interaction.new_id(),
-        sequence: Interaction.new_sequence(),
         tool_call_id: "call_123",
         tool_name: "consoleLog",
         arguments: %{"message" => "hello"},
@@ -561,7 +558,6 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     test "accepts valid MCP response", %{socket: socket, task_id: task_id} do
       tool_call = %Interaction.ToolCall{
         id: Interaction.new_id(),
-        sequence: Interaction.new_sequence(),
         tool_call_id: "call_valid_test",
         tool_name: "testTool",
         arguments: %{},
@@ -628,7 +624,6 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       tool_call = %Interaction.ToolCall{
         id: Interaction.new_id(),
-        sequence: Interaction.new_sequence(),
         tool_call_id: tool_call_id,
         tool_name: "list_dir",
         arguments: %{"path" => "/"},
@@ -678,7 +673,6 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       # Simulate a tool call interaction being broadcast
       tool_call = %Interaction.ToolCall{
         id: Interaction.new_id(),
-        sequence: Interaction.new_sequence(),
         tool_call_id: tool_call_id,
         tool_name: "get_logs",
         arguments: %{"tail" => 10},
@@ -1129,7 +1123,6 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       # Step 2: Send the full interaction (which normally would also send tool_call_create)
       tool_call = %Interaction.ToolCall{
         id: Interaction.new_id(),
-        sequence: Interaction.new_sequence(),
         tool_call_id: tool_call_id,
         tool_name: "write_file",
         arguments: %{"target_file" => "test.txt", "content" => "hello"},
@@ -1171,7 +1164,6 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       tool_call = %Interaction.ToolCall{
         id: Interaction.new_id(),
-        sequence: Interaction.new_sequence(),
         tool_call_id: tool_call_id,
         tool_name: "take_screenshot",
         arguments: %{},
@@ -1220,7 +1212,6 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       # Second tool call arrives without prior tool_call_start
       tool_call_2 = %Interaction.ToolCall{
         id: Interaction.new_id(),
-        sequence: Interaction.new_sequence(),
         tool_call_id: call_id_2,
         tool_name: "read_file",
         arguments: %{"target_file" => "other.txt"},

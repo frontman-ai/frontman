@@ -219,8 +219,9 @@ defmodule FrontmanServer.TasksTest do
       {:ok, interactions} = Tasks.get_interactions(scope, task_id)
       sequences = Enum.map(interactions, & &1.sequence)
 
-      assert sequences == [1, 2, 3, 4, 5],
-             "sequences should be [1,2,3,4,5], got #{inspect(sequences)}"
+      assert length(sequences) == 5
+      assert sequences == Enum.sort(sequences), "sequences should be strictly increasing"
+      assert sequences == Enum.uniq(sequences), "sequences should be unique"
 
       # --- Verify LLM messages are valid for Anthropic ---
       {:ok, messages} = Tasks.get_llm_messages(scope, task_id)
@@ -330,9 +331,9 @@ defmodule FrontmanServer.TasksTest do
       {:ok, msg3} =
         Tasks.add_user_message(scope, task_id, [%{"type" => "text", "text" => "again"}], [])
 
-      assert msg1.sequence == 1
-      assert msg2.sequence == 2
-      assert msg3.sequence == 3
+      assert msg1.sequence > 0
+      assert msg2.sequence > msg1.sequence
+      assert msg3.sequence > msg2.sequence
     end
 
     test "sequences survive struct creation with default 0", %{scope: scope} do
@@ -343,6 +344,37 @@ defmodule FrontmanServer.TasksTest do
       # it should have a proper sequence assigned by the DB
       {:ok, interaction} = Tasks.add_agent_response(scope, task_id, "content")
       assert interaction.sequence > 0
+    end
+
+    test "concurrent inserts produce unique, sortable sequences", %{scope: scope} do
+      task_id = Ecto.UUID.generate()
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
+
+      # Spawn 20 concurrent processes all inserting interactions for the same task.
+      # With the old MAX(sequence)+1 approach, concurrent readers would see the same
+      # MAX and produce duplicate sequences. The timestamp+monotonic approach must
+      # guarantee every sequence is unique.
+      results =
+        1..20
+        |> Task.async_stream(
+          fn i ->
+            Tasks.add_agent_response(scope, task_id, "concurrent msg #{i}")
+          end,
+          max_concurrency: 20,
+          timeout: :infinity
+        )
+        |> Enum.map(fn {:ok, {:ok, interaction}} -> interaction.sequence end)
+
+      assert length(results) == 20
+      assert results == Enum.uniq(results), "sequences must be unique, got duplicates"
+
+      # When read back from DB, the ordered query should return all 20 in sorted order
+      {:ok, interactions} = Tasks.get_interactions(scope, task_id)
+      db_sequences = Enum.map(interactions, & &1.sequence)
+
+      assert length(db_sequences) == 20
+      assert db_sequences == Enum.sort(db_sequences), "DB ordering must be sorted"
+      assert db_sequences == Enum.uniq(db_sequences), "DB sequences must be unique"
     end
 
     test "sequences are consistent when read back from DB", %{scope: scope} do
@@ -362,7 +394,9 @@ defmodule FrontmanServer.TasksTest do
 
       # Sequences should be strictly increasing
       assert sequences == Enum.sort(sequences)
-      assert sequences == [1, 2, 3]
+      assert length(sequences) == 3
+      assert Enum.all?(sequences, &(&1 > 0))
+      assert sequences == Enum.uniq(sequences)
     end
   end
 

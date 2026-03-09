@@ -302,44 +302,16 @@ defmodule FrontmanServer.Tasks do
   @spec append_interaction(TaskSchema.t(), Interaction.t()) ::
           {:ok, Interaction.t()} | {:error, Ecto.Changeset.t()}
   defp append_interaction(%TaskSchema{id: task_id}, interaction) do
-    # Wrap sequence assignment + insert in a transaction with an advisory lock
-    # to prevent TOCTOU races when concurrent processes (channel + execution)
-    # append interactions to the same task simultaneously.
-    Repo.transaction(fn ->
-      lock_task_sequences(task_id)
-      interaction = %{interaction | sequence: next_sequence(task_id)}
+    case InteractionSchema.create_changeset(task_id, interaction) |> Repo.insert() do
+      {:ok, schema} ->
+        interaction = %{interaction | sequence: schema.sequence}
+        touch_task(task_id)
+        broadcast_task(task_id, {:interaction, interaction})
+        {:ok, interaction}
 
-      case InteractionSchema.create_changeset(task_id, interaction) |> Repo.insert() do
-        {:ok, _schema} ->
-          touch_task(task_id)
-          broadcast_task(task_id, {:interaction, interaction})
-          interaction
-
-        {:error, changeset} ->
-          Repo.rollback(changeset)
-      end
-    end)
-  end
-
-  # Acquires a per-task advisory lock to serialize sequence assignment.
-  # Uses the first 8 bytes of the task UUID as the lock key.
-  defp lock_task_sequences(task_id) do
-    <<lock_key::signed-integer-64, _::binary>> = Ecto.UUID.dump!(task_id)
-    Repo.query!("SELECT pg_advisory_xact_lock($1)", [lock_key])
-  end
-
-  # Computes the next sequence number for a task by reading MAX(sequence) from the DB.
-  # Must be called within a transaction holding the task's advisory lock.
-  @spec next_sequence(String.t()) :: integer()
-  defp next_sequence(task_id) do
-    import Ecto.Query
-
-    from(i in InteractionSchema,
-      where: i.task_id == ^task_id,
-      select: coalesce(max(i.sequence), 0)
-    )
-    |> Repo.one!()
-    |> Kernel.+(1)
+      {:error, changeset} ->
+        {:error, changeset}
+    end
   end
 
   # Bump the task's updated_at so it sorts to the top of the sessions list

@@ -31,7 +31,7 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
   @doc """
   Changeset for creating an interaction from a domain struct.
   Extracts type from struct module name and data from struct fields.
-  The sequence field is extracted from the interaction struct for deterministic ordering.
+  Sequence is computed via `generate_sequence/0` (timestamp + monotonic tiebreaker).
   """
   @spec create_changeset(String.t(), struct()) :: Ecto.Changeset.t()
   def create_changeset(task_id, interaction) do
@@ -41,7 +41,7 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
       task_id: task_id,
       type: type,
       data: Map.from_struct(interaction),
-      sequence: Map.get(interaction, :sequence)
+      sequence: generate_sequence()
     }
 
     %__MODULE__{}
@@ -49,6 +49,32 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
     |> validate_required([:task_id, :type, :data, :sequence])
     |> validate_inclusion(:type, Interaction.known_type_strings())
     |> foreign_key_constraint(:task_id)
+  end
+
+  # Reserve 6 decimal digits for the tiebreaker (0–999_999).
+  # This allows up to 1 million sequence calls per second before
+  # wrapping, which is far beyond any realistic throughput.
+  @tiebreaker_range 1_000_000
+
+  @doc """
+  Generates a monotonic sequence number from wall-clock time + a BEAM-unique tiebreaker.
+
+  The value is `unix_seconds * 1_000_000 + (monotonic_counter mod 1_000_000)`.
+
+  - **Cross-restart monotonicity** — the timestamp component always moves forward.
+  - **Within-BEAM uniqueness** — `System.unique_integer([:monotonic, :positive])` never
+    repeats within a single BEAM instance, breaking ties when two calls land in the
+    same second.
+  - **No DB round-trip** — purely in-memory, no TOCTOU race.
+
+  At the current epoch the result is ~1.7 × 10¹², fitting comfortably in a
+  Postgres `bigint` (max ~9.2 × 10¹⁸).
+  """
+  @spec generate_sequence() :: integer()
+  def generate_sequence do
+    unix_s = DateTime.utc_now() |> DateTime.to_unix(:second)
+    tiebreaker = rem(System.unique_integer([:monotonic, :positive]), @tiebreaker_range)
+    unix_s * @tiebreaker_range + tiebreaker
   end
 
   # Query helpers

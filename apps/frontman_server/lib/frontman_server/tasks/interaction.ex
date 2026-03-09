@@ -893,21 +893,6 @@ defmodule FrontmanServer.Tasks.Interaction do
   end
 
   @doc """
-  Generates a monotonic sequence number using the BEAM's unique integer.
-
-  **Deprecated for production use.** Sequence numbers are now assigned at DB
-  insertion time by `Tasks.append_interaction/2` using `MAX(sequence) + 1`.
-  This avoids sequence resets across BEAM restarts that caused tool_results
-  to sort before their corresponding tool_calls.
-
-  Retained for use in tests that construct interaction structs without
-  persisting them to the database.
-  """
-  def new_sequence do
-    System.unique_integer([:monotonic, :positive])
-  end
-
-  @doc """
   Checks if an interaction is a user message.
   """
   @spec user_message?(t()) :: boolean()
