@@ -20,12 +20,13 @@ defmodule FrontmanServer.Tasks.Execution.SubAgentMcpRoutingTest do
   use SwarmAi.Testing, async: false
   use FrontmanServerWeb.ChannelCase
 
+  import FrontmanServer.InteractionCase.Helpers
+
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Execution.ToolExecutor
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServerWeb.UserSocket
   alias JsonRpc
-  alias SwarmAi.ToolCall
 
   describe "ToolExecutor MCP tool routing" do
     setup %{scope: scope} do
@@ -55,11 +56,7 @@ defmodule FrontmanServer.Tasks.Execution.SubAgentMcpRoutingTest do
       llm_opts = [api_key: "test-key", model: "openrouter:anthropic/claude-sonnet-4-20250514"]
       executor = ToolExecutor.make_executor(scope, task_id, llm_opts: llm_opts)
 
-      tool_call = %ToolCall{
-        id: "call_#{:rand.uniform(1_000_000)}",
-        name: "take_screenshot",
-        arguments: ~s({"selector": "#main"})
-      }
+      tool_call = swarm_tool_call("take_screenshot", ~s({"selector": "#main"}))
 
       executor_task =
         Task.async(fn ->
@@ -88,11 +85,7 @@ defmodule FrontmanServer.Tasks.Execution.SubAgentMcpRoutingTest do
       scope: scope
     } do
       # Integration test using full Swarm execution with a test LLM that returns an MCP tool call
-      mcp_tool_call = %ToolCall{
-        id: "call_screenshot_#{:rand.uniform(1_000_000)}",
-        name: "take_screenshot",
-        arguments: ~s({"selector": "#content"})
-      }
+      mcp_tool_call = swarm_tool_call("take_screenshot", ~s({"selector": "#content"}))
 
       llm = tool_then_complete_llm([mcp_tool_call], "Component implemented!")
       agent = test_agent(llm, "ComponentImplementAgent")

@@ -1,8 +1,9 @@
 defmodule FrontmanServerWeb.TaskChannelTest do
   use FrontmanServerWeb.ChannelCase, async: true
 
+  import FrontmanServer.InteractionCase.Helpers
+
   alias FrontmanServer.Tasks
-  alias FrontmanServer.Tasks.Interaction
   alias FrontmanServerWeb.UserSocket
 
   describe "join task:<id>" do
@@ -88,13 +89,8 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       # This test verifies the REAL path: PubSub.broadcast -> channel receives
       # Unlike other tests that use send(socket.channel_pid, ...) directly
 
-      tool_call = %Interaction.ToolCall{
-        id: Interaction.new_id(),
-        tool_call_id: "call_pubsub_#{:rand.uniform(1_000_000)}",
-        tool_name: "testTool",
-        arguments: %{"key" => "value"},
-        timestamp: Interaction.now()
-      }
+      tool_call =
+        tool_call("call_pubsub_#{:rand.uniform(1_000_000)}", "testTool", %{"key" => "value"})
 
       # Broadcast via PubSub - this is what Tasks.add_tool_call does in production
       Phoenix.PubSub.broadcast(
@@ -118,13 +114,8 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       # This proves the subscription is topic-specific, not global
       different_topic = "task:different_#{:rand.uniform(1_000_000)}"
 
-      tool_call = %Interaction.ToolCall{
-        id: Interaction.new_id(),
-        tool_call_id: "call_different_#{:rand.uniform(1_000_000)}",
-        tool_name: "otherTool",
-        arguments: %{},
-        timestamp: Interaction.now()
-      }
+      tool_call =
+        tool_call("call_different_#{:rand.uniform(1_000_000)}", "otherTool")
 
       # Broadcast to a DIFFERENT topic
       Phoenix.PubSub.broadcast(
@@ -385,13 +376,8 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     end
 
     test "extracts text content from MCP tool result", %{socket: socket, task_id: task_id} do
-      tool_call = %Interaction.ToolCall{
-        id: Interaction.new_id(),
-        tool_call_id: "call_123",
-        tool_name: "consoleLog",
-        arguments: %{"message" => "hello"},
-        timestamp: Interaction.now()
-      }
+      tool_call =
+        tool_call("call_123", "consoleLog", %{"message" => "hello"})
 
       send(socket.channel_pid, {:interaction, tool_call})
 
@@ -556,13 +542,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     end
 
     test "accepts valid MCP response", %{socket: socket, task_id: task_id} do
-      tool_call = %Interaction.ToolCall{
-        id: Interaction.new_id(),
-        tool_call_id: "call_valid_test",
-        tool_name: "testTool",
-        arguments: %{},
-        timestamp: Interaction.now()
-      }
+      tool_call = tool_call("call_valid_test", "testTool")
 
       send(socket.channel_pid, {:interaction, tool_call})
 
@@ -622,13 +602,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         caller_pid: test_pid
       })
 
-      tool_call = %Interaction.ToolCall{
-        id: Interaction.new_id(),
-        tool_call_id: tool_call_id,
-        tool_name: "list_dir",
-        arguments: %{"path" => "/"},
-        timestamp: Interaction.now()
-      }
+      tool_call = tool_call(tool_call_id, "list_dir", %{"path" => "/"})
 
       send(socket.channel_pid, {:interaction, tool_call})
 
@@ -671,13 +645,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       })
 
       # Simulate a tool call interaction being broadcast
-      tool_call = %Interaction.ToolCall{
-        id: Interaction.new_id(),
-        tool_call_id: tool_call_id,
-        tool_name: "get_logs",
-        arguments: %{"tail" => 10},
-        timestamp: Interaction.now()
-      }
+      tool_call = tool_call(tool_call_id, "get_logs", %{"tail" => 10})
 
       send(socket.channel_pid, {:interaction, tool_call})
 
@@ -1121,15 +1089,10 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       })
 
       # Step 2: Send the full interaction (which normally would also send tool_call_create)
-      tool_call = %Interaction.ToolCall{
-        id: Interaction.new_id(),
-        tool_call_id: tool_call_id,
-        tool_name: "write_file",
-        arguments: %{"target_file" => "test.txt", "content" => "hello"},
-        timestamp: Interaction.now()
-      }
+      tc =
+        tool_call(tool_call_id, "write_file", %{"target_file" => "test.txt", "content" => "hello"})
 
-      send(socket.channel_pid, {:interaction, tool_call})
+      send(socket.channel_pid, {:interaction, tc})
       :sys.get_state(socket.channel_pid)
 
       # Should get a tool_call_update with args, but NOT a duplicate tool_call create
@@ -1162,15 +1125,9 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       # the normal tool_call_create notification
       tool_call_id = "call_no_start_#{:rand.uniform(1_000_000)}"
 
-      tool_call = %Interaction.ToolCall{
-        id: Interaction.new_id(),
-        tool_call_id: tool_call_id,
-        tool_name: "take_screenshot",
-        arguments: %{},
-        timestamp: Interaction.now()
-      }
+      tc = tool_call(tool_call_id, "take_screenshot")
 
-      send(socket.channel_pid, {:interaction, tool_call})
+      send(socket.channel_pid, {:interaction, tc})
       :sys.get_state(socket.channel_pid)
 
       # Should get the standard tool_call create notification
@@ -1210,13 +1167,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       })
 
       # Second tool call arrives without prior tool_call_start
-      tool_call_2 = %Interaction.ToolCall{
-        id: Interaction.new_id(),
-        tool_call_id: call_id_2,
-        tool_name: "read_file",
-        arguments: %{"target_file" => "other.txt"},
-        timestamp: Interaction.now()
-      }
+      tool_call_2 = tool_call(call_id_2, "read_file", %{"target_file" => "other.txt"})
 
       send(socket.channel_pid, {:interaction, tool_call_2})
       :sys.get_state(socket.channel_pid)

@@ -1,147 +1,14 @@
 defmodule FrontmanServer.Tasks.InteractionTest do
-  use ExUnit.Case, async: true
+  use FrontmanServer.InteractionCase, async: true
 
   alias FrontmanServer.Tasks.Interaction
 
   alias FrontmanServer.Tasks.Interaction.{
-    AgentResponse,
     Annotation,
     ToolCall,
     ToolResult,
     UserMessage
   }
-
-  # ---------------------------------------------------------------------------
-  # Fixtures & Helpers
-  # ---------------------------------------------------------------------------
-
-  defp seq, do: System.unique_integer([:monotonic, :positive])
-
-  # Build a text content block
-  defp text_block(text), do: %{"type" => "text", "text" => text}
-
-  # Build an annotation resource block with optional enrichment fields
-  defp annotation_block(id, tag, file, line, col, extra \\ %{}) do
-    meta =
-      %{
-        "annotation" => true,
-        "annotation_index" => extra[:index] || 0,
-        "annotation_id" => id,
-        "tag_name" => tag,
-        "file" => file,
-        "line" => line,
-        "column" => col
-      }
-      |> maybe_put("component_name", extra[:component_name])
-      |> maybe_put("css_classes", extra[:css_classes])
-      |> maybe_put("nearby_text", extra[:nearby_text])
-      |> maybe_put("comment", extra[:comment])
-      |> maybe_put("bounding_box", extra[:bounding_box])
-
-    %{
-      "type" => "resource",
-      "resource" => %{
-        "_meta" => meta,
-        "resource" => %{
-          "uri" => "file://#{file}:#{line}:#{col}",
-          "mimeType" => "text/plain",
-          "text" => "Annotated element: <#{tag}> at #{file}:#{line}:#{col}"
-        }
-      }
-    }
-  end
-
-  # Build a screenshot resource block paired to an annotation by id
-  defp screenshot_block(annotation_id, blob, mime \\ "image/png") do
-    %{
-      "type" => "resource",
-      "resource" => %{
-        "_meta" => %{
-          "annotation_screenshot" => true,
-          "annotation_index" => 0,
-          "annotation_id" => annotation_id
-        },
-        "resource" => %{
-          "uri" => "annotation://#{annotation_id}/screenshot",
-          "mimeType" => mime,
-          "blob" => blob
-        }
-      }
-    }
-  end
-
-  # Build a tool_call map in DB wire format (string keys, OpenAI shape)
-  defp db_tool_call(id, name, args \\ "{}") do
-    %{
-      "id" => id,
-      "type" => "function",
-      "function" => %{"name" => name, "arguments" => args}
-    }
-  end
-
-  # Build a tool_call map in flat format (string keys, no nested function)
-  defp flat_tool_call(id, name, args) do
-    %{"id" => id, "name" => name, "arguments" => args}
-  end
-
-  # Shorthand for building a UserMessage struct
-  defp user_msg(messages, annotations \\ []) do
-    %UserMessage{
-      id: Ecto.UUID.generate(),
-      sequence: seq(),
-      messages: List.wrap(messages),
-      timestamp: DateTime.utc_now(),
-      annotations: annotations
-    }
-  end
-
-  # Shorthand for building an AgentResponse struct
-  defp agent_resp(content, metadata \\ %{}) do
-    %AgentResponse{
-      id: Ecto.UUID.generate(),
-      sequence: seq(),
-      content: content,
-      timestamp: DateTime.utc_now(),
-      metadata: metadata
-    }
-  end
-
-  # Shorthand for building a ToolResult struct
-  defp tool_result(call_id, name, result, opts \\ []) do
-    %ToolResult{
-      id: Ecto.UUID.generate(),
-      sequence: opts[:sequence] || seq(),
-      tool_call_id: call_id,
-      tool_name: name,
-      result: result,
-      is_error: opts[:is_error] || false,
-      timestamp: DateTime.utc_now()
-    }
-  end
-
-  # Shorthand for building a ToolCall struct
-  defp tool_call(call_id, name, args \\ %{}) do
-    %ToolCall{
-      id: Ecto.UUID.generate(),
-      sequence: seq(),
-      tool_call_id: call_id,
-      tool_name: name,
-      arguments: args,
-      timestamp: DateTime.utc_now()
-    }
-  end
-
-  # Extract text content from an LLM message (handles ContentPart structs)
-  defp extract_text(msg) do
-    case msg.content do
-      content when is_binary(content) -> content
-      [%{text: t} | _] -> t
-      _ -> ""
-    end
-  end
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, val), do: Map.put(map, key, val)
 
   # ---------------------------------------------------------------------------
   # UserMessage.new/1
@@ -535,7 +402,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
     test "encodes ToolCall to JSON" do
       tc = %ToolCall{
         id: "1",
-        sequence: seq(),
+        sequence: System.unique_integer([:monotonic, :positive]),
         tool_call_id: "call_123",
         tool_name: "calculator",
         arguments: %{"x" => 1},
@@ -552,7 +419,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
     test "encodes ToolResult to JSON" do
       tr = %ToolResult{
         id: "1",
-        sequence: seq(),
+        sequence: System.unique_integer([:monotonic, :positive]),
         tool_call_id: "call_123",
         tool_name: "calculator",
         result: 42,

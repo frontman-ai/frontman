@@ -10,6 +10,8 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
 
   use SwarmAi.Testing, async: false
 
+  import FrontmanServer.InteractionCase.Helpers
+
   alias Ecto.Adapters.SQL.Sandbox
   alias FrontmanServer.Accounts
   alias FrontmanServer.Accounts.Scope
@@ -42,11 +44,11 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
       scope: scope
     } do
       # Calling update on a nonexistent item triggers an {:error, reason} return
-      tool_call = %SwarmAi.ToolCall{
-        id: "tc_sentry_soft_#{System.unique_integer([:positive])}",
-        name: "todo_update",
-        arguments: Jason.encode!(%{"id" => "nonexistent_id", "status" => "completed"})
-      }
+      tool_call =
+        swarm_tool_call(
+          "todo_update",
+          Jason.encode!(%{"id" => "nonexistent_id", "status" => "completed"})
+        )
 
       result =
         ToolExecutor.execute(scope, tool_call, task_id,
@@ -81,12 +83,8 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
       task_id: task_id,
       scope: scope
     } do
-      tool_call = %SwarmAi.ToolCall{
-        id: "tc_sentry_parse_#{System.unique_integer([:positive])}",
-        name: "todo_list",
-        # Intentionally malformed JSON
-        arguments: "{invalid json!!!}"
-      }
+      # Intentionally malformed JSON
+      tool_call = swarm_tool_call("todo_list", "{invalid json!!!}")
 
       # Execute should still succeed (parse_arguments returns %{} on failure)
       # but Sentry should capture the parse error
@@ -113,11 +111,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
       task_id: task_id,
       scope: scope
     } do
-      tool_call = %SwarmAi.ToolCall{
-        id: "tc_sentry_valid_#{System.unique_integer([:positive])}",
-        name: "todo_list",
-        arguments: Jason.encode!(%{})
-      }
+      tool_call = swarm_tool_call("todo_list", Jason.encode!(%{}))
 
       _result =
         ToolExecutor.execute(scope, tool_call, task_id,
@@ -143,11 +137,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
       # Create a long malformed string (> 500 chars) to verify truncation
       long_invalid_json = String.duplicate("x", 1000)
 
-      tool_call = %SwarmAi.ToolCall{
-        id: "tc_sentry_long_#{System.unique_integer([:positive])}",
-        name: "todo_list",
-        arguments: long_invalid_json
-      }
+      tool_call = swarm_tool_call("todo_list", long_invalid_json)
 
       _result =
         ToolExecutor.execute(scope, tool_call, task_id,
@@ -176,16 +166,10 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
       task_id: task_id,
       scope: scope
     } do
-      tool_call_id = "tc_sentry_timeout_#{System.unique_integer([:positive])}"
-
-      tool_call = %SwarmAi.ToolCall{
-        id: tool_call_id,
-        name: "fake_mcp_tool",
-        arguments: "{}"
-      }
+      tool_call = swarm_tool_call("fake_mcp_tool")
 
       # Register as MCP tool manually (since fake_mcp_tool won't be found as backend)
-      Registry.register(FrontmanServer.ToolCallRegistry, {:tool_call, tool_call_id}, %{
+      Registry.register(FrontmanServer.ToolCallRegistry, {:tool_call, tool_call.id}, %{
         caller_pid: self()
       })
 

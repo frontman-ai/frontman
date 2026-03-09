@@ -17,6 +17,8 @@ defmodule FrontmanServer.Observability.OtelHandlerTest do
   """
   use SwarmAi.Testing, async: false
 
+  import FrontmanServer.InteractionCase.Helpers
+
   alias Ecto.Adapters.SQL.Sandbox
   alias FrontmanServer.Accounts
   alias FrontmanServer.Accounts.Scope
@@ -80,11 +82,7 @@ defmodule FrontmanServer.Observability.OtelHandlerTest do
       scope: scope
     } do
       # Run a real agent with a tool call through production code
-      tool_call = %SwarmAi.ToolCall{
-        id: "tc_#{System.unique_integer([:positive])}",
-        name: "todo_list",
-        arguments: "{}"
-      }
+      tool_call = swarm_tool_call("todo_list")
 
       agent = test_agent(tool_then_complete_llm([tool_call], "Here are your todos"), "TestAgent")
 

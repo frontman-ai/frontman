@@ -7,6 +7,8 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
   """
   use SwarmAi.Testing, async: false
 
+  import FrontmanServer.InteractionCase.Helpers
+
   alias Ecto.Adapters.SQL.Sandbox
   alias FrontmanServer.Accounts
   alias FrontmanServer.Accounts.Scope
@@ -194,11 +196,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       task_id: task_id,
       scope: scope
     } do
-      tool_call = %SwarmAi.ToolCall{
-        id: "tc_#{System.unique_integer([:positive])}",
-        name: "todo_list",
-        arguments: "{}"
-      }
+      tool_call = swarm_tool_call("todo_list")
 
       agent1 = test_agent(tool_then_complete_llm([tool_call], "Here are your todos"), "Agent1")
       agent2 = test_agent(mock_llm("Based on the previous results..."), "Agent2")

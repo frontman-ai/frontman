@@ -8,11 +8,12 @@ defmodule FrontmanServer.Tasks.Execution.MCPToolBroadcastTest do
 
   use SwarmAi.Testing, async: false
 
+  import FrontmanServer.InteractionCase.Helpers
+
   alias Ecto.Adapters.SQL.Sandbox
   alias FrontmanServer.Accounts
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Tasks
-  alias SwarmAi.ToolCall
 
   describe "MCP tool call broadcast" do
     setup do
@@ -41,11 +42,7 @@ defmodule FrontmanServer.Tasks.Execution.MCPToolBroadcastTest do
       scope: scope
     } do
       # Create a tool call that will be routed to MCP (not a backend tool)
-      mcp_tool_call = %ToolCall{
-        id: "call_mcp_test_#{System.unique_integer([:positive])}",
-        name: "some_mcp_tool",
-        arguments: ~s({"arg": "value"})
-      }
+      mcp_tool_call = swarm_tool_call("some_mcp_tool", ~s({"arg": "value"}))
 
       # Create an LLM that returns a tool call on first turn, then completes
       llm = tool_then_complete_llm([mcp_tool_call], "Done!")
@@ -114,9 +111,8 @@ defmodule FrontmanServer.Tasks.Execution.MCPToolBroadcastTest do
       # Verify registration happens BEFORE broadcast to prevent race condition.
       # ToolExecutor registers in AgentRegistry, then publishes interaction.
       # When we receive the interaction broadcast, the agent should be registered.
-      tool_call_id = "call_#{System.unique_integer([:positive])}"
-
-      mcp_tool_call = %ToolCall{id: tool_call_id, name: "mcp_tool", arguments: ~s({})}
+      mcp_tool_call = swarm_tool_call("mcp_tool")
+      expected_id = mcp_tool_call.id
       llm = tool_then_complete_llm([mcp_tool_call], "Done!")
       agent = test_agent(llm, "TestAgent")
 
@@ -125,12 +121,12 @@ defmodule FrontmanServer.Tasks.Execution.MCPToolBroadcastTest do
       {:ok, _} = Tasks.add_user_message(scope, task_id, user_content, [], agent: agent)
 
       # Wait for the interaction broadcast
-      assert_receive {:interaction, %Tasks.Interaction.ToolCall{tool_call_id: ^tool_call_id}},
+      assert_receive {:interaction, %Tasks.Interaction.ToolCall{tool_call_id: ^expected_id}},
                      5_000
 
       # At this point, agent should be registered for the tool call
       registered =
-        case Registry.lookup(FrontmanServer.ToolCallRegistry, {:tool_call, tool_call_id}) do
+        case Registry.lookup(FrontmanServer.ToolCallRegistry, {:tool_call, expected_id}) do
           [{_pid, _}] -> true
           [] -> false
         end

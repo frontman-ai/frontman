@@ -9,8 +9,9 @@ defmodule FrontmanServerWeb.TaskChannelSentryTest do
 
   use FrontmanServerWeb.ChannelCase, async: false
 
+  import FrontmanServer.InteractionCase.Helpers
+
   alias FrontmanServer.Tasks
-  alias FrontmanServer.Tasks.Interaction
   alias FrontmanServerWeb.UserSocket
 
   setup %{scope: scope} do
@@ -36,14 +37,10 @@ defmodule FrontmanServerWeb.TaskChannelSentryTest do
     } do
       # Send directly to the channel process (not via PubSub, which also delivers
       # the raw message to the test process and blocks assert_push)
-      tool_result = %Interaction.ToolResult{
-        id: Interaction.new_id(),
-        tool_call_id: "call_status_#{:rand.uniform(1_000_000)}",
-        tool_name: "search_codebase",
-        result: "Search failed",
-        is_error: true,
-        timestamp: Interaction.now()
-      }
+      tool_result =
+        tool_result("call_status_#{:rand.uniform(1_000_000)}", "search_codebase", "Search failed",
+          is_error: true
+        )
 
       send(socket.channel_pid, {:interaction, tool_result})
 
@@ -65,14 +62,8 @@ defmodule FrontmanServerWeb.TaskChannelSentryTest do
       socket: socket,
       task_id: task_id
     } do
-      tool_result = %Interaction.ToolResult{
-        id: Interaction.new_id(),
-        tool_call_id: "call_success_#{:rand.uniform(1_000_000)}",
-        tool_name: "todo_list",
-        result: "[]",
-        is_error: false,
-        timestamp: Interaction.now()
-      }
+      tool_result =
+        tool_result("call_success_#{:rand.uniform(1_000_000)}", "todo_list", "[]")
 
       send(socket.channel_pid, {:interaction, tool_result})
 
@@ -94,13 +85,8 @@ defmodule FrontmanServerWeb.TaskChannelSentryTest do
       task_id: task_id
     } do
       # Send a tool call interaction that will be routed to MCP
-      tool_call = %Interaction.ToolCall{
-        id: Interaction.new_id(),
-        tool_call_id: "call_mcp_err_#{:rand.uniform(1_000_000)}",
-        tool_name: "testMcpTool",
-        arguments: %{"key" => "value"},
-        timestamp: Interaction.now()
-      }
+      tool_call =
+        tool_call("call_mcp_err_#{:rand.uniform(1_000_000)}", "testMcpTool", %{"key" => "value"})
 
       send(socket.channel_pid, {:interaction, tool_call})
 
@@ -153,13 +139,8 @@ defmodule FrontmanServerWeb.TaskChannelSentryTest do
     test "MCP tool error with missing message field defaults to 'Unknown MCP error'", %{
       socket: socket
     } do
-      tool_call = %Interaction.ToolCall{
-        id: Interaction.new_id(),
-        tool_call_id: "call_mcp_no_msg_#{:rand.uniform(1_000_000)}",
-        tool_name: "anotherMcpTool",
-        arguments: %{},
-        timestamp: Interaction.now()
-      }
+      tool_call =
+        tool_call("call_mcp_no_msg_#{:rand.uniform(1_000_000)}", "anotherMcpTool")
 
       send(socket.channel_pid, {:interaction, tool_call})
 

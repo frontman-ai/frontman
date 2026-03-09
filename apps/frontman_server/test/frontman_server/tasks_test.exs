@@ -1,6 +1,8 @@
 defmodule FrontmanServer.TasksTest do
   use FrontmanServer.DataCase, async: false
 
+  import FrontmanServer.InteractionCase.Helpers
+
   alias FrontmanServer.Accounts
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Tasks
@@ -586,46 +588,10 @@ defmodule FrontmanServer.TasksTest do
       task_id = Ecto.UUID.generate()
       {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
 
-      # Content blocks matching the new annotation ACP format:
-      # 1. Text message
-      # 2. Resource with annotation _meta
-      # 3. Resource with annotation_screenshot blob
       content_blocks = [
-        %{"type" => "text", "text" => "Fix the button"},
-        %{
-          "type" => "resource",
-          "resource" => %{
-            "_meta" => %{
-              "annotation" => true,
-              "annotation_index" => 0,
-              "annotation_id" => "ann-test-1",
-              "tag_name" => "button",
-              "file" => "src/components/Button.tsx",
-              "line" => 42,
-              "column" => 5
-            },
-            "resource" => %{
-              "uri" => "file://src/components/Button.tsx:42:5",
-              "mimeType" => "text/plain",
-              "text" => "Annotated element: <button> at src/components/Button.tsx:42:5"
-            }
-          }
-        },
-        %{
-          "type" => "resource",
-          "resource" => %{
-            "_meta" => %{
-              "annotation_screenshot" => true,
-              "annotation_index" => 0,
-              "annotation_id" => "ann-test-1"
-            },
-            "resource" => %{
-              "uri" => "annotation://ann-test-1/screenshot",
-              "mimeType" => "image/png",
-              "blob" => "iVBORw0KGgoAAAANSUhEUg=="
-            }
-          }
-        }
+        text_block("Fix the button"),
+        annotation_block("ann-test-1", "button", "src/components/Button.tsx", 42, 5),
+        screenshot_block("ann-test-1", "iVBORw0KGgoAAAANSUhEUg==")
       ]
 
       {:ok, _interaction} = Tasks.add_user_message(scope, task_id, content_blocks, [])
@@ -660,15 +626,6 @@ defmodule FrontmanServer.TasksTest do
 
       assert [_ | _] = image_parts
     end
-  end
-
-  defp extract_content_text(content) when is_binary(content), do: content
-
-  defp extract_content_text(content) when is_list(content) do
-    Enum.map_join(content, "", fn
-      %{text: text} -> text
-      _ -> ""
-    end)
   end
 
   describe "list_todos/2" do
