@@ -342,8 +342,6 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     typedstruct enforce: true do
       field(:id, String.t())
-      # Sequence is assigned at DB insertion time by Tasks.append_interaction/2.
-      # Defaults to 0 so structs can be created before persistence.
       field(:sequence, integer(), default: 0)
       field(:timestamp, DateTime.t())
       # Text messages from the user (extracted from text content blocks)
@@ -629,8 +627,6 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     typedstruct enforce: true do
       field(:id, String.t())
-      # Sequence is assigned at DB insertion time by Tasks.append_interaction/2.
-      # Defaults to 0 so structs can be created before persistence.
       field(:sequence, integer(), default: 0)
       field(:config, map(), enforce: false)
       field(:timestamp, DateTime.t())
@@ -669,8 +665,6 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     typedstruct enforce: true do
       field(:id, String.t())
-      # Sequence is assigned at DB insertion time by Tasks.append_interaction/2.
-      # Defaults to 0 so structs can be created before persistence.
       field(:sequence, integer(), default: 0)
       field(:timestamp, DateTime.t())
       field(:result, term(), enforce: false)
@@ -709,8 +703,6 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     typedstruct enforce: true do
       field(:id, String.t())
-      # Sequence is assigned at DB insertion time by Tasks.append_interaction/2.
-      # Defaults to 0 so structs can be created before persistence.
       field(:sequence, integer(), default: 0)
       field(:tool_call_id, String.t())
       field(:tool_name, String.t())
@@ -755,8 +747,6 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     typedstruct enforce: true do
       field(:id, String.t())
-      # Sequence is assigned at DB insertion time by Tasks.append_interaction/2.
-      # Defaults to 0 so structs can be created before persistence.
       field(:sequence, integer(), default: 0)
       field(:tool_call_id, String.t())
       field(:tool_name, String.t())
@@ -807,8 +797,6 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     typedstruct enforce: true do
       field(:path, String.t())
-      # Sequence is assigned at DB insertion time by Tasks.append_interaction/2.
-      # Defaults to 0 so structs can be created before persistence.
       field(:sequence, integer(), default: 0)
       field(:content, String.t())
       field(:timestamp, DateTime.t())
@@ -850,8 +838,6 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     typedstruct enforce: true do
       field(:summary, String.t())
-      # Sequence is assigned at DB insertion time by Tasks.append_interaction/2.
-      # Defaults to 0 so structs can be created before persistence.
       field(:sequence, integer(), default: 0)
       field(:timestamp, DateTime.t())
     end
