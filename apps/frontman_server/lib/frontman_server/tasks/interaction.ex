@@ -342,7 +342,9 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     typedstruct enforce: true do
       field(:id, String.t())
-      field(:sequence, integer())
+      # Sequence is assigned at DB insertion time by Tasks.append_interaction/2.
+      # Defaults to 0 so structs can be created before persistence.
+      field(:sequence, integer(), default: 0)
       field(:timestamp, DateTime.t())
       # Text messages from the user (extracted from text content blocks)
       field(:messages, list(String.t()), default: [])
@@ -366,7 +368,6 @@ defmodule FrontmanServer.Tasks.Interaction do
 
       %__MODULE__{
         id: Interaction.new_id(),
-        sequence: Interaction.new_sequence(),
         timestamp: Interaction.now(),
         messages: extract_messages(content_blocks),
         annotations: extract_annotations(content_blocks),
@@ -587,7 +588,7 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     typedstruct enforce: true do
       field(:id, String.t())
-      field(:sequence, integer())
+      field(:sequence, integer(), default: 0)
       field(:content, String.t())
       field(:timestamp, DateTime.t())
       field(:metadata, map(), enforce: false)
@@ -598,7 +599,6 @@ defmodule FrontmanServer.Tasks.Interaction do
 
       %__MODULE__{
         id: Interaction.new_id(),
-        sequence: Interaction.new_sequence(),
         content: content,
         timestamp: Interaction.now(),
         metadata: metadata
@@ -629,7 +629,9 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     typedstruct enforce: true do
       field(:id, String.t())
-      field(:sequence, integer())
+      # Sequence is assigned at DB insertion time by Tasks.append_interaction/2.
+      # Defaults to 0 so structs can be created before persistence.
+      field(:sequence, integer(), default: 0)
       field(:config, map(), enforce: false)
       field(:timestamp, DateTime.t())
     end
@@ -639,7 +641,6 @@ defmodule FrontmanServer.Tasks.Interaction do
 
       %__MODULE__{
         id: Interaction.new_id(),
-        sequence: Interaction.new_sequence(),
         config: config,
         timestamp: Interaction.now()
       }
@@ -668,7 +669,9 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     typedstruct enforce: true do
       field(:id, String.t())
-      field(:sequence, integer())
+      # Sequence is assigned at DB insertion time by Tasks.append_interaction/2.
+      # Defaults to 0 so structs can be created before persistence.
+      field(:sequence, integer(), default: 0)
       field(:timestamp, DateTime.t())
       field(:result, term(), enforce: false)
     end
@@ -678,7 +681,6 @@ defmodule FrontmanServer.Tasks.Interaction do
 
       %__MODULE__{
         id: Interaction.new_id(),
-        sequence: Interaction.new_sequence(),
         timestamp: Interaction.now(),
         result: result
       }
@@ -707,7 +709,9 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     typedstruct enforce: true do
       field(:id, String.t())
-      field(:sequence, integer())
+      # Sequence is assigned at DB insertion time by Tasks.append_interaction/2.
+      # Defaults to 0 so structs can be created before persistence.
+      field(:sequence, integer(), default: 0)
       field(:tool_call_id, String.t())
       field(:tool_name, String.t())
       field(:arguments, map())
@@ -719,7 +723,6 @@ defmodule FrontmanServer.Tasks.Interaction do
 
       %__MODULE__{
         id: Interaction.new_id(),
-        sequence: Interaction.new_sequence(),
         tool_call_id: tc.id,
         tool_name: ReqLLM.ToolCall.name(tc),
         arguments: ReqLLM.ToolCall.args_map(tc) || %{},
@@ -752,7 +755,9 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     typedstruct enforce: true do
       field(:id, String.t())
-      field(:sequence, integer())
+      # Sequence is assigned at DB insertion time by Tasks.append_interaction/2.
+      # Defaults to 0 so structs can be created before persistence.
+      field(:sequence, integer(), default: 0)
       field(:tool_call_id, String.t())
       field(:tool_name, String.t())
       field(:result, term())
@@ -765,7 +770,6 @@ defmodule FrontmanServer.Tasks.Interaction do
 
       %__MODULE__{
         id: Interaction.new_id(),
-        sequence: Interaction.new_sequence(),
         tool_call_id: tool_call_data.id,
         tool_name: tool_call_data.name,
         result: result,
@@ -803,7 +807,9 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     typedstruct enforce: true do
       field(:path, String.t())
-      field(:sequence, integer())
+      # Sequence is assigned at DB insertion time by Tasks.append_interaction/2.
+      # Defaults to 0 so structs can be created before persistence.
+      field(:sequence, integer(), default: 0)
       field(:content, String.t())
       field(:timestamp, DateTime.t())
     end
@@ -813,7 +819,6 @@ defmodule FrontmanServer.Tasks.Interaction do
 
       %__MODULE__{
         path: path,
-        sequence: Interaction.new_sequence(),
         content: content,
         timestamp: Interaction.now()
       }
@@ -845,7 +850,9 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     typedstruct enforce: true do
       field(:summary, String.t())
-      field(:sequence, integer())
+      # Sequence is assigned at DB insertion time by Tasks.append_interaction/2.
+      # Defaults to 0 so structs can be created before persistence.
+      field(:sequence, integer(), default: 0)
       field(:timestamp, DateTime.t())
     end
 
@@ -854,7 +861,6 @@ defmodule FrontmanServer.Tasks.Interaction do
 
       %__MODULE__{
         summary: summary,
-        sequence: Interaction.new_sequence(),
         timestamp: Interaction.now()
       }
     end
@@ -901,12 +907,15 @@ defmodule FrontmanServer.Tasks.Interaction do
   end
 
   @doc """
-  Generates a monotonic sequence number for deterministic ordering.
+  Generates a monotonic sequence number using the BEAM's unique integer.
 
-  Uses System.unique_integer([:monotonic, :positive]) which is guaranteed to be
-  strictly increasing within a single VM instance. This ensures that
-  interactions created in sequence (e.g., AgentResponse followed by ToolResult)
-  will always be ordered correctly regardless of DB insert timing.
+  **Deprecated for production use.** Sequence numbers are now assigned at DB
+  insertion time by `Tasks.append_interaction/2` using `MAX(sequence) + 1`.
+  This avoids sequence resets across BEAM restarts that caused tool_results
+  to sort before their corresponding tool_calls.
+
+  Retained for use in tests that construct interaction structs without
+  persisting them to the database.
   """
   def new_sequence do
     System.unique_integer([:monotonic, :positive])

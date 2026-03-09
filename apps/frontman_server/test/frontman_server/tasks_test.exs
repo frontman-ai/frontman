@@ -173,6 +173,83 @@ defmodule FrontmanServer.TasksTest do
       assistant_messages = Enum.filter(messages, &(&1.role == :assistant))
       assert length(assistant_messages) == 2
     end
+
+    test "full tool_call + tool_result round-trip produces valid LLM messages", %{scope: scope} do
+      task_id = Ecto.UUID.generate()
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
+
+      tool_call_id = "toolu_integration_#{System.unique_integer([:positive])}"
+
+      # 1. User asks a question
+      {:ok, _} =
+        Tasks.add_user_message(
+          scope,
+          task_id,
+          [%{"type" => "text", "text" => "What is 2+2?"}],
+          []
+        )
+
+      # 2. Agent responds with a tool_call in metadata (OpenAI wire format, as stored in DB)
+      {:ok, _} =
+        Tasks.add_agent_response(scope, task_id, "Let me calculate that.", %{
+          "tool_calls" => [
+            %{
+              "id" => tool_call_id,
+              "type" => "function",
+              "function" => %{
+                "name" => "calculator",
+                "arguments" => ~s({"expression": "2+2"})
+              }
+            }
+          ]
+        })
+
+      # 3. ToolCall interaction (the LLM's raw tool invocation record)
+      tc = ReqLLM.ToolCall.new(tool_call_id, "calculator", ~s({"expression": "2+2"}))
+      {:ok, _} = Tasks.add_tool_call(scope, task_id, tc)
+
+      # 4. ToolResult interaction (the tool's response)
+      {:ok, _} =
+        Tasks.add_tool_result(scope, task_id, %{id: tool_call_id, name: "calculator"}, "4", false)
+
+      # 5. Agent sends final answer
+      {:ok, _} = Tasks.add_agent_response(scope, task_id, "The answer is 4.")
+
+      # --- Verify interactions have correct monotonic sequences ---
+      {:ok, interactions} = Tasks.get_interactions(scope, task_id)
+      sequences = Enum.map(interactions, & &1.sequence)
+
+      assert sequences == [1, 2, 3, 4, 5],
+             "sequences should be [1,2,3,4,5], got #{inspect(sequences)}"
+
+      # --- Verify LLM messages are valid for Anthropic ---
+      {:ok, messages} = Tasks.get_llm_messages(scope, task_id)
+
+      # to_llm_messages skips ToolCall interactions (they're redundant with agent_response metadata)
+      # Expected: user -> assistant(with tool_calls) -> tool -> assistant
+      assert length(messages) == 4,
+             "expected 4 LLM messages, got #{length(messages)}: #{inspect(Enum.map(messages, & &1.role))}"
+
+      [user_msg, assistant_with_tool, tool_result_msg, final_assistant] = messages
+
+      # Roles must be in valid Anthropic order
+      assert user_msg.role == :user
+      assert assistant_with_tool.role == :assistant
+      assert tool_result_msg.role == :tool
+      assert final_assistant.role == :assistant
+
+      # The assistant message must include the tool_call with matching ID
+      assert [%ReqLLM.ToolCall{} = tc_in_msg] = assistant_with_tool.tool_calls
+      assert tc_in_msg.id == tool_call_id
+      assert tc_in_msg.function.name == "calculator"
+
+      # The tool result must reference the same tool_call_id
+      assert tool_result_msg.tool_call_id == tool_call_id
+      assert [%{type: :text, text: "4"}] = tool_result_msg.content
+
+      # Final assistant should have the answer
+      assert [%{type: :text, text: "The answer is 4."}] = final_assistant.content
+    end
   end
 
   describe "add_tool_call/3" do
@@ -237,6 +314,55 @@ defmodule FrontmanServer.TasksTest do
       # The tool result should have been stored successfully
       {:ok, interactions} = Tasks.get_interactions(scope, task_id)
       assert length(interactions) == 1
+    end
+  end
+
+  describe "append_interaction sequence assignment" do
+    test "assigns monotonically increasing sequences", %{scope: scope} do
+      task_id = Ecto.UUID.generate()
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
+
+      {:ok, msg1} =
+        Tasks.add_user_message(scope, task_id, [%{"type" => "text", "text" => "hello"}], [])
+
+      {:ok, msg2} = Tasks.add_agent_response(scope, task_id, "hi there")
+
+      {:ok, msg3} =
+        Tasks.add_user_message(scope, task_id, [%{"type" => "text", "text" => "again"}], [])
+
+      assert msg1.sequence == 1
+      assert msg2.sequence == 2
+      assert msg3.sequence == 3
+    end
+
+    test "sequences survive struct creation with default 0", %{scope: scope} do
+      task_id = Ecto.UUID.generate()
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
+
+      # The struct starts with sequence 0, but after append_interaction
+      # it should have a proper sequence assigned by the DB
+      {:ok, interaction} = Tasks.add_agent_response(scope, task_id, "content")
+      assert interaction.sequence > 0
+    end
+
+    test "sequences are consistent when read back from DB", %{scope: scope} do
+      task_id = Ecto.UUID.generate()
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
+
+      {:ok, _} =
+        Tasks.add_user_message(scope, task_id, [%{"type" => "text", "text" => "msg1"}], [])
+
+      {:ok, _} = Tasks.add_agent_response(scope, task_id, "response1")
+
+      tool_call_data = %{id: "tc_1", name: "test_tool"}
+      {:ok, _} = Tasks.add_tool_result(scope, task_id, tool_call_data, "result", false)
+
+      {:ok, interactions} = Tasks.get_interactions(scope, task_id)
+      sequences = Enum.map(interactions, & &1.sequence)
+
+      # Sequences should be strictly increasing
+      assert sequences == Enum.sort(sequences)
+      assert sequences == [1, 2, 3]
     end
   end
 

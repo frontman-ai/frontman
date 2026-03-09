@@ -11,99 +11,175 @@ defmodule FrontmanServer.Tasks.InteractionTest do
     UserMessage
   }
 
-  # Test helper to generate sequence numbers
+  # ---------------------------------------------------------------------------
+  # Fixtures & Helpers
+  # ---------------------------------------------------------------------------
+
   defp seq, do: System.unique_integer([:monotonic, :positive])
 
-  describe "UserMessage.new/1" do
-    test "extracts annotation from resource with _meta annotation: true" do
-      content_blocks = [
-        %{"type" => "text", "text" => "Hello"},
-        %{
-          "type" => "resource",
-          "resource" => %{
-            "_meta" => %{
-              "annotation" => true,
-              "annotation_index" => 0,
-              "annotation_id" => "ann-1",
-              "tag_name" => "div",
-              "file" => "/path/to/component.tsx",
-              "line" => 42,
-              "column" => 10
-            },
-            "resource" => %{
-              "uri" => "file:///path/to/component.tsx:42:10",
-              "mimeType" => "text/plain",
-              "text" => "Annotated element: <div> at /path/to/component.tsx:42:10"
-            }
-          }
+  # Build a text content block
+  defp text_block(text), do: %{"type" => "text", "text" => text}
+
+  # Build an annotation resource block with optional enrichment fields
+  defp annotation_block(id, tag, file, line, col, extra \\ %{}) do
+    meta =
+      %{
+        "annotation" => true,
+        "annotation_index" => extra[:index] || 0,
+        "annotation_id" => id,
+        "tag_name" => tag,
+        "file" => file,
+        "line" => line,
+        "column" => col
+      }
+      |> maybe_put("component_name", extra[:component_name])
+      |> maybe_put("css_classes", extra[:css_classes])
+      |> maybe_put("nearby_text", extra[:nearby_text])
+      |> maybe_put("comment", extra[:comment])
+      |> maybe_put("bounding_box", extra[:bounding_box])
+
+    %{
+      "type" => "resource",
+      "resource" => %{
+        "_meta" => meta,
+        "resource" => %{
+          "uri" => "file://#{file}:#{line}:#{col}",
+          "mimeType" => "text/plain",
+          "text" => "Annotated element: <#{tag}> at #{file}:#{line}:#{col}"
         }
-      ]
+      }
+    }
+  end
 
-      msg = UserMessage.new(content_blocks)
+  # Build a screenshot resource block paired to an annotation by id
+  defp screenshot_block(annotation_id, blob, mime \\ "image/png") do
+    %{
+      "type" => "resource",
+      "resource" => %{
+        "_meta" => %{
+          "annotation_screenshot" => true,
+          "annotation_index" => 0,
+          "annotation_id" => annotation_id
+        },
+        "resource" => %{
+          "uri" => "annotation://#{annotation_id}/screenshot",
+          "mimeType" => mime,
+          "blob" => blob
+        }
+      }
+    }
+  end
 
-      assert length(msg.annotations) == 1
-      ann = hd(msg.annotations)
+  # Build a tool_call map in DB wire format (string keys, OpenAI shape)
+  defp db_tool_call(id, name, args \\ "{}") do
+    %{
+      "id" => id,
+      "type" => "function",
+      "function" => %{"name" => name, "arguments" => args}
+    }
+  end
+
+  # Build a tool_call map in flat format (string keys, no nested function)
+  defp flat_tool_call(id, name, args) do
+    %{"id" => id, "name" => name, "arguments" => args}
+  end
+
+  # Shorthand for building a UserMessage struct
+  defp user_msg(messages, annotations \\ []) do
+    %UserMessage{
+      id: Ecto.UUID.generate(),
+      sequence: seq(),
+      messages: List.wrap(messages),
+      timestamp: DateTime.utc_now(),
+      annotations: annotations
+    }
+  end
+
+  # Shorthand for building an AgentResponse struct
+  defp agent_resp(content, metadata \\ %{}) do
+    %AgentResponse{
+      id: Ecto.UUID.generate(),
+      sequence: seq(),
+      content: content,
+      timestamp: DateTime.utc_now(),
+      metadata: metadata
+    }
+  end
+
+  # Shorthand for building a ToolResult struct
+  defp tool_result(call_id, name, result, opts \\ []) do
+    %ToolResult{
+      id: Ecto.UUID.generate(),
+      sequence: opts[:sequence] || seq(),
+      tool_call_id: call_id,
+      tool_name: name,
+      result: result,
+      is_error: opts[:is_error] || false,
+      timestamp: DateTime.utc_now()
+    }
+  end
+
+  # Shorthand for building a ToolCall struct
+  defp tool_call(call_id, name, args \\ %{}) do
+    %ToolCall{
+      id: Ecto.UUID.generate(),
+      sequence: seq(),
+      tool_call_id: call_id,
+      tool_name: name,
+      arguments: args,
+      timestamp: DateTime.utc_now()
+    }
+  end
+
+  # Extract text content from an LLM message (handles ContentPart structs)
+  defp extract_text(msg) do
+    case msg.content do
+      content when is_binary(content) -> content
+      [%{text: t} | _] -> t
+      _ -> ""
+    end
+  end
+
+  defp maybe_put(map, _key, nil), do: map
+  defp maybe_put(map, key, val), do: Map.put(map, key, val)
+
+  # ---------------------------------------------------------------------------
+  # UserMessage.new/1
+  # ---------------------------------------------------------------------------
+
+  describe "UserMessage.new/1" do
+    test "extracts annotation from resource block" do
+      msg =
+        UserMessage.new([
+          text_block("Hello"),
+          annotation_block("ann-1", "div", "/path/to/component.tsx", 42, 10)
+        ])
+
+      assert [ann] = msg.annotations
       assert ann.annotation_id == "ann-1"
       assert ann.tag_name == "div"
       assert ann.file == "/path/to/component.tsx"
       assert ann.line == 42
       assert ann.column == 10
       assert ann.screenshot == nil
+      assert ann.bounding_box == nil
     end
 
     test "returns empty annotations when no annotation blocks" do
-      content_blocks = [%{"type" => "text", "text" => "Hello"}]
-
-      msg = UserMessage.new(content_blocks)
-
+      msg = UserMessage.new([text_block("Hello")])
       assert msg.annotations == []
     end
 
-    test "extracts annotation with screenshot paired by annotation_id" do
-      content_blocks = [
-        %{"type" => "text", "text" => "Fix this button"},
-        %{
-          "type" => "resource",
-          "resource" => %{
-            "_meta" => %{
-              "annotation" => true,
-              "annotation_index" => 0,
-              "annotation_id" => "ann-1",
-              "tag_name" => "button",
-              "file" => "/src/Button.tsx",
-              "line" => 15,
-              "column" => 3
-            },
-            "resource" => %{
-              "uri" => "file:///src/Button.tsx:15:3",
-              "mimeType" => "text/plain",
-              "text" => "Annotated element: <button>"
-            }
-          }
-        },
-        %{
-          "type" => "resource",
-          "resource" => %{
-            "_meta" => %{
-              "annotation_screenshot" => true,
-              "annotation_index" => 0,
-              "annotation_id" => "ann-1"
-            },
-            "resource" => %{
-              "uri" => "annotation://ann-1/screenshot",
-              "mimeType" => "image/png",
-              "blob" => "base64screenshotdata"
-            }
-          }
-        }
-      ]
+    test "pairs screenshot with annotation by annotation_id" do
+      msg =
+        UserMessage.new([
+          text_block("Fix this button"),
+          annotation_block("ann-1", "button", "/src/Button.tsx", 15, 3),
+          screenshot_block("ann-1", "base64screenshotdata")
+        ])
 
-      msg = UserMessage.new(content_blocks)
-
-      assert length(msg.annotations) == 1
-      ann = hd(msg.annotations)
+      assert [ann] = msg.annotations
       assert ann.file == "/src/Button.tsx"
-      assert ann.line == 15
 
       assert ann.screenshot == %Interaction.Screenshot{
                blob: "base64screenshotdata",
@@ -112,48 +188,21 @@ defmodule FrontmanServer.Tasks.InteractionTest do
     end
 
     test "extracts multiple annotations with enrichment data" do
-      content_blocks = [
-        %{"type" => "text", "text" => "Fix these"},
-        %{
-          "type" => "resource",
-          "resource" => %{
-            "_meta" => %{
-              "annotation" => true,
-              "annotation_index" => 0,
-              "annotation_id" => "ann-1",
-              "tag_name" => "div",
-              "file" => "/src/A.tsx",
-              "line" => 10,
-              "column" => 1,
-              "component_name" => "Header",
-              "css_classes" => "header main",
-              "nearby_text" => "Welcome"
-            },
-            "resource" => %{"uri" => "file:///src/A.tsx:10:1", "text" => "Annotated element"}
-          }
-        },
-        %{
-          "type" => "resource",
-          "resource" => %{
-            "_meta" => %{
-              "annotation" => true,
-              "annotation_index" => 1,
-              "annotation_id" => "ann-2",
-              "tag_name" => "button",
-              "file" => "/src/B.tsx",
-              "line" => 20,
-              "column" => 5,
-              "comment" => "Make this red"
-            },
-            "resource" => %{"uri" => "file:///src/B.tsx:20:5", "text" => "Annotated element"}
-          }
-        }
-      ]
+      msg =
+        UserMessage.new([
+          text_block("Fix these"),
+          annotation_block("ann-1", "div", "/src/A.tsx", 10, 1,
+            component_name: "Header",
+            css_classes: "header main",
+            nearby_text: "Welcome"
+          ),
+          annotation_block("ann-2", "button", "/src/B.tsx", 20, 5,
+            index: 1,
+            comment: "Make this red"
+          )
+        ])
 
-      msg = UserMessage.new(content_blocks)
-
-      assert length(msg.annotations) == 2
-      [ann1, ann2] = msg.annotations
+      assert [ann1, ann2] = msg.annotations
       assert ann1.annotation_index == 0
       assert ann1.component_name == "Header"
       assert ann1.css_classes == "header main"
@@ -162,38 +211,15 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       assert ann2.comment == "Make this red"
     end
 
-    test "extracts annotation with bounding_box" do
-      content_blocks = [
-        %{
-          "type" => "resource",
-          "resource" => %{
-            "_meta" => %{
-              "annotation" => true,
-              "annotation_index" => 0,
-              "annotation_id" => "ann-bb",
-              "tag_name" => "div",
-              "file" => "/src/Component.tsx",
-              "line" => 5,
-              "column" => 1,
-              "bounding_box" => %{
-                "x" => 10.5,
-                "y" => 20.0,
-                "width" => 200.0,
-                "height" => 50.0
-              }
-            },
-            "resource" => %{
-              "uri" => "file:///src/Component.tsx:5:1",
-              "text" => "Annotated element"
-            }
-          }
-        }
-      ]
+    test "extracts bounding_box when provided" do
+      bb = %{"x" => 10.5, "y" => 20.0, "width" => 200.0, "height" => 50.0}
 
-      msg = UserMessage.new(content_blocks)
+      msg =
+        UserMessage.new([
+          annotation_block("ann-bb", "div", "/src/Component.tsx", 5, 1, bounding_box: bb)
+        ])
 
-      assert length(msg.annotations) == 1
-      ann = hd(msg.annotations)
+      assert [ann] = msg.annotations
 
       assert ann.bounding_box == %Interaction.BoundingBox{
                x: 10.5,
@@ -202,392 +228,158 @@ defmodule FrontmanServer.Tasks.InteractionTest do
                height: 50.0
              }
     end
-
-    test "annotation bounding_box is nil when not provided" do
-      content_blocks = [
-        %{
-          "type" => "resource",
-          "resource" => %{
-            "_meta" => %{
-              "annotation" => true,
-              "annotation_index" => 0,
-              "annotation_id" => "ann-no-bb",
-              "tag_name" => "span",
-              "file" => "/src/Text.tsx",
-              "line" => 1,
-              "column" => 1
-            },
-            "resource" => %{
-              "uri" => "file:///src/Text.tsx:1:1",
-              "text" => "Annotated element"
-            }
-          }
-        }
-      ]
-
-      msg = UserMessage.new(content_blocks)
-      ann = hd(msg.annotations)
-      assert ann.bounding_box == nil
-    end
   end
+
+  # ---------------------------------------------------------------------------
+  # has_annotations?/1
+  # ---------------------------------------------------------------------------
 
   describe "has_annotations?/1" do
-    test "returns true when UserMessage has annotations" do
-      interactions = [
+    test "returns true when UserMessage has annotations, false otherwise" do
+      with_ann =
         UserMessage.new([
-          %{"type" => "text", "text" => "Hello"},
-          %{
-            "type" => "resource",
-            "resource" => %{
-              "_meta" => %{
-                "annotation" => true,
-                "annotation_index" => 0,
-                "annotation_id" => "ann-1",
-                "tag_name" => "div",
-                "file" => "/path/to/file.tsx",
-                "line" => 1,
-                "column" => 1
-              },
-              "resource" => %{"uri" => "file:///path/to/file.tsx:1:1", "text" => "Annotated"}
-            }
-          }
+          text_block("Hello"),
+          annotation_block("ann-1", "div", "/path/to/file.tsx", 1, 1)
         ])
-      ]
 
-      assert Interaction.has_annotations?(interactions) == true
-    end
+      without_ann = UserMessage.new([text_block("Hello")])
 
-    test "returns false when no annotations" do
-      interactions = [
-        UserMessage.new([%{"type" => "text", "text" => "Hello"}])
-      ]
-
-      assert Interaction.has_annotations?(interactions) == false
+      assert Interaction.has_annotations?([with_ann]) == true
+      assert Interaction.has_annotations?([without_ann]) == false
     end
   end
 
+  # ---------------------------------------------------------------------------
+  # to_llm_messages/1
+  # ---------------------------------------------------------------------------
+
   describe "to_llm_messages/1" do
-    test "converts user messages" do
-      interactions = [
-        %UserMessage{
-          id: "1",
-          sequence: seq(),
-          messages: ["Hello"],
-          timestamp: DateTime.utc_now(),
-          annotations: []
-        }
-      ]
+    test "converts user message with correct role and content" do
+      messages = Interaction.to_llm_messages([user_msg("Hello")])
 
-      messages = Interaction.to_llm_messages(interactions)
-      assert length(messages) == 1
-      assert hd(messages).role == :user
-      # ReqLLM.Context.user wraps string content in ContentPart structs
-      # The content field contains a list of ContentPart structs
-      content = hd(messages).content
-      # ContentPart structs have a text field - extract and verify
-      # Note: ReqLLM may wrap strings differently, so we check the structure
-      assert is_list(content)
+      assert [msg] = messages
+      assert msg.role == :user
+      assert is_list(msg.content)
     end
 
-    test "converts agent responses without tool calls" do
-      interactions = [
-        %AgentResponse{
-          id: "1",
-          sequence: seq(),
-          content: "Hi there",
-          timestamp: DateTime.utc_now(),
-          metadata: %{}
-        }
-      ]
+    test "converts agent response to assistant message with content" do
+      messages = Interaction.to_llm_messages([agent_resp("Hi there")])
 
-      messages = Interaction.to_llm_messages(interactions)
-      assert length(messages) == 1
-      assert hd(messages).role == :assistant
-      # content is wrapped in ContentPart structs
-      assert [%{type: :text, text: "Hi there"}] = hd(messages).content
-    end
-
-    test "converts agent responses with tool calls" do
-      tool_calls = [%{id: "call_1", name: "calculator", arguments: %{}}]
-
-      interactions = [
-        %AgentResponse{
-          id: "1",
-          sequence: seq(),
-          content: "Let me calculate",
-          timestamp: DateTime.utc_now(),
-          metadata: %{tool_calls: tool_calls}
-        }
-      ]
-
-      messages = Interaction.to_llm_messages(interactions)
-      assert length(messages) == 1
-      msg = hd(messages)
+      assert [msg] = messages
       assert msg.role == :assistant
+      assert [%{type: :text, text: "Hi there"}] = msg.content
     end
 
-    test "converts tool results" do
-      interactions = [
-        %ToolResult{
-          id: "1",
-          sequence: seq(),
-          tool_call_id: "call_123",
-          tool_name: "calculator",
-          result: 42,
-          is_error: false,
-          timestamp: DateTime.utc_now()
-        }
-      ]
+    test "converts tool results to tool messages" do
+      messages = Interaction.to_llm_messages([tool_result("call_123", "calculator", 42)])
 
-      messages = Interaction.to_llm_messages(interactions)
-      assert length(messages) == 1
+      assert [msg] = messages
+      assert msg.role == :tool
+      assert msg.tool_call_id == "call_123"
     end
 
-    test "skips tool calls (they are in agent response metadata)" do
-      interactions = [
-        %ToolCall{
-          id: "1",
-          sequence: seq(),
-          tool_call_id: "call_123",
-          tool_name: "calculator",
-          arguments: %{},
-          timestamp: DateTime.utc_now()
-        }
-      ]
-
-      messages = Interaction.to_llm_messages(interactions)
+    test "skips ToolCall structs (they live in agent response metadata)" do
+      messages = Interaction.to_llm_messages([tool_call("call_123", "calculator")])
       assert messages == []
     end
 
-    test "includes annotation location in user message content" do
+    test "handles mixed conversation in correct order" do
       interactions = [
-        %UserMessage{
-          id: "1",
-          sequence: seq(),
-          messages: ["Change the text"],
-          timestamp: DateTime.utc_now(),
-          annotations: [
-            %Annotation{
-              annotation_id: "ann-1",
-              annotation_index: 0,
-              tag_name: "div",
-              file: "/path/to/Component.tsx",
-              line: 42,
-              column: 5
-            }
-          ]
-        }
+        user_msg("Calculate 2+2"),
+        agent_resp("Let me calculate", %{tool_calls: [%{id: "c1", name: "calc", arguments: %{}}]}),
+        tool_call("c1", "calc"),
+        tool_result("c1", "calc", 4),
+        agent_resp("The answer is 4")
       ]
 
       messages = Interaction.to_llm_messages(interactions)
-      assert length(messages) == 1
+      # UserMessage + AgentResponse(with tool) + ToolResult + AgentResponse(final)
+      # ToolCall is skipped
+      assert length(messages) == 4
+      assert Enum.map(messages, & &1.role) == [:user, :assistant, :tool, :assistant]
+    end
 
-      msg = hd(messages)
-      assert msg.role == :user
+    test "includes annotation location info in user message content" do
+      ann = %Annotation{
+        annotation_id: "ann-1",
+        annotation_index: 0,
+        tag_name: "div",
+        file: "/path/to/Component.tsx",
+        line: 42,
+        column: 5
+      }
 
-      # Extract text content
-      text =
-        case msg.content do
-          content when is_binary(content) -> content
-          [%{text: t} | _] -> t
-          _ -> ""
-        end
+      messages = Interaction.to_llm_messages([user_msg("Change the text", [ann])])
+      text = extract_text(hd(messages))
 
-      # Should include the original message
       assert text =~ "Change the text"
-
-      # Should include annotation location info
       assert text =~ "[Annotated Elements]"
       assert text =~ "/path/to/Component.tsx"
       assert text =~ "Line: 42"
     end
 
     test "includes bounding_box in annotation LLM message" do
-      interactions = [
-        %UserMessage{
-          id: "1",
-          sequence: seq(),
-          messages: ["Fix layout"],
-          timestamp: DateTime.utc_now(),
-          annotations: [
-            %Annotation{
-              annotation_id: "ann-bb",
-              annotation_index: 0,
-              tag_name: "div",
-              file: "/src/Layout.tsx",
-              line: 10,
-              column: 1,
-              bounding_box: %Interaction.BoundingBox{x: 10.5, y: 20.0, width: 200.0, height: 50.0}
-            }
-          ]
-        }
-      ]
+      ann = %Annotation{
+        annotation_id: "ann-bb",
+        annotation_index: 0,
+        tag_name: "div",
+        file: "/src/Layout.tsx",
+        line: 10,
+        column: 1,
+        bounding_box: %Interaction.BoundingBox{x: 10.5, y: 20.0, width: 200.0, height: 50.0}
+      }
 
-      messages = Interaction.to_llm_messages(interactions)
-      msg = hd(messages)
-
-      text =
-        case msg.content do
-          content when is_binary(content) -> content
-          [%{text: t} | _] -> t
-          _ -> ""
-        end
+      messages = Interaction.to_llm_messages([user_msg("Fix layout", [ann])])
+      text = extract_text(hd(messages))
 
       assert text =~ "Bounding Box:"
       assert text =~ "200"
     end
 
     test "does not add annotation section when annotations is empty" do
-      interactions = [
-        %UserMessage{
-          id: "1",
-          sequence: seq(),
-          messages: ["Just a regular message"],
-          timestamp: DateTime.utc_now(),
-          annotations: []
-        }
-      ]
+      messages = Interaction.to_llm_messages([user_msg("Just a regular message")])
+      text = extract_text(hd(messages))
 
-      messages = Interaction.to_llm_messages(interactions)
-      msg = hd(messages)
-
-      text =
-        case msg.content do
-          content when is_binary(content) -> content
-          [%{text: t} | _] -> t
-          _ -> ""
-        end
-
-      # Should have the message but NOT the annotation section
       assert text =~ "Just a regular message"
       refute text =~ "[Annotated Elements]"
     end
-
-    test "handles mixed interactions in order" do
-      now = DateTime.utc_now()
-
-      interactions = [
-        %UserMessage{
-          id: "1",
-          sequence: seq(),
-          messages: ["Calculate 2+2"],
-          timestamp: now,
-          annotations: []
-        },
-        %AgentResponse{
-          id: "2",
-          sequence: seq(),
-          content: "Let me calculate",
-          timestamp: now,
-          metadata: %{tool_calls: [%{id: "c1", name: "calc", arguments: %{}}]}
-        },
-        %ToolCall{
-          id: "3",
-          sequence: seq(),
-          tool_call_id: "c1",
-          tool_name: "calc",
-          arguments: %{},
-          timestamp: now
-        },
-        %ToolResult{
-          id: "4",
-          sequence: seq(),
-          tool_call_id: "c1",
-          tool_name: "calc",
-          result: 4,
-          is_error: false,
-          timestamp: now
-        },
-        %AgentResponse{
-          id: "5",
-          sequence: seq(),
-          content: "The answer is 4",
-          timestamp: now,
-          metadata: %{}
-        }
-      ]
-
-      messages = Interaction.to_llm_messages(interactions)
-      # UserMessage, AgentResponse (with tools), ToolResult, AgentResponse (final)
-      # ToolCall is skipped
-      assert length(messages) == 4
-    end
   end
 
+  # ---------------------------------------------------------------------------
+  # to_llm_messages/1 — DB-loaded metadata (string keys)
+  # ---------------------------------------------------------------------------
+
   describe "to_llm_messages/1 with DB-loaded metadata (string keys)" do
-    # These tests cover the bug where metadata loaded from DB has string keys,
-    # but the code was trying to access with atom keys (e.g., :tool_calls vs "tool_calls").
-    # This caused tool_calls to be nil when reconstructing conversation history,
-    # leading to Anthropic rejecting subsequent requests with:
-    # "unexpected tool_use_id found in tool_result blocks"
-
-    test "converts agent responses with tool_calls stored as string keys (OpenAI wire format)" do
-      # This is exactly how tool_calls are stored in the DB after JSON serialization
-      tool_calls_from_db = [
-        %{
-          "function" => %{
-            "arguments" => ~s({"path": "src/app/page.tsx"}),
-            "name" => "read_file"
-          },
-          "id" => "toolu_012YbdZVHHNLf7EtGWY9m5Gy",
-          "type" => "function"
-        }
-      ]
-
+    test "converts tool_calls stored in OpenAI wire format (string keys)" do
       interactions = [
-        %AgentResponse{
-          id: "1",
-          sequence: seq(),
-          content: "I'll read the file",
-          timestamp: DateTime.utc_now(),
-          # Simulating DB-loaded metadata with string keys
-          metadata: %{"tool_calls" => tool_calls_from_db}
-        }
+        agent_resp("I'll read the file", %{
+          "tool_calls" => [
+            db_tool_call("toolu_012", "read_file", ~s({"path": "src/app/page.tsx"}))
+          ]
+        })
       ]
 
-      messages = Interaction.to_llm_messages(interactions)
-      assert length(messages) == 1
+      [msg] = Interaction.to_llm_messages(interactions)
 
-      msg = hd(messages)
       assert msg.role == :assistant
-
-      # Verify tool_calls are present and converted to ReqLLM.ToolCall structs
-      assert msg.tool_calls != nil
-      assert length(msg.tool_calls) == 1
-
-      tc = hd(msg.tool_calls)
+      assert [tc] = msg.tool_calls
       assert %ReqLLM.ToolCall{} = tc
-      assert tc.id == "toolu_012YbdZVHHNLf7EtGWY9m5Gy"
+      assert tc.id == "toolu_012"
       assert tc.function.name == "read_file"
       assert tc.function.arguments == ~s({"path": "src/app/page.tsx"})
     end
 
-    test "converts agent responses with multiple tool_calls from DB" do
-      tool_calls_from_db = [
-        %{
-          "function" => %{"arguments" => ~s({"path": "file1.txt"}), "name" => "read_file"},
-          "id" => "toolu_001",
-          "type" => "function"
-        },
-        %{
-          "function" => %{"arguments" => ~s({"pattern": "*.tsx"}), "name" => "glob"},
-          "id" => "toolu_002",
-          "type" => "function"
-        }
-      ]
-
+    test "converts multiple tool_calls from DB" do
       interactions = [
-        %AgentResponse{
-          id: "1",
-          sequence: seq(),
-          content: "Let me search for files",
-          timestamp: DateTime.utc_now(),
-          metadata: %{"tool_calls" => tool_calls_from_db}
-        }
+        agent_resp("Let me search", %{
+          "tool_calls" => [
+            db_tool_call("toolu_001", "read_file", ~s({"path": "file1.txt"})),
+            db_tool_call("toolu_002", "glob", ~s({"pattern": "*.tsx"}))
+          ]
+        })
       ]
 
-      messages = Interaction.to_llm_messages(interactions)
-      msg = hd(messages)
+      [msg] = Interaction.to_llm_messages(interactions)
 
       assert length(msg.tool_calls) == 2
       assert Enum.all?(msg.tool_calls, &match?(%ReqLLM.ToolCall{}, &1))
@@ -595,338 +387,133 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       assert Enum.map(msg.tool_calls, & &1.function.name) == ["read_file", "glob"]
     end
 
-    test "handles empty tool_calls list from DB" do
-      interactions = [
-        %AgentResponse{
-          id: "1",
-          sequence: seq(),
-          content: "Just a text response",
-          timestamp: DateTime.utc_now(),
-          metadata: %{"tool_calls" => []}
-        }
-      ]
+    test "handles empty or nil tool_calls from DB gracefully" do
+      for tool_calls <- [[], nil] do
+        [msg] =
+          Interaction.to_llm_messages([agent_resp("Just text", %{"tool_calls" => tool_calls})])
 
-      messages = Interaction.to_llm_messages(interactions)
-      msg = hd(messages)
-
-      # Should be a simple assistant message without tool_calls
-      assert msg.role == :assistant
-      assert [%{type: :text, text: "Just a text response"}] = msg.content
+        assert msg.role == :assistant
+        assert [%{type: :text, text: "Just text"}] = msg.content
+      end
     end
 
-    test "handles nil tool_calls from DB" do
+    test "preserves response_id and reasoning_details from DB metadata" do
       interactions = [
-        %AgentResponse{
-          id: "1",
-          sequence: seq(),
-          content: "Just a text response",
-          timestamp: DateTime.utc_now(),
-          metadata: %{"tool_calls" => nil}
-        }
+        agent_resp("Thinking...", %{
+          "tool_calls" => [db_tool_call("call_123", "test_tool")],
+          "response_id" => "resp_abc123",
+          "reasoning_details" => [%{"type" => "reasoning.encrypted", "data" => "encrypted_data"}]
+        })
       ]
 
-      messages = Interaction.to_llm_messages(interactions)
-      msg = hd(messages)
+      [msg] = Interaction.to_llm_messages(interactions)
 
-      assert msg.role == :assistant
-      assert [%{type: :text, text: "Just a text response"}] = msg.content
-    end
-
-    test "handles response_id and reasoning_details with string keys from DB" do
-      interactions = [
-        %AgentResponse{
-          id: "1",
-          sequence: seq(),
-          content: "Thinking...",
-          timestamp: DateTime.utc_now(),
-          metadata: %{
-            "tool_calls" => [
-              %{
-                "function" => %{"arguments" => "{}", "name" => "test_tool"},
-                "id" => "call_123",
-                "type" => "function"
-              }
-            ],
-            "response_id" => "resp_abc123",
-            "reasoning_details" => [
-              %{"type" => "reasoning.encrypted", "data" => "encrypted_data"}
-            ]
-          }
-        }
-      ]
-
-      messages = Interaction.to_llm_messages(interactions)
-      msg = hd(messages)
-
-      # response_id should be in metadata
       assert msg.metadata == %{response_id: "resp_abc123"}
 
-      # reasoning_details should be preserved (only encrypted ones)
       assert msg.reasoning_details == [
                %{"type" => "reasoning.encrypted", "data" => "encrypted_data"}
              ]
     end
 
     test "full conversation round-trip with tool calls from DB" do
-      # Simulates a complete conversation loaded from DB
-      now = DateTime.utc_now()
-
       interactions = [
-        # User asks a question
-        %UserMessage{
-          id: "1",
-          sequence: seq(),
-          messages: ["What's in the file?"],
-          timestamp: now,
-          annotations: []
-        },
-        # Agent responds with tool call (DB format with string keys)
-        %AgentResponse{
-          id: "2",
-          sequence: seq(),
-          content: "I'll read the file for you.",
-          timestamp: now,
-          metadata: %{
-            "tool_calls" => [
-              %{
-                "function" => %{"arguments" => ~s({"path": "README.md"}), "name" => "read_file"},
-                "id" => "toolu_read_123",
-                "type" => "function"
-              }
-            ]
-          }
-        },
-        # Tool call record (skipped in LLM messages)
-        %ToolCall{
-          id: "3",
-          sequence: seq(),
-          tool_call_id: "toolu_read_123",
-          tool_name: "read_file",
-          arguments: %{"path" => "README.md"},
-          timestamp: now
-        },
-        # Tool result
-        %ToolResult{
-          id: "4",
-          sequence: seq(),
-          tool_call_id: "toolu_read_123",
-          tool_name: "read_file",
-          result: "# README\nThis is a readme file.",
-          is_error: false,
-          timestamp: now
-        },
-        # Agent's final response
-        %AgentResponse{
-          id: "5",
-          sequence: seq(),
-          content: "The file contains a README header.",
-          timestamp: now,
-          metadata: %{}
-        }
+        user_msg("What's in the file?"),
+        agent_resp("I'll read the file for you.", %{
+          "tool_calls" => [db_tool_call("toolu_read_123", "read_file", ~s({"path": "README.md"}))]
+        }),
+        tool_call("toolu_read_123", "read_file", %{"path" => "README.md"}),
+        tool_result("toolu_read_123", "read_file", "# README\nThis is a readme file."),
+        agent_resp("The file contains a README header.")
       ]
 
       messages = Interaction.to_llm_messages(interactions)
 
-      # Should have: UserMessage, AgentResponse with tool, ToolResult, AgentResponse
-      # ToolCall is skipped
       assert length(messages) == 4
 
-      # Verify message roles
-      [user_msg, assistant_with_tool, tool_result, final_assistant] = messages
-      assert user_msg.role == :user
+      [user_msg_, assistant_with_tool, tool_result_, final_assistant] = messages
+      assert user_msg_.role == :user
       assert assistant_with_tool.role == :assistant
-      assert tool_result.role == :tool
+      assert tool_result_.role == :tool
       assert final_assistant.role == :assistant
 
-      # Verify the assistant message has proper tool_calls
-      assert length(assistant_with_tool.tool_calls) == 1
-      tc = hd(assistant_with_tool.tool_calls)
+      assert [tc] = assistant_with_tool.tool_calls
       assert %ReqLLM.ToolCall{} = tc
       assert tc.id == "toolu_read_123"
       assert tc.function.name == "read_file"
 
-      # Verify the tool_result has matching tool_call_id
-      assert tool_result.tool_call_id == "toolu_read_123"
+      assert tool_result_.tool_call_id == "toolu_read_123"
     end
 
     test "handles flat format tool_calls with string keys" do
-      # Some code paths might store tool_calls in flat format
-      tool_calls_flat = [
-        %{"id" => "call_flat_1", "name" => "get_weather", "arguments" => ~s({"city": "NYC"})}
-      ]
-
       interactions = [
-        %AgentResponse{
-          id: "1",
-          sequence: seq(),
-          content: "Checking weather",
-          timestamp: DateTime.utc_now(),
-          metadata: %{"tool_calls" => tool_calls_flat}
-        }
+        agent_resp("Checking weather", %{
+          "tool_calls" => [flat_tool_call("call_flat_1", "get_weather", ~s({"city": "NYC"}))]
+        })
       ]
 
-      messages = Interaction.to_llm_messages(interactions)
-      msg = hd(messages)
+      [msg] = Interaction.to_llm_messages(interactions)
 
-      assert length(msg.tool_calls) == 1
-      tc = hd(msg.tool_calls)
+      assert [tc] = msg.tool_calls
       assert %ReqLLM.ToolCall{} = tc
       assert tc.id == "call_flat_1"
       assert tc.function.name == "get_weather"
     end
 
     test "handles atom keys (fresh from response, not DB)" do
-      # When tool_calls come fresh from a response (not loaded from DB),
-      # they have atom keys. This should also work.
-      tool_calls_with_atoms = [
-        %{
-          function: %{arguments: ~s({"x": 1}), name: "calculator"},
-          id: "call_atom_1",
-          type: "function"
-        }
-      ]
-
       interactions = [
-        %AgentResponse{
-          id: "1",
-          sequence: seq(),
-          content: "Calculating",
-          timestamp: DateTime.utc_now(),
-          metadata: %{tool_calls: tool_calls_with_atoms}
-        }
+        agent_resp("Calculating", %{
+          tool_calls: [
+            %{
+              function: %{arguments: ~s({"x": 1}), name: "calculator"},
+              id: "call_atom_1",
+              type: "function"
+            }
+          ]
+        })
       ]
 
-      messages = Interaction.to_llm_messages(interactions)
-      msg = hd(messages)
+      [msg] = Interaction.to_llm_messages(interactions)
 
-      assert length(msg.tool_calls) == 1
-      tc = hd(msg.tool_calls)
+      assert [tc] = msg.tool_calls
       assert %ReqLLM.ToolCall{} = tc
       assert tc.function.name == "calculator"
     end
 
     test "passes through ReqLLM.ToolCall structs unchanged" do
-      # If tool_calls are already ReqLLM.ToolCall structs, they should pass through
       existing_struct = ReqLLM.ToolCall.new("call_struct_1", "my_tool", "{}")
 
-      interactions = [
-        %AgentResponse{
-          id: "1",
-          sequence: seq(),
-          content: "Using tool",
-          timestamp: DateTime.utc_now(),
-          metadata: %{tool_calls: [existing_struct]}
-        }
-      ]
+      interactions = [agent_resp("Using tool", %{tool_calls: [existing_struct]})]
 
-      messages = Interaction.to_llm_messages(interactions)
-      msg = hd(messages)
+      [msg] = Interaction.to_llm_messages(interactions)
 
-      assert length(msg.tool_calls) == 1
-      tc = hd(msg.tool_calls)
+      assert [tc] = msg.tool_calls
       assert tc == existing_struct
     end
   end
 
+  # ---------------------------------------------------------------------------
+  # JSON encoding
+  # ---------------------------------------------------------------------------
+
   describe "JSON encoding" do
-    test "encodes UserMessage to JSON with messages and annotations" do
+    test "encodes UserMessage with annotation including all enrichment fields" do
       msg =
         UserMessage.new([
-          %{"type" => "text", "text" => "Hello"},
-          %{
-            "type" => "resource",
-            "resource" => %{
-              "_meta" => %{
-                "annotation" => true,
-                "annotation_index" => 0,
-                "annotation_id" => "ann-1",
-                "tag_name" => "div",
-                "file" => "/path/to/file.tsx",
-                "line" => 10,
-                "column" => 5
-              },
-              "resource" => %{"uri" => "file:///path/to/file.tsx:10:5", "text" => "Annotated"}
-            }
-          }
+          text_block("Fix this"),
+          annotation_block("ann-full", "H1", "/src/Hero.tsx", 30, 5,
+            component_name: "Hero",
+            css_classes: "hero-title text-xl",
+            nearby_text: "Welcome to our app",
+            bounding_box: %{"x" => 24.0, "y" => 176.0, "width" => 822.0, "height" => 42.0}
+          ),
+          screenshot_block("ann-full", "base64screenshotdata", "image/jpeg")
         ])
 
-      json = Jason.encode!(msg)
-      decoded = Jason.decode!(json)
+      decoded = msg |> Jason.encode!() |> Jason.decode!()
 
       assert decoded["type"] == "user_message"
-      assert decoded["messages"] == ["Hello"]
-
-      assert length(decoded["annotations"]) == 1
-      ann = hd(decoded["annotations"])
-      assert ann["annotation_id"] == "ann-1"
-      assert ann["tag_name"] == "div"
-      assert ann["file"] == "/path/to/file.tsx"
-      assert ann["line"] == 10
-      assert ann["column"] == 5
-      # Nil fields are stripped from JSON
-      refute Map.has_key?(ann, "css_classes")
-      refute Map.has_key?(ann, "screenshot")
-    end
-
-    test "encodes UserMessage with fully-populated annotation (screenshot, bounding_box, enrichment)" do
-      # This test catches the bug where @derive Jason.Encoder was missing on Annotation.
-      # The annotation includes all enrichment fields that would be present in a real flow.
-      msg =
-        UserMessage.new([
-          %{"type" => "text", "text" => "Fix this"},
-          %{
-            "type" => "resource",
-            "resource" => %{
-              "_meta" => %{
-                "annotation" => true,
-                "annotation_index" => 0,
-                "annotation_id" => "ann-full",
-                "tag_name" => "H1",
-                "file" => "/src/Hero.tsx",
-                "line" => 30,
-                "column" => 5,
-                "component_name" => "Hero",
-                "css_classes" => "hero-title text-xl",
-                "nearby_text" => "Welcome to our app",
-                "bounding_box" => %{
-                  "x" => 24.0,
-                  "y" => 176.0,
-                  "width" => 822.0,
-                  "height" => 42.0
-                }
-              },
-              "resource" => %{
-                "uri" => "file:///src/Hero.tsx:30:5",
-                "text" => "Annotated element"
-              }
-            }
-          },
-          %{
-            "type" => "resource",
-            "resource" => %{
-              "_meta" => %{
-                "annotation_screenshot" => true,
-                "annotation_index" => 0,
-                "annotation_id" => "ann-full"
-              },
-              "resource" => %{
-                "uri" => "annotation://ann-full/screenshot",
-                "mimeType" => "image/jpeg",
-                "blob" => "base64screenshotdata"
-              }
-            }
-          }
-        ])
-
-      # This must not raise — it would crash with Protocol.UndefinedError
-      # if @derive Jason.Encoder is missing on Annotation
-      json = Jason.encode!(msg)
-      decoded = Jason.decode!(json)
-
-      assert decoded["type"] == "user_message"
-      assert length(decoded["annotations"]) == 1
-
-      ann = hd(decoded["annotations"])
+      assert decoded["messages"] == ["Fix this"]
+      assert [ann] = decoded["annotations"]
       assert ann["annotation_id"] == "ann-full"
       assert ann["tag_name"] == "H1"
       assert ann["css_classes"] == "hero-title text-xl"
@@ -940,10 +527,13 @@ defmodule FrontmanServer.Tasks.InteractionTest do
              }
 
       assert ann["screenshot"] == %{"blob" => "base64screenshotdata", "mime_type" => "image/jpeg"}
+
+      # Nil enrichment fields are stripped from JSON
+      refute Map.has_key?(ann, "comment")
     end
 
     test "encodes ToolCall to JSON" do
-      tool_call = %ToolCall{
+      tc = %ToolCall{
         id: "1",
         sequence: seq(),
         tool_call_id: "call_123",
@@ -952,8 +542,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
         timestamp: ~U[2025-01-01 00:00:00Z]
       }
 
-      json = Jason.encode!(tool_call)
-      decoded = Jason.decode!(json)
+      decoded = tc |> Jason.encode!() |> Jason.decode!()
 
       assert decoded["type"] == "tool_call"
       assert decoded["tool_name"] == "calculator"
@@ -961,7 +550,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
     end
 
     test "encodes ToolResult to JSON" do
-      tool_result = %ToolResult{
+      tr = %ToolResult{
         id: "1",
         sequence: seq(),
         tool_call_id: "call_123",
@@ -971,8 +560,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
         timestamp: ~U[2025-01-01 00:00:00Z]
       }
 
-      json = Jason.encode!(tool_result)
-      decoded = Jason.decode!(json)
+      decoded = tr |> Jason.encode!() |> Jason.decode!()
 
       assert decoded["type"] == "tool_result"
       assert decoded["result"] == 42
