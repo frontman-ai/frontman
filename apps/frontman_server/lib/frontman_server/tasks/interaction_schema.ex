@@ -73,8 +73,8 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
   @spec generate_sequence() :: integer()
   def generate_sequence do
     unix_s = DateTime.utc_now() |> DateTime.to_unix(:second)
-    tiebreaker = rem(System.unique_integer([:monotonic, :positive]), @tiebreaker_range)
-    unix_s * @tiebreaker_range + tiebreaker
+    tiebreaker = System.unique_integer([:monotonic, :positive])
+    unix_s * @tiebreaker_range + rem(tiebreaker, @tiebreaker_range)
   end
 
   # Query helpers
