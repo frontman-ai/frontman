@@ -60,6 +60,13 @@ let resolveFrom = (dir: string, moduleId: string): option<string> => {
   }
 }
 
+// Partial package.json schema — only the fields we need to check for next.
+@schema
+type packageJsonDeps = {
+  dependencies: option<Dict.t<string>>,
+  devDependencies: option<Dict.t<string>>,
+}
+
 // Check if this project declares next as a direct dependency.
 // Prevents false detection in monorepo sibling workspaces where next
 // is resolvable via hoisted node_modules but belongs to a different workspace.
@@ -69,17 +76,12 @@ let hasNextDependency = async (projectDir: string): bool => {
   | None => false
   | Some(content) =>
     try {
-      let json = JSON.parseOrThrow(content)
-      switch json->JSON.Decode.object {
-      | None => false
-      | Some(obj) =>
-        let checkDeps = (key: string) =>
-          obj
-          ->Dict.get(key)
-          ->Option.flatMap(JSON.Decode.object)
-          ->Option.mapOr(false, deps => deps->Dict.get("next")->Option.isSome)
-        checkDeps("dependencies") || checkDeps("devDependencies")
-      }
+      let pkg = S.parseJsonStringOrThrow(content, packageJsonDepsSchema)
+      let hasDep =
+        pkg.dependencies->Option.mapOr(false, deps => deps->Dict.get("next")->Option.isSome)
+      let hasDevDep =
+        pkg.devDependencies->Option.mapOr(false, deps => deps->Dict.get("next")->Option.isSome)
+      hasDep || hasDevDep
     } catch {
     | _ => false
     }
