@@ -5,6 +5,12 @@ module Path = Bindings.Path
 module Process = Bindings.Process
 module FsUtils = FrontmanAiFrontmanCore.FrontmanCore__FsUtils
 
+// Node.js module resolution — handles monorepo hoisting, pnpm virtual store,
+// Yarn PnP, and all standard node_modules layouts.
+type nodeRequire = {resolve: string => string}
+@module("node:module")
+external createRequire: string => nodeRequire = "createRequire"
+
 type nextVersion = {
   major: int,
   minor: int,
@@ -42,32 +48,83 @@ let readFile = async (path: string): option<string> => {
   }
 }
 
-// Detect Next.js version from node_modules
-let detectNextVersion = async (projectDir: string): option<nextVersion> => {
-  let nextPkgPath = Path.join([projectDir, "node_modules", "next", "package.json"])
+// Resolve a module from a given directory using Node.js module resolution.
+// Handles monorepo hoisting (Yarn/npm/pnpm workspaces), symlinks, and
+// non-standard layouts like pnpm's virtual store.
+let resolveFrom = (dir: string, moduleId: string): option<string> => {
+  try {
+    let req = createRequire(Path.join([dir, "package.json"]))
+    Some(req.resolve(moduleId))
+  } catch {
+  | _ => None
+  }
+}
 
-  switch await readFile(nextPkgPath) {
-  | None => None
+// Check if this project declares next as a direct dependency.
+// Prevents false detection in monorepo sibling workspaces where next
+// is resolvable via hoisted node_modules but belongs to a different workspace.
+let hasNextDependency = async (projectDir: string): bool => {
+  let pkgPath = Path.join([projectDir, "package.json"])
+  switch await readFile(pkgPath) {
+  | None => false
   | Some(content) =>
     try {
       let json = JSON.parseOrThrow(content)
-      switch json->JSON.Decode.object->Option.flatMap(obj => obj->Dict.get("version")) {
-      | Some(JSON.String(version)) =>
-        // Parse version like "15.0.0" or "16.0.0-canary.1"
-        let parts = version->String.split(".")
-        switch (parts->Array.get(0), parts->Array.get(1)) {
-        | (Some(majorStr), Some(minorStr)) =>
-          let major = majorStr->Int.fromString->Option.getOr(0)
-          // Handle minor with potential suffixes like "0-canary"
-          let minorClean = minorStr->String.split("-")->Array.get(0)->Option.getOr("0")
-          let minor = minorClean->Int.fromString->Option.getOr(0)
-          Some({major, minor, raw: version})
-        | _ => None
-        }
-      | _ => None
+      switch json->JSON.Decode.object {
+      | None => false
+      | Some(obj) =>
+        let checkDeps = (key: string) =>
+          obj
+          ->Dict.get(key)
+          ->Option.flatMap(JSON.Decode.object)
+          ->Option.mapOr(false, deps => deps->Dict.get("next")->Option.isSome)
+        checkDeps("dependencies") || checkDeps("devDependencies")
       }
     } catch {
-    | _ => None
+    | _ => false
+    }
+  }
+}
+
+// Detect Next.js version using Node.js module resolution.
+// First verifies that next is declared in this project's package.json,
+// then uses createRequire to resolve the actual installed version.
+// This correctly finds Next.js when dependencies are hoisted to a parent
+// directory (monorepo workspaces) while avoiding false positives from
+// sibling workspaces.
+let detectNextVersion = async (projectDir: string): option<nextVersion> => {
+  let hasNext = await hasNextDependency(projectDir)
+  switch hasNext {
+  | false => None
+  | true =>
+    let nextPkgPath = resolveFrom(projectDir, "next/package.json")
+    switch nextPkgPath {
+    | None => None
+    | Some(resolvedPath) =>
+      switch await readFile(resolvedPath) {
+      | None => None
+      | Some(content) =>
+        try {
+          let json = JSON.parseOrThrow(content)
+          switch json->JSON.Decode.object->Option.flatMap(obj => obj->Dict.get("version")) {
+          | Some(JSON.String(version)) =>
+            // Parse version like "15.0.0" or "16.0.0-canary.1"
+            let parts = version->String.split(".")
+            switch (parts->Array.get(0), parts->Array.get(1)) {
+            | (Some(majorStr), Some(minorStr)) =>
+              let major = majorStr->Int.fromString->Option.getOr(0)
+              // Handle minor with potential suffixes like "0-canary"
+              let minorClean = minorStr->String.split("-")->Array.get(0)->Option.getOr("0")
+              let minor = minorClean->Int.fromString->Option.getOr(0)
+              Some({major, minor, raw: version})
+            | _ => None
+            }
+          | _ => None
+          }
+        } catch {
+        | _ => None
+        }
+      }
     }
   }
 }
@@ -182,7 +239,7 @@ let detect = async (projectDir: string): result<projectInfo, string> => {
 
     if nextVersion->Option.isNone {
       Error(
-        "Could not find Next.js in node_modules. Please run 'npm install' first or verify this is a Next.js project.",
+        "Could not find Next.js. Please ensure dependencies are installed (run your package manager's install command) and verify this is a Next.js project.",
       )
     } else {
       // Detect existing files

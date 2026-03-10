@@ -13,8 +13,6 @@ import { execSync } from "node:child_process";
 import { resolve } from "node:path";
 import {
   existsSync,
-  symlinkSync,
-  rmSync,
   writeFileSync,
 } from "node:fs";
 
@@ -25,9 +23,9 @@ const FRONTMAN_SERVER = "localhost:4002";
  * Run the Frontman Next.js installer on the fixture project.
  * Creates middleware.ts and instrumentation.ts from templates.
  *
- * A temporary node_modules symlink is needed because the installer's
- * detect code reads `<projectDir>/node_modules/next/package.json` directly
- * (doesn't walk up), but Yarn hoists all deps to the root node_modules.
+ * The installer uses Node.js module resolution (createRequire) to find
+ * next/package.json, so it handles monorepo hoisting automatically —
+ * no symlink workaround needed.
  */
 export function installNextjs(): void {
   const fixtureDir = resolve(ROOT, "test/e2e/fixtures/nextjs");
@@ -38,29 +36,11 @@ export function installNextjs(): void {
     );
   }
 
-  // Create temp symlink so installer's detect code finds node_modules/next/
-  const fixtureNm = resolve(fixtureDir, "node_modules");
-  const rootNm = resolve(ROOT, "node_modules");
-  const needsSymlink = !existsSync(fixtureNm);
-
-  if (needsSymlink) {
-    symlinkSync(rootNm, fixtureNm);
-    console.log("  [e2e] Created temp node_modules symlink for installer");
-  }
-
-  try {
-    console.log("  [e2e] Running Frontman Next.js installer...");
-    execSync(
-      `${process.execPath} ${cli} install --skip-deps --server ${FRONTMAN_SERVER}`,
-      { cwd: fixtureDir, stdio: "inherit" },
-    );
-  } finally {
-    // Remove temp symlink — Node.js resolution walks up to root node_modules anyway
-    if (needsSymlink) {
-      rmSync(fixtureNm, { recursive: true });
-      console.log("  [e2e] Removed temp node_modules symlink");
-    }
-  }
+  console.log("  [e2e] Running Frontman Next.js installer...");
+  execSync(
+    `${process.execPath} ${cli} install --skip-deps --server ${FRONTMAN_SERVER}`,
+    { cwd: fixtureDir, stdio: "inherit" },
+  );
 }
 
 /**
