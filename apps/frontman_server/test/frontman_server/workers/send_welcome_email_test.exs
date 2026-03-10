@@ -39,7 +39,7 @@ defmodule FrontmanServer.Workers.SendWelcomeEmailTest do
       end)
     end
 
-    test "welcome email is sent from danni@frontman.ai" do
+    test "welcome email is sent from danni@frontman.sh" do
       user = AccountsFixtures.user_fixture()
 
       # Drain fixture emails
@@ -49,7 +49,7 @@ defmodule FrontmanServer.Workers.SendWelcomeEmailTest do
 
       assert_email_sent(fn email ->
         assert email.subject == "Welcome to Frontman!"
-        assert email.from == {"Danni from Frontman", "danni@frontman.ai"}
+        assert email.from == {"Danni from Frontman", "danni@frontman.sh"}
       end)
     end
 

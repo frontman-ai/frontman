@@ -8,7 +8,7 @@ defmodule FrontmanServer.Accounts.UserNotifier do
   alias FrontmanServer.Accounts.User
   alias FrontmanServer.Mailer
 
-  @from {"Danni from Frontman", "danni@frontman.ai"}
+  @from {"Danni from Frontman", "danni@frontman.sh"}
 
   defp html_escape(text) do
     text
