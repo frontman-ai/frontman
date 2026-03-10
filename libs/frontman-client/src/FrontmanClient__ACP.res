@@ -368,8 +368,15 @@ let sendPrompt = async (
 ): result<Types.promptResult, string> => {
   // Build prompt array starting with the text block
   let textBlock: Types.contentBlock = TextContent({text, _meta: None, annotations: None})
+  // Workaround for Sury bug in jsonableValidation (Sury.res.mjs line 1304):
+  // reverseConvertToJsonOrThrow rejects S.option fields inside S.union object arms
+  // because it passes the union as parent instead of the enclosing object when walking
+  // properties, causing the undefined check to fail with "not valid JSON".
+  // reverseConvertOrThrow performs the same conversion without the broken pre-check.
+  // Obj.magic is safe here: the output is structurally JSON (objects, strings, arrays)
+  // with absent keys for None values — reverseConvertOrThrow just returns unknown.
   let allBlocks = Array.concat([textBlock], additionalBlocks)->Array.map(block =>
-    block->S.reverseConvertToJsonOrThrow(Types.contentBlockSchema)
+    (block->S.reverseConvertOrThrow(Types.contentBlockSchema): unknown)->Obj.magic
   )
 
   await Protocol.sendPrompt(
