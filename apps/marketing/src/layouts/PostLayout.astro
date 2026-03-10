@@ -1,6 +1,6 @@
 ---
 // Imports
-const { frontmatter } = Astro.props
+const { frontmatter, body } = Astro.props
 
 //Layout Components
 import Layout from './Layout.astro'
@@ -15,18 +15,32 @@ const SEO = {
 	description: `${frontmatter.description}`
 }
 
+// Dates
+const pubDateISO = frontmatter.pubDate instanceof Date ? frontmatter.pubDate.toISOString() : frontmatter.pubDate
+const updatedDateISO = frontmatter.updatedDate instanceof Date ? frontmatter.updatedDate.toISOString() : frontmatter.updatedDate
+
+// Word count from markdown body (strip markdown syntax, count words)
+const wordCount = body
+	? body.replace(/```[\s\S]*?```/g, '').replace(/[#*_\[\]()>|`~-]/g, '').split(/\s+/).filter(Boolean).length
+	: undefined
+
 // BlogPosting JSON-LD
 const blogPostJsonLd = {
 	"@context": "https://schema.org",
 	"@type": "BlogPosting",
 	"headline": frontmatter.title,
 	"description": frontmatter.description,
-	"datePublished": frontmatter.pubDate instanceof Date ? frontmatter.pubDate.toISOString() : frontmatter.pubDate,
+	"datePublished": pubDateISO,
+	...(updatedDateISO ? { "dateModified": updatedDateISO } : { "dateModified": pubDateISO }),
 	"author": {
 		"@type": "Person",
-		"name": frontmatter.author
+		"name": frontmatter.author,
+		"url": "https://frontman.sh/about/"
 	},
 	...(frontmatter.image ? { "image": `https://frontman.sh${frontmatter.image}` } : {}),
+	...(wordCount ? { "wordCount": wordCount } : {}),
+	...(frontmatter.tags?.length ? { "keywords": frontmatter.tags.join(', ') } : {}),
+	...(frontmatter.tags?.[0] ? { "articleSection": frontmatter.tags[0] } : {}),
 	"publisher": {
 		"@type": "Organization",
 		"name": "Frontman",
@@ -80,7 +94,8 @@ const videoJsonLd = frontmatter.video
 	description={SEO.description}
 	ogImage={frontmatter.image}
 	article={{
-		publishedTime: frontmatter.pubDate instanceof Date ? frontmatter.pubDate.toISOString() : frontmatter.pubDate,
+		publishedTime: pubDateISO,
+		modifiedTime: updatedDateISO || pubDateISO,
 		tags: frontmatter.tags
 	}}
 >
@@ -91,11 +106,8 @@ const videoJsonLd = frontmatter.video
 		tags={frontmatter.tags}
 		title={frontmatter.title}
 		author={frontmatter.author}
-		publishDate={frontmatter.pubDate.toLocaleDateString('en-US', {
-			year: 'numeric',
-			month: 'long',
-			day: 'numeric'
-		})}
+		pubDate={frontmatter.pubDate}
+		updatedDate={frontmatter.updatedDate}
 	/>
 
 	<div class="post-body basic-text basic-text--lg">

@@ -2,9 +2,10 @@
 title: 'Frontman Now Supports GPT-5.4'
 pubDate: 2026-03-06T12:00:00Z
 description: 'Use OpenAI GPT-5.4 with 1M context, native computer-use, and frontier coding capabilities directly in Frontman.'
-author: 'Frontman Team'
+author: 'Danni Friedland'
 image: '/blog/gpt-5.4-support-cover.png'
 tags: ['announcement', 'models']
+updatedDate: 2026-03-10T00:00:00Z
 ---
 
 OpenAI released GPT-5.4 yesterday. Today, you can use it in Frontman.

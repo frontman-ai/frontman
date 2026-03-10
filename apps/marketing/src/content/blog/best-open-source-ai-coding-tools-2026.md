@@ -2,9 +2,10 @@
 title: 'Best Open-Source AI Coding Tools in 2026'
 pubDate: 2026-03-03T10:00:00Z
 description: 'Every major open-source AI coding tool compared: Aider, Cline, OpenHands, Tabby, Goose, Continue, Roo Code, Frontman, Stagewise, and more.'
-author: 'Frontman Team'
+author: 'Danni Friedland'
 image: '/blog/best-open-source-ai-coding-tools-2026-cover.png'
 tags: ['comparison', 'ai', 'developer-tools', 'open-source']
+updatedDate: 2026-03-10T00:00:00Z
 faq:
   - question: 'What are the best open-source AI coding tools in 2026?'
     answer: 'The most popular open-source AI coding tools by GitHub stars are OpenHands (68k stars, MIT), Cline (58k, Apache 2.0), Aider (41k, Apache 2.0), Tabby (33k, Apache 2.0), Goose (32k, Apache 2.0), Continue (31k, Apache 2.0), Roo Code (22k, Apache 2.0), and bolt.diy (19k, MIT). Each targets a different workflow: Aider and Goose are CLI-based, Cline and Roo Code are VS Code extensions, Tabby is self-hosted autocomplete, and OpenHands is a full agent platform.'

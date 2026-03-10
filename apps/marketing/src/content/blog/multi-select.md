@@ -2,9 +2,10 @@
 title: 'Multi-Select: Stop Fixing UI One Element at a Time'
 pubDate: 2026-02-27T12:00:00Z
 description: 'Select multiple elements in your running app, give each one instructions, and Frontman edits them all in one shot. Batch your UI fixes instead of context-switching for every nitpick.'
-author: 'Frontman Team'
+author: 'Danni Friedland'
 image: '/blog/multi-select-cover.png'
 tags: ['announcement', 'developer-tools', 'ai']
+updatedDate: 2026-03-10T00:00:00Z
 video:
   name: 'Frontman Multi-Select Demo'
   description: 'See how Frontman multi-select lets you Shift-click multiple UI elements in your running app, add instructions to each, and fix them all in one shot with real source code edits and hot reload.'

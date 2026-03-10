@@ -2,9 +2,10 @@
 title: 'Lighthouse Audits Without Leaving the Browser'
 pubDate: 2026-02-21T05:00:00Z
 description: 'Frontman now runs Google Lighthouse audits as a built-in tool. Your agent sees the scores, reads the issues, and fixes them — all inside the browser you are already working in.'
-author: 'Frontman Team'
+author: 'Danni Friedland'
 image: '/blog/lighthouse-audits-cover.png'
 tags: ['performance', 'ai', 'developer-tools']
+updatedDate: 2026-03-10T00:00:00Z
 ---
 
 You run a Lighthouse audit in Chrome DevTools. You get a wall of scores and recommendations. You copy the URL of your failing resource, switch to your editor, search for the right file, try to map the Lighthouse recommendation to an actual code change, switch back to the browser, re-run the audit, and check if the score moved. Repeat for each issue.

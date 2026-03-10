@@ -7,9 +7,15 @@ import Row from '../components/ui/Row.astro'
 import Col from '../components/ui/Col.astro'
 import Breadcrumbs from '../components/ui/Breadcrumbs.astro'
 
+// Build a longer meta description when the frontmatter description is too short (< 80 chars)
+const baseDescription = frontmatter.description
+const seoDescription = baseDescription.length < 80
+	? `${baseDescription} Learn what ${frontmatter.title} means, why it matters for frontend development, and how it applies to modern web applications.`
+	: baseDescription
+
 const SEO = {
 	title: `${frontmatter.title} | Frontman Glossary`,
-	description: frontmatter.description
+	description: seoDescription
 }
 
 const jsonLd = {

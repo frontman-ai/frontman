@@ -2,9 +2,10 @@
 title: 'AI Coding Tools and the Runtime Context Gap'
 pubDate: 2026-02-20T05:00:00Z
 description: 'AI coding tools read your source files but never see the running application. Here is what that means technically — on both the client and server side — and which tools are building the bridge.'
-author: 'Frontman Team'
+author: 'Danni Friedland'
 image: '/blog/runtime-context-gap-cover.png'
 tags: ['ai', 'developer-tools']
+updatedDate: 2026-03-10T00:00:00Z
 ---
 
 Current AI coding tools operate on source files. They read your code, predict what the application does, and generate edits. This works well for pure logic — functions with clear inputs and outputs, refactoring, type-level changes.

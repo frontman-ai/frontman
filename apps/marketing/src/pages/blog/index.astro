@@ -18,7 +18,7 @@ import { getCollection } from 'astro:content'
 const SEO = {
 	title: 'Frontman | Latest Frontman News and updates',
 	description:
-		"Explore Frontman's latest news designed to enhance productivity, ensure top-notch security, and integrate seamlessly with your favorite tools. Join thousands of satisfied users and transform your workflow with Frontman today!"
+		'Technical articles on browser-aware AI coding, runtime context, and frontend development from the Frontman team.'
 }
 // - Page Header
 const header = {
@@ -27,9 +27,32 @@ const header = {
 }
 
 const allPosts = await getCollection('blog')
+
+// Sort posts by date descending for the ItemList
+const sortedPosts = [...allPosts].sort((a, b) =>
+	new Date(b.data.pubDate).getTime() - new Date(a.data.pubDate).getTime()
+)
+
+// CollectionPage + ItemList JSON-LD
+const collectionJsonLd = {
+	"@context": "https://schema.org",
+	"@type": "CollectionPage",
+	"name": "Frontman Blog",
+	"description": SEO.description,
+	"url": "https://frontman.sh/blog/",
+	"mainEntity": {
+		"@type": "ItemList",
+		"itemListElement": sortedPosts.map((post, index) => ({
+			"@type": "ListItem",
+			"position": index + 1,
+			"url": `https://frontman.sh/blog/${post.id}/`
+		}))
+	}
+}
 ---
 
 <Layout title={SEO.title} description={SEO.description}>
+	<script is:inline type="application/ld+json" set:html={JSON.stringify(collectionJsonLd)} />
 	<Hero title={header.title} text={header.text} />
 	<BlogPosts data={allPosts} />
 </Layout>

@@ -2,9 +2,10 @@
 title: 'Frontman vs. Cursor vs. Claude Code'
 pubDate: 2026-02-14T05:00:00Z
 description: 'File-level agents like Cursor and Claude Code vs. browser-based editing with Frontman. Different tools for different problems.'
-author: 'Frontman Team'
+author: 'Danni Friedland'
 image: '/blog/frontman-vs-cursor-vs-claude-code-cover.png'
 tags: ['comparison', 'ai']
+updatedDate: 2026-03-10T00:00:00Z
 faq:
   - question: 'What is the difference between Frontman, Cursor, and Claude Code?'
     answer: 'Cursor and Claude Code are file-level agents that read source code, run terminal commands, and reason about multi-file changes. They excel at backend work, refactoring, and complex logic. Frontman is a browser-level agent that hooks into your running app, sees the live DOM and computed styles, and edits visual frontend code by tracing clicked elements back to source files. They solve different problems — use file-level agents for code reasoning, and Frontman for visual work.'

@@ -2,9 +2,10 @@
 title: 'AI Coding Tools That Actually See Your Browser (2026)'
 pubDate: 2026-02-23T06:00:00Z
 description: 'Honest breakdown of browser-aware AI coding tools: Frontman, Stagewise, Tidewave, Chrome DevTools MCP, and Onlook. Architecture, pricing, and tradeoffs compared.'
-author: 'Frontman Team'
+author: 'Danni Friedland'
 image: '/blog/browser-aware-ai-tools-2026-cover.png'
 tags: ['comparison', 'ai', 'developer-tools']
+updatedDate: 2026-03-10T00:00:00Z
 ---
 
 There's a new category of AI coding tools emerging: ones that connect to your running application instead of just reading source files. The pitch is the same across all of them — give the AI runtime context so it stops guessing about what your app actually looks like and does.

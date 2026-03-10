@@ -2,9 +2,10 @@
 title: 'Add Runtime Context to Your AI Workflow (Next.js)'
 pubDate: 2026-02-23T07:00:00Z
 description: 'Step-by-step: install Frontman in a Next.js project, connect your AI key, and fix a CSS layout bug by clicking the broken element instead of describing it.'
-author: 'Frontman Team'
+author: 'Danni Friedland'
 image: '/blog/tutorial-nextjs-runtime-context-cover.png'
 tags: ['tutorial', 'getting-started', 'ai']
+updatedDate: 2026-03-10T00:00:00Z
 ---
 
 This is a practical walkthrough. We'll take a Next.js app with a layout bug, install Frontman, and fix the bug by clicking the broken element in the browser instead of describing it to an AI that can't see it.

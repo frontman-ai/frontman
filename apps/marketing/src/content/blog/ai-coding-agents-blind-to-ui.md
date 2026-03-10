@@ -2,9 +2,10 @@
 title: 'Why AI Coding Agents Are Blind to Your UI'
 pubDate: 2026-02-18T05:00:00Z
 description: 'Cursor, Claude Code, and Copilot read your files but never see the rendered result. Here is why that matters and how framework-aware AI changes everything.'
-author: 'Frontman Team'
+author: 'Danni Friedland'
 image: '/blog/ai-coding-agents-blind-to-ui-cover.png'
 tags: ['ai', 'developer-tools']
+updatedDate: 2026-03-10T00:00:00Z
 faq:
   - question: "Why can't AI coding agents see the UI?"
     answer: >-

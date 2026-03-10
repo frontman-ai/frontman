@@ -2,9 +2,10 @@
 title: 'How Frontman Keeps Your Code Safe'
 pubDate: 2026-02-17T05:00:00Z
 description: 'Frontman runs only in development, never touches production, and every change produces a reviewable code diff. Here is our security model.'
-author: 'Frontman Team'
+author: 'Danni Friedland'
 image: '/blog/security-cover.png'
 tags: ['security', 'open-source']
+updatedDate: 2026-03-10T00:00:00Z
 faq:
   - question: 'Is Frontman safe to use?'
     answer: 'Yes. Frontman runs exclusively in your local development environment as a dev dependency. It never ships to production — the code is removed at compile time by tree-shaking. Every change produces a standard git diff that goes through your normal PR review process. It cannot deploy code, run arbitrary shell commands, or modify files outside your project directory.'

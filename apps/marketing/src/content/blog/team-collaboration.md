@@ -2,9 +2,10 @@
 title: 'Breaking the Wall Between Design, Product, and Engineering'
 pubDate: 2026-02-16T05:00:00Z
 description: 'Every pixel adjustment routes through a developer. Frontman lets designers and PMs make UI changes directly, with code review.'
-author: 'Frontman Team'
+author: 'Danni Friedland'
 image: '/blog/team-collaboration-cover.png'
 tags: ['collaboration', 'workflow']
+updatedDate: 2026-03-10T00:00:00Z
 ---
 
 Here is how a one-line CSS change actually ships at most companies:

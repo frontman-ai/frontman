@@ -6,7 +6,8 @@
 // - tags: An array of tags for the post
 // - title: The title of the section (usually the title of the post)
 // - author: The author of the post
-// - publishDate: The publish date of the post
+// - pubDate: The publish date of the post (Date object)
+// - updatedDate: Optional last-updated date (Date object)
 
 // Components
 // - Layout
@@ -22,9 +23,18 @@ type Props = {
 	tags?: any
 	title: string
 	author?: string
-	publishDate?: string
+	pubDate?: Date
+	updatedDate?: Date
 }
-const { tags, title, author, publishDate } = Astro.props
+const { tags, title, author, pubDate, updatedDate } = Astro.props
+
+const formatDate = (date: Date) =>
+	date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+
+const publishDateFormatted = pubDate ? formatDate(pubDate) : undefined
+const publishDateISO = pubDate ? pubDate.toISOString() : undefined
+const updatedDateFormatted = updatedDate ? formatDate(updatedDate) : undefined
+const updatedDateISO = updatedDate ? updatedDate.toISOString() : undefined
 ---
 
 <Section id="post-intro" classes="bg-neutral-50 dark:bg-neutral-900">
@@ -35,15 +45,24 @@ const { tags, title, author, publishDate } = Astro.props
 				<h1 class="post-header__title">
 					{title}
 				</h1>
-				{
-					author ? (
-						<p class="page-header__text">
-							Written by, {author} {publishDate && 'on ' + publishDate}
-						</p>
-					) : (
-						publishDate && <p class="page-header__text">Published on, {publishDate}</p>
-					)
-				}
+			{
+				author ? (
+					<p class="page-header__text">
+						Written by <a href="/about/" class="author-link">{author}</a>{publishDateISO && (
+							<> on <time datetime={publishDateISO}>{publishDateFormatted}</time></>
+						)}
+					</p>
+				) : (
+					publishDateISO && <p class="page-header__text">Published on <time datetime={publishDateISO}>{publishDateFormatted}</time></p>
+				)
+			}
+			{
+				updatedDateISO && (
+					<p class="page-header__text page-header__updated">
+						Last updated: <time datetime={updatedDateISO}>{updatedDateFormatted}</time>
+					</p>
+				)
+			}
 			</header>
 			{
 				tags && (
@@ -64,6 +83,12 @@ const { tags, title, author, publishDate } = Astro.props
 	}
 	.page-header__text {
 		@apply text-lg leading-relaxed;
+	}
+	.page-header__updated {
+		@apply text-base text-neutral-500 dark:text-neutral-400 mt-1;
+	}
+	.author-link {
+		@apply text-primary-600 dark:text-primary-400 no-underline hover:underline;
 	}
 	.post-header__tags {
 		@apply mt-6 flex flex-row items-center justify-center gap-2 pb-2;

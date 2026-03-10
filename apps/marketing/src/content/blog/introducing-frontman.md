@@ -2,9 +2,10 @@
 title: 'Frontman: The AI Agent That Sees Your Browser'
 pubDate: 2026-02-18T05:00:00Z
 description: 'Frontman is the open-source AI agent that hooks into your framework, sees your live DOM, and edits your actual source code. No guessing, no blind edits.'
-author: 'Frontman Team'
+author: 'Danni Friedland'
 image: '/blog/introducing-frontman-cover.png'
 tags: ['announcement', 'open-source']
+updatedDate: 2026-03-10T00:00:00Z
 ---
 
 You tell Cursor to fix the spacing on your hero section. It reads the file, picks a Tailwind class that looks right, and saves. You switch to the browser. Wrong element. You switch back, add more context — the exact file path, the line number, maybe a hint about the component tree. The agent tries again. You switch to the browser again. Closer. One more round.

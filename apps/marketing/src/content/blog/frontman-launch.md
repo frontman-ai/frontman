@@ -2,9 +2,10 @@
 title: 'I Built an AI Coding Agent That Lives in Your Browser'
 pubDate: 2026-02-23T05:00:00Z
 description: 'Frontman hooks into your dev server as middleware and sees the live DOM, styles, routes, and server logs. Click any element, describe changes in plain English. Open source, BYOK, no prompt limits.'
-author: 'Frontman Team'
+author: 'Danni Friedland'
 image: '/blog/frontman-launch-cover.png'
 tags: ['announcement', 'open-source', 'ai', 'developer-tools']
+updatedDate: 2026-03-10T00:00:00Z
 ---
 
 Every AI coding tool I've used has the same blind spot: it edits source files without ever seeing the running application. You describe a layout bug. The AI reads your JSX, guesses what the DOM looks like, and generates a fix. You switch to the browser. Wrong. The AI didn't know about the inherited padding, the conditional render that adds a third child, or the CSS variable that resolves differently at this breakpoint. Switch back, describe it again. Repeat.
