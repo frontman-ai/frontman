@@ -1,10 +1,12 @@
 // Frontman Dev Toolbar App
 //
 // Clicking the Frontman icon in the Astro dev toolbar navigates to
-// {currentPage}/<basePath> using suffix-based routing, so the preview
-// loads the page the user was already on.
+// {currentPage}/<basePath>/ using suffix-based routing, so the preview
+// loads the page the user was already on. The trailing slash is always
+// included to match Astro's trailingSlash: "always" default and avoid
+// redirect loops or 404s from the trailing-slash middleware.
 //
-// NOTE: The URL construction logic here (trailing-slash strip, suffix
+// NOTE: The URL construction logic here (trailing-slash ensure, suffix
 // append, already-at-path check) is intentionally duplicated from
 // Client__BrowserUrl.syncBrowserUrl in libs/client. The two files
 // cannot share code because frontman-core is server-only and the client
@@ -31,19 +33,19 @@ let app: toolbarAppConfig = {
       switch state {
       | true =>
         let basePath = _getBasePath()
-        // Strip trailing slash to normalize, matching BrowserUrl.syncBrowserUrl.
-        let pathname =
-          WebAPI.Global.location.pathname->String.replaceRegExp(%re("/\/$/"), "")
-        // If already inside /<basePath>, stay put. Otherwise append it.
+        // Normalize: ensure pathname always ends with a trailing slash so the
+        // constructed URL matches Astro's trailingSlash: "always" expectation.
+        let rawPathname = WebAPI.Global.location.pathname
+        let pathname = switch rawPathname->String.endsWith("/") {
+        | true => rawPathname
+        | false => rawPathname ++ "/"
+        }
+        // If already inside /<basePath>/, stay put. Otherwise append it.
         let alreadyInFrontman =
-          pathname == `/${basePath}` || pathname->String.endsWith(`/${basePath}`)
+          pathname == `/${basePath}/` || pathname->String.endsWith(`/${basePath}/`)
         let url = switch alreadyInFrontman {
         | true => pathname
-        | false =>
-          switch pathname {
-          | "" => `/${basePath}`
-          | p => `${p}/${basePath}`
-          }
+        | false => `${pathname}${basePath}/`
         }
         WebAPI.Global.window->WebAPI.Window.location->WebAPI.Location.assign(url)
         app->toggleState({state: false})

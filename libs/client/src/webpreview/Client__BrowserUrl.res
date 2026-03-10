@@ -7,11 +7,11 @@
 // The basePath is read from window.__frontmanRuntime.basePath (injected by
 // the server's HTML shell). Falls back to "frontman" if not present.
 //
-// NOTE: The URL construction logic in syncBrowserUrl (trailing-slash strip,
-// suffix append) is intentionally duplicated in
-// FrontmanAstro__ToolbarApp in libs/frontman-astro. The two files cannot
-// share code because frontman-core is server-only. Keep the two
-// implementations aligned — if you change one, update the other.
+// NOTE: The URL construction logic in syncBrowserUrl (suffix append with
+// trailing slash) is intentionally duplicated in FrontmanAstro__ToolbarApp
+// in libs/frontman-astro. The two files cannot share code because
+// frontman-core is server-only. Keep the two implementations aligned —
+// if you change one, update the other.
 
 // Read basePath from runtime config. Lazy — reads once on first access.
 // Falls back to "frontman" if runtime config is unavailable (e.g. in tests).
@@ -43,14 +43,18 @@ let suffix = () => `/${_getBasePath()}`
 let _escapeRegex = s =>
   s->String.replaceRegExp(%re("/[.*+?^${}()|[\\]\\\\]/g"), "\\$&")
 
-// Strip trailing /<basePath> segments (including trailing slash) from a pathname.
-// Uses a regex to replace one or more repeated suffix segments in one pass.
+// Strip trailing /<basePath> segments from a pathname, preserving a trailing
+// slash so the resulting URL matches Astro's trailingSlash: "always" default.
 let stripSuffix = pathname => {
   let sfx = _getBasePath()->_escapeRegex
   let re = RegExp.fromString(`(\\/${sfx})+\\/?$`)
   switch pathname->String.replaceRegExp(re, "") {
   | "" => "/"
-  | p => p
+  | p =>
+    switch p->String.endsWith("/") {
+    | true => p
+    | false => p ++ "/"
+    }
   }
 }
 
@@ -115,8 +119,8 @@ let syncBrowserUrl = (~previewUrl) => {
   let basePath = _getBasePath()
   let pathname = WebAPI.URL.make(~url=previewUrl).pathname->String.replaceRegExp(%re("/\/$/"), "")
   let newPath = switch pathname {
-  | "" => `/${basePath}`
-  | p => `${p}/${basePath}`
+  | "" => `/${basePath}/`
+  | p => `${p}/${basePath}/`
   }
   switch WebAPI.Global.location.pathname == newPath {
   | true => ()

@@ -40,6 +40,8 @@ let isFrontmanRoute = (~pathname: string, ~basePath: string, ~method: string): b
 // Returns None if already canonical, Some(path) if a redirect is needed.
 // Only detects actual frontman-in-frontman nesting — does NOT strip legitimate
 // user URL segments that happen to match basePath.
+// All returned paths include a trailing slash to avoid an extra redirect from
+// frameworks with trailingSlash: "always" (e.g. Astro's default).
 //
 // Cases detected:
 //   prefixPath == basePath (e.g. "frontman" from /frontman/frontman)
@@ -49,7 +51,7 @@ let getCanonicalRedirect = (~prefixPath: string, ~basePath: string): option<stri
   let suffix = "/" ++ basePath
   // Exact match: prefix IS the basePath (e.g. /frontman/frontman -> prefix "frontman")
   switch prefixPath == basePath {
-  | true => Some("/" ++ basePath)
+  | true => Some("/" ++ basePath ++ "/")
   | false =>
     // Trailing nested suffix: strip one trailing /basePath from prefix
     switch prefixPath->String.endsWith(suffix) {
@@ -60,18 +62,18 @@ let getCanonicalRedirect = (~prefixPath: string, ~basePath: string): option<stri
       | p => p
       }
       let canonical = switch cleanPrefix {
-      | "" => "/" ++ basePath
-      | p => "/" ++ p ++ "/" ++ basePath
+      | "" => "/" ++ basePath ++ "/"
+      | p => "/" ++ p ++ "/" ++ basePath ++ "/"
       }
       Some(canonical)
     | false =>
       // Leading basePath/ prefix: strip leading basePath/ from prefix
       switch prefixPath->String.startsWith(basePath ++ "/") {
       | true =>
-        let rest = prefixPath->String.sliceToEnd(~start=basePath->String.length + 1)
+        let rest = prefixPath->String.slice(~start=basePath->String.length + 1, ~end=prefixPath->String.length)
         let canonical = switch rest {
-        | "" => "/" ++ basePath
-        | p => "/" ++ p ++ "/" ++ basePath
+        | "" => "/" ++ basePath ++ "/"
+        | p => "/" ++ p ++ "/" ++ basePath ++ "/"
         }
         Some(canonical)
       | false => None
@@ -81,6 +83,8 @@ let getCanonicalRedirect = (~prefixPath: string, ~basePath: string): option<stri
 }
 
 // Build entrypoint URL from request origin + prefix. Config override takes precedence.
+// Always includes a trailing slash so frameworks with trailingSlash: "always"
+// (e.g. Astro's default) don't redirect the iframe on load.
 let buildEntrypointUrl = (
   ~config: MiddlewareConfig.t,
   ~requestUrl: string,
@@ -93,7 +97,7 @@ let buildEntrypointUrl = (
     let origin = url.origin
     let pagePath = switch prefixPath {
     | "" => "/"
-    | p => "/" ++ p
+    | p => "/" ++ p ++ "/"
     }
     Some(origin ++ pagePath)
   }
