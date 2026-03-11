@@ -484,41 +484,21 @@ defmodule FrontmanServerWeb.TaskChannel do
       "Channel received agent_completed, pending_prompt_id=#{inspect(socket.assigns[:pending_prompt_id])}"
     )
 
-    # Translate domain event to ACP response
-    case socket.assigns[:pending_prompt_id] do
-      nil ->
-        Logger.warning("agent_completed but no pending_prompt_id - response not sent!")
-        {:noreply, socket}
+    handle_turn_ended(socket, ACP.stop_reason_end_turn())
+  end
 
-      id ->
-        response =
-          JsonRpc.success_response(id, ACP.build_prompt_result(ACP.stop_reason_end_turn()))
+  def handle_info(:agent_suspended, socket) do
+    Logger.info(
+      "Channel received agent_suspended for task #{socket.assigns.task_id} (waiting for user input)"
+    )
 
-        Logger.info("Pushing prompt response with id=#{id}")
-        push(socket, "acp:message", response)
-
-        socket = assign(socket, :pending_prompt_id, nil)
-
-        {:noreply, socket}
-    end
+    {:noreply, socket}
   end
 
   def handle_info(:agent_cancelled, socket) do
     Logger.info("Channel received agent_cancelled for task #{socket.assigns.task_id}")
 
-    # Resolve the pending prompt with stopReason: "cancelled"
-    case socket.assigns[:pending_prompt_id] do
-      nil ->
-        {:noreply, socket}
-
-      id ->
-        response =
-          JsonRpc.success_response(id, ACP.build_prompt_result(ACP.stop_reason_cancelled()))
-
-        push(socket, "acp:message", response)
-        socket = assign(socket, :pending_prompt_id, nil)
-        {:noreply, socket}
-    end
+    handle_turn_ended(socket, ACP.stop_reason_cancelled())
   end
 
   def handle_info({:tool_call_start, tool_call_id, tool_name}, socket) do
@@ -605,35 +585,61 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   def handle_info({:agent_error, message}, socket) do
     Logger.error("Agent error: #{message}")
-    task_id = socket.assigns.task_id
 
-    # Always send error as session/update notification so client can display it
-    error_notification =
-      JsonRpc.notification("session/update", %{
-        "sessionId" => task_id,
-        "update" => %{
-          "sessionUpdate" => "error",
-          "message" => message
-        }
-      })
-
-    push(socket, "acp:message", error_notification)
-
-    # Also send JSON-RPC error response if there's a pending prompt
-    case socket.assigns[:pending_prompt_id] do
-      nil ->
-        {:noreply, socket}
-
-      id ->
-        response = JsonRpc.error_response(id, -32_000, message)
-        push(socket, "acp:message", response)
-        socket = assign(socket, :pending_prompt_id, nil)
-        {:noreply, socket}
-    end
+    handle_turn_ended(socket, "error", error_message: message)
   end
 
   def handle_info(msg, _socket) do
     raise "Unhandled message in TaskChannel: #{inspect(msg)}"
+  end
+
+  # Unified handler for all "agent turn ended" domain events.
+  #
+  # Every turn-ending handler (agent_completed, agent_cancelled, agent_error)
+  # delegates here instead of reimplementing the same pending_prompt_id dispatch.
+  #
+  # The contract:
+  #   1. Always push a session/update notification so the client knows the turn
+  #      ended — regardless of whether a pending session/prompt RPC exists.
+  #   2. If a pending RPC exists, also resolve it (success or error response).
+  #   3. Clean up pending_prompt_id.
+  #
+  # This eliminates the bug class where a nil pending_prompt_id silently
+  # drops the turn-ended signal (e.g. after task switch + elicitation response).
+  defp handle_turn_ended(socket, stop_reason, opts \\ []) do
+    task_id = socket.assigns.task_id
+    error_message = Keyword.get(opts, :error_message)
+
+    # 1. Always notify — this is the canonical "turn ended" signal
+    notification =
+      case error_message do
+        nil -> ACP.build_agent_turn_complete_notification(task_id, stop_reason)
+        msg -> ACP.build_error_notification(task_id, msg)
+      end
+
+    push(socket, "acp:message", notification)
+
+    # 2. If there's a pending RPC, also resolve it
+    socket =
+      case socket.assigns[:pending_prompt_id] do
+        nil ->
+          Logger.info("Turn ended (#{stop_reason}) with no pending_prompt_id for task #{task_id}")
+
+          socket
+
+        prompt_id ->
+          response =
+            case error_message do
+              nil -> JsonRpc.success_response(prompt_id, ACP.build_prompt_result(stop_reason))
+              msg -> JsonRpc.error_response(prompt_id, -32_000, msg)
+            end
+
+          Logger.info("Resolving pending prompt #{prompt_id} with stop_reason=#{stop_reason}")
+          push(socket, "acp:message", response)
+          assign(socket, :pending_prompt_id, nil)
+      end
+
+    {:noreply, socket}
   end
 
   # Execute actions returned by the MCPInitializer state machine.

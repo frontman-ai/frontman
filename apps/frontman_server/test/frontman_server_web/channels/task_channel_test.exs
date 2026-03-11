@@ -371,6 +371,98 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     end
   end
 
+  describe "agent_completed without pending prompt (resume scenario)" do
+    setup %{scope: scope} do
+      task_id = Ecto.UUID.generate()
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
+
+      {:ok, _reply, socket} =
+        UserSocket
+        |> socket("user_id", %{scope: scope})
+        |> subscribe_and_join("task:#{task_id}", %{})
+
+      complete_mcp_handshake(socket)
+      {:ok, socket: socket, task_id: task_id}
+    end
+
+    test "sends agent_turn_complete notification when pending_prompt_id is nil", %{
+      socket: socket,
+      task_id: task_id
+    } do
+      # Simulate: execution was resumed after tool result (no pending prompt),
+      # then the agent completes. There's no JSON-RPC request to respond to.
+      Phoenix.PubSub.broadcast(
+        FrontmanServer.PubSub,
+        Tasks.topic(task_id),
+        :agent_completed
+      )
+
+      :sys.get_state(socket.channel_pid)
+
+      # Channel should NOT push a JSON-RPC response since there's no pending prompt
+      refute_push("acp:message", %{"id" => _, "result" => _})
+
+      # Channel SHOULD push an agent_turn_complete notification so the client
+      # can finalize the streaming message and reset its agent-running state.
+      assert_push("acp:message", %{
+        "jsonrpc" => "2.0",
+        "method" => "session/update",
+        "params" => %{
+          "sessionId" => ^task_id,
+          "update" => %{
+            "sessionUpdate" => "agent_turn_complete",
+            "stopReason" => "end_turn"
+          }
+        }
+      })
+
+      # Channel should still be alive
+      assert Process.alive?(socket.channel_pid)
+    end
+
+    test "does not interfere with subsequent prompts after nil completion", %{
+      socket: socket,
+      task_id: task_id
+    } do
+      # First: agent_completed with no pending prompt
+      Phoenix.PubSub.broadcast(
+        FrontmanServer.PubSub,
+        Tasks.topic(task_id),
+        :agent_completed
+      )
+
+      :sys.get_state(socket.channel_pid)
+
+      # Then: send a real prompt and complete it normally
+      push(socket, "acp:message", %{
+        "jsonrpc" => "2.0",
+        "id" => 50,
+        "method" => "session/prompt",
+        "params" => %{
+          "prompt" => %{
+            "messages" => [
+              %{"role" => "user", "content" => %{"type" => "text", "text" => "Next question"}}
+            ]
+          }
+        }
+      })
+
+      :sys.get_state(socket.channel_pid)
+
+      Phoenix.PubSub.broadcast(
+        FrontmanServer.PubSub,
+        Tasks.topic(task_id),
+        :agent_completed
+      )
+
+      assert_push("acp:message", %{
+        "jsonrpc" => "2.0",
+        "id" => 50,
+        "result" => %{"stopReason" => "end_turn"}
+      })
+    end
+  end
+
   describe "MCP tool call result extraction" do
     setup %{scope: scope} do
       task_id = Ecto.UUID.generate()

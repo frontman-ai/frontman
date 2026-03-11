@@ -134,6 +134,43 @@ defmodule AgentClientProtocol do
   end
 
   @doc """
+  Builds an agent_turn_complete session/update notification.
+
+  Sent when the agent finishes a turn that was resumed via elicitation response
+  (not via session/prompt), so there is no pending JSON-RPC request to respond to.
+  The client uses this to finalize the streaming message and reset the agent-running state.
+  """
+  def build_agent_turn_complete_notification(session_id, stop_reason) do
+    params = %{
+      "sessionId" => session_id,
+      "update" => %{
+        "sessionUpdate" => "agent_turn_complete",
+        "stopReason" => stop_reason
+      }
+    }
+
+    JsonRpc.notification("session/update", params)
+  end
+
+  @doc """
+  Builds an error session/update notification.
+
+  Sent when the agent encounters an error. Always delivered as a notification
+  so the client can display it regardless of whether a pending prompt exists.
+  """
+  def build_error_notification(session_id, message) do
+    params = %{
+      "sessionId" => session_id,
+      "update" => %{
+        "sessionUpdate" => "error",
+        "message" => message
+      }
+    }
+
+    JsonRpc.notification("session/update", params)
+  end
+
+  @doc """
   Builds a session/prompt response with stop reason.
   """
   def build_prompt_result(stop_reason) when stop_reason in @stop_reasons do
