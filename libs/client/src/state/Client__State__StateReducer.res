@@ -1124,12 +1124,8 @@ let handleEffect = (effect, state: state, dispatch) => {
           | Some(latest) =>
             // Only show banner when installed is strictly behind latest
             // (pre-release < release per semver). Unparseable → no banner.
-            switch (
-              FrontmanAiFrontmanCore.FrontmanCore__Semver.parse(installedVersion),
-              FrontmanAiFrontmanCore.FrontmanCore__Semver.parse(latest),
-            ) {
-            | (Some(installed), Some(latestV))
-              if FrontmanAiFrontmanCore.FrontmanCore__Semver.isBehind(installed, latestV) =>
+            switch (Client__Semver.parse(installedVersion), Client__Semver.parse(latest)) {
+            | (Some(installed), Some(latestV)) if Client__Semver.isBehind(installed, latestV) =>
               dispatch(
                 UpdateInfoReceived({
                   updateInfo: {npmPackage, installedVersion, latestVersion: latest},
