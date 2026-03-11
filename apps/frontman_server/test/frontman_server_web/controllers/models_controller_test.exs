@@ -164,6 +164,66 @@ defmodule FrontmanServerWeb.ModelsControllerTest do
       assert response["defaultModel"]["provider"] == "openai"
     end
 
+    test "includes Anthropic provider when hasAnthropicEnvKey=true", %{conn: conn} do
+      conn = get(conn, ~p"/api/models?hasAnthropicEnvKey=true")
+      response = json_response(conn, 200)
+
+      provider_ids = Enum.map(response["providers"], & &1["id"])
+      assert "anthropic" in provider_ids
+      assert "openrouter" in provider_ids
+
+      anthropic = Enum.find(response["providers"], &(&1["id"] == "anthropic"))
+      model_values = Enum.map(anthropic["models"], & &1["value"])
+      assert "claude-sonnet-4-5" in model_values
+      assert "claude-opus-4-6" in model_values
+
+      # Anthropic should be default when env key is present (higher priority than OpenRouter)
+      assert response["defaultModel"]["provider"] == "anthropic"
+    end
+
+    test "includes Anthropic provider when user has stored Anthropic API key", %{
+      conn: conn,
+      user: user
+    } do
+      scope = Scope.for_user(user)
+      {:ok, _} = Providers.upsert_api_key(scope, "anthropic", "sk-ant-stored")
+
+      conn = get(conn, ~p"/api/models")
+      response = json_response(conn, 200)
+
+      provider_ids = Enum.map(response["providers"], & &1["id"])
+      assert "anthropic" in provider_ids
+    end
+
+    test "Anthropic env key does not affect OpenRouter tier", %{conn: conn} do
+      # Only Anthropic env key, no OpenRouter key — OpenRouter should stay free tier
+      conn = get(conn, ~p"/api/models?hasAnthropicEnvKey=true")
+      response = json_response(conn, 200)
+
+      openrouter = Enum.find(response["providers"], &(&1["id"] == "openrouter"))
+      model_values = Enum.map(openrouter["models"], & &1["value"])
+
+      # Free tier: no premium OpenRouter models
+      refute "anthropic/claude-opus-4.6" in model_values
+    end
+
+    test "both env keys enable both providers at full tier", %{conn: conn} do
+      conn = get(conn, ~p"/api/models?hasEnvKey=true&hasAnthropicEnvKey=true")
+      response = json_response(conn, 200)
+
+      provider_ids = Enum.map(response["providers"], & &1["id"])
+      assert "anthropic" in provider_ids
+      assert "openrouter" in provider_ids
+
+      # OpenRouter should have full tier with env key
+      openrouter = Enum.find(response["providers"], &(&1["id"] == "openrouter"))
+      or_values = Enum.map(openrouter["models"], & &1["value"])
+      assert "anthropic/claude-opus-4.6" in or_values
+
+      # Default should be Anthropic (higher priority than OpenRouter)
+      assert response["defaultModel"]["provider"] == "anthropic"
+    end
+
     test "returns unauthorized without user" do
       conn = build_conn()
       conn = get(conn, ~p"/api/models")
