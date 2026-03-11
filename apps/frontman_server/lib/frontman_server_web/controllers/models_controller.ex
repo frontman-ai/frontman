@@ -2,89 +2,19 @@ defmodule FrontmanServerWeb.ModelsController do
   @moduledoc """
   Returns available LLM models grouped by provider.
 
-  Models are served dynamically based on the user's configured providers:
-  - OpenRouter: Always available (server has API key)
-  - Anthropic: Available when user has OAuth connected (Claude Pro/Max subscription)
-  - OpenAI (ChatGPT): Available when user has ChatGPT OAuth connected (Pro/Plus subscription)
+  Models are served dynamically based on the user's configured providers.
+  Provider metadata (display names, priorities, OAuth mapping) comes from
+  `Providers.Registry`; model lists and defaults come from
+  `Providers.ModelCatalog`.
   """
   use FrontmanServerWeb, :controller
 
   alias FrontmanServer.Providers
+  alias FrontmanServer.Providers.{ModelCatalog, Registry}
 
-  # OpenRouter provider - full model list (when user has their own API key)
-  @openrouter_provider %{
-    id: "openrouter",
-    name: "OpenRouter",
-    models: [
-      # OpenAI models
-      %{displayName: "GPT-5.4 Pro", value: "openai/gpt-5.4-pro"},
-      %{displayName: "GPT-5.4", value: "openai/gpt-5.4"},
-      %{displayName: "GPT-5.3 Codex", value: "openai/gpt-5.3-codex"},
-      %{displayName: "GPT-5.2", value: "openai/gpt-5.2"},
-      %{displayName: "GPT-5.1", value: "openai/gpt-5.1"},
-      %{displayName: "GPT-5", value: "openai/gpt-5"},
-      %{displayName: "GPT-5 mini", value: "openai/gpt-5-mini"},
-      %{displayName: "GPT-5 Chat", value: "openai/gpt-5-chat"},
-      %{displayName: "GPT-4.1", value: "openai/gpt-4.1"},
-      %{displayName: "o3", value: "openai/o3"},
-      %{displayName: "o4-mini", value: "openai/o4-mini"},
-      # Anthropic models (via OpenRouter)
-      %{displayName: "Claude Opus 4.6", value: "anthropic/claude-opus-4.6"},
-      %{displayName: "Claude Sonnet 4.5", value: "anthropic/claude-sonnet-4.5"},
-      %{displayName: "Claude Opus 4.5", value: "anthropic/claude-opus-4.5"},
-      %{displayName: "Claude Haiku 4.5", value: "anthropic/claude-haiku-4.5"},
-      # Google models
-      %{displayName: "Gemini 3 Pro Preview", value: "google/gemini-3-pro-preview"},
-      %{displayName: "Gemini 3 Flash Preview", value: "google/gemini-3-flash-preview"},
-      %{displayName: "Gemini 2.5 Pro", value: "google/gemini-2.5-pro"}
-    ]
-  }
-
-  # OpenRouter provider - free tier (no user/env key, limited server-key requests)
-  @openrouter_free_provider %{
-    id: "openrouter",
-    name: "OpenRouter",
-    models: [
-      %{displayName: "Gemini 3 Flash", value: "google/gemini-3-flash-preview"},
-      %{displayName: "Claude Haiku 4.5", value: "anthropic/claude-haiku-4.5"},
-      %{displayName: "Kimi K2.5", value: "moonshotai/kimi-k2.5"},
-      %{displayName: "Minimax M2.5", value: "minimax/minimax-m2.5"}
-    ]
-  }
-
-  # Anthropic provider (direct API, requires OAuth)
-  @anthropic_provider %{
-    id: "anthropic",
-    name: "Anthropic (Claude Pro/Max)",
-    models: [
-      %{displayName: "Claude Opus 4.6", value: "claude-opus-4-6"},
-      %{displayName: "Claude Sonnet 4.5", value: "claude-sonnet-4-5"},
-      %{displayName: "Claude Opus 4.5", value: "claude-opus-4-5"},
-      %{displayName: "Claude Haiku 4.5", value: "claude-haiku-4-5"},
-      %{displayName: "Claude Sonnet 4", value: "claude-sonnet-4-20250514"},
-      %{displayName: "Claude Opus 4", value: "claude-opus-4-20250514"}
-    ]
-  }
-
-  # OpenAI (ChatGPT Pro/Plus) provider - requires ChatGPT OAuth
-  # Note: gpt-5.4-pro is NOT supported via ChatGPT OAuth (only via OpenRouter)
-  @openai_provider %{
-    id: "openai",
-    name: "ChatGPT Pro/Plus",
-    models: [
-      %{displayName: "GPT-5.4", value: "gpt-5.4"},
-      %{displayName: "GPT-5.3 Codex", value: "gpt-5.3-codex"},
-      %{displayName: "GPT-5.2 Codex", value: "gpt-5.2-codex"},
-      %{displayName: "GPT-5.2", value: "gpt-5.2"},
-      %{displayName: "GPT-5.1 Codex Max", value: "gpt-5.1-codex-max"},
-      %{displayName: "GPT-5.1 Codex Mini", value: "gpt-5.1-codex-mini"}
-    ]
-  }
-
-  # Default models for each scenario
-  @openrouter_default %{provider: "openrouter", value: "google/gemini-3-flash-preview"}
-  @anthropic_default %{provider: "anthropic", value: "claude-sonnet-4-5"}
-  @openai_default %{provider: "openai", value: "gpt-5.4"}
+  # Providers the catalog exposes to the client, in priority order.
+  # OpenRouter is always included (server has a fallback key).
+  @optional_providers ["openai", "anthropic"]
 
   @doc """
   Returns the available models configuration.
@@ -92,8 +22,9 @@ defmodule FrontmanServerWeb.ModelsController do
   GET /api/models
 
   The response includes providers based on user's configuration:
-  - OpenRouter: Always included
-  - Anthropic: Included when user has OAuth connected
+  - OpenAI (ChatGPT): Included when user has ChatGPT OAuth connected
+  - Anthropic: Included when user has OAuth, a stored API key, or an env key
+  - OpenRouter: Always included (full list when user has key, free tier otherwise)
 
   Response:
   {
@@ -104,34 +35,44 @@ defmodule FrontmanServerWeb.ModelsController do
   def index(conn, params) do
     scope = conn.assigns.current_scope
 
-    has_anthropic_oauth = Providers.has_oauth_token?(scope, "anthropic")
-    has_chatgpt_oauth = Providers.has_oauth_token?(scope, "chatgpt")
+    # Determine which optional providers the user can access
+    accessible =
+      @optional_providers
+      |> Enum.filter(&has_access?(scope, &1, params))
 
-    # Determine if user has their own OpenRouter key (user-stored or from env)
-    has_user_key = Providers.has_api_key?(scope, "openrouter")
-    has_env_key = params["hasEnvKey"] == "true"
-    has_openrouter_key = has_user_key or has_env_key
+    # OpenRouter tier depends on whether the user has their own key
+    openrouter_tier = if has_access?(scope, "openrouter", params), do: :full, else: :free
 
-    # Show full model list when user has their own key, free tier otherwise
-    openrouter = if has_openrouter_key, do: @openrouter_provider, else: @openrouter_free_provider
-
-    # Build providers list: OAuth providers first (if available), then OpenRouter
+    # Build provider list: accessible optional providers + OpenRouter (always last by priority)
     providers =
-      []
-      |> then(fn list -> if has_chatgpt_oauth, do: list ++ [@openai_provider], else: list end)
-      |> then(fn list ->
-        if has_anthropic_oauth, do: list ++ [@anthropic_provider], else: list
-      end)
-      |> Kernel.++([openrouter])
+      (accessible |> Enum.map(&ModelCatalog.provider_entry(&1, :full))) ++
+        [ModelCatalog.provider_entry("openrouter", openrouter_tier)]
 
-    # Default model priority: ChatGPT > Anthropic > OpenRouter
-    default_model =
-      cond do
-        has_chatgpt_oauth -> @openai_default
-        has_anthropic_oauth -> @anthropic_default
-        true -> @openrouter_default
-      end
+    # Pick the best default from all accessible providers (including OpenRouter)
+    default_model = ModelCatalog.pick_default(accessible ++ ["openrouter"])
 
     json(conn, %{providers: providers, defaultModel: default_model})
+  end
+
+  # Unified access check: does the user have an OAuth token, stored API key,
+  # or client-forwarded env key for this provider?
+  defp has_access?(scope, provider, params) do
+    has_oauth?(scope, provider) or
+      Providers.has_api_key?(scope, provider) or
+      has_env_key_param?(provider, params)
+  end
+
+  defp has_oauth?(scope, provider) do
+    case Registry.oauth_provider(provider) do
+      nil -> false
+      oauth_id -> Providers.has_oauth_token?(scope, oauth_id)
+    end
+  end
+
+  defp has_env_key_param?(provider, params) do
+    case Registry.env_key_param(provider) do
+      nil -> false
+      param -> params[param] == "true"
+    end
   end
 end

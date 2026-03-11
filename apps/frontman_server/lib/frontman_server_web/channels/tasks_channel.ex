@@ -11,9 +11,9 @@ defmodule FrontmanServerWeb.TasksChannel do
   require Logger
 
   alias AgentClientProtocol, as: ACP
+  alias FrontmanServer.Providers.Registry
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Execution.Framework
-  alias FrontmanServer.Tasks.TitleGenerator
   alias FrontmanServerWeb.ACPHistory
 
   @acp_protocol_version ACP.protocol_version()
@@ -26,7 +26,7 @@ defmodule FrontmanServerWeb.TasksChannel do
       # Subscribe to title updates for this user
       Phoenix.PubSub.subscribe(
         FrontmanServer.PubSub,
-        TitleGenerator.pubsub_topic(socket.assigns.scope.user.id)
+        Tasks.title_pubsub_topic(socket.assigns.scope.user.id)
       )
 
       socket = assign(socket, :acp_initialized, false)
@@ -197,12 +197,9 @@ defmodule FrontmanServerWeb.TasksChannel do
 
   defp extract_framework(_), do: nil
 
-  # Extract env API key from clientInfo metadata (e.g., OPENROUTER_API_KEY from Next.js project)
+  # Extract env API keys from clientInfo metadata (e.g., OPENROUTER_API_KEY, ANTHROPIC_API_KEY from project env)
   defp extract_env_api_key(client_info) when is_map(client_info) do
-    case get_in(client_info, ["metadata", "openrouterKeyValue"]) do
-      key when is_binary(key) and key != "" -> %{"openrouter" => key}
-      _ -> %{}
-    end
+    client_info |> get_in(["metadata"]) |> Registry.extract_env_keys()
   end
 
   defp extract_env_api_key(_), do: %{}

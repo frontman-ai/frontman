@@ -10,7 +10,16 @@ defmodule FrontmanServer.Tasks do
   """
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Repo
-  alias FrontmanServer.Tasks.{Execution, Interaction, InteractionSchema, Task, TaskSchema}
+
+  alias FrontmanServer.Tasks.{
+    Execution,
+    Interaction,
+    InteractionSchema,
+    Task,
+    TaskSchema,
+    TitleGenerator
+  }
+
   alias ReqLLM.ToolCall
 
   # --- Authorization Helpers ---
@@ -316,6 +325,28 @@ defmodule FrontmanServer.Tasks do
   @spec cancel_execution(Scope.t(), String.t()) :: :ok | {:error, :not_running}
   def cancel_execution(%Scope{} = scope, task_id) do
     Execution.cancel(scope, task_id)
+  end
+
+  # --- Title Generation ---
+
+  @doc """
+  Generates a title for a task from the user's prompt text.
+
+  Runs asynchronously. Uses the user's selected model when available,
+  falling back to a cheap default. Fails silently if no API key is
+  available or the LLM call fails.
+  """
+  @spec generate_title(Scope.t(), String.t(), String.t(), map() | nil, map()) :: :ok
+  def generate_title(%Scope{} = scope, task_id, text_summary, model \\ nil, env_api_key \\ %{}) do
+    TitleGenerator.generate(scope, task_id, text_summary, model, env_api_key)
+  end
+
+  @doc """
+  Returns the PubSub topic for title updates for a given user.
+  """
+  @spec title_pubsub_topic(String.t()) :: String.t()
+  def title_pubsub_topic(user_id) do
+    TitleGenerator.pubsub_topic(user_id)
   end
 
   # Starts an execution if none is already running for this task.

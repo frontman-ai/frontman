@@ -174,6 +174,7 @@ type state = {
   usageInfo: option<usageInfo>,
   userProfile: option<userProfile>,
   openrouterKeySettings: apiKeySettings,
+  anthropicKeySettings: apiKeySettings,
   anthropicOAuthStatus: anthropicOAuthStatus,
   chatgptOAuthStatus: chatgptOAuthStatus,
   modelsConfig: option<modelsConfig>,

@@ -34,6 +34,7 @@ type parsed = {
   // UIShell always sets this, but tests and non-standard embeddings may omit it.
   basePath: option<string>,
   openrouterKeyValue: option<string>,
+  anthropicKeyValue: option<string>,
   projectRoot: option<string>,
   sourceRoot: option<string>,
 }
@@ -42,6 +43,7 @@ type t = {
   framework: frameworkId,
   basePath: string,
   openrouterKeyValue: option<string>,
+  anthropicKeyValue: option<string>,
   projectRoot: option<string>,
   sourceRoot: option<string>,
 }
@@ -62,6 +64,7 @@ let read = (): t => {
     | Some(bp) => bp
     },
     openrouterKeyValue: config.openrouterKeyValue,
+    anthropicKeyValue: config.anthropicKeyValue,
     projectRoot: config.projectRoot,
     sourceRoot: config.sourceRoot,
   }
@@ -70,6 +73,11 @@ let read = (): t => {
 // Check if an OpenRouter API key is available from the project environment
 let hasOpenrouterKey = (config: t): bool => {
   config.openrouterKeyValue->Option.isSome
+}
+
+// Check if an Anthropic API key is available from the project environment
+let hasAnthropicKey = (config: t): bool => {
+  config.anthropicKeyValue->Option.isSome
 }
 
 // Map framework ID to the npm package name for update checks
@@ -90,6 +98,9 @@ let toMetadata = (config: t): JSON.t => {
   ])
   config.openrouterKeyValue->Option.forEach(key => {
     configObj->Dict.set("openrouterKeyValue", JSON.Encode.string(key))
+  })
+  config.anthropicKeyValue->Option.forEach(key => {
+    configObj->Dict.set("anthropicKeyValue", JSON.Encode.string(key))
   })
   JSON.Encode.object(configObj)
 }

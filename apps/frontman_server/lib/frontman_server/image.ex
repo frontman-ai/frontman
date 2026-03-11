@@ -24,13 +24,6 @@ defmodule FrontmanServer.Image do
   # ── Public API ──────────────────────────────────────────────────────
 
   @doc """
-  Returns the maximum allowed image dimension (pixels per side) for
-  providers that enforce hard limits (currently Anthropic only).
-  """
-  @spec max_dimension() :: pos_integer()
-  def max_dimension, do: @max_dimension
-
-  @doc """
   Returns the image extraction config for a tool, or `nil` if the tool
   does not produce images.
 
@@ -52,16 +45,19 @@ defmodule FrontmanServer.Image do
   end
 
   @doc """
-  Checks whether a binary image exceeds `max_dimension/0` on either axis.
+  Checks whether a binary image exceeds a dimension limit on either axis.
 
   Returns `:ok` when the image is within limits or the format is
   unrecognised (fail-open). Returns `{:too_large, width, height}` when
   either dimension exceeds the limit.
+
+  The optional second argument overrides the default `max_dimension/0`.
   """
-  @spec check_dimensions(binary()) :: :ok | {:too_large, pos_integer(), pos_integer()}
-  def check_dimensions(data) when is_binary(data) do
+  @spec check_dimensions(binary(), pos_integer()) ::
+          :ok | {:too_large, pos_integer(), pos_integer()}
+  def check_dimensions(data, max \\ @max_dimension) when is_binary(data) and is_integer(max) do
     case parse_dimensions(data) do
-      {:ok, width, height} when width > @max_dimension or height > @max_dimension ->
+      {:ok, width, height} when width > max or height > max ->
         {:too_large, width, height}
 
       _ ->

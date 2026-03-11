@@ -71,6 +71,10 @@ module Fixtures = {
       source: StateTypes.None,
       saveStatus: StateTypes.Idle,
     },
+    anthropicKeySettings: {
+      source: StateTypes.None,
+      saveStatus: StateTypes.Idle,
+    },
     anthropicOAuthStatus: StateTypes.NotConnected,
     chatgptOAuthStatus: StateTypes.ChatGPTNotConnected,
     modelsConfig: None,

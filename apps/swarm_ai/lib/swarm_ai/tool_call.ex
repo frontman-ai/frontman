@@ -34,6 +34,49 @@ defmodule SwarmAi.ToolCall do
   end
 
   @doc """
+  Extracts the tool name from a tool call or tool-call-shaped map.
+
+  Handles `SwarmAi.ToolCall` structs and various map shapes found in
+  telemetry metadata (`:name`, `:tool_name`, and OpenAI wire format).
+
+  Returns `"unknown"` for unrecognised shapes.
+
+  ## Examples
+
+      iex> tc = %SwarmAi.ToolCall{id: "1", name: "get_weather", arguments: "{}"}
+      iex> SwarmAi.ToolCall.extract_name(tc)
+      "get_weather"
+  """
+  @spec extract_name(t() | map()) :: String.t()
+  def extract_name(%__MODULE__{name: name}), do: name
+  def extract_name(%{tool_name: name}), do: name
+  def extract_name(%{name: name}), do: name
+  def extract_name(%{"function" => %{"name" => name}}), do: name
+  def extract_name(_), do: "unknown"
+
+  @doc """
+  Extracts the arguments JSON string from a tool call or tool-call-shaped map.
+
+  Always returns a JSON string. For structs/maps with pre-encoded arguments
+  the string is returned directly; for maps with decoded arguments it
+  re-encodes via `Jason.encode!/1`.
+
+  Returns `"{}"` for unrecognised shapes.
+
+  ## Examples
+
+      iex> tc = %SwarmAi.ToolCall{id: "1", name: "get_weather", arguments: ~s({"location":"NYC"})}
+      iex> SwarmAi.ToolCall.extract_args_json(tc)
+      ~s({"location":"NYC"})
+  """
+  @spec extract_args_json(t() | map()) :: String.t()
+  def extract_args_json(%__MODULE__{arguments: args}), do: args
+  def extract_args_json(%{arguments: args}) when is_binary(args), do: args
+  def extract_args_json(%{arguments: args}), do: Jason.encode!(args)
+  def extract_args_json(%{"function" => %{"arguments" => args}}), do: args
+  def extract_args_json(_), do: "{}"
+
+  @doc """
   Parse arguments JSON string to a map.
 
   ## Example

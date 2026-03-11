@@ -27,6 +27,10 @@ let _makeState = (~anthropicOAuthStatus=Types.NotConnected, ~chatgptOAuthStatus=
     usageInfo: None,
     userProfile: None,
     openrouterKeySettings,
+    anthropicKeySettings: {
+      source: Types.None,
+      saveStatus: Types.Idle,
+    },
     anthropicOAuthStatus,
     chatgptOAuthStatus,
     modelsConfig: None,
