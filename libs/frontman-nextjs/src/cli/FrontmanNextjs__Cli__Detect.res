@@ -4,6 +4,8 @@ module Fs = Bindings.Fs
 module Path = Bindings.Path
 module Process = Bindings.Process
 module FsUtils = FrontmanAiFrontmanCore.FrontmanCore__FsUtils
+module ExnUtils = FrontmanAiFrontmanCore.FrontmanCore__ExnUtils
+module Semver = FrontmanAiFrontmanCore.FrontmanCore__Semver
 
 // Node.js module resolution — handles monorepo hoisting, pnpm virtual store,
 // Yarn PnP, and all standard node_modules layouts.
@@ -30,7 +32,7 @@ type existingFile =
   | NeedsManualEdit
 
 type projectInfo = {
-  nextVersion: option<nextVersion>,
+  nextVersion: nextVersion,
   middleware: existingFile,
   proxy: existingFile,
   instrumentation: existingFile,
@@ -51,12 +53,13 @@ let readFile = async (path: string): option<string> => {
 // Resolve a module from a given directory using Node.js module resolution.
 // Handles monorepo hoisting (Yarn/npm/pnpm workspaces), symlinks, and
 // non-standard layouts like pnpm's virtual store.
-let resolveFrom = (dir: string, moduleId: string): option<string> => {
+// Returns Error with the specific exception message on failure.
+let resolveFrom = (dir: string, moduleId: string): result<string, string> => {
   try {
     let req = createRequire(Path.join([dir, "package.json"]))
-    Some(req.resolve(moduleId))
+    Ok(req.resolve(moduleId))
   } catch {
-  | _ => None
+  | exn => Error(`Could not resolve "${moduleId}" from ${dir}: ${ExnUtils.message(exn)}`)
   }
 }
 
@@ -66,6 +69,10 @@ type packageJsonDeps = {
   dependencies: option<Dict.t<string>>,
   devDependencies: option<Dict.t<string>>,
 }
+
+// Sury schema for reading the version field from next/package.json.
+@schema
+type nextPackageJson = {version: string}
 
 // Check if this project declares next as a direct dependency.
 // Prevents false detection in monorepo sibling workspaces where next
@@ -94,37 +101,25 @@ let hasNextDependency = async (projectDir: string): bool => {
 // This correctly finds Next.js when dependencies are hoisted to a parent
 // directory (monorepo workspaces) while avoiding false positives from
 // sibling workspaces.
-let detectNextVersion = async (projectDir: string): option<nextVersion> => {
+let detectNextVersion = async (projectDir: string): result<nextVersion, string> => {
   let hasNext = await hasNextDependency(projectDir)
   switch hasNext {
-  | false => None
+  | false => Error("next is not listed as a dependency in package.json")
   | true =>
-    let nextPkgPath = resolveFrom(projectDir, "next/package.json")
-    switch nextPkgPath {
-    | None => None
-    | Some(resolvedPath) =>
+    switch resolveFrom(projectDir, "next/package.json") {
+    | Error(msg) => Error(msg)
+    | Ok(resolvedPath) =>
       switch await readFile(resolvedPath) {
-      | None => None
+      | None => Error(`Could not read ${resolvedPath}`)
       | Some(content) =>
         try {
-          let json = JSON.parseOrThrow(content)
-          switch json->JSON.Decode.object->Option.flatMap(obj => obj->Dict.get("version")) {
-          | Some(JSON.String(version)) =>
-            // Parse version like "15.0.0" or "16.0.0-canary.1"
-            let parts = version->String.split(".")
-            switch (parts->Array.get(0), parts->Array.get(1)) {
-            | (Some(majorStr), Some(minorStr)) =>
-              let major = majorStr->Int.fromString->Option.getOr(0)
-              // Handle minor with potential suffixes like "0-canary"
-              let minorClean = minorStr->String.split("-")->Array.get(0)->Option.getOr("0")
-              let minor = minorClean->Int.fromString->Option.getOr(0)
-              Some({major, minor, raw: version})
-            | _ => None
-            }
-          | _ => None
+          let pkg = S.parseJsonStringOrThrow(content, nextPackageJsonSchema)
+          switch Semver.parse(pkg.version) {
+          | None => Error(`Could not parse version "${pkg.version}"`)
+          | Some(sv) => Ok({major: sv.major, minor: sv.minor, raw: pkg.version})
           }
         } catch {
-        | _ => None
+        | exn => Error(`Failed to parse next/package.json: ${ExnUtils.message(exn)}`)
         }
       }
     }
@@ -233,27 +228,21 @@ let hasPackageJson = async (projectDir: string): bool => {
 let detect = async (projectDir: string): result<projectInfo, string> => {
   // First verify this is a project directory
   let hasPackage = await hasPackageJson(projectDir)
-  if !hasPackage {
-    Error("No package.json found. Please run from your Next.js project root.")
-  } else {
-    // Detect Next.js version
-    let nextVersion = await detectNextVersion(projectDir)
-
-    if nextVersion->Option.isNone {
-      Error(
-        "Could not find Next.js. Please ensure dependencies are installed (run your package manager's install command) and verify this is a Next.js project.",
-      )
-    } else {
+  switch hasPackage {
+  | false => Error("No package.json found. Please run from your Next.js project root.")
+  | true =>
+    switch await detectNextVersion(projectDir) {
+    | Error(msg) => Error(msg)
+    | Ok(nextVersion) =>
       // Detect existing files
       let middlewarePath = Path.join([projectDir, "middleware.ts"])
       let proxyPath = Path.join([projectDir, "proxy.ts"])
 
       // Check for instrumentation in both root and src/
       let hasSrcDir = await detectSrcDir(projectDir)
-      let instrumentationPath = if hasSrcDir {
-        Path.join([projectDir, "src", "instrumentation.ts"])
-      } else {
-        Path.join([projectDir, "instrumentation.ts"])
+      let instrumentationPath = switch hasSrcDir {
+      | true => Path.join([projectDir, "src", "instrumentation.ts"])
+      | false => Path.join([projectDir, "instrumentation.ts"])
       }
 
       let middleware = await analyzeFile(middlewarePath)
@@ -277,10 +266,7 @@ let detect = async (projectDir: string): result<projectInfo, string> => {
 
 // Helper to check if this is Next.js 16+
 let isNextJs16Plus = (info: projectInfo): bool => {
-  switch info.nextVersion {
-  | Some({major}) => major >= 16
-  | None => false
-  }
+  info.nextVersion.major >= 16
 }
 
 // Get package manager command

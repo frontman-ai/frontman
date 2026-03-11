@@ -43,6 +43,7 @@ let fixtureNames = [
   "nextjs15-with-middleware",
   "nextjs15-with-instrumentation",
   "nextjs15-with-src",
+  "nextjs15-devdep",
   "nextjs16-clean",
   "nextjs16-with-frontman",
   "nextjs16-with-proxy",
@@ -129,12 +130,8 @@ describe("Project Detection", _t => {
 
       switch result {
       | Ok(info) =>
-        switch info.nextVersion {
-        | Some(version) =>
-          t->expect(version.major)->Expect.toBe(15)
-          t->expect(version.raw)->Expect.toBe("15.0.0")
-        | None => t->expect("version")->Expect.toBe("should exist")
-        }
+        t->expect(info.nextVersion.major)->Expect.toBe(15)
+        t->expect(info.nextVersion.raw)->Expect.toBe("15.0.0")
       | Error(msg) => t->expect(msg)->Expect.toBe("should not fail")
       }
     })
@@ -145,12 +142,20 @@ describe("Project Detection", _t => {
 
       switch result {
       | Ok(info) =>
-        switch info.nextVersion {
-        | Some(version) =>
-          t->expect(version.major)->Expect.toBe(16)
-          t->expect(version.raw)->Expect.toBe("16.0.0")
-        | None => t->expect("version")->Expect.toBe("should exist")
-        }
+        t->expect(info.nextVersion.major)->Expect.toBe(16)
+        t->expect(info.nextVersion.raw)->Expect.toBe("16.0.0")
+      | Error(msg) => t->expect(msg)->Expect.toBe("should not fail")
+      }
+    })
+
+    testAsync("detects Next.js in devDependencies", async t => {
+      let dir = fixture("nextjs15-devdep")
+      let result = await Detect.detect(dir)
+
+      switch result {
+      | Ok(info) =>
+        t->expect(info.nextVersion.major)->Expect.toBe(15)
+        t->expect(info.nextVersion.raw)->Expect.toBe("15.0.0")
       | Error(msg) => t->expect(msg)->Expect.toBe("should not fail")
       }
     })
@@ -160,9 +165,125 @@ describe("Project Detection", _t => {
       let result = await Detect.detect(dir)
 
       switch result {
-      | Error(msg) => t->expect(msg->String.includes("Could not find Next.js"))->Expect.toBe(true)
+      | Error(msg) =>
+        t->expect(msg->String.includes("not listed as a dependency"))->Expect.toBe(true)
       | Ok(_) => t->expect("should")->Expect.toBe("fail for non-nextjs project")
       }
+    })
+
+    testAsync("fails with specific error when next is declared but not installed", async t => {
+      // Use an isolated temp dir so createRequire can't walk up and find next
+      // in the monorepo's node_modules
+      let timestamp = Date.now()->Float.toString
+      let isolatedDir = Path.join([Os.tmpdir(), `frontman-not-installed-${timestamp}`])
+      let _ = await Fs.Promises.mkdir(isolatedDir, {recursive: true})
+      let content = `{"name":"test","version":"1.0.0","dependencies":{"next":"^15.0.0"}}`
+      await Fs.Promises.writeFile(Path.join([isolatedDir, "package.json"]), content)
+
+      let result = await Detect.detect(isolatedDir)
+
+      switch result {
+      | Error(msg) =>
+        // Should mention it could not resolve next/package.json
+        t->expect(msg->String.includes("Could not resolve"))->Expect.toBe(true)
+      | Ok(_) => t->expect("should")->Expect.toBe("fail when next is not installed")
+      }
+
+      await cleanupTempFixture(isolatedDir)
+    })
+  })
+
+  describe("resolveFrom", _t => {
+    testAsync("resolves a module that exists", async t => {
+      let dir = fixture("nextjs15-clean")
+      // After setupFixtures, node_modules/next/package.json exists
+      switch Detect.resolveFrom(dir, "next/package.json") {
+      | Ok(path) => t->expect(path->String.includes("next"))->Expect.toBe(true)
+      | Error(msg) => t->expect(msg)->Expect.toBe("should resolve successfully")
+      }
+    })
+
+    testAsync("returns Error with message for missing module", async t => {
+      let dir = fixture("not-nextjs")
+      switch Detect.resolveFrom(dir, "nonexistent-package-xyz/package.json") {
+      | Error(msg) =>
+        // Should contain the module name and a meaningful error
+        t->expect(msg->String.includes("nonexistent-package-xyz"))->Expect.toBe(true)
+        t->expect(msg->String.length > 0)->Expect.toBe(true)
+      | Ok(_) => t->expect("should")->Expect.toBe("fail for missing module")
+      }
+    })
+  })
+
+  describe("hasNextDependency", _t => {
+    testAsync("returns true when next is in dependencies", async t => {
+      let dir = fixture("nextjs15-clean")
+      let result = await Detect.hasNextDependency(dir)
+      t->expect(result)->Expect.toBe(true)
+    })
+
+    testAsync("returns true when next is in devDependencies", async t => {
+      let dir = fixture("nextjs15-devdep")
+      let result = await Detect.hasNextDependency(dir)
+      t->expect(result)->Expect.toBe(true)
+    })
+
+    testAsync("returns false when next is not a dependency", async t => {
+      let dir = fixture("not-nextjs")
+      let result = await Detect.hasNextDependency(dir)
+      t->expect(result)->Expect.toBe(false)
+    })
+
+    testAsync("returns false when package.json does not exist", async t => {
+      let dir = Path.join([Os.tmpdir(), "nonexistent-dir-for-test"])
+      let result = await Detect.hasNextDependency(dir)
+      t->expect(result)->Expect.toBe(false)
+    })
+  })
+
+  describe("detectNextVersion", _t => {
+    testAsync("returns Ok with version when next is installed", async t => {
+      let dir = fixture("nextjs15-clean")
+      let result = await Detect.detectNextVersion(dir)
+
+      switch result {
+      | Ok(version) =>
+        t->expect(version.major)->Expect.toBe(15)
+        t->expect(version.minor)->Expect.toBe(0)
+        t->expect(version.raw)->Expect.toBe("15.0.0")
+      | Error(msg) => t->expect(msg)->Expect.toBe("should not fail")
+      }
+    })
+
+    testAsync("returns Error when next is not a dependency", async t => {
+      let dir = fixture("not-nextjs")
+      let result = await Detect.detectNextVersion(dir)
+
+      switch result {
+      | Error(msg) =>
+        t->expect(msg->String.includes("not listed as a dependency"))->Expect.toBe(true)
+      | Ok(_) => t->expect("should")->Expect.toBe("return Error")
+      }
+    })
+
+    testAsync("returns Error when next is declared but not installed", async t => {
+      // Use an isolated temp dir so createRequire can't walk up and find next
+      // in the monorepo's node_modules
+      let timestamp = Date.now()->Float.toString
+      let isolatedDir = Path.join([Os.tmpdir(), `frontman-detect-version-${timestamp}`])
+      let _ = await Fs.Promises.mkdir(isolatedDir, {recursive: true})
+      let content = `{"name":"test","version":"1.0.0","dependencies":{"next":"^15.0.0"}}`
+      await Fs.Promises.writeFile(Path.join([isolatedDir, "package.json"]), content)
+
+      let result = await Detect.detectNextVersion(isolatedDir)
+
+      switch result {
+      | Error(msg) =>
+        t->expect(msg->String.includes("Could not resolve"))->Expect.toBe(true)
+      | Ok(_) => t->expect("should")->Expect.toBe("return Error for uninstalled dep")
+      }
+
+      await cleanupTempFixture(isolatedDir)
     })
   })
 
@@ -593,7 +714,7 @@ describe("Batched Auto-Edit Collection", _t => {
 
   test("collectPendingAutoEdits collects middleware needing edit", t => {
     let info: Detect.projectInfo = {
-      nextVersion: Some({major: 15, minor: 0, raw: "15.0.0"}),
+      nextVersion: {major: 15, minor: 0, raw: "15.0.0"},
       middleware: Detect.NeedsManualEdit,
       proxy: Detect.NotFound,
       instrumentation: Detect.NotFound,
@@ -612,7 +733,7 @@ describe("Batched Auto-Edit Collection", _t => {
 
   test("collectPendingAutoEdits collects both middleware and instrumentation", t => {
     let info: Detect.projectInfo = {
-      nextVersion: Some({major: 15, minor: 0, raw: "15.0.0"}),
+      nextVersion: {major: 15, minor: 0, raw: "15.0.0"},
       middleware: Detect.NeedsManualEdit,
       proxy: Detect.NotFound,
       instrumentation: Detect.NeedsManualEdit,
@@ -633,7 +754,7 @@ describe("Batched Auto-Edit Collection", _t => {
 
   test("collectPendingAutoEdits uses proxy for Next.js 16+", t => {
     let info: Detect.projectInfo = {
-      nextVersion: Some({major: 16, minor: 0, raw: "16.0.0"}),
+      nextVersion: {major: 16, minor: 0, raw: "16.0.0"},
       middleware: Detect.NeedsManualEdit,
       proxy: Detect.NeedsManualEdit,
       instrumentation: Detect.NotFound,
@@ -652,7 +773,7 @@ describe("Batched Auto-Edit Collection", _t => {
 
   test("collectPendingAutoEdits uses src/ path for instrumentation when hasSrcDir", t => {
     let info: Detect.projectInfo = {
-      nextVersion: Some({major: 15, minor: 0, raw: "15.0.0"}),
+      nextVersion: {major: 15, minor: 0, raw: "15.0.0"},
       middleware: Detect.NotFound,
       proxy: Detect.NotFound,
       instrumentation: Detect.NeedsManualEdit,
@@ -671,7 +792,7 @@ describe("Batched Auto-Edit Collection", _t => {
 
   test("collectPendingAutoEdits returns empty when no files need editing", t => {
     let info: Detect.projectInfo = {
-      nextVersion: Some({major: 15, minor: 0, raw: "15.0.0"}),
+      nextVersion: {major: 15, minor: 0, raw: "15.0.0"},
       middleware: Detect.NotFound,
       proxy: Detect.NotFound,
       instrumentation: Detect.NotFound,

@@ -158,7 +158,7 @@ let run = async (options: installOptions): installResult => {
     Failure(msg)
 
   | Ok(info) =>
-    let version = info.nextVersion->Option.map(v => v.raw)->Option.getOr("unknown")
+    let version = info.nextVersion.raw
     let isNext16Plus = Detect.isNextJs16Plus(info)
 
     Console.log(`  ${Style.bullet} ${Style.bold("Detected:")} Next.js ${version}`)

@@ -1,0 +1,8 @@
+{
+  "name": "nextjs15-devdep",
+  "version": "1.0.0",
+  "devDependencies": {
+    "next": "^15.0.0",
+    "react": "^18.0.0"
+  }
+}
