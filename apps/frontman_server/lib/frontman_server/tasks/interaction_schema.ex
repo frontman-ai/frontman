@@ -89,6 +89,27 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
   end
 
   @doc """
+  Filters interactions by their type discriminator (e.g. "tool_call", "tool_result").
+  """
+  @spec by_type(Ecto.Queryable.t(), String.t()) :: Ecto.Query.t()
+  def by_type(query \\ __MODULE__, type) do
+    from(i in query, where: i.type == ^type)
+  end
+
+  @doc """
+  Filters interactions by a JSONB data field value (e.g. `tool_call_id`, `tool_name`).
+  """
+  @spec by_data_field(Ecto.Queryable.t(), String.t(), String.t()) :: Ecto.Query.t()
+  def by_data_field(query \\ __MODULE__, field, value) do
+    from(i in query, where: fragment("?->>? = ?", i.data, ^field, ^value))
+  end
+
+  @spec limited(Ecto.Queryable.t(), pos_integer()) :: Ecto.Query.t()
+  def limited(query \\ __MODULE__, count) do
+    from(i in query, limit: ^count)
+  end
+
+  @doc """
   Orders interactions by sequence number for deterministic ordering.
   Falls back to inserted_at for legacy rows without sequence (during migration period).
   """

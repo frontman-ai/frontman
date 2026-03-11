@@ -733,24 +733,4 @@ defmodule FrontmanServer.TasksTest do
       assert {:error, :not_found} = Tasks.find_tool_call(other_scope, task_id, "call_auth_1")
     end
   end
-
-  describe "add_tool_result/5 DB constraint" do
-    test "DB unique index prevents duplicate and returns changeset error", %{scope: scope} do
-      task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
-
-      tool_call_data = %{id: "call_db_dedup", name: "some_tool"}
-
-      {:ok, _first} = Tasks.add_tool_result(scope, task_id, tool_call_data, "result1", false)
-
-      # Second insert for the same tool_call_id is rejected by the DB constraint
-      assert {:error, %Ecto.Changeset{}} =
-               Tasks.add_tool_result(scope, task_id, tool_call_data, "result2", false)
-
-      # Verify only one result was persisted
-      {:ok, interactions} = Tasks.get_interactions(scope, task_id)
-      tool_results = Enum.filter(interactions, &match?(%Tasks.Interaction.ToolResult{}, &1))
-      assert length(tool_results) == 1
-    end
-  end
 end

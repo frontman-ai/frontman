@@ -428,17 +428,13 @@ defmodule FrontmanServer.Tasks do
   @spec find_tool_call(Scope.t(), String.t(), String.t()) ::
           {:ok, Interaction.ToolCall.t()} | {:error, :not_found}
   def find_tool_call(%Scope{} = scope, task_id, tool_call_id) do
-    import Ecto.Query
-
     with {:ok, _schema} <- get_task_by_id(scope, task_id) do
       result =
-        from(i in InteractionSchema,
-          where:
-            i.task_id == ^task_id and
-              i.type == "tool_call" and
-              fragment("?->>'tool_call_id' = ?", i.data, ^tool_call_id),
-          limit: 1
-        )
+        InteractionSchema
+        |> InteractionSchema.for_task(task_id)
+        |> InteractionSchema.by_type("tool_call")
+        |> InteractionSchema.by_data_field("tool_call_id", tool_call_id)
+        |> InteractionSchema.limited(1)
         |> Repo.one()
 
       case result do
