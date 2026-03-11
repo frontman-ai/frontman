@@ -11,6 +11,8 @@ defmodule SwarmAi.Runtime.ExecutionMonitor do
   - Uses synchronous registration to avoid race conditions
   - Recovers state on restart by scanning the Runtime Registry
   - Callbacks (`on_crash`, `on_cancelled`) are provided per-execution
+  - Waits for Registry cleanup before invoking callbacks, preserving the
+    `running?/2` invariant from `SwarmAi.Runtime`
   """
   use GenServer
 
@@ -56,7 +58,7 @@ defmodule SwarmAi.Runtime.ExecutionMonitor do
       )
     end
 
-    {:ok, state}
+    {:ok, Map.put(state, :registry, registry)}
   end
 
   @impl true
@@ -78,6 +80,15 @@ defmodule SwarmAi.Runtime.ExecutionMonitor do
 
     case entry do
       %{key: key} ->
+        # Wait for the Registry to process its own :DOWN and remove the entry.
+        # Both Registry and ExecutionMonitor monitor the execution process, so
+        # both receive :DOWN when it dies. Without this, callbacks can fire
+        # before Registry cleanup completes, causing running?/2 to return true
+        # when consumers check it from the callback. The normal completion path
+        # (execute/8) doesn't have this issue because it calls
+        # Registry.unregister synchronously before the callback.
+        await_registry_cleanup(state.registry, {:running, key})
+
         cond do
           cancelled?(reason) ->
             Logger.info("Execution cancelled",
@@ -134,6 +145,29 @@ defmodule SwarmAi.Runtime.ExecutionMonitor do
       end)
 
     %{monitors: monitors}
+  end
+
+  # Spins until the Registry has processed its :DOWN for the given key.
+  # The execution process is already dead at this point, so the Registry
+  # cleanup is guaranteed — we just need to let the Registry GenServer
+  # process its :DOWN message. In practice this returns on the first
+  # iteration (the Registry is fast).
+  defp await_registry_cleanup(registry, key, attempts \\ 100)
+
+  defp await_registry_cleanup(_registry, key, 0) do
+    Logger.warning("Registry cleanup timed out for key #{inspect(key)}, proceeding with callback")
+    :ok
+  end
+
+  defp await_registry_cleanup(registry, key, attempts) do
+    case Registry.lookup(registry, key) do
+      [] ->
+        :ok
+
+      _ ->
+        Process.sleep(1)
+        await_registry_cleanup(registry, key, attempts - 1)
+    end
   end
 
   defp cancelled?(:cancelled), do: true
