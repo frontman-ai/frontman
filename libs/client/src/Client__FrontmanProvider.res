@@ -165,7 +165,7 @@ module Provider = {
       | ToolCall({toolCallId, title, parentAgentId, spawningToolName}) =>
         Client__State.Actions.toolCallReceived(~taskId, ~toolCall={
           id: toolCallId,
-          toolName: title->Option.getOr("unknown_tool"),
+          toolName: title,
           inputBuffer: "",
           input: None,
           result: None,

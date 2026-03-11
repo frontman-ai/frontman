@@ -362,7 +362,7 @@ type sessionUpdate =
   | UserMessageChunk({content: contentBlock, timestamp: string})
   | ToolCall({
       toolCallId: string,
-      title: option<string>,
+      title: string,
       kind: option<string>,
       status: option<toolCallStatus>,
       parentAgentId: option<string>, // If present, this is a sub-agent tool call
@@ -396,7 +396,7 @@ let sessionUpdateSchema = S.union([
     s.tag("sessionUpdate", "tool_call")
     ToolCall({
       toolCallId: s.field("toolCallId", S.string),
-      title: s.field("title", S.option(S.string)),
+      title: s.field("title", S.string),
       kind: s.field("kind", S.option(S.string)),
       status: s.field("status", S.option(toolCallStatusSchema)),
       parentAgentId: s.field("parentAgentId", S.option(S.string)),
