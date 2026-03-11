@@ -318,6 +318,23 @@ defmodule FrontmanServer.TasksTest do
       {:ok, interactions} = Tasks.get_interactions(scope, task_id)
       assert length(interactions) == 1
     end
+
+    test "rejects duplicate tool result for the same tool_call_id", %{scope: scope} do
+      task_id = Ecto.UUID.generate()
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
+
+      tool_call_data = %{id: "call_dedup", name: "some_tool"}
+
+      {:ok, _first} = Tasks.add_tool_result(scope, task_id, tool_call_data, "result1", false)
+
+      assert {:error, :duplicate_tool_result} =
+               Tasks.add_tool_result(scope, task_id, tool_call_data, "result2", false)
+
+      {:ok, interactions} = Tasks.get_interactions(scope, task_id)
+      tool_results = Enum.filter(interactions, &match?(%Tasks.Interaction.ToolResult{}, &1))
+      assert length(tool_results) == 1
+      assert hd(tool_results).result == "result1"
+    end
   end
 
   describe "append_interaction sequence assignment" do
