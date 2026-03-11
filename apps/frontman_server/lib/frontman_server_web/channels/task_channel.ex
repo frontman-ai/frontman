@@ -491,7 +491,9 @@ defmodule FrontmanServerWeb.TaskChannel do
         {:noreply, socket}
 
       id ->
-        response = JsonRpc.success_response(id, ACP.build_prompt_result("end_turn"))
+        response =
+          JsonRpc.success_response(id, ACP.build_prompt_result(ACP.stop_reason_end_turn()))
+
         Logger.info("Pushing prompt response with id=#{id}")
         push(socket, "acp:message", response)
 
@@ -510,7 +512,9 @@ defmodule FrontmanServerWeb.TaskChannel do
         {:noreply, socket}
 
       id ->
-        response = JsonRpc.success_response(id, ACP.build_prompt_result("cancelled"))
+        response =
+          JsonRpc.success_response(id, ACP.build_prompt_result(ACP.stop_reason_cancelled()))
+
         push(socket, "acp:message", response)
         socket = assign(socket, :pending_prompt_id, nil)
         {:noreply, socket}
