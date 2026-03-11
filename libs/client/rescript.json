@@ -32,6 +32,7 @@
 		"@rescript/react",
 		"@rescript/webapi",
 		"@frontman-ai/frontman-client",
+		"@frontman-ai/frontman-core",
 		"@frontman-ai/nextjs",
 		"@frontman-ai/frontman-protocol",
 		"@frontman-ai/react-statestore",

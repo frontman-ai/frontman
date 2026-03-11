@@ -90,7 +90,9 @@ let hasNextDependency = async (projectDir: string): bool => {
         pkg.devDependencies->Option.mapOr(false, deps => deps->Dict.get("next")->Option.isSome)
       hasDep || hasDevDep
     } catch {
-    | _ => false
+    | exn =>
+      Console.warn(`Warning: failed to parse ${pkgPath}: ${ExnUtils.message(exn)}`)
+      false
     }
   }
 }
