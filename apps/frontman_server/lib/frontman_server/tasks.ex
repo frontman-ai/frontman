@@ -396,11 +396,11 @@ defmodule FrontmanServer.Tasks do
   Creates and appends a ToolResult interaction.
 
   Routes the result to the waiting executor so the agent can continue.
-  Returns `{:error, :duplicate_tool_result}` if a result for the same
-  tool_call_id already exists (idempotency guard).
+  Duplicate tool results for the same tool_call_id are prevented by a
+  unique partial index on the interactions table.
   """
   @spec add_tool_result(Scope.t(), String.t(), map(), term(), boolean()) ::
-          {:ok, Interaction.ToolResult.t()} | {:error, :not_found | :duplicate_tool_result}
+          {:ok, Interaction.ToolResult.t()} | {:error, :not_found | Ecto.Changeset.t()}
   def add_tool_result(
         %Scope{} = scope,
         task_id,
@@ -409,57 +409,43 @@ defmodule FrontmanServer.Tasks do
         is_error \\ false
       ) do
     with {:ok, schema} <- get_task_by_id(scope, task_id),
-         false <- tool_result_exists?(task_id, tool_call_id),
          interaction = Interaction.ToolResult.new(tool_call_data, result, is_error),
          {:ok, interaction} <- append_interaction(schema, interaction) do
       Execution.notify_tool_result(scope, tool_call_id, result, is_error)
       {:ok, interaction}
-    else
-      true -> {:error, :duplicate_tool_result}
-      other -> other
     end
   end
 
   @doc """
   Finds a ToolCall interaction by tool_call_id within a task.
 
+  Enforces user authorization via scope, consistent with all other
+  public functions in this module.
+
   Used by the elicitation response handler to recover the tool context
   (tool_name, arguments) from the persisted interaction.
   """
-  @spec find_tool_call(String.t(), String.t()) ::
+  @spec find_tool_call(Scope.t(), String.t(), String.t()) ::
           {:ok, Interaction.ToolCall.t()} | {:error, :not_found}
-  def find_tool_call(task_id, tool_call_id) do
+  def find_tool_call(%Scope{} = scope, task_id, tool_call_id) do
     import Ecto.Query
 
-    result =
-      from(i in InteractionSchema,
-        where:
-          i.task_id == ^task_id and
-            i.type == "tool_call" and
-            fragment("?->>'tool_call_id' = ?", i.data, ^tool_call_id),
-        limit: 1
-      )
-      |> Repo.one()
+    with {:ok, _schema} <- get_task_by_id(scope, task_id) do
+      result =
+        from(i in InteractionSchema,
+          where:
+            i.task_id == ^task_id and
+              i.type == "tool_call" and
+              fragment("?->>'tool_call_id' = ?", i.data, ^tool_call_id),
+          limit: 1
+        )
+        |> Repo.one()
 
-    case result do
-      %InteractionSchema{} = schema -> {:ok, InteractionSchema.to_struct(schema)}
-      nil -> {:error, :not_found}
+      case result do
+        %InteractionSchema{} = schema -> {:ok, InteractionSchema.to_struct(schema)}
+        nil -> {:error, :not_found}
+      end
     end
-  end
-
-  # Checks if a tool_result interaction already exists for the given tool_call_id.
-  # Prevents duplicate tool_results when the client re-submits the same answer.
-  @spec tool_result_exists?(String.t(), String.t()) :: boolean()
-  defp tool_result_exists?(task_id, tool_call_id) do
-    import Ecto.Query
-
-    from(i in InteractionSchema,
-      where:
-        i.task_id == ^task_id and
-          i.type == "tool_result" and
-          fragment("?->>'tool_call_id' = ?", i.data, ^tool_call_id)
-    )
-    |> Repo.exists?()
   end
 
   # --- Execution Management ---

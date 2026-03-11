@@ -327,7 +327,7 @@ defmodule FrontmanServer.TasksTest do
 
       {:ok, _first} = Tasks.add_tool_result(scope, task_id, tool_call_data, "result1", false)
 
-      assert {:error, :duplicate_tool_result} =
+      assert {:error, %Ecto.Changeset{}} =
                Tasks.add_tool_result(scope, task_id, tool_call_data, "result2", false)
 
       {:ok, interactions} = Tasks.get_interactions(scope, task_id)
@@ -690,6 +690,67 @@ defmodule FrontmanServer.TasksTest do
 
       assert match?([_], todos_a)
       assert todos_b == []
+    end
+  end
+
+  describe "find_tool_call/3" do
+    test "returns tool call interaction by tool_call_id", %{scope: scope} do
+      task_id = Ecto.UUID.generate()
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
+
+      tool_call = ReqLLM.ToolCall.new("call_find_1", "calculator", ~s({"x": 1}))
+      {:ok, _} = Tasks.add_tool_call(scope, task_id, tool_call)
+
+      assert {:ok, found} = Tasks.find_tool_call(scope, task_id, "call_find_1")
+      assert found.tool_call_id == "call_find_1"
+      assert found.tool_name == "calculator"
+    end
+
+    test "returns error when tool_call_id does not exist", %{scope: scope} do
+      task_id = Ecto.UUID.generate()
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
+
+      assert {:error, :not_found} = Tasks.find_tool_call(scope, task_id, "nonexistent")
+    end
+
+    test "returns error when task belongs to a different user", %{scope: scope} do
+      task_id = Ecto.UUID.generate()
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
+
+      tool_call = ReqLLM.ToolCall.new("call_auth_1", "calculator", ~s({"x": 1}))
+      {:ok, _} = Tasks.add_tool_call(scope, task_id, tool_call)
+
+      # Create a second user with a different scope
+      {:ok, other_user} =
+        Accounts.register_user(%{
+          email: "other_#{System.unique_integer([:positive])}@test.local",
+          name: "Other User",
+          password: "testpassword123!"
+        })
+
+      other_scope = Scope.for_user(other_user)
+
+      assert {:error, :not_found} = Tasks.find_tool_call(other_scope, task_id, "call_auth_1")
+    end
+  end
+
+  describe "add_tool_result/5 DB constraint" do
+    test "DB unique index prevents duplicate and returns changeset error", %{scope: scope} do
+      task_id = Ecto.UUID.generate()
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
+
+      tool_call_data = %{id: "call_db_dedup", name: "some_tool"}
+
+      {:ok, _first} = Tasks.add_tool_result(scope, task_id, tool_call_data, "result1", false)
+
+      # Second insert for the same tool_call_id is rejected by the DB constraint
+      assert {:error, %Ecto.Changeset{}} =
+               Tasks.add_tool_result(scope, task_id, tool_call_data, "result2", false)
+
+      # Verify only one result was persisted
+      {:ok, interactions} = Tasks.get_interactions(scope, task_id)
+      tool_results = Enum.filter(interactions, &match?(%Tasks.Interaction.ToolResult{}, &1))
+      assert length(tool_results) == 1
     end
   end
 end

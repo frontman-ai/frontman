@@ -49,6 +49,10 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
     |> validate_required([:task_id, :type, :data, :sequence])
     |> validate_inclusion(:type, Interaction.known_type_strings())
     |> foreign_key_constraint(:task_id)
+    |> unique_constraint([:task_id, :data],
+      name: :interactions_tool_result_uniqueness,
+      message: "duplicate tool result for this tool_call_id"
+    )
   end
 
   # Reserve 6 decimal digits for the tiebreaker (0–999_999).
