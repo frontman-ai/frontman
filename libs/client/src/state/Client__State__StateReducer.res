@@ -54,6 +54,14 @@ type action =
   | OpenRouterKeySaved
   | OpenRouterKeySaveError({error: string})
   | ResetOpenRouterKeySaveStatus
+  // Anthropic API key settings actions
+  | FetchAnthropicApiKeySettings
+  | AnthropicApiKeySettingsReceived({source: Client__State__Types.apiKeySource})
+  | SaveAnthropicKey({key: string})
+  | AnthropicKeySaveStarted
+  | AnthropicKeySaved
+  | AnthropicKeySaveError({error: string})
+  | ResetAnthropicKeySaveStatus
   // Model selection actions
   | FetchModelsConfig
   | ModelsConfigReceived({config: Client__State__Types.modelsConfig})
@@ -69,6 +77,7 @@ type action =
   | DisconnectAnthropicOAuth
   | AnthropicOAuthDisconnected
   | ResetAnthropicOAuthError
+  | CancelAnthropicOAuth
   // ChatGPT OAuth actions (device auth flow)
   | FetchChatGPTOAuthStatus
   | ChatGPTOAuthStatusReceived({connected: bool, expiresAt: option<string>})
@@ -97,6 +106,8 @@ type effect =
   | FetchUsageInfo({apiBaseUrl: string})
   | FetchApiKeySettingsEffect({apiBaseUrl: string})
   | SaveOpenRouterKeyEffect({apiBaseUrl: string, key: string})
+  | FetchAnthropicApiKeySettingsEffect({apiBaseUrl: string})
+  | SaveAnthropicKeyEffect({apiBaseUrl: string, key: string})
   | FetchModelsConfigEffect({apiBaseUrl: string})
   // Anthropic OAuth effects
   | FetchAnthropicOAuthStatusEffect({apiBaseUrl: string})
@@ -197,6 +208,10 @@ let defaultState: state = {
     source: Client__State__Types.None,
     saveStatus: Client__State__Types.Idle,
   },
+  anthropicKeySettings: {
+    source: Client__State__Types.None,
+    saveStatus: Client__State__Types.Idle,
+  },
   anthropicOAuthStatus: Client__State__Types.NotConnected,
   chatgptOAuthStatus: Client__State__Types.ChatGPTNotConnected,
   modelsConfig: None,
@@ -239,6 +254,20 @@ let actionToString = action => {
   | OpenRouterKeySaved => `OpenRouterKeySaved`
   | OpenRouterKeySaveError({error}) => `OpenRouterKeySaveError(${error})`
   | ResetOpenRouterKeySaveStatus => `ResetOpenRouterKeySaveStatus`
+  | FetchAnthropicApiKeySettings => `FetchAnthropicApiKeySettings`
+  | AnthropicApiKeySettingsReceived({source}) => {
+      let sourceStr = switch source {
+      | Client__State__Types.None => "None"
+      | Client__State__Types.FromEnv => "FromEnv"
+      | Client__State__Types.UserOverride => "UserOverride"
+      }
+      `AnthropicApiKeySettingsReceived(${sourceStr})`
+    }
+  | SaveAnthropicKey(_) => `SaveAnthropicKey`
+  | AnthropicKeySaveStarted => `AnthropicKeySaveStarted`
+  | AnthropicKeySaved => `AnthropicKeySaved`
+  | AnthropicKeySaveError({error}) => `AnthropicKeySaveError(${error})`
+  | ResetAnthropicKeySaveStatus => `ResetAnthropicKeySaveStatus`
   | FetchModelsConfig => `FetchModelsConfig`
   | ModelsConfigReceived(_) => `ModelsConfigReceived`
   | SetSelectedModel({model}) => `SetSelectedModel(${model.provider}:${model.value})`
@@ -253,6 +282,7 @@ let actionToString = action => {
   | DisconnectAnthropicOAuth => `DisconnectAnthropicOAuth`
   | AnthropicOAuthDisconnected => `AnthropicOAuthDisconnected`
   | ResetAnthropicOAuthError => `ResetAnthropicOAuthError`
+  | CancelAnthropicOAuth => `CancelAnthropicOAuth`
   | FetchChatGPTOAuthStatus => `FetchChatGPTOAuthStatus`
   | ChatGPTOAuthStatusReceived({connected}) =>
     `ChatGPTOAuthStatusReceived(connected=${connected->string_of_bool})`
@@ -440,6 +470,11 @@ module Selectors = {
     state.openrouterKeySettings
   }
 
+  // Get Anthropic API key settings
+  let anthropicKeySettings = (state: state): Client__State__Types.apiKeySettings => {
+    state.anthropicKeySettings
+  }
+
   // Get models config
   let modelsConfig = (state: state): option<Client__State__Types.modelsConfig> => {
     state.modelsConfig
@@ -474,7 +509,7 @@ module Selectors = {
   }
 
   // Whether the user has any API provider configured via state-tracked sources
-  // (DB-stored OpenRouter key or Anthropic OAuth).
+  // (DB-stored OpenRouter key, Anthropic API key, or OAuth).
   // Env-injected keys (window.__frontmanRuntime) live outside state — check RuntimeConfig separately.
   let hasAnyProviderConfigured = (state: state): bool => {
     switch state.usageInfo {
@@ -485,7 +520,11 @@ module Selectors = {
       | _ =>
         switch state.chatgptOAuthStatus {
         | ChatGPTConnected(_) => true
-        | _ => false
+        | _ =>
+          switch state.anthropicKeySettings.source {
+          | Client__State__Types.UserOverride | Client__State__Types.FromEnv => true
+          | _ => false
+          }
         }
       }
     }
@@ -739,17 +778,82 @@ let handleEffect = (effect, state: state, dispatch) => {
       }
     }
     save()->ignore
+  | FetchAnthropicApiKeySettingsEffect({apiBaseUrl}) =>
+    let fetch = async () => {
+      let url = `${apiBaseUrl}/api/user/api-key-usage?provider=anthropic`
+
+      try {
+        let response = await WebAPI.Global.fetch(url, ~init={credentials: Include})
+        if response.ok {
+          let json = await response->WebAPI.Response.json
+          let usageInfo = S.parseJsonOrThrow(json, Client__State__Types.usageInfoSchema)
+          let hasUserKey = usageInfo.hasUserKey->Option.getOr(false)
+
+          let runtimeConfig = Client__RuntimeConfig.read()
+          let hasEnvKey = Client__RuntimeConfig.hasAnthropicKey(runtimeConfig)
+
+          let source: Client__State__Types.apiKeySource = if hasUserKey {
+            UserOverride
+          } else if hasEnvKey {
+            FromEnv
+          } else {
+            None
+          }
+          dispatch(AnthropicApiKeySettingsReceived({source: source}))
+        }
+      } catch {
+      | exn => Log.error(~ctx={"error": exn}, "FetchAnthropicApiKeySettings failed")
+      }
+    }
+    fetch()->ignore
+  | SaveAnthropicKeyEffect({apiBaseUrl, key}) =>
+    let save = async () => {
+      dispatch(AnthropicKeySaveStarted)
+      let url = `${apiBaseUrl}/api/user/api-keys`
+      let body = {
+        "provider": "anthropic",
+        "key": key,
+      }
+
+      try {
+        let response = await WebAPI.Global.fetch(
+          url,
+          ~init={
+            credentials: Include,
+            method: "POST",
+            headers: WebAPI.HeadersInit.fromDict(
+              Dict.fromArray([("Content-Type", "application/json")]),
+            ),
+            body: WebAPI.BodyInit.fromString(JSON.stringifyAny(body)->Option.getOr("{}")),
+          },
+        )
+
+        if !response.ok {
+          dispatch(
+            AnthropicKeySaveError({
+              error: `HTTP ${response.status->Int.toString}: ${response.statusText}`,
+            }),
+          )
+        } else {
+          dispatch(AnthropicKeySaved)
+        }
+      } catch {
+      | exn =>
+        let msg =
+          exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
+        dispatch(AnthropicKeySaveError({error: `Failed to save API key: ${msg}`}))
+      }
+    }
+    save()->ignore
   | FetchModelsConfigEffect({apiBaseUrl}) =>
     let fetch = async () => {
       // Pass env key presence so server can return full or free-tier model list
       let runtimeConfig = Client__RuntimeConfig.read()
       let hasEnvKey = Client__RuntimeConfig.hasOpenrouterKey(runtimeConfig)
-      let envKeyParam = if hasEnvKey {
-        "true"
-      } else {
-        "false"
-      }
-      let url = `${apiBaseUrl}/api/models?hasEnvKey=${envKeyParam}`
+      let hasAnthropicEnvKey = Client__RuntimeConfig.hasAnthropicKey(runtimeConfig)
+      let envKeyParam = if hasEnvKey { "true" } else { "false" }
+      let anthropicEnvKeyParam = if hasAnthropicEnvKey { "true" } else { "false" }
+      let url = `${apiBaseUrl}/api/models?hasEnvKey=${envKeyParam}&hasAnthropicEnvKey=${anthropicEnvKeyParam}`
 
       try {
         let response = await WebAPI.Global.fetch(url, ~init={credentials: Include})
@@ -1402,6 +1506,85 @@ let next = (state: state, action) => {
       },
     }->StateReducer.update
 
+  // Anthropic API key settings actions
+  | FetchAnthropicApiKeySettings =>
+    switch state.acpSession {
+    | AcpSessionActive({apiBaseUrl}) =>
+      state->StateReducer.update(
+        ~sideEffects=[FetchAnthropicApiKeySettingsEffect({apiBaseUrl: apiBaseUrl})],
+      )
+    | NoAcpSession => state->StateReducer.update
+    }
+
+  | AnthropicApiKeySettingsReceived({source}) =>
+    {
+      ...state,
+      anthropicKeySettings: {
+        ...state.anthropicKeySettings,
+        source,
+      },
+    }->StateReducer.update
+
+  | SaveAnthropicKey({key}) =>
+    switch state.acpSession {
+    | AcpSessionActive({apiBaseUrl}) =>
+      state->StateReducer.update(
+        ~sideEffects=[SaveAnthropicKeyEffect({apiBaseUrl, key})],
+      )
+    | NoAcpSession =>
+      {
+        ...state,
+        anthropicKeySettings: {
+          ...state.anthropicKeySettings,
+          saveStatus: SaveError("No active ACP session"),
+        },
+      }->StateReducer.update
+    }
+
+  | AnthropicKeySaveStarted =>
+    {
+      ...state,
+      anthropicKeySettings: {
+        ...state.anthropicKeySettings,
+        saveStatus: Saving,
+      },
+    }->StateReducer.update
+
+  | AnthropicKeySaved =>
+    // After saving the API key, refresh models list so Anthropic models appear
+    let effects = switch state.acpSession {
+    | AcpSessionActive({apiBaseUrl}) => [
+        FetchModelsConfigEffect({apiBaseUrl: apiBaseUrl}),
+      ]
+    | NoAcpSession => []
+    }
+    {
+      ...state,
+      anthropicKeySettings: {
+        source: UserOverride,
+        saveStatus: Saved,
+      },
+      pendingProviderAutoSelect: Some("anthropic"),
+    }->StateReducer.update(~sideEffects=effects)
+
+  | AnthropicKeySaveError({error}) =>
+    {
+      ...state,
+      anthropicKeySettings: {
+        ...state.anthropicKeySettings,
+        saveStatus: SaveError(error),
+      },
+    }->StateReducer.update
+
+  | ResetAnthropicKeySaveStatus =>
+    {
+      ...state,
+      anthropicKeySettings: {
+        ...state.anthropicKeySettings,
+        saveStatus: Idle,
+      },
+    }->StateReducer.update
+
   // Model selection actions
   | FetchModelsConfig =>
     switch state.acpSession {
@@ -1567,6 +1750,12 @@ let next = (state: state, action) => {
       }->StateReducer.update
     | _ => state->StateReducer.update
     }
+
+  | CancelAnthropicOAuth =>
+    {
+      ...state,
+      anthropicOAuthStatus: Client__State__Types.NotConnected,
+    }->StateReducer.update
 
   // ChatGPT OAuth actions
   | FetchChatGPTOAuthStatus =>

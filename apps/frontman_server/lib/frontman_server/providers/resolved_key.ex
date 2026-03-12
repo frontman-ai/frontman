@@ -1,10 +1,16 @@
 defmodule FrontmanServer.Providers.ResolvedKey do
   @moduledoc """
-  Represents a resolved API key ready for use in LLM calls.
+  A resolved connection to an LLM provider.
 
-  This struct is created by `Providers.prepare_api_key/3` at the domain layer
-  and passed through to agents and tools. It encapsulates all the information
-  needed to make LLM calls and track usage.
+  Created by `Providers.prepare_api_key/3` at the domain layer, this struct
+  encapsulates everything needed to talk to a specific model: credentials,
+  provider-specific wiring (Codex endpoint, OAuth mode), and transformation
+  hints (MCP prefix, identity override).
+
+  Use `to_llm_args/2` to derive the `{model_spec, llm_opts}` pair that
+  `ReqLLM.stream_text/3` expects. This absorbs all provider-specific wiring
+  (Codex endpoint, OAuth headers, model normalization) so callers don't need
+  to know about those details.
 
   ## Fields
 
@@ -18,6 +24,8 @@ defmodule FrontmanServer.Providers.ResolvedKey do
   """
 
   use TypedStruct
+
+  alias FrontmanServer.Providers.Codex
 
   @type key_source :: :user_key | :env_key | :server_key | :oauth_token
 
@@ -59,5 +67,47 @@ defmodule FrontmanServer.Providers.ResolvedKey do
       chatgpt_account_id: Keyword.get(opts, :chatgpt_account_id),
       codex_endpoint: Keyword.get(opts, :codex_endpoint)
     }
+  end
+
+  @doc """
+  Derives the `{model_spec, llm_opts}` pair for `ReqLLM.stream_text/3`.
+
+  Builds ReqLLM-compatible options from the resolved key and handles all
+  provider-specific wiring internally:
+
+    * For Codex (ChatGPT OAuth): normalizes the model alias, patches the
+      base URL and headers, forces the Responses API protocol
+    * For all providers: sets `api_key`, `oauth_mode`, `requires_mcp_prefix`,
+      and `identity_override`
+
+  Caller-provided `extra_opts` (e.g., `max_tokens: 30`) are merged in and
+  can be overridden by provider-specific requirements (Codex strips `max_tokens`).
+
+  ## Examples
+
+      {model_spec, llm_opts} = ResolvedKey.to_llm_args(resolved_key, max_tokens: 16_384)
+      ReqLLM.stream_text(model_spec, messages, llm_opts)
+  """
+  @spec to_llm_args(t(), keyword()) :: {String.t() | map(), keyword()}
+  def to_llm_args(%__MODULE__{} = key, extra_opts \\ []) do
+    base_opts =
+      [
+        api_key: key.api_key,
+        oauth_mode: key.oauth_mode,
+        requires_mcp_prefix: key.requires_mcp_prefix,
+        identity_override: key.identity_override
+      ]
+      |> Keyword.merge(extra_opts)
+
+    case key.codex_endpoint do
+      endpoint when is_binary(endpoint) ->
+        model_string = Codex.normalize_model(key.model)
+        llm_opts = Codex.patch_llm_opts(base_opts, endpoint, key.chatgpt_account_id)
+        model_spec = Codex.resolve_model(model_string)
+        {model_spec, llm_opts}
+
+      _ ->
+        {key.model, base_opts}
+    end
   end
 end

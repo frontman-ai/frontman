@@ -121,7 +121,8 @@ let make = (
   let hasProviderConfigured = Client__State.useSelector(Client__State.Selectors.hasAnyProviderConfigured)
   let webPreviewIsSelecting = Client__State.useSelector(Client__State.Selectors.webPreviewIsSelecting)
   let annotations = Client__State.useSelector(Client__State.Selectors.annotations)
-  let hasEnvKey = RuntimeConfig.hasOpenrouterKey(RuntimeConfig.read())
+  let runtimeConfig = RuntimeConfig.read()
+  let hasEnvKey = RuntimeConfig.hasOpenrouterKey(runtimeConfig) || RuntimeConfig.hasAnthropicKey(runtimeConfig)
   let hasAnyKey = hasProviderConfigured || hasEnvKey
 
   let providers = modelsConfig->Option.mapOr([], config => config.providers)

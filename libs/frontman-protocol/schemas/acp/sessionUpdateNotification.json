@@ -474,7 +474,8 @@
               "additionalProperties": true,
               "required": [
                 "sessionUpdate",
-                "toolCallId"
+                "toolCallId",
+                "title"
               ]
             },
             {

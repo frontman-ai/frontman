@@ -142,9 +142,9 @@ defmodule FrontmanServer.ImageTest do
     end
   end
 
-  # ── check_dimensions/1 ──────────────────────────────────────────────
+  # ── check_dimensions/1,2 ─────────────────────────────────────────────
 
-  describe "check_dimensions/1" do
+  describe "check_dimensions/1 (default max)" do
     test "returns :ok for image within limits" do
       png =
         <<0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A>> <>
@@ -173,14 +173,52 @@ defmodule FrontmanServer.ImageTest do
       assert :ok = Image.check_dimensions("not an image")
     end
 
-    test "returns :ok at exactly max_dimension boundary" do
-      max = Image.max_dimension()
-
+    test "returns :ok at exactly default boundary (7680px)" do
       png =
         <<0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A>> <>
-          <<0::32>> <> "IHDR" <> <<max::32, max::32>> <> <<0::8>>
+          <<0::32>> <> "IHDR" <> <<7680::32, 7680::32>> <> <<0::8>>
 
       assert :ok = Image.check_dimensions(png)
+    end
+  end
+
+  describe "check_dimensions/2 (custom max)" do
+    test "respects a smaller custom max" do
+      # 1920x1080 is fine for the default 7680 but too big for a 1000px limit
+      png =
+        <<0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A>> <>
+          <<0::32>> <> "IHDR" <> <<1920::32, 1080::32>> <> <<0::8>>
+
+      assert {:too_large, 1920, 1080} = Image.check_dimensions(png, 1000)
+    end
+
+    test "respects a larger custom max" do
+      # 9000px wide exceeds the default 7680 but fits within a 10_000 limit
+      png =
+        <<0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A>> <>
+          <<0::32>> <> "IHDR" <> <<9000::32, 1080::32>> <> <<0::8>>
+
+      assert :ok = Image.check_dimensions(png, 10_000)
+    end
+
+    test "returns :ok at exactly the custom boundary" do
+      png =
+        <<0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A>> <>
+          <<0::32>> <> "IHDR" <> <<500::32, 500::32>> <> <<0::8>>
+
+      assert :ok = Image.check_dimensions(png, 500)
+    end
+
+    test "returns {:too_large, w, h} one pixel over custom boundary" do
+      png =
+        <<0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A>> <>
+          <<0::32>> <> "IHDR" <> <<501::32, 500::32>> <> <<0::8>>
+
+      assert {:too_large, 501, 500} = Image.check_dimensions(png, 500)
+    end
+
+    test "returns :ok for unrecognised format (fail-open) with custom max" do
+      assert :ok = Image.check_dimensions("not an image", 100)
     end
   end
 
@@ -239,14 +277,6 @@ defmodule FrontmanServer.ImageTest do
 
     test "returns nil for unknown mcp_ tool" do
       assert nil == Image.image_tool_config("mcp_read_file")
-    end
-  end
-
-  # ── max_dimension/0 ─────────────────────────────────────────────────
-
-  describe "max_dimension/0" do
-    test "returns 7680" do
-      assert 7680 = Image.max_dimension()
     end
   end
 end

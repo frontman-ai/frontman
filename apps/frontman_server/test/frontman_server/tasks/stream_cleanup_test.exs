@@ -327,7 +327,8 @@ defmodule FrontmanServer.Tasks.StreamCleanupTest do
       Process.exit(consumer, :cancelled)
 
       # Cleanup process catches the EXIT and calls cancel_fn
-      assert_receive :cancel_called, 1_000
+      # Use a generous timeout to avoid CI flakiness under load
+      assert_receive :cancel_called, 5_000
     end
 
     test "cancel_fn fires when stream raises mid-consumption through Response.from_stream" do

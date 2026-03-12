@@ -225,6 +225,73 @@ config :llm_db,
     ]
   }
 
+# Centralised provider registry — single source of truth for every supported
+# LLM provider.  The runtime modules (Registry, runtime.exs) derive their
+# behaviour from this map instead of maintaining separate hard-coded lists.
+#
+# Fields:
+#   :config_key          – Application.get_env atom for the server API key
+#   :env_var             – OS environment variable name (used by runtime.exs)
+#   :env_key_name        – metadata key the client sends for project-level keys (nil = n/a)
+#   :display_name        – human-readable label for the UI
+#   :priority            – display ordering (lower = shown first)
+#   :oauth_provider      – provider string for OAuth token lookup (nil = no OAuth)
+#   :env_key_param       – query param the client sends to signal it has an env key (nil = n/a)
+#   :max_image_dimension – hard pixel-per-side limit (nil = provider auto-resizes)
+config :frontman_server, :providers, %{
+  "openai" => %{
+    config_key: :openai_api_key,
+    env_var: "OPENAI_API_KEY",
+    env_key_name: nil,
+    display_name: "ChatGPT Pro/Plus",
+    priority: 10,
+    oauth_provider: "chatgpt",
+    env_key_param: nil,
+    max_image_dimension: nil
+  },
+  "anthropic" => %{
+    config_key: :anthropic_api_key,
+    env_var: "ANTHROPIC_API_KEY",
+    env_key_name: "anthropicKeyValue",
+    display_name: "Anthropic (Claude Pro/Max)",
+    priority: 20,
+    oauth_provider: "anthropic",
+    env_key_param: "hasAnthropicEnvKey",
+    # Anthropic hard-rejects images > 8000px per side; 7680 leaves margin.
+    max_image_dimension: 7680
+  },
+  "openrouter" => %{
+    config_key: :openrouter_api_key,
+    env_var: "OPENROUTER_API_KEY",
+    env_key_name: "openrouterKeyValue",
+    display_name: "OpenRouter",
+    priority: 30,
+    oauth_provider: nil,
+    env_key_param: "hasEnvKey",
+    max_image_dimension: nil
+  },
+  "google" => %{
+    config_key: :google_api_key,
+    env_var: "GOOGLE_API_KEY",
+    env_key_name: nil,
+    display_name: "Google",
+    priority: 40,
+    oauth_provider: nil,
+    env_key_param: nil,
+    max_image_dimension: nil
+  },
+  "xai" => %{
+    config_key: :xai_api_key,
+    env_var: "XAI_API_KEY",
+    env_key_name: nil,
+    display_name: "xAI",
+    priority: 50,
+    oauth_provider: nil,
+    env_key_param: nil,
+    max_image_dimension: nil
+  }
+}
+
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.
 import_config "#{config_env()}.exs"

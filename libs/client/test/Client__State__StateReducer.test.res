@@ -37,6 +37,10 @@ module TestHelpers = {
           source: Client__State__Types.None,
           saveStatus: Client__State__Types.Idle,
         },
+        anthropicKeySettings: {
+          source: Client__State__Types.None,
+          saveStatus: Client__State__Types.Idle,
+        },
         anthropicOAuthStatus: Client__State__Types.NotConnected,
         chatgptOAuthStatus: Client__State__Types.ChatGPTNotConnected,
         modelsConfig: None,
@@ -675,6 +679,10 @@ describe("Client State Reducer - Task Management Actions", () => {
         source: Client__State__Types.None,
         saveStatus: Client__State__Types.Idle,
       },
+      anthropicKeySettings: {
+        source: Client__State__Types.None,
+        saveStatus: Client__State__Types.Idle,
+      },
       anthropicOAuthStatus: Client__State__Types.NotConnected,
       chatgptOAuthStatus: Client__State__Types.ChatGPTNotConnected,
       modelsConfig: None,
@@ -727,6 +735,10 @@ describe("Client State Reducer - Task Management Actions", () => {
         source: Client__State__Types.None,
         saveStatus: Client__State__Types.Idle,
       },
+      anthropicKeySettings: {
+        source: Client__State__Types.None,
+        saveStatus: Client__State__Types.Idle,
+      },
       anthropicOAuthStatus: Client__State__Types.NotConnected,
       chatgptOAuthStatus: Client__State__Types.ChatGPTNotConnected,
       modelsConfig: None,
@@ -776,6 +788,10 @@ describe("Client State Reducer - Task Management Actions", () => {
       usageInfo: None,
       userProfile: None,
       openrouterKeySettings: {
+        source: Client__State__Types.None,
+        saveStatus: Client__State__Types.Idle,
+      },
+      anthropicKeySettings: {
         source: Client__State__Types.None,
         saveStatus: Client__State__Types.Idle,
       },
@@ -849,6 +865,10 @@ describe("Client State Reducer - Task Management Actions", () => {
       usageInfo: None,
       userProfile: None,
       openrouterKeySettings: {
+        source: Client__State__Types.None,
+        saveStatus: Client__State__Types.Idle,
+      },
+      anthropicKeySettings: {
         source: Client__State__Types.None,
         saveStatus: Client__State__Types.Idle,
       },
@@ -966,7 +986,7 @@ describe("Client State Reducer - Session Loading Actions", () => {
 
     let state: Reducer.state = {
       tasks,
-      currentTask: Task.Selected("session-1"),
+      currentTask: Task.Selected("task-1"),
       acpSession: NoAcpSession,
       sessionInitialized: false,
       usageInfo: None,
@@ -975,12 +995,16 @@ describe("Client State Reducer - Session Loading Actions", () => {
         source: Client__State__Types.None,
         saveStatus: Client__State__Types.Idle,
       },
+      anthropicKeySettings: {
+        source: Client__State__Types.None,
+        saveStatus: Client__State__Types.Idle,
+      },
       anthropicOAuthStatus: Client__State__Types.NotConnected,
       chatgptOAuthStatus: Client__State__Types.ChatGPTNotConnected,
       modelsConfig: None,
       selectedModel: None,
       pendingProviderAutoSelect: None,
-      sessionsLoadState: Client__State__Types.SessionsLoading,
+      sessionsLoadState: Client__State__Types.SessionsNotLoaded,
       updateInfo: None,
       updateCheckStatus: UpdateNotChecked,
       updateBannerDismissed: false,
@@ -1064,6 +1088,10 @@ describe("Client State Reducer - Session Loading Actions", () => {
       usageInfo: None,
       userProfile: None,
       openrouterKeySettings: {
+        source: Client__State__Types.None,
+        saveStatus: Client__State__Types.Idle,
+      },
+      anthropicKeySettings: {
         source: Client__State__Types.None,
         saveStatus: Client__State__Types.Idle,
       },

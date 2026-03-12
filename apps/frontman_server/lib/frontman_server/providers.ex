@@ -24,7 +24,9 @@ defmodule FrontmanServer.Providers do
     AnthropicOAuth,
     ApiKey,
     ChatGPTOAuth,
+    Model,
     OAuthToken,
+    Registry,
     ResolvedKey,
     UserKeyUsage
   }
@@ -50,14 +52,20 @@ defmodule FrontmanServer.Providers do
     - model: The model string (e.g., "openrouter:openai/gpt-4"), or nil for default
     - env_api_key: Map of provider => api_key from client's environment
 
+  ## Options
+
+    - `:skip_quota` - When `true`, bypasses usage quota checks on server keys.
+      Use for cheap internal operations (e.g., title generation) that should
+      always succeed regardless of the user's free-tier usage.
+
   ## Returns
     - `{:ok, ResolvedKey.t()}` - Ready to use for LLM calls
     - `{:error, :no_api_key}` - No API key available
     - `{:error, :usage_limit_exceeded}` - Server key quota exhausted
   """
-  @spec prepare_api_key(Scope.t() | nil, String.t() | nil, map()) ::
+  @spec prepare_api_key(Scope.t() | nil, String.t() | nil, map(), keyword()) ::
           {:ok, ResolvedKey.t()} | {:error, :no_api_key | :usage_limit_exceeded}
-  def prepare_api_key(scope, model, env_api_key \\ %{}) do
+  def prepare_api_key(scope, model, env_api_key \\ %{}, opts \\ []) do
     model = model || @default_model
     provider = provider_from_model(model)
 
@@ -72,20 +80,21 @@ defmodule FrontmanServer.Providers do
         {:ok, ResolvedKey.new(provider, key, :env_key, model)}
 
       {:server_key, key} ->
-        prepare_server_key(scope, provider, key, model)
+        prepare_server_key(scope, provider, key, model, opts)
     end
   end
 
-  defp prepare_server_key(_scope, _provider, key, _model) when not is_binary(key) or key == "" do
+  defp prepare_server_key(_scope, _provider, key, _model, _opts)
+       when not is_binary(key) or key == "" do
     {:error, :no_api_key}
   end
 
-  defp prepare_server_key(nil, provider, key, model) do
+  defp prepare_server_key(nil, provider, key, model, _opts) do
     {:ok, ResolvedKey.new(provider, key, :server_key, model)}
   end
 
-  defp prepare_server_key(scope, provider, key, model) do
-    if has_remaining_usage?(scope, provider) do
+  defp prepare_server_key(scope, provider, key, model, opts) do
+    if opts[:skip_quota] || has_remaining_usage?(scope, provider) do
       {:ok, ResolvedKey.new(provider, key, :server_key, model)}
     else
       {:error, :usage_limit_exceeded}
@@ -115,16 +124,13 @@ defmodule FrontmanServer.Providers do
 
   @doc """
   Extracts provider name from model string.
+
+  Delegates to `Model.provider_from_string/1` which parses the "provider:name"
+  format. Falls back to "openrouter" for unprefixed strings.
   """
   @spec provider_from_model(String.t()) :: String.t()
   def provider_from_model(model) when is_binary(model) do
-    cond do
-      String.starts_with?(model, "openrouter:") -> "openrouter"
-      String.starts_with?(model, "anthropic:") -> "anthropic"
-      String.starts_with?(model, "google:") -> "google"
-      String.starts_with?(model, "openai:") -> "openai"
-      true -> "openrouter"
-    end
+    Model.provider_from_string(model)
   end
 
   ## API Key Management
@@ -343,17 +349,11 @@ defmodule FrontmanServer.Providers do
 
   @doc """
   Fetches a server API key for the provider from environment config.
+
+  Delegates to `Registry.get_server_api_key/1`.
   """
   def get_server_api_key(provider) when is_binary(provider) do
-    provider = String.downcase(provider)
-
-    case provider do
-      "openrouter" -> Application.get_env(:frontman_server, :openrouter_api_key)
-      "anthropic" -> Application.get_env(:frontman_server, :anthropic_api_key)
-      "google" -> Application.get_env(:frontman_server, :google_api_key)
-      "openai" -> Application.get_env(:frontman_server, :openai_api_key)
-      _ -> nil
-    end
+    Registry.get_server_api_key(provider)
   end
 
   ## OAuth Token Management

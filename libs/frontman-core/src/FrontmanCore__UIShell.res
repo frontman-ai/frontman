@@ -21,16 +21,18 @@ let generateHTML = (config: MiddlewareConfig.t): string => {
   }
 
   let runtimeConfigScript = {
-    // Get the raw env var and filter out empty strings
-    let openrouterKey =
+    // Get raw env vars and filter out empty strings
+    let getEnvKey = (varName) =>
       FrontmanBindings.Process.env
-      ->Dict.get("OPENROUTER_API_KEY")
+      ->Dict.get(varName)
       ->Option.flatMap(key =>
         switch key != "" {
         | true => Some(key)
         | false => None
         }
       )
+    let openrouterKey = getEnvKey("OPENROUTER_API_KEY")
+    let anthropicKey = getEnvKey("ANTHROPIC_API_KEY")
     // Build JSON payload using proper JSON encoding to handle special characters
     let configObj = Dict.fromArray([
       ("framework", JSON.Encode.string(MiddlewareConfig.frameworkIdToString(config.frameworkId))),
@@ -38,9 +40,12 @@ let generateHTML = (config: MiddlewareConfig.t): string => {
       ("projectRoot", JSON.Encode.string(config.projectRoot)),
       ("sourceRoot", JSON.Encode.string(config.sourceRoot)),
     ])
-    // Add key value if present and non-empty
+    // Add key values if present and non-empty
     openrouterKey->Option.forEach(key => {
       configObj->Dict.set("openrouterKeyValue", JSON.Encode.string(key))
+    })
+    anthropicKey->Option.forEach(key => {
+      configObj->Dict.set("anthropicKeyValue", JSON.Encode.string(key))
     })
     let payload = JSON.stringify(JSON.Encode.object(configObj))
     `<script>window.__frontmanRuntime=${payload}</script>`

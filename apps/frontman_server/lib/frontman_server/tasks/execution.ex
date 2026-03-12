@@ -20,7 +20,7 @@ defmodule FrontmanServer.Tasks.Execution do
   alias FrontmanServer.Image
   alias FrontmanServer.Observability.TelemetryEvents
   alias FrontmanServer.Providers
-  alias FrontmanServer.Providers.ResolvedKey
+  alias FrontmanServer.Providers.{Model, Registry, ResolvedKey}
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Execution.{Framework, RootAgent, ToolExecutor}
   alias FrontmanServer.Tasks.{Interaction, Task}
@@ -68,7 +68,7 @@ defmodule FrontmanServer.Tasks.Execution do
   def run(%Scope{} = scope, %Task{} = task, opts \\ []) do
     tools = Keyword.get(opts, :tools, [])
     env_api_key = Keyword.get(opts, :env_api_key, %{})
-    model = Keyword.get(opts, :model) |> build_model_string()
+    model = opts |> Keyword.get(:model) |> Model.resolve_string()
 
     # Resolve API key at the domain layer (earliest point)
     case Providers.prepare_api_key(scope, model, env_api_key) do
@@ -98,7 +98,7 @@ defmodule FrontmanServer.Tasks.Execution do
   """
   @spec notify_tool_result(Scope.t(), String.t(), term(), boolean()) :: :ok
   def notify_tool_result(%Scope{}, tool_call_id, result, is_error) do
-    case Registry.lookup(FrontmanServer.ToolCallRegistry, {:tool_call, tool_call_id}) do
+    case Elixir.Registry.lookup(FrontmanServer.ToolCallRegistry, {:tool_call, tool_call_id}) do
       [{_pid, %{caller_pid: caller}}] ->
         # MCP tool - send result to waiting executor
         encoded = encode_result_for_swarm(result)
@@ -230,16 +230,7 @@ defmodule FrontmanServer.Tasks.Execution do
             struct -> struct.summary
           end
 
-        # Build llm_opts with resolved key info
-        base_llm_opts = [
-          api_key: resolved_key.api_key,
-          requires_mcp_prefix: resolved_key.requires_mcp_prefix,
-          identity_override: resolved_key.identity_override,
-          oauth_mode: resolved_key.oauth_mode,
-          max_tokens: 16_384
-        ]
-
-        {llm_opts, model_spec} = maybe_add_codex_opts(base_llm_opts, resolved_key)
+        {model_spec, llm_opts} = ResolvedKey.to_llm_args(resolved_key, max_tokens: 16_384)
 
         RootAgent.new(
           tools: tools,
@@ -257,23 +248,25 @@ defmodule FrontmanServer.Tasks.Execution do
     end
   end
 
-  # Anthropic hard-rejects images > 8000px per side. Other providers auto-resize.
-  defp maybe_constrain_images(messages, "anthropic") do
-    Enum.map(messages, fn msg ->
-      %{msg | content: Enum.map(msg.content, &constrain_image_part/1)}
-    end)
+  # Providers that declare a max_image_dimension hard-reject images exceeding
+  # that limit (e.g. Anthropic at 7680px). Others auto-resize so we skip.
+  defp maybe_constrain_images(messages, provider) do
+    case Registry.max_image_dimension(provider) do
+      nil -> messages
+      max -> Enum.map(messages, &constrain_message_images(&1, max))
+    end
   end
 
-  defp maybe_constrain_images(messages, _provider), do: messages
+  defp constrain_message_images(msg, max) do
+    %{msg | content: Enum.map(msg.content, &constrain_image_part(&1, max))}
+  end
 
-  defp constrain_image_part(%Message.ContentPart{type: :image, data: data} = part) do
-    case Image.check_dimensions(data) do
+  defp constrain_image_part(%Message.ContentPart{type: :image, data: data} = part, max) do
+    case Image.check_dimensions(data, max) do
       :ok ->
         part
 
       {:too_large, width, height} ->
-        max = Image.max_dimension()
-
         Sentry.capture_message("Image exceeded provider dimension limit",
           level: :warning,
           extra: %{width: width, height: height, max_dimension: max}
@@ -287,7 +280,7 @@ defmodule FrontmanServer.Tasks.Execution do
     end
   end
 
-  defp constrain_image_part(part), do: part
+  defp constrain_image_part(part, _max), do: part
 
   defp broadcast(topic, message) do
     Phoenix.PubSub.broadcast(FrontmanServer.PubSub, topic, message)
@@ -407,78 +400,6 @@ defmodule FrontmanServer.Tasks.Execution do
       }
     end)
   end
-
-  # --- Model String Helpers ---
-
-  defp build_model_string(%{provider: provider, value: value})
-       when is_binary(provider) and is_binary(value) do
-    "#{provider}:#{value}"
-  end
-
-  defp build_model_string(_), do: nil
-
-  # --- Codex Helpers ---
-
-  defp maybe_add_codex_opts(llm_opts, %ResolvedKey{
-         codex_endpoint: endpoint,
-         chatgpt_account_id: account_id,
-         model: model_string
-       })
-       when is_binary(endpoint) do
-    model_string = normalize_chatgpt_codex_model(model_string)
-
-    base_url = String.replace_suffix(endpoint, "/responses", "")
-
-    extra_headers =
-      if is_binary(account_id) and account_id != "" do
-        [{"ChatGPT-Account-Id", account_id}]
-      else
-        []
-      end
-
-    updated_opts =
-      llm_opts
-      |> Keyword.put(:base_url, base_url)
-      |> Keyword.put(:extra_headers, extra_headers)
-      |> Keyword.delete(:max_tokens)
-      |> Keyword.update(:provider_options, [store: false], &Keyword.put(&1, :store, false))
-
-    model_spec =
-      case ReqLLM.model(model_string) do
-        {:ok, model} -> force_responses_protocol(model)
-        {:error, _} -> synthesize_codex_model(model_string)
-      end
-
-    {updated_opts, model_spec}
-  end
-
-  defp maybe_add_codex_opts(llm_opts, %ResolvedKey{model: model}), do: {llm_opts, model}
-
-  defp normalize_chatgpt_codex_model("openai:codex-5.3") do
-    Logger.debug("Normalizing openai:codex-5.3 → openai:gpt-5.3-codex for Codex endpoint")
-    "openai:gpt-5.3-codex"
-  end
-
-  defp normalize_chatgpt_codex_model(model), do: model
-
-  defp force_responses_protocol(model) do
-    extra = model.extra || %{}
-    wire = Map.get(extra, :wire, %{})
-    patched_extra = Map.put(extra, :wire, Map.put(wire, :protocol, "openai_responses"))
-    %{model | extra: patched_extra}
-  end
-
-  defp synthesize_codex_model("openai:gpt-5.3-codex") do
-    case ReqLLM.model("openai:gpt-5.2-codex") do
-      {:ok, base} ->
-        %{force_responses_protocol(base) | id: "gpt-5.3-codex", model: "gpt-5.3-codex"}
-
-      {:error, _} ->
-        "openai:gpt-5.3-codex"
-    end
-  end
-
-  defp synthesize_codex_model(model_string), do: model_string
 
   @doc false
   def error_message(%Scope{}, :usage_limit_exceeded),

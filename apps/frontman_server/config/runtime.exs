@@ -17,14 +17,17 @@ end
 # Cloak encryption key for API keys at rest (required)
 config :frontman_server, cloak_key: env!("CLOAK_KEY", :string!)
 
-# LLM API keys - loaded at runtime from environment
+# LLM API keys — derived from the centralised :providers config so adding a
+# new provider doesn't require touching this file.
 if config_env() in [:dev, :test] do
-  config :frontman_server,
-    anthropic_api_key: env!("ANTHROPIC_API_KEY", :string, nil),
-    google_api_key: env!("GOOGLE_API_KEY", :string, nil),
-    xai_api_key: env!("XAI_API_KEY", :string, nil),
-    openrouter_api_key: env!("OPENROUTER_API_KEY", :string, nil),
-    openai_api_key: env!("OPENAI_API_KEY", :string, nil)
+  api_key_config =
+    for {_id, %{config_key: key, env_var: var}} <-
+          Application.get_env(:frontman_server, :providers, %{}),
+        is_binary(var) do
+      {key, env!(var, :string, nil)}
+    end
+
+  config :frontman_server, api_key_config
 end
 
 # WorkOS configuration for OAuth (GitHub, Google)

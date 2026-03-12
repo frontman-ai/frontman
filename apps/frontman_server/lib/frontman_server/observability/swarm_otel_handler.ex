@@ -34,6 +34,11 @@ defmodule FrontmanServer.Observability.SwarmOtelHandler do
 
   require Logger
 
+  alias FrontmanServer.Providers.Model
+  alias SwarmAi.LLM.Usage
+  alias SwarmAi.Message.ContentPart
+  alias SwarmAi.ToolCall
+
   @tables [
     :frontman_spans_loop,
     :frontman_spans_swarm_step,
@@ -232,21 +237,25 @@ defmodule FrontmanServer.Observability.SwarmOtelHandler do
   @doc false
   def handle_llm_start(_event, _measurements, metadata, _config) do
     # model_ref: the original model value from metadata — either a string like "openai:gpt-4"
-    # or an LLMDB.Model struct (from Codex/resolved models). Needed by llm_system_from_model
-    # and llm_provider_from_model which pattern-match on both shapes.
-    # model_name: the display string extracted via format_model_name, used for span names/attributes.
+    # or an LLMDB.Model struct (from Codex/resolved models). Passed to Model.display_name
+    # and Model.provider_name which handle both shapes polymorphically.
     %{loop_id: loop_id, step: step, model: model_ref} = metadata
     input_messages = Map.get(metadata, :messages, [])
 
-    model_name = format_model_name(model_ref)
+    model_name = Model.display_name(model_ref)
     span_name = "chat #{model_name}"
+
+    # llm.system should be the underlying LLM vendor (e.g. "anthropic"),
+    # not the routing proxy (e.g. "openrouter").
+    vendor = Model.llm_vendor_name(model_ref)
+    provider = Model.provider_name(model_ref)
 
     attributes =
       [
         {:"openinference.span.kind", "LLM"},
         {:"llm.model_name", model_name},
-        {:"llm.system", llm_system_from_model(model_ref)},
-        {:"llm.provider", llm_provider_from_model(model_ref)},
+        {:"llm.system", vendor},
+        {:"llm.provider", provider},
         {:"graph.node.id", "llm"},
         {:"graph.node.parent_id", "step_#{step}"}
       ] ++ flatten_input_messages(input_messages)
@@ -267,18 +276,15 @@ defmodule FrontmanServer.Observability.SwarmOtelHandler do
     case lookup_span(:frontman_spans_llm, key) do
       {:ok, span_ctx} ->
         # Token usage (OpenInference format)
-        if usage = metadata[:usage] do
-          prompt_tokens = Map.get(usage, :input_tokens, 0)
-          completion_tokens = Map.get(usage, :output_tokens, 0)
-          reasoning_tokens = Map.get(usage, :reasoning_tokens, 0)
-          cached_tokens = Map.get(usage, :cached_tokens, 0)
+        if usage_map = metadata[:usage] do
+          usage = Usage.from_map(usage_map)
 
           :otel_span.set_attributes(span_ctx, [
-            {:"llm.token_count.prompt", prompt_tokens},
-            {:"llm.token_count.completion", completion_tokens},
-            {:"llm.token_count.reasoning", reasoning_tokens},
-            {:"llm.token_count.cached", cached_tokens},
-            {:"llm.token_count.total", prompt_tokens + completion_tokens + reasoning_tokens}
+            {:"llm.token_count.prompt", usage.input_tokens},
+            {:"llm.token_count.completion", usage.output_tokens},
+            {:"llm.token_count.reasoning", usage.reasoning_tokens},
+            {:"llm.token_count.cached", usage.cached_tokens},
+            {:"llm.token_count.total", Usage.total_tokens(usage)}
           ])
         end
 
@@ -358,10 +364,8 @@ defmodule FrontmanServer.Observability.SwarmOtelHandler do
     case lookup_span(:frontman_spans_tool, tool_id) do
       {:ok, span_ctx} ->
         if output do
-          text_output = extract_text_content(output)
-
           :otel_span.set_attributes(span_ctx, [
-            {:"tool.output", text_output}
+            {:"tool.output", truncate(ContentPart.extract_text(output), 10_000)}
           ])
         end
 
@@ -517,7 +521,8 @@ defmodule FrontmanServer.Observability.SwarmOtelHandler do
   defp flatten_message(%{role: role} = msg, prefix) do
     base = [
       {String.to_atom("#{prefix}.message.role"), to_string(role)},
-      {String.to_atom("#{prefix}.message.content"), extract_text_content(Map.get(msg, :content))}
+      {String.to_atom("#{prefix}.message.content"),
+       truncate(ContentPart.extract_text(Map.get(msg, :content)), 10_000)}
     ]
 
     base ++ flatten_msg_tool_calls(msg, prefix)
@@ -526,7 +531,8 @@ defmodule FrontmanServer.Observability.SwarmOtelHandler do
   defp flatten_message(%{"role" => role, "content" => content}, prefix) do
     [
       {String.to_atom("#{prefix}.message.role"), to_string(role)},
-      {String.to_atom("#{prefix}.message.content"), extract_text_content(content)}
+      {String.to_atom("#{prefix}.message.content"),
+       truncate(ContentPart.extract_text(content), 10_000)}
     ]
   end
 
@@ -538,8 +544,8 @@ defmodule FrontmanServer.Observability.SwarmOtelHandler do
       tc_prefix = "#{prefix}.message.tool_calls.#{idx}"
 
       [
-        {String.to_atom("#{tc_prefix}.tool_call.function.name"), tool_call_name(tc)},
-        {String.to_atom("#{tc_prefix}.tool_call.function.arguments"), tool_call_args(tc)}
+        {String.to_atom("#{tc_prefix}.tool_call.function.name"), extract_tool_name(tc)},
+        {String.to_atom("#{tc_prefix}.tool_call.function.arguments"), extract_tool_args(tc)}
       ]
     end)
   end
@@ -553,8 +559,8 @@ defmodule FrontmanServer.Observability.SwarmOtelHandler do
       prefix = "llm.output_messages.0.message.tool_calls.#{idx}"
 
       [
-        {String.to_atom("#{prefix}.tool_call.function.name"), tool_call_name(tc)},
-        {String.to_atom("#{prefix}.tool_call.function.arguments"), tool_call_args(tc)}
+        {String.to_atom("#{prefix}.tool_call.function.name"), extract_tool_name(tc)},
+        {String.to_atom("#{prefix}.tool_call.function.arguments"), extract_tool_args(tc)}
       ]
     end)
   end
@@ -601,75 +607,14 @@ defmodule FrontmanServer.Observability.SwarmOtelHandler do
 
   defp flatten_reasoning_details(_), do: []
 
-  defp tool_call_name(%ReqLLM.ToolCall{} = tc), do: ReqLLM.ToolCall.name(tc)
-  defp tool_call_name(%SwarmAi.ToolCall{name: name}), do: name
-  defp tool_call_name(%{tool_name: name}), do: name
-  defp tool_call_name(%{name: name}), do: name
-  defp tool_call_name(%{"function" => %{"name" => name}}), do: name
-  defp tool_call_name(_), do: "unknown"
+  # Tool call name/args extraction — delegates to SwarmAi.ToolCall for common
+  # shapes, with an extra clause for ReqLLM.ToolCall (which SwarmAi doesn't
+  # depend on).
+  defp extract_tool_name(%ReqLLM.ToolCall{} = tc), do: ReqLLM.ToolCall.name(tc)
+  defp extract_tool_name(tc), do: ToolCall.extract_name(tc)
 
-  defp tool_call_args(%ReqLLM.ToolCall{} = tc), do: ReqLLM.ToolCall.args_json(tc)
-  defp tool_call_args(%SwarmAi.ToolCall{arguments: args}), do: args
-  defp tool_call_args(%{arguments: args}) when is_binary(args), do: args
-  defp tool_call_args(%{arguments: args}), do: Jason.encode!(args)
-  defp tool_call_args(%{"function" => %{"arguments" => args}}), do: args
-  defp tool_call_args(_), do: "{}"
-
-  defp extract_text_content(content) when is_binary(content), do: truncate(content, 10_000)
-
-  defp extract_text_content(content) when is_list(content) do
-    content
-    |> Enum.filter(&text_content?/1)
-    |> Enum.map_join("\n", &get_text/1)
-    |> truncate(10_000)
-  end
-
-  defp extract_text_content(_), do: ""
-
-  defp text_content?(%{type: :text}), do: true
-  defp text_content?(%{"type" => "text"}), do: true
-  defp text_content?(_), do: false
-
-  defp get_text(%{text: text}), do: text
-  defp get_text(%{"text" => text}), do: text
-  defp get_text(_), do: ""
-
-  # =============================================================================
-  # Model Detection
-  # =============================================================================
-
-  # Format model to a string for span names and attributes.
-  # Handles LLMDB.Model structs (from Codex/resolved models) and plain strings.
-  defp format_model_name(model) when is_binary(model), do: model
-  defp format_model_name(%{id: id}) when is_binary(id), do: id
-  defp format_model_name(nil), do: "unknown"
-  defp format_model_name(model), do: inspect(model)
-
-  defp llm_system_from_model(model) when is_binary(model) do
-    cond do
-      String.contains?(model, "claude") -> "anthropic"
-      String.contains?(model, "gpt") -> "openai"
-      String.contains?(model, "gemini") -> "google"
-      String.contains?(model, "grok") -> "xai"
-      true -> "unknown"
-    end
-  end
-
-  defp llm_system_from_model(%{id: id}) when is_binary(id), do: llm_system_from_model(id)
-  defp llm_system_from_model(_), do: "unknown"
-
-  defp llm_provider_from_model(model) when is_binary(model) do
-    cond do
-      String.contains?(model, "claude") -> "anthropic"
-      String.contains?(model, "gpt") -> "openai"
-      String.contains?(model, "gemini") -> "google"
-      String.contains?(model, "grok") -> "xai"
-      true -> "unknown"
-    end
-  end
-
-  defp llm_provider_from_model(%{id: id}) when is_binary(id), do: llm_provider_from_model(id)
-  defp llm_provider_from_model(_), do: "unknown"
+  defp extract_tool_args(%ReqLLM.ToolCall{} = tc), do: ReqLLM.ToolCall.args_json(tc)
+  defp extract_tool_args(tc), do: ToolCall.extract_args_json(tc)
 
   defp truncate(string, max_length) when is_binary(string) do
     if String.length(string) > max_length do

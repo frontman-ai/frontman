@@ -20,10 +20,10 @@ defmodule FrontmanServerWeb.UserApiKeyController do
     end
   end
 
-  def usage(conn, _params) do
+  def usage(conn, params) do
     scope = conn.assigns.current_scope
-    # Default to openrouter as the primary provider
-    status = Providers.get_usage_status(scope, "openrouter")
+    provider = params["provider"] || "openrouter"
+    status = Providers.get_usage_status(scope, provider)
 
     json(conn, %{
       "limit" => status.limit,

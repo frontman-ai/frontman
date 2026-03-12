@@ -21,6 +21,7 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
     None
   }, (open_, initialTab))
   let (openrouterKey, setOpenrouterKey) = React.useState(() => "")
+  let (anthropicKey, setAnthropicKey) = React.useState(() => "")
   let (oauthCode, setOauthCode) = React.useState(() => "")
   let userProfile = State.useSelector(State.Selectors.userProfile)
   let userEmail = userProfile->Option.map(p => p.email)
@@ -30,6 +31,7 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
 
   // Get API key settings from state
   let keySettings = State.useSelector(State.Selectors.openrouterKeySettings)
+  let anthropicKeySettings = State.useSelector(State.Selectors.anthropicKeySettings)
 
   // Get Anthropic OAuth status from state
   let anthropicOAuthStatus = State.useSelector(State.Selectors.anthropicOAuthStatus)
@@ -41,12 +43,15 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
   React.useEffect2(() => {
     if open_ {
       State.Actions.fetchApiKeySettings()
+      State.Actions.fetchAnthropicApiKeySettings()
       State.Actions.fetchAnthropicOAuthStatus()
       State.Actions.fetchChatGPTOAuthStatus()
       State.Actions.resetOpenRouterKeySaveStatus()
+      State.Actions.resetAnthropicKeySaveStatus()
       State.Actions.resetAnthropicOAuthError()
       State.Actions.resetChatGPTOAuthError()
       setOpenrouterKey(_ => "")
+      setAnthropicKey(_ => "")
       setOauthCode(_ => "")
     }
     None
@@ -60,6 +65,14 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
   | Types.SaveError(msg) => (msg, "mt-2 text-xs text-red-400")
   }
 
+  // Anthropic key status label and style
+  let (anthropicStatusLabel, anthropicStatusClass) = switch anthropicKeySettings.saveStatus {
+  | Types.Idle => ("", "mt-2 text-xs text-zinc-400")
+  | Types.Saving => ("Saving...", "mt-2 text-xs text-zinc-400")
+  | Types.Saved => ("Saved", "mt-2 text-xs text-emerald-300")
+  | Types.SaveError(msg) => (msg, "mt-2 text-xs text-red-400")
+  }
+
   // Determine placeholder text based on key source
   let placeholder = switch keySettings.source {
   | Types.UserOverride => "Key saved - enter new key to replace"
@@ -67,10 +80,15 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
   | Types.None => "Enter OpenRouter API key"
   }
 
+  let anthropicPlaceholder = switch anthropicKeySettings.source {
+  | Types.UserOverride => "Key saved - enter new key to replace"
+  | Types.FromEnv => "Using environment key - enter key to override"
+  | Types.None => "Enter Anthropic API key"
+  }
+
   let handleSave = () => {
     let trimmedKey = String.trim(openrouterKey)
     if trimmedKey == "" {
-      // Don't save empty keys - this is handled locally since we don't want to dispatch
       ()
     } else {
       State.Actions.saveOpenRouterKey(~key=trimmedKey)
@@ -78,29 +96,42 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
     }
   }
 
-  // Render the source badge
-  let sourceBadge = switch keySettings.source {
-  | Types.UserOverride =>
-    <span
-      className="rounded-full bg-blue-500/20 px-2 py-0.5 text-[11px] font-semibold text-blue-200">
-      {React.string("User key")}
-    </span>
-  | Types.FromEnv =>
-    <span
-      className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[11px] font-semibold text-emerald-200">
-      {React.string("From environment")}
-    </span>
-  | Types.None =>
-    <span
-      className="rounded-full bg-zinc-700/50 px-2 py-0.5 text-[11px] font-semibold text-zinc-400">
-      {React.string("Not configured")}
-    </span>
+  let handleAnthropicSave = () => {
+    let trimmedKey = String.trim(anthropicKey)
+    if trimmedKey == "" {
+      ()
+    } else {
+      State.Actions.saveAnthropicKey(~key=trimmedKey)
+      setAnthropicKey(_ => "")
+    }
   }
+
+  // Render the source badge for a given apiKeySource
+  let renderSourceBadge = (source: Types.apiKeySource) =>
+    switch source {
+    | Types.UserOverride =>
+      <span
+        className="rounded-full bg-blue-500/20 px-2 py-0.5 text-[11px] font-semibold text-blue-200">
+        {React.string("User key")}
+      </span>
+    | Types.FromEnv =>
+      <span
+        className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[11px] font-semibold text-emerald-200">
+        {React.string("From environment")}
+      </span>
+    | Types.None =>
+      <span
+        className="rounded-full bg-zinc-700/50 px-2 py-0.5 text-[11px] font-semibold text-zinc-400">
+        {React.string("Not configured")}
+      </span>
+    }
+
+  let sourceBadge = renderSourceBadge(keySettings.source)
 
   <Dialog.Dialog open_={open_} onOpenChange={onOpenChange}>
     <Dialog.DialogContent
-      className="sm:max-w-none max-w-none h-[560px] w-[960px] p-0" showCloseButton={true}>
-      <div className="flex h-full">
+      className="sm:max-w-none max-w-none h-[560px] w-[960px] p-0" showCloseButton={false}>
+      <div className="flex h-full overflow-hidden">
         <div className="w-56 border-r border-zinc-800 bg-zinc-950/60 px-4 py-5">
           <div className="text-lg font-semibold text-zinc-100"> {React.string("Settings")} </div>
           <div className="mt-1 text-xs text-zinc-500">
@@ -130,7 +161,14 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
           </div>
         </div>
 
-        <div className="flex-1 px-6 py-6 pr-12 overflow-y-auto">
+        <div className="flex flex-1 flex-col min-h-0">
+          <div className="flex justify-end px-4 pt-4 pb-2">
+            <Dialog.DialogClose
+              className="ring-offset-background focus:ring-ring data-[state=open]:bg-accent data-[state=open]:text-muted-foreground rounded-xs opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4">
+              <Icons.Cross2Icon />
+            </Dialog.DialogClose>
+          </div>
+          <div className="flex-1 overflow-y-auto px-6 pb-6 pr-6">
           {activeTab == "general"
             ? <div className="space-y-6">
                 // Account section
@@ -298,6 +336,12 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
                             {React.string("Submit")}
                           </Button.Button>
                         </div>
+                        <button
+                          type_="button"
+                          className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
+                          onClick={_ => State.Actions.cancelAnthropicOAuth()}>
+                          {React.string("Cancel")}
+                        </button>
                       </div>
                     | Types.Exchanging =>
                       <div className="flex items-center gap-2 text-sm text-zinc-400">
@@ -334,6 +378,58 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
                       </div>
                     }}
                   </div>
+
+                  // Anthropic API Key (alternative to OAuth) — hidden during active OAuth flow
+                  {switch anthropicOAuthStatus {
+                  | Types.Authorizing(_) | Types.Exchanging => React.null
+                  | _ =>
+                    <div className="mt-4 border-t border-zinc-800 pt-4">
+                      {switch anthropicOAuthStatus {
+                      | Types.Connected(_) =>
+                        <div className="text-xs text-zinc-500">
+                          {React.string("OAuth is connected and takes priority over API key.")}
+                        </div>
+                      | _ => React.null
+                      }}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-zinc-400">
+                            {React.string("or use an API key")}
+                          </span>
+                          {renderSourceBadge(anthropicKeySettings.source)}
+                        </div>
+                        <a
+                          href="https://console.anthropic.com/settings/keys"
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-xs text-zinc-400 hover:text-zinc-200">
+                          {React.string("Manage keys")}
+                        </a>
+                      </div>
+                      <div className="mt-2 flex items-center gap-3">
+                        <Input.Input
+                          type_=#password
+                          placeholder={anthropicPlaceholder}
+                          value={anthropicKey}
+                          onChange={e => {
+                            let target = ReactEvent.Form.target(e)
+                            setAnthropicKey(_ => target["value"])
+                            State.Actions.resetAnthropicKeySaveStatus()
+                          }}
+                          className="flex-1 min-w-0"
+                        />
+                        <Button.Button
+                          variant=#secondary
+                          onClick={_ => handleAnthropicSave()}
+                          disabled={anthropicKeySettings.saveStatus == Types.Saving}>
+                          {React.string(anthropicKeySettings.saveStatus == Types.Saving ? "Saving..." : "Save")}
+                        </Button.Button>
+                      </div>
+                      {anthropicStatusLabel != ""
+                        ? <div className={anthropicStatusClass}> {React.string(anthropicStatusLabel)} </div>
+                        : React.null}
+                    </div>
+                  }}
                 </div>
 
                 // ChatGPT OAuth Section
@@ -482,6 +578,7 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
                     : React.null}
                 </div>
               </div>}
+          </div>
         </div>
       </div>
     </Dialog.DialogContent>

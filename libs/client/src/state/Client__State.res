@@ -136,6 +136,15 @@ module Actions = {
   let resetOpenRouterKeySaveStatus = () =>
     Client__State__Store.dispatch(ResetOpenRouterKeySaveStatus)
 
+  // Anthropic API key settings action creators
+  let fetchAnthropicApiKeySettings = () =>
+    Client__State__Store.dispatch(FetchAnthropicApiKeySettings)
+
+  let saveAnthropicKey = (~key) => Client__State__Store.dispatch(SaveAnthropicKey({key: key}))
+
+  let resetAnthropicKeySaveStatus = () =>
+    Client__State__Store.dispatch(ResetAnthropicKeySaveStatus)
+
   // Model selection action creators
   let setSelectedModel = (~provider, ~value) =>
     Client__State__Store.dispatch(SetSelectedModel({model: {provider, value}}))
@@ -151,6 +160,8 @@ module Actions = {
   let disconnectAnthropicOAuth = () => Client__State__Store.dispatch(DisconnectAnthropicOAuth)
 
   let resetAnthropicOAuthError = () => Client__State__Store.dispatch(ResetAnthropicOAuthError)
+
+  let cancelAnthropicOAuth = () => Client__State__Store.dispatch(CancelAnthropicOAuth)
 
   // ChatGPT OAuth action creators
   let fetchChatGPTOAuthStatus = () => Client__State__Store.dispatch(FetchChatGPTOAuthStatus)
