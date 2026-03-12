@@ -108,6 +108,59 @@ defmodule SwarmAi.Runtime.ExecutionMonitorTest do
     end
   end
 
+  describe "registry cleanup before callbacks" do
+    test "registry entry is cleared before on_crash fires" do
+      {monitor, registry} = start_monitor!()
+      test_pid = self()
+
+      _pid =
+        spawn(fn ->
+          # Register as running (like Runtime.run does)
+          Registry.register(registry, {:running, "race-key"}, %{})
+
+          ExecutionMonitor.watch(monitor, "race-key",
+            on_crash: fn _reason ->
+              # This is the invariant: by the time this callback fires,
+              # the Registry entry must already be gone
+              result = Registry.lookup(registry, {:running, "race-key"})
+              send(test_pid, {:registry_in_callback, result})
+            end
+          )
+
+          exit(:boom)
+        end)
+
+      assert_receive {:registry_in_callback, result}, 1000
+      assert result == [], "Registry entry should be cleared before on_crash callback fires"
+    end
+
+    test "registry entry is cleared before on_cancelled fires" do
+      {monitor, registry} = start_monitor!()
+      test_pid = self()
+
+      pid =
+        spawn(fn ->
+          Registry.register(registry, {:running, "cancel-race-key"}, %{})
+
+          ExecutionMonitor.watch(monitor, "cancel-race-key",
+            on_cancelled: fn ->
+              result = Registry.lookup(registry, {:running, "cancel-race-key"})
+              send(test_pid, {:registry_in_callback, result})
+            end
+          )
+
+          Process.sleep(:infinity)
+        end)
+
+      # Give the process time to register and start watching
+      Process.sleep(20)
+      Process.exit(pid, :cancelled)
+
+      assert_receive {:registry_in_callback, result}, 1000
+      assert result == [], "Registry entry should be cleared before on_cancelled callback fires"
+    end
+  end
+
   describe "recovery from restart" do
     test "re-monitors processes found in Registry on init" do
       # Start a registry, register a fake running process, then start monitor

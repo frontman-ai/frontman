@@ -49,6 +49,10 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
     |> validate_required([:task_id, :type, :data, :sequence])
     |> validate_inclusion(:type, Interaction.known_type_strings())
     |> foreign_key_constraint(:task_id)
+    |> unique_constraint([:task_id, :data],
+      name: :interactions_tool_result_uniqueness,
+      message: "duplicate tool result for this tool_call_id"
+    )
   end
 
   # Reserve 6 decimal digits for the tiebreaker (0–999_999).
@@ -82,6 +86,27 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
   @spec for_task(Ecto.Queryable.t(), String.t()) :: Ecto.Query.t()
   def for_task(query \\ __MODULE__, task_id) do
     from(i in query, where: i.task_id == ^task_id)
+  end
+
+  @doc """
+  Filters interactions by their type discriminator (e.g. "tool_call", "tool_result").
+  """
+  @spec by_type(Ecto.Queryable.t(), String.t()) :: Ecto.Query.t()
+  def by_type(query \\ __MODULE__, type) do
+    from(i in query, where: i.type == ^type)
+  end
+
+  @doc """
+  Filters interactions by a JSONB data field value (e.g. `tool_call_id`, `tool_name`).
+  """
+  @spec by_data_field(Ecto.Queryable.t(), String.t(), String.t()) :: Ecto.Query.t()
+  def by_data_field(query \\ __MODULE__, field, value) do
+    from(i in query, where: fragment("?->>? = ?", i.data, ^field, ^value))
+  end
+
+  @spec limited(Ecto.Queryable.t(), pos_integer()) :: Ecto.Query.t()
+  def limited(query \\ __MODULE__, count) do
+    from(i in query, limit: ^count)
   end
 
   @doc """

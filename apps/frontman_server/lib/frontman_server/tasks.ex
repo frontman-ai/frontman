@@ -50,17 +50,6 @@ defmodule FrontmanServer.Tasks do
   end
 
   @doc """
-  Checks if a task exists for the given scope.
-  """
-  @spec task_exists?(Scope.t(), String.t()) :: boolean()
-  def task_exists?(%Scope{} = scope, task_id) do
-    case get_task_by_id(scope, task_id) do
-      {:ok, _schema} -> true
-      {:error, :not_found} -> false
-    end
-  end
-
-  @doc """
   Gets a task by ID. Returns the task with interactions loaded.
 
   Requires authorization - scope.user.id must match task.user_id.
@@ -142,14 +131,6 @@ defmodule FrontmanServer.Tasks do
   def topic(task_id), do: "task:#{task_id}"
 
   @doc """
-  Subscribes the calling process to task events.
-  """
-  @spec subscribe(atom(), String.t()) :: :ok | {:error, term()}
-  def subscribe(pubsub, task_id) do
-    Phoenix.PubSub.subscribe(pubsub, topic(task_id))
-  end
-
-  @doc """
   Creates a new task and stores it.
 
   The task_id must be provided by the client.
@@ -172,37 +153,6 @@ defmodule FrontmanServer.Tasks do
   end
 
   @doc """
-  Gets all interactions for a task.
-
-  Requires authorization - scope.user.id must match task.user_id.
-  """
-  @spec get_interactions(Scope.t(), String.t()) ::
-          {:ok, [Interaction.t()]} | {:error, :not_found}
-  def get_interactions(%Scope{} = scope, task_id) do
-    with {:ok, _schema} <- get_task_by_id(scope, task_id) do
-      {:ok, load_interactions(task_id)}
-    end
-  end
-
-  @doc """
-  Gets LLM-formatted messages for a task.
-
-  Requires authorization - scope.user.id must match task.user_id.
-
-  Note: Project rules (AGENTS.md, etc.) are now appended to the system prompt
-  in Prompts.build/1 rather than prepended to user messages. This ensures they
-  appear after the base prompt and before context-specific guidance.
-  """
-  @spec get_llm_messages(Scope.t(), String.t()) ::
-          {:ok, list(map())} | {:error, :not_found}
-  def get_llm_messages(%Scope{} = scope, task_id) do
-    with {:ok, interactions} <- get_interactions(scope, task_id) do
-      messages = Interaction.to_llm_messages(interactions)
-      {:ok, messages}
-    end
-  end
-
-  @doc """
   Adds a discovered project rule to the task.
 
   Deduplicates by path - returns `{:ok, :already_loaded}` if already present.
@@ -212,7 +162,9 @@ defmodule FrontmanServer.Tasks do
           | {:error, :not_found}
   def add_discovered_project_rule(%Scope{} = scope, task_id, path, content) do
     with {:ok, schema} <- get_task_by_id(scope, task_id) do
-      if discovered_project_rule_loaded?(scope, task_id, path) do
+      interactions = load_interactions(task_id)
+
+      if rule_loaded?(interactions, path) do
         {:ok, :already_loaded}
       else
         interaction = Interaction.DiscoveredProjectRule.new(path, content)
@@ -221,27 +173,12 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
-  @doc """
-  Gets all discovered project rules for a task.
-  """
-  @spec get_discovered_project_rules(Scope.t(), String.t()) ::
-          {:ok, [Interaction.DiscoveredProjectRule.t()]} | {:error, :not_found}
-  def get_discovered_project_rules(%Scope{} = scope, task_id) do
-    with {:ok, interactions} <- get_interactions(scope, task_id) do
-      rules = Enum.filter(interactions, &match?(%Interaction.DiscoveredProjectRule{}, &1))
-      {:ok, rules}
-    end
-  end
-
-  @doc """
-  Checks if a project rule with the given path has already been loaded.
-  """
-  @spec discovered_project_rule_loaded?(Scope.t(), String.t(), String.t()) :: boolean()
-  def discovered_project_rule_loaded?(%Scope{} = scope, task_id, path) do
-    case get_discovered_project_rules(scope, task_id) do
-      {:ok, rules} -> Enum.any?(rules, &(&1.path == path))
-      {:error, _} -> false
-    end
+  @spec rule_loaded?([Interaction.t()], String.t()) :: boolean()
+  defp rule_loaded?(interactions, path) do
+    Enum.any?(interactions, fn
+      %Interaction.DiscoveredProjectRule{path: p} -> p == path
+      _ -> false
+    end)
   end
 
   @doc """
@@ -254,48 +191,14 @@ defmodule FrontmanServer.Tasks do
           | {:error, :not_found}
   def add_discovered_project_structure(%Scope{} = scope, task_id, summary) do
     with {:ok, schema} <- get_task_by_id(scope, task_id) do
-      case get_discovered_project_structure(scope, task_id) do
-        {:ok, nil} ->
-          interaction = Interaction.DiscoveredProjectStructure.new(summary)
-          append_interaction(schema, interaction)
+      interactions = load_interactions(task_id)
 
-        {:ok, _existing} ->
-          {:ok, :already_loaded}
-
-        {:error, _} ->
-          interaction = Interaction.DiscoveredProjectStructure.new(summary)
-          append_interaction(schema, interaction)
+      if Enum.any?(interactions, &match?(%Interaction.DiscoveredProjectStructure{}, &1)) do
+        {:ok, :already_loaded}
+      else
+        interaction = Interaction.DiscoveredProjectStructure.new(summary)
+        append_interaction(schema, interaction)
       end
-    end
-  end
-
-  @doc """
-  Gets the discovered project structure summary for a task, if any.
-  """
-  @spec get_discovered_project_structure(Scope.t(), String.t()) ::
-          {:ok, String.t() | nil} | {:error, :not_found}
-  def get_discovered_project_structure(%Scope{} = scope, task_id) do
-    with {:ok, interactions} <- get_interactions(scope, task_id) do
-      summary =
-        interactions
-        |> Enum.find(&match?(%Interaction.DiscoveredProjectStructure{}, &1))
-        |> case do
-          nil -> nil
-          struct -> struct.summary
-        end
-
-      {:ok, summary}
-    end
-  end
-
-  @doc """
-  Checks if any user messages in the task contain annotations.
-  """
-  @spec has_annotations?(Scope.t(), String.t()) :: boolean()
-  def has_annotations?(%Scope{} = scope, task_id) do
-    case get_interactions(scope, task_id) do
-      {:ok, interactions} -> Interaction.has_annotations?(interactions)
-      {:error, _} -> false
     end
   end
 
@@ -316,9 +219,8 @@ defmodule FrontmanServer.Tasks do
 
   # Bump the task's updated_at so it sorts to the top of the sessions list
   defp touch_task(task_id) do
-    import Ecto.Query
-
-    from(t in TaskSchema, where: t.id == ^task_id)
+    TaskSchema
+    |> TaskSchema.by_id(task_id)
     |> Repo.update_all(set: [updated_at: DateTime.utc_now(:second)])
   end
 
@@ -357,18 +259,6 @@ defmodule FrontmanServer.Tasks do
   end
 
   @doc """
-  Creates and appends an AgentSpawned interaction.
-  """
-  @spec add_agent_spawned(Scope.t(), String.t(), map()) ::
-          {:ok, Interaction.AgentSpawned.t()} | {:error, :not_found}
-  def add_agent_spawned(%Scope{} = scope, task_id, config \\ %{}) do
-    with {:ok, schema} <- get_task_by_id(scope, task_id) do
-      interaction = Interaction.AgentSpawned.new(config)
-      append_interaction(schema, interaction)
-    end
-  end
-
-  @doc """
   Creates and appends an AgentCompleted interaction.
   """
   @spec add_agent_completed(Scope.t(), String.t(), term()) ::
@@ -396,9 +286,11 @@ defmodule FrontmanServer.Tasks do
   Creates and appends a ToolResult interaction.
 
   Routes the result to the waiting executor so the agent can continue.
+  Duplicate tool results for the same tool_call_id are prevented by a
+  unique partial index on the interactions table.
   """
   @spec add_tool_result(Scope.t(), String.t(), map(), term(), boolean()) ::
-          {:ok, Interaction.ToolResult.t()} | {:error, :not_found}
+          {:ok, Interaction.ToolResult.t()} | {:error, :not_found | Ecto.Changeset.t()}
   def add_tool_result(
         %Scope{} = scope,
         task_id,

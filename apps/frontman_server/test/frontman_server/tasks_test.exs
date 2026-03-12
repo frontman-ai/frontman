@@ -26,22 +26,6 @@ defmodule FrontmanServer.TasksTest do
     end
   end
 
-  describe "subscribe/2" do
-    test "subscribes calling process to task topic" do
-      task_id = Ecto.UUID.generate()
-
-      :ok = Tasks.subscribe(FrontmanServer.PubSub, task_id)
-
-      Phoenix.PubSub.broadcast(
-        FrontmanServer.PubSub,
-        Tasks.topic(task_id),
-        {:test_event, "hello"}
-      )
-
-      assert_receive {:test_event, "hello"}, 100
-    end
-  end
-
   describe "create_task/3" do
     test "creates task with framework", %{scope: scope} do
       task_id = Ecto.UUID.generate()
@@ -90,36 +74,6 @@ defmodule FrontmanServer.TasksTest do
     end
   end
 
-  describe "task_exists?/2" do
-    test "returns true for existing task owned by user", %{scope: scope} do
-      task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
-
-      assert Tasks.task_exists?(scope, task_id) == true
-    end
-
-    test "returns false for non-existent task", %{scope: scope} do
-      assert Tasks.task_exists?(scope, Ecto.UUID.generate()) == false
-    end
-
-    test "returns false for task owned by different user", %{scope: scope} do
-      task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
-
-      # Create a different user/scope
-      {:ok, other_user} =
-        Accounts.register_user(%{
-          email: "other_#{System.unique_integer([:positive])}@test.local",
-          name: "Other User",
-          password: "testpassword123!"
-        })
-
-      other_scope = Scope.for_user(other_user)
-
-      assert Tasks.task_exists?(other_scope, task_id) == false
-    end
-  end
-
   describe "get_task/2 authorization" do
     test "returns not_found when accessing task owned by different user", %{scope: scope} do
       task_id = Ecto.UUID.generate()
@@ -140,21 +94,7 @@ defmodule FrontmanServer.TasksTest do
     end
   end
 
-  describe "get_interactions/2" do
-    test "returns error for non-existent task", %{scope: scope} do
-      task_id = Ecto.UUID.generate()
-      assert {:error, :not_found} = Tasks.get_interactions(scope, task_id)
-    end
-
-    test "returns interactions for existing task", %{scope: scope} do
-      task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
-
-      assert {:ok, []} = Tasks.get_interactions(scope, task_id)
-    end
-  end
-
-  describe "get_llm_messages/2" do
+  describe "LLM message conversion" do
     test "returns all messages for task", %{scope: scope} do
       task_id = Ecto.UUID.generate()
       {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
@@ -166,7 +106,8 @@ defmodule FrontmanServer.TasksTest do
       Tasks.add_agent_response(scope, task_id, "Response from agent", %{})
       Tasks.add_agent_response(scope, task_id, "Another response", %{})
 
-      {:ok, messages} = Tasks.get_llm_messages(scope, task_id)
+      {:ok, task} = Tasks.get_task(scope, task_id)
+      messages = Tasks.Interaction.to_llm_messages(task.interactions)
 
       # Should have: UserMessage + 2 responses = 3 messages
       assert length(messages) == 3
@@ -218,15 +159,15 @@ defmodule FrontmanServer.TasksTest do
       {:ok, _} = Tasks.add_agent_response(scope, task_id, "The answer is 4.")
 
       # --- Verify interactions have correct monotonic sequences ---
-      {:ok, interactions} = Tasks.get_interactions(scope, task_id)
-      sequences = Enum.map(interactions, & &1.sequence)
+      {:ok, task} = Tasks.get_task(scope, task_id)
+      sequences = Enum.map(task.interactions, & &1.sequence)
 
       assert length(sequences) == 5
       assert sequences == Enum.sort(sequences), "sequences should be strictly increasing"
       assert sequences == Enum.uniq(sequences), "sequences should be unique"
 
       # --- Verify LLM messages are valid for Anthropic ---
-      {:ok, messages} = Tasks.get_llm_messages(scope, task_id)
+      messages = Tasks.Interaction.to_llm_messages(task.interactions)
 
       # to_llm_messages skips ToolCall interactions (they're redundant with agent_response metadata)
       # Expected: user -> assistant(with tool_calls) -> tool -> assistant
@@ -315,8 +256,25 @@ defmodule FrontmanServer.TasksTest do
         Tasks.add_tool_result(scope, task_id, tool_call_data, "result", false)
 
       # The tool result should have been stored successfully
-      {:ok, interactions} = Tasks.get_interactions(scope, task_id)
-      assert length(interactions) == 1
+      {:ok, task} = Tasks.get_task(scope, task_id)
+      assert length(task.interactions) == 1
+    end
+
+    test "rejects duplicate tool result for the same tool_call_id", %{scope: scope} do
+      task_id = Ecto.UUID.generate()
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
+
+      tool_call_data = %{id: "call_dedup", name: "some_tool"}
+
+      {:ok, _first} = Tasks.add_tool_result(scope, task_id, tool_call_data, "result1", false)
+
+      assert {:error, %Ecto.Changeset{}} =
+               Tasks.add_tool_result(scope, task_id, tool_call_data, "result2", false)
+
+      {:ok, task} = Tasks.get_task(scope, task_id)
+      tool_results = Enum.filter(task.interactions, &match?(%Tasks.Interaction.ToolResult{}, &1))
+      assert length(tool_results) == 1
+      assert hd(tool_results).result == "result1"
     end
   end
 
@@ -371,8 +329,8 @@ defmodule FrontmanServer.TasksTest do
       assert results == Enum.uniq(results), "sequences must be unique, got duplicates"
 
       # When read back from DB, the ordered query should return all 20 in sorted order
-      {:ok, interactions} = Tasks.get_interactions(scope, task_id)
-      db_sequences = Enum.map(interactions, & &1.sequence)
+      {:ok, task} = Tasks.get_task(scope, task_id)
+      db_sequences = Enum.map(task.interactions, & &1.sequence)
 
       assert length(db_sequences) == 20
       assert db_sequences == Enum.sort(db_sequences), "DB ordering must be sorted"
@@ -391,8 +349,8 @@ defmodule FrontmanServer.TasksTest do
       tool_call_data = %{id: "tc_1", name: "test_tool"}
       {:ok, _} = Tasks.add_tool_result(scope, task_id, tool_call_data, "result", false)
 
-      {:ok, interactions} = Tasks.get_interactions(scope, task_id)
-      sequences = Enum.map(interactions, & &1.sequence)
+      {:ok, task} = Tasks.get_task(scope, task_id)
+      sequences = Enum.map(task.interactions, & &1.sequence)
 
       # Sequences should be strictly increasing
       assert sequences == Enum.sort(sequences)
@@ -424,7 +382,11 @@ defmodule FrontmanServer.TasksTest do
       {:ok, :already_loaded} =
         Tasks.add_discovered_project_rule(scope, task_id, "/project/AGENTS.md", "# Rules v2")
 
-      {:ok, rules} = Tasks.get_discovered_project_rules(scope, task_id)
+      {:ok, task} = Tasks.get_task(scope, task_id)
+
+      rules =
+        Enum.filter(task.interactions, &match?(%Tasks.Interaction.DiscoveredProjectRule{}, &1))
+
       assert length(rules) == 1
       assert hd(rules).content == "# Rules v1"
     end
@@ -434,26 +396,6 @@ defmodule FrontmanServer.TasksTest do
 
       assert {:error, :not_found} =
                Tasks.add_discovered_project_rule(scope, nonexistent_id, "/path", "content")
-    end
-  end
-
-  describe "get_discovered_project_rules/2" do
-    test "returns empty list for task with no rules", %{scope: scope} do
-      task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
-
-      assert {:ok, []} = Tasks.get_discovered_project_rules(scope, task_id)
-    end
-
-    test "returns all rules for task", %{scope: scope} do
-      task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
-
-      Tasks.add_discovered_project_rule(scope, task_id, "/a/AGENTS.md", "A rules")
-      Tasks.add_discovered_project_rule(scope, task_id, "/b/AGENTS.md", "B rules")
-
-      {:ok, rules} = Tasks.get_discovered_project_rules(scope, task_id)
-      assert length(rules) == 2
     end
   end
 
@@ -478,26 +420,7 @@ defmodule FrontmanServer.TasksTest do
     end
   end
 
-  describe "get_discovered_project_structure/2" do
-    test "returns nil for task with no structure", %{scope: scope} do
-      task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
-
-      assert {:ok, nil} = Tasks.get_discovered_project_structure(scope, task_id)
-    end
-
-    test "returns summary for task with structure", %{scope: scope} do
-      task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
-
-      summary = "Project type: monorepo (turborepo)\n\nWorkspaces:\n  @app/web -> apps/web"
-
-      Tasks.add_discovered_project_structure(scope, task_id, summary)
-
-      {:ok, result} = Tasks.get_discovered_project_structure(scope, task_id)
-      assert result == summary
-    end
-
+  describe "LLM message conversion excludes non-conversational interactions" do
     test "structure is excluded from LLM messages", %{scope: scope} do
       task_id = Ecto.UUID.generate()
       {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
@@ -505,79 +428,32 @@ defmodule FrontmanServer.TasksTest do
       Tasks.add_discovered_project_structure(scope, task_id, "Project layout...")
       Tasks.add_user_message(scope, task_id, [%{"type" => "text", "text" => "Hello"}], [])
 
-      {:ok, messages} = Tasks.get_llm_messages(scope, task_id)
+      {:ok, task} = Tasks.get_task(scope, task_id)
+      messages = Tasks.Interaction.to_llm_messages(task.interactions)
 
       # Only the user message should be present — structure goes in system prompt
       assert length(messages) == 1
       [msg] = messages
       assert msg.role == :user
     end
-  end
 
-  describe "get_llm_messages/2 with discovered rules" do
-    # Note: Project rules are NOT prepended to messages by get_llm_messages.
-    # They are retrieved separately via get_discovered_project_rules and
-    # included in the system prompt via Prompts.build(project_rules: rules).
-
-    test "returns messages without modification (rules stored separately)", %{scope: scope} do
+    test "rules are excluded from LLM messages", %{scope: scope} do
       task_id = Ecto.UUID.generate()
       {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
 
       Tasks.add_discovered_project_rule(scope, task_id, "/project/AGENTS.md", "# Project Rules")
       Tasks.add_user_message(scope, task_id, [%{"type" => "text", "text" => "Hello"}], [])
 
-      {:ok, messages} = Tasks.get_llm_messages(scope, task_id)
+      {:ok, task} = Tasks.get_task(scope, task_id)
+      messages = Tasks.Interaction.to_llm_messages(task.interactions)
 
-      # Messages are returned as-is, without rule injection
       assert length(messages) == 1
       [msg] = messages
       assert msg.role == :user
 
       content_text = extract_content_text(msg.content)
-      # Rules are NOT in the user message - they go in the system prompt
-      refute content_text =~ "<system-reminder>"
       refute content_text =~ "# Project Rules"
       assert content_text =~ "Hello"
-    end
-
-    test "returns messages unchanged when no rules", %{scope: scope} do
-      task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
-
-      Tasks.add_user_message(scope, task_id, [%{"type" => "text", "text" => "Hello"}], [])
-
-      {:ok, messages} = Tasks.get_llm_messages(scope, task_id)
-
-      assert length(messages) == 1
-      [msg] = messages
-
-      content_text = extract_content_text(msg.content)
-      refute content_text =~ "<system-reminder>"
-      assert content_text =~ "Hello"
-    end
-
-    test "rules are retrievable separately via get_discovered_project_rules", %{scope: scope} do
-      task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
-
-      Tasks.add_discovered_project_rule(scope, task_id, "/a/AGENTS.md", "Rule A")
-      Tasks.add_discovered_project_rule(scope, task_id, "/b/AGENTS.md", "Rule B")
-      Tasks.add_user_message(scope, task_id, [%{"type" => "text", "text" => "Hello"}], [])
-
-      # Rules are stored and retrievable separately
-      {:ok, rules} = Tasks.get_discovered_project_rules(scope, task_id)
-      assert length(rules) == 2
-
-      rule_contents = Enum.map(rules, & &1.content)
-      assert "Rule A" in rule_contents
-      assert "Rule B" in rule_contents
-
-      # Messages don't contain the rules
-      {:ok, messages} = Tasks.get_llm_messages(scope, task_id)
-      [msg] = messages
-      content_text = extract_content_text(msg.content)
-      refute content_text =~ "Rule A"
-      refute content_text =~ "Rule B"
     end
   end
 
@@ -597,7 +473,8 @@ defmodule FrontmanServer.TasksTest do
       {:ok, _interaction} = Tasks.add_user_message(scope, task_id, content_blocks, [])
 
       # Retrieve via LLM conversion (exercises the full JSONB round-trip)
-      {:ok, messages} = Tasks.get_llm_messages(scope, task_id)
+      {:ok, task} = Tasks.get_task(scope, task_id)
+      messages = Tasks.Interaction.to_llm_messages(task.interactions)
 
       assert length(messages) == 1
       [msg] = messages

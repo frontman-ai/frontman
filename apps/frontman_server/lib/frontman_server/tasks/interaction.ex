@@ -900,6 +900,37 @@ defmodule FrontmanServer.Tasks.Interaction do
   def user_message?(_), do: false
 
   @doc """
+  Checks whether all tool_calls from the last AgentResponse have matching
+  ToolResult interactions.
+
+  Returns `true` when there is no pending AgentResponse, or when every
+  tool_call in the last AgentResponse has a corresponding ToolResult
+  (matched by tool_call_id, appearing after the AgentResponse by sequence).
+
+  Used to gate re-execution after a late-arriving interactive tool result:
+  we only restart the agent loop when ALL tool results are present so the
+  conversation is valid for the LLM.
+  """
+  @spec all_pending_tools_resolved?(list(t())) :: boolean()
+  def all_pending_tools_resolved?(interactions) do
+    with %AgentResponse{metadata: meta, sequence: agent_seq}
+         when is_map(meta) <-
+           interactions |> Enum.filter(&match?(%AgentResponse{}, &1)) |> List.last(),
+         tool_calls when tool_calls != [] <- get_field(meta, "tool_calls") || [] do
+      expected_ids = MapSet.new(tool_calls, &get_field(&1, "id"))
+
+      result_ids =
+        interactions
+        |> Enum.filter(&match?(%ToolResult{sequence: seq} when seq > agent_seq, &1))
+        |> MapSet.new(& &1.tool_call_id)
+
+      MapSet.subset?(expected_ids, result_ids)
+    else
+      _ -> true
+    end
+  end
+
+  @doc """
   Converts interactions to LLM message format.
 
   This is the boundary translation from Tasks domain (Interactions)

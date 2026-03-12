@@ -39,10 +39,31 @@ defmodule AgentClientProtocol do
 
   @plan_statuses [@plan_status_pending, @plan_status_in_progress, @plan_status_completed]
 
+  # Stop reason constants — the single source of truth for ACP wire values.
+  @stop_reason_end_turn "end_turn"
+  @stop_reason_max_tokens "max_tokens"
+  @stop_reason_max_turn_requests "max_turn_requests"
+  @stop_reason_refusal "refusal"
+  @stop_reason_cancelled "cancelled"
+
+  @stop_reasons [
+    @stop_reason_end_turn,
+    @stop_reason_max_tokens,
+    @stop_reason_max_turn_requests,
+    @stop_reason_refusal,
+    @stop_reason_cancelled
+  ]
+
   def tool_call_status_pending, do: @tool_call_status_pending
   def tool_call_status_in_progress, do: @tool_call_status_in_progress
   def tool_call_status_completed, do: @tool_call_status_completed
   def tool_call_status_failed, do: @tool_call_status_failed
+
+  def stop_reason_end_turn, do: @stop_reason_end_turn
+  def stop_reason_max_tokens, do: @stop_reason_max_tokens
+  def stop_reason_max_turn_requests, do: @stop_reason_max_turn_requests
+  def stop_reason_refusal, do: @stop_reason_refusal
+  def stop_reason_cancelled, do: @stop_reason_cancelled
 
   def protocol_version, do: @protocol_version
 
@@ -113,9 +134,46 @@ defmodule AgentClientProtocol do
   end
 
   @doc """
+  Builds an agent_turn_complete session/update notification.
+
+  Sent when the agent finishes a turn that was resumed via elicitation response
+  (not via session/prompt), so there is no pending JSON-RPC request to respond to.
+  The client uses this to finalize the streaming message and reset the agent-running state.
+  """
+  def build_agent_turn_complete_notification(session_id, stop_reason) do
+    params = %{
+      "sessionId" => session_id,
+      "update" => %{
+        "sessionUpdate" => "agent_turn_complete",
+        "stopReason" => stop_reason
+      }
+    }
+
+    JsonRpc.notification("session/update", params)
+  end
+
+  @doc """
+  Builds an error session/update notification.
+
+  Sent when the agent encounters an error. Always delivered as a notification
+  so the client can display it regardless of whether a pending prompt exists.
+  """
+  def build_error_notification(session_id, message) do
+    params = %{
+      "sessionId" => session_id,
+      "update" => %{
+        "sessionUpdate" => "error",
+        "message" => message
+      }
+    }
+
+    JsonRpc.notification("session/update", params)
+  end
+
+  @doc """
   Builds a session/prompt response with stop reason.
   """
-  def build_prompt_result(stop_reason) do
+  def build_prompt_result(stop_reason) when stop_reason in @stop_reasons do
     %{"stopReason" => stop_reason}
   end
 

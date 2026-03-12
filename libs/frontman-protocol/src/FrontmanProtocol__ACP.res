@@ -296,12 +296,30 @@ let toolCallStatusSchema = S.union([
   S.literal(Failed),
 ])
 
+// Stop reason (per ACP spec)
+type stopReason =
+  | @as("end_turn") EndTurn
+  | @as("max_tokens") MaxTokens
+  | @as("max_turn_requests") MaxTurnRequests
+  | @as("refusal") Refusal
+  | @as("cancelled") Cancelled
+
+let stopReasonSchema = S.union([
+  S.literal(EndTurn),
+  S.literal(MaxTokens),
+  S.literal(MaxTurnRequests),
+  S.literal(Refusal),
+  S.literal(Cancelled),
+])
+
 // session/prompt result
-@schema
 type promptResult = {
-  @as("stopReason")
-  stopReason: string,
+  stopReason: stopReason,
 }
+
+let promptResultSchema = S.object(s => {
+  stopReason: s.field("stopReason", stopReasonSchema),
+})
 
 // Plan entry priority (per ACP spec)
 type planEntryPriority =

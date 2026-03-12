@@ -581,8 +581,7 @@ let sendMessageToAPIImpl = (
         // reopening a Completed message as Streaming permanently.
         Client__TextDeltaBuffer.flush()
         switch result {
-        | Ok({stopReason})
-          if stopReason == "cancelled" => // CancelTurn already cleaned up state - don't dispatch TurnCompleted
+        | Ok({stopReason: Cancelled}) => // CancelTurn already cleaned up state - don't dispatch TurnCompleted
           ()
         | Ok(_) => dispatch(TaskAction({target: ForTask(taskId), action: TurnCompleted}))
         | Error(_) => dispatch(TaskAction({target: ForTask(taskId), action: TurnCompleted}))

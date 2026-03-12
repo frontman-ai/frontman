@@ -4,6 +4,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
   alias FrontmanServer.Tasks.Interaction
 
   alias FrontmanServer.Tasks.Interaction.{
+    AgentResponse,
     Annotation,
     ToolCall,
     ToolResult,
@@ -355,6 +356,147 @@ defmodule FrontmanServer.Tasks.InteractionTest do
 
       assert [tc] = msg.tool_calls
       assert tc == existing_struct
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # all_pending_tools_resolved?/1
+  # ---------------------------------------------------------------------------
+
+  describe "all_pending_tools_resolved?/1" do
+    test "returns true when no interactions or no AgentResponse present" do
+      assert Interaction.all_pending_tools_resolved?([]) == true
+      assert Interaction.all_pending_tools_resolved?([user_msg("Hello")]) == true
+    end
+
+    test "returns true when last AgentResponse has nil/empty/no tool_calls" do
+      for metadata <- [nil, %{}, %{"tool_calls" => []}, %{"tool_calls" => nil}] do
+        interactions = [agent_resp("Done", metadata)]
+        assert Interaction.all_pending_tools_resolved?(interactions) == true
+      end
+    end
+
+    test "returns true when all tool_calls have matching ToolResults" do
+      interactions = [
+        %AgentResponse{
+          id: "1",
+          sequence: 10,
+          content: "Let me use tools",
+          timestamp: DateTime.utc_now(),
+          metadata: %{
+            "tool_calls" => [
+              db_tool_call("call_1", "read_file"),
+              db_tool_call("call_2", "question")
+            ]
+          }
+        },
+        tool_result("call_1", "read_file", "file contents", sequence: 11),
+        tool_result("call_2", "question", "user answer", sequence: 12)
+      ]
+
+      assert Interaction.all_pending_tools_resolved?(interactions) == true
+    end
+
+    test "returns false when some tool_calls are missing ToolResults" do
+      interactions = [
+        %AgentResponse{
+          id: "1",
+          sequence: 10,
+          content: "Let me use tools",
+          timestamp: DateTime.utc_now(),
+          metadata: %{
+            "tool_calls" => [
+              db_tool_call("call_1", "read_file"),
+              db_tool_call("call_2", "question")
+            ]
+          }
+        },
+        tool_result("call_1", "read_file", "file contents", sequence: 11)
+        # call_2 has no matching ToolResult
+      ]
+
+      assert Interaction.all_pending_tools_resolved?(interactions) == false
+    end
+
+    test "returns false when no tool_calls have matching ToolResults" do
+      interactions = [
+        %AgentResponse{
+          id: "1",
+          sequence: 10,
+          content: "Asking a question",
+          timestamp: DateTime.utc_now(),
+          metadata: %{"tool_calls" => [flat_tool_call("call_q", "question", "{}")]}
+        }
+      ]
+
+      assert Interaction.all_pending_tools_resolved?(interactions) == false
+    end
+
+    test "only checks the LAST AgentResponse, not earlier ones" do
+      interactions = [
+        # First AgentResponse with unresolved tool call
+        %AgentResponse{
+          id: "1",
+          sequence: 1,
+          content: "First response",
+          timestamp: DateTime.utc_now(),
+          metadata: %{"tool_calls" => [flat_tool_call("call_old", "read_file", "{}")]}
+        },
+        # Second (last) AgentResponse with no tool calls
+        %AgentResponse{
+          id: "2",
+          sequence: 5,
+          content: "Final response",
+          timestamp: DateTime.utc_now(),
+          metadata: %{}
+        }
+      ]
+
+      assert Interaction.all_pending_tools_resolved?(interactions) == true
+    end
+
+    test "ignores ToolResults that appear BEFORE the last AgentResponse" do
+      interactions = [
+        tool_result("call_1", "question", "old answer", sequence: 5),
+        %AgentResponse{
+          id: "1",
+          sequence: 10,
+          content: "Asking again",
+          timestamp: DateTime.utc_now(),
+          metadata: %{"tool_calls" => [flat_tool_call("call_1", "question", "{}")]}
+        }
+        # No ToolResult AFTER sequence 10
+      ]
+
+      assert Interaction.all_pending_tools_resolved?(interactions) == false
+    end
+
+    test "handles tool_calls as atom-key maps and ReqLLM.ToolCall structs" do
+      tc_struct = ReqLLM.ToolCall.new("call_struct", "question", "{}")
+
+      for tool_calls <- [
+            [%{id: "call_a", name: "question", arguments: "{}"}],
+            [tc_struct]
+          ] do
+        call_id =
+          case hd(tool_calls) do
+            %ReqLLM.ToolCall{id: id} -> id
+            %{id: id} -> id
+          end
+
+        interactions = [
+          %AgentResponse{
+            id: "1",
+            sequence: 10,
+            content: "Using tool",
+            timestamp: DateTime.utc_now(),
+            metadata: %{tool_calls: tool_calls}
+          },
+          tool_result(call_id, "question", "answer", sequence: 11)
+        ]
+
+        assert Interaction.all_pending_tools_resolved?(interactions) == true
+      end
     end
   end
 
