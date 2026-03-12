@@ -161,6 +161,8 @@ module Actions = {
 
   let resetAnthropicOAuthError = () => Client__State__Store.dispatch(ResetAnthropicOAuthError)
 
+  let cancelAnthropicOAuth = () => Client__State__Store.dispatch(CancelAnthropicOAuth)
+
   // ChatGPT OAuth action creators
   let fetchChatGPTOAuthStatus = () => Client__State__Store.dispatch(FetchChatGPTOAuthStatus)
 

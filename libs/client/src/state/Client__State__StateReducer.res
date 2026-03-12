@@ -77,6 +77,7 @@ type action =
   | DisconnectAnthropicOAuth
   | AnthropicOAuthDisconnected
   | ResetAnthropicOAuthError
+  | CancelAnthropicOAuth
   // ChatGPT OAuth actions (device auth flow)
   | FetchChatGPTOAuthStatus
   | ChatGPTOAuthStatusReceived({connected: bool, expiresAt: option<string>})
@@ -281,6 +282,7 @@ let actionToString = action => {
   | DisconnectAnthropicOAuth => `DisconnectAnthropicOAuth`
   | AnthropicOAuthDisconnected => `AnthropicOAuthDisconnected`
   | ResetAnthropicOAuthError => `ResetAnthropicOAuthError`
+  | CancelAnthropicOAuth => `CancelAnthropicOAuth`
   | FetchChatGPTOAuthStatus => `FetchChatGPTOAuthStatus`
   | ChatGPTOAuthStatusReceived({connected}) =>
     `ChatGPTOAuthStatusReceived(connected=${connected->string_of_bool})`
@@ -1748,6 +1750,12 @@ let next = (state: state, action) => {
       }->StateReducer.update
     | _ => state->StateReducer.update
     }
+
+  | CancelAnthropicOAuth =>
+    {
+      ...state,
+      anthropicOAuthStatus: Client__State__Types.NotConnected,
+    }->StateReducer.update
 
   // ChatGPT OAuth actions
   | FetchChatGPTOAuthStatus =>

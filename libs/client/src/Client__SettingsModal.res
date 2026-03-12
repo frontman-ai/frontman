@@ -130,8 +130,8 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
 
   <Dialog.Dialog open_={open_} onOpenChange={onOpenChange}>
     <Dialog.DialogContent
-      className="sm:max-w-none max-w-none h-[560px] w-[960px] p-0" showCloseButton={true}>
-      <div className="flex h-full">
+      className="sm:max-w-none max-w-none h-[560px] w-[960px] p-0" showCloseButton={false}>
+      <div className="flex h-full overflow-hidden">
         <div className="w-56 border-r border-zinc-800 bg-zinc-950/60 px-4 py-5">
           <div className="text-lg font-semibold text-zinc-100"> {React.string("Settings")} </div>
           <div className="mt-1 text-xs text-zinc-500">
@@ -161,7 +161,14 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
           </div>
         </div>
 
-        <div className="flex-1 px-6 py-6 pr-12 overflow-y-auto">
+        <div className="flex flex-1 flex-col min-h-0">
+          <div className="flex justify-end px-4 pt-4 pb-2">
+            <Dialog.DialogClose
+              className="ring-offset-background focus:ring-ring data-[state=open]:bg-accent data-[state=open]:text-muted-foreground rounded-xs opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4">
+              <Icons.Cross2Icon />
+            </Dialog.DialogClose>
+          </div>
+          <div className="flex-1 overflow-y-auto px-6 pb-6 pr-6">
           {activeTab == "general"
             ? <div className="space-y-6">
                 // Account section
@@ -329,6 +336,12 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
                             {React.string("Submit")}
                           </Button.Button>
                         </div>
+                        <button
+                          type_="button"
+                          className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
+                          onClick={_ => State.Actions.cancelAnthropicOAuth()}>
+                          {React.string("Cancel")}
+                        </button>
                       </div>
                     | Types.Exchanging =>
                       <div className="flex items-center gap-2 text-sm text-zinc-400">
@@ -366,53 +379,57 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
                     }}
                   </div>
 
-                  // Anthropic API Key (alternative to OAuth)
-                  <div className="mt-4 border-t border-zinc-800 pt-4">
-                    {switch anthropicOAuthStatus {
-                    | Types.Connected(_) =>
-                      <div className="text-xs text-zinc-500">
-                        {React.string("OAuth is connected and takes priority over API key.")}
+                  // Anthropic API Key (alternative to OAuth) — hidden during active OAuth flow
+                  {switch anthropicOAuthStatus {
+                  | Types.Authorizing(_) | Types.Exchanging => React.null
+                  | _ =>
+                    <div className="mt-4 border-t border-zinc-800 pt-4">
+                      {switch anthropicOAuthStatus {
+                      | Types.Connected(_) =>
+                        <div className="text-xs text-zinc-500">
+                          {React.string("OAuth is connected and takes priority over API key.")}
+                        </div>
+                      | _ => React.null
+                      }}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-zinc-400">
+                            {React.string("or use an API key")}
+                          </span>
+                          {renderSourceBadge(anthropicKeySettings.source)}
+                        </div>
+                        <a
+                          href="https://console.anthropic.com/settings/keys"
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-xs text-zinc-400 hover:text-zinc-200">
+                          {React.string("Manage keys")}
+                        </a>
                       </div>
-                    | _ => React.null
-                    }}
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-zinc-400">
-                          {React.string("or use an API key")}
-                        </span>
-                        {renderSourceBadge(anthropicKeySettings.source)}
+                      <div className="mt-2 flex items-center gap-3">
+                        <Input.Input
+                          type_=#password
+                          placeholder={anthropicPlaceholder}
+                          value={anthropicKey}
+                          onChange={e => {
+                            let target = ReactEvent.Form.target(e)
+                            setAnthropicKey(_ => target["value"])
+                            State.Actions.resetAnthropicKeySaveStatus()
+                          }}
+                          className="flex-1 min-w-0"
+                        />
+                        <Button.Button
+                          variant=#secondary
+                          onClick={_ => handleAnthropicSave()}
+                          disabled={anthropicKeySettings.saveStatus == Types.Saving}>
+                          {React.string(anthropicKeySettings.saveStatus == Types.Saving ? "Saving..." : "Save")}
+                        </Button.Button>
                       </div>
-                      <a
-                        href="https://console.anthropic.com/settings/keys"
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-xs text-zinc-400 hover:text-zinc-200">
-                        {React.string("Manage keys")}
-                      </a>
+                      {anthropicStatusLabel != ""
+                        ? <div className={anthropicStatusClass}> {React.string(anthropicStatusLabel)} </div>
+                        : React.null}
                     </div>
-                    <div className="mt-2 flex items-center gap-3">
-                      <Input.Input
-                        type_=#password
-                        placeholder={anthropicPlaceholder}
-                        value={anthropicKey}
-                        onChange={e => {
-                          let target = ReactEvent.Form.target(e)
-                          setAnthropicKey(_ => target["value"])
-                          State.Actions.resetAnthropicKeySaveStatus()
-                        }}
-                        className="flex-1 min-w-0"
-                      />
-                      <Button.Button
-                        variant=#secondary
-                        onClick={_ => handleAnthropicSave()}
-                        disabled={anthropicKeySettings.saveStatus == Types.Saving}>
-                        {React.string(anthropicKeySettings.saveStatus == Types.Saving ? "Saving..." : "Save")}
-                      </Button.Button>
-                    </div>
-                    {anthropicStatusLabel != ""
-                      ? <div className={anthropicStatusClass}> {React.string(anthropicStatusLabel)} </div>
-                      : React.null}
-                  </div>
+                  }}
                 </div>
 
                 // ChatGPT OAuth Section
@@ -561,6 +578,7 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
                     : React.null}
                 </div>
               </div>}
+          </div>
         </div>
       </div>
     </Dialog.DialogContent>
