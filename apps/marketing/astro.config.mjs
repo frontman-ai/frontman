@@ -77,6 +77,29 @@ export default defineConfig({
         }
         return item;
       },
+      // Split sitemap into content-grouped child sitemaps instead of a
+      // single flat sitemap-0.xml. URLs that don't match any chunk land
+      // in the default sitemap-pages-0.xml.
+      chunks: {
+        posts: (item) => {
+          if (/\/blog\/(?!tags\/)/.test(item.url)) return item;
+        },
+        tags: (item) => {
+          if (/\/blog\/tags\//.test(item.url)) return item;
+        },
+        glossary: (item) => {
+          if (/\/glossary\//.test(item.url)) return item;
+        },
+        lighthouse: (item) => {
+          if (/\/lighthouse\//.test(item.url)) return item;
+        },
+        comparisons: (item) => {
+          if (/\/vs\//.test(item.url)) return item;
+        },
+        integrations: (item) => {
+          if (/\/integrations\//.test(item.url)) return item;
+        },
+      },
     }),
     partytown({
       config: {
