@@ -31,11 +31,15 @@ defmodule JsonRpc do
   @error_invalid_params -32_602
   @error_internal -32_603
 
+  # ACP elicitation: URL mode elicitation required before request can proceed
+  @error_url_elicitation_required -32_042
+
   def error_parse, do: @error_parse
   def error_invalid_request, do: @error_invalid_request
   def error_method_not_found, do: @error_method_not_found
   def error_invalid_params, do: @error_invalid_params
   def error_internal, do: @error_internal
+  def error_url_elicitation_required, do: @error_url_elicitation_required
 
   @doc """
   Parses a JSON-RPC 2.0 message into a tagged tuple.

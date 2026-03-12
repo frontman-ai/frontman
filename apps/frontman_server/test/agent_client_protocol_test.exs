@@ -21,7 +21,7 @@ defmodule AgentClientProtocolTest do
     test "validates entries have required fields" do
       invalid_entries = [%{"content" => "Missing priority and status"}]
 
-      assert_raise ArgumentError, fn ->
+      assert_raise FunctionClauseError, fn ->
         ACP.plan_update("sess_123", invalid_entries)
       end
     end
@@ -31,7 +31,7 @@ defmodule AgentClientProtocolTest do
         %{"content" => "Test", "priority" => "urgent", "status" => "pending"}
       ]
 
-      assert_raise ArgumentError, fn ->
+      assert_raise FunctionClauseError, fn ->
         ACP.plan_update("sess_123", invalid_entries)
       end
     end
@@ -41,7 +41,7 @@ defmodule AgentClientProtocolTest do
         %{"content" => "Test", "priority" => "medium", "status" => "done"}
       ]
 
-      assert_raise ArgumentError, fn ->
+      assert_raise FunctionClauseError, fn ->
         ACP.plan_update("sess_123", invalid_entries)
       end
     end
@@ -60,6 +60,53 @@ defmodule AgentClientProtocolTest do
     test "accepts empty entries list" do
       notification = ACP.plan_update("sess_test", [])
       assert notification["params"]["update"]["entries"] == []
+    end
+  end
+
+  describe "question_to_elicitation_schema/1" do
+    test "uses label only when description is nil" do
+      questions = [
+        %{
+          "header" => "Framework",
+          "question" => "Which framework?",
+          "options" => [%{"label" => "React", "description" => nil}]
+        }
+      ]
+
+      schema = ACP.question_to_elicitation_schema(questions)
+      one_of = schema["properties"]["q0_answer"]["oneOf"]
+
+      assert [%{"const" => "React", "title" => "React"}] = one_of
+    end
+
+    test "uses label only when description is empty string" do
+      questions = [
+        %{
+          "header" => "Framework",
+          "question" => "Which framework?",
+          "options" => [%{"label" => "React", "description" => ""}]
+        }
+      ]
+
+      schema = ACP.question_to_elicitation_schema(questions)
+      one_of = schema["properties"]["q0_answer"]["oneOf"]
+
+      assert [%{"const" => "React", "title" => "React"}] = one_of
+    end
+
+    test "includes description in title when present" do
+      questions = [
+        %{
+          "header" => "Framework",
+          "question" => "Which framework?",
+          "options" => [%{"label" => "React", "description" => "A UI library"}]
+        }
+      ]
+
+      schema = ACP.question_to_elicitation_schema(questions)
+      one_of = schema["properties"]["q0_answer"]["oneOf"]
+
+      assert [%{"const" => "React", "title" => "React - A UI library"}] = one_of
     end
   end
 end

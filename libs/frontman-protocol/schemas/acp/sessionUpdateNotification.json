@@ -765,6 +765,29 @@
               "properties": {
                 "sessionUpdate": {
                   "type": "string",
+                  "const": "agent_turn_complete"
+                },
+                "stopReason": {
+                  "enum": [
+                    "end_turn",
+                    "max_tokens",
+                    "max_turn_requests",
+                    "refusal",
+                    "cancelled"
+                  ]
+                }
+              },
+              "additionalProperties": true,
+              "required": [
+                "sessionUpdate",
+                "stopReason"
+              ]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "sessionUpdate": {
+                  "type": "string",
                   "const": "error"
                 },
                 "message": {

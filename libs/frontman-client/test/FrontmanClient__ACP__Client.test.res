@@ -107,6 +107,7 @@ describe("ACP Client buildInitializeParams", _t => {
       clientCapabilities: {
         fs: Some({readTextFile: Some(true), writeTextFile: Some(false)}),
         terminal: Some(true),
+        elicitation: None,
       },
     }
 

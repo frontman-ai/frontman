@@ -47,6 +47,7 @@ let makeConfig = (
   clientCapabilities: {
     fs: Some({readTextFile: Some(true), writeTextFile: Some(true)}),
     terminal: Some(false),
+    elicitation: None,
   },
   onMessage,
 }

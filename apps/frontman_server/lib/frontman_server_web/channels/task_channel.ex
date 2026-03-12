@@ -175,17 +175,15 @@ defmodule FrontmanServerWeb.TaskChannel do
     text_result = MCP.extract_content_text(result)
     parsed_result = MCP.parse_tool_result(text_result)
     is_error = MCP.error?(result)
-    status = if is_error, do: "failed", else: "completed"
+
+    status =
+      if is_error, do: ACP.tool_call_status_failed(), else: ACP.tool_call_status_completed()
+
     Logger.info("MCP tool #{tool_call.tool_name} #{status}: #{text_result}")
 
     # Send ACP notification with appropriate status
-    notification =
-      ACP.build_tool_call_update_notification(
-        task_id,
-        tool_call.tool_call_id,
-        status,
-        text_result
-      )
+    content = ACP.Content.from_tool_result(text_result)
+    notification = ACP.tool_call_update(task_id, tool_call.tool_call_id, status, content)
 
     push(socket, "acp:message", notification)
 
@@ -252,12 +250,14 @@ defmodule FrontmanServerWeb.TaskChannel do
     )
 
     # Send ACP notification: failed
+    failed_content = ACP.Content.from_tool_result(error_message)
+
     failed_notification =
-      ACP.build_tool_call_update_notification(
+      ACP.tool_call_update(
         task_id,
         tool_call.tool_call_id,
-        "failed",
-        error_message
+        ACP.tool_call_status_failed(),
+        failed_content
       )
 
     push(socket, "acp:message", failed_notification)
@@ -502,7 +502,16 @@ defmodule FrontmanServerWeb.TaskChannel do
     # (e.g., write_file with full file content), this provides immediate UI feedback
     # instead of waiting for the entire response to be accumulated.
     task_id = socket.assigns.task_id
-    notification = ACP.tool_call_create(task_id, tool_call_id, tool_name, "other", "pending")
+
+    notification =
+      ACP.tool_call_create(
+        task_id,
+        tool_call_id,
+        tool_name,
+        "other",
+        ACP.tool_call_status_pending()
+      )
+
     push(socket, "acp:message", notification)
 
     # Track that we already announced this tool call to avoid duplicate notifications
@@ -521,7 +530,7 @@ defmodule FrontmanServerWeb.TaskChannel do
 
     unless MapSet.member?(announced, tool_call.tool_call_id) do
       pending_notification =
-        ACP.build_tool_call_notification(task_id, tool_call, "pending", [])
+        ACP.tool_call_create(task_id, tool_call.tool_call_id, tool_call.tool_name, "other")
 
       push(socket, "acp:message", pending_notification)
     end
@@ -530,7 +539,12 @@ defmodule FrontmanServerWeb.TaskChannel do
     args_content = ACP.Content.from_tool_result(tool_call.arguments)
 
     args_notification =
-      ACP.tool_call_update(task_id, tool_call.tool_call_id, "pending", args_content)
+      ACP.tool_call_update(
+        task_id,
+        tool_call.tool_call_id,
+        ACP.tool_call_status_pending(),
+        args_content
+      )
 
     push(socket, "acp:message", args_notification)
 
@@ -563,7 +577,11 @@ defmodule FrontmanServerWeb.TaskChannel do
       end
     else
       # Regular tools: send tool_call_update
-      status = if tool_result.is_error, do: "failed", else: "completed"
+      status =
+        if tool_result.is_error,
+          do: ACP.tool_call_status_failed(),
+          else: ACP.tool_call_status_completed()
+
       content = ACP.Content.from_tool_result(tool_result.result)
       notification = ACP.tool_call_update(task_id, tool_result.tool_call_id, status, content)
       push(socket, "acp:message", notification)
@@ -580,37 +598,29 @@ defmodule FrontmanServerWeb.TaskChannel do
   def handle_info({:agent_error, message}, socket) do
     Logger.error("Agent error: #{message}")
 
-    handle_turn_ended(socket, "error", error_message: message)
+    handle_turn_error(socket, message)
   end
 
   def handle_info(msg, _socket) do
     raise "Unhandled message in TaskChannel: #{inspect(msg)}"
   end
 
-  # Unified handler for all "agent turn ended" domain events.
-  #
-  # Every turn-ending handler (agent_completed, agent_cancelled, agent_error)
-  # delegates here instead of reimplementing the same pending_prompt_id dispatch.
+  # Handler for normal turn completion (agent_completed, agent_cancelled).
   #
   # The contract:
-  #   1. Always push a session/update notification so the client knows the turn
-  #      ended — regardless of whether a pending session/prompt RPC exists.
-  #   2. If a pending RPC exists, also resolve it (success or error response).
+  #   1. Always push an agent_turn_complete session/update notification so the
+  #      client knows the turn ended — regardless of whether a pending
+  #      session/prompt RPC exists.
+  #   2. If a pending RPC exists, also resolve it with the stop_reason.
   #   3. Clean up pending_prompt_id.
   #
   # This eliminates the bug class where a nil pending_prompt_id silently
   # drops the turn-ended signal (e.g. after task switch + elicitation response).
-  defp handle_turn_ended(socket, stop_reason, opts \\ []) do
+  defp handle_turn_ended(socket, stop_reason) do
     task_id = socket.assigns.task_id
-    error_message = Keyword.get(opts, :error_message)
 
     # 1. Always notify — this is the canonical "turn ended" signal
-    notification =
-      case error_message do
-        nil -> ACP.build_agent_turn_complete_notification(task_id, stop_reason)
-        msg -> ACP.build_error_notification(task_id, msg)
-      end
-
+    notification = ACP.build_agent_turn_complete_notification(task_id, stop_reason)
     push(socket, "acp:message", notification)
 
     # 2. If there's a pending RPC, also resolve it
@@ -618,17 +628,38 @@ defmodule FrontmanServerWeb.TaskChannel do
       case socket.assigns[:pending_prompt_id] do
         nil ->
           Logger.info("Turn ended (#{stop_reason}) with no pending_prompt_id for task #{task_id}")
-
           socket
 
         prompt_id ->
-          response =
-            case error_message do
-              nil -> JsonRpc.success_response(prompt_id, ACP.build_prompt_result(stop_reason))
-              msg -> JsonRpc.error_response(prompt_id, -32_000, msg)
-            end
-
+          response = JsonRpc.success_response(prompt_id, ACP.build_prompt_result(stop_reason))
           Logger.info("Resolving pending prompt #{prompt_id} with stop_reason=#{stop_reason}")
+          push(socket, "acp:message", response)
+          assign(socket, :pending_prompt_id, nil)
+      end
+
+    {:noreply, socket}
+  end
+
+  # Handler for agent errors — a separate path from handle_turn_ended because
+  # errors use a different ACP notification type (sessionUpdate: "error") and
+  # resolve pending RPCs with JSON-RPC error responses instead of prompt results.
+  defp handle_turn_error(socket, error_message) do
+    task_id = socket.assigns.task_id
+
+    # 1. Always notify — error notification so client can display it
+    notification = ACP.build_error_notification(task_id, error_message)
+    push(socket, "acp:message", notification)
+
+    # 2. If there's a pending RPC, resolve it as an error
+    socket =
+      case socket.assigns[:pending_prompt_id] do
+        nil ->
+          Logger.info("Agent error with no pending_prompt_id for task #{task_id}")
+          socket
+
+        prompt_id ->
+          response = JsonRpc.error_response(prompt_id, -32_000, error_message)
+          Logger.info("Resolving pending prompt #{prompt_id} with error: #{error_message}")
           push(socket, "acp:message", response)
           assign(socket, :pending_prompt_id, nil)
       end
@@ -734,7 +765,7 @@ defmodule FrontmanServerWeb.TaskChannel do
 
     # Send ACP notification: in_progress
     in_progress_notification =
-      ACP.build_tool_call_update_notification(task_id, tool_call.tool_call_id, "in_progress")
+      ACP.tool_call_update(task_id, tool_call.tool_call_id, ACP.tool_call_status_in_progress())
 
     push(socket, "acp:message", in_progress_notification)
 

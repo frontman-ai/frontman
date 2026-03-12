@@ -26,11 +26,19 @@ type fileSystemCapability = {
   writeTextFile: option<bool>,
 }
 
+// Elicitation capability (what form types the client supports)
+@schema
+type elicitationCapability = {
+  form: option<JSON.t>,
+  url: option<JSON.t>,
+}
+
 // Client capabilities
 @schema
 type clientCapabilities = {
   fs: option<fileSystemCapability>,
   terminal: option<bool>,
+  elicitation: option<elicitationCapability>,
 }
 
 // Prompt capabilities (what content types agent supports)
@@ -374,6 +382,7 @@ type sessionUpdate =
       content: option<array<toolCallContentItem>>,
     })
   | Plan({entries: array<planEntry>})
+  | AgentTurnComplete({stopReason: stopReason})
   | Error({message: string})
   | Unknown({sessionUpdate: string})
 
@@ -415,6 +424,12 @@ let sessionUpdateSchema = S.union([
     s.tag("sessionUpdate", "plan")
     Plan({
       entries: s.field("entries", S.array(planEntrySchema)),
+    })
+  }),
+  S.object(s => {
+    s.tag("sessionUpdate", "agent_turn_complete")
+    AgentTurnComplete({
+      stopReason: s.field("stopReason", stopReasonSchema),
     })
   }),
   S.object(s => {
@@ -475,3 +490,60 @@ type listSessionsResult = {sessions: array<sessionSummary>}
 let listSessionsResultSchema = S.object(s => {
   sessions: s.field("sessions", S.array(sessionSummarySchema)),
 })
+
+// ---------------------------------------------------------------------------
+// Elicitation (session/elicitation)
+// ---------------------------------------------------------------------------
+
+// Elicitation mode — "form" for inline forms, "url" for out-of-band browser flows
+type elicitationMode =
+  | @as("form") Form
+  | @as("url") Url
+
+let elicitationModeSchema = S.union([
+  S.literal(Form),
+  S.literal(Url),
+])
+
+// session/elicitation request params (server -> client)
+@schema
+type elicitationRequestParams = {
+  @as("sessionId")
+  sessionId: string,
+  mode: elicitationMode,
+  message: string,
+  // For form mode: JSON Schema describing the fields to render
+  @as("requestedSchema")
+  requestedSchema: option<JSON.t>,
+  // For URL mode: the URL the client should open
+  url: option<string>,
+  // For URL mode: correlates with notifications/elicitation/complete
+  @as("elicitationId")
+  elicitationId: option<string>,
+}
+
+// User's action on the elicitation form
+type elicitationAction =
+  | @as("accept") Accept
+  | @as("decline") Decline
+  | @as("cancel") Cancel
+
+let elicitationActionSchema = S.union([
+  S.literal(Accept),
+  S.literal(Decline),
+  S.literal(Cancel),
+])
+
+// session/elicitation response result (client -> server)
+@schema
+type elicitationResponseResult = {
+  action: elicitationAction,
+  content: option<JSON.t>,
+}
+
+// notifications/elicitation/complete params
+@schema
+type elicitationCompleteParams = {
+  @as("elicitationId")
+  elicitationId: string,
+}

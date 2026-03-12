@@ -77,15 +77,15 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
 
       error_reports =
         Enum.filter(reports, fn event ->
-          event.tags[:error_type] == "agent_execution_error"
+          event.tags[:error_type] == "agent_execution_error" and
+            event.extra[:task_id] == task_id
         end)
 
       assert error_reports != [],
-             "Expected at least one agent_execution_error Sentry report, got none. All reports: #{inspect(Enum.map(reports, & &1.tags))}"
+             "Expected at least one agent_execution_error Sentry report for task #{task_id}, got none. All reports: #{inspect(Enum.map(reports, & &1.tags))}"
 
       [report | _] = error_reports
       assert report.message.formatted == "Agent execution failed"
-      assert report.extra[:task_id] == task_id
       assert is_binary(report.extra[:reason])
       assert is_integer(report.extra[:loop_id]) or is_binary(report.extra[:loop_id])
     end
@@ -114,14 +114,14 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
 
       crash_reports =
         Enum.filter(reports, fn event ->
-          event.tags[:error_type] == "agent_crash"
+          event.tags[:error_type] == "agent_crash" and
+            event.extra[:task_id] == task_id
         end)
 
       assert crash_reports != [],
-             "Expected at least one agent_crash Sentry report, got none. All reports: #{inspect(Enum.map(reports, &{&1.tags, &1.message}))}"
+             "Expected at least one agent_crash Sentry report for task #{task_id}, got none. All reports: #{inspect(Enum.map(reports, &{&1.tags, &1.extra[:task_id]}))}"
 
       [report | _] = crash_reports
-      assert report.extra[:task_id] == task_id
 
       # Crash reports should include exception info or a message
       has_exception = report.exception != nil and report.exception != []

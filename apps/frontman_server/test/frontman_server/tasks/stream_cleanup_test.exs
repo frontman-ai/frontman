@@ -18,14 +18,20 @@ defmodule FrontmanServer.Tasks.StreamCleanupTest do
 
   defmodule CleanupTrackingLLM do
     @moduledoc false
-    defstruct [:cancel_pid, :chunks, :delay_ms, :error_after]
+    defstruct [:cancel_pid, :chunks, :delay_ms, :error_after, :notify_started]
   end
 
   defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.StreamCleanupTest.CleanupTrackingLLM do
     alias FrontmanServer.Tasks.StreamCleanup
 
     def stream(
-          %{cancel_pid: cancel_pid, chunks: chunks, delay_ms: delay_ms, error_after: error_after},
+          %{
+            cancel_pid: cancel_pid,
+            chunks: chunks,
+            delay_ms: delay_ms,
+            error_after: error_after,
+            notify_started: notify_started
+          },
           _messages,
           _opts
         ) do
@@ -34,18 +40,28 @@ defmodule FrontmanServer.Tasks.StreamCleanupTest do
       # Simulate a ReqLLM-style Stream.resource that yields chunks lazily
       raw_stream =
         Stream.resource(
-          fn -> {chunks, 0} end,
+          fn -> {chunks, 0, false} end,
           fn
-            {[], _index} ->
+            {[], _index, _notified} ->
               {:halt, :done}
 
-            {[chunk | rest], index} ->
+            {[chunk | rest], index, notified} ->
               if error_after && index >= error_after do
                 raise "LLM stream error"
               end
 
+              # Notify the test process once when the first chunk is about to
+              # be emitted, proving the stream is actively being consumed.
+              notified =
+                if !notified && notify_started do
+                  send(notify_started, :stream_started)
+                  true
+                else
+                  notified
+                end
+
               if delay_ms && delay_ms > 0, do: Process.sleep(delay_ms)
-              {[chunk], {rest, index + 1}}
+              {[chunk], {rest, index + 1, notified}}
           end,
           fn _ -> :ok end
         )
@@ -306,12 +322,15 @@ defmodule FrontmanServer.Tasks.StreamCleanupTest do
     end
 
     test "cancel_fn fires when consumer process is killed mid-stream" do
+      test_pid = self()
+
       # Slow stream — gives us time to kill the consumer
       llm = %CleanupTrackingLLM{
-        cancel_pid: self(),
+        cancel_pid: test_pid,
         chunks: List.duplicate(Chunk.token("tok"), 100) ++ [Chunk.done(:stop)],
         delay_ms: 50,
-        error_after: nil
+        error_after: nil,
+        notify_started: test_pid
       }
 
       consumer =
@@ -320,8 +339,8 @@ defmodule FrontmanServer.Tasks.StreamCleanupTest do
           Response.from_stream(stream)
         end)
 
-      # Let stream consumption start
-      Process.sleep(80)
+      # Wait until the stream is actively producing chunks (no fixed sleep)
+      assert_receive :stream_started, 5_000
 
       # Simulate Runtime.cancel/2 — the exact kill signal used in production
       Process.exit(consumer, :cancelled)
@@ -384,11 +403,14 @@ defmodule FrontmanServer.Tasks.StreamCleanupTest do
     end
 
     test "cancel_fn fires when :kill signal terminates consumer mid-stream" do
+      test_pid = self()
+
       llm = %CleanupTrackingLLM{
-        cancel_pid: self(),
+        cancel_pid: test_pid,
         chunks: List.duplicate(Chunk.token("tok"), 100) ++ [Chunk.done(:stop)],
         delay_ms: 50,
-        error_after: nil
+        error_after: nil,
+        notify_started: test_pid
       }
 
       consumer =
@@ -397,7 +419,8 @@ defmodule FrontmanServer.Tasks.StreamCleanupTest do
           Response.from_stream(stream)
         end)
 
-      Process.sleep(80)
+      # Wait until the stream is actively producing chunks (no fixed sleep)
+      assert_receive :stream_started, 5_000
 
       # :kill is untrappable by the target, but propagates as :killed to
       # linked processes — the cleanup process can trap :killed.

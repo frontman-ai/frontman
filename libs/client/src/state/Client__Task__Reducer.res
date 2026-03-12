@@ -858,11 +858,21 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       [],
     )
 
-  | (Task.Loaded(_), TurnCompleted) =>
-    // Per ACP spec: session/prompt response signals message end
+  | (Task.Loaded(data), TurnCompleted) =>
+    // The ACP protocol has two overlapping signals for turn completion:
+    // 1. The session/prompt RPC response (request-response channel)
+    // 2. The agent_turn_complete notification (event channel)
+    // The server sends both when an RPC is pending, so TurnCompleted may
+    // arrive twice per turn. The state transitions below are idempotent —
+    // only the NotifyTurnCompleted effect (usage refresh) is gated.
     let completed = task->Lens.completeStreamingMessage
-    let updatedTask = completed->Task.updateLoadedData(data => {...data, isAgentRunning: false})
-    (updatedTask, [NotifyTurnCompleted])
+    let updatedTask = completed->Task.updateLoadedData(d => {...d, isAgentRunning: false})
+    let effects = if data.isAgentRunning {
+      [NotifyTurnCompleted]
+    } else {
+      []
+    }
+    (updatedTask, effects)
 
   // Cancel the current turn: complete any partial response, stop agent
   | (Task.Loaded(data), CancelTurn) =>

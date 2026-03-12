@@ -3,6 +3,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
   import FrontmanServer.InteractionCase.Helpers
 
+  alias AgentClientProtocol.Content.{ContentItem, TextBlock}
   alias FrontmanServer.Tasks
   alias FrontmanServerWeb.UserSocket
 
@@ -271,14 +272,9 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         "id" => 42,
         "method" => "session/prompt",
         "params" => %{
-          "prompt" => %{
-            "messages" => [
-              %{
-                "role" => "user",
-                "content" => %{"type" => "text", "text" => "Hello"}
-              }
-            ]
-          }
+          "prompt" => [
+            %{"type" => "text", "text" => "Hello"}
+          ]
         }
       }
 
@@ -439,11 +435,9 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         "id" => 50,
         "method" => "session/prompt",
         "params" => %{
-          "prompt" => %{
-            "messages" => [
-              %{"role" => "user", "content" => %{"type" => "text", "text" => "Next question"}}
-            ]
-          }
+          "prompt" => [
+            %{"type" => "text", "text" => "Next question"}
+          ]
         }
       })
 
@@ -497,6 +491,8 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       push(socket, "mcp:message", JsonRpc.success_response(mcp_request_id, mcp_tool_result))
       :sys.get_state(socket.channel_pid)
 
+      # Phoenix.ChannelTest delivers raw Elixir terms (no JSON serialisation),
+      # so content arrives as ACP.Content structs rather than plain maps.
       assert_push("acp:message", %{
         "jsonrpc" => "2.0",
         "method" => "session/update",
@@ -506,7 +502,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
             "sessionUpdate" => "tool_call_update",
             "toolCallId" => "call_123",
             "status" => "completed",
-            "content" => [%{"content" => %{"text" => "Logged: hello"}}]
+            "content" => [%ContentItem{content: %TextBlock{text: "Logged: hello"}}]
           }
         }
       })
@@ -827,14 +823,9 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         "id" => 1,
         "method" => "session/prompt",
         "params" => %{
-          "prompt" => %{
-            "messages" => [
-              %{
-                "role" => "user",
-                "content" => %{"type" => "text", "text" => "Implement the header"}
-              }
-            ]
-          }
+          "prompt" => [
+            %{"type" => "text", "text" => "Hello"}
+          ]
         }
       }
 
@@ -955,14 +946,9 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         "id" => 99,
         "method" => "session/prompt",
         "params" => %{
-          "prompt" => %{
-            "messages" => [
-              %{
-                "role" => "user",
-                "content" => %{"type" => "text", "text" => "Hello"}
-              }
-            ]
-          }
+          "prompt" => [
+            %{"type" => "text", "text" => "Hello"}
+          ]
         }
       }
 
@@ -1012,11 +998,9 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         "id" => 1,
         "method" => "session/prompt",
         "params" => %{
-          "prompt" => %{
-            "messages" => [
-              %{"role" => "user", "content" => %{"type" => "text", "text" => "Hello"}}
-            ]
-          }
+          "prompt" => [
+            %{"type" => "text", "text" => "Hello"}
+          ]
         }
       })
 
@@ -1040,11 +1024,9 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         "id" => 2,
         "method" => "session/prompt",
         "params" => %{
-          "prompt" => %{
-            "messages" => [
-              %{"role" => "user", "content" => %{"type" => "text", "text" => "Follow up"}}
-            ]
-          }
+          "prompt" => [
+            %{"type" => "text", "text" => "Follow up"}
+          ]
         }
       })
 

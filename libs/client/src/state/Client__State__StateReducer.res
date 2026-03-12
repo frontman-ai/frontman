@@ -614,17 +614,15 @@ let sendMessageToAPIImpl = (
     sendPrompt(
       message,
       ~additionalBlocks,
-      ~onComplete=result => {
+      ~onComplete=_result => {
         // Flush any buffered text deltas before completing the turn.
         // Without this, a rAF-buffered delta could fire after TurnCompleted,
         // reopening a Completed message as Streaming permanently.
         Client__TextDeltaBuffer.flush()
-        switch result {
-        | Ok({stopReason: Cancelled}) => // CancelTurn already cleaned up state - don't dispatch TurnCompleted
-          ()
-        | Ok(_) => dispatch(TaskAction({target: ForTask(taskId), action: TurnCompleted}))
-        | Error(_) => dispatch(TaskAction({target: ForTask(taskId), action: TurnCompleted}))
-        }
+        // Always dispatch — the reducer gates TurnCompleted on isAgentRunning,
+        // so duplicates (from notification + RPC) and post-cancel arrivals
+        // are no-ops.
+        dispatch(TaskAction({target: ForTask(taskId), action: TurnCompleted}))
       },
       ~metadata,
     )

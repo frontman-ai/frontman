@@ -21,6 +21,14 @@
         },
         "terminal": {
           "type": "boolean"
+        },
+        "elicitation": {
+          "type": "object",
+          "properties": {
+            "form": {},
+            "url": {}
+          },
+          "additionalProperties": true
         }
       },
       "additionalProperties": true

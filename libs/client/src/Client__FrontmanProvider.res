@@ -194,7 +194,18 @@ module Provider = {
         }
       | Plan({entries}) =>
         Client__State.Actions.planReceived(~taskId, ~entries)
+      | AgentTurnComplete({stopReason: _}) =>
+        // Flush buffered text so no deltas are lost, then signal turn end.
+        // The reducer gates TurnCompleted on isAgentRunning, so duplicate
+        // dispatches (from both the notification and the RPC response) are
+        // harmless — only the first one takes effect.
+        Client__TextDeltaBuffer.flush()
+        Client__State.Actions.turnCompleted(~taskId)
       | Error({message}) =>
+        // Flush buffered text before error handling — same reason as
+        // AgentTurnComplete: a rAF-buffered delta could otherwise fire
+        // after the error action, creating an orphaned streaming message.
+        Client__TextDeltaBuffer.flush()
         Client__State.Actions.agentErrorReceived(~taskId, ~error=message)
       | Unknown(_) => ()
       }

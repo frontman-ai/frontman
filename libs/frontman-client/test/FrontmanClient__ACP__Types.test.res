@@ -9,6 +9,7 @@ describe("ACP Types encoding/decoding", _t => {
       clientCapabilities: Some({
         fs: Some({readTextFile: Some(true), writeTextFile: Some(true)}),
         terminal: Some(false),
+        elicitation: None,
       }),
       clientInfo: Some({name: "test-client", version: "1.0.0", title: None, metadata: None}),
     }

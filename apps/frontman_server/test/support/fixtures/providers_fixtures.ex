@@ -110,11 +110,9 @@ defmodule FrontmanServer.ProvidersFixtures do
     metadata = Keyword.get(opts, :metadata, %{})
 
     params = %{
-      "prompt" => %{
-        "messages" => [
-          %{"role" => "user", "content" => %{"type" => "text", "text" => text}}
-        ]
-      }
+      "prompt" => [
+        %{"type" => "text", "text" => text}
+      ]
     }
 
     params = if metadata == %{}, do: params, else: Map.put(params, "metadata", metadata)
