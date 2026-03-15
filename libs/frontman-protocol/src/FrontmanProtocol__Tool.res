@@ -11,6 +11,12 @@ type serverExecutionContext = {
   sourceRoot: string,
 }
 
+// How a browser tool delivers its result back to the MCP caller.
+// - Synchronous: execute returns a resolved promise (normal flow).
+// - Interactive: execute returns a promise that blocks until user input is provided
+//   (e.g. question tool waits for user to answer before resolving).
+type executionMode = Synchronous | Interactive
+
 // Well-known tool names — used by both server (frontman-core) and client (frontman-client)
 // to avoid fragile string comparisons across packages.
 module ToolNames = {
@@ -33,6 +39,7 @@ module ToolNames = {
   let getInteractiveElements = "get_interactive_elements"
   let getDom = "get_dom"
   let searchText = "search_text"
+  let question = "question"
 }
 
 // Browser tool - executes in browser, no context needed
@@ -43,9 +50,10 @@ module type BrowserTool = {
   type output
   let inputSchema: S.t<input>
   let outputSchema: S.t<output>
-  let execute: input => promise<toolResult<output>>
+  let execute: (input, ~taskId: string, ~toolCallId: string) => promise<toolResult<output>>
   //some tools we want to execute manually, and never have the llm see them
   let visibleToAgent: bool
+  let executionMode: executionMode
 }
 
 // Server tool - executes on server with context

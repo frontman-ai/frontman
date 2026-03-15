@@ -8,6 +8,7 @@ type toolResult<'a> = Tool.toolResult<'a>
 
 let name = Tool.ToolNames.interactWithElement
 let visibleToAgent = true
+let executionMode = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.Synchronous
 let description = `Interact with an element in the web preview. Supports click, hover, and focus actions.
 
 Element targeting (use one strategy):
@@ -160,7 +161,7 @@ let errorResult = (error: string, ~matchCount: option<int>=?): result<output, _>
     error: Some(error),
   })
 
-let execute = async (input: input): toolResult<output> => {
+let execute = async (input: input, ~taskId as _taskId: string, ~toolCallId as _toolCallId: string): toolResult<output> => {
   let action = input.action->Option.getOr(#click)
   let index = Math.Int.max(0, input.index->Option.getOr(0))
 

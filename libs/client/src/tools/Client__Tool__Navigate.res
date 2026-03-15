@@ -7,6 +7,7 @@ type toolResult<'a> = Tool.toolResult<'a>
 
 let name = Tool.ToolNames.navigate
 let visibleToAgent = true
+let executionMode = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.Synchronous
 let description = `Navigate in the web preview. Supports multiple navigation actions:
 
 - **goto**: Navigate to a specific URL. Pass {"action": "goto", "url": "/path"}
@@ -68,7 +69,7 @@ let locationReload: WebAPI.DOMAPI.window => unit = %raw(`
   }
 `)
 
-let execute = async (input: input): toolResult<output> => {
+let execute = async (input: input, ~taskId as _taskId: string, ~toolCallId as _toolCallId: string): toolResult<output> => {
   let state = StateStore.getState(Client__State__Store.store)
 
   // Get the current task's preview frame

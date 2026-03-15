@@ -8,6 +8,7 @@ type toolResult<'a> = Tool.toolResult<'a>
 
 let name = Tool.ToolNames.getInteractiveElements
 let visibleToAgent = true
+let executionMode = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.Synchronous
 let description = `Discover interactive elements on the current web preview page. Returns a list of clickable/interactive elements with their ARIA roles, accessible names, CSS selectors, and visible text.
 
 Use this tool to understand what elements are available for interaction before calling interact_with_element.
@@ -63,7 +64,7 @@ type output = {
   error: option<string>,
 }
 
-let execute = async (input: input): toolResult<output> => {
+let execute = async (input: input, ~taskId as _taskId: string, ~toolCallId as _toolCallId: string): toolResult<output> => {
   Client__Tool__ElementResolver.withPreviewDoc(
     ~onUnavailable=() =>
       Ok({

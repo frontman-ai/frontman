@@ -69,6 +69,12 @@ type callToolResult = {
 @schema
 type toolsListResult = {tools: array<JSON.t>}
 
+// Result of executing a tool — either completed immediately or suspended
+// waiting for external input (e.g. interactive tool awaiting user response).
+type executeToolResult =
+  | Completed(callToolResult)
+  | Suspended
+
 // MCP Error codes
 module ErrorCode = {
   let invalidParams = -32602
@@ -86,8 +92,9 @@ type serverInterface<'server> = {
     ~name: string,
     ~arguments: option<Dict.t<JSON.t>>,
     ~taskId: string,
+    ~callId: string,
     ~onProgress: option<string => unit>,
-  ) => promise<callToolResult>,
+  ) => promise<executeToolResult>,
 }
 
 // Server module type - implement this to create an MCP server
@@ -100,6 +107,7 @@ module type Server = {
     ~name: string,
     ~arguments: option<Dict.t<JSON.t>>=?,
     ~taskId: string,
+    ~callId: string,
     ~onProgress: option<string => unit>=?,
-  ) => promise<callToolResult>
+  ) => promise<executeToolResult>
 }

@@ -52,6 +52,14 @@ let registerToolModule = (server: t, toolModule: module(Tool.Tool)): t => {
 // JSONSchema.t is JSON.t at runtime
 external jsonSchemaAsJson: JSONSchema.t => JSON.t = "%identity"
 
+module ToolTypes = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool
+
+// Schema for executionMode serialization
+let executionModeSchema = S.union([
+  S.literal(ToolTypes.Synchronous),
+  S.literal(ToolTypes.Interactive),
+])
+
 // Tool wire format schema - serialized directly to JSON
 let toolWireSchema = S.object(s => {
   {
@@ -59,6 +67,7 @@ let toolWireSchema = S.object(s => {
     "description": s.field("description", S.string),
     "inputSchema": s.field("inputSchema", S.json),
     "visibleToAgent": s.field("visibleToAgent", S.bool),
+    "executionMode": s.field("executionMode", executionModeSchema),
   }
 })
 
@@ -70,6 +79,7 @@ let serializeTool = (m: module(Tool.Tool)): JSON.t => {
     "description": T.description,
     "inputSchema": T.inputSchema->S.toJSONSchema->jsonSchemaAsJson,
     "visibleToAgent": T.visibleToAgent,
+    "executionMode": T.executionMode,
   }->S.reverseConvertToJsonOrThrow(toolWireSchema)
 }
 
@@ -91,16 +101,18 @@ let getToolByName = (server: t, name: string): option<module(Tool.Tool)> => {
 let executeLocalTool = async (
   toolModule: module(Tool.Tool),
   ~arguments: option<Dict.t<JSON.t>>,
-): Types.callToolResult => {
+  ~taskId: string,
+  ~toolCallId: string,
+): Types.executeToolResult => {
   module T = unpack(toolModule)
   Log.debug(~ctx={"tool": T.name}, "Executing local tool")
   let inputJson = arguments->Option.getOr(Dict.make())->JSON.Encode.object
   try {
     let input = inputJson->S.parseOrThrow(T.inputSchema)
     Log.debug(~ctx={"tool": T.name}, "Calling execute")
-    let result = await T.execute(input)
+    let result = await T.execute(input, ~taskId, ~toolCallId)
     Log.debug(~ctx={"tool": T.name}, "Execute returned")
-    switch result {
+    let callToolResult: Types.callToolResult = switch result {
     | Ok(output) =>
       let outputJson = output->S.reverseConvertToJsonOrThrow(T.outputSchema)
       {
@@ -112,13 +124,14 @@ let executeLocalTool = async (
         isError: Some(true),
       }
     }
+    Completed(callToolResult)
   } catch {
   | S.Error(e) =>
     Log.error(~ctx={"tool": T.name}, "Schema error")
-    {
+    Completed({
       content: [{type_: "text", text: `Invalid input: ${e.message}`}],
       isError: Some(true),
-    }
+    })
   }
 }
 
@@ -163,14 +176,15 @@ let executeTool = async (
   ~name: string,
   ~arguments: option<Dict.t<JSON.t>>=?,
   ~taskId: string,
+  ~callId: string,
   ~onProgress: option<string => unit>=?,
-): Types.callToolResult => {
+): Types.executeToolResult => {
   // Try local tools first
   switch getToolByName(server, name) {
-  | Some(toolModule) => await executeLocalTool(toolModule, ~arguments)
+  | Some(toolModule) => await executeLocalTool(toolModule, ~arguments, ~taskId, ~toolCallId=callId)
   | None =>
     switch server.relay->Relay.hasTool(name) {
-    | false => toolError(`Tool not found: ${name}`)
+    | false => Completed(toolError(`Tool not found: ${name}`))
     | true =>
       // Intercept write_file with image_ref to resolve from the correct task
       let resolvedArgs = switch name == ToolNames.writeFile {
@@ -179,12 +193,12 @@ let executeTool = async (
       }
 
       switch resolvedArgs {
-      | Error(msg) => toolError(msg)
+      | Error(msg) => Completed(toolError(msg))
       | Ok(finalArgs) =>
         let result = await server.relay->Relay.executeTool(~name, ~arguments=?finalArgs, ~onProgress?)
         switch result {
-        | Ok(toolResult) => toolResult
-        | Error(msg) => toolError(msg)
+        | Ok(toolResult) => Completed(toolResult)
+        | Error(msg) => Completed(toolError(msg))
         }
       }
     }
@@ -214,6 +228,6 @@ let toInterface = (server: t): Types.serverInterface<t> => {
   server,
   buildInitializeResult,
   buildToolsListResult,
-  executeTool: (server, ~name, ~arguments, ~taskId, ~onProgress) =>
-    executeTool(server, ~name, ~arguments?, ~taskId, ~onProgress?),
+  executeTool: (server, ~name, ~arguments, ~taskId, ~callId, ~onProgress) =>
+    executeTool(server, ~name, ~arguments?, ~taskId, ~callId, ~onProgress?),
 }

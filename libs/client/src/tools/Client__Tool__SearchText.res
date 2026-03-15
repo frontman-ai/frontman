@@ -8,6 +8,7 @@ type toolResult<'a> = Tool.toolResult<'a>
 
 let name = Tool.ToolNames.searchText
 let visibleToAgent = true
+let executionMode = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.Synchronous
 let description = `Search for visible text on the current web preview page. Works like Ctrl+F — finds elements whose visible text contains the query string (case-insensitive).
 
 Returns matching elements with surrounding text context, CSS selectors for targeting, and accessibility metadata.
@@ -102,7 +103,7 @@ let buildContextSnippet = (~text: string, ~query: string, ~contextChars: int): s
   }
 }
 
-let execute = async (input: input): toolResult<output> => {
+let execute = async (input: input, ~taskId as _taskId: string, ~toolCallId as _toolCallId: string): toolResult<output> => {
   switch input.query->String.trim {
   | "" => errorResult(~error="Query string cannot be empty")
   | _ =>

@@ -104,7 +104,7 @@ let handleToolsCall = async (
   switch params {
   | Some(paramsJson) =>
     try {
-      let {name, arguments}: Types.toolCallParams =
+      let {callId, name, arguments}: Types.toolCallParams =
         paramsJson->S.parseOrThrow(Types.toolCallParamsSchema)
       let {serverInterface} = handler
       let result = await serverInterface.executeTool(
@@ -112,10 +112,15 @@ let handleToolsCall = async (
         ~name,
         ~arguments,
         ~taskId=handler.sessionId,
+        ~callId,
         ~onProgress=None,
       )
-      let resultJson = result->S.reverseConvertToJsonOrThrow(Types.callToolResultSchema)
-      sendResponse(handler, id, resultJson)
+      switch result {
+      | Completed(callToolResult) =>
+        let resultJson = callToolResult->S.reverseConvertToJsonOrThrow(Types.callToolResultSchema)
+        sendResponse(handler, id, resultJson)
+      | Suspended => () // Interactive tool — result will be delivered separately
+      }
     } catch {
     | S.Error(e) =>
       sendError(handler, id, Types.ErrorCode.invalidParams, `Invalid params: ${e.message}`)

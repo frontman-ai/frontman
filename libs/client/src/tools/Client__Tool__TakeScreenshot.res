@@ -7,6 +7,7 @@ type toolResult<'a> = Tool.toolResult<'a>
 
 let name = Tool.ToolNames.takeScreenshot
 let visibleToAgent = true
+let executionMode = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.Synchronous
 let description = "Take a screenshot of the current web preview page. By default captures only the visible viewport. Set fullPage to true to capture the entire scrollable page. Returns a base64-encoded JPEG image data URL."
 
 @schema
@@ -85,7 +86,7 @@ let _cropCanvasToViewport = (
   }
 }
 
-let execute = async (input: input): toolResult<output> => {
+let execute = async (input: input, ~taskId as _taskId: string, ~toolCallId as _toolCallId: string): toolResult<output> => {
   let fullPage = input.fullPage->Option.getOr(false)
 
   await Client__Tool__ElementResolver.withPreviewDoc(

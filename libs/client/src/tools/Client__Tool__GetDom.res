@@ -9,6 +9,7 @@ type toolResult<'a> = Tool.toolResult<'a>
 
 let name = Tool.ToolNames.getDom
 let visibleToAgent = true
+let executionMode = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.Synchronous
 let description = `Inspect a specific section of the DOM in the web preview.
 
 **Always target the smallest subtree you need.** Do NOT request "body" or "html" unless you need a high-level page overview.
@@ -348,7 +349,7 @@ let successResult = (~html: string, ~nodeCount: option<int>=?, ~hint: option<str
 // Tool execution
 // ============================================================================
 
-let execute = async (input: input): toolResult<output> => {
+let execute = async (input: input, ~taskId as _taskId: string, ~toolCallId as _toolCallId: string): toolResult<output> => {
   Client__Tool__ElementResolver.withPreviewDoc(
     ~onUnavailable=() =>
       errorResult(~error="Preview frame not available"),

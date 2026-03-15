@@ -7,6 +7,7 @@ type toolResult<'a> = Tool.toolResult<'a>
 
 let name = Tool.ToolNames.setDeviceMode
 let visibleToAgent = true
+let executionMode = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.Synchronous
 let description = `Set the device emulation mode in the web preview for responsive design testing.
 
 Actions:
@@ -85,7 +86,7 @@ let makeOutput = (
 let okOutput = (~success, ~error) => Ok(makeOutput(~success, ~error, ~presets=None))
 let okOutputWithPresets = (~success, ~presets) => Ok(makeOutput(~success, ~error=None, ~presets=Some(presets)))
 
-let execute = async (input: input): toolResult<output> => {
+let execute = async (input: input, ~taskId as _taskId: string, ~toolCallId as _toolCallId: string): toolResult<output> => {
   switch input.action {
   | #set_preset =>
     switch input.device {
