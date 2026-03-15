@@ -7,19 +7,10 @@ defmodule FrontmanServerWeb.TaskChannelEnvKeyTest do
   import FrontmanServer.ProvidersFixtures
 
   alias FrontmanServer.Tasks
-  alias FrontmanServerWeb.UserSocket
 
   setup %{scope: scope} do
-    task_id = Ecto.UUID.generate()
-    {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
-
-    {:ok, _reply, socket} =
-      UserSocket
-      |> socket("user_id", %{scope: scope})
-      |> subscribe_and_join("task:#{task_id}", %{})
-
+    {socket, _task_id} = join_task_channel(scope)
     complete_mcp_handshake(socket)
-
     {:ok, socket: socket}
   end
 

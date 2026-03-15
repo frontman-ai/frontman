@@ -112,6 +112,93 @@ defmodule FrontmanServerWeb.ChannelCase do
     end
   end
 
+  @doc """
+  Creates a task and joins the task channel, returning `{socket, task_id}`.
+
+  Extracts the repeated pattern of `Tasks.create_task` + `subscribe_and_join`
+  that appears in virtually every channel test setup block.
+
+  ## Options
+
+    * `:framework` - framework name for the task (default: `"nextjs"`)
+
+  ## Examples
+
+      {socket, task_id} = join_task_channel(scope)
+      {socket, task_id} = join_task_channel(scope, framework: "test-framework")
+  """
+  defmacro join_task_channel(scope, opts \\ []) do
+    quote do
+      scope = unquote(scope)
+      framework = unquote(opts) |> Keyword.get(:framework, "nextjs")
+      task_id = Ecto.UUID.generate()
+      {:ok, ^task_id} = FrontmanServer.Tasks.create_task(scope, task_id, framework)
+
+      {:ok, _reply, socket} =
+        FrontmanServerWeb.UserSocket
+        |> socket("user_id", %{scope: scope})
+        |> subscribe_and_join("task:#{task_id}", %{})
+
+      {socket, task_id}
+    end
+  end
+
+  @doc """
+  Builds a JSON-RPC request map for ACP messages.
+
+  ## Examples
+
+      build_acp_request("session/prompt", 42, %{"prompt" => [%{"type" => "text", "text" => "Hello"}]})
+      build_acp_request("session/cancel", nil, %{"sessionId" => "irrelevant"})
+  """
+  def build_acp_request(method, id, params) do
+    base = %{"jsonrpc" => "2.0", "method" => method, "params" => params}
+
+    if id, do: Map.put(base, "id", id), else: base
+  end
+
+  @doc """
+  Builds a JSON-RPC `session/prompt` request for channel tests.
+
+  Convenience wrapper around `build_acp_request/3`.
+
+  ## Options
+
+    * `:id` - JSON-RPC request id (default: `1`)
+    * `:text` - prompt text (default: `"Hello"`)
+    * `:metadata` - metadata map (default: `%{}`)
+
+  ## Examples
+
+      build_prompt_request()
+      build_prompt_request(id: 42, text: "Next question")
+      build_prompt_request(metadata: %{"model" => %{"provider" => "anthropic"}})
+  """
+  def build_prompt_request(opts \\ []) do
+    id = Keyword.get(opts, :id, 1)
+    text = Keyword.get(opts, :text, "Hello")
+    metadata = Keyword.get(opts, :metadata, %{})
+
+    params = %{"prompt" => [%{"type" => "text", "text" => text}]}
+    params = if metadata == %{}, do: params, else: Map.put(params, "metadata", metadata)
+
+    build_acp_request("session/prompt", id, params)
+  end
+
+  @doc """
+  Drains all messages from the test process mailbox.
+
+  Useful after setup blocks that trigger PubSub broadcasts, ensuring
+  subsequent assertions aren't polluted by leftover messages.
+  """
+  def flush_mailbox do
+    receive do
+      _ -> flush_mailbox()
+    after
+      0 -> :ok
+    end
+  end
+
   setup tags do
     if tags[:shared_sandbox] && tags[:async] do
       raise "Cannot combine shared_sandbox: true with async: true - shared sandbox requires synchronous execution"

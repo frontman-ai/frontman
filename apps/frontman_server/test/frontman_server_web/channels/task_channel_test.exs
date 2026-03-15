@@ -46,24 +46,13 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
   describe "session/prompt" do
     setup %{scope: scope} do
-      task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
-
-      {:ok, _reply, socket} =
-        UserSocket
-        |> socket("user_id", %{scope: scope})
-        |> subscribe_and_join("task:#{task_id}", %{})
-
+      {socket, task_id} = join_task_channel(scope)
       {:ok, socket: socket, task_id: task_id}
     end
 
     test "returns error for unknown method", %{socket: socket} do
       ref =
-        push(socket, "acp:message", %{
-          "jsonrpc" => "2.0",
-          "id" => 2,
-          "method" => "unknown/method"
-        })
+        push(socket, "acp:message", build_acp_request("unknown/method", 2, %{}))
 
       assert_reply(ref, :ok, %{"acp:message" => response})
       assert response["error"]["code"] == -32_601
@@ -81,16 +70,8 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     """
 
     setup %{scope: scope} do
-      task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
-
-      {:ok, _reply, socket} =
-        UserSocket
-        |> socket("user_id", %{scope: scope})
-        |> subscribe_and_join("task:#{task_id}", %{})
-
+      {socket, task_id} = join_task_channel(scope)
       complete_mcp_handshake(socket)
-
       {:ok, socket: socket, task_id: task_id}
     end
 
@@ -224,16 +205,8 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
   describe "agent_error handling" do
     setup %{scope: scope} do
-      task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
-
-      {:ok, _reply, socket} =
-        UserSocket
-        |> socket("user_id", %{scope: scope})
-        |> subscribe_and_join("task:#{task_id}", %{})
-
+      {socket, task_id} = join_task_channel(scope)
       complete_mcp_handshake(socket)
-
       {:ok, socket: socket, task_id: task_id}
     end
 
@@ -267,18 +240,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       task_id: task_id
     } do
       # First, send a prompt to set pending_prompt_id
-      prompt_request = %{
-        "jsonrpc" => "2.0",
-        "id" => 42,
-        "method" => "session/prompt",
-        "params" => %{
-          "prompt" => [
-            %{"type" => "text", "text" => "Hello"}
-          ]
-        }
-      }
-
-      push(socket, "acp:message", prompt_request)
+      push(socket, "acp:message", build_prompt_request(id: 42))
       # Wait for the prompt to be processed
       :sys.get_state(socket.channel_pid)
 
@@ -369,14 +331,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
   describe "agent_completed without pending prompt (resume scenario)" do
     setup %{scope: scope} do
-      task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
-
-      {:ok, _reply, socket} =
-        UserSocket
-        |> socket("user_id", %{scope: scope})
-        |> subscribe_and_join("task:#{task_id}", %{})
-
+      {socket, task_id} = join_task_channel(scope)
       complete_mcp_handshake(socket)
       {:ok, socket: socket, task_id: task_id}
     end
@@ -430,16 +385,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       :sys.get_state(socket.channel_pid)
 
       # Then: send a real prompt and complete it normally
-      push(socket, "acp:message", %{
-        "jsonrpc" => "2.0",
-        "id" => 50,
-        "method" => "session/prompt",
-        "params" => %{
-          "prompt" => [
-            %{"type" => "text", "text" => "Next question"}
-          ]
-        }
-      })
+      push(socket, "acp:message", build_prompt_request(id: 50, text: "Next question"))
 
       :sys.get_state(socket.channel_pid)
 
@@ -459,16 +405,8 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
   describe "MCP tool call result extraction" do
     setup %{scope: scope} do
-      task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
-
-      {:ok, _reply, socket} =
-        UserSocket
-        |> socket("user_id", %{scope: scope})
-        |> subscribe_and_join("task:#{task_id}", %{})
-
+      {socket, task_id} = join_task_channel(scope)
       complete_mcp_handshake(socket)
-
       {:ok, socket: socket, task_id: task_id}
     end
 
@@ -511,13 +449,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
   describe "MCP initialization" do
     test "sends MCP initialize request on join", %{scope: scope} do
-      task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
-
-      {:ok, _reply, _socket} =
-        UserSocket
-        |> socket("user_id", %{scope: scope})
-        |> subscribe_and_join("task:#{task_id}", %{})
+      {_socket, _task_id} = join_task_channel(scope)
 
       expected_version = ModelContextProtocol.protocol_version()
 
@@ -533,13 +465,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     end
 
     test "completes handshake and sends initialized notification", %{scope: scope} do
-      task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
-
-      {:ok, _reply, socket} =
-        UserSocket
-        |> socket("user_id", %{scope: scope})
-        |> subscribe_and_join("task:#{task_id}", %{})
+      {socket, _task_id} = join_task_channel(scope)
 
       assert_push("mcp:message", %{"id" => request_id})
 
@@ -563,16 +489,8 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     import ExUnit.CaptureLog
 
     setup %{scope: scope} do
-      task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
-
-      {:ok, _reply, socket} =
-        UserSocket
-        |> socket("user_id", %{scope: scope})
-        |> subscribe_and_join("task:#{task_id}", %{})
-
+      {socket, task_id} = join_task_channel(scope)
       complete_mcp_handshake(socket)
-
       {:ok, socket: socket, task_id: task_id}
     end
 
@@ -665,16 +583,8 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     @moduletag timeout: 30_000
 
     setup %{scope: scope} do
-      task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
-
-      {:ok, _reply, socket} =
-        UserSocket
-        |> socket("user_id", %{scope: scope})
-        |> subscribe_and_join("task:#{task_id}", %{})
-
+      {socket, task_id} = join_task_channel(scope)
       complete_mcp_handshake(socket, tools: [@mcp_get_logs_tool])
-
       {:ok, socket: socket, task_id: task_id, scope: scope}
     end
 
@@ -682,13 +592,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       # Tool responses should always be delivered to waiting executors.
       # This ensures agents can function even if tool calls happen early in the session.
 
-      fresh_task_id = Ecto.UUID.generate()
-      {:ok, ^fresh_task_id} = Tasks.create_task(scope, fresh_task_id, "nextjs")
-
-      {:ok, _reply, socket} =
-        UserSocket
-        |> socket("user_id", %{scope: scope})
-        |> subscribe_and_join("task:#{fresh_task_id}", %{})
+      {socket, _fresh_task_id} = join_task_channel(scope)
 
       # Drain the initialize request without responding - initialization is incomplete
       assert_push("mcp:message", %{"id" => _init_request_id, "method" => "initialize"})
@@ -806,30 +710,13 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       # 2. MCP init completes, storing tools in socket assigns
       # 3. Queued prompt is processed with the loaded MCP tools
 
-      task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
-
-      {:ok, _reply, socket} =
-        UserSocket
-        |> socket("user_id", %{scope: scope})
-        |> subscribe_and_join("task:#{task_id}", %{})
+      {socket, _task_id} = join_task_channel(scope)
 
       # MCP init has started - we receive the initialize request
       assert_push("mcp:message", %{"id" => init_request_id, "method" => "initialize"})
 
       # Send prompt BEFORE completing MCP handshake
-      prompt_request = %{
-        "jsonrpc" => "2.0",
-        "id" => 1,
-        "method" => "session/prompt",
-        "params" => %{
-          "prompt" => [
-            %{"type" => "text", "text" => "Hello"}
-          ]
-        }
-      }
-
-      push(socket, "acp:message", prompt_request)
+      push(socket, "acp:message", build_prompt_request())
       :sys.get_state(socket.channel_pid)
 
       # NOW complete MCP init with tools
@@ -903,16 +790,8 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
   describe "session/cancel" do
     setup %{scope: scope} do
-      task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
-
-      {:ok, _reply, socket} =
-        UserSocket
-        |> socket("user_id", %{scope: scope})
-        |> subscribe_and_join("task:#{task_id}", %{})
-
+      {socket, task_id} = join_task_channel(scope)
       complete_mcp_handshake(socket)
-
       {:ok, socket: socket, task_id: task_id}
     end
 
@@ -921,13 +800,11 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     } do
       # ACP spec: session/cancel is a notification, not a request.
       # No JSON-RPC response should be sent back.
-      cancel_notification = %{
-        "jsonrpc" => "2.0",
-        "method" => "session/cancel",
-        "params" => %{"sessionId" => "irrelevant"}
-      }
-
-      push(socket, "acp:message", cancel_notification)
+      push(
+        socket,
+        "acp:message",
+        build_acp_request("session/cancel", nil, %{"sessionId" => "irrelevant"})
+      )
 
       # Allow time for processing
       :sys.get_state(socket.channel_pid)
@@ -941,18 +818,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       task_id: task_id
     } do
       # Send a prompt to set pending_prompt_id
-      prompt_request = %{
-        "jsonrpc" => "2.0",
-        "id" => 99,
-        "method" => "session/prompt",
-        "params" => %{
-          "prompt" => [
-            %{"type" => "text", "text" => "Hello"}
-          ]
-        }
-      }
-
-      push(socket, "acp:message", prompt_request)
+      push(socket, "acp:message", build_prompt_request(id: 99))
       :sys.get_state(socket.channel_pid)
 
       # Simulate the agent being cancelled via PubSub
@@ -993,16 +859,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       task_id: task_id
     } do
       # Send first prompt
-      push(socket, "acp:message", %{
-        "jsonrpc" => "2.0",
-        "id" => 1,
-        "method" => "session/prompt",
-        "params" => %{
-          "prompt" => [
-            %{"type" => "text", "text" => "Hello"}
-          ]
-        }
-      })
+      push(socket, "acp:message", build_prompt_request(id: 1))
 
       :sys.get_state(socket.channel_pid)
 
@@ -1019,16 +876,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       })
 
       # Send a second prompt - this should work normally
-      push(socket, "acp:message", %{
-        "jsonrpc" => "2.0",
-        "id" => 2,
-        "method" => "session/prompt",
-        "params" => %{
-          "prompt" => [
-            %{"type" => "text", "text" => "Follow up"}
-          ]
-        }
-      })
+      push(socket, "acp:message", build_prompt_request(id: 2, text: "Follow up"))
 
       :sys.get_state(socket.channel_pid)
 
@@ -1048,16 +896,8 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
   describe "tool_call_start streaming" do
     setup %{scope: scope} do
-      task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
-
-      {:ok, _reply, socket} =
-        UserSocket
-        |> socket("user_id", %{scope: scope})
-        |> subscribe_and_join("task:#{task_id}", %{})
-
+      {socket, task_id} = join_task_channel(scope)
       complete_mcp_handshake(socket)
-
       {:ok, socket: socket, task_id: task_id}
     end
 

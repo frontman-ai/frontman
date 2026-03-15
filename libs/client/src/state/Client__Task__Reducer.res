@@ -20,6 +20,18 @@ module ACPTypes = Types.ACPTypes
 module MessageStore = Client__MessageStore
 
 module Lens = {
+  // ---- Generic helpers to eliminate repetitive 4-way switches ----
+
+  // Update the previewFrame on New/Loading/Loaded (crashes on Unloaded)
+  let updatePreviewFrame = (task: Task.t, fn: Task.previewFrame => Task.previewFrame): Task.t =>
+    switch task {
+    | Task.New(data) => Task.New({...data, previewFrame: fn(data.previewFrame)})
+    | Task.Loading(data) => Task.Loading({...data, previewFrame: fn(data.previewFrame)})
+    | Task.Loaded(data) => Task.Loaded({...data, previewFrame: fn(data.previewFrame)})
+    | Task.Unloaded(_) =>
+      failwith("[Lens.updatePreviewFrame] Cannot update preview frame on Unloaded task")
+    }
+
   // Update messages within a task (crashes if New or Unloaded - they have no messages)
   let updateMessages = (task: Task.t, fn: MessageStore.t => MessageStore.t): Task.t => {
     switch task {
@@ -75,109 +87,50 @@ module Lens = {
     )
   }
 
-  // Update preview frame URL
-  let setPreviewUrl = (task: Task.t, url: string): Task.t => {
-    switch task {
-    | Task.New(data) => Task.New({...data, previewFrame: {...data.previewFrame, url}})
-    | Task.Loading(data) => Task.Loading({...data, previewFrame: {...data.previewFrame, url}})
-    | Task.Loaded(data) => Task.Loaded({...data, previewFrame: {...data.previewFrame, url}})
-    | Task.Unloaded(_) => failwith("[Lens.setPreviewUrl] Cannot set preview URL on Unloaded task")
-    }
-  }
+  // ---- PreviewFrame lenses (delegate to updatePreviewFrame) ----
 
-  // Update preview frame content
+  let setPreviewUrl = (task: Task.t, url: string): Task.t =>
+    updatePreviewFrame(task, pf => {...pf, url})
+
   let setPreviewFrame = (
     task: Task.t,
     ~contentDocument: option<WebAPI.DOMAPI.document>,
     ~contentWindow: option<WebAPI.DOMAPI.window>,
-  ): Task.t => {
-    switch task {
-    | Task.New(data) =>
-      Task.New({...data, previewFrame: {...data.previewFrame, contentDocument, contentWindow}})
-    | Task.Loading(data) =>
-      Task.Loading({...data, previewFrame: {...data.previewFrame, contentDocument, contentWindow}})
-    | Task.Loaded(data) =>
-      Task.Loaded({...data, previewFrame: {...data.previewFrame, contentDocument, contentWindow}})
-    | Task.Unloaded(_) =>
-      failwith("[Lens.setPreviewFrame] Cannot set preview frame on Unloaded task")
-    }
-  }
+  ): Task.t =>
+    updatePreviewFrame(task, pf => {...pf, contentDocument, contentWindow})
 
-  // Update device mode
-  let setDeviceMode = (task: Task.t, deviceMode: Client__DeviceMode.deviceMode): Task.t => {
-    switch task {
-    | Task.New(data) =>
-      Task.New({...data, previewFrame: {...data.previewFrame, deviceMode}})
-    | Task.Loading(data) =>
-      Task.Loading({...data, previewFrame: {...data.previewFrame, deviceMode}})
-    | Task.Loaded(data) =>
-      Task.Loaded({...data, previewFrame: {...data.previewFrame, deviceMode}})
-    | Task.Unloaded(_) =>
-      failwith("[Lens.setDeviceMode] Cannot set device mode on Unloaded task")
-    }
-  }
+  let setDeviceMode = (task: Task.t, deviceMode: Client__DeviceMode.deviceMode): Task.t =>
+    updatePreviewFrame(task, pf => {...pf, deviceMode})
 
-  // Update orientation
-  let setOrientation = (task: Task.t, orientation: Client__DeviceMode.orientation): Task.t => {
-    switch task {
-    | Task.New(data) =>
-      Task.New({...data, previewFrame: {...data.previewFrame, orientation}})
-    | Task.Loading(data) =>
-      Task.Loading({...data, previewFrame: {...data.previewFrame, orientation}})
-    | Task.Loaded(data) =>
-      Task.Loaded({...data, previewFrame: {...data.previewFrame, orientation}})
-    | Task.Unloaded(_) =>
-      failwith("[Lens.setOrientation] Cannot set orientation on Unloaded task")
-    }
-  }
+  let setOrientation = (task: Task.t, orientation: Client__DeviceMode.orientation): Task.t =>
+    updatePreviewFrame(task, pf => {...pf, orientation})
 
-  // Set annotation mode
-  let setAnnotationMode = (task: Task.t, mode: Annotation.annotationMode): Task.t => {
-    switch task {
-    | Task.New(data) => Task.New({...data, annotationMode: mode})
-    | Task.Loading(data) => Task.Loading({...data, annotationMode: mode})
-    | Task.Loaded(data) => Task.Loaded({...data, annotationMode: mode})
-    | Task.Unloaded(_) =>
-      failwith("[Lens.setAnnotationMode] Cannot set mode on Unloaded task")
-    }
-  }
+  // ---- Annotation / UI lenses ----
 
-  // Set annotations array
-  let setAnnotations = (task: Task.t, annotations: array<Annotation.t>): Task.t => {
+  // Like Task.updateLoadedData but crashes on Unloaded (crash-early contract)
+  let updateTaskData = (task: Task.t, fn: Task.loadedData => Task.loadedData): Task.t =>
     switch task {
-    | Task.New(data) => Task.New({...data, annotations})
-    | Task.Loading(data) => Task.Loading({...data, annotations})
-    | Task.Loaded(data) => Task.Loaded({...data, annotations})
-    | Task.Unloaded(_) => failwith("[Lens.setAnnotations] Cannot set annotations on Unloaded task")
+    | Task.Unloaded(_) => failwith("[Lens.updateTaskData] Cannot update Unloaded task")
+    | _ => Task.updateLoadedData(task, fn)
     }
-  }
 
-  // Update a single annotation by ID
+  let setAnnotationMode = (task: Task.t, mode: Annotation.annotationMode): Task.t =>
+    updateTaskData(task, d => {...d, annotationMode: mode})
+
+  let setAnnotations = (task: Task.t, annotations: array<Annotation.t>): Task.t =>
+    updateTaskData(task, d => {...d, annotations})
+
   let updateAnnotation = (task: Task.t, id: string, fn: Annotation.t => Annotation.t): Task.t => {
     let annotations = Task.getAnnotations(task)
     let updated = annotations->Array.map(a => a.id == id ? fn(a) : a)
     setAnnotations(task, updated)
   }
 
-  // Set animation frozen state
-  let setAnimationFrozen = (task: Task.t, frozen: bool): Task.t => {
-    switch task {
-    | Task.New(data) => Task.New({...data, isAnimationFrozen: frozen})
-    | Task.Loading(data) => Task.Loading({...data, isAnimationFrozen: frozen})
-    | Task.Loaded(data) => Task.Loaded({...data, isAnimationFrozen: frozen})
-    | Task.Unloaded(_) => failwith("[Lens.setAnimationFrozen] Cannot set on Unloaded task")
-    }
-  }
+  let setAnimationFrozen = (task: Task.t, frozen: bool): Task.t =>
+    updateTaskData(task, d => {...d, isAnimationFrozen: frozen})
 
-  // Set active popup annotation ID
-  let setActivePopupAnnotationId = (task: Task.t, id: option<string>): Task.t => {
-    switch task {
-    | Task.New(data) => Task.New({...data, activePopupAnnotationId: id})
-    | Task.Loading(data) => Task.Loading({...data, activePopupAnnotationId: id})
-    | Task.Loaded(data) => Task.Loaded({...data, activePopupAnnotationId: id})
-    | Task.Unloaded(_) => failwith("[Lens.setActivePopupAnnotationId] Cannot set on Unloaded task")
-    }
-  }
+  let setActivePopupAnnotationId = (task: Task.t, id: option<string>): Task.t =>
+    updateTaskData(task, d => {...d, activePopupAnnotationId: id})
 
 }
 

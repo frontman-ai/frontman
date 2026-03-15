@@ -11,20 +11,10 @@ defmodule FrontmanServerWeb.TaskChannelSentryTest do
 
   import FrontmanServer.InteractionCase.Helpers
 
-  alias FrontmanServer.Tasks
-  alias FrontmanServerWeb.UserSocket
-
   setup %{scope: scope} do
     Sentry.Test.start_collecting_sentry_reports()
 
-    task_id = Ecto.UUID.generate()
-    {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
-
-    {:ok, _reply, socket} =
-      UserSocket
-      |> socket("user_id", %{scope: scope})
-      |> subscribe_and_join("task:#{task_id}", %{})
-
+    {socket, task_id} = join_task_channel(scope, framework: "test-framework")
     complete_mcp_handshake(socket)
 
     {:ok, socket: socket, task_id: task_id}
