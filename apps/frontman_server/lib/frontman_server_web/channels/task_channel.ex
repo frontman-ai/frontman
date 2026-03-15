@@ -172,6 +172,7 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   defp handle_tool_call_response(_id, tool_call, result, socket, remaining_requests) do
     task_id = socket.assigns.task_id
+    scope = socket.assigns.scope
     text_result = MCP.extract_content_text(result)
     parsed_result = MCP.parse_tool_result(text_result)
     is_error = MCP.error?(result)
@@ -188,13 +189,21 @@ defmodule FrontmanServerWeb.TaskChannel do
     push(socket, "acp:message", notification)
 
     # Store result and notify agent (use parsed result to preserve structured data like screenshots)
-    Tasks.add_tool_result(
-      socket.assigns.scope,
-      task_id,
-      %{id: tool_call.tool_call_id, name: tool_call.tool_name},
-      parsed_result,
-      is_error
-    )
+    case Tasks.add_tool_result(
+           scope,
+           task_id,
+           %{id: tool_call.tool_call_id, name: tool_call.tool_name},
+           parsed_result,
+           is_error
+         ) do
+      {:ok, _interaction} ->
+        :ok
+
+      {:error, reason} ->
+        Logger.warning(
+          "Failed to store tool result for #{tool_call.tool_call_id}: #{inspect(reason)}"
+        )
+    end
 
     socket = assign(socket, :pending_requests, remaining_requests)
     {:noreply, socket}
@@ -235,6 +244,7 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   defp handle_tool_call_error(_id, tool_call, error, socket, remaining_requests) do
     task_id = socket.assigns.task_id
+    scope = socket.assigns.scope
     error_message = error["message"] || "Unknown MCP error"
     Logger.error("MCP tool #{tool_call.tool_name} failed: #{error_message}")
 
@@ -263,13 +273,21 @@ defmodule FrontmanServerWeb.TaskChannel do
     push(socket, "acp:message", failed_notification)
 
     # Store error result and notify agent
-    Tasks.add_tool_result(
-      socket.assigns.scope,
-      task_id,
-      %{id: tool_call.tool_call_id, name: tool_call.tool_name},
-      error_message,
-      true
-    )
+    case Tasks.add_tool_result(
+           scope,
+           task_id,
+           %{id: tool_call.tool_call_id, name: tool_call.tool_name},
+           error_message,
+           true
+         ) do
+      {:ok, _interaction} ->
+        :ok
+
+      {:error, reason} ->
+        Logger.warning(
+          "Failed to store tool error result for #{tool_call.tool_call_id}: #{inspect(reason)}"
+        )
+    end
 
     socket = assign(socket, :pending_requests, remaining_requests)
     {:noreply, socket}
@@ -387,8 +405,7 @@ defmodule FrontmanServerWeb.TaskChannel do
     # Track request ID (channel state)
     socket = assign(socket, :pending_prompt_id, id)
 
-    # Pass env_api_key and model to the agent through opts
-    opts = [env_api_key: env_api_key, model: model]
+    opts = [env_api_key: env_api_key, model: model, mcp_tool_defs: mcp_tools]
 
     case Tasks.add_user_message(scope, task_id, prompt.content, all_tools, opts) do
       {:ok, _interaction} ->
@@ -479,14 +496,6 @@ defmodule FrontmanServerWeb.TaskChannel do
     )
 
     handle_turn_ended(socket, ACP.stop_reason_end_turn())
-  end
-
-  def handle_info(:agent_suspended, socket) do
-    Logger.info(
-      "Channel received agent_suspended for task #{socket.assigns.task_id} (waiting for user input)"
-    )
-
-    {:noreply, socket}
   end
 
   def handle_info(:agent_cancelled, socket) do

@@ -366,7 +366,7 @@ let planEntrySchema = S.object(s => {
 // Per ACP spec: only agent_message_chunk exists (first chunk implicitly starts message,
 // session/prompt response with stopReason signals message end)
 type sessionUpdate =
-  | AgentMessageChunk({content: option<contentBlock>})
+  | AgentMessageChunk({content: option<contentBlock>, timestamp: string})
   | UserMessageChunk({content: contentBlock, timestamp: string})
   | ToolCall({
       toolCallId: string,
@@ -392,6 +392,7 @@ let sessionUpdateSchema = S.union([
     s.tag("sessionUpdate", "agent_message_chunk")
     AgentMessageChunk({
       content: s.field("content", S.option(contentBlockSchema)),
+      timestamp: s.field("timestamp", S.string),
     })
   }),
   S.object(s => {

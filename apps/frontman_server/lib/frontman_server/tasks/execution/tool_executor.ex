@@ -32,6 +32,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
   alias SwarmAi.Message.ContentPart
 
   @tool_timeout_ms 60_000
+  @interactive_tool_timeout_ms 120_000
 
   @doc """
   Returns a tool executor function for use with Swarm execution.
@@ -46,6 +47,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
   ## Options
 
   - `:mcp_tools` - List of SwarmAi.Tool.t() for sub-agents to use (default: [])
+  - `:mcp_tool_defs` - List of FrontmanServer.Tools.MCP.t() for execution mode lookups (default: [])
   - `:llm_opts` - Keyword list with :api_key and :model for sub-agents
 
   ## Examples
@@ -57,6 +59,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
           (SwarmAi.ToolCall.t() -> {:ok, String.t()} | {:error, String.t()})
   def make_executor(%Scope{} = scope, task_id, opts \\ []) do
     mcp_tools = Keyword.get(opts, :mcp_tools, [])
+    mcp_tool_defs = Keyword.get(opts, :mcp_tool_defs, [])
     llm_opts = Keyword.fetch!(opts, :llm_opts)
 
     fn tool_call ->
@@ -65,39 +68,47 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
       # Tools expect missing keys, not null values.
       tool_call = strip_null_arguments(tool_call)
 
-      is_mcp_tool = register_if_mcp_tool(tool_call)
-
-      # For MCP tools, publish interaction so TaskChannel can route to client.
-      # This must happen AFTER registration to prevent race conditions.
-      if is_mcp_tool do
-        publish_mcp_tool_call(scope, task_id, tool_call)
-      end
-
-      result =
-        execute(scope, tool_call, task_id,
-          mcp_tools: mcp_tools,
-          llm_opts: llm_opts
-        )
-
-      # Convert tool results containing image data (e.g. screenshots) to multimodal
-      # content parts so the LLM receives proper image content instead of base64 text.
-      maybe_enrich_with_images(tool_call.name, result)
+      execute_tool_call(scope, task_id, tool_call,
+        mcp_tools: mcp_tools,
+        mcp_tool_defs: mcp_tool_defs,
+        llm_opts: llm_opts
+      )
     end
   end
 
-  # Returns true if this is an MCP tool (registered for response), false for backend tools
-  defp register_if_mcp_tool(tool_call) do
+  defp execute_tool_call(scope, task_id, tool_call, opts) do
     case Tools.execution_target(tool_call.name) do
-      :backend ->
-        false
-
       :mcp ->
-        Registry.register(FrontmanServer.ToolCallRegistry, {:tool_call, tool_call.id}, %{
-          caller_pid: self()
-        })
+        # Register BEFORE publishing to prevent a race where the client
+        # responds before the executor is listening.
+        register_mcp_tool(tool_call)
+        publish_mcp_tool_call(scope, task_id, tool_call)
+        execute_and_enrich(scope, tool_call, task_id, opts)
 
-        true
+      :backend ->
+        execute_and_enrich(scope, tool_call, task_id, opts)
     end
+  end
+
+  defp execute_and_enrich(scope, tool_call, task_id, opts) do
+    result =
+      execute(scope, tool_call, task_id,
+        mcp_tools: Keyword.get(opts, :mcp_tools, []),
+        mcp_tool_defs: Keyword.get(opts, :mcp_tool_defs, []),
+        llm_opts: Keyword.fetch!(opts, :llm_opts)
+      )
+
+    # Convert tool results containing image data (e.g. screenshots) to multimodal
+    # content parts so the LLM receives proper image content instead of base64 text.
+    maybe_enrich_with_images(tool_call.name, result)
+  end
+
+  # Registers an MCP tool call in the ToolCallRegistry so the executor process
+  # can receive the result when the browser client responds.
+  defp register_mcp_tool(tool_call) do
+    Registry.register(FrontmanServer.ToolCallRegistry, {:tool_call, tool_call.id}, %{
+      caller_pid: self()
+    })
   end
 
   defp publish_mcp_tool_call(%Scope{} = scope, task_id, tool_call) do
@@ -131,6 +142,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
           {:ok, String.t()} | {:error, String.t()}
   def execute(scope, tool_call, task_id, opts \\ []) do
     mcp_tools = Keyword.get(opts, :mcp_tools, [])
+    mcp_tool_defs = Keyword.get(opts, :mcp_tool_defs, [])
     llm_opts = Keyword.fetch!(opts, :llm_opts)
 
     case Tools.find_tool(tool_call.name) do
@@ -141,17 +153,18 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
           tool_call,
           task_id,
           mcp_tools,
+          mcp_tool_defs,
           llm_opts
         )
 
       :not_found ->
-        execute_mcp_tool(tool_call, task_id)
+        execute_mcp_tool(tool_call, task_id, mcp_tool_defs)
     end
   end
 
   # --- Backend Tool Execution ---
 
-  defp execute_backend_tool(scope, module, tool_call, task_id, mcp_tools, llm_opts) do
+  defp execute_backend_tool(scope, module, tool_call, task_id, mcp_tools, mcp_tool_defs, llm_opts) do
     Logger.info("ToolExecutor: Executing backend tool #{tool_call.name}")
 
     # Re-fetch task from DB to get latest interactions. The task captured at
@@ -161,7 +174,12 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
     {:ok, task} = Tasks.get_task(scope, task_id)
 
     # Pass the executor itself so backend tools can spawn sub-agents
-    executor = make_executor(scope, task_id, mcp_tools: mcp_tools, llm_opts: llm_opts)
+    executor =
+      make_executor(scope, task_id,
+        mcp_tools: mcp_tools,
+        mcp_tool_defs: mcp_tool_defs,
+        llm_opts: llm_opts
+      )
 
     # Pre-compute context messages from read_file results for sub-agents
     context_messages =
@@ -257,23 +275,27 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
 
   # --- MCP Tool Execution ---
 
-  defp execute_mcp_tool(tool_call, task_id) do
+  defp execute_mcp_tool(tool_call, task_id, mcp_tool_defs) do
     Logger.info("ToolExecutor: Routing to MCP tool #{tool_call.name}")
 
-    # Registration already happened in register_if_mcp_tool before broadcast
     tool_call_id = tool_call.id
+
+    # All MCP tools block until the client responds. Interactive tools
+    # (like question) get a longer timeout since they wait for user input.
+    timeout =
+      if Tools.MCP.interactive_by_name?(mcp_tool_defs, tool_call.name),
+        do: @interactive_tool_timeout_ms,
+        else: @tool_timeout_ms
 
     receive do
       {:tool_result, ^tool_call_id, content, is_error} ->
         Registry.unregister(FrontmanServer.ToolCallRegistry, {:tool_call, tool_call_id})
         if is_error, do: {:error, content}, else: {:ok, content}
     after
-      @tool_timeout_ms ->
+      timeout ->
         Registry.unregister(FrontmanServer.ToolCallRegistry, {:tool_call, tool_call_id})
 
-        Logger.error(
-          "ToolExecutor: MCP tool #{tool_call.name} timed out after #{@tool_timeout_ms}ms"
-        )
+        Logger.error("ToolExecutor: MCP tool #{tool_call.name} timed out after #{timeout}ms")
 
         Sentry.capture_message("MCP tool timeout",
           level: :error,
@@ -282,7 +304,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
             tool_name: tool_call.name,
             tool_call_id: tool_call_id,
             task_id: task_id,
-            timeout_ms: @tool_timeout_ms
+            timeout_ms: timeout
           }
         )
 

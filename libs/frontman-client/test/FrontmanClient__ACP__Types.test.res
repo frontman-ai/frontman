@@ -76,3 +76,98 @@ describe("ACP Types encoding/decoding", _t => {
     t->expect(Types.currentProtocolVersion)->Expect.toEqual(1)
   })
 })
+
+// ============================================================================
+// Session Update Parsing Tests
+// ============================================================================
+
+module Fixtures = {
+  let makeAgentMessageChunk = (~text: string, ~timestamp: string): JSON.t => {
+    JSON.Encode.object(
+      Dict.fromArray([
+        ("sessionUpdate", JSON.Encode.string("agent_message_chunk")),
+        (
+          "content",
+          JSON.Encode.object(
+            Dict.fromArray([("type", JSON.Encode.string("text")), ("text", JSON.Encode.string(text))]),
+          ),
+        ),
+        ("timestamp", JSON.Encode.string(timestamp)),
+      ]),
+    )
+  }
+
+  let makeUserMessageChunk = (~text: string, ~timestamp: string): JSON.t => {
+    JSON.Encode.object(
+      Dict.fromArray([
+        ("sessionUpdate", JSON.Encode.string("user_message_chunk")),
+        (
+          "content",
+          JSON.Encode.object(
+            Dict.fromArray([("type", JSON.Encode.string("text")), ("text", JSON.Encode.string(text))]),
+          ),
+        ),
+        ("timestamp", JSON.Encode.string(timestamp)),
+      ]),
+    )
+  }
+}
+
+describe("sessionUpdate schema parsing", () => {
+  test("agent_message_chunk with text content and timestamp", t => {
+    let json = Fixtures.makeAgentMessageChunk(~text="Hello from the agent", ~timestamp="2024-01-15T10:00:30Z")
+    let parsed = json->S.parseOrThrow(Types.sessionUpdateSchema)
+
+    switch parsed {
+    | Types.AgentMessageChunk({content: Some(Types.TextContent({text})), timestamp}) =>
+      t->expect(text)->Expect.toBe("Hello from the agent")
+      t->expect(timestamp)->Expect.toBe("2024-01-15T10:00:30Z")
+    | _ => t->expect("AgentMessageChunk")->Expect.toBe("not matched")
+    }
+  })
+
+  test("user_message_chunk with text content and timestamp", t => {
+    let json = Fixtures.makeUserMessageChunk(~text="Hello from the user", ~timestamp="2024-01-15T10:00:00Z")
+    let parsed = json->S.parseOrThrow(Types.sessionUpdateSchema)
+
+    switch parsed {
+    | Types.UserMessageChunk({content: Types.TextContent({text}), timestamp}) =>
+      t->expect(text)->Expect.toBe("Hello from the user")
+      t->expect(timestamp)->Expect.toBe("2024-01-15T10:00:00Z")
+    | _ => t->expect("UserMessageChunk")->Expect.toBe("not matched")
+    }
+  })
+
+  test("agent_message_chunk without timestamp falls through to Unknown", t => {
+    let json = JSON.Encode.object(
+      Dict.fromArray([
+        ("sessionUpdate", JSON.Encode.string("agent_message_chunk")),
+        (
+          "content",
+          JSON.Encode.object(
+            Dict.fromArray([("type", JSON.Encode.string("text")), ("text", JSON.Encode.string("hello"))]),
+          ),
+        ),
+      ]),
+    )
+
+    let result = try {
+      Ok(json->S.parseOrThrow(Types.sessionUpdateSchema))
+    } catch {
+    | _ => Error("parse threw")
+    }
+
+    switch result {
+    | Ok(Types.AgentMessageChunk(_)) =>
+      t->expect("AgentMessageChunk without timestamp")->Expect.toBe("should not parse")
+    | Ok(Types.Unknown({sessionUpdate})) =>
+      // Falls to Unknown — message silently dropped by handleSessionUpdate
+      t->expect(sessionUpdate)->Expect.toBe("agent_message_chunk")
+    | Ok(_) =>
+      t->expect("unexpected variant")->Expect.toBe("should not happen")
+    | Error(_) =>
+      // Sury fully rejected — also acceptable
+      ()
+    }
+  })
+})

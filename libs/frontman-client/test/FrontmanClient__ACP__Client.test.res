@@ -143,6 +143,146 @@ describe("ACP Client parseInitializeResult", _t => {
   })
 })
 
+// ============================================================================
+// handleIncomingMessage dispatch tests
+// ============================================================================
+
+module Protocol = FrontmanClient__ACP__Protocol
+
+module Fixtures = {
+  let makeNotification = (~sessionId: string, ~update: JSON.t): JSON.t => {
+    JSON.Encode.object(
+      Dict.fromArray([
+        ("jsonrpc", JSON.Encode.string("2.0")),
+        ("method", JSON.Encode.string("session/update")),
+        (
+          "params",
+          JSON.Encode.object(
+            Dict.fromArray([
+              ("sessionId", JSON.Encode.string(sessionId)),
+              ("update", update),
+            ]),
+          ),
+        ),
+      ]),
+    )
+  }
+
+  let makeAgentChunk = (~text: string, ~timestamp: string): JSON.t => {
+    JSON.Encode.object(
+      Dict.fromArray([
+        ("sessionUpdate", JSON.Encode.string("agent_message_chunk")),
+        (
+          "content",
+          JSON.Encode.object(
+            Dict.fromArray([("type", JSON.Encode.string("text")), ("text", JSON.Encode.string(text))]),
+          ),
+        ),
+        ("timestamp", JSON.Encode.string(timestamp)),
+      ]),
+    )
+  }
+
+  let makeUserChunk = (~text: string, ~timestamp: string): JSON.t => {
+    JSON.Encode.object(
+      Dict.fromArray([
+        ("sessionUpdate", JSON.Encode.string("user_message_chunk")),
+        (
+          "content",
+          JSON.Encode.object(
+            Dict.fromArray([("type", JSON.Encode.string("text")), ("text", JSON.Encode.string(text))]),
+          ),
+        ),
+        ("timestamp", JSON.Encode.string(timestamp)),
+      ]),
+    )
+  }
+}
+
+describe("handleIncomingMessage - session/update dispatch", () => {
+  test("agent_message_chunk dispatches to onUpdate", t => {
+    let state = ref(Client.initialState)
+    let received: ref<option<(string, Types.sessionUpdate)>> = ref(None)
+
+    let payload = Fixtures.makeNotification(
+      ~sessionId="session-abc",
+      ~update=Fixtures.makeAgentChunk(~text="Hello from agent", ~timestamp="2024-01-15T10:00:30Z"),
+    )
+
+    Protocol.handleIncomingMessage(
+      ~state,
+      ~onUpdate=Some((id, update) => received := Some((id, update))),
+      ~onMessage=None,
+      ~onParseError=None,
+      payload,
+    )
+
+    switch received.contents {
+    | Some((sessionId, Types.AgentMessageChunk({content: Some(Types.TextContent({text})), timestamp}))) =>
+      t->expect(sessionId)->Expect.toBe("session-abc")
+      t->expect(text)->Expect.toBe("Hello from agent")
+      t->expect(timestamp)->Expect.toBe("2024-01-15T10:00:30Z")
+    | _ => t->expect("AgentMessageChunk dispatch")->Expect.toBe("not received")
+    }
+  })
+
+  test("user_message_chunk dispatches to onUpdate", t => {
+    let state = ref(Client.initialState)
+    let received: ref<option<(string, Types.sessionUpdate)>> = ref(None)
+
+    let payload = Fixtures.makeNotification(
+      ~sessionId="session-abc",
+      ~update=Fixtures.makeUserChunk(~text="Hello from user", ~timestamp="2024-01-15T10:00:00Z"),
+    )
+
+    Protocol.handleIncomingMessage(
+      ~state,
+      ~onUpdate=Some((id, update) => received := Some((id, update))),
+      ~onMessage=None,
+      ~onParseError=None,
+      payload,
+    )
+
+    switch received.contents {
+    | Some((sessionId, Types.UserMessageChunk({content: Types.TextContent({text}), timestamp}))) =>
+      t->expect(sessionId)->Expect.toBe("session-abc")
+      t->expect(text)->Expect.toBe("Hello from user")
+      t->expect(timestamp)->Expect.toBe("2024-01-15T10:00:00Z")
+    | _ => t->expect("UserMessageChunk dispatch")->Expect.toBe("not received")
+    }
+  })
+
+  test("agent_message_chunk without timestamp does not dispatch to onUpdate", t => {
+    let state = ref(Client.initialState)
+    let updateCalled = ref(false)
+    let parseErrorReceived = ref(false)
+
+    let badUpdate = JSON.Encode.object(
+      Dict.fromArray([
+        ("sessionUpdate", JSON.Encode.string("agent_message_chunk")),
+        (
+          "content",
+          JSON.Encode.object(
+            Dict.fromArray([("type", JSON.Encode.string("text")), ("text", JSON.Encode.string("this should fail"))]),
+          ),
+        ),
+      ]),
+    )
+    let payload = Fixtures.makeNotification(~sessionId="s1", ~update=badUpdate)
+
+    Protocol.handleIncomingMessage(
+      ~state,
+      ~onUpdate=Some((_, _) => updateCalled := true),
+      ~onMessage=None,
+      ~onParseError=Some(_ => parseErrorReceived := true),
+      payload,
+    )
+
+    t->expect(updateCalled.contents)->Expect.toBe(false)
+    t->expect(parseErrorReceived.contents)->Expect.toBe(true)
+  })
+})
+
 describe("ACP Client handleResponse", _t => {
   test("resolves pending request on success", t => {
     let resolved = ref(false)

@@ -10,19 +10,6 @@ defmodule SwarmAi.ToolResult do
     field(:id, String.t())
     field(:content, [ContentPart.t()])
     field(:is_error, boolean(), default: false)
-    field(:suspended, boolean(), default: false, enforce: false)
-  end
-
-  @doc """
-  Creates a suspended ToolResult.
-
-  A suspended result indicates the tool is waiting for external input (e.g., user
-  interaction) before it can complete. The tool call is not considered completed
-  and the agent loop will pause.
-  """
-  @spec suspended(String.t()) :: t()
-  def suspended(id) do
-    %__MODULE__{id: id, content: [ContentPart.text("")], is_error: false, suspended: true}
   end
 
   @doc """

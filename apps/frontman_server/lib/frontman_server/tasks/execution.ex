@@ -83,7 +83,12 @@ defmodule FrontmanServer.Tasks.Execution do
           |> Enum.map(&to_swarm_message/1)
           |> maybe_constrain_images(api_key_info.provider)
 
-        submit_to_runtime(scope, agent, task_id, topic, messages, api_key_info: api_key_info)
+        mcp_tool_defs = Keyword.get(opts, :mcp_tool_defs, [])
+
+        submit_to_runtime(scope, agent, task_id, topic, messages,
+          api_key_info: api_key_info,
+          mcp_tool_defs: mcp_tool_defs
+        )
 
       {:error, reason} ->
         {:error, reason}
@@ -95,18 +100,17 @@ defmodule FrontmanServer.Tasks.Execution do
 
   Routes the result to the blocking executor via Registry metadata.
   Called by the Tasks facade after persisting the tool result interaction.
+  No-ops when no executor is waiting (backend tools execute synchronously).
   """
   @spec notify_tool_result(Scope.t(), String.t(), term(), boolean()) :: :ok
   def notify_tool_result(%Scope{}, tool_call_id, result, is_error) do
     case Elixir.Registry.lookup(FrontmanServer.ToolCallRegistry, {:tool_call, tool_call_id}) do
       [{_pid, %{caller_pid: caller}}] ->
-        # MCP tool - send result to waiting executor
         encoded = encode_result_for_swarm(result)
         send(caller, {:tool_result, tool_call_id, encoded, is_error})
         :ok
 
       [] ->
-        # No waiter - this is normal for backend tools (they execute synchronously)
         :ok
     end
   end
@@ -122,11 +126,13 @@ defmodule FrontmanServer.Tasks.Execution do
 
     # Build tool executor that handles both backend and MCP tools.
     mcp_tools = Map.get(agent, :tools, [])
+    mcp_tool_defs = Keyword.get(opts, :mcp_tool_defs, [])
     llm_opts = [api_key: resolved_key.api_key, model: resolved_key.model]
 
     tool_executor =
       ToolExecutor.make_executor(scope, task_id,
         mcp_tools: mcp_tools,
+        mcp_tool_defs: mcp_tool_defs,
         llm_opts: llm_opts
       )
 

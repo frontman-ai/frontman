@@ -73,12 +73,6 @@ defmodule SwarmAi.Loop.Step do
     Enum.any?(calls, &(not SwarmAi.ToolCall.completed?(&1)))
   end
 
-  @doc "Returns true if any tool calls have a suspended result."
-  @spec has_suspended_tools?(t()) :: boolean()
-  def has_suspended_tools?(%__MODULE__{tool_calls: calls}) do
-    Enum.any?(calls, &SwarmAi.ToolCall.suspended?/1)
-  end
-
   @doc "Returns true if there are tool calls and all have results."
   @spec all_tools_complete?(t()) :: boolean()
   def all_tools_complete?(%__MODULE__{tool_calls: []}), do: true

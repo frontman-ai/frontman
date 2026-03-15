@@ -50,7 +50,12 @@ defmodule FrontmanServer.Observability.OtelHandler do
   # These handlers are public for telemetry registration but are not part of the public API.
 
   @doc false
-  def handle_task_start(_event, _measurements, %{task_id: task_id}, _config) do
+  def handle_task_start(
+        _event,
+        _measurements,
+        %{task_id: task_id},
+        _config
+      ) do
     span_name = "task"
 
     attributes = [

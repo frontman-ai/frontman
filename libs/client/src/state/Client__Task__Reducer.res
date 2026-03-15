@@ -343,7 +343,7 @@ type annotationElement = {
 type action =
   // Streaming actions
   | StreamingStarted
-  | TextDeltaReceived({text: string})
+  | TextDeltaReceived({text: string, timestamp: string})
   // Tool call actions
   | ToolInputReceived({id: string, input: JSON.t})
   | ToolResultReceived({id: string, result: JSON.t})
@@ -718,7 +718,8 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       (Lens.insertMessage(task, newMessage), [])
     }
 
-  | (Task.Loading(_) | Task.Loaded(_), TextDeltaReceived({text})) =>
+  | (Task.Loading(_) | Task.Loaded(_), TextDeltaReceived({text, timestamp})) =>
+    let resolvedCreatedAt = Date.fromString(timestamp)->Date.getTime
     switch Lens.getStreamingMessage(task) {
     | Some(Message.Streaming({id: msgId, textBuffer, createdAt})) =>
       let updatedMsg = Message.Assistant(
@@ -757,7 +758,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
         // Last message is User/ToolCall/None - create new streaming message
         let msgId = `msg_${getTaskIdForError(task)}_${Date.now()->Float.toString}`
         let newMessage = Message.Assistant(
-          Streaming({id: msgId, textBuffer: text, createdAt: Date.now()}),
+          Streaming({id: msgId, textBuffer: text, createdAt: resolvedCreatedAt}),
         )
         (Lens.insertMessage(task, newMessage), [])
       }

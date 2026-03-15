@@ -8,6 +8,8 @@ defmodule FrontmanServer.Tasks do
   This context provides the boundary for all task-related operations,
   delegating to the domain layer and infrastructure as appropriate.
   """
+  require Logger
+
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Repo
 
@@ -299,7 +301,8 @@ defmodule FrontmanServer.Tasks do
   unique partial index on the interactions table.
   """
   @spec add_tool_result(Scope.t(), String.t(), map(), term(), boolean()) ::
-          {:ok, Interaction.ToolResult.t()} | {:error, :not_found | Ecto.Changeset.t()}
+          {:ok, Interaction.ToolResult.t()}
+          | {:error, :not_found | Ecto.Changeset.t()}
   def add_tool_result(
         %Scope{} = scope,
         task_id,

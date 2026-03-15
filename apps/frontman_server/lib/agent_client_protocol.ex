@@ -126,7 +126,8 @@ defmodule AgentClientProtocol do
         "content" => %{
           "type" => "text",
           "text" => text
-        }
+        },
+        "timestamp" => DateTime.to_iso8601(DateTime.utc_now())
       }
     }
 

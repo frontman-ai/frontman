@@ -45,7 +45,7 @@ describe("Load Session Then Stream", () => {
 
     // 3. Streaming arrives and routes to task
     let (stateAfterStream, _) = State.next(appState, TaskAction({target: ForTask(taskId), action: StreamingStarted}))
-    let (finalState, _) = State.next(stateAfterStream, TaskAction({target: ForTask(taskId), action: TextDeltaReceived({text: "Hello"})}))
+    let (finalState, _) = State.next(stateAfterStream, TaskAction({target: ForTask(taskId), action: TextDeltaReceived({text: "Hello", timestamp: "2024-01-15T10:00:00Z"})}))
 
     let task = finalState.tasks->Dict.get(taskId)->Option.getOrThrow
     let messages = Task.getLoadedData(task)->Option.mapOr([], d => d.messages)

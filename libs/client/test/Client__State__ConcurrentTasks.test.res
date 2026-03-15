@@ -96,7 +96,7 @@ describe("Concurrent Tasks Event Routing", () => {
     // Act: Receive text delta for Task A
     let (finalState, _) = StateReducer.next(
       stateWithMessage,
-      TaskAction({target: ForTask(taskAId), action: TextDeltaReceived({text: "Hello from Task A"})}),
+      TaskAction({target: ForTask(taskAId), action: TextDeltaReceived({text: "Hello from Task A", timestamp: "2024-01-15T10:00:00Z"})}),
     )
 
     // Assert: Text should be in Task A's message, not Task B
@@ -172,9 +172,9 @@ describe("Concurrent Tasks Event Routing", () => {
     let (state3, _) = StateReducer.next(state2, TaskAction({target: ForTask(taskCId), action: StreamingStarted}))
 
     // Send text deltas to each task
-    let (state4, _) = StateReducer.next(state3, TaskAction({target: ForTask(taskAId), action: TextDeltaReceived({text: "A"})}))
-    let (state5, _) = StateReducer.next(state4, TaskAction({target: ForTask(taskBId), action: TextDeltaReceived({text: "B"})}))
-    let (finalState, _) = StateReducer.next(state5, TaskAction({target: ForTask(taskCId), action: TextDeltaReceived({text: "C"})}))
+    let (state4, _) = StateReducer.next(state3, TaskAction({target: ForTask(taskAId), action: TextDeltaReceived({text: "A", timestamp: "2024-01-15T10:00:00Z"})}))
+    let (state5, _) = StateReducer.next(state4, TaskAction({target: ForTask(taskBId), action: TextDeltaReceived({text: "B", timestamp: "2024-01-15T10:00:00Z"})}))
+    let (finalState, _) = StateReducer.next(state5, TaskAction({target: ForTask(taskCId), action: TextDeltaReceived({text: "C", timestamp: "2024-01-15T10:00:00Z"})}))
 
     // Assert: Each task has its own message with correct content
     let taskA = finalState.tasks->Dict.get(taskAId)->Option.getOrThrow
@@ -213,7 +213,7 @@ describe("Concurrent Tasks Event Routing", () => {
     )
     let (stateWithText, _) = StateReducer.next(
       stateWithStream,
-      TaskAction({target: ForTask(taskAId), action: TextDeltaReceived({text: "Complete message"})}),
+      TaskAction({target: ForTask(taskAId), action: TextDeltaReceived({text: "Complete message", timestamp: "2024-01-15T10:00:00Z"})}),
     )
 
     // Act: Complete the message in Task A
@@ -305,7 +305,7 @@ describe("Concurrent Tasks Event Routing", () => {
     let (stateWithStream, _) = StateReducer.next(state, TaskAction({target: ForTask(taskAId), action: StreamingStarted}))
     let (stateWithText1, _) = StateReducer.next(
       stateWithStream,
-      TaskAction({target: ForTask(taskAId), action: TextDeltaReceived({text: "Part 1. "})}),
+      TaskAction({target: ForTask(taskAId), action: TextDeltaReceived({text: "Part 1. ", timestamp: "2024-01-15T10:00:00Z"})}),
     )
 
     // Switch to Task B mid-stream
@@ -315,7 +315,7 @@ describe("Concurrent Tasks Event Routing", () => {
     // Continue receiving text for Task A
     let (finalState, _) = StateReducer.next(
       stateWithB,
-      TaskAction({target: ForTask(taskAId), action: TextDeltaReceived({text: "Part 2."})}),
+      TaskAction({target: ForTask(taskAId), action: TextDeltaReceived({text: "Part 2.", timestamp: "2024-01-15T10:00:00Z"})}),
     )
 
     // Assert: All text should be in Task A, Task B should be empty

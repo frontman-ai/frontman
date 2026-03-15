@@ -14,8 +14,8 @@ module RuntimeConfig = Client__RuntimeConfig
 
 // Create the text delta buffer instance and register it as active.
 // The onFlush callback breaks the circular dep: TextDeltaBuffer doesn't import Client__State.
-let textDeltaBuffer = Client__TextDeltaBuffer.make(~onFlush=(~taskId, ~text) => {
-  Client__State.Actions.textDeltaReceived(~taskId, ~text)
+let textDeltaBuffer = Client__TextDeltaBuffer.make(~onFlush=(~taskId, ~text, ~timestamp) => {
+  Client__State.Actions.textDeltaReceived(~taskId, ~text, ~timestamp)
 })
 let () = Client__TextDeltaBuffer.active := Some(textDeltaBuffer)
 
@@ -149,13 +149,13 @@ module Provider = {
     let handleSessionUpdate = React.useCallback0((sessionId: string, update: Types.sessionUpdate) => {
       let taskId = sessionId
       switch update {
-      | AgentMessageChunk({content}) =>
+      | AgentMessageChunk({content, timestamp}) =>
         // Per ACP spec: first agent_message_chunk implicitly signals message start.
         // Message end is signaled by session/prompt response with stopReason.
         // Buffer text deltas and flush once per animation frame to avoid
         // dozens of full state rebuilds per second during fast streaming.
         content->Option.flatMap(getContentBlockText)->Option.forEach(text => {
-          textDeltaBuffer.add(~taskId, ~text)
+          textDeltaBuffer.add(~taskId, ~text, ~timestamp)
         })
       | UserMessageChunk({content, timestamp}) =>
         getContentBlockText(content)->Option.forEach(text => {
