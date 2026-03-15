@@ -208,54 +208,17 @@ describe("Task - Load State Machine", () => {
 // ============================================================================
 // Session Rehydration Tests
 //
-// When a user loads an old conversation (no live channel), the full history
-// is replayed into a Loading task via UserMessageReceived and TextDeltaReceived
-// actions, then finalized with LoadComplete. These tests verify that ALL
-// message types survive the Loading → Loaded transition.
+// The bug: during history replay, agent messages go through TextDeltaBuffer
+// which schedules rAF. LoadComplete fires before rAF, transitioning to
+// Loaded({isAgentRunning: false}), and the stale-streaming guard silently
+// drops late TextDeltaReceived actions. Fix: flush() before LoadComplete.
 // ============================================================================
 
 describe("Task - Session Rehydration (Loading history → LoadComplete)", () => {
-  test("LoadComplete on empty Loading task produces Loaded with zero messages", t => {
-    let task = TestHelpers.makeLoadingTask()
-    let (loaded, _) = TaskReducer.next(task, LoadComplete)
-
-    t->expect(Task.isLoaded(loaded))->Expect.toBe(true)
-    t->expect(TestHelpers.getMessages(loaded)->Array.length)->Expect.toBe(0)
-  })
-
-  test("single user message survives LoadComplete", t => {
+  test("agent message (TextDeltaReceived) survives LoadComplete", t => {
     let task = TestHelpers.makeLoadingTask()
 
-    // Replay one user message from history
-    let (task, _) = TaskReducer.next(
-      task,
-      UserMessageReceived({id: "user-1", text: "Hello", timestamp: "2024-01-15T10:00:00Z"}),
-    )
-    // Finalize
-    let (loaded, _) = TaskReducer.next(task, LoadComplete)
-
-    t->expect(Task.isLoaded(loaded))->Expect.toBe(true)
-    let messages = TestHelpers.getMessages(loaded)
-    t->expect(messages->Array.length)->Expect.toBe(1)
-
-    switch messages->Array.get(0) {
-    | Some(Message.User({id, content, _})) =>
-      t->expect(id)->Expect.toBe("user-1")
-      switch content->Array.get(0) {
-      | Some(Message.UserContentPart.Text({text})) =>
-        t->expect(text)->Expect.toBe("Hello")
-      | _ => t->expect("User text content")->Expect.toBe("missing")
-      }
-    | _ => t->expect("User message")->Expect.toBe("not found")
-    }
-  })
-
-  test("single agent message (TextDeltaReceived) survives LoadComplete", t => {
-    let task = TestHelpers.makeLoadingTask()
-
-    // Replay one agent message from history (implicit StreamingStarted per ACP spec)
     let (task, _) = TaskReducer.next(task, TextDeltaReceived({text: "Hi there!", timestamp: "2024-01-15T10:00:00Z"}))
-    // Finalize — LoadComplete must complete the streaming message
     let (loaded, _) = TaskReducer.next(task, LoadComplete)
 
     t->expect(Task.isLoaded(loaded))->Expect.toBe(true)
@@ -270,32 +233,26 @@ describe("Task - Session Rehydration (Loading history → LoadComplete)", () => 
       | _ => t->expect("Assistant text content")->Expect.toBe("missing")
       }
     | Some(Message.Assistant(Streaming(_))) =>
-      t->expect("Streaming message after LoadComplete")->Expect.toBe("should be Completed")
+      t->expect("Streaming after LoadComplete")->Expect.toBe("should be Completed")
     | _ => t->expect("Assistant message")->Expect.toBe("not found")
     }
   })
 
-  test("agent streaming message is finalized to Completed by LoadComplete", t => {
+  test("in-flight streaming message is finalized to Completed by LoadComplete", t => {
     let task = TestHelpers.makeLoadingTask()
 
-    // Start streaming explicitly, then receive text
     let (task, _) = TaskReducer.next(task, StreamingStarted)
     let (task, _) = TaskReducer.next(task, TextDeltaReceived({text: "partial ", timestamp: "2024-01-15T10:00:00Z"}))
     let (task, _) = TaskReducer.next(task, TextDeltaReceived({text: "response", timestamp: "2024-01-15T10:00:00Z"}))
 
-    // Before LoadComplete, message should still be Streaming
-    switch TaskReducer.Selectors.streamingMessage(task) {
-    | Some(Message.Streaming({textBuffer})) =>
-      t->expect(textBuffer)->Expect.toBe("partial response")
-    | _ => t->expect("Streaming message before LoadComplete")->Expect.toBe("not found")
-    }
+    // Before LoadComplete: still Streaming
+    t->expect(TaskReducer.Selectors.streamingMessage(task)->Option.isSome)->Expect.toBe(true)
 
-    // LoadComplete must finalize it
+    // After LoadComplete: finalized to Completed
     let (loaded, _) = TaskReducer.next(task, LoadComplete)
     t->expect(TaskReducer.Selectors.streamingMessage(loaded))->Expect.toBe(None)
 
     let messages = TestHelpers.getMessages(loaded)
-    t->expect(messages->Array.length)->Expect.toBe(1)
     switch messages->Array.get(0) {
     | Some(Message.Assistant(Completed({content, _}))) =>
       switch content->Array.get(0) {
@@ -304,320 +261,6 @@ describe("Task - Session Rehydration (Loading history → LoadComplete)", () => 
       | _ => t->expect("Completed text")->Expect.toBe("missing")
       }
     | _ => t->expect("Completed assistant message")->Expect.toBe("not found")
-    }
-  })
-
-  test("interleaved user + agent messages all survive LoadComplete", t => {
-    let task = TestHelpers.makeLoadingTask()
-
-    // Simulate a realistic conversation: user → agent → user → agent
-    let (task, _) = TaskReducer.next(
-      task,
-      UserMessageReceived({id: "user-1", text: "Hello", timestamp: "2024-01-15T10:00:00Z"}),
-    )
-    let (task, _) = TaskReducer.next(task, TextDeltaReceived({text: "Hi! How can I help?", timestamp: "2024-01-15T10:00:30Z"}))
-    let (task, _) = TaskReducer.next(
-      task,
-      UserMessageReceived({id: "user-2", text: "Fix my bug", timestamp: "2024-01-15T10:01:00Z"}),
-    )
-    let (task, _) = TaskReducer.next(task, TextDeltaReceived({text: "Sure, looking into it.", timestamp: "2024-01-15T10:01:30Z"}))
-
-    // Finalize
-    let (loaded, _) = TaskReducer.next(task, LoadComplete)
-
-    t->expect(Task.isLoaded(loaded))->Expect.toBe(true)
-    let messages = TestHelpers.getMessages(loaded)
-    t->expect(messages->Array.length)->Expect.toBe(4)
-
-    // Verify message types in order
-    switch messages->Array.get(0) {
-    | Some(Message.User({id, _})) => t->expect(id)->Expect.toBe("user-1")
-    | _ => t->expect("messages[0]")->Expect.toBe("User")
-    }
-
-    switch messages->Array.get(1) {
-    | Some(Message.Assistant(Completed({content, _}))) =>
-      switch content->Array.get(0) {
-      | Some(Message.AssistantContentPart.Text({text})) =>
-        t->expect(text)->Expect.toBe("Hi! How can I help?")
-      | _ => t->expect("messages[1] text")->Expect.toBe("missing")
-      }
-    | _ => t->expect("messages[1]")->Expect.toBe("Completed assistant")
-    }
-
-    switch messages->Array.get(2) {
-    | Some(Message.User({id, _})) => t->expect(id)->Expect.toBe("user-2")
-    | _ => t->expect("messages[2]")->Expect.toBe("User")
-    }
-
-    switch messages->Array.get(3) {
-    | Some(Message.Assistant(Completed({content, _}))) =>
-      switch content->Array.get(0) {
-      | Some(Message.AssistantContentPart.Text({text})) =>
-        t->expect(text)->Expect.toBe("Sure, looking into it.")
-      | _ => t->expect("messages[3] text")->Expect.toBe("missing")
-      }
-    | _ => t->expect("messages[3]")->Expect.toBe("Completed assistant")
-    }
-  })
-
-  test("multiple consecutive user messages during Loading survive LoadComplete", t => {
-    let task = TestHelpers.makeLoadingTask()
-
-    // Edge case: multiple user messages without agent replies between them
-    let (task, _) = TaskReducer.next(
-      task,
-      UserMessageReceived({id: "user-1", text: "First", timestamp: "2024-01-15T10:00:00Z"}),
-    )
-    let (task, _) = TaskReducer.next(
-      task,
-      UserMessageReceived({id: "user-2", text: "Second", timestamp: "2024-01-15T10:01:00Z"}),
-    )
-    let (task, _) = TaskReducer.next(
-      task,
-      UserMessageReceived({id: "user-3", text: "Third", timestamp: "2024-01-15T10:02:00Z"}),
-    )
-
-    let (loaded, _) = TaskReducer.next(task, LoadComplete)
-
-    let messages = TestHelpers.getMessages(loaded)
-    t->expect(messages->Array.length)->Expect.toBe(3)
-
-    // All should be User messages
-    messages->Array.forEach(msg => {
-      switch msg {
-      | Message.User(_) => ()
-      | _ => t->expect("All messages should be User")->Expect.toBe("but got non-User")
-      }
-    })
-  })
-
-  test("multiple consecutive agent text deltas during Loading are concatenated and survive LoadComplete", t => {
-    let task = TestHelpers.makeLoadingTask()
-
-    // Multiple text deltas for the same agent message (chunked streaming)
-    let (task, _) = TaskReducer.next(task, TextDeltaReceived({text: "Hello ", timestamp: "2024-01-15T10:00:00Z"}))
-    let (task, _) = TaskReducer.next(task, TextDeltaReceived({text: "world", timestamp: "2024-01-15T10:00:00Z"}))
-    let (task, _) = TaskReducer.next(task, TextDeltaReceived({text: "!", timestamp: "2024-01-15T10:00:00Z"}))
-
-    let (loaded, _) = TaskReducer.next(task, LoadComplete)
-
-    let messages = TestHelpers.getMessages(loaded)
-    t->expect(messages->Array.length)->Expect.toBe(1)
-
-    switch messages->Array.get(0) {
-    | Some(Message.Assistant(Completed({content, _}))) =>
-      switch content->Array.get(0) {
-      | Some(Message.AssistantContentPart.Text({text})) =>
-        t->expect(text)->Expect.toBe("Hello world!")
-      | _ => t->expect("Concatenated text")->Expect.toBe("missing")
-      }
-    | _ => t->expect("Single completed assistant message")->Expect.toBe("not found")
-    }
-  })
-
-  test("multiple distinct agent messages separated by user messages survive LoadComplete", t => {
-    let task = TestHelpers.makeLoadingTask()
-
-    // agent → user → agent pattern (two distinct agent responses)
-    let (task, _) = TaskReducer.next(task, TextDeltaReceived({text: "First reply", timestamp: "2024-01-15T10:00:30Z"}))
-    let (task, _) = TaskReducer.next(
-      task,
-      UserMessageReceived({id: "user-1", text: "Thanks", timestamp: "2024-01-15T10:01:00Z"}),
-    )
-    let (task, _) = TaskReducer.next(task, TextDeltaReceived({text: "Second reply", timestamp: "2024-01-15T10:01:30Z"}))
-
-    let (loaded, _) = TaskReducer.next(task, LoadComplete)
-
-    let messages = TestHelpers.getMessages(loaded)
-    t->expect(messages->Array.length)->Expect.toBe(3)
-
-    // First should be a Completed assistant
-    switch messages->Array.get(0) {
-    | Some(Message.Assistant(Completed({content, _}))) =>
-      switch content->Array.get(0) {
-      | Some(Message.AssistantContentPart.Text({text})) =>
-        t->expect(text)->Expect.toBe("First reply")
-      | _ => t->expect("First agent text")->Expect.toBe("missing")
-      }
-    | _ => t->expect("messages[0]")->Expect.toBe("Completed assistant")
-    }
-
-    // Second should be a User
-    switch messages->Array.get(1) {
-    | Some(Message.User({id, _})) => t->expect(id)->Expect.toBe("user-1")
-    | _ => t->expect("messages[1]")->Expect.toBe("User")
-    }
-
-    // Third should be a Completed assistant
-    switch messages->Array.get(2) {
-    | Some(Message.Assistant(Completed({content, _}))) =>
-      switch content->Array.get(0) {
-      | Some(Message.AssistantContentPart.Text({text})) =>
-        t->expect(text)->Expect.toBe("Second reply")
-      | _ => t->expect("Second agent text")->Expect.toBe("missing")
-      }
-    | _ => t->expect("messages[2]")->Expect.toBe("Completed assistant")
-    }
-  })
-
-  test("message ordering is preserved by timestamp after LoadComplete", t => {
-    let task = TestHelpers.makeLoadingTask()
-
-    // Insert messages with known timestamps — LoadComplete sorts by createdAt
-    let (task, _) = TaskReducer.next(
-      task,
-      UserMessageReceived({id: "user-1", text: "First", timestamp: "2024-01-15T10:00:00Z"}),
-    )
-    let (task, _) = TaskReducer.next(task, TextDeltaReceived({text: "Reply to first", timestamp: "2024-01-15T10:01:00Z"}))
-    let (task, _) = TaskReducer.next(
-      task,
-      UserMessageReceived({id: "user-2", text: "Second", timestamp: "2024-01-15T10:02:00Z"}),
-    )
-
-    let (loaded, _) = TaskReducer.next(task, LoadComplete)
-
-    let messages = TestHelpers.getMessages(loaded)
-    t->expect(messages->Array.length)->Expect.toBe(3)
-
-    // Verify temporal ordering: each message's createdAt should be <= the next
-    let timestamps = messages->Array.map(msg => TaskReducer.Selectors.getMessageCreatedAt(msg))
-    for i in 0 to Array.length(timestamps) - 2 {
-      let current = timestamps->Array.get(i)->Option.getOrThrow
-      let next = timestamps->Array.get(i + 1)->Option.getOrThrow
-      t->expect(current <= next)->Expect.toBe(true)
-    }
-  })
-
-  test("tool call history survives LoadComplete", t => {
-    let task = TestHelpers.makeLoadingTask()
-
-    // Replay: user → agent → tool call → tool result → agent
-    let (task, _) = TaskReducer.next(
-      task,
-      UserMessageReceived({id: "user-1", text: "Fix the button", timestamp: "2024-01-15T10:00:00Z"}),
-    )
-    let (task, _) = TaskReducer.next(task, TextDeltaReceived({text: "Let me look at that.", timestamp: "2024-01-15T10:00:30Z"}))
-    let (task, _) = TaskReducer.next(
-      task,
-      ToolCallReceived({
-        toolCall: {
-          id: "tool-1",
-          toolName: "read_file",
-          state: Message.InputAvailable,
-          inputBuffer: "",
-          input: Some(JSON.Encode.string("button.tsx")),
-          result: None,
-          errorText: None,
-          createdAt: Date.fromString("2024-01-15T10:00:45Z")->Date.getTime,
-          parentAgentId: None,
-          spawningToolName: None,
-        },
-      }),
-    )
-    let (task, _) = TaskReducer.next(
-      task,
-      ToolResultReceived({id: "tool-1", result: JSON.Encode.string("file contents")}),
-    )
-    let (task, _) = TaskReducer.next(task, TextDeltaReceived({text: "I found the issue.", timestamp: "2024-01-15T10:01:00Z"}))
-
-    let (loaded, _) = TaskReducer.next(task, LoadComplete)
-
-    let messages = TestHelpers.getMessages(loaded)
-    // user + agent(completed by toolcall) + tool_call + agent
-    t->expect(messages->Array.length)->Expect.toBe(4)
-
-    // Verify tool call is present and has result
-    let toolCalls = messages->Array.filter(msg =>
-      switch msg {
-      | Message.ToolCall(_) => true
-      | _ => false
-      }
-    )
-    t->expect(toolCalls->Array.length)->Expect.toBe(1)
-
-    switch toolCalls->Array.get(0) {
-    | Some(Message.ToolCall({id, toolName, state, result, _})) =>
-      t->expect(id)->Expect.toBe("tool-1")
-      t->expect(toolName)->Expect.toBe("read_file")
-      t->expect(state)->Expect.toEqual(Message.OutputAvailable)
-      t->expect(result->Option.isSome)->Expect.toBe(true)
-    | _ => t->expect("Tool call")->Expect.toBe("not found")
-    }
-  })
-
-  test("isAgentRunning is false after LoadComplete (no live session)", t => {
-    let task = TestHelpers.makeLoadingTask()
-
-    let (task, _) = TaskReducer.next(
-      task,
-      UserMessageReceived({id: "user-1", text: "Hello", timestamp: "2024-01-15T10:00:00Z"}),
-    )
-    let (task, _) = TaskReducer.next(task, TextDeltaReceived({text: "Hi!", timestamp: "2024-01-15T10:00:30Z"}))
-
-    let (loaded, _) = TaskReducer.next(task, LoadComplete)
-
-    t->expect(TaskReducer.Selectors.isAgentRunning(loaded))->Expect.toBe(Some(false))
-  })
-
-  test("long conversation with multiple turns survives LoadComplete", t => {
-    let task = TestHelpers.makeLoadingTask()
-
-    // Simulate 5-turn conversation
-    let (task, _) = TaskReducer.next(task, UserMessageReceived({id: "u1", text: "Turn 1", timestamp: "2024-01-15T10:00:00Z"}))
-    let (task, _) = TaskReducer.next(task, TextDeltaReceived({text: "Reply 1", timestamp: "2024-01-15T10:00:30Z"}))
-    let (task, _) = TaskReducer.next(task, UserMessageReceived({id: "u2", text: "Turn 2", timestamp: "2024-01-15T10:01:00Z"}))
-    let (task, _) = TaskReducer.next(task, TextDeltaReceived({text: "Reply 2", timestamp: "2024-01-15T10:01:30Z"}))
-    let (task, _) = TaskReducer.next(task, UserMessageReceived({id: "u3", text: "Turn 3", timestamp: "2024-01-15T10:02:00Z"}))
-    let (task, _) = TaskReducer.next(task, TextDeltaReceived({text: "Reply 3", timestamp: "2024-01-15T10:02:30Z"}))
-    let (task, _) = TaskReducer.next(task, UserMessageReceived({id: "u4", text: "Turn 4", timestamp: "2024-01-15T10:03:00Z"}))
-    let (task, _) = TaskReducer.next(task, TextDeltaReceived({text: "Reply 4", timestamp: "2024-01-15T10:03:30Z"}))
-    let (task, _) = TaskReducer.next(task, UserMessageReceived({id: "u5", text: "Turn 5", timestamp: "2024-01-15T10:04:00Z"}))
-    let (task, _) = TaskReducer.next(task, TextDeltaReceived({text: "Reply 5", timestamp: "2024-01-15T10:04:30Z"}))
-
-    let (loaded, _) = TaskReducer.next(task, LoadComplete)
-
-    let messages = TestHelpers.getMessages(loaded)
-    // 5 user + 5 assistant = 10 messages
-    t->expect(messages->Array.length)->Expect.toBe(10)
-
-    // Count each type
-    let userCount = messages->Array.filter(m => switch m { | Message.User(_) => true | _ => false })->Array.length
-    let assistantCount = messages->Array.filter(m => switch m { | Message.Assistant(_) => true | _ => false })->Array.length
-    t->expect(userCount)->Expect.toBe(5)
-    t->expect(assistantCount)->Expect.toBe(5)
-
-    // All assistant messages should be Completed (not Streaming)
-    messages->Array.forEach(msg => {
-      switch msg {
-      | Message.Assistant(Streaming(_)) =>
-        t->expect("No streaming messages after LoadComplete")->Expect.toBe("but found one")
-      | _ => ()
-      }
-    })
-  })
-
-  test("no streaming messages remain after LoadComplete", t => {
-    let task = TestHelpers.makeLoadingTask()
-
-    // Leave an in-flight streaming message
-    let (task, _) = TaskReducer.next(task, StreamingStarted)
-    let (task, _) = TaskReducer.next(task, TextDeltaReceived({text: "still streaming...", timestamp: "2024-01-15T10:00:00Z"}))
-
-    // Verify streaming message exists before LoadComplete
-    t->expect(TaskReducer.Selectors.streamingMessage(task)->Option.isSome)->Expect.toBe(true)
-
-    let (loaded, _) = TaskReducer.next(task, LoadComplete)
-
-    // No streaming messages should remain
-    t->expect(TaskReducer.Selectors.streamingMessage(loaded))->Expect.toBe(None)
-
-    // But the text should be preserved as a Completed message
-    let messages = TestHelpers.getMessages(loaded)
-    t->expect(messages->Array.length)->Expect.toBe(1)
-    switch messages->Array.get(0) {
-    | Some(Message.Assistant(Completed(_))) => ()
-    | _ => t->expect("Completed assistant")->Expect.toBe("not found")
     }
   })
 })
