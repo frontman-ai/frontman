@@ -215,7 +215,6 @@ tunnel: ## Start SSH tunnel to DevPod server (fallback if dnsmasq not configured
 #
 
 # Shared variables for containerized worktrees
-FRONTMAN_NET := frontman-net
 CADDY_CONTAINER := frontman-caddy
 DEV_IMAGE := frontman-dev:latest
 
@@ -230,7 +229,7 @@ wt: ## Dashboard — shows all worktrees, pod status, URLs, and actions
 
 wt-new: ## Create containerized worktree (BRANCH=...)
 	$(call resolve_branch,wt-new)
-	@BRANCH="$(BRANCH)" FRONTMAN_NET=$(FRONTMAN_NET) DEV_IMAGE=$(DEV_IMAGE) \
+	@BRANCH="$(BRANCH)" DEV_IMAGE=$(DEV_IMAGE) \
 		bash ./bin/wt-pod-create
 
 wt-dev: ## Start dev servers in container (BRANCH=...)
@@ -307,27 +306,19 @@ wt-logs: ## Tail dev container logs (BRANCH=...)
 ## INFRA_START
 .PHONY: infra-up infra-down infra-build infra-status
 
-infra-up: ## One-time setup: network, dev image, Caddy, dnsmasq
+infra-up: ## One-time setup: dev image, Caddy, dnsmasq
 	@printf "$(CYAN)Setting up containerized worktree infrastructure...$(RESET)\n"
-	@echo ""
-	@if ! podman network inspect $(FRONTMAN_NET) &>/dev/null; then \
-		printf "$(YELLOW)Creating podman network: $(FRONTMAN_NET)$(RESET)\n"; \
-		podman network create $(FRONTMAN_NET); \
-	else \
-		printf "$(GREEN)Network $(FRONTMAN_NET) already exists$(RESET)\n"; \
-	fi
 	@echo ""
 	@printf "$(YELLOW)Building dev image: $(DEV_IMAGE)$(RESET)\n"
 	@podman build -t $(DEV_IMAGE) -f .devcontainer/Dockerfile .devcontainer/
 	@echo ""
 	@if ! podman container inspect $(CADDY_CONTAINER) &>/dev/null; then \
-		printf "$(YELLOW)Starting Caddy reverse proxy...$(RESET)\n"; \
+		printf "$(YELLOW)Starting Caddy reverse proxy (host network)...$(RESET)\n"; \
 		mkdir -p infra/local; \
-		echo ':80 { respond "No worktree pods running" 503 }' > infra/local/Caddyfile; \
+		printf ':9999 {\n    respond "No worktree pods running" 503\n}\n' > infra/local/Caddyfile; \
 		podman run -d \
 			--name $(CADDY_CONTAINER) \
-			--network $(FRONTMAN_NET) \
-			-p 80:80 -p 443:443 \
+			--network host \
 			-v "$$(pwd)/infra/local/Caddyfile:/etc/caddy/Caddyfile:ro" \
 			-v frontman-caddy-data:/data \
 			-v frontman-caddy-config:/config \
@@ -345,7 +336,7 @@ infra-up: ## One-time setup: network, dev image, Caddy, dnsmasq
 	@echo ""
 	@printf "$(GREEN)Infrastructure ready!$(RESET)\n"
 
-infra-down: ## Tear down all pods, volumes, Caddy, and network
+infra-down: ## Tear down all pods, volumes, and Caddy
 	@printf "$(YELLOW)Tearing down infrastructure...$(RESET)\n"
 	@PODS=$$(podman pod ls --format '{{.Name}}' 2>/dev/null | grep '^worktree-' || true); \
 	if [ -n "$$PODS" ]; then \
@@ -355,7 +346,6 @@ infra-down: ## Tear down all pods, volumes, Caddy, and network
 	if [ -n "$$VOLS" ]; then echo "$$VOLS" | xargs podman volume rm -f 2>/dev/null || true; fi
 	@podman rm -f $(CADDY_CONTAINER) 2>/dev/null || true
 	@podman volume rm -f frontman-caddy-data frontman-caddy-config 2>/dev/null || true
-	@podman network rm $(FRONTMAN_NET) 2>/dev/null || true
 	@printf "$(GREEN)Infrastructure torn down$(RESET)\n"
 	@echo "Note: git worktrees and dnsmasq config are preserved"
 

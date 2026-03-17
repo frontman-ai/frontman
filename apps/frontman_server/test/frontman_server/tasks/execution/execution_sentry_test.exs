@@ -20,6 +20,11 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
     # Allow the ExecutionMonitor process to report Sentry events back to the
     # test process. Crash events are dispatched from ExecutionMonitor (a
     # long-lived GenServer) which has no $callers chain to the test process.
+    #
+    # ExecutionMonitor is a singleton that persists across sequential tests in
+    # this module. If it was already allowed by a previous test, the call below
+    # will raise RuntimeError. We rescue and continue since the monitor can
+    # already report Sentry events, which is the desired state.
     monitor_pid =
       Process.whereis(SwarmAi.Runtime.monitor_name(FrontmanServer.AgentRuntime))
 

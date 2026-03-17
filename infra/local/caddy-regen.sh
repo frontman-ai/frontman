@@ -1,8 +1,12 @@
 #!/bin/bash
 # caddy-regen.sh — Regenerate Caddyfile from running worktree pods.
 #
-# Scans all running worktree-* pods, generates reverse proxy routes
-# for each one, writes infra/local/Caddyfile, and reloads Caddy.
+# Scans all running worktree-* pods, reads their published port mappings,
+# generates reverse proxy routes for each one, writes infra/local/Caddyfile,
+# and reloads Caddy.
+#
+# Networking: Caddy runs with --network=host and routes to localhost:<port>.
+# Each pod publishes deterministic ports derived from its hash.
 #
 # Usage: ./infra/local/caddy-regen.sh
 
@@ -26,8 +30,8 @@ if [ -z "$PODS" ]; then
     # No pods running — write a minimal Caddyfile so Caddy doesn't error
     cat >> "$CADDYFILE" << 'EOF'
 # No worktree pods currently running.
-# Create one with: make worktree-pod-create BRANCH=feature/my-feature
-:80 {
+# Create one with: make wt-new BRANCH=feature/my-feature
+:9999 {
     respond "No worktree pods running" 503
 }
 EOF
@@ -36,12 +40,21 @@ else
         # Extract hash from pod name (worktree-HASH)
         HASH="${POD#worktree-}"
 
+        # Derive ports from hash (must match wt-pod-create)
+        BASE_PORT=$(( 16#${HASH} % 5000 + 10000 ))
+        PORT_PHOENIX=$((BASE_PORT))
+        PORT_VITE=$((BASE_PORT + 1))
+        PORT_NEXTJS=$((BASE_PORT + 2))
+        PORT_STORYBOOK=$((BASE_PORT + 3))
+        PORT_MARKETING=$((BASE_PORT + 4))
+        PORT_DOGFOOD=$((BASE_PORT + 5))
+
         # Generate route blocks for this worktree
         cat >> "$CADDYFILE" << EOF
-# Worktree: $POD
+# Worktree: $POD (ports ${PORT_PHOENIX}–${PORT_DOGFOOD})
 ${HASH}.api.frontman.local {
     tls internal
-    reverse_proxy https://${POD}:4000 {
+    reverse_proxy https://localhost:${PORT_PHOENIX} {
         transport http {
             tls_insecure_skip_verify
         }
@@ -50,27 +63,27 @@ ${HASH}.api.frontman.local {
 
 ${HASH}.vite.frontman.local {
     tls internal
-    reverse_proxy ${POD}:5173
+    reverse_proxy localhost:${PORT_VITE}
 }
 
 ${HASH}.nextjs.frontman.local {
     tls internal
-    reverse_proxy ${POD}:3000
+    reverse_proxy localhost:${PORT_NEXTJS}
 }
 
 ${HASH}.storybook.frontman.local {
     tls internal
-    reverse_proxy ${POD}:6006
+    reverse_proxy localhost:${PORT_STORYBOOK}
 }
 
 ${HASH}.dogfood.frontman.local {
     tls internal
-    reverse_proxy ${POD}:6123
+    reverse_proxy localhost:${PORT_DOGFOOD}
 }
 
 ${HASH}.marketing.frontman.local {
     tls internal
-    reverse_proxy ${POD}:4321
+    reverse_proxy localhost:${PORT_MARKETING}
 }
 
 EOF

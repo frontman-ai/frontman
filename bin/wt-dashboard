@@ -47,11 +47,11 @@ md5_short() {
 infra_line() {
   local parts=()
 
-  # Network
-  if podman network inspect frontman-net &>/dev/null; then
-    parts+=("Network ${GREEN}${SYM_OK}${RESET}")
+  # Dev image
+  if podman image inspect frontman-dev:latest &>/dev/null; then
+    parts+=("Image ${GREEN}${SYM_OK}${RESET}")
   else
-    parts+=("Network ${RED}${SYM_WARN}${RESET}")
+    parts+=("Image ${RED}${SYM_WARN}${RESET}")
   fi
 
   # Caddy
@@ -131,6 +131,12 @@ collect_worktrees() {
   done
 }
 
+# ── Derive port range from hash (must match wt-pod-create) ──
+hash_base_port() {
+  local hash="$1"
+  echo $(( 16#${hash} % 5000 + 10000 ))
+}
+
 # ── Print a single worktree entry ──────────────────────
 print_worktree() {
   local branch="$1"
@@ -172,13 +178,17 @@ print_worktree() {
     printf "  ${DIM}%-12s${RESET} worktree-%-6s  ${DIM}hash${RESET} %s\n" "Pod:" "$hash" "$hash"
 
     if [[ "$pod_status" == Running* ]]; then
+      local base_port
+      base_port=$(hash_base_port "$hash")
       printf "  ${DIM}%-12s${RESET} %s containers running\n" "Containers:" "$pod_containers"
+      printf "  ${DIM}%-12s${RESET} %s–%s\n" "Ports:" "$base_port" "$((base_port + 5))"
       printf "  ${DIM}URLs:${RESET}\n"
-      printf "       ${GREEN}Phoenix${RESET}     https://%s.api.frontman.local\n" "$hash"
-      printf "       ${GREEN}Vite${RESET}        https://%s.vite.frontman.local\n" "$hash"
-      printf "       ${GREEN}Next.js${RESET}     https://%s.nextjs.frontman.local/frontman\n" "$hash"
-      printf "       ${GREEN}Storybook${RESET}   https://%s.storybook.frontman.local\n" "$hash"
-      printf "       ${GREEN}Marketing${RESET}   https://%s.marketing.frontman.local\n" "$hash"
+      printf "       ${GREEN}Phoenix${RESET}     https://%s.api.frontman.local  ${DIM}(:%s)${RESET}\n" "$hash" "$base_port"
+      printf "       ${GREEN}Vite${RESET}        https://%s.vite.frontman.local  ${DIM}(:%s)${RESET}\n" "$hash" "$((base_port + 1))"
+      printf "       ${GREEN}Next.js${RESET}     https://%s.nextjs.frontman.local/frontman  ${DIM}(:%s)${RESET}\n" "$hash" "$((base_port + 2))"
+      printf "       ${GREEN}Storybook${RESET}   https://%s.storybook.frontman.local  ${DIM}(:%s)${RESET}\n" "$hash" "$((base_port + 3))"
+      printf "       ${GREEN}Marketing${RESET}   https://%s.marketing.frontman.local  ${DIM}(:%s)${RESET}\n" "$hash" "$((base_port + 4))"
+      printf "       ${GREEN}Dogfood${RESET}     https://%s.dogfood.frontman.local  ${DIM}(:%s)${RESET}\n" "$hash" "$((base_port + 5))"
       echo ""
       printf "  ${DIM}Actions:${RESET}     make wt-dev BRANCH=%s\n" "$branch"
       printf "               make wt-stop BRANCH=%s\n" "$branch"

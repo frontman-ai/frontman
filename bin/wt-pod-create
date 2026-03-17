@@ -2,32 +2,44 @@
 # Create a containerized worktree: git worktree + Podman pod + postgres + dev container.
 # Called by: make wt-new / make worktree-pod-create
 #
-# Required env: BRANCH, FRONTMAN_NET, DEV_IMAGE, MD5CMD
+# Required env: BRANCH, DEV_IMAGE, MD5CMD
 # MD5CMD is the platform-specific md5 pipeline (e.g. "md5sum | cut -c1-4")
+#
+# Networking: pods use pasta (rootless-friendly) with host-published ports.
+# Caddy runs on --network=host and routes to localhost:<port>.
+# Port range per worktree is derived from the 4-char hex hash:
+#   base = (0xHASH % 5000) + 10000   → range 10000–14999
+#   Phoenix: base+0, Vite: base+1, Next.js: base+2,
+#   Storybook: base+3, Marketing: base+4, Dogfood: base+5
 
 set -euo pipefail
 
 CYAN='\033[36m'; GREEN='\033[32m'; YELLOW='\033[33m'; RESET='\033[0m'
 
 BRANCH="${BRANCH:?BRANCH is required}"
-FRONTMAN_NET="${FRONTMAN_NET:?FRONTMAN_NET is required}"
 DEV_IMAGE="${DEV_IMAGE:?DEV_IMAGE is required}"
 
 HASH=$(echo -n "$BRANCH" | eval "$MD5CMD")
 POD_NAME="worktree-${HASH}"
 WT_DIR="$(pwd)/.worktrees/${BRANCH}"
 
+# Derive deterministic port range from hash
+BASE_PORT=$(( 16#${HASH} % 5000 + 10000 ))
+PORT_PHOENIX=$((BASE_PORT))
+PORT_VITE=$((BASE_PORT + 1))
+PORT_NEXTJS=$((BASE_PORT + 2))
+PORT_STORYBOOK=$((BASE_PORT + 3))
+PORT_MARKETING=$((BASE_PORT + 4))
+PORT_DOGFOOD=$((BASE_PORT + 5))
+
 printf "${CYAN}Creating containerized worktree${RESET}\n"
-printf "  Branch: %s\n" "$BRANCH"
-printf "  Hash:   %s\n" "$HASH"
-printf "  Pod:    %s\n" "$POD_NAME"
+printf "  Branch:  %s\n" "$BRANCH"
+printf "  Hash:    %s\n" "$HASH"
+printf "  Pod:     %s\n" "$POD_NAME"
+printf "  Ports:   %s–%s\n" "$PORT_PHOENIX" "$PORT_DOGFOOD"
 echo ""
 
 # ── Preflight ───────────────────────────────────────────
-if ! podman network inspect "$FRONTMAN_NET" &>/dev/null; then
-  printf "${YELLOW}Error: Infrastructure not set up. Run 'make infra-up' first.${RESET}\n"
-  exit 1
-fi
 if ! podman image inspect "$DEV_IMAGE" &>/dev/null; then
   printf "${YELLOW}Error: Dev image not built. Run 'make infra-up' first.${RESET}\n"
   exit 1
@@ -61,7 +73,13 @@ echo ""
 
 # ── Pod + containers ────────────────────────────────────
 printf "${YELLOW}==> Creating Podman pod: %s${RESET}\n" "$POD_NAME"
-podman pod create --name "$POD_NAME" --network "$FRONTMAN_NET"
+podman pod create --name "$POD_NAME" \
+  -p "${PORT_PHOENIX}:4000" \
+  -p "${PORT_VITE}:5173" \
+  -p "${PORT_NEXTJS}:3000" \
+  -p "${PORT_STORYBOOK}:6006" \
+  -p "${PORT_MARKETING}:4321" \
+  -p "${PORT_DOGFOOD}:6123"
 echo ""
 
 printf "${YELLOW}==> Starting PostgreSQL...${RESET}\n"
@@ -83,6 +101,12 @@ podman run -d \
   --env-file "$WT_DIR/.env.secrets.resolved" \
   -e "WORKTREE_HASH=${HASH}" \
   -e "WORKTREE_BRANCH=${BRANCH}" \
+  -e "WORKTREE_PORT_PHOENIX=${PORT_PHOENIX}" \
+  -e "WORKTREE_PORT_VITE=${PORT_VITE}" \
+  -e "WORKTREE_PORT_NEXTJS=${PORT_NEXTJS}" \
+  -e "WORKTREE_PORT_STORYBOOK=${PORT_STORYBOOK}" \
+  -e "WORKTREE_PORT_MARKETING=${PORT_MARKETING}" \
+  -e "WORKTREE_PORT_DOGFOOD=${PORT_DOGFOOD}" \
   -v "${WT_DIR}:/workspaces/frontman" \
   -v "worktree-${HASH}-node-modules:/workspaces/frontman/node_modules" \
   -v "worktree-${HASH}-mix-build:/workspaces/frontman/apps/frontman_server/_build" \
@@ -122,8 +146,18 @@ echo ""
 echo "Start development:"
 echo "  make wt-dev BRANCH=${BRANCH}"
 echo ""
-echo "URLs:"
+echo "URLs (via Caddy):"
 echo "  Phoenix:   https://${HASH}.api.frontman.local"
 echo "  Vite:      https://${HASH}.vite.frontman.local"
 echo "  Next.js:   https://${HASH}.nextjs.frontman.local/frontman"
 echo "  Storybook: https://${HASH}.storybook.frontman.local"
+echo "  Marketing: https://${HASH}.marketing.frontman.local"
+echo "  Dogfood:   https://${HASH}.dogfood.frontman.local"
+echo ""
+echo "Direct ports (localhost):"
+echo "  Phoenix:   localhost:${PORT_PHOENIX}"
+echo "  Vite:      localhost:${PORT_VITE}"
+echo "  Next.js:   localhost:${PORT_NEXTJS}"
+echo "  Storybook: localhost:${PORT_STORYBOOK}"
+echo "  Marketing: localhost:${PORT_MARKETING}"
+echo "  Dogfood:   localhost:${PORT_DOGFOOD}"
