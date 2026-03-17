@@ -156,6 +156,7 @@ let convertTask = (task: Snapshot.Task.t): StateTypes.Task.t => {
     planEntries: [], // Plan entries not stored in snapshots yet
     turnError: None, // No error when restoring from snapshot
     imageAttachments: Dict.make(),
+    pendingQuestion: None,
   })
 }
 

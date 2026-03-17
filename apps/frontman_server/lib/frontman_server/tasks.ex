@@ -241,14 +241,15 @@ defmodule FrontmanServer.Tasks do
   end
 
   @doc """
-  Creates and appends a UserMessage interaction.
+  Submits a user prompt: persists the message and starts agent execution.
 
-  If no execution is already running for this task, fetches the task
-  and starts a new agent run.
+  This is the primary "user turn" use case — recording what the user said
+  and kicking off the agent loop. If an execution is already running, the
+  message is persisted but no new run is started.
   """
-  @spec add_user_message(Scope.t(), String.t(), list(), list(), keyword()) ::
+  @spec submit_user_message(Scope.t(), String.t(), list(), list(), keyword()) ::
           {:ok, Interaction.UserMessage.t()} | {:error, :not_found}
-  def add_user_message(%Scope{} = scope, task_id, content_blocks, tools, opts \\ []) do
+  def submit_user_message(%Scope{} = scope, task_id, content_blocks, tools, opts \\ []) do
     with {:ok, schema} <- get_task_by_id(scope, task_id),
          interaction = Interaction.UserMessage.new(content_blocks),
          {:ok, interaction} <- append_interaction(schema, interaction) do
@@ -282,6 +283,20 @@ defmodule FrontmanServer.Tasks do
   end
 
   @doc """
+  Creates and appends an AgentError interaction.
+
+  `kind` is one of "failed", "crashed", or "cancelled".
+  """
+  @spec add_agent_error(Scope.t(), String.t(), String.t(), String.t()) ::
+          {:ok, Interaction.AgentError.t()} | {:error, :not_found}
+  def add_agent_error(%Scope{} = scope, task_id, error, kind \\ "failed") do
+    with {:ok, schema} <- get_task_by_id(scope, task_id) do
+      interaction = Interaction.AgentError.new(error, kind)
+      append_interaction(schema, interaction)
+    end
+  end
+
+  @doc """
   Creates and appends a ToolCall interaction.
   """
   @spec add_tool_call(Scope.t(), String.t(), ToolCall.t()) ::
@@ -299,9 +314,12 @@ defmodule FrontmanServer.Tasks do
   Routes the result to the waiting executor so the agent can continue.
   Duplicate tool results for the same tool_call_id are prevented by a
   unique partial index on the interactions table.
+
+  Returns `{:ok, interaction, :notified}` when a live executor received the result,
+  `{:ok, interaction, :no_executor}` when no executor was waiting (e.g., server restart).
   """
   @spec add_tool_result(Scope.t(), String.t(), map(), term(), boolean()) ::
-          {:ok, Interaction.ToolResult.t()}
+          {:ok, Interaction.ToolResult.t(), :notified | :no_executor}
           | {:error, :not_found | Ecto.Changeset.t()}
   def add_tool_result(
         %Scope{} = scope,
@@ -313,8 +331,8 @@ defmodule FrontmanServer.Tasks do
     with {:ok, schema} <- get_task_by_id(scope, task_id),
          interaction = Interaction.ToolResult.new(tool_call_data, result, is_error),
          {:ok, interaction} <- append_interaction(schema, interaction) do
-      Execution.notify_tool_result(scope, tool_call_id, result, is_error)
-      {:ok, interaction}
+      executor_status = Execution.notify_tool_result(scope, tool_call_id, result, is_error)
+      {:ok, interaction, executor_status}
     end
   end
 
@@ -352,10 +370,12 @@ defmodule FrontmanServer.Tasks do
     TitleGenerator.pubsub_topic(user_id)
   end
 
-  # Starts an execution if none is already running for this task.
-  # Fetches the task and delegates to Execution.run.
+  @doc """
+  Starts an execution if none is already running for this task.
+  Fetches the task and delegates to Execution.run.
+  """
   @spec maybe_start_execution(Scope.t(), String.t(), list(), keyword()) :: :ok
-  defp maybe_start_execution(scope, task_id, tools, opts) do
+  def maybe_start_execution(scope, task_id, tools, opts) do
     if Execution.running?(scope, task_id) do
       :ok
     else
@@ -366,10 +386,13 @@ defmodule FrontmanServer.Tasks do
           :ok
 
         {:error, reason} ->
+          # Broadcast as :execution_start_error so TaskChannel can handle it.
+          # This is NOT a swarm_event (the agent never started), so we use a
+          # separate message shape to avoid double-wrapping.
           Phoenix.PubSub.broadcast(
             FrontmanServer.PubSub,
             topic(task_id),
-            {:agent_error, Execution.error_message(scope, reason)}
+            {:execution_start_error, Execution.error_message(scope, reason)}
           )
 
           :ok
@@ -377,27 +400,7 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
-  # Task List Management
-
   alias FrontmanServer.Tasks.Todos
-
-  @doc """
-  Creates a new todo (in memory, returns for tool result).
-
-  This is a helper for creating todo structs. The actual persistence
-  happens when the todo is stored as a ToolResult interaction.
-  """
-  defdelegate create_todo(content, active_form, status \\ "pending"), to: Todos
-
-  @doc """
-  Updates a todo's status. Used by todo_update tool.
-  """
-  defdelegate update_todo_status(interactions, todo_id, status), to: Todos
-
-  @doc """
-  Projects todos from interactions. Used by todo_list tool.
-  """
-  defdelegate project_todos(interactions), to: Todos, as: :list_todos
 
   @doc """
   Lists all todos for a task.

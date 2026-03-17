@@ -5,7 +5,7 @@ defmodule FrontmanServer.Tools.TodoUpdate do
 
   @behaviour FrontmanServer.Tools.Backend
 
-  alias FrontmanServer.Tasks
+  alias FrontmanServer.Tasks.Todos
   alias FrontmanServer.Tools.Backend.Context
 
   @todo_statuses ["pending", "in_progress", "completed"]
@@ -65,7 +65,7 @@ defmodule FrontmanServer.Tools.TodoUpdate do
     todo_id = Map.get(args, "id")
     status = Map.get(args, "status")
 
-    case Tasks.update_todo_status(interactions, todo_id, status) do
+    case Todos.update_todo_status(interactions, todo_id, status) do
       {:ok, todo} ->
         {:ok, todo}
 

@@ -48,9 +48,9 @@ defmodule FrontmanServer.Tasks.Execution.MCPToolBroadcastTest do
       llm = tool_then_complete_llm([mcp_tool_call], "Done!")
       agent = test_agent(llm, "MCPToolTestAgent")
 
-      # Start agent via add_user_message with custom agent
+      # Start agent via submit_user_message with custom agent
       user_content = [%{"type" => "text", "text" => "Please call the MCP tool"}]
-      {:ok, _} = Tasks.add_user_message(scope, task_id, user_content, [], agent: agent)
+      {:ok, _} = Tasks.submit_user_message(scope, task_id, user_content, [], agent: agent)
 
       # Collect all tool call interactions broadcast via PubSub
       # Wait for broadcasts (tool executor has 60s timeout, but we'll collect what we get)
@@ -116,9 +116,9 @@ defmodule FrontmanServer.Tasks.Execution.MCPToolBroadcastTest do
       llm = tool_then_complete_llm([mcp_tool_call], "Done!")
       agent = test_agent(llm, "TestAgent")
 
-      # Start agent via add_user_message with custom agent
+      # Start agent via submit_user_message with custom agent
       user_content = [%{"type" => "text", "text" => "Call tool"}]
-      {:ok, _} = Tasks.add_user_message(scope, task_id, user_content, [], agent: agent)
+      {:ok, _} = Tasks.submit_user_message(scope, task_id, user_content, [], agent: agent)
 
       # Wait for the interaction broadcast
       assert_receive {:interaction, %Tasks.Interaction.ToolCall{tool_call_id: ^expected_id}},

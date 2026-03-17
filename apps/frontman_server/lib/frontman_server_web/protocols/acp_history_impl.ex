@@ -7,17 +7,8 @@ defimpl ACPHistory, for: Interaction.UserMessage do
         %Interaction.UserMessage{messages: messages, timestamp: timestamp},
         session_id
       ) do
-    timestamp_iso = DateTime.to_iso8601(timestamp)
-
     Enum.map(messages, fn text ->
-      JsonRpc.notification("session/update", %{
-        "sessionId" => session_id,
-        "update" => %{
-          "sessionUpdate" => "user_message_chunk",
-          "content" => %{"type" => "text", "text" => text},
-          "timestamp" => timestamp_iso
-        }
-      })
+      ACP.build_user_message_chunk_notification(session_id, text, timestamp)
     end)
   end
 end
@@ -29,16 +20,7 @@ defimpl ACPHistory, for: Interaction.AgentResponse do
       ) do
     # Per ACP spec: only agent_message_chunk exists (no start/end markers)
     # Client's LoadComplete handler will finalize any streaming messages
-    [
-      JsonRpc.notification("session/update", %{
-        "sessionId" => session_id,
-        "update" => %{
-          "sessionUpdate" => "agent_message_chunk",
-          "content" => %{"type" => "text", "text" => content},
-          "timestamp" => DateTime.to_iso8601(timestamp)
-        }
-      })
-    ]
+    [ACP.build_agent_message_chunk_notification(session_id, content, timestamp)]
   end
 end
 
@@ -52,34 +34,11 @@ defimpl ACPHistory, for: Interaction.ToolCall do
         },
         session_id
       ) do
-    timestamp_iso = DateTime.to_iso8601(timestamp)
+    args_content = ACP.Content.from_tool_result(arguments)
 
     [
-      JsonRpc.notification("session/update", %{
-        "sessionId" => session_id,
-        "update" => %{
-          "sessionUpdate" => "tool_call",
-          "toolCallId" => tool_call_id,
-          "title" => tool_name,
-          "kind" => "other",
-          "status" => ACP.tool_call_status_pending(),
-          "timestamp" => timestamp_iso
-        }
-      }),
-      JsonRpc.notification("session/update", %{
-        "sessionId" => session_id,
-        "update" => %{
-          "sessionUpdate" => "tool_call_update",
-          "toolCallId" => tool_call_id,
-          "status" => ACP.tool_call_status_pending(),
-          "content" => [
-            %{
-              "type" => "content",
-              "content" => %{"type" => "text", "text" => Jason.encode!(arguments)}
-            }
-          ]
-        }
-      })
+      ACP.tool_call_create(session_id, tool_call_id, tool_name, "other", timestamp),
+      ACP.tool_call_update(session_id, tool_call_id, ACP.tool_call_status_pending(), args_content)
     ]
   end
 end
@@ -92,21 +51,9 @@ defimpl ACPHistory, for: Interaction.ToolResult do
     status =
       if is_error, do: ACP.tool_call_status_failed(), else: ACP.tool_call_status_completed()
 
-    result_text = if is_binary(result), do: result, else: Jason.encode!(result)
+    result_content = ACP.Content.from_tool_result(result)
 
-    [
-      JsonRpc.notification("session/update", %{
-        "sessionId" => session_id,
-        "update" => %{
-          "sessionUpdate" => "tool_call_update",
-          "toolCallId" => tool_call_id,
-          "status" => status,
-          "content" => [
-            %{"type" => "content", "content" => %{"type" => "text", "text" => result_text}}
-          ]
-        }
-      })
-    ]
+    [ACP.tool_call_update(session_id, tool_call_id, status, result_content)]
   end
 end
 
@@ -116,6 +63,17 @@ end
 
 defimpl ACPHistory, for: Interaction.AgentCompleted do
   def to_history_items(%Interaction.AgentCompleted{}, _session_id), do: []
+end
+
+defimpl ACPHistory, for: Interaction.AgentError do
+  def to_history_items(
+        %Interaction.AgentError{error: error},
+        session_id
+      ) do
+    # Replay errors as sessionUpdate: "error" notifications so the client
+    # renders them the same as live agent errors.
+    [ACP.build_error_notification(session_id, error)]
+  end
 end
 
 defimpl ACPHistory, for: Interaction.DiscoveredProjectRule do

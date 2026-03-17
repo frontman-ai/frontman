@@ -19,19 +19,19 @@ defmodule SwarmAi.Loop.Runner do
         → if pending: [] (wait for more)
   """
 
-  alias SwarmAi.{Agent, Effect, Events, LLM, Loop, Message}
+  alias SwarmAi.{Agent, Effect, LLM, Loop, Message}
 
   @doc """
   Starts the execution loop with user messages.
 
-  Prepends the system prompt, starts the loop, and returns effects to emit
-  the Started event and call the LLM.
+  Prepends the system prompt, starts the loop, and returns effects to call
+  the LLM.
 
   ## Example
 
       {loop, effects} = Runner.start(loop, [Message.user("Hello")])
       loop.status # => :running
-      effects     # => [{:emit_event, %Started{}}, {:call_llm, llm, messages}]
+       effects     # => [{:call_llm, llm, messages}]
   """
   @spec start(Loop.t(), [Message.t()]) :: {Loop.t(), [Effect.t()]}
   def start(%Loop{status: :ready, agent: agent} = loop, user_messages)
@@ -43,10 +43,7 @@ defmodule SwarmAi.Loop.Runner do
 
     loop = Loop.start(loop, messages)
 
-    effects = [
-      {:emit_event, %Events.Started{execution_id: loop.id}},
-      {:call_llm, llm, messages}
-    ]
+    effects = [{:call_llm, llm, messages}]
 
     {loop, effects}
   end
@@ -76,14 +73,7 @@ defmodule SwarmAi.Loop.Runner do
   defp handle_completion(loop, response) do
     loop = Loop.complete(loop, response)
 
-    effects = [
-      {:emit_event,
-       %Events.Completed{
-         execution_id: loop.id,
-         result: response.content
-       }},
-      {:complete, response.content}
-    ]
+    effects = [{:complete, response.content}]
 
     {loop, effects}
   end
@@ -171,8 +161,7 @@ defmodule SwarmAi.Loop.Runner do
   @doc """
   Handles LLM errors.
 
-  Marks loop as failed and returns effects to emit the Failed event
-  and fail the execution.
+  Marks loop as failed and returns effects to fail the execution.
 
   ## Example
 
@@ -184,10 +173,7 @@ defmodule SwarmAi.Loop.Runner do
   def handle_llm_error(%Loop{} = loop, error) do
     loop = Loop.fail(loop, error)
 
-    effects = [
-      {:emit_event, %Events.Failed{execution_id: loop.id, error: error}},
-      {:fail, error}
-    ]
+    effects = [{:fail, error}]
 
     {loop, effects}
   end

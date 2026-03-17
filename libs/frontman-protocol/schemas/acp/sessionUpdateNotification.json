@@ -468,6 +468,9 @@
                     "failed"
                   ]
                 },
+                "timestamp": {
+                  "type": "string"
+                },
                 "parentAgentId": {
                   "type": "string"
                 },
@@ -479,7 +482,8 @@
               "required": [
                 "sessionUpdate",
                 "toolCallId",
-                "title"
+                "title",
+                "timestamp"
               ]
             },
             {

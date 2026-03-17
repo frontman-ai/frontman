@@ -25,11 +25,14 @@ defmodule FrontmanServer.Tasks.Todos do
                   active_form: Zoi.string() |> Zoi.min(1),
                   status: Zoi.string() |> Zoi.one_of(["pending", "in_progress", "completed"])
                 })
-    @extra_schema Zoi.object(%{
-                    id: Zoi.string(),
-                    created_at: Zoi.ISO.datetime() |> Zoi.ISO.to_datetime_struct(),
-                    updated_at: Zoi.ISO.datetime() |> Zoi.ISO.to_datetime_struct()
-                  })
+    @extra_schema Zoi.object(
+                    %{
+                      id: Zoi.string(),
+                      created_at: Zoi.ISO.datetime() |> Zoi.ISO.to_datetime_struct(),
+                      updated_at: Zoi.ISO.datetime() |> Zoi.ISO.to_datetime_struct()
+                    },
+                    coerce: true
+                  )
     @schema Zoi.extend(@new_schema, @extra_schema)
 
     typedstruct do
@@ -104,31 +107,19 @@ defmodule FrontmanServer.Tasks.Todos do
     Map.delete(state, todo_id)
   end
 
-  defp apply_result(_, state), do: state
-
   defp to_todo(%Todo{} = todo), do: todo
 
   defp to_todo(map) when is_map(map) do
+    {:ok, parsed} = Zoi.parse(Todo.schema(), map)
+
     %Todo{
-      id: map["id"],
-      content: map["content"],
-      active_form: map["active_form"],
-      status: to_atom(map["status"]),
-      created_at: to_datetime(map["created_at"]),
-      updated_at: to_datetime(map["updated_at"])
+      id: parsed.id,
+      content: parsed.content,
+      active_form: parsed.active_form,
+      status: String.to_existing_atom(parsed.status),
+      created_at: parsed.created_at,
+      updated_at: parsed.updated_at
     }
-  end
-
-  defp to_atom(s) when is_atom(s), do: s
-  defp to_atom(s) when is_binary(s), do: String.to_existing_atom(s)
-
-  defp to_datetime(%DateTime{} = dt), do: dt
-
-  defp to_datetime(s) when is_binary(s) do
-    case DateTime.from_iso8601(s) do
-      {:ok, dt, _} -> dt
-      _ -> DateTime.utc_now()
-    end
   end
 
   @doc """

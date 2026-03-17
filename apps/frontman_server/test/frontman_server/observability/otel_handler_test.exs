@@ -87,7 +87,7 @@ defmodule FrontmanServer.Observability.OtelHandlerTest do
       agent = test_agent(tool_then_complete_llm([tool_call], "Here are your todos"), "TestAgent")
 
       {:ok, _} =
-        Tasks.add_user_message(
+        Tasks.submit_user_message(
           scope,
           task_id,
           [%{"type" => "text", "text" => "Show my todos"}],
@@ -183,7 +183,7 @@ defmodule FrontmanServer.Observability.OtelHandlerTest do
       agent_mod = test_agent(mock_llm("Hello!"), "SimpleAgent")
 
       {:ok, _} =
-        Tasks.add_user_message(
+        Tasks.submit_user_message(
           scope,
           task_id,
           [%{"type" => "text", "text" => "Hi"}],

@@ -6,6 +6,7 @@ module Types = FrontmanClient__MCP__Types
 module Channel = FrontmanClient__Phoenix__Channel
 module JsonRpc = FrontmanAiFrontmanProtocol.FrontmanProtocol__JsonRpc
 module Decoders = FrontmanClient__Decoders
+module Sentry = FrontmanClient__Sentry
 module Log = FrontmanLogs.Logs.Make({
   let component = #MCP
 })
@@ -124,6 +125,11 @@ let handleToolsCall = async (
     } catch {
     | S.Error(e) =>
       sendError(handler, id, Types.ErrorCode.invalidParams, `Invalid params: ${e.message}`)
+    | exn =>
+      let msg = exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
+      Log.error(`Tool execution failed: ${msg}`)
+      Sentry.captureException(exn, ~operation="mcp_tool_execution")
+      sendError(handler, id, Types.ErrorCode.serverError, `Tool execution failed: ${msg}`)
     }
   | None => sendError(handler, id, Types.ErrorCode.invalidParams, "Missing params for tools/call")
   }

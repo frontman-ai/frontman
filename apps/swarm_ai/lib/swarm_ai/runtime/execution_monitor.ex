@@ -1,6 +1,6 @@
 defmodule SwarmAi.Runtime.ExecutionMonitor do
   @moduledoc """
-  Monitors execution processes and invokes callbacks on unexpected exits.
+  Monitors execution processes and dispatches events on unexpected exits.
 
   Ensures consumers are notified when an agent execution crashes unexpectedly,
   rather than being left waiting indefinitely. Follows OTP "let it crash" philosophy —
@@ -10,9 +10,12 @@ defmodule SwarmAi.Runtime.ExecutionMonitor do
 
   - Uses synchronous registration to avoid race conditions
   - Recovers state on restart by scanning the Runtime Registry
-  - Callbacks (`on_crash`, `on_cancelled`) are provided per-execution
-  - Waits for Registry cleanup before invoking callbacks, preserving the
-    `running?/2` invariant from `SwarmAi.Runtime`
+  - Events are dispatched via an MFA tuple (`event_dispatcher`) provided at
+    startup. Because the MFA is static config (atoms + terms), it survives
+    GenServer restarts — eliminating the closure-loss race condition that
+    existed with anonymous function callbacks.
+  - Before dispatching crash/cancel events, reads the last-known execution
+    state from the Runtime Registry for crash forensics.
   """
   use GenServer
 
@@ -28,17 +31,12 @@ defmodule SwarmAi.Runtime.ExecutionMonitor do
 
   Must be called from the execution process itself (uses `self()`).
 
-  ## Options
-
-  - `:on_crash` - Called with `{reason, stacktrace}` on unexpected crash
-  - `:on_cancelled` - Called with no args on cancellation
+  `metadata` is passed through to dispatched crash/cancel events, enabling
+  the dispatcher to persist data without depending on the channel process.
   """
-  @spec watch(atom(), term(), keyword()) :: :ok
-  def watch(monitor, key, opts \\ []) do
-    on_crash = Keyword.get(opts, :on_crash, fn _ -> :ok end)
-    on_cancelled = Keyword.get(opts, :on_cancelled, fn -> :ok end)
-
-    GenServer.call(monitor, {:watch, self(), key, on_crash, on_cancelled})
+  @spec watch(atom(), term(), map()) :: :ok
+  def watch(monitor, key, metadata \\ %{}) do
+    GenServer.call(monitor, {:watch, self(), key, metadata})
   end
 
   # --- Server Callbacks ---
@@ -46,10 +44,11 @@ defmodule SwarmAi.Runtime.ExecutionMonitor do
   @impl true
   def init(opts) do
     registry = Keyword.fetch!(opts, :registry)
+    event_dispatcher = Keyword.get(opts, :event_dispatcher)
 
     # On startup (including after crash/restart), rebuild state from Registry.
-    # We can't recover callbacks on restart, so recovered executions will log
-    # but not invoke callbacks. The window is tiny.
+    # The event_dispatcher MFA comes from init opts (child spec config),
+    # so it's always available — no closures to lose.
     state = rebuild_monitors_from_registry(registry)
 
     if map_size(state.monitors) > 0 do
@@ -58,20 +57,16 @@ defmodule SwarmAi.Runtime.ExecutionMonitor do
       )
     end
 
-    {:ok, Map.put(state, :registry, registry)}
+    {:ok,
+     state
+     |> Map.put(:registry, registry)
+     |> Map.put(:event_dispatcher, event_dispatcher)}
   end
 
   @impl true
-  def handle_call({:watch, pid, key, on_crash, on_cancelled}, _from, state) do
+  def handle_call({:watch, pid, key, metadata}, _from, state) do
     ref = Process.monitor(pid)
-
-    entry = %{
-      key: key,
-      on_crash: on_crash,
-      on_cancelled: on_cancelled
-    }
-
-    {:reply, :ok, put_in(state, [:monitors, ref], entry)}
+    {:reply, :ok, put_in(state, [:monitors, ref], %{key: key, metadata: metadata})}
   end
 
   @impl true
@@ -79,14 +74,12 @@ defmodule SwarmAi.Runtime.ExecutionMonitor do
     {entry, monitors} = Map.pop(state.monitors, ref)
 
     case entry do
-      %{key: key} ->
+      %{key: key, metadata: metadata} ->
+        # Read execution state BEFORE Registry cleanup removes the entry.
+        # This gives crash events access to the last-known loop state.
+        loop_snapshot = read_loop_snapshot(state.registry, key)
+
         # Wait for the Registry to process its own :DOWN and remove the entry.
-        # Both Registry and ExecutionMonitor monitor the execution process, so
-        # both receive :DOWN when it dies. Without this, callbacks can fire
-        # before Registry cleanup completes, causing running?/2 to return true
-        # when consumers check it from the callback. The normal completion path
-        # (execute/8) doesn't have this issue because it calls
-        # Registry.unregister synchronously before the callback.
         await_registry_cleanup(state.registry, {:running, key})
 
         cond do
@@ -96,7 +89,12 @@ defmodule SwarmAi.Runtime.ExecutionMonitor do
               pid: inspect(pid)
             )
 
-            safe_invoke(entry.on_cancelled, [])
+            dispatch_event(
+              state.event_dispatcher,
+              key,
+              {:cancelled, %{loop: loop_snapshot}},
+              metadata
+            )
 
           abnormal_exit?(reason) ->
             Logger.warning("Execution crashed",
@@ -105,7 +103,15 @@ defmodule SwarmAi.Runtime.ExecutionMonitor do
               reason: inspect(reason)
             )
 
-            safe_invoke(entry.on_crash, [normalize_crash_reason(reason)])
+            {crash_reason, stacktrace} = normalize_crash_reason(reason)
+
+            dispatch_event(
+              state.event_dispatcher,
+              key,
+              {:crashed, %{reason: crash_reason, stacktrace: stacktrace, loop: loop_snapshot}},
+              metadata
+            )
+
             emit_telemetry(key, pid, reason)
 
           true ->
@@ -130,15 +136,10 @@ defmodule SwarmAi.Runtime.ExecutionMonitor do
       |> Enum.reduce(%{}, fn {key, pid}, acc ->
         if Process.alive?(pid) do
           ref = Process.monitor(pid)
-
-          # No callbacks available on recovery — will log but not invoke
-          entry = %{
-            key: key,
-            on_crash: fn _ -> :ok end,
-            on_cancelled: fn -> :ok end
-          }
-
-          Map.put(acc, ref, entry)
+          # Recovered processes don't have metadata — use empty map.
+          # Persistence may be limited for these, but the process is
+          # already running and was likely already persisted before restart.
+          Map.put(acc, ref, %{key: key, metadata: %{}})
         else
           acc
         end
@@ -147,15 +148,18 @@ defmodule SwarmAi.Runtime.ExecutionMonitor do
     %{monitors: monitors}
   end
 
+  defp read_loop_snapshot(registry, key) do
+    case Registry.lookup(registry, {:running, key}) do
+      [{_pid, value}] when is_map(value) -> Map.get(value, :last_response)
+      _ -> nil
+    end
+  end
+
   # Spins until the Registry has processed its :DOWN for the given key.
-  # The execution process is already dead at this point, so the Registry
-  # cleanup is guaranteed — we just need to let the Registry GenServer
-  # process its :DOWN message. In practice this returns on the first
-  # iteration (the Registry is fast).
   defp await_registry_cleanup(registry, key, attempts \\ 100)
 
   defp await_registry_cleanup(_registry, key, 0) do
-    Logger.warning("Registry cleanup timed out for key #{inspect(key)}, proceeding with callback")
+    Logger.warning("Registry cleanup timed out for key #{inspect(key)}, proceeding with dispatch")
     :ok
   end
 
@@ -170,6 +174,15 @@ defmodule SwarmAi.Runtime.ExecutionMonitor do
     end
   end
 
+  defp dispatch_event(nil, _key, _event, _metadata), do: :ok
+
+  defp dispatch_event({mod, fun, args}, key, event, metadata) do
+    apply(mod, fun, args ++ [key, event, metadata])
+  rescue
+    e ->
+      Logger.error("ExecutionMonitor event dispatch failed: #{Exception.message(e)}")
+  end
+
   defp cancelled?(:cancelled), do: true
   defp cancelled?(_), do: false
 
@@ -179,17 +192,8 @@ defmodule SwarmAi.Runtime.ExecutionMonitor do
   defp abnormal_exit?(:cancelled), do: false
   defp abnormal_exit?(_), do: true
 
-  # Normalize :DOWN reason to a consistent {reason, stacktrace} tuple.
-  # OTP sends {exception, stacktrace} for raises, but bare atoms/terms for exit().
   defp normalize_crash_reason({_exception, _stacktrace} = reason), do: reason
   defp normalize_crash_reason(reason), do: {reason, []}
-
-  defp safe_invoke(fun, args) do
-    apply(fun, args)
-  rescue
-    e ->
-      Logger.error("ExecutionMonitor callback failed: #{Exception.message(e)}")
-  end
 
   defp emit_telemetry(key, pid, reason) do
     :telemetry.execute(

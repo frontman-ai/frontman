@@ -1,7 +1,7 @@
 defmodule SwarmAi.Loop.RunnerTest do
   use SwarmAi.Testing, async: true
 
-  alias SwarmAi.{Events, LLM, Loop, Message}
+  alias SwarmAi.{LLM, Loop, Message}
   alias SwarmAi.Loop.{Config, Runner, Step}
 
   setup do
@@ -33,22 +33,17 @@ defmodule SwarmAi.Loop.RunnerTest do
       assert Message.text(user_msg) == "Hello"
     end
 
-    test "returns Started event and call_llm effect", %{loop: loop} do
-      {updated_loop, effects} = Runner.start(loop, [Message.user("Test message")])
+    test "returns call_llm effect", %{loop: loop} do
+      {_updated_loop, effects} = Runner.start(loop, [Message.user("Test message")])
 
-      assert [
-               {:emit_event, %Events.Started{execution_id: exec_id}},
-               {:call_llm, _llm, messages}
-             ] = effects
-
-      assert exec_id == updated_loop.id
+      assert [{:call_llm, _llm, messages}] = effects
       assert length(messages) == 2
     end
 
     test "includes agent's LLM client in effect", %{loop: loop} do
       {_loop, effects} = Runner.start(loop, [Message.user("Test")])
 
-      assert {:call_llm, llm, _messages} = Enum.at(effects, 1)
+      assert {:call_llm, llm, _messages} = Enum.at(effects, 0)
       assert llm == loop.agent.llm
     end
   end
@@ -103,16 +98,13 @@ defmodule SwarmAi.Loop.RunnerTest do
       assert step.reasoning_details == reasoning
     end
 
-    test "returns Completed event and complete effect", %{loop: loop} do
+    test "returns complete effect", %{loop: loop} do
       {running_loop, _} = Runner.start(loop, [Message.user("Test")])
       response = %LLM.Response{content: "Final answer", usage: nil, raw: nil}
 
       {_loop, effects} = Runner.handle_llm_response(running_loop, response)
 
-      assert [
-               {:emit_event, %Events.Completed{result: "Final answer"}},
-               {:complete, "Final answer"}
-             ] = effects
+      assert [{:complete, "Final answer"}] = effects
     end
   end
 
@@ -131,48 +123,33 @@ defmodule SwarmAi.Loop.RunnerTest do
       assert failed_loop.error == error
     end
 
-    test "returns Failed event and fail effect", %{loop: loop} do
+    test "returns fail effect", %{loop: loop} do
       error = :network_error
-      {failed_loop, effects} = Runner.handle_llm_error(loop, error)
+      {_failed_loop, effects} = Runner.handle_llm_error(loop, error)
 
-      assert [
-               {:emit_event, %Events.Failed{execution_id: exec_id, error: ^error}},
-               {:fail, ^error}
-             ] = effects
-
-      assert exec_id == failed_loop.id
+      assert [{:fail, ^error}] = effects
     end
   end
 
   describe "effect flow" do
     test "happy path produces correct effect sequence", %{loop: loop} do
-      # Start
       {running_loop, start_effects} = Runner.start(loop, [Message.user("Hello")])
+      assert [{:call_llm, _, _}] = start_effects
 
-      assert {:emit_event, %Events.Started{}} = Enum.at(start_effects, 0)
-      assert {:call_llm, _, _} = Enum.at(start_effects, 1)
-
-      # Response
       response = %LLM.Response{content: "World", usage: nil, raw: nil}
       {completed_loop, response_effects} = Runner.handle_llm_response(running_loop, response)
 
-      assert {:emit_event, %Events.Completed{result: "World"}} = Enum.at(response_effects, 0)
-      assert {:complete, "World"} = Enum.at(response_effects, 1)
+      assert [{:complete, "World"}] = response_effects
       assert completed_loop.status == :completed
     end
 
     test "error path produces correct effect sequence", %{loop: loop} do
-      # Start
       {running_loop, start_effects} = Runner.start(loop, [Message.user("Test")])
+      assert [{:call_llm, _, _}] = start_effects
 
-      assert {:emit_event, %Events.Started{}} = Enum.at(start_effects, 0)
-      assert {:call_llm, _, _} = Enum.at(start_effects, 1)
-
-      # Error
       {failed_loop, error_effects} = Runner.handle_llm_error(running_loop, :timeout)
 
-      assert {:emit_event, %Events.Failed{error: :timeout}} = Enum.at(error_effects, 0)
-      assert {:fail, :timeout} = Enum.at(error_effects, 1)
+      assert [{:fail, :timeout}] = error_effects
       assert failed_loop.status == :failed
     end
   end

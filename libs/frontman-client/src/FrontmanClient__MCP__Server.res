@@ -24,6 +24,10 @@ type t = {
   // Resolver for image_ref URIs — set by the client layer which has access to the state store.
   // Receives (uri, ~taskId) so it resolves from the correct task, not the currently viewed one.
   resolveImageRef: ref<option<imageRefResolver>>,
+  // Provider for tool result metadata (model, env API keys).
+  // Set by the client layer which has access to the runtime config.
+  // The server uses this to resume agent execution after a restart.
+  getToolResultMeta: ref<option<unit => Types.callToolResultMeta>>,
 }
 
 let make = (
@@ -36,10 +40,22 @@ let make = (
   relay,
   serverInfo: {name: serverName, version: serverVersion},
   resolveImageRef: ref(resolveImageRef),
+  getToolResultMeta: ref(None),
 }
 
 let setImageRefResolver = (server: t, resolver: imageRefResolver): unit => {
   server.resolveImageRef := Some(resolver)
+}
+
+let setToolResultMetaProvider = (server: t, provider: unit => Types.callToolResultMeta): unit => {
+  server.getToolResultMeta := Some(provider)
+}
+
+let currentMeta = (server: t): Types.callToolResultMeta => {
+  switch server.getToolResultMeta.contents {
+  | Some(getMeta) => getMeta()
+  | None => {model: None, envApiKey: Dict.make()}
+  }
 }
 
 let registerToolModule = (server: t, toolModule: module(Tool.Tool)): t => {
@@ -99,12 +115,14 @@ let getToolByName = (server: t, name: string): option<module(Tool.Tool)> => {
 
 // Execute a local tool module
 let executeLocalTool = async (
+  server: t,
   toolModule: module(Tool.Tool),
   ~arguments: option<Dict.t<JSON.t>>,
   ~taskId: string,
   ~toolCallId: string,
 ): Types.executeToolResult => {
   module T = unpack(toolModule)
+  let meta = currentMeta(server)
   Log.debug(~ctx={"tool": T.name}, "Executing local tool")
   let inputJson = arguments->Option.getOr(Dict.make())->JSON.Encode.object
   try {
@@ -118,10 +136,12 @@ let executeLocalTool = async (
       {
         content: [{type_: "text", text: JSON.stringify(outputJson)}],
         isError: None,
+        _meta: meta,
       }
     | Error(msg) => {
         content: [{type_: "text", text: msg}],
         isError: Some(true),
+        _meta: meta,
       }
     }
     Completed(callToolResult)
@@ -131,6 +151,7 @@ let executeLocalTool = async (
     Completed({
       content: [{type_: "text", text: `Invalid input: ${e.message}`}],
       isError: Some(true),
+      _meta: meta,
     })
   }
 }
@@ -165,9 +186,10 @@ let resolveWriteFileImageRef = (
   }
 }
 
-let toolError = (msg: string): Types.callToolResult => {
+let toolError = (server: t, msg: string): Types.callToolResult => {
   content: [{type_: "text", text: msg}],
   isError: Some(true),
+  _meta: server->currentMeta,
 }
 
 // Execute tool - tries local first, then relay
@@ -181,10 +203,11 @@ let executeTool = async (
 ): Types.executeToolResult => {
   // Try local tools first
   switch getToolByName(server, name) {
-  | Some(toolModule) => await executeLocalTool(toolModule, ~arguments, ~taskId, ~toolCallId=callId)
+  | Some(toolModule) =>
+    await executeLocalTool(server, toolModule, ~arguments, ~taskId, ~toolCallId=callId)
   | None =>
     switch server.relay->Relay.hasTool(name) {
-    | false => Completed(toolError(`Tool not found: ${name}`))
+    | false => Completed(toolError(server, `Tool not found: ${name}`))
     | true =>
       // Intercept write_file with image_ref to resolve from the correct task
       let resolvedArgs = switch name == ToolNames.writeFile {
@@ -193,12 +216,13 @@ let executeTool = async (
       }
 
       switch resolvedArgs {
-      | Error(msg) => Completed(toolError(msg))
+      | Error(msg) => Completed(toolError(server, msg))
       | Ok(finalArgs) =>
         let result = await server.relay->Relay.executeTool(~name, ~arguments=?finalArgs, ~onProgress?)
         switch result {
-        | Ok(toolResult) => Completed(toolResult)
-        | Error(msg) => Completed(toolError(msg))
+        | Ok(toolResult) =>
+          Completed({...toolResult, _meta: server->currentMeta})
+        | Error(msg) => Completed(toolError(server, msg))
         }
       }
     }

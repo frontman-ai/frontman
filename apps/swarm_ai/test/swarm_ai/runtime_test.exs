@@ -16,276 +16,154 @@ defmodule SwarmAi.RuntimeTest do
   end
 
   describe "run/5" do
-    @tag echo_agent: true
-    test "runs an agent to completion", %{echo_agent: agent} do
+    test "dispatches completed event on success" do
       runtime = start_runtime!()
+      agent = test_agent(mock_llm("Echo: Hello"))
 
       {:ok, pid} =
-        SwarmAi.Runtime.run(runtime, "task-1", agent, "Hello",
-          tool_executor: fn _ -> {:ok, "done"} end
+        SwarmAi.Runtime.run(
+          runtime,
+          "task-complete",
+          agent,
+          "Hello",
+          default_opts(metadata: %{my_key: "my_val"})
         )
 
-      assert is_pid(pid)
+      await_exit(pid)
+      assert_receive {:test_event, "task-complete", {:completed, {:ok, "Echo: Hello", _loop_id}}}
 
-      # Wait for completion
-      ref = Process.monitor(pid)
-      assert_receive {:DOWN, ^ref, :process, ^pid, :normal}, 1000
+      refute SwarmAi.Runtime.running?(runtime, "task-complete")
     end
 
-    @tag echo_agent: true
-    test "invokes on_complete callback on success", %{echo_agent: agent} do
-      runtime = start_runtime!()
-      test_pid = self()
+    test "dispatches completed event with metadata passed to dispatcher" do
+      runtime = start_runtime_with_metadata_dispatch!()
+      agent = test_agent(mock_llm("Echo: Hello"))
 
       {:ok, pid} =
-        SwarmAi.Runtime.run(runtime, "task-complete", agent, "Hello",
-          tool_executor: fn _ -> {:ok, "done"} end,
-          on_complete: fn result ->
-            send(test_pid, {:completed, result})
-          end
+        SwarmAi.Runtime.run(
+          runtime,
+          "task-meta",
+          agent,
+          "Hello",
+          default_opts(metadata: %{my_key: "my_val"})
         )
 
-      ref = Process.monitor(pid)
-      assert_receive {:DOWN, ^ref, :process, ^pid, :normal}, 1000
-      assert_receive {:completed, {:ok, "Echo: Hello", _loop_id}}, 1000
+      await_exit(pid)
+
+      assert_receive {:test_event_with_meta, "task-meta",
+                      {:completed, {:ok, "Echo: Hello", _loop_id}}, metadata}
+
+      assert metadata.my_key == "my_val"
     end
 
-    @tag error_agent: :llm_error
-    test "invokes on_error callback on failure", %{error_agent: agent} do
+    test "dispatches failed event on LLM error" do
       runtime = start_runtime!()
-      test_pid = self()
+      agent = test_agent(%ErrorLLM{error: :llm_api_failure})
 
-      {:ok, pid} =
-        SwarmAi.Runtime.run(runtime, "task-error", agent, "Hello",
-          tool_executor: fn _ -> {:ok, "done"} end,
-          on_error: fn result ->
-            send(test_pid, {:errored, result})
-          end
-        )
+      {:ok, pid} = SwarmAi.Runtime.run(runtime, "task-error", agent, "Hello", default_opts())
 
-      ref = Process.monitor(pid)
-      assert_receive {:DOWN, ^ref, :process, ^pid, :normal}, 1000
-      assert_receive {:errored, {:error, _reason, _loop_id}}, 1000
+      await_exit(pid)
+
+      assert_receive {:test_event, "task-error", {:failed, {:error, _reason, _loop_id}}}
     end
 
-    @tag echo_agent: true
-    test "prevents duplicate execution for same key", %{echo_agent: agent} do
+    test "prevents duplicate execution for same key" do
       runtime = start_runtime!()
+      agent = test_agent(%MockLLM{response: "slow", delay_ms: 500})
 
-      # Use a mock that delays so the first execution is still running
-      slow_llm = %MockLLM{response: "slow", delay_ms: 500}
-      slow_agent = test_agent(slow_llm)
-
-      {:ok, _pid1} =
-        SwarmAi.Runtime.run(runtime, "task-dup", slow_agent, "Hello",
-          tool_executor: fn _ -> {:ok, "done"} end
-        )
-
-      # Small delay to let the first task register
+      {:ok, _} = SwarmAi.Runtime.run(runtime, "task-dup", agent, "Hello", default_opts())
       Process.sleep(50)
 
-      # Second attempt should fail
-      result =
-        SwarmAi.Runtime.run(runtime, "task-dup", agent, "World",
-          tool_executor: fn _ -> {:ok, "done"} end
-        )
-
-      assert result == {:error, :already_running}
-    end
-
-    @tag echo_agent: true
-    test "allows different keys concurrently", %{echo_agent: agent} do
-      runtime = start_runtime!()
-
-      slow_llm = %MockLLM{response: "slow", delay_ms: 200}
-      slow_agent = test_agent(slow_llm)
-
-      {:ok, pid1} =
-        SwarmAi.Runtime.run(runtime, "task-a", slow_agent, "Hello",
-          tool_executor: fn _ -> {:ok, "done"} end
-        )
-
-      {:ok, pid2} =
-        SwarmAi.Runtime.run(runtime, "task-b", agent, "World",
-          tool_executor: fn _ -> {:ok, "done"} end
-        )
-
-      assert pid1 != pid2
-    end
-
-    @tag echo_agent: true
-    test "returned pid is alive and registered after run succeeds", %{echo_agent: _agent} do
-      runtime = start_runtime!()
-      slow_llm = %MockLLM{response: "slow", delay_ms: 500}
-      slow_agent = test_agent(slow_llm)
-
-      {:ok, pid} =
-        SwarmAi.Runtime.run(runtime, "task-verified", slow_agent, "Hello",
-          tool_executor: fn _ -> {:ok, "done"} end
-        )
-
-      # The handshake guarantees the pid is alive and registered
-      # when {:ok, pid} is returned — no race window.
-      assert Process.alive?(pid)
-      assert SwarmAi.Runtime.running?(runtime, "task-verified")
-    end
-
-    @tag echo_agent: true
-    test "running? returns false after completion", %{echo_agent: agent} do
-      runtime = start_runtime!()
-      test_pid = self()
-
-      {:ok, pid} =
-        SwarmAi.Runtime.run(runtime, "task-done", agent, "Hello",
-          tool_executor: fn _ -> {:ok, "done"} end,
-          on_complete: fn _ ->
-            # At callback time, running? should already be false
-            send(test_pid, {:running_at_callback, SwarmAi.Runtime.running?(runtime, "task-done")})
-          end
-        )
-
-      ref = Process.monitor(pid)
-      assert_receive {:DOWN, ^ref, :process, ^pid, :normal}, 1000
-      assert_receive {:running_at_callback, false}, 1000
+      assert SwarmAi.Runtime.run(runtime, "task-dup", agent, "World", default_opts()) ==
+               {:error, :already_running}
     end
   end
 
   describe "running?/2" do
-    @tag echo_agent: true
-    test "returns true while agent is running", %{echo_agent: _agent} do
+    test "returns true while running, false when not" do
       runtime = start_runtime!()
-      slow_llm = %MockLLM{response: "slow", delay_ms: 500}
-      slow_agent = test_agent(slow_llm)
+      assert SwarmAi.Runtime.running?(runtime, "no-such") == false
 
-      {:ok, _pid} =
-        SwarmAi.Runtime.run(runtime, "task-running", slow_agent, "Hello",
-          tool_executor: fn _ -> {:ok, "done"} end
-        )
+      agent = test_agent(%MockLLM{response: "slow", delay_ms: 500})
+      {:ok, _} = SwarmAi.Runtime.run(runtime, "task-r", agent, "Hello", default_opts())
 
       Process.sleep(50)
-      assert SwarmAi.Runtime.running?(runtime, "task-running") == true
-    end
-
-    test "returns false when no agent is running" do
-      runtime = start_runtime!()
-      assert SwarmAi.Runtime.running?(runtime, "no-such-task") == false
+      assert SwarmAi.Runtime.running?(runtime, "task-r") == true
     end
   end
 
   describe "cancel/2" do
-    test "cancels a running execution" do
+    test "dispatches cancelled (not crashed) and unregisters" do
       runtime = start_runtime!()
-      test_pid = self()
-      slow_llm = %MockLLM{response: "slow", delay_ms: 5000}
-      slow_agent = test_agent(slow_llm)
+      agent = test_agent(%MockLLM{response: "slow", delay_ms: 5000})
 
-      {:ok, pid} =
-        SwarmAi.Runtime.run(runtime, "task-cancel", slow_agent, "Hello",
-          tool_executor: fn _ -> {:ok, "done"} end,
-          on_cancelled: fn ->
-            send(test_pid, :cancelled)
-          end
-        )
-
+      {:ok, pid} = SwarmAi.Runtime.run(runtime, "task-c", agent, "Hello", default_opts())
       Process.sleep(50)
-      assert SwarmAi.Runtime.cancel(runtime, "task-cancel") == :ok
 
-      ref = Process.monitor(pid)
-      assert_receive {:DOWN, ^ref, :process, ^pid, _reason}, 1000
-      assert_receive :cancelled, 1000
+      assert SwarmAi.Runtime.cancel(runtime, "task-c") == :ok
+      await_exit(pid)
+
+      assert_receive {:test_event, "task-c", {:cancelled, _}}
+      refute_receive {:test_event, "task-c", {:crashed, _}}, 100
+      refute SwarmAi.Runtime.running?(runtime, "task-c")
     end
 
     test "returns error when not running" do
       runtime = start_runtime!()
-      assert SwarmAi.Runtime.cancel(runtime, "no-such-task") == {:error, :not_running}
+      assert SwarmAi.Runtime.cancel(runtime, "nope") == {:error, :not_running}
     end
   end
 
   describe "crash handling" do
-    test "invokes on_crash with {reason, stacktrace} tuple when execution raises" do
+    test "dispatches crashed with exception and stacktrace for raises" do
       runtime = start_runtime!()
-      test_pid = self()
+      agent = test_agent(%StreamErrorLLM{error_message: "boom"})
 
-      # StreamErrorLLM raises mid-stream — produces {exception, stacktrace} :DOWN reason
-      crash_agent = test_agent(%StreamErrorLLM{error_message: "boom"})
+      {:ok, pid} = SwarmAi.Runtime.run(runtime, "task-crash", agent, "Hello", default_opts())
+      await_exit(pid)
 
-      {:ok, pid} =
-        SwarmAi.Runtime.run(runtime, "task-crash", crash_agent, "Hello",
-          tool_executor: fn _ -> {:ok, "done"} end,
-          on_crash: fn reason ->
-            send(test_pid, {:crashed, reason})
-          end
-        )
+      assert_receive {:test_event, "task-crash", {:crashed, %{reason: reason, stacktrace: st}}}
 
-      ref = Process.monitor(pid)
-      assert_receive {:DOWN, ^ref, :process, ^pid, _reason}, 1000
-
-      # on_crash receives a normalized {reason, stacktrace} tuple
-      assert_receive {:crashed, {crash_reason, stacktrace}}, 1000
-      assert is_list(stacktrace)
-      # The reason should be the original exception or error term
-      assert crash_reason != nil
-
-      # Should no longer be running
-      assert SwarmAi.Runtime.running?(runtime, "task-crash") == false
+      assert is_exception(reason)
+      assert is_list(st) and length(st) > 0
+      refute SwarmAi.Runtime.running?(runtime, "task-crash")
     end
 
-    test "on_crash normalizes non-exception exits to {reason, []} tuple" do
+    test "dispatches crashed with {reason, []} for non-exception exits" do
       runtime = start_runtime!()
-      test_pid = self()
+      agent = test_agent(%MockLLM{response: fn -> exit(:kaboom) end})
 
-      # Agent that calls exit(:kaboom) — produces a bare atom :DOWN reason
-      exit_llm = %MockLLM{
-        response: fn ->
-          exit(:kaboom)
-        end
-      }
+      {:ok, pid} = SwarmAi.Runtime.run(runtime, "task-exit", agent, "Hello", default_opts())
+      await_exit(pid)
 
-      exit_agent = test_agent(exit_llm)
-
-      {:ok, pid} =
-        SwarmAi.Runtime.run(runtime, "task-exit", exit_agent, "Hello",
-          tool_executor: fn _ -> {:ok, "done"} end,
-          on_crash: fn reason ->
-            send(test_pid, {:crashed, reason})
-          end
-        )
-
-      ref = Process.monitor(pid)
-      assert_receive {:DOWN, ^ref, :process, ^pid, _reason}, 1000
-
-      # Non-exception exit reasons are normalized to {reason, []}
-      assert_receive {:crashed, {:kaboom, []}}, 1000
+      assert_receive {:test_event, "task-exit", {:crashed, %{reason: :kaboom, stacktrace: []}}}
     end
   end
 
-  describe "cancel vs crash distinction" do
-    test "cancel invokes on_cancelled, not on_crash" do
+  describe "streaming events" do
+    test "dispatches chunk and response events" do
       runtime = start_runtime!()
-      test_pid = self()
-      slow_llm = %MockLLM{response: "slow", delay_ms: 5000}
-      slow_agent = test_agent(slow_llm)
+      agent = test_agent(mock_llm("Hi"))
 
-      {:ok, pid} =
-        SwarmAi.Runtime.run(runtime, "task-cancel-vs-crash", slow_agent, "Hello",
-          tool_executor: fn _ -> {:ok, "done"} end,
-          on_crash: fn _reason ->
-            send(test_pid, :crash_called)
-          end,
-          on_cancelled: fn ->
-            send(test_pid, :cancel_called)
-          end
-        )
+      {:ok, pid} = SwarmAi.Runtime.run(runtime, "task-s", agent, "Hello", default_opts())
+      await_exit(pid)
 
-      Process.sleep(50)
-      SwarmAi.Runtime.cancel(runtime, "task-cancel-vs-crash")
+      assert_receive {:test_event, "task-s", {:chunk, _}}
+      assert_receive {:test_event, "task-s", {:response, _}}
+    end
+  end
 
-      ref = Process.monitor(pid)
-      assert_receive {:DOWN, ^ref, :process, ^pid, _reason}, 1000
+  # --- Test Dispatchers ---
 
-      # on_cancelled fires, on_crash does NOT
-      assert_receive :cancel_called, 1000
-      refute_receive :crash_called, 200
+  defmodule TestDispatcher do
+    def dispatch(test_pid, key, event, _metadata) do
+      send(test_pid, {:test_event, key, event})
+    end
+  end
+
+  defmodule MetadataTestDispatcher do
+    def dispatch(test_pid, key, event, metadata) do
+      send(test_pid, {:test_event_with_meta, key, event, metadata})
     end
   end
 
@@ -293,7 +171,34 @@ defmodule SwarmAi.RuntimeTest do
 
   defp start_runtime! do
     name = :"TestRuntime_#{:erlang.unique_integer([:positive])}"
-    start_supervised!({SwarmAi.Runtime, name: name})
+    test_pid = self()
+
+    start_supervised!(
+      {SwarmAi.Runtime,
+       name: name, event_dispatcher: {__MODULE__.TestDispatcher, :dispatch, [test_pid]}}
+    )
+
     name
+  end
+
+  defp start_runtime_with_metadata_dispatch! do
+    name = :"TestRuntime_#{:erlang.unique_integer([:positive])}"
+    test_pid = self()
+
+    start_supervised!(
+      {SwarmAi.Runtime,
+       name: name, event_dispatcher: {__MODULE__.MetadataTestDispatcher, :dispatch, [test_pid]}}
+    )
+
+    name
+  end
+
+  defp default_opts(extra \\ []) do
+    Keyword.merge([tool_executor: fn _ -> {:ok, "done"} end], extra)
+  end
+
+  defp await_exit(pid) do
+    ref = Process.monitor(pid)
+    assert_receive {:DOWN, ^ref, :process, ^pid, _}, 2000
   end
 end

@@ -3,8 +3,8 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
   Integration tests verifying Sentry error reporting for agent execution failures.
 
   Tests Gap 3 from issue #474:
-  - on_error callback reports to Sentry at :error level
-  - on_crash callback reports to Sentry with exception/stacktrace when available
+  - Failed event triggers Sentry report at :error level
+  - Crashed event triggers Sentry report with exception/stacktrace when available
   """
 
   use SwarmAi.Testing, async: false
@@ -18,7 +18,7 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
     Sentry.Test.start_collecting_sentry_reports()
 
     # Allow the ExecutionMonitor process to report Sentry events back to the
-    # test process. The on_crash callback runs inside ExecutionMonitor (a
+    # test process. Crash events are dispatched from ExecutionMonitor (a
     # long-lived GenServer) which has no $callers chain to the test process.
     monitor_pid =
       Process.whereis(SwarmAi.Runtime.monitor_name(FrontmanServer.AgentRuntime))
@@ -59,19 +59,19 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
     {:ok, task_id: task_id, scope: scope}
   end
 
-  describe "on_error Sentry reporting (Gap 3)" do
+  describe "failed event Sentry reporting (Gap 3)" do
     test "reports LLM error to Sentry with agent_execution_error tag", %{
       task_id: task_id,
       scope: scope
     } do
-      # ErrorLLM always returns {:error, reason}, triggering the on_error callback
+      # ErrorLLM always returns {:error, reason}, triggering a :failed event
       agent = test_agent(%ErrorLLM{error: :llm_api_failure}, "ErrorSentryAgent")
 
       user_content = [%{"type" => "text", "text" => "Hello"}]
-      {:ok, _} = Tasks.add_user_message(scope, task_id, user_content, [], agent: agent)
+      {:ok, _} = Tasks.submit_user_message(scope, task_id, user_content, [], agent: agent)
 
-      # Wait for the agent error broadcast (Sentry call completes before broadcast)
-      assert_receive {:agent_error, _message}, 5_000
+      # Wait for the failed event broadcast (Sentry call completes before broadcast)
+      assert_receive {:swarm_event, {:failed, _}}, 5_000
 
       reports = Sentry.Test.pop_sentry_reports()
 
@@ -91,13 +91,13 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
     end
   end
 
-  describe "on_crash Sentry reporting (Gap 3)" do
+  describe "crashed event Sentry reporting (Gap 3)" do
     test "reports LLM stream crash to Sentry with agent_crash tag", %{
       task_id: task_id,
       scope: scope
     } do
       # StreamErrorLLM returns {:ok, stream} where the stream raises when consumed.
-      # This triggers on_crash (not on_error) because the execution process crashes.
+      # This triggers a :crashed event (not :failed) because the execution process crashes.
       error_llm = %StreamErrorLLM{
         error_message: "Sentry test: simulated stream crash"
       }
@@ -105,10 +105,10 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
       agent = test_agent(error_llm, "CrashSentryAgent")
 
       user_content = [%{"type" => "text", "text" => "Trigger crash"}]
-      {:ok, _} = Tasks.add_user_message(scope, task_id, user_content, [], agent: agent)
+      {:ok, _} = Tasks.submit_user_message(scope, task_id, user_content, [], agent: agent)
 
-      # Wait for the crash error broadcast (Sentry call completes before broadcast)
-      assert_receive {:agent_error, _message}, 5_000
+      # Wait for the crash event broadcast (Sentry call completes before broadcast)
+      assert_receive {:swarm_event, {:crashed, _}}, 5_000
 
       reports = Sentry.Test.pop_sentry_reports()
 
@@ -123,11 +123,8 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
 
       [report | _] = crash_reports
 
-      # Crash reports should include exception info or a message
-      has_exception = report.exception != nil and report.exception != []
-      has_message = report.message != nil
-
-      assert has_exception or has_message,
+      # Crash report should include the simulated error
+      assert report.exception != nil or report.message != nil,
              "Crash report should have either an exception or a message"
     end
   end

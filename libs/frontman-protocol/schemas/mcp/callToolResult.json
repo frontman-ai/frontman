@@ -22,10 +22,42 @@
     },
     "isError": {
       "type": "boolean"
+    },
+    "_meta": {
+      "type": "object",
+      "properties": {
+        "model": {
+          "type": "object",
+          "properties": {
+            "provider": {
+              "type": "string"
+            },
+            "value": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": true,
+          "required": [
+            "provider",
+            "value"
+          ]
+        },
+        "envApiKey": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "envApiKey"
+      ]
     }
   },
   "additionalProperties": true,
   "required": [
-    "content"
+    "content",
+    "_meta"
   ]
 }

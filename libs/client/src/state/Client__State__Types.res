@@ -96,23 +96,13 @@ type providerConfig = {
   models: array<modelConfig>,
 }
 
-@schema
-type modelsConfigDefaultModel = {
-  provider: string,
-  value: string,
-}
+// Re-export the canonical model selection type from the protocol package
+type modelSelection = FrontmanAiFrontmanProtocol.FrontmanProtocol__Types.modelSelection
 
 @schema
 type modelsConfig = {
   providers: array<providerConfig>,
-  defaultModel: modelsConfigDefaultModel,
-}
-
-// Selected model - what gets sent to the server
-@schema
-type selectedModel = {
-  provider: string,
-  value: string,
+  defaultModel: FrontmanAiFrontmanProtocol.FrontmanProtocol__Types.modelSelection,
 }
 
 // Anthropic OAuth connection status
@@ -178,7 +168,7 @@ type state = {
   anthropicOAuthStatus: anthropicOAuthStatus,
   chatgptOAuthStatus: chatgptOAuthStatus,
   modelsConfig: option<modelsConfig>,
-  selectedModel: option<selectedModel>,
+  selectedModel: option<modelSelection>,
   // When a provider is freshly connected, this holds its id (e.g. "anthropic")
   // so the next ModelsConfigReceived auto-selects a default model from it.
   pendingProviderAutoSelect: option<string>,

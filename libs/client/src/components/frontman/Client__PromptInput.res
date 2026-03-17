@@ -494,7 +494,7 @@ let make = (
   ~onCancel: unit => unit,
   ~providers: array<StateTypes.providerConfig>,
   ~isModelsConfigLoading: bool,
-  ~selectedModel: option<StateTypes.selectedModel>,
+  ~selectedModel: option<StateTypes.modelSelection>,
   ~onModelChange: (~provider: string, ~value: string) => unit,
   ~isAgentRunning: bool,
   ~hasActiveACPSession: bool,

@@ -12,6 +12,7 @@ defmodule FrontmanServer.Tasks.Interaction do
           | __MODULE__.AgentResponse.t()
           | __MODULE__.AgentSpawned.t()
           | __MODULE__.AgentCompleted.t()
+          | __MODULE__.AgentError.t()
           | __MODULE__.ToolCall.t()
           | __MODULE__.ToolResult.t()
           | __MODULE__.DiscoveredProjectRule.t()
@@ -22,6 +23,7 @@ defmodule FrontmanServer.Tasks.Interaction do
     __MODULE__.AgentResponse,
     __MODULE__.AgentSpawned,
     __MODULE__.AgentCompleted,
+    __MODULE__.AgentError,
     __MODULE__.ToolCall,
     __MODULE__.ToolResult,
     __MODULE__.DiscoveredProjectRule,
@@ -695,6 +697,55 @@ defmodule FrontmanServer.Tasks.Interaction do
     end
   end
 
+  defmodule AgentError do
+    @moduledoc """
+    Represents an agent execution ending with an error (failed, crashed, or cancelled).
+
+    Persisted so that reconnecting clients see the final state of every agent turn,
+    even when the channel process was dead when the error occurred.
+    """
+    use TypedStruct
+
+    typedstruct enforce: true do
+      field(:id, String.t())
+      field(:sequence, integer(), default: 0)
+      field(:timestamp, DateTime.t())
+      field(:error, String.t())
+      field(:kind, String.t(), default: "failed")
+    end
+
+    @doc """
+    Creates a new AgentError interaction.
+
+    `kind` is one of "failed", "crashed", or "cancelled".
+    """
+    def new(error, kind \\ "failed") do
+      alias FrontmanServer.Tasks.Interaction
+
+      %__MODULE__{
+        id: Interaction.new_id(),
+        timestamp: Interaction.now(),
+        error: error,
+        kind: kind
+      }
+    end
+  end
+
+  defimpl Jason.Encoder, for: AgentError do
+    def encode(value, opts) do
+      Jason.Encode.map(
+        %{
+          type: "agent_error",
+          id: value.id,
+          timestamp: DateTime.to_iso8601(value.timestamp),
+          error: value.error,
+          kind: value.kind
+        },
+        opts
+      )
+    end
+  end
+
   defmodule ToolCall do
     @moduledoc """
     Represents an LLM requesting a tool execution.
@@ -959,6 +1010,7 @@ defmodule FrontmanServer.Tasks.Interaction do
   defp conversation_message?(%ToolCall{}), do: false
   defp conversation_message?(%AgentSpawned{}), do: false
   defp conversation_message?(%AgentCompleted{}), do: false
+  defp conversation_message?(%AgentError{}), do: false
   defp conversation_message?(%DiscoveredProjectRule{}), do: false
   defp conversation_message?(%DiscoveredProjectStructure{}), do: false
 

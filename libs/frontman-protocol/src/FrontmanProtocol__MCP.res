@@ -58,11 +58,25 @@ type toolError = {
   message: string,
 }
 
+// Runtime context carried with tool results so the server can resume
+// agent execution with the correct provider after a server restart.
+// Serialized under MCP's _meta field (spec-compliant extension point).
+@schema
+type callToolResultMeta = {
+  model: option<FrontmanProtocol__Types.modelSelection>,
+  @as("envApiKey")
+  envApiKey: Dict.t<string>,
+}
+
+let emptyMeta: callToolResultMeta = {model: None, envApiKey: Dict.make()}
+
 // Tool call result (MCP CallToolResult spec)
 @schema
 type callToolResult = {
   content: array<toolResultContent>,
   isError: option<bool>,
+  @as("_meta")
+  _meta: callToolResultMeta,
 }
 
 // Tools list result

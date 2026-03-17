@@ -3,8 +3,8 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
   Integration test for the error propagation chain.
 
   Tests the critical path that was previously broken:
-  LLM stream error → raise in to_swarm_chunk → Task crash →
-  ExecutionMonitor → PubSub {:agent_error, message} broadcast.
+  LLM stream error → raise in stream consumption → Task crash →
+  ExecutionMonitor → PubSub {:swarm_event, {:crashed, ...}} broadcast.
 
   This verifies that when an LLM API returns an error (e.g., HTTP 400 for
   oversized images), the error reaches the client instead of being swallowed
@@ -40,14 +40,14 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
       {:ok, task_id: task_id, scope: scope}
     end
 
-    test "LLM stream raise propagates as {:agent_error, message} via PubSub", %{
+    test "LLM stream raise propagates as {:swarm_event, {:crashed, ...}} via PubSub", %{
       task_id: task_id,
       scope: scope
     } do
       # StreamErrorLLM returns {:ok, stream} where the stream raises when
       # consumed — matching the real LLMClient behavior when ReqLLM emits an
       # error chunk (e.g., HTTP 400 for oversized images). The raise propagates
-      # through Task → ExecutionMonitor → PubSub {:agent_error, message}.
+      # through Task → ExecutionMonitor → PubSub {:swarm_event, {:crashed, ...}}.
       error_llm = %StreamErrorLLM{
         error_message: "LLM API error: image exceeds the maximum allowed size"
       }
@@ -55,21 +55,19 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
       agent = test_agent(error_llm, "ErrorPropTestAgent")
 
       user_content = [%{"type" => "text", "text" => "Take a screenshot"}]
-      {:ok, _} = Tasks.add_user_message(scope, task_id, user_content, [], agent: agent)
+      {:ok, _} = Tasks.submit_user_message(scope, task_id, user_content, [], agent: agent)
 
       # The error should propagate through:
       # 1. StreamErrorLLM returns {:ok, stream} that raises on consumption
       # 2. Task crash caught by ExecutionMonitor
-      # 3. PubSub broadcast of {:agent_error, message}
-      assert_receive {:agent_error, error_message}, 5_000
+      # 3. PubSub broadcast of {:swarm_event, {:crashed, %{reason: ..., ...}}}
+      assert_receive {:swarm_event, {:crashed, %{reason: reason}}}, 5_000
 
-      assert is_binary(error_message)
-
-      assert error_message =~ "image exceeds the maximum allowed size" or
-               String.length(error_message) > 0
+      assert is_exception(reason)
+      assert Exception.message(reason) =~ "image exceeds the maximum allowed size"
     end
 
-    test "LLM returning {:error, reason} surfaces error to PubSub", %{
+    test "LLM returning {:error, reason} surfaces as {:swarm_event, {:failed, ...}}", %{
       task_id: task_id,
       scope: scope
     } do
@@ -77,11 +75,10 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
       agent = test_agent(%ErrorLLM{error: :llm_api_failure}, "AlwaysErrorAgent")
 
       user_content = [%{"type" => "text", "text" => "Hello"}]
-      {:ok, _} = Tasks.add_user_message(scope, task_id, user_content, [], agent: agent)
+      {:ok, _} = Tasks.submit_user_message(scope, task_id, user_content, [], agent: agent)
 
-      # Should receive an error broadcast
-      assert_receive {:agent_error, error_message}, 5_000
-      assert is_binary(error_message)
+      # Should receive a failed event broadcast
+      assert_receive {:swarm_event, {:failed, {:error, _reason, _loop_id}}}, 5_000
     end
   end
 end

@@ -26,17 +26,35 @@ defmodule FrontmanServer.Protocols.AcpContractTest do
     end
   end
 
-  describe "AgentClientProtocol.build_agent_message_chunk_notification/2" do
+  describe "AgentClientProtocol.build_agent_message_chunk_notification/3" do
     test "validates against jsonrpc/notification and acp/sessionUpdateNotification schemas" do
       payload =
-        AgentClientProtocol.build_agent_message_chunk_notification("session-123", "Hello world")
+        AgentClientProtocol.build_agent_message_chunk_notification(
+          "session-123",
+          "Hello world",
+          DateTime.utc_now()
+        )
 
       ProtocolSchema.validate!(payload, "jsonrpc/notification")
       ProtocolSchema.validate!(payload, "acp/sessionUpdateNotification")
     end
   end
 
-  describe "AgentClientProtocol.tool_call_create/6" do
+  describe "AgentClientProtocol.build_user_message_chunk_notification/3" do
+    test "validates against jsonrpc/notification and acp/sessionUpdateNotification schemas" do
+      payload =
+        AgentClientProtocol.build_user_message_chunk_notification(
+          "session-123",
+          "Hello from user",
+          DateTime.utc_now()
+        )
+
+      ProtocolSchema.validate!(payload, "jsonrpc/notification")
+      ProtocolSchema.validate!(payload, "acp/sessionUpdateNotification")
+    end
+  end
+
+  describe "AgentClientProtocol.tool_call_create/7" do
     test "validates against jsonrpc/notification and acp/sessionUpdateNotification schemas" do
       payload =
         AgentClientProtocol.tool_call_create(
@@ -44,6 +62,7 @@ defmodule FrontmanServer.Protocols.AcpContractTest do
           "tc-1",
           "read_file",
           "other",
+          DateTime.utc_now(),
           "pending"
         )
 
@@ -58,6 +77,7 @@ defmodule FrontmanServer.Protocols.AcpContractTest do
           "tc-1",
           "read_file",
           "other",
+          DateTime.utc_now(),
           "pending",
           parent_agent_id: "agent-1",
           spawning_tool_name: "dispatch"

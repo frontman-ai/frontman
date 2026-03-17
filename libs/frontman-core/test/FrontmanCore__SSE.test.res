@@ -16,6 +16,7 @@ describe("SSE", _t => {
     let result: MCP.callToolResult = {
       content: [{type_: "text", text: "hello"}],
       isError: None,
+      _meta: MCP.emptyMeta,
     }
     let event = SSE.resultEvent(result)
 

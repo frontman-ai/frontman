@@ -57,6 +57,7 @@ module Fixtures = {
       planEntries: [],
       turnError: None,
       imageAttachments: Dict.make(),
+      pendingQuestion: None,
     })
   }
 

@@ -410,10 +410,6 @@ defmodule SwarmAi do
     loop
   end
 
-  defp execute_loop(loop, [{:emit_event, _event} | rest], tool_executor, callbacks) do
-    execute_loop(loop, rest, tool_executor, callbacks)
-  end
-
   # Execute loop until tool_calls are needed (for run/continue)
   defp execute_until_yield(loop, [], _callbacks) do
     case loop.status do
@@ -450,10 +446,6 @@ defmodule SwarmAi do
     # Step failed - emit step stop
     Telemetry.step_stop(loop.id, loop.current_step, loop.metadata)
     {:error, loop}
-  end
-
-  defp execute_until_yield(loop, [{:emit_event, _event} | rest], callbacks) do
-    execute_until_yield(loop, rest, callbacks)
   end
 
   # =============================================================================

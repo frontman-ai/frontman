@@ -280,7 +280,7 @@ describe("ModelsConfigReceived auto-selects model from newly connected provider"
   })
 
   test("keeps current selection when no pending provider auto-select", t => {
-    let existingModel: Types.selectedModel = {
+    let existingModel: Types.modelSelection = {
       provider: "openrouter",
       value: "google/gemini-3-flash-preview",
     }
@@ -309,7 +309,7 @@ describe("ModelsConfigReceived auto-selects model from newly connected provider"
   })
 
   test("clears pendingProviderAutoSelect even if provider not in config", t => {
-    let existingModel: Types.selectedModel = {
+    let existingModel: Types.modelSelection = {
       provider: "openrouter",
       value: "google/gemini-3-flash-preview",
     }

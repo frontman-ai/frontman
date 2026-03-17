@@ -6,6 +6,7 @@ defmodule FrontmanServer.TasksTest do
   alias FrontmanServer.Accounts
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Tasks
+  alias FrontmanServer.Tasks.Todos
 
   setup do
     # Create a test user for scope
@@ -100,7 +101,7 @@ defmodule FrontmanServer.TasksTest do
       {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
 
       # Add a user message
-      Tasks.add_user_message(scope, task_id, [%{"type" => "text", "text" => "Hello"}], [])
+      Tasks.submit_user_message(scope, task_id, [%{"type" => "text", "text" => "Hello"}], [])
 
       # Add responses
       Tasks.add_agent_response(scope, task_id, "Response from agent", %{})
@@ -125,7 +126,7 @@ defmodule FrontmanServer.TasksTest do
 
       # 1. User asks a question
       {:ok, _} =
-        Tasks.add_user_message(
+        Tasks.submit_user_message(
           scope,
           task_id,
           [%{"type" => "text", "text" => "What is 2+2?"}],
@@ -152,7 +153,7 @@ defmodule FrontmanServer.TasksTest do
       {:ok, _} = Tasks.add_tool_call(scope, task_id, tc)
 
       # 4. ToolResult interaction (the tool's response)
-      {:ok, _} =
+      {:ok, _, _} =
         Tasks.add_tool_result(scope, task_id, %{id: tool_call_id, name: "calculator"}, "4", false)
 
       # 5. Agent sends final answer
@@ -226,7 +227,8 @@ defmodule FrontmanServer.TasksTest do
 
       tool_call_data = %{id: "call_123", name: "calculator"}
 
-      {:ok, interaction} = Tasks.add_tool_result(scope, task_id, tool_call_data, 2, false)
+      {:ok, interaction, _status} =
+        Tasks.add_tool_result(scope, task_id, tool_call_data, 2, false)
 
       assert interaction.result == 2
       assert interaction.is_error == false
@@ -239,7 +241,7 @@ defmodule FrontmanServer.TasksTest do
 
       tool_call_data = %{id: "call_456", name: "failing_tool"}
 
-      {:ok, interaction} =
+      {:ok, interaction, _status} =
         Tasks.add_tool_result(scope, task_id, tool_call_data, "error message", true)
 
       assert interaction.is_error == true
@@ -252,7 +254,7 @@ defmodule FrontmanServer.TasksTest do
 
       tool_call_data = %{id: "call_notify", name: "some_tool"}
 
-      {:ok, _interaction} =
+      {:ok, _interaction, _status} =
         Tasks.add_tool_result(scope, task_id, tool_call_data, "result", false)
 
       # The tool result should have been stored successfully
@@ -266,7 +268,8 @@ defmodule FrontmanServer.TasksTest do
 
       tool_call_data = %{id: "call_dedup", name: "some_tool"}
 
-      {:ok, _first} = Tasks.add_tool_result(scope, task_id, tool_call_data, "result1", false)
+      {:ok, _first, _status} =
+        Tasks.add_tool_result(scope, task_id, tool_call_data, "result1", false)
 
       assert {:error, %Ecto.Changeset{}} =
                Tasks.add_tool_result(scope, task_id, tool_call_data, "result2", false)
@@ -284,12 +287,12 @@ defmodule FrontmanServer.TasksTest do
       {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
 
       {:ok, msg1} =
-        Tasks.add_user_message(scope, task_id, [%{"type" => "text", "text" => "hello"}], [])
+        Tasks.submit_user_message(scope, task_id, [%{"type" => "text", "text" => "hello"}], [])
 
       {:ok, msg2} = Tasks.add_agent_response(scope, task_id, "hi there")
 
       {:ok, msg3} =
-        Tasks.add_user_message(scope, task_id, [%{"type" => "text", "text" => "again"}], [])
+        Tasks.submit_user_message(scope, task_id, [%{"type" => "text", "text" => "again"}], [])
 
       assert msg1.sequence > 0
       assert msg2.sequence > msg1.sequence
@@ -342,12 +345,12 @@ defmodule FrontmanServer.TasksTest do
       {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
 
       {:ok, _} =
-        Tasks.add_user_message(scope, task_id, [%{"type" => "text", "text" => "msg1"}], [])
+        Tasks.submit_user_message(scope, task_id, [%{"type" => "text", "text" => "msg1"}], [])
 
       {:ok, _} = Tasks.add_agent_response(scope, task_id, "response1")
 
       tool_call_data = %{id: "tc_1", name: "test_tool"}
-      {:ok, _} = Tasks.add_tool_result(scope, task_id, tool_call_data, "result", false)
+      {:ok, _, _} = Tasks.add_tool_result(scope, task_id, tool_call_data, "result", false)
 
       {:ok, task} = Tasks.get_task(scope, task_id)
       sequences = Enum.map(task.interactions, & &1.sequence)
@@ -426,7 +429,7 @@ defmodule FrontmanServer.TasksTest do
       {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
 
       Tasks.add_discovered_project_structure(scope, task_id, "Project layout...")
-      Tasks.add_user_message(scope, task_id, [%{"type" => "text", "text" => "Hello"}], [])
+      Tasks.submit_user_message(scope, task_id, [%{"type" => "text", "text" => "Hello"}], [])
 
       {:ok, task} = Tasks.get_task(scope, task_id)
       messages = Tasks.Interaction.to_llm_messages(task.interactions)
@@ -442,7 +445,7 @@ defmodule FrontmanServer.TasksTest do
       {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
 
       Tasks.add_discovered_project_rule(scope, task_id, "/project/AGENTS.md", "# Project Rules")
-      Tasks.add_user_message(scope, task_id, [%{"type" => "text", "text" => "Hello"}], [])
+      Tasks.submit_user_message(scope, task_id, [%{"type" => "text", "text" => "Hello"}], [])
 
       {:ok, task} = Tasks.get_task(scope, task_id)
       messages = Tasks.Interaction.to_llm_messages(task.interactions)
@@ -470,7 +473,7 @@ defmodule FrontmanServer.TasksTest do
         screenshot_block("ann-test-1", "iVBORw0KGgoAAAANSUhEUg==")
       ]
 
-      {:ok, _interaction} = Tasks.add_user_message(scope, task_id, content_blocks, [])
+      {:ok, _interaction} = Tasks.submit_user_message(scope, task_id, content_blocks, [])
 
       # Retrieve via LLM conversion (exercises the full JSONB round-trip)
       {:ok, task} = Tasks.get_task(scope, task_id)
@@ -522,10 +525,10 @@ defmodule FrontmanServer.TasksTest do
       task_id = Ecto.UUID.generate()
       {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
 
-      {:ok, todo1} = Tasks.create_todo("First", "First", "pending")
+      {:ok, todo1} = Todos.create_todo("First", "First", "pending")
       Tasks.add_tool_result(scope, task_id, %{id: "c1", name: "todo_add"}, todo1, false)
 
-      {:ok, todo2} = Tasks.create_todo("Second", "Second", "in_progress")
+      {:ok, todo2} = Todos.create_todo("Second", "Second", "in_progress")
       Tasks.add_tool_result(scope, task_id, %{id: "c2", name: "todo_add"}, todo2, false)
 
       {:ok, todos} = Tasks.list_todos(scope, task_id)
@@ -542,7 +545,7 @@ defmodule FrontmanServer.TasksTest do
       {:ok, ^task_a} = Tasks.create_task(scope, task_a, "nextjs")
       {:ok, ^task_b} = Tasks.create_task(scope, task_b, "nextjs")
 
-      {:ok, todo} = Tasks.create_todo("Task A todo", "Working", "pending")
+      {:ok, todo} = Todos.create_todo("Task A todo", "Working", "pending")
       Tasks.add_tool_result(scope, task_a, %{id: "c1", name: "todo_add"}, todo, false)
 
       {:ok, todos_a} = Tasks.list_todos(scope, task_a)

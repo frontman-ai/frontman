@@ -474,7 +474,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
   end
 
   describe "ACP session/load" do
-    # Shared sandbox mode because add_user_message can spawn agent Tasks needing DB access
+    # Shared sandbox mode because submit_user_message can spawn agent Tasks needing DB access
     @describetag shared_sandbox: true
 
     setup %{scope: scope} do
@@ -498,14 +498,14 @@ defmodule FrontmanServerWeb.TasksChannelTest do
       scope: scope,
       task_id: task_id
     } do
-      FrontmanServer.Tasks.add_user_message(
+      FrontmanServer.Tasks.submit_user_message(
         scope,
         task_id,
         [%{"type" => "text", "text" => "Hello"}],
         []
       )
 
-      FrontmanServer.Tasks.add_user_message(
+      FrontmanServer.Tasks.submit_user_message(
         scope,
         task_id,
         [%{"type" => "text", "text" => "World"}],
@@ -583,7 +583,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
     end
 
     test "streams mixed history in order", %{socket: socket, scope: scope, task_id: task_id} do
-      FrontmanServer.Tasks.add_user_message(
+      FrontmanServer.Tasks.submit_user_message(
         scope,
         task_id,
         [%{"type" => "text", "text" => "Question"}],

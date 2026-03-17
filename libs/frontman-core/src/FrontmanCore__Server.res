@@ -47,11 +47,13 @@ let executeTool = async (
         Ok({
           content: [{type_: "text", text: JSON.stringify(outputJson)}],
           isError: None,
+          _meta: MCP.emptyMeta,
         })
       | Result.Error(msg) =>
         Ok({
           content: [{type_: "text", text: msg}],
           isError: Some(true),
+          _meta: MCP.emptyMeta,
         })
       }
     } catch {
@@ -71,14 +73,17 @@ let resultToMCP = (result: executeResult): MCP.callToolResult => {
   | ToolNotFound(name) => {
       content: [{type_: "text", text: `Tool not found: ${name}`}],
       isError: Some(true),
+      _meta: MCP.emptyMeta,
     }
   | InvalidInput(msg) => {
       content: [{type_: "text", text: `Invalid input: ${msg}`}],
       isError: Some(true),
+      _meta: MCP.emptyMeta,
     }
   | ExecutionError(msg) => {
       content: [{type_: "text", text: `Execution error: ${msg}`}],
       isError: Some(true),
+      _meta: MCP.emptyMeta,
     }
   }
 }

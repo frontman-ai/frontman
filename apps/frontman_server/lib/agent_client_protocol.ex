@@ -118,7 +118,7 @@ defmodule AgentClientProtocol do
   Per ACP spec: The first agent_message_chunk implicitly signals message start.
   Message end is signaled by the session/prompt response with stopReason.
   """
-  def build_agent_message_chunk_notification(session_id, text) do
+  def build_agent_message_chunk_notification(session_id, text, timestamp) do
     params = %{
       "sessionId" => session_id,
       "update" => %{
@@ -127,7 +127,28 @@ defmodule AgentClientProtocol do
           "type" => "text",
           "text" => text
         },
-        "timestamp" => DateTime.to_iso8601(DateTime.utc_now())
+        "timestamp" => DateTime.to_iso8601(timestamp)
+      }
+    }
+
+    JsonRpc.notification("session/update", params)
+  end
+
+  @doc """
+  Builds a user_message_chunk session/update notification.
+
+  Used during history replay to send stored user messages back to the client.
+  """
+  def build_user_message_chunk_notification(session_id, text, timestamp) do
+    params = %{
+      "sessionId" => session_id,
+      "update" => %{
+        "sessionUpdate" => "user_message_chunk",
+        "content" => %{
+          "type" => "text",
+          "text" => text
+        },
+        "timestamp" => DateTime.to_iso8601(timestamp)
       }
     }
 
@@ -192,6 +213,7 @@ defmodule AgentClientProtocol do
         tool_call_id,
         title,
         kind,
+        timestamp,
         status \\ @tool_call_status_pending,
         opts \\ []
       )
@@ -212,7 +234,8 @@ defmodule AgentClientProtocol do
           "toolCallId" => tool_call_id,
           "title" => title,
           "kind" => kind,
-          "status" => status
+          "status" => status,
+          "timestamp" => DateTime.to_iso8601(timestamp)
         },
         optional
       )

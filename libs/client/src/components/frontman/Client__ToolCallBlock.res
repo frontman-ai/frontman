@@ -97,6 +97,12 @@ let make = (
   ~compact: bool=false,
   ~messageId as _: string,
 ) => {
+  // Question tools get their own compact summary card
+  let isQuestionTool = cleanToolName(toolName) == FrontmanAiFrontmanClient.FrontmanClient__MCP__Tool.ToolNames.question
+  switch isQuestionTool {
+  | true => <Client__QuestionToolBlock state input result errorText compact />
+  | false =>
+
   let isLink = isInlineTool(toolName)
   let (isExpanded, setIsExpanded) = React.useState(() => defaultExpanded)
   let wasManuallyToggled = React.useRef(false)
@@ -259,4 +265,5 @@ let make = (
     | None => React.null
     }}
   </div>
+  } // end | false => (non-question tools)
 }

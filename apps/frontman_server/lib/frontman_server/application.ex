@@ -54,7 +54,9 @@ defmodule FrontmanServer.Application do
         {DNSCluster, query: Application.get_env(:frontman_server, :dns_cluster_query) || :ignore},
         {Phoenix.PubSub, name: FrontmanServer.PubSub},
         # Supervised agent execution (Registry + TaskSupervisor + ExecutionMonitor)
-        {SwarmAi.Runtime, name: FrontmanServer.AgentRuntime},
+        {SwarmAi.Runtime,
+         name: FrontmanServer.AgentRuntime,
+         event_dispatcher: {FrontmanServer.Tasks.SwarmDispatcher, :dispatch, []}},
         # Registry for MCP tool call result routing (separate from agent execution tracking)
         {Registry, keys: :unique, name: FrontmanServer.ToolCallRegistry},
         # Oban background job processing (email delivery, contact sync, etc.)

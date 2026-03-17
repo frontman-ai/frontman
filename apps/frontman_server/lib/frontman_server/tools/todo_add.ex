@@ -5,7 +5,7 @@ defmodule FrontmanServer.Tools.TodoAdd do
 
   @behaviour FrontmanServer.Tools.Backend
 
-  alias FrontmanServer.Tasks
+  alias FrontmanServer.Tasks.Todos
 
   @todo_statuses ["pending", "in_progress", "completed"]
 
@@ -79,7 +79,7 @@ defmodule FrontmanServer.Tools.TodoAdd do
     active_form = Map.get(args, "active_form")
     status = Map.get(args, "status", "pending")
 
-    case Tasks.create_todo(content, active_form, status) do
+    case Todos.create_todo(content, active_form, status) do
       {:ok, todo} ->
         {:ok, todo}
 

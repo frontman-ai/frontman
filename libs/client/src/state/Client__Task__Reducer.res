@@ -280,6 +280,14 @@ module Selectors = {
   let streamingMessage = (task: Task.t): option<Message.assistantMessage> => {
     Lens.getStreamingMessage(task)
   }
+
+  // Get the pending question (only available on Loaded tasks)
+  let pendingQuestion = (task: Task.t): option<Client__Question__Types.pendingQuestion> => {
+    switch task {
+    | Task.Loaded({pendingQuestion}) => pendingQuestion
+    | _ => None
+    }
+  }
 }
 
 // ============================================================================
@@ -345,6 +353,20 @@ type action =
   | LoadError({error: string})
   // Hydration actions
   | UserMessageReceived({id: string, text: string, timestamp: string})
+  // Question tool actions
+  | QuestionReceived({
+      questions: array<Client__Question__Types.questionItem>,
+      toolCallId: string,
+      resolveOk: JSON.t => unit,
+      resolveError: string => unit,
+    })
+  | QuestionStepChanged({step: int})
+  | QuestionOptionToggled({questionIndex: int, label: string})
+  | QuestionCustomTextChanged({questionIndex: int, text: string})
+  | QuestionPerQuestionSkipped({questionIndex: int})
+  | QuestionSubmitted
+  | QuestionAllSkipped
+  | QuestionCancelled
 
 // ============================================================================
 // Effects - side effects that the task reducer requests
@@ -364,6 +386,10 @@ type effect =
     })
   | NotifyTurnCompleted
   | CancelPrompt
+  // Resolve the question tool's blocking promise with the user's answer
+  | ResolveQuestionToolEffect({resolveOk: JSON.t => unit, answerJson: JSON.t})
+  // Reject the question tool's blocking promise (cancellation)
+  | RejectQuestionToolEffect({resolveError: string => unit, message: string})
 
 // Delegated effects - things the task needs from its parent
 type delegated =
@@ -408,6 +434,14 @@ let actionToString = (action: action): string =>
   | LoadComplete => "LoadComplete"
   | LoadError(_) => "LoadError"
   | UserMessageReceived(_) => "UserMessageReceived"
+  | QuestionReceived(_) => "QuestionReceived"
+  | QuestionStepChanged(_) => "QuestionStepChanged"
+  | QuestionOptionToggled(_) => "QuestionOptionToggled"
+  | QuestionCustomTextChanged(_) => "QuestionCustomTextChanged"
+  | QuestionPerQuestionSkipped(_) => "QuestionPerQuestionSkipped"
+  | QuestionSubmitted => "QuestionSubmitted"
+  | QuestionAllSkipped => "QuestionAllSkipped"
+  | QuestionCancelled => "QuestionCancelled"
   }
 
 // Normalize URL by removing trailing slash for comparison
@@ -457,6 +491,82 @@ let extractAttachmentsFromUserContent = (
 
 // Helper to get task ID for error messages
 let getTaskIdForError = (task: Task.t): string => Task.getId(task)->Option.getOr("(no id)")
+
+// ============================================================================
+// Question helpers - shared logic for question tool state mutations
+// ============================================================================
+
+// Update pendingQuestion on a Loaded task (no-op if no pending question)
+let updatePendingQuestion = (
+  task: Task.t,
+  fn: Client__Question__Types.pendingQuestion => Client__Question__Types.pendingQuestion,
+): (Task.t, array<effect>) =>
+  switch task {
+  | Task.Loaded({pendingQuestion: Some(pq)} as data) =>
+    (Task.Loaded({...data, pendingQuestion: Some(fn(pq))}), [])
+  | _ => (task, [])
+  }
+
+// Build question tool output JSON from pending question state.
+// Format matches Client__Tool__Question.output schema.
+let buildQuestionToolOutput = (
+  pq: Client__Question__Types.pendingQuestion,
+  ~skippedAll: bool,
+  ~cancelled: bool,
+): JSON.t => {
+  let answersJson = pq.questions->Array.mapWithIndex((q, i) => {
+    let key = i->Int.toString
+    let answer = switch pq.answers->Dict.get(key) {
+    | Some(Client__Question__Types.Answered(labels)) =>
+      Some(labels->Array.map(JSON.Encode.string)->JSON.Encode.array)
+    | Some(Client__Question__Types.CustomText(text)) =>
+      Some([JSON.Encode.string(text)]->JSON.Encode.array)
+    | Some(Client__Question__Types.Skipped) | None => None
+    }
+    let obj = Dict.make()
+    obj->Dict.set("question", JSON.Encode.string(q.question))
+    switch answer {
+    | Some(a) => obj->Dict.set("answer", a)
+    | None => ()
+    }
+    JSON.Encode.object(obj)
+  })
+
+  let obj = Dict.make()
+  obj->Dict.set("answers", JSON.Encode.array(answersJson))
+  obj->Dict.set("skippedAll", JSON.Encode.bool(skippedAll))
+  obj->Dict.set("cancelled", JSON.Encode.bool(cancelled))
+  JSON.Encode.object(obj)
+}
+
+// Resolve the question tool: clear pendingQuestion and emit resolve effect.
+// Resolves the MCP tool promise directly — the MCP response flow handles
+// both live and reconnect cases (server re-sends tools/call on reconnect).
+let resolveQuestion = (
+  task: Task.t,
+  ~skippedAll: bool,
+  ~cancelled: bool,
+): (Task.t, array<effect>) =>
+  switch task {
+  | Task.Loaded({pendingQuestion: Some(pq)} as data) =>
+    switch cancelled {
+    | true => (
+        Task.Loaded({...data, pendingQuestion: None, isAgentRunning: false}),
+        [RejectQuestionToolEffect({resolveError: pq.resolveError, message: "Cancelled by user"})],
+      )
+    | false =>
+      let answerJson = buildQuestionToolOutput(pq, ~skippedAll, ~cancelled)
+      (
+        // Set isAgentRunning: true because resolving the tool promise will resume
+        // the agent. Without this, the streaming guard (isAgentRunning: false drops
+        // all TextDeltaReceived) would silently discard the agent's response.
+        Task.Loaded({...data, pendingQuestion: None, isAgentRunning: true}),
+        [ResolveQuestionToolEffect({resolveOk: pq.resolveOk, answerJson})],
+      )
+    }
+  | _ => (task, [])
+  }
+
 
 let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
   switch (task, action) {
@@ -828,7 +938,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
     }
     (updatedTask, effects)
 
-  // Cancel the current turn: complete any partial response, stop agent
+  // Cancel the current turn: complete any partial response, stop agent, dismiss pending question
   | (Task.Loaded(data), CancelTurn) =>
     if !data.isAgentRunning {
       (task, [])
@@ -846,8 +956,19 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
           }
         )
       )
-      let final = withCancelledTools->Task.updateLoadedData(d => {...d, isAgentRunning: false, turnError: None})
-      (final, [CancelPrompt])
+      // Also dismiss any pending question — reject the tool promise
+      let questionEffects = switch data.pendingQuestion {
+      | Some(pq) =>
+        [RejectQuestionToolEffect({resolveError: pq.resolveError, message: "Cancelled by user"})]
+      | None => []
+      }
+      let final = withCancelledTools->Task.updateLoadedData(d => {
+        ...d,
+        isAgentRunning: false,
+        turnError: None,
+        pendingQuestion: None,
+      })
+      (final, Array.concat([CancelPrompt], questionEffects))
     }
 
   | (Task.Loaded(data), AgentError({error})) =>
@@ -921,6 +1042,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
           planEntries: [],
           turnError: None,
           imageAttachments: Dict.make(),
+          pendingQuestion: None,
         }),
         [],
       )
@@ -931,6 +1053,109 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
   | (Task.Loading({id, title, createdAt, updatedAt}), LoadError({error})) =>
     Log.error(~ctx={"error": error}, "Task load failed")
     (Task.Unloaded({id, title, createdAt, updatedAt}), [])
+
+  // ============================================================================
+  // Question Tool Actions
+  // ============================================================================
+
+  | (Task.Loaded(data), QuestionReceived({questions, toolCallId, resolveOk, resolveError})) =>
+    (
+      Task.Loaded({
+        ...data,
+        pendingQuestion: Some({
+          Client__Question__Types.questions,
+          answers: Dict.make(),
+          currentStep: 0,
+          toolCallId,
+          resolveOk,
+          resolveError,
+        }),
+      }),
+      [],
+    )
+
+
+  | (Task.Loaded(_), QuestionStepChanged({step})) =>
+    updatePendingQuestion(task, pq => {...pq, currentStep: step})
+
+  | (Task.Loaded(_), QuestionOptionToggled({questionIndex, label})) =>
+    updatePendingQuestion(task, pq => {
+      let key = questionIndex->Int.toString
+      let question = pq.questions->Array.get(questionIndex)
+      let isMultiple = question->Option.flatMap(q => q.multiple)->Option.getOr(false)
+      let currentAnswer = pq.answers->Dict.get(key)
+
+      let newAnswer = switch (isMultiple, currentAnswer) {
+      | (true, Some(Client__Question__Types.Answered(labels))) =>
+        switch labels->Array.includes(label) {
+        | true =>
+          let filtered = labels->Array.filter(l => l != label)
+          switch Array.length(filtered) > 0 {
+          | true => Client__Question__Types.Answered(filtered)
+          | false => Client__Question__Types.Skipped
+          }
+        | false => Client__Question__Types.Answered(Array.concat(labels, [label]))
+        }
+      | (false, Some(Client__Question__Types.Answered(labels))) =>
+        switch labels->Array.get(0) == Some(label) {
+        | true => Client__Question__Types.Skipped
+        | false => Client__Question__Types.Answered([label])
+        }
+      | _ =>
+        Client__Question__Types.Answered([label])
+      }
+
+      let answers = pq.answers->Dict.copy
+      answers->Dict.set(key, newAnswer)
+      {...pq, answers}
+    })
+
+  | (Task.Loaded(_), QuestionCustomTextChanged({questionIndex, text})) =>
+    updatePendingQuestion(task, pq => {
+      let key = questionIndex->Int.toString
+      let answers = pq.answers->Dict.copy
+      switch String.trim(text)->String.length > 0 {
+      | true => answers->Dict.set(key, Client__Question__Types.CustomText(text))
+      | false => answers->Dict.delete(key)
+      }
+      {...pq, answers}
+    })
+
+  | (Task.Loaded(_), QuestionPerQuestionSkipped({questionIndex})) =>
+    let (task, effects) = updatePendingQuestion(task, pq => {
+      let key = questionIndex->Int.toString
+      let answers = pq.answers->Dict.copy
+      answers->Dict.set(key, Client__Question__Types.Skipped)
+      let isLastQuestion = questionIndex >= Array.length(pq.questions) - 1
+      let nextStep = switch isLastQuestion {
+      | true => questionIndex
+      | false => questionIndex + 1
+      }
+      {...pq, answers, currentStep: nextStep}
+    })
+    // Auto-submit when the last question is skipped — the UI can't submit
+    // because the Submit button requires hasAnswer which excludes Skipped.
+    switch task {
+    | Task.Loaded({pendingQuestion: Some(pq)})
+      if questionIndex >= Array.length(pq.questions) - 1 => {
+        let (task, resolveEffects) = resolveQuestion(task, ~skippedAll=false, ~cancelled=false)
+        (task, Array.concat(effects, resolveEffects))
+      }
+    | _ => (task, effects)
+    }
+
+  | (Task.Loaded(_), QuestionSubmitted) =>
+    resolveQuestion(task, ~skippedAll=false, ~cancelled=false)
+
+  | (Task.Loaded(_), QuestionAllSkipped) =>
+    resolveQuestion(task, ~skippedAll=true, ~cancelled=false)
+
+  | (Task.Loaded(_), QuestionCancelled) =>
+    // "Cancel (stop agent)" — reject the question AND stop the agent turn.
+    // resolveQuestion handles the question dismissal + late tool result submission.
+    // CancelPrompt tells the server to cancel the running prompt/agent loop.
+    let (task, questionEffects) = resolveQuestion(task, ~skippedAll=false, ~cancelled=true)
+    (task, Array.concat(questionEffects, [CancelPrompt]))
 
   // ============================================================================
   // Catch-all - invalid state/action combinations
@@ -1096,5 +1321,9 @@ let handleEffect = (effect: effect, ~dispatch: action => unit, ~delegate: delega
   | SendMessage({text, attachments, annotations}) => delegate(NeedSendMessage({text, attachments, annotations}))
   | NotifyTurnCompleted => delegate(NeedUsageRefresh)
   | CancelPrompt => delegate(NeedCancelPrompt)
+  // Question tool resolution — call the resolve/reject callback directly.
+  // No delegation needed since the callback is self-contained (captured in the pending question).
+  | ResolveQuestionToolEffect({resolveOk, answerJson}) => resolveOk(answerJson)
+  | RejectQuestionToolEffect({resolveError, message}) => resolveError(message)
   }
 }

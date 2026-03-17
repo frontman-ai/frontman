@@ -185,7 +185,6 @@ defmodule SwarmAi.Testing do
       alias SwarmAi.Testing.MockLLM
       alias SwarmAi.Testing.StreamErrorLLM
       alias SwarmAi.Testing.TestAgent
-      alias SwarmAi.Events
       alias SwarmAi.LLM
       alias SwarmAi.ToolCall
       alias SwarmAi.ToolResult

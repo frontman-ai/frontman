@@ -65,7 +65,7 @@ type action =
   // Model selection actions
   | FetchModelsConfig
   | ModelsConfigReceived({config: Client__State__Types.modelsConfig})
-  | SetSelectedModel({model: Client__State__Types.selectedModel})
+  | SetSelectedModel({model: Client__State__Types.modelSelection})
   // Anthropic OAuth actions
   | FetchAnthropicOAuthStatus
   | AnthropicOAuthStatusReceived({connected: bool, expiresAt: option<string>})
@@ -168,13 +168,13 @@ let getInitialUrl = Client__BrowserUrl.getInitialUrl
 let selectedModelStorageKey = "frontman:selectedModel"
 
 // Load selected model from localStorage
-let loadSelectedModelFromStorage = (): option<Client__State__Types.selectedModel> => {
+let loadSelectedModelFromStorage = (): option<Client__State__Types.modelSelection> => {
   try {
     FrontmanBindings.LocalStorage.getItem(selectedModelStorageKey)
     ->Nullable.toOption
     ->Option.flatMap(jsonString => {
       try {
-        Some(S.parseJsonStringOrThrow(jsonString, Client__State__Types.selectedModelSchema))
+        Some(S.parseJsonStringOrThrow(jsonString, FrontmanAiFrontmanProtocol.FrontmanProtocol__Types.modelSelectionSchema))
       } catch {
       | _ => None
       }
@@ -185,11 +185,11 @@ let loadSelectedModelFromStorage = (): option<Client__State__Types.selectedModel
 }
 
 // Save selected model to localStorage
-let saveSelectedModelToStorage = (model: Client__State__Types.selectedModel): unit => {
+let saveSelectedModelToStorage = (model: Client__State__Types.modelSelection): unit => {
   try {
     let jsonString = S.reverseConvertToJsonStringOrThrow(
       model,
-      Client__State__Types.selectedModelSchema,
+      FrontmanAiFrontmanProtocol.FrontmanProtocol__Types.modelSelectionSchema,
     )
     FrontmanBindings.LocalStorage.setItem(selectedModelStorageKey, jsonString)
   } catch {
@@ -481,7 +481,7 @@ module Selectors = {
   }
 
   // Get selected model
-  let selectedModel = (state: state): option<Client__State__Types.selectedModel> => {
+  let selectedModel = (state: state): option<Client__State__Types.modelSelection> => {
     state.selectedModel
   }
 
@@ -506,6 +506,15 @@ module Selectors = {
 
   let updateBannerDismissed = (state: state): bool => {
     state.updateBannerDismissed
+  }
+
+  // Pending question for the current task (shown in the drawer)
+  let pendingQuestion = (state: state): option<Client__Question__Types.pendingQuestion> => {
+    switch state.currentTask {
+    | Task.Selected(id) =>
+      state.tasks->Dict.get(id)->Option.flatMap(TaskReducer.Selectors.pendingQuestion)
+    | Task.New(_) => None
+    }
   }
 
   // Whether the user has any API provider configured via state-tracked sources
@@ -1412,7 +1421,23 @@ let next = (state: state, action) => {
     )
 
   | ClearAcpSession =>
-    {...state, acpSession: NoAcpSession}->StateReducer.update
+    // Clear pending questions across all tasks — the connection is gone,
+    // so we can't resolve tool promises via the channel. The resolver
+    // callbacks are now stale. When the user reconnects and loads the task,
+    // the server-side executor's safety-net timeout (24h) will eventually expire.
+    let updatedTasks = state.tasks->Dict.copy
+    updatedTasks->Dict.forEachWithKey((task, taskId) => {
+      switch TaskReducer.Selectors.pendingQuestion(task) {
+      | Some(_) =>
+        switch task {
+        | Task.Loaded(data) =>
+          updatedTasks->Dict.set(taskId, Task.Loaded({...data, pendingQuestion: None}))
+        | _ => ()
+        }
+      | None => ()
+      }
+    })
+    {...state, tasks: updatedTasks, acpSession: NoAcpSession}->StateReducer.update
 
   // ============================================================================
   // Global state actions
@@ -1611,7 +1636,7 @@ let next = (state: state, action) => {
         config.providers
         ->Array.find(p => p.id == providerId)
         ->Option.flatMap(p => p.models->Array.get(0))
-        ->Option.map((m): Client__State__Types.selectedModel => {
+        ->Option.map((m): Client__State__Types.modelSelection => {
           provider: providerId,
           value: m.value,
         })
@@ -1629,7 +1654,7 @@ let next = (state: state, action) => {
               {
                 provider: config.defaultModel.provider,
                 value: config.defaultModel.value,
-              }: Client__State__Types.selectedModel
+              }: Client__State__Types.modelSelection
             ),
           ),
           true,

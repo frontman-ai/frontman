@@ -8,35 +8,35 @@ defmodule SwarmAi.Runtime do
 
   ## Usage
 
-  Add a Runtime to your supervision tree:
-
       children = [
-        {SwarmAi.Runtime, name: MyApp.AgentRuntime},
-        ...
+        {SwarmAi.Runtime,
+          name: MyApp.AgentRuntime,
+          event_dispatcher: {MyApp.SwarmDispatcher, :dispatch, []}},
       ]
 
-  Then run agents with lifecycle callbacks:
+  Then run agents:
 
       SwarmAi.Runtime.run(MyApp.AgentRuntime, task_id, agent, messages,
-        tool_executor: &execute_tool/1,
-        on_chunk: fn chunk -> IO.write(chunk.text || "") end,
-        on_complete: fn {:ok, result, loop_id} -> Logger.info("Done") end,
-        on_error: fn {:error, reason, loop_id} -> Logger.error(inspect(reason)) end,
-        on_crash: fn {reason, stacktrace} -> Logger.error("Crashed") end,
-        on_cancelled: fn -> Logger.info("Cancelled") end
+        tool_executor: &execute_tool/1
       )
 
-  ## Lifecycle Callbacks
+  ## Event Dispatcher
 
-  These are invoked by the Runtime after the execution process completes:
+  All execution events are dispatched via a `{mod, fun, args}` MFA tuple
+  configured at startup. Events are dispatched as:
 
-  - `on_complete` - Called with `{:ok, result, loop_id}` after successful execution
-  - `on_error` - Called with `{:error, reason, loop_id}` after failed execution
-  - `on_crash` - Called with `{reason, stacktrace}` if the execution process crashes
-  - `on_cancelled` - Called with no args if the execution is cancelled
+      apply(mod, fun, args ++ [key, event, metadata])
 
-  The execution key is unregistered BEFORE any callback fires, so `running?/2`
-  returns `false` before completion events propagate.
+  The `metadata` map is the one passed via `opts[:metadata]` at `run/5` time,
+  allowing callers to attach context (e.g. scope, API key info) that flows
+  through every event — not just `:completed`/`:failed`.
+
+  Events: `{:chunk, chunk}`, `{:response, response}`, `{:tool_call, tc}`,
+  `{:completed, {:ok, result, loop_id}}`, `{:failed, {:error, reason, loop_id}}`,
+  `{:crashed, %{reason, stacktrace, loop}}`, `{:cancelled, %{loop}}`.
+
+  Because the dispatcher is an MFA tuple (static config), it survives process
+  restarts — no callbacks are lost.
   """
 
   require Logger
@@ -48,8 +48,8 @@ defmodule SwarmAi.Runtime do
 
   ## Options
 
-  - `:name` - Required. Used as the supervisor name and prefix for
-    Registry, TaskSupervisor, and ExecutionMonitor names.
+  - `:name` - Required. Prefix for Registry, TaskSupervisor, and ExecutionMonitor.
+  - `:event_dispatcher` - Optional `{mod, fun, args}` MFA tuple for event dispatch.
   """
   def child_spec(opts) do
     name = Keyword.fetch!(opts, :name)
@@ -64,27 +64,20 @@ defmodule SwarmAi.Runtime do
   @doc """
   Runs an agent with lifecycle management.
 
-  Spawns a supervised task that:
-  1. Registers the execution under `key` (prevents duplicates)
-  2. Monitors for crashes via ExecutionMonitor
-  3. Calls `SwarmAi.run_streaming/3` with the provided opts
-  4. Unregisters the key before invoking completion callbacks
-  5. Emits telemetry events for the lifecycle
+  Spawns a supervised task that registers the execution under `key`,
+  monitors for crashes, calls `SwarmAi.run_streaming/3`, and dispatches
+  events via the configured MFA dispatcher.
 
   ## Options
 
-  All options from `SwarmAi.run_streaming/3`, plus:
-  - `:on_complete` - Called with `{:ok, result, loop_id}` after successful execution
-  - `:on_error` - Called with `{:error, reason, loop_id}` after failed execution
-  - `:on_crash` - Called with `{reason, stacktrace}` if the execution process crashes
-  - `:on_cancelled` - Called with no args if the execution is cancelled
-  - `:metadata` - Map of metadata passed to `SwarmAi.run_streaming/3`
+  - `:tool_executor` - Required. Function to execute tool calls.
+  - `:metadata` - Arbitrary map attached to the loop for telemetry correlation.
 
   ## Returns
 
-  - `{:ok, pid}` - Execution started (process is alive and registered)
-  - `{:error, :already_running}` - An execution is already running for this key
-  - `{:error, :registration_timeout}` - Child process failed to ack within 5s (pathological)
+  - `{:ok, pid}` - Execution started
+  - `{:error, :already_running}` - Duplicate execution for this key
+  - `{:error, :registration_timeout}` - Child failed to ack within 5s
   """
   @spec run(atom(), term(), SwarmAi.Agent.t(), SwarmAi.message_input(), keyword()) ::
           {:ok, pid()} | {:error, :already_running | :registration_timeout}
@@ -92,12 +85,10 @@ defmodule SwarmAi.Runtime do
     registry = registry_name(runtime)
     task_sup = task_supervisor_name(runtime)
     monitor = monitor_name(runtime)
+    dispatcher = event_dispatcher(runtime)
 
     registry_key = {:running, key}
 
-    # Quick check: reject obvious duplicates before spawning.
-    # There's still a small race between this check and registration inside the task,
-    # which is handled by the in-process Registry.register check.
     case Registry.lookup(registry, registry_key) do
       [{_pid, _}] ->
         {:error, :already_running}
@@ -111,7 +102,8 @@ defmodule SwarmAi.Runtime do
           key,
           agent,
           messages,
-          opts
+          opts,
+          dispatcher
         )
     end
   end
@@ -121,9 +113,7 @@ defmodule SwarmAi.Runtime do
   """
   @spec running?(atom(), term()) :: boolean()
   def running?(runtime, key) do
-    registry = registry_name(runtime)
-
-    case Registry.lookup(registry, {:running, key}) do
+    case Registry.lookup(registry_name(runtime), {:running, key}) do
       [{_pid, _}] -> true
       [] -> false
     end
@@ -133,16 +123,11 @@ defmodule SwarmAi.Runtime do
   Cancels a running execution.
 
   The process is killed with `:cancelled` exit reason.
-  The `on_cancelled` callback is invoked (not `on_error`).
-
-  Returns `:ok` if the agent was cancelled, `{:error, :not_running}` if
-  no agent is running for the given key.
+  A `:cancelled` event is dispatched (not `:crashed`).
   """
   @spec cancel(atom(), term()) :: :ok | {:error, :not_running}
   def cancel(runtime, key) do
-    registry = registry_name(runtime)
-
-    case Registry.lookup(registry, {:running, key}) do
+    case Registry.lookup(registry_name(runtime), {:running, key}) do
       [{pid, _}] ->
         Logger.info("SwarmAi.Runtime: Cancelling execution for key #{inspect(key)}")
         Process.exit(pid, :cancelled)
@@ -155,9 +140,6 @@ defmodule SwarmAi.Runtime do
 
   # --- Private ---
 
-  # Spawns the execution child and waits for it to confirm registration.
-  # Returns {:ok, pid} only when the child is alive and registered,
-  # or {:error, :already_running} if another process won the race.
   defp spawn_and_await_registration(
          task_sup,
          registry,
@@ -166,21 +148,16 @@ defmodule SwarmAi.Runtime do
          key,
          agent,
          messages,
-         opts
+         opts,
+         dispatcher
        ) do
-    on_complete = Keyword.get(opts, :on_complete, fn _ -> :ok end)
-    on_error = Keyword.get(opts, :on_error, fn _ -> :ok end)
-
-    streaming_opts =
-      opts
-      |> Keyword.drop([:on_complete, :on_error, :on_crash, :on_cancelled])
-
     caller = self()
     ack_ref = make_ref()
 
+    metadata = Keyword.get(opts, :metadata, %{})
+    streaming_opts = build_streaming_opts(opts, dispatcher, key, metadata, registry, registry_key)
+
     case Task.Supervisor.start_child(task_sup, fn ->
-           # Register: prevents duplicates at the process level.
-           # Ack the caller so it knows whether we actually started.
            case Registry.register(registry, registry_key, %{}) do
              {:ok, _} ->
                send(caller, {ack_ref, :registered})
@@ -190,23 +167,23 @@ defmodule SwarmAi.Runtime do
                exit(:normal)
            end
 
-           ExecutionMonitor.watch(monitor, key,
-             on_crash: Keyword.get(opts, :on_crash, fn _ -> :ok end),
-             on_cancelled: Keyword.get(opts, :on_cancelled, fn -> :ok end)
-           )
+           ExecutionMonitor.watch(monitor, key, metadata)
 
            try do
-             execute(
-               agent,
-               messages,
-               streaming_opts,
-               registry,
-               registry_key,
-               on_complete,
-               on_error
-             )
+             result = SwarmAi.run_streaming(agent, messages, streaming_opts)
+
+             # Unregister BEFORE dispatch so running?/2 returns false first
+             Registry.unregister(registry, registry_key)
+
+             case result do
+               {:ok, _, _} = ok ->
+                 dispatch_event(dispatcher, key, {:completed, ok}, metadata)
+
+               {:error, _, _} = err ->
+                 dispatch_event(dispatcher, key, {:failed, err}, metadata)
+             end
            after
-             # Safety net — idempotent if already unregistered in execute
+             # Safety net — idempotent if already unregistered above
              Registry.unregister(registry, registry_key)
            end
          end) do
@@ -218,8 +195,27 @@ defmodule SwarmAi.Runtime do
     end
   end
 
-  # Blocks until the spawned child confirms registration or fails.
-  # Monitor ensures we don't hang if the child crashes before acking.
+  defp build_streaming_opts(opts, nil, _key, _metadata, _registry, _registry_key), do: opts
+
+  defp build_streaming_opts(opts, dispatcher, key, metadata, registry, registry_key) do
+    Keyword.merge(opts,
+      on_chunk: fn chunk ->
+        dispatch_event(dispatcher, key, {:chunk, chunk}, metadata)
+      end,
+      on_response: fn response ->
+        # Stash last response in Registry for crash forensics
+        Registry.update_value(registry, registry_key, fn val ->
+          Map.put(val, :last_response, response)
+        end)
+
+        dispatch_event(dispatcher, key, {:response, response}, metadata)
+      end,
+      on_tool_call: fn tc ->
+        dispatch_event(dispatcher, key, {:tool_call, tc}, metadata)
+      end
+    )
+  end
+
   defp await_registration_ack(ack_ref, pid) do
     mon = Process.monitor(pid)
 
@@ -233,9 +229,6 @@ defmodule SwarmAi.Runtime do
         {:error, :already_running}
 
       {:DOWN, ^mon, :process, ^pid, _reason} ->
-        # Child died before acking — most likely lost the registration race
-        # and exited before the ack message was delivered, or crashed during
-        # startup. Either way, no execution is running for this key.
         {:error, :already_running}
     after
       5_000 ->
@@ -244,30 +237,17 @@ defmodule SwarmAi.Runtime do
     end
   end
 
-  defp execute(
-         agent,
-         messages,
-         opts,
-         registry,
-         registry_key,
-         on_complete,
-         on_error
-       ) do
-    result = SwarmAi.run_streaming(agent, messages, opts)
+  defp dispatch_event(nil, _key, _event, _metadata), do: :ok
 
-    # Unregister BEFORE callback so running?/2 returns false before
-    # completion events propagate
-    Registry.unregister(registry, registry_key)
+  defp dispatch_event({mod, fun, args}, key, event, metadata) do
+    apply(mod, fun, args ++ [key, event, metadata])
+  rescue
+    e ->
+      Logger.error("SwarmAi.Runtime event dispatch failed: #{Exception.message(e)}")
+  end
 
-    case result do
-      {:ok, _result, _loop_id} = ok ->
-        on_complete.(ok)
-
-      {:error, _reason, _loop_id} = err ->
-        on_error.(err)
-    end
-
-    result
+  defp event_dispatcher(runtime) do
+    :persistent_term.get({SwarmAi.Runtime, runtime, :event_dispatcher}, nil)
   end
 
   @doc false

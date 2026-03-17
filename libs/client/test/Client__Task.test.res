@@ -885,3 +885,222 @@ describe("Task - Annotations Cleared on Send (Issue #466)", () => {
     }
   })
 })
+
+describe("Task - QuestionReceived on freshly loaded task (reconnect scenario)", () => {
+  test("QuestionReceived sets pendingQuestion on Loaded task with isAgentRunning=false", t => {
+    // After reconnect + LoadComplete, the task is Loaded with isAgentRunning=false.
+    // The server re-sends the tools/call for the unresolved question.
+    // The client's MCP handler calls QuestionReceived.
+    let task = TestHelpers.makeLoadedTask()
+
+    let resolvedOk = ref(None)
+    let resolvedError = ref(None)
+    let resolveOk = (json: JSON.t) => resolvedOk := Some(json)
+    let resolveError = (msg: string) => resolvedError := Some(msg)
+
+    let questions: array<Client__Question__Types.questionItem> = [
+      {
+        question: "Pick one",
+        header: "Test",
+        options: [{label: "A", description: "Option A"}, {label: "B", description: "Option B"}],
+        multiple: None,
+      },
+    ]
+
+    let (nextTask, effects) =
+      TaskReducer.next(task, QuestionReceived({questions, toolCallId: "tc_1", resolveOk, resolveError}))
+
+    // pendingQuestion should be set
+    let pq = TaskReducer.Selectors.pendingQuestion(nextTask)
+    t->expect(pq->Option.isSome)->Expect.toBe(true)
+    t->expect(effects->Array.length)->Expect.toBe(0)
+
+    // Verify question data is correct
+    switch pq {
+    | Some(pq) =>
+      t->expect(pq.questions->Array.length)->Expect.toBe(1)
+      t->expect(pq.toolCallId)->Expect.toBe("tc_1")
+      t->expect(pq.currentStep)->Expect.toBe(0)
+    | None => t->expect("pendingQuestion")->Expect.toBe("to be Some")
+    }
+  })
+
+  test("QuestionSubmitted resolves the tool promise and emits ResolveQuestionToolEffect", t => {
+    let task = TestHelpers.makeLoadedTask()
+
+    let resolvedOk = ref(None)
+    let resolveOk = (json: JSON.t) => resolvedOk := Some(json)
+    let resolveError = (_msg: string) => ()
+
+    let questions: array<Client__Question__Types.questionItem> = [
+      {
+        question: "Pick one",
+        header: "Test",
+        options: [{label: "A", description: "Option A"}],
+        multiple: None,
+      },
+    ]
+
+    // Set up question
+    let (taskWithQuestion, _) =
+      TaskReducer.next(task, QuestionReceived({questions, toolCallId: "tc_1", resolveOk, resolveError}))
+
+    // Select an answer
+    let (taskWithAnswer, _) =
+      TaskReducer.next(taskWithQuestion, QuestionOptionToggled({questionIndex: 0, label: "A"}))
+
+    // Submit
+    let (finalTask, effects) = TaskReducer.next(taskWithAnswer, QuestionSubmitted)
+
+    // pendingQuestion should be cleared
+    let pq = TaskReducer.Selectors.pendingQuestion(finalTask)
+    t->expect(pq->Option.isNone)->Expect.toBe(true)
+
+    // Should emit ResolveQuestionToolEffect
+    switch effects->Array.get(0) {
+    | Some(ResolveQuestionToolEffect(_)) => t->expect(true)->Expect.toBe(true)
+    | other =>
+      t
+      ->expect(`Expected ResolveQuestionToolEffect, got ${other->Option.mapOr("None", _ => "other")}`)
+      ->Expect.toBe("ResolveQuestionToolEffect")
+    }
+  })
+
+  test("resolveOk callback is called when ResolveQuestionToolEffect is executed", t => {
+    let task = TestHelpers.makeLoadedTask()
+
+    let resolvedOk = ref(None)
+    let resolveOk = (json: JSON.t) => resolvedOk := Some(json)
+    let resolveError = (_msg: string) => ()
+
+    let questions: array<Client__Question__Types.questionItem> = [
+      {
+        question: "Pick one",
+        header: "Test",
+        options: [{label: "A", description: "Option A"}],
+        multiple: None,
+      },
+    ]
+
+    let (taskWithQuestion, _) =
+      TaskReducer.next(task, QuestionReceived({questions, toolCallId: "tc_1", resolveOk, resolveError}))
+    let (taskWithAnswer, _) =
+      TaskReducer.next(taskWithQuestion, QuestionOptionToggled({questionIndex: 0, label: "A"}))
+    let (_finalTask, effects) = TaskReducer.next(taskWithAnswer, QuestionSubmitted)
+
+    // Execute the effect (simulate what the effect handler does)
+    switch effects->Array.get(0) {
+    | Some(ResolveQuestionToolEffect({resolveOk, answerJson})) => resolveOk(answerJson)
+    | _ => ()
+    }
+
+    // The callback should have been called
+    t->expect(resolvedOk.contents->Option.isSome)->Expect.toBe(true)
+  })
+})
+
+describe("Task - QuestionPerQuestionSkipped", () => {
+  test("skipping a non-last question advances currentStep without submitting", t => {
+    let task = TestHelpers.makeLoadedTask()
+
+    let resolveOk = (_json: JSON.t) => ()
+    let resolveError = (_msg: string) => ()
+
+    let questions: array<Client__Question__Types.questionItem> = [
+      {
+        question: "Q1",
+        header: "H1",
+        options: [{label: "A", description: "a"}],
+        multiple: None,
+      },
+      {
+        question: "Q2",
+        header: "H2",
+        options: [{label: "B", description: "b"}],
+        multiple: None,
+      },
+      {
+        question: "Q3",
+        header: "H3",
+        options: [{label: "C", description: "c"}],
+        multiple: None,
+      },
+    ]
+
+    // Set up 3-question flow
+    let (taskWithQ, _) =
+      TaskReducer.next(task, QuestionReceived({questions, toolCallId: "tc_1", resolveOk, resolveError}))
+
+    // Skip question 0 (non-last)
+    let (afterSkip, effects) =
+      TaskReducer.next(taskWithQ, QuestionPerQuestionSkipped({questionIndex: 0}))
+
+    // Step should advance to 1
+    switch TaskReducer.Selectors.pendingQuestion(afterSkip) {
+    | Some(pq) =>
+      t->expect(pq.currentStep)->Expect.toBe(1)
+      // Answer 0 should be Skipped
+      t
+      ->expect(pq.answers->Dict.get("0") == Some(Client__Question__Types.Skipped))
+      ->Expect.toBe(true)
+    | None => t->expect("pendingQuestion")->Expect.toBe("to be Some")
+    }
+
+    // No effects — question is NOT submitted yet
+    t->expect(effects->Array.length)->Expect.toBe(0)
+
+    // pendingQuestion should still exist
+    t
+    ->expect(TaskReducer.Selectors.pendingQuestion(afterSkip)->Option.isSome)
+    ->Expect.toBe(true)
+  })
+
+  test("skipping the last question auto-submits via resolveQuestion", t => {
+    let task = TestHelpers.makeLoadedTask()
+
+    let resolvedOk = ref(None)
+    let resolveOk = (json: JSON.t) => resolvedOk := Some(json)
+    let resolveError = (_msg: string) => ()
+
+    let questions: array<Client__Question__Types.questionItem> = [
+      {
+        question: "Q1",
+        header: "H1",
+        options: [{label: "A", description: "a"}],
+        multiple: None,
+      },
+      {
+        question: "Q2",
+        header: "H2",
+        options: [{label: "B", description: "b"}],
+        multiple: None,
+      },
+    ]
+
+    // Set up 2-question flow
+    let (taskWithQ, _) =
+      TaskReducer.next(task, QuestionReceived({questions, toolCallId: "tc_1", resolveOk, resolveError}))
+
+    // Skip question 0 first (non-last)
+    let (afterSkip0, _) =
+      TaskReducer.next(taskWithQ, QuestionPerQuestionSkipped({questionIndex: 0}))
+
+    // Skip question 1 (last) — should auto-submit
+    let (afterSkip1, effects) =
+      TaskReducer.next(afterSkip0, QuestionPerQuestionSkipped({questionIndex: 1}))
+
+    // pendingQuestion should be cleared (resolved)
+    t
+    ->expect(TaskReducer.Selectors.pendingQuestion(afterSkip1)->Option.isNone)
+    ->Expect.toBe(true)
+
+    // Should emit ResolveQuestionToolEffect (from resolveQuestion)
+    switch effects->Array.get(0) {
+    | Some(ResolveQuestionToolEffect(_)) => t->expect(true)->Expect.toBe(true)
+    | other =>
+      t
+      ->expect(`Expected ResolveQuestionToolEffect, got ${other->Option.mapOr("None", _ => "other")}`)
+      ->Expect.toBe("ResolveQuestionToolEffect")
+    }
+  })
+})

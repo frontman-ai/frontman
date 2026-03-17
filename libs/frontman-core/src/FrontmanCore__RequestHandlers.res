@@ -80,6 +80,7 @@ let handleToolCall = async (
     let errorResult: MCP.callToolResult = {
       content: [{type_: "text", text: `Invalid request: ${msg}`}],
       isError: Some(true),
+      _meta: MCP.emptyMeta,
     }
     let json = errorResult->S.reverseConvertToJsonOrThrow(MCP.callToolResultSchema)
     WebAPI.Response.jsonR(~data=json, ~init={status: 400})
@@ -122,6 +123,7 @@ let handleToolCall = async (
             let errorResult: MCP.callToolResult = {
               content: [{type_: "text", text: `Tool execution failed: ${msg}`}],
               isError: Some(true),
+              _meta: MCP.emptyMeta,
             }
             controller->WebStreams.enqueue(
               encoder->WebStreams.encode(CoreSSE.errorEvent(errorResult)),

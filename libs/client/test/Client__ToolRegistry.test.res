@@ -12,7 +12,7 @@ describe("ToolRegistry", _t => {
   test("coreBrowserTools returns all browser tools", t => {
     let registry = ToolRegistry.coreBrowserTools()
 
-    t->expect(registry->ToolRegistry.count)->Expect.toBe(7)
+    t->expect(registry->ToolRegistry.count)->Expect.toBe(8)
   })
 
   test("finds tool by name", t => {

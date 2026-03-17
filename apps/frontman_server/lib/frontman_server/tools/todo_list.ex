@@ -5,7 +5,7 @@ defmodule FrontmanServer.Tools.TodoList do
 
   @behaviour FrontmanServer.Tools.Backend
 
-  alias FrontmanServer.Tasks
+  alias FrontmanServer.Tasks.Todos
   alias FrontmanServer.Tools.Backend.Context
 
   @impl true
@@ -38,7 +38,7 @@ defmodule FrontmanServer.Tools.TodoList do
 
   @impl true
   def execute(_args, %Context{task: %{interactions: interactions}}) do
-    todos_map = Tasks.project_todos(interactions)
+    todos_map = Todos.list_todos(interactions)
 
     todos =
       todos_map

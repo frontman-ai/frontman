@@ -32,7 +32,10 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
   alias SwarmAi.Message.ContentPart
 
   @tool_timeout_ms 60_000
-  @interactive_tool_timeout_ms 120_000
+  # Interactive tools (e.g., question) may wait hours for a human response.
+  # This timeout is a safety net to prevent permanent process leaks if the
+  # user abandons the session and the server never restarts.
+  @interactive_tool_timeout_ms :timer.hours(24)
 
   @doc """
   Returns a tool executor function for use with Swarm execution.
@@ -158,7 +161,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
         )
 
       :not_found ->
-        execute_mcp_tool(tool_call, task_id, mcp_tool_defs)
+        execute_mcp_tool(scope, tool_call, task_id, mcp_tool_defs)
     end
   end
 
@@ -275,40 +278,83 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
 
   # --- MCP Tool Execution ---
 
-  defp execute_mcp_tool(tool_call, task_id, mcp_tool_defs) do
+  defp execute_mcp_tool(scope, tool_call, task_id, mcp_tool_defs) do
     Logger.info("ToolExecutor: Routing to MCP tool #{tool_call.name}")
 
     tool_call_id = tool_call.id
 
-    # All MCP tools block until the client responds. Interactive tools
-    # (like question) get a longer timeout since they wait for user input.
-    timeout =
-      if Tools.MCP.interactive_by_name?(mcp_tool_defs, tool_call.name),
-        do: @interactive_tool_timeout_ms,
-        else: @tool_timeout_ms
+    if Tools.MCP.interactive_by_name?(mcp_tool_defs, tool_call.name) do
+      # Interactive tools (e.g., question) block for up to 24 hours. The user
+      # may take minutes or hours to respond. The executor unblocks when:
+      #   - The user responds (normal MCP tool result flow)
+      #   - The channel disconnects (terminate/2 sends an error result)
+      #   - The server restarts (process dies; reconnect re-dispatches)
+      #   - The safety-net timeout fires (prevents permanent process leaks)
+      receive do
+        {:tool_result, ^tool_call_id, content, is_error} ->
+          Registry.unregister(FrontmanServer.ToolCallRegistry, {:tool_call, tool_call_id})
+          if is_error, do: {:error, content}, else: {:ok, content}
+      after
+        @interactive_tool_timeout_ms ->
+          Registry.unregister(FrontmanServer.ToolCallRegistry, {:tool_call, tool_call_id})
 
-    receive do
-      {:tool_result, ^tool_call_id, content, is_error} ->
-        Registry.unregister(FrontmanServer.ToolCallRegistry, {:tool_call, tool_call_id})
-        if is_error, do: {:error, content}, else: {:ok, content}
-    after
-      timeout ->
-        Registry.unregister(FrontmanServer.ToolCallRegistry, {:tool_call, tool_call_id})
+          Logger.error(
+            "ToolExecutor: Interactive tool #{tool_call.name} timed out (safety net) after 24h"
+          )
 
-        Logger.error("ToolExecutor: MCP tool #{tool_call.name} timed out after #{timeout}ms")
+          error_msg = "Interactive tool abandoned: #{tool_call.name}"
 
-        Sentry.capture_message("MCP tool timeout",
-          level: :error,
-          tags: %{error_type: "tool_timeout"},
-          extra: %{
-            tool_name: tool_call.name,
-            tool_call_id: tool_call_id,
-            task_id: task_id,
-            timeout_ms: timeout
-          }
-        )
+          Tasks.add_tool_result(
+            scope,
+            task_id,
+            %{id: tool_call_id, name: tool_call.name},
+            error_msg,
+            true
+          )
 
-        {:error, "Tool timeout: #{tool_call.name}"}
+          {:error, error_msg}
+      end
+    else
+      # Non-interactive MCP tools (navigate, screenshot, etc.) should respond
+      # quickly. Timeout is a legitimate error signal.
+      receive do
+        {:tool_result, ^tool_call_id, content, is_error} ->
+          Registry.unregister(FrontmanServer.ToolCallRegistry, {:tool_call, tool_call_id})
+          if is_error, do: {:error, content}, else: {:ok, content}
+      after
+        @tool_timeout_ms ->
+          Registry.unregister(FrontmanServer.ToolCallRegistry, {:tool_call, tool_call_id})
+
+          Logger.error(
+            "ToolExecutor: MCP tool #{tool_call.name} timed out after #{@tool_timeout_ms}ms"
+          )
+
+          Sentry.capture_message("MCP tool timeout",
+            level: :error,
+            tags: %{error_type: "tool_timeout"},
+            extra: %{
+              tool_name: tool_call.name,
+              tool_call_id: tool_call_id,
+              task_id: task_id,
+              timeout_ms: @tool_timeout_ms
+            }
+          )
+
+          error_msg = "Tool timeout: #{tool_call.name}"
+
+          # Persist the timeout error as a ToolResult so the DB is consistent
+          # (every ToolCall has a matching ToolResult). Without this, reconnect
+          # shows the tool as perpetually in-progress.
+          Tasks.add_tool_result(
+            scope,
+            task_id,
+            %{id: tool_call_id, name: tool_call.name},
+            error_msg,
+            true
+          )
+
+          {:error, error_msg}
+      end
     end
   end
 

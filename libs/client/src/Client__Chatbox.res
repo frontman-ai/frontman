@@ -142,6 +142,8 @@ let make = (
     ~sessionInitialized,
   )
 
+  let hasPendingQuestion =
+    Client__State.useSelector(Client__State.Selectors.pendingQuestion)->Option.isSome
   let hasAnnotations = Array.length(annotations) > 0
 
   let handleSubmit = (~text: string, ~inputItems: array<Client__PromptInput.inputItem>) => {
@@ -364,7 +366,7 @@ let make = (
     }
   }
 
-  <div className="flex flex-col h-full bg-[#180C2D] text-zinc-200">
+  <div className="relative flex flex-col h-full bg-[#180C2D] text-zinc-200">
     <TaskTabs onSettingsClick showProviderNudge onProviderNudgeDismiss onProviderNudgeCta />
     <Client__UpdateBanner />
     <ScrollContainer className="flex-grow overflow-hidden">
@@ -411,21 +413,25 @@ let make = (
       </div>
     | _ => React.null
     }}
-    <PromptInput
-      onSubmit={handleSubmit}
-      onCancel={Client__State.Actions.cancelTurn}
-      providers
-      isModelsConfigLoading
-      selectedModel
-      onModelChange={(~provider, ~value) =>
-        Client__State.Actions.setSelectedModel(~provider, ~value)}
-      isAgentRunning
-      hasActiveACPSession
-      disabled={isUsageExhausted}
-      disabledPlaceholder="Free requests exhausted. Add your API key in Settings to continue."
-      onSelectElement={Client__State.Actions.toggleWebPreviewSelection}
-      isSelecting={webPreviewIsSelecting}
-      hasAnnotations
-    />
+    {switch hasPendingQuestion {
+    | true => <Client__QuestionDrawer />
+    | false =>
+      <PromptInput
+        onSubmit={handleSubmit}
+        onCancel={Client__State.Actions.cancelTurn}
+        providers
+        isModelsConfigLoading
+        selectedModel
+        onModelChange={(~provider, ~value) =>
+          Client__State.Actions.setSelectedModel(~provider, ~value)}
+        isAgentRunning
+        hasActiveACPSession
+        disabled={isUsageExhausted}
+        disabledPlaceholder="Free requests exhausted. Add your API key in Settings to continue."
+        onSelectElement={Client__State.Actions.toggleWebPreviewSelection}
+        isSelecting={webPreviewIsSelecting}
+        hasAnnotations
+      />
+    }}
   </div>
 }

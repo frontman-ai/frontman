@@ -215,6 +215,16 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
     }
   end
 
+  def to_struct(%__MODULE__{type: "agent_error", data: data, sequence: sequence}) do
+    %Interaction.AgentError{
+      id: data["id"],
+      sequence: sequence || data["sequence"] || 0,
+      error: data["error"],
+      kind: data["kind"] || "failed",
+      timestamp: parse_datetime(data["timestamp"])
+    }
+  end
+
   def to_struct(%__MODULE__{type: type}) do
     raise "Unknown interaction type: #{type}"
   end

@@ -100,21 +100,22 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
   describe "cancel_execution/2 (end-to-end)" do
     setup :setup_task
 
-    test "cancel broadcasts :agent_cancelled via PubSub", %{
+    test "cancel dispatches cancelled event via PubSub", %{
       task_id: task_id,
       scope: scope
     } do
       slow_llm = %MockLLM{response: "slow", delay_ms: 5000}
       agent = test_agent(slow_llm, "SlowAgent")
 
-      {:ok, _} = Tasks.add_user_message(scope, task_id, user_content("Hello"), [], agent: agent)
+      {:ok, _} =
+        Tasks.submit_user_message(scope, task_id, user_content("Hello"), [], agent: agent)
 
       Process.sleep(100)
       assert SwarmAi.Runtime.running?(FrontmanServer.AgentRuntime, task_id)
 
       assert :ok = Tasks.cancel_execution(scope, task_id)
 
-      assert_receive :agent_cancelled, 5_000
+      assert_receive {:swarm_event, {:cancelled, _}}, 5_000
       refute SwarmAi.Runtime.running?(FrontmanServer.AgentRuntime, task_id)
     end
   end
@@ -132,7 +133,9 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       agent2 = test_agent(mock_llm("Second response"), "TestAgent2")
 
       {:ok, _} =
-        Tasks.add_user_message(scope, task_id, user_content("First message"), [], agent: agent1)
+        Tasks.submit_user_message(scope, task_id, user_content("First message"), [],
+          agent: agent1
+        )
 
       assert_receive {:interaction, %Interaction.AgentCompleted{}}, 5_000
 
@@ -140,7 +143,9 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
              "Agent should not be running after completion"
 
       {:ok, _} =
-        Tasks.add_user_message(scope, task_id, user_content("Second message"), [], agent: agent2)
+        Tasks.submit_user_message(scope, task_id, user_content("Second message"), [],
+          agent: agent2
+        )
 
       assert_receive {:interaction, %Interaction.AgentCompleted{}}, 5_000
 
@@ -162,12 +167,12 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       agent2 = test_agent(mock_llm("Based on the previous results..."), "Agent2")
 
       {:ok, _} =
-        Tasks.add_user_message(scope, task_id, user_content("Show todos"), [], agent: agent1)
+        Tasks.submit_user_message(scope, task_id, user_content("Show todos"), [], agent: agent1)
 
       assert_receive {:interaction, %Interaction.AgentCompleted{}}, 5_000
 
       {:ok, _} =
-        Tasks.add_user_message(scope, task_id, user_content("Summarize"), [], agent: agent2)
+        Tasks.submit_user_message(scope, task_id, user_content("Summarize"), [], agent: agent2)
 
       assert_receive {:interaction, %Interaction.AgentCompleted{}}, 5_000
 
@@ -192,7 +197,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       agent = test_agent(tool_then_complete_llm([question_tc], "Great choice!"), "QuestionAgent")
 
       {:ok, _} =
-        Tasks.add_user_message(scope, task_id, user_content("Ask me"), [],
+        Tasks.submit_user_message(scope, task_id, user_content("Ask me"), [],
           agent: agent,
           mcp_tool_defs: question_mcp_tool_defs()
         )
@@ -204,7 +209,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       # Submit the tool result — this unblocks the agent
       answer = Jason.encode!(%{"answers" => [%{"answer" => "A"}]})
 
-      {:ok, _interaction} =
+      {:ok, _interaction, _status} =
         Tasks.add_tool_result(
           scope,
           task_id,
@@ -213,7 +218,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
           false
         )
 
-      assert_receive :agent_completed, 5_000
+      assert_receive {:swarm_event, {:completed, _}}, 5_000
 
       {:ok, task} = Tasks.get_task(scope, task_id)
 

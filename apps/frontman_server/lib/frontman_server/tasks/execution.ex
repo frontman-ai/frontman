@@ -21,10 +21,8 @@ defmodule FrontmanServer.Tasks.Execution do
   alias FrontmanServer.Observability.TelemetryEvents
   alias FrontmanServer.Providers
   alias FrontmanServer.Providers.{Model, Registry, ResolvedKey}
-  alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Execution.{Framework, RootAgent, ToolExecutor}
   alias FrontmanServer.Tasks.{Interaction, Task}
-  alias SwarmAi.LLM.Chunk
   alias SwarmAi.Message
 
   @doc """
@@ -74,7 +72,6 @@ defmodule FrontmanServer.Tasks.Execution do
     case Providers.prepare_api_key(scope, model, env_api_key) do
       {:ok, api_key_info} ->
         task_id = task.task_id
-        topic = Tasks.topic(task_id)
         agent = build_agent(task, tools, opts, api_key_info)
 
         messages =
@@ -85,7 +82,7 @@ defmodule FrontmanServer.Tasks.Execution do
 
         mcp_tool_defs = Keyword.get(opts, :mcp_tool_defs, [])
 
-        submit_to_runtime(scope, agent, task_id, topic, messages,
+        submit_to_runtime(scope, agent, task_id, messages,
           api_key_info: api_key_info,
           mcp_tool_defs: mcp_tool_defs
         )
@@ -100,31 +97,65 @@ defmodule FrontmanServer.Tasks.Execution do
 
   Routes the result to the blocking executor via Registry metadata.
   Called by the Tasks facade after persisting the tool result interaction.
-  No-ops when no executor is waiting (backend tools execute synchronously).
+  Returns `:notified` when the result was delivered to a live executor,
+  `:no_executor` when no executor was waiting (e.g., server restarted).
   """
-  @spec notify_tool_result(Scope.t(), String.t(), term(), boolean()) :: :ok
+  @spec notify_tool_result(Scope.t(), String.t(), term(), boolean()) :: :notified | :no_executor
   def notify_tool_result(%Scope{}, tool_call_id, result, is_error) do
     case Elixir.Registry.lookup(FrontmanServer.ToolCallRegistry, {:tool_call, tool_call_id}) do
       [{_pid, %{caller_pid: caller}}] ->
         encoded = encode_result_for_swarm(result)
         send(caller, {:tool_result, tool_call_id, encoded, is_error})
-        :ok
+        :notified
 
       [] ->
-        :ok
+        :no_executor
     end
   end
 
+  # --- Event Handling ---
+
+  @doc """
+  Translates a SwarmAi event to a transport-level action for the channel.
+
+  Called by the TaskChannel from `handle_info({:swarm_event, event})`.
+
+  **Persistence is handled by SwarmDispatcher** (runs in the Runtime Task
+  process). This function only determines what the channel should push to
+  the client — if the channel is dead, no data is lost.
+  """
+  @spec handle_swarm_event(Scope.t(), String.t(), term()) :: term()
+  def handle_swarm_event(_scope, _task_id, {:response, _response}), do: :ok
+
+  def handle_swarm_event(_scope, _task_id, {:completed, {:ok, _result, _loop_id}}),
+    do: :agent_completed
+
+  def handle_swarm_event(_scope, _task_id, {:failed, {:error, reason, _loop_id}})
+      when is_binary(reason),
+      do: {:agent_error, reason}
+
+  def handle_swarm_event(_scope, _task_id, {:failed, {:error, reason, _loop_id}}),
+    do: {:agent_error, inspect(reason)}
+
+  def handle_swarm_event(_scope, _task_id, {:crashed, %{reason: reason}})
+      when is_exception(reason),
+      do: {:agent_error, Exception.message(reason)}
+
+  def handle_swarm_event(_scope, _task_id, {:crashed, %{reason: reason}}),
+    do: {:agent_error, "Execution crashed: #{inspect(reason)}"}
+
+  def handle_swarm_event(_scope, _task_id, {:cancelled, _}),
+    do: :agent_cancelled
+
+  def handle_swarm_event(_scope, _task_id, _event), do: :ok
+
   # --- Private ---
 
-  # Submits an agent to SwarmAi.Runtime with lifecycle callbacks.
-  #
   # Dialyzer warning suppressed: protocol dispatch on Agent can't be statically proven.
-  @dialyzer {:nowarn_function, submit_to_runtime: 6}
-  defp submit_to_runtime(scope, agent, task_id, topic, messages, opts) do
+  @dialyzer {:nowarn_function, submit_to_runtime: 5}
+  defp submit_to_runtime(scope, agent, task_id, messages, opts) do
     %ResolvedKey{} = resolved_key = Keyword.fetch!(opts, :api_key_info)
 
-    # Build tool executor that handles both backend and MCP tools.
     mcp_tools = Map.get(agent, :tools, [])
     mcp_tool_defs = Keyword.get(opts, :mcp_tool_defs, [])
     llm_opts = [api_key: resolved_key.api_key, model: resolved_key.model]
@@ -137,81 +168,21 @@ defmodule FrontmanServer.Tasks.Execution do
       )
 
     # Emit task start telemetry BEFORE Runtime.run to avoid race with task_stop
-    # in callbacks — the agent may complete before this line returns.
+    # in event handlers — the agent may complete before this line returns.
     TelemetryEvents.task_start(task_id)
 
-    SwarmAi.Runtime.run(FrontmanServer.AgentRuntime, task_id, agent, messages,
-      metadata: %{task_id: task_id},
-      tool_executor: tool_executor,
-      on_chunk: &handle_stream_chunk(&1, topic),
-      on_response: fn response ->
-        metadata = build_response_metadata(response)
-        Tasks.add_agent_response(scope, task_id, response.content || "", metadata)
-      end,
-      on_complete: fn {:ok, _result, loop_id} ->
-        Providers.record_usage(scope, resolved_key)
-        Tasks.add_agent_completed(scope, task_id)
-        broadcast(topic, :agent_completed)
-        Logger.debug("Execution completed for task #{task_id}, loop_id: #{loop_id}")
-        TelemetryEvents.task_stop(task_id)
-      end,
-      on_error: fn {:error, reason, loop_id} ->
-        Logger.error(
-          "Execution failed for task #{task_id}, loop_id: #{loop_id}, reason: #{inspect(reason)}"
-        )
-
-        Sentry.capture_message("Agent execution failed",
-          level: :error,
-          tags: %{error_type: "agent_execution_error"},
-          extra: %{
-            task_id: task_id,
-            loop_id: loop_id,
-            reason: inspect(reason)
-          }
-        )
-
-        broadcast(topic, {:agent_error, inspect(reason)})
-        TelemetryEvents.task_stop(task_id)
-      end,
-      on_crash: fn {reason, stacktrace} ->
-        Logger.error("Execution crashed for task #{task_id}, reason: #{inspect(reason)}")
-
-        if is_exception(reason) do
-          Sentry.capture_exception(reason,
-            stacktrace: stacktrace,
-            tags: %{error_type: "agent_crash"},
-            extra: %{task_id: task_id}
-          )
-        else
-          Sentry.capture_message("Agent execution crashed",
-            level: :error,
-            tags: %{error_type: "agent_crash"},
-            extra: %{
-              task_id: task_id,
-              reason: inspect(reason)
-            }
-          )
-        end
-
-        broadcast(topic, {:agent_error, format_crash_reason(reason)})
-        TelemetryEvents.task_stop(task_id)
-      end,
-      on_cancelled: fn ->
-        broadcast(topic, :agent_cancelled)
-        TelemetryEvents.task_stop(task_id)
-      end
-    )
-    |> case do
+    case SwarmAi.Runtime.run(FrontmanServer.AgentRuntime, task_id, agent, messages,
+           metadata: %{task_id: task_id, resolved_key: resolved_key, scope: scope},
+           tool_executor: tool_executor
+         ) do
       {:ok, pid} ->
         {:ok, pid}
 
       {:error, :already_running} ->
-        # No agent launched — close the telemetry span we opened
         TelemetryEvents.task_stop(task_id)
         {:ok, :already_running}
 
       error ->
-        # Telemetry was started but agent failed to launch — stop span
         TelemetryEvents.task_stop(task_id)
         error
     end
@@ -288,61 +259,8 @@ defmodule FrontmanServer.Tasks.Execution do
 
   defp constrain_image_part(part, _max), do: part
 
-  defp broadcast(topic, message) do
-    Phoenix.PubSub.broadcast(FrontmanServer.PubSub, topic, message)
-  end
-
   defp encode_result_for_swarm(value) when is_binary(value), do: value
   defp encode_result_for_swarm(value), do: Jason.encode!(value)
-
-  defp format_crash_reason(exception) when is_exception(exception) do
-    Exception.message(exception)
-  end
-
-  defp format_crash_reason(reason) do
-    "Execution crashed: #{inspect(reason)}"
-  end
-
-  defp handle_stream_chunk(chunk, topic) do
-    case chunk do
-      %Chunk{type: :token, text: text} when is_binary(text) and text != "" ->
-        broadcast(topic, {:stream_token, text})
-
-      %Chunk{type: :thinking, text: text} when is_binary(text) and text != "" ->
-        broadcast(topic, {:stream_thinking, text})
-
-      %Chunk{type: :tool_call_start, tool_call_id: id, tool_call_name: name}
-      when is_binary(id) and is_binary(name) ->
-        broadcast(topic, {:tool_call_start, id, name})
-
-      _ ->
-        :ok
-    end
-  end
-
-  defp build_response_metadata(%SwarmAi.LLM.Response{} = response) do
-    metadata = %{}
-
-    metadata =
-      if response.tool_calls && response.tool_calls != [] do
-        Map.put(metadata, :tool_calls, Enum.map(response.tool_calls, &to_reqllm_tool_call/1))
-      else
-        metadata
-      end
-
-    metadata =
-      if response.reasoning_details && response.reasoning_details != [] do
-        Map.put(metadata, :reasoning_details, response.reasoning_details)
-      else
-        metadata
-      end
-
-    metadata
-  end
-
-  defp to_reqllm_tool_call(%SwarmAi.ToolCall{} = tc) do
-    ReqLLM.ToolCall.new(tc.id, tc.name, tc.arguments)
-  end
 
   # --- SwarmAi Message Conversion ---
 

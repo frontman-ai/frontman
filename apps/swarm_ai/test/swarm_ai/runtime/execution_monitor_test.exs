@@ -3,173 +3,161 @@ defmodule SwarmAi.Runtime.ExecutionMonitorTest do
 
   alias SwarmAi.Runtime.ExecutionMonitor
 
-  describe "watch/3 and crash detection" do
-    test "invokes on_crash when watched process exits abnormally" do
+  describe "watch/2 and crash detection" do
+    test "dispatches crashed event when watched process exits abnormally" do
       {monitor, _registry} = start_monitor!()
-      test_pid = self()
 
       pid =
         spawn(fn ->
-          ExecutionMonitor.watch(monitor, "key-1",
-            on_crash: fn reason -> send(test_pid, {:crashed, reason}) end
-          )
-
+          ExecutionMonitor.watch(monitor, "key-1")
           exit(:something_went_wrong)
         end)
 
-      ref = Process.monitor(pid)
-      assert_receive {:DOWN, ^ref, :process, ^pid, _}, 1000
-      assert_receive {:crashed, {:something_went_wrong, []}}, 1000
+      await_exit(pid)
+
+      assert_receive {:test_event, "key-1",
+                      {:crashed, %{reason: :something_went_wrong, stacktrace: []}}}
     end
 
-    test "invokes on_cancelled when watched process exits with :cancelled" do
+    test "dispatches cancelled event (not crashed) for :cancelled exit" do
       {monitor, _registry} = start_monitor!()
-      test_pid = self()
 
       pid =
         spawn(fn ->
-          ExecutionMonitor.watch(monitor, "key-cancel",
-            on_cancelled: fn -> send(test_pid, :was_cancelled) end,
-            on_crash: fn _ -> send(test_pid, :was_crashed) end
-          )
-
-          # Keep alive so we can send exit from outside
+          ExecutionMonitor.watch(monitor, "key-cancel")
           Process.sleep(:infinity)
         end)
 
       Process.sleep(20)
       Process.exit(pid, :cancelled)
 
-      assert_receive :was_cancelled, 1000
-      refute_receive :was_crashed, 200
+      assert_receive {:test_event, "key-cancel", {:cancelled, _}}, 1000
+      refute_receive {:test_event, "key-cancel", {:crashed, _}}, 200
     end
 
-    test "does not invoke callbacks on normal exit" do
+    test "silent on normal, :shutdown, and {:shutdown, _} exits" do
       {monitor, _registry} = start_monitor!()
-      test_pid = self()
 
-      pid =
+      # normal exit
+      pid1 =
         spawn(fn ->
-          ExecutionMonitor.watch(monitor, "key-normal",
-            on_crash: fn _ -> send(test_pid, :crash) end,
-            on_cancelled: fn -> send(test_pid, :cancel) end
-          )
-
-          # Normal exit
+          ExecutionMonitor.watch(monitor, "k-normal")
           :ok
         end)
 
-      ref = Process.monitor(pid)
-      assert_receive {:DOWN, ^ref, :process, ^pid, :normal}, 1000
-      refute_receive :crash, 200
-      refute_receive :cancel, 200
-    end
+      await_exit(pid1)
 
-    test "does not invoke callbacks on shutdown exit" do
-      {monitor, _registry} = start_monitor!()
-      test_pid = self()
-
-      pid =
+      # :shutdown exit
+      pid2 =
         spawn(fn ->
-          ExecutionMonitor.watch(monitor, "key-shutdown",
-            on_crash: fn _ -> send(test_pid, :crash) end,
-            on_cancelled: fn -> send(test_pid, :cancel) end
-          )
-
+          ExecutionMonitor.watch(monitor, "k-shut")
           Process.sleep(:infinity)
         end)
 
       Process.sleep(20)
-      Process.exit(pid, :shutdown)
+      Process.exit(pid2, :shutdown)
+      await_exit(pid2)
 
-      refute_receive :crash, 300
-      refute_receive :cancel, 100
+      # {:shutdown, reason} exit
+      pid3 =
+        spawn(fn ->
+          ExecutionMonitor.watch(monitor, "k-shut2")
+          Process.sleep(:infinity)
+        end)
+
+      Process.sleep(20)
+      Process.exit(pid3, {:shutdown, :draining})
+      await_exit(pid3)
+
+      refute_receive {:test_event, _, _}, 200
     end
 
     test "normalizes exception crashes to {exception, stacktrace}" do
       {monitor, _registry} = start_monitor!()
-      test_pid = self()
 
       pid =
         spawn(fn ->
-          ExecutionMonitor.watch(monitor, "key-raise",
-            on_crash: fn reason -> send(test_pid, {:crashed, reason}) end
-          )
-
+          ExecutionMonitor.watch(monitor, "key-raise")
           raise "test error"
         end)
 
-      ref = Process.monitor(pid)
-      assert_receive {:DOWN, ^ref, :process, ^pid, _}, 1000
+      await_exit(pid)
 
-      assert_receive {:crashed, {%RuntimeError{message: "test error"}, stacktrace}}, 1000
-      assert is_list(stacktrace)
-      assert length(stacktrace) > 0
+      assert_receive {:test_event, "key-raise",
+                      {:crashed, %{reason: %RuntimeError{message: "test error"}, stacktrace: st}}}
+
+      assert is_list(st) and length(st) > 0
     end
   end
 
-  describe "registry cleanup before callbacks" do
-    test "registry entry is cleared before on_crash fires" do
+  describe "registry cleanup before events" do
+    test "registry entry is cleared before event is dispatched" do
       {monitor, registry} = start_monitor!()
-      test_pid = self()
 
+      # Crash path
       _pid =
         spawn(fn ->
-          # Register as running (like Runtime.run does)
           Registry.register(registry, {:running, "race-key"}, %{})
-
-          ExecutionMonitor.watch(monitor, "race-key",
-            on_crash: fn _reason ->
-              # This is the invariant: by the time this callback fires,
-              # the Registry entry must already be gone
-              result = Registry.lookup(registry, {:running, "race-key"})
-              send(test_pid, {:registry_in_callback, result})
-            end
-          )
-
+          ExecutionMonitor.watch(monitor, "race-key")
           exit(:boom)
         end)
 
-      assert_receive {:registry_in_callback, result}, 1000
-      assert result == [], "Registry entry should be cleared before on_crash callback fires"
-    end
+      assert_receive {:test_event, "race-key", {:crashed, _}}, 1000
+      assert Registry.lookup(registry, {:running, "race-key"}) == []
 
-    test "registry entry is cleared before on_cancelled fires" do
-      {monitor, registry} = start_monitor!()
-      test_pid = self()
-
-      pid =
+      # Cancel path
+      pid2 =
         spawn(fn ->
-          Registry.register(registry, {:running, "cancel-race-key"}, %{})
-
-          ExecutionMonitor.watch(monitor, "cancel-race-key",
-            on_cancelled: fn ->
-              result = Registry.lookup(registry, {:running, "cancel-race-key"})
-              send(test_pid, {:registry_in_callback, result})
-            end
-          )
-
+          Registry.register(registry, {:running, "cancel-race"}, %{})
+          ExecutionMonitor.watch(monitor, "cancel-race")
           Process.sleep(:infinity)
         end)
 
-      # Give the process time to register and start watching
       Process.sleep(20)
-      Process.exit(pid, :cancelled)
+      Process.exit(pid2, :cancelled)
 
-      assert_receive {:registry_in_callback, result}, 1000
-      assert result == [], "Registry entry should be cleared before on_cancelled callback fires"
+      assert_receive {:test_event, "cancel-race", {:cancelled, _}}, 1000
+      assert Registry.lookup(registry, {:running, "cancel-race"}) == []
+    end
+  end
+
+  describe "loop snapshot in crash events" do
+    test "includes last_response from Registry value" do
+      {monitor, registry} = start_monitor!()
+      fake_response = %{content: "partial answer", usage: nil}
+
+      _pid =
+        spawn(fn ->
+          Registry.register(registry, {:running, "snap-key"}, %{last_response: fake_response})
+          ExecutionMonitor.watch(monitor, "snap-key")
+          exit(:boom)
+        end)
+
+      assert_receive {:test_event, "snap-key", {:crashed, %{loop: ^fake_response}}},
+                     1000
+    end
+
+    test "loop is nil when no response was stashed" do
+      {monitor, registry} = start_monitor!()
+
+      _pid =
+        spawn(fn ->
+          Registry.register(registry, {:running, "empty-key"}, %{})
+          ExecutionMonitor.watch(monitor, "empty-key")
+          exit(:boom)
+        end)
+
+      assert_receive {:test_event, "empty-key", {:crashed, %{loop: nil}}}, 1000
     end
   end
 
   describe "recovery from restart" do
-    test "re-monitors processes found in Registry on init" do
-      # Start a registry, register a fake running process, then start monitor
+    test "re-monitors and dispatches events for pre-existing processes" do
       registry = :"TestRecoveryRegistry_#{:erlang.unique_integer([:positive])}"
       start_supervised!({Registry, keys: :unique, name: registry})
 
       test_pid = self()
 
-      # Spawn a process and register it as running
       pid =
         spawn(fn ->
           Registry.register(registry, {:running, "recovered-key"}, %{})
@@ -179,42 +167,60 @@ defmodule SwarmAi.Runtime.ExecutionMonitorTest do
 
       assert_receive :registered, 1000
 
-      # Now start ExecutionMonitor — it should find and re-monitor the process
       monitor = :"TestRecoveryMonitor_#{:erlang.unique_integer([:positive])}"
-      start_supervised!({ExecutionMonitor, name: monitor, registry: registry})
 
-      # Kill the process — monitor should detect it (but no callback since recovery
-      # doesn't have callbacks)
+      start_supervised!(
+        {ExecutionMonitor,
+         name: monitor,
+         registry: registry,
+         event_dispatcher: {__MODULE__.TestDispatcher, :dispatch, [test_pid]}}
+      )
+
+      # Kill the process — monitor should detect it and dispatch
       Process.exit(pid, :kill)
 
-      # Just verify the monitor didn't crash from the :DOWN message
-      Process.sleep(100)
+      assert_receive {:test_event, "recovered-key", {:crashed, _}}, 1000
       assert Process.alive?(GenServer.whereis(monitor))
     end
   end
 
-  describe "callback safety" do
-    test "monitor survives callback that raises" do
-      {monitor, _registry} = start_monitor!()
+  describe "event dispatch safety" do
+    test "monitor survives dispatch failure" do
+      suffix = :erlang.unique_integer([:positive])
+      registry = :"TestBadRegistry_#{suffix}"
+      monitor = :"TestBadMonitor_#{suffix}"
+
+      start_supervised!({Registry, keys: :unique, name: registry})
+
+      start_supervised!(
+        {ExecutionMonitor,
+         name: monitor,
+         registry: registry,
+         event_dispatcher: {__MODULE__.FailingDispatcher, :dispatch, []}}
+      )
 
       pid =
         spawn(fn ->
-          ExecutionMonitor.watch(monitor, "key-bad-callback",
-            on_crash: fn _reason -> raise "callback exploded" end
-          )
-
+          ExecutionMonitor.watch(monitor, "key-bad-dispatch")
           exit(:boom)
         end)
 
-      ref = Process.monitor(pid)
-      assert_receive {:DOWN, ^ref, :process, ^pid, _}, 1000
-
-      # Give monitor time to process the :DOWN + rescue
+      await_exit(pid)
       Process.sleep(50)
-
-      # Monitor should still be alive
       assert Process.alive?(GenServer.whereis(monitor))
     end
+  end
+
+  # --- Test Dispatchers ---
+
+  defmodule TestDispatcher do
+    def dispatch(test_pid, key, event, _metadata) do
+      send(test_pid, {:test_event, key, event})
+    end
+  end
+
+  defmodule FailingDispatcher do
+    def dispatch(_key, _event, _metadata), do: raise("dispatch exploded")
   end
 
   # --- Helpers ---
@@ -223,10 +229,22 @@ defmodule SwarmAi.Runtime.ExecutionMonitorTest do
     suffix = :erlang.unique_integer([:positive])
     registry = :"TestMonRegistry_#{suffix}"
     monitor = :"TestMonitor_#{suffix}"
+    test_pid = self()
 
     start_supervised!({Registry, keys: :unique, name: registry})
-    start_supervised!({ExecutionMonitor, name: monitor, registry: registry})
+
+    start_supervised!(
+      {ExecutionMonitor,
+       name: monitor,
+       registry: registry,
+       event_dispatcher: {__MODULE__.TestDispatcher, :dispatch, [test_pid]}}
+    )
 
     {monitor, registry}
+  end
+
+  defp await_exit(pid) do
+    ref = Process.monitor(pid)
+    assert_receive {:DOWN, ^ref, :process, ^pid, _}, 1000
   end
 end

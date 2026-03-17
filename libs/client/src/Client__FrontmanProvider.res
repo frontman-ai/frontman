@@ -117,6 +117,22 @@ module Provider = {
       let mcpServer = MCPServer.make(~relay, ~serverName=clientName, ~serverVersion=clientVersion)
       let mcpServer = Client__ToolRegistry.registerAll(toolRegistry, mcpServer)
 
+      // Wire up tool result metadata so the server can resume agent execution
+      // with the correct provider context (env API keys + model) after a restart.
+      MCPServer.setToolResultMetaProvider(mcpServer, () => {
+        let config = Client__RuntimeConfig.read()
+        let envApiKey = Dict.make()
+        config.openrouterKeyValue->Option.forEach(key =>
+          envApiKey->Dict.set("openrouterKeyValue", key)
+        )
+        config.anthropicKeyValue->Option.forEach(key =>
+          envApiKey->Dict.set("anthropicKeyValue", key)
+        )
+        let state = StateStore.getState(Client__State__Store.store)
+        let model = Client__State.Selectors.selectedModel(state)
+        {model, envApiKey}
+      })
+
       // Wire up image ref resolver so write_file can save user-attached images.
       MCPServer.setImageRefResolver(mcpServer, (uri, ~taskId) => {
         let state = StateStore.getState(Client__State__Store.store)
@@ -158,11 +174,25 @@ module Provider = {
           textDeltaBuffer.add(~taskId, ~text, ~timestamp)
         })
       | UserMessageChunk({content, timestamp}) =>
+        // Flush any buffered agent text before inserting the user message.
+        // During history replay, each agent_message_chunk is a complete historical
+        // response for the same taskId. Without this flush, the TextDeltaBuffer
+        // merges all agent responses into a single entry (it accumulates by taskId).
+        // Flushing here ensures the preceding agent message is dispatched and
+        // finalized (via completeStreamingMessage in UserMessageReceived) before
+        // the user message is inserted — preserving correct interleaving.
+        Client__TextDeltaBuffer.flush()
         getContentBlockText(content)->Option.forEach(text => {
           let id = `user-hydrated-${WebAPI.Global.crypto->WebAPI.Crypto.randomUUID}`
           Client__State.Actions.userMessageReceived(~taskId, ~id, ~text, ~timestamp)
         })
-      | ToolCall({toolCallId, title, parentAgentId, spawningToolName}) =>
+      | ToolCall({toolCallId, title, timestamp, parentAgentId, spawningToolName}) =>
+        // Flush buffered agent text before tool calls — same reason as UserMessageChunk.
+        // During replay, the preceding agent_message_chunk (often empty for tool-only
+        // responses) must be dispatched before the tool call arrives, otherwise the
+        // buffer merges it with the post-tool agent response.
+        Client__TextDeltaBuffer.flush()
+        let createdAt = Date.fromString(timestamp)->Date.getTime
         Client__State.Actions.toolCallReceived(~taskId, ~toolCall={
           id: toolCallId,
           toolName: title,
@@ -171,7 +201,7 @@ module Provider = {
           result: None,
           errorText: None,
           state: Client__State__Types.Message.InputStreaming,
-          createdAt: Date.now(),
+          createdAt,
           parentAgentId,
           spawningToolName,
         })
@@ -245,6 +275,7 @@ module Provider = {
       [dispatch],
     )
 
+    // Submit a late tool result via the ACP session channel.
     // Extract auth redirect URL from ACP error state (encoded as "auth_required:<url>")
     let authRedirectUrl = switch state.acp {
     | Reducer.ACPError(msg) =>
