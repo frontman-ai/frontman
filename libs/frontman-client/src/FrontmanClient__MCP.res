@@ -82,18 +82,34 @@ let sendError = (handler: mcpHandler<'server>, id: int, code: int, message: stri
 
 // Handle initialize request
 let handleInitialize = (handler: mcpHandler<'server>, id: int, _params: option<JSON.t>): unit => {
-  let {serverInterface} = handler
-  let result = serverInterface.buildInitializeResult(serverInterface.server)
-  let resultJson = result->S.reverseConvertToJsonOrThrow(Types.initializeResultSchema)
-  sendResponse(handler, id, resultJson)
+  try {
+    let {serverInterface} = handler
+    let result = serverInterface.buildInitializeResult(serverInterface.server)
+    let resultJson = result->S.reverseConvertToJsonOrThrow(Types.initializeResultSchema)
+    sendResponse(handler, id, resultJson)
+  } catch {
+  | exn =>
+    let msg = exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
+    Log.error(`Initialize failed: ${msg}`)
+    Sentry.captureException(exn, ~operation="mcp_initialize")
+    sendError(handler, id, Types.ErrorCode.serverError, `Initialize failed: ${msg}`)
+  }
 }
 
 // Handle tools/list request
 let handleToolsList = (handler: mcpHandler<'server>, id: int): unit => {
-  let {serverInterface} = handler
-  let result = serverInterface.buildToolsListResult(serverInterface.server)
-  let resultJson = result->S.reverseConvertToJsonOrThrow(Types.toolsListResultSchema)
-  sendResponse(handler, id, resultJson)
+  try {
+    let {serverInterface} = handler
+    let result = serverInterface.buildToolsListResult(serverInterface.server)
+    let resultJson = result->S.reverseConvertToJsonOrThrow(Types.toolsListResultSchema)
+    sendResponse(handler, id, resultJson)
+  } catch {
+  | exn =>
+    let msg = exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
+    Log.error(`Tools list failed: ${msg}`)
+    Sentry.captureException(exn, ~operation="mcp_tools_list")
+    sendError(handler, id, Types.ErrorCode.serverError, `Tools list failed: ${msg}`)
+  }
 }
 
 // Handle tools/call request
@@ -136,24 +152,32 @@ let handleToolsCall = async (
 }
 
 // Handle incoming MCP message
+// Guaranteed to never reject — all exceptions are caught, logged, and reported to Sentry.
 let handleMessage = async (handler: mcpHandler<'server>, payload: JSON.t): unit => {
-  handler.onMessage->Option.forEach(cb => cb(Receive, payload))
+  try {
+    handler.onMessage->Option.forEach(cb => cb(Receive, payload))
 
-  switch parse(payload) {
-  | Ok(Request({id, method, params})) =>
-    switch method {
-    | "initialize" => handleInitialize(handler, id, params)
-    | "tools/list" => handleToolsList(handler, id)
-    | "tools/call" => await handleToolsCall(handler, id, params)
-    | _ => sendError(handler, id, Types.ErrorCode.methodNotFound, `Method not found: ${method}`)
+    switch parse(payload) {
+    | Ok(Request({id, method, params})) =>
+      switch method {
+      | "initialize" => handleInitialize(handler, id, params)
+      | "tools/list" => handleToolsList(handler, id)
+      | "tools/call" => await handleToolsCall(handler, id, params)
+      | _ => sendError(handler, id, Types.ErrorCode.methodNotFound, `Method not found: ${method}`)
+      }
+    | Ok(Notification({
+        method: "notifications/initialized",
+      })) => // Agent acknowledged initialization - nothing to do
+      ()
+    | Ok(Notification(_)) => // Other notifications - ignore for now
+      ()
+    | Error(msg) => Log.error(`Failed to parse MCP message: ${msg}`)
     }
-  | Ok(Notification({
-      method: "notifications/initialized",
-    })) => // Agent acknowledged initialization - nothing to do
-    ()
-  | Ok(Notification(_)) => // Other notifications - ignore for now
-    ()
-  | Error(msg) => Log.error(`Failed to parse MCP message: ${msg}`)
+  } catch {
+  | exn =>
+    let msg = exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
+    Log.error(`Unhandled error in MCP message handler: ${msg}`)
+    Sentry.captureException(exn, ~operation="mcp_message_handler")
   }
 }
 

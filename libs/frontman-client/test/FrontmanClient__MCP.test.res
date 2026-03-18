@@ -65,10 +65,65 @@ let makeThrowingServerInterface = (errorMsg: string) => {
     buildInitializeResult: _ => Obj.magic(),
     buildToolsListResult: _ => Obj.magic(),
     executeTool: async (_, ~name as _, ~arguments as _, ~taskId as _, ~callId as _, ~onProgress as _) => {
-      Exn.raiseError(errorMsg)
+      JsError.throwWithMessage(errorMsg)
     },
   }
   si
+}
+
+// Build a JSON-RPC initialize request payload
+let buildInitializePayload = (~id: int) => {
+  let params = Dict.make()
+  params->Dict.set(
+    "protocolVersion",
+    JSON.Encode.string("DRAFT-2025-v3"),
+  )
+  params->Dict.set(
+    "capabilities",
+    JSON.Encode.object(Dict.make()),
+  )
+  let clientInfo = Dict.make()
+  clientInfo->Dict.set("name", JSON.Encode.string("test"))
+  clientInfo->Dict.set("version", JSON.Encode.string("1.0"))
+  params->Dict.set("clientInfo", JSON.Encode.object(clientInfo))
+
+  let msg = Dict.make()
+  msg->Dict.set("jsonrpc", JSON.Encode.string("2.0"))
+  msg->Dict.set("id", JSON.Encode.int(id))
+  msg->Dict.set("method", JSON.Encode.string("initialize"))
+  msg->Dict.set("params", JSON.Encode.object(params))
+  JSON.Encode.object(msg)
+}
+
+// Build a JSON-RPC tools/list request payload
+let buildToolsListPayload = (~id: int) => {
+  let msg = Dict.make()
+  msg->Dict.set("jsonrpc", JSON.Encode.string("2.0"))
+  msg->Dict.set("id", JSON.Encode.int(id))
+  msg->Dict.set("method", JSON.Encode.string("tools/list"))
+  JSON.Encode.object(msg)
+}
+
+// Helper: find a pushed response by JSON-RPC id
+let _findResponseById = (calls: ref<array<MockChannel.pushCall>>, id: int) => {
+  calls.contents->Array.find(p => {
+    switch p.payload->JSON.Decode.object {
+    | Some(obj) =>
+      switch obj->Dict.get("id") {
+      | Some(idJson) => idJson == JSON.Encode.int(id)
+      | None => false
+      }
+    | None => false
+    }
+  })
+}
+
+// Helper: check if a pushed response has an "error" field
+let _hasErrorField = (push: MockChannel.pushCall) => {
+  switch push.payload->JSON.Decode.object {
+  | Some(obj) => obj->Dict.get("error")->Option.isSome
+  | None => false
+  }
 }
 
 describe("handleToolsCall", () => {
@@ -161,13 +216,12 @@ describe("handleToolsCall", () => {
   })
 
   testAsync(
-    "BUG: non-S.Error exception in executeTool silently swallows MCP response",
+    "sends error response when executeTool throws non-S.Error exception",
     async t => {
-      // This test reproduces the exact bug:
       // When executeTool throws a non-S.Error (e.g., failwith from the reducer),
-      // the catch block in handleToolsCall only handles S.Error.
-      // The exception escapes the async function as an unhandled rejection,
-      // and NO MCP response is ever sent back to the server.
+      // handleMessage must catch it and send back a JSON-RPC error response.
+      // Before the fix, the exception escaped as an unhandled promise rejection
+      // and no response was ever sent — causing the agent to hang.
 
       let (channel, calls) = MockChannel.make()
 
@@ -182,32 +236,116 @@ describe("handleToolsCall", () => {
 
       let payload = buildToolsCallPayload(~id=77, ~name="question", ~callId="call_q1")
 
-      // This should NOT throw — the exception should be caught and an error response sent.
-      // Before the fix, this would be an unhandled rejection.
-      try {
-        await MCP.handleMessage(handler, payload)
-      } catch {
-      | _ => ()
+      // handleMessage should never reject — the top-level catch guarantees this
+      await MCP.handleMessage(handler, payload)
+
+      let responsePush = _findResponseById(calls, 77)
+      t->expect(responsePush->Option.isSome)->Expect.toBe(true)
+
+      switch responsePush {
+      | Some(push) => t->expect(_hasErrorField(push))->Expect.toBe(true)
+      | None => t->expect("error response")->Expect.toBe("found")
+      }
+    },
+  )
+})
+
+describe("handleMessage error safety", () => {
+  testAsync(
+    "sends error response when buildInitializeResult throws",
+    async t => {
+      let (channel, calls) = MockChannel.make()
+
+      let si: Types.serverInterface<unit> = {
+        server: (),
+        buildInitializeResult: _ => JsError.throwWithMessage("initialize exploded"),
+        buildToolsListResult: _ => Obj.magic(),
+        executeTool: async (_, ~name as _, ~arguments as _, ~taskId as _, ~callId as _, ~onProgress as _) =>
+          Obj.magic(),
       }
 
-      let pushes = calls.contents
+      let handler: MCP.mcpHandler<unit> = {
+        serverInterface: si,
+        channel,
+        sessionId: "test-task",
+        onMessage: None,
+      }
 
-      // EXPECTED: An error response should be pushed with id=77
-      // BUG: Before the fix, pushes is empty — no response sent at all
-      let responsePush = pushes->Array.find(p => {
-        switch p.payload->JSON.Decode.object {
-        | Some(obj) =>
-          switch obj->Dict.get("id") {
-          | Some(id) => id == JSON.Encode.int(77)
-          | None => false
-          }
-        | None => false
-        }
-      })
+      let payload = buildInitializePayload(~id=10)
 
-      t
-      ->expect(responsePush->Option.isSome)
-      ->Expect.toBe(true)
+      // Must resolve without rejecting — the exception is caught internally
+      await MCP.handleMessage(handler, payload)
+
+      // handleInitialize catches the error and sends a JSON-RPC error response
+      let responsePush = _findResponseById(calls, 10)
+      t->expect(responsePush->Option.isSome)->Expect.toBe(true)
+
+      switch responsePush {
+      | Some(push) => t->expect(_hasErrorField(push))->Expect.toBe(true)
+      | None => t->expect("error response")->Expect.toBe("found")
+      }
+    },
+  )
+
+  testAsync(
+    "sends error response when buildToolsListResult throws",
+    async t => {
+      let (channel, calls) = MockChannel.make()
+
+      let si: Types.serverInterface<unit> = {
+        server: (),
+        buildInitializeResult: _ => Obj.magic(),
+        buildToolsListResult: _ => JsError.throwWithMessage("tools list exploded"),
+        executeTool: async (_, ~name as _, ~arguments as _, ~taskId as _, ~callId as _, ~onProgress as _) =>
+          Obj.magic(),
+      }
+
+      let handler: MCP.mcpHandler<unit> = {
+        serverInterface: si,
+        channel,
+        sessionId: "test-task",
+        onMessage: None,
+      }
+
+      let payload = buildToolsListPayload(~id=20)
+
+      // Must resolve without rejecting
+      await MCP.handleMessage(handler, payload)
+
+      // handleToolsList catches the error and sends a JSON-RPC error response
+      let responsePush = _findResponseById(calls, 20)
+      t->expect(responsePush->Option.isSome)->Expect.toBe(true)
+
+      switch responsePush {
+      | Some(push) => t->expect(_hasErrorField(push))->Expect.toBe(true)
+      | None => t->expect("error response")->Expect.toBe("found")
+      }
+    },
+  )
+
+  testAsync(
+    "does not reject when onMessage callback throws",
+    async t => {
+      let (channel, _calls) = MockChannel.make()
+
+      let handler: MCP.mcpHandler<unit> = {
+        serverInterface: makeCompletedServerInterface({
+          content: [{type_: "text", text: "ok"}],
+          isError: None,
+          _meta: Types.emptyMeta,
+        }),
+        channel,
+        sessionId: "test-task",
+        onMessage: Some((_, _) => JsError.throwWithMessage("onMessage exploded")),
+      }
+
+      let payload = buildToolsCallPayload(~id=30, ~name="test", ~callId="call_1")
+
+      // Must resolve without rejecting
+      await MCP.handleMessage(handler, payload)
+
+      // onMessage threw before any processing happened, so no response pushed
+      t->expect(true)->Expect.toBe(true)
     },
   )
 })
