@@ -166,21 +166,21 @@ defmodule FrontmanServerWeb.ChannelCase do
 
     * `:id` - JSON-RPC request id (default: `1`)
     * `:text` - prompt text (default: `"Hello"`)
-    * `:metadata` - metadata map (default: `%{}`)
+    * `:_meta` - _meta map (default: `%{}`)
 
   ## Examples
 
       build_prompt_request()
       build_prompt_request(id: 42, text: "Next question")
-      build_prompt_request(metadata: %{"model" => %{"provider" => "anthropic"}})
+      build_prompt_request(_meta: %{"model" => %{"provider" => "anthropic"}})
   """
   def build_prompt_request(opts \\ []) do
     id = Keyword.get(opts, :id, 1)
     text = Keyword.get(opts, :text, "Hello")
-    metadata = Keyword.get(opts, :metadata, %{})
+    meta = Keyword.get(opts, :_meta, %{})
 
     params = %{"prompt" => [%{"type" => "text", "text" => text}]}
-    params = if metadata == %{}, do: params, else: Map.put(params, "metadata", metadata)
+    params = if meta == %{}, do: params, else: Map.put(params, "_meta", meta)
 
     build_acp_request("session/prompt", id, params)
   end

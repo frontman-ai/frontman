@@ -469,10 +469,10 @@ defmodule FrontmanServerWeb.TaskChannel do
     scope = socket.assigns.scope
     mcp_tools = socket.assigns[:mcp_tools] || []
 
-    # Extract env API key from prompt metadata (sent with each prompt request)
+    # Extract env API key from prompt _meta (sent with each prompt request)
     env_api_key = extract_env_api_key_from_params(params)
 
-    # Extract model selection from prompt metadata
+    # Extract model selection from prompt _meta
     model = extract_model_from_params(params)
     # model is either a %Model{} struct or nil
 
@@ -514,17 +514,17 @@ defmodule FrontmanServerWeb.TaskChannel do
     end
   end
 
-  # Extract env API keys from prompt params metadata (e.g., OPENROUTER_API_KEY, ANTHROPIC_API_KEY from project env)
+  # Extract env API keys from prompt params _meta (e.g., OPENROUTER_API_KEY, ANTHROPIC_API_KEY from project env)
   defp extract_env_api_key_from_params(params) when is_map(params) do
-    params |> get_in(["metadata"]) |> Registry.extract_env_keys()
+    params |> get_in(["_meta"]) |> Registry.extract_env_keys()
   end
 
   defp extract_env_api_key_from_params(_), do: %{}
 
-  # Extract model selection from prompt params metadata.
+  # Extract model selection from prompt params _meta.
   # Returns a %Model{} struct or nil.
   defp extract_model_from_params(params) when is_map(params) do
-    case Model.from_client_params(get_in(params, ["metadata", "model"])) do
+    case Model.from_client_params(get_in(params, ["_meta", "model"])) do
       {:ok, model} -> model
       :error -> nil
     end

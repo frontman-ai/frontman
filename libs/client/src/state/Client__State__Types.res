@@ -21,7 +21,7 @@ type sendPromptFn = (
   string,
   ~additionalBlocks: array<ACPTypes.contentBlock>,
   ~onComplete: result<ACPTypes.promptResult, string> => unit,
-  ~metadata: option<JSON.t>,
+  ~_meta: option<JSON.t>,
 ) => unit
 
 // Callback for loading a persisted task's messages

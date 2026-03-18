@@ -45,7 +45,7 @@ describe("ACP Client State Reducer", _t => {
     let initResult: Types.initializeResult = {
       protocolVersion: 1,
       agentCapabilities: None,
-      agentInfo: Some({name: "test", version: "1.0", title: None, metadata: None}),
+      agentInfo: Some({name: "test", version: "1.0", title: None, _meta: None}),
       authMethods: None,
     }
 
@@ -103,7 +103,7 @@ describe("ACP Client buildInitializeParams", _t => {
 
     let config: Client.config = {
       channel: mockChannel,
-      clientInfo: {name: "test-client", version: "1.0.0", title: None, metadata: None},
+      clientInfo: {name: "test-client", version: "1.0.0", title: None, _meta: None},
       clientCapabilities: {
         fs: Some({readTextFile: Some(true), writeTextFile: Some(false)}),
         terminal: Some(true),

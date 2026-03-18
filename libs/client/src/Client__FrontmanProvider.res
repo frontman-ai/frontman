@@ -44,7 +44,7 @@ type contextValue = {
     string,
     ~additionalBlocks: array<Types.contentBlock>,
     ~onComplete: result<Types.promptResult, string> => unit,
-    ~metadata: option<JSON.t>,
+    ~_meta: option<JSON.t>,
   ) => unit,
   cancelPrompt: unit => unit,
   loadTask: (string, ~needsHistory: bool, ~onComplete: result<unit, string> => unit) => unit,
@@ -61,7 +61,7 @@ let defaultContextValue: contextValue = {
   authRedirectUrl: None,
   createSession: (~onComplete as _) => (),
   clearSession: () => (),
-  sendPrompt: (_, ~additionalBlocks as _, ~onComplete as _, ~metadata as _) => (),
+  sendPrompt: (_, ~additionalBlocks as _, ~onComplete as _, ~_meta as _) => (),
   cancelPrompt: () => (),
   loadTask: (_, ~needsHistory as _, ~onComplete as _) => (),
   deleteSession: (_, ~onComplete as _) => (),
@@ -110,7 +110,7 @@ module Provider = {
 
       // Read runtime config from window.__frontmanRuntime (injected by framework middleware)
       let runtimeConfig = RuntimeConfig.read()
-      let metadata = RuntimeConfig.toMetadata(runtimeConfig)
+      let _meta = RuntimeConfig.toMeta(runtimeConfig)
 
       let relay = Relay.make(~baseUrl)
       let toolRegistry = Client__ToolRegistry.coreBrowserTools()
@@ -148,7 +148,7 @@ module Provider = {
         clientVersion,
         baseUrl,
         onACPMessage: logACPMessage,
-        metadata,
+        _meta,
         onTitleUpdated: Some((taskId, title) => {
           Client__State.Actions.updateTaskTitle(~taskId, ~title)
         }),
@@ -251,8 +251,8 @@ module Provider = {
     let clearSession = React.useCallback1(() => dispatch(ClearSession), [dispatch])
 
     let sendPrompt = React.useCallback1(
-      (text: string, ~additionalBlocks, ~onComplete, ~metadata) => {
-        dispatch(SendPrompt({text, additionalBlocks, onComplete, metadata}))
+      (text: string, ~additionalBlocks, ~onComplete, ~_meta) => {
+        dispatch(SendPrompt({text, additionalBlocks, onComplete, _meta}))
       },
       [dispatch],
     )

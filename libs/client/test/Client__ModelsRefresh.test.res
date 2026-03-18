@@ -4,7 +4,7 @@ module Reducer = Client__State__StateReducer
 module Types = Client__State__Types
 
 // Dummy callbacks for AcpSessionActive (reducer only checks the variant, not the callbacks)
-let _dummySendPrompt: Types.sendPromptFn = (_, ~additionalBlocks as _, ~onComplete as _, ~metadata as _) => ()
+let _dummySendPrompt: Types.sendPromptFn = (_, ~additionalBlocks as _, ~onComplete as _, ~_meta as _) => ()
 let _dummyCancelPrompt: Types.cancelPromptFn = () => ()
 let _dummyLoadTask: Types.loadTaskFn = (_, ~needsHistory as _, ~onComplete as _) => ()
 let _dummyDeleteSession: Types.deleteSessionFn = (_, ~onComplete as _) => ()

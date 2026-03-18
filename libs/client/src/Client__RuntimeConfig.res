@@ -88,10 +88,10 @@ let frameworkToNpmPackage = (id: frameworkId): string =>
   | Astro => "@frontman-ai/astro"
   }
 
-// Convert runtime config to metadata JSON for ACP prompt requests
+// Convert runtime config to _meta JSON for ACP requests
 // Includes framework and openrouterKeyValue so the server knows
 // which framework the client is running in and can use the project's env key
-let toMetadata = (config: t): JSON.t => {
+let toMeta = (config: t): JSON.t => {
   let configObj = Dict.fromArray([
     ("framework", JSON.Encode.string(frameworkIdToString(config.framework))),
     ("basePath", JSON.Encode.string(config.basePath)),

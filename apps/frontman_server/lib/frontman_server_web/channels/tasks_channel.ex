@@ -82,7 +82,7 @@ defmodule FrontmanServerWeb.TasksChannel do
        ) do
     Logger.info("ACP initialize from #{inspect(params["clientInfo"])}")
 
-    # Extract env API key from clientInfo metadata (if provided by the project)
+    # Extract env API key from clientInfo _meta (if provided by the project)
     env_api_key = extract_env_api_key(params["clientInfo"])
 
     socket =
@@ -192,14 +192,14 @@ defmodule FrontmanServerWeb.TasksChannel do
     if Regex.match?(@uuid_regex, string), do: :ok, else: :error
   end
 
-  defp extract_framework(%{"metadata" => %{"framework" => framework}}) when is_binary(framework),
+  defp extract_framework(%{"_meta" => %{"framework" => framework}}) when is_binary(framework),
     do: framework
 
   defp extract_framework(_), do: nil
 
-  # Extract env API keys from clientInfo metadata (e.g., OPENROUTER_API_KEY, ANTHROPIC_API_KEY from project env)
+  # Extract env API keys from clientInfo _meta (e.g., OPENROUTER_API_KEY, ANTHROPIC_API_KEY from project env)
   defp extract_env_api_key(client_info) when is_map(client_info) do
-    client_info |> get_in(["metadata"]) |> Registry.extract_env_keys()
+    client_info |> get_in(["_meta"]) |> Registry.extract_env_keys()
   end
 
   defp extract_env_api_key(_), do: %{}

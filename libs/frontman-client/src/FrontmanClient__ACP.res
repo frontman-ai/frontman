@@ -30,7 +30,7 @@ let makeConfig = (
   ~loginUrl: string,
   ~name: string,
   ~version: string,
-  ~metadata: JSON.t,
+  ~_meta: JSON.t,
   ~onMessage: option<(messageDirection, JSON.t) => unit>=?,
   ~onTitleUpdated: option<(string, string) => unit>=?,
 ): config => {
@@ -41,7 +41,7 @@ let makeConfig = (
     name,
     version,
     title: None,
-    metadata: Some(metadata),
+    _meta: Some(_meta),
   },
   onTitleUpdated,
   clientCapabilities: {
@@ -365,7 +365,7 @@ let sendPrompt = async (
   session: session,
   text: string,
   ~additionalBlocks: array<Types.contentBlock>=[],
-  ~metadata: option<JSON.t>=None,
+  ~_meta: option<JSON.t>=None,
 ): result<Types.promptResult, string> => {
   // Build prompt array starting with the text block
   let textBlock: Types.contentBlock = TextContent({text, _meta: None, annotations: None})
@@ -385,7 +385,7 @@ let sendPrompt = async (
     ~state=session.connection.state,
     ~sessionId=session.sessionId,
     ~prompt=allBlocks,
-    ~metadata,
+    ~_meta,
     ~onMessage=session.connection.onMessage,
   )
 }

@@ -14,8 +14,8 @@ defmodule FrontmanServerWeb.TaskChannelEnvKeyTest do
     {:ok, socket: socket}
   end
 
-  defp push_prompt_and_assert_accepted(socket, metadata \\ %{}) do
-    push(socket, "acp:message", prompt_request(metadata: metadata))
+  defp push_prompt_and_assert_accepted(socket, meta \\ %{}) do
+    push(socket, "acp:message", prompt_request(_meta: meta))
     :sys.get_state(socket.channel_pid)
 
     assert_receive {:interaction, %Tasks.Interaction.UserMessage{}}

@@ -10,7 +10,7 @@
     "title": {
       "type": "string"
     },
-    "metadata": {}
+    "_meta": {}
   },
   "additionalProperties": true,
   "required": [

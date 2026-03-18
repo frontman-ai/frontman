@@ -102,12 +102,12 @@ defmodule FrontmanServer.ProvidersFixtures do
   @doc """
   Builds a JSON-RPC `session/prompt` message for channel tests.
 
-  Options: `:id`, `:text`, `:metadata`.
+  Options: `:id`, `:text`, `:_meta`.
   """
   def prompt_request(opts \\ []) do
     id = Keyword.get(opts, :id, 1)
     text = Keyword.get(opts, :text, "Hello")
-    metadata = Keyword.get(opts, :metadata, %{})
+    meta = Keyword.get(opts, :_meta, %{})
 
     params = %{
       "prompt" => [
@@ -115,7 +115,7 @@ defmodule FrontmanServer.ProvidersFixtures do
       ]
     }
 
-    params = if metadata == %{}, do: params, else: Map.put(params, "metadata", metadata)
+    params = if meta == %{}, do: params, else: Map.put(params, "_meta", meta)
 
     %{"jsonrpc" => "2.0", "id" => id, "method" => "session/prompt", "params" => params}
   end

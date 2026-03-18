@@ -600,24 +600,24 @@ let sendMessageToAPIImpl = (
     let attachmentBlocks = buildAttachmentContentBlocks(attachments)
     let additionalBlocks = Array.concat(pageContextBlocks, annotationBlocks)->Array.concat(attachmentBlocks)
 
-    // Include runtime config metadata (e.g., framework, openrouterKeyValue) with each prompt
+    // Include runtime config _meta (e.g., framework, openrouterKeyValue) with each prompt
     let runtimeConfig = Client__RuntimeConfig.read()
-    let baseMetadata = Client__RuntimeConfig.toMetadata(runtimeConfig)
+    let baseMeta = Client__RuntimeConfig.toMeta(runtimeConfig)
 
-    // Add selected model to metadata if present
-    let metadata = switch state.selectedModel {
+    // Add selected model to _meta if present
+    let _meta = switch state.selectedModel {
     | Some(model) =>
       let modelJson: JSON.t = %raw(`(function(provider, value) {
         return { provider: provider, value: value };
       })`)(model.provider, model.value)
-      switch baseMetadata->JSON.Decode.object {
+      switch baseMeta->JSON.Decode.object {
       | Some(dict) =>
         let newDict = dict->Dict.copy
         newDict->Dict.set("model", modelJson)
         Some(newDict->Obj.magic)
-      | None => Some(baseMetadata)
+      | None => Some(baseMeta)
       }
-    | None => Some(baseMetadata)
+    | None => Some(baseMeta)
     }
 
     sendPrompt(
@@ -633,7 +633,7 @@ let sendMessageToAPIImpl = (
         // are no-ops.
         dispatch(TaskAction({target: ForTask(taskId), action: TurnCompleted}))
       },
-      ~metadata,
+      ~_meta,
     )
   | NoAcpSession => Log.error("Cannot send message: no active ACP session")
   }

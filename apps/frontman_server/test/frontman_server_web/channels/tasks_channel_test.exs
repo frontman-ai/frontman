@@ -97,7 +97,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
           "clientInfo" => %{
             "name" => "test-client",
             "version" => "1.0.0",
-            "metadata" => %{"framework" => "nextjs"}
+            "_meta" => %{"framework" => "nextjs"}
           }
         }
       })
@@ -139,7 +139,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
           "clientInfo" => %{
             "name" => "frontman-client",
             "version" => "1.0.0",
-            "metadata" => %{"framework" => "Next.js"}
+            "_meta" => %{"framework" => "Next.js"}
           }
         }
       })
@@ -187,7 +187,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
           "clientInfo" => %{
             "name" => "frontman-client",
             "version" => "1.0.0",
-            "metadata" => %{"framework" => "Vite"}
+            "_meta" => %{"framework" => "Vite"}
           }
         }
       })
@@ -222,7 +222,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
           "clientInfo" => %{
             "name" => "test-client",
             "version" => "1.0.0",
-            "metadata" => %{"framework" => "nextjs"}
+            "_meta" => %{"framework" => "nextjs"}
           }
         }
       })
@@ -260,7 +260,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
           "clientInfo" => %{
             "name" => "test-client",
             "version" => "1.0.0",
-            "metadata" => %{"framework" => "nextjs"}
+            "_meta" => %{"framework" => "nextjs"}
           }
         }
       })
@@ -301,7 +301,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
           "clientInfo" => %{
             "name" => "test-client",
             "version" => "1.0.0",
-            "metadata" => %{"framework" => "nextjs"}
+            "_meta" => %{"framework" => "nextjs"}
           }
         }
       })
