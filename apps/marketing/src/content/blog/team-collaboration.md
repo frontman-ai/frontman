@@ -1,5 +1,5 @@
 ---
-title: 'Breaking the Wall Between Design, Product, and Engineering'
+title: 'Team Collaboration: Breaking the Wall Between Design, Product, and Engineering'
 pubDate: 2026-02-16T05:00:00Z
 description: 'Every pixel adjustment routes through a developer. Frontman lets designers and PMs make UI changes directly, with code review.'
 author: 'Danni Friedland'

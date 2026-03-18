@@ -1,5 +1,5 @@
 ---
-title: 'I Built an AI Coding Agent That Lives in Your Browser'
+title: 'Frontman Launch: An AI Coding Agent That Lives in Your Browser'
 pubDate: 2026-02-23T05:00:00Z
 description: 'Frontman hooks into your dev server as middleware and sees the live DOM, styles, routes, and server logs. Click any element, describe changes in plain English. Open source, BYOK, no prompt limits.'
 author: 'Danni Friedland'
