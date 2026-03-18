@@ -365,6 +365,10 @@ module Selectors = {
     Task.getWebPreviewIsSelecting(currentTask(state))
   }
 
+  let hasEnrichingAnnotations = (state: state): bool => {
+    TaskReducer.Selectors.hasEnrichingAnnotations(currentTask(state))->Option.getOr(false)
+  }
+
   let activePopupAnnotationId = (state: state): option<string> => {
     Task.getActivePopupAnnotationId(currentTask(state))
   }

@@ -7,48 +7,48 @@ module Samples = {
 
   let buttonAnnotation: Client__Message.MessageAnnotation.t = {
     id: "ann-1",
-    selector: Some(".btn-submit"),
+    selector: Ok(Some(".btn-submit")),
     tagName: "button",
     cssClasses: Some("btn-submit primary"),
     comment: Some("This button should be blue"),
-    screenshot: None,
-    sourceLocation: None,
+    screenshot: Ok(None),
+    sourceLocation: Ok(None),
     boundingBox: None,
     nearbyText: Some("Submit"),
   }
 
   let headerAnnotation: t = {
     id: "ann-2",
-    selector: Some("h1.page-title"),
+    selector: Ok(Some("h1.page-title")),
     tagName: "h1",
     cssClasses: Some("page-title text-lg"),
     comment: None,
-    screenshot: None,
-    sourceLocation: None,
+    screenshot: Ok(None),
+    sourceLocation: Ok(None),
     boundingBox: None,
     nearbyText: Some("Welcome to the App"),
   }
 
   let inputAnnotation: t = {
     id: "ann-3",
-    selector: Some("input#email"),
+    selector: Ok(Some("input#email")),
     tagName: "input",
     cssClasses: Some("form-input"),
     comment: Some("Email field needs validation"),
-    screenshot: None,
-    sourceLocation: None,
+    screenshot: Ok(None),
+    sourceLocation: Ok(None),
     boundingBox: None,
     nearbyText: Some("Enter your email"),
   }
 
   let divAnnotation: t = {
     id: "ann-4",
-    selector: None,
+    selector: Ok(None),
     tagName: "div",
     cssClasses: None,
     comment: None,
-    screenshot: None,
-    sourceLocation: None,
+    screenshot: Ok(None),
+    sourceLocation: Ok(None),
     boundingBox: None,
     nearbyText: None,
   }

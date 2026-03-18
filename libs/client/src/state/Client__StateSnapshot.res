@@ -395,9 +395,10 @@ let convertAnnotationMode = (mode: Client__Annotation__Types.annotationMode): An
 let convertAnnotation = (ann: Client__Annotation__Types.t): Annotation.t => {
   id: ann.id,
   comment: ann.comment,
-  selector: ann.selector,
-  screenshot: ann.screenshot,
-  sourceLocation: ann.sourceLocation->Option.map(convertSourceLocation),
+  // Unwrap result<option<T>, string> to option<T> for serialization — errors become None
+  selector: ann.selector->Result.getOr(None),
+  screenshot: ann.screenshot->Result.getOr(None),
+  sourceLocation: ann.sourceLocation->Result.getOr(None)->Option.map(convertSourceLocation),
   tagName: ann.tagName,
   cssClasses: ann.cssClasses,
   boundingBox: ann.boundingBox->Option.map(bb => {
@@ -469,7 +470,7 @@ let convertAssistantMessage = (
 
 let convertMessageAnnotation = (ann: Client__Message.MessageAnnotation.t): SnapshotAnnotation.t => {
   id: ann.id,
-  selector: ann.selector,
+  selector: ann.selector->Result.getOr(None),
   tagName: ann.tagName,
   cssClasses: ann.cssClasses,
   comment: ann.comment,

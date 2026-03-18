@@ -72,16 +72,16 @@ module AnnotationRow = {
       </div>
       // Content
       <div className="flex-1 min-w-0">
-        // Component name (if available)
-        {annotation.sourceLocation->Option.mapOr(React.null, loc =>
+        // Component name (if available) — unwrap result for display
+        {annotation.sourceLocation->Result.getOr(None)->Option.mapOr(React.null, loc =>
           loc.componentName->Option.mapOr(React.null, compName =>
             <div className="font-mono text-xs text-zinc-200 truncate">
               {React.string(`<${compName} />`)}
             </div>
           )
         )}
-        // Element tag + text
-        <div className="font-mono text-xs text-zinc-400 truncate">
+        // Element tag + text with enrichment status indicator
+        <div className="font-mono text-xs text-zinc-400 truncate flex items-center gap-1">
           {React.string(
             if displayText->String.length > 0 {
               `<${tagName}>: ${displayText}`
@@ -89,6 +89,17 @@ module AnnotationRow = {
               `<${tagName}>`
             },
           )}
+          {switch annotation.enrichmentStatus {
+          | Client__Annotation__Types.Enriching =>
+            <span className="text-violet-400 text-[10px] animate-pulse" title="Enriching annotation details...">
+              {React.string("⏳")}
+            </span>
+          | Client__Annotation__Types.Failed({error}) =>
+            <span className="text-amber-400 text-[10px]" title={`Enrichment failed: ${error}`}>
+              {React.string("⚠")}
+            </span>
+          | Client__Annotation__Types.Enriched => React.null
+          }}
         </div>
         // Comment display / edit
         {switch isEditingComment {

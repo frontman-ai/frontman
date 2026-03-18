@@ -45,12 +45,13 @@ module MessageAnnotation = {
 
   type t = {
     id: string,
-    selector: option<string>,
+    // Async enrichment fields — result captures per-field success/failure
+    selector: result<option<string>, string>,
     tagName: string,
     cssClasses: option<string>,
     comment: option<string>,
-    screenshot: option<string>,
-    sourceLocation: option<sourceLocation>,
+    screenshot: result<option<string>, string>,
+    sourceLocation: result<option<sourceLocation>, string>,
     boundingBox: option<boundingBox>,
     nearbyText: option<string>,
   }
@@ -68,6 +69,8 @@ module MessageAnnotation = {
 
   // Snapshot a live Annotation.t into a serializable MessageAnnotation.t
   // Drops the live DOM element reference.
+  // sourceLocation needs conversion from Client__Types.SourceLocation.t to the local type;
+  // selector and screenshot are pass-through (same result<option<string>, string> shape).
   let fromAnnotation = (annotation: Client__Annotation__Types.t): t => {
     id: annotation.id,
     selector: annotation.selector,
@@ -75,7 +78,9 @@ module MessageAnnotation = {
     cssClasses: annotation.cssClasses,
     comment: annotation.comment,
     screenshot: annotation.screenshot,
-    sourceLocation: annotation.sourceLocation->Option.map(sourceLocationFromClientTypes),
+    sourceLocation: annotation.sourceLocation->Result.map(opt =>
+      opt->Option.map(sourceLocationFromClientTypes)
+    ),
     boundingBox: annotation.boundingBox->Option.map(bb => {
       x: bb.x,
       y: bb.y,

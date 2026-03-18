@@ -195,6 +195,13 @@ module Selectors = {
     }
   }
 
+  // Check if any annotation is still enriching (async details not yet resolved)
+  let hasEnrichingAnnotations = (task: Task.t): option<bool> => {
+    annotations(task)->Option.map(anns =>
+      anns->Array.some(a => a.enrichmentStatus == Annotation.Enriching)
+    )
+  }
+
   // Get animation frozen state
   let isAnimationFrozen = (task: Task.t): option<bool> => {
     switch task {
@@ -318,12 +325,13 @@ type action =
   | ToggleAnnotation({element: WebAPI.DOMAPI.element, position: Annotation.position, tagName: string})
   | AnnotationDetailsResolved({
       id: string,
-      selector: option<string>,
-      screenshot: option<string>,
-      sourceLocation: option<Client__Types.SourceLocation.t>,
+      selector: result<option<string>, string>,
+      screenshot: result<option<string>, string>,
+      sourceLocation: result<option<Client__Types.SourceLocation.t>, string>,
       cssClasses: option<string>,
       nearbyText: option<string>,
       boundingBox: option<Annotation.boundingBox>,
+      enrichmentStatus: Annotation.enrichmentStatus,
     })
   | AddAnnotations({elements: array<annotationElement>})
   | RemoveAnnotation({id: string})
@@ -678,15 +686,16 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
   // Async annotation fetch completed after task transitioned to Unloaded — discard silently
   | (Task.Unloaded(_), AnnotationDetailsResolved(_)) => (task, [])
 
-  | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), AnnotationDetailsResolved({id, selector, screenshot, sourceLocation, cssClasses, nearbyText, boundingBox})) => (
+  | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), AnnotationDetailsResolved({id, selector, screenshot, sourceLocation, cssClasses, nearbyText, boundingBox, enrichmentStatus})) => (
     Lens.updateAnnotation(task, id, a => {
       ...a,
       selector,
-      screenshot: screenshot->Option.map(s => s),
+      screenshot,
       sourceLocation,
       cssClasses,
       nearbyText,
       boundingBox,
+      enrichmentStatus,
     }),
     [],
   )
@@ -1173,10 +1182,14 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
 // Effect Handler - processes task effects, delegates to parent when needed
 // ============================================================================
 
+// Extract error message from a caught JS exception
+let formatError = (exn: exn): string =>
+  exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
+
 let handleEffect = (effect: effect, ~dispatch: action => unit, ~delegate: delegated => unit) => {
   switch effect {
   | FetchAnnotationDetails({id, element, document, contentWindow}) => {
-      // Fetch selector
+      // Fetch selector — result captures success or per-field error
       let selectorPromise =
         Promise.resolve()
         ->Promise.then(_ => {
@@ -1192,11 +1205,12 @@ let handleEffect = (effect: effect, ~dispatch: action => unit, ~delegate: delega
               attr: (~name as _, ~value as _) => false,
             },
           )
-          Promise.resolve(Some(selector))
+          Promise.resolve(Ok(Some(selector)))
         })
         ->Promise.catch(error => {
-          Log.error(~ctx={"error": error}, "Failed to get selector")
-          Promise.resolve(None)
+          let msg = formatError(error)
+          Log.error(~ctx={"error": error, "annotationId": id}, "Selector generation failed")
+          Promise.resolve(Error(msg))
         })
 
       // Fetch screenshot (with conservative dimension limits to stay within all provider caps).
@@ -1209,12 +1223,13 @@ let handleEffect = (effect: effect, ~dispatch: action => unit, ~delegate: delega
         Bindings__Snapdom.snapdom(element)
         ->Promise.then(captureResult => {
           captureResult.toJpg({scale, quality: limits.quality})->Promise.then(img => {
-            Promise.resolve(Some(img))
+            Promise.resolve(Ok(Some(img)))
           })
         })
         ->Promise.catch(error => {
-          Log.error(~ctx={"error": error}, "Failed to capture screenshot")
-          Promise.resolve(None)
+          let msg = formatError(error)
+          Log.error(~ctx={"error": error, "annotationId": id}, "Screenshot capture failed")
+          Promise.resolve(Error(msg))
         })
       }
 
@@ -1224,14 +1239,16 @@ let handleEffect = (effect: effect, ~dispatch: action => unit, ~delegate: delega
         let detectionPromise = switch contentWindow {
         | Some(window) =>
           Client__SourceDetection.getElementSourceLocation(~element, ~window)
+          ->Promise.then(result => Promise.resolve(Ok(result)))
           ->Promise.catch(error => {
-            Log.error(~ctx={"error": error}, "Failed to get source location")
-            Promise.resolve(None)
+            let msg = formatError(error)
+            Log.error(~ctx={"error": error, "annotationId": id}, "Source location detection failed")
+            Promise.resolve(Error(msg))
           })
-        | None => Promise.resolve(None)
+        | None => Promise.resolve(Ok(None))
         }
         let timeoutPromise = Promise.make((resolve, _) => {
-          let _ = Js.Global.setTimeout(() => resolve(None), 5000)
+          let _ = Js.Global.setTimeout(() => resolve(Ok(None)), 5000)
         })
         Promise.race([detectionPromise, timeoutPromise])
       }
@@ -1272,30 +1289,37 @@ let handleEffect = (effect: effect, ~dispatch: action => unit, ~delegate: delega
       // Wait for all promises and update state once
       let _ =
         Promise.all3((selectorPromise, screenshotPromise, sourceLocationPromise))
-        ->Promise.then(((selector, screenshot, sourceLocation)) => {
-          let sourceLocationWithTagName = sourceLocation->Option.map(sourceLoc => {
-            {
-              ...sourceLoc,
-              file: sourceLoc.file
-              ->String.split("?")
-              ->Array.get(0)
-              ->Option.getOr(sourceLoc.file),
-            }
-          })
+        ->Promise.then(((selector, screenshotResult, sourceLocation)) => {
+          // Strip query strings from source location file paths
+          let sourceLocationWithTagName = sourceLocation->Result.map(opt =>
+            opt->Option.map(sourceLoc => {
+              {
+                ...sourceLoc,
+                file: sourceLoc.file
+                ->String.split("?")
+                ->Array.get(0)
+                ->Option.getOr(sourceLoc.file),
+              }
+            })
+          )
 
           // Resolve source location via server to get relative file paths
           let resolvedSourceLocationPromise = switch sourceLocationWithTagName {
-          | Some(sourceLoc) =>
+          | Ok(Some(sourceLoc)) =>
             Client__SourceLocationResolver.resolve(sourceLoc)->Promise.then(result => {
               switch result {
-              | Ok(resolved) => Promise.resolve(Some(resolved))
+              | Ok(resolved) => Promise.resolve(Ok(Some(resolved)))
               | Error(err) =>
                 Log.warning(~ctx={"error": err}, "Source location resolution failed, using original")
-                Promise.resolve(sourceLocationWithTagName)
+                Promise.resolve(Ok(Some(sourceLoc)))
               }
             })
-          | None => Promise.resolve(None)
+          | Ok(None) => Promise.resolve(Ok(None))
+          | Error(_) as err => Promise.resolve(err)
           }
+
+          // Extract screenshot src from the result
+          let screenshot = screenshotResult->Result.map(opt => opt->Option.map(s => s.src))
 
           // Dispatch only after resolution completes (or fails with fallback)
           resolvedSourceLocationPromise->Promise.then(finalSourceLocation => {
@@ -1303,18 +1327,33 @@ let handleEffect = (effect: effect, ~dispatch: action => unit, ~delegate: delega
               AnnotationDetailsResolved({
                 id,
                 selector,
-                screenshot: screenshot->Option.map(s => s.src),
+                screenshot,
                 sourceLocation: finalSourceLocation,
                 cssClasses,
                 nearbyText,
                 boundingBox: Some(boundingBox),
+                enrichmentStatus: Enriched,
               }),
             )
             Promise.resolve()
           })
         })
         ->Promise.catch(err => {
-          Console.error2("FetchAnnotationDetails failed:", err)
+          // Outer chain failure — total enrichment failure
+          let errorMsg = formatError(err)
+          Log.error(~ctx={"error": err, "annotationId": id}, "FetchAnnotationDetails failed")
+          dispatch(
+            AnnotationDetailsResolved({
+              id,
+              selector: Error(errorMsg),
+              screenshot: Error(errorMsg),
+              sourceLocation: Error(errorMsg),
+              cssClasses,
+              nearbyText,
+              boundingBox: Some(boundingBox),
+              enrichmentStatus: Failed({error: errorMsg}),
+            }),
+          )
           Promise.resolve()
         })
     }

@@ -121,6 +121,7 @@ let make = (
   let hasProviderConfigured = Client__State.useSelector(Client__State.Selectors.hasAnyProviderConfigured)
   let webPreviewIsSelecting = Client__State.useSelector(Client__State.Selectors.webPreviewIsSelecting)
   let annotations = Client__State.useSelector(Client__State.Selectors.annotations)
+  let hasEnrichingAnnotations = Client__State.useSelector(Client__State.Selectors.hasEnrichingAnnotations)
   let runtimeConfig = RuntimeConfig.read()
   let hasEnvKey = RuntimeConfig.hasOpenrouterKey(runtimeConfig) || RuntimeConfig.hasAnthropicKey(runtimeConfig)
   let hasAnyKey = hasProviderConfigured || hasEnvKey
@@ -431,6 +432,7 @@ let make = (
         onSelectElement={Client__State.Actions.toggleWebPreviewSelection}
         isSelecting={webPreviewIsSelecting}
         hasAnnotations
+        isEnrichingAnnotations={hasEnrichingAnnotations}
       />
     }}
   </div>

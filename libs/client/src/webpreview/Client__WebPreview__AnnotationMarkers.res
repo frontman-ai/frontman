@@ -27,6 +27,25 @@ module Marker = {
       None
     }, (annotation.element, scrollTimestamp, mutationTimestamp))
 
+    // Badge and border styles vary based on enrichment status
+    let (borderClass, badgeClass, badgeTitle) = switch annotation.enrichmentStatus {
+    | Annotation.Enriching => (
+        "absolute inset-0 border-2 border-[#985DF7] rounded-sm box-border ring-1 ring-[#985DF7]/30",
+        "absolute -top-3 -left-3 flex items-center justify-center w-6 h-6 rounded-full bg-violet-600 text-white text-[10px] font-bold shadow-sm border-2 border-white pointer-events-auto cursor-pointer hover:bg-red-500 transition-colors animate-pulse",
+        "Enriching... click to deselect",
+      )
+    | Annotation.Failed({error}) => (
+        "absolute inset-0 border-2 border-amber-500 rounded-sm box-border ring-1 ring-amber-500/30",
+        "absolute -top-3 -left-3 flex items-center justify-center w-6 h-6 rounded-full bg-amber-600 text-white text-[10px] font-bold shadow-sm border-2 border-white pointer-events-auto cursor-pointer hover:bg-red-500 transition-colors",
+        `Enrichment failed: ${error}. Click to deselect`,
+      )
+    | Annotation.Enriched => (
+        "absolute inset-0 border-2 border-[#985DF7] rounded-sm box-border ring-1 ring-[#985DF7]/30",
+        "absolute -top-3 -left-3 flex items-center justify-center w-6 h-6 rounded-full bg-violet-600 text-white text-[10px] font-bold shadow-sm border-2 border-white pointer-events-auto cursor-pointer hover:bg-red-500 transition-colors",
+        "Click to deselect",
+      )
+    }
+
     switch rect {
     | Some(rect) =>
       <div
@@ -39,17 +58,15 @@ module Marker = {
         }
       >
         // Border highlight
-        <div
-          className="absolute inset-0 border-2 border-[#985DF7] rounded-sm box-border ring-1 ring-[#985DF7]/30"
-        />
+        <div className={borderClass} />
         // Numbered badge at top-left — click to deselect
         <div
-          className="absolute -top-3 -left-3 flex items-center justify-center w-6 h-6 rounded-full bg-violet-600 text-white text-[10px] font-bold shadow-sm border-2 border-white pointer-events-auto cursor-pointer hover:bg-red-500 transition-colors"
+          className={badgeClass}
           onClick={e => {
             ReactEvent.Mouse.stopPropagation(e)
             onRemove(annotation.id)
           }}
-          title="Click to deselect"
+          title={badgeTitle}
         >
           {React.int(index + 1)}
         </div>

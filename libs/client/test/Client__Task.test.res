@@ -738,23 +738,23 @@ let _makeMockElement: unit => WebAPI.DOMAPI.element = %raw(`
 let _sampleMessageAnnotations: array<MessageAnnotation.t> = [
   {
     id: "ann-1",
-    selector: Some(".btn-submit"),
+    selector: Ok(Some(".btn-submit")),
     tagName: "button",
     cssClasses: Some("btn-submit primary"),
     comment: Some("This button is broken"),
-    screenshot: None,
-    sourceLocation: None,
+    screenshot: Ok(None),
+    sourceLocation: Ok(None),
     boundingBox: None,
     nearbyText: Some("Submit"),
   },
   {
     id: "ann-2",
-    selector: Some("div.header"),
+    selector: Ok(Some("div.header")),
     tagName: "div",
     cssClasses: Some("header"),
     comment: None,
-    screenshot: None,
-    sourceLocation: None,
+    screenshot: Ok(None),
+    sourceLocation: Ok(None),
     boundingBox: None,
     nearbyText: Some("Welcome"),
   },
@@ -1102,5 +1102,216 @@ describe("Task - QuestionPerQuestionSkipped", () => {
       ->expect(`Expected ResolveQuestionToolEffect, got ${other->Option.mapOr("None", _ => "other")}`)
       ->Expect.toBe("ResolveQuestionToolEffect")
     }
+  })
+})
+
+// ============================================================================
+// Annotation Enrichment Lifecycle Tests (Issue #582)
+// ============================================================================
+
+describe("Task - Annotation Enrichment Lifecycle (Issue #582)", () => {
+  // Helper: get annotation by index with a clear error message
+  let _getAnnotation = (task: Task.t, index: int): Annotation.t => {
+    Task.getAnnotations(task)
+    ->Array.get(index)
+    ->Option.getOrThrow(~message=`Expected annotation at index ${Int.toString(index)}`)
+  }
+
+  // Helper: create a loaded task with one annotation in Enriching state
+  let _taskWithEnrichingAnnotation = () => {
+    let task = TestHelpers.makeLoadedTask()
+    let (task1, _) = TaskReducer.next(task, SetAnnotationMode({mode: Selecting}))
+    let el = _makeMockElement()
+    let (task2, effects) = TaskReducer.next(
+      task1,
+      ToggleAnnotation({element: el, position: {xPercent: 50.0, yAbsolute: 100.0}, tagName: "button"}),
+    )
+    (task2, effects)
+  }
+
+  // Helper: extract annotation ID from the FetchAnnotationDetails effect
+  let _getAnnotationIdFromEffect = (effects: array<TaskReducer.effect>): string => {
+    switch effects->Array.get(0) {
+    | Some(FetchAnnotationDetails({id})) => id
+    | _ => failwith("Expected FetchAnnotationDetails effect")
+    }
+  }
+
+  // Helper: build AnnotationDetailsResolved action with sensible defaults.
+  // Override only the fields under test to reduce per-test boilerplate.
+  let _makeResolved = (
+    ~id: string,
+    ~selector: result<option<string>, string>=Ok(None),
+    ~screenshot: result<option<string>, string>=Ok(None),
+    ~sourceLocation: result<option<Client__Types.SourceLocation.t>, string>=Ok(None),
+    ~cssClasses: option<string>=?,
+    ~nearbyText: option<string>=?,
+    ~boundingBox: option<Annotation.boundingBox>=?,
+    ~enrichmentStatus: Annotation.enrichmentStatus=Enriched,
+  ): TaskReducer.action =>
+    AnnotationDetailsResolved({id, selector, screenshot, sourceLocation, cssClasses, nearbyText, boundingBox, enrichmentStatus})
+
+  // Helper: create an enriching annotation then resolve it, returning the resolved task
+  let _resolveAnnotation = (task, effects, ~enrichmentStatus=Annotation.Enriched, ~selector=Ok(None), ~screenshot=Ok(None), ~sourceLocation=Ok(None)) => {
+    let id = _getAnnotationIdFromEffect(effects)
+    let (resolved, _) = TaskReducer.next(task, _makeResolved(~id, ~selector, ~screenshot, ~sourceLocation, ~enrichmentStatus))
+    resolved
+  }
+
+  // ============================================================================
+  // ToggleAnnotation → initial enrichment state
+  // ============================================================================
+
+  test("ToggleAnnotation creates annotation with Enriching status and Ok(None) async fields", t => {
+    let (task, effects) = _taskWithEnrichingAnnotation()
+    let ann = _getAnnotation(task, 0)
+
+    // Status is Enriching (promises in-flight)
+    t->expect(ann.enrichmentStatus)->Expect.toEqual(Annotation.Enriching)
+    // Async fields are Ok(None) — not yet populated
+    t->expect(ann.selector)->Expect.toEqual(Ok(None))
+    t->expect(ann.screenshot)->Expect.toEqual(Ok(None))
+    t->expect(ann.sourceLocation)->Expect.toEqual(Ok(None))
+
+    // Emits FetchAnnotationDetails effect
+    switch effects->Array.get(0) {
+    | Some(FetchAnnotationDetails(_)) => t->expect(true)->Expect.toBe(true)
+    | _ => t->expect("FetchAnnotationDetails effect")->Expect.toBe("not found")
+    }
+  })
+
+  // ============================================================================
+  // AnnotationDetailsResolved — Enriched (happy path + partial errors)
+  // ============================================================================
+
+  test("AnnotationDetailsResolved writes all enrichment fields and sets Enriched", t => {
+    let (task, effects) = _taskWithEnrichingAnnotation()
+    let id = _getAnnotationIdFromEffect(effects)
+    let (task2, _) = TaskReducer.next(
+      task,
+      _makeResolved(
+        ~id,
+        ~selector=Ok(Some(".btn-submit")),
+        ~screenshot=Ok(Some("data:image/jpeg;base64,abc")),
+        ~cssClasses="btn-submit",
+        ~nearbyText="Submit",
+        ~boundingBox={x: 10.0, y: 20.0, width: 100.0, height: 50.0},
+      ),
+    )
+    let ann = _getAnnotation(task2, 0)
+    t->expect(ann.enrichmentStatus)->Expect.toEqual(Annotation.Enriched)
+    t->expect(ann.selector)->Expect.toEqual(Ok(Some(".btn-submit")))
+    t->expect(ann.screenshot)->Expect.toEqual(Ok(Some("data:image/jpeg;base64,abc")))
+    t->expect(ann.cssClasses)->Expect.toEqual(Some("btn-submit"))
+    t->expect(ann.nearbyText)->Expect.toEqual(Some("Submit"))
+    switch ann.boundingBox {
+    | Some(bb) =>
+      t->expect(bb.x)->Expect.toBe(10.0)
+      t->expect(bb.width)->Expect.toBe(100.0)
+    | None => t->expect("boundingBox")->Expect.toBe("should be Some")
+    }
+  })
+
+  test("Per-field errors are stored while enrichmentStatus stays Enriched", t => {
+    // Partial failure: individual sub-promises failed but the outer chain succeeded
+    let (task, effects) = _taskWithEnrichingAnnotation()
+    let id = _getAnnotationIdFromEffect(effects)
+    let (task2, _) = TaskReducer.next(
+      task,
+      _makeResolved(
+        ~id,
+        ~selector=Error("No unique selector found"),
+        ~screenshot=Error("Canvas tainted by cross-origin data"),
+        ~sourceLocation=Error("CORS error on source map URL"),
+      ),
+    )
+    let ann = _getAnnotation(task2, 0)
+    // Status is Enriched (outer chain succeeded), but individual fields have errors
+    t->expect(ann.enrichmentStatus)->Expect.toEqual(Annotation.Enriched)
+    t->expect(ann.selector)->Expect.toEqual(Error("No unique selector found"))
+    t->expect(ann.screenshot)->Expect.toEqual(Error("Canvas tainted by cross-origin data"))
+    t->expect(ann.sourceLocation)->Expect.toEqual(Error("CORS error on source map URL"))
+  })
+
+  // ============================================================================
+  // AnnotationDetailsResolved — Failed (outer catch)
+  // ============================================================================
+
+  test("AnnotationDetailsResolved Failed stores error string on all fields", t => {
+    let (task, effects) = _taskWithEnrichingAnnotation()
+    let id = _getAnnotationIdFromEffect(effects)
+    let errorMsg = "Promise.all3 chain exploded"
+    let (task2, _) = TaskReducer.next(
+      task,
+      _makeResolved(
+        ~id,
+        ~selector=Error(errorMsg),
+        ~screenshot=Error(errorMsg),
+        ~sourceLocation=Error(errorMsg),
+        ~enrichmentStatus=Failed({error: errorMsg}),
+      ),
+    )
+    let ann = _getAnnotation(task2, 0)
+    t->expect(ann.enrichmentStatus)->Expect.toEqual(Annotation.Failed({error: errorMsg}))
+    t->expect(ann.selector)->Expect.toEqual(Error(errorMsg))
+    t->expect(ann.screenshot)->Expect.toEqual(Error(errorMsg))
+    t->expect(ann.sourceLocation)->Expect.toEqual(Error(errorMsg))
+  })
+
+  // ============================================================================
+  // Edge cases
+  // ============================================================================
+
+  test("AnnotationDetailsResolved on Unloaded task is silently discarded", t => {
+    let task = TestHelpers.makeUnloadedTask()
+    let (task2, effects) = TaskReducer.next(task, _makeResolved(~id="stale-ann-id"))
+    t->expect(effects)->Expect.toEqual([])
+    t->expect(Task.getAnnotations(task2)->Array.length)->Expect.toBe(0)
+  })
+
+  // ============================================================================
+  // hasEnrichingAnnotations selector
+  // ============================================================================
+
+  test("hasEnrichingAnnotations is true while Enriching, false after Enriched", t => {
+    // Full lifecycle on a single annotation: Enriching → Enriched
+    let (task, effects) = _taskWithEnrichingAnnotation()
+    t->expect(TaskReducer.Selectors.hasEnrichingAnnotations(task))->Expect.toEqual(Some(true))
+
+    let resolved = _resolveAnnotation(task, effects)
+    t->expect(TaskReducer.Selectors.hasEnrichingAnnotations(resolved))->Expect.toEqual(Some(false))
+  })
+
+  test("hasEnrichingAnnotations is false after Failed", t => {
+    let (task, effects) = _taskWithEnrichingAnnotation()
+    let resolved = _resolveAnnotation(task, effects, ~enrichmentStatus=Failed({error: "boom"}))
+    t->expect(TaskReducer.Selectors.hasEnrichingAnnotations(resolved))->Expect.toEqual(Some(false))
+  })
+
+  test("hasEnrichingAnnotations is None for Unloaded task", t => {
+    let task = TestHelpers.makeUnloadedTask()
+    t->expect(TaskReducer.Selectors.hasEnrichingAnnotations(task))->Expect.toEqual(None)
+  })
+
+  test("hasEnrichingAnnotations with mixed statuses — true if any is Enriching", t => {
+    let task = TestHelpers.makeLoadedTask()
+    let (task1, _) = TaskReducer.next(task, SetAnnotationMode({mode: Selecting}))
+    // Add two annotations
+    let el1 = _makeMockElement()
+    let el2 = _makeMockElement()
+    let (task2, effects1) = TaskReducer.next(
+      task1,
+      ToggleAnnotation({element: el1, position: {xPercent: 50.0, yAbsolute: 100.0}, tagName: "button"}),
+    )
+    let (task3, _effects2) = TaskReducer.next(
+      task2,
+      ToggleAnnotation({element: el2, position: {xPercent: 30.0, yAbsolute: 200.0}, tagName: "div"}),
+    )
+    // Both are Enriching
+    t->expect(TaskReducer.Selectors.hasEnrichingAnnotations(task3))->Expect.toEqual(Some(true))
+
+    // Resolve first — still true because second is Enriching
+    let task4 = _resolveAnnotation(task3, effects1)
+    t->expect(TaskReducer.Selectors.hasEnrichingAnnotations(task4))->Expect.toEqual(Some(true))
   })
 })

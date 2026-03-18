@@ -96,12 +96,13 @@ let convertSnapshotAnnotation = (
   ann: Snapshot.SnapshotAnnotation.t,
 ): Client__Message.MessageAnnotation.t => {
   id: ann.id,
-  selector: ann.selector,
+  // Wrap snapshot option fields into result — snapshots don't capture errors, so Ok is assumed
+  selector: Ok(ann.selector),
   tagName: ann.tagName,
   cssClasses: ann.cssClasses,
   comment: ann.comment,
-  screenshot: None, // Screenshots not stored in snapshots
-  sourceLocation: None, // Source locations not stored in snapshot annotations
+  screenshot: Ok(None), // Screenshots not stored in snapshots
+  sourceLocation: Ok(None), // Source locations not stored in snapshot annotations
   boundingBox: None, // Bounding boxes not stored in snapshot annotations
   nearbyText: ann.nearbyText,
 }

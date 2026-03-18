@@ -721,11 +721,16 @@ let parseDataUrl = (dataUrl: string): (string, string) => {
 
 // Build content blocks for a single annotation
 // Returns 1-2 blocks: resource block with annotation _meta, optional screenshot blob
+// Unwraps result<option<T>, string> to option<T> — errors are treated as absent for serialization
 let annotationToContentBlocks = (annotation: Annotation.t, ~index: int): array<ACPTypes.contentBlock> => {
-  let _meta = makeAnnotationMeta(annotation, ~index, ~sourceLocation=annotation.sourceLocation)
+  let sourceLocation = annotation.sourceLocation->Result.getOr(None)
+  let selector = annotation.selector->Result.getOr(None)
+  let screenshot = annotation.screenshot->Result.getOr(None)
+
+  let _meta = makeAnnotationMeta(annotation, ~index, ~sourceLocation)
 
   // Build text description and URI from source location, falling back to selector
-  let (uri, text) = switch annotation.sourceLocation {
+  let (uri, text) = switch sourceLocation {
   | Some(loc) => {
       let f = stripFileUriPrefix(loc.file)
       let l = loc.line->Int.toString
@@ -733,7 +738,7 @@ let annotationToContentBlocks = (annotation: Annotation.t, ~index: int): array<A
       (`file://${f}:${l}:${c}`, `Annotated element: <${annotation.tagName}> at ${f}:${l}:${c}`)
     }
   | None =>
-    switch annotation.selector {
+    switch selector {
     | Some(sel) => (`selector://${sel}`, `Annotated element: <${annotation.tagName}> matching ${sel}`)
     | None => (`element://${annotation.tagName}`, `Annotated element: <${annotation.tagName}>`)
     }
@@ -749,7 +754,7 @@ let annotationToContentBlocks = (annotation: Annotation.t, ~index: int): array<A
     annotations: None,
   })
 
-  let screenshotBlock = annotation.screenshot->Option.map(screenshotDataUrl => {
+  let screenshotBlock = screenshot->Option.map(screenshotDataUrl => {
     let (mimeType, base64Data) = parseDataUrl(screenshotDataUrl)
 
     let screenshotMeta: JSON.t = S.reverseConvertToJsonOrThrow(
@@ -1075,12 +1080,14 @@ let rec parentLocationFromMessageAnnotation = (
 }
 
 // Build _meta JSON for a MessageAnnotation — uses same annotationMeta schema
+// Unwraps result<option<T>, string> to option<T> — errors are treated as absent for serialization
 let makeMessageAnnotationMeta = (
   annotation: Message.MessageAnnotation.t,
   ~index: int,
 ): JSON.t => {
+  let sourceLocation = annotation.sourceLocation->Result.getOr(None)
   let (file, line, column, componentName, componentProps, parent) =
-    switch annotation.sourceLocation {
+    switch sourceLocation {
     | Some(loc) => (
         Some(stripFileUriPrefix(loc.file)),
         Some(loc.line),
@@ -1122,14 +1129,19 @@ let makeMessageAnnotationMeta = (
 
 // Build content blocks for a single MessageAnnotation
 // Returns 1-2 blocks: resource block with annotation _meta, optional screenshot blob
+// Unwraps result<option<T>, string> to option<T> — errors are treated as absent for serialization
 let messageAnnotationToContentBlocks = (
   annotation: Message.MessageAnnotation.t,
   ~index: int,
 ): array<ACPTypes.contentBlock> => {
+  let sourceLocation = annotation.sourceLocation->Result.getOr(None)
+  let selector = annotation.selector->Result.getOr(None)
+  let screenshot = annotation.screenshot->Result.getOr(None)
+
   let _meta = makeMessageAnnotationMeta(annotation, ~index)
 
   // Build text description and URI from source location, falling back to selector
-  let (uri, text) = switch annotation.sourceLocation {
+  let (uri, text) = switch sourceLocation {
   | Some(loc) => {
       let f = stripFileUriPrefix(loc.file)
       let l = loc.line->Int.toString
@@ -1137,7 +1149,7 @@ let messageAnnotationToContentBlocks = (
       (`file://${f}:${l}:${c}`, `Annotated element: <${annotation.tagName}> at ${f}:${l}:${c}`)
     }
   | None =>
-    switch annotation.selector {
+    switch selector {
     | Some(sel) => (`selector://${sel}`, `Annotated element: <${annotation.tagName}> matching ${sel}`)
     | None => (`element://${annotation.tagName}`, `Annotated element: <${annotation.tagName}>`)
     }
@@ -1153,7 +1165,7 @@ let messageAnnotationToContentBlocks = (
     annotations: None,
   })
 
-  let screenshotBlock = annotation.screenshot->Option.map(screenshotDataUrl => {
+  let screenshotBlock = screenshot->Option.map(screenshotDataUrl => {
     let (mimeType, base64Data) = parseDataUrl(screenshotDataUrl)
 
     let screenshotMeta: JSON.t = S.reverseConvertToJsonOrThrow(

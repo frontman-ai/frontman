@@ -504,6 +504,7 @@ let make = (
   ~onSelectElement: option<unit => unit>=?,
   ~isSelecting: bool=false,
   ~hasAnnotations: bool=false,
+  ~isEnrichingAnnotations: bool=false,
 ) => {
   let (hasContent, setHasContent) = React.useState(() => false)
   let (inputItems, setInputItems) = React.useState((): array<inputItem> => [])
@@ -801,18 +802,24 @@ let make = (
     })
   }
 
-  // Handle keydown in contentEditable
+  let isInputDisabled = !hasActiveACPSession || isAgentRunning || disabled
+  let isSubmitDisabled = isInputDisabled || (!hasContent && !hasAnnotations) || isEnrichingAnnotations
+
+  // Handle keydown in contentEditable.
+  // Gates on isInputDisabled and isEnrichingAnnotations but NOT on hasContent —
+  // hasContent is updated via a 100ms debounce and may be stale when Enter fires
+  // immediately after typing. doSubmit() reads the DOM directly to decide whether
+  // there's content to send, so the content check is handled there.
   let handleKeyDown = (e: ReactEvent.Keyboard.t) => {
     let key = e->ReactEvent.Keyboard.key
     let shiftKey = e->ReactEvent.Keyboard.shiftKey
     if key == "Enter" && !shiftKey {
       ReactEvent.Keyboard.preventDefault(e)
-      doSubmit()
+      if !isInputDisabled && !isEnrichingAnnotations {
+        doSubmit()
+      }
     }
   }
-
-  let isInputDisabled = !hasActiveACPSession || isAgentRunning || disabled
-  let isSubmitDisabled = isInputDisabled || (!hasContent && !hasAnnotations)
 
   // Determine placeholder text based on state
   let currentPlaceholder = if disabled {
