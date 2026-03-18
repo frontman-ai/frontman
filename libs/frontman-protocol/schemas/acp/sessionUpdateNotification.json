@@ -226,6 +226,7 @@
               "additionalProperties": true,
               "required": [
                 "sessionUpdate",
+                "content",
                 "timestamp"
               ]
             },

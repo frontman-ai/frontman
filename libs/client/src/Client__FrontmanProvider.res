@@ -170,7 +170,7 @@ module Provider = {
         // Message end is signaled by session/prompt response with stopReason.
         // Buffer text deltas and flush once per animation frame to avoid
         // dozens of full state rebuilds per second during fast streaming.
-        content->Option.flatMap(getContentBlockText)->Option.forEach(text => {
+        getContentBlockText(content)->Option.forEach(text => {
           textDeltaBuffer.add(~taskId, ~text, ~timestamp)
         })
       | UserMessageChunk({content, timestamp}) =>

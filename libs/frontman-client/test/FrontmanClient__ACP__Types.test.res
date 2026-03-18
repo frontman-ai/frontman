@@ -119,7 +119,7 @@ describe("sessionUpdate schema parsing", () => {
     let parsed = json->S.parseOrThrow(Types.sessionUpdateSchema)
 
     switch parsed {
-    | Types.AgentMessageChunk({content: Some(Types.TextContent({text})), timestamp}) =>
+    | Types.AgentMessageChunk({content: Types.TextContent({text}), timestamp}) =>
       t->expect(text)->Expect.toBe("Hello from the agent")
       t->expect(timestamp)->Expect.toBe("2024-01-15T10:00:30Z")
     | _ => t->expect("AgentMessageChunk")->Expect.toBe("not matched")
