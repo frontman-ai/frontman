@@ -3,8 +3,8 @@ open Vitest
 module ToolCallBlock = Client__ToolCallBlock
 
 describe("cleanToolName", _t => {
-  test("strips 'Calling ' prefix and lowercases", t => {
-    t->expect(ToolCallBlock.cleanToolName("Calling write_file"))->Expect.toBe("write_file")
+  test("lowercases without stripping any prefix", t => {
+    t->expect(ToolCallBlock.cleanToolName("Calling write_file"))->Expect.toBe("calling write_file")
   })
 
   test("lowercases without prefix", t => {
@@ -34,10 +34,6 @@ describe("isInlineTool", _t => {
     t->expect(ToolCallBlock.isInlineTool("consoleLog"))->Expect.toBe(false)
   })
 
-  test("handles legacy 'Calling ' prefix", t => {
-    t->expect(ToolCallBlock.isInlineTool("Calling write_file"))->Expect.toBe(true)
-    t->expect(ToolCallBlock.isInlineTool("Calling navigate"))->Expect.toBe(true)
-  })
 })
 
 describe("isFileTool", _t => {

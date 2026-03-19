@@ -11,15 +11,8 @@
 module Message = Client__State__Types.Message
 module ToolLabels = Client__ToolLabels
 
-// Strip "Calling " prefix from legacy server format and lowercase
-let cleanToolName = (toolName: string): string => {
-  let lower = String.toLowerCase(toolName)
-  if String.startsWith(lower, "calling ") {
-    String.slice(lower, ~start=8, ~end=String.length(lower))
-  } else {
-    lower
-  }
-}
+// Normalize tool name for comparison
+let cleanToolName = (toolName: string): string => String.toLowerCase(toolName)
 
 // Tools that show a target inline (path, URL, etc.) instead of expandable body
 let isInlineTool = (toolName: string): bool => {

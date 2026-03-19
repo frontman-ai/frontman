@@ -8,25 +8,17 @@
 /**
  * Convert snake_case tool name to Title Case for display
  * e.g., "get_routes" -> "Get Routes", "write_file" -> "Write File"
- * Also strips "Calling " prefix if present (legacy server format)
  */
 let toTitleCase = (str: string): string => {
-  // Strip "Calling " prefix if present (legacy server format)
-  let cleanStr = if String.startsWith(str, "Calling ") {
-    String.slice(str, ~start=8, ~end=String.length(str))
-  } else {
-    str
-  }
-  
-  cleanStr
+  str
   ->String.split("_")
   ->Array.map(word => {
-    if String.length(word) > 0 {
+    switch String.length(word) > 0 {
+    | true =>
       let first = word->String.charAt(0)->String.toUpperCase
       let rest = word->String.slice(~start=1, ~end=String.length(word))->String.toLowerCase
       first ++ rest
-    } else {
-      word
+    | false => word
     }
   })
   ->Array.join(" ")
