@@ -1,5 +1,21 @@
 # @frontman-ai/nextjs
 
+## 0.6.2
+
+### Patch Changes
+
+- [#567](https://github.com/frontman-ai/frontman/pull/567) [`331d899`](https://github.com/frontman-ai/frontman/commit/331d899bfdf69d370fe810ac0d0f0f941f661b76) Thanks [@itayadler](https://github.com/itayadler)! - Fix Next.js installer failing in monorepo setups where node_modules are hoisted
+  - Use Node.js `createRequire` for module resolution instead of a hardcoded `node_modules/next/package.json` path
+  - Add `hasNextDependency` check to prevent false detection in sibling workspaces
+  - Remove E2E symlink workaround that was papering over the root cause
+
+- [#608](https://github.com/frontman-ai/frontman/pull/608) [`48e688a`](https://github.com/frontman-ai/frontman/commit/48e688a73f5b4a8ecb5e6d6860cd767a7f8fcd77) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - ### Fixed
+  - **Infinite reload loop with locale-based URL rewriting middleware** — four root causes fixed for apps using locale middleware (e.g. `next-intl`, `@formatjs/intl`):
+    - `stripSuffix` unconditionally appended a trailing slash to every path even without a `/frontman` suffix, causing false-positive navigate intercepts. A new `hasSuffix` predicate now gates the intercept correctly.
+    - Server-side redirects (e.g. `/en/` → `/en`) fire a `navigate` event before `onLoad`, causing a trailing-slash difference in the `url` prop to reload the iframe while `hasLoaded` was still `false`. The url-prop effect now normalizes trailing slashes before comparing.
+    - Session restore mounted all persisted task iframes eagerly (20+ concurrent requests). Inactive iframes now start with `src=""` and load lazily on first activation.
+    - The generated `proxy.ts` (Next.js ≥16) used a path guard that missed `/en/frontman/` (the trailing-slash URL written by `syncBrowserUrl`). The template now delegates directly to the core middleware via `await frontman(req)`, matching the `middleware.ts` pattern. The `/:path*/frontman/` matcher is also added to all generated configs.
+
 ## 0.6.0
 
 ### Minor Changes
