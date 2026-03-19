@@ -15,6 +15,7 @@ defmodule FrontmanServer.Accounts.WorkOS do
   alias FrontmanServer.Accounts.WorkOS.AuthError
   alias FrontmanServer.Repo
   alias FrontmanServer.Workers.SendWelcomeEmail
+  alias FrontmanServer.Workers.SyncResendContact
 
   import Ecto.Changeset
   import Ecto.Query
@@ -241,6 +242,9 @@ defmodule FrontmanServer.Accounts.WorkOS do
     end)
     |> Oban.insert(:welcome_email, fn %{user: user} ->
       SendWelcomeEmail.new(%{user_id: user.id})
+    end)
+    |> Oban.insert(:sync_resend_contact, fn %{user: user} ->
+      SyncResendContact.new(%{user_id: user.id})
     end)
   end
 

@@ -113,4 +113,8 @@ config :phoenix_live_view,
 # Disable swoosh api client as it is only required for production adapters.
 config :swoosh, :api_client, false
 
+# Placeholder Resend API key for dev — workers will call real Resend and get a 401,
+# which Oban handles as a retryable error. Harmless in dev.
+config :frontman_server, FrontmanServer.Mailer, api_key: "re_dev_placeholder"
+
 # OpenTelemetry - configured in runtime.exs based on env vars
