@@ -63,6 +63,78 @@ defmodule AgentClientProtocolTest do
     end
   end
 
+  describe "build_model_config_options/1" do
+    defp config_data(groups, default_model \\ "anthropic:claude-sonnet-4-5") do
+      %{groups: groups, default_model: default_model}
+    end
+
+    defp model_group(id, name, options) do
+      %{id: id, name: name, options: options}
+    end
+
+    defp model_option(name, value), do: %{name: name, value: value}
+
+    test "returns a single select config option with category model" do
+      data =
+        config_data([
+          model_group("anthropic", "Anthropic", [
+            model_option("Claude Sonnet 4.5", "anthropic:claude-sonnet-4-5")
+          ])
+        ])
+
+      [option] = ACP.build_model_config_options(data)
+      assert option["type"] == "select"
+      assert option["id"] == "model"
+      assert option["name"] == "Model"
+      assert option["category"] == "model"
+    end
+
+    test "groups models by provider" do
+      data =
+        config_data([
+          model_group("anthropic", "Anthropic", [
+            model_option("Claude Sonnet 4.5", "anthropic:claude-sonnet-4-5")
+          ]),
+          model_group("openrouter", "OpenRouter", [
+            model_option("GPT-5", "openrouter:openai/gpt-5")
+          ])
+        ])
+
+      [option] = ACP.build_model_config_options(data)
+
+      groups = option["options"]
+      assert length(groups) == 2
+
+      [anthropic_group, openrouter_group] = groups
+      assert anthropic_group["group"] == "anthropic"
+      assert openrouter_group["group"] == "openrouter"
+    end
+
+    test "option values are passed through verbatim" do
+      data =
+        config_data([
+          model_group("anthropic", "Anthropic", [
+            model_option("Claude Sonnet 4.5", "anthropic:claude-sonnet-4-5"),
+            model_option("Claude Opus 4.6", "anthropic:claude-opus-4-6")
+          ])
+        ])
+
+      [option] = ACP.build_model_config_options(data)
+      [group] = option["options"]
+      values = Enum.map(group["options"], & &1["value"])
+
+      assert Enum.all?(values, &String.starts_with?(&1, "anthropic:"))
+    end
+
+    test "currentValue uses provided default" do
+      data = config_data([], "anthropic:claude-sonnet-4-5")
+
+      [option] = ACP.build_model_config_options(data)
+
+      assert option["currentValue"] == "anthropic:claude-sonnet-4-5"
+    end
+  end
+
   describe "question_to_elicitation_schema/1" do
     test "uses label only when description is nil" do
       questions = [

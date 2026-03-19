@@ -194,8 +194,8 @@ let snapshotToState = (snapshot: Snapshot.t): StateTypes.state => {
     },
     anthropicOAuthStatus: Client__State__Types.NotConnected,
     chatgptOAuthStatus: Client__State__Types.ChatGPTNotConnected,
-    modelsConfig: None,
-    selectedModel: None,
+    configOptions: None,
+    selectedModelValue: None,
     pendingProviderAutoSelect: None,
     sessionsLoadState: Client__State__Types.SessionsNotLoaded, // Cannot restore load state from snapshot
     updateInfo: None,

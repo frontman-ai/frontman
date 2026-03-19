@@ -129,7 +129,9 @@ module Provider = {
           envApiKey->Dict.set("anthropicKeyValue", key)
         )
         let state = StateStore.getState(Client__State__Store.store)
-        let model = Client__State.Selectors.selectedModel(state)
+        let model = Client__State.Selectors.selectedModelValue(state)->Option.flatMap(
+          FrontmanAiFrontmanProtocol.FrontmanProtocol__Types.modelSelectionFromValueId
+        )
         {model, envApiKey}
       })
 
@@ -231,6 +233,9 @@ module Provider = {
         // harmless — only the first one takes effect.
         Client__TextDeltaBuffer.flush()
         Client__State.Actions.turnCompleted(~taskId)
+      | ConfigOptionUpdate({configOptions}) =>
+        Client__State.Actions.configOptionsReceived(~configOptions)
+      | CurrentModeUpdate(_) => () // TODO: dispatch mode change when modes are supported in UI
       | Error({message}) =>
         // Flush buffered text before error handling — same reason as
         // AgentTurnComplete: a rAF-buffered delta could otherwise fire

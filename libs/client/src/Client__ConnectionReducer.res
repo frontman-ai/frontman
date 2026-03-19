@@ -233,6 +233,9 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
       ~_meta=config._meta,
       ~onMessage=config.onACPMessage,
       ~onTitleUpdated=?config.onTitleUpdated,
+      ~onConfigOptionsUpdated=configOptions => {
+        Client__State__Store.dispatch(ConfigOptionsReceived({configOptions: configOptions}))
+      },
     )
     // Create AbortController to cancel connections on cleanup
     let abortController = WebAPI.AbortController.make()
@@ -494,6 +497,12 @@ let cleanupSession = (session: ACP.session): unit => {
 // Effect handler - executed in useEffect, not during dispatch
 // This receives current state and dispatch, so async callbacks can safely dispatch
 let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
+  let dispatchConfigOptions = (configOptions: option<array<_>>) =>
+    switch configOptions {
+    | Some(opts) => Client__State__Store.dispatch(ConfigOptionsReceived({configOptions: opts}))
+    | None => ()
+    }
+
   switch effect {
   | LogError(msg) => Log.error(msg)
   | LogInfo(msg) => Log.info(msg)
@@ -565,7 +574,8 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
         ~onMcpMessage,
       )
       switch result {
-      | Ok(sess) =>
+      | Ok((sess, configOptions)) =>
+        dispatchConfigOptions(configOptions)
         dispatch(SessionCreateSuccess(sess))
         onComplete(Ok(sess.sessionId))
       | Error(err) =>
@@ -610,7 +620,13 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
     let activateSession = async () => {
       let mcpServerInterface = MCPServer.toInterface(mcpServer)
       let result = if needsHistory {
-        await ACP.loadSession(connection, taskId, ~onUpdate, ~mcpServerInterface, ~onMcpMessage)
+        let loadResult = await ACP.loadSession(connection, taskId, ~onUpdate, ~mcpServerInterface, ~onMcpMessage)
+        switch loadResult {
+        | Ok((session, sessionLoadResult)) =>
+          dispatchConfigOptions(sessionLoadResult.configOptions)
+          Ok(session)
+        | Error(e) => Error(e)
+        }
       } else {
         await ACP.joinSession(connection, taskId, ~onUpdate, ~mcpServerInterface, ~onMcpMessage)
       }

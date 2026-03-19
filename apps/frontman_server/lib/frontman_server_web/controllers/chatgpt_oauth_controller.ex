@@ -150,7 +150,7 @@ defmodule FrontmanServerWeb.ChatGPTOAuthController do
 
         metadata = if account_id, do: %{"account_id" => account_id}, else: %{}
 
-        case Providers.upsert_oauth_token(
+        case Providers.save_oauth_connection(
                scope,
                "chatgpt",
                tokens.access_token,

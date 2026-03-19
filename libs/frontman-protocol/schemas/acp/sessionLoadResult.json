@@ -1,9 +1,6 @@
 {
   "type": "object",
   "properties": {
-    "sessionId": {
-      "type": "string"
-    },
     "modes": {
       "type": "object",
       "properties": {
@@ -166,8 +163,5 @@
     },
     "_meta": {}
   },
-  "additionalProperties": true,
-  "required": [
-    "sessionId"
-  ]
+  "additionalProperties": true
 }

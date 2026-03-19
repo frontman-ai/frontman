@@ -6,7 +6,7 @@
 //   - Completed: all FTUE flows finished
 //
 // Existing users who predate this feature are detected by the presence of other
-// `frontman:*` localStorage keys (e.g. chatbox-width, selectedModel). When found,
+// `frontman:*` localStorage keys (e.g. chatbox-width, selectedModelValue). When found,
 // we auto-migrate them to Completed so they never see onboarding flows.
 
 let storageKey = "frontman:ftue_state"

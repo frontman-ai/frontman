@@ -291,70 +291,58 @@ let focusAtEnd: Dom.element => unit = %raw(`
   }
 `)
 
-// Re-export model types from state for external use
-module StateTypes = Client__State__Types
-
 // ============================================================================
 // Sub-components
 // ============================================================================
 
-// Model selector dropdown - supports grouped providers
+// Model selector dropdown - consumes ACP SessionConfigOption (type: "select")
 // Uses Radix UI Select for consistent dark theme styling across all platforms (including Linux)
 module ModelSelector = {
   module Select = Bindings__RadixUI__Select
+  module ACP = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
 
-  // Get the display name for the currently selected model
-  let getSelectedModelDisplay = (
-    providers: array<StateTypes.providerConfig>,
+  // Get the display name for the currently selected value from config option
+  let _getSelectedDisplay = (
+    configOption: ACP.sessionConfigOption,
     selectedValue: string,
   ): option<string> => {
-    // selectedValue is "provider:modelValue"
-    switch selectedValue->String.split(":")->Array.get(0) {
-    | Some(providerId) =>
-      let modelValue =
-        selectedValue->String.slice(~start=String.length(providerId) + 1, ~end=String.length(selectedValue))
-      providers
-      ->Array.findMap(provider => {
-        if provider.id == providerId {
-          provider.models->Array.findMap(model => {
-            if model.value == modelValue {
-              Some(model.displayName)
-            } else {
-              None
+    switch configOption {
+    | ACP.SelectConfigOption({options}) =>
+      switch options {
+      | ACP.Grouped(groups) =>
+        groups->Array.findMap(group =>
+          group.options->Array.findMap(opt =>
+            switch opt.value == selectedValue {
+            | true => Some(opt.name)
+            | false => None
             }
-          })
-        } else {
-          None
-        }
-      })
-    | None => None
+          )
+        )
+      | ACP.Ungrouped(opts) =>
+        opts->Array.findMap(opt =>
+          switch opt.value == selectedValue {
+          | true => Some(opt.name)
+          | false => None
+          }
+        )
+      }
     }
   }
 
   @react.component
   let make = (
-    ~providers: array<StateTypes.providerConfig>,
+    ~configOption: ACP.sessionConfigOption,
     ~selectedValue: string,
-    ~onModelChange: (~provider: string, ~value: string) => unit,
+    ~onModelChange: string => unit,
   ) => {
     let selectedDisplay = React.useMemo2(
-      () => getSelectedModelDisplay(providers, selectedValue),
-      (providers, selectedValue),
+      () => _getSelectedDisplay(configOption, selectedValue),
+      (configOption, selectedValue),
     )
 
     <Select.Root
       value={selectedValue}
-      onValueChange={value => {
-        // Parse the combined value "provider:model_value"
-        switch value->String.split(":")->Array.get(0) {
-        | Some(provider) =>
-          // Value is everything after "provider:"
-          let modelValue =
-            value->String.slice(~start=String.length(provider) + 1, ~end=String.length(value))
-          onModelChange(~provider, ~value=modelValue)
-        | None => ()
-        }
-      }}>
+      onValueChange={value => onModelChange(value)}>
       <Select.Trigger
         className="inline-flex items-center justify-between gap-1 w-full h-7 pl-2 pr-1 text-xs
                    bg-transparent text-zinc-400 
@@ -377,31 +365,49 @@ module ModelSelector = {
                      bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl
                      animate-in fade-in-0 zoom-in-95">
           <Select.Viewport className="p-1">
-            {providers
-            ->Array.map(provider => {
-              <Select.Group key={provider.id}>
-                <Select.Label
-                  className="px-2 py-1.5 text-xs font-medium text-zinc-400">
-                  {React.string(provider.name)}
-                </Select.Label>
-                {provider.models
-                ->Array.map(model => {
-                  // Combine provider:value for unique identification
-                  let combinedValue = `${provider.id}:${model.value}`
+            {switch configOption {
+            | ACP.SelectConfigOption({options}) =>
+              switch options {
+              | ACP.Grouped(groups) =>
+                groups
+                ->Array.map(group => {
+                  <Select.Group key={group.group}>
+                    <Select.Label
+                      className="px-2 py-1.5 text-xs font-medium text-zinc-400">
+                      {React.string(group.name)}
+                    </Select.Label>
+                    {group.options
+                    ->Array.map(opt => {
+                      <Select.Item
+                        key={opt.value}
+                        value={opt.value}
+                        className="relative flex items-center px-2 py-1.5 text-xs text-zinc-200 rounded
+                                   cursor-pointer select-none outline-none
+                                   data-[highlighted]:bg-zinc-700 data-[highlighted]:text-white
+                                   data-[disabled]:opacity-50 data-[disabled]:pointer-events-none">
+                        <Select.ItemText> {React.string(opt.name)} </Select.ItemText>
+                      </Select.Item>
+                    })
+                    ->React.array}
+                  </Select.Group>
+                })
+                ->React.array
+              | ACP.Ungrouped(opts) =>
+                opts
+                ->Array.map(opt => {
                   <Select.Item
-                    key={combinedValue}
-                    value={combinedValue}
+                    key={opt.value}
+                    value={opt.value}
                     className="relative flex items-center px-2 py-1.5 text-xs text-zinc-200 rounded
                                cursor-pointer select-none outline-none
                                data-[highlighted]:bg-zinc-700 data-[highlighted]:text-white
                                data-[disabled]:opacity-50 data-[disabled]:pointer-events-none">
-                    <Select.ItemText> {React.string(model.displayName)} </Select.ItemText>
+                    <Select.ItemText> {React.string(opt.name)} </Select.ItemText>
                   </Select.Item>
                 })
-                ->React.array}
-              </Select.Group>
-            })
-            ->React.array}
+                ->React.array
+              }
+            }}
           </Select.Viewport>
         </Select.Content>
       </Select.Portal>
@@ -492,10 +498,10 @@ module SubmitButton = {
 let make = (
   ~onSubmit: (~text: string, ~inputItems: array<inputItem>) => unit,
   ~onCancel: unit => unit,
-  ~providers: array<StateTypes.providerConfig>,
+  ~modelConfigOption: option<FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.sessionConfigOption>,
   ~isModelsConfigLoading: bool,
-  ~selectedModel: option<StateTypes.modelSelection>,
-  ~onModelChange: (~provider: string, ~value: string) => unit,
+  ~selectedModelValue: option<FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.sessionConfigValueId>,
+  ~onModelChange: string => unit,
   ~isAgentRunning: bool,
   ~hasActiveACPSession: bool,
   ~placeholder: string="What would you like to change?",
@@ -931,8 +937,8 @@ let make = (
           className="hidden"
         />
 
-        // Model selector - show loading placeholder until providers are fetched
-        {switch (isModelsConfigLoading, Array.length(providers) > 0) {
+        // Model selector - show loading placeholder until config options are fetched
+        {switch (isModelsConfigLoading, modelConfigOption) {
         | (true, _) =>
           <div className="w-[150px] h-7">
             <div
@@ -946,17 +952,15 @@ let make = (
               </span>
             </div>
           </div>
-        | (false, true) =>
+        | (false, Some(configOption)) =>
           <div className="w-[150px] h-7">
             <ModelSelector
-              providers
-              selectedValue={selectedModel
-                ->Option.map(m => `${m.provider}:${m.value}`)
-                ->Option.getOr("")}
+              configOption
+              selectedValue={selectedModelValue->Option.getOr("")}
               onModelChange
             />
           </div>
-        | (false, false) => React.null
+        | (false, None) => React.null
         }}
       </div>
 

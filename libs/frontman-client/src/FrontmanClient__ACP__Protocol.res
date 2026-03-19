@@ -6,6 +6,9 @@ module Client = FrontmanClient__ACP__Client
 module Channel = FrontmanClient__Phoenix__Channel
 module JsonRpc = FrontmanAiFrontmanProtocol.FrontmanProtocol__JsonRpc
 module Constants = FrontmanClient__Transport__Constants
+module Log = FrontmanLogs.Logs.Make({
+  let component = #ACP
+})
 
 type messageDirection = Send | Receive
 
@@ -152,8 +155,9 @@ let handleIncomingMessage = (
       onUpdate->Option.forEach(cb => cb(notification.params.sessionId, notification.params.update))
     | Error(parseError) => onParseError->Option.forEach(cb => cb(parseError))
     }
-  | Some(_) => // Other notification types (e.g., mcp_initialization_complete) - no action needed
-    ()
+  | Some("mcp_initialization_complete") => () // Known notification from MCP init handshake
+  | Some(method) =>
+    Log.warning(`Received unhandled ACP notification: ${method}`)
   | None =>
     // No method field - must be a response
     state := Client.handleResponse(state.contents, payload)

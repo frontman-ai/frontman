@@ -62,10 +62,9 @@ type action =
   | AnthropicKeySaved
   | AnthropicKeySaveError({error: string})
   | ResetAnthropicKeySaveStatus
-  // Model selection actions
-  | FetchModelsConfig
-  | ModelsConfigReceived({config: Client__State__Types.modelsConfig})
-  | SetSelectedModel({model: Client__State__Types.modelSelection})
+  // ACP session config option actions (unified model/mode/config selection)
+  | ConfigOptionsReceived({configOptions: array<Client__State__Types.ACPConfig.sessionConfigOption>})
+  | SetSelectedModelValue({value: Client__State__Types.ACPConfig.sessionConfigValueId})
   // Anthropic OAuth actions
   | FetchAnthropicOAuthStatus
   | AnthropicOAuthStatusReceived({connected: bool, expiresAt: option<string>})
@@ -108,7 +107,6 @@ type effect =
   | SaveOpenRouterKeyEffect({apiBaseUrl: string, key: string})
   | FetchAnthropicApiKeySettingsEffect({apiBaseUrl: string})
   | SaveAnthropicKeyEffect({apiBaseUrl: string, key: string})
-  | FetchModelsConfigEffect({apiBaseUrl: string})
   // Anthropic OAuth effects
   | FetchAnthropicOAuthStatusEffect({apiBaseUrl: string})
   | GetAnthropicOAuthUrlEffect({apiBaseUrl: string})
@@ -165,35 +163,24 @@ module Lens = {
 }
 
 let getInitialUrl = Client__BrowserUrl.getInitialUrl
-let selectedModelStorageKey = "frontman:selectedModel"
+let selectedModelStorageKey = "frontman:selectedModelValue"
 
-// Load selected model from localStorage
-let loadSelectedModelFromStorage = (): option<Client__State__Types.modelSelection> => {
+// Load selected model value from localStorage (a sessionConfigValueId string, e.g. "anthropic:claude-sonnet-4-5")
+let loadSelectedModelValueFromStorage = (): option<string> => {
   try {
     FrontmanBindings.LocalStorage.getItem(selectedModelStorageKey)
     ->Nullable.toOption
-    ->Option.flatMap(jsonString => {
-      try {
-        Some(S.parseJsonStringOrThrow(jsonString, FrontmanAiFrontmanProtocol.FrontmanProtocol__Types.modelSelectionSchema))
-      } catch {
-      | _ => None
-      }
-    })
   } catch {
   | _ => None
   }
 }
 
-// Save selected model to localStorage
-let saveSelectedModelToStorage = (model: Client__State__Types.modelSelection): unit => {
+// Save selected model value to localStorage
+let saveSelectedModelValueToStorage = (value: string): unit => {
   try {
-    let jsonString = S.reverseConvertToJsonStringOrThrow(
-      model,
-      FrontmanAiFrontmanProtocol.FrontmanProtocol__Types.modelSelectionSchema,
-    )
-    FrontmanBindings.LocalStorage.setItem(selectedModelStorageKey, jsonString)
+    FrontmanBindings.LocalStorage.setItem(selectedModelStorageKey, value)
   } catch {
-  | exn => Log.error(~ctx={"error": exn}, "saveSelectedModelToStorage failed")
+  | exn => Log.error(~ctx={"error": exn}, "saveSelectedModelValueToStorage failed")
   }
 }
 
@@ -214,8 +201,8 @@ let defaultState: state = {
   },
   anthropicOAuthStatus: Client__State__Types.NotConnected,
   chatgptOAuthStatus: Client__State__Types.ChatGPTNotConnected,
-  modelsConfig: None,
-  selectedModel: loadSelectedModelFromStorage(), // Load from localStorage on init
+  configOptions: None,
+  selectedModelValue: loadSelectedModelValueFromStorage(),
   pendingProviderAutoSelect: None,
   sessionsLoadState: Client__State__Types.SessionsNotLoaded,
   updateInfo: None,
@@ -268,9 +255,8 @@ let actionToString = action => {
   | AnthropicKeySaved => `AnthropicKeySaved`
   | AnthropicKeySaveError({error}) => `AnthropicKeySaveError(${error})`
   | ResetAnthropicKeySaveStatus => `ResetAnthropicKeySaveStatus`
-  | FetchModelsConfig => `FetchModelsConfig`
-  | ModelsConfigReceived(_) => `ModelsConfigReceived`
-  | SetSelectedModel({model}) => `SetSelectedModel(${model.provider}:${model.value})`
+  | ConfigOptionsReceived(_) => `ConfigOptionsReceived`
+  | SetSelectedModelValue({value}) => `SetSelectedModelValue(${value})`
   | FetchAnthropicOAuthStatus => `FetchAnthropicOAuthStatus`
   | AnthropicOAuthStatusReceived({connected}) =>
     `AnthropicOAuthStatusReceived(connected=${connected->string_of_bool})`
@@ -479,14 +465,14 @@ module Selectors = {
     state.anthropicKeySettings
   }
 
-  // Get models config
-  let modelsConfig = (state: state): option<Client__State__Types.modelsConfig> => {
-    state.modelsConfig
+  // Get ACP session config options
+  let configOptions = (state: state): option<array<Client__State__Types.ACPConfig.sessionConfigOption>> => {
+    state.configOptions
   }
 
-  // Get selected model
-  let selectedModel = (state: state): option<Client__State__Types.modelSelection> => {
-    state.selectedModel
+  // Get selected model value (sessionConfigValueId string, e.g. "anthropic:claude-sonnet-4-5")
+  let selectedModelValue = (state: state): option<Client__State__Types.ACPConfig.sessionConfigValueId> => {
+    state.selectedModelValue
   }
 
   // Get Anthropic OAuth status
@@ -608,16 +594,13 @@ let sendMessageToAPIImpl = (
     let runtimeConfig = Client__RuntimeConfig.read()
     let baseMeta = Client__RuntimeConfig.toMeta(runtimeConfig)
 
-    // Add selected model to _meta if present
-    let _meta = switch state.selectedModel {
-    | Some(model) =>
-      let modelJson: JSON.t = %raw(`(function(provider, value) {
-        return { provider: provider, value: value };
-      })`)(model.provider, model.value)
+    // Add selected model to _meta if present (as "provider:value" string)
+    let _meta = switch state.selectedModelValue {
+    | Some(modelValue) =>
       switch baseMeta->JSON.Decode.object {
       | Some(dict) =>
         let newDict = dict->Dict.copy
-        newDict->Dict.set("model", modelJson)
+        newDict->Dict.set("model", JSON.Encode.string(modelValue))
         Some(newDict->Obj.magic)
       | None => Some(baseMeta)
       }
@@ -856,29 +839,6 @@ let handleEffect = (effect, state: state, dispatch) => {
       }
     }
     save()->ignore
-  | FetchModelsConfigEffect({apiBaseUrl}) =>
-    let fetch = async () => {
-      // Pass env key presence so server can return full or free-tier model list
-      let runtimeConfig = Client__RuntimeConfig.read()
-      let hasEnvKey = Client__RuntimeConfig.hasOpenrouterKey(runtimeConfig)
-      let hasAnthropicEnvKey = Client__RuntimeConfig.hasAnthropicKey(runtimeConfig)
-      let envKeyParam = if hasEnvKey { "true" } else { "false" }
-      let anthropicEnvKeyParam = if hasAnthropicEnvKey { "true" } else { "false" }
-      let url = `${apiBaseUrl}/api/models?hasEnvKey=${envKeyParam}&hasAnthropicEnvKey=${anthropicEnvKeyParam}`
-
-      try {
-        let response = await WebAPI.Global.fetch(url, ~init={credentials: Include})
-        if response.ok {
-          let json = await response->WebAPI.Response.json
-          let config = S.parseJsonOrThrow(json, Client__State__Types.modelsConfigSchema)
-          dispatch(ModelsConfigReceived({config: config}))
-        }
-      } catch {
-      | exn => Log.error(~ctx={"error": exn}, "FetchModelsConfig failed")
-      }
-    }
-    fetch()->ignore
-
   | FetchAnthropicOAuthStatusEffect({apiBaseUrl}) =>
     let fetch = async () => {
       let url = `${apiBaseUrl}/api/oauth/anthropic/status`
@@ -1418,7 +1378,6 @@ let next = (state: state, action) => {
       ~sideEffects=[
         FetchUsageInfo({apiBaseUrl: apiBaseUrl}),
         FetchUserProfileEffect({apiBaseUrl: apiBaseUrl}),
-        FetchModelsConfigEffect({apiBaseUrl: apiBaseUrl}),
         FetchAnthropicOAuthStatusEffect({apiBaseUrl: apiBaseUrl}),
         FetchChatGPTOAuthStatusEffect({apiBaseUrl: apiBaseUrl}),
       ],
@@ -1482,7 +1441,12 @@ let next = (state: state, action) => {
   | SaveOpenRouterKey({key}) =>
     switch state.acpSession {
     | AcpSessionActive({apiBaseUrl}) =>
-      state->StateReducer.update(
+      // Set pendingProviderAutoSelect eagerly so it's ready before
+      // the server's config_options_updated push arrives (race fix).
+      {
+        ...state,
+        pendingProviderAutoSelect: Some("openrouter"),
+      }->StateReducer.update(
         ~sideEffects=[SaveOpenRouterKeyEffect({apiBaseUrl, key})],
       )
     | NoAcpSession =>
@@ -1505,13 +1469,11 @@ let next = (state: state, action) => {
     }->StateReducer.update
 
   | OpenRouterKeySaved =>
-    // After saving the API key, refresh usage info and models list
-    // so the chatbox reflects the new state and unlocked models appear
+    // After saving the API key, refresh usage info.
+    // Config options will be pushed by the server via config_option_update notification.
+    // pendingProviderAutoSelect was already set in SaveOpenRouterKey.
     let effects = switch state.acpSession {
-    | AcpSessionActive({apiBaseUrl}) => [
-        FetchUsageInfo({apiBaseUrl: apiBaseUrl}),
-        FetchModelsConfigEffect({apiBaseUrl: apiBaseUrl}),
-      ]
+    | AcpSessionActive({apiBaseUrl}) => [FetchUsageInfo({apiBaseUrl: apiBaseUrl})]
     | NoAcpSession => []
     }
     {
@@ -1520,7 +1482,6 @@ let next = (state: state, action) => {
         source: UserOverride,
         saveStatus: Saved,
       },
-      pendingProviderAutoSelect: Some("openrouter"),
     }->StateReducer.update(~sideEffects=effects)
 
   | OpenRouterKeySaveError({error}) =>
@@ -1530,6 +1491,7 @@ let next = (state: state, action) => {
         ...state.openrouterKeySettings,
         saveStatus: SaveError(error),
       },
+      pendingProviderAutoSelect: None,
     }->StateReducer.update
 
   | ResetOpenRouterKeySaveStatus =>
@@ -1563,7 +1525,11 @@ let next = (state: state, action) => {
   | SaveAnthropicKey({key}) =>
     switch state.acpSession {
     | AcpSessionActive({apiBaseUrl}) =>
-      state->StateReducer.update(
+      // Set pendingProviderAutoSelect eagerly (race fix — see SaveOpenRouterKey).
+      {
+        ...state,
+        pendingProviderAutoSelect: Some("anthropic"),
+      }->StateReducer.update(
         ~sideEffects=[SaveAnthropicKeyEffect({apiBaseUrl, key})],
       )
     | NoAcpSession =>
@@ -1586,21 +1552,15 @@ let next = (state: state, action) => {
     }->StateReducer.update
 
   | AnthropicKeySaved =>
-    // After saving the API key, refresh models list so Anthropic models appear
-    let effects = switch state.acpSession {
-    | AcpSessionActive({apiBaseUrl}) => [
-        FetchModelsConfigEffect({apiBaseUrl: apiBaseUrl}),
-      ]
-    | NoAcpSession => []
-    }
+    // Config options will be pushed by the server via config_option_update notification.
+    // pendingProviderAutoSelect was already set in SaveAnthropicKey.
     {
       ...state,
       anthropicKeySettings: {
         source: UserOverride,
         saveStatus: Saved,
       },
-      pendingProviderAutoSelect: Some("anthropic"),
-    }->StateReducer.update(~sideEffects=effects)
+    }->StateReducer.update
 
   | AnthropicKeySaveError({error}) =>
     {
@@ -1609,6 +1569,7 @@ let next = (state: state, action) => {
         ...state.anthropicKeySettings,
         saveStatus: SaveError(error),
       },
+      pendingProviderAutoSelect: None,
     }->StateReducer.update
 
   | ResetAnthropicKeySaveStatus =>
@@ -1620,67 +1581,55 @@ let next = (state: state, action) => {
       },
     }->StateReducer.update
 
-  // Model selection actions
-  | FetchModelsConfig =>
-    switch state.acpSession {
-    | AcpSessionActive({apiBaseUrl}) =>
-      state->StateReducer.update(
-        ~sideEffects=[FetchModelsConfigEffect({apiBaseUrl: apiBaseUrl})],
-      )
-    | NoAcpSession => state->StateReducer.update
+  // ACP session config option actions
+  | ConfigOptionsReceived({configOptions}) =>
+    open FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
+    let modelConfigOption = findConfigOptionByCategory(configOptions, Model)
+
+    // Extract the server's default currentValue from the model config option
+    let serverDefault = switch modelConfigOption {
+    | Some(SelectConfigOption({currentValue})) => Some(currentValue)
+    | None => None
     }
 
-  | ModelsConfigReceived({config}) =>
     // When a provider was just connected, auto-select its first model.
     // Otherwise keep the current selection (or fall back to server default).
-    let (selectedModel, didAutoSelect) = switch state.pendingProviderAutoSelect {
+    let (selectedModelValue, didAutoSelect) = switch state.pendingProviderAutoSelect {
     | Some(providerId) =>
-      // Find the first model from the newly connected provider
-      let providerModel =
-        config.providers
-        ->Array.find(p => p.id == providerId)
-        ->Option.flatMap(p => p.models->Array.get(0))
-        ->Option.map((m): Client__State__Types.modelSelection => {
-          provider: providerId,
-          value: m.value,
-        })
-      switch providerModel {
-      | Some(model) => (Some(model), true)
-      | None => (state.selectedModel, false)
+      // Find the first model value from the newly connected provider's group
+      let providerModelValue = switch modelConfigOption {
+      | Some(SelectConfigOption({options: Grouped(groups)})) =>
+        groups
+        ->Array.find(g => g.group == providerId)
+        ->Option.flatMap(g => g.options->Array.get(0))
+        ->Option.map(opt => opt.value)
+      | _ => None
+      }
+      switch providerModelValue {
+      | Some(value) => (Some(value), true)
+      | None => (state.selectedModelValue, false)
       }
     | None =>
-      switch state.selectedModel {
-      | Some(model) => (Some(model), false)
-      | None => // Use default model from config
-        (
-          Some(
-            (
-              {
-                provider: config.defaultModel.provider,
-                value: config.defaultModel.value,
-              }: Client__State__Types.modelSelection
-            ),
-          ),
-          true,
-        )
+      switch state.selectedModelValue {
+      | Some(value) => (Some(value), false)
+      | None => (serverDefault, serverDefault->Option.isSome)
       }
     }
     // Persist whenever we picked a new model
-    switch (didAutoSelect, selectedModel) {
-    | (true, Some(model)) => saveSelectedModelToStorage(model)
+    switch (didAutoSelect, selectedModelValue) {
+    | (true, Some(value)) => saveSelectedModelValueToStorage(value)
     | _ => ()
     }
     {
       ...state,
-      modelsConfig: Some(config),
-      selectedModel,
+      configOptions: Some(configOptions),
+      selectedModelValue,
       pendingProviderAutoSelect: None,
     }->StateReducer.update
 
-  | SetSelectedModel({model}) =>
-    // Save to localStorage for persistence
-    saveSelectedModelToStorage(model)
-    {...state, selectedModel: Some(model)}->StateReducer.update
+  | SetSelectedModelValue({value}) =>
+    saveSelectedModelValueToStorage(value)
+    {...state, selectedModelValue: Some(value)}->StateReducer.update
 
   // Anthropic OAuth actions
   | FetchAnthropicOAuthStatus =>
@@ -1727,9 +1676,11 @@ let next = (state: state, action) => {
   | ExchangeAnthropicOAuthCode({code, verifier}) =>
     switch state.acpSession {
     | AcpSessionActive({apiBaseUrl}) =>
+      // Set pendingProviderAutoSelect eagerly (race fix — see SaveOpenRouterKey).
       {
         ...state,
         anthropicOAuthStatus: Client__State__Types.Exchanging,
+        pendingProviderAutoSelect: Some("anthropic"),
       }->StateReducer.update(
         ~sideEffects=[ExchangeAnthropicOAuthCodeEffect({apiBaseUrl, code, verifier})],
       )
@@ -1738,21 +1689,18 @@ let next = (state: state, action) => {
 
   | AnthropicOAuthConnected({expiresAt}) =>
     let expiresAtMs = Date.fromString(expiresAt)->Date.getTime
-    // Refresh models when connected (adds Anthropic provider)
-    let effects = switch state.acpSession {
-    | AcpSessionActive({apiBaseUrl}) => [FetchModelsConfigEffect({apiBaseUrl: apiBaseUrl})]
-    | NoAcpSession => []
-    }
+    // Config options will be pushed by the server via config_option_update notification.
+    // pendingProviderAutoSelect was already set in ExchangeAnthropicOAuthCode.
     {
       ...state,
       anthropicOAuthStatus: Client__State__Types.Connected({expiresAt: expiresAtMs}),
-      pendingProviderAutoSelect: Some("anthropic"),
-    }->StateReducer.update(~sideEffects=effects)
+    }->StateReducer.update
 
   | AnthropicOAuthError({error}) =>
     {
       ...state,
       anthropicOAuthStatus: Client__State__Types.Error(error),
+      pendingProviderAutoSelect: None,
     }->StateReducer.update
 
   | DisconnectAnthropicOAuth =>
@@ -1765,15 +1713,11 @@ let next = (state: state, action) => {
     }
 
   | AnthropicOAuthDisconnected =>
-    // Refresh models when disconnected (removes Anthropic provider)
-    let effects = switch state.acpSession {
-    | AcpSessionActive({apiBaseUrl}) => [FetchModelsConfigEffect({apiBaseUrl: apiBaseUrl})]
-    | NoAcpSession => []
-    }
+    // Config options will be pushed by the server via config_option_update notification.
     {
       ...state,
       anthropicOAuthStatus: Client__State__Types.NotConnected,
-    }->StateReducer.update(~sideEffects=effects)
+    }->StateReducer.update
 
   | ResetAnthropicOAuthError =>
     // Reset error state back to NotConnected
@@ -1816,21 +1760,17 @@ let next = (state: state, action) => {
     } else {
       Client__State__Types.ChatGPTNotConnected
     }
-    // Refresh models when ChatGPT status changes (may add/remove provider)
-    let effects = switch state.acpSession {
-    | AcpSessionActive({apiBaseUrl}) => [FetchModelsConfigEffect({apiBaseUrl: apiBaseUrl})]
-    | NoAcpSession => []
-    }
-    {...state, chatgptOAuthStatus: status}->StateReducer.update(
-      ~sideEffects=effects,
-    )
+    // Config options will be pushed by the server via config_option_update notification.
+    {...state, chatgptOAuthStatus: status}->StateReducer.update
 
   | InitiateChatGPTOAuth =>
     switch state.acpSession {
     | AcpSessionActive({apiBaseUrl}) =>
+      // Set pendingProviderAutoSelect eagerly (race fix — see SaveOpenRouterKey).
       {
         ...state,
         chatgptOAuthStatus: Client__State__Types.ChatGPTWaitingForCode,
+        pendingProviderAutoSelect: Some("openai"),
       }->StateReducer.update(
         ~sideEffects=[InitiateChatGPTDeviceAuthEffect({apiBaseUrl: apiBaseUrl})],
       )
@@ -1869,16 +1809,12 @@ let next = (state: state, action) => {
     | Client__State__Types.ChatGPTShowingCode({deviceAuthId: currentId})
       if currentId == deviceAuthId =>
       let expiresAtMs = Date.fromString(expiresAt)->Date.getTime
-      // Refresh models when connected (adds ChatGPT provider)
-      let effects = switch state.acpSession {
-      | AcpSessionActive({apiBaseUrl}) => [FetchModelsConfigEffect({apiBaseUrl: apiBaseUrl})]
-      | NoAcpSession => []
-      }
+      // Config options will be pushed by the server via config_option_update notification.
+      // pendingProviderAutoSelect was already set in InitiateChatGPTOAuth.
       {
         ...state,
         chatgptOAuthStatus: Client__State__Types.ChatGPTConnected({expiresAt: expiresAtMs}),
-        pendingProviderAutoSelect: Some("openai"),
-      }->StateReducer.update(~sideEffects=effects)
+      }->StateReducer.update
     | _ => state->StateReducer.update
     }
 
@@ -1900,6 +1836,7 @@ let next = (state: state, action) => {
       {
         ...state,
         chatgptOAuthStatus: Client__State__Types.ChatGPTError(error),
+        pendingProviderAutoSelect: None,
       }->StateReducer.update
     }
 
@@ -1913,15 +1850,11 @@ let next = (state: state, action) => {
     }
 
   | ChatGPTOAuthDisconnected =>
-    // Refresh models when disconnected (removes ChatGPT provider)
-    let effects = switch state.acpSession {
-    | AcpSessionActive({apiBaseUrl}) => [FetchModelsConfigEffect({apiBaseUrl: apiBaseUrl})]
-    | NoAcpSession => []
-    }
+    // Config options will be pushed by the server via config_option_update notification.
     {
       ...state,
       chatgptOAuthStatus: Client__State__Types.ChatGPTNotConnected,
-    }->StateReducer.update(~sideEffects=effects)
+    }->StateReducer.update
 
   | ResetChatGPTOAuthError =>
     switch state.chatgptOAuthStatus {

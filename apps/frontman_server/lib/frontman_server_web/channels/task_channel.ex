@@ -10,6 +10,7 @@ defmodule FrontmanServerWeb.TaskChannel do
   require Logger
 
   alias AgentClientProtocol, as: ACP
+  alias FrontmanServer.Providers
   alias FrontmanServer.Providers.{Model, Registry}
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.{Execution, Todos}
@@ -17,6 +18,11 @@ defmodule FrontmanServerWeb.TaskChannel do
   alias FrontmanServerWeb.ACPHistory
   alias FrontmanServerWeb.TaskChannel.MCPInitializer
   alias ModelContextProtocol, as: MCP
+
+  @acp_message ACP.event_acp_message()
+  @acp_method_session_prompt ACP.method_session_prompt()
+  @acp_method_session_cancel ACP.method_session_cancel()
+  @acp_method_session_load ACP.method_session_load()
 
   @impl true
   def join("task:" <> task_id, _params, socket) do
@@ -56,17 +62,17 @@ defmodule FrontmanServerWeb.TaskChannel do
   end
 
   @impl true
-  def handle_in("acp:message", payload, socket) do
+  def handle_in(@acp_message, payload, socket) do
     case JsonRpc.parse(payload) do
-      {:ok, {:request, id, "session/prompt", params}} ->
+      {:ok, {:request, id, @acp_method_session_prompt, params}} ->
         handle_prompt(id, params, socket)
 
-      {:ok, {:notification, "session/cancel", params}} ->
+      {:ok, {:notification, @acp_method_session_cancel, params}} ->
         handle_cancel(params, socket)
 
-      {:ok, {:request, id, "session/load", _params}} ->
+      {:ok, {:request, id, @acp_method_session_load, params}} ->
         # Load session history - streamed via session/update notifications
-        handle_session_load(id, socket)
+        handle_session_load(id, params, socket)
 
       {:ok, {:request, id, method, _params}} ->
         Logger.warning("Unknown ACP method in task channel: #{method}")
@@ -78,7 +84,7 @@ defmodule FrontmanServerWeb.TaskChannel do
             "Method not found: #{method}"
           )
 
-        {:reply, {:ok, %{"acp:message" => response}}, socket}
+        {:reply, {:ok, %{@acp_message => response}}, socket}
 
       {:ok, {:notification, _method, _params}} ->
         {:noreply, socket}
@@ -98,7 +104,7 @@ defmodule FrontmanServerWeb.TaskChannel do
                 "Invalid JSON-RPC message"
               )
 
-            push(socket, "acp:message", error_response)
+            push(socket, @acp_message, error_response)
             {:noreply, socket}
 
           _ ->
@@ -218,7 +224,7 @@ defmodule FrontmanServerWeb.TaskChannel do
     # Send ACP notification with appropriate status
     content = ACP.Content.from_tool_result(text_result)
     notification = ACP.tool_call_update(task_id, tool_call_id, status, content)
-    push(socket, "acp:message", notification)
+    push(socket, @acp_message, notification)
 
     # Store result and notify agent
     case Tasks.add_tool_result(
@@ -323,7 +329,7 @@ defmodule FrontmanServerWeb.TaskChannel do
         failed_content
       )
 
-    push(socket, "acp:message", failed_notification)
+    push(socket, @acp_message, failed_notification)
 
     # Store error result and notify agent.
     # :no_executor means the agent is dead (e.g. server restart). Unlike the
@@ -397,7 +403,7 @@ defmodule FrontmanServerWeb.TaskChannel do
   # Handle session/load - stream history via session/update notifications
   # This is called after the client has joined the session channel, allowing
   # history notifications to be received through the onUpdate callback.
-  defp handle_session_load(id, socket) do
+  defp handle_session_load(id, params, socket) do
     task_id = socket.assigns.task_id
     scope = socket.assigns.scope
     Logger.info("ACP session/load request received on session channel for: #{task_id}")
@@ -406,7 +412,21 @@ defmodule FrontmanServerWeb.TaskChannel do
       {:ok, task} ->
         # Stream history via session/update notifications
         stream_session_history(socket, task)
-        push(socket, "acp:message", JsonRpc.success_response(id, %{}))
+
+        # Return ACP-compliant LoadSessionResponse with config options.
+        # Extract env API keys from _meta (forwarded from clientInfo metadata)
+        # since the task channel doesn't receive the ACP initialize request.
+        env_api_key = extract_env_api_key_from_params(params)
+
+        config_options =
+          Providers.model_config_data(scope, env_api_key)
+          |> ACP.build_model_config_options()
+
+        push(
+          socket,
+          @acp_message,
+          JsonRpc.success_response(id, ACP.build_session_load_result(config_options))
+        )
 
         # Re-dispatch unresolved tool calls so the live handle_info path
         # routes them to MCP. The success response above triggers LoadComplete
@@ -419,7 +439,7 @@ defmodule FrontmanServerWeb.TaskChannel do
       {:error, :not_found} ->
         push(
           socket,
-          "acp:message",
+          @acp_message,
           JsonRpc.error_response(id, JsonRpc.error_invalid_params(), "Session not found")
         )
 
@@ -432,7 +452,7 @@ defmodule FrontmanServerWeb.TaskChannel do
     task.interactions
     |> Enum.flat_map(&ACPHistory.to_history_items(&1, task.task_id))
     |> Enum.each(fn notification ->
-      push(socket, "acp:message", notification)
+      push(socket, @acp_message, notification)
     end)
   end
 
@@ -510,7 +530,7 @@ defmodule FrontmanServerWeb.TaskChannel do
       {:error, reason} ->
         Logger.error("Failed to add user message: #{inspect(reason)}")
         error_response = JsonRpc.error_response(id, -32_000, to_string(reason))
-        {:reply, {:ok, %{"acp:message" => error_response}}, socket}
+        {:reply, {:ok, %{@acp_message => error_response}}, socket}
     end
   end
 
@@ -573,7 +593,7 @@ defmodule FrontmanServerWeb.TaskChannel do
           notification =
             ACP.build_agent_message_chunk_notification(task_id, text, DateTime.utc_now())
 
-          push(socket, "acp:message", notification)
+          push(socket, @acp_message, notification)
           socket
 
         %{type: :tool_call_start, tool_call_id: id, tool_call_name: name}
@@ -588,7 +608,7 @@ defmodule FrontmanServerWeb.TaskChannel do
               ACP.tool_call_status_pending()
             )
 
-          push(socket, "acp:message", notification)
+          push(socket, @acp_message, notification)
 
           announced = socket.assigns[:announced_tool_calls] || MapSet.new()
           assign(socket, :announced_tool_calls, MapSet.put(announced, id))
@@ -631,7 +651,7 @@ defmodule FrontmanServerWeb.TaskChannel do
           DateTime.utc_now()
         )
 
-      push(socket, "acp:message", pending_notification)
+      push(socket, @acp_message, pending_notification)
     end
 
     # Always send tool arguments so the UI can display them
@@ -645,7 +665,7 @@ defmodule FrontmanServerWeb.TaskChannel do
         args_content
       )
 
-    push(socket, "acp:message", args_notification)
+    push(socket, @acp_message, args_notification)
 
     case Tools.execution_target(tool_call.tool_name) do
       :backend ->
@@ -669,7 +689,7 @@ defmodule FrontmanServerWeb.TaskChannel do
         {:ok, todos} ->
           entries = Enum.map(todos, &to_plan_entry/1)
           plan_notification = ACP.plan_update(task_id, entries)
-          push(socket, "acp:message", plan_notification)
+          push(socket, @acp_message, plan_notification)
 
         {:error, _reason} ->
           :ok
@@ -683,7 +703,7 @@ defmodule FrontmanServerWeb.TaskChannel do
 
       content = ACP.Content.from_tool_result(tool_result.result)
       notification = ACP.tool_call_update(task_id, tool_result.tool_call_id, status, content)
-      push(socket, "acp:message", notification)
+      push(socket, @acp_message, notification)
     end
 
     {:noreply, socket}
@@ -720,7 +740,7 @@ defmodule FrontmanServerWeb.TaskChannel do
 
     # 1. Always notify — this is the canonical "turn ended" signal
     notification = ACP.build_agent_turn_complete_notification(task_id, stop_reason)
-    push(socket, "acp:message", notification)
+    push(socket, @acp_message, notification)
 
     # 2. If there's a pending RPC, also resolve it
     socket =
@@ -732,7 +752,7 @@ defmodule FrontmanServerWeb.TaskChannel do
         prompt_id ->
           response = JsonRpc.success_response(prompt_id, ACP.build_prompt_result(stop_reason))
           Logger.info("Resolving pending prompt #{prompt_id} with stop_reason=#{stop_reason}")
-          push(socket, "acp:message", response)
+          push(socket, @acp_message, response)
           assign(socket, :pending_prompt_id, nil)
       end
 
@@ -747,7 +767,7 @@ defmodule FrontmanServerWeb.TaskChannel do
 
     # 1. Always notify — error notification so client can display it
     notification = ACP.build_error_notification(task_id, error_message)
-    push(socket, "acp:message", notification)
+    push(socket, @acp_message, notification)
 
     # 2. If there's a pending RPC, resolve it as an error
     socket =
@@ -759,7 +779,7 @@ defmodule FrontmanServerWeb.TaskChannel do
         prompt_id ->
           response = JsonRpc.error_response(prompt_id, -32_000, error_message)
           Logger.info("Resolving pending prompt #{prompt_id} with error: #{error_message}")
-          push(socket, "acp:message", response)
+          push(socket, @acp_message, response)
           assign(socket, :pending_prompt_id, nil)
       end
 
@@ -777,7 +797,7 @@ defmodule FrontmanServerWeb.TaskChannel do
           socket
 
         {:push_acp, msg} ->
-          push(socket, "acp:message", msg)
+          push(socket, @acp_message, msg)
           socket
 
         {:initialization_complete, data} ->
@@ -866,7 +886,7 @@ defmodule FrontmanServerWeb.TaskChannel do
     in_progress_notification =
       ACP.tool_call_update(task_id, tool_call.tool_call_id, ACP.tool_call_status_in_progress())
 
-    push(socket, "acp:message", in_progress_notification)
+    push(socket, @acp_message, in_progress_notification)
 
     # Track pending request for response correlation
     pending_requests = socket.assigns[:pending_requests] || %{}

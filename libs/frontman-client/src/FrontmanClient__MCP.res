@@ -6,7 +6,6 @@ module Types = FrontmanClient__MCP__Types
 module Channel = FrontmanClient__Phoenix__Channel
 module JsonRpc = FrontmanAiFrontmanProtocol.FrontmanProtocol__JsonRpc
 module Decoders = FrontmanClient__Decoders
-module Sentry = FrontmanClient__Sentry
 module Log = FrontmanLogs.Logs.Make({
   let component = #MCP
 })
@@ -90,8 +89,7 @@ let handleInitialize = (handler: mcpHandler<'server>, id: int, _params: option<J
   } catch {
   | exn =>
     let msg = exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
-    Log.error(`Initialize failed: ${msg}`)
-    Sentry.captureException(exn, ~operation="mcp_initialize")
+    Log.error(~error=exn->JsExn.fromException, `Initialize failed: ${msg}`)
     sendError(handler, id, Types.ErrorCode.serverError, `Initialize failed: ${msg}`)
   }
 }
@@ -106,8 +104,7 @@ let handleToolsList = (handler: mcpHandler<'server>, id: int): unit => {
   } catch {
   | exn =>
     let msg = exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
-    Log.error(`Tools list failed: ${msg}`)
-    Sentry.captureException(exn, ~operation="mcp_tools_list")
+    Log.error(~error=exn->JsExn.fromException, `Tools list failed: ${msg}`)
     sendError(handler, id, Types.ErrorCode.serverError, `Tools list failed: ${msg}`)
   }
 }
@@ -143,8 +140,7 @@ let handleToolsCall = async (
       sendError(handler, id, Types.ErrorCode.invalidParams, `Invalid params: ${e.message}`)
     | exn =>
       let msg = exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
-      Log.error(`Tool execution failed: ${msg}`)
-      Sentry.captureException(exn, ~operation="mcp_tool_execution")
+      Log.error(~error=exn->JsExn.fromException, `Tool execution failed: ${msg}`)
       sendError(handler, id, Types.ErrorCode.serverError, `Tool execution failed: ${msg}`)
     }
   | None => sendError(handler, id, Types.ErrorCode.invalidParams, "Missing params for tools/call")
@@ -152,7 +148,8 @@ let handleToolsCall = async (
 }
 
 // Handle incoming MCP message
-// Guaranteed to never reject — all exceptions are caught, logged, and reported to Sentry.
+// Guaranteed to never reject — all exceptions are caught and logged
+// (the Sentry log handler auto-reports Log.error calls).
 let handleMessage = async (handler: mcpHandler<'server>, payload: JSON.t): unit => {
   try {
     handler.onMessage->Option.forEach(cb => cb(Receive, payload))
@@ -176,8 +173,7 @@ let handleMessage = async (handler: mcpHandler<'server>, payload: JSON.t): unit 
   } catch {
   | exn =>
     let msg = exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
-    Log.error(`Unhandled error in MCP message handler: ${msg}`)
-    Sentry.captureException(exn, ~operation="mcp_message_handler")
+    Log.error(~error=exn->JsExn.fromException, `Unhandled error in MCP message handler: ${msg}`)
   }
 }
 

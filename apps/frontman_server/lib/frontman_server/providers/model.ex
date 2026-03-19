@@ -231,7 +231,7 @@ defmodule FrontmanServer.Providers.Model do
 
   Returns `{:ok, model}` or `:error`.
   """
-  @spec from_client_params(map() | nil) :: {:ok, t()} | :error
+  @spec from_client_params(map() | String.t() | nil) :: {:ok, t()} | :error
   def from_client_params(%{"provider" => provider, "value" => value})
       when is_binary(provider) and is_binary(value) and provider != "" and value != "" do
     {:ok, new(provider, value)}
@@ -241,6 +241,9 @@ defmodule FrontmanServer.Providers.Model do
       when is_binary(provider) and is_binary(value) and provider != "" and value != "" do
     {:ok, new(provider, value)}
   end
+
+  # ACP sessionConfigValueId format: "provider:model_name"
+  def from_client_params(string) when is_binary(string), do: parse(string)
 
   def from_client_params(_), do: :error
 

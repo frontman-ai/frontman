@@ -14,7 +14,6 @@ module Log = FrontmanLogs.Logs.Make({
 module Icons = Bindings__RadixUI__Icons
 module TaskTabs = Client__TaskTabs
 module Message = Client__State__Types.Message
-module StateTypes = Client__State__Types
 module RuntimeConfig = Client__RuntimeConfig
 
 // Import Frontman UI components
@@ -116,8 +115,8 @@ let make = (
   let planEntries = Client__State.useSelector(Client__State.Selectors.currentPlanEntries)
   let turnError = Client__State.useSelector(Client__State.Selectors.turnError)
   let usageInfo = Client__State.useSelector(Client__State.Selectors.usageInfo)
-  let modelsConfig = Client__State.useSelector(Client__State.Selectors.modelsConfig)
-  let selectedModel = Client__State.useSelector(Client__State.Selectors.selectedModel)
+  let configOptions = Client__State.useSelector(Client__State.Selectors.configOptions)
+  let selectedModelValue = Client__State.useSelector(Client__State.Selectors.selectedModelValue)
   let hasProviderConfigured = Client__State.useSelector(Client__State.Selectors.hasAnyProviderConfigured)
   let webPreviewIsSelecting = Client__State.useSelector(Client__State.Selectors.webPreviewIsSelecting)
   let annotations = Client__State.useSelector(Client__State.Selectors.annotations)
@@ -126,8 +125,10 @@ let make = (
   let hasEnvKey = RuntimeConfig.hasOpenrouterKey(runtimeConfig) || RuntimeConfig.hasAnthropicKey(runtimeConfig)
   let hasAnyKey = hasProviderConfigured || hasEnvKey
 
-  let providers = modelsConfig->Option.mapOr([], config => config.providers)
-  let isModelsConfigLoading = modelsConfig->Option.isNone
+  let modelConfigOption = configOptions->Option.flatMap(opts =>
+    FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.findConfigOptionByCategory(opts, Model)
+  )
+  let isModelsConfigLoading = configOptions->Option.isNone
 
   let isUsageExhausted = switch (usageInfo, hasAnyKey) {
   | (Some({remaining: Some(remaining), hasServerKey: Some(true)}), false)
@@ -420,11 +421,11 @@ let make = (
       <PromptInput
         onSubmit={handleSubmit}
         onCancel={Client__State.Actions.cancelTurn}
-        providers
+        modelConfigOption
         isModelsConfigLoading
-        selectedModel
-        onModelChange={(~provider, ~value) =>
-          Client__State.Actions.setSelectedModel(~provider, ~value)}
+        selectedModelValue
+        onModelChange={value =>
+          Client__State.Actions.setSelectedModelValue(~value)}
         isAgentRunning
         hasActiveACPSession
         disabled={isUsageExhausted}

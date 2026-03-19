@@ -16,6 +16,7 @@ type channelEvent = [
   | #list_sessions
   | #delete_session
   | #title_updated
+  | #config_options_updated
 ]
 
 type rec pushResponse = {receive: (~status: string, ~callback: JSON.t => unit) => pushResponse}

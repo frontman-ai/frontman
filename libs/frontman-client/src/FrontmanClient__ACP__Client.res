@@ -84,8 +84,8 @@ let handleResponse = (state: state, payload: JSON.t): state => {
       state
     }
   } catch {
-  | _ =>
-    Log.debug(~ctx={"payload": payload}, "Received non-response message")
+  | S.Error(e) =>
+    Log.error(`Failed to parse JSON-RPC response: ${e.message}`)
     state
   }
 }
@@ -105,6 +105,9 @@ let parseInitializeResult = json => json->Decoders.parseSchema(Types.initializeR
 
 // Parse session/new result
 let parseSessionNewResult = json => json->Decoders.parseSchema(Types.sessionNewResultSchema)
+
+// Parse session/load result
+let parseSessionLoadResult = json => json->Decoders.parseSchema(Types.sessionLoadResultSchema)
 
 // Parse session/prompt result
 let parsePromptResult = json => json->Decoders.parseSchema(Types.promptResultSchema)

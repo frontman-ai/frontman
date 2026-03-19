@@ -82,27 +82,10 @@ type apiKeySettings = {
   saveStatus: apiKeySaveStatus,
 }
 
-// Model configuration types
-@schema
-type modelConfig = {
-  displayName: string,
-  value: string,
-}
-
-@schema
-type providerConfig = {
-  id: string,
-  name: string,
-  models: array<modelConfig>,
-}
-
-// Re-export the canonical model selection type from the protocol package
-type modelSelection = FrontmanAiFrontmanProtocol.FrontmanProtocol__Types.modelSelection
-
-@schema
-type modelsConfig = {
-  providers: array<providerConfig>,
-  defaultModel: FrontmanAiFrontmanProtocol.FrontmanProtocol__Types.modelSelection,
+// Re-export ACP session config types used by the client state layer.
+module ACPConfig = {
+  type sessionConfigOption = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.sessionConfigOption
+  type sessionConfigValueId = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.sessionConfigValueId
 }
 
 // Anthropic OAuth connection status
@@ -167,10 +150,15 @@ type state = {
   anthropicKeySettings: apiKeySettings,
   anthropicOAuthStatus: anthropicOAuthStatus,
   chatgptOAuthStatus: chatgptOAuthStatus,
-  modelsConfig: option<modelsConfig>,
-  selectedModel: option<modelSelection>,
+  // ACP session config options (replaces bespoke modelsConfig/selectedModel).
+  // Populated from session/new and session/load responses.
+  // Model selection is a SessionConfigOption with category=Model.
+  configOptions: option<array<ACPConfig.sessionConfigOption>>,
+  // Currently selected model value (ACP sessionConfigValueId, e.g. "anthropic:claude-sonnet-4-5").
+  // Persisted to localStorage. Derives from configOptions where category=Model.
+  selectedModelValue: option<ACPConfig.sessionConfigValueId>,
   // When a provider is freshly connected, this holds its id (e.g. "anthropic")
-  // so the next ModelsConfigReceived auto-selects a default model from it.
+  // so the next config options refresh auto-selects a default model from it.
   pendingProviderAutoSelect: option<string>,
   sessionsLoadState: sessionsLoadState,
   // Update banner: set when a newer integration package version is available

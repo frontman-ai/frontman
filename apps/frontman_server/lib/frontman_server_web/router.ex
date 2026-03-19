@@ -47,7 +47,6 @@ defmodule FrontmanServerWeb.Router do
     get("/user/me", UserMeController, :show)
     post("/user/api-keys", UserApiKeyController, :create)
     get("/user/api-key-usage", UserApiKeyController, :usage)
-    get("/models", ModelsController, :index)
 
     # Anthropic OAuth routes
     get("/oauth/anthropic/authorize-url", AnthropicOAuthController, :authorize_url)

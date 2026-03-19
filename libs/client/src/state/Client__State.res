@@ -145,9 +145,12 @@ module Actions = {
   let resetAnthropicKeySaveStatus = () =>
     Client__State__Store.dispatch(ResetAnthropicKeySaveStatus)
 
-  // Model selection action creators
-  let setSelectedModel = (~provider, ~value) =>
-    Client__State__Store.dispatch(SetSelectedModel({model: {provider, value}}))
+  // ACP session config option action creators
+  let configOptionsReceived = (~configOptions) =>
+    Client__State__Store.dispatch(ConfigOptionsReceived({configOptions: configOptions}))
+
+  let setSelectedModelValue = (~value) =>
+    Client__State__Store.dispatch(SetSelectedModelValue({value: value}))
 
   // Anthropic OAuth action creators
   let fetchAnthropicOAuthStatus = () => Client__State__Store.dispatch(FetchAnthropicOAuthStatus)

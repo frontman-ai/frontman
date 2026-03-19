@@ -10,7 +10,8 @@
     "mcpServers": {
       "items": {},
       "type": "array"
-    }
+    },
+    "_meta": {}
   },
   "additionalProperties": true,
   "required": [

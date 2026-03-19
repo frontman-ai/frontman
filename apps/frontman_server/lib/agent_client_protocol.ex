@@ -12,6 +12,21 @@ defmodule AgentClientProtocol do
 
   @protocol_version 1
 
+  # Channel event names — the single source of truth for Phoenix channel events.
+  @event_acp_message "acp:message"
+  @event_config_options_updated "config_options_updated"
+  @event_title_updated "title_updated"
+  @event_list_sessions "list_sessions"
+  @event_delete_session "delete_session"
+
+  # ACP method names — the single source of truth for JSON-RPC method strings.
+  @method_initialize "initialize"
+  @method_session_new "session/new"
+  @method_session_load "session/load"
+  @method_session_prompt "session/prompt"
+  @method_session_cancel "session/cancel"
+  @method_session_update "session/update"
+
   # Tool call status constants — the single source of truth for ACP wire values.
   @tool_call_status_pending "pending"
   @tool_call_status_in_progress "in_progress"
@@ -67,6 +82,21 @@ defmodule AgentClientProtocol do
 
   def protocol_version, do: @protocol_version
 
+  # Channel event accessors
+  def event_acp_message, do: @event_acp_message
+  def event_config_options_updated, do: @event_config_options_updated
+  def event_title_updated, do: @event_title_updated
+  def event_list_sessions, do: @event_list_sessions
+  def event_delete_session, do: @event_delete_session
+
+  # Method name accessors
+  def method_initialize, do: @method_initialize
+  def method_session_new, do: @method_session_new
+  def method_session_load, do: @method_session_load
+  def method_session_prompt, do: @method_session_prompt
+  def method_session_cancel, do: @method_session_cancel
+  def method_session_update, do: @method_session_update
+
   def agent_info do
     %{
       "name" => "frontman-server",
@@ -96,10 +126,78 @@ defmodule AgentClientProtocol do
   end
 
   @doc """
-  Builds session/new result payload.
+  Translates domain model config data into ACP SessionConfigOption format.
+
+  Receives the output of `Providers.model_config_data/2` — a domain DTO
+  containing model groups and a default model — and serializes it into
+  the ACP wire format.  This function has no knowledge of provider
+  internals; all domain logic is encapsulated in the Providers context.
   """
-  def build_session_new_result(session_id) do
-    %{"sessionId" => session_id}
+  def build_model_config_options(%{groups: groups, default_model: default_model}) do
+    [
+      %{
+        "type" => "select",
+        "id" => "model",
+        "name" => "Model",
+        "category" => "model",
+        "currentValue" => default_model,
+        "options" =>
+          Enum.map(groups, fn %{id: id, name: name, options: options} ->
+            %{
+              "group" => id,
+              "name" => name,
+              "options" =>
+                Enum.map(options, fn %{name: display_name, value: value} ->
+                  %{"value" => value, "name" => display_name}
+                end)
+            }
+          end)
+      }
+    ]
+  end
+
+  @doc """
+  Builds session/new result payload with optional config options.
+  """
+  def build_session_new_result(session_id, config_options \\ []) do
+    result = %{"sessionId" => session_id}
+
+    case config_options do
+      [] -> result
+      opts when is_list(opts) -> Map.put(result, "configOptions", opts)
+    end
+  end
+
+  @doc """
+  Builds session/load result payload with optional config options.
+  """
+  def build_session_load_result(config_options \\ []) do
+    case config_options do
+      [] -> %{}
+      opts when is_list(opts) -> %{"configOptions" => opts}
+    end
+  end
+
+  @doc """
+  Builds a session summary for the list_sessions channel response.
+
+  Translates a domain Task into ACP wire format. The channel should not
+  build this map directly.
+  """
+  def build_session_summary(task) do
+    %{
+      "sessionId" => task.id,
+      "title" => task.short_desc,
+      "createdAt" => DateTime.to_iso8601(task.inserted_at),
+      "updatedAt" => DateTime.to_iso8601(task.updated_at)
+    }
+  end
+
+  @doc """
+  Builds the payload for a config_options_updated channel push.
+  """
+  def build_config_options_updated_payload(config_options) when is_list(config_options) do
+    %{"configOptions" => config_options}
   end
 
   @doc """
@@ -131,7 +229,7 @@ defmodule AgentClientProtocol do
       }
     }
 
-    JsonRpc.notification("session/update", params)
+    JsonRpc.notification(@method_session_update, params)
   end
 
   @doc """
@@ -152,7 +250,7 @@ defmodule AgentClientProtocol do
       }
     }
 
-    JsonRpc.notification("session/update", params)
+    JsonRpc.notification(@method_session_update, params)
   end
 
   @doc """
@@ -171,7 +269,7 @@ defmodule AgentClientProtocol do
       }
     }
 
-    JsonRpc.notification("session/update", params)
+    JsonRpc.notification(@method_session_update, params)
   end
 
   @doc """
@@ -189,7 +287,7 @@ defmodule AgentClientProtocol do
       }
     }
 
-    JsonRpc.notification("session/update", params)
+    JsonRpc.notification(@method_session_update, params)
   end
 
   @doc """
@@ -240,7 +338,7 @@ defmodule AgentClientProtocol do
         optional
       )
 
-    JsonRpc.notification("session/update", %{
+    JsonRpc.notification(@method_session_update, %{
       "sessionId" => session_id,
       "update" => update
     })
@@ -267,7 +365,7 @@ defmodule AgentClientProtocol do
       "update" => update
     }
 
-    JsonRpc.notification("session/update", params)
+    JsonRpc.notification(@method_session_update, params)
   end
 
   @doc """
@@ -305,7 +403,7 @@ defmodule AgentClientProtocol do
       }
     }
 
-    JsonRpc.notification("session/update", params)
+    JsonRpc.notification(@method_session_update, params)
   end
 
   defp validate_plan_entries!(entries) when is_list(entries) do

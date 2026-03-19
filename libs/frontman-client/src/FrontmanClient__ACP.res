@@ -22,6 +22,7 @@ type config = {
   clientCapabilities: Types.clientCapabilities,
   onMessage: option<(messageDirection, JSON.t) => unit>,
   onTitleUpdated: option<(string, string) => unit>,
+  onConfigOptionsUpdated: option<array<Types.sessionConfigOption> => unit>,
 }
 
 let makeConfig = (
@@ -33,6 +34,7 @@ let makeConfig = (
   ~_meta: JSON.t,
   ~onMessage: option<(messageDirection, JSON.t) => unit>=?,
   ~onTitleUpdated: option<(string, string) => unit>=?,
+  ~onConfigOptionsUpdated: option<array<Types.sessionConfigOption> => unit>=?,
 ): config => {
   endpoint,
   tokenUrl,
@@ -44,6 +46,7 @@ let makeConfig = (
     _meta: Some(_meta),
   },
   onTitleUpdated,
+  onConfigOptionsUpdated,
   clientCapabilities: {
     fs: Some({readTextFile: Some(true), writeTextFile: Some(true)}),
     terminal: Some(false),
@@ -153,6 +156,7 @@ let connect = async (config: config, ~signal: option<WebAPI.EventAPI.abortSignal
   let isDev: bool = %raw("import.meta.env?.DEV ?? true")
   FrontmanLogs.Logs.setLogLevel(if isDev { Debug } else { Error })
   FrontmanLogs.Logs.addHandler(FrontmanLogs.Logs.Console.handler)
+  FrontmanLogs.Logs.addHandler(FrontmanClient__Sentry__LogHandler.handler)
 
   // Initialize Sentry on first connection
   Sentry.initialize()
@@ -163,10 +167,10 @@ let connect = async (config: config, ~signal: option<WebAPI.EventAPI.abortSignal
   | Ok(token) => Ok(token)
   | Error(NotAuthenticated) => Error(AuthRequired({loginUrl: config.loginUrl}))
   | Error(FetchFailed(msg)) =>
-    Sentry.captureConnectionError(`Token fetch failed: ${msg}`, ~endpoint=config.tokenUrl)
+    Log.error(`Token fetch failed: ${msg}`)
     Error(ConnectionFailed(`Token fetch failed: ${msg}`))
   | Error(InvalidResponse) =>
-    Sentry.captureConnectionError("Invalid token response", ~endpoint=config.tokenUrl)
+    Log.error("Invalid token response")
     Error(ConnectionFailed("Invalid token response"))
   }
 
@@ -197,18 +201,14 @@ let connect = async (config: config, ~signal: option<WebAPI.EventAPI.abortSignal
     let joinResult = switch (socketResult, checkAborted(signal)) {
     | (_, Error(_)) => Error(ConnectionFailed("Connection aborted"))
     | (Error(e), _) =>
-      Sentry.captureConnectionError(`Socket connection failed: ${e}`, ~endpoint=config.endpoint)
+      Log.error(`Socket connection failed: ${e}`)
       Error(ConnectionFailed(e))
     | (Ok(), Ok()) =>
       Sentry.addBreadcrumb(~category=#acp, ~message="Socket connected, joining channel")
       switch await joinChannel(channel) {
       | Error(AuthRequired({loginUrl})) => Error(AuthRequired({loginUrl: loginUrl}))
       | Error(JoinFailed(e)) =>
-        Sentry.captureProtocolError(
-          `Channel join failed: ${e}`,
-          ~protocol=#ACP,
-          ~operation="joinChannel",
-        )
+        Log.error(`Channel join failed: ${e}`)
         Error(ConnectionFailed(e))
       | Ok() => Ok()
       }
@@ -224,7 +224,21 @@ let connect = async (config: config, ~signal: option<WebAPI.EventAPI.abortSignal
         channel->Channel.on(~event=#title_updated, ~callback=payload => {
           switch payload->Decoders.parseSchema(Types.titleUpdatedSchema) {
           | Ok({sessionId, title}) => callback(sessionId, title)
-          | Error(_) => ()
+          | Error(e) =>
+            Log.error(`Failed to parse title_updated payload: ${e}`)
+          }
+        })
+      | None => ()
+      }
+
+      // Listen for config option updates (pushed after key saves/OAuth)
+      switch config.onConfigOptionsUpdated {
+      | Some(callback) =>
+        channel->Channel.on(~event=#config_options_updated, ~callback=payload => {
+          switch payload->Decoders.parseSchema(Types.configOptionsUpdatedSchema) {
+          | Ok({configOptions}) => callback(configOptions)
+          | Error(e) =>
+            Log.error(`Failed to parse config_options_updated payload: ${e}`)
           }
         })
       | None => ()
@@ -238,11 +252,7 @@ let connect = async (config: config, ~signal: option<WebAPI.EventAPI.abortSignal
         ~onMessage=config.onMessage,
       ) {
       | Error(e) =>
-        Sentry.captureProtocolError(
-          `ACP initialize failed: ${e}`,
-          ~protocol=#ACP,
-          ~operation="initialize",
-        )
+        Log.error(`ACP initialize failed: ${e}`)
         Error(ConnectionFailed(e))
       | Ok(result) =>
         Sentry.addBreadcrumb(~category=#acp, ~message="ACP initialized successfully")
@@ -309,11 +319,7 @@ let joinSession = async (
     | AuthRequired({loginUrl}) => `Auth required: ${loginUrl}`
     | JoinFailed(msg) => msg
     }
-    Sentry.captureProtocolError(
-      `Session join failed: ${errMsg}`,
-      ~protocol=#ACP,
-      ~operation="joinSession",
-    )
+    Log.error(`Session join failed: ${errMsg}`)
     errMsg
   })
   ->Result.map(_ => {
@@ -337,7 +343,7 @@ let createSession = async (
   ~onUpdate: (string, Types.sessionUpdate) => unit,
   ~mcpServerInterface: option<MCPTypes.serverInterface<'server>>=?,
   ~onMcpMessage: option<(MCP.messageDirection, JSON.t) => unit>=?,
-): result<session, string> => {
+): result<(session, option<array<Types.sessionConfigOption>>), string> => {
   Sentry.addBreadcrumb(~category=#session, ~message=`Creating new session with id: ${sessionId}`)
 
   let sessionNewResult = await Protocol.sendSessionNew(
@@ -349,13 +355,13 @@ let createSession = async (
 
   switch sessionNewResult {
   | Ok(result) =>
-    await joinSession(conn, result.sessionId, ~onUpdate, ~mcpServerInterface?, ~onMcpMessage?)
+    let joinResult = await joinSession(conn, result.sessionId, ~onUpdate, ~mcpServerInterface?, ~onMcpMessage?)
+    switch joinResult {
+    | Ok(session) => Ok((session, result.configOptions))
+    | Error(e) => Error(e)
+    }
   | Error(err) =>
-    Sentry.captureProtocolError(
-      `Session creation failed: ${err}`,
-      ~protocol=#ACP,
-      ~operation="createSession",
-    )
+    Log.error(`Session creation failed: ${err}`)
     Error(err)
   }
 }
@@ -439,7 +445,7 @@ let loadSession = async (
   ~onUpdate: (string, Types.sessionUpdate) => unit,
   ~mcpServerInterface: option<MCPTypes.serverInterface<'server>>=?,
   ~onMcpMessage: option<(MCP.messageDirection, JSON.t) => unit>=?,
-): result<session, string> => {
+): result<(session, Types.sessionLoadResult), string> => {
   // First join the session channel to receive history updates
   let joinResult = await joinSession(
     conn,
@@ -455,22 +461,26 @@ let loadSession = async (
     // Send ACP session/load request to session channel (not tasks channel)
     // History notifications are sent to the channel that receives this request,
     // and the onUpdate callback is attached to the session channel in joinSession.
+    // Include clientInfo metadata in _meta so the task channel can extract
+    // env API keys for config option resolution (env keys are only sent
+    // during initialize on the tasks channel, not available on session channels).
     let params: Types.sessionLoadParams = {
       sessionId,
       cwd: "/",
       mcpServers: [],
+      _meta: conn.clientConfig.clientInfo._meta,
     }
     let loadResult = await Protocol.sendRequest(
       ~channel=session.channel,
       ~state=conn.state,
       ~method="session/load",
       ~params=Some(params->S.reverseConvertToJsonOrThrow(Types.sessionLoadParamsSchema)),
-      ~parseResult=_ => Ok(),
+      ~parseResult=Client.parseSessionLoadResult,
       ~onMessage=conn.onMessage,
     )
 
     switch loadResult {
-    | Ok() => Ok(session)
+    | Ok(result) => Ok((session, result))
     | Error(e) => Error(e)
     }
   }

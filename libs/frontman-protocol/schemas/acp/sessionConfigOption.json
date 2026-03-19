@@ -1,0 +1,120 @@
+{
+  "type": "object",
+  "properties": {
+    "type": {
+      "type": "string",
+      "const": "select"
+    },
+    "id": {
+      "type": "string"
+    },
+    "name": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "category": {
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "mode"
+        },
+        {
+          "type": "string",
+          "const": "model"
+        },
+        {
+          "type": "string",
+          "const": "thought_level"
+        },
+        {
+          "type": "string"
+        }
+      ]
+    },
+    "currentValue": {
+      "type": "string"
+    },
+    "options": {
+      "anyOf": [
+        {
+          "items": {
+            "type": "object",
+            "properties": {
+              "group": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "options": {
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "value": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "description": {
+                      "type": "string"
+                    },
+                    "_meta": {}
+                  },
+                  "additionalProperties": true,
+                  "required": [
+                    "value",
+                    "name"
+                  ]
+                },
+                "type": "array"
+              },
+              "_meta": {}
+            },
+            "additionalProperties": true,
+            "required": [
+              "group",
+              "name",
+              "options"
+            ]
+          },
+          "type": "array"
+        },
+        {
+          "items": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "_meta": {}
+            },
+            "additionalProperties": true,
+            "required": [
+              "value",
+              "name"
+            ]
+          },
+          "type": "array"
+        }
+      ]
+    },
+    "_meta": {}
+  },
+  "additionalProperties": true,
+  "required": [
+    "type",
+    "id",
+    "name",
+    "currentValue",
+    "options"
+  ]
+}

@@ -2,9 +2,9 @@ defmodule FrontmanServer.Providers.ModelCatalog do
   @moduledoc """
   Client-facing model catalog.
 
-  Owns the model lists, display names, defaults, and tier logic that the
-  `ModelsController` serves to the UI.  Keeps the controller thin and
-  the model data in one place.
+  Owns the model lists, display names, defaults, and tier logic.
+  Config options are delivered via ACP session responses and channel
+  notifications (see `Providers.model_config_data/2`).
 
   ## Provider tiers
 
@@ -114,16 +114,19 @@ defmodule FrontmanServer.Providers.ModelCatalog do
   end
 
   @doc """
-  Builds the full provider entry map (id, name, models) for a provider
-  at the given tier.
+  Builds a model group for a provider at the given tier.
+
+  A model group is the domain concept for a set of models offered by a
+  single provider (e.g. "Anthropic full-tier models").  It's consumed by
+  the ACP translation layer to build `SessionConfigOption` payloads.
 
   ## Examples
 
-      iex> ModelCatalog.provider_entry("anthropic", :full)
+      iex> ModelCatalog.model_group("anthropic", :full)
       %{id: "anthropic", name: "Anthropic (Claude Pro/Max)", models: [...]}
   """
-  @spec provider_entry(String.t(), :full | :free) :: map()
-  def provider_entry(provider, tier \\ :full) when is_binary(provider) do
+  @spec model_group(String.t(), :full | :free) :: map()
+  def model_group(provider, tier \\ :full) when is_binary(provider) do
     %{
       id: provider,
       name: Registry.display_name(provider) || provider,
@@ -159,5 +162,16 @@ defmodule FrontmanServer.Providers.ModelCatalog do
     |> Enum.sort_by(&(Registry.priority(&1) || 999))
     |> Enum.find_value(fn provider -> default_model(provider) end) ||
       default_model("openrouter")
+  end
+
+  @doc """
+  Returns whether a provider has a free tier in the catalog.
+  """
+  @spec has_free_tier?(String.t()) :: boolean()
+  def has_free_tier?(provider) do
+    case Map.get(@models, String.downcase(provider)) do
+      %{free: _} -> true
+      _ -> false
+    end
   end
 end

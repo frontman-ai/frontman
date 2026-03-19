@@ -29,6 +29,9 @@ defmodule FrontmanServerWeb.ChannelCase do
 
       # The default endpoint for testing
       @endpoint FrontmanServerWeb.Endpoint
+
+      # ACP channel event constant for test assertions
+      @acp_message AgentClientProtocol.event_acp_message()
     end
   end
 
@@ -106,7 +109,7 @@ defmodule FrontmanServerWeb.ChannelCase do
 
       :sys.get_state(socket.channel_pid)
 
-      assert_push("acp:message", %{
+      assert_push(@acp_message, %{
         "method" => "mcp_initialization_complete"
       })
     end

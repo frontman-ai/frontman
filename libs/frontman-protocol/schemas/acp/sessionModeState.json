@@ -1,0 +1,37 @@
+{
+  "type": "object",
+  "properties": {
+    "currentModeId": {
+      "type": "string"
+    },
+    "availableModes": {
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "_meta": {}
+        },
+        "additionalProperties": true,
+        "required": [
+          "id",
+          "name"
+        ]
+      },
+      "type": "array"
+    },
+    "_meta": {}
+  },
+  "additionalProperties": true,
+  "required": [
+    "currentModeId",
+    "availableModes"
+  ]
+}

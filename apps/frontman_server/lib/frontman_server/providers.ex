@@ -25,6 +25,7 @@ defmodule FrontmanServer.Providers do
     ApiKey,
     ChatGPTOAuth,
     Model,
+    ModelCatalog,
     OAuthToken,
     Registry,
     ResolvedKey,
@@ -137,18 +138,28 @@ defmodule FrontmanServer.Providers do
 
   @doc """
   Stores or updates a user API key for a provider.
+
+  On success, broadcasts a config change notification so subscribers
+  (e.g. the tasks channel) can push updated config options to the client.
   """
-  def upsert_api_key(%Scope{user: %User{} = user}, provider, key) do
+  def upsert_api_key(%Scope{user: %User{} = user} = scope, provider, key) do
     provider = String.downcase(provider)
     # Build struct with user_id set explicitly (not via changeset for security)
     api_key = %ApiKey{user_id: user.id}
     changeset = ApiKey.changeset(api_key, %{provider: provider, key: key})
 
-    Repo.insert(
-      changeset,
-      on_conflict: {:replace, [:key, :updated_at]},
-      conflict_target: [:user_id, :provider]
-    )
+    case Repo.insert(
+           changeset,
+           on_conflict: {:replace, [:key, :updated_at]},
+           conflict_target: [:user_id, :provider]
+         ) do
+      {:ok, record} ->
+        broadcast_config_changed(scope.user.id)
+        {:ok, record}
+
+      error ->
+        error
+    end
   end
 
   @doc """
@@ -359,7 +370,34 @@ defmodule FrontmanServer.Providers do
   ## OAuth Token Management
 
   @doc """
+  Stores or updates an OAuth token and broadcasts a config change.
+
+  Use this for user-initiated OAuth connections (e.g. completing an OAuth flow).
+  For internal token refreshes, use `upsert_oauth_token/6` directly.
+  """
+  def save_oauth_connection(
+        %Scope{user: %User{}} = scope,
+        provider,
+        access_token,
+        refresh_token,
+        expires_at,
+        metadata \\ %{}
+      ) do
+    case upsert_oauth_token(scope, provider, access_token, refresh_token, expires_at, metadata) do
+      {:ok, token} ->
+        broadcast_config_changed(scope.user.id)
+        {:ok, token}
+
+      error ->
+        error
+    end
+  end
+
+  @doc """
   Stores or updates an OAuth token for a provider.
+
+  Does NOT broadcast config changes — use `save_oauth_connection/6` for
+  user-initiated flows that should notify subscribers.
 
   Accepts an optional `metadata` map for provider-specific data (e.g., `account_id`).
   """
@@ -488,13 +526,137 @@ defmodule FrontmanServer.Providers do
 
   @doc """
   Deletes an OAuth token for a provider.
+
+  On success, broadcasts a config change notification so subscribers
+  can push updated config options to the client.
   """
   def delete_oauth_token(%Scope{user: %User{} = user}, provider) do
     query = OAuthToken.for_user_and_provider(OAuthToken, user.id, provider)
 
     case Repo.delete_all(query) do
-      {0, _} -> {:error, :not_found}
-      {_, _} -> :ok
+      {0, _} ->
+        {:error, :not_found}
+
+      {_, _} ->
+        broadcast_config_changed(user.id)
+        :ok
+    end
+  end
+
+  ## Config Change Notifications
+
+  @doc """
+  Returns the PubSub topic for config option updates for a given user.
+
+  Subscribe to this topic to receive `:config_options_changed` messages
+  when API keys or OAuth tokens are added/removed.
+  """
+  @spec config_pubsub_topic(String.t()) :: String.t()
+  def config_pubsub_topic(user_id) when is_binary(user_id) do
+    "config_update:user:#{user_id}"
+  end
+
+  @doc """
+  Broadcasts a config options changed event for the given user.
+
+  Called after API key saves or OAuth token changes so that subscribers
+  (e.g. the tasks channel) can push updated config options to the client.
+  """
+  @spec broadcast_config_changed(String.t()) :: :ok | {:error, term()}
+  def broadcast_config_changed(user_id) when is_binary(user_id) do
+    Phoenix.PubSub.broadcast(
+      FrontmanServer.PubSub,
+      config_pubsub_topic(user_id),
+      :config_options_changed
+    )
+  end
+
+  ## Model Config (ACP-ready domain data)
+
+  @doc """
+  Returns model selection data for a user, ready for ACP serialization.
+
+  Resolves which providers the user can access, at what tier, then builds
+  model groups and picks the best default.  Returns a domain DTO that ACP
+  translates to `SessionConfigOption` wire format.
+
+  ## Parameters
+
+    * `scope` – the user's `%Scope{}` struct
+    * `env_api_key` – map of env-provided keys from client metadata
+
+  ## Returns
+
+  A map with:
+    * `:groups` – list of model group maps, each with `:id`, `:name`, and
+      `:options` (list of `%{name: String.t(), value: String.t()}` where
+      `value` is a serialized `"provider:model"` string)
+    * `:default_model` – serialized `"provider:model"` string for the best default
+  """
+  @spec model_config_data(Scope.t(), map()) :: %{
+          groups: [map()],
+          default_model: String.t()
+        }
+  def model_config_data(%Scope{} = scope, env_api_key \\ %{}) do
+    provider_tiers = available_provider_tiers(scope, env_api_key)
+
+    groups =
+      Enum.map(provider_tiers, fn {provider, tier} ->
+        group = ModelCatalog.model_group(provider, tier)
+
+        options =
+          Enum.map(group.models, fn model ->
+            %{
+              name: model.displayName,
+              value: Model.new(provider, model.value) |> Model.to_string()
+            }
+          end)
+
+        %{id: group.id, name: group.name, options: options}
+      end)
+
+    available_providers = Enum.map(provider_tiers, &elem(&1, 0))
+    default = ModelCatalog.pick_default(available_providers)
+    default_model = Model.new(default.provider, default.value) |> Model.to_string()
+
+    %{groups: groups, default_model: default_model}
+  end
+
+  ## Provider Tier Resolution
+
+  @doc """
+  Resolves which providers a user can access and at what tier.
+
+  Returns a list of `{provider_id, tier}` tuples sorted by provider
+  priority.  Iterates all catalog providers and classifies each using
+  `resolve_api_key/3`.
+
+  ## Parameters
+
+    * `scope` – the user's `%Scope{}` struct
+    * `env_api_key` – map of env-provided keys from client metadata
+  """
+  @spec available_provider_tiers(Scope.t(), map()) :: [{String.t(), :full | :free}]
+  def available_provider_tiers(%Scope{} = scope, env_api_key \\ %{}) do
+    ModelCatalog.catalog_providers()
+    |> Enum.flat_map(fn provider ->
+      case {key_type(scope, provider, env_api_key), ModelCatalog.has_free_tier?(provider)} do
+        {:own_key, _} -> [{provider, :full}]
+        {:server_key, true} -> [{provider, :free}]
+        {:server_key, false} -> []
+        {:no_key, true} -> [{provider, :free}]
+        {:no_key, false} -> []
+      end
+    end)
+  end
+
+  defp key_type(scope, provider, env_api_key) do
+    case resolve_api_key(scope, provider, env_api_key) do
+      {:oauth_token, _, _} -> :own_key
+      {:user_key, _} -> :own_key
+      {:env_key, _} -> :own_key
+      {:server_key, key} when is_binary(key) and key != "" -> :server_key
+      {:server_key, _} -> :no_key
     end
   end
 end

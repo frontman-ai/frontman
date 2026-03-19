@@ -128,7 +128,9 @@ let execute = async (input: input, ~taskId as _taskId: string, ~toolCallId as _t
         } else {
           try {
             let state = StateStore.getState(Client__State__Store.store)
-            let provider = state.selectedModel->Option.map(m => m.provider)
+            let provider = state.selectedModelValue
+              ->Option.flatMap(FrontmanAiFrontmanProtocol.FrontmanProtocol__Types.modelSelectionFromValueId)
+              ->Option.map(FrontmanAiFrontmanProtocol.FrontmanProtocol__Types.provider)
             let limits = Client__ImageLimits.forProvider(provider)
             let scale = Client__ImageLimits.computeScale(element, limits.maxDimension)
 

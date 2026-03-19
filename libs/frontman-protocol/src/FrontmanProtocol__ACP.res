@@ -102,13 +102,6 @@ type initializeResult = {
   authMethods: option<array<authMethod>>,
 }
 
-// session/new response result
-@schema
-type sessionNewResult = {
-  @as("sessionId")
-  sessionId: string,
-}
-
 // session/load request params
 @schema
 type sessionLoadParams = {
@@ -117,7 +110,211 @@ type sessionLoadParams = {
   cwd: string,
   @as("mcpServers")
   mcpServers: array<JSON.t>,
+  @as("_meta")
+  _meta: option<JSON.t>,
 }
+
+// ---------------------------------------------------------------------------
+// Session Modes (ACP spec)
+// ---------------------------------------------------------------------------
+
+// Unique identifier for a session mode
+type sessionModeId = string
+
+// A mode the agent can operate in
+type sessionMode = {
+  id: sessionModeId,
+  name: string,
+  description: option<string>,
+  _meta: option<JSON.t>,
+}
+
+let sessionModeSchema = S.object(s => {
+  id: s.field("id", S.string),
+  name: s.field("name", S.string),
+  description: s.field("description", S.option(S.string)),
+  _meta: s.field("_meta", S.option(S.json)),
+})
+
+// The set of modes and the one currently active
+type sessionModeState = {
+  currentModeId: sessionModeId,
+  availableModes: array<sessionMode>,
+  _meta: option<JSON.t>,
+}
+
+let sessionModeStateSchema = S.object(s => {
+  currentModeId: s.field("currentModeId", S.string),
+  availableModes: s.field("availableModes", S.array(sessionModeSchema)),
+  _meta: s.field("_meta", S.option(S.json)),
+})
+
+// ---------------------------------------------------------------------------
+// Session Config Options (ACP spec)
+// ---------------------------------------------------------------------------
+
+// Unique identifier for a config option value
+type sessionConfigValueId = string
+
+// Unique identifier for a config option group
+type sessionConfigGroupId = string
+
+// A possible value for a session config option
+type sessionConfigSelectOption = {
+  value: sessionConfigValueId,
+  name: string,
+  description: option<string>,
+  _meta: option<JSON.t>,
+}
+
+let sessionConfigSelectOptionSchema = S.object(s => {
+  value: s.field("value", S.string),
+  name: s.field("name", S.string),
+  description: s.field("description", S.option(S.string)),
+  _meta: s.field("_meta", S.option(S.json)),
+})
+
+// A group of option values
+type sessionConfigSelectGroup = {
+  group: sessionConfigGroupId,
+  name: string,
+  options: array<sessionConfigSelectOption>,
+  _meta: option<JSON.t>,
+}
+
+let sessionConfigSelectGroupSchema = S.object(s => {
+  group: s.field("group", S.string),
+  name: s.field("name", S.string),
+  options: s.field("options", S.array(sessionConfigSelectOptionSchema)),
+  _meta: s.field("_meta", S.option(S.json)),
+})
+
+// Options for a select config: either a flat list or a grouped list
+type sessionConfigSelectOptions =
+  | Ungrouped(array<sessionConfigSelectOption>)
+  | Grouped(array<sessionConfigSelectGroup>)
+
+let sessionConfigSelectOptionsSchema = S.union([
+  // Try grouped first (items have a "group" field that distinguishes them)
+  S.array(sessionConfigSelectGroupSchema)->S.transform(s => {
+    parser: v => Grouped(v),
+    serializer: v =>
+      switch v {
+      | Grouped(groups) => groups
+      | Ungrouped(_) => s.fail("Expected Grouped")
+      },
+  }),
+  S.array(sessionConfigSelectOptionSchema)->S.transform(s => {
+    parser: v => Ungrouped(v),
+    serializer: v =>
+      switch v {
+      | Ungrouped(opts) => opts
+      | Grouped(_) => s.fail("Expected Ungrouped")
+      },
+  }),
+])
+
+// Semantic category for a config option (UX hint).
+// Per ACP spec: "Clients MUST handle missing or unknown categories gracefully."
+// Category names beginning with `_` are free for custom use.
+type sessionConfigOptionCategory =
+  | @as("mode") Mode
+  | @as("model") Model
+  | @as("thought_level") ThoughtLevel
+  | Other(string)
+
+let sessionConfigOptionCategorySchema = S.union([
+  S.literal(Mode),
+  S.literal(Model),
+  S.literal(ThoughtLevel),
+  S.string->S.transform(_ => {
+    parser: v => Other(v),
+    serializer: v =>
+      switch v {
+      | Other(s) => s
+      | Mode => "mode"
+      | Model => "model"
+      | ThoughtLevel => "thought_level"
+      },
+  }),
+])
+
+// A session config option — discriminated union on "type".
+// Currently only the "select" variant exists in the ACP spec.
+type sessionConfigOption = SelectConfigOption({
+  id: string,
+  name: string,
+  description: option<string>,
+  category: option<sessionConfigOptionCategory>,
+  currentValue: sessionConfigValueId,
+  options: sessionConfigSelectOptions,
+  _meta: option<JSON.t>,
+})
+
+let sessionConfigOptionSchema = S.union([
+  S.object(s => {
+    s.tag("type", "select")
+    SelectConfigOption({
+      id: s.field("id", S.string),
+      name: s.field("name", S.string),
+      description: s.field("description", S.option(S.string)),
+      category: s.field("category", S.option(sessionConfigOptionCategorySchema)),
+      currentValue: s.field("currentValue", S.string),
+      options: s.field("options", sessionConfigSelectOptionsSchema),
+      _meta: s.field("_meta", S.option(S.json)),
+    })
+  }),
+])
+
+// ---------------------------------------------------------------------------
+// session/load response result (ACP LoadSessionResponse)
+// ---------------------------------------------------------------------------
+
+type sessionLoadResult = {
+  modes: option<sessionModeState>,
+  configOptions: option<array<sessionConfigOption>>,
+  _meta: option<JSON.t>,
+}
+
+let sessionLoadResultSchema = S.object(s => {
+  modes: s.field("modes", S.option(sessionModeStateSchema)),
+  configOptions: s.field("configOptions", S.option(S.array(sessionConfigOptionSchema))),
+  _meta: s.field("_meta", S.option(S.json)),
+})
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+// Find a config option by its semantic category (e.g. Model, Mode, ThoughtLevel).
+let findConfigOptionByCategory = (
+  configOptions: array<sessionConfigOption>,
+  category: sessionConfigOptionCategory,
+): option<sessionConfigOption> =>
+  configOptions->Array.find(opt =>
+    switch opt {
+    | SelectConfigOption({category: Some(c)}) => c == category
+    | _ => false
+    }
+  )
+
+// ---------------------------------------------------------------------------
+// session/new response result (ACP NewSessionResponse)
+// ---------------------------------------------------------------------------
+
+type sessionNewResult = {
+  sessionId: string,
+  modes: option<sessionModeState>,
+  configOptions: option<array<sessionConfigOption>>,
+  _meta: option<JSON.t>,
+}
+
+let sessionNewResultSchema = S.object(s => {
+  sessionId: s.field("sessionId", S.string),
+  modes: s.field("modes", S.option(sessionModeStateSchema)),
+  configOptions: s.field("configOptions", S.option(S.array(sessionConfigOptionSchema))),
+  _meta: s.field("_meta", S.option(S.json)),
+})
 
 // delete_session request params (non-ACP channel event)
 @schema
@@ -133,6 +330,15 @@ type titleUpdated = {
   sessionId: string,
   title: string,
 }
+
+// Payload for the config_options_updated channel event (non-ACP, tasks channel)
+type configOptionsUpdated = {
+  configOptions: array<sessionConfigOption>,
+}
+
+let configOptionsUpdatedSchema = S.object(s => {
+  configOptions: s.field("configOptions", S.array(sessionConfigOptionSchema)),
+})
 
 // Annotations for embedded resources
 @schema
@@ -384,6 +590,8 @@ type sessionUpdate =
       content: option<array<toolCallContentItem>>,
     })
   | Plan({entries: array<planEntry>})
+  | ConfigOptionUpdate({configOptions: array<sessionConfigOption>})
+  | CurrentModeUpdate({currentModeId: sessionModeId})
   | AgentTurnComplete({stopReason: stopReason})
   | Error({message: string})
   | Unknown({sessionUpdate: string})
@@ -428,6 +636,18 @@ let sessionUpdateSchema = S.union([
     s.tag("sessionUpdate", "plan")
     Plan({
       entries: s.field("entries", S.array(planEntrySchema)),
+    })
+  }),
+  S.object(s => {
+    s.tag("sessionUpdate", "config_option_update")
+    ConfigOptionUpdate({
+      configOptions: s.field("configOptions", S.array(sessionConfigOptionSchema)),
+    })
+  }),
+  S.object(s => {
+    s.tag("sessionUpdate", "current_mode_update")
+    CurrentModeUpdate({
+      currentModeId: s.field("currentModeId", S.string),
     })
   }),
   S.object(s => {

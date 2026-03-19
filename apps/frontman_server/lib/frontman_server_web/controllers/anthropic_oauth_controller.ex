@@ -34,7 +34,7 @@ defmodule FrontmanServerWeb.AnthropicOAuthController do
       {:ok, tokens} ->
         expires_at = AnthropicOAuth.calculate_expires_at(tokens.expires_in)
 
-        case Providers.upsert_oauth_token(
+        case Providers.save_oauth_connection(
                scope,
                "anthropic",
                tokens.access_token,
