@@ -6,7 +6,11 @@
         "type": "object",
         "properties": {
           "type": {
-            "type": "string"
+            "enum": [
+              "text",
+              "image",
+              "resource"
+            ]
           },
           "text": {
             "type": "string"

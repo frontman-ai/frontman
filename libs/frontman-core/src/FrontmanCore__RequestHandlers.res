@@ -78,7 +78,7 @@ let handleToolCall = async (
   switch request {
   | Error(msg) =>
     let errorResult: MCP.callToolResult = {
-      content: [{type_: "text", text: `Invalid request: ${msg}`}],
+      content: [{type_: MCP.Text, text: `Invalid request: ${msg}`}],
       isError: Some(true),
       _meta: MCP.emptyMeta,
     }
@@ -121,7 +121,7 @@ let handleToolCall = async (
               ->Option.flatMap(JsExn.message)
               ->Option.getOr("Unknown error")
             let errorResult: MCP.callToolResult = {
-              content: [{type_: "text", text: `Tool execution failed: ${msg}`}],
+              content: [{type_: MCP.Text, text: `Tool execution failed: ${msg}`}],
               isError: Some(true),
               _meta: MCP.emptyMeta,
             }

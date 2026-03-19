@@ -44,10 +44,17 @@ type toolCallParams = {
   arguments: option<Dict.t<JSON.t>>,
 }
 
+// Tool result content type — per MCP spec
+@schema
+type toolResultContentType =
+  | @as("text") Text
+  | @as("image") Image
+  | @as("resource") Resource
+
 // Tool result content
 @schema
 type toolResultContent = {
-  @as("type") type_: string,
+  @as("type") type_: toolResultContentType,
   text: string,
 }
 

@@ -134,12 +134,12 @@ let executeLocalTool = async (
     | Ok(output) =>
       let outputJson = output->S.reverseConvertToJsonOrThrow(T.outputSchema)
       {
-        content: [{type_: "text", text: JSON.stringify(outputJson)}],
+        content: [{type_: Text, text: JSON.stringify(outputJson)}],
         isError: None,
         _meta: meta,
       }
     | Error(msg) => {
-        content: [{type_: "text", text: msg}],
+        content: [{type_: Text, text: msg}],
         isError: Some(true),
         _meta: meta,
       }
@@ -149,7 +149,7 @@ let executeLocalTool = async (
   | S.Error(e) =>
     Log.error(~ctx={"tool": T.name}, "Schema error")
     Completed({
-      content: [{type_: "text", text: `Invalid input: ${e.message}`}],
+      content: [{type_: Text, text: `Invalid input: ${e.message}`}],
       isError: Some(true),
       _meta: meta,
     })
@@ -187,7 +187,7 @@ let resolveWriteFileImageRef = (
 }
 
 let toolError = (server: t, msg: string): Types.callToolResult => {
-  content: [{type_: "text", text: msg}],
+  content: [{type_: Text, text: msg}],
   isError: Some(true),
   _meta: server->currentMeta,
 }

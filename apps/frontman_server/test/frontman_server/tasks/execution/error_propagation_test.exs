@@ -55,7 +55,12 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
       agent = test_agent(error_llm, "ErrorPropTestAgent")
 
       user_content = [%{"type" => "text", "text" => "Take a screenshot"}]
-      {:ok, _} = Tasks.submit_user_message(scope, task_id, user_content, [], agent: agent)
+
+      {:ok, _} =
+        Tasks.submit_user_message(scope, task_id, user_content, [],
+          agent: agent,
+          env_api_key: %{"openrouter" => "sk-or-test"}
+        )
 
       # The error should propagate through:
       # 1. StreamErrorLLM returns {:ok, stream} that raises on consumption
@@ -75,7 +80,12 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
       agent = test_agent(%ErrorLLM{error: :llm_api_failure}, "AlwaysErrorAgent")
 
       user_content = [%{"type" => "text", "text" => "Hello"}]
-      {:ok, _} = Tasks.submit_user_message(scope, task_id, user_content, [], agent: agent)
+
+      {:ok, _} =
+        Tasks.submit_user_message(scope, task_id, user_content, [],
+          agent: agent,
+          env_api_key: %{"openrouter" => "sk-or-test"}
+        )
 
       # Should receive a failed event broadcast
       assert_receive {:swarm_event, {:failed, {:error, _reason, _loop_id}}}, 5_000

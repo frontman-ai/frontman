@@ -132,7 +132,7 @@ describe("handleToolsCall", () => {
 
     let handler: MCP.mcpHandler<unit> = {
       serverInterface: makeCompletedServerInterface({
-        content: [{type_: "text", text: "tool output"}],
+        content: [{type_: Types.Text, text: "tool output"}],
         isError: None,
         _meta: Types.emptyMeta,
       }),
@@ -182,7 +182,7 @@ describe("handleToolsCall", () => {
     // executeTool will receive invalid params that cause S.Error during schema parse
     let handler: MCP.mcpHandler<unit> = {
       serverInterface: makeCompletedServerInterface({
-        content: [{type_: "text", text: "ok"}],
+        content: [{type_: Types.Text, text: "ok"}],
         isError: None,
         _meta: Types.emptyMeta,
       }),
@@ -330,7 +330,7 @@ describe("handleMessage error safety", () => {
 
       let handler: MCP.mcpHandler<unit> = {
         serverInterface: makeCompletedServerInterface({
-          content: [{type_: "text", text: "ok"}],
+          content: [{type_: Types.Text, text: "ok"}],
           isError: None,
           _meta: Types.emptyMeta,
         }),

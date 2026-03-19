@@ -73,7 +73,12 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
       agent = test_agent(%ErrorLLM{error: :llm_api_failure}, "ErrorSentryAgent")
 
       user_content = [%{"type" => "text", "text" => "Hello"}]
-      {:ok, _} = Tasks.submit_user_message(scope, task_id, user_content, [], agent: agent)
+
+      {:ok, _} =
+        Tasks.submit_user_message(scope, task_id, user_content, [],
+          agent: agent,
+          env_api_key: %{"openrouter" => "sk-or-test"}
+        )
 
       # Wait for the failed event broadcast (Sentry call completes before broadcast)
       assert_receive {:swarm_event, {:failed, _}}, 5_000
@@ -110,7 +115,12 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
       agent = test_agent(error_llm, "CrashSentryAgent")
 
       user_content = [%{"type" => "text", "text" => "Trigger crash"}]
-      {:ok, _} = Tasks.submit_user_message(scope, task_id, user_content, [], agent: agent)
+
+      {:ok, _} =
+        Tasks.submit_user_message(scope, task_id, user_content, [],
+          agent: agent,
+          env_api_key: %{"openrouter" => "sk-or-test"}
+        )
 
       # Wait for the crash event broadcast (Sentry call completes before broadcast)
       assert_receive {:swarm_event, {:crashed, _}}, 5_000

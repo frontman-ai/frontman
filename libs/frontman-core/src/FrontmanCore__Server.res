@@ -45,13 +45,13 @@ let executeTool = async (
       | Result.Ok(output) =>
         let outputJson = output->S.reverseConvertToJsonOrThrow(T.outputSchema)
         Ok({
-          content: [{type_: "text", text: JSON.stringify(outputJson)}],
+          content: [{type_: MCP.Text, text: JSON.stringify(outputJson)}],
           isError: None,
           _meta: MCP.emptyMeta,
         })
       | Result.Error(msg) =>
         Ok({
-          content: [{type_: "text", text: msg}],
+          content: [{type_: MCP.Text, text: msg}],
           isError: Some(true),
           _meta: MCP.emptyMeta,
         })
@@ -71,17 +71,17 @@ let resultToMCP = (result: executeResult): MCP.callToolResult => {
   switch result {
   | Ok(r) => r
   | ToolNotFound(name) => {
-      content: [{type_: "text", text: `Tool not found: ${name}`}],
+      content: [{type_: MCP.Text, text: `Tool not found: ${name}`}],
       isError: Some(true),
       _meta: MCP.emptyMeta,
     }
   | InvalidInput(msg) => {
-      content: [{type_: "text", text: `Invalid input: ${msg}`}],
+      content: [{type_: MCP.Text, text: `Invalid input: ${msg}`}],
       isError: Some(true),
       _meta: MCP.emptyMeta,
     }
   | ExecutionError(msg) => {
-      content: [{type_: "text", text: `Execution error: ${msg}`}],
+      content: [{type_: MCP.Text, text: `Execution error: ${msg}`}],
       isError: Some(true),
       _meta: MCP.emptyMeta,
     }

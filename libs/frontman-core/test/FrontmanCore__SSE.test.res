@@ -14,7 +14,7 @@ describe("SSE", _t => {
 
   test("formats result event correctly", t => {
     let result: MCP.callToolResult = {
-      content: [{type_: "text", text: "hello"}],
+      content: [{type_: MCP.Text, text: "hello"}],
       isError: None,
       _meta: MCP.emptyMeta,
     }
