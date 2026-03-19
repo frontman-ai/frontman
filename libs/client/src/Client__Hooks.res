@@ -276,11 +276,11 @@ let useIFrameLocation = (~iframeElement: option<WebAPI.DOMAPI.element>, ~attachm
                 // If the iframe is trying to navigate to a /frontman URL, intercept
                 // and redirect to the stripped version so we never load frontman-in-frontman.
                 let parsed = WebAPI.URL.make(~url=resolvedDestinationUrl)
-                let cleanPath = Client__BrowserUrl.stripSuffix(parsed.pathname)
-                switch cleanPath != parsed.pathname {
+                switch Client__BrowserUrl.hasSuffix(parsed.pathname) {
                 | false => setLocation(_ => Some(resolvedDestinationUrl))
                 | true =>
                   WebAPI.Event.preventDefault(ev)
+                  let cleanPath = Client__BrowserUrl.stripSuffix(parsed.pathname)
                   let cleanUrl = `${parsed.origin}${cleanPath}`
                   iframeWindow->WebAPI.Window.location->WebAPI.Location.assign(cleanUrl)
                 }

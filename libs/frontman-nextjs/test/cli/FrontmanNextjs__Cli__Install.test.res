@@ -453,7 +453,7 @@ describe("Next.js 16 Clean Install", _t => {
     | Some(c) =>
       t->expect(c->String.includes("@frontman-ai/nextjs"))->Expect.toBe(true)
       t->expect(c->String.includes("host: 'test.frontman.dev'"))->Expect.toBe(true)
-      t->expect(c->String.includes("export function proxy"))->Expect.toBe(true)
+      t->expect(c->String.includes("function proxy"))->Expect.toBe(true)
       t->expect(c->String.includes("matcher"))->Expect.toBe(true)
       t->expect(c->String.includes("/frontman"))->Expect.toBe(true)
     | None => t->expect("proxy.ts")->Expect.toBe("should exist")

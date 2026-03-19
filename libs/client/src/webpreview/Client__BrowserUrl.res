@@ -38,22 +38,47 @@ let _getBasePath: unit => string = {
 // Returns the URL suffix including the leading slash (e.g. "/frontman").
 let suffix = () => `/${_getBasePath()}`
 
+// Strip a single trailing slash from a URL or pathname, unless it's just "/".
+// Used to normalize trailing-slash variants (e.g. /en and /en/) so they are
+// treated as the same destination for comparison and URL building purposes.
+let removeTrailingSlash = s =>
+  switch s->String.endsWith("/") && String.length(s) > 1 {
+  | true => s->String.slice(~start=0, ~end=String.length(s) - 1)
+  | false => s
+  }
+
 // Escape regex metacharacters in a string so it can be safely interpolated
 // into a dynamically-built RegExp.
 let _escapeRegex = s =>
   s->String.replaceRegExp(%re("/[.*+?^${}()|[\\]\\\\]/g"), "\\$&")
 
-// Strip trailing /<basePath> segments from a pathname, preserving a trailing
-// slash so the resulting URL matches Astro's trailingSlash: "always" default.
-let stripSuffix = pathname => {
+// Returns true if pathname contains one or more trailing /<basePath> segments.
+// Pure predicate — does not mutate the path.
+let hasSuffix = pathname => {
   let sfx = _getBasePath()->_escapeRegex
   let re = RegExp.fromString(`(\\/${sfx})+\\/?$`)
-  switch pathname->String.replaceRegExp(re, "") {
-  | "" => "/"
-  | p =>
-    switch p->String.endsWith("/") {
-    | true => p
-    | false => p ++ "/"
+  re->RegExp.test(pathname)
+}
+
+// Strip trailing /<basePath> segments from a pathname. When a suffix is
+// present, the result is normalized with a trailing slash to match Astro's
+// trailingSlash: "always" default. When no suffix is present the original
+// pathname is returned unchanged — no trailing slash is added — to avoid
+// false positives in callers that use string equality to detect mutations
+// (e.g. the useIFrameLocation navigate intercept).
+let stripSuffix = pathname => {
+  switch hasSuffix(pathname) {
+  | false => pathname
+  | true =>
+    let sfx = _getBasePath()->_escapeRegex
+    let re = RegExp.fromString(`(\\/${sfx})+\\/?$`)
+    switch pathname->String.replaceRegExp(re, "") {
+    | "" => "/"
+    | p =>
+      switch p->String.endsWith("/") {
+      | true => p
+      | false => p ++ "/"
+      }
     }
   }
 }
@@ -117,9 +142,9 @@ let isSameOriginWithBase = (~baseUrl: string, ~targetUrl: string): bool => {
 // The preview URL is guaranteed clean (no /<basePath> suffix) by useIFrameLocation.
 let syncBrowserUrl = (~previewUrl) => {
   let basePath = _getBasePath()
-  let pathname = WebAPI.URL.make(~url=previewUrl).pathname->String.replaceRegExp(%re("/\/$/"), "")
+  let pathname = WebAPI.URL.make(~url=previewUrl).pathname->removeTrailingSlash
   let newPath = switch pathname {
-  | "" => `/${basePath}/`
+  | "" | "/" => `/${basePath}/`
   | p => `${p}/${basePath}/`
   }
   switch WebAPI.Global.location.pathname == newPath {

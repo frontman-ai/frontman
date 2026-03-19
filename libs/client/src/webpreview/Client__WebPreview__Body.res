@@ -3,19 +3,45 @@ let make = (~taskId, ~url, ~isActive, ~viewportStyle: option<(int, int, float)>=
   let iframeRef: React.ref<Nullable.t<Dom.element>> = React.useRef(Nullable.null)
   let (iframeElement, setIframeElement): (option<WebAPI.DOMAPI.element>, _) = React.useState(() => None)
   let (attachmentKey, setAttachmentKey) = React.useState(() => 0)
-  let (iframeSrc, setIframeSrc) = React.useState(() => url)
+  // Inactive iframes start with about:blank so the browser doesn't eagerly load
+  // the URL for every persisted task on startup. Using "" would resolve to the
+  // current document URL (the Frontman shell itself), causing each inactive iframe
+  // to load the parent page. The src is replaced with the real URL on first
+  // activation via the isActive effect below.
+  let (iframeSrc, setIframeSrc) = React.useState(() => isActive ? url : "about:blank")
   let (hasLoaded, setHasLoaded) = React.useState(() => false)
   let lastLocationRef: React.ref<option<string>> = React.useRef(None)
   let trackedIframeElement = isActive ? iframeElement : None
   let location = Client__Hooks.useIFrameLocation(~iframeElement=trackedIframeElement, ~attachmentKey)
 
+  // Sync iframeSrc when the url prop changes externally (nav bar, task creation)
+  // while the iframe hasn't loaded yet. Only applies when iframeSrc is already
+  // populated (i.e. the iframe has been activated). Trailing-slash differences are
+  // ignored — locale middleware may redirect between /en and /en/ before onLoad.
   React.useEffect(() => {
     switch hasLoaded {
-    | false => setIframeSrc(prev => prev == url ? prev : url)
     | true => ()
+    | false =>
+      setIframeSrc(prev =>
+        switch prev {
+        | "about:blank" => prev  // not yet activated — wait for isActive effect
+        | _ =>
+          Client__BrowserUrl.removeTrailingSlash(prev) == Client__BrowserUrl.removeTrailingSlash(url) ? prev : url
+        }
+      )
     }
     None
   }, (url, hasLoaded))
+
+  // Populate src on first activation so the iframe starts loading.
+  React.useEffect(() => {
+    switch isActive {
+    | false => ()
+    | true =>
+      setIframeSrc(prev => prev == "about:blank" ? url : prev)
+    }
+    None
+  }, [isActive])
 
   React.useEffect(() => {
     switch isActive {
@@ -46,23 +72,31 @@ let make = (~taskId, ~url, ~isActive, ~viewportStyle: option<(int, int, float)>=
   }, (location, isActive))
 
   let onLoad = (_e: JsxEvent.Image.t) => {
-    setHasLoaded(_ => true)
-    setAttachmentKey(prev => prev + 1)
-    switch isActive {
-    | false => ()
-    | true =>
-      iframeRef.current
-      ->Nullable.toOption
-      ->Option.forEach(iframe => {
-        let iframeElement = iframe->Obj.magic
-        try {
-          let contentDocument = WebAPI.HTMLIFrameElement.contentDocument(iframeElement)->Null.toOption
-          let contentWindow = WebAPI.HTMLIFrameElement.contentWindow(iframeElement)->Null.toOption
-          Client__State.Actions.setPreviewFrame(~contentDocument, ~contentWindow)
-        } catch {
-        | _ => ()
-        }
-      })
+    // Skip onLoad handling when about:blank loads. Browsers fire load for
+    // about:blank, but we don't want to mark the iframe as loaded until the
+    // real URL has loaded — otherwise hasLoaded=true would disable the
+    // url-prop sync effect before the actual page load completes.
+    switch iframeSrc {
+    | "about:blank" => ()
+    | _ =>
+      setHasLoaded(_ => true)
+      setAttachmentKey(prev => prev + 1)
+      switch isActive {
+      | false => ()
+      | true =>
+        iframeRef.current
+        ->Nullable.toOption
+        ->Option.forEach(iframe => {
+          let iframeElement = iframe->Obj.magic
+          try {
+            let contentDocument = WebAPI.HTMLIFrameElement.contentDocument(iframeElement)->Null.toOption
+            let contentWindow = WebAPI.HTMLIFrameElement.contentWindow(iframeElement)->Null.toOption
+            Client__State.Actions.setPreviewFrame(~contentDocument, ~contentWindow)
+          } catch {
+          | _ => ()
+          }
+        })
+      }
     }
   }
 
