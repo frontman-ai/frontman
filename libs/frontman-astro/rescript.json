@@ -5,6 +5,11 @@
 		{
 			"dir": "src",
 			"subdirs": true
+		},
+		{
+			"dir": "test",
+			"subdirs": true,
+			"type": "dev"
 		}
 	],
 	"package-specs": [
@@ -15,6 +20,7 @@
 		}
 	],
 	"ppx-flags": ["sury-ppx/bin"],
+	"dev-dependencies": ["rescript-vitest"],
 	"dependencies": [
 		"@rescript/webapi",
 		"sury",

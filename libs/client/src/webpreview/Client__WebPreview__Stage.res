@@ -282,9 +282,7 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
                 // Compute position from element bounding rect
                 let rect = WebAPI.Element.getBoundingClientRect(element)
                 let viewportWidth = switch document {
-                | Some(doc) =>
-                  doc.documentElement.clientWidth
-                  ->Int.toFloat
+                | Some(doc) => doc.documentElement.clientWidth->Int.toFloat
                 | None => 1.0
                 }
                 let centerX = rect.left +. rect.width /. 2.0
@@ -292,7 +290,6 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
                   xPercent: centerX /. viewportWidth *. 100.0,
                   yAbsolute: rect.top +. rect.height /. 2.0,
                 }
-
                 // Dispatch toggle — reducer handles add/remove and popup state atomically
                 Client__State.Actions.toggleAnnotation(
                   ~element,
@@ -396,8 +393,21 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
       annotations={annotations}
       scrollTimestamp={scrollTimestamp}
       mutationTimestamp={mutationTimestamp}
-      onRemove={id => {
+      onRemove={id => Client__State.Actions.removeAnnotation(~id)}
+      onNavigate={(id, element) => {
+        // Replace the annotation with one for the navigated element
+        let rect = WebAPI.Element.getBoundingClientRect(element)
+        let viewportWidth = switch document {
+        | Some(doc) => doc.documentElement.clientWidth->Int.toFloat
+        | None => 1.0
+        }
+        let centerX = rect.left +. rect.width /. 2.0
+        let position: Client__Annotation__Types.position = {
+          xPercent: centerX /. viewportWidth *. 100.0,
+          yAbsolute: rect.top +. rect.height /. 2.0,
+        }
         Client__State.Actions.removeAnnotation(~id)
+        Client__State.Actions.addAnnotation(~element, ~position, ~tagName=element.tagName)
       }}
     />
 

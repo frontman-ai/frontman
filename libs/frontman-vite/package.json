@@ -51,8 +51,7 @@
 	"scripts": {
 		"build:rescript": "rescript build",
 		"build:bundle": "tsup",
-		"build": "yarn build:rescript && yarn build:bundle",
-		"prepublishOnly": "yarn build"
+		"build": "yarn build:rescript && yarn build:bundle"
 	},
 	"dependencies": {
 		"chrome-launcher": "^1.1.2",

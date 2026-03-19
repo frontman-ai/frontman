@@ -45,8 +45,7 @@
 	"scripts": {
 		"build:rescript": "rescript build",
 		"build:bundle": "tsup",
-		"build": "yarn build:rescript && yarn build:bundle",
-		"prepublishOnly": "yarn build"
+		"build": "yarn build:rescript && yarn build:bundle"
 	},
 	"dependencies": {
 		"@sentry/nextjs": "^9.0.0",

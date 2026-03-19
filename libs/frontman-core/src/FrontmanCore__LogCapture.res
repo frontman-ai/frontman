@@ -59,6 +59,7 @@ let defaultConfig: config = {
     "hmr",
     "error",
     "Error",
+    "ERROR",
     "astro",
     "build",
   ],
@@ -224,12 +225,16 @@ let handleStdoutWrite = (state: state, message: string): unit => {
 
 let interceptStdout = (_state: state): unit => {
   %raw(`(function(_state) {
-    const originalWrite = process.stdout.write.bind(process.stdout);
-    process.stdout.write = (chunk, ...args) => {
-      const message = typeof chunk === 'string' ? chunk : chunk.toString();
-      handleStdoutWrite(_state, message);
-      return originalWrite(chunk, ...args);
+    const interceptStream = (stream) => {
+      const originalWrite = stream.write.bind(stream);
+      stream.write = (chunk, ...args) => {
+        const message = typeof chunk === 'string' ? chunk : chunk.toString();
+        handleStdoutWrite(_state, message);
+        return originalWrite(chunk, ...args);
+      };
     };
+    interceptStream(process.stdout);
+    interceptStream(process.stderr);
   })(_state)`)
 }
 

@@ -8,6 +8,11 @@ build: ## Build ReScript + bundle with tsup
 	yarn build
 
 publish: build ## Build and publish to npm (pass OTP=<code> for 2FA)
+	@PKG=$$(node -e "const p=require('./package.json'); console.log(p.name+'@'+p.version)"); \
+	if npm view "$$PKG" version >/dev/null 2>&1; then \
+		echo "Error: $$PKG already published — bump the version first"; \
+		exit 1; \
+	fi; \
 	npm publish $(if $(OTP),--otp=$(OTP))
 
 test: build ## Run tests

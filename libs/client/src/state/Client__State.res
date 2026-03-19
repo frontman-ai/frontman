@@ -63,6 +63,10 @@ module Actions = {
   let toggleAnnotation = (~element, ~position, ~tagName) =>
     Client__State__Store.dispatch(TaskAction({target: CurrentTask, action: ToggleAnnotation({element, position, tagName})}))
 
+  // Unconditionally adds an annotation (no toggle semantics — used for tree navigation)
+  let addAnnotation = (~element, ~position, ~tagName) =>
+    Client__State__Store.dispatch(TaskAction({target: CurrentTask, action: AddAnnotation({element, position, tagName})}))
+
   let addAnnotations = (~elements) =>
     Client__State__Store.dispatch(TaskAction({target: CurrentTask, action: AddAnnotations({elements: elements})}))
 

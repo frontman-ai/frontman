@@ -323,6 +323,7 @@ type action =
   | SetAnnotationMode({mode: Annotation.annotationMode})
   | ToggleAnnotationMode
   | ToggleAnnotation({element: WebAPI.DOMAPI.element, position: Annotation.position, tagName: string})
+  | AddAnnotation({element: WebAPI.DOMAPI.element, position: Annotation.position, tagName: string})
   | AnnotationDetailsResolved({
       id: string,
       selector: result<option<string>, string>,
@@ -421,6 +422,7 @@ let actionToString = (action: action): string =>
   | SetAnnotationMode(_) => "SetAnnotationMode"
   | ToggleAnnotationMode => "ToggleAnnotationMode"
   | ToggleAnnotation(_) => "ToggleAnnotation"
+  | AddAnnotation(_) => "AddAnnotation"
   | AnnotationDetailsResolved(_) => "AnnotationDetailsResolved"
   | AddAnnotations(_) => "AddAnnotations"
   | RemoveAnnotation(_) => "RemoveAnnotation"
@@ -681,6 +683,25 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       let updated = Lens.setActivePopupAnnotationId(updated, Some(annotation.id))
       (updated, effects)
     }
+  }
+
+  // AddAnnotation: always adds without toggle semantics (used for tree navigation)
+  | (Task.Unloaded(_), AddAnnotation(_)) => (task, [])
+  | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), AddAnnotation({element, position, tagName})) => {
+    let annotation = Annotation.make(~element, ~position, ~tagName)
+    let previewFrame = Task.getPreviewFrame(task, ~defaultUrl="")
+    let effects = [
+      FetchAnnotationDetails({
+        id: annotation.id,
+        element,
+        document: previewFrame.contentDocument,
+        contentWindow: previewFrame.contentWindow,
+      }),
+    ]
+    let allAnnotations = Array.concat(Task.getAnnotations(task), [annotation])
+    let updated = Lens.setAnnotations(task, allAnnotations)
+    let updated = Lens.setActivePopupAnnotationId(updated, Some(annotation.id))
+    (updated, effects)
   }
 
   // Async annotation fetch completed after task transitioned to Unloaded — discard silently
