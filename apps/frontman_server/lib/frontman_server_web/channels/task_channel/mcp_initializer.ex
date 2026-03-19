@@ -201,38 +201,22 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
   end
 
   defp handle_project_rules_response(result, state) do
-    content = Map.get(result, "content", [])
+    with text when text != "" <- MCP.extract_content_text(result) |> String.trim(),
+         {:ok, rules} when is_list(rules) <- Jason.decode(text) do
+      Enum.each(rules, fn %{"fullPath" => path, "content" => content} ->
+        Tasks.add_discovered_project_rule(state.scope, state.task_id, path, content)
+      end)
 
-    text_result =
-      content
-      |> Enum.map_join("\n", fn block -> Map.get(block, "text", "") end)
-      |> String.trim()
-
-    store_project_rules(text_result, state)
-  end
-
-  defp store_project_rules("", state) do
-    # No content blocks or all blocks had empty text — this is normal (no project rules found)
-    Logger.info("MCPInitializer: Initialized 0 project rules")
-    request_project_structure(state)
-  end
-
-  defp store_project_rules(text, state) do
-    case Jason.decode(text) do
-      {:ok, results} when is_list(results) ->
-        Enum.each(results, fn file ->
-          file_content = Map.get(file, "content", "")
-          path = Map.get(file, "fullPath", "")
-          Tasks.add_discovered_project_rule(state.scope, state.task_id, path, file_content)
-        end)
-
-        Logger.info("MCPInitializer: Initialized #{length(results)} project rules")
-        request_project_structure(state)
+      Logger.info("MCPInitializer: Initialized #{length(rules)} project rules")
+    else
+      "" ->
+        Logger.info("MCPInitializer: Initialized 0 project rules")
 
       {:error, reason} ->
         Logger.warning("MCPInitializer: Failed to parse project rules: #{inspect(reason)}")
-        request_project_structure(state)
     end
+
+    request_project_structure(state)
   end
 
   # Step 4: Discover project structure via list_tree
@@ -261,67 +245,46 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
   end
 
   defp handle_project_structure_response(result, state) do
-    content = Map.get(result, "content", [])
+    with text when text != "" <- MCP.extract_content_text(result) |> String.trim(),
+         {:ok, %{"tree" => tree} = decoded} when is_binary(tree) <- Jason.decode(text) do
+      monorepo_type = Map.get(decoded, "monorepoType")
+      workspaces = Map.get(decoded, "workspaces", [])
 
-    text_result =
-      content
-      |> Enum.map_join("\n", fn block -> Map.get(block, "text", "") end)
-      |> String.trim()
+      type_line =
+        case monorepo_type do
+          type when is_binary(type) -> "Project type: monorepo (#{type})"
+          _ -> "Project type: single project"
+        end
 
-    store_project_structure(text_result, state)
-  end
+      workspace_section =
+        case workspaces do
+          ws when is_list(ws) and ws != [] ->
+            ws_lines =
+              Enum.map(ws, fn w ->
+                "  #{Map.get(w, "name", "unknown")} → #{Map.get(w, "path", "")}"
+              end)
 
-  defp store_project_structure("", state) do
-    Logger.info("MCPInitializer: No project structure discovered")
-    complete_initialization(state)
-  end
+            "\n\nWorkspaces:\n" <> Enum.join(ws_lines, "\n")
 
-  defp store_project_structure(text, state) do
-    case Jason.decode(text) do
-      {:ok, %{"tree" => tree} = decoded} when is_binary(tree) ->
-        # Build a human-readable summary from the structured output
-        summary = build_structure_summary(tree, decoded)
-        Tasks.add_discovered_project_structure(state.scope, state.task_id, summary)
-        Logger.info("MCPInitializer: Discovered project structure")
-        complete_initialization(state)
+          _ ->
+            ""
+        end
+
+      summary = type_line <> workspace_section <> "\n\nDirectory layout:\n" <> tree
+      Tasks.add_discovered_project_structure(state.scope, state.task_id, summary)
+      Logger.info("MCPInitializer: Discovered project structure")
+    else
+      "" ->
+        Logger.info("MCPInitializer: No project structure discovered")
 
       {:ok, _other} ->
         Logger.warning("MCPInitializer: Unexpected project structure format")
-        complete_initialization(state)
 
       {:error, reason} ->
         Logger.warning("MCPInitializer: Failed to parse project structure: #{inspect(reason)}")
-        complete_initialization(state)
     end
-  end
 
-  defp build_structure_summary(tree, decoded) do
-    monorepo_type = Map.get(decoded, "monorepoType")
-    workspaces = Map.get(decoded, "workspaces", [])
-
-    type_line =
-      case monorepo_type do
-        type when is_binary(type) -> "Project type: monorepo (#{type})"
-        _ -> "Project type: single project"
-      end
-
-    workspace_section =
-      case workspaces do
-        ws when is_list(ws) and ws != [] ->
-          ws_lines =
-            Enum.map(ws, fn w ->
-              name = Map.get(w, "name", "unknown")
-              path = Map.get(w, "path", "")
-              "  #{name} → #{path}"
-            end)
-
-          "\n\nWorkspaces:\n" <> Enum.join(ws_lines, "\n")
-
-        _ ->
-          ""
-      end
-
-    type_line <> workspace_section <> "\n\nDirectory layout:\n" <> tree
+    complete_initialization(state)
   end
 
   defp complete_initialization(state) do

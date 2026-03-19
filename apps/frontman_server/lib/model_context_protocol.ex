@@ -26,10 +26,10 @@ defmodule ModelContextProtocol do
     use TypedStruct
 
     typedstruct do
-      field :request_id, integer(), enforce: true
-      field :tool_name, String.t(), enforce: true
-      field :arguments, map(), enforce: true
-      field :call_id, String.t(), enforce: true
+      field(:request_id, integer(), enforce: true)
+      field(:tool_name, String.t(), enforce: true)
+      field(:arguments, map(), enforce: true)
+      field(:call_id, String.t(), enforce: true)
     end
   end
 
