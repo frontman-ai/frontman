@@ -1001,6 +1001,9 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       (final, Array.concat([CancelPrompt], questionEffects))
     }
 
+  // TODO: if the error was the final event, turnError is lost after LoadComplete (always None)
+  | (Task.Loading(_), AgentError(_)) => (task->Lens.completeStreamingMessage, [])
+
   | (Task.Loaded(data), AgentError({error})) =>
     // Set turn error and stop agent running - user can still send messages
     let completed = task->Lens.completeStreamingMessage

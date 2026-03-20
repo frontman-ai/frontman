@@ -35,7 +35,8 @@ let _parseUserMessageBlocks = (
   let screenshotMap = Dict.make()
   blocks->Array.forEach(block =>
     switch block {
-    | EmbeddedResource({resource: {_meta: Some(meta), resource: BlobResourceContents({blob, mimeType})}}) =>
+    | EmbeddedResource({resource: {_meta: Some(meta), resource: BlobResourceContents({blob, mimeType})}})
+      if meta->JSON.Decode.object->Option.flatMap(d => d->Dict.get("annotation_screenshot")) != None =>
       let parsed = S.parseOrThrow(meta, Client__Task__Types.screenshotMetaSchema)
       if parsed.annotationScreenshot {
         screenshotMap->Dict.set(parsed.annotationId, `data:${mimeType->Option.getOrThrow};base64,${blob}`)
@@ -50,7 +51,8 @@ let _parseUserMessageBlocks = (
   blocks->Array.forEach(block =>
     switch block {
     | TextContent({text}) => content->Array.push(Client__Message.UserContentPart.Text({text: text}))->ignore
-    | EmbeddedResource({resource: {_meta: Some(meta), resource: TextResourceContents(_)}}) =>
+    | EmbeddedResource({resource: {_meta: Some(meta), resource: TextResourceContents(_)}})
+      if meta->JSON.Decode.object->Option.flatMap(d => d->Dict.get("annotation")) != None =>
       let parsed = S.parseOrThrow(meta, Client__Task__Types.annotationMetaSchema)
       if parsed.annotation {
         let screenshot = screenshotMap->Dict.get(parsed.annotationId)
@@ -259,6 +261,8 @@ module Provider = {
       | AgentMessageChunk({content, timestamp}) =>
         // Per ACP spec: first agent_message_chunk implicitly signals message start.
         // Message end is signaled by session/prompt response with stopReason.
+        // Flush pending buffers — this is a turn boundary during history replay.
+        Client__TextDeltaBuffer.flush()
         // Buffer text deltas and flush once per animation frame to avoid
         // dozens of full state rebuilds per second during fast streaming.
         getContentBlockText(content)->Option.forEach(text => {
