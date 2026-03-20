@@ -1,10 +1,10 @@
 ---
-title: 'Multi-Select: Stop Fixing UI One Element at a Time'
+title: 'Multi-Select: Fix Design Drift Across Your Entire App at Once'
 pubDate: 2026-02-27T12:00:00Z
-description: 'Select multiple elements in your running app, give each one instructions, and Frontman edits them all in one shot. Batch your UI fixes instead of context-switching for every nitpick.'
+description: 'Spot inconsistencies across teams? Shift-click every off-brand element, describe what it should look like, and Frontman fixes them all in one pass — real code changes, no tickets filed.'
 author: 'Danni Friedland'
 image: '/blog/multi-select-cover.png'
-tags: ['announcement', 'developer-tools', 'ai']
+tags: ['announcement', 'design-systems', 'ai']
 updatedDate: 2026-03-10T00:00:00Z
 video:
   name: 'Frontman Multi-Select Demo'
@@ -13,76 +13,80 @@ video:
   thumbnailUrl: '/blog/multi-select-cover.png'
 faq:
   - question: 'What is multi-select in Frontman?'
-    answer: 'Multi-select lets you hold Shift and click multiple UI elements in your running app, add separate instructions to each one, and have Frontman generate real source code edits for all of them in a single pass with hot-reload. Instead of fixing elements one at a time with separate round trips, you batch all your visual fixes into one operation.'
-  - question: 'How does multi-select work under the hood?'
-    answer: 'Frontman runs as middleware inside your dev server. When you click elements, it uses the framework source map to resolve each click target to a specific file and line number. Multi-select collects all resolved targets and their instructions, then generates a single coordinated set of edits. If multiple selections map to the same component file, that file gets read once and edited once with all changes.'
+    answer: 'Multi-select lets you hold Shift and click multiple UI elements in your running app, add separate instructions to each one, and have Frontman fix all of them in a single pass. Instead of filing separate tickets for every design inconsistency, you batch all your visual fixes into one operation that produces real code changes.'
+  - question: 'Can designers and PMs use multi-select without writing code?'
+    answer: 'Yes. You describe fixes in plain language — "match this to our primary button style," "fix the spacing to 16px," "update this copy." Frontman translates your instructions into real source code edits. No IDE, no pull request workflow, no waiting for a developer to pick up the ticket.'
   - question: 'Which frameworks support Frontman multi-select?'
     answer: 'Multi-select is available in all Frontman integrations: Next.js, Astro, and Vite (React, Vue, Svelte). Install with npx @frontman-ai/nextjs install, npx @frontman-ai/vite install, or astro add @frontman-ai/astro.'
-  - question: 'Can I use multi-select for code review feedback?'
-    answer: 'Yes. Instead of filing separate review comments like "fix this copy" or "wrong padding here," you can open the running app, multi-select every issue, and generate the fixes yourself in one pass. This turns review feedback into committed code in under a minute.'
+  - question: 'How does multi-select help maintain a design system?'
+    answer: 'When multiple teams ship features against the same design system, inconsistencies are inevitable. Multi-select lets you open any page, Shift-click every element that drifts from the system — wrong spacing, off-brand colors, incorrect component variants — and fix them all at once. It turns design QA from a reporting step into a fixing step.'
 ---
 
-You know the loop. You spot a button that's 2px off. You click it, describe the fix, wait for the edit, confirm it looks right. Then you notice the header still says "Untitled." Click, describe, wait, confirm. Then the card below it looks wrong on mobile. Click, describe, wait, confirm.
+You're doing a design QA pass. The dashboard a feature team shipped last week has a button using the wrong variant. The spacing on the metric cards doesn't match your system. A header still says placeholder copy. The empty state uses an icon you deprecated two months ago.
 
-Three fixes. Three round trips. Each one breaks your focus, each one costs a context switch between "looking at the app" and "talking to the AI." Multiply this by every visual nitpick in a typical development session and you've burned twenty minutes on what should have been a single batch operation.
+You know exactly what each fix should be. But you can't make them. You open a ticket for the button. Another for the spacing. Another for the copy. Another for the icon. Four tickets, four handoffs, four items competing for engineering bandwidth against actual feature work. Maybe they get fixed this sprint. Maybe next.
 
-This is the part of AI-assisted development that nobody talks about. The AI generates code fast. _You_ are the bottleneck — not because you're slow, but because the workflow forces you to be a serial queue. One fix at a time. One element at a time. One round trip at a time.
+This is the bottleneck nobody talks about in design systems at scale. The system is defined. The violations are obvious. But the people who spot them — designers, PMs, design system leads — can't fix them. The feedback loop between "seeing the problem" and "shipping the fix" runs through a ticket queue.
 
-> **TL;DR:** Frontman multi-select lets you Shift-click multiple UI elements, add instructions to each, and fix them all in one shot. No more one-at-a-time round trips. It batches edits across shared files, generates real source code changes, and hot-reloads everything at once.
+> **TL;DR:** Frontman multi-select lets you Shift-click multiple UI elements in the running app, describe the fix for each in plain language, and apply all changes in one shot. No tickets, no handoffs. It produces real code changes that match your design system — not a mockup that still needs implementation.
 
 ## How Multi-Select Works
 
-Frontman now supports multi-select. Hold Shift, click every element that's bugging you, give each one its own instruction, and hit go. Frontman generates real source code edits for all of them in one shot, with hot reload.
+Open your running app. Hold Shift and click every element that doesn't match your design system. Describe the fix for each one in plain language. Hit go. Frontman makes real code changes for all of them at once.
 
 The workflow:
 
-1. **Click elements in your running app** — hold Shift to select multiple
-2. **Add instructions to each** — "make this bold", "fix the padding", "change copy to 'Dashboard'"
-3. **Frontman edits all of them** — real code changes, hot reload, one round trip
+1. **Click elements in the running app** — hold Shift to select multiple
+2. **Describe the fix for each** — "use the outline button variant", "match the system spacing (16px)", "update copy to 'Team Dashboard'"
+3. **Frontman fixes all of them** — real code changes, live preview, one pass
 
-That's it. No more toggling between browser and editor for every tiny fix. No more losing your mental model of what needs changing while you wait for each individual edit to land.
+No tickets filed. No developer context-switching away from feature work. You saw the problem, you described the fix, it's done.
 
 <iframe width="100%" height="400" src="https://www.youtube-nocookie.com/embed/J3_OQzzEJPY" title="Frontman Multi-Select Demo" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen style="border-radius: 8px; margin: 2rem 0;"></iframe>
 
-## Why One-at-a-Time Was the Bottleneck
+## Why the Ticket Queue Was the Real Bottleneck
 
-Most AI coding tools treat each interaction as isolated. You select an element (or describe it in text), the AI processes it, generates an edit, and you verify. Then you start over for the next element with zero memory of the previous context.
+The problem was never that fixes are hard. A wrong button variant is a one-line change. Wrong spacing is a one-line change. But when the person who spots these issues can't make the change directly, every one-line fix becomes a ticket, a handoff, a prioritization decision, and a review cycle.
 
-This isn't just slow — it's architecturally wasteful. Each element you're fixing exists in the same component tree, the same page layout, the same design system. The AI re-reads the same files, re-parses the same DOM context, and re-generates the same boilerplate for each fix. Fix the padding on a card and the AI fetches the component file, parses the styles, generates the edit. Fix the header text on the same page and the AI does all of that again — potentially for the same file.
+Multiply that across teams. Your design system serves three, four, five feature teams. Each team ships UI that mostly follows the system — but "mostly" means dozens of small violations per sprint. The design system team becomes a QA function that files tickets they can't resolve themselves.
 
-Multi-select eliminates this redundancy. Frontman collects all your selections and their instructions, resolves them against the live DOM and source map, and generates a single coordinated set of edits. If three of your selections map to the same component file, that file gets read once and edited once with all three changes.
+Multi-select changes the economics. Instead of reporting violations, you fix them. Frontman resolves each clicked element to its actual source file, understands the component tree and design system context, and generates coordinated edits across all your selections. If three issues map to the same component, it handles them in one edit.
 
 ## What This Looks Like in Practice
 
-Consider a typical scenario: you're reviewing a dashboard page and notice five issues.
+Your growth team just shipped a new onboarding flow. You're doing a QA pass and spot five issues:
 
-- The page title says "Page Title" (placeholder copy)
-- A metric card has `padding: 8px` when the design system uses `padding: 16px`
-- The "Export" button is using the wrong variant — should be `outline`, not `solid`
-- A table header is misaligned
+- The page title still says "Page Title" — placeholder copy that slipped through review
+- Card spacing is 8px instead of 16px — doesn't match the design system
+- The "Get Started" button uses the solid variant — should be outline per your system's CTA rules
+- A table header is misaligned with the rest of the page
 - The empty state message has a typo
 
-Without multi-select, this is five separate interactions. Five context switches. Five times the AI reads the same page context. With multi-select, you Shift-click all five elements, type a short instruction for each, and submit once. Frontman maps each clicked element back to its source file and line through the live DOM-to-source mapping that comes from running as [framework middleware](/blog/runtime-context-gap/), then generates all five edits in a single pass.
+Before multi-select, this is five tickets. Five handoffs to a developer who has to context-switch away from feature work. Five items in a backlog competing with actual product priorities. Some of these might not get fixed for weeks.
 
-The result lands with hot reload. You see all five fixes simultaneously. If one of them isn't right, you fix that one — but the other four are done.
+With multi-select, you Shift-click all five elements, type a short instruction for each, and submit once. Frontman maps each element back to its source file through the live [DOM-to-source mapping](/blog/runtime-context-gap/) that comes from running inside the framework. All five fixes land at once. You see the corrected page immediately. If one fix isn't quite right, you adjust that one — the other four are done.
 
-## The Compound Effect
+Total time from spotting the issues to shipping the fixes: under a minute.
 
-The real value isn't saving time on any single fix. It's that batch editing changes how you work. Instead of fixing things as you notice them — interrupting whatever you're actually doing — you accumulate a list. Browse the page, Shift-click everything that's off, describe the fixes, submit, move on.
+## Design System Consistency at Scale
 
-This is closer to how designers work in Figma: select multiple layers, adjust properties, done. Except these are real source code edits in your actual codebase, not design file changes that need to be re-implemented.
+The real value isn't saving time on any single fix. It's closing the loop between the people who define the system and the code that implements it.
 
-It also changes the review workflow. Instead of filing five separate comments on a PR — "fix this copy", "wrong padding here", "button variant is off" — you can open the running app, multi-select every issue, and generate the fixes yourself in one pass. Turn review feedback into committed code in under a minute.
+When your design system serves multiple teams, drift is inevitable. Team A interprets the button guidelines one way, Team B another. Spacing gets approximated. Copy doesn't match the content spec. The design system team catches these in QA — but until now, catching them and fixing them were two completely separate steps with a ticket queue in between.
+
+Multi-select makes QA and fixing the same step. Browse the app, Shift-click everything that's off, describe each fix, submit. It works the way you already work in Figma — select multiple layers, adjust properties, done. Except these are real code changes in the actual codebase, not design file edits that still need to be implemented.
+
+This changes the dynamics between design and engineering. Instead of being the team that files polish tickets nobody prioritizes, the design system team becomes the team that keeps the product consistent — directly.
 
 ## How It Works Under the Hood
 
-Frontman runs as middleware inside your dev server. When you click an element, it uses the framework's source map to resolve the click target to a specific file and line number. This is the same [runtime context](/blog/runtime-context-gap/) that makes single-element editing possible — the live DOM, computed styles, component tree, and server-side state are all available because Frontman is inside the framework, not observing it from outside.
+Frontman runs as middleware inside your dev server — it's part of the app, not a browser extension or screenshot tool. When you click an element, it resolves the click to the actual source file and line number using the framework's source map. It sees the live DOM, the component tree, computed styles, and your [design system context](/blog/runtime-context-gap/).
 
-Multi-select extends this by collecting multiple resolved targets and batching them into a single prompt. Each selection carries its own instruction and its own source mapping. The AI sees all of them together, which means it can reason about interactions between the edits — for example, if two selections target the same component, it can apply both changes without conflicts.
+Multi-select collects all your selections and batches them into a single coordinated edit. Each selection carries its own instruction and source mapping. Frontman reasons about all of them together — if two fixes target the same component, both changes land in one clean edit without conflicts.
 
 ## Try It
 
-Multi-select is available now in all Frontman integrations — [Next.js](https://frontman.sh), [Astro](https://frontman.sh), and [Vite](https://frontman.sh) (React, Vue, Svelte).
+Multi-select is available now in all Frontman integrations — [Next.js](https://frontman.sh), [Astro](https://frontman.sh), and [Vite](https://frontman.sh) (React, Vue, Svelte). Your engineering team adds one line to the dev server config:
 
 ```bash
 npx @frontman-ai/nextjs install
@@ -90,6 +94,6 @@ npx @frontman-ai/vite install
 astro add @frontman-ai/astro
 ```
 
-Open your app, hold Shift, click everything that's wrong, and fix it all at once.
+Then anyone on the team — designer, PM, design system lead — can open the running app, hold Shift, click everything that drifts from the system, and fix it.
 
-Star it on [GitHub](https://github.com/frontman-ai/frontman) if batch-editing your UI sounds better than doing it one element at a time.
+Star it on [GitHub](https://github.com/frontman-ai/frontman) if you've ever wished you could fix design inconsistencies yourself instead of filing tickets.

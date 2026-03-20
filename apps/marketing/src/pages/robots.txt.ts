@@ -17,9 +17,6 @@ Allow: /
 User-agent: PerplexityBot
 Allow: /
 
-User-agent: anthropic-ai
-Allow: /
-
 User-agent: ClaudeBot
 Allow: /
 

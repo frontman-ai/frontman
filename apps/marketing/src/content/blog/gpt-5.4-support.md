@@ -1,7 +1,7 @@
 ---
-title: 'Frontman Now Supports GPT-5.4'
+title: 'GPT-5.4 Is Live in Frontman — Here's What It Means for Your Team'
 pubDate: 2026-03-06T12:00:00Z
-description: 'Use OpenAI GPT-5.4 with 1M context, native computer-use, and frontier coding capabilities directly in Frontman.'
+description: 'GPT-5.4 brings a massive context window, native computer-use, and sharper reasoning to Frontman — so your design system gets implemented the way it was intended.'
 author: 'Danni Friedland'
 image: '/blog/gpt-5.4-support-cover.png'
 tags: ['announcement', 'models']
@@ -10,32 +10,32 @@ updatedDate: 2026-03-10T00:00:00Z
 
 OpenAI released GPT-5.4 yesterday. Today, you can use it in Frontman.
 
-GPT-5.4 is OpenAI's most capable model for professional work. It combines the coding strengths of GPT-5.3-Codex with improved reasoning, native computer-use capabilities, and a 1M token context window. For Frontman users, this means longer sessions, more complex tasks, and fewer interruptions to manage context.
+If you're managing a design system across multiple teams, this model matters. GPT-5.4 can hold your entire design system documentation, component specs, and conversation history in a single session — and it's better at translating visual intent into production-ready implementation.
 
-### What GPT-5.4 Brings to Frontman
+### What Changes for Your Workflow
 
-**1M token context window.** GPT-5.4 supports up to one million tokens of context. That is roughly 750,000 words — enough to hold your entire codebase, conversation history, and documentation in a single session. No more trimming context or losing track of earlier decisions.
+**Your full design system in context, all at once.** GPT-5.4 supports up to one million tokens — roughly 750,000 words. That's enough to hold your component library docs, spacing and typography tokens, brand guidelines, and the current task all in one session. No more re-explaining your system's conventions halfway through a build.
 
-**Native computer-use capabilities.** GPT-5.4 is the first general-purpose model with built-in computer-use abilities. It can operate browsers, navigate desktop environments, and execute multi-step workflows across applications. On OSWorld-Verified, it achieves 75.0% — surpassing human performance at 72.4%.
+**It can see and operate your browser.** GPT-5.4 has built-in computer-use capabilities. It navigates your app, clicks through flows, and visually verifies that implementations match your specs. When your team ships a new component, Frontman can check that it actually looks right — not just that the code compiles.
 
-**Tool search for large ecosystems.** When working with many MCP servers, GPT-5.4 uses tool search to find and invoke the right tools without loading every definition upfront. In OpenAI's testing, this reduced token usage by 47% while maintaining the same accuracy. Faster responses, lower costs.
+**Smarter tool usage across your stack.** Teams at scale use a lot of tools — Figma plugins, design token pipelines, CI checks. GPT-5.4 is significantly better at finding and using the right tool for the job without you having to guide it step by step. Less hand-holding, more shipping.
 
-**Token-efficient reasoning.** GPT-5.4 uses significantly fewer tokens to solve problems compared to GPT-5.2. The same intelligence, fewer tokens, faster speeds. For long-running agentic tasks, this adds up.
+**Faster reasoning, same quality.** GPT-5.4 solves problems with fewer intermediate steps than previous models. For you, that means quicker turnaround on component builds, layout adjustments, and responsive implementations. The back-and-forth shrinks.
 
-**Frontier coding.** GPT-5.4 incorporates the coding capabilities of GPT-5.3-Codex while matching or exceeding it on SWE-Bench Pro. It excels at complex frontend tasks with more aesthetic and functional results than previous models.
+**Stronger frontend output.** This model is noticeably better at complex frontend work — producing more polished, visually accurate results. Design system components come out closer to spec on the first pass, which means fewer review cycles between your design and engineering teams.
 
 ### How to Use It
 
-GPT-5.4 is now the default model for ChatGPT OAuth users in Frontman. If you have connected your ChatGPT Pro or Plus account, you will see GPT-5.4 in the model picker immediately.
+GPT-5.4 is now the default for ChatGPT OAuth users in Frontman. If you've connected your ChatGPT Pro or Plus account, it's already available in the model picker.
 
-For OpenRouter users, both GPT-5.4 and GPT-5.4 Pro are available — select either from the model dropdown. GPT-5.4 Pro scores 89.3% on BrowseComp (web research), 83.3% on ARC-AGI-2 (abstract reasoning), and 58.7% on Humanity's Last Exam with tools. If you need maximum performance on the hardest problems, Pro is the option.
+OpenRouter users can select GPT-5.4 or GPT-5.4 Pro from the model dropdown. Pro offers stronger performance on research-heavy and abstract reasoning tasks — useful when you're working through complex interaction patterns or auditing system-wide consistency.
 
-No configuration changes required. Open Frontman, pick the model, and start working.
+No setup needed. Open Frontman, pick the model, start building.
 
-### The Bigger Picture
+### Why This Matters for Growing Teams
 
-Every major model release makes AI coding agents more capable. GPT-5.4 is notable because it closes gaps that mattered: longer context means fewer session restarts, native computer-use means more complete automation, tool search means practical scalability for real MCP setups.
+Every team that scales past two or three squads hits the same problem: the design system starts drifting. Components get re-implemented slightly differently. Spacing breaks. Brand consistency erodes one PR at a time.
 
-Frontman connects these capabilities to your actual browser and source code. The model sees what you see. It edits the files you are working on. When GPT-5.4 reasons through a complex task, Frontman makes sure that reasoning lands in the right place.
+GPT-5.4 in Frontman helps close that gap. It holds your entire system in memory, sees what's actually rendered in the browser, and builds with your conventions — not generic defaults. The model gets better, and your system stays tighter.
 
 Try it at [frontman.sh](https://frontman.sh).

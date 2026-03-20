@@ -1,46 +1,31 @@
 ---
-title: 'Getting Started with Frontman: Next.js, Astro, and Vite'
+title: 'Getting Started with Frontman'
 pubDate: 2026-02-15T05:00:00Z
-description: 'A quick guide to installing Frontman in your Next.js, Astro, or Vite project. One command, under 5 minutes, no configuration needed.'
+description: 'Stop filing tickets for button color changes. Frontman lets designers and PMs edit live UI components in the browser — no code, no waiting on dev sprints.'
 author: 'Danni Friedland'
 image: '/blog/getting-started-cover.png'
 tags: ['tutorial', 'getting-started']
-updatedDate: 2026-03-10T00:00:00Z
+updatedDate: 2026-03-20T00:00:00Z
 ---
 
-You find a new dev tool. The README says "Quick Start." You click it. Step one: install a global CLI. Step two: create a config file. Step three: add a plugin to your bundler. Step four: wrap your app in a provider component. Step five: set three environment variables. Step six: restart your dev server. Step seven: it does not work because you are using Turbopack and the plugin assumes Webpack. You open an issue. Someone replies "works on my machine." You close the tab.
+You want to change a button color. You open Figma, update the mock, tag a developer in a comment, wait for it to land in the sprint, wait for the PR, review the PR, notice the padding is off, leave another comment, wait for the fix, approve, wait for deploy. Three weeks for a button color.
 
-One command. That is the entire Frontman setup. If your project runs `next dev`, `astro dev`, or `vite dev`, Frontman works. No config files. No environment variables. No step seven.
+That is not a tooling problem. That is a workflow problem. Frontman fixes it by letting you edit UI components directly in the browser, in plain English, without writing code.
 
-### [Next.js](https://nextjs.org/docs)
+### How It Works
 
-Supports App Router, Pages Router, and Turbopack.
+Your engineering team runs one install command (Next.js, Astro, or Vite — they will know which). After that, anyone on the team can open the app in their browser and start making changes.
 
-```bash
-npx @frontman-ai/nextjs install
+Click any element on the page. A selection overlay appears showing you the component. Then describe what you want:
+
+```text
+"Make this button larger and use our primary color"
+"Increase the spacing between these cards"
+"Make this heading match the one on the homepage"
+"Hide this section on mobile"
 ```
 
-That is the entire setup. The installer adds the Frontman middleware and development overlay to your project. Start your dev server as usual and open `localhost:3000/frontman`. No `next.config.js` changes. No wrapper components. No provider tree modifications.
-
-### [Astro](https://docs.astro.build)
-
-Works with SSR, SSG, and Islands architecture.
-
-```bash
-astro add @frontman-ai/astro
-```
-
-The Astro integration hooks into the build pipeline automatically. It respects your existing integrations and does not conflict with them. If you are using content collections, MDX, or custom renderers, none of that changes.
-
-### [Vite](https://vite.dev/guide/)
-
-Supports React, Vue, and Svelte projects.
-
-```bash
-npx @frontman-ai/vite install
-```
-
-The Vite plugin integrates with HMR directly. When Frontman edits a file, hot-module replacement fires the same way it does when you save a file in your editor. No special handling.
+The change appears in the browser immediately. The underlying code updates to match. Your engineering team reviews the diff just like any other change — clean, atomic, ready for their normal review process.
 
 ### Connect an AI Provider
 
@@ -52,48 +37,40 @@ Once installed, open your app in the browser and navigate to the Frontman overla
 
 Select your provider in the settings panel and follow the connect flow. If you already have an account with any of these providers, setup is done.
 
-### What You Can Do Immediately
+### It Respects Your Design System
 
-Click any element on the page. A selection overlay appears showing you the component name, file path, and line number. Then describe what you want in plain English:
+This is the part that matters for teams with an established system. Frontman is not a generic code generator that outputs random CSS. It reads your project's conventions — your design tokens, your component patterns, your naming rules. When it makes a change, it uses _your_ system, not some default template.
 
-```text
-"Make this button larger"
-"Change the background to blue"
-"Add a 4px border radius"
-"Reduce the padding on mobile"
-```
+If your team uses specific spacing scales, Frontman uses those values. If you have a token system for colors, Frontman references those tokens. The output follows the same rules your engineering team follows, because it reads the same configuration they do.
 
-Frontman edits the source file. Hot-reload fires. The change appears in the browser. The diff is in your working tree:
+That means the changes you make through Frontman pass code review. They are not throwaway prototypes that need to be rebuilt "properly." They are production-quality edits that use your actual design system.
 
-```bash
-$ git diff
--  <button className="text-sm px-3 py-1.5 rounded">
-+  <button className="text-base px-4 py-2 rounded-md">
-```
+### What This Means for Your Team
 
-One description, one edit, one diff. No tab-switching to verify. No "which file is this in?" No burning agent context describing what you see in the browser.
+**For designers:** Stop recreating components in Figma that already exist in code. Click the real component, describe the change, see it live. No more "this looks different in production" conversations.
 
-### It Reads Your Conventions
+**For PMs:** Unblock yourself on visual iteration. Test copy changes, layout tweaks, and responsive behavior without filing a ticket. Ship faster without adding to the dev backlog.
 
-This is the part most people miss. Frontman is not a generic code generator. It reads your `agents.md` or `claude.md` file to understand your project's coding conventions — naming patterns, component structure, preferred utilities. When it edits code, it follows _your_ patterns, not some default template.
+**For design system maintainers:** Every Frontman edit goes through your system's tokens and conventions. No one is injecting arbitrary hex values or hardcoded pixel sizes. Your system stays consistent even as more people contribute changes.
 
-If your team uses a specific Tailwind preset, Frontman uses those classes. If you have a design token system, Frontman references those tokens. The output looks like code your team wrote, because it was informed by the same rules your team follows.
+### Common Questions
 
-### Common Objections
+**"Do I need to know how to code?"**
+No. You describe changes in plain English. Frontman translates that into code that follows your team's conventions. You never see or touch the code unless you want to.
 
-**"One command? What is it actually doing?"**
-The installer adds a dev-only middleware and a browser overlay component. You can inspect every file it adds — they are in your `node_modules` and your source tree. It is a dev dependency, not a black box. Run `git diff` after install to see exactly what changed.
+**"Will this break our design system?"**
+The opposite. Frontman reads your project's conventions and design tokens. It uses your existing system rather than working around it. Every change it makes is a standard code change that goes through your team's normal review process.
 
-**"What if it conflicts with my existing setup?"**
-The framework integrations are designed to be additive. They do not modify your build config, override your middleware stack, or patch framework internals. If you have a complex custom setup and something breaks, `git checkout` reverses the install. In practice, conflicts are rare because Frontman hooks into the standard plugin/integration APIs that Next.js, Astro, and Vite already provide.
+**"What happens to changes I make?"**
+They become real code changes, just like any edit a developer would make. Your engineering team can review, approve, or adjust them through their normal workflow. Nothing ships without their sign-off.
 
-**"Do I need to install anything globally?"**
-No. Everything is a project-local dev dependency. No global CLI, no daemon, no background process. When your dev server stops, Frontman stops.
+**"How does this fit into our existing workflow?"**
+Frontman runs in your development environment. Changes show up as diffs that go through code review. It does not replace your process — it gives more people on your team the ability to propose changes directly, instead of describing them in tickets and hoping the intent survives the handoff.
 
-### One Command
+### Get Started
 
-That is the honest setup. One command to install, connect your AI provider, and you are clicking elements in your browser and describing changes in English. The source files update. The browser hot-reloads. The diffs are ready for review.
+Ask your engineering team to run the install command for your framework — it takes under five minutes. After that, open your app in the browser, connect an AI provider, and start clicking elements.
 
-No configuration guide. No "recommended settings." No second blog post explaining why the defaults are wrong. No step seven. It is a dev tool. It runs in dev. You install it in one command and it works.
+No training required. No migration. No new tool to learn beyond "click the thing, describe the change."
 
-[Visit frontman.sh](https://frontman.sh) for full documentation. Learn [why coding agents are blind to your UI](/blog/ai-coding-agents-blind-to-ui/), or read about [how Frontman keeps your code safe](/blog/security/).
+[Visit frontman.sh](https://frontman.sh) for full documentation and framework-specific install guides. Learn [why coding agents are blind to your UI](/blog/ai-coding-agents-blind-to-ui/), or read about [how Frontman keeps your code safe](/blog/security/).

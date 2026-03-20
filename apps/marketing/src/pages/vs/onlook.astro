@@ -12,6 +12,7 @@ import ComparisonPricing from '../../components/blocks/comparison/ComparisonPric
 import ComparisonCTA from '../../components/blocks/comparison/ComparisonCTA.astro'
 import IntegrationContentSection from '../../components/blocks/integrations/IntegrationContentSection.astro'
 import IntegrationFAQ from '../../components/blocks/integrations/IntegrationFAQ.astro'
+import ComparisonDisclosure from '../../components/ui/ComparisonDisclosure.astro'
 
 import type { ComparisonFeature } from '../../components/blocks/comparison/ComparisonFeatureTable.astro'
 
@@ -105,6 +106,7 @@ const faqJsonLd = {
 		<p class="summary-emphasis">
 			The core difference: Onlook is a design tool that generates code in a sandbox. Frontman is a dev tool that edits your real running app. Different audiences, different architectures.
 		</p>
+		<ComparisonDisclosure competitor="Onlook" />
 	</ComparisonHero>
 
 	<!-- Feature Table -->

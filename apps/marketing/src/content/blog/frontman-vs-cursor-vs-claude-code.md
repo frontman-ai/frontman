@@ -1,130 +1,125 @@
 ---
 title: 'Frontman vs. Cursor vs. Claude Code'
 pubDate: 2026-02-14T05:00:00Z
-description: 'File-level agents like Cursor and Claude Code vs. browser-based editing with Frontman. Different tools for different problems.'
+description: 'You tried AI coding agents for visual work and hit a wall. Here is why — and what is actually built for designers and PMs who think visually.'
 author: 'Danni Friedland'
 image: '/blog/frontman-vs-cursor-vs-claude-code-cover.png'
-tags: ['comparison', 'ai']
-updatedDate: 2026-03-10T00:00:00Z
+tags: ['comparison', 'ai', 'design-systems']
+updatedDate: 2026-03-20T00:00:00Z
 faq:
   - question: 'What is the difference between Frontman, Cursor, and Claude Code?'
-    answer: 'Cursor and Claude Code are file-level agents that read source code, run terminal commands, and reason about multi-file changes. They excel at backend work, refactoring, and complex logic. Frontman is a browser-level agent that hooks into your running app, sees the live DOM and computed styles, and edits visual frontend code by tracing clicked elements back to source files. They solve different problems — use file-level agents for code reasoning, and Frontman for visual work.'
-  - question: 'Can I use Frontman and Cursor at the same time?'
-    answer: 'Yes. That is the intended workflow. Use Cursor or Claude Code for backend, architecture, and multi-file refactoring. Use Frontman for the visual layer — spacing, typography, colors, layout, and responsive behavior. They operate on different contexts (files vs. browser) and complement each other.'
+    answer: 'Cursor and Claude Code are AI coding agents built for engineers — they read source code, run terminal commands, and reason about multi-file changes. Frontman is a browser-based agent built for visual work — it sees the live page, lets you click the element you want to change, and traces it back to the source file automatically. Designers and PMs use Frontman to update spacing, colors, typography, and copy directly, without needing to navigate the codebase.'
+  - question: 'Can designers and PMs use Frontman without knowing how to code?'
+    answer: 'Yes. Frontman works in the browser — you click the element you want to change and describe what you want in plain language. You do not need to know which file to edit, what the class names mean, or how the component tree is structured. Frontman traces the visual element back to the source code and makes the edit for you. Changes go through the same code review process as any other PR.'
+  - question: 'Will I break something if I make changes with Frontman?'
+    answer: 'Frontman edits the same source files your engineers work in, and every change goes through your existing review process — pull requests, CI checks, design review. You cannot deploy a broken change without someone approving it. The risk is the same as any other code change, with the same guardrails.'
   - question: 'Is Frontman only for trivial CSS changes?'
-    answer: 'No. Spacing, typography, responsive layout, color systems, and component styling account for 30-40% of frontend development time. Each individual change may be small, but the category is large. Multi-select lets you batch many visual fixes in one pass, and non-developers (designers, PMs) can handle these changes directly.'
-  - question: 'Can Claude Code take screenshots to see the UI?'
-    answer: 'It can, through MCP servers and browser automation. But a screenshot is a raster image — it strips the component tree, class names, CSS cascade, responsive breakpoints, and state. The agent has to reverse-engineer structure from pixels. Frontman reads the DOM directly and knows which component renders which element because it is hooked into the framework.'
+    answer: 'No. Spacing, typography, responsive layout, color systems, and component styling account for 30-40% of frontend work. Each individual change may be small, but the category is large. Multi-select lets you batch many visual fixes in one pass, and handling these changes directly means your engineering team can focus on structural work instead of pixel-pushing tickets.'
+  - question: 'Can Claude Code or Cursor take screenshots to see the UI?'
+    answer: 'They can, through browser automation plugins. But a screenshot is a flat image — it strips away the component structure, the design tokens, the responsive breakpoints, and the state. The agent has to guess what it is looking at. Frontman reads the live page directly and knows which component renders which element because it is connected to your framework, not scraping pixels.'
 ---
 
-You are in Cursor. You ask the agent to fix a visual bug — a card component that overflows its container on mobile. The agent reads the file, finds the component, changes a width class. You `Cmd+Tab` to the browser. Still overflowing. You switch back, give more context: "It's the inner wrapper, not the outer one. And the issue is on viewports below 640px." The agent tries again. You switch to the browser. Fixed on mobile, but now the desktop layout has a weird gap. Three rounds. Six tab switches. The agent read the file each time. It just never saw the page.
+You have seen your engineering team use Cursor or Claude Code. The demos are impressive — they write functions, refactor entire modules, wire up APIs. So you tried it yourself. You wanted to fix the spacing on a card component. Update a button color to match the new brand palette. Change some copy on the landing page.
 
-This is not a knock on Cursor. Cursor is excellent at code problems. The issue is that you used a file-level agent for a _visual_ problem, and file-level agents are blind to the rendered UI.
+It dropped you into a code editor. You were looking at a file called `CardGrid.tsx` with nested `div` elements and class names like `p-4 md:p-8 lg:p-12`. The agent asked you to describe the problem in text. You typed "the card has too much padding on mobile." It changed something. You switched to the browser. Wrong element. You tried again, with more detail. It changed something else. Still wrong. You gave up and filed a Jira ticket.
 
-> **TL;DR:** Cursor and Claude Code are file-level agents — great for backend work, refactoring, and multi-file reasoning. Frontman is a browser-level agent — it sees the live DOM, traces elements to source files, and verifies changes via hot-reload. Use each for what it's good at: file-level agents for code problems, Frontman for visual problems.
+This is not a skill issue. Cursor and Claude Code are built for engineers who think in code. They are excellent at that. But if you think visually — if you _see_ the problem on the page and just want to point at it — these tools do not work the way you work.
+
+> **TL;DR:** Cursor and Claude Code are built for engineers — they read code, run commands, and reason about files. Frontman is built for visual work — you click the element you want to change, describe what you want, and it handles the code. Designers and PMs use Frontman for spacing, colors, typography, and copy. Engineers use their preferred coding agent for everything else. Everyone reviews PRs through the same process.
 
 !Table comparing file-level AI agents and browser-level AI agents across key capabilities: file access, terminal access, DOM access, computed styles, and visual verification.
 
-## What Are File-Level AI Agents Good At?
+## Why Coding Agents Do Not Work for Visual Tasks
 
-Cursor, Claude Code, Windsurf, and Copilot work on files and terminal output. They read source code, understand dependency graphs, and edit across multiple files in a single pass. They are very good at this:
+Cursor, Claude Code, Windsurf, and Copilot are file-level agents. They read source code, understand how files connect, and edit across multiple files at once. For engineering work — writing functions, refactoring, building APIs — they are transformative.
 
-- Writing new functions, refactoring modules, and complex logic
-- Multi-file changes — renaming exports, updating imports, migrating APIs
-- Backend work: API routes, database queries, server logic
-- Running tests, reading error output, fixing what broke
+But they have a fundamental limitation: they cannot see the rendered page. They do not know what your design system components look like at a given screen size. They cannot tell which of three nested containers you are looking at. When you ask them to fix something visual, they edit the file and hope. The verification step — "did it actually work?" — is entirely on you. You switch to the browser, look, switch back, try to describe what you see in words, and hope the agent infers what you meant.
 
-These agents have one blind spot: they cannot see the rendered result. They do not know what `p-4 md:p-8 lg:p-12` looks like at your current viewport width. They do not know which of three nested `div`s you are staring at. They edit files and the verification step — "did it work?" — is on you. You switch to the browser, look, switch back, describe the result in text, and hope the agent infers correctly.
+For someone who lives in Figma or reviews builds in the browser, this is backwards. You can _see_ the problem. You should be able to point at it.
 
-For backend code, this is fine. A database query does not have a visual output. For frontend work, "edit, switch tabs, eyeball it, switch back, describe what you see" is a workaround masquerading as a workflow.
+## How Frontman Works Differently
 
-## What Are Browser-Level AI Agents Good At?
-
-Frontman hooks into your framework's build pipeline and connects to your running browser. It operates on the rendered output, not the source files. This is not a convenience — it is a fundamentally different feedback loop.
+Frontman connects to your running app in the browser. Instead of starting from code, you start from the page — the same way you already review designs.
 
 When you click an element in Frontman:
 
-- It reads the **live DOM**, not the source file
-- It resolves **computed styles**, not class name strings
-- It traces the element back through the **component tree** to the source file and line number
-- It verifies the change via **hot-reload** in the same action — no tab switch
+- It sees the **live page** — the actual rendered result, not a source file
+- It understands the **visual properties** — the real spacing, colors, and typography as they appear on screen
+- It traces the element back to the **exact source file and component**, automatically
+- It applies the change and you see the result **immediately** — no switching tabs, no re-describing the problem
 
-Frontman does not guess which file to edit. It knows, because it can see the element you selected and trace it to its origin. The visual context _is_ the context. You do not need to describe it in a prompt.
+You do not need to know which file to open. You do not need to know the class names or the component hierarchy. You point at the thing that needs to change, say what you want, and Frontman handles the rest.
 
-## The Same Change, Two Ways
+## The Same Change, Two Workflows
 
-You want to fix a card that overflows on mobile. In Cursor:
+Your design system specifies 16px padding on cards at mobile breakpoints. A recent update broke it — cards now have 32px. You need to fix it across the product.
 
-```text
-You: "Fix the card overflow on mobile in CardGrid.tsx"
-Agent: *reads file, changes max-w-full to w-full on line 23*
-You: *Cmd+Tab to browser* "Still overflows. It's the inner container."
-Agent: *reads file again, edits line 31, adds overflow-hidden*
-You: *Cmd+Tab* "That clips the content. I need the width to shrink."
-Agent: *reads file again, changes the flex basis*
-You: *Cmd+Tab* "Ok. That works."
-```
-
-In Frontman:
+**What happens when you try Cursor or Claude Code:**
 
 ```text
-You: *clicks the overflowing card in the browser* "Fix this overflow on mobile"
-Frontman: *reads computed width: 420px, container: 375px*
-         *traces to CardGrid.tsx:31, edits className*
-         *hot-reload fires, card fits*
+You: "Fix the card padding on mobile in CardGrid.tsx"
+Agent: *reads the file, changes a class on line 23*
+You: *switch to browser* — still wrong, it changed the outer wrapper
+You: "It's the inner container, not the outer one"
+Agent: *reads the file again, edits line 31*
+You: *switch to browser* — padding is fixed but desktop layout broke
+You: *give up, file a ticket for engineering*
 ```
 
-```diff
-// src/components/CardGrid.tsx
--    <div className="w-96 p-4 rounded-lg shadow">
-+    <div className="w-full max-w-96 p-4 rounded-lg shadow">
+**What happens in Frontman:**
+
+```text
+You: *click the card in the browser* "Padding should be 16px on mobile"
+Frontman: *sees the current padding is 32px, traces to CardGrid.tsx:31*
+         *updates the class, change appears immediately*
 ```
 
-Three rounds vs. one. The difference is not intelligence — it is whether the agent can see what overflowed and by how much.
+The difference is not intelligence. Both agents are capable. The difference is that one can see what you are looking at and the other cannot.
 
-## The Honest Comparison
+## Who Should Use What
 
-| Task                                  | Right tool          | Why                                    |
-| ------------------------------------- | ------------------- | -------------------------------------- |
-| Write a new API endpoint              | Cursor, Claude Code | Pure code, no visual output            |
-| Fix padding on the hero section       | **Frontman**        | Visual problem, needs DOM access       |
-| Refactor a database query             | Cursor, Claude Code | Structural code change                 |
-| Change button colors across the app   | **Frontman**        | Visual, needs computed style awareness |
-| Implement auth logic                  | Claude Code, Cursor | Complex multi-file code                |
-| Let a designer tweak the landing page | **Frontman**        | Non-developer, visual task             |
-| Debug a state management bug          | Cursor, Claude Code | Deep code reasoning                    |
-| Update copy and CTAs                  | **Frontman**        | Content change, visual verification    |
+| Task | Who does it | Tool | Why |
+| --- | --- | --- | --- |
+| Fix spacing to match design specs | Designer | **Frontman** | Visual task — click, describe, done |
+| Update copy and CTAs on the marketing site | PM | **Frontman** | Content change, see it live before merging |
+| Adjust brand colors across components | Designer | **Frontman** | Design system change, needs visual verification |
+| Build a new API endpoint | Engineer | Cursor, Claude Code | Pure code, no visual output |
+| Refactor the authentication flow | Engineer | Cursor, Claude Code | Multi-file structural change |
+| Fix responsive layout issues flagged in QA | Designer or Engineer | **Frontman** | Visual problem at specific screen sizes |
+| Debug a state management bug | Engineer | Cursor, Claude Code | Deep code reasoning |
+| Align production UI with updated Figma specs | Designer | **Frontman** | Visual QA, point at what is wrong |
 
-The pattern is clear. If the definition of "correct" is "it looks right in the browser," you need an agent that can see the browser. If the definition of "correct" is "the tests pass" or "the types check," you need an agent that reasons about code.
+The pattern: if "correct" means _it looks right in the browser_, use the tool that can see the browser. If "correct" means _the tests pass_ or _the types check_, use the tool that reasons about code.
 
-## What Frontman Is Not
+## What About Breaking Things?
 
-Frontman does not write your API routes. It does not refactor your state management. It does not debug race conditions in your data fetching layer. It should not. Trying to build one agent that handles both code reasoning and visual perception is how you end up with an agent that is mediocre at both.
+This is the first question every designer and PM asks, and it is the right one.
 
-Frontman handles the visual layer. Spacing, typography, colors, layout, responsive behavior, copy. The changes where the acceptance criterion is _how it looks_, and the only way to verify is a browser. That is a large category of work — easily 30-40% of frontend time — and it requires a fundamentally different kind of context than code reasoning does. It requires eyes.
+Frontman edits the same source files your engineers work in. Every change produces a real code diff. That diff goes through your existing review process — pull requests, CI checks, automated tests, design review. Nothing ships without approval.
 
-Trying to use Cursor for visual work is like debugging CSS by reading the stylesheet without opening the page. You _can_ do it. Experienced developers do it all the time. But it is slower, less reliable, and completely inaccessible to anyone who does not already know the codebase.
+You are not pushing to production. You are opening a PR. The same guardrails that protect the codebase from a junior engineer's first commit protect it from your changes too. Your engineering team reviews the code. You review the visual result. The process works because it is the same process.
 
-## Common Objections
+## Common Questions
 
-**"Cursor can run my dev server and check build output. Isn't that enough?"**
-Build output tells you about compilation errors and test results. It tells you nothing about what the page looks like. You still have to switch to the browser, visually verify, switch back, and describe what you see in text. Terminal access solves the compilation feedback loop. It does not solve the visual feedback loop. Those are different problems.
+**"Do I need to set up a development environment?"**
+Your engineering team sets up Frontman once — it connects to the dev server that is already running. After that, you open the browser and start working. No terminal, no IDE, no environment setup.
 
-**"Claude Code can take screenshots via browser tools."**
-It can, through MCP servers and browser automation. But a screenshot is a raster image — it strips the component tree, the class names, the cascade, the responsive breakpoints, the state. The agent has to reverse-engineer structure from pixels. Frontman reads the DOM directly. There is nothing to reverse-engineer. It knows which component renders which element because it is hooked into the framework, not scraping the output.
+**"Can't I just use Figma's Dev Mode or handoff tools?"**
+Handoff tools describe _what should change_. Frontman _makes the change_. Instead of annotating a screenshot with "padding should be 16px" and waiting for an engineer to pick up the ticket, you click the element, say "padding 16px," and open a PR. The feedback loop drops from days to minutes.
 
-**"Won't I need both tools running at the same time?"**
-Yes. That is the point. Use Cursor or Claude Code for backend and architecture. Use Frontman for the visual layer. You already use different tools for different tasks — your editor, your terminal, your browser dev tools, your database client. Adding a visual AI agent is the same idea. Different problems, different tools, same codebase.
+**"Why not just ask an engineer? It only takes them five minutes."**
+It takes them five minutes of coding. But it takes a day of context-switching, ticket grooming, sprint planning, and waiting. Multiply that by every spacing fix, copy change, and color update across your design system, and you are looking at a significant chunk of engineering time spent on work that does not require engineering judgment. Let your engineers build features. Handle the visual layer yourself.
 
-**"Frontman is just for trivial changes."**
-Spacing, typography, responsive layout, color systems, component styling — this is 30-40% of frontend development time. The fact that individual changes are small does not mean the category is unimportant. It means each change is fast to make and fast to review. That is a feature, not a limitation. And it means non-developers — designers, PMs — can handle these changes directly, freeing up engineers for the structural work that actually requires engineering judgment.
+**"What if the change I want is more complex than a style tweak?"**
+Then it is probably an engineering task. Frontman is not trying to replace your engineering team. It handles the visual layer — spacing, typography, colors, layout, responsive behavior, copy. The work where the acceptance criterion is _how it looks_. When the change involves logic, data flow, or architecture, that belongs in Cursor or Claude Code with your engineers.
+
+**"Claude Code can take screenshots to see what the page looks like."**
+It can, through browser automation plugins. But a screenshot is a flat image — it strips away the component structure, the design tokens, the responsive breakpoints, and the interactive state. The agent has to guess what it is looking at and reverse-engineer the structure from pixels. Frontman reads the live page directly. It knows which component renders which element because it is connected to your framework. There is nothing to guess.
 
 ## The Takeaway
 
-Stop using file-level agents for visual problems. Stop asking your coding agent to guess what the page looks like based on class names. It is 2026. The agents are good. Give them the right context for the right problem.
+You tried the AI coding agents. They are powerful, but they were not built for how you work. They think in files. You think in what you see on the page. That is not a limitation of yours — it is a limitation of theirs.
 
-Use Cursor or Claude Code when the source code is the artifact. Use Frontman when the rendered page is the artifact. Let your developers use their preferred agent for complex work. Let your designers and PMs use Frontman for the visual layer. Everyone reviews PRs through the same process.
-
-The question is not "which AI agent is best." The question is "which agent can _see_ what I need it to see."
+Frontman is the tool that meets you where you are. Click what needs to change. Describe what you want. Review the result in the browser. Open a PR. Your engineering team stays focused on engineering. Your design system stays consistent. And you stop waiting three sprints for a padding fix.
 
 [Try Frontman](https://frontman.sh) — open source, free during beta. [Install in one command](/blog/getting-started/), or read about [how designers and PMs can use it alongside your team](/blog/team-collaboration/). For a detailed feature-by-feature breakdown, see [Frontman vs Cursor](/vs/cursor/).

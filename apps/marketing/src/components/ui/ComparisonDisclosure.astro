@@ -1,0 +1,26 @@
+---
+// Conflict-of-interest disclosure for /vs/ comparison pages.
+// Signals trustworthiness to both users and AI search engines.
+
+type Props = {
+	competitor?: string
+}
+
+const { competitor } = Astro.props
+const subject = competitor ? `Frontman and ${competitor}` : 'the tools on this page'
+---
+
+<p class="comparison-disclosure">
+	Disclosure: This page is published by the Frontman team. We've done our best to present {subject} accurately and fairly, but we are naturally biased toward our own product. We encourage you to try both tools and decide for yourself.
+</p>
+
+<style>
+	.comparison-disclosure {
+		font-size: 13px;
+		font-style: italic;
+		color: #52525b;
+		margin-top: 24px;
+		padding-top: 16px;
+		border-top: 1px solid rgba(255, 255, 255, 0.08);
+	}
+</style>
