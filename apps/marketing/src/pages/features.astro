@@ -1,18 +1,475 @@
 ---
-// Features page — temporarily disabled, will be added back later.
-// See git history for the full implementation.
+// Features page — targeted at designers and PMs at Series A+ startups
+// managing design systems across multiple teams.
+
 import Layout from '../layouts/Layout.astro'
+import Button from '../components/ui/Button.astro'
+
+const SEO = {
+	title: 'Frontman Features | Refine Your UI Without Filing Tickets',
+	description:
+		'Click any element in your running app, describe what you want changed, and see it happen. Frontman lets designers and PMs make UI refinements directly.'
+}
+
+const faqs = [
+	{
+		question: 'Do I need to know how to code?',
+		answer: 'No. You click an element, describe the change in plain English, and Frontman handles the rest. If the result isn\'t right, describe what\'s off and it adjusts.'
+	},
+	{
+		question: 'Will this mess up our design system?',
+		answer: 'Frontman reads your team\'s design rules automatically — naming conventions, spacing scale, color tokens. Every edit follows your existing patterns. And nothing ships without your engineering team reviewing it first.'
+	},
+	{
+		question: 'How does it fit into our workflow?',
+		answer: 'You use your app in the browser like normal. When something looks off, you click it and describe the fix. The change goes through your team\'s normal review process before it ships — nothing about how you work together changes.'
+	},
+	{
+		question: 'What if the AI gets it wrong?',
+		answer: 'You just tell it what\'s off. "Too much padding." "Wrong shade of blue." It sees the current state and tries again. Most refinements land in one or two rounds.'
+	},
+	{
+		question: 'Is it free?',
+		answer: 'Free during early access. Per-seat team pricing is coming soon.'
+	},
+	{
+		question: 'Can everyone on my team use it?',
+		answer: 'Yes. Designers, PMs, QA, engineers — anyone who can open the app in a browser can use Frontman. All changes still go through your normal review process.'
+	}
+]
+
+const faqJsonLd = {
+	"@context": "https://schema.org",
+	"@type": "FAQPage",
+	"mainEntity": faqs.map((faq) => ({
+		"@type": "Question",
+		"name": faq.question,
+		"acceptedAnswer": {
+			"@type": "Answer",
+			"text": faq.answer
+		}
+	}))
+}
 ---
 
-<Layout
-	title="Frontman | Features"
-	description="Explore Frontman's features."
-	noindex={true}
->
-	<div class="flex items-center justify-center min-h-[60vh] text-center px-6">
-		<div>
-			<h1 class="text-3xl font-bold mb-4">Features</h1>
-			<p class="text-neutral-500">This page is coming soon.</p>
+<Layout title={SEO.title} description={SEO.description}>
+	<script is:inline type="application/ld+json" set:html={JSON.stringify(faqJsonLd)} />
+
+	<!-- Hero -->
+	<section class="hero-section">
+		<div class="hero-container">
+			<p class="hero-label">Features</p>
+			<h1 class="hero-title">You see the problem. Now you can fix it.</h1>
+			<p class="hero-subtitle">
+				Click any element in your running app. Describe what you want in plain English. Watch it change. Frontman turns your eye for detail into shipped improvements — no tickets, no waiting.
+			</p>
 		</div>
-	</div>
+	</section>
+
+	<!-- The Problem -->
+	<section class="content-section">
+		<div class="content-container">
+			<h2 class="section-title">Every pixel fix costs a round trip.</h2>
+			<div class="prose-content">
+				<p>You see it immediately. The card shadow is too heavy. The spacing between sections feels off. A button label doesn't read right at that width.</p>
+				<p>But you can't just fix it. You screenshot. You annotate. You file a ticket. You wait for prioritization. The fix lands three days later and it's still not quite right. Another round.</p>
+				<p>Now multiply that across every screen, every component, every team using your design system. That's the handoff tax — and it grows with every squad you add.</p>
+			</div>
+		</div>
+	</section>
+
+	<!-- Feature 1: Point and Speak -->
+	<section class="content-section content-section--light">
+		<div class="content-container">
+			<div class="feature-block">
+				<div class="feature-number">01</div>
+				<h2 class="section-title section-title--dark">Point at it. Say what you want.</h2>
+				<div class="prose-content prose-content--dark">
+					<p>Open your app in the browser. Click any element — a button, a card, a heading, an icon. Frontman highlights it.</p>
+					<p>Then just say what you want. "More breathing room around this." "Soften the shadow." "Use our brand purple here." Frontman understands what you're pointing at and what it currently looks like, so you don't need to explain where to find it or what the current values are.</p>
+				</div>
+				<div class="feature-highlights">
+					<div class="highlight-item highlight-item--light">
+						<p>Select multiple elements at once to make batch changes in one pass</p>
+					</div>
+					<div class="highlight-item highlight-item--light">
+						<p>Use arrow keys to quickly move between elements on the page</p>
+					</div>
+				</div>
+			</div>
+		</div>
+	</section>
+
+	<!-- Feature 2: Instant Feedback -->
+	<section class="content-section">
+		<div class="content-container">
+			<div class="feature-block">
+				<div class="feature-number">02</div>
+				<h2 class="section-title">See the result immediately.</h2>
+				<div class="prose-content">
+					<p>The change appears in your browser within seconds. Not a preview. Not a mockup. The actual app, updated, right in front of you.</p>
+					<p>If it's not right, say what's off. "A bit more." "Actually, less than that." "Try the 500 weight instead." Each iteration is a few seconds, not a few days.</p>
+				</div>
+			</div>
+		</div>
+	</section>
+
+	<!-- Feature 3: Respects Your System -->
+	<section class="content-section content-section--light">
+		<div class="content-container">
+			<div class="feature-block">
+				<div class="feature-number">03</div>
+				<h2 class="section-title section-title--dark">Your design system stays intact.</h2>
+				<div class="prose-content prose-content--dark">
+					<p>Frontman reads your team's design rules automatically. Spacing scales, color tokens, component patterns — it follows your conventions instead of inventing its own.</p>
+					<p>When you say "use our brand blue," it uses the actual token from your system, not a hardcoded hex value. Your system stays consistent even as more people make changes.</p>
+				</div>
+				<div class="feature-highlights">
+					<div class="highlight-item highlight-item--light">
+						<p>Uses your existing tokens and variables, not arbitrary values</p>
+					</div>
+					<div class="highlight-item highlight-item--light">
+						<p>Every change goes through your team's normal review before shipping</p>
+					</div>
+					<div class="highlight-item highlight-item--light">
+						<p>Rules are loaded at the start of every session — no configuration needed</p>
+					</div>
+				</div>
+			</div>
+		</div>
+	</section>
+
+	<!-- Feature 4: It Sees What You See -->
+	<section class="content-section">
+		<div class="content-container">
+			<div class="feature-block">
+				<div class="feature-number">04</div>
+				<h2 class="section-title">It sees what you see.</h2>
+				<div class="prose-content">
+					<p>Most AI tools only read code files. They can guess what the page looks like, but they've never actually seen it.</p>
+					<p>Frontman runs inside your browser. When you click an element, it sees the actual rendered result — sizes in pixels, real colors, how things overlap, what's visible at your current screen size. That's why the edits land accurately.</p>
+				</div>
+				<div class="context-grid">
+					<div class="context-card">
+						<h3 class="context-title">What's on screen</h3>
+						<p class="context-value">The actual rendered layout — real sizes, real colors, real spacing. Not an approximation from reading code.</p>
+					</div>
+					<div class="context-card">
+						<h3 class="context-title">How it's built</h3>
+						<p class="context-value">Which component produced this element and where it lives in your project. No guessing.</p>
+					</div>
+					<div class="context-card">
+						<h3 class="context-title">What surrounds it</h3>
+						<p class="context-value">Parent containers, sibling elements, overall page layout. Changes account for context, not just the isolated element.</p>
+					</div>
+					<div class="context-card">
+						<h3 class="context-title">Your project's rules</h3>
+						<p class="context-value">Design tokens, spacing scales, naming conventions. Loaded automatically so every edit follows your patterns.</p>
+					</div>
+				</div>
+			</div>
+		</div>
+	</section>
+
+	<!-- Feature 5: Safe by Default -->
+	<section class="content-section content-section--light">
+		<div class="content-container">
+			<div class="feature-block">
+				<div class="feature-number">05</div>
+				<h2 class="section-title section-title--dark">Nothing ships without review.</h2>
+				<div class="prose-content prose-content--dark">
+					<p>Frontman makes changes to the actual project files — the same files your engineers work in. That means every change is visible, reviewable, and reversible.</p>
+					<p>Your team's existing review process doesn't change. Engineering still approves what ships. There's no separate tool, no shadow edits, no "who changed this?" moments. You get speed without giving up control.</p>
+				</div>
+			</div>
+		</div>
+	</section>
+
+	<!-- Who it's for -->
+	<section class="content-section">
+		<div class="content-container">
+			<h2 class="section-title">Who uses Frontman.</h2>
+			<div class="persona-grid">
+				<div class="persona-card">
+					<h3 class="persona-title">Designers</h3>
+					<p class="persona-desc">Stop annotating screenshots. Click the element, say "8px more padding," and see it happen. Ship pixel-perfect refinements without waiting on anyone.</p>
+				</div>
+				<div class="persona-card">
+					<h3 class="persona-title">Product Managers</h3>
+					<p class="persona-desc">Catch copy issues, alignment problems, and rough edges during review — and fix them on the spot instead of adding them to the backlog.</p>
+				</div>
+				<div class="persona-card">
+					<h3 class="persona-title">Design System Teams</h3>
+					<p class="persona-desc">Audit how components look in the real product. Spot inconsistencies visually and fix them at the source. Keep your system tight as you scale across squads.</p>
+				</div>
+			</div>
+		</div>
+	</section>
+
+	<!-- FAQ -->
+	<section class="content-section content-section--light">
+		<div class="content-container">
+			<h2 class="section-title section-title--dark">Common Questions</h2>
+			<div class="faq-list">
+				{faqs.map((faq) => (
+					<details class="faq-item group">
+						<summary class="faq-question">
+							<span>{faq.question}</span>
+							<span class="faq-icon">+</span>
+						</summary>
+						<div class="faq-answer">
+							<p>{faq.answer}</p>
+						</div>
+					</details>
+				))}
+			</div>
+		</div>
+	</section>
+
+	<!-- CTA -->
+	<section class="cta-section">
+		<div class="cta-container">
+			<h2 class="cta-title">Ready to try it?</h2>
+			<p class="cta-description">Ask your engineering team to add Frontman — it takes about a minute. Then open your app and start clicking.</p>
+			<div class="cta-links">
+				<Button size="lg" style="primary" link="/#install">Get Started For Free</Button>
+				<a href="/how-it-works/" class="cta-secondary">How it works</a>
+				<a href="/compare/" class="cta-secondary">Compare alternatives</a>
+			</div>
+		</div>
+	</section>
 </Layout>
+
+<style>
+	/* Hero */
+	.hero-section {
+		background: #09090b;
+		color: #fafafa;
+		padding: 80px 24px 48px;
+		display: flex;
+		justify-content: center;
+	}
+	.hero-container { max-width: 720px; width: 100%; }
+	.hero-label {
+		@apply font-mono;
+		font-size: 13px;
+		letter-spacing: 0.12em;
+		text-transform: uppercase;
+		color: #A259FF;
+		margin-bottom: 12px;
+	}
+	.hero-title {
+		font-size: 48px;
+		font-weight: 700;
+		line-height: 1.1;
+		letter-spacing: -0.02em;
+		color: #fafafa;
+		margin-bottom: 16px;
+	}
+	.hero-subtitle {
+		font-size: 20px;
+		line-height: 1.5;
+		color: #a1a1aa;
+	}
+
+	/* Content sections */
+	.content-section {
+		background: #09090b;
+		color: #fafafa;
+		padding: 64px 24px;
+		display: flex;
+		justify-content: center;
+	}
+	.content-section--light { background: #fafafa; color: #09090b; }
+	.content-container { max-width: 720px; width: 100%; }
+	.section-title {
+		font-size: 32px;
+		font-weight: 700;
+		color: #fafafa;
+		margin-bottom: 24px;
+		letter-spacing: -0.02em;
+	}
+	.section-title--dark { color: #09090b; }
+	.prose-content p {
+		font-size: 17px;
+		line-height: 1.7;
+		color: #a1a1aa;
+		margin-bottom: 16px;
+	}
+	.prose-content--dark p { color: #52525b; }
+
+	/* Feature blocks */
+	.feature-block { position: relative; }
+	.feature-number {
+		font-family: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, 'DejaVu Sans Mono', monospace;
+		font-size: 14px;
+		font-weight: 700;
+		color: #A259FF;
+		margin-bottom: 16px;
+		letter-spacing: 0.05em;
+	}
+
+	/* Feature highlights */
+	.feature-highlights {
+		display: flex;
+		flex-direction: column;
+		gap: 12px;
+		margin-top: 24px;
+	}
+	.highlight-item {
+		display: flex;
+		align-items: flex-start;
+		gap: 12px;
+		padding: 16px;
+		border-radius: 10px;
+	}
+	.highlight-item--light {
+		background: white;
+		border: 1px solid #e4e4e7;
+	}
+	.highlight-item p {
+		font-size: 15px;
+		line-height: 1.5;
+		color: #52525b;
+		margin: 0;
+	}
+
+	/* Context grid */
+	.context-grid {
+		display: grid;
+		grid-template-columns: repeat(2, 1fr);
+		gap: 16px;
+		margin-top: 24px;
+	}
+	.context-card {
+		padding: 20px;
+		border-radius: 12px;
+		background: rgba(255, 255, 255, 0.04);
+		border: 1px solid rgba(255, 255, 255, 0.08);
+	}
+	.context-title {
+		font-size: 13px;
+		font-weight: 600;
+		color: #A259FF;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+		margin-bottom: 8px;
+	}
+	.context-value {
+		font-size: 15px;
+		line-height: 1.5;
+		color: #a1a1aa;
+	}
+
+	/* Persona cards */
+	.persona-grid {
+		display: grid;
+		grid-template-columns: repeat(3, 1fr);
+		gap: 20px;
+		margin-top: 8px;
+	}
+	.persona-card {
+		padding: 24px;
+		border-radius: 12px;
+		background: rgba(255, 255, 255, 0.04);
+		border: 1px solid rgba(255, 255, 255, 0.08);
+	}
+	.persona-title {
+		font-size: 18px;
+		font-weight: 700;
+		color: #fafafa;
+		margin-bottom: 8px;
+	}
+	.persona-desc {
+		font-size: 15px;
+		line-height: 1.6;
+		color: #a1a1aa;
+	}
+
+	/* FAQ */
+	.faq-list { border-top: 1px solid #e4e4e7; }
+	.faq-item { border-bottom: 1px solid #e4e4e7; cursor: pointer; }
+	.faq-question {
+		width: 100%;
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		padding: 24px 0;
+		color: #09090b;
+		font-size: 17px;
+		font-weight: 500;
+		line-height: 1.4;
+		list-style: none;
+		transition: color 0.2s;
+	}
+	.faq-question::-webkit-details-marker { display: none; }
+	.faq-question:hover { color: #000; }
+	.faq-question span:first-child { padding-right: 24px; }
+	.faq-icon {
+		flex-shrink: 0;
+		width: 28px;
+		height: 28px;
+		border-radius: 50%;
+		border: 1px solid #d4d4d8;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font-size: 18px;
+		font-weight: 300;
+		color: #71717a;
+		transition: all 0.3s ease;
+	}
+	.group[open] .faq-icon { transform: rotate(45deg); background: #f4f4f5; }
+	.faq-answer p {
+		font-size: 15px;
+		line-height: 1.7;
+		color: #52525b;
+		padding-bottom: 24px;
+		margin: 0;
+		max-width: 620px;
+	}
+
+	/* CTA */
+	.cta-section {
+		background: #09090b;
+		padding: 80px 24px;
+		display: flex;
+		justify-content: center;
+	}
+	.cta-container { max-width: 720px; width: 100%; }
+	.cta-title {
+		font-size: 36px;
+		font-weight: 700;
+		color: #fafafa;
+		margin-bottom: 8px;
+		letter-spacing: -0.02em;
+	}
+	.cta-description {
+		font-size: 17px;
+		color: #71717a;
+		margin-bottom: 32px;
+		line-height: 1.6;
+	}
+	.cta-links { display: flex; align-items: center; gap: 24px; }
+	.cta-secondary {
+		color: #a1a1aa;
+		font-size: 15px;
+		text-decoration: underline;
+		text-underline-offset: 3px;
+		transition: color 0.2s;
+	}
+	.cta-secondary:hover { color: #fafafa; }
+
+	/* Responsive */
+	@media (max-width: 768px) {
+		.hero-section { padding: 48px 20px 32px; }
+		.hero-title { font-size: 32px; }
+		.content-section { padding: 40px 20px; }
+		.section-title { font-size: 24px; }
+		.context-grid { grid-template-columns: 1fr; }
+		.persona-grid { grid-template-columns: 1fr; }
+		.cta-section { padding: 48px 20px; }
+		.cta-title { font-size: 28px; }
+		.cta-links { flex-direction: column; align-items: flex-start; gap: 12px; }
+	}
+</style>
