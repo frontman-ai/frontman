@@ -1166,10 +1166,6 @@ let handleEffect = (effect, state: state, dispatch) => {
           // (task was in Loading state). If task was already Loaded,
           // we just re-activated the channel - no state transition needed.
           if needsHistory {
-            // Flush all buffers before completing the load.
-            // User message blocks and agent text deltas may still be pending
-            // when the session/load RPC response arrives.
-            Client__TextDeltaBuffer.flushUserMessageBuffer.contents()
             Client__TextDeltaBuffer.flush()
             dispatch(TaskAction({target: ForTask(taskIdToLoad), action: LoadComplete}))
           }

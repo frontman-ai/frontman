@@ -70,13 +70,12 @@ let make = (~onFlush: (~taskId: string, ~text: string, ~timestamp: string) => un
 // This is the only module-level state; all buffer state lives in closures.
 let active: ref<option<t>> = ref(None)
 
-let flush = () =>
+let flushUserMessageBuffer: ref<unit => unit> = ref(() => ())
+
+let flush = () => {
+  flushUserMessageBuffer.contents()
   switch active.contents {
   | Some(instance) => instance.flush()
   | None => ()
   }
-
-// Callback ref for flushing the user message block buffer during history replay.
-// Set by FrontmanProvider, called by StateReducer before LoadComplete.
-// This avoids a circular dependency (same pattern as the `active` ref above).
-let flushUserMessageBuffer: ref<unit => unit> = ref(() => ())
+}

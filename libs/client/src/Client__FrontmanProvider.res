@@ -280,8 +280,6 @@ module Provider = {
         }
         _userMsgBuffer.blocks = Array.concat(_userMsgBuffer.blocks, [content])
       | ToolCall({toolCallId, title, timestamp, parentAgentId, spawningToolName}) =>
-        // Flush buffered user message and agent text before tool calls.
-        _flushUserMessageBuffer()
         Client__TextDeltaBuffer.flush()
         let createdAt = Date.fromString(timestamp)->Date.getTime
         Client__State.Actions.toolCallReceived(~taskId, ~toolCall={
@@ -316,16 +314,12 @@ module Provider = {
       | Plan({entries}) =>
         Client__State.Actions.planReceived(~taskId, ~entries)
       | AgentTurnComplete({stopReason: _}) =>
-        // Flush buffered user message and agent text so no deltas are lost.
-        _flushUserMessageBuffer()
         Client__TextDeltaBuffer.flush()
         Client__State.Actions.turnCompleted(~taskId)
       | ConfigOptionUpdate({configOptions}) =>
         Client__State.Actions.configOptionsReceived(~configOptions)
       | CurrentModeUpdate(_) => () // TODO: dispatch mode change when modes are supported in UI
       | Error({message}) =>
-        // Flush all buffers before error handling.
-        _flushUserMessageBuffer()
         Client__TextDeltaBuffer.flush()
         Client__State.Actions.agentErrorReceived(~taskId, ~error=message)
       | Unknown(_) => ()
