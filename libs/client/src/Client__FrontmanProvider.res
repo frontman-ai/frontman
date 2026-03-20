@@ -261,8 +261,7 @@ module Provider = {
       | AgentMessageChunk({content, timestamp}) =>
         // Per ACP spec: first agent_message_chunk implicitly signals message start.
         // Message end is signaled by session/prompt response with stopReason.
-        // Flush pending buffers — this is a turn boundary during history replay.
-        Client__TextDeltaBuffer.flush()
+        _flushUserMessageBuffer()
         // Buffer text deltas and flush once per animation frame to avoid
         // dozens of full state rebuilds per second during fast streaming.
         getContentBlockText(content)->Option.forEach(text => {
