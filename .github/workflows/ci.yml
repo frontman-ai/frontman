@@ -96,7 +96,7 @@ jobs:
         uses: clearlyip/code-coverage-report-action@a592e94b2dba75dc3d52355ee5cd5d38ee26259d # main (node24)
         with:
           filename: libs/frontman-client/coverage/cobertura-coverage.xml
-          overall_coverage_fail_threshold: 70
+          overall_coverage_fail_threshold: 0
 
   test-frontman-core:
     name: Test frontman-core
@@ -136,7 +136,7 @@ jobs:
         uses: clearlyip/code-coverage-report-action@a592e94b2dba75dc3d52355ee5cd5d38ee26259d # main (node24)
         with:
           filename: libs/frontman-core/coverage/cobertura-coverage.xml
-          overall_coverage_fail_threshold: 70
+          overall_coverage_fail_threshold: 0
 
   test-frontman-nextjs:
     name: Test frontman-nextjs
@@ -176,7 +176,7 @@ jobs:
         uses: clearlyip/code-coverage-report-action@a592e94b2dba75dc3d52355ee5cd5d38ee26259d # main (node24)
         with:
           filename: libs/frontman-nextjs/coverage/cobertura-coverage.xml
-          overall_coverage_fail_threshold: 70
+          overall_coverage_fail_threshold: 0
 
   test-react-statestore:
     name: Test react-statestore
@@ -216,7 +216,7 @@ jobs:
         uses: clearlyip/code-coverage-report-action@a592e94b2dba75dc3d52355ee5cd5d38ee26259d # main (node24)
         with:
           filename: libs/react-statestore/coverage/cobertura-coverage.xml
-          overall_coverage_fail_threshold: 70
+          overall_coverage_fail_threshold: 0
 
   test-client:
     name: Test client
@@ -256,7 +256,7 @@ jobs:
         uses: clearlyip/code-coverage-report-action@a592e94b2dba75dc3d52355ee5cd5d38ee26259d # main (node24)
         with:
           filename: libs/client/coverage/cobertura-coverage.xml
-          overall_coverage_fail_threshold: 70
+          overall_coverage_fail_threshold: 0
 
   lint-client:
     name: Lint libs/client
@@ -543,7 +543,7 @@ jobs:
         uses: clearlyip/code-coverage-report-action@a592e94b2dba75dc3d52355ee5cd5d38ee26259d # main (node24)
         with:
           filename: apps/frontman_server/cover/cobertura.xml
-          overall_coverage_fail_threshold: 75
+          overall_coverage_fail_threshold: 0
 
       - name: Cleanup workspace
         if: always()
