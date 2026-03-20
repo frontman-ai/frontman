@@ -361,7 +361,7 @@ type action =
   | LoadComplete
   | LoadError({error: string})
   // Hydration actions
-  | UserMessageReceived({id: string, text: string, timestamp: string})
+  | UserMessageReceived({id: string, content: array<UserContentPart.t>, annotations: array<Message.MessageAnnotation.t>, timestamp: string})
   // Question tool actions
   | QuestionReceived({
       questions: array<Client__Question__Types.questionItem>,
@@ -912,9 +912,9 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
 
   // Hydration: user messages replayed from history
   // Per ACP spec: a new user message signals the end of the previous agent message
-  | (Task.Loading(_), UserMessageReceived({id, text, timestamp})) =>
+  | (Task.Loading(_), UserMessageReceived({id, content, annotations, timestamp})) =>
     let createdAt = Date.fromString(timestamp)->Date.getTime
-    let userMessage = Message.User({id, content: [UserContentPart.text(text)], annotations: [], createdAt})
+    let userMessage = Message.User({id, content, annotations, createdAt})
     (task->Lens.completeStreamingMessage->Lens.insertMessage(userMessage), [])
 
   // ============================================================================

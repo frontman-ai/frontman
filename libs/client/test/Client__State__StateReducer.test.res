@@ -1112,7 +1112,8 @@ describe("Client State Reducer - Session Loading Actions", () => {
         target: ForTask("task-123"),
         action: UserMessageReceived({
           id: "msg-1",
-          text: "Hello from history",
+          content: [Client__Message.UserContentPart.text("Hello from history")],
+          annotations: [],
           timestamp: "2024-01-15T10:30:00Z",
         }),
       }),

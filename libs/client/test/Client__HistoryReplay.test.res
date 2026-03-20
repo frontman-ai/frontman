@@ -13,8 +13,13 @@ open Vitest
 
 module Task = Client__Task__Types.Task
 module Message = Client__Task__Types.Message
+module UserContentPart = Client__Message.UserContentPart
 module TaskReducer = Client__Task__Reducer
 module Buffer = Client__TextDeltaBuffer
+
+// Helper: build a text-only UserMessageReceived action
+let _userMsg = (~id, ~text, ~timestamp) =>
+  TaskReducer.UserMessageReceived({id, content: [UserContentPart.text(text)], annotations: [], timestamp})
 
 module TestHelpers = {
   let makeLoadingTask = (~id="test-task-1") => {
@@ -83,7 +88,7 @@ describe("History Replay - Reducer level (direct dispatch)", () => {
     // Turn 1
     let (task, _) = TaskReducer.next(
       task,
-      UserMessageReceived({id: "user-1", text: "what is your name?", timestamp: "2026-03-12T09:01:25Z"}),
+      _userMsg(~id="user-1", ~text="what is your name?", ~timestamp="2026-03-12T09:01:25Z"),
     )
     let (task, _) = TaskReducer.next(
       task,
@@ -93,7 +98,7 @@ describe("History Replay - Reducer level (direct dispatch)", () => {
     // Turn 2: UserMessageReceived should finalize the previous agent message
     let (task, _) = TaskReducer.next(
       task,
-      UserMessageReceived({id: "user-2", text: "what is my name?", timestamp: "2026-03-15T08:54:49Z"}),
+      _userMsg(~id="user-2", ~text="what is my name?", ~timestamp="2026-03-15T08:54:49Z"),
     )
     let (task, _) = TaskReducer.next(
       task,
@@ -103,7 +108,7 @@ describe("History Replay - Reducer level (direct dispatch)", () => {
     // Turn 3
     let (task, _) = TaskReducer.next(
       task,
-      UserMessageReceived({id: "user-3", text: "what is my name?", timestamp: "2026-03-15T10:25:21Z"}),
+      _userMsg(~id="user-3", ~text="what is my name?", ~timestamp="2026-03-15T10:25:21Z"),
     )
     let (task, _) = TaskReducer.next(
       task,
@@ -138,9 +143,9 @@ describe("History Replay - Reducer level (direct dispatch)", () => {
   test("all agent messages are Completed (not Streaming) after LoadComplete", t => {
     let task = TestHelpers.makeLoadingTask()
 
-    let (task, _) = TaskReducer.next(task, UserMessageReceived({id: "u1", text: "hi", timestamp: "2026-01-01T10:00:00Z"}))
+    let (task, _) = TaskReducer.next(task, _userMsg(~id="u1", ~text="hi", ~timestamp="2026-01-01T10:00:00Z"))
     let (task, _) = TaskReducer.next(task, TextDeltaReceived({text: "hello", timestamp: "2026-01-01T10:00:01Z"}))
-    let (task, _) = TaskReducer.next(task, UserMessageReceived({id: "u2", text: "bye", timestamp: "2026-01-01T10:01:00Z"}))
+    let (task, _) = TaskReducer.next(task, _userMsg(~id="u2", ~text="bye", ~timestamp="2026-01-01T10:01:00Z"))
     let (task, _) = TaskReducer.next(task, TextDeltaReceived({text: "goodbye", timestamp: "2026-01-01T10:01:01Z"}))
     let (loaded, _) = TaskReducer.next(task, LoadComplete)
 
@@ -188,7 +193,7 @@ describe("History Replay - Integration (Buffer + Reducer)", () => {
     buffer.flush() // flush before user message (nothing to flush on first call)
     let (updated, _) = TaskReducer.next(
       task.contents,
-      UserMessageReceived({id: "user-1", text: "what is your name?", timestamp: "2026-03-12T09:01:25Z"}),
+      _userMsg(~id="user-1", ~text="what is your name?", ~timestamp="2026-03-12T09:01:25Z"),
     )
     task := updated
     buffer.add(~taskId, ~text="I'm Claude Code", ~timestamp="2026-03-12T09:01:28Z")
@@ -197,7 +202,7 @@ describe("History Replay - Integration (Buffer + Reducer)", () => {
     buffer.flush()
     let (updated, _) = TaskReducer.next(
       task.contents,
-      UserMessageReceived({id: "user-2", text: "what is my name?", timestamp: "2026-03-15T08:54:49Z"}),
+      _userMsg(~id="user-2", ~text="what is my name?", ~timestamp="2026-03-15T08:54:49Z"),
     )
     task := updated
     buffer.add(~taskId, ~text="BlueHotDog", ~timestamp="2026-03-15T08:54:52Z")
@@ -206,7 +211,7 @@ describe("History Replay - Integration (Buffer + Reducer)", () => {
     buffer.flush()
     let (updated, _) = TaskReducer.next(
       task.contents,
-      UserMessageReceived({id: "user-3", text: "what is my name?", timestamp: "2026-03-15T10:25:21Z"}),
+      _userMsg(~id="user-3", ~text="what is my name?", ~timestamp="2026-03-15T10:25:21Z"),
     )
     task := updated
     buffer.add(~taskId, ~text="Still BlueHotDog", ~timestamp="2026-03-15T10:25:24Z")
@@ -252,7 +257,7 @@ describe("History Replay - Integration (Buffer + Reducer)", () => {
     buffer.flush()
     let (updated, _) = TaskReducer.next(
       task.contents,
-      UserMessageReceived({id: "user-1", text: "ask me 3 random questions", timestamp: "2026-03-15T14:53:29Z"}),
+      _userMsg(~id="user-1", ~text="ask me 3 random questions", ~timestamp="2026-03-15T14:53:29Z"),
     )
     task := updated
 
@@ -335,7 +340,7 @@ describe("History Replay - Integration (Buffer + Reducer)", () => {
     // User sends a message
     let (updated, _) = TaskReducer.next(
       task.contents,
-      UserMessageReceived({id: "user-1", text: "tell me a story", timestamp: "2026-01-01T10:00:00Z"}),
+      _userMsg(~id="user-1", ~text="tell me a story", ~timestamp="2026-01-01T10:00:00Z"),
     )
     task := updated
 

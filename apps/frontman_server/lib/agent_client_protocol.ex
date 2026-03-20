@@ -236,21 +236,27 @@ defmodule AgentClientProtocol do
   Builds a user_message_chunk session/update notification.
 
   Used during history replay to send stored user messages back to the client.
+  Accepts either a pre-built content block map or a plain text string.
   """
-  def build_user_message_chunk_notification(session_id, text, timestamp) do
+  def build_user_message_chunk_notification(session_id, %{} = content_block, timestamp) do
     params = %{
       "sessionId" => session_id,
       "update" => %{
         "sessionUpdate" => "user_message_chunk",
-        "content" => %{
-          "type" => "text",
-          "text" => text
-        },
+        "content" => content_block,
         "timestamp" => DateTime.to_iso8601(timestamp)
       }
     }
 
     JsonRpc.notification(@method_session_update, params)
+  end
+
+  def build_user_message_chunk_notification(session_id, text, timestamp) when is_binary(text) do
+    build_user_message_chunk_notification(
+      session_id,
+      %{"type" => "text", "text" => text},
+      timestamp
+    )
   end
 
   @doc """

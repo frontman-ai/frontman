@@ -1127,6 +1127,66 @@ let makeMessageAnnotationMeta = (
   )
 }
 
+// Inverse of makeMessageAnnotationMeta: reconstruct a MessageAnnotation.t from an annotationMeta
+// Used during history replay to rebuild user messages from stored content blocks
+let annotationMetaToMessageAnnotation = (
+  meta: annotationMeta,
+  ~screenshot: option<string>,
+): Message.MessageAnnotation.t => {
+  let rec parseParentLocation = (json: JSON.t): option<Message.MessageAnnotation.sourceLocation> => {
+    switch json->JSON.Decode.object {
+    | Some(d) =>
+      switch (d->Dict.get("file")->Option.flatMap(JSON.Decode.string),
+              d->Dict.get("line")->Option.flatMap(JSON.Decode.float)->Option.map(Float.toInt),
+              d->Dict.get("column")->Option.flatMap(JSON.Decode.float)->Option.map(Float.toInt)) {
+      | (Some(file), Some(line), Some(column)) =>
+        Some({
+          file,
+          line,
+          column,
+          tagName: "unknown",
+          componentName: d->Dict.get("component_name")->Option.flatMap(JSON.Decode.string),
+          componentProps: d->Dict.get("component_props")->Option.flatMap(JSON.Decode.object),
+          parent: d->Dict.get("parent")->Option.flatMap(parseParentLocation),
+        })
+      | _ => None
+      }
+    | None => None
+    }
+  }
+
+  let sourceLocation = switch (meta.file, meta.line, meta.column) {
+  | (Some(file), Some(line), Some(column)) =>
+    Ok(Some({
+      Message.MessageAnnotation.file: file,
+      line,
+      column,
+      tagName: meta.tagName,
+      componentName: meta.componentName,
+      componentProps: meta.componentProps,
+      parent: meta.parent->Option.flatMap(parseParentLocation),
+    }))
+  | _ => Ok(None)
+  }
+
+  {
+    id: meta.annotationId,
+    selector: Ok(None),
+    tagName: meta.tagName,
+    cssClasses: meta.cssClasses,
+    comment: meta.comment,
+    screenshot: Ok(screenshot),
+    sourceLocation,
+    boundingBox: meta.boundingBox->Option.map(bb => {
+      Message.MessageAnnotation.x: bb.x,
+      y: bb.y,
+      width: bb.width,
+      height: bb.height,
+    }),
+    nearbyText: meta.nearbyText,
+  }
+}
+
 // Build content blocks for a single MessageAnnotation
 // Returns 1-2 blocks: resource block with annotation _meta, optional screenshot blob
 // Unwraps result<option<T>, string> to option<T> — errors are treated as absent for serialization

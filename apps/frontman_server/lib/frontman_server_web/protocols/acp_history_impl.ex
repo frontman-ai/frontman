@@ -3,14 +3,159 @@ alias FrontmanServer.Tasks.Interaction
 alias FrontmanServerWeb.ACPHistory
 
 defimpl ACPHistory, for: Interaction.UserMessage do
-  def to_history_items(
-        %Interaction.UserMessage{messages: messages, timestamp: timestamp},
-        session_id
-      ) do
-    Enum.map(messages, fn text ->
-      ACP.build_user_message_chunk_notification(session_id, text, timestamp)
+  @moduledoc """
+  Reconstructs the original ACP content blocks from stored UserMessage fields
+  and replays them as `user_message_chunk` notifications.
+
+  This is the inverse of `Interaction.UserMessage.new/1` which extracts fields
+  from incoming content blocks.
+  """
+
+  def to_history_items(%Interaction.UserMessage{} = msg, session_id) do
+    blocks =
+      text_blocks(msg.messages) ++
+        annotation_blocks(msg.annotations) ++
+        image_blocks(msg.images) ++
+        current_page_blocks(msg.current_page)
+
+    Enum.map(blocks, &ACP.build_user_message_chunk_notification(session_id, &1, msg.timestamp))
+  end
+
+  defp text_blocks(messages), do: Enum.map(messages, &%{"type" => "text", "text" => &1})
+
+  defp annotation_blocks(annotations) do
+    annotations
+    |> Enum.with_index()
+    |> Enum.flat_map(fn {ann, index} ->
+      meta =
+        %{
+          "annotation" => true,
+          "annotation_index" => index,
+          "annotation_id" => ann.annotation_id,
+          "tag_name" => ann.tag_name,
+          "comment" => ann.comment,
+          "file" => ann.file,
+          "line" => ann.line,
+          "column" => ann.column,
+          "component_name" => ann.component_name,
+          "component_props" => ann.component_props,
+          "parent" => encode_parent(ann.parent),
+          "css_classes" => ann.css_classes,
+          "nearby_text" => ann.nearby_text,
+          "bounding_box" => encode_bounding_box(ann.bounding_box)
+        }
+        |> reject_nils()
+
+      uri =
+        if is_binary(ann.file),
+          do: "file://#{ann.file}:#{ann.line}:#{ann.column}",
+          else: "element://#{ann.tag_name}"
+
+      text_block = %{
+        "type" => "resource",
+        "resource" => %{
+          "_meta" => meta,
+          "resource" => %{
+            "uri" => uri,
+            "mimeType" => "text/plain",
+            "text" => "Annotated element: <#{ann.tag_name}>"
+          }
+        }
+      }
+
+      case ann.screenshot do
+        %{blob: blob, mime_type: mime} ->
+          screenshot_block = %{
+            "type" => "resource",
+            "resource" => %{
+              "_meta" => %{
+                "annotation_screenshot" => true,
+                "annotation_index" => index,
+                "annotation_id" => ann.annotation_id
+              },
+              "resource" => %{
+                "uri" => "annotation://#{ann.annotation_id}/screenshot",
+                "mimeType" => mime,
+                "blob" => blob
+              }
+            }
+          }
+
+          [text_block, screenshot_block]
+
+        nil ->
+          [text_block]
+      end
     end)
   end
+
+  defp image_blocks(images) do
+    Enum.map(images, fn img ->
+      %{
+        "type" => "resource",
+        "resource" => %{
+          "_meta" => %{"user_image" => true, "filename" => img.filename},
+          "resource" => %{
+            "uri" => img.uri || "attachment://#{img.filename}",
+            "mimeType" => img.mime_type,
+            "blob" => img.blob
+          }
+        }
+      }
+    end)
+  end
+
+  defp current_page_blocks(nil), do: []
+
+  defp current_page_blocks(page) do
+    meta =
+      %{
+        "current_page" => true,
+        "url" => page.url,
+        "viewport_width" => page.viewport_width,
+        "viewport_height" => page.viewport_height,
+        "device_pixel_ratio" => page.device_pixel_ratio,
+        "title" => page.title,
+        "color_scheme" => page.color_scheme,
+        "scroll_y" => page.scroll_y
+      }
+      |> reject_nils()
+
+    [
+      %{
+        "type" => "resource",
+        "resource" => %{
+          "_meta" => meta,
+          "resource" => %{
+            "uri" => "page://#{page.url}",
+            "mimeType" => "text/plain",
+            "text" => "Current page: #{page.url}"
+          }
+        }
+      }
+    ]
+  end
+
+  defp encode_bounding_box(nil), do: nil
+
+  defp encode_bounding_box(%{x: x, y: y, width: w, height: h}),
+    do: %{"x" => x, "y" => y, "width" => w, "height" => h}
+
+  defp encode_parent(nil), do: nil
+
+  defp encode_parent(%{file: f, line: l, column: c} = p) do
+    %{
+      "file" => f,
+      "line" => l,
+      "column" => c,
+      "component_name" => p.component_name,
+      "component_props" => p.component_props,
+      "parent" => encode_parent(p.parent)
+    }
+    |> reject_nils()
+  end
+
+  defp reject_nils(map), do: Map.reject(map, fn {_, v} -> is_nil(v) end)
 end
 
 defimpl ACPHistory, for: Interaction.AgentResponse do

@@ -26,6 +26,93 @@ let getContentBlockText = (block: Types.contentBlock): option<string> =>
   | ImageContent(_) | AudioContent(_) | ResourceLink(_) | EmbeddedResource(_) => None
   }
 
+// Parse accumulated user_message_chunk content blocks into (content, annotations).
+// Inverse of messageAnnotationsToContentBlocks + buildAttachmentContentBlocks on the send path.
+let _parseUserMessageBlocks = (
+  blocks: array<Types.contentBlock>,
+): (array<Client__Message.UserContentPart.t>, array<Client__Message.MessageAnnotation.t>) => {
+  // First pass: collect screenshot data URLs keyed by annotation_id
+  let screenshotMap = Dict.make()
+  blocks->Array.forEach(block =>
+    switch block {
+    | EmbeddedResource({resource: {_meta: Some(meta), resource: BlobResourceContents({blob, mimeType})}}) =>
+      let parsed = S.parseOrThrow(meta, Client__Task__Types.screenshotMetaSchema)
+      if parsed.annotationScreenshot {
+        screenshotMap->Dict.set(parsed.annotationId, `data:${mimeType->Option.getOrThrow};base64,${blob}`)
+      }
+    | _ => ()
+    }
+  )
+
+  // Second pass: build content parts and annotations
+  let content = []
+  let annotations = []
+  blocks->Array.forEach(block =>
+    switch block {
+    | TextContent({text}) => content->Array.push(Client__Message.UserContentPart.Text({text: text}))->ignore
+    | EmbeddedResource({resource: {_meta: Some(meta), resource: TextResourceContents(_)}}) =>
+      let parsed = S.parseOrThrow(meta, Client__Task__Types.annotationMetaSchema)
+      if parsed.annotation {
+        let screenshot = screenshotMap->Dict.get(parsed.annotationId)
+        annotations->Array.push(Client__Task__Types.annotationMetaToMessageAnnotation(parsed, ~screenshot))->ignore
+      }
+    | EmbeddedResource({resource: {_meta: Some(meta), resource: BlobResourceContents({blob, mimeType})}}) =>
+      // User images (screenshots already handled in first pass)
+      switch meta->JSON.Decode.object {
+      | Some(d) if d->Dict.get("user_image") == Some(JSON.Encode.bool(true)) =>
+        let filename =
+          d->Dict.get("filename")->Option.flatMap(JSON.Decode.string)->Option.getOrThrow
+        let mime = mimeType->Option.getOrThrow
+        content
+        ->Array.push(
+          Client__Message.UserContentPart.Image({
+            id: None,
+            image: `data:${mime};base64,${blob}`,
+            mediaType: Some(mime),
+            name: Some(filename),
+          }),
+        )
+        ->ignore
+      | _ => ()
+      }
+    | _ => ()
+    }
+  )
+  (content, annotations)
+}
+
+// Buffer for accumulating user_message_chunk content blocks during history replay.
+// A single user message may span multiple notifications (text, annotations, images).
+// The buffer is flushed at turn boundaries (agent message, tool call, turn complete, load complete).
+type _userMsgBufferState = {
+  mutable taskId: string,
+  mutable id: string,
+  mutable timestamp: string,
+  mutable blocks: array<Types.contentBlock>,
+  mutable pending: bool,
+}
+
+let _userMsgBuffer: _userMsgBufferState = {
+  taskId: "",
+  id: "",
+  timestamp: "",
+  blocks: [],
+  pending: false,
+}
+
+let _flushUserMessageBuffer = () => {
+  if _userMsgBuffer.pending {
+    let {taskId, id, timestamp, blocks} = _userMsgBuffer
+    _userMsgBuffer.pending = false
+    _userMsgBuffer.blocks = []
+    let (content, annotations) = _parseUserMessageBlocks(blocks)
+    Client__State.Actions.userMessageReceived(~taskId, ~id, ~content, ~annotations, ~timestamp)
+  }
+}
+
+// Register the user message buffer flush callback (used by StateReducer before LoadComplete)
+let () = Client__TextDeltaBuffer.flushUserMessageBuffer := _flushUserMessageBuffer
+
 // Re-export status types for consumers
 type connectionState = Reducer.Selectors.connectionStatus
 type mcpState = Reducer.Selectors.mcpStatus
@@ -160,6 +247,8 @@ module Provider = {
 
       Some(() => {
         textDeltaBuffer.reset()
+        _userMsgBuffer.pending = false
+        _userMsgBuffer.blocks = []
         dispatch(Cleanup)
       })
     })
@@ -176,23 +265,23 @@ module Provider = {
           textDeltaBuffer.add(~taskId, ~text, ~timestamp)
         })
       | UserMessageChunk({content, timestamp}) =>
-        // Flush any buffered agent text before inserting the user message.
-        // During history replay, each agent_message_chunk is a complete historical
-        // response for the same taskId. Without this flush, the TextDeltaBuffer
-        // merges all agent responses into a single entry (it accumulates by taskId).
-        // Flushing here ensures the preceding agent message is dispatched and
-        // finalized (via completeStreamingMessage in UserMessageReceived) before
-        // the user message is inserted — preserving correct interleaving.
-        Client__TextDeltaBuffer.flush()
-        getContentBlockText(content)->Option.forEach(text => {
-          let id = `user-hydrated-${WebAPI.Global.crypto->WebAPI.Crypto.randomUUID}`
-          Client__State.Actions.userMessageReceived(~taskId, ~id, ~text, ~timestamp)
-        })
+        // During history replay, a single user message is replayed as multiple
+        // user_message_chunk notifications (text, annotations, images, current_page).
+        // We accumulate them in a buffer and flush at the next turn boundary.
+        // If this is the first chunk for a new user message, flush any previous
+        // buffered agent text and any previous user message buffer first.
+        if !_userMsgBuffer.pending {
+          Client__TextDeltaBuffer.flush()
+          _userMsgBuffer.pending = true
+          _userMsgBuffer.taskId = taskId
+          _userMsgBuffer.id = `user-hydrated-${WebAPI.Global.crypto->WebAPI.Crypto.randomUUID}`
+          _userMsgBuffer.timestamp = timestamp
+          _userMsgBuffer.blocks = []
+        }
+        _userMsgBuffer.blocks = Array.concat(_userMsgBuffer.blocks, [content])
       | ToolCall({toolCallId, title, timestamp, parentAgentId, spawningToolName}) =>
-        // Flush buffered agent text before tool calls — same reason as UserMessageChunk.
-        // During replay, the preceding agent_message_chunk (often empty for tool-only
-        // responses) must be dispatched before the tool call arrives, otherwise the
-        // buffer merges it with the post-tool agent response.
+        // Flush buffered user message and agent text before tool calls.
+        _flushUserMessageBuffer()
         Client__TextDeltaBuffer.flush()
         let createdAt = Date.fromString(timestamp)->Date.getTime
         Client__State.Actions.toolCallReceived(~taskId, ~toolCall={
@@ -227,19 +316,16 @@ module Provider = {
       | Plan({entries}) =>
         Client__State.Actions.planReceived(~taskId, ~entries)
       | AgentTurnComplete({stopReason: _}) =>
-        // Flush buffered text so no deltas are lost, then signal turn end.
-        // The reducer gates TurnCompleted on isAgentRunning, so duplicate
-        // dispatches (from both the notification and the RPC response) are
-        // harmless — only the first one takes effect.
+        // Flush buffered user message and agent text so no deltas are lost.
+        _flushUserMessageBuffer()
         Client__TextDeltaBuffer.flush()
         Client__State.Actions.turnCompleted(~taskId)
       | ConfigOptionUpdate({configOptions}) =>
         Client__State.Actions.configOptionsReceived(~configOptions)
       | CurrentModeUpdate(_) => () // TODO: dispatch mode change when modes are supported in UI
       | Error({message}) =>
-        // Flush buffered text before error handling — same reason as
-        // AgentTurnComplete: a rAF-buffered delta could otherwise fire
-        // after the error action, creating an orphaned streaming message.
+        // Flush all buffers before error handling.
+        _flushUserMessageBuffer()
         Client__TextDeltaBuffer.flush()
         Client__State.Actions.agentErrorReceived(~taskId, ~error=message)
       | Unknown(_) => ()

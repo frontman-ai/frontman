@@ -180,8 +180,8 @@ module Actions = {
   let resetChatGPTOAuthError = () => Client__State__Store.dispatch(ResetChatGPTOAuthError)
 
   // Hydration action creators (ForTask)
-  let userMessageReceived = (~taskId: string, ~id: string, ~text: string, ~timestamp: string) =>
-    Client__State__Store.dispatch(TaskAction({target: ForTask(taskId), action: UserMessageReceived({id, text, timestamp})}))
+  let userMessageReceived = (~taskId: string, ~id: string, ~content: array<Client__Message.UserContentPart.t>, ~annotations: array<Client__Message.MessageAnnotation.t>, ~timestamp: string) =>
+    Client__State__Store.dispatch(TaskAction({target: ForTask(taskId), action: UserMessageReceived({id, content, annotations, timestamp})}))
 
   let sessionsLoadStarted = () => Client__State__Store.dispatch(SessionsLoadStarted)
 
