@@ -355,7 +355,7 @@ describe("Task - Error Handling", () => {
     let task = TestHelpers.makeLoadedTask()
     t->expect(TaskReducer.Selectors.turnError(task))->Expect.toEqual(None)
 
-    let (task2, _) = TaskReducer.next(task, AgentError({error: "Rate limit exceeded"}))
+    let (task2, _) = TaskReducer.next(task, AgentError({error: "Rate limit exceeded", timestamp: "2025-01-15T10:30:00Z"}))
     t->expect(TaskReducer.Selectors.turnError(task2))->Expect.toEqual(Some("Rate limit exceeded"))
   })
 
@@ -373,7 +373,7 @@ describe("Task - Error Handling", () => {
     t->expect(TaskReducer.Selectors.isAgentRunning(task2))->Expect.toEqual(Some(true))
 
     // Agent error should set isAgentRunning to false
-    let (task3, _) = TaskReducer.next(task2, AgentError({error: "Some error"}))
+    let (task3, _) = TaskReducer.next(task2, AgentError({error: "Some error", timestamp: "2025-01-15T10:30:00Z"}))
     t->expect(TaskReducer.Selectors.isAgentRunning(task3))->Expect.toEqual(Some(false))
   })
 
@@ -398,7 +398,7 @@ describe("Task - Error Handling", () => {
     }
 
     // Agent error should complete the streaming message
-    let (task3, _) = TaskReducer.next(task2, AgentError({error: "Error occurred"}))
+    let (task3, _) = TaskReducer.next(task2, AgentError({error: "Error occurred", timestamp: "2025-01-15T10:30:00Z"}))
     t->expect(TaskReducer.Selectors.streamingMessage(task3))->Expect.toEqual(None)
 
     // Check the message is now completed (user at index 0, assistant at index 1)
@@ -412,7 +412,7 @@ describe("Task - Error Handling", () => {
 
   test("AgentError emits NotifyTurnCompleted effect", t => {
     let task = TestHelpers.makeLoadedTask()
-    let (_, effects) = TaskReducer.next(task, AgentError({error: "Error"}))
+    let (_, effects) = TaskReducer.next(task, AgentError({error: "Error", timestamp: "2025-01-15T10:30:00Z"}))
 
     t->expect(Array.length(effects))->Expect.toBe(1)
     switch effects->Array.get(0) {
@@ -423,7 +423,7 @@ describe("Task - Error Handling", () => {
 
   test("ClearTurnError clears the turnError", t => {
     let task = TestHelpers.makeLoadedTask()
-    let (task2, _) = TaskReducer.next(task, AgentError({error: "Some error"}))
+    let (task2, _) = TaskReducer.next(task, AgentError({error: "Some error", timestamp: "2025-01-15T10:30:00Z"}))
     t->expect(TaskReducer.Selectors.turnError(task2))->Expect.toEqual(Some("Some error"))
 
     let (task3, _) = TaskReducer.next(task2, ClearTurnError)
@@ -441,7 +441,7 @@ describe("Task - Error Handling", () => {
   test("AddUserMessage clears turnError", t => {
     let task = TestHelpers.makeLoadedTask()
     // Set an error first
-    let (task2, _) = TaskReducer.next(task, AgentError({error: "Previous error"}))
+    let (task2, _) = TaskReducer.next(task, AgentError({error: "Previous error", timestamp: "2025-01-15T10:30:00Z"}))
     t->expect(TaskReducer.Selectors.turnError(task2))->Expect.toEqual(Some("Previous error"))
 
     // Sending a new message should clear the error
@@ -574,7 +574,7 @@ describe("Task - CancelTurn", () => {
   test("CancelTurn clears turnError", t => {
     let task = TestHelpers.makeLoadedTask()
     // Set error, then start agent, then cancel
-    let (task1, _) = TaskReducer.next(task, AgentError({error: "Some error"}))
+    let (task1, _) = TaskReducer.next(task, AgentError({error: "Some error", timestamp: "2025-01-15T10:30:00Z"}))
     let (task2, _) = TaskReducer.next(
       task1,
       AddUserMessage({

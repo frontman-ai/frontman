@@ -129,9 +129,9 @@ defmodule FrontmanServer.Protocols.AcpContractTest do
     end
   end
 
-  describe "AgentClientProtocol.build_error_notification/2" do
+  describe "AgentClientProtocol.build_error_notification/3" do
     test "validates against jsonrpc/notification and acp/sessionUpdateNotification schemas" do
-      payload = AgentClientProtocol.build_error_notification("session-123", "Rate limit exceeded")
+      payload = AgentClientProtocol.build_error_notification("session-123", "Rate limit exceeded", DateTime.utc_now())
 
       ProtocolSchema.validate!(payload, "jsonrpc/notification")
       ProtocolSchema.validate!(payload, "acp/sessionUpdateNotification")

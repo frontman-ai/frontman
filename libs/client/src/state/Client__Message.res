@@ -132,11 +132,32 @@ type toolCall = {
   spawningToolName: option<string>,
 }
 
+module ErrorMessage: {
+  type t
+  let make: (~id: string, ~error: string, ~timestamp: string) => t
+  let restore: (~id: string, ~error: string, ~createdAt: float) => t
+  let id: t => string
+  let error: t => string
+  let createdAt: t => float
+} = {
+  type t = {id: string, error: string, createdAt: float}
+
+  let make = (~id, ~error, ~timestamp) => {
+    {id, error, createdAt: Date.fromString(timestamp)->Date.getTime}
+  }
+
+  let restore = (~id, ~error, ~createdAt) => {id, error, createdAt}
+
+  let id = t => t.id
+  let error = t => t.error
+  let createdAt = t => t.createdAt
+}
+
 type t =
   | User({id: string, content: array<UserContentPart.t>, annotations: array<MessageAnnotation.t>, createdAt: float})
   | Assistant(assistantMessage)
   | ToolCall(toolCall)
-  | Error({id: string, error: string, createdAt: float})
+  | Error(ErrorMessage.t)
 
 let getId = (msg: t): string => {
   switch msg {
@@ -144,6 +165,6 @@ let getId = (msg: t): string => {
   | Assistant(Streaming({id, _})) => id
   | Assistant(Completed({id, _})) => id
   | ToolCall({id, _}) => id
-  | Error({id, _}) => id
+  | Error(err) => ErrorMessage.id(err)
   }
 }

@@ -61,7 +61,7 @@ module TestHelpers = {
       )
       ->Array.join("")
     | Message.ToolCall(_) => "(tool call)"
-    | Message.Error({error}) => error
+    | Message.Error(err) => Message.ErrorMessage.error(err)
     }
 
   let getMessageRole = (msg: Message.t): string =>
@@ -359,5 +359,59 @@ describe("History Replay - Integration (Buffer + Reducer)", () => {
     t->expect(Array.length(messages))->Expect.toBe(2)
     t->expect(TestHelpers.getMessageText(messages->Array.getUnsafe(0)))->Expect.toBe("tell me a story")
     t->expect(TestHelpers.getMessageText(messages->Array.getUnsafe(1)))->Expect.toBe("Once upon a time...")
+  })
+
+  test("error messages sort by server timestamp, not wall-clock time (issue #635)", t => {
+    // Simulates: User → Agent → Error → User2 → Agent2
+    // The error's timestamp is between the first agent response and the second user message.
+    // Before the fix, Error used Date.now() which sorted it to the very end.
+    let taskId = "test-task-1"
+    let task = ref(TestHelpers.makeLoadingTask(~id=taskId))
+
+    let buffer = Buffer.make(~onFlush=(~taskId as _, ~text, ~timestamp) => {
+      let (updated, _) = TaskReducer.next(task.contents, TextDeltaReceived({text, timestamp}))
+      task := updated
+    })
+
+    // Turn 1: user message, then agent response
+    buffer.flush()
+    let (updated, _) = TaskReducer.next(
+      task.contents,
+      _userMsg(~id="user-1", ~text="do something", ~timestamp="2025-01-10T10:00:00Z"),
+    )
+    task := updated
+    buffer.add(~taskId, ~text="Working on it", ~timestamp="2025-01-10T10:00:05Z")
+    buffer.flush()
+
+    // Error occurs mid-conversation with server timestamp
+    let (updated, _) = TaskReducer.next(
+      task.contents,
+      AgentError({error: "Rate limit exceeded", timestamp: "2025-01-10T10:00:10Z"}),
+    )
+    task := updated
+
+    // Turn 2: user retries, agent succeeds
+    let (updated, _) = TaskReducer.next(
+      task.contents,
+      _userMsg(~id="user-2", ~text="try again", ~timestamp="2025-01-10T10:01:00Z"),
+    )
+    task := updated
+    buffer.add(~taskId, ~text="Done!", ~timestamp="2025-01-10T10:01:05Z")
+    buffer.flush()
+
+    // LoadComplete sorts by createdAt
+    let (loaded, _) = TaskReducer.next(task.contents, LoadComplete)
+    let messages = TestHelpers.getMessages(loaded)
+
+    // Should be 5 messages: user, assistant, error, user, assistant
+    t->expect(Array.length(messages))->Expect.toBe(5)
+
+    let roles = messages->Array.map(TestHelpers.getMessageRole)
+    t->expect(roles)->Expect.toEqual(["user", "assistant", "error", "user", "assistant"])
+
+    // The error should be in chronological position, not at the end
+    t->expect(TestHelpers.getMessageText(messages->Array.getUnsafe(2)))->Expect.toBe(
+      "Rate limit exceeded",
+    )
   })
 })

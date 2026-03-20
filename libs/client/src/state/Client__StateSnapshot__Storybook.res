@@ -118,7 +118,7 @@ let convertMessage = (msg: Snapshot.Message.t): StateTypes.Message.t => {
     })
   | Assistant(assistantMsg) => Assistant(convertAssistantMessage(assistantMsg))
   | ToolCall(tc) => ToolCall(convertToolCall(tc))
-  | Error({id, error, createdAt}) => Error({id, error, createdAt})
+  | Error({id, error, createdAt}) => Error(Client__Message.ErrorMessage.restore(~id, ~error, ~createdAt))
   }
 }
 

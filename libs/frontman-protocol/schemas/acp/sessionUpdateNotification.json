@@ -955,12 +955,16 @@
                 },
                 "message": {
                   "type": "string"
+                },
+                "timestamp": {
+                  "type": "string"
                 }
               },
               "additionalProperties": true,
               "required": [
                 "sessionUpdate",
-                "message"
+                "message",
+                "timestamp"
               ]
             },
             {

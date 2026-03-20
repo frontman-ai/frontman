@@ -284,12 +284,13 @@ defmodule AgentClientProtocol do
   Sent when the agent encounters an error. Always delivered as a notification
   so the client can display it regardless of whether a pending prompt exists.
   """
-  def build_error_notification(session_id, message) do
+  def build_error_notification(session_id, message, timestamp) do
     params = %{
       "sessionId" => session_id,
       "update" => %{
         "sessionUpdate" => "error",
-        "message" => message
+        "message" => message,
+        "timestamp" => DateTime.to_iso8601(timestamp)
       }
     }
 

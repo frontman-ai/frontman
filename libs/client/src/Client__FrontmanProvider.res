@@ -322,9 +322,9 @@ module Provider = {
       | ConfigOptionUpdate({configOptions}) =>
         Client__State.Actions.configOptionsReceived(~configOptions)
       | CurrentModeUpdate(_) => () // TODO: dispatch mode change when modes are supported in UI
-      | Error({message}) =>
+      | Error({message, timestamp}) =>
         Client__TextDeltaBuffer.flush()
-        Client__State.Actions.agentErrorReceived(~taskId, ~error=message)
+        Client__State.Actions.agentErrorReceived(~taskId, ~error=message, ~timestamp)
       | Unknown(_) => ()
       }
     })

@@ -593,7 +593,7 @@ type sessionUpdate =
   | ConfigOptionUpdate({configOptions: array<sessionConfigOption>})
   | CurrentModeUpdate({currentModeId: sessionModeId})
   | AgentTurnComplete({stopReason: stopReason})
-  | Error({message: string})
+  | Error({message: string, timestamp: string})
   | Unknown({sessionUpdate: string})
 
 // Session update schema using S.union with s.tag for proper discrimination
@@ -660,6 +660,7 @@ let sessionUpdateSchema = S.union([
     s.tag("sessionUpdate", "error")
     Error({
       message: s.field("message", S.string),
+      timestamp: s.field("timestamp", S.string),
     })
   }),
   // Fallback for unknown session update types

@@ -766,7 +766,7 @@ defmodule FrontmanServerWeb.TaskChannel do
     task_id = socket.assigns.task_id
 
     # 1. Always notify — error notification so client can display it
-    notification = ACP.build_error_notification(task_id, error_message)
+    notification = ACP.build_error_notification(task_id, error_message, DateTime.utc_now())
     push(socket, @acp_message, notification)
 
     # 2. If there's a pending RPC, resolve it as an error

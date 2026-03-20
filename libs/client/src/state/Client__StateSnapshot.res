@@ -498,7 +498,7 @@ let convertMessage = (msg: Client__State__Types.Message.t): Message.t => {
     })
   | Assistant(assistantMsg) => Assistant(convertAssistantMessage(assistantMsg))
   | ToolCall(tc) => ToolCall(convertToolCall(tc))
-  | Error({id, error, createdAt}) => Error({id, error, createdAt})
+  | Error(err) => Error({id: Client__Message.ErrorMessage.id(err), error: Client__Message.ErrorMessage.error(err), createdAt: Client__Message.ErrorMessage.createdAt(err)})
   }
 }
 

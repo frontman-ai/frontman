@@ -367,9 +367,9 @@ let make = (
         />
       </div>
 
-    | ErrorMsg(Message.Error({id, error}), _) =>
-      <div key={`error-${id}`} className="frontman-content-auto">
-        <ErrorBanner error />
+    | ErrorMsg(Message.Error(err), _) =>
+      <div key={`error-${Message.ErrorMessage.id(err)}`} className="frontman-content-auto">
+        <ErrorBanner error={Message.ErrorMessage.error(err)} />
       </div>
 
     // Handle any unexpected message types

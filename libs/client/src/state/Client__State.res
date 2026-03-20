@@ -122,8 +122,8 @@ module Actions = {
     Client__State__Store.dispatch(TaskAction({target: ForTask(taskId), action: TurnCompleted}))
 
   // Error action creators (ForTask)
-  let agentErrorReceived = (~taskId: string, ~error: string) =>
-    Client__State__Store.dispatch(TaskAction({target: ForTask(taskId), action: AgentError({error: error})}))
+  let agentErrorReceived = (~taskId: string, ~error: string, ~timestamp: string) =>
+    Client__State__Store.dispatch(TaskAction({target: ForTask(taskId), action: AgentError({error, timestamp})}))
 
   let clearTurnError = (~taskId: string) =>
     Client__State__Store.dispatch(TaskAction({target: ForTask(taskId), action: ClearTurnError}))
