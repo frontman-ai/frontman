@@ -93,13 +93,10 @@ jobs:
         run: make -C libs/frontman-client test-coverage
 
       - name: Coverage report
-        uses: 5monkeys/cobertura-action@2f27e73e22dc84b22849040d2e1c8e5d8b6a4a0a # master 2025-02-13
+        uses: clearlyip/code-coverage-report-action@a592e94b2dba75dc3d52355ee5cd5d38ee26259d # main (node24)
         with:
-          path: libs/frontman-client/coverage/cobertura-coverage.xml
-          minimum_coverage: 70
-          show_missing: true
-          skip_covered: false
-          only_changed_files: false
+          filename: libs/frontman-client/coverage/cobertura-coverage.xml
+          overall_coverage_fail_threshold: 70
 
   test-frontman-core:
     name: Test frontman-core
@@ -136,13 +133,10 @@ jobs:
         run: make -C libs/frontman-core test-coverage
 
       - name: Coverage report
-        uses: 5monkeys/cobertura-action@2f27e73e22dc84b22849040d2e1c8e5d8b6a4a0a # master 2025-02-13
+        uses: clearlyip/code-coverage-report-action@a592e94b2dba75dc3d52355ee5cd5d38ee26259d # main (node24)
         with:
-          path: libs/frontman-core/coverage/cobertura-coverage.xml
-          minimum_coverage: 70
-          show_missing: true
-          skip_covered: false
-          only_changed_files: false
+          filename: libs/frontman-core/coverage/cobertura-coverage.xml
+          overall_coverage_fail_threshold: 70
 
   test-frontman-nextjs:
     name: Test frontman-nextjs
@@ -179,13 +173,10 @@ jobs:
         run: make -C libs/frontman-nextjs test-coverage
 
       - name: Coverage report
-        uses: 5monkeys/cobertura-action@2f27e73e22dc84b22849040d2e1c8e5d8b6a4a0a # master 2025-02-13
+        uses: clearlyip/code-coverage-report-action@a592e94b2dba75dc3d52355ee5cd5d38ee26259d # main (node24)
         with:
-          path: libs/frontman-nextjs/coverage/cobertura-coverage.xml
-          minimum_coverage: 70
-          show_missing: true
-          skip_covered: false
-          only_changed_files: false
+          filename: libs/frontman-nextjs/coverage/cobertura-coverage.xml
+          overall_coverage_fail_threshold: 70
 
   test-react-statestore:
     name: Test react-statestore
@@ -222,13 +213,10 @@ jobs:
         run: make -C libs/react-statestore test-coverage
 
       - name: Coverage report
-        uses: 5monkeys/cobertura-action@2f27e73e22dc84b22849040d2e1c8e5d8b6a4a0a # master 2025-02-13
+        uses: clearlyip/code-coverage-report-action@a592e94b2dba75dc3d52355ee5cd5d38ee26259d # main (node24)
         with:
-          path: libs/react-statestore/coverage/cobertura-coverage.xml
-          minimum_coverage: 70
-          show_missing: true
-          skip_covered: false
-          only_changed_files: false
+          filename: libs/react-statestore/coverage/cobertura-coverage.xml
+          overall_coverage_fail_threshold: 70
 
   test-client:
     name: Test client
@@ -265,13 +253,10 @@ jobs:
         run: make -C libs/client test-coverage
 
       - name: Coverage report
-        uses: 5monkeys/cobertura-action@2f27e73e22dc84b22849040d2e1c8e5d8b6a4a0a # master 2025-02-13
+        uses: clearlyip/code-coverage-report-action@a592e94b2dba75dc3d52355ee5cd5d38ee26259d # main (node24)
         with:
-          path: libs/client/coverage/cobertura-coverage.xml
-          minimum_coverage: 70
-          show_missing: true
-          skip_covered: false
-          only_changed_files: false
+          filename: libs/client/coverage/cobertura-coverage.xml
+          overall_coverage_fail_threshold: 70
 
   lint-client:
     name: Lint libs/client
@@ -287,7 +272,7 @@ jobs:
 
       - name: Check for changes in libs/client
         id: changes
-        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
         with:
           filters: |
             client:
@@ -335,7 +320,7 @@ jobs:
 
       - name: Check for changes in libs/frontman-protocol
         id: changes
-        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
         with:
           filters: |
             protocol:
@@ -555,13 +540,10 @@ jobs:
         run: cd apps/frontman_server && MIX_ENV=test mix coveralls.detail
 
       - name: Coverage report
-        uses: 5monkeys/cobertura-action@2f27e73e22dc84b22849040d2e1c8e5d8b6a4a0a # master 2025-02-13
+        uses: clearlyip/code-coverage-report-action@a592e94b2dba75dc3d52355ee5cd5d38ee26259d # main (node24)
         with:
-          path: apps/frontman_server/cover/cobertura.xml
-          minimum_coverage: 75
-          show_missing: true
-          skip_covered: false
-          only_changed_files: false
+          filename: apps/frontman_server/cover/cobertura.xml
+          overall_coverage_fail_threshold: 75
 
       - name: Cleanup workspace
         if: always()
