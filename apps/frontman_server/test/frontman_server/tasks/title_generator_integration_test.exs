@@ -6,7 +6,6 @@ defmodule FrontmanServer.Tasks.TitleGeneratorIntegrationTest do
   use FrontmanServer.DataCase, async: true
 
   import FrontmanServer.AccountsFixtures
-  import FrontmanServer.ProvidersFixtures
 
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Providers
