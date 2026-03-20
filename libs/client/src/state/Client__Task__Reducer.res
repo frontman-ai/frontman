@@ -280,6 +280,7 @@ module Selectors = {
     | Message.Assistant(Streaming({createdAt, _})) => createdAt
     | Message.Assistant(Completed({createdAt, _})) => createdAt
     | Message.ToolCall({createdAt, _}) => createdAt
+    | Message.Error({createdAt, _}) => createdAt
     }
   }
 
@@ -1001,8 +1002,10 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       (final, Array.concat([CancelPrompt], questionEffects))
     }
 
-  // TODO: if the error was the final event, turnError is lost after LoadComplete (always None)
-  | (Task.Loading(_), AgentError(_)) => (task->Lens.completeStreamingMessage, [])
+  | (Task.Loading(_), AgentError({error})) =>
+    let id = `error-${getTaskIdForError(task)}-${Date.now()->Float.toString}`
+    let errorMsg = Message.Error({id, error, createdAt: Date.now()})
+    (task->Lens.completeStreamingMessage->Lens.insertMessage(errorMsg), [])
 
   | (Task.Loaded(data), AgentError({error})) =>
     // Set turn error and stop agent running - user can still send messages

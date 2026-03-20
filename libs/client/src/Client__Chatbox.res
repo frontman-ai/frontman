@@ -38,6 +38,7 @@ type displayItem =
   | SingleToolCall(Message.toolCall, int)
   | ToolGroup(ToolGroupTypes.toolGroup, int) // First tool's original index
   | TodoToolCall(Message.toolCall, int)
+  | ErrorMsg(Message.t, int)
 
 /**
  * Transform messages into display items, grouping consecutive tool calls
@@ -89,6 +90,9 @@ let groupMessages = (messages: array<Message.t>): array<displayItem> => {
     | Message.Assistant(_) =>
       flushToolCalls()
       result->Array.push(AssistantMsg(msg, index))
+    | Message.Error(_) =>
+      flushToolCalls()
+      result->Array.push(ErrorMsg(msg, index))
     }
   })
 
@@ -363,8 +367,13 @@ let make = (
         />
       </div>
 
+    | ErrorMsg(Message.Error({id, error}), _) =>
+      <div key={`error-${id}`} className="frontman-content-auto">
+        <ErrorBanner error />
+      </div>
+
     // Handle any unexpected message types
-    | UserMsg(_, _) | AssistantMsg(_, _) => React.null
+    | UserMsg(_, _) | AssistantMsg(_, _) | ErrorMsg(_, _) => React.null
     }
   }
 

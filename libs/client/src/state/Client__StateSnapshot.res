@@ -274,6 +274,7 @@ module Message = {
     | User({id: string, content: array<UserContentPart.t>, annotations: array<SnapshotAnnotation.t>, createdAt: float})
     | Assistant(AssistantMessage.t)
     | ToolCall(ToolCall.t)
+    | Error({id: string, error: string, createdAt: float})
 
   let schema = S.union([
     S.object(s => {
@@ -293,6 +294,14 @@ module Message = {
       s.tag("type", "tool_call")
       ToolCall(s.field("toolCall", ToolCall.schema))
     }),
+    S.object(s => {
+      s.tag("type", "error")
+      Error({
+        id: s.field("id", S.string),
+        error: s.field("error", S.string),
+        createdAt: s.field("createdAt", S.float),
+      })
+    }),
   ])
 
   let getId = (msg: t): string => {
@@ -301,6 +310,7 @@ module Message = {
     | Assistant(Streaming({id, _})) => id
     | Assistant(Completed({id, _})) => id
     | ToolCall({id, _}) => id
+    | Error({id, _}) => id
     }
   }
 }
@@ -488,6 +498,7 @@ let convertMessage = (msg: Client__State__Types.Message.t): Message.t => {
     })
   | Assistant(assistantMsg) => Assistant(convertAssistantMessage(assistantMsg))
   | ToolCall(tc) => ToolCall(convertToolCall(tc))
+  | Error({id, error, createdAt}) => Error({id, error, createdAt})
   }
 }
 
@@ -661,6 +672,13 @@ let messageToJson = (msg: Message.t): JSON.t => {
     ])
   | ToolCall(tc) =>
     obj([("type", JSON.Encode.string("tool_call")), ("toolCall", toolCallToJson(tc))])
+  | Error({id, error, createdAt}) =>
+    obj([
+      ("type", JSON.Encode.string("error")),
+      ("id", JSON.Encode.string(id)),
+      ("error", JSON.Encode.string(error)),
+      ("createdAt", JSON.Encode.float(createdAt)),
+    ])
   }
 }
 

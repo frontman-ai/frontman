@@ -24,6 +24,7 @@ let getThinkingContext = (lastMessage: option<Message.t>): option<string> => {
   | Some(Message.ToolCall({state: InputStreaming, _})) => None // Don't show during streaming
   | Some(Message.Assistant(Streaming(_))) => None // Don't show during streaming
   | Some(Message.Assistant(Completed(_))) => None // Turn ended
+  | Some(Message.Error(_)) => None
   | None => None // No messages
   }
 }

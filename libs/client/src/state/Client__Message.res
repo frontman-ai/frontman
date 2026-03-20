@@ -136,6 +136,7 @@ type t =
   | User({id: string, content: array<UserContentPart.t>, annotations: array<MessageAnnotation.t>, createdAt: float})
   | Assistant(assistantMessage)
   | ToolCall(toolCall)
+  | Error({id: string, error: string, createdAt: float})
 
 let getId = (msg: t): string => {
   switch msg {
@@ -143,5 +144,6 @@ let getId = (msg: t): string => {
   | Assistant(Streaming({id, _})) => id
   | Assistant(Completed({id, _})) => id
   | ToolCall({id, _}) => id
+  | Error({id, _}) => id
   }
 }

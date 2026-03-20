@@ -396,6 +396,7 @@ module Selectors = {
       | Assistant(Streaming(_)) => false
       | ToolCall({state: OutputAvailable | OutputError, _}) => true
       | ToolCall(_) => false
+      | Error(_) => true
       }
     })
 

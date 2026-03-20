@@ -61,6 +61,7 @@ module TestHelpers = {
       )
       ->Array.join("")
     | Message.ToolCall(_) => "(tool call)"
+    | Message.Error({error}) => error
     }
 
   let getMessageRole = (msg: Message.t): string =>
@@ -68,6 +69,7 @@ module TestHelpers = {
     | Message.User(_) => "user"
     | Message.Assistant(_) => "assistant"
     | Message.ToolCall(_) => "tool"
+    | Message.Error(_) => "error"
     }
 }
 
