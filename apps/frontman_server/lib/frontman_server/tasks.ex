@@ -18,8 +18,7 @@ defmodule FrontmanServer.Tasks do
     Interaction,
     InteractionSchema,
     Task,
-    TaskSchema,
-    TitleGenerator
+    TaskSchema
   }
 
   alias ReqLLM.ToolCall
@@ -100,17 +99,19 @@ defmodule FrontmanServer.Tasks do
   end
 
   @doc """
-  Updates a task's short description (title).
+  Persists a generated title and broadcasts it to subscribers on the task topic.
 
-  Requires authorization - scope.user.id must match task.user_id.
+  Called by the `GenerateTitle` Oban worker after the LLM produces a title.
   """
-  @spec update_short_desc(Scope.t(), String.t(), String.t()) ::
-          {:ok, TaskSchema.t()} | {:error, :not_found | Ecto.Changeset.t()}
-  def update_short_desc(%Scope{} = scope, task_id, title) do
-    with {:ok, schema} <- get_task_by_id(scope, task_id) do
-      schema
-      |> TaskSchema.update_changeset(%{short_desc: title})
-      |> Repo.update()
+  @spec set_generated_title(Scope.t(), String.t(), String.t()) ::
+          :ok | {:error, :not_found | Ecto.Changeset.t()}
+  def set_generated_title(%Scope{} = scope, task_id, title) do
+    with {:ok, schema} <- get_task_by_id(scope, task_id),
+         {:ok, _updated} <-
+           schema
+           |> TaskSchema.update_changeset(%{short_desc: title})
+           |> Repo.update() do
+      broadcast_task(task_id, {:title_updated, task_id, title})
     end
   end
 
@@ -351,23 +352,13 @@ defmodule FrontmanServer.Tasks do
   # --- Title Generation ---
 
   @doc """
-  Generates a title for a task from the user's prompt text.
-
-  Runs asynchronously. Uses the user's selected model when available,
-  falling back to a cheap default. Fails silently if no API key is
-  available or the LLM call fails.
+  Enqueues an Oban job to generate a title for a task from the user's prompt.
   """
-  @spec generate_title(Scope.t(), String.t(), String.t(), map() | nil, map()) :: :ok
-  def generate_title(%Scope{} = scope, task_id, text_summary, model \\ nil, env_api_key \\ %{}) do
-    TitleGenerator.generate(scope, task_id, text_summary, model, env_api_key)
-  end
-
-  @doc """
-  Returns the PubSub topic for title updates for a given user.
-  """
-  @spec title_pubsub_topic(String.t()) :: String.t()
-  def title_pubsub_topic(user_id) do
-    TitleGenerator.pubsub_topic(user_id)
+  @spec enqueue_title_generation(Scope.t(), String.t(), String.t()) ::
+          {:ok, Oban.Job.t()} | {:error, Oban.Job.changeset()}
+  def enqueue_title_generation(%Scope{} = scope, task_id, user_prompt_text) do
+    FrontmanServer.Workers.GenerateTitle.new_job(scope.user.id, task_id, user_prompt_text)
+    |> Oban.insert()
   end
 
   @doc """

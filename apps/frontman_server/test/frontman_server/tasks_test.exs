@@ -47,11 +47,11 @@ defmodule FrontmanServer.TasksTest do
       assert {:ok, "New Task"} = Tasks.get_short_desc(scope, task_id)
     end
 
-    test "returns updated title after update_short_desc", %{scope: scope} do
+    test "returns updated title after set_generated_title", %{scope: scope} do
       task_id = Ecto.UUID.generate()
       {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
 
-      {:ok, _} = Tasks.update_short_desc(scope, task_id, "My Custom Title")
+      :ok = Tasks.set_generated_title(scope, task_id, "My Custom Title")
       assert {:ok, "My Custom Title"} = Tasks.get_short_desc(scope, task_id)
     end
 

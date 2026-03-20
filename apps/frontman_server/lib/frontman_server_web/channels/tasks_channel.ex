@@ -20,7 +20,6 @@ defmodule FrontmanServerWeb.TasksChannel do
   @acp_protocol_version ACP.protocol_version()
   @acp_message ACP.event_acp_message()
   @acp_config_updated ACP.event_config_options_updated()
-  @acp_title_updated ACP.event_title_updated()
   @acp_list_sessions ACP.event_list_sessions()
   @acp_delete_session ACP.event_delete_session()
   @acp_method_initialize ACP.method_initialize()
@@ -33,12 +32,6 @@ defmodule FrontmanServerWeb.TasksChannel do
       Logger.info("Client joining tasks channel (authenticated)")
 
       user_id = socket.assigns.scope.user.id
-
-      # Subscribe to title updates for this user
-      Phoenix.PubSub.subscribe(
-        FrontmanServer.PubSub,
-        Tasks.title_pubsub_topic(user_id)
-      )
 
       # Subscribe to config option updates (triggered by key saves/OAuth)
       Phoenix.PubSub.subscribe(
@@ -199,13 +192,6 @@ defmodule FrontmanServerWeb.TasksChannel do
   end
 
   defp handle_message({:notification, _method, _params}, socket) do
-    {:noreply, socket}
-  end
-
-  # Handle title update broadcasts from TitleGenerator
-  @impl true
-  def handle_info({:title_updated, task_id, title}, socket) do
-    push(socket, @acp_title_updated, %{"sessionId" => task_id, "title" => title})
     {:noreply, socket}
   end
 

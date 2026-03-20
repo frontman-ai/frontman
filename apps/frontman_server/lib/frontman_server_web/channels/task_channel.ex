@@ -20,6 +20,7 @@ defmodule FrontmanServerWeb.TaskChannel do
   alias ModelContextProtocol, as: MCP
 
   @acp_message ACP.event_acp_message()
+  @acp_title_updated ACP.event_title_updated()
   @acp_method_session_prompt ACP.method_session_prompt()
   @acp_method_session_cancel ACP.method_session_cancel()
   @acp_method_session_load ACP.method_session_load()
@@ -521,9 +522,7 @@ defmodule FrontmanServerWeb.TaskChannel do
       {:ok, _interaction} ->
         Logger.info("User message added, agent spawned for task #{task_id}")
 
-        # Generate title asynchronously on first user message
-        socket =
-          maybe_generate_title(socket, scope, task_id, prompt.text_summary, model, env_api_key)
+        Tasks.enqueue_title_generation(scope, task_id, prompt.text_summary)
 
         {:noreply, socket}
 
@@ -552,24 +551,6 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   defp extract_model_from_params(_), do: nil
 
-  # Generate a title for a task from the first user message.
-  # Only triggers once per channel — tracked via :title_generation_started assign
-  # to avoid repeated attempts on every prompt (e.g., when LLM call fails and title stays "New Task").
-  # Uses lightweight get_short_desc to avoid loading all interactions.
-  defp maybe_generate_title(socket, scope, task_id, text_summary, model, env_api_key) do
-    if socket.assigns[:title_generation_started] || text_summary == "" do
-      socket
-    else
-      case Tasks.get_short_desc(scope, task_id) do
-        {:ok, "New Task"} ->
-          Tasks.generate_title(scope, task_id, text_summary, model, env_api_key)
-          assign(socket, :title_generation_started, true)
-
-        _ ->
-          assign(socket, :title_generation_started, true)
-      end
-    end
-  end
 
   @impl true
   def handle_info(:start_mcp_init, socket) do
@@ -718,6 +699,11 @@ defmodule FrontmanServerWeb.TaskChannel do
   # Tasks.maybe_start_execution when Execution.run returns an error.
   def handle_info({:execution_start_error, msg}, socket) do
     handle_turn_error(socket, msg)
+  end
+
+  def handle_info({:title_updated, task_id, title}, socket) do
+    push(socket, @acp_title_updated, %{"sessionId" => task_id, "title" => title})
+    {:noreply, socket}
   end
 
   def handle_info(msg, _socket) do
