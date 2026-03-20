@@ -19,8 +19,6 @@ defmodule FrontmanServer.Workers.SyncResendContact do
   alias FrontmanServer.Accounts.User
   alias FrontmanServer.Repo
 
-  @resend_contacts_url "https://api.resend.com/contacts"
-
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"user_id" => user_id}}) do
     case Repo.get(User, user_id) do
@@ -34,13 +32,18 @@ defmodule FrontmanServer.Workers.SyncResendContact do
   end
 
   defp post_contact(%User{email: email, name: name}) do
-    api_key = Application.fetch_env!(:frontman_server, FrontmanServer.Mailer)[:api_key]
+    mailer_config = Application.fetch_env!(:frontman_server, FrontmanServer.Mailer)
 
     case Req.post(
-           @resend_contacts_url,
+           mailer_config[:contacts_url],
            [
-             json: %{email: email, first_name: first_name(name), unsubscribed: false},
-             headers: [{"authorization", "Bearer #{api_key}"}]
+             json: %{
+               email: email,
+               first_name: first_name(name),
+               unsubscribed: false,
+               segments: [%{id: mailer_config[:segment_id]}]
+             },
+             headers: [{"authorization", "Bearer #{mailer_config[:api_key]}"}]
            ] ++ req_options()
          ) do
       {:ok, %Req.Response{status: status}} when status in 200..299 ->

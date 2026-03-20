@@ -30,6 +30,7 @@ defmodule FrontmanServer.Workers.SyncResendContactTest do
         assert payload["email"] == user.email
         assert payload["first_name"] == "Steve"
         assert payload["unsubscribed"] == false
+        assert payload["segments"] == [%{"id" => "974ede17-1b25-4e48-a71d-6d5f0923f402"}]
 
         Req.Test.json(conn, %{"object" => "contact", "id" => "abc-123"})
       end)
