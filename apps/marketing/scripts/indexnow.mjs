@@ -89,7 +89,7 @@ async function submitToIndexNow(urls) {
             const response = Buffer.concat(chunks).toString();
             console.log(`Bing IndexNow response status: ${res.statusCode}`);
             console.log(`Bing IndexNow response body: ${response}`);
-            if (res.statusCode === 200) {
+            if (res.statusCode === 200 || res.statusCode === 202) {
               console.log(
                 `Successfully submitted ${urls.length} URLs to Bing IndexNow.`,
               );
