@@ -31,8 +31,10 @@ defmodule SwarmAi.Runtime.Supervisor do
     )
 
     children = [
-      {Registry, keys: :unique, name: registry_name},
-      {Task.Supervisor, name: task_sup_name},
+      {SwarmAi.Runtime.TasksSupervisor,
+       name: :"#{name}.TasksSupervisor",
+       registry: registry_name,
+       task_supervisor: task_sup_name},
       {SwarmAi.Runtime.ExecutionMonitor,
        name: monitor_name, registry: registry_name, event_dispatcher: event_dispatcher}
     ]

@@ -62,7 +62,7 @@ defmodule SwarmAi.Runtime.ExecutionMonitor do
     event_dispatcher = Keyword.get(opts, :event_dispatcher)
 
     # Clear stale snapshots from a previous life (table is owned by the
-    # Supervisor and survives our restarts).
+    # parent Supervisor and survives our restarts).
     :ets.delete_all_objects(snapshot_table_name(name))
 
     # On startup (including after crash/restart), rebuild state from Registry.
