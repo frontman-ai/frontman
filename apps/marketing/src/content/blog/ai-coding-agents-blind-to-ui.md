@@ -1,7 +1,7 @@
 ---
-title: 'Your Design System Changes Shouldn't Need a Sprint'
+title: "Your Design System Changes Shouldn\u2019t Need a Sprint"
 pubDate: 2026-02-18T05:00:00Z
-description: 'Designers and PMs know exactly what needs to change in the UI. They just can't change it without engineering. Framework-aware AI fixes that.'
+description: "Designers and PMs know exactly what needs to change in the UI. They just can\u2019t change it without engineering. Framework-aware AI fixes that."
 author: 'Danni Friedland'
 image: '/blog/ai-coding-agents-blind-to-ui-cover.png'
 tags: ['design-systems', 'design-ops', 'cross-functional']
