@@ -62,11 +62,16 @@ defmodule FrontmanServer.Workers.GenerateTitle do
            Providers.prepare_api_key(scope, @fallback_model, %{}, skip_quota: true),
          {:ok, raw_title} <- call_llm(resolved_key, user_prompt_text),
          title = String.trim(raw_title),
-         false <- title == "" do
-      Tasks.set_generated_title(scope, task_id, title)
+         false <- title == "",
+         :ok <- Tasks.set_generated_title(scope, task_id, title) do
+      :ok
     else
       {:error, :no_api_key} ->
         Logger.debug("GenerateTitle: No API key available")
+        :ok
+
+      {:error, :not_found} ->
+        Logger.debug("GenerateTitle: Task not found, discarding")
         :ok
 
       {:error, reason} ->
