@@ -5,7 +5,7 @@ on:
     branches: [main]
     paths:
       - "apps/marketing/**"
-      - "!apps/marketing/**/*.md"
+      - "apps/marketing/**"
       - "!apps/marketing/**/*.txt"
   workflow_dispatch:
 
