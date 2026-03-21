@@ -494,6 +494,7 @@ let next = reduce
 let cleanupSession = (session: ACP.session): unit => {
   session.channel->Channel.off(~event=#"acp:message")
   session.channel->Channel.off(~event=#"mcp:message")
+  session.channel->Channel.off(~event=#title_updated)
   Channel.leave(session.channel)->ignore
   Log.debug(~ctx={"sessionId": session.sessionId}, "Cleaned up session channel")
 }
