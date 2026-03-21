@@ -13,7 +13,7 @@ defmodule FrontmanServer.Workers.GenerateTitle do
     unique: [
       keys: [:task_id],
       period: :infinity,
-      states: [:available, :scheduled, :executing, :retryable, :completed, :discarded, :cancelled]
+      states: [:available, :scheduled, :executing, :retryable]
     ]
 
   require Logger
@@ -71,19 +71,19 @@ defmodule FrontmanServer.Workers.GenerateTitle do
       :ok
     else
       {:error, :no_api_key} ->
-        Logger.debug("GenerateTitle: No API key available")
-        :ok
+        Logger.debug("GenerateTitle: No API key available, cancelling")
+        {:cancel, :no_api_key}
 
       {:error, :not_found} ->
-        Logger.debug("GenerateTitle: Task not found, discarding")
-        :ok
+        Logger.debug("GenerateTitle: Task not found, cancelling")
+        {:cancel, :not_found}
 
       {:error, reason} ->
         {:error, reason}
 
       true ->
-        Logger.debug("GenerateTitle: LLM returned empty title, skipping")
-        :ok
+        Logger.debug("GenerateTitle: LLM returned empty title, cancelling")
+        {:cancel, :empty_title}
     end
   end
 
