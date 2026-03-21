@@ -10,7 +10,7 @@ defmodule FrontmanServer.Workers.GenerateTitle do
   use Oban.Worker,
     queue: :default,
     max_attempts: 3,
-    unique: [keys: [:task_id], period: 60]
+    unique: [keys: [:task_id], period: :infinity, states: [:available, :scheduled, :executing, :retryable, :completed, :discarded, :cancelled]]
 
   require Logger
 

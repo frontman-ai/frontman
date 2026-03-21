@@ -218,19 +218,6 @@ let connect = async (config: config, ~signal: option<WebAPI.EventAPI.abortSignal
     | (_, Error(_)) => Error(ConnectionFailed("Connection aborted"))
     | (Error(e), _) => Error(e)
     | (Ok(), Ok()) =>
-      // Listen for title updates on the tasks channel
-      switch config.onTitleUpdated {
-      | Some(callback) =>
-        channel->Channel.on(~event=#title_updated, ~callback=payload => {
-          switch payload->Decoders.parseSchema(Types.titleUpdatedSchema) {
-          | Ok({sessionId, title}) => callback(sessionId, title)
-          | Error(e) =>
-            Log.error(`Failed to parse title_updated payload: ${e}`)
-          }
-        })
-      | None => ()
-      }
-
       // Listen for config option updates (pushed after key saves/OAuth)
       switch config.onConfigOptionsUpdated {
       | Some(callback) =>
@@ -284,6 +271,7 @@ let joinSession = async (
   conn: connection,
   sessionId: string,
   ~onUpdate: (string, Types.sessionUpdate) => unit,
+  ~onTitleUpdated: (string, string) => unit,
   ~mcpServerInterface: option<MCPTypes.serverInterface<'server>>=?,
   ~onMcpMessage: option<(MCP.messageDirection, JSON.t) => unit>=?,
 ): result<session, string> => {
@@ -309,6 +297,14 @@ let joinSession = async (
     sessionChannel->Channel.on(~event=#"mcp:message", ~callback=payload => {
       MCP.handleMessage(handler, payload)->ignore
     })
+  })
+
+  // Listen for title updates on the session channel
+  sessionChannel->Channel.on(~event=#title_updated, ~callback=payload => {
+    switch payload->Decoders.parseSchema(Types.titleUpdatedSchema) {
+    | Ok({sessionId, title}) => onTitleUpdated(sessionId, title)
+    | Error(e) => Log.error(`Failed to parse title_updated payload: ${e}`)
+    }
   })
 
   let joinResult = await joinChannel(sessionChannel)
@@ -341,6 +337,7 @@ let createSession = async (
   conn: connection,
   ~sessionId: string,
   ~onUpdate: (string, Types.sessionUpdate) => unit,
+  ~onTitleUpdated: (string, string) => unit,
   ~mcpServerInterface: option<MCPTypes.serverInterface<'server>>=?,
   ~onMcpMessage: option<(MCP.messageDirection, JSON.t) => unit>=?,
 ): result<(session, option<array<Types.sessionConfigOption>>), string> => {
@@ -355,7 +352,7 @@ let createSession = async (
 
   switch sessionNewResult {
   | Ok(result) =>
-    let joinResult = await joinSession(conn, result.sessionId, ~onUpdate, ~mcpServerInterface?, ~onMcpMessage?)
+    let joinResult = await joinSession(conn, result.sessionId, ~onUpdate, ~onTitleUpdated, ~mcpServerInterface?, ~onMcpMessage?)
     switch joinResult {
     | Ok(session) => Ok((session, result.configOptions))
     | Error(e) => Error(e)
@@ -443,6 +440,7 @@ let loadSession = async (
   conn: connection,
   sessionId: string,
   ~onUpdate: (string, Types.sessionUpdate) => unit,
+  ~onTitleUpdated: (string, string) => unit,
   ~mcpServerInterface: option<MCPTypes.serverInterface<'server>>=?,
   ~onMcpMessage: option<(MCP.messageDirection, JSON.t) => unit>=?,
 ): result<(session, Types.sessionLoadResult), string> => {
@@ -451,6 +449,7 @@ let loadSession = async (
     conn,
     sessionId,
     ~onUpdate,
+    ~onTitleUpdated,
     ~mcpServerInterface?,
     ~onMcpMessage?,
   )

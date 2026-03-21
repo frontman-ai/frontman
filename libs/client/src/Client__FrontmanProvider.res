@@ -255,6 +255,10 @@ module Provider = {
       })
     })
 
+    let handleTitleUpdated = React.useCallback0((taskId: string, title: string) => {
+      Client__State.Actions.updateTaskTitle(~taskId, ~title)
+    })
+
     let handleSessionUpdate = React.useCallback0((sessionId: string, update: Types.sessionUpdate) => {
       let taskId = sessionId
       switch update {
@@ -331,7 +335,7 @@ module Provider = {
 
     let createSession = React.useCallback1(
       (~onComplete: result<string, string> => unit) => {
-        dispatch(CreateSession({onUpdate: handleSessionUpdate, onMcpMessage: logMCPMessage, onComplete}))
+        dispatch(CreateSession({onUpdate: handleSessionUpdate, onTitleUpdated: handleTitleUpdated, onMcpMessage: logMCPMessage, onComplete}))
       },
       [dispatch],
     )
@@ -351,7 +355,7 @@ module Provider = {
 
     let loadTask = React.useCallback1(
       (taskId: string, ~needsHistory, ~onComplete) => {
-        dispatch(LoadTask({taskId, needsHistory, onUpdate: handleSessionUpdate, onMcpMessage: logMCPMessage, onComplete}))
+        dispatch(LoadTask({taskId, needsHistory, onUpdate: handleSessionUpdate, onTitleUpdated: handleTitleUpdated, onMcpMessage: logMCPMessage, onComplete}))
       },
       [dispatch],
     )
