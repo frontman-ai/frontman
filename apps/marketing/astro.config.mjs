@@ -56,7 +56,6 @@ export default defineConfig({
     sitemap({
       filter: (page) =>
         // Exclude empty placeholder pages and internal-only pages
-        !page.includes("/features") &&
         !page.includes("/pricing") &&
         !page.includes("/design-system") &&
         !page.includes("/contact"),
