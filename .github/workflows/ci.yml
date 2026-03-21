@@ -97,6 +97,7 @@ jobs:
         with:
           filename: libs/frontman-client/coverage/cobertura-coverage.xml
           overall_coverage_fail_threshold: 0
+          artifact_name: coverage-${{ github.job }}-%name%
 
   test-frontman-core:
     name: Test frontman-core
@@ -137,6 +138,7 @@ jobs:
         with:
           filename: libs/frontman-core/coverage/cobertura-coverage.xml
           overall_coverage_fail_threshold: 0
+          artifact_name: coverage-${{ github.job }}-%name%
 
   test-frontman-nextjs:
     name: Test frontman-nextjs
@@ -177,6 +179,7 @@ jobs:
         with:
           filename: libs/frontman-nextjs/coverage/cobertura-coverage.xml
           overall_coverage_fail_threshold: 0
+          artifact_name: coverage-${{ github.job }}-%name%
 
   test-react-statestore:
     name: Test react-statestore
@@ -217,6 +220,7 @@ jobs:
         with:
           filename: libs/react-statestore/coverage/cobertura-coverage.xml
           overall_coverage_fail_threshold: 0
+          artifact_name: coverage-${{ github.job }}-%name%
 
   test-client:
     name: Test client
@@ -257,6 +261,7 @@ jobs:
         with:
           filename: libs/client/coverage/cobertura-coverage.xml
           overall_coverage_fail_threshold: 0
+          artifact_name: coverage-${{ github.job }}-%name%
 
   lint-client:
     name: Lint libs/client
@@ -544,6 +549,7 @@ jobs:
         with:
           filename: apps/frontman_server/cover/cobertura.xml
           overall_coverage_fail_threshold: 0
+          artifact_name: coverage-${{ github.job }}-%name%
 
       - name: Cleanup workspace
         if: always()
