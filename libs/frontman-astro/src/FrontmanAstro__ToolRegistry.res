@@ -13,9 +13,22 @@ let astroTools: array<tool> = [
   module(FrontmanAstro__Tool__GetLogs),
 ]
 
+// Default: v4 filesystem-based page discovery
 let make = (): t => {
   CoreRegistry.coreTools()
   ->CoreRegistry.addTools(astroTools)
+  ->CoreRegistry.replaceByName(module(FrontmanAstro__Tool__EditFile))
+}
+
+// v5: resolved routes from astro:routes:resolved hook.
+// Replaces the filesystem GetPages tool with one backed by hook data.
+// Same tool name (get_client_pages) but richer data and accurate description.
+let makeWithResolvedRoutes = (
+  ~getRoutes: unit => array<FrontmanBindings.Astro.integrationResolvedRoute>,
+): t => {
+  let resolvedRoutesTool = FrontmanAstro__Tool__GetResolvedRoutes.make(~getRoutes)
+  CoreRegistry.coreTools()
+  ->CoreRegistry.addTools([resolvedRoutesTool, module(FrontmanAstro__Tool__GetLogs)])
   ->CoreRegistry.replaceByName(module(FrontmanAstro__Tool__EditFile))
 }
 

@@ -13,6 +13,15 @@ module Config = FrontmanAstro__Config
 module Middleware = FrontmanAstro__Middleware
 module ViteAdapter = FrontmanAstro__ViteAdapter
 
+// Astro exports its version string from the main package entry.
+// Same resolution pattern as the astro/toolbar import in Astro.res bindings —
+// astro is always the host that loads our integration, so this resolves
+// reliably regardless of package manager (pnpm, Yarn PnP, Bun, monorepos).
+@module("astro") @val external astroVersion: string = "version"
+
+let getAstroMajorVersion = () =>
+  astroVersion->String.split(".")->Array.get(0)->Option.flatMap(s => Int.fromString(s))->Option.getOr(0)
+
 // Vite plugin that wraps Astro's renderComponent to inject component props
 // as HTML comments. Imported as raw JS since it transforms Vite module internals.
 @module("./vite-plugin-props-injection.mjs")
@@ -42,9 +51,24 @@ let make = (configInput: Config.jsConfigInput): Bindings.astroIntegration => {
   // Build config once, reuse across hooks
   let config = Config.makeFromObject(configInput)
 
+  // Detect Astro version to choose route discovery strategy.
+  // v5+ provides astro:routes:resolved hook with authoritative route data.
+  // v4 falls back to filesystem scanning of src/pages/.
+  let useResolvedRoutes = getAstroMajorVersion() >= 5
+  let resolvedRoutes = ref([])
+
+  let routeDiscovery: Middleware.routeDiscovery = switch useResolvedRoutes {
+  | true => ResolvedRoutes({getRoutes: () => resolvedRoutes.contents})
+  | false => Filesystem
+  }
+
   {
     name: "frontman",
     hooks: {
+      routesResolved: ?switch useResolvedRoutes {
+      | true => Some(({routes}) => resolvedRoutes := routes)
+      | false => None
+      },
       configSetup: ?Some(
         ctx => {
           // Only activate in dev mode
@@ -64,7 +88,7 @@ let make = (configInput: Config.jsConfigInput): Bindings.astroIntegration => {
             // own page routing. If registered via astro:server:setup instead, Astro's
             // catch-all dynamic routes (e.g. blog/[...id]) would match suffix URLs
             // like /blog/frontman and return 404 before our middleware gets the request.
-            let webMiddleware = Middleware.createMiddleware(config)
+            let webMiddleware = Middleware.createMiddleware(config, ~routeDiscovery)
             let connectMiddleware = ViteAdapter.adaptToConnect(
               webMiddleware,
               ~basePath=config.basePath,
