@@ -551,7 +551,6 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   defp extract_model_from_params(_), do: nil
 
-
   @impl true
   def handle_info(:start_mcp_init, socket) do
     # Deferred from join/3 because Phoenix channels prohibit push() during join.

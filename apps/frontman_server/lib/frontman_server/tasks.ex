@@ -21,6 +21,7 @@ defmodule FrontmanServer.Tasks do
     TaskSchema
   }
 
+  alias FrontmanServer.Workers.GenerateTitle
   alias ReqLLM.ToolCall
 
   # --- Authorization Helpers ---
@@ -357,7 +358,7 @@ defmodule FrontmanServer.Tasks do
   @spec enqueue_title_generation(Scope.t(), String.t(), String.t()) ::
           {:ok, Oban.Job.t()} | {:error, Oban.Job.changeset()}
   def enqueue_title_generation(%Scope{} = scope, task_id, user_prompt_text) do
-    FrontmanServer.Workers.GenerateTitle.new_job(scope.user.id, task_id, user_prompt_text)
+    GenerateTitle.new_job(scope.user.id, task_id, user_prompt_text)
     |> Oban.insert()
   end
 

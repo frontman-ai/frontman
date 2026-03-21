@@ -4,6 +4,7 @@ defmodule FrontmanServer.Workers.GenerateTitleTest do
 
   import FrontmanServer.AccountsFixtures
 
+  alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Tasks
   alias FrontmanServer.Workers.GenerateTitle
 
@@ -26,7 +27,7 @@ defmodule FrontmanServer.Workers.GenerateTitleTest do
 
   describe "perform/1" do
     test "enqueues via Tasks context", %{user: user} do
-      scope = FrontmanServer.Accounts.Scope.for_user(user)
+      scope = Scope.for_user(user)
       task_id = Ecto.UUID.generate()
       {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
 
