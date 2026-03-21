@@ -20,7 +20,13 @@ module ViteAdapter = FrontmanAstro__ViteAdapter
 @module("astro") @val external astroVersion: string = "version"
 
 let getAstroMajorVersion = () =>
-  astroVersion->String.split(".")->Array.get(0)->Option.flatMap(s => Int.fromString(s))->Option.getOr(0)
+  astroVersion
+  ->String.split(".")
+  ->Array.get(0)
+  ->Option.flatMap(s => Int.fromString(s))
+  ->Option.getOrThrow(
+    ~message=`[Frontman] Failed to parse Astro major version from "${astroVersion}"`,
+  )
 
 // Vite plugin that wraps Astro's renderComponent to inject component props
 // as HTML comments. Imported as raw JS since it transforms Vite module internals.
