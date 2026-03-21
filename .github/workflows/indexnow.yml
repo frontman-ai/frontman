@@ -5,7 +5,7 @@ on:
     branches: [main]
     paths:
       - "apps/marketing/**"
-      - "apps/marketing/**"
+      - "libs/frontman-astro/**"
       - "!apps/marketing/**/*.txt"
   workflow_dispatch:
 
