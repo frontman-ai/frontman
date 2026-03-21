@@ -28,6 +28,44 @@ describe("Astro E2E", () => {
     await stopFramework(server);
   });
 
+  it("should render pages without breaking", async () => {
+    const res = await fetch(`http://127.0.0.1:${PORT}/`);
+    const html = await res.text();
+    expect(res.status).toBe(200);
+    expect(html).toContain("Hello World");
+  });
+
+  it("should return resolved routes from get_client_pages", async () => {
+    const res = await fetch(`http://127.0.0.1:${PORT}/frontman/tools/call/`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "get_client_pages", arguments: {} }),
+    });
+    expect(res.status).toBe(200);
+
+    // Parse SSE response to extract the tool result
+    const body = await res.text();
+    const dataLine = body.split("\n").find((l) => l.startsWith("data: "));
+    expect(dataLine).toBeDefined();
+    const envelope = JSON.parse(dataLine!.slice(6));
+    const routes = JSON.parse(envelope.content[0].text);
+
+    // Verify v5 resolved route fields are present on each route
+    for (const route of routes) {
+      expect(route).toHaveProperty("origin");
+      expect(route).toHaveProperty("isPrerendered");
+      expect(route).toHaveProperty("type");
+      expect(route).toHaveProperty("params");
+    }
+
+    // The fixture's index.astro should appear as a project page
+    const indexRoute = routes.find((r: { path: string }) => r.path === "/");
+    expect(indexRoute).toBeDefined();
+    expect(indexRoute.origin).toBe("project");
+    expect(indexRoute.type).toBe("page");
+    expect(indexRoute.file).toContain("index.astro");
+  });
+
   it("should make a text change via AI prompt", async () => {
     page = await context.newPage();
 
