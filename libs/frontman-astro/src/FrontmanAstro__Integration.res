@@ -13,20 +13,25 @@ module Config = FrontmanAstro__Config
 module Middleware = FrontmanAstro__Middleware
 module ViteAdapter = FrontmanAstro__ViteAdapter
 
-// Astro exports its version string from the main package entry.
-// Same resolution pattern as the astro/toolbar import in Astro.res bindings —
-// astro is always the host that loads our integration, so this resolves
-// reliably regardless of package manager (pnpm, Yarn PnP, Bun, monorepos).
-@module("astro") @val external astroVersion: string = "version"
+// Astro doesn't export `version` from its main entry — read from package.json via createRequire.
+let getAstroVersion: unit => string = %raw(`
+  function() {
+    var m = require("node:module");
+    var r = m.createRequire(import.meta.url);
+    return r("astro/package.json").version;
+  }
+`)
 
-let getAstroMajorVersion = () =>
-  astroVersion
+let getAstroMajorVersion = () => {
+  let version = getAstroVersion()
+  version
   ->String.split(".")
   ->Array.get(0)
   ->Option.flatMap(s => Int.fromString(s))
   ->Option.getOrThrow(
-    ~message=`[Frontman] Failed to parse Astro major version from "${astroVersion}"`,
+    ~message=`[Frontman] Failed to parse Astro major version from "${version}"`,
   )
+}
 
 // Vite plugin that wraps Astro's renderComponent to inject component props
 // as HTML comments. Imported as raw JS since it transforms Vite module internals.
