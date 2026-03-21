@@ -86,13 +86,14 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
       # Intentionally malformed JSON
       tool_call = swarm_tool_call("todo_list", "{invalid json!!!}")
 
-      # Execute should still succeed (parse_arguments returns %{} on failure)
-      # but Sentry should capture the parse error
-      _result =
+      # Parse failure should propagate as {:error, _} — the tool must not execute
+      result =
         ToolExecutor.execute(scope, tool_call, task_id,
           mcp_tools: [],
           llm_opts: [api_key: "test", model: "mock"]
         )
+
+      assert {:error, _reason} = result
 
       reports = Sentry.Test.pop_sentry_reports()
 
@@ -103,6 +104,8 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
 
       assert [report] = parse_error_reports
       assert report.message.formatted == "Tool argument parse failure"
+      assert report.tags[:tool_name] == "todo_list"
+      assert report.extra[:tool_name] == "todo_list"
       assert report.extra[:raw_arguments] == "{invalid json!!!}"
       assert is_binary(report.extra[:decode_error])
     end
@@ -139,11 +142,11 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
 
       tool_call = swarm_tool_call("todo_list", long_invalid_json)
 
-      _result =
-        ToolExecutor.execute(scope, tool_call, task_id,
-          mcp_tools: [],
-          llm_opts: [api_key: "test", model: "mock"]
-        )
+      assert {:error, _} =
+               ToolExecutor.execute(scope, tool_call, task_id,
+                 mcp_tools: [],
+                 llm_opts: [api_key: "test", model: "mock"]
+               )
 
       reports = Sentry.Test.pop_sentry_reports()
 

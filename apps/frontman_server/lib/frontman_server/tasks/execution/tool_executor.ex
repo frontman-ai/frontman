@@ -197,11 +197,10 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
       llm_opts: llm_opts
     }
 
-    args = parse_arguments(tool_call.arguments)
-
-    result = module.execute(args, context)
-
-    case result do
+    with {:ok, args} <- parse_arguments(tool_call.name, tool_call.arguments) do
+      module.execute(args, context)
+    end
+    |> case do
       {:ok, value} ->
         encoded = encode_result(value)
 
@@ -247,31 +246,33 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
     SwarmAi.ToolCall.strip_null_arguments(tool_call)
   end
 
-  defp parse_arguments(arguments) when is_binary(arguments) do
+  defp parse_arguments(tool_name, arguments) when is_binary(arguments) do
     case Jason.decode(arguments) do
       {:ok, decoded} ->
-        decoded
+        {:ok, decoded}
 
       {:error, decode_error} ->
-        Logger.error(
-          "ToolExecutor: Failed to parse tool arguments: #{inspect(decode_error)}, raw: #{String.slice(arguments, 0, 500)}"
-        )
+        reason =
+          "Failed to parse arguments for tool #{tool_name}: #{inspect(decode_error)}, raw: #{String.slice(arguments, 0, 500)}"
+
+        Logger.error("ToolExecutor: #{reason}")
 
         Sentry.capture_message("Tool argument parse failure",
           level: :error,
-          tags: %{error_type: "tool_parse_error"},
+          tags: %{error_type: "tool_parse_error", tool_name: tool_name},
           extra: %{
+            tool_name: tool_name,
             raw_arguments: String.slice(arguments, 0, 500),
             decode_error: inspect(decode_error)
           }
         )
 
-        %{}
+        {:error, reason}
     end
   end
 
-  defp parse_arguments(arguments) when is_map(arguments), do: arguments
-  defp parse_arguments(_), do: %{}
+  defp parse_arguments(_tool_name, arguments) when is_map(arguments), do: {:ok, arguments}
+  defp parse_arguments(_tool_name, _), do: {:ok, %{}}
 
   defp encode_result(value) when is_binary(value), do: value
   defp encode_result(value), do: Jason.encode!(value)
