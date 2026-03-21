@@ -49,6 +49,9 @@ module Promises = {
   }
 }
 
+@module("fs")
+external readFileSync: (string, @as("utf8") _) => string = "readFileSync"
+
 @send external isFile: stats => bool = "isFile"
 @send external isDirectory: stats => bool = "isDirectory"
 @send external isSymbolicLink: stats => bool = "isSymbolicLink"

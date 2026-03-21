@@ -19,6 +19,7 @@ const sharedExternal = [
   'lighthouse',
   'chrome-launcher',
   // Node.js built-ins
+  'node:module',
   'fs',
   'path',
   'os',

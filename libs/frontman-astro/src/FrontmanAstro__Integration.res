@@ -13,17 +13,22 @@ module Config = FrontmanAstro__Config
 module Middleware = FrontmanAstro__Middleware
 module ViteAdapter = FrontmanAstro__ViteAdapter
 
-// Astro doesn't export `version` from its main entry — read from package.json via createRequire.
-let getAstroVersion: unit => string = %raw(`
-  function() {
-    var m = require("node:module");
-    var r = m.createRequire(import.meta.url);
-    return r("astro/package.json").version;
-  }
-`)
+@module("node:module") external createRequire: string => {"resolve": string => string} = "createRequire"
+@val @scope(("import", "meta")) external importMetaUrl2: string = "url"
 
-let getAstroMajorVersion = () => {
-  let version = getAstroVersion()
+let getAstroVersion = () => {
+  let require = createRequire(importMetaUrl2)
+  let pkgPath = require["resolve"]("astro/package.json")
+  let raw = FrontmanBindings.Fs.readFileSync(pkgPath)
+  raw
+  ->JSON.parseOrThrow
+  ->JSON.Decode.object
+  ->Option.flatMap(d => d->Dict.get("version"))
+  ->Option.flatMap(JSON.Decode.string)
+  ->Option.getOrThrow(~message="[Frontman] Failed to read version from astro/package.json")
+}
+
+let parseMajorVersion = (version: string) =>
   version
   ->String.split(".")
   ->Array.get(0)
@@ -31,7 +36,8 @@ let getAstroMajorVersion = () => {
   ->Option.getOrThrow(
     ~message=`[Frontman] Failed to parse Astro major version from "${version}"`,
   )
-}
+
+let getAstroMajorVersion = () => getAstroVersion()->parseMajorVersion
 
 // Vite plugin that wraps Astro's renderComponent to inject component props
 // as HTML comments. Imported as raw JS since it transforms Vite module internals.
