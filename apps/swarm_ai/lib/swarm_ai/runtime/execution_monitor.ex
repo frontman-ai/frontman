@@ -14,8 +14,10 @@ defmodule SwarmAi.Runtime.ExecutionMonitor do
     startup. Because the MFA is static config (atoms + terms), it survives
     GenServer restarts — eliminating the closure-loss race condition that
     existed with anonymous function callbacks.
-  - Before dispatching crash/cancel events, reads the last-known execution
-    state from the Runtime Registry for crash forensics.
+  - Loop snapshots (last-known execution state) are stored in an ETS table
+    owned by this GenServer. Execution processes write directly via
+    `stash_snapshot/3` (no GenServer bottleneck). The `:DOWN` handler reads
+    from ETS — no race with Registry cleanup.
   """
   use GenServer
 
@@ -39,16 +41,29 @@ defmodule SwarmAi.Runtime.ExecutionMonitor do
     GenServer.call(monitor, {:watch, self(), key, metadata})
   end
 
+  @doc """
+  Stashes the latest loop snapshot for crash forensics.
+
+  Writes directly to ETS — no GenServer roundtrip, safe to call from
+  the execution process on every response.
+  """
+  @spec stash_snapshot(atom(), term(), term()) :: :ok
+  def stash_snapshot(monitor, key, snapshot) do
+    :ets.insert(snapshot_table_name(monitor), {key, snapshot})
+    :ok
+  end
+
   # --- Server Callbacks ---
 
   @impl true
   def init(opts) do
+    name = Keyword.fetch!(opts, :name)
     registry = Keyword.fetch!(opts, :registry)
     event_dispatcher = Keyword.get(opts, :event_dispatcher)
 
+    _table = :ets.new(snapshot_table_name(name), [:set, :public, :named_table])
+
     # On startup (including after crash/restart), rebuild state from Registry.
-    # The event_dispatcher MFA comes from init opts (child spec config),
-    # so it's always available — no closures to lose.
     state = rebuild_monitors_from_registry(registry)
 
     if map_size(state.monitors) > 0 do
@@ -59,6 +74,7 @@ defmodule SwarmAi.Runtime.ExecutionMonitor do
 
     {:ok,
      state
+     |> Map.put(:name, name)
      |> Map.put(:registry, registry)
      |> Map.put(:event_dispatcher, event_dispatcher)}
   end
@@ -75,12 +91,7 @@ defmodule SwarmAi.Runtime.ExecutionMonitor do
 
     case entry do
       %{key: key, metadata: metadata} ->
-        # Read execution state BEFORE Registry cleanup removes the entry.
-        # This gives crash events access to the last-known loop state.
-        loop_snapshot = read_loop_snapshot(state.registry, key)
-
-        # Wait for the Registry to process its own :DOWN and remove the entry.
-        await_registry_cleanup(state.registry, {:running, key})
+        loop_snapshot = pop_snapshot(state.name, key)
 
         cond do
           cancelled?(reason) ->
@@ -137,8 +148,6 @@ defmodule SwarmAi.Runtime.ExecutionMonitor do
         if Process.alive?(pid) do
           ref = Process.monitor(pid)
           # Recovered processes don't have metadata — use empty map.
-          # Persistence may be limited for these, but the process is
-          # already running and was likely already persisted before restart.
           Map.put(acc, ref, %{key: key, metadata: %{}})
         else
           acc
@@ -148,31 +157,20 @@ defmodule SwarmAi.Runtime.ExecutionMonitor do
     %{monitors: monitors}
   end
 
-  defp read_loop_snapshot(registry, key) do
-    case Registry.lookup(registry, {:running, key}) do
-      [{_pid, value}] when is_map(value) -> Map.get(value, :last_response)
-      _ -> nil
-    end
-  end
+  defp pop_snapshot(monitor_name, key) do
+    table = snapshot_table_name(monitor_name)
 
-  # Spins until the Registry has processed its :DOWN for the given key.
-  defp await_registry_cleanup(registry, key, attempts \\ 100)
+    case :ets.lookup(table, key) do
+      [{^key, snapshot}] ->
+        :ets.delete(table, key)
+        snapshot
 
-  defp await_registry_cleanup(_registry, key, 0) do
-    Logger.warning("Registry cleanup timed out for key #{inspect(key)}, proceeding with dispatch")
-    :ok
-  end
-
-  defp await_registry_cleanup(registry, key, attempts) do
-    case Registry.lookup(registry, key) do
       [] ->
-        :ok
-
-      _ ->
-        Process.sleep(1)
-        await_registry_cleanup(registry, key, attempts - 1)
+        nil
     end
   end
+
+  defp snapshot_table_name(monitor_name), do: :"#{monitor_name}.Snapshots"
 
   defp dispatch_event(nil, _key, _event, _metadata), do: :ok
 

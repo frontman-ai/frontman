@@ -155,7 +155,7 @@ defmodule SwarmAi.Runtime do
     ack_ref = make_ref()
 
     metadata = Keyword.get(opts, :metadata, %{})
-    streaming_opts = build_streaming_opts(opts, dispatcher, key, metadata, registry, registry_key)
+    streaming_opts = build_streaming_opts(opts, dispatcher, key, metadata, monitor)
 
     case Task.Supervisor.start_child(task_sup, fn ->
            case Registry.register(registry, registry_key, %{}) do
@@ -195,19 +195,15 @@ defmodule SwarmAi.Runtime do
     end
   end
 
-  defp build_streaming_opts(opts, nil, _key, _metadata, _registry, _registry_key), do: opts
+  defp build_streaming_opts(opts, nil, _key, _metadata, _monitor), do: opts
 
-  defp build_streaming_opts(opts, dispatcher, key, metadata, registry, registry_key) do
+  defp build_streaming_opts(opts, dispatcher, key, metadata, monitor) do
     Keyword.merge(opts,
       on_chunk: fn chunk ->
         dispatch_event(dispatcher, key, {:chunk, chunk}, metadata)
       end,
       on_response: fn response ->
-        # Stash last response in Registry for crash forensics
-        Registry.update_value(registry, registry_key, fn val ->
-          Map.put(val, :last_response, response)
-        end)
-
+        ExecutionMonitor.stash_snapshot(monitor, key, response)
         dispatch_event(dispatcher, key, {:response, response}, metadata)
       end,
       on_tool_call: fn tc ->

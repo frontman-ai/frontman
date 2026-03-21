@@ -14,6 +14,7 @@ defmodule SwarmAi.Runtime.ExecutionMonitorTest do
         end)
 
       await_exit(pid)
+      flush_monitor(monitor)
 
       assert_receive {:test_event, "key-1",
                       {:crashed, %{reason: :something_went_wrong, stacktrace: []}}}
@@ -22,17 +23,14 @@ defmodule SwarmAi.Runtime.ExecutionMonitorTest do
     test "dispatches cancelled event (not crashed) for :cancelled exit" do
       {monitor, _registry} = start_monitor!()
 
-      pid =
-        spawn(fn ->
-          ExecutionMonitor.watch(monitor, "key-cancel")
-          Process.sleep(:infinity)
-        end)
-
-      Process.sleep(20)
+      pid = spawn_watched(monitor, "key-cancel")
       Process.exit(pid, :cancelled)
 
-      assert_receive {:test_event, "key-cancel", {:cancelled, _}}, 1000
-      refute_receive {:test_event, "key-cancel", {:crashed, _}}, 200
+      await_exit(pid)
+      flush_monitor(monitor)
+
+      assert_receive {:test_event, "key-cancel", {:cancelled, _}}
+      refute_received {:test_event, "key-cancel", {:crashed, _}}
     end
 
     test "silent on normal, :shutdown, and {:shutdown, _} exits" do
@@ -46,30 +44,21 @@ defmodule SwarmAi.Runtime.ExecutionMonitorTest do
         end)
 
       await_exit(pid1)
+      flush_monitor(monitor)
 
       # :shutdown exit
-      pid2 =
-        spawn(fn ->
-          ExecutionMonitor.watch(monitor, "k-shut")
-          Process.sleep(:infinity)
-        end)
-
-      Process.sleep(20)
+      pid2 = spawn_watched(monitor, "k-shut")
       Process.exit(pid2, :shutdown)
       await_exit(pid2)
+      flush_monitor(monitor)
 
       # {:shutdown, reason} exit
-      pid3 =
-        spawn(fn ->
-          ExecutionMonitor.watch(monitor, "k-shut2")
-          Process.sleep(:infinity)
-        end)
-
-      Process.sleep(20)
+      pid3 = spawn_watched(monitor, "k-shut2")
       Process.exit(pid3, {:shutdown, :draining})
       await_exit(pid3)
+      flush_monitor(monitor)
 
-      refute_receive {:test_event, _, _}, 200
+      refute_received {:test_event, _, _}
     end
 
     test "normalizes exception crashes to {exception, stacktrace}" do
@@ -82,6 +71,7 @@ defmodule SwarmAi.Runtime.ExecutionMonitorTest do
         end)
 
       await_exit(pid)
+      flush_monitor(monitor)
 
       assert_receive {:test_event, "key-raise",
                       {:crashed, %{reason: %RuntimeError{message: "test error"}, stacktrace: st}}}
@@ -90,64 +80,37 @@ defmodule SwarmAi.Runtime.ExecutionMonitorTest do
     end
   end
 
-  describe "registry cleanup before events" do
-    test "registry entry is cleared before event is dispatched" do
-      {monitor, registry} = start_monitor!()
-
-      # Crash path
-      _pid =
-        spawn(fn ->
-          Registry.register(registry, {:running, "race-key"}, %{})
-          ExecutionMonitor.watch(monitor, "race-key")
-          exit(:boom)
-        end)
-
-      assert_receive {:test_event, "race-key", {:crashed, _}}, 1000
-      assert Registry.lookup(registry, {:running, "race-key"}) == []
-
-      # Cancel path
-      pid2 =
-        spawn(fn ->
-          Registry.register(registry, {:running, "cancel-race"}, %{})
-          ExecutionMonitor.watch(monitor, "cancel-race")
-          Process.sleep(:infinity)
-        end)
-
-      Process.sleep(20)
-      Process.exit(pid2, :cancelled)
-
-      assert_receive {:test_event, "cancel-race", {:cancelled, _}}, 1000
-      assert Registry.lookup(registry, {:running, "cancel-race"}) == []
-    end
-  end
-
   describe "loop snapshot in crash events" do
-    test "includes last_response from Registry value" do
-      {monitor, registry} = start_monitor!()
+    test "includes stashed snapshot" do
+      {monitor, _registry} = start_monitor!()
       fake_response = %{content: "partial answer", usage: nil}
 
-      _pid =
+      pid =
         spawn(fn ->
-          Registry.register(registry, {:running, "snap-key"}, %{last_response: fake_response})
           ExecutionMonitor.watch(monitor, "snap-key")
+          ExecutionMonitor.stash_snapshot(monitor, "snap-key", fake_response)
           exit(:boom)
         end)
 
-      assert_receive {:test_event, "snap-key", {:crashed, %{loop: ^fake_response}}},
-                     1000
+      await_exit(pid)
+      flush_monitor(monitor)
+
+      assert_receive {:test_event, "snap-key", {:crashed, %{loop: ^fake_response}}}
     end
 
-    test "loop is nil when no response was stashed" do
-      {monitor, registry} = start_monitor!()
+    test "loop is nil when no snapshot was stashed" do
+      {monitor, _registry} = start_monitor!()
 
-      _pid =
+      pid =
         spawn(fn ->
-          Registry.register(registry, {:running, "empty-key"}, %{})
           ExecutionMonitor.watch(monitor, "empty-key")
           exit(:boom)
         end)
 
-      assert_receive {:test_event, "empty-key", {:crashed, %{loop: nil}}}, 1000
+      await_exit(pid)
+      flush_monitor(monitor)
+
+      assert_receive {:test_event, "empty-key", {:crashed, %{loop: nil}}}
     end
   end
 
@@ -176,10 +139,12 @@ defmodule SwarmAi.Runtime.ExecutionMonitorTest do
          event_dispatcher: {__MODULE__.TestDispatcher, :dispatch, [test_pid]}}
       )
 
-      # Kill the process — monitor should detect it and dispatch
       Process.exit(pid, :kill)
 
-      assert_receive {:test_event, "recovered-key", {:crashed, _}}, 1000
+      await_exit(pid)
+      flush_monitor(monitor)
+
+      assert_receive {:test_event, "recovered-key", {:crashed, _}}
       assert Process.alive?(GenServer.whereis(monitor))
     end
   end
@@ -206,7 +171,8 @@ defmodule SwarmAi.Runtime.ExecutionMonitorTest do
         end)
 
       await_exit(pid)
-      Process.sleep(50)
+      flush_monitor(monitor)
+
       assert Process.alive?(GenServer.whereis(monitor))
     end
   end
@@ -243,8 +209,32 @@ defmodule SwarmAi.Runtime.ExecutionMonitorTest do
     {monitor, registry}
   end
 
+  # Spawns a process that calls watch/2 and then blocks.
+  # Returns only after watch has completed (proper handshake, no sleep).
+  defp spawn_watched(monitor, key) do
+    test_pid = self()
+
+    pid =
+      spawn(fn ->
+        ExecutionMonitor.watch(monitor, key)
+        send(test_pid, {:watched, key})
+        Process.sleep(:infinity)
+      end)
+
+    assert_receive {:watched, ^key}, 1000
+    pid
+  end
+
   defp await_exit(pid) do
     ref = Process.monitor(pid)
     assert_receive {:DOWN, ^ref, :process, ^pid, _}, 1000
+  end
+
+  # Forces the monitor GenServer to process all pending messages (including :DOWN).
+  # :sys.get_state/1 makes a synchronous call — it can only return after all
+  # messages queued before it have been handled.
+  defp flush_monitor(monitor) do
+    :sys.get_state(monitor)
+    :ok
   end
 end
