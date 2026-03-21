@@ -38,7 +38,11 @@
 		"./integration": "./dist/integration.js",
 		"./toolbar": "./dist/toolbar.js"
 	},
-	"files": ["dist", "index.d.ts", "README.md"],
+	"files": [
+		"dist",
+		"index.d.ts",
+		"README.md"
+	],
 	"scripts": {
 		"build:rescript": "rescript build",
 		"build:bundle": "tsup",

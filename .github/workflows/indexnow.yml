@@ -1,0 +1,38 @@
+name: IndexNow Submission
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/marketing/**"
+      - "!apps/marketing/**/*.md"
+      - "!apps/marketing/**/*.txt"
+  workflow_dispatch:
+
+jobs:
+  build-and-submit:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/marketing
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "yarn"
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Build and submit to IndexNow
+        run: |
+          yarn build
+          node scripts/indexnow.mjs
+        env:
+          # Dotenv will automatically load .env file if present
+          # For CI, you might want to set these as repository secrets instead
+          # NODE_ENV: production
