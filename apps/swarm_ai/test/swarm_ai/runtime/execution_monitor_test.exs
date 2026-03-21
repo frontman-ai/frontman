@@ -132,6 +132,8 @@ defmodule SwarmAi.Runtime.ExecutionMonitorTest do
 
       monitor = :"TestRecoveryMonitor_#{:erlang.unique_integer([:positive])}"
 
+      :ets.new(ExecutionMonitor.snapshot_table_name(monitor), [:set, :public, :named_table])
+
       start_supervised!(
         {ExecutionMonitor,
          name: monitor,
@@ -156,6 +158,8 @@ defmodule SwarmAi.Runtime.ExecutionMonitorTest do
       monitor = :"TestBadMonitor_#{suffix}"
 
       start_supervised!({Registry, keys: :unique, name: registry})
+
+      :ets.new(ExecutionMonitor.snapshot_table_name(monitor), [:set, :public, :named_table])
 
       start_supervised!(
         {ExecutionMonitor,
@@ -198,6 +202,8 @@ defmodule SwarmAi.Runtime.ExecutionMonitorTest do
     test_pid = self()
 
     start_supervised!({Registry, keys: :unique, name: registry})
+
+    :ets.new(ExecutionMonitor.snapshot_table_name(monitor), [:set, :public, :named_table])
 
     start_supervised!(
       {ExecutionMonitor,

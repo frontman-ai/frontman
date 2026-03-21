@@ -15,9 +15,9 @@ defmodule SwarmAi.Runtime.ExecutionMonitor do
     GenServer restarts — eliminating the closure-loss race condition that
     existed with anonymous function callbacks.
   - Loop snapshots (last-known execution state) are stored in an ETS table
-    owned by this GenServer. Execution processes write directly via
-    `stash_snapshot/3` (no GenServer bottleneck). The `:DOWN` handler reads
-    from ETS — no race with Registry cleanup.
+    owned by the Runtime Supervisor (survives monitor restarts). Execution
+    processes write directly via `stash_snapshot/3` (no GenServer bottleneck).
+    The `:DOWN` handler reads from ETS — no race with Registry cleanup.
   """
   use GenServer
 
@@ -61,7 +61,9 @@ defmodule SwarmAi.Runtime.ExecutionMonitor do
     registry = Keyword.fetch!(opts, :registry)
     event_dispatcher = Keyword.get(opts, :event_dispatcher)
 
-    _table = :ets.new(snapshot_table_name(name), [:set, :public, :named_table])
+    # Clear stale snapshots from a previous life (table is owned by the
+    # Supervisor and survives our restarts).
+    :ets.delete_all_objects(snapshot_table_name(name))
 
     # On startup (including after crash/restart), rebuild state from Registry.
     state = rebuild_monitors_from_registry(registry)
@@ -170,7 +172,8 @@ defmodule SwarmAi.Runtime.ExecutionMonitor do
     end
   end
 
-  defp snapshot_table_name(monitor_name), do: :"#{monitor_name}.Snapshots"
+  @doc false
+  def snapshot_table_name(monitor_name), do: :"#{monitor_name}.Snapshots"
 
   defp dispatch_event(nil, _key, _event, _metadata), do: :ok
 

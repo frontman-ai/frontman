@@ -22,6 +22,14 @@ defmodule SwarmAi.Runtime.Supervisor do
     # This is static config that only changes on full restart.
     :persistent_term.put({SwarmAi.Runtime, name, :event_dispatcher}, event_dispatcher)
 
+    # Snapshot table is owned by this Supervisor so it survives
+    # ExecutionMonitor restarts — prevents cascading crashes in
+    # execution processes that write snapshots via stash_snapshot/3.
+    :ets.new(
+      SwarmAi.Runtime.ExecutionMonitor.snapshot_table_name(monitor_name),
+      [:set, :public, :named_table]
+    )
+
     children = [
       {Registry, keys: :unique, name: registry_name},
       {Task.Supervisor, name: task_sup_name},
