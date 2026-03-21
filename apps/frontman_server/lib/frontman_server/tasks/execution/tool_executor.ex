@@ -197,39 +197,10 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
       llm_opts: llm_opts
     }
 
-    with {:ok, args} <- parse_arguments(tool_call.name, tool_call.arguments) do
-      module.execute(args, context)
-    end
-    |> case do
-      {:ok, value} ->
-        encoded = encode_result(value)
-
-        # Store tool result for interaction history and UI notification
-        Tasks.add_tool_result(
-          scope,
-          task_id,
-          %{id: tool_call.id, name: tool_call.name},
-          value,
-          false
-        )
-
-        {:ok, encoded}
-
+    case parse_arguments(tool_call.name, tool_call.arguments) do
       {:error, reason} ->
-        Logger.error("ToolExecutor: Backend tool #{tool_call.name} failed: #{inspect(reason)}")
-
-        Sentry.capture_message("Tool execution failed",
-          level: :error,
-          tags: %{error_type: "tool_soft_error"},
-          extra: %{
-            tool_name: tool_call.name,
-            tool_call_id: tool_call.id,
-            task_id: task_id,
-            reason: inspect(reason)
-          }
-        )
-
-        # Store error result for interaction history and UI notification
+        # parse_arguments already reported to Sentry and logged — just record
+        # the error result for interaction history and return
         Tasks.add_tool_result(
           scope,
           task_id,
@@ -239,6 +210,48 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
         )
 
         {:error, reason}
+
+      {:ok, args} ->
+        case module.execute(args, context) do
+          {:ok, value} ->
+            encoded = encode_result(value)
+
+            Tasks.add_tool_result(
+              scope,
+              task_id,
+              %{id: tool_call.id, name: tool_call.name},
+              value,
+              false
+            )
+
+            {:ok, encoded}
+
+          {:error, reason} ->
+            Logger.error(
+              "ToolExecutor: Backend tool #{tool_call.name} failed: #{inspect(reason)}"
+            )
+
+            Sentry.capture_message("Tool execution failed",
+              level: :error,
+              tags: %{error_type: "tool_soft_error"},
+              extra: %{
+                tool_name: tool_call.name,
+                tool_call_id: tool_call.id,
+                task_id: task_id,
+                reason: inspect(reason)
+              }
+            )
+
+            Tasks.add_tool_result(
+              scope,
+              task_id,
+              %{id: tool_call.id, name: tool_call.name},
+              reason,
+              true
+            )
+
+            {:error, reason}
+        end
     end
   end
 

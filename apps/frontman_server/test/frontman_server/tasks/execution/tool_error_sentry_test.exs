@@ -108,6 +108,14 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
       assert report.extra[:tool_name] == "todo_list"
       assert report.extra[:raw_arguments] == "{invalid json!!!}"
       assert is_binary(report.extra[:decode_error])
+
+      # No duplicate "tool execution failed" report — parse_arguments handles its own reporting
+      soft_error_reports =
+        Enum.filter(reports, fn event ->
+          event.tags[:error_type] == "tool_soft_error"
+        end)
+
+      assert soft_error_reports == []
     end
 
     test "does not report valid JSON arguments to Sentry", %{
