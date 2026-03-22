@@ -400,6 +400,48 @@ defmodule FrontmanServer.TasksTest do
       assert {:error, :not_found} =
                Tasks.add_discovered_project_rule(scope, nonexistent_id, "/path", "content")
     end
+
+    test "handles content with null bytes without crashing", %{scope: scope} do
+      task_id = Ecto.UUID.generate()
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
+
+      # Simulate a project rule file containing null bytes (e.g., from a
+      # Windows UTF-16 file, binary artifact, or corrupted file).
+      # PostgreSQL rejects \0 in text/jsonb columns with:
+      #   Postgrex.Error: ERROR 22P05 (untranslatable_character)
+      content_with_null = "# Rules\0with null\0bytes"
+
+      {:ok, _rule} =
+        Tasks.add_discovered_project_rule(
+          scope,
+          task_id,
+          "/project/AGENTS.md",
+          content_with_null
+        )
+
+      # Verify it round-trips through the database with null bytes stripped
+      {:ok, task} = Tasks.get_task(scope, task_id)
+      [db_rule] = Enum.filter(task.interactions, &match?(%Tasks.Interaction.DiscoveredProjectRule{}, &1))
+      assert db_rule.path == "/project/AGENTS.md"
+      refute String.contains?(db_rule.content, <<0>>)
+      assert db_rule.content == "# Ruleswith nullbytes"
+    end
+
+    test "handles null bytes in rule file path without crashing", %{scope: scope} do
+      task_id = Ecto.UUID.generate()
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
+
+      path_with_null = "/project/AGENTS\0.md"
+
+      {:ok, _rule} =
+        Tasks.add_discovered_project_rule(scope, task_id, path_with_null, "# Clean content")
+
+      {:ok, task} = Tasks.get_task(scope, task_id)
+      [db_rule] = Enum.filter(task.interactions, &match?(%Tasks.Interaction.DiscoveredProjectRule{}, &1))
+      refute String.contains?(db_rule.path, <<0>>)
+      assert db_rule.path == "/project/AGENTS.md"
+      assert db_rule.content == "# Clean content"
+    end
   end
 
   describe "add_discovered_project_structure/3" do

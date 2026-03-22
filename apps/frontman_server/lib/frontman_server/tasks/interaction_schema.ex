@@ -9,6 +9,7 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
   use Ecto.Schema
   import Ecto.Changeset
   import Ecto.Query
+  import FrontmanServer.ChangesetSanitizer
 
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Tasks.TaskSchema
@@ -47,6 +48,7 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
     %__MODULE__{}
     |> cast(attrs, [:task_id, :type, :data, :sequence])
     |> validate_required([:task_id, :type, :data, :sequence])
+    |> strip_null_bytes(:data)
     |> validate_inclusion(:type, Interaction.known_type_strings())
     |> foreign_key_constraint(:task_id)
     |> unique_constraint([:task_id, :data],
