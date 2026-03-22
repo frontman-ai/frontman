@@ -70,9 +70,12 @@ resolve_branch() {
       printf "${RED}Error: Could not resolve branch for PR #%s${RESET}\n" "$REF_NUMBER"
       exit 1
     fi
-    # Fetch the branch from origin
+    # Fetch the branch from origin and ensure a local tracking branch exists
     printf "${DIM}Fetching origin/%s...${RESET}\n" "$BRANCH"
     git fetch origin "$BRANCH" 2>/dev/null || true
+    if ! git show-ref --verify --quiet "refs/heads/$BRANCH"; then
+      git branch --track "$BRANCH" "origin/$BRANCH" 2>/dev/null || true
+    fi
   else
     printf "${DIM}Resolving issue #%s...${RESET}\n" "$REF_NUMBER"
     # Check for existing branch matching issue-<NUMBER>-*
@@ -82,6 +85,9 @@ resolve_branch() {
       BRANCH="$existing"
       printf "${DIM}Found existing branch: %s${RESET}\n" "$BRANCH"
       git fetch origin "$BRANCH" 2>/dev/null || true
+      if ! git show-ref --verify --quiet "refs/heads/$BRANCH"; then
+        git branch --track "$BRANCH" "origin/$BRANCH" 2>/dev/null || true
+      fi
     else
       # Generate slug from issue title
       local title

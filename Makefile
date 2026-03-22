@@ -241,14 +241,14 @@ wt-dev: ## Start dev servers in container (BRANCH=...)
 
 wt-stop: ## Pause worktree pod, preserve volumes (BRANCH=...)
 	$(call resolve_branch,wt-stop)
-	@POD=$$(BRANCH="$(BRANCH)" bash ./bin/wt-resolve pod); \
+	@POD=$$(BRANCH="$(BRANCH)" bash ./bin/wt-resolve pod) || exit 1; \
 	podman pod stop "$$POD"; \
 	bash ./infra/local/caddy-regen.sh; \
 	printf "$(GREEN)Stopped. Resume with: make wt-start BRANCH=$(BRANCH)$(RESET)\n"
 
 wt-start: ## Resume a paused worktree pod (BRANCH=...)
 	$(call resolve_branch,wt-start)
-	@POD=$$(BRANCH="$(BRANCH)" bash ./bin/wt-resolve pod); \
+	@POD=$$(BRANCH="$(BRANCH)" bash ./bin/wt-resolve pod) || exit 1; \
 	podman pod start "$$POD"; \
 	bash ./infra/local/caddy-regen.sh; \
 	printf "$(GREEN)Started. Run: make wt-dev BRANCH=$(BRANCH)$(RESET)\n"
