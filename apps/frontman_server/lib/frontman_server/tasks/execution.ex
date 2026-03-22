@@ -147,6 +147,9 @@ defmodule FrontmanServer.Tasks.Execution do
   def handle_swarm_event(_scope, _task_id, {:cancelled, _}),
     do: :agent_cancelled
 
+  # Tool calls are persisted by ToolExecutor; no channel action needed.
+  def handle_swarm_event(_scope, _task_id, {:tool_call, _}), do: :ok
+
   # --- Private ---
 
   # Dialyzer warning suppressed: protocol dispatch on Agent can't be statically proven.
