@@ -1,63 +1,96 @@
 ---
 // Full Context Section
 // ------------
-// Description: A section explaining how Frontman provides full context to the AI agent
+// Description: A section explaining how Frontman understands your design system
 
 // Components
 // - Layout
 import Row from '../../ui/Row.astro'
 import Col from '../../ui/Col.astro'
-// - Images
-import devServerSvg from '../../../assets/context/dev-server.svg'
-import clientSvg from '../../../assets/context/client.svg'
 ---
 
 <section id="full-context" class="full-context-section">
 	<div class="container">
 		<Row classes="gap-12">
-			<!-- Left side: Visual -->
+			<!-- Left side: Visual — Design-to-Code illustration -->
 			<Col spanMobile="12" span="6">
 				<div class="context-visual">
-					<div class="server-client-diagram">
-						<!-- Dev Server -->
-						<div class="diagram-item">
-							<img src="/logo.svg" alt="Frontman" class="diagram-logo" width="64" height="64" loading="lazy" />
-							<div class="illustration-wrapper">
-								<div class="scan-line"></div>
-							<img src={devServerSvg.src} alt="Dev Server" class="illustration-image" width="264" height="295" loading="lazy" />
+					<div class="design-system-diagram">
+						<!-- Design mockup card -->
+						<div class="ds-card ds-card--design">
+							<div class="ds-card__header">
+								<div class="ds-card__dots">
+									<span class="ds-dot ds-dot--red"></span>
+									<span class="ds-dot ds-dot--yellow"></span>
+									<span class="ds-dot ds-dot--green"></span>
+								</div>
+								<span class="ds-card__label">Your Design</span>
 							</div>
-							<p class="diagram-label">Dev Server</p>
+							<div class="ds-card__body">
+								<div class="ds-swatch-row">
+									<span class="ds-swatch" style="background:#A259FF;"></span>
+									<span class="ds-swatch" style="background:#56CCF2;"></span>
+									<span class="ds-swatch" style="background:#27AE60;"></span>
+									<span class="ds-swatch" style="background:#F2994A;"></span>
+								</div>
+								<div class="ds-type-row">
+									<span class="ds-type-sample ds-type-sample--heading">Aa</span>
+									<span class="ds-type-sample ds-type-sample--body">Aa</span>
+								</div>
+								<div class="ds-component-row">
+									<span class="ds-btn-sample">Button</span>
+									<span class="ds-input-sample"></span>
+								</div>
+							</div>
 						</div>
 
-						<!-- Client -->
-						<div class="diagram-item">
-							<img src="/logo.svg" alt="Frontman" class="diagram-logo" width="64" height="64" loading="lazy" />
-							<div class="illustration-wrapper">
-								<div class="scan-line"></div>
-							<img src={clientSvg.src} alt="Client" class="illustration-image" width="264" height="295" loading="lazy" />
-							</div>
-							<p class="diagram-label">Client</p>
+						<!-- Arrow / connection -->
+						<div class="ds-arrow">
+							<img src="/logo.svg" alt="Frontman" class="ds-arrow__logo" width="48" height="48" loading="lazy" />
+							<svg class="ds-arrow__svg" viewBox="0 0 24 80" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+								<path d="M12 0 L12 60 M6 54 L12 66 L18 54" stroke="#A259FF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+							</svg>
 						</div>
+
+						<!-- Live code card -->
+						<div class="ds-card ds-card--code">
+							<div class="ds-card__header">
+								<div class="ds-card__dots">
+									<span class="ds-dot ds-dot--red"></span>
+									<span class="ds-dot ds-dot--yellow"></span>
+									<span class="ds-dot ds-dot--green"></span>
+								</div>
+								<span class="ds-card__label">Your Code</span>
+							</div>
+							<div class="ds-card__body ds-card__body--code">
+								<code class="ds-code-line"><span class="ds-tok-keyword">const</span> <span class="ds-tok-var">theme</span> = {</code>
+								<code class="ds-code-line ds-code-indent"><span class="ds-tok-prop">primary</span>: <span class="ds-tok-string">"#A259FF"</span>,</code>
+								<code class="ds-code-line ds-code-indent"><span class="ds-tok-prop">radius</span>: <span class="ds-tok-string">"8px"</span>,</code>
+								<code class="ds-code-line">}</code>
+							</div>
+						</div>
+
+						<div class="ds-scan-line"></div>
 					</div>
 				</div>
 			</Col>
 
 			<!-- Right side: Content -->
 			<Col spanMobile="12" span="6">
-				<div class="context-content">
-					<h2 class="context-title">
-						Works With Your<br/>Existing Codebase.
-					</h2>
+			<div class="context-content">
+				<h2 class="context-title">
+					Your Design System.<br/>Your Rules.
+				</h2>
 
-					<div class="context-text">
-						<p>
-							This isn't another "generate an app from scratch" tool. Frontman plugs into the project you're already building — your components, your styles, your design system.
-						</p>
-						<p>
-							See something that needs tweaking? Point at it, describe the change, and Frontman updates your actual source files. No redlines, no handoff friction, no waiting for the next sprint.
-						</p>
-					</div>
+				<div class="context-text">
+					<p>
+						No more pixel-pushing in code you didn't write. Frontman understands your components, your design tokens, and your layout conventions — so every edit stays on-brand.
+					</p>
+					<p>
+						Spot a misaligned element? A color that feels off? Point at it, describe what you see, and Frontman refines the source to match your vision. No redlines, no handoff gaps, no compromises.
+					</p>
 				</div>
+			</div>
 			</Col>
 		</Row>
 	</div>
@@ -95,63 +128,169 @@ import clientSvg from '../../../assets/context/client.svg'
 		min-height: 400px;
 	}
 
-	.server-client-diagram {
-		@apply relative flex flex-row items-end justify-center;
-		width: 100%;
-		max-width: 600px;
-		gap: 1.5rem;
-	}
-
-	@media (min-width: 768px) {
-		.server-client-diagram {
-			gap: 2rem;
-		}
-	}
-
-	.diagram-item {
+	/* Design System Diagram */
+	.design-system-diagram {
 		@apply relative flex flex-col items-center;
-		flex: 1;
-		min-width: 0;
-	}
-
-	/* Logo sits in-flow above the illustration, overlapping it with negative margin */
-	.diagram-logo {
-		width: 48px;
-		height: 48px;
-		margin-bottom: -24px;
-		z-index: 40;
-		position: relative;
-		filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.25));
-	}
-
-	@media (min-width: 768px) {
-		.diagram-logo {
-			width: 80px;
-			height: 80px;
-			margin-bottom: -40px;
-		}
-	}
-
-	.illustration-wrapper {
-		@apply relative overflow-hidden;
 		width: 100%;
+		max-width: 340px;
+		gap: 0;
 	}
 
-	.illustration-image {
-		@apply w-full h-auto;
+	/* Cards */
+	.ds-card {
+		width: 100%;
+		border-radius: 12px;
+		overflow: hidden;
+		box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+	}
+	.ds-card--design {
+		background: #2a2a2e;
+	}
+	.ds-card--code {
+		background: #1e1e24;
+	}
+	.ds-card__header {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		padding: 10px 14px;
+		background: rgba(255, 255, 255, 0.05);
+		border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+	}
+	.ds-card__dots {
+		display: flex;
+		gap: 6px;
+	}
+	.ds-dot {
+		width: 10px;
+		height: 10px;
+		border-radius: 50%;
+	}
+	.ds-dot--red { background: #ff5f57; }
+	.ds-dot--yellow { background: #febc2e; }
+	.ds-dot--green { background: #28c840; }
+	.ds-card__label {
+		font-family: 'SF Pro Display', system-ui, sans-serif;
+		font-size: 12px;
+		font-weight: 600;
+		color: rgba(255, 255, 255, 0.5);
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+	}
+	.ds-card__body {
+		padding: 18px 16px;
+		display: flex;
+		flex-direction: column;
+		gap: 14px;
+	}
+
+	/* Swatches */
+	.ds-swatch-row {
+		display: flex;
+		gap: 10px;
+	}
+	.ds-swatch {
+		width: 36px;
+		height: 36px;
+		border-radius: 8px;
+		box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+	}
+
+	/* Typography samples */
+	.ds-type-row {
+		display: flex;
+		align-items: baseline;
+		gap: 16px;
+	}
+	.ds-type-sample {
+		font-family: 'SF Pro Display', system-ui, sans-serif;
+		color: white;
+	}
+	.ds-type-sample--heading {
+		font-size: 28px;
+		font-weight: 700;
+	}
+	.ds-type-sample--body {
+		font-size: 16px;
+		font-weight: 400;
+		opacity: 0.6;
+	}
+
+	/* Component samples */
+	.ds-component-row {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+	}
+	.ds-btn-sample {
+		display: inline-block;
+		padding: 6px 18px;
+		background: #A259FF;
+		color: white;
+		border-radius: 6px;
+		font-size: 13px;
+		font-weight: 600;
+		font-family: 'SF Pro Display', system-ui, sans-serif;
+	}
+	.ds-input-sample {
+		flex: 1;
+		height: 32px;
+		border-radius: 6px;
+		border: 1px solid rgba(255, 255, 255, 0.15);
+		background: rgba(255, 255, 255, 0.05);
+	}
+
+	/* Arrow connector */
+	.ds-arrow {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 0;
+		padding: 4px 0;
+		position: relative;
+		z-index: 10;
+	}
+	.ds-arrow__logo {
+		width: 40px;
+		height: 40px;
+		filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.3));
+	}
+	.ds-arrow__svg {
+		width: 24px;
+		height: 48px;
+	}
+
+	/* Code block */
+	.ds-card__body--code {
+		gap: 4px;
+		font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+		font-size: 13px;
+		line-height: 1.6;
+	}
+	.ds-code-line {
 		display: block;
+		white-space: pre;
 	}
+	.ds-code-indent {
+		padding-left: 1.5em;
+	}
+	.ds-tok-keyword { color: #c678dd; }
+	.ds-tok-var { color: #e06c75; }
+	.ds-tok-prop { color: #56b6c2; }
+	.ds-tok-string { color: #98c379; }
 
-	.scan-line {
+	/* Scanning animation overlay */
+	.ds-scan-line {
 		@apply absolute left-0 right-0;
 		height: 2px;
 		background: linear-gradient(90deg, transparent, #A259FF, transparent);
-		animation: scan 2s ease-in-out infinite;
+		animation: ds-scan 3s ease-in-out infinite;
 		top: 0;
 		z-index: 30;
+		pointer-events: none;
 	}
 
-	@keyframes scan {
+	@keyframes ds-scan {
 		0% {
 			top: 0;
 			opacity: 0;
@@ -165,10 +304,6 @@ import clientSvg from '../../../assets/context/client.svg'
 		}
 	}
 
-	.diagram-label {
-		@apply font-headings text-xl font-bold text-white mt-3;
-	}
-
 	/* Content Side */
 	.context-content {
 		@apply flex flex-col justify-center h-full py-8 lg:py-0;
@@ -178,10 +313,6 @@ import clientSvg from '../../../assets/context/client.svg'
 		@apply font-headings text-4xl lg:text-5xl font-bold mb-8;
 		color: white;
 		line-height: 1.2;
-	}
-
-	.title-line {
-		@apply block;
 	}
 
 	.context-text {
@@ -199,12 +330,8 @@ import clientSvg from '../../../assets/context/client.svg'
 			min-height: auto;
 		}
 
-		.server-client-diagram {
-			max-width: 450px;
-		}
-
-		.diagram-label {
-			@apply text-lg;
+		.design-system-diagram {
+			max-width: 300px;
 		}
 
 		.context-title {
@@ -222,13 +349,8 @@ import clientSvg from '../../../assets/context/client.svg'
 			padding-bottom: 2rem;
 		}
 
-		.server-client-diagram {
+		.design-system-diagram {
 			max-width: 100%;
-			gap: 1rem;
-		}
-
-		.diagram-label {
-			@apply text-sm;
 		}
 
 		.context-title {
