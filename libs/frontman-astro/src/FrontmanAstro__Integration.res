@@ -16,16 +16,14 @@ module ViteAdapter = FrontmanAstro__ViteAdapter
 @module("node:module") external createRequire: string => {"resolve": string => string} = "createRequire"
 @val @scope(("import", "meta")) external importMetaUrl2: string = "url"
 
+@schema
+type packageJson = {version: string}
+
 let getAstroVersion = () => {
   let require = createRequire(importMetaUrl2)
   let pkgPath = require["resolve"]("astro/package.json")
   let raw = FrontmanBindings.Fs.readFileSync(pkgPath)
-  raw
-  ->JSON.parseOrThrow
-  ->JSON.Decode.object
-  ->Option.flatMap(d => d->Dict.get("version"))
-  ->Option.flatMap(JSON.Decode.string)
-  ->Option.getOrThrow(~message="[Frontman] Failed to read version from astro/package.json")
+  S.parseJsonStringOrThrow(raw, packageJsonSchema).version
 }
 
 let parseMajorVersion = (version: string) =>
