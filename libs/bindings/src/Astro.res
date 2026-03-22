@@ -84,12 +84,31 @@ type serverSetupHookContext = {
   toolbar: toolbarServerSide,
 }
 
+// Route types from astro:routes:resolved hook (Astro v5+)
+type routeType = [#page | #endpoint | #redirect | #fallback]
+type routeOrigin = [#internal | #\"external" | #project]
+
+type integrationResolvedRoute = {
+  pattern: string,
+  entrypoint: string,
+  @as("type")
+  type_: routeType,
+  origin: routeOrigin,
+  params: array<string>,
+  pathname: option<string>,
+  isPrerendered: bool,
+}
+
+type routesResolvedHookContext = {routes: array<integrationResolvedRoute>}
+
 // Astro integration hooks
 type astroHooks = {
   @as("astro:config:setup")
   configSetup?: configSetupHookContext => unit,
   @as("astro:server:setup")
   serverSetup?: serverSetupHookContext => unit,
+  @as("astro:routes:resolved")
+  routesResolved?: routesResolvedHookContext => unit,
 }
 
 // Astro integration type

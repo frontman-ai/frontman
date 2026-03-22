@@ -17,16 +17,8 @@
 
 open Vitest
 
-module Middleware = FrontmanAstro__Middleware
+module Helpers = FrontmanAstro__TestHelpers
 module LogCapture = FrontmanAiFrontmanCore.FrontmanCore__LogCapture
-module Config = FrontmanAstro__Config
-
-// The Config module crashes at load time if __PACKAGE_VERSION__ is undefined,
-// but vitest.config.ts already defines it via `define`. We bypass Config
-// entirely and build the middleware config directly, same as the core
-// middleware tests do.
-module CoreMiddlewareConfig = FrontmanAiFrontmanCore.FrontmanCore__MiddlewareConfig
-module CoreMiddleware = FrontmanAiFrontmanCore.FrontmanCore__Middleware
 module ToolRegistry = FrontmanAstro__ToolRegistry
 
 // Reset the LogCapture singleton between tests so initialize() re-patches
@@ -42,49 +34,8 @@ let writeToStderr: string => unit = %raw(`
   function(message) { process.stderr.write(message + "\n"); }
 `)
 
-// Build the middleware with the Astro tool registry (includes get_logs).
-let makeMiddleware = () => {
-  let config: CoreMiddlewareConfig.t = {
-    projectRoot: "/tmp",
-    sourceRoot: "/tmp",
-    basePath: "frontman",
-    serverName: "test-server",
-    serverVersion: "1.0.0",
-    clientUrl: "http://localhost/client.js",
-    clientCssUrl: None,
-    entrypointUrl: None,
-    isLightTheme: false,
-    frameworkId: CoreMiddlewareConfig.Astro,
-  }
-  let registry = ToolRegistry.make()
-  CoreMiddleware.createMiddleware(~config, ~registry)
-}
-
-// POST /frontman/tools/call with a JSON body and return the full SSE response text.
-let callTool = async (middleware, ~name: string, ~arguments: JSON.t): string => {
-  let body = JSON.Encode.object(
-    Dict.fromArray([
-      ("name", JSON.Encode.string(name)),
-      ("arguments", arguments),
-    ]),
-  )
-  let headers = WebAPI.HeadersInit.fromDict(
-    Dict.fromArray([("Content-Type", "application/json")]),
-  )
-  let req = WebAPI.Request.fromURL(
-    "http://localhost/frontman/tools/call",
-    ~init={
-      method: "POST",
-      body: WebAPI.BodyInit.fromString(JSON.stringify(body)),
-      headers,
-    },
-  )
-  let result = await middleware(req)
-  switch result {
-  | None => failwith("Middleware did not handle /frontman/tools/call")
-  | Some(response) => await response->WebAPI.Response.text
-  }
-}
+let makeMiddleware = () =>
+  Helpers.makeMiddleware(~registry=ToolRegistry.make())
 
 describe("get_logs via HTTP middleware (integration)", _t => {
   testAsync(
@@ -96,7 +47,7 @@ describe("get_logs via HTTP middleware (integration)", _t => {
       writeToStderr(`18:16:48 [ERROR] Unable to locate "viewfinder-circle" icon!`)
 
       let middleware = makeMiddleware()
-      let sseBody = await callTool(
+      let sseBody = await Helpers.callTool(
         middleware,
         ~name="get_logs",
         ~arguments=JSON.Encode.object(
@@ -116,7 +67,7 @@ describe("get_logs via HTTP middleware (integration)", _t => {
     writeToStderr(`18:16:48 [ERROR] Unable to locate "some-other-icon" icon!`)
 
     let middleware = makeMiddleware()
-    let sseBody = await callTool(
+    let sseBody = await Helpers.callTool(
       middleware,
       ~name="get_logs",
       ~arguments=JSON.Encode.object(
@@ -129,14 +80,7 @@ describe("get_logs via HTTP middleware (integration)", _t => {
 
   testAsync("get_logs is listed in the tools endpoint", async t => {
     let middleware = makeMiddleware()
-    let req = WebAPI.Request.fromURL("http://localhost/frontman/tools")
-    let result = await middleware(req)
-
-    switch result {
-    | None => failwith("Middleware did not handle /frontman/tools")
-    | Some(response) =>
-      let body = await response->WebAPI.Response.text
-      t->expect(body->String.includes("get_logs"))->Expect.toBe(true)
-    }
+    let body = await Helpers.getEndpoint(middleware, ~path="tools")
+    t->expect(body->String.includes("get_logs"))->Expect.toBe(true)
   })
 })
