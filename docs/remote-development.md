@@ -86,7 +86,7 @@ All references to `DEVPOD_SERVER` in this document should be replaced with the r
 # 1. Set up dnsmasq (one-time, see DNS Setup section below)
 
 # 2. Get URLs for your worktree
-make worktree-urls BRANCH=issue-164
+make wt-urls BRANCH=issue-164
 ```
 
 ## Setup
@@ -249,7 +249,7 @@ make dev-nextjs
 With dnsmasq configured, services are accessible directly. Get your worktree URLs:
 
 ```bash
-make worktree-urls BRANCH=your-branch
+make wt-urls BRANCH=your-branch
 ```
 
 Then open in your browser:
@@ -274,7 +274,7 @@ The services are routed through Caddy reverse proxy on the server, which handles
 >
 > ```bash
 > # 1. Get your worktree hash
-> make worktree-urls BRANCH=your-branch
+> make wt-urls BRANCH=your-branch
 > # Note the 4-char hash (e.g. 3ce7)
 >
 > # 2. Register with Caddy (from your local machine)
@@ -335,23 +335,16 @@ The services are routed through Caddy reverse proxy on the server, which handles
 
 There are two ways to create feature workspaces:
 
-#### Option A: One Command (Recommended)
+#### Option A: Containerized Worktree (Recommended)
 
-Use the integrated Makefile command that creates a local worktree, pushes the branch, and sets up DevPod:
+Create a containerized worktree with Podman:
 
 ```bash
-make worktree-devpod BRANCH=issue-164
+make wt-new BRANCH=issue-164
+make wt-dev BRANCH=issue-164
 ```
 
-This will:
-1. Create a local worktree at `.worktrees/issue-164/`
-2. Push the branch to origin
-3. Create a DevPod workspace on the remote server
-4. Print connection instructions
-
 #### Option B: Manual Steps
-
-If you prefer more control:
 
 ```bash
 # 1. Create local worktree (optional, for local dev)
@@ -494,7 +487,7 @@ export DB_HOST=host.docker.internal
 
 The post-create script creates `apps/frontman_server/envs/.dev.overrides.env` with DevPod-specific config (DB_HOST, PHX_HOST, PHX_URL_PORT). However, **secret keys (WORKOS, API keys) must be added separately**:
 
-- **Via `make worktree-devpod`**: Automatically copies secrets from your local `.dev.overrides.env` to the devpod
+- **Via `make wt-new`**: Automatically copies secrets from your local `.dev.overrides.env` to the devpod
 - **Manually**: SSH into the devpod and append keys to `apps/frontman_server/envs/.dev.overrides.env`
 
 Required keys for auth to work:

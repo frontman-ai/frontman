@@ -29,10 +29,10 @@ cd .worktrees/feature/my-feature
 - `make wt-urls BRANCH=...` - Show service URLs
 - `make wt-logs BRANCH=...` - Tail container logs
 
-**Management (long form):**
+**Plain worktree management (no containers):**
+- `make worktree-create BRANCH=...` - Create worktree (auto-detects new vs existing branch)
 - `make worktree-list` - List all worktrees
-- `make worktree-status` - Show git status of all worktrees
-- `make worktree-remove BRANCH=feature/my-feature` - Remove worktree
+- `make worktree-remove BRANCH=...` - Remove worktree
 - `make worktree-clean` - Clean stale worktrees
 
 **Secrets:**
@@ -47,7 +47,7 @@ cd .worktrees/feature/my-feature
 
 ## Containerized Worktrees
 
-When working in a containerized worktree (created via `make worktree-pod-create`),
+When working in a containerized worktree (created via `make wt-new`),
 source files live on the host but the toolchain runs inside a Podman container.
 
 **File operations** (read, write, search, git): Run directly on the host.
@@ -64,15 +64,15 @@ source files live on the host but the toolchain runs inside a Podman container.
 make infra-up
 
 # Per-feature
-make worktree-pod-create BRANCH=feature/cool-thing
-make worktree-pod-dev BRANCH=feature/cool-thing
+make wt-new BRANCH=feature/cool-thing
+make wt-dev BRANCH=feature/cool-thing
 
 # Pause/resume
-make worktree-pod-stop BRANCH=feature/cool-thing
-make worktree-pod-start BRANCH=feature/cool-thing
+make wt-stop BRANCH=feature/cool-thing
+make wt-start BRANCH=feature/cool-thing
 
 # Done
-make worktree-pod-remove BRANCH=feature/cool-thing
+make wt-rm BRANCH=feature/cool-thing
 ```
 
 **Architecture:** Each worktree gets its own Podman pod with a postgres container

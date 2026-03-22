@@ -1,0 +1,185 @@
+#!/usr/bin/env bash
+# Set up a containerized worktree from a GitHub issue or PR reference.
+# Called by: make work REF=<number|url>
+#
+# Required env: REF, DEV_IMAGE, MD5CMD
+
+set -euo pipefail
+
+# ── Colors ──────────────────────────────────────────────
+CYAN='\033[36m'
+GREEN='\033[32m'
+YELLOW='\033[33m'
+RED='\033[31m'
+DIM='\033[2m'
+BOLD='\033[1m'
+RESET='\033[0m'
+
+REF="${REF:?REF is required}"
+DEV_IMAGE="${DEV_IMAGE:?DEV_IMAGE is required}"
+
+# ── Portable MD5 (same logic as Makefile / wt-dashboard) ──
+md5_short() {
+  if command -v md5sum >/dev/null 2>&1; then
+    echo -n "$1" | md5sum | cut -c1-4
+  else
+    echo -n "$1" | md5 | cut -c1-4
+  fi
+}
+
+# ── Parse REF into type + number ────────────────────────
+parse_ref() {
+  local ref="$1"
+
+  # URL form: https://github.com/.../issues/123 or .../pull/123
+  if [[ "$ref" =~ /issues/([0-9]+) ]]; then
+    REF_TYPE="issue"
+    REF_NUMBER="${BASH_REMATCH[1]}"
+    return
+  fi
+  if [[ "$ref" =~ /pull/([0-9]+) ]]; then
+    REF_TYPE="pr"
+    REF_NUMBER="${BASH_REMATCH[1]}"
+    return
+  fi
+
+  # Bare number: auto-detect (try PR first, fall back to issue)
+  if [[ "$ref" =~ ^[0-9]+$ ]]; then
+    REF_NUMBER="$ref"
+    local is_pr
+    is_pr=$(gh pr view "$ref" --json headRefName --jq '.headRefName' 2>/dev/null || echo "")
+    if [[ -n "$is_pr" ]]; then
+      REF_TYPE="pr"
+    else
+      REF_TYPE="issue"
+    fi
+    return
+  fi
+
+  printf "${RED}Error: Cannot parse REF '%s'${RESET}\n" "$ref"
+  printf "Expected: issue number, issue URL, or PR URL\n"
+  exit 1
+}
+
+# ── Resolve branch name ────────────────────────────────
+resolve_branch() {
+  if [[ "$REF_TYPE" == "pr" ]]; then
+    printf "${DIM}Resolving PR #%s...${RESET}\n" "$REF_NUMBER"
+    BRANCH=$(gh pr view "$REF_NUMBER" --json headRefName --jq '.headRefName')
+    if [[ -z "$BRANCH" ]]; then
+      printf "${RED}Error: Could not resolve branch for PR #%s${RESET}\n" "$REF_NUMBER"
+      exit 1
+    fi
+    # Fetch the branch from origin
+    printf "${DIM}Fetching origin/%s...${RESET}\n" "$BRANCH"
+    git fetch origin "$BRANCH" 2>/dev/null || true
+  else
+    printf "${DIM}Resolving issue #%s...${RESET}\n" "$REF_NUMBER"
+    # Check for existing branch matching issue-<NUMBER>-*
+    local existing
+    existing=$(git branch -a --list "*issue-${REF_NUMBER}-*" 2>/dev/null | head -1 | sed 's|.*remotes/origin/||; s|^[+* ]*||' || true)
+    if [[ -n "$existing" ]]; then
+      BRANCH="$existing"
+      printf "${DIM}Found existing branch: %s${RESET}\n" "$BRANCH"
+      git fetch origin "$BRANCH" 2>/dev/null || true
+    else
+      # Generate slug from issue title
+      local title
+      title=$(gh issue view "$REF_NUMBER" --json title --jq '.title')
+      if [[ -z "$title" ]]; then
+        printf "${RED}Error: Could not fetch issue #%s${RESET}\n" "$REF_NUMBER"
+        exit 1
+      fi
+      local slug
+      slug=$(echo "$title" \
+        | tr '[:upper:]' '[:lower:]' \
+        | sed 's/[^a-z0-9 ]//g' \
+        | awk '{for(i=1;i<=4&&i<=NF;i++) printf "%s%s",(i>1?"-":""),$i; print ""}')
+      BRANCH="issue-${REF_NUMBER}-${slug}"
+      printf "${DIM}Generated branch: %s${RESET}\n" "$BRANCH"
+    fi
+  fi
+}
+
+# ── Ensure infrastructure is ready ─────────────────────
+ensure_infra() {
+  local need_infra=false
+
+  if ! podman image inspect "$DEV_IMAGE" &>/dev/null; then
+    printf "${YELLOW}Dev image not found.${RESET}\n"
+    need_infra=true
+  fi
+
+  local caddy_state
+  caddy_state=$(podman container inspect frontman-caddy --format '{{.State.Status}}' 2>/dev/null || echo "missing")
+  if [[ "$caddy_state" != "running" ]]; then
+    printf "${YELLOW}Caddy not running (status: %s).${RESET}\n" "$caddy_state"
+    need_infra=true
+  fi
+
+  if $need_infra; then
+    printf "${CYAN}Running make infra-up...${RESET}\n"
+    make infra-up
+    echo ""
+  fi
+}
+
+# ── Ensure pod is ready ────────────────────────────────
+ensure_pod() {
+  local hash
+  hash=$(md5_short "$BRANCH")
+  local pod_name="worktree-${hash}"
+
+  local pod_status
+  pod_status=$(podman pod inspect "$pod_name" --format '{{.State}}' 2>/dev/null || echo "missing")
+
+  case "$pod_status" in
+    Running)
+      printf "${GREEN}Pod %s is already running.${RESET}\n" "$pod_name"
+      ;;
+    Exited|Stopped|Created)
+      printf "${YELLOW}Pod %s is stopped. Resuming...${RESET}\n" "$pod_name"
+      make wt-start BRANCH="$BRANCH"
+      ;;
+    missing)
+      printf "${CYAN}Creating worktree and pod...${RESET}\n"
+      make wt-new BRANCH="$BRANCH"
+      ;;
+    *)
+      printf "${YELLOW}Pod %s in state '%s'. Attempting start...${RESET}\n" "$pod_name" "$pod_status"
+      make wt-start BRANCH="$BRANCH"
+      ;;
+  esac
+}
+
+# ── Final output ───────────────────────────────────────
+print_summary() {
+  echo ""
+  printf "${GREEN}${BOLD}Ready!${RESET}\n"
+  echo ""
+  make wt-urls BRANCH="$BRANCH" 2>/dev/null || true
+  printf "${DIM}Next steps:${RESET}\n"
+  printf "  cd .worktrees/%s\n" "$BRANCH"
+  printf "  make wt-dev BRANCH=%s\n" "$BRANCH"
+  echo ""
+}
+
+# ── Main ───────────────────────────────────────────────
+main() {
+  echo ""
+  printf "${BOLD}Setting up worktree from ref: %s${RESET}\n" "$REF"
+  echo ""
+
+  parse_ref "$REF"
+  printf "${DIM}Detected: %s #%s${RESET}\n" "$REF_TYPE" "$REF_NUMBER"
+  echo ""
+
+  resolve_branch
+  echo ""
+
+  ensure_infra
+  ensure_pod
+  print_summary
+}
+
+main "$@"

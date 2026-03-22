@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Start mprocs TUI inside a worktree's dev container.
 # Auto-starts pod + Caddy if stopped, checks deps, then launches mprocs.
-# Called by: make wt-dev / make worktree-pod-dev
+# Called by: make wt-dev
 #
 # Required env: BRANCH, CADDY_CONTAINER, MD5CMD
 

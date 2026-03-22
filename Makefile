@@ -11,11 +11,6 @@ GREEN := \033[32m
 YELLOW := \033[33m
 RESET := \033[0m
 
-# Portable MD5 hash — works on both macOS (md5) and Linux (md5sum)
-# Usage in shell: $$(echo -n "value" | $(MD5_SHORT))
-# Produces a 4-character hex prefix
-MD5_SHORT = $(shell if command -v md5sum >/dev/null 2>&1; then echo 'md5sum | cut -c1-4'; else echo 'md5 | cut -c1-4'; fi)
-
 # Remote development config
 # DEVPOD_SERVER is resolved from .env via `op run` (1Password CLI)
 # Usage: op run --env-file=.env -- make <target>
@@ -222,7 +217,14 @@ DEV_IMAGE := frontman-dev:latest
 export MD5CMD := $(shell if command -v md5sum >/dev/null 2>&1; then echo 'md5sum | cut -c1-4'; else echo 'md5 | cut -c1-4'; fi)
 
 ## WT_START
-.PHONY: wt wt-new wt-dev wt-stop wt-start wt-sh wt-rm wt-gc wt-urls wt-logs
+.PHONY: wt wt-new wt-dev wt-stop wt-start wt-sh wt-rm wt-gc wt-urls wt-logs work
+
+work: ## Set up worktree from GitHub issue or PR (REF=<number|url>)
+	@if [ -z "$(REF)" ]; then \
+		printf "$(YELLOW)Usage: make work REF=<issue-number|issue-url|pr-url>$(RESET)\n"; \
+		exit 1; \
+	fi
+	@REF="$(REF)" DEV_IMAGE=$(DEV_IMAGE) bash ./bin/work
 
 wt: ## Dashboard — shows all worktrees, pod status, URLs, and actions
 	@bash ./bin/wt-dashboard
@@ -239,34 +241,22 @@ wt-dev: ## Start dev servers in container (BRANCH=...)
 
 wt-stop: ## Pause worktree pod, preserve volumes (BRANCH=...)
 	$(call resolve_branch,wt-stop)
-	@HASH=$$(echo -n "$(BRANCH)" | $(MD5_SHORT)); \
-	POD="worktree-$${HASH}"; \
-	if ! podman pod inspect "$${POD}" &>/dev/null; then \
-		printf "$(YELLOW)Error: Pod $${POD} not found$(RESET)\n"; exit 1; \
-	fi; \
-	podman pod stop "$${POD}"; \
+	@POD=$$(BRANCH="$(BRANCH)" bash ./bin/wt-resolve pod); \
+	podman pod stop "$$POD"; \
 	bash ./infra/local/caddy-regen.sh; \
 	printf "$(GREEN)Stopped. Resume with: make wt-start BRANCH=$(BRANCH)$(RESET)\n"
 
 wt-start: ## Resume a paused worktree pod (BRANCH=...)
 	$(call resolve_branch,wt-start)
-	@HASH=$$(echo -n "$(BRANCH)" | $(MD5_SHORT)); \
-	POD="worktree-$${HASH}"; \
-	if ! podman pod inspect "$${POD}" &>/dev/null; then \
-		printf "$(YELLOW)Error: Pod $${POD} not found. Run: make wt-new BRANCH=$(BRANCH)$(RESET)\n"; exit 1; \
-	fi; \
-	podman pod start "$${POD}"; \
+	@POD=$$(BRANCH="$(BRANCH)" bash ./bin/wt-resolve pod); \
+	podman pod start "$$POD"; \
 	bash ./infra/local/caddy-regen.sh; \
 	printf "$(GREEN)Started. Run: make wt-dev BRANCH=$(BRANCH)$(RESET)\n"
 
 wt-sh: ## Shell into dev container (BRANCH=...)
 	$(call resolve_branch,wt-sh)
-	@HASH=$$(echo -n "$(BRANCH)" | $(MD5_SHORT)); \
-	CONTAINER="worktree-$${HASH}-dev"; \
-	if ! podman container inspect "$${CONTAINER}" &>/dev/null; then \
-		printf "$(YELLOW)Error: Container $${CONTAINER} not found$(RESET)\n"; exit 1; \
-	fi; \
-	podman exec -it -w /workspaces/frontman "$${CONTAINER}" bash
+	@CONTAINER=$$(BRANCH="$(BRANCH)" bash ./bin/wt-resolve container); \
+	podman exec -it -w /workspaces/frontman "$$CONTAINER" bash
 
 wt-rm: ## Full cleanup: pod + volumes + worktree (BRANCH=...)
 	$(call resolve_branch,wt-rm)
@@ -277,7 +267,7 @@ wt-gc: ## Remove worktrees whose branches are merged into main
 
 wt-urls: ## Show service URLs for a worktree (BRANCH=...)
 	$(call resolve_branch,wt-urls)
-	@HASH=$$(printf '%s' "$(BRANCH)" | $(MD5_SHORT)); \
+	@HASH=$$(BRANCH="$(BRANCH)" bash ./bin/wt-resolve hash); \
 	echo ""; \
 	printf "$(CYAN)$(BRANCH) ($$HASH)$(RESET)\n"; \
 	echo ""; \
@@ -291,12 +281,8 @@ wt-urls: ## Show service URLs for a worktree (BRANCH=...)
 
 wt-logs: ## Tail dev container logs (BRANCH=...)
 	$(call resolve_branch,wt-logs)
-	@HASH=$$(echo -n "$(BRANCH)" | $(MD5_SHORT)); \
-	CONTAINER="worktree-$${HASH}-dev"; \
-	if ! podman container inspect "$${CONTAINER}" &>/dev/null; then \
-		printf "$(YELLOW)Error: Container $${CONTAINER} not found$(RESET)\n"; exit 1; \
-	fi; \
-	podman logs -f "$${CONTAINER}"
+	@CONTAINER=$$(BRANCH="$(BRANCH)" bash ./bin/wt-resolve container); \
+	podman logs -f "$$CONTAINER"
 
 ## WT_END
 
@@ -304,7 +290,7 @@ wt-logs: ## Tail dev container logs (BRANCH=...)
 # Infrastructure
 # ============================================================================
 ## INFRA_START
-.PHONY: infra-up infra-down infra-build infra-status
+.PHONY: infra-up infra-down infra-build
 
 infra-up: ## One-time setup: dev image, Caddy, dnsmasq
 	@printf "$(CYAN)Setting up containerized worktree infrastructure...$(RESET)\n"
@@ -352,38 +338,29 @@ infra-down: ## Tear down all pods, volumes, and Caddy
 infra-build: ## Rebuild the frontman-dev container image
 	@podman build -t $(DEV_IMAGE) -f .devcontainer/Dockerfile .devcontainer/
 
-infra-status: ## Show infrastructure and pod status (prefer: make wt)
-	@bash ./bin/wt-dashboard
-
 ## INFRA_END
 
 # ============================================================================
-# Worktree Internals (not shown in help — use wt-* aliases above)
+# Worktree Internals (not shown in help — use wt-* commands above)
 # ============================================================================
-.PHONY: worktree-create worktree-create-from worktree-list worktree-remove worktree-clean \
-        worktree-status worktree-devpod worktree-urls worktree-hosts worktree-register worktree-registry \
-        worktree-pod-create worktree-pod-dev worktree-pod-attach worktree-pod-stop \
-        worktree-pod-start worktree-pod-remove worktree-pod-list worktree-pod-logs
+.PHONY: worktree-create worktree-list worktree-remove worktree-clean \
+        worktree-register worktree-registry
 
 # Plain worktree management (without containers)
+# Auto-detects whether to create a new branch or check out an existing one.
 worktree-create:
 	$(call require_branch,worktree-create)
-	@if git show-ref --verify --quiet refs/heads/$(BRANCH); then \
-		printf "$(YELLOW)Error: Branch '$(BRANCH)' already exists. Use worktree-create-from.$(RESET)\n"; exit 1; \
-	fi
-	@mkdir -p .worktrees
-	@git worktree add .worktrees/$(BRANCH) -b $(BRANCH)
-	@mkdir -p .worktrees/$(BRANCH)/.claude/projects .worktrees/$(BRANCH)/.claude/plans .worktrees/$(BRANCH)/.claude/todos
-	@touch .worktrees/$(BRANCH)/.claude/history.jsonl
-	@printf "$(GREEN)Worktree created at: .worktrees/$(BRANCH)$(RESET)\n"
-
-worktree-create-from:
-	$(call require_branch,worktree-create-from)
 	@WORKTREE_NAME=$$(echo "$(BRANCH)" | sed 's|^origin/||'); \
 	mkdir -p .worktrees; \
-	git worktree add .worktrees/$$WORKTREE_NAME $(BRANCH); \
-	mkdir -p .worktrees/$$WORKTREE_NAME/.claude/projects .worktrees/$$WORKTREE_NAME/.claude/plans .worktrees/$$WORKTREE_NAME/.claude/todos; \
-	touch .worktrees/$$WORKTREE_NAME/.claude/history.jsonl; \
+	if git show-ref --verify --quiet "refs/heads/$$WORKTREE_NAME" || \
+	   git show-ref --verify --quiet "refs/remotes/origin/$$WORKTREE_NAME" || \
+	   git show-ref --verify --quiet "refs/remotes/$(BRANCH)"; then \
+		git worktree add ".worktrees/$$WORKTREE_NAME" $(BRANCH); \
+	else \
+		git worktree add ".worktrees/$$WORKTREE_NAME" -b "$$WORKTREE_NAME"; \
+	fi; \
+	mkdir -p ".worktrees/$$WORKTREE_NAME/.claude/projects" ".worktrees/$$WORKTREE_NAME/.claude/plans" ".worktrees/$$WORKTREE_NAME/.claude/todos"; \
+	touch ".worktrees/$$WORKTREE_NAME/.claude/history.jsonl"; \
 	printf "$(GREEN)Worktree created at: .worktrees/$$WORKTREE_NAME$(RESET)\n"
 
 worktree-list:
@@ -403,33 +380,6 @@ worktree-remove:
 worktree-clean:
 	@git worktree prune && printf "$(GREEN)Done$(RESET)\n"
 
-worktree-status:
-	@bash ./bin/wt-dashboard
-
-worktree-devpod:
-	$(call require_branch,worktree-devpod)
-	@if ! command -v devpod >/dev/null 2>&1; then \
-		printf "$(YELLOW)Error: devpod not installed$(RESET)\n"; exit 1; \
-	fi
-	@$(MAKE) worktree-create BRANCH=$(BRANCH)
-	@cd .worktrees/$(BRANCH) && git push -u origin $(BRANCH)
-	@devpod up . --branch $(BRANCH) --id $(BRANCH)
-	@printf "$(GREEN)Done! Connect: devpod ssh $(BRANCH)$(RESET)\n"
-
-worktree-urls:
-	$(call resolve_branch,worktree-urls)
-	@$(MAKE) wt-urls BRANCH=$(BRANCH)
-
-worktree-hosts:
-	@echo "# Frontman worktrees"
-	@if [ -d ".worktrees" ]; then \
-		for wt in .worktrees/*; do \
-			[ -d "$$wt" ] || continue; \
-			name=$$(basename "$$wt"); hash=$$(printf '%s' "$$name" | $(MD5_SHORT)); \
-			echo "127.0.0.1 $$hash.nextjs.frontman.local $$hash.vite.frontman.local $$hash.api.frontman.local $$hash.storybook.frontman.local $$hash.dogfood.frontman.local # $$name"; \
-		done; \
-	fi
-
 worktree-register:
 	$(call require_devpod_server,worktree-register)
 	@if [ -z "$(BRANCH)" ] || [ -z "$(CONTAINER)" ]; then \
@@ -440,38 +390,6 @@ worktree-register:
 worktree-registry:
 	$(call require_devpod_server,worktree-registry)
 	@ssh $(DEVPOD_USER)@$(DEVPOD_SERVER) "cat /etc/caddy/worktrees/registry.json 2>/dev/null | jq . || echo 'No worktrees registered'"
-
-# Containerized worktree pod targets (delegate to wt-* aliases)
-worktree-pod-create:
-	$(call resolve_branch,worktree-pod-create)
-	@$(MAKE) wt-new BRANCH=$(BRANCH)
-
-worktree-pod-dev:
-	$(call resolve_branch,worktree-pod-dev)
-	@$(MAKE) wt-dev BRANCH=$(BRANCH)
-
-worktree-pod-attach:
-	$(call resolve_branch,worktree-pod-attach)
-	@$(MAKE) wt-sh BRANCH=$(BRANCH)
-
-worktree-pod-stop:
-	$(call resolve_branch,worktree-pod-stop)
-	@$(MAKE) wt-stop BRANCH=$(BRANCH)
-
-worktree-pod-start:
-	$(call resolve_branch,worktree-pod-start)
-	@$(MAKE) wt-start BRANCH=$(BRANCH)
-
-worktree-pod-remove:
-	$(call resolve_branch,worktree-pod-remove)
-	@$(MAKE) wt-rm BRANCH=$(BRANCH)
-
-worktree-pod-list:
-	@bash ./bin/wt-dashboard
-
-worktree-pod-logs:
-	$(call resolve_branch,worktree-pod-logs)
-	@$(MAKE) wt-logs BRANCH=$(BRANCH)
 
 # ============================================================================
 # Release

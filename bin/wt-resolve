@@ -1,0 +1,50 @@
+#!/bin/bash
+# wt-resolve — Resolve branch to worktree hash, container name, and pod name.
+#
+# Validates that the target resource (pod or container) exists.
+#
+# Usage:
+#   bin/wt-resolve pod        — prints POD name, exits 1 if missing
+#   bin/wt-resolve container  — prints CONTAINER name, exits 1 if missing
+#   bin/wt-resolve hash       — prints 4-char hash only (no validation)
+#
+# Environment:
+#   BRANCH (required) — branch name to resolve
+
+set -euo pipefail
+
+BRANCH="${BRANCH:?BRANCH must be set}"
+MODE="${1:?Usage: wt-resolve pod|container|hash}"
+
+if command -v md5sum >/dev/null 2>&1; then
+    HASH=$(echo -n "$BRANCH" | md5sum | cut -c1-4)
+else
+    HASH=$(echo -n "$BRANCH" | md5 | cut -c1-4)
+fi
+
+POD="worktree-${HASH}"
+CONTAINER="worktree-${HASH}-dev"
+
+case "$MODE" in
+    hash)
+        echo "$HASH"
+        ;;
+    pod)
+        if ! podman pod inspect "$POD" &>/dev/null; then
+            printf '\033[33mError: Pod %s not found (branch: %s)\033[0m\n' "$POD" "$BRANCH" >&2
+            exit 1
+        fi
+        echo "$POD"
+        ;;
+    container)
+        if ! podman container inspect "$CONTAINER" &>/dev/null; then
+            printf '\033[33mError: Container %s not found (branch: %s)\033[0m\n' "$CONTAINER" "$BRANCH" >&2
+            exit 1
+        fi
+        echo "$CONTAINER"
+        ;;
+    *)
+        echo "Usage: wt-resolve pod|container|hash" >&2
+        exit 1
+        ;;
+esac

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Create a containerized worktree: git worktree + Podman pod + postgres + dev container.
-# Called by: make wt-new / make worktree-pod-create
+# Called by: make wt-new
 #
 # Required env: BRANCH, DEV_IMAGE, MD5CMD
 # MD5CMD is the platform-specific md5 pipeline (e.g. "md5sum | cut -c1-4")

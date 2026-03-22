@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Full cleanup: remove pod, volumes, secrets, and git worktree.
-# Called by: make wt-rm / make worktree-pod-remove
+# Called by: make wt-rm
 #
 # Required env: BRANCH, MD5CMD
 

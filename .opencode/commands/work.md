@@ -33,7 +33,7 @@ This can be:
 
 ### 2. Set up containerized worktree
 
-1. Check infra: `make infra-status` — run `make infra-up` if needed
+1. Check infra: `make wt` — run `make infra-up` if needed
 2. Check if pod already exists: `make wt`
    - If running → skip creation
    - If stopped → `make wt-start BRANCH=<branch-name>`

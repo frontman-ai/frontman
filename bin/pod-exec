@@ -40,10 +40,10 @@ if ! podman container inspect "$CONTAINER" &>/dev/null; then
     echo "Error: No running container for branch '$BRANCH' (expected: $CONTAINER)"
     echo ""
     echo "Start it with:"
-    echo "  make worktree-pod-start BRANCH=$BRANCH"
+    echo "  make wt-start BRANCH=$BRANCH"
     echo ""
     echo "Or create a new containerized worktree with:"
-    echo "  make worktree-pod-create BRANCH=$BRANCH"
+    echo "  make wt-new BRANCH=$BRANCH"
     exit 1
 fi
 
