@@ -255,7 +255,7 @@ wt-start: ## Resume a paused worktree pod (BRANCH=...)
 
 wt-sh: ## Shell into dev container (BRANCH=...)
 	$(call resolve_branch,wt-sh)
-	@CONTAINER=$$(BRANCH="$(BRANCH)" bash ./bin/wt-resolve container); \
+	@CONTAINER=$$(BRANCH="$(BRANCH)" bash ./bin/wt-resolve container) || exit 1; \
 	podman exec -it -w /workspaces/frontman "$$CONTAINER" bash
 
 wt-rm: ## Full cleanup: pod + volumes + worktree (BRANCH=...)
@@ -281,7 +281,7 @@ wt-urls: ## Show service URLs for a worktree (BRANCH=...)
 
 wt-logs: ## Tail dev container logs (BRANCH=...)
 	$(call resolve_branch,wt-logs)
-	@CONTAINER=$$(BRANCH="$(BRANCH)" bash ./bin/wt-resolve container); \
+	@CONTAINER=$$(BRANCH="$(BRANCH)" bash ./bin/wt-resolve container) || exit 1; \
 	podman logs -f "$$CONTAINER"
 
 ## WT_END
