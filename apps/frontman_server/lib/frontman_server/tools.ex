@@ -7,13 +7,10 @@ defmodule FrontmanServer.Tools do
   alias FrontmanServer.Tools.MCP
 
   @backend_tools [
-    FrontmanServer.Tools.TodoList,
-    FrontmanServer.Tools.TodoAdd,
-    FrontmanServer.Tools.TodoUpdate,
-    FrontmanServer.Tools.TodoRemove
+    FrontmanServer.Tools.TodoWrite
   ]
 
-  @todo_mutations ["todo_add", "todo_update", "todo_remove"]
+  @todo_mutations ["todo_write"]
 
   @spec backend_tools() :: [SwarmAi.Tool.t()]
   def backend_tools do

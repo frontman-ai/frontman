@@ -890,7 +890,7 @@ defmodule FrontmanServerWeb.TaskChannel do
   defp to_plan_entry(%Todos.Todo{} = todo) do
     %{
       "content" => todo.content,
-      "priority" => "medium",
+      "priority" => Atom.to_string(todo.priority),
       "status" => Atom.to_string(todo.status)
     }
   end

@@ -6,7 +6,6 @@ defmodule FrontmanServer.TasksTest do
   alias FrontmanServer.Accounts
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Tasks
-  alias FrontmanServer.Tasks.Todos
 
   setup do
     # Create a test user for scope
@@ -525,11 +524,30 @@ defmodule FrontmanServer.TasksTest do
       task_id = Ecto.UUID.generate()
       {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
 
-      {:ok, todo1} = Todos.create_todo("First", "First", "pending")
-      Tasks.add_tool_result(scope, task_id, %{id: "c1", name: "todo_add"}, todo1, false)
+      write_result = %{
+        "todos" => [
+          %{
+            "id" => Ecto.UUID.generate(),
+            "content" => "First",
+            "active_form" => "First",
+            "status" => "pending",
+            "priority" => "medium",
+            "created_at" => DateTime.to_iso8601(DateTime.utc_now()),
+            "updated_at" => DateTime.to_iso8601(DateTime.utc_now())
+          },
+          %{
+            "id" => Ecto.UUID.generate(),
+            "content" => "Second",
+            "active_form" => "Second",
+            "status" => "in_progress",
+            "priority" => "medium",
+            "created_at" => DateTime.to_iso8601(DateTime.utc_now()),
+            "updated_at" => DateTime.to_iso8601(DateTime.utc_now())
+          }
+        ]
+      }
 
-      {:ok, todo2} = Todos.create_todo("Second", "Second", "in_progress")
-      Tasks.add_tool_result(scope, task_id, %{id: "c2", name: "todo_add"}, todo2, false)
+      Tasks.add_tool_result(scope, task_id, %{id: "c1", name: "todo_write"}, write_result, false)
 
       {:ok, todos} = Tasks.list_todos(scope, task_id)
 
@@ -545,8 +563,21 @@ defmodule FrontmanServer.TasksTest do
       {:ok, ^task_a} = Tasks.create_task(scope, task_a, "nextjs")
       {:ok, ^task_b} = Tasks.create_task(scope, task_b, "nextjs")
 
-      {:ok, todo} = Todos.create_todo("Task A todo", "Working", "pending")
-      Tasks.add_tool_result(scope, task_a, %{id: "c1", name: "todo_add"}, todo, false)
+      write_result = %{
+        "todos" => [
+          %{
+            "id" => Ecto.UUID.generate(),
+            "content" => "Task A todo",
+            "active_form" => "Working",
+            "status" => "pending",
+            "priority" => "medium",
+            "created_at" => DateTime.to_iso8601(DateTime.utc_now()),
+            "updated_at" => DateTime.to_iso8601(DateTime.utc_now())
+          }
+        ]
+      }
+
+      Tasks.add_tool_result(scope, task_a, %{id: "c1", name: "todo_write"}, write_result, false)
 
       {:ok, todos_a} = Tasks.list_todos(scope, task_a)
       {:ok, todos_b} = Tasks.list_todos(scope, task_b)

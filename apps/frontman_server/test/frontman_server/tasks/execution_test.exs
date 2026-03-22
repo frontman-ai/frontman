@@ -162,7 +162,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       task_id: task_id,
       scope: scope
     } do
-      tc = tool_call("todo_list")
+      tc = tool_call("todo_write")
       agent1 = test_agent(tool_then_complete_llm([tc], "Here are your todos"), "Agent1")
       agent2 = test_agent(mock_llm("Based on the previous results..."), "Agent2")
 

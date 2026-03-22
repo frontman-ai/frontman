@@ -17,16 +17,7 @@ type todoItem = {
  * Check if a tool name is a TODO-related tool
  */
 let isTodoTool = (toolName: string): bool => {
-  let lowerName = String.toLowerCase(toolName)
-  
-  String.includes(lowerName, "todo_list") ||
-  String.includes(lowerName, "todo_add") ||
-  String.includes(lowerName, "todo_update") ||
-  String.includes(lowerName, "todo_remove") ||
-  String.includes(lowerName, "todo_read") ||
-  String.includes(lowerName, "todo_write") ||
-  String.includes(lowerName, "todo_get") ||
-  String.includes(lowerName, "todo_set")
+  String.toLowerCase(toolName) == "todo_write"
 }
 
 /**

@@ -82,7 +82,7 @@ defmodule FrontmanServer.Observability.OtelHandlerTest do
       scope: scope
     } do
       # Run a real agent with a tool call through production code
-      tool_call = swarm_tool_call("todo_list")
+      tool_call = swarm_tool_call("todo_write")
 
       agent = test_agent(tool_then_complete_llm([tool_call], "Here are your todos"), "TestAgent")
 
@@ -164,7 +164,7 @@ defmodule FrontmanServer.Observability.OtelHandlerTest do
 
       # === Tool Attributes (OpenInference) ===
       assert attr(tool, :"openinference.span.kind") == "TOOL"
-      assert attr(tool, :"tool.name") == "todo_list"
+      assert attr(tool, :"tool.name") == "todo_write"
       assert attr(tool, :"tool.parameters") != nil, "Tool span should have parameters"
       assert attr(tool, :"tool.output") != nil, "Tool span should have output"
 
@@ -175,7 +175,7 @@ defmodule FrontmanServer.Observability.OtelHandlerTest do
                first_llm,
                :"llm.output_messages.0.message.tool_calls.0.tool_call.function.name"
              ) ==
-               "todo_list",
+               "todo_write",
              "LLM span should capture tool call name"
     end
 

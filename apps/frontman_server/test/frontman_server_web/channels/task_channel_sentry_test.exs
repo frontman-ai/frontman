@@ -53,7 +53,7 @@ defmodule FrontmanServerWeb.TaskChannelSentryTest do
       task_id: task_id
     } do
       tool_result =
-        tool_result("call_success_#{:rand.uniform(1_000_000)}", "todo_list", "[]")
+        tool_result("call_success_#{:rand.uniform(1_000_000)}", "search_codebase", "[]")
 
       send(socket.channel_pid, {:interaction, tool_result})
 

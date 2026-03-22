@@ -1,14 +1,12 @@
 defmodule FrontmanServer.Tasks.Todos do
   @moduledoc """
-  Event-sourced todo projection module.
+  Atomic todo projection module.
 
-  Rebuilds current todo state from ToolCall/ToolResult interactions.
-  No state storage - todos exist only as events in the interaction log.
+  Rebuilds current todo state from the last `todo_write` ToolResult interaction.
+  No incremental mutations — the LLM sends the complete list every time,
+  eliminating hallucinated IDs and state drift between turns.
 
-  Tool operations (add/update/remove) are recorded as ToolResult interactions,
-  and the current state is reconstructed by replaying these events.
-
-  This is a subcontext under Tasks - it accepts interactions as parameters
+  This is a subcontext under Tasks — it accepts interactions as parameters
   and never calls back to the parent Tasks context.
   """
 
@@ -19,11 +17,13 @@ defmodule FrontmanServer.Tasks.Todos do
     use TypedStruct
     @derive Jason.Encoder
     @valid_statuses [:pending, :in_progress, :completed]
+    @valid_priorities [:high, :medium, :low]
 
     @new_schema Zoi.object(%{
                   content: Zoi.string() |> Zoi.min(1),
                   active_form: Zoi.string() |> Zoi.min(1),
-                  status: Zoi.string() |> Zoi.one_of(["pending", "in_progress", "completed"])
+                  status: Zoi.string() |> Zoi.one_of(["pending", "in_progress", "completed"]),
+                  priority: Zoi.string() |> Zoi.one_of(["high", "medium", "low"])
                 })
     @extra_schema Zoi.object(
                     %{
@@ -40,6 +40,7 @@ defmodule FrontmanServer.Tasks.Todos do
       field(:content, String.t(), enforce: true)
       field(:active_form, String.t(), enforce: true)
       field(:status, atom(), enforce: true)
+      field(:priority, atom(), enforce: true)
       field(:created_at, DateTime.t(), enforce: true)
       field(:updated_at, DateTime.t(), enforce: true)
     end
@@ -52,17 +53,26 @@ defmodule FrontmanServer.Tasks.Todos do
       @valid_statuses
     end
 
-    def make(content, active_form, status) do
-      case Zoi.parse(@new_schema, %{content: content, active_form: active_form, status: status}) do
+    def valid_priorities do
+      @valid_priorities
+    end
+
+    def make(content, active_form, status, priority \\ "medium") do
+      case Zoi.parse(@new_schema, %{
+             content: content,
+             active_form: active_form,
+             status: status,
+             priority: priority
+           }) do
         {:ok, validated} ->
           now = DateTime.utc_now()
-          status_atom = String.to_existing_atom(validated.status)
 
           todo = %__MODULE__{
             id: Ecto.UUID.generate(),
             content: validated.content,
             active_form: validated.active_form,
-            status: status_atom,
+            status: String.to_existing_atom(validated.status),
+            priority: String.to_existing_atom(validated.priority),
             created_at: now,
             updated_at: now
           }
@@ -76,89 +86,58 @@ defmodule FrontmanServer.Tasks.Todos do
   end
 
   @doc """
-  Lists all current todos by rebuilding state from interactions.
+  Lists all current todos from the last `todo_write` result.
 
-  Uses event projection instead of string matching.
+  Finds the most recent successful `todo_write` ToolResult and parses its todos array.
   """
   @spec list_todos(list(Interaction.t())) :: %{String.t() => Todo.t()}
   def list_todos(interactions) do
     interactions
-    |> Enum.filter(&todo_tool_result?/1)
-    |> Enum.reduce(%{}, &apply_result/2)
-  end
-
-  defp todo_tool_result?(%Interaction.ToolResult{tool_name: name, is_error: false}) do
-    name in ["todo_add", "todo_update", "todo_remove"]
-  end
-
-  defp todo_tool_result?(_), do: false
-
-  defp apply_result(%Interaction.ToolResult{tool_name: "todo_add", result: result}, state) do
-    todo = to_todo(result)
-    Map.put(state, todo.id, todo)
-  end
-
-  defp apply_result(%Interaction.ToolResult{tool_name: "todo_update", result: result}, state) do
-    todo = to_todo(result)
-    Map.put(state, todo.id, todo)
-  end
-
-  defp apply_result(%Interaction.ToolResult{tool_name: "todo_remove", result: todo_id}, state) do
-    Map.delete(state, todo_id)
-  end
-
-  defp to_todo(%Todo{} = todo), do: todo
-
-  defp to_todo(map) when is_map(map) do
-    {:ok, parsed} = Zoi.parse(Todo.schema(), map)
-
-    %Todo{
-      id: parsed.id,
-      content: parsed.content,
-      active_form: parsed.active_form,
-      status: String.to_existing_atom(parsed.status),
-      created_at: parsed.created_at,
-      updated_at: parsed.updated_at
-    }
-  end
-
-  @doc """
-  Creates a new todo (in memory, returns for tool result).
-
-  This doesn't persist - the tool callback will return this, which gets
-  stored as a ToolResult interaction.
-  """
-  @spec create_todo(String.t(), String.t(), String.t()) :: {:ok, Todo.t()} | {:error, term()}
-  def create_todo(content, active_form, status \\ "pending") do
-    Todo.make(content, active_form, status)
-  end
-
-  @doc """
-  Updates a todo's status by first rebuilding state, then updating.
-
-  Caller must provide interactions list. Returns the updated todo for the tool result.
-  """
-  @spec update_todo_status(list(Interaction.t()), String.t(), String.t()) ::
-          {:ok, Todo.t()} | {:error, term()}
-  def update_todo_status(interactions, todo_id, status) do
-    schema = Zoi.string() |> Zoi.one_of(["pending", "in_progress", "completed"])
-
-    case Zoi.parse(schema, status) do
-      {:ok, validated_status} ->
-        state = list_todos(interactions)
-        status_atom = String.to_existing_atom(validated_status)
-
-        case Map.get(state, todo_id) do
-          nil ->
-            {:error, :not_found}
-
-          %Todo{} = todo ->
-            updated_todo = %{todo | status: status_atom, updated_at: DateTime.utc_now()}
-            {:ok, updated_todo}
-        end
-
-      {:error, errors} ->
-        {:error, Zoi.prettify_errors(errors)}
+    |> Enum.filter(&todo_write_result?/1)
+    |> List.last()
+    |> case do
+      nil -> %{}
+      %Interaction.ToolResult{result: result} -> parse_write_result(result)
     end
   end
+
+  defp todo_write_result?(%Interaction.ToolResult{tool_name: "todo_write", is_error: false}),
+    do: true
+
+  defp todo_write_result?(_), do: false
+
+  defp parse_write_result(%{"todos" => todos}) when is_list(todos) do
+    todos
+    |> Enum.reduce(%{}, fn raw, acc ->
+      case to_todo(raw) do
+        {:ok, todo} -> Map.put(acc, todo.id, todo)
+        :error -> acc
+      end
+    end)
+  end
+
+  defp parse_write_result(_), do: %{}
+
+  defp to_todo(%Todo{} = todo), do: {:ok, todo}
+
+  defp to_todo(map) when is_map(map) do
+    case Zoi.parse(Todo.schema(), map) do
+      {:ok, parsed} ->
+        {:ok,
+         %Todo{
+           id: parsed.id,
+           content: parsed.content,
+           active_form: parsed.active_form,
+           status: String.to_existing_atom(parsed.status),
+           priority: String.to_existing_atom(parsed.priority),
+           created_at: parsed.created_at,
+           updated_at: parsed.updated_at
+         }}
+
+      {:error, _} ->
+        :error
+    end
+  end
+
+  defp to_todo(_), do: :error
 end

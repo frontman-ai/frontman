@@ -43,11 +43,15 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
       task_id: task_id,
       scope: scope
     } do
-      # Calling update on a nonexistent item triggers an {:error, reason} return
+      # Sending an invalid status triggers an {:error, reason} return
       tool_call =
         swarm_tool_call(
-          "todo_update",
-          Jason.encode!(%{"id" => "nonexistent_id", "status" => "completed"})
+          "todo_write",
+          Jason.encode!(%{
+            "todos" => [
+              %{"content" => "Task", "active_form" => "Working", "status" => "invalid_status"}
+            ]
+          })
         )
 
       result =
@@ -71,7 +75,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
 
       [report | _] = tool_error_reports
       assert report.message.formatted == "Tool execution failed"
-      assert report.extra[:tool_name] == "todo_update"
+      assert report.extra[:tool_name] == "todo_write"
       assert report.extra[:tool_call_id] == tool_call.id
       assert report.extra[:task_id] == task_id
       assert is_binary(report.extra[:reason])
@@ -84,7 +88,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
       scope: scope
     } do
       # Intentionally malformed JSON
-      tool_call = swarm_tool_call("todo_list", "{invalid json!!!}")
+      tool_call = swarm_tool_call("todo_write", "{invalid json!!!}")
 
       # Parse failure should propagate as {:error, _} — the tool must not execute
       result =
@@ -104,8 +108,8 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
 
       assert [report] = parse_error_reports
       assert report.message.formatted == "Tool argument parse failure"
-      assert report.tags[:tool_name] == "todo_list"
-      assert report.extra[:tool_name] == "todo_list"
+      assert report.tags[:tool_name] == "todo_write"
+      assert report.extra[:tool_name] == "todo_write"
       assert report.extra[:raw_arguments] == "{invalid json!!!}"
       assert is_binary(report.extra[:decode_error])
 
@@ -122,7 +126,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
       task_id: task_id,
       scope: scope
     } do
-      tool_call = swarm_tool_call("todo_list", Jason.encode!(%{}))
+      tool_call = swarm_tool_call("todo_write", Jason.encode!(%{"todos" => []}))
 
       _result =
         ToolExecutor.execute(scope, tool_call, task_id,
@@ -148,7 +152,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
       # Create a long malformed string (> 500 chars) to verify truncation
       long_invalid_json = String.duplicate("x", 1000)
 
-      tool_call = swarm_tool_call("todo_list", long_invalid_json)
+      tool_call = swarm_tool_call("todo_write", long_invalid_json)
 
       assert {:error, _} =
                ToolExecutor.execute(scope, tool_call, task_id,
