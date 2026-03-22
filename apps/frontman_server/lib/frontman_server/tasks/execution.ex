@@ -147,8 +147,6 @@ defmodule FrontmanServer.Tasks.Execution do
   def handle_swarm_event(_scope, _task_id, {:cancelled, _}),
     do: :agent_cancelled
 
-  def handle_swarm_event(_scope, _task_id, _event), do: :ok
-
   # --- Private ---
 
   # Dialyzer warning suppressed: protocol dispatch on Agent can't be statically proven.

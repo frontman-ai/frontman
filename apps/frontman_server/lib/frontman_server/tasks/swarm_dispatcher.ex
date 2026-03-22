@@ -110,11 +110,6 @@ defmodule FrontmanServer.Tasks.SwarmDispatcher do
   # Tool call announced — already persisted by ToolExecutor directly.
   defp persist(_scope, _task_id, {:tool_call, _}, _metadata), do: :ok
 
-  # Fallback for any future event types — log and skip.
-  defp persist(_scope, _task_id, event, _metadata) do
-    Logger.debug("SwarmDispatcher: unhandled event type #{inspect(event)}")
-  end
-
   # --- Helpers ---
 
   defp build_response_metadata(response) do
