@@ -126,6 +126,35 @@ let _hasErrorField = (push: MockChannel.pushCall) => {
   }
 }
 
+// Helper: extract the error code from a pushed error response
+let _getErrorCode = (push: MockChannel.pushCall) => {
+  switch push.payload->JSON.Decode.object {
+  | Some(obj) =>
+    switch obj->Dict.get("error") {
+    | Some(errorJson) =>
+      switch errorJson->JSON.Decode.object {
+      | Some(errorObj) =>
+        switch errorObj->Dict.get("code") {
+        | Some(codeJson) => codeJson->JSON.Decode.float->Option.map(Float.toInt)
+        | None => None
+        }
+      | None => None
+      }
+    | None => None
+    }
+  | None => None
+  }
+}
+
+// Build an unknown method request payload
+let _buildUnknownMethodPayload = (~id: int, ~method: string) => {
+  let msg = Dict.make()
+  msg->Dict.set("jsonrpc", JSON.Encode.string("2.0"))
+  msg->Dict.set("id", JSON.Encode.int(id))
+  msg->Dict.set("method", JSON.Encode.string(method))
+  JSON.Encode.object(msg)
+}
+
 describe("handleToolsCall", () => {
   testAsync("sends MCP response when tool completes successfully", async t => {
     let (channel, calls) = MockChannel.make()
@@ -346,6 +375,211 @@ describe("handleMessage error safety", () => {
 
       // onMessage threw before any processing happened, so no response pushed
       t->expect(true)->Expect.toBe(true)
+    },
+  )
+})
+
+describe("sendError uses correct error codes", () => {
+  testAsync(
+    "unknown method sends methodNotFound (-32601)",
+    async t => {
+      let (channel, calls) = MockChannel.make()
+
+      let handler: MCP.mcpHandler<unit> = {
+        serverInterface: makeCompletedServerInterface({
+          content: [{type_: Types.Text, text: "ok"}],
+          isError: None,
+          _meta: Types.emptyMeta,
+        }),
+        channel,
+        sessionId: "test-task",
+        onMessage: None,
+      }
+
+      let payload = _buildUnknownMethodPayload(~id=50, ~method="bogus/method")
+
+      await MCP.handleMessage(handler, payload)
+
+      let responsePush = _findResponseById(calls, 50)
+      t->expect(responsePush->Option.isSome)->Expect.toBe(true)
+
+      switch responsePush {
+      | Some(push) =>
+        t->expect(_getErrorCode(push))->Expect.toEqual(Some(Types.ErrorCode.methodNotFound))
+      | None => t->expect("error response")->Expect.toBe("found")
+      }
+    },
+  )
+
+  testAsync(
+    "invalid params (S.Error) sends invalidParams (-32602)",
+    async t => {
+      let (channel, calls) = MockChannel.make()
+
+      let handler: MCP.mcpHandler<unit> = {
+        serverInterface: makeCompletedServerInterface({
+          content: [{type_: Types.Text, text: "ok"}],
+          isError: None,
+          _meta: Types.emptyMeta,
+        }),
+        channel,
+        sessionId: "test-task",
+        onMessage: None,
+      }
+
+      let badPayload = {
+        let msg = Dict.make()
+        msg->Dict.set("jsonrpc", JSON.Encode.string("2.0"))
+        msg->Dict.set("id", JSON.Encode.int(51))
+        msg->Dict.set("method", JSON.Encode.string("tools/call"))
+        msg->Dict.set("params", JSON.Encode.object(Dict.make()))
+        JSON.Encode.object(msg)
+      }
+
+      await MCP.handleMessage(handler, badPayload)
+
+      let responsePush = _findResponseById(calls, 51)
+      t->expect(responsePush->Option.isSome)->Expect.toBe(true)
+
+      switch responsePush {
+      | Some(push) =>
+        t->expect(_getErrorCode(push))->Expect.toEqual(Some(Types.ErrorCode.invalidParams))
+      | None => t->expect("error response")->Expect.toBe("found")
+      }
+    },
+  )
+
+  testAsync(
+    "missing params for tools/call sends invalidParams (-32602)",
+    async t => {
+      let (channel, calls) = MockChannel.make()
+
+      let handler: MCP.mcpHandler<unit> = {
+        serverInterface: makeCompletedServerInterface({
+          content: [{type_: Types.Text, text: "ok"}],
+          isError: None,
+          _meta: Types.emptyMeta,
+        }),
+        channel,
+        sessionId: "test-task",
+        onMessage: None,
+      }
+
+      let payload = {
+        let msg = Dict.make()
+        msg->Dict.set("jsonrpc", JSON.Encode.string("2.0"))
+        msg->Dict.set("id", JSON.Encode.int(52))
+        msg->Dict.set("method", JSON.Encode.string("tools/call"))
+        JSON.Encode.object(msg)
+      }
+
+      await MCP.handleMessage(handler, payload)
+
+      let responsePush = _findResponseById(calls, 52)
+      t->expect(responsePush->Option.isSome)->Expect.toBe(true)
+
+      switch responsePush {
+      | Some(push) =>
+        t->expect(_getErrorCode(push))->Expect.toEqual(Some(Types.ErrorCode.invalidParams))
+      | None => t->expect("error response")->Expect.toBe("found")
+      }
+    },
+  )
+
+  testAsync(
+    "executeTool runtime exception sends serverError (-32000)",
+    async t => {
+      let (channel, calls) = MockChannel.make()
+
+      let handler: MCP.mcpHandler<unit> = {
+        serverInterface: makeThrowingServerInterface("something broke"),
+        channel,
+        sessionId: "test-task",
+        onMessage: None,
+      }
+
+      let payload = buildToolsCallPayload(~id=53, ~name="test_tool", ~callId="call_1")
+
+      await MCP.handleMessage(handler, payload)
+
+      let responsePush = _findResponseById(calls, 53)
+      t->expect(responsePush->Option.isSome)->Expect.toBe(true)
+
+      switch responsePush {
+      | Some(push) =>
+        t->expect(_getErrorCode(push))->Expect.toEqual(Some(Types.ErrorCode.serverError))
+      | None => t->expect("error response")->Expect.toBe("found")
+      }
+    },
+  )
+
+  testAsync(
+    "buildInitializeResult exception sends serverError (-32000)",
+    async t => {
+      let (channel, calls) = MockChannel.make()
+
+      let si: Types.serverInterface<unit> = {
+        server: (),
+        buildInitializeResult: _ => JsError.throwWithMessage("init boom"),
+        buildToolsListResult: _ => Obj.magic(),
+        executeTool: async (_, ~name as _, ~arguments as _, ~taskId as _, ~callId as _, ~onProgress as _) =>
+          Obj.magic(),
+      }
+
+      let handler: MCP.mcpHandler<unit> = {
+        serverInterface: si,
+        channel,
+        sessionId: "test-task",
+        onMessage: None,
+      }
+
+      let payload = buildInitializePayload(~id=54)
+
+      await MCP.handleMessage(handler, payload)
+
+      let responsePush = _findResponseById(calls, 54)
+      t->expect(responsePush->Option.isSome)->Expect.toBe(true)
+
+      switch responsePush {
+      | Some(push) =>
+        t->expect(_getErrorCode(push))->Expect.toEqual(Some(Types.ErrorCode.serverError))
+      | None => t->expect("error response")->Expect.toBe("found")
+      }
+    },
+  )
+
+  testAsync(
+    "buildToolsListResult exception sends serverError (-32000)",
+    async t => {
+      let (channel, calls) = MockChannel.make()
+
+      let si: Types.serverInterface<unit> = {
+        server: (),
+        buildInitializeResult: _ => Obj.magic(),
+        buildToolsListResult: _ => JsError.throwWithMessage("tools boom"),
+        executeTool: async (_, ~name as _, ~arguments as _, ~taskId as _, ~callId as _, ~onProgress as _) =>
+          Obj.magic(),
+      }
+
+      let handler: MCP.mcpHandler<unit> = {
+        serverInterface: si,
+        channel,
+        sessionId: "test-task",
+        onMessage: None,
+      }
+
+      let payload = buildToolsListPayload(~id=55)
+
+      await MCP.handleMessage(handler, payload)
+
+      let responsePush = _findResponseById(calls, 55)
+      t->expect(responsePush->Option.isSome)->Expect.toBe(true)
+
+      switch responsePush {
+      | Some(push) =>
+        t->expect(_getErrorCode(push))->Expect.toEqual(Some(Types.ErrorCode.serverError))
+      | None => t->expect("error response")->Expect.toBe("found")
+      }
     },
   )
 })
