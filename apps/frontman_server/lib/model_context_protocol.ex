@@ -102,7 +102,7 @@ defmodule ModelContextProtocol do
   @spec build_tool_execution(ToolCallParams.t()) :: {integer(), map()}
   def build_tool_execution(%ToolCallParams{} = params) do
     request_id = System.unique_integer([:positive])
-    Logger.info("MCP tool call: #{params.tool_name}", arguments: params.arguments)
+    Logger.info("MCP tool call: #{params.tool_name} arguments=#{inspect(params.arguments)}")
 
     request =
       JsonRpc.request(request_id, "tools/call", %{
