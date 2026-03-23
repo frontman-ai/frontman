@@ -10,7 +10,7 @@ defmodule FrontmanServer.Tools do
     FrontmanServer.Tools.TodoWrite
   ]
 
-  @todo_mutations ["todo_write"]
+  @todo_mutations [FrontmanServer.Tools.TodoWrite.name()]
 
   @spec backend_tools() :: [SwarmAi.Tool.t()]
   def backend_tools do

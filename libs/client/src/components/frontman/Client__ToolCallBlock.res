@@ -10,6 +10,7 @@
 
 module Message = Client__State__Types.Message
 module ToolLabels = Client__ToolLabels
+module ToolNames = FrontmanAiFrontmanClient.FrontmanClient__MCP__Tool.ToolNames
 
 // Normalize tool name for comparison
 let cleanToolName = (toolName: string): string => String.toLowerCase(toolName)
@@ -52,7 +53,7 @@ let getNavigateTarget = (input: option<JSON.t>): option<string> => {
 
 // Screenshot tool detection and image extraction
 let isScreenshotTool = (toolName: string): bool => {
-  cleanToolName(toolName) == "take_screenshot"
+  cleanToolName(toolName) == ToolNames.takeScreenshot
 }
 
 let getScreenshotSrc = (result: option<JSON.t>): option<string> => {
@@ -91,7 +92,7 @@ let make = (
   ~messageId as _: string,
 ) => {
   // Question tools get their own compact summary card
-  let isQuestionTool = cleanToolName(toolName) == FrontmanAiFrontmanClient.FrontmanClient__MCP__Tool.ToolNames.question
+  let isQuestionTool = cleanToolName(toolName) == ToolNames.question
   switch isQuestionTool {
   | true => <Client__QuestionToolBlock state input result errorText compact />
   | false =>

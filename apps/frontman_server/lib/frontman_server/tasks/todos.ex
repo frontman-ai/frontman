@@ -101,8 +101,8 @@ defmodule FrontmanServer.Tasks.Todos do
     end
   end
 
-  defp todo_write_result?(%Interaction.ToolResult{tool_name: "todo_write", is_error: false}),
-    do: true
+  defp todo_write_result?(%Interaction.ToolResult{tool_name: name, is_error: false}),
+    do: name == FrontmanServer.Tools.TodoWrite.name()
 
   defp todo_write_result?(_), do: false
 
