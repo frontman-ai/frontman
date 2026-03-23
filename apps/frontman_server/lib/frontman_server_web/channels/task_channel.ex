@@ -850,18 +850,8 @@ defmodule FrontmanServerWeb.TaskChannel do
   defp route_to_mcp(tool_call, socket) do
     task_id = socket.assigns.task_id
 
-    # Log file operations for debugging path consistency issues
-    if tool_call.tool_name in ["read_file", "write_file"] do
-      Logger.info(
-        "MCP file op: #{tool_call.tool_name} path=#{inspect(tool_call.arguments["path"])}"
-      )
-    end
-
-    request_id = System.unique_integer([:positive])
-
-    request =
-      MCP.tools_call_request(%MCP.ToolCallParams{
-        request_id: request_id,
+    {request_id, request} =
+      MCP.build_tool_execution(%MCP.ToolCallParams{
         tool_name: tool_call.tool_name,
         arguments: tool_call.arguments,
         call_id: tool_call.tool_call_id

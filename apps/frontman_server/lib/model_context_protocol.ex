@@ -15,6 +15,8 @@ defmodule ModelContextProtocol do
   Use with JsonRpc for complete message handling.
   """
 
+  require Logger
+
   @protocol_version "DRAFT-2025-v3"
   @client_name "frontman-server"
   @client_version "1.0.0"
@@ -26,7 +28,6 @@ defmodule ModelContextProtocol do
     use TypedStruct
 
     typedstruct do
-      field(:request_id, integer(), enforce: true)
       field(:tool_name, String.t(), enforce: true)
       field(:arguments, map(), enforce: true)
       field(:call_id, String.t(), enforce: true)
@@ -91,16 +92,25 @@ defmodule ModelContextProtocol do
   end
 
   @doc """
-  Builds an MCP tools/call request.
+  Builds an MCP tool execution request with an auto-generated request ID.
 
-  Returns a JSON-RPC request ready to send to the MCP client.
+  Generates a unique request ID, logs the tool call, and constructs
+  the MCP tools/call JSON-RPC request.
+
+  Returns `{request_id, mcp_request}`.
   """
-  @spec tools_call_request(ToolCallParams.t()) :: map()
-  def tools_call_request(%ToolCallParams{} = params) do
-    JsonRpc.request(params.request_id, "tools/call", %{
-      "name" => params.tool_name,
-      "arguments" => params.arguments,
-      "callId" => params.call_id
-    })
+  @spec build_tool_execution(ToolCallParams.t()) :: {integer(), map()}
+  def build_tool_execution(%ToolCallParams{} = params) do
+    request_id = System.unique_integer([:positive])
+    Logger.info("MCP tool call: #{params.tool_name}", arguments: params.arguments)
+
+    request =
+      JsonRpc.request(request_id, "tools/call", %{
+        "name" => params.tool_name,
+        "arguments" => params.arguments,
+        "callId" => params.call_id
+      })
+
+    {request_id, request}
   end
 end
