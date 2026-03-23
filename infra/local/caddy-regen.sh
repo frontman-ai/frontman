@@ -2,8 +2,8 @@
 # caddy-regen.sh — Regenerate Caddyfile from running worktree pods.
 #
 # Scans all running worktree-* pods, reads their published port mappings,
-# generates reverse proxy routes for each one, writes infra/local/Caddyfile,
-# and reloads Caddy.
+# generates reverse proxy routes for each one, writes the Caddyfile that
+# Caddy's bind mount points to, and reloads Caddy.
 #
 # Networking: Caddy runs with --network=host and routes to localhost:<port>.
 # Each pod publishes deterministic ports derived from its hash.
@@ -13,8 +13,20 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CADDYFILE="$SCRIPT_DIR/Caddyfile"
 CADDY_CONTAINER="frontman-caddy"
+
+# Resolve the Caddyfile path from the container's bind mount so we always
+# write to the file Caddy is actually reading, regardless of which worktree
+# invokes this script. Falls back to $SCRIPT_DIR/Caddyfile if the container
+# isn't running yet (e.g. first-time infra-up).
+CADDYFILE="$SCRIPT_DIR/Caddyfile"
+if podman container inspect "$CADDY_CONTAINER" &>/dev/null; then
+    MOUNT_SRC=$(podman inspect "$CADDY_CONTAINER" \
+        --format '{{range .Mounts}}{{if eq .Destination "/etc/caddy/Caddyfile"}}{{.Source}}{{end}}{{end}}' 2>/dev/null || true)
+    if [ -n "$MOUNT_SRC" ]; then
+        CADDYFILE="$MOUNT_SRC"
+    fi
+fi
 
 # Collect running worktree pods
 PODS=$(podman pod ls --format '{{.Name}}' --filter status=running 2>/dev/null | grep '^worktree-' || true)
