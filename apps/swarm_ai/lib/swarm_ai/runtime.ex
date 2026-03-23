@@ -160,14 +160,13 @@ defmodule SwarmAi.Runtime do
     case Task.Supervisor.start_child(task_sup, fn ->
            case Registry.register(registry, registry_key, %{}) do
              {:ok, _} ->
+               ExecutionMonitor.watch(monitor, key, metadata)
                send(caller, {ack_ref, :registered})
 
              {:error, {:already_registered, _}} ->
                send(caller, {ack_ref, :already_running})
                exit(:normal)
            end
-
-           ExecutionMonitor.watch(monitor, key, metadata)
 
            try do
              result = SwarmAi.run_streaming(agent, messages, streaming_opts)

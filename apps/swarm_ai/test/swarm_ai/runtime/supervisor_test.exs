@@ -10,7 +10,6 @@ defmodule SwarmAi.Runtime.SupervisorTest do
       agent = test_agent(%MockLLM{response: "slow", delay_ms: 5000})
 
       {:ok, pid} = Runtime.run(runtime, "task-reg", agent, "Hello", default_opts())
-      Process.sleep(50)
       assert Runtime.running?(runtime, "task-reg")
 
       kill_named_process(Runtime.registry_name(runtime))
@@ -27,7 +26,6 @@ defmodule SwarmAi.Runtime.SupervisorTest do
       agent = test_agent(%MockLLM{response: "slow", delay_ms: 5000})
 
       {:ok, pid} = Runtime.run(runtime, "task-pre", agent, "Hello", default_opts())
-      Process.sleep(50)
 
       kill_named_process(Runtime.registry_name(runtime))
       await_exit(pid)
@@ -48,7 +46,6 @@ defmodule SwarmAi.Runtime.SupervisorTest do
       agent = test_agent(%MockLLM{response: "slow", delay_ms: 5000})
 
       {:ok, pid} = Runtime.run(runtime, "task-ts", agent, "Hello", default_opts())
-      Process.sleep(50)
 
       # Killing Task.Supervisor directly — tasks exit with :killed (abnormal).
       kill_named_process(Runtime.task_supervisor_name(runtime))
@@ -62,7 +59,6 @@ defmodule SwarmAi.Runtime.SupervisorTest do
       agent = test_agent(%MockLLM{response: "slow", delay_ms: 5000})
 
       {:ok, pid} = Runtime.run(runtime, "task-pre", agent, "Hello", default_opts())
-      Process.sleep(50)
 
       kill_named_process(Runtime.task_supervisor_name(runtime))
       await_exit(pid)
@@ -82,7 +78,6 @@ defmodule SwarmAi.Runtime.SupervisorTest do
       agent = test_agent(%MockLLM{response: "slow", delay_ms: 2000})
 
       {:ok, pid} = Runtime.run(runtime, "task-em", agent, "Hello", default_opts())
-      Process.sleep(50)
 
       kill_named_process(Runtime.monitor_name(runtime))
       wait_for_process(Runtime.monitor_name(runtime))
@@ -98,7 +93,6 @@ defmodule SwarmAi.Runtime.SupervisorTest do
 
       agent = test_agent(%MockLLM{response: "slow", delay_ms: 5000})
       {:ok, _pid} = Runtime.run(runtime, "task-ets", agent, "Hello", default_opts())
-      Process.sleep(50)
 
       kill_named_process(monitor)
       wait_for_process(monitor)
@@ -112,7 +106,6 @@ defmodule SwarmAi.Runtime.SupervisorTest do
       agent = test_agent(%MockLLM{response: "slow", delay_ms: 2000})
 
       {:ok, _pid} = Runtime.run(runtime, "task-pre", agent, "Hello", default_opts())
-      Process.sleep(50)
 
       kill_named_process(Runtime.monitor_name(runtime))
       wait_for_process(Runtime.monitor_name(runtime))
@@ -131,7 +124,6 @@ defmodule SwarmAi.Runtime.SupervisorTest do
       agent = test_agent(%MockLLM{response: "slow", delay_ms: 5000})
 
       {:ok, pid} = Runtime.run(runtime, "task-tsup", agent, "Hello", default_opts())
-      Process.sleep(50)
 
       # Killing TasksSupervisor — it shuts down children gracefully,
       # so tasks exit with :shutdown (not abnormal).
@@ -147,7 +139,6 @@ defmodule SwarmAi.Runtime.SupervisorTest do
       agent = test_agent(%MockLLM{response: "slow", delay_ms: 5000})
 
       {:ok, pid} = Runtime.run(runtime, "task-pre", agent, "Hello", default_opts())
-      Process.sleep(50)
 
       kill_named_process(:"#{runtime}.TasksSupervisor")
       await_exit(pid)

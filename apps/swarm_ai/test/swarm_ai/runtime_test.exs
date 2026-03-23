@@ -72,7 +72,6 @@ defmodule SwarmAi.RuntimeTest do
       agent = test_agent(%MockLLM{response: "slow", delay_ms: 500})
 
       {:ok, _} = SwarmAi.Runtime.run(runtime, "task-dup", agent, "Hello", default_opts())
-      Process.sleep(50)
 
       assert SwarmAi.Runtime.run(runtime, "task-dup", agent, "World", default_opts()) ==
                {:error, :already_running}
@@ -87,7 +86,6 @@ defmodule SwarmAi.RuntimeTest do
       agent = test_agent(%MockLLM{response: "slow", delay_ms: 500})
       {:ok, _} = SwarmAi.Runtime.run(runtime, "task-r", agent, "Hello", default_opts())
 
-      Process.sleep(50)
       assert SwarmAi.Runtime.running?(runtime, "task-r") == true
     end
   end
@@ -98,7 +96,6 @@ defmodule SwarmAi.RuntimeTest do
       agent = test_agent(%MockLLM{response: "slow", delay_ms: 5000})
 
       {:ok, pid} = SwarmAi.Runtime.run(runtime, "task-c", agent, "Hello", default_opts())
-      Process.sleep(50)
 
       assert SwarmAi.Runtime.cancel(runtime, "task-c") == :ok
       await_exit(pid)
