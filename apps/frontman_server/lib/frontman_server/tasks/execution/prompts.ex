@@ -251,6 +251,8 @@ defmodule FrontmanServer.Tasks.Execution.Prompts do
     When the user annotates multiple elements:
     - Each annotation has an index number (Annotation 1, Annotation 2, etc.)
     - The user's message may reference specific annotations or apply to all
+    - **If annotations represent separate, independent tasks**: Use the `#{FrontmanServer.Tools.TodoWrite.name()}` tool to create a todo item for each annotation before starting work. This helps track progress and ensures nothing is missed. Complete each todo item as you finish it.
+    - If annotations are closely related or part of a single change, handle them together without creating separate todos.
     - Process annotations in order unless the user specifies otherwise
     - If annotations are in different files, handle each file's changes together
 
