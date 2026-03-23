@@ -91,7 +91,7 @@ defmodule FrontmanServer.MixProject do
       {:opentelemetry, "~> 1.4"},
       {:opentelemetry_api, "~> 1.3"},
       {:opentelemetry_exporter, "~> 1.7"},
-      {:gettext, "~> 0.26"},
+      {:gettext, "~> 1.0"},
       {:jason, "~> 1.2"},
       {:dns_cluster, "~> 0.2.0"},
       {:bandit, "~> 1.5"},
@@ -99,8 +99,7 @@ defmodule FrontmanServer.MixProject do
       {:zoi, "~> 0.14"},
       {:dotenvy, "~> 1.1"},
       # Sentry error tracking
-      {:sentry, "~> 11.0"},
-      {:hackney, "~> 1.8"},
+      {:sentry, "~> 12.0"},
       # WorkOS for OAuth (GitHub, Google)
       {:workos, "~> 1.1"},
       # ==================DEV/Test=========================
