@@ -8,29 +8,29 @@ module Log = FrontmanLogs.Logs.Make({
   let component = #Relay
 })
 
-type connectionState =
+type relayState =
   | Disconnected
   | Connected({tools: array<Types.remoteTool>, serverInfo: MCPTypes.info})
   | Error(string)
 
 type t = {
   baseUrl: string,
-  mutable state: connectionState,
+  state: ref<relayState>,
 }
 
 let make = (~baseUrl: string): t => {
   baseUrl,
-  state: Disconnected,
+  state: ref(Disconnected),
 }
 
 let isConnected = (relay: t): bool => {
-  switch relay.state {
+  switch relay.state.contents {
   | Connected(_) => true
   | _ => false
   }
 }
 
-let getState = (relay: t): connectionState => relay.state
+let getState = (relay: t): relayState => relay.state.contents
 
 // Connect to dev server and fetch tools
 let connect = async (relay: t): result<unit, string> => {
@@ -40,7 +40,7 @@ let connect = async (relay: t): result<unit, string> => {
   if !response.ok {
     let msg = `HTTP ${response.status->Int.toString}: ${response.statusText}`
     Log.error(~ctx={"url": url}, msg)
-    relay.state = Error(msg)
+    relay.state := Error(msg)
     Error(msg)
   } else {
     let json = await response->WebAPI.Response.json
@@ -50,12 +50,12 @@ let connect = async (relay: t): result<unit, string> => {
         ~ctx={"toolCount": data.tools->Array.length, "serverInfo": data.serverInfo},
         "Relay connected",
       )
-      relay.state = Connected({tools: data.tools, serverInfo: data.serverInfo})
+      relay.state := Connected({tools: data.tools, serverInfo: data.serverInfo})
       Ok()
     | Error(parseError) =>
       let msg = `Invalid tools response: ${parseError}`
       Log.error(msg)
-      relay.state = Error(msg)
+      relay.state := Error(msg)
       Error(msg)
     }
   }
@@ -63,12 +63,12 @@ let connect = async (relay: t): result<unit, string> => {
 
 // Disconnect (reset state)
 let disconnect = (relay: t): unit => {
-  relay.state = Disconnected
+  relay.state := Disconnected
 }
 
 // Get tools as JSON (for MCP tools/list)
 let getToolsJson = (relay: t): array<JSON.t> => {
-  switch relay.state {
+  switch relay.state.contents {
   | Connected({tools}) =>
     tools->Array.map(tool =>
       JSON.Encode.object(
@@ -86,7 +86,7 @@ let getToolsJson = (relay: t): array<JSON.t> => {
 
 // Check if relay has a specific tool
 let hasTool = (relay: t, name: string): bool => {
-  switch relay.state {
+  switch relay.state.contents {
   | Connected({tools}) => tools->Array.some(tool => tool.name == name)
   | _ => false
   }

@@ -244,7 +244,7 @@ let connect = async (config: config, ~signal: option<WebAPI.EventAPI.abortSignal
       | Ok(result) =>
         Sentry.addBreadcrumb(~category=#acp, ~message="ACP initialized successfully")
         state :=
-          state.contents->Client.reduce(Client.ConnectionStateChanged(Client.Initialized(result)))
+          state.contents->Client.reduce(Client.ACPStateChanged(Client.Initialized(result)))
         Ok({socket, channel, clientConfig, state, onMessage: config.onMessage})
       }
     }
@@ -252,8 +252,8 @@ let connect = async (config: config, ~signal: option<WebAPI.EventAPI.abortSignal
 }
 
 // Get current connection state
-let getState = (conn: connection): Client.connectionState => {
-  Client.getConnectionState(conn.state.contents)
+let getState = (conn: connection): Client.acpState => {
+  Client.getACPState(conn.state.contents)
 }
 
 // Check if initialized

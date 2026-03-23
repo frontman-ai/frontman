@@ -9,7 +9,7 @@ module Log = FrontmanLogs.Logs.Make({
   let component = #ACP
 })
 
-type connectionState =
+type acpState =
   | Disconnected
   | Connecting
   | Initialized(Types.initializeResult)
@@ -21,7 +21,7 @@ type pendingRequest = {
 
 type state = {
   currentId: int,
-  connectionState: connectionState,
+  acpState: acpState,
   pendingRequests: Dict.t<pendingRequest>,
 }
 
@@ -34,11 +34,11 @@ type config = {
 type action =
   | RequestSent(int, pendingRequest)
   | ResponseReceived(int)
-  | ConnectionStateChanged(connectionState)
+  | ACPStateChanged(acpState)
 
 let initialState: state = {
   currentId: 0,
-  connectionState: Disconnected,
+  acpState: Disconnected,
   pendingRequests: Dict.make(),
 }
 
@@ -57,7 +57,7 @@ let reduce = (state: state, action: action): state => {
     let newPending = state.pendingRequests->Dict.copy
     newPending->Dict.delete(Int.toString(id))
     {...state, pendingRequests: newPending}
-  | ConnectionStateChanged(connectionState) => {...state, connectionState}
+  | ACPStateChanged(acpState) => {...state, acpState}
   }
 }
 
@@ -118,11 +118,11 @@ let parseSessionUpdateNotification = json =>
 
 // Check if initialized
 let isInitialized = (state: state): bool => {
-  switch state.connectionState {
+  switch state.acpState {
   | Initialized(_) => true
   | _ => false
   }
 }
 
 // Get connection state
-let getConnectionState = (state: state): connectionState => state.connectionState
+let getACPState = (state: state): acpState => state.acpState

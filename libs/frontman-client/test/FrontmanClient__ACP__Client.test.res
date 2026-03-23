@@ -9,7 +9,7 @@ describe("ACP Client State Reducer", _t => {
     let state = Client.initialState
 
     t->expect(state.currentId)->Expect.toEqual(0)
-    t->expect(state.connectionState)->Expect.toEqual(Client.Disconnected)
+    t->expect(state.acpState)->Expect.toEqual(Client.Disconnected)
     t->expect(state.pendingRequests->Dict.keysToArray->Array.length)->Expect.toEqual(0)
   })
 
@@ -40,7 +40,7 @@ describe("ACP Client State Reducer", _t => {
     t->expect(state.pendingRequests->Dict.get("1"))->Expect.toEqual(None)
   })
 
-  test("ConnectionStateChanged action updates connectionState", t => {
+  test("ACPStateChanged action updates acpState", t => {
     let state = Client.initialState
     let initResult: Types.initializeResult = {
       protocolVersion: 1,
@@ -50,7 +50,7 @@ describe("ACP Client State Reducer", _t => {
     }
 
     let newState =
-      state->Client.reduce(Client.ConnectionStateChanged(Client.Initialized(initResult)))
+      state->Client.reduce(Client.ACPStateChanged(Client.Initialized(initResult)))
 
     t->expect(Client.isInitialized(newState))->Expect.toEqual(true)
   })
@@ -71,12 +71,12 @@ describe("ACP Client State Reducer", _t => {
 
 describe("ACP Client Connection State", _t => {
   test("isInitialized returns false for Disconnected", t => {
-    let state = {...Client.initialState, connectionState: Client.Disconnected}
+    let state = {...Client.initialState, acpState: Client.Disconnected}
     t->expect(Client.isInitialized(state))->Expect.toEqual(false)
   })
 
   test("isInitialized returns false for Connecting", t => {
-    let state = {...Client.initialState, connectionState: Client.Connecting}
+    let state = {...Client.initialState, acpState: Client.Connecting}
     t->expect(Client.isInitialized(state))->Expect.toEqual(false)
   })
 
@@ -87,13 +87,13 @@ describe("ACP Client Connection State", _t => {
       agentInfo: None,
       authMethods: None,
     }
-    let state = {...Client.initialState, connectionState: Client.Initialized(initResult)}
+    let state = {...Client.initialState, acpState: Client.Initialized(initResult)}
     t->expect(Client.isInitialized(state))->Expect.toEqual(true)
   })
 
-  test("getConnectionState returns current state", t => {
-    let state = {...Client.initialState, connectionState: Client.Connecting}
-    t->expect(Client.getConnectionState(state))->Expect.toEqual(Client.Connecting)
+  test("getACPState returns current state", t => {
+    let state = {...Client.initialState, acpState: Client.Connecting}
+    t->expect(Client.getACPState(state))->Expect.toEqual(Client.Connecting)
   })
 })
 
