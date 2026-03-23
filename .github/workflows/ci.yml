@@ -541,9 +541,6 @@ jobs:
         env:
           CLOAK_KEY: "dGVzdC1rZXktZm9yLWNpLXRoaXMtaXMtMzJieXRlc3M="
 
-      - name: Coverage details
-        run: cd apps/frontman_server && MIX_ENV=test mix coveralls.detail
-
       - name: Coverage report
         uses: clearlyip/code-coverage-report-action@a592e94b2dba75dc3d52355ee5cd5d38ee26259d # main (node24)
         with:
