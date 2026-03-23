@@ -29,7 +29,6 @@
     "typescript": "^5.4.5"
   },
   "devDependencies": {
-    "@astrojs/partytown": "^2.1.4",
     "@frontman-ai/astro": "workspace:*",
     "@tailwindcss/typography": "^0.5.13"
   }

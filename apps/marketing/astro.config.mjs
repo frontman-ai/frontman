@@ -1,5 +1,4 @@
 import { defineConfig } from "astro/config";
-import partytown from "@astrojs/partytown";
 import tailwind from "@astrojs/tailwind";
 import icon from "astro-icon";
 import sitemap from "@astrojs/sitemap";
@@ -98,11 +97,6 @@ export default defineConfig({
         integrations: (item) => {
           if (/\/integrations\//.test(item.url)) return item;
         },
-      },
-    }),
-    partytown({
-      config: {
-        forward: ["dataLayer.push"],
       },
     }),
   ],

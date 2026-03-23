@@ -1,7 +1,6 @@
 ---
 // Imports
 import GoogleAnalytics from '../../scripts/googleAnalytics.astro'
-import GoogleTagManagerHead from '../../scripts/googleTagManagerHead.astro'
 import GoogleSearchConsole from '../../scripts/googleSearchConsole.astro'
 // Partials
 import Seo from './partials/Seo.astro'
@@ -10,8 +9,6 @@ import StructuredData from './partials/StructuredData.astro'
 import { configData } from '../../../config/config'
 
 import { googleAnalyticsMeasurementID } from '../../../config/analytics'
-import { googleTagManagerID } from '../../../config/analytics'
-
 // Font preloading
 import interLatinUrl from '@fontsource-variable/inter/files/inter-latin-wght-normal.woff2?url'
 import outfitLatinUrl from '@fontsource-variable/outfit/files/outfit-latin-wght-normal.woff2?url'
@@ -46,11 +43,9 @@ const {
 	<link rel="preload" href={interLatinUrl} as="font" type="font/woff2" crossorigin />
 	<link rel="preload" href={outfitLatinUrl} as="font" type="font/woff2" crossorigin />
 	{googleAnalyticsMeasurementID && <GoogleAnalytics />}
-	{googleTagManagerID && <GoogleTagManagerHead />}
 	<GoogleSearchConsole />
 	<meta name="yandex-verification" content="f7cb42505a6da42d" />
 	<link rel="preconnect" href="https://www.googletagmanager.com" />
-	<link rel="preconnect" href="https://www.google-analytics.com" />
 	<Seo
 		title={title}
 		description={description}

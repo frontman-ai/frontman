@@ -346,16 +346,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@astrojs/partytown@npm:^2.1.4":
-  version: 2.1.4
-  resolution: "@astrojs/partytown@npm:2.1.4"
-  dependencies:
-    "@qwik.dev/partytown": "npm:^0.11.0"
-    mrmime: "npm:^2.0.1"
-  checksum: 10c0/c970cdbccc2da81cdfcbe7c858ea6d36fd3cec09b8e0cf410eafcc91c324aa734de442f23794d5f9876256445862172938c91db14f03324f7120cc5417e6a2db
-  languageName: node
-  linkType: hard
-
 "@astrojs/preact@npm:^4.1.3":
   version: 4.1.3
   resolution: "@astrojs/preact@npm:4.1.3"
@@ -4462,17 +4452,6 @@ __metadata:
   bin:
     browsers: lib/cjs/main-cli.js
   checksum: 10c0/90c761200da538234100a7f7cd0677c60cfcfbf710445fb2d82ece34bf3b5a015958919d110d7041a0680fe1d690e3e7737594fe2efd6a7dac8681ef646ecc3e
-  languageName: node
-  linkType: hard
-
-"@qwik.dev/partytown@npm:^0.11.0":
-  version: 0.11.2
-  resolution: "@qwik.dev/partytown@npm:0.11.2"
-  dependencies:
-    dotenv: "npm:^16.4.7"
-  bin:
-    partytown: bin/partytown.cjs
-  checksum: 10c0/4d79df46cc8e5420275e49b21859d15ae11e012aab5e45100d891c75514aecb1cdbfd19880ebbf7305eb4a0d1a63b83958f6381590f731cde3500408d631ff62
   languageName: node
   linkType: hard
 
@@ -11168,7 +11147,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"dotenv@npm:^16.3.1, dotenv@npm:^16.4.7":
+"dotenv@npm:^16.3.1":
   version: 16.6.1
   resolution: "dotenv@npm:16.6.1"
   checksum: 10c0/15ce56608326ea0d1d9414a5c8ee6dcf0fffc79d2c16422b4ac2268e7e2d76ff5a572d37ffe747c377de12005f14b3cc22361e79fc7f1061cce81f77d2c973dc
@@ -14686,7 +14665,6 @@ __metadata:
   resolution: "marketing@workspace:apps/marketing"
   dependencies:
     "@astrojs/check": "npm:^0.9.5"
-    "@astrojs/partytown": "npm:^2.1.4"
     "@astrojs/preact": "npm:^4.1.3"
     "@astrojs/rss": "npm:^4.0.15"
     "@astrojs/sitemap": "npm:^3.7.1"

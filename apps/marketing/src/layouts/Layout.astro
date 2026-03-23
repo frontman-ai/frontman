@@ -8,7 +8,6 @@ import Footer from '../components/ui/Footer.astro'
 import Header from '../components/blocks/head/Header.astro'
 // Scripts
 import Scriprs from '../components/scripts/LocalScripts.astro'
-import GoogleTagManagerBody from '../components/scripts/googleTagManagerBody.astro'
 // Styles
 import '../styles/global.css'
 // Fonts
@@ -44,7 +43,6 @@ const { title, description, ogImage, noindex, classes, article } = Astro.props
 			{ [`${classes}`]: classes }
 		]}
 	>
-		<GoogleTagManagerBody />
 		<NavigationBar />
 		<Main>
 			<slot />
