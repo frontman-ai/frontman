@@ -79,7 +79,7 @@ make wt-rm BRANCH=feature/cool-thing
 and a dev container sharing localhost. Pods publish service ports on the host
 (deterministic range derived from the 4-char hash). A single Caddy container
 runs with `--network=host` and routes `{hash}.{service}.frontman.local` to
-`localhost:{port}`. dnsmasq resolves `*.frontman.local` to `127.0.0.1`.
+`127.0.0.1:{port}`. dnsmasq resolves `*.frontman.local` to `127.0.0.1`.
 
 ## Key Principles
 - ReScript codebase - functional style, Result types for errors
