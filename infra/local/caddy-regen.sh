@@ -5,7 +5,7 @@
 # generates reverse proxy routes for each one, writes the Caddyfile that
 # Caddy's bind mount points to, and reloads Caddy.
 #
-# Networking: Caddy runs with --network=host and routes to localhost:<port>.
+# Networking: Caddy runs with --network=host and routes to 127.0.0.1:<port>.
 # Each pod publishes deterministic ports derived from its hash.
 #
 # Usage: ./infra/local/caddy-regen.sh
@@ -66,7 +66,7 @@ else
 # Worktree: $POD (ports ${PORT_PHOENIX}–${PORT_DOGFOOD})
 ${HASH}.api.frontman.local {
     tls internal
-    reverse_proxy https://localhost:${PORT_PHOENIX} {
+    reverse_proxy https://127.0.0.1:${PORT_PHOENIX} {
         transport http {
             tls_insecure_skip_verify
         }
@@ -75,27 +75,27 @@ ${HASH}.api.frontman.local {
 
 ${HASH}.vite.frontman.local {
     tls internal
-    reverse_proxy localhost:${PORT_VITE}
+    reverse_proxy 127.0.0.1:${PORT_VITE}
 }
 
 ${HASH}.nextjs.frontman.local {
     tls internal
-    reverse_proxy localhost:${PORT_NEXTJS}
+    reverse_proxy 127.0.0.1:${PORT_NEXTJS}
 }
 
 ${HASH}.storybook.frontman.local {
     tls internal
-    reverse_proxy localhost:${PORT_STORYBOOK}
+    reverse_proxy 127.0.0.1:${PORT_STORYBOOK}
 }
 
 ${HASH}.dogfood.frontman.local {
     tls internal
-    reverse_proxy localhost:${PORT_DOGFOOD}
+    reverse_proxy 127.0.0.1:${PORT_DOGFOOD}
 }
 
 ${HASH}.marketing.frontman.local {
     tls internal
-    reverse_proxy localhost:${PORT_MARKETING}
+    reverse_proxy 127.0.0.1:${PORT_MARKETING}
 }
 
 EOF
