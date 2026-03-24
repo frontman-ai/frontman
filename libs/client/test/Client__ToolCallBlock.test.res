@@ -12,7 +12,7 @@ describe("cleanToolName", _t => {
   })
 
   test("handles already clean names", t => {
-    t->expect(ToolCallBlock.cleanToolName("navigate"))->Expect.toBe("navigate")
+    t->expect(ToolCallBlock.cleanToolName("execute_js"))->Expect.toBe("execute_js")
   })
 })
 
@@ -24,12 +24,9 @@ describe("isInlineTool", _t => {
     t->expect(ToolCallBlock.isInlineTool("list_dir"))->Expect.toBe(true)
   })
 
-  test("returns true for navigate", t => {
-    t->expect(ToolCallBlock.isInlineTool("navigate"))->Expect.toBe(true)
-  })
-
   test("returns false for other tools", t => {
     t->expect(ToolCallBlock.isInlineTool("take_screenshot"))->Expect.toBe(false)
+    t->expect(ToolCallBlock.isInlineTool("execute_js"))->Expect.toBe(false)
     t->expect(ToolCallBlock.isInlineTool("get_logs"))->Expect.toBe(false)
     t->expect(ToolCallBlock.isInlineTool("consoleLog"))->Expect.toBe(false)
   })
@@ -44,44 +41,8 @@ describe("isFileTool", _t => {
     t->expect(ToolCallBlock.isFileTool("list_dir"))->Expect.toBe(true)
   })
 
-  test("returns false for navigate", t => {
-    t->expect(ToolCallBlock.isFileTool("navigate"))->Expect.toBe(false)
-  })
-})
-
-describe("getNavigateTarget", _t => {
-  test("returns URL for goto action", t => {
-    let input = Some(JSON.parseOrThrow(`{"action": "goto", "url": "/about"}`))
-    t->expect(ToolCallBlock.getNavigateTarget(input))->Expect.toEqual(Some("/about"))
-  })
-
-  test("returns action name for back action", t => {
-    let input = Some(JSON.parseOrThrow(`{"action": "back"}`))
-    t->expect(ToolCallBlock.getNavigateTarget(input))->Expect.toEqual(Some("back"))
-  })
-
-  test("returns action name for forward action", t => {
-    let input = Some(JSON.parseOrThrow(`{"action": "forward"}`))
-    t->expect(ToolCallBlock.getNavigateTarget(input))->Expect.toEqual(Some("forward"))
-  })
-
-  test("returns action name for refresh action", t => {
-    let input = Some(JSON.parseOrThrow(`{"action": "refresh"}`))
-    t->expect(ToolCallBlock.getNavigateTarget(input))->Expect.toEqual(Some("refresh"))
-  })
-
-  test("returns None when input is None", t => {
-    t->expect(ToolCallBlock.getNavigateTarget(None))->Expect.toEqual(None)
-  })
-
-  test("returns None for non-object JSON", t => {
-    let input = Some(JSON.parseOrThrow(`"just a string"`))
-    t->expect(ToolCallBlock.getNavigateTarget(input))->Expect.toEqual(None)
-  })
-
-  test("returns None when action is missing", t => {
-    let input = Some(JSON.parseOrThrow(`{"url": "/test"}`))
-    t->expect(ToolCallBlock.getNavigateTarget(input))->Expect.toEqual(None)
+  test("returns false for execute_js", t => {
+    t->expect(ToolCallBlock.isFileTool("execute_js"))->Expect.toBe(false)
   })
 })
 
@@ -105,17 +66,7 @@ describe("getTarget", _t => {
     t->expect(ToolCallBlock.getTarget("take_screenshot", None))->Expect.toEqual(None)
   })
 
-  test("delegates to getNavigateTarget for navigate", t => {
-    let input = Some(JSON.parseOrThrow(`{"action": "goto", "url": "/products"}`))
-    t->expect(ToolCallBlock.getTarget("navigate", input))->Expect.toEqual(Some("/products"))
-  })
-
-  test("returns None for navigate without input", t => {
-    t->expect(ToolCallBlock.getTarget("navigate", None))->Expect.toEqual(None)
-  })
-
-  test("returns action for navigate back", t => {
-    let input = Some(JSON.parseOrThrow(`{"action": "back"}`))
-    t->expect(ToolCallBlock.getTarget("navigate", input))->Expect.toEqual(Some("back"))
+  test("returns None for execute_js without input", t => {
+    t->expect(ToolCallBlock.getTarget("execute_js", None))->Expect.toEqual(None)
   })
 })

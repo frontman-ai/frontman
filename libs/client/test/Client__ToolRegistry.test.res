@@ -19,7 +19,7 @@ describe("ToolRegistry", _t => {
     let registry = ToolRegistry.coreBrowserTools()
 
     t->expect(registry->ToolRegistry.getToolByName("take_screenshot")->Option.isSome)->Expect.toBe(true)
-    t->expect(registry->ToolRegistry.getToolByName("navigate")->Option.isSome)->Expect.toBe(true)
+    t->expect(registry->ToolRegistry.getToolByName("execute_js")->Option.isSome)->Expect.toBe(true)
     t->expect(registry->ToolRegistry.getToolByName("set_device_mode")->Option.isSome)->Expect.toBe(true)
     t->expect(registry->ToolRegistry.getToolByName("get_interactive_elements")->Option.isSome)->Expect.toBe(true)
     t->expect(registry->ToolRegistry.getToolByName("interact_with_element")->Option.isSome)->Expect.toBe(true)
@@ -31,7 +31,7 @@ describe("ToolRegistry", _t => {
   test("addTools extends registry", t => {
     let registry = ToolRegistry.make()
     let extended = registry->ToolRegistry.addTools([
-      module(Client__Tool__Navigate),
+      module(Client__Tool__ExecuteJs),
     ])
 
     t->expect(registry->ToolRegistry.count)->Expect.toBe(0) // original unchanged
@@ -40,7 +40,7 @@ describe("ToolRegistry", _t => {
 
   test("merge combines two registries", t => {
     let a = ToolRegistry.make()->ToolRegistry.addTools([
-      module(Client__Tool__Navigate),
+      module(Client__Tool__ExecuteJs),
     ])
     let b = ToolRegistry.make()->ToolRegistry.addTools([
       module(Client__Tool__TakeScreenshot),
@@ -48,7 +48,7 @@ describe("ToolRegistry", _t => {
     let merged = ToolRegistry.merge(a, b)
 
     t->expect(merged->ToolRegistry.count)->Expect.toBe(2)
-    t->expect(merged->ToolRegistry.getToolByName("navigate")->Option.isSome)->Expect.toBe(true)
+    t->expect(merged->ToolRegistry.getToolByName("execute_js")->Option.isSome)->Expect.toBe(true)
     t->expect(merged->ToolRegistry.getToolByName("take_screenshot")->Option.isSome)->Expect.toBe(true)
   })
 })

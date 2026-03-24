@@ -17,7 +17,7 @@ let make = (): t => {
 let coreBrowserTools = (): t => {
   tools: [
     module(Client__Tool__TakeScreenshot),
-    module(Client__Tool__Navigate),
+    module(Client__Tool__ExecuteJs),
     module(Client__Tool__SetDeviceMode),
     module(Client__Tool__GetInteractiveElements),
     module(Client__Tool__InteractWithElement),

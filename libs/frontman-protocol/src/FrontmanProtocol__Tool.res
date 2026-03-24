@@ -32,7 +32,7 @@ module ToolNames = {
   let listTree = "list_tree"
 
   // Browser tools (client)
-  let navigate = "navigate"
+  let executeJs = "execute_js"
   let takeScreenshot = "take_screenshot"
   let setDeviceMode = "set_device_mode"
   let interactWithElement = "interact_with_element"

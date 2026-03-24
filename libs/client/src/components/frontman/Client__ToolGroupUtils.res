@@ -39,8 +39,8 @@ let isBrowserAction = (toolName: string): bool => {
   String.includes(name, "select") ||
   String.includes(name, "press_key") ||
   String.includes(name, "resize") ||
-  // Navigate is an action
-  String.includes(name, "navigate")
+  // execute_js is an action (also matched by "exec" in breaksGrouping)
+  String.includes(name, "execute")
 }
 
 /**
