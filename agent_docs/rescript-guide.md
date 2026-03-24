@@ -20,7 +20,7 @@ That is the question we ask of every line.
 - **Never use mutable.** Use `ref` when mutation is truly needed. Immutable data is easier to reason
   about and eliminates an entire class of bugs where state gets out of sync.
 
-- **Use Result types for operations that can fail.** `{:ok, result}` or `{:error, reason}` — make
+- **Use Result types for operations that can fail.** `Ok(result)` or `Error(reason)` — make
   failure explicit in the type signature. The caller must handle both paths.
 
 - **Prefer `switch` over `if/else`.** Pattern matching forces exhaustive handling of all cases. The
