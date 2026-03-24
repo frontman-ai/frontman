@@ -77,7 +77,7 @@ This matters most for teams that are scaling. When you have two or three squads 
 
 Frontman is Apache 2.0 (client libraries) and AGPL-3.0 (server). It uses a bring-your-own-key model — your code and AI interactions stay between you and your AI provider. Nothing routes through our servers. There's nothing to route through — there are no servers.
 
-This isn't altruism. A tool that sits inside your dev server and sees your source code has to be open source. If your security team can't read every line of code that touches your codebase, they shouldn't sign off on it. Read more about our [security model](/blog/security/). We wouldn't either.
+This isn't altruism. A tool that sits inside your dev server and sees your source code has to be open source. If your security team can't read every line of code that touches your codebase, they shouldn't sign off on it. We wouldn't either. Read more about our [security model](/blog/security/).
 
 ### Get Started
 
