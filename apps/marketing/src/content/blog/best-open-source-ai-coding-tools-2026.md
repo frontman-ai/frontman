@@ -156,7 +156,7 @@ Frontman is an open-source AI coding agent that hooks into your dev server as fr
 
 Fully free, no prompt limits, no account required. BYOK with Claude, OpenAI, or OpenRouter. Designers and PMs can make visual changes without touching an IDE — see [Frontman vs. Cursor vs. Claude Code](/blog/frontman-vs-cursor-vs-claude-code/) for a detailed breakdown.
 
-It's early stage: small community, incomplete documentation, rough edges. Only three frameworks supported (Next.js, Astro, Vite). Source mapping breaks on deeply abstracted component libraries. 131 stars means limited real-world validation. [Getting Started with Frontman](/blog/getting-started/) covers the install process.
+It's early stage: small community, incomplete documentation, rough edges. Only three frameworks supported (Next.js, Astro, Vite). Source mapping breaks on deeply abstracted component libraries. 131 stars means limited real-world validation. [Getting Started with Frontman](/blog/getting-started/) covers the install process. Frontman is also available as an [OpenClaw skill](/blog/frontman-openclaw-skill/) for teams that use OpenClaw as their AI agent — see the [comparison](/vs/openclaw/).
 
 ### bolt.diy
 

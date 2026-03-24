@@ -71,6 +71,8 @@ astro add @frontman-ai/astro
 npx @frontman-ai/vite install
 ```
 
+Frontman is also available as an [OpenClaw skill](/blog/frontman-openclaw-skill/), so you can use it from Slack, Telegram, or Discord through your OpenClaw agent.
+
 **Best for:** Designers and product managers who need to make visual changes in the browser without waiting for engineering.
 
 ---

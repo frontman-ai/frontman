@@ -47,6 +47,16 @@ Most AI coding tools work from source files and never see the running applicatio
 
 Frontman and these tools are complementary. Many developers use Cursor or Copilot for backend work and general refactoring, then switch to Frontman when they need to see what they're editing in the browser.
 
+## Works with OpenClaw
+
+Frontman is available as an [OpenClaw](https://openclaw.ai) skill. Install it to give your AI agent specialized frontend editing capabilities — component tree awareness, computed CSS, source map resolution, and hot reload feedback that OpenClaw's general browser tool doesn't have.
+
+```bash
+openclaw skill install frontman-dev
+```
+
+Use OpenClaw for general-purpose automation (shell, messaging, files). Use Frontman for precise visual editing in your codebase. [Read the comparison](https://frontman.sh/vs/openclaw/).
+
 ## How It Works
 
 1. **A developer adds Frontman to the project** — one command, works with Next.js, Astro, and Vite.
@@ -170,7 +180,7 @@ See the respective `LICENSE` files for details.
 - [Website](https://frontman.sh)
 - [Documentation](https://frontman.sh/docs/)
 - [Integrations](https://frontman.sh/integrations/)
-- [Comparisons](https://frontman.sh/vs/) — Frontman vs [Cursor](https://frontman.sh/vs/cursor/), [Copilot](https://frontman.sh/vs/copilot/), [v0](https://frontman.sh/vs/v0/), [Stagewise](https://frontman.sh/vs/stagewise/)
+- [Comparisons](https://frontman.sh/vs/) — Frontman vs [OpenClaw](https://frontman.sh/vs/openclaw/), [Cursor](https://frontman.sh/vs/cursor/), [Copilot](https://frontman.sh/vs/copilot/), [v0](https://frontman.sh/vs/v0/), [Stagewise](https://frontman.sh/vs/stagewise/)
 - [Changelog](./CHANGELOG.md)
 - [Issues](https://github.com/frontman-ai/frontman/issues)
 - [Discord](https://discord.gg/xk8uXJSvhC)
