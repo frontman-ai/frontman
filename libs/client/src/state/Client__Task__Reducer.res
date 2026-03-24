@@ -457,9 +457,10 @@ let actionToString = (action: action): string =>
 
 // Normalize URL by removing trailing slash for comparison
 let normalizeUrl = (url: string): string => {
-  url->String.endsWith("/") && String.length(url) > 1
-    ? url->String.slice(~start=0, ~end=String.length(url) - 1)
-    : url
+  switch url->String.endsWith("/") && String.length(url) > 1 {
+  | true => url->String.slice(~start=0, ~end=String.length(url) - 1)
+  | false => url
+  }
 }
 
 // Helper to extract text content from user message parts
@@ -773,7 +774,10 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
   | (Task.Unloaded(_), UpdateAnnotationComment(_)) => (task, [])
   | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), UpdateAnnotationComment({id, comment})) => {
     let trimmed = comment->String.trim
-    let commentValue = trimmed->String.length > 0 ? Some(trimmed) : None
+    let commentValue = switch trimmed->String.length > 0 {
+    | true => Some(trimmed)
+    | false => None
+    }
     (
       Lens.updateAnnotation(task, id, a => {...a, comment: commentValue}),
       [],
@@ -1194,13 +1198,66 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
     (task, Array.concat(questionEffects, [CancelPrompt]))
 
   // ============================================================================
-  // Catch-all - invalid state/action combinations
+  // Invalid state/action combinations — explicit so the compiler catches gaps
   // ============================================================================
-  | (_, action) =>
+
+  // Streaming/message actions require Loading or Loaded (with agent running)
+  | (Task.New(_) | Task.Unloaded(_),
+    StreamingStarted
+    | TextDeltaReceived(_)
+    | ToolCallReceived(_)
+    | ToolInputReceived(_)
+    | ToolResultReceived(_)
+    | ToolErrorReceived(_)) =>
     failwith(
-      `[TaskReducer] ${actionToString(action)} on ${Task.stateToString(
-          task,
-        )} task ${getTaskIdForError(task)}`,
+      `[TaskReducer] ${actionToString(action)} on ${Task.stateToString(task)} task ${getTaskIdForError(task)}`,
+    )
+
+  // UserMessageReceived is hydration-only — valid during Loading
+  | (Task.New(_) | Task.Loaded(_) | Task.Unloaded(_), UserMessageReceived(_)) =>
+    failwith(
+      `[TaskReducer] ${actionToString(action)} on ${Task.stateToString(task)} task ${getTaskIdForError(task)}`,
+    )
+
+  // Loaded-only actions: require an active session
+  | (Task.New(_) | Task.Loading(_) | Task.Unloaded(_),
+    AddUserMessage(_)
+    | PlanReceived(_)
+    | TurnCompleted
+    | CancelTurn
+    | ClearTurnError
+    | QuestionReceived(_)
+    | QuestionStepChanged(_)
+    | QuestionOptionToggled(_)
+    | QuestionCustomTextChanged(_)
+    | QuestionPerQuestionSkipped(_)
+    | QuestionSubmitted
+    | QuestionAllSkipped
+    | QuestionCancelled) =>
+    failwith(
+      `[TaskReducer] ${actionToString(action)} on ${Task.stateToString(task)} task ${getTaskIdForError(task)}`,
+    )
+
+  // AgentError requires Loading or Loaded
+  | (Task.New(_) | Task.Unloaded(_), AgentError(_)) =>
+    failwith(
+      `[TaskReducer] ${actionToString(action)} on ${Task.stateToString(task)} task ${getTaskIdForError(task)}`,
+    )
+
+  // Load state machine: each transition has exactly one valid source state
+  | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), LoadStarted(_)) =>
+    failwith(
+      `[TaskReducer] ${actionToString(action)} on ${Task.stateToString(task)} task ${getTaskIdForError(task)}`,
+    )
+  | (Task.New(_) | Task.Loaded(_) | Task.Unloaded(_), LoadComplete | LoadError(_)) =>
+    failwith(
+      `[TaskReducer] ${actionToString(action)} on ${Task.stateToString(task)} task ${getTaskIdForError(task)}`,
+    )
+
+  // AddAnnotations requires New, Loading, or Loaded
+  | (Task.Unloaded(_), AddAnnotations(_)) =>
+    failwith(
+      `[TaskReducer] ${actionToString(action)} on ${Task.stateToString(task)} task ${getTaskIdForError(task)}`,
     )
   }
 }
@@ -1213,177 +1270,200 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
 let formatError = (exn: exn): string =>
   exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
 
+// Fetch selector, screenshot, and source location for an annotation element,
+// then dispatch AnnotationDetailsResolved with all results.
+let fetchAnnotationDetails = (
+  ~id: string,
+  ~element: WebAPI.DOMAPI.element,
+  ~document: option<WebAPI.DOMAPI.document>,
+  ~contentWindow: option<WebAPI.DOMAPI.window>,
+  ~dispatch: action => unit,
+) => {
+  // Fetch selector — result captures success or per-field error
+  let selectorPromise =
+    Promise.resolve()
+    ->Promise.then(_ => {
+      let selector = Bindings__Finder.finder(
+        ~element,
+        ~options={
+          root: document
+          ->Option.map(doc => doc.documentElement->Obj.magic)
+          ->Option.getOr(element),
+          idName: (~name as _) => true,
+          className: (~name as _) => true,
+          tagName: (~name as _) => true,
+          attr: (~name as _, ~value as _) => false,
+        },
+      )
+      Promise.resolve(Ok(Some(selector)))
+    })
+    ->Promise.catch(error => {
+      let msg = formatError(error)
+      Log.error(~ctx={"error": error, "annotationId": id}, "Selector generation failed")
+      Promise.resolve(Error(msg))
+    })
+
+  // Fetch screenshot (with conservative dimension limits to stay within all provider caps).
+  // Uses conservative limits (7680px) — safe for every provider. The server-side gate
+  // in agents.ex strips anything that still exceeds the limit.
+  let screenshotPromise = {
+    let limits = Client__ImageLimits.conservative
+    let scale = Client__ImageLimits.computeScale(element, limits.maxDimension)
+
+    Bindings__Snapdom.snapdom(element)
+    ->Promise.then(captureResult => {
+      captureResult.toJpg({scale, quality: limits.quality})->Promise.then(img => {
+        Promise.resolve(Ok(Some(img)))
+      })
+    })
+    ->Promise.catch(error => {
+      let msg = formatError(error)
+      Log.error(~ctx={"error": error, "annotationId": id}, "Screenshot capture failed")
+      Promise.resolve(Error(msg))
+    })
+  }
+
+  // Fetch source location (cascading: React fiber first, then Astro annotations)
+  // Race against a timeout to prevent hanging when source map resolution stalls (e.g., CORS on RSC URLs)
+  let sourceLocationPromise = {
+    let detectionPromise = switch contentWindow {
+    | Some(window) =>
+      Client__SourceDetection.getElementSourceLocation(~element, ~window)
+      ->Promise.then(result => Promise.resolve(Ok(result)))
+      ->Promise.catch(error => {
+        let msg = formatError(error)
+        Log.error(~ctx={"error": error, "annotationId": id}, "Source location detection failed")
+        Promise.resolve(Error(msg))
+      })
+    | None => Promise.resolve(Ok(None))
+    }
+    let timeoutPromise = Promise.make((resolve, _) => {
+      // 5s cap: source map resolution can stall indefinitely on CORS-blocked
+      // RSC URLs or unresponsive source map servers. Long enough for any
+      // reasonable local/CDN lookup, short enough to avoid blocking the UI.
+      let _ = setTimeout(() => resolve(Ok(None)), 5000)
+    })
+    Promise.race([detectionPromise, timeoutPromise])
+  }
+
+  // Extract enrichment data synchronously from the DOM element
+  // Use getAttribute("class") instead of element.className because SVG elements
+  // return an SVGAnimatedString object for className, not a plain string
+  let cssClasses =
+    element
+    ->WebAPI.Element.getAttribute("class")
+    ->Null.toOption
+    ->Option.flatMap(cls => {
+      let trimmed = cls->String.trim
+      switch trimmed->String.length > 0 {
+      | true => Some(trimmed)
+      | false => None
+      }
+    })
+
+  let nearbyText = {
+    let own =
+      element
+      ->WebAPI.Element.asNode
+      ->WebAPI.Node.textContent
+      ->Null.toOption
+      ->Option.getOr("")
+      ->String.trim
+    // Truncate to 200 chars to keep payload reasonable
+    let truncated = switch own->String.length > 200 {
+    | true => own->String.slice(~start=0, ~end=200) ++ "..."
+    | false => own
+    }
+    switch truncated->String.length > 0 {
+    | true => Some(truncated)
+    | false => None
+    }
+  }
+
+  let rect = WebAPI.Element.getBoundingClientRect(element)
+  let boundingBox: Annotation.boundingBox = {
+    x: rect.left,
+    y: rect.top,
+    width: rect.width,
+    height: rect.height,
+  }
+
+  // Wait for all promises and update state once
+  let _ =
+    Promise.all3((selectorPromise, screenshotPromise, sourceLocationPromise))
+    ->Promise.then(((selector, screenshotResult, sourceLocation)) => {
+      // Strip query strings from source location file paths
+      let sourceLocationWithTagName = sourceLocation->Result.map(opt =>
+        opt->Option.map(sourceLoc => {
+          {
+            ...sourceLoc,
+            file: sourceLoc.file
+            ->String.split("?")
+            ->Array.get(0)
+            ->Option.getOr(sourceLoc.file),
+          }
+        })
+      )
+
+      // Resolve source location via server to get relative file paths
+      let resolvedSourceLocationPromise = switch sourceLocationWithTagName {
+      | Ok(Some(sourceLoc)) =>
+        Client__SourceLocationResolver.resolve(sourceLoc)->Promise.then(result => {
+          switch result {
+          | Ok(resolved) => Promise.resolve(Ok(Some(resolved)))
+          | Error(err) =>
+            Log.warning(~ctx={"error": err}, "Source location resolution failed, using original")
+            Promise.resolve(Ok(Some(sourceLoc)))
+          }
+        })
+      | Ok(None) => Promise.resolve(Ok(None))
+      | Error(_) as err => Promise.resolve(err)
+      }
+
+      // Extract screenshot src from the result
+      let screenshot = screenshotResult->Result.map(opt => opt->Option.map(s => s.src))
+
+      // Dispatch only after resolution completes (or fails with fallback)
+      resolvedSourceLocationPromise->Promise.then(finalSourceLocation => {
+        dispatch(
+          AnnotationDetailsResolved({
+            id,
+            selector,
+            screenshot,
+            sourceLocation: finalSourceLocation,
+            cssClasses,
+            nearbyText,
+            boundingBox: Some(boundingBox),
+            enrichmentStatus: Enriched,
+          }),
+        )
+        Promise.resolve()
+      })
+    })
+    ->Promise.catch(err => {
+      // Outer chain failure — total enrichment failure
+      let errorMsg = formatError(err)
+      Log.error(~ctx={"error": err, "annotationId": id}, "FetchAnnotationDetails failed")
+      dispatch(
+        AnnotationDetailsResolved({
+          id,
+          selector: Error(errorMsg),
+          screenshot: Error(errorMsg),
+          sourceLocation: Error(errorMsg),
+          cssClasses,
+          nearbyText,
+          boundingBox: Some(boundingBox),
+          enrichmentStatus: Failed({error: errorMsg}),
+        }),
+      )
+      Promise.resolve()
+    })
+}
+
 let handleEffect = (effect: effect, ~dispatch: action => unit, ~delegate: delegated => unit) => {
   switch effect {
-  | FetchAnnotationDetails({id, element, document, contentWindow}) => {
-      // Fetch selector — result captures success or per-field error
-      let selectorPromise =
-        Promise.resolve()
-        ->Promise.then(_ => {
-          let selector = Bindings__Finder.finder(
-            ~element,
-            ~options={
-              root: document
-              ->Option.map(doc => doc.documentElement->Obj.magic)
-              ->Option.getOr(element),
-              idName: (~name as _) => true,
-              className: (~name as _) => true,
-              tagName: (~name as _) => true,
-              attr: (~name as _, ~value as _) => false,
-            },
-          )
-          Promise.resolve(Ok(Some(selector)))
-        })
-        ->Promise.catch(error => {
-          let msg = formatError(error)
-          Log.error(~ctx={"error": error, "annotationId": id}, "Selector generation failed")
-          Promise.resolve(Error(msg))
-        })
-
-      // Fetch screenshot (with conservative dimension limits to stay within all provider caps).
-      // Uses conservative limits (7680px) — safe for every provider. The server-side gate
-      // in agents.ex strips anything that still exceeds the limit.
-      let screenshotPromise = {
-        let limits = Client__ImageLimits.conservative
-        let scale = Client__ImageLimits.computeScale(element, limits.maxDimension)
-
-        Bindings__Snapdom.snapdom(element)
-        ->Promise.then(captureResult => {
-          captureResult.toJpg({scale, quality: limits.quality})->Promise.then(img => {
-            Promise.resolve(Ok(Some(img)))
-          })
-        })
-        ->Promise.catch(error => {
-          let msg = formatError(error)
-          Log.error(~ctx={"error": error, "annotationId": id}, "Screenshot capture failed")
-          Promise.resolve(Error(msg))
-        })
-      }
-
-      // Fetch source location (cascading: React fiber first, then Astro annotations)
-      // Race against a timeout to prevent hanging when source map resolution stalls (e.g., CORS on RSC URLs)
-      let sourceLocationPromise = {
-        let detectionPromise = switch contentWindow {
-        | Some(window) =>
-          Client__SourceDetection.getElementSourceLocation(~element, ~window)
-          ->Promise.then(result => Promise.resolve(Ok(result)))
-          ->Promise.catch(error => {
-            let msg = formatError(error)
-            Log.error(~ctx={"error": error, "annotationId": id}, "Source location detection failed")
-            Promise.resolve(Error(msg))
-          })
-        | None => Promise.resolve(Ok(None))
-        }
-        let timeoutPromise = Promise.make((resolve, _) => {
-          let _ = Js.Global.setTimeout(() => resolve(Ok(None)), 5000)
-        })
-        Promise.race([detectionPromise, timeoutPromise])
-      }
-
-      // Extract enrichment data synchronously from the DOM element
-      // Use getAttribute("class") instead of element.className because SVG elements
-      // return an SVGAnimatedString object for className, not a plain string
-      let cssClasses =
-        element
-        ->WebAPI.Element.getAttribute("class")
-        ->Null.toOption
-        ->Option.flatMap(cls => {
-          let trimmed = cls->String.trim
-          trimmed->String.length > 0 ? Some(trimmed) : None
-        })
-
-      let nearbyText = {
-        let own =
-          element
-          ->WebAPI.Element.asNode
-          ->WebAPI.Node.textContent
-          ->Null.toOption
-          ->Option.getOr("")
-          ->String.trim
-        // Truncate to 200 chars to keep payload reasonable
-        let truncated = own->String.length > 200 ? own->String.slice(~start=0, ~end=200) ++ "..." : own
-        truncated->String.length > 0 ? Some(truncated) : None
-      }
-
-      let rect = WebAPI.Element.getBoundingClientRect(element)
-      let boundingBox: Annotation.boundingBox = {
-        x: rect.left,
-        y: rect.top,
-        width: rect.width,
-        height: rect.height,
-      }
-
-      // Wait for all promises and update state once
-      let _ =
-        Promise.all3((selectorPromise, screenshotPromise, sourceLocationPromise))
-        ->Promise.then(((selector, screenshotResult, sourceLocation)) => {
-          // Strip query strings from source location file paths
-          let sourceLocationWithTagName = sourceLocation->Result.map(opt =>
-            opt->Option.map(sourceLoc => {
-              {
-                ...sourceLoc,
-                file: sourceLoc.file
-                ->String.split("?")
-                ->Array.get(0)
-                ->Option.getOr(sourceLoc.file),
-              }
-            })
-          )
-
-          // Resolve source location via server to get relative file paths
-          let resolvedSourceLocationPromise = switch sourceLocationWithTagName {
-          | Ok(Some(sourceLoc)) =>
-            Client__SourceLocationResolver.resolve(sourceLoc)->Promise.then(result => {
-              switch result {
-              | Ok(resolved) => Promise.resolve(Ok(Some(resolved)))
-              | Error(err) =>
-                Log.warning(~ctx={"error": err}, "Source location resolution failed, using original")
-                Promise.resolve(Ok(Some(sourceLoc)))
-              }
-            })
-          | Ok(None) => Promise.resolve(Ok(None))
-          | Error(_) as err => Promise.resolve(err)
-          }
-
-          // Extract screenshot src from the result
-          let screenshot = screenshotResult->Result.map(opt => opt->Option.map(s => s.src))
-
-          // Dispatch only after resolution completes (or fails with fallback)
-          resolvedSourceLocationPromise->Promise.then(finalSourceLocation => {
-            dispatch(
-              AnnotationDetailsResolved({
-                id,
-                selector,
-                screenshot,
-                sourceLocation: finalSourceLocation,
-                cssClasses,
-                nearbyText,
-                boundingBox: Some(boundingBox),
-                enrichmentStatus: Enriched,
-              }),
-            )
-            Promise.resolve()
-          })
-        })
-        ->Promise.catch(err => {
-          // Outer chain failure — total enrichment failure
-          let errorMsg = formatError(err)
-          Log.error(~ctx={"error": err, "annotationId": id}, "FetchAnnotationDetails failed")
-          dispatch(
-            AnnotationDetailsResolved({
-              id,
-              selector: Error(errorMsg),
-              screenshot: Error(errorMsg),
-              sourceLocation: Error(errorMsg),
-              cssClasses,
-              nearbyText,
-              boundingBox: Some(boundingBox),
-              enrichmentStatus: Failed({error: errorMsg}),
-            }),
-          )
-          Promise.resolve()
-        })
-    }
+  | FetchAnnotationDetails({id, element, document, contentWindow}) =>
+    fetchAnnotationDetails(~id, ~element, ~document, ~contentWindow, ~dispatch)
   | SendMessage({text, attachments, annotations}) => delegate(NeedSendMessage({text, attachments, annotations}))
   | NotifyTurnCompleted => delegate(NeedUsageRefresh)
   | CancelPrompt => delegate(NeedCancelPrompt)
