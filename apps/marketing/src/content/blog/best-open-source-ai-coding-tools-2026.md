@@ -19,7 +19,7 @@ faq:
     answer: 'Yes. Frontman (frontman.sh) and Stagewise (stagewise.io) both let you click elements in your running web app and describe changes in natural language. Frontman installs as framework middleware for Next.js, Astro, and Vite. Stagewise is a CLI overlay that injects a toolbar. bolt.diy runs a full cloud IDE in the browser for generating new apps from scratch.'
 ---
 
-There are over a dozen open-source AI coding tools that have gained serious traction in 2026. They range from terminal pair programmers to full agent platforms to browser-based visual editors. This is a factual comparison of every major one, organized by architecture category. We built Frontman (one of the tools listed), so we'll note that where relevant and call out where other tools are stronger.
+There are over a dozen open-source AI coding tools that have gained serious traction in 2026. They range from terminal pair programmers to full agent platforms to browser-based visual editors that bridge the [runtime context gap](/blog/runtime-context-gap/). This is a factual comparison of every major one, organized by architecture category. We built Frontman (one of the tools listed), so we'll note that where relevant and call out where other tools are stronger.
 
 Last updated: March 2026. Star counts are approximate.
 
@@ -136,7 +136,7 @@ Highest star count in the space, MIT license, 479 contributors. That broad scope
 
 ## Browser-Based Tools
 
-These tools take a different approach from everything above. Instead of working from source files in an IDE or terminal, they connect to your running application in the browser.
+These tools take a different approach from everything above. Instead of working from source files in an IDE or terminal, these [browser-aware AI tools](/blog/browser-aware-ai-tools-2026/) connect to your running application in the browser.
 
 ### Stagewise
 
@@ -154,9 +154,9 @@ Zero install friction (no changes to your codebase), and the IDE agent bridge le
 
 Frontman is an open-source AI coding agent that hooks into your dev server as framework middleware for Next.js, Astro, and Vite (React, Vue, Svelte). Because it installs inside the framework, it has access to things the proxy approach can't reach: component tree, computed styles, server-side routes, server logs, and compiled modules, all exposed via MCP. Click any element, describe the change, get a source code edit with hot reload.
 
-Fully free, no prompt limits, no account required. BYOK with Claude, OpenAI, or OpenRouter. Designers and PMs can make visual changes without touching an IDE.
+Fully free, no prompt limits, no account required. BYOK with Claude, OpenAI, or OpenRouter. Designers and PMs can make visual changes without touching an IDE — see [Frontman vs. Cursor vs. Claude Code](/blog/frontman-vs-cursor-vs-claude-code/) for a detailed breakdown.
 
-It's early stage: small community, incomplete documentation, rough edges. Only three frameworks supported (Next.js, Astro, Vite). Source mapping breaks on deeply abstracted component libraries. 131 stars means limited real-world validation.
+It's early stage: small community, incomplete documentation, rough edges. Only three frameworks supported (Next.js, Astro, Vite). Source mapping breaks on deeply abstracted component libraries. 131 stars means limited real-world validation. [Getting Started with Frontman](/blog/getting-started/) covers the install process.
 
 ### bolt.diy
 
@@ -178,7 +178,7 @@ The right tool depends on what you're trying to do:
 
 **"I want an AI agent in VS Code."** Cline is the most popular. Roo Code if you want structured modes. Kilo Code if you need JetBrains support.
 
-**"I want to click things in the browser and have AI edit the code."** Frontman if you want deep framework integration and BYOK. Stagewise if you want zero-install and IDE agent bridging.
+**"I want to click things in the browser and have AI edit the code."** These are [framework-aware AI coding tools](/blog/what-are-framework-aware-ai-coding-tools/). Frontman if you want deep framework integration and BYOK. Stagewise if you want zero-install and IDE agent bridging.
 
 **"I want to generate a new app from a prompt."** bolt.diy or OpenHands.
 

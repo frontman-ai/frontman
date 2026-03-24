@@ -58,7 +58,7 @@ No tab switching. No copy-pasting issue descriptions. No translating Lighthouse 
 
 ### Why This Matters More Than You Think
 
-Running Lighthouse from the terminal is possible. Running it from a CI pipeline is common. But neither of those gives the agent what it needs: the audit results _and_ the ability to fix them in the same session.
+Running Lighthouse from the terminal is possible. Running it from a CI pipeline is common. But neither of those closes the [runtime context gap](/blog/runtime-context-gap/) — the agent needs the audit results _and_ the ability to fix them in the same session.
 
 Here is the standard coding-agent workflow for performance optimization:
 

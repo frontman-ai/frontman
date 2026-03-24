@@ -8,7 +8,7 @@ tags: ['tutorial', 'getting-started', 'ai']
 updatedDate: 2026-03-10T00:00:00Z
 ---
 
-This is a practical walkthrough. We'll take a Next.js app with a layout bug, install Frontman, and fix the bug by clicking the broken element in the browser instead of describing it to an AI that can't see it.
+This is a practical walkthrough. We'll take a Next.js app with a layout bug, install Frontman — one of the [framework-aware AI tools](/blog/what-are-framework-aware-ai-coding-tools/) — and fix the bug by clicking the broken element in the browser instead of describing it to an AI that can't see it.
 
 By the end you'll know whether runtime-aware AI coding actually saves time or is just a debugger with extra steps. Spoiler: it's both.
 
@@ -63,7 +63,7 @@ Looks fine in source code. But when 2 of 6 items are `featured`, the cards with 
 
 You'd describe the bug: "The cards in CardGrid aren't aligning properly — some are taller than others."
 
-The AI reads the source, sees `grid-cols-3 gap-6`, and suggests `h-full` on the cards (might work, might cause other issues), `min-h-[200px]` (arbitrary, fragile), or restructures the component entirely (overkill). It can't see that the actual problem is the conditional featured badge pushing content down. The AI is guessing because it doesn't see the rendered layout.
+The AI reads the source, sees `grid-cols-3 gap-6`, and suggests `h-full` on the cards (might work, might cause other issues), `min-h-[200px]` (arbitrary, fragile), or restructures the component entirely (overkill). It can't see that the actual problem is the conditional featured badge pushing content down. The AI is guessing because it doesn't see the rendered layout — this is [why coding agents are blind to your UI](/blog/ai-coding-agents-blind-to-ui/).
 
 ### Step 3: Fix It With Runtime Context
 
@@ -119,6 +119,6 @@ Runtime-aware AI coding is not a silver bullet:
 - **Performance optimization** — Frontman sees the DOM, not your render cycles or bundle size
 - **As a substitute for understanding your code** — if you can't explain the AI's diff to a colleague, don't commit it
 
-The runtime context gap is real, and closing it saves time on a specific class of problems. It doesn't replace engineering judgment. It just means the AI guesses less.
+[The runtime context gap](/blog/runtime-context-gap/) is real, and closing it saves time on a specific class of problems. It doesn't replace engineering judgment. It just means the AI guesses less.
 
 [Get started with Frontman](https://frontman.sh) — works with Next.js, Astro, and Vite. Or [see how it compares to Cursor and Claude Code](/blog/frontman-vs-cursor-vs-claude-code/). For a detailed feature-by-feature breakdown, see [Frontman vs Cursor](/vs/cursor/).

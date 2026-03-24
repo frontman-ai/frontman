@@ -31,7 +31,7 @@ When an AI coding tool edits your project, it's working from source text. Here's
 - **Compiled module graph.** Frameworks like Next.js, Vite, and Astro transform your source before serving it. The AI sees source files; the dev server sees the compiled, bundled, tree-shaken output.
 - **Registered routes and middleware.** File-based routing means the route table is a runtime artifact. Middleware ordering, redirect chains, and rewrite rules exist in the server's state, not in any single source file.
 - **Server logs and errors.** A component that renders fine might be throwing warnings server-side. The AI editing your code doesn't see `stdout`.
-- **Framework-specific context.** Astro island hydration directives, Next.js server/client component boundaries, Vite's HMR module graph — these are framework runtime concepts that source code only partially describes.
+- **Framework-specific context.** Astro island hydration directives, Next.js server/client component boundaries, Vite's HMR module graph — these are framework runtime concepts that source code only partially describes — which is why [framework-aware AI coding tools](/blog/what-are-framework-aware-ai-coding-tools/) take a different approach.
 
 ### An Uncomfortable Question
 
@@ -43,7 +43,7 @@ This doesn't invalidate the tooling argument. Even well-structured codebases hav
 
 Strip away the marketing and the architecture is straightforward: you give an AI agent access to runtime information from both the browser _and_ the dev server, then let it correlate that information back to source files.
 
-Modern web frameworks already bridge client and server — Next.js, Astro, and Vite all have dev servers that know about your component tree, module graph, and build output. A tool that hooks into the framework middleware gets both sides for free.
+Modern web frameworks already bridge client and server — Next.js, Astro, and Vite all have dev servers that know about your component tree, module graph, and build output. A tool that hooks into the framework middleware gets both sides for free — this is the approach behind [Frontman](/blog/introducing-frontman/).
 
 ```text
 ┌──────────────────────────┐    ┌──────────────────────────┐
@@ -68,13 +68,13 @@ The critical piece is the **source mapping** — connecting "this DOM element at
 
 ### The Tools Building This
 
-A few projects are working on this, each with different tradeoffs. [Frontman](https://frontman.sh) hooks into the framework as middleware for the deepest integration. [Stagewise](https://stagewise.io) uses a browser proxy approach with more polish. [Tidewave](https://tidewave.ai) goes deep on backend runtime for Phoenix/Rails/Django. Chrome DevTools MCP exposes browser state to any agent. For a detailed comparison, see our [roundup of browser-aware AI tools](/blog/browser-aware-ai-tools-2026/).
+A few projects are working on this — letting you [click any element in your running application](/blog/tutorial-nextjs-runtime-context/) and describe changes in plain language — each with different tradeoffs. [Frontman](https://frontman.sh) hooks into the framework as middleware for the deepest integration. [Stagewise](https://stagewise.io) uses a browser proxy approach with more polish. [Tidewave](https://tidewave.ai) goes deep on backend runtime for Phoenix/Rails/Django. Chrome DevTools MCP exposes browser state to any agent. For a detailed comparison, see our [roundup of browser-aware AI tools](/blog/browser-aware-ai-tools-2026/).
 
 ### The Maintenance Trap
 
 Runtime-aware AI makes it very easy to iterate on changes. Click, describe, hot reload, done. This is genuinely useful for prototyping, design tweaks, and CSS fixes where you can see the result is correct.
 
-But "it looks right" is not the same as "I understand what changed." If an AI rewrites your Tailwind classes, restructures your JSX, or adds inline styles to fix a layout — and you ship it without understanding the diff — you've created maintenance debt.
+But "it looks right" is not the same as "I understand what changed." If an AI rewrites your Tailwind classes, restructures your JSX, or adds inline styles to fix a layout — and you ship it without understanding the diff — you've created maintenance debt — and compromised your [design system integrity](/blog/ai-coding-agents-blind-to-ui/).
 
 The rule should be the same as it's always been: **don't commit code you don't understand.** Whether a blind AI wrote it, a seeing AI wrote it, or you wrote it while sleep-deprived — if you can't explain the diff to a colleague, it shouldn't be merged.
 

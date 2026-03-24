@@ -14,15 +14,15 @@ If you're managing a design system across multiple teams, this model matters. GP
 
 ### What Changes for Your Workflow
 
-**Your full design system in context, all at once.** GPT-5.4 supports up to one million tokens — roughly 750,000 words. That's enough to hold your component library docs, spacing and typography tokens, brand guidelines, and the current task all in one session. No more re-explaining your system's conventions halfway through a build.
+**Your full design system in context, all at once.** GPT-5.4 supports up to one million tokens — roughly 750,000 words. That's enough to hold your component library docs, spacing and typography tokens, brand guidelines, and the current task all in one session — while [keeping your code safe](/blog/security/) with Frontman's local-only architecture. No more re-explaining your system's conventions halfway through a build.
 
-**It can see and operate your browser.** GPT-5.4 has built-in computer-use capabilities. It navigates your app, clicks through flows, and visually verifies that implementations match your specs. When your team ships a new component, Frontman can check that it actually looks right — not just that the code compiles.
+**It can see and operate your browser.** GPT-5.4 has built-in computer-use capabilities that complement Frontman's [runtime context](/blog/runtime-context-gap/). It navigates your app, clicks through flows, and visually verifies that implementations match your specs. When your team ships a new component, Frontman can check that it actually looks right — not just that the code compiles.
 
 **Smarter tool usage across your stack.** Teams at scale use a lot of tools — Figma plugins, design token pipelines, CI checks. GPT-5.4 is significantly better at finding and using the right tool for the job without you having to guide it step by step. Less hand-holding, more shipping.
 
 **Faster reasoning, same quality.** GPT-5.4 solves problems with fewer intermediate steps than previous models. For you, that means quicker turnaround on component builds, layout adjustments, and responsive implementations. The back-and-forth shrinks.
 
-**Stronger frontend output.** This model is noticeably better at complex frontend work — producing more polished, visually accurate results. Design system components come out closer to spec on the first pass, which means fewer review cycles between your design and engineering teams.
+**Stronger frontend output.** Compared to models powering other [AI coding tools](/blog/6-ai-coding-tools-production/), GPT-5.4 is noticeably better at complex frontend work — producing more polished, visually accurate results. Design system components come out closer to spec on the first pass, which means fewer review cycles between your design and engineering teams.
 
 ### How to Use It
 
@@ -34,8 +34,8 @@ No setup needed. Open Frontman, pick the model, start building.
 
 ### Why This Matters for Growing Teams
 
-Every team that scales past two or three squads hits the same problem: the design system starts drifting. Components get re-implemented slightly differently. Spacing breaks. Brand consistency erodes one PR at a time.
+Every team that scales past two or three squads hits the same problem: the [design system starts drifting](/blog/ai-coding-agents-blind-to-ui/). Components get re-implemented slightly differently. Spacing breaks. Brand consistency erodes one PR at a time.
 
 GPT-5.4 in Frontman helps close that gap. It holds your entire system in memory, sees what's actually rendered in the browser, and builds with your conventions — not generic defaults. The model gets better, and your system stays tighter.
 
-Try it at [frontman.sh](https://frontman.sh).
+Try it at [frontman.sh](https://frontman.sh), or follow our [getting started](/blog/getting-started/) guide.

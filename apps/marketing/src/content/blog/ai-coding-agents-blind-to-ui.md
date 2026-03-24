@@ -57,7 +57,7 @@ Multiply that by every team touching the product. Multiply it by every sprint. T
 
 You might think AI coding agents like Cursor, Claude Code, or Copilot could help. They can't — at least not for this.
 
-These agents operate on source files and terminal output. They read code, but they never open a browser. They never see the rendered page. The information they need for visual changes — which element is which on screen, what the computed spacing actually is, how components map back to source files — exists only in the running browser.
+These agents operate on source files and terminal output. They read code, but they never open a browser — [the runtime context gap](/blog/runtime-context-gap/) in action. They never see the rendered page. The information they need for visual changes — which element is which on screen, what the computed spacing actually is, how components map back to source files — exists only in the running browser.
 
 For an engineer who already knows the codebase, this means some guesswork and a few rounds of correction. Annoying but workable.
 
@@ -65,7 +65,7 @@ For a designer or PM, it's a wall. You would need to know the file name, the com
 
 ## What Framework-Aware AI Changes
 
-Frontman takes a different approach. Instead of reading files and guessing what the UI looks like, it hooks into your framework — Next.js, Astro, Vite — and connects to the running browser. It has access to:
+Frontman takes a different approach — what we call [framework-aware AI](/blog/what-are-framework-aware-ai-coding-tools/). Instead of reading files and guessing what the UI looks like, it hooks into your framework — Next.js, Astro, Vite — and connects to the running browser. It has access to:
 
 - **The live UI** — the actual rendered page, not a code approximation
 - **Your component tree** — which component renders which element, mapped back to source files
@@ -137,7 +137,7 @@ Frontman does not generate code. It edits your existing code — the same files,
 
 This is not about saving time on one padding change. It is about who gets to participate in shipping product.
 
-Today, your design system is a shared language — but only engineers can write in it. Designers and PMs can describe changes. They can annotate screenshots. They can file tickets. But the act of making a change requires engineering time, and engineering time is the scarcest resource at every growing company.
+Today, your [design system is a shared language](/blog/team-collaboration/) — but only engineers can write in it. Designers and PMs can describe changes. They can annotate screenshots. They can file tickets. But the act of making a change requires engineering time, and engineering time is the scarcest resource at every growing company.
 
 When anyone who can see a problem can also fix it — with full code review, within your existing system, respecting your component architecture — the bottleneck shifts. Engineering reviews diffs instead of translating tickets. Designers iterate at the speed of their own judgment. PMs ship copy and layout tweaks the same day they notice them.
 

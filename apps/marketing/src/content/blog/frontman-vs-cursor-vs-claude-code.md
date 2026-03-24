@@ -33,7 +33,7 @@ This is not a skill issue. Cursor and Claude Code are built for engineers who th
 
 Cursor, Claude Code, Windsurf, and Copilot are file-level agents. They read source code, understand how files connect, and edit across multiple files at once. For engineering work — writing functions, refactoring, building APIs — they are transformative.
 
-But they have a fundamental limitation: they cannot see the rendered page. They do not know what your design system components look like at a given screen size. They cannot tell which of three nested containers you are looking at. When you ask them to fix something visual, they edit the file and hope. The verification step — "did it actually work?" — is entirely on you. You switch to the browser, look, switch back, try to describe what you see in words, and hope the agent infers what you meant.
+But they have a fundamental limitation — [the runtime context gap](/blog/runtime-context-gap/): they cannot see the rendered page. They do not know what your design system components look like at a given screen size. They cannot tell which of three nested containers you are looking at. When you ask them to fix something visual, they edit the file and hope — this is fundamentally [why coding agents are blind to your UI](/blog/ai-coding-agents-blind-to-ui/). The verification step — "did it actually work?" — is entirely on you. You switch to the browser, look, switch back, try to describe what you see in words, and hope the agent infers what you meant.
 
 For someone who lives in Figma or reviews builds in the browser, this is backwards. You can _see_ the problem. You should be able to point at it.
 
@@ -48,7 +48,7 @@ When you click an element in Frontman:
 - It traces the element back to the **exact source file and component**, automatically
 - It applies the change and you see the result **immediately** — no switching tabs, no re-describing the problem
 
-You do not need to know which file to open. You do not need to know the class names or the component hierarchy. You point at the thing that needs to change, say what you want, and Frontman handles the rest.
+You do not need to know which file to open. You do not need to know the class names or the component hierarchy. You point at the thing that needs to change, say what you want, and Frontman handles the rest. See [how Frontman works differently](/blog/introducing-frontman/) for the full architecture.
 
 ## The Same Change, Two Workflows
 

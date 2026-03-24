@@ -16,7 +16,7 @@ Three iterations and six tab switches to change a padding value. Your agent had 
 
 Claude is not stupid. Cursor is not broken. The agent genuinely cannot see what your page looks like. It reads source files. It reads terminal output. It reads build errors. None of that tells it what `p-4 md:p-8` resolves to at your current viewport width, or which of three nested `div`s with padding classes is the one you are staring at in the browser.
 
-Every coding agent on the market today is _blind to the rendered UI_. They edit files and hope the visual result matches your intent. For backend code, this is fine. For frontend work, hope is not a methodology.
+Every coding agent on the market today is _blind to the rendered UI_ — a problem we call the [runtime context gap](/blog/runtime-context-gap/). They edit files and hope the visual result matches your intent. For backend code, this is fine. For frontend work, hope is not a methodology.
 
 **Other agents guess. Frontman sees.**
 
@@ -40,7 +40,7 @@ The file saves. Hot-reload fires. The button updates in the browser. One action,
 
 ### Who Actually Needs This
 
-If you have ever burned fifteen minutes of agent context trying to describe which `div` you mean, Frontman is for you. If you have ever reviewed a PR that was one line of CSS wrapped in three days of Jira comments, Frontman is for your team. If you have a designer who files tickets for spacing changes and waits a sprint to see them land, Frontman is for them — they click the element, describe the change, and the source file updates. No IDE. No file paths. No waiting.
+If you have ever burned fifteen minutes of agent context trying to describe which `div` you mean, Frontman is for you. If you have ever reviewed a PR that was one line of CSS wrapped in three days of Jira comments, Frontman is for your team. If you have a designer who [files tickets for spacing changes](/blog/ai-coding-agents-blind-to-ui/) and waits a sprint to see them land, Frontman is for them — they click the element, describe the change, and the source file updates. No IDE. No file paths. No waiting.
 
 ### Common Objections
 
@@ -48,7 +48,7 @@ If you have ever burned fifteen minutes of agent context trying to describe whic
 It is not. Your agent reads the _source_. Frontman reads the _rendered output_. The source says `className="p-4 md:p-8 lg:p-12"`. The rendered output says "this element has 32px of padding at the current viewport." The source has three nested divs with padding. The rendered output shows you which one the user is actually pointing at. Your agent is working from a blueprint. Frontman is standing in the room.
 
 **"What about v0 or Bolt? They generate full UIs."**
-They do. From scratch. In a sandbox. Frontman works with _your existing codebase_, your component library, your design tokens, your file conventions. It reads your `agents.md`. It follows your patterns. Generated UIs are demos. Frontman edits production code.
+They do. From scratch. In a sandbox. Frontman works with _your existing codebase_, your component library, your design tokens, your file conventions. It reads your `agents.md`. It follows your patterns. Generated UIs are demos. Frontman edits production code — that's the [framework-aware AI tools](/blog/what-are-framework-aware-ai-coding-tools/) difference.
 
 **"AI-generated code changes are risky."**
 Every change Frontman makes is a file edit in your working directory. It shows up in `git diff`. It goes through your normal PR review. If it is wrong, `git checkout` fixes it. This is not riskier than accepting a diff from Cursor or Claude Code — it is the same workflow you already trust.

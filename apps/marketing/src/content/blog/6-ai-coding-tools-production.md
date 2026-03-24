@@ -175,8 +175,8 @@ astro add @frontman-ai/astro
 npx @frontman-ai/vite install
 ```
 
-Or check the [getting started guide](/blog/getting-started) for detailed setup instructions.
+Or check the [getting started guide](/blog/getting-started/) for detailed setup instructions.
 
 ---
 
-*Want to understand the architectural difference? Read [AI Coding Tools and the Runtime Context Gap](/blog/runtime-context-gap) or see how [Frontman compares head-to-head with Cursor and Claude Code](/blog/frontman-vs-cursor-vs-claude-code). Last updated March 2026.*
+*Want to understand the architectural difference? Read [AI Coding Tools and the Runtime Context Gap](/blog/runtime-context-gap/) or see how [Frontman compares head-to-head with Cursor and Claude Code](/blog/frontman-vs-cursor-vs-claude-code/). Last updated March 2026.*

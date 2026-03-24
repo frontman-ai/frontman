@@ -76,11 +76,11 @@ When your design system serves multiple teams, drift is inevitable. Team A inter
 
 Multi-select makes QA and fixing the same step. Browse the app, Shift-click everything that's off, describe each fix, submit. It works the way you already work in Figma — select multiple layers, adjust properties, done. Except these are real code changes in the actual codebase, not design file edits that still need to be implemented.
 
-This changes the dynamics between design and engineering. Instead of being the team that files polish tickets nobody prioritizes, the design system team becomes the team that keeps the product consistent — directly.
+This changes the dynamics between design and engineering. Instead of being the team that files polish tickets nobody prioritizes, the design system team becomes the team that [keeps the product consistent — directly](/blog/team-collaboration/).
 
 ## How It Works Under the Hood
 
-Frontman runs as middleware inside your dev server — it's part of the app, not a browser extension or screenshot tool. When you click an element, it resolves the click to the actual source file and line number using the framework's source map. It sees the live DOM, the component tree, computed styles, and your [design system context](/blog/runtime-context-gap/).
+Frontman runs as middleware inside your dev server — it's part of the app, not a browser extension or screenshot tool. This is how [framework-aware AI tools understand your design system](/blog/what-are-framework-aware-ai-coding-tools/) at the source level. When you click an element, it resolves the click to the actual source file and line number using the framework's source map. It sees the live DOM, the component tree, computed styles, and your [design system context](/blog/runtime-context-gap/).
 
 Multi-select collects all your selections and batches them into a single coordinated edit. Each selection carries its own instruction and source mapping. Frontman reasons about all of them together — if two fixes target the same component, both changes land in one clean edit without conflicts.
 
@@ -94,6 +94,6 @@ npx @frontman-ai/vite install
 astro add @frontman-ai/astro
 ```
 
-Then anyone on the team — designer, PM, design system lead — can open the running app, hold Shift, click everything that drifts from the system, and fix it.
+Then anyone on the team — designer, PM, design system lead — can open the running app, hold Shift, click everything that drifts from the system, and fix it. [Getting started](/blog/getting-started/) takes five minutes.
 
 Star it on [GitHub](https://github.com/frontman-ai/frontman) if you've ever wished you could fix design inconsistencies yourself instead of filing tickets.

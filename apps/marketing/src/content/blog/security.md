@@ -58,7 +58,7 @@ That diff shows up in `git status`. It goes through your normal PR review. If it
 
 ## What Does the AI Agent See?
 
-Your code context — the components, styles, and DOM information relevant to the current edit — is sent directly to the AI provider you choose. Frontman does not proxy this. It does not store it. It does not log it.
+Your code context — the components, styles, and DOM information that bridge [the runtime context gap](/blog/runtime-context-gap/) — is sent directly to the AI provider you choose. Frontman does not proxy this. It does not store it. It does not log it.
 
 You bring your own API key. You pick your provider:
 
@@ -93,7 +93,7 @@ If you do not trust a claim on this page, read the code. That is the point of op
 ## Common Objections
 
 **"What if the agent writes malicious code?"**
-Then your code review catches it. The same way it catches a bad suggestion from Copilot that you tab-accepted without reading, or a subtle bug in a Cursor-generated function. Frontman does not bypass your review process. It feeds into it. If you are shipping AI-authored code without review, the agent is not your biggest problem.
+Then your code review catches it. The same way it catches a bad suggestion from Copilot that you tab-accepted without reading, or a subtle bug in a Cursor-generated function (see [Frontman vs. Cursor vs. Claude Code](/blog/frontman-vs-cursor-vs-claude-code/) for a detailed comparison). Frontman does not bypass your review process. It feeds into it. If you are shipping AI-authored code without review, the agent is not your biggest problem.
 
 **"What about API key security?"**
 Your API key is stored encrypted in Frontman's server database. It never touches your browser. Requests to your chosen AI provider are made server-side over HTTPS, so the key is never exposed in client-side code or network traffic visible to the browser. This is a stronger security posture than storing a key in a `.env` file or your Cursor config.

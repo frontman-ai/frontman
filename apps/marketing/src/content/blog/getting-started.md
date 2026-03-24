@@ -10,7 +10,7 @@ updatedDate: 2026-03-20T00:00:00Z
 
 You want to change a button color. You open Figma, update the mock, tag a developer in a comment, wait for it to land in the sprint, wait for the PR, review the PR, notice the padding is off, leave another comment, wait for the fix, approve, wait for deploy. Three weeks for a button color.
 
-That is not a tooling problem. That is a workflow problem. Frontman fixes it by letting you edit UI components directly in the browser, in plain English, without writing code.
+That is not a tooling problem. That is a workflow problem — [here's the core idea](/blog/introducing-frontman/). Frontman fixes it by letting you edit UI components directly in the browser, in plain English, without writing code.
 
 ### How It Works
 
@@ -39,7 +39,7 @@ Select your provider in the settings panel and follow the connect flow. If you a
 
 ### It Respects Your Design System
 
-This is the part that matters for teams with an established system. Frontman is not a generic code generator that outputs random CSS. It reads your project's conventions — your design tokens, your component patterns, your naming rules. When it makes a change, it uses _your_ system, not some default template.
+This is the part that matters for teams with an established system. Frontman is a [framework-aware](/blog/what-are-framework-aware-ai-coding-tools/) tool, not a generic code generator that outputs random CSS. It reads your project's conventions — your design tokens, your component patterns, your naming rules. When it makes a change, it uses _your_ system, not some default template.
 
 If your team uses specific spacing scales, Frontman uses those values. If you have a token system for colors, Frontman references those tokens. The output follows the same rules your engineering team follows, because it reads the same configuration they do.
 
@@ -73,4 +73,4 @@ Ask your engineering team to run the install command for your framework — it t
 
 No training required. No migration. No new tool to learn beyond "click the thing, describe the change."
 
-[Visit frontman.sh](https://frontman.sh) for full documentation and framework-specific install guides. Learn [why coding agents are blind to your UI](/blog/ai-coding-agents-blind-to-ui/), or read about [how Frontman keeps your code safe](/blog/security/).
+[Visit frontman.sh](https://frontman.sh) for full documentation and framework-specific install guides. See [how Frontman compares to other tools](/blog/6-ai-coding-tools-production/), learn [why coding agents are blind to your UI](/blog/ai-coding-agents-blind-to-ui/), or read about [how Frontman keeps your code safe](/blog/security/).

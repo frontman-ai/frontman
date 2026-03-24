@@ -16,7 +16,7 @@ The implementations are very different. Some hook into the dev server. Some prox
 
 AI coding tools — Cursor, Copilot, Claude Code, Windsurf — work from source files. They don't see the rendered DOM, computed styles, or layout geometry on the client side. They don't see the compiled module graph, registered routes, server logs, or middleware state on the server side. For any web application with a runtime, the AI is guessing about a significant chunk of the application's behavior.
 
-Runtime-aware tools try to close this gap. Here's how each one does it.
+Runtime-aware tools try to close this gap — what we call [the runtime context gap](/blog/runtime-context-gap/). Here's how each one does it.
 
 ### Frontman
 
@@ -86,10 +86,10 @@ Google's experimental MCP server exposing DevTools state to AI agents. Your agen
 
 **Want the most polished UX and don't mind paying:** Stagewise. The YC backing shows.
 
-**Want free + deep framework integration + full control:** Frontman. No prompt limits, no account, BYOK, open source. The tradeoff is that it's early-stage with rougher edges.
+**Want free + deep framework integration + full control:** Frontman. See [how deep framework integration affects design system consistency](/blog/what-are-framework-aware-ai-coding-tools/). No prompt limits, no account, BYOK, open source. The tradeoff is that it's early-stage with rougher edges.
 
 **Want to add browser context to your existing agent:** Chrome DevTools MCP. Bare-bones but framework-agnostic and free.
 
 **Designer who wants a visual editor:** Onlook. Different category entirely.
 
-The category is real. Six months ago this wasn't a thing. Now there are five projects with different architectures attacking the same problem. Some will be dead in a year. Some will be table stakes. Try them on a real project and decide for yourself. [Get started with Frontman](/blog/getting-started/), [see how it compares to Cursor and Claude Code](/blog/frontman-vs-cursor-vs-claude-code/), or read the detailed [Frontman vs Cursor](/vs/cursor/) and [Frontman vs Stagewise](/vs/stagewise/) comparisons.
+The category is real — and it's part of a broader wave of [open-source AI coding tools](/blog/best-open-source-ai-coding-tools-2026/). Six months ago this wasn't a thing. Now there are five projects with different architectures attacking the same problem. Some will be dead in a year. Some will be table stakes. Try them on a real project and decide for yourself. [Get started with Frontman](/blog/getting-started/), [see how it compares to Cursor and Claude Code](/blog/frontman-vs-cursor-vs-claude-code/), or read the detailed [Frontman vs Cursor](/vs/cursor/) and [Frontman vs Stagewise](/vs/stagewise/) comparisons.

@@ -48,11 +48,11 @@ faq:
       in choosing a tool.
 ---
 
-If you run a design system across multiple product teams, you know the bottleneck. A designer spots a spacing inconsistency, an outdated color token, a component that doesn't match the latest Figma specs. They file a ticket. An engineer picks it up days later, makes a three-line change, opens a PR. The whole cycle takes a week for something that should take minutes.
+If you run a design system across multiple product teams, you know the bottleneck. A designer spots a spacing inconsistency, an outdated color token, a component that doesn't match the latest Figma specs. They file a ticket. An engineer picks it up days later, makes a three-line change, opens a PR. Teams end up [bottlenecked on engineering](/blog/team-collaboration/) for changes that should take minutes.
 
-Framework-aware AI coding tools exist to short-circuit that loop. You open your running application in the browser, click on the element that needs to change, and describe what you want in plain language: "increase the padding to match our spacing scale," "swap this to use the secondary button variant," "this heading should be H2 semibold." The tool figures out which component file to edit, which design tokens to use, and makes the change. You see the result live.
+Framework-aware AI coding tools exist to short-circuit that loop. You open your running application in the browser, click on the element that needs to change, and describe what you want in plain language: "increase the padding to match our spacing scale," "swap this to use the secondary button variant," "this heading should be H2 semibold." The tool figures out which component file to edit, which design tokens to use, and makes the change — or select multiple elements to [fix design drift across your entire app](/blog/multi-select/). You see the result live.
 
-The difference between these tools and general-purpose AI coding assistants (Cursor, Copilot, Claude Code) is what they understand. A general-purpose tool reads your source files. A framework-aware tool understands your application's structure—it knows that the button you clicked lives in `src/components/ui/Button.tsx`, that it's used in 14 places, that your design system defines `--spacing-md` as `16px`, and that changing the padding here should use that token instead of hardcoding `20px`.
+The difference between these tools and general-purpose AI coding assistants (Cursor, Copilot, Claude Code) is what they understand. A general-purpose tool reads your source files — a limitation we call the [Runtime Context Gap](/blog/runtime-context-gap/). A framework-aware tool understands your application's structure—it knows that the button you clicked lives in `src/components/ui/Button.tsx`, that it's used in 14 places, that your design system defines `--spacing-md` as `16px`, and that changing the padding here should use that token instead of hardcoding `20px`.
 
 Five tools currently exist. They take three different technical approaches, and the approach directly determines what the tool can and can't do for your team.
 
@@ -98,7 +98,7 @@ Chrome DevTools MCP (Google) and Tidewave (Phoenix/Rails) use this approach.
 
 [frontman.sh](https://frontman.sh) | Deep integration | Apache 2.0 / AGPL-3.0
 
-Next.js, Astro, and Vite (React, Vue, Svelte). Bring your own AI key (Claude, OpenAI, OpenRouter)—no account required, no prompt limits, no per-seat pricing. Understands component hierarchies and design tokens at the source level. Early-stage with rough edges, small community, and incomplete documentation. A developer needs to install it, and it only works with the three supported frameworks.
+Next.js, Astro, and Vite (React, Vue, Svelte). Bring your own AI key (Claude, OpenAI, OpenRouter)—no account required, no prompt limits, no per-seat pricing. Understands component hierarchies and design tokens at the source level. Early-stage with rough edges, small community, and incomplete documentation. A developer needs to install it ([Getting Started with Frontman](/blog/getting-started/) covers the process), and it only works with the three supported frameworks.
 
 *I built this.*
 
@@ -145,7 +145,7 @@ If your engineering team already uses Cursor, this is the lowest-friction option
 
 If you're a designer or PM evaluating these tools, the honest answer depends on two things: what your engineering team uses, and how much design system consistency matters.
 
-**Design system consistency is critical.** If your team maintains a component library with design tokens, spacing scales, and component variants—and you need AI-assisted changes to respect those patterns—you need a tool with deep integration. Today that means Frontman on Next.js, Astro, or Vite. The other approaches will get you faster edits but with more cleanup to keep your system consistent.
+**Design system consistency is critical.** If your team maintains a component library with design tokens, spacing scales, and component variants—and you need AI-assisted changes to respect those patterns—you need a tool with deep integration. Today that means Frontman on Next.js, Astro, or Vite (see [Frontman vs. Cursor vs. Claude Code](/blog/frontman-vs-cursor-vs-claude-code/) for a deeper comparison). The other approaches will get you faster edits but with more cleanup to keep your system consistent.
 
 **Speed and independence matter more.** If you want to make quick visual changes across any product without waiting for engineering setup, Stagewise gets you there fastest. Accept that some changes will need design system cleanup, and it's a good tradeoff for velocity.
 
@@ -153,4 +153,4 @@ If you're a designer or PM evaluating these tools, the honest answer depends on 
 
 **You're already on Cursor.** The Visual Editor is right there. No evaluation needed for the engineering side—but it doesn't solve the designer-to-code gap since it lives inside a code editor.
 
-None of these tools is a finished product yet. The category is early. But the gap they're filling—the week-long cycle between "I see a spacing issue" and "it's fixed in production"—is real, and it's worth understanding your options.
+None of these tools is a finished product yet. The broader [open-source AI coding tools](/blog/best-open-source-ai-coding-tools-2026/) category is early. But the gap they're filling—the week-long cycle between "I see a spacing issue" and "it's fixed in production"—is real, and it's worth understanding your options.

@@ -37,15 +37,15 @@ Frontman maps the live element back to the exact source file and line number, gi
 
 ### For Teams With a Design System
 
-If your company has a component library and design tokens — and you've felt the pain of those drifting out of sync across your product — this is where Frontman gets interesting.
+If your company has a component library and design tokens — and you've felt the pain of [design system consistency](/blog/ai-coding-agents-blind-to-ui/) drifting out of sync across your product — this is where Frontman gets interesting.
 
-Because it runs inside the dev server, Frontman can see your component tree. It knows that the card on screen isn't just a `<div>` — it's your `Card` component from `@company/ui`, with specific props and token-derived styles. When you ask for a change, it works within your system's components and tokens, not around them.
+Because it runs inside the dev server, Frontman has full [runtime context](/blog/runtime-context-gap/) — it can see your component tree. It knows that the card on screen isn't just a `<div>` — it's your `Card` component from `@company/ui`, with specific props and token-derived styles. When you ask for a change, it works within your system's components and tokens, not around them.
 
 This means you can use Frontman to audit live UI against your design system. Click through screens in the running app and check whether the production output matches what's in Figma. When it doesn't, describe the correction. No screenshots, no Loom recordings, no "see the red circle in the attached image."
 
 ### How It Works (The Short Version)
 
-Frontman installs as a plugin in your team's dev server — one line in the framework config. It supports Next.js, Vite (React, Vue, Svelte), and Astro. Your engineering team sets it up once; it takes about five minutes.
+Frontman installs as a plugin in your team's dev server — one line in the framework config. It supports Next.js, Vite (React, Vue, Svelte), and Astro. Your engineering team sets it up once; it takes about five minutes. This [framework-aware AI](/blog/what-are-framework-aware-ai-coding-tools/) approach means Frontman understands your component structure, not just raw files.
 
 Once it's running, anyone on the team can open the app in their browser and access Frontman. It runs entirely on your machine. Your code and your conversations with the AI never leave your local environment — there are no external servers involved.
 
@@ -77,7 +77,7 @@ This matters most for teams that are scaling. When you have two or three squads 
 
 Frontman is Apache 2.0 (client libraries) and AGPL-3.0 (server). It uses a bring-your-own-key model — your code and AI interactions stay between you and your AI provider. Nothing routes through our servers. There's nothing to route through — there are no servers.
 
-This isn't altruism. A tool that sits inside your dev server and sees your source code has to be open source. If your security team can't read every line of code that touches your codebase, they shouldn't sign off on it. We wouldn't either.
+This isn't altruism. A tool that sits inside your dev server and sees your source code has to be open source. If your security team can't read every line of code that touches your codebase, they shouldn't sign off on it. Read more about our [security model](/blog/security/). We wouldn't either.
 
 ### Get Started
 

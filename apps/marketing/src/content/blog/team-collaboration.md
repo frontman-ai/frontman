@@ -37,7 +37,7 @@ The problem is not tooling. The problem is access. The people who care most abou
 
 With Frontman, you open the app in your browser. You click the card. You type: "Use spacing-4 token for padding." Frontman edits the source file and hot-reloads. You see the result. If it looks right, you commit. The engineer reviews a clean one-line diff in the PR.
 
-Five minutes. No ticket. No waiting for sprint capacity. The engineer still reviews the code — nothing ships without their sign-off. But they review a _finished change_ instead of spending three days playing telephone about which card variant you meant.
+Five minutes. No ticket. No waiting for sprint capacity. The engineer still reviews the code — nothing ships without their sign-off. But they review a _finished change_ instead of spending three days playing telephone about which card variant you meant. This [framework-aware AI approach](/blog/ai-coding-agents-blind-to-ui/) means the tool sees what you see.
 
 Your PM can do this too. That CTA copy that has said "Get Started" since launch even though you repositioned the product two months ago? They open the page, click the button, type the new copy, commit. Done before the next standup.
 
@@ -59,14 +59,14 @@ Every change still goes through code review. Every change is a standard Git diff
 Every change is a Git commit on a branch. It goes through the same PR process as engineering work. If the diff is bad, it does not get merged. Frontman shows you the result via hot-reload before you commit — if the layout breaks, you see it immediately and undo it. The code review gate catches everything else.
 
 **"We tried giving non-devs access to the repo before."**
-Giving people VS Code access is not the same thing. Frontman is a constrained tool. You click an element, describe a change in plain English, and Frontman edits the source file. You cannot accidentally refactor the state management. You can update the padding. That is the right level of access for the right people.
+Giving people VS Code access is not the same thing. Frontman [differs from general-purpose agents](/blog/what-are-framework-aware-ai-coding-tools/) — it's a constrained tool. You click an element, describe a change in plain English, and Frontman edits the source file. You cannot accidentally refactor the state management. You can update the padding. That is the right level of access for the right people.
 
 **"Our engineers will push back on this."**
 Show them their PR queue. Count the tickets that say "update spacing," "fix typo," "change button color." Ask them if those are the problems they want to spend their week on. Every designer-authored PR is a PR the engineer did not have to write. They still review it — they just did not have to context-switch to create it.
 
 ### What Changes
 
-Right now your design system is a shared asset that only one discipline can touch. That constraint made sense when the codebase was new and the team was three people. It does not make sense now. You have a real system, real tokens, real components — and the people who built them should be able to maintain them.
+Right now your design system is a shared asset that only one discipline can touch. That constraint made sense when the codebase was new and the team was three people. It does not make sense now — and understanding [how Frontman actually sees the browser](/blog/introducing-frontman/) shows why. You have a real system, real tokens, real components — and the people who built them should be able to maintain them.
 
 Move the visual maintenance to the people who own it. Your engineers get their sprint capacity back. Your design system stays consistent across teams. Your PM stops waiting three days to fix a typo. Nobody is blocked on anyone else for changes that take thirty seconds to make and thirty seconds to review.
 
