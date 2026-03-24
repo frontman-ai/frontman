@@ -17,34 +17,6 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
   setup do
     Sentry.Test.start_collecting_sentry_reports()
 
-    # Allow the ExecutionMonitor process to report Sentry events back to the
-    # test process. Crash events are dispatched from ExecutionMonitor (a
-    # long-lived GenServer) which has no $callers chain to the test process.
-    #
-    # ExecutionMonitor is a singleton that persists across sequential tests in
-    # this module. If it was already allowed by a previous test, the call below
-    # will raise RuntimeError. We rescue and continue since the monitor can
-    # already report Sentry events, which is the desired state.
-    monitor_pid =
-      Process.whereis(SwarmAi.Runtime.monitor_name(FrontmanServer.AgentRuntime))
-
-    if monitor_pid do
-      try do
-        Sentry.Test.allow_sentry_reports(self(), monitor_pid)
-      rescue
-        # The ExecutionMonitor is a singleton GenServer shared across all test
-        # partitions. When another test file (e.g. task_channel_sentry_test.exs)
-        # runs in the same partition and already allowed this PID, the Sentry
-        # test sandbox raises "this PID is already allowed to access key :events".
-        # This is benign — the monitor can still report events to our test
-        # process. The actual Sentry assertions below will catch real failures.
-        e in RuntimeError ->
-          unless e.message =~ "already allowed" do
-            reraise e, __STACKTRACE__
-          end
-      end
-    end
-
     pid = Sandbox.start_owner!(FrontmanServer.Repo, shared: true)
     on_exit(fn -> Sandbox.stop_owner(pid) end)
 

@@ -385,7 +385,7 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   # ACP spec: session/cancel is a NOTIFICATION (no response expected).
   # The pending session/prompt request will be resolved with stopReason: "cancelled"
-  # via the :agent_cancelled handler (triggered by ExecutionMonitor).
+  # via the :agent_cancelled handler (triggered by the death watcher).
   defp handle_cancel(_params, socket) do
     task_id = socket.assigns.task_id
     Logger.info("Cancel notification received for task #{task_id}")

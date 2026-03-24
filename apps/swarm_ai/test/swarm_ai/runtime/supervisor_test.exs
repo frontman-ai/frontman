@@ -2,7 +2,6 @@ defmodule SwarmAi.Runtime.SupervisorTest do
   use SwarmAi.Testing, async: true
 
   alias SwarmAi.Runtime
-  alias SwarmAi.Runtime.ExecutionMonitor
 
   describe "registry crash recovery" do
     test "running tasks are terminated when registry crashes" do
@@ -69,52 +68,6 @@ defmodule SwarmAi.Runtime.SupervisorTest do
       await_exit(pid2)
 
       assert_receive {:test_event, "task-post", {:completed, {:ok, "recovered", _}}}
-    end
-  end
-
-  describe "execution monitor crash recovery" do
-    test "running tasks survive execution monitor crash" do
-      runtime = start_runtime!()
-      agent = test_agent(%MockLLM{response: "slow", delay_ms: 2000})
-
-      {:ok, pid} = Runtime.run(runtime, "task-em", agent, "Hello", default_opts())
-
-      kill_named_process(Runtime.monitor_name(runtime))
-      wait_for_process(Runtime.monitor_name(runtime))
-
-      assert Process.alive?(pid)
-      assert Runtime.running?(runtime, "task-em")
-    end
-
-    test "snapshot ETS table survives execution monitor crash" do
-      runtime = start_runtime!()
-      monitor = Runtime.monitor_name(runtime)
-      table = ExecutionMonitor.snapshot_table_name(monitor)
-
-      agent = test_agent(%MockLLM{response: "slow", delay_ms: 5000})
-      {:ok, _pid} = Runtime.run(runtime, "task-ets", agent, "Hello", default_opts())
-
-      kill_named_process(monitor)
-      wait_for_process(monitor)
-
-      # Table still exists — tasks can write without crashing
-      assert :ets.info(table) != :undefined
-    end
-
-    test "accepts new work after execution monitor crash" do
-      runtime = start_runtime!()
-      agent = test_agent(%MockLLM{response: "slow", delay_ms: 2000})
-
-      {:ok, _pid} = Runtime.run(runtime, "task-pre", agent, "Hello", default_opts())
-
-      kill_named_process(Runtime.monitor_name(runtime))
-      wait_for_process(Runtime.monitor_name(runtime))
-
-      agent2 = test_agent(mock_llm("after monitor crash"))
-      {:ok, pid2} = Runtime.run(runtime, "task-post", agent2, "Hello", default_opts())
-      await_exit(pid2)
-
-      assert_receive {:test_event, "task-post", {:completed, {:ok, "after monitor crash", _}}}
     end
   end
 

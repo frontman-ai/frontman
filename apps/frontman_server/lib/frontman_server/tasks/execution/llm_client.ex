@@ -217,7 +217,7 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
 
   # Stream-level provider/API error chunk emitted by ReqLLM.
   # The raise propagates through Response.from_stream → Task crash →
-  # ExecutionMonitor → {:agent_error, message} → TaskChannel → client ErrorBanner.
+  # death watcher → {:agent_error, message} → TaskChannel → client ErrorBanner.
   #
   # ReqLLM StreamChunk error shape: %{type: :error, text: message, metadata: %{error: original}}
   # where `original` is typically a ReqLLM.Error.API.Request with :status and :reason fields.

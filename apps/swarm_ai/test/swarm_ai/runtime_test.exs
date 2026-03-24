@@ -137,6 +137,86 @@ defmodule SwarmAi.RuntimeTest do
     end
   end
 
+  describe "death watcher" do
+    test "silent on :shutdown exit — no event dispatched" do
+      runtime = start_runtime!()
+
+      agent = test_agent(%MockLLM{response: fn -> exit(:shutdown) end})
+
+      {:ok, pid} = SwarmAi.Runtime.run(runtime, "task-shut", agent, "Hello", default_opts())
+      await_exit(pid)
+
+      refute_receive {:test_event, "task-shut", {:crashed, _}}, 200
+      refute_receive {:test_event, "task-shut", {:cancelled, _}}, 0
+    end
+
+    test "crash event includes loop snapshot from last response" do
+      runtime = start_runtime!()
+
+      # Stateful LLM: first call returns a tool call (triggers on_response),
+      # second call crashes — so the watcher holds the snapshot from iteration 1.
+      {:ok, call_count} = Agent.start_link(fn -> 0 end)
+
+      agent =
+        test_agent(%MockLLM{
+          response: fn ->
+            count = Agent.get_and_update(call_count, fn c -> {c, c + 1} end)
+
+            if count == 0 do
+              {:ok,
+               %SwarmAi.LLM.Response{
+                 content: nil,
+                 tool_calls: [
+                   %SwarmAi.ToolCall{id: "tc1", name: "test_tool", arguments: %{}}
+                 ],
+                 usage: %SwarmAi.LLM.Usage{input_tokens: 10, output_tokens: 5},
+                 raw: nil
+               }}
+            else
+              exit(:boom_after_snapshot)
+            end
+          end
+        })
+
+      {:ok, pid} =
+        SwarmAi.Runtime.run(runtime, "task-snap", agent, "Hello", default_opts())
+
+      await_exit(pid)
+
+      assert_receive {:test_event, "task-snap", {:crashed, %{loop: loop}}}
+      assert loop != nil
+    end
+
+    test "crash event has nil loop when no response received" do
+      runtime = start_runtime!()
+
+      # Use an agent that exits immediately without any streaming
+      agent = test_agent(%MockLLM{response: fn -> exit(:kaboom) end})
+
+      {:ok, pid} =
+        SwarmAi.Runtime.run(runtime, "task-nosnap", agent, "Hello", default_opts())
+
+      await_exit(pid)
+
+      assert_receive {:test_event, "task-nosnap", {:crashed, %{loop: nil}}}
+    end
+
+    test "dispatch failure during crash does not prevent cleanup" do
+      runtime = start_runtime_with_failing_dispatch!()
+
+      agent = test_agent(%MockLLM{response: fn -> exit(:kaboom) end})
+
+      {:ok, pid} =
+        SwarmAi.Runtime.run(runtime, "task-fail-disp", agent, "Hello", default_opts())
+
+      await_exit(pid)
+
+      # The task's `after` block unregisters before the process exits,
+      # so running?/2 returns false by the time await_exit completes.
+      refute SwarmAi.Runtime.running?(runtime, "task-fail-disp")
+    end
+  end
+
   describe "streaming events" do
     test "dispatches chunk and response events" do
       runtime = start_runtime!()
@@ -164,6 +244,10 @@ defmodule SwarmAi.RuntimeTest do
     end
   end
 
+  defmodule FailingDispatcher do
+    def dispatch(_key, _event, _metadata), do: raise("dispatch exploded")
+  end
+
   # --- Helpers ---
 
   defp start_runtime! do
@@ -173,6 +257,17 @@ defmodule SwarmAi.RuntimeTest do
     start_supervised!(
       {SwarmAi.Runtime,
        name: name, event_dispatcher: {__MODULE__.TestDispatcher, :dispatch, [test_pid]}}
+    )
+
+    name
+  end
+
+  defp start_runtime_with_failing_dispatch! do
+    name = :"TestRuntime_#{:erlang.unique_integer([:positive])}"
+
+    start_supervised!(
+      {SwarmAi.Runtime,
+       name: name, event_dispatcher: {__MODULE__.FailingDispatcher, :dispatch, []}}
     )
 
     name

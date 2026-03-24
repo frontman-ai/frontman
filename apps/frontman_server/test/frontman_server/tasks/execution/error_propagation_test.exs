@@ -4,7 +4,7 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
 
   Tests the critical path that was previously broken:
   LLM stream error → raise in stream consumption → Task crash →
-  ExecutionMonitor → PubSub {:swarm_event, {:crashed, ...}} broadcast.
+  death watcher → PubSub {:swarm_event, {:crashed, ...}} broadcast.
 
   This verifies that when an LLM API returns an error (e.g., HTTP 400 for
   oversized images), the error reaches the client instead of being swallowed
@@ -47,7 +47,7 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
       # StreamErrorLLM returns {:ok, stream} where the stream raises when
       # consumed — matching the real LLMClient behavior when ReqLLM emits an
       # error chunk (e.g., HTTP 400 for oversized images). The raise propagates
-      # through Task → ExecutionMonitor → PubSub {:swarm_event, {:crashed, ...}}.
+      # through Task → death watcher → PubSub {:swarm_event, {:crashed, ...}}.
       error_llm = %StreamErrorLLM{
         error_message: "LLM API error: image exceeds the maximum allowed size"
       }
@@ -64,7 +64,7 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
 
       # The error should propagate through:
       # 1. StreamErrorLLM returns {:ok, stream} that raises on consumption
-      # 2. Task crash caught by ExecutionMonitor
+      # 2. Task crash caught by death watcher
       # 3. PubSub broadcast of {:swarm_event, {:crashed, %{reason: ..., ...}}}
       assert_receive {:swarm_event, {:crashed, %{reason: reason}}}, 5_000
 

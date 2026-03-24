@@ -41,14 +41,12 @@ defmodule SwarmAi.Runtime do
 
   require Logger
 
-  alias SwarmAi.Runtime.ExecutionMonitor
-
   @doc """
   Returns a child spec for the Runtime supervision subtree.
 
   ## Options
 
-  - `:name` - Required. Prefix for Registry, TaskSupervisor, and ExecutionMonitor.
+  - `:name` - Required. Prefix for Registry and TaskSupervisor.
   - `:event_dispatcher` - Optional `{mod, fun, args}` MFA tuple for event dispatch.
   """
   def child_spec(opts) do
@@ -84,7 +82,6 @@ defmodule SwarmAi.Runtime do
   def run(runtime, key, agent, messages, opts \\ []) do
     registry = registry_name(runtime)
     task_sup = task_supervisor_name(runtime)
-    monitor = monitor_name(runtime)
     dispatcher = event_dispatcher(runtime)
 
     registry_key = {:running, key}
@@ -98,7 +95,6 @@ defmodule SwarmAi.Runtime do
           task_sup,
           registry,
           registry_key,
-          monitor,
           key,
           agent,
           messages,
@@ -144,7 +140,6 @@ defmodule SwarmAi.Runtime do
          task_sup,
          registry,
          registry_key,
-         monitor,
          key,
          agent,
          messages,
@@ -155,35 +150,42 @@ defmodule SwarmAi.Runtime do
     ack_ref = make_ref()
 
     metadata = Keyword.get(opts, :metadata, %{})
-    streaming_opts = build_streaming_opts(opts, dispatcher, key, metadata, monitor)
 
     case Task.Supervisor.start_child(task_sup, fn ->
            case Registry.register(registry, registry_key, %{}) do
              {:ok, _} ->
-               ExecutionMonitor.watch(monitor, key, metadata)
+               watcher =
+                 spawn_death_watcher(dispatcher, key, metadata)
+
+               streaming_opts =
+                 build_streaming_opts(opts, dispatcher, key, metadata, watcher)
+
                send(caller, {ack_ref, :registered})
+
+               try do
+                 result = SwarmAi.run_streaming(agent, messages, streaming_opts)
+
+                 # Unregister BEFORE dispatch so running?/2 returns false first
+                 Registry.unregister(registry, registry_key)
+                 send(watcher, :completed)
+
+                 case result do
+                   {:ok, _, _} = ok ->
+                     dispatch_event(dispatcher, key, {:completed, ok}, metadata)
+
+                   {:error, _, _} = err ->
+                     dispatch_event(dispatcher, key, {:failed, err}, metadata)
+                 end
+               after
+                 # Safety net — idempotent if already unregistered above.
+                 # Do NOT send :completed here — on abnormal exits the watcher
+                 # must receive {:EXIT, ...} to dispatch crash/cancel events.
+                 Registry.unregister(registry, registry_key)
+               end
 
              {:error, {:already_registered, _}} ->
                send(caller, {ack_ref, :already_running})
                exit(:normal)
-           end
-
-           try do
-             result = SwarmAi.run_streaming(agent, messages, streaming_opts)
-
-             # Unregister BEFORE dispatch so running?/2 returns false first
-             Registry.unregister(registry, registry_key)
-
-             case result do
-               {:ok, _, _} = ok ->
-                 dispatch_event(dispatcher, key, {:completed, ok}, metadata)
-
-               {:error, _, _} = err ->
-                 dispatch_event(dispatcher, key, {:failed, err}, metadata)
-             end
-           after
-             # Safety net — idempotent if already unregistered above
-             Registry.unregister(registry, registry_key)
            end
          end) do
       {:ok, pid} ->
@@ -194,15 +196,15 @@ defmodule SwarmAi.Runtime do
     end
   end
 
-  defp build_streaming_opts(opts, nil, _key, _metadata, _monitor), do: opts
+  defp build_streaming_opts(opts, nil, _key, _metadata, _watcher), do: opts
 
-  defp build_streaming_opts(opts, dispatcher, key, metadata, monitor) do
+  defp build_streaming_opts(opts, dispatcher, key, metadata, watcher) do
     Keyword.merge(opts,
       on_chunk: fn chunk ->
         dispatch_event(dispatcher, key, {:chunk, chunk}, metadata)
       end,
       on_response: fn response ->
-        ExecutionMonitor.stash_snapshot(monitor, key, response)
+        send(watcher, {:snapshot, response})
         dispatch_event(dispatcher, key, {:response, response}, metadata)
       end,
       on_tool_call: fn tc ->
@@ -232,6 +234,85 @@ defmodule SwarmAi.Runtime do
     end
   end
 
+  # Spawns a linked watcher process that observes the caller for unexpected
+  # death (crash or cancellation). Uses a handshake to guarantee trap_exit
+  # is set before the task proceeds — same race prevention as StreamCleanup.
+  #
+  # The watcher does NOT unregister from the Registry — only the owning
+  # process (the task) can unregister its own keys. The task's `after` block
+  # handles normal/exception cleanup; for external kills (e.g. :cancelled),
+  # the Registry's built-in :DOWN monitor removes the entry automatically.
+  defp spawn_death_watcher(dispatcher, key, metadata) do
+    caller = self()
+    callers = Process.get(:"$callers", [])
+
+    pid =
+      spawn_link(fn ->
+        Process.put(:"$callers", [caller | callers])
+        Process.flag(:trap_exit, true)
+        send(caller, {:watcher_ready, self()})
+        watcher_loop(caller, dispatcher, key, metadata, nil)
+      end)
+
+    receive do
+      {:watcher_ready, ^pid} -> pid
+    end
+  end
+
+  defp watcher_loop(caller, dispatcher, key, metadata, loop_snapshot) do
+    receive do
+      {:snapshot, response} ->
+        watcher_loop(caller, dispatcher, key, metadata, response)
+
+      :completed ->
+        :ok
+
+      {:EXIT, ^caller, reason} ->
+        cond do
+          reason == :cancelled ->
+            Logger.info("Execution cancelled", key: inspect(key))
+
+            dispatch_event(
+              dispatcher,
+              key,
+              {:cancelled, %{loop: loop_snapshot}},
+              metadata
+            )
+
+          reason not in [:normal, :shutdown] and not match?({:shutdown, _}, reason) ->
+            {crash_reason, stacktrace} = normalize_crash_reason(reason)
+
+            Logger.warning("Execution crashed",
+              key: inspect(key),
+              reason: inspect(reason)
+            )
+
+            dispatch_event(
+              dispatcher,
+              key,
+              {:crashed, %{reason: crash_reason, stacktrace: stacktrace, loop: loop_snapshot}},
+              metadata
+            )
+
+            emit_telemetry(key, caller, reason)
+
+          true ->
+            :ok
+        end
+    end
+  end
+
+  defp normalize_crash_reason({_exception, _stacktrace} = reason), do: reason
+  defp normalize_crash_reason(reason), do: {reason, []}
+
+  defp emit_telemetry(key, pid, reason) do
+    :telemetry.execute(
+      [:swarm_ai, :runtime, :crash],
+      %{count: 1},
+      %{key: key, pid: pid, reason: reason}
+    )
+  end
+
   defp dispatch_event(nil, _key, _event, _metadata), do: :ok
 
   defp dispatch_event({mod, fun, args}, key, event, metadata) do
@@ -250,7 +331,4 @@ defmodule SwarmAi.Runtime do
 
   @doc false
   def task_supervisor_name(runtime), do: :"#{runtime}.TaskSupervisor"
-
-  @doc false
-  def monitor_name(runtime), do: :"#{runtime}.ExecutionMonitor"
 end

@@ -152,7 +152,7 @@ defmodule SwarmAi.Testing do
 
     Simulates the real LLMClient behavior when ReqLLM emits an error chunk
     inside the stream (e.g., HTTP 400 for oversized images). The raise
-    propagates through Task -> ExecutionMonitor -> PubSub.
+    propagates through Task -> death watcher -> PubSub.
 
     Unlike ErrorLLM (which fails at the stream/3 return level), this mock
     returns {:ok, stream} and the error only surfaces when the stream is consumed.
