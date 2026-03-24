@@ -1,6 +1,10 @@
 %%raw("import '@radix-ui/themes/styles.css'")
 %%raw("import './index.css'")
 
+FrontmanLogs.Logs.setLogLevel(if Client__Env.isDev { Debug } else { Error })
+FrontmanLogs.Logs.addHandler(FrontmanLogs.Logs.Console.handler)
+FrontmanLogs.Logs.addHandler(FrontmanAiFrontmanClient.FrontmanClient__Sentry__LogHandler.handler)
+
 Client__Heap.init()
 
 @val external importMetaUrl: string = "import.meta.url"

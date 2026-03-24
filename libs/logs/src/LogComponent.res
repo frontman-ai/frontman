@@ -13,6 +13,7 @@ type t = [
   | #FrontmanProvider
   | #WebPreviewStage
   | #StateStore
+  | #BrowserUrl
 ]
 
 // Accepts any poly variant (open) — tags are strings at runtime

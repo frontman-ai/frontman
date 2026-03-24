@@ -2,9 +2,7 @@
 // Dev env ID: 349428408
 // Prod env ID: 218974947
 
-let isDev: bool = %raw("import.meta.env?.DEV ?? true")
-
-let envId = if isDev {
+let envId = if Client__Env.isDev {
   "349428408"
 } else {
   "218974947"

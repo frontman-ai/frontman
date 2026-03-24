@@ -1,6 +1,5 @@
-// Console.* used intentionally throughout this file — Storybook stories never
-// call ACP.connect(), which is the only place the log handler is registered.
-// Using Logs.* here would silently drop all output.
+// Console.* used intentionally — Storybook stories run outside the normal
+// app entrypoint so log handlers may not be registered.
 
 S.enableJson()
 /**

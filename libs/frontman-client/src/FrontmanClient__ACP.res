@@ -152,12 +152,6 @@ let connect = async (config: config, ~signal: option<WebAPI.EventAPI.abortSignal
   connection,
   connectError,
 > => {
-  // Initialize logging
-  let isDev: bool = %raw("import.meta.env?.DEV ?? true")
-  FrontmanLogs.Logs.setLogLevel(if isDev { Debug } else { Error })
-  FrontmanLogs.Logs.addHandler(FrontmanLogs.Logs.Console.handler)
-  FrontmanLogs.Logs.addHandler(FrontmanClient__Sentry__LogHandler.handler)
-
   // Initialize Sentry on first connection
   Sentry.initialize()
   Sentry.addBreadcrumb(~category=#acp, ~message="Starting ACP connection")

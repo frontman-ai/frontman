@@ -13,6 +13,10 @@
 // frontman-core is server-only. Keep the two implementations aligned —
 // if you change one, update the other.
 
+module Log = FrontmanLogs.Logs.Make({
+  let component = #BrowserUrl
+})
+
 // Read basePath from runtime config. Lazy — reads once on first access.
 // Falls back to "frontman" if runtime config is unavailable (e.g. in tests).
 let _getBasePath: unit => string = {
@@ -25,9 +29,7 @@ let _getBasePath: unit => string = {
         Client__RuntimeConfig.read().basePath
       } catch {
       | _ =>
-        // Console.warn used intentionally — this runs before ACP.connect() registers
-        // the log handler, so Logs.* calls would be silently dropped.
-        Console.warn("RuntimeConfig.basePath unavailable, falling back to \"frontman\"")
+        Log.warning("RuntimeConfig.basePath unavailable, falling back to \"frontman\"")
         "frontman"
       }
       cached := Some(bp)
