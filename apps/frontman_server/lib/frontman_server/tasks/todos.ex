@@ -20,12 +20,15 @@ defmodule FrontmanServer.Tasks.Todos do
     @valid_statuses [:pending, :in_progress, :completed]
     @valid_priorities [:high, :medium, :low]
 
-    @new_schema Zoi.object(%{
-                  content: Zoi.string() |> Zoi.min(1),
-                  active_form: Zoi.string() |> Zoi.min(1),
-                  status: Zoi.string() |> Zoi.one_of(["pending", "in_progress", "completed"]),
-                  priority: Zoi.string() |> Zoi.one_of(["high", "medium", "low"])
-                })
+    @new_schema Zoi.object(
+                  %{
+                    content: Zoi.string() |> Zoi.min(1),
+                    active_form: Zoi.string() |> Zoi.min(1),
+                    status: Zoi.string() |> Zoi.one_of(["pending", "in_progress", "completed"]),
+                    priority: Zoi.string() |> Zoi.one_of(["high", "medium", "low"])
+                  },
+                  coerce: true
+                )
     @extra_schema Zoi.object(
                     %{
                       id: Zoi.string(),

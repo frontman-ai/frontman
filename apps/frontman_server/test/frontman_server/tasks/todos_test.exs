@@ -1,5 +1,5 @@
 defmodule FrontmanServer.Tasks.TodosTest do
-  use FrontmanServer.DataCase, async: false
+  use FrontmanServer.DataCase, async: true
 
   alias FrontmanServer.Accounts
   alias FrontmanServer.Accounts.Scope

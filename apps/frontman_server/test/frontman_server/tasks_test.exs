@@ -1,5 +1,5 @@
 defmodule FrontmanServer.TasksTest do
-  use FrontmanServer.DataCase, async: false
+  use FrontmanServer.DataCase, async: true
 
   import FrontmanServer.InteractionCase.Helpers
 
