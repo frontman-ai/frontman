@@ -256,19 +256,7 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
           _ -> "Project type: single project"
         end
 
-      workspace_section =
-        case workspaces do
-          ws when is_list(ws) and ws != [] ->
-            ws_lines =
-              Enum.map(ws, fn w ->
-                "  #{Map.get(w, "name", "unknown")} → #{Map.get(w, "path", "")}"
-              end)
-
-            "\n\nWorkspaces:\n" <> Enum.join(ws_lines, "\n")
-
-          _ ->
-            ""
-        end
+      workspace_section = format_workspace_section(workspaces)
 
       summary = type_line <> workspace_section <> "\n\nDirectory layout:\n" <> tree
       Tasks.add_discovered_project_structure(state.scope, state.task_id, summary)
@@ -286,6 +274,17 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
 
     complete_initialization(state)
   end
+
+  defp format_workspace_section(ws) when is_list(ws) and ws != [] do
+    ws_lines =
+      Enum.map(ws, fn w ->
+        "  #{Map.get(w, "name", "unknown")} → #{Map.get(w, "path", "")}"
+      end)
+
+    "\n\nWorkspaces:\n" <> Enum.join(ws_lines, "\n")
+  end
+
+  defp format_workspace_section(_), do: ""
 
   defp complete_initialization(state) do
     state = %{
