@@ -26,7 +26,7 @@ let useStickToBottomContext = useScrollContext
 
 // --- Cached classNames ---
 
-let scrollButtonBaseClassName = "absolute bottom-4 left-[50%] translate-x-[-50%] rounded-full w-8 h-8 flex items-center justify-center bg-zinc-800 border border-zinc-600 text-zinc-200 hover:bg-zinc-700 transition-colors"
+let scrollButtonBaseClassName = "sticky bottom-4 left-[50%] translate-x-[-50%] z-10 rounded-full w-8 h-8 flex items-center justify-center bg-zinc-800 border border-zinc-600 text-zinc-200 hover:bg-zinc-700 transition-colors"
 
 let containerBaseClassName = "relative flex-1 overflow-y-auto frontman-contain-strict"
 
