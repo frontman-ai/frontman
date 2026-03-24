@@ -140,7 +140,7 @@ const savedNavActions = navActions.map((action) => ({
 		font-weight: 330;
 	}
 	.header__nav {
-		@apply flex h-[5.5rem] items-stretch gap-6 lg:justify-between;
+		@apply flex h-[5.5rem] items-stretch gap-4 lg:justify-between xl:gap-6;
 		font-family: "SF Pro Display", system-ui, helvetica, sans-serif;
 	}
 	.header__menu {
@@ -153,13 +153,19 @@ const savedNavActions = navActions.map((action) => ({
 		@apply relative flex cursor-pointer flex-col items-stretch lg:flex-row;
 	}
 	.header__menu-item + .header__menu-item {
-		@apply lg:ml-4;
+		@apply lg:ml-1 xl:ml-4;
 	}
 	.header__menu-link {
-		@apply relative flex items-center gap-1 py-4 text-black dark:text-white transition-colors duration-300 focus:outline-none focus-visible:outline-none lg:px-6;
-		font-size: 18px;
-		line-height: 25px;
+		@apply relative flex items-center gap-1 py-4 text-black dark:text-white transition-colors duration-300 focus:outline-none focus-visible:outline-none lg:px-2 xl:px-6;
+		font-size: 16px;
+		line-height: 22px;
 		font-weight: 330;
+	}
+	@media (min-width: 1280px) {
+		.header__menu-link {
+			font-size: 18px;
+			line-height: 25px;
+		}
 	}
 	.header__menu-link:hover {
 		@apply text-primary-500;
@@ -168,7 +174,7 @@ const savedNavActions = navActions.map((action) => ({
 		@apply text-primary-600;
 	}
 	button.header__menu-link {
-		@apply cursor-pointer border-none bg-transparent p-0 py-4;
+		@apply cursor-pointer border-none bg-transparent p-0 py-4 self-stretch;
 	}
 	.header__menu-chevron {
 		@apply h-4 w-4 transition-transform [.header\_\_menu-item.open_&]:rotate-180;
@@ -215,7 +221,7 @@ const savedNavActions = navActions.map((action) => ({
 		@apply w-1/2 origin-top-left translate-y-2 [.header\_\_toggle--open_&]:w-0;
 	}
 	.header__actions {
-		@apply fixed bottom-0 left-0 hidden w-full items-center justify-between gap-4 border-t border-neutral-100 bg-white px-6 py-4 lg:relative lg:ml-auto lg:flex lg:w-auto lg:border-none lg:bg-transparent lg:px-0 lg:py-0 dark:border-neutral-800 dark:bg-neutral-950 lg:dark:bg-transparent [.header\_\_menu--open~&]:flex;
+		@apply fixed bottom-0 left-0 hidden w-full items-center justify-between gap-2 border-t border-neutral-100 bg-white px-6 py-4 lg:relative lg:ml-auto lg:flex lg:w-auto lg:border-none lg:bg-transparent lg:px-0 lg:py-0 xl:gap-4 dark:border-neutral-800 dark:bg-neutral-950 lg:dark:bg-transparent [.header\_\_menu--open~&]:flex;
 	}
 	.header__actions .button {
 		font-weight: 480;

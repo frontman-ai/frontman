@@ -34,7 +34,7 @@ const hasContent = Astro.slots.default
 
 <style>
 	.col {
-		@apply has-[.col\_\_placeholder]:hidden lg:has-[.col\_\_placeholder]:block;
+		@apply min-w-0 has-[.col\_\_placeholder]:hidden lg:has-[.col\_\_placeholder]:block;
 	}
 	.col__placeholder {
 		@apply hidden;

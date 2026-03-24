@@ -135,6 +135,15 @@
 .frontman-content-auto {
 	content-visibility: auto;
 	contain-intrinsic-size: auto 80px;
+	overflow-anchor: none;
+}
+
+/* Scroll anchor sentinel: the browser's scroll-anchoring engine keeps this
+   element in view as content grows above it, giving us zero-JS stick-to-bottom.
+   Paired with overflow-anchor: none on .frontman-content-auto siblings. */
+.frontman-scroll-anchor {
+	overflow-anchor: auto;
+	height: 1px;
 }
 
 /* ============================================================================

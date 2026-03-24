@@ -1,56 +1,51 @@
 /**
  * Client__ScrollContainer - Scrollable container with stick-to-bottom behavior
- * 
- * Direct binding to use-stick-to-bottom library for chat-like scrolling.
- * Replaces AIElements.Conversation with a direct binding.
+ *
+ * Uses CSS overflow-anchor for zero-JS stick-to-bottom during streaming,
+ * and IntersectionObserver for passive isAtBottom tracking.
+ * Replaces use-stick-to-bottom to eliminate layout thrashing (see #177).
  */
 
-// Context hook for accessing scroll state
+// --- Scroll context ---
+
 type scrollContext = {
   isAtBottom: bool,
   scrollToBottom: unit => unit,
 }
 
-@module("use-stick-to-bottom")
-external useStickToBottomContext: unit => scrollContext = "useStickToBottomContext"
+let context = React.createContext({isAtBottom: true, scrollToBottom: () => ()})
 
-// Main scroll container
-module StickToBottom = {
-  @module("use-stick-to-bottom") @react.component
-  external make: (
-    ~className: string=?,
-    ~initial: string=?,
-    ~resize: string=?,
-    ~role: string=?,
-    ~children: React.element,
-  ) => React.element = "StickToBottom"
+module Provider = {
+  let make = React.Context.provider(context)
 }
 
-// Content wrapper inside the scroll container
-module Content = {
-  @module("use-stick-to-bottom") @scope("StickToBottom") @react.component
-  external make: (
-    ~className: string=?,
-    ~children: React.element,
-  ) => React.element = "Content"
-}
+let useScrollContext = () => React.useContext(context)
 
-// Cached className for scroll button
+// Re-export so existing consumers (ScrollButton) keep working
+let useStickToBottomContext = useScrollContext
+
+// --- Cached classNames ---
+
 let scrollButtonBaseClassName = "absolute bottom-4 left-[50%] translate-x-[-50%] rounded-full w-8 h-8 flex items-center justify-center bg-zinc-800 border border-zinc-600 text-zinc-200 hover:bg-zinc-700 transition-colors"
 
-// Scroll to bottom button
+let containerBaseClassName = "relative flex-1 overflow-y-auto frontman-contain-strict"
+
+let contentBaseClassName = "p-4"
+
+// --- ScrollButton ---
+
 module ScrollButton = {
   @react.component
   let make = (~className: option<string>=?) => {
-    let {isAtBottom, scrollToBottom} = useStickToBottomContext()
-    
+    let {isAtBottom, scrollToBottom} = useScrollContext()
+
     let buttonClassName = React.useMemo1(() => {
       switch className {
       | None => scrollButtonBaseClassName
       | Some(extra) => `${scrollButtonBaseClassName} ${extra}`
       }
     }, [className])
-    
+
     if isAtBottom {
       React.null
     } else {
@@ -77,12 +72,8 @@ module ScrollButton = {
   }
 }
 
-// Cached base className for main container
-// frontman-contain-strict: creates a layout boundary so flex recalculations
-// from the input area don't cascade into the 2000+ message DOM nodes
-let containerBaseClassName = "relative flex-1 overflow-y-auto frontman-contain-strict"
+// --- Main ScrollContainer ---
 
-// Main component wrapper for convenient usage
 @react.component
 let make = (~className: option<string>=?, ~children: React.element) => {
   let containerClassName = React.useMemo1(() => {
@@ -91,24 +82,60 @@ let make = (~className: option<string>=?, ~children: React.element) => {
     | Some(extra) => `${containerBaseClassName} ${extra}`
     }
   }, [className])
-  
-  // resize="instant" avoids a spring animation loop that causes forced reflows:
-  // the smooth spring does read(scrollHeight) -> write(scrollTop) -> read -> write
-  // on every rAF while content is growing during streaming.
-  <StickToBottom
-    className={containerClassName}
-    initial="smooth"
-    resize="instant"
-    role="log"
-  >
-    {children}
-  </StickToBottom>
+
+  let sentinelRef = React.useRef(Nullable.null)
+  let containerRef = React.useRef(Nullable.null)
+  let (isAtBottom, setIsAtBottom) = React.useState(() => true)
+
+  // IntersectionObserver: passively track whether the sentinel is visible.
+  // When visible the user is "at the bottom"; overflow-anchor on the sentinel
+  // keeps them pinned there as content grows — zero layout reads.
+  React.useEffect0(() => {
+    switch (sentinelRef.current->Nullable.toOption, containerRef.current->Nullable.toOption) {
+    | (Some(sentinel), Some(container)) =>
+      let observer = Bindings__IntersectionObserver.make(
+        entries => {
+          entries->Array.forEach(entry => {
+            setIsAtBottom(_ => entry.isIntersecting)
+          })
+        },
+        {root: container, rootMargin: "10px", threshold: [0.0]},
+      )
+      observer->Bindings__IntersectionObserver.observe(sentinel)
+      Some(() => Bindings__IntersectionObserver.disconnect(observer))
+    | _ => None
+    }
+  })
+
+  let scrollToBottom = React.useCallback0(() => {
+    switch sentinelRef.current->Nullable.toOption {
+    | None => ()
+    | Some(sentinel) =>
+      sentinel->Bindings__DomScrollIntoView.scrollIntoView({behavior: "smooth"})
+    }
+  })
+
+  let contextValue = React.useMemo2(
+    () => {isAtBottom, scrollToBottom},
+    (isAtBottom, scrollToBottom),
+  )
+
+  <Provider value={contextValue}>
+    <div ref={ReactDOM.Ref.domRef(containerRef)} className={containerClassName} role="log">
+      {children}
+      // Sentinel: overflow-anchor keeps it in view while the user is at the bottom.
+      // All message wrappers have overflow-anchor: none (via .frontman-content-auto).
+      <div
+        ref={ReactDOM.Ref.domRef(sentinelRef)}
+        className="frontman-scroll-anchor"
+        ariaHidden=true
+      />
+    </div>
+  </Provider>
 }
 
-// Cached base className for content wrapper
-let contentBaseClassName = "p-4"
+// --- ContentWrapper ---
 
-// Content subcomponent
 module ContentWrapper = {
   @react.component
   let make = (~className: option<string>=?, ~children: React.element) => {
@@ -118,10 +145,9 @@ module ContentWrapper = {
       | Some(extra) => `${contentBaseClassName} ${extra}`
       }
     }, [className])
-    
-    <Content className={contentClassName}>
+
+    <div className={contentClassName}>
       {children}
-    </Content>
+    </div>
   }
 }
-
