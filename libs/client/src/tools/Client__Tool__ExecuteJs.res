@@ -49,13 +49,10 @@ type output = {
 
 // Smart serializer: handles DOM nodes, NodeList, Map, Set, circular refs, depth limit.
 // Uses a recursive approach instead of JSON.stringify replacer for correct depth tracking.
-// Accepts an optional window reference for cross-frame instanceof checks.
-let smartSerialize: ('a, int, option<WebAPI.DOMAPI.window>) => string = %raw(`
-  function smartSerialize(value, maxBytes, win) {
+let smartSerialize: ('a, int) => string = %raw(`
+  function smartSerialize(value, maxBytes) {
     var seen = typeof WeakSet !== 'undefined' ? new WeakSet() : { add: function(){}, has: function(){ return false } };
     var maxDepth = 5;
-    var w = win || window;
-
     function isElement(val) {
       return val.nodeType === 1 && typeof val.tagName === 'string';
     }
@@ -166,7 +163,7 @@ let executeInWindow: (WebAPI.DOMAPI.window, string, int, int) => promise<output>
     }
 
     function serialize(val) {
-      return smartSerialize(val, maxBytes, win);
+      return smartSerialize(val, maxBytes);
     }
 
     var result;
