@@ -3,6 +3,7 @@ import tailwind from "@astrojs/tailwind";
 import icon from "astro-icon";
 import sitemap from "@astrojs/sitemap";
 import frontman from "@frontman-ai/astro";
+import brokenLinksChecker from "astro-broken-links-checker";
 import path from "node:path";
 import fs from "node:fs";
 
@@ -52,6 +53,7 @@ export default defineConfig({
     }),
     tailwind(),
     icon(),
+    brokenLinksChecker(),
     sitemap({
       filter: (page) =>
         // Exclude empty placeholder pages and internal-only pages

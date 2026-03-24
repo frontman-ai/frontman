@@ -8930,6 +8930,18 @@ __metadata:
   languageName: node
   linkType: hard
 
+"astro-broken-links-checker@npm:^1.0.7":
+  version: 1.0.7
+  resolution: "astro-broken-links-checker@npm:1.0.7"
+  dependencies:
+    fast-glob: "npm:^3.3.3"
+    node-fetch: "npm:^3.3.2"
+    node-html-parser: "npm:^7.0.1"
+    p-limit: "npm:^7.2.0"
+  checksum: 10c0/4e5d43573bd5581d8fcfca525c9c4e994127f1c39e0685b5137e64099d2d8792e37017fa206e430ec84fa426975b6e8ad303b2705394bcfd588b67e55ed148cf
+  languageName: node
+  linkType: hard
+
 "astro-expressive-code@npm:^0.41.1":
   version: 0.41.3
   resolution: "astro-expressive-code@npm:0.41.3"
@@ -14675,6 +14687,7 @@ __metadata:
     "@frontman-ai/astro": "workspace:*"
     "@tailwindcss/typography": "npm:^0.5.13"
     astro: "npm:^5.17.0"
+    astro-broken-links-checker: "npm:^1.0.7"
     astro-icon: "npm:^1.1.0"
     prettier: "npm:^3.3.2"
     prettier-plugin-astro: "npm:^0.14.0"
@@ -16036,6 +16049,16 @@ __metadata:
   languageName: node
   linkType: hard
 
+"node-html-parser@npm:^7.0.1":
+  version: 7.1.0
+  resolution: "node-html-parser@npm:7.1.0"
+  dependencies:
+    css-select: "npm:^5.1.0"
+    he: "npm:1.2.0"
+  checksum: 10c0/8bee2616de374bb6f43b62cc8523f6d923cd199b2b7a42c6cf2ca503f1e89c32fb44195bd5af17d6fde1b992ad62c24465b29437213ae25f7770261fc9819173
+  languageName: node
+  linkType: hard
+
 "node-mock-http@npm:^1.0.4":
   version: 1.0.4
   resolution: "node-mock-http@npm:1.0.4"
@@ -16296,6 +16319,15 @@ __metadata:
   dependencies:
     yocto-queue: "npm:^1.1.1"
   checksum: 10c0/448bf55a1776ca1444594d53b3c731e68cdca00d44a6c8df06a2f6e506d5bbd540ebb57b05280f8c8bff992a630ed782a69612473f769a7473495d19e2270166
+  languageName: node
+  linkType: hard
+
+"p-limit@npm:^7.2.0":
+  version: 7.3.0
+  resolution: "p-limit@npm:7.3.0"
+  dependencies:
+    yocto-queue: "npm:^1.2.1"
+  checksum: 10c0/8030f0ccc67d80d9c12f2b4ed277c5ede151f80a09cb1b143ab0ee597940784f2cf6e07e92d54c023fe9836784329750c25c6cd4488a7a326c0ae0ec2efca982
   languageName: node
   linkType: hard
 
@@ -21351,6 +21383,13 @@ __metadata:
   version: 1.2.1
   resolution: "yocto-queue@npm:1.2.1"
   checksum: 10c0/5762caa3d0b421f4bdb7a1926b2ae2189fc6e4a14469258f183600028eb16db3e9e0306f46e8ebf5a52ff4b81a881f22637afefbef5399d6ad440824e9b27f9f
+  languageName: node
+  linkType: hard
+
+"yocto-queue@npm:^1.2.1":
+  version: 1.2.2
+  resolution: "yocto-queue@npm:1.2.2"
+  checksum: 10c0/36d4793e9cf7060f9da543baf67c55e354f4862c8d3d34de1a1b1d7c382d44171315cc54abf84d8900b8113d742b830108a1434f4898fb244f9b7e8426d4b8f5
   languageName: node
   linkType: hard
 
