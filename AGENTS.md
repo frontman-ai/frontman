@@ -403,4 +403,5 @@ make push
 The `make push` target is the preferred workflow — it pushes and posts the summary in one shot.
 
 ## Reference Docs
-See `agent_docs/rescript-guide.md` for ReScript patterns when needed.
+- `agent_docs/elixir-style.md` — **FrontmanStyle for Elixir. Must follow when writing any Elixir code.**
+- `agent_docs/rescript-guide.md` — ReScript patterns when needed.
