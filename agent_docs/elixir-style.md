@@ -230,7 +230,7 @@ Safety > Performance > Developer Experience. All three matter.
 ## Off-By-One Prevention
 
 - Treat index, count, and size as conceptually distinct. Elixir is 0-indexed for lists
-  (`Enum.at/2`), 1-indexed for binaries (`binary_part`). Know which you're using.
+  (`Enum.at/2`) and for binaries (`binary_part`). Know which you're using.
 - Show division intent: `div(a, b)` for truncating integer division, `rem(a, b)` for remainder.
   Use `ceil(a / b)` patterns explicitly when you need ceiling division.
 - Use `Enum.chunk_every/2` over manual index arithmetic.
