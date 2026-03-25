@@ -12,8 +12,29 @@ import { googleAnalyticsMeasurementID } from '../../../src/config/analytics.ts'
 	const measurementId = document.getElementById('ga-init').getAttribute('data-ga-measurement-id')
 	window.dataLayer = window.dataLayer || []
 	function gtag() {
-		dataLayer.push(arguments) // eslint-disable-line
+		dataLayer.push(arguments)
 	}
 	gtag('js', new Date())
 	gtag('config', measurementId)
+
+	window.trackEvent = function(eventName, params) {
+		gtag('event', eventName, params)
+	}
+</script>
+
+<script is:inline>
+	document.addEventListener('DOMContentLoaded', function() {
+		document.body.addEventListener('click', function(e) {
+			const target = e.target.closest('[data-ga-event]')
+			if (target) {
+				const eventName = target.getAttribute('data-ga-event')
+				const eventCategory = target.getAttribute('data-ga-category') || 'engagement'
+				const eventLabel = target.getAttribute('data-ga-label') || ''
+				window.trackEvent(eventName, {
+					event_category: eventCategory,
+					event_label: eventLabel
+				})
+			}
+		})
+	})
 </script>

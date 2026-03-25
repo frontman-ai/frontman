@@ -23,6 +23,9 @@ type Props = {
 	variation?: 'outline' | 'link'
 	elevated?: boolean
 	classes?: string
+	'data-ga-event'?: string
+	'data-ga-category'?: string
+	'data-ga-label'?: string
 }
 const {
 	type = 'button',
@@ -32,7 +35,10 @@ const {
 	style = 'primary',
 	variation,
 	elevated,
-	classes
+	classes,
+	'data-ga-event': gaEvent,
+	'data-ga-category': gaCategory,
+	'data-ga-label': gaLabel
 } = Astro.props
 ---
 
@@ -49,6 +55,9 @@ const {
 				{ ['button--elevated']: elevated },
 				{ [`${classes}`]: classes }
 			]}
+			{...(gaEvent ? { 'data-ga-event': gaEvent } : {})}
+			{...(gaCategory ? { 'data-ga-category': gaCategory } : {})}
+			{...(gaLabel ? { 'data-ga-label': gaLabel } : {})}
 		>
 			<slot />
 		</a>
@@ -64,6 +73,9 @@ const {
 				{ [`${classes}`]: classes }
 			]}
 			{...(modal ? { 'data-modal': modal } : {})}
+			{...(gaEvent ? { 'data-ga-event': gaEvent } : {})}
+			{...(gaCategory ? { 'data-ga-category': gaCategory } : {})}
+			{...(gaLabel ? { 'data-ga-label': gaLabel } : {})}
 		>
 			<slot />
 		</button>
