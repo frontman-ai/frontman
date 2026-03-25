@@ -42,6 +42,7 @@ const { data, classes } = Astro.props
 </ul>
 
 <style>
+	@reference "../../styles/global.css";
 	.feed {
 		@apply relative flex flex-col gap-24 py-12 pl-6 before:absolute before:left-6 before:top-0 before:h-full before:-translate-x-1/2 before:border before:border-dashed before:border-neutral-100 after:absolute after:bottom-6 after:left-6 after:top-6 after:-translate-x-1/2 after:border after:border-neutral-100 lg:before:left-44 lg:after:left-44 dark:before:border-neutral-800 dark:after:border-neutral-800;
 	}
@@ -66,6 +67,7 @@ const { data, classes } = Astro.props
 </style>
 
 <style is:global>
+	@reference "../../styles/global.css";
 	.feed__item-text a {
 		text-decoration: underline !important;
 		text-decoration-color: #a259ff !important;

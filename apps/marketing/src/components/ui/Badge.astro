@@ -36,6 +36,7 @@ const { name, link, type = 'neutral', classes } = Astro.props
 }
 
 <style>
+	@reference "../../styles/global.css";
 	.badge {
 		@apply inline-flex items-center justify-center gap-1 rounded px-1.5 py-1 text-sm transition-colors;
 	}

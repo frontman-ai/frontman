@@ -1,3 +1,89 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+/* --- Custom variant: .dark_ ancestor (legacy dark mode selector) --- */
+@custom-variant dark-me (&:is(.dark_ *));
+
+/* --- Safelist: dynamic classes used via CMS/JS that Tailwind can't detect --- */
+@source inline(
+	"col-span-1", "col-span-2", "col-span-3", "col-span-4", "col-span-5", "col-span-6",
+	"col-span-7", "col-span-8", "col-span-9", "col-span-10", "col-span-11", "col-span-12",
+	"lg:col-span-1", "lg:col-span-2", "lg:col-span-3", "lg:col-span-4", "lg:col-span-5", "lg:col-span-6",
+	"lg:col-span-7", "lg:col-span-8", "lg:col-span-9", "lg:col-span-10", "lg:col-span-11", "lg:col-span-12",
+	"h-0", "h-2", "h-3", "h-4", "h-6", "h-8", "h-12", "h-16", "h-24", "h-32",
+	"lg:h-0", "lg:h-2", "lg:h-3", "lg:h-4", "lg:h-6", "lg:h-8", "lg:h-12", "lg:h-16", "lg:h-24", "lg:h-32",
+	"text-xs", "text-sm", "text-base", "text-lg", "text-xl", "text-2xl", "text-3xl", "text-4xl", "text-5xl", "text-6xl", "text-7xl", "text-8xl", "text-9xl",
+	"lg:text-xs", "lg:text-sm", "lg:text-base", "lg:text-lg", "lg:text-xl", "lg:text-2xl", "lg:text-3xl", "lg:text-4xl", "lg:text-5xl", "lg:text-6xl", "lg:text-7xl", "lg:text-8xl", "lg:text-9xl",
+	"font-thin", "font-extralight", "font-light", "font-normal", "font-medium", "font-semibold", "font-bold", "font-extrabold", "font-black",
+	"text-left", "text-center", "text-right"
+);
+
+/* --- Theme: colors, fonts, animations (migrated from tailwind.config.mjs) --- */
+@theme {
+	/* Primary (purple gradient) */
+	--color-primary-50: #FAF5FF;
+	--color-primary-100: #F3E8FF;
+	--color-primary-200: #E9D5FF;
+	--color-primary-300: #D8B4FF;
+	--color-primary-400: #C084FF;
+	--color-primary-500: #A259FF;
+	--color-primary-600: #8847D9;
+	--color-primary-700: #6E38B3;
+	--color-primary-800: #552C8C;
+	--color-primary-900: #3C1F66;
+	--color-primary-950: #23123D;
+
+	/* Neutral (slate) */
+	--color-neutral-50: #f8fafc;
+	--color-neutral-100: #f1f5f9;
+	--color-neutral-200: #e2e8f0;
+	--color-neutral-300: #cbd5e1;
+	--color-neutral-400: #94a3b8;
+	--color-neutral-500: #64748b;
+	--color-neutral-600: #475569;
+	--color-neutral-700: #334155;
+	--color-neutral-800: #1e293b;
+	--color-neutral-900: #0f172a;
+	--color-neutral-950: #020617;
+
+	/* Accent colors */
+	--color-accent-purple: #7C3AED;
+	--color-accent-cyan: #06B6D4;
+	--color-accent-amber: #D97706;
+
+	/* Background colors */
+	--color-bg-cream: #FFF4CC;
+	--color-bg-lightblue: #C4E0FF;
+	--color-bg-lavender: #E8D5FF;
+	--color-bg-peach: #FFE4D6;
+
+	/* Fonts */
+	--font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+	--font-headings: "Outfit Variable", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+
+	/* Keyframes */
+	@keyframes dropdown {
+		0% { transform: translateY(-1rem); opacity: 0; }
+		100% { transform: translateY(0); opacity: 1; }
+	}
+	@keyframes fadeInShadowLight {
+		100% { box-shadow: 0 20px 25px -5px rgba(15, 23, 42, .025), 0 8px 10px -6px rgba(15, 23, 42, .025); }
+	}
+	@keyframes fadeInShadowDark {
+		100% { box-shadow: 0 20px 25px -5px rgba(2, 6, 23, .25), 0 8px 10px -6px rgba(2, 6, 23, .25); }
+	}
+	@keyframes fadeUp {
+		0% { transform: translateY(1rem); opacity: 0; }
+		100% { transform: translateY(0); opacity: 1; }
+	}
+
+	/* Animations */
+	--animate-dropdown: dropdown 300ms ease-in-out forwards;
+	--animate-fadeInShadowLight: fadeInShadowLight 500ms ease-in-out forwards;
+	--animate-fadeInShadowDark: fadeInShadowDark 500ms ease-in-out forwards;
+	--animate-fadeUp: fadeUp 500ms ease-in-out forwards;
+}
+
 /* Layout rules */
 html {
 	@apply scroll-smooth antialiased;

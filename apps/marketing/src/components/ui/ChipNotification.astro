@@ -25,6 +25,7 @@ const { elevated, radius = 'rounded', classes } = Astro.props
 </div>
 
 <style>
+	@reference "../../styles/global.css";
 	.chip {
 		@apply inline-flex items-center border border-neutral-200 bg-white/50 px-0.5 py-0.5 text-neutral-500 dark:border-neutral-800 dark:bg-neutral-800/50 dark:text-neutral-300 [&_p]:m-0;
 	}
