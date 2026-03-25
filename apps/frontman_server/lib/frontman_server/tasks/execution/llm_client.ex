@@ -109,7 +109,7 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
     case ReqLLM.stream_text(client.model, reqllm_messages, llm_opts) do
       {:ok, response} ->
         stall_timeout_ms =
-          Application.get_env(:frontman_server, :stream_stall_timeout_ms, 25_000)
+          Application.fetch_env!(:frontman_server, :stream_stall_timeout_ms)
 
         swarm_stream =
           response.stream
