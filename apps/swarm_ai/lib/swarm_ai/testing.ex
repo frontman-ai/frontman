@@ -208,6 +208,36 @@ defmodule SwarmAi.Testing do
     end
   end
 
+  defmodule StreamTimeoutLLM do
+    @moduledoc """
+    LLM that returns a stream which exits with a GenServer.call timeout
+    during consumption.
+
+    Simulates the real scenario where the LLM provider stalls mid-stream:
+    `StreamServer.next/2` issues a `GenServer.call` with a timeout slightly
+    above Finch's `receive_timeout`. Under load the Finch timeout can take
+    longer than that buffer to propagate, so the GenServer.call timeout
+    fires first and exits the consumer process with
+    `{:timeout, {GenServer, :call, [server, msg, timeout]}}`.
+    """
+    defstruct timeout: 151_000, model: "stream-timeout"
+  end
+
+  defimpl SwarmAi.LLM, for: SwarmAi.Testing.StreamTimeoutLLM do
+    def stream(%{timeout: timeout}, _messages, _opts) do
+      stream =
+        Stream.resource(
+          fn -> :init end,
+          fn :init ->
+            exit({:timeout, {GenServer, :call, [self(), {:next, timeout}, timeout]}})
+          end,
+          fn _ -> :ok end
+        )
+
+      {:ok, stream}
+    end
+  end
+
   # --- Setup ---
 
   using do
@@ -218,6 +248,7 @@ defmodule SwarmAi.Testing do
       alias SwarmAi.Testing.MockLLM
       alias SwarmAi.Testing.StallingLLM
       alias SwarmAi.Testing.StreamErrorLLM
+      alias SwarmAi.Testing.StreamTimeoutLLM
       alias SwarmAi.Testing.TestAgent
       alias SwarmAi.LLM
       alias SwarmAi.ToolCall

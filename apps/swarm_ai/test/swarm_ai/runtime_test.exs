@@ -137,6 +137,26 @@ defmodule SwarmAi.RuntimeTest do
     end
   end
 
+  describe "GenServer.call timeout during stream consumption" do
+    test "dispatches :failed (not :crashed) when provider stalls and call timeout fires" do
+      runtime = start_runtime!()
+      agent = test_agent(%StreamTimeoutLLM{})
+
+      {:ok, pid} =
+        SwarmAi.Runtime.run(runtime, "task-timeout", agent, "Hello", default_opts())
+
+      await_exit(pid)
+
+      assert_receive {:test_event, "task-timeout",
+                      {:failed, {:error, reason, _loop_id}}}
+
+      assert reason =~ "timed out"
+
+      refute_receive {:test_event, "task-timeout", {:crashed, _}}, 100
+      refute SwarmAi.Runtime.running?(runtime, "task-timeout")
+    end
+  end
+
   describe "death watcher" do
     test "silent on :shutdown exit — no event dispatched" do
       runtime = start_runtime!()
