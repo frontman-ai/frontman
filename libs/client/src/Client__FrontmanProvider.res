@@ -178,6 +178,9 @@ module Provider = {
     ~clientVersion: string="1.0.0",
     ~children: React.element,
   ) => {
+    // Capture FTUE state before any child effects persist frontman:* UI preferences.
+    let (initialFtueState, _) = React.useState(() => Client__FtueState.get())
+
     // Log message handlers
     let logACPMessage = React.useCallback0((direction: ACP.messageDirection, payload: JSON.t) => {
       let arrow = direction == Send ? `→` : `←`
@@ -235,6 +238,7 @@ module Provider = {
         endpoint,
         tokenUrl,
         loginUrl,
+        initialFtueState,
         clientName,
         clientVersion,
         baseUrl,

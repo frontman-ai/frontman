@@ -1683,7 +1683,7 @@
 						"toolName": "Calling navigate",
 						"state": "output_available",
 						"inputBuffer": "",
-						"input": {"action": "back"},
+						"input": { "action": "back" },
 						"result": {
 							"success": true,
 							"action": "back"

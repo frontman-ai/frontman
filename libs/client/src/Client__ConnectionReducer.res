@@ -18,6 +18,7 @@ type initConfig = {
   endpoint: string,
   tokenUrl: string,
   loginUrl: string,
+  initialFtueState: Client__FtueState.t,
   clientName: string,
   clientVersion: string,
   baseUrl: string,
@@ -112,7 +113,11 @@ type action =
 type effect =
   | LogError(string)
   | LogInfo(string)
-  | ConnectACP({config: ACP.config, signal: WebAPI.EventAPI.abortSignal})
+  | ConnectACP({
+      config: ACP.config,
+      signal: WebAPI.EventAPI.abortSignal,
+      initialFtueState: Client__FtueState.t,
+    })
   | ConnectRelay(Relay.t)
   | DisconnectRelay(Relay.t)
   | DisconnectACP(ACP.connection)
@@ -254,7 +259,11 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
         abortController: Some(abortController),
       },
       [
-        ConnectACP({config: acpConfig, signal: abortController.signal}),
+        ConnectACP({
+          config: acpConfig,
+          signal: abortController.signal,
+          initialFtueState: config.initialFtueState,
+        }),
         ConnectRelay(relay),
         LogInfo("Initializing connections..."),
       ],
@@ -516,7 +525,7 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
   | AbortConnections(controller) =>
     Log.info("Aborting in-flight connections")
     WebAPI.AbortController.abort(controller)
-  | ConnectACP({config, signal}) =>
+  | ConnectACP({config, signal, initialFtueState}) =>
     let connect = async () => {
       let result = await ACP.connect(config, ~signal)
       switch result {
@@ -533,9 +542,9 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
               WebAPI.Global.window->WebAPI.Window.location->WebAPI.Location.href
             let returnTo = encodeURIComponent(currentUrl)
             let fullUrl = `${loginUrl}?return_to=${returnTo}`
-            // For first-time users, surface the auth URL so the UI can show a welcome modal.
-            // Returning users get redirected immediately.
-            switch Client__FtueState.get() {
+            // Use the FTUE state captured during initial render so later client-side
+            // localStorage writes don't make a brand-new user look returning.
+            switch initialFtueState {
             | Client__FtueState.New =>
               dispatch(ACPConnectError(`auth_required:${fullUrl}`))
             | Client__FtueState.WelcomeShown | Client__FtueState.Completed =>

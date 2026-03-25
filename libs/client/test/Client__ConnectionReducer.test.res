@@ -4,6 +4,7 @@ module Reducer = Client__ConnectionReducer
 module ACP = FrontmanAiFrontmanClient.FrontmanClient__ACP
 module Relay = FrontmanAiFrontmanClient.FrontmanClient__Relay
 module MCPServer = FrontmanAiFrontmanClient.FrontmanClient__MCP__Server
+module FtueState = Client__FtueState
 
 // Helper to check if effect list contains a specific effect type
 let hasEffect = (effects, predicate) => effects->Array.some(predicate)
@@ -33,6 +34,13 @@ let hasConnectRelay = effects =>
     switch e {
     | Reducer.ConnectRelay(_) => true
     | _ => false
+    }
+  )
+let getConnectACPInitialFtueState = effects =>
+  effects->Array.findMap(e =>
+    switch e {
+    | Reducer.ConnectACP({initialFtueState}) => Some(initialFtueState)
+    | _ => None
     }
   )
 
@@ -74,6 +82,7 @@ describe("Connection Reducer", () => {
         endpoint: "ws://test",
         tokenUrl: "http://test/api/socket-token",
         loginUrl: "http://test/users/log-in",
+        initialFtueState: FtueState.New,
         clientName: "test",
         clientVersion: "1.0.0",
         baseUrl: "http://test",
@@ -91,6 +100,7 @@ describe("Connection Reducer", () => {
       t->expect(Option.isSome(nextState.relayInstance))->Expect.toBe(true)
       t->expect(Option.isSome(nextState.mcpServer))->Expect.toBe(true)
       t->expect(hasConnectACP(effects))->Expect.toBe(true)
+      t->expect(getConnectACPInitialFtueState(effects))->Expect.toBe(Some(FtueState.New))
       t->expect(hasConnectRelay(effects))->Expect.toBe(true)
     })
 
@@ -101,6 +111,7 @@ describe("Connection Reducer", () => {
         endpoint: "ws://test",
         tokenUrl: "http://test/api/socket-token",
         loginUrl: "http://test/users/log-in",
+        initialFtueState: FtueState.Completed,
         clientName: "test",
         clientVersion: "1.0.0",
         baseUrl: "http://test",

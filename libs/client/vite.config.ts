@@ -43,7 +43,7 @@ export default vite.defineConfig({
 		hmr: process.env.VITE_HMR_HOST
 			? {
 					host: process.env.VITE_HMR_HOST,
-					port: Number.parseInt(process.env.VITE_HMR_PORT || "443"),
+					port: Number.parseInt(process.env.VITE_HMR_PORT || "443", 10),
 					protocol: (process.env.VITE_HMR_PROTOCOL as "ws" | "wss") || "wss",
 				}
 			: true,
