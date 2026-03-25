@@ -34,6 +34,7 @@ let serialize: ('a, int) => string = %raw(`
       if (val === undefined) return undefined;
       if (val === null) return null;
       if (typeof val === 'function') return '[Function: ' + (val.name || 'anonymous') + ']';
+      if (typeof val === 'bigint') return val.toString() + 'n';
       if (typeof val !== 'object') return val;
 
       if (depth > maxDepth) return '[Object]';

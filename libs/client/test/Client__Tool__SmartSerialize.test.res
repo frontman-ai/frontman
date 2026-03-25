@@ -82,6 +82,11 @@ describe("SmartSerialize - primitives", () => {
   test("serializes undefined as 'undefined'", t => {
     t->expect(SmartSerialize.serialize(Nullable.undefined, 10000))->Expect.toBe("undefined")
   })
+
+  test("serializes BigInt as string with 'n' suffix", t => {
+    let bigint: 'a = %raw(`BigInt(9007199254740991)`)
+    t->expect(SmartSerialize.serialize(bigint, 10000))->Expect.toBe(`"9007199254740991n"`)
+  })
 })
 
 // ── Objects and arrays ───────────────────────────────────────────────
