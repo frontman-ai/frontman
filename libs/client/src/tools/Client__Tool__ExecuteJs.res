@@ -47,12 +47,14 @@ type output = {
 // Raw JS helpers — kept small and isolated per CLAUDE.md guidelines
 // ---------------------------------------------------------------------------
 
-// Smart serializer: handles DOM nodes, NodeList, Map, Set, circular refs, depth limit.
+// Smart serializer: handles DOM nodes, NodeList, Map, Set, circular refs, depth/breadth limit.
 // Uses a recursive approach instead of JSON.stringify replacer for correct depth tracking.
 let smartSerialize: ('a, int) => string = %raw(`
   function smartSerialize(value, maxBytes) {
     var seen = typeof WeakSet !== 'undefined' ? new WeakSet() : { add: function(){}, has: function(){ return false } };
     var maxDepth = 5;
+    var maxBreadth = 50;
+
     function isElement(val) {
       return val.nodeType === 1 && typeof val.tagName === 'string';
     }
@@ -93,33 +95,51 @@ let smartSerialize: ('a, int) => string = %raw(`
 
       if (isNodeList(val)) {
         var items = [];
-        for (var i = 0; i < val.length; i++) items.push(serialize(val[i], depth + 1));
+        var nlLen = Math.min(val.length, maxBreadth);
+        for (var i = 0; i < nlLen; i++) items.push(serialize(val[i], depth + 1));
+        if (val.length > maxBreadth) items.push('...' + (val.length - maxBreadth) + ' more');
         return items;
       }
 
       if (isMap(val)) {
         var entries = [];
-        val.forEach(function(v, k) { entries.push([serialize(k, depth + 1), serialize(v, depth + 1)]); });
-        return { __type: 'Map', entries: entries };
+        var mapCount = 0;
+        val.forEach(function(v, k) {
+          if (mapCount < maxBreadth) entries.push([serialize(k, depth + 1), serialize(v, depth + 1)]);
+          mapCount++;
+        });
+        var mapResult = { __type: 'Map', entries: entries };
+        if (mapCount > maxBreadth) mapResult.truncated = mapCount - maxBreadth;
+        return mapResult;
       }
 
       if (isSet(val)) {
         var values = [];
-        val.forEach(function(v) { values.push(serialize(v, depth + 1)); });
-        return { __type: 'Set', values: values };
+        var setCount = 0;
+        val.forEach(function(v) {
+          if (setCount < maxBreadth) values.push(serialize(v, depth + 1));
+          setCount++;
+        });
+        var setResult = { __type: 'Set', values: values };
+        if (setCount > maxBreadth) setResult.truncated = setCount - maxBreadth;
+        return setResult;
       }
 
       if (Array.isArray(val)) {
         var arr = [];
-        for (var j = 0; j < val.length; j++) arr.push(serialize(val[j], depth + 1));
+        var arrLen = Math.min(val.length, maxBreadth);
+        for (var j = 0; j < arrLen; j++) arr.push(serialize(val[j], depth + 1));
+        if (val.length > maxBreadth) arr.push('...' + (val.length - maxBreadth) + ' more');
         return arr;
       }
 
       var obj = {};
       var keys = Object.keys(val);
-      for (var k = 0; k < keys.length; k++) {
+      var keyLen = Math.min(keys.length, maxBreadth);
+      for (var k = 0; k < keyLen; k++) {
         obj[keys[k]] = serialize(val[keys[k]], depth + 1);
       }
+      if (keys.length > maxBreadth) obj.__truncated = keys.length - maxBreadth + ' more keys';
       return obj;
     }
 
@@ -140,13 +160,16 @@ let executeInWindow: (WebAPI.DOMAPI.window, string, int, int) => promise<output>
     var origWarn = win.console.warn;
     var origError = win.console.error;
 
+    var maxLogs = 200;
     function capture(level, args) {
+      if (logs.length >= maxLogs) return;
       try {
         var parts = [];
         for (var i = 0; i < args.length; i++) {
           parts.push(typeof args[i] === 'string' ? args[i] : JSON.stringify(args[i]));
         }
-        logs.push('[' + level + '] ' + parts.join(' '));
+        var entry = '[' + level + '] ' + parts.join(' ');
+        logs.push(entry.length > 1000 ? entry.slice(0, 1000) + '...' : entry);
       } catch (e) {
         logs.push('[' + level + '] [unserializable]');
       }
@@ -160,10 +183,6 @@ let executeInWindow: (WebAPI.DOMAPI.window, string, int, int) => promise<output>
       win.console.log = origLog;
       win.console.warn = origWarn;
       win.console.error = origError;
-    }
-
-    function serialize(val) {
-      return smartSerialize(val, maxBytes);
     }
 
     var result;
@@ -196,7 +215,7 @@ let executeInWindow: (WebAPI.DOMAPI.window, string, int, int) => promise<output>
         function(resolved) {
           clearTimeout(timer);
           restore();
-          return { success: true, result: serialize(resolved), error: undefined, logs: logs };
+          return { success: true, result: smartSerialize(resolved, maxBytes), error: undefined, logs: logs };
         },
         function(err) {
           clearTimeout(timer);
@@ -209,7 +228,7 @@ let executeInWindow: (WebAPI.DOMAPI.window, string, int, int) => promise<output>
     restore();
     return Promise.resolve({
       success: true,
-      result: serialize(result),
+      result: smartSerialize(result, maxBytes),
       error: undefined,
       logs: logs
     });
@@ -217,15 +236,13 @@ let executeInWindow: (WebAPI.DOMAPI.window, string, int, int) => promise<output>
 `)
 
 let execute = async (input: input, ~taskId as _: string, ~toolCallId as _: string): toolResult<output> => {
-  let state = StateStore.getState(Client__State__Store.store)
-  let previewFrame = Client__State__StateReducer.Selectors.previewFrame(state)
-
-  switch previewFrame.contentWindow {
-  | None =>
-    Ok({success: false, result: None, error: Some("Preview frame not available"), logs: []})
-  | Some(win) =>
-    let timeout = input.timeout->Option.getOr(5000)
-    let output = await executeInWindow(win, input.expression, timeout, maxOutputBytes)
-    Ok(output)
-  }
+  await Client__Tool__ElementResolver.withPreviewDoc(
+    ~onUnavailable=async () =>
+      Ok({success: false, result: None, error: Some("Preview frame not available"), logs: []}),
+    async ({win, doc: _}) => {
+      let timeout = input.timeout->Option.getOr(5000)
+      let output = await executeInWindow(win, input.expression, timeout, maxOutputBytes)
+      Ok(output)
+    },
+  )
 }

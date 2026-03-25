@@ -47,15 +47,11 @@ let getScreenshotSrc = (result: option<JSON.t>): option<string> => {
 
 // Extract target path/URL, defaulting to "./" for list/file operations
 let getTarget = (toolName: string, input: option<JSON.t>): option<string> => {
-  let name = cleanToolName(toolName)
-  switch name {
-  | _ =>
-    switch ToolLabels.extractTargetFromInput(input) {
-    | Some(".") => Some("./")
-    | Some(t) => Some(t)
-    | None if isFileTool(toolName) => Some("./")
-    | None => None
-    }
+  switch ToolLabels.extractTargetFromInput(input) {
+  | Some(".") => Some("./")
+  | Some(t) => Some(t)
+  | None if isFileTool(toolName) => Some("./")
+  | None => None
   }
 }
 
@@ -141,9 +137,7 @@ let make = (
       // Target path as purple link, or shimmer placeholder while streaming
       {switch (target, state, input) {
       | (_, InputStreaming, None) if isLink => {
-        let placeholder = switch cleanToolName(toolName) {
-        | _ => "Waiting for file path..."
-        }
+        let placeholder = "Waiting for file path..."
         <div className={`mt-1 ${compact ? "text-[11px]" : "text-[12px]"}`}>
           <span className="font-mono shimmer-text text-zinc-500">
             {React.string(placeholder)}
