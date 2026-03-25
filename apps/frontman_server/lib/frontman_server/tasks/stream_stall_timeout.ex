@@ -40,11 +40,11 @@ defmodule FrontmanServer.Tasks.StreamStallTimeout do
 
   ## Options
 
-    - `:stall_timeout_ms` — max time to wait for a chunk (default: 25_000)
+    - `:stall_timeout_ms` — required, max time to wait for a chunk (ms)
   """
   @spec wrap_stream(Enumerable.t(), keyword()) :: Enumerable.t()
-  def wrap_stream(stream, opts \\ []) do
-    stall_timeout_ms = Keyword.get(opts, :stall_timeout_ms, 25_000)
+  def wrap_stream(stream, opts) when is_list(opts) do
+    stall_timeout_ms = Keyword.fetch!(opts, :stall_timeout_ms)
 
     Stream.resource(
       fn -> start_feeder(stream) end,
@@ -52,6 +52,9 @@ defmodule FrontmanServer.Tasks.StreamStallTimeout do
       fn feeder_pid -> stop_feeder(feeder_pid) end
     )
   end
+
+  # Max time to wait for the feeder process ready handshake.
+  @feeder_ready_timeout_ms 5_000
 
   # Spawns a linked feeder process that consumes the inner stream and
   # forwards chunks to the caller via messages.
@@ -74,19 +77,22 @@ defmodule FrontmanServer.Tasks.StreamStallTimeout do
           send(caller, {:stream_done, self()})
         rescue
           e ->
-            send(caller, {:stream_error, self(), e})
+            send(caller, {:stream_error, self(), {:exception, e, __STACKTRACE__}})
         catch
           kind, reason ->
-            send(caller, {:stream_error, self(), {kind, reason}})
+            send(caller, {:stream_error, self(), {kind, reason, __STACKTRACE__}})
         end
       end)
 
     receive do
       {:feeder_ready, ^pid} -> pid
+    after
+      @feeder_ready_timeout_ms ->
+        raise "StreamStallTimeout: feeder process did not start within #{@feeder_ready_timeout_ms}ms"
     end
   end
 
-  defp next_chunk(feeder_pid, stall_timeout_ms) do
+  defp next_chunk(feeder_pid, stall_timeout_ms) when is_integer(stall_timeout_ms) do
     receive do
       {:stream_chunk, ^feeder_pid, chunk} ->
         {[chunk], feeder_pid}
@@ -94,11 +100,11 @@ defmodule FrontmanServer.Tasks.StreamStallTimeout do
       {:stream_done, ^feeder_pid} ->
         {:halt, feeder_pid}
 
-      {:stream_error, ^feeder_pid, %{__exception__: true} = e} ->
-        reraise e, []
+      {:stream_error, ^feeder_pid, {:exception, e, stacktrace}} ->
+        reraise e, stacktrace
 
-      {:stream_error, ^feeder_pid, {kind, reason}} ->
-        :erlang.raise(kind, reason, [])
+      {:stream_error, ^feeder_pid, {kind, reason, stacktrace}} ->
+        :erlang.raise(kind, reason, stacktrace)
     after
       stall_timeout_ms ->
         Logger.error(
@@ -110,9 +116,13 @@ defmodule FrontmanServer.Tasks.StreamStallTimeout do
   end
 
   defp stop_feeder(feeder_pid) when is_pid(feeder_pid) do
-    if Process.alive?(feeder_pid) do
-      Process.unlink(feeder_pid)
-      Process.exit(feeder_pid, :kill)
+    case Process.alive?(feeder_pid) do
+      true ->
+        Process.unlink(feeder_pid)
+        Process.exit(feeder_pid, :kill)
+
+      false ->
+        :ok
     end
   end
 end
