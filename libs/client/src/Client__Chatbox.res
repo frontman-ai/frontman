@@ -353,7 +353,6 @@ let make = (
     | TodoToolCall(tc, _) =>
       // Use stable tool call ID for key
       let messageId = `todo-${tc.id}`
-      let todos = TodoUtils.extractTodos(~input=tc.input, ~result=tc.result)
       let isLoading = switch tc.state {
       | InputStreaming | InputAvailable => true
       | OutputAvailable | OutputError => false
@@ -361,7 +360,8 @@ let make = (
 
       <div key={messageId} className="frontman-content-auto">
         <TodoListBlock
-          todos
+          input={tc.input}
+          result={tc.result}
           isLoading
           messageId
         />

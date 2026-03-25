@@ -29,11 +29,14 @@ let make = () => {
       switch Relay.getState(relayInstance) {
       | Connected({serverInfo}) =>
         let runtimeConfig = RuntimeConfig.read()
-        let npmPackage = RuntimeConfig.frameworkToNpmPackage(runtimeConfig.framework)
-        Client__State.Actions.checkForUpdate(
-          ~installedVersion=serverInfo.version,
-          ~npmPackage,
-        )
+        switch RuntimeConfig.frameworkToNpmPackage(runtimeConfig.framework) {
+        | Some(npmPackage) =>
+          Client__State.Actions.checkForUpdate(
+            ~installedVersion=serverInfo.version,
+            ~npmPackage,
+          )
+        | None => ()
+        }
       | _ => ()
       }
     | _ => ()

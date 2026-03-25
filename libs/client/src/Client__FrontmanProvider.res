@@ -204,8 +204,10 @@ module Provider = {
       // Read runtime config from window.__frontmanRuntime (injected by framework middleware)
       let runtimeConfig = RuntimeConfig.read()
       let _meta = RuntimeConfig.toMeta(runtimeConfig)
+      let relayHeaders = Dict.make()
+      runtimeConfig.wpNonce->Option.forEach(nonce => relayHeaders->Dict.set("X-WP-Nonce", nonce))
 
-      let relay = Relay.make(~baseUrl)
+      let relay = Relay.make(~baseUrl, ~requestHeaders=relayHeaders)
       let toolRegistry = Client__ToolRegistry.coreBrowserTools()
       let mcpServer = MCPServer.make(~relay, ~serverName=clientName, ~serverVersion=clientVersion)
       let mcpServer = Client__ToolRegistry.registerAll(toolRegistry, mcpServer)

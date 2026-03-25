@@ -4,11 +4,14 @@ let resolve = async (sourceLocation: Client__Types.SourceLocation.t): result<
   Client__Types.SourceLocation.t,
   string,
 > => {
+  let runtimeConfig = Client__RuntimeConfig.read()
   let baseUrl = {
     let location = WebAPI.Global.location
     `${location.protocol}//${location.host}`
   }
   let url = `${baseUrl}/frontman/resolve-source-location`
+  let headers = Dict.fromArray([("Content-Type", "application/json")])
+  runtimeConfig.wpNonce->Option.forEach(nonce => headers->Dict.set("X-WP-Nonce", nonce))
 
   let requestBody = {
     "componentName": sourceLocation.componentName->Option.getOr(""),
@@ -22,9 +25,7 @@ let resolve = async (sourceLocation: Client__Types.SourceLocation.t): result<
       url,
       ~init={
         method: "POST",
-        headers: WebAPI.HeadersInit.fromDict(
-          Dict.fromArray([("Content-Type", "application/json")]),
-        ),
+        headers: WebAPI.HeadersInit.fromDict(headers),
         body: WebAPI.BodyInit.fromString(JSON.stringifyAny(requestBody)->Option.getOr("{}")),
       },
     )

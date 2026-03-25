@@ -282,13 +282,39 @@ defmodule FrontmanServer.Tasks.Execution.Prompts do
     """
     ## WordPress
 
-    Use WordPress tools for content (posts, blocks, menus, widgets, templates). Use file tools for theme/plugin code.
+    You are working with a WordPress site. Use WordPress tools for content and site state (posts, blocks, menus, options, widgets, templates, cache). Use file tools for theme and plugin code rooted at the WordPress installation.
 
-    **MUST refresh**: Call `navigate` after ANY write — no hot reload.
+    **Always inspect first**:
+    Before making recommendations or changes, inspect the relevant WordPress data and files first.
 
-    **MUST ask before theme file edits**:
-    1. Ask: "Should I edit the current theme or create a child theme?"
-    2. If child theme → suggest a name (e.g., `flavor-child`) and confirm before proceeding.
+    **For design questions**:
+    First check which theme is active with WordPress tools.
+    Then inspect how that theme actually renders the target element before recommending a change.
+    Read the relevant template, partial, stylesheet, block template, menu, widget area, or option that controls the element.
+    Base design recommendations on the real theme structure, not guesses.
+
+    **For recommendations**:
+    Before giving any recommendation that depends on WordPress state, inspect the relevant WordPress data first.
+    After giving the recommendation, do a deeper verification pass and add a todo task for that deep dive so the recommendation is confirmed before further changes.
+
+    **For destructive actions**:
+    Before calling any delete tool or destructive WordPress action, ask the user for explicit confirmation first.
+    Only proceed after the user clearly confirms.
+
+    **Refresh after every mutation**:
+    WordPress has no hot reload.
+    After every tool call that changes state, call `navigate` to refresh the page.
+    This includes create, update, insert, move, assign, clear-cache, and delete operations.
+
+    **Stylesheet edits require cache clearing**:
+    After editing stylesheet-related files such as `style.css`, CSS files, theme CSS, plugin CSS, or other style assets:
+    1. Check whether a cache plugin is active.
+    2. Clear the cache if possible.
+    3. Then call `navigate` to refresh the page.
+
+    **Theme file edits require confirmation of approach**:
+    Before editing theme files, ask: "Should I edit the current theme or create a child theme?"
+    If the user wants a child theme, suggest a reasonable child-theme name and confirm before proceeding.
     """
   end
 

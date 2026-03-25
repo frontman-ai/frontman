@@ -1,0 +1,272 @@
+<?php
+/**
+ * WordPress Template tools — site info and template listing.
+ *
+ * Tools: wp_get_site_info, wp_list_templates, wp_read_template, wp_update_template
+ *
+ * Handlers return plain data arrays on success, throw Frontman_Tool_Error on failure.
+ *
+ * @package Frontman
+ */
+
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
+
+class Frontman_Tool_Templates {
+	/**
+	 * Register all template tools.
+	 */
+	public function register( Frontman_Tools $tools ): void {
+		$tools->add( new Frontman_Tool_Definition(
+			'wp_get_site_info',
+			'Returns comprehensive site information including WordPress version, active theme, active plugins, registered post types, and taxonomies.',
+			[
+				'type'                 => 'object',
+				'additionalProperties' => false,
+				'properties'           => new \stdClass(),
+			],
+			[ $this, 'get_site_info' ]
+		) );
+
+		$tools->add( new Frontman_Tool_Definition(
+			'wp_list_templates',
+			'Lists available block templates or template parts in the active theme.',
+			[
+				'type'                 => 'object',
+				'additionalProperties' => false,
+				'properties'           => [
+					'type' => [
+						'type'        => 'string',
+						'description' => 'The template type to list.',
+						'enum'        => [ 'wp_template', 'wp_template_part' ],
+						'default'     => 'wp_template',
+					],
+				],
+			],
+			[ $this, 'list_templates' ]
+		) );
+
+		$tools->add( new Frontman_Tool_Definition(
+			'wp_read_template',
+			'Reads the full content and metadata for a template or template part by slug.',
+			[
+				'type'                 => 'object',
+				'additionalProperties' => false,
+				'properties'           => [
+					'slug' => [ 'type' => 'string', 'description' => 'The template or template part slug.' ],
+					'type' => [
+						'type'        => 'string',
+						'enum'        => [ 'wp_template', 'wp_template_part' ],
+						'default'     => 'wp_template',
+						'description' => 'The template type to read.',
+					],
+				],
+				'required' => [ 'slug' ],
+			],
+			[ $this, 'read_template' ]
+		) );
+
+		$tools->add( new Frontman_Tool_Definition(
+			'wp_update_template',
+			'Updates the content of a template or template part. Reads the current version first and returns before/after snapshots.',
+			[
+				'type'                 => 'object',
+				'additionalProperties' => false,
+				'properties'           => [
+					'slug'    => [ 'type' => 'string', 'description' => 'The template or template part slug.' ],
+					'type'    => [
+						'type'        => 'string',
+						'enum'        => [ 'wp_template', 'wp_template_part' ],
+						'default'     => 'wp_template',
+						'description' => 'The template type to update.',
+					],
+					'content' => [ 'type' => 'string', 'description' => 'The new template markup.' ],
+					'title'   => [ 'type' => 'string', 'description' => 'Optional updated human-readable title.' ],
+				],
+				'required' => [ 'slug', 'content' ],
+			],
+			[ $this, 'update_template' ]
+		) );
+	}
+
+	private function find_template( string $slug, string $type ) {
+		foreach ( get_block_templates( [], $type ) as $template ) {
+			if ( $template->slug === $slug || $template->id === $slug ) {
+				return $template;
+			}
+		}
+
+		return null;
+	}
+
+	private function serialize_template( $template ): array {
+		return [
+			'id'          => $template->id,
+			'slug'        => $template->slug,
+			'title'       => $template->title ?? $template->slug,
+			'description' => $template->description ?? '',
+			'type'        => $template->type,
+			'source'      => $template->source,
+			'content'     => $template->content ?? '',
+			'wp_id'       => isset( $template->wp_id ) ? (int) $template->wp_id : null,
+		];
+	}
+
+	/**
+	 * wp_get_site_info handler.
+	 */
+	public function get_site_info( array $input ): array {
+		$theme   = wp_get_theme();
+		$plugins = get_option( 'active_plugins', [] );
+
+		if ( ! function_exists( 'get_plugin_data' ) ) {
+			require_once ABSPATH . 'wp-admin/includes/plugin.php';
+		}
+
+		// Get plugin names from slugs.
+		$plugin_info = [];
+		foreach ( $plugins as $plugin_file ) {
+			$data = get_plugin_data( WP_PLUGIN_DIR . '/' . $plugin_file, false, false );
+			$plugin_info[] = [
+				'name'    => $data['Name'] ?? $plugin_file,
+				'version' => $data['Version'] ?? 'unknown',
+			];
+		}
+
+		// Get post types.
+		$post_types = get_post_types( [ 'public' => true ], 'objects' );
+		$pt_list    = [];
+		foreach ( $post_types as $pt ) {
+			$pt_list[] = [
+				'name'  => $pt->name,
+				'label' => $pt->label,
+				'count' => (int) wp_count_posts( $pt->name )->publish,
+			];
+		}
+
+		// Get taxonomies.
+		$taxonomies = get_taxonomies( [ 'public' => true ], 'objects' );
+		$tax_list   = [];
+		foreach ( $taxonomies as $tax ) {
+			$tax_list[] = [
+				'name'  => $tax->name,
+				'label' => $tax->label,
+			];
+		}
+
+		return [
+			'site_name'    => get_bloginfo( 'name' ),
+			'site_url'     => get_site_url(),
+			'home_url'     => get_home_url(),
+			'wp_version'   => get_bloginfo( 'version' ),
+			'php_version'  => phpversion(),
+			'theme'        => [
+				'name'       => $theme->get( 'Name' ),
+				'version'    => $theme->get( 'Version' ),
+				'is_block'   => $theme->is_block_theme(),
+				'template'   => $theme->get_template(),
+				'stylesheet' => $theme->get_stylesheet(),
+			],
+			'plugins'      => $plugin_info,
+			'post_types'   => $pt_list,
+			'taxonomies'   => $tax_list,
+			'is_multisite' => is_multisite(),
+			'language'     => get_bloginfo( 'language' ),
+		];
+	}
+
+	/**
+	 * wp_list_templates handler.
+	 */
+	public function list_templates( array $input ): array {
+		$type = sanitize_key( $input['type'] ?? 'wp_template' );
+
+		if ( ! in_array( $type, [ 'wp_template', 'wp_template_part' ], true ) ) {
+			throw new Frontman_Tool_Error( "Invalid template type: {$type}" );
+		}
+
+		$templates = get_block_templates( [], $type );
+		$result    = [];
+
+		foreach ( $templates as $template ) {
+			$result[] = [
+				'id'          => $template->id,
+				'slug'        => $template->slug,
+				'title'       => $template->title ?? $template->slug,
+				'description' => $template->description ?? '',
+				'type'        => $template->type,
+				'source'      => $template->source,
+				'has_content' => ! empty( $template->content ),
+			];
+		}
+
+		return [
+			'type'      => $type,
+			'count'     => count( $result ),
+			'templates' => $result,
+		];
+	}
+
+	/**
+	 * wp_read_template handler.
+	 */
+	public function read_template( array $input ): array {
+		$type     = sanitize_key( $input['type'] ?? 'wp_template' );
+		$slug     = sanitize_title( $input['slug'] ?? '' );
+		$template = $this->find_template( $slug, $type );
+
+		if ( ! $template ) {
+			throw new Frontman_Tool_Error( "Template not found: {$slug}" );
+		}
+
+		return $this->serialize_template( $template );
+	}
+
+	/**
+	 * wp_update_template handler.
+	 */
+	public function update_template( array $input ): array {
+		$type     = sanitize_key( $input['type'] ?? 'wp_template' );
+		$slug     = sanitize_title( $input['slug'] ?? '' );
+		$content  = (string) ( $input['content'] ?? '' );
+		$template = $this->find_template( $slug, $type );
+
+		if ( ! $template ) {
+			throw new Frontman_Tool_Error( "Template not found: {$slug}" );
+		}
+
+		$before = $this->serialize_template( $template );
+		$post_data = [
+			'post_type'    => $type,
+			'post_status'  => 'publish',
+			'post_name'    => $template->slug,
+			'post_title'   => sanitize_text_field( $input['title'] ?? ( $template->title ?? $template->slug ) ),
+			'post_content' => $content,
+		];
+
+		if ( ! empty( $template->wp_id ) ) {
+			$post_data['ID'] = (int) $template->wp_id;
+		}
+
+		$post_id = wp_insert_post( $post_data, true );
+		if ( is_wp_error( $post_id ) ) {
+			throw new Frontman_Tool_Error( $post_id->get_error_message() );
+		}
+
+		if ( function_exists( 'wp_set_post_terms' ) ) {
+			wp_set_post_terms( $post_id, [ get_stylesheet() ], 'wp_theme' );
+		}
+
+		$after_template = $this->find_template( $slug, $type );
+		if ( ! $after_template ) {
+			throw new Frontman_Tool_Error( 'Template was updated but could not be read back.' );
+		}
+
+		return [
+			'updated' => true,
+			'before'  => $before,
+			'after'   => $this->serialize_template( $after_template ),
+		];
+	}
+}

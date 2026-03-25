@@ -36,6 +36,7 @@ type parsed = {
   framework: string,
   // UIShell always sets this, but tests and non-standard embeddings may omit it.
   basePath: option<string>,
+  wpNonce: option<string>,
   openrouterKeyValue: option<string>,
   anthropicKeyValue: option<string>,
   projectRoot: option<string>,
@@ -45,6 +46,7 @@ type parsed = {
 type t = {
   framework: frameworkId,
   basePath: string,
+  wpNonce: option<string>,
   openrouterKeyValue: option<string>,
   anthropicKeyValue: option<string>,
   projectRoot: option<string>,
@@ -60,17 +62,18 @@ let read = (): t => {
   `)
   let json = getRuntime()->Nullable.toOption->Option.getOrThrow
   let config = S.parseOrThrow(json, parsedSchema)
-  {
-    framework: frameworkIdFromString(config.framework),
-    basePath: switch config.basePath {
-    | Some("") | None => "frontman"
-    | Some(bp) => bp
-    },
-    openrouterKeyValue: config.openrouterKeyValue,
-    anthropicKeyValue: config.anthropicKeyValue,
-    projectRoot: config.projectRoot,
-    sourceRoot: config.sourceRoot,
-  }
+    {
+      framework: frameworkIdFromString(config.framework),
+      basePath: switch config.basePath {
+      | Some("") | None => "frontman"
+      | Some(bp) => bp
+      },
+      wpNonce: config.wpNonce,
+      openrouterKeyValue: config.openrouterKeyValue,
+      anthropicKeyValue: config.anthropicKeyValue,
+      projectRoot: config.projectRoot,
+      sourceRoot: config.sourceRoot,
+    }
 }
 
 // Check if an OpenRouter API key is available from the project environment
@@ -84,12 +87,12 @@ let hasAnthropicKey = (config: t): bool => {
 }
 
 // Map framework ID to the npm package name for update checks
-let frameworkToNpmPackage = (id: frameworkId): string =>
+let frameworkToNpmPackage = (id: frameworkId): option<string> =>
   switch id {
-  | Nextjs => "@frontman-ai/nextjs"
-  | Vite => "@frontman-ai/vite"
-  | Astro => "@frontman-ai/astro"
-  | Wordpress => "@frontman-ai/standalone"
+  | Nextjs => Some("@frontman-ai/nextjs")
+  | Vite => Some("@frontman-ai/vite")
+  | Astro => Some("@frontman-ai/astro")
+  | Wordpress => None
   }
 
 // Convert runtime config to _meta JSON for ACP requests

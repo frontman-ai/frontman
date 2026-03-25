@@ -395,7 +395,7 @@ worktree-registry:
 # Release
 # ============================================================================
 ## REL_START
-.PHONY: publish publish-astro publish-vite publish-nextjs publish-react-statestore publish-swarm-ai release
+.PHONY: publish publish-astro publish-vite publish-nextjs publish-react-statestore publish-swarm-ai release package-wordpress-plugin test-wordpress-core-tools
 
 publish: publish-astro publish-vite publish-nextjs publish-react-statestore ## Publish all npm packages (pass OTP=<code> for 2FA)
 
@@ -435,6 +435,14 @@ release: ## Create a release PR from pending changesets
 	@gh workflow run release-pr.yml --ref main
 	@printf "$(GREEN)Release workflow triggered.$(RESET)\n"
 	@echo "Watch for the PR at: https://github.com/frontman-ai/frontman/pulls"
+
+package-wordpress-plugin: ## Build WordPress plugin ZIP
+	@VERSION=$(VERSION) ./scripts/package-wordpress-plugin.sh
+
+test-wordpress-core-tools: ## Run PHP tests for WordPress core tool implementations
+	@php libs/frontman-wordpress/tests/CoreToolsTest.php
+	@php libs/frontman-wordpress/tests/MutationSnapshotsTest.php
+	@php libs/frontman-wordpress/tests/RouterTest.php
 
 ## REL_END
 

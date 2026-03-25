@@ -1,14 +1,9 @@
 procs:
-  postgres:
-    cmd: ["podman", "run", "--rm", "--name", "frontman-postgres", "-e", "POSTGRES_USER=postgres", "-e", "POSTGRES_PASSWORD=postgres", "-p", "5432:5432", "-v", "frontman-pgdata:/var/lib/postgresql/data", "docker.io/library/postgres:16"]
-    stop:
-      send-keys: ["<C-c>"]
-
   rescript:
     cmd: ["bash", "-c", "rm -f lib/bs/.compiler.log && make clean && make rescript-build && make rescript-watch"]
 
   server:
-    cmd: ["bash", "-c", "echo 'Waiting for ReScript compiler...' && while [ ! -f lib/bs/.compiler.log ] || ! tail -1 lib/bs/.compiler.log 2>/dev/null | grep -q '^#Done'; do sleep 1; done && echo 'ReScript ready. Waiting for Postgres...' && while ! podman exec frontman-postgres pg_isready -U postgres 2>/dev/null; do sleep 2; done && echo 'Postgres ready, starting server...' && make dev-server"]
+    cmd: ["bash", "-c", "echo 'Waiting for ReScript compiler...' && while [ ! -f lib/bs/.compiler.log ] || ! tail -1 lib/bs/.compiler.log 2>/dev/null | grep -q '^#Done'; do sleep 1; done && echo 'ReScript ready, starting server...' && make dev-server"]
     env:
       FRONTMAN_INTERNAL_DEV: "true"
 
@@ -33,3 +28,6 @@ procs:
     env:
       FRONTMAN_CLIENT_URL: "http://localhost:5173/src/Main.res.mjs"
       FRONTMAN_HOST: "frontman.local:4000"
+
+  wordpress:
+    cmd: ["php", "-S", "localhost:8080", "-t", "/Users/itay/code/wordpress"]

@@ -255,6 +255,34 @@
 /* Code block: streamdown uses overflow-hidden + rounded-xl on the container,
    which clips the header text and bottom code lines at the rounded corners.
    Reduce the border-radius so it doesn't eat into the content area. */
+/* Tables — constrain to container width with horizontal scroll */
+.font-ibm-plex-mono [data-streamdown="table-wrapper"] {
+	overflow-x: auto;
+	max-width: 100%;
+	-webkit-overflow-scrolling: touch;
+}
+
+.font-ibm-plex-mono [data-streamdown="table-wrapper"] table {
+	font-size: 0.75rem; /* text-xs — compact for narrow chat panel */
+	line-height: 1.25rem;
+	white-space: nowrap;
+}
+
+.font-ibm-plex-mono [data-streamdown="table-wrapper"] th,
+.font-ibm-plex-mono [data-streamdown="table-wrapper"] td {
+	padding: 0.25rem 0.5rem;
+	border-color: rgba(128, 81, 205, 0.2); /* #8051CD/20 */
+}
+
+.font-ibm-plex-mono [data-streamdown="table-wrapper"] th {
+	color: rgb(228 228 231); /* zinc-200 */
+	font-weight: 500;
+}
+
+.font-ibm-plex-mono [data-streamdown="table-wrapper"] td {
+	color: rgb(161 161 170); /* zinc-400 */
+}
+
 .font-ibm-plex-mono [data-code-block-container] {
 	border-radius: 0.5rem; /* rounded-lg instead of rounded-xl */
 }
