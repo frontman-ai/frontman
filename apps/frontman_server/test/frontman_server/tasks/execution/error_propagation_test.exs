@@ -2,13 +2,12 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
   @moduledoc """
   Integration test for the error propagation chain.
 
-  Tests the critical path that was previously broken:
-  LLM stream error → raise in stream consumption → Task crash →
-  death watcher → PubSub {:swarm_event, {:crashed, ...}} broadcast.
+  Tests that LLM stream errors are caught by try/rescue in execute_llm_call
+  and surfaced as graceful {:failed, ...} events (not {:crashed, ...}).
 
   This verifies that when an LLM API returns an error (e.g., HTTP 400 for
-  oversized images), the error reaches the client instead of being swallowed
-  as a "successful" empty response.
+  oversized images), the error reaches the client as a clean error message
+  instead of crashing the task process.
   """
 
   use SwarmAi.Testing, async: false
@@ -40,14 +39,15 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
       {:ok, task_id: task_id, scope: scope}
     end
 
-    test "LLM stream raise propagates as {:swarm_event, {:crashed, ...}} via PubSub", %{
+    test "LLM stream raise propagates as {:swarm_event, {:failed, ...}} via PubSub", %{
       task_id: task_id,
       scope: scope
     } do
       # StreamErrorLLM returns {:ok, stream} where the stream raises when
       # consumed — matching the real LLMClient behavior when ReqLLM emits an
-      # error chunk (e.g., HTTP 400 for oversized images). The raise propagates
-      # through Task → death watcher → PubSub {:swarm_event, {:crashed, ...}}.
+      # error chunk (e.g., HTTP 400 for oversized images). The try/rescue in
+      # execute_llm_call catches the raise and routes it through
+      # Loop.handle_error → {:failed, ...} instead of crashing the process.
       error_llm = %StreamErrorLLM{
         error_message: "LLM API error: image exceeds the maximum allowed size"
       }
@@ -62,14 +62,9 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
           env_api_key: %{"openrouter" => "sk-or-test"}
         )
 
-      # The error should propagate through:
-      # 1. StreamErrorLLM returns {:ok, stream} that raises on consumption
-      # 2. Task crash caught by death watcher
-      # 3. PubSub broadcast of {:swarm_event, {:crashed, %{reason: ..., ...}}}
-      assert_receive {:swarm_event, {:crashed, %{reason: reason}}}, 5_000
-
-      assert is_exception(reason)
-      assert Exception.message(reason) =~ "image exceeds the maximum allowed size"
+      # Stream errors are now caught and surfaced as graceful failures
+      assert_receive {:swarm_event, {:failed, {:error, reason, _loop_id}}}, 5_000
+      assert reason =~ "image exceeds the maximum allowed size"
     end
 
     test "LLM returning {:error, reason} surfaces as {:swarm_event, {:failed, ...}}", %{

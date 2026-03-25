@@ -42,7 +42,10 @@ config :frontman_server,
   ecto_repos: [FrontmanServer.Repo],
   generators: [timestamp_type: :utc_datetime, binary_id: true],
   # Default usage limit for server-provided API keys
-  user_key_usage_limit: 10
+  user_key_usage_limit: 10,
+  # Max time to wait for the next LLM stream chunk before declaring a stall.
+  # Must fire before StreamServer's 30s GenServer.call timeout.
+  stream_stall_timeout_ms: 25_000
 
 # Configures the endpoint
 config :frontman_server, FrontmanServerWeb.Endpoint,

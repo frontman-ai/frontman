@@ -112,17 +112,17 @@ defmodule SwarmAi.RuntimeTest do
   end
 
   describe "crash handling" do
-    test "dispatches crashed with exception and stacktrace for raises" do
+    test "stream raise is caught gracefully and dispatches failed (not crashed)" do
       runtime = start_runtime!()
       agent = test_agent(%StreamErrorLLM{error_message: "boom"})
 
       {:ok, pid} = SwarmAi.Runtime.run(runtime, "task-crash", agent, "Hello", default_opts())
       await_exit(pid)
 
-      assert_receive {:test_event, "task-crash", {:crashed, %{reason: reason, stacktrace: st}}}
-
-      assert is_exception(reason)
-      assert is_list(st) and length(st) > 0
+      # Stream raises are now caught by try/rescue in execute_llm_call and
+      # routed through Loop.handle_error → {:failed, ...} instead of crashing.
+      assert_receive {:test_event, "task-crash", {:failed, {:error, reason, _loop_id}}}
+      assert reason =~ "boom"
       refute SwarmAi.Runtime.running?(runtime, "task-crash")
     end
 

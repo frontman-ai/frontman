@@ -73,20 +73,21 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
     end
   end
 
-  describe "crashed event Sentry reporting (Gap 3)" do
-    test "reports LLM stream crash to Sentry with agent_crash tag", %{
+  describe "stream error Sentry reporting (Gap 3)" do
+    test "reports LLM stream error to Sentry as agent_execution_error (not crash)", %{
       task_id: task_id,
       scope: scope
     } do
       # StreamErrorLLM returns {:ok, stream} where the stream raises when consumed.
-      # This triggers a :crashed event (not :failed) because the execution process crashes.
+      # The try/rescue in execute_llm_call catches the raise and routes it through
+      # Loop.handle_error → {:failed, ...} → Sentry.capture_message (not crash).
       error_llm = %StreamErrorLLM{
-        error_message: "Sentry test: simulated stream crash"
+        error_message: "Sentry test: simulated stream error"
       }
 
-      agent = test_agent(error_llm, "CrashSentryAgent")
+      agent = test_agent(error_llm, "ErrorSentryAgent")
 
-      user_content = [%{"type" => "text", "text" => "Trigger crash"}]
+      user_content = [%{"type" => "text", "text" => "Trigger error"}]
 
       {:ok, _} =
         Tasks.submit_user_message(scope, task_id, user_content, [],
@@ -94,25 +95,25 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
           env_api_key: %{"openrouter" => "sk-or-test"}
         )
 
-      # Wait for the crash event broadcast (Sentry call completes before broadcast)
-      assert_receive {:swarm_event, {:crashed, _}}, 5_000
+      # Stream errors now produce {:failed, ...} instead of {:crashed, ...}
+      assert_receive {:swarm_event, {:failed, {:error, _reason, _loop_id}}}, 5_000
 
       reports = Sentry.Test.pop_sentry_reports()
 
-      crash_reports =
+      error_reports =
         Enum.filter(reports, fn event ->
-          event.tags[:error_type] == "agent_crash" and
+          event.tags[:error_type] == "agent_execution_error" and
             event.extra[:task_id] == task_id
         end)
 
-      assert crash_reports != [],
-             "Expected at least one agent_crash Sentry report for task #{task_id}, got none. All reports: #{inspect(Enum.map(reports, &{&1.tags, &1.extra[:task_id]}))}"
+      assert error_reports != [],
+             "Expected at least one agent_execution_error Sentry report for task #{task_id}, got none. All reports: #{inspect(Enum.map(reports, &{&1.tags, &1.extra[:task_id]}))}"
 
-      [report | _] = crash_reports
+      [report | _] = error_reports
 
-      # Crash report should include the simulated error
-      assert report.exception != nil or report.message != nil,
-             "Crash report should have either an exception or a message"
+      # Error report should include the simulated error message
+      assert report.message != nil,
+             "Error report should have a message"
     end
   end
 end

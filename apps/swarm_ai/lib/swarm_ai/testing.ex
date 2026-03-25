@@ -175,6 +175,39 @@ defmodule SwarmAi.Testing do
     end
   end
 
+  defmodule StallingLLM do
+    @moduledoc """
+    LLM that delivers N chunks then hangs forever.
+
+    Simulates an LLM provider that silently stalls mid-stream (no chunks,
+    no TCP error). Used to test StreamStallTimeout detection.
+    """
+    defstruct chunks_before_stall: 2, model: "stalling"
+  end
+
+  defimpl SwarmAi.LLM, for: SwarmAi.Testing.StallingLLM do
+    alias SwarmAi.LLM.Chunk
+
+    def stream(%{chunks_before_stall: n}, _messages, _opts) do
+      stall_stream =
+        Stream.resource(
+          fn -> 0 end,
+          fn
+            count when count < n ->
+              {[Chunk.token("chunk-#{count}")], count + 1}
+
+            _count ->
+              # Hang forever — simulates a stalled provider
+              Process.sleep(:infinity)
+              {:halt, nil}
+          end,
+          fn _ -> :ok end
+        )
+
+      {:ok, stall_stream}
+    end
+  end
+
   # --- Setup ---
 
   using do
@@ -183,6 +216,7 @@ defmodule SwarmAi.Testing do
       alias SwarmAi.Testing.EchoLLM
       alias SwarmAi.Testing.ErrorLLM
       alias SwarmAi.Testing.MockLLM
+      alias SwarmAi.Testing.StallingLLM
       alias SwarmAi.Testing.StreamErrorLLM
       alias SwarmAi.Testing.TestAgent
       alias SwarmAi.LLM

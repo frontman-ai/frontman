@@ -470,30 +470,42 @@ defmodule SwarmAi do
       fn ->
         case SwarmAi.LLM.stream(llm, messages, []) do
           {:ok, stream} ->
-            stream_with_callbacks = Stream.each(stream, callbacks.on_chunk)
+            try do
+              stream_with_callbacks = Stream.each(stream, callbacks.on_chunk)
 
-            response = Response.from_stream(stream_with_callbacks)
-            callbacks.on_response.(response)
+              response = Response.from_stream(stream_with_callbacks)
+              callbacks.on_response.(response)
 
-            {loop, new_effects} = Loop.handle_response(loop, response)
-            usage = response.usage || %{}
+              {loop, new_effects} = Loop.handle_response(loop, response)
+              usage = response.usage || %{}
 
-            # Include loop_id/step in stop metadata for telemetry handlers
-            {{loop, new_effects},
-             %{
-               loop_id: loop_id,
-               step: step,
-               response: response.content,
-               reasoning_details: response.reasoning_details,
-               tool_calls: response.tool_calls,
-               usage: usage,
-               input_tokens: Map.get(usage, :input_tokens, 0),
-               output_tokens: Map.get(usage, :output_tokens, 0),
-               reasoning_tokens: Map.get(usage, :reasoning_tokens, 0),
-               cached_tokens: Map.get(usage, :cached_tokens, 0),
-               tool_call_count: length(response.tool_calls),
-               metadata: loop.metadata
-             }}
+              # Include loop_id/step in stop metadata for telemetry handlers
+              {{loop, new_effects},
+               %{
+                 loop_id: loop_id,
+                 step: step,
+                 response: response.content,
+                 reasoning_details: response.reasoning_details,
+                 tool_calls: response.tool_calls,
+                 usage: usage,
+                 input_tokens: Map.get(usage, :input_tokens, 0),
+                 output_tokens: Map.get(usage, :output_tokens, 0),
+                 reasoning_tokens: Map.get(usage, :reasoning_tokens, 0),
+                 cached_tokens: Map.get(usage, :cached_tokens, 0),
+                 tool_call_count: length(response.tool_calls),
+                 metadata: loop.metadata
+               }}
+            rescue
+              e ->
+                reason = Exception.message(e)
+                {loop, new_effects} = Loop.handle_error(loop, reason)
+                {{loop, new_effects}, %{loop_id: loop_id, step: step, metadata: loop.metadata}}
+            catch
+              :exit, exit_reason ->
+                reason = classify_exit_reason(exit_reason)
+                {loop, new_effects} = Loop.handle_error(loop, reason)
+                {{loop, new_effects}, %{loop_id: loop_id, step: step, metadata: loop.metadata}}
+            end
 
           {:error, reason} ->
             {loop, new_effects} = Loop.handle_error(loop, reason)
@@ -594,6 +606,18 @@ defmodule SwarmAi do
   defp emit_run_stop({:tool_calls, _loop, _tool_calls}) do
     # Don't emit stop yet - run is still in progress
     :ok
+  end
+
+  defp classify_exit_reason({:timeout, {GenServer, :call, _}}) do
+    "LLM stream timed out — the provider stopped responding"
+  end
+
+  defp classify_exit_reason(:timeout) do
+    "LLM stream timed out"
+  end
+
+  defp classify_exit_reason(reason) do
+    "LLM stream failed: #{inspect(reason)}"
   end
 
   defp sum_tokens(steps) do

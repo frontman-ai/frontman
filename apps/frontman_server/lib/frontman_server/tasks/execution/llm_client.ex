@@ -76,7 +76,7 @@ end
 
 defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
   alias FrontmanServer.Tasks.Execution.LLMClient
-  alias FrontmanServer.Tasks.StreamCleanup
+  alias FrontmanServer.Tasks.{StreamCleanup, StreamStallTimeout}
   alias SwarmAi.LLM.{Chunk, Usage}
   alias SwarmAi.Message
   alias SwarmAi.Message.ContentPart
@@ -108,10 +108,14 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
 
     case ReqLLM.stream_text(client.model, reqllm_messages, llm_opts) do
       {:ok, response} ->
+        stall_timeout_ms =
+          Application.get_env(:frontman_server, :stream_stall_timeout_ms, 25_000)
+
         swarm_stream =
           response.stream
           |> Stream.map(&to_swarm_chunk(&1, requires_mcp_prefix?))
           |> Stream.reject(&is_nil/1)
+          |> StreamStallTimeout.wrap_stream(stall_timeout_ms: stall_timeout_ms)
           |> StreamCleanup.wrap_stream(response.cancel)
 
         {:ok, swarm_stream}
