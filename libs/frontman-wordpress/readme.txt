@@ -4,7 +4,7 @@ Tags: ai, editing, content, gutenberg, blocks
 Requires at least: 6.0
 Tested up to: 6.7
 Requires PHP: 7.4
-Stable tag: 0.3.2
+Stable tag: 0.3.3
 License: Apache-2.0
 License URI: https://www.apache.org/licenses/LICENSE-2.0
 
@@ -92,6 +92,10 @@ No data is sent to these services until you actively use the Frontman chat inter
 1. The Frontman chat interface alongside your WordPress site
 
 == Changelog ==
+
+= 0.3.3 =
+* Send the WordPress runtime nonce on plugin tool POST requests from the shared client
+* Keep the WordPress plugin metadata aligned for the next release
 
 = 0.3.2 =
 * Remove the standalone package and remaining standalone references from the WordPress flow and release tooling

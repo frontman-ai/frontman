@@ -3,7 +3,7 @@
  * Plugin Name:       Frontman
  * Plugin URI:        https://frontman.sh
  * Description:       AI-powered frontend editing for WordPress. Lets an AI agent see your site and edit posts, blocks, menus, templates, and options through a conversational UI.
- * Version:           0.3.2
+ * Version:           0.3.3
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            Frontman AI
@@ -18,7 +18,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'FRONTMAN_VERSION', '0.3.2' );
+define( 'FRONTMAN_VERSION', '0.3.3' );
 define( 'FRONTMAN_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'FRONTMAN_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'FRONTMAN_PLUGIN_FILE', __FILE__ );
