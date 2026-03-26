@@ -148,7 +148,7 @@ jobs:
           echo "Released version: $VERSION"
 
       - name: Sync WordPress plugin release metadata
-        run: ./scripts/sync-wordpress-plugin-release.sh "${{ steps.version.outputs.version }}"
+        run: bash ./scripts/sync-wordpress-plugin-release.sh "${{ steps.version.outputs.version }}"
 
       - name: Create release branch and PR
         env:

@@ -9,7 +9,7 @@ BUILD_DIR="$DIST_DIR/frontman-wordpress-package"
 PLUGIN_DIR="$BUILD_DIR/github/frontman"
 WPORG_DIR="$BUILD_DIR/wordpress-org"
 
-PLUGIN_VERSION="$($ROOT_DIR/scripts/validate-wordpress-plugin-release.sh)"
+PLUGIN_VERSION="$(bash "$ROOT_DIR/scripts/validate-wordpress-plugin-release.sh")"
 
 VERSION="${VERSION:-$PLUGIN_VERSION}"
 

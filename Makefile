@@ -437,7 +437,7 @@ release: ## Create a release PR from pending changesets
 	@echo "Watch for the PR at: https://github.com/frontman-ai/frontman/pulls"
 
 package-wordpress-plugin: ## Build WordPress ZIP and WordPress.org bundle
-	@VERSION=$(VERSION) ./scripts/package-wordpress-plugin.sh
+	@VERSION=$(VERSION) bash ./scripts/package-wordpress-plugin.sh
 
 test-wordpress-core-tools: ## Run PHP tests for WordPress core tool implementations
 	@php libs/frontman-wordpress/tests/CoreToolsTest.php
