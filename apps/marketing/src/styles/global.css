@@ -1,7 +1,8 @@
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
 
-/* --- Custom variant: .dark_ ancestor (legacy dark mode selector) --- */
+/* --- Custom variant: class-based dark mode (migrated from darkMode: ["selector"]) --- */
+@custom-variant dark (&:where(.dark, .dark *));
 @custom-variant dark-me (&:is(.dark_ *));
 
 /* --- Safelist: dynamic classes used via CMS/JS that Tailwind can't detect --- */
