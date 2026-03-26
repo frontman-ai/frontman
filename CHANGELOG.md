@@ -3,6 +3,86 @@
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+## [0.12.0] - 2026-03-26
+
+
+#### @frontman-ai/client
+
+
+### Minor Changes
+
+- [#682](https://github.com/frontman-ai/frontman/pull/682) [`509a0d7`](https://github.com/frontman-ai/frontman/commit/509a0d7a90413bd9e04f9a5a7bec5e0602ffcc25) Thanks [@itayadler](https://github.com/itayadler)! - Add production-ready WordPress support with PHP-native filesystem tools, safer mutation history snapshots, richer WordPress editing tools for menus/blocks/templates/cache, and plugin ZIP release packaging.
+
+  The WordPress plugin now runs normal file operations directly in PHP, requires confirmation before destructive delete tools run, preserves freeform HTML during block mutations, limits widget mutations to safe supported widget types, and removes the old standalone package/release flow entirely.
+
+### Patch Changes
+
+- [#672](https://github.com/frontman-ai/frontman/pull/672) [`7292b3d`](https://github.com/frontman-ai/frontman/commit/7292b3dbd7dc148954262a33710cf837966e1327) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Replace 4 incremental todo tools (todo_add, todo_update, todo_remove, todo_list) with a single atomic `todo_write` tool. The LLM now sends the complete todo list every call, eliminating hallucinated IDs, duplicate entries, and state drift between turns. Adds priority field (high/medium/low) to todos.
+
+- [#711](https://github.com/frontman-ai/frontman/pull/711) [`71cc747`](https://github.com/frontman-ai/frontman/commit/71cc747b71d5d369091ed582f15cb6db4a303123) Thanks [@itayadler](https://github.com/itayadler)! - Preserve the initial FTUE state during ACP authentication so first-time users still see onboarding instead of being treated as returning users after other client preferences are persisted.
+
+- [#625](https://github.com/frontman-ai/frontman/pull/625) [`632b54e`](https://github.com/frontman-ai/frontman/commit/632b54e8a100cbc29ac940a23e7f872780e1ebfd) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Minor improvements: tree navigation for annotation markers, stderr log capture fix, and publish guard for npm packages
+  - Add parent/child tree navigation controls to annotation markers in the web preview
+  - Fix log capture to intercept process.stderr in addition to process.stdout (captures Astro [ERROR] messages)
+  - Add duplicate-publish guard to `make publish` in nextjs, vite, and react-statestore packages
+
+#### @frontman-ai/astro
+
+
+### Minor Changes
+
+- [#660](https://github.com/frontman-ai/frontman/pull/660) [`f64d652`](https://github.com/frontman-ai/frontman/commit/f64d652a5341a20d111acfcf4f12d527df15bf97) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Use Astro's `astro:routes:resolved` hook (v5+) for route discovery in `get_client_pages` tool
+
+  The `get_client_pages` tool now returns routes resolved by Astro's router instead of scanning the filesystem. This catches routes that filesystem scanning misses: content collection routes, config-defined redirects, API endpoints, integration-injected routes (e.g. `@astrojs/sitemap`), and internal fallbacks. Each route now includes params, type, origin, and prerender status.
+
+  On Astro v4, the tool falls back to the existing filesystem scanner.
+
+### Patch Changes
+
+- [#625](https://github.com/frontman-ai/frontman/pull/625) [`632b54e`](https://github.com/frontman-ai/frontman/commit/632b54e8a100cbc29ac940a23e7f872780e1ebfd) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Fix Frontman toolbar icon and trailing slash URL construction
+  - Replace generic toolbar icon with Frontman "F" glyph in the Astro dev toolbar
+  - Ensure trailing slashes on all constructed URLs in the Astro toolbar app
+
+#### @frontman-ai/frontman-core
+
+
+### Patch Changes
+
+- [#625](https://github.com/frontman-ai/frontman/pull/625) [`632b54e`](https://github.com/frontman-ai/frontman/commit/632b54e8a100cbc29ac940a23e7f872780e1ebfd) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Minor improvements: tree navigation for annotation markers, stderr log capture fix, and publish guard for npm packages
+  - Add parent/child tree navigation controls to annotation markers in the web preview
+  - Fix log capture to intercept process.stderr in addition to process.stdout (captures Astro [ERROR] messages)
+  - Add duplicate-publish guard to `make publish` in nextjs, vite, and react-statestore packages
+
+#### @frontman-ai/nextjs
+
+
+### Patch Changes
+
+- [#625](https://github.com/frontman-ai/frontman/pull/625) [`632b54e`](https://github.com/frontman-ai/frontman/commit/632b54e8a100cbc29ac940a23e7f872780e1ebfd) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Minor improvements: tree navigation for annotation markers, stderr log capture fix, and publish guard for npm packages
+  - Add parent/child tree navigation controls to annotation markers in the web preview
+  - Fix log capture to intercept process.stderr in addition to process.stdout (captures Astro [ERROR] messages)
+  - Add duplicate-publish guard to `make publish` in nextjs, vite, and react-statestore packages
+
+#### @frontman-ai/vite
+
+
+### Patch Changes
+
+- [#625](https://github.com/frontman-ai/frontman/pull/625) [`632b54e`](https://github.com/frontman-ai/frontman/commit/632b54e8a100cbc29ac940a23e7f872780e1ebfd) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Minor improvements: tree navigation for annotation markers, stderr log capture fix, and publish guard for npm packages
+  - Add parent/child tree navigation controls to annotation markers in the web preview
+  - Fix log capture to intercept process.stderr in addition to process.stdout (captures Astro [ERROR] messages)
+  - Add duplicate-publish guard to `make publish` in nextjs, vite, and react-statestore packages
+
+#### @frontman-ai/react-statestore
+
+
+### Patch Changes
+
+- [#625](https://github.com/frontman-ai/frontman/pull/625) [`632b54e`](https://github.com/frontman-ai/frontman/commit/632b54e8a100cbc29ac940a23e7f872780e1ebfd) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Minor improvements: tree navigation for annotation markers, stderr log capture fix, and publish guard for npm packages
+  - Add parent/child tree navigation controls to annotation markers in the web preview
+  - Fix log capture to intercept process.stderr in addition to process.stdout (captures Astro [ERROR] messages)
+  - Add duplicate-publish guard to `make publish` in nextjs, vite, and react-statestore packages
+
 ## [0.11.0] - 2026-03-19
 
 

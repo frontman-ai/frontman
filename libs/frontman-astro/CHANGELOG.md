@@ -1,5 +1,21 @@
 # @frontman-ai/astro
 
+## 0.6.0
+
+### Minor Changes
+
+- [#660](https://github.com/frontman-ai/frontman/pull/660) [`f64d652`](https://github.com/frontman-ai/frontman/commit/f64d652a5341a20d111acfcf4f12d527df15bf97) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Use Astro's `astro:routes:resolved` hook (v5+) for route discovery in `get_client_pages` tool
+
+  The `get_client_pages` tool now returns routes resolved by Astro's router instead of scanning the filesystem. This catches routes that filesystem scanning misses: content collection routes, config-defined redirects, API endpoints, integration-injected routes (e.g. `@astrojs/sitemap`), and internal fallbacks. Each route now includes params, type, origin, and prerender status.
+
+  On Astro v4, the tool falls back to the existing filesystem scanner.
+
+### Patch Changes
+
+- [#625](https://github.com/frontman-ai/frontman/pull/625) [`632b54e`](https://github.com/frontman-ai/frontman/commit/632b54e8a100cbc29ac940a23e7f872780e1ebfd) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Fix Frontman toolbar icon and trailing slash URL construction
+  - Replace generic toolbar icon with Frontman "F" glyph in the Astro dev toolbar
+  - Ensure trailing slashes on all constructed URLs in the Astro toolbar app
+
 ## 0.5.0
 
 ### Minor Changes

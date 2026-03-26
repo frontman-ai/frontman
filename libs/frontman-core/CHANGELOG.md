@@ -1,5 +1,14 @@
 # @frontman-ai/frontman-core
 
+## 0.5.4
+
+### Patch Changes
+
+- [#625](https://github.com/frontman-ai/frontman/pull/625) [`632b54e`](https://github.com/frontman-ai/frontman/commit/632b54e8a100cbc29ac940a23e7f872780e1ebfd) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Minor improvements: tree navigation for annotation markers, stderr log capture fix, and publish guard for npm packages
+  - Add parent/child tree navigation controls to annotation markers in the web preview
+  - Fix log capture to intercept process.stderr in addition to process.stdout (captures Astro [ERROR] messages)
+  - Add duplicate-publish guard to `make publish` in nextjs, vite, and react-statestore packages
+
 ## 0.5.3
 
 ### Patch Changes
