@@ -4,7 +4,7 @@ Tags: ai, editing, content, gutenberg, blocks
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 0.12.0
+Stable tag: 0.13.0
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -92,6 +92,10 @@ No data is sent to these services until you actively use the Frontman chat inter
 1. The Frontman chat interface alongside your WordPress site
 
 == Changelog ==
+
+= 0.13.0 =
+* Sync the Frontman plugin release with Frontman v0.13.0
+* See the GitHub release notes for the full cross-product changelog
 
 = 0.12.0 =
 * Sync the Frontman plugin release with Frontman v0.12.0
