@@ -204,7 +204,7 @@ const savedNavActions = navActions.map((action) => ({
 		@apply bg-primary-50 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400;
 	}
 	.header__toggle {
-		@apply relative order-10 block h-10 w-10 self-center lg:hidden [&--open]:visible [&--open]:opacity-100;
+		@apply relative order-10 block h-10 w-10 cursor-pointer self-center lg:hidden [&--open]:visible [&--open]:opacity-100;
 	}
 	.header__toggle-inner {
 		@apply absolute left-1/2 top-1/2 w-6 -translate-x-1/2 -translate-y-1/2 transform;

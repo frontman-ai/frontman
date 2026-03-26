@@ -50,9 +50,12 @@ const {
 	{
 		tags && (
 			<div class="post-tags mt-auto">
-				{tags.map((tag: string) => (
+				{tags.slice(0, 3).map((tag: string) => (
 					<Badge name={tag} link={`/blog/tags/${tag}/`} classes="capitalize" />
 				))}
+				{tags.length > 3 && (
+					<span class="badge-more">+{tags.length - 3}</span>
+				)}
 			</div>
 		)
 	}
@@ -67,7 +70,10 @@ const {
 		@apply mb-6 text-sm font-normal text-neutral-400 dark:text-neutral-400;
 	}
 	.post-tags {
-		@apply relative z-10 flex gap-2 border-t border-neutral-100 px-6 py-4 dark:border-neutral-800;
+		@apply relative z-10 flex flex-wrap gap-2 border-t border-neutral-100 px-6 py-4 dark:border-neutral-800;
+	}
+	.badge-more {
+		@apply inline-flex items-center justify-center rounded px-1.5 py-1 text-xs text-neutral-500 dark:text-neutral-400;
 	}
 </style>
 
