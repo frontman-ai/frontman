@@ -33,4 +33,3 @@ let make = (~variant: variant, ~content: string, ~messageId as _: string, ~isNew
     : React.null}
   </MessageContainer>
 }
-let make = React.memo(make)
