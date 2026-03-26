@@ -3,38 +3,29 @@
 set -euo pipefail
 
 ROOT_DIR="$(git rev-parse --show-toplevel)"
+FRONTMAN_PHP="$ROOT_DIR/libs/frontman-wordpress/frontman.php"
+README_TXT="$ROOT_DIR/libs/frontman-wordpress/readme.txt"
 
-export ROOT_DIR
+header_version=$(sed -nE 's/^[[:space:]]*\*[[:space:]]*Version:[[:space:]]*([0-9]+\.[0-9]+\.[0-9]+)[[:space:]]*$/\1/p' "$FRONTMAN_PHP" | head -n 1)
+constant_version=$(sed -nE "s/^define\([[:space:]]*'FRONTMAN_VERSION',[[:space:]]*'([0-9]+\.[0-9]+\.[0-9]+)'[[:space:]]*\);$/\1/p" "$FRONTMAN_PHP" | head -n 1)
+stable_tag=$(sed -nE 's/^Stable tag:[[:space:]]*([0-9]+\.[0-9]+\.[0-9]+)[[:space:]]*$/\1/p' "$README_TXT" | head -n 1)
+changelog_entry=$(sed -nE 's/^= ([0-9]+\.[0-9]+\.[0-9]+) =$/\1/p' "$README_TXT" | head -n 1)
 
-python3 - <<'PY'
-import os
-import re
-from pathlib import Path
+missing=()
+[ -n "$header_version" ] || missing+=("Plugin header")
+[ -n "$constant_version" ] || missing+=("FRONTMAN_VERSION")
+[ -n "$stable_tag" ] || missing+=("Stable tag")
+[ -n "$changelog_entry" ] || missing+=("Top changelog entry")
 
-root = Path(os.environ["ROOT_DIR"])
-frontman_text = (root / "libs/frontman-wordpress/frontman.php").read_text()
-readme_text = (root / "libs/frontman-wordpress/readme.txt").read_text()
+if [ "${#missing[@]}" -gt 0 ]; then
+  printf 'Missing WordPress release metadata: %s\n' "$(IFS=', '; echo "${missing[*]}")" >&2
+  exit 1
+fi
 
-header_version = re.search(r"Version:\s*([0-9]+\.[0-9]+\.[0-9]+)", frontman_text)
-constant_version = re.search(r"FRONTMAN_VERSION',\s*'([0-9]+\.[0-9]+\.[0-9]+)'", frontman_text)
-stable_tag = re.search(r"^Stable tag:\s*([0-9]+\.[0-9]+\.[0-9]+)$", readme_text, re.MULTILINE)
-changelog_entry = re.search(r"^= ([0-9]+\.[0-9]+\.[0-9]+) =$", readme_text, re.MULTILINE)
+if [ "$header_version" != "$constant_version" ] || [ "$header_version" != "$stable_tag" ] || [ "$header_version" != "$changelog_entry" ]; then
+  printf 'WordPress release metadata is out of sync: Plugin header=%s, FRONTMAN_VERSION=%s, Stable tag=%s, Top changelog entry=%s\n' \
+    "$header_version" "$constant_version" "$stable_tag" "$changelog_entry" >&2
+  exit 1
+fi
 
-values = {
-    "Plugin header": header_version.group(1) if header_version else None,
-    "FRONTMAN_VERSION": constant_version.group(1) if constant_version else None,
-    "Stable tag": stable_tag.group(1) if stable_tag else None,
-    "Top changelog entry": changelog_entry.group(1) if changelog_entry else None,
-}
-
-missing = [name for name, value in values.items() if value is None]
-if missing:
-    raise SystemExit("Missing WordPress release metadata: " + ", ".join(missing))
-
-versions = set(values.values())
-if len(versions) != 1:
-    details = ", ".join(f"{name}={value}" for name, value in values.items())
-    raise SystemExit("WordPress release metadata is out of sync: " + details)
-
-print(next(iter(versions)))
-PY
+printf '%s\n' "$header_version"

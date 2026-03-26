@@ -9,79 +9,101 @@ fi
 
 ROOT_DIR="$(git rev-parse --show-toplevel)"
 VERSION="${1:-${VERSION:-}}"
+FRONTMAN_PHP="$ROOT_DIR/libs/frontman-wordpress/frontman.php"
+README_TXT="$ROOT_DIR/libs/frontman-wordpress/readme.txt"
 
 if [ -z "$VERSION" ]; then
   printf 'Provide VERSION as an argument or environment variable\n' >&2
   exit 1
 fi
 
-export ROOT_DIR VERSION
+export VERSION
 
-python3 - <<'PY'
-import os
-import re
-from pathlib import Path
+tmp_frontman=$(mktemp)
 
-root = Path(os.environ["ROOT_DIR"])
-version = os.environ["VERSION"]
+awk -v version="$VERSION" '
+  BEGIN {
+    updated_header = 0
+    updated_constant = 0
+  }
 
-frontman_php = root / "libs/frontman-wordpress/frontman.php"
-readme_txt = root / "libs/frontman-wordpress/readme.txt"
+  {
+    if ($0 ~ /^[[:space:]]*\*[[:space:]]*Version:/) {
+      if (sub(/[0-9]+\.[0-9]+\.[0-9]+/, version)) {
+        updated_header += 1
+      }
+    }
 
-frontman_text = frontman_php.read_text()
-frontman_text, header_count = re.subn(
-    r"(\* Version:\s*)([0-9]+\.[0-9]+\.[0-9]+)",
-    rf"\g<1>{version}",
-    frontman_text,
-    count=1,
-)
-frontman_text, constant_count = re.subn(
-    r"(define\(\s*'FRONTMAN_VERSION',\s*')([0-9]+\.[0-9]+\.[0-9]+)('\s*\);)",
-    rf"\g<1>{version}\g<3>",
-    frontman_text,
-    count=1,
-)
+    if ($0 ~ /FRONTMAN_VERSION/) {
+      if (sub(/[0-9]+\.[0-9]+\.[0-9]+/, version)) {
+        updated_constant += 1
+      }
+    }
 
-if header_count != 1 or constant_count != 1:
-    raise SystemExit("Could not update WordPress plugin version in frontman.php")
+    print
+  }
 
-frontman_php.write_text(frontman_text)
+  END {
+    if (updated_header != 1 || updated_constant != 1) {
+      exit 1
+    }
+  }
+' "$FRONTMAN_PHP" > "$tmp_frontman" || {
+  rm -f "$tmp_frontman"
+  printf 'Could not update WordPress plugin version in frontman.php\n' >&2
+  exit 1
+}
 
-readme_text = readme_txt.read_text()
-readme_text, stable_tag_count = re.subn(
-    r"^(Stable tag:\s*)([0-9]+\.[0-9]+\.[0-9]+)$",
-    rf"\g<1>{version}",
-    readme_text,
-    count=1,
-    flags=re.MULTILINE,
-)
+mv "$tmp_frontman" "$FRONTMAN_PHP"
 
-if stable_tag_count != 1:
-    raise SystemExit("Could not update Stable tag in readme.txt")
+tmp_readme=$(mktemp)
 
-new_entry = (
-    f"= {version} =\n"
-    f"* Sync the Frontman plugin release with Frontman v{version}\n"
-    "* See the GitHub release notes for the full cross-product changelog\n"
-)
+awk -v version="$VERSION" '
+  BEGIN {
+    updated_stable_tag = 0
+  }
 
-changelog_heading = "== Changelog ==\n"
-if changelog_heading not in readme_text:
-    raise SystemExit("Could not find changelog heading in readme.txt")
+  {
+    if ($0 ~ /^Stable tag:/) {
+      if (sub(/[0-9]+\.[0-9]+\.[0-9]+/, version)) {
+        updated_stable_tag += 1
+      }
+    }
 
-heading_index = readme_text.index(changelog_heading) + len(changelog_heading)
-existing_top_entry = re.compile(
-    r"\n*= [0-9]+\.[0-9]+\.[0-9]+ =\n(?:\* .*\n)+",
-    re.MULTILINE,
-)
-remaining = readme_text[heading_index:]
+    print
+  }
 
-if re.match(rf"\n*= {re.escape(version)} =\n", remaining):
-    remaining = existing_top_entry.sub("\n" + new_entry, remaining, count=1)
-else:
-    remaining = "\n" + new_entry + "\n" + remaining.lstrip("\n")
+  END {
+    if (updated_stable_tag != 1) {
+      exit 1
+    }
+  }
+' "$README_TXT" > "$tmp_readme" || {
+  rm -f "$tmp_readme"
+  printf 'Could not update Stable tag in readme.txt\n' >&2
+  exit 1
+}
 
-readme_txt.write_text(readme_text[:heading_index] + remaining)
-PY
+mv "$tmp_readme" "$README_TXT"
+
+existing_version=$(sed -nE 's/^= ([0-9]+\.[0-9]+\.[0-9]+) =$/\1/p' "$README_TXT" | head -n 1)
+
+if [ "$existing_version" != "$VERSION" ]; then
+  changelog_line=$(sed -n '/^== Changelog ==$/=' "$README_TXT" | head -n 1)
+  first_entry_line=$(sed -n '/^= [0-9][0-9.]* =$/=' "$README_TXT" | head -n 1)
+
+  if [ -z "$changelog_line" ] || [ -z "$first_entry_line" ]; then
+    printf 'Could not update changelog entry in readme.txt\n' >&2
+    exit 1
+  fi
+
+  tmp_readme=$(mktemp)
+  sed -n "1,${changelog_line}p" "$README_TXT" > "$tmp_readme"
+  printf '\n= %s =\n' "$VERSION" >> "$tmp_readme"
+  printf '* Sync the Frontman plugin release with Frontman v%s\n' "$VERSION" >> "$tmp_readme"
+  printf '* See the GitHub release notes for the full cross-product changelog\n\n' >> "$tmp_readme"
+  sed -n "${first_entry_line},\$p" "$README_TXT" >> "$tmp_readme"
+  mv "$tmp_readme" "$README_TXT"
+fi
 
 printf 'Synced WordPress plugin metadata to version %s\n' "$VERSION"
