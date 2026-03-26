@@ -147,6 +147,9 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "Released version: $VERSION"
 
+      - name: Sync WordPress plugin release metadata
+        run: ./scripts/sync-wordpress-plugin-release.sh "${{ steps.version.outputs.version }}"
+
       - name: Create release branch and PR
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

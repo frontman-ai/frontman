@@ -65,6 +65,10 @@ jobs:
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Package WordPress release assets
+        if: steps.verify.outputs.is_release == 'true' && steps.tag-check.outputs.exists == 'false'
+        run: make package-wordpress-plugin VERSION="${{ steps.extract.outputs.version }}"
+
       - name: Create tag and GitHub Release
         if: steps.verify.outputs.is_release == 'true' && steps.tag-check.outputs.exists == 'false'
         env:
@@ -81,4 +85,6 @@ jobs:
 
           gh release create "$TAG" \
             --title "v${VERSION}" \
-            --notes-file /tmp/release-notes.md
+            --notes-file /tmp/release-notes.md \
+            "dist/frontman-wordpress-v${VERSION}.zip" \
+            "dist/frontman-wordpress-org-v${VERSION}.tar.gz"
