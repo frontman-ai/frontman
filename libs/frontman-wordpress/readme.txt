@@ -1,18 +1,18 @@
-=== Frontman ===
+=== Agentic AI ===
 Contributors: frontmanai
 Tags: ai, editing, content, gutenberg, blocks
 Requires at least: 6.0
 Tested up to: 6.7
 Requires PHP: 7.4
 Stable tag: 0.3.3
-License: Apache-2.0
-License URI: https://www.apache.org/licenses/LICENSE-2.0
+License: GPL-2.0-or-later
+License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-AI-powered editing for WordPress. Describe changes in plain English — the agent edits your content, theme, and settings live.
+Agentic AI for WordPress: AI-powered frontend editing plugin. Your AI agent observes your live site and makes changes to posts, blocks, menus, templates, and site options — all through a conversational interface, no dashboard required.
 
 == Description ==
 
-Frontman puts an AI agent inside your WordPress site. Navigate to `/frontman`, describe what you want to change, and the agent handles it — posts, pages, blocks, menus, theme files, site settings, and more.
+Agentic AI puts an AI agent inside your WordPress site. Navigate to `/frontman`, describe what you want to change, and the agent handles it — posts, pages, blocks, menus, theme files, site settings, and more.
 
 No code editor. No terminal. Just a chat interface alongside a live view of your site.
 
@@ -32,7 +32,7 @@ Developers who want faster iteration. Designers and content editors who want to 
 
 **Open source:**
 
-The Frontman WordPress plugin is open source under Apache 2.0. The code is available on [GitHub](https://github.com/frontman-ai/frontman).
+The Frontman WordPress plugin is open source under GPLv2 or later. The code is available on [GitHub](https://github.com/frontman-ai/frontman).
 
 **Early release — help us improve it:**
 
