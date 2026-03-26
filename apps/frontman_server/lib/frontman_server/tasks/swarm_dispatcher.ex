@@ -57,17 +57,19 @@ defmodule FrontmanServer.Tasks.SwarmDispatcher do
 
   # Agent turn failed (LLM error, tool error, etc.)
   defp persist(%Scope{} = scope, task_id, {:failed, {:error, reason, loop_id}}, _metadata) do
+    reason_str = format_error_reason(reason)
+
     Logger.error(
-      "Execution failed for task #{task_id}, loop_id: #{loop_id}, reason: #{inspect(reason)}"
+      "Execution failed for task #{task_id}, loop_id: #{loop_id}, reason: #{reason_str}"
     )
 
     Sentry.capture_message("Agent execution failed",
       level: :error,
       tags: %{error_type: "agent_execution_error"},
-      extra: %{task_id: task_id, loop_id: loop_id, reason: inspect(reason)}
+      extra: %{task_id: task_id, loop_id: loop_id, reason: reason_str}
     )
 
-    Tasks.add_agent_error(scope, task_id, inspect(reason), "failed")
+    Tasks.add_agent_error(scope, task_id, reason_str, "failed")
     TelemetryEvents.task_stop(task_id)
   end
 
@@ -136,11 +138,11 @@ defmodule FrontmanServer.Tasks.SwarmDispatcher do
     ReqLLM.ToolCall.new(tc.id, tc.name, tc.arguments)
   end
 
-  defp format_crash_reason(exception) when is_exception(exception) do
-    Exception.message(exception)
+  defp format_crash_reason(reason) do
+    "Execution crashed: #{format_error_reason(reason)}"
   end
 
-  defp format_crash_reason(reason) do
-    "Execution crashed: #{inspect(reason)}"
-  end
+  defp format_error_reason(reason) when is_exception(reason), do: Exception.message(reason)
+  defp format_error_reason(reason) when is_binary(reason), do: reason
+  defp format_error_reason(reason), do: inspect(reason)
 end

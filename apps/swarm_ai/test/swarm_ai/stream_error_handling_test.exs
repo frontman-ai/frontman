@@ -16,7 +16,7 @@ defmodule SwarmAi.StreamErrorHandlingTest do
         SwarmAi.run_blocking(agent, "Hello", fn _tc -> {:ok, "done"} end)
 
       assert {:error, reason, _loop_id} = result
-      assert reason =~ "provider returned HTTP 400"
+      assert %RuntimeError{message: "provider returned HTTP 400"} = reason
     end
   end
 

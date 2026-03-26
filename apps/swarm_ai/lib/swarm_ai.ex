@@ -497,8 +497,7 @@ defmodule SwarmAi do
                }}
             rescue
               e ->
-                reason = Exception.message(e)
-                {loop, new_effects} = Loop.handle_error(loop, reason)
+                {loop, new_effects} = Loop.handle_error(loop, e)
                 {{loop, new_effects}, %{loop_id: loop_id, step: step, metadata: loop.metadata}}
             catch
               :exit, exit_reason ->
@@ -608,17 +607,9 @@ defmodule SwarmAi do
     :ok
   end
 
-  defp classify_exit_reason({:timeout, {GenServer, :call, _}}) do
-    "LLM stream timed out — the provider stopped responding"
-  end
-
-  defp classify_exit_reason(:timeout) do
-    "LLM stream timed out"
-  end
-
-  defp classify_exit_reason(reason) do
-    "LLM stream failed: #{inspect(reason)}"
-  end
+  defp classify_exit_reason({:timeout, {GenServer, :call, _}}), do: :genserver_call_timeout
+  defp classify_exit_reason(:timeout), do: :stream_timeout
+  defp classify_exit_reason(reason), do: {:exit, reason}
 
   defp sum_tokens(steps) do
     Enum.reduce(steps, 0, fn step, acc ->

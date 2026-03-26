@@ -64,7 +64,7 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
 
       # Stream errors are now caught and surfaced as graceful failures
       assert_receive {:swarm_event, {:failed, {:error, reason, _loop_id}}}, 5_000
-      assert reason =~ "image exceeds the maximum allowed size"
+      assert Exception.message(reason) =~ "image exceeds the maximum allowed size"
     end
 
     test "LLM returning {:error, reason} surfaces as {:swarm_event, {:failed, ...}}", %{

@@ -22,7 +22,7 @@ defmodule FrontmanServer.Tasks.Execution do
   alias FrontmanServer.Providers
   alias FrontmanServer.Providers.{Model, Registry, ResolvedKey}
   alias FrontmanServer.Tasks.Execution.{Framework, RootAgent, ToolExecutor}
-  alias FrontmanServer.Tasks.{Interaction, Task}
+  alias FrontmanServer.Tasks.{Interaction, StreamStallTimeout, Task}
   alias SwarmAi.Message
 
   @doc """
@@ -130,19 +130,11 @@ defmodule FrontmanServer.Tasks.Execution do
   def handle_swarm_event(_scope, _task_id, {:completed, {:ok, _result, _loop_id}}),
     do: :agent_completed
 
-  def handle_swarm_event(_scope, _task_id, {:failed, {:error, reason, _loop_id}})
-      when is_binary(reason),
-      do: {:agent_error, reason}
-
   def handle_swarm_event(_scope, _task_id, {:failed, {:error, reason, _loop_id}}),
-    do: {:agent_error, inspect(reason)}
-
-  def handle_swarm_event(_scope, _task_id, {:crashed, %{reason: reason}})
-      when is_exception(reason),
-      do: {:agent_error, Exception.message(reason)}
+    do: {:agent_error, humanize_error(reason)}
 
   def handle_swarm_event(_scope, _task_id, {:crashed, %{reason: reason}}),
-    do: {:agent_error, "Execution crashed: #{inspect(reason)}"}
+    do: {:agent_error, humanize_crash(reason)}
 
   def handle_swarm_event(_scope, _task_id, {:cancelled, _}),
     do: :agent_cancelled
@@ -338,4 +330,36 @@ defmodule FrontmanServer.Tasks.Execution do
 
   def error_message(%Scope{}, reason),
     do: inspect(reason)
+
+  # Translates internal error reasons into user-friendly messages.
+  # Raw technical details stay in Sentry (SwarmDispatcher); only the
+  # humanized version reaches the client via the channel.
+  defp humanize_error(%StreamStallTimeout.Error{}) do
+    "The AI provider stopped responding mid-reply. " <>
+      "This usually happens when the provider is temporarily overloaded. " <>
+      "Try sending your message again."
+  end
+
+  defp humanize_error(:genserver_call_timeout) do
+    "The request to the AI provider timed out. " <>
+      "This can happen during high traffic. Try again in a moment."
+  end
+
+  defp humanize_error(:stream_timeout) do
+    "The request to the AI provider timed out. " <>
+      "This can happen during high traffic. Try again in a moment."
+  end
+
+  defp humanize_error({:exit, reason}) do
+    "Something went wrong while communicating with the AI provider: #{inspect(reason)}"
+  end
+
+  defp humanize_error(reason) when is_exception(reason), do: Exception.message(reason)
+  defp humanize_error(reason) when is_binary(reason), do: reason
+  defp humanize_error(reason), do: inspect(reason)
+
+  # Like humanize_error, but prefixes unknown/fallback reasons with crash context.
+  defp humanize_crash(reason) when is_exception(reason), do: humanize_error(reason)
+  defp humanize_crash(reason) when is_atom(reason), do: "Execution crashed: #{inspect(reason)}"
+  defp humanize_crash(reason), do: "Execution crashed: #{humanize_error(reason)}"
 end
