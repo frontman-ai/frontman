@@ -62,8 +62,8 @@ function normalizeHeadingLevels(html: string): string {
 
 export function parseChangelog(): ChangelogEntry[] {
   const changelogPath = path.resolve(
-    process.cwd(),
-    '../../CHANGELOG.md'
+    import.meta.dirname,
+    '../../../../CHANGELOG.md'
   )
   const raw = fs.readFileSync(changelogPath, 'utf-8')
 
