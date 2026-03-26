@@ -123,6 +123,7 @@ class Frontman_UI {
 
 		status_header( 200 );
 		header( 'Content-Type: text/html; charset=utf-8' );
+		// phpcs:disable WordPress.WP.EnqueuedResources.NonEnqueuedStylesheet,WordPress.WP.EnqueuedResources.NonEnqueuedScript
 		?>
 <!DOCTYPE html>
 <html lang="en" class="dark">
@@ -216,7 +217,7 @@ class Frontman_UI {
 		</div>
 	</div>
 	<div id="root"></div>
-	<script>window.__frontmanRuntime=<?php echo $runtime_config; ?></script>
+	<script>window.__frontmanRuntime=<?php echo wp_json_encode( $runtime ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Safe JSON for inline script. ?></script>
 	<script>if(typeof process==="undefined"){window.process={env:{NODE_ENV:"production"}}}</script>
 	<script>
 	(function() {
@@ -246,5 +247,6 @@ class Frontman_UI {
 </body>
 </html>
 		<?php
+		// phpcs:enable WordPress.WP.EnqueuedResources.NonEnqueuedStylesheet,WordPress.WP.EnqueuedResources.NonEnqueuedScript
 	}
 }

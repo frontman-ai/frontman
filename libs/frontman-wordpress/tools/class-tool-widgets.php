@@ -14,6 +14,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+// phpcs:disable WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Exception messages are internal tool errors, not rendered HTML output.
+
 class Frontman_Tool_Widgets {
 	private const SUPPORTED_MUTATION_WIDGET_BASES = [ 'text' ];
 
@@ -141,7 +143,7 @@ class Frontman_Tool_Widgets {
 	}
 
 	private function widget_sidebar_map(): array {
-		$sidebars_widgets = wp_get_sidebars_widgets();
+		$sidebars_widgets = get_option( 'sidebars_widgets', [] );
 		$map = [];
 		foreach ( $sidebars_widgets as $sidebar_id => $widgets ) {
 			if ( ! is_array( $widgets ) ) {
@@ -194,7 +196,7 @@ class Frontman_Tool_Widgets {
 	public function list_widget_areas( array $input ): array {
 		global $wp_registered_sidebars;
 
-		$sidebars_widgets = wp_get_sidebars_widgets();
+		$sidebars_widgets = get_option( 'sidebars_widgets', [] );
 		$result           = [];
 
 		foreach ( $wp_registered_sidebars as $id => $sidebar ) {
@@ -256,7 +258,7 @@ class Frontman_Tool_Widgets {
 		$all_settings[ $widget_number ] = $settings;
 		update_option( 'widget_' . $widget_base, $all_settings );
 
-		$sidebars_widgets = wp_get_sidebars_widgets();
+		$sidebars_widgets = get_option( 'sidebars_widgets', [] );
 		$widgets = $sidebars_widgets[ $sidebar_id ] ?? [];
 		$position = isset( $input['position'] ) ? max( 0, absint( $input['position'] ) - 1 ) : count( $widgets );
 		$position = min( $position, count( $widgets ) );
@@ -331,7 +333,7 @@ class Frontman_Tool_Widgets {
 			'to_sidebar'   => $this->sidebar_snapshot( $to_sidebar_id ),
 		];
 
-		$sidebars_widgets = wp_get_sidebars_widgets();
+		$sidebars_widgets = get_option( 'sidebars_widgets', [] );
 		$from_widgets = array_values( array_filter( $sidebars_widgets[ $from_sidebar_id ] ?? [], static function( $id ) use ( $widget_id ) {
 			return $id !== $widget_id;
 		} ) );
@@ -378,7 +380,7 @@ class Frontman_Tool_Widgets {
 			'sidebar' => $this->sidebar_snapshot( $sidebar_id ),
 		];
 
-		$sidebars_widgets = wp_get_sidebars_widgets();
+		$sidebars_widgets = get_option( 'sidebars_widgets', [] );
 		$sidebars_widgets[ $sidebar_id ] = array_values( array_filter( $sidebars_widgets[ $sidebar_id ] ?? [], static function( $id ) use ( $widget_id ) {
 			return $id !== $widget_id;
 		} ) );
@@ -392,3 +394,5 @@ class Frontman_Tool_Widgets {
 		];
 	}
 }
+
+// phpcs:enable WordPress.Security.EscapeOutput.ExceptionNotEscaped

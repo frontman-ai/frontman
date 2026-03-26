@@ -9,6 +9,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+// phpcs:disable WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Exception messages are internal tool errors, not rendered HTML output.
+
 class Frontman_Core_Tools {
 	private const NOISE_DIRS = [
 		'node_modules',
@@ -850,3 +852,5 @@ class Frontman_Core_Tools {
 		return substr( $value, -strlen( $suffix ) ) === $suffix;
 	}
 }
+
+// phpcs:enable WordPress.Security.EscapeOutput.ExceptionNotEscaped

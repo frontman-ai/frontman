@@ -1,6 +1,6 @@
 <?php
 /**
- * Plugin Name:       Agentic AI
+ * Plugin Name:       Frontman - Agentic AI for WordPress
  * Plugin URI:        https://frontman.sh
  * Description:       Agentic AI for WordPress: AI-powered frontend editing plugin. Your AI agent observes your live site and makes changes to posts, blocks, menus, templates, and site options - all through a conversational interface, no dashboard required.
  * Version:           0.3.3

@@ -135,11 +135,13 @@ class Frontman_Tools {
 	public function call( string $name, array $input ): array {
 		$tool = $this->get( $name );
 		if ( ! $tool ) {
+			$tool_name = sanitize_text_field( $name );
+
 			throw new \RuntimeException(
 				sprintf(
 					/* translators: %s: tool name */
-					__( 'Unknown tool: %s', 'frontman' ),
-					$name,
+					esc_html__( 'Unknown tool: %s', 'frontman' ),
+					esc_html( $tool_name ),
 				)
 			);
 		}

@@ -30,11 +30,13 @@ class Frontman_Core_File_Tracker {
 		];
 
 		$query = $wpdb->prepare(
+			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Table name comes from $wpdb->options.
 			"DELETE FROM {$wpdb->options} WHERE option_name LIKE %s OR option_name LIKE %s",
 			$option_names[0],
 			$option_names[1]
 		);
 
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- The SQL string is already prepared above and uses only $wpdb->options for the table name. This direct delete is intentional because wildcard transient cleanup cannot be done through the Options API.
 		$wpdb->query( $query );
 	}
 

@@ -54,7 +54,9 @@ class Frontman_Router {
 	 */
 	public function intercept( \WP $wp ): void {
 		$request_uri = $this->get_request_path();
-		$method      = strtoupper( $_SERVER['REQUEST_METHOD'] ?? 'GET' );
+		// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- REQUEST_METHOD is read once, then immediately unslashed and sanitized with sanitize_text_field() before routing.
+		$method_raw  = isset( $_SERVER['REQUEST_METHOD'] ) ? wp_unslash( $_SERVER['REQUEST_METHOD'] ) : 'GET';
+		$method      = strtoupper( sanitize_text_field( $method_raw ) );
 		$route       = $this->classify_route( $request_uri, $method );
 
 		if ( 'prefix' === $route['type'] ) {
@@ -227,13 +229,15 @@ class Frontman_Router {
 	 * Handles WordPress installed in a subdirectory (e.g. /blog/frontman).
 	 */
 	private function get_request_path(): string {
-		$request_uri = $_SERVER['REQUEST_URI'] ?? '/';
+		// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- REQUEST_URI is read once, then immediately unslashed before query-string stripping and path normalization.
+		$request_uri = isset( $_SERVER['REQUEST_URI'] ) ? wp_unslash( $_SERVER['REQUEST_URI'] ) : '/';
 
 		// Strip query string.
 		$path = strtok( $request_uri, '?' );
 
 		// Strip the site's home path prefix if WP is in a subdirectory.
-		$home_path = parse_url( home_url(), PHP_URL_PATH ) ?: '';
+		$home_url_parts = wp_parse_url( home_url() );
+		$home_path      = is_array( $home_url_parts ) ? ( $home_url_parts['path'] ?? '' ) : '';
 		if ( $home_path !== '' && $home_path !== '/' ) {
 			$home_path = rtrim( $home_path, '/' );
 			if ( strpos( $path, $home_path ) === 0 ) {

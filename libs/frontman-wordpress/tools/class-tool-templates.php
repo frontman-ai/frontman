@@ -13,6 +13,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+// phpcs:disable WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Exception messages are internal tool errors, not rendered HTML output.
+
 class Frontman_Tool_Templates {
 	/**
 	 * Register all template tools.
@@ -270,3 +272,5 @@ class Frontman_Tool_Templates {
 		];
 	}
 }
+
+// phpcs:enable WordPress.Security.EscapeOutput.ExceptionNotEscaped

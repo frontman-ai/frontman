@@ -1,14 +1,14 @@
-=== Agentic AI ===
+=== Frontman - Agentic AI for WordPress ===
 Contributors: frontmanai
 Tags: ai, editing, content, gutenberg, blocks
 Requires at least: 6.0
-Tested up to: 6.7
+Tested up to: 6.9
 Requires PHP: 7.4
 Stable tag: 0.3.3
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Agentic AI for WordPress: AI-powered frontend editing plugin. Your AI agent observes your live site and makes changes to posts, blocks, menus, templates, and site options — all through a conversational interface, no dashboard required.
+AI agent for WordPress that edits posts, blocks, menus, templates, and site options from a conversational UI.
 
 == Description ==
 

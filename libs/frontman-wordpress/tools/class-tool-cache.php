@@ -115,6 +115,7 @@ class Frontman_Tool_Cache {
 					}
 					break;
 				case 'litespeed-cache':
+					// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- This intentionally calls LiteSpeed Cache's public hook name so Frontman can purge that plugin's cache when it is active.
 					do_action( 'litespeed_purge_all' );
 					$cleared[] = $plugin['slug'];
 					break;
