@@ -18,11 +18,11 @@ defmodule FrontmanServer.Tasks.Execution do
 
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Image
-  alias FrontmanServer.Tasks.StreamStallTimeout
   alias FrontmanServer.Observability.TelemetryEvents
   alias FrontmanServer.Providers
   alias FrontmanServer.Providers.{Model, Registry, ResolvedKey}
   alias FrontmanServer.Tasks.Execution.{Framework, RootAgent, ToolExecutor}
+  alias FrontmanServer.Tasks.StreamStallTimeout
   alias FrontmanServer.Tasks.{Interaction, Task}
   alias SwarmAi.Message
 
