@@ -122,7 +122,7 @@ defmodule SwarmAi.RuntimeTest do
       # Stream raises are now caught by try/rescue in execute_llm_call and
       # routed through Loop.handle_error → {:failed, ...} instead of crashing.
       assert_receive {:test_event, "task-crash", {:failed, {:error, reason, _loop_id}}}
-      assert reason =~ "boom"
+      assert %RuntimeError{message: "boom"} = reason
       refute SwarmAi.Runtime.running?(runtime, "task-crash")
     end
 
@@ -150,7 +150,7 @@ defmodule SwarmAi.RuntimeTest do
       assert_receive {:test_event, "task-timeout",
                       {:failed, {:error, reason, _loop_id}}}
 
-      assert reason =~ "timed out"
+      assert reason == :genserver_call_timeout
 
       refute_receive {:test_event, "task-timeout", {:crashed, _}}, 100
       refute SwarmAi.Runtime.running?(runtime, "task-timeout")
