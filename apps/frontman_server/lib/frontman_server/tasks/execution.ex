@@ -134,7 +134,7 @@ defmodule FrontmanServer.Tasks.Execution do
     do: {:agent_error, humanize_error(reason)}
 
   def handle_swarm_event(_scope, _task_id, {:crashed, %{reason: reason}}),
-    do: {:agent_error, humanize_error(reason)}
+    do: {:agent_error, humanize_crash(reason)}
 
   def handle_swarm_event(_scope, _task_id, {:cancelled, _}),
     do: :agent_cancelled
@@ -357,4 +357,9 @@ defmodule FrontmanServer.Tasks.Execution do
   defp humanize_error(reason) when is_exception(reason), do: Exception.message(reason)
   defp humanize_error(reason) when is_binary(reason), do: reason
   defp humanize_error(reason), do: inspect(reason)
+
+  # Like humanize_error, but prefixes unknown/fallback reasons with crash context.
+  defp humanize_crash(reason) when is_exception(reason), do: humanize_error(reason)
+  defp humanize_crash(reason) when is_atom(reason), do: "Execution crashed: #{inspect(reason)}"
+  defp humanize_crash(reason), do: "Execution crashed: #{humanize_error(reason)}"
 end
