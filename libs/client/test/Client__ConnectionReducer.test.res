@@ -36,10 +36,10 @@ let hasConnectRelay = effects =>
     | _ => false
     }
   )
-let getConnectACPInitialFtueState = effects =>
+let getConnectACPInitialAuthBehavior = effects =>
   effects->Array.findMap(e =>
     switch e {
-    | Reducer.ConnectACP({initialFtueState}) => Some(initialFtueState)
+    | Reducer.ConnectACP({initialAuthBehavior}) => Some(initialAuthBehavior)
     | _ => None
     }
   )
@@ -82,7 +82,7 @@ describe("Connection Reducer", () => {
         endpoint: "ws://test",
         tokenUrl: "http://test/api/socket-token",
         loginUrl: "http://test/users/log-in",
-        initialFtueState: FtueState.New,
+        initialAuthBehavior: FtueState.ShowWelcomeModal,
         clientName: "test",
         clientVersion: "1.0.0",
         baseUrl: "http://test",
@@ -100,7 +100,7 @@ describe("Connection Reducer", () => {
       t->expect(Option.isSome(nextState.relayInstance))->Expect.toBe(true)
       t->expect(Option.isSome(nextState.mcpServer))->Expect.toBe(true)
       t->expect(hasConnectACP(effects))->Expect.toBe(true)
-      t->expect(getConnectACPInitialFtueState(effects))->Expect.toBe(Some(FtueState.New))
+      t->expect(getConnectACPInitialAuthBehavior(effects))->Expect.toBe(Some(FtueState.ShowWelcomeModal))
       t->expect(hasConnectRelay(effects))->Expect.toBe(true)
     })
 
@@ -111,7 +111,7 @@ describe("Connection Reducer", () => {
         endpoint: "ws://test",
         tokenUrl: "http://test/api/socket-token",
         loginUrl: "http://test/users/log-in",
-        initialFtueState: FtueState.Completed,
+        initialAuthBehavior: FtueState.RedirectToLogin,
         clientName: "test",
         clientVersion: "1.0.0",
         baseUrl: "http://test",

@@ -178,8 +178,7 @@ module Provider = {
     ~clientVersion: string="1.0.0",
     ~children: React.element,
   ) => {
-    // Capture FTUE state before any child effects persist frontman:* UI preferences.
-    let (initialFtueState, _) = React.useState(() => Client__FtueState.get())
+    let initialAuthBehavior = React.useRef(Client__FtueState.getAuthBehavior())
 
     // Log message handlers
     let logACPMessage = React.useCallback0((direction: ACP.messageDirection, payload: JSON.t) => {
@@ -238,7 +237,7 @@ module Provider = {
         endpoint,
         tokenUrl,
         loginUrl,
-        initialFtueState,
+        initialAuthBehavior: initialAuthBehavior.current,
         clientName,
         clientVersion,
         baseUrl,

@@ -16,6 +16,10 @@ type t =
   | WelcomeShown
   | Completed
 
+type authBehavior =
+  | ShowWelcomeModal
+  | RedirectToLogin
+
 // Check whether any other frontman:* localStorage key exists, indicating a returning user
 let hasExistingFrontmanData = (): bool => {
   try {
@@ -54,6 +58,13 @@ let get = (): t => {
     }
   } catch {
   | _ => New
+  }
+}
+
+let getAuthBehavior = (): authBehavior => {
+  switch get() {
+  | New => ShowWelcomeModal
+  | WelcomeShown | Completed => RedirectToLogin
   }
 }
 

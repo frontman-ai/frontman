@@ -18,7 +18,7 @@ type initConfig = {
   endpoint: string,
   tokenUrl: string,
   loginUrl: string,
-  initialFtueState: Client__FtueState.t,
+  initialAuthBehavior: Client__FtueState.authBehavior,
   clientName: string,
   clientVersion: string,
   baseUrl: string,
@@ -116,7 +116,7 @@ type effect =
   | ConnectACP({
       config: ACP.config,
       signal: WebAPI.EventAPI.abortSignal,
-      initialFtueState: Client__FtueState.t,
+      initialAuthBehavior: Client__FtueState.authBehavior,
     })
   | ConnectRelay(Relay.t)
   | DisconnectRelay(Relay.t)
@@ -262,7 +262,7 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
         ConnectACP({
           config: acpConfig,
           signal: abortController.signal,
-          initialFtueState: config.initialFtueState,
+          initialAuthBehavior: config.initialAuthBehavior,
         }),
         ConnectRelay(relay),
         LogInfo("Initializing connections..."),
@@ -525,7 +525,7 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
   | AbortConnections(controller) =>
     Log.info("Aborting in-flight connections")
     WebAPI.AbortController.abort(controller)
-  | ConnectACP({config, signal, initialFtueState}) =>
+  | ConnectACP({config, signal, initialAuthBehavior}) =>
     let connect = async () => {
       let result = await ACP.connect(config, ~signal)
       switch result {
@@ -542,12 +542,10 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
               WebAPI.Global.window->WebAPI.Window.location->WebAPI.Location.href
             let returnTo = encodeURIComponent(currentUrl)
             let fullUrl = `${loginUrl}?return_to=${returnTo}`
-            // Use the FTUE state captured during initial render so later client-side
-            // localStorage writes don't make a brand-new user look returning.
-            switch initialFtueState {
-            | Client__FtueState.New =>
+            switch initialAuthBehavior {
+            | Client__FtueState.ShowWelcomeModal =>
               dispatch(ACPConnectError(`auth_required:${fullUrl}`))
-            | Client__FtueState.WelcomeShown | Client__FtueState.Completed =>
+            | Client__FtueState.RedirectToLogin =>
               WebAPI.Global.window->WebAPI.Window.location->WebAPI.Location.assign(fullUrl)
             }
           | ACP.ConnectionFailed(msg) => dispatch(ACPConnectError(msg))
