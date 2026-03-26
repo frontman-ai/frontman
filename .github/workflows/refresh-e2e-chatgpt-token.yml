@@ -1,0 +1,73 @@
+name: Refresh E2E ChatGPT token
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 9 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: refresh-e2e-chatgpt-token
+  cancel-in-progress: false
+
+jobs:
+  refresh-e2e-chatgpt-token:
+    name: Refresh E2E ChatGPT token
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    env:
+      MIX_ENV: dev
+      CLOAK_KEY: "HE9hCRnQXEREL1X+1+cU4wPdVGqJMhwR05edbBBq1RY="
+      E2E_CHATGPT_ACCESS_TOKEN: ${{ secrets.E2E_CHATGPT_ACCESS_TOKEN }}
+      E2E_CHATGPT_REFRESH_TOKEN: ${{ secrets.E2E_CHATGPT_REFRESH_TOKEN }}
+      E2E_CHATGPT_ACCOUNT_ID: ${{ secrets.E2E_CHATGPT_ACCOUNT_ID }}
+      E2E_CHATGPT_TOKEN_MODE: refresh_if_needed
+      # Refresh when the access token is within 3 days of expiry.
+      E2E_CHATGPT_REFRESH_THRESHOLD_SECONDS: "259200"
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup Erlang/Elixir via mise
+        uses: jdx/mise-action@6d1e696aa24c1aa1bcc1adea0212707c71ab78a8 # v3.6.1
+        with:
+          install: true
+          cache: true
+
+      - name: Install Elixir dependencies
+        working-directory: apps/frontman_server
+        run: mix deps.get
+
+      - name: Refresh token if needed
+        id: token
+        working-directory: apps/frontman_server
+        run: mix run --no-start priv/scripts/e2e_chatgpt_token.exs
+
+      - name: Update repo secrets
+        if: steps.token.outputs.rotated == 'true'
+        env:
+          # PAT or GitHub App token with permission to manage repo Actions secrets.
+          GH_TOKEN: ${{ secrets.E2E_SECRET_ROTATION_GH_TOKEN }}
+          REPO: ${{ github.repository }}
+          ACCESS_TOKEN: ${{ steps.token.outputs.access_token }}
+          REFRESH_TOKEN: ${{ steps.token.outputs.refresh_token }}
+          ACCOUNT_ID: ${{ steps.token.outputs.account_id }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "Missing E2E_SECRET_ROTATION_GH_TOKEN secret"
+            exit 1
+          fi
+
+          gh secret set E2E_CHATGPT_ACCESS_TOKEN --repo "$REPO" --body "$ACCESS_TOKEN"
+          gh secret set E2E_CHATGPT_REFRESH_TOKEN --repo "$REPO" --body "$REFRESH_TOKEN"
+          gh secret set E2E_CHATGPT_ACCOUNT_ID --repo "$REPO" --body "$ACCOUNT_ID"
+
+      - name: Summarize result
+        run: |
+          echo "rotated=${{ steps.token.outputs.rotated }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "refresh_needed=${{ steps.token.outputs.refresh_needed }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "expires_at=${{ steps.token.outputs.expires_at }}" >> "$GITHUB_STEP_SUMMARY"

@@ -49,7 +49,9 @@ jobs:
       # Disable Yarn hardened mode — adds ~20s to resolution for public-PR detection.
       # --immutable already prevents lockfile changes, so hardened mode is redundant.
       YARN_ENABLE_HARDENED_MODE: "0"
-      # ChatGPT OAuth tokens for the E2E test user
+      # ChatGPT OAuth tokens for the E2E test user.
+      # This workflow reads the current repo secrets as-is.
+      # Rotation happens in refresh-e2e-chatgpt-token.yml.
       E2E_CHATGPT_ACCESS_TOKEN: ${{ secrets.E2E_CHATGPT_ACCESS_TOKEN }}
       E2E_CHATGPT_REFRESH_TOKEN: ${{ secrets.E2E_CHATGPT_REFRESH_TOKEN }}
       E2E_CHATGPT_ACCOUNT_ID: ${{ secrets.E2E_CHATGPT_ACCOUNT_ID }}
