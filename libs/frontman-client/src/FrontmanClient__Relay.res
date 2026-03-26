@@ -37,7 +37,10 @@ let getState = (relay: t): relayState => relay.state.contents
 // Connect to dev server and fetch tools
 let connect = async (relay: t): result<unit, string> => {
   let url = `${relay.baseUrl}/frontman/tools`
-  let response = await WebAPI.Global.fetch(url)
+  let response = await WebAPI.Global.fetch(
+    url,
+    ~init={headers: WebAPI.HeadersInit.fromDict(relay.requestHeaders)},
+  )
 
   if !response.ok {
     let msg = `HTTP ${response.status->Int.toString}: ${response.statusText}`

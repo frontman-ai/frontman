@@ -18,7 +18,7 @@ class Frontman_Tool_Options {
 	 * Options that are safe to read/modify.
 	 * We deliberately exclude sensitive options like auth keys, salts, etc.
 	 */
-	private const ALLOWED_OPTIONS = [
+	private const READABLE_OPTIONS = [
 		'blogname',
 		'blogdescription',
 		'siteurl',
@@ -42,6 +42,8 @@ class Frontman_Tool_Options {
 		'comments_per_page',
 		'stylesheet',
 		'template',
+		// Complex widget/sidebar state can be inspected but should not be
+		// overwritten through a plain string-valued generic option editor.
 		'sidebars_widgets',
 		'widget_text',
 		'widget_categories',
@@ -50,6 +52,32 @@ class Frontman_Tool_Options {
 		'widget_search',
 		'widget_recent-posts',
 		'widget_recent-comments',
+	];
+
+	private const WRITABLE_OPTIONS = [
+		'blogname',
+		'blogdescription',
+		'siteurl',
+		'home',
+		'admin_email',
+		'posts_per_page',
+		'date_format',
+		'time_format',
+		'timezone_string',
+		'gmt_offset',
+		'permalink_structure',
+		'default_category',
+		'default_post_format',
+		'show_on_front',
+		'page_on_front',
+		'page_for_posts',
+		'blog_public',
+		'default_comment_status',
+		'thread_comments',
+		'thread_comments_depth',
+		'comments_per_page',
+		'stylesheet',
+		'template',
 	];
 
 	/**
@@ -109,8 +137,15 @@ class Frontman_Tool_Options {
 	/**
 	 * Check if an option is in the allowlist.
 	 */
-	private function is_allowed( string $name ): bool {
-		return in_array( $name, self::ALLOWED_OPTIONS, true );
+	private function is_readable( string $name ): bool {
+		return in_array( $name, self::READABLE_OPTIONS, true );
+	}
+
+	/**
+	 * Check if an option can be updated.
+	 */
+	private function is_writable( string $name ): bool {
+		return in_array( $name, self::WRITABLE_OPTIONS, true );
 	}
 
 	/**
@@ -119,7 +154,7 @@ class Frontman_Tool_Options {
 	public function get_option( array $input ): array {
 		$name = sanitize_key( $input['name'] ?? '' );
 
-		if ( ! $this->is_allowed( $name ) ) {
+		if ( ! $this->is_readable( $name ) ) {
 			throw new Frontman_Tool_Error( "Option not allowed: {$name}" );
 		}
 
@@ -137,7 +172,7 @@ class Frontman_Tool_Options {
 	public function update_option( array $input ): array {
 		$name = sanitize_key( $input['name'] ?? '' );
 
-		if ( ! $this->is_allowed( $name ) ) {
+		if ( ! $this->is_writable( $name ) ) {
 			throw new Frontman_Tool_Error( "Option not allowed: {$name}" );
 		}
 
@@ -164,7 +199,7 @@ class Frontman_Tool_Options {
 	public function list_options( array $input ): array {
 		$result = [];
 
-		foreach ( self::ALLOWED_OPTIONS as $name ) {
+		foreach ( self::READABLE_OPTIONS as $name ) {
 			$value = get_option( $name );
 			// Skip complex/serialized values for readability.
 			if ( is_array( $value ) || is_object( $value ) ) {

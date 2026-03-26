@@ -13,7 +13,7 @@ if ( ! defined( 'WP_UNINSTALL_PLUGIN' ) ) {
 require_once __DIR__ . '/includes/class-frontman-settings.php';
 require_once __DIR__ . '/includes/class-frontman-core-file-tracker.php';
 
-Frontman_Core_File_Tracker::clear();
+Frontman_Core_File_Tracker::clear_all();
 
 // Remove plugin options.
 delete_option( 'frontman_settings' );

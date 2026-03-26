@@ -99,6 +99,7 @@ class Frontman_Core_Tools_Test_Runner {
 
 	public function run(): void {
 		$this->seed_files();
+		$this->test_clear_all_file_tracker_records();
 		$this->test_core_path_semantics();
 		$this->test_list_files_and_search_files();
 		$this->test_read_write_and_edit_guards();
@@ -133,6 +134,43 @@ class Frontman_Core_Tools_Test_Runner {
 			json_encode( [ 'name' => 'site-workspace' ], JSON_PRETTY_PRINT )
 		);
 		$this->write_fixture( 'workspace/packages/site/site.js', "console.log('workspace');\n" );
+	}
+
+	private function test_clear_all_file_tracker_records(): void {
+		$GLOBALS['frontman_test_transients'] = [
+			'frontman_file_tracker_1' => [ 'foo' => 'bar' ],
+			'frontman_file_tracker_2' => [ 'baz' => 'qux' ],
+		];
+		$GLOBALS['wpdb'] = new class() {
+			public string $options = 'wp_options';
+
+			public function esc_like( string $value ): string {
+				return $value;
+			}
+
+			public function prepare( string $query, string ...$patterns ): array {
+				return [ 'query' => $query, 'patterns' => $patterns ];
+			}
+
+			public function query( array $prepared ): void {
+				foreach ( array_keys( $GLOBALS['frontman_test_transients'] ) as $key ) {
+					$transient_option = '_transient_' . $key;
+					$timeout_option   = '_transient_timeout_' . $key;
+					foreach ( $prepared['patterns'] as $pattern ) {
+						$prefix = rtrim( $pattern, '%' );
+						if ( 0 === strpos( $transient_option, $prefix ) || 0 === strpos( $timeout_option, $prefix ) ) {
+							unset( $GLOBALS['frontman_test_transients'][ $key ] );
+							break;
+						}
+					}
+				}
+			}
+		};
+
+		Frontman_Core_File_Tracker::clear_all();
+
+		$this->assert_same( [], $GLOBALS['frontman_test_transients'], 'clear_all removes file tracker records for all users' );
+		unset( $GLOBALS['wpdb'] );
 	}
 
 	private function test_core_path_semantics(): void {

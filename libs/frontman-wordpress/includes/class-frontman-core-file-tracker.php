@@ -16,6 +16,28 @@ class Frontman_Core_File_Tracker {
 		delete_transient( self::storage_key() );
 	}
 
+	public static function clear_all(): void {
+		global $wpdb;
+
+		if ( ! isset( $wpdb ) || ! is_object( $wpdb ) || ! isset( $wpdb->options ) ) {
+			self::clear();
+			return;
+		}
+
+		$option_names = [
+			$wpdb->esc_like( '_transient_frontman_file_tracker_' ) . '%',
+			$wpdb->esc_like( '_transient_timeout_frontman_file_tracker_' ) . '%',
+		];
+
+		$query = $wpdb->prepare(
+			"DELETE FROM {$wpdb->options} WHERE option_name LIKE %s OR option_name LIKE %s",
+			$option_names[0],
+			$option_names[1]
+		);
+
+		$wpdb->query( $query );
+	}
+
 	public static function record_read( string $resolved_path, int $offset, int $limit, int $total_lines ): void {
 		$records = self::records();
 		$now     = microtime( true ) * 1000;

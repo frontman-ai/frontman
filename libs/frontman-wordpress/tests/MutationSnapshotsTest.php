@@ -602,6 +602,13 @@ class Frontman_Mutation_Snapshots_Test_Runner {
 		$option = $option_tool->update_option( [ 'name' => 'blogname', 'value' => 'New Blog Name' ] );
 		$this->assert_same( 'Old Blog Name', $option['before'], 'wp_update_option returns previous option value' );
 		$this->assert_same( 'New Blog Name', $option['value'], 'wp_update_option returns updated option value' );
+		$this->assert_error_contains(
+			static function() use ( $option_tool ) {
+				$option_tool->update_option( [ 'name' => 'sidebars_widgets', 'value' => 'oops' ] );
+			},
+			'Option not allowed',
+			'wp_update_option rejects complex widget/sidebar state writes'
+		);
 
 		$widget_tool = new Frontman_Tool_Widgets();
 		$widget = $widget_tool->update_widget( [

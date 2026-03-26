@@ -29,13 +29,13 @@ let make = () => {
       switch Relay.getState(relayInstance) {
       | Connected({serverInfo}) =>
         let runtimeConfig = RuntimeConfig.read()
-        switch RuntimeConfig.frameworkToNpmPackage(runtimeConfig.framework) {
-        | Some(npmPackage) =>
+        switch RuntimeConfig.frameworkUpdateTarget(runtimeConfig.framework) {
+        | NpmPackage(npmPackage) =>
           Client__State.Actions.checkForUpdate(
             ~installedVersion=serverInfo.version,
             ~npmPackage,
           )
-        | None => ()
+        | WordPressPlugin => ()
         }
       | _ => ()
       }

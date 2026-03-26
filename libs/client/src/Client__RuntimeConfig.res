@@ -3,6 +3,10 @@
 
 type frameworkId = Nextjs | Vite | Astro | Wordpress
 
+type updateTarget =
+  | NpmPackage(string)
+  | WordPressPlugin
+
 let frameworkIdFromString = (s: string): frameworkId =>
   switch s {
   | "nextjs" => Nextjs
@@ -36,6 +40,7 @@ type parsed = {
   framework: string,
   // UIShell always sets this, but tests and non-standard embeddings may omit it.
   basePath: option<string>,
+  // WordPress injects a nonce for authenticated same-origin POSTs to /frontman/*.
   wpNonce: option<string>,
   openrouterKeyValue: option<string>,
   anthropicKeyValue: option<string>,
@@ -86,13 +91,14 @@ let hasAnthropicKey = (config: t): bool => {
   config.anthropicKeyValue->Option.isSome
 }
 
-// Map framework ID to the npm package name for update checks
-let frameworkToNpmPackage = (id: frameworkId): option<string> =>
+// Model update checks explicitly so WordPress doesn't silently pretend to have
+// an npm package.
+let frameworkUpdateTarget = (id: frameworkId): updateTarget =>
   switch id {
-  | Nextjs => Some("@frontman-ai/nextjs")
-  | Vite => Some("@frontman-ai/vite")
-  | Astro => Some("@frontman-ai/astro")
-  | Wordpress => None
+  | Nextjs => NpmPackage("@frontman-ai/nextjs")
+  | Vite => NpmPackage("@frontman-ai/vite")
+  | Astro => NpmPackage("@frontman-ai/astro")
+  | Wordpress => WordPressPlugin
   }
 
 // Convert runtime config to _meta JSON for ACP requests

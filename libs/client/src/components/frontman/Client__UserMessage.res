@@ -156,4 +156,3 @@ let make = (
     }}
   </div>
 }
-let make = React.memo(make)
