@@ -18,7 +18,6 @@ type initConfig = {
   endpoint: string,
   tokenUrl: string,
   loginUrl: string,
-  initialAuthBehavior: Client__FtueState.authBehavior,
   clientName: string,
   clientVersion: string,
   baseUrl: string,
@@ -53,6 +52,7 @@ type state = {
   acp: acpState,
   relay: relayState,
   session: sessionState,
+  initialAuthBehavior: Client__FtueState.authBehavior,
   isSendingPrompt: bool,
   // Relay instance exists before connection completes - needed for MCPServer
   relayInstance: option<Relay.t>,
@@ -156,6 +156,7 @@ let initialState: state = {
   acp: ACPDisconnected,
   relay: RelayDisconnected,
   session: NoSession,
+  initialAuthBehavior: Client__FtueState.RedirectToLogin,
   isSendingPrompt: false,
   relayInstance: None,
   mcpServer: None,
@@ -253,6 +254,7 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
         acp: ACPConnecting,
         relay: RelayConnecting,
         session: NoSession,
+        initialAuthBehavior: state.initialAuthBehavior,
         isSendingPrompt: false,
         relayInstance: Some(relay),
         mcpServer: Some(mcpServer),
@@ -262,7 +264,7 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
         ConnectACP({
           config: acpConfig,
           signal: abortController.signal,
-          initialAuthBehavior: config.initialAuthBehavior,
+          initialAuthBehavior: state.initialAuthBehavior,
         }),
         ConnectRelay(relay),
         LogInfo("Initializing connections..."),
@@ -450,7 +452,7 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
     | ACPConnected(conn) => [DisconnectACP(conn)]
     | _ => []
     }
-    (initialState, Array.flat([abortEffects, relayEffects, acpEffects]))
+    ({...initialState, initialAuthBehavior: state.initialAuthBehavior}, Array.flat([abortEffects, relayEffects, acpEffects]))
 
   // === Invalid transitions ===
   | (_, Initialize(_)) => (

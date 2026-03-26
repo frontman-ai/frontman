@@ -178,8 +178,6 @@ module Provider = {
     ~clientVersion: string="1.0.0",
     ~children: React.element,
   ) => {
-    let initialAuthBehavior = React.useRef(Client__FtueState.getAuthBehavior())
-
     // Log message handlers
     let logACPMessage = React.useCallback0((direction: ACP.messageDirection, payload: JSON.t) => {
       let arrow = direction == Send ? `→` : `←`
@@ -192,7 +190,11 @@ module Provider = {
     })
 
     // Use StateReducer - effects are executed in useEffect, not during dispatch
-    let (state, dispatch) = StateReducer.useReducer(module(Reducer), Reducer.initialState)
+    let initialConnectionState = {
+      ...Reducer.initialState,
+      initialAuthBehavior: Client__FtueState.getAuthBehavior(),
+    }
+    let (state, dispatch) = StateReducer.useReducer(module(Reducer), initialConnectionState)
 
     // Single initialization effect
     React.useEffect0(() => {
@@ -237,7 +239,6 @@ module Provider = {
         endpoint,
         tokenUrl,
         loginUrl,
-        initialAuthBehavior: initialAuthBehavior.current,
         clientName,
         clientVersion,
         baseUrl,

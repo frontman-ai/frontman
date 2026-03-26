@@ -82,7 +82,6 @@ describe("Connection Reducer", () => {
         endpoint: "ws://test",
         tokenUrl: "http://test/api/socket-token",
         loginUrl: "http://test/users/log-in",
-        initialAuthBehavior: FtueState.ShowWelcomeModal,
         clientName: "test",
         clientVersion: "1.0.0",
         baseUrl: "http://test",
@@ -91,7 +90,7 @@ describe("Connection Reducer", () => {
         _meta: JSON.Encode.object(Dict.fromArray([("framework", JSON.Encode.string("test"))])),
       }
       let (nextState, effects) = Reducer.reduce(
-        Reducer.initialState,
+        {...Reducer.initialState, initialAuthBehavior: FtueState.ShowWelcomeModal},
         Initialize({config: mockConfig, relay: mockRelay, mcpServer: mockServer}),
       )
 
@@ -111,7 +110,6 @@ describe("Connection Reducer", () => {
         endpoint: "ws://test",
         tokenUrl: "http://test/api/socket-token",
         loginUrl: "http://test/users/log-in",
-        initialAuthBehavior: FtueState.RedirectToLogin,
         clientName: "test",
         clientVersion: "1.0.0",
         baseUrl: "http://test",
@@ -414,6 +412,7 @@ describe("Connection Reducer", () => {
         acp: ACPConnected(mockConn),
         relay: RelayConnected,
         session: SessionActive(mockSession),
+        initialAuthBehavior: FtueState.ShowWelcomeModal,
         isSendingPrompt: false,
         relayInstance: Some(mockRelay),
         mcpServer: Some(mockServer),
