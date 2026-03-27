@@ -1,6 +1,6 @@
 ---
 title: Reference
-description: API reference and configuration options for Frontman.
+description: Reference documentation for Frontman — see specific reference pages for configuration, environment variables, and more.
 ---
 
-API reference and configuration documentation will be added here as the documentation grows.
+This is a section index. See the specific reference pages in the sidebar.

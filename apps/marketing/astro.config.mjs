@@ -31,6 +31,53 @@ const glossaryDateMap = buildDateMap(path.resolve(appRoot, "src/content/glossary
 const lighthouseDateMap = buildDateMap(path.resolve(appRoot, "src/content/lighthouse"));
 const monorepoRoot = path.resolve(appRoot, "../..");
 
+// Validate that all docs pages have a description in their frontmatter.
+// Runs at build start so missing descriptions fail fast instead of silently
+// producing pages with empty meta tags.
+function validateDocsDescriptions() {
+  const docsRoot = path.resolve(appRoot, "src/content/docs");
+
+  function walkDir(dir) {
+    const files = [];
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        files.push(...walkDir(full));
+      } else if (entry.isFile() && entry.name.endsWith(".md") && !entry.name.startsWith("_")) {
+        files.push(full);
+      }
+    }
+    return files;
+  }
+
+  const missing = [];
+  for (const file of walkDir(docsRoot)) {
+    const raw = fs.readFileSync(file, "utf-8");
+    const fmMatch = raw.match(/^---\n([\s\S]*?)\n---/);
+    if (!fmMatch) {
+      missing.push({ file, reason: "no frontmatter" });
+      continue;
+    }
+    const descMatch = fmMatch[1].match(/^description:\s*(.+)$/m);
+    if (!descMatch || !descMatch[1].trim()) {
+      missing.push({ file, reason: "missing description" });
+    }
+  }
+
+  if (missing.length > 0) {
+    const details = missing
+      .map((m) => `  - ${path.relative(appRoot, m.file)} (${m.reason})`)
+      .join("\n");
+    throw new Error(
+      `[SEO] The following docs pages are missing a description in their frontmatter:\n${details}\n\n` +
+        `Every docs page needs a description for SEO meta tags. Add one to the frontmatter:\n` +
+        `---\ntitle: My Page\ndescription: A short summary of this page for search engines.\n---`
+    );
+  }
+
+  return { name: "validate-docs-descriptions", hooks: { "astro:config:done": () => {} } };
+}
+
 // https://astro.build/config
 export default defineConfig({
   site: "https://frontman.sh",
@@ -48,6 +95,7 @@ export default defineConfig({
     inlineStylesheets: "always",
   },
   integrations: [
+    validateDocsDescriptions(),
     starlight({
       title: "Frontman",
       plugins: [hcStarlight()],
@@ -78,16 +126,57 @@ export default defineConfig({
           items: [
             { label: "Introduction", slug: "docs" },
             { label: "Installation", slug: "docs/installation" },
-            { label: "Quick Start", slug: "docs/quick-start" },
+            { label: "API Keys & Providers", slug: "docs/api-keys" },
+
           ],
         },
-        { label: "Guides", autogenerate: { directory: "docs/guides" } },
-        { label: "Reference", autogenerate: { directory: "docs/reference" } },
+        {
+          label: "Using Frontman",
+          collapsed: true,
+          items: [
+            { label: "How the Agent Works", slug: "docs/using/how-the-agent-works" },
+            { label: "Sending Prompts", slug: "docs/using/sending-prompts" },
+            { label: "Annotations", slug: "docs/using/annotations" },
+            { label: "The Web Preview", slug: "docs/using/web-preview" },
+            { label: "Tool Capabilities", slug: "docs/using/tool-capabilities" },
+            { label: "The Question Flow", slug: "docs/using/question-flow" },
+            { label: "Plans & Todo Lists", slug: "docs/using/plans-and-todos" },
+            { label: "Working with Code Files", slug: "docs/using/working-with-files" },
+            { label: "Prompt Strategies", slug: "docs/using/prompt-strategies" },
+            { label: "Limitations & Workarounds", slug: "docs/using/limitations" },
+          ],
+        },
+        {
+          label: "Integrations",
+          collapsed: true,
+          items: [
+            { label: "Astro", slug: "docs/integrations/astro" },
+            { label: "Next.js", slug: "docs/integrations/nextjs" },
+            { label: "Vite", slug: "docs/integrations/vite" },
+            { label: "WordPress (Beta)", slug: "docs/integrations/wordpress" },
+          ],
+        },
+        {
+          label: "Reference",
+          collapsed: true,
+          items: [
+            { label: "Configuration Options", slug: "docs/reference/configuration" },
+            { label: "Environment Variables", slug: "docs/reference/env-vars" },
+            { label: "Models & Providers", slug: "docs/reference/models" },
+            { label: "Supported Frameworks", slug: "docs/reference/compatibility" },
+            { label: "Architecture Overview", slug: "docs/reference/architecture" },
+            { label: "Troubleshooting", slug: "docs/reference/troubleshooting" },
+            { label: "Self-Hosting", slug: "docs/reference/self-hosting" },
+          ],
+        },
       ],
       customCss: ["./src/styles/starlight.css"],
       editLink: {
         baseUrl:
           "https://github.com/frontman-ai/frontman/edit/main/apps/marketing/",
+      },
+      components: {
+        Head: "./src/components/starlight/Head.astro",
       },
     }),
     frontman({

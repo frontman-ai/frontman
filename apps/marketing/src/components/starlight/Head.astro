@@ -1,0 +1,70 @@
+---
+// Starlight Head component override
+// Adds OG image, breadcrumb structured data, and ensures description is set
+
+import type { Props } from '@astrojs/starlight/props';
+import StarlightHead from '@astrojs/starlight/components/Head.astro';
+
+const ogImage = new URL('/og.png', Astro.site).href;
+const ogImageAlt = 'Frontman — The AI agent that lives inside your framework';
+
+// Build breadcrumb structured data
+const entry = Astro.props.entry;
+const breadcrumbItems = [];
+
+// Always add Home
+breadcrumbItems.push({
+  "@type": "ListItem",
+  "position": 1,
+  "name": "Home",
+  "item": new URL('/', Astro.site).href
+});
+
+// Add Docs root
+breadcrumbItems.push({
+  "@type": "ListItem",
+  "position": 2,
+  "name": "Docs",
+  "item": new URL('/docs/', Astro.site).href
+});
+
+// Add current page if it's a docs subpage (not the docs index itself)
+const pathname = Astro.url.pathname.replace(/\/$/, '');
+const isDocsIndex = pathname === '/docs' || pathname === '';
+if (!isDocsIndex) {
+  // Starlight exposes the page title as entry.data.title, but also passes
+  // it via the top-level props. Fall back to capitalising the URL slug.
+  const slug = pathname.split('/').pop() ?? '';
+  const fallbackTitle = slug.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+  const pageTitle = entry?.data?.title ?? Astro.props.title ?? fallbackTitle;
+  breadcrumbItems.push({
+    "@type": "ListItem",
+    "position": 3,
+    "name": pageTitle,
+    "item": Astro.url.href
+  });
+}
+
+const breadcrumbSchema = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": breadcrumbItems
+};
+---
+
+<StarlightHead {...Astro.props} />
+
+<!-- OG Image (same as main site) -->
+<meta property="og:image" content={ogImage} />
+<meta property="og:image:secure_url" content={ogImage} />
+<meta property="og:image:type" content="image/png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:image:alt" content={ogImageAlt} />
+
+<!-- Twitter Image -->
+<meta name="twitter:image" content={new URL('/og-twitter.png', Astro.site).href} />
+<meta name="twitter:image:alt" content={ogImageAlt} />
+
+<!-- Breadcrumb Structured Data -->
+<script type="application/ld+json" set:html={JSON.stringify(breadcrumbSchema)} />

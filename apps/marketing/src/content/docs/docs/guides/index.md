@@ -1,6 +1,6 @@
 ---
 title: Guides
-description: Step-by-step guides for common Frontman tasks and workflows.
+description: Guides for working with Frontman — see the Using Frontman section for detailed workflows.
 ---
 
-Guides for working with Frontman will be added here as the documentation grows.
+This section has moved. See [Using Frontman](/docs/using/how-the-agent-works/) for guides and workflows.
