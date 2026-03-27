@@ -18,6 +18,7 @@ import Button from './Button.astro'
 // Data
 import { navigationBarData } from '../../config/navigationBar'
 const { logo, navItems, navActions } = navigationBarData
+const filteredNavItems = navItems.filter((item) => item.name !== 'Changelog' && item.name !== 'FAQ')
 
 // Determine current path
 const path = new URL(Astro.request.url).pathname
@@ -59,7 +60,7 @@ const savedNavActions = navActions.map((action) => ({
 			<!-- Navigation links -->
 			<ul role="menubar" aria-label="Select page" class="header__menu">
 				{
-					navItems.map((item) => (
+					filteredNavItems.map((item) => (
 						<li role="none" class="header__menu-item">
 							{!item.submenu ? (
 								<a
@@ -123,19 +124,16 @@ const savedNavActions = navActions.map((action) => ({
 	@reference "../../styles/global.css";
 	.header {
 		@apply sticky top-0 z-[999] w-full border-b before:absolute after:absolute after:left-0 after:top-full after:z-10 after:block after:h-0 after:w-full lg:after:hidden;
-		border-color: rgba(0, 0, 0, 0.6);
-	}
-	:global(.dark) .header {
 		border-color: rgba(255, 255, 255, 0.15);
 	}
 	.header:before {
-		@apply block h-full w-full bg-white dark:bg-neutral-950;
+		@apply block h-full w-full bg-neutral-950;
 	}
 	.header__container {
 		@apply container relative mx-auto px-6;
 	}
 	.header__logo {
-		@apply flex flex-none items-center gap-2 whitespace-nowrap py-3 pr-4 tracking-wider text-black dark:text-white focus:outline-none;
+		@apply flex flex-none items-center gap-2 whitespace-nowrap py-3 pr-4 tracking-wider text-white focus:outline-none;
 		font-size: 18px;
 		line-height: 25px;
 		font-weight: 330;
@@ -145,7 +143,7 @@ const savedNavActions = navActions.map((action) => ({
 		font-family: "SF Pro Display", system-ui, helvetica, sans-serif;
 	}
 	.header__menu {
-		@apply invisible absolute left-0 top-0 z-[-1] ml-auto h-dvh w-full justify-center overflow-hidden overflow-y-auto overscroll-contain bg-white dark:bg-neutral-950 px-8 py-[6rem] font-medium opacity-0 transition-[opacity,visibility] duration-300 lg:visible lg:relative lg:top-0 lg:z-0 lg:flex lg:h-full lg:w-auto lg:items-stretch lg:overflow-visible lg:bg-white/0 lg:dark:bg-transparent lg:px-0 lg:py-0 lg:pt-0 lg:opacity-100;
+		@apply invisible absolute left-0 top-0 z-[-1] ml-auto h-dvh w-full justify-center overflow-hidden overflow-y-auto overscroll-contain bg-neutral-950 px-8 py-[6rem] font-medium opacity-0 transition-[opacity,visibility] duration-300 lg:visible lg:relative lg:top-0 lg:z-0 lg:flex lg:h-full lg:w-auto lg:items-stretch lg:overflow-visible lg:bg-transparent lg:px-0 lg:py-0 lg:pt-0 lg:opacity-100;
 	}
 	.header__menu--open {
 		@apply visible opacity-100 backdrop-blur-sm;
@@ -154,10 +152,10 @@ const savedNavActions = navActions.map((action) => ({
 		@apply relative flex cursor-pointer flex-col items-stretch lg:flex-row;
 	}
 	.header__menu-item + .header__menu-item {
-		@apply lg:ml-1 xl:ml-4;
+		@apply lg:ml-3 xl:ml-6;
 	}
 	.header__menu-link {
-		@apply relative flex items-center gap-1 py-4 text-black dark:text-white transition-colors duration-300 focus:outline-none focus-visible:outline-none lg:px-2 xl:px-6;
+		@apply relative flex items-center gap-1 py-4 text-white transition-colors duration-300 focus:outline-none focus-visible:outline-none lg:px-2 xl:px-6;
 		font-size: 16px;
 		line-height: 22px;
 		font-weight: 330;
@@ -181,10 +179,7 @@ const savedNavActions = navActions.map((action) => ({
 		@apply h-4 w-4 transition-transform [.header\_\_menu-item.open_&]:rotate-180;
 	}
 	.header__submenu {
-		@apply left-0 top-full hidden animate-dropdown px-4 lg:absolute lg:min-w-[200px] lg:bg-white lg:dark:bg-neutral-900 lg:p-2 lg:rounded-lg lg:border lg:border-neutral-200/80 lg:dark:border-neutral-700/80 [.header\_\_menu-item.open_&]:block;
-		box-shadow: 0 12px 32px -4px rgba(0, 0, 0, 0.08), 0 4px 8px -2px rgba(0, 0, 0, 0.04);
-	}
-	:global(.dark) .header__submenu {
+		@apply left-0 top-full hidden animate-dropdown px-4 lg:absolute lg:min-w-[200px] lg:bg-neutral-900 lg:p-2 lg:rounded-lg lg:border lg:border-neutral-700/80 [.header\_\_menu-item.open_&]:block;
 		box-shadow: 0 12px 32px -4px rgba(0, 0, 0, 0.4), 0 4px 8px -2px rgba(0, 0, 0, 0.2);
 	}
 	.header__submenu::before {
@@ -195,7 +190,7 @@ const savedNavActions = navActions.map((action) => ({
 		@apply hidden [.header\_\_menu-item.open_&]:block;
 	}
 	.header__submenu-link {
-		@apply flex items-center rounded-md px-3 py-2 text-neutral-600 dark:text-neutral-300 transition-all duration-200 hover:bg-primary-50 dark:hover:bg-primary-900/30 hover:text-primary-600 dark:hover:text-primary-400;
+		@apply flex items-center rounded-md px-3 py-2 text-neutral-300 transition-all duration-200 hover:bg-primary-900/30 hover:text-primary-400;
 		font-size: 15px;
 		line-height: 22px;
 		font-weight: 400;
@@ -222,7 +217,7 @@ const savedNavActions = navActions.map((action) => ({
 		@apply w-1/2 origin-top-left translate-y-2 [.header\_\_toggle--open_&]:w-0;
 	}
 	.header__actions {
-		@apply fixed bottom-0 left-0 hidden w-full items-center justify-between gap-2 border-t border-neutral-100 bg-white px-6 py-4 lg:relative lg:ml-auto lg:flex lg:w-auto lg:border-none lg:bg-transparent lg:px-0 lg:py-0 xl:gap-4 dark:border-neutral-800 dark:bg-neutral-950 lg:dark:bg-transparent [.header\_\_menu--open~&]:flex;
+		@apply fixed bottom-0 left-0 hidden w-full items-center justify-between gap-2 border-t border-neutral-100 bg-white px-6 py-4 lg:relative lg:ml-auto lg:flex lg:w-auto lg:border-none lg:bg-transparent lg:px-0 lg:py-0 lg:gap-3 xl:gap-4 dark:border-neutral-800 dark:bg-neutral-950 lg:dark:bg-transparent [.header\_\_menu--open~&]:flex;
 	}
 	.header__actions .button {
 		font-weight: 480;
@@ -231,7 +226,7 @@ const savedNavActions = navActions.map((action) => ({
 		color: rgb(0, 0, 0);
 	}
 	.header__github-link {
-		@apply hidden items-center gap-1.5 whitespace-nowrap text-white transition-colors duration-200 hover:text-primary-300 lg:flex;
+		@apply hidden items-center gap-1.5 whitespace-nowrap text-white transition-colors duration-200 hover:text-primary-300 lg:mr-4 lg:flex;
 		font-size: 14px;
 		font-weight: 480;
 	}

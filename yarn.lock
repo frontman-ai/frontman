@@ -8806,6 +8806,41 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@vtbag/cam-shaft@npm:^1.0.6":
+  version: 1.0.6
+  resolution: "@vtbag/cam-shaft@npm:1.0.6"
+  checksum: 10c0/2874206cbb0352aec2434e0fa3a01f284848372bdf7d79e571430d70abf5e3243b027c7a93434948405234aeeb0876eca0fd88a5f5ef9b2fe5c2a86b31d5a29f
+  languageName: node
+  linkType: hard
+
+"@vtbag/element-crossing@npm:^1.1.0":
+  version: 1.1.0
+  resolution: "@vtbag/element-crossing@npm:1.1.0"
+  checksum: 10c0/92c36d1e5c02f5a5cc84c30dabf03ac8e71a924ac48f91a2d11c4ec437d70f3193b99f9dc3d7e5c5f0d453edcc4cf0ac135aed93b71fe2c4ce0a40a4f07204e7
+  languageName: node
+  linkType: hard
+
+"@vtbag/inspection-chamber@npm:^1.0.24":
+  version: 1.0.24
+  resolution: "@vtbag/inspection-chamber@npm:1.0.24"
+  checksum: 10c0/6deae9165625b3cb13a3cd7571ad73450dd54010df72f92270f835edaac552963a979c480ef1280128d73f667d76db18e354baf00128415606346e11dc51e892
+  languageName: node
+  linkType: hard
+
+"@vtbag/turn-signal@npm:^1.3.1":
+  version: 1.3.1
+  resolution: "@vtbag/turn-signal@npm:1.3.1"
+  checksum: 10c0/75ac6b26c6e94266a99d28df1b420f657c5d0325317e2df129fca85268786f99ecb9ec4cda2894084ef2dbd7cac4362e4d209e5a8c6c1fa45f1d723b1d43375a
+  languageName: node
+  linkType: hard
+
+"@vtbag/utensil-drawer@npm:^1.2.16":
+  version: 1.2.16
+  resolution: "@vtbag/utensil-drawer@npm:1.2.16"
+  checksum: 10c0/f263dfc0021c4b5a2316e6934f452e1dd5c931bd1209754df77a5542b19693efad55f5d5ad3026c7d67cb605a4a2e9d182a4941d24b4cf150b8022cdf20e58f8
+  languageName: node
+  linkType: hard
+
 "@vue/compiler-core@npm:3.5.30":
   version: 3.5.30
   resolution: "@vue/compiler-core@npm:3.5.30"
@@ -9313,6 +9348,26 @@ __metadata:
     "@iconify/types": "npm:^2.0.0"
     "@iconify/utils": "npm:^2.1.30"
   checksum: 10c0/036a608928036868c727ec041cb1ef7e42000dbb272ad4357579678147cb1a3fd1be97a8e8d6f457ee58bcd9ac09f032da395b068f79a2ddd384f4aee44e91e4
+  languageName: node
+  linkType: hard
+
+"astro-theme-toggle@npm:^0.8.0":
+  version: 0.8.0
+  resolution: "astro-theme-toggle@npm:0.8.0"
+  checksum: 10c0/3a9057605c9841f37b897b29ff40f3473d701bd3f60fcfa0021e2ba6c7c664b47abdb86cb796d78e5e8fea4acc68dd1f1e3fde5c95e1b287f9b3dac550868963
+  languageName: node
+  linkType: hard
+
+"astro-vtbot@npm:^2.1.10":
+  version: 2.1.12
+  resolution: "astro-vtbot@npm:2.1.12"
+  dependencies:
+    "@vtbag/cam-shaft": "npm:^1.0.6"
+    "@vtbag/element-crossing": "npm:^1.1.0"
+    "@vtbag/inspection-chamber": "npm:^1.0.24"
+    "@vtbag/turn-signal": "npm:^1.3.1"
+    "@vtbag/utensil-drawer": "npm:^1.2.16"
+  checksum: 10c0/c1a19689156d1b2d344606685971ede88d76e906d6f0c38f0687550a1464354f9fff3d3f50b603c8031fe038823fd67d0761843af181a9c4f33f6dab29f3cbf3
   languageName: node
   linkType: hard
 
@@ -13474,6 +13529,18 @@ __metadata:
   languageName: node
   linkType: hard
 
+"hc-starlight@npm:^0.0.8":
+  version: 0.0.8
+  resolution: "hc-starlight@npm:0.0.8"
+  dependencies:
+    astro-theme-toggle: "npm:^0.8.0"
+    astro-vtbot: "npm:^2.1.10"
+  peerDependencies:
+    "@astrojs/starlight": ">=0.37"
+  checksum: 10c0/211c15594bb74f8ddfd502fbea40bfbad032a4bd24d5a91b3d082ee5680bebd120ad427c15a58b6b6f2e6f7138b630b22a00e2d0cda6d2830bb2ec392d8de642
+  languageName: node
+  linkType: hard
+
 "he@npm:1.2.0":
   version: 1.2.0
   resolution: "he@npm:1.2.0"
@@ -15093,6 +15160,7 @@ __metadata:
     astro: "npm:^6.0.8"
     astro-broken-links-checker: "npm:^1.0.7"
     astro-icon: "npm:^1.1.5"
+    hc-starlight: "npm:^0.0.8"
     prettier: "npm:^3.3.2"
     prettier-plugin-astro: "npm:^0.14.0"
     prettier-plugin-tailwindcss: "npm:^0.6.4"

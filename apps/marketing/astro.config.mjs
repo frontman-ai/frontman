@@ -6,7 +6,7 @@ import frontman from "@frontman-ai/astro";
 import brokenLinksChecker from "astro-broken-links-checker";
 import path from "node:path";
 import fs from "node:fs";
-
+import hcStarlight from 'hc-starlight';
 import starlight from "@astrojs/starlight";
 
 const appRoot = path.resolve(import.meta.dirname);
@@ -50,6 +50,7 @@ export default defineConfig({
   integrations: [
     starlight({
       title: "Frontman",
+      plugins: [hcStarlight()],
       disable404Route: true,
       logo: {
         src: "./src/assets/logo.svg",

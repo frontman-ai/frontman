@@ -34,11 +34,10 @@ const { title, description, ogImage, noindex, classes, article } = Astro.props
 ---
 
 <!doctype html>
-<html lang="en" class={`scroll-animation mode-${configData.mode} relative`}>
+<html lang="en" class="scroll-animation dark relative">
 	<Header title={title} description={description} ogImage={ogImage} noindex={noindex} article={article} />
 	<body
 		class:list={[
-			{ ['mode-' + `${configData.mode}`]: configData.mode },
 			{ ['scroll-animation']: configData.scrollAnimations },
 			{ [`${classes}`]: classes }
 		]}

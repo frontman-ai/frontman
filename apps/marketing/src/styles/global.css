@@ -1,9 +1,9 @@
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
 
-/* --- Custom variant: class-based dark mode (migrated from darkMode: ["selector"]) --- */
-@custom-variant dark (&:where(.dark, .dark *));
-@custom-variant dark-me (&:is(.dark_ *));
+/* --- Dark mode is always on. The dark variant matches unconditionally. --- */
+@custom-variant dark (&);
+@custom-variant dark-me (&);
 
 /* --- Safelist: dynamic classes used via CMS/JS that Tailwind can't detect --- */
 /* Tailwind v4 @source inline() requires a single string of space-separated candidates */
@@ -80,7 +80,7 @@ html {
 	@apply scroll-smooth antialiased;
 }
 body {
-	@apply overflow-x-hidden bg-white text-neutral-500 has-[.header\_\_menu--open]:overflow-hidden lg:has-[.header\_\_menu--open]:overflow-auto dark:bg-neutral-950 dark:text-neutral-400 [.dark_&]:text-neutral-400 [.light_&]:text-neutral-500;
+	@apply overflow-x-hidden bg-neutral-950 text-neutral-400 has-[.header__menu--open]:overflow-hidden lg:has-[.header__menu--open]:overflow-auto;
 }
 
 /* Main typography */
@@ -93,7 +93,7 @@ h3,
 h4,
 h5,
 h6 {
-	@apply font-headings text-neutral-700 last:mb-0 dark:text-neutral-50 [&>strong]:text-primary-500 [.dark_&]:text-neutral-50 [.light_&]:text-neutral-700;
+	@apply font-headings text-neutral-50 last:mb-0 [&>strong]:text-primary-500;
 }
 h1 strong,
 h2 strong,
