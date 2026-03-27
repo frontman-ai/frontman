@@ -42,6 +42,11 @@ defmodule FrontmanServer.ToolsTest do
       assert module == TodoWrite
     end
 
+    test "finds web_fetch tool" do
+      assert {:ok, module} = Tools.find_tool("web_fetch")
+      assert module == FrontmanServer.Tools.WebFetch
+    end
+
     test "returns :not_found for non-existent tool" do
       assert :not_found = Tools.find_tool("nonexistent")
     end

@@ -7,7 +7,8 @@ defmodule FrontmanServer.Tools do
   alias FrontmanServer.Tools.MCP
 
   @backend_tools [
-    FrontmanServer.Tools.TodoWrite
+    FrontmanServer.Tools.TodoWrite,
+    FrontmanServer.Tools.WebFetch
   ]
 
   @todo_mutations [FrontmanServer.Tools.TodoWrite.name()]
