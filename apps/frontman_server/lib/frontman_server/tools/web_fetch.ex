@@ -8,6 +8,9 @@ defmodule FrontmanServer.Tools.WebFetch do
 
   @behaviour FrontmanServer.Tools.Backend
 
+  @chrome_ua "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+  @max_response_bytes 5_242_880
+
   @impl true
   def name, do: "web_fetch"
 
@@ -52,10 +55,78 @@ defmodule FrontmanServer.Tools.WebFetch do
   @impl true
   def execute(args, _context) do
     with {:ok, url} <- validate_url(args) do
-      _offset = clamp(Map.get(args, "offset", 0), 0, :infinity)
-      _limit = clamp(Map.get(args, "limit", 500), 1, 2000)
-      {:error, "not yet implemented: #{url}"}
+      offset = clamp(Map.get(args, "offset", 0), 0, :infinity)
+      limit = clamp(Map.get(args, "limit", 500), 1, 2000)
+
+      case fetch_url(url) do
+        {:ok, content_type, body} ->
+          markdown = convert_to_markdown(body, content_type)
+          paginate(markdown, url, content_type, offset, limit)
+
+        {:error, reason} ->
+          {:error, reason}
+      end
     end
+  end
+
+  defp fetch_url(url) do
+    headers = [
+      {"accept", "text/markdown, text/html;q=0.9, text/plain;q=0.8"},
+      {"user-agent", @chrome_ua}
+    ]
+
+    req_opts = [url: url, headers: headers, receive_timeout: 30_000, retry: false] ++ req_options()
+
+    case Req.get(req_opts) do
+      {:ok, %Req.Response{status: status, body: body, headers: resp_headers}}
+      when status in 200..299 ->
+        if byte_size(body) > @max_response_bytes do
+          {:error, "Response too large (>5MB)"}
+        else
+          content_type = get_content_type(resp_headers)
+          {:ok, content_type, body}
+        end
+
+      {:ok, %Req.Response{status: status}} ->
+        {:error, "HTTP #{status}"}
+
+      {:error, %Req.TransportError{reason: :timeout}} ->
+        {:error, "Request timed out"}
+
+      {:error, reason} ->
+        {:error, "Failed to fetch: #{inspect(reason)}"}
+    end
+  end
+
+  defp get_content_type(headers) do
+    case Map.get(headers, "content-type") do
+      [value | _] -> value
+      nil -> "text/html"
+    end
+  end
+
+  defp convert_to_markdown(body, content_type) do
+    if String.contains?(content_type, "text/html") do
+      Html2Markdown.convert(body)
+    else
+      body
+    end
+  end
+
+  defp paginate(content, url, content_type, offset, limit) do
+    lines = String.split(content, "\n")
+    total = length(lines)
+    sliced = lines |> Enum.drop(offset) |> Enum.take(limit)
+
+    {:ok,
+     %{
+       "content" => Enum.join(sliced, "\n"),
+       "url" => url,
+       "content_type" => content_type,
+       "start_line" => offset,
+       "lines_returned" => length(sliced),
+       "total_lines" => total
+     }}
   end
 
   defp validate_url(%{"url" => url}) when is_binary(url) and byte_size(url) > 0 do
@@ -71,4 +142,9 @@ defmodule FrontmanServer.Tools.WebFetch do
   defp clamp(val, min, :infinity) when is_integer(val), do: max(val, min)
   defp clamp(val, min, max_val) when is_integer(val), do: val |> max(min) |> min(max_val)
   defp clamp(_, min, _), do: min
+
+  # Extra Req options — overridden in tests to inject Req.Test as the adapter.
+  defp req_options do
+    Application.get_env(:frontman_server, :web_fetch_req_options, [])
+  end
 end
