@@ -38,6 +38,7 @@ export const navigationBarData: NavData = {
 		text: 'Frontman'
 	},
 	navItems: [
+		{ name: 'Docs', link: '/docs/' },
 		{
 			name: 'Compare',
 			link: '/vs/',

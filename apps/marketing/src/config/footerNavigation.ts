@@ -124,6 +124,10 @@ export const footerNavigationData: FooterData = {
 			category: 'Developers',
 			subCategories: [
 				{
+					subCategory: 'Documentation',
+					subCategoryLink: '/docs/'
+				},
+				{
 					subCategory: 'GitHub',
 					subCategoryLink: 'https://github.com/frontman-ai/frontman',
 					external: true
