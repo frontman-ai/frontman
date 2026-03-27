@@ -44,8 +44,7 @@ config :frontman_server,
   # Default usage limit for server-provided API keys
   user_key_usage_limit: 10,
   # Max time to wait for the next LLM stream chunk before declaring a stall.
-  # Must fire before StreamServer's 30s GenServer.call timeout.
-  stream_stall_timeout_ms: 25_000
+  stream_stall_timeout_ms: 60 * 1000
 
 # Configures the endpoint
 config :frontman_server, FrontmanServerWeb.Endpoint,
