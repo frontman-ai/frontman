@@ -84,6 +84,7 @@ defmodule FrontmanServer.MixProject do
       {:swoosh, "~> 1.16"},
       {:oban, "~> 2.20"},
       {:req, "~> 0.5"},
+      {:html2markdown, "~> 0.3"},
       {:uuidv7, "~> 1.0"},
       {:telemetry_metrics, "~> 1.0"},
       {:telemetry_poller, "~> 1.0"},
