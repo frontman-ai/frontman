@@ -1,0 +1,37 @@
+@layer base, starlight, theme, components, utilities;
+@import '@astrojs/starlight-tailwind';
+@import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/utilities.css' layer(utilities);
+
+@theme {
+  /* Fonts — match marketing site (from global.css) */
+  --font-sans: 'Inter Variable', ui-sans-serif, system-ui, sans-serif,
+    'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+  --font-heading: 'Outfit Variable', ui-sans-serif, system-ui, sans-serif,
+    'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+
+  /* Starlight accent = Frontman primary purple (from global.css --color-primary-*) */
+  --color-accent-50: #faf5ff;
+  --color-accent-100: #f3e8ff;
+  --color-accent-200: #e9d5ff;
+  --color-accent-300: #d8b4ff;
+  --color-accent-400: #c084ff;
+  --color-accent-500: #a259ff;
+  --color-accent-600: #8847d9;
+  --color-accent-700: #6e38b3;
+  --color-accent-800: #552c8c;
+  --color-accent-900: #3c1f66;
+  --color-accent-950: #23123d;
+
+  /* Starlight gray = Frontman neutral/slate (from global.css --color-neutral-*) */
+  --color-gray-50: #f8fafc;
+  --color-gray-100: #f1f5f9;
+  --color-gray-200: #e2e8f0;
+  --color-gray-300: #cbd5e1;
+  --color-gray-400: #94a3b8;
+  --color-gray-500: #64748b;
+  --color-gray-600: #475569;
+  --color-gray-700: #334155;
+  --color-gray-800: #1e293b;
+  --color-gray-900: #0f172a;
+}
