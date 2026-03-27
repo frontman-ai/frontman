@@ -243,4 +243,45 @@ defmodule FrontmanServer.Tools.WebFetchTest do
       assert msg =~ "5MB"
     end
   end
+
+  describe "execute/2 — Cloudflare retry" do
+    test "retries with honest UA on Cloudflare challenge (403 + cf-mitigated)" do
+      call_count = :counters.new(1, [:atomics])
+
+      Req.Test.stub(:web_fetch, fn conn ->
+        count = :counters.get(call_count, 1)
+        :counters.add(call_count, 1, 1)
+
+        if count == 0 do
+          # First request — simulate Cloudflare challenge
+          conn
+          |> Plug.Conn.put_resp_header("cf-mitigated", "challenge")
+          |> Plug.Conn.send_resp(403, "Cloudflare challenge")
+        else
+          # Retry — check for honest UA and return content
+          ua = Plug.Conn.get_req_header(conn, "user-agent") |> List.first("")
+          assert ua =~ "Frontman"
+
+          conn
+          |> Plug.Conn.put_resp_content_type("text/html")
+          |> Plug.Conn.send_resp(200, "<p>Real content</p>")
+        end
+      end)
+
+      context = build_context()
+      assert {:ok, result} = WebFetch.execute(%{"url" => "https://example.com/cf"}, context)
+      assert result["content"] =~ "Real content"
+      assert :counters.get(call_count, 1) == 2
+    end
+
+    test "does not retry on regular 403 (no cf-mitigated header)" do
+      Req.Test.stub(:web_fetch, fn conn ->
+        Plug.Conn.send_resp(conn, 403, "Forbidden")
+      end)
+
+      context = build_context()
+      assert {:error, msg} = WebFetch.execute(%{"url" => "https://example.com/forbidden"}, context)
+      assert msg =~ "403"
+    end
+  end
 end

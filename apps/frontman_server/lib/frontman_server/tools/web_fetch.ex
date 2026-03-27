@@ -9,6 +9,7 @@ defmodule FrontmanServer.Tools.WebFetch do
   @behaviour FrontmanServer.Tools.Backend
 
   @chrome_ua "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+  @honest_ua "Frontman/1.0 (+https://frontman.ai)"
   @max_response_bytes 5_242_880
 
   @impl true
@@ -70,14 +71,31 @@ defmodule FrontmanServer.Tools.WebFetch do
   end
 
   defp fetch_url(url) do
+    case do_fetch(url, @chrome_ua) do
+      {:cloudflare_challenge} ->
+        do_fetch(url, @honest_ua)
+
+      other ->
+        other
+    end
+  end
+
+  defp do_fetch(url, user_agent) do
     headers = [
       {"accept", "text/markdown, text/html;q=0.9, text/plain;q=0.8"},
-      {"user-agent", @chrome_ua}
+      {"user-agent", user_agent}
     ]
 
     req_opts = [url: url, headers: headers, receive_timeout: 30_000, retry: false] ++ req_options()
 
     case Req.get(req_opts) do
+      {:ok, %Req.Response{status: 403, headers: resp_headers}} ->
+        if cloudflare_challenge?(resp_headers) do
+          {:cloudflare_challenge}
+        else
+          {:error, "HTTP 403"}
+        end
+
       {:ok, %Req.Response{status: status, body: body, headers: resp_headers}}
       when status in 200..299 ->
         if byte_size(body) > @max_response_bytes do
@@ -96,6 +114,12 @@ defmodule FrontmanServer.Tools.WebFetch do
       {:error, reason} ->
         {:error, "Failed to fetch: #{inspect(reason)}"}
     end
+  end
+
+  defp cloudflare_challenge?(headers) do
+    headers
+    |> Map.get("cf-mitigated", [])
+    |> Enum.any?(&String.contains?(&1, "challenge"))
   end
 
   defp get_content_type(headers) do
