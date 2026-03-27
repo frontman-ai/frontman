@@ -1,6 +1,7 @@
 import { defineCollection } from 'astro:content'
 import { z } from 'astro/zod'
 import { glob } from 'astro/loaders'
+import { docsLoader, docsSchema } from '@astrojs/starlight/loaders'
 
 const blog = defineCollection({
 	loader: glob({ pattern: '**/*.md', base: './src/content/blog' }),
@@ -65,8 +66,14 @@ const lighthouse = defineCollection({
 		})
 })
 
+const docs = defineCollection({
+	loader: docsLoader(),
+	schema: docsSchema(),
+})
+
 export const collections = {
 	blog,
 	glossary,
-	lighthouse
+	lighthouse,
+	docs,
 }
