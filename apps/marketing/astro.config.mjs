@@ -47,7 +47,48 @@ export default defineConfig({
     // increase in HTML size for removing 4 blocking CSS round-trips (~430 ms).
     inlineStylesheets: "always",
   },
-  integrations: [frontman({
+  integrations: [
+    starlight({
+      title: "Frontman",
+      logo: {
+        src: "/logo.svg",
+      },
+      social: [
+        {
+          icon: "github",
+          label: "GitHub",
+          link: "https://github.com/frontman-ai/frontman",
+        },
+        {
+          icon: "discord",
+          label: "Discord",
+          link: "https://discord.gg/xk8uXJSvhC",
+        },
+        {
+          icon: "x.com",
+          label: "X",
+          link: "https://twitter.com/frontman_agent",
+        },
+      ],
+      sidebar: [
+        {
+          label: "Getting Started",
+          items: [
+            { label: "Introduction", slug: "docs" },
+            { label: "Installation", slug: "docs/installation" },
+            { label: "Quick Start", slug: "docs/quick-start" },
+          ],
+        },
+        { label: "Guides", autogenerate: { directory: "docs/guides" } },
+        { label: "Reference", autogenerate: { directory: "docs/reference" } },
+      ],
+      customCss: ["./src/styles/starlight.css"],
+      editLink: {
+        baseUrl:
+          "https://github.com/frontman-ai/frontman/edit/main/apps/marketing/",
+      },
+    }),
+    frontman({
     projectRoot: appRoot,
     sourceRoot: monorepoRoot,
     basePath: "frontman",
@@ -97,6 +138,9 @@ export default defineConfig({
       integrations: (item) => {
         if (/\/integrations\//.test(item.url)) return item;
       },
+      docs: (item) => {
+        if (/\/docs\//.test(item.url)) return item;
+      },
     },
-  }), starlight()],
+  })],
 });
