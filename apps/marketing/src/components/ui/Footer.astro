@@ -7,6 +7,8 @@
 // Components
 // - UI
 import { Icon } from 'astro-icon/components'
+import { Image } from 'astro:assets'
+import logoSvg from '../../assets/logo.svg'
 
 // Data
 import { socialLinks } from '../../config/socialLinks'
@@ -20,7 +22,7 @@ const { footerAbout, footerColumns, subFooter } = footerNavigationData
 		<!-- Top row: brand + nav columns -->
 		<div class="footer__top">
 			<a class="footer__brand" href="/">
-				<img src={footerAbout.logo.src} alt={footerAbout.logo.alt} width="24" height="24" />
+				<Image src={logoSvg} alt={footerAbout.logo.alt} width={24} height={24} loading="lazy" />
 				{footerAbout.logo.text}
 			</a>
 

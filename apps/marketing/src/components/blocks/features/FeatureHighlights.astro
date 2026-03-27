@@ -16,7 +16,7 @@ type FeatureHighlight = {
 	description: string
 	imageAlt: string
 	image?: any
-	gifSrc?: string
+	videoSrc?: string
 }
 
 const featureHighlights: FeatureHighlight[] = [
@@ -24,13 +24,13 @@ const featureHighlights: FeatureHighlight[] = [
 		title: 'Click any element. Tell it what you want.',
 		description: 'Select a component directly in your browser — a button, a card, an entire section. Describe the change in plain English. No file hunting, no line numbers, no IDE.<br/><br/><span class="pro-tip">Pro tip: use the up and down arrows to move between components and divs</span>',
 		imageAlt: 'Select elements feature demo',
-		gifSrc: '/select-element.gif'
+		videoSrc: '/select-element.mp4'
 	},
 	{
 		title: 'Watch your code change in real time.',
 		description: 'No more alt-tabbing between editor and browser. Frontman updates your code as you describe changes — and you see the results live, instantly. When you\'re happy, commit and push to Git without ever leaving your browser.',
 		imageAlt: 'Real-time changes feature demo',
-		gifSrc: '/code-change.gif'
+		videoSrc: '/code-change.mp4'
 	},
 	{
 		title: 'Your project rules, loaded automatically.',
@@ -60,23 +60,28 @@ const featureHighlights: FeatureHighlight[] = [
 					<!-- Right side: Image/Video placeholder -->
 					<Col spanMobile="12" span="7" classes={`flex items-center ${index === 1 ? 'lg:order-1' : ''}`}>
 					<div class="media-placeholder" role="img" aria-label={feature.imageAlt}>
-						{feature.gifSrc ? (
-							<img
-								src={feature.gifSrc}
-								alt={feature.imageAlt}
-								width={620}
-								height={431}
-								class="media-image"
-								loading="lazy"
-							/>
+				{feature.videoSrc ? (
+					<video
+						loop
+						muted
+						playsinline
+						width={620}
+						height={431}
+						class="media-image lazy-video"
+						aria-label={feature.imageAlt}
+						preload="none"
+						data-src={feature.videoSrc}
+					>
+					</video>
 						) : feature.image ? (
-							<Image
-								src={feature.image}
-								alt={feature.imageAlt}
-								width={620}
-								format="webp"
-								class="media-image"
-							/>
+					<Image
+							src={feature.image}
+							alt={feature.imageAlt}
+							width={620}
+							format="webp"
+							class="media-image"
+							loading="lazy"
+						/>
 						) : (
 							<div class="placeholder-content">
 								{/* Image or video will go here */}
@@ -89,6 +94,34 @@ const featureHighlights: FeatureHighlight[] = [
 		</section>
 	))
 }
+
+<script>
+	const observer = new IntersectionObserver(
+		(entries) => {
+			entries.forEach((entry) => {
+				if (entry.isIntersecting) {
+					const video = entry.target as HTMLVideoElement
+					const src = video.dataset.src
+					if (src) {
+						const source = document.createElement('source')
+						source.src = src
+						source.type = 'video/mp4'
+						video.appendChild(source)
+						video.load()
+						video.play()
+						delete video.dataset.src
+					}
+					observer.unobserve(video)
+				}
+			})
+		},
+		{ rootMargin: '200px' }
+	)
+
+	document.querySelectorAll<HTMLVideoElement>('.lazy-video').forEach((video) => {
+		observer.observe(video)
+	})
+</script>
 
 <style>
 	@reference "../../../styles/global.css";

@@ -1,4 +1,7 @@
 test/sites/glitter
+# Astro
+.astro/
+
 # ReScript build output
 *.res.mjs
 *.res.js
