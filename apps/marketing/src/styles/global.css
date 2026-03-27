@@ -80,7 +80,7 @@ html {
 	@apply scroll-smooth antialiased;
 }
 body {
-	@apply overflow-x-hidden bg-neutral-950 text-neutral-400 has-[.header__menu--open]:overflow-hidden lg:has-[.header__menu--open]:overflow-auto;
+	@apply overflow-x-hidden bg-neutral-950 text-neutral-400 has-[.header\_\_menu--open]:overflow-hidden lg:has-[.header\_\_menu--open]:overflow-auto;
 }
 
 /* Main typography */
