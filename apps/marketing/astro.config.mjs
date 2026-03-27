@@ -50,24 +50,25 @@ export default defineConfig({
   integrations: [
     starlight({
       title: "Frontman",
+      disable404Route: true,
       logo: {
-        src: "/logo.svg",
+        src: "./src/assets/logo.svg",
       },
       social: [
         {
           icon: "github",
           label: "GitHub",
-          link: "https://github.com/frontman-ai/frontman",
+          href: "https://github.com/frontman-ai/frontman",
         },
         {
           icon: "discord",
           label: "Discord",
-          link: "https://discord.gg/xk8uXJSvhC",
+          href: "https://discord.gg/xk8uXJSvhC",
         },
         {
           icon: "x.com",
           label: "X",
-          link: "https://twitter.com/frontman_agent",
+          href: "https://twitter.com/frontman_agent",
         },
       ],
       sidebar: [
