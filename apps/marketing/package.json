@@ -15,6 +15,8 @@
     "@astrojs/preact": "^5.0.2",
     "@astrojs/rss": "^4.0.17",
     "@astrojs/sitemap": "^3.7.1",
+    "@astrojs/starlight": "^0.38.2",
+    "@astrojs/starlight-tailwind": "^5.0.0",
     "@fontsource-variable/inter": "^5.0.18",
     "@fontsource-variable/outfit": "^5.0.13",
     "@tailwindcss/typography": "^0.5.19",
