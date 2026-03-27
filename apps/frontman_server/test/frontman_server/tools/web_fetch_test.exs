@@ -1,5 +1,5 @@
 defmodule FrontmanServer.Tools.WebFetchTest do
-  use FrontmanServer.DataCase, async: true
+  use FrontmanServer.DataCase, async: false
 
   alias FrontmanServer.Tools.WebFetch
 

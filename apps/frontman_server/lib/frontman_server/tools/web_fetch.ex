@@ -73,7 +73,10 @@ defmodule FrontmanServer.Tools.WebFetch do
   defp fetch_url(url) do
     case do_fetch(url, @chrome_ua) do
       {:cloudflare_challenge} ->
-        do_fetch(url, @honest_ua)
+        case do_fetch(url, @honest_ua) do
+          {:cloudflare_challenge} -> {:error, "Blocked by Cloudflare challenge"}
+          other -> other
+        end
 
       other ->
         other
@@ -86,7 +89,7 @@ defmodule FrontmanServer.Tools.WebFetch do
       {"user-agent", user_agent}
     ]
 
-    req_opts = [url: url, headers: headers, receive_timeout: 30_000, retry: false] ++ req_options()
+    req_opts = [url: url, headers: headers, receive_timeout: 30_000, retry: false, decode_body: false] ++ req_options()
 
     case Req.get(req_opts) do
       {:ok, %Req.Response{status: 403, headers: resp_headers}} ->
