@@ -108,7 +108,7 @@ const featureHighlights: FeatureHighlight[] = [
 						source.type = 'video/mp4'
 						video.appendChild(source)
 						video.load()
-						video.play()
+						video.play().catch((err) => console.warn('Video autoplay blocked:', err))
 						delete video.dataset.src
 					}
 					observer.unobserve(video)
