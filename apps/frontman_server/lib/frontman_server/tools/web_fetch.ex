@@ -179,7 +179,8 @@ defmodule FrontmanServer.Tools.WebFetch do
   defp follow_redirect(resp_headers, _remaining_agents, redirects) do
     case Map.get(resp_headers, "location") do
       [location | _] ->
-        with {:ok, host} <- extract_host(location),
+        with :ok <- validate_scheme(location),
+             {:ok, host} <- extract_host(location),
              :ok <- validate_host(host) do
           fetch(location, @user_agents, redirects + 1)
         end
@@ -295,19 +296,21 @@ defmodule FrontmanServer.Tools.WebFetch do
   end
 
   defp resolve_and_check(host_charlist) do
-    case :inet.getaddrs(host_charlist, :inet) do
-      {:ok, addrs} ->
-        check_all_addrs(addrs)
+    ipv4 =
+      case :inet.getaddrs(host_charlist, :inet) do
+        {:ok, addrs} -> addrs
+        {:error, _} -> []
+      end
 
-      {:error, _} ->
-        resolve_and_check_inet6(host_charlist)
-    end
-  end
+    ipv6 =
+      case :inet.getaddrs(host_charlist, :inet6) do
+        {:ok, addrs} -> addrs
+        {:error, _} -> []
+      end
 
-  defp resolve_and_check_inet6(host_charlist) do
-    case :inet.getaddrs(host_charlist, :inet6) do
-      {:ok, addrs} -> check_all_addrs(addrs)
-      {:error, _} -> :ok
+    case ipv4 ++ ipv6 do
+      [] -> :ok
+      all_addrs -> check_all_addrs(all_addrs)
     end
   end
 
@@ -333,12 +336,25 @@ defmodule FrontmanServer.Tools.WebFetch do
   defp private_ip?({172, b, _, _}) when b >= 16 and b <= 31, do: true
   defp private_ip?({192, 168, _, _}), do: true
 
+  # IPv4-mapped IPv6 (::ffff:a.b.c.d) — delegate to IPv4 checks.
+  defp private_ip?({0, 0, 0, 0, 0, 0xFFFF, hi, lo}) do
+    import Bitwise
+    private_ip?({hi >>> 8, hi &&& 0xFF, lo >>> 8, lo &&& 0xFF})
+  end
+
   # IPv6 loopback and private.
   defp private_ip?({0, 0, 0, 0, 0, 0, 0, 0}), do: true
   defp private_ip?({0, 0, 0, 0, 0, 0, 0, 1}), do: true
-  defp private_ip?({0xFC00, _, _, _, _, _, _, _}), do: true
-  defp private_ip?({0xFD00, _, _, _, _, _, _, _}), do: true
-  defp private_ip?({0xFE80, _, _, _, _, _, _, _}), do: true
+
+  # fc00::/7 covers 0xFC00–0xFDFF.
+  defp private_ip?({s, _, _, _, _, _, _, _})
+       when s >= 0xFC00 and s <= 0xFDFF,
+       do: true
+
+  # fe80::/10 covers 0xFE80–0xFEBF.
+  defp private_ip?({s, _, _, _, _, _, _, _})
+       when s >= 0xFE80 and s <= 0xFEBF,
+       do: true
 
   defp private_ip?(_), do: false
 

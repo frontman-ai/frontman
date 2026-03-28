@@ -88,7 +88,13 @@ defmodule FrontmanServer.Tools.WebFetchTest do
       {"192.168.x private", "http://192.168.1.1/"},
       {"link-local metadata", "http://169.254.169.254/latest/meta-data/"},
       {"0.0.0.0", "http://0.0.0.0/"},
-      {"IPv6 loopback", "http://[::1]/"}
+      {"IPv6 loopback", "http://[::1]/"},
+      {"IPv4-mapped IPv6 loopback", "http://[::ffff:127.0.0.1]/"},
+      {"IPv4-mapped IPv6 metadata", "http://[::ffff:169.254.169.254]/"},
+      {"ULA fd01::1", "http://[fd01::1]/"},
+      {"ULA fdff::1", "http://[fdff::1]/"},
+      {"link-local fe90::1", "http://[fe90::1]/"},
+      {"link-local febf::1", "http://[febf::1]/"}
     ]
 
     for {label, url} <- @blocked_urls do
@@ -118,6 +124,28 @@ defmodule FrontmanServer.Tools.WebFetchTest do
 
       assert {:error, msg} = execute("https://evil.com/aws", ctx)
       assert msg =~ "private"
+    end
+
+    test "blocks redirect to IPv4-mapped IPv6", %{context: ctx} do
+      Req.Test.stub(:web_fetch, fn conn ->
+        conn
+        |> Plug.Conn.put_resp_header("location", "http://[::ffff:127.0.0.1]/")
+        |> Plug.Conn.send_resp(302, "")
+      end)
+
+      assert {:error, msg} = execute("https://evil.com/mapped", ctx)
+      assert msg =~ "private"
+    end
+
+    test "blocks redirect to non-HTTP scheme", %{context: ctx} do
+      Req.Test.stub(:web_fetch, fn conn ->
+        conn
+        |> Plug.Conn.put_resp_header("location", "gopher://internal.host/")
+        |> Plug.Conn.send_resp(302, "")
+      end)
+
+      assert {:error, msg} = execute("https://evil.com/gopher", ctx)
+      assert msg =~ "http:// or https://"
     end
 
     test "follows safe redirects", %{context: ctx} do
