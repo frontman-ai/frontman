@@ -3,26 +3,39 @@ defmodule FrontmanServer.Tools.WebFetchTest do
 
   alias FrontmanServer.Tools.WebFetch
 
-  # Inject Req.Test as the HTTP adapter so no real network calls are made.
   setup do
-    Application.put_env(:frontman_server, :web_fetch_req_options,
-      plug: {Req.Test, :web_fetch}
-    )
+    Application.put_env(:frontman_server, :web_fetch_req_options, plug: {Req.Test, :web_fetch})
 
     on_exit(fn ->
       Application.delete_env(:frontman_server, :web_fetch_req_options)
     end)
 
-    :ok
-  end
-
-  defp build_context do
-    %FrontmanServer.Tools.Backend.Context{
+    context = %FrontmanServer.Tools.Backend.Context{
       scope: nil,
       task: nil,
       tool_executor: fn _tool_call -> {:ok, "mock result"} end,
       llm_opts: [api_key: "test-key", model: "test-model"]
     }
+
+    %{context: context}
+  end
+
+  defp stub_resp(status, content_type, body) do
+    Req.Test.stub(:web_fetch, fn conn ->
+      conn
+      |> Plug.Conn.put_resp_content_type(content_type)
+      |> Plug.Conn.send_resp(status, body)
+    end)
+  end
+
+  defp stub_resp(status, body) do
+    Req.Test.stub(:web_fetch, fn conn ->
+      Plug.Conn.send_resp(conn, status, body)
+    end)
+  end
+
+  defp execute(url, context, opts \\ %{}) do
+    WebFetch.execute(Map.merge(%{"url" => url}, opts), context)
   end
 
   describe "name/0" do
@@ -50,274 +63,64 @@ defmodule FrontmanServer.Tools.WebFetchTest do
   end
 
   describe "execute/2 — URL validation" do
-    test "rejects URLs without http/https scheme" do
-      context = build_context()
-
-      assert {:error, msg} = WebFetch.execute(%{"url" => "ftp://example.com"}, context)
+    test "rejects URLs without http/https scheme", %{context: ctx} do
+      assert {:error, msg} = execute("ftp://example.com", ctx)
       assert msg =~ "http:// or https://"
 
-      assert {:error, _} = WebFetch.execute(%{"url" => "not-a-url"}, context)
-      assert {:error, _} = WebFetch.execute(%{"url" => ""}, context)
+      assert {:error, _} = execute("not-a-url", ctx)
+      assert {:error, _} = execute("", ctx)
     end
 
-    test "rejects missing url" do
-      context = build_context()
-      assert {:error, msg} = WebFetch.execute(%{}, context)
+    test "rejects missing url", %{context: ctx} do
+      assert {:error, msg} = WebFetch.execute(%{}, ctx)
       assert msg =~ "url"
     end
-
-    test "rejects localhost URLs" do
-      context = build_context()
-
-      assert {:error, msg} = WebFetch.execute(%{"url" => "http://localhost/secret"}, context)
-      assert msg =~ "private"
-
-      assert {:error, msg} = WebFetch.execute(%{"url" => "http://localhost:8080/admin"}, context)
-      assert msg =~ "private"
-    end
-
-    test "rejects loopback IPs" do
-      context = build_context()
-
-      assert {:error, msg} = WebFetch.execute(%{"url" => "http://127.0.0.1/"}, context)
-      assert msg =~ "private"
-
-      assert {:error, msg} = WebFetch.execute(%{"url" => "http://127.0.0.42:9200/"}, context)
-      assert msg =~ "private"
-    end
-
-    test "rejects private network IPs" do
-      context = build_context()
-
-      # 10.0.0.0/8
-      assert {:error, _} = WebFetch.execute(%{"url" => "http://10.0.0.1/"}, context)
-      # 172.16.0.0/12
-      assert {:error, _} = WebFetch.execute(%{"url" => "http://172.16.0.1/"}, context)
-      # 192.168.0.0/16
-      assert {:error, _} = WebFetch.execute(%{"url" => "http://192.168.1.1/"}, context)
-    end
-
-    test "rejects cloud metadata IPs" do
-      context = build_context()
-
-      # AWS/GCP metadata
-      assert {:error, _} = WebFetch.execute(%{"url" => "http://169.254.169.254/latest/meta-data/"}, context)
-    end
-
-    test "rejects 0.0.0.0" do
-      context = build_context()
-      assert {:error, _} = WebFetch.execute(%{"url" => "http://0.0.0.0/"}, context)
-    end
-
-    test "rejects IPv6 loopback" do
-      context = build_context()
-      assert {:error, _} = WebFetch.execute(%{"url" => "http://[::1]/"}, context)
-    end
   end
 
-  describe "execute/2 — HTML fetch and conversion" do
-    test "fetches HTML and converts to markdown" do
-      Req.Test.stub(:web_fetch, fn conn ->
-        conn
-        |> Plug.Conn.put_resp_content_type("text/html")
-        |> Plug.Conn.send_resp(200, "<h1>Hello</h1><p>World</p>")
-      end)
+  describe "execute/2 — SSRF protection" do
+    @blocked_urls [
+      {"localhost", "http://localhost/secret"},
+      {"localhost with port", "http://localhost:8080/admin"},
+      {"loopback 127.0.0.1", "http://127.0.0.1/"},
+      {"loopback 127.x", "http://127.0.0.42:9200/"},
+      {"10.x private", "http://10.0.0.1/"},
+      {"172.16.x private", "http://172.16.0.1/"},
+      {"192.168.x private", "http://192.168.1.1/"},
+      {"link-local metadata", "http://169.254.169.254/latest/meta-data/"},
+      {"0.0.0.0", "http://0.0.0.0/"},
+      {"IPv6 loopback", "http://[::1]/"}
+    ]
 
-      context = build_context()
-      assert {:ok, result} = WebFetch.execute(%{"url" => "https://example.com"}, context)
-      assert result["url"] == "https://example.com"
-      assert result["content_type"] =~ "text/html"
-      assert result["content"] =~ "Hello"
-      assert result["content"] =~ "World"
-      assert is_integer(result["total_lines"])
-      assert result["total_lines"] > 0
-      assert result["start_line"] == 0
-      assert is_integer(result["lines_returned"])
+    for {label, url} <- @blocked_urls do
+      test "rejects #{label}: #{url}", %{context: ctx} do
+        assert {:error, msg} = execute(unquote(url), ctx)
+        assert msg =~ "private"
+      end
     end
 
-    test "returns plain text as-is" do
-      Req.Test.stub(:web_fetch, fn conn ->
-        conn
-        |> Plug.Conn.put_resp_content_type("text/plain")
-        |> Plug.Conn.send_resp(200, "Hello plain world")
-      end)
-
-      context = build_context()
-      assert {:ok, result} = WebFetch.execute(%{"url" => "https://example.com/text"}, context)
-      assert result["content"] =~ "Hello plain world"
-    end
-
-    test "returns markdown as-is" do
-      Req.Test.stub(:web_fetch, fn conn ->
-        conn
-        |> Plug.Conn.put_resp_content_type("text/markdown")
-        |> Plug.Conn.send_resp(200, "# Hello\n\nMarkdown content")
-      end)
-
-      context = build_context()
-      assert {:ok, result} = WebFetch.execute(%{"url" => "https://example.com/md"}, context)
-      assert result["content"] =~ "# Hello"
-      assert result["content"] =~ "Markdown content"
-    end
-  end
-
-  describe "execute/2 — HTTP errors" do
-    test "returns error on 404" do
-      Req.Test.stub(:web_fetch, fn conn ->
-        Plug.Conn.send_resp(conn, 404, "Not Found")
-      end)
-
-      context = build_context()
-      assert {:error, msg} = WebFetch.execute(%{"url" => "https://example.com/404"}, context)
-      assert msg =~ "404"
-    end
-
-    test "returns error on 500" do
-      Req.Test.stub(:web_fetch, fn conn ->
-        Plug.Conn.send_resp(conn, 500, "Internal Server Error")
-      end)
-
-      context = build_context()
-      assert {:error, msg} = WebFetch.execute(%{"url" => "https://example.com/500"}, context)
-      assert msg =~ "500"
-    end
-  end
-
-  describe "execute/2 — pagination" do
-    setup do
-      # 10 lines of content
-      body = Enum.map_join(1..10, "\n", fn i -> "Line #{i}" end)
-
-      Req.Test.stub(:web_fetch, fn conn ->
-        conn
-        |> Plug.Conn.put_resp_content_type("text/plain")
-        |> Plug.Conn.send_resp(200, body)
-      end)
-
-      :ok
-    end
-
-    test "returns first page by default" do
-      context = build_context()
-      assert {:ok, result} = WebFetch.execute(%{"url" => "https://example.com"}, context)
-      assert result["start_line"] == 0
-      assert result["total_lines"] == 10
-      assert result["lines_returned"] == 10
-    end
-
-    test "respects offset" do
-      context = build_context()
-      assert {:ok, result} = WebFetch.execute(%{"url" => "https://example.com", "offset" => 5}, context)
-      assert result["start_line"] == 5
-      assert result["lines_returned"] == 5
-      assert result["content"] =~ "Line 6"
-      refute result["content"] =~ "Line 5\n"
-    end
-
-    test "respects limit" do
-      context = build_context()
-      assert {:ok, result} = WebFetch.execute(%{"url" => "https://example.com", "limit" => 3}, context)
-      assert result["start_line"] == 0
-      assert result["lines_returned"] == 3
-      assert result["total_lines"] == 10
-      assert result["content"] =~ "Line 1"
-      assert result["content"] =~ "Line 3"
-      refute result["content"] =~ "Line 4"
-    end
-
-    test "offset + limit combination" do
-      context = build_context()
-      assert {:ok, result} = WebFetch.execute(%{"url" => "https://example.com", "offset" => 2, "limit" => 3}, context)
-      assert result["start_line"] == 2
-      assert result["lines_returned"] == 3
-      assert result["content"] =~ "Line 3"
-      assert result["content"] =~ "Line 5"
-      refute result["content"] =~ "Line 2\n"
-      refute result["content"] =~ "Line 6"
-    end
-
-    test "offset beyond content returns empty" do
-      context = build_context()
-      assert {:ok, result} = WebFetch.execute(%{"url" => "https://example.com", "offset" => 100}, context)
-      assert result["start_line"] == 100
-      assert result["lines_returned"] == 0
-      assert result["content"] == ""
-      assert result["total_lines"] == 10
-    end
-  end
-
-  describe "execute/2 — param clamping" do
-    setup do
-      Req.Test.stub(:web_fetch, fn conn ->
-        conn
-        |> Plug.Conn.put_resp_content_type("text/plain")
-        |> Plug.Conn.send_resp(200, "hello")
-      end)
-
-      :ok
-    end
-
-    test "clamps negative offset to 0" do
-      context = build_context()
-      assert {:ok, result} = WebFetch.execute(%{"url" => "https://example.com", "offset" => -5}, context)
-      assert result["start_line"] == 0
-    end
-
-    test "clamps limit above 2000 to 2000" do
-      context = build_context()
-      assert {:ok, result} = WebFetch.execute(%{"url" => "https://example.com", "limit" => 5000}, context)
-      assert result["lines_returned"] <= 2000
-    end
-
-    test "clamps limit below 1 to 1" do
-      context = build_context()
-      assert {:ok, result} = WebFetch.execute(%{"url" => "https://example.com", "limit" => 0}, context)
-      assert result["lines_returned"] >= 0
-    end
-  end
-
-  describe "execute/2 — size guard" do
-    test "rejects responses larger than 5MB" do
-      big_body = String.duplicate("x", 5_242_881)
-
-      Req.Test.stub(:web_fetch, fn conn ->
-        conn
-        |> Plug.Conn.put_resp_content_type("text/plain")
-        |> Plug.Conn.send_resp(200, big_body)
-      end)
-
-      context = build_context()
-      assert {:error, msg} = WebFetch.execute(%{"url" => "https://example.com/big"}, context)
-      assert msg =~ "5MB"
-    end
-  end
-
-  describe "execute/2 — redirect SSRF protection" do
-    test "blocks redirect to private IP" do
+    test "blocks redirect to private IP", %{context: ctx} do
       Req.Test.stub(:web_fetch, fn conn ->
         conn
         |> Plug.Conn.put_resp_header("location", "http://127.0.0.1:8080/admin")
         |> Plug.Conn.send_resp(302, "")
       end)
 
-      context = build_context()
-      assert {:error, msg} = WebFetch.execute(%{"url" => "https://evil.com/redirect"}, context)
+      assert {:error, msg} = execute("https://evil.com/redirect", ctx)
       assert msg =~ "private"
     end
 
-    test "blocks redirect to metadata IP" do
+    test "blocks redirect to metadata IP", %{context: ctx} do
       Req.Test.stub(:web_fetch, fn conn ->
         conn
         |> Plug.Conn.put_resp_header("location", "http://169.254.169.254/latest/meta-data/")
         |> Plug.Conn.send_resp(301, "")
       end)
 
-      context = build_context()
-      assert {:error, msg} = WebFetch.execute(%{"url" => "https://evil.com/aws"}, context)
+      assert {:error, msg} = execute("https://evil.com/aws", ctx)
       assert msg =~ "private"
     end
 
-    test "follows safe redirects" do
+    test "follows safe redirects", %{context: ctx} do
       call_count = :counters.new(1, [:atomics])
 
       Req.Test.stub(:web_fetch, fn conn ->
@@ -335,14 +138,131 @@ defmodule FrontmanServer.Tools.WebFetchTest do
         end
       end)
 
-      context = build_context()
-      assert {:ok, result} = WebFetch.execute(%{"url" => "https://example.com/start"}, context)
+      assert {:ok, result} = execute("https://example.com/start", ctx)
       assert result["content"] =~ "Redirected content"
     end
   end
 
+  describe "execute/2 — HTML fetch and conversion" do
+    test "fetches HTML and converts to markdown", %{context: ctx} do
+      stub_resp(200, "text/html", "<h1>Hello</h1><p>World</p>")
+
+      assert {:ok, result} = execute("https://example.com", ctx)
+      assert result["url"] == "https://example.com"
+      assert result["content_type"] =~ "text/html"
+      assert result["content"] =~ "Hello"
+      assert result["content"] =~ "World"
+      assert result["total_lines"] > 0
+      assert result["start_line"] == 0
+    end
+
+    test "returns plain text as-is", %{context: ctx} do
+      stub_resp(200, "text/plain", "Hello plain world")
+
+      assert {:ok, result} = execute("https://example.com/text", ctx)
+      assert result["content"] =~ "Hello plain world"
+    end
+
+    test "returns markdown as-is", %{context: ctx} do
+      stub_resp(200, "text/markdown", "# Hello\n\nMarkdown content")
+
+      assert {:ok, result} = execute("https://example.com/md", ctx)
+      assert result["content"] =~ "# Hello"
+      assert result["content"] =~ "Markdown content"
+    end
+  end
+
+  describe "execute/2 — HTTP errors" do
+    for status <- [404, 500] do
+      test "returns error on #{status}", %{context: ctx} do
+        stub_resp(unquote(status), "error")
+
+        assert {:error, msg} = execute("https://example.com/err", ctx)
+        assert msg =~ "#{unquote(status)}"
+      end
+    end
+  end
+
+  describe "execute/2 — pagination" do
+    setup do
+      body = Enum.map_join(1..10, "\n", fn i -> "Line #{i}" end)
+      stub_resp(200, "text/plain", body)
+      :ok
+    end
+
+    test "returns first page by default", %{context: ctx} do
+      assert {:ok, result} = execute("https://example.com", ctx)
+      assert result["start_line"] == 0
+      assert result["total_lines"] == 10
+      assert result["lines_returned"] == 10
+    end
+
+    test "respects offset", %{context: ctx} do
+      assert {:ok, result} = execute("https://example.com", ctx, %{"offset" => 5})
+      assert result["start_line"] == 5
+      assert result["lines_returned"] == 5
+      assert result["content"] =~ "Line 6"
+      refute result["content"] =~ "Line 5\n"
+    end
+
+    test "respects limit", %{context: ctx} do
+      assert {:ok, result} = execute("https://example.com", ctx, %{"limit" => 3})
+      assert result["start_line"] == 0
+      assert result["lines_returned"] == 3
+      assert result["total_lines"] == 10
+      assert result["content"] =~ "Line 3"
+      refute result["content"] =~ "Line 4"
+    end
+
+    test "offset + limit combination", %{context: ctx} do
+      assert {:ok, result} = execute("https://example.com", ctx, %{"offset" => 2, "limit" => 3})
+      assert result["start_line"] == 2
+      assert result["lines_returned"] == 3
+      assert result["content"] =~ "Line 3"
+      assert result["content"] =~ "Line 5"
+      refute result["content"] =~ "Line 6"
+    end
+
+    test "offset beyond content returns empty", %{context: ctx} do
+      assert {:ok, result} = execute("https://example.com", ctx, %{"offset" => 100})
+      assert result["lines_returned"] == 0
+      assert result["content"] == ""
+    end
+  end
+
+  describe "execute/2 — param clamping" do
+    setup do
+      stub_resp(200, "text/plain", "hello")
+      :ok
+    end
+
+    test "clamps negative offset to 0", %{context: ctx} do
+      assert {:ok, result} = execute("https://example.com", ctx, %{"offset" => -5})
+      assert result["start_line"] == 0
+    end
+
+    test "clamps limit above 2000 to 2000", %{context: ctx} do
+      assert {:ok, result} = execute("https://example.com", ctx, %{"limit" => 5000})
+      assert result["lines_returned"] <= 2000
+    end
+
+    test "clamps limit below 1 to 1", %{context: ctx} do
+      assert {:ok, result} = execute("https://example.com", ctx, %{"limit" => 0})
+      assert result["lines_returned"] >= 0
+    end
+  end
+
+  describe "execute/2 — size guard" do
+    test "rejects responses larger than 5MB", %{context: ctx} do
+      stub_resp(200, "text/plain", String.duplicate("x", 5_242_881))
+
+      assert {:error, msg} = execute("https://example.com/big", ctx)
+      assert msg =~ "5MB"
+    end
+  end
+
   describe "execute/2 — Cloudflare retry" do
-    test "retries with honest UA on Cloudflare challenge (403 + cf-mitigated)" do
+    test "retries with honest UA on Cloudflare challenge", %{context: ctx} do
       call_count = :counters.new(1, [:atomics])
 
       Req.Test.stub(:web_fetch, fn conn ->
@@ -350,12 +270,10 @@ defmodule FrontmanServer.Tools.WebFetchTest do
         :counters.add(call_count, 1, 1)
 
         if count == 0 do
-          # First request — simulate Cloudflare challenge
           conn
           |> Plug.Conn.put_resp_header("cf-mitigated", "challenge")
           |> Plug.Conn.send_resp(403, "Cloudflare challenge")
         else
-          # Retry — check for honest UA and return content
           ua = Plug.Conn.get_req_header(conn, "user-agent") |> List.first("")
           assert ua =~ "Frontman"
 
@@ -365,19 +283,15 @@ defmodule FrontmanServer.Tools.WebFetchTest do
         end
       end)
 
-      context = build_context()
-      assert {:ok, result} = WebFetch.execute(%{"url" => "https://example.com/cf"}, context)
+      assert {:ok, result} = execute("https://example.com/cf", ctx)
       assert result["content"] =~ "Real content"
       assert :counters.get(call_count, 1) == 2
     end
 
-    test "does not retry on regular 403 (no cf-mitigated header)" do
-      Req.Test.stub(:web_fetch, fn conn ->
-        Plug.Conn.send_resp(conn, 403, "Forbidden")
-      end)
+    test "does not retry on regular 403", %{context: ctx} do
+      stub_resp(403, "Forbidden")
 
-      context = build_context()
-      assert {:error, msg} = WebFetch.execute(%{"url" => "https://example.com/forbidden"}, context)
+      assert {:error, msg} = execute("https://example.com/forbidden", ctx)
       assert msg =~ "403"
     end
   end
