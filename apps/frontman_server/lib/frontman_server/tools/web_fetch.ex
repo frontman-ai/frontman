@@ -67,7 +67,7 @@ defmodule FrontmanServer.Tools.WebFetch do
       offset = clamp(Map.get(args, "offset", 0), 0, :infinity)
       limit = clamp(Map.get(args, "limit", 500), 1, 2000)
 
-      case fetch_url(url) do
+      case fetch(url) do
         {:ok, content_type, body} ->
           markdown = convert_to_markdown(body, content_type)
           paginate(markdown, url, content_type, offset, limit)
@@ -80,30 +80,20 @@ defmodule FrontmanServer.Tools.WebFetch do
 
   # -- HTTP fetching ----------------------------------------------------------
 
-  defp fetch_url(url) do
-    case do_fetch(url, @chrome_ua) do
-      {:cloudflare_challenge} ->
-        case do_fetch(url, @honest_ua) do
-          {:cloudflare_challenge} ->
-            {:error, "Blocked by Cloudflare challenge"}
+  @user_agents [@chrome_ua, @honest_ua]
 
-          other ->
-            other
-        end
+  defp fetch(url, user_agents \\ @user_agents, redirects \\ 0)
 
-      other ->
-        other
-    end
+  defp fetch(_url, [], _redirects) do
+    {:error, "Blocked by Cloudflare challenge"}
   end
 
-  defp do_fetch(url, user_agent), do: do_fetch(url, user_agent, 0)
-
-  defp do_fetch(_url, _user_agent, redirects)
+  defp fetch(_url, _user_agents, redirects)
        when redirects > @max_redirects do
     {:error, "Too many redirects"}
   end
 
-  defp do_fetch(url, user_agent, redirects) do
+  defp fetch(url, [user_agent | remaining_agents], redirects) do
     headers = [
       {"accept", "text/markdown, text/html;q=0.9, text/plain;q=0.8"},
       {"user-agent", user_agent}
@@ -121,32 +111,35 @@ defmodule FrontmanServer.Tools.WebFetch do
 
     req_opts
     |> Req.get()
-    |> handle_response(user_agent, redirects)
+    |> handle_response(url, remaining_agents, redirects)
   end
 
   defp handle_response(
          {:ok, %Req.Response{status: status, headers: headers}},
-         user_agent,
+         _url,
+         remaining_agents,
          redirects
        )
        when status in [301, 302, 303, 307, 308] do
-    follow_redirect(headers, user_agent, redirects)
+    follow_redirect(headers, remaining_agents, redirects)
   end
 
   defp handle_response(
          {:ok, %Req.Response{status: 403, headers: headers}},
-         _user_agent,
+         url,
+         remaining_agents,
          _redirects
        ) do
     case cloudflare_challenge?(headers) do
-      true -> {:cloudflare_challenge}
+      true -> fetch(url, remaining_agents)
       false -> {:error, "HTTP 403"}
     end
   end
 
   defp handle_response(
          {:ok, %Req.Response{status: status, body: body, headers: headers}},
-         _user_agent,
+         _url,
+         _remaining_agents,
          _redirects
        )
        when status in 200..299 do
@@ -158,7 +151,8 @@ defmodule FrontmanServer.Tools.WebFetch do
 
   defp handle_response(
          {:ok, %Req.Response{status: status}},
-         _user_agent,
+         _url,
+         _remaining_agents,
          _redirects
        ) do
     {:error, "HTTP #{status}"}
@@ -166,22 +160,28 @@ defmodule FrontmanServer.Tools.WebFetch do
 
   defp handle_response(
          {:error, %Req.TransportError{reason: :timeout}},
-         _user_agent,
+         _url,
+         _remaining_agents,
          _redirects
        ) do
     {:error, "Request timed out"}
   end
 
-  defp handle_response({:error, reason}, _user_agent, _redirects) do
+  defp handle_response(
+         {:error, reason},
+         _url,
+         _remaining_agents,
+         _redirects
+       ) do
     {:error, "Failed to fetch: #{inspect(reason)}"}
   end
 
-  defp follow_redirect(resp_headers, user_agent, redirects) do
+  defp follow_redirect(resp_headers, _remaining_agents, redirects) do
     case Map.get(resp_headers, "location") do
       [location | _] ->
         with {:ok, host} <- extract_host(location),
              :ok <- validate_host(host) do
-          do_fetch(location, user_agent, redirects + 1)
+          fetch(location, @user_agents, redirects + 1)
         end
 
       _ ->
