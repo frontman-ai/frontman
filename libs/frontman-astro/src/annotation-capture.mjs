@@ -34,6 +34,7 @@ export const annotationCaptureScript = `(function() {
     var annotations = new Map();
     var propsMap = new Map();
     var pendingProps = [];
+    var contentFile = null;
 
     var walker = document.createTreeWalker(
       document.documentElement,
@@ -44,9 +45,12 @@ export const annotationCaptureScript = `(function() {
     var node;
     while (node = walker.nextNode()) {
       if (node.nodeType === 8) {
-        var parsed = parsePropsPayload(node.textContent);
+        var text = node.textContent;
+        var parsed = parsePropsPayload(text);
         if (parsed) {
           pendingProps.push(parsed);
+        } else if (text && text.trim().indexOf('__frontman_content_file__:') === 0) {
+          contentFile = text.trim().slice('__frontman_content_file__:'.length).trim();
         }
       } else if (node.nodeType === 1) {
         if (pendingProps.length > 0 && node.hasAttribute('data-astro-source-file')) {
@@ -105,7 +109,8 @@ export const annotationCaptureScript = `(function() {
       _map: annotations,
       get: function(el) { return annotations.get(el); },
       has: function(el) { return annotations.has(el); },
-      size: function() { return annotations.size; }
+      size: function() { return annotations.size; },
+      contentFile: contentFile
     };
   }
 
