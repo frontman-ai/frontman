@@ -63,10 +63,17 @@ defmodule SwarmAi.Loop.Runner do
   """
   @spec handle_llm_response(Loop.t(), LLM.Response.t()) :: {Loop.t(), [Effect.t()]}
   def handle_llm_response(%Loop{status: :running} = loop, %LLM.Response{} = response) do
-    if LLM.Response.has_tool_calls?(response) do
-      handle_tool_calls(loop, response)
-    else
-      handle_completion(loop, response)
+    cond do
+      response.finish_reason == :length and LLM.Response.has_tool_calls?(response) ->
+        # Model hit max_tokens mid-tool-use — tool call JSON is truncated.
+        # Fail immediately rather than executing a malformed tool call.
+        handle_truncation_error(loop)
+
+      LLM.Response.has_tool_calls?(response) ->
+        handle_tool_calls(loop, response)
+
+      true ->
+        handle_completion(loop, response)
     end
   end
 
@@ -83,6 +90,11 @@ defmodule SwarmAi.Loop.Runner do
     tool_effects = Enum.map(response.tool_calls, &{:execute_tool, &1})
 
     {loop, tool_effects}
+  end
+
+  defp handle_truncation_error(loop) do
+    loop = Loop.fail(loop, :output_truncated)
+    {loop, [{:fail, :output_truncated}]}
   end
 
   @doc """

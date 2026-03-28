@@ -351,6 +351,12 @@ defmodule FrontmanServer.Tasks.Execution do
       "This can happen during high traffic. Try again in a moment."
   end
 
+  defp humanize_error(:output_truncated) do
+    "The AI response was too long and got cut off. " <>
+      "This usually happens when writing large files. " <>
+      "Try asking the AI to write the file in smaller sections."
+  end
+
   defp humanize_error({:exit, reason}) do
     "Something went wrong while communicating with the AI provider: #{inspect(reason)}"
   end
