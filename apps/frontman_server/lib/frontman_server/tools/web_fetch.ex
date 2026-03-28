@@ -128,10 +128,10 @@ defmodule FrontmanServer.Tools.WebFetch do
          {:ok, %Req.Response{status: 403, headers: headers}},
          url,
          remaining_agents,
-         _redirects
+         redirects
        ) do
     case cloudflare_challenge?(headers) do
-      true -> fetch(url, remaining_agents)
+      true -> fetch(url, remaining_agents, redirects)
       false -> {:error, "HTTP 403"}
     end
   end
@@ -309,7 +309,7 @@ defmodule FrontmanServer.Tools.WebFetch do
       end
 
     case ipv4 ++ ipv6 do
-      [] -> :ok
+      [] -> {:error, "Could not resolve hostname"}
       all_addrs -> check_all_addrs(all_addrs)
     end
   end

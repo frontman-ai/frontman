@@ -148,6 +148,13 @@ defmodule FrontmanServer.Tools.WebFetchTest do
       assert msg =~ "http:// or https://"
     end
 
+    test "rejects unresolvable hostnames", %{context: ctx} do
+      assert {:error, msg} =
+               execute("https://this-domain-does-not-exist-xyz.invalid/", ctx)
+
+      assert msg =~ "resolve"
+    end
+
     test "follows safe redirects", %{context: ctx} do
       call_count = :counters.new(1, [:atomics])
 
