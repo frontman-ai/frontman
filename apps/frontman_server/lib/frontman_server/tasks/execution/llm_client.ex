@@ -206,10 +206,12 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
   end
 
   # :meta with terminal?: true only (no finish_reason) - message_stop signal
-  # This comes from Anthropic's message_stop event, signals end of message
+  # This is Anthropic's stream-end event. The authoritative finish_reason was
+  # already emitted by message_delta (which has both finish_reason AND terminal?).
+  # Emitting another Chunk.done(:stop) here would overwrite :length/:tool_calls.
+  # Return nil so Stream.reject(&is_nil/1) drops it.
   defp to_swarm_chunk(%{type: :meta, metadata: %{terminal?: true}}, _requires_mcp_prefix?) do
-    # Emit done with :stop as default finish reason
-    Chunk.done(:stop)
+    nil
   end
 
   # Catch-all for :meta chunks with unknown metadata keys
