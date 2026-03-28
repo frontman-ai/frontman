@@ -5,7 +5,7 @@ export default defineConfig({
     __PACKAGE_VERSION__: '"0.0.0-test"',
   },
   test: {
-    include: ["test/**/*.test.res.mjs"],
+    include: ["test/**/*.test.res.mjs", "test/**/*.test.mjs"],
     environment: "node",
   },
 });
