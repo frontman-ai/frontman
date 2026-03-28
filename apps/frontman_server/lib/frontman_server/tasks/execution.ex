@@ -200,7 +200,8 @@ defmodule FrontmanServer.Tasks.Execution do
             struct -> struct.summary
           end
 
-        {model_spec, llm_opts} = ResolvedKey.to_llm_args(resolved_key, max_tokens: 16_384)
+        max_tokens = Application.fetch_env!(:frontman_server, :llm_max_tokens)
+        {model_spec, llm_opts} = ResolvedKey.to_llm_args(resolved_key, max_tokens: max_tokens)
 
         RootAgent.new(
           tools: tools,
