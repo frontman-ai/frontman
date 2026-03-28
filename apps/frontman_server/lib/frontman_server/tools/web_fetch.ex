@@ -116,12 +116,12 @@ defmodule FrontmanServer.Tools.WebFetch do
 
   defp handle_response(
          {:ok, %Req.Response{status: status, headers: headers}},
-         _url,
+         url,
          remaining_agents,
          redirects
        )
        when status in [301, 302, 303, 307, 308] do
-    follow_redirect(headers, remaining_agents, redirects)
+    follow_redirect(url, headers, remaining_agents, redirects)
   end
 
   defp handle_response(
@@ -176,13 +176,15 @@ defmodule FrontmanServer.Tools.WebFetch do
     {:error, "Failed to fetch: #{inspect(reason)}"}
   end
 
-  defp follow_redirect(resp_headers, _remaining_agents, redirects) do
+  defp follow_redirect(base_url, resp_headers, _remaining_agents, redirects) do
     case Map.get(resp_headers, "location") do
       [location | _] ->
-        with :ok <- validate_scheme(location),
-             {:ok, host} <- extract_host(location),
+        resolved = base_url |> URI.merge(location) |> URI.to_string()
+
+        with :ok <- validate_scheme(resolved),
+             {:ok, host} <- extract_host(resolved),
              :ok <- validate_host(host) do
-          fetch(location, @user_agents, redirects + 1)
+          fetch(resolved, @user_agents, redirects + 1)
         end
 
       _ ->

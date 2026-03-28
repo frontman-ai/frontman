@@ -155,6 +155,28 @@ defmodule FrontmanServer.Tools.WebFetchTest do
       assert msg =~ "resolve"
     end
 
+    test "follows relative redirect URLs", %{context: ctx} do
+      call_count = :counters.new(1, [:atomics])
+
+      Req.Test.stub(:web_fetch, fn conn ->
+        count = :counters.get(call_count, 1)
+        :counters.add(call_count, 1, 1)
+
+        if count == 0 do
+          conn
+          |> Plug.Conn.put_resp_header("location", "/new-path")
+          |> Plug.Conn.send_resp(301, "")
+        else
+          conn
+          |> Plug.Conn.put_resp_content_type("text/plain")
+          |> Plug.Conn.send_resp(200, "Relative redirect worked")
+        end
+      end)
+
+      assert {:ok, result} = execute("https://example.com/old-path", ctx)
+      assert result["content"] =~ "Relative redirect worked"
+    end
+
     test "follows safe redirects", %{context: ctx} do
       call_count = :counters.new(1, [:atomics])
 
