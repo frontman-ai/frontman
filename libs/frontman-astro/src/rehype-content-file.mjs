@@ -9,7 +9,9 @@
 //   <!-- __frontman_content_file__:src/content/docs/page.md -->
 
 export function rehypeContentFile(options) {
-  var projectRoot = (options && options.projectRoot) || '';
+  var raw = (options && options.projectRoot) || '';
+  // Astro's resolved config.root is a URL object — coerce to a filesystem path.
+  var projectRoot = typeof raw === 'string' ? raw : raw.pathname || '';
   // Normalize: strip trailing slash for consistent path.relative behavior
   if (projectRoot.endsWith('/')) {
     projectRoot = projectRoot.slice(0, -1);

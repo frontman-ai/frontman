@@ -56,4 +56,13 @@ describe('rehypeContentFile', () => {
     );
     expect(result).toContain('<!-- __frontman_content_file__:src/content/docs/page.md -->');
   });
+
+  test('handles URL object as projectRoot (Astro config.root)', () => {
+    const result = process(
+      '<p>Hi</p>',
+      '/home/user/project/src/content/docs/page.md',
+      new URL('file:///home/user/project/')
+    );
+    expect(result).toContain('<!-- __frontman_content_file__:src/content/docs/page.md -->');
+  });
 });
