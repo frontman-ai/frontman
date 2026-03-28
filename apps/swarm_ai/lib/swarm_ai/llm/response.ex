@@ -123,7 +123,17 @@ defmodule SwarmAi.LLM.Response do
   end
 
   defp accumulate_chunk(%Chunk{type: :done, finish_reason: reason, metadata: meta}, acc) do
-    %{acc | finish_reason: reason, metadata: Map.merge(acc.metadata, meta || %{})}
+    # Don't let a :stop done chunk (from message_stop) overwrite a more specific
+    # finish_reason already set by message_delta (e.g., :length, :tool_calls).
+    # The message_delta carries the authoritative stop_reason from the provider.
+    finish_reason =
+      if acc.finish_reason in [:stop, nil] do
+        reason
+      else
+        acc.finish_reason
+      end
+
+    %{acc | finish_reason: finish_reason, metadata: Map.merge(acc.metadata, meta || %{})}
   end
 
   # Catch-all for unknown chunk types
