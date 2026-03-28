@@ -18,7 +18,9 @@ export function rehypeContentFile(options) {
   }
 
   return function transformer(tree, file) {
-    if (!file || !file.path) return;
+    if (!file || !file.path) {
+      return;
+    }
 
     var absolute = file.path;
     var relative = absolute;

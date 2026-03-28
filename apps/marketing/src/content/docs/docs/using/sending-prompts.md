@@ -135,9 +135,7 @@ The agent sees all previous messages and results, so follow-ups are typically fa
 
 If you want a clean slate — for example, switching to a completely different area of the app — start a new session. Each session maintains its own history and context.
 
-:::note[Screenshot needed]
-The session list — showing multiple conversation sessions with titles and timestamps.
-:::
+![The session list — showing multiple conversation sessions with titles and timestamps](../../../../assets/docs/sending-prompts/session-list.png)
 
 ## Prompt examples by task type
 

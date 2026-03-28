@@ -15,10 +15,18 @@ type astroCommand = [#dev | #build | #preview | #sync]
 // Astro devToolbar config
 type devToolbarConfig = {enabled: bool}
 
+// Opaque type for rehype/remark plugins (JS functions)
+type rehypePlugin
+
 // Astro config (subset we care about)
+type markdownConfig = {
+  rehypePlugins: array<rehypePlugin>,
+}
+
 type astroConfig = {
   root: string,
   devToolbar: devToolbarConfig,
+  markdown: markdownConfig,
 }
 
 // Vite plugin type — opaque, we just pass plugin objects through
@@ -44,9 +52,6 @@ external makeVitePlugin: vitePluginConfig => vitePlugin = "%identity"
 
 // Partial Astro config for updateConfig — only the fields we need
 type partialViteConfig = {plugins?: array<vitePlugin>}
-
-// Opaque type for rehype/remark plugins (JS functions)
-type rehypePlugin
 
 type partialMarkdownConfig = {rehypePlugins?: array<rehypePlugin>}
 type partialAstroConfig = {vite?: partialViteConfig, markdown?: partialMarkdownConfig}

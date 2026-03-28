@@ -1,6 +1,6 @@
 # Frontman
 
-> Frontman is an open-source AI coding agent that lives inside your browser, not your editor. It hooks into your framework (Next.js, Astro, Vite), sees the live DOM, component tree, computed styles, routes, and server-side state, and turns plain-English instructions into real source code changes — verified instantly via hot-reload.
+> Frontman is a vertically integrated AI agent that lives inside your framework's dev server, not your editor. It hooks into your framework (Next.js, Astro, Vite), sees the live DOM, component tree, computed styles, routes, and server-side state, and turns plain-English instructions into real source code changes — verified instantly via hot-reload. Open-source core with a bootstrapped SaaS tier and BYOK pricing.
 
 ## What problem does Frontman solve?
 
@@ -10,9 +10,9 @@ Frontman closes that loop. It connects to your running application and your dev 
 
 ## Who is Frontman for?
 
-- **Frontend developers** who want faster iteration with richer context than terminal-based AI tools provide. Click an element, describe the change, see it happen — instead of writing prompts that specify file paths and line numbers.
 - **Designers** who want to make spacing, typography, color, and layout changes directly in the running app without opening an IDE or filing a ticket. Every change produces a reviewable code diff.
 - **Product managers** who need to update copy, tweak structure, or explore feature ideas without waiting for an engineering sprint. Frontman gives non-technical teammates a chat interface alongside a live view of the app.
+- **Frontend developers** who want faster iteration with richer context than terminal-based AI tools provide. Click an element, describe the change, see it happen — instead of writing prompts that specify file paths and line numbers.
 - **Teams** that want to collapse the gap between "people who can describe a change" and "people who can make a change" — while keeping the entire engineering review process intact.
 
 ## How it works
@@ -28,7 +28,7 @@ It runs exclusively in development (`NODE_ENV=development`). In production build
 - **Framework integrations** — Next.js, Astro, and Vite (React, Vue, Svelte) with deep runtime context
 - **Bring your own AI** — works with Claude (Anthropic), ChatGPT (OpenAI), or any model via OpenRouter
 - **Built-in Lighthouse audits** — run performance and accessibility audits without leaving the browser
-- **Open source** — Apache 2.0 license, fully auditable on GitHub
+- **Open-source core, bootstrapped SaaS** — Apache 2.0 licensed core, fully auditable on GitHub, with optional paid tier for managed API keys
 
 ## Docs
 

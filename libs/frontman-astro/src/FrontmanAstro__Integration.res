@@ -49,8 +49,13 @@ external annotationCaptureScript: string = "annotationCaptureScript"
 // Rehype plugin that injects __frontman_content_file__ comments into markdown output.
 // This lets the annotation capture script resolve the source .md file for
 // elements rendered from markdown (which lack data-astro-source-file attributes).
+//
+// Registered as [attacher, options] tuple — unified calls attacher(options) to get the transformer.
+// A ReScript tuple (fn, opts) compiles to a JS array [fn, opts], which matches
+// the format Astro's markdown processor expects for rehype plugin entries.
 @module("./rehype-content-file.mjs")
 external rehypeContentFile: {..} => Bindings.rehypePlugin = "rehypeContentFile"
+external asRehypePlugin: (({..} => Bindings.rehypePlugin, {..})) => Bindings.rehypePlugin = "%identity"
 
 // SVG icon for the toolbar — Frontman "F" glyph from favicon.svg (no background)
 // Uses currentColor so it adapts to Astro's toolbar theming.
@@ -133,12 +138,14 @@ let make = (configInput: Config.jsConfigInput): Bindings.astroIntegration => {
               }),
             })
 
-            // Register rehype plugin that injects content file path comments
-            // into markdown output. Uses Astro's config.root to compute relative paths.
+            // Register rehype plugin as [attacher, options] tuple. Astro's markdown
+            // processor calls unified.use(attacher, options) — passing the pre-invoked
+            // transformer directly won't work because unified treats it as an attacher
+            // and calls it with no args.
             ctx.updateConfig({
               markdown: ?Some({
                 rehypePlugins: ?Some([
-                  rehypeContentFile({"projectRoot": ctx.config.root}),
+                  asRehypePlugin((rehypeContentFile, {"projectRoot": config.sourceRoot})),
                 ]),
               }),
             })
