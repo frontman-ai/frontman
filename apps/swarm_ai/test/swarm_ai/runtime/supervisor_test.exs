@@ -28,11 +28,9 @@ defmodule SwarmAi.Runtime.SupervisorTest do
 
       kill_named_process(Runtime.registry_name(runtime))
       await_exit(pid)
-      wait_for_process(Runtime.registry_name(runtime))
-      wait_for_process(Runtime.task_supervisor_name(runtime))
 
       agent2 = test_agent(mock_llm("after crash"))
-      {:ok, pid2} = Runtime.run(runtime, "task-post", agent2, "Hello", default_opts())
+      {:ok, pid2} = run_after_recovery(runtime, "task-post", agent2)
       await_exit(pid2)
 
       assert_receive {:test_event, "task-post", {:completed, {:ok, "after crash", _}}}
@@ -61,10 +59,9 @@ defmodule SwarmAi.Runtime.SupervisorTest do
 
       kill_named_process(Runtime.task_supervisor_name(runtime))
       await_exit(pid)
-      wait_for_process(Runtime.task_supervisor_name(runtime))
 
       agent2 = test_agent(mock_llm("recovered"))
-      {:ok, pid2} = Runtime.run(runtime, "task-post", agent2, "Hello", default_opts())
+      {:ok, pid2} = run_after_recovery(runtime, "task-post", agent2)
       await_exit(pid2)
 
       assert_receive {:test_event, "task-post", {:completed, {:ok, "recovered", _}}}
@@ -95,12 +92,9 @@ defmodule SwarmAi.Runtime.SupervisorTest do
 
       kill_named_process(:"#{runtime}.TasksSupervisor")
       await_exit(pid)
-      wait_for_process(:"#{runtime}.TasksSupervisor")
-      wait_for_process(Runtime.registry_name(runtime))
-      wait_for_process(Runtime.task_supervisor_name(runtime))
 
       agent2 = test_agent(mock_llm("recovered"))
-      {:ok, pid2} = Runtime.run(runtime, "task-post", agent2, "Hello", default_opts())
+      {:ok, pid2} = run_after_recovery(runtime, "task-post", agent2)
       await_exit(pid2)
 
       assert_receive {:test_event, "task-post", {:completed, {:ok, "recovered", _}}}
@@ -145,17 +139,27 @@ defmodule SwarmAi.Runtime.SupervisorTest do
     assert_receive {:DOWN, ^ref, :process, ^pid, _}, 1000
   end
 
-  defp wait_for_process(name, attempts \\ 20) do
-    case GenServer.whereis(name) do
-      pid when is_pid(pid) ->
-        pid
+  # Retries Runtime.run until the supervision tree has stabilized after
+  # a crash. Between a supervisor being killed and its children fully
+  # restarting, calls into the tree can fail in two ways:
+  #   - GenServer.call exits the caller (:exit) when the target dies
+  #   - Registry.lookup raises ArgumentError when the Registry is gone
+  # Both are expected OTP behaviour during recovery, not Runtime bugs.
+  defp run_after_recovery(runtime, key, agent, attempts \\ 20)
 
-      nil when attempts > 0 ->
-        Process.sleep(50)
-        wait_for_process(name, attempts - 1)
+  defp run_after_recovery(_runtime, _key, _agent, 0) do
+    flunk("Runtime.run still failing after recovery")
+  end
 
-      nil ->
-        flunk("#{inspect(name)} did not restart within timeout")
-    end
+  defp run_after_recovery(runtime, key, agent, attempts) do
+    Runtime.run(runtime, key, agent, "Hello", default_opts())
+  catch
+    :exit, _ ->
+      Process.sleep(50)
+      run_after_recovery(runtime, key, agent, attempts - 1)
+  rescue
+    ArgumentError ->
+      Process.sleep(50)
+      run_after_recovery(runtime, key, agent, attempts - 1)
   end
 end
