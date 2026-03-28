@@ -87,30 +87,49 @@ let getElementSourceLocation = (
         !Client__SourcePath.isNodeModulesPath(ann.file)
       )
 
-      // If everything is node_modules (unlikely), fall back to the first annotation
-      let selectedIdx = switch firstSourceIdx {
-      | -1 => 0
-      | idx => idx
-      }
+      switch firstSourceIdx {
+      | -1 =>
+        // All annotations point to node_modules (e.g., Starlight internals).
+        // Fall back to the content file path injected by the rehype plugin,
+        // or to the first annotation if no content file is available.
+        switch api.contentFile->Nullable.toOption {
+        | Some(contentFile) =>
+          Some({
+            Client__Types.SourceLocation.componentName: None,
+            tagName: element.tagName->String.toLowerCase,
+            file: contentFile,
+            line: -1,
+            column: -1,
+            parent: None,
+            componentProps: None,
+          })
+        | None =>
+          switch ancestors->Array.get(0) {
+          | None => None
+          | Some((selectedAnn, selectedEl)) =>
+            makeSourceLocation(selectedAnn, selectedEl, ~parent=None)
+          }
+        }
+      | selectedIdx =>
+        switch ancestors->Array.get(selectedIdx) {
+        | None => None
+        | Some((selectedAnn, selectedEl)) => {
+            // Phase 3: Build the parent chain from component boundary transitions.
+            // Starting after the selected element, walk up ancestors and record
+            // each time the file path changes - that marks a component boundary.
+            let (parentChain, _) =
+              ancestors
+              ->Array.slice(~start=selectedIdx + 1, ~end=Array.length(ancestors))
+              ->Array.reduce((None, selectedAnn.file), ((parentChain, lastFile), (ann, el)) => {
+                if ann.file != lastFile && !Client__SourcePath.isNodeModulesPath(ann.file) {
+                  (makeSourceLocation(ann, el, ~parent=parentChain), ann.file)
+                } else {
+                  (parentChain, lastFile)
+                }
+              })
 
-      switch ancestors->Array.get(selectedIdx) {
-      | None => None // No annotations found at all
-      | Some((selectedAnn, selectedEl)) => {
-          // Phase 3: Build the parent chain from component boundary transitions.
-          // Starting after the selected element, walk up ancestors and record
-          // each time the file path changes - that marks a component boundary.
-          let (parentChain, _) =
-            ancestors
-            ->Array.slice(~start=selectedIdx + 1, ~end=Array.length(ancestors))
-            ->Array.reduce((None, selectedAnn.file), ((parentChain, lastFile), (ann, el)) => {
-              if ann.file != lastFile && !Client__SourcePath.isNodeModulesPath(ann.file) {
-                (makeSourceLocation(ann, el, ~parent=parentChain), ann.file)
-              } else {
-                (parentChain, lastFile)
-              }
-            })
-
-          makeSourceLocation(selectedAnn, selectedEl, ~parent=parentChain)
+            makeSourceLocation(selectedAnn, selectedEl, ~parent=parentChain)
+          }
         }
       }
     }
