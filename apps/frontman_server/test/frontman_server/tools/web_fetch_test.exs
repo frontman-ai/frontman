@@ -65,6 +65,54 @@ defmodule FrontmanServer.Tools.WebFetchTest do
       assert {:error, msg} = WebFetch.execute(%{}, context)
       assert msg =~ "url"
     end
+
+    test "rejects localhost URLs" do
+      context = build_context()
+
+      assert {:error, msg} = WebFetch.execute(%{"url" => "http://localhost/secret"}, context)
+      assert msg =~ "private"
+
+      assert {:error, msg} = WebFetch.execute(%{"url" => "http://localhost:8080/admin"}, context)
+      assert msg =~ "private"
+    end
+
+    test "rejects loopback IPs" do
+      context = build_context()
+
+      assert {:error, msg} = WebFetch.execute(%{"url" => "http://127.0.0.1/"}, context)
+      assert msg =~ "private"
+
+      assert {:error, msg} = WebFetch.execute(%{"url" => "http://127.0.0.42:9200/"}, context)
+      assert msg =~ "private"
+    end
+
+    test "rejects private network IPs" do
+      context = build_context()
+
+      # 10.0.0.0/8
+      assert {:error, _} = WebFetch.execute(%{"url" => "http://10.0.0.1/"}, context)
+      # 172.16.0.0/12
+      assert {:error, _} = WebFetch.execute(%{"url" => "http://172.16.0.1/"}, context)
+      # 192.168.0.0/16
+      assert {:error, _} = WebFetch.execute(%{"url" => "http://192.168.1.1/"}, context)
+    end
+
+    test "rejects cloud metadata IPs" do
+      context = build_context()
+
+      # AWS/GCP metadata
+      assert {:error, _} = WebFetch.execute(%{"url" => "http://169.254.169.254/latest/meta-data/"}, context)
+    end
+
+    test "rejects 0.0.0.0" do
+      context = build_context()
+      assert {:error, _} = WebFetch.execute(%{"url" => "http://0.0.0.0/"}, context)
+    end
+
+    test "rejects IPv6 loopback" do
+      context = build_context()
+      assert {:error, _} = WebFetch.execute(%{"url" => "http://[::1]/"}, context)
+    end
   end
 
   describe "execute/2 — HTML fetch and conversion" do
@@ -241,6 +289,55 @@ defmodule FrontmanServer.Tools.WebFetchTest do
       context = build_context()
       assert {:error, msg} = WebFetch.execute(%{"url" => "https://example.com/big"}, context)
       assert msg =~ "5MB"
+    end
+  end
+
+  describe "execute/2 — redirect SSRF protection" do
+    test "blocks redirect to private IP" do
+      Req.Test.stub(:web_fetch, fn conn ->
+        conn
+        |> Plug.Conn.put_resp_header("location", "http://127.0.0.1:8080/admin")
+        |> Plug.Conn.send_resp(302, "")
+      end)
+
+      context = build_context()
+      assert {:error, msg} = WebFetch.execute(%{"url" => "https://evil.com/redirect"}, context)
+      assert msg =~ "private"
+    end
+
+    test "blocks redirect to metadata IP" do
+      Req.Test.stub(:web_fetch, fn conn ->
+        conn
+        |> Plug.Conn.put_resp_header("location", "http://169.254.169.254/latest/meta-data/")
+        |> Plug.Conn.send_resp(301, "")
+      end)
+
+      context = build_context()
+      assert {:error, msg} = WebFetch.execute(%{"url" => "https://evil.com/aws"}, context)
+      assert msg =~ "private"
+    end
+
+    test "follows safe redirects" do
+      call_count = :counters.new(1, [:atomics])
+
+      Req.Test.stub(:web_fetch, fn conn ->
+        count = :counters.get(call_count, 1)
+        :counters.add(call_count, 1, 1)
+
+        if count == 0 do
+          conn
+          |> Plug.Conn.put_resp_header("location", "https://example.com/final")
+          |> Plug.Conn.send_resp(302, "")
+        else
+          conn
+          |> Plug.Conn.put_resp_content_type("text/plain")
+          |> Plug.Conn.send_resp(200, "Redirected content")
+        end
+      end)
+
+      context = build_context()
+      assert {:ok, result} = WebFetch.execute(%{"url" => "https://example.com/start"}, context)
+      assert result["content"] =~ "Redirected content"
     end
   end
 

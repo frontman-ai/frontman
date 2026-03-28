@@ -83,15 +83,27 @@ defmodule FrontmanServer.Tools.WebFetch do
     end
   end
 
-  defp do_fetch(url, user_agent) do
+  @max_redirects 10
+
+  defp do_fetch(url, user_agent), do: do_fetch(url, user_agent, 0)
+
+  defp do_fetch(_url, _user_agent, redirects) when redirects > @max_redirects do
+    {:error, "Too many redirects"}
+  end
+
+  defp do_fetch(url, user_agent, redirects) do
     headers = [
       {"accept", "text/markdown, text/html;q=0.9, text/plain;q=0.8"},
       {"user-agent", user_agent}
     ]
 
-    req_opts = [url: url, headers: headers, receive_timeout: 30_000, retry: false, decode_body: false] ++ req_options()
+    req_opts = [url: url, headers: headers, receive_timeout: 30_000, retry: false, decode_body: false, redirect: false] ++ req_options()
 
     case Req.get(req_opts) do
+      {:ok, %Req.Response{status: status, headers: resp_headers}}
+      when status in [301, 302, 303, 307, 308] ->
+        follow_redirect(resp_headers, user_agent, redirects)
+
       {:ok, %Req.Response{status: 403, headers: resp_headers}} ->
         if cloudflare_challenge?(resp_headers) do
           {:cloudflare_challenge}
@@ -116,6 +128,19 @@ defmodule FrontmanServer.Tools.WebFetch do
 
       {:error, reason} ->
         {:error, "Failed to fetch: #{inspect(reason)}"}
+    end
+  end
+
+  defp follow_redirect(resp_headers, user_agent, redirects) do
+    case Map.get(resp_headers, "location") do
+      [location | _] ->
+        with {:ok, host} <- extract_host(location),
+             :ok <- validate_host(host) do
+          do_fetch(location, user_agent, redirects + 1)
+        end
+
+      _ ->
+        {:error, "Redirect without Location header"}
     end
   end
 
@@ -157,14 +182,101 @@ defmodule FrontmanServer.Tools.WebFetch do
   end
 
   defp validate_url(%{"url" => url}) when is_binary(url) and byte_size(url) > 0 do
-    if String.starts_with?(url, "http://") or String.starts_with?(url, "https://") do
+    with :ok <- validate_scheme(url),
+         {:ok, host} <- extract_host(url),
+         :ok <- validate_host(host) do
       {:ok, url}
+    end
+  end
+
+  defp validate_url(_), do: {:error, "url is required"}
+
+  defp validate_scheme(url) do
+    if String.starts_with?(url, "http://") or String.starts_with?(url, "https://") do
+      :ok
     else
       {:error, "URL must start with http:// or https://"}
     end
   end
 
-  defp validate_url(_), do: {:error, "url is required"}
+  defp extract_host(url) do
+    case URI.parse(url) do
+      %URI{host: host} when is_binary(host) and byte_size(host) > 0 ->
+        {:ok, host}
+
+      _ ->
+        {:error, "Could not parse host from URL"}
+    end
+  end
+
+  defp validate_host(host) do
+    # Check for well-known private hostnames before DNS resolution
+    if private_hostname?(host) do
+      {:error, "Requests to private/internal addresses are not allowed"}
+    else
+      case resolve_and_check(host) do
+        :ok -> :ok
+        {:error, _} = err -> err
+      end
+    end
+  end
+
+  defp private_hostname?(host) do
+    downcased = String.downcase(host)
+    downcased == "localhost" or String.ends_with?(downcased, ".local") or
+      String.ends_with?(downcased, ".internal") or String.ends_with?(downcased, ".localhost")
+  end
+
+  defp resolve_and_check(host) do
+    # Try to parse as a literal IP first, then fall back to DNS resolution
+    host_charlist = String.to_charlist(host)
+
+    case :inet.parse_address(host_charlist) do
+      {:ok, ip} ->
+        if private_ip?(ip),
+          do: {:error, "Requests to private/internal addresses are not allowed"},
+          else: :ok
+
+      {:error, :einval} ->
+        # Not a literal IP — resolve via DNS
+        case :inet.getaddrs(host_charlist, :inet) do
+          {:ok, addrs} ->
+            if Enum.any?(addrs, &private_ip?/1),
+              do: {:error, "Requests to private/internal addresses are not allowed"},
+              else: :ok
+
+          {:error, _} ->
+            # Also try IPv6
+            case :inet.getaddrs(host_charlist, :inet6) do
+              {:ok, addrs} ->
+                if Enum.any?(addrs, &private_ip?/1),
+                  do: {:error, "Requests to private/internal addresses are not allowed"},
+                  else: :ok
+
+              {:error, _} ->
+                # DNS resolution failed — let Req handle the error downstream
+                :ok
+            end
+        end
+    end
+  end
+
+  # IPv4 private/reserved ranges
+  defp private_ip?({0, _, _, _}), do: true
+  defp private_ip?({10, _, _, _}), do: true
+  defp private_ip?({127, _, _, _}), do: true
+  defp private_ip?({169, 254, _, _}), do: true
+  defp private_ip?({172, b, _, _}) when b >= 16 and b <= 31, do: true
+  defp private_ip?({192, 168, _, _}), do: true
+
+  # IPv6 loopback and private
+  defp private_ip?({0, 0, 0, 0, 0, 0, 0, 0}), do: true
+  defp private_ip?({0, 0, 0, 0, 0, 0, 0, 1}), do: true
+  defp private_ip?({0xFC00, _, _, _, _, _, _, _}), do: true
+  defp private_ip?({0xFD00, _, _, _, _, _, _, _}), do: true
+  defp private_ip?({0xFE80, _, _, _, _, _, _, _}), do: true
+
+  defp private_ip?(_), do: false
 
   defp clamp(val, min, :infinity) when is_integer(val), do: max(val, min)
   defp clamp(val, min, max_val) when is_integer(val), do: val |> max(min) |> min(max_val)
