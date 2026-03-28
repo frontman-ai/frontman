@@ -44,7 +44,12 @@ external makeVitePlugin: vitePluginConfig => vitePlugin = "%identity"
 
 // Partial Astro config for updateConfig — only the fields we need
 type partialViteConfig = {plugins?: array<vitePlugin>}
-type partialAstroConfig = {vite?: partialViteConfig}
+
+// Opaque type for rehype/remark plugins (JS functions)
+type rehypePlugin
+
+type partialMarkdownConfig = {rehypePlugins?: array<rehypePlugin>}
+type partialAstroConfig = {vite?: partialViteConfig, markdown?: partialMarkdownConfig}
 
 // Hook context for astro:config:setup
 // injectScript stage is passed as a plain string: "head-inline", "before-hydration", "page", "page-ssr"
