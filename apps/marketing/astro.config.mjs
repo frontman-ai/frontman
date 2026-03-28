@@ -1,4 +1,4 @@
-import { defineConfig } from "astro/config";
+import { defineConfig } from "astro/config"; // force rebuild // force rebuild
 import tailwindcss from "@tailwindcss/vite";
 import icon from "astro-icon";
 import sitemap from "@astrojs/sitemap";
@@ -141,7 +141,6 @@ export default defineConfig({
             { label: "Tool Capabilities", slug: "docs/using/tool-capabilities" },
             { label: "The Question Flow", slug: "docs/using/question-flow" },
             { label: "Plans & Todo Lists", slug: "docs/using/plans-and-todos" },
-            { label: "Working with Code Files", slug: "docs/using/working-with-files" },
             { label: "Prompt Strategies", slug: "docs/using/prompt-strategies" },
             { label: "Limitations & Workarounds", slug: "docs/using/limitations" },
           ],
