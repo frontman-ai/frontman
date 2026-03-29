@@ -86,6 +86,20 @@ defmodule FrontmanServer.Tasks.MessageOptimizer.PageContextDedupTest do
       refute Enum.any?(second_content, &(&1.type == :text and &1.text == ""))
     end
 
+    test "never produces a message with empty content list" do
+      messages = [
+        %Message{role: :user, content: [ContentPart.text(@page_context)]},
+        %Message{role: :assistant, content: [ContentPart.text("ok")]},
+        %Message{role: :user, content: [ContentPart.text(@page_context)]}
+      ]
+
+      result = PageContextDedup.run(messages)
+
+      # Second user message had only page context — after dedup, content must not be empty
+      second_msg = Enum.at(result, 2)
+      assert second_msg.content != []
+    end
+
     test "handles empty message list" do
       assert PageContextDedup.run([]) == []
     end

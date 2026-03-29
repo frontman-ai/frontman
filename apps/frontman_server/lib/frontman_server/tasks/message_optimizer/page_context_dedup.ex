@@ -47,7 +47,10 @@ defmodule FrontmanServer.Tasks.MessageOptimizer.PageContextDedup do
         end
       end)
 
-    {%{msg | content: Enum.reverse(reversed_content)}, current_context}
+    case Enum.reverse(reversed_content) do
+      [] -> {msg, current_context}
+      new_content -> {%{msg | content: new_content}, current_context}
+    end
   end
 
   defp dedup_context(msg, prev_context), do: {msg, prev_context}
