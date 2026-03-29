@@ -22,7 +22,7 @@ defmodule FrontmanServer.Tasks.Execution do
   alias FrontmanServer.Providers
   alias FrontmanServer.Providers.{Model, Registry, ResolvedKey}
   alias FrontmanServer.Tasks.Execution.{Framework, RootAgent, ToolExecutor}
-  alias FrontmanServer.Tasks.{Interaction, StreamStallTimeout, Task}
+  alias FrontmanServer.Tasks.{Interaction, MessageOptimizer, StreamStallTimeout, Task}
   alias SwarmAi.Message
 
   @doc """
@@ -77,6 +77,7 @@ defmodule FrontmanServer.Tasks.Execution do
         messages =
           task.interactions
           |> Interaction.to_llm_messages()
+          |> MessageOptimizer.optimize()
           |> Enum.map(&to_swarm_message/1)
           |> maybe_constrain_images(api_key_info.provider)
 
@@ -151,7 +152,9 @@ defmodule FrontmanServer.Tasks.Execution do
 
     mcp_tools = Map.get(agent, :tools, [])
     mcp_tool_defs = Keyword.get(opts, :mcp_tool_defs, [])
-    llm_opts = [api_key: resolved_key.api_key, model: resolved_key.model]
+    llm_opts =
+      [api_key: resolved_key.api_key, model: resolved_key.model]
+      |> maybe_enable_prompt_cache(resolved_key.provider)
 
     tool_executor =
       ToolExecutor.make_executor(scope, task_id,
@@ -180,6 +183,11 @@ defmodule FrontmanServer.Tasks.Execution do
         error
     end
   end
+
+  defp maybe_enable_prompt_cache(opts, "anthropic"),
+    do: Keyword.put(opts, :anthropic_prompt_cache, true)
+
+  defp maybe_enable_prompt_cache(opts, _provider), do: opts
 
   defp build_agent(%Task{} = task, tools, opts, %ResolvedKey{} = resolved_key) do
     case Keyword.get(opts, :agent) do
