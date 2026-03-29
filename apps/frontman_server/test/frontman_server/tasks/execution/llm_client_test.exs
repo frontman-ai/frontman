@@ -92,6 +92,34 @@ defmodule FrontmanServer.Tasks.Execution.LLMClientTest do
     end
   end
 
+  describe "ping keepalive filtering (issue #731)" do
+    test "ping meta chunks from ReqLLM do not reach SwarmAi consumers" do
+      # After the fix, ReqLLM emits meta chunks with %{ping: true} for
+      # Anthropic keep-alive pings. These must be filtered out before
+      # reaching SwarmAi — they exist only to reset the stall timeout.
+      ping_chunk = ReqLLM.StreamChunk.meta(%{ping: true})
+
+      # The catch-all meta clause in to_swarm_chunk returns nil for
+      # unknown meta keys, so pings get rejected by Stream.reject(&is_nil/1).
+      # We verify the chunk shape matches that catch-all path.
+      assert ping_chunk.type == :meta
+      refute Map.has_key?(ping_chunk.metadata, :usage)
+      refute Map.has_key?(ping_chunk.metadata, :finish_reason)
+      refute Map.has_key?(ping_chunk.metadata, :tool_call_args)
+      refute Map.has_key?(ping_chunk.metadata, :terminal?)
+    end
+
+    test "ping meta chunk is distinguishable from other meta chunks" do
+      ping = ReqLLM.StreamChunk.meta(%{ping: true})
+      usage = ReqLLM.StreamChunk.meta(%{usage: %{input_tokens: 10, output_tokens: 5}})
+      finish = ReqLLM.StreamChunk.meta(%{finish_reason: :stop})
+
+      assert ping.metadata.ping == true
+      refute Map.has_key?(usage.metadata, :ping)
+      refute Map.has_key?(finish.metadata, :ping)
+    end
+  end
+
   describe "requires_mcp_prefix?/1" do
     test "returns true when requires_mcp_prefix: true" do
       assert LLMClient.requires_mcp_prefix?(requires_mcp_prefix: true)

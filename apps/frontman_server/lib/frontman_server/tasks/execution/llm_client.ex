@@ -113,9 +113,9 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
 
         swarm_stream =
           response.stream
+          |> StreamStallTimeout.wrap_stream(stall_timeout_ms: stall_timeout_ms)
           |> Stream.map(&to_swarm_chunk(&1, requires_mcp_prefix?))
           |> Stream.reject(&is_nil/1)
-          |> StreamStallTimeout.wrap_stream(stall_timeout_ms: stall_timeout_ms)
           |> StreamCleanup.wrap_stream(response.cancel)
 
         {:ok, swarm_stream}
