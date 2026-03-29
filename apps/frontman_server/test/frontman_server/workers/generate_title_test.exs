@@ -13,14 +13,26 @@ defmodule FrontmanServer.Workers.GenerateTitleTest do
     {:ok, user: user}
   end
 
-  describe "new_job/3" do
-    test "builds a job changeset with the correct args", %{user: user} do
-      changeset = GenerateTitle.new_job(user.id, "task-123", "Help me build a login page")
+  describe "new_job/5" do
+    test "builds a job changeset with model and env_api_key", %{user: user} do
+      env_api_key = %{"ANTHROPIC_API_KEY" => "sk-test-123"}
+      model = "anthropic:claude-sonnet-4-20250514"
+
+      changeset =
+        GenerateTitle.new_job(
+          user.id,
+          "task-123",
+          "Help me build a login page",
+          model,
+          env_api_key
+        )
 
       assert changeset.changes.args == %{
                user_id: user.id,
                task_id: "task-123",
-               user_prompt_text: "Help me build a login page"
+               user_prompt_text: "Help me build a login page",
+               model: "anthropic:claude-sonnet-4-20250514",
+               env_api_key: %{"ANTHROPIC_API_KEY" => "sk-test-123"}
              }
     end
   end
