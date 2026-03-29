@@ -3,7 +3,6 @@ title: The Web Preview
 description: Navigate, switch device modes, and understand what the Frontman agent sees in the built-in web preview.
 ---
 
-<<<<<<< HEAD
 The web preview is a live, embedded view of your running app that sits alongside the chat panel. It's where the agent looks when it takes screenshots, inspects the DOM, and verifies changes — and it's where you navigate, annotate elements, and test responsive layouts.
 
 Everything the agent can see, you can see. The preview is the shared visual context between you and the agent.

@@ -3,7 +3,6 @@ title: Prompt Strategies
 description: Advanced patterns for getting better results from Frontman — iterating, chaining, course-correcting, and knowing when to re-prompt.
 ---
 
-<<<<<<< HEAD
 [Sending Prompts](/docs/using/sending-prompts/) covers the basics — what you can attach, how to write a clear prompt, and what happens when you hit send. This page goes further: patterns for iterating on results, chaining multi-step work, recovering from wrong turns, and getting the most out of each agent run.
 
 ## Iterating on results
