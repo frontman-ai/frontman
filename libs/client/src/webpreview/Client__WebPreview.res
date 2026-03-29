@@ -71,15 +71,6 @@ module OpenInNewWindow = {
   }
 }
 
-// Raw JS binding for ResizeObserver (avoids curried callback complexity in WebAPI binding)
-type resizeObserverEntry = {contentRect: WebAPI.DOMAPI.domRectReadOnly}
-
-@new external makeResizeObserver: (array<resizeObserverEntry> => unit) => {..} = "ResizeObserver"
-
-@send external observeElement: ({..}, Dom.element) => unit = "observe"
-
-@send external disconnectObserver: {..} => unit = "disconnect"
-
 // Hook to measure the available space in the viewport container
 let useContainerSize = (ref: React.ref<Nullable.t<Dom.element>>): (int, int) => {
   let (size, setSize) = React.useState(() => (0, 0))
@@ -93,18 +84,18 @@ let useContainerSize = (ref: React.ref<Nullable.t<Dom.element>>): (int, int) => 
       setSize(_ => (rect.width->Float.toInt, rect.height->Float.toInt))
 
       // Observe resize
-      let observer = makeResizeObserver(entries => {
+      let observer = FrontmanBindings.ResizeObserver.make(entries => {
         entries
         ->Array.get(0)
         ->Option.forEach(
           entry => {
-            let cr: WebAPI.DOMAPI.domRectReadOnly = entry.contentRect
+            let cr = entry.contentRect
             setSize(_ => (cr.width->Float.toInt, cr.height->Float.toInt))
           },
         )
       })
-      observer->observeElement(element)
-      Some(() => observer->disconnectObserver)
+      observer->FrontmanBindings.ResizeObserver.observe(element)
+      Some(() => observer->FrontmanBindings.ResizeObserver.disconnect)
     }
   }, [])
 

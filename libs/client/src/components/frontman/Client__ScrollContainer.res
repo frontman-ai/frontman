@@ -85,6 +85,7 @@ let make = (~className: option<string>=?, ~children: React.element) => {
 
   let sentinelRef = React.useRef(Nullable.null)
   let containerRef = React.useRef(Nullable.null)
+  let contentRef = React.useRef(Nullable.null)
   let (isAtBottom, setIsAtBottom) = React.useState(() => true)
 
   // IntersectionObserver: passively track whether the sentinel is visible.
@@ -115,6 +116,51 @@ let make = (~className: option<string>=?, ~children: React.element) => {
     }
   })
 
+  // Auto-scroll fallback (#718): two cases to handle —
+  // 1. Content grows (new messages/streaming): check if near bottom, snap down.
+  // 2. Container shrinks (todo list opens): check if was at bottom using
+  //    previous clientHeight, snap down.
+  // Both use a single ResizeObserver, fires once per frame.
+  React.useEffect0(() => {
+    switch (contentRef.current->Nullable.toOption, containerRef.current->Nullable.toOption) {
+    | (Some(content), Some(container)) =>
+      let el: WebAPI.DOMAPI.element = container->Obj.magic
+      let prevClientHeight = ref(el.clientHeight)
+
+      let contentObserver = FrontmanBindings.ResizeObserver.make(_ => {
+        let nearBottom =
+          el.scrollTop +. el.clientHeight->Int.toFloat >=
+            el.scrollHeight->Int.toFloat -. 150.0
+        if nearBottom {
+          el.scrollTop = el.scrollHeight->Int.toFloat
+        }
+      })
+      contentObserver->FrontmanBindings.ResizeObserver.observe(content)
+
+      let containerObserver = FrontmanBindings.ResizeObserver.make(_ => {
+        let newClientHeight = el.clientHeight
+        if newClientHeight < prevClientHeight.contents {
+          let wasAtBottom =
+            el.scrollTop +. prevClientHeight.contents->Int.toFloat >=
+              el.scrollHeight->Int.toFloat -. 150.0
+          if wasAtBottom {
+            el.scrollTop = el.scrollHeight->Int.toFloat
+          }
+        }
+        prevClientHeight := newClientHeight
+      })
+      containerObserver->FrontmanBindings.ResizeObserver.observe(container)
+
+      Some(
+        () => {
+          FrontmanBindings.ResizeObserver.disconnect(contentObserver)
+          FrontmanBindings.ResizeObserver.disconnect(containerObserver)
+        },
+      )
+    | _ => None
+    }
+  })
+
   let contextValue = React.useMemo2(
     () => {isAtBottom, scrollToBottom},
     (isAtBottom, scrollToBottom),
@@ -122,7 +168,9 @@ let make = (~className: option<string>=?, ~children: React.element) => {
 
   <Provider value={contextValue}>
     <div ref={ReactDOM.Ref.domRef(containerRef)} className={containerClassName} role="log">
-      {children}
+      <div ref={ReactDOM.Ref.domRef(contentRef)}>
+        {children}
+      </div>
       // Sentinel: overflow-anchor keeps it in view while the user is at the bottom.
       // All message wrappers have overflow-anchor: none (via .frontman-content-auto).
       <div

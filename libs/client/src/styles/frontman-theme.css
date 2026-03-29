@@ -118,11 +118,12 @@
  * Layout Containment - Prevents layout cascading from input to message list
  * ============================================================================ */
 
-/* Strict containment for scroll containers: prevents layout recalculations
-   inside the container when siblings (e.g. chat input) change size.
-   Requires the element to have an explicit size (flex-1 provides this). */
+/* Layout + paint containment for scroll containers: prevents layout
+   recalculations inside the container when siblings (e.g. chat input)
+   change size. Avoids size containment which interferes with
+   IntersectionObserver reporting (see #718). */
 .frontman-contain-strict {
-	contain: strict;
+	contain: layout paint;
 }
 
 /* ============================================================================

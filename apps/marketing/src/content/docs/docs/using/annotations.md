@@ -1,6 +1,5 @@
 ---
 title: Annotations
-<<<<<<< HEAD
 description: Select elements in the live preview to give the Frontman agent precise visual and source-level context for your changes.
 ---
 
