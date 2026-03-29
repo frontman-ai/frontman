@@ -178,6 +178,7 @@ See the respective `LICENSE` files for details.
 ## Links
 
 - [Website](https://frontman.sh)
+- [GitHub Pages](https://frontman-ai.github.io/frontman)
 - [Documentation](https://frontman.sh/docs/)
 - [Integrations](https://frontman.sh/integrations/)
 - [Comparisons](https://frontman.sh/vs/) — Frontman vs [OpenClaw](https://frontman.sh/vs/openclaw/), [Cursor](https://frontman.sh/vs/cursor/), [Copilot](https://frontman.sh/vs/copilot/), [v0](https://frontman.sh/vs/v0/), [Stagewise](https://frontman.sh/vs/stagewise/)

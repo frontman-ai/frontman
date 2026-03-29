@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Frontman - AI Coding Agent for Frontend Development</title>
+  <meta name="description" content="Ship frontend changes from your browser — no code editor needed. Frontman is an open-source AI coding agent that lives in your browser.">
+  <style>
+    :root {
+      --bg: #0a0a0a;
+      --text: #e5e5e5;
+      --text-muted: #a3a3a3;
+      --accent: #f97316;
+      --accent-hover: #fb923c;
+      --border: #262626;
+      --code-bg: #171717;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 2rem;
+    }
+
+    header {
+      text-align: center;
+      padding: 4rem 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    h1 {
+      font-size: 3rem;
+      font-weight: 800;
+      margin-bottom: 1rem;
+      background: linear-gradient(135deg, var(--text) 0%, var(--accent) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .tagline {
+      font-size: 1.25rem;
+      color: var(--text-muted);
+      margin-bottom: 2rem;
+    }
+
+    .cta {
+      display: inline-block;
+      background: var(--accent);
+      color: #fff;
+      padding: 0.875rem 2rem;
+      border-radius: 8px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: background 0.2s, transform 0.2s;
+    }
+
+    .cta:hover {
+      background: var(--accent-hover);
+      transform: translateY(-2px);
+    }
+
+    main {
+      padding: 3rem 0;
+    }
+
+    section {
+      margin-bottom: 3rem;
+    }
+
+    h2 {
+      font-size: 1.75rem;
+      margin-bottom: 1rem;
+      color: var(--text);
+    }
+
+    h3 {
+      font-size: 1.25rem;
+      margin-bottom: 0.75rem;
+      color: var(--accent);
+    }
+
+    p {
+      color: var(--text-muted);
+      margin-bottom: 1rem;
+    }
+
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 1.5rem;
+      margin-top: 2rem;
+    }
+
+    .feature-card {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+    }
+
+    .feature-card h3 {
+      margin-bottom: 0.5rem;
+    }
+
+    .feature-card p {
+      font-size: 0.9rem;
+      margin-bottom: 0;
+    }
+
+    .code-block {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem;
+      overflow-x: auto;
+      margin: 1rem 0;
+    }
+
+    .code-block code {
+      font-family: 'SF Mono', Consolas, monospace;
+      font-size: 0.875rem;
+      color: var(--accent);
+    }
+
+    .code-block .comment {
+      color: var(--text-muted);
+    }
+
+    .framework-tabs {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+    }
+
+    .framework-tab {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      padding: 0.5rem 1rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.875rem;
+      transition: all 0.2s;
+    }
+
+    .framework-tab.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+
+    .framework-content {
+      display: none;
+    }
+
+    .framework-content.active {
+      display: block;
+    }
+
+    .comparison-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1.5rem 0;
+    }
+
+    .comparison-table th,
+    .comparison-table td {
+      padding: 0.75rem 1rem;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .comparison-table th {
+      color: var(--text-muted);
+      font-weight: 500;
+      font-size: 0.875rem;
+    }
+
+    .comparison-table td {
+      font-size: 0.9rem;
+    }
+
+    .comparison-table .check {
+      color: #22c55e;
+    }
+
+    .comparison-table .cross {
+      color: #ef4444;
+    }
+
+    footer {
+      text-align: center;
+      padding: 3rem 0;
+      border-top: 1px solid var(--border);
+      color: var(--text-muted);
+      font-size: 0.875rem;
+    }
+
+    footer a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    footer a:hover {
+      text-decoration: underline;
+    }
+
+    .links {
+      display: flex;
+      justify-content: center;
+      gap: 2rem;
+      margin-top: 1rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Frontman</h1>
+      <p class="tagline">Ship frontend changes from your browser — no code editor needed</p>
+      <a href="https://frontman.sh" class="cta">Get Started →</a>
+    </header>
+
+    <main>
+      <section>
+        <h2>What is Frontman?</h2>
+        <p>
+          Frontman is an open-source AI coding agent that lives in your browser. It hooks into your dev server as middleware and sees the live DOM, component tree, CSS styles, routes, and server logs. Click any element in your running app, describe what you want changed in plain English, and Frontman edits the actual source files with instant hot reload.
+        </p>
+        <p>
+          It supports Next.js, Astro, and Vite (React, Vue, Svelte). Free and open-source — Apache 2.0 (client libraries) / AGPL-3.0 (server). Bring your own API keys (Claude, ChatGPT, or OpenRouter).
+        </p>
+      </section>
+
+      <section>
+        <h2>Quick Start — Get Running in 60 Seconds</h2>
+        
+        <div class="framework-tabs">
+          <button class="framework-tab active" onclick="showFramework('nextjs')">Next.js</button>
+          <button class="framework-tab" onclick="showFramework('astro')">Astro</button>
+          <button class="framework-tab" onclick="showFramework('vite')">Vite</button>
+        </div>
+
+        <div id="nextjs" class="framework-content active">
+          <div class="code-block">
+            <code>npx @frontman-ai/nextjs install</code>
+          </div>
+          <div class="code-block">
+            <code>npm run dev</code>
+          </div>
+          <p>Open <strong>http://localhost:3000/frontman</strong> in your browser.</p>
+        </div>
+
+        <div id="astro" class="framework-content">
+          <div class="code-block">
+            <code>astro add @frontman-ai/astro</code>
+          </div>
+          <div class="code-block">
+            <code>astro dev</code>
+          </div>
+          <p>Open <strong>http://localhost:4321/frontman</strong> in your browser.</p>
+        </div>
+
+        <div id="vite" class="framework-content">
+          <div class="code-block">
+            <code>npx @frontman-ai/vite install</code>
+          </div>
+          <div class="code-block">
+            <code>npm run dev</code>
+          </div>
+          <p>Open <strong>http://localhost:5173/frontman</strong> in your browser.</p>
+        </div>
+      </section>
+
+      <section>
+        <h2>Why Frontman?</h2>
+        <div class="feature-grid">
+          <div class="feature-card">
+            <h3>Live Context</h3>
+            <p>Frontman sees the rendered DOM, computed CSS, and component tree — not just source files.</p>
+          </div>
+          <div class="feature-card">
+            <h3>Browser Overlay</h3>
+            <p>Click any element and describe changes in plain English. No need to open your IDE.</p>
+          </div>
+          <div class="feature-card">
+            <h3>Instant Hot Reload</h3>
+            <p>AI edits source files and your app hot-reloads automatically. See changes instantly.</p>
+          </div>
+          <div class="feature-card">
+            <h3>Open Source</h3>
+            <p>Apache 2.0 / AGPL-3.0 licensed. Bring your own API keys. No usage limits.</p>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <h2>How It Compares</h2>
+        <table class="comparison-table">
+          <thead>
+            <tr>
+              <th>Feature</th>
+              <th>Frontman</th>
+              <th>Cursor</th>
+              <th>GitHub Copilot</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Sees live DOM & computed CSS</td>
+              <td class="check">✓</td>
+              <td class="cross">✗</td>
+              <td class="cross">✗</td>
+            </tr>
+            <tr>
+              <td>Browser-based editing</td>
+              <td class="check">✓</td>
+              <td class="cross">✗</td>
+              <td class="cross">✗</td>
+            </tr>
+            <tr>
+              <td>Open source</td>
+              <td class="check">✓</td>
+              <td class="cross">✗</td>
+              <td class="cross">✗</td>
+            </tr>
+            <tr>
+              <td>Free (BYOK)</td>
+              <td class="check">✓</td>
+              <td class="cross">✗</td>
+              <td class="cross">✗</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section>
+        <h2>Supported Frameworks</h2>
+        <div class="feature-grid">
+          <div class="feature-card">
+            <h3>Next.js</h3>
+            <p>App Router & Pages Router. Compatible with Turbopack.</p>
+          </div>
+          <div class="feature-card">
+            <h3>Astro</h3>
+            <p>Islands architecture, content collections, SSR/hybrid.</p>
+          </div>
+          <div class="feature-card">
+            <h3>Vite + React</h3>
+            <p>Full React support with HMR.</p>
+          </div>
+          <div class="feature-card">
+            <h3>Vite + Vue</h3>
+            <p>Vue 3 with composition API support.</p>
+          </div>
+          <div class="feature-card">
+            <h3>Vite + Svelte</h3>
+            <p>Svelte & SvelteKit support.</p>
+          </div>
+          <div class="feature-card">
+            <h3>OpenClaw Skill</h3>
+            <p>Available as an OpenClaw skill for agent workflows.</p>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <p>
+        <a href="https://frontman.sh">frontman.sh</a> · 
+        <a href="https://github.com/frontman-ai/frontman">GitHub</a> · 
+        <a href="https://discord.gg/xk8uXJSvhC">Discord</a>
+      </p>
+      <div class="links">
+        <a href="https://frontman.sh/docs/">Documentation</a>
+        <a href="https://frontman.sh/integrations/">Integrations</a>
+        <a href="https://github.com/frontman-ai/frontman/blob/main/CHANGELOG.md">Changelog</a>
+      </div>
+    </footer>
+  </div>
+
+  <script>
+    function showFramework(name) {
+      document.querySelectorAll('.framework-tab').forEach(tab => tab.classList.remove('active'));
+      document.querySelectorAll('.framework-content').forEach(content => content.classList.remove('active'));
+      
+      event.target.classList.add('active');
+      document.getElementById(name).classList.add('active');
+    }
+  </script>
+</body>
+</html>
