@@ -122,7 +122,7 @@ defmodule FrontmanServer.Tasks.MessageOptimizer.TokenBudget do
     new_content =
       Enum.map(content, fn
         %ContentPart{type: :text, text: text} = part when byte_size(text) > max_length ->
-          %{part | text: String.slice(text, 0, max_length) <> "\n[truncated]"}
+          %{part | text: binary_part(text, 0, max_length) <> "\n[truncated]"}
 
         other ->
           other
