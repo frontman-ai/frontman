@@ -51,7 +51,7 @@ defmodule SwarmAi.ChildAgentTest do
         SwarmAi.run_child(parent_loop, "tc_1", spawn_request, fn _ -> {:ok, ""} end)
 
       [step | _] = child_result.loop.steps
-      user_message = Enum.find(step.input_messages, &(&1.role == :user))
+      user_message = Enum.find(step.input_messages, &match?(%Message.User{}, &1))
 
       assert Message.text(user_message) == "Please analyze module X"
     end

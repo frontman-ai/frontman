@@ -57,6 +57,8 @@ defmodule SwarmAi do
   alias SwarmAi.{ChildResult, Loop, Message, SpawnChildAgent, Telemetry, ToolResult}
   alias SwarmAi.LLM.{Chunk, Response}
 
+  import SwarmAi.Message, only: [is_message: 1]
+
   @typedoc """
   Message input can be a string, a single Message, or a list of Messages.
   Strings are automatically wrapped as user messages.
@@ -575,7 +577,7 @@ defmodule SwarmAi do
   end
 
   defp normalize_messages(msg) when is_binary(msg), do: [Message.user(msg)]
-  defp normalize_messages(%Message{} = msg), do: [msg]
+  defp normalize_messages(msg) when is_message(msg), do: [msg]
   defp normalize_messages(msgs) when is_list(msgs), do: msgs
 
   defp pending_tool_calls(%Loop{} = loop) do

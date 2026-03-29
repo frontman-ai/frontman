@@ -25,8 +25,8 @@ defmodule SwarmAi.Loop.RunnerTest do
       assert [%Step{input_messages: messages}] = updated_loop.steps
 
       assert [
-               %Message{role: :system} = system_msg,
-               %Message{role: :user} = user_msg
+               %Message.System{} = system_msg,
+               %Message.User{} = user_msg
              ] = messages
 
       assert Message.text(system_msg) == "You are TestBot"

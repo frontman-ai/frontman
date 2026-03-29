@@ -1,33 +1,33 @@
 defmodule SwarmAi.Message do
   @moduledoc """
-  Represents a message in the agentic loop.
+  Namespace for role-specific message structs used in the agentic loop.
 
-  Messages form the conversation history passed to LLMs. Each message has a role
-  (system, user, assistant, or tool) and content parts that can include text,
-  images, and other modalities.
-
-  This module is designed to be compatible with external LLM libraries while
-  remaining self-contained within the SwarmAi framework.
+  Messages form the conversation history passed to LLMs. Each role has its own
+  struct so that invalid states (e.g. a system message with tool_calls) are
+  unrepresentable at compile time.
   """
 
-  use TypedStruct
+  alias SwarmAi.Message.{System, User, Assistant, Tool}
   alias SwarmAi.Message.ContentPart
 
   @type role :: :system | :user | :assistant | :tool
+  @type t :: System.t() | User.t() | Assistant.t() | Tool.t()
 
-  typedstruct do
-    field(:role, role(), enforce: true)
-    field(:content, [ContentPart.t()], default: [])
-    field(:tool_calls, [SwarmAi.ToolCall.t()], default: [])
-    field(:tool_call_id, String.t())
-    field(:name, String.t())
-    field(:metadata, map(), default: %{})
-  end
+  defguard is_message(msg)
+           when is_struct(msg, System) or is_struct(msg, User) or
+                  is_struct(msg, Assistant) or is_struct(msg, Tool)
+
+  @doc "Derives the role atom from a message struct."
+  @spec role(t()) :: role()
+  def role(%System{}), do: :system
+  def role(%User{}), do: :user
+  def role(%Assistant{}), do: :assistant
+  def role(%Tool{}), do: :tool
 
   @doc "Creates a system message from text or a list of content parts"
-  @spec system(String.t() | [String.t() | ContentPart.t()]) :: t()
+  @spec system(String.t() | [String.t() | ContentPart.t()]) :: System.t()
   def system(text) when is_binary(text) do
-    %__MODULE__{role: :system, content: [ContentPart.text(text)]}
+    %System{content: [ContentPart.text(text)]}
   end
 
   def system(parts) when is_list(parts) do
@@ -37,20 +37,19 @@ defmodule SwarmAi.Message do
         %ContentPart{} = part -> part
       end)
 
-    %__MODULE__{role: :system, content: content}
+    %System{content: content}
   end
 
   @doc "Creates a user message"
-  @spec user(String.t()) :: t()
+  @spec user(String.t()) :: User.t()
   def user(text) when is_binary(text) do
-    %__MODULE__{role: :user, content: [ContentPart.text(text)]}
+    %User{content: [ContentPart.text(text)]}
   end
 
   @doc "Creates an assistant message"
-  @spec assistant(String.t() | nil, [SwarmAi.ToolCall.t()], map()) :: t()
+  @spec assistant(String.t() | nil, [SwarmAi.ToolCall.t()], map()) :: Assistant.t()
   def assistant(text, tool_calls \\ [], metadata \\ %{}) do
-    %__MODULE__{
-      role: :assistant,
+    %Assistant{
       content: [ContentPart.text(text || "")],
       tool_calls: tool_calls,
       metadata: metadata
@@ -58,10 +57,9 @@ defmodule SwarmAi.Message do
   end
 
   @doc "Creates a tool result message from content parts"
-  @spec tool_result(String.t(), String.t(), [ContentPart.t()], map()) :: t()
+  @spec tool_result(String.t(), String.t(), [ContentPart.t()], map()) :: Tool.t()
   def tool_result(name, tool_call_id, content, metadata \\ %{}) when is_list(content) do
-    %__MODULE__{
-      role: :tool,
+    %Tool{
       name: name,
       tool_call_id: tool_call_id,
       content: content,
@@ -71,7 +69,7 @@ defmodule SwarmAi.Message do
 
   @doc "Extracts text content from a message"
   @spec text(t()) :: String.t() | nil
-  def text(%__MODULE__{content: parts}) do
+  def text(%{content: parts}) do
     Enum.find_value(parts, fn
       %ContentPart{type: :text, text: text} -> text
       _ -> nil

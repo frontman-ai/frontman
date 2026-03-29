@@ -258,15 +258,28 @@ defmodule FrontmanServer.Tasks.Execution do
 
   # --- SwarmAi Message Conversion ---
 
-  defp to_swarm_message(%ReqLLM.Message{} = msg) do
-    content = convert_content(msg.content)
+  defp to_swarm_message(%ReqLLM.Message{role: :system} = msg) do
+    %Message.System{content: convert_content(msg.content)}
+  end
 
-    %Message{
-      role: msg.role,
-      content: content,
+  defp to_swarm_message(%ReqLLM.Message{role: :user} = msg) do
+    %Message.User{content: convert_content(msg.content)}
+  end
+
+  defp to_swarm_message(%ReqLLM.Message{role: :assistant} = msg) do
+    %Message.Assistant{
+      content: convert_content(msg.content),
       tool_calls: to_swarm_tool_calls(msg.tool_calls),
+      metadata: %{}
+    }
+  end
+
+  defp to_swarm_message(%ReqLLM.Message{role: :tool} = msg) do
+    %Message.Tool{
+      content: convert_content(msg.content),
       tool_call_id: msg.tool_call_id,
-      name: msg.name
+      name: msg.name,
+      metadata: %{}
     }
   end
 

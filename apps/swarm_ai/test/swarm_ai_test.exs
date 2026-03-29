@@ -216,7 +216,7 @@ defmodule SwarmTest do
       assert {:completed, loop} = SwarmAi.run(agent, messages)
       # Both user messages should be in step input
       [step] = loop.steps
-      user_msgs = Enum.filter(step.input_messages, &(&1.role == :user))
+      user_msgs = Enum.filter(step.input_messages, &match?(%SwarmAi.Message.User{}, &1))
       assert length(user_msgs) == 2
     end
 
@@ -230,7 +230,7 @@ defmodule SwarmTest do
         ContentPart.image_url("https://example.com/image.png")
       ]
 
-      message = %SwarmAi.Message{role: :user, content: content}
+      message = %SwarmAi.Message.User{content: content}
 
       assert {:completed, loop} = SwarmAi.run(agent, message)
       assert loop.result == "I see an image"
@@ -407,11 +407,10 @@ defmodule SwarmTest do
       # Second step should have full conversation history
       [_step1, step2] = loop.steps
 
-      roles = Enum.map(step2.input_messages, & &1.role)
-      assert :system in roles
-      assert :user in roles
-      assert :assistant in roles
-      assert :tool in roles
+      assert Enum.any?(step2.input_messages, &match?(%SwarmAi.Message.System{}, &1))
+      assert Enum.any?(step2.input_messages, &match?(%SwarmAi.Message.User{}, &1))
+      assert Enum.any?(step2.input_messages, &match?(%SwarmAi.Message.Assistant{}, &1))
+      assert Enum.any?(step2.input_messages, &match?(%SwarmAi.Message.Tool{}, &1))
     end
   end
 

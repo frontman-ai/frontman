@@ -121,7 +121,7 @@ defmodule SwarmAi.Testing do
     alias SwarmAi.LLM.{Chunk, Usage}
 
     def stream(_client, messages, _opts) do
-      user_msg = Enum.find(messages, &(&1.role == :user))
+      user_msg = Enum.find(messages, &match?(%SwarmAi.Message.User{}, &1))
       text_content = SwarmAi.Message.text(user_msg)
       content = "Echo: #{text_content}"
 

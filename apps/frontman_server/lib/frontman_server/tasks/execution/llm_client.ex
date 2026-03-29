@@ -319,14 +319,30 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
 
   # --- SwarmAi.Message -> ReqLLM.Message conversion ---
 
-  defp to_reqllm_message(%Message{} = msg, requires_mcp_prefix?) do
+  defp to_reqllm_message(%Message.System{} = msg, _requires_mcp_prefix?) do
+    %ReqLLM.Message{role: :system, content: Enum.map(msg.content, &to_reqllm_content_part/1)}
+  end
+
+  defp to_reqllm_message(%Message.User{} = msg, _requires_mcp_prefix?) do
+    %ReqLLM.Message{role: :user, content: Enum.map(msg.content, &to_reqllm_content_part/1)}
+  end
+
+  defp to_reqllm_message(%Message.Assistant{} = msg, requires_mcp_prefix?) do
     %ReqLLM.Message{
-      role: msg.role,
+      role: :assistant,
       content: Enum.map(msg.content, &to_reqllm_content_part/1),
       tool_calls: to_reqllm_tool_calls(msg.tool_calls, requires_mcp_prefix?),
+      metadata: msg.metadata
+    }
+  end
+
+  defp to_reqllm_message(%Message.Tool{} = msg, requires_mcp_prefix?) do
+    %ReqLLM.Message{
+      role: :tool,
+      content: Enum.map(msg.content, &to_reqllm_content_part/1),
       tool_call_id: msg.tool_call_id,
       name: maybe_prefix_name(msg.name, requires_mcp_prefix?),
-      metadata: msg.metadata || %{}
+      metadata: msg.metadata
     }
   end
 

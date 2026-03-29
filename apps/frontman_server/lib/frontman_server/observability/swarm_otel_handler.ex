@@ -518,7 +518,9 @@ defmodule FrontmanServer.Observability.SwarmOtelHandler do
     [role_attr | content_attr] ++ tool_attrs
   end
 
-  defp flatten_message(%{role: role} = msg, prefix) do
+  defp flatten_message(%{__struct__: _} = msg, prefix) do
+    role = SwarmAi.Message.role(msg)
+
     base = [
       {String.to_atom("#{prefix}.message.role"), to_string(role)},
       {String.to_atom("#{prefix}.message.content"),
@@ -538,7 +540,7 @@ defmodule FrontmanServer.Observability.SwarmOtelHandler do
 
   defp flatten_message(_, _), do: []
 
-  defp flatten_msg_tool_calls(%{role: :assistant, tool_calls: tcs}, prefix)
+  defp flatten_msg_tool_calls(%SwarmAi.Message.Assistant{tool_calls: tcs}, prefix)
        when is_list(tcs) and tcs != [] do
     Enum.flat_map(Enum.with_index(tcs), fn {tc, idx} ->
       tc_prefix = "#{prefix}.message.tool_calls.#{idx}"
