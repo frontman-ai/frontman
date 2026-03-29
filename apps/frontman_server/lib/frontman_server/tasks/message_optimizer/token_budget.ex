@@ -12,6 +12,7 @@ defmodule FrontmanServer.Tasks.MessageOptimizer.TokenBudget do
 
   require Logger
 
+  alias FrontmanServer.Tasks.MessageOptimizer
   alias ReqLLM.Message
   alias ReqLLM.Message.ContentPart
 
@@ -72,7 +73,7 @@ defmodule FrontmanServer.Tasks.MessageOptimizer.TokenBudget do
   end
 
   defp default_old_boundary(messages) do
-    FrontmanServer.Tasks.MessageOptimizer.find_old_boundary(messages)
+    MessageOptimizer.find_old_boundary(messages)
   end
 
   defp aggressive_image_decay(messages, old_boundary) do
