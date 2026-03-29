@@ -355,10 +355,10 @@ defmodule FrontmanServer.Tasks do
   @doc """
   Enqueues an Oban job to generate a title for a task from the user's prompt.
   """
-  @spec enqueue_title_generation(Scope.t(), String.t(), String.t()) ::
+  @spec enqueue_title_generation(Scope.t(), String.t(), String.t(), String.t(), map()) ::
           {:ok, Oban.Job.t()} | {:error, Oban.Job.changeset()}
-  def enqueue_title_generation(%Scope{} = scope, task_id, user_prompt_text) do
-    GenerateTitle.new_job(scope.user.id, task_id, user_prompt_text)
+  def enqueue_title_generation(%Scope{} = scope, task_id, user_prompt_text, model, env_api_key) do
+    GenerateTitle.new_job(scope.user.id, task_id, user_prompt_text, model, env_api_key)
     |> Oban.insert()
   end
 

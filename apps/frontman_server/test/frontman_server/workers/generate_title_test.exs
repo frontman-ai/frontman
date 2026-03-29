@@ -43,12 +43,26 @@ defmodule FrontmanServer.Workers.GenerateTitleTest do
       task_id = Ecto.UUID.generate()
       {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
 
+      env_api_key = %{"ANTHROPIC_API_KEY" => "sk-test-456"}
+      model = "anthropic:claude-sonnet-4-20250514"
+
       {:ok, _job} =
-        Tasks.enqueue_title_generation(scope, task_id, "Help me build a login page")
+        Tasks.enqueue_title_generation(
+          scope,
+          task_id,
+          "Help me build a login page",
+          model,
+          env_api_key
+        )
 
       assert_enqueued(
         worker: GenerateTitle,
-        args: %{user_id: user.id, task_id: task_id}
+        args: %{
+          user_id: user.id,
+          task_id: task_id,
+          model: "anthropic:claude-sonnet-4-20250514",
+          env_api_key: %{"ANTHROPIC_API_KEY" => "sk-test-456"}
+        }
       )
     end
   end
