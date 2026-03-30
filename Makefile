@@ -111,11 +111,21 @@ dev-dogfooding: ## Start development server for dogfooding app
 # Build & Quality
 # ============================================================================
 ## BUILD_START
-.PHONY: install build rescript-watch rescript-build clean
+.PHONY: install build rescript-watch rescript-build clean hooks-install
 
 install: ## Install dependencies
 	@printf "$(YELLOW)Installing dependencies...$(RESET)\n"
 	yarn install
+	@$(MAKE) hooks-install
+
+hooks-install: ## Install git pre-commit hooks via Lefthook
+	@printf "$(YELLOW)Installing git hooks...$(RESET)\n"
+	@if command -v lefthook &> /dev/null; then \
+		lefthook install; \
+		printf "$(GREEN)Git hooks installed.$(RESET)\n"; \
+	else \
+		printf "$(YELLOW)lefthook not found — run 'mise install' first.$(RESET)\n"; \
+	fi
 
 build: ## Build ReScript project
 	@printf "$(YELLOW)Building ReScript project...$(RESET)\n"

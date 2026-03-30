@@ -1,0 +1,18 @@
+pre-commit:
+  parallel: true
+  commands:
+    biome-lint:
+      glob: "libs/client/**/*.{ts,tsx,js,jsx,mjs}"
+      run: npx biome check --no-errors-on-unmatched {staged_files}
+
+    rescript-format:
+      glob: "**/*.{res,resi}"
+      run: npx rescript format -check {staged_files}
+
+    elixir-format:
+      glob: "apps/**/*.{ex,exs}"
+      run: mix format --check-formatted {staged_files}
+
+    elixir-credo:
+      glob: "apps/**/*.{ex,exs}"
+      run: mix credo --strict {staged_files}

@@ -12,6 +12,7 @@ mkcert="latest"
 "npm:@tailwindcss/language-server"="latest"
 "npm:vscode-langservers-extracted"="latest"
 "npm:@biomejs/biome"="latest"
+lefthook="latest"
 
 [env]
 MIX_OS_DEPS_COMPILE_PARTITION_COUNT = "1"

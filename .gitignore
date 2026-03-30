@@ -57,3 +57,6 @@ mprocs.log
 # Containerized worktree infra (auto-generated)
 infra/local/Caddyfile
 .env.secrets.resolved
+
+# Lefthook local overrides
+lefthook-local.yml
