@@ -731,45 +731,38 @@ let make = (
     let acceptedFiles = files->Array.filter(file =>
       acceptedFileTypes->Array.some(t => t == file.type_)
     )
+    let text = getClipboardText(clipboardData)
+    let lineCount = countLines(text)
+    let charCount = String.length(text)
+    let isLongTextPaste = lineCount >= 3 || charCount > 150
 
-    switch Array.length(acceptedFiles) > 0 {
-    | true =>
+    switch (Array.length(acceptedFiles) > 0, text, isLongTextPaste) {
+    | (true, _, _) =>
       ReactEvent.Clipboard.preventDefault(e)
       addFiles(acceptedFiles)
-    | false =>
-      // Check for text paste
-      let text = getClipboardText(clipboardData)
-      let lineCount = countLines(text)
-      let charCount = String.length(text)
+    | (false, "", _) => ()
+    | (false, _, true) =>
+      ReactEvent.Clipboard.preventDefault(e)
+      let id = generateId()
+      let newItem = PastedText({
+        id,
+        text,
+        lineCount,
+      })
+      setInputItems(prev => Array.concat(prev, [newItem]))
 
-      switch text != "" && (lineCount >= 3 || charCount > 150) {
-      | true =>
-        ReactEvent.Clipboard.preventDefault(e)
-        let id = generateId()
-        let newItem = PastedText({
-          id,
-          text,
-          lineCount,
-        })
-        setInputItems(prev => Array.concat(prev, [newItem]))
-
-        // Insert chip at cursor position
-        editableRef.current
-        ->Nullable.toOption
-        ->Option.forEach(_el => {
-          let chipEl = createPastedTextChipElement(id, lineCount)
-          insertNodeAtCursor(chipEl)
-          syncHasContent()
-        })
-      | false =>
-        switch text != "" {
-        | true =>
-          ReactEvent.Clipboard.preventDefault(e)
-          insertNodeAtCursor(WebAPI.Global.document->WebAPI.Document.createTextNode(text)->WebAPI.Text.asNode)
-          syncHasContent()
-        | false => ()
-        }
-      }
+      // Insert chip at cursor position
+      editableRef.current
+      ->Nullable.toOption
+      ->Option.forEach(_el => {
+        let chipEl = createPastedTextChipElement(id, lineCount)
+        insertNodeAtCursor(chipEl)
+        syncHasContent()
+      })
+    | (false, _, false) =>
+      ReactEvent.Clipboard.preventDefault(e)
+      insertNodeAtCursor(WebAPI.Global.document->WebAPI.Document.createTextNode(text)->WebAPI.Text.asNode)
+      syncHasContent()
     }
   }
 
