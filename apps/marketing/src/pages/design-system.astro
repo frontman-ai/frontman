@@ -17,6 +17,10 @@ const SEO = {
 	title: 'Design System - Internal',
 	description: 'Internal design system documentation'
 }
+
+const sectionHeadingClass = 'text-neutral-900'
+const primaryColorName = 'purple'
+const primaryColorHex = '#7C3AED'
 ---
 
 <Layout title={SEO.title} description={SEO.description} noindex={true}>
@@ -29,7 +33,7 @@ const SEO = {
 				<p class="text-neutral-500 mb-4">Internal reference for building pages quickly</p>
 				<div class="bg-orange-50 border-l-4 border-primary-500 p-6 rounded-r-lg mb-8">
 					<h3 class="mb-2">Design Philosophy</h3>
-					<p class="text-neutral-700">Frontman is for <strong>everyone</strong> - designers, product managers, and developers. Our design is <strong>friendly, playful, and approachable</strong>. We use <strong class="text-primary-500">orange as our brand color</strong>, soft pastels, rounded corners, and fun visual elements to create a welcoming experience that breaks down walls between teams.</p>
+					<p class="text-neutral-700">Frontman is for <strong>everyone</strong> - designers, product managers, and developers. Our design is <strong>friendly, playful, and approachable</strong>. We use <strong class="text-primary-500">{primaryColorName} as our brand color</strong>, soft pastels, rounded corners, and fun visual elements to create a welcoming experience that breaks down walls between teams.</p>
 				</div>
 			</Col>
 		</Row>
@@ -39,7 +43,7 @@ const SEO = {
 	<Section padding="both" mode="light">
 		<Row>
 			<Col span="12" classes="mb-8">
-				<h2>Bold Bordered Cards (Signature Style)</h2>
+				<h2 class={sectionHeadingClass}>Bold Bordered Cards (Signature Style)</h2>
 				<p class="text-neutral-600 mb-6">Our signature design element - friendly cards with thick black borders, rounded corners, and playful drop shadows. Approachable for all audiences: designers, PMs, and developers.</p>
 			</Col>
 		</Row>
@@ -90,14 +94,14 @@ const SEO = {
 	<Section padding="both">
 		<Row>
 			<Col span="12" classes="mb-8">
-				<h2 class="mb-8">Typography</h2>
+				<h2 class={`mb-8 ${sectionHeadingClass}`}>Typography</h2>
 				<div class="space-y-4">
 					<div>
 						<h1>Heading 1 - Main Page Title</h1>
 						<code class="text-sm text-neutral-500">&lt;h1&gt; - font-headings (Outfit Variable)</code>
 					</div>
 					<div>
-						<h2>Heading 2 - Section Title</h2>
+						<h2 class={sectionHeadingClass}>Heading 2 - Section Title</h2>
 						<code class="text-sm text-neutral-500">&lt;h2&gt;</code>
 					</div>
 					<div>
@@ -123,15 +127,15 @@ const SEO = {
 		<!-- Highlights -->
 		<Row>
 			<Col span="12" classes="mt-8">
-				<h3 class="mb-4">Text Highlights (Orange)</h3>
+				<h3 class="mb-4">Text Highlights ({primaryColorName.charAt(0).toUpperCase() + primaryColorName.slice(1)})</h3>
 				<div class="space-y-4">
 					<div>
 						<p class="text-2xl">How to install <Highlight type="1">FrontEnd</Highlight></p>
-						<code class="text-sm text-neutral-500">type="1" - colored text (primary-500 orange)</code>
+						<code class="text-sm text-neutral-500">type="1" - colored text (primary-500 {primaryColorName})</code>
 					</div>
 					<div>
 						<p class="text-lg">Break the walls between <Highlight type="2">design, product, and engineering</Highlight></p>
-						<code class="text-sm text-neutral-500">type="2" - with orange background</code>
+						<code class="text-sm text-neutral-500">type="2" - with {primaryColorName} background</code>
 					</div>
 				</div>
 			</Col>
@@ -142,73 +146,46 @@ const SEO = {
 	<Section padding="both" mode="light">
 		<Row>
 			<Col span="12" classes="mb-8">
-				<h2>Color Palette</h2>
-				<p class="text-neutral-600 mb-6 text-lg"><strong>🍊 ORANGE is Frontman's main brand color.</strong> All tints are orange-based.</p>
+				<h2 class={sectionHeadingClass}>Color Palette</h2>
+				<p class="text-neutral-600 mb-6 text-lg"><strong>🟣 {primaryColorName.toUpperCase()} is Frontman's main brand color.</strong> Supporting accents include cyan and amber for contrast.</p>
 			</Col>
 		</Row>
 
-		<!-- Orange - PRIMARY BRAND COLOR -->
+		<!-- Primary Brand Color -->
 		<Row>
 			<Col span="12" classes="mb-6">
-				<h3 class="mb-4">🎯 Orange (Primary Brand Color)</h3>
-				<p class="text-neutral-600 mb-4">All primary colors in Tailwind are orange tints. Use these for buttons, links, highlights, and accents.</p>
+				<h3 class="mb-4">🎯 {primaryColorName.charAt(0).toUpperCase() + primaryColorName.slice(1)} (Primary Brand Color)</h3>
+				<p class="text-neutral-600 mb-4">Use these for buttons, links, highlights, and key accents across the site.</p>
 				<div class="grid grid-cols-6 gap-4">
 					<div>
-						<div class="h-20 bg-primary-50 rounded border border-neutral-200"></div>
+						<div class="h-20 rounded border border-neutral-200" style={`background-color: color-mix(in srgb, ${primaryColorHex} 8%, white);`}></div>
 						<code class="text-xs mt-1 block">primary-50</code>
-						<p class="text-xs text-neutral-500">#FFF4F0</p>
+						<p class="text-xs text-neutral-500">Soft purple tint</p>
 					</div>
 					<div>
-						<div class="h-20 bg-primary-100 rounded border border-neutral-200"></div>
+						<div class="h-20 rounded border border-neutral-200" style={`background-color: color-mix(in srgb, ${primaryColorHex} 16%, white);`}></div>
 						<code class="text-xs mt-1 block">primary-100</code>
-						<p class="text-xs text-neutral-500">#FFE4D6</p>
+						<p class="text-xs text-neutral-500">Light purple tint</p>
 					</div>
 					<div>
-						<div class="h-20 bg-primary-200 rounded"></div>
+						<div class="h-20 rounded" style={`background-color: color-mix(in srgb, ${primaryColorHex} 28%, white);`}></div>
 						<code class="text-xs mt-1 block">primary-200</code>
-						<p class="text-xs text-neutral-500">#FFC9AD</p>
+						<p class="text-xs text-neutral-500">Medium-light tint</p>
 					</div>
 					<div>
-						<div class="h-20 bg-primary-300 rounded"></div>
+						<div class="h-20 rounded" style={`background-color: color-mix(in srgb, ${primaryColorHex} 44%, white);`}></div>
 						<code class="text-xs mt-1 block">primary-300</code>
-						<p class="text-xs text-neutral-500">#FFAD85</p>
+						<p class="text-xs text-neutral-500">Mid purple tint</p>
 					</div>
 					<div>
-						<div class="h-20 bg-primary-400 rounded"></div>
+						<div class="h-20 rounded" style={`background-color: color-mix(in srgb, ${primaryColorHex} 70%, white);`}></div>
 						<code class="text-xs mt-1 block">primary-400</code>
-						<p class="text-xs text-neutral-500">#FF7E52</p>
+						<p class="text-xs text-neutral-500">Strong purple tint</p>
 					</div>
 					<div>
-						<div class="h-20 bg-primary-500 rounded"></div>
+						<div class="h-20 rounded" style={`background-color: ${primaryColorHex};`}></div>
 						<code class="text-xs mt-1 block text-white font-bold">primary-500</code>
-						<p class="text-xs text-white font-bold">#F24E1E</p>
-					</div>
-				</div>
-				<div class="grid grid-cols-6 gap-4 mt-4">
-					<div>
-						<div class="h-20 bg-primary-600 rounded"></div>
-						<code class="text-xs mt-1 block text-white">primary-600</code>
-						<p class="text-xs text-white">#D43F15</p>
-					</div>
-					<div>
-						<div class="h-20 bg-primary-700 rounded"></div>
-						<code class="text-xs mt-1 block text-white">primary-700</code>
-						<p class="text-xs text-white">#B6330F</p>
-					</div>
-					<div>
-						<div class="h-20 bg-primary-800 rounded"></div>
-						<code class="text-xs mt-1 block text-white">primary-800</code>
-						<p class="text-xs text-white">#97280A</p>
-					</div>
-					<div>
-						<div class="h-20 bg-primary-900 rounded"></div>
-						<code class="text-xs mt-1 block text-white">primary-900</code>
-						<p class="text-xs text-white">#791E06</p>
-					</div>
-					<div>
-						<div class="h-20 bg-primary-950 rounded"></div>
-						<code class="text-xs mt-1 block text-white">primary-950</code>
-						<p class="text-xs text-white">#5A1604</p>
+						<p class="text-xs text-white font-bold">{primaryColorHex}</p>
 					</div>
 				</div>
 			</Col>
@@ -218,7 +195,7 @@ const SEO = {
 		<Row>
 			<Col span="12" classes="mb-6">
 				<h3 class="mb-4">🎨 Supporting Colors (For Variety & Visual Interest)</h3>
-				<p class="text-neutral-600 mb-4">Complementary colors for cards, backgrounds, accents, and visual distinction. Use these to add variety while keeping orange as the primary brand color.</p>
+				<p class="text-neutral-600 mb-4">Complementary colors for cards, backgrounds, accents, and visual distinction. Keep {primaryColorName} as the lead brand accent and use cyan or amber as support colors.</p>
 			</Col>
 		</Row>
 
@@ -232,19 +209,19 @@ const SEO = {
 						<div class="h-24 rounded-lg border-4" style="background-color: white; border-color: #7C3AED;"></div>
 						<code class="text-xs mt-2 block font-semibold">#7C3AED</code>
 						<p class="text-xs text-neutral-600 font-medium">Purple Accent</p>
-						<p class="text-xs text-neutral-500 mt-1">Testimonials, developer cards</p>
+						<p class="text-xs text-neutral-500 mt-1">Primary brand accent, testimonials, developer cards</p>
 					</div>
 					<div>
 						<div class="h-24 rounded-lg border-4" style="background-color: white; border-color: #06B6D4;"></div>
 						<code class="text-xs mt-2 block font-semibold">#06B6D4</code>
 						<p class="text-xs text-neutral-600 font-medium">Cyan Accent</p>
-						<p class="text-xs text-neutral-500 mt-1">Testimonials, tech lead cards</p>
+						<p class="text-xs text-neutral-500 mt-1">Secondary accent for technical or data-focused cards</p>
 					</div>
 					<div>
 						<div class="h-24 rounded-lg border-4" style="background-color: white; border-color: #D97706;"></div>
 						<code class="text-xs mt-2 block font-semibold">#D97706</code>
 						<p class="text-xs text-neutral-600 font-medium">Amber Accent</p>
-						<p class="text-xs text-neutral-500 mt-1">Testimonials, engineer cards</p>
+						<p class="text-xs text-neutral-500 mt-1">Warm supporting accent for emphasis and variety</p>
 					</div>
 				</div>
 			</Col>
@@ -293,7 +270,7 @@ const SEO = {
 						<li>• <strong>Card borders:</strong> Purple, Cyan, Amber for visual distinction (testimonials, role cards)</li>
 						<li>• <strong>Backgrounds:</strong> Soft pastels for section variety and friendliness</li>
 						<li>• <strong>Step cards:</strong> Yellow, Blue, Lavender, Peach for numbered installation steps</li>
-						<li>• <strong>Always keep orange:</strong> Primary buttons and main CTAs stay orange (#F24E1E)</li>
+						<li>• <strong>Main CTAs and highlighted text:</strong> Keep them aligned to the purple primary accent</li>
 					</ul>
 				</div>
 			</Col>
@@ -347,39 +324,39 @@ bg-bg-peach       (peach #FFE4D6)</code></pre>
 	<Section padding="both">
 		<Row>
 			<Col span="12" classes="mb-8">
-				<h2>Buttons</h2>
-				<p class="text-neutral-600 mb-4">All primary buttons use <strong>orange (primary-500 = #F24E1E)</strong> - Frontman's main brand color.</p>
+				<h2 class={sectionHeadingClass}>Buttons</h2>
+				<p class="text-neutral-600 mb-4">Primary buttons and highlighted text should use <strong>{primaryColorName} ({primaryColorHex})</strong> as the main brand accent.</p>
 			</Col>
 		</Row>
 
 		<Row>
 			<Col span="12" classes="mb-6">
-				<h3 class="mb-4">Primary Orange Buttons</h3>
+				<h3 class="mb-4">Primary Brand Buttons</h3>
 				<p class="text-neutral-600 mb-4">Use these for main actions: "Get Started", "Sign Up", "Learn More"</p>
 				<div class="flex flex-wrap items-center gap-4">
 					<Button size="lg" style="primary">Get Started for Free</Button>
 					<Button size="base" style="primary">Base Primary</Button>
 					<Button size="sm" style="primary">Small Primary</Button>
 				</div>
-				<code class="text-sm text-neutral-500 mt-4 block">Uses bg-primary-500 (orange) by default</code>
+				<code class="text-sm text-neutral-500 mt-4 block">Use `primary-500` for main actions to keep the page visually consistent</code>
 			</Col>
 		</Row>
 
 		<Row>
 			<Col span="12" classes="mb-6">
-				<h3 class="mb-4">Orange Button Variants</h3>
+				<h3 class="mb-4">Brand Button Variants</h3>
 				<div class="flex flex-wrap items-center gap-4">
-					<Button size="base" style="primary" variation="outline">Orange Outline</Button>
-					<Button size="base" style="secondary">Orange Secondary</Button>
-					<Button type="link" link="#" style="primary" variation="link">Orange Link →</Button>
+					<Button size="base" style="primary" variation="outline">Outline</Button>
+					<Button size="base" style="secondary">Secondary</Button>
+					<Button type="link" link="#" style="primary" variation="link">Link →</Button>
 				</div>
 			</Col>
 		</Row>
 
 		<Row>
 			<Col span="12" classes="mb-6">
-				<h3 class="mb-4">White Button (on dark/orange backgrounds)</h3>
-				<div class="p-8 rounded-lg inline-block" style="background-color: #F24E1E;">
+				<h3 class="mb-4">White Button (on dark/primary backgrounds)</h3>
+				<div class="p-8 rounded-lg inline-block" style={`background-color: ${primaryColorHex};`}>
 					<Button size="lg" style="white">Get Started for Free</Button>
 				</div>
 			</Col>
@@ -400,7 +377,7 @@ bg-bg-peach       (peach #FFE4D6)</code></pre>
 	<Section padding="both" mode="light">
 		<Row>
 			<Col span="12" classes="mb-8">
-				<h2>Decorative Elements</h2>
+				<h2 class={sectionHeadingClass}>Decorative Elements</h2>
 			</Col>
 		</Row>
 
@@ -435,7 +412,7 @@ bg-bg-peach       (peach #FFE4D6)</code></pre>
 	<Section padding="both">
 		<Row>
 			<Col span="12" classes="mb-8">
-				<h2>Layout System</h2>
+				<h2 class={sectionHeadingClass}>Layout System</h2>
 				<p class="text-neutral-600 mb-4">12-column responsive grid using Section &gt; Row &gt; Col pattern</p>
 			</Col>
 		</Row>
@@ -484,7 +461,7 @@ bg-bg-peach       (peach #FFE4D6)</code></pre>
 	<Section padding="both" mode="light">
 		<Row>
 			<Col span="12" classes="mb-8">
-				<h2>Common Patterns</h2>
+				<h2 class={sectionHeadingClass}>Common Patterns</h2>
 			</Col>
 		</Row>
 
@@ -595,14 +572,14 @@ bg-bg-peach       (peach #FFE4D6)</code></pre>
 	/* Hero Orange Buttons - Primary CTAs */
 	.hero-button {
 		@apply inline-flex cursor-pointer items-center justify-center gap-2 whitespace-nowrap font-bold tracking-wide transition duration-300 focus-visible:outline-none disabled:cursor-not-allowed disabled:shadow-none;
-		background-color: #F24E1E;
+		background-color: #7C3AED;
 		color: white;
 		border: 2px solid black;
 		border-radius: 10px;
 	}
 
 	.hero-button:hover {
-		background-color: #D43F15;
+		background-color: #6D28D9;
 		transform: translateY(-1px);
 	}
 
@@ -618,3 +595,4 @@ bg-bg-peach       (peach #FFE4D6)</code></pre>
 		@apply h-8 px-4 text-xs;
 	}
 </style>
+

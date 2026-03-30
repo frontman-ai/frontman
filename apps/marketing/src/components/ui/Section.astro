@@ -76,8 +76,9 @@ const bgStyle = bg
 <style>
 	@reference "../../styles/global.css";
 	.section {
-		@apply relative text-neutral-500 dark:text-neutral-400 [&.dark:not([class*='bg-'])]:bg-neutral-950 [&.dark]:text-neutral-400 [&.light:not([class*='bg-'])]:bg-white [&.light]:bg-white [&.light]:text-neutral-500 [&.section--sticky-col_.container]:h-full [&:not(.section--sticky-col)]:overflow-hidden;
+		@apply relative text-neutral-500 dark:text-neutral-400 [&.dark:not([class*='bg-'])]:bg-neutral-950 [&.dark]:text-neutral-400 [&.light:not([class*='bg-'])]:bg-white [&.light]:text-neutral-500 [&.light_h1]:text-neutral-950 [&.light_h2]:text-neutral-950 [&.light_h3]:text-neutral-950 [&.light_h4]:text-neutral-950 [&.section--sticky-col_.container]:h-full [&:not(.section--sticky-col)]:overflow-hidden;
 	}
+
 	.section--padded {
 		@apply py-12 lg:py-24;
 	}
