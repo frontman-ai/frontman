@@ -184,7 +184,7 @@
 }
 
 .frontman-scanning::after {
-	content: '';
+	content: "";
 	position: absolute;
 	top: 0;
 	left: 0;
@@ -228,7 +228,7 @@
 
 /* IBM Plex Mono for assistant/AI messages */
 .font-ibm-plex-mono {
-	font-family: 'IBM Plex Mono', monospace;
+	font-family: "IBM Plex Mono", monospace;
 }
 
 /* ============================================================================
