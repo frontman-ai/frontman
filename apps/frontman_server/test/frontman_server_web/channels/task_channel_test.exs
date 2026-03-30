@@ -113,7 +113,6 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         args: %{
           user_id: user.id,
           task_id: task_id,
-          env_api_key: %{"openrouter" => "sk-or-test"},
           model: "openrouter:openai/gpt-5.1-codex"
         }
       )

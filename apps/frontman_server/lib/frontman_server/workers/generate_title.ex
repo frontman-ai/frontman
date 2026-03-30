@@ -24,6 +24,7 @@ defmodule FrontmanServer.Workers.GenerateTitle do
   alias FrontmanServer.Providers.ResolvedKey
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.StreamCleanup
+  alias FrontmanServer.Vault
   alias ReqLLM.Message.ContentPart
 
   @system_prompt """
@@ -36,36 +37,38 @@ defmodule FrontmanServer.Workers.GenerateTitle do
           user_id: String.t(),
           task_id: String.t(),
           user_prompt_text: String.t(),
-          model: String.t(),
-          env_api_key: map()
+          model: String.t() | nil,
+          encrypted_env_api_key: String.t()
         }
 
   @doc """
   Builds an Oban job changeset for title generation.
   """
-  @spec new_job(String.t(), String.t(), String.t(), String.t(), map()) :: Oban.Job.changeset()
+  @spec new_job(String.t(), String.t(), String.t(), String.t() | nil, map()) ::
+          Oban.Job.changeset()
   def new_job(user_id, task_id, user_prompt_text, model, env_api_key) do
     new(%{
       user_id: user_id,
       task_id: task_id,
       user_prompt_text: user_prompt_text,
       model: model,
-      env_api_key: env_api_key
+      encrypted_env_api_key: encrypt_env_api_key(env_api_key)
     })
   end
 
   @impl Oban.Worker
   def perform(%Oban.Job{
-        args: %{
-          "user_id" => user_id,
-          "task_id" => task_id,
-          "user_prompt_text" => user_prompt_text,
-          "model" => model,
-          "env_api_key" => env_api_key
-        }
+        args:
+          %{
+            "user_id" => user_id,
+            "task_id" => task_id,
+            "user_prompt_text" => user_prompt_text
+          } = args
       }) do
     user = Accounts.get_user!(user_id)
     scope = Scope.for_user(user)
+    model = Map.get(args, "model")
+    env_api_key = args |> Map.get("encrypted_env_api_key") |> decrypt_env_api_key()
 
     with {:ok, resolved_key} <-
            Providers.prepare_api_key(scope, model, env_api_key, skip_quota: true),
@@ -114,5 +117,17 @@ defmodule FrontmanServer.Workers.GenerateTitle do
       {:error, reason} ->
         {:error, reason}
     end
+  end
+
+  defp encrypt_env_api_key(env_api_key) when env_api_key == %{}, do: nil
+
+  defp encrypt_env_api_key(env_api_key) do
+    env_api_key |> Jason.encode!() |> Vault.encrypt!() |> Base.encode64()
+  end
+
+  defp decrypt_env_api_key(nil), do: %{}
+
+  defp decrypt_env_api_key(encrypted) do
+    encrypted |> Base.decode64!() |> Vault.decrypt!() |> Jason.decode!()
   end
 end

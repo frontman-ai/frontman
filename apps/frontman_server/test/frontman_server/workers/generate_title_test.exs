@@ -15,31 +15,34 @@ defmodule FrontmanServer.Workers.GenerateTitleTest do
   end
 
   describe "new_job/5" do
-    test "builds a job changeset with model and env_api_key", %{user: user} do
-      env_api_key = %{"ANTHROPIC_API_KEY" => "sk-test-123"}
-      model = "anthropic:claude-sonnet-4-20250514"
-
+    test "builds a job changeset with model and encrypted env_api_key", %{user: user} do
       changeset =
         GenerateTitle.new_job(
           user.id,
           "task-123",
           "Help me build a login page",
-          model,
-          env_api_key
+          "anthropic:claude-sonnet-4-20250514",
+          %{"anthropic" => "sk-test-123"}
         )
 
-      assert changeset.changes.args == %{
-               user_id: user.id,
-               task_id: "task-123",
-               user_prompt_text: "Help me build a login page",
-               model: "anthropic:claude-sonnet-4-20250514",
-               env_api_key: %{"ANTHROPIC_API_KEY" => "sk-test-123"}
-             }
+      args = changeset.changes.args
+      assert args.user_id == user.id
+      assert args.task_id == "task-123"
+      assert args.user_prompt_text == "Help me build a login page"
+      assert args.model == "anthropic:claude-sonnet-4-20250514"
+      assert is_binary(args.encrypted_env_api_key)
+      refute Map.has_key?(args, :env_api_key)
+    end
+
+    test "stores nil encrypted_env_api_key when env keys are empty", %{user: user} do
+      changeset = GenerateTitle.new_job(user.id, "task-123", "Hello", nil, %{})
+
+      assert changeset.changes.args.encrypted_env_api_key == nil
     end
   end
 
   describe "perform/1" do
-    test "enqueues via Tasks context with forwarded model and env key", %{user: user} do
+    test "enqueues via Tasks context with forwarded model and encrypted env key", %{user: user} do
       scope = Scope.for_user(user)
       task_id = Ecto.UUID.generate()
       {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
@@ -55,7 +58,6 @@ defmodule FrontmanServer.Workers.GenerateTitleTest do
         args: %{
           user_id: user.id,
           task_id: task_id,
-          env_api_key: %{"openrouter" => "sk-or-test"},
           model: "openrouter:openai/gpt-5.1-codex"
         }
       )
