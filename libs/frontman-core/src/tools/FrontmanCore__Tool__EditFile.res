@@ -28,6 +28,8 @@ Parameters:
 The tool uses multiple matching strategies (exact, line-trimmed, whitespace-normalized,
 indentation-flexible, etc.) to handle common formatting differences.
 
+When replacing most of a file, prefer write_file instead — it avoids reproducing the original content. Use edit_file for surgical changes: a few lines, a function body, a config block. For multiple changes in one file, make several small edit_file calls targeting specific sections rather than one large replacement.
+
 IMPORTANT: You must read_file before editing. The tool will reject edits on unread files.`
 
 @schema
