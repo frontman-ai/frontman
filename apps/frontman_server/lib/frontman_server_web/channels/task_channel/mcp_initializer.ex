@@ -201,6 +201,16 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
   end
 
   defp handle_project_rules_response(result, state) do
+    if MCP.error?(result) do
+      report_tool_error(state, "project_rules", "load_agent_instructions", result)
+    else
+      parse_project_rules(result, state)
+    end
+
+    request_project_structure(state)
+  end
+
+  defp parse_project_rules(result, state) do
     with text when text != "" <- MCP.extract_content_text(result) |> String.trim(),
          {:ok, rules} when is_list(rules) <- Jason.decode(text) do
       Enum.each(rules, fn %{"fullPath" => path, "content" => content} ->
@@ -212,11 +222,12 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
       "" ->
         Logger.info("MCPInitializer: Initialized 0 project rules")
 
+      {:ok, _other} ->
+        Logger.warning("MCPInitializer: Unexpected project rules format (expected a list)")
+
       {:error, reason} ->
         Logger.warning("MCPInitializer: Failed to parse project rules: #{inspect(reason)}")
     end
-
-    request_project_structure(state)
   end
 
   # Step 4: Discover project structure via list_tree
@@ -245,6 +256,16 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
   end
 
   defp handle_project_structure_response(result, state) do
+    if MCP.error?(result) do
+      report_tool_error(state, "project_structure", "list_tree", result)
+    else
+      parse_project_structure(result, state)
+    end
+
+    complete_initialization(state)
+  end
+
+  defp parse_project_structure(result, state) do
     with text when text != "" <- MCP.extract_content_text(result) |> String.trim(),
          {:ok, %{"tree" => tree} = decoded} when is_binary(tree) <- Jason.decode(text) do
       monorepo_type = Map.get(decoded, "monorepoType")
@@ -271,8 +292,6 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
       {:error, reason} ->
         Logger.warning("MCPInitializer: Failed to parse project structure: #{inspect(reason)}")
     end
-
-    complete_initialization(state)
   end
 
   defp format_workspace_section(ws) when is_list(ws) and ws != [] do
@@ -309,5 +328,16 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
       })
 
     {state, [{:push_acp, notification}, {:initialization_complete, initialization_data}]}
+  end
+
+  defp report_tool_error(state, init_step, tool_name, result) do
+    text = MCP.extract_content_text(result)
+    Logger.warning("MCPInitializer: Tool error loading #{init_step}: #{text}")
+
+    Sentry.capture_message("MCP tool error during initialization",
+      level: :warning,
+      tags: %{error_type: "mcp_tool_error", init_step: init_step},
+      extra: %{task_id: state.task_id, tool_name: tool_name, error_text: text}
+    )
   end
 end
