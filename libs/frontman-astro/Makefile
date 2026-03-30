@@ -22,7 +22,7 @@ test-watch: ## Run tests in watch mode
 	yarn vitest
 
 lint: ## Check formatting
-	yarn rescript format -check src test
+	yarn rescript format --check src test
 
 format: ## Format code
 	yarn rescript format src test

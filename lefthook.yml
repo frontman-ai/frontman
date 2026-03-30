@@ -7,7 +7,7 @@ pre-commit:
 
     rescript-format:
       glob: "**/*.{res,resi}"
-      run: npx rescript format -check {staged_files}
+      run: npx rescript format --check {staged_files}
 
     elixir-format:
       glob: "apps/**/*.{ex,exs}"

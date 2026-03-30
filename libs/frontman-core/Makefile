@@ -17,7 +17,7 @@ test-coverage: build ## Run tests with coverage
 	yarn vitest run --coverage
 
 lint: ## Check formatting
-	yarn rescript format -check src test
+	yarn rescript format --check src test
 
 format: ## Format code
 	yarn rescript format src test
