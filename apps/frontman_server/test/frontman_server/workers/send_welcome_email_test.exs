@@ -18,7 +18,7 @@ defmodule FrontmanServer.Workers.SendWelcomeEmailTest do
 
       assert_email_sent(
         to: [{nil, user.email}],
-        subject: "Welcome to Frontman!"
+        subject: "Welcome to Frontman — from Danni"
       )
     end
 
@@ -31,11 +31,16 @@ defmodule FrontmanServer.Workers.SendWelcomeEmailTest do
       assert :ok = perform_job(SendWelcomeEmail, %{user_id: user.id})
 
       assert_email_sent(fn email ->
-        assert email.subject == "Welcome to Frontman!"
-        assert email.text_body =~ "Hey Ada Lovelace"
-        assert email.text_body =~ "frontman.sh/integrations"
-        assert email.html_body =~ "Hey Ada Lovelace"
-        assert email.html_body =~ "frontman.sh/integrations"
+        assert email.subject == "Welcome to Frontman — from Danni"
+        assert email.text_body =~ "Danni here — I’m the founder of Frontman."
+        assert email.text_body =~ "frontman.sh/integrations?utm_source=welcome_email"
+        assert email.text_body =~ "frontman.sh/docs?utm_source=welcome_email"
+        assert email.text_body =~ "calendar.app.google/x72mHYFyQWp8p5eHA"
+        assert email.html_body =~ "Danni here — I’m the founder of Frontman."
+        assert email.html_body =~ "Start with Integrations"
+        assert email.html_body =~ "frontman.sh/integrations?utm_source=welcome_email"
+        assert email.html_body =~ "frontman.sh/docs?utm_source=welcome_email"
+        assert email.html_body =~ "calendar.app.google/x72mHYFyQWp8p5eHA"
       end)
     end
 
@@ -48,7 +53,7 @@ defmodule FrontmanServer.Workers.SendWelcomeEmailTest do
       assert :ok = perform_job(SendWelcomeEmail, %{user_id: user.id})
 
       assert_email_sent(fn email ->
-        assert email.subject == "Welcome to Frontman!"
+        assert email.subject == "Welcome to Frontman — from Danni"
         assert email.from == {"Danni from Frontman", "danni@frontman.sh"}
       end)
     end

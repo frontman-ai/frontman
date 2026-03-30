@@ -44,7 +44,7 @@ defmodule FrontmanServer.Accounts.UserNotifier do
       new()
       |> to(email)
       |> from(@from)
-      |> subject("Welcome to Frontman!")
+      |> subject("Welcome to Frontman — from Danni")
       |> html_body(html_body)
       |> text_body(text_body)
 
@@ -123,19 +123,26 @@ defmodule FrontmanServer.Accounts.UserNotifier do
     """
     Hey #{name},
 
-    Thanks for signing up for Frontman. I'm Danni, one of the people building it.
+    Danni here — I’m the founder of Frontman.
 
-    Quickest way to try it: install the integration for your framework
-    (Next.js, Astro, or Vite), point it at your dev server, and start
-    talking to it in the browser. The integration pages walk through it:
-    https://frontman.sh/integrations
+    Thanks for signing up. If you want the fastest path to value, start here:
 
-    If you get stuck or want to bounce ideas off other users, we have a
-    Discord: https://discord.gg/xk8uXJSvhC
+    1) Install an integration for your framework (Next.js, Astro, or Vite):
+    https://frontman.sh/integrations?utm_source=welcome_email&utm_medium=email&utm_campaign=new_user_welcome
 
-    Hit reply if anything's unclear. I read these.
+    2) Follow the docs to connect Frontman to your running app:
+    https://frontman.sh/docs?utm_source=welcome_email&utm_medium=email&utm_campaign=new_user_welcome
+
+    If you want hands-on help, book a personal onboarding call with me:
+    https://calendar.app.google/x72mHYFyQWp8p5eHA
+
+    Prefer async support? Join the Discord:
+    https://discord.gg/xk8uXJSvhC?utm_source=welcome_email&utm_medium=email&utm_campaign=new_user_welcome
+
+    You can also just reply to this email — I read every reply.
 
     Danni
+    Founder, Frontman
     """
   end
 
@@ -152,26 +159,32 @@ defmodule FrontmanServer.Accounts.UserNotifier do
     <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #1a1a1a; max-width: 560px; margin: 0 auto; padding: 40px 20px;">
       <p style="font-size: 16px;">Hey #{safe_name},</p>
 
-      <p style="font-size: 16px;">Thanks for signing up for Frontman. I'm Danni, one of the people building it.</p>
+      <p style="font-size: 16px;">Danni here — I’m the founder of Frontman.</p>
 
-      <p style="font-size: 16px;">
-        Quickest way to try it: install the integration for your framework
-        (Next.js, Astro, or Vite), point it at your dev server, and start
-        talking to it in the browser. The integration pages walk through it:<br>
-        <a href="https://frontman.sh/integrations" style="color: #2563eb; text-decoration: none;">frontman.sh/integrations</a>
+      <p style="font-size: 16px;">Thanks for signing up. If you want the fastest path to value, start with the integrations page and docs:</p>
+
+      <p style="margin: 20px 0;">
+        <a href="https://frontman.sh/integrations?utm_source=welcome_email&utm_medium=email&utm_campaign=new_user_welcome" style="display: inline-block; background: #2563eb; color: #ffffff; text-decoration: none; padding: 12px 18px; border-radius: 8px; font-weight: 600;">Start with Integrations</a>
+      </p>
+
+      <p style="font-size: 16px; margin-top: 0;">
+        <a href="https://frontman.sh/docs?utm_source=welcome_email&utm_medium=email&utm_campaign=new_user_welcome" style="color: #2563eb; text-decoration: none;">Read the docs</a>
       </p>
 
       <p style="font-size: 16px;">
-        If you get stuck or want to bounce ideas off other users, we have a
-        Discord:<br>
-        <a href="https://discord.gg/xk8uXJSvhC" style="color: #2563eb; text-decoration: none;">discord.gg/xk8uXJSvhC</a>
+        Want hands-on help? Book a personal onboarding call with me:<br>
+        <a href="https://calendar.app.google/x72mHYFyQWp8p5eHA" style="color: #2563eb; text-decoration: none;">calendar.app.google/x72mHYFyQWp8p5eHA</a>
       </p>
-
-      <p style="font-size: 16px;">Hit reply if anything's unclear. I read these.</p>
 
       <p style="font-size: 16px;">
-        Danni
+        Prefer async support? Join the Discord:<br>
+        <a href="https://discord.gg/xk8uXJSvhC?utm_source=welcome_email&utm_medium=email&utm_campaign=new_user_welcome" style="color: #2563eb; text-decoration: none;">discord.gg/xk8uXJSvhC</a>
       </p>
+
+      <p style="font-size: 16px;">You can also just reply to this email — I read every reply.</p>
+
+      <p style="font-size: 16px; margin-bottom: 0;">Danni</p>
+      <p style="font-size: 16px; margin-top: 0;">Founder, Frontman</p>
     </body>
     </html>
     """
