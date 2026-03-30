@@ -2,12 +2,10 @@ open Vitest
 
 module PromptInput = Client__PromptInput
 
-@set external setInnerHTML: (WebAPI.DOMAPI.element, string) => unit = "innerHTML"
-
 let asNode = WebAPI.Element.asNode
-let asDomElement: WebAPI.DOMAPI.element => Dom.element = Obj.magic
+let asDomElement = WebAPI.Prelude.unsafeConversation
 
-let text = value => WebAPI.Global.document->WebAPI.Document.createTextNode(value)->Obj.magic
+let text = value => WebAPI.Global.document->WebAPI.Document.createTextNode(value)->WebAPI.Text.asNode
 
 let _body = (): WebAPI.DOMAPI.element =>
   WebAPI.Global.document->WebAPI.Document.body->Null.toOption->Option.getOrThrow
@@ -77,7 +75,7 @@ let makeMap = (entries: array<(string, string)>) => {
 }
 
 afterEach(() => {
-  _body()->setInnerHTML("")
+  _body().innerHTML = ""
   _selectionOrThrow()->WebAPI.Selection.removeAllRanges
 })
 

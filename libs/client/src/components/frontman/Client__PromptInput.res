@@ -765,7 +765,7 @@ let make = (
         switch text != "" {
         | true =>
           ReactEvent.Clipboard.preventDefault(e)
-          insertNodeAtCursor(WebAPI.Global.document->WebAPI.Document.createTextNode(text)->Obj.magic)
+          insertNodeAtCursor(WebAPI.Global.document->WebAPI.Document.createTextNode(text)->WebAPI.Text.asNode)
           syncHasContent()
         | false => ()
         }
