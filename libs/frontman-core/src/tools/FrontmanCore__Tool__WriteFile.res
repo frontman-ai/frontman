@@ -20,6 +20,8 @@ Parameters:
 Provide either content OR image_ref, not both.
 Creates parent directories if they don't exist. Overwrites existing files.
 
+Prefer write_file over edit_file when rewriting most of a file — it is more efficient since you only provide the final content once.
+
 IMPORTANT: If the file already exists, you MUST read it with read_file first. The tool will reject writes to existing files that haven't been read.`
 
 @schema
@@ -64,13 +66,12 @@ let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.toolR
     | Error(err) => Error(PathContext.formatError(err))
     | Ok(resolved) =>
       // Guard: existing files must have been read first and not be stale
-      let fileExists =
-        try {
-          let _ = await Fs.Promises.stat(resolved.resolvedPath)
-          true
-        } catch {
-        | _ => false
-        }
+      let fileExists = try {
+        let _ = await Fs.Promises.stat(resolved.resolvedPath)
+        true
+      } catch {
+      | _ => false
+      }
       let guardResult = switch fileExists {
       | false => Ok()
       | true => await FileTracker.assertEditSafe(resolved.resolvedPath)
