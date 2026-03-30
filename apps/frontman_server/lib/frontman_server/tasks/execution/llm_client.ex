@@ -97,6 +97,7 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
     llm_opts =
       client.llm_opts
       |> Keyword.put_new(:tools, reqllm_tools)
+      |> Keyword.put_new(:parallel_tool_calls, true)
       |> Keyword.reject(fn {_k, v} -> v == [] end)
 
     # Convert messages, applying mcp_ prefix to tool names if required
