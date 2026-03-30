@@ -1,23 +1,20 @@
 ---
-// Header - Navigation bar
+// Header - Floating pill-style navigation bar
 // ------------
-// Description: navigation bars offer a persistent and convenient way to switch between primary destinations in an app.
+// Description: Floating pill-style navigation bar inspired by creem.io.
 // Structure:
 // - Logo: the logo of the website
 // - Menu toggle: the mobile menu toggle of the navigation bar
 // - Navigation Links: the navigation links of the menu
 // - Actions: action buttons for the navigation bar
 
-// Reference: https://wind-ui.com/components/navbars/
-
 // Components
 // - UI
 import { Icon } from 'astro-icon/components'
-import Button from './Button.astro'
 
 // Data
 import { navigationBarData } from '../../config/navigationBar'
-const { logo, navItems, navActions } = navigationBarData
+const { logo, navItems } = navigationBarData
 const filteredNavItems = navItems.filter((item) => item.name !== 'Changelog' && item.name !== 'FAQ')
 
 // Determine current path
@@ -25,13 +22,6 @@ const path = new URL(Astro.request.url).pathname
 function isActivePath(currentPath: string): boolean {
 	return path === currentPath || path === `${currentPath}/`
 }
-
-// Type assertion for navActions to ensure type safety
-const savedNavActions = navActions.map((action) => ({
-	...action,
-	size: action.size as 'base' | 'lg' | 'sm',
-	style: action.style as 'primary' | 'secondary' | 'neutral' | 'white'
-}))
 ---
 
 <header class="header">
@@ -39,7 +29,7 @@ const savedNavActions = navActions.map((action) => ({
 		<nav aria-label="main navigation" role="navigation" class="header__nav">
 			<!-- Logo -->
 			<a href="/" class="header__logo">
-				<img src={logo.src} alt={logo.alt} width="48" height="48" />
+				<img src={logo.src} alt={logo.alt} width="32" height="32" />
 				<span>{logo.text}</span>
 			</a>
 
@@ -108,13 +98,7 @@ const savedNavActions = navActions.map((action) => ({
 					<Icon name="github-icon" class="header__github-icon" aria-hidden="true" />
 					<span>Star on GitHub</span>
 				</a>
-				{
-					savedNavActions.map((action) => (
-						<Button classes="flex-auto" size={action.size} style={action.style} link={action.link} type="link">
-							{action.name}
-						</Button>
-					))
-				}
+				<a href="/#install" class="header__cta">Try it now</a>
 			</div>
 		</nav>
 	</div>
@@ -122,90 +106,143 @@ const savedNavActions = navActions.map((action) => ({
 
 <style>
 	@reference "../../styles/global.css";
+
+	/* -- Floating pill header -- */
 	.header {
-		@apply sticky top-0 z-[999] w-full border-b before:absolute after:absolute after:left-0 after:top-full after:z-10 after:block after:h-0 after:w-full lg:after:hidden;
-		border-color: rgba(255, 255, 255, 0.15);
+		@apply fixed top-0 left-0 right-0 z-[999] w-full;
+		padding: 12px 16px 0;
 	}
-	.header:before {
-		@apply block h-full w-full bg-neutral-950;
+	@media (min-width: 1024px) {
+		.header {
+			padding: 14px 24px 0;
+		}
 	}
 	.header__container {
-		@apply container relative mx-auto px-6;
-	}
-	.header__logo {
-		@apply flex flex-none items-center gap-2 whitespace-nowrap py-3 pr-4 tracking-wider text-white focus:outline-none;
-		font-size: 18px;
-		line-height: 25px;
-		font-weight: 330;
+		max-width: 1100px;
+		margin: 0 auto;
 	}
 	.header__nav {
-		@apply flex h-[5.5rem] items-stretch gap-4 lg:justify-between xl:gap-6;
+		@apply flex items-center;
 		font-family: "SF Pro Display", system-ui, helvetica, sans-serif;
+		height: 56px;
+		padding: 0 8px 0 16px;
+		border-radius: 16px;
+		background: rgba(10, 10, 10, 0.75);
+		backdrop-filter: blur(20px) saturate(1.4);
+		-webkit-backdrop-filter: blur(20px) saturate(1.4);
+		border: 1px solid rgba(255, 255, 255, 0.1);
+		box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.05) inset;
 	}
+
+	/* -- Logo -- */
+	.header__logo {
+		@apply flex flex-none items-center gap-2 whitespace-nowrap text-white focus:outline-none;
+		font-size: 16px;
+		font-weight: 500;
+		letter-spacing: -0.01em;
+		text-decoration: none;
+		z-index: 1000;
+	}
+	.header__logo img {
+		width: 28px;
+		height: 28px;
+	}
+
+	/* -- Nav links (centered) -- */
 	.header__menu {
-		@apply invisible absolute left-0 top-0 z-[-1] ml-auto h-dvh w-full justify-center overflow-hidden overflow-y-auto overscroll-contain bg-neutral-950 px-8 py-[6rem] font-medium opacity-0 transition-[opacity,visibility] duration-300 lg:visible lg:relative lg:top-0 lg:z-0 lg:flex lg:h-full lg:w-auto lg:items-stretch lg:overflow-visible lg:bg-transparent lg:px-0 lg:py-0 lg:pt-0 lg:opacity-100;
+		@apply invisible fixed left-0 top-0 h-dvh w-full justify-center overflow-hidden overflow-y-auto overscroll-contain opacity-0 transition-[opacity,visibility] duration-300;
+		z-index: 998;
+		background: rgba(10, 10, 10, 0.97);
+		list-style: none;
+		margin: 0;
+		padding: 5rem 2rem 2rem;
+	}
+	@media (min-width: 1024px) {
+		.header__menu {
+			@apply visible relative top-0 z-0 flex h-auto w-auto items-center overflow-visible bg-transparent opacity-100;
+			margin: 0 auto;
+			padding: 0;
+			gap: 2px;
+		}
 	}
 	.header__menu--open {
-		@apply visible opacity-100 backdrop-blur-sm;
+		@apply visible opacity-100;
 	}
 	.header__menu-item {
 		@apply relative flex cursor-pointer flex-col items-stretch lg:flex-row;
-	}
-	.header__menu-item + .header__menu-item {
-		@apply lg:ml-3 xl:ml-6;
+		list-style: none;
 	}
 	.header__menu-link {
-		@apply relative flex items-center gap-1 py-4 text-white transition-colors duration-300 focus:outline-none focus-visible:outline-none lg:px-2 xl:px-6;
-		font-size: 16px;
-		line-height: 22px;
-		font-weight: 330;
-	}
-	@media (min-width: 1280px) {
-		.header__menu-link {
-			font-size: 18px;
-			line-height: 25px;
-		}
+		@apply relative flex items-center gap-1 text-white/70 transition-colors duration-200 focus:outline-none focus-visible:outline-none;
+		font-size: 14px;
+		line-height: 20px;
+		font-weight: 400;
+		padding: 8px 12px;
+		border-radius: 8px;
+		text-decoration: none;
+		white-space: nowrap;
 	}
 	.header__menu-link:hover {
-		@apply text-primary-500;
+		color: white;
+		background: rgba(255, 255, 255, 0.08);
 	}
 	.header__menu-link.active {
-		@apply text-primary-600;
+		color: white;
 	}
 	button.header__menu-link {
-		@apply cursor-pointer border-none bg-transparent p-0 py-4 self-stretch;
+		@apply cursor-pointer border-none bg-transparent;
 	}
 	.header__menu-chevron {
-		@apply h-4 w-4 transition-transform [.header\_\_menu-item.open_&]:rotate-180;
+		@apply h-3.5 w-3.5 transition-transform [.header\_\_menu-item.open_&]:rotate-180;
+		opacity: 0.5;
 	}
+
+	/* -- Submenu dropdown -- */
 	.header__submenu {
-		@apply left-0 top-full hidden animate-dropdown px-4 lg:absolute lg:min-w-[200px] lg:bg-neutral-900 lg:p-2 lg:rounded-lg lg:border lg:border-neutral-700/80 [.header\_\_menu-item.open_&]:block;
-		box-shadow: 0 12px 32px -4px rgba(0, 0, 0, 0.4), 0 4px 8px -2px rgba(0, 0, 0, 0.2);
+		@apply left-0 top-full hidden px-4 lg:absolute lg:min-w-[180px] lg:p-1.5 [.header\_\_menu-item.open_&]:block;
+		background: rgba(20, 20, 20, 0.95);
+		backdrop-filter: blur(16px);
+		-webkit-backdrop-filter: blur(16px);
+		border: 1px solid rgba(255, 255, 255, 0.1);
+		border-radius: 12px;
+		box-shadow: 0 12px 32px -4px rgba(0, 0, 0, 0.5);
+		margin-top: 4px;
+		list-style: none;
 	}
 	.header__submenu::before {
-		@apply absolute -top-0.5 left-6 hidden h-1 w-8 rounded-full bg-primary-500 lg:block;
-		content: "";
+		display: none;
 	}
 	.header__submenu-item {
 		@apply hidden [.header\_\_menu-item.open_&]:block;
+		list-style: none;
 	}
 	.header__submenu-link {
-		@apply flex items-center rounded-md px-3 py-2 text-neutral-300 transition-all duration-200 hover:bg-primary-900/30 hover:text-primary-400;
-		font-size: 15px;
-		line-height: 22px;
+		@apply flex items-center rounded-lg px-3 py-2 text-white/60 transition-all duration-200;
+		font-size: 13px;
+		line-height: 18px;
 		font-weight: 400;
+		text-decoration: none;
+	}
+	.header__submenu-link:hover {
+		color: white;
+		background: rgba(255, 255, 255, 0.08);
 	}
 	.header__submenu-link.active {
-		@apply bg-primary-50 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400;
+		color: white;
+		background: rgba(255, 255, 255, 0.06);
 	}
+
+	/* -- Mobile toggle -- */
 	.header__toggle {
 		@apply relative order-10 block h-10 w-10 cursor-pointer self-center lg:hidden [&--open]:visible [&--open]:opacity-100;
+		margin-left: auto;
+		z-index: 1000;
 	}
 	.header__toggle-inner {
 		@apply absolute left-1/2 top-1/2 w-6 -translate-x-1/2 -translate-y-1/2 transform;
 	}
 	.header__toggle-inner span {
-		@apply absolute block h-0.5 transform rounded-full bg-neutral-900 transition-all duration-300 dark:bg-white;
+		@apply absolute block h-0.5 transform rounded-full bg-white transition-all duration-300;
 	}
 	.header__toggle-inner span:nth-child(1) {
 		@apply w-9/12 -translate-y-2 [.header\_\_toggle--open_&]:w-6 [.header\_\_toggle--open_&]:translate-y-0 [.header\_\_toggle--open_&]:rotate-45;
@@ -216,21 +253,56 @@ const savedNavActions = navActions.map((action) => ({
 	.header__toggle-inner span:nth-child(3) {
 		@apply w-1/2 origin-top-left translate-y-2 [.header\_\_toggle--open_&]:w-0;
 	}
+
+	/* -- Right actions -- */
 	.header__actions {
-		@apply fixed bottom-0 left-0 hidden w-full items-center justify-between gap-2 border-t border-neutral-100 bg-white px-6 py-4 lg:relative lg:ml-auto lg:flex lg:w-auto lg:border-none lg:bg-transparent lg:px-0 lg:py-0 lg:gap-3 xl:gap-4 dark:border-neutral-800 dark:bg-neutral-950 lg:dark:bg-transparent [.header\_\_menu--open~&]:flex;
+		@apply fixed bottom-0 left-0 hidden w-full items-center justify-between gap-2 px-6 py-4 lg:relative lg:ml-auto lg:flex lg:w-auto lg:px-0 lg:py-0 lg:gap-3 [.header\_\_menu--open~&]:flex;
+		background: rgba(10, 10, 10, 0.97);
+		border-top: 1px solid rgba(255, 255, 255, 0.1);
 	}
-	.header__actions .button {
-		font-weight: 480;
-		font-size: 16px;
-		line-height: 22px;
-		color: rgb(0, 0, 0);
+	@media (min-width: 1024px) {
+		.header__actions {
+			background: transparent;
+			border-top: none;
+		}
 	}
 	.header__github-link {
-		@apply hidden items-center gap-1.5 whitespace-nowrap text-white transition-colors duration-200 hover:text-primary-300 lg:mr-4 lg:flex;
-		font-size: 14px;
-		font-weight: 480;
+		@apply hidden items-center gap-1.5 whitespace-nowrap text-white/60 transition-colors duration-200 hover:text-white lg:flex;
+		font-size: 13px;
+		font-weight: 450;
+		text-decoration: none;
+		padding: 6px 10px;
+		border-radius: 8px;
+	}
+	.header__github-link:hover {
+		background: rgba(255, 255, 255, 0.06);
 	}
 	.header__github-icon {
-		@apply h-5 w-5;
+		@apply h-4 w-4;
+	}
+	.header__cta {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		font-family: "SF Pro Display", system-ui, helvetica, sans-serif;
+		font-size: 13px;
+		font-weight: 550;
+		line-height: 1;
+		color: black;
+		background: white;
+		padding: 8px 18px;
+		border-radius: 10px;
+		text-decoration: none;
+		white-space: nowrap;
+		transition: opacity 0.15s;
+		flex: 1 1 auto;
+	}
+	@media (min-width: 1024px) {
+		.header__cta {
+			flex: none;
+		}
+	}
+	.header__cta:hover {
+		opacity: 0.88;
 	}
 </style>

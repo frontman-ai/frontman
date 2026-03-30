@@ -1,11 +1,10 @@
 ---
 // Home page CTA Section
 // ------------
-// Description: A centered call to action section that contains: a title, text, a user review snippet, a button and a image.
+// Description: A centered hero section with clear positioning, social proof, and a demo video.
 
 // Components
 // - UI
-import OpenSourceBadge from '../../ui/OpenSourceBadge.astro'
 import { Image } from 'astro:assets'
 import Button from '../../ui/Button.astro'
 
@@ -14,8 +13,6 @@ import Button from '../../ui/Button.astro'
 import gridNetBackground from '../../../assets/grid-net-background.svg'
 // - Video Placeholder (product screenshot used as video thumbnail)
 import videoPlaceholder from '../../../assets/video-placeholder.png'
-// - Logo (from public folder)
-const logoImage = { src: '/logo.svg' }
 
 // YouTube video
 const youtubeVideoId = '-4GD1GYwH8Y'
@@ -26,59 +23,73 @@ const youtubeVideoId = '-4GD1GYwH8Y'
 		<img src={gridNetBackground.src} alt="Decorative grid background pattern" class="hero-section__bg-image" width="1440" height="900" fetchpriority="high" />
 	</div>
 	<div class="hero-section__container">
-		<div class="hero-section__content">
-			<div class="hero-section__text">
-				<img src={logoImage.src} alt="Frontman logo" class="hero-section__logo" width="143" height="143" />
-				<OpenSourceBadge classes="mb-6" />
-				<h1 class="hero-section__title">Stop fighting your UI. Start shaping it.</h1>
-				<p class="hero-section__subtitle">Your project. Your codebase. Frontman lives in your browser and lets you refine the UI directly. Point at any element, describe the change, and see it happen.</p>
-				<p class="hero-section__geo-lead">Frontman is a vertically integrated AI agent that lives inside your framework's dev server as middleware. It sees the live DOM, component tree, CSS styles, routes, and server logs — the full runtime context that file-level agents miss. Supports Next.js, Astro, and Vite (React, Vue, Svelte). Open-source core (Apache 2.0 / AGPL-3.0) with a bootstrapped SaaS tier and BYOK pricing — bring your own API key or use ours.</p>
-				<div class="hero-section__cta">
-					<Button size="lg" style="white" link="#install" data-ga-event="click_start_building" data-ga-category="conversion" data-ga-label="hero">Start Building — It's Free</Button>
-					<a href="https://discord.gg/xk8uXJSvhC" target="_blank" rel="noopener noreferrer" class="hero-section__community-link" data-ga-event="click_join_discord" data-ga-category="engagement" data-ga-label="hero">
-						<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="20" height="20" aria-hidden="true">
-							<path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03z"/>
-						</svg>
-						Join the Community
-					</a>
-					<a href="https://github.com/frontman-ai/frontman" target="_blank" rel="noopener noreferrer" class="hero-section__github-link" data-ga-event="click_star_github" data-ga-category="conversion" data-ga-label="hero">
-						<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 48 48" height="20" width="20" aria-hidden="true">
-							<path fill="currentColor" fill-rule="evenodd" d="M24 1.5C11.574 1.5 1.5 11.574 1.5 24c0 9.934 6.441 18.362 15.382 21.34 1.125.207 1.536-.488 1.536-1.084 0-.534-.02-1.95-.03-3.828-6.258 1.36-7.578-3.016-7.578-3.016-1.023-2.598-2.497-3.29-2.497-3.29-2.04-1.395.155-1.367.155-1.367 2.256.158 3.443 2.316 3.443 2.316 2.004 3.434 5.26 2.442 6.54 1.867.204-1.452.784-2.443 1.426-3.004-4.997-.568-10.252-2.498-10.252-11.12 0-2.456.878-4.466 2.318-6.04-.232-.57-1.005-2.858.22-5.957 0 0 1.89-.605 6.192 2.307a21.598 21.598 0 0 1 5.646-.76c1.916.01 3.845.26 5.646.76 4.298-2.912 6.184-2.307 6.184-2.307 1.229 3.099.456 5.387.224 5.957 1.443 1.574 2.315 3.584 2.315 6.04 0 8.643-5.262 10.546-10.274 11.1.808.696 1.528 2.07 1.528 4.17 0 3.01-.028 5.44-.028 6.178 0 .6.406 1.3 1.548 1.08C40.066 42.356 46.5 33.93 46.5 24 46.5 11.574 36.426 1.5 24 1.5Z" clip-rule="evenodd"></path>
-						</svg>
-						Star on GitHub
-					</a>
-				</div>
-			</div>
-			<div class="hero-section__video-wrapper">
-				<button
-					class="hero-section__video-trigger"
-					data-video-id={youtubeVideoId}
-					aria-label="Play demo video"
-					type="button"
-					data-ga-event="click_play_video"
-					data-ga-category="engagement"
-					data-ga-label="hero"
-				>
-				<Image
-					src={videoPlaceholder}
-					alt="Frontman demo video"
-					class="hero-section__video-thumbnail"
-					loading="eager"
-					fetchpriority="high"
-					format="webp"
-					quality={80}
-					widths={[400, 720]}
-					sizes="(max-width: 1023px) 100vw, 720px"
-				/>
-					<div class="hero-section__play-button" aria-hidden="true">
-						<svg viewBox="0 0 68 48" width="68" height="48">
-							<path d="M66.52 7.74c-.78-2.93-2.49-5.41-5.42-6.19C55.79.13 34 0 34 0S12.21.13 6.9 1.55C3.97 2.33 2.27 4.81 1.48 7.74.06 13.05 0 24 0 24s.06 10.95 1.48 16.26c.78 2.93 2.49 5.41 5.42 6.19C12.21 47.87 34 48 34 48s21.79-.13 27.1-1.55c2.93-.78 4.64-3.26 5.42-6.19C67.94 34.95 68 24 68 24s-.06-10.95-1.48-16.26z" fill="#FF0000"/>
-							<path d="M45 24L27 14v20" fill="#fff"/>
-						</svg>
-					</div>
-				</button>
+		<div class="hero-section__top">
+			<span class="hero-section__badge">Free Beta — No credit card required</span>
+			<h1 class="hero-section__title">See it. Say it. Ship it.</h1>
+			<p class="hero-section__subtitle">Stop waiting on dev tickets to fix a button color. Frontman lets you click any element in your live product, describe what you want, and watch the change happen — no code, no handoff, no waiting.</p>
+			<div class="hero-section__cta">
+				<Button size="lg" style="white" link="#install" data-ga-event="click_start_building" data-ga-category="conversion" data-ga-label="hero">Try It Free</Button>
+				<a href="https://discord.gg/xk8uXJSvhC" target="_blank" rel="noopener noreferrer" class="hero-section__community-link" data-ga-event="click_join_discord" data-ga-category="engagement" data-ga-label="hero">
+					<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="20" height="20" aria-hidden="true">
+						<path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03z"/>
+					</svg>
+					Join Community
+				</a>
+				<a href="https://github.com/frontman-ai/frontman" target="_blank" rel="noopener noreferrer" class="hero-section__github-link" data-ga-event="click_star_github" data-ga-category="conversion" data-ga-label="hero">
+					<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 48 48" height="20" width="20" aria-hidden="true">
+						<path fill="currentColor" fill-rule="evenodd" d="M24 1.5C11.574 1.5 1.5 11.574 1.5 24c0 9.934 6.441 18.362 15.382 21.34 1.125.207 1.536-.488 1.536-1.084 0-.534-.02-1.95-.03-3.828-6.258 1.36-7.578-3.016-7.578-3.016-1.023-2.598-2.497-3.29-2.497-3.29-2.04-1.395.155-1.367.155-1.367 2.256.158 3.443 2.316 3.443 2.316 2.004 3.434 5.26 2.442 6.54 1.867.204-1.452.784-2.443 1.426-3.004-4.997-.568-10.252-2.498-10.252-11.12 0-2.456.878-4.466 2.318-6.04-.232-.57-1.005-2.858.22-5.957 0 0 1.89-.605 6.192 2.307a21.598 21.598 0 0 1 5.646-.76c1.916.01 3.845.26 5.646.76 4.298-2.912 6.184-2.307 6.184-2.307 1.229 3.099.456 5.387.224 5.957 1.443 1.574 2.315 3.584 2.315 6.04 0 8.643-5.262 10.546-10.274 11.1.808.696 1.528 2.07 1.528 4.17 0 3.01-.028 5.44-.028 6.178 0 .6.406 1.3 1.548 1.08C40.066 42.356 46.5 33.93 46.5 24 46.5 11.574 36.426 1.5 24 1.5Z" clip-rule="evenodd"></path>
+					</svg>
+					Star on GitHub
+				</a>
 			</div>
 		</div>
+		<div class="hero-section__video-wrapper">
+			<button
+				class="hero-section__video-trigger"
+				data-video-id={youtubeVideoId}
+				aria-label="Play demo video"
+				type="button"
+				data-ga-event="click_play_video"
+				data-ga-category="engagement"
+				data-ga-label="hero"
+			>
+			<Image
+				src={videoPlaceholder}
+				alt="Frontman demo video — click any element, describe changes, get real code edits"
+				class="hero-section__video-thumbnail"
+				loading="eager"
+				fetchpriority="high"
+				format="webp"
+				quality={80}
+				widths={[400, 960]}
+				sizes="(max-width: 1023px) 100vw, 960px"
+			/>
+				<div class="hero-section__play-button" aria-hidden="true">
+					<svg viewBox="0 0 68 48" width="68" height="48">
+						<path d="M66.52 7.74c-.78-2.93-2.49-5.41-5.42-6.19C55.79.13 34 0 34 0S12.21.13 6.9 1.55C3.97 2.33 2.27 4.81 1.48 7.74.06 13.05 0 24 0 24s.06 10.95 1.48 16.26c.78 2.93 2.49 5.41 5.42 6.19C12.21 47.87 34 48 34 48s21.79-.13 27.1-1.55c2.93-.78 4.64-3.26 5.42-6.19C67.94 34.95 68 24 68 24s-.06-10.95-1.48-16.26z" fill="#FF0000"/>
+						<path d="M45 24L27 14v20" fill="#fff"/>
+					</svg>
+				</div>
+			</button>
+		</div>
+		<div class="hero-section__proof">
+			<span class="hero-section__proof-item">
+				<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M12 2L3 7v10l9 5 9-5V7l-9-5zm0 2.18l6.39 3.54L12 11.27 5.61 7.72 12 4.18zM5 9.34l6 3.32v6.89L5 16.23V9.34zm8 10.21v-6.89l6-3.32v6.89l-6 3.32z"/></svg>
+				Works on your real product
+			</span>
+			<span class="hero-section__proof-separator" aria-hidden="true">•</span>
+			<span class="hero-section__proof-item">
+				<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M12 1a9 9 0 0 0-9 9v7c0 1.66 1.34 3 3 3h3v-8H5v-2c0-3.87 3.13-7 7-7s7 3.13 7 7v2h-4v8h3c1.66 0 3-1.34 3-3v-7a9 9 0 0 0-9-9z"/></svg>
+				No design or dev skills needed
+			</span>
+			<span class="hero-section__proof-separator" aria-hidden="true">•</span>
+			<span class="hero-section__proof-item">
+				<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg>
+				Changes happen in seconds
+			</span>
+		</div>
+		<!-- SEO-targeted detail text, visually de-emphasized -->
+		<p class="hero-section__geo-lead">Frontman is an AI agent that lives inside your framework's dev server as middleware. It sees the live DOM, component tree, CSS styles, routes, and server logs — the full runtime context that file-level agents miss. Supports Next.js, Astro, and Vite (React, Vue, Svelte). Open-source core (Apache 2.0 / AGPL-3.0) with BYOK pricing — bring your own API key or use ours.</p>
 	</div>
 </section>
 
@@ -86,12 +97,6 @@ const youtubeVideoId = '-4GD1GYwH8Y'
 	.hero-section {
 		position: relative;
 		overflow: hidden;
-		min-height: 600px;
-	}
-	@media (max-width: 1023px) {
-		.hero-section {
-			min-height: auto;
-		}
 	}
 	.hero-section__bg {
 		position: absolute;
@@ -108,118 +113,76 @@ const youtubeVideoId = '-4GD1GYwH8Y'
 	.hero-section__container {
 		position: relative;
 		z-index: 1;
-		padding: 40px 24px;
+		padding: 96px 24px 32px;
 		width: 100%;
+		max-width: 1100px;
+		margin: 0 auto;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
 	}
 	@media (min-width: 1024px) {
 		.hero-section__container {
-			padding: 70px 0 90px 48px;
+			padding: 104px 48px 40px;
 		}
 	}
-	.hero-section__content {
+
+	/* -- Top block: badge + headline + subtitle + CTAs (centered) -- */
+	.hero-section__top {
+		text-align: center;
+		max-width: 780px;
+		margin: 0 auto;
 		display: flex;
 		flex-direction: column;
-		gap: 24px;
-		align-items: flex-start;
-		max-width: 1440px;
-		margin: 0 auto;
-		position: relative;
-	}
-	@media (min-width: 1024px) {
-		.hero-section__content {
-			flex-direction: row;
-			align-items: center;
-			gap: 48px;
-		}
-	}
-	.hero-section__text {
-		flex: 0 0 auto;
-		width: 100%;
-		max-width: 600px;
-	}
-	@media (min-width: 1024px) {
-		.hero-section__text {
-			width: 45%;
-			max-width: none;
-			padding-right: 48px;
-		}
-	}
-	@media (max-width: 1023px) {
-		.hero-section__text {
-			max-width: 100%;
-		}
-	}
-	.hero-section__logo {
-		display: none;
-	}
-	@media (min-width: 1024px) {
-		.hero-section__logo {
-			display: block;
-			width: 143px;
-			height: 143px;
-			margin-bottom: 32px;
-		}
+		align-items: center;
 	}
 	.hero-section__title {
 		font-family: 'SF Pro Display', system-ui, helvetica, sans-serif;
-		font-size: 36px;
-		line-height: 42px;
+		font-size: 34px;
+		line-height: 40px;
 		font-weight: 700;
 		color: white;
-		margin-bottom: 16px;
-		max-width: 100%;
+		margin: 16px 0 12px;
 	}
 	@media (min-width: 1024px) {
 		.hero-section__title {
-			font-size: 64px;
-			line-height: 70px;
-			margin-bottom: 24px;
-			max-width: 700px;
+			font-size: 56px;
+			line-height: 62px;
+			margin: 20px 0 16px;
 		}
 	}
 	.hero-section__subtitle {
 		font-size: 16px;
-		line-height: 22px;
-		color: white;
+		line-height: 24px;
+		color: rgba(255, 255, 255, 0.85);
+		max-width: 600px;
 		margin-bottom: 24px;
-		max-width: 100%;
 	}
 	@media (min-width: 1024px) {
 		.hero-section__subtitle {
 			font-size: 18px;
-			line-height: 25px;
-			margin-bottom: 32px;
-			max-width: 700px;
+			line-height: 27px;
+			margin-bottom: 28px;
 		}
 	}
+
+	/* -- CTAs row -- */
 	.hero-section__cta {
 		display: flex;
 		flex-direction: column;
-		gap: 12px;
-		max-width: 100%;
+		gap: 10px;
 		width: 100%;
+		align-items: center;
 	}
 	.hero-section__cta .button {
 		width: 100%;
 	}
-	.hero-section__geo-lead {
-		font-size: 13px;
-		line-height: 18px;
-		color: rgba(255, 255, 255, 0.6);
-		margin-bottom: 24px;
-		max-width: 100%;
-	}
-	@media (min-width: 1024px) {
-		.hero-section__geo-lead {
-			font-size: 14px;
-			line-height: 20px;
-			max-width: 700px;
-		}
+	@media (min-width: 640px) {
 		.hero-section__cta {
 			flex-direction: row;
-			align-items: center;
-			gap: 16px;
-			max-width: none;
+			justify-content: center;
+			gap: 12px;
+			width: auto;
 		}
 		.hero-section__cta .button {
 			width: auto;
@@ -233,36 +196,36 @@ const youtubeVideoId = '-4GD1GYwH8Y'
 		color: white;
 		font-family: 'SF Pro Display', system-ui, helvetica, sans-serif;
 		font-weight: 480;
-		font-size: 15px;
+		font-size: 14px;
 		line-height: 22px;
 		text-decoration: none;
 		white-space: nowrap;
-		background: rgba(255, 255, 255, 0.15);
-		padding: 8px 16px;
+		background: rgba(255, 255, 255, 0.12);
+		padding: 8px 14px;
 		border-radius: 8px;
-		border: 1px solid rgba(255, 255, 255, 0.25);
+		border: 1px solid rgba(255, 255, 255, 0.2);
 		transition: background 0.2s, border-color 0.2s;
 	}
 	.hero-section__github-link:hover,
 	.hero-section__community-link:hover {
-		background: rgba(255, 255, 255, 0.25);
+		background: rgba(255, 255, 255, 0.22);
 		border-color: rgba(255, 255, 255, 0.4);
 	}
+
+	/* -- Video (full width below text, hero centerpiece) -- */
 	.hero-section__video-wrapper {
-		flex: 1 1 auto;
 		width: 100%;
-		max-width: 720px;
+		max-width: 960px;
 		aspect-ratio: 16 / 9;
 		position: relative;
-		margin: 0 auto;
+		margin: 28px auto 0;
 		border-radius: 12px;
 		overflow: hidden;
+		box-shadow: 0 8px 40px rgba(0, 0, 0, 0.35);
 	}
 	@media (min-width: 1024px) {
 		.hero-section__video-wrapper {
-			width: 55%;
-			margin: 0;
-			margin-left: auto;
+			margin-top: 40px;
 		}
 	}
 	.hero-section__video-trigger {
@@ -285,7 +248,6 @@ const youtubeVideoId = '-4GD1GYwH8Y'
 		outline: 3px solid white;
 		outline-offset: 3px;
 	}
-	/* Hide trigger once video is playing */
 	.hero-section__video-trigger[data-playing] {
 		display: none;
 	}
@@ -314,6 +276,72 @@ const youtubeVideoId = '-4GD1GYwH8Y'
 		border: none;
 	}
 
+	/* -- Badge -- */
+	.hero-section__badge {
+		display: inline-block;
+		font-family: 'SF Pro Display', system-ui, helvetica, sans-serif;
+		font-size: 14px;
+		font-weight: 500;
+		color: #FFD700;
+		margin-bottom: 4px;
+	}
+	@media (min-width: 1024px) {
+		.hero-section__badge {
+			font-size: 16px;
+		}
+	}
+
+	/* -- Proof strip (benefit-driven, not tech-driven) -- */
+	.hero-section__proof {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 8px;
+		margin-top: 28px;
+		width: 100%;
+	}
+	@media (min-width: 640px) {
+		.hero-section__proof {
+			flex-direction: row;
+			justify-content: center;
+			gap: 12px;
+			margin-top: 32px;
+		}
+	}
+	.hero-section__proof-item {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		font-family: 'SF Pro Display', system-ui, helvetica, sans-serif;
+		font-size: 13px;
+		font-weight: 480;
+		color: rgba(255, 255, 255, 0.65);
+	}
+	.hero-section__proof-separator {
+		display: none;
+		color: rgba(255, 255, 255, 0.3);
+	}
+	@media (min-width: 640px) {
+		.hero-section__proof-separator {
+			display: inline;
+		}
+	}
+
+	/* -- Geo-lead SEO text (visually de-emphasized) -- */
+	.hero-section__geo-lead {
+		font-size: 12px;
+		line-height: 17px;
+		color: rgba(255, 255, 255, 0.35);
+		text-align: center;
+		max-width: 700px;
+		margin: 24px auto 0;
+	}
+	@media (min-width: 1024px) {
+		.hero-section__geo-lead {
+			font-size: 13px;
+			line-height: 18px;
+		}
+	}
 </style>
 
 <script>
