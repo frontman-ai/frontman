@@ -1,4 +1,6 @@
 ---
+import { getCollection } from 'astro:content'
+
 const { frontmatter } = Astro.props
 
 import Layout from './Layout.astro'
@@ -13,6 +15,19 @@ const seoDescription = baseDescription.length < 80
 	? `${baseDescription} Learn what ${frontmatter.title} means, why it matters for frontend development, and how it applies to modern web applications.`
 	: baseDescription
 
+const currentSlug = Astro.url.pathname.split('/').filter(Boolean).at(-1) ?? ''
+const glossaryEntries = (await getCollection('glossary')).sort((a, b) =>
+	a.data.title.localeCompare(b.data.title)
+)
+type GlossaryEntry = (typeof glossaryEntries)[number]
+const isGlossaryEntry = (entry: GlossaryEntry | undefined): entry is GlossaryEntry => entry !== undefined
+const currentIndex = glossaryEntries.findIndex((entry) => entry.id === currentSlug)
+const neighboringTerms = [
+	glossaryEntries[currentIndex - 1],
+	glossaryEntries[currentIndex + 1],
+	glossaryEntries[currentIndex + 2]
+].filter(isGlossaryEntry)
+
 const SEO = {
 	title: `${frontmatter.title} | Frontman Glossary`,
 	description: seoDescription
@@ -22,12 +37,13 @@ const jsonLd = {
 	'@context': 'https://schema.org',
 	'@type': 'DefinedTerm',
 	name: frontmatter.title,
-	description: frontmatter.description,
+	description: seoDescription,
 	inDefinedTermSet: {
 		'@type': 'DefinedTermSet',
 		name: 'Frontend Development Glossary',
 		url: 'https://frontman.sh/glossary/'
 	},
+	mainEntityOfPage: Astro.url.href,
 	url: Astro.url.href
 }
 ---
@@ -41,7 +57,7 @@ const jsonLd = {
 				<header class="glossary-header">
 					<Breadcrumbs classes="mb-6" />
 					<h1 class="glossary-header__title">{frontmatter.title}</h1>
-					<p class="glossary-header__description">{frontmatter.description}</p>
+					<p class="glossary-header__description">{seoDescription}</p>
 				</header>
 			</Col>
 		</Row>
@@ -49,6 +65,34 @@ const jsonLd = {
 
 	<div class="glossary-body basic-text basic-text--lg">
 		<slot />
+
+		<section class="glossary-explore">
+			<div class="glossary-explore__intro">
+				<h2>Keep exploring the glossary</h2>
+				<p>
+					Use the glossary to move from one concept to the next, then see how those ideas show up
+					in Frontman's docs and Lighthouse guides.
+				</p>
+			</div>
+
+			<div class="glossary-explore__links">
+				<a href="/glossary/" class="glossary-explore__link">Browse all glossary terms</a>
+				<a href="/how-it-works/" class="glossary-explore__link">See how Frontman works</a>
+				<a href="/lighthouse/" class="glossary-explore__link">Explore Lighthouse guides</a>
+			</div>
+
+			{neighboringTerms.length > 0 && (
+				<div class="glossary-neighbors">
+					{neighboringTerms.map((entry) => (
+						<a href={`/glossary/${entry.id}/`} class="glossary-neighbor-card">
+							<span class="glossary-neighbor-card__eyebrow">Related term</span>
+							<span class="glossary-neighbor-card__title">{entry.data.title}</span>
+							<span class="glossary-neighbor-card__description">{entry.data.description}</span>
+						</a>
+					))}
+				</div>
+			)}
+		</section>
 	</div>
 </Layout>
 
@@ -59,5 +103,32 @@ const jsonLd = {
 	}
 	.glossary-body {
 		@apply mx-auto max-w-3xl px-6 py-12 lg:py-24;
+	}
+	.glossary-explore {
+		@apply mt-16 rounded-3xl border border-neutral-200 bg-neutral-50 p-8 dark:border-neutral-800 dark:bg-neutral-900;
+	}
+	.glossary-explore__intro p {
+		@apply mt-3 text-base leading-7 text-neutral-600 dark:text-neutral-300;
+	}
+	.glossary-explore__links {
+		@apply mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap;
+	}
+	.glossary-explore__link {
+		@apply rounded-full border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-700 transition hover:border-primary-400 hover:text-primary-600 dark:border-neutral-700 dark:text-neutral-200 dark:hover:border-primary-500 dark:hover:text-primary-400;
+	}
+	.glossary-neighbors {
+		@apply mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3;
+	}
+	.glossary-neighbor-card {
+		@apply flex flex-col rounded-2xl border border-neutral-200 bg-white p-5 transition hover:border-primary-300 hover:shadow-sm dark:border-neutral-800 dark:bg-neutral-950 dark:hover:border-primary-600;
+	}
+	.glossary-neighbor-card__eyebrow {
+		@apply text-xs font-semibold uppercase tracking-[0.18em] text-primary-500;
+	}
+	.glossary-neighbor-card__title {
+		@apply mt-3 font-headings text-lg font-semibold text-neutral-900 dark:text-white;
+	}
+	.glossary-neighbor-card__description {
+		@apply mt-2 text-sm leading-6 text-neutral-600 dark:text-neutral-300;
 	}
 </style>

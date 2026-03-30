@@ -1,5 +1,5 @@
 ---
-title: "GPT-5.4 Is Live in Frontman — Here\u2019s What It Means for Your Team"
+title: 'GPT-5.4 Support Is Live in Frontman'
 pubDate: 2026-03-06T12:00:00Z
 description: 'GPT-5.4 brings a massive context window, native computer-use, and sharper reasoning to Frontman — so your design system gets implemented the way it was intended.'
 author: 'Danni Friedland'

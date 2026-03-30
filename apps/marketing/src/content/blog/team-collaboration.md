@@ -1,5 +1,5 @@
 ---
-title: "Your Design System Is Bottlenecked on Engineering. It Doesn\u2019t Have to Be."
+title: 'Team Collaboration for Design Systems Without the Engineering Bottleneck'
 pubDate: 2026-02-16T05:00:00Z
 description: 'You built the system. You maintain it across teams. But every token tweak still routes through a developer. Frontman changes that.'
 author: 'Danni Friedland'

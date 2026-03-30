@@ -56,7 +56,7 @@ Frontman has a built-in Lighthouse tool. It runs the audit, reads the failing sc
 - **Remove [unused JavaScript](/lighthouse/how-to-fix-unused-javascript/)** — Audit your bundle with source maps and remove dead code
 - **Move heavy work to [Web Workers](https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API)** — Data processing, sorting, and computation that does not need DOM access can run off the main thread
 - **Break up long tasks** — Use `requestIdleCallback`, `setTimeout(fn, 0)`, or the `scheduler.yield()` API to yield to the main thread between chunks of work
-- **Reduce third-party impact** — Load analytics and chat widgets after the page is interactive, or use [Partytown](https://frontman.sh/glossary/partytown/) to run them in a Web Worker
+- **Reduce third-party impact** — Load analytics and chat widgets after the page is interactive, or use [Partytown](https://partytown.qwik.dev/) to run them in a Web Worker
 - **[Minify JavaScript](/lighthouse/how-to-fix-unminified-javascript/)** — Smaller files parse faster
 
 ## People Also Ask

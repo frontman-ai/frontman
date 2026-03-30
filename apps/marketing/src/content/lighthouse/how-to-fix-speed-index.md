@@ -18,7 +18,7 @@ faq:
 
 ## What Lighthouse Is Telling You
 
-When Lighthouse flags [Speed Index](https://web.dev/articles/speed-index), it means the page's visible content is populating slowly. Speed Index carries a **weight of 10** in the Performance score. Unlike metrics that measure a single moment ([FCP](/lighthouse/how-to-fix-first-contentful-paint-fcp/) or [LCP](/lighthouse/how-to-fix-largest-contentful-paint-lcp/)), Speed Index captures how quickly the *entire viewport* becomes visually complete. A page that shows content progressively scores better than one that stays blank for three seconds and then renders everything at once.
+When Lighthouse flags [Speed Index](https://developer.chrome.com/docs/lighthouse/performance/speed-index/), it means the page's visible content is populating slowly. Speed Index carries a **weight of 10** in the Performance score. Unlike metrics that measure a single moment ([FCP](/lighthouse/how-to-fix-first-contentful-paint-fcp/) or [LCP](/lighthouse/how-to-fix-largest-contentful-paint-lcp/)), Speed Index captures how quickly the *entire viewport* becomes visually complete. A page that shows content progressively scores better than one that stays blank for three seconds and then renders everything at once.
 
 Lighthouse calculates Speed Index by capturing video frames of the page loading and computing the area under the visual progress curve.
 

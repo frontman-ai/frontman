@@ -52,7 +52,7 @@ Frontman has a built-in Lighthouse tool. It runs the audit, reads the failing sc
 
 - **Configure CSS purging** — PurgeCSS, Tailwind's `content` config, or PostCSS plugins scan your templates and remove unused utility classes at build time
 - **Split CSS by page or route** — Instead of one global stylesheet, import CSS at the page or component level using [`@media`](https://developer.mozilla.org/en-US/docs/Web/CSS/@media) queries or framework-level scoping. Next.js and Astro scope styles per component by default
-- **Use [CSS Modules](https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_modules) or scoped styles** — CSS Modules (`*.module.css`) scope class names to the component that imports them, preventing global style accumulation
+- **Use [CSS Modules](https://github.com/css-modules/css-modules) or scoped styles** — CSS Modules (`*.module.css`) scope class names to the component that imports them, preventing global style accumulation
 - **Inline critical CSS** — Use `critters` or `critical` to inline above-the-fold styles and defer the rest
 - **Remove unused vendor CSS** — If you use 5 icons from a 500-icon library, switch to individual SVG imports or a custom icon subset
 - **Audit with the Coverage tab** — Chrome DevTools Coverage shows real-time CSS usage. Sort by unused bytes to find the biggest opportunities

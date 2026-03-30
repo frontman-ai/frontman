@@ -1,5 +1,5 @@
 ---
-title: "Your Design System Changes Shouldn\u2019t Need a Sprint"
+title: 'AI Coding Agents Are Blind to UI'
 pubDate: 2026-02-18T05:00:00Z
 description: "Designers and PMs know exactly what needs to change in the UI. They just can\u2019t change it without engineering. Framework-aware AI fixes that."
 author: 'Danni Friedland'

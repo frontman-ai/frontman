@@ -1,5 +1,5 @@
 ---
-title: 'Security: How Frontman Keeps Your Code Safe'
+title: 'Frontman Security: How Frontman Keeps Your Code Safe'
 pubDate: 2026-02-17T05:00:00Z
 description: 'Frontman runs only in development, never touches production, and every change produces a reviewable code diff. Here is our security model.'
 author: 'Danni Friedland'

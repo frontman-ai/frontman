@@ -53,7 +53,7 @@ Frontman has a built-in Lighthouse tool. It runs the audit, reads the failing sc
 - **Fix robots.txt** — Remove or narrow `Disallow` rules that block important pages. Use `Allow` for specific paths within a blocked directory
 - **Remove X-Robots-Tag headers** — Check server config (nginx, Apache, Vercel, Netlify) and CDN settings for headers that add `noindex`
 - **Use environment-specific config** — Set `noindex` only in staging/development environments. Use environment variables: `if (process.env.NODE_ENV !== 'production') { noindex = true }`
-- **Audit your robots.txt** — Keep `robots.txt` in version control. Review it during deployment. Use [Google's robots.txt Tester](https://search.google.com/search-console/robots-testing-tool) to verify
+- **Audit your robots.txt** — Keep `robots.txt` in version control. Review it during deployment. Use [Google's robots.txt documentation](https://developers.google.com/search/docs/crawling-indexing/robots/intro) to verify the rules you ship
 - **Use [Google Search Console](https://developers.google.com/search/docs/crawling-indexing/robots-meta-tag)** — After fixing, use the URL Inspection tool to request reindexing and verify the page is indexable
 
 ## People Also Ask

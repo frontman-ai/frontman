@@ -18,7 +18,7 @@ faq:
 
 ## What Lighthouse Is Telling You
 
-When Lighthouse flags [render-blocking resources](https://web.dev/articles/render-blocking-resources), it means CSS files or synchronous JavaScript in the `<head>` are preventing the browser from painting anything on screen. The browser downloads these resources, parses them, and only then starts rendering — everything before that point is a blank white page.
+When Lighthouse flags [render-blocking resources](https://developer.chrome.com/docs/lighthouse/performance/render-blocking-resources/), it means CSS files or synchronous JavaScript in the `<head>` are preventing the browser from painting anything on screen. The browser downloads these resources, parses them, and only then starts rendering — everything before that point is a blank white page.
 
 This audit directly impacts [First Contentful Paint](/lighthouse/how-to-fix-first-contentful-paint-fcp/), [Speed Index](/lighthouse/how-to-fix-speed-index/), and [LCP](/lighthouse/how-to-fix-largest-contentful-paint-lcp/). Lighthouse lists the specific resources that block rendering and estimates the potential savings in milliseconds.
 

@@ -13,6 +13,9 @@ const SEO = {
 
 const entries = await getCollection('glossary')
 const sorted = entries.sort((a, b) => a.data.title.localeCompare(b.data.title))
+const entryMap = new Map(sorted.map((entry) => [entry.id, entry]))
+type GlossaryEntry = (typeof sorted)[number]
+const isGlossaryEntry = (entry: GlossaryEntry | undefined): entry is GlossaryEntry => entry !== undefined
 
 const grouped = new Map<string, typeof sorted>()
 for (const entry of sorted) {
@@ -21,6 +24,36 @@ for (const entry of sorted) {
 	grouped.get(letter)!.push(entry)
 }
 const letters = [...grouped.keys()].sort()
+
+const topicGroups = [
+	{
+		title: 'Performance & Core Web Vitals',
+		description: 'Key terms for loading speed, rendering, bundle size, and web performance work.',
+		ids: ['first-contentful-paint', 'largest-contentful-paint', 'time-to-first-byte', 'tree-shaking']
+	},
+	{
+		title: 'Rendering & Architecture',
+		description: 'Concepts that explain how modern frontend apps render, stream, and hydrate.',
+		ids: ['server-side-rendering', 'static-site-generation', 'partial-hydration', 'islands-architecture']
+	},
+	{
+		title: 'React, State & Data Flow',
+		description: 'A quick path through component architecture, state management, and reactivity.',
+		ids: ['react', 'redux', 'signals', 'state-management']
+	},
+	{
+		title: 'Security & SEO',
+		description: 'Terms that matter for crawlability, structured data, headers, and search visibility.',
+		ids: ['content-security-policy', 'technical-seo', 'schema-org', 'robots-txt-file']
+	}
+]
+
+const curatedGroups = topicGroups
+	.map((group) => ({
+		...group,
+		entries: group.ids.map((id) => entryMap.get(id)).filter(isGlossaryEntry)
+	}))
+	.filter((group) => group.entries.length > 0)
 
 const jsonLd = {
 	'@context': 'https://schema.org',
@@ -43,6 +76,37 @@ const jsonLd = {
 					{entries.length} terms covering frontend development, performance, security, SEO, and
 					more.
 				</p>
+				<p class="glossary-hero__supporting-text">
+					Use the glossary when you hit an unfamiliar frontend term in the docs, a Lighthouse
+					audit, or a framework guide. Each entry is designed to be a quick explanation you can
+					follow with related concepts.
+				</p>
+			</Col>
+		</Row>
+	</Section>
+
+	<Section id="glossary-topics" padding="top">
+		<Row>
+			<Col span="12">
+				<div class="glossary-topics-header">
+					<h2>Popular topic clusters</h2>
+					<p>Start with a curated path if you are exploring a concept area instead of a single term.</p>
+				</div>
+				<div class="glossary-topic-grid">
+					{curatedGroups.map((group) => (
+						<section class="glossary-topic-card">
+							<h3 class="glossary-topic-card__title">{group.title}</h3>
+							<p class="glossary-topic-card__description">{group.description}</p>
+							<ul class="glossary-topic-card__list">
+								{group.entries.map((entry) => (
+									<li>
+										<a href={`/glossary/${entry.id}/`}>{entry.data.title}</a>
+									</li>
+								))}
+							</ul>
+						</section>
+					))}
+				</div>
 			</Col>
 		</Row>
 	</Section>
@@ -97,6 +161,33 @@ const jsonLd = {
 	}
 	.glossary-hero__description {
 		@apply mt-4 text-lg leading-relaxed text-neutral-500 dark:text-neutral-400;
+	}
+	.glossary-hero__supporting-text {
+		@apply mx-auto mt-4 max-w-3xl text-base leading-7 text-neutral-600 dark:text-neutral-300;
+	}
+	.glossary-topics-header {
+		@apply mb-8;
+	}
+	.glossary-topics-header p {
+		@apply mt-3 text-base leading-7 text-neutral-600 dark:text-neutral-300;
+	}
+	.glossary-topic-grid {
+		@apply grid gap-4 lg:grid-cols-2;
+	}
+	.glossary-topic-card {
+		@apply rounded-2xl border border-neutral-200 bg-white p-6 dark:border-neutral-800 dark:bg-neutral-900;
+	}
+	.glossary-topic-card__title {
+		@apply font-headings text-xl font-semibold text-neutral-900 dark:text-white;
+	}
+	.glossary-topic-card__description {
+		@apply mt-2 text-sm leading-6 text-neutral-600 dark:text-neutral-300;
+	}
+	.glossary-topic-card__list {
+		@apply mt-4 space-y-2;
+	}
+	.glossary-topic-card__list a {
+		@apply text-sm font-medium text-primary-600 underline underline-offset-4 hover:text-primary-500 dark:text-primary-400 dark:hover:text-primary-300;
 	}
 	.glossary-nav {
 		@apply flex flex-wrap justify-center gap-2;

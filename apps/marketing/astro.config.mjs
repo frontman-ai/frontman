@@ -82,6 +82,14 @@ function validateDocsDescriptions() {
 export default defineConfig({
   site: "https://frontman.sh",
   trailingSlash: "always",
+  redirects: {
+    "/blog/gpt-5.4-support": "/blog/gpt-54-support/",
+    "/blog/mobile-app": "/blog/ai-coding-agents-blind-to-ui/",
+    "/blog/user-stories": "/blog/frontman-vs-cursor-vs-claude-code/",
+    "/blog/welcome": "/blog/introducing-frontman/",
+    "/blog/what-are-browser-aware-ai-coding-tools": "/blog/what-are-framework-aware-ai-coding-tools/",
+    "/blog/user-feedback": "/changelog/",
+  },
   vite: {
     plugins: [tailwindcss()],
     server: {
