@@ -3,7 +3,7 @@ title: 'Frontman Now Supports WordPress'
 pubDate: 2026-02-21T05:00:00Z
 description: 'Frontman brings AI-powered editing to WordPress. Describe changes in plain English — update themes, edit content, manage settings — and see results live on your site.'
 author: 'Itay A'
-image: '/blog/post-01-cover.png'
+image: '/blog/frontman-now-supports-wordpress-cover.png'
 tags: ['announcement', 'wordpress']
 ---
 
