@@ -194,10 +194,8 @@ export default defineConfig({
     serverName: "marketing",
   }), icon(), brokenLinksChecker(), sitemap({
     filter: (page) =>
-      // Exclude empty placeholder pages and internal-only pages
-      !page.includes("/pricing") &&
-      !page.includes("/design-system") &&
-      !page.includes("/contact"),
+      // Exclude internal-only pages.
+      !page.includes("/design-system"),
     serialize: (item) => {
       // Use the real pubDate for blog and lighthouse posts; fall back to
       // build date for everything else.
