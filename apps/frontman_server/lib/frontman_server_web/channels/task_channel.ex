@@ -522,7 +522,15 @@ defmodule FrontmanServerWeb.TaskChannel do
       {:ok, _interaction} ->
         Logger.info("User message added, agent spawned for task #{task_id}")
 
-        Tasks.enqueue_title_generation(scope, task_id, prompt.text_summary, FrontmanServer.Providers.Model.to_string(model), env_api_key)
+        model_string = if model, do: Model.to_string(model), else: nil
+
+        Tasks.enqueue_title_generation(
+          scope,
+          task_id,
+          prompt.text_summary,
+          model_string,
+          env_api_key
+        )
 
         {:noreply, socket}
 
