@@ -304,10 +304,7 @@ config :frontman_server, :providers, %{
 
 config :frontman_server, FrontmanServer.Tasks.MessageOptimizer,
   enabled: true,
-  token_budget: 128_000,
-  tool_result_strip_keys: ["start_line", "lines_returned", "total_lines"],
-  budget_truncation_length: 500,
-  budget_keep_recent_turns: 10
+  tool_result_strip_keys: ["start_line", "lines_returned", "total_lines"]
 
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.

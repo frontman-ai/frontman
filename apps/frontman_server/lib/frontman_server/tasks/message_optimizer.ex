@@ -12,12 +12,9 @@ defmodule FrontmanServer.Tasks.MessageOptimizer do
   has already processed it.
   """
 
-  require Logger
-
   alias FrontmanServer.Tasks.MessageOptimizer.{
     ImageDecay,
     PageContextDedup,
-    TokenBudget,
     ToolResultCompaction
   }
 
@@ -33,25 +30,11 @@ defmodule FrontmanServer.Tasks.MessageOptimizer do
   def optimize(messages, opts \\ []) do
     if enabled?() do
       old_boundary = find_old_boundary(messages)
-      before_tokens = TokenBudget.estimate_tokens(messages)
 
-      result =
-        messages
-        |> ImageDecay.run(old_boundary, opts)
-        |> ToolResultCompaction.run(old_boundary, opts)
-        |> PageContextDedup.run(opts)
-        |> TokenBudget.run(Keyword.put(opts, :old_boundary, old_boundary))
-
-      after_tokens = TokenBudget.estimate_tokens(result)
-
-      if before_tokens != after_tokens do
-        Logger.info(
-          "MessageOptimizer: #{before_tokens} -> #{after_tokens} estimated tokens " <>
-            "(saved ~#{before_tokens - after_tokens})"
-        )
-      end
-
-      result
+      messages
+      |> ImageDecay.run(old_boundary, opts)
+      |> ToolResultCompaction.run(old_boundary, opts)
+      |> PageContextDedup.run(opts)
     else
       messages
     end
