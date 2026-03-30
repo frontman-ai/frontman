@@ -193,9 +193,6 @@ export default defineConfig({
     basePath: "frontman",
     serverName: "marketing",
   }), icon(), brokenLinksChecker(), sitemap({
-    filter: (page) =>
-      // Exclude internal-only pages.
-      !page.includes("/design-system"),
     serialize: (item) => {
       // Use the real pubDate for blog and lighthouse posts; fall back to
       // build date for everything else.

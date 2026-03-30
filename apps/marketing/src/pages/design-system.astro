@@ -1,598 +1,228 @@
 ---
-// Design System
-// ------------
-// Description: Internal design system documentation - NOT FOR CRAWLING
-
-// Components
-// - Layout
 import Layout from '../layouts/Layout.astro'
-import Section from '../components/ui/Section.astro'
-import Row from '../components/ui/Row.astro'
-import Col from '../components/ui/Col.astro'
-// - UI
-import Button from '../components/ui/Button.astro'
-import Highlight from '../components/ui/Highlight.astro'
 
 const SEO = {
-	title: 'Design System - Internal',
-	description: 'Internal design system documentation'
+	title: 'Design System Workflows with Frontman',
+	description:
+		'Use Frontman to maintain your design system in the browser, trace components back to source, and ship reviewable UI changes without the usual ticket backlog.'
 }
 
-const sectionHeadingClass = 'text-neutral-900'
-const primaryColorName = 'purple'
-const primaryColorHex = '#7C3AED'
+const pillars = [
+	{
+		title: 'Click the live UI',
+		description:
+			'Start from the running product instead of guessing which component or token file controls the screen you are looking at.'
+	},
+	{
+		title: 'Trace changes to source',
+		description:
+			'Frontman maps the selected element back to the framework component and source file so edits happen in the real system, not in screenshots or override layers.'
+	},
+	{
+		title: 'Ship normal diffs',
+		description:
+			'Every update still lands as a regular code diff and goes through your existing review process, which keeps engineering in control of what gets merged.'
+	}
+]
+
+const roles = [
+	{
+		title: 'Designers',
+		description:
+			'Fix spacing drift, token mismatches, component states, and content issues without waiting for a backlog slot just to make a visual correction.'
+	},
+	{
+		title: 'Product managers',
+		description:
+			'Update copy, CTAs, and landing-page details directly in the real product while still handing engineering a clean PR instead of a vague ticket.'
+	},
+	{
+		title: 'Engineers',
+		description:
+			'Review focused changes instead of context-switching into low-risk design-system maintenance work that other teams already know how to describe.'
+	}
+]
+
+const faqs = [
+	{
+		question: 'Is this a public page about Frontman or internal design documentation?',
+		answer:
+			'This page is public. It explains how Frontman helps teams maintain a design system in a real product. Internal implementation details still belong in your private docs or repository.'
+	},
+	{
+		question: 'Does Frontman bypass code review for design system updates?',
+		answer:
+			'No. Frontman produces normal file edits and git diffs. Your team still reviews, approves, and merges changes through the same process you already use today.'
+	},
+	{
+		question: 'Why does this help design systems specifically?',
+		answer:
+			'Design systems drift when the people who notice visual problems cannot directly fix them. Frontman closes that loop by letting teams start from the browser and edit the actual source behind the rendered UI.'
+	},
+	{
+		question: 'Can Frontman work with existing frameworks and component libraries?',
+		answer:
+			'Yes. Frontman is built for framework-aware workflows in real apps, including Next.js, Astro, and Vite projects. It works with the components and code structure your team already maintains.'
+	}
+]
+
+const faqJsonLd = {
+	'@context': 'https://schema.org',
+	'@type': 'FAQPage',
+	mainEntity: faqs.map((faq) => ({
+		'@type': 'Question',
+		name: faq.question,
+		acceptedAnswer: {
+			'@type': 'Answer',
+			text: faq.answer
+		}
+	}))
+}
 ---
 
-<Layout title={SEO.title} description={SEO.description} noindex={true}>
+<Layout title={SEO.title} description={SEO.description}>
+	<script is:inline type="application/ld+json" set:html={JSON.stringify(faqJsonLd)} />
 
-	<!-- Overview -->
-	<Section padding="both">
-		<Row>
-			<Col span="12">
-				<h1>Frontman Design System</h1>
-				<p class="text-neutral-500 mb-4">Internal reference for building pages quickly</p>
-				<div class="bg-orange-50 border-l-4 border-primary-500 p-6 rounded-r-lg mb-8">
-					<h3 class="mb-2">Design Philosophy</h3>
-					<p class="text-neutral-700">Frontman is for <strong>everyone</strong> - designers, product managers, and developers. Our design is <strong>friendly, playful, and approachable</strong>. We use <strong class="text-primary-500">{primaryColorName} as our brand color</strong>, soft pastels, rounded corners, and fun visual elements to create a welcoming experience that breaks down walls between teams.</p>
-				</div>
-			</Col>
-		</Row>
-	</Section>
+	<section class="border-b border-neutral-200 bg-neutral-50 py-20 dark:border-neutral-800 dark:bg-neutral-950">
+		<div class="mx-auto max-w-4xl px-6 text-center">
+			<p class="text-sm font-semibold uppercase tracking-[0.2em] text-primary-500">Design System</p>
+			<h1 class="mt-4 text-4xl font-bold tracking-tight text-neutral-950 dark:text-white sm:text-5xl">
+				Design System Workflows with Frontman
+			</h1>
+			<p class="mx-auto mt-6 max-w-3xl text-lg leading-8 text-neutral-600 dark:text-neutral-300">
+				Frontman helps teams maintain a design system from the browser instead of through screenshots,
+				tickets, and handoff loops. Click the live UI, describe the change, and review the resulting
+				code diff like any other update.
+			</p>
+			<div class="mt-10 flex flex-col justify-center gap-4 sm:flex-row">
+				<a
+					href="/how-it-works/"
+					class="rounded-md bg-primary-500 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-primary-400"
+				>
+					See how it works
+				</a>
+				<a
+					href="/docs/installation/"
+					class="rounded-md border border-neutral-300 px-6 py-3 text-sm font-semibold text-neutral-900 transition hover:border-primary-400 hover:text-primary-600 dark:border-neutral-700 dark:text-white dark:hover:border-primary-500 dark:hover:text-primary-400"
+				>
+					Install Frontman
+				</a>
+			</div>
+		</div>
+	</section>
 
-	<!-- Bold Bordered Cards (Signature Style) -->
-	<Section padding="both" mode="light">
-		<Row>
-			<Col span="12" classes="mb-8">
-				<h2 class={sectionHeadingClass}>Bold Bordered Cards (Signature Style)</h2>
-				<p class="text-neutral-600 mb-6">Our signature design element - friendly cards with thick black borders, rounded corners, and playful drop shadows. Approachable for all audiences: designers, PMs, and developers.</p>
-			</Col>
-		</Row>
-
-		<Row>
-			<Col span="4">
-				<div class="bold-card bold-card--yellow">
-					<div class="bold-card__number">01</div>
-					<h3 class="bold-card__title">Step Title</h3>
-					<p class="bold-card__text">Description text goes here with details about this step.</p>
-					<div class="code-block">
-						<code>frontman</code>
+	<section class="py-16 sm:py-20">
+		<div class="mx-auto max-w-5xl px-6">
+			<div class="grid gap-6 lg:grid-cols-3">
+				{pillars.map((pillar) => (
+					<div class="rounded-3xl border border-neutral-200 bg-white p-8 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+						<h2 class="text-xl font-semibold text-neutral-950 dark:text-white">{pillar.title}</h2>
+						<p class="mt-4 text-sm leading-7 text-neutral-600 dark:text-neutral-300">{pillar.description}</p>
 					</div>
-				</div>
-				<code class="text-sm text-neutral-500 mt-2 block">Yellow variant</code>
-			</Col>
-			<Col span="4">
-				<div class="bold-card bold-card--blue">
-					<div class="bold-card__number">02</div>
-					<h3 class="bold-card__title">Another Step</h3>
-					<p class="bold-card__text">Each card can have different background colors for visual distinction.</p>
-				</div>
-				<code class="text-sm text-neutral-500 mt-2 block">Blue variant</code>
-			</Col>
-			<Col span="4">
-				<div class="bold-card bold-card--peach">
-					<div class="bold-card__number">03</div>
-					<h3 class="bold-card__title">Final Step</h3>
-					<p class="bold-card__text">The bold border creates a distinctive, modern look.</p>
-				</div>
-				<code class="text-sm text-neutral-500 mt-2 block">Peach variant</code>
-			</Col>
-		</Row>
+				))}
+			</div>
+		</div>
+	</section>
 
-		<Row>
-			<Col span="12" classes="mt-8">
-				<h3 class="mb-4">Usage</h3>
-				<pre class="bg-neutral-900 text-white p-4 rounded overflow-x-auto"><code>&lt;div class="bold-card bold-card--yellow"&gt;
-  &lt;div class="bold-card__number"&gt;01&lt;/div&gt;
-  &lt;h3 class="bold-card__title"&gt;Title&lt;/h3&gt;
-  &lt;p class="bold-card__text"&gt;Description...&lt;/p&gt;
-&lt;/div&gt;</code></pre>
-			</Col>
-		</Row>
-	</Section>
+	<section class="border-y border-neutral-200 bg-neutral-50 py-16 dark:border-neutral-800 dark:bg-neutral-950">
+		<div class="mx-auto grid max-w-6xl gap-10 px-6 lg:grid-cols-[1.1fr_0.9fr]">
+			<div>
+				<h2 class="text-3xl font-bold tracking-tight text-neutral-950 dark:text-white">
+					Why design system work gets stuck
+				</h2>
+				<p class="mt-4 text-base leading-7 text-neutral-600 dark:text-neutral-300">
+					Most design system issues are not hard engineering problems. They are coordination problems.
+					A token mismatch, spacing drift, stale component variant, or CTA copy issue gets noticed by the
+					people closest to the UI, but the actual fix still waits on someone else to translate it into code.
+				</p>
+				<p class="mt-4 text-base leading-7 text-neutral-600 dark:text-neutral-300">
+					Frontman shortens that loop. Teams can work from the rendered interface, connect the request to the
+					right source file, and hand engineering a reviewable patch instead of another backlog item.
+				</p>
+			</div>
 
-	<!-- Typography -->
-	<Section padding="both">
-		<Row>
-			<Col span="12" classes="mb-8">
-				<h2 class={`mb-8 ${sectionHeadingClass}`}>Typography</h2>
-				<div class="space-y-4">
-					<div>
-						<h1>Heading 1 - Main Page Title</h1>
-						<code class="text-sm text-neutral-500">&lt;h1&gt; - font-headings (Outfit Variable)</code>
+			<div class="rounded-3xl border border-neutral-200 bg-white p-8 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+				<h2 class="text-xl font-semibold text-neutral-950 dark:text-white">Good fits for Frontman</h2>
+				<ul class="mt-4 space-y-3 text-sm leading-6 text-neutral-600 dark:text-neutral-300">
+					<li class="flex gap-3"><span class="mt-1 text-primary-500">•</span><span>Design token and component consistency work</span></li>
+					<li class="flex gap-3"><span class="mt-1 text-primary-500">•</span><span>Cross-functional landing-page and marketing updates</span></li>
+					<li class="flex gap-3"><span class="mt-1 text-primary-500">•</span><span>Visual QA fixes that are obvious in the browser but slow in ticket form</span></li>
+					<li class="flex gap-3"><span class="mt-1 text-primary-500">•</span><span>Existing component libraries that should stay reviewable and source-controlled</span></li>
+				</ul>
+			</div>
+		</div>
+	</section>
+
+	<section class="py-16 sm:py-20">
+		<div class="mx-auto max-w-6xl px-6">
+			<h2 class="text-3xl font-bold tracking-tight text-neutral-950 dark:text-white">
+				Who this workflow helps
+			</h2>
+			<div class="mt-8 grid gap-6 lg:grid-cols-3">
+				{roles.map((role) => (
+					<div class="rounded-3xl border border-neutral-200 bg-white p-8 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+						<h3 class="text-xl font-semibold text-neutral-950 dark:text-white">{role.title}</h3>
+						<p class="mt-4 text-sm leading-7 text-neutral-600 dark:text-neutral-300">{role.description}</p>
 					</div>
-					<div>
-						<h2 class={sectionHeadingClass}>Heading 2 - Section Title</h2>
-						<code class="text-sm text-neutral-500">&lt;h2&gt;</code>
-					</div>
-					<div>
-						<h3>Heading 3 - Subsection</h3>
-						<code class="text-sm text-neutral-500">&lt;h3&gt;</code>
-					</div>
-					<div>
-						<h4>Heading 4</h4>
-						<code class="text-sm text-neutral-500">&lt;h4&gt;</code>
-					</div>
-					<div class="mt-8">
-						<p>Regular paragraph text using Inter Variable. Lorem ipsum dolor sit amet, consectetur adipiscing elit.</p>
-						<code class="text-sm text-neutral-500">&lt;p&gt; - font-sans (Inter Variable)</code>
-					</div>
-					<div>
-						<p class="text-lg">Large paragraph with <strong>strong emphasis</strong> and <em>italic emphasis</em>.</p>
-						<code class="text-sm text-neutral-500">&lt;p class="text-lg"&gt;</code>
-					</div>
-				</div>
-			</Col>
-		</Row>
+				))}
+			</div>
+		</div>
+	</section>
 
-		<!-- Highlights -->
-		<Row>
-			<Col span="12" classes="mt-8">
-				<h3 class="mb-4">Text Highlights ({primaryColorName.charAt(0).toUpperCase() + primaryColorName.slice(1)})</h3>
-				<div class="space-y-4">
-					<div>
-						<p class="text-2xl">How to install <Highlight type="1">FrontEnd</Highlight></p>
-						<code class="text-sm text-neutral-500">type="1" - colored text (primary-500 {primaryColorName})</code>
-					</div>
-					<div>
-						<p class="text-lg">Break the walls between <Highlight type="2">design, product, and engineering</Highlight></p>
-						<code class="text-sm text-neutral-500">type="2" - with {primaryColorName} background</code>
-					</div>
-				</div>
-			</Col>
-		</Row>
-	</Section>
+	<section class="border-y border-neutral-200 bg-neutral-50 py-16 dark:border-neutral-800 dark:bg-neutral-950">
+		<div class="mx-auto max-w-5xl px-6">
+			<h2 class="text-3xl font-bold tracking-tight text-neutral-950 dark:text-white">
+				Learn more about Frontman for design system teams
+			</h2>
+			<div class="mt-8 grid gap-4 md:grid-cols-2">
+				<a href="/blog/team-collaboration/" class="rounded-2xl border border-neutral-200 bg-white p-6 transition hover:border-primary-300 hover:shadow-sm dark:border-neutral-800 dark:bg-neutral-900 dark:hover:border-primary-600">
+					<h3 class="text-lg font-semibold text-neutral-950 dark:text-white">Team collaboration for design systems</h3>
+					<p class="mt-3 text-sm leading-6 text-neutral-600 dark:text-neutral-300">See how design-system maintenance can move faster without removing engineering review.</p>
+				</a>
+				<a href="/blog/ai-coding-agents-blind-to-ui/" class="rounded-2xl border border-neutral-200 bg-white p-6 transition hover:border-primary-300 hover:shadow-sm dark:border-neutral-800 dark:bg-neutral-900 dark:hover:border-primary-600">
+					<h3 class="text-lg font-semibold text-neutral-950 dark:text-white">Why general AI agents miss visual work</h3>
+					<p class="mt-3 text-sm leading-6 text-neutral-600 dark:text-neutral-300">Understand why browser context matters for design-system and UI changes.</p>
+				</a>
+				<a href="/blog/security/" class="rounded-2xl border border-neutral-200 bg-white p-6 transition hover:border-primary-300 hover:shadow-sm dark:border-neutral-800 dark:bg-neutral-900 dark:hover:border-primary-600">
+					<h3 class="text-lg font-semibold text-neutral-950 dark:text-white">Security and reviewability</h3>
+					<p class="mt-3 text-sm leading-6 text-neutral-600 dark:text-neutral-300">See how Frontman keeps changes reviewable and scoped to the project source.</p>
+				</a>
+				<a href="/docs/reference/self-hosting/" class="rounded-2xl border border-neutral-200 bg-white p-6 transition hover:border-primary-300 hover:shadow-sm dark:border-neutral-800 dark:bg-neutral-900 dark:hover:border-primary-600">
+					<h3 class="text-lg font-semibold text-neutral-950 dark:text-white">Self-hosting and team setup</h3>
+					<p class="mt-3 text-sm leading-6 text-neutral-600 dark:text-neutral-300">Run Frontman in the environments your team already uses and controls.</p>
+				</a>
+			</div>
+		</div>
+	</section>
 
-	<!-- Color Palette -->
-	<Section padding="both" mode="light">
-		<Row>
-			<Col span="12" classes="mb-8">
-				<h2 class={sectionHeadingClass}>Color Palette</h2>
-				<p class="text-neutral-600 mb-6 text-lg"><strong>🟣 {primaryColorName.toUpperCase()} is Frontman's main brand color.</strong> Supporting accents include cyan and amber for contrast.</p>
-			</Col>
-		</Row>
+	<section class="py-16 sm:py-20">
+		<div class="mx-auto max-w-4xl px-6">
+			<h2 class="text-3xl font-bold tracking-tight text-neutral-950 dark:text-white">Frequently asked questions</h2>
+			<div class="mt-8 space-y-4">
+				{faqs.map((faq) => (
+					<details class="rounded-2xl border border-neutral-200 bg-white p-6 dark:border-neutral-800 dark:bg-neutral-900">
+						<summary class="cursor-pointer list-none text-lg font-semibold text-neutral-950 dark:text-white">
+							{faq.question}
+						</summary>
+						<p class="mt-4 text-base leading-7 text-neutral-600 dark:text-neutral-300">{faq.answer}</p>
+					</details>
+				))}
+			</div>
+		</div>
+	</section>
 
-		<!-- Primary Brand Color -->
-		<Row>
-			<Col span="12" classes="mb-6">
-				<h3 class="mb-4">🎯 {primaryColorName.charAt(0).toUpperCase() + primaryColorName.slice(1)} (Primary Brand Color)</h3>
-				<p class="text-neutral-600 mb-4">Use these for buttons, links, highlights, and key accents across the site.</p>
-				<div class="grid grid-cols-6 gap-4">
-					<div>
-						<div class="h-20 rounded border border-neutral-200" style={`background-color: color-mix(in srgb, ${primaryColorHex} 8%, white);`}></div>
-						<code class="text-xs mt-1 block">primary-50</code>
-						<p class="text-xs text-neutral-500">Soft purple tint</p>
-					</div>
-					<div>
-						<div class="h-20 rounded border border-neutral-200" style={`background-color: color-mix(in srgb, ${primaryColorHex} 16%, white);`}></div>
-						<code class="text-xs mt-1 block">primary-100</code>
-						<p class="text-xs text-neutral-500">Light purple tint</p>
-					</div>
-					<div>
-						<div class="h-20 rounded" style={`background-color: color-mix(in srgb, ${primaryColorHex} 28%, white);`}></div>
-						<code class="text-xs mt-1 block">primary-200</code>
-						<p class="text-xs text-neutral-500">Medium-light tint</p>
-					</div>
-					<div>
-						<div class="h-20 rounded" style={`background-color: color-mix(in srgb, ${primaryColorHex} 44%, white);`}></div>
-						<code class="text-xs mt-1 block">primary-300</code>
-						<p class="text-xs text-neutral-500">Mid purple tint</p>
-					</div>
-					<div>
-						<div class="h-20 rounded" style={`background-color: color-mix(in srgb, ${primaryColorHex} 70%, white);`}></div>
-						<code class="text-xs mt-1 block">primary-400</code>
-						<p class="text-xs text-neutral-500">Strong purple tint</p>
-					</div>
-					<div>
-						<div class="h-20 rounded" style={`background-color: ${primaryColorHex};`}></div>
-						<code class="text-xs mt-1 block text-white font-bold">primary-500</code>
-						<p class="text-xs text-white font-bold">{primaryColorHex}</p>
-					</div>
-				</div>
-			</Col>
-		</Row>
-
-		<!-- Supporting Colors -->
-		<Row>
-			<Col span="12" classes="mb-6">
-				<h3 class="mb-4">🎨 Supporting Colors (For Variety & Visual Interest)</h3>
-				<p class="text-neutral-600 mb-4">Complementary colors for cards, backgrounds, accents, and visual distinction. Keep {primaryColorName} as the lead brand accent and use cyan or amber as support colors.</p>
-			</Col>
-		</Row>
-
-		<!-- Card Border Colors -->
-		<Row>
-			<Col span="12" classes="mb-6">
-				<h4 class="mb-3 text-lg font-semibold">Card Accent Colors</h4>
-				<p class="text-neutral-600 mb-4 text-sm">Use for card borders, testimonial cards, and visual differentiation</p>
-				<div class="grid grid-cols-3 gap-6">
-					<div>
-						<div class="h-24 rounded-lg border-4" style="background-color: white; border-color: #7C3AED;"></div>
-						<code class="text-xs mt-2 block font-semibold">#7C3AED</code>
-						<p class="text-xs text-neutral-600 font-medium">Purple Accent</p>
-						<p class="text-xs text-neutral-500 mt-1">Primary brand accent, testimonials, developer cards</p>
-					</div>
-					<div>
-						<div class="h-24 rounded-lg border-4" style="background-color: white; border-color: #06B6D4;"></div>
-						<code class="text-xs mt-2 block font-semibold">#06B6D4</code>
-						<p class="text-xs text-neutral-600 font-medium">Cyan Accent</p>
-						<p class="text-xs text-neutral-500 mt-1">Secondary accent for technical or data-focused cards</p>
-					</div>
-					<div>
-						<div class="h-24 rounded-lg border-4" style="background-color: white; border-color: #D97706;"></div>
-						<code class="text-xs mt-2 block font-semibold">#D97706</code>
-						<p class="text-xs text-neutral-600 font-medium">Amber Accent</p>
-						<p class="text-xs text-neutral-500 mt-1">Warm supporting accent for emphasis and variety</p>
-					</div>
-				</div>
-			</Col>
-		</Row>
-
-		<!-- Background Colors -->
-		<Row>
-			<Col span="12" classes="mb-6">
-				<h4 class="mb-3 text-lg font-semibold">Section Background Colors</h4>
-				<p class="text-neutral-600 mb-4 text-sm">Soft, friendly backgrounds for different sections</p>
-				<div class="grid grid-cols-4 gap-4">
-					<div>
-						<div class="h-20 rounded-lg border-2 border-black" style="background-color: #FFF4CC;"></div>
-						<code class="text-xs mt-1 block">#FFF4CC</code>
-						<p class="text-xs text-neutral-500">Cream Yellow</p>
-						<p class="text-xs text-neutral-400">Step cards</p>
-					</div>
-					<div>
-						<div class="h-20 rounded-lg border-2 border-black" style="background-color: #C4E0FF;"></div>
-						<code class="text-xs mt-1 block">#C4E0FF</code>
-						<p class="text-xs text-neutral-500">Light Blue</p>
-						<p class="text-xs text-neutral-400">Step cards</p>
-					</div>
-					<div>
-						<div class="h-20 rounded-lg border-2 border-black" style="background-color: #E8D5FF;"></div>
-						<code class="text-xs mt-1 block">#E8D5FF</code>
-						<p class="text-xs text-neutral-500">Lavender</p>
-						<p class="text-xs text-neutral-400">Section backgrounds</p>
-					</div>
-					<div>
-						<div class="h-20 rounded-lg border-2 border-black" style="background-color: #FFE4D6;"></div>
-						<code class="text-xs mt-1 block">#FFE4D6</code>
-						<p class="text-xs text-neutral-500">Peach</p>
-						<p class="text-xs text-neutral-400">Step cards</p>
-					</div>
-				</div>
-			</Col>
-		</Row>
-
-		<!-- Usage Guidelines -->
-		<Row>
-			<Col span="12" classes="mb-6">
-				<div class="bg-orange-50 border-l-4 border-primary-500 p-4 rounded-r">
-					<h4 class="font-semibold mb-2">💡 When to Use Supporting Colors</h4>
-					<ul class="text-sm text-neutral-700 space-y-1">
-						<li>• <strong>Card borders:</strong> Purple, Cyan, Amber for visual distinction (testimonials, role cards)</li>
-						<li>• <strong>Backgrounds:</strong> Soft pastels for section variety and friendliness</li>
-						<li>• <strong>Step cards:</strong> Yellow, Blue, Lavender, Peach for numbered installation steps</li>
-						<li>• <strong>Main CTAs and highlighted text:</strong> Keep them aligned to the purple primary accent</li>
-					</ul>
-				</div>
-			</Col>
-		</Row>
-
-		<!-- Tailwind Classes -->
-		<Row>
-			<Col span="12" classes="mb-6 mt-4">
-				<h4 class="mb-3 text-lg font-semibold">Tailwind Classes</h4>
-				<p class="text-neutral-600 mb-4 text-sm">These colors are available as Tailwind classes:</p>
-				<pre class="bg-neutral-900 text-white p-4 rounded overflow-x-auto text-sm"><code>// Accent colors (borders, text)
-border-accent-purple   text-accent-purple   bg-accent-purple
-border-accent-cyan     text-accent-cyan     bg-accent-cyan
-border-accent-amber    text-accent-amber    bg-accent-amber
-
-// Background colors
-bg-bg-cream       (cream yellow #FFF4CC)
-bg-bg-lightblue   (light blue #C4E0FF)
-bg-bg-lavender    (lavender #E8D5FF)
-bg-bg-peach       (peach #FFE4D6)</code></pre>
-			</Col>
-		</Row>
-
-		<!-- Example Cards -->
-		<Row>
-			<Col span="12" classes="mb-6 mt-4">
-				<h4 class="mb-3 text-lg font-semibold">Example: Testimonial Cards</h4>
-				<div class="grid grid-cols-3 gap-4">
-					<div class="bg-white rounded-lg border-b-4 border-accent-purple p-6">
-						<p class="text-sm text-neutral-700 mb-3">"I used to spend 20 minutes explaining a CSS change..."</p>
-						<p class="text-xs font-bold text-accent-purple">Alex Chen</p>
-						<p class="text-xs text-neutral-500">Frontend Developer</p>
-					</div>
-					<div class="bg-white rounded-lg border-b-4 border-accent-cyan p-6">
-						<p class="text-sm text-neutral-700 mb-3">"Finally, my designer can show me exactly what's wrong..."</p>
-						<p class="text-xs font-bold text-accent-cyan">Sarah Kim</p>
-						<p class="text-xs text-neutral-500">Tech Lead</p>
-					</div>
-					<div class="bg-white rounded-lg border-b-4 border-accent-amber p-6">
-						<p class="text-sm text-neutral-700 mb-3">"The fact that it's open source sealed the deal..."</p>
-						<p class="text-xs font-bold text-accent-amber">Mike Torres</p>
-						<p class="text-xs text-neutral-500">Senior Engineer</p>
-					</div>
-				</div>
-			</Col>
-		</Row>
-
-	</Section>
-
-	<!-- Buttons -->
-	<Section padding="both">
-		<Row>
-			<Col span="12" classes="mb-8">
-				<h2 class={sectionHeadingClass}>Buttons</h2>
-				<p class="text-neutral-600 mb-4">Primary buttons and highlighted text should use <strong>{primaryColorName} ({primaryColorHex})</strong> as the main brand accent.</p>
-			</Col>
-		</Row>
-
-		<Row>
-			<Col span="12" classes="mb-6">
-				<h3 class="mb-4">Primary Brand Buttons</h3>
-				<p class="text-neutral-600 mb-4">Use these for main actions: "Get Started", "Sign Up", "Learn More"</p>
-				<div class="flex flex-wrap items-center gap-4">
-					<Button size="lg" style="primary">Get Started for Free</Button>
-					<Button size="base" style="primary">Base Primary</Button>
-					<Button size="sm" style="primary">Small Primary</Button>
-				</div>
-				<code class="text-sm text-neutral-500 mt-4 block">Use `primary-500` for main actions to keep the page visually consistent</code>
-			</Col>
-		</Row>
-
-		<Row>
-			<Col span="12" classes="mb-6">
-				<h3 class="mb-4">Brand Button Variants</h3>
-				<div class="flex flex-wrap items-center gap-4">
-					<Button size="base" style="primary" variation="outline">Outline</Button>
-					<Button size="base" style="secondary">Secondary</Button>
-					<Button type="link" link="#" style="primary" variation="link">Link →</Button>
-				</div>
-			</Col>
-		</Row>
-
-		<Row>
-			<Col span="12" classes="mb-6">
-				<h3 class="mb-4">White Button (on dark/primary backgrounds)</h3>
-				<div class="p-8 rounded-lg inline-block" style={`background-color: ${primaryColorHex};`}>
-					<Button size="lg" style="white">Get Started for Free</Button>
-				</div>
-			</Col>
-		</Row>
-
-		<Row>
-			<Col span="12" classes="mb-6">
-				<h3 class="mb-4">Neutral Buttons (for less important actions)</h3>
-				<div class="flex flex-wrap items-center gap-4">
-					<Button size="base" style="neutral">Neutral</Button>
-					<Button size="base" style="neutral" variation="outline">Neutral Outline</Button>
-				</div>
-			</Col>
-		</Row>
-	</Section>
-
-	<!-- Decorative Elements -->
-	<Section padding="both" mode="light">
-		<Row>
-			<Col span="12" classes="mb-8">
-				<h2 class={sectionHeadingClass}>Decorative Elements</h2>
-			</Col>
-		</Row>
-
-		<Row>
-			<Col span="12" classes="mb-6">
-				<h3 class="mb-4">Circular Blobs (Playful Backgrounds)</h3>
-				<p class="text-neutral-600 mb-4">Large, soft gradient circles that add visual interest and playfulness. These make the design feel alive and friendly - not corporate or rigid.</p>
-				<div class="relative h-64 bg-neutral-100 rounded-lg overflow-hidden">
-					<div class="blob blob--purple-large"></div>
-					<div class="blob blob--yellow-large"></div>
-					<div class="relative z-10 flex items-center justify-center h-full">
-						<p class="text-2xl font-bold">Content goes here</p>
-					</div>
-				</div>
-				<code class="text-sm text-neutral-500 mt-2 block">Use position: relative on parent, blobs with position: absolute</code>
-			</Col>
-		</Row>
-
-		<Row>
-			<Col span="12" classes="mt-8">
-				<h3 class="mb-4">Usage</h3>
-				<pre class="bg-neutral-900 text-white p-4 rounded overflow-x-auto"><code>&lt;div class="relative overflow-hidden"&gt;
-  &lt;div class="blob blob--purple-large"&gt;&lt;/div&gt;
-  &lt;div class="blob blob--yellow-large"&gt;&lt;/div&gt;
-  &lt;div class="relative z-10"&gt;Your content&lt;/div&gt;
-&lt;/div&gt;</code></pre>
-			</Col>
-		</Row>
-	</Section>
-
-	<!-- Layout System -->
-	<Section padding="both">
-		<Row>
-			<Col span="12" classes="mb-8">
-				<h2 class={sectionHeadingClass}>Layout System</h2>
-				<p class="text-neutral-600 mb-4">12-column responsive grid using Section &gt; Row &gt; Col pattern</p>
-			</Col>
-		</Row>
-
-		<Row>
-			<Col span="12" classes="mb-4">
-				<div class="bg-primary-100 p-4 rounded">
-					<code>Col span="12" - Full width</code>
-				</div>
-			</Col>
-		</Row>
-
-		<Row>
-			<Col span="6" classes="mb-4">
-				<div class="bg-primary-100 p-4 rounded">
-					<code>Col span="6"</code>
-				</div>
-			</Col>
-			<Col span="6" classes="mb-4">
-				<div class="bg-primary-100 p-4 rounded">
-					<code>Col span="6"</code>
-				</div>
-			</Col>
-		</Row>
-
-		<Row>
-			<Col span="4" classes="mb-4">
-				<div class="bg-primary-100 p-4 rounded">
-					<code>span="4"</code>
-				</div>
-			</Col>
-			<Col span="4" classes="mb-4">
-				<div class="bg-primary-100 p-4 rounded">
-					<code>span="4"</code>
-				</div>
-			</Col>
-			<Col span="4" classes="mb-4">
-				<div class="bg-primary-100 p-4 rounded">
-					<code>span="4"</code>
-				</div>
-			</Col>
-		</Row>
-	</Section>
-
-	<!-- Common Patterns -->
-	<Section padding="both" mode="light">
-		<Row>
-			<Col span="12" classes="mb-8">
-				<h2 class={sectionHeadingClass}>Common Patterns</h2>
-			</Col>
-		</Row>
-
-		<Row>
-			<Col span="12" classes="mb-6">
-				<h3 class="mb-4">Code Snippets (Pill Style)</h3>
-				<p class="text-neutral-600 mb-4">Code snippets look like soft pills/buttons - friendly and approachable, not intimidating terminal blocks</p>
-				<div class="code-block">
-					<code>npm install frontman</code>
-				</div>
-				<code class="text-sm text-neutral-500 mt-2 block">Rounded corners, subtle background, friendly typography</code>
-			</Col>
-		</Row>
-
-		<Row>
-			<Col span="12" classes="mb-6">
-				<h3 class="mb-4">Numbered Steps</h3>
-				<div class="flex gap-4">
-					<div class="step-number">01</div>
-					<div class="step-number">02</div>
-					<div class="step-number">03</div>
-					<div class="step-number">04</div>
-				</div>
-			</Col>
-		</Row>
-	</Section>
+	<section class="pb-16 sm:pb-20">
+		<div class="mx-auto max-w-4xl px-6 text-center">
+			<h2 class="text-3xl font-bold tracking-tight text-neutral-950 dark:text-white">
+				Ready to maintain your design system from the browser?
+			</h2>
+			<p class="mt-4 text-base leading-7 text-neutral-600 dark:text-neutral-300">
+				Install Frontman in an existing app, connect your provider, and start from the UI instead of from another handoff document.
+			</p>
+			<div class="mt-8 flex flex-col justify-center gap-4 sm:flex-row">
+				<a class="rounded-md bg-primary-500 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-primary-400" href="/docs/installation/">Install Frontman</a>
+				<a class="rounded-md border border-neutral-300 px-6 py-3 text-sm font-semibold text-neutral-900 transition hover:border-primary-400 hover:text-primary-600 dark:border-neutral-700 dark:text-white dark:hover:border-primary-500 dark:hover:text-primary-400" href="/contact/">Talk to the team</a>
+			</div>
+		</div>
+	</section>
 </Layout>
-
-<style>
-	@reference "../styles/global.css";
-	/* Bold Bordered Cards - Signature Design Element */
-	.bold-card {
-		@apply relative p-8 border-4 border-black transition-transform hover:translate-x-1 hover:translate-y-1;
-		border-radius: 20px;
-		box-shadow: 10px 10px 0 0 rgba(0, 0, 0, 1);
-	}
-
-	.bold-card:hover {
-		box-shadow: 5px 5px 0 0 rgba(0, 0, 0, 1);
-	}
-
-	.bold-card--yellow {
-		background-color: #FFF4CC;
-	}
-
-	.bold-card--blue {
-		background-color: #C4E0FF;
-	}
-
-	.bold-card--purple {
-		background-color: #E8D5FF;
-	}
-
-	.bold-card--peach {
-		background-color: #FFE4D6;
-	}
-
-	.bold-card--pink {
-		background-color: #FFD6E8;
-	}
-
-	.bold-card__number {
-		@apply font-headings text-5xl font-bold text-black mb-4;
-	}
-
-	.bold-card__title {
-		@apply text-xl font-bold text-black mb-3;
-	}
-
-	.bold-card__text {
-		@apply text-base text-neutral-800;
-	}
-
-	/* Code Blocks */
-	.code-block {
-		@apply mt-4 px-6 py-3 font-mono text-sm inline-block;
-		background-color: rgba(0, 0, 0, 0.1);
-		color: rgba(0, 0, 0, 0.7);
-		border-radius: 12px;
-	}
-
-	/* Decorative Blobs */
-	.blob {
-		@apply pointer-events-none absolute rounded-full;
-	}
-
-	.blob--purple-large {
-		@apply h-96 w-96 blur-3xl;
-		background: linear-gradient(135deg, #9D7CFF 0%, #C4B5FD 100%);
-		opacity: 0.6;
-		left: -8rem;
-		top: 20%;
-	}
-
-	.blob--yellow-large {
-		@apply h-96 w-96 blur-3xl;
-		background: linear-gradient(135deg, #FFD666 0%, #FFEB99 100%);
-		opacity: 0.6;
-		right: -8rem;
-		bottom: 20%;
-	}
-
-	/* Step Numbers */
-	.step-number {
-		@apply font-headings text-4xl font-bold text-neutral-900;
-	}
-
-	/* Hero Orange Buttons - Primary CTAs */
-	.hero-button {
-		@apply inline-flex cursor-pointer items-center justify-center gap-2 whitespace-nowrap font-bold tracking-wide transition duration-300 focus-visible:outline-none disabled:cursor-not-allowed disabled:shadow-none;
-		background-color: #7C3AED;
-		color: white;
-		border: 2px solid black;
-		border-radius: 10px;
-	}
-
-	.hero-button:hover {
-		background-color: #6D28D9;
-		transform: translateY(-1px);
-	}
-
-	.hero-button--lg {
-		@apply h-14 px-8 text-base;
-	}
-
-	.hero-button--base {
-		@apply h-10 px-5 text-sm;
-	}
-
-	.hero-button--sm {
-		@apply h-8 px-4 text-xs;
-	}
-</style>
-
