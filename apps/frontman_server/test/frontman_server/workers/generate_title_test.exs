@@ -5,6 +5,7 @@ defmodule FrontmanServer.Workers.GenerateTitleTest do
   import FrontmanServer.AccountsFixtures
 
   alias FrontmanServer.Accounts.Scope
+  alias FrontmanServer.Providers.Model
   alias FrontmanServer.Tasks
   alias FrontmanServer.Workers.GenerateTitle
 
@@ -38,21 +39,15 @@ defmodule FrontmanServer.Workers.GenerateTitleTest do
   end
 
   describe "perform/1" do
-    test "enqueues via Tasks context", %{user: user} do
+    test "enqueues via Tasks context with forwarded model and env key", %{user: user} do
       scope = Scope.for_user(user)
       task_id = Ecto.UUID.generate()
       {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
 
-      env_api_key = %{"ANTHROPIC_API_KEY" => "sk-test-456"}
-      model = "anthropic:claude-sonnet-4-20250514"
-
       {:ok, _job} =
-        Tasks.enqueue_title_generation(
-          scope,
-          task_id,
-          "Help me build a login page",
-          model,
-          env_api_key
+        Tasks.enqueue_title_generation(scope, task_id, "Help me build a login page",
+          env_api_key: %{"openrouter" => "sk-or-test"},
+          model: Model.new("openrouter", "openai/gpt-5.1-codex")
         )
 
       assert_enqueued(
@@ -60,8 +55,8 @@ defmodule FrontmanServer.Workers.GenerateTitleTest do
         args: %{
           user_id: user.id,
           task_id: task_id,
-          model: "anthropic:claude-sonnet-4-20250514",
-          env_api_key: %{"ANTHROPIC_API_KEY" => "sk-test-456"}
+          env_api_key: %{"openrouter" => "sk-or-test"},
+          model: "openrouter:openai/gpt-5.1-codex"
         }
       )
     end

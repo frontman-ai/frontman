@@ -1,10 +1,12 @@
 defmodule FrontmanServerWeb.TaskChannelTest do
   use FrontmanServerWeb.ChannelCase, async: true
+  use Oban.Testing, repo: FrontmanServer.Repo
 
   import FrontmanServer.InteractionCase.Helpers
 
   alias AgentClientProtocol.Content.{ContentItem, TextBlock}
   alias FrontmanServer.Tasks
+  alias FrontmanServer.Workers.GenerateTitle
   alias FrontmanServerWeb.UserSocket
 
   # --- Swarm event builders (match production shapes from Runtime) ---
@@ -84,6 +86,37 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       assert_reply(ref, :ok, %{"acp:message" => response})
       assert response["error"]["code"] == -32_601
       assert response["error"]["message"] =~ "Method not found"
+    end
+
+    test "forwards prompt model and env API key to title generation job", %{
+      socket: socket,
+      task_id: task_id,
+      user: user
+    } do
+      complete_mcp_handshake(socket)
+
+      push(
+        socket,
+        "acp:message",
+        build_prompt_request(
+          _meta: %{
+            "openrouterKeyValue" => "sk-or-test",
+            "model" => %{"provider" => "openrouter", "value" => "openai/gpt-5.1-codex"}
+          }
+        )
+      )
+
+      :sys.get_state(socket.channel_pid)
+
+      assert_enqueued(
+        worker: GenerateTitle,
+        args: %{
+          user_id: user.id,
+          task_id: task_id,
+          env_api_key: %{"openrouter" => "sk-or-test"},
+          model: "openrouter:openai/gpt-5.1-codex"
+        }
+      )
     end
   end
 

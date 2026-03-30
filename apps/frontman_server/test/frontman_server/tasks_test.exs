@@ -420,7 +420,10 @@ defmodule FrontmanServer.TasksTest do
 
       # Verify it round-trips through the database with null bytes stripped
       {:ok, task} = Tasks.get_task(scope, task_id)
-      [db_rule] = Enum.filter(task.interactions, &match?(%Tasks.Interaction.DiscoveredProjectRule{}, &1))
+
+      [db_rule] =
+        Enum.filter(task.interactions, &match?(%Tasks.Interaction.DiscoveredProjectRule{}, &1))
+
       assert db_rule.path == "/project/AGENTS.md"
       refute String.contains?(db_rule.content, <<0>>)
       assert db_rule.content == "# Ruleswith nullbytes"
@@ -436,7 +439,10 @@ defmodule FrontmanServer.TasksTest do
         Tasks.add_discovered_project_rule(scope, task_id, path_with_null, "# Clean content")
 
       {:ok, task} = Tasks.get_task(scope, task_id)
-      [db_rule] = Enum.filter(task.interactions, &match?(%Tasks.Interaction.DiscoveredProjectRule{}, &1))
+
+      [db_rule] =
+        Enum.filter(task.interactions, &match?(%Tasks.Interaction.DiscoveredProjectRule{}, &1))
+
       refute String.contains?(db_rule.path, <<0>>)
       assert db_rule.path == "/project/AGENTS.md"
       assert db_rule.content == "# Clean content"
