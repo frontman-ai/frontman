@@ -44,6 +44,14 @@ defmodule FrontmanServer.Tasks.Execution.PromptsTest do
   end
 
   describe "build/1" do
+    test "includes edit strategy guidance in rules" do
+      prompt = Prompts.build([])
+
+      assert prompt =~ "edit_file"
+      assert prompt =~ "write_file"
+      assert prompt =~ "surgical changes"
+    end
+
     test "returns single string with default identity" do
       result = Prompts.build([])
 
@@ -73,7 +81,6 @@ defmodule FrontmanServer.Tasks.Execution.PromptsTest do
       prompt = Prompts.build([])
 
       assert prompt =~ "## Tone & Style"
-      assert prompt =~ "## Professional Objectivity"
       assert prompt =~ "## Proactiveness"
       assert prompt =~ "## Rules"
       assert prompt =~ "## Response Formatting"
@@ -121,7 +128,7 @@ defmodule FrontmanServer.Tasks.Execution.PromptsTest do
 
       assert prompt =~ "Never complete silently"
       assert prompt =~ "trade-offs"
-      assert prompt =~ "alternative approaches"
+      assert prompt =~ "alternatives"
     end
 
     test "large-file guidance is handled by tool guards, not prompt" do
