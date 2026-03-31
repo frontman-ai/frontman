@@ -21,7 +21,7 @@ defmodule FrontmanServer.Tasks.Execution do
   alias FrontmanServer.Observability.TelemetryEvents
   alias FrontmanServer.Providers
   alias FrontmanServer.Providers.{Model, Registry, ResolvedKey}
-  alias FrontmanServer.Tasks.Execution.{Framework, RootAgent, ToolExecutor}
+  alias FrontmanServer.Tasks.Execution.{Framework, LLMError, RootAgent, ToolExecutor}
   alias FrontmanServer.Tasks.{Interaction, StreamStallTimeout, Task}
   alias FrontmanServer.Tools
   alias SwarmAi.Message
@@ -135,11 +135,15 @@ defmodule FrontmanServer.Tasks.Execution do
   def handle_swarm_event(_scope, _task_id, {:completed, {:ok, _result, _loop_id}}),
     do: :agent_completed
 
-  def handle_swarm_event(_scope, _task_id, {:failed, {:error, reason, _loop_id}}),
-    do: {:agent_error, humanize_error(reason)}
+  def handle_swarm_event(_scope, _task_id, {:failed, {:error, reason, _loop_id}}) do
+    {msg, category, retryable} = classify_error(reason)
+    {:agent_error, %{message: msg, category: category, retryable: retryable}}
+  end
 
-  def handle_swarm_event(_scope, _task_id, {:crashed, %{reason: reason}}),
-    do: {:agent_error, humanize_crash(reason)}
+  def handle_swarm_event(_scope, _task_id, {:crashed, %{reason: reason}}) do
+    msg = humanize_crash(reason)
+    {:agent_error, %{message: msg, category: "unknown", retryable: false}}
+  end
 
   def handle_swarm_event(_scope, _task_id, {:cancelled, _}),
     do: :agent_cancelled
@@ -153,6 +157,48 @@ defmodule FrontmanServer.Tasks.Execution do
 
   # Tool calls are persisted by ToolExecutor; no channel action needed.
   def handle_swarm_event(_scope, _task_id, {:tool_call, _}), do: :ok
+
+  @doc """
+  Classifies an error reason into `{message, category, retryable}`.
+
+  `category` is one of: "auth", "billing", "rate_limit", "overload",
+  "payload_too_large", "output_truncated", "unknown".
+  """
+  @spec classify_error(term()) :: {String.t(), String.t(), boolean()}
+  def classify_error(%LLMError{message: msg, category: cat, retryable: r}), do: {msg, cat, r}
+
+  def classify_error(%StreamStallTimeout.Error{}) do
+    {"The AI provider stopped responding mid-reply. " <>
+       "This usually happens when the provider is temporarily overloaded. " <>
+       "Try sending your message again.", "overload", true}
+  end
+
+  def classify_error(:genserver_call_timeout) do
+    {"The request to the AI provider timed out. " <>
+       "This can happen during high traffic. Try again in a moment.", "overload", true}
+  end
+
+  def classify_error(:stream_timeout) do
+    {"The request to the AI provider timed out. " <>
+       "This can happen during high traffic. Try again in a moment.", "overload", true}
+  end
+
+  def classify_error(:output_truncated) do
+    {"The AI response was too long and got cut off. " <>
+       "This usually happens when writing large files. " <>
+       "Try asking the AI to write the file in smaller sections.", "output_truncated", false}
+  end
+
+  def classify_error({:exit, reason}) do
+    {"Something went wrong while communicating with the AI provider: #{inspect(reason)}",
+     "unknown", false}
+  end
+
+  def classify_error(reason) when is_exception(reason),
+    do: {Exception.message(reason), "unknown", false}
+
+  def classify_error(reason) when is_binary(reason), do: {reason, "unknown", false}
+  def classify_error(reason), do: {inspect(reason), "unknown", false}
 
   # --- Private ---
 
