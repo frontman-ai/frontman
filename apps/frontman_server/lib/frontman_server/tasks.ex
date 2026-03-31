@@ -304,11 +304,30 @@ defmodule FrontmanServer.Tasks do
 
   `kind` is one of "failed", "crashed", "cancelled", or "terminated".
   """
-  @spec add_agent_error(Scope.t(), String.t(), String.t(), String.t()) ::
+  @spec add_agent_error(Scope.t(), String.t(), String.t(), String.t(), boolean(), String.t()) ::
           {:ok, Interaction.AgentError.t()} | {:error, :not_found}
-  def add_agent_error(%Scope{} = scope, task_id, error, kind \\ "failed") do
+  def add_agent_error(
+        %Scope{} = scope,
+        task_id,
+        error,
+        kind \\ "failed",
+        retryable \\ false,
+        category \\ "unknown"
+      ) do
     with {:ok, schema} <- get_task_by_id(scope, task_id) do
-      interaction = Interaction.AgentError.new(error, kind)
+      interaction = Interaction.AgentError.new(error, kind, retryable, category)
+      append_interaction(schema, interaction)
+    end
+  end
+
+  @doc """
+  Creates and appends an AgentRetry interaction.
+  """
+  @spec add_agent_retry(Scope.t(), String.t(), String.t()) ::
+          {:ok, Interaction.AgentRetry.t()} | {:error, :not_found}
+  def add_agent_retry(%Scope{} = scope, task_id, retried_error_id) do
+    with {:ok, schema} <- get_task_by_id(scope, task_id) do
+      interaction = Interaction.AgentRetry.new(retried_error_id)
       append_interaction(schema, interaction)
     end
   end

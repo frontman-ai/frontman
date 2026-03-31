@@ -19,6 +19,7 @@ defmodule FrontmanServer.Tasks.SwarmDispatcher do
   alias FrontmanServer.Observability.TelemetryEvents
   alias FrontmanServer.Providers
   alias FrontmanServer.Tasks
+  alias FrontmanServer.Tasks.Execution
 
   def dispatch(key, event, metadata) do
     scope = Map.get(metadata, :scope)
@@ -57,7 +58,7 @@ defmodule FrontmanServer.Tasks.SwarmDispatcher do
 
   # Agent turn failed (LLM error, tool error, etc.)
   defp persist(%Scope{} = scope, task_id, {:failed, {:error, reason, loop_id}}, _metadata) do
-    reason_str = format_error_reason(reason)
+    {reason_str, category, retryable} = Execution.classify_error(reason)
 
     Logger.error(
       "Execution failed for task #{task_id}, loop_id: #{loop_id}, reason: #{reason_str}"
@@ -69,7 +70,7 @@ defmodule FrontmanServer.Tasks.SwarmDispatcher do
       extra: %{task_id: task_id, loop_id: loop_id, reason: reason_str}
     )
 
-    Tasks.add_agent_error(scope, task_id, reason_str, "failed")
+    Tasks.add_agent_error(scope, task_id, reason_str, "failed", retryable, category)
     TelemetryEvents.task_stop(task_id)
   end
 
@@ -96,13 +97,21 @@ defmodule FrontmanServer.Tasks.SwarmDispatcher do
       )
     end
 
-    Tasks.add_agent_error(scope, task_id, format_crash_reason(reason), "crashed")
+    Tasks.add_agent_error(
+      scope,
+      task_id,
+      format_crash_reason(reason),
+      "crashed",
+      false,
+      "unknown"
+    )
+
     TelemetryEvents.task_stop(task_id)
   end
 
   # Agent was cancelled (user requested cancel).
   defp persist(%Scope{} = scope, task_id, {:cancelled, _}, _metadata) do
-    Tasks.add_agent_error(scope, task_id, "Cancelled", "cancelled")
+    Tasks.add_agent_error(scope, task_id, "Cancelled", "cancelled", false, "unknown")
     TelemetryEvents.task_stop(task_id)
   end
 
