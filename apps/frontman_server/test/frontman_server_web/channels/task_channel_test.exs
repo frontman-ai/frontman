@@ -2,6 +2,12 @@ defmodule FrontmanServerWeb.TaskChannelTest do
   use FrontmanServerWeb.ChannelCase, async: true
   use Oban.Testing, repo: FrontmanServer.Repo
 
+  # Tests that push session/prompt trigger LLM execution with no real API key,
+  # producing expected 401 auth errors from async Runtime processes. These logs
+  # can appear during any subsequent test due to async process scheduling, so
+  # we capture at module level rather than per-test.
+  @moduletag :capture_log
+
   import FrontmanServer.InteractionCase.Helpers
 
   alias AgentClientProtocol.Content.{ContentItem, TextBlock}
