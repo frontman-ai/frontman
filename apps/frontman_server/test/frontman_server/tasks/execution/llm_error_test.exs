@@ -26,4 +26,19 @@ defmodule FrontmanServer.Tasks.Execution.LLMErrorTest do
     assert err.category == "rate_limit"
     assert err.retryable == true
   end
+
+  describe "classify_llm_error via LLMClient stream" do
+    test "LLMError can be raised with raise keyword" do
+      error =
+        assert_raise FrontmanServer.Tasks.Execution.LLMError, fn ->
+          raise FrontmanServer.Tasks.Execution.LLMError,
+            message: "Auth failed",
+            category: "auth",
+            retryable: false
+        end
+
+      assert error.category == "auth"
+      assert error.retryable == false
+    end
+  end
 end

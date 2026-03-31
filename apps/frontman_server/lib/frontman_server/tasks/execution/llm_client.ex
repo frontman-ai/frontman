@@ -76,6 +76,7 @@ end
 
 defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
   alias FrontmanServer.Tasks.Execution.LLMClient
+  alias FrontmanServer.Tasks.Execution.LLMError
   alias FrontmanServer.Tasks.{MessageOptimizer, StreamCleanup, StreamStallTimeout}
   alias SwarmAi.LLM.{Chunk, Usage}
   alias SwarmAi.Message
@@ -239,12 +240,12 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
          _requires_mcp_prefix?
        )
        when is_binary(text) do
-    raise classify_llm_error(original, text)
+    classify_llm_error(original, text)
   end
 
   defp to_swarm_chunk(%{type: :error, text: text}, _requires_mcp_prefix?)
        when is_binary(text) do
-    raise classify_llm_error(nil, text)
+    classify_llm_error(nil, text)
   end
 
   defp to_swarm_chunk(%{type: :error} = chunk, _requires_mcp_prefix?) do
@@ -269,43 +270,73 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
   defp complete_tool_call_args?(args) when is_binary(args) and args not in ["", "{}"], do: true
   defp complete_tool_call_args?(_), do: false
 
-  # Classify LLM API errors by HTTP status into user-friendly messages.
+  # Classify LLM API errors by HTTP status and raise a typed LLMError.
   # The original error is a ReqLLM.Error.API.Request with :status and :reason.
   defp classify_llm_error(%{status: status}, _text) when status in [401, 403] do
-    "Authentication failed — your API key may be invalid or expired (HTTP #{status})"
+    raise LLMError,
+      message: "Authentication failed — your API key may be invalid or expired (HTTP #{status})",
+      category: "auth",
+      retryable: false
   end
 
   defp classify_llm_error(%{status: 400, reason: reason}, _text) when is_binary(reason) do
-    "Bad request — the provider rejected the request: #{reason}"
+    raise LLMError,
+      message: "Bad request — the provider rejected the request: #{reason}",
+      category: "unknown",
+      retryable: false
   end
 
   defp classify_llm_error(%{status: 400}, text) do
-    "Bad request — the provider rejected the request: #{text}"
+    raise LLMError,
+      message: "Bad request — the provider rejected the request: #{text}",
+      category: "unknown",
+      retryable: false
   end
 
   defp classify_llm_error(%{status: 402}, _text) do
-    "Payment required — your account balance is insufficient or billing is not configured (HTTP 402)"
+    raise LLMError,
+      message:
+        "Payment required — your account balance is insufficient or billing is not configured (HTTP 402)",
+      category: "billing",
+      retryable: false
   end
 
   defp classify_llm_error(%{status: 413}, _text) do
-    "Payload too large — the request exceeded the provider's size limit. Try reducing image size or message length (HTTP 413)"
+    raise LLMError,
+      message:
+        "Payload too large — the request exceeded the provider's size limit. Try reducing image size or message length (HTTP 413)",
+      category: "payload_too_large",
+      retryable: false
   end
 
   defp classify_llm_error(%{status: 429}, _text) do
-    "Rate limited — the provider is throttling requests. Please try again shortly."
+    raise LLMError,
+      message: "Rate limited — the provider is throttling requests. Please try again shortly.",
+      category: "rate_limit",
+      retryable: true
   end
 
   defp classify_llm_error(%{status: status}, _text) when status >= 500 do
-    "Provider error — the LLM service returned an internal error (HTTP #{status}). Please try again."
+    raise LLMError,
+      message:
+        "Provider error — the LLM service returned an internal error (HTTP #{status}). Please try again.",
+      category: "overload",
+      retryable: true
   end
 
   defp classify_llm_error(%{status: status, reason: reason}, _text)
        when is_integer(status) and is_binary(reason) do
-    "LLM error (HTTP #{status}): #{reason}"
+    raise LLMError,
+      message: "LLM error (HTTP #{status}): #{reason}",
+      category: "unknown",
+      retryable: false
   end
 
   defp classify_llm_error(_, text) do
-    "LLM stream error: #{text}"
+    raise LLMError,
+      message: "LLM stream error: #{text}",
+      category: "unknown",
+      retryable: false
   end
 
   # Log per-call message sizes to help diagnose large-request transport errors.
