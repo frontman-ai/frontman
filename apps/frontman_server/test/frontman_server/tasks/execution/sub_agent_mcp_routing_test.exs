@@ -60,7 +60,7 @@ defmodule FrontmanServer.Tasks.Execution.SubAgentMcpRoutingTest do
 
       executor_task =
         Task.async(fn ->
-          executor.(tool_call)
+          executor.([tool_call])
         end)
 
       # MCP request SHOULD be pushed to channel automatically
@@ -96,7 +96,9 @@ defmodule FrontmanServer.Tasks.Execution.SubAgentMcpRoutingTest do
 
       executor_task =
         Task.async(fn ->
-          SwarmAi.run_blocking(agent, [SwarmAi.Message.user("Implement the component")], executor)
+          SwarmAi.run_streaming(agent, [SwarmAi.Message.user("Implement the component")],
+            tool_executor: executor
+          )
         end)
 
       # Verify MCP request is pushed to channel

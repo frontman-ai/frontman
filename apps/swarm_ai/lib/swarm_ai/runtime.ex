@@ -68,7 +68,8 @@ defmodule SwarmAi.Runtime do
 
   ## Options
 
-  - `:tool_executor` - Required. Function to execute tool calls.
+  - `:tool_executor` - Required. Batch function `([ToolCall.t()] -> [ToolResult.t()])`.
+    The Runtime wraps it with parallel execution so each tool call runs concurrently.
   - `:metadata` - Arbitrary map attached to the loop for telemetry correlation.
 
   ## Returns
@@ -158,7 +159,9 @@ defmodule SwarmAi.Runtime do
                  spawn_death_watcher(dispatcher, key, metadata)
 
                streaming_opts =
-                 build_streaming_opts(opts, dispatcher, key, metadata, watcher)
+                 opts
+                 |> wrap_executor_with_parallel(task_sup)
+                 |> build_streaming_opts(dispatcher, key, metadata, watcher)
 
                send(caller, {ack_ref, :registered})
 
@@ -193,6 +196,46 @@ defmodule SwarmAi.Runtime do
 
       {:error, reason} ->
         {:error, reason}
+    end
+  end
+
+  # Wraps the caller's batch tool_executor with per-tool parallel execution.
+  # Each tool call in a batch is run concurrently via Task.Supervisor.
+  # Crashes in individual tool tasks are caught and converted to error ToolResults.
+  defp wrap_executor_with_parallel(opts, task_supervisor) do
+    case Keyword.get(opts, :tool_executor) do
+      nil ->
+        opts
+
+      executor ->
+        parallel_executor = fn tool_calls ->
+          stream =
+            Task.Supervisor.async_stream_nolink(
+              task_supervisor,
+              tool_calls,
+              fn tc ->
+                # Call the batch executor with a single-element list to reuse
+                # all its routing and enrichment logic.
+                [result] = executor.([tc])
+                result
+              end,
+              max_concurrency: 10,
+              ordered: true,
+              timeout: :timer.minutes(30)
+            )
+
+          stream
+          |> Enum.zip(tool_calls)
+          |> Enum.map(fn
+            {{:ok, result}, _tc} ->
+              result
+
+            {{:exit, reason}, tc} ->
+              SwarmAi.ToolResult.make(tc.id, "Tool execution crashed: #{inspect(reason)}", true)
+          end)
+        end
+
+        Keyword.put(opts, :tool_executor, parallel_executor)
     end
   end
 

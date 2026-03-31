@@ -13,7 +13,9 @@ defmodule FrontmanServer.Tools.WebFetchTest do
     context = %FrontmanServer.Tools.Backend.Context{
       scope: nil,
       task: nil,
-      tool_executor: fn _tool_call -> {:ok, "mock result"} end,
+      tool_executor: fn tool_calls ->
+        Enum.map(tool_calls, fn tc -> SwarmAi.ToolResult.make(tc.id, "mock result", false) end)
+      end,
       llm_opts: [api_key: "test-key", model: "test-model"]
     }
 

@@ -28,7 +28,11 @@ defmodule FrontmanServer.Test.Fixtures.Tools do
   @spec tool_context(FrontmanServer.Accounts.Scope.t(), map(), keyword()) :: Context.t()
   def tool_context(scope, task, llm_opts \\ []) do
     # No-op executor for tests that don't actually execute sub-agents
-    noop_executor = fn _tool_call -> {:ok, "mock result"} end
+    noop_executor = fn tool_calls ->
+      Enum.map(tool_calls, fn tc ->
+        SwarmAi.ToolResult.make(tc.id, "mock result", false)
+      end)
+    end
 
     # Merge default llm_opts with any provided options (e.g., fixture_path)
     # Use a model that exists in LLMDB - matches the model used when fixtures were recorded
