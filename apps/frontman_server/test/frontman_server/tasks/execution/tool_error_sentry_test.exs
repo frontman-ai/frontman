@@ -39,6 +39,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
   end
 
   describe "backend tool soft error Sentry reporting (Gap 2)" do
+    @tag :capture_log
     test "reports {:error, reason} to Sentry with tool context", %{
       task_id: task_id,
       scope: scope
@@ -83,6 +84,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
   end
 
   describe "JSON argument parse failure Sentry reporting (Gap 5)" do
+    @tag :capture_log
     test "reports malformed JSON arguments to Sentry", %{
       task_id: task_id,
       scope: scope
@@ -145,6 +147,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
              "Expected no parse error reports for valid JSON, got #{length(parse_error_reports)}"
     end
 
+    @tag :capture_log
     test "truncates long raw arguments in Sentry report", %{
       task_id: task_id,
       scope: scope
@@ -176,6 +179,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
 
   describe "MCP tool timeout Sentry reporting (Gap 4)" do
     @tag timeout: 70_000
+    @tag :capture_log
 
     test "reports MCP tool timeout to Sentry", %{
       task_id: task_id,
