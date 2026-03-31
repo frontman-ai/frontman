@@ -313,7 +313,16 @@ defmodule SwarmAi do
 
     Enum.each(tool_calls, callbacks.on_tool_call)
 
+    loop_id = loop.id
+    step = loop.current_step
+    metadata = loop.metadata
+
+    Enum.each(tool_calls, &emit_tool_start(loop_id, step, &1, metadata))
+
     results = tool_executor.(tool_calls)
+
+    Enum.zip(tool_calls, results)
+    |> Enum.each(fn {tc, result} -> emit_tool_stop(loop_id, step, tc, result, metadata) end)
 
     {updated_loop, new_effects} =
       Enum.reduce(results, {loop, []}, fn result, {loop_acc, effects_acc} ->
@@ -496,5 +505,42 @@ defmodule SwarmAi do
 
   defp split_tool_effects(effects) do
     Enum.split_while(effects, &match?({:execute_tool, _}, &1))
+  end
+
+  # Emit per-tool telemetry before/after batch execution so OTel handlers can
+  # create tool spans with correct parent (step) and attributes.
+  # Tools in a batch execute in parallel inside tool_executor, so all start
+  # events are emitted before the batch and all stop events after it completes.
+  # Individual tool durations are measured by the OTel handler via wall-clock
+  # (start_span/end_span), not by the telemetry duration measurement here.
+  defp emit_tool_start(loop_id, step, tc, metadata) do
+    :telemetry.execute(
+      [:swarm_ai, :tool, :execute, :start],
+      %{system_time: System.system_time()},
+      %{
+        loop_id: loop_id,
+        step: step,
+        tool_id: tc.id,
+        tool_name: tc.name,
+        arguments: tc.arguments,
+        metadata: metadata
+      }
+    )
+  end
+
+  defp emit_tool_stop(loop_id, step, tc, result, metadata) do
+    :telemetry.execute(
+      [:swarm_ai, :tool, :execute, :stop],
+      %{duration: 0},
+      %{
+        loop_id: loop_id,
+        step: step,
+        tool_id: tc.id,
+        tool_name: tc.name,
+        is_error: result.is_error,
+        output: result.content,
+        metadata: metadata
+      }
+    )
   end
 end
