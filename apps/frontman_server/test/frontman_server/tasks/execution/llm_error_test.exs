@@ -13,4 +13,17 @@ defmodule FrontmanServer.Tasks.Execution.LLMErrorTest do
     assert err.category == "auth"
     assert err.retryable == false
   end
+
+  test "can be raised and caught with raise/rescue" do
+    err =
+      try do
+        raise LLMError, message: "Rate limited", category: "rate_limit", retryable: true
+      rescue
+        e in LLMError -> e
+      end
+
+    assert err.message == "Rate limited"
+    assert err.category == "rate_limit"
+    assert err.retryable == true
+  end
 end

@@ -7,7 +7,7 @@ defmodule FrontmanServer.Tasks.Execution.LLMError do
   that upstream code can decide whether to retry without re-parsing the message.
   """
 
-  defexception [:message, :category, :retryable]
+  defexception message: nil, category: "unknown", retryable: false
 
   @impl true
   def message(%__MODULE__{message: msg}), do: msg
