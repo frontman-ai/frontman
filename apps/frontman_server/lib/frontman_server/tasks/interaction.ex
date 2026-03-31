@@ -14,6 +14,7 @@ defmodule FrontmanServer.Tasks.Interaction do
           | __MODULE__.AgentCompleted.t()
           | __MODULE__.AgentError.t()
           | __MODULE__.AgentPaused.t()
+          | __MODULE__.AgentRetry.t()
           | __MODULE__.ToolCall.t()
           | __MODULE__.ToolResult.t()
           | __MODULE__.DiscoveredProjectRule.t()
@@ -26,6 +27,7 @@ defmodule FrontmanServer.Tasks.Interaction do
     __MODULE__.AgentCompleted,
     __MODULE__.AgentError,
     __MODULE__.AgentPaused,
+    __MODULE__.AgentRetry,
     __MODULE__.ToolCall,
     __MODULE__.ToolResult,
     __MODULE__.DiscoveredProjectRule,
@@ -714,21 +716,27 @@ defmodule FrontmanServer.Tasks.Interaction do
       field(:timestamp, DateTime.t())
       field(:error, String.t())
       field(:kind, String.t(), default: "failed")
+      field(:retryable, boolean(), default: false)
+      field(:category, String.t(), default: "unknown")
     end
 
     @doc """
     Creates a new AgentError interaction.
 
     `kind` is one of "failed", "crashed", "cancelled", or "terminated".
+    `retryable` indicates whether the client should offer a retry action.
+    `category` is a machine-readable error category (e.g. "rate_limit", "context_limit").
     """
-    def new(error, kind \\ "failed") do
+    def new(error, kind \\ "failed", retryable \\ false, category \\ "unknown") do
       alias FrontmanServer.Tasks.Interaction
 
       %__MODULE__{
         id: Interaction.new_id(),
         timestamp: Interaction.now(),
         error: error,
-        kind: kind
+        kind: kind,
+        retryable: retryable,
+        category: category
       }
     end
   end
@@ -741,7 +749,48 @@ defmodule FrontmanServer.Tasks.Interaction do
           id: value.id,
           timestamp: DateTime.to_iso8601(value.timestamp),
           error: value.error,
-          kind: value.kind
+          kind: value.kind,
+          retryable: value.retryable,
+          category: value.category
+        },
+        opts
+      )
+    end
+  end
+
+  defmodule AgentRetry do
+    @moduledoc """
+    Records a user-initiated retry after an AgentError.
+    Persisted for observability — lets you measure retry success rates.
+    """
+    use TypedStruct
+
+    typedstruct enforce: true do
+      field(:id, String.t())
+      field(:sequence, integer(), default: 0)
+      field(:timestamp, DateTime.t())
+      field(:retried_error_id, String.t())
+    end
+
+    def new(retried_error_id) do
+      alias FrontmanServer.Tasks.Interaction
+
+      %__MODULE__{
+        id: Interaction.new_id(),
+        timestamp: Interaction.now(),
+        retried_error_id: retried_error_id
+      }
+    end
+  end
+
+  defimpl Jason.Encoder, for: AgentRetry do
+    def encode(value, opts) do
+      Jason.Encode.map(
+        %{
+          type: "agent_retry",
+          id: value.id,
+          timestamp: DateTime.to_iso8601(value.timestamp),
+          retried_error_id: value.retried_error_id
         },
         opts
       )

@@ -223,6 +223,17 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
       sequence: sequence || data["sequence"] || 0,
       error: data["error"],
       kind: data["kind"] || "failed",
+      retryable: data["retryable"] || false,
+      category: data["category"] || "unknown",
+      timestamp: parse_datetime(data["timestamp"])
+    }
+  end
+
+  def to_struct(%__MODULE__{type: "agent_retry", data: data, sequence: sequence}) do
+    %Interaction.AgentRetry{
+      id: data["id"],
+      sequence: sequence || data["sequence"] || 0,
+      retried_error_id: data["retried_error_id"],
       timestamp: parse_datetime(data["timestamp"])
     }
   end
