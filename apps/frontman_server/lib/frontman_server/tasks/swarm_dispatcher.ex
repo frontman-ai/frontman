@@ -59,7 +59,7 @@ defmodule FrontmanServer.Tasks.SwarmDispatcher do
   defp persist(%Scope{} = scope, task_id, {:failed, {:error, reason, loop_id}}, _metadata) do
     reason_str = format_error_reason(reason)
 
-    Logger.error(
+    Logger.info(
       "Execution failed for task #{task_id}, loop_id: #{loop_id}, reason: #{reason_str}"
     )
 

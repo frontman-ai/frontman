@@ -117,14 +117,9 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializerTest do
         "content" => [%{"text" => ~s({"key": "value"}), "type" => "text"}]
       }
 
-      log =
-        capture_log(fn ->
-          {new_state, _actions} = MCPInitializer.handle_response(state, request_id, result)
+      {new_state, _actions} = MCPInitializer.handle_response(state, request_id, result)
 
-          assert new_state.status == :loading_project_structure
-        end)
-
-      assert log =~ "Unexpected project rules format"
+      assert new_state.status == :loading_project_structure
     end
   end
 end

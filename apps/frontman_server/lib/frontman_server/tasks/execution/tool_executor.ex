@@ -237,9 +237,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
             {:ok, encoded}
 
           {:error, reason} ->
-            Logger.error(
-              "ToolExecutor: Backend tool #{tool_call.name} failed: #{inspect(reason)}"
-            )
+            Logger.info("ToolExecutor: Backend tool #{tool_call.name} failed: #{inspect(reason)}")
 
             Sentry.capture_message("Tool execution failed",
               level: :error,
@@ -278,7 +276,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
         reason =
           "Failed to parse arguments for tool #{tool_name}: #{inspect(decode_error)}, raw: #{String.slice(arguments, 0, 500)}"
 
-        Logger.error("ToolExecutor: #{reason}")
+        Logger.info("ToolExecutor: #{reason}")
 
         Sentry.capture_message("Tool argument parse failure",
           level: :error,
@@ -349,7 +347,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
         @tool_timeout_ms ->
           Registry.unregister(FrontmanServer.ToolCallRegistry, {:tool_call, tool_call_id})
 
-          Logger.error(
+          Logger.info(
             "ToolExecutor: MCP tool #{tool_call.name} timed out after #{@tool_timeout_ms}ms"
           )
 

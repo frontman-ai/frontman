@@ -223,7 +223,7 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
         Logger.info("MCPInitializer: Initialized 0 project rules")
 
       {:ok, _other} ->
-        Logger.warning("MCPInitializer: Unexpected project rules format (expected a list)")
+        Logger.info("MCPInitializer: Unexpected project rules format (expected a list)")
 
       {:error, reason} ->
         Logger.warning("MCPInitializer: Failed to parse project rules: #{inspect(reason)}")

@@ -362,7 +362,7 @@ defmodule SwarmAi.Runtime do
     apply(mod, fun, args ++ [key, event, metadata])
   rescue
     e ->
-      Logger.error("SwarmAi.Runtime event dispatch failed: #{Exception.message(e)}")
+      Logger.info("SwarmAi.Runtime event dispatch failed: #{Exception.message(e)}")
   end
 
   defp event_dispatcher(runtime) do

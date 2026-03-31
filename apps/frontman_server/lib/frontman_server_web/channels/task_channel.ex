@@ -57,7 +57,7 @@ defmodule FrontmanServerWeb.TaskChannel do
         {:ok, %{task_id: task_id}, socket}
 
       {:error, :not_found} ->
-        Logger.warning("Client tried to join non-existent task: #{task_id}")
+        Logger.info("Client tried to join non-existent task: #{task_id}")
         {:error, %{reason: "task_not_found"}}
     end
   end
@@ -76,7 +76,7 @@ defmodule FrontmanServerWeb.TaskChannel do
         handle_session_load(id, params, socket)
 
       {:ok, {:request, id, method, _params}} ->
-        Logger.warning("Unknown ACP method in task channel: #{method}")
+        Logger.info("Unknown ACP method in task channel: #{method}")
 
         response =
           JsonRpc.error_response(
@@ -306,7 +306,7 @@ defmodule FrontmanServerWeb.TaskChannel do
     task_id = socket.assigns.task_id
     scope = socket.assigns.scope
     error_message = error["message"] || "Unknown MCP error"
-    Logger.error("MCP tool #{tool_call.tool_name} failed: #{error_message}")
+    Logger.info("MCP tool #{tool_call.tool_name} failed: #{error_message}")
 
     Sentry.capture_message("MCP tool execution failed",
       level: :error,

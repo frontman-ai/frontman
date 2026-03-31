@@ -81,7 +81,7 @@ defmodule FrontmanServer.Observability.OtelHandler do
         :ets.delete(:frontman_spans_task, task_id)
 
       [] ->
-        Logger.error(
+        Logger.info(
           "Orphaned task stop event: task_id=#{task_id} has no span. Start event missing?"
         )
     end

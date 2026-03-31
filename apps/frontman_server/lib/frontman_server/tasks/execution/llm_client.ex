@@ -122,7 +122,7 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
         {:ok, swarm_stream}
 
       {:error, reason} ->
-        Logger.error("LLMClient.stream ReqLLM.stream_text failed: #{inspect(reason)}")
+        Logger.info("LLMClient.stream ReqLLM.stream_text failed: #{inspect(reason)}")
         {:error, reason}
     end
   end
