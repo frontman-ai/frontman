@@ -158,9 +158,7 @@ defmodule SwarmAi.Runtime do
                  spawn_death_watcher(dispatcher, key, metadata)
 
                streaming_opts =
-                 opts
-                 |> Keyword.put_new(:task_supervisor, task_sup)
-                 |> build_streaming_opts(dispatcher, key, metadata, watcher)
+                 build_streaming_opts(opts, dispatcher, key, metadata, watcher)
 
                send(caller, {ack_ref, :registered})
 

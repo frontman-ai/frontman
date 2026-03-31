@@ -106,7 +106,6 @@ defmodule SwarmAi do
           | {:on_response, (Response.t() -> any())}
           | {:on_tool_call, (SwarmAi.ToolCall.t() -> any())}
           | {:metadata, map()}
-          | {:task_supervisor, atom() | pid()}
         ]
 
   # =============================================================================
@@ -573,8 +572,7 @@ defmodule SwarmAi do
     %{
       on_chunk: Keyword.get(opts, :on_chunk, fn _ -> :ok end),
       on_response: Keyword.get(opts, :on_response, fn _ -> :ok end),
-      on_tool_call: Keyword.get(opts, :on_tool_call, fn _ -> :ok end),
-      task_supervisor: Keyword.get(opts, :task_supervisor)
+      on_tool_call: Keyword.get(opts, :on_tool_call, fn _ -> :ok end)
     }
   end
 
