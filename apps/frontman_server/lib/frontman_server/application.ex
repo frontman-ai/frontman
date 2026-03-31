@@ -46,6 +46,8 @@ defmodule FrontmanServer.Application do
       {Registry, keys: :unique, name: FrontmanServer.ToolCallRegistry},
       # Oban background job processing (email delivery, contact sync, etc.)
       {Oban, Application.fetch_env!(:frontman_server, Oban)},
+      {DynamicSupervisor,
+       name: FrontmanServer.RetryCoordinatorSupervisor, strategy: :one_for_one},
       # Start to serve requests, typically the last entry
       FrontmanServerWeb.Endpoint
     ]
