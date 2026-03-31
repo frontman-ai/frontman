@@ -123,7 +123,14 @@ defmodule SwarmAi.Runtime.SupervisorTest do
   end
 
   defp default_opts(extra \\ []) do
-    Keyword.merge([tool_executor: fn _ -> {:ok, "done"} end], extra)
+    Keyword.merge(
+      [
+        tool_executor: fn tool_calls ->
+          Enum.map(tool_calls, fn tc -> ToolResult.make(tc.id, "done", false) end)
+        end
+      ],
+      extra
+    )
   end
 
   defp await_exit(pid) do

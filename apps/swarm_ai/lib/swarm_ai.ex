@@ -13,7 +13,12 @@ defmodule SwarmAi do
   ### Streaming execution with callbacks
 
       {:ok, result, loop_id} = SwarmAi.run_streaming(agent, "Hello",
-        tool_executor: fn tc -> {:ok, execute(tc)} end,
+        tool_executor: fn tool_calls ->
+          Enum.map(tool_calls, fn tc ->
+            result = execute(tc)
+            SwarmAi.ToolResult.make(tc.id, result, false)
+          end)
+        end,
         on_chunk: fn chunk -> IO.write(chunk.text || "") end,
         on_response: fn response -> Logger.info("Got response") end,
         on_tool_call: fn tc -> Logger.info("Calling \#{tc.name}") end
@@ -36,25 +41,9 @@ defmodule SwarmAi do
           {:error, loop.error}
       end
 
-  ## Sub-Agent Spawning
-
-  Tools can delegate work to child agents by returning `{:spawn, request}`:
-
-      def my_tool_executor(tc) do
-        case tc.name do
-          "deep_analysis" ->
-            {:spawn, SpawnChildAgent.new(child_agent, tc.arguments["task"])}
-
-          "simple_tool" ->
-            {:ok, do_work(tc.arguments)}
-        end
-      end
-
-  The `run_streaming/3` and `run_blocking/3` functions handle spawns automatically
-  when the tool_executor returns `{:spawn, request}`.
   """
 
-  alias SwarmAi.{ChildResult, Loop, Message, SpawnChildAgent, Telemetry, ToolResult}
+  alias SwarmAi.{Loop, Message, Telemetry, ToolResult}
   alias SwarmAi.LLM.{Chunk, Response}
 
   import SwarmAi.Message, only: [is_message: 1]
@@ -78,18 +67,13 @@ defmodule SwarmAi do
           | {:error, Loop.t()}
 
   @typedoc """
-  A function that executes a single tool call and returns the result.
+  A function that executes a batch of tool calls and returns results.
 
-  Returns:
-  - `{:ok, content}` - Tool executed successfully
-  - `{:error, reason}` - Tool failed
-  - `{:spawn, request}` - Delegate to a child agent
+  Receives a list of tool calls and must return a list of ToolResults
+  in the same order. The executor controls how tools are executed —
+  sequentially, in parallel, or any other strategy.
   """
-  @type tool_executor ::
-          (SwarmAi.ToolCall.t() ->
-             {:ok, String.t()}
-             | {:error, String.t()}
-             | {:spawn, SwarmAi.SpawnChildAgent.t()})
+  @type tool_executor :: ([SwarmAi.ToolCall.t()] -> [SwarmAi.ToolResult.t()])
 
   @typedoc """
   Callback options for run_streaming/3.
@@ -119,12 +103,11 @@ defmodule SwarmAi do
   calling the tool_executor when tools are needed and emitting callbacks for
   streaming, responses, and tool calls.
 
-  Telemetry is emitted automatically for all LLM calls, tool executions, and
-  child agent spawns.
+  Telemetry is emitted automatically for all LLM calls and tool executions.
 
   ## Options
 
-  - `:tool_executor` - Required. Function `(ToolCall.t() -> {:ok, result} | {:error, reason} | {:spawn, request})`
+  - `:tool_executor` - Required. Function `([ToolCall.t()] -> [ToolResult.t()])`
   - `:on_chunk` - Called for each streaming chunk from LLM
   - `:on_response` - Called when LLM response is complete (before tool execution)
   - `:on_tool_call` - Called before each tool is executed
@@ -140,12 +123,14 @@ defmodule SwarmAi do
 
       # With streaming
       {:ok, result, loop_id} = SwarmAi.run_streaming(agent, "Analyze this code",
-        tool_executor: &execute_tool/1,
+        tool_executor: &execute_tools/1,
         on_chunk: fn chunk -> IO.write(chunk.text || "") end
       )
 
       # Minimal (no streaming callbacks)
-      {:ok, result, _loop_id} = SwarmAi.run_streaming(agent, "Hello", tool_executor: fn _ -> {:ok, "done"} end)
+      {:ok, result, _loop_id} = SwarmAi.run_streaming(agent, "Hello",
+        tool_executor: fn tcs -> Enum.map(tcs, &ToolResult.make(&1.id, "done", false)) end
+      )
   """
   @spec run_streaming(SwarmAi.Agent.t(), message_input(), streaming_opts()) ::
           {:ok, String.t(), SwarmAi.Id.t()}
@@ -209,11 +194,23 @@ defmodule SwarmAi do
         end
       end)
   """
-  @spec run_blocking(SwarmAi.Agent.t(), message_input(), tool_executor()) ::
+  @type single_tool_executor ::
+          (SwarmAi.ToolCall.t() -> {:ok, String.t()} | {:error, String.t()})
+
+  @spec run_blocking(SwarmAi.Agent.t(), message_input(), single_tool_executor()) ::
           {:ok, String.t(), SwarmAi.Id.t()}
           | {:error, term(), SwarmAi.Id.t()}
   def run_blocking(agent, message, tool_executor) when is_function(tool_executor, 1) do
-    run_streaming(agent, message, tool_executor: tool_executor)
+    batch_executor = fn tool_calls ->
+      Enum.map(tool_calls, fn tc ->
+        case tool_executor.(tc) do
+          {:ok, content} -> ToolResult.make(tc.id, content, false)
+          {:error, reason} -> ToolResult.make(tc.id, to_string(reason), true)
+        end
+      end)
+    end
+
+    run_streaming(agent, message, tool_executor: batch_executor)
   end
 
   # =============================================================================
@@ -299,82 +296,6 @@ defmodule SwarmAi do
   end
 
   # =============================================================================
-  # Child Agent Execution
-  # =============================================================================
-
-  @doc """
-  Runs a child agent and returns ChildResult.
-
-  Used internally by `run_streaming/3` when a tool returns `{:spawn, request}`.
-  Can also be called directly for manual child agent management.
-
-  Telemetry is automatically emitted for the child's lifecycle.
-  """
-  @spec run_child(Loop.t(), String.t(), SpawnChildAgent.t(), tool_executor()) ::
-          ChildResult.t()
-  def run_child(
-        parent_loop,
-        tool_call_id,
-        %SpawnChildAgent{} = spawn_request,
-        tool_executor
-      ) do
-    config = %Loop.Config{
-      max_steps: spawn_request.max_steps || 20,
-      timeout_ms: spawn_request.timeout_ms || 300_000
-    }
-
-    # Child loop inherits metadata from parent, plus parent_agent_module for graph tracking
-    child_loop =
-      Loop.make_child(spawn_request.agent, config, parent_loop,
-        metadata: %{parent_agent_module: parent_loop.agent.__struct__}
-      )
-
-    callbacks = %{
-      on_chunk: fn _ -> :ok end,
-      on_response: fn _ -> :ok end,
-      on_tool_call: fn _ -> :ok end
-    }
-
-    Telemetry.child_span(
-      %{
-        parent_loop_id: parent_loop.id,
-        parent_step: parent_loop.current_step,
-        tool_call_id: tool_call_id,
-        child_agent_module: spawn_request.agent.__struct__,
-        task: spawn_request.task,
-        metadata: parent_loop.metadata
-      },
-      fn ->
-        messages = [Message.user(spawn_request.task)]
-        {child_loop, effects} = Loop.execute(child_loop, messages)
-        final_loop = execute_loop(child_loop, effects, tool_executor, callbacks)
-
-        child_result = %ChildResult{
-          child_loop_id: child_loop.id,
-          status: if(final_loop.status == :completed, do: :completed, else: :failed),
-          result: final_loop.result,
-          error: final_loop.error,
-          step_count: length(final_loop.steps),
-          total_tokens: sum_tokens(final_loop.steps),
-          duration_ms: 0,
-          loop: final_loop
-        }
-
-        {child_result,
-         %{
-           parent_loop_id: parent_loop.id,
-           tool_call_id: tool_call_id,
-           child_loop_id: child_loop.id,
-           child_status: child_result.status,
-           child_step_count: child_result.step_count,
-           child_total_tokens: child_result.total_tokens,
-           metadata: parent_loop.metadata
-         }}
-      end
-    )
-  end
-
-  # =============================================================================
   # Core Execution Loop
   # =============================================================================
 
@@ -386,11 +307,19 @@ defmodule SwarmAi do
     execute_loop(updated_loop, new_effects ++ rest, tool_executor, callbacks)
   end
 
-  defp execute_loop(loop, [{:execute_tool, tc} | rest], tool_executor, callbacks) do
-    callbacks.on_tool_call.(tc)
+  defp execute_loop(loop, [{:execute_tool, _} | _] = effects, tool_executor, callbacks) do
+    {tool_effects, rest} = split_tool_effects(effects)
+    tool_calls = Enum.map(tool_effects, fn {:execute_tool, tc} -> tc end)
 
-    result = execute_tool_with_spawn(loop, tc, tool_executor)
-    {updated_loop, new_effects} = Loop.handle_tool_result(loop, result)
+    Enum.each(tool_calls, callbacks.on_tool_call)
+
+    results = tool_executor.(tool_calls)
+
+    {updated_loop, new_effects} =
+      Enum.reduce(results, {loop, []}, fn result, {loop_acc, effects_acc} ->
+        {l, e} = Loop.handle_tool_result(loop_acc, result)
+        {l, effects_acc ++ e}
+      end)
 
     execute_loop(updated_loop, new_effects ++ rest, tool_executor, callbacks)
   end
@@ -517,54 +446,6 @@ defmodule SwarmAi do
   end
 
   # =============================================================================
-  # Tool Execution with Spawn Support
-  # =============================================================================
-
-  defp execute_tool_with_spawn(loop, tc, tool_executor) do
-    loop_id = loop.id
-    step = loop.current_step
-    tool_id = tc.id
-    tool_name = tc.name
-
-    Telemetry.tool_span(
-      %{
-        loop_id: loop_id,
-        step: step,
-        tool_id: tool_id,
-        tool_name: tool_name,
-        arguments: tc.arguments,
-        metadata: loop.metadata
-      },
-      fn ->
-        result =
-          case tool_executor.(tc) do
-            {:ok, content} ->
-              ToolResult.make(tc.id, content, false)
-
-            {:error, reason} ->
-              ToolResult.make(tc.id, to_string(reason), true)
-
-            {:spawn, request} ->
-              child_result = run_child(loop, tc.id, request, tool_executor)
-              content = child_result.result || "Child failed: #{inspect(child_result.error)}"
-              ToolResult.make(tc.id, content, child_result.status == :failed)
-          end
-
-        stop_meta = %{
-          loop_id: loop_id,
-          tool_id: tool_id,
-          tool_name: tool_name,
-          is_error: result.is_error,
-          output: result.content,
-          metadata: loop.metadata
-        }
-
-        {result, stop_meta}
-      end
-    )
-  end
-
-  # =============================================================================
   # Helpers
   # =============================================================================
 
@@ -613,12 +494,7 @@ defmodule SwarmAi do
   defp classify_exit_reason(:timeout), do: :stream_timeout
   defp classify_exit_reason(reason), do: {:exit, reason}
 
-  defp sum_tokens(steps) do
-    Enum.reduce(steps, 0, fn step, acc ->
-      case step.usage do
-        %{input_tokens: i, output_tokens: o} -> acc + i + o
-        _ -> acc
-      end
-    end)
+  defp split_tool_effects(effects) do
+    Enum.split_while(effects, &match?({:execute_tool, _}, &1))
   end
 end
