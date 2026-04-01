@@ -319,7 +319,14 @@ defmodule SwarmAi do
 
     Enum.each(tool_calls, &emit_tool_start(loop_id, step, &1, metadata))
 
-    results = tool_executor.(tool_calls)
+    results =
+      try do
+        tool_executor.(tool_calls)
+      rescue
+        e ->
+          Enum.each(tool_calls, &emit_tool_exception(loop_id, step, &1, e, metadata))
+          reraise e, __STACKTRACE__
+      end
 
     Enum.zip(tool_calls, results)
     |> Enum.each(fn {tc, result} -> emit_tool_stop(loop_id, step, tc, result, metadata) end)
@@ -523,6 +530,21 @@ defmodule SwarmAi do
         tool_id: tc.id,
         tool_name: tc.name,
         arguments: tc.arguments,
+        metadata: metadata
+      }
+    )
+  end
+
+  defp emit_tool_exception(loop_id, step, tc, exception, metadata) do
+    :telemetry.execute(
+      [:swarm_ai, :tool, :execute, :exception],
+      %{duration: 0},
+      %{
+        loop_id: loop_id,
+        step: step,
+        tool_id: tc.id,
+        tool_name: tc.name,
+        reason: exception,
         metadata: metadata
       }
     )

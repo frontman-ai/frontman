@@ -56,7 +56,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
   ## Examples
 
       executor = ToolExecutor.make_executor(scope, task_id, mcp_tools: mcp_tools, llm_opts: llm_opts)
-      SwarmAi.run_blocking(agent, messages, executor)
+      SwarmAi.run_streaming(agent, messages, tool_executor: executor)
   """
   @spec make_executor(Scope.t(), String.t(), keyword()) ::
           ([SwarmAi.ToolCall.t()] -> [SwarmAi.ToolResult.t()])
