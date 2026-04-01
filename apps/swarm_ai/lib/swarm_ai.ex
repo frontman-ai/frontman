@@ -332,10 +332,10 @@ defmodule SwarmAi do
     Enum.zip(tool_calls, results)
     |> Enum.each(fn {tc, result} -> emit_tool_stop(loop_id, step, tc, result, metadata) end)
 
-    {updated_loop, new_effects} =
-      Enum.reduce(results, {loop, []}, fn result, {loop_acc, effects_acc} ->
+    {new_effects, updated_loop} =
+      Enum.flat_map_reduce(results, loop, fn result, loop_acc ->
         {l, e} = Loop.handle_tool_result(loop_acc, result)
-        {l, effects_acc ++ e}
+        {e, l}
       end)
 
     execute_loop(updated_loop, new_effects ++ rest, tool_executor, callbacks)
@@ -540,7 +540,7 @@ defmodule SwarmAi do
   defp emit_tool_exception(loop_id, step, tc, exception, metadata) do
     :telemetry.execute(
       [:swarm_ai, :tool, :execute, :exception],
-      %{duration: 0},
+      %{system_time: System.system_time()},
       %{
         loop_id: loop_id,
         step: step,
@@ -555,7 +555,7 @@ defmodule SwarmAi do
   defp emit_tool_stop(loop_id, step, tc, result, metadata) do
     :telemetry.execute(
       [:swarm_ai, :tool, :execute, :stop],
-      %{duration: 0},
+      %{system_time: System.system_time()},
       %{
         loop_id: loop_id,
         step: step,
