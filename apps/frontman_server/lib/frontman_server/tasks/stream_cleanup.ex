@@ -105,13 +105,16 @@ defmodule FrontmanServer.Tasks.StreamCleanup do
     end
   end
 
+  # Cancel is best-effort: if it raises the connection leaks until provider timeout (~150s).
+  # We do not re-raise because this runs inside Stream.transform's after-callback and the
+  # cleanup process — crashing either would be worse than a leaked connection.
   defp do_cancel(cancel_fn) do
     cancel_fn.()
   rescue
     e ->
-      Logger.info("StreamCleanup: cancel raised #{Exception.message(e)}")
+      Logger.error("StreamCleanup: cancel raised #{Exception.message(e)}")
   catch
     kind, reason ->
-      Logger.info("StreamCleanup: cancel failed #{inspect({kind, reason})}")
+      Logger.error("StreamCleanup: cancel failed #{inspect({kind, reason})}")
   end
 end
