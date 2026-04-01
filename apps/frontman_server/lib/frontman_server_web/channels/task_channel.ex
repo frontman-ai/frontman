@@ -13,7 +13,7 @@ defmodule FrontmanServerWeb.TaskChannel do
   alias FrontmanServer.Providers
   alias FrontmanServer.Providers.{Model, Registry}
   alias FrontmanServer.Tasks
-  alias FrontmanServer.Tasks.{Execution, Todos}
+  alias FrontmanServer.Tasks.{Execution, RetryCoordinator, Todos}
   alias FrontmanServer.Tools
   alias FrontmanServerWeb.ACPHistory
   alias FrontmanServerWeb.TaskChannel.MCPInitializer
@@ -87,30 +87,14 @@ defmodule FrontmanServerWeb.TaskChannel do
 
         {:reply, {:ok, %{@acp_message => response}}, socket}
 
+      {:ok, {:notification, "retry_turn", %{"retriedErrorId" => retried_error_id}}} ->
+        handle_retry_turn(retried_error_id, socket)
+
       {:ok, {:notification, _method, _params}} ->
         {:noreply, socket}
 
       {:error, reason} ->
-        Logger.error(
-          "Invalid ACP message in task channel: #{inspect(reason)}, payload: #{inspect(payload)}"
-        )
-
-        # If payload has an id, send error response
-        case payload do
-          %{"id" => id} ->
-            error_response =
-              JsonRpc.error_response(
-                id,
-                JsonRpc.error_invalid_request(),
-                "Invalid JSON-RPC message"
-              )
-
-            push(socket, @acp_message, error_response)
-            {:noreply, socket}
-
-          _ ->
-            {:noreply, socket}
-        end
+        handle_invalid_acp_message(reason, payload, socket)
     end
   end
 
@@ -530,6 +514,8 @@ defmodule FrontmanServerWeb.TaskChannel do
         mcp_tool_defs: mcp_tools
       )
 
+    socket = assign(socket, :last_execution_opts, opts)
+
     case Tasks.submit_user_message(scope, task_id, prompt.content, all_tools, opts) do
       {:ok, _interaction} ->
         Logger.info("User message added, agent spawned for task #{task_id}")
@@ -630,11 +616,23 @@ defmodule FrontmanServerWeb.TaskChannel do
     task_id = socket.assigns.task_id
 
     case Execution.handle_swarm_event(scope, task_id, event) do
-      :agent_completed -> handle_turn_ended(socket, ACP.stop_reason_end_turn())
-      :agent_cancelled -> handle_turn_ended(socket, ACP.stop_reason_cancelled())
-      :agent_paused -> handle_turn_ended(socket, ACP.stop_reason_end_turn())
-      {:agent_error, msg} -> handle_turn_error(socket, msg)
-      :ok -> {:noreply, socket}
+      :agent_completed ->
+        handle_turn_ended(socket, ACP.stop_reason_end_turn())
+
+      :agent_cancelled ->
+        handle_turn_ended(socket, ACP.stop_reason_cancelled())
+
+      :agent_paused ->
+        handle_turn_ended(socket, ACP.stop_reason_end_turn())
+
+      {:agent_error, %{retryable: true} = error_info} ->
+        handle_transient_error(socket, error_info)
+
+      {:agent_error, %{retryable: false} = error_info} ->
+        handle_turn_error(socket, error_info.message)
+
+      :ok ->
+        {:noreply, socket}
     end
   end
 
@@ -726,6 +724,40 @@ defmodule FrontmanServerWeb.TaskChannel do
     handle_turn_error(socket, msg)
   end
 
+  def handle_info({:retrying_status, attempt, max_attempts, retry_at_iso, error_message}, socket) do
+    task_id = socket.assigns.task_id
+    {:ok, retry_at, _} = DateTime.from_iso8601(retry_at_iso)
+
+    notification =
+      ACP.build_error_notification(task_id, error_message, DateTime.utc_now(),
+        retry_at: retry_at,
+        attempt: attempt,
+        max_attempts: max_attempts
+      )
+
+    push(socket, @acp_message, notification)
+    {:noreply, socket}
+  end
+
+  def handle_info({:trigger_retry}, socket) do
+    scope = socket.assigns.scope
+    task_id = socket.assigns.task_id
+    opts = socket.assigns[:last_execution_opts] || []
+    mcp_tools = socket.assigns[:mcp_tools] || []
+    all_tools = mcp_tools |> Tools.prepare_for_task(task_id)
+    Tasks.maybe_start_execution(scope, task_id, all_tools, opts)
+    {:noreply, socket}
+  end
+
+  def handle_info({:retry_exhausted, %{kind: "cancelled"}}, socket) do
+    handle_turn_ended(socket, ACP.stop_reason_cancelled())
+  end
+
+  def handle_info({:retry_exhausted, error_info}, socket) do
+    socket = assign(socket, :retry_coordinator, nil)
+    handle_turn_error(socket, error_info.message)
+  end
+
   def handle_info({:title_updated, task_id, title}, socket) do
     push(socket, @acp_title_updated, %{"sessionId" => task_id, "title" => title})
     {:noreply, socket}
@@ -733,6 +765,48 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   def handle_info(msg, _socket) do
     raise "Unhandled message in TaskChannel: #{inspect(msg)}"
+  end
+
+  defp handle_invalid_acp_message(reason, payload, socket) do
+    Logger.error(
+      "Invalid ACP message in task channel: #{inspect(reason)}, payload: #{inspect(payload)}"
+    )
+
+    case payload do
+      %{"id" => id} ->
+        error_response =
+          JsonRpc.error_response(
+            id,
+            JsonRpc.error_invalid_request(),
+            "Invalid JSON-RPC message"
+          )
+
+        push(socket, @acp_message, error_response)
+        {:noreply, socket}
+
+      _ ->
+        {:noreply, socket}
+    end
+  end
+
+  defp handle_retry_turn(retried_error_id, socket) do
+    task_id = socket.assigns.task_id
+    scope = socket.assigns.scope
+
+    unless Execution.running?(scope, task_id) do
+      Tasks.add_agent_retry(scope, task_id, retried_error_id)
+      opts = socket.assigns[:last_execution_opts] || []
+      mcp_tools = socket.assigns[:mcp_tools] || []
+      all_tools = mcp_tools |> Tools.prepare_for_task(task_id)
+      Tasks.maybe_start_execution(scope, task_id, all_tools, opts)
+    end
+
+    {:noreply, socket}
+  end
+
+  defp handle_transient_error(socket, error_info) do
+    {:ok, coordinator_pid} = RetryCoordinator.start(self(), error_info)
+    {:noreply, assign(socket, :retry_coordinator, coordinator_pid)}
   end
 
   # Handler for normal turn completion (agent_completed, agent_cancelled).

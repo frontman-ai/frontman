@@ -1290,4 +1290,98 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       assert tools_call == nil, "Resolved tool call should NOT be re-dispatched"
     end
   end
+
+  describe "transient error triggers retrying notification" do
+    setup %{scope: scope} do
+      {socket, task_id} = join_task_channel(scope)
+      complete_mcp_handshake(socket)
+      {:ok, socket: socket, task_id: task_id}
+    end
+
+    test "retryable error pushes error notification with retryAt", %{
+      socket: _socket,
+      task_id: task_id
+    } do
+      error = %FrontmanServer.Tasks.Execution.LLMError{
+        message: "Rate limited",
+        category: "rate_limit",
+        retryable: true
+      }
+
+      Phoenix.PubSub.broadcast(
+        FrontmanServer.PubSub,
+        Tasks.topic(task_id),
+        swarm_failed(error)
+      )
+
+      assert_push("acp:message", %{
+        "params" => %{
+          "update" => %{
+            "sessionUpdate" => "error",
+            "attempt" => 1,
+            "retryAt" => _
+          }
+        }
+      })
+    end
+
+    test "non-retryable error pushes error notification without retryAt", %{
+      socket: _socket,
+      task_id: task_id
+    } do
+      error = %FrontmanServer.Tasks.Execution.LLMError{
+        message: "Auth failed",
+        category: "auth",
+        retryable: false
+      }
+
+      Phoenix.PubSub.broadcast(
+        FrontmanServer.PubSub,
+        Tasks.topic(task_id),
+        swarm_failed(error)
+      )
+
+      assert_push("acp:message", %{
+        "params" => %{
+          "update" => %{"sessionUpdate" => "error", "message" => "Auth failed"}
+        }
+      })
+    end
+  end
+
+  describe "retry_turn event" do
+    setup %{scope: scope} do
+      {socket, task_id} = join_task_channel(scope)
+      complete_mcp_handshake(socket)
+      {:ok, socket: socket, task_id: task_id}
+    end
+
+    test "creates AgentRetry interaction when retry_turn notification received", %{
+      scope: scope,
+      socket: socket,
+      task_id: task_id
+    } do
+      {:ok, err} =
+        Tasks.add_agent_error(scope, task_id, "Rate limited", "failed", true, "rate_limit")
+
+      push(socket, "acp:message", %{
+        "jsonrpc" => "2.0",
+        "method" => "retry_turn",
+        "params" => %{"retriedErrorId" => err.id}
+      })
+
+      :sys.get_state(socket.channel_pid)
+
+      {:ok, task} = Tasks.get_task(scope, task_id)
+      err_id = err.id
+
+      assert Enum.any?(
+               task.interactions,
+               &match?(
+                 %FrontmanServer.Tasks.Interaction.AgentRetry{retried_error_id: ^err_id},
+                 &1
+               )
+             )
+    end
+  end
 end
