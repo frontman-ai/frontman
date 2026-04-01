@@ -222,7 +222,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
         {:error, reason}
 
       {:ok, args} ->
-        case module.execute(args, context) do
+        case await_backend_tool(fn -> module.execute(args, context) end) do
           {:ok, value} ->
             encoded = encode_result(value)
 
@@ -235,6 +235,32 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
             )
 
             {:ok, encoded}
+
+          {:error, :timeout} ->
+            reason = "Backend tool #{tool_call.name} timed out after #{@tool_timeout_ms}ms"
+
+            Logger.error("ToolExecutor: #{reason}")
+
+            Sentry.capture_message("Backend tool timeout",
+              level: :error,
+              tags: %{error_type: "tool_timeout"},
+              extra: %{
+                tool_name: tool_call.name,
+                tool_call_id: tool_call.id,
+                task_id: task_id,
+                timeout_ms: @tool_timeout_ms
+              }
+            )
+
+            Tasks.add_tool_result(
+              scope,
+              task_id,
+              %{id: tool_call.id, name: tool_call.name},
+              reason,
+              true
+            )
+
+            {:error, reason}
 
           {:error, reason} ->
             Logger.error(
@@ -262,6 +288,17 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
 
             {:error, reason}
         end
+    end
+  end
+
+  # Runs a backend tool function with a timeout. Returns {:ok, value},
+  # {:error, reason}, or {:error, :timeout}.
+  defp await_backend_tool(fun) do
+    task = Task.async(fun)
+
+    case Task.yield(task, @tool_timeout_ms) || Task.shutdown(task) do
+      {:ok, result} -> result
+      nil -> {:error, :timeout}
     end
   end
 

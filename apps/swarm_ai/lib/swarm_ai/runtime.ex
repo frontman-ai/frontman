@@ -184,7 +184,7 @@ defmodule SwarmAi.Runtime do
         end,
         max_concurrency: 10,
         ordered: true,
-        timeout: :timer.minutes(30)
+        timeout: :infinity
       )
       |> Enum.zip(tool_calls)
       |> Enum.map(&collect_tool_result/1)
