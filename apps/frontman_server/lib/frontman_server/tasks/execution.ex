@@ -140,6 +140,9 @@ defmodule FrontmanServer.Tasks.Execution do
   def handle_swarm_event(_scope, _task_id, {:cancelled, _}),
     do: :agent_cancelled
 
+  def handle_swarm_event(_scope, _task_id, {:terminated, _}),
+    do: :agent_cancelled
+
   # Tool calls are persisted by ToolExecutor; no channel action needed.
   def handle_swarm_event(_scope, _task_id, {:tool_call, _}), do: :ok
 
@@ -152,6 +155,7 @@ defmodule FrontmanServer.Tasks.Execution do
 
     mcp_tools = Map.get(agent, :tools, [])
     mcp_tool_defs = Keyword.get(opts, :mcp_tool_defs, [])
+
     llm_opts =
       [api_key: resolved_key.api_key, model: resolved_key.model]
       |> maybe_enable_prompt_cache(resolved_key.provider)

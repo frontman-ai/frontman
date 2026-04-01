@@ -2,16 +2,22 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
   @moduledoc """
   Integration tests for task execution flow.
 
-  Tests the full lifecycle: cancel, tool result routing, consecutive messages.
-  These exercise the Tasks facade which delegates to Tasks.Execution.
+  Tests the full lifecycle: cancel, tool result routing, consecutive messages,
+  and terminal events through the channel layer. These exercise the Tasks
+  facade, SwarmDispatcher, and TaskChannel together.
   """
   use SwarmAi.Testing, async: false
+
+  import Phoenix.ChannelTest
 
   alias Ecto.Adapters.SQL.Sandbox
   alias FrontmanServer.Accounts
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Interaction
+
+  @endpoint FrontmanServerWeb.Endpoint
+  @acp_message AgentClientProtocol.event_acp_message()
 
   # -- Helpers ---------------------------------------------------------------
 
@@ -64,6 +70,29 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
     Phoenix.PubSub.subscribe(FrontmanServer.PubSub, Tasks.topic(task_id))
 
     {:ok, task_id: task_id, scope: scope}
+  end
+
+  defp setup_task_with_channel(_context) do
+    pid = Sandbox.start_owner!(FrontmanServer.Repo, shared: true)
+    on_exit(fn -> Sandbox.stop_owner(pid) end)
+
+    {:ok, user} =
+      Accounts.register_user(%{
+        email: "exec_ch_test_#{System.unique_integer([:positive])}@test.local",
+        name: "Test User",
+        password: "testpassword123!"
+      })
+
+    scope = Scope.for_user(user)
+    task_id = Ecto.UUID.generate()
+    {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
+
+    {:ok, _reply, socket} =
+      FrontmanServerWeb.UserSocket
+      |> socket("user_id", %{scope: scope})
+      |> subscribe_and_join("task:#{task_id}", %{})
+
+    {:ok, task_id: task_id, scope: scope, socket: socket}
   end
 
   # -- Cancel (low-level) ----------------------------------------------------
@@ -232,6 +261,62 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
       completions = Enum.filter(task.interactions, &match?(%Interaction.AgentCompleted{}, &1))
       assert completions != []
+    end
+  end
+
+  # -- Terminated (end-to-end through channel) -------------------------------
+
+  describe "supervisor-initiated termination (end-to-end)" do
+    setup :setup_task_with_channel
+
+    test "terminated event persists error, fires telemetry, and pushes cancelled to client", %{
+      task_id: task_id,
+      scope: scope,
+      socket: socket
+    } do
+      # Attach telemetry handler before triggering the event
+      ref =
+        :telemetry_test.attach_event_handlers(self(), [
+          [:frontman, :task, :stop]
+        ])
+
+      # Agent whose LLM exits with :shutdown — simulates supervisor kill
+      agent = test_agent(%MockLLM{response: fn -> exit(:shutdown) end}, "TermAgent")
+
+      {:ok, _} =
+        Tasks.submit_user_message(scope, task_id, user_content("Hello"), [], agent: agent)
+
+      # Wait for the runtime to exit and SwarmDispatcher to broadcast
+      Process.sleep(500)
+
+      # Channel should receive the event via PubSub and push cancelled to client
+      :sys.get_state(socket.channel_pid)
+
+      assert_push(@acp_message, %{
+        "jsonrpc" => "2.0",
+        "method" => "session/update",
+        "params" => %{
+          "sessionId" => ^task_id,
+          "update" => %{
+            "sessionUpdate" => "agent_turn_complete",
+            "stopReason" => "cancelled"
+          }
+        }
+      })
+
+      # Verify DB persistence
+      {:ok, task} = Tasks.get_task(scope, task_id)
+
+      agent_error =
+        Enum.find(task.interactions, &match?(%Interaction.AgentError{}, &1))
+
+      assert agent_error != nil
+      assert agent_error.kind == "terminated"
+      assert agent_error.error == "Terminated by supervisor"
+
+      # Verify telemetry
+      assert_receive {[:frontman, :task, :stop], ^ref, _measurements, telemetry_meta}
+      assert telemetry_meta.task_id == task_id
     end
   end
 end

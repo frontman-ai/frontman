@@ -717,7 +717,7 @@ defmodule FrontmanServer.Tasks.Interaction do
     @doc """
     Creates a new AgentError interaction.
 
-    `kind` is one of "failed", "crashed", or "cancelled".
+    `kind` is one of "failed", "crashed", "cancelled", or "terminated".
     """
     def new(error, kind \\ "failed") do
       alias FrontmanServer.Tasks.Interaction

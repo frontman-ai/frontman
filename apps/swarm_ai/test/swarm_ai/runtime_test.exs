@@ -30,13 +30,15 @@ defmodule SwarmAi.RuntimeTest do
         )
 
       await_exit(pid)
-      assert_receive {:test_event, "task-complete", {:completed, {:ok, "Echo: Hello", _loop_id}}}
+
+      assert_receive {:test_event, "task-complete", {:completed, {:ok, "Echo: Hello", _loop_id}},
+                      _metadata}
 
       refute SwarmAi.Runtime.running?(runtime, "task-complete")
     end
 
     test "dispatches completed event with metadata passed to dispatcher" do
-      runtime = start_runtime_with_metadata_dispatch!()
+      runtime = start_runtime!()
       agent = test_agent(mock_llm("Echo: Hello"))
 
       {:ok, pid} =
@@ -50,8 +52,8 @@ defmodule SwarmAi.RuntimeTest do
 
       await_exit(pid)
 
-      assert_receive {:test_event_with_meta, "task-meta",
-                      {:completed, {:ok, "Echo: Hello", _loop_id}}, metadata}
+      assert_receive {:test_event, "task-meta", {:completed, {:ok, "Echo: Hello", _loop_id}},
+                      metadata}
 
       assert metadata.my_key == "my_val"
     end
@@ -64,7 +66,8 @@ defmodule SwarmAi.RuntimeTest do
 
       await_exit(pid)
 
-      assert_receive {:test_event, "task-error", {:failed, {:error, _reason, _loop_id}}}
+      assert_receive {:test_event, "task-error", {:failed, {:error, _reason, _loop_id}},
+                      _metadata}
     end
 
     test "prevents duplicate execution for same key" do
@@ -91,7 +94,7 @@ defmodule SwarmAi.RuntimeTest do
   end
 
   describe "cancel/2" do
-    test "dispatches cancelled (not crashed) and unregisters" do
+    test "dispatches cancelled (not crashed or terminated) and unregisters" do
       runtime = start_runtime!()
       agent = test_agent(%MockLLM{response: "slow", delay_ms: 5000})
 
@@ -100,8 +103,9 @@ defmodule SwarmAi.RuntimeTest do
       assert SwarmAi.Runtime.cancel(runtime, "task-c") == :ok
       await_exit(pid)
 
-      assert_receive {:test_event, "task-c", {:cancelled, _}}
-      refute_receive {:test_event, "task-c", {:crashed, _}}, 100
+      assert_receive {:test_event, "task-c", {:cancelled, _}, _metadata}
+      refute_receive {:test_event, "task-c", {:crashed, _}, _}, 100
+      refute_receive {:test_event, "task-c", {:terminated, _}, _}, 0
       refute SwarmAi.Runtime.running?(runtime, "task-c")
     end
 
@@ -121,7 +125,7 @@ defmodule SwarmAi.RuntimeTest do
 
       # Stream raises are now caught by try/rescue in execute_llm_call and
       # routed through Loop.handle_error → {:failed, ...} instead of crashing.
-      assert_receive {:test_event, "task-crash", {:failed, {:error, reason, _loop_id}}}
+      assert_receive {:test_event, "task-crash", {:failed, {:error, reason, _loop_id}}, _metadata}
       assert %RuntimeError{message: "boom"} = reason
       refute SwarmAi.Runtime.running?(runtime, "task-crash")
     end
@@ -133,7 +137,8 @@ defmodule SwarmAi.RuntimeTest do
       {:ok, pid} = SwarmAi.Runtime.run(runtime, "task-exit", agent, "Hello", default_opts())
       await_exit(pid)
 
-      assert_receive {:test_event, "task-exit", {:crashed, %{reason: :kaboom, stacktrace: []}}}
+      assert_receive {:test_event, "task-exit", {:crashed, %{reason: :kaboom, stacktrace: []}},
+                      _metadata}
     end
   end
 
@@ -147,18 +152,18 @@ defmodule SwarmAi.RuntimeTest do
 
       await_exit(pid)
 
-      assert_receive {:test_event, "task-timeout",
-                      {:failed, {:error, reason, _loop_id}}}
+      assert_receive {:test_event, "task-timeout", {:failed, {:error, reason, _loop_id}},
+                      _metadata}
 
       assert reason == :genserver_call_timeout
 
-      refute_receive {:test_event, "task-timeout", {:crashed, _}}, 100
+      refute_receive {:test_event, "task-timeout", {:crashed, _}, _}, 100
       refute SwarmAi.Runtime.running?(runtime, "task-timeout")
     end
   end
 
   describe "death watcher" do
-    test "silent on :shutdown exit — no event dispatched" do
+    test "dispatches :terminated on :shutdown exit" do
       runtime = start_runtime!()
 
       agent = test_agent(%MockLLM{response: fn -> exit(:shutdown) end})
@@ -166,8 +171,72 @@ defmodule SwarmAi.RuntimeTest do
       {:ok, pid} = SwarmAi.Runtime.run(runtime, "task-shut", agent, "Hello", default_opts())
       await_exit(pid)
 
-      refute_receive {:test_event, "task-shut", {:crashed, _}}, 200
-      refute_receive {:test_event, "task-shut", {:cancelled, _}}, 0
+      assert_receive {:test_event, "task-shut", {:terminated, %{loop: _}}, _metadata}, 200
+      refute_receive {:test_event, "task-shut", {:crashed, _}, _}, 0
+      refute_receive {:test_event, "task-shut", {:cancelled, _}, _}, 0
+    end
+
+    test "dispatches :terminated on {:shutdown, reason} exit" do
+      runtime = start_runtime!()
+
+      agent = test_agent(%MockLLM{response: fn -> exit({:shutdown, :supervisor_restart}) end})
+
+      {:ok, pid} =
+        SwarmAi.Runtime.run(runtime, "task-shut-tuple", agent, "Hello", default_opts())
+
+      await_exit(pid)
+
+      assert_receive {:test_event, "task-shut-tuple", {:terminated, %{loop: _}}, _metadata}, 200
+      refute_receive {:test_event, "task-shut-tuple", {:crashed, _}, _}, 0
+    end
+
+    test ":terminated event includes loop snapshot" do
+      runtime = start_runtime!()
+
+      {:ok, call_count} = Agent.start_link(fn -> 0 end)
+
+      agent =
+        test_agent(%MockLLM{
+          response: fn ->
+            count = Agent.get_and_update(call_count, fn c -> {c, c + 1} end)
+
+            if count == 0 do
+              {:ok,
+               %SwarmAi.LLM.Response{
+                 content: nil,
+                 tool_calls: [
+                   %SwarmAi.ToolCall{id: "tc1", name: "test_tool", arguments: %{}}
+                 ],
+                 usage: %SwarmAi.LLM.Usage{input_tokens: 10, output_tokens: 5},
+                 raw: nil
+               }}
+            else
+              exit(:shutdown)
+            end
+          end
+        })
+
+      {:ok, pid} =
+        SwarmAi.Runtime.run(runtime, "task-shut-snap", agent, "Hello", default_opts())
+
+      await_exit(pid)
+
+      assert_receive {:test_event, "task-shut-snap", {:terminated, %{loop: loop}}, _metadata}
+      assert loop != nil
+    end
+
+    test "silent on :normal exit — no event dispatched" do
+      runtime = start_runtime!()
+
+      agent = test_agent(%MockLLM{response: fn -> exit(:normal) end})
+
+      {:ok, pid} = SwarmAi.Runtime.run(runtime, "task-norm", agent, "Hello", default_opts())
+      await_exit(pid)
+
+      refute_receive {:test_event, "task-norm", {:terminated, _}, _}, 200
+      refute_receive {:test_event, "task-norm", {:crashed, _}, _}, 0
+      refute_receive {:test_event, "task-norm", {:cancelled, _}, _}, 0
+      refute_receive {:test_event, "task-norm", {:completed, _}, _}, 0
     end
 
     test "crash event includes loop snapshot from last response" do
@@ -203,7 +272,7 @@ defmodule SwarmAi.RuntimeTest do
 
       await_exit(pid)
 
-      assert_receive {:test_event, "task-snap", {:crashed, %{loop: loop}}}
+      assert_receive {:test_event, "task-snap", {:crashed, %{loop: loop}}, _metadata}
       assert loop != nil
     end
 
@@ -218,11 +287,11 @@ defmodule SwarmAi.RuntimeTest do
 
       await_exit(pid)
 
-      assert_receive {:test_event, "task-nosnap", {:crashed, %{loop: nil}}}
+      assert_receive {:test_event, "task-nosnap", {:crashed, %{loop: nil}}, _metadata}
     end
 
     test "dispatch failure during crash does not prevent cleanup" do
-      runtime = start_runtime_with_failing_dispatch!()
+      runtime = start_runtime!(dispatcher: :failing)
 
       agent = test_agent(%MockLLM{response: fn -> exit(:kaboom) end})
 
@@ -245,62 +314,36 @@ defmodule SwarmAi.RuntimeTest do
       {:ok, pid} = SwarmAi.Runtime.run(runtime, "task-s", agent, "Hello", default_opts())
       await_exit(pid)
 
-      assert_receive {:test_event, "task-s", {:chunk, _}}
-      assert_receive {:test_event, "task-s", {:response, _}}
+      assert_receive {:test_event, "task-s", {:chunk, _}, _metadata}
+      assert_receive {:test_event, "task-s", {:response, _}, _metadata}
     end
   end
 
   # --- Test Dispatchers ---
 
   defmodule TestDispatcher do
-    def dispatch(test_pid, key, event, _metadata) do
-      send(test_pid, {:test_event, key, event})
-    end
-  end
-
-  defmodule MetadataTestDispatcher do
     def dispatch(test_pid, key, event, metadata) do
-      send(test_pid, {:test_event_with_meta, key, event, metadata})
+      send(test_pid, {:test_event, key, event, metadata})
     end
   end
 
   defmodule FailingDispatcher do
-    def dispatch(_key, _event, _metadata), do: raise("dispatch exploded")
+    def dispatch(_test_pid, _key, _event, _metadata), do: raise("dispatch exploded")
   end
 
   # --- Helpers ---
 
-  defp start_runtime! do
+  defp start_runtime!(opts \\ []) do
     name = :"TestRuntime_#{:erlang.unique_integer([:positive])}"
     test_pid = self()
 
-    start_supervised!(
-      {SwarmAi.Runtime,
-       name: name, event_dispatcher: {__MODULE__.TestDispatcher, :dispatch, [test_pid]}}
-    )
+    dispatcher =
+      case Keyword.get(opts, :dispatcher, :default) do
+        :failing -> {__MODULE__.FailingDispatcher, :dispatch, [test_pid]}
+        :default -> {__MODULE__.TestDispatcher, :dispatch, [test_pid]}
+      end
 
-    name
-  end
-
-  defp start_runtime_with_failing_dispatch! do
-    name = :"TestRuntime_#{:erlang.unique_integer([:positive])}"
-
-    start_supervised!(
-      {SwarmAi.Runtime,
-       name: name, event_dispatcher: {__MODULE__.FailingDispatcher, :dispatch, []}}
-    )
-
-    name
-  end
-
-  defp start_runtime_with_metadata_dispatch! do
-    name = :"TestRuntime_#{:erlang.unique_integer([:positive])}"
-    test_pid = self()
-
-    start_supervised!(
-      {SwarmAi.Runtime,
-       name: name, event_dispatcher: {__MODULE__.MetadataTestDispatcher, :dispatch, [test_pid]}}
-    )
+    start_supervised!({SwarmAi.Runtime, name: name, event_dispatcher: dispatcher})
 
     name
   end

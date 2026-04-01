@@ -288,7 +288,7 @@ defmodule FrontmanServer.Tasks do
   @doc """
   Creates and appends an AgentError interaction.
 
-  `kind` is one of "failed", "crashed", or "cancelled".
+  `kind` is one of "failed", "crashed", "cancelled", or "terminated".
   """
   @spec add_agent_error(Scope.t(), String.t(), String.t(), String.t()) ::
           {:ok, Interaction.AgentError.t()} | {:error, :not_found}

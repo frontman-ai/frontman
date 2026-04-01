@@ -33,11 +33,15 @@ defmodule SwarmAi.Runtime do
 
   Events: `{:chunk, chunk}`, `{:response, response}`, `{:tool_call, tc}`,
   `{:completed, {:ok, result, loop_id}}`, `{:failed, {:error, reason, loop_id}}`,
-  `{:crashed, %{reason, stacktrace, loop}}`, `{:cancelled, %{loop}}`.
+  `{:crashed, %{reason, stacktrace, loop}}`, `{:cancelled, %{loop}}`,
+  `{:terminated, %{loop}}`.
 
   Because the dispatcher is an MFA tuple (static config), it survives process
   restarts — no callbacks are lost.
   """
+
+  alias __MODULE__.AgentTask
+  alias __MODULE__.Handshake
 
   require Logger
 
@@ -49,6 +53,7 @@ defmodule SwarmAi.Runtime do
   - `:name` - Required. Prefix for Registry and TaskSupervisor.
   - `:event_dispatcher` - Optional `{mod, fun, args}` MFA tuple for event dispatch.
   """
+  @spec child_spec(keyword()) :: Supervisor.child_spec()
   def child_spec(opts) do
     name = Keyword.fetch!(opts, :name)
 
@@ -82,26 +87,22 @@ defmodule SwarmAi.Runtime do
           {:ok, pid()} | {:error, :already_running | :registration_timeout}
   def run(runtime, key, agent, messages, opts \\ []) do
     registry = registry_name(runtime)
-    task_sup = task_supervisor_name(runtime)
-    dispatcher = event_dispatcher(runtime)
 
-    registry_key = {:running, key}
-
-    case Registry.lookup(registry, registry_key) do
+    case Registry.lookup(registry, {:running, key}) do
       [{_pid, _}] ->
         {:error, :already_running}
 
       [] ->
-        spawn_and_await_registration(
-          task_sup,
-          registry,
-          registry_key,
-          key,
-          agent,
-          messages,
-          opts,
-          dispatcher
-        )
+        task = %AgentTask{
+          key: key,
+          agent: agent,
+          messages: messages,
+          loop_config: opts,
+          event_context: Keyword.get(opts, :metadata, %{})
+        }
+
+        handshake = %Handshake{caller: self(), ack_ref: make_ref()}
+        spawn_and_await_registration(runtime, task, handshake)
     end
   end
 
@@ -137,34 +138,25 @@ defmodule SwarmAi.Runtime do
 
   # --- Private ---
 
-  defp spawn_and_await_registration(
-         task_sup,
-         registry,
-         registry_key,
-         key,
-         agent,
-         messages,
-         opts,
-         dispatcher
-       ) do
-    caller = self()
-    ack_ref = make_ref()
+  defp spawn_and_await_registration(runtime, task, handshake) do
+    registry = registry_name(runtime)
+    task_sup = task_supervisor_name(runtime)
+    registry_key = {:running, task.key}
 
     task_fn = fn ->
-      run_task_body(
-        {caller, ack_ref},
-        {registry, registry_key},
-        dispatcher,
-        key,
-        agent,
-        messages,
-        wrap_executor_with_parallel(opts, task_sup)
-      )
+      case Registry.register(registry, registry_key, %{}) do
+        {:ok, _} ->
+          run_registered_task(runtime, task, handshake)
+
+        {:error, {:already_registered, _}} ->
+          send(handshake.caller, {handshake.ack_ref, :already_running})
+          exit(:normal)
+      end
     end
 
     case Task.Supervisor.start_child(task_sup, task_fn) do
       {:ok, pid} ->
-        await_registration_ack(ack_ref, pid)
+        await_registration_ack(handshake.ack_ref, pid)
 
       {:error, reason} ->
         {:error, reason}
@@ -175,80 +167,71 @@ defmodule SwarmAi.Runtime do
   # Each tool call in a batch is run concurrently via Task.Supervisor.
   # Crashes in individual tool tasks are caught and converted to error ToolResults.
   defp wrap_executor_with_parallel(opts, task_supervisor) do
-    case Keyword.get(opts, :tool_executor) do
-      nil ->
-        opts
-
-      executor ->
-        parallel_executor = fn tool_calls ->
-          stream =
-            Task.Supervisor.async_stream_nolink(
-              task_supervisor,
-              tool_calls,
-              fn tc ->
-                # Call the batch executor with a single-element list to reuse
-                # all its routing and enrichment logic.
-                [result] = executor.([tc])
-                result
-              end,
-              max_concurrency: 10,
-              ordered: true,
-              timeout: :timer.minutes(30)
-            )
-
-          stream
-          |> Enum.zip(tool_calls)
-          |> Enum.map(fn
-            {{:ok, result}, _tc} ->
-              result
-
-            {{:exit, reason}, tc} ->
-              SwarmAi.ToolResult.make(tc.id, "Tool execution crashed: #{inspect(reason)}", true)
-          end)
-        end
-
-        Keyword.put(opts, :tool_executor, parallel_executor)
+    case Keyword.fetch(opts, :tool_executor) do
+      :error -> opts
+      {:ok, executor} -> do_wrap_executor(opts, executor, task_supervisor)
     end
   end
 
-  defp run_task_body(
-         {caller, ack_ref},
-         {registry, registry_key},
-         dispatcher,
-         key,
-         agent,
-         messages,
-         opts
-       ) do
-    metadata = Keyword.get(opts, :metadata, %{})
+  defp do_wrap_executor(opts, executor, task_supervisor) do
+    parallel_executor = fn tool_calls ->
+      task_supervisor
+      |> Task.Supervisor.async_stream_nolink(
+        tool_calls,
+        fn tc ->
+          [result] = executor.([tc])
+          result
+        end,
+        max_concurrency: 10,
+        ordered: true,
+        timeout: :timer.minutes(30)
+      )
+      |> Enum.zip(tool_calls)
+      |> Enum.map(&collect_tool_result/1)
+    end
 
-    case Registry.register(registry, registry_key, %{}) do
-      {:ok, _} ->
-        watcher = spawn_death_watcher(dispatcher, key, metadata)
-        streaming_opts = build_streaming_opts(opts, dispatcher, key, metadata, watcher)
-        send(caller, {ack_ref, :registered})
+    Keyword.put(opts, :tool_executor, parallel_executor)
+  end
 
-        try do
-          result = SwarmAi.run_streaming(agent, messages, streaming_opts)
+  defp collect_tool_result({{:ok, result}, _tc}), do: result
 
-          # Unregister BEFORE dispatch so running?/2 returns false first
-          Registry.unregister(registry, registry_key)
-          send(watcher, :completed)
+  defp collect_tool_result({{:exit, reason}, tc}),
+    do: SwarmAi.ToolResult.make(tc.id, "Tool execution crashed: #{inspect(reason)}", true)
 
-          case result do
-            {:ok, _, _} = ok -> dispatch_event(dispatcher, key, {:completed, ok}, metadata)
-            {:error, _, _} = err -> dispatch_event(dispatcher, key, {:failed, err}, metadata)
-          end
-        after
-          # Safety net — idempotent if already unregistered above.
-          # Do NOT send :completed here — on abnormal exits the watcher
-          # must receive {:EXIT, ...} to dispatch crash/cancel events.
-          Registry.unregister(registry, registry_key)
-        end
+  defp run_registered_task(runtime, task, handshake) do
+    registry = registry_name(runtime)
+    task_sup = task_supervisor_name(runtime)
+    registry_key = {:running, task.key}
+    dispatcher = event_dispatcher(runtime)
 
-      {:error, {:already_registered, _}} ->
-        send(caller, {ack_ref, :already_running})
-        exit(:normal)
+    watcher = spawn_death_watcher(dispatcher, task.key, task.event_context)
+
+    streaming_opts =
+      task.loop_config
+      |> wrap_executor_with_parallel(task_sup)
+      |> build_streaming_opts(dispatcher, task.key, task.event_context, watcher)
+
+    send(handshake.caller, {handshake.ack_ref, :registered})
+
+    try do
+      result = SwarmAi.run_streaming(task.agent, task.messages, streaming_opts)
+
+      # Unregister BEFORE dispatch so running?/2 returns false first
+      Registry.unregister(registry, registry_key)
+      send(watcher, :completed)
+
+      case result do
+        {:ok, _, _} = ok ->
+          dispatch_event(dispatcher, task.key, {:completed, ok}, task.event_context)
+
+        {:error, _, _} = err ->
+          dispatch_event(dispatcher, task.key, {:failed, err}, task.event_context)
+      end
+    after
+      # Safety net — idempotent if already unregistered above.
+      # Do NOT send :completed here — on abnormal exits the watcher
+      # must receive {:EXIT, ...} to dispatch crash/cancel events.
+      Registry.unregister(registry, registry_key)
     end
   end
 
@@ -324,9 +307,12 @@ defmodule SwarmAi.Runtime do
         :ok
 
       {:EXIT, ^caller, reason} ->
-        cond do
-          reason == :cancelled ->
-            Logger.info("Execution cancelled: key=#{inspect(key)}")
+        case reason do
+          :normal ->
+            :ok
+
+          :cancelled ->
+            Logger.info("Execution cancelled for #{inspect(key)}")
 
             dispatch_event(
               dispatcher,
@@ -335,10 +321,34 @@ defmodule SwarmAi.Runtime do
               metadata
             )
 
-          reason not in [:normal, :shutdown] and not match?({:shutdown, _}, reason) ->
+          :shutdown ->
+            Logger.info(
+              "Execution terminated by supervisor for #{inspect(key)}, reason: :shutdown"
+            )
+
+            dispatch_event(
+              dispatcher,
+              key,
+              {:terminated, %{loop: loop_snapshot}},
+              metadata
+            )
+
+          {:shutdown, _} = reason ->
+            Logger.info(
+              "Execution terminated by supervisor for #{inspect(key)}, reason: #{inspect(reason)}"
+            )
+
+            dispatch_event(
+              dispatcher,
+              key,
+              {:terminated, %{loop: loop_snapshot}},
+              metadata
+            )
+
+          reason ->
             {crash_reason, stacktrace} = normalize_crash_reason(reason)
 
-            Logger.warning("Execution crashed: key=#{inspect(key)}, reason=#{inspect(reason)}")
+            Logger.warning("Execution crashed for #{inspect(key)}, reason: #{inspect(reason)}")
 
             dispatch_event(
               dispatcher,
@@ -348,9 +358,6 @@ defmodule SwarmAi.Runtime do
             )
 
             emit_telemetry(key, caller, reason)
-
-          true ->
-            :ok
         end
     end
   end
@@ -370,9 +377,13 @@ defmodule SwarmAi.Runtime do
 
   defp dispatch_event({mod, fun, args}, key, event, metadata) do
     apply(mod, fun, args ++ [key, event, metadata])
+    :ok
   rescue
     e ->
+      # Intentionally non-fatal: dispatch failures must not crash the
+      # watcher or prevent cleanup of the running task.
       Logger.error("SwarmAi.Runtime event dispatch failed: #{Exception.message(e)}")
+      {:error, e}
   end
 
   defp event_dispatcher(runtime) do
@@ -380,8 +391,10 @@ defmodule SwarmAi.Runtime do
   end
 
   @doc false
+  @spec registry_name(atom()) :: atom()
   def registry_name(runtime), do: :"#{runtime}.Registry"
 
   @doc false
+  @spec task_supervisor_name(atom()) :: atom()
   def task_supervisor_name(runtime), do: :"#{runtime}.TaskSupervisor"
 end

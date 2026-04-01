@@ -106,6 +106,15 @@ defmodule FrontmanServer.Tasks.SwarmDispatcher do
     TelemetryEvents.task_stop(task_id)
   end
 
+  # Agent was terminated by supervisor (e.g. :rest_for_one restart).
+  # Not a crash (nothing broke) and not a cancellation (user didn't ask).
+  # No Sentry alert — this is infrastructure recovery, not a bug.
+  defp persist(%Scope{} = scope, task_id, {:terminated, _}, _metadata) do
+    Logger.info("Execution terminated by supervisor for task #{task_id}")
+    Tasks.add_agent_error(scope, task_id, "Terminated by supervisor", "terminated")
+    TelemetryEvents.task_stop(task_id)
+  end
+
   # Streaming chunks — ephemeral, no persistence needed.
   defp persist(_scope, _task_id, {:chunk, _}, _metadata), do: :ok
 
