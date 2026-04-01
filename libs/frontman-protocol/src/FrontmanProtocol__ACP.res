@@ -241,15 +241,16 @@ let sessionConfigOptionCategorySchema = S.union([
 
 // A session config option — discriminated union on "type".
 // Currently only the "select" variant exists in the ACP spec.
-type sessionConfigOption = SelectConfigOption({
-  id: string,
-  name: string,
-  description: option<string>,
-  category: option<sessionConfigOptionCategory>,
-  currentValue: sessionConfigValueId,
-  options: sessionConfigSelectOptions,
-  _meta: option<JSON.t>,
-})
+type sessionConfigOption =
+  | SelectConfigOption({
+      id: string,
+      name: string,
+      description: option<string>,
+      category: option<sessionConfigOptionCategory>,
+      currentValue: sessionConfigValueId,
+      options: sessionConfigSelectOptions,
+      _meta: option<JSON.t>,
+    })
 
 let sessionConfigOptionSchema = S.union([
   S.object(s => {
@@ -332,9 +333,7 @@ type titleUpdated = {
 }
 
 // Payload for the config_options_updated channel event (non-ACP, tasks channel)
-type configOptionsUpdated = {
-  configOptions: array<sessionConfigOption>,
-}
+type configOptionsUpdated = {configOptions: array<sessionConfigOption>}
 
 let configOptionsUpdatedSchema = S.object(s => {
   configOptions: s.field("configOptions", S.array(sessionConfigOptionSchema)),
@@ -528,9 +527,7 @@ let stopReasonSchema = S.union([
 ])
 
 // session/prompt result
-type promptResult = {
-  stopReason: stopReason,
-}
+type promptResult = {stopReason: stopReason}
 
 let promptResultSchema = S.object(s => {
   stopReason: s.field("stopReason", stopReasonSchema),
@@ -593,7 +590,13 @@ type sessionUpdate =
   | ConfigOptionUpdate({configOptions: array<sessionConfigOption>})
   | CurrentModeUpdate({currentModeId: sessionModeId})
   | AgentTurnComplete({stopReason: stopReason})
-  | Error({message: string, timestamp: string})
+  | Error({
+      message: string,
+      timestamp: string,
+      retryAt: option<string>,
+      attempt: option<int>,
+      maxAttempts: option<int>,
+    })
   | Unknown({sessionUpdate: string})
 
 // Session update schema using S.union with s.tag for proper discrimination
@@ -661,6 +664,9 @@ let sessionUpdateSchema = S.union([
     Error({
       message: s.field("message", S.string),
       timestamp: s.field("timestamp", S.string),
+      retryAt: s.field("retryAt", S.option(S.string)),
+      attempt: s.field("attempt", S.option(S.int)),
+      maxAttempts: s.field("maxAttempts", S.option(S.int)),
     })
   }),
   // Fallback for unknown session update types
@@ -725,10 +731,7 @@ type elicitationMode =
   | @as("form") Form
   | @as("url") Url
 
-let elicitationModeSchema = S.union([
-  S.literal(Form),
-  S.literal(Url),
-])
+let elicitationModeSchema = S.union([S.literal(Form), S.literal(Url)])
 
 // session/elicitation request params (server -> client)
 @schema
@@ -753,11 +756,7 @@ type elicitationAction =
   | @as("decline") Decline
   | @as("cancel") Cancel
 
-let elicitationActionSchema = S.union([
-  S.literal(Accept),
-  S.literal(Decline),
-  S.literal(Cancel),
-])
+let elicitationActionSchema = S.union([S.literal(Accept), S.literal(Decline), S.literal(Cancel)])
 
 // session/elicitation response result (client -> server)
 @schema
