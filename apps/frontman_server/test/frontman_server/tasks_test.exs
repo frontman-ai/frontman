@@ -100,7 +100,9 @@ defmodule FrontmanServer.TasksTest do
       {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
 
       # Add a user message
-      Tasks.submit_user_message(scope, task_id, [%{"type" => "text", "text" => "Hello"}], [])
+      Tasks.submit_user_message(scope, task_id, [%{"type" => "text", "text" => "Hello"}], [],
+        agent: %FrontmanServer.Testing.BlockingAgent{}
+      )
 
       # Add responses
       Tasks.add_agent_response(scope, task_id, "Response from agent", %{})
@@ -129,7 +131,8 @@ defmodule FrontmanServer.TasksTest do
           scope,
           task_id,
           [%{"type" => "text", "text" => "What is 2+2?"}],
-          []
+          [],
+          agent: %FrontmanServer.Testing.BlockingAgent{}
         )
 
       # 2. Agent responds with a tool_call in metadata (OpenAI wire format, as stored in DB)
@@ -286,12 +289,16 @@ defmodule FrontmanServer.TasksTest do
       {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
 
       {:ok, msg1} =
-        Tasks.submit_user_message(scope, task_id, [%{"type" => "text", "text" => "hello"}], [])
+        Tasks.submit_user_message(scope, task_id, [%{"type" => "text", "text" => "hello"}], [],
+          agent: %FrontmanServer.Testing.BlockingAgent{}
+        )
 
       {:ok, msg2} = Tasks.add_agent_response(scope, task_id, "hi there")
 
       {:ok, msg3} =
-        Tasks.submit_user_message(scope, task_id, [%{"type" => "text", "text" => "again"}], [])
+        Tasks.submit_user_message(scope, task_id, [%{"type" => "text", "text" => "again"}], [],
+          agent: %FrontmanServer.Testing.BlockingAgent{}
+        )
 
       assert msg1.sequence > 0
       assert msg2.sequence > msg1.sequence
@@ -344,7 +351,9 @@ defmodule FrontmanServer.TasksTest do
       {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
 
       {:ok, _} =
-        Tasks.submit_user_message(scope, task_id, [%{"type" => "text", "text" => "msg1"}], [])
+        Tasks.submit_user_message(scope, task_id, [%{"type" => "text", "text" => "msg1"}], [],
+          agent: %FrontmanServer.Testing.BlockingAgent{}
+        )
 
       {:ok, _} = Tasks.add_agent_response(scope, task_id, "response1")
 
@@ -476,7 +485,10 @@ defmodule FrontmanServer.TasksTest do
       {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
 
       Tasks.add_discovered_project_structure(scope, task_id, "Project layout...")
-      Tasks.submit_user_message(scope, task_id, [%{"type" => "text", "text" => "Hello"}], [])
+
+      Tasks.submit_user_message(scope, task_id, [%{"type" => "text", "text" => "Hello"}], [],
+        agent: %FrontmanServer.Testing.BlockingAgent{}
+      )
 
       {:ok, task} = Tasks.get_task(scope, task_id)
       messages = Tasks.Interaction.to_llm_messages(task.interactions)
@@ -492,7 +504,10 @@ defmodule FrontmanServer.TasksTest do
       {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
 
       Tasks.add_discovered_project_rule(scope, task_id, "/project/AGENTS.md", "# Project Rules")
-      Tasks.submit_user_message(scope, task_id, [%{"type" => "text", "text" => "Hello"}], [])
+
+      Tasks.submit_user_message(scope, task_id, [%{"type" => "text", "text" => "Hello"}], [],
+        agent: %FrontmanServer.Testing.BlockingAgent{}
+      )
 
       {:ok, task} = Tasks.get_task(scope, task_id)
       messages = Tasks.Interaction.to_llm_messages(task.interactions)
@@ -520,7 +535,10 @@ defmodule FrontmanServer.TasksTest do
         screenshot_block("ann-test-1", "iVBORw0KGgoAAAANSUhEUg==")
       ]
 
-      {:ok, _interaction} = Tasks.submit_user_message(scope, task_id, content_blocks, [])
+      {:ok, _interaction} =
+        Tasks.submit_user_message(scope, task_id, content_blocks, [],
+          agent: %FrontmanServer.Testing.BlockingAgent{}
+        )
 
       # Retrieve via LLM conversion (exercises the full JSONB round-trip)
       {:ok, task} = Tasks.get_task(scope, task_id)

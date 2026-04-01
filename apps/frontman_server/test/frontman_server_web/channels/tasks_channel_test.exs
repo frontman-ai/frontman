@@ -502,14 +502,16 @@ defmodule FrontmanServerWeb.TasksChannelTest do
         scope,
         task_id,
         [%{"type" => "text", "text" => "Hello"}],
-        []
+        [],
+        agent: %FrontmanServer.Testing.BlockingAgent{}
       )
 
       FrontmanServer.Tasks.submit_user_message(
         scope,
         task_id,
         [%{"type" => "text", "text" => "World"}],
-        []
+        [],
+        agent: %FrontmanServer.Testing.BlockingAgent{}
       )
 
       push(socket, "acp:message", acp_request(1, "session/load", %{"sessionId" => task_id}))
@@ -587,7 +589,8 @@ defmodule FrontmanServerWeb.TasksChannelTest do
         scope,
         task_id,
         [%{"type" => "text", "text" => "Question"}],
-        []
+        [],
+        agent: %FrontmanServer.Testing.BlockingAgent{}
       )
 
       FrontmanServer.Tasks.add_agent_response(scope, task_id, "Answer", %{})

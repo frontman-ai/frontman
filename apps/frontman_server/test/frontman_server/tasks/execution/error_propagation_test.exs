@@ -39,6 +39,7 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
       {:ok, task_id: task_id, scope: scope}
     end
 
+    @tag :capture_log
     test "LLM stream raise propagates as {:swarm_event, {:failed, ...}} via PubSub", %{
       task_id: task_id,
       scope: scope
@@ -67,6 +68,7 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
       assert Exception.message(reason) =~ "image exceeds the maximum allowed size"
     end
 
+    @tag :capture_log
     test "LLM returning {:error, reason} surfaces as {:swarm_event, {:failed, ...}}", %{
       task_id: task_id,
       scope: scope

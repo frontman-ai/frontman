@@ -140,6 +140,7 @@ defmodule FrontmanServerWeb.ChannelCase do
       {:ok, _reply, socket} =
         FrontmanServerWeb.UserSocket
         |> socket("user_id", %{scope: scope})
+        |> Phoenix.Socket.assign(:agent_override, %FrontmanServer.Testing.BlockingAgent{})
         |> subscribe_and_join("task:#{task_id}", %{})
 
       {socket, task_id}

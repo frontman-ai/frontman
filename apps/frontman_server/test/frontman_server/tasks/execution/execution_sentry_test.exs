@@ -37,6 +37,7 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
   end
 
   describe "failed event Sentry reporting (Gap 3)" do
+    @tag :capture_log
     test "reports LLM error to Sentry with agent_execution_error tag", %{
       task_id: task_id,
       scope: scope
@@ -74,6 +75,7 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
   end
 
   describe "stream error Sentry reporting (Gap 3)" do
+    @tag :capture_log
     test "reports LLM stream error to Sentry as agent_execution_error (not crash)", %{
       task_id: task_id,
       scope: scope
