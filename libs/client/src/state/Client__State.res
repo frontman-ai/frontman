@@ -2,8 +2,7 @@
 type state = Client__State__Types.state
 
 // Hook for selecting state
-let useSelector = selection =>
-  StateStore.useSelector(Client__State__Store.store, selection)
+let useSelector = selection => StateStore.useSelector(Client__State__Store.store, selection)
 
 module Selectors = Client__State__StateReducer.Selectors
 module UserContentPart = Client__State__Types.UserContentPart
@@ -18,40 +17,60 @@ module Actions = {
 
   // ForTask(taskId) actions - streaming/tool events from ACP
   let textDeltaReceived = (~taskId: string, ~text: string, ~timestamp: string) =>
-    Client__State__Store.dispatch(TaskAction({target: ForTask(taskId), action: TextDeltaReceived({text, timestamp})}))
+    Client__State__Store.dispatch(
+      TaskAction({target: ForTask(taskId), action: TextDeltaReceived({text, timestamp})}),
+    )
 
   let streamingStarted = (~taskId) =>
     Client__State__Store.dispatch(TaskAction({target: ForTask(taskId), action: StreamingStarted}))
 
   // TOOLS
   let toolCallReceived = (~taskId, ~toolCall) =>
-    Client__State__Store.dispatch(TaskAction({target: ForTask(taskId), action: ToolCallReceived({toolCall: toolCall})}))
+    Client__State__Store.dispatch(
+      TaskAction({target: ForTask(taskId), action: ToolCallReceived({toolCall: toolCall})}),
+    )
 
   let toolInputReceived = (~taskId, ~id, ~input) =>
-    Client__State__Store.dispatch(TaskAction({target: ForTask(taskId), action: ToolInputReceived({id, input})}))
+    Client__State__Store.dispatch(
+      TaskAction({target: ForTask(taskId), action: ToolInputReceived({id, input})}),
+    )
 
   let toolResultReceived = (~taskId, ~id, ~result) =>
-    Client__State__Store.dispatch(TaskAction({target: ForTask(taskId), action: ToolResultReceived({id, result})}))
+    Client__State__Store.dispatch(
+      TaskAction({target: ForTask(taskId), action: ToolResultReceived({id, result})}),
+    )
 
   let toolErrorReceived = (~taskId, ~id, ~error) =>
-    Client__State__Store.dispatch(TaskAction({target: ForTask(taskId), action: ToolErrorReceived({id, error})}))
+    Client__State__Store.dispatch(
+      TaskAction({target: ForTask(taskId), action: ToolErrorReceived({id, error})}),
+    )
 
   // CurrentTask actions - UI interactions
   let setPreviewUrl = (~url) =>
-    Client__State__Store.dispatch(TaskAction({target: CurrentTask, action: SetPreviewUrl({url: url})}))
+    Client__State__Store.dispatch(
+      TaskAction({target: CurrentTask, action: SetPreviewUrl({url: url})}),
+    )
 
   let setPreviewFrame = (~contentDocument, ~contentWindow) =>
-    Client__State__Store.dispatch(TaskAction({target: CurrentTask, action: SetPreviewFrame({contentDocument, contentWindow})}))
+    Client__State__Store.dispatch(
+      TaskAction({target: CurrentTask, action: SetPreviewFrame({contentDocument, contentWindow})}),
+    )
 
   let setAnnotationMode = (~mode) =>
-    Client__State__Store.dispatch(TaskAction({target: CurrentTask, action: SetAnnotationMode({mode: mode})}))
+    Client__State__Store.dispatch(
+      TaskAction({target: CurrentTask, action: SetAnnotationMode({mode: mode})}),
+    )
 
   // Device mode action creators
   let setDeviceMode = (~deviceMode) =>
-    Client__State__Store.dispatch(TaskAction({target: CurrentTask, action: SetDeviceMode({deviceMode: deviceMode})}))
+    Client__State__Store.dispatch(
+      TaskAction({target: CurrentTask, action: SetDeviceMode({deviceMode: deviceMode})}),
+    )
 
   let setOrientation = (~orientation) =>
-    Client__State__Store.dispatch(TaskAction({target: CurrentTask, action: SetOrientation({orientation: orientation})}))
+    Client__State__Store.dispatch(
+      TaskAction({target: CurrentTask, action: SetOrientation({orientation: orientation})}),
+    )
 
   let toggleDeviceMode = () =>
     Client__State__Store.dispatch(TaskAction({target: CurrentTask, action: ToggleDeviceMode}))
@@ -61,33 +80,46 @@ module Actions = {
     Client__State__Store.dispatch(TaskAction({target: CurrentTask, action: ToggleAnnotationMode}))
 
   let toggleAnnotation = (~element, ~position, ~tagName) =>
-    Client__State__Store.dispatch(TaskAction({target: CurrentTask, action: ToggleAnnotation({element, position, tagName})}))
+    Client__State__Store.dispatch(
+      TaskAction({target: CurrentTask, action: ToggleAnnotation({element, position, tagName})}),
+    )
 
   // Unconditionally adds an annotation (no toggle semantics — used for tree navigation)
   let addAnnotation = (~element, ~position, ~tagName) =>
-    Client__State__Store.dispatch(TaskAction({target: CurrentTask, action: AddAnnotation({element, position, tagName})}))
+    Client__State__Store.dispatch(
+      TaskAction({target: CurrentTask, action: AddAnnotation({element, position, tagName})}),
+    )
 
   let addAnnotations = (~elements) =>
-    Client__State__Store.dispatch(TaskAction({target: CurrentTask, action: AddAnnotations({elements: elements})}))
+    Client__State__Store.dispatch(
+      TaskAction({target: CurrentTask, action: AddAnnotations({elements: elements})}),
+    )
 
   let removeAnnotation = (~id) =>
-    Client__State__Store.dispatch(TaskAction({target: CurrentTask, action: RemoveAnnotation({id: id})}))
+    Client__State__Store.dispatch(
+      TaskAction({target: CurrentTask, action: RemoveAnnotation({id: id})}),
+    )
 
   let clearAnnotations = () =>
     Client__State__Store.dispatch(TaskAction({target: CurrentTask, action: ClearAnnotations}))
 
   let updateAnnotationComment = (~id, ~comment) =>
-    Client__State__Store.dispatch(TaskAction({target: CurrentTask, action: UpdateAnnotationComment({id, comment})}))
+    Client__State__Store.dispatch(
+      TaskAction({target: CurrentTask, action: UpdateAnnotationComment({id, comment})}),
+    )
 
   let setActivePopupAnnotationId = (~id) =>
-    Client__State__Store.dispatch(TaskAction({target: CurrentTask, action: SetActivePopupAnnotationId({id: id})}))
+    Client__State__Store.dispatch(
+      TaskAction({target: CurrentTask, action: SetActivePopupAnnotationId({id: id})}),
+    )
 
   let closeAnnotationPopup = () =>
-    Client__State__Store.dispatch(TaskAction({target: CurrentTask, action: SetActivePopupAnnotationId({id: None})}))
+    Client__State__Store.dispatch(
+      TaskAction({target: CurrentTask, action: SetActivePopupAnnotationId({id: None})}),
+    )
 
   let toggleAnimationFrozen = () =>
     Client__State__Store.dispatch(TaskAction({target: CurrentTask, action: ToggleAnimationFrozen}))
-
 
   // Task management action creators
   // Note: Tasks are created implicitly when user sends first message (lazy session creation)
@@ -106,31 +138,70 @@ module Actions = {
   let cancelTurn = () => Client__State__Store.dispatch(CancelTurn)
 
   // ACP session action creators
-  let setAcpSession = (~sendPrompt, ~cancelPrompt, ~loadTask, ~deleteSession, ~apiBaseUrl) =>
+  let setAcpSession = (
+    ~sendPrompt,
+    ~cancelPrompt,
+    ~retryTurn,
+    ~loadTask,
+    ~deleteSession,
+    ~apiBaseUrl,
+  ) =>
     Client__State__Store.dispatch(
-      SetAcpSession({sendPrompt, cancelPrompt, loadTask, deleteSession, apiBaseUrl}),
+      SetAcpSession({sendPrompt, cancelPrompt, retryTurn, loadTask, deleteSession, apiBaseUrl}),
     )
 
   let clearAcpSession = () => Client__State__Store.dispatch(ClearAcpSession)
 
   // Task loading action creators (ForTask)
   let taskLoadError = (~taskId, ~error) =>
-    Client__State__Store.dispatch(TaskAction({target: ForTask(taskId), action: LoadError({error: error})}))
+    Client__State__Store.dispatch(
+      TaskAction({target: ForTask(taskId), action: LoadError({error: error})}),
+    )
 
   // Turn completion action creators (ForTask)
   let turnCompleted = (~taskId: string) =>
     Client__State__Store.dispatch(TaskAction({target: ForTask(taskId), action: TurnCompleted}))
 
   // Error action creators (ForTask)
-  let agentErrorReceived = (~taskId: string, ~error: string, ~timestamp: string) =>
-    Client__State__Store.dispatch(TaskAction({target: ForTask(taskId), action: AgentError({error, timestamp})}))
+  let agentErrorReceived = (
+    ~taskId: string,
+    ~error: string,
+    ~timestamp: string,
+    ~retryable: bool,
+    ~category: string,
+  ) =>
+    Client__State__Store.dispatch(
+      TaskAction({
+        target: ForTask(taskId),
+        action: AgentError({error, timestamp, retryable, category}),
+      }),
+    )
+
+  let retryingStatusReceived = (
+    ~taskId: string,
+    ~retryStatus: Client__Task__Types.Task.retryStatus,
+  ) => {
+    let status = retryStatus
+    Client__State__Store.dispatch(
+      TaskAction({target: ForTask(taskId), action: RetryingUpdate({retryStatus: status})}),
+    )
+  }
+
+  let retryTurn = (~taskId: string, ~retriedErrorId: string) => {
+    let errorId = retriedErrorId
+    Client__State__Store.dispatch(
+      TaskAction({target: ForTask(taskId), action: RetryTurn({retriedErrorId: errorId})}),
+    )
+  }
 
   let clearTurnError = (~taskId: string) =>
     Client__State__Store.dispatch(TaskAction({target: ForTask(taskId), action: ClearTurnError}))
 
   // Plan action creators (ForTask)
   let planReceived = (~taskId: string, ~entries) =>
-    Client__State__Store.dispatch(TaskAction({target: ForTask(taskId), action: PlanReceived({entries: entries})}))
+    Client__State__Store.dispatch(
+      TaskAction({target: ForTask(taskId), action: PlanReceived({entries: entries})}),
+    )
 
   // API key settings action creators
   let fetchApiKeySettings = () => Client__State__Store.dispatch(FetchApiKeySettings)
@@ -146,8 +217,7 @@ module Actions = {
 
   let saveAnthropicKey = (~key) => Client__State__Store.dispatch(SaveAnthropicKey({key: key}))
 
-  let resetAnthropicKeySaveStatus = () =>
-    Client__State__Store.dispatch(ResetAnthropicKeySaveStatus)
+  let resetAnthropicKeySaveStatus = () => Client__State__Store.dispatch(ResetAnthropicKeySaveStatus)
 
   // ACP session config option action creators
   let configOptionsReceived = (~configOptions) =>
@@ -180,8 +250,19 @@ module Actions = {
   let resetChatGPTOAuthError = () => Client__State__Store.dispatch(ResetChatGPTOAuthError)
 
   // Hydration action creators (ForTask)
-  let userMessageReceived = (~taskId: string, ~id: string, ~content: array<Client__Message.UserContentPart.t>, ~annotations: array<Client__Message.MessageAnnotation.t>, ~timestamp: string) =>
-    Client__State__Store.dispatch(TaskAction({target: ForTask(taskId), action: UserMessageReceived({id, content, annotations, timestamp})}))
+  let userMessageReceived = (
+    ~taskId: string,
+    ~id: string,
+    ~content: array<Client__Message.UserContentPart.t>,
+    ~annotations: array<Client__Message.MessageAnnotation.t>,
+    ~timestamp: string,
+  ) =>
+    Client__State__Store.dispatch(
+      TaskAction({
+        target: ForTask(taskId),
+        action: UserMessageReceived({id, content, annotations, timestamp}),
+      }),
+    )
 
   let sessionsLoadStarted = () => Client__State__Store.dispatch(SessionsLoadStarted)
 
@@ -199,19 +280,38 @@ module Actions = {
 
   // Question tool action creators — dispatched as TaskAction to the task sub-reducer
   let questionReceived = (~taskId, ~questions, ~toolCallId, ~resolveOk, ~resolveError) =>
-    Client__State__Store.dispatch(TaskAction({target: ForTask(taskId), action: QuestionReceived({questions, toolCallId, resolveOk, resolveError})}))
+    Client__State__Store.dispatch(
+      TaskAction({
+        target: ForTask(taskId),
+        action: QuestionReceived({questions, toolCallId, resolveOk, resolveError}),
+      }),
+    )
 
   let questionStepChanged = (~taskId, ~step) =>
-    Client__State__Store.dispatch(TaskAction({target: ForTask(taskId), action: QuestionStepChanged({step: step})}))
+    Client__State__Store.dispatch(
+      TaskAction({target: ForTask(taskId), action: QuestionStepChanged({step: step})}),
+    )
 
   let questionOptionToggled = (~taskId, ~questionIndex, ~label) =>
-    Client__State__Store.dispatch(TaskAction({target: ForTask(taskId), action: QuestionOptionToggled({questionIndex, label})}))
+    Client__State__Store.dispatch(
+      TaskAction({target: ForTask(taskId), action: QuestionOptionToggled({questionIndex, label})}),
+    )
 
   let questionCustomTextChanged = (~taskId, ~questionIndex, ~text) =>
-    Client__State__Store.dispatch(TaskAction({target: ForTask(taskId), action: QuestionCustomTextChanged({questionIndex, text})}))
+    Client__State__Store.dispatch(
+      TaskAction({
+        target: ForTask(taskId),
+        action: QuestionCustomTextChanged({questionIndex, text}),
+      }),
+    )
 
   let questionPerQuestionSkipped = (~taskId, ~questionIndex) =>
-    Client__State__Store.dispatch(TaskAction({target: ForTask(taskId), action: QuestionPerQuestionSkipped({questionIndex: questionIndex})}))
+    Client__State__Store.dispatch(
+      TaskAction({
+        target: ForTask(taskId),
+        action: QuestionPerQuestionSkipped({questionIndex: questionIndex}),
+      }),
+    )
 
   let questionSubmitted = (~taskId) =>
     Client__State__Store.dispatch(TaskAction({target: ForTask(taskId), action: QuestionSubmitted}))

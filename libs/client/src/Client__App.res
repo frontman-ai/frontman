@@ -2,9 +2,17 @@ module SettingsModal = Client__SettingsModal
 
 @react.component
 let make = (~apiBaseUrl: string) => {
-
   // Use Frontman context for ACP connection
-  let {connectionState, sendPrompt, cancelPrompt, loadTask, deleteSession, authRedirectUrl, _} = Client__FrontmanProvider.useFrontman()
+  let {
+    connectionState,
+    sendPrompt,
+    cancelPrompt,
+    retryTurn,
+    loadTask,
+    deleteSession,
+    authRedirectUrl,
+    _,
+  } = Client__FrontmanProvider.useFrontman()
 
   // Set up ACP session callbacks when ACP+Relay are ready
   // Session creation is deferred until user sends first message (lazy session creation)
@@ -12,12 +20,19 @@ let make = (~apiBaseUrl: string) => {
     switch connectionState {
     | Connected | SessionActive(_) =>
       Client__Debug.init()
-      Client__State.Actions.setAcpSession(~sendPrompt, ~cancelPrompt, ~loadTask, ~deleteSession, ~apiBaseUrl)
+      Client__State.Actions.setAcpSession(
+        ~sendPrompt,
+        ~cancelPrompt,
+        ~retryTurn,
+        ~loadTask,
+        ~deleteSession,
+        ~apiBaseUrl,
+      )
     | Disconnected | Error(_) => Client__State.Actions.clearAcpSession()
     | _ => ()
     }
     None
-  }, (connectionState, sendPrompt, cancelPrompt, loadTask, deleteSession, apiBaseUrl))
+  }, (connectionState, sendPrompt, cancelPrompt, retryTurn, loadTask, deleteSession, apiBaseUrl))
 
   // Get resizable width for chatbox panel
   let (chatboxWidth, isResizing, handleResizeMouseDown) = Client__UseResizableWidth.use()
@@ -30,7 +45,9 @@ let make = (~apiBaseUrl: string) => {
   let (ftueState, setFtueState) = React.useState(() => Client__FtueState.get())
   let (showCelebration, setShowCelebration) = React.useState(() => false)
   let (providerNudgeDismissed, setProviderNudgeDismissed) = React.useState(() => false)
-  let hasProviderConfigured = Client__State.useSelector(Client__State.Selectors.hasAnyProviderConfigured)
+  let hasProviderConfigured = Client__State.useSelector(
+    Client__State.Selectors.hasAnyProviderConfigured,
+  )
   let usageInfo = Client__State.useSelector(Client__State.Selectors.usageInfo)
 
   // Trigger post-signup celebration when session becomes active for first time after signup
@@ -62,7 +79,12 @@ let make = (~apiBaseUrl: string) => {
 
   // Provider nudge: show when FTUE is completed, no provider configured, and not dismissed this session.
   // Gate on usageInfo being loaded (Some) to avoid flashing the nudge before provider status is fetched.
-  let showProviderNudge = switch (ftueState, hasProviderConfigured, providerNudgeDismissed, usageInfo) {
+  let showProviderNudge = switch (
+    ftueState,
+    hasProviderConfigured,
+    providerNudgeDismissed,
+    usageInfo,
+  ) {
   | (Client__FtueState.Completed, false, false, Some(_)) => true
   | _ => false
   }
@@ -87,9 +109,7 @@ let make = (~apiBaseUrl: string) => {
 
   <div className="flex h-screen w-screen bg-background text-foreground">
     <SettingsModal
-      open_={settingsOpen}
-      onOpenChange={handleSettingsOpenChange}
-      initialTab=?{settingsInitialTab}
+      open_={settingsOpen} onOpenChange={handleSettingsOpenChange} initialTab=?{settingsInitialTab}
     />
     // FTUE: Welcome modal for first-time unauthenticated users
     {switch (authRedirectUrl, ftueState) {

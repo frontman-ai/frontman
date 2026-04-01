@@ -218,8 +218,7 @@ let connect = async (config: config, ~signal: option<WebAPI.EventAPI.abortSignal
         channel->Channel.on(~event=#config_options_updated, ~callback=payload => {
           switch payload->Decoders.parseSchema(Types.configOptionsUpdatedSchema) {
           | Ok({configOptions}) => callback(configOptions)
-          | Error(e) =>
-            Log.error(`Failed to parse config_options_updated payload: ${e}`)
+          | Error(e) => Log.error(`Failed to parse config_options_updated payload: ${e}`)
           }
         })
       | None => ()
@@ -237,8 +236,7 @@ let connect = async (config: config, ~signal: option<WebAPI.EventAPI.abortSignal
         Error(ConnectionFailed(e))
       | Ok(result) =>
         Sentry.addBreadcrumb(~category=#acp, ~message="ACP initialized successfully")
-        state :=
-          state.contents->Client.reduce(Client.ACPStateChanged(Client.Initialized(result)))
+        state := state.contents->Client.reduce(Client.ACPStateChanged(Client.Initialized(result)))
         Ok({socket, channel, clientConfig, state, onMessage: config.onMessage})
       }
     }
@@ -346,7 +344,14 @@ let createSession = async (
 
   switch sessionNewResult {
   | Ok(result) =>
-    let joinResult = await joinSession(conn, result.sessionId, ~onUpdate, ~onTitleUpdated, ~mcpServerInterface?, ~onMcpMessage?)
+    let joinResult = await joinSession(
+      conn,
+      result.sessionId,
+      ~onUpdate,
+      ~onTitleUpdated,
+      ~mcpServerInterface?,
+      ~onMcpMessage?,
+    )
     switch joinResult {
     | Ok(session) => Ok((session, result.configOptions))
     | Error(e) => Error(e)
@@ -373,9 +378,10 @@ let sendPrompt = async (
   // reverseConvertOrThrow performs the same conversion without the broken pre-check.
   // Obj.magic is safe here: the output is structurally JSON (objects, strings, arrays)
   // with absent keys for None values — reverseConvertOrThrow just returns unknown.
-  let allBlocks = Array.concat([textBlock], additionalBlocks)->Array.map(block =>
-    (block->S.reverseConvertOrThrow(Types.contentBlockSchema): unknown)->Obj.magic
-  )
+  let allBlocks =
+    Array.concat([textBlock], additionalBlocks)->Array.map(block =>
+      (block->S.reverseConvertOrThrow(Types.contentBlockSchema): unknown)->Obj.magic
+    )
 
   await Protocol.sendPrompt(
     ~channel=session.channel,
@@ -394,6 +400,17 @@ let cancelPrompt = (session: session): unit => {
   Protocol.sendCancel(
     ~channel=session.channel,
     ~sessionId=session.sessionId,
+    ~onMessage=session.connection.onMessage,
+  )
+}
+
+// Retry a failed turn
+// ACP spec: session/retry_turn is a notification (fire-and-forget).
+let retryTurn = (session: session, ~retriedErrorId: string): unit => {
+  Protocol.sendRetryTurn(
+    ~channel=session.channel,
+    ~sessionId=session.sessionId,
+    ~retriedErrorId,
     ~onMessage=session.connection.onMessage,
   )
 }

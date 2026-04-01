@@ -5,21 +5,34 @@ module Types = Client__State__Types
 module ACP = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
 
 // Dummy callbacks for AcpSessionActive (reducer only checks the variant, not the callbacks)
-let _dummySendPrompt: Types.sendPromptFn = (_, ~additionalBlocks as _, ~onComplete as _, ~_meta as _) => ()
+let _dummySendPrompt: Types.sendPromptFn = (
+  _,
+  ~additionalBlocks as _,
+  ~onComplete as _,
+  ~_meta as _,
+) => ()
 let _dummyCancelPrompt: Types.cancelPromptFn = () => ()
+let _dummyRetryTurn: Types.retryTurnFn = _ => ()
 let _dummyLoadTask: Types.loadTaskFn = (_, ~needsHistory as _, ~onComplete as _) => ()
 let _dummyDeleteSession: Types.deleteSessionFn = (_, ~onComplete as _) => ()
 
 let _apiBaseUrl = "http://localhost:4000"
 
 // Helper: base state with an active ACP session (needed to emit effects)
-let _makeState = (~anthropicOAuthStatus=Types.NotConnected, ~chatgptOAuthStatus=Types.ChatGPTNotConnected, ~openrouterKeySettings={Types.source: Types.None, saveStatus: Types.Idle}, ~selectedModelValue=None, ~pendingProviderAutoSelect=None): Types.state => {
+let _makeState = (
+  ~anthropicOAuthStatus=Types.NotConnected,
+  ~chatgptOAuthStatus=Types.ChatGPTNotConnected,
+  ~openrouterKeySettings={Types.source: Types.None, saveStatus: Types.Idle},
+  ~selectedModelValue=None,
+  ~pendingProviderAutoSelect=None,
+): Types.state => {
   {
     tasks: Dict.make(),
     currentTask: Types.Task.New(Types.Task.makeNew(~previewUrl="http://localhost:3000")),
     acpSession: AcpSessionActive({
       sendPrompt: _dummySendPrompt,
       cancelPrompt: _dummyCancelPrompt,
+      retryTurn: _dummyRetryTurn,
       loadTask: _dummyLoadTask,
       deleteSession: _dummyDeleteSession,
       apiBaseUrl: _apiBaseUrl,
@@ -69,7 +82,12 @@ module SampleConfig = {
     group: "anthropic",
     name: "Anthropic (Claude Pro/Max)",
     options: [
-      {value: "anthropic:claude-sonnet-4-5", name: "Claude Sonnet 4.5", description: None, _meta: None},
+      {
+        value: "anthropic:claude-sonnet-4-5",
+        name: "Claude Sonnet 4.5",
+        description: None,
+        _meta: None,
+      },
       {value: "anthropic:claude-opus-4-5", name: "Claude Opus 4.5", description: None, _meta: None},
     ],
     _meta: None,
@@ -79,7 +97,12 @@ module SampleConfig = {
     group: "openai",
     name: "ChatGPT Pro/Plus",
     options: [
-      {value: "openai:gpt-5.1-codex-max", name: "GPT-5.1 Codex Max", description: None, _meta: None},
+      {
+        value: "openai:gpt-5.1-codex-max",
+        name: "GPT-5.1 Codex Max",
+        description: None,
+        _meta: None,
+      },
       {value: "openai:gpt-5.2", name: "GPT-5.2", description: None, _meta: None},
     ],
     _meta: None,
@@ -89,8 +112,18 @@ module SampleConfig = {
     group: "openrouter",
     name: "OpenRouter",
     options: [
-      {value: "openrouter:google/gemini-3-flash-preview", name: "Gemini 3 Flash Preview", description: None, _meta: None},
-      {value: "openrouter:anthropic/claude-haiku-4.5", name: "Claude Haiku 4.5", description: None, _meta: None},
+      {
+        value: "openrouter:google/gemini-3-flash-preview",
+        name: "Gemini 3 Flash Preview",
+        description: None,
+        _meta: None,
+      },
+      {
+        value: "openrouter:anthropic/claude-haiku-4.5",
+        name: "Claude Haiku 4.5",
+        description: None,
+        _meta: None,
+      },
     ],
     _meta: None,
   }
@@ -140,10 +173,7 @@ describe("Initiating actions set pendingProviderAutoSelect eagerly", () => {
   test("SaveOpenRouterKey sets pendingProviderAutoSelect to openrouter", t => {
     let state = _makeState()
 
-    let (nextState, _effects) = Reducer.next(
-      state,
-      SaveOpenRouterKey({key: "test-key"}),
-    )
+    let (nextState, _effects) = Reducer.next(state, SaveOpenRouterKey({key: "test-key"}))
 
     t->expect(nextState.pendingProviderAutoSelect)->Expect.toEqual(Some("openrouter"))
   })
@@ -151,10 +181,7 @@ describe("Initiating actions set pendingProviderAutoSelect eagerly", () => {
   test("SaveAnthropicKey sets pendingProviderAutoSelect to anthropic", t => {
     let state = _makeState()
 
-    let (nextState, _effects) = Reducer.next(
-      state,
-      SaveAnthropicKey({key: "test-key"}),
-    )
+    let (nextState, _effects) = Reducer.next(state, SaveAnthropicKey({key: "test-key"}))
 
     t->expect(nextState.pendingProviderAutoSelect)->Expect.toEqual(Some("anthropic"))
   })

@@ -294,6 +294,13 @@ module Selectors = {
     | _ => None
     }
   }
+
+  // Get the retry status (only available on Loaded tasks)
+  let retryStatus = (task: Task.t): option<Types.Task.retryStatus> =>
+    switch task {
+    | Task.Loaded({retryStatus}) => retryStatus
+    | _ => None
+    }
 }
 
 // ============================================================================
@@ -361,7 +368,9 @@ type action =
   | TurnCompleted
   | CancelTurn
   // Error actions
-  | AgentError({error: string, timestamp: string})
+  | AgentError({error: string, timestamp: string, retryable: bool, category: string})
+  | RetryingUpdate({retryStatus: Types.Task.retryStatus})
+  | RetryTurn({retriedErrorId: string})
   | ClearTurnError
   // Load state actions
   | LoadStarted({previewUrl: string})
@@ -407,6 +416,7 @@ type effect =
     })
   | NotifyTurnCompleted
   | CancelPrompt
+  | RetryTurnEffect({retriedErrorId: string})
   // Resolve the question tool's blocking promise with the user's answer
   | ResolveQuestionToolEffect({resolveOk: JSON.t => unit, answerJson: JSON.t})
   // Reject the question tool's blocking promise (cancellation)
@@ -421,6 +431,7 @@ type delegated =
     })
   | NeedUsageRefresh
   | NeedCancelPrompt
+  | NeedRetryTurn({retriedErrorId: string})
 
 let actionToString = (action: action): string =>
   switch action {
@@ -451,6 +462,8 @@ let actionToString = (action: action): string =>
   | TurnCompleted => "TurnCompleted"
   | CancelTurn => "CancelTurn"
   | AgentError(_) => "AgentError"
+  | RetryingUpdate(_) => "RetryingUpdate"
+  | RetryTurn(_) => "RetryTurn"
   | ClearTurnError => "ClearTurnError"
   | LoadStarted(_) => "LoadStarted"
   | LoadComplete => "LoadComplete"
@@ -971,6 +984,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
         messages: MessageStore.insert(data.messages, message),
         isAgentRunning: true,
         turnError: None, // Clear any previous error when sending a new message
+        retryStatus: None,
         imageAttachments: updatedImageAttachments,
         // Clear annotations from task state — they now live on the message
         annotations: [],
@@ -1036,26 +1050,42 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       (final, Array.concat([CancelPrompt], questionEffects))
     }
 
-  | (Task.Loading(_), AgentError({error, timestamp})) =>
+  | (Task.Loading(_), AgentError({error, timestamp, retryable, category})) =>
     let id = `error-${getTaskIdForError(task)}-${timestamp}`
-    let errorMsg = Message.Error(Message.ErrorMessage.make(~id, ~error, ~timestamp))
+    let errorMsg = Message.Error(
+      Message.ErrorMessage.make(~id, ~error, ~timestamp, ~retryable, ~category),
+    )
     (task->Lens.completeStreamingMessage->Lens.insertMessage(errorMsg), [])
 
-  | (Task.Loaded(data), AgentError({error, _})) =>
+  | (Task.Loaded(data), AgentError({error, retryable: _, category: _, _})) =>
     // Set turn error and stop agent running - user can still send messages
     let completed = task->Lens.completeStreamingMessage
     switch completed {
     | Task.Loaded(completedData) => (
-        Task.Loaded({...completedData, turnError: Some(error), isAgentRunning: false}),
+        Task.Loaded({
+          ...completedData,
+          turnError: Some(error),
+          isAgentRunning: false,
+          retryStatus: None,
+        }),
         [NotifyTurnCompleted],
       )
     | _ => (
-        Task.Loaded({...data, turnError: Some(error), isAgentRunning: false}),
+        Task.Loaded({...data, turnError: Some(error), isAgentRunning: false, retryStatus: None}),
         [NotifyTurnCompleted],
       )
     }
 
   | (Task.Loaded(data), ClearTurnError) => (Task.Loaded({...data, turnError: None}), [])
+
+  | (Task.Loaded(data), RetryingUpdate({retryStatus})) => (
+      Task.Loaded({...data, retryStatus: Some(retryStatus), isAgentRunning: true}),
+      [],
+    )
+
+  | (Task.Loaded(data), RetryTurn({retriedErrorId})) =>
+    let errorId = retriedErrorId
+    (Task.Loaded({...data, turnError: None}), [RetryTurnEffect({retriedErrorId: errorId})])
 
   // ============================================================================
   // Load State Transitions
@@ -1117,6 +1147,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
           isAgentRunning: false,
           planEntries: [],
           turnError: None,
+          retryStatus: None,
           imageAttachments: Dict.make(),
           pendingQuestion: None,
         }),
@@ -1266,6 +1297,8 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       | TurnCompleted
       | CancelTurn
       | ClearTurnError
+      | RetryingUpdate(_)
+      | RetryTurn(_)
       | QuestionReceived(_)
       | QuestionStepChanged(_)
       | QuestionOptionToggled(_)
@@ -1537,6 +1570,9 @@ let handleEffect = (effect: effect, ~dispatch: action => unit, ~delegate: delega
     delegate(NeedSendMessage({text, attachments, annotations}))
   | NotifyTurnCompleted => delegate(NeedUsageRefresh)
   | CancelPrompt => delegate(NeedCancelPrompt)
+  | RetryTurnEffect({retriedErrorId}) =>
+    let errorId = retriedErrorId
+    delegate(NeedRetryTurn({retriedErrorId: errorId}))
   // Question tool resolution — call the resolve/reject callback directly.
   // No delegation needed since the callback is self-contained (captured in the pending question).
   | ResolveQuestionToolEffect({resolveOk, answerJson}) => resolveOk(answerJson)

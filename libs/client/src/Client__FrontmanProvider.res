@@ -148,6 +148,7 @@ type contextValue = {
     ~_meta: option<JSON.t>,
   ) => unit,
   cancelPrompt: unit => unit,
+  retryTurn: string => unit,
   loadTask: (string, ~needsHistory: bool, ~onComplete: result<unit, string> => unit) => unit,
   deleteSession: (string, ~onComplete: result<unit, string> => unit) => unit,
 }
@@ -164,6 +165,7 @@ let defaultContextValue: contextValue = {
   clearSession: () => (),
   sendPrompt: (_, ~additionalBlocks as _, ~onComplete as _, ~_meta as _) => (),
   cancelPrompt: () => (),
+  retryTurn: _ => (),
   loadTask: (_, ~needsHistory as _, ~onComplete as _) => (),
   deleteSession: (_, ~onComplete as _) => (),
 }
@@ -371,9 +373,27 @@ module Provider = {
       | ConfigOptionUpdate({configOptions}) =>
         Client__State.Actions.configOptionsReceived(~configOptions)
       | CurrentModeUpdate(_) => () // TODO: dispatch mode change when modes are supported in UI
-      | Error({message, timestamp}) =>
+      | Error({message, timestamp, retryAt, attempt, maxAttempts}) =>
         Client__TextDeltaBuffer.flush()
-        Client__State.Actions.agentErrorReceived(~taskId, ~error=message, ~timestamp)
+        switch retryAt {
+        | Some(retryAtStr) =>
+          let retryAtMs = Date.fromString(retryAtStr)->Date.getTime
+          let retryStatus: Client__Task__Types.Task.retryStatus = {
+            attempt: attempt->Option.getOr(1),
+            maxAttempts: maxAttempts->Option.getOr(5),
+            retryAt: retryAtMs,
+            error: message,
+          }
+          Client__State.Actions.retryingStatusReceived(~taskId, ~retryStatus)
+        | None =>
+          Client__State.Actions.agentErrorReceived(
+            ~taskId,
+            ~error=message,
+            ~timestamp,
+            ~retryable=false,
+            ~category="unknown",
+          )
+        }
       | Unknown(_) => ()
       }
     })
@@ -397,6 +417,10 @@ module Provider = {
 
     let cancelPrompt = React.useCallback1(() => {
       dispatch(CancelPrompt)
+    }, [dispatch])
+
+    let retryTurn = React.useCallback1((retriedErrorId: string) => {
+      dispatch(RetryTurn({retriedErrorId: retriedErrorId}))
     }, [dispatch])
 
     let loadTask = React.useCallback1((taskId: string, ~needsHistory, ~onComplete) => {
@@ -438,6 +462,7 @@ module Provider = {
       clearSession,
       sendPrompt,
       cancelPrompt,
+      retryTurn,
       loadTask,
       deleteSession,
     }

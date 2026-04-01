@@ -4,7 +4,6 @@
  * Tests the compact header bar with history dropdown.
  * Verifies the component renders correctly with various task states.
  */
-
 open Bindings__Storybook
 
 type args = unit
@@ -20,7 +19,13 @@ let _forceState = (state: StateTypes.state) => {
 
 // Helper to create a task with specific properties
 module Fixtures = {
-  let makeTask = (~id, ~title, ~createdAt, ~updatedAt=?, ~withMessages=false): StateReducer.Task.t => {
+  let makeTask = (
+    ~id,
+    ~title,
+    ~createdAt,
+    ~updatedAt=?,
+    ~withMessages=false,
+  ): StateReducer.Task.t => {
     let updatedAt = updatedAt->Option.getOr(createdAt)
     let messages = if withMessages {
       let msg = StateReducer.Message.User({
@@ -56,6 +61,7 @@ module Fixtures = {
       isAgentRunning: false,
       planEntries: [],
       turnError: None,
+      retryStatus: None,
       imageAttachments: Dict.make(),
       pendingQuestion: None,
     })
@@ -90,9 +96,8 @@ module Fixtures = {
   let stateWithTasks = (~tasks: array<StateReducer.Task.t>, ~currentTaskId=?): StateTypes.state => {
     let tasksDict = Dict.make()
     tasks->Array.forEach(task => {
-      let taskId = StateTypes.Task.getId(task)->Option.getOrThrow(
-        ~message="[Fixtures] Task must have ID",
-      )
+      let taskId =
+        StateTypes.Task.getId(task)->Option.getOrThrow(~message="[Fixtures] Task must have ID")
       tasksDict->Dict.set(taskId, task)
     })
     let currentTask = switch currentTaskId {

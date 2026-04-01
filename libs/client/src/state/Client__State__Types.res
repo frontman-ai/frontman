@@ -40,6 +40,10 @@ type deleteSessionFn = (string, ~onComplete: result<unit, string> => unit) => un
 // Fire-and-forget: sends ACP session/cancel notification
 type cancelPromptFn = unit => unit
 
+// Callback for retrying a failed turn
+// Fire-and-forget: sends ACP retry_turn notification with the error ID that triggered the retry
+type retryTurnFn = string => unit
+
 // ACP session state - stores callbacks for API operations when session is active
 // Note: sessionId is NOT stored here - it's managed by ConnectionReducer (ACP layer)
 // Tasks store their own ID which equals the ACP session ID
@@ -49,6 +53,7 @@ type acpSession =
   | AcpSessionActive({
       sendPrompt: sendPromptFn,
       cancelPrompt: cancelPromptFn,
+      retryTurn: retryTurnFn,
       loadTask: loadTaskFn,
       deleteSession: deleteSessionFn,
       apiBaseUrl: string,
@@ -130,9 +135,7 @@ type updateInfo = {
 
 // API response from /api/integrations/latest-versions
 @schema
-type latestVersionsResponse = {
-  versions: Dict.t<option<string>>,
-}
+type latestVersionsResponse = {versions: Dict.t<option<string>>}
 
 // Update check lifecycle — prevents duplicate fetches
 type updateCheckStatus =

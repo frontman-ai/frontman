@@ -117,11 +117,22 @@ let convertMessage = (msg: Snapshot.Message.t): StateTypes.Message.t => {
     })
   | Assistant(assistantMsg) => Assistant(convertAssistantMessage(assistantMsg))
   | ToolCall(tc) => ToolCall(convertToolCall(tc))
-  | Error({id, error, createdAt}) => Error(Client__Message.ErrorMessage.restore(~id, ~error, ~createdAt))
+  | Error({id, error, createdAt}) =>
+    Error(
+      Client__Message.ErrorMessage.restore(
+        ~id,
+        ~error,
+        ~createdAt,
+        ~retryable=false,
+        ~category="unknown",
+      ),
+    )
   }
 }
 
-let convertAnnotationMode = (mode: Snapshot.AnnotationMode.t): Client__Annotation__Types.annotationMode => {
+let convertAnnotationMode = (
+  mode: Snapshot.AnnotationMode.t,
+): Client__Annotation__Types.annotationMode => {
   switch mode {
   | Off => Off
   | Selecting => Selecting
@@ -156,6 +167,7 @@ let convertTask = (task: Snapshot.Task.t): StateTypes.Task.t => {
     isAgentRunning: false, // Default to not running when restoring from snapshot
     planEntries: [], // Plan entries not stored in snapshots yet
     turnError: None, // No error when restoring from snapshot
+    retryStatus: None,
     imageAttachments: Dict.make(),
     pendingQuestion: None,
   })
@@ -226,10 +238,7 @@ let loadSnapshot = (jsonString: string): result<unit, string> => {
 /** Load a snapshot object and apply it to the store */
 let loadSnapshotFromObject = (snapshot: Snapshot.t): unit => {
   let state = snapshotToState(snapshot)
-  StateStore.forceSetStateOnlyUseForTestingDoNotUseOtherwiseAtAll(
-    Client__State__Store.store,
-    state,
-  )
+  StateStore.forceSetStateOnlyUseForTestingDoNotUseOtherwiseAtAll(Client__State__Store.store, state)
 }
 
 /** Reset the store to default state */

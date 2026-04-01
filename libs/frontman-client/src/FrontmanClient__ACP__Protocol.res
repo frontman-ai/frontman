@@ -118,10 +118,27 @@ let sendCancel = (
   let cancelParams = JSON.Encode.object(
     Dict.fromArray([("sessionId", JSON.Encode.string(sessionId))]),
   )
-  let notification = JsonRpc.Notification.make(
-    ~method="session/cancel",
-    ~params=Some(cancelParams),
+  let notification = JsonRpc.Notification.make(~method="session/cancel", ~params=Some(cancelParams))
+  let payload = notification->JsonRpc.Notification.toJson
+  onMessage->Option.forEach(cb => cb(Send, payload))
+  channel->Channel.push(~event=Constants.acpMessageEvent, ~payload)->ignore
+}
+
+// ACP spec: session/retry_turn is a NOTIFICATION (no id, no response expected).
+// Signals the server to retry the failed turn identified by retriedErrorId.
+let sendRetryTurn = (
+  ~channel: Channel.t,
+  ~sessionId: string,
+  ~retriedErrorId: string,
+  ~onMessage: option<(messageDirection, JSON.t) => unit>,
+): unit => {
+  let params = JSON.Encode.object(
+    Dict.fromArray([
+      ("sessionId", JSON.Encode.string(sessionId)),
+      ("retriedErrorId", JSON.Encode.string(retriedErrorId)),
+    ]),
   )
+  let notification = JsonRpc.Notification.make(~method="session/retry_turn", ~params=Some(params))
   let payload = notification->JsonRpc.Notification.toJson
   onMessage->Option.forEach(cb => cb(Send, payload))
   channel->Channel.push(~event=Constants.acpMessageEvent, ~payload)->ignore
@@ -156,8 +173,7 @@ let handleIncomingMessage = (
     | Error(parseError) => onParseError->Option.forEach(cb => cb(parseError))
     }
   | Some("mcp_initialization_complete") => () // Known notification from MCP init handshake
-  | Some(method) =>
-    Log.warning(`Received unhandled ACP notification: ${method}`)
+  | Some(method) => Log.warning(`Received unhandled ACP notification: ${method}`)
   | None =>
     // No method field - must be a response
     state := Client.handleResponse(state.contents, payload)

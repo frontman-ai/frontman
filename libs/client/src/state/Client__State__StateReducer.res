@@ -44,6 +44,7 @@ type action =
   | SetAcpSession({
       sendPrompt: Client__State__Types.sendPromptFn,
       cancelPrompt: Client__State__Types.cancelPromptFn,
+      retryTurn: Client__State__Types.retryTurnFn,
       loadTask: Client__State__Types.loadTaskFn,
       deleteSession: Client__State__Types.deleteSessionFn,
       apiBaseUrl: string,
@@ -706,6 +707,11 @@ let handleEffect = (effect, state: state, dispatch) => {
           switch state.acpSession {
           | AcpSessionActive({cancelPrompt}) => cancelPrompt()
           | NoAcpSession => Log.error("Cannot cancel prompt: no active ACP session")
+          }
+        | NeedRetryTurn({retriedErrorId}) =>
+          switch state.acpSession {
+          | AcpSessionActive({retryTurn}) => retryTurn(retriedErrorId)
+          | NoAcpSession => Log.error("Cannot retry turn: no active ACP session")
           }
         }
       }
@@ -1371,13 +1377,20 @@ let next = (state: state, action) => {
   // ACP session actions
   // ============================================================================
 
-  | SetAcpSession({sendPrompt, cancelPrompt, loadTask, deleteSession, apiBaseUrl}) =>
+  | SetAcpSession({sendPrompt, cancelPrompt, retryTurn, loadTask, deleteSession, apiBaseUrl}) =>
     // Just set up session callbacks - task creation happens in AddUserMessage
     // when user sends their first message (lazy session creation)
     // apiBaseUrl is co-located in AcpSessionActive to make illegal state unrepresentable
     {
       ...state,
-      acpSession: AcpSessionActive({sendPrompt, cancelPrompt, loadTask, deleteSession, apiBaseUrl}),
+      acpSession: AcpSessionActive({
+        sendPrompt,
+        cancelPrompt,
+        retryTurn,
+        loadTask,
+        deleteSession,
+        apiBaseUrl,
+      }),
       sessionInitialized: true,
     }->StateReducer.update(
       ~sideEffects=[

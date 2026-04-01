@@ -92,11 +92,15 @@ type action =
   | SendPrompt({
       text: string,
       additionalBlocks: array<FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.contentBlock>,
-      onComplete: result<FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.promptResult, string> => unit,
+      onComplete: result<
+        FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.promptResult,
+        string,
+      > => unit,
       _meta: option<JSON.t>,
     })
   | PromptSent
   | CancelPrompt
+  | RetryTurn({retriedErrorId: string})
   | LoadTask({
       taskId: string,
       needsHistory: bool,
@@ -134,10 +138,14 @@ type effect =
       session: ACP.session,
       text: string,
       additionalBlocks: array<FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.contentBlock>,
-      onComplete: result<FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.promptResult, string> => unit,
+      onComplete: result<
+        FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.promptResult,
+        string,
+      > => unit,
       _meta: option<JSON.t>,
     })
   | CancelPromptEffect({session: ACP.session})
+  | RetryTurnEffect({session: ACP.session, retriedErrorId: string})
   | FetchSessionsEffect(ACP.connection)
   | LoadTaskEffect({
       connection: ACP.connection,
@@ -149,7 +157,11 @@ type effect =
       onMcpMessage: (FrontmanAiFrontmanClient.FrontmanClient__MCP.messageDirection, JSON.t) => unit,
       onComplete: result<unit, string> => unit,
     })
-  | DeleteSessionEffect({connection: ACP.connection, taskId: string, onComplete: result<unit, string> => unit})
+  | DeleteSessionEffect({
+      connection: ACP.connection,
+      taskId: string,
+      onComplete: result<unit, string> => unit,
+    })
   | CleanupSessionEffect({session: ACP.session})
 
 let initialState: state = {
@@ -318,10 +330,7 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
   | (
       {acp: ACPConnected(_), relay: RelayConnected, mcpServer: Some(_), session: NoSession},
       SessionCreateStart,
-    ) => (
-      {...state, session: SessionCreating},
-      [],
-    )
+    ) => ({...state, session: SessionCreating}, [])
 
   // Reject session creation if relay is not connected
   | ({relay: RelayDisconnected | RelayConnecting | RelayError(_)}, SessionCreateStart) => (
@@ -358,62 +367,88 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
     )
 
   | (
-      {acp: ACPConnected(conn), relay: RelayConnected, mcpServer: Some(mcpServer), session: NoSession},
+      {
+        acp: ACPConnected(conn),
+        relay: RelayConnected,
+        mcpServer: Some(mcpServer),
+        session: NoSession,
+      },
       CreateSession({onUpdate, onTitleUpdated, onMcpMessage, onComplete}),
     ) => (
       {...state, session: SessionCreating},
-      [CreateSessionEffect({connection: conn, mcpServer, onUpdate, onTitleUpdated, onMcpMessage, onComplete})],
+      [
+        CreateSessionEffect({
+          connection: conn,
+          mcpServer,
+          onUpdate,
+          onTitleUpdated,
+          onMcpMessage,
+          onComplete,
+        }),
+      ],
     )
 
-  | ({session: SessionActive(session), isSendingPrompt: false}, SendPrompt({text, additionalBlocks, onComplete, _meta})) =>
-    (
+  | (
+      {session: SessionActive(session), isSendingPrompt: false},
+      SendPrompt({text, additionalBlocks, onComplete, _meta}),
+    ) => (
       {...state, isSendingPrompt: true},
       [SendPromptEffect({session, text, additionalBlocks, onComplete, _meta})],
     )
 
-   | (_, PromptSent) =>
-    (
-      {...state, isSendingPrompt: false},
-      [],
-    )
+  | (_, PromptSent) => ({...state, isSendingPrompt: false}, [])
 
   // Cancel an in-flight prompt turn
   // Reset isSendingPrompt immediately so a new prompt can be sent
   // while the cancelled prompt's server response is still in-flight.
-  | ({isSendingPrompt: true, session: SessionActive(session)}, CancelPrompt) =>
-    (
+  | ({isSendingPrompt: true, session: SessionActive(session)}, CancelPrompt) => (
       {...state, isSendingPrompt: false},
       [CancelPromptEffect({session: session})],
     )
 
-  | ({isSendingPrompt: false}, CancelPrompt) =>
-    (
+  | ({isSendingPrompt: false}, CancelPrompt) => (
       state,
       [LogInfo("CancelPrompt ignored: not sending a prompt")],
     )
 
-  | ({isSendingPrompt: true}, SendPrompt(_)) =>
-    (
+  | ({session: SessionActive(session)}, RetryTurn({retriedErrorId})) => (
+      state,
+      [RetryTurnEffect({session, retriedErrorId})],
+    )
+
+  | (_, RetryTurn(_)) => (state, [LogError("Cannot retry turn: no active session")])
+
+  | ({isSendingPrompt: true}, SendPrompt(_)) => (
       state,
       [LogError("Cannot send prompt: already sending")],
     )
 
-  | ({session: NoSession | SessionCreating | SessionError(_)}, SendPrompt(_)) =>
-    (
+  | ({session: NoSession | SessionCreating | SessionError(_)}, SendPrompt(_)) => (
       state,
       [LogError("Cannot send prompt: no active session")],
     )
 
   // Load a persisted task (calls ACP.loadSession or joinSession based on needsHistory)
-  | ({acp: ACPConnected(conn), mcpServer: Some(mcpServer)}, LoadTask({taskId, needsHistory, onUpdate, onTitleUpdated, onMcpMessage, onComplete})) => (
+  | (
+      {acp: ACPConnected(conn), mcpServer: Some(mcpServer)},
+      LoadTask({taskId, needsHistory, onUpdate, onTitleUpdated, onMcpMessage, onComplete}),
+    ) => (
       state,
-      [LoadTaskEffect({connection: conn, mcpServer, taskId, needsHistory, onUpdate, onTitleUpdated, onMcpMessage, onComplete})],
+      [
+        LoadTaskEffect({
+          connection: conn,
+          mcpServer,
+          taskId,
+          needsHistory,
+          onUpdate,
+          onTitleUpdated,
+          onMcpMessage,
+          onComplete,
+        }),
+      ],
     )
 
-  | (_, LoadTask(_)) => (
-      state,
-      [LogError("Cannot load task: not connected")],
-    )
+  | (_, LoadTask(_)) => (state, [LogError("Cannot load task: not connected")])
 
   // Delete a persisted session (calls ACP.deleteSession)
   | ({acp: ACPConnected(conn)}, DeleteSession({taskId, onComplete})) => (
@@ -433,10 +468,7 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
     )
   | (_, ClearSession) => ({...state, session: NoSession}, [])
 
-  | (_, CreateSession(_)) => (
-      state,
-      [LogError("Cannot create session: not ready")],
-    )
+  | (_, CreateSession(_)) => (state, [LogError("Cannot create session: not ready")])
 
   // === Cleanup ===
   | (_, Cleanup) =>
@@ -452,33 +484,33 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
     | ACPConnected(conn) => [DisconnectACP(conn)]
     | _ => []
     }
-    ({...initialState, initialAuthBehavior: state.initialAuthBehavior}, Array.flat([abortEffects, relayEffects, acpEffects]))
+    (
+      {...initialState, initialAuthBehavior: state.initialAuthBehavior},
+      Array.flat([abortEffects, relayEffects, acpEffects]),
+    )
 
   // === Invalid transitions ===
-  | (_, Initialize(_)) => (
-      state,
-      [LogError("Invalid: already initialized")],
-    )
+  | (_, Initialize(_)) => (state, [LogError("Invalid: already initialized")])
 
-  | ({acp: ACPConnecting | ACPConnected(_) | ACPAuthRequired(_) | ACPError(_)}, ACPConnectStart) => (
-      state,
-      [LogError("Invalid: ACP connect already in progress or completed")],
-    )
+  | (
+      {acp: ACPConnecting | ACPConnected(_) | ACPAuthRequired(_) | ACPError(_)},
+      ACPConnectStart,
+    ) => (state, [LogError("Invalid: ACP connect already in progress or completed")])
 
-  | ({acp: ACPDisconnected | ACPConnected(_) | ACPAuthRequired(_) | ACPError(_)}, ACPConnectSuccess(_)) => (
-      state,
-      [LogError("Invalid: unexpected ACP connect success")],
-    )
+  | (
+      {acp: ACPDisconnected | ACPConnected(_) | ACPAuthRequired(_) | ACPError(_)},
+      ACPConnectSuccess(_),
+    ) => (state, [LogError("Invalid: unexpected ACP connect success")])
 
   | ({relay: RelayConnecting | RelayConnected | RelayError(_)}, RelayConnectStart) => (
       state,
       [LogError("Invalid: Relay connect already in progress or completed")],
     )
 
-  | ({acp: ACPDisconnected | ACPConnecting | ACPAuthRequired(_) | ACPError(_)}, SessionCreateStart) => (
-      state,
-      [LogError("Cannot create session: ACP not connected")],
-    )
+  | (
+      {acp: ACPDisconnected | ACPConnecting | ACPAuthRequired(_) | ACPError(_)},
+      SessionCreateStart,
+    ) => (state, [LogError("Cannot create session: ACP not connected")])
 
   | ({mcpServer: None}, SessionCreateStart) => (
       state,
@@ -540,8 +572,7 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
           switch err {
           | ACP.AuthRequired({loginUrl}) =>
             let encodeURIComponent: string => string = %raw(`encodeURIComponent`)
-            let currentUrl =
-              WebAPI.Global.window->WebAPI.Window.location->WebAPI.Location.href
+            let currentUrl = WebAPI.Global.window->WebAPI.Window.location->WebAPI.Location.href
             let returnTo = encodeURIComponent(currentUrl)
             let fullUrl = `${loginUrl}?return_to=${returnTo}`
             switch initialAuthBehavior {
@@ -576,7 +607,14 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
       }
     }
     connect()->ignore
-  | CreateSessionEffect({connection, mcpServer, onUpdate, onTitleUpdated, onMcpMessage, onComplete}) =>
+  | CreateSessionEffect({
+      connection,
+      mcpServer,
+      onUpdate,
+      onTitleUpdated,
+      onMcpMessage,
+      onComplete,
+    }) =>
     let create = async () => {
       let mcpServerInterface = MCPServer.toInterface(mcpServer)
       let sessionId = WebAPI.Global.crypto->WebAPI.Crypto.randomUUID
@@ -619,6 +657,11 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
     // which triggers PromptSent via the existing SendPromptEffect onComplete callback.
     ACP.cancelPrompt(session)
 
+  | RetryTurnEffect({session, retriedErrorId}) =>
+    // ACP spec: session/retry_turn is a notification (fire-and-forget).
+    // Signals the server to retry the failed agent turn.
+    ACP.retryTurn(session, ~retriedErrorId)
+
   | FetchSessionsEffect(conn) =>
     Client__State.Actions.sessionsLoadStarted()
     let fetch = async () => {
@@ -631,11 +674,27 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
     }
     fetch()->ignore
 
-  | LoadTaskEffect({connection, mcpServer, taskId, needsHistory, onUpdate, onTitleUpdated, onMcpMessage, onComplete}) =>
+  | LoadTaskEffect({
+      connection,
+      mcpServer,
+      taskId,
+      needsHistory,
+      onUpdate,
+      onTitleUpdated,
+      onMcpMessage,
+      onComplete,
+    }) =>
     let activateSession = async () => {
       let mcpServerInterface = MCPServer.toInterface(mcpServer)
       let result = if needsHistory {
-        let loadResult = await ACP.loadSession(connection, taskId, ~onUpdate, ~onTitleUpdated, ~mcpServerInterface, ~onMcpMessage)
+        let loadResult = await ACP.loadSession(
+          connection,
+          taskId,
+          ~onUpdate,
+          ~onTitleUpdated,
+          ~mcpServerInterface,
+          ~onMcpMessage,
+        )
         switch loadResult {
         | Ok((session, sessionLoadResult)) =>
           dispatchConfigOptions(sessionLoadResult.configOptions)
@@ -643,7 +702,14 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
         | Error(e) => Error(e)
         }
       } else {
-        await ACP.joinSession(connection, taskId, ~onUpdate, ~onTitleUpdated, ~mcpServerInterface, ~onMcpMessage)
+        await ACP.joinSession(
+          connection,
+          taskId,
+          ~onUpdate,
+          ~onTitleUpdated,
+          ~mcpServerInterface,
+          ~onMcpMessage,
+        )
       }
       switch result {
       | Ok(session) =>
@@ -658,7 +724,7 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
     }
 
     switch state.session {
-    | SessionActive({sessionId}) when sessionId == taskId => onComplete(Ok())
+    | SessionActive({sessionId}) if sessionId == taskId => onComplete(Ok())
     | SessionActive(oldSession) =>
       cleanupSession(oldSession)
       activateSession()->ignore

@@ -14,7 +14,12 @@ module TestHelpers = {
   }
 
   let makeLoadingTask = (~id="test-task-1", ~previewUrl="http://localhost:3000") => {
-    let unloaded = Task.makeUnloaded(~id, ~title="Test Task", ~createdAt=Date.now(), ~updatedAt=Date.now())
+    let unloaded = Task.makeUnloaded(
+      ~id,
+      ~title="Test Task",
+      ~createdAt=Date.now(),
+      ~updatedAt=Date.now(),
+    )
     Task.startLoading(unloaded, ~previewUrl)
   }
 
@@ -50,8 +55,7 @@ describe("Task - Single Streaming Message Invariant", () => {
     t->expect(Array.length(messages))->Expect.toBe(2)
 
     switch messages->Array.get(1) {
-    | Some(Message.Assistant(Streaming({textBuffer}))) =>
-      t->expect(textBuffer)->Expect.toBe("")
+    | Some(Message.Assistant(Streaming({textBuffer}))) => t->expect(textBuffer)->Expect.toBe("")
     | _ => t->expect(false)->Expect.toBe(true)
     }
   })
@@ -67,12 +71,17 @@ describe("Task - Single Streaming Message Invariant", () => {
   test("TextDeltaReceived appends to streaming message", t => {
     let task = _startAgent()
     let (task1, _) = TaskReducer.next(task, StreamingStarted)
-    let (task2, _) = TaskReducer.next(task1, TextDeltaReceived({text: "Hello", timestamp: "2024-01-15T10:00:00Z"}))
-    let (task3, _) = TaskReducer.next(task2, TextDeltaReceived({text: " world", timestamp: "2024-01-15T10:00:00Z"}))
+    let (task2, _) = TaskReducer.next(
+      task1,
+      TextDeltaReceived({text: "Hello", timestamp: "2024-01-15T10:00:00Z"}),
+    )
+    let (task3, _) = TaskReducer.next(
+      task2,
+      TextDeltaReceived({text: " world", timestamp: "2024-01-15T10:00:00Z"}),
+    )
 
     switch TaskReducer.Selectors.streamingMessage(task3) {
-    | Some(Message.Streaming({textBuffer})) =>
-      t->expect(textBuffer)->Expect.toBe("Hello world")
+    | Some(Message.Streaming({textBuffer})) => t->expect(textBuffer)->Expect.toBe("Hello world")
     | _ => t->expect(false)->Expect.toBe(true)
     }
   })
@@ -80,7 +89,10 @@ describe("Task - Single Streaming Message Invariant", () => {
   test("TurnCompleted converts streaming to completed", t => {
     let task = _startAgent()
     let (task1, _) = TaskReducer.next(task, StreamingStarted)
-    let (task2, _) = TaskReducer.next(task1, TextDeltaReceived({text: "Hello", timestamp: "2024-01-15T10:00:00Z"}))
+    let (task2, _) = TaskReducer.next(
+      task1,
+      TextDeltaReceived({text: "Hello", timestamp: "2024-01-15T10:00:00Z"}),
+    )
     let (task3, _) = TaskReducer.next(task2, TurnCompleted)
 
     let messages = TestHelpers.getMessages(task3)
@@ -170,7 +182,10 @@ describe("Task - Tool Call Lifecycle", () => {
       spawningToolName: None,
     }
     let (task1, _) = TaskReducer.next(task, ToolCallReceived({toolCall: toolCall}))
-    let (task3, _) = TaskReducer.next(task1, ToolErrorReceived({id: toolId, error: "Something went wrong"}))
+    let (task3, _) = TaskReducer.next(
+      task1,
+      ToolErrorReceived({id: toolId, error: "Something went wrong"}),
+    )
 
     let messages = TestHelpers.getMessages(task3)
     switch messages->Array.get(1) {
@@ -186,7 +201,10 @@ describe("Task - Load State Machine", () => {
     let task = TestHelpers.makeUnloadedTask()
     t->expect(Task.isUnloaded(task))->Expect.toBe(true)
 
-    let (loadingTask, _) = TaskReducer.next(task, LoadStarted({previewUrl: "http://localhost:3000"}))
+    let (loadingTask, _) = TaskReducer.next(
+      task,
+      LoadStarted({previewUrl: "http://localhost:3000"}),
+    )
     t->expect(Task.isLoading(loadingTask))->Expect.toBe(true)
   })
 
@@ -218,7 +236,10 @@ describe("Task - Session Rehydration (Loading history → LoadComplete)", () => 
   test("agent message (TextDeltaReceived) survives LoadComplete", t => {
     let task = TestHelpers.makeLoadingTask()
 
-    let (task, _) = TaskReducer.next(task, TextDeltaReceived({text: "Hi there!", timestamp: "2024-01-15T10:00:00Z"}))
+    let (task, _) = TaskReducer.next(
+      task,
+      TextDeltaReceived({text: "Hi there!", timestamp: "2024-01-15T10:00:00Z"}),
+    )
     let (loaded, _) = TaskReducer.next(task, LoadComplete)
 
     t->expect(Task.isLoaded(loaded))->Expect.toBe(true)
@@ -228,8 +249,7 @@ describe("Task - Session Rehydration (Loading history → LoadComplete)", () => 
     switch messages->Array.get(0) {
     | Some(Message.Assistant(Completed({content, _}))) =>
       switch content->Array.get(0) {
-      | Some(Message.AssistantContentPart.Text({text})) =>
-        t->expect(text)->Expect.toBe("Hi there!")
+      | Some(Message.AssistantContentPart.Text({text})) => t->expect(text)->Expect.toBe("Hi there!")
       | _ => t->expect("Assistant text content")->Expect.toBe("missing")
       }
     | Some(Message.Assistant(Streaming(_))) =>
@@ -242,8 +262,14 @@ describe("Task - Session Rehydration (Loading history → LoadComplete)", () => 
     let task = TestHelpers.makeLoadingTask()
 
     let (task, _) = TaskReducer.next(task, StreamingStarted)
-    let (task, _) = TaskReducer.next(task, TextDeltaReceived({text: "partial ", timestamp: "2024-01-15T10:00:00Z"}))
-    let (task, _) = TaskReducer.next(task, TextDeltaReceived({text: "response", timestamp: "2024-01-15T10:00:00Z"}))
+    let (task, _) = TaskReducer.next(
+      task,
+      TextDeltaReceived({text: "partial ", timestamp: "2024-01-15T10:00:00Z"}),
+    )
+    let (task, _) = TaskReducer.next(
+      task,
+      TextDeltaReceived({text: "response", timestamp: "2024-01-15T10:00:00Z"}),
+    )
 
     // Before LoadComplete: still Streaming
     t->expect(TaskReducer.Selectors.streamingMessage(task)->Option.isSome)->Expect.toBe(true)
@@ -338,7 +364,9 @@ describe("Task - Annotation Mode", () => {
 describe("Task - Plan Entries", () => {
   test("PlanReceived updates plan entries", t => {
     let task = TestHelpers.makeLoadedTask()
-    t->expect(TaskReducer.Selectors.planEntries(task)->Option.getOr([])->Array.length)->Expect.toBe(0)
+    t
+    ->expect(TaskReducer.Selectors.planEntries(task)->Option.getOr([])->Array.length)
+    ->Expect.toBe(0)
 
     let entries: array<Client__Task__Types.ACPTypes.planEntry> = [
       {content: "Step 1", priority: High, status: Pending},
@@ -346,7 +374,9 @@ describe("Task - Plan Entries", () => {
     ]
 
     let (task2, _) = TaskReducer.next(task, PlanReceived({entries: entries}))
-    t->expect(TaskReducer.Selectors.planEntries(task2)->Option.getOr([])->Array.length)->Expect.toBe(2)
+    t
+    ->expect(TaskReducer.Selectors.planEntries(task2)->Option.getOr([])->Array.length)
+    ->Expect.toBe(2)
   })
 })
 
@@ -355,7 +385,15 @@ describe("Task - Error Handling", () => {
     let task = TestHelpers.makeLoadedTask()
     t->expect(TaskReducer.Selectors.turnError(task))->Expect.toEqual(None)
 
-    let (task2, _) = TaskReducer.next(task, AgentError({error: "Rate limit exceeded", timestamp: "2025-01-15T10:30:00Z"}))
+    let (task2, _) = TaskReducer.next(
+      task,
+      AgentError({
+        error: "Rate limit exceeded",
+        timestamp: "2025-01-15T10:30:00Z",
+        retryable: false,
+        category: "unknown",
+      }),
+    )
     t->expect(TaskReducer.Selectors.turnError(task2))->Expect.toEqual(Some("Rate limit exceeded"))
   })
 
@@ -373,7 +411,15 @@ describe("Task - Error Handling", () => {
     t->expect(TaskReducer.Selectors.isAgentRunning(task2))->Expect.toEqual(Some(true))
 
     // Agent error should set isAgentRunning to false
-    let (task3, _) = TaskReducer.next(task2, AgentError({error: "Some error", timestamp: "2025-01-15T10:30:00Z"}))
+    let (task3, _) = TaskReducer.next(
+      task2,
+      AgentError({
+        error: "Some error",
+        timestamp: "2025-01-15T10:30:00Z",
+        retryable: false,
+        category: "unknown",
+      }),
+    )
     t->expect(TaskReducer.Selectors.isAgentRunning(task3))->Expect.toEqual(Some(false))
   })
 
@@ -389,7 +435,10 @@ describe("Task - Error Handling", () => {
       }),
     )
     let (task1, _) = TaskReducer.next(task0, StreamingStarted)
-    let (task2, _) = TaskReducer.next(task1, TextDeltaReceived({text: "Partial response", timestamp: "2024-01-15T10:00:00Z"}))
+    let (task2, _) = TaskReducer.next(
+      task1,
+      TextDeltaReceived({text: "Partial response", timestamp: "2024-01-15T10:00:00Z"}),
+    )
 
     // Verify we have a streaming message
     switch TaskReducer.Selectors.streamingMessage(task2) {
@@ -398,7 +447,15 @@ describe("Task - Error Handling", () => {
     }
 
     // Agent error should complete the streaming message
-    let (task3, _) = TaskReducer.next(task2, AgentError({error: "Error occurred", timestamp: "2025-01-15T10:30:00Z"}))
+    let (task3, _) = TaskReducer.next(
+      task2,
+      AgentError({
+        error: "Error occurred",
+        timestamp: "2025-01-15T10:30:00Z",
+        retryable: false,
+        category: "unknown",
+      }),
+    )
     t->expect(TaskReducer.Selectors.streamingMessage(task3))->Expect.toEqual(None)
 
     // Check the message is now completed (user at index 0, assistant at index 1)
@@ -412,7 +469,15 @@ describe("Task - Error Handling", () => {
 
   test("AgentError emits NotifyTurnCompleted effect", t => {
     let task = TestHelpers.makeLoadedTask()
-    let (_, effects) = TaskReducer.next(task, AgentError({error: "Error", timestamp: "2025-01-15T10:30:00Z"}))
+    let (_, effects) = TaskReducer.next(
+      task,
+      AgentError({
+        error: "Error",
+        timestamp: "2025-01-15T10:30:00Z",
+        retryable: false,
+        category: "unknown",
+      }),
+    )
 
     t->expect(Array.length(effects))->Expect.toBe(1)
     switch effects->Array.get(0) {
@@ -423,7 +488,15 @@ describe("Task - Error Handling", () => {
 
   test("ClearTurnError clears the turnError", t => {
     let task = TestHelpers.makeLoadedTask()
-    let (task2, _) = TaskReducer.next(task, AgentError({error: "Some error", timestamp: "2025-01-15T10:30:00Z"}))
+    let (task2, _) = TaskReducer.next(
+      task,
+      AgentError({
+        error: "Some error",
+        timestamp: "2025-01-15T10:30:00Z",
+        retryable: false,
+        category: "unknown",
+      }),
+    )
     t->expect(TaskReducer.Selectors.turnError(task2))->Expect.toEqual(Some("Some error"))
 
     let (task3, _) = TaskReducer.next(task2, ClearTurnError)
@@ -441,7 +514,15 @@ describe("Task - Error Handling", () => {
   test("AddUserMessage clears turnError", t => {
     let task = TestHelpers.makeLoadedTask()
     // Set an error first
-    let (task2, _) = TaskReducer.next(task, AgentError({error: "Previous error", timestamp: "2025-01-15T10:30:00Z"}))
+    let (task2, _) = TaskReducer.next(
+      task,
+      AgentError({
+        error: "Previous error",
+        timestamp: "2025-01-15T10:30:00Z",
+        retryable: false,
+        category: "unknown",
+      }),
+    )
     t->expect(TaskReducer.Selectors.turnError(task2))->Expect.toEqual(Some("Previous error"))
 
     // Sending a new message should clear the error
@@ -475,7 +556,10 @@ describe("Task - CancelTurn", () => {
     )
     // Agent is now running
     let (task2, _) = TaskReducer.next(task1, StreamingStarted)
-    let (task3, _) = TaskReducer.next(task2, TextDeltaReceived({text: "Partial resp", timestamp: "2024-01-15T10:00:00Z"}))
+    let (task3, _) = TaskReducer.next(
+      task2,
+      TextDeltaReceived({text: "Partial resp", timestamp: "2024-01-15T10:00:00Z"}),
+    )
     task3
   }
 
@@ -558,11 +642,12 @@ describe("Task - CancelTurn", () => {
 
     let messages = TestHelpers.getMessages(cancelled)
     // Find the tool call message
-    let toolMsg = messages->Array.find(msg =>
-      switch msg {
-      | Message.ToolCall({id: "tool-1"}) => true
-      | _ => false
-      }
+    let toolMsg = messages->Array.find(
+      msg =>
+        switch msg {
+        | Message.ToolCall({id: "tool-1"}) => true
+        | _ => false
+        },
     )
     switch toolMsg {
     | Some(Message.ToolCall({state: OutputError, errorText: Some(err)})) =>
@@ -574,7 +659,15 @@ describe("Task - CancelTurn", () => {
   test("CancelTurn clears turnError", t => {
     let task = TestHelpers.makeLoadedTask()
     // Set error, then start agent, then cancel
-    let (task1, _) = TaskReducer.next(task, AgentError({error: "Some error", timestamp: "2025-01-15T10:30:00Z"}))
+    let (task1, _) = TaskReducer.next(
+      task,
+      AgentError({
+        error: "Some error",
+        timestamp: "2025-01-15T10:30:00Z",
+        retryable: false,
+        category: "unknown",
+      }),
+    )
     let (task2, _) = TaskReducer.next(
       task1,
       AddUserMessage({
@@ -603,7 +696,10 @@ describe("Task - CancelTurn", () => {
 
     // Start new streaming
     let (task3, _) = TaskReducer.next(task2, StreamingStarted)
-    let (task4, _) = TaskReducer.next(task3, TextDeltaReceived({text: "New response", timestamp: "2024-01-15T10:00:00Z"}))
+    let (task4, _) = TaskReducer.next(
+      task3,
+      TextDeltaReceived({text: "New response", timestamp: "2024-01-15T10:00:00Z"}),
+    )
 
     let messages = TestHelpers.getMessages(task4)
     // Messages: User1 + Completed(Partial resp) + User2 + Streaming(New response)
@@ -649,7 +745,10 @@ describe("Task - Stale Event Guard", () => {
 
   test("TextDeltaReceived is silently dropped when agent not running", t => {
     let task = _cancelledTask()
-    let (unchanged, effects) = TaskReducer.next(task, TextDeltaReceived({text: "stale text", timestamp: "2024-01-15T10:00:00Z"}))
+    let (unchanged, effects) = TaskReducer.next(
+      task,
+      TextDeltaReceived({text: "stale text", timestamp: "2024-01-15T10:00:00Z"}),
+    )
 
     t->expect(effects)->Expect.toEqual([])
     t->expect(TestHelpers.getMessages(unchanged)->Array.length)->Expect.toBe(1)
@@ -713,11 +812,13 @@ describe("Task - Stale Event Guard", () => {
     // Loading state should still process streaming events normally
     let task = TestHelpers.makeLoadingTask()
     let (task1, _) = TaskReducer.next(task, StreamingStarted)
-    let (task2, _) = TaskReducer.next(task1, TextDeltaReceived({text: "loading text", timestamp: "2024-01-15T10:00:00Z"}))
+    let (task2, _) = TaskReducer.next(
+      task1,
+      TextDeltaReceived({text: "loading text", timestamp: "2024-01-15T10:00:00Z"}),
+    )
 
     switch TaskReducer.Selectors.streamingMessage(task2) {
-    | Some(Message.Streaming({textBuffer})) =>
-      t->expect(textBuffer)->Expect.toBe("loading text")
+    | Some(Message.Streaming({textBuffer})) => t->expect(textBuffer)->Expect.toBe("loading text")
     | _ => t->expect("Streaming message")->Expect.toBe("not found during loading")
     }
   })
@@ -771,11 +872,19 @@ describe("Task - Annotations Cleared on Send (Issue #466)", () => {
     let el2 = _makeMockElement()
     let (task2, _) = TaskReducer.next(
       task1,
-      ToggleAnnotation({element: el1, position: {xPercent: 50.0, yAbsolute: 100.0}, tagName: "button"}),
+      ToggleAnnotation({
+        element: el1,
+        position: {xPercent: 50.0, yAbsolute: 100.0},
+        tagName: "button",
+      }),
     )
     let (task3, _) = TaskReducer.next(
       task2,
-      ToggleAnnotation({element: el2, position: {xPercent: 30.0, yAbsolute: 200.0}, tagName: "div"}),
+      ToggleAnnotation({
+        element: el2,
+        position: {xPercent: 30.0, yAbsolute: 200.0},
+        tagName: "div",
+      }),
     )
     task3
   }
@@ -784,7 +893,9 @@ describe("Task - Annotations Cleared on Send (Issue #466)", () => {
     let task = _taskWithAnnotations()
 
     // Verify annotations exist on task before send
-    t->expect(TaskReducer.Selectors.annotations(task)->Option.getOr([])->Array.length)->Expect.toBe(2)
+    t
+    ->expect(TaskReducer.Selectors.annotations(task)->Option.getOr([])->Array.length)
+    ->Expect.toBe(2)
 
     // Send message with annotations
     let (task2, _) = TaskReducer.next(
@@ -797,7 +908,9 @@ describe("Task - Annotations Cleared on Send (Issue #466)", () => {
     )
 
     // Task-level annotations should be cleared
-    t->expect(TaskReducer.Selectors.annotations(task2)->Option.getOr([])->Array.length)->Expect.toBe(0)
+    t
+    ->expect(TaskReducer.Selectors.annotations(task2)->Option.getOr([])->Array.length)
+    ->Expect.toBe(0)
   })
 
   test("AddUserMessage resets annotationMode to Off", t => {
@@ -824,7 +937,9 @@ describe("Task - Annotations Cleared on Send (Issue #466)", () => {
     let task = _taskWithAnnotations()
 
     // Verify popup is open (from ToggleAnnotation which opens popup for last added)
-    t->expect(TaskReducer.Selectors.activePopupAnnotationId(task)->Option.getOr(None)->Option.isSome)->Expect.toBe(true)
+    t
+    ->expect(TaskReducer.Selectors.activePopupAnnotationId(task)->Option.getOr(None)->Option.isSome)
+    ->Expect.toBe(true)
 
     // Send message
     let (task2, _) = TaskReducer.next(
@@ -837,7 +952,11 @@ describe("Task - Annotations Cleared on Send (Issue #466)", () => {
     )
 
     // Active popup should be cleared
-    t->expect(TaskReducer.Selectors.activePopupAnnotationId(task2)->Option.getOr(None)->Option.isNone)->Expect.toBe(true)
+    t
+    ->expect(
+      TaskReducer.Selectors.activePopupAnnotationId(task2)->Option.getOr(None)->Option.isNone,
+    )
+    ->Expect.toBe(true)
   })
 
   test("Annotations are stored on the message itself", t => {
@@ -859,7 +978,9 @@ describe("Task - Annotations Cleared on Send (Issue #466)", () => {
     | Some(Message.User({annotations, _})) =>
       t->expect(annotations->Array.length)->Expect.toBe(2)
       t->expect((annotations->Array.getUnsafe(0)).id)->Expect.toBe("ann-1")
-      t->expect((annotations->Array.getUnsafe(0)).comment)->Expect.toEqual(Some("This button is broken"))
+      t
+      ->expect((annotations->Array.getUnsafe(0)).comment)
+      ->Expect.toEqual(Some("This button is broken"))
       t->expect((annotations->Array.getUnsafe(1)).id)->Expect.toBe("ann-2")
       t->expect((annotations->Array.getUnsafe(1)).comment)->Expect.toEqual(None)
     | _ => t->expect("User message")->Expect.toBe("not found")
@@ -879,8 +1000,7 @@ describe("Task - Annotations Cleared on Send (Issue #466)", () => {
     )
 
     switch effects->Array.get(0) {
-    | Some(SendMessage({annotations})) =>
-      t->expect(annotations->Array.length)->Expect.toBe(2)
+    | Some(SendMessage({annotations})) => t->expect(annotations->Array.length)->Expect.toBe(2)
     | _ => t->expect("SendMessage effect")->Expect.toBe("not found")
     }
   })
@@ -907,8 +1027,10 @@ describe("Task - QuestionReceived on freshly loaded task (reconnect scenario)", 
       },
     ]
 
-    let (nextTask, effects) =
-      TaskReducer.next(task, QuestionReceived({questions, toolCallId: "tc_1", resolveOk, resolveError}))
+    let (nextTask, effects) = TaskReducer.next(
+      task,
+      QuestionReceived({questions, toolCallId: "tc_1", resolveOk, resolveError}),
+    )
 
     // pendingQuestion should be set
     let pq = TaskReducer.Selectors.pendingQuestion(nextTask)
@@ -942,12 +1064,16 @@ describe("Task - QuestionReceived on freshly loaded task (reconnect scenario)", 
     ]
 
     // Set up question
-    let (taskWithQuestion, _) =
-      TaskReducer.next(task, QuestionReceived({questions, toolCallId: "tc_1", resolveOk, resolveError}))
+    let (taskWithQuestion, _) = TaskReducer.next(
+      task,
+      QuestionReceived({questions, toolCallId: "tc_1", resolveOk, resolveError}),
+    )
 
     // Select an answer
-    let (taskWithAnswer, _) =
-      TaskReducer.next(taskWithQuestion, QuestionOptionToggled({questionIndex: 0, label: "A"}))
+    let (taskWithAnswer, _) = TaskReducer.next(
+      taskWithQuestion,
+      QuestionOptionToggled({questionIndex: 0, label: "A"}),
+    )
 
     // Submit
     let (finalTask, effects) = TaskReducer.next(taskWithAnswer, QuestionSubmitted)
@@ -961,7 +1087,9 @@ describe("Task - QuestionReceived on freshly loaded task (reconnect scenario)", 
     | Some(ResolveQuestionToolEffect(_)) => t->expect(true)->Expect.toBe(true)
     | other =>
       t
-      ->expect(`Expected ResolveQuestionToolEffect, got ${other->Option.mapOr("None", _ => "other")}`)
+      ->expect(
+        `Expected ResolveQuestionToolEffect, got ${other->Option.mapOr("None", _ => "other")}`,
+      )
       ->Expect.toBe("ResolveQuestionToolEffect")
     }
   })
@@ -982,10 +1110,14 @@ describe("Task - QuestionReceived on freshly loaded task (reconnect scenario)", 
       },
     ]
 
-    let (taskWithQuestion, _) =
-      TaskReducer.next(task, QuestionReceived({questions, toolCallId: "tc_1", resolveOk, resolveError}))
-    let (taskWithAnswer, _) =
-      TaskReducer.next(taskWithQuestion, QuestionOptionToggled({questionIndex: 0, label: "A"}))
+    let (taskWithQuestion, _) = TaskReducer.next(
+      task,
+      QuestionReceived({questions, toolCallId: "tc_1", resolveOk, resolveError}),
+    )
+    let (taskWithAnswer, _) = TaskReducer.next(
+      taskWithQuestion,
+      QuestionOptionToggled({questionIndex: 0, label: "A"}),
+    )
     let (_finalTask, effects) = TaskReducer.next(taskWithAnswer, QuestionSubmitted)
 
     // Execute the effect (simulate what the effect handler does)
@@ -1028,12 +1160,16 @@ describe("Task - QuestionPerQuestionSkipped", () => {
     ]
 
     // Set up 3-question flow
-    let (taskWithQ, _) =
-      TaskReducer.next(task, QuestionReceived({questions, toolCallId: "tc_1", resolveOk, resolveError}))
+    let (taskWithQ, _) = TaskReducer.next(
+      task,
+      QuestionReceived({questions, toolCallId: "tc_1", resolveOk, resolveError}),
+    )
 
     // Skip question 0 (non-last)
-    let (afterSkip, effects) =
-      TaskReducer.next(taskWithQ, QuestionPerQuestionSkipped({questionIndex: 0}))
+    let (afterSkip, effects) = TaskReducer.next(
+      taskWithQ,
+      QuestionPerQuestionSkipped({questionIndex: 0}),
+    )
 
     // Step should advance to 1
     switch TaskReducer.Selectors.pendingQuestion(afterSkip) {
@@ -1078,16 +1214,22 @@ describe("Task - QuestionPerQuestionSkipped", () => {
     ]
 
     // Set up 2-question flow
-    let (taskWithQ, _) =
-      TaskReducer.next(task, QuestionReceived({questions, toolCallId: "tc_1", resolveOk, resolveError}))
+    let (taskWithQ, _) = TaskReducer.next(
+      task,
+      QuestionReceived({questions, toolCallId: "tc_1", resolveOk, resolveError}),
+    )
 
     // Skip question 0 first (non-last)
-    let (afterSkip0, _) =
-      TaskReducer.next(taskWithQ, QuestionPerQuestionSkipped({questionIndex: 0}))
+    let (afterSkip0, _) = TaskReducer.next(
+      taskWithQ,
+      QuestionPerQuestionSkipped({questionIndex: 0}),
+    )
 
     // Skip question 1 (last) — should auto-submit
-    let (afterSkip1, effects) =
-      TaskReducer.next(afterSkip0, QuestionPerQuestionSkipped({questionIndex: 1}))
+    let (afterSkip1, effects) = TaskReducer.next(
+      afterSkip0,
+      QuestionPerQuestionSkipped({questionIndex: 1}),
+    )
 
     // pendingQuestion should be cleared (resolved)
     t
@@ -1099,7 +1241,9 @@ describe("Task - QuestionPerQuestionSkipped", () => {
     | Some(ResolveQuestionToolEffect(_)) => t->expect(true)->Expect.toBe(true)
     | other =>
       t
-      ->expect(`Expected ResolveQuestionToolEffect, got ${other->Option.mapOr("None", _ => "other")}`)
+      ->expect(
+        `Expected ResolveQuestionToolEffect, got ${other->Option.mapOr("None", _ => "other")}`,
+      )
       ->Expect.toBe("ResolveQuestionToolEffect")
     }
   })
@@ -1124,7 +1268,11 @@ describe("Task - Annotation Enrichment Lifecycle (Issue #582)", () => {
     let el = _makeMockElement()
     let (task2, effects) = TaskReducer.next(
       task1,
-      ToggleAnnotation({element: el, position: {xPercent: 50.0, yAbsolute: 100.0}, tagName: "button"}),
+      ToggleAnnotation({
+        element: el,
+        position: {xPercent: 50.0, yAbsolute: 100.0},
+        tagName: "button",
+      }),
     )
     (task2, effects)
   }
@@ -1148,13 +1296,31 @@ describe("Task - Annotation Enrichment Lifecycle (Issue #582)", () => {
     ~nearbyText: option<string>=?,
     ~boundingBox: option<Annotation.boundingBox>=?,
     ~enrichmentStatus: Annotation.enrichmentStatus=Enriched,
-  ): TaskReducer.action =>
-    AnnotationDetailsResolved({id, selector, screenshot, sourceLocation, cssClasses, nearbyText, boundingBox, enrichmentStatus})
+  ): TaskReducer.action => AnnotationDetailsResolved({
+    id,
+    selector,
+    screenshot,
+    sourceLocation,
+    cssClasses,
+    nearbyText,
+    boundingBox,
+    enrichmentStatus,
+  })
 
   // Helper: create an enriching annotation then resolve it, returning the resolved task
-  let _resolveAnnotation = (task, effects, ~enrichmentStatus=Annotation.Enriched, ~selector=Ok(None), ~screenshot=Ok(None), ~sourceLocation=Ok(None)) => {
+  let _resolveAnnotation = (
+    task,
+    effects,
+    ~enrichmentStatus=Annotation.Enriched,
+    ~selector=Ok(None),
+    ~screenshot=Ok(None),
+    ~sourceLocation=Ok(None),
+  ) => {
     let id = _getAnnotationIdFromEffect(effects)
-    let (resolved, _) = TaskReducer.next(task, _makeResolved(~id, ~selector, ~screenshot, ~sourceLocation, ~enrichmentStatus))
+    let (resolved, _) = TaskReducer.next(
+      task,
+      _makeResolved(~id, ~selector, ~screenshot, ~sourceLocation, ~enrichmentStatus),
+    )
     resolved
   }
 
@@ -1301,11 +1467,19 @@ describe("Task - Annotation Enrichment Lifecycle (Issue #582)", () => {
     let el2 = _makeMockElement()
     let (task2, effects1) = TaskReducer.next(
       task1,
-      ToggleAnnotation({element: el1, position: {xPercent: 50.0, yAbsolute: 100.0}, tagName: "button"}),
+      ToggleAnnotation({
+        element: el1,
+        position: {xPercent: 50.0, yAbsolute: 100.0},
+        tagName: "button",
+      }),
     )
     let (task3, _effects2) = TaskReducer.next(
       task2,
-      ToggleAnnotation({element: el2, position: {xPercent: 30.0, yAbsolute: 200.0}, tagName: "div"}),
+      ToggleAnnotation({
+        element: el2,
+        position: {xPercent: 30.0, yAbsolute: 200.0},
+        tagName: "div",
+      }),
     )
     // Both are Enriching
     t->expect(TaskReducer.Selectors.hasEnrichingAnnotations(task3))->Expect.toEqual(Some(true))
