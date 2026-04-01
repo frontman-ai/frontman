@@ -298,6 +298,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
 
     case Task.yield(task, @tool_timeout_ms) || Task.shutdown(task) do
       {:ok, result} -> result
+      {:exit, reason} -> {:error, reason}
       nil -> {:error, :timeout}
     end
   end
