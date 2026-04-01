@@ -134,27 +134,50 @@ type toolCall = {
 
 module ErrorMessage: {
   type t
-  let make: (~id: string, ~error: string, ~timestamp: string) => t
-  let restore: (~id: string, ~error: string, ~createdAt: float) => t
+  let make: (
+    ~id: string,
+    ~error: string,
+    ~timestamp: string,
+    ~retryable: bool,
+    ~category: string,
+  ) => t
+  let restore: (
+    ~id: string,
+    ~error: string,
+    ~createdAt: float,
+    ~retryable: bool,
+    ~category: string,
+  ) => t
   let id: t => string
   let error: t => string
   let createdAt: t => float
+  let retryable: t => bool
+  let category: t => string
 } = {
-  type t = {id: string, error: string, createdAt: float}
+  type t = {id: string, error: string, createdAt: float, retryable: bool, category: string}
 
-  let make = (~id, ~error, ~timestamp) => {
-    {id, error, createdAt: Date.fromString(timestamp)->Date.getTime}
+  let make = (~id, ~error, ~timestamp, ~retryable, ~category) => {
+    {id, error, createdAt: Date.fromString(timestamp)->Date.getTime, retryable, category}
   }
 
-  let restore = (~id, ~error, ~createdAt) => {id, error, createdAt}
+  let restore = (~id, ~error, ~createdAt, ~retryable, ~category) => {
+    {id, error, createdAt, retryable, category}
+  }
 
   let id = t => t.id
   let error = t => t.error
   let createdAt = t => t.createdAt
+  let retryable = t => t.retryable
+  let category = t => t.category
 }
 
 type t =
-  | User({id: string, content: array<UserContentPart.t>, annotations: array<MessageAnnotation.t>, createdAt: float})
+  | User({
+      id: string,
+      content: array<UserContentPart.t>,
+      annotations: array<MessageAnnotation.t>,
+      createdAt: float,
+    })
   | Assistant(assistantMessage)
   | ToolCall(toolCall)
   | Error(ErrorMessage.t)
