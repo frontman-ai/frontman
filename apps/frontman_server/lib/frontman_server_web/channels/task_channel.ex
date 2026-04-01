@@ -313,7 +313,7 @@ defmodule FrontmanServerWeb.TaskChannel do
     task_id = socket.assigns.task_id
     scope = socket.assigns.scope
     error_message = error["message"] || "Unknown MCP error"
-    Logger.info("MCP tool #{tool_call.tool_name} failed: #{error_message}")
+    Logger.error("MCP tool #{tool_call.tool_name} failed: #{error_message}")
 
     Sentry.capture_message("MCP tool execution failed",
       level: :error,
