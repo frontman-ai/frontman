@@ -283,18 +283,32 @@ defmodule AgentClientProtocol do
 
   Sent when the agent encounters an error. Always delivered as a notification
   so the client can display it regardless of whether a pending prompt exists.
+
+  Pass `retry_opts` when the server is scheduling an automatic retry. The client
+  uses `retryAt` to show a countdown and infers retry state from its presence.
+
+    retry_opts: [retry_at: %DateTime{}, attempt: 1, max_attempts: 5]
   """
-  def build_error_notification(session_id, message, timestamp) do
-    params = %{
-      "sessionId" => session_id,
-      "update" => %{
-        "sessionUpdate" => "error",
-        "message" => message,
-        "timestamp" => DateTime.to_iso8601(timestamp)
-      }
+  def build_error_notification(session_id, message, timestamp, retry_opts \\ []) do
+    update = %{
+      "sessionUpdate" => "error",
+      "message" => message,
+      "timestamp" => DateTime.to_iso8601(timestamp)
     }
 
-    JsonRpc.notification(@method_session_update, params)
+    update =
+      case Keyword.get(retry_opts, :retry_at) do
+        nil ->
+          update
+
+        %DateTime{} = retry_at ->
+          update
+          |> Map.put("retryAt", DateTime.to_iso8601(retry_at))
+          |> Map.put("attempt", Keyword.fetch!(retry_opts, :attempt))
+          |> Map.put("maxAttempts", Keyword.fetch!(retry_opts, :max_attempts))
+      end
+
+    JsonRpc.notification(@method_session_update, %{"sessionId" => session_id, "update" => update})
   end
 
   @doc """
