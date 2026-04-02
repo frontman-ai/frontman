@@ -119,6 +119,7 @@ let make = (
   let planEntries = Client__State.useSelector(Client__State.Selectors.currentPlanEntries)
   let turnError = Client__State.useSelector(Client__State.Selectors.turnError)
   let currentTaskId = Client__State.useSelector(Client__State.Selectors.currentTaskId)
+  let retryStatus = Client__State.useSelector(Client__State.Selectors.retryStatus)
   let usageInfo = Client__State.useSelector(Client__State.Selectors.usageInfo)
   let configOptions = Client__State.useSelector(Client__State.Selectors.configOptions)
   let selectedModelValue = Client__State.useSelector(Client__State.Selectors.selectedModelValue)
@@ -420,9 +421,10 @@ let make = (
         ->Array.mapWithIndex((item, index) => renderDisplayItem(item, index))
         ->React.array}
 
-        // Error banner (shows when there's a turn error)
-        {switch (turnError, currentTaskId) {
-        | (Some(error), Some(taskId)) =>
+        // Error banner (shows when there's a turn error, or retry banner during countdown)
+        {switch (retryStatus, turnError, currentTaskId) {
+        | (Some(rs), _, _) => <Client__RetryBanner retryStatus=rs />
+        | (None, Some(error), Some(taskId)) =>
           <ErrorBanner
             error
             category="unknown"
