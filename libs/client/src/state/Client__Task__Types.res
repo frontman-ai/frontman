@@ -89,6 +89,11 @@ module Task = {
   // Types
   // ============================================================================
 
+  type turnErrorInfo = {
+    message: string,
+    category: string,
+  }
+
   type retryStatus = {
     attempt: int,
     maxAttempts: int,
@@ -147,7 +152,7 @@ module Task = {
         isAnimationFrozen: bool,
         isAgentRunning: bool,
         planEntries: array<ACPTypes.planEntry>,
-        turnError: option<string>,
+        turnError: option<turnErrorInfo>,
         retryStatus: option<retryStatus>,
         // User-attached images keyed by URI (e.g., "attachment://att_abc123/image.png")
         // Accumulated across messages so the agent can save them to disk via write_file
@@ -456,7 +461,7 @@ module Task = {
     isAnimationFrozen: bool,
     isAgentRunning: bool,
     planEntries: array<ACPTypes.planEntry>,
-    turnError: option<string>,
+    turnError: option<turnErrorInfo>,
     pendingQuestion: option<Client__Question__Types.pendingQuestion>,
   }
 

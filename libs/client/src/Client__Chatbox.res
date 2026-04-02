@@ -118,6 +118,7 @@ let make = (
   let sessionInitialized = Client__State.useSelector(Client__State.Selectors.sessionInitialized)
   let planEntries = Client__State.useSelector(Client__State.Selectors.currentPlanEntries)
   let turnError = Client__State.useSelector(Client__State.Selectors.turnError)
+  let lastErrorId = Client__State.useSelector(Client__State.Selectors.lastErrorId)
   let currentTaskId = Client__State.useSelector(Client__State.Selectors.currentTaskId)
   let retryStatus = Client__State.useSelector(Client__State.Selectors.retryStatus)
   let usageInfo = Client__State.useSelector(Client__State.Selectors.usageInfo)
@@ -424,11 +425,15 @@ let make = (
         // Error banner (shows when there's a turn error, or retry banner during countdown)
         {switch (retryStatus, turnError, currentTaskId) {
         | (Some(rs), _, _) => <Client__RetryBanner retryStatus=rs />
-        | (None, Some(error), Some(taskId)) =>
+        | (None, Some({message, category}), Some(taskId)) =>
           <ErrorBanner
-            error
-            category="unknown"
-            onRetry={() => Client__State.Actions.retryTurn(~taskId, ~retriedErrorId="")}
+            error=message
+            category
+            onRetry={() =>
+              Client__State.Actions.retryTurn(
+                ~taskId,
+                ~retriedErrorId=lastErrorId->Option.getOr(""),
+              )}
           />
         | _ => React.null
         }}

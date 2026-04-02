@@ -264,11 +264,25 @@ module Selectors = {
 
   // Get turn error
   // None = Unloaded, New, or Loading (not applicable), or no error
-  let turnError = (task: Task.t): option<string> => {
+  let turnError = (task: Task.t): option<Task.turnErrorInfo> => {
     switch task {
     | Task.New(_) | Task.Unloaded(_) | Task.Loading(_) => None
     | Task.Loaded({turnError}) => turnError
     }
+  }
+
+  // Get the ID of the last Error message in the messages list
+  let lastErrorId = (task: Task.t): option<string> => {
+    messages(task)->Option.flatMap(msgs =>
+      msgs
+      ->Array.toReversed
+      ->Array.findMap(msg =>
+        switch msg {
+        | Message.Error(err) => Some(Message.ErrorMessage.id(err))
+        | _ => None
+        }
+      )
+    )
   }
 
   // Get message created at timestamp
@@ -1074,21 +1088,26 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
     )
     (task->Lens.completeStreamingMessage->Lens.insertMessage(errorMsg), [])
 
-  | (Task.Loaded(data), AgentError({error, retryable: _, category: _, _})) =>
+  | (Task.Loaded(data), AgentError({error, retryable: _, category, _})) =>
     // Set turn error and stop agent running - user can still send messages
     let completed = task->Lens.completeStreamingMessage
     switch completed {
     | Task.Loaded(completedData) => (
         Task.Loaded({
           ...completedData,
-          turnError: Some(error),
+          turnError: Some({message: error, category}),
           isAgentRunning: false,
           retryStatus: None,
         }),
         [NotifyTurnCompleted],
       )
     | _ => (
-        Task.Loaded({...data, turnError: Some(error), isAgentRunning: false, retryStatus: None}),
+        Task.Loaded({
+          ...data,
+          turnError: Some({message: error, category}),
+          isAgentRunning: false,
+          retryStatus: None,
+        }),
         [NotifyTurnCompleted],
       )
     }

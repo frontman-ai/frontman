@@ -293,7 +293,8 @@ defmodule AgentClientProtocol do
     update = %{
       "sessionUpdate" => "error",
       "message" => message,
-      "timestamp" => DateTime.to_iso8601(timestamp)
+      "timestamp" => DateTime.to_iso8601(timestamp),
+      "category" => Keyword.get(retry_opts, :category, "unknown")
     }
 
     update =

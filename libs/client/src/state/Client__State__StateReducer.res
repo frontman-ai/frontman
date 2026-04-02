@@ -376,8 +376,12 @@ module Selectors = {
     TaskReducer.Selectors.planEntries(currentTask(state))->Option.getOr([])
   }
 
-  let turnError = (state: state): option<string> => {
+  let turnError = (state: state): option<Task.turnErrorInfo> => {
     TaskReducer.Selectors.turnError(currentTask(state))
+  }
+
+  let lastErrorId = (state: state): option<string> => {
+    TaskReducer.Selectors.lastErrorId(currentTask(state))
   }
 
   let retryStatus = (state: state): option<Task.retryStatus> => {

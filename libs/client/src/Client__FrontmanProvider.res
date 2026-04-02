@@ -373,7 +373,7 @@ module Provider = {
       | ConfigOptionUpdate({configOptions}) =>
         Client__State.Actions.configOptionsReceived(~configOptions)
       | CurrentModeUpdate(_) => () // TODO: dispatch mode change when modes are supported in UI
-      | Error({message, timestamp, retryAt, attempt, maxAttempts}) =>
+      | Error({message, timestamp, retryAt, attempt, maxAttempts, category}) =>
         Client__TextDeltaBuffer.flush()
         switch retryAt {
         | Some(retryAtStr) =>
@@ -391,7 +391,7 @@ module Provider = {
             ~error=message,
             ~timestamp,
             ~retryable=false,
-            ~category="unknown",
+            ~category=category->Option.getOr("unknown"),
           )
         }
       | Unknown(_) => ()

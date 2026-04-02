@@ -629,7 +629,7 @@ defmodule FrontmanServerWeb.TaskChannel do
         handle_transient_error(socket, error_info)
 
       {:agent_error, %{retryable: false} = error_info} ->
-        handle_turn_error(socket, error_info.message)
+        handle_turn_error(socket, error_info.message, error_info.category)
 
       :ok ->
         {:noreply, socket}
@@ -721,7 +721,7 @@ defmodule FrontmanServerWeb.TaskChannel do
   # Agent failed to start (e.g. no API key, usage limit). Broadcast by
   # Tasks.maybe_start_execution when Execution.run returns an error.
   def handle_info({:execution_start_error, msg}, socket) do
-    handle_turn_error(socket, msg)
+    handle_turn_error(socket, msg, "unknown")
   end
 
   def handle_info({:retrying_status, attempt, max_attempts, retry_at_iso, error_message}, socket) do
@@ -755,7 +755,7 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   def handle_info({:retry_exhausted, error_info}, socket) do
     socket = assign(socket, :retry_coordinator, nil)
-    handle_turn_error(socket, error_info.message)
+    handle_turn_error(socket, error_info.message, error_info.category)
   end
 
   def handle_info({:title_updated, task_id, title}, socket) do
@@ -851,11 +851,13 @@ defmodule FrontmanServerWeb.TaskChannel do
   # Handler for agent errors — a separate path from handle_turn_ended because
   # errors use a different ACP notification type (sessionUpdate: "error") and
   # resolve pending RPCs with JSON-RPC error responses instead of prompt results.
-  defp handle_turn_error(socket, error_message) do
+  defp handle_turn_error(socket, error_message, category) do
     task_id = socket.assigns.task_id
 
     # 1. Always notify — error notification so client can display it
-    notification = ACP.build_error_notification(task_id, error_message, DateTime.utc_now())
+    notification =
+      ACP.build_error_notification(task_id, error_message, DateTime.utc_now(), category: category)
+
     push(socket, @acp_message, notification)
 
     # 2. If there's a pending RPC, resolve it as an error

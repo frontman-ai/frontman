@@ -596,6 +596,7 @@ type sessionUpdate =
       retryAt: option<string>,
       attempt: option<int>,
       maxAttempts: option<int>,
+      category: option<string>,
     })
   | Unknown({sessionUpdate: string})
 
@@ -667,6 +668,7 @@ let sessionUpdateSchema = S.union([
       retryAt: s.field("retryAt", S.option(S.string)),
       attempt: s.field("attempt", S.option(S.int)),
       maxAttempts: s.field("maxAttempts", S.option(S.int)),
+      category: s.field("category", S.option(S.string)),
     })
   }),
   // Fallback for unknown session update types

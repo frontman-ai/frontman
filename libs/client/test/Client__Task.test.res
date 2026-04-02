@@ -394,7 +394,9 @@ describe("Task - Error Handling", () => {
         category: "unknown",
       }),
     )
-    t->expect(TaskReducer.Selectors.turnError(task2))->Expect.toEqual(Some("Rate limit exceeded"))
+    t
+    ->expect(TaskReducer.Selectors.turnError(task2))
+    ->Expect.toEqual(Some({message: "Rate limit exceeded", category: "unknown"}))
   })
 
   test("AgentError sets isAgentRunning to false", t => {
@@ -497,7 +499,9 @@ describe("Task - Error Handling", () => {
         category: "unknown",
       }),
     )
-    t->expect(TaskReducer.Selectors.turnError(task2))->Expect.toEqual(Some("Some error"))
+    t
+    ->expect(TaskReducer.Selectors.turnError(task2))
+    ->Expect.toEqual(Some({message: "Some error", category: "unknown"}))
 
     let (task3, _) = TaskReducer.next(task2, ClearTurnError)
     t->expect(TaskReducer.Selectors.turnError(task3))->Expect.toEqual(None)
@@ -523,7 +527,9 @@ describe("Task - Error Handling", () => {
         category: "unknown",
       }),
     )
-    t->expect(TaskReducer.Selectors.turnError(task2))->Expect.toEqual(Some("Previous error"))
+    t
+    ->expect(TaskReducer.Selectors.turnError(task2))
+    ->Expect.toEqual(Some({message: "Previous error", category: "unknown"}))
 
     // Sending a new message should clear the error
     let (task3, _) = TaskReducer.next(
