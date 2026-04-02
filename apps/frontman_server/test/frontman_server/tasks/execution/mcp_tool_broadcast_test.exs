@@ -34,9 +34,19 @@ defmodule FrontmanServer.Tasks.Execution.MCPToolBroadcastTest do
       # Create a tool call that will be routed to MCP (not a backend tool)
       mcp_tool_call = swarm_tool_call("some_mcp_tool", ~s({"arg": "value"}))
 
+      # Provide a tool def so ParallelExecutor can find and route the call
+      some_mcp_tool_def =
+        SwarmAi.Tool.new(
+          name: "some_mcp_tool",
+          description: "A test MCP tool",
+          parameter_schema: %{},
+          timeout_ms: 60_000,
+          on_timeout: :pause_agent
+        )
+
       # Create an LLM that returns a tool call on first turn, then completes
       llm = tool_then_complete_llm([mcp_tool_call], "Done!")
-      agent = test_agent(llm, "MCPToolTestAgent")
+      agent = test_agent(llm, "MCPToolTestAgent", tools: [some_mcp_tool_def])
 
       # Start agent via submit_user_message with custom agent
       {:ok, _} =
@@ -94,8 +104,18 @@ defmodule FrontmanServer.Tasks.Execution.MCPToolBroadcastTest do
       # When we receive the interaction broadcast, the agent should be registered.
       mcp_tool_call = swarm_tool_call("mcp_tool")
       expected_id = mcp_tool_call.id
+
+      mcp_tool_def =
+        SwarmAi.Tool.new(
+          name: "mcp_tool",
+          description: "A test MCP tool",
+          parameter_schema: %{},
+          timeout_ms: 60_000,
+          on_timeout: :pause_agent
+        )
+
       llm = tool_then_complete_llm([mcp_tool_call], "Done!")
-      agent = test_agent(llm, "TestAgent")
+      agent = test_agent(llm, "TestAgent", tools: [mcp_tool_def])
 
       # Start agent via submit_user_message with custom agent
       {:ok, _} =

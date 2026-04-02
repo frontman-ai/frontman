@@ -143,6 +143,9 @@ defmodule FrontmanServer.Tasks.Execution do
   def handle_swarm_event(_scope, _task_id, {:terminated, _}),
     do: :agent_cancelled
 
+  # Paused — AgentPaused persisted by SwarmDispatcher; no client push needed.
+  def handle_swarm_event(_scope, _task_id, {:paused, _}), do: :ok
+
   # Tool calls are persisted by ToolExecutor; no channel action needed.
   def handle_swarm_event(_scope, _task_id, {:tool_call, _}), do: :ok
 
@@ -173,7 +176,8 @@ defmodule FrontmanServer.Tasks.Execution do
 
     case SwarmAi.Runtime.run(FrontmanServer.AgentRuntime, task_id, agent, messages,
            metadata: %{task_id: task_id, resolved_key: resolved_key, scope: scope},
-           tool_executor: tool_executor
+           tool_executor: tool_executor,
+           tool_defs: mcp_tools
          ) do
       {:ok, pid} ->
         {:ok, pid}

@@ -286,6 +286,20 @@ defmodule FrontmanServer.Tasks do
   end
 
   @doc """
+  Creates and appends an AgentPaused interaction.
+
+  Called when the agent loop is paused due to a tool timeout with `on_timeout: :pause_agent`.
+  """
+  @spec add_agent_paused(Scope.t(), String.t(), String.t(), pos_integer()) ::
+          {:ok, Interaction.AgentPaused.t()} | {:error, :not_found}
+  def add_agent_paused(%Scope{} = scope, task_id, tool_name, timeout_ms) do
+    with {:ok, schema} <- get_task_by_id(scope, task_id) do
+      interaction = Interaction.AgentPaused.new(tool_name, timeout_ms)
+      append_interaction(schema, interaction)
+    end
+  end
+
+  @doc """
   Creates and appends an AgentError interaction.
 
   `kind` is one of "failed", "crashed", "cancelled", or "terminated".

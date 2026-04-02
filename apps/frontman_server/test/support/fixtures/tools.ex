@@ -100,7 +100,8 @@ defmodule FrontmanServer.Test.Fixtures.Tools do
           "properties" => %{"questions" => %{"type" => "array"}}
         },
         visible_to_agent: true,
-        execution_mode: :interactive
+        timeout_ms: 120_000,
+        on_timeout: :pause_agent
       }
     ]
   end

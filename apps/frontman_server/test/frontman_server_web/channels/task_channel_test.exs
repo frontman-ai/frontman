@@ -45,7 +45,9 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       "type" => "object",
       "properties" => %{"tail" => %{"type" => "integer"}}
     },
-    "visibleToAgent" => true
+    "visibleToAgent" => true,
+    "timeoutMs" => 60_000,
+    "onTimeout" => "error"
   }
 
   describe "join task:<id>" do
@@ -754,7 +756,9 @@ defmodule FrontmanServerWeb.TaskChannelTest do
           %{
             "name" => "take_screenshot",
             "description" => "Takes a screenshot of the page",
-            "inputSchema" => %{"type" => "object", "properties" => %{}}
+            "inputSchema" => %{"type" => "object", "properties" => %{}},
+            "timeoutMs" => 60_000,
+            "onTimeout" => "error"
           }
         ]
       }

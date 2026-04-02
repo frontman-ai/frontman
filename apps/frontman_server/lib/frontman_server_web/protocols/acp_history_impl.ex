@@ -221,6 +221,11 @@ defimpl ACPHistory, for: Interaction.AgentError do
   end
 end
 
+defimpl ACPHistory, for: Interaction.AgentPaused do
+  # Pause state is communicated via task status, not as a history item.
+  def to_history_items(%Interaction.AgentPaused{}, _session_id), do: []
+end
+
 defimpl ACPHistory, for: Interaction.DiscoveredProjectRule do
   def to_history_items(%Interaction.DiscoveredProjectRule{}, _session_id), do: []
 end

@@ -37,7 +37,9 @@ defmodule FrontmanServer.Tasks.Execution.LLMClientTest do
             "path" => %{"type" => "string"}
           },
           "required" => ["path"]
-        }
+        },
+        timeout_ms: 60_000,
+        on_timeout: :error
       }
 
       {:ok, tool: tool}

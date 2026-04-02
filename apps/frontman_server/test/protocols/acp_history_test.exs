@@ -34,6 +34,7 @@ defmodule FrontmanServer.Protocols.AcpHistoryTest do
       is_error: false
     },
     Interaction.AgentError => %{id: "t", error: "e"},
+    Interaction.AgentPaused => %{id: "t", reason: "r", tool_name: "t", timeout_ms: 1000},
     Interaction.DiscoveredProjectRule => %{path: "/p", content: "c"},
     Interaction.DiscoveredProjectStructure => %{summary: "s"}
   }

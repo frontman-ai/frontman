@@ -168,55 +168,9 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
     end
   end
 
-  describe "MCP tool timeout Sentry reporting (Gap 4)" do
-    @tag timeout: 70_000
-    @tag :capture_log
-
-    test "reports MCP tool timeout to Sentry", %{
-      task_id: task_id,
-      scope: scope
-    } do
-      tool_call = swarm_tool_call("fake_mcp_tool")
-
-      # Register as MCP tool manually (since fake_mcp_tool won't be found as backend)
-      Registry.register(FrontmanServer.ToolCallRegistry, {:tool_call, tool_call.id}, %{
-        caller_pid: self()
-      })
-
-      # Spawn a process that calls execute_mcp_tool path and waits for timeout
-      # We override the timeout by calling execute directly which will route to MCP
-      test_pid = self()
-
-      task =
-        Task.async(fn ->
-          result =
-            ToolExecutor.execute(scope, tool_call, task_id,
-              mcp_tools: [],
-              llm_opts: [api_key: "test", model: "mock"]
-            )
-
-          send(test_pid, {:tool_result, result})
-        end)
-
-      # Wait for the timeout (60s) + some buffer
-      assert_receive {:tool_result, {:error, timeout_msg}}, 65_000
-      assert timeout_msg =~ "Tool timeout"
-
-      Task.await(task, 5_000)
-
-      # Verify Sentry captured the timeout
-      reports = Sentry.Test.pop_sentry_reports()
-
-      timeout_reports =
-        Enum.filter(reports, fn event ->
-          event.tags[:error_type] == "tool_timeout"
-        end)
-
-      assert [report] = timeout_reports
-      assert report.message.formatted == "MCP tool timeout"
-      assert report.extra[:tool_name] == "fake_mcp_tool"
-      assert report.extra[:task_id] == task_id
-      assert report.extra[:timeout_ms] == 60_000
-    end
-  end
+  # MCP tool timeouts are now handled by SwarmAi.ParallelExecutor via per-tool
+  # deadlines (timeout_ms/on_timeout fields on SwarmAi.Tool). When on_timeout is
+  # :pause_agent, the Runtime dispatches {:paused, {:timeout, ...}} which
+  # SwarmDispatcher persists as an AgentPaused interaction — not a Sentry error.
+  # The old per-executor timeout (and its Sentry reporting) was removed in Task 9.
 end

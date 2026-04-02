@@ -179,7 +179,12 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       question_tc_id = "tc_question_#{System.unique_integer([:positive])}"
       question_tc = tool_call("question", question_args(), id: question_tc_id)
 
-      agent = test_agent(tool_then_complete_llm([question_tc], "Great choice!"), "QuestionAgent")
+      question_swarm_tools = MCP.to_swarm_tools(question_mcp_tool_defs())
+
+      agent =
+        test_agent(tool_then_complete_llm([question_tc], "Great choice!"), "QuestionAgent",
+          tools: question_swarm_tools
+        )
 
       {:ok, _} =
         Tasks.submit_user_message(scope, task_id, user_content("Ask me"), [],
