@@ -348,6 +348,54 @@ defmodule SwarmAi.RuntimeTest do
     end
   end
 
+  describe "pause_agent" do
+    test "pause_agent tool timeout returns :paused result, no :failed event" do
+      runtime = start_runtime!()
+
+      pause_tool =
+        SwarmAi.Tool.new(
+          name: "test_tool",
+          description: "pauses",
+          parameter_schema: %{},
+          timeout_ms: 10,
+          on_timeout: :pause_agent
+        )
+
+      blocking_executor = fn _tool_calls ->
+        Process.sleep(500)
+        []
+      end
+
+      llm = %SwarmAi.Testing.MockLLM{
+        response: fn ->
+          {:ok,
+           %SwarmAi.LLM.Response{
+             content: nil,
+             tool_calls: [%SwarmAi.ToolCall{id: "tc1", name: "test_tool", arguments: "{}"}],
+             usage: %SwarmAi.LLM.Usage{input_tokens: 10, output_tokens: 5},
+             raw: nil
+           }}
+        end
+      }
+
+      agent = test_agent(llm)
+
+      {:ok, pid} =
+        SwarmAi.Runtime.run(runtime, "task-pause", agent, "Hello",
+          tool_executor: blocking_executor,
+          tool_defs: [pause_tool]
+        )
+
+      await_exit(pid)
+
+      # Agent should not dispatch :completed or :failed — it paused
+      refute_receive {:test_event, "task-pause", {:completed, _}, _}, 200
+      refute_receive {:test_event, "task-pause", {:failed, _}, _}, 0
+      refute_receive {:test_event, "task-pause", {:crashed, _}, _}, 0
+      refute SwarmAi.Runtime.running?(runtime, "task-pause")
+    end
+  end
+
   describe "streaming events" do
     test "dispatches chunk and response events" do
       runtime = start_runtime!()

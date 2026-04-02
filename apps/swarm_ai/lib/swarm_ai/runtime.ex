@@ -178,10 +178,7 @@ defmodule SwarmAi.Runtime do
     tool_map = Map.new(tool_defs, fn tool -> {tool.name, tool} end)
 
     parallel_executor = fn tool_calls ->
-      case SwarmAi.ParallelExecutor.run(tool_calls, tool_map, executor, task_supervisor) do
-        {:ok, results} -> results
-        {:halt, _} = halt -> halt
-      end
+      SwarmAi.ParallelExecutor.run(tool_calls, tool_map, executor, task_supervisor)
     end
 
     Keyword.put(opts, :tool_executor, parallel_executor)
@@ -215,6 +212,20 @@ defmodule SwarmAi.Runtime do
 
         {:error, _, _} = err ->
           dispatch_event(dispatcher, task.key, {:failed, err}, task.event_context)
+
+        {:paused, {:pause_agent, tool_name, timeout_ms} = reason} ->
+          :telemetry.execute(
+            [:swarm_ai, :runtime, :paused],
+            %{count: 1},
+            %{key: task.key, reason: reason}
+          )
+
+          dispatch_event(
+            dispatcher,
+            task.key,
+            {:paused, {:timeout, tool_name, timeout_ms}},
+            task.event_context
+          )
       end
     after
       # Safety net — idempotent if already unregistered above.

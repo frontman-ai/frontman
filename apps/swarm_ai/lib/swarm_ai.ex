@@ -136,6 +136,7 @@ defmodule SwarmAi do
   @spec run_streaming(SwarmAi.Agent.t(), message_input(), streaming_opts()) ::
           {:ok, String.t(), SwarmAi.Id.t()}
           | {:error, term(), SwarmAi.Id.t()}
+          | {:paused, SwarmAi.ParallelExecutor.halt_reason()}
   def run_streaming(agent, message, opts) when is_list(opts) do
     tool_executor = Keyword.fetch!(opts, :tool_executor)
     callbacks = build_callbacks(opts)
@@ -154,28 +155,31 @@ defmodule SwarmAi do
       },
       fn ->
         {loop, effects} = Loop.execute(loop, messages)
-        final_loop = execute_loop(loop, effects, tool_executor, callbacks)
 
-        result =
-          case final_loop.status do
-            :completed ->
-              {:ok, final_loop.result, loop.id}
+        {result, final_status, step_count, output} =
+          case execute_loop(loop, effects, tool_executor, callbacks) do
+            {:halt, halt_reason} ->
+              {{:paused, halt_reason}, :paused, length(loop.steps), nil}
 
-            :failed ->
-              {:error, final_loop.error, loop.id}
+            %Loop{} = final_loop ->
+              r =
+                case final_loop.status do
+                  :completed -> {:ok, final_loop.result, loop.id}
+                  :failed -> {:error, final_loop.error, loop.id}
+                  other -> {:error, {:unexpected_status, other}, loop.id}
+                end
 
-            other ->
-              {:error, {:unexpected_status, other}, loop.id}
+              {r, final_loop.status, length(final_loop.steps), final_loop.result}
           end
 
         # Include loop_id, metadata, and output in stop metadata
         {result,
          %{
            loop_id: loop.id,
-           status: final_loop.status,
-           step_count: length(final_loop.steps),
+           status: final_status,
+           step_count: step_count,
            metadata: loop.metadata,
-           output: final_loop.result
+           output: output
          }}
       end
     )
@@ -320,7 +324,7 @@ defmodule SwarmAi do
 
     Enum.each(tool_calls, &emit_tool_start(loop_id, step, &1, metadata))
 
-    results =
+    executor_result =
       try do
         tool_executor.(tool_calls)
       rescue
@@ -329,16 +333,23 @@ defmodule SwarmAi do
           reraise e, __STACKTRACE__
       end
 
-    Enum.zip(tool_calls, results)
-    |> Enum.each(fn {tc, result} -> emit_tool_stop(loop_id, step, tc, result, metadata) end)
+    case executor_result do
+      {:halt, halt_reason} ->
+        Telemetry.step_stop(loop.id, loop.current_step, loop.metadata)
+        {:halt, halt_reason}
 
-    {new_effects, updated_loop} =
-      Enum.flat_map_reduce(results, loop, fn result, loop_acc ->
-        {l, e} = Loop.handle_tool_result(loop_acc, result)
-        {e, l}
-      end)
+      results when is_list(results) ->
+        Enum.zip(tool_calls, results)
+        |> Enum.each(fn {tc, result} -> emit_tool_stop(loop_id, step, tc, result, metadata) end)
 
-    execute_loop(updated_loop, new_effects ++ rest, tool_executor, callbacks)
+        {new_effects, updated_loop} =
+          Enum.flat_map_reduce(results, loop, fn result, loop_acc ->
+            {l, e} = Loop.handle_tool_result(loop_acc, result)
+            {e, l}
+          end)
+
+        execute_loop(updated_loop, new_effects ++ rest, tool_executor, callbacks)
+    end
   end
 
   defp execute_loop(loop, [{:step_ended, step} | rest], tool_executor, callbacks) do
