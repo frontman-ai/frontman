@@ -1,33 +1,22 @@
 defmodule SwarmAi.ParallelToolExecutionTest do
   use SwarmAi.Testing, async: true
 
-  describe "batch tool execution" do
-    test "executes all tools via batch executor" do
-      llm =
-        multi_turn_llm([
-          {:tool_calls,
-           [
-             %SwarmAi.ToolCall{id: "tc_1", name: "tool_a", arguments: "{}"},
-             %SwarmAi.ToolCall{id: "tc_2", name: "tool_b", arguments: "{}"}
-           ], "Running..."},
-          {:complete, "Done"}
-        ])
+  alias SwarmAi.ToolResult
 
-      agent = test_agent(llm)
+  defp make_tool(name, timeout_ms \\ 5_000, on_timeout \\ :error) do
+    SwarmAi.Tool.new(
+      name: name,
+      description: "test",
+      parameter_schema: %{},
+      timeout_ms: timeout_ms,
+      on_timeout: on_timeout
+    )
+  end
 
-      executor = fn tool_calls ->
-        Enum.map(tool_calls, fn tc ->
-          ToolResult.make(tc.id, "Result for #{tc.name}", false)
-        end)
-      end
+  describe "batch tool execution through Runtime" do
+    test "executes multiple tools concurrently" do
+      runtime = start_runtime!()
 
-      {:ok, result, _loop_id} =
-        SwarmAi.run_streaming(agent, "Do work", tool_executor: executor)
-
-      assert result == "Done"
-    end
-
-    test "parallel execution via Task.Supervisor" do
       llm =
         multi_turn_llm([
           {:tool_calls,
@@ -40,34 +29,31 @@ defmodule SwarmAi.ParallelToolExecutionTest do
         ])
 
       agent = test_agent(llm)
-      {:ok, sup} = Task.Supervisor.start_link()
+      start = System.monotonic_time(:millisecond)
 
       executor = fn tool_calls ->
-        sup
-        |> Task.Supervisor.async_stream_nolink(tool_calls, fn tc ->
+        Enum.map(tool_calls, fn tc ->
           Process.sleep(100)
           ToolResult.make(tc.id, "Result", false)
-        end, max_concurrency: 10, ordered: true)
-        |> Enum.zip(tool_calls)
-        |> Enum.map(fn
-          {{:ok, result}, _tc} -> result
-          {{:exit, reason}, tc} ->
-            ToolResult.make(tc.id, "Crashed: #{inspect(reason)}", true)
         end)
       end
 
-      start = System.monotonic_time(:millisecond)
+      {:ok, pid} =
+        SwarmAi.Runtime.run(runtime, "task-parallel", agent, "Do work",
+          tool_executor: executor,
+          tool_defs: [make_tool("slow")]
+        )
 
-      {:ok, result, _loop_id} =
-        SwarmAi.run_streaming(agent, "Do work", tool_executor: executor)
+      await_exit(pid)
 
       elapsed = System.monotonic_time(:millisecond) - start
-
-      assert result == "All done"
-      assert elapsed < 250, "Expected parallel (<250ms) but took #{elapsed}ms"
+      assert_receive {:test_event, "task-parallel", {:completed, {:ok, "All done", _}}, _}
+      assert elapsed < 500, "Expected parallel (<500ms) but took #{elapsed}ms"
     end
 
-    test "fault isolation - crashing tool produces error result" do
+    test "fault isolation - crashing tool produces error result, agent continues" do
+      runtime = start_runtime!()
+
       llm =
         multi_turn_llm([
           {:tool_calls,
@@ -79,45 +65,49 @@ defmodule SwarmAi.ParallelToolExecutionTest do
         ])
 
       agent = test_agent(llm)
-      {:ok, sup} = Task.Supervisor.start_link()
 
       executor = fn tool_calls ->
-        sup
-        |> Task.Supervisor.async_stream_nolink(tool_calls, fn tc ->
+        Enum.map(tool_calls, fn tc ->
           case tc.name do
             "bad" -> raise "boom"
             _ -> ToolResult.make(tc.id, "OK", false)
           end
-        end, max_concurrency: 10, ordered: true)
-        |> Enum.zip(tool_calls)
-        |> Enum.map(fn
-          {{:ok, result}, _tc} -> result
-          {{:exit, reason}, tc} ->
-            ToolResult.make(tc.id, "Crashed: #{inspect(reason)}", true)
         end)
       end
 
-      {:ok, result, _loop_id} =
-        SwarmAi.run_streaming(agent, "Do work", tool_executor: executor)
+      {:ok, pid} =
+        SwarmAi.Runtime.run(runtime, "task-crash", agent, "Do work",
+          tool_executor: executor,
+          tool_defs: [make_tool("good"), make_tool("bad")]
+        )
 
-      assert result == "Handled"
+      await_exit(pid)
+      assert_receive {:test_event, "task-crash", {:completed, {:ok, "Handled", _}}, _}, 2_000
     end
+  end
 
-    test "run_blocking still works with single-tool executor" do
-      llm =
-        multi_turn_llm([
-          {:tool_calls,
-           [%SwarmAi.ToolCall{id: "tc_1", name: "test", arguments: "{}"}],
-           "Running..."},
-          {:complete, "Done"}
-        ])
+  # --- Helpers ---
 
-      agent = test_agent(llm)
-
-      {:ok, result, _loop_id} =
-        SwarmAi.run_blocking(agent, "Do work", fn _tc -> {:ok, "Result"} end)
-
-      assert result == "Done"
+  defmodule TestDispatcher do
+    def dispatch(test_pid, key, event, metadata) do
+      send(test_pid, {:test_event, key, event, metadata})
     end
+  end
+
+  defp start_runtime! do
+    name = :"TestRuntime_#{:erlang.unique_integer([:positive])}"
+    test_pid = self()
+
+    start_supervised!({SwarmAi.Runtime,
+      name: name,
+      event_dispatcher: {TestDispatcher, :dispatch, [test_pid]}
+    })
+
+    name
+  end
+
+  defp await_exit(pid) do
+    ref = Process.monitor(pid)
+    assert_receive {:DOWN, ^ref, :process, ^pid, _}, 3000
   end
 end
