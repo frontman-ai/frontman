@@ -174,29 +174,18 @@ defmodule SwarmAi.Runtime do
   end
 
   defp do_wrap_executor(opts, executor, task_supervisor) do
+    tool_defs = Keyword.get(opts, :tool_defs, [])
+    tool_map = Map.new(tool_defs, fn tool -> {tool.name, tool} end)
+
     parallel_executor = fn tool_calls ->
-      task_supervisor
-      |> Task.Supervisor.async_stream_nolink(
-        tool_calls,
-        fn tc ->
-          [result] = executor.([tc])
-          result
-        end,
-        max_concurrency: 10,
-        ordered: true,
-        timeout: :timer.hours(25)
-      )
-      |> Enum.zip(tool_calls)
-      |> Enum.map(&collect_tool_result/1)
+      case SwarmAi.ParallelExecutor.run(tool_calls, tool_map, executor, task_supervisor) do
+        {:ok, results} -> results
+        {:halt, _} = halt -> halt
+      end
     end
 
     Keyword.put(opts, :tool_executor, parallel_executor)
   end
-
-  defp collect_tool_result({{:ok, result}, _tc}), do: result
-
-  defp collect_tool_result({{:exit, reason}, tc}),
-    do: SwarmAi.ToolResult.make(tc.id, "Tool execution crashed: #{inspect(reason)}", true)
 
   defp run_registered_task(runtime, task, handshake) do
     registry = registry_name(runtime)

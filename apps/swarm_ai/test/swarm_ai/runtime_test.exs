@@ -79,6 +79,48 @@ defmodule SwarmAi.RuntimeTest do
       assert SwarmAi.Runtime.run(runtime, "task-dup", agent, "World", default_opts()) ==
                {:error, :already_running}
     end
+
+    test "passes tool_defs to executor for timeout policy" do
+      runtime = start_runtime!()
+
+      # Tool with 10ms timeout — will timeout but return error (not pause)
+      tool_def =
+        SwarmAi.Tool.new(
+          name: "test_tool",
+          description: "test",
+          parameter_schema: %{},
+          timeout_ms: 10,
+          on_timeout: :error
+        )
+
+      slow_executor = fn _tool_calls ->
+        Process.sleep(500)
+        # won't reach here
+        []
+      end
+
+      llm =
+        SwarmAi.Testing.multi_turn_llm([
+          {:tool_calls, [%SwarmAi.ToolCall{id: "tc1", name: "test_tool", arguments: "{}"}],
+           "calling"},
+          {:complete, "done after timeout error"}
+        ])
+
+      agent = test_agent(llm)
+
+      {:ok, pid} =
+        SwarmAi.Runtime.run(runtime, "task-tool-def", agent, "Hello",
+          tool_executor: slow_executor,
+          tool_defs: [tool_def]
+        )
+
+      await_exit(pid)
+
+      # Should complete (error ToolResult returned to LLM, LLM responds with final message)
+      assert_receive {:test_event, "task-tool-def", {:completed, {:ok, "done after timeout error", _}},
+                      _metadata},
+                     3_000
+    end
   end
 
   describe "running?/2" do
