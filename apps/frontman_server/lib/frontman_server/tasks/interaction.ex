@@ -13,6 +13,7 @@ defmodule FrontmanServer.Tasks.Interaction do
           | __MODULE__.AgentSpawned.t()
           | __MODULE__.AgentCompleted.t()
           | __MODULE__.AgentError.t()
+          | __MODULE__.AgentPaused.t()
           | __MODULE__.ToolCall.t()
           | __MODULE__.ToolResult.t()
           | __MODULE__.DiscoveredProjectRule.t()
@@ -24,6 +25,7 @@ defmodule FrontmanServer.Tasks.Interaction do
     __MODULE__.AgentSpawned,
     __MODULE__.AgentCompleted,
     __MODULE__.AgentError,
+    __MODULE__.AgentPaused,
     __MODULE__.ToolCall,
     __MODULE__.ToolResult,
     __MODULE__.DiscoveredProjectRule,
@@ -740,6 +742,52 @@ defmodule FrontmanServer.Tasks.Interaction do
           timestamp: DateTime.to_iso8601(value.timestamp),
           error: value.error,
           kind: value.kind
+        },
+        opts
+      )
+    end
+  end
+
+  defmodule AgentPaused do
+    @moduledoc """
+    Recorded when the agent loop is paused due to a tool timeout with
+    `on_timeout: :pause_agent`. Stored as an interaction so reconnecting
+    clients and the debug-task tool can see why the agent stopped.
+    """
+    use TypedStruct
+
+    typedstruct enforce: true do
+      field(:id, String.t())
+      field(:sequence, integer(), default: 0)
+      field(:timestamp, DateTime.t())
+      field(:reason, String.t())
+      field(:tool_name, String.t())
+      field(:timeout_ms, pos_integer())
+    end
+
+    def new(tool_name, timeout_ms) do
+      alias FrontmanServer.Tasks.Interaction
+
+      %__MODULE__{
+        id: Interaction.new_id(),
+        timestamp: Interaction.now(),
+        reason: "Tool #{tool_name} timed out after #{timeout_ms}ms (on_timeout: :pause_agent)",
+        tool_name: tool_name,
+        timeout_ms: timeout_ms
+      }
+    end
+  end
+
+  defimpl Jason.Encoder, for: AgentPaused do
+    def encode(value, opts) do
+      Jason.Encode.map(
+        %{
+          type: "agent_paused",
+          id: value.id,
+          timestamp: DateTime.to_iso8601(value.timestamp),
+          reason: value.reason,
+          tool_name: value.tool_name,
+          timeout_ms: value.timeout_ms
         },
         opts
       )

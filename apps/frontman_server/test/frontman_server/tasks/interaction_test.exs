@@ -576,4 +576,27 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       assert decoded["is_error"] == false
     end
   end
+
+  describe "AgentPaused" do
+    test "new/2 builds struct with correct fields" do
+      interaction = Interaction.AgentPaused.new("question", 120_000)
+
+      assert interaction.tool_name == "question"
+      assert interaction.timeout_ms == 120_000
+      assert interaction.reason =~ "question"
+      assert interaction.reason =~ "120000"
+      assert interaction.reason =~ "pause_agent"
+      assert interaction.sequence == 0
+      assert is_binary(interaction.id)
+      assert %DateTime{} = interaction.timestamp
+    end
+
+    test "AgentPaused is in interaction_modules list" do
+      assert Interaction.AgentPaused in Interaction.interaction_modules()
+    end
+
+    test "AgentPaused is in known_type_strings" do
+      assert "agent_paused" in Interaction.known_type_strings()
+    end
+  end
 end
