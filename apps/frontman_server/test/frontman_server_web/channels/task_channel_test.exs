@@ -1467,6 +1467,50 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     end
   end
 
+  describe "cancelling an in-progress retry coordinator" do
+    setup %{scope: scope} do
+      {socket, task_id} = join_task_channel(scope)
+      complete_mcp_handshake(socket)
+      {:ok, socket: socket, task_id: task_id}
+    end
+
+    test "ends the turn and leaves the channel operational", %{
+      socket: socket,
+      task_id: task_id
+    } do
+      error = %FrontmanServer.Tasks.Execution.LLMError{
+        message: "Rate limited",
+        category: "rate_limit",
+        retryable: true
+      }
+
+      # Trigger a transient error so the channel starts a retry coordinator
+      Phoenix.PubSub.broadcast(FrontmanServer.PubSub, Tasks.topic(task_id), swarm_failed(error))
+      :sys.get_state(socket.channel_pid)
+
+      assert_push("acp:message", %{
+        "params" => %{"update" => %{"sessionUpdate" => "error", "attempt" => 1, "retryAt" => _}}
+      })
+
+      # Grab the coordinator pid and cancel it
+      %{assigns: %{retry_coordinator: coordinator_pid}} = :sys.get_state(socket.channel_pid)
+      Tasks.RetryCoordinator.cancel(coordinator_pid)
+      :sys.get_state(socket.channel_pid)
+
+      # Channel pushes a turn-complete notification with cancelled stop reason
+      assert_push("acp:message", %{
+        "params" => %{
+          "update" => %{"sessionUpdate" => "agent_turn_complete", "stopReason" => "cancelled"}
+        }
+      })
+
+      # Channel remains alive and the coordinator assign is cleared
+      assert Process.alive?(socket.channel_pid)
+      %{assigns: assigns} = :sys.get_state(socket.channel_pid)
+      assert is_nil(assigns[:retry_coordinator])
+    end
+  end
+
   describe "retry bug: category missing from retrying notification" do
     setup %{scope: scope} do
       {socket, task_id} = join_task_channel(scope)

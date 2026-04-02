@@ -754,6 +754,7 @@ defmodule FrontmanServerWeb.TaskChannel do
   end
 
   def handle_info({:retry_exhausted, %{kind: "cancelled"}}, socket) do
+    socket = assign(socket, :retry_coordinator, nil)
     handle_turn_ended(socket, ACP.stop_reason_cancelled())
   end
 
