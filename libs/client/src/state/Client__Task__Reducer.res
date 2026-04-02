@@ -273,16 +273,20 @@ module Selectors = {
 
   // Get the ID of the last Error message in the messages list
   let lastErrorId = (task: Task.t): option<string> => {
-    messages(task)->Option.flatMap(msgs =>
-      msgs
-      ->Array.toReversed
-      ->Array.findMap(msg =>
-        switch msg {
-        | Message.Error(err) => Some(Message.ErrorMessage.id(err))
-        | _ => None
-        }
+    switch task {
+    | Task.Loaded({turnError: Some({id})}) => Some(id)
+    | _ =>
+      messages(task)->Option.flatMap(msgs =>
+        msgs
+        ->Array.toReversed
+        ->Array.findMap(msg =>
+          switch msg {
+          | Message.Error(err) => Some(Message.ErrorMessage.id(err))
+          | _ => None
+          }
+        )
       )
-    )
+    }
   }
 
   // Get message created at timestamp
@@ -1088,14 +1092,15 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
     )
     (task->Lens.completeStreamingMessage->Lens.insertMessage(errorMsg), [])
 
-  | (Task.Loaded(data), AgentError({error, retryable: _, category, _})) =>
+  | (Task.Loaded(data), AgentError({error, retryable: _, category, timestamp})) =>
     // Set turn error and stop agent running - user can still send messages
+    let id = `error-${getTaskIdForError(task)}-${timestamp}`
     let completed = task->Lens.completeStreamingMessage
     switch completed {
     | Task.Loaded(completedData) => (
         Task.Loaded({
           ...completedData,
-          turnError: Some({message: error, category}),
+          turnError: Some({id, message: error, category}),
           isAgentRunning: false,
           retryStatus: None,
         }),
@@ -1104,7 +1109,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
     | _ => (
         Task.Loaded({
           ...data,
-          turnError: Some({message: error, category}),
+          turnError: Some({id, message: error, category}),
           isAgentRunning: false,
           retryStatus: None,
         }),
