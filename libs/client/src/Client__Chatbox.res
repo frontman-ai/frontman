@@ -232,7 +232,7 @@ let make = (
           Promise.resolve()
         })
         ->Promise.catch(err => {
-          Log.error(~ctx={"error": err}, "Image resize failed")
+          Log.error(~error=JsExn.fromException(err), "Image resize failed")
           sendWithContent(textParts)
           Promise.resolve()
         })

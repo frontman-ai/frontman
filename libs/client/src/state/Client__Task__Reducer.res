@@ -96,8 +96,7 @@ module Lens = {
     task: Task.t,
     ~contentDocument: option<WebAPI.DOMAPI.document>,
     ~contentWindow: option<WebAPI.DOMAPI.window>,
-  ): Task.t =>
-    updatePreviewFrame(task, pf => {...pf, contentDocument, contentWindow})
+  ): Task.t => updatePreviewFrame(task, pf => {...pf, contentDocument, contentWindow})
 
   let setDeviceMode = (task: Task.t, deviceMode: Client__DeviceMode.deviceMode): Task.t =>
     updatePreviewFrame(task, pf => {...pf, deviceMode})
@@ -131,7 +130,6 @@ module Lens = {
 
   let setActivePopupAnnotationId = (task: Task.t, id: option<string>): Task.t =>
     updateTaskData(task, d => {...d, activePopupAnnotationId: id})
-
 }
 
 // ============================================================================
@@ -319,11 +317,19 @@ type action =
   | ToolErrorReceived({id: string, error: string})
   | ToolCallReceived({toolCall: Message.toolCall})
   // Content actions
-  | AddUserMessage({id: string, content: array<UserContentPart.t>, annotations: array<Message.MessageAnnotation.t>})
+  | AddUserMessage({
+      id: string,
+      content: array<UserContentPart.t>,
+      annotations: array<Message.MessageAnnotation.t>,
+    })
   // Annotation actions — unified selection mode
   | SetAnnotationMode({mode: Annotation.annotationMode})
   | ToggleAnnotationMode
-  | ToggleAnnotation({element: WebAPI.DOMAPI.element, position: Annotation.position, tagName: string})
+  | ToggleAnnotation({
+      element: WebAPI.DOMAPI.element,
+      position: Annotation.position,
+      tagName: string,
+    })
   | AddAnnotation({element: WebAPI.DOMAPI.element, position: Annotation.position, tagName: string})
   | AnnotationDetailsResolved({
       id: string,
@@ -362,7 +368,12 @@ type action =
   | LoadComplete
   | LoadError({error: string})
   // Hydration actions
-  | UserMessageReceived({id: string, content: array<UserContentPart.t>, annotations: array<Message.MessageAnnotation.t>, timestamp: string})
+  | UserMessageReceived({
+      id: string,
+      content: array<UserContentPart.t>,
+      annotations: array<Message.MessageAnnotation.t>,
+      timestamp: string,
+    })
   // Question tool actions
   | QuestionReceived({
       questions: array<Client__Question__Types.questionItem>,
@@ -477,9 +488,9 @@ let extractTextFromUserContent = (content: array<UserContentPart.t>): string => 
 }
 
 // Helper to extract image/file attachments from user message parts
-let extractAttachmentsFromUserContent = (
-  content: array<UserContentPart.t>,
-): array<Message.fileAttachmentData> => {
+let extractAttachmentsFromUserContent = (content: array<UserContentPart.t>): array<
+  Message.fileAttachmentData,
+> => {
   content->Array.filterMap(part => {
     switch part {
     | Image({id, image, mediaType, name}) =>
@@ -514,8 +525,10 @@ let updatePendingQuestion = (
   fn: Client__Question__Types.pendingQuestion => Client__Question__Types.pendingQuestion,
 ): (Task.t, array<effect>) =>
   switch task {
-  | Task.Loaded({pendingQuestion: Some(pq)} as data) =>
-    (Task.Loaded({...data, pendingQuestion: Some(fn(pq))}), [])
+  | Task.Loaded({pendingQuestion: Some(pq)} as data) => (
+      Task.Loaded({...data, pendingQuestion: Some(fn(pq))}),
+      [],
+    )
   | _ => (task, [])
   }
 
@@ -554,11 +567,10 @@ let buildQuestionToolOutput = (
 // Resolve the question tool: clear pendingQuestion and emit resolve effect.
 // Resolves the MCP tool promise directly — the MCP response flow handles
 // both live and reconnect cases (server re-sends tools/call on reconnect).
-let resolveQuestion = (
-  task: Task.t,
-  ~skippedAll: bool,
-  ~cancelled: bool,
-): (Task.t, array<effect>) =>
+let resolveQuestion = (task: Task.t, ~skippedAll: bool, ~cancelled: bool): (
+  Task.t,
+  array<effect>,
+) =>
   switch task {
   | Task.Loaded({pendingQuestion: Some(pq)} as data) =>
     switch cancelled {
@@ -578,7 +590,6 @@ let resolveQuestion = (
     }
   | _ => (task, [])
   }
-
 
 let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
   switch (task, action) {
@@ -619,9 +630,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
     let newDeviceMode = switch currentDeviceMode {
     | Client__DeviceMode.Responsive =>
       // When toggling on, default to iPhone 15 Pro (index 1 in presets)
-      Client__DeviceMode.DevicePreset(
-        Client__DeviceMode.presets->Array.get(1)->Option.getOrThrow
-      )
+      Client__DeviceMode.DevicePreset(Client__DeviceMode.presets->Array.get(1)->Option.getOrThrow)
     | _ => Client__DeviceMode.Responsive
     }
     (Lens.setDeviceMode(task, newDeviceMode), [])
@@ -629,47 +638,73 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
   // Annotation actions — unified selection mode
   | (Task.Unloaded(_), SetAnnotationMode(_) | ToggleAnnotationMode) => (task, [])
   | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), SetAnnotationMode({mode})) => {
-    let updated = Lens.setAnnotationMode(task, mode)
-    // Close popup and unfreeze when switching to Off
-    let updated = switch mode {
-    | Annotation.Off =>
-      updated
-      ->Lens.setActivePopupAnnotationId(None)
-      ->Lens.setAnimationFrozen(false)
-    | _ => updated
+      let updated = Lens.setAnnotationMode(task, mode)
+      // Close popup and unfreeze when switching to Off
+      let updated = switch mode {
+      | Annotation.Off =>
+        updated
+        ->Lens.setActivePopupAnnotationId(None)
+        ->Lens.setAnimationFrozen(false)
+      | _ => updated
+      }
+      (updated, [])
     }
-    (updated, [])
-  }
   | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), ToggleAnnotationMode) => {
-    let newMode = switch Task.getAnnotationMode(task) {
-    | Annotation.Off => Annotation.Selecting
-    | _ => Annotation.Off
+      let newMode = switch Task.getAnnotationMode(task) {
+      | Annotation.Off => Annotation.Selecting
+      | _ => Annotation.Off
+      }
+      let updated = Lens.setAnnotationMode(task, newMode)
+      // Close popup and unfreeze when toggling off
+      let updated = switch newMode {
+      | Annotation.Off =>
+        updated
+        ->Lens.setActivePopupAnnotationId(None)
+        ->Lens.setAnimationFrozen(false)
+      | _ => updated
+      }
+      (updated, [])
     }
-    let updated = Lens.setAnnotationMode(task, newMode)
-    // Close popup and unfreeze when toggling off
-    let updated = switch newMode {
-    | Annotation.Off =>
-      updated
-      ->Lens.setActivePopupAnnotationId(None)
-      ->Lens.setAnimationFrozen(false)
-    | _ => updated
-    }
-    (updated, [])
-  }
 
   // Toggle annotation: click already-annotated element removes it, click new element adds it
   | (Task.Unloaded(_), ToggleAnnotation(_)) => (task, [])
-  | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), ToggleAnnotation({element, position, tagName})) => {
-    let existing = Annotation.findByElement(Task.getAnnotations(task), element)
-    switch existing {
-    | Some(ann) =>
-      // Element already annotated — deselect it and close popup
-      let annotations = Task.getAnnotations(task)->Array.filter(a => a.id != ann.id)
-      let updated = Lens.setAnnotations(task, annotations)
-      let updated = Lens.setActivePopupAnnotationId(updated, None)
-      (updated, [])
-    | None =>
-      // New element — add annotation immediately, open popup, fetch details
+  | (
+      Task.New(_) | Task.Loading(_) | Task.Loaded(_),
+      ToggleAnnotation({element, position, tagName}),
+    ) => {
+      let existing = Annotation.findByElement(Task.getAnnotations(task), element)
+      switch existing {
+      | Some(ann) =>
+        // Element already annotated — deselect it and close popup
+        let annotations = Task.getAnnotations(task)->Array.filter(a => a.id != ann.id)
+        let updated = Lens.setAnnotations(task, annotations)
+        let updated = Lens.setActivePopupAnnotationId(updated, None)
+        (updated, [])
+      | None =>
+        // New element — add annotation immediately, open popup, fetch details
+        let annotation = Annotation.make(~element, ~position, ~tagName)
+        let previewFrame = Task.getPreviewFrame(task, ~defaultUrl="")
+        let effects = [
+          FetchAnnotationDetails({
+            id: annotation.id,
+            element,
+            document: previewFrame.contentDocument,
+            contentWindow: previewFrame.contentWindow,
+          }),
+        ]
+        let allAnnotations = Array.concat(Task.getAnnotations(task), [annotation])
+        let updated = Lens.setAnnotations(task, allAnnotations)
+        let updated = Lens.setActivePopupAnnotationId(updated, Some(annotation.id))
+        (updated, effects)
+      }
+    }
+
+  // AddAnnotation: always adds without toggle semantics (used for tree navigation)
+  | (Task.Unloaded(_), AddAnnotation(_)) => (task, [])
+  | (
+      Task.New(_) | Task.Loading(_) | Task.Loaded(_),
+      AddAnnotation({element, position, tagName}),
+    ) => {
       let annotation = Annotation.make(~element, ~position, ~tagName)
       let previewFrame = Task.getPreviewFrame(task, ~defaultUrl="")
       let effects = [
@@ -685,104 +720,96 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       let updated = Lens.setActivePopupAnnotationId(updated, Some(annotation.id))
       (updated, effects)
     }
-  }
-
-  // AddAnnotation: always adds without toggle semantics (used for tree navigation)
-  | (Task.Unloaded(_), AddAnnotation(_)) => (task, [])
-  | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), AddAnnotation({element, position, tagName})) => {
-    let annotation = Annotation.make(~element, ~position, ~tagName)
-    let previewFrame = Task.getPreviewFrame(task, ~defaultUrl="")
-    let effects = [
-      FetchAnnotationDetails({
-        id: annotation.id,
-        element,
-        document: previewFrame.contentDocument,
-        contentWindow: previewFrame.contentWindow,
-      }),
-    ]
-    let allAnnotations = Array.concat(Task.getAnnotations(task), [annotation])
-    let updated = Lens.setAnnotations(task, allAnnotations)
-    let updated = Lens.setActivePopupAnnotationId(updated, Some(annotation.id))
-    (updated, effects)
-  }
 
   // Async annotation fetch completed after task transitioned to Unloaded — discard silently
   | (Task.Unloaded(_), AnnotationDetailsResolved(_)) => (task, [])
 
-  | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), AnnotationDetailsResolved({id, selector, screenshot, sourceLocation, cssClasses, nearbyText, boundingBox, enrichmentStatus})) => (
-    Lens.updateAnnotation(task, id, a => {
-      ...a,
-      selector,
-      screenshot,
-      sourceLocation,
-      cssClasses,
-      nearbyText,
-      boundingBox,
-      enrichmentStatus,
-    }),
-    [],
-  )
+  | (
+      Task.New(_) | Task.Loading(_) | Task.Loaded(_),
+      AnnotationDetailsResolved({
+        id,
+        selector,
+        screenshot,
+        sourceLocation,
+        cssClasses,
+        nearbyText,
+        boundingBox,
+        enrichmentStatus,
+      }),
+    ) => (
+      Lens.updateAnnotation(task, id, a => {
+        ...a,
+        selector,
+        screenshot,
+        sourceLocation,
+        cssClasses,
+        nearbyText,
+        boundingBox,
+        enrichmentStatus,
+      }),
+      [],
+    )
 
   // Add multiple annotations at once (for drag selection)
   | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), AddAnnotations({elements})) => {
-    let previewFrame = Task.getPreviewFrame(task, ~defaultUrl="")
-    let newAnnotations = elements->Array.map(el =>
-      Annotation.make(~element=el.element, ~position=el.position, ~tagName=el.tagName)
-    )
-    let effects = newAnnotations->Array.map(annotation =>
-      FetchAnnotationDetails({
+      let previewFrame = Task.getPreviewFrame(task, ~defaultUrl="")
+      let newAnnotations =
+        elements->Array.map(el =>
+          Annotation.make(~element=el.element, ~position=el.position, ~tagName=el.tagName)
+        )
+      let effects = newAnnotations->Array.map(annotation => FetchAnnotationDetails({
         id: annotation.id,
         element: annotation.element,
         document: previewFrame.contentDocument,
         contentWindow: previewFrame.contentWindow,
-      })
-    )
-    let allAnnotations = Array.concat(Task.getAnnotations(task), newAnnotations)
-    (Lens.setAnnotations(task, allAnnotations), effects)
-  }
+      }))
+      let allAnnotations = Array.concat(Task.getAnnotations(task), newAnnotations)
+      (Lens.setAnnotations(task, allAnnotations), effects)
+    }
 
   | (Task.Unloaded(_), RemoveAnnotation(_)) => (task, [])
   | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), RemoveAnnotation({id})) => {
-    let annotations = Task.getAnnotations(task)->Array.filter(a => a.id != id)
-    let updated = Lens.setAnnotations(task, annotations)
-    // Close popup if it was for the removed annotation
-    let updated = switch Task.getActivePopupAnnotationId(task) {
-    | Some(activeId) if activeId == id => Lens.setActivePopupAnnotationId(updated, None)
-    | _ => updated
+      let annotations = Task.getAnnotations(task)->Array.filter(a => a.id != id)
+      let updated = Lens.setAnnotations(task, annotations)
+      // Close popup if it was for the removed annotation
+      let updated = switch Task.getActivePopupAnnotationId(task) {
+      | Some(activeId) if activeId == id => Lens.setActivePopupAnnotationId(updated, None)
+      | _ => updated
+      }
+      (updated, [])
     }
-    (updated, [])
-  }
 
   | (Task.Unloaded(_), ClearAnnotations) => (task, [])
   | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), ClearAnnotations) => {
-    let updated = Lens.setAnnotations(task, [])
-    let updated = Lens.setActivePopupAnnotationId(updated, None)
-    (updated, [])
-  }
+      let updated = Lens.setAnnotations(task, [])
+      let updated = Lens.setActivePopupAnnotationId(updated, None)
+      (updated, [])
+    }
 
   // Toggle animation freeze (only when in selection mode)
   | (Task.Unloaded(_), ToggleAnimationFrozen) => (task, [])
-  | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), ToggleAnimationFrozen) =>
-    (Lens.setAnimationFrozen(task, !Task.getIsAnimationFrozen(task)), [])
+  | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), ToggleAnimationFrozen) => (
+      Lens.setAnimationFrozen(task, !Task.getIsAnimationFrozen(task)),
+      [],
+    )
 
   // Set active popup annotation ID (for opening/closing the comment popup)
   | (Task.Unloaded(_), SetActivePopupAnnotationId(_)) => (task, [])
-  | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), SetActivePopupAnnotationId({id})) =>
-    (Lens.setActivePopupAnnotationId(task, id), [])
+  | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), SetActivePopupAnnotationId({id})) => (
+      Lens.setActivePopupAnnotationId(task, id),
+      [],
+    )
 
   // Update comment on an existing annotation
   | (Task.Unloaded(_), UpdateAnnotationComment(_)) => (task, [])
   | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), UpdateAnnotationComment({id, comment})) => {
-    let trimmed = comment->String.trim
-    let commentValue = switch trimmed->String.length > 0 {
-    | true => Some(trimmed)
-    | false => None
+      let trimmed = comment->String.trim
+      let commentValue = switch trimmed->String.length > 0 {
+      | true => Some(trimmed)
+      | false => None
+      }
+      (Lens.updateAnnotation(task, id, a => {...a, comment: commentValue}), [])
     }
-    (
-      Lens.updateAnnotation(task, id, a => {...a, comment: commentValue}),
-      [],
-    )
-  }
 
   // ============================================================================
   // Message Actions - work on Loading or Loaded (via Lens)
@@ -791,14 +818,15 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
   // Guard: drop stale streaming events that arrive after cancel
   // When a turn is cancelled, isAgentRunning is set to false. Any streaming
   // events that arrive after that are late echoes from the killed agent process.
-  | (Task.Loaded({isAgentRunning: false}),
-    StreamingStarted
-    | TextDeltaReceived(_)
-    | ToolCallReceived(_)
-    | ToolInputReceived(_)
-    | ToolResultReceived(_)
-    | ToolErrorReceived(_)) =>
-    (task, [])
+  | (
+      Task.Loaded({isAgentRunning: false}),
+      StreamingStarted
+      | TextDeltaReceived(_)
+      | ToolCallReceived(_)
+      | ToolInputReceived(_)
+      | ToolResultReceived(_)
+      | ToolErrorReceived(_),
+    ) => (task, [])
 
   | (Task.Loading(_) | Task.Loaded(_), StreamingStarted) =>
     switch Lens.getStreamingMessage(task) {
@@ -985,7 +1013,8 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       let withCancelledTools = Lens.updateMessages(completed, store =>
         MessageStore.map(store, msg =>
           switch msg {
-          | Message.ToolCall(tool) if tool.state == Message.InputStreaming || tool.state == Message.InputAvailable =>
+          | Message.ToolCall(tool)
+            if tool.state == Message.InputStreaming || tool.state == Message.InputAvailable =>
             Message.ToolCall({...tool, state: Message.OutputError, errorText: Some("Cancelled")})
           | other => other
           }
@@ -993,8 +1022,9 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       )
       // Also dismiss any pending question — reject the tool promise
       let questionEffects = switch data.pendingQuestion {
-      | Some(pq) =>
-        [RejectQuestionToolEffect({resolveError: pq.resolveError, message: "Cancelled by user"})]
+      | Some(pq) => [
+          RejectQuestionToolEffect({resolveError: pq.resolveError, message: "Cancelled by user"}),
+        ]
       | None => []
       }
       let final = withCancelledTools->Task.updateLoadedData(d => {
@@ -1037,7 +1067,13 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
         createdAt,
         updatedAt,
         messages: MessageStore.make(),
-        previewFrame: {url: previewUrl, contentDocument: None, contentWindow: None, deviceMode: Client__DeviceMode.defaultDeviceMode, orientation: Client__DeviceMode.defaultOrientation},
+        previewFrame: {
+          url: previewUrl,
+          contentDocument: None,
+          contentWindow: None,
+          deviceMode: Client__DeviceMode.defaultDeviceMode,
+          orientation: Client__DeviceMode.defaultOrientation,
+        },
         annotationMode: Annotation.Off,
         annotations: [],
         activePopupAnnotationId: None,
@@ -1098,8 +1134,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
   // Question Tool Actions
   // ============================================================================
 
-  | (Task.Loaded(data), QuestionReceived({questions, toolCallId, resolveOk, resolveError})) =>
-    (
+  | (Task.Loaded(data), QuestionReceived({questions, toolCallId, resolveOk, resolveError})) => (
       Task.Loaded({
         ...data,
         pendingQuestion: Some({
@@ -1113,7 +1148,6 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       }),
       [],
     )
-
 
   | (Task.Loaded(_), QuestionStepChanged({step})) =>
     updatePendingQuestion(task, pq => {...pq, currentStep: step})
@@ -1141,8 +1175,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
         | true => Client__Question__Types.Skipped
         | false => Client__Question__Types.Answered([label])
         }
-      | _ =>
-        Client__Question__Types.Answered([label])
+      | _ => Client__Question__Types.Answered([label])
       }
 
       let answers = pq.answers->Dict.copy
@@ -1202,62 +1235,80 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
   // ============================================================================
 
   // Streaming/message actions require Loading or Loaded (with agent running)
-  | (Task.New(_) | Task.Unloaded(_),
-    StreamingStarted
-    | TextDeltaReceived(_)
-    | ToolCallReceived(_)
-    | ToolInputReceived(_)
-    | ToolResultReceived(_)
-    | ToolErrorReceived(_)) =>
+  | (
+      Task.New(_) | Task.Unloaded(_),
+      StreamingStarted
+      | TextDeltaReceived(_)
+      | ToolCallReceived(_)
+      | ToolInputReceived(_)
+      | ToolResultReceived(_)
+      | ToolErrorReceived(_),
+    ) =>
     failwith(
-      `[TaskReducer] ${actionToString(action)} on ${Task.stateToString(task)} task ${getTaskIdForError(task)}`,
+      `[TaskReducer] ${actionToString(action)} on ${Task.stateToString(
+          task,
+        )} task ${getTaskIdForError(task)}`,
     )
 
   // UserMessageReceived is hydration-only — valid during Loading
   | (Task.New(_) | Task.Loaded(_) | Task.Unloaded(_), UserMessageReceived(_)) =>
     failwith(
-      `[TaskReducer] ${actionToString(action)} on ${Task.stateToString(task)} task ${getTaskIdForError(task)}`,
+      `[TaskReducer] ${actionToString(action)} on ${Task.stateToString(
+          task,
+        )} task ${getTaskIdForError(task)}`,
     )
 
   // Loaded-only actions: require an active session
-  | (Task.New(_) | Task.Loading(_) | Task.Unloaded(_),
-    AddUserMessage(_)
-    | PlanReceived(_)
-    | TurnCompleted
-    | CancelTurn
-    | ClearTurnError
-    | QuestionReceived(_)
-    | QuestionStepChanged(_)
-    | QuestionOptionToggled(_)
-    | QuestionCustomTextChanged(_)
-    | QuestionPerQuestionSkipped(_)
-    | QuestionSubmitted
-    | QuestionAllSkipped
-    | QuestionCancelled) =>
+  | (
+      Task.New(_) | Task.Loading(_) | Task.Unloaded(_),
+      AddUserMessage(_)
+      | PlanReceived(_)
+      | TurnCompleted
+      | CancelTurn
+      | ClearTurnError
+      | QuestionReceived(_)
+      | QuestionStepChanged(_)
+      | QuestionOptionToggled(_)
+      | QuestionCustomTextChanged(_)
+      | QuestionPerQuestionSkipped(_)
+      | QuestionSubmitted
+      | QuestionAllSkipped
+      | QuestionCancelled,
+    ) =>
     failwith(
-      `[TaskReducer] ${actionToString(action)} on ${Task.stateToString(task)} task ${getTaskIdForError(task)}`,
+      `[TaskReducer] ${actionToString(action)} on ${Task.stateToString(
+          task,
+        )} task ${getTaskIdForError(task)}`,
     )
 
   // AgentError requires Loading or Loaded
   | (Task.New(_) | Task.Unloaded(_), AgentError(_)) =>
     failwith(
-      `[TaskReducer] ${actionToString(action)} on ${Task.stateToString(task)} task ${getTaskIdForError(task)}`,
+      `[TaskReducer] ${actionToString(action)} on ${Task.stateToString(
+          task,
+        )} task ${getTaskIdForError(task)}`,
     )
 
   // Load state machine: each transition has exactly one valid source state
   | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), LoadStarted(_)) =>
     failwith(
-      `[TaskReducer] ${actionToString(action)} on ${Task.stateToString(task)} task ${getTaskIdForError(task)}`,
+      `[TaskReducer] ${actionToString(action)} on ${Task.stateToString(
+          task,
+        )} task ${getTaskIdForError(task)}`,
     )
   | (Task.New(_) | Task.Loaded(_) | Task.Unloaded(_), LoadComplete | LoadError(_)) =>
     failwith(
-      `[TaskReducer] ${actionToString(action)} on ${Task.stateToString(task)} task ${getTaskIdForError(task)}`,
+      `[TaskReducer] ${actionToString(action)} on ${Task.stateToString(
+          task,
+        )} task ${getTaskIdForError(task)}`,
     )
 
   // AddAnnotations requires New, Loading, or Loaded
   | (Task.Unloaded(_), AddAnnotations(_)) =>
     failwith(
-      `[TaskReducer] ${actionToString(action)} on ${Task.stateToString(task)} task ${getTaskIdForError(task)}`,
+      `[TaskReducer] ${actionToString(action)} on ${Task.stateToString(
+          task,
+        )} task ${getTaskIdForError(task)}`,
     )
   }
 }
@@ -1299,7 +1350,11 @@ let fetchAnnotationDetails = (
     })
     ->Promise.catch(error => {
       let msg = formatError(error)
-      Log.error(~ctx={"error": error, "annotationId": id}, "Selector generation failed")
+      Log.error(
+        ~ctx={"annotationId": id},
+        ~error=JsExn.fromException(error),
+        "Selector generation failed",
+      )
       Promise.resolve(Error(msg))
     })
 
@@ -1318,7 +1373,11 @@ let fetchAnnotationDetails = (
     })
     ->Promise.catch(error => {
       let msg = formatError(error)
-      Log.error(~ctx={"error": error, "annotationId": id}, "Screenshot capture failed")
+      Log.error(
+        ~ctx={"annotationId": id},
+        ~error=JsExn.fromException(error),
+        "Screenshot capture failed",
+      )
       Promise.resolve(Error(msg))
     })
   }
@@ -1332,7 +1391,11 @@ let fetchAnnotationDetails = (
       ->Promise.then(result => Promise.resolve(Ok(result)))
       ->Promise.catch(error => {
         let msg = formatError(error)
-        Log.error(~ctx={"error": error, "annotationId": id}, "Source location detection failed")
+        Log.error(
+          ~ctx={"annotationId": id},
+          ~error=JsExn.fromException(error),
+          "Source location detection failed",
+        )
         Promise.resolve(Error(msg))
       })
     | None => Promise.resolve(Ok(None))
@@ -1394,15 +1457,17 @@ let fetchAnnotationDetails = (
     ->Promise.then(((selector, screenshotResult, sourceLocation)) => {
       // Strip query strings from source location file paths
       let sourceLocationWithTagName = sourceLocation->Result.map(opt =>
-        opt->Option.map(sourceLoc => {
-          {
-            ...sourceLoc,
-            file: sourceLoc.file
-            ->String.split("?")
-            ->Array.get(0)
-            ->Option.getOr(sourceLoc.file),
-          }
-        })
+        opt->Option.map(
+          sourceLoc => {
+            {
+              ...sourceLoc,
+              file: sourceLoc.file
+              ->String.split("?")
+              ->Array.get(0)
+              ->Option.getOr(sourceLoc.file),
+            }
+          },
+        )
       )
 
       // Resolve source location via server to get relative file paths
@@ -1443,7 +1508,11 @@ let fetchAnnotationDetails = (
     ->Promise.catch(err => {
       // Outer chain failure — total enrichment failure
       let errorMsg = formatError(err)
-      Log.error(~ctx={"error": err, "annotationId": id}, "FetchAnnotationDetails failed")
+      Log.error(
+        ~ctx={"annotationId": id},
+        ~error=JsExn.fromException(err),
+        "FetchAnnotationDetails failed",
+      )
       dispatch(
         AnnotationDetailsResolved({
           id,
@@ -1464,7 +1533,8 @@ let handleEffect = (effect: effect, ~dispatch: action => unit, ~delegate: delega
   switch effect {
   | FetchAnnotationDetails({id, element, document, contentWindow}) =>
     fetchAnnotationDetails(~id, ~element, ~document, ~contentWindow, ~dispatch)
-  | SendMessage({text, attachments, annotations}) => delegate(NeedSendMessage({text, attachments, annotations}))
+  | SendMessage({text, attachments, annotations}) =>
+    delegate(NeedSendMessage({text, attachments, annotations}))
   | NotifyTurnCompleted => delegate(NeedUsageRefresh)
   | CancelPrompt => delegate(NeedCancelPrompt)
   // Question tool resolution — call the resolve/reject callback directly.

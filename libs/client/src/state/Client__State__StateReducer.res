@@ -26,7 +26,12 @@ type action =
   // Task-scoped actions (routed to task sub-reducer)
   | TaskAction({target: taskTarget, action: TaskReducer.action})
   // User actions
-  | AddUserMessage({id: string, sessionId: string, content: array<UserContentPart.t>, annotations: array<Message.MessageAnnotation.t>})
+  | AddUserMessage({
+      id: string,
+      sessionId: string,
+      content: array<UserContentPart.t>,
+      annotations: array<Message.MessageAnnotation.t>,
+    })
   // Cancel current turn
   | CancelTurn
   // Task management actions
@@ -63,7 +68,9 @@ type action =
   | AnthropicKeySaveError({error: string})
   | ResetAnthropicKeySaveStatus
   // ACP session config option actions (unified model/mode/config selection)
-  | ConfigOptionsReceived({configOptions: array<Client__State__Types.ACPConfig.sessionConfigOption>})
+  | ConfigOptionsReceived({
+      configOptions: array<Client__State__Types.ACPConfig.sessionConfigOption>,
+    })
   | SetSelectedModelValue({value: Client__State__Types.ACPConfig.sessionConfigValueId})
   // Anthropic OAuth actions
   | FetchAnthropicOAuthStatus
@@ -147,9 +154,7 @@ module Lens = {
       let (updated, taskEffects) = TaskReducer.next(task, taskAction)
       let wrappedEffects =
         taskEffects->Array.map(eff => TaskEffect({target: CurrentTask, effect: eff}))
-      {...state, currentTask: Task.New(updated)}->StateReducer.update(
-        ~sideEffects=wrappedEffects,
-      )
+      {...state, currentTask: Task.New(updated)}->StateReducer.update(~sideEffects=wrappedEffects)
     | Task.Selected(id) =>
       let task = state.tasks->Dict.get(id)->Option.getOrThrow
       let (updated, taskEffects) = TaskReducer.next(task, taskAction)
@@ -168,8 +173,7 @@ let selectedModelStorageKey = "frontman:selectedModelValue"
 // Load selected model value from localStorage (a sessionConfigValueId string, e.g. "anthropic:claude-sonnet-4-5")
 let loadSelectedModelValueFromStorage = (): option<string> => {
   try {
-    FrontmanBindings.LocalStorage.getItem(selectedModelStorageKey)
-    ->Nullable.toOption
+    FrontmanBindings.LocalStorage.getItem(selectedModelStorageKey)->Nullable.toOption
   } catch {
   | _ => None
   }
@@ -180,7 +184,7 @@ let saveSelectedModelValueToStorage = (value: string): unit => {
   try {
     FrontmanBindings.LocalStorage.setItem(selectedModelStorageKey, value)
   } catch {
-  | exn => Log.error(~ctx={"error": exn}, "saveSelectedModelValueToStorage failed")
+  | exn => Log.error(~error=JsExn.fromException(exn), "saveSelectedModelValueToStorage failed")
   }
 }
 
@@ -467,12 +471,16 @@ module Selectors = {
   }
 
   // Get ACP session config options
-  let configOptions = (state: state): option<array<Client__State__Types.ACPConfig.sessionConfigOption>> => {
+  let configOptions = (state: state): option<
+    array<Client__State__Types.ACPConfig.sessionConfigOption>,
+  > => {
     state.configOptions
   }
 
   // Get selected model value (sessionConfigValueId string, e.g. "anthropic:claude-sonnet-4-5")
-  let selectedModelValue = (state: state): option<Client__State__Types.ACPConfig.sessionConfigValueId> => {
+  let selectedModelValue = (state: state): option<
+    Client__State__Types.ACPConfig.sessionConfigValueId,
+  > => {
     state.selectedModelValue
   }
 
@@ -589,7 +597,8 @@ let sendMessageToAPIImpl = (
 
     // Build attachment content blocks
     let attachmentBlocks = buildAttachmentContentBlocks(attachments)
-    let additionalBlocks = Array.concat(pageContextBlocks, annotationBlocks)->Array.concat(attachmentBlocks)
+    let additionalBlocks =
+      Array.concat(pageContextBlocks, annotationBlocks)->Array.concat(attachmentBlocks)
 
     // Include runtime config _meta (e.g., framework, openrouterKeyValue) with each prompt
     let runtimeConfig = Client__RuntimeConfig.read()
@@ -639,7 +648,7 @@ let fetchUsageInfoImpl = (dispatch, ~apiBaseUrl) => {
         dispatch(UsageInfoReceived({usageInfo: usageInfo}))
       }
     } catch {
-    | exn => Log.error(~ctx={"error": exn}, "FetchUsageInfo failed")
+    | exn => Log.error(~error=JsExn.fromException(exn), "FetchUsageInfo failed")
     }
   }
   fetch()->ignore
@@ -657,7 +666,7 @@ let fetchUserProfileImpl = (dispatch, ~apiBaseUrl) => {
         dispatch(UserProfileReceived({userProfile: userProfile}))
       }
     } catch {
-    | exn => Log.error(~ctx={"error": exn}, "FetchUserProfile failed")
+    | exn => Log.error(~error=JsExn.fromException(exn), "FetchUserProfile failed")
     }
   }
   fetch()->ignore
@@ -730,7 +739,7 @@ let handleEffect = (effect, state: state, dispatch) => {
           dispatch(ApiKeySettingsReceived({source: source}))
         }
       } catch {
-      | exn => Log.error(~ctx={"error": exn}, "FetchApiKeySettings failed")
+      | exn => Log.error(~error=JsExn.fromException(exn), "FetchApiKeySettings failed")
       }
     }
     fetch()->ignore
@@ -797,7 +806,7 @@ let handleEffect = (effect, state: state, dispatch) => {
           dispatch(AnthropicApiKeySettingsReceived({source: source}))
         }
       } catch {
-      | exn => Log.error(~ctx={"error": exn}, "FetchAnthropicApiKeySettings failed")
+      | exn => Log.error(~error=JsExn.fromException(exn), "FetchAnthropicApiKeySettings failed")
       }
     }
     fetch()->ignore
@@ -1217,8 +1226,7 @@ let handleEffect = (effect, state: state, dispatch) => {
           }
         }
       } catch {
-      | exn =>
-        Sentry.captureException(exn, ~operation="CheckForUpdate")
+      | exn => Sentry.captureException(exn, ~operation="CheckForUpdate")
       }
     }
     fetch()->ignore
@@ -1259,7 +1267,10 @@ let next = (state: state, action) => {
           TaskReducer.AddUserMessage({id, content, annotations}),
         )
       | Task.Selected(taskId) =>
-        state->Lens.delegateToTask(Task.Selected(taskId), TaskReducer.AddUserMessage({id, content, annotations}))
+        state->Lens.delegateToTask(
+          Task.Selected(taskId),
+          TaskReducer.AddUserMessage({id, content, annotations}),
+        )
       }
     }
 
@@ -1417,9 +1428,7 @@ let next = (state: state, action) => {
   | FetchApiKeySettings =>
     switch state.acpSession {
     | AcpSessionActive({apiBaseUrl}) =>
-      state->StateReducer.update(
-        ~sideEffects=[FetchApiKeySettingsEffect({apiBaseUrl: apiBaseUrl})],
-      )
+      state->StateReducer.update(~sideEffects=[FetchApiKeySettingsEffect({apiBaseUrl: apiBaseUrl})])
     | NoAcpSession => state->StateReducer.update
     }
 
@@ -1440,9 +1449,7 @@ let next = (state: state, action) => {
       {
         ...state,
         pendingProviderAutoSelect: Some("openrouter"),
-      }->StateReducer.update(
-        ~sideEffects=[SaveOpenRouterKeyEffect({apiBaseUrl, key})],
-      )
+      }->StateReducer.update(~sideEffects=[SaveOpenRouterKeyEffect({apiBaseUrl, key})])
     | NoAcpSession =>
       {
         ...state,
@@ -1523,9 +1530,7 @@ let next = (state: state, action) => {
       {
         ...state,
         pendingProviderAutoSelect: Some("anthropic"),
-      }->StateReducer.update(
-        ~sideEffects=[SaveAnthropicKeyEffect({apiBaseUrl, key})],
-      )
+      }->StateReducer.update(~sideEffects=[SaveAnthropicKeyEffect({apiBaseUrl, key})])
     | NoAcpSession =>
       {
         ...state,
@@ -1737,9 +1742,7 @@ let next = (state: state, action) => {
       {
         ...state,
         chatgptOAuthStatus: Client__State__Types.ChatGPTFetchingStatus,
-      }->StateReducer.update(
-        ~sideEffects=[FetchChatGPTOAuthStatusEffect({apiBaseUrl: apiBaseUrl})],
-      )
+      }->StateReducer.update(~sideEffects=[FetchChatGPTOAuthStatusEffect({apiBaseUrl: apiBaseUrl})])
     | NoAcpSession => state->StateReducer.update
     }
 
@@ -1924,7 +1927,6 @@ let next = (state: state, action) => {
   | UpdateInfoReceived({updateInfo}) =>
     {...state, updateInfo: Some(updateInfo)}->StateReducer.update
 
-  | DismissUpdateBanner =>
-    {...state, updateBannerDismissed: true}->StateReducer.update
+  | DismissUpdateBanner => {...state, updateBannerDismissed: true}->StateReducer.update
   }
 }
