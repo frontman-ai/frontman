@@ -6,6 +6,7 @@ defmodule FrontmanServer.TasksTest do
   import FrontmanServer.Test.Fixtures.Tasks
 
   alias FrontmanServer.Tasks
+  alias FrontmanServer.Tasks.Interaction
 
   setup do
     scope = user_scope_fixture()
@@ -601,6 +602,46 @@ defmodule FrontmanServer.TasksTest do
 
       assert match?([_], todos_a)
       assert todos_b == []
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # AgentPaused DB round-trip (regression tests for bugs 5 & 6)
+  # ---------------------------------------------------------------------------
+
+  describe "add_agent_paused/4 DB round-trip" do
+    test "persisted AgentPaused can be loaded back via get_task", %{scope: scope} do
+      task_id = Ecto.UUID.generate()
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
+
+      {:ok, _interaction} = Tasks.add_agent_paused(scope, task_id, "question", 120_000)
+
+      # Bug 6: to_struct/1 had no "agent_paused" clause — get_task crashes
+      {:ok, task} = Tasks.get_task(scope, task_id)
+
+      paused = Enum.find(task.interactions, &match?(%Interaction.AgentPaused{}, &1))
+      assert paused != nil
+      assert paused.tool_name == "question"
+      assert paused.timeout_ms == 120_000
+    end
+
+    test "to_llm_messages/1 succeeds when interactions include AgentPaused", %{scope: scope} do
+      task_id = Ecto.UUID.generate()
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
+
+      Tasks.submit_user_message(scope, task_id, [%{"type" => "text", "text" => "Hi"}], [],
+        agent: %FrontmanServer.Testing.BlockingAgent{}
+      )
+      {:ok, _} = Tasks.add_agent_paused(scope, task_id, "question", 120_000)
+
+      {:ok, task} = Tasks.get_task(scope, task_id)
+
+      # Bug 5: conversation_message?/1 had no AgentPaused clause — FunctionClauseError
+      messages = Interaction.to_llm_messages(task.interactions)
+
+      # AgentPaused is not a conversation message — only the UserMessage should appear
+      assert length(messages) == 1
+      assert hd(messages).role == :user
     end
   end
 end

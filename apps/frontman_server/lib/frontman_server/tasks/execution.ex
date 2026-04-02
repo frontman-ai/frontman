@@ -143,8 +143,9 @@ defmodule FrontmanServer.Tasks.Execution do
   def handle_swarm_event(_scope, _task_id, {:terminated, _}),
     do: :agent_cancelled
 
-  # Paused — AgentPaused persisted by SwarmDispatcher; no client push needed.
-  def handle_swarm_event(_scope, _task_id, {:paused, _}), do: :ok
+  # Paused — ToolResult and AgentPaused already persisted by SwarmDispatcher.
+  # Return :agent_paused so the channel can resolve the pending prompt and notify the client.
+  def handle_swarm_event(_scope, _task_id, {:paused, _}), do: :agent_paused
 
   # Tool calls are persisted by ToolExecutor; no channel action needed.
   def handle_swarm_event(_scope, _task_id, {:tool_call, _}), do: :ok

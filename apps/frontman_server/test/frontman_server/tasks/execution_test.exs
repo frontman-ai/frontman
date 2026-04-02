@@ -26,6 +26,24 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
   # -- Helpers ---------------------------------------------------------------
 
+  # Short timeout for tests that need to observe the pause path quickly.
+  defp short_timeout_question_mcp_tool_defs do
+    alias FrontmanServer.Tools.MCP
+
+    [
+      %MCP{
+        name: "question",
+        description: "Ask the user a question",
+        input_schema: %{
+          "type" => "object",
+          "properties" => %{"questions" => %{"type" => "array"}}
+        },
+        visible_to_agent: true,
+        timeout_ms: 200,
+        on_timeout: :pause_agent
+      }
+    ]
+  end
   defp setup_task(_context) do
     pid = Sandbox.start_owner!(FrontmanServer.Repo, shared: true)
     on_exit(fn -> Sandbox.stop_owner(pid) end)
@@ -283,6 +301,85 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
         Enum.filter(enqueued, fn job -> job.args["task_id"] == task_id end)
 
       assert length(title_jobs_for_task) == 1
+    end
+  end
+
+  # -- MCP tool timeout — DB invariant (bug 7) ---------------------------------
+
+  describe "interactive tool timeout — ToolResult DB persistence" do
+    setup :setup_task
+
+    test "ToolResult is persisted in DB when question tool times out", %{
+      task_id: task_id,
+      scope: scope
+    } do
+      question_tc_id = "tc_timeout_#{System.unique_integer([:positive])}"
+      question_tc = tool_call("question", question_args(), id: question_tc_id)
+
+      agent =
+        test_agent(tool_then_complete_llm([question_tc], "done"), "TimeoutAgent",
+          tools: MCP.to_swarm_tools(short_timeout_question_mcp_tool_defs())
+        )
+
+      {:ok, _} =
+        Tasks.submit_user_message(scope, task_id, user_content("Ask me"), [],
+          agent: agent,
+          mcp_tool_defs: short_timeout_question_mcp_tool_defs()
+        )
+
+      # Wait for the ParallelExecutor deadline to fire and the paused event to broadcast
+      assert_receive {:swarm_event, {:paused, _}}, 5_000
+
+      {:ok, task} = Tasks.get_task(scope, task_id)
+
+      # Bug 7: the old execute_mcp_tool had an after clause that persisted a
+      # ToolResult on timeout. The new code removed it, leaving an orphaned
+      # ToolCall — reconnecting clients see the tool as perpetually in-progress.
+      tool_result =
+        Enum.find(task.interactions, fn
+          %Interaction.ToolResult{tool_call_id: ^question_tc_id} -> true
+          _ -> false
+        end)
+
+      assert tool_result != nil,
+             "Expected a ToolResult for the timed-out ToolCall — " <>
+               "every persisted ToolCall must have a matching ToolResult"
+
+      assert tool_result.is_error == true
+    end
+  end
+
+  # -- Agent pause — client notification (bug 8) --------------------------------
+
+  describe "interactive tool timeout — client notification" do
+    setup :setup_task_with_channel
+
+    test "session/update is pushed to client when agent pauses", %{
+      task_id: task_id,
+      socket: socket
+    } do
+      # Simulate the PubSub broadcast SwarmDispatcher emits after persisting AgentPaused.
+      # The channel must push a session/update to the client so the pending
+      # session/prompt RPC is resolved and the UI resets.
+      Phoenix.PubSub.broadcast(
+        FrontmanServer.PubSub,
+        Tasks.topic(task_id),
+        {:swarm_event, {:paused, {:timeout, "tc_fake", "question", 120_000}}}
+      )
+
+      # Flush the channel's message queue before asserting pushes
+      :sys.get_state(socket.channel_pid)
+
+      # Bug 8: handle_swarm_event for {:paused, _} returned :ok, which maps
+      # to {:noreply, socket} — no push, no RPC reply, client hangs forever.
+      assert_push(@acp_message, %{
+        "jsonrpc" => "2.0",
+        "method" => "session/update",
+        "params" => %{
+          "sessionId" => ^task_id,
+          "update" => %{"sessionUpdate" => "agent_turn_complete"}
+        }
+      })
     end
   end
 

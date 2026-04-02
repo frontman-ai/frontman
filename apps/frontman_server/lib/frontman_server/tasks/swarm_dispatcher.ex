@@ -116,8 +116,11 @@ defmodule FrontmanServer.Tasks.SwarmDispatcher do
   end
 
   # Agent loop paused due to a tool's on_timeout: :pause_agent.
-  # Persist AgentPaused so reconnecting clients know why the agent stopped.
-  defp persist(%Scope{} = scope, task_id, {:paused, {:timeout, tool_name, timeout_ms}}, _metadata) do
+  # Persist a timeout ToolResult first (DB invariant: every ToolCall has a matching
+  # ToolResult), then AgentPaused so reconnecting clients know why the agent stopped.
+  defp persist(%Scope{} = scope, task_id, {:paused, {:timeout, tool_call_id, tool_name, timeout_ms}}, _metadata) do
+    reason = "Tool #{tool_name} timed out after #{timeout_ms}ms (on_timeout: :pause_agent)"
+    Tasks.add_tool_result(scope, task_id, %{id: tool_call_id, name: tool_name}, reason, true)
     Tasks.add_agent_paused(scope, task_id, tool_name, timeout_ms)
     TelemetryEvents.task_stop(task_id)
   end

@@ -227,6 +227,17 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
     }
   end
 
+  def to_struct(%__MODULE__{type: "agent_paused", data: data, sequence: sequence}) do
+    %Interaction.AgentPaused{
+      id: data["id"],
+      sequence: sequence || data["sequence"] || 0,
+      timestamp: parse_datetime(data["timestamp"]),
+      reason: data["reason"],
+      tool_name: data["tool_name"],
+      timeout_ms: data["timeout_ms"]
+    }
+  end
+
   def to_struct(%__MODULE__{type: type}) do
     raise "Unknown interaction type: #{type}"
   end

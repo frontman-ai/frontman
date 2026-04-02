@@ -104,7 +104,7 @@ defmodule SwarmAi.ParallelExecutorTest do
 
       result = ParallelExecutor.run([make_tc("id1", "interactive")], tool_map, executor, sup)
 
-      assert {:halt, {:pause_agent, "interactive", 10}} = result
+      assert {:halt, {:pause_agent, "id1", "interactive", 10}} = result
     end
 
     test "mixed batch: one pauses, others are cancelled, returns halt" do
@@ -125,7 +125,7 @@ defmodule SwarmAi.ParallelExecutorTest do
       tcs = [make_tc("id1", "interactive"), make_tc("id2", "normal")]
       result = ParallelExecutor.run(tcs, tool_map, executor, sup)
 
-      assert {:halt, {:pause_agent, "interactive", 20}} = result
+      assert {:halt, {:pause_agent, "id1", "interactive", 20}} = result
     end
 
     test "two pause_agent tools with same timeout: exactly one halt returned" do
@@ -146,7 +146,7 @@ defmodule SwarmAi.ParallelExecutorTest do
       result =
         ParallelExecutor.run([make_tc("id1", "a"), make_tc("id2", "b")], tool_map, executor, sup)
 
-      assert {:halt, {:pause_agent, _tool_name, 10}} = result
+      assert {:halt, {:pause_agent, _tool_call_id, _tool_name, 10}} = result
     end
   end
 

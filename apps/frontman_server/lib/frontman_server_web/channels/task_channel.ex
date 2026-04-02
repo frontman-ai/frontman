@@ -632,6 +632,7 @@ defmodule FrontmanServerWeb.TaskChannel do
     case Execution.handle_swarm_event(scope, task_id, event) do
       :agent_completed -> handle_turn_ended(socket, ACP.stop_reason_end_turn())
       :agent_cancelled -> handle_turn_ended(socket, ACP.stop_reason_cancelled())
+      :agent_paused -> handle_turn_ended(socket, ACP.stop_reason_end_turn())
       {:agent_error, msg} -> handle_turn_error(socket, msg)
       :ok -> {:noreply, socket}
     end

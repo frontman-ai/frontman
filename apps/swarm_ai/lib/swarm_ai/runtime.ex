@@ -216,7 +216,7 @@ defmodule SwarmAi.Runtime do
         {:error, _, _} = err ->
           dispatch_event(dispatcher, task.key, {:failed, err}, task.event_context)
 
-        {:paused, {:pause_agent, tool_name, timeout_ms} = reason} ->
+        {:paused, {:pause_agent, tool_call_id, tool_name, timeout_ms} = reason} ->
           :telemetry.execute(
             [:swarm_ai, :runtime, :paused],
             %{count: 1},
@@ -226,7 +226,7 @@ defmodule SwarmAi.Runtime do
           dispatch_event(
             dispatcher,
             task.key,
-            {:paused, {:timeout, tool_name, timeout_ms}},
+            {:paused, {:timeout, tool_call_id, tool_name, timeout_ms}},
             task.event_context
           )
       end

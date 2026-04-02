@@ -1059,6 +1059,7 @@ defmodule FrontmanServer.Tasks.Interaction do
   defp conversation_message?(%AgentSpawned{}), do: false
   defp conversation_message?(%AgentCompleted{}), do: false
   defp conversation_message?(%AgentError{}), do: false
+  defp conversation_message?(%AgentPaused{}), do: false
   defp conversation_message?(%DiscoveredProjectRule{}), do: false
   defp conversation_message?(%DiscoveredProjectStructure{}), do: false
 

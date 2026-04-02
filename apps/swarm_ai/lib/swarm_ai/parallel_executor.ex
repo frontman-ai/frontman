@@ -11,15 +11,15 @@ defmodule SwarmAi.ParallelExecutor do
 
   - `{:ok, [ToolResult.t()]}` — all tools completed (or errored gracefully); results
     in original call order
-  - `{:halt, {:pause_agent, tool_name, timeout_ms}}` — a `:pause_agent` deadline fired;
-    all remaining tasks cancelled; first deadline wins (ties non-deterministic)
+  - `{:halt, {:pause_agent, tool_call_id, tool_name, timeout_ms}}` — a `:pause_agent`
+    deadline fired; all remaining tasks cancelled; first deadline wins (ties non-deterministic)
   """
 
   require Logger
 
   alias SwarmAi.{Tool, ToolCall, ToolResult}
 
-  @type halt_reason :: {:pause_agent, String.t(), pos_integer()}
+  @type halt_reason :: {:pause_agent, String.t(), String.t(), pos_integer()}
   @type result :: {:ok, [ToolResult.t()]} | {:halt, halt_reason()}
 
   @typep pending_entry :: %{
@@ -150,7 +150,7 @@ defmodule SwarmAi.ParallelExecutor do
         # First :pause_agent wins. If multiple deadlines fire concurrently,
         # whichever :deadline message is dequeued first triggers the halt.
         cancel_remaining(pending, ref, task_supervisor)
-        {:halt, {:pause_agent, tc.name, tool_def.timeout_ms}}
+        {:halt, {:pause_agent, tc.id, tc.name, tool_def.timeout_ms}}
     end
   end
 
