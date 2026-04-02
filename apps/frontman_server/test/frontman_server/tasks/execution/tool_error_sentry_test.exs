@@ -16,6 +16,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
 
   alias Ecto.Adapters.SQL.Sandbox
   alias FrontmanServer.Tasks.Execution.ToolExecutor
+  alias FrontmanServer.Tools
 
   setup do
     Sentry.Test.start_collecting_sentry_reports()
@@ -48,7 +49,9 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
 
       result =
         ToolExecutor.execute(scope, tool_call, task_id,
+          backend_tool_modules: Tools.backend_tool_modules(),
           mcp_tools: [],
+          mcp_tool_defs: [],
           llm_opts: [api_key: "test", model: "mock"]
         )
 
@@ -86,7 +89,9 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
       # Parse failure should propagate as {:error, _} — the tool must not execute
       result =
         ToolExecutor.execute(scope, tool_call, task_id,
+          backend_tool_modules: Tools.backend_tool_modules(),
           mcp_tools: [],
+          mcp_tool_defs: [],
           llm_opts: [api_key: "test", model: "mock"]
         )
 
@@ -123,7 +128,9 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
 
       _result =
         ToolExecutor.execute(scope, tool_call, task_id,
+          backend_tool_modules: Tools.backend_tool_modules(),
           mcp_tools: [],
+          mcp_tool_defs: [],
           llm_opts: [api_key: "test", model: "mock"]
         )
 
@@ -150,7 +157,9 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
 
       assert {:error, _} =
                ToolExecutor.execute(scope, tool_call, task_id,
+                 backend_tool_modules: Tools.backend_tool_modules(),
                  mcp_tools: [],
+                 mcp_tool_defs: [],
                  llm_opts: [api_key: "test", model: "mock"]
                )
 

@@ -559,6 +559,105 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
     end
   end
 
+  # Inline stubs — define before any describe block that passes them as
+  # backend_tool_modules, so the module atom resolves correctly at compile time.
+
+  defmodule CrashTool do
+    @moduledoc false
+    @behaviour FrontmanServer.Tools.Backend
+    def name, do: "crash_tool"
+    def description, do: "always crashes"
+    def parameter_schema, do: %{"type" => "object", "properties" => %{}}
+    def timeout_ms, do: 5_000
+    def on_timeout, do: :error
+    def execute(_args, _ctx), do: raise("boom")
+  end
+
+  defmodule HangTool do
+    @moduledoc false
+    @behaviour FrontmanServer.Tools.Backend
+    def name, do: "hang_tool"
+    def description, do: "hangs forever"
+    def parameter_schema, do: %{"type" => "object", "properties" => %{}}
+    def timeout_ms, do: 100
+    def on_timeout, do: :error
+    def execute(_args, _ctx), do: Process.sleep(:infinity)
+  end
+
+  # -- Backend tool crash — channel contract ------------------------------------
+
+  describe "backend tool crash — channel notification" do
+    setup :setup_task_with_channel
+
+    test "session/update agent_turn_complete is pushed when backend tool raises", %{
+      task_id: task_id,
+      scope: scope,
+      socket: socket
+    } do
+      tc_id = "tc_crash_ch_#{System.unique_integer([:positive])}"
+      crash_tc = tool_call("crash_tool", %{}, id: tc_id)
+      agent = test_agent(tool_then_complete_llm([crash_tc], "Handled."), "CrashChanAgent")
+
+      {:ok, _} =
+        Tasks.submit_user_message(scope, task_id, user_content("Do a thing"), [],
+          agent: agent,
+          backend_tool_modules: [CrashTool]
+        )
+
+      assert_receive {:interaction, %Interaction.AgentCompleted{}}, 5_000
+
+      # Channel must push agent_turn_complete so the client is not left hanging.
+      # The domain invariant (ToolResult in DB) is verified in the domain test above.
+      :sys.get_state(socket.channel_pid)
+
+      assert_push(@acp_message, %{
+        "jsonrpc" => "2.0",
+        "method" => "session/update",
+        "params" => %{
+          "sessionId" => ^task_id,
+          "update" => %{"sessionUpdate" => "agent_turn_complete"}
+        }
+      })
+    end
+  end
+
+  # -- Backend tool timeout — channel contract -----------------------------------
+
+  describe "backend tool timeout (ParallelExecutor) — channel notification" do
+    setup :setup_task_with_channel
+
+    test "session/update agent_turn_complete is pushed when ParallelExecutor deadline fires", %{
+      task_id: task_id,
+      scope: scope,
+      socket: socket
+    } do
+      tc_id = "tc_hang_ch_#{System.unique_integer([:positive])}"
+      hang_tc = tool_call("hang_tool", %{}, id: tc_id)
+
+      agent =
+        test_agent(tool_then_complete_llm([hang_tc], "Handled."), "HangChanAgent")
+
+      {:ok, _} =
+        Tasks.submit_user_message(scope, task_id, user_content("Do a thing"), [],
+          agent: agent,
+          backend_tool_modules: [HangTool]
+        )
+
+      assert_receive {:interaction, %Interaction.AgentCompleted{}}, 5_000
+
+      :sys.get_state(socket.channel_pid)
+
+      assert_push(@acp_message, %{
+        "jsonrpc" => "2.0",
+        "method" => "session/update",
+        "params" => %{
+          "sessionId" => ^task_id,
+          "update" => %{"sessionUpdate" => "agent_turn_complete"}
+        }
+      })
+    end
+  end
+
   # -- Terminated (end-to-end through channel) -------------------------------
 
   describe "supervisor-initiated termination (end-to-end)" do
@@ -612,6 +711,87 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       # Verify telemetry
       assert_receive {[:frontman, :task, :stop], ^ref, _measurements, telemetry_meta}
       assert telemetry_meta.task_id == task_id
+    end
+  end
+
+  # -- Backend tool crash — DB invariant ----------------------------------------
+
+  describe "backend tool crash — ToolResult DB persistence" do
+    setup :setup_task
+
+    test "ToolResult is persisted when backend tool raises", %{
+      task_id: task_id,
+      scope: scope
+    } do
+      tc_id = "tc_crash_#{System.unique_integer([:positive])}"
+      crash_tc = tool_call("crash_tool", %{}, id: tc_id)
+      agent = test_agent(tool_then_complete_llm([crash_tc], "Handled the crash."), "CrashAgent")
+
+      {:ok, _} =
+        Tasks.submit_user_message(scope, task_id, user_content("Do a thing"), [],
+          agent: agent,
+          backend_tool_modules: [CrashTool]
+        )
+
+      assert_receive {:swarm_event, {:completed, _}}, 5_000
+
+      {:ok, task} = Tasks.get_task(scope, task_id)
+
+      # Every ToolCall in the LLM response must have a matching ToolResult in DB.
+      tool_result =
+        Enum.find(task.interactions, fn
+          %Interaction.ToolResult{tool_call_id: ^tc_id} -> true
+          _ -> false
+        end)
+
+      assert tool_result != nil,
+             "Expected a ToolResult for the crashed backend tool — " <>
+               "every dispatched ToolCall must have a matching ToolResult in DB"
+
+      assert tool_result.is_error == true
+    end
+  end
+
+  # -- Backend tool timeout (ParallelExecutor) — DB invariant -------------------
+
+  describe "backend tool timeout (ParallelExecutor) — ToolResult DB persistence" do
+    setup :setup_task
+
+    test "ToolResult is persisted when ParallelExecutor deadline fires before tool returns", %{
+      task_id: task_id,
+      scope: scope
+    } do
+      tc_id = "tc_hang_#{System.unique_integer([:positive])}"
+      hang_tc = tool_call("hang_tool", %{}, id: tc_id)
+
+      agent =
+        test_agent(
+          tool_then_complete_llm([hang_tc], "Handled the timeout."),
+          "HangAgent"
+        )
+
+      {:ok, _} =
+        Tasks.submit_user_message(scope, task_id, user_content("Do a thing"), [],
+          agent: agent,
+          backend_tool_modules: [HangTool]
+        )
+
+      # on_timeout: :error feeds the error back to the LLM, agent completes normally
+      assert_receive {:swarm_event, {:completed, _}}, 5_000
+
+      {:ok, task} = Tasks.get_task(scope, task_id)
+
+      tool_result =
+        Enum.find(task.interactions, fn
+          %Interaction.ToolResult{tool_call_id: ^tc_id} -> true
+          _ -> false
+        end)
+
+      assert tool_result != nil,
+             "Expected a ToolResult for the timed-out backend tool — " <>
+               "ParallelExecutor fires before await_backend_tool, bypassing persistence"
+
+      assert tool_result.is_error == true
     end
   end
 end

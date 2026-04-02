@@ -13,6 +13,9 @@ defmodule FrontmanServer.Tools do
 
   @todo_mutations [FrontmanServer.Tools.TodoWrite.name()]
 
+  @spec backend_tool_modules() :: [module()]
+  def backend_tool_modules, do: @backend_tools
+
   @spec backend_tools() :: [SwarmAi.Tool.t()]
   def backend_tools do
     Enum.map(@backend_tools, &Backend.to_swarm_tool/1)

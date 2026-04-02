@@ -24,6 +24,7 @@ defmodule FrontmanServer.Tasks.Execution do
   alias FrontmanServer.Tasks.Execution.{Framework, RootAgent, ToolExecutor}
   alias FrontmanServer.Tasks.{Interaction, MessageOptimizer, StreamStallTimeout, Task}
   alias FrontmanServer.Tools
+  alias FrontmanServer.Tools.Backend
   alias SwarmAi.Message
 
   @doc """
@@ -84,9 +85,13 @@ defmodule FrontmanServer.Tasks.Execution do
 
         mcp_tool_defs = Keyword.get(opts, :mcp_tool_defs, [])
 
+        backend_tool_modules =
+          Keyword.get(opts, :backend_tool_modules, Tools.backend_tool_modules())
+
         submit_to_runtime(scope, agent, task_id, messages,
           api_key_info: api_key_info,
-          mcp_tool_defs: mcp_tool_defs
+          mcp_tool_defs: mcp_tool_defs,
+          backend_tool_modules: backend_tool_modules
         )
 
       {:error, reason} ->
@@ -160,6 +165,7 @@ defmodule FrontmanServer.Tasks.Execution do
 
     mcp_tools = Map.get(agent, :tools, [])
     mcp_tool_defs = Keyword.get(opts, :mcp_tool_defs, [])
+    backend_tool_modules = Keyword.fetch!(opts, :backend_tool_modules)
 
     llm_opts =
       [api_key: resolved_key.api_key, model: resolved_key.model]
@@ -167,6 +173,7 @@ defmodule FrontmanServer.Tasks.Execution do
 
     tool_executor =
       ToolExecutor.make_executor(scope, task_id,
+        backend_tool_modules: backend_tool_modules,
         mcp_tools: mcp_tools,
         mcp_tool_defs: mcp_tool_defs,
         llm_opts: llm_opts
@@ -179,7 +186,7 @@ defmodule FrontmanServer.Tasks.Execution do
     case SwarmAi.Runtime.run(FrontmanServer.AgentRuntime, task_id, agent, messages,
            metadata: %{task_id: task_id, resolved_key: resolved_key, scope: scope},
            tool_executor: tool_executor,
-           tool_defs: Tools.backend_tools() ++ mcp_tools
+           tool_defs: Enum.map(backend_tool_modules, &Backend.to_swarm_tool/1) ++ mcp_tools
          ) do
       {:ok, pid} ->
         {:ok, pid}

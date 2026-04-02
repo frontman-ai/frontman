@@ -54,7 +54,14 @@ defmodule FrontmanServer.Tasks.Execution.SubAgentMcpRoutingTest do
     } do
       # Build executor that calls Tasks directly for persistence
       llm_opts = [api_key: "test-key", model: "openrouter:anthropic/claude-sonnet-4-20250514"]
-      executor = ToolExecutor.make_executor(scope, task_id, llm_opts: llm_opts)
+
+      executor =
+        ToolExecutor.make_executor(scope, task_id,
+          backend_tool_modules: [],
+          mcp_tools: [],
+          mcp_tool_defs: [],
+          llm_opts: llm_opts
+        )
 
       tool_call = swarm_tool_call("take_screenshot", ~s({"selector": "#main"}))
 
@@ -92,7 +99,14 @@ defmodule FrontmanServer.Tasks.Execution.SubAgentMcpRoutingTest do
 
       # Build executor that calls Tasks directly
       llm_opts = [api_key: "test-key", model: "openrouter:anthropic/claude-sonnet-4-20250514"]
-      executor = ToolExecutor.make_executor(scope, task_id, llm_opts: llm_opts)
+
+      executor =
+        ToolExecutor.make_executor(scope, task_id,
+          backend_tool_modules: [],
+          mcp_tools: [],
+          mcp_tool_defs: [],
+          llm_opts: llm_opts
+        )
 
       executor_task =
         Task.async(fn ->
