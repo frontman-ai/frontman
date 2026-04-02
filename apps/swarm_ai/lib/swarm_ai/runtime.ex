@@ -178,7 +178,10 @@ defmodule SwarmAi.Runtime do
     tool_map = Map.new(tool_defs, fn tool -> {tool.name, tool} end)
 
     parallel_executor = fn tool_calls ->
-      SwarmAi.ParallelExecutor.run(tool_calls, tool_map, executor, task_supervisor)
+      case SwarmAi.ParallelExecutor.run(tool_calls, tool_map, executor, task_supervisor) do
+        {:ok, results} -> results
+        {:halt, _} = halt -> halt
+      end
     end
 
     Keyword.put(opts, :tool_executor, parallel_executor)
