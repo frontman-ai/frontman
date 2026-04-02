@@ -414,37 +414,11 @@ defmodule FrontmanServer.Tasks.Execution do
     do: inspect(reason)
 
   # Translates internal error reasons into user-friendly messages.
-  # Raw technical details stay in Sentry (SwarmDispatcher); only the
-  # humanized version reaches the client via the channel.
-  defp humanize_error(%StreamStallTimeout.Error{}) do
-    "The AI provider stopped responding mid-reply. " <>
-      "This usually happens when the provider is temporarily overloaded. " <>
-      "Try sending your message again."
+  # Delegates to classify_error/1 to keep message strings in one place.
+  defp humanize_error(reason) do
+    {message, _category, _retryable} = classify_error(reason)
+    message
   end
-
-  defp humanize_error(:genserver_call_timeout) do
-    "The request to the AI provider timed out. " <>
-      "This can happen during high traffic. Try again in a moment."
-  end
-
-  defp humanize_error(:stream_timeout) do
-    "The request to the AI provider timed out. " <>
-      "This can happen during high traffic. Try again in a moment."
-  end
-
-  defp humanize_error(:output_truncated) do
-    "The AI response was too long and got cut off. " <>
-      "This usually happens when writing large files. " <>
-      "Try asking the AI to write the file in smaller sections."
-  end
-
-  defp humanize_error({:exit, reason}) do
-    "Something went wrong while communicating with the AI provider: #{inspect(reason)}"
-  end
-
-  defp humanize_error(reason) when is_exception(reason), do: Exception.message(reason)
-  defp humanize_error(reason) when is_binary(reason), do: reason
-  defp humanize_error(reason), do: inspect(reason)
 
   # Like humanize_error, but prefixes unknown/fallback reasons with crash context.
   defp humanize_crash(reason) when is_exception(reason), do: humanize_error(reason)
