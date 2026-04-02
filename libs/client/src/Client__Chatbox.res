@@ -118,6 +118,7 @@ let make = (
   let sessionInitialized = Client__State.useSelector(Client__State.Selectors.sessionInitialized)
   let planEntries = Client__State.useSelector(Client__State.Selectors.currentPlanEntries)
   let turnError = Client__State.useSelector(Client__State.Selectors.turnError)
+  let currentTaskId = Client__State.useSelector(Client__State.Selectors.currentTaskId)
   let usageInfo = Client__State.useSelector(Client__State.Selectors.usageInfo)
   let configOptions = Client__State.useSelector(Client__State.Selectors.configOptions)
   let selectedModelValue = Client__State.useSelector(Client__State.Selectors.selectedModelValue)
@@ -381,7 +382,16 @@ let make = (
 
     | ErrorMsg(Message.Error(err), _) =>
       <div key={`error-${Message.ErrorMessage.id(err)}`} className="frontman-content-auto">
-        <ErrorBanner error={Message.ErrorMessage.error(err)} />
+        <ErrorBanner
+          error={Message.ErrorMessage.error(err)}
+          category={Message.ErrorMessage.category(err)}
+          onRetry={switch currentTaskId {
+          | Some(taskId) =>
+            () =>
+              Client__State.Actions.retryTurn(~taskId, ~retriedErrorId=Message.ErrorMessage.id(err))
+          | None => () => ()
+          }}
+        />
       </div>
 
     // Handle any unexpected message types
@@ -411,9 +421,14 @@ let make = (
         ->React.array}
 
         // Error banner (shows when there's a turn error)
-        {switch turnError {
-        | Some(error) => <ErrorBanner error />
-        | None => React.null
+        {switch (turnError, currentTaskId) {
+        | (Some(error), Some(taskId)) =>
+          <ErrorBanner
+            error
+            category="unknown"
+            onRetry={() => Client__State.Actions.retryTurn(~taskId, ~retriedErrorId="")}
+          />
+        | _ => React.null
         }}
 
         // Thinking indicator (shows after last message when waiting for response)
