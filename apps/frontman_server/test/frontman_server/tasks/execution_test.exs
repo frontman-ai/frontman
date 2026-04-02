@@ -7,6 +7,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
   facade, SwarmDispatcher, and TaskChannel together.
   """
   use SwarmAi.Testing, async: false
+  use Oban.Testing, repo: FrontmanServer.Repo
 
   import Phoenix.ChannelTest
 
@@ -15,6 +16,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Interaction
+  alias FrontmanServer.Workers.GenerateTitle
 
   @endpoint FrontmanServerWeb.Endpoint
   @acp_message AgentClientProtocol.event_acp_message()
@@ -261,6 +263,67 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
       completions = Enum.filter(task.interactions, &match?(%Interaction.AgentCompleted{}, &1))
       assert completions != []
+    end
+  end
+
+  # -- Title generation enqueue on first message -----------------------------
+
+  describe "title generation enqueue" do
+    setup :setup_task
+
+    test "first message enqueues a title generation job", %{
+      task_id: task_id,
+      scope: scope
+    } do
+      agent = test_agent(mock_llm("Response"), "TitleAgent")
+
+      {:ok, _} =
+        Tasks.submit_user_message(scope, task_id, user_content("Build me a login page"), [],
+          agent: agent
+        )
+
+      Tasks.enqueue_title_generation(scope, task_id, "Build me a login page")
+
+      assert_enqueued(worker: GenerateTitle, args: %{task_id: task_id})
+    end
+
+    test "second message does not enqueue an additional title generation job", %{
+      task_id: task_id,
+      scope: scope
+    } do
+      agent1 = test_agent(mock_llm("First response"), "TitleAgent1")
+      agent2 = test_agent(mock_llm("Second response"), "TitleAgent2")
+
+      # First message + title enqueue
+      {:ok, _} =
+        Tasks.submit_user_message(scope, task_id, user_content("Build me a login page"), [],
+          agent: agent1
+        )
+
+      {:ok, first_job} =
+        Tasks.enqueue_title_generation(scope, task_id, "Build me a login page")
+
+      assert_receive {:interaction, %Interaction.AgentCompleted{}}, 5_000
+
+      # Second message + title enqueue (should be deduplicated by Oban unique constraint)
+      {:ok, _} =
+        Tasks.submit_user_message(scope, task_id, user_content("Now add a signup form"), [],
+          agent: agent2
+        )
+
+      {:ok, second_job} =
+        Tasks.enqueue_title_generation(scope, task_id, "Now add a signup form")
+
+      # Oban unique constraint returns the existing job — same ID means no new job was inserted
+      assert first_job.id == second_job.id
+
+      # Only one title generation job should exist for this task
+      enqueued = all_enqueued(worker: GenerateTitle)
+
+      title_jobs_for_task =
+        Enum.filter(enqueued, fn job -> job.args["task_id"] == task_id end)
+
+      assert length(title_jobs_for_task) == 1
     end
   end
 
