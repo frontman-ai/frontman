@@ -90,6 +90,12 @@ defmodule FrontmanServer.Tools.TodoWrite do
   end
 
   @impl true
+  def timeout_ms, do: 30_000
+
+  @impl true
+  def on_timeout, do: :error
+
+  @impl true
   def execute(args, _context) do
     raw_todos = Map.get(args, "todos", [])
 

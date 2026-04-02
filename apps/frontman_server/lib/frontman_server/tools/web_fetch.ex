@@ -60,6 +60,12 @@ defmodule FrontmanServer.Tools.WebFetch do
   end
 
   @impl true
+  def timeout_ms, do: 60_000
+
+  @impl true
+  def on_timeout, do: :error
+
+  @impl true
   @spec execute(map(), FrontmanServer.Tools.Backend.Context.t()) ::
           FrontmanServer.Tools.Backend.result()
   def execute(args, _context) do

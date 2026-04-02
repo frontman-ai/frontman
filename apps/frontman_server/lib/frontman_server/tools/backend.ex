@@ -40,14 +40,18 @@ defmodule FrontmanServer.Tools.Backend do
   @callback name() :: String.t()
   @callback description() :: String.t()
   @callback parameter_schema() :: map()
+  @callback timeout_ms() :: pos_integer()
+  @callback on_timeout() :: :error | :pause_agent
   @callback execute(args :: map(), context :: Context.t()) :: result()
 
   @spec to_swarm_tool(module()) :: SwarmAi.Tool.t()
   def to_swarm_tool(module) do
     SwarmAi.Tool.new(
-      module.name(),
-      module.description(),
-      module.parameter_schema()
+      name: module.name(),
+      description: module.description(),
+      parameter_schema: module.parameter_schema(),
+      timeout_ms: module.timeout_ms(),
+      on_timeout: module.on_timeout()
     )
   end
 end
