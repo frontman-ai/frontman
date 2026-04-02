@@ -958,6 +958,18 @@
                 },
                 "timestamp": {
                   "type": "string"
+                },
+                "retryAt": {
+                  "type": "string"
+                },
+                "attempt": {
+                  "type": "integer"
+                },
+                "maxAttempts": {
+                  "type": "integer"
+                },
+                "category": {
+                  "type": "string"
                 }
               },
               "additionalProperties": true,
