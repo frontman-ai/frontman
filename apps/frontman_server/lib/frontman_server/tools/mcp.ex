@@ -5,14 +5,13 @@ defmodule FrontmanServer.Tools.MCP do
 
   use TypedStruct
 
-  @type execution_mode :: :synchronous | :interactive
-
   typedstruct enforce: true do
     field(:name, String.t())
     field(:description, String.t())
     field(:input_schema, map())
     field(:visible_to_agent, boolean(), default: true)
-    field(:execution_mode, execution_mode(), default: :synchronous)
+    field(:timeout_ms, pos_integer())
+    field(:on_timeout, :error | :pause_agent)
   end
 
   @spec from_map(map()) :: t()
@@ -22,32 +21,13 @@ defmodule FrontmanServer.Tools.MCP do
       description: tool["description"] || "",
       input_schema: tool["inputSchema"] || %{"type" => "object", "properties" => %{}},
       visible_to_agent: Map.get(tool, "visibleToAgent", true),
-      execution_mode: parse_execution_mode(tool["executionMode"])
+      timeout_ms: Map.fetch!(tool, "timeoutMs"),
+      on_timeout: parse_on_timeout(Map.fetch!(tool, "onTimeout"))
     }
   end
 
-  defp parse_execution_mode(value) when is_binary(value) do
-    case String.downcase(value) do
-      "interactive" -> :interactive
-      _ -> :synchronous
-    end
-  end
-
-  defp parse_execution_mode(_), do: :synchronous
-
-  @doc "Returns true if the tool blocks with a longer timeout to await user input."
-  @spec interactive?(t()) :: boolean()
-  def interactive?(%__MODULE__{execution_mode: :interactive}), do: true
-  def interactive?(%__MODULE__{}), do: false
-
-  @doc "Looks up a tool by name and returns whether it is interactive."
-  @spec interactive_by_name?([t()], String.t()) :: boolean()
-  def interactive_by_name?(mcp_tools, name) do
-    case Enum.find(mcp_tools, &(&1.name == name)) do
-      %__MODULE__{} = tool -> interactive?(tool)
-      nil -> false
-    end
-  end
+  defp parse_on_timeout("pause_agent"), do: :pause_agent
+  defp parse_on_timeout(_), do: :error
 
   @spec from_maps([map()]) :: [t()]
   def from_maps(tools) when is_list(tools) do
@@ -62,6 +42,12 @@ defmodule FrontmanServer.Tools.MCP do
   end
 
   defp to_swarm_tool(%__MODULE__{} = tool) do
-    SwarmAi.Tool.new(tool.name, tool.description, tool.input_schema)
+    SwarmAi.Tool.new(
+      name: tool.name,
+      description: tool.description,
+      parameter_schema: tool.input_schema,
+      timeout_ms: tool.timeout_ms,
+      on_timeout: tool.on_timeout
+    )
   end
 end
