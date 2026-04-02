@@ -380,6 +380,10 @@ module Selectors = {
     TaskReducer.Selectors.turnError(currentTask(state))
   }
 
+  let retryStatus = (state: state): option<Task.retryStatus> => {
+    TaskReducer.Selectors.retryStatus(currentTask(state))
+  }
+
   // Resolve an image attachment URI from a specific task's accumulated attachments.
   // Used by the MCP server to resolve write_file image_ref before forwarding to relay.
   // Takes taskId (not currentTask) because the agent's task may differ from the viewed tab.
