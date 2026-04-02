@@ -226,6 +226,10 @@ defimpl ACPHistory, for: Interaction.AgentPaused do
   def to_history_items(%Interaction.AgentPaused{}, _session_id), do: []
 end
 
+defimpl ACPHistory, for: Interaction.AgentRetry do
+  def to_history_items(%Interaction.AgentRetry{}, _session_id), do: []
+end
+
 defimpl ACPHistory, for: Interaction.DiscoveredProjectRule do
   def to_history_items(%Interaction.DiscoveredProjectRule{}, _session_id), do: []
 end
