@@ -26,6 +26,18 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
   # -- Helpers ---------------------------------------------------------------
 
+  defp todo_args do
+    %{
+      "todos" => [
+        %{
+          "content" => "Fix the bug",
+          "active_form" => "Fixing the bug",
+          "status" => "pending",
+          "priority" => "medium"
+        }
+      ]
+    }
+  end
   # Short timeout for tests that need to observe the pause path quickly.
   defp short_timeout_question_mcp_tool_defs do
     alias FrontmanServer.Tools.MCP
@@ -456,6 +468,94 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
           "update" => %{"sessionUpdate" => "agent_turn_complete"}
         }
       })
+    end
+  end
+
+  # -- Backend tool execution — regression: parallel executor missing backend tool_defs ------
+
+  describe "backend tool execution — Tasks facade level" do
+    setup :setup_task
+
+    # Regression: execution.ex passes `tool_defs: mcp_tools` to Runtime.run, where
+    # `mcp_tools` only contains the agent's MCP (SwarmAi.Tool.t()) entries.
+    # Backend tools (todo_write, web_fetch) are absent from `tool_defs`, so
+    # ParallelExecutor.spawn_or_reject immediately returns "Unknown tool: <name>"
+    # instead of dispatching to the ToolExecutor closure.
+    test "todo_write executes successfully — not rejected as Unknown tool", %{
+      task_id: task_id,
+      scope: scope
+    } do
+      ref =
+        :telemetry_test.attach_event_handlers(self(), [[:swarm_ai, :tool, :execute, :stop]])
+
+      on_exit(fn -> :telemetry.detach(ref) end)
+
+      tc_id = "tc_todo_#{System.unique_integer([:positive])}"
+      todo_tc = tool_call("todo_write", todo_args(), id: tc_id)
+      agent = test_agent(tool_then_complete_llm([todo_tc], "Todos written."), "TodoAgent")
+
+      {:ok, _} =
+        Tasks.submit_user_message(scope, task_id, user_content("Write todos"), [], agent: agent)
+
+      assert_receive {:interaction, %Interaction.AgentCompleted{}}, 5_000
+
+      # The telemetry stop event fires with is_error: false when the backend tool
+      # actually executed, or is_error: true / output "Unknown tool: todo_write"
+      # when ParallelExecutor rejects it due to the missing tool_defs bug.
+      assert_receive {[:swarm_ai, :tool, :execute, :stop], ^ref, _measurements, meta}
+      assert meta.tool_name == "todo_write"
+
+      assert meta.is_error == false,
+             "todo_write returned an error — " <>
+               "backend tool was rejected by ParallelExecutor (missing from tool_defs). " <>
+               "Got: #{inspect(meta.output)}"
+    end
+  end
+
+  describe "backend tool execution — channel level" do
+    setup :setup_task_with_channel
+
+    test "todo_write executes through the full channel → executor pipeline", %{
+      task_id: task_id,
+      scope: scope,
+      socket: socket
+    } do
+      Phoenix.PubSub.subscribe(FrontmanServer.PubSub, Tasks.topic(task_id))
+
+      ref =
+        :telemetry_test.attach_event_handlers(self(), [[:swarm_ai, :tool, :execute, :stop]])
+
+      on_exit(fn -> :telemetry.detach(ref) end)
+
+      tc_id = "tc_todo_ch_#{System.unique_integer([:positive])}"
+      todo_tc = tool_call("todo_write", todo_args(), id: tc_id)
+      agent = test_agent(tool_then_complete_llm([todo_tc], "Todos written."), "TodoAgent")
+
+      {:ok, _} =
+        Tasks.submit_user_message(scope, task_id, user_content("Write todos"), [], agent: agent)
+
+      assert_receive {:interaction, %Interaction.AgentCompleted{}}, 5_000
+
+      # Channel should push session/update to the client on completion
+      :sys.get_state(socket.channel_pid)
+
+      assert_push(@acp_message, %{
+        "jsonrpc" => "2.0",
+        "method" => "session/update",
+        "params" => %{
+          "sessionId" => ^task_id,
+          "update" => %{"sessionUpdate" => "agent_turn_complete"}
+        }
+      })
+
+      # Same backend tool regression check as the Tasks facade level test
+      assert_receive {[:swarm_ai, :tool, :execute, :stop], ^ref, _measurements, meta}
+      assert meta.tool_name == "todo_write"
+
+      assert meta.is_error == false,
+             "todo_write returned an error through the channel pipeline — " <>
+               "backend tool was rejected by ParallelExecutor (missing from tool_defs). " <>
+               "Got: #{inspect(meta.output)}"
     end
   end
 

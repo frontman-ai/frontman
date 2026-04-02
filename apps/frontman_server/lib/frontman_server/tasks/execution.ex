@@ -23,6 +23,7 @@ defmodule FrontmanServer.Tasks.Execution do
   alias FrontmanServer.Providers.{Model, Registry, ResolvedKey}
   alias FrontmanServer.Tasks.Execution.{Framework, RootAgent, ToolExecutor}
   alias FrontmanServer.Tasks.{Interaction, MessageOptimizer, StreamStallTimeout, Task}
+  alias FrontmanServer.Tools
   alias SwarmAi.Message
 
   @doc """
@@ -178,7 +179,7 @@ defmodule FrontmanServer.Tasks.Execution do
     case SwarmAi.Runtime.run(FrontmanServer.AgentRuntime, task_id, agent, messages,
            metadata: %{task_id: task_id, resolved_key: resolved_key, scope: scope},
            tool_executor: tool_executor,
-           tool_defs: mcp_tools
+           tool_defs: Tools.backend_tools() ++ mcp_tools
          ) do
       {:ok, pid} ->
         {:ok, pid}
