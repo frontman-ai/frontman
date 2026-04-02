@@ -1007,13 +1007,15 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
     // arrive twice per turn. The state transitions below are idempotent —
     // only the NotifyTurnCompleted effect (usage refresh) is gated.
     let completed = task->Lens.completeStreamingMessage
-    let updatedTask = completed->Task.updateLoadedData(d => {...d, isAgentRunning: false})
     let effects = if data.isAgentRunning {
       [NotifyTurnCompleted]
     } else {
       []
     }
-    (updatedTask, effects)
+    switch completed {
+    | Task.Loaded(d) => (Task.Loaded({...d, isAgentRunning: false, retryStatus: None}), effects)
+    | other => (other->Task.updateLoadedData(d => {...d, isAgentRunning: false}), effects)
+    }
 
   // Cancel the current turn: complete any partial response, stop agent, dismiss pending question
   | (Task.Loaded(data), CancelTurn) =>
@@ -1041,13 +1043,28 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
         ]
       | None => []
       }
-      let final = withCancelledTools->Task.updateLoadedData(d => {
-        ...d,
-        isAgentRunning: false,
-        turnError: None,
-        pendingQuestion: None,
-      })
-      (final, Array.concat([CancelPrompt], questionEffects))
+      let allEffects = Array.concat([CancelPrompt], questionEffects)
+      switch withCancelledTools {
+      | Task.Loaded(d) => (
+          Task.Loaded({
+            ...d,
+            isAgentRunning: false,
+            turnError: None,
+            retryStatus: None,
+            pendingQuestion: None,
+          }),
+          allEffects,
+        )
+      | other => (
+          other->Task.updateLoadedData(d => {
+            ...d,
+            isAgentRunning: false,
+            turnError: None,
+            pendingQuestion: None,
+          }),
+          allEffects,
+        )
+      }
     }
 
   | (Task.Loading(_), AgentError({error, timestamp, retryable, category})) =>

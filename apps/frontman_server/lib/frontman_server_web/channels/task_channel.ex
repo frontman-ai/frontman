@@ -805,6 +805,10 @@ defmodule FrontmanServerWeb.TaskChannel do
   end
 
   defp handle_transient_error(socket, error_info) do
+    if pid = socket.assigns[:retry_coordinator] do
+      RetryCoordinator.cancel(pid)
+    end
+
     {:ok, coordinator_pid} = RetryCoordinator.start(self(), error_info)
     {:noreply, assign(socket, :retry_coordinator, coordinator_pid)}
   end
@@ -996,6 +1000,10 @@ defmodule FrontmanServerWeb.TaskChannel do
     # tool calls. Without this, executors block until the 24h safety-net
     # timeout. On reconnect, reexecute_unresolved_tool_calls re-sends
     # tools/call to the new client, which provides a fresh tool result.
+    if pid = socket.assigns[:retry_coordinator] do
+      RetryCoordinator.cancel(pid)
+    end
+
     pending_requests = socket.assigns[:pending_requests] || %{}
 
     for {_request_id, {:tool_call, tc}} <- pending_requests do
