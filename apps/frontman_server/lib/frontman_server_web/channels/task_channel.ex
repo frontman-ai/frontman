@@ -724,12 +724,16 @@ defmodule FrontmanServerWeb.TaskChannel do
     handle_turn_error(socket, msg, "unknown")
   end
 
-  def handle_info({:retrying_status, attempt, max_attempts, retry_at_iso, error_message}, socket) do
+  def handle_info(
+        {:retrying_status, attempt, max_attempts, retry_at_iso, error_message, error_category},
+        socket
+      ) do
     task_id = socket.assigns.task_id
     {:ok, retry_at, _} = DateTime.from_iso8601(retry_at_iso)
 
     notification =
       ACP.build_error_notification(task_id, error_message, DateTime.utc_now(),
+        category: error_category,
         retry_at: retry_at,
         attempt: attempt,
         max_attempts: max_attempts
@@ -829,6 +833,18 @@ defmodule FrontmanServerWeb.TaskChannel do
   # drops the turn-ended signal (e.g. after task switch + elicitation response).
   defp handle_turn_ended(socket, stop_reason) do
     task_id = socket.assigns.task_id
+
+    # Stop any in-progress retry coordinator — the turn succeeded (or was cancelled),
+    # so we must not let a stale coordinator accept execution_failed from the next turn.
+    socket =
+      case socket.assigns[:retry_coordinator] do
+        nil ->
+          socket
+
+        pid ->
+          GenServer.stop(pid, :normal)
+          assign(socket, :retry_coordinator, nil)
+      end
 
     # 1. Always notify — this is the canonical "turn ended" signal
     notification = ACP.build_agent_turn_complete_notification(task_id, stop_reason)

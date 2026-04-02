@@ -5,7 +5,7 @@ defmodule FrontmanServer.Tasks.RetryCoordinator do
   Started per-task when a transient error occurs. Sends messages to the
   channel process to drive the retry loop:
 
-  - `{:retrying_status, attempt, max_attempts, retry_at_iso8601, error_message}`
+  - `{:retrying_status, attempt, max_attempts, retry_at_iso8601, error_message, error_category}`
     → channel pushes "retrying" ACP event to client
   - `{:trigger_retry}` → channel re-runs execution for the task
   - `{:retry_exhausted, error_info}` → channel calls handle_turn_error
@@ -121,7 +121,8 @@ defmodule FrontmanServer.Tasks.RetryCoordinator do
       state.attempt,
       state.max_attempts,
       retry_at,
-      state.error_info.message
+      state.error_info.message,
+      state.error_info.category
     })
 
     Process.send_after(self(), :fire_retry, delay)

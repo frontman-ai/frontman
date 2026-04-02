@@ -1419,4 +1419,86 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       })
     end
   end
+
+  describe "retry bug: stale coordinator after successful retry" do
+    setup %{scope: scope} do
+      {socket, task_id} = join_task_channel(scope)
+      complete_mcp_handshake(socket)
+      {:ok, socket: socket, task_id: task_id}
+    end
+
+    test "after successful retry, next transient error starts a fresh coordinator at attempt 1",
+         %{
+           socket: socket,
+           task_id: task_id
+         } do
+      error = %FrontmanServer.Tasks.Execution.LLMError{
+        message: "Rate limited",
+        category: "rate_limit",
+        retryable: true
+      }
+
+      # First transient error — coordinator starts
+      Phoenix.PubSub.broadcast(FrontmanServer.PubSub, Tasks.topic(task_id), swarm_failed(error))
+      :sys.get_state(socket.channel_pid)
+
+      assert_push("acp:message", %{
+        "params" => %{"update" => %{"sessionUpdate" => "error", "attempt" => 1, "retryAt" => _}}
+      })
+
+      # Simulate the coordinator firing {:trigger_retry} (skip 2s default delay)
+      send(socket.channel_pid, {:trigger_retry})
+      :sys.get_state(socket.channel_pid)
+
+      # Execution succeeds — handle_turn_ended should stop and clear the coordinator
+      Phoenix.PubSub.broadcast(FrontmanServer.PubSub, Tasks.topic(task_id), swarm_completed())
+      :sys.get_state(socket.channel_pid)
+      flush_mailbox()
+
+      # New turn hits a transient error — should start fresh at attempt 1
+      Phoenix.PubSub.broadcast(FrontmanServer.PubSub, Tasks.topic(task_id), swarm_failed(error))
+      :sys.get_state(socket.channel_pid)
+
+      # BUG: handle_turn_ended does not clear retry_coordinator, so handle_transient_error
+      # finds the stale pid and calls execution_failed/2 on it, reporting attempt 2.
+      assert_push("acp:message", %{
+        "params" => %{"update" => %{"sessionUpdate" => "error", "attempt" => 1, "retryAt" => _}}
+      })
+    end
+  end
+
+  describe "retry bug: category missing from retrying notification" do
+    setup %{scope: scope} do
+      {socket, task_id} = join_task_channel(scope)
+      complete_mcp_handshake(socket)
+      {:ok, socket: socket, task_id: task_id}
+    end
+
+    test "retrying notification includes the actual error category, not 'unknown'", %{
+      socket: _socket,
+      task_id: task_id
+    } do
+      error = %FrontmanServer.Tasks.Execution.LLMError{
+        message: "Rate limited",
+        category: "rate_limit",
+        retryable: true
+      }
+
+      Phoenix.PubSub.broadcast(FrontmanServer.PubSub, Tasks.topic(task_id), swarm_failed(error))
+
+      # BUG: RetryCoordinator.schedule_retry/1 omits error_info.category from the
+      # :retrying_status tuple. The channel's handle_info handler cannot forward
+      # it to ACP.build_error_notification, which defaults category to "unknown".
+      assert_push("acp:message", %{
+        "params" => %{
+          "update" => %{
+            "sessionUpdate" => "error",
+            "category" => "rate_limit",
+            "attempt" => 1,
+            "retryAt" => _
+          }
+        }
+      })
+    end
+  end
 end

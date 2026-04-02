@@ -17,7 +17,7 @@ defmodule FrontmanServer.Tasks.RetryCoordinatorTest do
       error = %{message: "Rate limited", category: "rate_limit", retryable: true}
       pid = start_coordinator(self(), error)
 
-      assert_receive {:retrying_status, 1, 5, _retry_at, "Rate limited"}, 500
+      assert_receive {:retrying_status, 1, 5, _retry_at, "Rate limited", "rate_limit"}, 500
       assert_receive {:trigger_retry}, 500
 
       # Clean up
@@ -28,13 +28,13 @@ defmodule FrontmanServer.Tasks.RetryCoordinatorTest do
       error = %{message: "Overloaded", category: "overload", retryable: true}
       pid = start_coordinator(self(), error, max_attempts: 2)
 
-      assert_receive {:retrying_status, 1, 2, _, _}, 500
+      assert_receive {:retrying_status, 1, 2, _, _, _}, 500
       assert_receive {:trigger_retry}, 500
 
       # Simulate execution failed again
       send(pid, {:execution_failed, error})
 
-      assert_receive {:retrying_status, 2, 2, _, _}, 500
+      assert_receive {:retrying_status, 2, 2, _, _, _}, 500
       assert_receive {:trigger_retry}, 500
 
       # One more failure exhausts it
@@ -61,7 +61,7 @@ defmodule FrontmanServer.Tasks.RetryCoordinatorTest do
       error = %{message: "Overloaded", category: "overload", retryable: true}
       pid = start_coordinator(self(), error)
 
-      assert_receive {:retrying_status, 1, 5, _, _}, 500
+      assert_receive {:retrying_status, 1, 5, _, _, _}, 500
       # Cancel before trigger_retry fires
       RetryCoordinator.cancel(pid)
 
@@ -69,6 +69,47 @@ defmodule FrontmanServer.Tasks.RetryCoordinatorTest do
       # Give the process time to fully terminate
       Process.sleep(10)
       refute Process.alive?(pid)
+    end
+  end
+
+  describe "bug: category missing from retrying_status tuple" do
+    test "retrying_status message includes the error category" do
+      # BUG: schedule_retry/1 builds the :retrying_status tuple with only
+      # {attempt, max_attempts, retry_at, message} — category is omitted.
+      # The channel's handle_info handler has no category to forward to
+      # ACP.build_error_notification, so retrying notifications always show "unknown".
+      error = %{message: "Rate limited", category: "rate_limit", retryable: true}
+      pid = start_coordinator(self(), error)
+
+      assert_receive {:retrying_status, 1, 5, _retry_at, "Rate limited", "rate_limit"}, 500
+
+      GenServer.stop(pid, :normal)
+    end
+  end
+
+  describe "bug: coordinator stays alive after trigger_retry, enabling stale reuse" do
+    test "execution_failed after trigger_retry uses stale attempt counter" do
+      # Documents the mechanism behind the channel-level stale-coordinator bug.
+      # After trigger_retry fires, the coordinator stays alive.
+      # If handle_turn_ended does NOT stop it and a new execution fails,
+      # the channel sends execution_failed to the stale coordinator, which
+      # reports attempt 2 (stale) instead of a fresh attempt 1.
+      error = %{message: "Rate limited", category: "rate_limit", retryable: true}
+      pid = start_coordinator(self(), error, max_attempts: 3)
+
+      assert_receive {:retrying_status, 1, 3, _, _, _}, 500
+      assert_receive {:trigger_retry}, 500
+
+      assert Process.alive?(pid)
+
+      # Stale execution_failed (from a new, different execution)
+      send(pid, {:execution_failed, error})
+
+      # Documents: reports attempt 2 — handle_turn_ended must stop this coordinator
+      # on agent_completed so handle_transient_error creates a fresh one at attempt 1
+      assert_receive {:retrying_status, 2, 3, _, _, _}, 500
+
+      GenServer.stop(pid, :normal)
     end
   end
 
