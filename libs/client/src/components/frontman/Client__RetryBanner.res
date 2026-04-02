@@ -10,20 +10,22 @@ let make = (~retryStatus: Client__Task__Types.Task.retryStatus) => {
   })
 
   React.useEffect1(() => {
-    let id = WebAPI.Global.setInterval2(~handler=() => {
-      setSecondsLeft(
-        prev => {
-          let next = prev - 1
-          if next <= 0 {
-            0
-          } else {
-            next
-          }
-        },
-      )
-    }, ~timeout=1000)
+    let idRef = ref(0)
+    idRef := WebAPI.Global.setInterval2(~handler=() => {
+        setSecondsLeft(
+          prev => {
+            let next = prev - 1
+            if next <= 0 {
+              WebAPI.Global.clearInterval(idRef.contents)
+              0
+            } else {
+              next
+            }
+          },
+        )
+      }, ~timeout=1000)
 
-    Some(() => WebAPI.Global.clearInterval(id))
+    Some(() => WebAPI.Global.clearInterval(idRef.contents))
   }, [retryStatus.retryAt])
 
   <div
