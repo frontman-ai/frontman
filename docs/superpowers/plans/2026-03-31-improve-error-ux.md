@@ -982,35 +982,52 @@ git commit -m "feat: add RetryCoordinator GenServer with exponential backoff and
 
 ---
 
-## Task 7: ACP `build_retrying_notification`
+## Task 7: Extend `build_error_notification` with optional retry fields
+
+**Design note:** `sessionUpdate: "retrying"` is not part of the ACP spec. Instead we
+reuse the existing `"error"` update and add optional retry fields (`retryAt`, `attempt`,
+`maxAttempts`). The client infers retry state from the presence of `retryAt`.
 
 **Files:**
 - Modify: `apps/frontman_server/lib/agent_client_protocol.ex`
 
-- [ ] **Step 1: Add `build_retrying_notification/5` to ACP**
+- [ ] **Step 1: Extend `build_error_notification` to accept optional retry opts**
 
-In `apps/frontman_server/lib/agent_client_protocol.ex`, add after `build_error_notification/3`:
+Replace the existing `build_error_notification/3` with a version that accepts an optional
+fourth argument for retry metadata:
 
 ```elixir
 @doc """
-Builds a retrying session/update notification.
+Builds an error session/update notification.
 
-Sent while the server is scheduling a retry. The client uses `retry_at`
-to count down locally — no server ticks needed.
+Sent when the agent encounters an error. Always delivered as a notification
+so the client can display it regardless of whether a pending prompt exists.
+
+Pass `retry_opts` when the server is scheduling an automatic retry. The client
+uses `retryAt` to show a countdown and infers retry state from its presence.
+
+  retry_opts: [retry_at: %DateTime{}, attempt: 1, max_attempts: 5]
 """
-def build_retrying_notification(session_id, attempt, max_attempts, retry_at, error_message) do
-  params = %{
-    "sessionId" => session_id,
-    "update" => %{
-      "sessionUpdate" => "retrying",
-      "attempt" => attempt,
-      "maxAttempts" => max_attempts,
-      "retryAt" => retry_at,
-      "error" => error_message
-    }
+def build_error_notification(session_id, message, timestamp, retry_opts \\ []) do
+  update = %{
+    "sessionUpdate" => "error",
+    "message" => message,
+    "timestamp" => DateTime.to_iso8601(timestamp)
   }
 
-  JsonRpc.notification(@method_session_update, params)
+  update =
+    case Keyword.get(retry_opts, :retry_at) do
+      nil ->
+        update
+
+      %DateTime{} = retry_at ->
+        update
+        |> Map.put("retryAt", DateTime.to_iso8601(retry_at))
+        |> Map.put("attempt", Keyword.fetch!(retry_opts, :attempt))
+        |> Map.put("maxAttempts", Keyword.fetch!(retry_opts, :max_attempts))
+    end
+
+  JsonRpc.notification(@method_session_update, %{"sessionId" => session_id, "update" => update})
 end
 ```
 
@@ -1025,7 +1042,7 @@ Expected: no errors.
 
 ```bash
 git add apps/frontman_server/lib/agent_client_protocol.ex
-git commit -m "feat: add ACP build_retrying_notification"
+git commit -m "feat: extend build_error_notification with optional retry fields"
 ```
 
 ---
@@ -1066,8 +1083,9 @@ describe "transient error triggers retrying notification" do
     assert_push("acp:message", %{
       "params" => %{
         "update" => %{
-          "sessionUpdate" => "retrying",
-          "attempt" => 1
+          "sessionUpdate" => "error",
+          "attempt" => 1,
+          "retryAt" => _
         }
       }
     })
@@ -1175,9 +1193,11 @@ end
 3e. Add handlers for RetryCoordinator messages:
 
 ```elixir
-def handle_info({:retrying_status, attempt, max_attempts, retry_at, error_message}, socket) do
+def handle_info({:retrying_status, attempt, max_attempts, retry_at_iso, error_message}, socket) do
   task_id = socket.assigns.task_id
-  notification = ACP.build_retrying_notification(task_id, attempt, max_attempts, retry_at, error_message)
+  {:ok, retry_at, _} = DateTime.from_iso8601(retry_at_iso)
+  notification = ACP.build_error_notification(task_id, error_message, DateTime.utc_now(),
+    retry_at: retry_at, attempt: attempt, max_attempts: max_attempts)
   push(socket, @acp_message, notification)
   {:noreply, socket}
 end
@@ -1252,31 +1272,37 @@ git commit -m "feat: route transient errors through RetryCoordinator; add retry_
 
 ---
 
-## Task 9: Protocol — `Retrying` sessionUpdate variant in `FrontmanProtocol__ACP.res`
+## Task 9: Protocol — extend `Error` sessionUpdate with optional retry fields
+
+**Design note:** We reuse `sessionUpdate: "error"` rather than introducing a non-standard
+`"retrying"` variant. When the server is scheduling an auto-retry, the error update
+includes `retryAt`, `attempt`, and `maxAttempts`. Client infers retry state from the
+presence of `retryAt`.
 
 **Files:**
 - Modify: `libs/frontman-protocol/src/FrontmanProtocol__ACP.res`
 
-- [ ] **Step 1: Add `Retrying` variant to `sessionUpdate` type**
+- [ ] **Step 1: Extend the `Error` variant in `sessionUpdate` type**
 
-Find `type sessionUpdate =` (~line 575). Add after `Error(...)`:
+Find `type sessionUpdate =` and the `Error(...)` variant. Update it to include optional retry fields:
 
 ```rescript
-| Retrying({attempt: int, maxAttempts: int, retryAt: string, error: string})
+| Error({message: string, timestamp: string, retryAt: option<string>, attempt: option<int>, maxAttempts: option<int>})
 ```
 
-- [ ] **Step 2: Add schema for `Retrying`**
+- [ ] **Step 2: Update the `Error` schema**
 
-Find the `sessionUpdateSchema` (it's a `S.union([...])` — the `Error` entry is near line 659). Add before the `Unknown` fallback:
+Find the `Error` entry in `sessionUpdateSchema`. Update it to parse the new optional fields:
 
 ```rescript
 S.object(s => {
-  s.tag("sessionUpdate", "retrying")
-  Retrying({
-    attempt: s.field("attempt", S.int),
-    maxAttempts: s.field("maxAttempts", S.int),
-    retryAt: s.field("retryAt", S.string),
-    error: s.field("error", S.string),
+  s.tag("sessionUpdate", "error")
+  Error({
+    message: s.field("message", S.string),
+    timestamp: s.field("timestamp", S.string),
+    retryAt: s.field("retryAt", S.option(S.string)),
+    attempt: s.field("attempt", S.option(S.int)),
+    maxAttempts: s.field("maxAttempts", S.option(S.int)),
   })
 }),
 ```
@@ -1286,13 +1312,13 @@ S.object(s => {
 ```bash
 ./bin/pod-exec make -C libs/frontman-protocol build
 ```
-Expected: compiles cleanly.
+Expected: compiles cleanly (may show compile errors in libs/client if Error pattern matches need updating — note them for Task 11).
 
 - [ ] **Step 4: Commit**
 
 ```bash
 git add libs/frontman-protocol/src/FrontmanProtocol__ACP.res
-git commit -m "feat: add Retrying sessionUpdate variant to ACP protocol"
+git commit -m "feat: extend Error sessionUpdate with optional retry fields"
 ```
 
 ---
@@ -1594,27 +1620,28 @@ let retryTurn = (~taskId: string, ~retriedErrorId: string) =>
 
 Update existing `agentErrorReceived` to the new signature (it now takes `retryable` and `category`).
 
-- [ ] **Step 9: Update `FrontmanProvider` to handle `Retrying` sessionUpdate and pass new args**
+- [ ] **Step 9: Update `FrontmanProvider` to handle the extended `Error` sessionUpdate**
 
 In `libs/client/src/Client__FrontmanProvider.res`, in `handleSessionUpdate`:
 
-Update the `Error({message, timestamp})` case to pass `retryable` and `category`. Since the current `sessionUpdate` `Error` type only has `message` and `timestamp`, we need to check what's available. For now, `Error` doesn't carry `retryable`/`category` — those come from the server-side `AgentError` interaction persisted in history. The `sessionUpdate: "error"` event only has `message`. So pass defaults for the live event:
+The `Error` variant now carries optional `retryAt`, `attempt`, `maxAttempts`. Update the handler to branch on `retryAt`:
 
 ```rescript
-| Error({message, timestamp}) =>
+| Error({message, timestamp, retryAt, attempt, maxAttempts}) =>
   Client__TextDeltaBuffer.flush()
-  Client__State.Actions.agentErrorReceived(~taskId, ~error=message, ~timestamp, ~retryable=false, ~category="unknown")
-```
-
-Add the `Retrying` case:
-
-```rescript
-| Retrying({attempt, maxAttempts, retryAt, error}) =>
-  let retryAtMs = Date.fromString(retryAt)->Date.getTime
-  let retryStatus: Client__Task__Types.retryStatus = {
-    attempt, maxAttempts, retryAt: retryAtMs, error
+  switch retryAt {
+  | Some(retryAtStr) =>
+    let retryAtMs = Date.fromString(retryAtStr)->Date.getTime
+    let retryStatus: Client__Task__Types.retryStatus = {
+      attempt: attempt->Option.getOr(1),
+      maxAttempts: maxAttempts->Option.getOr(5),
+      retryAt: retryAtMs,
+      error: message,
+    }
+    Client__State.Actions.retryingStatusReceived(~taskId, ~retryStatus)
+  | None =>
+    Client__State.Actions.agentErrorReceived(~taskId, ~error=message, ~timestamp, ~retryable=false, ~category="unknown")
   }
-  Client__State.Actions.retryingStatusReceived(~taskId, ~retryStatus)
 ```
 
 - [ ] **Step 10: Handle `NeedRetryTurn` in `Client__State__StateReducer.res`**
