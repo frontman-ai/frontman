@@ -1349,39 +1349,74 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     end
   end
 
-  describe "retry_turn event" do
+  describe "retry flow" do
     setup %{scope: scope} do
       {socket, task_id} = join_task_channel(scope)
       complete_mcp_handshake(socket)
       {:ok, socket: socket, task_id: task_id}
     end
 
-    test "creates AgentRetry interaction when retry_turn notification received", %{
+    test "session/retry_turn notification creates AgentRetry interaction", %{
       scope: scope,
       socket: socket,
       task_id: task_id
     } do
-      {:ok, err} =
-        Tasks.add_agent_error(scope, task_id, "Rate limited", "failed", true, "rate_limit")
+      error = %FrontmanServer.Tasks.Execution.LLMError{
+        message: "Rate limited",
+        category: "rate_limit",
+        retryable: true
+      }
 
-      push(socket, "acp:message", %{
-        "jsonrpc" => "2.0",
-        "method" => "retry_turn",
-        "params" => %{"retriedErrorId" => err.id}
-      })
+      Phoenix.PubSub.broadcast(FrontmanServer.PubSub, Tasks.topic(task_id), swarm_failed(error))
+      :sys.get_state(socket.channel_pid)
+
+      retried_error_id = "error-#{task_id}-some-timestamp"
+
+      push(
+        socket,
+        "acp:message",
+        build_acp_request("session/retry_turn", nil, %{
+          "sessionId" => task_id,
+          "retriedErrorId" => retried_error_id
+        })
+      )
 
       :sys.get_state(socket.channel_pid)
 
       {:ok, task} = Tasks.get_task(scope, task_id)
-      err_id = err.id
 
       assert Enum.any?(
                task.interactions,
                &match?(
-                 %FrontmanServer.Tasks.Interaction.AgentRetry{retried_error_id: ^err_id},
+                 %FrontmanServer.Tasks.Interaction.AgentRetry{
+                   retried_error_id: ^retried_error_id
+                 },
                  &1
                )
              )
+    end
+
+    test "second transient error increments retry attempt instead of resetting to 1", %{
+      socket: _socket,
+      task_id: task_id
+    } do
+      error = %FrontmanServer.Tasks.Execution.LLMError{
+        message: "Rate limited",
+        category: "rate_limit",
+        retryable: true
+      }
+
+      Phoenix.PubSub.broadcast(FrontmanServer.PubSub, Tasks.topic(task_id), swarm_failed(error))
+
+      assert_push("acp:message", %{
+        "params" => %{"update" => %{"sessionUpdate" => "error", "attempt" => 1, "retryAt" => _}}
+      })
+
+      Phoenix.PubSub.broadcast(FrontmanServer.PubSub, Tasks.topic(task_id), swarm_failed(error))
+
+      assert_push("acp:message", %{
+        "params" => %{"update" => %{"sessionUpdate" => "error", "attempt" => 2, "retryAt" => _}}
+      })
     end
   end
 end

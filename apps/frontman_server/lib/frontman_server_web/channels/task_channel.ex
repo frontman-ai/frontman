@@ -87,7 +87,7 @@ defmodule FrontmanServerWeb.TaskChannel do
 
         {:reply, {:ok, %{@acp_message => response}}, socket}
 
-      {:ok, {:notification, "retry_turn", %{"retriedErrorId" => retried_error_id}}} ->
+      {:ok, {:notification, "session/retry_turn", %{"retriedErrorId" => retried_error_id}}} ->
         handle_retry_turn(retried_error_id, socket)
 
       {:ok, {:notification, _method, _params}} ->
@@ -805,12 +805,15 @@ defmodule FrontmanServerWeb.TaskChannel do
   end
 
   defp handle_transient_error(socket, error_info) do
-    if pid = socket.assigns[:retry_coordinator] do
-      RetryCoordinator.cancel(pid)
-    end
+    case socket.assigns[:retry_coordinator] do
+      nil ->
+        {:ok, coordinator_pid} = RetryCoordinator.start(self(), error_info)
+        {:noreply, assign(socket, :retry_coordinator, coordinator_pid)}
 
-    {:ok, coordinator_pid} = RetryCoordinator.start(self(), error_info)
-    {:noreply, assign(socket, :retry_coordinator, coordinator_pid)}
+      pid ->
+        RetryCoordinator.execution_failed(pid, error_info)
+        {:noreply, socket}
+    end
   end
 
   # Handler for normal turn completion (agent_completed, agent_cancelled).
