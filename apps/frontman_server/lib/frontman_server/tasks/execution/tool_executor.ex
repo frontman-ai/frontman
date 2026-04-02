@@ -336,20 +336,35 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
 
   # --- MCP Tool Execution ---
 
-  defp execute_mcp_tool(_scope, tool_call, _task_id, _mcp_tool_defs) do
+  defp execute_mcp_tool(scope, tool_call, task_id, _mcp_tool_defs) do
     Logger.info("ToolExecutor: Routing to MCP tool #{tool_call.name}")
 
     tool_call_id = tool_call.id
 
-    # No timeout here — the Runtime's per-task deadline is the only timeout.
-    # Interactive tools (on_timeout: :pause_agent) will have the agent halted
-    # by ParallelExecutor when the deadline fires; this receive unblocks when
-    # the ParallelExecutor kills this task via terminate_child.
-    receive do
-      {:tool_result, ^tool_call_id, content, is_error} ->
-        Registry.unregister(FrontmanServer.ToolCallRegistry, {:tool_call, tool_call_id})
-        if is_error, do: {:error, content}, else: {:ok, content}
-    end
+    # Trap exits so we can persist a ToolResult when ParallelExecutor terminates
+    # this task on an on_timeout: :error deadline. async_nolink tasks shut down
+    # via :shutdown (5 s grace period), which is trappable — :kill is not, but
+    # that only fires if cleanup exceeds the grace period.
+    #
+    # on_timeout: :pause_agent takes the {:halt, ...} path instead; SwarmDispatcher
+    # handles ToolResult persistence for that case via the {:paused, ...} event.
+    Process.flag(:trap_exit, true)
+
+    result =
+      receive do
+        {:tool_result, ^tool_call_id, content, is_error} ->
+          Registry.unregister(FrontmanServer.ToolCallRegistry, {:tool_call, tool_call_id})
+          if is_error, do: {:error, content}, else: {:ok, content}
+
+        {:EXIT, _from, reason} ->
+          # ParallelExecutor killed this task (on_timeout: :error).
+          # Persist an error ToolResult before dying so the ToolCall is not orphaned.
+          Tasks.add_tool_result(scope, task_id, tool_call, "Tool #{tool_call.name} timed out", true)
+          exit(reason)
+      end
+
+    Process.flag(:trap_exit, false)
+    result
   end
 
   # --- Image Enrichment ---

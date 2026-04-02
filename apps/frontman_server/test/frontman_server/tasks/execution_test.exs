@@ -349,6 +349,82 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
     end
   end
 
+  # -- MCP tool timeout with on_timeout: :error — DB invariant -------------------
+
+  describe "MCP tool timeout with on_timeout: :error" do
+    setup :setup_task
+
+    # Short-timeout tool that fails fast and lets the agent continue.
+    defp error_timeout_mcp_tool_defs do
+      [
+        %MCP{
+          name: "question",
+          description: "Ask the user a question",
+          input_schema: %{
+            "type" => "object",
+            "properties" => %{"questions" => %{"type" => "array"}}
+          },
+          visible_to_agent: true,
+          timeout_ms: 100,
+          on_timeout: :error
+        }
+      ]
+    end
+
+    test "ToolResult is persisted in DB when MCP tool times out (on_timeout: :error)", %{
+      task_id: task_id,
+      scope: scope
+    } do
+      question_tc_id = "tc_error_timeout_#{System.unique_integer([:positive])}"
+      question_tc = tool_call("question", question_args(), id: question_tc_id)
+
+      # on_timeout: :error — the error ToolResult is fed back to the LLM, agent continues
+      agent =
+        test_agent(
+          tool_then_complete_llm([question_tc], "Understood, the tool timed out."),
+          "ErrorTimeoutAgent",
+          tools: MCP.to_swarm_tools(error_timeout_mcp_tool_defs())
+        )
+
+      {:ok, _} =
+        Tasks.submit_user_message(scope, task_id, user_content("Ask me"), [],
+          agent: agent,
+          mcp_tool_defs: error_timeout_mcp_tool_defs()
+        )
+
+      # Agent completes (not pauses) — the error result is sent to the LLM which responds
+      assert_receive {:swarm_event, {:completed, _}}, 5_000
+
+      {:ok, task} = Tasks.get_task(scope, task_id)
+
+      tool_call_interaction =
+        Enum.find(task.interactions, fn
+          %Interaction.ToolCall{tool_call_id: ^question_tc_id} -> true
+          _ -> false
+        end)
+
+      assert tool_call_interaction != nil,
+             "Expected a ToolCall interaction to be persisted"
+
+      # Every persisted ToolCall must have a matching ToolResult.
+      # Bug: the old execute_mcp_tool had an after clause that called Tasks.add_tool_result
+      # on timeout; the new code removed it. For on_timeout: :error, no ToolResult is
+      # ever written, leaving an orphaned ToolCall that shows as perpetually in-progress
+      # on reconnect.
+      tool_result =
+        Enum.find(task.interactions, fn
+          %Interaction.ToolResult{tool_call_id: ^question_tc_id} -> true
+          _ -> false
+        end)
+
+      assert tool_result != nil,
+             "Expected a ToolResult for the timed-out ToolCall — " <>
+               "every persisted ToolCall must have a matching ToolResult"
+
+      assert tool_result.is_error == true
+    end
+  end
+
   # -- Agent pause — client notification (bug 8) --------------------------------
 
   describe "interactive tool timeout — client notification" do
