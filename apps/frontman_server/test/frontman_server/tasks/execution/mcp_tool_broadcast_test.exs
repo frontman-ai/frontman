@@ -15,6 +15,8 @@ defmodule FrontmanServer.Tasks.Execution.MCPToolBroadcastTest do
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Tasks
 
+  import FrontmanServer.Test.Fixtures.Tasks
+
   describe "MCP tool call broadcast" do
     setup do
       pid = Sandbox.start_owner!(FrontmanServer.Repo, shared: true)
@@ -28,11 +30,7 @@ defmodule FrontmanServer.Tasks.Execution.MCPToolBroadcastTest do
         })
 
       scope = Scope.for_user(user)
-      task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
-
-      # Subscribe to task topic to receive interaction broadcasts
-      Phoenix.PubSub.subscribe(FrontmanServer.PubSub, Tasks.topic(task_id))
+      task_id = task_with_pubsub_fixture(scope, framework: "test-framework")
 
       {:ok, task_id: task_id, scope: scope}
     end
@@ -49,8 +47,10 @@ defmodule FrontmanServer.Tasks.Execution.MCPToolBroadcastTest do
       agent = test_agent(llm, "MCPToolTestAgent")
 
       # Start agent via submit_user_message with custom agent
-      user_content = [%{"type" => "text", "text" => "Please call the MCP tool"}]
-      {:ok, _} = Tasks.submit_user_message(scope, task_id, user_content, [], agent: agent)
+      {:ok, _} =
+        Tasks.submit_user_message(scope, task_id, user_content("Please call the MCP tool"), [],
+          agent: agent
+        )
 
       # Collect all tool call interactions broadcast via PubSub
       # Wait for broadcasts (tool executor has 60s timeout, but we'll collect what we get)
@@ -98,11 +98,7 @@ defmodule FrontmanServer.Tasks.Execution.MCPToolBroadcastTest do
         })
 
       scope = Scope.for_user(user)
-      task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
-
-      # Subscribe to receive broadcasts
-      Phoenix.PubSub.subscribe(FrontmanServer.PubSub, Tasks.topic(task_id))
+      task_id = task_with_pubsub_fixture(scope, framework: "test-framework")
 
       {:ok, task_id: task_id, scope: scope}
     end
@@ -117,8 +113,8 @@ defmodule FrontmanServer.Tasks.Execution.MCPToolBroadcastTest do
       agent = test_agent(llm, "TestAgent")
 
       # Start agent via submit_user_message with custom agent
-      user_content = [%{"type" => "text", "text" => "Call tool"}]
-      {:ok, _} = Tasks.submit_user_message(scope, task_id, user_content, [], agent: agent)
+      {:ok, _} =
+        Tasks.submit_user_message(scope, task_id, user_content("Call tool"), [], agent: agent)
 
       # Wait for the interaction broadcast
       assert_receive {:interaction, %Tasks.Interaction.ToolCall{tool_call_id: ^expected_id}},

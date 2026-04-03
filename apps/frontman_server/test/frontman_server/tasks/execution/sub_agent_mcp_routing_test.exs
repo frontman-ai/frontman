@@ -21,6 +21,7 @@ defmodule FrontmanServer.Tasks.Execution.SubAgentMcpRoutingTest do
   use FrontmanServerWeb.ChannelCase
 
   import FrontmanServer.InteractionCase.Helpers
+  import FrontmanServer.Test.Fixtures.Tasks
 
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Execution.ToolExecutor
@@ -30,8 +31,7 @@ defmodule FrontmanServer.Tasks.Execution.SubAgentMcpRoutingTest do
 
   describe "ToolExecutor MCP tool routing" do
     setup %{scope: scope} do
-      task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
+      task_id = task_fixture(scope, framework: "test-framework")
 
       # Join TaskChannel to intercept MCP requests
       {:ok, _reply, socket} =

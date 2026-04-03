@@ -14,6 +14,8 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Tasks
 
+  import FrontmanServer.Test.Fixtures.Tasks
+
   setup do
     Sentry.Test.start_collecting_sentry_reports()
 
@@ -28,10 +30,7 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
       })
 
     scope = Scope.for_user(user)
-    task_id = Ecto.UUID.generate()
-    {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
-
-    Phoenix.PubSub.subscribe(FrontmanServer.PubSub, Tasks.topic(task_id))
+    task_id = task_with_pubsub_fixture(scope, framework: "test-framework")
 
     {:ok, task_id: task_id, scope: scope}
   end
@@ -45,10 +44,8 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
       # ErrorLLM always returns {:error, reason}, triggering a :failed event
       agent = test_agent(%ErrorLLM{error: :llm_api_failure}, "ErrorSentryAgent")
 
-      user_content = [%{"type" => "text", "text" => "Hello"}]
-
       {:ok, _} =
-        Tasks.submit_user_message(scope, task_id, user_content, [],
+        Tasks.submit_user_message(scope, task_id, user_content("Hello"), [],
           agent: agent,
           env_api_key: %{"openrouter" => "sk-or-test"}
         )
@@ -89,10 +86,8 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
 
       agent = test_agent(error_llm, "ErrorSentryAgent")
 
-      user_content = [%{"type" => "text", "text" => "Trigger error"}]
-
       {:ok, _} =
-        Tasks.submit_user_message(scope, task_id, user_content, [],
+        Tasks.submit_user_message(scope, task_id, user_content("Trigger error"), [],
           agent: agent,
           env_api_key: %{"openrouter" => "sk-or-test"}
         )

@@ -11,11 +11,11 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
   use SwarmAi.Testing, async: false
 
   import FrontmanServer.InteractionCase.Helpers
+  import FrontmanServer.Test.Fixtures.Tasks
 
   alias Ecto.Adapters.SQL.Sandbox
   alias FrontmanServer.Accounts
   alias FrontmanServer.Accounts.Scope
-  alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Execution.ToolExecutor
 
   setup do
@@ -32,8 +32,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
       })
 
     scope = Scope.for_user(user)
-    task_id = Ecto.UUID.generate()
-    {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
+    task_id = task_fixture(scope, framework: "test-framework")
 
     {:ok, task_id: task_id, scope: scope}
   end

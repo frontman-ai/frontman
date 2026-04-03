@@ -17,6 +17,8 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Tasks
 
+  import FrontmanServer.Test.Fixtures.Tasks
+
   describe "LLM stream error propagation" do
     setup do
       pid = Sandbox.start_owner!(FrontmanServer.Repo, shared: true)
@@ -30,11 +32,7 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
         })
 
       scope = Scope.for_user(user)
-      task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
-
-      # Subscribe to task topic to receive error broadcasts
-      Phoenix.PubSub.subscribe(FrontmanServer.PubSub, Tasks.topic(task_id))
+      task_id = task_with_pubsub_fixture(scope, framework: "test-framework")
 
       {:ok, task_id: task_id, scope: scope}
     end
@@ -55,10 +53,8 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
 
       agent = test_agent(error_llm, "ErrorPropTestAgent")
 
-      user_content = [%{"type" => "text", "text" => "Take a screenshot"}]
-
       {:ok, _} =
-        Tasks.submit_user_message(scope, task_id, user_content, [],
+        Tasks.submit_user_message(scope, task_id, user_content("Take a screenshot"), [],
           agent: agent,
           env_api_key: %{"openrouter" => "sk-or-test"}
         )
@@ -76,10 +72,8 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
       # ErrorLLM always returns {:error, reason}
       agent = test_agent(%ErrorLLM{error: :llm_api_failure}, "AlwaysErrorAgent")
 
-      user_content = [%{"type" => "text", "text" => "Hello"}]
-
       {:ok, _} =
-        Tasks.submit_user_message(scope, task_id, user_content, [],
+        Tasks.submit_user_message(scope, task_id, user_content("Hello"), [],
           agent: agent,
           env_api_key: %{"openrouter" => "sk-or-test"}
         )
