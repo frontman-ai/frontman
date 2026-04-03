@@ -18,6 +18,7 @@ defmodule FrontmanServer.Observability.OtelHandlerTest do
   use SwarmAi.Testing, async: false
 
   import FrontmanServer.InteractionCase.Helpers
+  import FrontmanServer.Test.Fixtures.Tasks
 
   alias Ecto.Adapters.SQL.Sandbox
   alias FrontmanServer.Accounts
@@ -68,9 +69,7 @@ defmodule FrontmanServer.Observability.OtelHandlerTest do
     ensure_ets_tables()
     :otel_simple_processor.set_exporter(:otel_exporter_pid, self())
 
-    task_id = Ecto.UUID.generate()
-    {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
-    Phoenix.PubSub.subscribe(FrontmanServer.PubSub, Tasks.topic(task_id))
+    task_id = task_with_pubsub_fixture(scope, framework: "test-framework")
 
     on_exit(&cleanup_ets_tables/0)
     {:ok, task_id: task_id, scope: scope}
