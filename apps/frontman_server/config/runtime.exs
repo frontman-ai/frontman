@@ -92,6 +92,10 @@ if config_env() == :prod do
   config :frontman_server,
     discord_new_users_webhook_url: env!("DISCORD_NEW_USERS_WEBHOOK_URL", :string!)
 
+  config :frontman_server, FrontmanServer.Workers.SendWelcomeEmail, enabled: true
+  config :frontman_server, FrontmanServer.Workers.SyncResendContact, enabled: true
+  config :frontman_server, FrontmanServer.Workers.NotifyDiscordNewUser, enabled: true
+
   config :sentry,
     dsn:
       "https://442ae992e5a5ccfc42e6910220aeb2a9@o4510512511320064.ingest.de.sentry.io/4510512546185296",

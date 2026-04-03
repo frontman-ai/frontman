@@ -34,6 +34,11 @@ config :frontman_server, Oban, testing: :manual
 # Discord webhook URL for test assertions
 config :frontman_server, discord_new_users_webhook_url: "https://discord.test/webhook"
 
+# Enable signup workers in test so assertions work
+config :frontman_server, FrontmanServer.Workers.SendWelcomeEmail, enabled: true
+config :frontman_server, FrontmanServer.Workers.SyncResendContact, enabled: true
+config :frontman_server, FrontmanServer.Workers.NotifyDiscordNewUser, enabled: true
+
 # Disable swoosh api client as it is only required for production adapters
 config :swoosh, :api_client, false
 

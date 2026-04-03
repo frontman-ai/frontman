@@ -18,16 +18,27 @@ defmodule FrontmanServer.Workers.SendWelcomeEmail do
   alias FrontmanServer.Accounts.UserNotifier
   alias FrontmanServer.Repo
 
+  require Logger
+
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"user_id" => user_id}}) do
-    case Repo.get(User, user_id) do
-      %User{} = user ->
-        {:ok, _email} = UserNotifier.deliver_welcome(user)
-        :ok
+    if enabled?() do
+      case Repo.get(User, user_id) do
+        %User{} = user ->
+          {:ok, _email} = UserNotifier.deliver_welcome(user)
+          :ok
 
-      nil ->
-        # User was deleted between enqueue and execution — nothing to do.
-        :discard
+        nil ->
+          # User was deleted between enqueue and execution — nothing to do.
+          :discard
+      end
+    else
+      Logger.info("[WelcomeEmail] Worker disabled, skipping email")
+      :ok
     end
+  end
+
+  defp enabled? do
+    Application.get_env(:frontman_server, __MODULE__)[:enabled] == true
   end
 end

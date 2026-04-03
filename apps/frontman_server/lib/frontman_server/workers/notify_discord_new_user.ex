@@ -19,13 +19,22 @@ defmodule FrontmanServer.Workers.NotifyDiscordNewUser do
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"user_id" => user_id}}) do
-    case Repo.get(User, user_id) do
-      %User{} = user ->
-        post_to_discord(user)
+    if enabled?() do
+      case Repo.get(User, user_id) do
+        %User{} = user ->
+          post_to_discord(user)
 
-      nil ->
-        :discard
+        nil ->
+          :discard
+      end
+    else
+      Logger.info("[Discord] Worker disabled, skipping notification")
+      :ok
     end
+  end
+
+  defp enabled? do
+    Application.get_env(:frontman_server, __MODULE__)[:enabled] == true
   end
 
   defp post_to_discord(user) do

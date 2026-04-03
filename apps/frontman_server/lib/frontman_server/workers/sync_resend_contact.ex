@@ -19,16 +19,27 @@ defmodule FrontmanServer.Workers.SyncResendContact do
   alias FrontmanServer.Accounts.User
   alias FrontmanServer.Repo
 
+  require Logger
+
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"user_id" => user_id}}) do
-    case Repo.get(User, user_id) do
-      nil ->
-        # User was deleted between enqueue and execution — nothing to do.
-        :discard
+    if enabled?() do
+      case Repo.get(User, user_id) do
+        nil ->
+          # User was deleted between enqueue and execution — nothing to do.
+          :discard
 
-      %User{} = user ->
-        post_contact(user)
+        %User{} = user ->
+          post_contact(user)
+      end
+    else
+      Logger.info("[ResendContact] Worker disabled, skipping sync")
+      :ok
     end
+  end
+
+  defp enabled? do
+    Application.get_env(:frontman_server, __MODULE__)[:enabled] == true
   end
 
   defp post_contact(%User{email: email, name: name}) do

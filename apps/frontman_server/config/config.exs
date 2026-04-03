@@ -74,6 +74,11 @@ config :frontman_server, FrontmanServer.Mailer,
   contacts_url: "https://api.resend.com/contacts",
   segment_id: "974ede17-1b25-4e48-a71d-6d5f0923f402"
 
+# Signup workers — disabled by default, enabled in prod and test.
+config :frontman_server, FrontmanServer.Workers.SendWelcomeEmail, enabled: false
+config :frontman_server, FrontmanServer.Workers.SyncResendContact, enabled: false
+config :frontman_server, FrontmanServer.Workers.NotifyDiscordNewUser, enabled: false
+
 # Oban background job processing (Postgres-backed)
 config :frontman_server, Oban,
   repo: FrontmanServer.Repo,
