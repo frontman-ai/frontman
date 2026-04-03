@@ -90,8 +90,7 @@ end
 
 if config_env() == :prod do
   config :frontman_server,
-    discord_new_users_webhook_url: env!("DISCORD_NEW_USERS_WEBHOOK_URL", :string!),
-    discord_pg_channel: "new_user"
+    discord_new_users_webhook_url: env!("DISCORD_NEW_USERS_WEBHOOK_URL", :string!)
 
   config :sentry,
     dsn:

@@ -32,38 +32,23 @@ defmodule FrontmanServer.Application do
       nil
     )
 
-    # Discord new-user signup alerts (PG LISTEN/NOTIFY → webhook) – prod only
-    discord_children =
-      if Application.get_env(:frontman_server, :discord_new_users_webhook_url) do
-        [
-          {Postgrex.Notifications, [name: FrontmanServer.PGNotifications] ++ pg_notify_opts()},
-          {FrontmanServer.Notifications.Discord,
-           webhook_url: Application.get_env(:frontman_server, :discord_new_users_webhook_url),
-           channel: Application.get_env(:frontman_server, :discord_pg_channel),
-           notifications_pid: FrontmanServer.PGNotifications}
-        ]
-      else
-        []
-      end
-
-    children =
-      [
-        FrontmanServerWeb.Telemetry,
-        FrontmanServer.Repo,
-        FrontmanServer.Vault,
-        {DNSCluster, query: Application.get_env(:frontman_server, :dns_cluster_query) || :ignore},
-        {Phoenix.PubSub, name: FrontmanServer.PubSub},
-        # Supervised agent execution (Registry + TaskSupervisor)
-        {SwarmAi.Runtime,
-         name: FrontmanServer.AgentRuntime,
-         event_dispatcher: {FrontmanServer.Tasks.SwarmDispatcher, :dispatch, []}},
-        # Registry for MCP tool call result routing (separate from agent execution tracking)
-        {Registry, keys: :unique, name: FrontmanServer.ToolCallRegistry},
-        # Oban background job processing (email delivery, contact sync, etc.)
-        {Oban, Application.fetch_env!(:frontman_server, Oban)},
-        # Start to serve requests, typically the last entry
-        FrontmanServerWeb.Endpoint
-      ] ++ discord_children
+    children = [
+      FrontmanServerWeb.Telemetry,
+      FrontmanServer.Repo,
+      FrontmanServer.Vault,
+      {DNSCluster, query: Application.get_env(:frontman_server, :dns_cluster_query) || :ignore},
+      {Phoenix.PubSub, name: FrontmanServer.PubSub},
+      # Supervised agent execution (Registry + TaskSupervisor)
+      {SwarmAi.Runtime,
+       name: FrontmanServer.AgentRuntime,
+       event_dispatcher: {FrontmanServer.Tasks.SwarmDispatcher, :dispatch, []}},
+      # Registry for MCP tool call result routing (separate from agent execution tracking)
+      {Registry, keys: :unique, name: FrontmanServer.ToolCallRegistry},
+      # Oban background job processing (email delivery, contact sync, etc.)
+      {Oban, Application.fetch_env!(:frontman_server, Oban)},
+      # Start to serve requests, typically the last entry
+      FrontmanServerWeb.Endpoint
+    ]
 
     # See https://hexdocs.pm/elixir/Supervisor.html
     # for other strategies and supported options
@@ -77,48 +62,5 @@ defmodule FrontmanServer.Application do
   def config_change(changed, _new, removed) do
     FrontmanServerWeb.Endpoint.config_change(changed, removed)
     :ok
-  end
-
-  # Extracts Postgrex connection options from the Repo config.
-  # Handles both DATABASE_URL (prod) and individual keys (dev).
-  defp pg_notify_opts do
-    repo_config = Application.get_env(:frontman_server, FrontmanServer.Repo)
-
-    case repo_config[:url] do
-      url when is_binary(url) ->
-        uri = URI.parse(url)
-
-        # Intentionally crashes if userinfo is present but missing a password —
-        # DATABASE_URL must always include user:password credentials.
-        {username, password} =
-          case uri.userinfo do
-            nil ->
-              {nil, nil}
-
-            info ->
-              [user, pass] = String.split(info, ":", parts: 2)
-              {URI.decode(user), URI.decode(pass)}
-          end
-
-        [
-          hostname: uri.host,
-          port: uri.port || 5432,
-          username: username,
-          password: password,
-          database: String.trim_leading(uri.path || "/", "/")
-        ] ++ Keyword.take(repo_config, [:ssl, :ssl_opts, :socket_options])
-
-      _ ->
-        Keyword.take(repo_config, [
-          :hostname,
-          :port,
-          :username,
-          :password,
-          :database,
-          :ssl,
-          :ssl_opts,
-          :socket_options
-        ])
-    end
   end
 end
