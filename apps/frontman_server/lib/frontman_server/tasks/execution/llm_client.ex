@@ -112,8 +112,6 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
       |> maybe_prepend_identity(identity_override)
       |> MessageOptimizer.optimize()
 
-    log_message_sizes(reqllm_messages)
-
     case ReqLLM.stream_text(client.model, reqllm_messages, llm_opts) do
       {:ok, response} ->
         stall_timeout_ms =
@@ -311,38 +309,6 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
   end
 
   # Log per-call message sizes to help diagnose large-request transport errors.
-  # Reports total message count, number of messages carrying images, and the
-  # byte size of each image content part so we can track accumulation across
-  # loop steps.
-  defp log_message_sizes(messages) do
-    total = length(messages)
-
-    image_parts =
-      Enum.flat_map(messages, fn msg ->
-        parts = if is_list(msg.content), do: msg.content, else: []
-
-        parts
-        |> Enum.filter(fn p -> p.type in [:image, :image_url] end)
-        |> Enum.map(fn p ->
-          bytes = if p.type == :image, do: byte_size(p.data || ""), else: byte_size(p.url || "")
-          {p.type, bytes}
-        end)
-      end)
-
-    image_summary =
-      Enum.map_join(image_parts, ", ", fn {type, bytes} ->
-        "#{type}:#{div(bytes, 1024)}KB"
-      end)
-
-    total_image_bytes = Enum.sum(Enum.map(image_parts, fn {_type, bytes} -> bytes end))
-
-    Logger.debug(
-      "[LLMClient] stream call: #{total} messages, " <>
-        "#{length(image_parts)} image parts (#{div(total_image_bytes, 1024)}KB total)" <>
-        if(image_parts != [], do: " [#{image_summary}]", else: "")
-    )
-  end
-
   # Prepend identity override as the first content block of system messages
   # This is used for Claude Code OAuth to inject "You are Claude Code..." identity
   defp maybe_prepend_identity(messages, nil), do: messages

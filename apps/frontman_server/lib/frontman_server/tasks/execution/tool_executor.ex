@@ -63,8 +63,6 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
     exec_opts = build_exec_opts(opts)
 
     executor = fn tool_calls ->
-      names = Enum.map_join(tool_calls, ", ", & &1.name)
-      Logger.debug("ToolExecutor batch: #{length(tool_calls)} tool(s) [#{names}]")
       Enum.map(tool_calls, &build_tool_result(&1, scope, task_id, exec_opts))
     end
 
