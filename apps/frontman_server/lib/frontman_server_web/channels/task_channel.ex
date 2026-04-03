@@ -381,15 +381,28 @@ defmodule FrontmanServerWeb.TaskChannel do
     task_id = socket.assigns.task_id
     Logger.info("Cancel notification received for task #{task_id}")
 
+    # Clear retry state up front — whether an execution is running or not,
+    # the user wants to stop. Cancel the timer so :fire_retry doesn't arrive later.
+    had_retry = socket.assigns[:retry_state] != nil
+    socket = assign(socket, :retry_state, RetryCoordinator.clear(socket.assigns[:retry_state]))
+
     case Tasks.cancel_execution(socket.assigns.scope, task_id) do
       :ok ->
+        # Execution running — cancel signal sent. The :agent_cancelled handler
+        # will call handle_turn_ended when the execution actually stops.
         Logger.info("Agent cancel signal sent for task #{task_id}")
+        {:noreply, socket}
 
       {:error, :not_running} ->
         Logger.info("Cancel notification for task #{task_id}: no agent running")
-    end
 
-    {:noreply, socket}
+        if had_retry do
+          # Was in retry countdown — no execution to cancel, end the turn now
+          handle_turn_ended(socket, ACP.stop_reason_cancelled())
+        else
+          {:noreply, socket}
+        end
+    end
   end
 
   # Handle session/load - stream history via session/update notifications
@@ -721,29 +734,11 @@ defmodule FrontmanServerWeb.TaskChannel do
   # Agent failed to start (e.g. no API key, usage limit). Broadcast by
   # Tasks.maybe_start_execution when Execution.run returns an error.
   def handle_info({:execution_start_error, msg}, socket) do
+    socket = assign(socket, :retry_state, RetryCoordinator.clear(socket.assigns[:retry_state]))
     handle_turn_error(socket, msg, "unknown")
   end
 
-  def handle_info(
-        {:retrying_status, attempt, max_attempts, retry_at_iso, error_message, error_category},
-        socket
-      ) do
-    task_id = socket.assigns.task_id
-    {:ok, retry_at, _} = DateTime.from_iso8601(retry_at_iso)
-
-    notification =
-      ACP.build_error_notification(task_id, error_message, DateTime.utc_now(),
-        category: error_category,
-        retry_at: retry_at,
-        attempt: attempt,
-        max_attempts: max_attempts
-      )
-
-    push(socket, @acp_message, notification)
-    {:noreply, socket}
-  end
-
-  def handle_info({:trigger_retry}, socket) do
+  def handle_info(:fire_retry, socket) do
     scope = socket.assigns.scope
     task_id = socket.assigns.task_id
     opts = socket.assigns[:last_execution_opts] || []
@@ -751,16 +746,6 @@ defmodule FrontmanServerWeb.TaskChannel do
     all_tools = mcp_tools |> Tools.prepare_for_task(task_id)
     Tasks.maybe_start_execution(scope, task_id, all_tools, opts)
     {:noreply, socket}
-  end
-
-  def handle_info({:retry_exhausted, %{kind: "cancelled"}}, socket) do
-    socket = assign(socket, :retry_coordinator, nil)
-    handle_turn_ended(socket, ACP.stop_reason_cancelled())
-  end
-
-  def handle_info({:retry_exhausted, error_info}, socket) do
-    socket = assign(socket, :retry_coordinator, nil)
-    handle_turn_error(socket, error_info.message, error_info.category)
   end
 
   def handle_info({:title_updated, task_id, title}, socket) do
@@ -810,14 +795,24 @@ defmodule FrontmanServerWeb.TaskChannel do
   end
 
   defp handle_transient_error(socket, error_info) do
-    case socket.assigns[:retry_coordinator] do
-      nil ->
-        {:ok, coordinator_pid} = RetryCoordinator.start(self(), error_info)
-        {:noreply, assign(socket, :retry_coordinator, coordinator_pid)}
+    case RetryCoordinator.handle_error(socket.assigns[:retry_state], error_info) do
+      {:exhausted, error_info} ->
+        socket = assign(socket, :retry_state, nil)
+        handle_turn_error(socket, error_info.message, error_info.category)
 
-      pid ->
-        RetryCoordinator.execution_failed(pid, error_info)
-        {:noreply, socket}
+      {:retry_scheduled, state, notification} ->
+        task_id = socket.assigns.task_id
+
+        acp_notification =
+          ACP.build_error_notification(task_id, notification.message, DateTime.utc_now(),
+            category: notification.category,
+            retry_at: notification.retry_at,
+            attempt: notification.attempt,
+            max_attempts: notification.max_attempts
+          )
+
+        push(socket, @acp_message, acp_notification)
+        {:noreply, assign(socket, :retry_state, state)}
     end
   end
 
@@ -835,17 +830,7 @@ defmodule FrontmanServerWeb.TaskChannel do
   defp handle_turn_ended(socket, stop_reason) do
     task_id = socket.assigns.task_id
 
-    # Stop any in-progress retry coordinator — the turn succeeded (or was cancelled),
-    # so we must not let a stale coordinator accept execution_failed from the next turn.
-    socket =
-      case socket.assigns[:retry_coordinator] do
-        nil ->
-          socket
-
-        pid ->
-          GenServer.stop(pid, :normal)
-          assign(socket, :retry_coordinator, nil)
-      end
+    socket = assign(socket, :retry_state, RetryCoordinator.clear(socket.assigns[:retry_state]))
 
     # 1. Always notify — this is the canonical "turn ended" signal
     notification = ACP.build_agent_turn_complete_notification(task_id, stop_reason)
@@ -1022,9 +1007,7 @@ defmodule FrontmanServerWeb.TaskChannel do
     # tool calls. Without this, executors block until the 24h safety-net
     # timeout. On reconnect, reexecute_unresolved_tool_calls re-sends
     # tools/call to the new client, which provides a fresh tool result.
-    if pid = socket.assigns[:retry_coordinator] do
-      RetryCoordinator.cancel(pid)
-    end
+    RetryCoordinator.clear(socket.assigns[:retry_state])
 
     pending_requests = socket.assigns[:pending_requests] || %{}
 
