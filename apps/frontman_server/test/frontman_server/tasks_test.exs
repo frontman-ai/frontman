@@ -2,6 +2,7 @@ defmodule FrontmanServer.TasksTest do
   use FrontmanServer.DataCase, async: true
 
   import FrontmanServer.InteractionCase.Helpers
+  import FrontmanServer.Test.Fixtures.Tasks
 
   alias FrontmanServer.Accounts
   alias FrontmanServer.Accounts.Scope
@@ -40,15 +41,13 @@ defmodule FrontmanServer.TasksTest do
 
   describe "get_short_desc/2" do
     test "returns title for existing task", %{scope: scope} do
-      task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
+      task_id = task_fixture(scope)
 
       assert {:ok, "New Task"} = Tasks.get_short_desc(scope, task_id)
     end
 
     test "returns updated title after set_generated_title", %{scope: scope} do
-      task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
+      task_id = task_fixture(scope)
 
       :ok = Tasks.set_generated_title(scope, task_id, "My Custom Title")
       assert {:ok, "My Custom Title"} = Tasks.get_short_desc(scope, task_id)
@@ -59,8 +58,7 @@ defmodule FrontmanServer.TasksTest do
     end
 
     test "returns not_found for task owned by different user", %{scope: scope} do
-      task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
+      task_id = task_fixture(scope)
 
       {:ok, other_user} =
         Accounts.register_user(%{
@@ -76,8 +74,7 @@ defmodule FrontmanServer.TasksTest do
 
   describe "get_task/2 authorization" do
     test "returns not_found when accessing task owned by different user", %{scope: scope} do
-      task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
+      task_id = task_fixture(scope)
 
       # Create a different user/scope
       {:ok, other_user} =
@@ -96,11 +93,10 @@ defmodule FrontmanServer.TasksTest do
 
   describe "LLM message conversion" do
     test "returns all messages for task", %{scope: scope} do
-      task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
+      task_id = task_fixture(scope)
 
       # Add a user message
-      Tasks.submit_user_message(scope, task_id, [%{"type" => "text", "text" => "Hello"}], [],
+      Tasks.submit_user_message(scope, task_id, user_content("Hello"), [],
         agent: %FrontmanServer.Testing.BlockingAgent{}
       )
 
@@ -120,8 +116,7 @@ defmodule FrontmanServer.TasksTest do
     end
 
     test "full tool_call + tool_result round-trip produces valid LLM messages", %{scope: scope} do
-      task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
+      task_id = task_fixture(scope)
 
       tool_call_id = "toolu_integration_#{System.unique_integer([:positive])}"
 
@@ -130,7 +125,7 @@ defmodule FrontmanServer.TasksTest do
         Tasks.submit_user_message(
           scope,
           task_id,
-          [%{"type" => "text", "text" => "What is 2+2?"}],
+          user_content("What is 2+2?"),
           [],
           agent: %FrontmanServer.Testing.BlockingAgent{}
         )
@@ -201,8 +196,7 @@ defmodule FrontmanServer.TasksTest do
 
   describe "add_tool_call/3" do
     test "creates tool call interaction", %{scope: scope} do
-      task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
+      task_id = task_fixture(scope)
 
       tool_call = ReqLLM.ToolCall.new("call_123", "calculator", ~s({"expression": "1 + 1"}))
 
@@ -224,8 +218,7 @@ defmodule FrontmanServer.TasksTest do
 
   describe "add_tool_result/5" do
     test "creates tool result interaction", %{scope: scope} do
-      task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
+      task_id = task_fixture(scope)
 
       tool_call_data = %{id: "call_123", name: "calculator"}
 
@@ -238,8 +231,7 @@ defmodule FrontmanServer.TasksTest do
     end
 
     test "creates error tool result", %{scope: scope} do
-      task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
+      task_id = task_fixture(scope)
 
       tool_call_data = %{id: "call_456", name: "failing_tool"}
 
@@ -251,8 +243,7 @@ defmodule FrontmanServer.TasksTest do
     end
 
     test "stores tool result in interactions", %{scope: scope} do
-      task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
+      task_id = task_fixture(scope)
 
       tool_call_data = %{id: "call_notify", name: "some_tool"}
 
@@ -265,8 +256,7 @@ defmodule FrontmanServer.TasksTest do
     end
 
     test "rejects duplicate tool result for the same tool_call_id", %{scope: scope} do
-      task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
+      task_id = task_fixture(scope)
 
       tool_call_data = %{id: "call_dedup", name: "some_tool"}
 
@@ -285,18 +275,17 @@ defmodule FrontmanServer.TasksTest do
 
   describe "append_interaction sequence assignment" do
     test "assigns monotonically increasing sequences", %{scope: scope} do
-      task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
+      task_id = task_fixture(scope)
 
       {:ok, msg1} =
-        Tasks.submit_user_message(scope, task_id, [%{"type" => "text", "text" => "hello"}], [],
+        Tasks.submit_user_message(scope, task_id, user_content("hello"), [],
           agent: %FrontmanServer.Testing.BlockingAgent{}
         )
 
       {:ok, msg2} = Tasks.add_agent_response(scope, task_id, "hi there")
 
       {:ok, msg3} =
-        Tasks.submit_user_message(scope, task_id, [%{"type" => "text", "text" => "again"}], [],
+        Tasks.submit_user_message(scope, task_id, user_content("again"), [],
           agent: %FrontmanServer.Testing.BlockingAgent{}
         )
 
@@ -306,8 +295,7 @@ defmodule FrontmanServer.TasksTest do
     end
 
     test "sequences survive struct creation with default 0", %{scope: scope} do
-      task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
+      task_id = task_fixture(scope)
 
       # The struct starts with sequence 0, but after append_interaction
       # it should have a proper sequence assigned by the DB
@@ -316,8 +304,7 @@ defmodule FrontmanServer.TasksTest do
     end
 
     test "concurrent inserts produce unique, sortable sequences", %{scope: scope} do
-      task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
+      task_id = task_fixture(scope)
 
       # Spawn 20 concurrent processes all inserting interactions for the same task.
       # With the old MAX(sequence)+1 approach, concurrent readers would see the same
@@ -347,11 +334,10 @@ defmodule FrontmanServer.TasksTest do
     end
 
     test "sequences are consistent when read back from DB", %{scope: scope} do
-      task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
+      task_id = task_fixture(scope)
 
       {:ok, _} =
-        Tasks.submit_user_message(scope, task_id, [%{"type" => "text", "text" => "msg1"}], [],
+        Tasks.submit_user_message(scope, task_id, user_content("msg1"), [],
           agent: %FrontmanServer.Testing.BlockingAgent{}
         )
 
@@ -373,8 +359,7 @@ defmodule FrontmanServer.TasksTest do
 
   describe "add_discovered_project_rule/4" do
     test "adds rule to task", %{scope: scope} do
-      task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
+      task_id = task_fixture(scope)
 
       {:ok, rule} =
         Tasks.add_discovered_project_rule(scope, task_id, "/project/AGENTS.md", "# Rules")
@@ -384,8 +369,7 @@ defmodule FrontmanServer.TasksTest do
     end
 
     test "deduplicates by path", %{scope: scope} do
-      task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
+      task_id = task_fixture(scope)
 
       {:ok, _rule} =
         Tasks.add_discovered_project_rule(scope, task_id, "/project/AGENTS.md", "# Rules v1")
@@ -410,8 +394,7 @@ defmodule FrontmanServer.TasksTest do
     end
 
     test "handles content with null bytes without crashing", %{scope: scope} do
-      task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
+      task_id = task_fixture(scope)
 
       # Simulate a project rule file containing null bytes (e.g., from a
       # Windows UTF-16 file, binary artifact, or corrupted file).
@@ -439,8 +422,7 @@ defmodule FrontmanServer.TasksTest do
     end
 
     test "handles null bytes in rule file path without crashing", %{scope: scope} do
-      task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
+      task_id = task_fixture(scope)
 
       path_with_null = "/project/AGENTS\0.md"
 
@@ -460,8 +442,7 @@ defmodule FrontmanServer.TasksTest do
 
   describe "add_discovered_project_structure/3" do
     test "adds structure to task", %{scope: scope} do
-      task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
+      task_id = task_fixture(scope)
 
       summary = "Project type: single project\n\nDirectory layout:\n."
 
@@ -481,12 +462,11 @@ defmodule FrontmanServer.TasksTest do
 
   describe "LLM message conversion excludes non-conversational interactions" do
     test "structure is excluded from LLM messages", %{scope: scope} do
-      task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
+      task_id = task_fixture(scope)
 
       Tasks.add_discovered_project_structure(scope, task_id, "Project layout...")
 
-      Tasks.submit_user_message(scope, task_id, [%{"type" => "text", "text" => "Hello"}], [],
+      Tasks.submit_user_message(scope, task_id, user_content("Hello"), [],
         agent: %FrontmanServer.Testing.BlockingAgent{}
       )
 
@@ -500,12 +480,11 @@ defmodule FrontmanServer.TasksTest do
     end
 
     test "rules are excluded from LLM messages", %{scope: scope} do
-      task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
+      task_id = task_fixture(scope)
 
       Tasks.add_discovered_project_rule(scope, task_id, "/project/AGENTS.md", "# Project Rules")
 
-      Tasks.submit_user_message(scope, task_id, [%{"type" => "text", "text" => "Hello"}], [],
+      Tasks.submit_user_message(scope, task_id, user_content("Hello"), [],
         agent: %FrontmanServer.Testing.BlockingAgent{}
       )
 
@@ -526,8 +505,7 @@ defmodule FrontmanServer.TasksTest do
     test "annotation survives DB round-trip and appears in LLM messages", %{
       scope: scope
     } do
-      task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
+      task_id = task_fixture(scope)
 
       content_blocks = [
         text_block("Fix the button"),
@@ -575,8 +553,7 @@ defmodule FrontmanServer.TasksTest do
 
   describe "list_todos/2" do
     test "returns empty list for task with no todos", %{scope: scope} do
-      task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
+      task_id = task_fixture(scope)
 
       assert {:ok, []} = Tasks.list_todos(scope, task_id)
     end
@@ -587,8 +564,7 @@ defmodule FrontmanServer.TasksTest do
     end
 
     test "returns todos from task", %{scope: scope} do
-      task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
+      task_id = task_fixture(scope)
 
       write_result = %{
         "todos" => [
@@ -624,10 +600,8 @@ defmodule FrontmanServer.TasksTest do
     end
 
     test "todos are isolated per task", %{scope: scope} do
-      task_a = Ecto.UUID.generate()
-      task_b = Ecto.UUID.generate()
-      {:ok, ^task_a} = Tasks.create_task(scope, task_a, "nextjs")
-      {:ok, ^task_b} = Tasks.create_task(scope, task_b, "nextjs")
+      task_a = task_fixture(scope)
+      task_b = task_fixture(scope)
 
       write_result = %{
         "todos" => [
