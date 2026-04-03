@@ -1,24 +1,15 @@
 defmodule FrontmanServer.TasksTest do
   use FrontmanServer.DataCase, async: true
 
+  import FrontmanServer.AccountsFixtures
   import FrontmanServer.InteractionCase.Helpers
   import FrontmanServer.Test.Fixtures.Tasks
 
-  alias FrontmanServer.Accounts
-  alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Tasks
 
   setup do
-    # Create a test user for scope
-    {:ok, user} =
-      Accounts.register_user(%{
-        email: "test_#{System.unique_integer([:positive])}@test.local",
-        name: "Test User",
-        password: "testpassword123!"
-      })
-
-    scope = Scope.for_user(user)
-    %{scope: scope, user: user}
+    scope = user_scope_fixture()
+    %{scope: scope}
   end
 
   describe "topic/1" do
@@ -60,14 +51,7 @@ defmodule FrontmanServer.TasksTest do
     test "returns not_found for task owned by different user", %{scope: scope} do
       task_id = task_fixture(scope)
 
-      {:ok, other_user} =
-        Accounts.register_user(%{
-          email: "other_#{System.unique_integer([:positive])}@test.local",
-          name: "Other User",
-          password: "testpassword123!"
-        })
-
-      other_scope = Scope.for_user(other_user)
+      other_scope = user_scope_fixture()
       assert {:error, :not_found} = Tasks.get_short_desc(other_scope, task_id)
     end
   end
@@ -77,14 +61,7 @@ defmodule FrontmanServer.TasksTest do
       task_id = task_fixture(scope)
 
       # Create a different user/scope
-      {:ok, other_user} =
-        Accounts.register_user(%{
-          email: "other_#{System.unique_integer([:positive])}@test.local",
-          name: "Other User",
-          password: "testpassword123!"
-        })
-
-      other_scope = Scope.for_user(other_user)
+      other_scope = user_scope_fixture()
 
       # Returns :not_found to prevent task enumeration attacks
       assert {:error, :not_found} = Tasks.get_task(other_scope, task_id)

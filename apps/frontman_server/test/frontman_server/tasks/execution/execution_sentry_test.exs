@@ -9,12 +9,11 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
 
   use SwarmAi.Testing, async: false
 
-  alias Ecto.Adapters.SQL.Sandbox
-  alias FrontmanServer.Accounts
-  alias FrontmanServer.Accounts.Scope
-  alias FrontmanServer.Tasks
-
+  import FrontmanServer.AccountsFixtures
   import FrontmanServer.Test.Fixtures.Tasks
+
+  alias Ecto.Adapters.SQL.Sandbox
+  alias FrontmanServer.Tasks
 
   setup do
     Sentry.Test.start_collecting_sentry_reports()
@@ -22,14 +21,7 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
     pid = Sandbox.start_owner!(FrontmanServer.Repo, shared: true)
     on_exit(fn -> Sandbox.stop_owner(pid) end)
 
-    {:ok, user} =
-      Accounts.register_user(%{
-        email: "exec_sentry_#{System.unique_integer([:positive])}@test.local",
-        name: "Test User",
-        password: "testpassword123!"
-      })
-
-    scope = Scope.for_user(user)
+    scope = user_scope_fixture()
     task_id = task_with_pubsub_fixture(scope, framework: "test-framework")
 
     {:ok, task_id: task_id, scope: scope}

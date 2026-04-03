@@ -11,15 +11,15 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
   import Phoenix.ChannelTest
 
+  import FrontmanServer.AccountsFixtures
+  import FrontmanServer.Test.Fixtures.Tasks
+  import FrontmanServer.Test.Fixtures.Tools, only: [question_args: 0, question_mcp_tool_defs: 0]
+
   alias Ecto.Adapters.SQL.Sandbox
-  alias FrontmanServer.Accounts
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Workers.GenerateTitle
-
-  import FrontmanServer.Test.Fixtures.Tasks
-  import FrontmanServer.Test.Fixtures.Tools, only: [question_args: 0, question_mcp_tool_defs: 0]
 
   @endpoint FrontmanServerWeb.Endpoint
   @acp_message AgentClientProtocol.event_acp_message()
@@ -30,14 +30,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
     pid = Sandbox.start_owner!(FrontmanServer.Repo, shared: true)
     on_exit(fn -> Sandbox.stop_owner(pid) end)
 
-    {:ok, user} =
-      Accounts.register_user(%{
-        email: "exec_test_#{System.unique_integer([:positive])}@test.local",
-        name: "Test User",
-        password: "testpassword123!"
-      })
-
-    scope = Scope.for_user(user)
+    scope = user_scope_fixture()
     task_id = task_with_pubsub_fixture(scope)
 
     {:ok, task_id: task_id, scope: scope}
@@ -47,14 +40,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
     pid = Sandbox.start_owner!(FrontmanServer.Repo, shared: true)
     on_exit(fn -> Sandbox.stop_owner(pid) end)
 
-    {:ok, user} =
-      Accounts.register_user(%{
-        email: "exec_ch_test_#{System.unique_integer([:positive])}@test.local",
-        name: "Test User",
-        password: "testpassword123!"
-      })
-
-    scope = Scope.for_user(user)
+    scope = user_scope_fixture()
     task_id = task_fixture(scope)
 
     {:ok, _reply, socket} =

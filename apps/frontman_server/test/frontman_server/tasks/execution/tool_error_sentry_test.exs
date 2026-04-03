@@ -10,12 +10,11 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
 
   use SwarmAi.Testing, async: false
 
+  import FrontmanServer.AccountsFixtures
   import FrontmanServer.InteractionCase.Helpers
   import FrontmanServer.Test.Fixtures.Tasks
 
   alias Ecto.Adapters.SQL.Sandbox
-  alias FrontmanServer.Accounts
-  alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Tasks.Execution.ToolExecutor
 
   setup do
@@ -24,14 +23,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
     pid = Sandbox.start_owner!(FrontmanServer.Repo, shared: true)
     on_exit(fn -> Sandbox.stop_owner(pid) end)
 
-    {:ok, user} =
-      Accounts.register_user(%{
-        email: "tool_sentry_#{System.unique_integer([:positive])}@test.local",
-        name: "Test User",
-        password: "testpassword123!"
-      })
-
-    scope = Scope.for_user(user)
+    scope = user_scope_fixture()
     task_id = task_fixture(scope, framework: "test-framework")
 
     {:ok, task_id: task_id, scope: scope}

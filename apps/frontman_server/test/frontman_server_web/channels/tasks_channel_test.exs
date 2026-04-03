@@ -3,10 +3,10 @@ defmodule FrontmanServerWeb.TasksChannelTest do
   # Shared sandbox mode is incompatible with async tests as it can interfere with other tests' connections
   use FrontmanServerWeb.ChannelCase, async: false
 
+  import FrontmanServer.AccountsFixtures
   import FrontmanServer.Test.Fixtures.Tasks
 
   alias AgentClientProtocol, as: ACP
-  alias FrontmanServer.Accounts.Scope
   alias FrontmanServerWeb.UserSocket
 
   setup %{scope: scope} do
@@ -405,14 +405,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
     test "only returns tasks for authenticated user", %{socket: socket, scope: scope} do
       my_task_id = task_fixture(scope)
 
-      {:ok, other_user} =
-        FrontmanServer.Accounts.register_user(%{
-          email: "other_#{System.unique_integer([:positive])}@test.local",
-          name: "Other",
-          password: "testpassword123!"
-        })
-
-      other_scope = Scope.for_user(other_user)
+      other_scope = user_scope_fixture()
       _other_task_id = task_fixture(other_scope, framework: "vite")
 
       ref = push(socket, "list_sessions", %{})
@@ -441,14 +434,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
       _my_task_id = task_fixture(scope)
 
       # Create another user and their task
-      {:ok, other_user} =
-        FrontmanServer.Accounts.register_user(%{
-          email: "other_delete_#{System.unique_integer([:positive])}@test.local",
-          name: "Other",
-          password: "testpassword123!"
-        })
-
-      other_scope = Scope.for_user(other_user)
+      other_scope = user_scope_fixture()
       other_task_id = task_fixture(other_scope, framework: "vite")
 
       # Trying to delete other user's task should fail (crashes the handler)
@@ -630,14 +616,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
     test "returns error for unauthorized session (appears as not found)", %{socket: socket} do
       # Security: Implementation returns "not found" for unauthorized access
       # to avoid revealing whether a resource exists
-      {:ok, other_user} =
-        FrontmanServer.Accounts.register_user(%{
-          email: "other_load_#{System.unique_integer([:positive])}@test.local",
-          name: "Other",
-          password: "testpassword123!"
-        })
-
-      other_scope = Scope.for_user(other_user)
+      other_scope = user_scope_fixture()
       other_task_id = task_fixture(other_scope, framework: "vite")
 
       push(socket, "acp:message", acp_request(1, "session/load", %{"sessionId" => other_task_id}))
