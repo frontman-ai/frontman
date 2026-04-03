@@ -6,6 +6,8 @@ defmodule FrontmanServer.Tasks.TodosTest do
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Todos
 
+  import FrontmanServer.Test.Fixtures.Tasks
+
   setup do
     {:ok, user} =
       Accounts.register_user(%{
@@ -15,8 +17,7 @@ defmodule FrontmanServer.Tasks.TodosTest do
       })
 
     scope = Scope.for_user(user)
-    task_id = Ecto.UUID.generate()
-    {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
+    task_id = task_fixture(scope, framework: "test-framework")
 
     {:ok, task_id: task_id, scope: scope}
   end

@@ -8,6 +8,8 @@ defmodule FrontmanServer.ToolsTest do
   alias FrontmanServer.Tools.Backend.Context
   alias FrontmanServer.Tools.TodoWrite
 
+  import FrontmanServer.Test.Fixtures.Tasks
+
   setup do
     {:ok, user} =
       Accounts.register_user(%{
@@ -17,8 +19,7 @@ defmodule FrontmanServer.ToolsTest do
       })
 
     scope = Scope.for_user(user)
-    task_id = Ecto.UUID.generate()
-    {:ok, ^task_id} = Tasks.create_task(scope, task_id, "test-framework")
+    task_id = task_fixture(scope, framework: "test-framework")
     {:ok, task} = Tasks.get_task(scope, task_id)
     {:ok, task_id: task_id, task: task, scope: scope}
   end

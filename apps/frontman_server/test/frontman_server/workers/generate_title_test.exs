@@ -3,6 +3,7 @@ defmodule FrontmanServer.Workers.GenerateTitleTest do
   use Oban.Testing, repo: FrontmanServer.Repo
 
   import FrontmanServer.AccountsFixtures
+  import FrontmanServer.Test.Fixtures.Tasks
 
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Providers.Model
@@ -44,8 +45,7 @@ defmodule FrontmanServer.Workers.GenerateTitleTest do
   describe "perform/1" do
     test "enqueues via Tasks context with forwarded model and encrypted env key", %{user: user} do
       scope = Scope.for_user(user)
-      task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
+      task_id = task_fixture(scope)
 
       {:ok, _job} =
         Tasks.enqueue_title_generation(scope, task_id, "Help me build a login page",
