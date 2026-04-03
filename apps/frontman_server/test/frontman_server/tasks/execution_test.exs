@@ -18,41 +18,13 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Workers.GenerateTitle
 
+  import FrontmanServer.Test.Fixtures.Tasks
+  import FrontmanServer.Test.Fixtures.Tools, only: [question_args: 0, question_mcp_tool_defs: 0]
+
   @endpoint FrontmanServerWeb.Endpoint
   @acp_message AgentClientProtocol.event_acp_message()
 
   # -- Helpers ---------------------------------------------------------------
-
-  defp user_content(text), do: [%{"type" => "text", "text" => text}]
-
-  defp question_args do
-    %{
-      "questions" => [
-        %{
-          "question" => "Pick one",
-          "header" => "Test",
-          "options" => [%{"label" => "A", "description" => "Option A"}]
-        }
-      ]
-    }
-  end
-
-  alias FrontmanServer.Tools.MCP
-
-  defp question_mcp_tool_defs do
-    [
-      %MCP{
-        name: "question",
-        description: "Ask the user a question",
-        input_schema: %{
-          "type" => "object",
-          "properties" => %{"questions" => %{"type" => "array"}}
-        },
-        visible_to_agent: true,
-        execution_mode: :interactive
-      }
-    ]
-  end
 
   defp setup_task(_context) do
     pid = Sandbox.start_owner!(FrontmanServer.Repo, shared: true)
@@ -66,10 +38,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       })
 
     scope = Scope.for_user(user)
-    task_id = Ecto.UUID.generate()
-    {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
-
-    Phoenix.PubSub.subscribe(FrontmanServer.PubSub, Tasks.topic(task_id))
+    task_id = task_with_pubsub_fixture(scope)
 
     {:ok, task_id: task_id, scope: scope}
   end
@@ -86,8 +55,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       })
 
     scope = Scope.for_user(user)
-    task_id = Ecto.UUID.generate()
-    {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
+    task_id = task_fixture(scope)
 
     {:ok, _reply, socket} =
       FrontmanServerWeb.UserSocket
