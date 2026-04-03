@@ -67,4 +67,41 @@ defmodule FrontmanServer.Test.Fixtures.Tools do
     result = %{"path" => filename, "text" => content}
     Tasks.add_tool_result(scope, task_id, tool_call, result, false)
   end
+
+  @doc """
+  Structured question tool input for interactive tool tests.
+  """
+  @spec question_args() :: map()
+  def question_args do
+    %{
+      "questions" => [
+        %{
+          "question" => "Pick one",
+          "header" => "Test",
+          "options" => [%{"label" => "A", "description" => "Option A"}]
+        }
+      ]
+    }
+  end
+
+  @doc """
+  MCP tool definition list for the interactive `question` tool.
+  """
+  @spec question_mcp_tool_defs() :: [FrontmanServer.Tools.MCP.t()]
+  def question_mcp_tool_defs do
+    alias FrontmanServer.Tools.MCP
+
+    [
+      %MCP{
+        name: "question",
+        description: "Ask the user a question",
+        input_schema: %{
+          "type" => "object",
+          "properties" => %{"questions" => %{"type" => "array"}}
+        },
+        visible_to_agent: true,
+        execution_mode: :interactive
+      }
+    ]
+  end
 end
