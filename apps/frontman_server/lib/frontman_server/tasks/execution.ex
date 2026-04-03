@@ -171,7 +171,7 @@ defmodule FrontmanServer.Tasks.Execution do
       [api_key: resolved_key.api_key, model: resolved_key.model]
       |> maybe_enable_prompt_cache(resolved_key.provider)
 
-    tool_executor =
+    {tool_executor, on_deadline} =
       ToolExecutor.make_executor(scope, task_id,
         backend_tool_modules: backend_tool_modules,
         mcp_tools: mcp_tools,
@@ -186,6 +186,7 @@ defmodule FrontmanServer.Tasks.Execution do
     case SwarmAi.Runtime.run(FrontmanServer.AgentRuntime, task_id, agent, messages,
            metadata: %{task_id: task_id, resolved_key: resolved_key, scope: scope},
            tool_executor: tool_executor,
+           on_deadline: on_deadline,
            tool_defs: Enum.map(backend_tool_modules, &Backend.to_swarm_tool/1) ++ mcp_tools
          ) do
       {:ok, pid} ->

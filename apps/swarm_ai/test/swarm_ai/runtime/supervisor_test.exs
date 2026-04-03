@@ -127,7 +127,8 @@ defmodule SwarmAi.Runtime.SupervisorTest do
       [
         tool_executor: fn tool_calls ->
           Enum.map(tool_calls, fn tc -> ToolResult.make(tc.id, "done", false) end)
-        end
+        end,
+        on_deadline: fn _tc -> :ok end
       ],
       extra
     )

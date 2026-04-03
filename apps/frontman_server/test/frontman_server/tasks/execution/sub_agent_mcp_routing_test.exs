@@ -55,7 +55,7 @@ defmodule FrontmanServer.Tasks.Execution.SubAgentMcpRoutingTest do
       # Build executor that calls Tasks directly for persistence
       llm_opts = [api_key: "test-key", model: "openrouter:anthropic/claude-sonnet-4-20250514"]
 
-      executor =
+      {executor, _on_deadline} =
         ToolExecutor.make_executor(scope, task_id,
           backend_tool_modules: [],
           mcp_tools: [],
@@ -100,7 +100,7 @@ defmodule FrontmanServer.Tasks.Execution.SubAgentMcpRoutingTest do
       # Build executor that calls Tasks directly
       llm_opts = [api_key: "test-key", model: "openrouter:anthropic/claude-sonnet-4-20250514"]
 
-      executor =
+      {executor, _on_deadline} =
         ToolExecutor.make_executor(scope, task_id,
           backend_tool_modules: [],
           mcp_tools: [],

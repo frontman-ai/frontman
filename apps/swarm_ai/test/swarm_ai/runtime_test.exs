@@ -111,7 +111,8 @@ defmodule SwarmAi.RuntimeTest do
       {:ok, pid} =
         SwarmAi.Runtime.run(runtime, "task-tool-def", agent, "Hello",
           tool_executor: slow_executor,
-          tool_defs: [tool_def]
+          tool_defs: [tool_def],
+          on_deadline: fn _tc -> :ok end
         )
 
       await_exit(pid)
@@ -383,7 +384,8 @@ defmodule SwarmAi.RuntimeTest do
       {:ok, pid} =
         SwarmAi.Runtime.run(runtime, "task-pause", agent, "Hello",
           tool_executor: blocking_executor,
-          tool_defs: [pause_tool]
+          tool_defs: [pause_tool],
+          on_deadline: fn _tc -> :ok end
         )
 
       await_exit(pid)
@@ -443,7 +445,8 @@ defmodule SwarmAi.RuntimeTest do
       [
         tool_executor: fn tool_calls ->
           Enum.map(tool_calls, fn tc -> ToolResult.make(tc.id, "done", false) end)
-        end
+        end,
+        on_deadline: fn _tc -> :ok end
       ],
       extra
     )

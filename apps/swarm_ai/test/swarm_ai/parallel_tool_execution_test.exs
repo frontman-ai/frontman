@@ -41,7 +41,8 @@ defmodule SwarmAi.ParallelToolExecutionTest do
       {:ok, pid} =
         SwarmAi.Runtime.run(runtime, "task-parallel", agent, "Do work",
           tool_executor: executor,
-          tool_defs: [make_tool("slow")]
+          tool_defs: [make_tool("slow")],
+          on_deadline: fn _tc -> :ok end
         )
 
       await_exit(pid)
@@ -78,7 +79,8 @@ defmodule SwarmAi.ParallelToolExecutionTest do
       {:ok, pid} =
         SwarmAi.Runtime.run(runtime, "task-crash", agent, "Do work",
           tool_executor: executor,
-          tool_defs: [make_tool("good"), make_tool("bad")]
+          tool_defs: [make_tool("good"), make_tool("bad")],
+          on_deadline: fn _tc -> :ok end
         )
 
       await_exit(pid)

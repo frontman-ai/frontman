@@ -39,14 +39,15 @@ defmodule SwarmAi.ParallelExecutor do
   `tool_map` are treated as LLM hallucinations — an error ToolResult is returned
   immediately without spawning a task.
   """
-  @spec run([ToolCall.t()], %{String.t() => Tool.t()}, function(), pid() | atom()) :: result()
-  def run(tool_calls, tool_map, executor, task_supervisor) do
+  @spec run([ToolCall.t()], %{String.t() => Tool.t()}, function(), pid() | atom(), function()) ::
+          result()
+  def run(tool_calls, tool_map, executor, task_supervisor, on_deadline) do
     {immediates, pending} =
       tool_calls
       |> Enum.map(&spawn_or_reject(&1, tool_map, executor, task_supervisor))
       |> split_results()
 
-    case collect_results(pending, immediates, task_supervisor) do
+    case collect_results(pending, immediates, task_supervisor, on_deadline) do
       {:ok, results_map} -> {:ok, finalize(tool_calls, results_map)}
       {:halt, _} = halt -> halt
     end
@@ -87,13 +88,13 @@ defmodule SwarmAi.ParallelExecutor do
     end)
   end
 
-  @spec collect_results(pending(), results_map(), pid() | atom()) ::
+  @spec collect_results(pending(), results_map(), pid() | atom(), function()) ::
           {:ok, results_map()} | {:halt, halt_reason()}
-  defp collect_results(pending, results, _task_supervisor) when pending == %{} do
+  defp collect_results(pending, results, _task_supervisor, _on_deadline) when pending == %{} do
     {:ok, results}
   end
 
-  defp collect_results(pending, results, task_supervisor) do
+  defp collect_results(pending, results, task_supervisor, on_deadline) do
     receive do
       {ref, result} when is_map_key(pending, ref) ->
         Process.demonitor(ref, [:flush])
@@ -103,7 +104,8 @@ defmodule SwarmAi.ParallelExecutor do
         collect_results(
           Map.delete(pending, ref),
           Map.put(results, tc.id, result),
-          task_supervisor
+          task_supervisor,
+          on_deadline
         )
 
       {:DOWN, ref, :process, _pid, reason} when is_map_key(pending, ref) ->
@@ -114,18 +116,22 @@ defmodule SwarmAi.ParallelExecutor do
         collect_results(
           Map.delete(pending, ref),
           Map.put(results, tc.id, error_result),
-          task_supervisor
+          task_supervisor,
+          on_deadline
         )
 
       {:deadline, ref} when is_map_key(pending, ref) ->
-        handle_deadline(pending, results, ref, task_supervisor)
+        handle_deadline(pending, results, ref, task_supervisor, on_deadline)
     end
   end
 
-  @spec handle_deadline(pending(), results_map(), reference(), pid() | atom()) ::
+  @spec handle_deadline(pending(), results_map(), reference(), pid() | atom(), function()) ::
           {:ok, results_map()} | {:halt, halt_reason()}
-  defp handle_deadline(pending, results, ref, task_supervisor) do
+  defp handle_deadline(pending, results, ref, task_supervisor, on_deadline) do
     %{tc: tc, tool_def: tool_def, pid: pid} = Map.fetch!(pending, ref)
+
+    # Call cleanup before killing — task is still alive here.
+    on_deadline.(tc)
 
     # terminate_child is synchronous — child is dead when it returns.
     # async_nolink sets up a monitor, so :DOWN is guaranteed in the mailbox.
@@ -143,24 +149,26 @@ defmodule SwarmAi.ParallelExecutor do
         collect_results(
           Map.delete(pending, ref),
           Map.put(results, tc.id, error_result),
-          task_supervisor
+          task_supervisor,
+          on_deadline
         )
 
       :pause_agent ->
         # First :pause_agent wins. If multiple deadlines fire concurrently,
         # whichever :deadline message is dequeued first triggers the halt.
-        cancel_remaining(pending, ref, task_supervisor)
+        cancel_remaining(pending, ref, task_supervisor, on_deadline)
         {:halt, {:pause_agent, tc.id, tc.name, tool_def.timeout_ms}}
     end
   end
 
-  @spec cancel_remaining(pending(), reference(), pid() | atom()) :: :ok
-  defp cancel_remaining(pending, triggered_ref, task_supervisor) do
+  @spec cancel_remaining(pending(), reference(), pid() | atom(), function()) :: :ok
+  defp cancel_remaining(pending, triggered_ref, task_supervisor, on_deadline) do
     pending
     |> Map.delete(triggered_ref)
-    |> Enum.each(fn {ref, %{timer: timer, pid: pid}} ->
+    |> Enum.each(fn {ref, %{timer: timer, pid: pid, tc: tc}} ->
       # Cancel timer first — prevents a stale :deadline from firing mid-cleanup
       Process.cancel_timer(timer)
+      on_deadline.(tc)
       Task.Supervisor.terminate_child(task_supervisor, pid)
 
       receive do

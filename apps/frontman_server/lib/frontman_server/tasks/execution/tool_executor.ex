@@ -58,13 +58,35 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
       SwarmAi.run_streaming(agent, messages, tool_executor: executor)
   """
   @spec make_executor(Scope.t(), String.t(), keyword()) ::
-          ([SwarmAi.ToolCall.t()] -> [SwarmAi.ToolResult.t()])
+          {([SwarmAi.ToolCall.t()] -> [SwarmAi.ToolResult.t()]), (SwarmAi.ToolCall.t() -> :ok)}
   def make_executor(%Scope{} = scope, task_id, opts) do
     exec_opts = build_exec_opts(opts)
 
-    fn tool_calls ->
+    executor = fn tool_calls ->
       Enum.map(tool_calls, &build_tool_result(&1, scope, task_id, exec_opts))
     end
+
+    on_deadline = fn tc ->
+      policy =
+        case Enum.find(exec_opts.mcp_tool_defs, &(&1.name == tc.name)) do
+          %{on_timeout: policy} -> policy
+          # Backend tools (not in mcp_tool_defs) always persist on deadline.
+          nil -> :error
+        end
+
+      case policy do
+        :error ->
+          timeout_msg = "Tool #{tc.name} timed out"
+          Logger.error("ToolExecutor: #{timeout_msg}")
+          report_tool_timeout_sentry(tc, task_id)
+          Tasks.add_tool_result(scope, task_id, %{id: tc.id, name: tc.name}, timeout_msg, true)
+
+        :pause_agent ->
+          :ok
+      end
+    end
+
+    {executor, on_deadline}
   end
 
   @doc """
@@ -208,82 +230,15 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
     end
   end
 
-  # Runs a backend tool in a linked async task with trap_exit enabled so we can
-  # distinguish inner crashes from ParallelExecutor kills.
-  #
-  # Three outcomes:
-  #   {:returned, value}      — module.execute returned normally
-  #   {:crashed, reason}      — module.execute raised or exited
-  #   {:outer_killed, reason} — ParallelExecutor killed this task (on_timeout: :error)
-  #
-  # For :outer_killed, we persist a ToolResult then re-exit so ParallelExecutor
-  # gets the expected DOWN message. The :shutdown → :kill grace period (OTP
-  # default 5 s) is sufficient for a single DB write.
   defp run_backend_tool(scope, module, args, context, tool_call, task_id) do
-    Process.flag(:trap_exit, true)
-    task = Task.async(fn -> module.execute(args, context) end)
-    outcome = await_backend_tool(task)
-    Process.flag(:trap_exit, false)
+    outcome =
+      try do
+        {:returned, module.execute(args, context)}
+      catch
+        kind, reason -> {:crashed, {kind, reason}}
+      end
+
     handle_backend_outcome(outcome, scope, tool_call, task_id)
-  end
-
-  defp await_backend_tool(task) do
-    task_ref = task.ref
-    task_pid = task.pid
-
-    receive do
-      {^task_ref, value} ->
-        # Normal return — demonitor to drop any pending :DOWN, drain linked EXIT.
-        Process.demonitor(task_ref, [:flush])
-
-        receive do
-          {:EXIT, ^task_pid, :normal} -> :ok
-        after
-          0 -> :ok
-        end
-
-        {:returned, value}
-
-      {:EXIT, ^task_pid, reason} ->
-        # Inner task crashed via link (trap_exit converted EXIT to message).
-        # Drain the :DOWN that follows.
-        receive do
-          {:DOWN, ^task_ref, :process, _, _} -> :ok
-        after
-          0 -> :ok
-        end
-
-        {:crashed, reason}
-
-      {:DOWN, ^task_ref, :process, _, reason} ->
-        # DOWN arrived before EXIT (less common but possible). Drain linked EXIT.
-        receive do
-          {:EXIT, ^task_pid, _} -> :ok
-        after
-          0 -> :ok
-        end
-
-        {:crashed, reason}
-
-      {:EXIT, _from, reason} ->
-        # ParallelExecutor killed this task — kill the inner task and clean up.
-        Process.exit(task_pid, :kill)
-
-        receive do
-          {:DOWN, ^task_ref, :process, _, _} -> :ok
-        after
-          5_000 -> :ok
-        end
-
-        {:outer_killed, reason}
-    after
-      300_000 ->
-        # Safety net: ParallelExecutor enforces per-tool deadlines before this
-        # fires. This cap prevents the executor from hanging indefinitely if
-        # the deadline mechanism fails.
-        Process.exit(task_pid, :kill)
-        {:outer_killed, :timeout}
-    end
   end
 
   defp handle_backend_outcome({:returned, {:ok, value}}, scope, tool_call, task_id) do
@@ -307,15 +262,6 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
     report_tool_sentry("tool_crash", tool_call, task_id, reason_str)
     Tasks.add_tool_result(scope, task_id, tool_call_ref(tool_call), reason_str, true)
     {:error, reason_str}
-  end
-
-  defp handle_backend_outcome({:outer_killed, reason}, scope, tool_call, task_id) do
-    timeout_msg = "Backend tool #{tool_call.name} timed out"
-    Logger.error("ToolExecutor: #{timeout_msg}")
-    report_tool_timeout_sentry(tool_call, task_id)
-    Tasks.add_tool_result(scope, task_id, tool_call_ref(tool_call), timeout_msg, true)
-    # Re-exit so ParallelExecutor receives the expected DOWN message.
-    exit(reason)
   end
 
   defp tool_call_ref(tool_call), do: %{id: tool_call.id, name: tool_call.name}
@@ -382,82 +328,40 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
 
   # --- MCP Tool Execution ---
 
-  defp execute_mcp_tool(scope, tool_call, task_id, opts) do
+  defp execute_mcp_tool(scope, tool_call, task_id, _opts) do
     Logger.info("ToolExecutor: Routing to MCP tool #{tool_call.name}")
 
     tool_call_id = tool_call.id
 
-    # Resolve the tool's on_timeout policy so the EXIT handler knows whether to
-    # persist a ToolResult. Both :error and :pause_agent deadlines arrive as
-    # :shutdown EXIT signals — they're indistinguishable at the OS level.
-    #
-    # on_timeout: :error — EXIT handler must persist; SwarmDispatcher never sees
-    #   a :paused event for this case.
-    # on_timeout: :pause_agent — SwarmDispatcher owns persistence via the
-    #   {:paused, {:timeout, ...}} event. EXIT handler must skip to avoid a
-    #   double-persist (unique DB index rejects the second write, losing the
-    #   richer SwarmDispatcher message).
-    on_timeout =
-      case Enum.find(opts.mcp_tool_defs, &(&1.name == tool_call.name)) do
-        %{on_timeout: policy} -> policy
-        nil -> :error
-      end
+    # Block until the browser client sends the result back via TaskChannel.
+    # Deadline enforcement and cleanup are handled by ParallelExecutor via the
+    # on_deadline callback — no trap_exit needed here.
+    receive do
+      {:tool_result, ^tool_call_id, content, false} ->
+        Registry.unregister(FrontmanServer.ToolCallRegistry, {:tool_call, tool_call_id})
+        {:ok, content}
 
-    # Trap exits so we can persist a ToolResult when ParallelExecutor terminates
-    # this task on an on_timeout: :error deadline. async_nolink tasks shut down
-    # via :shutdown (5 s grace period), which is trappable — :kill is not, but
-    # that only fires if cleanup exceeds the grace period.
-    Process.flag(:trap_exit, true)
+      {:tool_result, ^tool_call_id, content, true} ->
+        Registry.unregister(FrontmanServer.ToolCallRegistry, {:tool_call, tool_call_id})
+        {:error, content}
+    after
+      600_000 ->
+        # Safety net: 10-minute hard cap. Should not fire under normal operation
+        # since ParallelExecutor enforces per-tool deadlines before this point.
+        Logger.error(
+          "ToolExecutor: MCP tool #{tool_call.name} receive timed out (safety net)"
+        )
 
-    result =
-      receive do
-        {:tool_result, ^tool_call_id, content, false} ->
-          Registry.unregister(FrontmanServer.ToolCallRegistry, {:tool_call, tool_call_id})
-          {:ok, content}
+        Tasks.add_tool_result(
+          scope,
+          task_id,
+          tool_call,
+          "Tool #{tool_call.name} receive timed out",
+          true
+        )
 
-        {:tool_result, ^tool_call_id, content, true} ->
-          Registry.unregister(FrontmanServer.ToolCallRegistry, {:tool_call, tool_call_id})
-          {:error, content}
-
-        {:EXIT, _from, reason} ->
-          # ParallelExecutor killed this task via deadline.
-          # Only persist for :error — :pause_agent is handled by SwarmDispatcher.
-          case on_timeout do
-            :error ->
-              Tasks.add_tool_result(
-                scope,
-                task_id,
-                tool_call,
-                "Tool #{tool_call.name} timed out",
-                true
-              )
-
-            :pause_agent ->
-              :ok
-          end
-
-          exit(reason)
-      after
-        600_000 ->
-          # Safety net: 10-minute hard cap. Should not fire under normal operation
-          # since ParallelExecutor enforces per-tool deadlines before this point.
-          Logger.error(
-            "ToolExecutor: MCP tool #{tool_call.name} receive timed out — no result or EXIT received"
-          )
-
-          Tasks.add_tool_result(
-            scope,
-            task_id,
-            tool_call,
-            "Tool #{tool_call.name} receive timed out",
-            true
-          )
-
-          exit(:timeout)
-      end
-
-    Process.flag(:trap_exit, false)
-    result
+        exit(:timeout)
+    end
   end
 
   # --- Image Enrichment ---

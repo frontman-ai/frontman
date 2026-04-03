@@ -182,4 +182,73 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
   # :pause_agent, the Runtime dispatches {:paused, {:timeout, ...}} which
   # SwarmDispatcher persists as an AgentPaused interaction — not a Sentry error.
   # The old per-executor timeout (and its Sentry reporting) was removed in Task 9.
+
+  describe "make_executor/3 on_deadline callback" do
+    @tag :capture_log
+    test "on_deadline persists error ToolResult and reports to Sentry", %{
+      task_id: task_id,
+      scope: scope
+    } do
+      {_executor, on_deadline} =
+        ToolExecutor.make_executor(scope, task_id,
+          backend_tool_modules: Tools.backend_tool_modules(),
+          mcp_tools: [],
+          mcp_tool_defs: [],
+          llm_opts: [api_key: "test", model: "mock"]
+        )
+
+      tc = %SwarmAi.ToolCall{id: "tc-deadline-1", name: "todo_write", arguments: "{}"}
+      on_deadline.(tc)
+
+      {:ok, task} = Tasks.get_task(scope, task_id)
+
+      tool_result =
+        Enum.find(task.interactions, fn
+          %Tasks.Interaction.ToolResult{tool_call_id: "tc-deadline-1"} -> true
+          _ -> false
+        end)
+
+      assert tool_result != nil
+      assert tool_result.is_error == true
+      assert tool_result.result =~ "timed out"
+
+      reports = Sentry.Test.pop_sentry_reports()
+      timeout_reports = Enum.filter(reports, &(&1.tags[:error_type] == "tool_timeout"))
+      assert length(timeout_reports) == 1
+    end
+
+    test "on_deadline is a no-op for pause_agent MCP tools", %{
+      task_id: task_id,
+      scope: scope
+    } do
+      pause_mcp_def = %FrontmanServer.Tools.MCP{
+        name: "some_mcp_tool",
+        description: "test",
+        input_schema: %{},
+        on_timeout: :pause_agent,
+        timeout_ms: 60_000
+      }
+
+      {_executor, on_deadline} =
+        ToolExecutor.make_executor(scope, task_id,
+          backend_tool_modules: Tools.backend_tool_modules(),
+          mcp_tools: [],
+          mcp_tool_defs: [pause_mcp_def],
+          llm_opts: [api_key: "test", model: "mock"]
+        )
+
+      tc = %SwarmAi.ToolCall{id: "tc-pause-1", name: "some_mcp_tool", arguments: "{}"}
+      on_deadline.(tc)
+
+      {:ok, task} = Tasks.get_task(scope, task_id)
+
+      tool_result =
+        Enum.find(task.interactions, fn
+          %Tasks.Interaction.ToolResult{tool_call_id: "tc-pause-1"} -> true
+          _ -> false
+        end)
+
+      assert tool_result == nil
+    end
+  end
 end
