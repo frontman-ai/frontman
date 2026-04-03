@@ -3,6 +3,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
   use Oban.Testing, repo: FrontmanServer.Repo
 
   import FrontmanServer.InteractionCase.Helpers
+  import FrontmanServer.Test.Fixtures.Tasks
 
   alias AgentClientProtocol.Content.{ContentItem, TextBlock}
   alias FrontmanServer.Tasks
@@ -49,8 +50,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
   describe "join task:<id>" do
     test "succeeds when task exists", %{scope: scope} do
-      task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
+      task_id = task_fixture(scope)
 
       {:ok, reply, socket} =
         UserSocket
@@ -1038,8 +1038,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
   describe "reconnect re-executes unresolved tool calls" do
     setup %{scope: scope} do
-      task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
+      task_id = task_fixture(scope)
 
       # Seed DB with the state that exists after a disconnect during a question tool call:
       # user_message → agent_response (with tool_calls metadata) → tool_call (no tool_result)
