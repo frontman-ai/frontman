@@ -2,7 +2,7 @@ defmodule FrontmanServer.Workers.NotifyDiscordNewUserTest do
   use FrontmanServer.DataCase, async: true
   use Oban.Testing, repo: FrontmanServer.Repo
 
-  alias FrontmanServer.AccountsFixtures
+  alias FrontmanServer.Test.Fixtures.Accounts
   alias FrontmanServer.Workers.NotifyDiscordNewUser
 
   setup do
@@ -19,7 +19,7 @@ defmodule FrontmanServer.Workers.NotifyDiscordNewUserTest do
 
   describe "perform/1" do
     test "posts new-user embed to the configured Discord webhook" do
-      user = AccountsFixtures.user_fixture(%{name: "Ada Lovelace", email: "ada@example.com"})
+      user = Accounts.user_fixture(%{name: "Ada Lovelace", email: "ada@example.com"})
 
       Req.Test.stub(:discord_webhook, fn conn ->
         {:ok, body, conn} = Plug.Conn.read_body(conn)
@@ -40,7 +40,7 @@ defmodule FrontmanServer.Workers.NotifyDiscordNewUserTest do
     end
 
     test "returns error tuple on non-2xx response" do
-      user = AccountsFixtures.user_fixture()
+      user = Accounts.user_fixture()
 
       Req.Test.stub(:discord_webhook, fn conn ->
         conn
@@ -56,7 +56,7 @@ defmodule FrontmanServer.Workers.NotifyDiscordNewUserTest do
     end
 
     test "enqueues with correct queue" do
-      user = AccountsFixtures.user_fixture()
+      user = Accounts.user_fixture()
       changeset = NotifyDiscordNewUser.new(%{user_id: user.id})
 
       assert changeset.changes.queue == "notifications"
