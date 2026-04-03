@@ -10,7 +10,7 @@ defmodule FrontmanServer.Tasks.Execution.MCPToolBroadcastTest do
 
   import FrontmanServer.InteractionCase.Helpers
 
-  import FrontmanServer.AccountsFixtures
+  import FrontmanServer.Test.Fixtures.Accounts
   import FrontmanServer.Test.Fixtures.Tasks
 
   alias Ecto.Adapters.SQL.Sandbox

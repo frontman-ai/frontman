@@ -4,12 +4,12 @@ defmodule FrontmanServer.Workers.SendWelcomeEmailTest do
 
   import Swoosh.TestAssertions
 
-  alias FrontmanServer.AccountsFixtures
+  alias FrontmanServer.Test.Fixtures.Accounts
   alias FrontmanServer.Workers.SendWelcomeEmail
 
   describe "perform/1" do
     test "sends a welcome email to the user" do
-      user = AccountsFixtures.user_fixture()
+      user = Accounts.user_fixture()
 
       # Clear emails sent during fixture setup (confirmation/login)
       assert_email_sent()
@@ -23,7 +23,7 @@ defmodule FrontmanServer.Workers.SendWelcomeEmailTest do
     end
 
     test "welcome email includes HTML and plain text bodies" do
-      user = AccountsFixtures.user_fixture(%{name: "Ada Lovelace"})
+      user = Accounts.user_fixture(%{name: "Ada Lovelace"})
 
       # Drain fixture emails
       assert_email_sent()
@@ -45,7 +45,7 @@ defmodule FrontmanServer.Workers.SendWelcomeEmailTest do
     end
 
     test "welcome email is sent from danni@frontman.sh" do
-      user = AccountsFixtures.user_fixture()
+      user = Accounts.user_fixture()
 
       # Drain fixture emails
       assert_email_sent()
@@ -67,7 +67,7 @@ defmodule FrontmanServer.Workers.SendWelcomeEmailTest do
     end
 
     test "enqueues with correct queue" do
-      user = AccountsFixtures.user_fixture()
+      user = Accounts.user_fixture()
       changeset = SendWelcomeEmail.new(%{user_id: user.id})
 
       assert changeset.changes.queue == "mailers"

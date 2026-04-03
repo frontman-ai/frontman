@@ -1,7 +1,7 @@
 defmodule FrontmanServer.ToolsTest do
   use FrontmanServer.DataCase, async: false
 
-  import FrontmanServer.AccountsFixtures
+  import FrontmanServer.Test.Fixtures.Accounts
   import FrontmanServer.Test.Fixtures.Tasks
 
   alias FrontmanServer.Tasks

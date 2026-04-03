@@ -3,7 +3,7 @@ defmodule FrontmanServer.AccountsTest do
 
   alias FrontmanServer.Accounts
 
-  import FrontmanServer.AccountsFixtures
+  import FrontmanServer.Test.Fixtures.Accounts
   alias FrontmanServer.Accounts.{User, UserToken}
 
   describe "get_user_by_email/1" do

@@ -10,7 +10,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
 
   use SwarmAi.Testing, async: false
 
-  import FrontmanServer.AccountsFixtures
+  import FrontmanServer.Test.Fixtures.Accounts
   import FrontmanServer.InteractionCase.Helpers
   import FrontmanServer.Test.Fixtures.Tasks
 

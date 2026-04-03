@@ -1,7 +1,7 @@
 defmodule FrontmanServerWeb.UserSessionControllerTest do
   use FrontmanServerWeb.ConnCase, async: true
 
-  import FrontmanServer.AccountsFixtures
+  import FrontmanServer.Test.Fixtures.Accounts
   alias FrontmanServer.Accounts
 
   setup do

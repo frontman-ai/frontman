@@ -1,4 +1,4 @@
-defmodule FrontmanServer.AccountsFixtures do
+defmodule FrontmanServer.Test.Fixtures.Accounts do
   @moduledoc """
   This module defines test helpers for creating
   entities via the `FrontmanServer.Accounts` context.

@@ -16,7 +16,7 @@ config :frontman_server, :scopes,
     schema_key: :user_id,
     schema_type: :binary_id,
     schema_table: :users,
-    test_data_fixture: FrontmanServer.AccountsFixtures,
+    test_data_fixture: FrontmanServer.Test.Fixtures.Accounts,
     test_setup_helper: :register_and_log_in_user
   ]
 

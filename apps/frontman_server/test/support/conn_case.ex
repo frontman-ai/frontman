@@ -47,7 +47,7 @@ defmodule FrontmanServerWeb.ConnCase do
   test context.
   """
   def register_and_log_in_user(%{conn: conn} = context) do
-    user = FrontmanServer.AccountsFixtures.user_fixture()
+    user = FrontmanServer.Test.Fixtures.Accounts.user_fixture()
     scope = Scope.for_user(user)
 
     opts =
@@ -76,6 +76,6 @@ defmodule FrontmanServerWeb.ConnCase do
   defp maybe_set_token_authenticated_at(_token, nil), do: nil
 
   defp maybe_set_token_authenticated_at(token, authenticated_at) do
-    FrontmanServer.AccountsFixtures.override_token_authenticated_at(token, authenticated_at)
+    FrontmanServer.Test.Fixtures.Accounts.override_token_authenticated_at(token, authenticated_at)
   end
 end

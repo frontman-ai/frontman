@@ -11,7 +11,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
   import Phoenix.ChannelTest
 
-  import FrontmanServer.AccountsFixtures
+  import FrontmanServer.Test.Fixtures.Accounts
   import FrontmanServer.Test.Fixtures.Tasks
   import FrontmanServer.Test.Fixtures.Tools, only: [question_args: 0, question_mcp_tool_defs: 0]
 

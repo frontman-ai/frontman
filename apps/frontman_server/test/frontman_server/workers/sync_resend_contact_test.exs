@@ -2,7 +2,7 @@ defmodule FrontmanServer.Workers.SyncResendContactTest do
   use FrontmanServer.DataCase, async: true
   use Oban.Testing, repo: FrontmanServer.Repo
 
-  alias FrontmanServer.AccountsFixtures
+  alias FrontmanServer.Test.Fixtures.Accounts
   alias FrontmanServer.Workers.SyncResendContact
 
   # Inject Req.Test as the HTTP adapter so no real network calls are made.
@@ -21,7 +21,7 @@ defmodule FrontmanServer.Workers.SyncResendContactTest do
 
   describe "perform/1" do
     test "syncs the user to Resend Contacts on success" do
-      user = AccountsFixtures.user_fixture(%{name: "Steve Wozniak"})
+      user = Accounts.user_fixture(%{name: "Steve Wozniak"})
 
       Req.Test.stub(:resend, fn conn ->
         {:ok, body, conn} = Plug.Conn.read_body(conn)
@@ -39,7 +39,7 @@ defmodule FrontmanServer.Workers.SyncResendContactTest do
     end
 
     test "sends the correct Authorization header" do
-      user = AccountsFixtures.user_fixture()
+      user = Accounts.user_fixture()
 
       Req.Test.stub(:resend, fn conn ->
         auth = Plug.Conn.get_req_header(conn, "authorization")
@@ -51,7 +51,7 @@ defmodule FrontmanServer.Workers.SyncResendContactTest do
     end
 
     test "extracts first name from full name" do
-      user = AccountsFixtures.user_fixture(%{name: "Ada Lovelace"})
+      user = Accounts.user_fixture(%{name: "Ada Lovelace"})
 
       Req.Test.stub(:resend, fn conn ->
         {:ok, body, conn} = Plug.Conn.read_body(conn)
@@ -63,7 +63,7 @@ defmodule FrontmanServer.Workers.SyncResendContactTest do
     end
 
     test "returns error tuple on non-2xx response" do
-      user = AccountsFixtures.user_fixture()
+      user = Accounts.user_fixture()
 
       Req.Test.stub(:resend, fn conn ->
         conn
@@ -82,7 +82,7 @@ defmodule FrontmanServer.Workers.SyncResendContactTest do
     end
 
     test "enqueues with correct queue" do
-      user = AccountsFixtures.user_fixture()
+      user = Accounts.user_fixture()
       changeset = SyncResendContact.new(%{user_id: user.id})
 
       assert changeset.changes.queue == "mailers"

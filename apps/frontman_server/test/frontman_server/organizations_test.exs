@@ -3,7 +3,7 @@ defmodule FrontmanServer.OrganizationsTest do
 
   alias FrontmanServer.Organizations
 
-  import FrontmanServer.AccountsFixtures
+  import FrontmanServer.Test.Fixtures.Accounts
 
   describe "create_organization/2" do
     test "creates organization and membership with creator as owner" do

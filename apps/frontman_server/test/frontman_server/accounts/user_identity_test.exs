@@ -3,7 +3,7 @@ defmodule FrontmanServer.Accounts.UserIdentityTest do
 
   alias FrontmanServer.Accounts.UserIdentity
 
-  import FrontmanServer.AccountsFixtures
+  import FrontmanServer.Test.Fixtures.Accounts
 
   describe "changeset/2" do
     setup do

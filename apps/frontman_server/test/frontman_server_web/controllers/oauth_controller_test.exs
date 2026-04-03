@@ -1,7 +1,7 @@
 defmodule FrontmanServerWeb.OAuthControllerTest do
   use FrontmanServerWeb.ConnCase, async: true
 
-  import FrontmanServer.AccountsFixtures
+  import FrontmanServer.Test.Fixtures.Accounts
 
   setup do
     %{user: user_fixture()}

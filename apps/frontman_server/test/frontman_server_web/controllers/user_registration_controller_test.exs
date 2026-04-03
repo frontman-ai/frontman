@@ -1,7 +1,7 @@
 defmodule FrontmanServerWeb.UserRegistrationControllerTest do
   use FrontmanServerWeb.ConnCase, async: true
 
-  import FrontmanServer.AccountsFixtures
+  import FrontmanServer.Test.Fixtures.Accounts
 
   describe "GET /users/register" do
     test "redirects to login page (registration disabled)", %{conn: conn} do

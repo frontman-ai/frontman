@@ -2,7 +2,7 @@ defmodule FrontmanServer.Workers.GenerateTitleTest do
   use FrontmanServer.DataCase, async: true
   use Oban.Testing, repo: FrontmanServer.Repo
 
-  import FrontmanServer.AccountsFixtures
+  import FrontmanServer.Test.Fixtures.Accounts
   import FrontmanServer.Test.Fixtures.Tasks
 
   alias FrontmanServer.Accounts.Scope

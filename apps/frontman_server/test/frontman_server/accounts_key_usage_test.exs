@@ -4,7 +4,7 @@ defmodule FrontmanServer.ProvidersTest do
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Providers
 
-  import FrontmanServer.AccountsFixtures
+  import FrontmanServer.Test.Fixtures.Accounts
 
   describe "user key usage" do
     test "increments usage and returns remaining" do

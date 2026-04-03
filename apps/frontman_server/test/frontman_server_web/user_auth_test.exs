@@ -5,7 +5,7 @@ defmodule FrontmanServerWeb.UserAuthTest do
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServerWeb.UserAuth
 
-  import FrontmanServer.AccountsFixtures
+  import FrontmanServer.Test.Fixtures.Accounts
 
   @remember_me_cookie "_frontman_server_web_user_remember_me"
   @remember_me_cookie_max_age 60 * 60 * 24 * 14

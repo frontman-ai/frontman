@@ -12,7 +12,7 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
 
   use SwarmAi.Testing, async: false
 
-  import FrontmanServer.AccountsFixtures
+  import FrontmanServer.Test.Fixtures.Accounts
   import FrontmanServer.Test.Fixtures.Tasks
 
   alias Ecto.Adapters.SQL.Sandbox

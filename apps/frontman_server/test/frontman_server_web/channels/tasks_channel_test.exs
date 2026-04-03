@@ -3,7 +3,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
   # Shared sandbox mode is incompatible with async tests as it can interfere with other tests' connections
   use FrontmanServerWeb.ChannelCase, async: false
 
-  import FrontmanServer.AccountsFixtures
+  import FrontmanServer.Test.Fixtures.Accounts
   import FrontmanServer.Test.Fixtures.Tasks
 
   alias AgentClientProtocol, as: ACP

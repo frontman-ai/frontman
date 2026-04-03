@@ -1,7 +1,7 @@
 defmodule FrontmanServer.Providers.ProvidersOAuthTest do
   use FrontmanServer.DataCase, async: true
 
-  import FrontmanServer.AccountsFixtures
+  import FrontmanServer.Test.Fixtures.Accounts
 
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Providers

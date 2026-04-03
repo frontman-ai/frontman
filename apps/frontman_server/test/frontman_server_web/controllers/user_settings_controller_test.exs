@@ -2,7 +2,7 @@ defmodule FrontmanServerWeb.UserSettingsControllerTest do
   use FrontmanServerWeb.ConnCase, async: true
 
   alias FrontmanServer.Accounts
-  import FrontmanServer.AccountsFixtures
+  import FrontmanServer.Test.Fixtures.Accounts
 
   setup :register_and_log_in_user
 
