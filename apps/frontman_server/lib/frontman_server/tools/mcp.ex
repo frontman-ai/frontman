@@ -14,6 +14,12 @@ defmodule FrontmanServer.Tools.MCP do
     field(:on_timeout, :error | :pause_agent)
   end
 
+  # The MCP spec has no timeout fields in tools/list — timeout policy is a
+  # client-side concern (frontman server is the MCP client here). These
+  # defaults are applied to all tools discovered from external MCP servers.
+  @default_timeout_ms 600_000
+  @default_on_timeout :error
+
   @spec from_map(map()) :: t()
   def from_map(tool) when is_map(tool) do
     %__MODULE__{
@@ -21,13 +27,10 @@ defmodule FrontmanServer.Tools.MCP do
       description: tool["description"] || "",
       input_schema: tool["inputSchema"] || %{"type" => "object", "properties" => %{}},
       visible_to_agent: Map.get(tool, "visibleToAgent", true),
-      timeout_ms: Map.fetch!(tool, "timeoutMs"),
-      on_timeout: parse_on_timeout(Map.fetch!(tool, "onTimeout"))
+      timeout_ms: @default_timeout_ms,
+      on_timeout: @default_on_timeout
     }
   end
-
-  defp parse_on_timeout("pause_agent"), do: :pause_agent
-  defp parse_on_timeout(_), do: :error
 
   @spec from_maps([map()]) :: [t()]
   def from_maps(tools) when is_list(tools) do

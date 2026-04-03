@@ -96,13 +96,10 @@ defmodule FrontmanServer.Observability.ConsoleHandler do
   end
 
   def handle_swarm_llm_stop(_event, _measurements, metadata, _config) do
-    %{
-      loop_id: loop_id,
-      step: step,
-      input_tokens: input,
-      output_tokens: output,
-      tool_call_count: tools
-    } = metadata
+    %{loop_id: loop_id, step: step} = metadata
+    input = Map.get(metadata, :input_tokens, 0)
+    output = Map.get(metadata, :output_tokens, 0)
+    tools = Map.get(metadata, :tool_call_count, 0)
 
     case :ets.lookup(@table, {:swarm_llm, loop_id, step}) do
       [{{:swarm_llm, ^loop_id, ^step}, start_time, model}] ->

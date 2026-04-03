@@ -121,5 +121,52 @@ defmodule FrontmanServer.Tasks.MessageOptimizerTest do
     test "handles empty message list" do
       assert MessageOptimizer.optimize([]) == []
     end
+
+    # Regression test: long tool-calling chains accumulate many tool results
+    # inside the swarm loop without going through MessageOptimizer. When the
+    # LLMClient calls MessageOptimizer.optimize() before each API request, old
+    # large tool results must be truncated to stay within Anthropic's body limit.
+    test "truncates large tool results accumulated across many loop steps" do
+      # Simulate 10 tool call/result pairs (loop steps), each result 100KB
+      large_payload = String.duplicate("x", 100_000)
+
+      tool_pairs =
+        Enum.flat_map(1..10, fn i ->
+          id = "tc#{i}"
+
+          [
+            %Message{
+              role: :assistant,
+              content: [],
+              tool_calls: [ReqLLM.ToolCall.new(id, "mcp_read_file", "{}")]
+            },
+            %Message{
+              role: :tool,
+              tool_call_id: id,
+              content: [ContentPart.text(large_payload)]
+            }
+          ]
+        end)
+
+      # Final (live) assistant turn, not yet replied — still needs full tool result
+      messages =
+        [%Message{role: :user, content: [ContentPart.text("do work")]}] ++
+          tool_pairs
+
+      optimized = MessageOptimizer.optimize(messages)
+
+      tool_results =
+        Enum.filter(optimized, &(&1.role == :tool))
+
+      # Every tool result should be truncated to <= default 50KB + suffix overhead
+      Enum.each(tool_results, fn msg ->
+        text = hd(msg.content).text
+        # After truncation: starts with 51_200 bytes of content + suffix
+        assert byte_size(text) < 100_000,
+               "Expected tool result to be truncated, got #{byte_size(text)} bytes"
+
+        assert text =~ "[Output truncated:"
+      end)
+    end
   end
 end

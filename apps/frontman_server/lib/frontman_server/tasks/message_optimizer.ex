@@ -15,7 +15,8 @@ defmodule FrontmanServer.Tasks.MessageOptimizer do
   alias FrontmanServer.Tasks.MessageOptimizer.{
     ImageDecay,
     PageContextDedup,
-    ToolResultCompaction
+    ToolResultCompaction,
+    ToolResultTruncation
   }
 
   @type opts :: keyword()
@@ -34,6 +35,7 @@ defmodule FrontmanServer.Tasks.MessageOptimizer do
       messages
       |> ImageDecay.run(old_boundary, opts)
       |> ToolResultCompaction.run(old_boundary, opts)
+      |> ToolResultTruncation.run(opts)
       |> PageContextDedup.run(opts)
     else
       messages

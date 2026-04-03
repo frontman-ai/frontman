@@ -49,13 +49,13 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
 
   ## Examples
 
-      executor = ToolExecutor.make_executor(scope, task_id,
+      {executor, on_deadline} = ToolExecutor.make_executor(scope, task_id,
         backend_tool_modules: Tools.backend_tool_modules(),
         mcp_tools: mcp_tools,
         mcp_tool_defs: mcp_tool_defs,
         llm_opts: llm_opts
       )
-      SwarmAi.run_streaming(agent, messages, tool_executor: executor)
+      SwarmAi.run_streaming(agent, messages, tool_executor: executor, on_deadline: on_deadline)
   """
   @spec make_executor(Scope.t(), String.t(), keyword()) ::
           {([SwarmAi.ToolCall.t()] -> [SwarmAi.ToolResult.t()]), (SwarmAi.ToolCall.t() -> :ok)}
@@ -63,15 +63,24 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
     exec_opts = build_exec_opts(opts)
 
     executor = fn tool_calls ->
+      names = Enum.map_join(tool_calls, ", ", & &1.name)
+      Logger.debug("ToolExecutor batch: #{length(tool_calls)} tool(s) [#{names}]")
       Enum.map(tool_calls, &build_tool_result(&1, scope, task_id, exec_opts))
     end
 
     on_deadline = fn tc ->
       policy =
         case Enum.find(exec_opts.mcp_tool_defs, &(&1.name == tc.name)) do
-          %{on_timeout: policy} -> policy
-          # Backend tools (not in mcp_tool_defs) always persist on deadline.
-          nil -> :error
+          %{on_timeout: policy} ->
+            policy
+
+          nil ->
+            # Look up backend tool's on_timeout/0. Falls back to :error for
+            # unknown tools, which should not occur in practice.
+            case Map.get(exec_opts.backend_module_map, tc.name) do
+              nil -> :error
+              module -> module.on_timeout()
+            end
         end
 
       case policy do
@@ -199,7 +208,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
     {:ok, task} = Tasks.get_task(scope, task_id)
 
     # Pass the executor itself so backend tools can spawn sub-agents.
-    executor =
+    {executor, _on_deadline} =
       make_executor(scope, task_id,
         backend_tool_modules: opts.backend_tool_modules,
         mcp_tools: opts.mcp_tools,

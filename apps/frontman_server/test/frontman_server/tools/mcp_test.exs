@@ -4,72 +4,56 @@ defmodule FrontmanServer.Tools.MCPTest do
   alias FrontmanServer.Tools.MCP
 
   describe "from_map/1" do
-    test "parses timeout_ms and on_timeout from wire format" do
+    test "parses standard MCP tool fields" do
       tool =
         MCP.from_map(%{
           "name" => "navigate",
           "description" => "Navigate to a URL",
-          "inputSchema" => %{},
-          "timeoutMs" => 30_000,
-          "onTimeout" => "error"
+          "inputSchema" => %{}
         })
 
-      assert tool.timeout_ms == 30_000
+      assert tool.name == "navigate"
+      assert tool.description == "Navigate to a URL"
+    end
+
+    test "applies server-side timeout defaults" do
+      tool =
+        MCP.from_map(%{
+          "name" => "navigate",
+          "description" => "Navigate to a URL",
+          "inputSchema" => %{}
+        })
+
+      assert tool.timeout_ms == 600_000
       assert tool.on_timeout == :error
     end
 
-    test "parses on_timeout: pause_agent" do
-      tool =
-        MCP.from_map(%{
-          "name" => "question",
-          "description" => "Ask the user",
-          "inputSchema" => %{},
-          "timeoutMs" => 120_000,
-          "onTimeout" => "pause_agent"
-        })
-
-      assert tool.on_timeout == :pause_agent
-    end
-
-    test "raises when timeoutMs is absent" do
-      assert_raise KeyError, fn ->
-        MCP.from_map(%{
-          "name" => "navigate",
-          "description" => "Navigate",
-          "inputSchema" => %{},
-          "onTimeout" => "error"
-        })
-      end
-    end
-
-    test "raises when onTimeout is absent" do
-      assert_raise KeyError, fn ->
-        MCP.from_map(%{
-          "name" => "navigate",
-          "description" => "Navigate",
-          "inputSchema" => %{},
-          "timeoutMs" => 30_000
-        })
-      end
+    test "does not require or read timeoutMs / onTimeout from wire" do
+      # Tools from external MCP servers don't include these fields — they
+      # must not be required.
+      assert %MCP{} =
+               MCP.from_map(%{
+                 "name" => "take_screenshot",
+                 "description" => "Screenshot",
+                 "inputSchema" => %{}
+               })
     end
   end
 
   describe "to_swarm_tools/1" do
-    test "passes timeout_ms and on_timeout through without derivation" do
+    test "passes timeout defaults through to swarm tool" do
       mcp_tool =
         MCP.from_map(%{
           "name" => "question",
           "description" => "Ask user",
           "inputSchema" => %{},
-          "timeoutMs" => 120_000,
-          "onTimeout" => "pause_agent",
           "visibleToAgent" => true
         })
 
       [swarm_tool] = MCP.to_swarm_tools([mcp_tool])
 
-      assert swarm_tool.timeout_ms == 120_000
-      assert swarm_tool.on_timeout == :pause_agent
+      assert swarm_tool.timeout_ms == 600_000
+      assert swarm_tool.on_timeout == :error
     end
   end
 end

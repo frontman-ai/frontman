@@ -76,7 +76,7 @@ end
 
 defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
   alias FrontmanServer.Tasks.Execution.LLMClient
-  alias FrontmanServer.Tasks.{StreamCleanup, StreamStallTimeout}
+  alias FrontmanServer.Tasks.{MessageOptimizer, StreamCleanup, StreamStallTimeout}
   alias SwarmAi.LLM.{Chunk, Usage}
   alias SwarmAi.Message
   alias SwarmAi.Message.ContentPart
@@ -101,11 +101,18 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
       |> Keyword.reject(fn {_k, v} -> v == [] end)
 
     # Convert messages, applying mcp_ prefix to tool names if required
-    # For OAuth with identity_override, prepend identity as first content block
+    # For OAuth with identity_override, prepend identity as first content block.
+    # Run MessageOptimizer here (not just at task startup) so that tool results
+    # accumulated inside the swarm loop are also truncated. Without this, long
+    # tool-calling chains accumulate dozens of full-size tool results and the
+    # request body grows until Anthropic closes the connection.
     reqllm_messages =
       messages
       |> Enum.map(&to_reqllm_message(&1, requires_mcp_prefix?))
       |> maybe_prepend_identity(identity_override)
+      |> MessageOptimizer.optimize()
+
+    log_message_sizes(reqllm_messages)
 
     case ReqLLM.stream_text(client.model, reqllm_messages, llm_opts) do
       {:ok, response} ->
@@ -301,6 +308,39 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
 
   defp classify_llm_error(_, text) do
     "LLM stream error: #{text}"
+  end
+
+  # Log per-call message sizes to help diagnose large-request transport errors.
+  # Reports total message count, number of messages carrying images, and the
+  # byte size of each image content part so we can track accumulation across
+  # loop steps.
+  defp log_message_sizes(messages) do
+    total = length(messages)
+
+    image_parts =
+      Enum.flat_map(messages, fn msg ->
+        parts = if is_list(msg.content), do: msg.content, else: []
+
+        parts
+        |> Enum.filter(fn p -> p.type in [:image, :image_url] end)
+        |> Enum.map(fn p ->
+          bytes = if p.type == :image, do: byte_size(p.data || ""), else: byte_size(p.url || "")
+          {p.type, bytes}
+        end)
+      end)
+
+    image_summary =
+      Enum.map_join(image_parts, ", ", fn {type, bytes} ->
+        "#{type}:#{div(bytes, 1024)}KB"
+      end)
+
+    total_image_bytes = Enum.sum(Enum.map(image_parts, fn {_type, bytes} -> bytes end))
+
+    Logger.debug(
+      "[LLMClient] stream call: #{total} messages, " <>
+        "#{length(image_parts)} image parts (#{div(total_image_bytes, 1024)}KB total)" <>
+        if(image_parts != [], do: " [#{image_summary}]", else: "")
+    )
   end
 
   # Prepend identity override as the first content block of system messages
