@@ -632,6 +632,7 @@ defmodule FrontmanServer.TasksTest do
       Tasks.submit_user_message(scope, task_id, [%{"type" => "text", "text" => "Hi"}], [],
         agent: %FrontmanServer.Testing.BlockingAgent{}
       )
+
       {:ok, _} = Tasks.add_agent_paused(scope, task_id, "question", 120_000)
 
       {:ok, task} = Tasks.get_task(scope, task_id)

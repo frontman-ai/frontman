@@ -33,7 +33,8 @@ defmodule FrontmanServer.Tasks.MessageOptimizer.PageContextDedup do
     {reversed_content, current_context} =
       Enum.reduce(content, {[], prev_context}, fn part, {parts, prev} ->
         case extract_context(part) do
-          {%ContentPart{type: :text, text: ""}, context} when context == prev and not is_nil(prev) ->
+          {%ContentPart{type: :text, text: ""}, context}
+          when context == prev and not is_nil(prev) ->
             {parts, context}
 
           {stripped_part, context} when context == prev and not is_nil(prev) ->

@@ -35,7 +35,11 @@ defmodule FrontmanServer.Tasks.MessageOptimizer.ToolResultCompactionTest do
 
     test "leaves non-JSON text content alone" do
       messages = [
-        %Message{role: :tool, content: [ContentPart.text("plain text result")], tool_call_id: "tc1"},
+        %Message{
+          role: :tool,
+          content: [ContentPart.text("plain text result")],
+          tool_call_id: "tc1"
+        },
         %Message{role: :assistant, content: [ContentPart.text("ok")]}
       ]
 

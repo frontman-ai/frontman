@@ -60,56 +60,57 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
   @spec make_executor(Scope.t(), String.t(), keyword()) ::
           ([SwarmAi.ToolCall.t()] -> [SwarmAi.ToolResult.t()])
   def make_executor(%Scope{} = scope, task_id, opts) do
-    backend_tool_modules = Keyword.fetch!(opts, :backend_tool_modules)
-    mcp_tools = Keyword.fetch!(opts, :mcp_tools)
-    mcp_tool_defs = Keyword.fetch!(opts, :mcp_tool_defs)
-    llm_opts = Keyword.fetch!(opts, :llm_opts)
-
-    backend_module_map = Map.new(backend_tool_modules, fn mod -> {mod.name(), mod} end)
+    exec_opts = build_exec_opts(opts)
 
     fn tool_calls ->
-      Enum.map(
-        tool_calls,
-        &build_tool_result(
-          &1,
-          scope,
-          task_id,
-          backend_tool_modules,
-          backend_module_map,
-          mcp_tools,
-          mcp_tool_defs,
-          llm_opts
-        )
-      )
+      Enum.map(tool_calls, &build_tool_result(&1, scope, task_id, exec_opts))
     end
   end
 
-  defp build_tool_result(
-         tool_call,
-         scope,
-         task_id,
-         backend_tool_modules,
-         backend_module_map,
-         mcp_tools,
-         mcp_tool_defs,
-         llm_opts
-       ) do
+  @doc """
+  Execute a single tool, trying backend first then MCP.
+
+  ## Options
+    - `:backend_tool_modules` - List of backend tool modules (required)
+    - `:mcp_tools` - List of SwarmAi.Tool.t() for sub-agents to use (required)
+    - `:mcp_tool_defs` - List of FrontmanServer.Tools.MCP.t() for execution mode lookups (required)
+    - `:llm_opts` - Keyword list with :api_key and :model for sub-agents (required)
+  """
+  @spec execute(Scope.t(), SwarmAi.ToolCall.t(), String.t(), keyword()) ::
+          {:ok, String.t()} | {:error, String.t()}
+  def execute(%Scope{} = scope, tool_call, task_id, opts) do
+    exec_opts = build_exec_opts(opts)
+
+    case Map.fetch(exec_opts.backend_module_map, tool_call.name) do
+      {:ok, module} ->
+        execute_backend_tool(scope, module, tool_call, task_id, exec_opts)
+
+      :error ->
+        execute_mcp_tool(scope, tool_call, task_id, exec_opts)
+    end
+  end
+
+  # Builds the internal execution opts map from keyword opts, including a
+  # pre-computed module map for O(1) backend tool lookup.
+  defp build_exec_opts(opts) do
+    backend_tool_modules = Keyword.fetch!(opts, :backend_tool_modules)
+
+    %{
+      backend_tool_modules: backend_tool_modules,
+      backend_module_map: Map.new(backend_tool_modules, &{&1.name(), &1}),
+      mcp_tools: Keyword.fetch!(opts, :mcp_tools),
+      mcp_tool_defs: Keyword.fetch!(opts, :mcp_tool_defs),
+      llm_opts: Keyword.fetch!(opts, :llm_opts)
+    }
+  end
+
+  defp build_tool_result(tool_call, scope, task_id, exec_opts) do
     # Strip null values from arguments. OpenAI strict mode makes optional fields
     # nullable (anyOf: [type, null]), so the model sends null instead of omitting.
     # Tools expect missing keys, not null values.
     tool_call = strip_null_arguments(tool_call)
 
-    result =
-      execute_tool_call(
-        scope,
-        task_id,
-        tool_call,
-        backend_tool_modules,
-        backend_module_map,
-        mcp_tools,
-        mcp_tool_defs,
-        llm_opts
-      )
+    result = execute_tool_call(tool_call, scope, task_id, exec_opts)
 
     case result do
       {:ok, content} -> SwarmAi.ToolResult.make(tool_call.id, content, false)
@@ -117,34 +118,19 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
     end
   end
 
-  defp execute_tool_call(
-         scope,
-         task_id,
-         tool_call,
-         backend_tool_modules,
-         backend_module_map,
-         mcp_tools,
-         mcp_tool_defs,
-         llm_opts
-       ) do
-    case Map.fetch(backend_module_map, tool_call.name) do
-      :error ->
-        # Register BEFORE publishing to prevent a race where the client
-        # responds before the executor is listening.
-        register_mcp_tool(tool_call)
-        publish_mcp_tool_call(scope, task_id, tool_call)
-
-      {:ok, _module} ->
-        :ok
-    end
-
+  defp execute_tool_call(tool_call, scope, task_id, exec_opts) do
     result =
-      execute(scope, tool_call, task_id,
-        backend_tool_modules: backend_tool_modules,
-        mcp_tools: mcp_tools,
-        mcp_tool_defs: mcp_tool_defs,
-        llm_opts: llm_opts
-      )
+      case Map.fetch(exec_opts.backend_module_map, tool_call.name) do
+        {:ok, module} ->
+          execute_backend_tool(scope, module, tool_call, task_id, exec_opts)
+
+        :error ->
+          # Register BEFORE publishing to prevent a race where the client
+          # responds before the executor is listening.
+          register_mcp_tool(tool_call)
+          publish_mcp_tool_call(scope, task_id, tool_call)
+          execute_mcp_tool(scope, tool_call, task_id, exec_opts)
+      end
 
     # Convert tool results containing image data (e.g. screenshots) to multimodal
     # content parts so the LLM receives proper image content instead of base64 text.
@@ -179,55 +165,9 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
     ReqLLM.ToolCall.new(tc.id, tc.name, tc.arguments)
   end
 
-  @doc """
-  Execute a single tool, trying backend first then MCP.
-
-  ## Options
-    - `:backend_tool_modules` - List of backend tool modules (required)
-    - `:mcp_tools` - List of SwarmAi.Tool.t() for sub-agents to use (required)
-    - `:mcp_tool_defs` - List of FrontmanServer.Tools.MCP.t() for execution mode lookups (required)
-    - `:llm_opts` - Keyword list with :api_key and :model for sub-agents (required)
-  """
-  @spec execute(Scope.t(), SwarmAi.ToolCall.t(), String.t(), keyword()) ::
-          {:ok, String.t()} | {:error, String.t()}
-  def execute(scope, tool_call, task_id, opts) do
-    backend_tool_modules = Keyword.fetch!(opts, :backend_tool_modules)
-    mcp_tools = Keyword.fetch!(opts, :mcp_tools)
-    mcp_tool_defs = Keyword.fetch!(opts, :mcp_tool_defs)
-    llm_opts = Keyword.fetch!(opts, :llm_opts)
-
-    backend_module_map = Map.new(backend_tool_modules, fn mod -> {mod.name(), mod} end)
-
-    case Map.fetch(backend_module_map, tool_call.name) do
-      {:ok, module} ->
-        execute_backend_tool(
-          scope,
-          module,
-          tool_call,
-          task_id,
-          backend_tool_modules,
-          mcp_tools,
-          mcp_tool_defs,
-          llm_opts
-        )
-
-      :error ->
-        execute_mcp_tool(scope, tool_call, task_id, mcp_tool_defs)
-    end
-  end
-
   # --- Backend Tool Execution ---
 
-  defp execute_backend_tool(
-         scope,
-         module,
-         tool_call,
-         task_id,
-         backend_tool_modules,
-         mcp_tools,
-         mcp_tool_defs,
-         llm_opts
-       ) do
+  defp execute_backend_tool(scope, module, tool_call, task_id, opts) do
     Logger.info("ToolExecutor: Executing backend tool #{tool_call.name}")
 
     # Re-fetch task from DB to get latest interactions. The task captured at
@@ -236,40 +176,31 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
     # backend tools would miss context from earlier tool results.
     {:ok, task} = Tasks.get_task(scope, task_id)
 
-    # Pass the executor itself so backend tools can spawn sub-agents
+    # Pass the executor itself so backend tools can spawn sub-agents.
     executor =
       make_executor(scope, task_id,
-        backend_tool_modules: backend_tool_modules,
-        mcp_tools: mcp_tools,
-        mcp_tool_defs: mcp_tool_defs,
-        llm_opts: llm_opts
+        backend_tool_modules: opts.backend_tool_modules,
+        mcp_tools: opts.mcp_tools,
+        mcp_tool_defs: opts.mcp_tool_defs,
+        llm_opts: opts.llm_opts
       )
 
-    # Pre-compute context messages from read_file results for sub-agents
-    context_messages =
-      Interaction.extract_markdown_messages(task.interactions)
+    context_messages = Interaction.extract_markdown_messages(task.interactions)
 
     context = %Backend.Context{
       scope: scope,
       task: task,
       tool_executor: executor,
-      mcp_tools: mcp_tools,
+      mcp_tools: opts.mcp_tools,
       context_messages: context_messages,
-      llm_opts: llm_opts
+      llm_opts: opts.llm_opts
     }
 
     case parse_arguments(tool_call.name, tool_call.arguments) do
       {:error, reason} ->
         # parse_arguments already reported to Sentry and logged — just record
-        # the error result for interaction history and return
-        Tasks.add_tool_result(
-          scope,
-          task_id,
-          %{id: tool_call.id, name: tool_call.name},
-          reason,
-          true
-        )
-
+        # the error result for interaction history and return.
+        Tasks.add_tool_result(scope, task_id, tool_call_ref(tool_call), reason, true)
         {:error, reason}
 
       {:ok, args} ->
@@ -281,8 +212,8 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
   # distinguish inner crashes from ParallelExecutor kills.
   #
   # Three outcomes:
-  #   {:returned, value}     — module.execute returned normally
-  #   {:crashed, reason}     — module.execute raised or exited
+  #   {:returned, value}      — module.execute returned normally
+  #   {:crashed, reason}      — module.execute raised or exited
   #   {:outer_killed, reason} — ParallelExecutor killed this task (on_timeout: :error)
   #
   # For :outer_killed, we persist a ToolResult then re-exit so ParallelExecutor
@@ -291,151 +222,127 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
   defp run_backend_tool(scope, module, args, context, tool_call, task_id) do
     Process.flag(:trap_exit, true)
     task = Task.async(fn -> module.execute(args, context) end)
+    outcome = await_backend_tool(task)
+    Process.flag(:trap_exit, false)
+    handle_backend_outcome(outcome, scope, tool_call, task_id)
+  end
+
+  defp await_backend_tool(task) do
     task_ref = task.ref
     task_pid = task.pid
 
-    outcome =
-      receive do
-        {^task_ref, value} ->
-          # Normal return — demonitor to drop any pending :DOWN, drain linked EXIT.
-          Process.demonitor(task_ref, [:flush])
+    receive do
+      {^task_ref, value} ->
+        # Normal return — demonitor to drop any pending :DOWN, drain linked EXIT.
+        Process.demonitor(task_ref, [:flush])
 
-          receive do
-            {:EXIT, ^task_pid, :normal} -> :ok
-          after
-            0 -> :ok
-          end
+        receive do
+          {:EXIT, ^task_pid, :normal} -> :ok
+        after
+          0 -> :ok
+        end
 
-          {:returned, value}
+        {:returned, value}
 
-        {:EXIT, ^task_pid, reason} ->
-          # Inner task crashed via link (trap_exit converted EXIT to message).
-          # Drain the :DOWN that follows.
-          receive do
-            {:DOWN, ^task_ref, :process, _, _} -> :ok
-          after
-            0 -> :ok
-          end
+      {:EXIT, ^task_pid, reason} ->
+        # Inner task crashed via link (trap_exit converted EXIT to message).
+        # Drain the :DOWN that follows.
+        receive do
+          {:DOWN, ^task_ref, :process, _, _} -> :ok
+        after
+          0 -> :ok
+        end
 
-          {:crashed, reason}
+        {:crashed, reason}
 
-        {:DOWN, ^task_ref, :process, _, reason} ->
-          # DOWN arrived before EXIT (less common but possible). Drain linked EXIT.
-          receive do
-            {:EXIT, ^task_pid, _} -> :ok
-          after
-            0 -> :ok
-          end
+      {:DOWN, ^task_ref, :process, _, reason} ->
+        # DOWN arrived before EXIT (less common but possible). Drain linked EXIT.
+        receive do
+          {:EXIT, ^task_pid, _} -> :ok
+        after
+          0 -> :ok
+        end
 
-          {:crashed, reason}
+        {:crashed, reason}
 
-        {:EXIT, _from, reason} ->
-          # ParallelExecutor killed this task — kill the inner task and clean up.
-          Process.exit(task_pid, :kill)
+      {:EXIT, _from, reason} ->
+        # ParallelExecutor killed this task — kill the inner task and clean up.
+        Process.exit(task_pid, :kill)
 
-          receive do
-            {:DOWN, ^task_ref, :process, _, _} -> :ok
-          after
-            5_000 -> :ok
-          end
+        receive do
+          {:DOWN, ^task_ref, :process, _, _} -> :ok
+        after
+          5_000 -> :ok
+        end
 
-          {:outer_killed, reason}
-      end
-
-    Process.flag(:trap_exit, false)
-
-    case outcome do
-      {:returned, {:ok, value}} ->
-        encoded = encode_result(value)
-
-        Tasks.add_tool_result(
-          scope,
-          task_id,
-          %{id: tool_call.id, name: tool_call.name},
-          value,
-          false
-        )
-
-        {:ok, encoded}
-
-      {:returned, {:error, reason}} ->
-        Logger.error(
-          "ToolExecutor: Backend tool #{tool_call.name} returned error: #{inspect(reason)}"
-        )
-
-        Sentry.capture_message("Tool execution failed",
-          level: :error,
-          tags: %{error_type: "tool_soft_error"},
-          extra: %{
-            tool_name: tool_call.name,
-            tool_call_id: tool_call.id,
-            task_id: task_id,
-            reason: inspect(reason)
-          }
-        )
-
-        Tasks.add_tool_result(
-          scope,
-          task_id,
-          %{id: tool_call.id, name: tool_call.name},
-          reason,
-          true
-        )
-
-        {:error, reason}
-
-      {:crashed, reason} ->
-        reason_str = inspect(reason)
-
-        Logger.error("ToolExecutor: Backend tool #{tool_call.name} crashed: #{reason_str}")
-
-        Sentry.capture_message("Tool execution failed",
-          level: :error,
-          tags: %{error_type: "tool_crash"},
-          extra: %{
-            tool_name: tool_call.name,
-            tool_call_id: tool_call.id,
-            task_id: task_id,
-            reason: reason_str
-          }
-        )
-
-        Tasks.add_tool_result(
-          scope,
-          task_id,
-          %{id: tool_call.id, name: tool_call.name},
-          reason_str,
-          true
-        )
-
-        {:error, reason_str}
-
-      {:outer_killed, reason} ->
-        timeout_msg = "Backend tool #{tool_call.name} timed out"
-
-        Logger.error("ToolExecutor: #{timeout_msg}")
-
-        Sentry.capture_message("Backend tool timeout",
-          level: :error,
-          tags: %{error_type: "tool_timeout"},
-          extra: %{
-            tool_name: tool_call.name,
-            tool_call_id: tool_call.id,
-            task_id: task_id
-          }
-        )
-
-        Tasks.add_tool_result(
-          scope,
-          task_id,
-          %{id: tool_call.id, name: tool_call.name},
-          timeout_msg,
-          true
-        )
-
-        # Re-exit so ParallelExecutor receives the expected DOWN message.
-        exit(reason)
+        {:outer_killed, reason}
+    after
+      300_000 ->
+        # Safety net: ParallelExecutor enforces per-tool deadlines before this
+        # fires. This cap prevents the executor from hanging indefinitely if
+        # the deadline mechanism fails.
+        Process.exit(task_pid, :kill)
+        {:outer_killed, :timeout}
     end
+  end
+
+  defp handle_backend_outcome({:returned, {:ok, value}}, scope, tool_call, task_id) do
+    Tasks.add_tool_result(scope, task_id, tool_call_ref(tool_call), value, false)
+    {:ok, encode_result(value)}
+  end
+
+  defp handle_backend_outcome({:returned, {:error, reason}}, scope, tool_call, task_id) do
+    Logger.error(
+      "ToolExecutor: Backend tool #{tool_call.name} returned error: #{inspect(reason)}"
+    )
+
+    report_tool_sentry("tool_soft_error", tool_call, task_id, inspect(reason))
+    Tasks.add_tool_result(scope, task_id, tool_call_ref(tool_call), reason, true)
+    {:error, reason}
+  end
+
+  defp handle_backend_outcome({:crashed, reason}, scope, tool_call, task_id) do
+    reason_str = inspect(reason)
+    Logger.error("ToolExecutor: Backend tool #{tool_call.name} crashed: #{reason_str}")
+    report_tool_sentry("tool_crash", tool_call, task_id, reason_str)
+    Tasks.add_tool_result(scope, task_id, tool_call_ref(tool_call), reason_str, true)
+    {:error, reason_str}
+  end
+
+  defp handle_backend_outcome({:outer_killed, reason}, scope, tool_call, task_id) do
+    timeout_msg = "Backend tool #{tool_call.name} timed out"
+    Logger.error("ToolExecutor: #{timeout_msg}")
+    report_tool_timeout_sentry(tool_call, task_id)
+    Tasks.add_tool_result(scope, task_id, tool_call_ref(tool_call), timeout_msg, true)
+    # Re-exit so ParallelExecutor receives the expected DOWN message.
+    exit(reason)
+  end
+
+  defp tool_call_ref(tool_call), do: %{id: tool_call.id, name: tool_call.name}
+
+  defp report_tool_sentry(error_type, tool_call, task_id, reason) do
+    Sentry.capture_message("Tool execution failed",
+      level: :error,
+      tags: %{error_type: error_type},
+      extra: %{
+        tool_name: tool_call.name,
+        tool_call_id: tool_call.id,
+        task_id: task_id,
+        reason: reason
+      }
+    )
+  end
+
+  defp report_tool_timeout_sentry(tool_call, task_id) do
+    Sentry.capture_message("Backend tool timeout",
+      level: :error,
+      tags: %{error_type: "tool_timeout"},
+      extra: %{
+        tool_name: tool_call.name,
+        tool_call_id: tool_call.id,
+        task_id: task_id
+      }
+    )
   end
 
   defp strip_null_arguments(tool_call) do
@@ -475,7 +382,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
 
   # --- MCP Tool Execution ---
 
-  defp execute_mcp_tool(scope, tool_call, task_id, mcp_tool_defs) do
+  defp execute_mcp_tool(scope, tool_call, task_id, opts) do
     Logger.info("ToolExecutor: Routing to MCP tool #{tool_call.name}")
 
     tool_call_id = tool_call.id
@@ -491,7 +398,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
     #   double-persist (unique DB index rejects the second write, losing the
     #   richer SwarmDispatcher message).
     on_timeout =
-      case Enum.find(mcp_tool_defs, &(&1.name == tool_call.name)) do
+      case Enum.find(opts.mcp_tool_defs, &(&1.name == tool_call.name)) do
         %{on_timeout: policy} -> policy
         nil -> :error
       end
@@ -504,24 +411,49 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
 
     result =
       receive do
-        {:tool_result, ^tool_call_id, content, is_error} ->
+        {:tool_result, ^tool_call_id, content, false} ->
           Registry.unregister(FrontmanServer.ToolCallRegistry, {:tool_call, tool_call_id})
-          if is_error, do: {:error, content}, else: {:ok, content}
+          {:ok, content}
+
+        {:tool_result, ^tool_call_id, content, true} ->
+          Registry.unregister(FrontmanServer.ToolCallRegistry, {:tool_call, tool_call_id})
+          {:error, content}
 
         {:EXIT, _from, reason} ->
           # ParallelExecutor killed this task via deadline.
           # Only persist for :error — :pause_agent is handled by SwarmDispatcher.
-          if on_timeout == :error do
-            Tasks.add_tool_result(
-              scope,
-              task_id,
-              tool_call,
-              "Tool #{tool_call.name} timed out",
-              true
-            )
+          case on_timeout do
+            :error ->
+              Tasks.add_tool_result(
+                scope,
+                task_id,
+                tool_call,
+                "Tool #{tool_call.name} timed out",
+                true
+              )
+
+            :pause_agent ->
+              :ok
           end
 
           exit(reason)
+      after
+        600_000 ->
+          # Safety net: 10-minute hard cap. Should not fire under normal operation
+          # since ParallelExecutor enforces per-tool deadlines before this point.
+          Logger.error(
+            "ToolExecutor: MCP tool #{tool_call.name} receive timed out — no result or EXIT received"
+          )
+
+          Tasks.add_tool_result(
+            scope,
+            task_id,
+            tool_call,
+            "Tool #{tool_call.name} receive timed out",
+            true
+          )
+
+          exit(:timeout)
       end
 
     Process.flag(:trap_exit, false)
@@ -557,7 +489,11 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
          {:ok, binary, mime} <- Image.decode_data_url(data_url) do
       {:ok, [ContentPart.image(binary, mime)]}
     else
-      _ -> :no_image
+      {:error, _json_error} -> :no_image
+      {:ok, _not_a_map} -> :no_image
+      nil -> :no_image
+      # Image field present but not a string (e.g. integer, list).
+      _non_string_field -> :no_image
     end
   end
 end

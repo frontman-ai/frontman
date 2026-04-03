@@ -8,9 +8,15 @@ defmodule FrontmanServer.Tasks.MessageOptimizer.ImageDecayTest do
   describe "run/3" do
     test "replaces images in old messages with placeholder text" do
       messages = [
-        %Message{role: :user, content: [ContentPart.text("look at this"), ContentPart.image("png_data", "image/png")]},
+        %Message{
+          role: :user,
+          content: [ContentPart.text("look at this"), ContentPart.image("png_data", "image/png")]
+        },
         %Message{role: :assistant, content: [ContentPart.text("I see a button")]},
-        %Message{role: :user, content: [ContentPart.text("now click it"), ContentPart.image("png_data2", "image/png")]}
+        %Message{
+          role: :user,
+          content: [ContentPart.text("now click it"), ContentPart.image("png_data2", "image/png")]
+        }
       ]
 
       # old_boundary = 2 (after the assistant message at index 1)
@@ -66,7 +72,11 @@ defmodule FrontmanServer.Tasks.MessageOptimizer.ImageDecayTest do
 
     test "handles messages with nil content" do
       messages = [
-        %Message{role: :assistant, content: nil, tool_calls: [%{id: "1", function: %{name: "test", arguments: "{}"}}]}
+        %Message{
+          role: :assistant,
+          content: nil,
+          tool_calls: [%{id: "1", function: %{name: "test", arguments: "{}"}}]
+        }
       ]
 
       result = ImageDecay.run(messages, 1)
