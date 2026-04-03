@@ -77,7 +77,7 @@ config :frontman_server, FrontmanServer.Mailer,
 # Oban background job processing (Postgres-backed)
 config :frontman_server, Oban,
   repo: FrontmanServer.Repo,
-  queues: [default: 10, mailers: 5]
+  queues: [default: 10, mailers: 5, notifications: 5]
 
 # Configure esbuild (the version is required)
 config :esbuild,
