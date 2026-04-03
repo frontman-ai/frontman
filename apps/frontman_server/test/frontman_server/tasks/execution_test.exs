@@ -358,6 +358,24 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
                "every persisted ToolCall must have a matching ToolResult"
 
       assert tool_result.is_error == true
+
+      # Double-persist guard: EXIT handler and SwarmDispatcher both attempt to
+      # persist a ToolResult for on_timeout: :pause_agent. The unique DB index
+      # silently rejects the second write, but the wrong (less informative)
+      # message wins. Assert exactly one ToolResult so any double-persist is
+      # caught, and that the message comes from SwarmDispatcher (includes
+      # timeout_ms and policy name).
+      tool_results =
+        Enum.filter(task.interactions, fn
+          %Interaction.ToolResult{tool_call_id: ^question_tc_id} -> true
+          _ -> false
+        end)
+
+      assert length(tool_results) == 1,
+             "Expected exactly 1 ToolResult for the timed-out ToolCall, got #{length(tool_results)} — double-persist bug"
+
+      assert tool_result.result =~ "on_timeout: :pause_agent",
+             "Expected ToolResult message to come from SwarmDispatcher (includes policy name), got: #{inspect(tool_result.result)}"
     end
   end
 

@@ -475,18 +475,31 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
 
   # --- MCP Tool Execution ---
 
-  defp execute_mcp_tool(scope, tool_call, task_id, _mcp_tool_defs) do
+  defp execute_mcp_tool(scope, tool_call, task_id, mcp_tool_defs) do
     Logger.info("ToolExecutor: Routing to MCP tool #{tool_call.name}")
 
     tool_call_id = tool_call.id
+
+    # Resolve the tool's on_timeout policy so the EXIT handler knows whether to
+    # persist a ToolResult. Both :error and :pause_agent deadlines arrive as
+    # :shutdown EXIT signals — they're indistinguishable at the OS level.
+    #
+    # on_timeout: :error — EXIT handler must persist; SwarmDispatcher never sees
+    #   a :paused event for this case.
+    # on_timeout: :pause_agent — SwarmDispatcher owns persistence via the
+    #   {:paused, {:timeout, ...}} event. EXIT handler must skip to avoid a
+    #   double-persist (unique DB index rejects the second write, losing the
+    #   richer SwarmDispatcher message).
+    on_timeout =
+      case Enum.find(mcp_tool_defs, &(&1.name == tool_call.name)) do
+        %{on_timeout: policy} -> policy
+        nil -> :error
+      end
 
     # Trap exits so we can persist a ToolResult when ParallelExecutor terminates
     # this task on an on_timeout: :error deadline. async_nolink tasks shut down
     # via :shutdown (5 s grace period), which is trappable — :kill is not, but
     # that only fires if cleanup exceeds the grace period.
-    #
-    # on_timeout: :pause_agent takes the {:halt, ...} path instead; SwarmDispatcher
-    # handles ToolResult persistence for that case via the {:paused, ...} event.
     Process.flag(:trap_exit, true)
 
     result =
@@ -496,15 +509,17 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
           if is_error, do: {:error, content}, else: {:ok, content}
 
         {:EXIT, _from, reason} ->
-          # ParallelExecutor killed this task (on_timeout: :error).
-          # Persist an error ToolResult before dying so the ToolCall is not orphaned.
-          Tasks.add_tool_result(
-            scope,
-            task_id,
-            tool_call,
-            "Tool #{tool_call.name} timed out",
-            true
-          )
+          # ParallelExecutor killed this task via deadline.
+          # Only persist for :error — :pause_agent is handled by SwarmDispatcher.
+          if on_timeout == :error do
+            Tasks.add_tool_result(
+              scope,
+              task_id,
+              tool_call,
+              "Tool #{tool_call.name} timed out",
+              true
+            )
+          end
 
           exit(reason)
       end
