@@ -67,19 +67,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
     end
 
     on_deadline = fn tc ->
-      policy =
-        case Enum.find(exec_opts.mcp_tool_defs, &(&1.name == tc.name)) do
-          %{on_timeout: policy} ->
-            policy
-
-          nil ->
-            # Look up backend tool's on_timeout/0. Falls back to :error for
-            # unknown tools, which should not occur in practice.
-            case Map.get(exec_opts.backend_module_map, tc.name) do
-              nil -> :error
-              module -> module.on_timeout()
-            end
-        end
+      policy = resolve_timeout_policy(tc, exec_opts)
 
       case policy do
         :error ->
@@ -118,6 +106,23 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
         register_mcp_tool(tool_call)
         publish_mcp_tool_call(scope, task_id, tool_call)
         execute_mcp_tool(scope, tool_call, task_id, exec_opts)
+    end
+  end
+
+  # Determines the timeout policy for a tool call, checking MCP tool defs first,
+  # then backend tool modules. Falls back to :error for unknown tools.
+  defp resolve_timeout_policy(tc, exec_opts) do
+    case Enum.find(exec_opts.mcp_tool_defs, &(&1.name == tc.name)) do
+      %{on_timeout: policy} ->
+        policy
+
+      nil ->
+        # Look up backend tool's on_timeout/0. Falls back to :error for
+        # unknown tools, which should not occur in practice.
+        case Map.get(exec_opts.backend_module_map, tc.name) do
+          nil -> :error
+          module -> module.on_timeout()
+        end
     end
   end
 
@@ -357,9 +362,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
       600_000 ->
         # Safety net: 10-minute hard cap. Should not fire under normal operation
         # since ParallelExecutor enforces per-tool deadlines before this point.
-        Logger.error(
-          "ToolExecutor: MCP tool #{tool_call.name} receive timed out (safety net)"
-        )
+        Logger.error("ToolExecutor: MCP tool #{tool_call.name} receive timed out (safety net)")
 
         Tasks.add_tool_result(
           scope,

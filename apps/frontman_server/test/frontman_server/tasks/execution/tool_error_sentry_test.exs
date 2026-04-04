@@ -16,6 +16,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
 
   alias Ecto.Adapters.SQL.Sandbox
   alias FrontmanServer.Tasks.Execution.ToolExecutor
+  alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Tools
 
   setup do
@@ -204,7 +205,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
 
       tool_result =
         Enum.find(task.interactions, fn
-          %Tasks.Interaction.ToolResult{tool_call_id: "tc-deadline-1"} -> true
+          %Interaction.ToolResult{tool_call_id: "tc-deadline-1"} -> true
           _ -> false
         end)
 
