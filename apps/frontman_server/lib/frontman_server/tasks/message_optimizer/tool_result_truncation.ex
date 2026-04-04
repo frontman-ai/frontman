@@ -31,7 +31,14 @@ defmodule FrontmanServer.Tasks.MessageOptimizer.ToolResultTruncation do
 
   defp maybe_truncate(%ContentPart{type: :text, text: text} = part, max_bytes)
        when is_binary(text) and byte_size(text) > max_bytes do
-    trimmed = binary_part(text, 0, max_bytes)
+    # binary_part/3 is byte-level and can split a multi-byte UTF-8 sequence.
+    # :unicode.characters_to_binary/3 recovers the longest valid prefix.
+    trimmed =
+      case :unicode.characters_to_binary(binary_part(text, 0, max_bytes), :utf8, :utf8) do
+        result when is_binary(result) -> result
+        {:incomplete, valid, _rest} -> valid
+        {:error, valid, _rest} -> valid
+      end
     total = byte_size(text)
 
     suffix =

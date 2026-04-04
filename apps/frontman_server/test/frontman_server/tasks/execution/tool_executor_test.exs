@@ -104,6 +104,63 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
     end
   end
 
+  describe "execute/4 — MCP tool routing" do
+    @tag :capture_log
+    test "registers in ToolCallRegistry before blocking so the result can be delivered", %{
+      scope: scope,
+      task_id: task_id,
+      llm_opts: llm_opts
+    } do
+      tool_call_id = "tc_mcp_#{System.unique_integer([:positive])}"
+
+      tool_call = %SwarmAi.ToolCall{
+        id: tool_call_id,
+        name: "some_mcp_tool",
+        arguments: "{}"
+      }
+
+      # Run execute/4 in a background task — it will block in receive.
+      executor_task =
+        Task.async(fn ->
+          ToolExecutor.execute(scope, tool_call, task_id,
+            backend_tool_modules: [],
+            mcp_tools: [],
+            mcp_tool_defs: [],
+            llm_opts: llm_opts
+          )
+        end)
+
+      # Poll the registry. After the fix, execute/4 registers before blocking.
+      # Without the fix, the registration never happens and await_registry returns nil.
+      registered_pid = await_registry({:tool_call, tool_call_id}, 500)
+
+      if is_nil(registered_pid) do
+        Task.shutdown(executor_task, :brutal_kill)
+
+        flunk(
+          "execute/4 did not register MCP tool call in ToolCallRegistry — " <>
+            "the receive block can never be unblocked"
+        )
+      end
+
+      # Deliver the result to unblock the executor.
+      send(registered_pid, {:tool_result, tool_call_id, "mcp result", false})
+      assert {:ok, "mcp result"} = Task.await(executor_task, 1_000)
+
+      # The tool call interaction must also be published so the client knows to execute it.
+      {:ok, task} = Tasks.get_task(scope, task_id)
+
+      tool_calls =
+        Enum.filter(task.interactions, fn
+          %Tasks.Interaction.ToolCall{tool_call_id: ^tool_call_id} -> true
+          _ -> false
+        end)
+
+      assert length(tool_calls) == 1,
+             "execute/4 did not publish ToolCall interaction — client can never send the result"
+    end
+  end
+
   describe "make_executor/3 — on_deadline policy for backend tools" do
     @tag :capture_log
     test "on_deadline is a no-op for backend tool with on_timeout: :pause_agent", %{
@@ -141,6 +198,30 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
 
       assert tool_results == [],
              "Expected no ToolResult for on_timeout: :pause_agent, got #{length(tool_results)}"
+    end
+  end
+
+  # --- Helpers ---
+
+  # Polls ToolCallRegistry until `key` is registered or `timeout_ms` elapses.
+  # Returns the registered PID or nil on timeout.
+  defp await_registry(key, timeout_ms) do
+    deadline = System.monotonic_time(:millisecond) + timeout_ms
+    do_await_registry(key, deadline)
+  end
+
+  defp do_await_registry(key, deadline) do
+    case Registry.lookup(FrontmanServer.ToolCallRegistry, key) do
+      [{pid, _}] ->
+        pid
+
+      [] ->
+        if System.monotonic_time(:millisecond) < deadline do
+          Process.sleep(5)
+          do_await_registry(key, deadline)
+        else
+          nil
+        end
     end
   end
 end

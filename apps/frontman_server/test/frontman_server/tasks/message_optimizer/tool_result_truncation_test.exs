@@ -76,6 +76,36 @@ defmodule FrontmanServer.Tasks.MessageOptimizer.ToolResultTruncationTest do
       assert second.text == small_text
     end
 
+    test "truncation at a multi-byte UTF-8 character boundary produces valid UTF-8" do
+      # binary_part/3 is byte-level. If max_bytes falls inside a multi-byte character
+      # (e.g., an emoji = 4 bytes), the truncated binary is invalid UTF-8.
+      # Jason.encode! will raise on invalid UTF-8, crashing the LLM request.
+      #
+      # Construct a string where a 4-byte emoji (🐞 = 0xF0 0x9F 0x90 0x9E) straddles
+      # the truncation boundary. With max_bytes=100: 98 ASCII bytes + the first byte
+      # of the emoji lands at byte 99, which is inside the 100-byte limit but splits
+      # the character.
+      boundary_text = String.duplicate("a", 98) <> "🐞" <> String.duplicate("b", 100)
+
+      messages = [
+        %Message{
+          role: :tool,
+          tool_call_id: "tc_utf8",
+          content: [ContentPart.text(boundary_text)]
+        }
+      ]
+
+      [result] = ToolResultTruncation.run(messages, tool_result_max_bytes: @max_bytes)
+      [part] = result.content
+
+      # Must be valid UTF-8 — Jason.encode! would raise otherwise.
+      assert String.valid?(part.text),
+             "Truncated text is not valid UTF-8: #{inspect(part.text, binaries: :as_binaries)}"
+
+      # Must still contain the truncation suffix.
+      assert part.text =~ "[Output truncated:"
+    end
+
     test "truncation suffix includes byte counts" do
       large_text = String.duplicate("x", 200)
 

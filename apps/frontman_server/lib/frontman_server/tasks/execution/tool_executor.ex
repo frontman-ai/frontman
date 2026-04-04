@@ -115,6 +115,8 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
         execute_backend_tool(scope, module, tool_call, task_id, exec_opts)
 
       :error ->
+        register_mcp_tool(tool_call)
+        publish_mcp_tool_call(scope, task_id, tool_call)
         execute_mcp_tool(scope, tool_call, task_id, exec_opts)
     end
   end
