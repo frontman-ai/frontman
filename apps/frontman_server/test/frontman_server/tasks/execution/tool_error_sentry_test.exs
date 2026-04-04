@@ -15,6 +15,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
   import FrontmanServer.Test.Fixtures.Tasks
 
   alias Ecto.Adapters.SQL.Sandbox
+  alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Execution.ToolExecutor
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Tools
@@ -245,7 +246,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
 
       tool_result =
         Enum.find(task.interactions, fn
-          %Tasks.Interaction.ToolResult{tool_call_id: "tc-pause-1"} -> true
+          %Interaction.ToolResult{tool_call_id: "tc-pause-1"} -> true
           _ -> false
         end)
 
