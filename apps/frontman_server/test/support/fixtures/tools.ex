@@ -85,6 +85,23 @@ defmodule FrontmanServer.Test.Fixtures.Tools do
   end
 
   @doc """
+  Structured todo_write tool input for backend tool tests.
+  """
+  @spec todo_args() :: map()
+  def todo_args do
+    %{
+      "todos" => [
+        %{
+          "content" => "Fix the bug",
+          "active_form" => "Fixing the bug",
+          "status" => "pending",
+          "priority" => "medium"
+        }
+      ]
+    }
+  end
+
+  @doc """
   MCP tool definition list for the interactive `question` tool.
   """
   @spec question_mcp_tool_defs() :: [FrontmanServer.Tools.MCP.t()]

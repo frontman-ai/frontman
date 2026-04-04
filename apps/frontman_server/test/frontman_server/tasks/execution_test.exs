@@ -13,12 +13,14 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
   import FrontmanServer.Test.Fixtures.Accounts
   import FrontmanServer.Test.Fixtures.Tasks
-  import FrontmanServer.Test.Fixtures.Tools, only: [question_args: 0, question_mcp_tool_defs: 0]
+  import FrontmanServer.Test.Fixtures.Tools,
+    only: [question_args: 0, question_mcp_tool_defs: 0, todo_args: 0]
 
   alias Ecto.Adapters.SQL.Sandbox
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Interaction
+  alias FrontmanServer.Tools.MCP
   alias FrontmanServer.Workers.GenerateTitle
 
   @endpoint FrontmanServerWeb.Endpoint
@@ -26,22 +28,8 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
   # -- Helpers ---------------------------------------------------------------
 
-  defp todo_args do
-    %{
-      "todos" => [
-        %{
-          "content" => "Fix the bug",
-          "active_form" => "Fixing the bug",
-          "status" => "pending",
-          "priority" => "medium"
-        }
-      ]
-    }
-  end
   # Short timeout for tests that need to observe the pause path quickly.
   defp short_timeout_question_mcp_tool_defs do
-    alias FrontmanServer.Tools.MCP
-
     [
       %MCP{
         name: "question",
@@ -56,6 +44,24 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       }
     ]
   end
+
+  # Short-timeout tool that fails fast and lets the agent continue.
+  defp error_timeout_mcp_tool_defs do
+    [
+      %MCP{
+        name: "question",
+        description: "Ask the user a question",
+        input_schema: %{
+          "type" => "object",
+          "properties" => %{"questions" => %{"type" => "array"}}
+        },
+        visible_to_agent: true,
+        timeout_ms: 100,
+        on_timeout: :error
+      }
+    ]
+  end
+
   defp setup_task(_context) do
     pid = Sandbox.start_owner!(FrontmanServer.Repo, shared: true)
     on_exit(fn -> Sandbox.stop_owner(pid) end)
@@ -248,10 +254,10 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
           _ -> false
         end)
 
-      assert tool_results != []
+      assert [_ | _] = tool_results
 
       completions = Enum.filter(task.interactions, &match?(%Interaction.AgentCompleted{}, &1))
-      assert completions != []
+      assert [_ | _] = completions
     end
   end
 
@@ -347,18 +353,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       # Bug 7: the old execute_mcp_tool had an after clause that persisted a
       # ToolResult on timeout. The new code removed it, leaving an orphaned
       # ToolCall — reconnecting clients see the tool as perpetually in-progress.
-      tool_result =
-        Enum.find(task.interactions, fn
-          %Interaction.ToolResult{tool_call_id: ^question_tc_id} -> true
-          _ -> false
-        end)
-
-      assert tool_result != nil,
-             "Expected a ToolResult for the timed-out ToolCall — " <>
-               "every persisted ToolCall must have a matching ToolResult"
-
-      assert tool_result.is_error == true
-
+      #
       # Double-persist guard: EXIT handler and SwarmDispatcher both attempt to
       # persist a ToolResult for on_timeout: :pause_agent. The unique DB index
       # silently rejects the second write, but the wrong (less informative)
@@ -374,6 +369,9 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       assert length(tool_results) == 1,
              "Expected exactly 1 ToolResult for the timed-out ToolCall, got #{length(tool_results)} — double-persist bug"
 
+      [tool_result] = tool_results
+      assert tool_result.is_error == true
+
       assert tool_result.result =~ "on_timeout: :pause_agent",
              "Expected ToolResult message to come from SwarmDispatcher (includes policy name), got: #{inspect(tool_result.result)}"
     end
@@ -383,23 +381,6 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
   describe "MCP tool timeout with on_timeout: :error" do
     setup :setup_task
-
-    # Short-timeout tool that fails fast and lets the agent continue.
-    defp error_timeout_mcp_tool_defs do
-      [
-        %MCP{
-          name: "question",
-          description: "Ask the user a question",
-          input_schema: %{
-            "type" => "object",
-            "properties" => %{"questions" => %{"type" => "array"}}
-          },
-          visible_to_agent: true,
-          timeout_ms: 100,
-          on_timeout: :error
-        }
-      ]
-    end
 
     test "ToolResult is persisted in DB when MCP tool times out (on_timeout: :error)", %{
       task_id: task_id,
@@ -529,6 +510,8 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
                "Got: #{inspect(meta.output)}"
     end
   end
+
+  # -- Backend tool execution — channel level -----------------------------------
 
   describe "backend tool execution — channel level" do
     setup :setup_task_with_channel
@@ -692,16 +675,18 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
           [:frontman, :task, :stop]
         ])
 
+      Phoenix.PubSub.subscribe(FrontmanServer.PubSub, Tasks.topic(task_id))
+
       # Agent whose LLM exits with :shutdown — simulates supervisor kill
       agent = test_agent(%MockLLM{response: fn -> exit(:shutdown) end}, "TermAgent")
 
       {:ok, _} =
         Tasks.submit_user_message(scope, task_id, user_content("Hello"), [], agent: agent)
 
-      # Wait for the runtime to exit and SwarmDispatcher to broadcast
-      Process.sleep(500)
+      # Wait for SwarmDispatcher to broadcast the terminated event before checking the channel.
+      assert_receive {:swarm_event, {:terminated, _}}, 5_000
 
-      # Channel should receive the event via PubSub and push cancelled to client
+      # Flush the channel's message queue before asserting pushes.
       :sys.get_state(socket.channel_pid)
 
       assert_push(@acp_message, %{
