@@ -10,6 +10,22 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializerTest do
     :ok
   end
 
+  # A minimal state in the tools loading phase
+  defp tools_state(request_id) do
+    %{
+      status: :loading_tools,
+      task_id: "test_task",
+      scope: %FrontmanServer.Accounts.Scope{user: %FrontmanServer.Accounts.User{id: 1}},
+      mcp_init_request_id: nil,
+      tools_request_id: request_id,
+      project_rules_request_id: nil,
+      project_structure_request_id: nil,
+      mcp_capabilities: %{},
+      mcp_server_info: %{},
+      tools: nil
+    }
+  end
+
   # A minimal state in the project_rules loading phase
   defp rules_state(request_id) do
     %{
@@ -40,6 +56,41 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializerTest do
       mcp_server_info: %{},
       tools: []
     }
+  end
+
+  describe "handle_response/3 for tools/list" do
+    test "parses interactive tools with pause_agent policy from wire data" do
+      request_id = 1
+      state = tools_state(request_id)
+
+      result = %{
+        "tools" => [
+          %{
+            "name" => "question",
+            "description" => "Ask the user a question",
+            "inputSchema" => %{"type" => "object", "properties" => %{}},
+            "executionMode" => "interactive"
+          },
+          %{
+            "name" => "navigate",
+            "description" => "Navigate to a URL",
+            "inputSchema" => %{"type" => "object", "properties" => %{}}
+          }
+        ]
+      }
+
+      {new_state, _actions} = MCPInitializer.handle_response(state, request_id, result)
+
+      [question_tool, navigate_tool] = new_state.tools
+
+      assert question_tool.name == "question"
+      assert question_tool.on_timeout == :pause_agent
+      assert question_tool.timeout_ms == 120_000
+
+      assert navigate_tool.name == "navigate"
+      assert navigate_tool.on_timeout == :error
+      assert navigate_tool.timeout_ms == 600_000
+    end
   end
 
   describe "handle_response/3 with tool-level errors (isError: true)" do

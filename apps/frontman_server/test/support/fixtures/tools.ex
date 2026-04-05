@@ -103,23 +103,22 @@ defmodule FrontmanServer.Test.Fixtures.Tools do
 
   @doc """
   MCP tool definition list for the interactive `question` tool.
+
+  Derived from wire-format data via MCP.from_map/1 so that changes to
+  the parsing layer are caught by tests that use this fixture.
   """
   @spec question_mcp_tool_defs() :: [FrontmanServer.Tools.MCP.t()]
   def question_mcp_tool_defs do
-    alias FrontmanServer.Tools.MCP
-
-    [
-      %MCP{
-        name: "question",
-        description: "Ask the user a question",
-        input_schema: %{
+    FrontmanServer.Tools.MCP.from_maps([
+      %{
+        "name" => "question",
+        "description" => "Ask the user a question",
+        "inputSchema" => %{
           "type" => "object",
           "properties" => %{"questions" => %{"type" => "array"}}
         },
-        visible_to_agent: true,
-        timeout_ms: 120_000,
-        on_timeout: :pause_agent
+        "executionMode" => "interactive"
       }
-    ]
+    ])
   end
 end
