@@ -7,9 +7,14 @@ defmodule FrontmanServer.Tools.Backend do
     @moduledoc """
     Execution context passed to backend tools.
 
-    The tool_executor is a pre-built function that handles both backend and MCP tool
-    execution. Backend tools that spawn sub-agents should use this executor rather than
-    creating their own.
+    The `tool_executor` is a pre-built description executor for use with
+    `SwarmAi.Runtime.run/5`. It maps `[ToolCall.t()]` to `[ToolExecution.t()]`
+    (descriptions), not final results — `SwarmAi.Runtime` wraps it with
+    `ParallelExecutor` before handing it to the execution loop.
+
+    Backend tools that spawn sub-agents should pass this executor as the
+    `tool_executor` option to `SwarmAi.Runtime.run/5`. Do not pass it directly
+    to `SwarmAi.run_streaming/3`, which expects a result-producing function.
 
     Tools receive all needed data through this context rather than calling back into
     contexts:
@@ -22,7 +27,7 @@ defmodule FrontmanServer.Tools.Backend do
     alias FrontmanServer.Accounts.Scope
     alias FrontmanServer.Tasks.Task
 
-    @type executor :: ([SwarmAi.ToolCall.t()] -> [SwarmAi.ToolResult.t()])
+    @type executor :: ([SwarmAi.ToolCall.t()] -> [SwarmAi.ToolExecution.t()])
 
     typedstruct do
       field(:scope, Scope.t(), enforce: true)

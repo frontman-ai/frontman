@@ -113,11 +113,20 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
   @doc false
   @spec handle_timeout(Scope.t(), String.t(), :error | :pause_agent, SwarmAi.ToolCall.t(), :triggered | :cancelled) ::
           :ok
-  def handle_timeout(scope, task_id, :error, tool_call, _reason) do
+  def handle_timeout(scope, task_id, :error, tool_call, :triggered) do
     timeout_msg = "Tool #{tool_call.name} timed out"
     Logger.error("ToolExecutor: #{timeout_msg}")
     report_tool_timeout_sentry(tool_call, task_id)
     Tasks.add_tool_result(scope, task_id, %{id: tool_call.id, name: tool_call.name}, timeout_msg, true)
+    :ok
+  end
+
+  def handle_timeout(scope, task_id, :error, tool_call, :cancelled) do
+    # Sibling tool triggered :pause_agent, so cancel_remaining cancelled this one.
+    # No Sentry report — this is expected cascade behaviour, not a timeout.
+    cancel_msg = "Tool #{tool_call.name} cancelled (sibling tool paused agent)"
+    Logger.info("ToolExecutor: #{cancel_msg}")
+    Tasks.add_tool_result(scope, task_id, %{id: tool_call.id, name: tool_call.name}, cancel_msg, true)
     :ok
   end
 

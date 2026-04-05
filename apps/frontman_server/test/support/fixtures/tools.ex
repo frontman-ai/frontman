@@ -18,6 +18,7 @@ defmodule FrontmanServer.Test.Fixtures.Tools do
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tools.Backend.Context
   alias FrontmanServer.Tools.MCP
+  alias SwarmAi.ToolExecution
 
   @doc """
   Build a tool execution context.
@@ -28,10 +29,17 @@ defmodule FrontmanServer.Test.Fixtures.Tools do
   """
   @spec tool_context(FrontmanServer.Accounts.Scope.t(), map(), keyword()) :: Context.t()
   def tool_context(scope, task, llm_opts \\ []) do
-    # No-op executor for tests that don't actually execute sub-agents
+    # No-op description executor for tests that don't actually execute sub-agents.
+    # Returns ToolExecution.Sync structs (never passed to ParallelExecutor in tests).
     noop_executor = fn tool_calls ->
       Enum.map(tool_calls, fn tc ->
-        SwarmAi.ToolResult.make(tc.id, "mock result", false)
+        %ToolExecution.Sync{
+          tool_call: tc,
+          timeout_ms: 5_000,
+          on_timeout_policy: :error,
+          run: {__MODULE__, :noop_run, []},
+          on_timeout: {__MODULE__, :noop_timeout, []}
+        }
       end)
     end
 
@@ -101,6 +109,12 @@ defmodule FrontmanServer.Test.Fixtures.Tools do
       ]
     }
   end
+
+  @doc false
+  def noop_run(_tool_call), do: SwarmAi.ToolResult.make("noop", "mock result", false)
+
+  @doc false
+  def noop_timeout(_tool_call, _reason), do: :ok
 
   @doc """
   MCP tool definition list for the interactive `question` tool.
