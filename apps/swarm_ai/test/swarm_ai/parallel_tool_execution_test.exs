@@ -1,17 +1,18 @@
 defmodule SwarmAi.ParallelToolExecutionTest do
   use SwarmAi.Testing, async: true
 
-  alias SwarmAi.ToolResult
+  alias SwarmAi.{ToolExecution, ToolResult}
 
-  defp make_tool(name, timeout_ms \\ 5_000, on_timeout \\ :error) do
-    SwarmAi.Tool.new(
-      name: name,
-      description: "test",
-      parameter_schema: %{},
-      timeout_ms: timeout_ms,
-      on_timeout: on_timeout
-    )
+  # --- MFA callbacks ---
+
+  def run_with_sleep(delay_ms, tool_call) do
+    Process.sleep(delay_ms)
+    ToolResult.make(tool_call.id, "Result", false)
   end
+
+  def run_instant(tool_call), do: ToolResult.make(tool_call.id, "OK", false)
+  def run_crash(_tool_call), do: raise("boom")
+  def noop_timeout(_tool_call, _reason), do: :ok
 
   describe "batch tool execution through Runtime" do
     test "executes multiple tools concurrently" do
@@ -33,16 +34,19 @@ defmodule SwarmAi.ParallelToolExecutionTest do
 
       executor = fn tool_calls ->
         Enum.map(tool_calls, fn tc ->
-          Process.sleep(100)
-          ToolResult.make(tc.id, "Result", false)
+          %ToolExecution.Sync{
+            tool_call: tc,
+            timeout_ms: 5_000,
+            on_timeout_policy: :error,
+            run: {__MODULE__, :run_with_sleep, [100]},
+            on_timeout: {__MODULE__, :noop_timeout, []}
+          }
         end)
       end
 
       {:ok, pid} =
         SwarmAi.Runtime.run(runtime, "task-parallel", agent, "Do work",
-          tool_executor: executor,
-          tool_defs: [make_tool("slow")],
-          on_deadline: fn _tc -> :ok end
+          tool_executor: executor
         )
 
       await_exit(pid)
@@ -69,18 +73,25 @@ defmodule SwarmAi.ParallelToolExecutionTest do
 
       executor = fn tool_calls ->
         Enum.map(tool_calls, fn tc ->
-          case tc.name do
-            "bad" -> raise "boom"
-            _ -> ToolResult.make(tc.id, "OK", false)
-          end
+          run_mfa =
+            case tc.name do
+              "bad" -> {__MODULE__, :run_crash, []}
+              _ -> {__MODULE__, :run_instant, []}
+            end
+
+          %ToolExecution.Sync{
+            tool_call: tc,
+            timeout_ms: 5_000,
+            on_timeout_policy: :error,
+            run: run_mfa,
+            on_timeout: {__MODULE__, :noop_timeout, []}
+          }
         end)
       end
 
       {:ok, pid} =
         SwarmAi.Runtime.run(runtime, "task-crash", agent, "Do work",
-          tool_executor: executor,
-          tool_defs: [make_tool("good"), make_tool("bad")],
-          on_deadline: fn _tc -> :ok end
+          tool_executor: executor
         )
 
       await_exit(pid)

@@ -1,6 +1,17 @@
 defmodule SwarmAi.RuntimeTest do
   use SwarmAi.Testing, async: true
 
+  alias SwarmAi.{ToolExecution, ToolResult}
+
+  # --- MFA callbacks for ToolExecution structs ---
+
+  def instant_run(tool_call), do: ToolResult.make(tool_call.id, "done", false)
+  def slow_run(tool_call) do
+    Process.sleep(500)
+    ToolResult.make(tool_call.id, "never", false)
+  end
+  def noop_timeout(_tool_call, _reason), do: :ok
+
   describe "child_spec/1" do
     test "requires :name option" do
       assert_raise KeyError, fn ->
@@ -80,23 +91,20 @@ defmodule SwarmAi.RuntimeTest do
                {:error, :already_running}
     end
 
-    test "passes tool_defs to executor for timeout policy" do
+    test "executor timeout_policy: :error returns error ToolResult and agent continues" do
       runtime = start_runtime!()
 
-      # Tool with 10ms timeout — will timeout but return error (not pause)
-      tool_def =
-        SwarmAi.Tool.new(
-          name: "test_tool",
-          description: "test",
-          parameter_schema: %{},
-          timeout_ms: 10,
-          on_timeout: :error
-        )
-
-      slow_executor = fn _tool_calls ->
-        Process.sleep(500)
-        # won't reach here
-        []
+      # Executor returns Sync executions with 10ms timeout and :error policy.
+      slow_executor = fn tool_calls ->
+        Enum.map(tool_calls, fn tc ->
+          %ToolExecution.Sync{
+            tool_call: tc,
+            timeout_ms: 10,
+            on_timeout_policy: :error,
+            run: {__MODULE__, :slow_run, []},
+            on_timeout: {__MODULE__, :noop_timeout, []}
+          }
+        end)
       end
 
       llm =
@@ -110,9 +118,7 @@ defmodule SwarmAi.RuntimeTest do
 
       {:ok, pid} =
         SwarmAi.Runtime.run(runtime, "task-tool-def", agent, "Hello",
-          tool_executor: slow_executor,
-          tool_defs: [tool_def],
-          on_deadline: fn _tc -> :ok end
+          tool_executor: slow_executor
         )
 
       await_exit(pid)
@@ -353,18 +359,17 @@ defmodule SwarmAi.RuntimeTest do
     test "pause_agent tool timeout returns :paused result, no :failed event" do
       runtime = start_runtime!()
 
-      pause_tool =
-        SwarmAi.Tool.new(
-          name: "test_tool",
-          description: "pauses",
-          parameter_schema: %{},
-          timeout_ms: 10,
-          on_timeout: :pause_agent
-        )
-
-      blocking_executor = fn _tool_calls ->
-        Process.sleep(500)
-        []
+      # Executor returns Sync executions with 10ms timeout and :pause_agent policy.
+      pause_executor = fn tool_calls ->
+        Enum.map(tool_calls, fn tc ->
+          %ToolExecution.Sync{
+            tool_call: tc,
+            timeout_ms: 10,
+            on_timeout_policy: :pause_agent,
+            run: {__MODULE__, :slow_run, []},
+            on_timeout: {__MODULE__, :noop_timeout, []}
+          }
+        end)
       end
 
       llm = %SwarmAi.Testing.MockLLM{
@@ -383,9 +388,7 @@ defmodule SwarmAi.RuntimeTest do
 
       {:ok, pid} =
         SwarmAi.Runtime.run(runtime, "task-pause", agent, "Hello",
-          tool_executor: blocking_executor,
-          tool_defs: [pause_tool],
-          on_deadline: fn _tc -> :ok end
+          tool_executor: pause_executor
         )
 
       await_exit(pid)
@@ -444,9 +447,16 @@ defmodule SwarmAi.RuntimeTest do
     Keyword.merge(
       [
         tool_executor: fn tool_calls ->
-          Enum.map(tool_calls, fn tc -> ToolResult.make(tc.id, "done", false) end)
-        end,
-        on_deadline: fn _tc -> :ok end
+          Enum.map(tool_calls, fn tc ->
+            %ToolExecution.Sync{
+              tool_call: tc,
+              timeout_ms: 5_000,
+              on_timeout_policy: :error,
+              run: {__MODULE__, :instant_run, []},
+              on_timeout: {__MODULE__, :noop_timeout, []}
+            }
+          end)
+        end
       ],
       extra
     )

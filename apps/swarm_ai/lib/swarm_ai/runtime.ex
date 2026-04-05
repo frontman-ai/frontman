@@ -164,8 +164,8 @@ defmodule SwarmAi.Runtime do
   end
 
   # Wraps the caller's batch tool_executor with per-tool parallel execution.
-  # Each tool call in a batch is run concurrently via Task.Supervisor.
-  # Crashes in individual tool tasks are caught and converted to error ToolResults.
+  # The inner executor returns [ToolExecution.t()] describing how to run each tool.
+  # PE is the sole execution authority.
   defp wrap_executor_with_parallel(opts, task_supervisor) do
     case Keyword.fetch(opts, :tool_executor) do
       :error -> opts
@@ -173,13 +173,11 @@ defmodule SwarmAi.Runtime do
     end
   end
 
-  defp do_wrap_executor(opts, executor, task_supervisor) do
-    tool_defs = Keyword.get(opts, :tool_defs, [])
-    tool_map = Map.new(tool_defs, fn tool -> {tool.name, tool} end)
-    on_deadline = Keyword.fetch!(opts, :on_deadline)
-
+  defp do_wrap_executor(opts, inner_executor, task_supervisor) do
     parallel_executor = fn tool_calls ->
-      case SwarmAi.ParallelExecutor.run(tool_calls, tool_map, executor, task_supervisor, on_deadline) do
+      executions = inner_executor.(tool_calls)
+
+      case SwarmAi.ParallelExecutor.run(executions, task_supervisor) do
         {:ok, results} -> results
         {:halt, _} = halt -> halt
       end

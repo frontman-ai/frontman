@@ -1,14 +1,7 @@
 defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
   @moduledoc """
-  Regression tests for ToolExecutor bugs found in PR #761 review.
-
-  Bug 1: execute_backend_tool passes the {executor_fn, on_deadline_fn} tuple
-  as Backend.Context.tool_executor instead of just the executor function.
-  Any backend tool that calls context.tool_executor.(...) crashes.
-
-  Bug 2: on_deadline always defaults to :error for backend tools, ignoring the
-  module's on_timeout/0 callback. A backend tool with on_timeout: :pause_agent
-  incorrectly gets a ToolResult persisted by on_deadline.
+  Tests for ToolExecutor public API: make_executor/3, run_backend_tool/5,
+  start_mcp_tool/3, and handle_timeout/5.
   """
 
   use ExUnit.Case, async: false
@@ -24,8 +17,6 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
   # --- Fake backend tools ---
 
   # A backend tool that invokes context.tool_executor to simulate sub-agent use.
-  # Will crash with BadFunctionError if context.tool_executor is the
-  # {executor_fn, on_deadline_fn} tuple instead of just the executor function.
   defmodule SubAgentTool do
     @behaviour Backend
 
@@ -42,7 +33,6 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
   end
 
   # A backend tool that declares on_timeout: :pause_agent.
-  # on_deadline should be a no-op for this tool — SwarmDispatcher handles persistence.
   defmodule PauseOnTimeoutTool do
     @behaviour Backend
 
@@ -75,41 +65,39 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
     {:ok, scope: scope, task_id: task_id, llm_opts: llm_opts}
   end
 
-  describe "execute/4 — backend tool sub-agent spawning" do
+  describe "run_backend_tool/5 — sub-agent spawning" do
     @tag :capture_log
     test "backend tool can call context.tool_executor without crashing", %{
       scope: scope,
       task_id: task_id,
       llm_opts: llm_opts
     } do
+      exec_opts = %{
+        backend_tool_modules: [SubAgentTool],
+        backend_module_map: %{SubAgentTool.name() => SubAgentTool},
+        mcp_tools: [],
+        mcp_tool_defs: [],
+        llm_opts: llm_opts
+      }
+
       tool_call = %SwarmAi.ToolCall{
         id: "tc_#{System.unique_integer([:positive])}",
         name: SubAgentTool.name(),
         arguments: "{}"
       }
 
-      result =
-        ToolExecutor.execute(scope, tool_call, task_id,
-          backend_tool_modules: [SubAgentTool],
-          mcp_tools: [],
-          mcp_tool_defs: [],
-          llm_opts: llm_opts
-        )
+      result = ToolExecutor.run_backend_tool(scope, SubAgentTool, task_id, exec_opts, tool_call)
 
       # SubAgentTool calls context.tool_executor.([]) and returns {:ok, "executor is callable"}.
-      # Bug: execute_backend_tool assigns the {fn, fn} tuple to context.tool_executor.
-      # Calling the tuple crashes with BadFunctionError, which is caught and returned as
-      # {:error, "..."}. After the fix this should be {:ok, _}.
-      assert {:ok, _} = result
+      assert %SwarmAi.ToolResult{is_error: false} = result
     end
   end
 
-  describe "execute/4 — MCP tool routing" do
+  describe "start_mcp_tool/3 — MCP tool routing" do
     @tag :capture_log
-    test "registers in ToolCallRegistry before blocking so the result can be delivered", %{
+    test "registers caller's pid in ToolCallRegistry before returning", %{
       scope: scope,
-      task_id: task_id,
-      llm_opts: llm_opts
+      task_id: task_id
     } do
       tool_call_id = "tc_mcp_#{System.unique_integer([:positive])}"
 
@@ -119,35 +107,17 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
         arguments: "{}"
       }
 
-      # Run execute/4 in a background task — it will block in receive.
-      executor_task =
-        Task.async(fn ->
-          ToolExecutor.execute(scope, tool_call, task_id,
-            backend_tool_modules: [],
-            mcp_tools: [],
-            mcp_tool_defs: [],
-            llm_opts: llm_opts
-          )
-        end)
+      # start_mcp_tool is meant to be called in PE's own process (self() = PE).
+      # Here, test process acts as PE.
+      ToolExecutor.start_mcp_tool(scope, task_id, tool_call)
 
-      # Poll the registry. After the fix, execute/4 registers before blocking.
-      # Without the fix, the registration never happens and await_registry returns nil.
-      registered_pid = await_registry({:tool_call, tool_call_id}, 500)
+      # Verify registry registration with test process pid.
+      assert [{test_pid, _}] =
+               Registry.lookup(FrontmanServer.ToolCallRegistry, {:tool_call, tool_call_id})
 
-      if is_nil(registered_pid) do
-        Task.shutdown(executor_task, :brutal_kill)
+      assert test_pid == self()
 
-        flunk(
-          "execute/4 did not register MCP tool call in ToolCallRegistry — " <>
-            "the receive block can never be unblocked"
-        )
-      end
-
-      # Deliver the result to unblock the executor.
-      send(registered_pid, {:tool_result, tool_call_id, "mcp result", false})
-      assert {:ok, "mcp result"} = Task.await(executor_task, 1_000)
-
-      # The tool call interaction must also be published so the client knows to execute it.
+      # Verify tool call interaction was published so the client can execute it.
       {:ok, task} = Tasks.get_task(scope, task_id)
 
       tool_calls =
@@ -157,18 +127,122 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
         end)
 
       assert length(tool_calls) == 1,
-             "execute/4 did not publish ToolCall interaction — client can never send the result"
+             "start_mcp_tool/3 did not publish ToolCall interaction"
     end
   end
 
-  describe "make_executor/3 — on_deadline policy for backend tools" do
+  describe "handle_timeout/5 — :error policy" do
     @tag :capture_log
-    test "on_deadline is a no-op for backend tool with on_timeout: :pause_agent", %{
+    test "persists error ToolResult and is a no-op for :triggered reason", %{
+      scope: scope,
+      task_id: task_id
+    } do
+      tc = %SwarmAi.ToolCall{id: "tc-to-1", name: "pause_on_timeout_tool", arguments: "{}"}
+      ToolExecutor.handle_timeout(scope, task_id, :error, tc, :triggered)
+
+      {:ok, task} = Tasks.get_task(scope, task_id)
+
+      result =
+        Enum.find(task.interactions, fn
+          %Interaction.ToolResult{tool_call_id: "tc-to-1"} -> true
+          _ -> false
+        end)
+
+      assert result != nil
+      assert result.is_error == true
+      assert result.result =~ "timed out"
+    end
+
+    @tag :capture_log
+    test "persists error ToolResult for :cancelled reason", %{
+      scope: scope,
+      task_id: task_id
+    } do
+      tc = %SwarmAi.ToolCall{id: "tc-to-2", name: "some_tool", arguments: "{}"}
+      ToolExecutor.handle_timeout(scope, task_id, :error, tc, :cancelled)
+
+      {:ok, task} = Tasks.get_task(scope, task_id)
+
+      result =
+        Enum.find(task.interactions, fn
+          %Interaction.ToolResult{tool_call_id: "tc-to-2"} -> true
+          _ -> false
+        end)
+
+      assert result != nil
+      assert result.is_error == true
+    end
+  end
+
+  describe "handle_timeout/5 — :pause_agent policy" do
+    @tag :capture_log
+    test "handle_timeout(:triggered) is a no-op for :pause_agent — SwarmDispatcher owns persistence",
+         %{scope: scope, task_id: task_id} do
+      tc = %SwarmAi.ToolCall{
+        id: "tc_#{System.unique_integer([:positive])}",
+        name: PauseOnTimeoutTool.name(),
+        arguments: "{}"
+      }
+
+      ToolExecutor.handle_timeout(scope, task_id, :pause_agent, tc, :triggered)
+
+      {:ok, task} = Tasks.get_task(scope, task_id)
+
+      tool_results =
+        Enum.filter(task.interactions, fn
+          %Interaction.ToolResult{tool_call_id: tc_id} -> tc_id == tc.id
+          _ -> false
+        end)
+
+      assert tool_results == [],
+             "Expected no ToolResult for :pause_agent/:triggered, got #{length(tool_results)}"
+    end
+
+    @tag :capture_log
+    test "handle_timeout(:cancelled) persists a ToolResult for sibling tool", %{
+      scope: scope,
+      task_id: task_id
+    } do
+      tc = %SwarmAi.ToolCall{
+        id: "tc_#{System.unique_integer([:positive])}",
+        name: PauseOnTimeoutTool.name(),
+        arguments: "{}"
+      }
+
+      ToolExecutor.handle_timeout(scope, task_id, :pause_agent, tc, :cancelled)
+
+      {:ok, task} = Tasks.get_task(scope, task_id)
+
+      tool_results =
+        Enum.filter(task.interactions, fn
+          %Interaction.ToolResult{tool_call_id: tc_id} -> tc_id == tc.id
+          _ -> false
+        end)
+
+      assert length(tool_results) == 1,
+             "Expected a ToolResult for :pause_agent/:cancelled, got #{length(tool_results)}"
+    end
+  end
+
+  describe "make_executor/3 — returns single function" do
+    test "returns a function, not a tuple", %{scope: scope, task_id: task_id, llm_opts: llm_opts} do
+      result =
+        ToolExecutor.make_executor(scope, task_id,
+          backend_tool_modules: [SubAgentTool],
+          mcp_tools: [],
+          mcp_tool_defs: [],
+          llm_opts: llm_opts
+        )
+
+      assert is_function(result, 1)
+    end
+
+    test "executor returns ToolExecution.Sync for backend tools", %{
       scope: scope,
       task_id: task_id,
       llm_opts: llm_opts
     } do
-      {_executor, on_deadline} =
+      executor =
         ToolExecutor.make_executor(scope, task_id,
           backend_tool_modules: [PauseOnTimeoutTool],
           mcp_tools: [],
@@ -176,52 +250,56 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
           llm_opts: llm_opts
         )
 
-      tool_call = %SwarmAi.ToolCall{
+      tc = %SwarmAi.ToolCall{
         id: "tc_#{System.unique_integer([:positive])}",
         name: PauseOnTimeoutTool.name(),
         arguments: "{}"
       }
 
-      on_deadline.(tool_call)
+      [execution] = executor.([tc])
 
-      # For on_timeout: :pause_agent, on_deadline must not persist a ToolResult.
-      # SwarmDispatcher owns persistence in the pause path.
-      # Bug: on_deadline falls through to :error for all backend tools, persisting
-      # an error ToolResult even when on_timeout is :pause_agent.
-      {:ok, task} = Tasks.get_task(scope, task_id)
-
-      tool_results =
-        Enum.filter(task.interactions, fn
-          %Interaction.ToolResult{tool_call_id: tc_id} -> tc_id == tool_call.id
-          _ -> false
-        end)
-
-      assert tool_results == [],
-             "Expected no ToolResult for on_timeout: :pause_agent, got #{length(tool_results)}"
+      assert %SwarmAi.ToolExecution.Sync{
+               on_timeout_policy: :pause_agent,
+               on_timeout: {ToolExecutor, :handle_timeout, [^scope, ^task_id, :pause_agent]}
+             } = execution
     end
-  end
 
-  # --- Helpers ---
+    test "executor returns ToolExecution.Await for MCP tools", %{
+      scope: scope,
+      task_id: task_id,
+      llm_opts: llm_opts
+    } do
+      pause_mcp_def = %FrontmanServer.Tools.MCP{
+        name: "some_mcp_tool",
+        description: "test",
+        input_schema: %{},
+        on_timeout: :pause_agent,
+        timeout_ms: 60_000
+      }
 
-  # Polls ToolCallRegistry until `key` is registered or `timeout_ms` elapses.
-  # Returns the registered PID or nil on timeout.
-  defp await_registry(key, timeout_ms) do
-    deadline = System.monotonic_time(:millisecond) + timeout_ms
-    do_await_registry(key, deadline)
-  end
+      executor =
+        ToolExecutor.make_executor(scope, task_id,
+          backend_tool_modules: [],
+          mcp_tools: [],
+          mcp_tool_defs: [pause_mcp_def],
+          llm_opts: llm_opts
+        )
 
-  defp do_await_registry(key, deadline) do
-    case Registry.lookup(FrontmanServer.ToolCallRegistry, key) do
-      [{pid, _}] ->
-        pid
+      tc = %SwarmAi.ToolCall{
+        id: "tc_#{System.unique_integer([:positive])}",
+        name: "some_mcp_tool",
+        arguments: "{}"
+      }
 
-      [] ->
-        if System.monotonic_time(:millisecond) < deadline do
-          Process.sleep(5)
-          do_await_registry(key, deadline)
-        else
-          nil
-        end
+      [execution] = executor.([tc])
+
+      assert %SwarmAi.ToolExecution.Await{
+               on_timeout_policy: :pause_agent,
+               message_key: tc_id,
+               on_timeout: {ToolExecutor, :handle_timeout, [^scope, ^task_id, :pause_agent]}
+             } = execution
+
+      assert tc_id == tc.id
     end
   end
 end

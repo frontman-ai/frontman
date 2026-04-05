@@ -8,13 +8,11 @@ defmodule FrontmanServer.Tasks.Execution.SubAgentMcpRoutingTest do
 
   ## Architecture
 
-  ToolExecutor owns interaction publishing for MCP tools internally:
-  1. Registers in ToolCallRegistry (for receiving response)
-  2. Publishes interaction via Tasks (for TaskChannel routing)
-  3. Waits for client response via receive
+  `start_mcp_tool/3` is called by PE in its own process to:
+  1. Register PE's pid in ToolCallRegistry (so {:tool_result, ...} routes back to PE)
+  2. Publish the ToolCall interaction (for TaskChannel routing to the client)
 
-  This ensures MCP tools work correctly for both main agents and sub-agents
-  without requiring callers to handle interaction publishing.
+  This ensures MCP tools work correctly for both main agents and sub-agents.
   """
 
   use SwarmAi.Testing, async: false
@@ -52,23 +50,11 @@ defmodule FrontmanServer.Tasks.Execution.SubAgentMcpRoutingTest do
       task_id: task_id,
       scope: scope
     } do
-      # Build executor that calls Tasks directly for persistence
-      llm_opts = [api_key: "test-key", model: "openrouter:anthropic/claude-sonnet-4-20250514"]
-
-      {executor, _on_deadline} =
-        ToolExecutor.make_executor(scope, task_id,
-          backend_tool_modules: [],
-          mcp_tools: [],
-          mcp_tool_defs: [],
-          llm_opts: llm_opts
-        )
-
       tool_call = swarm_tool_call("take_screenshot", ~s({"selector": "#main"}))
 
-      executor_task =
-        Task.async(fn ->
-          executor.([tool_call])
-        end)
+      # start_mcp_tool registers self() in the registry and publishes the interaction.
+      # Here, the test process acts as PE.
+      ToolExecutor.start_mcp_tool(scope, task_id, tool_call)
 
       # MCP request SHOULD be pushed to channel automatically
       assert_push(
@@ -82,8 +68,6 @@ defmodule FrontmanServer.Tasks.Execution.SubAgentMcpRoutingTest do
 
       # Verify interaction was published via PubSub
       assert_receive {:interaction, %Interaction.ToolCall{tool_name: "take_screenshot"}}, 500
-
-      Task.shutdown(executor_task, :brutal_kill)
     end
 
     test "full agent execution with MCP tool routing", %{
@@ -94,19 +78,38 @@ defmodule FrontmanServer.Tasks.Execution.SubAgentMcpRoutingTest do
       # Integration test using full Swarm execution with a test LLM that returns an MCP tool call
       mcp_tool_call = swarm_tool_call("take_screenshot", ~s({"selector": "#content"}))
 
+      mcp_tool_def = %FrontmanServer.Tools.MCP{
+        name: "take_screenshot",
+        description: "Take a screenshot",
+        input_schema: %{},
+        on_timeout: :pause_agent,
+        timeout_ms: 60_000
+      }
+
       llm = tool_then_complete_llm([mcp_tool_call], "Component implemented!")
       agent = test_agent(llm, "ComponentImplementAgent")
 
-      # Build executor that calls Tasks directly
       llm_opts = [api_key: "test-key", model: "openrouter:anthropic/claude-sonnet-4-20250514"]
 
-      {executor, _on_deadline} =
+      raw_executor =
         ToolExecutor.make_executor(scope, task_id,
           backend_tool_modules: [],
           mcp_tools: [],
-          mcp_tool_defs: [],
+          mcp_tool_defs: [mcp_tool_def],
           llm_opts: llm_opts
         )
+
+      # Wrap executor with PE so run_streaming receives plain ToolResults.
+      {:ok, task_sup} = Task.Supervisor.start_link()
+
+      executor = fn tool_calls ->
+        executions = raw_executor.(tool_calls)
+
+        case SwarmAi.ParallelExecutor.run(executions, task_sup) do
+          {:ok, results} -> results
+          {:halt, _} = halt -> halt
+        end
+      end
 
       executor_task =
         Task.async(fn ->

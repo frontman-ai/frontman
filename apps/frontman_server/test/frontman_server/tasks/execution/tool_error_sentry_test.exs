@@ -32,6 +32,16 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
     {:ok, task_id: task_id, scope: scope}
   end
 
+  defp backend_exec_opts do
+    %{
+      backend_tool_modules: Tools.backend_tool_modules(),
+      backend_module_map: Map.new(Tools.backend_tool_modules(), &{&1.name(), &1}),
+      mcp_tools: [],
+      mcp_tool_defs: [],
+      llm_opts: [api_key: "test", model: "mock"]
+    }
+  end
+
   describe "backend tool soft error Sentry reporting (Gap 2)" do
     @tag :capture_log
     test "reports {:error, reason} to Sentry with tool context", %{
@@ -49,15 +59,12 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
           })
         )
 
-      result =
-        ToolExecutor.execute(scope, tool_call, task_id,
-          backend_tool_modules: Tools.backend_tool_modules(),
-          mcp_tools: [],
-          mcp_tool_defs: [],
-          llm_opts: [api_key: "test", model: "mock"]
-        )
+      todo_write_module = Enum.find(Tools.backend_tool_modules(), &(&1.name() == "todo_write"))
 
-      assert {:error, _reason} = result
+      result =
+        ToolExecutor.run_backend_tool(scope, todo_write_module, task_id, backend_exec_opts(), tool_call)
+
+      assert %SwarmAi.ToolResult{is_error: true} = result
 
       # Verify Sentry captured the tool error
       reports = Sentry.Test.pop_sentry_reports()
@@ -88,16 +95,12 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
       # Intentionally malformed JSON
       tool_call = swarm_tool_call("todo_write", "{invalid json!!!}")
 
-      # Parse failure should propagate as {:error, _} — the tool must not execute
-      result =
-        ToolExecutor.execute(scope, tool_call, task_id,
-          backend_tool_modules: Tools.backend_tool_modules(),
-          mcp_tools: [],
-          mcp_tool_defs: [],
-          llm_opts: [api_key: "test", model: "mock"]
-        )
+      todo_write_module = Enum.find(Tools.backend_tool_modules(), &(&1.name() == "todo_write"))
 
-      assert {:error, _reason} = result
+      result =
+        ToolExecutor.run_backend_tool(scope, todo_write_module, task_id, backend_exec_opts(), tool_call)
+
+      assert %SwarmAi.ToolResult{is_error: true} = result
 
       reports = Sentry.Test.pop_sentry_reports()
 
@@ -128,13 +131,10 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
     } do
       tool_call = swarm_tool_call("todo_write", Jason.encode!(%{"todos" => []}))
 
+      todo_write_module = Enum.find(Tools.backend_tool_modules(), &(&1.name() == "todo_write"))
+
       _result =
-        ToolExecutor.execute(scope, tool_call, task_id,
-          backend_tool_modules: Tools.backend_tool_modules(),
-          mcp_tools: [],
-          mcp_tool_defs: [],
-          llm_opts: [api_key: "test", model: "mock"]
-        )
+        ToolExecutor.run_backend_tool(scope, todo_write_module, task_id, backend_exec_opts(), tool_call)
 
       reports = Sentry.Test.pop_sentry_reports()
 
@@ -157,13 +157,12 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
 
       tool_call = swarm_tool_call("todo_write", long_invalid_json)
 
-      assert {:error, _} =
-               ToolExecutor.execute(scope, tool_call, task_id,
-                 backend_tool_modules: Tools.backend_tool_modules(),
-                 mcp_tools: [],
-                 mcp_tool_defs: [],
-                 llm_opts: [api_key: "test", model: "mock"]
-               )
+      todo_write_module = Enum.find(Tools.backend_tool_modules(), &(&1.name() == "todo_write"))
+
+      result =
+        ToolExecutor.run_backend_tool(scope, todo_write_module, task_id, backend_exec_opts(), tool_call)
+
+      assert %SwarmAi.ToolResult{is_error: true} = result
 
       reports = Sentry.Test.pop_sentry_reports()
 
@@ -180,27 +179,18 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
   end
 
   # MCP tool timeouts are now handled by SwarmAi.ParallelExecutor via per-tool
-  # deadlines (timeout_ms/on_timeout fields on SwarmAi.Tool). When on_timeout is
+  # deadlines (timeout_ms/on_timeout fields on ToolExecution.Await). When on_timeout is
   # :pause_agent, the Runtime dispatches {:paused, {:timeout, ...}} which
   # SwarmDispatcher persists as an AgentPaused interaction — not a Sentry error.
-  # The old per-executor timeout (and its Sentry reporting) was removed in Task 9.
 
-  describe "make_executor/3 on_deadline callback" do
+  describe "handle_timeout/5 — :error policy Sentry reporting" do
     @tag :capture_log
-    test "on_deadline persists error ToolResult and reports to Sentry", %{
+    test "persists error ToolResult and reports to Sentry", %{
       task_id: task_id,
       scope: scope
     } do
-      {_executor, on_deadline} =
-        ToolExecutor.make_executor(scope, task_id,
-          backend_tool_modules: Tools.backend_tool_modules(),
-          mcp_tools: [],
-          mcp_tool_defs: [],
-          llm_opts: [api_key: "test", model: "mock"]
-        )
-
       tc = %SwarmAi.ToolCall{id: "tc-deadline-1", name: "todo_write", arguments: "{}"}
-      on_deadline.(tc)
+      ToolExecutor.handle_timeout(scope, task_id, :error, tc, :triggered)
 
       {:ok, task} = Tasks.get_task(scope, task_id)
 
@@ -219,28 +209,12 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
       assert length(timeout_reports) == 1
     end
 
-    test "on_deadline is a no-op for pause_agent MCP tools", %{
+    test "handle_timeout(:triggered) is a no-op for :pause_agent policy", %{
       task_id: task_id,
       scope: scope
     } do
-      pause_mcp_def = %FrontmanServer.Tools.MCP{
-        name: "some_mcp_tool",
-        description: "test",
-        input_schema: %{},
-        on_timeout: :pause_agent,
-        timeout_ms: 60_000
-      }
-
-      {_executor, on_deadline} =
-        ToolExecutor.make_executor(scope, task_id,
-          backend_tool_modules: Tools.backend_tool_modules(),
-          mcp_tools: [],
-          mcp_tool_defs: [pause_mcp_def],
-          llm_opts: [api_key: "test", model: "mock"]
-        )
-
       tc = %SwarmAi.ToolCall{id: "tc-pause-1", name: "some_mcp_tool", arguments: "{}"}
-      on_deadline.(tc)
+      ToolExecutor.handle_timeout(scope, task_id, :pause_agent, tc, :triggered)
 
       {:ok, task} = Tasks.get_task(scope, task_id)
 

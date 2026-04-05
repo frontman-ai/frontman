@@ -1,24 +1,26 @@
 defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
   @moduledoc """
-  Unified tool execution for both backend and MCP tools.
+  Builds `ToolExecution` descriptions for both backend and MCP tools.
 
-  Backend tools are executed directly server-side.
-  MCP tools use Registry-based result routing to wait for client execution.
+  `make_executor/3` returns a single function `[ToolCall.t()] -> [ToolExecution.t()]`.
+  `SwarmAi.ParallelExecutor` is the sole execution authority — this module only
+  describes how tools should run.
 
-  ## MCP Tool Routing
+  ## Backend tools
 
-  For MCP tools, the executor handles the complete routing flow:
-  1. Registers in ToolCallRegistry (for receiving response)
-  2. Publishes interaction via Tasks (for TaskChannel routing)
-  3. Waits for client response via receive
+  Each backend tool becomes a `ToolExecution.Sync` struct whose `run` MFA calls
+  `run_backend_tool/5` in the spawned task.
 
-  This ensures MCP tools work correctly for both main agents and sub-agents
-  without requiring callers to handle interaction publishing.
+  ## MCP tools
 
-  ## Telemetry
+  Each MCP tool becomes a `ToolExecution.Await` struct whose `start` MFA calls
+  `start_mcp_tool/3` in PE's own process (so PE's pid is registered in
+  `ToolCallRegistry`, enabling `{:tool_result, ...}` routing back to PE).
 
-  Tool execution telemetry is handled by Swarm. This module focuses only
-  on executing tools.
+  ## Callbacks
+
+  `run_backend_tool/5`, `start_mcp_tool/3`, and `handle_timeout/5` are public
+  so PE can call them via MFA. They are not part of the public API.
   """
 
   require Logger
@@ -29,105 +31,123 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Tools.Backend
   alias SwarmAi.Message.ContentPart
+  alias SwarmAi.ToolExecution
 
   @doc """
-  Returns a tool executor function for use with Swarm execution.
+  Returns an executor function for use with `SwarmAi.ParallelExecutor`.
 
-  The returned function:
-  1. Tries to execute as a backend tool first
-  2. Falls back to MCP routing if not a backend tool
-
-  For MCP tools, the executor automatically publishes interactions to enable
-  routing through TaskChannel. Callers don't need to handle this.
+  The returned function maps `[ToolCall.t()]` to `[ToolExecution.t()]`.
 
   ## Options
 
   - `:backend_tool_modules` - List of backend tool modules (required)
-  - `:mcp_tools` - List of SwarmAi.Tool.t() for sub-agents to use (required)
-  - `:mcp_tool_defs` - List of FrontmanServer.Tools.MCP.t() for execution mode lookups (required)
-  - `:llm_opts` - Keyword list with :api_key and :model for sub-agents (required)
-
-  ## Examples
-
-      {executor, on_deadline} = ToolExecutor.make_executor(scope, task_id,
-        backend_tool_modules: Tools.backend_tool_modules(),
-        mcp_tools: mcp_tools,
-        mcp_tool_defs: mcp_tool_defs,
-        llm_opts: llm_opts
-      )
-      SwarmAi.run_streaming(agent, messages, tool_executor: executor, on_deadline: on_deadline)
+  - `:mcp_tools` - List of `SwarmAi.Tool.t()` for sub-agents (required)
+  - `:mcp_tool_defs` - List of `FrontmanServer.Tools.MCP.t()` with timeout/policy (required)
+  - `:llm_opts` - Keyword list with `:api_key` and `:model` (required)
   """
   @spec make_executor(Scope.t(), String.t(), keyword()) ::
-          {([SwarmAi.ToolCall.t()] -> [SwarmAi.ToolResult.t()]), (SwarmAi.ToolCall.t() -> :ok)}
+          ([SwarmAi.ToolCall.t()] -> [ToolExecution.t()])
   def make_executor(%Scope{} = scope, task_id, opts) do
     exec_opts = build_exec_opts(opts)
 
-    executor = fn tool_calls ->
-      Enum.map(tool_calls, &build_tool_result(&1, scope, task_id, exec_opts))
+    fn tool_calls ->
+      Enum.map(tool_calls, fn tc ->
+        tc = strip_null_arguments(tc)
+        build_execution(tc, scope, task_id, exec_opts)
+      end)
     end
-
-    on_deadline = fn tc ->
-      policy = resolve_timeout_policy(tc, exec_opts)
-
-      case policy do
-        :error ->
-          timeout_msg = "Tool #{tc.name} timed out"
-          Logger.error("ToolExecutor: #{timeout_msg}")
-          report_tool_timeout_sentry(tc, task_id)
-          Tasks.add_tool_result(scope, task_id, %{id: tc.id, name: tc.name}, timeout_msg, true)
-
-        :pause_agent ->
-          :ok
-      end
-    end
-
-    {executor, on_deadline}
   end
 
-  @doc """
-  Execute a single tool, trying backend first then MCP.
-
-  ## Options
-    - `:backend_tool_modules` - List of backend tool modules (required)
-    - `:mcp_tools` - List of SwarmAi.Tool.t() for sub-agents to use (required)
-    - `:mcp_tool_defs` - List of FrontmanServer.Tools.MCP.t() for execution mode lookups (required)
-    - `:llm_opts` - Keyword list with :api_key and :model for sub-agents (required)
-  """
-  @spec execute(Scope.t(), SwarmAi.ToolCall.t(), String.t(), keyword()) ::
-          {:ok, String.t()} | {:error, String.t()}
-  def execute(%Scope{} = scope, tool_call, task_id, opts) do
-    exec_opts = build_exec_opts(opts)
-
+  defp build_execution(tool_call, scope, task_id, exec_opts) do
     case Map.fetch(exec_opts.backend_module_map, tool_call.name) do
       {:ok, module} ->
-        execute_backend_tool(scope, module, tool_call, task_id, exec_opts)
+        %ToolExecution.Sync{
+          tool_call: tool_call,
+          timeout_ms: module.timeout_ms(),
+          on_timeout_policy: module.on_timeout(),
+          run: {__MODULE__, :run_backend_tool, [scope, module, task_id, exec_opts]},
+          on_timeout: {__MODULE__, :handle_timeout, [scope, task_id, module.on_timeout()]}
+        }
 
       :error ->
-        register_mcp_tool(tool_call)
-        publish_mcp_tool_call(scope, task_id, tool_call)
-        execute_mcp_tool(scope, tool_call, task_id, exec_opts)
+        tool_def = find_mcp_tool_def!(tool_call.name, exec_opts)
+
+        %ToolExecution.Await{
+          tool_call: tool_call,
+          timeout_ms: tool_def.timeout_ms,
+          on_timeout_policy: tool_def.on_timeout,
+          start: {__MODULE__, :start_mcp_tool, [scope, task_id]},
+          message_key: tool_call.id,
+          on_timeout: {__MODULE__, :handle_timeout, [scope, task_id, tool_def.on_timeout]}
+        }
     end
   end
 
-  # Determines the timeout policy for a tool call, checking MCP tool defs first,
-  # then backend tool modules. Falls back to :error for unknown tools.
-  defp resolve_timeout_policy(tc, exec_opts) do
-    case Enum.find(exec_opts.mcp_tool_defs, &(&1.name == tc.name)) do
-      %{on_timeout: policy} ->
-        policy
+  # --- PE Callbacks (public for MFA dispatch) ---
 
-      nil ->
-        # Look up backend tool's on_timeout/0. Falls back to :error for
-        # unknown tools, which should not occur in practice.
-        case Map.get(exec_opts.backend_module_map, tc.name) do
-          nil -> :error
-          module -> module.on_timeout()
-        end
+  @doc false
+  @spec run_backend_tool(Scope.t(), module(), String.t(), map(), SwarmAi.ToolCall.t()) ::
+          SwarmAi.ToolResult.t()
+  def run_backend_tool(scope, module, task_id, exec_opts, tool_call) do
+    result = execute_backend_tool(scope, module, tool_call, task_id, exec_opts)
+    result = maybe_enrich_with_images(tool_call.name, result)
+
+    case result do
+      {:ok, content} -> SwarmAi.ToolResult.make(tool_call.id, content, false)
+      {:error, reason} -> SwarmAi.ToolResult.make(tool_call.id, to_string(reason), true)
     end
   end
 
-  # Builds the internal execution opts map from keyword opts, including a
-  # pre-computed module map for O(1) backend tool lookup.
+  @doc false
+  @spec start_mcp_tool(Scope.t(), String.t(), SwarmAi.ToolCall.t()) :: :ok
+  def start_mcp_tool(scope, task_id, tool_call) do
+    Logger.info("ToolExecutor: Routing to MCP tool #{tool_call.name}")
+
+    # Register BEFORE publishing to prevent a race where the client responds
+    # before PE is listening. self() here = PE's pid.
+    register_mcp_tool(tool_call)
+    publish_mcp_tool_call(scope, task_id, tool_call)
+    :ok
+  end
+
+  @doc false
+  @spec handle_timeout(Scope.t(), String.t(), :error | :pause_agent, SwarmAi.ToolCall.t(), :triggered | :cancelled) ::
+          :ok
+  def handle_timeout(scope, task_id, :error, tool_call, _reason) do
+    timeout_msg = "Tool #{tool_call.name} timed out"
+    Logger.error("ToolExecutor: #{timeout_msg}")
+    report_tool_timeout_sentry(tool_call, task_id)
+    Tasks.add_tool_result(scope, task_id, %{id: tool_call.id, name: tool_call.name}, timeout_msg, true)
+    :ok
+  end
+
+  def handle_timeout(_scope, _task_id, :pause_agent, _tool_call, :triggered) do
+    # SwarmDispatcher persists the ToolResult for the triggered tool via the
+    # {:paused, {:timeout, ...}} event. Nothing to do here.
+    :ok
+  end
+
+  def handle_timeout(scope, task_id, :pause_agent, tool_call, :cancelled) do
+    # Sibling cancelled by cancel_remaining — SwarmDispatcher never sees this tool,
+    # so we must persist here to satisfy the ToolCall→ToolResult DB invariant.
+    cancel_msg = "Tool #{tool_call.name} cancelled (sibling tool paused agent)"
+    Tasks.add_tool_result(scope, task_id, %{id: tool_call.id, name: tool_call.name}, cancel_msg, true)
+    :ok
+  end
+
+  # --- Internal ---
+
+  # Looks up a tool by name for timeout/policy config. Checks mcp_tool_defs
+  # (FrontmanServer.Tools.MCP.t()) first, then mcp_tools (SwarmAi.Tool.t()).
+  # Both structs have timeout_ms and on_timeout fields.
+  defp find_mcp_tool_def!(tool_name, exec_opts) do
+    found =
+      Enum.find(exec_opts.mcp_tool_defs, &(&1.name == tool_name)) ||
+        Enum.find(exec_opts.mcp_tools, &(&1.name == tool_name))
+
+    found || raise "Unknown tool: #{tool_name}. Not a backend tool and not in mcp_tool_defs or mcp_tools."
+  end
+
   defp build_exec_opts(opts) do
     backend_tool_modules = Keyword.fetch!(opts, :backend_tool_modules)
 
@@ -140,41 +160,6 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
     }
   end
 
-  defp build_tool_result(tool_call, scope, task_id, exec_opts) do
-    # Strip null values from arguments. OpenAI strict mode makes optional fields
-    # nullable (anyOf: [type, null]), so the model sends null instead of omitting.
-    # Tools expect missing keys, not null values.
-    tool_call = strip_null_arguments(tool_call)
-
-    result = execute_tool_call(tool_call, scope, task_id, exec_opts)
-
-    case result do
-      {:ok, content} -> SwarmAi.ToolResult.make(tool_call.id, content, false)
-      {:error, reason} -> SwarmAi.ToolResult.make(tool_call.id, to_string(reason), true)
-    end
-  end
-
-  defp execute_tool_call(tool_call, scope, task_id, exec_opts) do
-    result =
-      case Map.fetch(exec_opts.backend_module_map, tool_call.name) do
-        {:ok, module} ->
-          execute_backend_tool(scope, module, tool_call, task_id, exec_opts)
-
-        :error ->
-          # Register BEFORE publishing to prevent a race where the client
-          # responds before the executor is listening.
-          register_mcp_tool(tool_call)
-          publish_mcp_tool_call(scope, task_id, tool_call)
-          execute_mcp_tool(scope, tool_call, task_id, exec_opts)
-      end
-
-    # Convert tool results containing image data (e.g. screenshots) to multimodal
-    # content parts so the LLM receives proper image content instead of base64 text.
-    maybe_enrich_with_images(tool_call.name, result)
-  end
-
-  # Registers an MCP tool call in the ToolCallRegistry so the executor process
-  # can receive the result when the browser client responds.
   defp register_mcp_tool(tool_call) do
     Registry.register(FrontmanServer.ToolCallRegistry, {:tool_call, tool_call.id}, %{
       caller_pid: self()
@@ -213,7 +198,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
     {:ok, task} = Tasks.get_task(scope, task_id)
 
     # Pass the executor itself so backend tools can spawn sub-agents.
-    {executor, _on_deadline} =
+    executor =
       make_executor(scope, task_id,
         backend_tool_modules: opts.backend_tool_modules,
         mcp_tools: opts.mcp_tools,
@@ -240,11 +225,11 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
         {:error, reason}
 
       {:ok, args} ->
-        run_backend_tool(scope, module, args, context, tool_call, task_id)
+        do_run_backend_tool(scope, module, args, context, tool_call, task_id)
     end
   end
 
-  defp run_backend_tool(scope, module, args, context, tool_call, task_id) do
+  defp do_run_backend_tool(scope, module, args, context, tool_call, task_id) do
     outcome =
       try do
         {:returned, module.execute(args, context)}
@@ -339,42 +324,6 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
 
   defp encode_result(value) when is_binary(value), do: value
   defp encode_result(value), do: Jason.encode!(value)
-
-  # --- MCP Tool Execution ---
-
-  defp execute_mcp_tool(scope, tool_call, task_id, _opts) do
-    Logger.info("ToolExecutor: Routing to MCP tool #{tool_call.name}")
-
-    tool_call_id = tool_call.id
-
-    # Block until the browser client sends the result back via TaskChannel.
-    # Deadline enforcement and cleanup are handled by ParallelExecutor via the
-    # on_deadline callback — no trap_exit needed here.
-    receive do
-      {:tool_result, ^tool_call_id, content, false} ->
-        Registry.unregister(FrontmanServer.ToolCallRegistry, {:tool_call, tool_call_id})
-        {:ok, content}
-
-      {:tool_result, ^tool_call_id, content, true} ->
-        Registry.unregister(FrontmanServer.ToolCallRegistry, {:tool_call, tool_call_id})
-        {:error, content}
-    after
-      600_000 ->
-        # Safety net: 10-minute hard cap. Should not fire under normal operation
-        # since ParallelExecutor enforces per-tool deadlines before this point.
-        Logger.error("ToolExecutor: MCP tool #{tool_call.name} receive timed out (safety net)")
-
-        Tasks.add_tool_result(
-          scope,
-          task_id,
-          tool_call,
-          "Tool #{tool_call.name} receive timed out",
-          true
-        )
-
-        exit(:timeout)
-    end
-  end
 
   # --- Image Enrichment ---
   #
