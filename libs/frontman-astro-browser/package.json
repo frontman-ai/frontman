@@ -1,0 +1,21 @@
+{
+  "name": "@frontman-ai/astro-browser",
+  "version": "0.1.0",
+  "description": "Astro-specific browser tools for Frontman",
+  "license": "Apache-2.0",
+  "type": "module",
+  "private": true,
+  "dependencies": {
+    "@rescript/runtime": "12.0.0-beta.14"
+  },
+  "devDependencies": {
+    "@frontman-ai/frontman-protocol": "workspace:*",
+    "@rescript/webapi": "*",
+    "rescript": "catalog:",
+    "rescript-vitest": "catalog:",
+    "sury": "catalog:",
+    "sury-ppx": "^11.0.0-alpha.2",
+    "vite": "catalog:",
+    "vitest": "catalog:"
+  }
+}

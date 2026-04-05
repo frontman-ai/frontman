@@ -2625,6 +2625,22 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@frontman-ai/astro-browser@workspace:libs/frontman-astro-browser":
+  version: 0.0.0-use.local
+  resolution: "@frontman-ai/astro-browser@workspace:libs/frontman-astro-browser"
+  dependencies:
+    "@frontman-ai/frontman-protocol": "workspace:*"
+    "@rescript/runtime": "npm:12.0.0-beta.14"
+    "@rescript/webapi": "npm:*"
+    rescript: "catalog:"
+    rescript-vitest: "catalog:"
+    sury: "catalog:"
+    sury-ppx: "npm:^11.0.0-alpha.2"
+    vite: "catalog:"
+    vitest: "catalog:"
+  languageName: unknown
+  linkType: soft
+
 "@frontman-ai/astro@workspace:*, @frontman-ai/astro@workspace:libs/frontman-astro":
   version: 0.0.0-use.local
   resolution: "@frontman-ai/astro@workspace:libs/frontman-astro"

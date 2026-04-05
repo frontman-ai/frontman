@@ -1,0 +1,28 @@
+{
+  "name": "@frontman-ai/astro-browser",
+  "namespace": true,
+  "sources": [
+    {
+      "dir": "src",
+      "subdirs": false
+    },
+    {
+      "dir": "test",
+      "subdirs": false,
+      "type": "dev"
+    }
+  ],
+  "package-specs": [
+    {
+      "module": "esmodule",
+      "in-source": true,
+      "suffix": ".res.mjs"
+    }
+  ],
+  "ppx-flags": ["sury-ppx/bin"],
+  "dependencies": [
+    "@frontman-ai/frontman-protocol",
+    "sury"
+  ],
+  "dev-dependencies": ["rescript-vitest"]
+}

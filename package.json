@@ -21,6 +21,7 @@
 		"libs/frontman-protocol",
 		"libs/frontman-core",
 		"libs/frontman-astro",
+		"libs/frontman-astro-browser",
 		"libs/frontman-nextjs",
 		"libs/frontman-vite",
 		"test/sites/blog-starter",
