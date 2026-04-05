@@ -17,6 +17,7 @@ defmodule FrontmanServer.Test.Fixtures.Tools do
 
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tools.Backend.Context
+  alias FrontmanServer.Tools.MCP
 
   @doc """
   Build a tool execution context.
@@ -107,9 +108,9 @@ defmodule FrontmanServer.Test.Fixtures.Tools do
   Derived from wire-format data via MCP.from_map/1 so that changes to
   the parsing layer are caught by tests that use this fixture.
   """
-  @spec question_mcp_tool_defs() :: [FrontmanServer.Tools.MCP.t()]
+  @spec question_mcp_tool_defs() :: [MCP.t()]
   def question_mcp_tool_defs do
-    FrontmanServer.Tools.MCP.from_maps([
+    MCP.from_maps([
       %{
         "name" => "question",
         "description" => "Ask the user a question",
