@@ -158,8 +158,8 @@ defmodule SwarmAi do
 
         {result, final_status, step_count, output} =
           case execute_loop(loop, effects, tool_executor, callbacks) do
-            {:halt, halt_reason} ->
-              {{:paused, halt_reason}, :paused, length(loop.steps), nil}
+            {:halt, halt_reason, halted_loop} ->
+              {{:paused, halt_reason}, :paused, length(halted_loop.steps), nil}
 
             %Loop{} = final_loop ->
               r =
@@ -336,7 +336,7 @@ defmodule SwarmAi do
     case executor_result do
       {:halt, halt_reason} ->
         Telemetry.step_stop(loop.id, loop.current_step, loop.metadata)
-        {:halt, halt_reason}
+        {:halt, halt_reason, loop}
 
       results when is_list(results) ->
         Enum.zip(tool_calls, results)

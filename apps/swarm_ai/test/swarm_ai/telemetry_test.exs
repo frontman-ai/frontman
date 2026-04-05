@@ -174,6 +174,44 @@ defmodule SwarmAi.TelemetryTest do
     end
   end
 
+  describe "run_streaming telemetry - paused" do
+    test "step_count reflects steps completed before halt" do
+      llm =
+        multi_turn_llm([
+          {:tool_calls, [%SwarmAi.ToolCall{id: "tc_1", name: "step1", arguments: "{}"}],
+           "Step 1"},
+          {:tool_calls, [%SwarmAi.ToolCall{id: "tc_2", name: "interactive", arguments: "{}"}],
+           "Step 2"}
+        ])
+
+      agent = test_agent(llm)
+
+      call_count = :counters.new(1, [])
+
+      tool_executor = fn tool_calls ->
+        :counters.add(call_count, 1, 1)
+
+        if :counters.get(call_count, 1) == 1 do
+          Enum.map(tool_calls, fn tc -> ToolResult.make(tc.id, "ok", false) end)
+        else
+          [tc] = tool_calls
+          {:halt, {:pause_agent, tc.id, tc.name, 5_000}}
+        end
+      end
+
+      events =
+        capture_telemetry(fn ->
+          assert {:paused, _reason} =
+                   SwarmAi.run_streaming(agent, "Go", tool_executor: tool_executor)
+        end)
+
+      assert_event(events, [:swarm_ai, :run, :stop], fn _measurements, metadata ->
+        assert metadata.status == :paused
+        assert metadata.step_count == 2
+      end)
+    end
+  end
+
   # --- Test Helpers ---
 
   defp capture_telemetry(fun) do
