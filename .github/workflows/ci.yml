@@ -442,11 +442,23 @@ jobs:
           install: true
           cache: true
 
+      - name: Cache deps
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        with:
+          path: apps/swarm_ai/deps
+          key: ${{ runner.os }}-swarm-mix-${{ hashFiles('apps/swarm_ai/mix.lock') }}
+          restore-keys: ${{ runner.os }}-swarm-mix-
+
+      - name: Cache _build
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        with:
+          path: apps/swarm_ai/_build
+          key: ${{ runner.os }}-swarm-build-test-${{ hashFiles('apps/swarm_ai/mix.lock') }}
+          restore-keys: ${{ runner.os }}-swarm-build-test-
+
       - name: Install dependencies
         working-directory: apps/swarm_ai
-        run: |
-          rm -rf _build deps
-          mix deps.get
+        run: mix deps.get
 
       - name: Run tests
         working-directory: apps/swarm_ai
@@ -525,7 +537,7 @@ jobs:
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: apps/frontman_server/_build
-          key: ${{ runner.os }}-build-test-v2-${{ hashFiles('apps/frontman_server/mix.lock', 'apps/swarm_ai/lib/**') }}
+          key: ${{ runner.os }}-build-test-v2-${{ hashFiles('apps/frontman_server/mix.lock', 'apps/swarm_ai/mix.lock', 'apps/swarm_ai/lib/**') }}
           restore-keys: ${{ runner.os }}-build-test-v2-
 
       - name: Install dependencies
@@ -587,7 +599,7 @@ jobs:
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: apps/frontman_server/_build
-          key: ${{ runner.os }}-build-dev-v2-${{ hashFiles('apps/frontman_server/mix.lock', 'apps/swarm_ai/lib/**') }}
+          key: ${{ runner.os }}-build-dev-v2-${{ hashFiles('apps/frontman_server/mix.lock', 'apps/swarm_ai/mix.lock', 'apps/swarm_ai/lib/**') }}
           restore-keys: ${{ runner.os }}-build-dev-v2-
 
       - name: Install dependencies
@@ -638,7 +650,7 @@ jobs:
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: apps/frontman_server/_build
-          key: ${{ runner.os }}-build-dev-v2-${{ hashFiles('apps/frontman_server/mix.lock', 'apps/swarm_ai/lib/**') }}
+          key: ${{ runner.os }}-build-dev-v2-${{ hashFiles('apps/frontman_server/mix.lock', 'apps/swarm_ai/mix.lock', 'apps/swarm_ai/lib/**') }}
           restore-keys: ${{ runner.os }}-build-dev-v2-
 
       # PLT cache includes mise.toml hash to invalidate when Erlang/Elixir versions change
