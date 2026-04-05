@@ -22,7 +22,7 @@ defmodule FrontmanServer.Tasks.Execution do
   alias FrontmanServer.Providers
   alias FrontmanServer.Providers.{Model, Registry, ResolvedKey}
   alias FrontmanServer.Tasks.Execution.{Framework, RootAgent, ToolExecutor}
-  alias FrontmanServer.Tasks.{Interaction, MessageOptimizer, StreamStallTimeout, Task}
+  alias FrontmanServer.Tasks.{Interaction, StreamStallTimeout, Task}
   alias FrontmanServer.Tools
   alias SwarmAi.Message
 
@@ -78,7 +78,6 @@ defmodule FrontmanServer.Tasks.Execution do
         messages =
           task.interactions
           |> Interaction.to_llm_messages()
-          |> MessageOptimizer.optimize()
           |> Enum.map(&to_swarm_message/1)
           |> maybe_constrain_images(api_key_info.provider)
 
