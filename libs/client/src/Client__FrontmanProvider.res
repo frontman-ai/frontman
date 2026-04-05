@@ -28,18 +28,25 @@ let getContentBlockText = (block: Types.contentBlock): option<string> =>
 
 // Parse accumulated user_message_chunk content blocks into (content, annotations).
 // Inverse of messageAnnotationsToContentBlocks + buildAttachmentContentBlocks on the send path.
-let _parseUserMessageBlocks = (
-  blocks: array<Types.contentBlock>,
-): (array<Client__Message.UserContentPart.t>, array<Client__Message.MessageAnnotation.t>) => {
+let _parseUserMessageBlocks = (blocks: array<Types.contentBlock>): (
+  array<Client__Message.UserContentPart.t>,
+  array<Client__Message.MessageAnnotation.t>,
+) => {
   // First pass: collect screenshot data URLs keyed by annotation_id
   let screenshotMap = Dict.make()
   blocks->Array.forEach(block =>
     switch block {
-    | EmbeddedResource({resource: {_meta: Some(meta), resource: BlobResourceContents({blob, mimeType})}})
-      if meta->JSON.Decode.object->Option.flatMap(d => d->Dict.get("annotation_screenshot")) != None =>
+    | EmbeddedResource({
+        resource: {_meta: Some(meta), resource: BlobResourceContents({blob, mimeType})},
+      })
+      if meta->JSON.Decode.object->Option.flatMap(d => d->Dict.get("annotation_screenshot")) !=
+        None =>
       let parsed = S.parseOrThrow(meta, Client__Task__Types.screenshotMetaSchema)
       if parsed.annotationScreenshot {
-        screenshotMap->Dict.set(parsed.annotationId, `data:${mimeType->Option.getOrThrow};base64,${blob}`)
+        screenshotMap->Dict.set(
+          parsed.annotationId,
+          `data:${mimeType->Option.getOrThrow};base64,${blob}`,
+        )
       }
     | _ => ()
     }
@@ -50,15 +57,20 @@ let _parseUserMessageBlocks = (
   let annotations = []
   blocks->Array.forEach(block =>
     switch block {
-    | TextContent({text}) => content->Array.push(Client__Message.UserContentPart.Text({text: text}))->ignore
+    | TextContent({text}) =>
+      content->Array.push(Client__Message.UserContentPart.Text({text: text}))->ignore
     | EmbeddedResource({resource: {_meta: Some(meta), resource: TextResourceContents(_)}})
       if meta->JSON.Decode.object->Option.flatMap(d => d->Dict.get("annotation")) != None =>
       let parsed = S.parseOrThrow(meta, Client__Task__Types.annotationMetaSchema)
       if parsed.annotation {
         let screenshot = screenshotMap->Dict.get(parsed.annotationId)
-        annotations->Array.push(Client__Task__Types.annotationMetaToMessageAnnotation(parsed, ~screenshot))->ignore
+        annotations
+        ->Array.push(Client__Task__Types.annotationMetaToMessageAnnotation(parsed, ~screenshot))
+        ->ignore
       }
-    | EmbeddedResource({resource: {_meta: Some(meta), resource: BlobResourceContents({blob, mimeType})}}) =>
+    | EmbeddedResource({
+        resource: {_meta: Some(meta), resource: BlobResourceContents({blob, mimeType})},
+      }) =>
       // User images (screenshots already handled in first pass)
       switch meta->JSON.Decode.object {
       | Some(d) if d->Dict.get("user_image") == Some(JSON.Encode.bool(true)) =>
@@ -208,7 +220,7 @@ module Provider = {
       runtimeConfig.wpNonce->Option.forEach(nonce => relayHeaders->Dict.set("X-WP-Nonce", nonce))
 
       let relay = Relay.make(~baseUrl, ~requestHeaders=relayHeaders)
-      let toolRegistry = Client__ToolRegistry.coreBrowserTools()
+      let toolRegistry = Client__ToolRegistry.forFramework(runtimeConfig.framework)
       let mcpServer = MCPServer.make(~relay, ~serverName=clientName, ~serverVersion=clientVersion)
       let mcpServer = Client__ToolRegistry.registerAll(toolRegistry, mcpServer)
 
@@ -217,24 +229,26 @@ module Provider = {
       MCPServer.setToolResultMetaProvider(mcpServer, () => {
         let config = Client__RuntimeConfig.read()
         let envApiKey = Dict.make()
-        config.openrouterKeyValue->Option.forEach(key =>
-          envApiKey->Dict.set("openrouterKeyValue", key)
+        config.openrouterKeyValue->Option.forEach(
+          key => envApiKey->Dict.set("openrouterKeyValue", key),
         )
-        config.anthropicKeyValue->Option.forEach(key =>
-          envApiKey->Dict.set("anthropicKeyValue", key)
+        config.anthropicKeyValue->Option.forEach(
+          key => envApiKey->Dict.set("anthropicKeyValue", key),
         )
         let state = StateStore.getState(Client__State__Store.store)
-        let model = Client__State.Selectors.selectedModelValue(state)->Option.flatMap(
-          FrontmanAiFrontmanProtocol.FrontmanProtocol__Types.modelSelectionFromValueId
-        )
+        let model =
+          Client__State.Selectors.selectedModelValue(state)->Option.flatMap(
+            FrontmanAiFrontmanProtocol.FrontmanProtocol__Types.modelSelectionFromValueId,
+          )
         {model, envApiKey}
       })
 
       // Wire up image ref resolver so write_file can save user-attached images.
       MCPServer.setImageRefResolver(mcpServer, (uri, ~taskId) => {
         let state = StateStore.getState(Client__State__Store.store)
-        Client__State.Selectors.resolveImageRef(state, ~taskId, ~uri)
-        ->Option.map(({base64, mediaType}) => {MCPServer.base64, mediaType})
+        Client__State.Selectors.resolveImageRef(state, ~taskId, ~uri)->Option.map(
+          ({base64, mediaType}) => {MCPServer.base64, mediaType},
+        )
       })
 
       let config: Reducer.initConfig = {
@@ -246,26 +260,33 @@ module Provider = {
         baseUrl,
         onACPMessage: logACPMessage,
         _meta,
-        onTitleUpdated: Some((taskId, title) => {
-          Client__State.Actions.updateTaskTitle(~taskId, ~title)
-        }),
+        onTitleUpdated: Some(
+          (taskId, title) => {
+            Client__State.Actions.updateTaskTitle(~taskId, ~title)
+          },
+        ),
       }
 
       dispatch(Initialize({config, relay, mcpServer}))
 
-      Some(() => {
-        textDeltaBuffer.reset()
-        _userMsgBuffer.pending = false
-        _userMsgBuffer.blocks = []
-        dispatch(Cleanup)
-      })
+      Some(
+        () => {
+          textDeltaBuffer.reset()
+          _userMsgBuffer.pending = false
+          _userMsgBuffer.blocks = []
+          dispatch(Cleanup)
+        },
+      )
     })
 
     let handleTitleUpdated = React.useCallback0((taskId: string, title: string) => {
       Client__State.Actions.updateTaskTitle(~taskId, ~title)
     })
 
-    let handleSessionUpdate = React.useCallback0((sessionId: string, update: Types.sessionUpdate) => {
+    let handleSessionUpdate = React.useCallback0((
+      sessionId: string,
+      update: Types.sessionUpdate,
+    ) => {
       let taskId = sessionId
       switch update {
       | AgentMessageChunk({content, timestamp}) =>
@@ -295,37 +316,55 @@ module Provider = {
       | ToolCall({toolCallId, title, timestamp, parentAgentId, spawningToolName}) =>
         Client__TextDeltaBuffer.flush()
         let createdAt = Date.fromString(timestamp)->Date.getTime
-        Client__State.Actions.toolCallReceived(~taskId, ~toolCall={
-          id: toolCallId,
-          toolName: title,
-          inputBuffer: "",
-          input: None,
-          result: None,
-          errorText: None,
-          state: Client__State__Types.Message.InputStreaming,
-          createdAt,
-          parentAgentId,
-          spawningToolName,
-        })
+        Client__State.Actions.toolCallReceived(
+          ~taskId,
+          ~toolCall={
+            id: toolCallId,
+            toolName: title,
+            inputBuffer: "",
+            input: None,
+            result: None,
+            errorText: None,
+            state: Client__State__Types.Message.InputStreaming,
+            createdAt,
+            parentAgentId,
+            spawningToolName,
+          },
+        )
       | ToolCallUpdate({toolCallId, status, content}) =>
-        let text = content->Option.flatMap(c => c->Array.get(0))->Option.flatMap(i => i.content)->Option.flatMap(getContentBlockText)
+        let text =
+          content
+          ->Option.flatMap(c => c->Array.get(0))
+          ->Option.flatMap(i => i.content)
+          ->Option.flatMap(getContentBlockText)
         switch status {
         | Some(Pending) =>
-          text->Option.flatMap(t => try { Some(JSON.parseOrThrow(t)) } catch { | _ => None })->Option.forEach(input => {
+          text
+          ->Option.flatMap(t =>
+            try {Some(JSON.parseOrThrow(t))} catch {
+            | _ => None
+            }
+          )
+          ->Option.forEach(input => {
             Client__State.Actions.toolInputReceived(~taskId, ~id=toolCallId, ~input)
           })
         | Some(Completed) =>
           let result = text->Option.mapOr(JSON.Encode.null, t =>
-            try { JSON.parseOrThrow(t) } catch { | _ => JSON.Encode.string(t) }
+            try {JSON.parseOrThrow(t)} catch {
+            | _ => JSON.Encode.string(t)
+            }
           )
           Client__State.Actions.toolResultReceived(~taskId, ~id=toolCallId, ~result)
         | Some(Failed) =>
-          Client__State.Actions.toolErrorReceived(~taskId, ~id=toolCallId, ~error=text->Option.getOr("Unknown error"))
+          Client__State.Actions.toolErrorReceived(
+            ~taskId,
+            ~id=toolCallId,
+            ~error=text->Option.getOr("Unknown error"),
+          )
         | Some(InProgress) => () // Normal transitional status for MCP tools
         | None => ()
         }
-      | Plan({entries}) =>
-        Client__State.Actions.planReceived(~taskId, ~entries)
+      | Plan({entries}) => Client__State.Actions.planReceived(~taskId, ~entries)
       | AgentTurnComplete({stopReason: _}) =>
         Client__TextDeltaBuffer.flush()
         Client__State.Actions.turnCompleted(~taskId)
@@ -339,39 +378,43 @@ module Provider = {
       }
     })
 
-    let createSession = React.useCallback1(
-      (~onComplete: result<string, string> => unit) => {
-        dispatch(CreateSession({onUpdate: handleSessionUpdate, onTitleUpdated: handleTitleUpdated, onMcpMessage: logMCPMessage, onComplete}))
-      },
-      [dispatch],
-    )
+    let createSession = React.useCallback1((~onComplete: result<string, string> => unit) => {
+      dispatch(
+        CreateSession({
+          onUpdate: handleSessionUpdate,
+          onTitleUpdated: handleTitleUpdated,
+          onMcpMessage: logMCPMessage,
+          onComplete,
+        }),
+      )
+    }, [dispatch])
 
     let clearSession = React.useCallback1(() => dispatch(ClearSession), [dispatch])
 
-    let sendPrompt = React.useCallback1(
-      (text: string, ~additionalBlocks, ~onComplete, ~_meta) => {
-        dispatch(SendPrompt({text, additionalBlocks, onComplete, _meta}))
-      },
-      [dispatch],
-    )
+    let sendPrompt = React.useCallback1((text: string, ~additionalBlocks, ~onComplete, ~_meta) => {
+      dispatch(SendPrompt({text, additionalBlocks, onComplete, _meta}))
+    }, [dispatch])
 
     let cancelPrompt = React.useCallback1(() => {
       dispatch(CancelPrompt)
     }, [dispatch])
 
-    let loadTask = React.useCallback1(
-      (taskId: string, ~needsHistory, ~onComplete) => {
-        dispatch(LoadTask({taskId, needsHistory, onUpdate: handleSessionUpdate, onTitleUpdated: handleTitleUpdated, onMcpMessage: logMCPMessage, onComplete}))
-      },
-      [dispatch],
-    )
+    let loadTask = React.useCallback1((taskId: string, ~needsHistory, ~onComplete) => {
+      dispatch(
+        LoadTask({
+          taskId,
+          needsHistory,
+          onUpdate: handleSessionUpdate,
+          onTitleUpdated: handleTitleUpdated,
+          onMcpMessage: logMCPMessage,
+          onComplete,
+        }),
+      )
+    }, [dispatch])
 
-    let deleteSession = React.useCallback1(
-      (taskId: string, ~onComplete) => {
-        dispatch(DeleteSession({taskId, onComplete}))
-      },
-      [dispatch],
-    )
+    let deleteSession = React.useCallback1((taskId: string, ~onComplete) => {
+      dispatch(DeleteSession({taskId, onComplete}))
+    }, [dispatch])
 
     // Submit a late tool result via the ACP session channel.
     // Extract auth redirect URL from ACP error state (encoded as "auth_required:<url>")
