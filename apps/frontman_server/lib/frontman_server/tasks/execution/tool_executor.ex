@@ -46,7 +46,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
   - `:llm_opts` - Keyword list with `:api_key` and `:model` (required)
   """
   @spec make_executor(Scope.t(), String.t(), keyword()) ::
-          ([SwarmAi.ToolCall.t()] -> [ToolExecution.t()])
+          ([SwarmAi.ToolCall.t()] -> [ToolExecution.Sync.t() | ToolExecution.Await.t()])
   def make_executor(%Scope{} = scope, task_id, opts) do
     exec_opts = build_exec_opts(opts)
 
