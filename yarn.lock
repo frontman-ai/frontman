@@ -2625,7 +2625,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@frontman-ai/astro-browser@workspace:libs/frontman-astro-browser":
+"@frontman-ai/astro-browser@workspace:*, @frontman-ai/astro-browser@workspace:libs/frontman-astro-browser":
   version: 0.0.0-use.local
   resolution: "@frontman-ai/astro-browser@workspace:libs/frontman-astro-browser"
   dependencies:
@@ -2672,6 +2672,7 @@ __metadata:
     "@ai-sdk/react": "npm:^2.0.92"
     "@babel/core": "npm:^7.29.0"
     "@biomejs/biome": "npm:^2.3.5"
+    "@frontman-ai/astro-browser": "workspace:*"
     "@frontman-ai/frontman-client": "workspace:*"
     "@frontman-ai/frontman-protocol": "workspace:*"
     "@frontman-ai/nextjs": "workspace:*"

@@ -31,6 +31,7 @@
 		"@frontman/logs",
 		"@rescript/react",
 		"@rescript/webapi",
+		"@frontman-ai/astro-browser",
 		"@frontman-ai/frontman-client",
 		"@frontman-ai/nextjs",
 		"@frontman-ai/frontman-protocol",
