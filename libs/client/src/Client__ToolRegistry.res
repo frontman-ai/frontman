@@ -56,3 +56,12 @@ let registerAll = (registry: t, mcpServer: MCPServer.t): MCPServer.t => {
 let count = (registry: t): int => {
   registry.tools->Array.length
 }
+
+// Build a registry with core browser tools + framework-specific tools
+let forFramework = (framework: Client__RuntimeConfig.frameworkId): t => {
+  let base = coreBrowserTools()
+  switch framework {
+  | Astro => base->addTools(FrontmanAiAstroBrowser.FrontmanAstroBrowser__Registry.browserTools)
+  | Nextjs | Vite | Wordpress => base
+  }
+}
