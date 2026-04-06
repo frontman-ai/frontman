@@ -738,12 +738,15 @@ defmodule FrontmanServerWeb.TaskChannel do
   end
 
   def handle_info(:fire_retry, socket) do
-    scope = socket.assigns.scope
-    task_id = socket.assigns.task_id
-    opts = socket.assigns[:last_execution_opts] || []
-    mcp_tools = socket.assigns[:mcp_tools] || []
-    all_tools = mcp_tools |> Tools.prepare_for_task(task_id)
-    Tasks.maybe_start_execution(scope, task_id, all_tools, opts)
+    if socket.assigns[:retry_state] do
+      scope = socket.assigns.scope
+      task_id = socket.assigns.task_id
+      opts = socket.assigns[:last_execution_opts] || []
+      mcp_tools = socket.assigns[:mcp_tools] || []
+      all_tools = mcp_tools |> Tools.prepare_for_task(task_id)
+      Tasks.maybe_start_execution(scope, task_id, all_tools, opts)
+    end
+
     {:noreply, socket}
   end
 
