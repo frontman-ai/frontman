@@ -5,7 +5,10 @@ type args = {message: string, category: string}
 let default: Meta.t<args> = {
   title: "Components/Frontman/ErrorBanner",
   tags: ["autodocs"],
-  decorators: [Decorators.darkBackground],
+  decorators: [
+    Decorators.darkBackground,
+    story => <div className="max-w-[250px]"> {story()} </div>,
+  ],
   render: args =>
     <Client__ErrorBanner error={args.message} category={args.category} onRetry={() => ()} />,
 }
