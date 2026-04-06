@@ -17,19 +17,21 @@ let make = (~error: string, ~category: string, ~onRetry: unit => unit) => {
     | Some(text) => <p className="text-xs text-red-400/60 mt-1"> {React.string(text)} </p>
     | None => React.null
     }}
-    <button
-      onClick={_ => onRetry()}
-      className="text-xs text-red-300 border border-red-700/60 hover:border-red-500 hover:text-red-200 px-3 py-1 rounded transition-colors mt-2"
-    >
-      {React.string("Retry")}
-    </button>
-    <a
-      href="https://discord.gg/xk8uXJSvhC"
-      target="_blank"
-      rel="noopener noreferrer"
-      className="block text-[11px] text-red-400/30 hover:text-red-400/50 transition-colors mt-1.5"
-    >
-      {React.string("Need help? Join our Discord")}
-    </a>
+    <div className="flex flex-wrap items-center gap-2 mt-2">
+      <button
+        onClick={_ => onRetry()}
+        className="text-xs text-red-300 border border-red-700/60 hover:border-red-500 hover:text-red-200 px-3 py-1 rounded transition-colors"
+      >
+        {React.string("Retry")}
+      </button>
+      <a
+        href="https://discord.gg/xk8uXJSvhC"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-xs text-red-400/40 hover:text-red-300 px-3 py-1 transition-colors"
+      >
+        {React.string("Join Discord")}
+      </a>
+    </div>
   </div>
 }
