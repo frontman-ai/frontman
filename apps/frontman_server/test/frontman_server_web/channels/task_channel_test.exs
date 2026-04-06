@@ -1790,7 +1790,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     end
   end
 
-  describe "bug: handle_turn_error does not clear retry_state" do
+  describe "bug: non-retryable error must clear retry_state" do
     setup %{scope: scope} do
       {socket, task_id} = join_task_channel(scope)
       complete_mcp_handshake(socket)

@@ -383,6 +383,8 @@ defmodule FrontmanServerWeb.TaskChannel do
 
     # Clear retry state up front — whether an execution is running or not,
     # the user wants to stop. Cancel the timer so :fire_retry doesn't arrive later.
+    # Note: the :ok branch below does NOT call finalize_turn (the :agent_cancelled
+    # handler will), so we must clear here to cover both branches.
     had_retry = socket.assigns[:retry_state] != nil
     socket = assign(socket, :retry_state, RetryCoordinator.clear(socket.assigns[:retry_state]))
 
@@ -819,6 +821,11 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   # Unified turn finalization — every code path that ends a turn goes through here.
   # This guarantees the domain invariant: retry_state is always nil when a turn ends.
+  @typep turn_outcome ::
+           {:completed, stop_reason :: String.t()}
+           | {:error, message :: String.t(), category :: String.t()}
+
+  @spec finalize_turn(Phoenix.Socket.t(), turn_outcome()) :: {:noreply, Phoenix.Socket.t()}
   defp finalize_turn(socket, outcome) do
     task_id = socket.assigns.task_id
     socket = assign(socket, :retry_state, RetryCoordinator.clear(socket.assigns[:retry_state]))
