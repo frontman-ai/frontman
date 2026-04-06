@@ -3,7 +3,8 @@
 
 // Convert a NodeList to an array of elements. NodeList has no toArray binding
 // in @rescript/webapi, so we use a small typed external for Array.from.
-@val external nodeListToElements: WebAPI.DOMAPI.nodeList => array<WebAPI.DOMAPI.element> = "Array.from"
+@val
+external nodeListToElements: WebAPI.DOMAPI.nodeList => array<WebAPI.DOMAPI.element> = "Array.from"
 
 // Extract the message from a JS exception, or return "Unknown error".
 let exnMessage = (exn: exn): string =>
@@ -13,26 +14,28 @@ let exnMessage = (exn: exn): string =>
 // Preview frame access
 // ============================================================================
 
-// Context provided when preview iframe is available
-type previewContext = {
-  doc: WebAPI.DOMAPI.document,
-  win: WebAPI.DOMAPI.window,
+// Re-export from protocol for consumers that import from ElementResolver
+type previewContext = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.previewContext
+
+// Get preview iframe context if available. Used by forFramework to inject
+// into framework-specific browser tool factories.
+let getPreviewDoc = (): option<previewContext> => {
+  let state = StateStore.getState(Client__State__Store.store)
+  let previewFrame = Client__State__StateReducer.Selectors.previewFrame(state)
+  switch (previewFrame.contentDocument, previewFrame.contentWindow) {
+  | (Some(doc), Some(win)) => Some({doc, win})
+  | _ => None
+  }
 }
 
 // Eliminates repeated getState -> previewFrame -> switch contentDocument boilerplate.
 // Calls `fn` with the preview iframe's document and window when available,
 // or `onUnavailable` when the preview frame isn't ready.
-let withPreviewDoc = (
-  ~onUnavailable: unit => 'a,
-  fn: previewContext => 'a,
-): 'a => {
-  let state = StateStore.getState(Client__State__Store.store)
-  let previewFrame = Client__State__StateReducer.Selectors.previewFrame(state)
-  switch (previewFrame.contentDocument, previewFrame.contentWindow) {
-  | (Some(doc), Some(win)) => fn({doc, win})
-  | _ => onUnavailable()
+let withPreviewDoc = (~onUnavailable: unit => 'a, fn: previewContext => 'a): 'a =>
+  switch getPreviewDoc() {
+  | Some(ctx) => fn(ctx)
+  | None => onUnavailable()
   }
-}
 
 // ============================================================================
 // Selector resolution (CSS + XPath)
@@ -52,22 +55,22 @@ let classifySelector = (selector: string): selectorKind =>
 
 // Resolve elements by CSS selector or XPath expression.
 // Returns the element at the given index and the total match count.
-let resolveBySelector = (
-  ~doc: WebAPI.DOMAPI.document,
-  ~selector: string,
-  ~index: int=0,
-): (option<WebAPI.DOMAPI.element>, int) => {
+let resolveBySelector = (~doc: WebAPI.DOMAPI.document, ~selector: string, ~index: int=0): (
+  option<WebAPI.DOMAPI.element>,
+  int,
+) => {
   switch classifySelector(selector) {
   | CssSelector(css) =>
     let elements = doc->WebAPI.Document.querySelectorAll(css)->nodeListToElements
     (elements->Array.get(index), elements->Array.length)
   | XPathExpression(xpath) =>
     // ORDERED_NODE_SNAPSHOT_TYPE = 7
-    let result = doc->WebAPI.Document.evaluate(
-      ~expression=xpath,
-      ~contextNode=(doc :> WebAPI.DOMAPI.node),
-      ~type_=7,
-    )
+    let result =
+      doc->WebAPI.Document.evaluate(
+        ~expression=xpath,
+        ~contextNode=(doc :> WebAPI.DOMAPI.node),
+        ~type_=7,
+      )
     let count = result.snapshotLength
     // snapshotItem returns node; use typed asElement cast
     // (XPath snapshot queries on DOM return element nodes)
@@ -83,10 +86,10 @@ let resolveBySelector = (
 
 // Resolve an optional selector to a root element, falling back to document body.
 // Used by tools that accept an optional scope selector (e.g. SearchText).
-let resolveRootOrBody = (
-  ~doc: WebAPI.DOMAPI.document,
-  ~selector: option<string>,
-): result<WebAPI.DOMAPI.element, string> =>
+let resolveRootOrBody = (~doc: WebAPI.DOMAPI.document, ~selector: option<string>): result<
+  WebAPI.DOMAPI.element,
+  string,
+> =>
   switch selector {
   | Some(sel) =>
     let (element, _count) = resolveBySelector(~doc, ~selector=sel)
@@ -94,8 +97,7 @@ let resolveRootOrBody = (
     | Some(el) => Ok(el)
     | None => Error(`No element found for selector: ${sel}`)
     }
-  | None =>
-    Ok(doc.body->WebAPI.HTMLElement.asElement)
+  | None => Ok(doc.body->WebAPI.HTMLElement.asElement)
   }
 
 // ============================================================================
@@ -104,10 +106,9 @@ let resolveRootOrBody = (
 
 // Get child elements from an element, optionally including shadow root children.
 // Shadow root children are appended after the element's direct children.
-let getChildElements = (
-  el: WebAPI.DOMAPI.element,
-  ~pierceShadowDom: bool,
-): array<WebAPI.DOMAPI.element> => {
+let getChildElements = (el: WebAPI.DOMAPI.element, ~pierceShadowDom: bool): array<
+  WebAPI.DOMAPI.element,
+> => {
   let children = el.children
   let result: array<WebAPI.DOMAPI.element> = []
   for i in 0 to children.length - 1 {
@@ -134,15 +135,13 @@ let getChildElements = (
 }
 
 // Check whether an element has a shadow root (for annotation in DOM output)
-let hasShadowRoot = (el: WebAPI.DOMAPI.element): bool =>
-  el.shadowRoot->Null.toOption->Option.isSome
+let hasShadowRoot = (el: WebAPI.DOMAPI.element): bool => el.shadowRoot->Null.toOption->Option.isSome
 
 // Compute the effective role for an element: ARIA role if present, tag name otherwise.
 // Used consistently for filtering, resolution, and output so the agent can target
 // elements by the same role value shown in discovery.
 let effectiveRole = (el: WebAPI.DOMAPI.element): string => {
-  let rawRole =
-    Bindings__DomAccessibilityApi.getRole(el)->Null.toOption->Option.getOr("")
+  let rawRole = Bindings__DomAccessibilityApi.getRole(el)->Null.toOption->Option.getOr("")
   let tag = el.tagName->String.toLowerCase
   switch rawRole {
   | "" => tag
@@ -244,8 +243,7 @@ let getVisibleText = (el: WebAPI.DOMAPI.element): string =>
   try {
     let htmlEl = el->WebAPI.Element.asHTMLElement
     switch WebAPI.HTMLElement.innerText(htmlEl) {
-    | "" =>
-      (el :> WebAPI.DOMAPI.node)->WebAPI.Node.textContent->Null.toOption->Option.getOr("")
+    | "" => (el :> WebAPI.DOMAPI.node)->WebAPI.Node.textContent->Null.toOption->Option.getOr("")
     | text => text
     }
   } catch {
@@ -280,7 +278,12 @@ let detectInteractivity = (
   }
 
 // Check whether an element passes the optional role and name filters.
-let passesFilters = (~role: string, ~name: string, ~roleFilter: option<string>, ~nameFilter: option<string>): bool => {
+let passesFilters = (
+  ~role: string,
+  ~name: string,
+  ~roleFilter: option<string>,
+  ~nameFilter: option<string>,
+): bool => {
   let passesRole = switch roleFilter {
   | None => true
   | Some(r) => role === r->String.toLowerCase
@@ -406,10 +409,9 @@ let childMatchesText = (el: WebAPI.DOMAPI.element, lowerText: string): bool => {
 // Find all visible, accessible elements under `root` whose visible text
 // contains `query` (case-insensitive). Prefers leaf-ish elements: skips
 // an element if any direct child also contains the same text.
-let findMatchingElements = (
-  ~root: WebAPI.DOMAPI.element,
-  ~query: string,
-): array<WebAPI.DOMAPI.element> => {
+let findMatchingElements = (~root: WebAPI.DOMAPI.element, ~query: string): array<
+  WebAPI.DOMAPI.element,
+> => {
   let lowerQuery = query->String.toLowerCase
 
   root
@@ -429,11 +431,10 @@ let findMatchingElements = (
 
 // Resolve an element by visible text content.
 // Walks all elements, matches by innerText substring.
-let resolveByText = (
-  ~document: WebAPI.DOMAPI.document,
-  ~text: string,
-  ~index: int=0,
-): (option<WebAPI.DOMAPI.element>, int) => {
+let resolveByText = (~document: WebAPI.DOMAPI.document, ~text: string, ~index: int=0): (
+  option<WebAPI.DOMAPI.element>,
+  int,
+) => {
   let bodyEl = document.body->WebAPI.HTMLElement.asElement
   let matches = findMatchingElements(~root=bodyEl, ~query=text)
   (matches->Array.get(index), matches->Array.length)
