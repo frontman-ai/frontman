@@ -17,6 +17,12 @@ type serverExecutionContext = {
 //   (e.g. question tool waits for user to answer before resolving).
 type executionMode = Synchronous | Interactive
 
+// Context for browser tools that access the preview iframe
+type previewContext = {
+  doc: WebAPI.DOMAPI.document,
+  win: WebAPI.DOMAPI.window,
+}
+
 // Well-known tool names — used by both server (frontman-core) and client (frontman-client)
 // to avoid fragile string comparisons across packages.
 module ToolNames = {
@@ -40,6 +46,7 @@ module ToolNames = {
   let getDom = "get_dom"
   let searchText = "search_text"
   let question = "question"
+  let getAstroAudit = "get_astro_audit"
 }
 
 // Browser tool - executes in browser, no context needed
