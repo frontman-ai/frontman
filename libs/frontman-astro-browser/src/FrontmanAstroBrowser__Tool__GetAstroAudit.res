@@ -62,10 +62,8 @@ let emptyResult = (~message): Tool.toolResult<output> => Ok({audits: [], message
 
 // Resolve a rule field that can be string | (Element) => string.
 // Uses Js.typeof to check at runtime and calls if function.
-@val external jsTypeof: 'a => string = "typeof"
-
 let resolveRuleField = (field: 'a, element: WebAPI.DOMAPI.element): string => {
-  switch jsTypeof(field) {
+  switch Js.typeof(field) {
   | "function" =>
     let fn: WebAPI.DOMAPI.element => string = Obj.magic(field)
     fn(element)
@@ -97,11 +95,10 @@ let categoryFromCode = (code: string): string =>
 
 let elementSelector = (el: WebAPI.DOMAPI.element): string => {
   let tag = el.tagName->String.toLowerCase
-  let className =
-    el->WebAPI.Element.getAttribute("class")->Null.toOption->Option.getOr("")->String.trim
-  switch className {
+  let cls = el.className->String.trim
+  switch cls {
   | "" => tag
-  | cls => `${tag}.${cls->String.split(" ")->Array.join(".")}`
+  | c => `${tag}.${c->String.split(" ")->Array.join(".")}`
   }
 }
 
