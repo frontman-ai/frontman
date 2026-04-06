@@ -62,38 +62,40 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
     ]
   end
 
-  defp setup_task(_context) do
+  defp setup_sandbox(_context) do
     pid = Sandbox.start_owner!(FrontmanServer.Repo, shared: true)
     on_exit(fn -> Sandbox.stop_owner(pid) end)
 
-    scope = user_scope_fixture()
-    task_id = task_with_pubsub_fixture(scope)
-
-    {:ok, task_id: task_id, scope: scope}
+    :ok
   end
 
-  defp setup_task_with_channel(_context) do
-    pid = Sandbox.start_owner!(FrontmanServer.Repo, shared: true)
-    on_exit(fn -> Sandbox.stop_owner(pid) end)
+  defp setup_user(_context) do
+    {:ok, scope: user_scope_fixture()}
+  end
 
-    scope = user_scope_fixture()
-    task_id = task_fixture(scope)
+  defp setup_task(%{scope: scope}) do
+    {:ok, task_id: task_with_pubsub_fixture(scope)}
+  end
 
+  defp setup_task_only(%{scope: scope}) do
+    {:ok, task_id: task_fixture(scope)}
+  end
+
+  defp setup_channel(%{scope: scope, task_id: task_id}) do
     {:ok, _reply, socket} =
       FrontmanServerWeb.UserSocket
       |> socket("user_id", %{scope: scope})
       |> subscribe_and_join("task:#{task_id}", %{})
 
-    {:ok, task_id: task_id, scope: scope, socket: socket}
+    {:ok, socket: socket}
   end
 
   # -- Cancel (low-level) ----------------------------------------------------
 
   describe "cancel_execution/2 (registry-level)" do
-    test "kills a running agent and returns :ok" do
-      pid = Sandbox.start_owner!(FrontmanServer.Repo, shared: true)
-      on_exit(fn -> Sandbox.stop_owner(pid) end)
+    setup [:setup_sandbox]
 
+    test "kills a running agent and returns :ok" do
       task_id = Ecto.UUID.generate()
       test_pid = self()
 
@@ -119,7 +121,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
   # -- Cancel (end-to-end) ---------------------------------------------------
 
   describe "cancel_execution/2 (end-to-end)" do
-    setup :setup_task
+    setup [:setup_sandbox, :setup_user, :setup_task]
 
     test "cancel dispatches cancelled event via PubSub", %{
       task_id: task_id,
@@ -144,7 +146,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
   # -- Consecutive messages --------------------------------------------------
 
   describe "consecutive messages" do
-    setup :setup_task
+    setup [:setup_sandbox, :setup_user, :setup_task]
 
     test "processes second message after first message completes", %{
       task_id: task_id,
@@ -206,7 +208,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
   # -- Interactive tool (question) with blocking receive ----------------------
 
   describe "interactive tool (question) blocking" do
-    setup :setup_task
+    setup [:setup_sandbox, :setup_user, :setup_task]
 
     test "question tool blocks until result arrives, then agent completes", %{
       task_id: task_id,
@@ -264,7 +266,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
   # -- Title generation enqueue on first message -----------------------------
 
   describe "title generation enqueue" do
-    setup :setup_task
+    setup [:setup_sandbox, :setup_user, :setup_task]
 
     test "first message enqueues a title generation job", %{
       task_id: task_id,
@@ -662,7 +664,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
   # -- Terminated (end-to-end through channel) -------------------------------
 
   describe "supervisor-initiated termination (end-to-end)" do
-    setup :setup_task_with_channel
+    setup [:setup_sandbox, :setup_user, :setup_task_only, :setup_channel]
 
     test "terminated event persists error, fires telemetry, and pushes cancelled to client", %{
       task_id: task_id,
