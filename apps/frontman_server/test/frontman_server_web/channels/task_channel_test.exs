@@ -1644,6 +1644,55 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         "params" => %{"update" => %{"sessionUpdate" => "error", "attempt" => 2}}
       })
     end
+
+    test "stale :fire_retry in mailbox after cancel does not start execution", %{
+      socket: socket,
+      task_id: task_id
+    } do
+      error = %FrontmanServer.Tasks.Execution.LLMError{
+        message: "Rate limited",
+        category: "rate_limit",
+        retryable: true
+      }
+
+      # Trigger transient error — retry state created, timer scheduled
+      Phoenix.PubSub.broadcast(FrontmanServer.PubSub, Tasks.topic(task_id), swarm_failed(error))
+      :sys.get_state(socket.channel_pid)
+
+      assert_push("acp:message", %{
+        "params" => %{"update" => %{"sessionUpdate" => "error", "attempt" => 1, "retryAt" => _}}
+      })
+
+      # Cancel during countdown — clears retry state
+      push(
+        socket,
+        "acp:message",
+        build_acp_request("session/cancel", nil, %{"sessionId" => task_id})
+      )
+
+      :sys.get_state(socket.channel_pid)
+
+      assert_push("acp:message", %{
+        "params" => %{
+          "update" => %{"sessionUpdate" => "agent_turn_complete", "stopReason" => "cancelled"}
+        }
+      })
+
+      flush_mailbox()
+
+      # Simulate the race: :fire_retry arrives AFTER cancel cleared retry_state
+      # (timer fired right before cancel, message was already in mailbox)
+      send(socket.channel_pid, :fire_retry)
+      :sys.get_state(socket.channel_pid)
+
+      # No execution should start — no error notification, no swarm activity
+      refute_push("acp:message", _)
+
+      # Channel still alive and retry_state still nil
+      assert Process.alive?(socket.channel_pid)
+      %{assigns: assigns} = :sys.get_state(socket.channel_pid)
+      assert is_nil(assigns[:retry_state])
+    end
   end
 
   describe "bug: execution_start_error during retry leaves zombie coordinator" do
