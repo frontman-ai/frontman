@@ -13,6 +13,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
   import FrontmanServer.Test.Fixtures.Accounts
   import FrontmanServer.Test.Fixtures.Tasks
+
   import FrontmanServer.Test.Fixtures.Tools,
     only: [question_args: 0, question_mcp_tool_defs: 0, todo_args: 0]
 
@@ -441,7 +442,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
   # -- Agent pause — client notification (bug 8) --------------------------------
 
   describe "interactive tool timeout — client notification" do
-    setup :setup_task_with_channel
+    setup [:setup_sandbox, :setup_user, :setup_task_only, :setup_channel]
 
     test "session/update is pushed to client when agent pauses", %{
       task_id: task_id,
@@ -516,7 +517,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
   # -- Backend tool execution — channel level -----------------------------------
 
   describe "backend tool execution — channel level" do
-    setup :setup_task_with_channel
+    setup [:setup_sandbox, :setup_user, :setup_task_only, :setup_channel]
 
     test "todo_write executes through the full channel → executor pipeline", %{
       task_id: task_id,
@@ -590,7 +591,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
   # -- Backend tool crash — channel contract ------------------------------------
 
   describe "backend tool crash — channel notification" do
-    setup :setup_task_with_channel
+    setup [:setup_sandbox, :setup_user, :setup_task_only, :setup_channel]
 
     test "session/update agent_turn_complete is pushed when backend tool raises", %{
       task_id: task_id,
@@ -627,7 +628,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
   # -- Backend tool timeout — channel contract -----------------------------------
 
   describe "backend tool timeout (ParallelExecutor) — channel notification" do
-    setup :setup_task_with_channel
+    setup [:setup_sandbox, :setup_user, :setup_task_only, :setup_channel]
 
     test "session/update agent_turn_complete is pushed when ParallelExecutor deadline fires", %{
       task_id: task_id,
