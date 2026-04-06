@@ -22,6 +22,7 @@
   "ppx-flags": ["sury-ppx/bin"],
   "dependencies": [
     "@frontman-ai/frontman-protocol",
+    "@rescript/webapi",
     "sury"
   ],
   "dev-dependencies": ["rescript-vitest"]
