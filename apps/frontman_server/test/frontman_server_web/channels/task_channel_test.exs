@@ -1789,4 +1789,79 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       })
     end
   end
+
+  describe "bug: handle_turn_error does not clear retry_state" do
+    setup %{scope: scope} do
+      {socket, task_id} = join_task_channel(scope)
+      complete_mcp_handshake(socket)
+      {:ok, socket: socket, task_id: task_id}
+    end
+
+    test "non-retryable error after retry clears state for next turn", %{
+      socket: socket,
+      task_id: task_id
+    } do
+      retryable_error = %FrontmanServer.Tasks.Execution.LLMError{
+        message: "Rate limited",
+        category: "rate_limit",
+        retryable: true
+      }
+
+      non_retryable_error = %FrontmanServer.Tasks.Execution.LLMError{
+        message: "Invalid API key",
+        category: "auth",
+        retryable: false
+      }
+
+      # First: transient error creates retry state at attempt 1
+      Phoenix.PubSub.broadcast(
+        FrontmanServer.PubSub,
+        Tasks.topic(task_id),
+        swarm_failed(retryable_error)
+      )
+
+      :sys.get_state(socket.channel_pid)
+
+      assert_push("acp:message", %{
+        "params" => %{"update" => %{"sessionUpdate" => "error", "attempt" => 1, "retryAt" => _}}
+      })
+
+      # Retry fires, but execution hits a non-retryable error
+      send(socket.channel_pid, :fire_retry)
+      :sys.get_state(socket.channel_pid)
+
+      Phoenix.PubSub.broadcast(
+        FrontmanServer.PubSub,
+        Tasks.topic(task_id),
+        swarm_failed(non_retryable_error)
+      )
+
+      :sys.get_state(socket.channel_pid)
+
+      assert_push("acp:message", %{
+        "params" => %{
+          "update" => %{"sessionUpdate" => "error", "message" => "Invalid API key"}
+        }
+      })
+
+      # retry_state MUST be cleared after the non-retryable error
+      %{assigns: assigns} = :sys.get_state(socket.channel_pid)
+      assert is_nil(assigns[:retry_state])
+
+      flush_mailbox()
+
+      # New turn: another transient error should start fresh at attempt 1
+      Phoenix.PubSub.broadcast(
+        FrontmanServer.PubSub,
+        Tasks.topic(task_id),
+        swarm_failed(retryable_error)
+      )
+
+      :sys.get_state(socket.channel_pid)
+
+      assert_push("acp:message", %{
+        "params" => %{"update" => %{"sessionUpdate" => "error", "attempt" => 1, "retryAt" => _}}
+      })
+    end
+  end
 end
