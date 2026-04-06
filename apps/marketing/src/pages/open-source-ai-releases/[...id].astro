@@ -1,0 +1,19 @@
+---
+import Layout from '../../layouts/ReleasesLayout.astro'
+import { getCollection, render } from 'astro:content'
+
+export async function getStaticPaths() {
+	const entries = await getCollection('releases')
+	return entries.map((entry) => ({
+		params: { id: decodeURI(entry.id) },
+		props: { entry }
+	}))
+}
+
+const { entry } = Astro.props
+const { Content } = await render(entry)
+---
+
+<Layout frontmatter={entry.data} body={entry.body}>
+	<Content />
+</Layout>
