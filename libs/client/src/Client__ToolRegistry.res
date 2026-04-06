@@ -61,7 +61,11 @@ let count = (registry: t): int => {
 let forFramework = (framework: Client__RuntimeConfig.frameworkId): t => {
   let base = coreBrowserTools()
   switch framework {
-  | Astro => base->addTools(FrontmanAiAstroBrowser.FrontmanAstroBrowser__Registry.browserTools)
+  | Astro =>
+    let getPreviewDoc = Client__Tool__ElementResolver.getPreviewDoc
+    base->addTools(
+      FrontmanAiAstroBrowser.FrontmanAstroBrowser__Registry.browserTools(~getPreviewDoc),
+    )
   | Nextjs | Vite | Wordpress => base
   }
 }

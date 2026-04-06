@@ -63,7 +63,7 @@ describe("ToolRegistry", _t => {
       "Astro returns core browser tools count",
       t => {
         let registry = ToolRegistry.forFramework(Client__RuntimeConfig.Astro)
-        t->expect(registry->ToolRegistry.count)->Expect.toBe(8)
+        t->expect(registry->ToolRegistry.count)->Expect.toBe(9)
       },
     )
 
