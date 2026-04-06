@@ -28,6 +28,7 @@ function buildDateMap(dir) {
 
 const blogDateMap = buildDateMap(path.resolve(appRoot, "src/content/blog"));
 const lighthouseDateMap = buildDateMap(path.resolve(appRoot, "src/content/lighthouse"));
+const releasesDateMap = buildDateMap(path.resolve(appRoot, "src/content/releases"));
 const monorepoRoot = path.resolve(appRoot, "../..");
 
 // Validate that all docs pages have a description in their frontmatter.
@@ -197,10 +198,13 @@ export default defineConfig({
       // build date for everything else.
       const blogMatch = item.url.match(/\/blog\/([^/]+)\/?$/);
       const lighthouseMatch = item.url.match(/\/lighthouse\/([^/]+)\/?$/);
+      const releasesMatch = item.url.match(/\/open-source-ai-releases\/([^/]+)\/?$/);
       if (blogMatch && blogDateMap.has(blogMatch[1])) {
         item.lastmod = blogDateMap.get(blogMatch[1]);
       } else if (lighthouseMatch && lighthouseDateMap.has(lighthouseMatch[1])) {
         item.lastmod = lighthouseDateMap.get(lighthouseMatch[1]);
+      } else if (releasesMatch && releasesDateMap.has(releasesMatch[1])) {
+        item.lastmod = releasesDateMap.get(releasesMatch[1]);
       } else {
         item.lastmod = new Date();
       }
@@ -218,6 +222,9 @@ export default defineConfig({
       },
       lighthouse: (item) => {
         if (/\/lighthouse\//.test(item.url)) return item;
+      },
+      releases: (item) => {
+        if (/\/open-source-ai-releases\//.test(item.url)) return item;
       },
       comparisons: (item) => {
         if (/\/vs\//.test(item.url)) return item;
