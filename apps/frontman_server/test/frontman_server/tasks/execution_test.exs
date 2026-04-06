@@ -328,7 +328,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
   # -- MCP tool timeout — DB invariant (bug 7) ---------------------------------
 
   describe "interactive tool timeout — ToolResult DB persistence" do
-    setup :setup_task
+    setup [:setup_sandbox, :setup_user, :setup_task]
 
     test "ToolResult is persisted in DB when question tool times out", %{
       task_id: task_id,
@@ -383,7 +383,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
   # -- MCP tool timeout with on_timeout: :error — DB invariant -------------------
 
   describe "MCP tool timeout with on_timeout: :error" do
-    setup :setup_task
+    setup [:setup_sandbox, :setup_user, :setup_task]
 
     test "ToolResult is persisted in DB when MCP tool times out (on_timeout: :error)", %{
       task_id: task_id,
@@ -476,7 +476,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
   # -- Backend tool execution — regression: parallel executor missing backend tool_defs ------
 
   describe "backend tool execution — Tasks facade level" do
-    setup :setup_task
+    setup [:setup_sandbox, :setup_user, :setup_task]
 
     # Regression: execution.ex passes `tool_defs: mcp_tools` to Runtime.run, where
     # `mcp_tools` only contains the agent's MCP (SwarmAi.Tool.t()) entries.
@@ -723,7 +723,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
   # -- Backend tool crash — DB invariant ----------------------------------------
 
   describe "backend tool crash — ToolResult DB persistence" do
-    setup :setup_task
+    setup [:setup_sandbox, :setup_user, :setup_task]
 
     test "ToolResult is persisted when backend tool raises", %{
       task_id: task_id,
@@ -761,7 +761,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
   # -- Backend tool timeout (ParallelExecutor) — DB invariant -------------------
 
   describe "backend tool timeout (ParallelExecutor) — ToolResult DB persistence" do
-    setup :setup_task
+    setup [:setup_sandbox, :setup_user, :setup_task]
 
     test "ToolResult is persisted when ParallelExecutor deadline fires before tool returns", %{
       task_id: task_id,
