@@ -538,6 +538,10 @@ defmodule FrontmanServerWeb.TaskChannel do
     socket = assign(socket, :last_execution_opts, opts)
 
     case Tasks.submit_user_message(scope, task_id, prompt.content, all_tools, opts) do
+      {:ok, :already_running} ->
+        Logger.info("User message persisted but agent already running for task #{task_id}")
+        {:noreply, socket}
+
       {:ok, _interaction} ->
         Logger.info("User message added, agent spawned for task #{task_id}")
 
