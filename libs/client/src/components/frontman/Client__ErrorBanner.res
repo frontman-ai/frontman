@@ -3,26 +3,18 @@
 
 @react.component
 let make = (~error: string, ~category: string, ~onRetry: unit => unit) => {
-  let cta = switch category {
-  | "auth" => Some(("Check Settings", Some("/settings")))
-  | "billing" => Some(("Check Settings", Some("/settings")))
-  | "rate_limit" => Some(("Wait a moment before retrying", None))
-  | "payload_too_large" => Some(("Try with a shorter message or smaller files", None))
-  | "output_truncated" => Some(("Try asking for a shorter response", None))
+  let guidance = switch category {
+  | "auth" | "billing" => Some("Check Settings")
+  | "rate_limit" => Some("Wait a moment before retrying")
+  | "payload_too_large" => Some("Try with a shorter message or smaller files")
+  | "output_truncated" => Some("Try asking for a shorter response")
   | _ => None
   }
 
   <div className="mx-4 my-3 animate-in fade-in slide-in-from-top-2 duration-200">
     <p className="text-sm font-medium text-red-400 break-words"> {React.string(error)} </p>
-    {switch cta {
-    | Some((text, Some(href))) =>
-      <a
-        href
-        className="block text-xs text-red-400/60 mt-1 hover:text-red-300 hover:underline transition-colors"
-      >
-        {React.string(text)}
-      </a>
-    | Some((text, None)) => <p className="text-xs text-red-400/60 mt-1"> {React.string(text)} </p>
+    {switch guidance {
+    | Some(text) => <p className="text-xs text-red-400/60 mt-1"> {React.string(text)} </p>
     | None => React.null
     }}
     <button
