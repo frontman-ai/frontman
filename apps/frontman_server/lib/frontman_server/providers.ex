@@ -313,7 +313,7 @@ defmodule FrontmanServer.Providers do
     case get_valid_oauth_token(scope, "anthropic") do
       {:ok, access_token} ->
         {:oauth_token, access_token,
-         requires_mcp_prefix: true, identity_override: @claude_code_identity, oauth_mode: true}
+         requires_mcp_prefix: true, identity_override: @claude_code_identity, auth_mode: :oauth}
 
       {:error, _} ->
         :no_oauth_token
@@ -328,7 +328,7 @@ defmodule FrontmanServer.Providers do
         account_id = get_chatgpt_account_id(scope)
 
         {:oauth_token, access_token,
-         oauth_mode: true,
+         auth_mode: :oauth,
          chatgpt_account_id: account_id,
          codex_endpoint: "https://chatgpt.com/backend-api/codex/responses"}
 

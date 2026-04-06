@@ -39,7 +39,7 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
       assert resolved.provider == "anthropic"
       assert resolved.requires_mcp_prefix == true
       assert resolved.identity_override =~ "Claude Code"
-      assert resolved.oauth_mode == true
+      assert resolved.auth_mode == :oauth
     end
 
     test "falls back to user key when no OAuth token", %{scope: scope} do
@@ -54,7 +54,7 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
       assert resolved.provider == "anthropic"
       assert resolved.requires_mcp_prefix == false
       assert resolved.identity_override == nil
-      assert resolved.oauth_mode == false
+      assert resolved.auth_mode == :api_key
     end
 
     test "falls back to env key when no OAuth or user key", %{scope: scope} do
