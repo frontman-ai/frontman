@@ -129,6 +129,10 @@ export const footerNavigationData: FooterData = {
 				{
 					subCategory: 'Lighthouse Guides',
 					subCategoryLink: '/lighthouse/'
+				},
+				{
+					subCategory: 'AI Releases',
+					subCategoryLink: '/open-source-ai-releases/'
 				}
 			]
 		},
