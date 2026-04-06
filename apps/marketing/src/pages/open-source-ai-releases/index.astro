@@ -1,0 +1,95 @@
+---
+import Layout from '../../layouts/Layout.astro'
+import Hero from '../../components/blocks/hero/PageHeader.astro'
+import { getCollection } from 'astro:content'
+
+const SEO = {
+	title: 'Open Source AI Releases — Monthly Roundups | Frontman',
+	description:
+		'Monthly curated roundups of notable open-source AI project releases. New tools, major updates, and emerging projects.'
+}
+
+const header = {
+	title: 'Open Source AI Releases',
+	text: 'Monthly curated roundups of notable open-source AI project releases.'
+}
+
+const allReleases = await getCollection('releases')
+
+const sortedReleases = [...allReleases].sort((a, b) => {
+	if (b.data.year !== a.data.year) return b.data.year - a.data.year
+	return new Date(b.data.pubDate).getTime() - new Date(a.data.pubDate).getTime()
+})
+
+// CollectionPage + ItemList JSON-LD
+const collectionJsonLd = {
+	"@context": "https://schema.org",
+	"@type": "CollectionPage",
+	"name": "Open Source AI Releases — Monthly Roundups",
+	"description": SEO.description,
+	"url": "https://frontman.sh/open-source-ai-releases/",
+	"mainEntity": {
+		"@type": "ItemList",
+		"itemListElement": sortedReleases.map((entry, index) => ({
+			"@type": "ListItem",
+			"position": index + 1,
+			"name": entry.data.title,
+			"url": `https://frontman.sh/open-source-ai-releases/${entry.id}/`
+		}))
+	}
+}
+---
+
+<Layout title={SEO.title} description={SEO.description}>
+	<script is:inline type="application/ld+json" set:html={JSON.stringify(collectionJsonLd)} />
+	<Hero title={header.title} text={header.text} />
+
+	<section class="releases-list">
+		<div class="releases-list__container">
+			{sortedReleases.map((entry) => (
+				<a href={`/open-source-ai-releases/${entry.id}/`} class="releases-list__item">
+					<div class="releases-list__meta">
+						<span class="releases-list__date">{entry.data.month} {entry.data.year}</span>
+					</div>
+					<h2 class="releases-list__title">{entry.data.title}</h2>
+					<p class="releases-list__description">{entry.data.description}</p>
+				</a>
+			))}
+		</div>
+
+		<div class="releases-list__cta">
+			<p>For a detailed comparison of all major tools, see our <a href="/blog/best-open-source-ai-coding-tools-2026/">full open-source AI coding tools comparison</a>.</p>
+		</div>
+	</section>
+</Layout>
+
+<style>
+	@reference "../../styles/global.css";
+	.releases-list {
+		@apply mx-auto max-w-3xl px-6 py-12 lg:py-24;
+	}
+	.releases-list__container {
+		@apply flex flex-col gap-6;
+	}
+	.releases-list__item {
+		@apply block rounded-lg border border-neutral-200 dark:border-neutral-800 p-6 no-underline transition-colors hover:border-primary-500 dark:hover:border-primary-400;
+	}
+	.releases-list__meta {
+		@apply mb-2;
+	}
+	.releases-list__date {
+		@apply text-sm font-medium text-primary-600 dark:text-primary-400;
+	}
+	.releases-list__title {
+		@apply text-xl font-semibold text-neutral-900 dark:text-neutral-100 mb-2;
+	}
+	.releases-list__description {
+		@apply text-base text-neutral-600 dark:text-neutral-400 leading-relaxed m-0;
+	}
+	.releases-list__cta {
+		@apply mt-12 text-center text-neutral-600 dark:text-neutral-400;
+	}
+	.releases-list__cta a {
+		@apply text-primary-600 dark:text-primary-400 hover:underline;
+	}
+</style>
