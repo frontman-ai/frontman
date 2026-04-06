@@ -18,7 +18,7 @@ defmodule FrontmanServer.Providers.ResolvedKeyTest do
       assert model_spec == "anthropic:claude-sonnet-4-5"
       assert llm_opts[:api_key] == "sk-ant-123"
       assert llm_opts[:max_tokens] == 16_384
-      assert llm_opts[:oauth_mode] == false
+      refute Keyword.has_key?(llm_opts, :auth_mode)
       assert llm_opts[:requires_mcp_prefix] == false
       assert llm_opts[:identity_override] == nil
       refute Keyword.has_key?(llm_opts, :base_url)
@@ -34,17 +34,18 @@ defmodule FrontmanServer.Providers.ResolvedKeyTest do
           key_source: :oauth_token,
           requires_mcp_prefix: true,
           identity_override: "You are Claude Code",
-          oauth_mode: true
+          auth_mode: :oauth
         )
 
       {model_spec, llm_opts} = ResolvedKey.to_llm_args(key, max_tokens: 16_384)
 
       assert model_spec == "anthropic:claude-sonnet-4-5"
-      assert llm_opts[:api_key] == "oauth-access-token"
-      assert llm_opts[:oauth_mode] == true
+      assert llm_opts[:access_token] == "oauth-access-token"
+      assert llm_opts[:auth_mode] == :oauth
       assert llm_opts[:requires_mcp_prefix] == true
       assert llm_opts[:identity_override] == "You are Claude Code"
       assert llm_opts[:max_tokens] == 16_384
+      refute Keyword.has_key?(llm_opts, :api_key)
     end
   end
 
@@ -57,7 +58,7 @@ defmodule FrontmanServer.Providers.ResolvedKeyTest do
       assert model_spec == "openrouter:openai/gpt-5.1-codex"
       assert llm_opts[:api_key] == "sk-or-456"
       assert llm_opts[:max_tokens] == 16_384
-      assert llm_opts[:oauth_mode] == false
+      refute Keyword.has_key?(llm_opts, :auth_mode)
     end
   end
 
@@ -79,7 +80,9 @@ defmodule FrontmanServer.Providers.ResolvedKeyTest do
       assert llm_opts[:base_url] == "https://chatgpt.com/backend-api/codex"
       assert llm_opts[:extra_headers] == [{"ChatGPT-Account-Id", "acc-789"}]
       assert llm_opts[:provider_options] == [store: false]
-      assert llm_opts[:api_key] == "chatgpt-access-token"
+      assert llm_opts[:access_token] == "chatgpt-access-token"
+      assert llm_opts[:auth_mode] == :oauth
+      refute Keyword.has_key?(llm_opts, :api_key)
       refute Keyword.has_key?(llm_opts, :max_tokens)
     end
 

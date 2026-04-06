@@ -61,7 +61,7 @@ defmodule FrontmanServer.ProvidersFixtures do
 
     rk_opts =
       Keyword.take(merged, [
-        :oauth_mode,
+        :auth_mode,
         :requires_mcp_prefix,
         :identity_override,
         :chatgpt_account_id,
@@ -90,7 +90,7 @@ defmodule FrontmanServer.ProvidersFixtures do
       api_key: "chatgpt-token",
       key_source: :oauth_token,
       model: "openai:gpt-5.3-codex",
-      oauth_mode: true,
+      auth_mode: :oauth,
       codex_endpoint: "https://chatgpt.com/backend-api/codex/responses"
     ]
   end
