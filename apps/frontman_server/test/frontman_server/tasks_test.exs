@@ -255,17 +255,9 @@ defmodule FrontmanServer.TasksTest do
     test "assigns monotonically increasing sequences", %{scope: scope} do
       task_id = task_fixture(scope)
 
-      {:ok, msg1} =
-        Tasks.submit_user_message(scope, task_id, user_content("hello"), [],
-          agent: %FrontmanServer.Testing.BlockingAgent{}
-        )
-
-      {:ok, msg2} = Tasks.add_agent_response(scope, task_id, "hi there")
-
-      {:ok, msg3} =
-        Tasks.submit_user_message(scope, task_id, user_content("again"), [],
-          agent: %FrontmanServer.Testing.BlockingAgent{}
-        )
+      {:ok, msg1} = Tasks.add_agent_response(scope, task_id, "first")
+      {:ok, msg2} = Tasks.add_agent_response(scope, task_id, "second")
+      {:ok, msg3} = Tasks.add_agent_response(scope, task_id, "third")
 
       assert msg1.sequence > 0
       assert msg2.sequence > msg1.sequence

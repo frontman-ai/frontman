@@ -147,7 +147,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
   # -- Concurrent execution prevention ----------------------------------------
 
   describe "concurrent execution prevention" do
-    setup :setup_task
+    setup [:setup_sandbox, :setup_user, :setup_task]
 
     test "second submit returns :already_running while agent is executing", %{
       task_id: task_id,
