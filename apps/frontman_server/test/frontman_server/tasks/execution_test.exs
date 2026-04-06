@@ -144,6 +144,41 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
     end
   end
 
+  # -- Concurrent execution prevention ----------------------------------------
+
+  describe "concurrent execution prevention" do
+    setup :setup_task
+
+    test "second submit returns :already_running while agent is executing", %{
+      task_id: task_id,
+      scope: scope
+    } do
+      slow_llm = %MockLLM{response: "slow response", delay_ms: 5_000}
+      agent = test_agent(slow_llm, "SlowAgent")
+
+      {:ok, _interaction} =
+        Tasks.submit_user_message(scope, task_id, user_content("First"), [], agent: agent)
+
+      Process.sleep(100)
+      assert SwarmAi.Runtime.running?(FrontmanServer.AgentRuntime, task_id)
+
+      assert {:ok, :already_running} =
+               Tasks.submit_user_message(scope, task_id, user_content("Second"), [], agent: agent)
+
+      # Only one completion should fire
+      assert_receive {:interaction, %Interaction.AgentCompleted{}}, 6_000
+      refute_receive {:interaction, %Interaction.AgentCompleted{}}, 500
+
+      # Only one agent response persisted
+      {:ok, task} = Tasks.get_task(scope, task_id)
+
+      agent_responses =
+        Enum.filter(task.interactions, &match?(%Interaction.AgentResponse{}, &1))
+
+      assert length(agent_responses) == 1
+    end
+  end
+
   # -- Consecutive messages --------------------------------------------------
 
   describe "consecutive messages" do

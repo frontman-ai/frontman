@@ -257,13 +257,15 @@ defmodule FrontmanServer.Tasks do
   message is persisted but no new run is started.
   """
   @spec submit_user_message(Scope.t(), String.t(), list(), list(), keyword()) ::
-          {:ok, Interaction.UserMessage.t()} | {:error, :not_found}
+          {:ok, Interaction.UserMessage.t()} | {:ok, :already_running} | {:error, :not_found}
   def submit_user_message(%Scope{} = scope, task_id, content_blocks, tools, opts \\ []) do
     with {:ok, schema} <- get_task_by_id(scope, task_id),
          interaction = Interaction.UserMessage.new(content_blocks),
          {:ok, interaction} <- append_interaction(schema, interaction) do
-      maybe_start_execution(scope, task_id, tools, opts)
-      {:ok, interaction}
+      case maybe_start_execution(scope, task_id, tools, opts) do
+        :already_running -> {:ok, :already_running}
+        :ok -> {:ok, interaction}
+      end
     end
   end
 
@@ -409,10 +411,10 @@ defmodule FrontmanServer.Tasks do
   Starts an execution if none is already running for this task.
   Fetches the task and delegates to Execution.run.
   """
-  @spec maybe_start_execution(Scope.t(), String.t(), list(), keyword()) :: :ok
+  @spec maybe_start_execution(Scope.t(), String.t(), list(), keyword()) :: :ok | :already_running
   def maybe_start_execution(scope, task_id, tools, opts) do
     if Execution.running?(scope, task_id) do
-      :ok
+      :already_running
     else
       {:ok, task} = get_task(scope, task_id)
 
