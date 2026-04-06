@@ -98,7 +98,7 @@ let elementSelector = (el: WebAPI.DOMAPI.element): string => {
   let cls = el.className->String.trim
   switch cls {
   | "" => tag
-  | c => `${tag}.${c->String.split(" ")->Array.join(".")}`
+  | c => `${tag}.${c->String.split(" ")->Array.filter(s => s !== "")->Array.join(".")}`
   }
 }
 
