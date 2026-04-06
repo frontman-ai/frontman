@@ -389,7 +389,7 @@ defmodule FrontmanServerWeb.TaskChannel do
     case Tasks.cancel_execution(socket.assigns.scope, task_id) do
       :ok ->
         # Execution running — cancel signal sent. The :agent_cancelled handler
-        # will call handle_turn_ended when the execution actually stops.
+        # will call finalize_turn when the execution actually stops.
         Logger.info("Agent cancel signal sent for task #{task_id}")
         {:noreply, socket}
 
@@ -398,7 +398,7 @@ defmodule FrontmanServerWeb.TaskChannel do
 
         if had_retry do
           # Was in retry countdown — no execution to cancel, end the turn now
-          handle_turn_ended(socket, ACP.stop_reason_cancelled())
+          finalize_turn(socket, {:completed, ACP.stop_reason_cancelled()})
         else
           {:noreply, socket}
         end
@@ -630,19 +630,19 @@ defmodule FrontmanServerWeb.TaskChannel do
 
     case Execution.handle_swarm_event(scope, task_id, event) do
       :agent_completed ->
-        handle_turn_ended(socket, ACP.stop_reason_end_turn())
+        finalize_turn(socket, {:completed, ACP.stop_reason_end_turn()})
 
       :agent_cancelled ->
-        handle_turn_ended(socket, ACP.stop_reason_cancelled())
+        finalize_turn(socket, {:completed, ACP.stop_reason_cancelled()})
 
       :agent_paused ->
-        handle_turn_ended(socket, ACP.stop_reason_end_turn())
+        finalize_turn(socket, {:completed, ACP.stop_reason_end_turn()})
 
       {:agent_error, %{retryable: true} = error_info} ->
         handle_transient_error(socket, error_info)
 
       {:agent_error, %{retryable: false} = error_info} ->
-        handle_turn_error(socket, error_info.message, error_info.category)
+        finalize_turn(socket, {:error, error_info.message, error_info.category})
 
       :ok ->
         {:noreply, socket}
@@ -734,8 +734,7 @@ defmodule FrontmanServerWeb.TaskChannel do
   # Agent failed to start (e.g. no API key, usage limit). Broadcast by
   # Tasks.maybe_start_execution when Execution.run returns an error.
   def handle_info({:execution_start_error, msg}, socket) do
-    socket = assign(socket, :retry_state, RetryCoordinator.clear(socket.assigns[:retry_state]))
-    handle_turn_error(socket, msg, "unknown")
+    finalize_turn(socket, {:error, msg, "unknown"})
   end
 
   def handle_info(:fire_retry, socket) do
@@ -797,8 +796,7 @@ defmodule FrontmanServerWeb.TaskChannel do
   defp handle_transient_error(socket, error_info) do
     case RetryCoordinator.handle_error(socket.assigns[:retry_state], error_info) do
       {:exhausted, error_info} ->
-        socket = assign(socket, :retry_state, nil)
-        handle_turn_error(socket, error_info.message, error_info.category)
+        finalize_turn(socket, {:error, error_info.message, error_info.category})
 
       {:retry_scheduled, state, notification} ->
         task_id = socket.assigns.task_id
@@ -816,65 +814,51 @@ defmodule FrontmanServerWeb.TaskChannel do
     end
   end
 
-  # Handler for normal turn completion (agent_completed, agent_cancelled).
-  #
-  # The contract:
-  #   1. Always push an agent_turn_complete session/update notification so the
-  #      client knows the turn ended — regardless of whether a pending
-  #      session/prompt RPC exists.
-  #   2. If a pending RPC exists, also resolve it with the stop_reason.
-  #   3. Clean up pending_prompt_id.
-  #
-  # This eliminates the bug class where a nil pending_prompt_id silently
-  # drops the turn-ended signal (e.g. after task switch + elicitation response).
-  defp handle_turn_ended(socket, stop_reason) do
+  # Unified turn finalization — every code path that ends a turn goes through here.
+  # This guarantees the domain invariant: retry_state is always nil when a turn ends.
+  defp finalize_turn(socket, outcome) do
     task_id = socket.assigns.task_id
-
     socket = assign(socket, :retry_state, RetryCoordinator.clear(socket.assigns[:retry_state]))
 
-    # 1. Always notify — this is the canonical "turn ended" signal
-    notification = ACP.build_agent_turn_complete_notification(task_id, stop_reason)
-    push(socket, @acp_message, notification)
+    case outcome do
+      {:completed, stop_reason} ->
+        notification = ACP.build_agent_turn_complete_notification(task_id, stop_reason)
+        push(socket, @acp_message, notification)
+        resolve_pending_prompt(socket, {:ok, stop_reason})
 
-    # 2. If there's a pending RPC, also resolve it
-    socket =
-      case socket.assigns[:pending_prompt_id] do
-        nil ->
-          Logger.info("Turn ended (#{stop_reason}) with no pending_prompt_id for task #{task_id}")
-          socket
+      {:error, message, category} ->
+        notification =
+          ACP.build_error_notification(task_id, message, DateTime.utc_now(), category: category)
 
-        prompt_id ->
-          response = JsonRpc.success_response(prompt_id, ACP.build_prompt_result(stop_reason))
-          Logger.info("Resolving pending prompt #{prompt_id} with stop_reason=#{stop_reason}")
-          push(socket, @acp_message, response)
-          assign(socket, :pending_prompt_id, nil)
-      end
-
-    {:noreply, socket}
+        push(socket, @acp_message, notification)
+        resolve_pending_prompt(socket, {:error, message})
+    end
   end
 
-  # Handler for agent errors — a separate path from handle_turn_ended because
-  # errors use a different ACP notification type (sessionUpdate: "error") and
-  # resolve pending RPCs with JSON-RPC error responses instead of prompt results.
-  defp handle_turn_error(socket, error_message, category) do
+  defp resolve_pending_prompt(socket, result) do
     task_id = socket.assigns.task_id
 
-    # 1. Always notify — error notification so client can display it
-    notification =
-      ACP.build_error_notification(task_id, error_message, DateTime.utc_now(), category: category)
-
-    push(socket, @acp_message, notification)
-
-    # 2. If there's a pending RPC, resolve it as an error
     socket =
       case socket.assigns[:pending_prompt_id] do
         nil ->
-          Logger.info("Agent error with no pending_prompt_id for task #{task_id}")
+          Logger.info("Turn finalized with no pending_prompt_id for task #{task_id}")
           socket
 
         prompt_id ->
-          response = JsonRpc.error_response(prompt_id, -32_000, error_message)
-          Logger.info("Resolving pending prompt #{prompt_id} with error: #{error_message}")
+          response =
+            case result do
+              {:ok, stop_reason} ->
+                Logger.info(
+                  "Resolving pending prompt #{prompt_id} with stop_reason=#{stop_reason}"
+                )
+
+                JsonRpc.success_response(prompt_id, ACP.build_prompt_result(stop_reason))
+
+              {:error, message} ->
+                Logger.info("Resolving pending prompt #{prompt_id} with error: #{message}")
+                JsonRpc.error_response(prompt_id, -32_000, message)
+            end
+
           push(socket, @acp_message, response)
           assign(socket, :pending_prompt_id, nil)
       end
