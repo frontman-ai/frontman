@@ -720,6 +720,122 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
     end
   end
 
+  # -- Crashed agent (end-to-end through channel) --------------------------------
+
+  describe "crashed agent (end-to-end)" do
+    setup [:setup_sandbox, :setup_user, :setup_task_only, :setup_channel]
+
+    test "crashed event persists error, fires telemetry, and pushes agent_turn_complete to client",
+         %{
+           task_id: task_id,
+           scope: scope,
+           socket: socket
+         } do
+      ref =
+        :telemetry_test.attach_event_handlers(self(), [
+          [:frontman, :task, :stop]
+        ])
+
+      Phoenix.PubSub.subscribe(FrontmanServer.PubSub, Tasks.topic(task_id))
+
+      # MockLLM that raises — exception escapes execute_llm_call's try/rescue
+      # (happens during stream/3, outside the try block) → crashes the Task
+      # process → death watcher dispatches {:crashed, ...}
+      agent = test_agent(%MockLLM{response: fn -> raise("agent boom") end}, "CrashAgent")
+
+      {:ok, _} =
+        Tasks.submit_user_message(scope, task_id, user_content("Hello"), [], agent: agent)
+
+      assert_receive {:swarm_event, {:crashed, _}}, 5_000
+
+      :sys.get_state(socket.channel_pid)
+
+      assert_push(@acp_message, %{
+        "jsonrpc" => "2.0",
+        "method" => "session/update",
+        "params" => %{
+          "sessionId" => ^task_id,
+          "update" => %{
+            "sessionUpdate" => "error",
+            "category" => "unknown"
+          }
+        }
+      })
+
+      # Verify DB persistence
+      {:ok, task} = Tasks.get_task(scope, task_id)
+
+      agent_error =
+        Enum.find(task.interactions, &match?(%Interaction.AgentError{}, &1))
+
+      assert agent_error != nil
+      assert agent_error.kind == "crashed"
+      assert agent_error.error =~ "agent boom"
+
+      # Verify telemetry
+      assert_receive {[:frontman, :task, :stop], ^ref, _measurements, telemetry_meta}
+      assert telemetry_meta.task_id == task_id
+    end
+  end
+
+  # -- Failed agent (end-to-end through channel) ---------------------------------
+
+  describe "failed agent (end-to-end)" do
+    setup [:setup_sandbox, :setup_user, :setup_task_only, :setup_channel]
+
+    test "failed event persists classified error, fires telemetry, and pushes agent_turn_complete to client",
+         %{
+           task_id: task_id,
+           scope: scope,
+           socket: socket
+         } do
+      ref =
+        :telemetry_test.attach_event_handlers(self(), [
+          [:frontman, :task, :stop]
+        ])
+
+      Phoenix.PubSub.subscribe(FrontmanServer.PubSub, Tasks.topic(task_id))
+
+      # ErrorLLM returns {:error, reason} from stream/3 — caught inside
+      # execute_llm_call at line 468 → Loop.handle_error → {:failed, ...}
+      agent = test_agent(%ErrorLLM{error: :llm_error}, "FailAgent")
+
+      {:ok, _} =
+        Tasks.submit_user_message(scope, task_id, user_content("Hello"), [], agent: agent)
+
+      assert_receive {:swarm_event, {:failed, _}}, 5_000
+
+      :sys.get_state(socket.channel_pid)
+
+      assert_push(@acp_message, %{
+        "jsonrpc" => "2.0",
+        "method" => "session/update",
+        "params" => %{
+          "sessionId" => ^task_id,
+          "update" => %{
+            "sessionUpdate" => "error",
+            "category" => "unknown"
+          }
+        }
+      })
+
+      # Verify DB persistence
+      {:ok, task} = Tasks.get_task(scope, task_id)
+
+      agent_error =
+        Enum.find(task.interactions, &match?(%Interaction.AgentError{}, &1))
+
+      assert agent_error != nil
+      assert agent_error.kind == "failed"
+      assert agent_error.retryable == false
+      assert agent_error.category == "unknown"
+
+      # Verify telemetry
+      assert_receive {[:frontman, :task, :stop], ^ref, _measurements, telemetry_meta}
+      assert telemetry_meta.task_id == task_id
+    end
+  end
+
   # -- Backend tool crash — DB invariant ----------------------------------------
 
   describe "backend tool crash — ToolResult DB persistence" do
