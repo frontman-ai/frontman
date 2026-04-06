@@ -4,10 +4,9 @@
 @react.component
 let make = (~error: string, ~category: string, ~onRetry: unit => unit) => {
   let cta = switch category {
-  | "auth" => Some(("Your API key may be invalid — check Settings", Some("/settings")))
-  | "billing" => Some(("There may be a billing issue — check Settings", Some("/settings")))
-  | "rate_limit" =>
-    Some(("The provider is rate-limiting you — wait a moment before retrying", None))
+  | "auth" => Some(("Check Settings", Some("/settings")))
+  | "billing" => Some(("Check Settings", Some("/settings")))
+  | "rate_limit" => Some(("Wait a moment before retrying", None))
   | "payload_too_large" => Some(("Try with a shorter message or smaller files", None))
   | "output_truncated" => Some(("Try asking for a shorter response", None))
   | _ => None
