@@ -95,7 +95,7 @@ let categoryFromCode = (code: string): string =>
 
 let elementSelector = (el: WebAPI.DOMAPI.element): string => {
   let tag = el.tagName->String.toLowerCase
-  let cls = el.className->String.trim
+  let cls = el->WebAPI.Element.getAttribute("class")->Null.toOption->Option.getOr("")->String.trim
   switch cls {
   | "" => tag
   | c => `${tag}.${c->String.split(" ")->Array.filter(s => s !== "")->Array.join(".")}`
