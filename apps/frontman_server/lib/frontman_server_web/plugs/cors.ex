@@ -18,23 +18,13 @@ defmodule FrontmanServerWeb.Plugs.CORS do
     path_prefix = Keyword.get(opts, :path_prefix, "/api")
 
     if String.starts_with?(conn.request_path, path_prefix) do
-      origin = get_origin(conn)
-
       conn
-      |> put_resp_header("access-control-allow-origin", origin)
-      |> put_resp_header("access-control-allow-credentials", "true")
+      |> put_resp_header("access-control-allow-origin", "*")
       |> put_resp_header("access-control-allow-methods", "GET, POST, DELETE, OPTIONS")
       |> put_resp_header("access-control-allow-headers", "content-type")
       |> handle_preflight()
     else
       conn
-    end
-  end
-
-  defp get_origin(conn) do
-    case get_req_header(conn, "origin") do
-      [origin] -> origin
-      _ -> "*"
     end
   end
 
