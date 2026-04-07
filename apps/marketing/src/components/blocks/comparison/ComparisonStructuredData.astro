@@ -1,0 +1,109 @@
+---
+// ComparisonStructuredData
+// ------------------------
+// Emits all JSON-LD structured data for a /vs/ comparison page.
+// Blocks: FAQPage, SoftwareApplication (Frontman), SoftwareApplication (competitor), WebPage.
+
+type FAQ = {
+  question: string
+  answer: string
+}
+
+type CompetitorInfo = {
+  name: string
+  url: string
+  category: string
+  description: string
+  pricing: {
+    cost: string
+    model: string
+  }
+}
+
+type SEOInfo = {
+  title: string
+  description: string
+}
+
+type Props = {
+  competitor: CompetitorInfo
+  faqs: FAQ[]
+  seo: SEOInfo
+}
+
+const { competitor, faqs, seo } = Astro.props
+const pageUrl = Astro.url.href
+
+// FAQPage
+const faqJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": faqs.map((faq) => ({
+    "@type": "Question",
+    "name": faq.question,
+    "acceptedAnswer": {
+      "@type": "Answer",
+      "text": faq.answer,
+    },
+  })),
+}
+
+// SoftwareApplication — Frontman
+const frontmanAppJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "Frontman",
+  "url": "https://frontman.sh/",
+  "applicationCategory": "DesignApplication",
+  "operatingSystem": "Web",
+  "description": "An open-source AI agent that lets designers and product managers edit a running app in the browser. Point at any element, describe the change, get real code.",
+  "license": "https://github.com/frontman-ai/frontman/blob/main/LICENSE",
+  "codeRepository": "https://github.com/frontman-ai/frontman",
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "USD",
+    "description": "Free and open source — bring your own API key",
+  },
+  "isSimilarTo": {
+    "@type": "SoftwareApplication",
+    "name": competitor.name,
+    "url": competitor.url,
+  },
+}
+
+// SoftwareApplication — Competitor
+const competitorAppJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": competitor.name,
+  "url": competitor.url,
+  "applicationCategory": competitor.category,
+  "description": competitor.description,
+  "offers": {
+    "@type": "Offer",
+    "price": competitor.pricing.cost,
+    "priceCurrency": "USD",
+    "description": competitor.pricing.model,
+  },
+}
+
+// WebPage
+const webPageJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "WebPage",
+  "name": seo.title,
+  "description": seo.description,
+  "url": pageUrl,
+  "reviewedBy": {
+    "@type": "Organization",
+    "name": "Frontman",
+    "url": "https://frontman.sh/",
+  },
+}
+---
+
+<script is:inline type="application/ld+json" set:html={JSON.stringify(faqJsonLd)} />
+<script is:inline type="application/ld+json" set:html={JSON.stringify(frontmanAppJsonLd)} />
+<script is:inline type="application/ld+json" set:html={JSON.stringify(competitorAppJsonLd)} />
+<script is:inline type="application/ld+json" set:html={JSON.stringify(webPageJsonLd)} />

@@ -1,0 +1,53 @@
+---
+// ComparisonAlternatives
+// ----------------------
+// Targets "[competitor] alternatives" search queries.
+// Shows a grid of cards linking to other /vs/ pages.
+// Tailwind utility classes only.
+
+type Alternative = {
+  name: string
+  slug: string
+  oneLiner: string
+}
+
+type Props = {
+  competitorName: string
+  alternatives: Alternative[]
+}
+
+const { competitorName, alternatives } = Astro.props
+---
+
+<section class="flex justify-center bg-zinc-950 px-6 py-16 text-zinc-50 max-md:px-5 max-md:py-10">
+  <div class="w-full max-w-[720px]">
+    <h2 class="mb-3 text-[32px] font-bold tracking-tight text-zinc-50 max-md:text-2xl">{competitorName} Alternatives</h2>
+    <p class="mb-8 text-[17px] leading-[1.7] text-zinc-400">
+      If {competitorName} isn't the right fit, here are other tools worth evaluating — and how they compare to Frontman.
+    </p>
+    <div class="grid gap-4 sm:grid-cols-2">
+      {alternatives.map((alt) => {
+        const isFrontman = alt.slug === ''
+        return (
+          <a
+            href={isFrontman ? '/' : `/vs/${alt.slug}/`}
+            class:list={[
+              'block rounded-2xl border p-6 transition-colors',
+              isFrontman
+                ? 'border-primary-500/40 bg-primary-500/[0.08] hover:border-primary-500/60'
+                : 'border-white/[0.08] bg-white/[0.04] hover:border-white/20',
+            ]}
+          >
+            <h3 class:list={[
+              'mb-1 text-base font-bold',
+              isFrontman ? 'text-primary-500' : 'text-zinc-50',
+            ]}>
+              {isFrontman ? 'Frontman' : `Frontman vs ${alt.name}`}
+            </h3>
+            <p class="text-sm leading-relaxed text-zinc-400">{alt.oneLiner}</p>
+          </a>
+        )
+      })}
+    </div>
+  </div>
+</section>

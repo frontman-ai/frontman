@@ -1,0 +1,39 @@
+---
+// ComparisonContentSection
+// ------------------------
+// Prose content wrapper for /vs/ comparison pages.
+// Tailwind utility classes only — replaces IntegrationContentSection for comparison use.
+
+type Props = {
+  title: string
+  variant?: 'dark' | 'light'
+}
+
+const { title, variant = 'dark' } = Astro.props
+const isLight = variant === 'light'
+---
+
+<section class:list={[
+  'flex justify-center px-6 py-16 max-md:px-5 max-md:py-10',
+  isLight ? 'bg-zinc-50 text-zinc-950' : 'bg-zinc-950 text-zinc-50',
+]}>
+  <div class="w-full max-w-[720px]">
+    <h2 class:list={[
+      'mb-6 text-[32px] font-bold tracking-tight max-md:text-2xl',
+      isLight ? 'text-zinc-950' : 'text-zinc-50',
+    ]}>{title}</h2>
+    <div class:list={[
+      '[&_p]:mb-4 [&_p]:text-[17px] [&_p]:leading-[1.7]',
+      isLight
+        ? '[&_p]:text-zinc-600 [&_strong]:text-zinc-950 [&_li]:text-zinc-600 [&_li_strong]:text-zinc-950 [&_code]:bg-black/[0.06] [&_.text-link]:text-violet-700 [&_.text-link:hover]:text-violet-800'
+        : '[&_p]:text-zinc-400 [&_strong]:text-zinc-50 [&_li]:text-zinc-400 [&_li_strong]:text-zinc-50 [&_code]:bg-white/[0.08] [&_.text-link]:text-primary-500 [&_.text-link:hover]:text-purple-400',
+      '[&_strong]:font-semibold',
+      '[&_code]:rounded [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-sm',
+      '[&_ul]:my-4 [&_ul]:list-none [&_ul]:p-0',
+      '[&_li]:relative [&_li]:py-2 [&_li]:pl-6 [&_li]:text-[17px] [&_li]:leading-[1.7]',
+      "[&_li]:before:absolute [&_li]:before:left-0 [&_li]:before:top-[18px] [&_li]:before:h-2 [&_li]:before:w-2 [&_li]:before:rounded-full [&_li]:before:bg-primary-500 [&_li]:before:content-['']",
+    ]}>
+      <slot />
+    </div>
+  </div>
+</section>
