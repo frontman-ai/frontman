@@ -80,10 +80,9 @@ const competitorAppJsonLd = {
   "url": competitor.url,
   "applicationCategory": competitor.category,
   "description": competitor.description,
+  "priceRange": competitor.pricing.cost,
   "offers": {
     "@type": "Offer",
-    "price": competitor.pricing.cost,
-    "priceCurrency": "USD",
     "description": competitor.pricing.model,
   },
 }
