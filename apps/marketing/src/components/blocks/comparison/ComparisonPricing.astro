@@ -2,144 +2,61 @@
 // ComparisonPricing
 // -----------------
 // Shared pricing comparison section for /vs/ pages.
-// Props:
-// - competitorName: Name of the competitor
-// - competitorCost: Price string (e.g. "$0–$100/mo")
-// - competitorModel: Pricing model string (e.g. "Credit-based, proprietary")
-// - competitorFeatures: Array of pricing feature strings
-// - frontmanCost: Frontman price (default: "Free")
-// - frontmanModel: Frontman model (default: "Open source, BYOK")
-// - frontmanFeatures: Optional override for Frontman pricing features
+// Tailwind utility classes only.
 
 type Props = {
-	competitorName: string
-	competitorCost: string
-	competitorModel: string
-	competitorFeatures: string[]
-	frontmanCost?: string
-	frontmanModel?: string
-	frontmanFeatures?: string[]
+  competitorName: string
+  competitorCost: string
+  competitorModel: string
+  competitorFeatures: string[]
+  frontmanCost?: string
+  frontmanModel?: string
+  frontmanFeatures?: string[]
 }
 
 const {
-	competitorName,
-	competitorCost,
-	competitorModel,
-	competitorFeatures,
-	frontmanCost = 'Free',
-	frontmanModel = 'Open source, BYOK',
-	frontmanFeatures = [
-		'Unlimited usage, no caps or credits',
-		'Bring your own API keys (Claude, ChatGPT, OpenRouter)',
-		'Or sign in with Claude/ChatGPT subscription via OAuth',
-		'Apache 2.0 (client) / AGPL-3.0 (server)',
-		'You pay your LLM provider directly',
-	],
+  competitorName,
+  competitorCost,
+  competitorModel,
+  competitorFeatures,
+  frontmanCost = 'Free',
+  frontmanModel = 'Open source, BYOK',
+  frontmanFeatures = [
+    'Unlimited usage, no caps or credits',
+    'Bring your own API keys (Claude, ChatGPT, OpenRouter)',
+    'Or sign in with Claude/ChatGPT subscription via OAuth',
+    'Apache 2.0 (client) / AGPL-3.0 (server)',
+    'You pay your LLM provider directly',
+  ],
 } = Astro.props
 ---
 
-<section class="pricing-section">
-	<div class="pricing-container">
-		<h2 class="section-title">Pricing Comparison</h2>
-		<div class="pricing-grid">
-			<div class="pricing-card pricing-card--highlighted">
-				<h3 class="pricing-name">Frontman</h3>
-				<div class="pricing-cost">{frontmanCost}</div>
-				<p class="pricing-model">{frontmanModel}</p>
-				<ul class="pricing-features">
-					{frontmanFeatures.map((f) => <li>{f}</li>)}
-				</ul>
-			</div>
-			<div class="pricing-card">
-				<h3 class="pricing-name">{competitorName}</h3>
-				<div class="pricing-cost">{competitorCost}</div>
-				<p class="pricing-model">{competitorModel}</p>
-				<ul class="pricing-features">
-					{competitorFeatures.map((f) => <li>{f}</li>)}
-				</ul>
-			</div>
-		</div>
-	</div>
+<section class="flex justify-center bg-zinc-50 px-6 py-16 text-zinc-950 max-md:px-5 max-md:py-10">
+  <div class="w-full max-w-[720px]">
+    <h2 class="mb-8 text-[32px] font-bold tracking-tight text-zinc-950 max-md:text-2xl">Pricing Comparison</h2>
+    <div class="grid grid-cols-2 gap-6 max-md:grid-cols-1">
+      <!-- Frontman -->
+      <div class="rounded-2xl border border-primary-500 bg-gradient-to-br from-primary-500/5 to-primary-500/[0.02] p-8 shadow-[0_0_0_1px_rgba(162,89,255,0.2)]">
+        <h3 class="mb-2 text-xl font-bold text-zinc-950">Frontman</h3>
+        <div class="mb-1 text-4xl font-extrabold tracking-tight text-primary-500">{frontmanCost}</div>
+        <p class="mb-6 text-sm text-zinc-500">{frontmanModel}</p>
+        <ul class="m-0 list-none p-0">
+          {frontmanFeatures.map((f) => (
+            <li class="relative py-1.5 pl-5 text-[15px] text-zinc-600 before:absolute before:left-0 before:text-zinc-400 before:content-['→']">{f}</li>
+          ))}
+        </ul>
+      </div>
+      <!-- Competitor -->
+      <div class="rounded-2xl border border-zinc-200 bg-white p-8">
+        <h3 class="mb-2 text-xl font-bold text-zinc-950">{competitorName}</h3>
+        <div class="mb-1 text-4xl font-extrabold tracking-tight text-zinc-950">{competitorCost}</div>
+        <p class="mb-6 text-sm text-zinc-500">{competitorModel}</p>
+        <ul class="m-0 list-none p-0">
+          {competitorFeatures.map((f) => (
+            <li class="relative py-1.5 pl-5 text-[15px] text-zinc-600 before:absolute before:left-0 before:text-zinc-400 before:content-['→']">{f}</li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  </div>
 </section>
-
-<style>
-	.pricing-section {
-		background: #fafafa;
-		color: #09090b;
-		padding: 64px 24px;
-		display: flex;
-		justify-content: center;
-	}
-	.pricing-container {
-		max-width: 720px;
-		width: 100%;
-	}
-	.section-title {
-		font-size: 32px;
-		font-weight: 700;
-		color: #09090b;
-		margin-bottom: 32px;
-		letter-spacing: -0.02em;
-	}
-	.pricing-grid {
-		display: grid;
-		grid-template-columns: 1fr 1fr;
-		gap: 24px;
-	}
-	.pricing-card {
-		padding: 32px;
-		border-radius: 16px;
-		border: 1px solid #e4e4e7;
-		background: white;
-	}
-	.pricing-card--highlighted {
-		border-color: #A259FF;
-		background: linear-gradient(135deg, rgba(162, 89, 255, 0.05), rgba(162, 89, 255, 0.02));
-		box-shadow: 0 0 0 1px rgba(162, 89, 255, 0.2);
-	}
-	.pricing-name {
-		font-size: 20px;
-		font-weight: 700;
-		color: #09090b;
-		margin-bottom: 8px;
-	}
-	.pricing-cost {
-		font-size: 36px;
-		font-weight: 800;
-		color: #09090b;
-		margin-bottom: 4px;
-		letter-spacing: -0.02em;
-	}
-	.pricing-card--highlighted .pricing-cost {
-		color: #A259FF;
-	}
-	.pricing-model {
-		font-size: 14px;
-		color: #71717a;
-		margin-bottom: 24px;
-	}
-	.pricing-features {
-		list-style: none;
-		padding: 0;
-		margin: 0;
-	}
-	.pricing-features li {
-		font-size: 15px;
-		color: #52525b;
-		padding: 6px 0;
-		padding-left: 20px;
-		position: relative;
-	}
-	.pricing-features li::before {
-		content: '\2192';
-		position: absolute;
-		left: 0;
-		color: #a1a1aa;
-	}
-
-	@media (max-width: 768px) {
-		.pricing-section { padding: 40px 20px; }
-		.section-title { font-size: 24px; }
-		.pricing-grid { grid-template-columns: 1fr; }
-	}
-</style>

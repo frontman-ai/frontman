@@ -2,107 +2,32 @@
 // ComparisonCTA
 // -------------
 // Shared bottom CTA section for /vs/ comparison pages.
-// Shows all three install commands and GitHub/Discord links.
+// Tailwind utility classes only.
 
 import Button from '../../ui/Button.astro'
 ---
 
-<section class="cta-section">
-	<div class="cta-container">
-		<h2 class="cta-title">Try Frontman</h2>
-		<p class="cta-description">One command. No account. No credit card. No prompt limits.</p>
-		<div class="install-commands">
-			<div class="install-command">
-				<code><span class="command-prefix">$</span> npx @frontman-ai/nextjs install</code>
-				<span class="command-label">Next.js</span>
-			</div>
-			<div class="install-command">
-				<code><span class="command-prefix">$</span> npx @frontman-ai/vite install</code>
-				<span class="command-label">Vite (React, Vue, Svelte, SolidJS)</span>
-			</div>
-			<div class="install-command">
-				<code><span class="command-prefix">$</span> astro add @frontman-ai/astro</code>
-				<span class="command-label">Astro</span>
-			</div>
-		</div>
-		<div class="cta-links">
-			<Button size="lg" style="primary" link="https://github.com/frontman-ai/frontman">Star on GitHub</Button>
-			<a href="https://discord.gg/xk8uXJSvhC" target="_blank" rel="noopener noreferrer" class="cta-discord">Join Discord</a>
-		</div>
-	</div>
+<section class="flex justify-center border-t border-zinc-800 bg-zinc-950 px-6 py-20 max-md:px-5 max-md:py-12">
+  <div class="w-full max-w-[720px]">
+    <h2 class="mb-2 text-4xl font-bold tracking-tight text-zinc-50 max-md:text-[28px]">Try Frontman</h2>
+    <p class="mb-8 text-[17px] text-zinc-500">One command. No account. No credit card. No prompt limits.</p>
+    <div class="mb-8 flex flex-col gap-3">
+      <div class="flex items-center justify-between rounded-lg border border-white/[0.08] bg-white/[0.04] px-4 py-3 max-md:flex-col max-md:items-start max-md:gap-1">
+        <code class="font-mono text-sm text-zinc-50"><span class="mr-2 text-primary-500">$</span> npx @frontman-ai/nextjs install</code>
+        <span class="text-[13px] text-zinc-500">Next.js</span>
+      </div>
+      <div class="flex items-center justify-between rounded-lg border border-white/[0.08] bg-white/[0.04] px-4 py-3 max-md:flex-col max-md:items-start max-md:gap-1">
+        <code class="font-mono text-sm text-zinc-50"><span class="mr-2 text-primary-500">$</span> npx @frontman-ai/vite install</code>
+        <span class="text-[13px] text-zinc-500">Vite (React, Vue, Svelte, SolidJS)</span>
+      </div>
+      <div class="flex items-center justify-between rounded-lg border border-white/[0.08] bg-white/[0.04] px-4 py-3 max-md:flex-col max-md:items-start max-md:gap-1">
+        <code class="font-mono text-sm text-zinc-50"><span class="mr-2 text-primary-500">$</span> astro add @frontman-ai/astro</code>
+        <span class="text-[13px] text-zinc-500">Astro</span>
+      </div>
+    </div>
+    <div class="flex items-center gap-6 max-md:flex-col max-md:items-start max-md:gap-3">
+      <Button size="lg" style="primary" link="https://github.com/frontman-ai/frontman">Star on GitHub</Button>
+      <a href="https://discord.gg/xk8uXJSvhC" target="_blank" rel="noopener noreferrer" class="text-[15px] text-zinc-500 transition-colors hover:text-zinc-50">Join Discord</a>
+    </div>
+  </div>
 </section>
-
-<style>
-	.cta-section {
-		background: #09090b;
-		border-top: 1px solid #27272a;
-		padding: 80px 24px;
-		display: flex;
-		justify-content: center;
-	}
-	.cta-container {
-		max-width: 720px;
-		width: 100%;
-	}
-	.cta-title {
-		font-size: 36px;
-		font-weight: 700;
-		color: #fafafa;
-		margin-bottom: 8px;
-		letter-spacing: -0.02em;
-	}
-	.cta-description {
-		font-size: 17px;
-		color: #71717a;
-		margin-bottom: 32px;
-	}
-	.install-commands {
-		display: flex;
-		flex-direction: column;
-		gap: 12px;
-		margin-bottom: 32px;
-	}
-	.install-command {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		padding: 12px 16px;
-		border-radius: 8px;
-		background: rgba(255, 255, 255, 0.04);
-		border: 1px solid rgba(255, 255, 255, 0.08);
-	}
-	.install-command code {
-		font-family: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, 'DejaVu Sans Mono', monospace;
-		font-size: 14px;
-		color: #fafafa;
-	}
-	.command-prefix {
-		color: #A259FF;
-		margin-right: 8px;
-	}
-	.command-label {
-		font-size: 13px;
-		color: #71717a;
-	}
-	.cta-links {
-		display: flex;
-		align-items: center;
-		gap: 24px;
-	}
-	.cta-discord {
-		color: #71717a;
-		font-size: 15px;
-		text-decoration: none;
-		transition: color 0.2s;
-	}
-	.cta-discord:hover {
-		color: #fafafa;
-	}
-
-	@media (max-width: 768px) {
-		.cta-section { padding: 48px 20px; }
-		.cta-title { font-size: 28px; }
-		.cta-links { flex-direction: column; align-items: flex-start; gap: 12px; }
-		.install-command { flex-direction: column; align-items: flex-start; gap: 4px; }
-	}
-</style>
