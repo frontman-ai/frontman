@@ -1,790 +1,210 @@
 ---
 // /vs/cursor — Frontman vs Cursor Comparison Page
-// The highest-intent SEO page for "cursor alternative open source"
+// Targets: "frontman vs cursor", "cursor alternative open source", "cursor alternatives 2026"
 
-// Components
-import Layout from '../../layouts/Layout.astro'
-import Button from '../../components/ui/Button.astro'
-import ComparisonDisclosure from '../../components/ui/ComparisonDisclosure.astro'
+import ComparisonLayout from '../../layouts/ComparisonLayout.astro'
+import type { ComparisonFeature, Alternative, CompetitorInfo, SEOInfo, FAQ } from '../../layouts/ComparisonLayout.astro'
 
-// SEO
-const SEO = {
-	title: 'Frontman vs Cursor: AI for Design System Teams (2026)',
-	description:
-		'Cursor is built for developers in the IDE. Frontman lets designers, PMs, and engineers iterate on your design system together — right in the browser. Compare features, pricing, and workflows side by side.'
+const seo: SEOInfo = {
+  title: 'Frontman vs Cursor: Open-Source AI Coding Tool Comparison (2026)',
+  description:
+    'Compare Frontman and Cursor side by side. Frontman is a browser-based AI agent for designers, PMs, and engineers. Cursor is an AI-powered IDE. Features, pricing, and architecture compared.',
 }
 
-// Comparison data
-type Status = 'yes' | 'no' | 'partial'
-
-type Feature = {
-	name: string
-	frontman: Status
-	cursor: Status
-	frontmanNote?: string
-	cursorNote?: string
+const competitor: CompetitorInfo = {
+  name: 'Cursor',
+  slug: 'cursor',
+  url: 'https://cursor.com',
+  category: 'DeveloperApplication',
+  description: 'AI-powered code editor based on VS Code with autocomplete, agent mode, and multi-file refactoring.',
+  pricing: {
+    cost: '$0–$200/mo',
+    model: 'Freemium, proprietary',
+    features: [
+      'Hobby: Free — limited agent + tab completions',
+      'Pro: $20/mo — extended agent, unlimited tabs',
+      'Pro+: $60/mo — 3x usage on all models',
+      'Ultra: $200/mo — 20x usage, priority access',
+      'Teams: $40/user/mo — shared usage, SSO',
+      'API key mode available (full BYOK)',
+    ],
+  },
 }
 
-const features: Feature[] = [
-	{ name: 'Designer/PM friendly', frontman: 'yes', cursor: 'no', frontmanNote: 'Click elements, describe changes — no IDE needed', cursorNote: 'Requires IDE proficiency' },
-	{ name: 'Works in the browser', frontman: 'yes', cursor: 'no', frontmanNote: 'Opens alongside your running app', cursorNote: 'VS Code fork — desktop IDE' },
-	{ name: 'Click-to-select elements', frontman: 'yes', cursor: 'no', frontmanNote: 'Visual component selection', cursorNote: 'Must describe or find in file tree' },
-	{ name: 'Sees live DOM & styles', frontman: 'yes', cursor: 'no', frontmanNote: 'Browser-side MCP server inspects the live page', cursorNote: 'File-only context by default' },
-	{ name: 'Sees computed CSS', frontman: 'yes', cursor: 'no', frontmanNote: 'Runtime values, not class names', cursorNote: 'Reads source files; can extend via MCP' },
-	{ name: 'Hot reload feedback loop', frontman: 'yes', cursor: 'partial', frontmanNote: 'Instant in browser', cursorNote: 'Can trigger builds via agent, doesn\'t see browser result' },
-	{ name: 'Framework-aware', frontman: 'yes', cursor: 'partial', frontmanNote: 'Deep plugin integration with Next.js, Astro, Vite', cursorNote: 'MCP servers, .cursorrules, project context' },
-	{ name: 'File-based editing', frontman: 'yes', cursor: 'yes', frontmanNote: 'Edits source files — real code, not overrides', cursorNote: 'Full file system access' },
-	{ name: 'Autocomplete', frontman: 'no', cursor: 'yes', cursorNote: 'Tab completion, inline suggestions' },
-	{ name: 'Multi-file refactoring', frontman: 'partial', cursor: 'yes', frontmanNote: 'Can edit multiple files, but not its primary workflow', cursorNote: 'Cross-file edits, Composer, agent mode' },
-	{ name: 'Terminal integration', frontman: 'no', cursor: 'yes', cursorNote: 'Built-in terminal, agent mode, cloud agents' },
-	{ name: 'Backend coding', frontman: 'partial', cursor: 'yes', frontmanNote: 'Can read/write any project file, but frontend-focused', cursorNote: 'Any language, any framework' },
-	{ name: 'Open source', frontman: 'yes', cursor: 'no', frontmanNote: 'Apache 2.0 / AGPL-3.0', cursorNote: 'Proprietary' },
-	{ name: 'BYOK (bring your own key)', frontman: 'yes', cursor: 'yes', frontmanNote: 'OpenRouter, Anthropic, OpenAI', cursorNote: 'API key mode, bring your own models' },
-	{ name: 'Self-hostable', frontman: 'yes', cursor: 'no' },
+const features: ComparisonFeature[] = [
+  { name: 'Designer/PM friendly', frontman: 'yes', competitor: 'no', frontmanNote: 'Click elements, describe changes — no IDE needed', competitorNote: 'Requires IDE proficiency' },
+  { name: 'Works in the browser', frontman: 'yes', competitor: 'no', frontmanNote: 'Opens alongside your running app', competitorNote: 'VS Code fork — desktop IDE' },
+  { name: 'Click-to-select elements', frontman: 'yes', competitor: 'no', frontmanNote: 'Visual component selection', competitorNote: 'Must describe or find in file tree' },
+  { name: 'Sees live DOM & styles', frontman: 'yes', competitor: 'no', frontmanNote: 'Browser-side MCP server inspects the live page', competitorNote: 'File-only context by default' },
+  { name: 'Sees computed CSS', frontman: 'yes', competitor: 'no', frontmanNote: 'Runtime values, not class names', competitorNote: 'Reads source files; can extend via MCP' },
+  { name: 'Hot reload feedback loop', frontman: 'yes', competitor: 'partial', frontmanNote: 'Instant in browser', competitorNote: "Can trigger builds via agent, doesn't see browser result" },
+  { name: 'Framework-aware', frontman: 'yes', competitor: 'partial', frontmanNote: 'Deep plugin integration with Next.js, Astro, Vite', competitorNote: 'MCP servers, .cursorrules, project context' },
+  { name: 'File-based editing', frontman: 'yes', competitor: 'yes', frontmanNote: 'Edits source files — real code, not overrides', competitorNote: 'Full file system access' },
+  { name: 'Autocomplete', frontman: 'no', competitor: 'yes', competitorNote: 'Tab completion, inline suggestions' },
+  { name: 'Multi-file refactoring', frontman: 'partial', competitor: 'yes', frontmanNote: 'Can edit multiple files, but not its primary workflow', competitorNote: 'Cross-file edits, Composer, agent mode' },
+  { name: 'Terminal integration', frontman: 'no', competitor: 'yes', competitorNote: 'Built-in terminal, agent mode, cloud agents' },
+  { name: 'Backend coding', frontman: 'partial', competitor: 'yes', frontmanNote: 'Can read/write any project file, but frontend-focused', competitorNote: 'Any language, any framework' },
+  { name: 'Open source', frontman: 'yes', competitor: 'no', frontmanNote: 'Apache 2.0 / AGPL-3.0', competitorNote: 'Proprietary' },
+  { name: 'BYOK (bring your own key)', frontman: 'yes', competitor: 'yes', frontmanNote: 'OpenRouter, Anthropic, OpenAI', competitorNote: 'API key mode, bring your own models' },
+  { name: 'Self-hostable', frontman: 'yes', competitor: 'no' },
 ]
 
-function statusLabel(status: Status): string {
-	switch (status) {
-		case 'yes': return 'Yes'
-		case 'no': return 'No'
-		case 'partial': return 'Partial'
-	}
-}
-
-// FAQ data for JSON-LD
-const faqs = [
-	{
-		question: 'Can our designers actually use Frontman without learning an IDE?',
-		answer: 'Yes. Frontman runs in the browser alongside your running app — no VS Code, no terminal. Designers click elements they want to change, describe the update in plain English, and see results via hot reload. Every change produces a real source file edit that engineers can review as a normal pull request. The interface is the browser they already know.'
-	},
-	{
-		question: 'Will this break our design system or create code engineers have to clean up?',
-		answer: 'No. Frontman edits the same source files your engineers write — real component code, not CSS overrides or a separate layer. Changes go through your existing code review process. Because Frontman integrates as a framework plugin (Next.js, Astro, or Vite), it understands your component structure and source maps. Engineers review and merge like any other PR.'
-	},
-	{
-		question: 'Can Frontman replace Cursor for our engineering team?',
-		answer: 'For frontend visual editing — clicking elements, adjusting layout, fixing CSS — yes. For agentic coding workflows, autocomplete, terminal integration, or large codebase refactoring, no. They serve different roles on the team. Many teams use Cursor for backend and general-purpose engineering, and Frontman for cross-functional UI iteration where designers and PMs are involved.'
-	},
-	{
-		question: 'Does Frontman work alongside Cursor?',
-		answer: 'Yes. Engineers use Cursor as their IDE for backend and general coding. Designers and PMs use Frontman in the browser for visual changes. Both edit the same source files. Changes from either tool are reflected through normal file watching and hot reload.'
-	},
-	{
-		question: 'What does Frontman see that Cursor doesn\'t?',
-		answer: 'Frontman integrates with your framework as a plugin and runs a browser-side MCP server that inspects the live DOM tree, computed CSS styles (not just class names), viewport layout and spacing, and can take screenshots and emulate different devices. The framework plugin captures console logs, build errors, and resolves source locations via source maps. Cursor reads your source files and doesn\'t natively see what they render — though it can connect to browser tools via MCP servers, that requires additional setup.'
-	},
-	{
-		question: 'How does pricing work for a team with designers, PMs, and engineers?',
-		answer: 'Frontman is free while in beta. We plan to introduce per-seat team pricing — details are coming soon. The client libraries are Apache 2.0 and the server is AGPL-3.0, so self-hosting will always be an option. You bring your own API keys to Anthropic, OpenAI, or OpenRouter, or sign in with a Claude or ChatGPT subscription via OAuth.'
-	}
+const faqs: FAQ[] = [
+  {
+    question: 'Can our designers actually use Frontman without learning an IDE?',
+    answer: 'Yes. Frontman runs in the browser alongside your running app — no VS Code, no terminal. Designers click elements they want to change, describe the update in plain English, and see results via hot reload. Every change produces a real source file edit that engineers can review as a normal pull request. The interface is the browser they already know.',
+  },
+  {
+    question: 'Will this break our design system or create code engineers have to clean up?',
+    answer: "No. Frontman edits the same source files your engineers write — real component code, not CSS overrides or a separate layer. Changes go through your existing code review process. Because Frontman integrates as a framework plugin (Next.js, Astro, or Vite), it understands your component structure and source maps. Engineers review and merge like any other PR.",
+  },
+  {
+    question: 'Can Frontman replace Cursor for our engineering team?',
+    answer: "For frontend visual editing — clicking elements, adjusting layout, fixing CSS — yes. For agentic coding workflows, autocomplete, terminal integration, or large codebase refactoring, no. They serve different roles on the team. Many teams use Cursor for backend and general-purpose engineering, and Frontman for cross-functional UI iteration where designers and PMs are involved.",
+  },
+  {
+    question: 'Does Frontman work alongside Cursor?',
+    answer: 'Yes. Engineers use Cursor as their IDE for backend and general coding. Designers and PMs use Frontman in the browser for visual changes. Both edit the same source files. Changes from either tool are reflected through normal file watching and hot reload.',
+  },
+  {
+    question: "What does Frontman see that Cursor doesn't?",
+    answer: "Frontman integrates with your framework as a plugin and runs a browser-side MCP server that inspects the live DOM tree, computed CSS styles (not just class names), viewport layout and spacing, and can take screenshots and emulate different devices. The framework plugin captures console logs, build errors, and resolves source locations via source maps. Cursor reads your source files and doesn't natively see what they render — though it can connect to browser tools via MCP servers, that requires additional setup.",
+  },
+  {
+    question: 'How does pricing work for a team with designers, PMs, and engineers?',
+    answer: "Frontman is free while in beta. We plan to introduce per-seat team pricing — details are coming soon. The client libraries are Apache 2.0 and the server is AGPL-3.0, so self-hosting will always be an option. You bring your own API keys to Anthropic, OpenAI, or OpenRouter, or sign in with your Claude or ChatGPT subscription via OAuth.",
+  },
 ]
 
-// FAQPage JSON-LD
-const faqJsonLd = {
-	"@context": "https://schema.org",
-	"@type": "FAQPage",
-	"mainEntity": faqs.map((faq) => ({
-		"@type": "Question",
-		"name": faq.question,
-		"acceptedAnswer": {
-			"@type": "Answer",
-			"text": faq.answer
-		}
-	}))
-}
+const alternatives: Alternative[] = [
+  { name: 'Frontman', slug: '', oneLiner: 'Open-source AI agent in your browser. Designers and PMs click elements, describe changes, ship real code.' },
+  { name: 'Claude Code', slug: 'claude-code', oneLiner: 'Terminal-based AI coding agent from Anthropic. Powerful for backend and full-stack work.' },
+  { name: 'GitHub Copilot', slug: 'copilot', oneLiner: 'AI pair programmer in VS Code and JetBrains. Autocomplete-focused with chat and agent features.' },
+  { name: 'Windsurf', slug: 'windsurf', oneLiner: 'AI-native IDE with Cascade agent for multi-step coding workflows.' },
+  { name: 'Stagewise', slug: 'stagewise', oneLiner: 'Browser-based visual editing toolbar. Lightweight, frontend-focused.' },
+]
 ---
 
-<Layout title={SEO.title} description={SEO.description}>
-	<script is:inline type="application/ld+json" set:html={JSON.stringify(faqJsonLd)} />
+<ComparisonLayout
+  seo={seo}
+  competitor={competitor}
+  heroTitle="Frontman vs Cursor"
+  heroSubtitle="Your Whole Team Can Ship UI Changes — Not Just Engineers"
+  features={features}
+  faqs={faqs}
+  alternatives={alternatives}
+>
+  <!-- Hero Summary (GEO Lead — AI-citable first 150 words) -->
+  <Fragment slot="hero-summary">
+    <p>
+      If you have a design system and a growing product team, you know the bottleneck: every spacing tweak, copy change, or component adjustment becomes a ticket for engineering. Designers spec it, PMs prioritize it, and developers implement it days later. The feedback loop is slow and expensive.
+    </p>
+    <p>
+      <a href="https://frontman.sh" class="text-link">Frontman</a> is an open-source AI agent that lives in your browser, right alongside your running app. Designers and PMs click elements, describe changes in plain English, and Frontman edits the actual source files — producing real code diffs engineers can review. No IDE required. It integrates with your framework (Next.js, Astro, or Vite) as a plugin and uses a browser-side MCP server to see live DOM, computed styles, and rendered components.
+    </p>
+    <p>
+      <a href="https://cursor.com" class="text-link" rel="nofollow">Cursor</a> is a commercial AI-powered IDE based on VS Code. It's excellent for engineers — tab completion, agentic coding, multi-file refactoring, terminal integration. But it requires IDE proficiency and doesn't natively see what your app renders in the browser.
+    </p>
+    <p class="summary-emphasis">
+      The core difference: Cursor makes engineers faster in the IDE. Frontman lets your whole team — designers, PMs, and engineers — iterate on UI together in the browser. Many teams use both.
+    </p>
+  </Fragment>
 
-	<!-- Hero / AI-Citable Summary -->
-	<section class="hero-section">
-		<div class="hero-container">
-			<p class="hero-label">Comparison</p>
-			<h1 class="hero-title">Frontman vs Cursor</h1>
-			<p class="hero-subtitle">Your Whole Team Can Ship UI Changes — Not Just Engineers</p>
+  <!-- Architecture Diagram -->
+  <Fragment slot="architecture-diagram">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 320" class="w-full max-w-[800px]" role="img" aria-label="Architecture comparison: Frontman works in the browser with live DOM access while Cursor works in the IDE with file system access">
+      <!-- Frontman side -->
+      <text x="200" y="28" text-anchor="middle" fill="#A259FF" font-size="16" font-weight="700" font-family="ui-monospace, monospace">Frontman</text>
+      <rect x="60" y="44" width="280" height="40" rx="8" fill="rgba(162,89,255,0.12)" stroke="#A259FF" stroke-width="1.5"/>
+      <text x="200" y="69" text-anchor="middle" fill="#fafafa" font-size="13" font-family="system-ui">Team (Designers, PMs, Engineers)</text>
+      <line x1="200" y1="84" x2="200" y2="104" stroke="#A259FF" stroke-width="1.5" stroke-dasharray="4"/>
+      <text x="200" y="100" text-anchor="middle" fill="#71717a" font-size="10" font-family="system-ui">click &amp; describe</text>
+      <rect x="60" y="108" width="280" height="40" rx="8" fill="rgba(162,89,255,0.08)" stroke="#A259FF" stroke-width="1.5"/>
+      <text x="200" y="133" text-anchor="middle" fill="#A259FF" font-size="13" font-weight="600" font-family="system-ui">Browser (Live App)</text>
+      <line x1="200" y1="148" x2="200" y2="168" stroke="#A259FF" stroke-width="1.5" stroke-dasharray="4"/>
+      <text x="200" y="164" text-anchor="middle" fill="#71717a" font-size="10" font-family="system-ui">MCP server</text>
+      <rect x="60" y="172" width="280" height="40" rx="8" fill="rgba(162,89,255,0.08)" stroke="#A259FF" stroke-width="1.5"/>
+      <text x="200" y="197" text-anchor="middle" fill="#A259FF" font-size="13" font-weight="600" font-family="system-ui">Live DOM + Computed Styles</text>
+      <line x1="200" y1="212" x2="200" y2="232" stroke="#A259FF" stroke-width="1.5" stroke-dasharray="4"/>
+      <text x="200" y="228" text-anchor="middle" fill="#71717a" font-size="10" font-family="system-ui">source maps</text>
+      <rect x="60" y="236" width="280" height="40" rx="8" fill="rgba(162,89,255,0.06)" stroke="#A259FF" stroke-width="1"/>
+      <text x="200" y="261" text-anchor="middle" fill="#a1a1aa" font-size="13" font-family="system-ui">Source Files (real code edits)</text>
 
-			<div class="hero-summary">
-				<p>
-					If you have a design system and a growing product team, you know the bottleneck: every spacing tweak, copy change, or component adjustment becomes a ticket for engineering. Designers spec it, PMs prioritize it, and developers implement it days later. The feedback loop is slow and expensive.
-				</p>
-				<p>
-					<a href="https://frontman.sh" class="text-link">Frontman</a> is an open-source AI agent that lives in your browser, right alongside your running app. Designers and PMs click elements, describe changes in plain English, and Frontman edits the actual source files — producing real code diffs engineers can review. No IDE required. It integrates with your framework (Next.js, Astro, or Vite) as a plugin and uses a browser-side MCP server to see live DOM, computed styles, and rendered components.
-				</p>
-				<p>
-					<a href="https://cursor.com" class="text-link" rel="nofollow">Cursor</a> is a commercial AI-powered IDE based on VS Code. It's excellent for engineers — tab completion, agentic coding, multi-file refactoring, terminal integration. But it requires IDE proficiency and doesn't natively see what your app renders in the browser.
-				</p>
-				<p class="summary-emphasis">
-					The core difference: Cursor makes engineers faster in the IDE. Frontman lets your whole team — designers, PMs, and engineers — iterate on UI together in the browser. Many teams use both.
-				</p>
-			</div>
-			<ComparisonDisclosure competitor="Cursor" />
-		</div>
-	</section>
+      <!-- Divider -->
+      <line x1="400" y1="20" x2="400" y2="300" stroke="#27272a" stroke-width="1" stroke-dasharray="6"/>
 
-	<!-- Comparison Table -->
-	<section class="comparison-section">
-		<div class="comparison-container">
-			<h2 class="section-title">Feature Comparison</h2>
+      <!-- Cursor side -->
+      <text x="600" y="28" text-anchor="middle" fill="#71717a" font-size="16" font-weight="700" font-family="ui-monospace, monospace">Cursor</text>
+      <rect x="460" y="44" width="280" height="40" rx="8" fill="rgba(255,255,255,0.06)" stroke="#3f3f46" stroke-width="1.5"/>
+      <text x="600" y="69" text-anchor="middle" fill="#fafafa" font-size="13" font-family="system-ui">Developer</text>
+      <line x1="600" y1="84" x2="600" y2="104" stroke="#3f3f46" stroke-width="1.5" stroke-dasharray="4"/>
+      <text x="600" y="100" text-anchor="middle" fill="#71717a" font-size="10" font-family="system-ui">type &amp; prompt</text>
+      <rect x="460" y="108" width="280" height="40" rx="8" fill="rgba(255,255,255,0.04)" stroke="#3f3f46" stroke-width="1.5"/>
+      <text x="600" y="133" text-anchor="middle" fill="#a1a1aa" font-size="13" font-weight="600" font-family="system-ui">VS Code IDE</text>
+      <line x1="600" y1="148" x2="600" y2="168" stroke="#3f3f46" stroke-width="1.5" stroke-dasharray="4"/>
+      <text x="600" y="164" text-anchor="middle" fill="#71717a" font-size="10" font-family="system-ui">file access</text>
+      <rect x="460" y="172" width="280" height="40" rx="8" fill="rgba(255,255,255,0.04)" stroke="#3f3f46" stroke-width="1.5"/>
+      <text x="600" y="197" text-anchor="middle" fill="#a1a1aa" font-size="13" font-weight="600" font-family="system-ui">File System + AST</text>
+      <line x1="600" y1="212" x2="600" y2="232" stroke="#3f3f46" stroke-width="1.5" stroke-dasharray="4"/>
+      <text x="600" y="228" text-anchor="middle" fill="#71717a" font-size="10" font-family="system-ui">direct edits</text>
+      <rect x="460" y="236" width="280" height="40" rx="8" fill="rgba(255,255,255,0.03)" stroke="#3f3f46" stroke-width="1"/>
+      <text x="600" y="261" text-anchor="middle" fill="#a1a1aa" font-size="13" font-family="system-ui">Source Files (real code edits)</text>
 
-			<!-- Desktop table -->
-			<div class="table-wrapper">
-				<table class="comparison-table" role="grid">
-					<thead>
-						<tr>
-							<th class="feature-header">Feature</th>
-							<th class="tool-header tool-header--highlighted">Frontman</th>
-							<th class="tool-header">Cursor</th>
-						</tr>
-					</thead>
-					<tbody>
-						{features.map((feature) => (
-							<tr>
-								<td class="feature-cell">{feature.name}</td>
-								<td class={`status-cell status-cell--highlighted`} aria-label={statusLabel(feature.frontman)}>
-									<div class="status-content">
-										{feature.frontman === 'yes' && (
-											<svg class="status-icon status-icon--yes" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>
-										)}
-										{feature.frontman === 'no' && (
-											<svg class="status-icon status-icon--no" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-										)}
-										{feature.frontman === 'partial' && (
-											<svg class="status-icon status-icon--partial" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-										)}
-										{feature.frontmanNote && <span class="status-note">{feature.frontmanNote}</span>}
-									</div>
-								</td>
-								<td class="status-cell" aria-label={statusLabel(feature.cursor)}>
-									<div class="status-content">
-										{feature.cursor === 'yes' && (
-											<svg class="status-icon status-icon--yes" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>
-										)}
-										{feature.cursor === 'no' && (
-											<svg class="status-icon status-icon--no" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-										)}
-										{feature.cursor === 'partial' && (
-											<svg class="status-icon status-icon--partial" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-										)}
-										{feature.cursorNote && <span class="status-note">{feature.cursorNote}</span>}
-									</div>
-								</td>
-							</tr>
-						))}
-					</tbody>
-				</table>
-			</div>
+      <!-- Highlight callout -->
+      <rect x="62" y="288" width="276" height="24" rx="4" fill="rgba(162,89,255,0.15)"/>
+      <text x="200" y="304" text-anchor="middle" fill="#A259FF" font-size="11" font-weight="600" font-family="system-ui">Sees what users see</text>
+      <rect x="462" y="288" width="276" height="24" rx="4" fill="rgba(255,255,255,0.04)"/>
+      <text x="600" y="304" text-anchor="middle" fill="#71717a" font-size="11" font-weight="600" font-family="system-ui">Sees what developers write</text>
+    </svg>
+  </Fragment>
 
-			<!-- Mobile cards -->
-			<div class="mobile-cards">
-				{features.map((feature) => (
-					<div class="mobile-card">
-						<h3 class="mobile-card-title">{feature.name}</h3>
-						<div class="mobile-card-grid">
-							<div class="mobile-card-item mobile-card-item--highlighted">
-								<span class="mobile-card-tool">Frontman</span>
-								<span>
-									{feature.frontman === 'yes' && <svg class="status-icon status-icon--yes" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>}
-									{feature.frontman === 'no' && <svg class="status-icon status-icon--no" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>}
-									{feature.frontman === 'partial' && <svg class="status-icon status-icon--partial" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"></line></svg>}
-								</span>
-							</div>
-							<div class="mobile-card-item">
-								<span class="mobile-card-tool">Cursor</span>
-								<span>
-									{feature.cursor === 'yes' && <svg class="status-icon status-icon--yes" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>}
-									{feature.cursor === 'no' && <svg class="status-icon status-icon--no" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>}
-									{feature.cursor === 'partial' && <svg class="status-icon status-icon--partial" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"></line></svg>}
-								</span>
-							</div>
-						</div>
-					</div>
-				))}
-			</div>
-		</div>
-	</section>
+  <!-- What Cursor Does Well -->
+  <Fragment slot="competitor-strengths">
+    <p>Cursor makes developers faster if you already live in an IDE. It's popular for good reason.</p>
+    <p><strong>Autocomplete is best-in-class.</strong> Tab completion understands your codebase, predicts multi-line edits, and learns from your patterns. For raw typing speed, nothing in this comparison comes close.</p>
+    <p><strong>Agent mode is powerful.</strong> Cursor's agent can plan multi-step changes, run terminal commands, interpret output, and iterate on errors — all within the IDE. Cloud agents and background agents let work continue asynchronously. Frontman's AI agent is focused on browser-visible changes, not general-purpose coding workflows.</p>
+    <p><strong>Multi-file refactoring works.</strong> Cursor's Composer and agent mode can rename a prop across 15 files, update imports, and fix type errors in one pass. Frontman can edit multiple files, but it's not its primary workflow.</p>
+    <p><strong>Backend and general-purpose coding.</strong> Cursor handles Python, Go, Rust, SQL, infrastructure-as-code — any language, any project. Frontman is frontend-focused. It can read and write any project file, but its strengths are in visual editing where browser context matters.</p>
+    <p><strong>Terminal integration.</strong> Cursor's terminal agent can run commands, read output, and fix errors automatically. Frontman has no terminal — it captures console logs and build errors from the dev server, but cannot run arbitrary commands.</p>
+    <p>Cursor supports MCP servers, allowing it to connect to external tools, databases, APIs, and even browser automation. Combined with .cursorrules for project-specific context, this makes Cursor highly customizable.</p>
+    <p>Cursor has millions of users, extensive documentation, and a mature extension ecosystem inherited from VS Code.</p>
+  </Fragment>
 
-	<!-- What Cursor Does Well -->
-	<section class="content-section content-section--light">
-		<div class="content-container">
-			<h2 class="section-title section-title--dark">What Cursor Does Well</h2>
-			<div class="prose-content prose-content--dark">
-				<p>Cursor makes developers faster if you already live in an IDE. It's popular for good reason.</p>
-				<p><strong>Autocomplete is best-in-class.</strong> Tab completion understands your codebase, predicts multi-line edits, and learns from your patterns. For raw typing speed, nothing in this comparison comes close.</p>
-				<p><strong>Agent mode is powerful.</strong> Cursor's agent can plan multi-step changes, run terminal commands, interpret output, and iterate on errors — all within the IDE. Cloud agents and background agents let work continue asynchronously. Frontman's AI agent is focused on browser-visible changes, not general-purpose coding workflows.</p>
-				<p><strong>Multi-file refactoring works.</strong> Cursor's Composer and agent mode can rename a prop across 15 files, update imports, and fix type errors in one pass. Frontman can edit multiple files, but it's not its primary workflow.</p>
-				<p><strong>Backend and general-purpose coding.</strong> Cursor handles Python, Go, Rust, SQL, infrastructure-as-code — any language, any project. Frontman is frontend-focused. It can read and write any project file, but its strengths are in visual editing where browser context matters.</p>
-				<p><strong>Terminal integration.</strong> Cursor's terminal agent can run commands, read output, and fix errors automatically. Frontman has no terminal — it captures console logs and build errors from the dev server, but cannot run arbitrary commands.</p>
-				<p>Cursor supports MCP servers, allowing it to connect to external tools, databases, APIs, and even browser automation. Combined with .cursorrules for project-specific context, this makes Cursor highly customizable.</p>
-				<p>Cursor has millions of users, extensive documentation, and a mature extension ecosystem inherited from VS Code.</p>
-			</div>
-		</div>
-	</section>
+  <!-- Where Frontman Is Different -->
+  <Fragment slot="frontman-differentiators">
+    <p><strong>Your whole team can touch the UI.</strong> Designers click the element that needs work, describe the change in plain English, and Frontman edits the actual source files. PMs can adjust copy, spacing, or component props without filing a ticket. Engineers review the diff like any other PR. Everyone works from the same running app — no Figma-to-code translation step, no "can you move this 4px to the left" Slack threads.</p>
+    <p><strong>It sees what the browser sees.</strong> Cursor reads your JSX files, but by default it has never seen what they render. It doesn't know that your hero section overflows at 768px, that the computed font size is 18px not 16px, or that a sibling component's margin is pushing your layout. Frontman integrates with your framework as a plugin and runs a browser-side MCP server that inspects live DOM, computed CSS, viewport layout, and rendered component hierarchy. When you click an element, Frontman resolves the source location via source maps and knows exactly which file, component, and line rendered it.</p>
+    <p><strong>Click-to-edit workflow.</strong> Instead of describing which file to open, you click the element you want to change. The AI already knows the component, its source location, its styles, and its context in the rendered page. "Make this card's shadow more subtle" works because Frontman can see the card.</p>
+    <p><strong>Hot reload closes the feedback loop.</strong> Frontman edits actual source files, and the framework's built-in HMR handles live reloading automatically. Edit, see result, edit again happens in the browser without switching windows. A designer can iterate through three variations in the time it takes to write one Jira ticket.</p>
+    <p><strong>Real code, not overrides.</strong> Every change Frontman makes is a source file edit — the same code your engineers write by hand. No visual-editor CSS overrides, no separate layer to maintain. Changes go through your existing review process and ship like any other commit. Your design system stays clean.</p>
+    <p><strong>Open source and BYOK.</strong> Frontman is free while in beta, with per-seat team pricing coming soon. The client libraries are Apache 2.0 and the server is AGPL-3.0 — self-hosting will always be an option. You bring your own API keys to Anthropic, OpenAI, or OpenRouter — or sign in with your Claude or ChatGPT subscription via OAuth.</p>
+  </Fragment>
 
-	<!-- Where Frontman Is Different -->
-	<section class="content-section">
-		<div class="content-container">
-			<h2 class="section-title">Where Frontman Is Different</h2>
-			<div class="prose-content">
-				<p><strong>Your whole team can touch the UI.</strong> Designers click the element that needs work, describe the change in plain English, and Frontman edits the actual source files. PMs can adjust copy, spacing, or component props without filing a ticket. Engineers review the diff like any other PR. Everyone works from the same running app — no Figma-to-code translation step, no "can you move this 4px to the left" Slack threads.</p>
+  <!-- Who Should Use Cursor -->
+  <Fragment slot="who-should-use-competitor">
+    <p>Cursor is the better choice for engineers who want AI in their IDE. Specifically:</p>
+    <ul>
+      <li><strong>Backend developers</strong> working in Python, Go, Rust, or any non-frontend language</li>
+      <li><strong>Large codebase refactoring</strong> — renaming across dozens of files, updating APIs, migrating patterns</li>
+      <li><strong>Agentic coding workflows</strong> — if you want the AI to plan, execute, and iterate across files and terminal</li>
+      <li><strong>Autocomplete-dependent workflows</strong> — if inline suggestions are core to how you code</li>
+      <li><strong>Full-stack work</strong> where you move between frontend and backend in the same session</li>
+      <li><strong>Teams standardized on VS Code</strong> — Cursor inherits the entire VS Code extension ecosystem</li>
+    </ul>
+  </Fragment>
 
-				<p><strong>It sees what the browser sees.</strong> Cursor reads your JSX files, but by default it has never seen what they render. It doesn't know that your hero section overflows at 768px, that the computed font size is 18px not 16px, or that a sibling component's margin is pushing your layout. Frontman integrates with your framework as a plugin and runs a browser-side MCP server that inspects live DOM, computed CSS, viewport layout, and rendered component hierarchy. When you click an element, Frontman resolves the source location via source maps and knows exactly which file, component, and line rendered it.</p>
-
-				<p><strong>Click-to-edit workflow.</strong> Instead of describing which file to open, you click the element you want to change. The AI already knows the component, its source location, its styles, and its context in the rendered page. "Make this card's shadow more subtle" works because Frontman can see the card.</p>
-
-				<p><strong>Hot reload closes the feedback loop.</strong> Frontman edits actual source files, and the framework's built-in HMR handles live reloading automatically. Edit → see result → edit again happens in the browser without switching windows. A designer can iterate through three variations in the time it takes to write one Jira ticket.</p>
-
-				<p><strong>Real code, not overrides.</strong> Every change Frontman makes is a source file edit — the same code your engineers write by hand. No visual-editor CSS overrides, no separate layer to maintain. Changes go through your existing review process and ship like any other commit. Your design system stays clean.</p>
-
-				<p><strong>Open source and BYOK.</strong> Frontman is free while in beta, with per-seat team pricing coming soon. The client libraries are Apache 2.0 and the server is AGPL-3.0 — self-hosting will always be an option. You bring your own API keys to Anthropic, OpenAI, or OpenRouter — or sign in with your Claude or ChatGPT subscription via OAuth.</p>
-			</div>
-		</div>
-	</section>
-
-	<!-- Who Should Use Cursor -->
-	<section class="content-section content-section--light">
-		<div class="content-container">
-			<h2 class="section-title section-title--dark">Who Should Use Cursor</h2>
-			<div class="prose-content prose-content--dark">
-				<p>Cursor is the better choice for engineers who want AI in their IDE. Specifically:</p>
-				<ul>
-					<li><strong>Backend developers</strong> working in Python, Go, Rust, or any non-frontend language</li>
-					<li><strong>Large codebase refactoring</strong> — renaming across dozens of files, updating APIs, migrating patterns</li>
-					<li><strong>Agentic coding workflows</strong> — if you want the AI to plan, execute, and iterate across files and terminal</li>
-					<li><strong>Autocomplete-dependent workflows</strong> — if inline suggestions are core to how you code</li>
-					<li><strong>Full-stack work</strong> where you move between frontend and backend in the same session</li>
-					<li><strong>Teams standardized on VS Code</strong> — Cursor inherits the entire VS Code extension ecosystem</li>
-				</ul>
-			</div>
-		</div>
-	</section>
-
-	<!-- Who Should Use Frontman -->
-	<section class="content-section">
-		<div class="content-container">
-			<h2 class="section-title">Who Should Use Frontman</h2>
-			<div class="prose-content">
-				<p>Frontman is built for product teams where UI iteration is a bottleneck — not just individual developers. Specifically:</p>
-				<ul>
-					<li><strong>Design system teams at growing startups</strong> — your system is live, your components are real, and you need designers and engineers iterating on them together without a Figma→ticket→PR bottleneck</li>
-					<li><strong>Designers who want to iterate directly on the product</strong> — click elements in the running app, describe changes, and see results instantly. No IDE, no terminal, no waiting for engineering capacity</li>
-					<li><strong>PMs who ship small UI changes themselves</strong> — update copy, adjust spacing, tweak component props. Every change is a real code diff your engineers can review</li>
-					<li><strong>Engineering leads reducing design-to-code handoff friction</strong> — fewer "make it match the Figma" tickets, more direct iteration on the actual product</li>
-					<li><strong>Teams using Next.js, Astro, or Vite</strong> — deep framework plugin integration means Frontman understands your component structure, not just file contents</li>
-					<li><strong>Companies with security or compliance requirements</strong> — open source (Apache 2.0 / AGPL-3.0), self-hostable, BYOK. Free during beta with team pricing coming soon</li>
-				</ul>
-				<p>Many teams use both tools. Engineers use Cursor for backend work, refactoring, and general-purpose coding. The broader product team uses Frontman for visual iteration in the browser.</p>
-				<p>For a deeper technical comparison including Claude Code, read our <a href="/blog/frontman-vs-cursor-vs-claude-code/" class="text-link">full comparison of Frontman, Cursor, and Claude Code</a>. Also see: <a href="/vs/stagewise/" class="text-link">Frontman vs Stagewise</a> for a comparison with another browser-based tool.</p>
-			</div>
-		</div>
-	</section>
-
-	<!-- Pricing -->
-	<section class="content-section content-section--light">
-		<div class="content-container">
-			<h2 class="section-title section-title--dark">Pricing Comparison</h2>
-			<div class="pricing-grid">
-				<div class="pricing-card pricing-card--highlighted">
-					<h3 class="pricing-name">Frontman</h3>
-					<div class="pricing-cost">Free (beta)</div>
-					<p class="pricing-model">Open source, BYOK — per-seat team pricing coming soon</p>
-					<ul class="pricing-features">
-						<li>Free for all users during beta</li>
-						<li>Self-hosting always available (Apache 2.0 / AGPL-3.0)</li>
-						<li>Bring your own API keys (OpenRouter, Anthropic, OpenAI)</li>
-						<li>Or sign in with Claude/ChatGPT subscription via OAuth</li>
-						<li>You pay your LLM provider directly</li>
-					</ul>
-				</div>
-				<div class="pricing-card">
-					<h3 class="pricing-name">Cursor</h3>
-					<div class="pricing-cost">$0–$200/mo</div>
-					<p class="pricing-model">Freemium, proprietary</p>
-					<ul class="pricing-features">
-						<li>Hobby: Free — limited agent + tab completions</li>
-						<li>Pro: $20/mo — extended agent, unlimited tabs</li>
-						<li>Pro+: $60/mo — 3x usage on all models</li>
-						<li>Ultra: $200/mo — 20x usage, priority access</li>
-						<li>Teams: $40/user/mo — shared usage, SSO</li>
-						<li>API key mode available (full BYOK)</li>
-					</ul>
-				</div>
-			</div>
-		</div>
-	</section>
-
-	<!-- FAQ -->
-	<section class="content-section">
-		<div class="content-container">
-			<h2 class="section-title">Frequently Asked Questions</h2>
-			<div class="faq-list">
-				{faqs.map((faq) => (
-					<details class="faq-item group">
-						<summary class="faq-question">
-							<span>{faq.question}</span>
-							<span class="faq-icon">+</span>
-						</summary>
-						<div class="faq-answer">
-							<p>{faq.answer}</p>
-						</div>
-					</details>
-				))}
-			</div>
-		</div>
-	</section>
-
-	<!-- CTA -->
-	<section class="cta-section">
-		<div class="cta-container">
-			<h2 class="cta-title">Give Your Whole Team a Browser-Based AI Agent</h2>
-			<p class="cta-description">One install command. Free during beta. No credit card.</p>
-			<div class="install-commands">
-				<div class="install-command">
-					<code><span class="command-prefix">$</span> npx @frontman-ai/nextjs install</code>
-					<span class="command-label">Next.js</span>
-				</div>
-				<div class="install-command">
-					<code><span class="command-prefix">$</span> npx @frontman-ai/vite install</code>
-					<span class="command-label">Vite (React, Vue, Svelte, SolidJS)</span>
-				</div>
-				<div class="install-command">
-					<code><span class="command-prefix">$</span> astro add @frontman-ai/astro</code>
-					<span class="command-label">Astro</span>
-				</div>
-			</div>
-			<div class="cta-links">
-				<Button size="lg" style="primary" link="https://github.com/frontman-ai/frontman">Star on GitHub</Button>
-				<a href="https://discord.gg/xk8uXJSvhC" target="_blank" rel="noopener noreferrer" class="cta-discord">Join Discord</a>
-			</div>
-		</div>
-	</section>
-</Layout>
-
-<style>
-	@reference "../../styles/global.css";
-	/* Hero */
-	.hero-section {
-		background: #09090b;
-		color: #fafafa;
-		padding: 80px 24px 64px;
-		display: flex;
-		justify-content: center;
-	}
-	.hero-container {
-		max-width: 720px;
-		width: 100%;
-	}
-	.hero-label {
-		@apply font-mono;
-		font-size: 13px;
-		letter-spacing: 0.12em;
-		text-transform: uppercase;
-		color: #A259FF;
-		margin-bottom: 12px;
-	}
-	.hero-title {
-		font-size: 48px;
-		font-weight: 700;
-		line-height: 1.1;
-		letter-spacing: -0.02em;
-		color: #fafafa;
-		margin-bottom: 8px;
-	}
-	.hero-subtitle {
-		font-size: 20px;
-		color: #71717a;
-		margin-bottom: 40px;
-	}
-	.hero-summary p {
-		font-size: 17px;
-		line-height: 1.7;
-		color: #a1a1aa;
-		margin-bottom: 16px;
-	}
-	.summary-emphasis {
-		color: #fafafa !important;
-		font-weight: 500;
-		border-left: 3px solid #A259FF;
-		padding-left: 16px;
-		margin-top: 24px !important;
-	}
-	.text-link {
-		color: #A259FF;
-		text-decoration: underline;
-		text-underline-offset: 2px;
-	}
-	.text-link:hover {
-		color: #c084fc;
-	}
-
-	/* Comparison section */
-	.comparison-section {
-		background: #09090b;
-		padding: 64px 24px;
-		display: flex;
-		justify-content: center;
-	}
-	.comparison-container {
-		max-width: 900px;
-		width: 100%;
-	}
-
-	/* Section titles */
-	.section-title {
-		font-size: 32px;
-		font-weight: 700;
-		color: #fafafa;
-		margin-bottom: 32px;
-		letter-spacing: -0.02em;
-	}
-	.section-title--dark {
-		color: #09090b;
-	}
-
-	/* Table */
-	.table-wrapper {
-		@apply hidden md:block;
-	}
-	.comparison-table {
-		@apply w-full;
-		border-collapse: separate;
-		border-spacing: 0;
-	}
-	.feature-header {
-		@apply text-left text-sm font-semibold uppercase tracking-wider py-4 px-6;
-		color: rgba(255, 255, 255, 0.4);
-		border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-	}
-	.tool-header {
-		@apply text-center text-base font-bold py-4 px-6;
-		color: rgba(255, 255, 255, 0.7);
-		border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-		width: 240px;
-	}
-	.tool-header--highlighted {
-		color: #A259FF;
-		background: rgba(162, 89, 255, 0.08);
-		border-top: 3px solid #A259FF;
-		border-bottom: 1px solid rgba(162, 89, 255, 0.2);
-	}
-	.feature-cell {
-		@apply text-left text-base py-4 px-6;
-		color: rgba(255, 255, 255, 0.9);
-		border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-	}
-	.status-cell {
-		@apply py-4 px-6;
-		border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-	}
-	.status-cell--highlighted {
-		background: rgba(162, 89, 255, 0.08);
-	}
-	.status-content {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		justify-content: flex-start;
-	}
-	.status-note {
-		font-size: 13px;
-		color: rgba(255, 255, 255, 0.5);
-	}
-	tr:last-child .feature-cell,
-	tr:last-child .status-cell {
-		border-bottom: none;
-	}
-	.status-icon { @apply inline-block; }
-	.status-icon--yes { color: #22c55e; }
-	.status-icon--no { color: #ef4444; }
-	.status-icon--partial { color: #f59e0b; }
-
-	/* Mobile cards */
-	.mobile-cards {
-		@apply flex flex-col gap-3 md:hidden;
-	}
-	.mobile-card {
-		@apply p-4;
-		background: rgba(255, 255, 255, 0.04);
-		border: 1px solid rgba(255, 255, 255, 0.08);
-		border-radius: 12px;
-	}
-	.mobile-card-title {
-		@apply font-headings text-sm font-bold mb-3;
-		color: white;
-	}
-	.mobile-card-grid {
-		@apply grid grid-cols-2 gap-3;
-	}
-	.mobile-card-item {
-		@apply flex items-center justify-between py-2 px-3;
-		border-radius: 8px;
-		background: rgba(255, 255, 255, 0.03);
-	}
-	.mobile-card-item--highlighted {
-		background: rgba(162, 89, 255, 0.12);
-		border: 1px solid rgba(162, 89, 255, 0.25);
-	}
-	.mobile-card-tool {
-		@apply text-sm;
-		color: rgba(255, 255, 255, 0.6);
-	}
-	.mobile-card-item--highlighted .mobile-card-tool {
-		color: #A259FF;
-		font-weight: 600;
-	}
-
-	/* Content sections */
-	.content-section {
-		background: #09090b;
-		color: #fafafa;
-		padding: 64px 24px;
-		display: flex;
-		justify-content: center;
-	}
-	.content-section--light {
-		background: #fafafa;
-		color: #09090b;
-	}
-	.content-container {
-		max-width: 720px;
-		width: 100%;
-	}
-	.prose-content p {
-		font-size: 17px;
-		line-height: 1.7;
-		color: #a1a1aa;
-		margin-bottom: 16px;
-	}
-	.prose-content--dark p {
-		color: #52525b;
-	}
-	.prose-content strong {
-		color: #fafafa;
-		font-weight: 600;
-	}
-	.prose-content--dark strong {
-		color: #09090b;
-	}
-	.prose-content ul {
-		list-style: none;
-		padding: 0;
-		margin: 16px 0;
-	}
-	.prose-content li {
-		font-size: 17px;
-		line-height: 1.7;
-		color: #a1a1aa;
-		padding: 8px 0;
-		padding-left: 24px;
-		position: relative;
-	}
-	.prose-content--dark li {
-		color: #52525b;
-	}
-	.prose-content li::before {
-		content: '';
-		position: absolute;
-		left: 0;
-		top: 18px;
-		width: 8px;
-		height: 8px;
-		border-radius: 50%;
-		background: #A259FF;
-	}
-	.prose-content li strong {
-		color: #fafafa;
-	}
-	.prose-content--dark li strong {
-		color: #09090b;
-	}
-
-	/* Pricing */
-	.pricing-grid {
-		display: grid;
-		grid-template-columns: 1fr 1fr;
-		gap: 24px;
-	}
-	.pricing-card {
-		padding: 32px;
-		border-radius: 16px;
-		border: 1px solid #e4e4e7;
-		background: white;
-	}
-	.pricing-card--highlighted {
-		border-color: #A259FF;
-		background: linear-gradient(135deg, rgba(162, 89, 255, 0.05), rgba(162, 89, 255, 0.02));
-		box-shadow: 0 0 0 1px rgba(162, 89, 255, 0.2);
-	}
-	.pricing-name {
-		font-size: 20px;
-		font-weight: 700;
-		color: #09090b;
-		margin-bottom: 8px;
-	}
-	.pricing-cost {
-		font-size: 36px;
-		font-weight: 800;
-		color: #09090b;
-		margin-bottom: 4px;
-		letter-spacing: -0.02em;
-	}
-	.pricing-card--highlighted .pricing-cost {
-		color: #A259FF;
-	}
-	.pricing-model {
-		font-size: 14px;
-		color: #71717a;
-		margin-bottom: 24px;
-	}
-	.pricing-features {
-		list-style: none;
-		padding: 0;
-		margin: 0;
-	}
-	.pricing-features li {
-		font-size: 15px;
-		color: #52525b;
-		padding: 6px 0;
-		padding-left: 20px;
-		position: relative;
-	}
-	.pricing-features li::before {
-		content: '→';
-		position: absolute;
-		left: 0;
-		color: #a1a1aa;
-	}
-
-	/* FAQ */
-	.faq-list {
-		border-top: 1px solid #27272a;
-	}
-	.faq-item {
-		border-bottom: 1px solid #27272a;
-		cursor: pointer;
-	}
-	.faq-question {
-		width: 100%;
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		padding: 24px 0;
-		color: #fafafa;
-		font-size: 17px;
-		font-weight: 500;
-		line-height: 1.4;
-		list-style: none;
-		transition: color 0.2s;
-	}
-	.faq-question::-webkit-details-marker { display: none; }
-	.faq-question:hover { color: #fff; }
-	.faq-question span:first-child { padding-right: 24px; }
-	.faq-icon {
-		flex-shrink: 0;
-		width: 28px;
-		height: 28px;
-		border-radius: 50%;
-		border: 1px solid #3f3f46;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		font-size: 18px;
-		font-weight: 300;
-		color: #71717a;
-		transition: all 0.3s ease;
-	}
-	.group[open] .faq-icon {
-		transform: rotate(45deg);
-		background: #27272a;
-	}
-	.faq-answer p {
-		font-size: 15px;
-		line-height: 1.7;
-		color: #a1a1aa;
-		padding-bottom: 24px;
-		margin: 0;
-		max-width: 620px;
-	}
-
-	/* CTA */
-	.cta-section {
-		background: #09090b;
-		border-top: 1px solid #27272a;
-		padding: 80px 24px;
-		display: flex;
-		justify-content: center;
-	}
-	.cta-container {
-		max-width: 720px;
-		width: 100%;
-	}
-	.cta-title {
-		font-size: 36px;
-		font-weight: 700;
-		color: #fafafa;
-		margin-bottom: 8px;
-		letter-spacing: -0.02em;
-	}
-	.cta-description {
-		font-size: 17px;
-		color: #71717a;
-		margin-bottom: 32px;
-	}
-	.install-commands {
-		display: flex;
-		flex-direction: column;
-		gap: 12px;
-		margin-bottom: 32px;
-	}
-	.install-command {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		padding: 12px 16px;
-		border-radius: 8px;
-		background: rgba(255, 255, 255, 0.04);
-		border: 1px solid rgba(255, 255, 255, 0.08);
-	}
-	.install-command code {
-		font-family: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, 'DejaVu Sans Mono', monospace;
-		font-size: 14px;
-		color: #fafafa;
-	}
-	.command-prefix {
-		color: #A259FF;
-		margin-right: 8px;
-	}
-	.command-label {
-		font-size: 13px;
-		color: #71717a;
-	}
-	.cta-links {
-		display: flex;
-		align-items: center;
-		gap: 24px;
-	}
-	.cta-discord {
-		color: #71717a;
-		font-size: 15px;
-		text-decoration: none;
-		transition: color 0.2s;
-	}
-	.cta-discord:hover {
-		color: #fafafa;
-	}
-
-	/* Responsive */
-	@media (max-width: 768px) {
-		.hero-section { padding: 48px 20px 40px; }
-		.hero-title { font-size: 32px; }
-		.hero-subtitle { font-size: 17px; margin-bottom: 24px; }
-		.section-title { font-size: 24px; }
-		.content-section { padding: 40px 20px; }
-		.comparison-section { padding: 40px 20px; }
-		.pricing-grid { grid-template-columns: 1fr; }
-		.cta-section { padding: 48px 20px; }
-		.cta-title { font-size: 28px; }
-		.cta-links { flex-direction: column; align-items: flex-start; gap: 12px; }
-		.install-command { flex-direction: column; align-items: flex-start; gap: 4px; }
-	}
-</style>
+  <!-- Who Should Use Frontman -->
+  <Fragment slot="who-should-use-frontman">
+    <p>Frontman is built for product teams where UI iteration is a bottleneck — not just individual developers. Specifically:</p>
+    <ul>
+      <li><strong>Design system teams at growing startups</strong> — your system is live, your components are real, and you need designers and engineers iterating on them together without a Figma-to-ticket-to-PR bottleneck</li>
+      <li><strong>Designers who want to iterate directly on the product</strong> — click elements in the running app, describe changes, and see results instantly. No IDE, no terminal, no waiting for engineering capacity</li>
+      <li><strong>PMs who ship small UI changes themselves</strong> — update copy, adjust spacing, tweak component props. Every change is a real code diff your engineers can review</li>
+      <li><strong>Engineering leads reducing design-to-code handoff friction</strong> — fewer "make it match the Figma" tickets, more direct iteration on the actual product</li>
+      <li><strong>Teams using Next.js, Astro, or Vite</strong> — deep framework plugin integration means Frontman understands your component structure, not just file contents</li>
+      <li><strong>Companies with security or compliance requirements</strong> — open source (Apache 2.0 / AGPL-3.0), self-hostable, BYOK. Free during beta with team pricing coming soon</li>
+    </ul>
+    <p>Many teams use both tools. Engineers use Cursor for backend work, refactoring, and general-purpose coding. The broader product team uses Frontman for visual iteration in the browser.</p>
+    <p>For a deeper technical comparison including Claude Code, read our <a href="/blog/frontman-vs-cursor-vs-claude-code/" class="text-link">full comparison of Frontman, Cursor, and Claude Code</a>. Also see: <a href="/vs/stagewise/" class="text-link">Frontman vs Stagewise</a> for a comparison with another browser-based tool.</p>
+  </Fragment>
+</ComparisonLayout>
