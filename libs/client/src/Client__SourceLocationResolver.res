@@ -5,10 +5,7 @@ let resolve = async (sourceLocation: Client__Types.SourceLocation.t): result<
   string,
 > => {
   let runtimeConfig = Client__RuntimeConfig.read()
-  let baseUrl = {
-    let location = WebAPI.Global.location
-    `${location.protocol}//${location.host}`
-  }
+  let baseUrl = Client__RelayBaseUrl.current()
   let url = `${baseUrl}/frontman/resolve-source-location`
   let headers = Dict.fromArray([("Content-Type", "application/json")])
   runtimeConfig.wpNonce->Option.forEach(nonce => headers->Dict.set("X-WP-Nonce", nonce))

@@ -148,30 +148,27 @@ if config_env() == :prod do
 
   config :frontman_server, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
 
-  # Allow WebSocket connections from the main site, subdomains, and localhost (for local dev)
+  # Allow WebSocket connections from any origin by default.
+  # Set CHECK_ORIGIN to a comma-separated allowlist if you want to restrict it.
   check_origin =
     case System.get_env("CHECK_ORIGIN") do
+      nil ->
+        false
+
+      "" ->
+        false
+
+      "*" ->
+        false
+
+      "*.*" ->
+        false
+
       "false" ->
         false
 
       origins when is_binary(origins) ->
         String.split(origins, ",", trim: true)
-
-      _ ->
-        [
-          "//frontman.sh",
-          "//*.frontman.sh",
-          "//*.com",
-          "//*.com.au",
-          "//*.net",
-          "//*.org",
-          "//category-creation.com",
-          "//*.category-creation.com",
-          "//frontman.local",
-          "//*.frontman.local",
-          "//localhost",
-          "//127.0.0.1"
-        ]
     end
 
   config :frontman_server, FrontmanServerWeb.Endpoint,

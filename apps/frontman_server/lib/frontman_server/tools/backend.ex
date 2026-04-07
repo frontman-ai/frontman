@@ -27,7 +27,8 @@ defmodule FrontmanServer.Tools.Backend do
     alias FrontmanServer.Accounts.Scope
     alias FrontmanServer.Tasks.Task
 
-    @type executor :: ([SwarmAi.ToolCall.t()] -> [SwarmAi.ToolExecution.Sync.t() | SwarmAi.ToolExecution.Await.t()])
+    @type executor :: ([SwarmAi.ToolCall.t()] ->
+                         [SwarmAi.ToolExecution.Sync.t() | SwarmAi.ToolExecution.Await.t()])
 
     typedstruct do
       field(:scope, Scope.t(), enforce: true)

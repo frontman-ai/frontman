@@ -212,8 +212,7 @@ module Provider = {
 
     // Single initialization effect
     React.useEffect0(() => {
-      let location = WebAPI.Global.location
-      let baseUrl = `${location.protocol}//${location.host}`
+      let baseUrl = Client__RelayBaseUrl.current()
 
       // Read runtime config from window.__frontmanRuntime (injected by framework middleware)
       let runtimeConfig = RuntimeConfig.read()

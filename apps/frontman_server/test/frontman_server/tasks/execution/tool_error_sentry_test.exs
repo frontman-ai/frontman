@@ -62,7 +62,13 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
       todo_write_module = Enum.find(Tools.backend_tool_modules(), &(&1.name() == "todo_write"))
 
       result =
-        ToolExecutor.run_backend_tool(scope, todo_write_module, task_id, backend_exec_opts(), tool_call)
+        ToolExecutor.run_backend_tool(
+          scope,
+          todo_write_module,
+          task_id,
+          backend_exec_opts(),
+          tool_call
+        )
 
       assert %SwarmAi.ToolResult{is_error: true} = result
 
@@ -98,7 +104,13 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
       todo_write_module = Enum.find(Tools.backend_tool_modules(), &(&1.name() == "todo_write"))
 
       result =
-        ToolExecutor.run_backend_tool(scope, todo_write_module, task_id, backend_exec_opts(), tool_call)
+        ToolExecutor.run_backend_tool(
+          scope,
+          todo_write_module,
+          task_id,
+          backend_exec_opts(),
+          tool_call
+        )
 
       assert %SwarmAi.ToolResult{is_error: true} = result
 
@@ -134,7 +146,13 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
       todo_write_module = Enum.find(Tools.backend_tool_modules(), &(&1.name() == "todo_write"))
 
       _result =
-        ToolExecutor.run_backend_tool(scope, todo_write_module, task_id, backend_exec_opts(), tool_call)
+        ToolExecutor.run_backend_tool(
+          scope,
+          todo_write_module,
+          task_id,
+          backend_exec_opts(),
+          tool_call
+        )
 
       reports = Sentry.Test.pop_sentry_reports()
 
@@ -160,7 +178,13 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
       todo_write_module = Enum.find(Tools.backend_tool_modules(), &(&1.name() == "todo_write"))
 
       result =
-        ToolExecutor.run_backend_tool(scope, todo_write_module, task_id, backend_exec_opts(), tool_call)
+        ToolExecutor.run_backend_tool(
+          scope,
+          todo_write_module,
+          task_id,
+          backend_exec_opts(),
+          tool_call
+        )
 
       assert %SwarmAi.ToolResult{is_error: true} = result
 
