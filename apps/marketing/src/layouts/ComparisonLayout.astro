@@ -1,0 +1,133 @@
+---
+// ComparisonLayout
+// ----------------
+// Shared layout for /vs/ comparison pages.
+// Composes all comparison components and accepts named slots for per-page prose.
+
+import Layout from './Layout.astro'
+import ComparisonHero from '../components/blocks/comparison/ComparisonHero.astro'
+import ComparisonArchitectureDiagram from '../components/blocks/comparison/ComparisonArchitectureDiagram.astro'
+import ComparisonFeatureTable from '../components/blocks/comparison/ComparisonFeatureTable.astro'
+import type { ComparisonFeature } from '../components/blocks/comparison/ComparisonFeatureTable.astro'
+import ComparisonContentSection from '../components/blocks/comparison/ComparisonContentSection.astro'
+import ComparisonPricing from '../components/blocks/comparison/ComparisonPricing.astro'
+import ComparisonAlternatives from '../components/blocks/comparison/ComparisonAlternatives.astro'
+import ComparisonFAQ from '../components/blocks/comparison/ComparisonFAQ.astro'
+import ComparisonCTA from '../components/blocks/comparison/ComparisonCTA.astro'
+import ComparisonStructuredData from '../components/blocks/comparison/ComparisonStructuredData.astro'
+import ComparisonDisclosure from '../components/ui/ComparisonDisclosure.astro'
+
+type Alternative = {
+  name: string
+  slug: string
+  oneLiner: string
+}
+
+type CompetitorInfo = {
+  name: string
+  slug: string
+  url: string
+  category: string
+  description: string
+  pricing: {
+    cost: string
+    model: string
+    features: string[]
+  }
+}
+
+type SEOInfo = {
+  title: string
+  description: string
+}
+
+type FAQ = {
+  question: string
+  answer: string
+}
+
+export type { ComparisonFeature, Alternative, CompetitorInfo, SEOInfo, FAQ }
+
+type Props = {
+  seo: SEOInfo
+  competitor: CompetitorInfo
+  heroTitle: string
+  heroSubtitle: string
+  features: ComparisonFeature[]
+  faqs: FAQ[]
+  alternatives: Alternative[]
+  showArchitectureDiagram?: boolean
+}
+
+const {
+  seo,
+  competitor,
+  heroTitle,
+  heroSubtitle,
+  features,
+  faqs,
+  alternatives,
+  showArchitectureDiagram = true,
+} = Astro.props
+---
+
+<Layout title={seo.title} description={seo.description}>
+  <ComparisonStructuredData
+    competitor={{ name: competitor.name, url: competitor.url, category: competitor.category, description: competitor.description, pricing: { cost: competitor.pricing.cost, model: competitor.pricing.model } }}
+    faqs={faqs}
+    seo={seo}
+  />
+
+  <!-- Hero -->
+  <ComparisonHero title={heroTitle} subtitle={heroSubtitle}>
+    <slot name="hero-summary" />
+    <ComparisonDisclosure competitor={competitor.name} />
+  </ComparisonHero>
+
+  <!-- Architecture Diagram -->
+  {showArchitectureDiagram && (
+    <ComparisonArchitectureDiagram competitorName={competitor.name}>
+      <slot name="architecture-diagram" />
+    </ComparisonArchitectureDiagram>
+  )}
+
+  <!-- Feature Comparison Table -->
+  <ComparisonFeatureTable competitorName={competitor.name} features={features} />
+
+  <!-- What [Competitor] Does Well -->
+  <ComparisonContentSection title={`What ${competitor.name} Does Well`} variant="light">
+    <slot name="competitor-strengths" />
+  </ComparisonContentSection>
+
+  <!-- Where Frontman Is Different -->
+  <ComparisonContentSection title="Where Frontman Is Different">
+    <slot name="frontman-differentiators" />
+  </ComparisonContentSection>
+
+  <!-- Who Should Use [Competitor] -->
+  <ComparisonContentSection title={`Who Should Use ${competitor.name}`} variant="light">
+    <slot name="who-should-use-competitor" />
+  </ComparisonContentSection>
+
+  <!-- Who Should Use Frontman -->
+  <ComparisonContentSection title="Who Should Use Frontman">
+    <slot name="who-should-use-frontman" />
+  </ComparisonContentSection>
+
+  <!-- Pricing -->
+  <ComparisonPricing
+    competitorName={competitor.name}
+    competitorCost={competitor.pricing.cost}
+    competitorModel={competitor.pricing.model}
+    competitorFeatures={competitor.pricing.features}
+  />
+
+  <!-- Alternatives -->
+  <ComparisonAlternatives competitorName={competitor.name} alternatives={alternatives} />
+
+  <!-- FAQ -->
+  <ComparisonFAQ faqs={faqs} />
+
+  <!-- CTA -->
+  <ComparisonCTA />
+</Layout>
