@@ -156,16 +156,25 @@ const youtubeVideoId = '-4GD1GYwH8Y'
 		}
 	}
 	.hero-section__subtitle {
-		font-size: 16px;
+		font-size: 15px;
 		line-height: 24px;
 		color: rgba(255, 255, 255, 0.85);
-		max-width: 600px;
+		max-width: 100%;
 		margin-bottom: 24px;
+		text-wrap: pretty;
+	}
+	@media (min-width: 640px) {
+		.hero-section__subtitle {
+			font-size: 16px;
+			line-height: 26px;
+			max-width: 540px;
+		}
 	}
 	@media (min-width: 1024px) {
 		.hero-section__subtitle {
 			font-size: 18px;
 			line-height: 27px;
+			max-width: 600px;
 			margin-bottom: 28px;
 		}
 	}

@@ -1,7 +1,7 @@
 ---
 // Feature Highlights Section
 // ------------
-// Description: Feature highlight rows with text on left and image/video on right
+// Description: Feature highlight rows with text on left and image/video on right, plus a compact features grid
 
 // Components
 // - Layout
@@ -9,7 +9,7 @@ import Row from '../../ui/Row.astro'
 import Col from '../../ui/Col.astro'
 // - Image
 import { Image } from 'astro:assets'
-import agentsMdImage from '../../../assets/feature-highlights/agentsmd.svg'
+import lighthouseImage from '../../../assets/feature-highlights/lighthouse.svg'
 
 type FeatureHighlight = {
 	title: string
@@ -17,6 +17,14 @@ type FeatureHighlight = {
 	imageAlt: string
 	image?: any
 	videoSrc?: string
+	svgSrc?: string
+}
+
+type CompactFeature = {
+	icon: string
+	title: string
+	description: string
+	color: string // tailwind gradient color
 }
 
 const featureHighlights: FeatureHighlight[] = [
@@ -33,10 +41,49 @@ const featureHighlights: FeatureHighlight[] = [
 		videoSrc: '/code-change.mp4'
 	},
 	{
-		title: 'Your project rules, loaded automatically.',
-		description: 'Frontman reads your agents.md, claude.md, or custom rule files at the start of each session. Your stack, conventions, and coding standards are baked into every prompt — before the AI writes a single line.',
-		imageAlt: 'Automatic configuration loading demo',
-		image: agentsMdImage
+		title: 'Performance & accessibility audits, built in.',
+		description: 'Frontman runs Lighthouse audits on any page — performance, accessibility, SEO, best practices — and reads the results itself. It finds the offending elements, locates them in your code, and fixes issues directly. No separate tool, no copy-pasting scores.',
+		imageAlt: 'Lighthouse audit running inside Frontman',
+		svgSrc: lighthouseImage.src
+	}
+]
+
+const compactFeatures: CompactFeature[] = [
+	{
+		icon: '🔍',
+		title: 'Live DOM & component tree',
+		description: 'Inspects the real DOM, CSS styles, and component boundaries — the full runtime context that file-level agents miss.',
+		color: '#3b82f6'
+	},
+	{
+		icon: '📱',
+		title: 'Responsive testing',
+		description: 'Switch between device presets — iPhone, iPad, desktop — and see how your changes look at every breakpoint.',
+		color: '#a855f7'
+	},
+	{
+		icon: '📋',
+		title: 'Dev server logs & errors',
+		description: 'Reads build output, console warnings, and stack traces. Spots compilation errors and fixes them automatically.',
+		color: '#f59e0b'
+	},
+	{
+		icon: '🔑',
+		title: 'Bring your own key',
+		description: 'Open-source core with BYOK pricing. Use your API key from Anthropic, OpenAI, or OpenRouter — or use ours.',
+		color: '#10b981'
+	},
+	{
+		icon: '📐',
+		title: 'Project rules, loaded automatically',
+		description: 'Reads agents.md, claude.md, or custom rule files at session start. Your conventions baked into every prompt.',
+		color: '#f43f5e'
+	},
+	{
+		icon: '⚡',
+		title: 'Multi-framework support',
+		description: 'Works with Next.js, Astro, and Vite out of the box. React, Vue, Svelte — your framework, your rules.',
+		color: '#eab308'
 	}
 ]
 ---
@@ -73,6 +120,14 @@ const featureHighlights: FeatureHighlight[] = [
 						data-src={feature.videoSrc}
 					>
 					</video>
+						) : feature.svgSrc ? (
+					<img
+							src={feature.svgSrc}
+							alt={feature.imageAlt}
+							width={620}
+							class="media-image"
+							loading="lazy"
+						/>
 						) : feature.image ? (
 					<Image
 							src={feature.image}
@@ -94,6 +149,33 @@ const featureHighlights: FeatureHighlight[] = [
 		</section>
 	))
 }
+
+<!-- Compact features grid -->
+<section class="compact-features-section">
+	<div class="section-glow"></div>
+	<div class="container">
+		<div class="compact-header">
+			<h2 class="compact-title">And that's just the beginning.</h2>
+			<p class="compact-subtitle">Everything you need to build faster, smarter, and with more confidence.</p>
+		</div>
+		<div class="feature-list">
+			{compactFeatures.map((feature, i) => (
+				<div class="feature-row">
+					<div class="feature-number" style={`--accent: ${feature.color}`}>
+						<span class="number-text">{String(i + 1).padStart(2, '0')}</span>
+					</div>
+					<div class="feature-body">
+						<div class="feature-icon-title">
+							<span class="fl-icon">{feature.icon}</span>
+							<h3 class="fl-title">{feature.title}</h3>
+						</div>
+						<p class="fl-description">{feature.description}</p>
+					</div>
+				</div>
+			))}
+		</div>
+	</div>
+</section>
 
 <script>
 	const observer = new IntersectionObserver(
@@ -172,6 +254,99 @@ const featureHighlights: FeatureHighlight[] = [
 		@apply w-full h-full flex items-center justify-center;
 	}
 
+	/* Compact features section */
+	.compact-features-section {
+		@apply relative overflow-hidden py-24 lg:py-32;
+		background: linear-gradient(180deg, #0a0a0a 0%, #111827 50%, #0a0a0a 100%);
+	}
+
+	.section-glow {
+		@apply absolute inset-0 pointer-events-none;
+		background:
+			radial-gradient(ellipse 60% 40% at 20% 50%, rgba(59, 130, 246, 0.06) 0%, transparent 70%),
+			radial-gradient(ellipse 50% 50% at 80% 30%, rgba(168, 85, 247, 0.05) 0%, transparent 70%);
+	}
+
+	.compact-header {
+		@apply text-center mb-16 lg:mb-20 relative;
+	}
+
+	.compact-title {
+		@apply font-headings text-4xl lg:text-6xl font-bold text-white mb-5;
+		line-height: 1.1;
+		letter-spacing: -0.02em;
+	}
+
+	.compact-subtitle {
+		@apply text-lg lg:text-xl text-neutral-400 mx-auto;
+		max-width: 480px;
+		line-height: 1.5;
+	}
+
+	/* Feature list */
+	.feature-list {
+		@apply relative max-w-4xl mx-auto;
+	}
+
+	.feature-row {
+		@apply relative flex gap-6 lg:gap-10 py-8 lg:py-10;
+		border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+		transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+	}
+
+	.feature-row:first-child {
+		border-top: 1px solid rgba(255, 255, 255, 0.06);
+	}
+
+	.feature-row:hover {
+		padding-left: 8px;
+	}
+
+	.feature-row:hover .number-text {
+		opacity: 1;
+		transform: scale(1.1);
+	}
+
+	.feature-row:hover .fl-title {
+		color: var(--accent);
+	}
+
+	.feature-number {
+		@apply flex-shrink-0 flex items-start pt-1;
+		width: 56px;
+	}
+
+	.number-text {
+		@apply font-headings font-bold;
+		font-size: 2rem;
+		line-height: 1;
+		color: var(--accent);
+		opacity: 0.5;
+		transition: all 0.4s ease;
+	}
+
+	.feature-body {
+		@apply flex-1 min-w-0;
+	}
+
+	.feature-icon-title {
+		@apply flex items-center gap-3 mb-2;
+	}
+
+	.fl-icon {
+		@apply text-xl flex-shrink-0;
+	}
+
+	.fl-title {
+		@apply font-headings text-xl lg:text-2xl font-semibold text-white;
+		transition: color 0.4s ease;
+	}
+
+	.fl-description {
+		@apply text-base text-neutral-400 leading-relaxed;
+		max-width: 560px;
+	}
+
 	/* Responsive adjustments */
 	@media (max-width: 1024px) {
 		.feature-content {
@@ -203,6 +378,31 @@ const featureHighlights: FeatureHighlight[] = [
 
 		.media-placeholder {
 			max-width: 100%;
+		}
+
+		.compact-features-section {
+			padding-top: 2.5rem;
+			padding-bottom: 2.5rem;
+		}
+
+		.compact-header {
+			margin-bottom: 2rem;
+		}
+
+		.compact-title {
+			@apply text-3xl;
+		}
+
+		.feature-row:hover {
+			padding-left: 0;
+		}
+
+		.feature-number {
+			width: 40px;
+		}
+
+		.number-text {
+			font-size: 1.5rem;
 		}
 	}
 </style>

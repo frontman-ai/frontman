@@ -60,6 +60,13 @@ else
   printf "${GREEN}Dependencies OK (node_modules: %s, mix deps: %s)${RESET}\n" "$NODE_COUNT" "$MIX_DEPS"
 fi
 
+# ── Kill stale dev processes ────────────────────────────
+# Previous mprocs sessions may leave orphan processes (node, beam, etc.)
+# that hold ports and serve with stale config.
+printf "${YELLOW}Cleaning up stale dev processes...${RESET}\n"
+podman exec -w /workspaces/frontman "$CONTAINER" \
+  bash -c 'killall -q node beam.smp 2>/dev/null; sleep 1; true'
+
 # ── Launch mprocs ───────────────────────────────────────
 printf "${CYAN}Starting mprocs in %s...${RESET}\n" "$CONTAINER"
 podman exec -it -w /workspaces/frontman "$CONTAINER" \
