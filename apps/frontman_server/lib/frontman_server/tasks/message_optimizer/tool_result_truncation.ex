@@ -39,7 +39,6 @@ defmodule FrontmanServer.Tasks.MessageOptimizer.ToolResultTruncation do
         {:incomplete, valid, _rest} -> valid
         {:error, valid, _rest} -> valid
       end
-
     total = byte_size(text)
 
     suffix =
