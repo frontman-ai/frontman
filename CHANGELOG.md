@@ -3,6 +3,64 @@
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+## [0.15.0] - 2026-04-08
+
+
+#### @frontman-ai/client
+
+
+### Minor Changes
+
+- [#788](https://github.com/frontman-ai/frontman/pull/788) [`38b50d3`](https://github.com/frontman-ai/frontman/commit/38b50d38def48d1a1b6f233dced12231c8d5a817) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - feat: add framework-conditional browser tool registration
+
+  Introduces `Client__ToolRegistry.forFramework` which composes core browser
+  tools with framework-specific tools based on the active runtime framework.
+  Creates `@frontman-ai/astro-browser` package as the first framework browser
+  tool package (empty for now — actual tools land in #782).
+
+### Patch Changes
+
+- [#796](https://github.com/frontman-ai/frontman/pull/796) [`9ef1ae0`](https://github.com/frontman-ai/frontman/commit/9ef1ae0f5d284d916c8963e5d5edf14ca19d291e) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add get_astro_audit browser tool that reads Astro dev toolbar accessibility and performance audit results
+
+- [`d8d15c1`](https://github.com/frontman-ai/frontman/commit/d8d15c1b34bb4d886b10fbaaa57d900843bce989) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - fix: move ScrollButton outside contentRef to break ResizeObserver feedback loop
+
+  The scroll-to-bottom button was rendered inside the ResizeObserver-watched div.
+  Its 32px show/hide cycle (driven by `isAtBottom`) caused the ResizeObserver to
+  snap scroll position, which toggled `isAtBottom`, which toggled the button —
+  creating an infinite oscillation that made it impossible to scroll up.
+
+- [#800](https://github.com/frontman-ai/frontman/pull/800) [`a9eb0cf`](https://github.com/frontman-ai/frontman/commit/a9eb0cf675be44cf437e4aebe47904ad5ac11010) Thanks [@itayadler](https://github.com/itayadler)! - Fix WordPress Playground relay requests to preserve the leading `/scope:...` prefix so tool calls and source-location POSTs do not get redirected to GET.
+
+- [#741](https://github.com/frontman-ai/frontman/pull/741) [`3dd6c04`](https://github.com/frontman-ai/frontman/commit/3dd6c0419b02904bad1bbe92b8aa40804820f528) Thanks [@itayadler](https://github.com/itayadler)! - Strip rich text formatting from short clipboard pastes in the chat input so contentEditable inserts plain text consistently.
+
+- [#762](https://github.com/frontman-ai/frontman/pull/762) [`e963100`](https://github.com/frontman-ai/frontman/commit/e963100f6fef33839cddc16c1a9bab850519c248) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Improve error UX: human-readable categorized errors, automatic retry with exponential backoff for transient failures, live countdown during retry, and manual retry button.
+
+#### @frontman-ai/astro-browser
+
+
+### Minor Changes
+
+- [#796](https://github.com/frontman-ai/frontman/pull/796) [`9ef1ae0`](https://github.com/frontman-ai/frontman/commit/9ef1ae0f5d284d916c8963e5d5edf14ca19d291e) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add get_astro_audit browser tool that reads Astro dev toolbar accessibility and performance audit results
+
+#### @frontman-ai/frontman-core
+
+
+### Patch Changes
+
+- Updated dependencies [[`9ef1ae0`](https://github.com/frontman-ai/frontman/commit/9ef1ae0f5d284d916c8963e5d5edf14ca19d291e), [`e963100`](https://github.com/frontman-ai/frontman/commit/e963100f6fef33839cddc16c1a9bab850519c248)]:
+  - @frontman-ai/frontman-protocol@0.6.0
+
+#### @frontman-ai/frontman-protocol
+
+
+### Minor Changes
+
+- [#796](https://github.com/frontman-ai/frontman/pull/796) [`9ef1ae0`](https://github.com/frontman-ai/frontman/commit/9ef1ae0f5d284d916c8963e5d5edf14ca19d291e) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add get_astro_audit browser tool that reads Astro dev toolbar accessibility and performance audit results
+
+### Patch Changes
+
+- [#762](https://github.com/frontman-ai/frontman/pull/762) [`e963100`](https://github.com/frontman-ai/frontman/commit/e963100f6fef33839cddc16c1a9bab850519c248) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Improve error UX: human-readable categorized errors, automatic retry with exponential backoff for transient failures, live countdown during retry, and manual retry button.
+
 ## [Unreleased]
 
 ### Changed

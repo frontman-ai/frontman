@@ -1,5 +1,12 @@
 # @frontman-ai/frontman-core
 
+## 0.5.5
+
+### Patch Changes
+
+- Updated dependencies [[`9ef1ae0`](https://github.com/frontman-ai/frontman/commit/9ef1ae0f5d284d916c8963e5d5edf14ca19d291e), [`e963100`](https://github.com/frontman-ai/frontman/commit/e963100f6fef33839cddc16c1a9bab850519c248)]:
+  - @frontman-ai/frontman-protocol@0.6.0
+
 ## 0.5.4
 
 ### Patch Changes

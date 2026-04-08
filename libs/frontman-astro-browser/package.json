@@ -1,6 +1,6 @@
 {
   "name": "@frontman-ai/astro-browser",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Astro-specific browser tools for Frontman",
   "license": "Apache-2.0",
   "type": "module",
