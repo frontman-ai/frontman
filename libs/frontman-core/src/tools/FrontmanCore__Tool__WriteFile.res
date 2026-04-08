@@ -82,7 +82,7 @@ let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.toolR
         try {
           let _ = await Fs.Promises.mkdir(PathContext.dirname(resolved), {recursive: true})
           await writeContent(resolved.resolvedPath, content, input.encoding)
-          let _: promise<unit> = FileTracker.recordWrite(resolved.resolvedPath)
+          await FileTracker.recordWrite(resolved.resolvedPath)
           Ok({
             _context: {
               sourceRoot: resolved.sourceRoot,

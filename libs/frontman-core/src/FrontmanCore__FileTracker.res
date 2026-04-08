@@ -101,11 +101,7 @@ let assertNotStale = async (resolvedPath: string): result<unit, string> => {
   }
 }
 
-let checkCoverage = (
-  resolvedPath: string,
-  ~content: string,
-  ~oldText: string,
-): option<string> => {
+let checkCoverage = (resolvedPath: string, ~content: string, ~oldText: string): option<string> => {
   switch readFiles.contents->Map.get(resolvedPath) {
   | None => None
   | Some(record) =>
@@ -129,7 +125,11 @@ let checkCoverage = (
             ->Array.map(r => `${Int.toString(r.start)}-${Int.toString(r.end_)}`)
             ->Array.join(", ")
           Some(
-            `Warning: You are editing around line ${Int.toString(line)} but only read lines [${rangeStr}] of this ${Int.toString(record.totalLines)}-line file. Consider reading the target section first with read_file and an appropriate offset.`,
+            `Warning: You are editing around line ${Int.toString(
+                line,
+              )} but only read lines [${rangeStr}] of this ${Int.toString(
+                record.totalLines,
+              )}-line file. Consider reading the target section first with read_file and an appropriate offset.`,
           )
         }
       }
@@ -147,20 +147,16 @@ let assertEditSafe = async (resolvedPath: string): result<unit, string> => {
 let recordWrite = async (resolvedPath: string): unit => {
   switch readFiles.contents->Map.get(resolvedPath) {
   | Some(record) =>
-    try {
-      let stats = await Fs.Promises.stat(resolvedPath)
-      readFiles.contents->Map.set(
-        resolvedPath,
-        {
-          ...record,
-          readAt: Date.now(),
-          mtimeMs: Fs.mtimeMs(stats),
-          size: Fs.size(stats),
-        },
-      )
-    } catch {
-    | _ => ()
-    }
+    let stats = await Fs.Promises.stat(resolvedPath)
+    readFiles.contents->Map.set(
+      resolvedPath,
+      {
+        ...record,
+        readAt: Date.now(),
+        mtimeMs: Fs.mtimeMs(stats),
+        size: Fs.size(stats),
+      },
+    )
   | None => ()
   }
 }
@@ -172,10 +168,10 @@ let withLock = async (resolvedPath: string, fn: unit => promise<unit>): unit => 
   await prev
   try {
     await fn()
-    resolve(())
+    resolve()
   } catch {
   | exn =>
-    resolve(())
+    resolve()
     throw(exn)
   }
   switch locks.contents->Map.get(resolvedPath) == Some(next) {
