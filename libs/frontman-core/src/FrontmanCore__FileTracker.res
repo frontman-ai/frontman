@@ -1,88 +1,75 @@
-// FileTracker - Ensures files are read before being edited
-//
-// Records which files have been read (by resolved absolute path) along with:
-// - readAt: timestamp of the last read (ms since epoch)
-// - ranges: which line ranges were read (0-indexed start/end pairs)
-//
-// Provides assertions for:
-// - read-before-edit: file must have been read before editing
-// - staleness: file must not have been modified on disk since last read
-// - coverage: warns when editing lines outside the read ranges
-
 module Fs = FrontmanBindings.Fs
 
-type range = {start: int, mutable end_: int}
+type range = {start: int, end_: int}
 
 type fileRecord = {
-  mutable readAt: float,
-  mutable ranges: array<range>,
-  mutable totalLines: int,
+  readAt: float,
+  mtimeMs: float,
+  size: float,
+  ranges: array<range>,
+  totalLines: int,
 }
 
-// Global mutable map of read file paths -> file records
 let readFiles: ref<Map.t<string, fileRecord>> = ref(Map.make())
 
-// Merge overlapping/adjacent ranges into a sorted minimal set
+let locks: ref<Map.t<string, promise<unit>>> = ref(Map.make())
+
 let mergeRanges = (ranges: array<range>): array<range> => {
   switch ranges->Array.length {
   | 0 => []
   | _ =>
     let sorted = ranges->Array.toSorted((a, b) => Float.fromInt(a.start - b.start))
     let first = sorted->Array.getUnsafe(0)
-    let merged = [{start: first.start, end_: first.end_}]
-    for i in 1 to sorted->Array.length - 1 {
-      let current = sorted->Array.getUnsafe(i)
-      let last = merged->Array.getUnsafe(merged->Array.length - 1)
-      if current.start <= last.end_ {
-        // Overlapping or adjacent — extend
-        last.end_ = max(last.end_, current.end_)
-      } else {
-        let _ = merged->Array.push({start: current.start, end_: current.end_})
+    let rest = sorted->Array.slice(~start=1, ~end=sorted->Array.length)
+    rest->Array.reduce([{start: first.start, end_: first.end_}], (merged, current) => {
+      let lastIdx = merged->Array.length - 1
+      let last = merged->Array.getUnsafe(lastIdx)
+      switch current.start <= last.end_ {
+      | true =>
+        merged->Array.mapWithIndex((r, i) =>
+          switch i == lastIdx {
+          | true => {start: r.start, end_: max(r.end_, current.end_)}
+          | false => r
+          }
+        )
+      | false => merged->Array.concat([{start: current.start, end_: current.end_}])
       }
-    }
-    merged
+    })
   }
 }
 
-// Record that a file was read (called by ReadFile after successful read)
-let recordRead = (
+let recordRead = async (
   resolvedPath: string,
   ~offset: int,
   ~limit: int,
   ~totalLines: int,
 ): unit => {
-  let now = Date.now()
+  let stats = await Fs.Promises.stat(resolvedPath)
   let newRange = {start: offset, end_: min(offset + limit, totalLines)}
-
-  switch readFiles.contents->Map.get(resolvedPath) {
-  | Some(record) =>
-    record.readAt = now
-    record.totalLines = totalLines
-    // Merge the new range into existing ranges
-    record.ranges = record.ranges->Array.concat([newRange])->mergeRanges
-  | None =>
-    readFiles.contents->Map.set(
-      resolvedPath,
-      {
-        readAt: now,
-        ranges: [newRange],
-        totalLines,
-      },
-    )
+  let existingRanges = switch readFiles.contents->Map.get(resolvedPath) {
+  | Some(existing) => existing.ranges
+  | None => []
   }
+  readFiles.contents->Map.set(
+    resolvedPath,
+    {
+      readAt: Date.now(),
+      mtimeMs: Fs.mtimeMs(stats),
+      size: Fs.size(stats),
+      totalLines,
+      ranges: existingRanges->Array.concat([newRange])->mergeRanges,
+    },
+  )
 }
 
-// Check if a line number falls within any recorded read range
 let isLineCovered = (ranges: array<range>, line: int): bool => {
   ranges->Array.some(r => line >= r.start && line < r.end_)
 }
 
-// Get the record for a file (if it exists)
 let get = (resolvedPath: string): option<fileRecord> => {
   readFiles.contents->Map.get(resolvedPath)
 }
 
-// Assert a file was read before editing. Returns Error if not.
 let assertReadBefore = (resolvedPath: string): result<unit, string> => {
   switch readFiles.contents->Map.has(resolvedPath) {
   | true => Ok()
@@ -93,18 +80,15 @@ let assertReadBefore = (resolvedPath: string): result<unit, string> => {
   }
 }
 
-// Assert a file has not been modified on disk since the last read.
-// Compares the file's mtime against the recorded readAt timestamp.
-// Allows 100ms tolerance for filesystem flush delays.
 let assertNotStale = async (resolvedPath: string): result<unit, string> => {
   switch readFiles.contents->Map.get(resolvedPath) {
-  | None => Ok() // No record means assertReadBefore will catch it
+  | None => Ok()
   | Some(record) =>
     try {
       let stats = await Fs.Promises.stat(resolvedPath)
-      let mtimeMs = Fs.mtimeMs(stats)
-      let tolerance = 100.0 // ms — accounts for filesystem flush delays
-      switch mtimeMs > record.readAt +. tolerance {
+      let currentMtime = Fs.mtimeMs(stats)
+      let currentSize = Fs.size(stats)
+      switch currentMtime != record.mtimeMs || currentSize != record.size {
       | true =>
         Error(
           `File "${resolvedPath}" has been modified since it was last read. Please read the file again before editing.`,
@@ -112,13 +96,11 @@ let assertNotStale = async (resolvedPath: string): result<unit, string> => {
       | false => Ok()
       }
     } catch {
-    | _ => Ok() // stat failure — let downstream handle missing file
+    | _ => Ok()
     }
   }
 }
 
-// Check coverage: returns a warning string if the edit target appears
-// to be outside the recorded read ranges. Not a hard block.
 let checkCoverage = (
   resolvedPath: string,
   ~content: string,
@@ -127,32 +109,20 @@ let checkCoverage = (
   switch readFiles.contents->Map.get(resolvedPath) {
   | None => None
   | Some(record) =>
-    // If the full file was read, no warning needed
     switch record.ranges {
     | [{start: 0, end_}] if end_ >= record.totalLines => None
     | ranges =>
-      // Find which line the oldText starts at in the file
       let lines = content->String.split("\n")
-      let oldLines = oldText->String.trim->String.split("\n")
-      let firstOldLine = oldLines->Array.get(0)->Option.getOr("")->String.trim
+      let firstOldLine =
+        oldText->String.trim->String.split("\n")->Array.get(0)->Option.getOr("")->String.trim
 
-      // Search for the first line of oldText in the file
-      let targetLine = ref(None)
-      lines->Array.forEachWithIndex((line, idx) => {
-        switch targetLine.contents {
-        | Some(_) => () // already found
-        | None =>
-          if line->String.trim == firstOldLine {
-            targetLine := Some(idx)
-          }
-        }
-      })
+      let targetLine = lines->Array.findIndexOpt(line => line->String.trim == firstOldLine)
 
-      switch targetLine.contents {
-      | None => None // Can't determine target line — let the edit proceed
+      switch targetLine {
+      | None => None
       | Some(line) =>
         switch isLineCovered(ranges, line) {
-        | true => None // Target line is within a read range — all good
+        | true => None
         | false =>
           let rangeStr =
             ranges
@@ -167,9 +137,6 @@ let checkCoverage = (
   }
 }
 
-// Combined guard: file must have been read AND must not be stale.
-// Names the domain concept "is it safe to edit this file?" so callers
-// don't need to chain assertReadBefore + assertNotStale themselves.
 let assertEditSafe = async (resolvedPath: string): result<unit, string> => {
   switch assertReadBefore(resolvedPath) {
   | Error(_) as e => e
@@ -177,16 +144,47 @@ let assertEditSafe = async (resolvedPath: string): result<unit, string> => {
   }
 }
 
-// Record that a file was written (called by EditFile/WriteFile after successful write).
-// Updates readAt so that subsequent staleness checks don't reject the agent's own edits.
-let recordWrite = (resolvedPath: string): unit => {
+let recordWrite = async (resolvedPath: string): unit => {
   switch readFiles.contents->Map.get(resolvedPath) {
-  | Some(record) => record.readAt = Date.now()
-  | None => () // No record — shouldn't happen since we require read-before-edit
+  | Some(record) =>
+    try {
+      let stats = await Fs.Promises.stat(resolvedPath)
+      readFiles.contents->Map.set(
+        resolvedPath,
+        {
+          ...record,
+          readAt: Date.now(),
+          mtimeMs: Fs.mtimeMs(stats),
+          size: Fs.size(stats),
+        },
+      )
+    } catch {
+    | _ => ()
+    }
+  | None => ()
   }
 }
 
-// Clear all tracked reads (useful for testing)
+let withLock = async (resolvedPath: string, fn: unit => promise<unit>): unit => {
+  let prev = locks.contents->Map.get(resolvedPath)->Option.getOr(Promise.resolve())
+  let {promise: next, resolve} = Promise.withResolvers()
+  locks.contents->Map.set(resolvedPath, next)
+  await prev
+  try {
+    await fn()
+    resolve(())
+  } catch {
+  | exn =>
+    resolve(())
+    throw(exn)
+  }
+  switch locks.contents->Map.get(resolvedPath) == Some(next) {
+  | true => locks.contents->Map.delete(resolvedPath)->ignore
+  | false => ()
+  }
+}
+
 let clear = (): unit => {
   readFiles := Map.make()
+  locks := Map.make()
 }

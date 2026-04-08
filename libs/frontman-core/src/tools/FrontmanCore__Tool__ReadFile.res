@@ -61,7 +61,7 @@ let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.toolR
       let hasMore = offset + limit < totalLines
 
       // Track that this file was read (for edit_file safety)
-      FrontmanCore__FileTracker.recordRead(
+      await FrontmanCore__FileTracker.recordRead(
         result.resolvedPath,
         ~offset,
         ~limit,
