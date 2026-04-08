@@ -656,7 +656,7 @@ defmodule FrontmanServerWeb.TaskChannel do
         finalize_turn(socket, {:completed, ACP.stop_reason_end_turn()}, event.caused_by)
 
       {:agent_error, %{retryable: true} = error_info} ->
-        handle_transient_error(socket, error_info)
+        handle_transient_error(socket, error_info, event.caused_by)
 
       {:agent_error, %{retryable: false} = error_info} ->
         finalize_turn(socket, {:error, error_info.message, error_info.category}, event.caused_by)
@@ -813,10 +813,10 @@ defmodule FrontmanServerWeb.TaskChannel do
     {:noreply, socket}
   end
 
-  defp handle_transient_error(socket, error_info) do
+  defp handle_transient_error(socket, error_info, caused_by) do
     case RetryCoordinator.handle_error(socket.assigns[:retry_state], error_info) do
       {:exhausted, error_info} ->
-        finalize_turn(socket, {:error, error_info.message, error_info.category})
+        finalize_turn(socket, {:error, error_info.message, error_info.category}, caused_by)
 
       {:retry_scheduled, state, notification} ->
         task_id = socket.assigns.task_id
