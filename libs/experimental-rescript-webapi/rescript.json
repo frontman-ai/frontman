@@ -2,6 +2,12 @@
   "version": "0.0.0",
   "name": "@rescript/webapi",
   "namespace": "WebAPI",
+  "reanalyze": {
+    "analysis": ["dce"],
+    "suppress": [],
+    "unsuppress": [],
+    "transitive": false
+  },
   "sources": [
     {
       "dir": "src",

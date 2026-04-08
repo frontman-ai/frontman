@@ -1,6 +1,12 @@
 {
 	"name": "@frontman/logs",
 	"namespace": true,
+	"reanalyze": {
+		"analysis": ["dce"],
+		"suppress": [],
+		"unsuppress": [],
+		"transitive": false
+	},
 	"sources": [
 		{
 			"dir": "src",
