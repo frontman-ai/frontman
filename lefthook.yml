@@ -28,3 +28,18 @@ pre-commit:
       root: "apps/swarm_ai/"
       glob: "apps/swarm_ai/**/*.{ex,exs}"
       run: mix credo --strict {staged_files}
+
+pre-push:
+  commands:
+    reanalyze:
+      glob: "libs/**/*.res"
+      run: |
+        for lib in bindings client experimental-rescript-webapi frontman-astro frontman-astro-browser frontman-client frontman-core frontman-nextjs frontman-protocol frontman-vite logs react-statestore; do
+          echo "=== $lib ==="
+          output=$(cd libs/$lib && npx @rescript/tools@0.6.6 reanalyze -config 2>&1)
+          echo "$output"
+          if ! echo "$output" | grep -q "Analysis reported 0 issues"; then
+            echo "Dead code detected in libs/$lib"
+            exit 1
+          fi
+        done
