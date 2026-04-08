@@ -19,20 +19,21 @@ let mergeRanges = (ranges: array<range>): array<range> => {
   | 0 => []
   | _ =>
     let sorted = ranges->Array.toSorted((a, b) => Float.fromInt(a.start - b.start))
-    let first = sorted->Array.getUnsafe(0)
+    let first = sorted->Array.get(0)->Option.getOrThrow
     let rest = sorted->Array.slice(~start=1, ~end=sorted->Array.length)
     rest->Array.reduce([{start: first.start, end_: first.end_}], (merged, current) => {
       let lastIdx = merged->Array.length - 1
-      let last = merged->Array.getUnsafe(lastIdx)
-      switch current.start <= last.end_ {
-      | true =>
+      let last = merged->Array.get(lastIdx)->Option.getOrThrow
+      if current.start <= last.end_ {
         merged->Array.mapWithIndex((r, i) =>
-          switch i == lastIdx {
-          | true => {start: r.start, end_: max(r.end_, current.end_)}
-          | false => r
+          if i == lastIdx {
+            {start: r.start, end_: max(r.end_, current.end_)}
+          } else {
+            r
           }
         )
-      | false => merged->Array.concat([{start: current.start, end_: current.end_}])
+      } else {
+        merged->Array.concat([{start: current.start, end_: current.end_}])
       }
     })
   }
@@ -88,15 +89,19 @@ let assertNotStale = async (resolvedPath: string): result<unit, string> => {
       let stats = await Fs.Promises.stat(resolvedPath)
       let currentMtime = Fs.mtimeMs(stats)
       let currentSize = Fs.size(stats)
-      switch currentMtime != record.mtimeMs || currentSize != record.size {
-      | true =>
+      if currentMtime != record.mtimeMs || currentSize != record.size {
         Error(
           `File "${resolvedPath}" has been modified since it was last read. Please read the file again before editing.`,
         )
-      | false => Ok()
+      } else {
+        Ok()
       }
     } catch {
-    | _ => Ok()
+    | exn =>
+      // File was deleted between read and edit — surface the error
+      let msg =
+        exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("unknown error")
+      Error(`File "${resolvedPath}" is no longer accessible: ${msg}`)
     }
   }
 }
@@ -116,22 +121,19 @@ let checkCoverage = (resolvedPath: string, ~content: string, ~oldText: string): 
 
       switch targetLine {
       | None => None
+      | Some(line) if isLineCovered(ranges, line) => None
       | Some(line) =>
-        switch isLineCovered(ranges, line) {
-        | true => None
-        | false =>
-          let rangeStr =
-            ranges
-            ->Array.map(r => `${Int.toString(r.start)}-${Int.toString(r.end_)}`)
-            ->Array.join(", ")
-          Some(
-            `Warning: You are editing around line ${Int.toString(
-                line,
-              )} but only read lines [${rangeStr}] of this ${Int.toString(
-                record.totalLines,
-              )}-line file. Consider reading the target section first with read_file and an appropriate offset.`,
-          )
-        }
+        let rangeStr =
+          ranges
+          ->Array.map(r => `${Int.toString(r.start)}-${Int.toString(r.end_)}`)
+          ->Array.join(", ")
+        Some(
+          `Warning: You are editing around line ${Int.toString(
+              line,
+            )} but only read lines [${rangeStr}] of this ${Int.toString(
+              record.totalLines,
+            )}-line file. Consider reading the target section first with read_file and an appropriate offset.`,
+        )
       }
     }
   }
@@ -174,9 +176,8 @@ let withLock = async (resolvedPath: string, fn: unit => promise<unit>): unit => 
     resolve()
     throw(exn)
   }
-  switch locks.contents->Map.get(resolvedPath) == Some(next) {
-  | true => locks.contents->Map.delete(resolvedPath)->ignore
-  | false => ()
+  if locks.contents->Map.get(resolvedPath) == Some(next) {
+    locks.contents->Map.delete(resolvedPath)->ignore
   }
 }
 
