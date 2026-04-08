@@ -1394,6 +1394,52 @@ defmodule FrontmanServerWeb.TaskChannelTest do
              )
     end
 
+    test "when all retries are exhausted, the pending prompt is resolved with an error", %{
+      socket: socket,
+      task_id: task_id
+    } do
+      push(socket, "acp:message", build_prompt_request(id: 99))
+      :sys.get_state(socket.channel_pid)
+
+      error = %FrontmanServer.Tasks.Execution.LLMError{
+        message: "Rate limited",
+        category: "rate_limit",
+        retryable: true
+      }
+
+      # Cycle through all 5 attempts: the first error starts the coordinator,
+      # then each fire_retry + error pair increments the attempt until exhausted.
+      Phoenix.PubSub.broadcast(
+        FrontmanServer.PubSub,
+        Tasks.topic(task_id),
+        execution_failed(error)
+      )
+
+      :sys.get_state(socket.channel_pid)
+
+      Enum.each(1..5, fn _ ->
+        send(socket.channel_pid, :fire_retry)
+        :sys.get_state(socket.channel_pid)
+
+        Phoenix.PubSub.broadcast(
+          FrontmanServer.PubSub,
+          Tasks.topic(task_id),
+          execution_failed(error)
+        )
+
+        :sys.get_state(socket.channel_pid)
+      end)
+
+      assert_push("acp:message", %{
+        "jsonrpc" => "2.0",
+        "id" => 99,
+        "error" => %{"code" => -32_000, "message" => "Rate limited"}
+      })
+
+      %{assigns: assigns} = :sys.get_state(socket.channel_pid)
+      assert is_nil(assigns[:retry_state])
+    end
+
     test "second transient error increments retry attempt instead of resetting to 1", %{
       socket: _socket,
       task_id: task_id

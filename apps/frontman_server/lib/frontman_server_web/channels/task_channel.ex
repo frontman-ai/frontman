@@ -406,7 +406,7 @@ defmodule FrontmanServerWeb.TaskChannel do
 
         if had_retry do
           # Was in retry countdown — no execution to cancel, end the turn now
-          finalize_turn(socket, {:completed, ACP.stop_reason_cancelled()})
+          finalize_turn(socket, {:completed, ACP.stop_reason_cancelled()}, nil)
         else
           {:noreply, socket}
         end
@@ -751,7 +751,7 @@ defmodule FrontmanServerWeb.TaskChannel do
   # Agent failed to start (e.g. no API key, usage limit). Broadcast by
   # Tasks.maybe_start_execution when Execution.run returns an error.
   def handle_info({:execution_start_error, msg}, socket) do
-    finalize_turn(socket, {:error, msg, "unknown"})
+    finalize_turn(socket, {:error, msg, "unknown"}, nil)
   end
 
   def handle_info(:fire_retry, socket) do
@@ -842,7 +842,7 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   @spec finalize_turn(Phoenix.Socket.t(), turn_outcome(), String.t() | nil) ::
           {:noreply, Phoenix.Socket.t()}
-  defp finalize_turn(socket, outcome, caused_by \\ nil) do
+  defp finalize_turn(socket, outcome, caused_by) do
     task_id = socket.assigns.task_id
     socket = assign(socket, :retry_state, RetryCoordinator.clear(socket.assigns[:retry_state]))
 
