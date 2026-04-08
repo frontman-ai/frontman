@@ -1,12 +1,11 @@
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
 import { readFileSync, existsSync } from "fs";
-import config from "../astro.config.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const distDir = join(__dirname, "..", "dist");
-const siteUrl = config.site; // e.g., "https://frontman.sh"
+const siteUrl = "https://frontman.sh";
 // Bing-issued verification token — also served as a static file in public/
 const verificationFileName = "b93ec302-3eda-4805-a374-3d5e0d5d4fa3.txt";
 const key = verificationFileName.replace(".txt", "");

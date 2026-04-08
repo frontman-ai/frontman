@@ -2,8 +2,10 @@
 // Starlight Head component override
 // Adds OG image, breadcrumb structured data, and ensures description is set
 
-import type { Props } from '@astrojs/starlight/props';
+import type { StarlightRouteData } from '@astrojs/starlight/route-data';
 import StarlightHead from '@astrojs/starlight/components/Head.astro';
+
+type Props = StarlightRouteData;
 
 const ogImage = new URL('/og.png', Astro.site).href;
 const ogImageAlt = 'Frontman — The AI agent that lives inside your framework';
@@ -67,4 +69,4 @@ const breadcrumbSchema = {
 <meta name="twitter:image:alt" content={ogImageAlt} />
 
 <!-- Breadcrumb Structured Data -->
-<script type="application/ld+json" set:html={JSON.stringify(breadcrumbSchema)} />
+<script is:inline type="application/ld+json" set:html={JSON.stringify(breadcrumbSchema)} />
