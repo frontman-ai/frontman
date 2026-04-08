@@ -1126,7 +1126,10 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
 
   | (Task.Loaded(data), RetryTurn({retriedErrorId})) =>
     let errorId = retriedErrorId
-    (Task.Loaded({...data, turnError: None}), [RetryTurnEffect({retriedErrorId: errorId})])
+    (
+      Task.Loaded({...data, turnError: None, isAgentRunning: true}),
+      [RetryTurnEffect({retriedErrorId: errorId})],
+    )
 
   // ============================================================================
   // Load State Transitions
