@@ -28,7 +28,7 @@ defmodule FrontmanServer.Tasks.Execution do
   alias FrontmanServer.Providers
   alias FrontmanServer.Providers.{Model, Registry, ResolvedKey}
   alias FrontmanServer.Tasks.Execution.{Framework, LLMError, RootAgent, ToolExecutor}
-  alias FrontmanServer.Tasks.{Interaction, StreamStallTimeout, Task}
+  alias FrontmanServer.Tasks.{ExecutionEvent, Interaction, StreamStallTimeout, Task}
   alias FrontmanServer.Tools
   alias SwarmAi.Message
 
@@ -95,7 +95,8 @@ defmodule FrontmanServer.Tasks.Execution do
         submit_to_runtime(scope, agent, task_id, messages,
           api_key_info: api_key_info,
           mcp_tool_defs: mcp_tool_defs,
-          backend_tool_modules: backend_tool_modules
+          backend_tool_modules: backend_tool_modules,
+          interaction_id: Keyword.get(opts, :interaction_id)
         )
 
       {:error, reason} ->
@@ -127,42 +128,28 @@ defmodule FrontmanServer.Tasks.Execution do
   # --- Event Handling ---
 
   @doc """
-  Translates a SwarmAi event to a transport-level action for the channel.
+  Classifies an execution event into a channel action.
 
-  Called by the TaskChannel from `handle_info({:swarm_event, event})`.
-
-  **Persistence is handled by SwarmDispatcher** (runs in the Runtime Task
-  process). This function only determines what the channel should push to
-  the client — if the channel is dead, no data is lost.
+  Persistence is handled by SwarmDispatcher — this function only determines
+  what the channel should do in response.
   """
-  @spec handle_swarm_event(Scope.t(), String.t(), term()) :: term()
-  def handle_swarm_event(_scope, _task_id, {:response, _response}), do: :ok
+  @spec classify_event(ExecutionEvent.t()) :: term()
+  def classify_event(%ExecutionEvent{type: :response}), do: :ok
+  def classify_event(%ExecutionEvent{type: :completed}), do: :agent_completed
+  def classify_event(%ExecutionEvent{type: :cancelled}), do: :agent_cancelled
+  def classify_event(%ExecutionEvent{type: :terminated}), do: :agent_cancelled
+  def classify_event(%ExecutionEvent{type: :paused}), do: :agent_paused
+  def classify_event(%ExecutionEvent{type: :tool_call}), do: :ok
 
-  def handle_swarm_event(_scope, _task_id, {:completed, {:ok, _result, _loop_id}}),
-    do: :agent_completed
-
-  def handle_swarm_event(_scope, _task_id, {:failed, {:error, reason, _loop_id}}) do
+  def classify_event(%ExecutionEvent{type: :failed, payload: {:error, reason, _loop_id}}) do
     {msg, category, retryable} = classify_error(reason)
     {:agent_error, %{message: msg, category: category, retryable: retryable}}
   end
 
-  def handle_swarm_event(_scope, _task_id, {:crashed, %{reason: reason}}) do
+  def classify_event(%ExecutionEvent{type: :crashed, payload: %{reason: reason}}) do
     msg = humanize_crash(reason)
     {:agent_error, %{message: msg, category: "unknown", retryable: false}}
   end
-
-  def handle_swarm_event(_scope, _task_id, {:cancelled, _}),
-    do: :agent_cancelled
-
-  def handle_swarm_event(_scope, _task_id, {:terminated, _}),
-    do: :agent_cancelled
-
-  # Paused — ToolResult and AgentPaused already persisted by SwarmDispatcher.
-  # Return :agent_paused so the channel can resolve the pending prompt and notify the client.
-  def handle_swarm_event(_scope, _task_id, {:paused, _}), do: :agent_paused
-
-  # Tool calls are persisted by ToolExecutor; no channel action needed.
-  def handle_swarm_event(_scope, _task_id, {:tool_call, _}), do: :ok
 
   @doc """
   Classifies an error reason into `{message, category, retryable}`.
@@ -233,8 +220,15 @@ defmodule FrontmanServer.Tasks.Execution do
     # in event handlers — the agent may complete before this line returns.
     TelemetryEvents.task_start(task_id)
 
+    interaction_id = Keyword.get(opts, :interaction_id)
+
     case SwarmAi.Runtime.run(FrontmanServer.AgentRuntime, task_id, agent, messages,
-           metadata: %{task_id: task_id, resolved_key: resolved_key, scope: scope},
+           metadata: %{
+             task_id: task_id,
+             resolved_key: resolved_key,
+             scope: scope,
+             interaction_id: interaction_id
+           },
            tool_executor: tool_executor
          ) do
       {:ok, pid} ->

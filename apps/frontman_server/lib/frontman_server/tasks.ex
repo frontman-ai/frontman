@@ -254,18 +254,36 @@ defmodule FrontmanServer.Tasks do
 
   This is the primary "user turn" use case — recording what the user said
   and kicking off the agent loop. If an execution is already running, the
-  message is persisted but no new run is started.
+  prompt is rejected entirely (nothing persisted).
   """
   @spec submit_user_message(Scope.t(), String.t(), list(), list(), keyword()) ::
-          {:ok, Interaction.UserMessage.t()} | {:ok, :already_running} | {:error, :not_found}
+          {:ok, Interaction.UserMessage.t()} | {:error, :already_running} | {:error, :not_found}
   def submit_user_message(%Scope{} = scope, task_id, content_blocks, tools, opts \\ []) do
-    with {:ok, schema} <- get_task_by_id(scope, task_id),
-         interaction = Interaction.UserMessage.new(content_blocks),
-         {:ok, interaction} <- append_interaction(schema, interaction) do
-      case maybe_start_execution(scope, task_id, tools, opts) do
-        :already_running -> {:ok, :already_running}
-        :ok -> {:ok, interaction}
-      end
+    with :ok <- guard_not_running(scope, task_id),
+         {:ok, interaction} <- add_user_message(scope, task_id, content_blocks) do
+      opts = Keyword.put(opts, :interaction_id, interaction.id)
+      maybe_start_execution(scope, task_id, tools, opts)
+      {:ok, interaction}
+    end
+  end
+
+  defp guard_not_running(scope, task_id) do
+    if Execution.running?(scope, task_id), do: {:error, :already_running}, else: :ok
+  end
+
+  @doc """
+  Persists a user message without starting execution.
+
+  Use this when you need to record a user message in the conversation history
+  but don't want to trigger the agent loop (e.g., populating history for tests
+  or replaying messages).
+  """
+  @spec add_user_message(Scope.t(), String.t(), list()) ::
+          {:ok, Interaction.UserMessage.t()} | {:error, :not_found}
+  def add_user_message(%Scope{} = scope, task_id, content_blocks) do
+    with {:ok, schema} <- get_task_by_id(scope, task_id) do
+      interaction = Interaction.UserMessage.new(content_blocks)
+      append_interaction(schema, interaction)
     end
   end
 

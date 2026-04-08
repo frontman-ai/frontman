@@ -448,7 +448,6 @@ defmodule FrontmanServerWeb.TasksChannelTest do
   end
 
   describe "ACP session/load" do
-    # Shared sandbox mode because submit_user_message can spawn agent Tasks needing DB access
     @describetag shared_sandbox: true
 
     setup %{scope: scope} do
@@ -471,21 +470,15 @@ defmodule FrontmanServerWeb.TasksChannelTest do
       scope: scope,
       task_id: task_id
     } do
-      FrontmanServer.Tasks.submit_user_message(
-        scope,
-        task_id,
-        [%{"type" => "text", "text" => "Hello"}],
-        [],
-        agent: %FrontmanServer.Testing.BlockingAgent{}
-      )
+      # Persist messages without starting execution — this test is about
+      # session/load history streaming, not the agent loop.
+      FrontmanServer.Tasks.add_user_message(scope, task_id, [
+        %{"type" => "text", "text" => "Hello"}
+      ])
 
-      FrontmanServer.Tasks.submit_user_message(
-        scope,
-        task_id,
-        [%{"type" => "text", "text" => "World"}],
-        [],
-        agent: %FrontmanServer.Testing.BlockingAgent{}
-      )
+      FrontmanServer.Tasks.add_user_message(scope, task_id, [
+        %{"type" => "text", "text" => "World"}
+      ])
 
       push(socket, "acp:message", acp_request(1, "session/load", %{"sessionId" => task_id}))
 
@@ -558,13 +551,9 @@ defmodule FrontmanServerWeb.TasksChannelTest do
     end
 
     test "streams mixed history in order", %{socket: socket, scope: scope, task_id: task_id} do
-      FrontmanServer.Tasks.submit_user_message(
-        scope,
-        task_id,
-        [%{"type" => "text", "text" => "Question"}],
-        [],
-        agent: %FrontmanServer.Testing.BlockingAgent{}
-      )
+      FrontmanServer.Tasks.add_user_message(scope, task_id, [
+        %{"type" => "text", "text" => "Question"}
+      ])
 
       FrontmanServer.Tasks.add_agent_response(scope, task_id, "Answer", %{})
 

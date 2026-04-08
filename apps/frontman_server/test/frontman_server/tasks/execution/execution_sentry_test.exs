@@ -14,6 +14,7 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
 
   alias Ecto.Adapters.SQL.Sandbox
   alias FrontmanServer.Tasks
+  alias FrontmanServer.Tasks.ExecutionEvent
 
   setup do
     Sentry.Test.start_collecting_sentry_reports()
@@ -43,7 +44,7 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
         )
 
       # Wait for the failed event broadcast (Sentry call completes before broadcast)
-      assert_receive {:swarm_event, {:failed, _}}, 5_000
+      assert_receive {:execution_event, %ExecutionEvent{type: :failed}}, 5_000
 
       reports = Sentry.Test.pop_sentry_reports()
 
@@ -85,7 +86,9 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
         )
 
       # Stream errors now produce {:failed, ...} instead of {:crashed, ...}
-      assert_receive {:swarm_event, {:failed, {:error, _reason, _loop_id}}}, 5_000
+      assert_receive {:execution_event,
+                      %ExecutionEvent{type: :failed, payload: {:error, _reason, _loop_id}}},
+                     5_000
 
       reports = Sentry.Test.pop_sentry_reports()
 

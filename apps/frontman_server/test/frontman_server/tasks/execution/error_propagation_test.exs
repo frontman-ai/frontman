@@ -17,6 +17,7 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
 
   alias Ecto.Adapters.SQL.Sandbox
   alias FrontmanServer.Tasks
+  alias FrontmanServer.Tasks.ExecutionEvent
 
   describe "LLM stream error propagation" do
     setup do
@@ -30,7 +31,7 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
     end
 
     @tag :capture_log
-    test "LLM stream raise propagates as {:swarm_event, {:failed, ...}} via PubSub", %{
+    test "LLM stream raise propagates as ExecutionEvent{type: :failed} via PubSub", %{
       task_id: task_id,
       scope: scope
     } do
@@ -52,12 +53,15 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
         )
 
       # Stream errors are now caught and surfaced as graceful failures
-      assert_receive {:swarm_event, {:failed, {:error, reason, _loop_id}}}, 5_000
+      assert_receive {:execution_event,
+                      %ExecutionEvent{type: :failed, payload: {:error, reason, _loop_id}}},
+                     5_000
+
       assert Exception.message(reason) =~ "image exceeds the maximum allowed size"
     end
 
     @tag :capture_log
-    test "LLM returning {:error, reason} surfaces as {:swarm_event, {:failed, ...}}", %{
+    test "LLM returning {:error, reason} surfaces as ExecutionEvent{type: :failed}", %{
       task_id: task_id,
       scope: scope
     } do
@@ -71,7 +75,9 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
         )
 
       # Should receive a failed event broadcast
-      assert_receive {:swarm_event, {:failed, {:error, _reason, _loop_id}}}, 5_000
+      assert_receive {:execution_event,
+                      %ExecutionEvent{type: :failed, payload: {:error, _reason, _loop_id}}},
+                     5_000
     end
   end
 end

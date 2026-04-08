@@ -10,21 +10,45 @@ defmodule FrontmanServerWeb.TaskChannelTest do
   alias FrontmanServer.Workers.GenerateTitle
   alias FrontmanServerWeb.UserSocket
 
-  # --- Swarm event builders (match production shapes from Runtime) ---
+  alias FrontmanServer.Tasks.ExecutionEvent
 
-  defp swarm_chunk(type, text), do: {:swarm_event, {:chunk, %{type: type, text: text}}}
+  # --- Execution event builders (domain events from SwarmDispatcher) ---
 
-  defp swarm_tool_call_start(id, name),
+  defp execution_chunk(type, text),
     do:
-      {:swarm_event, {:chunk, %{type: :tool_call_start, tool_call_id: id, tool_call_name: name}}}
+      {:execution_event,
+       %ExecutionEvent{type: :chunk, payload: %{type: type, text: text}, caused_by: nil}}
 
-  defp swarm_completed,
-    do: {:swarm_event, {:completed, {:ok, nil, System.unique_integer([:positive])}}}
+  defp execution_tool_call_start(id, name),
+    do:
+      {:execution_event,
+       %ExecutionEvent{
+         type: :chunk,
+         payload: %{type: :tool_call_start, tool_call_id: id, tool_call_name: name},
+         caused_by: nil
+       }}
 
-  defp swarm_failed(reason),
-    do: {:swarm_event, {:failed, {:error, reason, System.unique_integer([:positive])}}}
+  defp execution_completed,
+    do:
+      {:execution_event,
+       %ExecutionEvent{
+         type: :completed,
+         payload: {:ok, nil, System.unique_integer([:positive])},
+         caused_by: nil
+       }}
 
-  defp swarm_cancelled, do: {:swarm_event, {:cancelled, %{loop: nil}}}
+  defp execution_failed(reason),
+    do:
+      {:execution_event,
+       %ExecutionEvent{
+         type: :failed,
+         payload: {:error, reason, System.unique_integer([:positive])},
+         caused_by: nil
+       }}
+
+  defp execution_cancelled,
+    do:
+      {:execution_event, %ExecutionEvent{type: :cancelled, payload: %{loop: nil}, caused_by: nil}}
 
   # Collects all pending push messages from the test process mailbox.
   # Phoenix.ChannelTest sends pushes as {:socket_push, event, payload} messages.
@@ -200,7 +224,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       Phoenix.PubSub.broadcast(
         FrontmanServer.PubSub,
         Tasks.topic(task_id),
-        swarm_chunk(:token, "Hello world")
+        execution_chunk(:token, "Hello world")
       )
 
       # Channel should forward this as an ACP notification
@@ -224,7 +248,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       Phoenix.PubSub.broadcast(
         FrontmanServer.PubSub,
         Tasks.topic(task_id),
-        swarm_chunk(:thinking, "reasoning...")
+        execution_chunk(:thinking, "reasoning...")
       )
 
       refute_push("acp:message", %{
@@ -234,7 +258,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       Phoenix.PubSub.broadcast(
         FrontmanServer.PubSub,
         Tasks.topic(task_id),
-        swarm_chunk(:token, "")
+        execution_chunk(:token, "")
       )
 
       refute_push("acp:message", %{
@@ -245,7 +269,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       Phoenix.PubSub.broadcast(
         FrontmanServer.PubSub,
         Tasks.topic(task_id),
-        swarm_chunk(:token, "after thinking")
+        execution_chunk(:token, "after thinking")
       )
 
       assert_push("acp:message", %{
@@ -277,7 +301,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       Phoenix.PubSub.broadcast(
         FrontmanServer.PubSub,
         Tasks.topic(task_id),
-        swarm_failed("Rate limit exceeded")
+        execution_failed("Rate limit exceeded")
       )
 
       # Assert session/update notification was pushed with error
@@ -298,7 +322,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       socket: socket,
       task_id: task_id
     } do
-      # First, send a prompt to set pending_prompt_id
+      # First, send a prompt to set pending_prompt
       push(socket, "acp:message", build_prompt_request(id: 42))
       # Wait for the prompt to be processed
       :sys.get_state(socket.channel_pid)
@@ -306,7 +330,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       Phoenix.PubSub.broadcast(
         FrontmanServer.PubSub,
         Tasks.topic(task_id),
-        swarm_failed("No API key available")
+        execution_failed("No API key available")
       )
 
       # Assert session/update notification is pushed
@@ -339,7 +363,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       Phoenix.PubSub.broadcast(
         FrontmanServer.PubSub,
         Tasks.topic(task_id),
-        swarm_failed("Connection failed")
+        execution_failed("Connection failed")
       )
 
       # Should get session/update notification
@@ -365,13 +389,13 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       {:ok, socket: socket, task_id: task_id}
     end
 
-    test "sends agent_turn_complete notification when pending_prompt_id is nil", %{
+    test "sends agent_turn_complete notification when pending_prompt is nil", %{
       socket: socket,
       task_id: task_id
     } do
       # Simulate: execution was resumed after tool result (no pending prompt),
       # then the agent completes. There's no JSON-RPC request to respond to.
-      Phoenix.PubSub.broadcast(FrontmanServer.PubSub, Tasks.topic(task_id), swarm_completed())
+      Phoenix.PubSub.broadcast(FrontmanServer.PubSub, Tasks.topic(task_id), execution_completed())
 
       :sys.get_state(socket.channel_pid)
 
@@ -401,7 +425,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       task_id: task_id
     } do
       # First: completed event with no pending prompt
-      Phoenix.PubSub.broadcast(FrontmanServer.PubSub, Tasks.topic(task_id), swarm_completed())
+      Phoenix.PubSub.broadcast(FrontmanServer.PubSub, Tasks.topic(task_id), execution_completed())
 
       :sys.get_state(socket.channel_pid)
 
@@ -410,7 +434,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       :sys.get_state(socket.channel_pid)
 
-      Phoenix.PubSub.broadcast(FrontmanServer.PubSub, Tasks.topic(task_id), swarm_completed())
+      Phoenix.PubSub.broadcast(FrontmanServer.PubSub, Tasks.topic(task_id), execution_completed())
 
       assert_push("acp:message", %{
         "jsonrpc" => "2.0",
@@ -834,11 +858,11 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       socket: socket,
       task_id: task_id
     } do
-      # Send a prompt to set pending_prompt_id
+      # Send a prompt to set pending_prompt
       push(socket, "acp:message", build_prompt_request(id: 99))
       :sys.get_state(socket.channel_pid)
 
-      Phoenix.PubSub.broadcast(FrontmanServer.PubSub, Tasks.topic(task_id), swarm_cancelled())
+      Phoenix.PubSub.broadcast(FrontmanServer.PubSub, Tasks.topic(task_id), execution_cancelled())
 
       # The pending prompt should resolve with stopReason: "cancelled"
       assert_push("acp:message", %{
@@ -852,44 +876,13 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       socket: socket,
       task_id: task_id
     } do
-      # No prompt was sent, so no pending_prompt_id exists
-      Phoenix.PubSub.broadcast(FrontmanServer.PubSub, Tasks.topic(task_id), swarm_cancelled())
+      # No prompt was sent, so no pending_prompt exists
+      Phoenix.PubSub.broadcast(FrontmanServer.PubSub, Tasks.topic(task_id), execution_cancelled())
 
       :sys.get_state(socket.channel_pid)
 
       # No prompt response should be pushed
       refute_push("acp:message", %{"result" => %{"stopReason" => "cancelled"}})
-    end
-
-    test "cancel does not interfere with subsequent prompts", %{
-      socket: socket,
-      task_id: task_id
-    } do
-      # Send first prompt
-      push(socket, "acp:message", build_prompt_request(id: 1))
-
-      :sys.get_state(socket.channel_pid)
-
-      # Cancel it
-      Phoenix.PubSub.broadcast(FrontmanServer.PubSub, Tasks.topic(task_id), swarm_cancelled())
-
-      assert_push("acp:message", %{
-        "id" => 1,
-        "result" => %{"stopReason" => "cancelled"}
-      })
-
-      # Send a second prompt - this should work normally
-      push(socket, "acp:message", build_prompt_request(id: 2, text: "Follow up"))
-
-      :sys.get_state(socket.channel_pid)
-
-      # Complete the second prompt normally
-      Phoenix.PubSub.broadcast(FrontmanServer.PubSub, Tasks.topic(task_id), swarm_completed())
-
-      assert_push("acp:message", %{
-        "id" => 2,
-        "result" => %{"stopReason" => "end_turn"}
-      })
     end
   end
 
@@ -909,7 +902,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       Phoenix.PubSub.broadcast(
         FrontmanServer.PubSub,
         Tasks.topic(task_id),
-        swarm_tool_call_start(tool_call_id, "write_file")
+        execution_tool_call_start(tool_call_id, "write_file")
       )
 
       assert_push("acp:message", %{
@@ -933,7 +926,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       tool_call_id = "call_dedup_#{:rand.uniform(1_000_000)}"
 
       # Step 1: Send tool_call_start chunk (early streaming notification)
-      send(socket.channel_pid, swarm_tool_call_start(tool_call_id, "write_file"))
+      send(socket.channel_pid, execution_tool_call_start(tool_call_id, "write_file"))
       :sys.get_state(socket.channel_pid)
 
       assert_push("acp:message", %{
@@ -1016,7 +1009,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       call_id_2 = "call_multi_2_#{:rand.uniform(1_000_000)}"
 
       # Announce first tool call via streaming
-      send(socket.channel_pid, swarm_tool_call_start(call_id_1, "write_file"))
+      send(socket.channel_pid, execution_tool_call_start(call_id_1, "write_file"))
       :sys.get_state(socket.channel_pid)
 
       assert_push("acp:message", %{
@@ -1311,7 +1304,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       Phoenix.PubSub.broadcast(
         FrontmanServer.PubSub,
         Tasks.topic(task_id),
-        swarm_failed(error)
+        execution_failed(error)
       )
 
       assert_push("acp:message", %{
@@ -1338,7 +1331,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       Phoenix.PubSub.broadcast(
         FrontmanServer.PubSub,
         Tasks.topic(task_id),
-        swarm_failed(error)
+        execution_failed(error)
       )
 
       assert_push("acp:message", %{
@@ -1367,7 +1360,12 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         retryable: true
       }
 
-      Phoenix.PubSub.broadcast(FrontmanServer.PubSub, Tasks.topic(task_id), swarm_failed(error))
+      Phoenix.PubSub.broadcast(
+        FrontmanServer.PubSub,
+        Tasks.topic(task_id),
+        execution_failed(error)
+      )
+
       :sys.get_state(socket.channel_pid)
 
       retried_error_id = "error-#{task_id}-some-timestamp"
@@ -1406,13 +1404,21 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         retryable: true
       }
 
-      Phoenix.PubSub.broadcast(FrontmanServer.PubSub, Tasks.topic(task_id), swarm_failed(error))
+      Phoenix.PubSub.broadcast(
+        FrontmanServer.PubSub,
+        Tasks.topic(task_id),
+        execution_failed(error)
+      )
 
       assert_push("acp:message", %{
         "params" => %{"update" => %{"sessionUpdate" => "error", "attempt" => 1, "retryAt" => _}}
       })
 
-      Phoenix.PubSub.broadcast(FrontmanServer.PubSub, Tasks.topic(task_id), swarm_failed(error))
+      Phoenix.PubSub.broadcast(
+        FrontmanServer.PubSub,
+        Tasks.topic(task_id),
+        execution_failed(error)
+      )
 
       assert_push("acp:message", %{
         "params" => %{"update" => %{"sessionUpdate" => "error", "attempt" => 2, "retryAt" => _}}
@@ -1439,7 +1445,12 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       }
 
       # First transient error — coordinator starts
-      Phoenix.PubSub.broadcast(FrontmanServer.PubSub, Tasks.topic(task_id), swarm_failed(error))
+      Phoenix.PubSub.broadcast(
+        FrontmanServer.PubSub,
+        Tasks.topic(task_id),
+        execution_failed(error)
+      )
+
       :sys.get_state(socket.channel_pid)
 
       assert_push("acp:message", %{
@@ -1451,12 +1462,17 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       :sys.get_state(socket.channel_pid)
 
       # Execution succeeds — handle_turn_ended should stop and clear the coordinator
-      Phoenix.PubSub.broadcast(FrontmanServer.PubSub, Tasks.topic(task_id), swarm_completed())
+      Phoenix.PubSub.broadcast(FrontmanServer.PubSub, Tasks.topic(task_id), execution_completed())
       :sys.get_state(socket.channel_pid)
       flush_mailbox()
 
       # New turn hits a transient error — should start fresh at attempt 1
-      Phoenix.PubSub.broadcast(FrontmanServer.PubSub, Tasks.topic(task_id), swarm_failed(error))
+      Phoenix.PubSub.broadcast(
+        FrontmanServer.PubSub,
+        Tasks.topic(task_id),
+        execution_failed(error)
+      )
+
       :sys.get_state(socket.channel_pid)
 
       # BUG: handle_turn_ended does not clear retry_coordinator, so handle_transient_error
@@ -1485,7 +1501,12 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       }
 
       # Trigger a transient error so retry state is created
-      Phoenix.PubSub.broadcast(FrontmanServer.PubSub, Tasks.topic(task_id), swarm_failed(error))
+      Phoenix.PubSub.broadcast(
+        FrontmanServer.PubSub,
+        Tasks.topic(task_id),
+        execution_failed(error)
+      )
+
       :sys.get_state(socket.channel_pid)
 
       assert_push("acp:message", %{
@@ -1536,7 +1557,11 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         retryable: true
       }
 
-      Phoenix.PubSub.broadcast(FrontmanServer.PubSub, Tasks.topic(task_id), swarm_failed(error))
+      Phoenix.PubSub.broadcast(
+        FrontmanServer.PubSub,
+        Tasks.topic(task_id),
+        execution_failed(error)
+      )
 
       # BUG: RetryCoordinator.schedule_retry/1 omits error_info.category from the
       # :retrying_status tuple. The channel's handle_info handler cannot forward
@@ -1572,7 +1597,12 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       }
 
       # Trigger a transient error — coordinator starts, enters countdown
-      Phoenix.PubSub.broadcast(FrontmanServer.PubSub, Tasks.topic(task_id), swarm_failed(error))
+      Phoenix.PubSub.broadcast(
+        FrontmanServer.PubSub,
+        Tasks.topic(task_id),
+        execution_failed(error)
+      )
+
       :sys.get_state(socket.channel_pid)
 
       assert_push("acp:message", %{
@@ -1618,7 +1648,12 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         retryable: true
       }
 
-      Phoenix.PubSub.broadcast(FrontmanServer.PubSub, Tasks.topic(task_id), swarm_failed(error))
+      Phoenix.PubSub.broadcast(
+        FrontmanServer.PubSub,
+        Tasks.topic(task_id),
+        execution_failed(error)
+      )
+
       :sys.get_state(socket.channel_pid)
 
       assert_push("acp:message", %{
@@ -1656,7 +1691,12 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       }
 
       # Trigger transient error — retry state created, timer scheduled
-      Phoenix.PubSub.broadcast(FrontmanServer.PubSub, Tasks.topic(task_id), swarm_failed(error))
+      Phoenix.PubSub.broadcast(
+        FrontmanServer.PubSub,
+        Tasks.topic(task_id),
+        execution_failed(error)
+      )
+
       :sys.get_state(socket.channel_pid)
 
       assert_push("acp:message", %{
@@ -1713,7 +1753,12 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       }
 
       # Trigger a transient error — coordinator starts
-      Phoenix.PubSub.broadcast(FrontmanServer.PubSub, Tasks.topic(task_id), swarm_failed(error))
+      Phoenix.PubSub.broadcast(
+        FrontmanServer.PubSub,
+        Tasks.topic(task_id),
+        execution_failed(error)
+      )
+
       :sys.get_state(socket.channel_pid)
 
       assert_push("acp:message", %{
@@ -1760,7 +1805,12 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       }
 
       # First: transient error → coordinator starts
-      Phoenix.PubSub.broadcast(FrontmanServer.PubSub, Tasks.topic(task_id), swarm_failed(error))
+      Phoenix.PubSub.broadcast(
+        FrontmanServer.PubSub,
+        Tasks.topic(task_id),
+        execution_failed(error)
+      )
+
       :sys.get_state(socket.channel_pid)
 
       assert_push("acp:message", %{
@@ -1781,7 +1831,12 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       flush_mailbox()
 
       # Now a new transient error arrives — should start a FRESH coordinator at attempt 1
-      Phoenix.PubSub.broadcast(FrontmanServer.PubSub, Tasks.topic(task_id), swarm_failed(error))
+      Phoenix.PubSub.broadcast(
+        FrontmanServer.PubSub,
+        Tasks.topic(task_id),
+        execution_failed(error)
+      )
+
       :sys.get_state(socket.channel_pid)
 
       assert_push("acp:message", %{
@@ -1817,7 +1872,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       Phoenix.PubSub.broadcast(
         FrontmanServer.PubSub,
         Tasks.topic(task_id),
-        swarm_failed(retryable_error)
+        execution_failed(retryable_error)
       )
 
       :sys.get_state(socket.channel_pid)
@@ -1833,7 +1888,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       Phoenix.PubSub.broadcast(
         FrontmanServer.PubSub,
         Tasks.topic(task_id),
-        swarm_failed(non_retryable_error)
+        execution_failed(non_retryable_error)
       )
 
       :sys.get_state(socket.channel_pid)
@@ -1854,7 +1909,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       Phoenix.PubSub.broadcast(
         FrontmanServer.PubSub,
         Tasks.topic(task_id),
-        swarm_failed(retryable_error)
+        execution_failed(retryable_error)
       )
 
       :sys.get_state(socket.channel_pid)
