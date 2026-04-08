@@ -645,7 +645,7 @@ defmodule FrontmanServerWeb.TaskChannel do
   end
 
   def handle_info({:execution_event, %ExecutionEvent{} = event}, socket) do
-    case Execution.classify_event(event) do
+    case ExecutionEvent.classify(event) do
       :agent_completed ->
         finalize_turn(socket, {:completed, ACP.stop_reason_end_turn()}, event.caused_by)
 

@@ -25,7 +25,6 @@ defmodule FrontmanServer.Tasks.SwarmDispatcher do
   alias FrontmanServer.Observability.TelemetryEvents
   alias FrontmanServer.Providers
   alias FrontmanServer.Tasks
-  alias FrontmanServer.Tasks.Execution
   alias FrontmanServer.Tasks.ExecutionEvent
 
   def dispatch(key, event, metadata) do
@@ -73,7 +72,7 @@ defmodule FrontmanServer.Tasks.SwarmDispatcher do
 
   # Agent turn failed (LLM error, tool error, etc.)
   defp persist(%Scope{} = scope, task_id, {:failed, {:error, reason, loop_id}}, _metadata) do
-    {reason_str, category, retryable} = Execution.classify_error(reason)
+    {reason_str, category, retryable} = ExecutionEvent.classify_error(reason)
 
     Logger.error(
       "Execution failed for task #{task_id}, loop_id: #{loop_id}, reason: #{reason_str}"

@@ -8,6 +8,9 @@ defmodule FrontmanServer.Tasks.ExecutionEvent do
   domain events before broadcasting on PubSub.
   """
 
+  alias FrontmanServer.Tasks.Execution.LLMError
+  alias FrontmanServer.Tasks.StreamStallTimeout
+
   @type interaction_id :: String.t()
 
   @type event_type ::
@@ -29,4 +32,81 @@ defmodule FrontmanServer.Tasks.ExecutionEvent do
           payload: term(),
           caused_by: interaction_id() | nil
         }
+
+  @doc """
+  Classifies an execution event into a channel action.
+
+  Persistence is handled by SwarmDispatcher — this function only determines
+  what the channel should do in response.
+  """
+  @spec classify(t()) :: term()
+  def classify(%__MODULE__{type: :response}), do: :ok
+  def classify(%__MODULE__{type: :completed}), do: :agent_completed
+  def classify(%__MODULE__{type: :cancelled}), do: :agent_cancelled
+  def classify(%__MODULE__{type: :terminated}), do: :agent_cancelled
+  def classify(%__MODULE__{type: :paused}), do: :agent_paused
+  def classify(%__MODULE__{type: :tool_call}), do: :ok
+
+  def classify(%__MODULE__{type: :failed, payload: {:error, reason, _loop_id}}) do
+    {msg, category, retryable} = classify_error(reason)
+    {:agent_error, %{message: msg, category: category, retryable: retryable}}
+  end
+
+  def classify(%__MODULE__{type: :crashed, payload: %{reason: reason}}) do
+    msg = humanize_crash(reason)
+    {:agent_error, %{message: msg, category: "unknown", retryable: false}}
+  end
+
+  @doc """
+  Classifies an error reason into `{message, category, retryable}`.
+
+  `category` is one of: "auth", "billing", "rate_limit", "overload",
+  "payload_too_large", "output_truncated", "unknown".
+  """
+  @spec classify_error(term()) :: {String.t(), String.t(), boolean()}
+  def classify_error(%LLMError{message: msg, category: cat, retryable: r}), do: {msg, cat, r}
+
+  def classify_error(%StreamStallTimeout.Error{}) do
+    {"The AI provider stopped responding mid-reply. " <>
+       "This usually happens when the provider is temporarily overloaded. " <>
+       "Try sending your message again.", "overload", true}
+  end
+
+  def classify_error(:genserver_call_timeout) do
+    {"The request to the AI provider timed out. " <>
+       "This can happen during high traffic. Try again in a moment.", "overload", true}
+  end
+
+  def classify_error(:stream_timeout) do
+    {"The request to the AI provider timed out. " <>
+       "This can happen during high traffic. Try again in a moment.", "overload", true}
+  end
+
+  def classify_error(:output_truncated) do
+    {"The AI response was too long and got cut off. " <>
+       "This usually happens when writing large files. " <>
+       "Try asking the AI to write the file in smaller sections.", "output_truncated", false}
+  end
+
+  def classify_error({:exit, reason}) do
+    {"Something went wrong while communicating with the AI provider: #{inspect(reason)}",
+     "unknown", false}
+  end
+
+  def classify_error(reason) when is_exception(reason),
+    do: {Exception.message(reason), "unknown", false}
+
+  def classify_error(reason) when is_binary(reason), do: {reason, "unknown", false}
+  def classify_error(reason), do: {inspect(reason), "unknown", false}
+
+  # Translates internal error reasons into user-friendly messages.
+  defp humanize_error(reason) do
+    {message, _category, _retryable} = classify_error(reason)
+    message
+  end
+
+  # Like humanize_error, but prefixes unknown/fallback reasons with crash context.
+  defp humanize_crash(reason) when is_exception(reason), do: humanize_error(reason)
+  defp humanize_crash(reason) when is_atom(reason), do: "Execution crashed: #{inspect(reason)}"
+  defp humanize_crash(reason), do: "Execution crashed: #{humanize_error(reason)}"
 end
