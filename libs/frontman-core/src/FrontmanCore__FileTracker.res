@@ -12,8 +12,6 @@ type fileRecord = {
 
 let readFiles: ref<Map.t<string, fileRecord>> = ref(Map.make())
 
-let locks: ref<Map.t<string, promise<unit>>> = ref(Map.make())
-
 let mergeRanges = (ranges: array<range>): array<range> => {
   switch ranges->Array.length {
   | 0 => []
@@ -24,28 +22,28 @@ let mergeRanges = (ranges: array<range>): array<range> => {
     rest->Array.reduce([{start: first.start, end_: first.end_}], (merged, current) => {
       let lastIdx = merged->Array.length - 1
       let last = merged->Array.get(lastIdx)->Option.getOrThrow
-      if current.start <= last.end_ {
+      switch current.start <= last.end_ {
+      | true =>
         merged->Array.mapWithIndex((r, i) =>
-          if i == lastIdx {
-            {start: r.start, end_: max(r.end_, current.end_)}
-          } else {
-            r
+          switch i == lastIdx {
+          | true => {start: r.start, end_: max(r.end_, current.end_)}
+          | false => r
           }
         )
-      } else {
-        merged->Array.concat([{start: current.start, end_: current.end_}])
+      | false => merged->Array.concat([{start: current.start, end_: current.end_}])
       }
     })
   }
 }
 
-let recordRead = async (
+let recordRead = (
   resolvedPath: string,
   ~offset: int,
   ~limit: int,
   ~totalLines: int,
+  ~mtimeMs: float,
+  ~size: float,
 ): unit => {
-  let stats = await Fs.Promises.stat(resolvedPath)
   let newRange = {start: offset, end_: min(offset + limit, totalLines)}
   let existingRanges = switch readFiles.contents->Map.get(resolvedPath) {
   | Some(existing) => existing.ranges
@@ -55,8 +53,8 @@ let recordRead = async (
     resolvedPath,
     {
       readAt: Date.now(),
-      mtimeMs: Fs.mtimeMs(stats),
-      size: Fs.size(stats),
+      mtimeMs,
+      size,
       totalLines,
       ranges: existingRanges->Array.concat([newRange])->mergeRanges,
     },
@@ -89,12 +87,12 @@ let assertNotStale = async (resolvedPath: string): result<unit, string> => {
       let stats = await Fs.Promises.stat(resolvedPath)
       let currentMtime = Fs.mtimeMs(stats)
       let currentSize = Fs.size(stats)
-      if currentMtime != record.mtimeMs || currentSize != record.size {
+      switch currentMtime != record.mtimeMs || currentSize != record.size {
+      | true =>
         Error(
           `File "${resolvedPath}" has been modified since it was last read. Please read the file again before editing.`,
         )
-      } else {
-        Ok()
+      | false => Ok()
       }
     } catch {
     | exn =>
@@ -146,42 +144,22 @@ let assertEditSafe = async (resolvedPath: string): result<unit, string> => {
   }
 }
 
-let recordWrite = async (resolvedPath: string): unit => {
+let recordWrite = (resolvedPath: string, ~mtimeMs: float, ~size: float): unit => {
   switch readFiles.contents->Map.get(resolvedPath) {
   | Some(record) =>
-    let stats = await Fs.Promises.stat(resolvedPath)
     readFiles.contents->Map.set(
       resolvedPath,
       {
         ...record,
         readAt: Date.now(),
-        mtimeMs: Fs.mtimeMs(stats),
-        size: Fs.size(stats),
+        mtimeMs,
+        size,
       },
     )
   | None => ()
   }
 }
 
-let withLock = async (resolvedPath: string, fn: unit => promise<unit>): unit => {
-  let prev = locks.contents->Map.get(resolvedPath)->Option.getOr(Promise.resolve())
-  let {promise: next, resolve} = Promise.withResolvers()
-  locks.contents->Map.set(resolvedPath, next)
-  await prev
-  try {
-    await fn()
-    resolve()
-  } catch {
-  | exn =>
-    resolve()
-    throw(exn)
-  }
-  if locks.contents->Map.get(resolvedPath) == Some(next) {
-    locks.contents->Map.delete(resolvedPath)->ignore
-  }
-}
-
 let clear = (): unit => {
   readFiles := Map.make()
-  locks := Map.make()
 }

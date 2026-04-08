@@ -52,6 +52,7 @@ let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.toolR
   | Error(err) => Error(PathContext.formatError(err))
   | Ok(result) =>
     try {
+      let stats = await Fs.Promises.stat(result.resolvedPath)
       let content = await Fs.Promises.readFile(result.resolvedPath)
       let lines = content->String.split("\n")
       let totalLines = lines->Array.length
@@ -61,11 +62,13 @@ let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.toolR
       let hasMore = offset + limit < totalLines
 
       // Track that this file was read (for edit_file safety)
-      await FrontmanCore__FileTracker.recordRead(
+      FrontmanCore__FileTracker.recordRead(
         result.resolvedPath,
         ~offset,
         ~limit,
         ~totalLines,
+        ~mtimeMs=Fs.mtimeMs(stats),
+        ~size=Fs.size(stats),
       )
 
       Ok({

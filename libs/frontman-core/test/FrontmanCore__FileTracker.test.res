@@ -15,6 +15,11 @@ let _makeTempFile = async (content: string): string => {
   path
 }
 
+let _statFile = async (path: string) => {
+  let stats = await Fs.Promises.stat(path)
+  (Fs.mtimeMs(stats), Fs.size(stats))
+}
+
 let _removeTempFile = async (path: string): unit => {
   try {
     await Fs.Promises.unlink(path)
@@ -103,7 +108,8 @@ describe("recordRead and assertReadBefore", _t => {
     await _withTempFile(
       "content",
       async path => {
-        await FileTracker.recordRead(path, ~offset=0, ~limit=500, ~totalLines=1)
+        let (mtimeMs, size) = await _statFile(path)
+        FileTracker.recordRead(path, ~offset=0, ~limit=500, ~totalLines=1, ~mtimeMs, ~size)
         let result = FileTracker.assertReadBefore(path)
         t->expect(Result.isOk(result))->Expect.toBe(true)
       },
@@ -114,7 +120,8 @@ describe("recordRead and assertReadBefore", _t => {
     await _withTempFile(
       "content",
       async path => {
-        await FileTracker.recordRead(path, ~offset=0, ~limit=500, ~totalLines=1)
+        let (mtimeMs, size) = await _statFile(path)
+        FileTracker.recordRead(path, ~offset=0, ~limit=500, ~totalLines=1, ~mtimeMs, ~size)
         let result = FileTracker.assertReadBefore("/path/to/other.ts")
         t->expect(Result.isError(result))->Expect.toBe(true)
       },
@@ -123,30 +130,26 @@ describe("recordRead and assertReadBefore", _t => {
 })
 
 describe("recordRead stores file stat", _t => {
-  testAsync("stores mtimeMs from actual file stat", async t => {
+  testAsync("stores mtimeMs from caller-provided stat", async t => {
     await _withTempFile(
       "hello\nworld\n",
       async path => {
-        let stats = await Fs.Promises.stat(path)
-        let expectedMtime = Fs.mtimeMs(stats)
-
-        await FileTracker.recordRead(path, ~offset=0, ~limit=100, ~totalLines=2)
+        let (mtimeMs, size) = await _statFile(path)
+        FileTracker.recordRead(path, ~offset=0, ~limit=100, ~totalLines=2, ~mtimeMs, ~size)
         let record = FileTracker.get(path)->Option.getOrThrow
-        t->expect(record.mtimeMs)->Expect.toBe(expectedMtime)
+        t->expect(record.mtimeMs)->Expect.toBe(mtimeMs)
       },
     )
   })
 
-  testAsync("stores size from actual file stat", async t => {
+  testAsync("stores size from caller-provided stat", async t => {
     await _withTempFile(
       "hello\nworld\n",
       async path => {
-        let stats = await Fs.Promises.stat(path)
-        let expectedSize = Fs.size(stats)
-
-        await FileTracker.recordRead(path, ~offset=0, ~limit=100, ~totalLines=2)
+        let (mtimeMs, size) = await _statFile(path)
+        FileTracker.recordRead(path, ~offset=0, ~limit=100, ~totalLines=2, ~mtimeMs, ~size)
         let record = FileTracker.get(path)->Option.getOrThrow
-        t->expect(record.size)->Expect.toBe(expectedSize)
+        t->expect(record.size)->Expect.toBe(size)
       },
     )
   })
@@ -155,11 +158,27 @@ describe("recordRead stores file stat", _t => {
     await _withTempFile(
       "line1\nline2\n",
       async path => {
-        await FileTracker.recordRead(path, ~offset=0, ~limit=1, ~totalLines=2)
+        let (mtimeMs1, size1) = await _statFile(path)
+        FileTracker.recordRead(
+          path,
+          ~offset=0,
+          ~limit=1,
+          ~totalLines=2,
+          ~mtimeMs=mtimeMs1,
+          ~size=size1,
+        )
         let mtime1 = (FileTracker.get(path)->Option.getOrThrow).mtimeMs
 
         await Fs.Promises.writeFile(path, "line1\nline2\nline3\n")
-        await FileTracker.recordRead(path, ~offset=0, ~limit=3, ~totalLines=3)
+        let (mtimeMs2, size2) = await _statFile(path)
+        FileTracker.recordRead(
+          path,
+          ~offset=0,
+          ~limit=3,
+          ~totalLines=3,
+          ~mtimeMs=mtimeMs2,
+          ~size=size2,
+        )
         let mtime2 = (FileTracker.get(path)->Option.getOrThrow).mtimeMs
         t->expect(mtime2 >= mtime1)->Expect.toBe(true)
       },
@@ -172,7 +191,8 @@ describe("recordRead range tracking", _t => {
     await _withTempFile(
       _lines(1000),
       async path => {
-        await FileTracker.recordRead(path, ~offset=0, ~limit=500, ~totalLines=1000)
+        let (mtimeMs, size) = await _statFile(path)
+        FileTracker.recordRead(path, ~offset=0, ~limit=500, ~totalLines=1000, ~mtimeMs, ~size)
         let record = FileTracker.get(path)->Option.getOrThrow
         t->expect(record.ranges)->Expect.toEqual([{start: 0, end_: 500}])
         t->expect(record.totalLines)->Expect.toBe(1000)
@@ -184,7 +204,8 @@ describe("recordRead range tracking", _t => {
     await _withTempFile(
       _lines(200),
       async path => {
-        await FileTracker.recordRead(path, ~offset=0, ~limit=500, ~totalLines=200)
+        let (mtimeMs, size) = await _statFile(path)
+        FileTracker.recordRead(path, ~offset=0, ~limit=500, ~totalLines=200, ~mtimeMs, ~size)
         let record = FileTracker.get(path)->Option.getOrThrow
         t->expect(record.ranges)->Expect.toEqual([{start: 0, end_: 200}])
       },
@@ -195,8 +216,9 @@ describe("recordRead range tracking", _t => {
     await _withTempFile(
       _lines(1000),
       async path => {
-        await FileTracker.recordRead(path, ~offset=0, ~limit=500, ~totalLines=1000)
-        await FileTracker.recordRead(path, ~offset=400, ~limit=500, ~totalLines=1000)
+        let (mtimeMs, size) = await _statFile(path)
+        FileTracker.recordRead(path, ~offset=0, ~limit=500, ~totalLines=1000, ~mtimeMs, ~size)
+        FileTracker.recordRead(path, ~offset=400, ~limit=500, ~totalLines=1000, ~mtimeMs, ~size)
         let record = FileTracker.get(path)->Option.getOrThrow
         t->expect(record.ranges)->Expect.toEqual([{start: 0, end_: 900}])
       },
@@ -207,8 +229,9 @@ describe("recordRead range tracking", _t => {
     await _withTempFile(
       _lines(1000),
       async path => {
-        await FileTracker.recordRead(path, ~offset=0, ~limit=100, ~totalLines=1000)
-        await FileTracker.recordRead(path, ~offset=500, ~limit=100, ~totalLines=1000)
+        let (mtimeMs, size) = await _statFile(path)
+        FileTracker.recordRead(path, ~offset=0, ~limit=100, ~totalLines=1000, ~mtimeMs, ~size)
+        FileTracker.recordRead(path, ~offset=500, ~limit=100, ~totalLines=1000, ~mtimeMs, ~size)
         let record = FileTracker.get(path)->Option.getOrThrow
         t->expect(record.ranges)->Expect.toEqual([{start: 0, end_: 100}, {start: 500, end_: 600}])
       },
@@ -219,10 +242,11 @@ describe("recordRead range tracking", _t => {
     await _withTempFile(
       _lines(1000),
       async path => {
-        await FileTracker.recordRead(path, ~offset=0, ~limit=100, ~totalLines=1000)
+        let (mtimeMs, size) = await _statFile(path)
+        FileTracker.recordRead(path, ~offset=0, ~limit=100, ~totalLines=1000, ~mtimeMs, ~size)
         let firstReadAt = (FileTracker.get(path)->Option.getOrThrow).readAt
 
-        await FileTracker.recordRead(path, ~offset=100, ~limit=100, ~totalLines=1000)
+        FileTracker.recordRead(path, ~offset=100, ~limit=100, ~totalLines=1000, ~mtimeMs, ~size)
         let secondReadAt = (FileTracker.get(path)->Option.getOrThrow).readAt
         t->expect(secondReadAt >= firstReadAt)->Expect.toBe(true)
       },
@@ -268,7 +292,8 @@ describe("checkCoverage", _t => {
     await _withTempFile(
       content,
       async path => {
-        await FileTracker.recordRead(path, ~offset=0, ~limit=500, ~totalLines=100)
+        let (mtimeMs, size) = await _statFile(path)
+        FileTracker.recordRead(path, ~offset=0, ~limit=500, ~totalLines=100, ~mtimeMs, ~size)
         let result = FileTracker.checkCoverage(path, ~content, ~oldText="line")
         t->expect(result)->Expect.toEqual(None)
       },
@@ -280,7 +305,8 @@ describe("checkCoverage", _t => {
     await _withTempFile(
       content,
       async path => {
-        await FileTracker.recordRead(path, ~offset=0, ~limit=100, ~totalLines=500)
+        let (mtimeMs, size) = await _statFile(path)
+        FileTracker.recordRead(path, ~offset=0, ~limit=100, ~totalLines=500, ~mtimeMs, ~size)
         let result = FileTracker.checkCoverage(path, ~content, ~oldText="target line")
         t->expect(result)->Expect.toEqual(None)
       },
@@ -292,7 +318,8 @@ describe("checkCoverage", _t => {
     await _withTempFile(
       content,
       async path => {
-        await FileTracker.recordRead(path, ~offset=0, ~limit=100, ~totalLines=500)
+        let (mtimeMs, size) = await _statFile(path)
+        FileTracker.recordRead(path, ~offset=0, ~limit=100, ~totalLines=500, ~mtimeMs, ~size)
         let result = FileTracker.checkCoverage(path, ~content, ~oldText="target line")
         t->expect(Option.isSome(result))->Expect.toBe(true)
         let warning = result->Option.getOrThrow
@@ -307,7 +334,8 @@ describe("checkCoverage", _t => {
     await _withTempFile(
       content,
       async path => {
-        await FileTracker.recordRead(path, ~offset=0, ~limit=100, ~totalLines=500)
+        let (mtimeMs, size) = await _statFile(path)
+        FileTracker.recordRead(path, ~offset=0, ~limit=100, ~totalLines=500, ~mtimeMs, ~size)
         let result = FileTracker.checkCoverage(path, ~content, ~oldText="nonexistent text")
         t->expect(result)->Expect.toEqual(None)
       },
@@ -320,7 +348,8 @@ describe("assertNotStale checks mtime and size", _t => {
     await _withTempFile(
       "unchanged content",
       async path => {
-        await FileTracker.recordRead(path, ~offset=0, ~limit=100, ~totalLines=1)
+        let (mtimeMs, size) = await _statFile(path)
+        FileTracker.recordRead(path, ~offset=0, ~limit=100, ~totalLines=1, ~mtimeMs, ~size)
         let result = await FileTracker.assertNotStale(path)
         t->expect(Result.isOk(result))->Expect.toBe(true)
       },
@@ -331,7 +360,8 @@ describe("assertNotStale checks mtime and size", _t => {
     await _withTempFile(
       "original",
       async path => {
-        await FileTracker.recordRead(path, ~offset=0, ~limit=100, ~totalLines=1)
+        let (mtimeMs, size) = await _statFile(path)
+        FileTracker.recordRead(path, ~offset=0, ~limit=100, ~totalLines=1, ~mtimeMs, ~size)
         await Fs.Promises.writeFile(path, "modified content that is different")
         let result = await FileTracker.assertNotStale(path)
         t->expect(Result.isError(result))->Expect.toBe(true)
@@ -341,7 +371,8 @@ describe("assertNotStale checks mtime and size", _t => {
 
   testAsync("fails when file deleted from disk", async t => {
     let path = await _makeTempFile("will be deleted")
-    await FileTracker.recordRead(path, ~offset=0, ~limit=100, ~totalLines=1)
+    let (mtimeMs, size) = await _statFile(path)
+    FileTracker.recordRead(path, ~offset=0, ~limit=100, ~totalLines=1, ~mtimeMs, ~size)
     await _removeTempFile(path)
     let result = await FileTracker.assertNotStale(path)
     t->expect(Result.isError(result))->Expect.toBe(true)
@@ -356,8 +387,24 @@ describe("clear", _t => {
   testAsync("clears all tracked reads", async t => {
     let pathA = await _makeTempFile("a")
     let pathB = await _makeTempFile("b")
-    await FileTracker.recordRead(pathA, ~offset=0, ~limit=100, ~totalLines=1)
-    await FileTracker.recordRead(pathB, ~offset=0, ~limit=100, ~totalLines=1)
+    let (mtimeA, sizeA) = await _statFile(pathA)
+    let (mtimeB, sizeB) = await _statFile(pathB)
+    FileTracker.recordRead(
+      pathA,
+      ~offset=0,
+      ~limit=100,
+      ~totalLines=1,
+      ~mtimeMs=mtimeA,
+      ~size=sizeA,
+    )
+    FileTracker.recordRead(
+      pathB,
+      ~offset=0,
+      ~limit=100,
+      ~totalLines=1,
+      ~mtimeMs=mtimeB,
+      ~size=sizeB,
+    )
     FileTracker.clear()
     t->expect(Result.isError(FileTracker.assertReadBefore(pathA)))->Expect.toBe(true)
     t->expect(Result.isError(FileTracker.assertReadBefore(pathB)))->Expect.toBe(true)
@@ -371,10 +418,11 @@ describe("recordWrite", _t => {
     await _withTempFile(
       "content",
       async path => {
-        await FileTracker.recordRead(path, ~offset=0, ~limit=500, ~totalLines=1)
+        let (mtimeMs, size) = await _statFile(path)
+        FileTracker.recordRead(path, ~offset=0, ~limit=500, ~totalLines=1, ~mtimeMs, ~size)
         let readAtBefore = (FileTracker.get(path)->Option.getOrThrow).readAt
 
-        await FileTracker.recordWrite(path)
+        FileTracker.recordWrite(path, ~mtimeMs, ~size)
         let readAtAfter = (FileTracker.get(path)->Option.getOrThrow).readAt
         t->expect(readAtAfter >= readAtBefore)->Expect.toBe(true)
       },
@@ -386,16 +434,17 @@ describe("recordWrite", _t => {
     await _withTempFile(
       content,
       async path => {
-        await FileTracker.recordRead(path, ~offset=0, ~limit=100, ~totalLines=500)
-        await FileTracker.recordWrite(path)
+        let (mtimeMs, size) = await _statFile(path)
+        FileTracker.recordRead(path, ~offset=0, ~limit=100, ~totalLines=500, ~mtimeMs, ~size)
+        FileTracker.recordWrite(path, ~mtimeMs, ~size)
         let record = FileTracker.get(path)->Option.getOrThrow
         t->expect(record.ranges)->Expect.toEqual([{start: 0, end_: 100}])
       },
     )
   })
 
-  testAsync("no-op for untracked file", async t => {
-    await FileTracker.recordWrite("/untracked.ts")
+  test("no-op for untracked file", t => {
+    FileTracker.recordWrite("/untracked.ts", ~mtimeMs=0.0, ~size=0.0)
     t->expect(FileTracker.get("/untracked.ts"))->Expect.toEqual(None)
   })
 })
@@ -405,11 +454,20 @@ describe("recordWrite re-stats file", _t => {
     await _withTempFile(
       "original",
       async path => {
-        await FileTracker.recordRead(path, ~offset=0, ~limit=100, ~totalLines=1)
+        let (mtimeMs1, size1) = await _statFile(path)
+        FileTracker.recordRead(
+          path,
+          ~offset=0,
+          ~limit=100,
+          ~totalLines=1,
+          ~mtimeMs=mtimeMs1,
+          ~size=size1,
+        )
         let mtimeBefore = (FileTracker.get(path)->Option.getOrThrow).mtimeMs
 
         await Fs.Promises.writeFile(path, "updated content")
-        await FileTracker.recordWrite(path)
+        let (mtimeMs2, size2) = await _statFile(path)
+        FileTracker.recordWrite(path, ~mtimeMs=mtimeMs2, ~size=size2)
 
         let mtimeAfter = (FileTracker.get(path)->Option.getOrThrow).mtimeMs
         t->expect(mtimeAfter >= mtimeBefore)->Expect.toBe(true)
@@ -421,11 +479,20 @@ describe("recordWrite re-stats file", _t => {
     await _withTempFile(
       "short",
       async path => {
-        await FileTracker.recordRead(path, ~offset=0, ~limit=100, ~totalLines=1)
+        let (mtimeMs1, size1) = await _statFile(path)
+        FileTracker.recordRead(
+          path,
+          ~offset=0,
+          ~limit=100,
+          ~totalLines=1,
+          ~mtimeMs=mtimeMs1,
+          ~size=size1,
+        )
         let sizeBefore = (FileTracker.get(path)->Option.getOrThrow).size
 
         await Fs.Promises.writeFile(path, "this is much longer content than before")
-        await FileTracker.recordWrite(path)
+        let (mtimeMs2, size2) = await _statFile(path)
+        FileTracker.recordWrite(path, ~mtimeMs=mtimeMs2, ~size=size2)
 
         let sizeAfter = (FileTracker.get(path)->Option.getOrThrow).size
         t->expect(sizeAfter > sizeBefore)->Expect.toBe(true)
@@ -437,10 +504,19 @@ describe("recordWrite re-stats file", _t => {
     await _withTempFile(
       "v1",
       async path => {
-        await FileTracker.recordRead(path, ~offset=0, ~limit=100, ~totalLines=1)
+        let (mtimeMs1, size1) = await _statFile(path)
+        FileTracker.recordRead(
+          path,
+          ~offset=0,
+          ~limit=100,
+          ~totalLines=1,
+          ~mtimeMs=mtimeMs1,
+          ~size=size1,
+        )
 
         await Fs.Promises.writeFile(path, "v2")
-        await FileTracker.recordWrite(path)
+        let (mtimeMs2, size2) = await _statFile(path)
+        FileTracker.recordWrite(path, ~mtimeMs=mtimeMs2, ~size=size2)
 
         let result = await FileTracker.assertNotStale(path)
         t->expect(Result.isOk(result))->Expect.toBe(true)
@@ -449,80 +525,43 @@ describe("recordWrite re-stats file", _t => {
   })
 })
 
-describe("withLock", _t => {
-  testAsync("serializes concurrent writes to the same path", async t => {
-    let order = []
+describe("TOCTOU regression", _t => {
+  testAsync("stale stats from before file modification are detected by assertNotStale", async t => {
+    await _withTempFile(
+      "original content",
+      async path => {
+        // Capture stats BEFORE the file changes (simulates the caller statting at read time)
+        let (mtimeMs, size) = await _statFile(path)
 
-    let task1 = FileTracker.withLock(
-      "/same/path.ts",
-      async () => {
-        await Promise.make(
-          (resolve, _) => {
-            let _ = setTimeout(() => resolve(), 50)
-          },
-        )
-        let _ = order->Array.push("task1")
+        // External process modifies the file after our stat
+        await Fs.Promises.writeFile(path, "externally modified content that differs")
+
+        // Record with the stale stats (this is what the old code effectively did)
+        FileTracker.recordRead(path, ~offset=0, ~limit=100, ~totalLines=1, ~mtimeMs, ~size)
+
+        // assertNotStale should detect the mismatch
+        let result = await FileTracker.assertNotStale(path)
+        t->expect(Result.isError(result))->Expect.toBe(true)
       },
     )
-
-    let task2 = FileTracker.withLock(
-      "/same/path.ts",
-      async () => {
-        let _ = order->Array.push("task2")
-      },
-    )
-
-    await task1
-    await task2
-    t->expect(order)->Expect.toEqual(["task1", "task2"])
   })
+})
 
-  testAsync("allows concurrent writes to different paths", async t => {
-    let order = []
+describe("concurrent recordRead range preservation", _t => {
+  testAsync("synchronous recordRead calls preserve all ranges", async t => {
+    await _withTempFile(
+      _lines(1000),
+      async path => {
+        let (mtimeMs, size) = await _statFile(path)
 
-    let task1 = FileTracker.withLock(
-      "/path/a.ts",
-      async () => {
-        await Promise.make(
-          (resolve, _) => {
-            let _ = setTimeout(() => resolve(), 50)
-          },
-        )
-        let _ = order->Array.push("a")
+        // Two recordRead calls for different ranges — both should be preserved
+        // With the old async version, concurrent calls could overwrite each other
+        FileTracker.recordRead(path, ~offset=0, ~limit=100, ~totalLines=1000, ~mtimeMs, ~size)
+        FileTracker.recordRead(path, ~offset=500, ~limit=100, ~totalLines=1000, ~mtimeMs, ~size)
+
+        let record = FileTracker.get(path)->Option.getOrThrow
+        t->expect(record.ranges)->Expect.toEqual([{start: 0, end_: 100}, {start: 500, end_: 600}])
       },
     )
-
-    let task2 = FileTracker.withLock(
-      "/path/b.ts",
-      async () => {
-        let _ = order->Array.push("b")
-      },
-    )
-
-    await task1
-    await task2
-    t->expect(order)->Expect.toEqual(["b", "a"])
-  })
-
-  testAsync("releases lock even if callback throws", async t => {
-    try {
-      await FileTracker.withLock(
-        "/path.ts",
-        async () => {
-          JsError.throwWithMessage("boom")
-        },
-      )
-    } catch {
-    | _ => ()
-    }
-
-    let ran = ref(false)
-    await FileTracker.withLock(
-      "/path.ts",
-      async () => {
-        ran := true
-      },
-    )
-    t->expect(ran.contents)->Expect.toBe(true)
   })
 })

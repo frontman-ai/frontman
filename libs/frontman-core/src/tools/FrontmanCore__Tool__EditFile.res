@@ -74,7 +74,8 @@ let createFile = async (
   try {
     let _ = await Fs.Promises.mkdir(PathContext.dirname(resolved), {recursive: true})
     await Fs.Promises.writeFile(resolved.resolvedPath, content)
-    await FileTracker.recordWrite(resolved.resolvedPath)
+    let stats = await Fs.Promises.stat(resolved.resolvedPath)
+    FileTracker.recordWrite(resolved.resolvedPath, ~mtimeMs=Fs.mtimeMs(stats), ~size=Fs.size(stats))
     Ok({message: "File created successfully.", _context: toPathCtx(resolved)})
   } catch {
   | exn => Error(`Failed to create file ${displayPath}: ${ExnUtils.message(exn)}`)
@@ -97,7 +98,12 @@ let findAndReplace = async (
     switch Matcher.applyEdit(~content, ~oldText, ~newText, ~replaceAll) {
     | Applied(newContent) =>
       await Fs.Promises.writeFile(resolved.resolvedPath, newContent)
-      await FileTracker.recordWrite(resolved.resolvedPath)
+      let stats = await Fs.Promises.stat(resolved.resolvedPath)
+      FileTracker.recordWrite(
+        resolved.resolvedPath,
+        ~mtimeMs=Fs.mtimeMs(stats),
+        ~size=Fs.size(stats),
+      )
       let message = switch coverageWarning {
       | Some(warning) => `Edit applied successfully.\n\n${warning}`
       | None => "Edit applied successfully."
