@@ -27,6 +27,9 @@ module Promises = {
   @module("fs") @scope("promises")
   external lstat: string => promise<stats> = "lstat"
 
+  @module("fs") @scope("promises")
+  external unlink: string => promise<unit> = "unlink"
+
   // Access with default mode (F_OK)
   @module("fs") @scope("promises")
   external access: string => promise<unit> = "access"
