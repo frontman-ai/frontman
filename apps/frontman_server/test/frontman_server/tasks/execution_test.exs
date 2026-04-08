@@ -790,7 +790,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       {:ok, _} =
         Tasks.submit_user_message(scope, task_id, user_content("Hello"), [], agent: agent)
 
-      assert_receive {:swarm_event, {:crashed, _}}, 5_000
+      assert_receive {:execution_event, %ExecutionEvent{type: :crashed}}, 5_000
 
       :sys.get_state(socket.channel_pid)
 
@@ -847,7 +847,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       {:ok, _} =
         Tasks.submit_user_message(scope, task_id, user_content("Hello"), [], agent: agent)
 
-      assert_receive {:swarm_event, {:failed, _}}, 5_000
+      assert_receive {:execution_event, %ExecutionEvent{type: :failed}}, 5_000
 
       :sys.get_state(socket.channel_pid)
 
