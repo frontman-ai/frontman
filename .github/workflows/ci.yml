@@ -502,6 +502,9 @@ jobs:
       - name: Install dependencies
         run: yarn install --immutable
 
+      - name: Build ReScript packages
+        run: yarn rescript
+
       - name: Bundle astro integration
         run: yarn build:bundle
         working-directory: libs/frontman-astro
