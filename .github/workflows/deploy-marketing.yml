@@ -39,13 +39,6 @@ jobs:
           key: deps-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
           restore-keys: deps-${{ runner.os }}-
 
-      - name: Restore verified external links cache
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
-        with:
-          path: apps/marketing/.link-checker/verified-external-links.tsv
-          key: marketing-verified-links-${{ hashFiles('apps/marketing/src/**', 'apps/marketing/astro.config.mjs') }}
-          restore-keys: marketing-verified-links-
-
       - name: Install dependencies
         run: yarn install --immutable
 
