@@ -9,12 +9,6 @@ defmodule FrontmanServerWeb.TaskChannelEnvKeyTest do
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Execution.LLMError
 
-  setup %{scope: scope} do
-    {socket, _task_id} = join_task_channel(scope)
-    complete_mcp_handshake(socket)
-    {:ok, socket: socket}
-  end
-
   defp push_prompt_and_assert_accepted(socket, meta \\ %{}) do
     push(socket, "acp:message", prompt_request(_meta: meta))
     :sys.get_state(socket.channel_pid)
@@ -24,6 +18,12 @@ defmodule FrontmanServerWeb.TaskChannelEnvKeyTest do
   end
 
   describe "env key extraction through channel" do
+    setup %{scope: scope} do
+      {socket, _task_id} = join_task_channel(scope)
+      complete_mcp_handshake(socket)
+      {:ok, socket: socket}
+    end
+
     test "accepts prompt with anthropicKeyValue", %{socket: socket} do
       push_prompt_and_assert_accepted(socket, %{
         "anthropicKeyValue" => "sk-ant-test-key-123",
