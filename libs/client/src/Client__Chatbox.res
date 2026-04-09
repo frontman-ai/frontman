@@ -395,7 +395,7 @@ let make = () => {
     }
   }
 
-  <div className="relative flex flex-col h-full bg-[#180C2D] text-zinc-200">
+  <div className="relative flex flex-col h-full bg-[#130d20] text-zinc-200">
     <Client__UpdateBanner />
     <ScrollContainer className="flex-grow overflow-x-hidden">
       <ScrollContainer.ContentWrapper>
