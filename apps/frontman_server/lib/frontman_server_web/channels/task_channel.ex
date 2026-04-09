@@ -16,6 +16,7 @@ defmodule FrontmanServerWeb.TaskChannel do
   require Logger
 
   alias AgentClientProtocol, as: ACP
+  alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Providers
   alias FrontmanServer.Providers.{Model, Registry}
   alias FrontmanServer.Tasks
@@ -245,7 +246,7 @@ defmodule FrontmanServerWeb.TaskChannel do
   end
 
   defp maybe_resume_agent(socket, scope, task_id, meta) do
-    env_api_key = Registry.extract_env_keys(meta)
+    scope = Scope.with_env_api_keys(scope, Registry.extract_env_keys(meta))
 
     model =
       case Model.from_client_params(meta["model"]) do
@@ -258,7 +259,6 @@ defmodule FrontmanServerWeb.TaskChannel do
 
     opts =
       build_execution_opts(socket,
-        env_api_key: env_api_key,
         model: model,
         mcp_tool_defs: mcp_tools
       )
@@ -427,12 +427,10 @@ defmodule FrontmanServerWeb.TaskChannel do
         stream_session_history(socket, task)
 
         # Return ACP-compliant LoadSessionResponse with config options.
-        # Extract env API keys from _meta (forwarded from clientInfo metadata)
-        # since the task channel doesn't receive the ACP initialize request.
-        env_api_key = extract_env_api_key_from_params(params)
-
+        # Enrich scope with env keys from _meta if present in params.
         config_options =
-          Providers.model_config_data(scope, env_api_key)
+          enrich_scope_from_params(scope, params)
+          |> Providers.model_config_data()
           |> ACP.build_model_config_options()
 
         push(
@@ -502,8 +500,8 @@ defmodule FrontmanServerWeb.TaskChannel do
     scope = socket.assigns.scope
     mcp_tools = socket.assigns[:mcp_tools] || []
 
-    # Extract env API key from prompt _meta (sent with each prompt request)
-    env_api_key = extract_env_api_key_from_params(params)
+    # Enrich scope with env keys from prompt _meta (sent with each prompt request)
+    scope = enrich_scope_from_params(scope, params)
 
     # Extract model selection from prompt _meta
     model = extract_model_from_params(params)
@@ -528,7 +526,6 @@ defmodule FrontmanServerWeb.TaskChannel do
 
     opts =
       build_execution_opts(socket,
-        env_api_key: env_api_key,
         model: model,
         mcp_tool_defs: mcp_tools
       )
@@ -553,10 +550,7 @@ defmodule FrontmanServerWeb.TaskChannel do
 
         Logger.info("User message added, agent spawned for task #{task_id}")
 
-        Tasks.enqueue_title_generation(scope, task_id, prompt.text_summary,
-          env_api_key: env_api_key,
-          model: model
-        )
+        Tasks.enqueue_title_generation(scope, task_id, prompt.text_summary, model: model)
 
         {:noreply, socket}
 
@@ -567,12 +561,12 @@ defmodule FrontmanServerWeb.TaskChannel do
     end
   end
 
-  # Extract env API keys from prompt params _meta (e.g., OPENROUTER_API_KEY, ANTHROPIC_API_KEY from project env)
-  defp extract_env_api_key_from_params(params) when is_map(params) do
-    params |> get_in(["_meta"]) |> Registry.extract_env_keys()
+  # Enrich scope with env API keys from params _meta (e.g., OPENROUTER_API_KEY, ANTHROPIC_API_KEY from project env)
+  defp enrich_scope_from_params(scope, params) when is_map(params) do
+    Scope.with_env_api_keys(scope, params |> get_in(["_meta"]) |> Registry.extract_env_keys())
   end
 
-  defp extract_env_api_key_from_params(_), do: %{}
+  defp enrich_scope_from_params(scope, _), do: scope
 
   # Builds execution opts, forwarding an injected agent if present in socket assigns.
   # In production, :agent_override is never set. Tests can assign it to avoid real
