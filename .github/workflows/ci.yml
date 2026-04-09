@@ -468,6 +468,47 @@ jobs:
           fi
           echo "No dead code found."
 
+  check-marketing-links:
+    name: Check marketing broken links
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        with:
+          node-version: '24.4.1'
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Cache dependencies
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        with:
+          path: |
+            ~/.yarn/berry/cache
+            node_modules
+          key: deps-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
+          restore-keys: deps-${{ runner.os }}-
+
+      - name: Restore verified external links cache
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        with:
+          path: apps/marketing/.link-checker/verified-external-links.tsv
+          key: marketing-verified-links-${{ hashFiles('apps/marketing/src/**', 'apps/marketing/astro.config.mjs') }}
+          restore-keys: marketing-verified-links-
+
+      - name: Install dependencies
+        run: yarn install --immutable
+
+      - name: Bundle astro integration
+        run: yarn build:bundle
+        working-directory: libs/frontman-astro
+
+      - name: Build marketing site (fails on broken links)
+        run: cd apps/marketing && yarn build
+
   # ============================================================================
   # Elixir jobs — stay on self-hosted runners (need PostgreSQL on Docker host,
   # cached mise/Erlang/Elixir toolchain)

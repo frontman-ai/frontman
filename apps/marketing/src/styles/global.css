@@ -1,6 +1,11 @@
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
 
+/* Exclude prose content files — they don't use Tailwind classes but contain
+   bracket notation like [file:line] that Tailwind misreads as arbitrary values */
+@source not ("../content/**/*.md");
+@source not ("../content/**/*.mdx");
+
 /* --- Dark mode is always on. The dark variant matches unconditionally. --- */
 @custom-variant dark (&);
 @custom-variant dark-me (&);
