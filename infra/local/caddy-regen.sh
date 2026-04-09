@@ -62,7 +62,7 @@ else
 
         # Generate route blocks for this worktree
         cat >> "$CADDYFILE" << EOF
-# Worktree: $POD (ports ${PORT_PHOENIX})
+# Worktree: $POD (ports ${PORT_PHOENIX}–${PORT_MARKETING})
 ${HASH}.api.frontman.local {
     tls internal
     reverse_proxy https://127.0.0.1:${PORT_PHOENIX} {

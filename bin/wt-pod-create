@@ -35,7 +35,7 @@ printf "${CYAN}Creating containerized worktree${RESET}\n"
 printf "  Branch:  %s\n" "$BRANCH"
 printf "  Hash:    %s\n" "$HASH"
 printf "  Pod:     %s\n" "$POD_NAME"
-printf "  Ports:   %s–%s\n" "$PORT_PHOENIX"
+printf "  Ports:   %s–%s\n" "$PORT_PHOENIX" "$PORT_MARKETING"
 echo ""
 
 # ── Preflight ───────────────────────────────────────────
