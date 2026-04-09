@@ -231,7 +231,7 @@ defmodule FrontmanServerWeb.TaskChannel do
 
       {:ok, _interaction, :no_executor} ->
         # No live executor (agent dead after server restart). If all pending
-        # tools are now resolved, resume the agent using env_api_key + model
+        # tools are now resolved, resume the agent using scope.env_api_keys + model
         # from the tool result's _meta (sent by the client per MCP spec).
         {:ok, task} = Tasks.get_task(scope, task_id)
 
