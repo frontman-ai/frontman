@@ -30,7 +30,20 @@ defmodule FrontmanServer.Accounts.Scope do
   typedstruct do
     field :user, %User{}
     field :organization, %Organization{}
+    field :env_api_keys, %{String.t() => String.t()}, default: %{}
   end
+
+  @doc """
+  Returns a scope enriched with environment-provided API keys.
+
+  Keys set here travel with the scope to all domain functions, so callers
+  don't need to pass env_api_key as a separate argument.
+  """
+  def with_env_api_keys(%__MODULE__{} = scope, keys) when is_map(keys) do
+    %{scope | env_api_keys: keys}
+  end
+
+  def with_env_api_keys(%__MODULE__{} = scope, _), do: scope
 
   @doc """
   Creates a scope for the given user.
