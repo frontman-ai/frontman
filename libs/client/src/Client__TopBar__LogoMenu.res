@@ -3,7 +3,7 @@ module DropdownMenu = Bindings__UI__DropdownMenu
 module FrontmanLogo = Client__FrontmanLogo
 
 @react.component
-let make = (~onSettingsClick: unit => unit, ~previewUrl: string, ~isAgentRunning: bool) => {
+let make = (~previewUrl: string, ~isAgentRunning: bool) => {
   let iconSize = {"width": "14px", "height": "14px"}
 
   <DropdownMenu.DropdownMenu>
@@ -16,12 +16,6 @@ let make = (~onSettingsClick: unit => unit, ~previewUrl: string, ~isAgentRunning
       </button>
     </DropdownMenu.DropdownMenuTrigger>
     <DropdownMenu.DropdownMenuContent align="start" sideOffset=4 className="w-48">
-      <DropdownMenu.DropdownMenuItem
-        onSelect={_ => onSettingsClick()} className="flex items-center gap-2 cursor-pointer"
-      >
-        <Icons.GearIcon style={iconSize} />
-        {React.string("Settings")}
-      </DropdownMenu.DropdownMenuItem>
       <DropdownMenu.DropdownMenuItem
         onSelect={_ =>
           WebAPI.Window.open_(

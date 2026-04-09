@@ -97,7 +97,7 @@ let make = (
       style={{width: `${Int.toString(chatboxWidth)}px`}}
       className="flex items-center h-full shrink-0 px-1 gap-1 overflow-hidden"
     >
-      <Client__TopBar__LogoMenu onSettingsClick previewUrl isAgentRunning />
+      <Client__TopBar__LogoMenu previewUrl isAgentRunning />
       <Client__TopBar__WorkspaceDropdown onNewTask={handleNewTask} />
     </div>
     // Vertical divider — visually continues the panel border below
