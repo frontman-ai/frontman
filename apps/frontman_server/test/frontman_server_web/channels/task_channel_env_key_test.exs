@@ -59,8 +59,7 @@ defmodule FrontmanServerWeb.TaskChannelEnvKeyTest do
     end
 
     test "env key in prompt _meta is still on scope when :fire_retry fires", %{
-      socket: socket,
-      task_id: task_id
+      socket: socket
     } do
       push_prompt_and_assert_accepted(socket, %{"anthropicKeyValue" => "sk-ant-retry-test"})
 
@@ -68,12 +67,13 @@ defmodule FrontmanServerWeb.TaskChannelEnvKeyTest do
       %{assigns: %{scope: scope_after_prompt}} = :sys.get_state(socket.channel_pid)
       assert scope_after_prompt.env_api_keys["anthropic"] == "sk-ant-retry-test"
 
-      # Trigger a transient error so the retry coordinator starts
+      # Trigger a transient error so the retry coordinator starts.
+      # We send directly to the channel pid (not via PubSub) to avoid
+      # interference from the concurrent outer-setup socket under CI load.
       error = %LLMError{message: "Rate limited", category: "rate_limit", retryable: true}
 
-      Phoenix.PubSub.broadcast(
-        FrontmanServer.PubSub,
-        Tasks.topic(task_id),
+      send(
+        socket.channel_pid,
         {:swarm_event, {:failed, {:error, error, System.unique_integer([:positive])}}}
       )
 
