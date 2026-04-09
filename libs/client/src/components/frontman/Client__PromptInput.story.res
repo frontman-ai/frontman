@@ -27,7 +27,7 @@ let default: Meta.t<args> = {
       hasAnnotations={args.hasAnnotations}
       isEnrichingAnnotations={args.isEnrichingAnnotations}
       disabled={args.disabled}
-      onSelectElement={Some(() => ())}
+      onSelectElement={() => ()}
     />,
 }
 
