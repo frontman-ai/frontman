@@ -1,89 +1,19 @@
 /**
- * Client__WebPreview - Web preview panel with navigation
- * 
- * Uses pure ReScript navigation components instead of AIElements.
+ * Client__WebPreview - Web preview panel
+ *
+ * Renders the iframe viewport. Nav controls have moved to Client__TopBar.
  */
-module Nav = Client__WebPreview__Nav
-module RadixUI__Icons = Bindings__RadixUI__Icons
-
-@send external locationAssign: ('a, string) => unit = "assign"
-@send external blur: Dom.element => unit = "blur"
-
-module BackButton = {
-  @react.component
-  let make = (~onClick: unit => unit) => {
-    <Nav.NavButton onClick={onClick} tooltip="Go back">
-      <RadixUI__Icons.ArrowLeftIcon className="size-4" />
-    </Nav.NavButton>
-  }
-}
-
-module ForwardButton = {
-  @react.component
-  let make = (~onClick: unit => unit) => {
-    <Nav.NavButton onClick={onClick} tooltip="Go forward">
-      <RadixUI__Icons.ArrowRightIcon className="size-4" />
-    </Nav.NavButton>
-  }
-}
-
-module ReloadButton = {
-  @react.component
-  let make = (~onClick: unit => unit) => {
-    <Nav.NavButton onClick={onClick} tooltip="Reload">
-      <RadixUI__Icons.ReloadIcon className="size-4" />
-    </Nav.NavButton>
-  }
-}
-
-// SelectElement replaced by AnnotationControls (D4)
-
-module DeviceModeToggle = {
-  @react.component
-  let make = (~isActive: bool, ~onClick: unit => unit) => {
-    <button
-      type_="button"
-      onClick={_ => onClick()}
-      className={`flex items-center justify-center w-8 h-8 rounded-lg transition-colors
-                 ${isActive
-          ? "bg-blue-600 text-white hover:bg-blue-500"
-          : "bg-gray-200 text-gray-600 hover:bg-gray-300 hover:text-gray-700"}`}
-      title={isActive ? "Exit device mode" : "Toggle device mode"}
-    >
-      <RadixUI__Icons.MobileIcon className="size-4" />
-    </button>
-  }
-}
-
-module OpenInNewWindow = {
-  @react.component
-  let make = (~onClick: unit => unit) => {
-    <button
-      type_="button"
-      onClick={_ => onClick()}
-      className="flex items-center justify-center w-8 h-8 rounded-lg
-                 bg-gray-200 text-gray-600 hover:bg-gray-300 hover:text-gray-700
-                 transition-colors"
-      title="Open in new tab"
-    >
-      <RadixUI__Icons.OpenInNewWindowIcon className="size-4" />
-    </button>
-  }
-}
-
-// Hook to measure the available space in the viewport container
-let useContainerSize = (ref: React.ref<Nullable.t<Dom.element>>): (int, int) => {
+let // Hook to measure the available space in the viewport container
+useContainerSize = (ref: React.ref<Nullable.t<Dom.element>>): (int, int) => {
   let (size, setSize) = React.useState(() => (0, 0))
 
   React.useEffect(() => {
     switch ref.current->Nullable.toOption {
     | None => None
     | Some(element) =>
-      // Initial measurement
       let rect = WebAPI.Element.getBoundingClientRect(element->Obj.magic)
       setSize(_ => (rect.width->Float.toInt, rect.height->Float.toInt))
 
-      // Observe resize
       let observer = FrontmanBindings.ResizeObserver.make(entries => {
         entries
         ->Array.get(0)
@@ -107,9 +37,7 @@ let make = () => {
   let currentTaskClientId = Client__State.useSelector(Client__State.Selectors.currentTaskClientId)
   let isNewTask = Client__State.useSelector(Client__State.Selectors.isNewTask)
   let persistedTasks = Client__State.useSelector(Client__State.Selectors.tasks)
-  let previewUrl = Client__State.useSelector(Client__State.Selectors.previewUrl)
   let previewFrame = Client__State.useSelector(Client__State.Selectors.previewFrame)
-  let annotationMode = Client__State.useSelector(Client__State.Selectors.annotationMode)
   let deviceMode = Client__State.useSelector(Client__State.Selectors.deviceMode)
   let deviceOrientation = Client__State.useSelector(Client__State.Selectors.deviceOrientation)
 
@@ -121,89 +49,6 @@ let make = () => {
     None
   }, (deviceMode, deviceOrientation))
 
-  let (editableUrl, setEditableUrl) = React.useState(() => previewUrl)
-  let (isEditingUrl, setIsEditingUrl) = React.useState(() => false)
-
-  let displayedUrl = switch isEditingUrl {
-  | true => editableUrl
-  | false => previewUrl
-  }
-
-  let handleUrlChange = (e: ReactEvent.Form.t) => {
-    let value = (e->ReactEvent.Form.target)["value"]
-    setEditableUrl(_ => value)
-  }
-
-  let handleUrlKeyDown = (e: ReactEvent.Keyboard.t) => {
-    switch ReactEvent.Keyboard.key(e) {
-    | "Enter" =>
-      switch Client__BrowserUrl.resolveUrlWithBase(~url=editableUrl, ~base=previewUrl) {
-      | None => ()
-      | Some(resolvedUrl) =>
-        switch Client__BrowserUrl.isSameOriginWithBase(
-          ~baseUrl=previewUrl,
-          ~targetUrl=resolvedUrl,
-        ) {
-        | false => ()
-        | true =>
-          previewFrame.contentWindow->Option.forEach(contentWindow => {
-            contentWindow.location->locationAssign(resolvedUrl)
-          })
-          Client__State.Actions.setPreviewUrl(~url=resolvedUrl)
-          Client__State.Actions.clearAnnotations()
-          Client__BrowserUrl.syncBrowserUrl(~previewUrl=resolvedUrl)
-        }
-      }
-      let target: Dom.element = ReactEvent.Keyboard.target(e)->Obj.magic
-      target->blur
-    | "Escape" =>
-      let target: Dom.element = ReactEvent.Keyboard.target(e)->Obj.magic
-      target->blur
-    | _ => ()
-    }
-  }
-
-  let handleUrlFocus = (_e: ReactEvent.Focus.t) => {
-    setIsEditingUrl(_ => true)
-    setEditableUrl(_ => previewUrl)
-  }
-
-  let handleUrlBlur = (_e: ReactEvent.Focus.t) => {
-    setIsEditingUrl(_ => false)
-  }
-
-  let handleBack = () => {
-    previewFrame.contentWindow->Option.forEach(contentWindow => {
-      WebAPI.History.back(contentWindow.history)
-    })
-    Client__State.Actions.clearAnnotations()
-  }
-
-  let handleForward = () => {
-    previewFrame.contentWindow->Option.forEach(contentWindow => {
-      WebAPI.History.forward(contentWindow.history)
-    })
-    Client__State.Actions.clearAnnotations()
-  }
-
-  let handleReload = () => {
-    previewFrame.contentWindow->Option.forEach(contentWindow => {
-      WebAPI.Location.reload(contentWindow.location)
-    })
-    Client__State.Actions.clearAnnotations()
-  }
-  let handleToggleSelection = () => Client__State.Actions.toggleWebPreviewSelection()
-  let handleOpenInNewTab = () => {
-    WebAPI.Window.open_(
-      WebAPI.Global.window,
-      ~url=previewUrl,
-      ~target="_blank",
-      ~features="noopener,noreferrer",
-    )->ignore
-  }
-  let handleToggleDeviceMode = () => Client__State.Actions.toggleDeviceMode()
-
-  let deviceModeActive = Client__DeviceMode.isActive(deviceMode)
   let effectiveDims = Client__DeviceMode.getEffectiveDimensions(deviceMode, deviceOrientation)
 
   let viewportStyle = switch effectiveDims {
@@ -222,27 +67,7 @@ let make = () => {
     Some((deviceWidth, deviceHeight, scale))
   }
 
-  <Nav.Container>
-    <Nav.Navigation>
-      <BackButton onClick={handleBack} />
-      <ForwardButton onClick={handleForward} />
-      <ReloadButton onClick={handleReload} />
-      <Nav.UrlInput
-        value={displayedUrl}
-        onChange={handleUrlChange}
-        onKeyDown={handleUrlKeyDown}
-        onFocus={handleUrlFocus}
-        onBlur={handleUrlBlur}
-      />
-      <DeviceModeToggle isActive={deviceModeActive} onClick={handleToggleDeviceMode} />
-      <Client__WebPreview__AnnotationControls
-        mode={annotationMode}
-        onToggle={handleToggleSelection}
-        previewDocument=?{previewFrame.contentDocument}
-      />
-      <OpenInNewWindow onClick={handleOpenInNewTab} />
-    </Nav.Navigation>
-
+  <div className="flex flex-col h-full bg-white">
     <Client__WebPreview__DeviceBar deviceMode orientation=deviceOrientation />
 
     <div
@@ -263,14 +88,10 @@ let make = () => {
       | _ => React.null
       }}
 
-      // Unified array of all iframes - keeps React keys in the same sibling position
-      // so switching tasks just toggles isActive prop without unmounting/remounting
       {
         let defaultUrl = Client__BrowserUrl.getInitialUrl()
 
-        // Build array of all tasks including New task if present
         let allTasks = if isNewTask {
-          // Prepend New task iframe (uses previewFrame from selector)
           Array.concat(
             [(currentTaskClientId, previewFrame.url)],
             persistedTasks->Array.map(task => {
@@ -280,7 +101,6 @@ let make = () => {
             }),
           )
         } else {
-          // All tasks are in persistedTasks array
           persistedTasks->Array.map(task => {
             let clientId = Client__Task__Types.Task.getClientId(task)
             let taskPreviewFrame = Client__Task__Types.Task.getPreviewFrame(task, ~defaultUrl)
@@ -301,5 +121,5 @@ let make = () => {
         ->React.array
       }
     </div>
-  </Nav.Container>
+  </div>
 }
