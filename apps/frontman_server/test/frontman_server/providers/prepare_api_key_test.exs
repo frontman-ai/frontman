@@ -1,6 +1,6 @@
 defmodule FrontmanServer.Providers.PrepareApiKeyTest do
   @moduledoc """
-  Integration tests for the full `Providers.prepare_api_key/4` resolution chain.
+  Integration tests for the full `Providers.prepare_api_key/3` resolution chain.
 
   Tests the priority order: OAuth > user key > env key > server key,
   plus quota checks on server keys. This is the primary entry point for
@@ -21,7 +21,7 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
     {:ok, scope: scope}
   end
 
-  describe "prepare_api_key/4 resolution priority" do
+  describe "prepare_api_key/3 resolution priority" do
     test "resolves OAuth token as highest priority for anthropic", %{scope: scope} do
       expires_at = DateTime.add(DateTime.utc_now(), 3600, :second)
 
@@ -29,10 +29,10 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
         Providers.upsert_oauth_token(scope, "anthropic", "oauth_access", "refresh", expires_at)
 
       {:ok, _} = Providers.upsert_api_key(scope, "anthropic", "user_key_456")
-      env_api_key = %{"anthropic" => "env_key_789"}
+      scope = Scope.with_env_api_keys(scope, %{"anthropic" => "env_key_789"})
 
       {:ok, %ResolvedKey{} = resolved} =
-        Providers.prepare_api_key(scope, "anthropic:claude-sonnet-4-5", env_api_key)
+        Providers.prepare_api_key(scope, "anthropic:claude-sonnet-4-5")
 
       assert resolved.key_source == :oauth_token
       assert resolved.api_key == "oauth_access"
@@ -44,10 +44,10 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
 
     test "falls back to user key when no OAuth token", %{scope: scope} do
       {:ok, _} = Providers.upsert_api_key(scope, "anthropic", "user_key_456")
-      env_api_key = %{"anthropic" => "env_key_789"}
+      scope = Scope.with_env_api_keys(scope, %{"anthropic" => "env_key_789"})
 
       {:ok, %ResolvedKey{} = resolved} =
-        Providers.prepare_api_key(scope, "anthropic:claude-sonnet-4-5", env_api_key)
+        Providers.prepare_api_key(scope, "anthropic:claude-sonnet-4-5")
 
       assert resolved.key_source == :user_key
       assert resolved.api_key == "user_key_456"
@@ -58,10 +58,10 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
     end
 
     test "falls back to env key when no OAuth or user key", %{scope: scope} do
-      env_api_key = %{"anthropic" => "env_key_789"}
+      scope = Scope.with_env_api_keys(scope, %{"anthropic" => "env_key_789"})
 
       {:ok, %ResolvedKey{} = resolved} =
-        Providers.prepare_api_key(scope, "anthropic:claude-sonnet-4-5", env_api_key)
+        Providers.prepare_api_key(scope, "anthropic:claude-sonnet-4-5")
 
       assert resolved.key_source == :env_key
       assert resolved.api_key == "env_key_789"
@@ -72,7 +72,7 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
       with_server_key("anthropic", "server_key_abc")
 
       {:ok, %ResolvedKey{} = resolved} =
-        Providers.prepare_api_key(scope, "anthropic:claude-sonnet-4-5", %{})
+        Providers.prepare_api_key(scope, "anthropic:claude-sonnet-4-5")
 
       assert resolved.key_source == :server_key
       assert resolved.api_key == "server_key_abc"
@@ -83,7 +83,7 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
       without_server_key("anthropic")
 
       assert {:error, :no_api_key} =
-               Providers.prepare_api_key(scope, "anthropic:claude-sonnet-4-5", %{})
+               Providers.prepare_api_key(scope, "anthropic:claude-sonnet-4-5")
     end
 
     test "server key checks usage quota", %{scope: scope} do
@@ -94,7 +94,7 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
       end
 
       assert {:error, :usage_limit_exceeded} =
-               Providers.prepare_api_key(scope, "anthropic:claude-sonnet-4-5", %{})
+               Providers.prepare_api_key(scope, "anthropic:claude-sonnet-4-5")
     end
 
     test "skip_quota bypasses usage limit on server key", %{scope: scope} do
@@ -105,17 +105,17 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
       end
 
       {:ok, %ResolvedKey{} = resolved} =
-        Providers.prepare_api_key(scope, "anthropic:claude-sonnet-4-5", %{}, skip_quota: true)
+        Providers.prepare_api_key(scope, "anthropic:claude-sonnet-4-5", skip_quota: true)
 
       assert resolved.key_source == :server_key
       assert resolved.api_key == "server_key_skip"
     end
 
     test "openrouter env key resolves correctly", %{scope: scope} do
-      env_api_key = %{"openrouter" => "sk-or-env-test"}
+      scope = Scope.with_env_api_keys(scope, %{"openrouter" => "sk-or-env-test"})
 
       {:ok, %ResolvedKey{} = resolved} =
-        Providers.prepare_api_key(scope, "openrouter:openai/gpt-5.1-codex", env_api_key)
+        Providers.prepare_api_key(scope, "openrouter:openai/gpt-5.1-codex")
 
       assert resolved.key_source == :env_key
       assert resolved.api_key == "sk-or-env-test"
@@ -126,7 +126,7 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
     test "defaults to openrouter when model is nil", %{scope: scope} do
       with_server_key("openrouter", "server_or_key")
 
-      {:ok, %ResolvedKey{} = resolved} = Providers.prepare_api_key(scope, nil, %{})
+      {:ok, %ResolvedKey{} = resolved} = Providers.prepare_api_key(scope, nil)
 
       assert resolved.provider == "openrouter"
     end

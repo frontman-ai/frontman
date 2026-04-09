@@ -55,9 +55,9 @@ defmodule FrontmanServer.Providers do
   Call this before making LLM calls, not inside LLM implementations.
 
   ## Parameters
-    - scope: The user scope (or nil for anonymous)
+    - scope: The user scope (or nil for anonymous). Must have `env_api_keys`
+      populated if project-level keys should be considered.
     - model: The model string (e.g., "openrouter:openai/gpt-4"), or nil for default
-    - env_api_key: Map of provider => api_key from client's environment
 
   ## Options
 
@@ -70,13 +70,13 @@ defmodule FrontmanServer.Providers do
     - `{:error, :no_api_key}` - No API key available
     - `{:error, :usage_limit_exceeded}` - Server key quota exhausted
   """
-  @spec prepare_api_key(Scope.t() | nil, String.t() | nil, map(), keyword()) ::
+  @spec prepare_api_key(Scope.t() | nil, String.t() | nil, keyword()) ::
           {:ok, ResolvedKey.t()} | {:error, :no_api_key | :usage_limit_exceeded}
-  def prepare_api_key(scope, model, env_api_key \\ %{}, opts \\ []) do
+  def prepare_api_key(scope, model, opts \\ []) do
     model = model || @default_model
     provider = provider_from_model(model)
 
-    case resolve_api_key(scope, provider, env_api_key) do
+    case resolve_api_key(scope, provider) do
       {:oauth_token, access_token, oauth_opts} ->
         {:ok, ResolvedKey.new(provider, access_token, :oauth_token, model, oauth_opts)}
 
@@ -275,40 +275,35 @@ defmodule FrontmanServer.Providers do
   Resolves which API key to use for a provider.
 
   Resolution order:
-  1. User's saved key (highest priority)
-  2. Env key from the project (e.g., Next.js OPENROUTER_API_KEY)
-  3. Server env key (fallback)
+  1. OAuth token (for supported providers)
+  2. User's saved key
+  3. Env key from `scope.env_api_keys` (e.g., OPENROUTER_API_KEY from project)
+  4. Server env key (fallback)
 
   ## Parameters
-    - scope: The user scope (or nil)
+    - scope: The user scope (or nil). env_api_keys are read from `scope.env_api_keys`.
     - provider: The provider name (e.g., "openrouter")
-    - env_api_key: Map of provider => api_key from client's environment (or %{})
   """
-  def resolve_api_key(scope, provider, env_api_key \\ %{})
+  def resolve_api_key(scope, provider)
 
-  def resolve_api_key(%Scope{} = scope, provider, env_api_key)
-      when is_binary(provider) and is_map(env_api_key) do
-    # For Anthropic, check OAuth token first (highest priority)
+  def resolve_api_key(%Scope{} = scope, provider) when is_binary(provider) do
     case maybe_resolve_oauth_token(scope, provider) do
       {:oauth_token, _, _} = result ->
         result
 
       :no_oauth_token ->
-        # Then check user's saved API key
         case get_api_key_value(scope, provider) do
           key when is_binary(key) and key != "" ->
             {:user_key, key}
 
           _ ->
-            # Then check env key (from project environment)
-            resolve_env_or_server_key(provider, env_api_key)
+            resolve_env_or_server_key(provider, scope.env_api_keys)
         end
     end
   end
 
-  def resolve_api_key(nil, provider, env_api_key)
-      when is_binary(provider) and is_map(env_api_key) do
-    resolve_env_or_server_key(provider, env_api_key)
+  def resolve_api_key(nil, provider) when is_binary(provider) do
+    resolve_env_or_server_key(provider, %{})
   end
 
   # Claude Code identity for Anthropic OAuth
@@ -588,8 +583,8 @@ defmodule FrontmanServer.Providers do
 
   ## Parameters
 
-    * `scope` – the user's `%Scope{}` struct
-    * `env_api_key` – map of env-provided keys from client metadata
+    * `scope` – the user's `%Scope{}` struct. `env_api_keys` must be populated
+      if project-level keys should be considered.
 
   ## Returns
 
@@ -599,12 +594,12 @@ defmodule FrontmanServer.Providers do
       `value` is a serialized `"provider:model"` string)
     * `:default_model` – serialized `"provider:model"` string for the best default
   """
-  @spec model_config_data(Scope.t(), map()) :: %{
+  @spec model_config_data(Scope.t()) :: %{
           groups: [map()],
           default_model: String.t()
         }
-  def model_config_data(%Scope{} = scope, env_api_key \\ %{}) do
-    provider_tiers = available_provider_tiers(scope, env_api_key)
+  def model_config_data(%Scope{} = scope) do
+    provider_tiers = available_provider_tiers(scope)
 
     groups =
       Enum.map(provider_tiers, fn {provider, tier} ->
@@ -635,18 +630,18 @@ defmodule FrontmanServer.Providers do
 
   Returns a list of `{provider_id, tier}` tuples sorted by provider
   priority.  Iterates all catalog providers and classifies each using
-  `resolve_api_key/3`.
+  `resolve_api_key/2`.
 
   ## Parameters
 
-    * `scope` – the user's `%Scope{}` struct
-    * `env_api_key` – map of env-provided keys from client metadata
+    * `scope` – the user's `%Scope{}` struct. `env_api_keys` must be populated
+      if project-level keys should be considered.
   """
-  @spec available_provider_tiers(Scope.t(), map()) :: [{String.t(), :full | :free}]
-  def available_provider_tiers(%Scope{} = scope, env_api_key \\ %{}) do
+  @spec available_provider_tiers(Scope.t()) :: [{String.t(), :full | :free}]
+  def available_provider_tiers(%Scope{} = scope) do
     ModelCatalog.catalog_providers()
     |> Enum.flat_map(fn provider ->
-      case {key_type(scope, provider, env_api_key), ModelCatalog.has_free_tier?(provider)} do
+      case {key_type(scope, provider), ModelCatalog.has_free_tier?(provider)} do
         {:own_key, _} -> [{provider, :full}]
         {:server_key, true} -> [{provider, :free}]
         {:server_key, false} -> []
@@ -656,8 +651,8 @@ defmodule FrontmanServer.Providers do
     end)
   end
 
-  defp key_type(scope, provider, env_api_key) do
-    case resolve_api_key(scope, provider, env_api_key) do
+  defp key_type(scope, provider) do
+    case resolve_api_key(scope, provider) do
       {:oauth_token, _, _} -> :own_key
       {:user_key, _} -> :own_key
       {:env_key, _} -> :own_key

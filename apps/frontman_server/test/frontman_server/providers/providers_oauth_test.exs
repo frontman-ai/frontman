@@ -151,7 +151,7 @@ defmodule FrontmanServer.Providers.ProvidersOAuthTest do
     # which is out of scope for unit tests - integration tests would cover this
   end
 
-  describe "resolve_api_key/3 with OAuth" do
+  describe "resolve_api_key/2 with OAuth" do
     test "returns oauth_token with transformation opts when available for anthropic" do
       user = user_fixture()
       scope = %Scope{user: user}
@@ -160,8 +160,9 @@ defmodule FrontmanServer.Providers.ProvidersOAuthTest do
       {:ok, _} =
         Providers.upsert_oauth_token(scope, "anthropic", "oauth_access", "refresh", expires_at)
 
-      # Even with env_api_key, OAuth should take priority
-      result = Providers.resolve_api_key(scope, "anthropic", %{"anthropic" => "env_key"})
+      # Even with env_api_keys in scope, OAuth should take priority
+      scope = Scope.with_env_api_keys(scope, %{"anthropic" => "env_key"})
+      result = Providers.resolve_api_key(scope, "anthropic")
 
       # OAuth returns 3-tuple with transformation options for Claude Code
       assert {:oauth_token, "oauth_access", opts} = result
@@ -176,7 +177,7 @@ defmodule FrontmanServer.Providers.ProvidersOAuthTest do
       # Save a user API key
       {:ok, _} = Providers.upsert_api_key(scope, "anthropic", "user_api_key")
 
-      result = Providers.resolve_api_key(scope, "anthropic", %{})
+      result = Providers.resolve_api_key(scope, "anthropic")
 
       assert {:user_key, "user_api_key"} = result
     end
@@ -186,7 +187,8 @@ defmodule FrontmanServer.Providers.ProvidersOAuthTest do
       scope = %Scope{user: user}
 
       # OAuth is not supported for openrouter, so should use other resolution
-      result = Providers.resolve_api_key(scope, "openrouter", %{"openrouter" => "env_key"})
+      scope = Scope.with_env_api_keys(scope, %{"openrouter" => "env_key"})
+      result = Providers.resolve_api_key(scope, "openrouter")
 
       assert {:env_key, "env_key"} = result
     end
