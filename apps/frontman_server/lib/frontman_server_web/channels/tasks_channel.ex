@@ -17,6 +17,7 @@ defmodule FrontmanServerWeb.TasksChannel do
   require Logger
 
   alias AgentClientProtocol, as: ACP
+  alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Providers
   alias FrontmanServer.Providers.Registry
   alias FrontmanServer.Tasks
@@ -89,15 +90,16 @@ defmodule FrontmanServerWeb.TasksChannel do
        ) do
     Logger.info("ACP initialize from #{inspect(params["clientInfo"])}")
 
-    # Extract env API key from clientInfo _meta (if provided by the project)
-    env_api_key = extract_env_api_key(params["clientInfo"])
+    # Enrich scope with env API keys from clientInfo _meta (if provided by the project)
+    env_api_keys = extract_env_api_keys(params["clientInfo"])
+    enriched_scope = Scope.with_env_api_keys(socket.assigns.scope, env_api_keys)
 
     socket =
       socket
       |> assign(:acp_initialized, true)
       |> assign(:acp_client_info, params["clientInfo"])
       |> assign(:acp_client_capabilities, params["clientCapabilities"])
-      |> assign(:env_api_key, env_api_key)
+      |> assign(:scope, enriched_scope)
 
     # Push config options immediately so the model selector is populated
     # before any session is created.
@@ -214,10 +216,8 @@ defmodule FrontmanServerWeb.TasksChannel do
   end
 
   defp current_config_options(socket) do
-    Providers.model_config_data(
-      socket.assigns.scope,
-      socket.assigns[:env_api_key] || %{}
-    )
+    socket.assigns.scope
+    |> Providers.model_config_data()
     |> ACP.build_model_config_options()
   end
 
@@ -233,11 +233,11 @@ defmodule FrontmanServerWeb.TasksChannel do
   defp extract_framework(_), do: nil
 
   # Extract env API keys from clientInfo _meta (e.g., OPENROUTER_API_KEY, ANTHROPIC_API_KEY from project env)
-  defp extract_env_api_key(client_info) when is_map(client_info) do
+  defp extract_env_api_keys(client_info) when is_map(client_info) do
     client_info |> get_in(["_meta"]) |> Registry.extract_env_keys()
   end
 
-  defp extract_env_api_key(_), do: %{}
+  defp extract_env_api_keys(_), do: %{}
 
   # Parse errors
   defp handle_parse_error(reason, %{"id" => id}, socket) do
