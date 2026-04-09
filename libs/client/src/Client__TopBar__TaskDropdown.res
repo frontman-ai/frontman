@@ -85,17 +85,21 @@ let make = (~onNewTask: unit => unit) => {
           </button>
         </DropdownMenu.DropdownMenuTrigger>
         <DropdownMenu.DropdownMenuContent align="start" sideOffset=4 className="w-72 p-0">
-          // Search bar
-          <div className="px-3 py-2 border-b border-zinc-700">
-            <input
-              type_="text"
-              placeholder="Search tasks..."
-              value={search}
-              onChange={e => setSearch(_ => (e->ReactEvent.Form.target)["value"])}
-              className="w-full bg-transparent text-xs text-zinc-200 placeholder-zinc-500 outline-none"
-              onClick={e => ReactEvent.Mouse.stopPropagation(e)}
-            />
-          </div>
+          // Search bar — only shown when there are tasks to search
+          {switch Array.length(tasks) > 0 {
+          | false => React.null
+          | true =>
+            <div className="px-3 py-2 border-b border-zinc-700">
+              <input
+                type_="text"
+                placeholder="Search tasks..."
+                value={search}
+                onChange={e => setSearch(_ => (e->ReactEvent.Form.target)["value"])}
+                className="w-full bg-transparent text-xs text-zinc-200 placeholder-zinc-500 outline-none"
+                onClick={e => ReactEvent.Mouse.stopPropagation(e)}
+              />
+            </div>
+          }}
           // Task list
           <div className="max-h-72 overflow-y-auto py-1">
             {Array.length(filteredTasks) > 0
