@@ -3,6 +3,13 @@
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+
+## [Unreleased]
+
+### Changed
+
+- Refactor: move `env_api_keys` into `Scope` struct — eliminates ad-hoc `env_api_key` parameter threading across `Providers`, channels, and the execution pipeline. `Providers.prepare_api_key`, `resolve_api_key`, `available_provider_tiers`, and `model_config_data` all drop their `env_api_key` parameter and read from `scope.env_api_keys` instead.
+
 ## [0.15.0] - 2026-04-08
 
 
