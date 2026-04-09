@@ -12,7 +12,6 @@ module Log = FrontmanLogs.Logs.Make({
 })
 
 module Icons = Bindings__RadixUI__Icons
-module TaskTabs = Client__TaskTabs
 module Message = Client__State__Types.Message
 module RuntimeConfig = Client__RuntimeConfig
 
@@ -103,12 +102,7 @@ let groupMessages = (messages: array<Message.t>): array<displayItem> => {
 }
 
 @react.component
-let make = (
-  ~onSettingsClick: unit => unit,
-  ~showProviderNudge: bool=false,
-  ~onProviderNudgeDismiss: unit => unit=() => (),
-  ~onProviderNudgeCta: unit => unit=() => (),
-) => {
+let make = () => {
   let {session, createSession} = Client__FrontmanProvider.useFrontman()
 
   let messages = Client__State.useSelector(Client__State.Selectors.messages)
@@ -402,7 +396,6 @@ let make = (
   }
 
   <div className="relative flex flex-col h-full bg-[#180C2D] text-zinc-200">
-    <TaskTabs onSettingsClick showProviderNudge onProviderNudgeDismiss onProviderNudgeCta />
     <Client__UpdateBanner />
     <ScrollContainer className="flex-grow overflow-x-hidden">
       <ScrollContainer.ContentWrapper>
