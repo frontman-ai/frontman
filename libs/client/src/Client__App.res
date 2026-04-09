@@ -152,7 +152,7 @@ let make = (~apiBaseUrl: string) => {
           onMouseDown={handleResizeMouseDown}
         />
       </div>
-      <div className="grow h-full p-1 min-w-0">
+      <div className="grow h-full min-w-0">
         <Client__WebPreview />
       </div>
     </div>
