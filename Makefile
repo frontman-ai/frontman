@@ -99,7 +99,7 @@ dev-nextjs: ## Start development server for Next.js test site
 
 dev-marketing: ## Start development server for marketing site
 	@printf "$(YELLOW)Starting marketing dev server...$(RESET)\n"
-cd apps/marketing && $(MAKE) dev
+	cd apps/marketing && $(MAKE) dev
 ## DEV_END
 
 # ============================================================================
