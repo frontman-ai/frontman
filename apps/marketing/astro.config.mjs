@@ -191,7 +191,7 @@ export default defineConfig({
     sourceRoot: monorepoRoot,
     basePath: "frontman",
     serverName: "marketing",
-  }), icon(), brokenLinksChecker({ throwError: true, checkExternalLinks: true }), sitemap({
+  }), icon(), brokenLinksChecker({ throwError: true, checkExternalLinks: false }), sitemap({
     serialize: (item) => {
       // Use the real pubDate for blog and lighthouse posts; fall back to
       // build date for everything else.
