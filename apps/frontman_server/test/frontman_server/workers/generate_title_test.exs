@@ -15,15 +15,19 @@ defmodule FrontmanServer.Workers.GenerateTitleTest do
     {:ok, user: user}
   end
 
-  describe "new_job/5" do
+  describe "new_job/4" do
     test "builds a job changeset with model and encrypted env_api_key", %{user: user} do
+      scope =
+        user
+        |> Scope.for_user()
+        |> Scope.with_env_api_keys(%{"anthropic" => "sk-test-123"})
+
       changeset =
         GenerateTitle.new_job(
-          user.id,
+          scope,
           "task-123",
           "Help me build a login page",
-          "anthropic:claude-sonnet-4-20250514",
-          %{"anthropic" => "sk-test-123"}
+          "anthropic:claude-sonnet-4-20250514"
         )
 
       args = changeset.changes.args
@@ -36,7 +40,8 @@ defmodule FrontmanServer.Workers.GenerateTitleTest do
     end
 
     test "stores nil encrypted_env_api_key when env keys are empty", %{user: user} do
-      changeset = GenerateTitle.new_job(user.id, "task-123", "Hello", nil, %{})
+      scope = Scope.for_user(user)
+      changeset = GenerateTitle.new_job(scope, "task-123", "Hello", nil)
 
       assert changeset.changes.args.encrypted_env_api_key == nil
     end
@@ -44,12 +49,15 @@ defmodule FrontmanServer.Workers.GenerateTitleTest do
 
   describe "perform/1" do
     test "enqueues via Tasks context with forwarded model and encrypted env key", %{user: user} do
-      scope = Scope.for_user(user)
+      scope =
+        user
+        |> Scope.for_user()
+        |> Scope.with_env_api_keys(%{"openrouter" => "sk-or-test"})
+
       task_id = task_fixture(scope)
 
       {:ok, _job} =
         Tasks.enqueue_title_generation(scope, task_id, "Help me build a login page",
-          env_api_key: %{"openrouter" => "sk-or-test"},
           model: Model.new("openrouter", "openai/gpt-5.1-codex")
         )
 

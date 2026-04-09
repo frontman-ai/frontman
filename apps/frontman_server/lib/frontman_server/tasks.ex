@@ -418,10 +418,9 @@ defmodule FrontmanServer.Tasks do
   @spec enqueue_title_generation(Scope.t(), String.t(), String.t(), keyword()) ::
           {:ok, Oban.Job.t()} | {:error, Oban.Job.changeset()}
   def enqueue_title_generation(%Scope{} = scope, task_id, user_prompt_text, opts \\ []) do
-    env_api_key = Keyword.get(opts, :env_api_key, %{})
     model = opts |> Keyword.get(:model) |> Model.resolve_string()
 
-    GenerateTitle.new_job(scope.user.id, task_id, user_prompt_text, model, env_api_key)
+    GenerateTitle.new_job(scope, task_id, user_prompt_text, model)
     |> Oban.insert()
   end
 

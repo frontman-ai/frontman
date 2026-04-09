@@ -50,15 +50,14 @@ defmodule FrontmanServer.Workers.GenerateTitle do
   @doc """
   Builds an Oban job changeset for title generation.
   """
-  @spec new_job(String.t(), String.t(), String.t(), String.t() | nil, map()) ::
-          Oban.Job.changeset()
-  def new_job(user_id, task_id, user_prompt_text, model, env_api_key) do
+  @spec new_job(Scope.t(), String.t(), String.t(), String.t() | nil) :: Oban.Job.changeset()
+  def new_job(%Scope{user: user} = scope, task_id, user_prompt_text, model) do
     new(%{
-      user_id: user_id,
+      user_id: user.id,
       task_id: task_id,
       user_prompt_text: user_prompt_text,
       model: model,
-      encrypted_env_api_key: encrypt_env_api_key(env_api_key)
+      encrypted_env_api_key: encrypt_env_api_key(scope.env_api_keys)
     })
   end
 
@@ -72,12 +71,12 @@ defmodule FrontmanServer.Workers.GenerateTitle do
           } = args
       }) do
     user = Accounts.get_user!(user_id)
-    scope = Scope.for_user(user)
+    env_api_keys = args |> Map.get("encrypted_env_api_key") |> decrypt_env_api_key()
+    scope = user |> Scope.for_user() |> Scope.with_env_api_keys(env_api_keys)
     model = Map.get(args, "model")
-    env_api_key = args |> Map.get("encrypted_env_api_key") |> decrypt_env_api_key()
 
     with {:ok, resolved_key} <-
-           Providers.prepare_api_key(scope, model, env_api_key, skip_quota: true),
+           Providers.prepare_api_key(scope, model, skip_quota: true),
          {:ok, raw_title} <- call_llm(resolved_key, user_prompt_text),
          title = String.trim(raw_title),
          false <- title == "",
