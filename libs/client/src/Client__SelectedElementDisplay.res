@@ -8,21 +8,17 @@ module AnnotationRow = {
   let make = (~annotation: Annotation.t, ~index: int) => {
     let tagName = annotation.tagName->String.toLowerCase
     let (isEditingComment, setIsEditingComment) = React.useState(() => false)
-    let (commentDraft, setCommentDraft) = React.useState(() =>
-      annotation.comment->Option.getOr("")
-    )
+    let (commentDraft, setCommentDraft) = React.useState(() => annotation.comment->Option.getOr(""))
     let inputRef = React.useRef(Nullable.null)
 
-    let textContent =
-      annotation.nearbyText
-      ->Option.getOr(
-        annotation.element
-        ->WebAPI.Element.asNode
-        ->WebAPI.Node.textContent
-        ->Null.toOption
-        ->Option.getOr("")
-        ->String.trim,
-      )
+    let textContent = annotation.nearbyText->Option.getOr(
+      annotation.element
+      ->WebAPI.Element.asNode
+      ->WebAPI.Node.textContent
+      ->Null.toOption
+      ->Option.getOr("")
+      ->String.trim,
+    )
 
     // Truncate text display
     let displayText = switch textContent->String.length > 60 {
@@ -37,7 +33,7 @@ module AnnotationRow = {
         // Re-init from current reducer state to avoid stale draft
         setCommentDraft(_ => annotation.comment->Option.getOr(""))
         switch inputRef.current->Nullable.toOption {
-        | Some(input) => (input->Obj.magic)["focus"](.)
+        | Some(input) => (input->Obj.magic)["focus"]()
         | None => ()
         }
       | false => ()
@@ -66,14 +62,16 @@ module AnnotationRow = {
     <div className="flex items-start gap-2 group">
       // Number badge
       <div
-        className="flex-shrink-0 flex items-center justify-center w-5 h-5 rounded-full bg-violet-600/80 text-white text-[10px] font-bold mt-0.5"
+        className="flex-shrink-0 flex items-center justify-center w-5 h-5 rounded-full bg-white/10 text-zinc-300 text-[10px] font-bold mt-0.5"
       >
         {React.int(index + 1)}
       </div>
       // Content
       <div className="flex-1 min-w-0">
         // Component name (if available) — unwrap result for display
-        {annotation.sourceLocation->Result.getOr(None)->Option.mapOr(React.null, loc =>
+        {annotation.sourceLocation
+        ->Result.getOr(None)
+        ->Option.mapOr(React.null, loc =>
           loc.componentName->Option.mapOr(React.null, compName =>
             <div className="font-mono text-xs text-zinc-200 truncate">
               {React.string(`<${compName} />`)}
@@ -91,7 +89,10 @@ module AnnotationRow = {
           )}
           {switch annotation.enrichmentStatus {
           | Client__Annotation__Types.Enriching =>
-            <span className="text-violet-400 text-[10px] animate-pulse" title="Enriching annotation details...">
+            <span
+              className="text-violet-400 text-[10px] animate-pulse"
+              title="Enriching annotation details..."
+            >
               {React.string("⏳")}
             </span>
           | Client__Annotation__Types.Failed({error}) =>
@@ -169,23 +170,19 @@ let make = () => {
   switch count > 0 {
   | false => React.null
   | true =>
-    <div
-      className="mx-3 mb-2 rounded-xl border border-[#8051CD]/40 bg-[#180C2D]/80 overflow-hidden"
-    >
+    <div className="mx-3 mb-1 overflow-hidden">
       // Header row
-      <div className="flex items-center gap-2.5 px-3.5 py-2.5">
-        <Icons.CursorClickIcon size=18 className="text-[#985DF7] flex-shrink-0" />
-        <span className="font-mono text-sm font-semibold text-[#985DF7] flex-grow">
+      <div className="flex items-center gap-2 px-0.5 py-1.5">
+        <Icons.CursorClickIcon size=14 className="text-zinc-400 flex-shrink-0" />
+        <span className="text-xs font-medium text-zinc-400 flex-grow">
           {React.string(
-            count == 1
-              ? "Annotated Element"
-              : `Annotated Elements (${Int.toString(count)})`,
+            count == 1 ? "Annotated Element" : `Annotated Elements (${Int.toString(count)})`,
           )}
         </span>
         // Clear all button
         <button
           onClick={_ => Client__State.Actions.clearAnnotations()}
-          className="px-2.5 py-1 rounded-md text-xs font-medium text-zinc-300 bg-[#8051CD]/25 hover:bg-[#8051CD]/40 transition-colors flex-shrink-0"
+          className="px-2 py-0.5 rounded text-xs text-zinc-500 hover:text-zinc-300 hover:bg-white/6 transition-colors flex-shrink-0"
           title="Clear all annotations"
         >
           {React.string("Clear")}
@@ -210,12 +207,10 @@ let make = () => {
         <button
           type_="button"
           onClick={_ => setIsExpanded(prev => !prev)}
-          className="w-full px-3.5 py-1.5 text-xs text-zinc-400 hover:text-zinc-200 transition-colors border-t border-[#8051CD]/20"
+          className="w-full px-0.5 py-1.5 text-xs text-zinc-400 hover:text-zinc-200 transition-colors border-t border-white/8"
         >
           {React.string(
-            isExpanded
-              ? "Show less"
-              : `+${Int.toString(count - _collapsedLimit)} more`,
+            isExpanded ? "Show less" : `+${Int.toString(count - _collapsedLimit)} more`,
           )}
         </button>
       | false => React.null

@@ -176,7 +176,7 @@ let make = (
             onClick={_ =>
               WebAPI.Window.open_(
                 WebAPI.Global.window,
-                ~url="https://discord.gg/xk8uXJSvhC",
+                ~url="https://frontman.sh/docs",
                 ~target="_blank",
                 ~features="noopener,noreferrer",
               )->ignore}

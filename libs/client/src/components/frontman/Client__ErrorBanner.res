@@ -25,12 +25,12 @@ let make = (~error: string, ~category: string, ~onRetry: unit => unit) => {
         {React.string("Retry")}
       </button>
       <a
-        href="https://discord.gg/xk8uXJSvhC"
+        href="https://frontman.sh/docs"
         target="_blank"
         rel="noopener noreferrer"
         className="text-xs text-red-400/40 hover:text-red-300 px-3 py-1 transition-colors"
       >
-        {React.string("Join Discord")}
+        {React.string("Get help")}
       </a>
     </div>
   </div>

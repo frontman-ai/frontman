@@ -340,17 +340,16 @@ module ModelSelector = {
 
     <Select.Root value={selectedValue} onValueChange={value => onModelChange(value)}>
       <Select.Trigger
-        className="inline-flex items-center justify-between gap-1 w-full h-7 pl-2 pr-1 text-xs
-                   bg-transparent text-zinc-400 
-                   border-none rounded cursor-pointer
-                   hover:text-zinc-200 hover:bg-zinc-700/30
+        className="inline-flex items-center gap-1 h-8 pl-2 pr-1.5 text-xs rounded-md
+                   bg-transparent text-zinc-400 border-none cursor-pointer
+                   hover:text-zinc-200 hover:bg-white/6
                    focus:outline-none focus:ring-0
                    data-[placeholder]:text-zinc-500"
       >
-        <span className="truncate max-w-[140px]">
+        <span className="truncate max-w-[120px]">
           {React.string(selectedDisplay->Option.getOr("Select model..."))}
         </span>
-        <Select.Icon className="text-zinc-400">
+        <Select.Icon className="text-zinc-400 flex-shrink-0">
           <Icons.ChevronDownIcon size=12 />
         </Select.Icon>
       </Select.Trigger>
@@ -416,23 +415,109 @@ module ModelSelector = {
 
 module RadixUI__Icons = Bindings__RadixUI__Icons
 
-// Select element button
+// Select element button — three visual states:
+// resting: zinc, label visible
+// selecting: violet pulse dot, shows "Selecting…"
+// has-annotations (isSelecting=false but hasAnnotations=true): zinc-200 with active dot
 module SelectElementButton = {
   @react.component
-  let make = (~onClick: unit => unit, ~isSelecting: bool) => {
+  let make = (
+    ~onClick: unit => unit,
+    ~isSelecting: bool,
+    ~hasAnnotations: bool,
+    ~showLabel: bool,
+  ) => {
+    let (extraClass, iconClass) = switch (isSelecting, hasAnnotations) {
+    | (true, _) => ("text-violet-300 bg-violet-600/20 hover:bg-violet-600/30", "text-violet-300")
+    | (false, true) => ("text-zinc-200 hover:bg-white/6", "text-zinc-200")
+    | (false, false) => ("text-zinc-400 hover:text-zinc-200 hover:bg-white/6", "text-zinc-400")
+    }
+
     <button
       type_="button"
       onClick={_ => onClick()}
-      className={`flex items-center gap-1.5 h-9 px-4 rounded-full text-xs font-medium
-                 transition-colors
-                 ${isSelecting
-          ? "bg-violet-600 text-white hover:bg-violet-500"
-          : "bg-zinc-800/80 text-zinc-300 hover:bg-zinc-700 hover:text-zinc-100"}`}
-      title={isSelecting ? "Exit selection mode" : "Select element"}
+      className={`inline-flex items-center gap-1.5 h-8 px-2.5 rounded-md text-xs font-medium
+                 transition-colors cursor-pointer ${extraClass}`}
+      title={isSelecting ? "Cancel selection" : "Select an element in the preview"}
     >
-      <Icons.CursorClickIcon size=14 />
-      <span> {React.string("Select")} </span>
+      {switch isSelecting {
+      | true =>
+        <span className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-pulse flex-shrink-0" />
+      | false => <Icons.CursorClickIcon size=13 className={iconClass} />
+      }}
+      {showLabel
+        ? <span className="whitespace-nowrap">
+            {React.string(isSelecting ? "Selecting\u{2026}" : "Select")}
+          </span>
+        : React.null}
+      {switch (isSelecting, hasAnnotations) {
+      | (false, true) =>
+        <span
+          className="w-1.5 h-1.5 rounded-full bg-violet-400 flex-shrink-0" title="Element selected"
+        />
+      | _ => React.null
+      }}
     </button>
+  }
+}
+
+// Overflow button — ··· trigger revealing the model selector in a panel above the toolbar
+module OverflowButton = {
+  @react.component
+  let make = (
+    ~modelConfigOption: option<
+      FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.sessionConfigOption,
+    >,
+    ~isModelsConfigLoading: bool,
+    ~selectedModelValue: option<
+      FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.sessionConfigValueId,
+    >,
+    ~onModelChange: string => unit,
+  ) => {
+    let (isOpen, setIsOpen) = React.useState(() => false)
+
+    <div className="relative flex-shrink-0">
+      <button
+        type_="button"
+        onClick={_ => setIsOpen(prev => !prev)}
+        className="inline-flex items-center justify-center w-8 h-8 rounded-md
+                   text-zinc-400 hover:text-zinc-200 hover:bg-white/6
+                   transition-colors cursor-pointer"
+        title="More options"
+      >
+        <span className="flex gap-[3px] items-center">
+          <span className="w-1 h-1 rounded-full bg-current" />
+          <span className="w-1 h-1 rounded-full bg-current" />
+          <span className="w-1 h-1 rounded-full bg-current" />
+        </span>
+      </button>
+      {isOpen
+        ? <div
+            className="absolute bottom-10 left-0 z-50 min-w-[180px]
+                       bg-zinc-900 border border-white/10 rounded-lg shadow-xl p-2"
+          >
+            <div className="text-[10px] text-zinc-500 px-2 pb-1 uppercase tracking-wide">
+              {React.string("Model")}
+            </div>
+            {switch (isModelsConfigLoading, modelConfigOption) {
+            | (true, _) =>
+              <div className="px-2 py-1 text-xs text-zinc-500"> {React.string("Loading...")} </div>
+            | (false, Some(configOption)) =>
+              <div className="w-full">
+                <ModelSelector
+                  configOption
+                  selectedValue={selectedModelValue->Option.getOr("")}
+                  onModelChange={v => {
+                    onModelChange(v)
+                    setIsOpen(_ => false)
+                  }}
+                />
+              </div>
+            | (false, None) => React.null
+            }}
+          </div>
+        : React.null}
+    </div>
   }
 }
 
@@ -452,7 +537,7 @@ module StopIcon = {
   }
 }
 
-// Submit/Stop button - purple circle, shows send arrow or stop icon
+// Submit/Stop button — Send is the sole purple element at rest; Stop becomes a pill with label
 module SubmitButton = {
   @react.component
   let make = (
@@ -462,22 +547,23 @@ module SubmitButton = {
     ~onCancel: unit => unit,
   ) => {
     if isAgentRunning {
-      // Stop button - always enabled while agent is running
+      // Stop — pill with text label, feels different from compose mode
       <button
         type_="button"
         onClick={e => {
           ReactEvent.Mouse.preventDefault(e)
           onCancel()
         }}
-        className="flex items-center justify-center w-10 h-10 rounded-full
-                   transition-all text-white
-                    bg-[#985DF7] hover:bg-[#8247E5] hover:scale-105"
+        className="inline-flex items-center gap-2 h-8 px-4 rounded-full
+                   bg-[#985DF7] hover:bg-[#8247E5] text-white text-xs font-medium
+                   transition-all hover:scale-105 cursor-pointer"
         title="Stop generation"
       >
-        <StopIcon size=18 />
+        <StopIcon size=12 />
+        <span> {React.string("Stop")} </span>
       </button>
     } else {
-      // Send button
+      // Send — circle, the only purple element in the composition surface
       <button
         type_="submit"
         disabled
@@ -485,12 +571,13 @@ module SubmitButton = {
           ReactEvent.Mouse.preventDefault(e)
           onClick()
         }}
-        className="flex items-center justify-center w-10 h-10 rounded-full
-                   transition-all text-white
+        className="flex items-center justify-center w-8 h-8 rounded-full
+                   transition-all text-white cursor-pointer
                    bg-[#985DF7] hover:bg-[#8247E5] hover:scale-105
                    disabled:bg-zinc-700/50 disabled:text-zinc-500 disabled:cursor-not-allowed disabled:scale-100"
+        title="Send (Enter)"
       >
-        <Icons.SendArrowIcon size=18 />
+        <Icons.SendArrowIcon size=14 />
       </button>
     }
   }
@@ -524,6 +611,8 @@ let make = (
   let (isDragging, setIsDragging) = React.useState(() => false)
   let (previewSrc, setPreviewSrc) = React.useState((): option<string> => None)
   let (fileSizeError, setFileSizeError) = React.useState((): option<string> => None)
+  // showSelectLabel: true when toolbar is wide enough to show the "Select" text label
+  let (showSelectLabel, setShowSelectLabel) = React.useState(() => true)
   let fileInputRef = React.useRef(Nullable.null)
   let editableRef = React.useRef(Nullable.null)
   let formRef = React.useRef(Nullable.null)
@@ -570,6 +659,25 @@ let make = (
         }
       },
     )
+  })
+
+  // ResizeObserver: hide "Select" label when toolbar is too narrow
+  let _setupResizeObserver: (Dom.element, bool => unit) => unit => unit = %raw(`
+    function(el, setShowLabel) {
+      var LABEL_THRESHOLD = 300;
+      var ro = new ResizeObserver(function(entries) {
+        var width = entries[0].contentRect.width;
+        setShowLabel(width >= LABEL_THRESHOLD);
+      });
+      ro.observe(el);
+      return function() { ro.disconnect(); };
+    }
+  `)
+
+  React.useEffect0(() => {
+    formRef.current
+    ->Nullable.toOption
+    ->Option.map(el => _setupResizeObserver(el, v => setShowSelectLabel(_ => v)))
   })
 
   // Clear file size error after 3 seconds
@@ -857,7 +965,7 @@ let make = (
   <div
     ref={ReactDOM.Ref.domRef(formRef)}
     className={`bg-[#130d20] relative shrink-0 ${isDragging
-        ? "ring-2 ring-violet-500/50 ring-inset"
+        ? "ring-2 ring-white/20 ring-inset"
         : ""}`}
     onDragOver={handleDragOver}
     onDragLeave={handleDragLeave}
@@ -907,11 +1015,10 @@ let make = (
           onClick={handleEditableClick}
           className={[
             "w-full min-h-[48px] max-h-[200px] px-4 py-3",
-            "bg-[#8051CD]/20 border-2 border-[#8051CD]/60 rounded-xl",
+            "border-b border-white/10",
             "text-sm text-zinc-100",
             "overflow-y-auto",
-            "focus:outline-none focus:border-[#8051CD]/80",
-            "caret-[#8051CD] [caret-shape:block] [caret-animation:manual]",
+            "focus:outline-none",
             "whitespace-pre-wrap break-words",
             if isInputDisabled {
               "opacity-60 cursor-not-allowed"
@@ -933,10 +1040,26 @@ let make = (
       </div>
     </div>
 
-    // Footer with tools and submit
-    <div className="flex items-center justify-between px-3 pb-3">
-      <div className="flex items-center gap-1">
-        // Add attachment button
+    // Footer with tools and submit — toolbar anchored at bottom, always stable position
+    <div className="flex items-center justify-between px-3 pb-2 pt-1">
+      <div
+        className={`flex items-center gap-1 min-w-0 transition-opacity ${isAgentRunning
+            ? "opacity-40 pointer-events-none"
+            : ""}`}
+      >
+        // Select element button (optional)
+        {switch onSelectElement {
+        | Some(handler) =>
+          <SelectElementButton
+            onClick={handler}
+            isSelecting={isSelecting}
+            hasAnnotations={hasAnnotations}
+            showLabel={showSelectLabel}
+          />
+        | None => React.null
+        }}
+
+        // Attach button — icon only
         <button
           type_="button"
           onClick={_ => {
@@ -947,12 +1070,12 @@ let make = (
               clickElement(input->Obj.magic)
             })
           }}
-          className="flex items-center justify-center w-7 h-7 rounded-lg
-                     text-zinc-400 hover:text-zinc-200 hover:bg-violet-800/50
-                     transition-colors"
+          className="inline-flex items-center justify-center w-8 h-8 rounded-md flex-shrink-0
+                     text-zinc-400 hover:text-zinc-200 hover:bg-white/6
+                     transition-colors cursor-pointer"
           title="Attach files (images, PDFs)"
         >
-          <Icons.PlusIcon size=16 />
+          <Icons.PlusIcon size=15 />
         </button>
         <input
           ref={ReactDOM.Ref.domRef(fileInputRef)}
@@ -963,22 +1086,16 @@ let make = (
           className="hidden"
         />
 
-        // Model selector - show loading placeholder until config options are fetched
+        // Model selector — shown inline, shrinks when space is tight
         {switch (isModelsConfigLoading, modelConfigOption) {
         | (true, _) =>
-          <div className="w-[150px] h-7">
-            <div
-              className="inline-flex items-center justify-between gap-1 w-full h-full pl-2 pr-1 text-xs
-                         bg-transparent text-zinc-500 border-none rounded cursor-default"
-            >
-              <span className="truncate max-w-[130px]"> {React.string("Loading models...")} </span>
-              <span className="text-zinc-400">
-                <Icons.ChevronDownIcon size=12 />
-              </span>
-            </div>
+          <div
+            className="inline-flex items-center gap-1 h-8 px-2 text-xs text-zinc-500 shrink min-w-0"
+          >
+            <span className="truncate"> {React.string("Loading...")} </span>
           </div>
         | (false, Some(configOption)) =>
-          <div className="w-[150px] h-7">
+          <div className="shrink min-w-0 max-w-[160px]">
             <ModelSelector
               configOption selectedValue={selectedModelValue->Option.getOr("")} onModelChange
             />
@@ -987,14 +1104,8 @@ let make = (
         }}
       </div>
 
-      // Button group: Select Element (optional) + Submit
-      <div className="flex items-center gap-2">
-        {switch onSelectElement {
-        | Some(handler) => <SelectElementButton onClick={handler} isSelecting={isSelecting} />
-        | None => React.null
-        }}
-        <SubmitButton disabled={isSubmitDisabled} isAgentRunning onClick={doSubmit} onCancel />
-      </div>
+      // Submit / Stop
+      <SubmitButton disabled={isSubmitDisabled} isAgentRunning onClick={doSubmit} onCancel />
     </div>
 
     // Image lightbox preview

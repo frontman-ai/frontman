@@ -440,7 +440,6 @@ let make = () => {
       </ScrollContainer.ContentWrapper>
     </ScrollContainer>
     <Client__PlanDisplay entries=planEntries />
-    <Client__SelectedElementDisplay />
     {switch (usageInfo, hasAnyKey) {
     | (Some({limit: Some(limit), remaining: Some(remaining), hasServerKey: Some(true)}), false) =>
       <div className="px-4 pb-1 text-xs text-zinc-400 shrink-0">
@@ -450,25 +449,28 @@ let make = () => {
       </div>
     | _ => React.null
     }}
-    {switch hasPendingQuestion {
-    | true => <Client__QuestionDrawer />
-    | false =>
-      <PromptInput
-        onSubmit={handleSubmit}
-        onCancel={Client__State.Actions.cancelTurn}
-        modelConfigOption
-        isModelsConfigLoading
-        selectedModelValue
-        onModelChange={value => Client__State.Actions.setSelectedModelValue(~value)}
-        isAgentRunning
-        hasActiveACPSession
-        disabled={isUsageExhausted}
-        disabledPlaceholder="Free requests exhausted. Add your API key in Settings to continue."
-        onSelectElement={Client__State.Actions.toggleWebPreviewSelection}
-        isSelecting={webPreviewIsSelecting}
-        hasAnnotations
-        isEnrichingAnnotations={hasEnrichingAnnotations}
-      />
-    }}
+    <div className="border-t border-white/8 shrink-0">
+      <Client__SelectedElementDisplay />
+      {switch hasPendingQuestion {
+      | true => <Client__QuestionDrawer />
+      | false =>
+        <PromptInput
+          onSubmit={handleSubmit}
+          onCancel={Client__State.Actions.cancelTurn}
+          modelConfigOption
+          isModelsConfigLoading
+          selectedModelValue
+          onModelChange={value => Client__State.Actions.setSelectedModelValue(~value)}
+          isAgentRunning
+          hasActiveACPSession
+          disabled={isUsageExhausted}
+          disabledPlaceholder="Free requests exhausted. Add your API key in Settings to continue."
+          onSelectElement={Client__State.Actions.toggleWebPreviewSelection}
+          isSelecting={webPreviewIsSelecting}
+          hasAnnotations
+          isEnrichingAnnotations={hasEnrichingAnnotations}
+        />
+      }}
+    </div>
   </div>
 }
