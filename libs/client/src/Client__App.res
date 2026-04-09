@@ -137,7 +137,7 @@ let make = (~apiBaseUrl: string) => {
       }}
       <div
         style={{width: `${Int.toString(chatboxWidth)}px`}}
-        className="h-full border-r flex flex-col p-2 overflow-hidden relative shrink-0"
+        className="h-full border-r flex flex-col overflow-hidden relative shrink-0"
       >
         <Client__Chatbox />
         // Resize handle on right edge
