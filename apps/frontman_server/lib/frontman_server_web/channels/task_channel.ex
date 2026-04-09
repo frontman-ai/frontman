@@ -502,6 +502,7 @@ defmodule FrontmanServerWeb.TaskChannel do
 
     # Enrich scope with env keys from prompt _meta (sent with each prompt request)
     scope = enrich_scope_from_params(scope, params)
+    socket = assign(socket, :scope, scope)
 
     # Extract model selection from prompt _meta
     model = extract_model_from_params(params)

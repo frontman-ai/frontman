@@ -7,6 +7,7 @@ defmodule FrontmanServerWeb.TaskChannelEnvKeyTest do
   import FrontmanServer.ProvidersFixtures
 
   alias FrontmanServer.Tasks
+  alias FrontmanServer.Tasks.Execution.LLMError
 
   setup %{scope: scope} do
     {socket, _task_id} = join_task_channel(scope)
@@ -47,6 +48,44 @@ defmodule FrontmanServerWeb.TaskChannelEnvKeyTest do
 
     test "falls back when no env keys or model provided", %{socket: socket} do
       push_prompt_and_assert_accepted(socket)
+    end
+  end
+
+  describe "env key persistence across retries" do
+    setup %{scope: scope} do
+      {socket, task_id} = join_task_channel(scope)
+      complete_mcp_handshake(socket)
+      {:ok, socket: socket, task_id: task_id}
+    end
+
+    test "env key in prompt _meta is still on scope when :fire_retry fires", %{
+      socket: socket,
+      task_id: task_id
+    } do
+      push_prompt_and_assert_accepted(socket, %{"anthropicKeyValue" => "sk-ant-retry-test"})
+
+      # Confirm the enriched scope was persisted to socket assigns after the prompt
+      %{assigns: %{scope: scope_after_prompt}} = :sys.get_state(socket.channel_pid)
+      assert scope_after_prompt.env_api_keys["anthropic"] == "sk-ant-retry-test"
+
+      # Trigger a transient error so the retry coordinator starts
+      error = %LLMError{message: "Rate limited", category: "rate_limit", retryable: true}
+
+      Phoenix.PubSub.broadcast(
+        FrontmanServer.PubSub,
+        Tasks.topic(task_id),
+        {:swarm_event, {:failed, {:error, error, System.unique_integer([:positive])}}}
+      )
+
+      :sys.get_state(socket.channel_pid)
+
+      # Fire the retry — this reads scope from socket.assigns.scope
+      send(socket.channel_pid, :fire_retry)
+      :sys.get_state(socket.channel_pid)
+
+      # The scope on the socket must still carry the env key after the retry fires
+      %{assigns: %{scope: scope_after_retry}} = :sys.get_state(socket.channel_pid)
+      assert scope_after_retry.env_api_keys["anthropic"] == "sk-ant-retry-test"
     end
   end
 end
