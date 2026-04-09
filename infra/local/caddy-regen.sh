@@ -59,11 +59,10 @@ else
         PORT_NEXTJS=$((BASE_PORT + 2))
         PORT_STORYBOOK=$((BASE_PORT + 3))
         PORT_MARKETING=$((BASE_PORT + 4))
-        PORT_DOGFOOD=$((BASE_PORT + 5))
 
         # Generate route blocks for this worktree
         cat >> "$CADDYFILE" << EOF
-# Worktree: $POD (ports ${PORT_PHOENIX}–${PORT_DOGFOOD})
+# Worktree: $POD (ports ${PORT_PHOENIX})
 ${HASH}.api.frontman.local {
     tls internal
     reverse_proxy https://127.0.0.1:${PORT_PHOENIX} {
@@ -86,11 +85,6 @@ ${HASH}.nextjs.frontman.local {
 ${HASH}.storybook.frontman.local {
     tls internal
     reverse_proxy 127.0.0.1:${PORT_STORYBOOK}
-}
-
-${HASH}.dogfood.frontman.local {
-    tls internal
-    reverse_proxy 127.0.0.1:${PORT_DOGFOOD}
 }
 
 ${HASH}.marketing.frontman.local {

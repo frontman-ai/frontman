@@ -46,7 +46,6 @@ make dev
 ```
 frontman/
 ├── apps/
-│   ├── dogfooding/            # Internal testing app
 │   ├── frontman_server/       # Elixir/Phoenix backend (AGPL-3.0)
 │   └── marketing/             # Marketing website
 ├── libs/

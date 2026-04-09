@@ -21,7 +21,6 @@ Please report security vulnerabilities through [GitHub's private vulnerability r
 
 **Out of scope:**
 - Marketing website (`apps/marketing/`)
-- Dogfooding app (`apps/dogfooding/`)
 - Infrastructure configs (`infra/`)
 
 ## Response Timeline

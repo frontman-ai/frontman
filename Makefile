@@ -79,7 +79,7 @@ help: ## Display available commands
 # Development
 # ============================================================================
 ## DEV_START
-.PHONY: dev dev-client dev-server dev-nextjs dev-marketing dev-dogfooding
+.PHONY: dev dev-client dev-server dev-nextjs dev-marketing
 
 dev: ## Start all core services (client + server + nextjs)
 	@printf "$(YELLOW)Starting all services via mprocs...$(RESET)\n"
@@ -99,12 +99,7 @@ dev-nextjs: ## Start development server for Next.js test site
 
 dev-marketing: ## Start development server for marketing site
 	@printf "$(YELLOW)Starting marketing dev server...$(RESET)\n"
-	cd apps/marketing && $(MAKE) dev
-
-dev-dogfooding: ## Start development server for dogfooding app
-	@printf "$(YELLOW)Starting dogfooding dev server...$(RESET)\n"
-	cd apps/dogfooding && npm install && $(MAKE) dev
-
+cd apps/marketing && $(MAKE) dev
 ## DEV_END
 
 # ============================================================================
@@ -285,7 +280,6 @@ wt-urls: ## Show service URLs for a worktree (BRANCH=...)
 	printf "  $(GREEN)Vite$(RESET)        https://$$HASH.vite.frontman.local\n"; \
 	printf "  $(GREEN)Next.js$(RESET)     https://$$HASH.nextjs.frontman.local/frontman\n"; \
 	printf "  $(GREEN)Storybook$(RESET)   https://$$HASH.storybook.frontman.local\n"; \
-	printf "  $(GREEN)Dogfood$(RESET)     https://$$HASH.dogfood.frontman.local\n"; \
 	printf "  $(GREEN)Marketing$(RESET)   https://$$HASH.marketing.frontman.local\n"; \
 	echo ""
 
@@ -460,28 +454,10 @@ test-wordpress-core-tools: ## Run PHP tests for WordPress core tool implementati
 # Utilities
 # ============================================================================
 ## UTIL_START
-.PHONY: kill-all-processes open-dogfooding pull-webapi debug-task pr-summary push
+.PHONY: kill-all-processes pull-webapi debug-task pr-summary push
 
 kill-all-processes: ## Kill all running make dev processes
 	@ps aux | grep "[m]ake dev" | awk '{print $$2}' | xargs -r kill 2>/dev/null || true
-
-open-dogfooding: ## Open dogfooding app in browser (isolated Chrome profile)
-	@if [ "$$(uname)" = "Darwin" ]; then \
-		open -n -a "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
-			--args --user-data-dir="/tmp/chrome_dev_test" --disable-web-security http://localhost:6123; \
-	elif command -v google-chrome >/dev/null 2>&1; then \
-		google-chrome --user-data-dir="/tmp/chrome_dev_test" --disable-web-security http://localhost:6123; \
-	elif command -v google-chrome-stable >/dev/null 2>&1; then \
-		google-chrome-stable --user-data-dir="/tmp/chrome_dev_test" --disable-web-security http://localhost:6123; \
-	elif command -v chromium-browser >/dev/null 2>&1; then \
-		chromium-browser --user-data-dir="/tmp/chrome_dev_test" --disable-web-security http://localhost:6123; \
-	elif command -v xdg-open >/dev/null 2>&1; then \
-		printf "$(YELLOW)No Chrome found — opening with default browser (--disable-web-security not applied)$(RESET)\n"; \
-		xdg-open http://localhost:6123; \
-	else \
-		printf "$(YELLOW)Error: No supported browser found. Open http://localhost:6123 manually.$(RESET)\n"; \
-		exit 1; \
-	fi
 
 pull-webapi: ## Pull latest experimental-rescript-webapi subtree
 	git subtree pull --prefix libs/experimental-rescript-webapi git@github.com:itayadler/experimental-rescript-webapi.git main --squash

@@ -188,7 +188,6 @@ print_worktree() {
       printf "       ${GREEN}Next.js${RESET}     https://%s.nextjs.frontman.local/frontman  ${DIM}(:%s)${RESET}\n" "$hash" "$((base_port + 2))"
       printf "       ${GREEN}Storybook${RESET}   https://%s.storybook.frontman.local  ${DIM}(:%s)${RESET}\n" "$hash" "$((base_port + 3))"
       printf "       ${GREEN}Marketing${RESET}   https://%s.marketing.frontman.local  ${DIM}(:%s)${RESET}\n" "$hash" "$((base_port + 4))"
-      printf "       ${GREEN}Dogfood${RESET}     https://%s.dogfood.frontman.local  ${DIM}(:%s)${RESET}\n" "$hash" "$((base_port + 5))"
       echo ""
       printf "  ${DIM}Actions:${RESET}     make wt-dev BRANCH=%s\n" "$branch"
       printf "               make wt-stop BRANCH=%s\n" "$branch"
