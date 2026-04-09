@@ -131,7 +131,6 @@ cat > /opt/homebrew/etc/dnsmasq.d/frontman.conf << 'EOF'
 #   - ea0c.nextjs.frontman.local -> DEVPOD_SERVER
 #   - ea0c.vite.frontman.local -> DEVPOD_SERVER
 #   - ea0c.storybook.frontman.local -> DEVPOD_SERVER
-#   - ea0c.dogfood.frontman.local -> DEVPOD_SERVER
 
 # All *.api.frontman.local
 address=/api.frontman.local/DEVPOD_SERVER
@@ -144,9 +143,6 @@ address=/vite.frontman.local/DEVPOD_SERVER
 
 # All *.storybook.frontman.local
 address=/storybook.frontman.local/DEVPOD_SERVER
-
-# All *.dogfood.frontman.local
-address=/dogfood.frontman.local/DEVPOD_SERVER
 EOF
 ```
 
@@ -157,7 +153,7 @@ macOS uses `/etc/resolver/` to delegate DNS queries for specific domains to cust
 ```bash
 sudo mkdir -p /etc/resolver
 
-for service in api nextjs vite storybook dogfood; do
+for service in api nextjs vite storybook; do
   echo "nameserver 127.0.0.1" | sudo tee /etc/resolver/${service}.frontman.local > /dev/null
 done
 ```
