@@ -890,7 +890,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Minor Changes
 
-- [#335](https://github.com/frontman-ai/frontman/pull/335) [`389fff7`](https://github.com/frontman-ai/frontman/commit/389fff728ccbeaf6d73ca80497f1b8b4bd7c6c63) Thanks [@itayadler](https://github.com/itayadler)! - Add AI-powered auto-edit for existing files during `npx @frontman-ai/nextjs install` and colorized CLI output with brand purple theme.
+- Thanks [@itayadler](https://github.com/itayadler)! - Add AI-powered auto-edit for existing files during `npx @frontman-ai/nextjs install` and colorized CLI output with brand purple theme.
   - When existing middleware/proxy/instrumentation files are detected, the installer now offers to automatically merge Frontman using an LLM (OpenCode Zen, free, no API key)
   - Model fallback chain (gpt-5-nano → big-pickle → grok-code) with output validation
   - Privacy disclosure: users are informed before file contents are sent to a public LLM
@@ -899,7 +899,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Patch Changes
 
-- [#337](https://github.com/frontman-ai/frontman/pull/337) [`7e4386f`](https://github.com/frontman-ai/frontman/commit/7e4386fc5fdeea349efa61de97ed119f99f9585a) Thanks [@itayadler](https://github.com/itayadler)! - Move installer to npx-only, remove curl|bash endpoint, make --server optional
+- Thanks [@itayadler](https://github.com/itayadler)! - Move installer to npx-only, remove curl|bash endpoint, make --server optional
   - Remove API server install endpoint (InstallController + /install routes)
   - Make `--server` optional with default `api.frontman.sh`
   - Simplify Readline.res: remove /dev/tty hacks, just use process.stdin
@@ -923,7 +923,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Minor Changes
 
-- [#355](https://github.com/frontman-ai/frontman/pull/355) [`84b6d9b`](https://github.com/frontman-ai/frontman/commit/84b6d9bc68bc17cc5eec3b81f0b06b057d1826a9) Thanks [@itayadler](https://github.com/itayadler)! - Add `@frontman-ai/vite` package — a ReScript-first Vite integration with CLI installer (`npx @frontman-ai/vite install`), replacing the old broken `@frontman/vite-plugin`.
+- Thanks [@itayadler](https://github.com/itayadler)! - Add `@frontman-ai/vite` package — a ReScript-first Vite integration with CLI installer (`npx @frontman-ai/vite install`), replacing the old broken `@frontman/vite-plugin`.
   - Vite plugin with `configureServer` hook and Node.js ↔ Web API adapter for SSE streaming
   - Web API middleware serving Frontman UI, tool endpoints, and source location resolution
   - Config with automatic `isDev` inference from host (production = `api.frontman.sh`, everything else = dev)

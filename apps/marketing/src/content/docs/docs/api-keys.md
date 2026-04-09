@@ -23,7 +23,7 @@ Use your own API key from any supported provider for full control over model sel
 |----------|---------------|-----------------|
 | **OpenAI** | `gpt-4o`, `gpt-4o-mini` | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) |
 | **Anthropic** | `claude-sonnet-4-20250514`, `claude-3.5-haiku` | [console.anthropic.com](https://console.anthropic.com/) |
-| **OpenRouter** | Any model on OpenRouter | [openrouter.ai/keys](https://openrouter.ai/keys) |
+| **OpenRouter** | Any model on OpenRouter | [openrouter.ai](https://openrouter.ai) |
 
 ### Setting your key
 
