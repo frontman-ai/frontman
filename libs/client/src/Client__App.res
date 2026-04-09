@@ -42,6 +42,7 @@ let make = (~apiBaseUrl: string) => {
   let (ftueState, setFtueState) = React.useState(() => Client__FtueState.get())
   let (showCelebration, setShowCelebration) = React.useState(() => false)
   let (providerNudgeDismissed, setProviderNudgeDismissed) = React.useState(() => false)
+  let (nudgeBubbleDismissed, setNudgeBubbleDismissed) = React.useState(() => false)
   let hasProviderConfigured = Client__State.useSelector(
     Client__State.Selectors.hasAnyProviderConfigured,
   )
@@ -76,18 +77,15 @@ let make = (~apiBaseUrl: string) => {
 
   // Provider nudge: show when FTUE is completed, no provider configured, and not dismissed this session.
   // Gate on usageInfo being loaded (Some) to avoid flashing the nudge before provider status is fetched.
-  let showProviderNudge = switch (
-    ftueState,
-    hasProviderConfigured,
-    providerNudgeDismissed,
-    usageInfo,
-  ) {
+  let showNudge = switch (ftueState, hasProviderConfigured, providerNudgeDismissed, usageInfo) {
   | (Client__FtueState.Completed, false, false, Some(_)) => true
   | _ => false
   }
+  let showProviderNudgeBubble = showNudge && !nudgeBubbleDismissed
+  let showProviderNudgeBadge = showNudge && nudgeBubbleDismissed
 
   let handleProviderNudgeDismiss = () => {
-    setProviderNudgeDismissed(_ => true)
+    setNudgeBubbleDismissed(_ => true)
   }
 
   let handleProviderNudgeCta = () => {
@@ -125,7 +123,8 @@ let make = (~apiBaseUrl: string) => {
     <Client__TopBar
       chatboxWidth
       onSettingsClick={() => setSettingsOpen(_ => true)}
-      showProviderNudge
+      showProviderNudgeBubble
+      showProviderNudgeBadge
       onProviderNudgeDismiss=handleProviderNudgeDismiss
       onProviderNudgeCta=handleProviderNudgeCta
     />

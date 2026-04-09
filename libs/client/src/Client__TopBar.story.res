@@ -59,7 +59,8 @@ let defaultBar: Story.t<args> = {
         <Client__TopBar
           chatboxWidth=400
           onSettingsClick={() => ()}
-          showProviderNudge=false
+          showProviderNudgeBubble=false
+          showProviderNudgeBadge=false
           onProviderNudgeDismiss={() => ()}
           onProviderNudgeCta={() => ()}
         />
@@ -80,7 +81,8 @@ let withNudge: Story.t<args> = {
         <Client__TopBar
           chatboxWidth=400
           onSettingsClick={() => ()}
-          showProviderNudge=true
+          showProviderNudgeBubble=true
+          showProviderNudgeBadge=false
           onProviderNudgeDismiss={() => ()}
           onProviderNudgeCta={() => ()}
         />
@@ -101,7 +103,30 @@ let narrowChatPanel: Story.t<args> = {
         <Client__TopBar
           chatboxWidth=280
           onSettingsClick={() => ()}
-          showProviderNudge=false
+          showProviderNudgeBubble=false
+          showProviderNudgeBadge=false
+          onProviderNudgeDismiss={() => ()}
+          onProviderNudgeCta={() => ()}
+        />
+      </div>
+    </ContextWrapper>
+  },
+}
+
+let withNudgeBadge: Story.t<args> = {
+  name: "With Provider Nudge Badge (bubble dismissed)",
+  render: _ => {
+    React.useEffect0(() => {
+      _forceState(Fixtures.emptyState)
+      Some(() => Client__StateSnapshot__Storybook.resetState())
+    })
+    <ContextWrapper>
+      <div style={{width: "900px"}}>
+        <Client__TopBar
+          chatboxWidth=400
+          onSettingsClick={() => ()}
+          showProviderNudgeBubble=false
+          showProviderNudgeBadge=true
           onProviderNudgeDismiss={() => ()}
           onProviderNudgeCta={() => ()}
         />

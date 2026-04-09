@@ -102,14 +102,14 @@ module ContextWrapper = {
 type args = unit
 
 let default: Meta.t<args> = {
-  title: "Components/TopBar/WorkspaceDropdown",
-  component: Obj.magic(Client__TopBar__WorkspaceDropdown.make),
+  title: "Components/TopBar/TaskDropdown",
+  component: Obj.magic(Client__TopBar__TaskDropdown.make),
   tags: ["autodocs"],
   decorators: [Decorators.darkBackground],
 }
 
-let noWorkspaces: Story.t<args> = {
-  name: "No Workspaces",
+let noTasks: Story.t<args> = {
+  name: "No Tasks",
   render: _ => {
     React.useEffect0(() => {
       _forceState(Fixtures.emptyState)
@@ -117,14 +117,14 @@ let noWorkspaces: Story.t<args> = {
     })
     <ContextWrapper>
       <div className="p-2 bg-[#130d20]">
-        <Client__TopBar__WorkspaceDropdown onNewTask={() => ()} />
+        <Client__TopBar__TaskDropdown onNewTask={() => ()} />
       </div>
     </ContextWrapper>
   },
 }
 
-let singleWorkspace: Story.t<args> = {
-  name: "Single Workspace (active)",
+let singleTask: Story.t<args> = {
+  name: "Single Task (active)",
   render: _ => {
     let task = Fixtures.makeTask(
       ~id="t1",
@@ -138,14 +138,14 @@ let singleWorkspace: Story.t<args> = {
     })
     <ContextWrapper>
       <div className="p-2 bg-[#130d20]">
-        <Client__TopBar__WorkspaceDropdown onNewTask={() => ()} />
+        <Client__TopBar__TaskDropdown onNewTask={() => ()} />
       </div>
     </ContextWrapper>
   },
 }
 
-let manyWorkspaces: Story.t<args> = {
-  name: "Many Workspaces",
+let manyTasks: Story.t<args> = {
+  name: "Many Tasks",
   render: _ => {
     let now = Date.now()
     let tasks = Array.fromInitializer(~length=10, i => {
@@ -168,7 +168,7 @@ let manyWorkspaces: Story.t<args> = {
     })
     <ContextWrapper>
       <div className="p-2 bg-[#130d20]">
-        <Client__TopBar__WorkspaceDropdown onNewTask={() => ()} />
+        <Client__TopBar__TaskDropdown onNewTask={() => ()} />
       </div>
     </ContextWrapper>
   },

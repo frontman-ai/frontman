@@ -1,6 +1,7 @@
 module Icons = Bindings__RadixUI__Icons
 module Button = Bindings__UI__Button
 module Tooltip = Bindings__UI__Tooltip
+module FrontmanLogo = Client__FrontmanLogo
 
 @send external locationAssign: ('a, string) => unit = "assign"
 @send external blur: Dom.element => unit = "blur"
@@ -9,7 +10,8 @@ module Tooltip = Bindings__UI__Tooltip
 let make = (
   ~chatboxWidth: int,
   ~onSettingsClick: unit => unit,
-  ~showProviderNudge: bool=false,
+  ~showProviderNudgeBubble: bool=false,
+  ~showProviderNudgeBadge: bool=false,
   ~onProviderNudgeDismiss: unit => unit=() => (),
   ~onProviderNudgeCta: unit => unit=() => (),
 ) => {
@@ -94,11 +96,13 @@ let make = (
   <div className="h-8 flex items-center shrink-0 bg-[#130d20] border-b border-[#1e1538]">
     // LEFT ZONE — width tracks the resizable chat panel
     <div
-      style={{width: `${Int.toString(chatboxWidth)}px`}}
+      style={{width: `${Int.toString(chatboxWidth >= 240 ? chatboxWidth : 240)}px`}}
       className="flex items-center h-full shrink-0 px-1 gap-1 overflow-hidden"
     >
-      <Client__TopBar__LogoMenu previewUrl isAgentRunning />
-      <Client__TopBar__WorkspaceDropdown onNewTask={handleNewTask} />
+      <div className="flex items-center justify-center w-7 h-7 shrink-0">
+        <FrontmanLogo size=18 className={isAgentRunning ? "frontman-logo-pulse" : ""} />
+      </div>
+      <Client__TopBar__TaskDropdown onNewTask={handleNewTask} />
     </div>
     // Vertical divider — visually continues the panel border below
     <div className="w-px h-full bg-[#1e1538] shrink-0" />
@@ -112,6 +116,28 @@ let make = (
           </Button.Button>
         </Tooltip.TooltipTrigger>
         <Tooltip.TooltipContent sideOffset=4> {React.string("Reload")} </Tooltip.TooltipContent>
+      </Tooltip.Tooltip>
+      // Open in new window
+      <Tooltip.Tooltip>
+        <Tooltip.TooltipTrigger asChild=true>
+          <Button.Button
+            variant=#ghost
+            size=#sm
+            onClick={_ =>
+              WebAPI.Window.open_(
+                WebAPI.Global.window,
+                ~url=previewUrl,
+                ~target="_blank",
+                ~features="noopener,noreferrer",
+              )->ignore}
+            className=iconBtnCls
+          >
+            <Icons.OpenInNewWindowIcon style={iconSize} />
+          </Button.Button>
+        </Tooltip.TooltipTrigger>
+        <Tooltip.TooltipContent sideOffset=4>
+          {React.string("Open in new window")}
+        </Tooltip.TooltipContent>
       </Tooltip.Tooltip>
       // URL bar
       <input
@@ -131,7 +157,7 @@ let make = (
             size=#sm
             onClick={_ => Client__State.Actions.toggleDeviceMode()}
             className={`cursor-pointer h-7 w-7 p-0 ${deviceModeActive
-                ? "text-blue-400"
+                ? "bg-blue-500/15 text-blue-400 rounded"
                 : "text-zinc-400"}`}
           >
             <Icons.MobileIcon style={iconSize} />
@@ -141,6 +167,26 @@ let make = (
           {React.string(deviceModeActive ? "Exit device mode" : "Toggle device mode")}
         </Tooltip.TooltipContent>
       </Tooltip.Tooltip>
+      // Help
+      <Tooltip.Tooltip>
+        <Tooltip.TooltipTrigger asChild=true>
+          <Button.Button
+            variant=#ghost
+            size=#sm
+            onClick={_ =>
+              WebAPI.Window.open_(
+                WebAPI.Global.window,
+                ~url="https://discord.gg/xk8uXJSvhC",
+                ~target="_blank",
+                ~features="noopener,noreferrer",
+              )->ignore}
+            className=iconBtnCls
+          >
+            <Icons.QuestionMarkCircledIcon style={iconSize} />
+          </Button.Button>
+        </Tooltip.TooltipTrigger>
+        <Tooltip.TooltipContent sideOffset=4> {React.string("Help")} </Tooltip.TooltipContent>
+      </Tooltip.Tooltip>
       // Settings gear with optional provider nudge
       <div className="relative">
         <Tooltip.Tooltip>
@@ -149,7 +195,7 @@ let make = (
               variant=#ghost size=#sm onClick={_ => onSettingsClick()} className=iconBtnCls
             >
               <Icons.GearIcon style={iconSize} />
-              {switch showProviderNudge {
+              {switch showProviderNudgeBadge {
               | true =>
                 <span
                   className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-violet-500 ring-2 ring-zinc-900"
@@ -160,7 +206,7 @@ let make = (
           </Tooltip.TooltipTrigger>
           <Tooltip.TooltipContent sideOffset=4> {React.string("Settings")} </Tooltip.TooltipContent>
         </Tooltip.Tooltip>
-        {switch showProviderNudge {
+        {switch showProviderNudgeBubble {
         | true =>
           <Client__ProviderNudgeBubble
             onOpenSettings=onProviderNudgeCta onDismiss=onProviderNudgeDismiss

@@ -89,7 +89,7 @@ let make = (~onNewTask: unit => unit) => {
           <div className="px-3 py-2 border-b border-zinc-700">
             <input
               type_="text"
-              placeholder="Search workspaces..."
+              placeholder="Search tasks..."
               value={search}
               onChange={e => setSearch(_ => (e->ReactEvent.Form.target)["value"])}
               className="w-full bg-transparent text-xs text-zinc-200 placeholder-zinc-500 outline-none"
@@ -103,7 +103,7 @@ let make = (~onNewTask: unit => unit) => {
                 ->Array.map(task => {
                   let taskId =
                     Client__Task__Types.Task.getId(task)->Option.getOrThrow(
-                      ~message="[WorkspaceDropdown] Task has no ID",
+                      ~message="[TaskDropdown] Task has no ID",
                     )
                   let taskTitle = Client__Task__Types.Task.getTitle(task)->Option.getOr("Untitled")
                   let isActive = currentTaskId == Some(taskId)
@@ -125,7 +125,7 @@ let make = (~onNewTask: unit => unit) => {
                         </span>
                       : React.null}
                     <span
-                      className="p-0.5 rounded-sm opacity-0 group-hover/item:opacity-100 hover:bg-zinc-700 transition-opacity duration-150 cursor-pointer shrink-0"
+                      className="p-0.5 rounded-sm opacity-40 hover:opacity-100 hover:bg-zinc-700 transition-opacity duration-150 cursor-pointer shrink-0"
                       onClick={e => handleDeleteClick(e, taskId)}
                     >
                       <Icons.TrashIcon
@@ -137,9 +137,7 @@ let make = (~onNewTask: unit => unit) => {
                 })
                 ->React.array
               : <DropdownMenu.DropdownMenuLabel className="text-xs text-zinc-500 py-3 text-center">
-                  {React.string(
-                    String.trim(search) != "" ? "No matching workspaces" : "No workspaces yet",
-                  )}
+                  {React.string(String.trim(search) != "" ? "No matching tasks" : "No tasks yet")}
                 </DropdownMenu.DropdownMenuLabel>}
           </div>
         </DropdownMenu.DropdownMenuContent>
@@ -156,9 +154,7 @@ let make = (~onNewTask: unit => unit) => {
             <Icons.PlusIcon style={{"width": "12px", "height": "12px"}} />
           </button>
         </Tooltip.TooltipTrigger>
-        <Tooltip.TooltipContent sideOffset=4>
-          {React.string("New workspace")}
-        </Tooltip.TooltipContent>
+        <Tooltip.TooltipContent sideOffset=4> {React.string("New task")} </Tooltip.TooltipContent>
       </Tooltip.Tooltip>
     </div>
 
