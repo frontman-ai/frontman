@@ -11,7 +11,6 @@
  * - Model selector
  * - Submit button with status
  */
-
 module Icons = Client__ToolIcons
 
 // ============================================================================
@@ -302,10 +301,9 @@ module ModelSelector = {
   module ACP = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
 
   // Get the display name for the currently selected value from config option
-  let _getSelectedDisplay = (
-    configOption: ACP.sessionConfigOption,
-    selectedValue: string,
-  ): option<string> => {
+  let _getSelectedDisplay = (configOption: ACP.sessionConfigOption, selectedValue: string): option<
+    string,
+  > => {
     switch configOption {
     | ACP.SelectConfigOption({options}) =>
       switch options {
@@ -340,16 +338,15 @@ module ModelSelector = {
       (configOption, selectedValue),
     )
 
-    <Select.Root
-      value={selectedValue}
-      onValueChange={value => onModelChange(value)}>
+    <Select.Root value={selectedValue} onValueChange={value => onModelChange(value)}>
       <Select.Trigger
         className="inline-flex items-center justify-between gap-1 w-full h-7 pl-2 pr-1 text-xs
                    bg-transparent text-zinc-400 
                    border-none rounded cursor-pointer
                    hover:text-zinc-200 hover:bg-zinc-700/30
                    focus:outline-none focus:ring-0
-                   data-[placeholder]:text-zinc-500">
+                   data-[placeholder]:text-zinc-500"
+      >
         <span className="truncate max-w-[140px]">
           {React.string(selectedDisplay->Option.getOr("Select model..."))}
         </span>
@@ -363,7 +360,8 @@ module ModelSelector = {
           sideOffset=4
           className="z-50 min-w-[180px] max-h-[300px] overflow-hidden
                      bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl
-                     animate-in fade-in-0 zoom-in-95">
+                     animate-in fade-in-0 zoom-in-95"
+        >
           <Select.Viewport className="p-1">
             {switch configOption {
             | ACP.SelectConfigOption({options}) =>
@@ -372,8 +370,7 @@ module ModelSelector = {
                 groups
                 ->Array.map(group => {
                   <Select.Group key={group.group}>
-                    <Select.Label
-                      className="px-2 py-1.5 text-xs font-medium text-zinc-400">
+                    <Select.Label className="px-2 py-1.5 text-xs font-medium text-zinc-400">
                       {React.string(group.name)}
                     </Select.Label>
                     {group.options
@@ -384,7 +381,8 @@ module ModelSelector = {
                         className="relative flex items-center px-2 py-1.5 text-xs text-zinc-200 rounded
                                    cursor-pointer select-none outline-none
                                    data-[highlighted]:bg-zinc-700 data-[highlighted]:text-white
-                                   data-[disabled]:opacity-50 data-[disabled]:pointer-events-none">
+                                   data-[disabled]:opacity-50 data-[disabled]:pointer-events-none"
+                      >
                         <Select.ItemText> {React.string(opt.name)} </Select.ItemText>
                       </Select.Item>
                     })
@@ -401,7 +399,8 @@ module ModelSelector = {
                     className="relative flex items-center px-2 py-1.5 text-xs text-zinc-200 rounded
                                cursor-pointer select-none outline-none
                                data-[highlighted]:bg-zinc-700 data-[highlighted]:text-white
-                               data-[disabled]:opacity-50 data-[disabled]:pointer-events-none">
+                               data-[disabled]:opacity-50 data-[disabled]:pointer-events-none"
+                  >
                     <Select.ItemText> {React.string(opt.name)} </Select.ItemText>
                   </Select.Item>
                 })
@@ -432,7 +431,7 @@ module SelectElementButton = {
       title={isSelecting ? "Exit selection mode" : "Select element"}
     >
       <Icons.CursorClickIcon size=14 />
-      <span>{React.string("Select")}</span>
+      <span> {React.string("Select")} </span>
     </button>
   }
 }
@@ -446,7 +445,8 @@ module StopIcon = {
       height={Int.toString(size)}
       viewBox="0 0 24 24"
       fill="currentColor"
-      xmlns="http://www.w3.org/2000/svg">
+      xmlns="http://www.w3.org/2000/svg"
+    >
       <rect x="6" y="6" width="12" height="12" rx="2" />
     </svg>
   }
@@ -455,7 +455,12 @@ module StopIcon = {
 // Submit/Stop button - purple circle, shows send arrow or stop icon
 module SubmitButton = {
   @react.component
-  let make = (~disabled: bool, ~isAgentRunning: bool, ~onClick: unit => unit, ~onCancel: unit => unit) => {
+  let make = (
+    ~disabled: bool,
+    ~isAgentRunning: bool,
+    ~onClick: unit => unit,
+    ~onCancel: unit => unit,
+  ) => {
     if isAgentRunning {
       // Stop button - always enabled while agent is running
       <button
@@ -500,7 +505,9 @@ let make = (
   ~onCancel: unit => unit,
   ~modelConfigOption: option<FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.sessionConfigOption>,
   ~isModelsConfigLoading: bool,
-  ~selectedModelValue: option<FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.sessionConfigValueId>,
+  ~selectedModelValue: option<
+    FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.sessionConfigValueId,
+  >,
   ~onModelChange: string => unit,
   ~isAgentRunning: bool,
   ~hasActiveACPSession: bool,
@@ -548,19 +555,21 @@ let make = (
     | None => ()
     }
     syncHasContentTimerRef.current = Some(setTimeout(() => {
-      syncHasContentTimerRef.current = None
-      syncHasContent()
-    }, 100))
+        syncHasContentTimerRef.current = None
+        syncHasContent()
+      }, 100))
   }
 
   // Cleanup debounce timer on unmount
   React.useEffect0(() => {
-    Some(() => {
-      switch syncHasContentTimerRef.current {
-      | Some(id) => clearTimeout(id)
-      | None => ()
-      }
-    })
+    Some(
+      () => {
+        switch syncHasContentTimerRef.current {
+        | Some(id) => clearTimeout(id)
+        | None => ()
+        }
+      },
+    )
   })
 
   // Clear file size error after 3 seconds
@@ -596,13 +605,15 @@ let make = (
           // Insert chip at cursor position in the editable
           editableRef.current
           ->Nullable.toOption
-          ->Option.forEach(el => {
-            let chipEl = createFileChipElement(id, file.name, file.type_, isImage)
-            // Ensure editable is focused before inserting
-            focusAtEnd(el)
-            insertNodeAtCursor(chipEl)
-            syncHasContent()
-          })
+          ->Option.forEach(
+            el => {
+              let chipEl = createFileChipElement(id, file.name, file.type_, isImage)
+              // Ensure editable is focused before inserting
+              focusAtEnd(el)
+              insertNodeAtCursor(chipEl)
+              syncHasContent()
+            },
+          )
 
           Promise.resolve()
         })
@@ -706,7 +717,10 @@ let make = (
       formRef.current
       ->Nullable.toOption
       ->Option.forEach(formEl => {
-        let contains: (Dom.element, {..}) => bool = %raw(`function(el, target) { return el.contains(target); }`)
+        let contains: (
+          Dom.element,
+          {..},
+        ) => bool = %raw(`function(el, target) { return el.contains(target); }`)
         if !contains(formEl, target) {
           setIsDragging(_ => false)
         }
@@ -728,9 +742,8 @@ let make = (
 
     // Check for file items first (images/PDFs)
     let files = getClipboardFiles(clipboardData)
-    let acceptedFiles = files->Array.filter(file =>
-      acceptedFileTypes->Array.some(t => t == file.type_)
-    )
+    let acceptedFiles =
+      files->Array.filter(file => acceptedFileTypes->Array.some(t => t == file.type_))
     let text = getClipboardText(clipboardData)
     let lineCount = countLines(text)
     let charCount = String.length(text)
@@ -761,7 +774,9 @@ let make = (
       })
     | (false, _, false) =>
       ReactEvent.Clipboard.preventDefault(e)
-      insertNodeAtCursor(WebAPI.Global.document->WebAPI.Document.createTextNode(text)->WebAPI.Text.asNode)
+      insertNodeAtCursor(
+        WebAPI.Global.document->WebAPI.Document.createTextNode(text)->WebAPI.Text.asNode,
+      )
       syncHasContent()
     }
   }
@@ -775,7 +790,8 @@ let make = (
     ->Option.forEach(el => {
       let domChipIds = getChipIdsFromEditable(el)
       setInputItems(prev => {
-        let filtered = prev->Array.filter(item => domChipIds->Array.some(id => id == getItemId(item)))
+        let filtered =
+          prev->Array.filter(item => domChipIds->Array.some(id => id == getItemId(item)))
         if Array.length(filtered) != Array.length(prev) {
           filtered
         } else {
@@ -811,7 +827,7 @@ let make = (
   }
 
   let isInputDisabled = !hasActiveACPSession || isAgentRunning || disabled
-  let isSubmitDisabled = isInputDisabled || (!hasContent && !hasAnnotations) || isEnrichingAnnotations
+  let isSubmitDisabled = isInputDisabled || !hasContent && !hasAnnotations || isEnrichingAnnotations
 
   // Handle keydown in contentEditable.
   // Gates on isInputDisabled and isEnrichingAnnotations but NOT on hasContent —
@@ -840,7 +856,9 @@ let make = (
 
   <div
     ref={ReactDOM.Ref.domRef(formRef)}
-    className={`bg-[#180C2D] relative shrink-0 ${isDragging ? "ring-2 ring-violet-500/50 ring-inset" : ""}`}
+    className={`bg-[#130d20] relative shrink-0 ${isDragging
+        ? "ring-2 ring-violet-500/50 ring-inset"
+        : ""}`}
     onDragOver={handleDragOver}
     onDragLeave={handleDragLeave}
     onDrop={handleDrop}
@@ -849,14 +867,12 @@ let make = (
     {isDragging
       ? <div
           className="absolute inset-0 z-20 flex items-center justify-center
-                     bg-[#180C2D]/90 border-2 border-dashed border-violet-500/60 rounded-lg
+                     bg-[#130d20]/90 border-2 border-dashed border-violet-500/60 rounded-lg
                      pointer-events-none"
         >
           <div className="flex flex-col items-center gap-2 text-violet-300">
             <Icons.UploadIcon size=32 />
-            <span className="text-sm font-medium">
-              {React.string("Drop files here")}
-            </span>
+            <span className="text-sm font-medium"> {React.string("Drop files here")} </span>
             <span className="text-xs text-violet-400">
               {React.string("Images and PDFs up to 10MB")}
             </span>
@@ -868,7 +884,9 @@ let make = (
     {switch fileSizeError {
     | Some(error) =>
       <div className="px-3 pt-2">
-        <div className="px-3 py-2 rounded-lg bg-red-900/40 border border-red-700/50 text-xs text-red-300">
+        <div
+          className="px-3 py-2 rounded-lg bg-red-900/40 border border-red-700/50 text-xs text-red-300"
+        >
           {React.string(error)}
         </div>
       </div>
@@ -895,8 +913,14 @@ let make = (
             "focus:outline-none focus:border-[#8051CD]/80",
             "caret-[#8051CD] [caret-shape:block] [caret-animation:manual]",
             "whitespace-pre-wrap break-words",
-            if isInputDisabled { "opacity-60 cursor-not-allowed" } else { "" },
-          ]->Array.filter(c => c != "")->Array.join(" ")}
+            if isInputDisabled {
+              "opacity-60 cursor-not-allowed"
+            } else {
+              ""
+            },
+          ]
+          ->Array.filter(c => c != "")
+          ->Array.join(" ")}
         />
         // Placeholder overlay (shown when contentEditable is empty)
         {!hasContent
@@ -945,10 +969,9 @@ let make = (
           <div className="w-[150px] h-7">
             <div
               className="inline-flex items-center justify-between gap-1 w-full h-full pl-2 pr-1 text-xs
-                         bg-transparent text-zinc-500 border-none rounded cursor-default">
-              <span className="truncate max-w-[130px]">
-                {React.string("Loading models...")}
-              </span>
+                         bg-transparent text-zinc-500 border-none rounded cursor-default"
+            >
+              <span className="truncate max-w-[130px]"> {React.string("Loading models...")} </span>
               <span className="text-zinc-400">
                 <Icons.ChevronDownIcon size=12 />
               </span>
@@ -957,9 +980,7 @@ let make = (
         | (false, Some(configOption)) =>
           <div className="w-[150px] h-7">
             <ModelSelector
-              configOption
-              selectedValue={selectedModelValue->Option.getOr("")}
-              onModelChange
+              configOption selectedValue={selectedModelValue->Option.getOr("")} onModelChange
             />
           </div>
         | (false, None) => React.null
@@ -969,23 +990,16 @@ let make = (
       // Button group: Select Element (optional) + Submit
       <div className="flex items-center gap-2">
         {switch onSelectElement {
-        | Some(handler) =>
-          <SelectElementButton onClick={handler} isSelecting={isSelecting} />
+        | Some(handler) => <SelectElementButton onClick={handler} isSelecting={isSelecting} />
         | None => React.null
         }}
-        <SubmitButton
-          disabled={isSubmitDisabled}
-          isAgentRunning
-          onClick={doSubmit}
-          onCancel
-        />
+        <SubmitButton disabled={isSubmitDisabled} isAgentRunning onClick={doSubmit} onCancel />
       </div>
     </div>
 
     // Image lightbox preview
     {switch previewSrc {
-    | Some(src) =>
-      <Client__ImagePreview src onClose={() => setPreviewSrc(_ => None)} />
+    | Some(src) => <Client__ImagePreview src onClose={() => setPreviewSrc(_ => None)} />
     | None => React.null
     }}
   </div>
