@@ -59,7 +59,6 @@ defmodule FrontmanServer.Tasks.Execution do
   ## Options
   - `:tools` - List of tool definitions for LLM (default: [])
   - `:model` - LLM model spec (defaults to provider default)
-  - `:env_api_key` - Map of provider => api_key from client's environment
   - `:agent` - Custom agent struct implementing SwarmAi.Agent (for testing)
 
   ## Returns
@@ -72,11 +71,10 @@ defmodule FrontmanServer.Tasks.Execution do
           {:ok, pid() | :already_running} | {:error, :no_api_key | :usage_limit_exceeded | term()}
   def run(%Scope{} = scope, %Task{} = task, opts \\ []) do
     tools = Keyword.get(opts, :tools, [])
-    env_api_key = Keyword.get(opts, :env_api_key, %{})
     model = opts |> Keyword.get(:model) |> Model.resolve_string()
 
     # Resolve API key at the domain layer (earliest point)
-    case Providers.prepare_api_key(scope, model, env_api_key) do
+    case Providers.prepare_api_key(scope, model) do
       {:ok, api_key_info} ->
         task_id = task.task_id
         agent = build_agent(task, tools, opts, api_key_info)

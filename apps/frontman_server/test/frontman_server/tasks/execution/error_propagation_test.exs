@@ -16,6 +16,7 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
   import FrontmanServer.Test.Fixtures.Tasks
 
   alias Ecto.Adapters.SQL.Sandbox
+  alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.ExecutionEvent
 
@@ -46,10 +47,11 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
 
       agent = test_agent(error_llm, "ErrorPropTestAgent")
 
+      scope = Scope.with_env_api_keys(scope, %{"openrouter" => "sk-or-test"})
+
       {:ok, _} =
         Tasks.submit_user_message(scope, task_id, user_content("Take a screenshot"), [],
-          agent: agent,
-          env_api_key: %{"openrouter" => "sk-or-test"}
+          agent: agent
         )
 
       # Stream errors are now caught and surfaced as graceful failures
@@ -68,11 +70,10 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
       # ErrorLLM always returns {:error, reason}
       agent = test_agent(%ErrorLLM{error: :llm_api_failure}, "AlwaysErrorAgent")
 
+      scope = Scope.with_env_api_keys(scope, %{"openrouter" => "sk-or-test"})
+
       {:ok, _} =
-        Tasks.submit_user_message(scope, task_id, user_content("Hello"), [],
-          agent: agent,
-          env_api_key: %{"openrouter" => "sk-or-test"}
-        )
+        Tasks.submit_user_message(scope, task_id, user_content("Hello"), [], agent: agent)
 
       # Should receive a failed event broadcast
       assert_receive {:execution_event,

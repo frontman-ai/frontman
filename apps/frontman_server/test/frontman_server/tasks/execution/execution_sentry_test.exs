@@ -13,6 +13,7 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
   import FrontmanServer.Test.Fixtures.Tasks
 
   alias Ecto.Adapters.SQL.Sandbox
+  alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.ExecutionEvent
 
@@ -37,11 +38,10 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
       # ErrorLLM always returns {:error, reason}, triggering a :failed event
       agent = test_agent(%ErrorLLM{error: :llm_api_failure}, "ErrorSentryAgent")
 
+      scope = Scope.with_env_api_keys(scope, %{"openrouter" => "sk-or-test"})
+
       {:ok, _} =
-        Tasks.submit_user_message(scope, task_id, user_content("Hello"), [],
-          agent: agent,
-          env_api_key: %{"openrouter" => "sk-or-test"}
-        )
+        Tasks.submit_user_message(scope, task_id, user_content("Hello"), [], agent: agent)
 
       # Wait for the failed event broadcast (Sentry call completes before broadcast)
       assert_receive {:execution_event, %ExecutionEvent{type: :failed}}, 5_000
@@ -79,11 +79,10 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
 
       agent = test_agent(error_llm, "ErrorSentryAgent")
 
+      scope = Scope.with_env_api_keys(scope, %{"openrouter" => "sk-or-test"})
+
       {:ok, _} =
-        Tasks.submit_user_message(scope, task_id, user_content("Trigger error"), [],
-          agent: agent,
-          env_api_key: %{"openrouter" => "sk-or-test"}
-        )
+        Tasks.submit_user_message(scope, task_id, user_content("Trigger error"), [], agent: agent)
 
       # Stream errors now produce {:failed, ...} instead of {:crashed, ...}
       assert_receive {:execution_event,
