@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Changed
 
 - Refactor: move `env_api_keys` into `Scope` struct — eliminates ad-hoc `env_api_key` parameter threading across `Providers`, channels, and the execution pipeline. `Providers.prepare_api_key`, `resolve_api_key`, `available_provider_tiers`, and `model_config_data` all drop their `env_api_key` parameter and read from `scope.env_api_keys` instead.
+- Allow `.net` and `.org` origins in the server's allowed origin and external return URL allowlists.
 
 ## [0.15.0] - 2026-04-08
 
@@ -67,11 +68,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Patch Changes
 
 - [#762](https://github.com/frontman-ai/frontman/pull/762) [`e963100`](https://github.com/frontman-ai/frontman/commit/e963100f6fef33839cddc16c1a9bab850519c248) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Improve error UX: human-readable categorized errors, automatic retry with exponential backoff for transient failures, live countdown during retry, and manual retry button.
-
-## [Unreleased]
-
-### Changed
-- Allow `.net` and `.org` origins in the server's allowed origin and external return URL allowlists.
 
 ## [0.14.0] - 2026-03-27
 

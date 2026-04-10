@@ -8,6 +8,7 @@ defmodule FrontmanServerWeb.TaskChannelEnvKeyTest do
 
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Execution.LLMError
+  alias FrontmanServer.Tasks.ExecutionEvent
 
   defp push_prompt_and_assert_accepted(socket, meta \\ %{}) do
     push(socket, "acp:message", prompt_request(_meta: meta))
@@ -69,13 +70,15 @@ defmodule FrontmanServerWeb.TaskChannelEnvKeyTest do
 
       # Trigger a transient error so the retry coordinator starts.
       # We send directly to the channel pid (not via PubSub) to avoid
-      # interference from the concurrent outer-setup socket under CI load.
+      # interference from concurrent sockets under CI load.
       error = %LLMError{message: "Rate limited", category: "rate_limit", retryable: true}
 
-      send(
-        socket.channel_pid,
-        {:swarm_event, {:failed, {:error, error, System.unique_integer([:positive])}}}
-      )
+      event = %ExecutionEvent{
+        type: :failed,
+        payload: {:error, error, System.unique_integer([:positive])}
+      }
+
+      send(socket.channel_pid, {:execution_event, event})
 
       :sys.get_state(socket.channel_pid)
 
