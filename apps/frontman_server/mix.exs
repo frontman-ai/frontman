@@ -114,6 +114,7 @@ defmodule FrontmanServer.MixProject do
       {:excoveralls, "~> 0.18", only: :test},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:ex_json_schema, "~> 0.10", only: :test},
+      {:mox, "~> 1.0", only: :test},
       # Override transitive dep to pick up charlist deprecation fix (not yet released to Hex)
       {:toml, github: "bitwalker/toml-elixir", branch: "main", override: true}
     ]
