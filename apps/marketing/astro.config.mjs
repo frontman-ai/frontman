@@ -215,7 +215,7 @@ export default defineConfig({
       } else if (/\/(pricing|features|how-it-works)\/?$/.test(item.url)) {
         item.priority = 0.9;
         item.changefreq = 'monthly';
-      } else if (/\/vs\//.test(item.url) || /\/integrations\//.test(item.url)) {
+      } else if (/\/vs\//.test(item.url) || /(?<!\/docs)\/integrations\//.test(item.url)) {
         item.priority = 0.8;
         item.changefreq = 'monthly';
       } else if (/\/blog\/(?!tags\/)/.test(item.url) || /\/open-source-ai-releases\//.test(item.url)) {
