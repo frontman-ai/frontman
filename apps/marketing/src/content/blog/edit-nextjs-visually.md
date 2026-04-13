@@ -7,7 +7,7 @@ image: '/blog/edit-nextjs-visually-cover.png'
 tags: ['nextjs', 'tutorial', 'developer-tools']
 faq:
   - question: 'Do I need to eject from Next.js or change my build setup?'
-    answer: 'No. Frontman runs as middleware in your existing Next.js dev server. You add a plugin to next.config.js, run your usual dev server, and open the browser. Nothing is ejected. Nothing is replaced. Your production build is unaffected.'
+    answer: 'No. Frontman runs as middleware in your existing Next.js dev server. You add a middleware.ts file, run your usual dev server, and open the browser. Nothing is ejected. Nothing is replaced. Your production build is unaffected.'
   - question: 'Does this work with the App Router?'
     answer: 'Yes. Frontman supports both the App Router and the Pages Router. It understands Server Components and Client Components and handles them appropriately — server-only components are edited in source, client components get live hot-reload verification.'
   - question: 'What happens when I click a shared component — does it change every instance?'
@@ -35,25 +35,15 @@ Describe what you want. Frontman edits the source file directly, and Next.js hot
 
 ## Setup: Two Minutes
 
-**1. Install the package:**
+**1. Run the installer:**
 
 ```bash
-npm install -D @frontman/next
-# or
-yarn add -D @frontman/next
+npx @frontman-ai/nextjs install
 ```
 
-**2. Add to `next.config.js`:**
+This adds the package and creates a `middleware.ts` file in your project root automatically.
 
-```js
-const { withFrontman } = require('@frontman/next');
-
-module.exports = withFrontman({
-  // your existing Next.js config
-});
-```
-
-**3. Run your dev server as usual:**
+**2. Run your dev server as usual:**
 
 ```bash
 npm run dev
@@ -61,7 +51,7 @@ npm run dev
 
 Open your browser. The Frontman sidebar appears. Click anything.
 
-There is no step 4. Your production build is unaffected. Frontman is dev-only middleware.
+There is no step 3. Your production build is unaffected. Frontman is dev-only middleware.
 
 ## The Workflow
 
