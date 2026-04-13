@@ -1,6 +1,250 @@
 ---
 title: Next.js
-description: Full guide for using Frontman with Next.js — setup, App Router and Pages Router support, server logs, and middleware.
+description: Complete reference for the @frontman-ai/nextjs integration — installation, middleware setup, App Router vs Pages Router, OpenTelemetry instrumentation, and troubleshooting.
 ---
 
-Content coming soon.
+## Overview
+
+`@frontman-ai/nextjs` integrates the Frontman AI agent into your Next.js dev server via the Next.js middleware system. It intercepts requests to `/frontman/*`, giving the AI access to your source files, dev server logs, route manifest, and optionally OpenTelemetry spans covering HTTP requests and route render timing.
+
+**Frontman is a development-only tool.** The middleware and instrumentation have no effect in production. Your deployment bundle is identical whether Frontman is installed or not.
+
+## Requirements
+
+- Node.js 18 or later
+- Next.js 13.2 or later (`^13.2.0 || ^14.0 || ^15.0 || ^16.0`)
+
+## Installation
+
+Run the Frontman CLI installer from your project directory:
+
+```sh
+npx @frontman-ai/nextjs install
+```
+
+The CLI detects your Next.js version and writes the appropriate middleware file. To install manually without the CLI:
+
+```sh
+npm install --save-dev @frontman-ai/nextjs
+```
+
+## Middleware Setup
+
+The integration API differs depending on your Next.js version.
+
+### Next.js 13–15 (`middleware.ts`)
+
+Create or update `middleware.ts` in your project root (or `src/middleware.ts`):
+
+```ts
+import { createMiddleware } from '@frontman-ai/nextjs';
+import { type NextRequest, NextResponse } from 'next/server';
+
+const frontman = createMiddleware({
+  projectRoot: process.cwd(),
+});
+
+export async function middleware(req: NextRequest) {
+  const response = await frontman(req);
+  if (response) return response;
+  return NextResponse.next();
+}
+
+export const config = {
+  matcher: ['/frontman', '/frontman/:path*'],
+};
+```
+
+The `matcher` is required. Without it, Next.js runs the middleware on every request, adding unnecessary overhead across your entire application.
+
+### Next.js 16+ (`proxy.ts`)
+
+Next.js 16 introduced a dedicated proxy mechanism. Create `proxy.ts` in your project root:
+
+```ts
+import { createMiddleware } from '@frontman-ai/nextjs';
+import { type NextRequest, NextResponse } from 'next/server';
+
+const frontman = createMiddleware({
+  projectRoot: process.cwd(),
+});
+
+export function proxy(req: NextRequest): NextResponse | Promise<NextResponse> {
+  if (
+    req.nextUrl.pathname === '/frontman' ||
+    req.nextUrl.pathname.startsWith('/frontman/')
+  ) {
+    return frontman(req) ?? NextResponse.next();
+  }
+  return NextResponse.next();
+}
+```
+
+## Configuration
+
+All options are optional.
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `projectRoot` | `string` | `process.env.PROJECT_ROOT` \| `process.cwd()` | Absolute path to your project root. Scopes all file operations performed by the AI. |
+| `sourceRoot` | `string` | Same as `projectRoot` | Root for file path resolution. Set to the monorepo root when the Next.js app is a workspace package. |
+| `basePath` | `string` | `"frontman"` | URL prefix for Frontman routes. Must match the `matcher` pattern in `middleware.ts`. |
+| `host` | `string` | `process.env.FRONTMAN_HOST` \| `"api.frontman.sh"` | Frontman server host for WebSocket client connections. Accepts bare hostnames, full URLs, or local addresses. |
+| `serverName` | `string` | `"frontman-nextjs"` | Identifier included in every tool response. |
+| `serverVersion` | `string` | Package version | Version string included in tool responses. |
+| `clientUrl` | `string` | Auto-derived from `host` | Override the Frontman client JS bundle URL. Must include a `host` query parameter. |
+| `clientCssUrl` | `string` | Production CDN URL; `undefined` in dev | Override the Frontman client CSS URL. |
+| `entrypointUrl` | `string` | — | Custom entrypoint URL for the AI API. |
+| `isLightTheme` | `boolean` | `false` | Render the Frontman UI with a light color scheme. |
+| `isDev` | `boolean` | `true` unless `host === "api.frontman.sh"` | Override dev/prod mode detection. |
+
+### Monorepo configuration
+
+```ts
+const frontman = createMiddleware({
+  projectRoot: path.resolve(process.cwd()),         // Next.js app root
+  sourceRoot: path.resolve(process.cwd(), '../..'), // monorepo root
+});
+```
+
+## Accessing Frontman
+
+Start your dev server (`next dev` or `npm run dev`) and open `http://localhost:3000/frontman`. The port matches whatever `next dev` binds to.
+
+## How It Works
+
+### Request handling
+
+`createMiddleware` returns an async function compatible with both the Next.js middleware API and the Next.js 16+ proxy API. When a request arrives at `/frontman/*`:
+
+1. The path is parsed to determine the handler: UI, tool call, SSE event stream, or source location resolution.
+2. **Tool calls** (`POST /frontman/tools/call`) execute the requested tool and return the result as JSON.
+3. **SSE** (`GET /frontman/tools`) opens a server-sent event stream for streaming tool responses.
+4. All other requests to `/frontman/` serve the Frontman UI, injecting the client JS and CSS.
+
+When the request does not match a Frontman path, `frontman(req)` returns `undefined` (Next.js 13–15) or a pass-through `NextResponse.next()` (Next.js 16+).
+
+### Route discovery
+
+The `get_routes` tool discovers your Next.js routes by scanning the file system:
+
+**App Router** — Scans the `app/` directory for `page.tsx`, `page.ts`, `page.jsx`, `page.js`, `route.tsx`, and `route.ts` files. Returns route patterns and HTTP methods for API routes.
+
+**Pages Router** — Scans the `pages/` directory. Returns route patterns and identifies API routes under `pages/api/`.
+
+Both routers can coexist in the same project; Frontman reports routes from both.
+
+### Log capture
+
+A circular buffer of 1024 entries captures:
+
+- All `console.*` output across all Next.js contexts (startup, page render, API routes, middleware)
+- Build output from Webpack or Turbopack (compilation messages, module errors, HMR updates)
+- Uncaught exceptions and unhandled Promise rejections with stack traces
+
+Log capture starts when the middleware module is first imported. To capture startup-time logs (config evaluation, dependency initialization), add the instrumentation setup described below.
+
+### OpenTelemetry instrumentation (optional)
+
+For deeper observability — HTTP request spans, route render timing, API route execution — enable OTEL instrumentation.
+
+**Install peer dependencies:**
+
+```sh
+npm install --save-dev @opentelemetry/api @opentelemetry/sdk-trace-base @opentelemetry/sdk-logs
+```
+
+**Create `instrumentation.ts`** in your project root (or `src/`):
+
+```ts
+export async function register() {
+  if (process.env.NEXT_RUNTIME === 'nodejs') {
+    const { setup } = await import('@frontman-ai/nextjs/Instrumentation');
+    setup();
+  }
+}
+```
+
+The `NEXT_RUNTIME === 'nodejs'` guard is required — OTEL SDKs are Node.js-only and cannot run in the Next.js Edge runtime. When instrumentation is active, the `get_logs` tool also returns OTEL spans containing:
+
+- HTTP method, path, status code, and duration
+- Route render times per page
+- API route execution spans
+
+:::note
+Before Next.js 15.3, you must enable `experimental.instrumentationHook: true` in `next.config.js` for `instrumentation.ts` to be recognized.
+:::
+
+## Available Tools
+
+### Next.js-specific
+
+| Tool | Description |
+|------|-------------|
+| `get_routes` | Returns all discovered routes from `app/` and `pages/` directories, including dynamic segments (`[param]`, `[[...slug]]`) and API routes with their supported HTTP methods. |
+| `get_logs` | Queries the log buffer. Parameters: `pattern` (regex string), `level` (`console`/`build`/`error`), `since` (ISO 8601 timestamp), `tail` (integer). When OTEL is enabled, also returns spans. |
+
+### File system
+
+| Tool | Description |
+|------|-------------|
+| `read_file` | Read a file with an optional line range. |
+| `edit_file` | Apply targeted edits or replace file contents. Runs a post-edit log check to surface compilation errors introduced by the change. |
+| `write_file` | Write a new file. |
+| `search_files` | Search file contents with a regex pattern. |
+| `list_files` | List directory contents. |
+| `list_tree` | Recursive directory tree. |
+| `file_exists` | Check whether a path exists. |
+
+### Other
+
+| Tool | Description |
+|------|-------------|
+| `lighthouse` | Run a Lighthouse performance audit against a URL using a local Chrome instance. |
+| `load_agent_instructions` | Fetch agent instructions from the project (e.g. `AGENTS.md`). |
+
+## App Router vs Pages Router
+
+Frontman works with both routing systems simultaneously.
+
+**App Router:**
+- The route manifest includes server components, client components, layouts, and error boundaries.
+- API routes (`route.ts`) are reported with their supported HTTP methods (`GET`, `POST`, etc.).
+- Server-side render timing is available per-route when OTEL instrumentation is configured.
+- The server/client component boundary is visible in the client-side component tree inspection.
+
+**Pages Router:**
+- Route patterns follow the `pages/` filesystem conventions, including `[param]` and `[[...slug]]` dynamic segments.
+- API routes under `pages/api/` are reported separately from page routes.
+
+**Turbopack vs Webpack:** Both bundlers are supported. Frontman hooks at the middleware level, not the bundler level, so HMR works identically with either.
+
+## Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `FRONTMAN_HOST` | Override the default server host. Takes precedence over the `host` config option. |
+| `PROJECT_ROOT` | Override the default project root. Takes precedence over `projectRoot`. |
+| `NEXT_RUNTIME` | Set by Next.js. Used in instrumentation setup to gate OTEL initialization to the Node.js runtime. |
+
+## Troubleshooting
+
+**`/frontman` returns 404**
+
+Verify the `matcher` in your `middleware.ts` `config` export includes `/frontman` and `/frontman/:path*`. Without the matcher, Next.js does not route those requests through middleware at all.
+
+**Middleware runs on every request**
+
+The `matcher` export is missing or too broad. Add an explicit matcher scoped to `/frontman` paths.
+
+**Logs are empty**
+
+Log capture starts when the middleware module is imported. For logs from the earliest Next.js lifecycle stages (startup, config evaluation), add `instrumentation.ts` as described above.
+
+**OTEL spans are not appearing in `get_logs`**
+
+Ensure `instrumentation.ts` is in the project root or `src/`, that the `NEXT_RUNTIME === 'nodejs'` guard is present, and that `experimental.instrumentationHook` is enabled if you're on Next.js < 15.3.
+
+**AI edits are not reflected in the browser**
+
+Frontman writes to source files directly. Next.js HMR picks up the change automatically. If hot reload does not trigger, check the dev server terminal for compilation errors — the `get_logs` tool will surface these as `build` level entries.

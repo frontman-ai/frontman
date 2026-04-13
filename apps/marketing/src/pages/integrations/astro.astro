@@ -1,4 +1,8 @@
 ---
+// Redirect to the canonical docs page. The /docs/integrations/astro/ page is the
+// authoritative reference; this path is preserved for existing inbound links.
+return Astro.redirect('/docs/integrations/astro/', 301);
+
 // /integrations/astro — Frontman + Astro Integration Page
 // Targets: "frontman astro", "AI coding tool astro", "visual editing astro",
 // "astro AI agent", "astro integration AI"

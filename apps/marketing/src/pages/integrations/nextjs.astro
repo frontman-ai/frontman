@@ -1,4 +1,8 @@
 ---
+// Redirect to the canonical docs page. The /docs/integrations/nextjs/ page is the
+// authoritative reference; this path is preserved for existing inbound links.
+return Astro.redirect('/docs/integrations/nextjs/', 301);
+
 // /integrations/nextjs — Frontman + Next.js Integration Page
 // Targets: "frontman nextjs", "AI coding tool nextjs", "visual editing nextjs",
 // "AI that sees React components", "browser AI agent nextjs"

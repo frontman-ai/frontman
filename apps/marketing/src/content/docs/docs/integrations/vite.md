@@ -1,6 +1,207 @@
 ---
 title: Vite
-description: Full guide for using Frontman with Vite — setup for React, Vue, Svelte, Solid, and any Vite-based framework.
+description: Complete reference for the @frontman-ai/vite plugin — installation, configuration, framework auto-detection, Vue SFC source mapping, SvelteKit support, and troubleshooting.
 ---
 
-Content coming soon.
+## Overview
+
+`@frontman-ai/vite` is a Vite plugin that embeds the Frontman AI agent in your Vite dev server. It auto-detects your framework — React, Vue, Svelte, or SolidJS — from the Vite plugin array and provides framework-appropriate runtime context to the AI.
+
+**Frontman is a development-only tool.** The plugin registers a Connect middleware in the dev server only. In production builds, it is a complete no-op.
+
+## Requirements
+
+- Node.js 18 or later
+- Vite 5.x or 6.x
+
+## Installation
+
+Run the Frontman CLI from your project directory:
+
+```sh
+npx @frontman-ai/vite install
+```
+
+The CLI adds the plugin to your existing `vite.config.ts` (or `.js`). To install manually:
+
+```sh
+npm install --save-dev @frontman-ai/vite
+```
+
+Then add the plugin to your Vite config:
+
+```ts
+import { defineConfig } from 'vite';
+import { frontmanPlugin } from '@frontman-ai/vite';
+
+export default defineConfig({
+  plugins: [
+    frontmanPlugin(),
+  ],
+});
+```
+
+### Plugin ordering
+
+Place `frontmanPlugin()` **before** framework-specific plugins so the Frontman middleware is registered first in the Connect server:
+
+```ts
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import { frontmanPlugin } from '@frontman-ai/vite';
+
+export default defineConfig({
+  plugins: [
+    frontmanPlugin(), // before react()
+    react(),
+  ],
+});
+```
+
+## Configuration
+
+All options are optional.
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `projectRoot` | `string` | `process.env.PROJECT_ROOT` \| `process.cwd()` | Absolute path to your project root. Scopes all file operations performed by the AI. |
+| `sourceRoot` | `string` | Same as `projectRoot` | Root for file path resolution. Set to the monorepo root when the project is a workspace package. |
+| `basePath` | `string` | `"frontman"` | URL prefix for Frontman routes. Leading and trailing slashes are stripped automatically. |
+| `host` | `string` | `process.env.FRONTMAN_HOST` \| `"api.frontman.sh"` | Frontman server host for WebSocket client connections. Accepts bare hostnames or full URLs. |
+| `serverName` | `string` | `"frontman-vite"` | Identifier included in every tool response. |
+| `serverVersion` | `string` | Package version | Version string included in tool responses. |
+| `clientUrl` | `string` | Auto-derived from `host` | Override the Frontman client JS bundle URL. Must include a `host` query parameter. |
+| `clientCssUrl` | `string` | Production CDN URL; `undefined` in dev | Override the Frontman client CSS URL. |
+| `entrypointUrl` | `string` | — | Custom entrypoint URL for the AI API. |
+| `isLightTheme` | `boolean` | `false` | Render the Frontman UI with a light color scheme. |
+| `isDev` | `boolean` | `true` unless `host === "api.frontman.sh"` | Override dev/prod mode detection. |
+
+## Accessing Frontman
+
+Start your Vite dev server (`npm run dev` or `vite`) and open `http://localhost:5173/frontman`. The port matches whatever Vite binds to.
+
+## How It Works
+
+### Plugin internals
+
+`frontmanPlugin()` returns an array of two Vite plugins, which Vite flattens automatically:
+
+**Main middleware plugin** — Registers a Connect middleware via the `configureServer` hook. The middleware intercepts all `/{basePath}/*` requests and routes them to the appropriate handler: Frontman UI, tool call API (`POST /frontman/tools/call`), or SSE event stream (`GET /frontman/tools`). The middleware bridges between the Node.js `IncomingMessage`/`ServerResponse` API (used by Vite's Connect server) and the Web Fetch `Request`/`Response` API used internally.
+
+**Vue source plugin** — A dev-only plugin that enriches `.vue` Single File Components with precise source location metadata. It reads each `.vue` file to find the `<template>` block's starting line number and injects it as `__frontman_templateLine` into the compiled component options object. The Frontman client combines this with `__file` (provided by `@vitejs/plugin-vue`) to resolve any clicked template element back to its exact file and line. This plugin is inactive in production builds.
+
+### Framework auto-detection
+
+Frontman reads the resolved Vite plugin array after config loading to determine which framework is active:
+
+| Detected plugin | Framework |
+|-----------------|-----------|
+| `@vitejs/plugin-react` | React |
+| `@vitejs/plugin-vue` | Vue |
+| `@sveltejs/vite-plugin-svelte` | Svelte |
+| `vite-plugin-solid` | SolidJS |
+
+No manual framework configuration is needed. If multiple frameworks are detected (e.g. micro-frontend setups), Frontman activates context for all of them.
+
+### Log capture
+
+A circular buffer of 1024 entries is maintained for the lifetime of the dev server. It captures:
+
+- All `console.*` output (`log`, `warn`, `error`, `info`, `debug`)
+- Vite build and HMR output (compilation results, module errors, hot update events)
+- Uncaught exceptions and unhandled Promise rejections with full stack traces
+
+The buffer is initialized when the plugin loads and persists until the dev server stops.
+
+## Available Tools
+
+### Vite-specific
+
+| Tool | Description |
+|------|-------------|
+| `get_logs` | Queries the dev server log buffer. Parameters: `pattern` (regex string), `level` (`console`/`build`/`error`), `since` (ISO 8601 timestamp), `tail` (integer). |
+
+### File system
+
+| Tool | Description |
+|------|-------------|
+| `read_file` | Read a file with an optional line range. |
+| `edit_file` | Apply targeted edits or replace file contents. Runs a post-edit log check to surface compilation errors introduced by the change. |
+| `write_file` | Write a new file. |
+| `search_files` | Search file contents with a regex pattern. |
+| `list_files` | List directory contents. |
+| `list_tree` | Recursive directory tree. |
+| `file_exists` | Check whether a path exists. |
+
+### Other
+
+| Tool | Description |
+|------|-------------|
+| `lighthouse` | Run a Lighthouse performance audit against a URL using a local Chrome instance. |
+| `load_agent_instructions` | Fetch agent instructions from the project (e.g. `AGENTS.md`). |
+
+## Framework-Specific Notes
+
+### React
+
+When `@vitejs/plugin-react` is detected, the AI has access to the React component tree via fiber node inspection on the client side. For any clicked element, the client identifies:
+
+- The exact component that rendered it
+- Its current props and state
+- Its position in the component hierarchy
+- Context providers and consumers above it
+
+React Router and TanStack Router routes are visible in the client context alongside the component tree.
+
+### Vue
+
+The Vue source plugin provides precise `<template>` line numbers for every `.vue` SFC. Combined with `__file` from `@vitejs/plugin-vue`, the AI resolves clicked elements to their exact line in the template.
+
+The Composition API is understood at the client level. `ref()`, `reactive()`, `computed()`, and `watch()` calls are inspected, giving the AI the reactive state graph rather than just the final rendered output. Emitted events, slot content, and the component's props interface are also reported, so edits respect the component contract.
+
+Single File Component structure is preserved: the AI knows whether to edit `<template>`, `<script setup>`, or `<style scoped>` — it does not conflate them.
+
+Vue Router navigation guards, route params, and nested routes are visible in the client context.
+
+### Svelte
+
+When `@sveltejs/vite-plugin-svelte` is detected, the AI walks the compiled Svelte component tree. Reactive declarations (`$:`), Svelte stores, event dispatchers, and prop bindings are reported alongside the component hierarchy — the AI works with the reactive model, not just the compiled output.
+
+**SvelteKit**: SvelteKit uses Vite internally, so `@frontman-ai/vite` works with SvelteKit projects without any additional setup. Load functions, form actions, and SvelteKit routing are visible in the client context alongside the component tree.
+
+### SolidJS
+
+When `vite-plugin-solid` is detected, Frontman activates SolidJS-aware client context. SolidJS's fine-grained reactivity is inspected at the signal level, giving the AI visibility into reactive computations and memos.
+
+## Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `FRONTMAN_HOST` | Override the default server host. Takes precedence over the `host` config option. |
+| `PROJECT_ROOT` | Override the default project root. Takes precedence over `projectRoot`. |
+
+## Troubleshooting
+
+**`/frontman` returns 404**
+
+The plugin is not registered. Ensure `frontmanPlugin()` appears in the `plugins` array in your `vite.config.ts` and that you are running the Vite dev server, not `vite build` or `vite preview`.
+
+**Framework is not detected**
+
+Frontman reads the Vite plugin array after config resolution. If your framework plugin is conditionally included (e.g. wrapped in an environment check), detection may fail. Use the CLI installer (`npx @frontman-ai/vite install`) which performs detection at install time.
+
+**Vue template elements resolve to the wrong line**
+
+The Vue source plugin runs in dev mode only. Ensure you are running `vite dev` (not `vite preview`) and that `@vitejs/plugin-vue` appears in your Vite config — Frontman needs `__file` from that plugin to complete source resolution.
+
+**Svelte component tree is not visible**
+
+Verify `@sveltejs/vite-plugin-svelte` is installed and listed in your Vite config. The plugin must be present in the resolved Vite config for framework detection to succeed.
+
+**Log buffer is empty**
+
+The buffer captures output from the moment the dev server starts. A browser refresh does not clear the server-side buffer. If the buffer is empty, the dev server was recently restarted — reproduce the action and query immediately.
+
+**AI edits are not reflected in the browser**
+
+Frontman writes to source files directly. Vite HMR picks up the change automatically. If the browser does not update, check the terminal for compilation errors — the `get_logs` tool with `level: "build"` will surface them.

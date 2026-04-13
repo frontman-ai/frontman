@@ -1,4 +1,8 @@
 ---
+// Redirect to the canonical docs page. The /docs/integrations/vite/ page is the
+// authoritative reference; this path is preserved for existing inbound links.
+return Astro.redirect('/docs/integrations/vite/', 301);
+
 // /integrations/vite — Frontman + Vite Integration Page
 // Targets: "frontman vite", "AI coding tool react vite", "AI coding vue",
 // "AI coding svelte", "visual editing vite", "browser AI agent react"

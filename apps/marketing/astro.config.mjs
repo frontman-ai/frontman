@@ -192,6 +192,10 @@ export default defineConfig({
     serverName: "marketing",
   }), icon(), brokenLinksChecker({ throwError: true, checkExternalLinks: false }), sitemap({
     serialize: (item) => {
+      // Exclude tag pages — thin filtered lists that add sitemap bloat
+      // without meaningful indexable content.
+      if (/\/blog\/tags\//.test(item.url)) return undefined;
+
       // Use the real pubDate for blog and release posts; fall back to
       // build date for everything else.
       const blogMatch = item.url.match(/\/blog\/([^/]+)\/?$/);
@@ -203,6 +207,28 @@ export default defineConfig({
       } else {
         item.lastmod = new Date();
       }
+
+      // Assign priority and changefreq by page type.
+      if (item.url === 'https://frontman.sh/') {
+        item.priority = 1.0;
+        item.changefreq = 'weekly';
+      } else if (/\/(pricing|features|how-it-works)\/?$/.test(item.url)) {
+        item.priority = 0.9;
+        item.changefreq = 'monthly';
+      } else if (/\/vs\//.test(item.url) || /\/integrations\//.test(item.url)) {
+        item.priority = 0.8;
+        item.changefreq = 'monthly';
+      } else if (/\/blog\/(?!tags\/)/.test(item.url) || /\/open-source-ai-releases\//.test(item.url)) {
+        item.priority = 0.7;
+        item.changefreq = 'never';
+      } else if (/\/docs\//.test(item.url)) {
+        item.priority = 0.7;
+        item.changefreq = 'monthly';
+      } else {
+        item.priority = 0.5;
+        item.changefreq = 'monthly';
+      }
+
       return item;
     },
     // Split sitemap into content-grouped child sitemaps instead of a
@@ -211,9 +237,6 @@ export default defineConfig({
     chunks: {
       posts: (item) => {
         if (/\/blog\/(?!tags\/)/.test(item.url)) return item;
-      },
-      tags: (item) => {
-        if (/\/blog\/tags\//.test(item.url)) return item;
       },
       releases: (item) => {
         if (/\/open-source-ai-releases\//.test(item.url)) return item;
