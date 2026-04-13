@@ -59,12 +59,7 @@ defmodule SwarmAi.ParallelExecutor do
     Enum.reduce(executions, {%{}, %{}}, fn exec, {pending, awaiting} ->
       case exec do
         %ToolExecution.Sync{} ->
-          task =
-            Task.Supervisor.async_nolink(task_supervisor, fn ->
-              {mod, fun, args} = exec.run
-              apply(mod, fun, args ++ [exec.tool_call])
-            end)
-
+          task = spawn_sync(exec, task_supervisor)
           timer = Process.send_after(self(), {:deadline, task.ref}, exec.timeout_ms)
           entry = %{kind: :sync, exec: exec, timer: timer, pid: task.pid}
           {Map.put(pending, task.ref, entry), awaiting}
@@ -107,7 +102,9 @@ defmodule SwarmAi.ParallelExecutor do
         # Sync task crashed.
         %{timer: timer, exec: exec} = Map.fetch!(pending, ref)
         Process.cancel_timer(timer)
-        error_result = ToolResult.make(exec.tool_call.id, "Tool crashed: #{inspect(reason)}", true)
+
+        error_result =
+          ToolResult.make(exec.tool_call.id, "Tool crashed: #{inspect(reason)}", true)
 
         collect_results(
           Map.delete(pending, ref),
@@ -121,7 +118,8 @@ defmodule SwarmAi.ParallelExecutor do
         ref = Map.fetch!(awaiting, key)
         %{exec: exec, timer: timer} = Map.fetch!(pending, ref)
         Process.cancel_timer(timer)
-        result = ToolResult.make(exec.tool_call.id, content, is_error)
+
+        result = build_await_result(exec, content, is_error)
 
         collect_results(
           Map.delete(pending, ref),
@@ -204,6 +202,22 @@ defmodule SwarmAi.ParallelExecutor do
           :ok
       end
     end)
+  end
+
+  @spec spawn_sync(ToolExecution.Sync.t(), pid() | atom()) :: Task.t()
+  defp spawn_sync(exec, task_supervisor) do
+    Task.Supervisor.async_nolink(task_supervisor, fn ->
+      {mod, fun, args} = exec.run
+      apply(mod, fun, args ++ [exec.tool_call])
+    end)
+  end
+
+  @spec build_await_result(ToolExecution.Await.t(), term(), boolean()) :: ToolResult.t()
+  defp build_await_result(exec, content, is_error) do
+    case exec.process_result do
+      nil -> ToolResult.make(exec.tool_call.id, content, is_error)
+      {mod, fun, args} -> apply(mod, fun, args ++ [exec.tool_call, content, is_error])
+    end
   end
 
   # Re-order results map into a list matching the original tool_calls order.

@@ -16,17 +16,21 @@ defmodule SwarmAi.ToolExecution.Await do
   alias SwarmAi.ToolCall
 
   typedstruct enforce: true do
-    field :tool_call, ToolCall.t()
-    field :timeout_ms, pos_integer()
-    field :on_timeout_policy, :error | :pause_agent
+    field(:tool_call, ToolCall.t())
+    field(:timeout_ms, pos_integer())
+    field(:on_timeout_policy, :error | :pause_agent)
 
     # apply(mod, fun, args ++ [tool_call]) :: :ok  (called in PE's own process)
-    field :start, {module(), atom(), list()}
+    field(:start, {module(), atom(), list()})
 
     # PE matches {:tool_result, message_key, content, is_error} in its receive loop
-    field :message_key, term()
+    field(:message_key, term())
 
     # apply(mod, fun, args ++ [tool_call, :triggered | :cancelled]) :: :ok
-    field :on_timeout, {module(), atom(), list()}
+    field(:on_timeout, {module(), atom(), list()})
+
+    # apply(mod, fun, args ++ [tool_call, content, is_error]) :: ToolResult.t()
+    # When nil, PE falls back to bare ToolResult.make/3.
+    field(:process_result, {module(), atom(), list()} | nil, enforce: false, default: nil)
   end
 end
