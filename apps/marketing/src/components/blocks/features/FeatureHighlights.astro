@@ -9,7 +9,6 @@ import Row from '../../ui/Row.astro'
 import Col from '../../ui/Col.astro'
 // - Image
 import { Image } from 'astro:assets'
-import lighthouseImage from '../../../assets/feature-highlights/lighthouse.svg'
 
 type FeatureHighlight = {
 	title: string
@@ -39,12 +38,6 @@ const featureHighlights: FeatureHighlight[] = [
 		description: 'No more alt-tabbing between editor and browser. Frontman updates your code as you describe changes — and you see the results live, instantly. When you\'re happy, commit and push to Git without ever leaving your browser.',
 		imageAlt: 'Real-time changes feature demo',
 		videoSrc: '/code-change.mp4'
-	},
-	{
-		title: 'Performance & accessibility audits, built in.',
-		description: 'Frontman runs Lighthouse audits on any page — performance, accessibility, SEO, best practices — and reads the results itself. It finds the offending elements, locates them in your code, and fixes issues directly. No separate tool, no copy-pasting scores.',
-		imageAlt: 'Lighthouse audit running inside Frontman',
-		svgSrc: lighthouseImage.src
 	}
 ]
 

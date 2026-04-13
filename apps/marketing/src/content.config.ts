@@ -36,27 +36,6 @@ const blog = defineCollection({
 	})
 })
 
-const lighthouse = defineCollection({
-	loader: glob({ pattern: '**/*.md', base: './src/content/lighthouse' }),
-	schema: () =>
-		z.object({
-			title: z.string(),
-			description: z.string(),
-			pubDate: z.date(),
-			auditId: z.string(),
-			category: z.enum(['performance', 'accessibility', 'seo', 'best-practices']),
-			weight: z.number(),
-			faq: z
-				.array(
-					z.object({
-						question: z.string(),
-						answer: z.string()
-					})
-				)
-				.optional()
-		})
-})
-
 const releases = defineCollection({
 	loader: glob({ pattern: '**/*.md', base: './src/content/releases' }),
 	schema: () =>
@@ -86,7 +65,6 @@ const docs = defineCollection({
 
 export const collections = {
 	blog,
-	lighthouse,
 	releases,
 	docs,
 }

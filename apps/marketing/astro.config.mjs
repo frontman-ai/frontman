@@ -27,7 +27,6 @@ function buildDateMap(dir) {
 }
 
 const blogDateMap = buildDateMap(path.resolve(appRoot, "src/content/blog"));
-const lighthouseDateMap = buildDateMap(path.resolve(appRoot, "src/content/lighthouse"));
 const releasesDateMap = buildDateMap(path.resolve(appRoot, "src/content/releases"));
 const monorepoRoot = path.resolve(appRoot, "../..");
 
@@ -193,15 +192,12 @@ export default defineConfig({
     serverName: "marketing",
   }), icon(), brokenLinksChecker({ throwError: true, checkExternalLinks: false }), sitemap({
     serialize: (item) => {
-      // Use the real pubDate for blog and lighthouse posts; fall back to
+      // Use the real pubDate for blog and release posts; fall back to
       // build date for everything else.
       const blogMatch = item.url.match(/\/blog\/([^/]+)\/?$/);
-      const lighthouseMatch = item.url.match(/\/lighthouse\/([^/]+)\/?$/);
       const releasesMatch = item.url.match(/\/open-source-ai-releases\/([^/]+)\/?$/);
       if (blogMatch && blogDateMap.has(blogMatch[1])) {
         item.lastmod = blogDateMap.get(blogMatch[1]);
-      } else if (lighthouseMatch && lighthouseDateMap.has(lighthouseMatch[1])) {
-        item.lastmod = lighthouseDateMap.get(lighthouseMatch[1]);
       } else if (releasesMatch && releasesDateMap.has(releasesMatch[1])) {
         item.lastmod = releasesDateMap.get(releasesMatch[1]);
       } else {
@@ -218,9 +214,6 @@ export default defineConfig({
       },
       tags: (item) => {
         if (/\/blog\/tags\//.test(item.url)) return item;
-      },
-      lighthouse: (item) => {
-        if (/\/lighthouse\//.test(item.url)) return item;
       },
       releases: (item) => {
         if (/\/open-source-ai-releases\//.test(item.url)) return item;
