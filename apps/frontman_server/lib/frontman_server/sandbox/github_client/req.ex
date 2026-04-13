@@ -9,12 +9,13 @@ defmodule FrontmanServer.Sandbox.GitHubClient.Req do
   @behaviour FrontmanServer.Sandbox.GitHubClient
 
   @base_url "https://api.github.com"
+  @timeout_ms 15_000
 
   @impl true
   def get_tree(owner, repo, ref, token) do
     url = "#{@base_url}/repos/#{owner}/#{repo}/git/trees/#{ref}?recursive=1"
 
-    case Req.get(url, headers: auth_headers(token)) do
+    case Req.get(url, headers: auth_headers(token), receive_timeout: @timeout_ms) do
       {:ok, %{status: 200, body: %{"tree" => tree}}} ->
         {:ok, tree}
 
@@ -30,7 +31,7 @@ defmodule FrontmanServer.Sandbox.GitHubClient.Req do
   def get_file(owner, repo, path, token) do
     url = "#{@base_url}/repos/#{owner}/#{repo}/contents/#{path}"
 
-    case Req.get(url, headers: auth_headers(token)) do
+    case Req.get(url, headers: auth_headers(token), receive_timeout: @timeout_ms) do
       {:ok, %{status: 200, body: %{"content" => content, "encoding" => "base64"}}} ->
         decoded = content |> String.replace("\n", "") |> Base.decode64!()
         {:ok, decoded}
