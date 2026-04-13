@@ -1,7 +1,7 @@
 ---
-title: '6 Best AI Coding Tools for Production (2026)'
+title: 'AI Coding Tools That Work on Existing Codebases (2026)'
 pubDate: 2026-03-23T05:00:00Z
-description: 'Most AI coding tools optimize for greenfield. These six actually work on existing codebases, and one of them works in the browser where visual work happens.'
+description: 'Most AI coding tools are built for greenfield. Six that actually work on production codebases — including one that runs in the browser for visual work.'
 author: 'Danni Friedland'
 authorRole: 'Co-founder, Frontman'
 image: '/blog/ai-coding-tools.png'
