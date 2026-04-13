@@ -33,8 +33,10 @@ defmodule FrontmanServer.Sandbox.GitHubClient.Req do
 
     case Req.get(url, headers: auth_headers(token), receive_timeout: @timeout_ms) do
       {:ok, %{status: 200, body: %{"content" => content, "encoding" => "base64"}}} ->
-        decoded = content |> String.replace("\n", "") |> Base.decode64!()
-        {:ok, decoded}
+        case content |> String.replace("\n", "") |> Base.decode64() do
+          {:ok, decoded} -> {:ok, decoded}
+          :error -> {:error, {:decode_error, :invalid_base64}}
+        end
 
       {:ok, %{status: status, body: body}} ->
         {:error, {:http_error, status, body}}
