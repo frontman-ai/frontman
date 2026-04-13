@@ -17,7 +17,7 @@ module EventHelpers = {
       ->Array.forEach(element => {
         //note(itay): This will return null (None) in case the IFrame is cross-origin to the
         //running script, and not an error like `contentWindow.document`
-        let iframeDoc = element->WebAPI.HTMLIFrameElement.contentDocument->Null.toOption
+        let iframeDoc = element->WebAPI.HTMLIFrameElement.contentDocument
         iframeExecuteEventListener(eventListener, handler, iframeDoc)->Option.ignore
         iframeDoc
         ->Option.map(
@@ -33,9 +33,7 @@ module EventHelpers = {
     iframeRef
     ->Nullable.toOption
     ->Option.flatMap(iframe =>
-      WebAPI.Element.unsafeAsHTMLIFrameElement(iframe)
-      ->WebAPI.HTMLIFrameElement.contentDocument
-      ->Null.toOption
+      WebAPI.Element.unsafeAsHTMLIFrameElement(iframe)->WebAPI.HTMLIFrameElement.contentDocument
     )
 
   // Shared hook: subscribes a handler to a DOM event on a document and all its
@@ -66,7 +64,12 @@ module EventHelpers = {
         // Stable wrapper: delegates to the ref so the DOM listener never changes
         let stableHandler = (ev: WebAPI.EventAPI.event) => handlerRef.current(ev)
 
-        WebAPI.Document.addEventListener(doc, eventType, stableHandler, ~options={capture: withCapture})
+        WebAPI.Document.addEventListener(
+          doc,
+          eventType,
+          stableHandler,
+          ~options={capture: withCapture},
+        )
         iframeExecuteEventListener(
           (d, h) =>
             WebAPI.Document.addEventListener(d, eventType, h, ~options={capture: withCapture}),
@@ -228,7 +231,7 @@ module Scroll = {
 let getIframeWindowSafe = (iframe: WebAPI.DOMAPI.element): option<WebAPI.DOMAPI.window> => {
   let iframeElement = iframe->Obj.magic
   try {
-    switch WebAPI.HTMLIFrameElement.contentWindow(iframeElement)->Null.toOption {
+    switch WebAPI.HTMLIFrameElement.contentWindow(iframeElement) {
     | None => None
     | Some(iframeWindow) =>
       ignore(iframeWindow->WebAPI.Window.location->WebAPI.Location.href)

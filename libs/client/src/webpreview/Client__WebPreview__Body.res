@@ -1,7 +1,9 @@
 @react.component
 let make = (~taskId, ~url, ~isActive, ~viewportStyle: option<(int, int, float)>=?) => {
   let iframeRef: React.ref<Nullable.t<Dom.element>> = React.useRef(Nullable.null)
-  let (iframeElement, setIframeElement): (option<WebAPI.DOMAPI.element>, _) = React.useState(() => None)
+  let (iframeElement, setIframeElement): (option<WebAPI.DOMAPI.element>, _) = React.useState(() =>
+    None
+  )
   let (attachmentKey, setAttachmentKey) = React.useState(() => 0)
   // Inactive iframes start with about:blank so the browser doesn't eagerly load
   // the URL for every persisted task on startup. Using "" would resolve to the
@@ -12,7 +14,10 @@ let make = (~taskId, ~url, ~isActive, ~viewportStyle: option<(int, int, float)>=
   let (hasLoaded, setHasLoaded) = React.useState(() => false)
   let lastLocationRef: React.ref<option<string>> = React.useRef(None)
   let trackedIframeElement = isActive ? iframeElement : None
-  let location = Client__Hooks.useIFrameLocation(~iframeElement=trackedIframeElement, ~attachmentKey)
+  let location = Client__Hooks.useIFrameLocation(
+    ~iframeElement=trackedIframeElement,
+    ~attachmentKey,
+  )
 
   // Sync iframeSrc when the url prop changes externally (nav bar, task creation)
   // while the iframe hasn't loaded yet. Only applies when iframeSrc is already
@@ -24,9 +29,12 @@ let make = (~taskId, ~url, ~isActive, ~viewportStyle: option<(int, int, float)>=
     | false =>
       setIframeSrc(prev =>
         switch prev {
-        | "about:blank" => prev  // not yet activated — wait for isActive effect
+        | "about:blank" => prev // not yet activated — wait for isActive effect
         | _ =>
-          Client__BrowserUrl.removeTrailingSlash(prev) == Client__BrowserUrl.removeTrailingSlash(url) ? prev : url
+          Client__BrowserUrl.removeTrailingSlash(prev) ==
+            Client__BrowserUrl.removeTrailingSlash(url)
+            ? prev
+            : url
         }
       )
     }
@@ -37,8 +45,7 @@ let make = (~taskId, ~url, ~isActive, ~viewportStyle: option<(int, int, float)>=
   React.useEffect(() => {
     switch isActive {
     | false => ()
-    | true =>
-      setIframeSrc(prev => prev == "about:blank" ? url : prev)
+    | true => setIframeSrc(prev => prev == "about:blank" ? url : prev)
     }
     None
   }, [isActive])
@@ -89,8 +96,8 @@ let make = (~taskId, ~url, ~isActive, ~viewportStyle: option<(int, int, float)>=
         ->Option.forEach(iframe => {
           let iframeElement = iframe->Obj.magic
           try {
-            let contentDocument = WebAPI.HTMLIFrameElement.contentDocument(iframeElement)->Null.toOption
-            let contentWindow = WebAPI.HTMLIFrameElement.contentWindow(iframeElement)->Null.toOption
+            let contentDocument = WebAPI.HTMLIFrameElement.contentDocument(iframeElement)
+            let contentWindow = WebAPI.HTMLIFrameElement.contentWindow(iframeElement)
             Client__State.Actions.setPreviewFrame(~contentDocument, ~contentWindow)
           } catch {
           | _ => ()
@@ -109,8 +116,8 @@ let make = (~taskId, ~url, ~isActive, ~viewportStyle: option<(int, int, float)>=
       ->Option.forEach(iframe => {
         let iframeElement = iframe->Obj.magic
         try {
-          let contentDocument = WebAPI.HTMLIFrameElement.contentDocument(iframeElement)->Null.toOption
-          let contentWindow = WebAPI.HTMLIFrameElement.contentWindow(iframeElement)->Null.toOption
+          let contentDocument = WebAPI.HTMLIFrameElement.contentDocument(iframeElement)
+          let contentWindow = WebAPI.HTMLIFrameElement.contentWindow(iframeElement)
 
           switch contentDocument->Option.isSome {
           | false => ()
@@ -140,11 +147,15 @@ let make = (~taskId, ~url, ~isActive, ~viewportStyle: option<(int, int, float)>=
   switch (isActive, viewportStyle) {
   | (false, _) =>
     <div className="absolute -left-[9999px] -top-[9999px] invisible size-full">
-      <iframe className="size-full" src={iframeSrc} title={`Preview - ${taskId}`} onLoad ref={refCallback} />
+      <iframe
+        className="size-full" src={iframeSrc} title={`Preview - ${taskId}`} onLoad ref={refCallback}
+      />
     </div>
   | (true, None) =>
     <div className="flex-1 size-full">
-      <iframe className="size-full" src={iframeSrc} title={`Preview - ${taskId}`} onLoad ref={refCallback} />
+      <iframe
+        className="size-full" src={iframeSrc} title={`Preview - ${taskId}`} onLoad ref={refCallback}
+      />
     </div>
   | (true, Some((deviceWidth, deviceHeight, scale))) =>
     let widthPx = Int.toString(deviceWidth) ++ "px"
@@ -166,7 +177,9 @@ let make = (~taskId, ~url, ~isActive, ~viewportStyle: option<(int, int, float)>=
         boxShadow: "0 0 0 1px rgba(0,0,0,0.1), 0 2px 8px rgba(0,0,0,0.08)",
       }
     >
-      <iframe className="size-full" src={iframeSrc} title={`Preview - ${taskId}`} onLoad ref={refCallback} />
+      <iframe
+        className="size-full" src={iframeSrc} title={`Preview - ${taskId}`} onLoad ref={refCallback}
+      />
     </div>
   }
 }
