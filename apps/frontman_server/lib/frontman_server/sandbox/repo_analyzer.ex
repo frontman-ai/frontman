@@ -21,6 +21,7 @@ defmodule FrontmanServer.Sandbox.RepoAnalyzer do
           | {:error,
              :no_devcontainer
              | :invalid_json
+             | :invalid_repo_format
              | :unauthorized
              | :not_found
              | {:github_error, integer(), term()}
@@ -28,8 +29,14 @@ defmodule FrontmanServer.Sandbox.RepoAnalyzer do
   def analyze(github_repo, token, opts \\ [])
       when is_binary(github_repo) and is_binary(token) do
     client = Keyword.get(opts, :github_client, github_client())
-    [owner, repo] = String.split(github_repo, "/", parts: 2)
 
+    case String.split(github_repo, "/", parts: 2) do
+      [owner, repo] -> do_analyze(client, owner, repo, token)
+      _ -> {:error, :invalid_repo_format}
+    end
+  end
+
+  defp do_analyze(client, owner, repo, token) do
     with {:ok, tree} <- client.get_tree(owner, repo, "HEAD", token),
          {:ok, path} <- find_devcontainer(tree),
          {:ok, content} <- client.get_file(owner, repo, path, token),

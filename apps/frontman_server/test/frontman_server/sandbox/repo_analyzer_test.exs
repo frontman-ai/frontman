@@ -122,5 +122,10 @@ defmodule FrontmanServer.Sandbox.RepoAnalyzerTest do
 
       assert {:error, :econnrefused} = analyze()
     end
+
+    test "repo string without slash returns :invalid_repo_format" do
+      assert {:error, :invalid_repo_format} =
+               RepoAnalyzer.analyze("my-repo", @token, github_client: MockGitHubClient)
+    end
   end
 end
