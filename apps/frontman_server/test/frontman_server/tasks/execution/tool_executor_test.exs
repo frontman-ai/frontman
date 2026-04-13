@@ -301,5 +301,75 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
 
       assert tc_id == tc.id
     end
+
+    test "MCP tool Await has process_result set to make_mcp_tool_result MFA", %{
+      scope: scope,
+      task_id: task_id,
+      llm_opts: llm_opts
+    } do
+      tool_name = "some_mcp_tool"
+
+      mcp_def = %FrontmanServer.Tools.MCP{
+        name: tool_name,
+        description: "test",
+        input_schema: %{},
+        on_timeout: :error,
+        timeout_ms: 60_000
+      }
+
+      executor =
+        ToolExecutor.make_executor(scope, task_id,
+          backend_tool_modules: [],
+          mcp_tools: [],
+          mcp_tool_defs: [mcp_def],
+          llm_opts: llm_opts
+        )
+
+      tc = %SwarmAi.ToolCall{
+        id: "tc_#{System.unique_integer([:positive])}",
+        name: tool_name,
+        arguments: "{}"
+      }
+
+      [execution] = executor.([tc])
+
+      assert %SwarmAi.ToolExecution.Await{
+               process_result: {ToolExecutor, :make_mcp_tool_result, [^tool_name]}
+             } = execution
+    end
+  end
+
+  describe "make_mcp_tool_result/4" do
+    test "enriches screenshot tool result with image content parts" do
+      data_url = "data:image/jpeg;base64,#{Base.encode64("fake-jpeg-bytes")}"
+      json_content = Jason.encode!(%{"screenshot" => data_url})
+
+      tool_call = %SwarmAi.ToolCall{
+        id: "tc_screenshot",
+        name: "mcp_take_screenshot",
+        arguments: "{}"
+      }
+
+      result =
+        ToolExecutor.make_mcp_tool_result("mcp_take_screenshot", tool_call, json_content, false)
+
+      assert %SwarmAi.ToolResult{id: "tc_screenshot", is_error: false} = result
+      assert [%SwarmAi.Message.ContentPart{type: :image}] = result.content
+    end
+
+    test "returns plain text ToolResult for non-image tool" do
+      json_content = Jason.encode!(%{"output" => "hello world"})
+
+      tool_call = %SwarmAi.ToolCall{
+        id: "tc_read",
+        name: "mcp_read_file",
+        arguments: "{}"
+      }
+
+      result = ToolExecutor.make_mcp_tool_result("mcp_read_file", tool_call, json_content, false)
+
+      assert %SwarmAi.ToolResult{id: "tc_read", is_error: false} = result
+      assert [%SwarmAi.Message.ContentPart{type: :text, text: ^json_content}] = result.content
+    end
   end
 end
