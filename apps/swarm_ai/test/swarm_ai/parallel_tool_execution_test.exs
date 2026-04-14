@@ -17,6 +17,7 @@ defmodule SwarmAi.ParallelToolExecutionTest do
   describe "batch tool execution through Runtime" do
     test "executes multiple tools concurrently" do
       runtime = start_runtime!()
+      test_pid = self()
 
       llm =
         multi_turn_llm([
@@ -30,9 +31,10 @@ defmodule SwarmAi.ParallelToolExecutionTest do
         ])
 
       agent = test_agent(llm)
-      start = System.monotonic_time(:millisecond)
 
       executor = fn tool_calls ->
+        send(test_pid, {:exec_start, System.monotonic_time(:millisecond)})
+
         Enum.map(tool_calls, fn tc ->
           %ToolExecution.Sync{
             tool_call: tc,
@@ -45,15 +47,18 @@ defmodule SwarmAi.ParallelToolExecutionTest do
       end
 
       {:ok, pid} =
-        SwarmAi.Runtime.run(runtime, "task-parallel", agent, "Do work",
-          tool_executor: executor
-        )
+        SwarmAi.Runtime.run(runtime, "task-parallel", agent, "Do work", tool_executor: executor)
 
       await_exit(pid)
+      finish = System.monotonic_time(:millisecond)
 
-      elapsed = System.monotonic_time(:millisecond) - start
+      assert_receive {:exec_start, exec_start}
       assert_receive {:test_event, "task-parallel", {:completed, {:ok, "All done", _}}, _}
-      assert elapsed < 500, "Expected parallel (<500ms) but took #{elapsed}ms"
+
+      # 3 tools × 100ms each — sequential would take ~300ms, parallel ~100ms.
+      # Allow 400ms headroom for the second LLM call and task cleanup.
+      elapsed = finish - exec_start
+      assert elapsed < 400, "Expected parallel (<400ms from tool dispatch) but took #{elapsed}ms"
     end
 
     test "fault isolation - crashing tool produces error result, agent continues" do
@@ -90,9 +95,7 @@ defmodule SwarmAi.ParallelToolExecutionTest do
       end
 
       {:ok, pid} =
-        SwarmAi.Runtime.run(runtime, "task-crash", agent, "Do work",
-          tool_executor: executor
-        )
+        SwarmAi.Runtime.run(runtime, "task-crash", agent, "Do work", tool_executor: executor)
 
       await_exit(pid)
       assert_receive {:test_event, "task-crash", {:completed, {:ok, "Handled", _}}, _}, 2_000
@@ -111,10 +114,9 @@ defmodule SwarmAi.ParallelToolExecutionTest do
     name = :"TestRuntime_#{:erlang.unique_integer([:positive])}"
     test_pid = self()
 
-    start_supervised!({SwarmAi.Runtime,
-      name: name,
-      event_dispatcher: {TestDispatcher, :dispatch, [test_pid]}
-    })
+    start_supervised!(
+      {SwarmAi.Runtime, name: name, event_dispatcher: {TestDispatcher, :dispatch, [test_pid]}}
+    )
 
     name
   end
