@@ -123,9 +123,19 @@ let addLog = (
   }
 }
 
+let detectLevel = (state: state, message: string): logLevel => {
+  let matchesBuildPattern =
+    state.config.stdoutPatterns->Array.some(pattern => message->String.includes(pattern))
+  switch matchesBuildPattern {
+  | true => Build
+  | false => Console
+  }
+}
+
 let handleConsoleLog = (state: state, args: array<'a>): unit => {
   try {
-    addLog(state, Console, argsToString(args), ~consoleMethod=Log)
+    let message = argsToString(args)
+    addLog(state, detectLevel(state, message), message, ~consoleMethod=Log)
   } catch {
   | _ => ()
   }
@@ -133,7 +143,8 @@ let handleConsoleLog = (state: state, args: array<'a>): unit => {
 
 let handleConsoleWarn = (state: state, args: array<'a>): unit => {
   try {
-    addLog(state, Console, argsToString(args), ~consoleMethod=Warn)
+    let message = argsToString(args)
+    addLog(state, detectLevel(state, message), message, ~consoleMethod=Warn)
   } catch {
   | _ => ()
   }
@@ -141,7 +152,8 @@ let handleConsoleWarn = (state: state, args: array<'a>): unit => {
 
 let handleConsoleError = (state: state, args: array<'a>): unit => {
   try {
-    addLog(state, Console, argsToString(args), ~consoleMethod=ConsoleError)
+    let message = argsToString(args)
+    addLog(state, detectLevel(state, message), message, ~consoleMethod=ConsoleError)
   } catch {
   | _ => ()
   }
@@ -149,7 +161,8 @@ let handleConsoleError = (state: state, args: array<'a>): unit => {
 
 let handleConsoleInfo = (state: state, args: array<'a>): unit => {
   try {
-    addLog(state, Console, argsToString(args), ~consoleMethod=Info)
+    let message = argsToString(args)
+    addLog(state, detectLevel(state, message), message, ~consoleMethod=Info)
   } catch {
   | _ => ()
   }
@@ -157,7 +170,8 @@ let handleConsoleInfo = (state: state, args: array<'a>): unit => {
 
 let handleConsoleDebug = (state: state, args: array<'a>): unit => {
   try {
-    addLog(state, Console, argsToString(args), ~consoleMethod=Debug)
+    let message = argsToString(args)
+    addLog(state, detectLevel(state, message), message, ~consoleMethod=Debug)
   } catch {
   | _ => ()
   }
@@ -192,29 +206,6 @@ let interceptConsole: state => unit = %raw(`(function(state) {
     originalDebug(...args);
   };
 })`)
-
-let handleStdoutWrite = (state: state, message: string): unit => {
-  try {
-    let matchesPattern =
-      state.config.stdoutPatterns->Array.some(pattern => message->String.includes(pattern))
-    if matchesPattern {
-      addLog(state, Build, message)
-    }
-  } catch {
-  | _ => ()
-  }
-}
-
-let interceptStdout = (_state: state): unit => {
-  %raw(`(function(_state) {
-    const originalWrite = process.stdout.write.bind(process.stdout);
-    process.stdout.write = (chunk, ...args) => {
-      const message = typeof chunk === 'string' ? chunk : chunk.toString();
-      handleStdoutWrite(_state, message);
-      return originalWrite(chunk, ...args);
-    };
-  })(_state)`)
-}
 
 // Temporary inline bindings until workspace linking is fixed
 type processError = {
@@ -278,7 +269,6 @@ let initialize = (~config: config=defaultConfig, ()): unit => {
         setPatchedFlag(true)
         let state = getOrCreateInstance(~config)
         interceptConsole(state)
-        interceptStdout(state)
         interceptUncaughtErrors(state)
       }
     }

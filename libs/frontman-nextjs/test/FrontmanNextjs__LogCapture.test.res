@@ -368,6 +368,81 @@ describe("LogCapture", _t => {
     )
   })
 
+  describe("Build-Level Tagging via Console", _t => {
+    test(
+      "console.log matching stdoutPattern is tagged as Build level",
+      t => {
+        Console.log("webpack compiled successfully")
+
+        let logs = LogCapture.getLogs(~level=Build)
+        let found =
+          logs->Array.some(log => log.message->String.includes("webpack compiled successfully"))
+
+        t->expect(found)->Expect.toBe(true)
+      },
+    )
+
+    test(
+      "console.log with 'Compiled' pattern is tagged as Build level",
+      t => {
+        Console.log("Compiled client and server successfully")
+
+        let logs = LogCapture.getLogs(~level=Build)
+        let found =
+          logs->Array.some(
+            log => log.message->String.includes("Compiled client and server successfully"),
+          )
+
+        t->expect(found)->Expect.toBe(true)
+      },
+    )
+
+    test(
+      "console.warn matching stdoutPattern is tagged as Build level",
+      t => {
+        Console.warn("Failed to compile")
+
+        let logs = LogCapture.getLogs(~level=Build)
+        let found = logs->Array.some(log => log.message->String.includes("Failed to compile"))
+
+        t->expect(found)->Expect.toBe(true)
+      },
+    )
+
+    test(
+      "console.log not matching any pattern stays as Console level",
+      t => {
+        Console.log("regular message no build pattern zzzunique")
+
+        let consoleLogs = LogCapture.getLogs(~level=Console)
+        let found =
+          consoleLogs->Array.some(
+            log => log.message->String.includes("regular message no build pattern zzzunique"),
+          )
+
+        t->expect(found)->Expect.toBe(true)
+      },
+    )
+
+    test(
+      "build-tagged message preserves consoleMethod",
+      t => {
+        Console.warn("turbopack build warning zzzbuildmethod")
+
+        let logs = LogCapture.getLogs(~level=Build)
+        let found =
+          logs->Array.find(
+            log => log.message->String.includes("turbopack build warning zzzbuildmethod"),
+          )
+
+        switch found {
+        | Some(entry) => t->expect(entry.consoleMethod)->Expect.toEqual(Some(Warn))
+        | None => t->expect(false)->Expect.toBe(true)
+        }
+      },
+    )
+  })
+
   describe("Error Handling", _t => {
     test(
       "invalid regex returns empty array silently",
