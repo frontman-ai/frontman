@@ -645,6 +645,7 @@ jobs:
         run: make -C apps/frontman_server test-coverage
         env:
           CLOAK_KEY: "dGVzdC1rZXktZm9yLWNpLXRoaXMtaXMtMzJieXRlc3M="
+          MIX_TEST_DB_SUFFIX: "_run_${{ github.run_id }}"
 
       - name: Coverage report
         uses: clearlyip/code-coverage-report-action@a592e94b2dba75dc3d52355ee5cd5d38ee26259d # main (node24)
@@ -652,6 +653,13 @@ jobs:
           filename: apps/frontman_server/cover/cobertura.xml
           overall_coverage_fail_threshold: 0
           artifact_name: coverage-${{ github.job }}-%name%
+
+      - name: Drop per-run test database
+        if: always()
+        working-directory: apps/frontman_server
+        env:
+          MIX_TEST_DB_SUFFIX: "_run_${{ github.run_id }}"
+        run: MIX_ENV=test mix ecto.drop --quiet 2>/dev/null || true
 
       - name: Cleanup workspace
         if: always()
