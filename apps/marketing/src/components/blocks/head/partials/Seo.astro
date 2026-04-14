@@ -26,6 +26,18 @@ type Props = {
 
 const { title, description, ogImage, canonical, noindex, article } = Astro.props
 
+// When /blog?tag=X is accessed, canonical should point to /blog/tags/X/ instead
+const canonicalUrl = (() => {
+	const url = new URL(Astro.url)
+	const tag = url.searchParams.get('tag')
+	if (tag && (url.pathname === '/blog' || url.pathname === '/blog/')) {
+		return new URL(`/blog/tags/${encodeURIComponent(tag)}/`, Astro.site).href
+	}
+	// Strip query params from canonical URLs
+	url.search = ''
+	return url.href
+})()
+
 const absoluteOgImage = ogImage ? new URL(ogImage, Astro.site).href : undefined
 const absoluteTwitterImage = absoluteOgImage && article ? absoluteOgImage : new URL('/og-twitter.png', Astro.site).href
 const imageAlt = 'Frontman — The AI agent that lives inside your framework'
@@ -64,6 +76,6 @@ const ogType = article ? 'article' : 'website'
 	<meta name="twitter:image" content={absoluteTwitterImage} />
 	<meta name="twitter:image:alt" content={imageAlt} />
 
-	{canonical && <link rel="canonical" href={Astro.url} />}
+	{canonical && <link rel="canonical" href={canonicalUrl} />}
 	{noindex && <meta name="robots" content="noindex,nofollow" />}
 </Fragment>
