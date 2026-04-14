@@ -1,76 +1,132 @@
 defmodule FrontmanServer.ProjectsTest do
-  use FrontmanServer.DataCase
+  use FrontmanServer.DataCase, async: true
+
+  import FrontmanServer.Test.Fixtures.Accounts
+  import FrontmanServer.Test.Fixtures.Projects
 
   alias FrontmanServer.Projects
+  alias FrontmanServer.Projects.Project
 
-  describe "projects" do
-    alias FrontmanServer.Projects.Project
+  setup do
+    scope = user_scope_fixture()
+    %{scope: scope}
+  end
 
-    import FrontmanServer.ProjectsFixtures
-
-    @invalid_attrs %{default_branch: nil, github_repo: nil, framework: nil, last_env_spec: nil}
-
-    test "list_projects/0 returns all projects" do
-      project = project_fixture()
-      assert Projects.list_projects() == [project]
+  describe "Project.repo_changeset/2" do
+    test "valid with github_repo, default_branch, and user_id", %{scope: scope} do
+      attrs = valid_project_attrs(%{"user_id" => scope.user.id})
+      changeset = Project.repo_changeset(%Project{}, attrs)
+      assert changeset.valid?
     end
 
-    test "get_project!/1 returns the project with given id" do
-      project = project_fixture()
-      assert Projects.get_project!(project.id) == project
+    test "invalid without github_repo" do
+      attrs = %{"default_branch" => "main", "user_id" => Ecto.UUID.generate()}
+      changeset = Project.repo_changeset(%Project{}, attrs)
+      refute changeset.valid?
+      assert "can't be blank" in errors_on(changeset).github_repo
     end
 
-    test "create_project/1 with valid data creates a project" do
-      valid_attrs = %{
-        default_branch: "some default_branch",
-        github_repo: "some github_repo",
-        framework: "some framework",
-        last_env_spec: %{}
+    test "invalid without default_branch" do
+      attrs = %{"github_repo" => "owner/repo", "user_id" => Ecto.UUID.generate()}
+      changeset = Project.repo_changeset(%Project{}, attrs)
+      refute changeset.valid?
+      assert "can't be blank" in errors_on(changeset).default_branch
+    end
+
+    test "invalid without user_id" do
+      attrs = %{"github_repo" => "owner/repo", "default_branch" => "main"}
+      changeset = Project.repo_changeset(%Project{}, attrs)
+      refute changeset.valid?
+      assert "can't be blank" in errors_on(changeset).user_id
+    end
+
+    test "framework is optional" do
+      attrs = %{
+        "github_repo" => "owner/repo",
+        "default_branch" => "main",
+        "user_id" => Ecto.UUID.generate()
       }
 
-      assert {:ok, %Project{} = project} = Projects.create_project(valid_attrs)
-      assert project.default_branch == "some default_branch"
-      assert project.github_repo == "some github_repo"
-      assert project.framework == "some framework"
-      assert project.last_env_spec == %{}
+      changeset = Project.repo_changeset(%Project{}, attrs)
+      assert changeset.valid?
+    end
+  end
+
+  describe "connect_repo/2" do
+    test "creates a project for the scope's user", %{scope: scope} do
+      attrs = valid_project_attrs()
+      assert {:ok, project} = Projects.connect_repo(scope, attrs)
+      assert project.user_id == scope.user.id
+      assert project.github_repo == attrs["github_repo"]
+      assert project.default_branch == attrs["default_branch"]
     end
 
-    test "create_project/1 with invalid data returns error changeset" do
-      assert {:error, %Ecto.Changeset{}} = Projects.create_project(@invalid_attrs)
+    test "returns error changeset with invalid attrs", %{scope: scope} do
+      assert {:error, changeset} = Projects.connect_repo(scope, %{})
+      assert errors_on(changeset).github_repo
+    end
+  end
+
+  describe "list_projects/1" do
+    test "returns only projects owned by the scope's user", %{scope: scope} do
+      project = project_fixture(scope)
+      other_scope = user_scope_fixture()
+      _other = project_fixture(other_scope)
+
+      projects = Projects.list_projects(scope)
+      assert length(projects) == 1
+      assert hd(projects).id == project.id
     end
 
-    test "update_project/2 with valid data updates the project" do
-      project = project_fixture()
+    test "returns empty list when user has no projects", %{scope: scope} do
+      assert Projects.list_projects(scope) == []
+    end
+  end
 
-      update_attrs = %{
-        default_branch: "some updated default_branch",
-        github_repo: "some updated github_repo",
-        framework: "some updated framework",
-        last_env_spec: %{}
-      }
-
-      assert {:ok, %Project{} = project} = Projects.update_project(project, update_attrs)
-      assert project.default_branch == "some updated default_branch"
-      assert project.github_repo == "some updated github_repo"
-      assert project.framework == "some updated framework"
-      assert project.last_env_spec == %{}
+  describe "get_project!/2" do
+    test "returns the project for the correct user", %{scope: scope} do
+      project = project_fixture(scope)
+      assert Projects.get_project!(scope, project.id).id == project.id
     end
 
-    test "update_project/2 with invalid data returns error changeset" do
-      project = project_fixture()
-      assert {:error, %Ecto.Changeset{}} = Projects.update_project(project, @invalid_attrs)
-      assert project == Projects.get_project!(project.id)
+    test "raises for a project owned by a different user", %{scope: scope} do
+      other_scope = user_scope_fixture()
+      other_project = project_fixture(other_scope)
+
+      assert_raise Ecto.NoResultsError, fn ->
+        Projects.get_project!(scope, other_project.id)
+      end
+    end
+  end
+
+  describe "get_project/2" do
+    test "returns {:ok, project} for the correct user", %{scope: scope} do
+      project = project_fixture(scope)
+      assert {:ok, fetched} = Projects.get_project(scope, project.id)
+      assert fetched.id == project.id
     end
 
-    test "delete_project/1 deletes the project" do
-      project = project_fixture()
-      assert {:ok, %Project{}} = Projects.delete_project(project)
-      assert_raise Ecto.NoResultsError, fn -> Projects.get_project!(project.id) end
+    test "returns {:error, :not_found} for a project owned by a different user", %{scope: scope} do
+      other_scope = user_scope_fixture()
+      other_project = project_fixture(other_scope)
+      assert {:error, :not_found} = Projects.get_project(scope, other_project.id)
+    end
+  end
+
+  describe "record_analysis/3" do
+    test "updates last_env_spec on the project", %{scope: scope} do
+      project = project_fixture(scope)
+      env_spec = %{"runtime" => "node20", "package_manager" => "pnpm"}
+
+      assert {:ok, updated} = Projects.record_analysis(scope, project, env_spec)
+      assert updated.last_env_spec == env_spec
     end
 
-    test "change_project/1 returns a project changeset" do
-      project = project_fixture()
-      assert %Ecto.Changeset{} = Projects.change_project(project)
+    test "returns {:error, :not_found} when project belongs to a different user", %{scope: scope} do
+      other_scope = user_scope_fixture()
+      other_project = project_fixture(other_scope)
+
+      assert {:error, :not_found} = Projects.record_analysis(scope, other_project, %{})
     end
   end
 end
