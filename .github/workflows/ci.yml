@@ -286,8 +286,8 @@ jobs:
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: ~/.yarn/berry/cache
-          key: deps-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
-          restore-keys: deps-${{ runner.os }}-
+          key: yarn-berry-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
+          restore-keys: yarn-berry-${{ runner.os }}-
 
       - name: Install dependencies
         if: steps.changes.outputs.client == 'true'
@@ -332,8 +332,8 @@ jobs:
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: ~/.yarn/berry/cache
-          key: deps-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
-          restore-keys: deps-${{ runner.os }}-
+          key: yarn-berry-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
+          restore-keys: yarn-berry-${{ runner.os }}-
 
       - name: Install dependencies
         if: steps.changes.outputs.protocol == 'true'
