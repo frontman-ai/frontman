@@ -38,7 +38,7 @@ jobs:
           node-version: '24.4.1'
 
       - name: Enable Corepack
-        run: corepack enable
+        run: corepack enable && corepack install
 
       - name: Cache dependencies
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
@@ -75,7 +75,7 @@ jobs:
           node-version: '24.4.1'
 
       - name: Enable Corepack
-        run: corepack enable
+        run: corepack enable && corepack install
 
       - name: Cache dependencies
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
@@ -116,7 +116,7 @@ jobs:
           node-version: '24.4.1'
 
       - name: Enable Corepack
-        run: corepack enable
+        run: corepack enable && corepack install
 
       - name: Cache dependencies
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
@@ -157,7 +157,7 @@ jobs:
           node-version: '24.4.1'
 
       - name: Enable Corepack
-        run: corepack enable
+        run: corepack enable && corepack install
 
       - name: Cache dependencies
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
@@ -198,7 +198,7 @@ jobs:
           node-version: '24.4.1'
 
       - name: Enable Corepack
-        run: corepack enable
+        run: corepack enable && corepack install
 
       - name: Cache dependencies
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
@@ -239,7 +239,7 @@ jobs:
           node-version: '24.4.1'
 
       - name: Enable Corepack
-        run: corepack enable
+        run: corepack enable && corepack install
 
       - name: Cache dependencies
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
@@ -384,7 +384,7 @@ jobs:
           node-version: '24.4.1'
 
       - name: Enable Corepack
-        run: corepack enable
+        run: corepack enable && corepack install
 
       - name: Cache dependencies
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
@@ -440,7 +440,7 @@ jobs:
           node-version: '24.4.1'
 
       - name: Enable Corepack
-        run: corepack enable
+        run: corepack enable && corepack install
 
       - name: Cache dependencies
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
@@ -481,7 +481,7 @@ jobs:
           node-version: '24.4.1'
 
       - name: Enable Corepack
-        run: corepack enable
+        run: corepack enable && corepack install
 
       - name: Cache dependencies
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
