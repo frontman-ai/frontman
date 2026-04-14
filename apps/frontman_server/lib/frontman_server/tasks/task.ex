@@ -21,7 +21,7 @@ defmodule FrontmanServer.Tasks.Task do
     field(:task_id, String.t())
     field(:short_desc, String.t())
     field(:interactions, list(Interaction.t()), default: [])
-    field(:framework, String.t() | nil, default: nil)
+    field(:project_id, String.t() | nil, default: nil)
   end
 
   @doc """

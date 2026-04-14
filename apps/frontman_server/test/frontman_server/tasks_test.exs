@@ -19,15 +19,13 @@ defmodule FrontmanServer.TasksTest do
     end
   end
 
-  describe "create_task/3" do
-    test "creates task with framework", %{scope: scope} do
+  describe "create_task/2" do
+    test "creates a task", %{scope: scope} do
       task_id = Ecto.UUID.generate()
-      framework = "nextjs"
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, framework)
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id)
 
       {:ok, task} = Tasks.get_task(scope, task_id)
       assert task.task_id == task_id
-      assert task.framework == framework
     end
   end
 
@@ -604,7 +602,7 @@ defmodule FrontmanServer.TasksTest do
   describe "add_agent_paused/4 DB round-trip" do
     test "persisted AgentPaused can be loaded back via get_task", %{scope: scope} do
       task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id)
 
       {:ok, _interaction} = Tasks.add_agent_paused(scope, task_id, "question", 120_000)
 
@@ -619,7 +617,7 @@ defmodule FrontmanServer.TasksTest do
 
     test "to_llm_messages/1 succeeds when interactions include AgentPaused", %{scope: scope} do
       task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
+      {:ok, ^task_id} = Tasks.create_task(scope, task_id)
 
       Tasks.submit_user_message(scope, task_id, [%{"type" => "text", "text" => "Hi"}], [],
         agent: %FrontmanServer.Testing.BlockingAgent{}

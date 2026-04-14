@@ -130,7 +130,7 @@ defmodule FrontmanServer.Tasks do
     %Task{
       task_id: schema.id,
       short_desc: schema.short_desc,
-      framework: schema.framework,
+      project_id: schema.project_id,
       interactions: interactions
     }
   end
@@ -157,16 +157,11 @@ defmodule FrontmanServer.Tasks do
   Requires a scope with a user.
   Returns `{:ok, task_id}` on success.
   """
-  @spec create_task(Scope.t(), String.t(), String.t()) :: {:ok, String.t()} | {:error, term()}
-  def create_task(%Scope{user: user}, task_id, framework) do
-    attrs = %{
-      id: task_id,
-      short_desc: Task.short_description(task_id),
-      framework: framework,
-      user_id: user.id
-    }
+  @spec create_task(Scope.t(), String.t()) :: {:ok, String.t()} | {:error, term()}
+  def create_task(%Scope{user: user}, task_id) do
+    attrs = %{short_desc: Task.short_description(task_id)}
 
-    case TaskSchema.create_changeset(attrs) |> Repo.insert() do
+    case TaskSchema.create_changeset(task_id, user.id, attrs) |> Repo.insert() do
       {:ok, _schema} -> {:ok, task_id}
       {:error, changeset} -> {:error, changeset}
     end
