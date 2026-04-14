@@ -5,8 +5,6 @@ defmodule FrontmanServer.Projects do
   for tasks and sandboxes running against that repo.
   """
 
-  import Ecto.Query
-
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Projects.Project
   alias FrontmanServer.Repo

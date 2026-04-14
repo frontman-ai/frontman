@@ -7,8 +7,6 @@ defmodule FrontmanServer.Sandboxes do
   without losing any work.
   """
 
-  import Ecto.Query
-
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Repo
   alias FrontmanServer.Sandboxes.Sandbox
