@@ -4,11 +4,11 @@ defmodule FrontmanServer.Repo.Migrations.CreateProjects do
   def change do
     create table(:projects, primary_key: false) do
       add :id, :binary_id, primary_key: true
+      add :user_id, references(:users, type: :binary_id, on_delete: :delete_all), null: false
       add :github_repo, :string
       add :default_branch, :string
       add :framework, :string
       add :last_env_spec, :map
-      add :user_id, references(:users, on_delete: :nothing, type: :binary_id)
 
       timestamps(type: :utc_datetime)
     end
