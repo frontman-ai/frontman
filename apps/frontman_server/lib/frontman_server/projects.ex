@@ -45,7 +45,7 @@ defmodule FrontmanServer.Projects do
   @spec connect_repo(Scope.t(), map()) :: {:ok, Project.t()} | {:error, Ecto.Changeset.t()}
   def connect_repo(%Scope{user: user}, attrs) do
     %Project{}
-    |> Project.repo_changeset(Map.put(attrs, "user_id", user.id))
+    |> Project.repo_changeset(user.id, attrs)
     |> Repo.insert()
   end
 

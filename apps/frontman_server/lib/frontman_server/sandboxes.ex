@@ -8,6 +8,7 @@ defmodule FrontmanServer.Sandboxes do
   """
 
   alias FrontmanServer.Accounts.Scope
+  alias FrontmanServer.Projects
   alias FrontmanServer.Repo
   alias FrontmanServer.Sandboxes.Sandbox
   alias FrontmanServer.Tasks.TaskSchema
@@ -22,11 +23,7 @@ defmodule FrontmanServer.Sandboxes do
           {:ok, Sandbox.t()} | {:error, Ecto.Changeset.t()}
   def provision_for_task(%Scope{}, %TaskSchema{} = task, env_spec) do
     %Sandbox{}
-    |> Sandbox.create_changeset(%{
-      task_id: task.id,
-      project_id: task.project_id,
-      env_spec: env_spec
-    })
+    |> Sandbox.create_changeset(task.id, task.project_id, %{env_spec: env_spec})
     |> Repo.insert()
   end
 
@@ -44,35 +41,39 @@ defmodule FrontmanServer.Sandboxes do
 
   @doc """
   Suspends a sandbox by setting its status to :stopped.
+  Verifies ownership through the sandbox's project.
   """
   @spec suspend(Scope.t(), Ecto.UUID.t()) ::
           {:ok, Sandbox.t()} | {:error, :not_found | Ecto.Changeset.t()}
-  def suspend(%Scope{}, sandbox_id) do
-    case Repo.get(Sandbox, sandbox_id) do
-      nil ->
-        {:error, :not_found}
-
-      sandbox ->
-        sandbox
-        |> Sandbox.status_changeset(:stopped)
-        |> Repo.update()
+  def suspend(%Scope{} = scope, sandbox_id) do
+    with {:ok, sandbox} <- get_sandbox(sandbox_id, scope) do
+      sandbox
+      |> Sandbox.status_changeset(:stopped)
+      |> Repo.update()
     end
   end
 
   @doc """
   Permanently decommissions a sandbox by deleting its row.
+  Verifies ownership through the sandbox's project.
   """
   @spec decommission(Scope.t(), Ecto.UUID.t()) :: :ok | {:error, :not_found | Ecto.Changeset.t()}
-  def decommission(%Scope{}, sandbox_id) do
-    case Repo.get(Sandbox, sandbox_id) do
-      nil ->
-        {:error, :not_found}
+  def decommission(%Scope{} = scope, sandbox_id) do
+    with {:ok, sandbox} <- get_sandbox(sandbox_id, scope) do
+      case Repo.delete(sandbox) do
+        {:ok, _} -> :ok
+        {:error, changeset} -> {:error, changeset}
+      end
+    end
+  end
 
-      sandbox ->
-        case Repo.delete(sandbox) do
-          {:ok, _} -> :ok
-          {:error, changeset} -> {:error, changeset}
-        end
+  defp get_sandbox(sandbox_id, %Scope{} = scope) do
+    with sandbox when not is_nil(sandbox) <- Repo.get(Sandbox, sandbox_id),
+         {:ok, _project} <- Projects.get_project(scope, sandbox.project_id) do
+      {:ok, sandbox}
+    else
+      nil -> {:error, :not_found}
+      {:error, :not_found} -> {:error, :not_found}
     end
   end
 end

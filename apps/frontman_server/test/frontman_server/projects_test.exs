@@ -12,42 +12,40 @@ defmodule FrontmanServer.ProjectsTest do
     %{scope: scope}
   end
 
-  describe "Project.repo_changeset/2" do
+  describe "Project.repo_changeset/3" do
     test "valid with github_repo, default_branch, and user_id", %{scope: scope} do
-      attrs = valid_project_attrs(%{"user_id" => scope.user.id})
-      changeset = Project.repo_changeset(%Project{}, attrs)
+      attrs = valid_project_attrs()
+      changeset = Project.repo_changeset(%Project{}, scope.user.id, attrs)
       assert changeset.valid?
     end
 
     test "invalid without github_repo" do
-      attrs = %{"default_branch" => "main", "user_id" => Ecto.UUID.generate()}
-      changeset = Project.repo_changeset(%Project{}, attrs)
+      changeset =
+        Project.repo_changeset(%Project{}, Ecto.UUID.generate(), %{"default_branch" => "main"})
+
       refute changeset.valid?
       assert "can't be blank" in errors_on(changeset).github_repo
     end
 
     test "invalid without default_branch" do
-      attrs = %{"github_repo" => "owner/repo", "user_id" => Ecto.UUID.generate()}
-      changeset = Project.repo_changeset(%Project{}, attrs)
+      changeset =
+        Project.repo_changeset(%Project{}, Ecto.UUID.generate(), %{"github_repo" => "owner/repo"})
+
       refute changeset.valid?
       assert "can't be blank" in errors_on(changeset).default_branch
     end
 
-    test "invalid without user_id" do
+    test "sets user_id on the struct, not from attrs" do
+      user_id = Ecto.UUID.generate()
       attrs = %{"github_repo" => "owner/repo", "default_branch" => "main"}
-      changeset = Project.repo_changeset(%Project{}, attrs)
-      refute changeset.valid?
-      assert "can't be blank" in errors_on(changeset).user_id
+      changeset = Project.repo_changeset(%Project{}, user_id, attrs)
+      assert changeset.valid?
+      assert Ecto.Changeset.get_field(changeset, :user_id) == user_id
     end
 
     test "framework is optional" do
-      attrs = %{
-        "github_repo" => "owner/repo",
-        "default_branch" => "main",
-        "user_id" => Ecto.UUID.generate()
-      }
-
-      changeset = Project.repo_changeset(%Project{}, attrs)
+      attrs = %{"github_repo" => "owner/repo", "default_branch" => "main"}
+      changeset = Project.repo_changeset(%Project{}, Ecto.UUID.generate(), attrs)
       assert changeset.valid?
     end
   end

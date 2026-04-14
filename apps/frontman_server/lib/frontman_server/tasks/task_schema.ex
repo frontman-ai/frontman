@@ -37,13 +37,12 @@ defmodule FrontmanServer.Tasks.TaskSchema do
   @doc """
   Changeset for creating a new task.
 
-  System fields (id, user_id, project_id) are set explicitly — never cast from
-  user input.
+  System fields (id, user_id) are set explicitly — never cast from user input.
   """
   @spec create_changeset(String.t(), Ecto.UUID.t(), map()) :: Ecto.Changeset.t()
   def create_changeset(id, user_id, attrs) do
     %__MODULE__{id: id, user_id: user_id}
-    |> cast(attrs, [:short_desc, :branch, :project_id])
+    |> cast(attrs, [:short_desc, :branch])
     |> validate_required([:id, :short_desc, :user_id])
     |> unique_constraint(:id, name: :tasks_pkey)
     |> foreign_key_constraint(:user_id)

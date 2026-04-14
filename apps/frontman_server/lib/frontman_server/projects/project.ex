@@ -28,12 +28,13 @@ defmodule FrontmanServer.Projects.Project do
 
   @doc """
   Changeset for connecting a GitHub repo to a new project.
-  Requires github_repo and default_branch.
+  Requires github_repo and default_branch. user_id is set explicitly on the
+  struct — never cast from user input.
   """
-  @spec repo_changeset(t(), map()) :: Ecto.Changeset.t()
-  def repo_changeset(project, attrs) do
-    project
-    |> cast(attrs, [:github_repo, :default_branch, :framework, :user_id])
+  @spec repo_changeset(t(), Ecto.UUID.t(), map()) :: Ecto.Changeset.t()
+  def repo_changeset(project, user_id, attrs) do
+    %{project | user_id: user_id}
+    |> cast(attrs, [:github_repo, :default_branch, :framework])
     |> validate_required([:github_repo, :default_branch, :user_id])
     |> validate_length(:github_repo, min: 1)
     |> validate_length(:default_branch, min: 1)

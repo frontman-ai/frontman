@@ -33,11 +33,13 @@ defmodule FrontmanServer.Sandboxes.Sandbox do
   @doc """
   Changeset for provisioning a new sandbox.
   Status is always set to :provisioning on creation.
+  System fields (task_id, project_id) are set explicitly — never cast from
+  user input.
   """
-  @spec create_changeset(t(), map()) :: Ecto.Changeset.t()
-  def create_changeset(sandbox, attrs) do
-    sandbox
-    |> cast(attrs, [:env_spec, :task_id, :project_id])
+  @spec create_changeset(t(), Ecto.UUID.t(), Ecto.UUID.t(), map()) :: Ecto.Changeset.t()
+  def create_changeset(sandbox, task_id, project_id, attrs) do
+    %{sandbox | task_id: task_id, project_id: project_id}
+    |> cast(attrs, [:env_spec])
     |> put_change(:status, :provisioning)
     |> validate_required([:env_spec, :task_id, :project_id])
     |> foreign_key_constraint(:task_id)
