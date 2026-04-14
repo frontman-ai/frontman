@@ -1,96 +1,79 @@
 defmodule FrontmanServer.SandboxesTest do
-  use FrontmanServer.DataCase
+  use FrontmanServer.DataCase, async: true
 
+  import FrontmanServer.Test.Fixtures.Accounts
+  import FrontmanServer.Test.Fixtures.Sandboxes
+
+  alias FrontmanServer.Repo
   alias FrontmanServer.Sandboxes
+  alias FrontmanServer.Sandboxes.Sandbox
 
-  describe "sandboxes" do
-    alias FrontmanServer.Sandboxes.Sandbox
+  setup do
+    scope = user_scope_fixture()
+    task = task_with_project_fixture(scope)
+    %{scope: scope, task: task}
+  end
 
-    import FrontmanServer.SandboxesFixtures
-
-    @invalid_attrs %{
-      status: nil,
-      provider_ref: nil,
-      vm_ip: nil,
-      port_map: nil,
-      preview_url: nil,
-      env_spec: nil,
-      last_active_at: nil
-    }
-
-    test "list_sandboxes/0 returns all sandboxes" do
-      sandbox = sandbox_fixture()
-      assert Sandboxes.list_sandboxes() == [sandbox]
+  describe "provision_for_task/3" do
+    test "creates a sandbox in provisioning status", %{scope: scope, task: task} do
+      assert {:ok, sandbox} = Sandboxes.provision_for_task(scope, task, valid_env_spec())
+      assert sandbox.status == :provisioning
+      assert sandbox.task_id == task.id
+      assert sandbox.project_id == task.project_id
+      assert sandbox.env_spec == valid_env_spec()
     end
 
-    test "get_sandbox!/1 returns the sandbox with given id" do
-      sandbox = sandbox_fixture()
-      assert Sandboxes.get_sandbox!(sandbox.id) == sandbox
+    test "returns error changeset when env_spec is missing", %{scope: scope, task: task} do
+      assert {:error, changeset} = Sandboxes.provision_for_task(scope, task, nil)
+      assert errors_on(changeset).env_spec
+    end
+  end
+
+  describe "current_for_task/2" do
+    test "returns nil when task has no active sandbox", %{scope: scope, task: task} do
+      assert Sandboxes.current_for_task(scope, task) == nil
     end
 
-    test "create_sandbox/1 with valid data creates a sandbox" do
-      valid_attrs = %{
-        status: "some status",
-        provider_ref: "some provider_ref",
-        vm_ip: "some vm_ip",
-        port_map: %{},
-        preview_url: "some preview_url",
-        env_spec: %{},
-        last_active_at: ~U[2026-04-13 10:48:00Z]
-      }
-
-      assert {:ok, %Sandbox{} = sandbox} = Sandboxes.create_sandbox(valid_attrs)
-      assert sandbox.status == "some status"
-      assert sandbox.provider_ref == "some provider_ref"
-      assert sandbox.vm_ip == "some vm_ip"
-      assert sandbox.port_map == %{}
-      assert sandbox.preview_url == "some preview_url"
-      assert sandbox.env_spec == %{}
-      assert sandbox.last_active_at == ~U[2026-04-13 10:48:00Z]
+    test "returns the sandbox after provisioning", %{scope: scope, task: task} do
+      {:ok, sandbox} = Sandboxes.provision_for_task(scope, task, valid_env_spec())
+      assert fetched = Sandboxes.current_for_task(scope, task)
+      assert fetched.id == sandbox.id
     end
 
-    test "create_sandbox/1 with invalid data returns error changeset" do
-      assert {:error, %Ecto.Changeset{}} = Sandboxes.create_sandbox(@invalid_attrs)
+    test "returns nil after sandbox is suspended", %{scope: scope, task: task} do
+      {:ok, sandbox} = Sandboxes.provision_for_task(scope, task, valid_env_spec())
+      {:ok, _} = Sandboxes.suspend(scope, sandbox.id)
+      assert Sandboxes.current_for_task(scope, task) == nil
+    end
+  end
+
+  describe "suspend/2" do
+    test "sets sandbox status to :stopped", %{scope: scope, task: task} do
+      {:ok, sandbox} = Sandboxes.provision_for_task(scope, task, valid_env_spec())
+      assert {:ok, suspended} = Sandboxes.suspend(scope, sandbox.id)
+      assert suspended.status == :stopped
     end
 
-    test "update_sandbox/2 with valid data updates the sandbox" do
-      sandbox = sandbox_fixture()
+    test "returns {:error, :not_found} for unknown sandbox_id", %{scope: scope} do
+      assert {:error, :not_found} = Sandboxes.suspend(scope, Ecto.UUID.generate())
+    end
+  end
 
-      update_attrs = %{
-        status: "some updated status",
-        provider_ref: "some updated provider_ref",
-        vm_ip: "some updated vm_ip",
-        port_map: %{},
-        preview_url: "some updated preview_url",
-        env_spec: %{},
-        last_active_at: ~U[2026-04-14 10:48:00Z]
-      }
-
-      assert {:ok, %Sandbox{} = sandbox} = Sandboxes.update_sandbox(sandbox, update_attrs)
-      assert sandbox.status == "some updated status"
-      assert sandbox.provider_ref == "some updated provider_ref"
-      assert sandbox.vm_ip == "some updated vm_ip"
-      assert sandbox.port_map == %{}
-      assert sandbox.preview_url == "some updated preview_url"
-      assert sandbox.env_spec == %{}
-      assert sandbox.last_active_at == ~U[2026-04-14 10:48:00Z]
+  describe "decommission/2" do
+    test "deletes the sandbox row", %{scope: scope, task: task} do
+      {:ok, sandbox} = Sandboxes.provision_for_task(scope, task, valid_env_spec())
+      assert :ok = Sandboxes.decommission(scope, sandbox.id)
+      assert Repo.get(Sandbox, sandbox.id) == nil
     end
 
-    test "update_sandbox/2 with invalid data returns error changeset" do
-      sandbox = sandbox_fixture()
-      assert {:error, %Ecto.Changeset{}} = Sandboxes.update_sandbox(sandbox, @invalid_attrs)
-      assert sandbox == Sandboxes.get_sandbox!(sandbox.id)
+    test "decommissioned sandbox no longer appears as current", %{scope: scope, task: task} do
+      {:ok, sandbox} = Sandboxes.provision_for_task(scope, task, valid_env_spec())
+      :ok = Sandboxes.decommission(scope, sandbox.id)
+      assert Sandboxes.current_for_task(scope, task) == nil
     end
 
-    test "delete_sandbox/1 deletes the sandbox" do
-      sandbox = sandbox_fixture()
-      assert {:ok, %Sandbox{}} = Sandboxes.delete_sandbox(sandbox)
-      assert_raise Ecto.NoResultsError, fn -> Sandboxes.get_sandbox!(sandbox.id) end
-    end
-
-    test "change_sandbox/1 returns a sandbox changeset" do
-      sandbox = sandbox_fixture()
-      assert %Ecto.Changeset{} = Sandboxes.change_sandbox(sandbox)
+    test "returns {:error, :not_found} for unknown sandbox_id", %{scope: scope} do
+      assert {:error, :not_found} = Sandboxes.decommission(scope, Ecto.UUID.generate())
     end
   end
 end
