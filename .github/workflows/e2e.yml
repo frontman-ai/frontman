@@ -104,7 +104,7 @@ jobs:
           node-version: "24.4.1"
 
       - name: Enable Corepack
-        run: corepack enable
+        run: corepack enable && corepack install
 
       # ── Caches ──────────────────────────────────────────────────────────
       - name: Cache Yarn

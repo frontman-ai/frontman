@@ -38,16 +38,14 @@ jobs:
           node-version: '24.4.1'
 
       - name: Enable Corepack
-        run: corepack enable
+        run: corepack enable && corepack install
 
       - name: Cache dependencies
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
-          path: |
-            ~/.yarn/berry/cache
-            node_modules
-          key: deps-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
-          restore-keys: deps-${{ runner.os }}-
+          path: ~/.yarn/berry/cache
+          key: yarn-berry-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
+          restore-keys: yarn-berry-${{ runner.os }}-
 
       - name: Install dependencies
         run: yarn install --immutable
@@ -75,16 +73,14 @@ jobs:
           node-version: '24.4.1'
 
       - name: Enable Corepack
-        run: corepack enable
+        run: corepack enable && corepack install
 
       - name: Cache dependencies
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
-          path: |
-            ~/.yarn/berry/cache
-            node_modules
-          key: deps-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
-          restore-keys: deps-${{ runner.os }}-
+          path: ~/.yarn/berry/cache
+          key: yarn-berry-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
+          restore-keys: yarn-berry-${{ runner.os }}-
 
       - name: Install dependencies
         run: yarn install --immutable
@@ -116,16 +112,14 @@ jobs:
           node-version: '24.4.1'
 
       - name: Enable Corepack
-        run: corepack enable
+        run: corepack enable && corepack install
 
       - name: Cache dependencies
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
-          path: |
-            ~/.yarn/berry/cache
-            node_modules
-          key: deps-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
-          restore-keys: deps-${{ runner.os }}-
+          path: ~/.yarn/berry/cache
+          key: yarn-berry-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
+          restore-keys: yarn-berry-${{ runner.os }}-
 
       - name: Install dependencies
         run: yarn install --immutable
@@ -157,16 +151,14 @@ jobs:
           node-version: '24.4.1'
 
       - name: Enable Corepack
-        run: corepack enable
+        run: corepack enable && corepack install
 
       - name: Cache dependencies
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
-          path: |
-            ~/.yarn/berry/cache
-            node_modules
-          key: deps-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
-          restore-keys: deps-${{ runner.os }}-
+          path: ~/.yarn/berry/cache
+          key: yarn-berry-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
+          restore-keys: yarn-berry-${{ runner.os }}-
 
       - name: Install dependencies
         run: yarn install --immutable
@@ -198,16 +190,14 @@ jobs:
           node-version: '24.4.1'
 
       - name: Enable Corepack
-        run: corepack enable
+        run: corepack enable && corepack install
 
       - name: Cache dependencies
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
-          path: |
-            ~/.yarn/berry/cache
-            node_modules
-          key: deps-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
-          restore-keys: deps-${{ runner.os }}-
+          path: ~/.yarn/berry/cache
+          key: yarn-berry-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
+          restore-keys: yarn-berry-${{ runner.os }}-
 
       - name: Install dependencies
         run: yarn install --immutable
@@ -239,16 +229,14 @@ jobs:
           node-version: '24.4.1'
 
       - name: Enable Corepack
-        run: corepack enable
+        run: corepack enable && corepack install
 
       - name: Cache dependencies
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
-          path: |
-            ~/.yarn/berry/cache
-            node_modules
-          key: deps-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
-          restore-keys: deps-${{ runner.os }}-
+          path: ~/.yarn/berry/cache
+          key: yarn-berry-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
+          restore-keys: yarn-berry-${{ runner.os }}-
 
       - name: Install dependencies
         run: yarn install --immutable
@@ -291,17 +279,15 @@ jobs:
 
       - name: Enable Corepack
         if: steps.changes.outputs.client == 'true'
-        run: corepack enable
+        run: corepack enable && corepack install
 
       - name: Cache dependencies
         if: steps.changes.outputs.client == 'true'
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
-          path: |
-            ~/.yarn/berry/cache
-            node_modules
-          key: deps-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
-          restore-keys: deps-${{ runner.os }}-
+          path: ~/.yarn/berry/cache
+          key: yarn-berry-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
+          restore-keys: yarn-berry-${{ runner.os }}-
 
       - name: Install dependencies
         if: steps.changes.outputs.client == 'true'
@@ -339,17 +325,15 @@ jobs:
 
       - name: Enable Corepack
         if: steps.changes.outputs.protocol == 'true'
-        run: corepack enable
+        run: corepack enable && corepack install
 
       - name: Cache dependencies
         if: steps.changes.outputs.protocol == 'true'
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
-          path: |
-            ~/.yarn/berry/cache
-            node_modules
-          key: deps-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
-          restore-keys: deps-${{ runner.os }}-
+          path: ~/.yarn/berry/cache
+          key: yarn-berry-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
+          restore-keys: yarn-berry-${{ runner.os }}-
 
       - name: Install dependencies
         if: steps.changes.outputs.protocol == 'true'
@@ -384,16 +368,14 @@ jobs:
           node-version: '24.4.1'
 
       - name: Enable Corepack
-        run: corepack enable
+        run: corepack enable && corepack install
 
       - name: Cache dependencies
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
-          path: |
-            ~/.yarn/berry/cache
-            node_modules
-          key: deps-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
-          restore-keys: deps-${{ runner.os }}-
+          path: ~/.yarn/berry/cache
+          key: yarn-berry-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
+          restore-keys: yarn-berry-${{ runner.os }}-
 
       - name: Install dependencies
         run: yarn install --immutable
@@ -440,16 +422,14 @@ jobs:
           node-version: '24.4.1'
 
       - name: Enable Corepack
-        run: corepack enable
+        run: corepack enable && corepack install
 
       - name: Cache dependencies
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
-          path: |
-            ~/.yarn/berry/cache
-            node_modules
-          key: deps-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
-          restore-keys: deps-${{ runner.os }}-
+          path: ~/.yarn/berry/cache
+          key: yarn-berry-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
+          restore-keys: yarn-berry-${{ runner.os }}-
 
       - name: Install dependencies
         run: yarn install --immutable
@@ -481,16 +461,14 @@ jobs:
           node-version: '24.4.1'
 
       - name: Enable Corepack
-        run: corepack enable
+        run: corepack enable && corepack install
 
       - name: Cache dependencies
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
-          path: |
-            ~/.yarn/berry/cache
-            node_modules
-          key: deps-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
-          restore-keys: deps-${{ runner.os }}-
+          path: ~/.yarn/berry/cache
+          key: yarn-berry-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
+          restore-keys: yarn-berry-${{ runner.os }}-
 
       - name: Install dependencies
         run: yarn install --immutable
@@ -645,6 +623,7 @@ jobs:
         run: make -C apps/frontman_server test-coverage
         env:
           CLOAK_KEY: "dGVzdC1rZXktZm9yLWNpLXRoaXMtaXMtMzJieXRlc3M="
+          MIX_TEST_DB_SUFFIX: "_run_${{ github.run_id }}"
 
       - name: Coverage report
         uses: clearlyip/code-coverage-report-action@a592e94b2dba75dc3d52355ee5cd5d38ee26259d # main (node24)
@@ -652,6 +631,13 @@ jobs:
           filename: apps/frontman_server/cover/cobertura.xml
           overall_coverage_fail_threshold: 0
           artifact_name: coverage-${{ github.job }}-%name%
+
+      - name: Drop per-run test database
+        if: always()
+        working-directory: apps/frontman_server
+        env:
+          MIX_TEST_DB_SUFFIX: "_run_${{ github.run_id }}"
+        run: MIX_ENV=test mix ecto.drop --quiet 2>/dev/null || true
 
       - name: Cleanup workspace
         if: always()
