@@ -27,6 +27,13 @@ defmodule FrontmanServer.SandboxesTest do
       assert {:error, changeset} = Sandboxes.provision_for_task(scope, task, nil)
       assert errors_on(changeset).env_spec
     end
+
+    test "returns {:error, :not_found} when task belongs to another user", %{task: task} do
+      other_scope = user_scope_fixture()
+
+      assert {:error, :not_found} =
+               Sandboxes.provision_for_task(other_scope, task, valid_env_spec())
+    end
   end
 
   describe "current_for_task/2" do
@@ -44,6 +51,15 @@ defmodule FrontmanServer.SandboxesTest do
       {:ok, sandbox} = Sandboxes.provision_for_task(scope, task, valid_env_spec())
       {:ok, _} = Sandboxes.suspend(scope, sandbox.id)
       assert Sandboxes.current_for_task(scope, task) == nil
+    end
+
+    test "returns {:error, :not_found} when task belongs to another user", %{
+      scope: scope,
+      task: task
+    } do
+      {:ok, _sandbox} = Sandboxes.provision_for_task(scope, task, valid_env_spec())
+      other_scope = user_scope_fixture()
+      assert {:error, :not_found} = Sandboxes.current_for_task(other_scope, task)
     end
   end
 

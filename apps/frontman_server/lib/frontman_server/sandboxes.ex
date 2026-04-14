@@ -20,11 +20,13 @@ defmodule FrontmanServer.Sandboxes do
   The caller is responsible for wiring the result into any downstream state.
   """
   @spec provision_for_task(Scope.t(), TaskSchema.t(), map()) ::
-          {:ok, Sandbox.t()} | {:error, Ecto.Changeset.t()}
-  def provision_for_task(%Scope{}, %TaskSchema{} = task, env_spec) do
-    %Sandbox{}
-    |> Sandbox.create_changeset(task.id, task.project_id, %{env_spec: env_spec})
-    |> Repo.insert()
+          {:ok, Sandbox.t()} | {:error, :not_found | Ecto.Changeset.t()}
+  def provision_for_task(%Scope{} = scope, %TaskSchema{} = task, env_spec) do
+    with {:ok, _project} <- Projects.get_project(scope, task.project_id) do
+      %Sandbox{}
+      |> Sandbox.create_changeset(task.id, task.project_id, %{env_spec: env_spec})
+      |> Repo.insert()
+    end
   end
 
   @doc """
@@ -32,11 +34,14 @@ defmodule FrontmanServer.Sandboxes do
 
   Active means status is :provisioning or :running. A :stopped sandbox is not current.
   """
-  @spec current_for_task(Scope.t(), TaskSchema.t()) :: Sandbox.t() | nil
-  def current_for_task(%Scope{}, %TaskSchema{} = task) do
-    Sandbox
-    |> Sandbox.active_for_task(task.id)
-    |> Repo.one()
+  @spec current_for_task(Scope.t(), TaskSchema.t()) ::
+          Sandbox.t() | nil | {:error, :not_found}
+  def current_for_task(%Scope{} = scope, %TaskSchema{} = task) do
+    with {:ok, _project} <- Projects.get_project(scope, task.project_id) do
+      Sandbox
+      |> Sandbox.active_for_task(task.id)
+      |> Repo.one()
+    end
   end
 
   @doc """
