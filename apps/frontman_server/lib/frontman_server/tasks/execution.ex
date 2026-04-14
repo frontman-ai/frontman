@@ -27,7 +27,7 @@ defmodule FrontmanServer.Tasks.Execution do
   alias FrontmanServer.Observability.TelemetryEvents
   alias FrontmanServer.Providers
   alias FrontmanServer.Providers.{Model, Registry, ResolvedKey}
-  alias FrontmanServer.Tasks.Execution.{Framework, RootAgent, ToolExecutor}
+  alias FrontmanServer.Tasks.Execution.{RootAgent, ToolExecutor}
   alias FrontmanServer.Tasks.{Interaction, Task}
   alias FrontmanServer.Tools
   alias SwarmAi.Message
@@ -182,9 +182,6 @@ defmodule FrontmanServer.Tasks.Execution do
   defp build_agent(%Task{} = task, tools, opts, %ResolvedKey{} = resolved_key) do
     case Keyword.get(opts, :agent) do
       nil ->
-        fw = Framework.from_string(task.framework)
-        has_typescript_react = Framework.has_typescript_react?(fw)
-
         # Derive prompt data from task interactions
         project_rules =
           task.interactions
@@ -201,11 +198,10 @@ defmodule FrontmanServer.Tasks.Execution do
         max_tokens = Application.fetch_env!(:frontman_server, :llm_max_tokens)
         {model_spec, llm_opts} = ResolvedKey.to_llm_args(resolved_key, max_tokens: max_tokens)
 
+        # Framework-specific guidance will be derived from the task's project (issue #836)
         RootAgent.new(
           tools: tools,
           has_annotations: Interaction.has_annotations?(task.interactions),
-          has_typescript_react: has_typescript_react,
-          framework: fw,
           model: model_spec,
           llm_opts: llm_opts,
           project_rules: project_rules,

@@ -13,14 +13,12 @@ defmodule FrontmanServer.Test.Fixtures.Tasks do
 
   ## Options
 
-    * `:framework` - framework string, defaults to `"nextjs"`
     * `:task_id` - explicit task ID, defaults to `Ecto.UUID.generate()`
   """
   @spec task_fixture(FrontmanServer.Accounts.Scope.t(), keyword()) :: String.t()
   def task_fixture(scope, opts \\ []) do
-    framework = Keyword.get(opts, :framework, "nextjs")
     task_id = Keyword.get(opts, :task_id, Ecto.UUID.generate())
-    {:ok, ^task_id} = Tasks.create_task(scope, task_id, framework)
+    {:ok, ^task_id} = Tasks.create_task(scope, task_id)
     task_id
   end
 
