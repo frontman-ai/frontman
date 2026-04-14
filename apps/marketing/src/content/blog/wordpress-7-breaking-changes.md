@@ -1,11 +1,11 @@
 ---
-title: "WordPress 7 Breaking Changes: What Breaks, How to Fix It, and How to Roll Back If You Can't"
+title: "WordPress 7 Breaking Changes: What Breaks & How to Fix It"
 pubDate: 2026-04-25T05:00:00Z
-description: "WordPress 7 breaking changes: the complete developer audit with what actually breaks, migration code for each issue, and the rollback strategies nobody else covers."
+description: "WordPress 7 breaking changes: developer audit with what actually breaks, migration code for each issue, and rollback strategies nobody else covers."
 author: 'Danni Friedland'
 authorRole: 'Co-founder, Frontman'
 image: '/blog/wordpress-7-breaking-changes-cover.png'
-tags: ['wordpress', 'wordpress-7', 'migration', 'breaking-changes', 'plugins']
+tags: ['wordpress', 'tutorial']
 updatedDate: 2026-04-25T00:00:00Z
 faq:
   - question: 'Should I update to WordPress 7 right away or wait?'
