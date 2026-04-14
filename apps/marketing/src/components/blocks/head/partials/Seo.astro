@@ -31,7 +31,7 @@ const canonicalUrl = (() => {
 	const url = new URL(Astro.url)
 	const tag = url.searchParams.get('tag')
 	if (tag && (url.pathname === '/blog' || url.pathname === '/blog/')) {
-		return new URL(`/blog/tags/${tag}/`, Astro.site).href
+		return new URL(`/blog/tags/${encodeURIComponent(tag)}/`, Astro.site).href
 	}
 	// Strip query params from canonical URLs
 	url.search = ''
