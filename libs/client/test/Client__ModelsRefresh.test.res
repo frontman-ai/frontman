@@ -287,7 +287,7 @@ describe("ConfigOptionsReceived auto-selects model from newly connected provider
     t->expect(nextState.pendingProviderAutoSelect)->Expect.toEqual(None)
   })
 
-  test("keeps current selection when no pending provider auto-select", t => {
+  test("keeps the current selection even when refreshed config omits it", t => {
     let existingModel = "openrouter:google/gemini-3-flash-preview"
     let state = _makeState(~selectedModelValue=Some(existingModel))
 
@@ -313,14 +313,13 @@ describe("ConfigOptionsReceived auto-selects model from newly connected provider
     ->Expect.toEqual(Some("anthropic:claude-sonnet-4-5"))
   })
 
-  test("clears pendingProviderAutoSelect even if provider not in config", t => {
-    let existingModel = "openrouter:google/gemini-3-flash-preview"
+  test("clears pendingProviderAutoSelect even when provider and current model are missing", t => {
+    let existingModel = "openai:gpt-5.1-codex-max"
     let state = _makeState(
       ~pendingProviderAutoSelect=Some("openai"),
       ~selectedModelValue=Some(existingModel),
     )
 
-    // Config doesn't have OpenAI provider — keep existing selection
     let (nextState, _effects) = Reducer.next(
       state,
       ConfigOptionsReceived({configOptions: SampleConfig.configWithOpenRouterOnly}),

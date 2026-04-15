@@ -129,10 +129,7 @@ let make = () => {
     Client__State.Selectors.hasEnrichingAnnotations,
   )
   let runtimeConfig = RuntimeConfig.read()
-  let hasEnvKey =
-    RuntimeConfig.hasOpenrouterKey(runtimeConfig) ||
-    RuntimeConfig.hasAnthropicKey(runtimeConfig) ||
-    RuntimeConfig.hasFireworksKey(runtimeConfig)
+  let hasEnvKey = RuntimeConfig.hasAnyProviderKey(runtimeConfig)
   let hasAnyKey = hasProviderConfigured || hasEnvKey
 
   let modelConfigOption =

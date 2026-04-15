@@ -190,33 +190,13 @@ let snapshotToState = (snapshot: Snapshot.t): StateTypes.state => {
   }
 
   {
+    ...Client__State__StateReducer.defaultState,
     tasks: tasksDict,
     currentTask,
-    acpSession: NoAcpSession, // Cannot restore ACP session from snapshot
+    acpSession: NoAcpSession,
     sessionInitialized: snapshot.sessionInitialized,
-    usageInfo: None,
-    userProfile: None,
-    openrouterKeySettings: {
-      source: Client__State__Types.None,
-      saveStatus: Client__State__Types.Idle,
-    },
-    anthropicKeySettings: {
-      source: Client__State__Types.None,
-      saveStatus: Client__State__Types.Idle,
-    },
-    fireworksKeySettings: {
-      source: Client__State__Types.None,
-      saveStatus: Client__State__Types.Idle,
-    },
-    anthropicOAuthStatus: Client__State__Types.NotConnected,
-    chatgptOAuthStatus: Client__State__Types.ChatGPTNotConnected,
-    configOptions: None,
     selectedModelValue: None,
     pendingProviderAutoSelect: None,
-    sessionsLoadState: Client__State__Types.SessionsNotLoaded, // Cannot restore load state from snapshot
-    updateInfo: None,
-    updateCheckStatus: Client__State__Types.UpdateNotChecked,
-    updateBannerDismissed: false,
   }
 }
 
@@ -266,18 +246,22 @@ let resetState = (): unit => {
  */
 let withSnapshot = (jsonString: string): ((unit => React.element) => React.element) => {
   storyFn => {
-    // Load snapshot on first render
-    React.useEffect0(() => {
+    let (loadResult, _setLoadResult) = React.useState(() => {
       switch loadSnapshot(jsonString) {
-      | Ok() => Console.log("[Storybook] Snapshot loaded successfully")
-      | Error(err) => Console.error2("[Storybook] Failed to load snapshot:", err)
+      | Ok() as result => result
+      | Error(_) as result => {
+          resetState()
+          result
+        }
       }
-
-      // Cleanup: reset state when story unmounts
-      Some(() => resetState())
     })
 
-    storyFn()
+    React.useEffect0(() => Some(() => resetState()))
+
+    switch loadResult {
+    | Ok() => storyFn()
+    | Error(err) => <div className="p-4 text-sm text-red-400"> {React.string(err)} </div>
+    }
   }
 }
 
@@ -286,12 +270,12 @@ let withSnapshot = (jsonString: string): ((unit => React.element) => React.eleme
  */
 let withSnapshotObject = (snapshot: Snapshot.t): ((unit => React.element) => React.element) => {
   storyFn => {
-    React.useEffect0(() => {
+    let (_initialized, _setInitialized) = React.useState(() => {
       loadSnapshotFromObject(snapshot)
-      Console.log("[Storybook] Snapshot loaded successfully")
-
-      Some(() => resetState())
+      true
     })
+
+    React.useEffect0(() => Some(() => resetState()))
 
     storyFn()
   }

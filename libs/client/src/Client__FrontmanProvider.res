@@ -229,16 +229,7 @@ module Provider = {
       // with the correct provider context (env API keys + model) after a restart.
       MCPServer.setToolResultMetaProvider(mcpServer, () => {
         let config = Client__RuntimeConfig.read()
-        let envApiKey = Dict.make()
-        config.openrouterKeyValue->Option.forEach(
-          key => envApiKey->Dict.set("openrouterKeyValue", key),
-        )
-        config.anthropicKeyValue->Option.forEach(
-          key => envApiKey->Dict.set("anthropicKeyValue", key),
-        )
-        config.fireworksKeyValue->Option.forEach(
-          key => envApiKey->Dict.set("fireworksKeyValue", key),
-        )
+        let envApiKey = Client__RuntimeConfig.toEnvApiKeyDict(config)
         let state = StateStore.getState(Client__State__Store.store)
         let model =
           Client__State.Selectors.selectedModelValue(state)->Option.flatMap(

@@ -718,6 +718,32 @@ let fetchUserProfileImpl = (dispatch, ~apiBaseUrl) => {
   fetch()->ignore
 }
 
+let deriveApiKeySource = (
+  ~usageInfo: Client__State__Types.usageInfo,
+  ~hasEnvKey,
+  ~logContext,
+): option<Client__State__Types.apiKeySource> => {
+  switch usageInfo.hasUserKey {
+  | Some(true) => Some(UserOverride)
+  | Some(false) =>
+    switch hasEnvKey {
+    | true => Some(FromEnv)
+    | false => Some(Client__State__Types.None)
+    }
+  | None =>
+    Log.error(`${logContext}: missing hasUserKey in API key usage response`)
+    None
+  }
+}
+
+let encodeUserApiKeySaveRequest = (~provider, ~key) => {
+  let payload: Client__State__Types.userApiKeySaveRequest = {provider, key}
+  S.reverseConvertToJsonOrThrow(
+    payload,
+    Client__State__Types.userApiKeySaveRequestSchema,
+  )->JSON.stringify
+}
+
 let handleEffect = (effect, state: state, dispatch) => {
   switch effect {
   | FetchUsageInfo({apiBaseUrl}) => fetchUsageInfoImpl(dispatch, ~apiBaseUrl)
@@ -772,22 +798,16 @@ let handleEffect = (effect, state: state, dispatch) => {
         if response.ok {
           let json = await response->WebAPI.Response.json
           let usageInfo = S.parseJsonOrThrow(json, Client__State__Types.usageInfoSchema)
-          let hasUserKey = usageInfo.hasUserKey->Option.getOr(false)
 
           // Check if the Next.js project has OPENROUTER_API_KEY from runtime config
           // This is set by the framework middleware (e.g., FrontmanNextjs__Middleware)
           let runtimeConfig = Client__RuntimeConfig.read()
           let hasEnvKey = Client__RuntimeConfig.hasOpenrouterKey(runtimeConfig)
 
-          // Determine the source: user key takes precedence, then env key, else none
-          let source: Client__State__Types.apiKeySource = if hasUserKey {
-            UserOverride
-          } else if hasEnvKey {
-            FromEnv
-          } else {
-            None
+          switch deriveApiKeySource(~usageInfo, ~hasEnvKey, ~logContext="FetchApiKeySettings") {
+          | Some(source) => dispatch(ApiKeySettingsReceived({source: source}))
+          | None => ()
           }
-          dispatch(ApiKeySettingsReceived({source: source}))
         }
       } catch {
       | exn => Log.error(~error=JsExn.fromException(exn), "FetchApiKeySettings failed")
@@ -798,10 +818,6 @@ let handleEffect = (effect, state: state, dispatch) => {
     let save = async () => {
       dispatch(OpenRouterKeySaveStarted)
       let url = `${apiBaseUrl}/api/user/api-keys`
-      let body = {
-        "provider": "openrouter",
-        "key": key,
-      }
 
       try {
         let response = await WebAPI.Global.fetch(
@@ -812,7 +828,9 @@ let handleEffect = (effect, state: state, dispatch) => {
             headers: WebAPI.HeadersInit.fromDict(
               Dict.fromArray([("Content-Type", "application/json")]),
             ),
-            body: WebAPI.BodyInit.fromString(JSON.stringifyAny(body)->Option.getOr("{}")),
+            body: WebAPI.BodyInit.fromString(
+              encodeUserApiKeySaveRequest(~provider="openrouter", ~key),
+            ),
           },
         )
 
@@ -842,19 +860,18 @@ let handleEffect = (effect, state: state, dispatch) => {
         if response.ok {
           let json = await response->WebAPI.Response.json
           let usageInfo = S.parseJsonOrThrow(json, Client__State__Types.usageInfoSchema)
-          let hasUserKey = usageInfo.hasUserKey->Option.getOr(false)
 
           let runtimeConfig = Client__RuntimeConfig.read()
           let hasEnvKey = Client__RuntimeConfig.hasAnthropicKey(runtimeConfig)
 
-          let source: Client__State__Types.apiKeySource = if hasUserKey {
-            UserOverride
-          } else if hasEnvKey {
-            FromEnv
-          } else {
-            None
+          switch deriveApiKeySource(
+            ~usageInfo,
+            ~hasEnvKey,
+            ~logContext="FetchAnthropicApiKeySettings",
+          ) {
+          | Some(source) => dispatch(AnthropicApiKeySettingsReceived({source: source}))
+          | None => ()
           }
-          dispatch(AnthropicApiKeySettingsReceived({source: source}))
         }
       } catch {
       | exn => Log.error(~error=JsExn.fromException(exn), "FetchAnthropicApiKeySettings failed")
@@ -865,10 +882,6 @@ let handleEffect = (effect, state: state, dispatch) => {
     let save = async () => {
       dispatch(AnthropicKeySaveStarted)
       let url = `${apiBaseUrl}/api/user/api-keys`
-      let body = {
-        "provider": "anthropic",
-        "key": key,
-      }
 
       try {
         let response = await WebAPI.Global.fetch(
@@ -879,7 +892,9 @@ let handleEffect = (effect, state: state, dispatch) => {
             headers: WebAPI.HeadersInit.fromDict(
               Dict.fromArray([("Content-Type", "application/json")]),
             ),
-            body: WebAPI.BodyInit.fromString(JSON.stringifyAny(body)->Option.getOr("{}")),
+            body: WebAPI.BodyInit.fromString(
+              encodeUserApiKeySaveRequest(~provider="anthropic", ~key),
+            ),
           },
         )
 
@@ -909,17 +924,18 @@ let handleEffect = (effect, state: state, dispatch) => {
         if response.ok {
           let json = await response->WebAPI.Response.json
           let usageInfo = S.parseJsonOrThrow(json, Client__State__Types.usageInfoSchema)
-          let hasUserKey = usageInfo.hasUserKey->Option.getOr(false)
 
           let runtimeConfig = Client__RuntimeConfig.read()
           let hasEnvKey = Client__RuntimeConfig.hasFireworksKey(runtimeConfig)
 
-          let source: Client__State__Types.apiKeySource = switch (hasUserKey, hasEnvKey) {
-          | (true, _) => UserOverride
-          | (false, true) => FromEnv
-          | (false, false) => None
+          switch deriveApiKeySource(
+            ~usageInfo,
+            ~hasEnvKey,
+            ~logContext="FetchFireworksApiKeySettings",
+          ) {
+          | Some(source) => dispatch(FireworksApiKeySettingsReceived({source: source}))
+          | None => ()
           }
-          dispatch(FireworksApiKeySettingsReceived({source: source}))
         }
       } catch {
       | exn => Log.error(~error=JsExn.fromException(exn), "FetchFireworksApiKeySettings failed")
@@ -930,10 +946,6 @@ let handleEffect = (effect, state: state, dispatch) => {
     let save = async () => {
       dispatch(FireworksKeySaveStarted)
       let url = `${apiBaseUrl}/api/user/api-keys`
-      let body = {
-        "provider": "fireworks",
-        "key": key,
-      }
 
       try {
         let response = await WebAPI.Global.fetch(
@@ -944,7 +956,9 @@ let handleEffect = (effect, state: state, dispatch) => {
             headers: WebAPI.HeadersInit.fromDict(
               Dict.fromArray([("Content-Type", "application/json")]),
             ),
-            body: WebAPI.BodyInit.fromString(JSON.stringifyAny(body)->Option.getOr("{}")),
+            body: WebAPI.BodyInit.fromString(
+              encodeUserApiKeySaveRequest(~provider="fireworks", ~key),
+            ),
           },
         )
 

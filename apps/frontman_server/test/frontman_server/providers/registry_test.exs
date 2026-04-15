@@ -8,6 +8,7 @@ defmodule FrontmanServer.Providers.RegistryTest do
       assert Registry.known?("OpenRouter")
       assert Registry.known?("ANTHROPIC")
       assert Registry.known?("Fireworks")
+      assert Registry.known?("fireworks")
       assert Registry.known?("openrouter")
     end
   end
@@ -45,6 +46,22 @@ defmodule FrontmanServer.Providers.RegistryTest do
       metadata = %{"unknownKeyValue" => "some-key"}
       result = Registry.extract_env_keys(metadata)
       assert result == %{}
+    end
+
+    test "extracts nested envApiKey metadata" do
+      metadata = %{
+        "envApiKey" => %{
+          "openrouterKeyValue" => "sk-or-nested",
+          "fireworksKeyValue" => "sk-fireworks-nested"
+        }
+      }
+
+      result = Registry.extract_env_keys(metadata)
+
+      assert result == %{
+               "openrouter" => "sk-or-nested",
+               "fireworks" => "sk-fireworks-nested"
+             }
     end
 
     test "handles nil metadata" do

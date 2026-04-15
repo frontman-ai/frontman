@@ -1,11 +1,9 @@
 open Bindings__Storybook
 
-module StateReducer = Client__State__StateReducer
-module StateTypes = Client__State__Types
-module Store = Client__State__Store
+open Client__State__Types
 
-let _forceState = (state: StateTypes.state) => {
-  StateStore.forceSetStateOnlyUseForTestingDoNotUseOtherwiseAtAll(Store.store, state)
+let _forceState = (state: state) => {
+  StateStore.forceSetStateOnlyUseForTestingDoNotUseOtherwiseAtAll(Client__State__Store.store, state)
 }
 
 module Fixtures = {
@@ -15,20 +13,20 @@ module Fixtures = {
     ~createdAt,
     ~updatedAt=?,
     ~withMessages=false,
-  ): StateReducer.Task.t => {
+  ): Client__State__StateReducer.Task.t => {
     let updatedAt = updatedAt->Option.getOr(createdAt)
-    let messages = if withMessages {
-      let msg = StateReducer.Message.User({
-        id: `msg-${id}`,
-        content: [StateReducer.UserContentPart.Text({text: "Hello"})],
-        annotations: [],
-        createdAt,
-      })
-      [msg]
-    } else {
-      []
+    let messages = switch withMessages {
+    | true => [
+        Client__State__StateReducer.Message.User({
+          id: `msg-${id}`,
+          content: [Client__State__StateReducer.UserContentPart.Text({text: "Hello"})],
+          annotations: [],
+          createdAt,
+        }),
+      ]
+    | false => []
     }
-    StateReducer.Task.Loaded({
+    Client__State__StateReducer.Task.Loaded({
       id,
       clientId: None,
       title,
@@ -55,37 +53,24 @@ module Fixtures = {
     })
   }
 
-  let emptyState: StateTypes.state = {
-    tasks: Dict.make(),
-    currentTask: StateTypes.Task.New(StateTypes.Task.makeNew(~previewUrl="http://localhost:3000")),
-    acpSession: NoAcpSession,
-    sessionInitialized: false,
-    usageInfo: None,
-    userProfile: None,
-    openrouterKeySettings: {source: StateTypes.None, saveStatus: StateTypes.Idle},
-    anthropicKeySettings: {source: StateTypes.None, saveStatus: StateTypes.Idle},
-    fireworksKeySettings: {source: StateTypes.None, saveStatus: StateTypes.Idle},
-    anthropicOAuthStatus: StateTypes.NotConnected,
-    chatgptOAuthStatus: StateTypes.ChatGPTNotConnected,
-    configOptions: None,
+  let emptyState: state = {
+    ...Client__State__StateReducer.defaultState,
+    currentTask: Task.New(Task.makeNew(~previewUrl="http://localhost:3000")),
     selectedModelValue: None,
-    pendingProviderAutoSelect: None,
-    sessionsLoadState: StateTypes.SessionsNotLoaded,
-    updateInfo: None,
-    updateCheckStatus: StateTypes.UpdateNotChecked,
-    updateBannerDismissed: false,
   }
 
-  let stateWithTasks = (~tasks: array<StateReducer.Task.t>, ~currentTaskId=?): StateTypes.state => {
+  let stateWithTasks = (
+    ~tasks: array<Client__State__StateReducer.Task.t>,
+    ~currentTaskId=?,
+  ): state => {
     let tasksDict = Dict.make()
     tasks->Array.forEach(task => {
-      let taskId =
-        StateTypes.Task.getId(task)->Option.getOrThrow(~message="[Fixtures] Task must have ID")
+      let taskId = Task.getId(task)->Option.getOrThrow(~message="[Fixtures] Task must have ID")
       tasksDict->Dict.set(taskId, task)
     })
     let currentTask = switch currentTaskId {
-    | Some(id) => StateTypes.Task.Selected(id)
-    | None => StateTypes.Task.New(StateTypes.Task.makeNew(~previewUrl="http://localhost:3000"))
+    | Some(id) => Task.Selected(id)
+    | None => Task.New(Task.makeNew(~previewUrl="http://localhost:3000"))
     }
     {...emptyState, tasks: tasksDict, currentTask}
   }
@@ -97,6 +82,20 @@ module ContextWrapper = {
     <Client__FrontmanProvider.ContextProvider value={Client__FrontmanProvider.defaultContextValue}>
       {children}
     </Client__FrontmanProvider.ContextProvider>
+  }
+}
+
+module StateWrapper = {
+  @react.component
+  let make = (~state: state, ~children) => {
+    let (_initialized, _setInitialized) = React.useState(() => {
+      _forceState(state)
+      true
+    })
+
+    React.useEffect0(() => Some(() => Client__StateSnapshot__Storybook.resetState()))
+
+    children
   }
 }
 
@@ -112,15 +111,13 @@ let default: Meta.t<args> = {
 let noTasks: Story.t<args> = {
   name: "No Tasks",
   render: _ => {
-    React.useEffect0(() => {
-      _forceState(Fixtures.emptyState)
-      Some(() => Client__StateSnapshot__Storybook.resetState())
-    })
-    <ContextWrapper>
-      <div className="p-2 bg-[#130d20]">
-        <Client__TopBar__TaskDropdown onNewTask={() => ()} />
-      </div>
-    </ContextWrapper>
+    <StateWrapper state={Fixtures.emptyState}>
+      <ContextWrapper>
+        <div className="p-2 bg-[#130d20]">
+          <Client__TopBar__TaskDropdown onNewTask={() => ()} />
+        </div>
+      </ContextWrapper>
+    </StateWrapper>
   },
 }
 
@@ -133,15 +130,14 @@ let singleTask: Story.t<args> = {
       ~createdAt=Date.now(),
       ~withMessages=true,
     )
-    React.useEffect0(() => {
-      _forceState(Fixtures.stateWithTasks(~tasks=[task], ~currentTaskId="t1"))
-      Some(() => Client__StateSnapshot__Storybook.resetState())
-    })
-    <ContextWrapper>
-      <div className="p-2 bg-[#130d20]">
-        <Client__TopBar__TaskDropdown onNewTask={() => ()} />
-      </div>
-    </ContextWrapper>
+    let state = Fixtures.stateWithTasks(~tasks=[task], ~currentTaskId="t1")
+    <StateWrapper state={state}>
+      <ContextWrapper>
+        <div className="p-2 bg-[#130d20]">
+          <Client__TopBar__TaskDropdown onNewTask={() => ()} />
+        </div>
+      </ContextWrapper>
+    </StateWrapper>
   },
 }
 
@@ -163,14 +159,13 @@ let manyTasks: Story.t<args> = {
         ~withMessages=true,
       )
     })
-    React.useEffect0(() => {
-      _forceState(Fixtures.stateWithTasks(~tasks, ~currentTaskId="task-3"))
-      Some(() => Client__StateSnapshot__Storybook.resetState())
-    })
-    <ContextWrapper>
-      <div className="p-2 bg-[#130d20]">
-        <Client__TopBar__TaskDropdown onNewTask={() => ()} />
-      </div>
-    </ContextWrapper>
+    let state = Fixtures.stateWithTasks(~tasks, ~currentTaskId="task-3")
+    <StateWrapper state={state}>
+      <ContextWrapper>
+        <div className="p-2 bg-[#130d20]">
+          <Client__TopBar__TaskDropdown onNewTask={() => ()} />
+        </div>
+      </ContextWrapper>
+    </StateWrapper>
   },
 }

@@ -56,7 +56,10 @@ describe("ChatGPT OAuth - Stale Poll Rejection", () => {
     )
 
     switch nextState.chatgptOAuthStatus {
-    | Types.ChatGPTConnected(_) => t->expect(true)->Expect.toBe(true)
+    | Types.ChatGPTConnected({expiresAt}) => {
+        t->expect(expiresAt)->Expect.toBe(Date.fromString("2026-02-11T00:00:00Z")->Date.getTime)
+        t->expect(_effects->Array.length)->Expect.toBe(0)
+      }
     | _ => t->expect("ChatGPTConnected")->Expect.toBe("got different status")
     }
   })
@@ -69,11 +72,8 @@ describe("ChatGPT OAuth - Stale Poll Rejection", () => {
       ChatGPTOAuthConnected({deviceAuthId: "old-device-456", expiresAt: "2026-02-11T00:00:00Z"}),
     )
 
-    // State should remain ShowingCode with the original deviceAuthId
-    switch nextState.chatgptOAuthStatus {
-    | Types.ChatGPTShowingCode({deviceAuthId}) => t->expect(deviceAuthId)->Expect.toBe("device-123")
-    | _ => t->expect("ChatGPTShowingCode")->Expect.toBe("got different status")
-    }
+    t->expect(nextState)->Expect.toEqual(state)
+    t->expect(_effects->Array.length)->Expect.toBe(0)
   })
 
   test("ChatGPTOAuthError with matching deviceAuthId transitions to Error", t => {
@@ -98,11 +98,8 @@ describe("ChatGPT OAuth - Stale Poll Rejection", () => {
       ChatGPTOAuthError({deviceAuthId: Some("old-device-456"), error: "Authorization timed out."}),
     )
 
-    // State should remain ShowingCode — stale error rejected
-    switch nextState.chatgptOAuthStatus {
-    | Types.ChatGPTShowingCode({deviceAuthId}) => t->expect(deviceAuthId)->Expect.toBe("device-123")
-    | _ => t->expect("ChatGPTShowingCode")->Expect.toBe("got different status")
-    }
+    t->expect(nextState)->Expect.toEqual(state)
+    t->expect(_effects->Array.length)->Expect.toBe(0)
   })
 
   test("ChatGPTOAuthError with None deviceAuthId applies unconditionally", t => {
@@ -130,11 +127,8 @@ describe("ChatGPT OAuth - Stale Poll Rejection", () => {
       ChatGPTOAuthError({deviceAuthId: Some("old-device"), error: "Authorization timed out."}),
     )
 
-    // Should remain Connected — not overwritten by stale poll error
-    switch nextState.chatgptOAuthStatus {
-    | Types.ChatGPTConnected(_) => t->expect(true)->Expect.toBe(true)
-    | _ => t->expect("ChatGPTConnected")->Expect.toBe("got different status")
-    }
+    t->expect(nextState)->Expect.toEqual(state)
+    t->expect(_effects->Array.length)->Expect.toBe(0)
   })
 
   test("ChatGPTOAuthConnected is ignored when state is not ShowingCode", t => {
@@ -146,11 +140,8 @@ describe("ChatGPT OAuth - Stale Poll Rejection", () => {
       ChatGPTOAuthConnected({deviceAuthId: "old-device", expiresAt: "2026-02-11T00:00:00Z"}),
     )
 
-    // Should remain NotConnected
-    switch nextState.chatgptOAuthStatus {
-    | Types.ChatGPTNotConnected => t->expect(true)->Expect.toBe(true)
-    | _ => t->expect("ChatGPTNotConnected")->Expect.toBe("got different status")
-    }
+    t->expect(nextState)->Expect.toEqual(state)
+    t->expect(_effects->Array.length)->Expect.toBe(0)
   })
 })
 
@@ -206,7 +197,8 @@ describe("ChatGPT OAuth - Retry Flow", () => {
     )
 
     switch state.chatgptOAuthStatus {
-    | Types.ChatGPTConnected(_) => t->expect(true)->Expect.toBe(true)
+    | Types.ChatGPTConnected({expiresAt}) =>
+      t->expect(expiresAt)->Expect.toBe(Date.fromString("2026-12-31T00:00:00Z")->Date.getTime)
     | _ => t->expect("ChatGPTConnected")->Expect.toBe("got different status")
     }
   })

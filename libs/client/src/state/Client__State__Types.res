@@ -68,6 +68,12 @@ type usageInfo = {
   hasServerKey: option<bool>,
 }
 
+@schema
+type userApiKeySaveRequest = {
+  provider: string,
+  key: string,
+}
+
 // API key source status for settings display
 type apiKeySource =
   | None // No key configured

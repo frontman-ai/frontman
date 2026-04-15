@@ -87,8 +87,8 @@ defmodule FrontmanServer.ProvidersFixtures do
 
   defp defaults_for("fireworks") do
     [
-      api_key: "fw-test-key",
-      key_source: :user_key,
+      api_key: "sk-fireworks-test-key",
+      key_source: :env_key,
       model: "fireworks:accounts/fireworks/routers/kimi-k2p5-turbo"
     ]
   end

@@ -1399,4 +1399,64 @@ describe("Client State Reducer - Annotations on Messages", () => {
     | _ => JsExn.throw("Expected TaskEffect(SendMessage) with annotations")
     }
   })
+
+  describe("Fireworks API key actions", () => {
+    let _makeStateWithSession = () => {
+      {
+        ...Reducer.defaultState,
+        acpSession: AcpSessionActive({
+          sendPrompt: (_, ~additionalBlocks as _, ~onComplete as _, ~_meta as _) => (),
+          cancelPrompt: () => (),
+          retryTurn: _ => (),
+          loadTask: (_, ~needsHistory as _, ~onComplete as _) => (),
+          deleteSession: (_, ~onComplete as _) => (),
+          apiBaseUrl: "http://localhost:4000",
+        }),
+        sessionInitialized: true,
+        selectedModelValue: None,
+      }
+    }
+
+    test(
+      "SaveFireworksKey queues the save effect and pending auto-select",
+      t => {
+        let (nextState, effects) = Reducer.next(
+          _makeStateWithSession(),
+          SaveFireworksKey({key: "sk-fireworks-test-key"}),
+        )
+
+        t->expect(nextState.pendingProviderAutoSelect)->Expect.toEqual(Some("fireworks"))
+        t->expect(effects->Array.length)->Expect.toBe(1)
+
+        switch effects->Array.get(0) {
+        | Some(SaveFireworksKeyEffect({apiBaseUrl, key})) => {
+            t->expect(apiBaseUrl)->Expect.toBe("http://localhost:4000")
+            t->expect(key)->Expect.toBe("sk-fireworks-test-key")
+          }
+        | _ => JsExn.throw("Expected SaveFireworksKeyEffect")
+        }
+      },
+    )
+
+    test(
+      "Fireworks save lifecycle updates save status and clears pending auto-select on error",
+      t => {
+        let state = _makeStateWithSession()
+        let (savingState, _effects) = Reducer.next(state, FireworksKeySaveStarted)
+
+        t->expect(savingState.fireworksKeySettings.saveStatus)->Expect.toEqual(Saving)
+
+        let (failedState, _effects) = Reducer.next(
+          {...savingState, pendingProviderAutoSelect: Some("fireworks")},
+          FireworksKeySaveError({error: "boom"}),
+        )
+
+        t->expect(failedState.pendingProviderAutoSelect)->Expect.toEqual(None)
+        t->expect(failedState.fireworksKeySettings.saveStatus)->Expect.toEqual(SaveError("boom"))
+
+        let (resetState, _effects) = Reducer.next(failedState, ResetFireworksKeySaveStatus)
+        t->expect(resetState.fireworksKeySettings.saveStatus)->Expect.toEqual(Idle)
+      },
+    )
+  })
 })

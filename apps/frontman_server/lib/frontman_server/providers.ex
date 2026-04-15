@@ -38,14 +38,17 @@ defmodule FrontmanServer.Providers do
     UserKeyUsage
   }
 
-  @default_model "openrouter:openai/gpt-5.1-codex"
-
   ## High-Level API (Domain Entry Points)
 
   @doc """
   Returns the default model.
   """
-  def default_model, do: @default_model
+  def default_model do
+    case ModelCatalog.default_model("openrouter") do
+      %{provider: provider, value: value} -> "#{provider}:#{value}"
+      nil -> raise "missing default model for openrouter"
+    end
+  end
 
   @doc """
   Prepares API key for a request. Resolves model, checks availability and quota.
@@ -73,7 +76,7 @@ defmodule FrontmanServer.Providers do
   @spec prepare_api_key(Scope.t() | nil, String.t() | nil, keyword()) ::
           {:ok, ResolvedKey.t()} | {:error, :no_api_key | :usage_limit_exceeded}
   def prepare_api_key(scope, model, opts \\ []) do
-    model = model || @default_model
+    model = model || default_model()
     provider = provider_from_model(model)
 
     case resolve_api_key(scope, provider) do

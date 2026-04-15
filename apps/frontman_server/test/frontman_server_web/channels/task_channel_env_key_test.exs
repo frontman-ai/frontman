@@ -15,6 +15,7 @@ defmodule FrontmanServerWeb.TaskChannelEnvKeyTest do
     :sys.get_state(socket.channel_pid)
 
     assert_receive {:interaction, %Tasks.Interaction.UserMessage{}}
+    refute_push("acp:message", %{"error" => %{"code" => -32_000}})
     assert Process.alive?(socket.channel_pid)
   end
 
@@ -41,7 +42,7 @@ defmodule FrontmanServerWeb.TaskChannelEnvKeyTest do
 
     test "accepts prompt with fireworksKeyValue", %{socket: socket} do
       push_prompt_and_assert_accepted(socket, %{
-        "fireworksKeyValue" => "fw-test-key-789",
+        "fireworksKeyValue" => "sk-fireworks-test-key-789",
         "model" => %{
           "provider" => "fireworks",
           "value" => "accounts/fireworks/routers/kimi-k2p5-turbo"
@@ -59,6 +60,9 @@ defmodule FrontmanServerWeb.TaskChannelEnvKeyTest do
 
     test "falls back when no env keys or model provided", %{socket: socket} do
       push_prompt_and_assert_accepted(socket)
+
+      %{assigns: %{scope: scope_after_prompt}} = :sys.get_state(socket.channel_pid)
+      assert scope_after_prompt.env_api_keys == %{}
     end
   end
 
@@ -99,6 +103,31 @@ defmodule FrontmanServerWeb.TaskChannelEnvKeyTest do
       # The scope on the socket must still carry the env key after the retry fires
       %{assigns: %{scope: scope_after_retry}} = :sys.get_state(socket.channel_pid)
       assert scope_after_retry.env_api_keys["anthropic"] == "sk-ant-retry-test"
+    end
+
+    test "Fireworks env key in prompt _meta is still on scope when :fire_retry fires", %{
+      socket: socket
+    } do
+      push_prompt_and_assert_accepted(socket, %{"fireworksKeyValue" => "sk-fireworks-retry-test"})
+
+      %{assigns: %{scope: scope_after_prompt}} = :sys.get_state(socket.channel_pid)
+      assert scope_after_prompt.env_api_keys["fireworks"] == "sk-fireworks-retry-test"
+
+      error = %LLMError{message: "Rate limited", category: "rate_limit", retryable: true}
+
+      event = %ExecutionEvent{
+        type: :failed,
+        payload: {:error, error, System.unique_integer([:positive])}
+      }
+
+      send(socket.channel_pid, {:execution_event, event})
+      :sys.get_state(socket.channel_pid)
+
+      send(socket.channel_pid, :fire_retry)
+      :sys.get_state(socket.channel_pid)
+
+      %{assigns: %{scope: scope_after_retry}} = :sys.get_state(socket.channel_pid)
+      assert scope_after_retry.env_api_keys["fireworks"] == "sk-fireworks-retry-test"
     end
   end
 end

@@ -9,6 +9,10 @@ defmodule FrontmanServer.Providers.Fireworks do
   ReqLLM provider for Fireworks' OpenAI-compatible inference API.
   """
 
+  alias LLMDB.Model
+  alias ReqLLM.Error.Invalid.Parameter, as: InvalidParameter
+  alias ReqLLM.Provider.Defaults, as: ProviderDefaults
+
   use ReqLLM.Provider,
     id: :fireworks,
     default_base_url: "https://api.fireworks.ai/inference/v1",
@@ -16,5 +20,30 @@ defmodule FrontmanServer.Providers.Fireworks do
 
   use ReqLLM.Provider.Defaults
 
+  @supported_model "accounts/fireworks/routers/kimi-k2p5-turbo"
   @provider_schema []
+
+  @impl ReqLLM.Provider
+  def prepare_request(operation, model_spec, input, opts) do
+    with {:ok, model} <- ReqLLM.model(model_spec),
+         :ok <- validate_model(model) do
+      ProviderDefaults.prepare_request(__MODULE__, operation, model, input, opts)
+    end
+  end
+
+  @impl ReqLLM.Provider
+  def attach_stream(model, context, opts, finch_name) do
+    with :ok <- validate_model(model) do
+      ProviderDefaults.default_attach_stream(__MODULE__, model, context, opts, finch_name)
+    end
+  end
+
+  defp validate_model(%Model{model: @supported_model}), do: :ok
+
+  defp validate_model(%Model{model: model}) do
+    {:error,
+     InvalidParameter.exception(
+       parameter: "Fireworks Fire Pass only supports #{@supported_model}, got #{model}"
+     )}
+  end
 end

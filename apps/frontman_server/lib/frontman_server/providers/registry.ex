@@ -155,12 +155,21 @@ defmodule FrontmanServer.Providers.Registry do
   """
   @spec extract_env_keys(map()) :: %{String.t() => String.t()}
   def extract_env_keys(metadata) when is_map(metadata) do
-    for {meta_key, provider} <- env_key_mapping(),
-        key = metadata[meta_key],
-        is_binary(key) and key != "",
-        into: %{} do
-      {provider, key}
-    end
+    nested_keys =
+      case metadata["envApiKey"] do
+        env_api_key when is_map(env_api_key) -> extract_env_keys(env_api_key)
+        _ -> %{}
+      end
+
+    top_level_keys =
+      for {meta_key, provider} <- env_key_mapping(),
+          key = metadata[meta_key],
+          is_binary(key) and key != "",
+          into: %{} do
+        {provider, key}
+      end
+
+    Map.merge(top_level_keys, nested_keys)
   end
 
   def extract_env_keys(_), do: %{}

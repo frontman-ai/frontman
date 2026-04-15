@@ -42,6 +42,23 @@ describe("Client__RuntimeConfig", _t => {
     t->expect(config.wpNonce)->Expect.toBe(Some("nonce-123"))
   })
 
+  test("read treats empty provider keys as missing", t => {
+    _setRuntime(
+      JSON.Encode.object(
+        Dict.fromArray([
+          ("framework", JSON.Encode.string("nextjs")),
+          ("basePath", JSON.Encode.string("frontman")),
+          ("fireworksKeyValue", JSON.Encode.string("")),
+        ]),
+      ),
+    )
+
+    let config = Client__RuntimeConfig.read()
+
+    t->expect(config.fireworksKeyValue)->Expect.toBe(None)
+    t->expect(Client__RuntimeConfig.hasAnyProviderKey(config))->Expect.toBe(false)
+  })
+
   test("toMeta does not leak wpNonce into ACP metadata", t => {
     let meta = Client__RuntimeConfig.toMeta({
       framework: Client__RuntimeConfig.Wordpress,

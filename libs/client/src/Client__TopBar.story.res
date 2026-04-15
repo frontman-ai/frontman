@@ -1,32 +1,16 @@
 open Bindings__Storybook
 
-module StateTypes = Client__State__Types
-module Store = Client__State__Store
+open Client__State__Types
 
-let _forceState = (state: StateTypes.state) => {
-  StateStore.forceSetStateOnlyUseForTestingDoNotUseOtherwiseAtAll(Store.store, state)
+let _forceState = (state: state) => {
+  StateStore.forceSetStateOnlyUseForTestingDoNotUseOtherwiseAtAll(Client__State__Store.store, state)
 }
 
 module Fixtures = {
-  let emptyState: StateTypes.state = {
-    tasks: Dict.make(),
-    currentTask: StateTypes.Task.New(StateTypes.Task.makeNew(~previewUrl="http://localhost:3000")),
-    acpSession: NoAcpSession,
-    sessionInitialized: false,
-    usageInfo: None,
-    userProfile: None,
-    openrouterKeySettings: {source: StateTypes.None, saveStatus: StateTypes.Idle},
-    anthropicKeySettings: {source: StateTypes.None, saveStatus: StateTypes.Idle},
-    fireworksKeySettings: {source: StateTypes.None, saveStatus: StateTypes.Idle},
-    anthropicOAuthStatus: StateTypes.NotConnected,
-    chatgptOAuthStatus: StateTypes.ChatGPTNotConnected,
-    configOptions: None,
+  let emptyState: state = {
+    ...Client__State__StateReducer.defaultState,
+    currentTask: Task.New(Task.makeNew(~previewUrl="http://localhost:3000")),
     selectedModelValue: None,
-    pendingProviderAutoSelect: None,
-    sessionsLoadState: StateTypes.SessionsNotLoaded,
-    updateInfo: None,
-    updateCheckStatus: StateTypes.UpdateNotChecked,
-    updateBannerDismissed: false,
   }
 }
 
@@ -36,6 +20,20 @@ module ContextWrapper = {
     <Client__FrontmanProvider.ContextProvider value={Client__FrontmanProvider.defaultContextValue}>
       {children}
     </Client__FrontmanProvider.ContextProvider>
+  }
+}
+
+module StateWrapper = {
+  @react.component
+  let make = (~state: state, ~children) => {
+    let (_initialized, _setInitialized) = React.useState(() => {
+      _forceState(state)
+      true
+    })
+
+    React.useEffect0(() => Some(() => Client__StateSnapshot__Storybook.resetState()))
+
+    children
   }
 }
 
@@ -51,87 +49,79 @@ let default: Meta.t<args> = {
 let defaultBar: Story.t<args> = {
   name: "Default (no workspaces)",
   render: _ => {
-    React.useEffect0(() => {
-      _forceState(Fixtures.emptyState)
-      Some(() => Client__StateSnapshot__Storybook.resetState())
-    })
-    <ContextWrapper>
-      <div style={{width: "900px"}}>
-        <Client__TopBar
-          chatboxWidth=400
-          onSettingsClick={() => ()}
-          showProviderNudgeBubble=false
-          showProviderNudgeBadge=false
-          onProviderNudgeDismiss={() => ()}
-          onProviderNudgeCta={() => ()}
-        />
-      </div>
-    </ContextWrapper>
+    <StateWrapper state={Fixtures.emptyState}>
+      <ContextWrapper>
+        <div style={{width: "900px"}}>
+          <Client__TopBar
+            chatboxWidth=400
+            onSettingsClick={() => ()}
+            showProviderNudgeBubble=false
+            showProviderNudgeBadge=false
+            onProviderNudgeDismiss={() => ()}
+            onProviderNudgeCta={() => ()}
+          />
+        </div>
+      </ContextWrapper>
+    </StateWrapper>
   },
 }
 
 let withNudge: Story.t<args> = {
   name: "With Provider Nudge",
   render: _ => {
-    React.useEffect0(() => {
-      _forceState(Fixtures.emptyState)
-      Some(() => Client__StateSnapshot__Storybook.resetState())
-    })
-    <ContextWrapper>
-      <div style={{width: "900px"}}>
-        <Client__TopBar
-          chatboxWidth=400
-          onSettingsClick={() => ()}
-          showProviderNudgeBubble=true
-          showProviderNudgeBadge=false
-          onProviderNudgeDismiss={() => ()}
-          onProviderNudgeCta={() => ()}
-        />
-      </div>
-    </ContextWrapper>
+    <StateWrapper state={Fixtures.emptyState}>
+      <ContextWrapper>
+        <div style={{width: "900px"}}>
+          <Client__TopBar
+            chatboxWidth=400
+            onSettingsClick={() => ()}
+            showProviderNudgeBubble=true
+            showProviderNudgeBadge=false
+            onProviderNudgeDismiss={() => ()}
+            onProviderNudgeCta={() => ()}
+          />
+        </div>
+      </ContextWrapper>
+    </StateWrapper>
   },
 }
 
 let narrowChatPanel: Story.t<args> = {
   name: "Narrow chat panel (280px)",
   render: _ => {
-    React.useEffect0(() => {
-      _forceState(Fixtures.emptyState)
-      Some(() => Client__StateSnapshot__Storybook.resetState())
-    })
-    <ContextWrapper>
-      <div style={{width: "900px"}}>
-        <Client__TopBar
-          chatboxWidth=280
-          onSettingsClick={() => ()}
-          showProviderNudgeBubble=false
-          showProviderNudgeBadge=false
-          onProviderNudgeDismiss={() => ()}
-          onProviderNudgeCta={() => ()}
-        />
-      </div>
-    </ContextWrapper>
+    <StateWrapper state={Fixtures.emptyState}>
+      <ContextWrapper>
+        <div style={{width: "900px"}}>
+          <Client__TopBar
+            chatboxWidth=280
+            onSettingsClick={() => ()}
+            showProviderNudgeBubble=false
+            showProviderNudgeBadge=false
+            onProviderNudgeDismiss={() => ()}
+            onProviderNudgeCta={() => ()}
+          />
+        </div>
+      </ContextWrapper>
+    </StateWrapper>
   },
 }
 
 let withNudgeBadge: Story.t<args> = {
   name: "With Provider Nudge Badge (bubble dismissed)",
   render: _ => {
-    React.useEffect0(() => {
-      _forceState(Fixtures.emptyState)
-      Some(() => Client__StateSnapshot__Storybook.resetState())
-    })
-    <ContextWrapper>
-      <div style={{width: "900px"}}>
-        <Client__TopBar
-          chatboxWidth=400
-          onSettingsClick={() => ()}
-          showProviderNudgeBubble=false
-          showProviderNudgeBadge=true
-          onProviderNudgeDismiss={() => ()}
-          onProviderNudgeCta={() => ()}
-        />
-      </div>
-    </ContextWrapper>
+    <StateWrapper state={Fixtures.emptyState}>
+      <ContextWrapper>
+        <div style={{width: "900px"}}>
+          <Client__TopBar
+            chatboxWidth=400
+            onSettingsClick={() => ()}
+            showProviderNudgeBubble=false
+            showProviderNudgeBadge=true
+            onProviderNudgeDismiss={() => ()}
+            onProviderNudgeCta={() => ()}
+          />
+        </div>
+      </ContextWrapper>
+    </StateWrapper>
   },
 }
