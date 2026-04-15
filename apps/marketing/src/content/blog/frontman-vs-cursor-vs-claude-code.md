@@ -48,7 +48,7 @@ When you click an element in Frontman:
 - It traces the element back to the **exact source file and component**, automatically
 - It applies the change and you see the result **immediately** — no switching tabs, no re-describing the problem
 
-You do not need to know which file to open. You do not need to know the class names or the component hierarchy. You point at the thing that needs to change, say what you want, and Frontman handles the rest. See [how Frontman works differently](/blog/introducing-frontman/) for the full architecture.
+You do not need to know which file to open. You do not need to know the class names or the component hierarchy. You point at the thing that needs to change, say what you want, and Frontman handles the rest. See [how Frontman works differently](/blog/frontman-launch/) for the full architecture.
 
 ## The Same Change, Two Workflows
 

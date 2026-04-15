@@ -112,4 +112,4 @@ This is the pattern many teams land on. v0 for creation. Frontman for maintenanc
 
 Once code is in your codebase and reviewed, use a tool that can see your running application and edit it directly. Generation is for when nothing exists yet.
 
-[See the full feature comparison](/vs/v0/) or read about [how Frontman connects to your existing framework](/blog/introducing-frontman/).
+[See the full feature comparison](/vs/v0/) or read about [how Frontman connects to your existing framework](/blog/frontman-launch/).

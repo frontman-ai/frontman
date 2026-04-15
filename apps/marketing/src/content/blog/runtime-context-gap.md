@@ -43,7 +43,7 @@ This doesn't invalidate the tooling argument. Even well-structured codebases hav
 
 Strip away the marketing and the architecture is straightforward: you give an AI agent access to runtime information from both the browser _and_ the dev server, then let it correlate that information back to source files.
 
-Modern web frameworks already bridge client and server — Next.js, Astro, and Vite all have dev servers that know about your component tree, module graph, and build output. A tool that hooks into the framework middleware gets both sides for free — this is the approach behind [Frontman](/blog/introducing-frontman/).
+Modern web frameworks already bridge client and server — Next.js, Astro, and Vite all have dev servers that know about your component tree, module graph, and build output. A tool that hooks into the framework middleware gets both sides for free — this is the approach behind [Frontman](/blog/frontman-launch/).
 
 ```text
 ┌──────────────────────────┐    ┌──────────────────────────┐
