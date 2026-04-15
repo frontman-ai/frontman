@@ -25,9 +25,6 @@ config :frontman_server, FrontmanServer.Repo,
 # Uses the same mkcert certificates as normal dev (covers localhost).
 # Activated by setting E2E=true in the environment.
 if System.get_env("E2E") do
-  config :frontman_server, FrontmanServer.Repo,
-    database: System.get_env("DB_NAME") || "frontman_server_e2e"
-
   config :frontman_server, FrontmanServerWeb.Endpoint,
     url: [host: "localhost", port: 4002, scheme: "https"],
     https: [

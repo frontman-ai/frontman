@@ -83,8 +83,30 @@ end
 if config_env() in [:dev, :test] do
   db_host = env!("DB_HOST", :string, "localhost")
 
-  if db_host != "localhost" do
-    config :frontman_server, FrontmanServer.Repo, hostname: db_host
+  db_name =
+    case {config_env(), System.get_env("E2E")} do
+      {:dev, e2e} when e2e not in [nil, ""] -> env!("DB_NAME", :string, "frontman_server_e2e")
+      _ -> env!("DB_NAME", :string, nil)
+    end
+
+  repo_overrides = []
+
+  repo_overrides =
+    if db_host != "localhost" do
+      [{:hostname, db_host} | repo_overrides]
+    else
+      repo_overrides
+    end
+
+  repo_overrides =
+    if db_name do
+      [{:database, db_name} | repo_overrides]
+    else
+      repo_overrides
+    end
+
+  if repo_overrides != [] do
+    config :frontman_server, FrontmanServer.Repo, repo_overrides
   end
 end
 
