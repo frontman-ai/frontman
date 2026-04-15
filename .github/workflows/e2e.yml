@@ -44,6 +44,10 @@ jobs:
       E2E: "true"
       MIX_ENV: dev
       PHX_SERVER: "true"
+      # Self-hosted runners can reuse Postgres state between runs.
+      # Give each run its own database so migrations always start from a
+      # fresh schema instead of inheriting stale tables from an older build.
+      DB_NAME: frontman_server_e2e_${{ github.run_id }}
       # Cloak encryption key (same test key used in dev)
       CLOAK_KEY: "HE9hCRnQXEREL1X+1+cU4wPdVGqJMhwR05edbBBq1RY="
       # Disable Yarn hardened mode — adds ~20s to resolution for public-PR detection.
@@ -237,6 +241,8 @@ jobs:
           lsof -ti:3011 2>/dev/null | xargs kill -9 2>/dev/null || true
           lsof -ti:3012 2>/dev/null | xargs kill -9 2>/dev/null || true
           lsof -ti:3013 2>/dev/null | xargs kill -9 2>/dev/null || true
+          # Drop the per-run E2E database on the shared Postgres host.
+          (cd apps/frontman_server && mix ecto.drop --quiet) >/dev/null 2>&1 || true
           # Restore fixture files modified by AI + installer during tests
           git checkout -- test/e2e/fixtures/ 2>/dev/null || true
           # Remove untracked files created by installer (middleware.ts, instrumentation.ts)
