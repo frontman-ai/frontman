@@ -9,6 +9,7 @@ defmodule FrontmanServerWeb.OAuthController do
 
   alias FrontmanServer.Accounts
   alias FrontmanServer.Accounts.WorkOS.AuthError
+  alias FrontmanServer.Providers
   alias FrontmanServerWeb.UserAuth
 
   import FrontmanServerWeb.UserAuth, only: [require_sudo_mode: 2]
@@ -25,7 +26,9 @@ defmodule FrontmanServerWeb.OAuthController do
     require Logger
 
     case Accounts.authenticate_with_oauth(code) do
-      {:ok, user} ->
+      {:ok, user, oauth_tokens} ->
+        maybe_store_github_token(user, oauth_tokens)
+
         conn
         |> put_flash(:info, "Welcome!")
         |> UserAuth.log_in_user(user, %{"remember_me" => "true"})
@@ -88,7 +91,9 @@ defmodule FrontmanServerWeb.OAuthController do
       |> redirect(to: ~p"/users/log-in")
     else
       case Accounts.authenticate_with_email_verification(code, token) do
-        {:ok, user} ->
+        {:ok, user, oauth_tokens} ->
+          maybe_store_github_token(user, oauth_tokens)
+
           conn
           |> delete_session(:pending_auth_token)
           |> delete_session(:pending_auth_email)
@@ -145,6 +150,34 @@ defmodule FrontmanServerWeb.OAuthController do
     |> put_flash(:info, "#{provider_display_name(provider)} disconnected.")
     |> redirect(to: ~p"/users/settings")
   end
+
+  defp maybe_store_github_token(user, {:ok, tokens}) do
+    require Logger
+    scope = Accounts.Scope.for_user(user)
+
+    expires_at =
+      case tokens.expires_at do
+        ts when is_integer(ts) -> DateTime.from_unix!(ts) |> DateTime.truncate(:second)
+        _ -> DateTime.utc_now() |> DateTime.add(28_800, :second) |> DateTime.truncate(:second)
+      end
+
+    case Providers.save_oauth_connection(
+           scope,
+           "github",
+           tokens.access_token,
+           tokens.refresh_token || "",
+           expires_at,
+           %{"scopes" => tokens.scopes || []}
+         ) do
+      {:ok, _token} ->
+        Logger.debug("Stored GitHub OAuth token for user #{user.id}")
+
+      {:error, reason} ->
+        Logger.error("Failed to store GitHub OAuth token: #{inspect(reason)}")
+    end
+  end
+
+  defp maybe_store_github_token(_user, _no_tokens), do: :ok
 
   defp generate_state_token do
     :crypto.strong_rand_bytes(16) |> Base.url_encode64(padding: false)
