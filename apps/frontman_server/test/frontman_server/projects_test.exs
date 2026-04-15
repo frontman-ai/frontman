@@ -6,6 +6,7 @@ defmodule FrontmanServer.ProjectsTest do
 
   alias FrontmanServer.Projects
   alias FrontmanServer.Projects.Project
+  alias FrontmanServer.Providers
 
   setup do
     scope = user_scope_fixture()
@@ -125,6 +126,31 @@ defmodule FrontmanServer.ProjectsTest do
       other_project = project_fixture(other_scope)
 
       assert {:error, :not_found} = Projects.record_analysis(scope, other_project, %{})
+    end
+  end
+
+  describe "github_token/1" do
+    test "returns {:ok, token} when user has a valid GitHub OAuth token", %{scope: scope} do
+      expires_at =
+        DateTime.utc_now()
+        |> DateTime.add(28_800, :second)
+        |> DateTime.truncate(:second)
+
+      {:ok, _} =
+        Providers.save_oauth_connection(
+          scope,
+          "github",
+          "gho_test_token",
+          "none",
+          expires_at,
+          %{"scopes" => ["repo"]}
+        )
+
+      assert {:ok, "gho_test_token"} = Projects.github_token(scope)
+    end
+
+    test "returns {:error, :no_oauth_token} when user has no GitHub token", %{scope: scope} do
+      assert {:error, :no_oauth_token} = Projects.github_token(scope)
     end
   end
 end
