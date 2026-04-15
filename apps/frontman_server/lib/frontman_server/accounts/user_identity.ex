@@ -20,14 +20,14 @@ defmodule FrontmanServer.Accounts.UserIdentity do
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
   schema "user_identities" do
-    field :provider, :string
-    field :provider_id, :string
-    field :provider_email, :string
-    field :provider_name, :string
-    field :provider_avatar_url, :string
-    field :last_signed_in_at, :utc_datetime
+    field(:provider, :string)
+    field(:provider_id, :string)
+    field(:provider_email, :string)
+    field(:provider_name, :string)
+    field(:provider_avatar_url, :string)
+    field(:last_signed_in_at, :utc_datetime)
 
-    belongs_to :user, FrontmanServer.Accounts.User
+    belongs_to(:user, FrontmanServer.Accounts.User)
 
     timestamps(type: :utc_datetime)
   end
@@ -42,8 +42,7 @@ defmodule FrontmanServer.Accounts.UserIdentity do
       :provider_id,
       :provider_email,
       :provider_name,
-      :provider_avatar_url,
-      :user_id
+      :provider_avatar_url
     ])
     |> validate_required([:provider, :provider_id, :user_id])
     |> validate_inclusion(:provider, @providers)

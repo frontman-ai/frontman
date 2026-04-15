@@ -27,7 +27,10 @@ defmodule FrontmanServer.Accounts.WorkOS do
   import Ecto.Changeset
   import Ecto.Query
 
+  require Logger
+
   @supported_providers ~w(github google)
+  @http_timeout_ms 15_000
   @workos_api_base "https://api.workos.com"
 
   @doc """
@@ -39,6 +42,8 @@ defmodule FrontmanServer.Accounts.WorkOS do
       {:ok, "https://api.workos.com/..."}
 
   """
+  @spec get_authorization_url(String.t(), String.t(), String.t() | nil) ::
+          {:ok, String.t()} | {:error, String.t()}
   def get_authorization_url(provider, redirect_uri, state \\ nil)
 
   def get_authorization_url(provider, redirect_uri, state)
@@ -75,6 +80,8 @@ defmodule FrontmanServer.Accounts.WorkOS do
   Note: We use a raw HTTP call instead of the SDK to capture the full error
   response, including `pending_authentication_token` for email verification.
   """
+  @spec authenticate_with_code(String.t()) ::
+          {:ok, User.t(), {:ok, map()} | :none} | {:error, term()}
   def authenticate_with_code(code) do
     with {:ok, auth_response} <- authenticate_with_code_raw(code) do
       resolve_user_from_auth(auth_response)
@@ -88,9 +95,9 @@ defmodule FrontmanServer.Accounts.WorkOS do
   receives a verification code via email, which is then submitted along with
   the pending authentication token to complete the flow.
   """
+  @spec authenticate_with_email_verification(String.t(), String.t()) ::
+          {:ok, User.t(), {:ok, map()} | :none} | {:error, term()}
   def authenticate_with_email_verification(code, pending_authentication_token) do
-    require Logger
-
     body = %{
       client_id: workos_client_id(),
       client_secret: workos_api_key(),
@@ -99,7 +106,10 @@ defmodule FrontmanServer.Accounts.WorkOS do
       pending_authentication_token: pending_authentication_token
     }
 
-    case Req.post("#{@workos_api_base}/user_management/authenticate", json: body) do
+    case Req.post("#{@workos_api_base}/user_management/authenticate",
+           json: body,
+           receive_timeout: @http_timeout_ms
+         ) do
       {:ok, %Req.Response{status: 200, body: response_body}} ->
         with {:ok, auth_response} <- parse_auth_response(response_body) do
           resolve_user_from_auth(auth_response)
@@ -123,6 +133,7 @@ defmodule FrontmanServer.Accounts.WorkOS do
 
   Returns `{:ok, identity}` on success or `{:error, changeset}` on failure.
   """
+  @spec link_provider(User.t(), String.t()) :: {:ok, UserIdentity.t()} | {:error, term()}
   def link_provider(user, code) do
     with {:ok, auth_response} <- authenticate_with_code_raw(code),
          {:ok, profile} <- extract_profile(auth_response) do
@@ -135,6 +146,8 @@ defmodule FrontmanServer.Accounts.WorkOS do
 
   Returns `{:ok, identity}` on success or `{:error, :not_found}` if the identity doesn't exist.
   """
+  @spec unlink_provider(User.t(), String.t()) ::
+          {:ok, UserIdentity.t()} | {:error, :not_found | String.t()}
   def unlink_provider(user, provider) when provider in @supported_providers do
     case get_identity_by_provider(user, provider) do
       nil -> {:error, :not_found}
@@ -149,6 +162,7 @@ defmodule FrontmanServer.Accounts.WorkOS do
   @doc """
   Lists all OAuth identities for a user.
   """
+  @spec list_identities(User.t()) :: [UserIdentity.t()]
   def list_identities(user) do
     UserIdentity
     |> where([i], i.user_id == ^user.id)
@@ -158,6 +172,7 @@ defmodule FrontmanServer.Accounts.WorkOS do
   @doc """
   Gets a specific identity by provider for a user.
   """
+  @spec get_identity_by_provider(User.t(), String.t()) :: UserIdentity.t() | nil
   def get_identity_by_provider(user, provider) do
     UserIdentity
     |> where([i], i.user_id == ^user.id and i.provider == ^provider)
@@ -209,19 +224,17 @@ defmodule FrontmanServer.Accounts.WorkOS do
   defp workos_to_provider("GitHubOAuth"), do: "github"
   defp workos_to_provider("GoogleOAuth"), do: "google"
 
-  defp extract_name(user) do
-    first_name = user[:first_name]
-    last_name = user[:last_name]
-    email = user[:email]
+  defp extract_name(%{first_name: first, last_name: last})
+       when is_binary(first) and is_binary(last),
+       do: "#{first} #{last}"
 
-    cond do
-      first_name && last_name -> "#{first_name} #{last_name}"
-      first_name -> first_name
-      last_name -> last_name
-      email -> email |> String.split("@") |> List.first()
-      true -> "Unknown"
-    end
-  end
+  defp extract_name(%{first_name: first}) when is_binary(first), do: first
+  defp extract_name(%{last_name: last}) when is_binary(last), do: last
+
+  defp extract_name(%{email: email}) when is_binary(email),
+    do: email |> String.split("@") |> List.first()
+
+  defp extract_name(_user), do: "Unknown"
 
   defp find_or_create_user_from_oauth(profile) do
     identity = get_identity_by_provider_id(profile.provider, profile.provider_id)
@@ -285,9 +298,8 @@ defmodule FrontmanServer.Accounts.WorkOS do
   end
 
   defp build_identity_changeset(user, profile) do
-    %UserIdentity{}
+    %UserIdentity{user_id: user.id}
     |> UserIdentity.changeset(%{
-      user_id: user.id,
       provider: profile.provider,
       provider_id: profile.provider_id,
       provider_email: profile.provider_email,
@@ -322,8 +334,6 @@ defmodule FrontmanServer.Accounts.WorkOS do
   # Raw HTTP authentication to capture full error responses
 
   defp authenticate_with_code_raw(code) do
-    require Logger
-
     body = %{
       client_id: workos_client_id(),
       client_secret: workos_api_key(),
@@ -331,7 +341,10 @@ defmodule FrontmanServer.Accounts.WorkOS do
       code: code
     }
 
-    case Req.post("#{@workos_api_base}/user_management/authenticate", json: body) do
+    case Req.post("#{@workos_api_base}/user_management/authenticate",
+           json: body,
+           receive_timeout: @http_timeout_ms
+         ) do
       {:ok, %Req.Response{status: 200, body: response_body}} ->
         parse_auth_response(response_body)
 
@@ -345,16 +358,16 @@ defmodule FrontmanServer.Accounts.WorkOS do
     end
   end
 
-  defp parse_auth_response(body) do
+  defp parse_auth_response(%{"user" => %{} = user_data} = body) do
     user = %{
-      id: body["user"]["id"],
-      email: body["user"]["email"],
-      email_verified: body["user"]["email_verified"],
-      first_name: body["user"]["first_name"],
-      last_name: body["user"]["last_name"],
-      profile_picture_url: body["user"]["profile_picture_url"],
-      created_at: body["user"]["created_at"],
-      updated_at: body["user"]["updated_at"]
+      id: user_data["id"],
+      email: user_data["email"],
+      email_verified: user_data["email_verified"],
+      first_name: user_data["first_name"],
+      last_name: user_data["last_name"],
+      profile_picture_url: user_data["profile_picture_url"],
+      created_at: user_data["created_at"],
+      updated_at: user_data["updated_at"]
     }
 
     {:ok,
@@ -365,6 +378,11 @@ defmodule FrontmanServer.Accounts.WorkOS do
        authentication_method: body["authentication_method"],
        oauth_tokens: extract_oauth_tokens(body)
      }}
+  end
+
+  defp parse_auth_response(_body) do
+    {:error,
+     %AuthError{code: "invalid_response", message: "Missing user data in authentication response"}}
   end
 
   defp workos_api_key do
