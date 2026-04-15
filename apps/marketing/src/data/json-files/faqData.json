@@ -19,7 +19,7 @@
 	},
 	{
 		"question": "Is it open source?",
-		"reply": "Yes. Frontman is fully open source under the Apache 2.0 license. The entire codebase is on GitHub at github.com/frontman-ai/frontman. Every prompt, every tool call, every piece of context the agent uses is visible in the source.",
+		"reply": "Yes. Frontman is open source on GitHub at github.com/frontman-ai/frontman. Every prompt, every tool call, and every piece of context the agent uses is visible in the source. Licenses vary by package and integration, and are declared in the repository and release artifacts.",
 		"category": "general",
 		"open": false
 	},
@@ -31,7 +31,7 @@
 	},
 	{
 		"question": "What does the interface look like?",
-		"reply": "Navigate to localhost/frontman in your browser. You get a chat interface on the left and a live view of your app on the right. No terminal, no IDE — just a conversation with an agent that understands your entire system.",
+		"reply": "For JavaScript frameworks, navigate to localhost/frontman in your browser. For WordPress, open your site's /frontman route. In both cases you get a chat interface alongside a live preview of what the agent is working on.",
 		"category": "product",
 		"open": false
 	},
@@ -43,13 +43,13 @@
 	},
 	{
 		"question": "Which frameworks are supported?",
-		"reply": "Frontman supports Next.js, Astro, Vite, and WordPress. For JavaScript frameworks it integrates as middleware, turning your local dev server into an MCP server. For WordPress it installs as a plugin that exposes WordPress-specific tools alongside PHP-native file editing capabilities.",
+		"reply": "Frontman supports Next.js, Astro, Vite, and WordPress. For JavaScript frameworks it integrates as middleware, turning your local dev server into an MCP server. For WordPress it installs as a plugin that exposes WordPress-specific tools alongside PHP-native read-only file inspection and Frontman-managed child-theme editing tools.",
 		"category": "technical",
 		"open": true
 	},
 	{
 		"question": "How does it get context about my app?",
-		"reply": "When you install Frontman, a lightweight integration hooks into your framework and exposes tools via MCP — client-side tools (component tree, performance, logs, click targets) and server-side tools (routes, server logs, query timing, compiled modules). Our agent connects to your local dev server and queries this context in real time, so it always knows what's actually happening in your app.",
+		"reply": "Frontman gets context from the runtime it is installed into. For JavaScript frameworks, it hooks into your local dev server and browser tools. For WordPress, the plugin exposes WordPress-native tools and read-only site inspection directly from the running site. In both cases, the agent queries live runtime context instead of relying only on static files.",
 		"category": "technical",
 		"open": false
 	},

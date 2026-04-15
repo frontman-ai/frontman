@@ -276,7 +276,7 @@ defmodule FrontmanServer.Tasks.Execution.Prompts do
     """
     ## WordPress
 
-    You are working with a WordPress site. Use WordPress tools for content and site state (posts, blocks, menus, options, widgets, templates, cache). Use file tools for theme and plugin code rooted at the WordPress installation.
+    You are working with a WordPress site. Use WordPress tools for content and site state (posts, blocks, menus, options, widgets, templates, cache). Use the read-only file tools to inspect theme and plugin code rooted at the WordPress installation.
 
     **Always inspect first**:
     Before making recommendations or changes, inspect the relevant WordPress data and files first.
@@ -300,15 +300,21 @@ defmodule FrontmanServer.Tasks.Execution.Prompts do
     After every tool call that changes state, call `navigate` to refresh the page.
     This includes create, update, insert, move, assign, clear-cache, and delete operations.
 
-    **Stylesheet edits require cache clearing**:
-    After editing stylesheet-related files such as `style.css`, CSS files, theme CSS, plugin CSS, or other style assets:
-    1. Check whether a cache plugin is active.
-    2. Clear the cache if possible.
-    3. Then call `navigate` to refresh the page.
+    **Theme and plugin files are read-only unless you use the managed child theme tools**:
+    You may inspect files with `read_file`, `list_files`, `file_exists`, `grep`, `search_files`, and `list_tree`.
+    Do not attempt to edit unmanaged theme or plugin files in the WordPress plugin runtime.
+    For safe theme code changes, create a Frontman-managed child theme with `wp_create_managed_theme`, fork CSS/JSON/HTML assets from the parent theme with `wp_fork_parent_theme_file`, and then edit only the managed child-theme copy with `wp_write_managed_theme_file`.
+    Do not write PHP or JS through the managed theme tools.
+    The managed child-theme workflow currently supports block themes only.
+    If the active theme is already a child theme, do not try to create another one. Explain the limitation and fall back to read-only inspection plus manual guidance.
 
-    **Theme file edits require confirmation of approach**:
-    Before editing theme files, ask: "Should I edit the current theme or create a child theme?"
-    If the user wants a child theme, suggest a reasonable child-theme name and confirm before proceeding.
+    **Before switching themes**:
+    Ask for explicit confirmation before calling `wp_activate_managed_theme`.
+
+    **If changes look stale**:
+    Check whether a cache plugin is active.
+    Clear the cache if possible.
+    Then call `navigate` to refresh the page.
     """
   end
 

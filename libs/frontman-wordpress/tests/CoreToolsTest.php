@@ -102,7 +102,7 @@ class Frontman_Core_Tools_Test_Runner {
 		$this->test_clear_all_file_tracker_records();
 		$this->test_core_path_semantics();
 		$this->test_list_files_and_search_files();
-		$this->test_read_write_and_edit_guards();
+		$this->test_read_file_and_exposed_tools();
 		$this->test_grep_and_list_tree();
 		$this->test_load_agent_instructions();
 		$this->test_file_exists();
@@ -225,76 +225,16 @@ class Frontman_Core_Tools_Test_Runner {
 		$this->assert_true( true === $limited['truncated'], 'search_files truncates when max_results is exceeded' );
 	}
 
-	private function test_read_write_and_edit_guards(): void {
+	private function test_read_file_and_exposed_tools(): void {
 		Frontman_Core_File_Tracker::clear();
 		$partial = $this->call_success( 'read_file', [ 'path' => 'workspace/app/nested/edit-me.txt', 'offset' => 1, 'limit' => 1 ] );
 		$this->assert_same( 'beta', $partial['content'], 'read_file respects offset and limit' );
 		$this->assert_true( true === $partial['hasMore'], 'read_file reports remaining content' );
 
-		Frontman_Core_File_Tracker::clear();
-		$error = $this->call_error( 'edit_file', [
-			'path'    => 'workspace/app/nested/edit-me.txt',
-			'oldText' => 'beta',
-			'newText' => 'BETA',
-		] );
-		$this->assert_true( false !== strpos( $error, 'File must be read before editing' ), 'edit_file requires prior read' );
-
-		$this->call_success( 'read_file', [ 'path' => 'workspace/app/nested/edit-me.txt' ] );
-		$edit = $this->call_success( 'edit_file', [
-			'path'    => 'workspace/app/nested/edit-me.txt',
-			'oldText' => 'beta',
-			'newText' => 'BETA',
-		] );
-		$this->assert_true( false !== strpos( $edit['message'], 'Edit applied successfully.' ), 'edit_file succeeds after read_file' );
-		$this->assert_same( "alpha\nBETA\ngamma\n", file_get_contents( ABSPATH . 'workspace/app/nested/edit-me.txt' ), 'edit_file updates file content' );
-
-		Frontman_Core_File_Tracker::clear();
-		$error = $this->call_error( 'write_file', [
-			'path'    => 'workspace/app/index.php',
-			'content' => "<?php\necho 'updated';\n",
-		] );
-		$this->assert_true( false !== strpos( $error, 'File must be read before editing' ), 'write_file requires read before overwriting existing file' );
-
-		$this->call_success( 'read_file', [ 'path' => 'workspace/app/index.php' ] );
-		$this->call_success( 'write_file', [
-			'path'    => 'workspace/app/index.php',
-			'content' => "<?php\necho 'updated';\n",
-		] );
-		$this->assert_same( "<?php\necho 'updated';\n", file_get_contents( ABSPATH . 'workspace/app/index.php' ), 'write_file overwrites after read' );
-
-		$this->call_success( 'write_file', [
-			'path'    => 'workspace/app/generated/new.txt',
-			'content' => "fresh\n",
-		] );
-		$this->assert_same( "fresh\n", file_get_contents( ABSPATH . 'workspace/app/generated/new.txt' ), 'write_file creates parent directories for new files' );
-
-		Frontman_Core_File_Tracker::clear();
-		$this->call_success( 'read_file', [ 'path' => 'workspace/app/nested/edit-me.txt', 'offset' => 0, 'limit' => 1 ] );
-		$warning = $this->call_success( 'edit_file', [
-			'path'    => 'workspace/app/nested/edit-me.txt',
-			'oldText' => 'gamma',
-			'newText' => 'GAMMA',
-		] );
-		$this->assert_true( false !== strpos( $warning['message'], 'Warning:' ), 'edit_file includes coverage warning outside read range' );
-
-		Frontman_Core_File_Tracker::clear();
-		$this->call_success( 'read_file', [ 'path' => 'workspace/app/nested/repeat.txt' ] );
-		$ambiguous = $this->call_error( 'edit_file', [
-			'path'    => 'workspace/app/nested/repeat.txt',
-			'oldText' => 'needle',
-			'newText' => 'PIN',
-		] );
-		$this->assert_true( false !== strpos( $ambiguous, 'multiple matches' ), 'edit_file rejects ambiguous duplicate matches without replaceAll' );
-
-		Frontman_Core_File_Tracker::clear();
-		$this->call_success( 'read_file', [ 'path' => 'workspace/app/nested/repeat.txt' ] );
-		$this->call_success( 'edit_file', [
-			'path'       => 'workspace/app/nested/repeat.txt',
-			'oldText'    => 'needle',
-			'newText'    => 'PIN',
-			'replaceAll' => true,
-		] );
-		$this->assert_same( "PIN\nPIN\nPIN\n", file_get_contents( ABSPATH . 'workspace/app/nested/repeat.txt' ), 'edit_file replaceAll updates all occurrences' );
+		$tool_names = array_column( $this->tools->all_definitions(), 'name' );
+		$this->assert_true( in_array( 'read_file', $tool_names, true ), 'read_file remains available' );
+		$this->assert_true( false === in_array( 'write_file', $tool_names, true ), 'write_file is not exposed in WordPress' );
+		$this->assert_true( false === in_array( 'edit_file', $tool_names, true ), 'edit_file is not exposed in WordPress' );
 	}
 
 	private function test_grep_and_list_tree(): void {
@@ -322,6 +262,12 @@ class Frontman_Core_Tools_Test_Runner {
 		] );
 		$this->assert_same( 0, $no_matches['totalMatches'], 'grep returns empty success when there are no matches' );
 
+		$invalid_regex = $this->call_error( 'grep', [
+			'path'    => 'workspace',
+			'pattern' => '(',
+		] );
+		$this->assert_true( false !== strpos( $invalid_regex, 'Invalid regex pattern' ), 'grep rejects malformed regex patterns' );
+
 		$tree = $this->call_success( 'list_tree', [ 'path' => 'workspace', 'depth' => 3 ] );
 		$this->assert_true( false !== strpos( $tree['tree'], 'packages/' ), 'list_tree includes nested directories' );
 		$this->assert_same( 'npm-workspaces', $tree['monorepoType'], 'list_tree detects npm workspaces' );
@@ -334,6 +280,7 @@ class Frontman_Core_Tools_Test_Runner {
 		$this->assert_same( '# App Instructions' . "\n", $instructions[0]['content'], 'load_agent_instructions prefers Agents.md at a directory level' );
 		$this->assert_true( false !== strpos( $instructions[1]['fullPath'], 'workspace/CLAUDE.md' ), 'load_agent_instructions continues walking upward' );
 		$this->assert_true( 2 === count( $instructions ), 'load_agent_instructions stops at the WordPress source root' );
+		$this->assert_true( false === in_array( '# Should be skipped' . "\n", array_column( $instructions, 'content' ), true ), 'load_agent_instructions skips nested .claude instructions' );
 	}
 
 	private function test_file_exists(): void {

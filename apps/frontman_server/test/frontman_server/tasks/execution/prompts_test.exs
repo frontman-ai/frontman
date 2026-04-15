@@ -28,6 +28,18 @@ defmodule FrontmanServer.Tasks.Execution.PromptsTest do
       assert prompt =~ "Next.js"
     end
 
+    test "wordpress framework marks file tools read-only" do
+      fw = Framework.from_string("wordpress")
+      prompt = Prompts.build(framework: fw)
+
+      assert prompt =~ "read-only file tools"
+      assert prompt =~ "Do not attempt to edit unmanaged theme or plugin files"
+      assert prompt =~ "wp_create_managed_theme"
+      assert prompt =~ "wp_activate_managed_theme"
+      assert prompt =~ "block themes only"
+      assert prompt =~ "already a child theme"
+    end
+
     test "non-nextjs framework adds no framework guidance" do
       base_prompt = Prompts.build([])
       vite_prompt = Prompts.build(framework: Framework.from_string("vite"))

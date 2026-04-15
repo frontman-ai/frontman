@@ -445,6 +445,7 @@ package-wordpress-plugin: ## Build WordPress ZIP and WordPress.org bundle
 
 test-wordpress-core-tools: ## Run PHP tests for WordPress core tool implementations
 	@php libs/frontman-wordpress/tests/CoreToolsTest.php
+	@php libs/frontman-wordpress/tests/ManagedThemeToolsTest.php
 	@php libs/frontman-wordpress/tests/MutationSnapshotsTest.php
 	@php libs/frontman-wordpress/tests/RouterTest.php
 

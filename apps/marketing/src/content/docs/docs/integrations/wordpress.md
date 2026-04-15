@@ -1,9 +1,9 @@
 ---
 title: WordPress (Beta)
-description: Install and configure the Frontman WordPress plugin to edit posts, blocks, menus, theme files, and site settings through a conversational AI interface.
+description: Install and configure the Frontman WordPress plugin to edit posts, blocks, menus, templates, widgets, site settings, and a Frontman-managed child theme through a conversational AI interface.
 ---
 
-The Frontman WordPress plugin adds an AI agent directly to your WordPress site. Navigate to `/frontman`, describe what you want to change, and the agent does it — no code editor or terminal required.
+The Frontman WordPress plugin adds an AI agent directly to your WordPress site. Navigate to `/frontman`, describe what you want to change, and the agent handles the supported workflow inside the site preview — no code editor or terminal required for those supported changes.
 
 > **Beta:** This is experimental software. Start on a staging site, keep backups, and review changes before deploying to production.
 
@@ -52,21 +52,25 @@ You can also open Frontman while browsing any page — just append `/frontman` t
 
 - Create, edit, and delete posts and pages
 - Insert, update, move, and delete Gutenberg blocks
-- Edit theme files — `style.css`, `theme.json`, `functions.php`, templates
 - Add and update navigation menu items
 - Read and change site options (title, tagline, permalinks, etc.)
-- Browse block templates and template parts
+- Browse and update block templates and template parts
 - Manage widgets
+- Inspect theme and plugin files with read-only file tools
+- Create and activate a Frontman-managed child theme for safe CSS, HTML, and JSON edits on block themes
+- Fork supported parent-theme files into that managed child theme before editing them
 - Flush the WordPress cache
 
-All file operations are scoped to your WordPress root directory.
+All file inspection is scoped to your WordPress root directory. Direct writes to unmanaged theme and plugin files are not available. File creation and editing are limited to the Frontman-managed child theme.
+
+The managed child-theme workflow is available when your active theme is a block-theme parent theme. If another child theme is already active, or if the active theme is not a block theme, Frontman will inspect it read-only and you will need to migrate changes manually.
 
 ## Security
 
 - Only users with the `manage_options` capability can access Frontman.
 - Tool call requests (POST) are validated with WordPress nonces.
 - Site options are restricted to a safe allowlist — arbitrary option writes are not permitted.
-- No data is sent to Frontman's servers until you actively submit a message in the chat.
+- Loading `/frontman` requests UI assets from Frontman's hosted client. Your site content is not sent to Frontman's API until you actively submit a message in the chat.
 
 ## External Services
 
@@ -89,4 +93,4 @@ You must be logged in to WordPress as an administrator. Log in first, then navig
 Use the `wp_clear_cache` tool in the chat, or flush your caching plugin manually (WP Rocket, W3 Total Cache, etc.).
 
 **Something went wrong and I want to undo a change.**
-Frontman records a snapshot of content before each edit. Ask the agent to revert the last change — it has the previous state available in its tool history.
+Many WordPress mutation tools return before/after snapshots in tool history, but Frontman does not guarantee one-click undo for every WordPress change. Keep normal site backups and review changes before relying on them.

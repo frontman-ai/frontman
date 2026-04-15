@@ -48,22 +48,6 @@ class Frontman_Core_Tools {
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
-			'write_file',
-			'Writes content to a file under the WordPress root directory. Relative paths are resolved from the WordPress root. Existing files must be read first.',
-			[
-				'type'       => 'object',
-				'properties' => [
-					'path'     => [ 'type' => 'string' ],
-					'content'  => [ 'type' => 'string' ],
-					'image_ref'=> [ 'type' => 'string' ],
-					'encoding' => [ 'type' => 'string', 'enum' => [ 'base64' ] ],
-				],
-				'required'   => [ 'path' ],
-			],
-			[ $this, 'write_file' ]
-		) );
-
-		$tools->add( new Frontman_Tool_Definition(
 			'list_files',
 			'Lists the immediate contents of a directory under the WordPress root directory. Relative paths are resolved from the WordPress root.',
 			[
@@ -136,22 +120,6 @@ class Frontman_Core_Tools {
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
-			'edit_file',
-			'Edits a file under the WordPress root directory by replacing text. Relative paths are resolved from the WordPress root. Existing files must be read first.',
-			[
-				'type'       => 'object',
-				'properties' => [
-					'path'       => [ 'type' => 'string' ],
-					'oldText'    => [ 'type' => 'string' ],
-					'newText'    => [ 'type' => 'string' ],
-					'replaceAll' => [ 'type' => 'boolean', 'default' => false ],
-				],
-				'required'   => [ 'path', 'oldText', 'newText' ],
-			],
-			[ $this, 'edit_file' ]
-		) );
-
-		$tools->add( new Frontman_Tool_Definition(
 			'list_tree',
 			'Returns a recursive directory tree rooted at the WordPress root directory, with lightweight workspace detection for paths under that root.',
 			[
@@ -187,48 +155,6 @@ class Frontman_Core_Tools {
 			'hasMore'    => ( $offset + $limit ) < $total_lines,
 			'_context'   => $this->path_context( $resolved ),
 		];
-	}
-
-	public function write_file( array $input ): array {
-		$resolved = Frontman_Core_Path::resolve( $input['path'] ?? '' );
-		$has_content = array_key_exists( 'content', $input );
-		$has_image   = array_key_exists( 'image_ref', $input ) && '' !== (string) $input['image_ref'];
-
-		if ( ! $has_content && ! $has_image ) {
-			throw new Frontman_Tool_Error( 'Either content or image_ref must be provided' );
-		}
-
-		if ( $has_content && $has_image ) {
-			throw new Frontman_Tool_Error( 'Provide either content or image_ref, not both' );
-		}
-
-		if ( $has_image ) {
-			throw new Frontman_Tool_Error( 'image_ref must be resolved to content before execution' );
-		}
-
-		if ( file_exists( $resolved['resolvedPath'] ) ) {
-			Frontman_Core_File_Tracker::assert_edit_safe( $resolved['resolvedPath'] );
-		}
-
-		$this->ensure_parent_dir( $resolved['resolvedPath'] );
-
-		if ( isset( $input['encoding'] ) && 'base64' === $input['encoding'] ) {
-			$data = base64_decode( (string) $input['content'], true );
-			if ( false === $data ) {
-				throw new Frontman_Tool_Error( 'Failed to decode base64 file content' );
-			}
-			$result = file_put_contents( $resolved['resolvedPath'], $data );
-		} else {
-			$result = file_put_contents( $resolved['resolvedPath'], (string) $input['content'] );
-		}
-
-		if ( false === $result ) {
-			throw new Frontman_Tool_Error( 'Failed to write file ' . ( $input['path'] ?? '' ) );
-		}
-
-		Frontman_Core_File_Tracker::record_write( $resolved['resolvedPath'] );
-
-		return [ '_context' => $this->path_context( $resolved ) ];
 	}
 
 	public function list_files( array $input ): array {
@@ -374,53 +300,6 @@ class Frontman_Core_Tools {
 		}
 	}
 
-	public function edit_file( array $input ): array {
-		$resolved    = Frontman_Core_Path::resolve( $input['path'] ?? '' );
-		$old_text    = (string) ( $input['oldText'] ?? '' );
-		$new_text    = (string) ( $input['newText'] ?? '' );
-		$replace_all = ! empty( $input['replaceAll'] );
-
-		if ( $old_text === $new_text ) {
-			throw new Frontman_Tool_Error( 'oldText and newText must be different' );
-		}
-
-		if ( '' === $old_text ) {
-			$this->ensure_parent_dir( $resolved['resolvedPath'] );
-			if ( false === file_put_contents( $resolved['resolvedPath'], $new_text ) ) {
-				throw new Frontman_Tool_Error( 'Failed to create file ' . ( $input['path'] ?? '' ) );
-			}
-			Frontman_Core_File_Tracker::record_write( $resolved['resolvedPath'] );
-			return [
-				'message'  => 'File created successfully.',
-				'_context' => $this->path_context( $resolved ),
-			];
-		}
-
-		Frontman_Core_File_Tracker::assert_edit_safe( $resolved['resolvedPath'] );
-		$content = @file_get_contents( $resolved['resolvedPath'] );
-		if ( false === $content ) {
-			throw new Frontman_Tool_Error( 'Failed to edit file ' . ( $input['path'] ?? '' ) );
-		}
-
-		$warning = Frontman_Core_File_Tracker::check_coverage( $resolved['resolvedPath'], $content, $old_text );
-		$result  = $this->apply_edit( $content, $old_text, $new_text, $replace_all, (string) $input['path'] );
-
-		if ( false === file_put_contents( $resolved['resolvedPath'], $result['content'] ) ) {
-			throw new Frontman_Tool_Error( 'Failed to edit file ' . ( $input['path'] ?? '' ) );
-		}
-
-		Frontman_Core_File_Tracker::record_write( $resolved['resolvedPath'] );
-
-		$message = $result['message'];
-		if ( null !== $warning ) {
-			$message .= "\n\n" . $warning;
-		}
-
-		return [
-			'message'  => $message,
-			'_context' => $this->path_context( $resolved ),
-		];
-	}
 
 	public function list_tree( array $input ): array {
 		try {
@@ -452,13 +331,6 @@ class Frontman_Core_Tools {
 			'resolvedPath' => $resolved['resolvedPath'],
 			'relativePath' => $resolved['relativePath'],
 		];
-	}
-
-	private function ensure_parent_dir( string $path ): void {
-		$dir = dirname( $path );
-		if ( ! is_dir( $dir ) && ! wp_mkdir_p( $dir ) ) {
-			throw new Frontman_Tool_Error( 'Failed to create parent directory for ' . $path );
-		}
 	}
 
 	private function collect_searchable_files( string $path, bool $skip_hidden_files ): array {
@@ -572,83 +444,6 @@ class Frontman_Core_Tools {
 		}
 
 		return false !== strpos( $file_name_lower, $pattern_lower );
-	}
-
-	private function apply_edit( string $content, string $old_text, string $new_text, bool $replace_all, string $display_path ): array {
-		$exact_count = substr_count( $content, $old_text );
-		if ( $exact_count > 0 ) {
-			if ( $exact_count > 1 && ! $replace_all ) {
-				throw new Frontman_Tool_Error( 'Found multiple matches for oldText in ' . $display_path . '. Provide more surrounding context or use replaceAll.' );
-			}
-
-			$updated = $replace_all
-				? str_replace( $old_text, $new_text, $content )
-				: substr_replace( $content, $new_text, strpos( $content, $old_text ), strlen( $old_text ) );
-
-			return [
-				'content' => $updated,
-				'message' => 'Edit applied successfully.',
-			];
-		}
-
-		$trimmed_matches = $this->find_trimmed_matches( $content, $old_text );
-		if ( empty( $trimmed_matches ) ) {
-			throw new Frontman_Tool_Error( 'oldText not found in file ' . $display_path . '. Read the file again to inspect its current content.' );
-		}
-
-		$trimmed_matches = array_values( array_unique( $trimmed_matches ) );
-		if ( count( $trimmed_matches ) > 1 && ! $replace_all ) {
-			throw new Frontman_Tool_Error( 'Found multiple fuzzy matches for oldText in ' . $display_path . '. Provide more surrounding context or use replaceAll.' );
-		}
-
-		$updated = $content;
-		foreach ( $trimmed_matches as $match ) {
-			$position = strpos( $updated, $match );
-			if ( false === $position ) {
-				continue;
-			}
-
-			$updated = substr_replace( $updated, $new_text, $position, strlen( $match ) );
-			if ( ! $replace_all ) {
-				break;
-			}
-		}
-
-		return [
-			'content' => $updated,
-			'message' => 'Edit applied successfully.',
-		];
-	}
-
-	private function find_trimmed_matches( string $content, string $old_text ): array {
-		$content_lines = preg_split( '/\r\n|\n|\r/', $content );
-		$search_lines  = preg_split( '/\r\n|\n|\r/', $old_text );
-
-		if ( '' === end( $search_lines ) ) {
-			array_pop( $search_lines );
-		}
-
-		$search_len = count( $search_lines );
-		if ( 0 === $search_len || count( $content_lines ) < $search_len ) {
-			return [];
-		}
-
-		$matches = [];
-		for ( $start = 0; $start <= count( $content_lines ) - $search_len; $start++ ) {
-			$ok = true;
-			for ( $index = 0; $index < $search_len; $index++ ) {
-				if ( trim( $content_lines[ $start + $index ] ) !== trim( $search_lines[ $index ] ) ) {
-					$ok = false;
-					break;
-				}
-			}
-
-			if ( $ok ) {
-				$matches[] = implode( "\n", array_slice( $content_lines, $start, $search_len ) );
-			}
-		}
-
-		return $matches;
 	}
 
 	private function filter_git_ignored_entries( string $cwd, array $entries ): array {

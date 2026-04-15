@@ -8,11 +8,11 @@ Stable tag: 0.15.0
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-AI agent for WordPress that edits posts, blocks, menus, templates, and site options from a conversational UI.
+AI agent for WordPress that edits posts, blocks, menus, templates, site options, and a Frontman-managed child theme from a conversational UI.
 
 == Description ==
 
-Agentic AI puts an AI agent inside your WordPress site. Navigate to `/frontman`, describe what you want to change, and the agent handles it — posts, pages, blocks, menus, theme files, site settings, and more.
+Agentic AI puts an AI agent inside your WordPress site. Navigate to `/frontman`, describe what you want to change, and the agent handles the supported workflow — posts, pages, blocks, menus, templates, site settings, and more.
 
 No code editor. No terminal. Just a chat interface alongside a live view of your site.
 
@@ -20,11 +20,15 @@ No code editor. No terminal. Just a chat interface alongside a live view of your
 
 * Create, edit, and delete posts and pages
 * Insert, update, and rearrange Gutenberg blocks
-* Edit theme files — templates, `style.css`, `theme.json`, `functions.php`
+* Inspect theme files — templates, `style.css`, `theme.json`, `functions.php`
+* Create and activate a Frontman-managed child theme for safe CSS, HTML, and JSON edits on block themes
+* Fork supported parent-theme files into that managed child theme before editing them
 * Update navigation menus and menu items
 * Read and change site options (title, tagline, permalinks, etc.)
 * Browse block templates and template parts
-* Search and modify files across your WordPress installation
+* Search and read files across your WordPress installation
+
+Managed child-theme editing is available when the active site theme is a block-theme parent theme. If another child theme is already active, or if the current theme is not a block theme, Frontman keeps theme files read-only and falls back to inspection plus manual guidance.
 
 **Who it's for:**
 
@@ -43,14 +47,14 @@ This is an experimental release. It works, but it hasn't been tested across ever
 1. Download the Frontman plugin release ZIP or upload the `frontman` folder to `/wp-content/plugins/`
 2. Activate the plugin through the **Plugins** menu
 3. Navigate to `/frontman` on your site (you must be logged in as an admin)
-4. Use Frontman - file tools now run directly inside the WordPress plugin
+4. Use Frontman - WordPress tools, file inspection, and managed child-theme editing now run directly inside the plugin
 
 == Frequently Asked Questions ==
 
 
 = Do I need another server? =
 
-No. Frontman now runs the core file tools directly in PHP inside the WordPress plugin.
+No. Frontman now runs the WordPress tools, file inspection tools, and managed child-theme editing tools directly in PHP inside the plugin.
 
 = Is it safe? =
 
@@ -62,7 +66,7 @@ Technically, yes — unlike the JavaScript framework integrations, the WordPress
 
 = Which themes work? =
 
-Frontman works with any WordPress theme. Block themes (Full Site Editing) and classic PHP themes are both supported. The agent adapts based on what it finds in your theme directory.
+Frontman's content, menu, widget, option, and inspection tools work across WordPress themes. The managed child-theme editing workflow currently targets block themes (Full Site Editing) running without another child theme already active.
 
 == Third-Party Services ==
 
@@ -76,7 +80,7 @@ The chat interface is loaded from `https://app.frontman.sh`. This serves the Jav
 * Privacy Policy: [https://frontman.sh/terms](https://frontman.sh/terms)
 
 **Frontman API (api.frontman.sh)**
-The plugin connects via WebSocket to `https://api.frontman.sh` for AI agent communication — sending tool results and receiving agent responses. Your site content is sent to this service when the agent processes requests.
+The plugin connects via WebSocket to `wss://api.frontman.sh` for AI agent communication — sending tool results and receiving agent responses. Your site content is sent to this service when the agent processes requests.
 
 * Service URL: [https://api.frontman.sh](https://api.frontman.sh)
 * Provider: Frontman AI
@@ -85,7 +89,7 @@ The plugin connects via WebSocket to `https://api.frontman.sh` for AI agent comm
 **AI Model Providers**
 The Frontman API routes requests to third-party AI model providers (such as Anthropic and OpenAI) to generate responses. Content from your site may be included in prompts sent to these providers.
 
-No data is sent to these services until you actively use the Frontman chat interface and submit a message.
+Loading the Frontman UI requests hosted client assets. Your site content is not sent to the Frontman API or model providers until you actively use the chat interface and submit a message.
 
 == Screenshots ==
 
