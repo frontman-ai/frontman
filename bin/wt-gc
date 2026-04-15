@@ -17,6 +17,7 @@
 # Required env: MD5CMD (set by Makefile)
 
 set -euo pipefail
+trap '' PIPE
 
 # ── Colors ──────────────────────────────────────────────
 GREEN='\033[32m'
