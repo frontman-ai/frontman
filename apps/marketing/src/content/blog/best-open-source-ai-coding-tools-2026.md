@@ -1,7 +1,7 @@
 ---
-title: 'Best Open-Source AI Coding Tools in 2026'
+title: 'Best Open-Source AI Coding Tools in 2026 (Ranked by GitHub Stars)'
 pubDate: 2026-03-03T10:00:00Z
-description: 'Every major open-source AI coding tool compared: Aider, Cline, OpenHands, Tabby, Goose, Continue, Roo Code, Frontman, Stagewise, and more.'
+description: 'Ranked by GitHub stars: OpenHands (68k), Cline (58k), Aider (41k), Continue (31k), and 8 more — with honest tradeoffs, no affiliate links.'
 author: 'Danni Friedland'
 image: '/blog/best-open-source-ai-coding-tools-2026-cover.png'
 tags: ['comparison', 'ai', 'developer-tools', 'open-source']

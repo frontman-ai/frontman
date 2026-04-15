@@ -121,21 +121,16 @@ defmodule FrontmanServerWeb.ChannelCase do
   Extracts the repeated pattern of `Tasks.create_task` + `subscribe_and_join`
   that appears in virtually every channel test setup block.
 
-  ## Options
-
-    * `:framework` - framework name for the task (default: `"nextjs"`)
-
   ## Examples
 
       {socket, task_id} = join_task_channel(scope)
-      {socket, task_id} = join_task_channel(scope, framework: "test-framework")
   """
   defmacro join_task_channel(scope, opts \\ []) do
     quote do
       scope = unquote(scope)
-      framework = unquote(opts) |> Keyword.get(:framework, "nextjs")
+      _opts = unquote(opts)
       task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = FrontmanServer.Tasks.create_task(scope, task_id, framework)
+      {:ok, ^task_id} = FrontmanServer.Tasks.create_task(scope, task_id)
 
       {:ok, _reply, socket} =
         FrontmanServerWeb.UserSocket

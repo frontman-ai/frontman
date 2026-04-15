@@ -1,76 +1,113 @@
 ---
-title: 'Getting Started with Frontman'
+title: 'Frontman Quickstart: Change a Button Color in 5 Minutes'
 pubDate: 2026-02-15T05:00:00Z
-description: 'Stop filing tickets for button color changes. Frontman lets designers and PMs edit live UI components in the browser — no code, no waiting on dev sprints.'
+description: 'Install Frontman, connect an AI provider, and make your first live UI edit — all in under five minutes. This tutorial walks through one complete change from install to diff.'
 author: 'Danni Friedland'
 image: '/blog/getting-started-cover.png'
 tags: ['tutorial', 'getting-started']
-updatedDate: 2026-03-20T00:00:00Z
+updatedDate: 2026-04-14T00:00:00Z
 ---
 
-You want to change a button color. You open Figma, update the mock, tag a developer in a comment, wait for it to land in the sprint, wait for the PR, review the PR, notice the padding is off, leave another comment, wait for the fix, approve, wait for deploy. Three weeks for a button color.
+By the end of this tutorial, you will have installed Frontman, connected an AI provider, clicked a button in your running app, changed its color with a plain English instruction, and seen the source code update. Total time: about five minutes.
 
-That is not a tooling problem. That is a workflow problem — [here's the core idea](/blog/introducing-frontman/). Frontman fixes it by letting you edit UI components directly in the browser, in plain English, without writing code.
+### Prerequisites
 
-### How It Works
+- Node.js 18 or later
+- A project using Next.js, Vite (React, Vue, or Svelte), or Astro
+- A running dev server (`npm run dev` or equivalent)
+- An account with an AI provider (Claude, ChatGPT, or OpenRouter)
 
-Your engineering team runs one install command (Next.js, Astro, or Vite — they will know which). After that, anyone on the team can open the app in their browser and start making changes.
+### Step 1: Install Frontman
 
-Click any element on the page. A selection overlay appears showing you the component. Then describe what you want:
+Run the install command for your framework:
 
-```text
-"Make this button larger and use our primary color"
-"Increase the spacing between these cards"
-"Make this heading match the one on the homepage"
-"Hide this section on mobile"
+**Next.js:**
+```bash
+npx frontman@latest init --framework nextjs
 ```
 
-The change appears in the browser immediately. The underlying code updates to match. Your engineering team reviews the diff just like any other change — clean, atomic, ready for their normal review process.
+**Vite (React, Vue, or Svelte):**
+```bash
+npx frontman@latest init --framework vite
+```
 
-### Connect an AI Provider
+**Astro:**
+```bash
+npx frontman@latest init --framework astro
+```
 
-Once installed, open your app in the browser and navigate to the Frontman overlay. Choose the AI provider you want to use:
+This adds Frontman as a dev dependency and creates a one-line plugin entry in your framework config. You can check the diff — it touches one config file.
 
-- **Claude** — connect using provider connect
-- **ChatGPT** — connect using provider connect
-- **OpenRouter** — access multiple models with one key
+### Step 2: Restart Your Dev Server
 
-Select your provider in the settings panel and follow the connect flow. If you already have an account with any of these providers, setup is done.
+Stop your dev server and start it again:
 
-### It Respects Your Design System
+```bash
+npm run dev
+```
 
-This is the part that matters for teams with an established system. Frontman is a [framework-aware](/blog/what-are-framework-aware-ai-coding-tools/) tool, not a generic code generator that outputs random CSS. It reads your project's conventions — your design tokens, your component patterns, your naming rules. When it makes a change, it uses _your_ system, not some default template.
+You should see `Frontman connected` in the terminal output. If you do not, check that the plugin line was added to your framework config — the init command prints the exact location.
 
-If your team uses specific spacing scales, Frontman uses those values. If you have a token system for colors, Frontman references those tokens. The output follows the same rules your engineering team follows, because it reads the same configuration they do.
+### Step 3: Connect an AI Provider
 
-That means the changes you make through Frontman pass code review. They are not throwaway prototypes that need to be rebuilt "properly." They are production-quality edits that use your actual design system.
+Open your app in the browser. You will see the Frontman overlay in the bottom-right corner. Click it to open the settings panel.
 
-### What This Means for Your Team
+Choose your AI provider:
 
-**For designers:** Stop recreating components in Figma that already exist in code. Click the real component, describe the change, see it live. No more "this looks different in production" conversations.
+- **Claude** — click Connect, follow the auth flow
+- **ChatGPT** — click Connect, follow the auth flow
+- **OpenRouter** — paste your API key (gives you access to multiple models)
 
-**For PMs:** Unblock yourself on visual iteration. Test copy changes, layout tweaks, and responsive behavior without filing a ticket. Ship faster without adding to the dev backlog.
+If you already have an account with any of these providers, this step takes about thirty seconds.
 
-**For design system maintainers:** Every Frontman edit goes through your system's tokens and conventions. No one is injecting arbitrary hex values or hardcoded pixel sizes. Your system stays consistent even as more people contribute changes.
+### Step 4: Change a Button Color
 
-### Common Questions
+Find any button in your app. Click it. The Frontman selection overlay appears, showing you the component name, file path, and current styles.
 
-**"Do I need to know how to code?"**
-No. You describe changes in plain English. Frontman translates that into code that follows your team's conventions. You never see or touch the code unless you want to.
+Now type:
 
-**"Will this break our design system?"**
-The opposite. Frontman reads your project's conventions and design tokens. It uses your existing system rather than working around it. Every change it makes is a standard code change that goes through your team's normal review process.
+```text
+Make this button use our primary color
+```
 
-**"What happens to changes I make?"**
-They become real code changes, just like any edit a developer would make. Your engineering team can review, approve, or adjust them through their normal workflow. Nothing ships without their sign-off.
+Frontman reads your project's design tokens, finds the primary color value, traces the button back to its source file, and applies the change. Hot-reload fires. The button updates in the browser.
 
-**"How does this fit into our existing workflow?"**
-Frontman runs in your development environment. Changes show up as diffs that go through code review. It does not replace your process — it gives more people on your team the ability to propose changes directly, instead of describing them in tickets and hoping the intent survives the handoff.
+Check your terminal or editor — the source file has changed:
 
-### Get Started
+```diff
+- <button className="bg-gray-600 text-white px-4 py-2 rounded">
++ <button className="bg-primary text-white px-4 py-2 rounded">
+    Get Started
+  </button>
+```
 
-Ask your engineering team to run the install command for your framework — it takes under five minutes. After that, open your app in the browser, connect an AI provider, and start clicking elements.
+The diff is in your working tree. Run `git diff` to see it. This is a normal code change — your team reviews it like any other PR.
 
-No training required. No migration. No new tool to learn beyond "click the thing, describe the change."
+### Step 5: Iterate or Commit
 
-[Visit frontman.sh](https://frontman.sh) for full documentation and framework-specific install guides. See [how Frontman compares to other tools](/blog/6-ai-coding-tools-production/), learn [why coding agents are blind to your UI](/blog/ai-coding-agents-blind-to-ui/), or read about [how Frontman keeps your code safe](/blog/security/).
+If the result is not quite right, describe what is off:
+
+```text
+Use the darker shade — primary-700
+```
+
+Frontman applies the correction. Keep iterating until it looks right, then commit the change.
+
+### What Just Happened
+
+You clicked a live UI element, described a change in plain English, and Frontman:
+
+1. Identified which component renders that element
+2. Read its current styles (including resolved token values)
+3. Found the source file and line number
+4. Applied the edit using your project's conventions
+5. Hot-reload showed you the result
+
+No IDE. No file paths. No Tailwind class lookup. The change is real source code that goes through your normal review process.
+
+### Next Steps
+
+- [Full documentation and framework guides](https://frontman.sh)
+- [What Frontman can and cannot do](/blog/frontman-launch/) — capabilities, tradeoffs, and how it fits into your team's workflow
+- [How Frontman compares to Cursor and Claude Code](/blog/frontman-vs-cursor-vs-claude-code/)
+- [Security model](/blog/security/) — how Frontman handles your source code

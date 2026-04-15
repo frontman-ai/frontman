@@ -66,7 +66,7 @@ Show them their PR queue. Count the tickets that say "update spacing," "fix typo
 
 ### What Changes
 
-Right now your design system is a shared asset that only one discipline can touch. That constraint made sense when the codebase was new and the team was three people. It does not make sense now — and understanding [how Frontman actually sees the browser](/blog/introducing-frontman/) shows why. You have a real system, real tokens, real components — and the people who built them should be able to maintain them.
+Right now your design system is a shared asset that only one discipline can touch. That constraint made sense when the codebase was new and the team was three people. It does not make sense now — and understanding [how Frontman actually sees the browser](/blog/frontman-launch/) shows why. You have a real system, real tokens, real components — and the people who built them should be able to maintain them.
 
 Move the visual maintenance to the people who own it. Your engineers get their sprint capacity back. Your design system stays consistent across teams. Your PM stops waiting three days to fix a typo. Nobody is blocked on anyone else for changes that take thirty seconds to make and thirty seconds to review.
 

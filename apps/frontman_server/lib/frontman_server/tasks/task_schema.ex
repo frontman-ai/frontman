@@ -16,30 +16,37 @@ defmodule FrontmanServer.Tasks.TaskSchema do
   import Ecto.Query
 
   alias FrontmanServer.Accounts.User
+  alias FrontmanServer.Projects.Project
+  alias FrontmanServer.Sandboxes.Sandbox
   alias FrontmanServer.Tasks.InteractionSchema
 
   @primary_key {:id, :binary_id, autogenerate: false}
   @foreign_key_type :binary_id
   schema "tasks" do
     field(:short_desc, :string)
-    field(:framework, :string)
+    field(:branch, :string)
 
     belongs_to(:user, User)
+    belongs_to(:project, Project)
     has_many(:interactions, InteractionSchema, foreign_key: :task_id)
+    has_many(:sandboxes, Sandbox, foreign_key: :task_id)
 
     timestamps(type: :utc_datetime)
   end
 
   @doc """
   Changeset for creating a new task.
+
+  System fields (id, user_id) are set explicitly — never cast from user input.
   """
-  @spec create_changeset(map()) :: Ecto.Changeset.t()
-  def create_changeset(attrs) do
-    %__MODULE__{}
-    |> cast(attrs, [:id, :short_desc, :framework, :user_id])
-    |> validate_required([:id, :short_desc, :framework, :user_id])
+  @spec create_changeset(String.t(), Ecto.UUID.t(), map()) :: Ecto.Changeset.t()
+  def create_changeset(id, user_id, attrs) do
+    %__MODULE__{id: id, user_id: user_id}
+    |> cast(attrs, [:short_desc, :branch])
+    |> validate_required([:id, :short_desc, :user_id])
     |> unique_constraint(:id, name: :tasks_pkey)
     |> foreign_key_constraint(:user_id)
+    |> foreign_key_constraint(:project_id)
   end
 
   @doc """

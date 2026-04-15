@@ -23,8 +23,8 @@ HASH=$(echo -n "$BRANCH" | eval "$MD5CMD")
 POD_NAME="worktree-${HASH}"
 WT_DIR="$(pwd)/.worktrees/${BRANCH}"
 
-# Derive deterministic port range from hash
-BASE_PORT=$(( 16#${HASH} % 5000 + 10000 ))
+# Derive deterministic port range from hash (stride of 5 to avoid overlap)
+BASE_PORT=$(( (16#${HASH} % 1000) * 5 + 10000 ))
 PORT_PHOENIX=$((BASE_PORT))
 PORT_VITE=$((BASE_PORT + 1))
 PORT_NEXTJS=$((BASE_PORT + 2))

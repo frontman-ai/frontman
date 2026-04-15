@@ -198,6 +198,8 @@ export default defineConfig({
       // Exclude integration redirect pages — they 301 to /docs/integrations/*,
       // which are already in the sitemap.
       if (/(?<!\/docs)\/integrations\/(astro|nextjs|vite)\/?$/.test(item.url)) return undefined;
+      // Exclude noindexed stub pages that exist only for sidebar navigation.
+      if (/\/docs\/guides\/?$/.test(item.url)) return undefined;
 
       // Use the real pubDate for blog and release posts; fall back to
       // build date for everything else.

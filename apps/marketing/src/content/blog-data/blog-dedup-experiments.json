@@ -1,0 +1,165 @@
+{
+  "run_id": "autoresearch-blog-dedup-2026-04-14",
+  "content_type": "blog_post_set",
+  "source_files": [
+    "apps/marketing/src/content/blog/introducing-frontman.md",
+    "apps/marketing/src/content/blog/frontman-launch.md",
+    "apps/marketing/src/content/blog/getting-started.md"
+  ],
+  "min_score_threshold": 80,
+  "score_dimensions": [
+    "uniqueness",
+    "clarity",
+    "would_read",
+    "would_share",
+    "seo_focus"
+  ],
+  "expert_panel": [
+    "CMO at mid-market B2B (50M+ revenue)",
+    "Skeptical founder",
+    "Conversion rate optimizer",
+    "Senior copywriter",
+    "Founder/CEO (direct, ROI-obsessed, no BS)"
+  ],
+  "posts": {
+    "introducing-frontman": {
+      "role": "Problem diagnosis — runtime context gap, why existing tools fail",
+      "rounds": [
+        {
+          "round": 1,
+          "variants_generated": 10,
+          "top_3": [
+            {"id": 7, "title": "AI Agents Edit Files. Users See Pixels.", "avg_score": 80.0},
+            {"id": 4, "title": "File-First AI Is Blind to Your Frontend", "avg_score": 76.0},
+            {"id": 8, "title": "Your Frontend Agent Has Never Seen Your App", "avg_score": 74.8}
+          ]
+        },
+        {
+          "round": 2,
+          "variants_generated": 10,
+          "top_3": [
+            {"id": 12, "title": "Every AI Coding Agent Is Blind to Your UI", "avg_score": 83.6},
+            {"id": 18, "title": "AI Agents Are Guessing What Your UI Looks Like", "avg_score": 83.2},
+            {"id": 11, "title": "AI Agents Edit Files. Users See Pixels. (evolved)", "avg_score": 82.0}
+          ]
+        }
+      ],
+      "winner": {
+        "variant_id": 12,
+        "title": "Every AI Coding Agent Is Blind to Your UI",
+        "score": 83.6,
+        "scores_by_judge": {"cmo": 86, "skeptic": 84, "cro": 82, "copywriter": 82, "founder": 84},
+        "structure": [
+          "Open: Name the agents (Claude Code, Cursor, Copilot). They share a blind spot.",
+          "Body: 4 concrete scenarios — source says X, screen shows Y, agent has no idea.",
+          "Close: The gap is architectural, not intelligence. Define 'runtime context gap'.",
+          "Zero product pitch. Link to launch post for the solution."
+        ]
+      },
+      "runner_ups": [
+        {"title": "AI Agents Are Guessing What Your UI Looks Like", "score": 83.2},
+        {"title": "AI Agents Edit Files. Users See Pixels. (evolved)", "score": 82.0}
+      ]
+    },
+    "frontman-launch": {
+      "role": "Product announcement — capabilities, team benefits, honest tradeoffs",
+      "rounds": [
+        {
+          "round": 1,
+          "variants_generated": 10,
+          "top_3": [
+            {"id": 7, "title": "One-Line Install, Zero-Trust Architecture, Real Code Changes", "avg_score": 80.4},
+            {"id": 10, "title": "Click It. Describe It. Ship It.", "avg_score": 78.0},
+            {"id": 2, "title": "Ship UI Changes Without Waiting for Engineering", "avg_score": 77.6}
+          ]
+        },
+        {
+          "round": 2,
+          "variants_generated": 10,
+          "top_3": [
+            {"id": 19, "title": "Frontman Launch: Ship UI Fixes From the Browser", "avg_score": 84.4},
+            {"id": 11, "title": "One-Line Install. Your Code Never Leaves Your Machine.", "avg_score": 82.4},
+            {"id": 12, "title": "Click. Describe. Ship. Here's How Frontman Works.", "avg_score": 82.0}
+          ]
+        }
+      ],
+      "winner": {
+        "variant_id": 19,
+        "title": "Frontman Launch: Ship UI Fixes From the Browser",
+        "score": 84.4,
+        "scores_by_judge": {"cmo": 86, "skeptic": 84, "cro": 84, "copywriter": 82, "founder": 86},
+        "structure": [
+          "Open: 1-line problem reference + link to problem post",
+          "What Frontman Does — capabilities with examples",
+          "For Teams With a Design System — key differentiator",
+          "How It Works — one paragraph, install info",
+          "What Changes for Your Team — workflow impact",
+          "Honest Tradeoffs — what works, what doesn't",
+          "Why Open Source — security argument",
+          "Get Started — CTA"
+        ]
+      },
+      "runner_ups": [
+        {"title": "One-Line Install. Your Code Never Leaves Your Machine.", "score": 82.4},
+        {"title": "Click. Describe. Ship. Here's How Frontman Works.", "score": 82.0}
+      ]
+    },
+    "getting-started": {
+      "role": "Pure tutorial — step-by-step setup, zero 'why Frontman' messaging",
+      "rounds": [
+        {
+          "round": 1,
+          "variants_generated": 10,
+          "top_3": [
+            {"id": 8, "title": "Frontman Tutorial: From Install to First UI Edit", "avg_score": 80.4},
+            {"id": 4, "title": "Your First Frontman Edit in Under 5 Minutes", "avg_score": 78.0},
+            {"id": 2, "title": "Frontman Quickstart: Install, Connect, Click", "avg_score": 77.6}
+          ]
+        },
+        {
+          "round": 2,
+          "variants_generated": 10,
+          "top_3": [
+            {"id": 15, "title": "Frontman Quickstart: Change a Button Color in 5 Minutes", "avg_score": 84.8},
+            {"id": 11, "title": "From Install to Your First UI Edit (evolved)", "avg_score": 83.2},
+            {"id": 12, "title": "Your First Frontman Edit: A 5-Minute Tutorial", "avg_score": 81.6}
+          ]
+        }
+      ],
+      "winner": {
+        "variant_id": 15,
+        "title": "Frontman Quickstart: Change a Button Color in 5 Minutes",
+        "score": 84.8,
+        "scores_by_judge": {"cmo": 86, "skeptic": 82, "cro": 88, "copywriter": 84, "founder": 84},
+        "structure": [
+          "One specific outcome: change a button to use your primary color",
+          "Prerequisites checklist",
+          "Install (per framework, commands + config)",
+          "Connect AI provider (3 options)",
+          "Walk through ONE edit step-by-step with diff shown",
+          "Done. Next steps links.",
+          "Zero 'why Frontman' content."
+        ]
+      },
+      "runner_ups": [
+        {"title": "From Install to Your First UI Edit (evolved)", "score": 83.2},
+        {"title": "Your First Frontman Edit: A 5-Minute Tutorial", "score": 81.6}
+      ]
+    }
+  },
+  "cross_breed": {
+    "set_scores": {
+      "content_overlap": 90,
+      "internal_linking_logic": 88,
+      "seo_differentiation": 85,
+      "audience_clarity": 88,
+      "set_coherence": 82
+    },
+    "holistic_score": 86.6,
+    "linking_strategy": {
+      "introducing-frontman": "Links to: frontman-launch (solution), runtime-context-gap (deep dive)",
+      "frontman-launch": "Links to: introducing-frontman (problem context), getting-started (tutorial)",
+      "getting-started": "Links to: frontman.sh (docs), frontman-launch (capabilities)"
+    }
+  }
+}

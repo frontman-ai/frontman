@@ -29,6 +29,7 @@ defmodule FrontmanServer.Accounts.User do
     has_many(:memberships, FrontmanServer.Organizations.Membership)
     has_many(:organizations, through: [:memberships, :organization])
     has_many(:identities, FrontmanServer.Accounts.UserIdentity)
+    has_many(:projects, FrontmanServer.Projects.Project)
 
     timestamps(type: :utc_datetime)
   end

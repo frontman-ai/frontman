@@ -5,8 +5,18 @@ defmodule SwarmAi.ParallelToolExecutionTest do
 
   # --- MFA callbacks ---
 
-  def run_with_sleep(delay_ms, tool_call) do
-    Process.sleep(delay_ms)
+  # Sends :ready to coordinator, then blocks until coordinator sends :go.
+  # All N tasks must be alive simultaneously for the coordinator to release them.
+  # Sequential execution deadlocks (coordinator never sees N :ready signals).
+  def run_rendezvous(coordinator, tool_call) do
+    send(coordinator, {:ready, self()})
+
+    receive do
+      :go -> :ok
+    after
+      5_000 -> raise "rendezvous timeout — tools may not be running concurrently"
+    end
+
     ToolResult.make(tool_call.id, "Result", false)
   end
 
@@ -17,20 +27,39 @@ defmodule SwarmAi.ParallelToolExecutionTest do
   describe "batch tool execution through Runtime" do
     test "executes multiple tools concurrently" do
       runtime = start_runtime!()
+      test_pid = self()
+      total = 3
 
       llm =
         multi_turn_llm([
           {:tool_calls,
            [
-             %SwarmAi.ToolCall{id: "tc_1", name: "slow", arguments: "{}"},
-             %SwarmAi.ToolCall{id: "tc_2", name: "slow", arguments: "{}"},
-             %SwarmAi.ToolCall{id: "tc_3", name: "slow", arguments: "{}"}
+             %SwarmAi.ToolCall{id: "tc_1", name: "t1", arguments: "{}"},
+             %SwarmAi.ToolCall{id: "tc_2", name: "t2", arguments: "{}"},
+             %SwarmAi.ToolCall{id: "tc_3", name: "t3", arguments: "{}"}
            ], "Running..."},
           {:complete, "All done"}
         ])
 
       agent = test_agent(llm)
-      start = System.monotonic_time(:millisecond)
+
+      # Collects :ready from all `total` tasks before releasing any.
+      # If tools run sequentially, task 1 blocks on receive :go forever,
+      # task 2 never starts, coordinator never gets total signals → timeout.
+      coordinator =
+        spawn(fn ->
+          pids =
+            Enum.map(1..total, fn _ ->
+              receive do
+                {:ready, pid} -> pid
+              after
+                5_000 -> raise "coordinator timed out — tools not running concurrently"
+              end
+            end)
+
+          send(test_pid, :all_concurrent)
+          Enum.each(pids, &send(&1, :go))
+        end)
 
       executor = fn tool_calls ->
         Enum.map(tool_calls, fn tc ->
@@ -38,22 +67,18 @@ defmodule SwarmAi.ParallelToolExecutionTest do
             tool_call: tc,
             timeout_ms: 5_000,
             on_timeout_policy: :error,
-            run: {__MODULE__, :run_with_sleep, [100]},
+            run: {__MODULE__, :run_rendezvous, [coordinator]},
             on_timeout: {__MODULE__, :noop_timeout, []}
           }
         end)
       end
 
       {:ok, pid} =
-        SwarmAi.Runtime.run(runtime, "task-parallel", agent, "Do work",
-          tool_executor: executor
-        )
+        SwarmAi.Runtime.run(runtime, "task-parallel", agent, "Do work", tool_executor: executor)
 
+      assert_receive :all_concurrent, 5_000
       await_exit(pid)
-
-      elapsed = System.monotonic_time(:millisecond) - start
-      assert_receive {:test_event, "task-parallel", {:completed, {:ok, "All done", _}}, _}
-      assert elapsed < 500, "Expected parallel (<500ms) but took #{elapsed}ms"
+      assert_receive {:test_event, "task-parallel", {:completed, {:ok, "All done", _}}, _}, 2_000
     end
 
     test "fault isolation - crashing tool produces error result, agent continues" do
@@ -90,9 +115,7 @@ defmodule SwarmAi.ParallelToolExecutionTest do
       end
 
       {:ok, pid} =
-        SwarmAi.Runtime.run(runtime, "task-crash", agent, "Do work",
-          tool_executor: executor
-        )
+        SwarmAi.Runtime.run(runtime, "task-crash", agent, "Do work", tool_executor: executor)
 
       await_exit(pid)
       assert_receive {:test_event, "task-crash", {:completed, {:ok, "Handled", _}}, _}, 2_000
@@ -111,10 +134,9 @@ defmodule SwarmAi.ParallelToolExecutionTest do
     name = :"TestRuntime_#{:erlang.unique_integer([:positive])}"
     test_pid = self()
 
-    start_supervised!({SwarmAi.Runtime,
-      name: name,
-      event_dispatcher: {TestDispatcher, :dispatch, [test_pid]}
-    })
+    start_supervised!(
+      {SwarmAi.Runtime, name: name, event_dispatcher: {TestDispatcher, :dispatch, [test_pid]}}
+    )
 
     name
   end

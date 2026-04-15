@@ -128,6 +128,24 @@ defmodule SwarmAi.ParallelExecutorTest do
       assert content_text(r) == "await result"
     end
 
+    test "process_result MFA is called and its return value becomes the ToolResult" do
+      sup = start_sup()
+      tc = make_tc("id1", "mcp1")
+
+      exec = %ToolExecution.Await{
+        tool_call: tc,
+        timeout_ms: 5_000,
+        on_timeout_policy: :error,
+        start: {__MODULE__, :start_await_soon, ["raw content"]},
+        message_key: tc.id,
+        on_timeout: {__MODULE__, :noop_timeout, []},
+        process_result: {__MODULE__, :make_custom_result, []}
+      }
+
+      {:ok, [result]} = ParallelExecutor.run([exec], sup)
+      assert content_text(result) == "enriched!"
+    end
+
     test "Await error result propagates is_error flag" do
       sup = start_sup()
       tc = make_tc("id1", "mcp1")
@@ -357,6 +375,10 @@ defmodule SwarmAi.ParallelExecutorTest do
   end
 
   # --- Additional MFA helpers needed by tests above ---
+
+  def make_custom_result(tool_call, _content, _is_error) do
+    ToolResult.make(tool_call.id, "enriched!", false)
+  end
 
   def start_await_error(pe_pid, tool_call) do
     spawn(fn -> send(pe_pid, {:tool_result, tool_call.id, "mcp error", true}) end)
