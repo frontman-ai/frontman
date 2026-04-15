@@ -60,6 +60,10 @@ defmodule FrontmanServer.Providers.ModelCatalog do
     %{displayName: "Claude Opus 4", value: "claude-opus-4-20250514"}
   ]
 
+  @fireworks_models [
+    %{displayName: "Kimi K2.5 Turbo", value: "accounts/fireworks/routers/kimi-k2p5-turbo"}
+  ]
+
   @openai_models [
     %{displayName: "GPT-5.4", value: "gpt-5.4"},
     %{displayName: "GPT-5.3 Codex", value: "gpt-5.3-codex"},
@@ -72,12 +76,14 @@ defmodule FrontmanServer.Providers.ModelCatalog do
   @models %{
     "openrouter" => %{full: @openrouter_models, free: @openrouter_free_models},
     "anthropic" => %{full: @anthropic_models},
+    "fireworks" => %{full: @fireworks_models},
     "openai" => %{full: @openai_models}
   }
 
   @defaults %{
     "openrouter" => %{provider: "openrouter", value: "google/gemini-3-flash-preview"},
     "anthropic" => %{provider: "anthropic", value: "claude-sonnet-4-5"},
+    "fireworks" => %{provider: "fireworks", value: "accounts/fireworks/routers/kimi-k2p5-turbo"},
     "openai" => %{provider: "openai", value: "gpt-5.4"}
   }
 

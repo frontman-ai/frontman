@@ -219,6 +219,14 @@ module Actions = {
 
   let resetAnthropicKeySaveStatus = () => Client__State__Store.dispatch(ResetAnthropicKeySaveStatus)
 
+  // Fireworks API key settings action creators
+  let fetchFireworksApiKeySettings = () =>
+    Client__State__Store.dispatch(FetchFireworksApiKeySettings)
+
+  let saveFireworksKey = (~key) => Client__State__Store.dispatch(SaveFireworksKey({key: key}))
+
+  let resetFireworksKeySaveStatus = () => Client__State__Store.dispatch(ResetFireworksKeySaveStatus)
+
   // ACP session config option action creators
   let configOptionsReceived = (~configOptions) =>
     Client__State__Store.dispatch(ConfigOptionsReceived({configOptions: configOptions}))

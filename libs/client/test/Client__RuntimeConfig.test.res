@@ -49,6 +49,7 @@ describe("Client__RuntimeConfig", _t => {
       wpNonce: Some("nonce-123"),
       openrouterKeyValue: None,
       anthropicKeyValue: None,
+      fireworksKeyValue: None,
       projectRoot: None,
       sourceRoot: None,
     })
@@ -60,6 +61,31 @@ describe("Client__RuntimeConfig", _t => {
         Dict.fromArray([
           ("framework", JSON.Encode.string("wordpress")),
           ("basePath", JSON.Encode.string("frontman")),
+        ]),
+      ),
+    )
+  })
+
+  test("toMeta forwards fireworksKeyValue when present", t => {
+    let meta = Client__RuntimeConfig.toMeta({
+      framework: Client__RuntimeConfig.Nextjs,
+      basePath: "frontman",
+      wpNonce: None,
+      openrouterKeyValue: None,
+      anthropicKeyValue: None,
+      fireworksKeyValue: Some("fw-test-123"),
+      projectRoot: None,
+      sourceRoot: None,
+    })
+
+    t
+    ->expect(meta)
+    ->Expect.toEqual(
+      JSON.Encode.object(
+        Dict.fromArray([
+          ("framework", JSON.Encode.string("nextjs")),
+          ("basePath", JSON.Encode.string("frontman")),
+          ("fireworksKeyValue", JSON.Encode.string("fw-test-123")),
         ]),
       ),
     )

@@ -17,6 +17,7 @@ module Fixtures = {
     userProfile: None,
     openrouterKeySettings: {source: StateTypes.None, saveStatus: StateTypes.Idle},
     anthropicKeySettings: {source: StateTypes.None, saveStatus: StateTypes.Idle},
+    fireworksKeySettings: {source: StateTypes.None, saveStatus: StateTypes.Idle},
     anthropicOAuthStatus: StateTypes.NotConnected,
     chatgptOAuthStatus: StateTypes.ChatGPTNotConnected,
     configOptions: None,

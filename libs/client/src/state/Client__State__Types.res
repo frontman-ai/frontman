@@ -151,6 +151,7 @@ type state = {
   userProfile: option<userProfile>,
   openrouterKeySettings: apiKeySettings,
   anthropicKeySettings: apiKeySettings,
+  fireworksKeySettings: apiKeySettings,
   anthropicOAuthStatus: anthropicOAuthStatus,
   chatgptOAuthStatus: chatgptOAuthStatus,
   // ACP session config options (replaces bespoke modelsConfig/selectedModel).

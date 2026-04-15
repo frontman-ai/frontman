@@ -41,6 +41,10 @@ module TestHelpers = {
           source: Client__State__Types.None,
           saveStatus: Client__State__Types.Idle,
         },
+        fireworksKeySettings: {
+          source: Client__State__Types.None,
+          saveStatus: Client__State__Types.Idle,
+        },
         anthropicOAuthStatus: Client__State__Types.NotConnected,
         chatgptOAuthStatus: Client__State__Types.ChatGPTNotConnected,
         configOptions: None,
@@ -740,6 +744,10 @@ describe("Client State Reducer - Task Management Actions", () => {
         source: Client__State__Types.None,
         saveStatus: Client__State__Types.Idle,
       },
+      fireworksKeySettings: {
+        source: Client__State__Types.None,
+        saveStatus: Client__State__Types.Idle,
+      },
       anthropicOAuthStatus: Client__State__Types.NotConnected,
       chatgptOAuthStatus: Client__State__Types.ChatGPTNotConnected,
       configOptions: None,
@@ -796,6 +804,10 @@ describe("Client State Reducer - Task Management Actions", () => {
         source: Client__State__Types.None,
         saveStatus: Client__State__Types.Idle,
       },
+      fireworksKeySettings: {
+        source: Client__State__Types.None,
+        saveStatus: Client__State__Types.Idle,
+      },
       anthropicOAuthStatus: Client__State__Types.NotConnected,
       chatgptOAuthStatus: Client__State__Types.ChatGPTNotConnected,
       configOptions: None,
@@ -849,6 +861,10 @@ describe("Client State Reducer - Task Management Actions", () => {
         saveStatus: Client__State__Types.Idle,
       },
       anthropicKeySettings: {
+        source: Client__State__Types.None,
+        saveStatus: Client__State__Types.Idle,
+      },
+      fireworksKeySettings: {
         source: Client__State__Types.None,
         saveStatus: Client__State__Types.Idle,
       },
@@ -926,6 +942,10 @@ describe("Client State Reducer - Task Management Actions", () => {
         saveStatus: Client__State__Types.Idle,
       },
       anthropicKeySettings: {
+        source: Client__State__Types.None,
+        saveStatus: Client__State__Types.Idle,
+      },
+      fireworksKeySettings: {
         source: Client__State__Types.None,
         saveStatus: Client__State__Types.Idle,
       },
@@ -1056,6 +1076,10 @@ describe("Client State Reducer - Session Loading Actions", () => {
         source: Client__State__Types.None,
         saveStatus: Client__State__Types.Idle,
       },
+      fireworksKeySettings: {
+        source: Client__State__Types.None,
+        saveStatus: Client__State__Types.Idle,
+      },
       anthropicOAuthStatus: Client__State__Types.NotConnected,
       chatgptOAuthStatus: Client__State__Types.ChatGPTNotConnected,
       configOptions: None,
@@ -1151,6 +1175,10 @@ describe("Client State Reducer - Session Loading Actions", () => {
         saveStatus: Client__State__Types.Idle,
       },
       anthropicKeySettings: {
+        source: Client__State__Types.None,
+        saveStatus: Client__State__Types.Idle,
+      },
+      fireworksKeySettings: {
         source: Client__State__Types.None,
         saveStatus: Client__State__Types.Idle,
       },

@@ -236,6 +236,9 @@ module Provider = {
         config.anthropicKeyValue->Option.forEach(
           key => envApiKey->Dict.set("anthropicKeyValue", key),
         )
+        config.fireworksKeyValue->Option.forEach(
+          key => envApiKey->Dict.set("fireworksKeyValue", key),
+        )
         let state = StateStore.getState(Client__State__Store.store)
         let model =
           Client__State.Selectors.selectedModelValue(state)->Option.flatMap(

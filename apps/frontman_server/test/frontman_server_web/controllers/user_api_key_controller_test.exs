@@ -21,6 +21,20 @@ defmodule FrontmanServerWeb.UserApiKeyControllerTest do
       assert api_key.key == "sk-test-123"
     end
 
+    test "stores Fireworks keys for logged-in user", %{conn: conn, user: user} do
+      params = %{"provider" => "fireworks", "key" => "fw-test-123"}
+
+      conn = post(conn, ~p"/api/user/api-keys", params)
+      response = json_response(conn, 200)
+
+      assert response["status"] == "ok"
+      assert response["provider"] == "fireworks"
+
+      scope = Scope.for_user(user)
+      api_key = Providers.get_api_key(scope, "fireworks")
+      assert api_key.key == "fw-test-123"
+    end
+
     test "returns unauthorized without user" do
       conn = build_conn()
       conn = post(conn, ~p"/api/user/api-keys", %{provider: "openrouter", key: "sk-test"})
@@ -35,6 +49,17 @@ defmodule FrontmanServerWeb.UserApiKeyControllerTest do
 
     test "returns usage metadata", %{conn: conn} do
       conn = get(conn, ~p"/api/user/api-key-usage")
+      response = json_response(conn, 200)
+
+      assert response["limit"] == Providers.usage_limit()
+      assert response["used"] == 0
+      assert response["remaining"] == Providers.usage_limit()
+      assert response["hasUserKey"] == false
+      assert response["hasServerKey"] in [true, false]
+    end
+
+    test "returns usage metadata for Fireworks", %{conn: conn} do
+      conn = get(conn, ~p"/api/user/api-key-usage?provider=fireworks")
       response = json_response(conn, 200)
 
       assert response["limit"] == Providers.usage_limit()

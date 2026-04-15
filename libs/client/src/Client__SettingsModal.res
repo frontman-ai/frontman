@@ -22,6 +22,7 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
   }, (open_, initialTab))
   let (openrouterKey, setOpenrouterKey) = React.useState(() => "")
   let (anthropicKey, setAnthropicKey) = React.useState(() => "")
+  let (fireworksKey, setFireworksKey) = React.useState(() => "")
   let (oauthCode, setOauthCode) = React.useState(() => "")
   let userProfile = State.useSelector(State.Selectors.userProfile)
   let userEmail = userProfile->Option.map(p => p.email)
@@ -32,6 +33,7 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
   // Get API key settings from state
   let keySettings = State.useSelector(State.Selectors.openrouterKeySettings)
   let anthropicKeySettings = State.useSelector(State.Selectors.anthropicKeySettings)
+  let fireworksKeySettings = State.useSelector(State.Selectors.fireworksKeySettings)
 
   // Get Anthropic OAuth status from state
   let anthropicOAuthStatus = State.useSelector(State.Selectors.anthropicOAuthStatus)
@@ -44,14 +46,17 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
     if open_ {
       State.Actions.fetchApiKeySettings()
       State.Actions.fetchAnthropicApiKeySettings()
+      State.Actions.fetchFireworksApiKeySettings()
       State.Actions.fetchAnthropicOAuthStatus()
       State.Actions.fetchChatGPTOAuthStatus()
       State.Actions.resetOpenRouterKeySaveStatus()
       State.Actions.resetAnthropicKeySaveStatus()
+      State.Actions.resetFireworksKeySaveStatus()
       State.Actions.resetAnthropicOAuthError()
       State.Actions.resetChatGPTOAuthError()
       setOpenrouterKey(_ => "")
       setAnthropicKey(_ => "")
+      setFireworksKey(_ => "")
       setOauthCode(_ => "")
     }
     None
@@ -73,6 +78,13 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
   | Types.SaveError(msg) => (msg, "mt-2 text-xs text-red-400")
   }
 
+  let (fireworksStatusLabel, fireworksStatusClass) = switch fireworksKeySettings.saveStatus {
+  | Types.Idle => ("", "mt-2 text-xs text-zinc-400")
+  | Types.Saving => ("Saving...", "mt-2 text-xs text-zinc-400")
+  | Types.Saved => ("Saved", "mt-2 text-xs text-emerald-300")
+  | Types.SaveError(msg) => (msg, "mt-2 text-xs text-red-400")
+  }
+
   // Determine placeholder text based on key source
   let placeholder = switch keySettings.source {
   | Types.UserOverride => "Key saved - enter new key to replace"
@@ -84,6 +96,12 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
   | Types.UserOverride => "Key saved - enter new key to replace"
   | Types.FromEnv => "Using environment key - enter key to override"
   | Types.None => "Enter Anthropic API key"
+  }
+
+  let fireworksPlaceholder = switch fireworksKeySettings.source {
+  | Types.UserOverride => "Key saved - enter new key to replace"
+  | Types.FromEnv => "Using environment key - enter key to override"
+  | Types.None => "Enter Fireworks API key"
   }
 
   let handleSave = () => {
@@ -103,6 +121,16 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
     } else {
       State.Actions.saveAnthropicKey(~key=trimmedKey)
       setAnthropicKey(_ => "")
+    }
+  }
+
+  let handleFireworksSave = () => {
+    let trimmedKey = String.trim(fireworksKey)
+    if trimmedKey == "" {
+      ()
+    } else {
+      State.Actions.saveFireworksKey(~key=trimmedKey)
+      setFireworksKey(_ => "")
     }
   }
 
@@ -130,6 +158,7 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
     }
 
   let sourceBadge = renderSourceBadge(keySettings.source)
+  let fireworksSourceBadge = renderSourceBadge(fireworksKeySettings.source)
 
   <Dialog.Dialog open_={open_} onOpenChange={onOpenChange}>
     <Dialog.DialogContent
@@ -590,6 +619,57 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-semibold text-zinc-100">
+                          {React.string("Fireworks AI")}
+                        </span>
+                        {fireworksSourceBadge}
+                      </div>
+
+                      <a
+                        href="https://app.fireworks.ai/api-keys"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-xs text-zinc-400 hover:text-zinc-200"
+                      >
+                        {React.string("Manage keys")}
+                      </a>
+                    </div>
+                    <div className="mt-2 text-xs text-zinc-500">
+                      {React.string(
+                        "Use your Fireworks API key with Fire Pass to access Kimi K2.5 Turbo.",
+                      )}
+                    </div>
+                    <div className="mt-3 flex items-center gap-3">
+                      <Input.Input
+                        type_=#password
+                        placeholder={fireworksPlaceholder}
+                        value={fireworksKey}
+                        onChange={e => {
+                          let target = ReactEvent.Form.target(e)
+                          setFireworksKey(_ => target["value"])
+                          State.Actions.resetFireworksKeySaveStatus()
+                        }}
+                        className="flex-1 min-w-0"
+                      />
+                      <Button.Button
+                        variant=#secondary
+                        onClick={_ => handleFireworksSave()}
+                        disabled={fireworksKeySettings.saveStatus == Types.Saving}
+                      >
+                        {React.string(
+                          fireworksKeySettings.saveStatus == Types.Saving ? "Saving..." : "Save",
+                        )}
+                      </Button.Button>
+                    </div>
+                    {fireworksStatusLabel != ""
+                      ? <div className={fireworksStatusClass}>
+                          {React.string(fireworksStatusLabel)}
+                        </div>
+                      : React.null}
+                  </div>
+                  <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-semibold text-zinc-100">
                           {React.string("OpenRouter")}
                         </span>
                         {sourceBadge}

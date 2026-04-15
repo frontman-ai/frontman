@@ -204,6 +204,10 @@ let snapshotToState = (snapshot: Snapshot.t): StateTypes.state => {
       source: Client__State__Types.None,
       saveStatus: Client__State__Types.Idle,
     },
+    fireworksKeySettings: {
+      source: Client__State__Types.None,
+      saveStatus: Client__State__Types.Idle,
+    },
     anthropicOAuthStatus: Client__State__Types.NotConnected,
     chatgptOAuthStatus: Client__State__Types.ChatGPTNotConnected,
     configOptions: None,

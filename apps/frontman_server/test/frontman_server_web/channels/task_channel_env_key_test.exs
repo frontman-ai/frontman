@@ -39,6 +39,16 @@ defmodule FrontmanServerWeb.TaskChannelEnvKeyTest do
       })
     end
 
+    test "accepts prompt with fireworksKeyValue", %{socket: socket} do
+      push_prompt_and_assert_accepted(socket, %{
+        "fireworksKeyValue" => "fw-test-key-789",
+        "model" => %{
+          "provider" => "fireworks",
+          "value" => "accounts/fireworks/routers/kimi-k2p5-turbo"
+        }
+      })
+    end
+
     test "accepts prompt with both env keys", %{socket: socket} do
       push_prompt_and_assert_accepted(socket, %{
         "openrouterKeyValue" => "sk-or-both-test",

@@ -19,7 +19,7 @@ defmodule FrontmanServer.Providers.ImageDimensionIntegrationTest do
     end
 
     test "all other providers have no dimension limit" do
-      for provider <- ["openrouter", "openai", "google", "xai"] do
+      for provider <- ["openrouter", "openai", "fireworks", "google", "xai"] do
         assert Registry.max_image_dimension(provider) == nil,
                "Expected nil max_image_dimension for #{provider}"
       end

@@ -56,6 +56,7 @@ config :phoenix_live_view,
 # LLM Configuration
 config :frontman_server,
   anthropic_api_key: "sk-ant-test-key",
+  fireworks_api_key: "sk-fireworks-test-key",
   openai_api_key: "sk-proj-test-key",
   # Test key for Cloak encryption (generated with :crypto.strong_rand_bytes(32) |> Base.encode64())
   cloak_key: "dGVzdGtleXRlc3RrZXl0ZXN0a2V5dGVzdGtleTEyMzQ="

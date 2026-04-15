@@ -130,7 +130,9 @@ let make = () => {
   )
   let runtimeConfig = RuntimeConfig.read()
   let hasEnvKey =
-    RuntimeConfig.hasOpenrouterKey(runtimeConfig) || RuntimeConfig.hasAnthropicKey(runtimeConfig)
+    RuntimeConfig.hasOpenrouterKey(runtimeConfig) ||
+    RuntimeConfig.hasAnthropicKey(runtimeConfig) ||
+    RuntimeConfig.hasFireworksKey(runtimeConfig)
   let hasAnyKey = hasProviderConfigured || hasEnvKey
 
   let modelConfigOption =

@@ -85,6 +85,14 @@ defmodule FrontmanServer.ProvidersFixtures do
     [api_key: "sk-or-test", key_source: :user_key, model: "openrouter:openai/gpt-5.1-codex"]
   end
 
+  defp defaults_for("fireworks") do
+    [
+      api_key: "fw-test-key",
+      key_source: :user_key,
+      model: "fireworks:accounts/fireworks/routers/kimi-k2p5-turbo"
+    ]
+  end
+
   defp defaults_for("openai") do
     [
       api_key: "chatgpt-token",

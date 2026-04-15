@@ -44,6 +44,7 @@ type parsed = {
   wpNonce: option<string>,
   openrouterKeyValue: option<string>,
   anthropicKeyValue: option<string>,
+  fireworksKeyValue: option<string>,
   projectRoot: option<string>,
   sourceRoot: option<string>,
 }
@@ -54,6 +55,7 @@ type t = {
   wpNonce: option<string>,
   openrouterKeyValue: option<string>,
   anthropicKeyValue: option<string>,
+  fireworksKeyValue: option<string>,
   projectRoot: option<string>,
   sourceRoot: option<string>,
 }
@@ -76,6 +78,7 @@ let read = (): t => {
     wpNonce: config.wpNonce,
     openrouterKeyValue: config.openrouterKeyValue,
     anthropicKeyValue: config.anthropicKeyValue,
+    fireworksKeyValue: config.fireworksKeyValue,
     projectRoot: config.projectRoot,
     sourceRoot: config.sourceRoot,
   }
@@ -91,6 +94,11 @@ let hasAnthropicKey = (config: t): bool => {
   config.anthropicKeyValue->Option.isSome
 }
 
+// Check if a Fireworks API key is available from the project environment
+let hasFireworksKey = (config: t): bool => {
+  config.fireworksKeyValue->Option.isSome
+}
+
 // Model update checks explicitly so WordPress doesn't silently pretend to have
 // an npm package.
 let frameworkUpdateTarget = (id: frameworkId): updateTarget =>
@@ -102,8 +110,8 @@ let frameworkUpdateTarget = (id: frameworkId): updateTarget =>
   }
 
 // Convert runtime config to _meta JSON for ACP requests
-// Includes framework and openrouterKeyValue so the server knows
-// which framework the client is running in and can use the project's env key
+// Includes framework and forwarded provider keys so the server knows
+// which framework the client is running in and can use the project's env keys
 let toMeta = (config: t): JSON.t => {
   let configObj = Dict.fromArray([
     ("framework", JSON.Encode.string(frameworkIdToString(config.framework))),
@@ -114,6 +122,9 @@ let toMeta = (config: t): JSON.t => {
   })
   config.anthropicKeyValue->Option.forEach(key => {
     configObj->Dict.set("anthropicKeyValue", JSON.Encode.string(key))
+  })
+  config.fireworksKeyValue->Option.forEach(key => {
+    configObj->Dict.set("fireworksKeyValue", JSON.Encode.string(key))
   })
   JSON.Encode.object(configObj)
 }

@@ -7,6 +7,7 @@ defmodule FrontmanServer.Providers.RegistryTest do
     test "is case-insensitive" do
       assert Registry.known?("OpenRouter")
       assert Registry.known?("ANTHROPIC")
+      assert Registry.known?("Fireworks")
       assert Registry.known?("openrouter")
     end
   end
@@ -15,11 +16,17 @@ defmodule FrontmanServer.Providers.RegistryTest do
     test "extracts known keys from metadata" do
       metadata = %{
         "openrouterKeyValue" => "sk-or-123",
-        "anthropicKeyValue" => "sk-ant-456"
+        "anthropicKeyValue" => "sk-ant-456",
+        "fireworksKeyValue" => "fw-789"
       }
 
       result = Registry.extract_env_keys(metadata)
-      assert result == %{"openrouter" => "sk-or-123", "anthropic" => "sk-ant-456"}
+
+      assert result == %{
+               "openrouter" => "sk-or-123",
+               "anthropic" => "sk-ant-456",
+               "fireworks" => "fw-789"
+             }
     end
 
     test "ignores empty string values" do

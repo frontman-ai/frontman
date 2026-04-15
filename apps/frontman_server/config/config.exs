@@ -22,6 +22,7 @@ config :frontman_server, :scopes,
 
 config :req_llm,
   receive_timeout: 150_000,
+  custom_providers: [FrontmanServer.Providers.Fireworks],
   # Override default Finch pool (8 connections) to handle concurrent LLM streams.
   # See https://github.com/frontman-ai/frontman/issues/428
   finch: [
@@ -197,6 +198,26 @@ config :llm_db,
         }
       }
     ],
+    fireworks: [
+      name: "Fireworks AI",
+      base_url: "https://api.fireworks.ai/inference/v1",
+      env: ["FIREWORKS_API_KEY"],
+      doc: "https://docs.fireworks.ai/firepass",
+      models: %{
+        "accounts/fireworks/routers/kimi-k2p5-turbo" => %{
+          name: "Kimi K2.5 Turbo",
+          family: "kimi-thinking",
+          capabilities: %{
+            chat: true,
+            reasoning: %{enabled: true},
+            streaming: %{text: true, tool_calls: true},
+            tools: %{enabled: true}
+          },
+          limits: %{context: 256_000, output: 256_000},
+          modalities: %{input: [:text, :image], output: [:text]}
+        }
+      }
+    ],
     anthropic: [
       models: %{
         "claude-opus-4-6" => %{
@@ -283,6 +304,16 @@ config :frontman_server, :providers, %{
     priority: 30,
     oauth_provider: nil,
     env_key_param: "hasEnvKey",
+    max_image_dimension: nil
+  },
+  "fireworks" => %{
+    config_key: :fireworks_api_key,
+    env_var: "FIREWORKS_API_KEY",
+    env_key_name: "fireworksKeyValue",
+    display_name: "Fireworks AI",
+    priority: 35,
+    oauth_provider: nil,
+    env_key_param: nil,
     max_image_dimension: nil
   },
   "google" => %{
