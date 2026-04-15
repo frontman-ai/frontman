@@ -28,41 +28,57 @@ let make = (~baseUrl: string, ~requestHeaders: Dict.t<string>=Dict.make()): t =>
 let isConnected = (relay: t): bool => {
   switch relay.state.contents {
   | Connected(_) => true
-  | _ => false
+  | Disconnected | Error(_) => false
   }
 }
 
 let getState = (relay: t): relayState => relay.state.contents
 
 // Connect to dev server and fetch tools
-let connect = async (relay: t): result<unit, string> => {
+let connect = async (relay: t, ~signal: option<WebAPI.EventAPI.abortSignal>=?): result<
+  unit,
+  string,
+> => {
   let url = `${relay.baseUrl}/frontman/tools`
-  let response = await WebAPI.Global.fetch(
-    url,
-    ~init={headers: WebAPI.HeadersInit.fromDict(relay.requestHeaders)},
-  )
+  try {
+    let response = await WebAPI.Global.fetch(
+      url,
+      ~init={
+        headers: WebAPI.HeadersInit.fromDict(relay.requestHeaders),
+        signal: ?(signal->Option.map(Null.make)),
+      },
+    )
 
-  if !response.ok {
-    let msg = `HTTP ${response.status->Int.toString}: ${response.statusText}`
+    switch response.ok {
+    | false =>
+      let msg = `HTTP ${response.status->Int.toString}: ${response.statusText}`
+      Log.error(~ctx={"url": url}, msg)
+      relay.state := Error(msg)
+      Error(msg)
+    | true =>
+      let json = await response->WebAPI.Response.json
+      switch json->Decoders.parseSchema(Types.toolsResponseSchema) {
+      | Ok(data) =>
+        Log.info(
+          ~ctx={"toolCount": data.tools->Array.length, "serverInfo": data.serverInfo},
+          "Relay connected",
+        )
+        relay.state := Connected({tools: data.tools, serverInfo: data.serverInfo})
+        Ok()
+      | Error(parseError) =>
+        let msg = `Invalid tools response: ${parseError}`
+        Log.error(msg)
+        relay.state := Error(msg)
+        Error(msg)
+      }
+    }
+  } catch {
+  | exn =>
+    let msg =
+      exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Relay fetch failed")
     Log.error(~ctx={"url": url}, msg)
     relay.state := Error(msg)
     Error(msg)
-  } else {
-    let json = await response->WebAPI.Response.json
-    switch json->Decoders.parseSchema(Types.toolsResponseSchema) {
-    | Ok(data) =>
-      Log.info(
-        ~ctx={"toolCount": data.tools->Array.length, "serverInfo": data.serverInfo},
-        "Relay connected",
-      )
-      relay.state := Connected({tools: data.tools, serverInfo: data.serverInfo})
-      Ok()
-    | Error(parseError) =>
-      let msg = `Invalid tools response: ${parseError}`
-      Log.error(msg)
-      relay.state := Error(msg)
-      Error(msg)
-    }
   }
 }
 
@@ -85,7 +101,7 @@ let getToolsJson = (relay: t): array<JSON.t> => {
         },
       )
     )
-  | _ => []
+  | Disconnected | Error(_) => []
   }
 }
 
@@ -93,7 +109,7 @@ let getToolsJson = (relay: t): array<JSON.t> => {
 let hasTool = (relay: t, name: string): bool => {
   switch relay.state.contents {
   | Connected({tools}) => tools->Array.some(tool => tool.name == name)
-  | _ => false
+  | Disconnected | Error(_) => false
   }
 }
 
@@ -104,10 +120,11 @@ let executeTool = async (
   ~arguments: option<Dict.t<JSON.t>>=?,
   ~onProgress: option<string => unit>=?,
 ): result<MCPTypes.callToolResult, string> => {
-  if !(relay->isConnected) {
+  switch relay->isConnected {
+  | false =>
     Log.warning("Cannot execute tool: relay not connected")
     Error("Relay not connected")
-  } else {
+  | true =>
     Log.debug(~ctx={"tool": name}, "Executing relay tool")
     let url = `${relay.baseUrl}/frontman/tools/call`
     let request: Types.toolCallRequest = {name, arguments}
@@ -118,28 +135,39 @@ let executeTool = async (
     ])
     relay.requestHeaders->Dict.forEachWithKey((value, key) => headers->Dict.set(key, value))
 
-    let response = await WebAPI.Global.fetch(
-      url,
-      ~init={
-        method: "POST",
-        headers: WebAPI.HeadersInit.fromDict(headers),
-        body: WebAPI.BodyInit.fromString(JSON.stringify(body)),
-      },
-    )
+    try {
+      let response = await WebAPI.Global.fetch(
+        url,
+        ~init={
+          method: "POST",
+          headers: WebAPI.HeadersInit.fromDict(headers),
+          body: WebAPI.BodyInit.fromString(JSON.stringify(body)),
+        },
+      )
 
-    if !response.ok {
-      let msg = `HTTP ${response.status->Int.toString}: ${response.statusText}`
-      Log.error(~ctx={"tool": name}, msg)
-      Error(msg)
-    } else {
-      // Read SSE stream and return result
-      switch await SSE.readStream(response, ~onProgress?) {
-      | Ok(json) =>
-        json
-        ->Decoders.parseSchema(MCPTypes.callToolResultSchema)
-        ->Result.mapError(msg => `Invalid result: ${msg}`)
-      | Error(msg) => Error(msg)
+      switch response.ok {
+      | false =>
+        let msg = `HTTP ${response.status->Int.toString}: ${response.statusText}`
+        Log.error(~ctx={"tool": name}, msg)
+        Error(msg)
+      | true =>
+        switch await SSE.readStream(response, ~onProgress?) {
+        | Ok(json) =>
+          json
+          ->Decoders.parseSchema(MCPTypes.callToolResultSchema)
+          ->Result.mapError(msg => `Invalid result: ${msg}`)
+        | Error(msg) => Error(msg)
+        }
       }
+    } catch {
+    | exn =>
+      let msg =
+        exn
+        ->JsExn.fromException
+        ->Option.flatMap(JsExn.message)
+        ->Option.getOr("Relay tool execution failed")
+      Log.error(~ctx={"tool": name, "url": url}, msg)
+      Error(msg)
     }
   }
 }
