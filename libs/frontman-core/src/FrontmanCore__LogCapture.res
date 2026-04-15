@@ -185,29 +185,29 @@ let interceptConsole: state => unit = %raw(`(function(state) {
   const originalDebug = console.debug.bind(console);
 
   console.log = (...args) => {
-    handleConsoleLog(state, args);
     state.insideConsoleHandler.contents = true;
     try { originalLog(...args); } finally { state.insideConsoleHandler.contents = false; }
+    handleConsoleLog(state, args);
   };
   console.warn = (...args) => {
-    handleConsoleWarn(state, args);
     state.insideConsoleHandler.contents = true;
     try { originalWarn(...args); } finally { state.insideConsoleHandler.contents = false; }
+    handleConsoleWarn(state, args);
   };
   console.error = (...args) => {
-    handleConsoleError(state, args);
     state.insideConsoleHandler.contents = true;
     try { originalError(...args); } finally { state.insideConsoleHandler.contents = false; }
+    handleConsoleError(state, args);
   };
   console.info = (...args) => {
-    handleConsoleInfo(state, args);
     state.insideConsoleHandler.contents = true;
     try { originalInfo(...args); } finally { state.insideConsoleHandler.contents = false; }
+    handleConsoleInfo(state, args);
   };
   console.debug = (...args) => {
-    handleConsoleDebug(state, args);
     state.insideConsoleHandler.contents = true;
     try { originalDebug(...args); } finally { state.insideConsoleHandler.contents = false; }
+    handleConsoleDebug(state, args);
   };
 })`)
 

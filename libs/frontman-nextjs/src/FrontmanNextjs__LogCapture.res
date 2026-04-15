@@ -133,48 +133,28 @@ let detectLevel = (state: state, message: string): logLevel => {
 }
 
 let handleConsoleLog = (state: state, args: array<'a>): unit => {
-  try {
-    let message = argsToString(args)
-    addLog(state, detectLevel(state, message), message, ~consoleMethod=Log)
-  } catch {
-  | _ => ()
-  }
+  let message = argsToString(args)
+  addLog(state, detectLevel(state, message), message, ~consoleMethod=Log)
 }
 
 let handleConsoleWarn = (state: state, args: array<'a>): unit => {
-  try {
-    let message = argsToString(args)
-    addLog(state, detectLevel(state, message), message, ~consoleMethod=Warn)
-  } catch {
-  | _ => ()
-  }
+  let message = argsToString(args)
+  addLog(state, detectLevel(state, message), message, ~consoleMethod=Warn)
 }
 
 let handleConsoleError = (state: state, args: array<'a>): unit => {
-  try {
-    let message = argsToString(args)
-    addLog(state, detectLevel(state, message), message, ~consoleMethod=ConsoleError)
-  } catch {
-  | _ => ()
-  }
+  let message = argsToString(args)
+  addLog(state, detectLevel(state, message), message, ~consoleMethod=ConsoleError)
 }
 
 let handleConsoleInfo = (state: state, args: array<'a>): unit => {
-  try {
-    let message = argsToString(args)
-    addLog(state, detectLevel(state, message), message, ~consoleMethod=Info)
-  } catch {
-  | _ => ()
-  }
+  let message = argsToString(args)
+  addLog(state, detectLevel(state, message), message, ~consoleMethod=Info)
 }
 
 let handleConsoleDebug = (state: state, args: array<'a>): unit => {
-  try {
-    let message = argsToString(args)
-    addLog(state, detectLevel(state, message), message, ~consoleMethod=Debug)
-  } catch {
-  | _ => ()
-  }
+  let message = argsToString(args)
+  addLog(state, detectLevel(state, message), message, ~consoleMethod=Debug)
 }
 
 // Variadic interceptConsole implemented in raw JavaScript to fix variadic arguments bug
@@ -186,24 +166,24 @@ let interceptConsole: state => unit = %raw(`(function(state) {
   const originalDebug = console.debug.bind(console);
 
   console.log = (...args) => {
-    handleConsoleLog(state, args);
     originalLog(...args);
+    handleConsoleLog(state, args);
   };
   console.warn = (...args) => {
-    handleConsoleWarn(state, args);
     originalWarn(...args);
+    handleConsoleWarn(state, args);
   };
   console.error = (...args) => {
-    handleConsoleError(state, args);
     originalError(...args);
+    handleConsoleError(state, args);
   };
   console.info = (...args) => {
-    handleConsoleInfo(state, args);
     originalInfo(...args);
+    handleConsoleInfo(state, args);
   };
   console.debug = (...args) => {
-    handleConsoleDebug(state, args);
     originalDebug(...args);
+    handleConsoleDebug(state, args);
   };
 })`)
 
