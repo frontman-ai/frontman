@@ -75,13 +75,13 @@ defmodule FrontmanServer.Accounts.WorkOS do
   5. Creates a new user + identity → logs in
 
   Returns `{:ok, user, oauth_tokens}` on success or `{:error, reason}` on failure.
-  `oauth_tokens` is `{:ok, tokens_map}` when the provider returned tokens, or `:none`.
+  `oauth_tokens` is `%{provider: "github", ...}` or `nil`.
 
   Note: We use a raw HTTP call instead of the SDK to capture the full error
   response, including `pending_authentication_token` for email verification.
   """
   @spec authenticate_with_code(String.t()) ::
-          {:ok, User.t(), {String.t(), {:ok, map()} | :none}} | {:error, term()}
+          {:ok, User.t(), map() | nil} | {:error, term()}
   def authenticate_with_code(code) do
     with {:ok, auth_response} <- authenticate_with_code_raw(code) do
       resolve_user_from_auth(auth_response)
@@ -96,7 +96,7 @@ defmodule FrontmanServer.Accounts.WorkOS do
   the pending authentication token to complete the flow.
   """
   @spec authenticate_with_email_verification(String.t(), String.t()) ::
-          {:ok, User.t(), {String.t(), {:ok, map()} | :none}} | {:error, term()}
+          {:ok, User.t(), map() | nil} | {:error, term()}
   def authenticate_with_email_verification(code, pending_authentication_token) do
     body = %{
       client_id: workos_client_id(),
@@ -106,10 +106,9 @@ defmodule FrontmanServer.Accounts.WorkOS do
       pending_authentication_token: pending_authentication_token
     }
 
-    case Req.post("#{@workos_api_base}/user_management/authenticate",
-           json: body,
-           receive_timeout: @http_timeout_ms
-         ) do
+    opts = [json: body, receive_timeout: @http_timeout_ms] ++ workos_req_options()
+
+    case Req.post("#{@workos_api_base}/user_management/authenticate", opts) do
       {:ok, %Req.Response{status: 200, body: response_body}} ->
         with {:ok, auth_response} <- parse_auth_response(response_body) do
           resolve_user_from_auth(auth_response)
@@ -182,31 +181,36 @@ defmodule FrontmanServer.Accounts.WorkOS do
   @doc """
   Extracts provider OAuth tokens from the raw WorkOS authentication response body.
 
-  Returns `{:ok, tokens_map}` when present, or `:none` when absent.
+  Returns a plain map of token fields when present, or `nil` when absent.
   """
-  @spec extract_oauth_tokens(map()) :: {:ok, map()} | :none
+  @spec extract_oauth_tokens(map()) :: map() | nil
   def extract_oauth_tokens(%{"oauth_tokens" => %{"access_token" => _} = tokens}) do
-    {:ok,
-     %{
-       access_token: tokens["access_token"],
-       refresh_token: tokens["refresh_token"],
-       expires_at: tokens["expires_at"],
-       scopes: tokens["scopes"]
-     }}
+    %{
+      access_token: tokens["access_token"],
+      refresh_token: tokens["refresh_token"],
+      expires_at: tokens["expires_at"],
+      scopes: tokens["scopes"]
+    }
   end
 
-  def extract_oauth_tokens(_body), do: :none
+  def extract_oauth_tokens(_body), do: nil
 
   # Private functions
 
   defp resolve_user_from_auth(auth_response) do
     with {:ok, profile} <- extract_profile(auth_response) do
       case find_or_create_user_from_oauth(profile) do
-        {:ok, user} -> {:ok, user, {profile.provider, auth_response[:oauth_tokens]}}
-        {:error, _} = error -> error
+        {:ok, user} ->
+          {:ok, user, build_oauth_tokens(profile.provider, auth_response[:oauth_tokens])}
+
+        {:error, _} = error ->
+          error
       end
     end
   end
+
+  defp build_oauth_tokens(provider, %{} = tokens), do: Map.put(tokens, :provider, provider)
+  defp build_oauth_tokens(_provider, nil), do: nil
 
   defp extract_profile(%{user: user, authentication_method: auth_method}) do
     provider = workos_to_provider(auth_method)
@@ -341,10 +345,9 @@ defmodule FrontmanServer.Accounts.WorkOS do
       code: code
     }
 
-    case Req.post("#{@workos_api_base}/user_management/authenticate",
-           json: body,
-           receive_timeout: @http_timeout_ms
-         ) do
+    opts = [json: body, receive_timeout: @http_timeout_ms] ++ workos_req_options()
+
+    case Req.post("#{@workos_api_base}/user_management/authenticate", opts) do
       {:ok, %Req.Response{status: 200, body: response_body}} ->
         parse_auth_response(response_body)
 
@@ -391,5 +394,9 @@ defmodule FrontmanServer.Accounts.WorkOS do
 
   defp workos_client_id do
     Application.get_env(:workos, WorkOS.Client)[:client_id]
+  end
+
+  defp workos_req_options do
+    Application.get_env(:frontman_server, :workos_req_options, [])
   end
 end
