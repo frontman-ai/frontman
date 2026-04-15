@@ -80,6 +80,7 @@ describe("LogCapture", _t => {
       _t => {
         let state = LogCapture.getOrCreateInstance(~config=LogCapture.defaultConfig)
         LogCapture.interceptConsole(state)
+        LogCapture.interceptStdout(state)
       },
     )
 
@@ -110,6 +111,19 @@ describe("LogCapture", _t => {
           )
 
         t->expect(found)->Expect.toBe(true)
+      },
+    )
+
+    test(
+      "console.log matching build pattern does not produce duplicate entries",
+      t => {
+        let marker = "turbopack compiled zzz-dedup-test"
+        Console.log(marker)
+
+        let buildLogs = LogCapture.getLogs(~level=Build)
+        let matches = buildLogs->Array.filter(log => log.message->String.includes(marker))
+
+        t->expect(matches->Array.length)->Expect.toBe(1)
       },
     )
   })

@@ -68,6 +68,7 @@ let defaultConfig: config = {
 type state = {
   buffer: ref<CircularBuffer.t<logEntry>>,
   config: config,
+  insideConsoleHandler: ref<bool>,
 }
 
 let getGlobalInstanceOpt = (): option<state> => %raw(`globalThis.__FRONTMAN_CORE_INSTANCE__`)
@@ -81,6 +82,7 @@ let getOrCreateInstance = (~config: config): state => {
     let state = {
       buffer: ref(CircularBuffer.make(~capacity=config.bufferCapacity)),
       config,
+      insideConsoleHandler: ref(false),
     }
     setGlobalInstance(state)
     state
@@ -150,48 +152,28 @@ let detectLevel = (state: state, message: string): logLevel => {
 }
 
 let handleConsoleLog = (state: state, args: array<'a>): unit => {
-  try {
-    let message = argsToString(args)
-    addLog(state, detectLevel(state, message), message, ~consoleMethod=Log)
-  } catch {
-  | _ => ()
-  }
+  let message = argsToString(args)
+  addLog(state, detectLevel(state, message), message, ~consoleMethod=Log)
 }
 
 let handleConsoleWarn = (state: state, args: array<'a>): unit => {
-  try {
-    let message = argsToString(args)
-    addLog(state, detectLevel(state, message), message, ~consoleMethod=Warn)
-  } catch {
-  | _ => ()
-  }
+  let message = argsToString(args)
+  addLog(state, detectLevel(state, message), message, ~consoleMethod=Warn)
 }
 
 let handleConsoleError = (state: state, args: array<'a>): unit => {
-  try {
-    let message = argsToString(args)
-    addLog(state, detectLevel(state, message), message, ~consoleMethod=ConsoleError)
-  } catch {
-  | _ => ()
-  }
+  let message = argsToString(args)
+  addLog(state, detectLevel(state, message), message, ~consoleMethod=ConsoleError)
 }
 
 let handleConsoleInfo = (state: state, args: array<'a>): unit => {
-  try {
-    let message = argsToString(args)
-    addLog(state, detectLevel(state, message), message, ~consoleMethod=Info)
-  } catch {
-  | _ => ()
-  }
+  let message = argsToString(args)
+  addLog(state, detectLevel(state, message), message, ~consoleMethod=Info)
 }
 
 let handleConsoleDebug = (state: state, args: array<'a>): unit => {
-  try {
-    let message = argsToString(args)
-    addLog(state, detectLevel(state, message), message, ~consoleMethod=Debug)
-  } catch {
-  | _ => ()
-  }
+  let message = argsToString(args)
+  addLog(state, detectLevel(state, message), message, ~consoleMethod=Debug)
 }
 
 // Variadic interceptConsole implemented in raw JavaScript to handle variadic arguments
@@ -204,36 +186,46 @@ let interceptConsole: state => unit = %raw(`(function(state) {
 
   console.log = (...args) => {
     handleConsoleLog(state, args);
+    state.insideConsoleHandler.contents = true;
     originalLog(...args);
+    state.insideConsoleHandler.contents = false;
   };
   console.warn = (...args) => {
     handleConsoleWarn(state, args);
+    state.insideConsoleHandler.contents = true;
     originalWarn(...args);
+    state.insideConsoleHandler.contents = false;
   };
   console.error = (...args) => {
     handleConsoleError(state, args);
+    state.insideConsoleHandler.contents = true;
     originalError(...args);
+    state.insideConsoleHandler.contents = false;
   };
   console.info = (...args) => {
     handleConsoleInfo(state, args);
+    state.insideConsoleHandler.contents = true;
     originalInfo(...args);
+    state.insideConsoleHandler.contents = false;
   };
   console.debug = (...args) => {
     handleConsoleDebug(state, args);
+    state.insideConsoleHandler.contents = true;
     originalDebug(...args);
+    state.insideConsoleHandler.contents = false;
   };
 })`)
 
 let handleStdoutWrite = (state: state, message: string): unit => {
-  try {
+  switch state.insideConsoleHandler.contents {
+  | true => ()
+  | false =>
     let matchesPattern =
       state.config.stdoutPatterns->Array.some(pattern => message->String.includes(pattern))
     switch matchesPattern {
     | true => addLog(state, Build, message)
     | false => ()
     }
-  } catch {
-  | _ => ()
   }
 }
 
