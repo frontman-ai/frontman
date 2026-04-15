@@ -11,20 +11,20 @@ defmodule FrontmanServer.Accounts.UserIdentityTest do
     end
 
     test "valid attributes", %{user: user} do
-      attrs = valid_identity_attributes(user_id: user.id)
-      changeset = UserIdentity.changeset(%UserIdentity{}, attrs)
+      attrs = valid_identity_attributes()
+      changeset = UserIdentity.changeset(%UserIdentity{user_id: user.id}, attrs)
       assert changeset.valid?
     end
 
     test "requires provider", %{user: user} do
-      attrs = valid_identity_attributes(user_id: user.id) |> Map.delete(:provider)
-      changeset = UserIdentity.changeset(%UserIdentity{}, attrs)
+      attrs = valid_identity_attributes() |> Map.delete(:provider)
+      changeset = UserIdentity.changeset(%UserIdentity{user_id: user.id}, attrs)
       assert %{provider: ["can't be blank"]} = errors_on(changeset)
     end
 
     test "requires provider_id", %{user: user} do
-      attrs = valid_identity_attributes(user_id: user.id) |> Map.delete(:provider_id)
-      changeset = UserIdentity.changeset(%UserIdentity{}, attrs)
+      attrs = valid_identity_attributes() |> Map.delete(:provider_id)
+      changeset = UserIdentity.changeset(%UserIdentity{user_id: user.id}, attrs)
       assert %{provider_id: ["can't be blank"]} = errors_on(changeset)
     end
 
@@ -35,20 +35,20 @@ defmodule FrontmanServer.Accounts.UserIdentityTest do
     end
 
     test "validates provider is github or google", %{user: user} do
-      attrs = valid_identity_attributes(user_id: user.id, provider: "invalid")
-      changeset = UserIdentity.changeset(%UserIdentity{}, attrs)
+      attrs = valid_identity_attributes(provider: "invalid")
+      changeset = UserIdentity.changeset(%UserIdentity{user_id: user.id}, attrs)
       assert %{provider: ["is invalid"]} = errors_on(changeset)
     end
 
     test "accepts github provider", %{user: user} do
-      attrs = valid_identity_attributes(user_id: user.id, provider: "github")
-      changeset = UserIdentity.changeset(%UserIdentity{}, attrs)
+      attrs = valid_identity_attributes(provider: "github")
+      changeset = UserIdentity.changeset(%UserIdentity{user_id: user.id}, attrs)
       assert changeset.valid?
     end
 
     test "accepts google provider", %{user: user} do
-      attrs = valid_identity_attributes(user_id: user.id, provider: "google")
-      changeset = UserIdentity.changeset(%UserIdentity{}, attrs)
+      attrs = valid_identity_attributes(provider: "google")
+      changeset = UserIdentity.changeset(%UserIdentity{user_id: user.id}, attrs)
       assert changeset.valid?
     end
 
@@ -56,8 +56,8 @@ defmodule FrontmanServer.Accounts.UserIdentityTest do
       _existing = identity_fixture(user, provider: "github")
 
       {:error, changeset} =
-        %UserIdentity{}
-        |> UserIdentity.changeset(valid_identity_attributes(user_id: user.id, provider: "github"))
+        %UserIdentity{user_id: user.id}
+        |> UserIdentity.changeset(valid_identity_attributes(provider: "github"))
         |> Repo.insert()
 
       assert %{user_id: ["you have already connected this provider"]} = errors_on(changeset)
@@ -68,10 +68,9 @@ defmodule FrontmanServer.Accounts.UserIdentityTest do
       other_user = user_fixture()
 
       {:error, changeset} =
-        %UserIdentity{}
+        %UserIdentity{user_id: other_user.id}
         |> UserIdentity.changeset(
           valid_identity_attributes(
-            user_id: other_user.id,
             provider: "github",
             provider_id: existing.provider_id
           )
