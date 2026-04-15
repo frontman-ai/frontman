@@ -69,15 +69,15 @@ defmodule FrontmanServer.Accounts.WorkOS do
   4. Checks if a user exists with matching email → links identity and logs in
   5. Creates a new user + identity → logs in
 
-  Returns `{:ok, user}` on success or `{:error, reason}` on failure.
+  Returns `{:ok, user, oauth_tokens}` on success or `{:error, reason}` on failure.
+  `oauth_tokens` is `{:ok, tokens_map}` when the provider returned tokens, or `:none`.
 
   Note: We use a raw HTTP call instead of the SDK to capture the full error
   response, including `pending_authentication_token` for email verification.
   """
   def authenticate_with_code(code) do
-    with {:ok, auth_response} <- authenticate_with_code_raw(code),
-         {:ok, profile} <- extract_profile(auth_response) do
-      find_or_create_user_from_oauth(profile)
+    with {:ok, auth_response} <- authenticate_with_code_raw(code) do
+      resolve_user_from_auth(auth_response)
     end
   end
 
@@ -101,9 +101,8 @@ defmodule FrontmanServer.Accounts.WorkOS do
 
     case Req.post("#{@workos_api_base}/user_management/authenticate", json: body) do
       {:ok, %Req.Response{status: 200, body: response_body}} ->
-        with {:ok, auth_response} <- parse_auth_response(response_body),
-             {:ok, profile} <- extract_profile(auth_response) do
-          find_or_create_user_from_oauth(profile)
+        with {:ok, auth_response} <- parse_auth_response(response_body) do
+          resolve_user_from_auth(auth_response)
         end
 
       {:ok, %Req.Response{status: status, body: error_body}} ->
@@ -165,7 +164,34 @@ defmodule FrontmanServer.Accounts.WorkOS do
     |> Repo.one()
   end
 
+  @doc """
+  Extracts provider OAuth tokens from the raw WorkOS authentication response body.
+
+  Returns `{:ok, tokens_map}` when present, or `:none` when absent.
+  """
+  @spec extract_oauth_tokens(map()) :: {:ok, map()} | :none
+  def extract_oauth_tokens(%{"oauth_tokens" => %{"access_token" => _} = tokens}) do
+    {:ok,
+     %{
+       access_token: tokens["access_token"],
+       refresh_token: tokens["refresh_token"],
+       expires_at: tokens["expires_at"],
+       scopes: tokens["scopes"]
+     }}
+  end
+
+  def extract_oauth_tokens(_body), do: :none
+
   # Private functions
+
+  defp resolve_user_from_auth(auth_response) do
+    with {:ok, profile} <- extract_profile(auth_response) do
+      case find_or_create_user_from_oauth(profile) do
+        {:ok, user} -> {:ok, user, auth_response[:oauth_tokens]}
+        {:error, _} = error -> error
+      end
+    end
+  end
 
   defp extract_profile(%{user: user, authentication_method: auth_method}) do
     provider = workos_to_provider(auth_method)
@@ -336,7 +362,8 @@ defmodule FrontmanServer.Accounts.WorkOS do
        user: user,
        access_token: body["access_token"],
        refresh_token: body["refresh_token"],
-       authentication_method: body["authentication_method"]
+       authentication_method: body["authentication_method"],
+       oauth_tokens: extract_oauth_tokens(body)
      }}
   end
 
