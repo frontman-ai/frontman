@@ -476,6 +476,41 @@ defmodule FrontmanServer.Providers do
   Dispatches to the correct provider's refresh_token implementation.
   Returns `{:ok, new_access_token}` or `{:error, reason}`.
   """
+  # GitHub OAuth App tokens don't expire — "none" refresh_token signals this.
+  # Return the existing access_token directly.
+  def refresh_oauth_token(_scope, %OAuthToken{provider: "github", refresh_token: "none"} = token) do
+    {:ok, token.access_token}
+  end
+
+  # GitHub App tokens expire and have real refresh_tokens.
+  def refresh_oauth_token(%Scope{} = scope, %OAuthToken{provider: "github"} = token) do
+    case refresh_github_token(token.refresh_token) do
+      {:ok, new_tokens} ->
+        expires_at =
+          case new_tokens[:expires_in] do
+            seconds when is_integer(seconds) -> OAuthToken.calculate_expires_at(seconds)
+            _ -> OAuthToken.calculate_expires_at(28_800)
+          end
+
+        metadata = if is_map(token.metadata), do: token.metadata, else: %{}
+
+        case upsert_oauth_token(
+               scope,
+               "github",
+               new_tokens.access_token,
+               new_tokens.refresh_token || token.refresh_token,
+               expires_at,
+               metadata
+             ) do
+          {:ok, _} -> {:ok, new_tokens.access_token}
+          {:error, reason} -> {:error, {:failed_to_store_refreshed_token, reason}}
+        end
+
+      {:error, reason} ->
+        {:error, {:refresh_failed, reason}}
+    end
+  end
+
   def refresh_oauth_token(%Scope{} = scope, %OAuthToken{provider: "chatgpt"} = token) do
     case ChatGPTOAuth.refresh_token(token.refresh_token) do
       {:ok, new_tokens} ->
@@ -659,5 +694,46 @@ defmodule FrontmanServer.Providers do
       {:server_key, key} when is_binary(key) and key != "" -> :server_key
       {:server_key, _} -> :no_key
     end
+  end
+
+  ## GitHub OAuth Token Refresh
+
+  defp refresh_github_token(refresh_token) when is_binary(refresh_token) do
+    body = %{
+      client_id: github_client_id(),
+      client_secret: github_client_secret(),
+      grant_type: "refresh_token",
+      refresh_token: refresh_token
+    }
+
+    case Req.post("https://github.com/login/oauth/access_token",
+           json: body,
+           headers: [{"accept", "application/json"}]
+         ) do
+      {:ok, %Req.Response{status: 200, body: %{"access_token" => access_token} = resp}} ->
+        {:ok,
+         %{
+           access_token: access_token,
+           refresh_token: resp["refresh_token"],
+           expires_in: resp["expires_in"]
+         }}
+
+      {:ok, %Req.Response{status: 200, body: %{"error" => error}}} ->
+        {:error, {:github_error, error}}
+
+      {:ok, %Req.Response{status: status, body: resp_body}} ->
+        {:error, {:http_error, status, resp_body}}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp github_client_id do
+    Application.get_env(:frontman_server, :github_oauth)[:client_id]
+  end
+
+  defp github_client_secret do
+    Application.get_env(:frontman_server, :github_oauth)[:client_secret]
   end
 end

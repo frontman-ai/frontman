@@ -165,7 +165,7 @@ defmodule FrontmanServerWeb.OAuthController do
            scope,
            "github",
            tokens.access_token,
-           tokens.refresh_token || "",
+           tokens.refresh_token || "none",
            expires_at,
            %{"scopes" => tokens.scopes || []}
          ) do
